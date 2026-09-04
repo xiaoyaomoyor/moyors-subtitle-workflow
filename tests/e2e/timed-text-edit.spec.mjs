@@ -8,6 +8,7 @@ import {
   generateWaveformPayload,
   makeTempDir,
   startServer,
+  toggleCueListSettings
 } from './helpers.mjs';
 
 let tempDir;
@@ -57,6 +58,7 @@ test('shows an invalid toast when applying unchanged text', async ({ page }) => 
   });
   await page.goto(server.url);
 
+  await toggleCueListSettings(page);
   await page.locator('#batch-operations-btn').click();
   await page.locator('#timed-text-edit-btn').click();
   await expect(page.locator('#timed-text-edit-apply')).toBeEnabled();
@@ -72,6 +74,7 @@ test('previews text changes and applies the reported item-timing mapping', async
   });
   await page.goto(server.url);
 
+  await toggleCueListSettings(page);
   await page.locator('#batch-operations-btn').click();
   await page.locator('#timed-text-edit-btn').click();
   await expect(page.locator('#timed-text-edit-modal')).toHaveClass(/show/);
@@ -126,6 +129,7 @@ test('previews text changes and applies the reported item-timing mapping', async
   await page.locator('#timed-text-edit-cancel').click();
   await expect(page.locator('#timed-text-edit-modal')).not.toHaveClass(/show/);
 
+  await toggleCueListSettings(page);
   await page.locator('#batch-operations-btn').click();
   await page.locator('#timed-text-edit-btn').click();
 
@@ -160,6 +164,7 @@ test('shows disabled subtitles on demand without replacing hidden cues', async (
     localStorage.setItem('moy.asr.editor.onboarding.v1', 'completed');
   });
   await page.goto(server.url);
+  await toggleCueListSettings(page);
   await page.locator('#batch-operations-btn').click();
   await page.locator('#timed-text-edit-btn').click();
 

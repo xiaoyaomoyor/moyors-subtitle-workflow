@@ -2,15 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  disableOnboarding,
-  findFreePort,
-  generateWav,
-  generateWaveformPayload,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { cleanupTempDir, clickMenubarItem, disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, startServer, toggleMediaSettings } from './helpers.mjs';
 
 const DURATION_MS = 4_000;
 
@@ -80,7 +72,7 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
   await stubSavePicker(page);
   await page.goto(server.url);
 
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
   await page.locator('#subtitle-font-family').selectOption('hei');
   await page.locator('#subtitle-font-size').selectOption('40');
@@ -89,9 +81,9 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
 
-  await page.locator('#subtitle-export-btn').click();
+  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#download-full-ass')).toHaveText('完整字幕（ASS）');
-  await page.locator('#download-full-ass').click();
+  await clickMenubarItem(page, '文件', 'download-full-ass');
 
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);

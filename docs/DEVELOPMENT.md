@@ -104,7 +104,7 @@ uv run python edit.py --blank
 - `splitPercent`：`classic` 网格中波形与字幕区比例，归一化到 35–75。
 - `columnPercent`：`custom` 渲染器最外层左右分栏比例，归一化到 30–75。
 - `rows`：左侧“视频 / 当前字幕 / 字幕列表”的相对高度，读取时会规范化。
-- `tree`：`custom` 渲染器的当前真源。二叉树叶子为 `{ "type": "module", "id": ... }`；分支为 `{ "type": "split", "direction": "row" | "column", "ratio": 20..80, "children": [leftOrTop, rightOrBottom] }`。有效树必须恰好包含四个模块各一次。
+- `tree`：`custom` 渲染器的当前真源。二叉树叶子为 `{ "type": "module", "id": ... }`；分支为 `{ "type": "split", "direction": "row" | "column", "ratio": 20..80, "children": [leftOrTop, rightOrBottom] }`；标签组为 `{ "type": "tabs", "active": moduleId, "children": [module...] }`（Windows 文件夹式并排标签，仅 `active` 成员可见）。有效树包含 1-4 个互不重复的模块；被关闭的窗口不在树上，由本机偏好 `hiddenModules` 记录，可在「窗口 → 显示窗口」找回（模块图标点击菜单可切换/关闭窗口，拖拽图标可半区停靠或交换）。
 
 `web/waveform.js:normalizeLayoutData()` 负责容错、范围限制和工作区格式迁移。新增模块或修改树规则时，必须同步更新该函数、工作区拖放逻辑、`JSON_SCHEMA.md`、相关 JS 测试和此文档。
 

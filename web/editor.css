@@ -81,8 +81,11 @@
     --control-h: 30px;
 
     /* 面板顶部工具栏 / 布局拖拽栏高度 */
-    --panel-toolbar-h: 44px;
-    --dock-handle-h: 23px;
+    --panel-toolbar-h: 28px;
+    --dock-handle-h: 30px;
+    --module-tab-h: 26px;
+    /* 模块内容统一底色（比标签栏浅），激活标签与之同色 */
+    --module-content-bg: var(--bg-raised);
 
     /* 聚焦环 */
     --focus-ring:       0 0 0 2px var(--accent-soft);
@@ -108,7 +111,7 @@
     --layout-insert-fg:      #b9f1d2;
 
     /* 波形画布 —— 供 waveform.js 通过 getComputedStyle 读取以跟随主题 */
-    --wave-row-bg:          #1d252d;
+    --wave-row-bg:          var(--module-content-bg, #22262e);
     --wave-row-border:      #2d3944;
     --wave-row-tick:        #3b4b59;
     --wave-peak:            #65b89a;
@@ -312,7 +315,7 @@
     --layout-insert-fg:      #1f6b3f;
 
     /* 波形画布 */
-    --wave-row-bg:          #dfe4ea;
+    --wave-row-bg:          var(--module-content-bg, #dfe4ea);
     --wave-row-border:      #c4cbd6;
     --wave-row-tick:        #aeb6c2;
     --wave-peak:            #27875f;   /* 原 #2f9e6f 在浅行底上仅 2.6:1，波形峰值发虚，加深至 3.5:1 */
@@ -449,6 +452,539 @@
   h1 .json-name:hover { background: var(--bg-raised); color: var(--accent-hover); border-color: var(--border-strong); }
   h1 .json-name.empty { color: var(--text-faint); border-color: var(--border-subtle); background: transparent; cursor: default; pointer-events: none; }
 
+  /* === 菜单栏（UE 式顶部菜单）===
+     左上 LOGO + 六个选项卡 + 右上项目名（悬浮显示详情卡）。
+     下拉/子菜单复用 .dropdown-* 类名体系，但作用域为 .menubar 且子菜单向右展开。 */
+  .menubar {
+    flex: 0 0 auto; display: flex; align-items: stretch; gap: 2px;
+    margin: 0 0 6px; padding: 2px 4px;
+    font-size: 12.5px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+  }
+  .menubar-logo {
+    display: inline-flex; align-items: center; padding: 0 10px 0 6px;
+    color: var(--accent);
+  }
+  .menubar-logo svg {
+    width: 18px; height: 18px;
+    fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .menubar-item { position: relative; display: inline-flex; }
+  .menubar-tab {
+    background: transparent; color: var(--text-secondary);
+    border: 0; border-radius: var(--radius-sm);
+    padding: 4px 12px; font-size: 12.5px; font-family: inherit; cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+  }
+  .menubar-tab:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .menubar-item.open > .menubar-tab { background: var(--accent-tint-strong); color: var(--text-primary); }
+  .menubar-tab:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
+
+  .menubar-menu {
+    display: none; position: absolute; left: 0; top: calc(100% + 4px);
+    min-width: 220px; max-width: min(340px, calc(100vw - 16px));
+    background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: 4px 0;
+    box-shadow: var(--shadow-3); z-index: 200;
+  }
+  .menubar-item.open > .menubar-menu { display: block; }
+
+  .menu-group-title {
+    padding: 6px 14px 3px; color: var(--text-faint); font-size: 10.5px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; user-select: none;
+  }
+  .menubar .dropdown-item {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; box-sizing: border-box;
+    padding: 7px 14px; cursor: pointer; user-select: none;
+    color: var(--text-secondary); font-size: 13px; text-align: left;
+    background: transparent; border: 0; font-family: inherit; line-height: 1.3;
+    transition: background var(--t-fast), color var(--t-fast);
+  }
+  .menubar .dropdown-item:hover:not(.disabled):not(:disabled) { background: var(--accent-tint); color: var(--text-primary); }
+  .menubar .dropdown-item:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
+  .menubar .dropdown-item.disabled, .menubar .dropdown-item:disabled { opacity: .42; cursor: not-allowed; }
+  .menubar .dropdown-item[hidden] { display: none; }
+  .menubar .dropdown-item.danger { color: var(--red-hover); }
+  .menubar .dropdown-separator { height: 1px; margin: 4px 8px; background: var(--border-subtle); }
+  .menu-kbd {
+    margin-left: auto; padding-left: 18px;
+    color: var(--text-faint); font-size: 11px; font-family: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .menu-window-icon {
+    margin-left: auto; width: 13px; height: 13px; flex: 0 0 auto;
+    fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round;
+    opacity: .75;
+  }
+  /* 子菜单向右展开（区别于 .toolbar 下拉的向左展开） */
+  .menubar .dropdown-submenu { position: relative; }
+  .menubar .dropdown-submenu > .dropdown-submenu-menu {
+    display: none; position: absolute;
+    top: -5px; left: calc(100% - 1px); right: auto;
+    min-width: 240px; max-width: min(320px, calc(100vw - 16px));
+    background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: 4px 0;
+    box-shadow: var(--shadow-3); z-index: 201;
+  }
+  .menubar .dropdown-submenu.open > .dropdown-submenu-menu,
+  .menubar .dropdown-submenu:focus-within > .dropdown-submenu-menu { display: block; }
+  .menubar .dropdown-submenu-toggle { position: relative; padding-right: 30px; }
+  .menubar .dropdown-submenu-toggle::after {
+    content: '›'; position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%); color: var(--text-muted); font-size: 15px; line-height: 1;
+  }
+
+  /* 最近工程子菜单 */
+  .menubar #recent-projects-menu { min-width: 280px; }
+  .menubar .recent-project-setting { display: flex; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap; }
+  .menubar #recent-projects-list .dropdown-item { display: flex; align-items: center; gap: 10px; }
+  .menubar .recent-project-name { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .menubar .recent-project-badge {
+    flex: 0 0 auto; font-size: 10.5px; color: var(--text-muted);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 1px 6px;
+  }
+  .menubar .recent-project-badge.is-missing { color: var(--red-hover); border-color: var(--red-soft); }
+  .menubar .dropdown-item.is-missing { cursor: not-allowed; color: var(--text-faint); }
+
+  /* 多重字幕设置子菜单（复用全局 .multi-subtitle-setting-* 布局，补充容器与动作行） */
+  .menubar .multi-subtitle-settings-menu {
+    padding: 8px; min-width: 300px; max-width: min(340px, calc(100vw - 16px));
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .menubar .multi-subtitle-settings-menu #multi-subtitle-swap {
+    margin-top: 6px; justify-content: center;
+    border: 1px solid var(--btn-border); border-radius: var(--radius-sm);
+    background: var(--btn-bg); color: var(--btn-text);
+  }
+  .menubar .multi-subtitle-settings-menu #multi-subtitle-swap:hover {
+    background: var(--btn-bg-hover); border-color: var(--btn-border-hover); color: var(--text-primary);
+  }
+  .menubar label.dropdown-item.disabled { opacity: .42; cursor: not-allowed; }
+  .menubar .multi-subtitle-empty-hint { padding: 2px 7px 4px; white-space: normal; }
+
+  /* 字幕编辑 / 字幕列表设置子菜单：分组与行密度向其他子菜单（多重字幕设置）看齐 */
+  .menubar .cue-editor-settings-menu,
+  .menubar .cue-list-settings-menu {
+    padding: 8px; display: flex; flex-direction: column; gap: 2px;
+    min-width: 300px; max-width: min(360px, calc(100vw - 16px));
+  }
+  .menubar .cue-editor-settings-menu .settings-panel-section,
+  .menubar .cue-list-settings-menu .settings-panel-section {
+    display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+    padding: 0; background: transparent; border: 0; border-radius: 0;
+  }
+  .menubar .cue-editor-settings-menu .settings-panel-section + .settings-panel-section,
+  .menubar .cue-list-settings-menu .settings-panel-section + .settings-panel-section { margin-top: 4px; }
+  .menubar .cue-editor-settings-menu .settings-panel-title,
+  .menubar .cue-list-settings-menu .settings-panel-title {
+    flex: 0 0 auto; margin: 4px 7px 2px; padding: 0;
+    color: var(--text-faint); font-size: 10.5px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; text-align: left;
+  }
+  .menubar .cue-editor-settings-menu .settings-panel-item,
+  .menubar .cue-list-settings-menu .settings-panel-item {
+    padding: 4px 7px; border-radius: var(--radius-sm); min-height: 24px;
+  }
+  .menubar .cue-editor-settings-menu .settings-panel-item:hover,
+  .menubar .cue-list-settings-menu .settings-panel-item:hover { background: var(--bg-raised); }
+  .menubar .cue-editor-settings-menu .settings-panel-hint,
+  .menubar .cue-list-settings-menu .settings-panel-hint { padding: 0 7px; }
+
+  /* 「字幕列表设置 → 过滤与操作」：从字幕列表工具栏迁入的控件 */
+  .menubar .cue-list-settings-menu .cue-filter-search {
+    display: flex; align-items: center; position: relative;
+    padding: 0 7px;
+  }
+  .menubar .cue-list-settings-menu .cue-filter-search input[type="text"] {
+    flex: 1 1 auto; min-width: 0; box-sizing: border-box;
+    padding: 4px 24px 4px 8px; font-size: 12px; font-family: inherit;
+    color: var(--text-primary); background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  .menubar .cue-list-settings-menu .cue-filter-search input[type="text"]:focus {
+    outline: none; border-color: var(--accent); box-shadow: var(--focus-ring);
+  }
+  .menubar .cue-list-settings-menu .cue-filter-search .clear-x {
+    position: absolute; right: 14px; display: none;
+    width: 18px; height: 18px; align-items: center; justify-content: center;
+    color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm);
+    font-size: 13px; line-height: 1;
+  }
+  .menubar .cue-list-settings-menu .cue-filter-search.has-value .clear-x { display: inline-flex; }
+  .menubar .cue-list-settings-menu .cue-filter-search .clear-x:hover { color: var(--text-primary); background: var(--bg-raised); }
+  .menubar .cue-list-settings-menu .cue-action-btn,
+  .menubar .cue-list-settings-menu #color-filter-btn,
+  .menubar .cue-list-settings-menu #batch-operations-btn {
+    display: flex; align-items: center; gap: 6px; margin: 0 7px;
+    padding: 4px 8px; font-size: 12px; font-family: inherit;
+    color: var(--text-secondary); background: var(--btn-bg);
+    border: 1px solid var(--btn-border); border-radius: var(--radius-sm);
+    cursor: pointer; white-space: nowrap;
+  }
+  .menubar .cue-list-settings-menu #color-filter-btn:disabled { opacity: .42; cursor: not-allowed; }
+  .menubar .cue-list-settings-menu .cue-action-btn:hover,
+  .menubar .cue-list-settings-menu #color-filter-btn:not(:disabled):hover,
+  .menubar .cue-list-settings-menu #batch-operations-btn:hover {
+    background: var(--btn-bg-hover); color: var(--text-primary); border-color: var(--btn-border-hover);
+  }
+  .menubar .cue-list-settings-menu #batch-operations-btn.active,
+  .menubar .cue-list-settings-menu #color-filter-btn.active {
+    color: var(--text-primary); background: var(--accent-tint); border-color: var(--accent-line);
+  }
+  .menubar .cue-list-settings-menu .cue-list-count {
+    display: block; padding: 2px 7px; color: var(--text-muted); font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 次级下拉（批量操作 / 颜色过滤）由 JS 按视口坐标 fixed 定位，此处只管占位 */
+  .menubar .cue-list-settings-menu .dropdown { display: block; }
+
+  /* 「窗口 → 工作区」子菜单的勾选态 */
+  .menubar .workspace-preset-item .menu-check {
+    flex: 0 0 18px; color: var(--accent); font-size: 12px; opacity: 0;
+  }
+  .menubar .workspace-preset-item.is-active { color: var(--text-primary); }
+  .menubar .workspace-preset-item.is-active .menu-check { opacity: 1; }
+  .menubar .workspace-preset-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 精简工具行（V/R 波形工具 + 当前时间/已选数量） */
+  .toolbar-spacer { flex: 1 1 auto; }
+
+  /* 右上角项目名与悬浮详情卡 */
+  .menubar-project { margin-left: auto; position: relative; display: inline-flex; align-items: center; padding-right: 4px; }
+  .menubar-project-name {
+    max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-secondary); font-size: 12px; cursor: pointer;
+    padding: 3px 10px; border-radius: var(--radius-sm);
+    transition: background var(--t-fast), color var(--t-fast);
+  }
+  .menubar-project-name:hover { background: var(--bg-raised); color: var(--text-primary); }
+  .menubar-project-name.empty { color: var(--text-faint); cursor: default; pointer-events: none; }
+  .menubar-project-card {
+    position: absolute; right: 0; top: calc(100% + 6px);
+    min-width: 280px; max-width: min(380px, calc(100vw - 16px));
+    padding: 10px 12px;
+    background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-3);
+    z-index: 430; display: flex; flex-direction: column; gap: 6px;
+  }
+  .menubar-project-card[hidden] { display: none; }
+  .menubar-project-card-row { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .menubar-project-card-label { flex: 0 0 auto; color: var(--text-faint); font-size: 11px; }
+  .menubar-project-card-value {
+    flex: 1 1 auto; min-width: 0; color: var(--text-primary); font-size: 12.5px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .menubar-project-card-copy { cursor: pointer; text-decoration: underline dotted var(--border-strong); text-underline-offset: 3px; }
+  .menubar-project-card-copy:hover { color: var(--accent-hover); }
+  .menubar-project-card .media-name { color: var(--text-primary); }
+  .menubar-project-card .media-name.empty { color: var(--text-faint); cursor: default; }
+  .menubar-project-card .app-version { color: var(--text-muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .menubar-project-card-hint {
+    color: var(--text-faint); font-size: 10.5px;
+    border-top: 1px solid var(--border-subtle); padding-top: 6px; margin-top: 2px;
+  }
+
+  /* === 设置类弹窗（全局设置 / 媒体播放器设置 / 波形设置）=== */
+  .settings-modal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .settings-modal-header h3 { margin: 0; flex: 0 0 auto; }
+  .settings-modal-search {
+    flex: 1 1 auto; min-width: 0;
+    background: var(--bg-input); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 5px 10px; font-size: 12.5px; font-family: inherit;
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  }
+  .settings-modal-search:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .settings-modal-close {
+    flex: 0 0 auto; width: 28px; height: 28px; padding: 0;
+    background: var(--btn-bg); color: var(--btn-text);
+    border: 1px solid var(--btn-border); border-radius: var(--radius-sm);
+    font-size: 15px; line-height: 1; cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast);
+  }
+  .settings-modal-close:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  .settings-modal-body { display: flex; gap: 12px; min-height: 0; flex: 1 1 auto; }
+  /* 全局设置：可拖拽工具窗（固定尺寸，切换分类不改变大小，内容列各自滚动） */
+  .gap-remove-panel.editor-settings-panel { width: min(880px, calc(100vw - 24px)); height: min(600px, calc(100vh - 40px)); max-height: calc(100vh - 24px); }
+  .gap-remove-panel.editor-settings-panel .settings-modal-body { flex: 1 1 auto; min-height: 0; }
+  /* 搜索框嵌入标题栏右侧动作区 */
+  .editor-settings-search { width: 220px; }
+  .settings-modal-nav {
+    flex: 0 0 168px; display: flex; flex-direction: column; gap: 2px;
+    padding: 8px; overflow-y: auto;
+    background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  }
+  .settings-nav-item {
+    text-align: left; padding: 6px 10px; border: 0; border-radius: var(--radius-sm);
+    background: transparent; color: var(--text-secondary); font-size: 12.5px; font-family: inherit;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+  }
+  .settings-nav-item:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .settings-nav-item.active { background: var(--accent-tint-strong); color: var(--text-primary); font-weight: 600; }
+  /* 波形设置窗口：显示模式切换（多行/基础） */
+  .waveform-display-mode-row { display: flex; align-items: center; gap: 8px; }
+  .waveform-mode-toggle { display: inline-flex; gap: 4px; margin-left: auto; }
+  .waveform-mode-toggle .dropdown-item {
+    padding: 3px 10px; border-radius: var(--radius-sm); font-size: 12px;
+    color: var(--text-secondary); cursor: pointer; user-select: none;
+  }
+  .waveform-mode-toggle .dropdown-item.active {
+    color: var(--text-primary); background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line);
+  }
+  /* 二级导航（分类内的子分区）：缩进浅色，仅父分类激活时显示 */
+  .settings-nav-item.settings-nav-subitem { padding-left: 24px; color: var(--text-muted); font-size: 12px; }
+  .settings-nav-item.settings-nav-subitem:hover { color: var(--text-primary); }
+  /* UE 式展开箭头：父项激活时旋转朝下（无子分类的项没有箭头） */
+  .settings-nav-item:has(.settings-nav-caret) { display: flex; align-items: center; }
+  .settings-nav-caret {
+    display: inline-flex; margin-left: auto; padding-left: 6px;
+    color: var(--text-muted); transition: transform var(--t-fast);
+  }
+  .settings-nav-item.open .settings-nav-caret { transform: rotate(90deg); }
+  /* 「全部」/搜索平铺模式：显示分类标题分隔 */
+  .settings-category-header { display: none; }
+  .settings-modal-content.show-all-categories .settings-category { margin-bottom: 10px; }
+  .settings-modal-content.show-all-categories .settings-category-header {
+    display: flex; align-items: center; gap: 10px;
+    margin: 2px 0 4px; padding: 0 2px;
+    color: var(--text-secondary); font-size: 13px; font-weight: 650;
+  }
+  .settings-modal-content.show-all-categories .settings-category-header::after {
+    content: ''; flex: 1 1 auto; height: 1px; background: var(--border-subtle);
+  }
+  .settings-modal-content { flex: 1 1 auto; min-width: 0; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  .search-hidden { display: none !important; }
+  .settings-category[hidden] { display: none; }
+  /* 弹窗内设置组从工具栏面板的多列布局改为单列纵排；
+     用 block 而非 flex-column：子行全是块级元素，规避旧 wrap 布局在部分行的横向溢出 */
+  .settings-modal-content .editor-settings-sub-group {
+    display: block;
+  }
+  /* 媒体播放器设置 / 波形设置：gap-remove-panel 可拖拽工具窗（宽度沿用弹窗时代的规格） */
+  .gap-remove-panel.media-settings-panel { width: min(560px, calc(100vw - 24px)); }
+  .gap-remove-panel.wave-settings-panel { width: min(520px, calc(100vw - 24px)); top: 148px; }
+  .media-settings-body, .wave-settings-body {
+    display: flex; flex-direction: column; gap: 12px;
+    min-height: 0; max-height: min(64vh, 560px); overflow-y: auto;
+  }
+  /* 分节沿用原 .settings-panel 内部样式；补齐分节容器间距 */
+  .media-settings-body .settings-panel-section,
+  .wave-settings-body .settings-panel-section { display: flex; flex-direction: column; align-items: stretch; }
+
+  /* === 主题预设（全局设置 → 外观，VSCode 式）=== */
+  .theme-preset-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .theme-preset {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text-secondary);
+    font-size: 12px; font-family: inherit; cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  }
+  .theme-preset:hover { background: var(--btn-bg-hover); color: var(--text-primary); }
+  .theme-preset.active { border-color: var(--accent); color: var(--text-primary); background: var(--accent-tint); }
+  .theme-swatch {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1px solid rgba(127,127,127,.45);
+  }
+  .theme-preset[data-theme-preset="dark"] .theme-swatch { background: linear-gradient(135deg, #16181d 50%, #6ca5e8 50%); }
+  .theme-preset[data-theme-preset="light"] .theme-swatch { background: linear-gradient(135deg, #f3f4f6 50%, #2563eb 50%); }
+  .theme-preset[data-theme-preset="midnight"] .theme-swatch { background: linear-gradient(135deg, #0d1420 50%, #7aa2f7 50%); }
+  .theme-preset[data-theme-preset="forest"] .theme-swatch { background: linear-gradient(135deg, #101713 50%, #7cc97f 50%); }
+  .theme-preset[data-theme-preset="sepia"] .theme-swatch { background: linear-gradient(135deg, #1d1712 50%, #d2a468 50%); }
+  :root[data-accent="teal"] {
+    --accent: #2dd4bf; --accent-hover: #5cead9; --accent-strong: #14b8a6;
+    --accent-tint: rgba(45,212,191,.12); --accent-tint-strong: rgba(45,212,191,.22);
+    --accent-soft: rgba(45,212,191,.16); --accent-line: #2dd4bf;
+  }
+  :root[data-accent="violet"] {
+    --accent: #a78bfa; --accent-hover: #c4b5fd; --accent-strong: #8b5cf6;
+    --accent-tint: rgba(167,139,250,.12); --accent-tint-strong: rgba(167,139,250,.22);
+    --accent-soft: rgba(167,139,250,.16); --accent-line: #a78bfa;
+  }
+  :root[data-accent="green"] {
+    --accent: #4ade80; --accent-hover: #6ee7a0; --accent-strong: #22c55e;
+    --accent-tint: rgba(74,222,128,.12); --accent-tint-strong: rgba(74,222,128,.22);
+    --accent-soft: rgba(74,222,128,.16); --accent-line: #4ade80;
+  }
+  :root[data-accent="orange"] {
+    --accent: #fb923c; --accent-hover: #fdba74; --accent-strong: #f97316;
+    --accent-tint: rgba(251,146,60,.12); --accent-tint-strong: rgba(251,146,60,.22);
+    --accent-soft: rgba(251,146,60,.16); --accent-line: #fb923c;
+  }
+  :root[data-accent="pink"] {
+    --accent: #f472b6; --accent-hover: #f9a8d4; --accent-strong: #ec4899;
+    --accent-tint: rgba(244,114,182,.12); --accent-tint-strong: rgba(244,114,182,.22);
+    --accent-soft: rgba(244,114,182,.16); --accent-line: #f472b6;
+  }
+  [data-theme="light"][data-accent="teal"] {
+    --accent: #0f766e; --accent-hover: #115e59; --accent-strong: #0d9488;
+    --accent-tint: rgba(15,118,110,.12); --accent-tint-strong: rgba(15,118,110,.20);
+    --accent-soft: rgba(15,118,110,.16); --accent-line: #0f766e;
+  }
+  [data-theme="light"][data-accent="violet"] {
+    --accent: #7c3aed; --accent-hover: #6d28d9; --accent-strong: #8b5cf6;
+    --accent-tint: rgba(124,58,237,.12); --accent-tint-strong: rgba(124,58,237,.20);
+    --accent-soft: rgba(124,58,237,.16); --accent-line: #7c3aed;
+  }
+  [data-theme="light"][data-accent="green"] {
+    --accent: #16a34a; --accent-hover: #15803d; --accent-strong: #22c55e;
+    --accent-tint: rgba(22,163,74,.12); --accent-tint-strong: rgba(22,163,74,.20);
+    --accent-soft: rgba(22,163,74,.16); --accent-line: #16a34a;
+  }
+  [data-theme="light"][data-accent="orange"] {
+    --accent: #ea580c; --accent-hover: #c2410c; --accent-strong: #f97316;
+    --accent-tint: rgba(234,88,12,.12); --accent-tint-strong: rgba(234,88,12,.20);
+    --accent-soft: rgba(234,88,12,.16); --accent-line: #ea580c;
+  }
+  [data-theme="light"][data-accent="pink"] {
+    --accent: #db2777; --accent-hover: #be185d; --accent-strong: #ec4899;
+    --accent-tint: rgba(219,39,119,.12); --accent-tint-strong: rgba(219,39,119,.20);
+    --accent-soft: rgba(219,39,119,.16); --accent-line: #db2777;
+  }
+
+  /* === 第二轮优化：设置表单排版 / 详情卡关闭 / 颜色系统 / dock 菜单 === */
+  /* 设置弹窗表单：标签左、控件右，杜绝截断；提示占满整行 */
+  .settings-modal-content .editor-settings-group { gap: 10px; padding: 10px; }
+  .settings-modal-content .editor-settings-item {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center; column-gap: 12px; row-gap: 4px;
+    width: 100%; min-height: 0; padding: 3px 0;
+    color: var(--text-secondary); font-size: 12.5px; line-height: 1.45;
+  }
+  .settings-modal-content .toggle.editor-settings-item {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  }
+  .settings-modal-content .editor-settings-item select {
+    min-width: 170px; max-width: 65%; justify-self: end;
+  }
+  .settings-modal-content .editor-settings-hint {
+    grid-column: 1 / -1; margin: 0; color: var(--text-faint); font-size: 11px; line-height: 1.4;
+  }
+  .settings-modal-content .editor-settings-field { width: 100%; }
+  /* 设置弹窗内容列较窄：旧宽面板时代的整行结构（拆分语言类型行等）在此允许换行，
+     nowrap 的长提示文本也可断行，避免横向溢出。 */
+  .settings-modal-content .split-language-type-field,
+  .settings-modal-content .split-language-type-row,
+  .settings-modal-content .split-join-mode-hint-group,
+  .settings-modal-content .split-join-settings-actions,
+  .settings-modal-content label.toggle.editor-settings-item { max-width: 100%; }
+  .settings-modal-content #merge-join-mode-text,
+  .settings-modal-content .split-join-mode-switch,
+  .settings-modal-content label.toggle.editor-settings-item { white-space: normal; }
+  .settings-subsection {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-raised); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+  }
+  .settings-subsection-title {
+    color: var(--text-secondary); font-size: 12px; font-weight: 600; letter-spacing: .06em;
+  }
+  .settings-subsection .editor-settings-sub-group { gap: 8px; }
+
+  /* 菜单栏 LOGO：与浏览器标签图标同源（fill 已内联，不覆盖描边） */
+  .menubar-logo svg { width: 20px; height: 20px; }
+
+  /* 模块切换/关闭菜单（dock 图标点击） */
+  .dock-menu {
+    position: fixed; z-index: 440; min-width: 210px; padding: 4px 0;
+    background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-3);
+  }
+  .dock-menu .menu-group-title { padding: 5px 14px 3px; color: var(--text-faint); font-size: 10.5px; font-weight: 600; letter-spacing: .1em; }
+  .dock-menu .dropdown-item {
+    padding: 6px 14px; cursor: pointer; user-select: none;
+    color: var(--text-secondary); font-size: 12.5px;
+  }
+  .dock-menu .dropdown-item:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .dock-menu .dropdown-item.danger { color: var(--red-hover); }
+  .dock-menu .dropdown-separator { height: 1px; margin: 4px 8px; background: var(--border-subtle); }
+
+  /* 音频设置子菜单与波形模式选中态 */
+  .menubar .audio-settings-menu { min-width: 250px; }
+  .menubar [data-waveform-mode].active { color: var(--text-primary); background: var(--accent-tint); }
+  .menubar [data-waveform-mode].active::before { content: '✓ '; color: var(--accent); }
+
+  /* 界面颜色（外观 → 颜色） */
+  .color-picker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .color-picker-cell {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 4px 8px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  }
+  .color-picker-cell:hover { border-color: var(--border); }
+  .color-picker-cell input[type="color"] {
+    width: 34px; height: 22px; padding: 1px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); cursor: pointer;
+  }
+  .color-actions-row { display: flex; gap: 8px; }
+  #interface-colors-reset {
+    padding: 4px 12px;
+    background: var(--btn-bg); color: var(--btn-text);
+    border: 1px solid var(--btn-border); border-radius: var(--radius-sm);
+    font-size: 12px; font-family: inherit; cursor: pointer;
+  }
+  #interface-colors-reset:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+
+  /* 字幕文字颜色令牌（字幕列表与编辑区；播放器画面内预览不受影响） */
+  :root { --editor-cue-text: var(--text-primary); }
+  .cues-container .cue .text { color: var(--editor-cue-text); }
+  #cue-panel-text { color: var(--editor-cue-text); }
+  .cue-panel-target { color: var(--editor-cue-text); }
+
+  /* 当前字幕面板有侧内边距：标签栏负边距通到模块两端，与其他模块一致 */
+  .current-cue-panel > .module-tab-strip { margin: 0 -12px; }
+
+  /* 底部状态行：未选择在左下，总长度/字/秒在右下 */
+  .cue-panel-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 16px;
+  }
+
+  /* === 第三轮修复：常显数据行 / dock 浮窗 / 弹窗防溢出 === */
+  .waveform-readout {
+    flex: 0 0 auto; white-space: nowrap;
+    color: var(--text-muted); font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .waveform-readout[hidden] { display: none; }
+
+  /* dock 图标点击菜单：Blender 式纯图标竖排（其他窗口类型 + 底部垃圾桶），
+     无文字与关闭按钮，鼠标移出后由 JS 自动关闭 */
+  .dock-menu-panel {
+    position: fixed; z-index: 440;
+    display: flex; flex-direction: column; gap: 2px; padding: 4px;
+    background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-3);
+  }
+  .dock-menu-item {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; padding: 0;
+    background: transparent; color: var(--text-secondary);
+    border: 0; border-radius: var(--radius-sm); cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+  }
+  .dock-menu-item svg {
+    width: 17px; height: 17px;
+    fill: none; stroke: currentColor; stroke-width: 1.5;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .dock-menu-item svg .dock-icon-fill { fill: currentColor; stroke: none; }
+  .dock-menu-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+  .dock-menu-item.danger { color: var(--red-hover); }
+  .dock-menu-item.danger:hover { background: var(--red-soft); }
+
+  /* 设置弹窗防御：任何超宽内容裁剪而不是撑出横向滚动 */
+  .media-settings-body, .wave-settings-body { overflow-x: hidden; }
+
   /* === Server connection warning ===
      This is a persistent state banner rather than a transient flashHint: once
      the local editor server disappears, users must be able to see the warning
@@ -532,12 +1068,9 @@
   }
   .player-wrap.empty-state {
     min-height: 132px;
-    background: var(--bg-wave);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
   }
   /* 布局编辑模式下让出顶部 dock-handle 的高度。 */
-  .editor-workspace.layout-editing .player-wrap { padding-top: var(--dock-handle-h); }
+  /* 顶部栏常驻后，布局编辑模式不再需要为手柄留出整块 padding。 */
   .player-empty, .cues-empty {
     position: absolute; inset: 0; z-index: 20;
     display: flex; align-items: center; justify-content: center;
@@ -545,7 +1078,7 @@
     text-align: center; pointer-events: none;
   }
   .player-empty {
-    background: linear-gradient(180deg, var(--empty-overlay-1), var(--empty-overlay-2));
+    background: var(--module-content-bg);
   }
   .cues-empty {
     background: linear-gradient(180deg, var(--empty-raised-1), var(--empty-raised-2));
@@ -725,21 +1258,131 @@
 
   /* 面板内嵌工具栏（媒体预览 / 字幕列表 / 波形顶部）：复用 .toolbar 控件样式，
      额外固定高度、单行不换行 + 横向滚动，避免与波形 scroll 的 padding 错位。 */
+  /* 四个模块的顶部栏统一为波形栏的深色背景 */
   .toolbar.player-toolbar,
   .toolbar.cue-list-toolbar,
   .toolbar.waveform-toolbar,
   .toolbar.cue-editor-toolbar {
     height: var(--panel-toolbar-h);
     margin: 0;
-    padding: 6px 8px;
+    padding: 0 8px;
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
     align-items: center;
     gap: 6px;
-    background: var(--panel-toolbar-bg);
+    background: var(--panel-toolbar-bg-wave);
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
+  }
+  /* 自定义/标签布局：模块由槽位负责排布，清掉预设流式布局遗留的外边距（消除模块间空白缝） */
+  .layout-module-slot > .player-wrap,
+  .layout-module-slot > .current-cue-panel,
+  .layout-module-slot > .cues-module,
+  .layout-module-slot > .waveform-pane { margin: 0; }
+
+  /* 关键：模块元素自带 display（flex/block），会压过 [hidden] 的浏览器默认样式，
+     导致标签组内未激活成员仍然渲染（表现成“分裂成两个模块、两条标签栏联动”）。
+     这里显式让 hidden 属性永远生效。 */
+  [data-dock-module][hidden],
+  .module-instance-stub[hidden],
+  .module-tab[hidden] { display: none !important; }
+
+  /* ── Windows 文件夹式标签栏 ── */
+  .module-tab-strip {
+    display: flex; align-items: stretch; gap: 2px;
+    height: var(--module-tab-h); flex: 0 0 auto;
+    padding: 0 4px;
+    background: var(--panel-toolbar-bg-wave);
+    border-bottom: 1px solid var(--border-subtle);
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .module-tab-strip::-webkit-scrollbar { display: none; }
+  .module-tab {
+    display: inline-flex; align-items: center; gap: 5px;
+    max-width: 168px; padding: 0 4px 0 8px;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    color: var(--text-muted); font-size: 11.5px; line-height: 1;
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  .module-tab .tab-icon { display: inline-flex; align-items: center; }
+  .module-tab .tab-icon svg {
+    width: 13px; height: 13px;
+    fill: none; stroke: currentColor; stroke-width: 1.5;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .module-tab .tab-icon svg .dock-icon-fill { fill: currentColor; stroke: none; }
+  .module-tab .tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .module-tab:hover { color: var(--text-secondary); }
+  .module-tab.active {
+    color: var(--text-primary); background: var(--module-content-bg);
+    box-shadow: inset 0 2px 0 var(--accent);
+  }
+  .module-tab .tab-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; padding: 0; border: 0; border-radius: var(--radius-sm);
+    background: transparent; color: var(--text-faint);
+    font-size: 12px; line-height: 1; cursor: pointer;
+  }
+  .module-tab .tab-close:hover { background: var(--red); color: #fff; }
+  /* 面板内有全局按钮底色规则（.current-cue-panel button），这里提高特异性免疫 */
+  .module-tab-strip .module-tab-add {
+    background: transparent; border: 0; padding: 0;
+  }
+  .module-tab-add {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; margin: auto 0; padding: 0;
+    border: 0; border-radius: var(--radius-sm);
+    background: transparent; color: var(--text-muted);
+    font-size: 14px; line-height: 1; cursor: pointer;
+  }
+  .module-tab-add:hover { background: var(--bg-raised); color: var(--text-primary); }
+  .dock-menu-panel .dock-menu-empty {
+    padding: 4px 10px; color: var(--text-faint); font-size: 11px; white-space: nowrap;
+  }
+  /* 同一模块重复出现：非宿主位置的占位卡片 */
+  .module-instance-stub {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    color: var(--text-faint); background: var(--bg-panel);
+  }
+  .module-instance-stub .stub-icon svg {
+    width: 28px; height: 28px;
+    fill: none; stroke: currentColor; stroke-width: 1.2;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .module-instance-stub .stub-name { color: var(--text-muted); font-size: 13px; }
+  .module-instance-stub small { font-size: 11px; max-width: 240px; text-align: center; line-height: 1.5; }
+  /* 标签「变成模块」下拉：与标签同宽，图标 + 名称 */
+  .tab-convert-menu { padding: 3px; }
+  .tab-convert-menu .dock-menu-item {
+    width: 100%; justify-content: flex-start; gap: 8px;
+    padding: 0 8px; height: 26px;
+    color: var(--text-secondary); font-size: 11.5px;
+  }
+  .tab-convert-menu .dock-menu-item .tab-icon svg {
+    width: 13px; height: 13px; flex: 0 0 13px;
+    fill: none; stroke: currentColor; stroke-width: 1.5;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .tab-convert-menu .dock-menu-item .tab-icon svg .dock-icon-fill { fill: currentColor; stroke: none; }
+  .tab-convert-menu .dock-menu-item.active { color: var(--text-primary); background: var(--accent-tint); }
+  .tab-convert-menu .dock-menu-item:hover { color: var(--text-primary); }
+
+  /* 空工具栏隐藏：播放器与字幕列表栏退役；字幕编辑栏仅在提示开启时可见 */
+  .toolbar.player-toolbar,
+  .toolbar.cue-list-toolbar { display: none; }
+  .toolbar.cue-editor-toolbar:not(:has(.cue-editor-key-hints:not([hidden]))) { display: none; }
+
+  /* 28px 薄栏内的控件同步紧凑 */
+  .toolbar.player-toolbar button,
+  .toolbar.cue-list-toolbar button,
+  .toolbar.waveform-toolbar button,
+  .toolbar.cue-editor-toolbar button,
+  .toolbar.waveform-toolbar input,
+  .toolbar.waveform-toolbar select {
+    min-height: 22px; padding: 2px 7px; font-size: 12px;
   }
   .toolbar.player-toolbar > *,
   .toolbar.cue-list-toolbar > *,
@@ -762,7 +1405,16 @@
   .toolbar.waveform-toolbar,
   .toolbar.cue-editor-toolbar { overflow-x: hidden; }
   .toolbar.cue-list-toolbar .input-clear { flex: 1 1 auto; min-width: 0; }
-  .toolbar.cue-list-toolbar .input-clear input[type=text] { min-width: 0; width: 20ch; max-width: 100%; }
+  .toolbar.cue-list-toolbar .input-clear input[type=text] { min-width: 0; width: 12ch; max-width: 100%; }
+  /* 字幕列表工具栏与模块手柄同排：计数不收缩，分隔线在空间紧张时让位。 */
+  .toolbar.cue-list-toolbar .cue-list-count { flex: 0 0 auto; }
+  .toolbar.cue-list-toolbar > .sep { flex: 0 0 auto; }
+  /* 计数常显：容器查询默认在 <700px 时隐藏它，工具栏紧凑化后放得下；
+     窄容器下进一步收缩搜索框腾出空间。 */
+  .toolbar.cue-list-toolbar .cue-list-count { display: inline-flex; }
+  @container cue-list (max-width: 700px) {
+    .toolbar.cue-list-toolbar .input-clear input[type="text"] { width: 9ch; }
+  }
   /* 字幕列表操作按钮在窄宽度下保持单行，并用省略号收缩文本。 */
   .toolbar.cue-list-toolbar #batch-operations-dropdown,
   .toolbar.cue-list-toolbar #batch-operations-btn,
@@ -797,6 +1449,9 @@
   }
   .settings-panel[hidden] { display: none; }
   .waveform-settings-panel { max-height: min(620px, calc(100vh - 16px)); }
+  /* 媒体/波形设置已是 gap-remove-panel 工具窗的内容体：旧的独立面板宽高不再适用。 */
+  .gap-remove-panel .subtitle-preview-settings-panel { width: auto; }
+  .gap-remove-panel .waveform-settings-panel { max-height: none; }
   .settings-panel-owner-open {
     position: relative; z-index: 80;
   }
@@ -979,7 +1634,7 @@
   }
 
   .editor-settings-panel {
-    flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, minmax(190px, 1fr));
+    flex: 0 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
     gap: 8px; margin: -2px 0 8px; padding: 10px;
     background: var(--bg-panel);
     border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
@@ -1205,20 +1860,8 @@
   }
   /* 第一行左侧的工程下拉：菜单与按钮左对齐、宽度随内容收缩，
      避免 right:0 把菜单推出视口左缘或显得过宽。 */
-  .row-actions > .dropdown > .dropdown-menu {
-    left: 0; right: auto;
-    width: max-content; min-width: 100%; max-width: 320px;
-  }
-  /* 与“打开工程”相同：这两个短菜单按内容收缩，避免通用 240px 最小宽度留下大块空白。 */
-  #workspace-transfer-dropdown > .dropdown-menu {
-    left: 0; right: auto;
-    width: max-content; min-width: 100%; max-width: 320px;
-  }
-  /* 右侧工具栏的表情包导出菜单向左展开，避免贴近窗口右缘时溢出。 */
-  #extra-export-dropdown > .dropdown-menu {
-    left: auto; right: 0;
-    width: max-content; min-width: 100%; max-width: 320px;
-  }
+  /* 旧工具栏的 ID 级下拉定位规则已删除：这些入口全部迁入菜单栏，
+     子菜单统一由 .menubar .dropdown-submenu 规则向右展开。 */
   .toolbar .batch-operations-dropdown > .dropdown-menu {
     position: fixed; left: 0; right: auto; top: 0;
     width: max-content; min-width: 150px; max-width: min(260px, calc(100vw - 16px));
@@ -1484,7 +2127,29 @@
   }
   /* 字幕编辑区工具栏不出现横向滚动条：空间不足时压缩按键提示并用省略号截断，
      后置齿轮按钮（settings-anchor，flex 不收缩）始终保持完整可见。 */
+  /* 快捷键提示：位于标题栏内手柄右侧的单行小字（勾选「帮助 → 快捷键提示」后显示） */
+  .cue-editor-key-hints[hidden] { display: none !important; }
+  .waveform-status.cue-editor-key-hints:not([hidden]) {
+    display: inline-flex; align-items: center; gap: 10px;
+    flex: 0 1 auto; min-width: 0; overflow: hidden;
+    color: var(--text-muted); font-size: 11px; line-height: 1;
+    white-space: nowrap;
+  }
+  .cue-editor-key-hint { display: inline-flex; align-items: center; gap: 4px; }
+  .cue-editor-key-hints kbd {
+    padding: 1px 4px; font-size: 10.5px;
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-secondary); font-family: var(--font-mono);
+    box-shadow: none;
+  }
+  /* 字幕编辑区工具栏不出现横向滚动条：空间不足时压缩按键提示并用省略号截断，
+     后置齿轮按钮（settings-anchor，flex 不收缩）始终保持完整可见。 */
   .waveform-status.cue-editor-key-hints {
+    display: inline-flex;
+    /* 「帮助 → 快捷键提示」用 hidden 属性收起；显式声明压过上面的 display。 */
+  }
+  .cue-editor-key-hints[hidden] { display: none !important; }
+  .waveform-status.cue-editor-key-hints:not([hidden]) {
     display: inline-flex;
     align-items: center;
     gap: 14px;
@@ -1660,31 +2325,35 @@
   }
 
   /* === 当前字幕编辑区 === */
+  /* 模块外框平铺：与其他窗口一致，由标签栏通到内容，不再自带边框圆角；
+     纵向 flex 让内容撑满整个槽位（不与分界线之间留白） */
   .current-cue-panel {
-    flex: 0 0 auto; display: block;
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
     container: cue-panel / inline-size;
-    gap: 10px; margin-bottom: 8px; padding: 10px 12px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle); border-left: 3px solid var(--amber); border-radius: var(--radius-md);
-    box-shadow: var(--shadow-2);
+    gap: 10px; margin-bottom: 8px; padding: 0 12px 10px;
+    background: var(--module-content-bg);
   }
   .current-cue-panel > .cue-editor-toolbar {
     height: var(--panel-toolbar-h);
-    margin: -10px -12px 10px;
+    margin: 0 -12px 8px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
     padding: 6px 8px;
     flex-wrap: nowrap;
     overflow-x: hidden;
     overflow-y: hidden;
     align-items: center;
-    background: var(--panel-toolbar-bg);
+    background: var(--panel-toolbar-bg-wave);
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
   }
   .cue-panel-layout {
-    display: grid; width: 100%; min-width: 0;
+    display: grid; width: 100%; min-width: 0; flex: 1 1 auto; min-height: 0;
     grid-template-columns: auto auto minmax(220px, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto; align-content: stretch;
     gap: 10px; align-items: stretch;
   }
+  .cue-panel-text-wrap { grid-row: 1; }
+  .cue-panel-sticker-wrap { grid-row: 1; }
   .current-cue-panel.hide-cue-editor-navigation .cue-panel-navigation,
   .current-cue-panel.hide-cue-editor-time-actions .cue-panel-time-actions,
   .current-cue-panel.hide-cue-editor-sticker .cue-panel-sticker-wrap { display: none; }
@@ -1704,21 +2373,22 @@
     text-transform: uppercase; letter-spacing: .04em;
   }
   .cue-panel-time-fields input {
-    width: 92px; padding: 6px 7px; background: var(--bg-input); color: var(--text-primary);
+    width: 92px; padding: 6px 7px; background: var(--module-content-bg); color: var(--text-primary);
     border: 1px solid var(--border); border-radius: var(--radius-sm); font: 12px var(--font-mono);
     transition: border-color var(--t-fast), box-shadow var(--t-fast);
   }
   .cue-panel-time-fields input:focus,
   #cue-panel-text:focus { outline: none; border-color: var(--amber); box-shadow: var(--focus-ring-amber); }
   .cue-panel-text-wrap { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .cue-panel-text-wrap > textarea { flex: 1 1 auto; min-height: 3em; height: auto; }
   .cue-panel-target {
-    min-height: 16px; color: var(--text-secondary); font-size: 11px; font-weight: 700;
-    letter-spacing: .04em; text-transform: uppercase;
+    min-height: 16px; color: var(--text-muted); font-size: 11px; font-weight: 600;
+    letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .cue-panel-target.extension { color: var(--amber-hover); }
   #cue-panel-text {
     width: 100%; min-height: 58px; resize: vertical; padding: 7px 9px;
-    background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--module-content-bg); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
     font: 16px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif;
     transition: border-color var(--t-fast), box-shadow var(--t-fast);
   }
@@ -1774,38 +2444,30 @@
 
   /* === Cues 列表 === */
   .cues-container {
-    flex: 1 1 auto; overflow-y: auto;
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
     position: relative;
     container: cue-list / inline-size;
-    background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
-    /* 顶部不留 padding：sticky 工具栏直接顶到容器边缘，避免上方露出空隙。 */
+    background: var(--module-content-bg);
     padding: 0 4px 4px;
-    /* 浏览器/Playwright 自动滚动字幕行时，为 sticky 工具栏保留命中空间。 */
-    scroll-padding-top: calc(var(--panel-toolbar-h) + 4px);
+    scroll-padding-top: 4px;
   }
   /* 字幕列表顶部工具栏：sticky 固定在滚动区顶部；负边距拉通到容器边框；
      布局编辑模式下让出 dock-handle 高度。 */
-  .cues-container > .cue-list-toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    margin: 0 -4px 4px;
-    border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
+  /* 字幕列表模块 = wrapper（顶部栏 + 滚动容器）：滚动条从顶部栏下方开始 */
+  .cues-module {
+    display: flex; flex-direction: column;
+    min-width: 0; min-height: 0; flex: 1 1 auto;
   }
+  .cues-module > .cue-list-toolbar { border-radius: var(--radius-md) var(--radius-md) 0 0; }
   /* 层级陷阱：cue-list-toolbar 是 sticky（z-index: 30），自身形成 stacking context；
      布局拖动条（.layout-resizer，z-index: 50）在 paint 顺序上高于整个工具栏。
      工具栏内任何弹层（颜色过滤、批量操作等下拉菜单）即使 position: fixed +
      更高 z-index，也会被困在工具栏层级内被拖动条盖住。任何下拉打开时统一把
      工具栏提升到 60；新增弹层不要再单独打补丁（契约见 DESIGN.md 第 6 节）。 */
-  .cues-container > .cue-list-toolbar:has(.dropdown.open) {
-    z-index: 60;
-  }
+
   /* 布局编辑模式下，dock-handle 已在文档流中占位（顶部圆角归把手），
      工具栏 sticky 让出把手高度即可。 */
-  .editor-workspace.layout-editing .cues-container > .cue-list-toolbar {
-    top: var(--dock-handle-h);
-    border-radius: 0;
-  }
+
   .cue {
     position: relative;
     display: flex; align-items: flex-start; gap: 8px;
@@ -2619,6 +3281,12 @@
   .gap-remove-close:hover { color: var(--gap-close-hover-fg); background: var(--gap-close-hover-bg); border-color: var(--gap-close-hover-border); }
   .gap-remove-close:focus-visible { outline: 2px solid var(--amber-line); outline-offset: 1px; }
   .gap-remove-panel-body { min-height: 0; overflow-y: auto; padding: 14px; }
+  .gap-remove-panel-body select {
+    width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 12px; font-family: inherit;
+    color: var(--text-primary); background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;
+  }
+  .gap-remove-panel-body select:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .gap-remove-parameters-heading {
     display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 1px 7px;
   }

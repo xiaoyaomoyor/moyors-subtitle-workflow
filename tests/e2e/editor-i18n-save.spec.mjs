@@ -1,16 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  disableOnboarding,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, clickLanguageToggleViaSettings, clickMenubarItem, disableOnboarding, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleEditorSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -39,15 +30,15 @@ test('English locale covers the editor shell and recent-project setting stays fi
   await expect(page.locator('#recent-projects-toggle')).toHaveText('Recent projects');
   await expect(page.locator('#search')).toHaveAttribute('placeholder', 'Filter subtitles…');
   await expect(page.locator('#cue-panel-text')).toHaveAttribute('placeholder', 'Select a subtitle to start editing…');
-  await page.locator('#recent-projects-toggle').click();
+  await clickMenubarItem(page, '文件', 'recent-projects-toggle');
   await expect(page.locator('#server-project-settings')).toContainText('Automatically open last project');
 
   const firstMenuControl = await page.locator('#recent-projects-menu')
     .evaluate((menu) => menu.querySelector('input, .dropdown-item')?.id);
   expect(firstMenuControl).toBe('server-project-settings');
-  await page.locator('#recent-projects-toggle').click();
+  await clickMenubarItem(page, '文件', 'recent-projects-toggle');
 
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   const shellText = await page.locator('body').innerText();
   const untranslatedShellLines = shellText.split('\n')
     .map((line) => line.trim())
@@ -80,7 +71,7 @@ test('English locale covers the editor shell and recent-project setting stays fi
   expect(await page.locator('#ctxmenu').innerText()).not.toMatch(/[\u3400-\u9fff]/u);
   await page.keyboard.press('Escape');
 
-  await page.locator('#language-toggle').click();
+  await clickLanguageToggleViaSettings(page);
   await expect(page.locator('#save-project')).toHaveText('保存工程');
   await expect(page.locator('#search')).toHaveAttribute('placeholder', '过滤字幕…');
   await expect(page.locator('#cue-panel-text')).toHaveAttribute('placeholder', '选择一条字幕开始编辑…');

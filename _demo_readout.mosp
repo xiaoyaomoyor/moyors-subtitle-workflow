@@ -1,0 +1,3086 @@
+{
+  "media": {
+    "path": "",
+    "name": "demo.mp3"
+  },
+  "language": "",
+  "model": "",
+  "sticker_root": "",
+  "segments": [
+    {
+      "id": "a1",
+      "start": 0,
+      "end": 1500,
+      "text": "示例第一条",
+      "items": [],
+      "sticker": null,
+      "sticker_ref": null,
+      "color": null,
+      "color_ref": null,
+      "_dirty": true
+    },
+    {
+      "id": "a2",
+      "start": 1900,
+      "end": 3000,
+      "text": "示例第二条",
+      "items": [],
+      "sticker": null,
+      "sticker_ref": null,
+      "color": null,
+      "color_ref": null
+    }
+  ],
+  "multi_subtitle": {
+    "schema": "moy.asr.multi_subtitle.v1",
+    "enabled": true,
+    "display_mode": "both",
+    "main_split_mode": "continuous",
+    "tracks": [
+      {
+        "id": "extension-1",
+        "role": "extension",
+        "name": "UE5___Engine_Setup_for_Transparent_Stream_Game_Overlays_1080p60.qwen-audio.postprocess",
+        "language": "",
+        "split_mode": "word",
+        "source_name": "UE5___Engine_Setup_for_Transparent_Stream_Game_Overlays_1080p60.qwen-audio.postprocess.srt",
+        "segments": [
+          {
+            "id": "extension-1-segment-001",
+            "start": 240,
+            "end": 1600,
+            "text": "Hello, the name's Jeddum,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-002",
+            "start": 1680,
+            "end": 3560,
+            "text": "and today I'm going to show you how to set up",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-003",
+            "start": 3560,
+            "end": 7720,
+            "text": "Unreal Engine five so that you can create your own stream game overlay",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-004",
+            "start": 7720,
+            "end": 9250,
+            "text": "like this.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-005",
+            "start": 11550,
+            "end": 12230,
+            "text": "bear in mind,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-006",
+            "start": 12350,
+            "end": 16110,
+            "text": "this video will only cover how to output alpha from unreal engine and",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-007",
+            "start": 16110,
+            "end": 17910,
+            "text": "how i got it working with obs.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-008",
+            "start": 18190,
+            "end": 20830,
+            "text": "but this should apply to most broadcasting software.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-009",
+            "start": 21310,
+            "end": 23590,
+            "text": "it's worth noting that if you're looking to create",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-010",
+            "start": 23590,
+            "end": 28430,
+            "text": "a windows pit or windows assistant, this is a great start.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-011",
+            "start": 28550,
+            "end": 28870,
+            "text": "however,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-012",
+            "start": 28950,
+            "end": 30990,
+            "text": "you're going to need some windows hook to be able to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-013",
+            "start": 30990,
+            "end": 32630,
+            "text": "enable transparency in windows.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-014",
+            "start": 32750,
+            "end": 34030,
+            "text": "i'm not going to cover that in this video,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-015",
+            "start": 34110,
+            "end": 35670,
+            "text": "but if that's something you're interested in,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-016",
+            "start": 35750,
+            "end": 38390,
+            "text": "please drop a comment and i will get to work on making that",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-017",
+            "start": 38390,
+            "end": 39590,
+            "text": "happen as soon as i can.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-018",
+            "start": 40380,
+            "end": 41220,
+            "text": "with that being said,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-019",
+            "start": 41300,
+            "end": 42380,
+            "text": "that should be enough jibber-jibber.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-020",
+            "start": 42500,
+            "end": 44140,
+            "text": "let's just jump straight into it.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-021",
+            "start": 44620,
+            "end": 45820,
+            "text": "all right, so here we are.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-022",
+            "start": 46260,
+            "end": 47300,
+            "text": "let's create a new project.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-023",
+            "start": 47380,
+            "end": 47980,
+            "text": "we're going to go,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-024",
+            "start": 49100,
+            "end": 50020,
+            "text": "i don't know, games.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-025",
+            "start": 50100,
+            "end": 52140,
+            "text": "we'll just use third person.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-026",
+            "start": 52220,
+            "end": 52620,
+            "text": "why not?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-027",
+            "start": 52700,
+            "end": 55340,
+            "text": "and we'll just call this stream overlay.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-028",
+            "start": 55540,
+            "end": 56420,
+            "text": "nice and simple.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-029",
+            "start": 57890,
+            "end": 59930,
+            "text": "stream overlay create.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-030",
+            "start": 60410,
+            "end": 62010,
+            "text": "so here we are in a fresh project.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-031",
+            "start": 62090,
+            "end": 63970,
+            "text": "what we're going to do is we're going to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-032",
+            "start": 63970,
+            "end": 65530,
+            "text": "start deleting stuff straight off the bat, right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-033",
+            "start": 65610,
+            "end": 68090,
+            "text": "we'll leave a, i don't know,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-034",
+            "start": 68330,
+            "end": 69730,
+            "text": "a couple of blocks of the environment,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-035",
+            "start": 69810,
+            "end": 71090,
+            "text": "but we'll just clear the scene.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-036",
+            "start": 71690,
+            "end": 72850,
+            "text": "do that super quickly.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-037",
+            "start": 73530,
+            "end": 74530,
+            "text": "we don't need these walls.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-038",
+            "start": 74570,
+            "end": 75570,
+            "text": "we'll leave the floor.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-039",
+            "start": 76210,
+            "end": 77090,
+            "text": "we don't need that.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-040",
+            "start": 77290,
+            "end": 80250,
+            "text": "and let's delete, what's that one?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-041",
+            "start": 80370,
+            "end": 82170,
+            "text": "our volumetric cloud, definitely.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-042",
+            "start": 82330,
+            "end": 84770,
+            "text": "our sky atmosphere, we don't want that.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-043",
+            "start": 84850,
+            "end": 86370,
+            "text": "all we're going to really want is...",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-044",
+            "start": 86960,
+            "end": 89520,
+            "text": "Our skylight and our directional light,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-045",
+            "start": 89960,
+            "end": 91400,
+            "text": "we don't even need player start.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-046",
+            "start": 92730,
+            "end": 94450,
+            "text": "okay, so now that we've cleared out the scene,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-047",
+            "start": 94610,
+            "end": 96090,
+            "text": "let's start setting up for what else we're going",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-048",
+            "start": 96090,
+            "end": 96370,
+            "text": "to need.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-049",
+            "start": 96410,
+            "end": 100450,
+            "text": "we're going to need to add ourselves a camera actor right",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-050",
+            "start": 100450,
+            "end": 100730,
+            "text": "there.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-051",
+            "start": 101970,
+            "end": 104850,
+            "text": "we're going to rotate that camera actor so that it faces",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-052",
+            "start": 104850,
+            "end": 105610,
+            "text": "everything.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-053",
+            "start": 105810,
+            "end": 107850,
+            "text": "and we are going to 90 degrees.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-054",
+            "start": 107930,
+            "end": 110450,
+            "text": "and then we're going to change it in its details section.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-055",
+            "start": 110530,
+            "end": 111330,
+            "text": "we're going to change.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-056",
+            "start": 111940,
+            "end": 115140,
+            "text": "perspective to orthographic and then we're going to pull",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-057",
+            "start": 115140,
+            "end": 118740,
+            "text": "the camera down so that we can see everything again.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-058",
+            "start": 119740,
+            "end": 121980,
+            "text": "use your little window there, see what it's seeing.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-059",
+            "start": 122500,
+            "end": 124900,
+            "text": "and if you want to change how much is visible,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-060",
+            "start": 125420,
+            "end": 127540,
+            "text": "you're just going to want to change your ortho width.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-061",
+            "start": 128340,
+            "end": 130820,
+            "text": "i'm going to do something like that.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-062",
+            "start": 131100,
+            "end": 132300,
+            "text": "nice and easy.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-063",
+            "start": 133080,
+            "end": 137920,
+            "text": "And then just look for auto activate for player and you're",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-064",
+            "start": 137920,
+            "end": 139840,
+            "text": "going to want to set that for player zero.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-065",
+            "start": 140400,
+            "end": 140800,
+            "text": "Next,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-066",
+            "start": 141360,
+            "end": 144320,
+            "text": "if you still have your skylight from the template or if you",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-067",
+            "start": 144320,
+            "end": 144800,
+            "text": "don't have one,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-068",
+            "start": 144880,
+            "end": 147360,
+            "text": "add a skylight and we're going to turn off real",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-069",
+            "start": 147360,
+            "end": 150480,
+            "text": "time capture and we're going to change our source type to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-070",
+            "start": 150480,
+            "end": 151440,
+            "text": "specify cube map.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-071",
+            "start": 151560,
+            "end": 152480,
+            "text": "And from our cube map,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-072",
+            "start": 152560,
+            "end": 155080,
+            "text": "we're going to look down and just search gray,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-073",
+            "start": 155520,
+            "end": 158960,
+            "text": "G R A Y and search for just gray texture.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-074",
+            "start": 159040,
+            "end": 161440,
+            "text": "And what that's going to do is lift the shadows for",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-075",
+            "start": 161440,
+            "end": 162000,
+            "text": "us because we're not,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-076",
+            "start": 162200,
+            "end": 165120,
+            "text": "we've got no sky to real time capture anymore, right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-077",
+            "start": 165440,
+            "end": 169240,
+            "text": "so what we want to do is fake it, so to speak.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-078",
+            "start": 170640,
+            "end": 173120,
+            "text": "alright, that should be everything you have to do there.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-079",
+            "start": 173240,
+            "end": 174800,
+            "text": "if you don't have a post-process volume,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-080",
+            "start": 174920,
+            "end": 178960,
+            "text": "go ahead and add one by clicking add and searching for post-",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-081",
+            "start": 178960,
+            "end": 179600,
+            "text": "process volume.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-082",
+            "start": 179680,
+            "end": 184560,
+            "text": "and just ensure in its details, we search for infinite.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-083",
+            "start": 184720,
+            "end": 188440,
+            "text": "you'll want to enable infinite extent or unbound, right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-084",
+            "start": 188680,
+            "end": 190080,
+            "text": "now in our content drawer,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-085",
+            "start": 190160,
+            "end": 192680,
+            "text": "we're going to add two blueprint classes we're going",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-086",
+            "start": 192680,
+            "end": 192960,
+            "text": "to need.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-087",
+            "start": 193040,
+            "end": 195120,
+            "text": "the first one, we're going to search.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-088",
+            "start": 195580,
+            "end": 200740,
+            "text": "and under all classes and search for game instance and we're",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-089",
+            "start": 200740,
+            "end": 203860,
+            "text": "going to find game instance and just select that and we're",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-090",
+            "start": 203860,
+            "end": 209820,
+            "text": "going to call this overlay let's call it stream overlay game",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-091",
+            "start": 209820,
+            "end": 215040,
+            "text": "instance and then we're also going to add another blueprint and.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-092",
+            "start": 215380,
+            "end": 219180,
+            "text": "this one is going to be player control.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-093",
+            "start": 219380,
+            "end": 220340,
+            "text": "that's what we're going to need.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-094",
+            "start": 220940,
+            "end": 221420,
+            "text": "there we go.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-095",
+            "start": 221700,
+            "end": 223140,
+            "text": "that one there will do just fine.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-096",
+            "start": 223220,
+            "end": 224300,
+            "text": "i'm going to select that and we're going to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-097",
+            "start": 224300,
+            "end": 229380,
+            "text": "call this pc show cursor.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-098",
+            "start": 230340,
+            "end": 230820,
+            "text": "all right.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-099",
+            "start": 231460,
+            "end": 232020,
+            "text": "first of all,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-100",
+            "start": 232140,
+            "end": 236100,
+            "text": "we're going to open up our stream overlay game instance and",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-101",
+            "start": 236100,
+            "end": 240820,
+            "text": "we're going to search for event init or initiate.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-102",
+            "start": 241340,
+            "end": 243020,
+            "text": "and we're going to start playing with a few settings we",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-103",
+            "start": 243020,
+            "end": 243620,
+            "text": "'re going to need.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-104",
+            "start": 243820,
+            "end": 245820,
+            "text": "so we're going to drag off that pin there and go",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-105",
+            "start": 245820,
+            "end": 247580,
+            "text": "get game user settings.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-106",
+            "start": 247780,
+            "end": 249340,
+            "text": "then we're going to pull off that from again and we",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-107",
+            "start": 249340,
+            "end": 251940,
+            "text": "'re going to go set resolution.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-108",
+            "start": 252060,
+            "end": 255060,
+            "text": "should show a set screen resolution is the one you want to need.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-109",
+            "start": 255550,
+            "end": 257990,
+            "text": "and we're going to connect the return value of the game",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-110",
+            "start": 257990,
+            "end": 259550,
+            "text": "use settings to the target.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-111",
+            "start": 259630,
+            "end": 262470,
+            "text": "we're then going to split the structure pin of our resolution",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-112",
+            "start": 262470,
+            "end": 264630,
+            "text": "and we're going to set whatever resolution you like.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-113",
+            "start": 264750,
+            "end": 265110,
+            "text": "for me,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-114",
+            "start": 265190,
+            "end": 267390,
+            "text": "it's going to be 960 by 5",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-115",
+            "start": 267390,
+            "end": 267830,
+            "text": "40.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-116",
+            "start": 268430,
+            "end": 270990,
+            "text": "i want a small little window that i can sort of move over",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-117",
+            "start": 270990,
+            "end": 272110,
+            "text": "to my other screen.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-118",
+            "start": 273070,
+            "end": 275150,
+            "text": "we're going to improve on that in a little bit,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-119",
+            "start": 275670,
+            "end": 276590,
+            "text": "but first of all,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-120",
+            "start": 276630,
+            "end": 280070,
+            "text": "we're going to pull up from set screen resolution and we",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-121",
+            "start": 280070,
+            "end": 282270,
+            "text": "'re going to search for full screen.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-122",
+            "start": 282840,
+            "end": 285280,
+            "text": "Yes, set full screen mode.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-123",
+            "start": 286120,
+            "end": 286320,
+            "text": "again,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-124",
+            "start": 286400,
+            "end": 290600,
+            "text": "pull from our game user settings and pull that into the target and",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-125",
+            "start": 290600,
+            "end": 292440,
+            "text": "then we're going to change this to windowed.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-126",
+            "start": 292680,
+            "end": 296520,
+            "text": "from that, we're going to execute console command.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-127",
+            "start": 298100,
+            "end": 300340,
+            "text": "and this is so that i can get a little bit more detail,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-128",
+            "start": 300420,
+            "end": 300540,
+            "text": "right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-129",
+            "start": 300620,
+            "end": 302780,
+            "text": "so i've got this little small window i'm making,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-130",
+            "start": 302900,
+            "end": 308900,
+            "text": "but when i stretch that over the top of my window or to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-131",
+            "start": 308900,
+            "end": 311740,
+            "text": "fill the window in obs, it's going to look,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-132",
+            "start": 312180,
+            "end": 313740,
+            "text": "the resolution is not going to be fine.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-133",
+            "start": 313820,
+            "end": 316180,
+            "text": "you know, we're stretching it such a small resolution.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-134",
+            "start": 316460,
+            "end": 318540,
+            "text": "so what i'm going to do in here in the command",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-135",
+            "start": 318540,
+            "end": 320180,
+            "text": "is just type r.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-136",
+            "start": 320940,
+            "end": 322620,
+            "text": "screen percentage.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-137",
+            "start": 324470,
+            "end": 325750,
+            "text": "200 here.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-138",
+            "start": 325830,
+            "end": 328150,
+            "text": "so actually we'll pull off from the get game user settings",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-139",
+            "start": 328150,
+            "end": 330630,
+            "text": "return value and we'll just go apply settings.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-140",
+            "start": 330870,
+            "end": 331270,
+            "text": "there it goes.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-141",
+            "start": 331350,
+            "end": 332350,
+            "text": "it shows up this time.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-142",
+            "start": 332670,
+            "end": 336376,
+            "text": "we are going to check for command line overrides and then we'",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-143",
+            "start": 336376,
+            "end": 340910,
+            "text": "re also going to search for apply resolution settings.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-144",
+            "start": 341190,
+            "end": 341670,
+            "text": "there we go.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-145",
+            "start": 341750,
+            "end": 343830,
+            "text": "and we just need to make sure that we pull from the game",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-146",
+            "start": 343830,
+            "end": 344950,
+            "text": "user settings again.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-147",
+            "start": 345710,
+            "end": 349790,
+            "text": "and plug that into our apply resolution settings.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-148",
+            "start": 349910,
+            "end": 351550,
+            "text": "we're going to compile and save.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-149",
+            "start": 352110,
+            "end": 353510,
+            "text": "now back to our content drawer,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-150",
+            "start": 353550,
+            "end": 355790,
+            "text": "we're going to go open our pc show cursor.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-151",
+            "start": 356590,
+            "end": 358590,
+            "text": "we're going to head up to the event graph and off",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-152",
+            "start": 358590,
+            "end": 359550,
+            "text": "the begin play node,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-153",
+            "start": 359630,
+            "end": 363510,
+            "text": "we're just going to go set mouse cursor,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-154",
+            "start": 363790,
+            "end": 365150,
+            "text": "set show mouse cursor,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-155",
+            "start": 365510,
+            "end": 367270,
+            "text": "which is just a little boolean and we're just going to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-156",
+            "start": 367270,
+            "end": 368030,
+            "text": "click the tick.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-157",
+            "start": 370250,
+            "end": 371410,
+            "text": "and we're done with these two.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-158",
+            "start": 371490,
+            "end": 372530,
+            "text": "we can close these down now.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-159",
+            "start": 372610,
+            "end": 373090,
+            "text": "they're saved.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-160",
+            "start": 373130,
+            "end": 374250,
+            "text": "they're compiled and saved.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-161",
+            "start": 374290,
+            "end": 375450,
+            "text": "we're going to close those down.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-162",
+            "start": 376210,
+            "end": 379890,
+            "text": "and we are going to go back to our window here.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-163",
+            "start": 379970,
+            "end": 383050,
+            "text": "and now this is when we can start playing with the project settings.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-164",
+            "start": 383170,
+            "end": 383490,
+            "text": "okay.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-165",
+            "start": 383930,
+            "end": 385610,
+            "text": "hit to edit and go to project settings.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-166",
+            "start": 386170,
+            "end": 389010,
+            "text": "and the first thing we need to do is replace our game instance",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-167",
+            "start": 389010,
+            "end": 390170,
+            "text": "with our newly created one.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-168",
+            "start": 390290,
+            "end": 392170,
+            "text": "so search up game instance.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-169",
+            "start": 393330,
+            "end": 396490,
+            "text": "and we're going to change that to stream overlay game instance.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-170",
+            "start": 396970,
+            "end": 399450,
+            "text": "we are then going to search for alpha.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-171",
+            "start": 400650,
+            "end": 403930,
+            "text": "and we're going to enable alpha channel support in post-",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-172",
+            "start": 403930,
+            "end": 405330,
+            "text": "processing experimental.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-173",
+            "start": 405850,
+            "end": 407890,
+            "text": "i'm going to go allow through tone mapper.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-174",
+            "start": 408930,
+            "end": 413210,
+            "text": "we will also search for anti-aliasing method.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-175",
+            "start": 413820,
+            "end": 416060,
+            "text": "I'm going to set it back to it's on",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-176",
+            "start": 416060,
+            "end": 417420,
+            "text": "TSR by default.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-177",
+            "start": 418260,
+            "end": 419660,
+            "text": "I'm going to set it to TAA.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-178",
+            "start": 420060,
+            "end": 423540,
+            "text": "TSR is a little bit more performance hungry than TAA and for",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-179",
+            "start": 423540,
+            "end": 426300,
+            "text": "a stream overlay I think this would be the better suited option.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-180",
+            "start": 426780,
+            "end": 429620,
+            "text": "I'm also going to search up frame rate and I'",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-181",
+            "start": 429620,
+            "end": 432500,
+            "text": "m just going to under use fixed frame rate.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-182",
+            "start": 432540,
+            "end": 434740,
+            "text": "I've already set it here but I'm going to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-183",
+            "start": 434740,
+            "end": 437340,
+            "text": "click use fixed frame rate and just set that to thirty frames per",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-184",
+            "start": 437340,
+            "end": 437500,
+            "text": "second.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-185",
+            "start": 437580,
+            "end": 439700,
+            "text": "I don't feel like I need but that's personal",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-186",
+            "start": 439700,
+            "end": 441860,
+            "text": "preference again right but I don't think you're going",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-187",
+            "start": 441860,
+            "end": 443380,
+            "text": "to need that.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-188",
+            "start": 443780,
+            "end": 445020,
+            "text": "to a certain extent.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-189",
+            "start": 446020,
+            "end": 449780,
+            "text": "that should be all we need for our project settings,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-190",
+            "start": 449820,
+            "end": 451060,
+            "text": "so we can close that now.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-191",
+            "start": 451660,
+            "end": 452580,
+            "text": "back in our viewport,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-192",
+            "start": 452620,
+            "end": 454020,
+            "text": "we're just going to go to the world settings,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-193",
+            "start": 454100,
+            "end": 456380,
+            "text": "and we're just going to make sure that our player controller",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-194",
+            "start": 456380,
+            "end": 458940,
+            "text": "class is our pc show cursor,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-195",
+            "start": 459420,
+            "end": 462140,
+            "text": "and we're going to make sure that our default pawn class",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-196",
+            "start": 462140,
+            "end": 463140,
+            "text": "is set to none.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-197",
+            "start": 463720,
+            "end": 463960,
+            "text": "That way,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-198",
+            "start": 464000,
+            "end": 465880,
+            "text": "it's not going to spawn any character when we play the",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-199",
+            "start": 465880,
+            "end": 466160,
+            "text": "game.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-200",
+            "start": 466240,
+            "end": 469120,
+            "text": "It's going to use the main camera we set earlier as",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-201",
+            "start": 469120,
+            "end": 470360,
+            "text": "the camera.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-202",
+            "start": 470880,
+            "end": 472230,
+            "text": "And.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-203",
+            "start": 472980,
+            "end": 476220,
+            "text": "pretty much our setup is ready.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-204",
+            "start": 477300,
+            "end": 478260,
+            "text": "we have set up, right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-205",
+            "start": 478580,
+            "end": 480900,
+            "text": "now we can move on to the post-process material.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-206",
+            "start": 481900,
+            "end": 487540,
+            "text": "in the content drawer, create yourself a material and call this pp",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-207",
+            "start": 488380,
+            "end": 489140,
+            "text": "overlay trend.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-208",
+            "start": 489500,
+            "end": 490700,
+            "text": "we'll just call this overlay.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-209",
+            "start": 491660,
+            "end": 492580,
+            "text": "overlay material.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-210",
+            "start": 493060,
+            "end": 493740,
+            "text": "i've already got one,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-211",
+            "start": 493820,
+            "end": 495980,
+            "text": "so let's just call this overlay material.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-212",
+            "start": 496460,
+            "end": 498260,
+            "text": "and",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-213",
+            "start": 499260,
+            "end": 500740,
+            "text": "before we go and do anything in there,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-214",
+            "start": 500820,
+            "end": 502980,
+            "text": "we just want to go to our post-process volume.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-215",
+            "start": 503100,
+            "end": 505100,
+            "text": "if you haven't got one, as we discussed before,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-216",
+            "start": 505180,
+            "end": 506340,
+            "text": "just add one to the scene.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-217",
+            "start": 506900,
+            "end": 508886,
+            "text": "and we're going to look under the details and we'",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-218",
+            "start": 508886,
+            "end": 510340,
+            "text": "re going to get down to,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-219",
+            "start": 510700,
+            "end": 512460,
+            "text": "we're going to search for material and we're going",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-220",
+            "start": 512460,
+            "end": 513260,
+            "text": "to look for,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-221",
+            "start": 513380,
+            "end": 514940,
+            "text": "i'm just going to clear this for a second.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-222",
+            "start": 515830,
+            "end": 517070,
+            "text": "post-process materials.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-223",
+            "start": 517430,
+            "end": 520110,
+            "text": "and here you want to add an array element and you're",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-224",
+            "start": 520110,
+            "end": 523070,
+            "text": "going to go asset reference in that element and then you're",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-225",
+            "start": 523070,
+            "end": 525910,
+            "text": "going to search for pp underscore overlay.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-226",
+            "start": 527830,
+            "end": 531390,
+            "text": "Material and the one we call transparency, nice done.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-227",
+            "start": 531630,
+            "end": 533230,
+            "text": "We're going to save everything there.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-228",
+            "start": 534520,
+            "end": 537720,
+            "text": "and then we're going to open up our pp overlay material",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-229",
+            "start": 537720,
+            "end": 538240,
+            "text": "transparency.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-230",
+            "start": 538480,
+            "end": 540200,
+            "text": "so before we start playing with some nodes,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-231",
+            "start": 540280,
+            "end": 544640,
+            "text": "the first thing we need to do is select our main load material",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-232",
+            "start": 544640,
+            "end": 544760,
+            "text": "there.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-233",
+            "start": 544840,
+            "end": 547200,
+            "text": "we need to change a few settings under the domain.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-234",
+            "start": 547720,
+            "end": 550520,
+            "text": "we're going to change material domain to post process.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-235",
+            "start": 551200,
+            "end": 554720,
+            "text": "then underneath, we're going to scroll all the way down.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-236",
+            "start": 555120,
+            "end": 556240,
+            "text": "my head might be in the way here,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-237",
+            "start": 556320,
+            "end": 557640,
+            "text": "so let me just move it over there.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-238",
+            "start": 557960,
+            "end": 560360,
+            "text": "so you want to look for blendable location.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-239",
+            "start": 560670,
+            "end": 562790,
+            "text": "you're going to change that to before tone mapping.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-240",
+            "start": 562910,
+            "end": 564830,
+            "text": "now i believe in unreal engine 5.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-241",
+            "start": 564830,
+            "end": 568750,
+            "text": "4 that is called scene color before dof.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-242",
+            "start": 568990,
+            "end": 570190,
+            "text": "so just keep that in mind.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-243",
+            "start": 570270,
+            "end": 573150,
+            "text": "that might be the only difference there for 5.4 users.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-244",
+            "start": 573470,
+            "end": 575390,
+            "text": "and then we want to output alpha.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-245",
+            "start": 576630,
+            "end": 577030,
+            "text": "cool.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-246",
+            "start": 577630,
+            "end": 581750,
+            "text": "that should be everything we need for the actual overlay material itself.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-247",
+            "start": 581870,
+            "end": 583670,
+            "text": "so let's start adding some nodes.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-248",
+            "start": 584150,
+            "end": 587190,
+            "text": "the first node we're going to want to add is scene",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-249",
+            "start": 587190,
+            "end": 587710,
+            "text": "texture.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-250",
+            "start": 588430,
+            "end": 590510,
+            "text": "and we're going to click the little arrow down the bottom",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-251",
+            "start": 590510,
+            "end": 592110,
+            "text": "and you should get scene texture id.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-252",
+            "start": 592190,
+            "end": 594670,
+            "text": "we're going to change our first one to scene depth.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-253",
+            "start": 595150,
+            "end": 596496,
+            "text": "then we're going to copy and paste that and we'",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-254",
+            "start": 596496,
+            "end": 600070,
+            "text": "re going to set our second one to custom depth.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-255",
+            "start": 600270,
+            "end": 601550,
+            "text": "then we're going to add an if,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-256",
+            "start": 602910,
+            "end": 605310,
+            "text": "an if node and then we're going to plug our scene",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-257",
+            "start": 605310,
+            "end": 609150,
+            "text": "depth color into slot a and our custom depth color into slot b.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-258",
+            "start": 609670,
+            "end": 612840,
+            "text": "and now holding down the one key, we're going to add.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-259",
+            "start": 613200,
+            "end": 616160,
+            "text": "and left click while holding down the one key and constant.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-260",
+            "start": 616280,
+            "end": 617560,
+            "text": "we're going to add two of those.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-261",
+            "start": 617640,
+            "end": 620240,
+            "text": "and we're going to set our first one to zero and",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-262",
+            "start": 620240,
+            "end": 621600,
+            "text": "our second one to one.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-263",
+            "start": 622280,
+            "end": 626360,
+            "text": "and we're going to plug our zero constant into b greater",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-264",
+            "start": 626360,
+            "end": 627040,
+            "text": "than a.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-265",
+            "start": 628000,
+            "end": 630120,
+            "text": "and then we're going to set our second constant into a",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-266",
+            "start": 630120,
+            "end": 631000,
+            "text": "is less than b.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-267",
+            "start": 631710,
+            "end": 633390,
+            "text": "plug this straight into the opacity.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-268",
+            "start": 633510,
+            "end": 635110,
+            "text": "i'll show you what this does in a second,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-269",
+            "start": 635190,
+            "end": 638390,
+            "text": "but lastly we need to add copy and paste or add one",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-270",
+            "start": 638390,
+            "end": 639350,
+            "text": "more scene texture.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-271",
+            "start": 639670,
+            "end": 642830,
+            "text": "i'm going to change this one to post process input zero",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-272",
+            "start": 642830,
+            "end": 644870,
+            "text": "and we're going to plug this one into our emissive",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-273",
+            "start": 644870,
+            "end": 647310,
+            "text": "color and this should give us our scene back.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-274",
+            "start": 648390,
+            "end": 650030,
+            "text": "we apply and save that.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-275",
+            "start": 651010,
+            "end": 651450,
+            "text": "alright,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-276",
+            "start": 652090,
+            "end": 656130,
+            "text": "so we've pretty much made our material and as a basis",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-277",
+            "start": 656130,
+            "end": 657090,
+            "text": "this is going to work.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-278",
+            "start": 657210,
+            "end": 659210,
+            "text": "we're going to evolve on this a little bit soon,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-279",
+            "start": 659490,
+            "end": 661370,
+            "text": "but i'm going to talk you through what's happening",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-280",
+            "start": 661370,
+            "end": 662010,
+            "text": "so far.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-281",
+            "start": 662570,
+            "end": 665610,
+            "text": "so what's happening here is that we are comparing the scene",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-282",
+            "start": 665610,
+            "end": 667130,
+            "text": "depth against custom depth.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-283",
+            "start": 667890,
+            "end": 672210,
+            "text": "scene depth gives the distance to objects from the camera, right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-284",
+            "start": 672490,
+            "end": 674170,
+            "text": "and custom depth...",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-285",
+            "start": 675010,
+            "end": 678650,
+            "text": "when no object is assigned to it, holds a very large value.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-286",
+            "start": 678890,
+            "end": 680130,
+            "text": "if we look back at our scene,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-287",
+            "start": 680970,
+            "end": 684490,
+            "text": "this black space, or whatever, is nothingness.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-288",
+            "start": 684970,
+            "end": 686810,
+            "text": "so in terms of custom depth,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-289",
+            "start": 687050,
+            "end": 689930,
+            "text": "its value is probably as large as it can go.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-290",
+            "start": 691130,
+            "end": 693730,
+            "text": "if that makes sense to a certain extent.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-291",
+            "start": 694260,
+            "end": 699020,
+            "text": "and so what we're doing is if something is in custom",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-292",
+            "start": 699020,
+            "end": 702660,
+            "text": "depth, is visible to the camera and scene depth,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-293",
+            "start": 702940,
+            "end": 704900,
+            "text": "it's going to output a value of one,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-294",
+            "start": 705020,
+            "end": 708620,
+            "text": "making our post-process material opaque.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-295",
+            "start": 709780,
+            "end": 713100,
+            "text": "however, if it is not visible to the scene depth,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-296",
+            "start": 713220,
+            "end": 715500,
+            "text": "it must hold a very high custom depth value,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-297",
+            "start": 715620,
+            "end": 718180,
+            "text": "and therefore we run the opacity zero.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-298",
+            "start": 718510,
+            "end": 718590,
+            "text": "now,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-299",
+            "start": 718670,
+            "end": 723750,
+            "text": "i tried to do this without the custom depth node and just adding",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-300",
+            "start": 723750,
+            "end": 726470,
+            "text": "distance in there, but ran into heaps of,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-301",
+            "start": 726830,
+            "end": 729630,
+            "text": "i ran into some very strange errors and whatever.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-302",
+            "start": 729710,
+            "end": 732950,
+            "text": "so i found that this was the more solidified way to make",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-303",
+            "start": 732950,
+            "end": 733630,
+            "text": "this happen.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-304",
+            "start": 734230,
+            "end": 735590,
+            "text": "anyway, now that it's done,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-305",
+            "start": 736430,
+            "end": 737670,
+            "text": "we apply and save that.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-306",
+            "start": 737870,
+            "end": 741310,
+            "text": "and what we need to do is test this text.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-307",
+            "start": 741550,
+            "end": 744270,
+            "text": "and the way we can test this is not in the editor.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-308",
+            "start": 744520,
+            "end": 746360,
+            "text": "now it's not going to work in the editor or pie",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-309",
+            "start": 746360,
+            "end": 749320,
+            "text": "mode, but it will work in standalone game mode.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-310",
+            "start": 749440,
+            "end": 751040,
+            "text": "so we don't have to build the game to make sure",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-311",
+            "start": 751040,
+            "end": 751480,
+            "text": "this works.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-312",
+            "start": 751560,
+            "end": 753520,
+            "text": "so i'm just going to click the three dot down there",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-313",
+            "start": 753520,
+            "end": 755360,
+            "text": "and run standalone game.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-314",
+            "start": 756160,
+            "end": 757640,
+            "text": "and i'm just going to minimize this.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-315",
+            "start": 759800,
+            "end": 760200,
+            "text": "cool.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-316",
+            "start": 761000,
+            "end": 762840,
+            "text": "all right, next i'm going to get obs.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-317",
+            "start": 763200,
+            "end": 765360,
+            "text": "and the first thing we want to do is we want to right",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-318",
+            "start": 765360,
+            "end": 768640,
+            "text": "click and we want to add and click select game capture.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-319",
+            "start": 769200,
+            "end": 773200,
+            "text": "and we're just going to call this stream overlay game.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-320",
+            "start": 774080,
+            "end": 775320,
+            "text": "and we're going to click ok.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-321",
+            "start": 776120,
+            "end": 778240,
+            "text": "capture specific window under mode.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-322",
+            "start": 778280,
+            "end": 781240,
+            "text": "and the window is going to be our stream overlay 64",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-323",
+            "start": 781240,
+            "end": 782240,
+            "text": "-bit development.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-324",
+            "start": 782680,
+            "end": 785640,
+            "text": "Is this should match the name of what's on top and",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-325",
+            "start": 785640,
+            "end": 786600,
+            "text": "sure enough there it is.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-326",
+            "start": 786800,
+            "end": 789880,
+            "text": "And then we just going to allow transparency and click okay.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-327",
+            "start": 790160,
+            "end": 791040,
+            "text": "And there it is.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-328",
+            "start": 791920,
+            "end": 792440,
+            "text": "If we,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-329",
+            "start": 792680,
+            "end": 795760,
+            "text": "if i move ovs back over to here and we also bring",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-330",
+            "start": 795760,
+            "end": 798200,
+            "text": "the little mini game back over here as well.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-331",
+            "start": 800270,
+            "end": 802050,
+            "text": "And I resize this.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-332",
+            "start": 802870,
+            "end": 803510,
+            "text": "there it is.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-333",
+            "start": 803670,
+            "end": 808310,
+            "text": "we have our overlay inside obs, which is perfect.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-334",
+            "start": 808390,
+            "end": 809310,
+            "text": "we know it's working.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-335",
+            "start": 810390,
+            "end": 814390,
+            "text": "so what are our limitations with our post-process material already?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-336",
+            "start": 815070,
+            "end": 818710,
+            "text": "well, if we were to assign anything in the scene, anything at all,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-337",
+            "start": 819110,
+            "end": 820870,
+            "text": "to the custom depth pass,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-338",
+            "start": 825380,
+            "end": 826990,
+            "text": "We don't have.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-339",
+            "start": 827700,
+            "end": 831540,
+            "text": "any this is this object's going to disappear right because our",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-340",
+            "start": 831540,
+            "end": 836980,
+            "text": "comparison is comparing scene depth against the custom depth pass which means that",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-341",
+            "start": 836980,
+            "end": 839860,
+            "text": "anything set to the custom depth path is going is going to be",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-342",
+            "start": 839860,
+            "end": 843820,
+            "text": "invisible which might be annoying to some people as they might want a",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-343",
+            "start": 843820,
+            "end": 848220,
+            "text": "cell shaded post-processing material using custom depth as we have seen",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-344",
+            "start": 848220,
+            "end": 853020,
+            "text": "on youtube and and those comprehensive setups before so what is a way",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-345",
+            "start": 853020,
+            "end": 856360,
+            "text": "we can work around this we can still keep custom depth.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-346",
+            "start": 856520,
+            "end": 859560,
+            "text": "available for certain objects but keep the,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-347",
+            "start": 860240,
+            "end": 863920,
+            "text": "let's call it the abyss and the background outputting transparency.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-348",
+            "start": 864520,
+            "end": 867400,
+            "text": "well, we can use stencils.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-349",
+            "start": 868120,
+            "end": 871440,
+            "text": "you can see a custom depth stencil value just below the render custom",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-350",
+            "start": 871440,
+            "end": 872920,
+            "text": "depth pass on objects.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-351",
+            "start": 873280,
+            "end": 876120,
+            "text": "let's go back to our project settings for a little bit",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-352",
+            "start": 876120,
+            "end": 878600,
+            "text": "and what we're going to search for is custom depth.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-353",
+            "start": 879040,
+            "end": 881000,
+            "text": "how many times can i say custom depth, right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-354",
+            "start": 881640,
+            "end": 885760,
+            "text": "and under the custom depth stencil pass, the default is just enabled.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-355",
+            "start": 885880,
+            "end": 889040,
+            "text": "what we want to change that to is enabled with stencil.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-356",
+            "start": 889240,
+            "end": 890920,
+            "text": "and now that's done, we can close.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-357",
+            "start": 891280,
+            "end": 894160,
+            "text": "what we want to do is just go back to our post-",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-358",
+            "start": 894160,
+            "end": 897440,
+            "text": "process material and add just a little bit more further logic.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-359",
+            "start": 897680,
+            "end": 900400,
+            "text": "not complicated logic, but a little bit further.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-360",
+            "start": 902250,
+            "end": 906250,
+            "text": "to allow us to bring our custom depth pass switch back for certain",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-361",
+            "start": 906250,
+            "end": 906730,
+            "text": "objects.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-362",
+            "start": 907090,
+            "end": 909210,
+            "text": "first thing we're going to need is another scene texture.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-363",
+            "start": 909290,
+            "end": 911050,
+            "text": "so i'm just going to copy the scene depth and i",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-364",
+            "start": 911050,
+            "end": 913810,
+            "text": "'m going to open it and change it to custom stencil.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-365",
+            "start": 914050,
+            "end": 915530,
+            "text": "then i'm going to pull off the color and i'",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-366",
+            "start": 915530,
+            "end": 917290,
+            "text": "m going to search for another if node.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-367",
+            "start": 917930,
+            "end": 921490,
+            "text": "and then we are going to add one single constant.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-368",
+            "start": 921610,
+            "end": 924610,
+            "text": "so hold down the one key and just left click and you get",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-369",
+            "start": 924610,
+            "end": 925210,
+            "text": "a constant.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-370",
+            "start": 925410,
+            "end": 926970,
+            "text": "and i'm going to set this value to one.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-371",
+            "start": 927450,
+            "end": 931610,
+            "text": "we're going to plug the one value into the b slot.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-372",
+            "start": 931930,
+            "end": 935050,
+            "text": "the b is greater than a slot and the b is equal to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-373",
+            "start": 935050,
+            "end": 935290,
+            "text": "a.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-374",
+            "start": 935410,
+            "end": 939770,
+            "text": "and then we're going to bring from our previous if to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-375",
+            "start": 939770,
+            "end": 940890,
+            "text": "a is less than b.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-376",
+            "start": 941090,
+            "end": 944050,
+            "text": "and then we're going to from that result into the opacity.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-377",
+            "start": 944870,
+            "end": 948270,
+            "text": "and so what this tells us is anything that's using the",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-378",
+            "start": 948270,
+            "end": 951150,
+            "text": "custom depth pass or any object in the scene that's using",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-379",
+            "start": 951150,
+            "end": 954710,
+            "text": "the custom depth pass, if it has a stencil value of one,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-380",
+            "start": 955830,
+            "end": 960390,
+            "text": "it's going to output a value of one from the if",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-381",
+            "start": 960390,
+            "end": 960710,
+            "text": "node.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-382",
+            "start": 960870,
+            "end": 965990,
+            "text": "and we know that an opacity switch is zero is transparent and one",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-383",
+            "start": 965990,
+            "end": 966630,
+            "text": "is opaque.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-384",
+            "start": 967230,
+            "end": 967670,
+            "text": "visible.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-385",
+            "start": 968710,
+            "end": 973710,
+            "text": "so now we have this extra check, just this little clean extra check.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-386",
+            "start": 973870,
+            "end": 976990,
+            "text": "so what we do is we apply and save that and now if",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-387",
+            "start": 976990,
+            "end": 980510,
+            "text": "we were to hit back into our game scene and select any object,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-388",
+            "start": 980710,
+            "end": 983790,
+            "text": "let's just use the right shape there and we're",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-389",
+            "start": 983790,
+            "end": 985950,
+            "text": "going to enable custom depth pass and then we're just going",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-390",
+            "start": 985950,
+            "end": 988590,
+            "text": "to set its stencil value to one.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-391",
+            "start": 989550,
+            "end": 993150,
+            "text": "if we save that and run the game in standalone again,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-392",
+            "start": 994070,
+            "end": 998430,
+            "text": "activate that obs game overlay i had before.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-393",
+            "start": 998990,
+            "end": 1000270,
+            "text": "give it a second to find it.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-394",
+            "start": 1000470,
+            "end": 1001510,
+            "text": "boom, there it is.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-395",
+            "start": 1002150,
+            "end": 1006470,
+            "text": "what you can see now is that our right shape is still visible,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-396",
+            "start": 1006630,
+            "end": 1008790,
+            "text": "even though it's using the custom depth pass.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-397",
+            "start": 1009110,
+            "end": 1011670,
+            "text": "however, our background is completely gone.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-398",
+            "start": 1012710,
+            "end": 1014110,
+            "text": "i hope that makes sense,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-399",
+            "start": 1014470,
+            "end": 1018110,
+            "text": "but it's just another way to bring back our ability to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-400",
+            "start": 1018110,
+            "end": 1020510,
+            "text": "add objects to the custom depth pass.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-401",
+            "start": 1021210,
+            "end": 1022530,
+            "text": "so that's it.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-402",
+            "start": 1024050,
+            "end": 1025170,
+            "text": "that's pretty much it.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-403",
+            "start": 1025770,
+            "end": 1029290,
+            "text": "you have set up the basis of your project to be able to",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-404",
+            "start": 1029290,
+            "end": 1031650,
+            "text": "create a stream overlay, whatever you like.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-405",
+            "start": 1032290,
+            "end": 1036010,
+            "text": "whether the objects use custom depth pass or not,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-406",
+            "start": 1036450,
+            "end": 1039730,
+            "text": "you're going to be able to control that.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-407",
+            "start": 1040340,
+            "end": 1042580,
+            "text": "so, i hope that video was informative.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-408",
+            "start": 1042660,
+            "end": 1046300,
+            "text": "i hope that it helped you get set up so that you can",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-409",
+            "start": 1046300,
+            "end": 1054686,
+            "text": "have basically transparency and create whatever you want to make your streams",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-410",
+            "start": 1054686,
+            "end": 1056300,
+            "text": "10,000 times better, right?",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-411",
+            "start": 1057340,
+            "end": 1057580,
+            "text": "so,",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-412",
+            "start": 1057740,
+            "end": 1061940,
+            "text": "thank you for watching and if you like what you saw or want",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-413",
+            "start": 1061940,
+            "end": 1065460,
+            "text": "to learn more, i'll be making more tutorials, of course.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-414",
+            "start": 1065700,
+            "end": 1068020,
+            "text": "so, you know the drill, like and subscribe.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-415",
+            "start": 1068790,
+            "end": 1071630,
+            "text": "ring the bell if you want some notifications, although not necessary.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-416",
+            "start": 1071710,
+            "end": 1073550,
+            "text": "i know how annoying notifications can be.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-417",
+            "start": 1074070,
+            "end": 1076870,
+            "text": "and you have a wonderful day.",
+            "_dirty": true
+          },
+          {
+            "id": "extension-1-segment-418",
+            "start": 1077390,
+            "end": 1077830,
+            "text": "thank you.",
+            "_dirty": true
+          }
+        ]
+      }
+    ],
+    "bindings": [
+      {
+        "id": "binding-a1-extension-1-segment-001",
+        "track_id": "extension-1",
+        "main_segment_ids": [
+          "a1"
+        ],
+        "extension_segment_ids": [
+          "extension-1-segment-001"
+        ],
+        "start_offset_ms": 240,
+        "end_offset_ms": 100
+      }
+    ]
+  },
+  "waveform": {
+    "schema": "moy.asr.waveform.v1",
+    "encoding": "i8-minmax-base64",
+    "peaks_per_second": 100,
+    "peak_count": 300,
+    "duration_ms": 3000,
+    "data": "0DDTLdAw0DDXKcE/vkLXKc0z1irPMdIuxTvAQL9BxznPMbtF0S/BP9Evwj7RL84y1irQMME/xjrQMMQ8xjrDPcBAyjbWKs8xyzXIOMY6vkLCPs4yxDzCPtYq1CzTLc4y1SvCPsw01CzWKtYq1CzPMbxEwT/TLdEvuka+QtQs1CzLNcc5yDjEPMk3u0XAQNcpyja9Q75C0DC7RdYq0S/IOMU7vUO/Qco2wEDVK71D0DDQMMQ8ukbAQMk3v0HFO8E/1SvMNNgozTPEPNgo0DDULNYqvES+Qsk3xTu9Q9Iu1irKNtYqyDjLNdQsxTvGOsQ8zTPRL9cpvETGOtcpwEDHOck3v0HCPtIuyzW+Qr1DvUPTLdEvv0HIOMBAwT/BP8s1v0HXKcw0yjbBP7xEyTe9Q8I+zjLKNsU7yDi/QbxEu0W8RNcpwT/DPdMt0y3EPL1DxznRL8s1xTvDPcE/0DDFO8I+wj7ULME/zzHKNsBAzjLWKso2wT/YKL1Dyja+QtgoyTfRL7tF0i7RL7xExDy+Qsw01ynKNs0zukbBP8c51SvBP9EvzzHRL84yzzG+Qsk30DC+QsM9xzm8RNcp1ynTLbtFwEDXKcBAvETFO9cpyDi/Qcw00i7FO8I+xDzTLb1DzjLCPtAwxTvNM8BA1CzBP8s10DDKNtgo1CzFO8s1yjbBP9AwyDjOMsc51ym8RMg4zDTEPNIuyTfJN9Qs1SvHOcg4xznSLss1u0XFO9UrxDy9Q9QsyTfOMsY61SvFO8o21CzPMcE/yzXPMc0zwz3FO8I+vkLPMc8x",
+    "source": {
+      "name": "synthetic.wav",
+      "size": 0,
+      "modified_ms": 0
+    }
+  },
+  "workspace": {
+    "schema": "moy.asr.editor.workspace.v1",
+    "preset": "custom",
+    "waveformMode": "multi",
+    "waveformSettings": {
+      "visibleSeconds": 20,
+      "secondsPerRow": 10,
+      "rowHeight": 168,
+      "waveformScale": 1,
+      "side": "left",
+      "disabledDisplay": "dim",
+      "showGroupBadges": true,
+      "dragPlayhead": true
+    },
+    "splitPercent": 60,
+    "columnPercent": 30,
+    "rows": [
+      76,
+      12,
+      12
+    ],
+    "tree": {
+      "type": "split",
+      "direction": "row",
+      "ratio": 30,
+      "children": [
+        {
+          "type": "split",
+          "direction": "column",
+          "ratio": 36.36890951276102,
+          "children": [
+            {
+              "type": "module",
+              "id": "player"
+            },
+            {
+              "type": "split",
+              "direction": "column",
+              "ratio": 43.8876612730772,
+              "children": [
+                {
+                  "type": "module",
+                  "id": "panel"
+                },
+                {
+                  "type": "module",
+                  "id": "cues"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "module",
+          "id": "wave"
+        }
+      ]
+    },
+    "hiddenModules": [],
+    "selectedPreset": "wave-right",
+    "editorDisplay": {
+      "cueListShowIndex": true,
+      "cueListShowTime": true,
+      "cueListShowSticker": true,
+      "cueListShowCharcount": true,
+      "cueEditorShowNavigation": false,
+      "cueEditorShowTimeActions": false,
+      "cueEditorShowSticker": false
+    }
+  },
+  "preview": {
+    "subtitle": {
+      "x": 0.1,
+      "y": 0.76,
+      "width": 0.8,
+      "height": 0.16,
+      "color": "#ffffff",
+      "color_underline": true
+    },
+    "extension_subtitle": {}
+  }
+}

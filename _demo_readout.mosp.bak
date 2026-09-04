@@ -1,0 +1,134 @@
+{
+  "media": {
+    "path": "",
+    "name": "demo.mp3"
+  },
+  "language": "",
+  "model": "",
+  "sticker_root": "",
+  "segments": [
+    {
+      "id": "a1",
+      "start": 0,
+      "end": 1500,
+      "text": "示例第一条",
+      "items": [],
+      "sticker": null,
+      "sticker_ref": null,
+      "color": null,
+      "color_ref": null
+    },
+    {
+      "id": "a2",
+      "start": 1900,
+      "end": 3000,
+      "text": "示例第二条",
+      "items": [],
+      "sticker": null,
+      "sticker_ref": null,
+      "color": null,
+      "color_ref": null
+    }
+  ],
+  "multi_subtitle": {
+    "schema": "moy.asr.multi_subtitle.v1",
+    "enabled": false,
+    "display_mode": "both",
+    "main_split_mode": "continuous",
+    "tracks": [],
+    "bindings": []
+  },
+  "waveform": {
+    "schema": "moy.asr.waveform.v1",
+    "encoding": "i8-minmax-base64",
+    "peaks_per_second": 100,
+    "peak_count": 300,
+    "duration_ms": 3000,
+    "data": "0DDTLdAw0DDXKcE/vkLXKc0z1irPMdIuxTvAQL9BxznPMbtF0S/BP9Evwj7RL84y1irQMME/xjrQMMQ8xjrDPcBAyjbWKs8xyzXIOMY6vkLCPs4yxDzCPtYq1CzTLc4y1SvCPsw01CzWKtYq1CzPMbxEwT/TLdEvuka+QtQs1CzLNcc5yDjEPMk3u0XAQNcpyja9Q75C0DC7RdYq0S/IOMU7vUO/Qco2wEDVK71D0DDQMMQ8ukbAQMk3v0HFO8E/1SvMNNgozTPEPNgo0DDULNYqvES+Qsk3xTu9Q9Iu1irKNtYqyDjLNdQsxTvGOsQ8zTPRL9cpvETGOtcpwEDHOck3v0HCPtIuyzW+Qr1DvUPTLdEvv0HIOMBAwT/BP8s1v0HXKcw0yjbBP7xEyTe9Q8I+zjLKNsU7yDi/QbxEu0W8RNcpwT/DPdMt0y3EPL1DxznRL8s1xTvDPcE/0DDFO8I+wj7ULME/zzHKNsBAzjLWKso2wT/YKL1Dyja+QtgoyTfRL7tF0i7RL7xExDy+Qsw01ynKNs0zukbBP8c51SvBP9EvzzHRL84yzzG+Qsk30DC+QsM9xzm8RNcp1ynTLbtFwEDXKcBAvETFO9cpyDi/Qcw00i7FO8I+xDzTLb1DzjLCPtAwxTvNM8BA1CzBP8s10DDKNtgo1CzFO8s1yjbBP9AwyDjOMsc51ym8RMg4zDTEPNIuyTfJN9Qs1SvHOcg4xznSLss1u0XFO9UrxDy9Q9QsyTfOMsY61SvFO8o21CzPMcE/yzXPMc0zwz3FO8I+vkLPMc8x",
+    "source": {
+      "name": "synthetic.wav",
+      "size": 0,
+      "modified_ms": 0
+    }
+  },
+  "workspace": {
+    "schema": "moy.asr.editor.workspace.v1",
+    "preset": "custom",
+    "waveformMode": "multi",
+    "waveformSettings": {
+      "visibleSeconds": 20,
+      "secondsPerRow": 10,
+      "rowHeight": 120,
+      "waveformScale": 1,
+      "side": "left",
+      "disabledDisplay": "dim",
+      "showGroupBadges": true,
+      "dragPlayhead": true
+    },
+    "splitPercent": 60,
+    "columnPercent": 30,
+    "rows": [
+      76,
+      12,
+      12
+    ],
+    "tree": {
+      "type": "split",
+      "direction": "row",
+      "ratio": 30,
+      "children": [
+        {
+          "type": "split",
+          "direction": "column",
+          "ratio": 36.36890951276102,
+          "children": [
+            {
+              "type": "module",
+              "id": "player"
+            },
+            {
+              "type": "split",
+              "direction": "column",
+              "ratio": 43.8876612730772,
+              "children": [
+                {
+                  "type": "module",
+                  "id": "panel"
+                },
+                {
+                  "type": "module",
+                  "id": "cues"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "module",
+          "id": "wave"
+        }
+      ]
+    },
+    "hiddenModules": [],
+    "selectedPreset": "wave-right",
+    "editorDisplay": {
+      "cueListShowIndex": true,
+      "cueListShowTime": true,
+      "cueListShowSticker": true,
+      "cueListShowCharcount": true,
+      "cueEditorShowNavigation": false,
+      "cueEditorShowTimeActions": false,
+      "cueEditorShowSticker": false
+    }
+  },
+  "preview": {
+    "subtitle": {
+      "x": 0.1,
+      "y": 0.76,
+      "width": 0.8,
+      "height": 0.16,
+      "color": "#ffffff",
+      "color_underline": true
+    }
+  }
+}

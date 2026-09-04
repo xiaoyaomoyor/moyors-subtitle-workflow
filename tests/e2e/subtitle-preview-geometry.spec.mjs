@@ -6,18 +6,7 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import {
-  cleanupTempDir,
-  DURATION_MS,
-  findFreePort,
-  generateBlankEditor,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startServer,
-  startStaticServer,
-  testSegments,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, clickMenubarItem, findFreePort, generateBlankEditor, generateProjectJson, generateWav, makeTempDir, startServer, startStaticServer, testSegments } from './helpers.mjs';
 
 let tempDir;
 let projectPath;
@@ -299,7 +288,7 @@ test.describe('portable HTML', () => {
 
     // --- Export project JSON via the real "导出工程" (#download-json) button ---
     const downloadPromise = page.waitForEvent('download');
-    await page.locator('#download-json').click();
+    await clickMenubarItem(page, '文件', 'download-json');
     const download = await downloadPromise;
     const exportedPath = join(portableDir, 'exported.json');
     await download.saveAs(exportedPath);

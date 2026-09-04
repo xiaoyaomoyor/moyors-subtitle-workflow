@@ -5,14 +5,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  findFreePort,
-  generateBlankEditor,
-  generateWav,
-  makeTempDir,
-  startStaticServer,
-} from './helpers.mjs';
+import { cleanupTempDir, clickMenubarItem, findFreePort, generateBlankEditor, generateWav, makeTempDir, startStaticServer } from './helpers.mjs';
 
 let tempDir;
 let server;       // 便携版（SERVER_CONFIG = null）
@@ -79,7 +72,7 @@ test('New Project binds a browser handle and later saves write the same file', a
   await page.goto(server.url);
   await page.evaluate(() => DATA.segments.push({ start: 0, end: 1000, text: 'old' }));
 
-  await page.locator('#new-project').click();
+  await clickMenubarItem(page, '文件', 'new-project');
 
   await expect(page.locator('#json-name')).toHaveText('untitled.mosp');
   // 便携版最初隐藏保存控件；句柄绑定后出现并可用。
@@ -108,7 +101,7 @@ test('server-bound page stops writing the old server project after browser New P
   await page.goto(boundServer.url);
   await expect(page.locator('#save-project')).toBeEnabled();
 
-  await page.locator('#new-project').click();
+  await clickMenubarItem(page, '文件', 'new-project');
 
   await expect(page.locator('#json-name')).toHaveText('untitled.mosp');
   await expect(page.locator('#save-project')).toBeEnabled();
@@ -128,7 +121,7 @@ test('picker cancel preserves the current project and keeps save disabled', asyn
   await page.evaluate(() => DATA.segments.push({ start: 0, end: 1000, text: 'keep' }));
   await page.evaluate(() => { window.__pickerMode = 'cancel'; });
 
-  await page.locator('#new-project').click();
+  await clickMenubarItem(page, '文件', 'new-project');
 
   expect(await page.evaluate(() => DATA.segments.map((segment) => segment.text))).toEqual(['keep']);
   await expect(page.locator('#save-project')).toBeDisabled();
@@ -149,7 +142,7 @@ test('English locale translates the New Project confirmation', async ({ page }) 
     });
   });
 
-  await page.locator('#new-project').click();
+  await clickMenubarItem(page, '文件', 'new-project');
 
   expect(await dialogMessage).toBe('There are unsaved changes. Create a new project and discard them?');
   expect(await page.evaluate(() => window.__pickerCalls)).toBe(0);

@@ -1,14 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleEditorSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -145,7 +137,7 @@ test('dragging the waveform playhead crosses multi-row boundaries', async ({ pag
 test('the default waveform subtitle target follows the pointer', async ({ page }) => {
   await page.goto(server.url);
   await waitForMedia(page);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await expect(page.locator('#click-target')).toHaveValue('pointer');
   await expect(page.locator('#click-target-field')).toBeVisible();
   await page.evaluate(() => {

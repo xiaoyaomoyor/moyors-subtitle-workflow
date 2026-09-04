@@ -1,12 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
 import { writeFileSync } from 'node:fs';
-import {
-  cleanupTempDir,
-  findFreePort,
-  makeTempDir,
-  startAlignmentServer,
-} from './helpers.mjs';
+import { cleanupTempDir, findFreePort, makeTempDir, startAlignmentServer } from './helpers.mjs';
 
 let tempDir;
 let server;

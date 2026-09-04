@@ -187,7 +187,11 @@ class EditorAssetTests(unittest.TestCase):
 
     def test_blank_editor_inlines_modular_assets(self) -> None:
         page = edit.build_blank_html()
-        self.assertIn('class="waveform-mode-switch"', page)
+        # 显示模式现在是「波形设置」窗口里的下拉
+        self.assertIn('id="audio-settings-submenu"', page)
+        self.assertIn('id="waveform-display-mode"', page)
+        self.assertIn('<option value="multi">多行波形</option>', page)
+        self.assertIn('<option value="basic">基础波形</option>', page)
         self.assertIn('id="current-cue-panel"', page)
         self.assertIn('class="cue-panel-layout"', page)
         self.assertIn('container: cue-panel / inline-size;', page)
@@ -223,7 +227,9 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="workspace-preset"', page)
         self.assertIn('<option value="three-fold">三折叠布局</option>', page)
         self.assertIn('id="layout-reset"', page)
-        self.assertIn('class="toolbar-utility-group" role="group" aria-label="编辑器工具"', page)
+        # 工具栏改为菜单栏后不再有 utility-group；语言/设置/帮助收进菜单与全局设置。
+        self.assertIn('class="menubar" id="menubar"', page)
+        self.assertIn('data-menubar-item="help"', page)
         self.assertIn('data-waveform-tool="select"', page)
         self.assertIn('data-waveform-tool="razor"', page)
         self.assertIn('<span>分割</span>', page)
@@ -263,8 +269,9 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('const SERVER_CONFIG = null;', page)
         self.assertIn('id="editor-settings-toggle"', page)
         self.assertIn('id="editor-settings-panel"', page)
-        self.assertIn('id="cue-editor-settings-toggle"', page)
+        # 字幕编辑设置迁入「字幕」菜单子菜单（面板 id 保留，齿轮按钮移除）
         self.assertIn('id="cue-editor-settings-panel"', page)
+        self.assertIn('id="cue-editor-settings-submenu"', page)
         # 编辑区 header 不再显示「编辑」模块标签，只保留快捷键提示
         self.assertNotIn('<span class="info layout-toolbar-label">编辑</span>', page)
         self.assertIn('<span class="settings-panel-title">显示</span>', page)
@@ -273,22 +280,30 @@ class EditorAssetTests(unittest.TestCase):
         self.assertNotIn('id="cue-editor-cancel-on-escape" checked', page)
         self.assertNotIn('id="alt-snap-reversal"', page)
         self.assertNotIn('id="cancel-subtitle-drag-on-escape"', page)
-        self.assertIn('id="waveform-settings-toggle"', page)
+        # 波形设置改为「媒体」菜单打开的弹窗（面板 id 保留，齿轮按钮移除）
         self.assertIn('id="waveform-settings-panel"', page)
+        self.assertIn('id="wave-settings-modal"', page)
         self.assertIn('id="waveform-settings-help"', page)
         self.assertIn('id="keyboard-settings-help"', page)
-        self.assertIn('id="gap-settings-help"', page)
+        # 「静音空隙」分区（含帮助入口与操作方式）已并入静音空隙工具窗
+        self.assertNotIn('id="gap-settings-help"', page)
         self.assertIn('id="gap-remove-help"', page)
-        self.assertEqual(page.count('data-help-tab-target='), 4)
+        self.assertIn('id="gap-remove-operation-mode"', page)
+        self.assertEqual(page.count('data-help-tab-target='), 3)
         self.assertIn('具体用法详见帮助的「微调字幕」区', page)
         waveform_pane_start = page.index('<section class="waveform-pane"')
         editor_settings = page[page.index('id="editor-settings-panel"'):waveform_pane_start]
-        editor_settings_panel_end = page.index('</section>', page.index('id="editor-settings-panel"'))
+        # 设置面板改为 div 模态结构后没有 </section> 边界；
+        # 媒体/波形设置已是可拖拽工具窗（位于模板前部），改用其后的 FCP7 导出弹窗作结束标记。
+        editor_settings_panel_end = page.index('id="fcp7-export-modal"')
         editor_settings_panel = page[page.index('id="editor-settings-panel"'):editor_settings_panel_end]
         self.assertNotIn('音频波形区', editor_settings)
         self.assertNotIn('静音空隙', editor_settings)
         self.assertNotIn('id="cue-move-step"', editor_settings_panel)
-        self.assertIn('<span class="editor-settings-title">通用操作</span>', page)
+        # 通用操作是「通用」大类下的子分区标题
+        self.assertIn('<span class="settings-subsection-title">通用操作</span>', page)
+        self.assertIn('<span class="settings-subsection-title">拆分与合并</span>', page)
+        self.assertIn('<span class="settings-subsection-title">语言设置</span>', page)
         self.assertIn('<span class="editor-settings-title">表情包</span>', page)
         self.assertIn('<span class="editor-settings-title">彩蛋</span>', page)
         self.assertNotIn('<span class="editor-settings-title">其他</span>', page)
@@ -297,13 +312,15 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="sticker-otio-export-mode-hint"', page)
         self.assertIn('选择引用原始表情包素材；选择便携模式时，服务器会将素材复制到工程同目录。', page)
         self.assertLess(page.index('id="editor-settings-panel"'), page.index('id="sticker-root-btn"'))
-        sticker_group_start = page.index('<span class="editor-settings-title">表情包</span>')
-        sticker_group_end = page.index('\n  </div>\n</section>', sticker_group_start)
-        sticker_group = page[sticker_group_start:sticker_group_end]
-        self.assertIn('<span class="editor-settings-title">彩蛋</span>', sticker_group)
+        # 分类重组后：通用/导出/保存/表情包/彩蛋/外观 共 6 个分类
+        self.assertIn('<span class="editor-settings-title">彩蛋</span>', page)
+        self.assertIn('<span class="editor-settings-title">外观</span>', page)
         self.assertNotIn('<span class="editor-settings-title">🥷🏻</span>', page)
-        self.assertEqual(page.count('class="editor-settings-group"'), 4)
-        self.assertLess(page.index('id="cue-move-step"'), page.index('<span class="settings-panel-title waveform-settings-title">静音空隙</span>'))
+        self.assertEqual(page.count('class="editor-settings-group settings-category"'), 6)
+        # 「静音空隙」分区（含空隙区段操作方式）已移入静音空隙工具窗
+        wave_panel = page[page.index('id="waveform-settings-panel"'):]
+        self.assertNotIn('静音空隙', wave_panel[:2000])
+        self.assertIn('id="cue-move-step"', wave_panel)
         self.assertIn('字幕（编辑状态下）拆分按键', page)
         self.assertNotIn('波形区拆分按键', page)
         self.assertEqual(page.count('class="editor-settings-item editor-settings-list-fields editor-settings-display-row"'), 0)
@@ -500,7 +517,11 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('if (EDITOR_SETTINGS.cueEditorCancelOnEscape) cancelCuePanelTextEdit();', page)
         self.assertIn("cuePanel.classList.toggle('hide-cue-editor-navigation'", page)
         self.assertIn("cuePanel.classList.toggle('hide-cue-editor-sticker'", page)
-        self.assertIn('class="toolbar main-toolbar"', page)
+        # V/R 工具与时间/已选并入波形标题栏；顶部不再有独立工具行
+        self.assertNotIn('menubar-sub-toolbar', page)
+        self.assertIn('class="toolbar waveform-toolbar"', page)
+        self.assertIn('title="媒体总时长 · 波形峰值点数"', page)
+        # 每个模块都有顶部栏承载手柄；播放器栏的预览开关已收进媒体播放器设置
         self.assertIn('class="toolbar player-toolbar"', page)
         self.assertIn('class="toolbar cue-list-toolbar"', page)
         self.assertIn('class="toolbar waveform-toolbar"', page)
@@ -642,8 +663,8 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('gapOperationAllowsBoundary', page)
         self.assertIn('gapOperationAllowsMiddle', page)
 
-        gap_menu_start = page.index('<div class="dropdown-menu" id="gap-removed-export-menu" role="menu">')
-        gap_menu_end = page.index('<span class="dropdown" id="extra-export-dropdown">', gap_menu_start)
+        gap_menu_start = page.index('<div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">')
+        gap_menu_end = page.index('<div class="dropdown-submenu" id="extra-export-dropdown">', gap_menu_start)
         gap_menu = page[gap_menu_start:gap_menu_end]
         separator = '<div class="dropdown-separator" role="separator"></div>'
         self.assertEqual(gap_menu.count(separator), 2)
@@ -658,8 +679,9 @@ class EditorAssetTests(unittest.TestCase):
         )
         self.assertLess(second_separator, gap_menu.index('id="download-gap-removed-ffconcat"'))
 
-        extra_menu_start = page.index('<div class="dropdown-menu" id="extra-export-menu" role="menu">')
-        extra_menu_end = page.index('\n      </div>\n    </span>\n  </span>\n</div>', extra_menu_start)
+        extra_menu_start = page.index('<div class="dropdown-menu dropdown-submenu-menu" id="extra-export-menu" role="menu">')
+        # 菜单栏改造后「更多导出」是文件菜单的最后一个子菜单；截到「编辑」菜单项为止。
+        extra_menu_end = page.index('<div class="menubar-item" data-menubar-item="edit">', extra_menu_start)
         extra_menu = page[extra_menu_start:extra_menu_end]
         self.assertEqual(extra_menu.count(separator), 3)
         first_separator = extra_menu.index(separator)
@@ -687,7 +709,8 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="subtitle-background-alpha"', page)
         self.assertIn('queryLocalFonts', page)
         self.assertIn('var(--font-sans)', page)
-        self.assertIn('id="subtitle-preview-settings-toggle"', page)
+        # 媒体播放器设置改为「媒体」菜单打开的弹窗（面板 id 保留，齿轮按钮移除）
+        self.assertIn('id="media-settings-modal"', page)
         self.assertIn('id="subtitle-preview-settings-panel"', page)
         self.assertIn('class="subtitle-preview-setting-row"', page)
         self.assertNotIn('<span class="editor-settings-title">字幕预览</span>', page)

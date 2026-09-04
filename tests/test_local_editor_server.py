@@ -287,8 +287,8 @@ class LocalEditorServerTests(unittest.TestCase):
         page = server_editor.build_server_page(project).decode("utf-8")
 
         self.assertIn('let FILENAME_BASE = "subtitles-only";', page)
-        self.assertIn('id="json-name" title="点击复制工程文件名">subtitles-only.mosp</span>', page)
-        self.assertNotIn('class="json-name empty"', page)
+        self.assertIn('id="json-name" title="点击复制工程文件名；悬浮查看工程详情">subtitles-only.mosp</span>', page)
+        self.assertNotIn('class="menubar-project-name empty"', page)
         self.assertIn('id="media-name" title="">未加载媒体</span>', page)
         self.assertIn('"canSave": true', page)
 
@@ -466,8 +466,8 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('"activeWorkspaceName": ""};', page)
         self.assertIn('id="save-project"', page)
         self.assertIn('id="save-project-as"', page)
-        self.assertIn('id="save-project-dropdown"', page)
-        self.assertIn('id="open-project-dropdown"', page)
+        # 菜单栏改造后不再有分裂按钮包装；文件菜单直接提供两个菜单项。
+        self.assertIn('id="open-project"', page)
         self.assertIn('id="load-srt"', page)
         self.assertIn('id="load-srt-file"', page)
         self.assertIn('function parseSrtSegments(text)', page)
@@ -485,9 +485,10 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('id="auto-open-last-project"', page)
         self.assertLess(page.index('id="auto-open-last-project"'), page.index('id="recent-projects-list"'))
         self.assertIn("const STORAGE_KEY = 'mawe.language';", page)
-        self.assertIn('class="waveform-mode-switch"', page)
+        # 模式切换收进「媒体 → 音频设置」子菜单；保存到自定义布局取代另存为
+        self.assertIn('id="audio-settings-submenu"', page)
         self.assertIn('data-saved-workspaces', page)
-        self.assertIn('id="workspace-save-as"', page)
+        self.assertIn('id="workspace-save-custom"', page)
         self.assertIn('function configureServerWorkspaceLibrary()', page)
 
         with server_editor.EditorServer(("127.0.0.1", 0), project) as server:

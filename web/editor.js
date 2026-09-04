@@ -1339,7 +1339,6 @@ const multiSubtitleCrossTrackSnapToggle = document.getElementById('multi-subtitl
 const multiSubtitleSelectBoundPairToggle = document.getElementById('multi-subtitle-select-bound-pair');
 const multiSubtitleAutoSyncDurationToggle = document.getElementById('multi-subtitle-auto-sync-duration');
 const multiSubtitleShowTrackBadgesToggle = document.getElementById('multi-subtitle-show-track-badges');
-const multiSubtitleWaveformControls = document.getElementById('multi-subtitle-waveform-controls');
 const multiSubtitleToggle = document.getElementById('multi-subtitle-toggle');
 const multiSubtitleDisplayMode = document.getElementById('multi-subtitle-display-mode');
 const multiSubtitleMainLanguageMode = document.getElementById('multi-subtitle-main-language-mode');
@@ -1623,23 +1622,30 @@ function applyNinjaSettings() {
   if (ninjaRazorIcon) ninjaRazorIcon.hidden = !enabled;
 }
 
+const editorSettingsModal = document.getElementById('editor-settings-modal');
+// 全局设置与其他工具窗交互统一：标题栏可拖拽、右上角关闭、Esc 关闭、位置记忆。
+const EDITOR_SETTINGS_PANEL_POSITION_KEY = 'moy.asr.editor.editorSettingsPanel.pos.v1';
+const editorSettingsFloatingPanel = createFloatingPanel({
+  panel: editorSettingsModal,
+  dragHandle: document.getElementById('editor-settings-drag-handle'),
+  positionKey: EDITOR_SETTINGS_PANEL_POSITION_KEY,
+});
+function isEditorSettingsOpen() {
+  return Boolean(editorSettingsModal?.classList.contains('show'));
+}
 function setEditorSettingsPanelOpen(open) {
-  if (!editorSettingsPanel || !editorSettingsToggle) return;
+  if (!editorSettingsModal) return;
   if (!open) {
     setMergeJoinSettingsPanelOpen(false);
     setSplitTrimSettingsPanelOpen(false);
+    editorSettingsFloatingPanel.close();
+    return;
   }
-  editorSettingsToggle.classList.toggle('active', open);
-  editorSettingsToggle.setAttribute('aria-expanded', String(open));
-  // 先让按钮状态绘制出来，再展开/收起文档流中的大面板，避免布局重排把高亮拖后。
-  cancelAnimationFrame(editorSettingsPanelFrame);
-  editorSettingsPanelFrame = requestAnimationFrame(() => {
-    editorSettingsPanelFrame = requestAnimationFrame(() => {
-      editorSettingsPanelFrame = 0;
-      if (editorSettingsToggle.getAttribute('aria-expanded') !== String(open)) return;
-      editorSettingsPanel.hidden = !open;
-    });
-  });
+  editorSettingsFloatingPanel.open();
+  editorSettingsToggle?.classList.add('active');
+  editorSettingsToggle?.setAttribute('aria-expanded', 'true');
+  resetEditorSettingsSearch();
+  document.getElementById('editor-settings-search')?.focus();
 }
 
 function positionAnchoredSettingsPanel(panel, toggle) {
@@ -1688,61 +1694,31 @@ function setSplitTrimSettingsPanelOpen(open) {
   if (open) positionSplitTrimSettingsPanel();
 }
 
-function setSettingsPanelOwnerOpen(panel, open) {
-  const owner = panel?.closest('.player-wrap, .current-cue-panel, .cues-container, .waveform-pane');
-  owner?.classList.toggle('settings-panel-owner-open', open);
-}
-
-function positionSubtitlePreviewSettingsPanel() {
-  positionAnchoredSettingsPanel(subtitlePreviewSettingsPanel, subtitlePreviewSettingsToggle);
-}
-
+const mediaSettingsModal = document.getElementById('media-settings-modal');
+const waveSettingsModal = document.getElementById('wave-settings-modal');
+// 媒体播放器设置与波形设置复用延长字幕的可拖拽工具窗（gap-remove-panel），
+// 标题栏可拖动、右上角关闭、Esc 关闭、位置按窗持久化；内容控件 id 不变。
+const MEDIA_SETTINGS_PANEL_POSITION_KEY = 'moy.asr.editor.mediaSettingsPanel.pos.v1';
+const WAVE_SETTINGS_PANEL_POSITION_KEY = 'moy.asr.editor.waveSettingsPanel.pos.v1';
+const mediaSettingsFloatingPanel = createFloatingPanel({
+  panel: mediaSettingsModal,
+  dragHandle: document.getElementById('media-settings-drag-handle'),
+  positionKey: MEDIA_SETTINGS_PANEL_POSITION_KEY,
+});
+const waveSettingsFloatingPanel = createFloatingPanel({
+  panel: waveSettingsModal,
+  dragHandle: document.getElementById('wave-settings-drag-handle'),
+  positionKey: WAVE_SETTINGS_PANEL_POSITION_KEY,
+});
 function setSubtitlePreviewSettingsPanelOpen(open) {
-  if (!subtitlePreviewSettingsPanel || !subtitlePreviewSettingsToggle) return;
-  subtitlePreviewSettingsPanel.hidden = !open;
-  setSettingsPanelOwnerOpen(subtitlePreviewSettingsPanel, open);
-  subtitlePreviewSettingsToggle.classList.toggle('active', open);
-  subtitlePreviewSettingsToggle.setAttribute('aria-expanded', String(open));
-  if (open) positionSubtitlePreviewSettingsPanel();
+  if (!mediaSettingsModal) return;
+  if (open) mediaSettingsFloatingPanel.open();
+  else mediaSettingsFloatingPanel.close();
 }
-
-function positionCueListSettingsPanel() {
-  positionAnchoredSettingsPanel(cueListSettingsPanel, cueListSettingsToggle);
-}
-
-function setCueListSettingsPanelOpen(open) {
-  if (!cueListSettingsPanel || !cueListSettingsToggle) return;
-  cueListSettingsPanel.hidden = !open;
-  setSettingsPanelOwnerOpen(cueListSettingsPanel, open);
-  cueListSettingsToggle.classList.toggle('active', open);
-  cueListSettingsToggle.setAttribute('aria-expanded', String(open));
-  if (open) positionCueListSettingsPanel();
-}
-
-function positionCueEditorSettingsPanel() {
-  positionAnchoredSettingsPanel(cueEditorSettingsPanel, cueEditorSettingsToggle);
-}
-
-function setCueEditorSettingsPanelOpen(open) {
-  if (!cueEditorSettingsPanel || !cueEditorSettingsToggle) return;
-  cueEditorSettingsPanel.hidden = !open;
-  setSettingsPanelOwnerOpen(cueEditorSettingsPanel, open);
-  cueEditorSettingsToggle.classList.toggle('active', open);
-  cueEditorSettingsToggle.setAttribute('aria-expanded', String(open));
-  if (open) positionCueEditorSettingsPanel();
-}
-
-function positionWaveformSettingsPanel() {
-  positionAnchoredSettingsPanel(waveformSettingsPanel, waveformSettingsToggle);
-}
-
 function setWaveformSettingsPanelOpen(open) {
-  if (!waveformSettingsPanel || !waveformSettingsToggle) return;
-  waveformSettingsPanel.hidden = !open;
-  setSettingsPanelOwnerOpen(waveformSettingsPanel, open);
-  waveformSettingsToggle.classList.toggle('active', open);
-  waveformSettingsToggle.setAttribute('aria-expanded', String(open));
-  if (open) positionWaveformSettingsPanel();
+  if (!waveSettingsModal) return;
+  if (open) waveSettingsFloatingPanel.open();
+  else waveSettingsFloatingPanel.close();
 }
 
 function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
@@ -1795,32 +1771,27 @@ function updateMultiSubtitleUi() {
   const leavingEnabled = !enabled && previousMultiSubtitlePreviewEnabled;
   syncMultiSubtitleWaveformRowHeight(enabled, enteringEnabled, leavingEnabled);
   refreshMergeJoinModeHint();
-  if (multiSubtitleControls) multiSubtitleControls.hidden = !hasMainSubtitle;
-  if (multiSubtitleSettingsDropdown) {
-    // 齿轮仅在已导入副轨（真正进入多重字幕编辑）时显示；
-    // 已开启但还没有第二条字幕时改在开关右侧显示拖入提示。
-    multiSubtitleSettingsDropdown.hidden = !enabled;
-    if (multiSubtitleSettingsDropdown.hidden) {
-      multiSubtitleSettingsDropdown.classList.remove('open');
-      multiSubtitleSettingsDropdown.querySelector('button[aria-expanded]')
-        ?.setAttribute('aria-expanded', 'false');
-    }
-  }
   if (multiSubtitleEmptyHint) {
-    // 提示与齿轮互斥：开启但无副轨 → 显示；其余隐藏。
+    // 开启但尚无副轨时在开关下方显示拖入提示。
     multiSubtitleEmptyHint.hidden = !(getMultiSubtitleState().enabled === true && !enabled);
   }
   if (multiSubtitleToggle) {
     // 勾选状态跟随「多重字幕编辑模式」开关本身：未导入副轨时同样保持勾选。
     multiSubtitleToggle.checked = getMultiSubtitleState().enabled === true;
-    // 没有副轨时仍允许点击，由 change 处理器询问是否现在导入第二条字幕。
-    multiSubtitleToggle.disabled = false;
+    // 只有一种字幕（尚无副轨）时开关灰显；先通过「加载字幕 → 作为多重字幕导入」建立副轨。
+    multiSubtitleToggle.disabled = !hasTrack;
   }
   if (multiSubtitleToggleLabel) {
-    multiSubtitleToggleLabel.classList.remove('disabled');
-    multiSubtitleToggleLabel.title = MULTI_SUBTITLE_TOGGLE_TITLE;
+    multiSubtitleToggleLabel.classList.toggle('disabled', !hasTrack);
+    multiSubtitleToggleLabel.title = hasTrack
+      ? MULTI_SUBTITLE_TOGGLE_TITLE
+      : '请先通过「字幕 → 加载字幕」导入第二条字幕，再启用多重字幕。';
   }
-  if (multiSubtitleToggle) multiSubtitleToggle.title = MULTI_SUBTITLE_TOGGLE_TITLE;
+  if (multiSubtitleToggle) {
+    multiSubtitleToggle.title = hasTrack
+      ? MULTI_SUBTITLE_TOGGLE_TITLE
+      : '请先通过「字幕 → 加载字幕」导入第二条字幕，再启用多重字幕。';
+  }
   if (multiSubtitleDisplayMode) {
     multiSubtitleDisplayMode.value = getMultiSubtitleState().display_mode || 'both';
     multiSubtitleDisplayMode.hidden = !enabled;
@@ -1862,7 +1833,6 @@ function updateMultiSubtitleUi() {
     multiSubtitleSwapButton.classList.toggle('disabled', !canSwap);
     multiSubtitleSwapButton.setAttribute('aria-disabled', canSwap ? 'false' : 'true');
   }
-  if (multiSubtitleWaveformControls) multiSubtitleWaveformControls.hidden = !enabled;
   if (multiSubtitleAlignButton) multiSubtitleAlignButton.hidden = !enabled;
   if (extensionOverlayToggleWrap) extensionOverlayToggleWrap.hidden = !enabled;
   if (extensionSubtitlePreviewSettings) extensionSubtitlePreviewSettings.hidden = !enabled;
@@ -1883,6 +1853,18 @@ function bindCueListDisplayToggle(toggle, key) {
     applyCueListDisplaySettings();
   });
 }
+
+// 「帮助 → 快捷键提示」：控制子工作区顶部栏的 Enter/Esc 等键位提示（默认关闭）。
+function applyToolbarKbdHints() {
+  const hints = document.getElementById('cue-editor-key-hints');
+  if (hints) hints.hidden = !EDITOR_SETTINGS.toolbarKbdHints;
+}
+const toolbarKbdHintsToggle = document.getElementById('toolbar-kbd-hints-toggle');
+toolbarKbdHintsToggle?.addEventListener('change', () => {
+  updateEditorSettings({ toolbarKbdHints: toolbarKbdHintsToggle.checked });
+  applyToolbarKbdHints();
+});
+applyToolbarKbdHints();
 
 function applyCueEditorDisplaySettings() {
   cueEditorShowNavigationToggle.checked = EDITOR_SETTINGS.cueEditorShowNavigation;
@@ -2134,7 +2116,7 @@ multiSubtitleAlignButton?.addEventListener('click', () => {
 });
 applySubtitleAppearance();
 applyExtensionSubtitleAppearance();
-editorSettingsToggle?.addEventListener('click', () => setEditorSettingsPanelOpen(editorSettingsPanel?.hidden));
+editorSettingsToggle?.addEventListener('click', () => setEditorSettingsPanelOpen(!isEditorSettingsOpen()));
 mergeJoinSettingsToggle?.addEventListener('click', (event) => {
   event.stopPropagation();
   setMergeJoinSettingsPanelOpen(mergeJoinSettingsPanel?.hidden);
@@ -2143,22 +2125,6 @@ splitTrimSettingsToggle?.addEventListener('click', (event) => {
   event.stopPropagation();
   setSplitTrimSettingsPanelOpen(splitTrimSettingsPanel?.hidden);
 });
-subtitlePreviewSettingsToggle?.addEventListener('click', (event) => {
-  event.stopPropagation();
-  setSubtitlePreviewSettingsPanelOpen(subtitlePreviewSettingsPanel?.hidden);
-});
-cueListSettingsToggle?.addEventListener('click', (event) => {
-  event.stopPropagation();
-  setCueListSettingsPanelOpen(cueListSettingsPanel?.hidden);
-});
-waveformSettingsToggle?.addEventListener('click', (event) => {
-  event.stopPropagation();
-  setWaveformSettingsPanelOpen(waveformSettingsPanel?.hidden);
-});
-cueEditorSettingsToggle?.addEventListener('click', (event) => {
-  event.stopPropagation();
-  setCueEditorSettingsPanelOpen(cueEditorSettingsPanel?.hidden);
-});
 document.addEventListener('pointerdown', (event) => {
   if (temporaryVisibleSplitCueKeys.size) {
     const targetCue = event.target instanceof Element ? event.target.closest('.cue') : null;
@@ -2166,18 +2132,6 @@ document.addEventListener('pointerdown', (event) => {
       clearTemporaryVisibleSplitCues();
       applySearch(searchEl.value);
     }
-  }
-  if (!subtitlePreviewSettingsPanel?.hidden && !subtitlePreviewSettings?.contains(event.target)) {
-    setSubtitlePreviewSettingsPanelOpen(false);
-  }
-  if (!cueListSettingsPanel?.hidden && !cueListSettings?.contains(event.target)) {
-    setCueListSettingsPanelOpen(false);
-  }
-  if (!waveformSettingsPanel?.hidden && !waveformSettings?.contains(event.target)) {
-    setWaveformSettingsPanelOpen(false);
-  }
-  if (!cueEditorSettingsPanel?.hidden && !cueEditorSettings?.contains(event.target)) {
-    setCueEditorSettingsPanelOpen(false);
   }
   if (!mergeJoinSettingsPanel?.hidden && !mergeJoinSettings?.contains(event.target)) {
     setMergeJoinSettingsPanelOpen(false);
@@ -2188,22 +2142,6 @@ document.addEventListener('pointerdown', (event) => {
 });
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  if (!subtitlePreviewSettingsPanel?.hidden) {
-    setSubtitlePreviewSettingsPanelOpen(false);
-    subtitlePreviewSettingsToggle?.focus();
-  }
-  if (!cueListSettingsPanel?.hidden) {
-    setCueListSettingsPanelOpen(false);
-    cueListSettingsToggle?.focus();
-  }
-  if (!waveformSettingsPanel?.hidden) {
-    setWaveformSettingsPanelOpen(false);
-    waveformSettingsToggle?.focus();
-  }
-  if (!cueEditorSettingsPanel?.hidden) {
-    setCueEditorSettingsPanelOpen(false);
-    cueEditorSettingsToggle?.focus();
-  }
   if (!mergeJoinSettingsPanel?.hidden) {
     setMergeJoinSettingsPanelOpen(false);
     mergeJoinSettingsToggle?.focus();
@@ -2217,32 +2155,13 @@ window.addEventListener('resize', positionMergeJoinSettingsPanel);
 window.addEventListener('scroll', positionMergeJoinSettingsPanel, true);
 window.addEventListener('resize', positionSplitTrimSettingsPanel);
 window.addEventListener('scroll', positionSplitTrimSettingsPanel, true);
-window.addEventListener('resize', positionSubtitlePreviewSettingsPanel);
-window.addEventListener('scroll', positionSubtitlePreviewSettingsPanel, true);
-window.addEventListener('resize', positionCueListSettingsPanel);
-window.addEventListener('scroll', positionCueListSettingsPanel, true);
-window.addEventListener('resize', positionWaveformSettingsPanel);
-window.addEventListener('scroll', positionWaveformSettingsPanel, true);
-window.addEventListener('resize', positionCueEditorSettingsPanel);
-window.addEventListener('scroll', positionCueEditorSettingsPanel, true);
-subtitlePreviewSettings?.closest('.player-toolbar')?.addEventListener(
-  'scroll', positionSubtitlePreviewSettingsPanel,
-);
-cueListSettings?.closest('.cue-list-toolbar')?.addEventListener(
-  'scroll', positionCueListSettingsPanel,
-);
-waveformSettings?.closest('.waveform-toolbar')?.addEventListener(
-  'scroll', positionWaveformSettingsPanel,
-);
-cueEditorSettings?.closest('.cue-editor-toolbar')?.addEventListener(
-  'scroll', positionCueEditorSettingsPanel,
-);
-// 帮助浮窗：与拼合字幕共用 createFloatingPanel（拖动、位置持久化、Esc 关闭）
+// 帮助浮窗：与拼合字幕共用 createFloatingPanel（拖动、位置持久化、Esc 关闭）。
+// 顶部工具栏已改为菜单栏：锚点用「帮助」选项卡，manageButton 留空避免与菜单展开冲突。
 const helpFloatingPanel = createFloatingPanel({
   panel: helpPanel,
   dragHandle: helpDragHandle,
-  manageButton: helpToggle,
-  anchorButton: helpToggle,
+  manageButton: null,
+  anchorButton: document.querySelector('.menubar-item[data-menubar-item="help"] .menubar-tab'),
   positionKey: HELP_PANEL_POSITION_KEY,
   onOpen: restoreHelpPanelSize,
 });
@@ -2381,31 +2300,83 @@ if (helpPanel) {
 }
 
 
-// 明暗主题：令牌全部定义在 CSS（:root 暗色 / [data-theme="light"] 亮色），
-// 这里只负责写 <html data-theme>、持久化、同步按钮，以及通知波形重绘画布。
-// 按钮显示的是「目标主题」（与相邻 🌐 语言按钮同一约定）：暗色时显示 🌖（点击转亮）。
-// title 用中文源串，英文界面由 i18n 的属性 MutationObserver 自动翻译。
-function refreshThemeToggle(theme) {
-  if (!themeToggle) return;
-  const toLight = theme !== 'light';
-  themeToggle.textContent = toLight ? '🌖' : '🌘';
-  const title = toLight ? '切换到亮色主题' : '切换到暗色主题';
-  themeToggle.title = title;
-  themeToggle.setAttribute('aria-label', title);
+// 主题预设 + 自定义颜色（VSCode 式统一系统）：
+// 预设决定明暗、强调色与基础配色（令牌在 CSS：:root/[data-theme]/[data-accent]），
+// 自定义颜色按键覆盖（含强调色整族变量内联生成），清除后回到当前预设默认。
+const THEME_PRESETS = {
+  dark: { theme: 'dark', accent: 'blue', colors: null },
+  light: { theme: 'light', accent: 'blue', colors: null },
+  midnight: { theme: 'dark', accent: 'violet', colors: { bg: '#0d1420', text: '#dbe6f4', wave: '#7aa2f7', subtitle: '#c9d8ee' } },
+  forest: { theme: 'dark', accent: 'green', colors: { bg: '#101713', text: '#dcefe3', wave: '#7cc97f', subtitle: '#d0e8d6' } },
+  sepia: { theme: 'dark', accent: 'orange', colors: { bg: '#1d1712', text: '#f0e5d2', wave: '#d2a468', subtitle: '#e9d9c0' } },
+};
+const ACCENT_VAR_FAMILY = ['--accent', '--accent-hover', '--accent-strong', '--accent-tint', '--accent-tint-strong', '--accent-soft', '--accent-line'];
+function shiftHex(hex, amount) {
+  const num = Number.parseInt(hex.slice(1), 16);
+  const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = clamp(((num >> 16) & 255) * (1 + amount));
+  const g = clamp(((num >> 8) & 255) * (1 + amount));
+  const b = clamp((num & 255) * (1 + amount));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
-function applyTheme(theme, { rerenderWaveform = true } = {}) {
-  const next = theme === 'light' ? 'light' : 'dark';
-  if (next === 'light') document.documentElement.dataset.theme = 'light';
-  else delete document.documentElement.dataset.theme;
-  refreshThemeToggle(next);
-  // 画布颜色是 JS 读取的令牌快照，必须全量重绘才能跟随主题
+function hexAlpha(hex, alpha) {
+  const num = Number.parseInt(hex.slice(1), 16);
+  return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+}
+function setAccentVarFamily(style, hex) {
+  style.setProperty('--accent', hex);
+  style.setProperty('--accent-hover', shiftHex(hex, 0.16));
+  style.setProperty('--accent-strong', shiftHex(hex, -0.14));
+  style.setProperty('--accent-tint', hexAlpha(hex, 0.12));
+  style.setProperty('--accent-tint-strong', hexAlpha(hex, 0.22));
+  style.setProperty('--accent-soft', hexAlpha(hex, 0.16));
+  style.setProperty('--accent-line', hex);
+}
+function activeThemePreset() {
+  return THEME_PRESETS[EDITOR_SETTINGS.themePreset] || THEME_PRESETS.dark;
+}
+function resolvedInterfaceColors() {
+  return { ...(activeThemePreset().colors || {}), ...(EDITOR_SETTINGS.colors || {}) };
+}
+function applyThemeAndColors({ rerenderWaveform = true } = {}) {
+  const preset = activeThemePreset();
+  const colors = resolvedInterfaceColors();
+  const root = document.documentElement;
+  if (preset.theme === 'light') root.dataset.theme = 'light';
+  else delete root.dataset.theme;
+  const customAccent = /^[#][0-9a-fA-F]{6}$/.test(colors.accent || '') ? colors.accent : null;
+  if (customAccent) {
+    delete root.dataset.accent; // 自定义强调色：内联整族变量，优先于 data-accent 预设
+    setAccentVarFamily(root.style, customAccent);
+  } else {
+    ACCENT_VAR_FAMILY.forEach((cssVar) => root.style.removeProperty(cssVar));
+    if (preset.accent === 'blue') delete root.dataset.accent;
+    else root.dataset.accent = preset.accent;
+  }
+  const rootStyle = root.style;
+  ['bg', 'text', 'wave', 'subtitle'].forEach((key) => {
+    const cssVar = { bg: '--bg-base', text: '--text-primary', wave: '--wave-peak', subtitle: '--editor-cue-text' }[key];
+    const value = /^[#][0-9a-fA-F]{6}$/.test(colors[key] || '') ? colors[key] : null;
+    if (value) rootStyle.setProperty(cssVar, value);
+    else rootStyle.removeProperty(cssVar);
+  });
+  syncAppearanceSettings();
+  syncInterfaceColorControls();
   if (rerenderWaveform && waveformEditor) waveformEditor.render();
 }
-applyTheme(EDITOR_SETTINGS.theme, { rerenderWaveform: false });
-themeToggle?.addEventListener('click', () => {
-  const next = EDITOR_SETTINGS.theme === 'light' ? 'dark' : 'light';
-  updateEditorSettings({ theme: next });
-  applyTheme(next);
+function syncAppearanceSettings() {
+  document.querySelectorAll('.theme-preset').forEach((button) => {
+    button.classList.toggle('active', button.dataset.themePreset === (EDITOR_SETTINGS.themePreset || 'dark'));
+  });
+}
+document.querySelectorAll('.theme-preset').forEach((button) => {
+  button.addEventListener('click', () => {
+    const preset = button.dataset.themePreset;
+    if (!THEME_PRESETS[preset] || (EDITOR_SETTINGS.themePreset || 'dark') === preset) return;
+    // 切换预设 = 采用该主题的完整默认外观（清除逐键覆盖）。
+    updateEditorSettings({ themePreset: preset, theme: THEME_PRESETS[preset].theme, accent: THEME_PRESETS[preset].accent, colors: null });
+    applyThemeAndColors();
+  });
 });
 splitKeySel.addEventListener('change', () => {
   updateEditorSettings({ splitKey: splitKeySel.value });
@@ -3412,7 +3383,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
   }
 
   dragHandle?.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0 || event.target.closest('button')) return;
+    if (event.button !== 0 || event.target.closest('button, input, select, textarea, [contenteditable]')) return;
     const rect = panel.getBoundingClientRect();
     drag = {
       pointerId: event.pointerId,
@@ -11123,13 +11094,41 @@ function usedSubtitleColors() {
   ];
 }
 
+// 双语合并工程（启动器勾选「合并双语字幕」生成的单轨工程）没有显式标记：
+// 产物只是把两行文本用换行拼进单条字幕并移除 multi_subtitle（maw/postprocess.py
+// merge_bilingual_project）。因此用启发式检测：无副轨 + 大部分字幕文本含换行。
+function isMergedBilingualProject() {
+  if (getActiveExtensionTrack()) return false;
+  const segments = DATA.segments || [];
+  if (!segments.length) return false;
+  const withNewline = segments.filter(
+    (segment) => typeof segment?.text === 'string' && segment.text.includes('\n'),
+  ).length;
+  return withNewline >= Math.ceil(segments.length * 0.6);
+}
+
+const downloadMainSrtButton = document.getElementById('download-main-srt');
 function updateSubtitleExportUi() {
   const hasColors = usedSubtitleColors().some((color) => color.name !== 'default');
   if (downloadColorSrtItem) downloadColorSrtItem.hidden = !hasColors;
   if (downloadGapRemovedColorSrtItem) downloadGapRemovedColorSrtItem.hidden = !hasColors;
   if (subtitleExportDropdown) subtitleExportDropdown.hidden = false;
   if (downloadMultiSrtButton) {
-    downloadMultiSrtButton.hidden = !(multiSubtitleVisible() && getActiveExtensionTrack()?.segments?.length);
+    // 无副轨时「仅导出副字幕」灰显（保持可见，用 title 说明原因）。
+    const hasExtension = multiSubtitleVisible() && Boolean(getActiveExtensionTrack()?.segments?.length);
+    downloadMultiSrtButton.disabled = !hasExtension;
+    downloadMultiSrtButton.title = hasExtension
+      ? '导出当前副字幕轨（SRT）' : '当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕';
+  }
+  if (downloadMainSrtButton) {
+    // 双语合并工程下主轨本身就是双语字幕：文案改为「导出双语字幕」。
+    const merged = isMergedBilingualProject();
+    const mainLabel = merged ? '导出双语字幕' : '仅导出主字幕';
+    const mainHint = merged ? '导出合并后的双语字幕（SRT）' : '仅导出主字幕轨（SRT）';
+    if (downloadMainSrtButton.textContent !== mainLabel) {
+      downloadMainSrtButton.textContent = mainLabel;
+    }
+    downloadMainSrtButton.title = mainHint;
   }
 }
 
@@ -11413,6 +11412,10 @@ function repairCurrentProjectTimings() {
 
 function buildWorkspaceJson() {
   const workspace = buildCurrentWorkspaceData();
+  if (workspace) {
+    workspace.colors = EDITOR_SETTINGS.colors || null;
+    workspace.themePreset = EDITOR_SETTINGS.themePreset || 'dark';
+  }
   return JSON.stringify(workspace || {}, null, 2);
 }
 
@@ -12294,13 +12297,13 @@ function showProjectSaveError(detail) {
 
 function configureServerSaveControls() {
   const hasServer = !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl);
-  // 浏览器持有工程句柄时同样显示保存控件；服务器绑定优先于句柄。
-  if (saveProjectDropdown) saveProjectDropdown.hidden = !(hasServer || projectFileHandle !== null);
-  [saveProjectButton, document.getElementById('save-project-menu-btn')].forEach((button) => {
-    if (!button) return;
-    button.disabled = !projectSaveTargetEnabled();
-     if (!projectSaveTargetEnabled()) button.title = '当前服务器未绑定工程；请先导出 .mosp，再重新打开该文件';
-  });
+  // 浏览器持有工程句柄时同样显示保存项；服务器绑定优先于句柄。
+  // 工具栏改为菜单栏后，「保存工程」菜单项在无保存目标时保持禁用灰显而非隐藏。
+  if (saveProjectButton) saveProjectButton.hidden = !(hasServer || projectFileHandle !== null);
+  if (saveProjectButton) {
+    saveProjectButton.disabled = !projectSaveTargetEnabled();
+    if (!projectSaveTargetEnabled()) saveProjectButton.title = '当前服务器未绑定工程；请先导出 .mosp，再重新打开该文件';
+  }
   if (saveProjectButton && projectSaveTargetEnabled()) {
     saveProjectButton.title = '保存回当前工程文件（Ctrl(Cmd)+S）';
   }
@@ -12451,12 +12454,17 @@ function markRecentProjectMissing(project) {
 }
 
 function configureRecentProjects() {
-  if (!SERVER_CONFIG?.recentProjectsUrl || !recentProjectsEl || !recentProjectsToggle
-      || !recentProjectsMenu || !recentProjectsList) {
+  if (!SERVER_CONFIG?.recentProjectsUrl || !recentProjectsList) {
+    // 纯浏览器模式没有最近工程：子菜单入口灰显。
+    recentProjectsToggle?.classList.add('disabled');
+    if (recentProjectsToggle && !recentProjectsToggle.hasAttribute('aria-disabled')) {
+      recentProjectsToggle.setAttribute('aria-disabled', 'true');
+    }
     return;
   }
+  recentProjectsToggle?.classList.remove('disabled');
+  recentProjectsToggle?.removeAttribute('aria-disabled');
   const projects = Array.isArray(SERVER_CONFIG.recentProjects) ? SERVER_CONFIG.recentProjects : [];
-  recentProjectsEl.hidden = false;
   recentProjectsList.replaceChildren();
   if (recentProjectsSeparator) recentProjectsSeparator.hidden = !projects.length;
   projects.forEach((project, index) => {
@@ -12481,7 +12489,7 @@ function configureRecentProjects() {
       item.title = project.path;
     }
     item.addEventListener('click', () => {
-      recentProjectsEl.classList.remove('open');
+      closeMenubarMenus();
       if (item.classList.contains('is-missing')) {
         flashHint('工程路径失效，文件可能已被移动或删除', 'warning');
         return;
@@ -12490,16 +12498,6 @@ function configureRecentProjects() {
     });
     recentProjectsList.appendChild(item);
   });
-  if (recentProjectsEl.dataset.listenersBound !== 'true') {
-    recentProjectsToggle.addEventListener('click', (event) => {
-      event.stopPropagation();
-      recentProjectsEl.classList.toggle('open');
-    });
-    document.addEventListener('click', (event) => {
-      if (!recentProjectsEl.contains(event.target)) recentProjectsEl.classList.remove('open');
-    });
-    recentProjectsEl.dataset.listenersBound = 'true';
-  }
 }
 
 function configureServerProjectSettings() {
@@ -12569,7 +12567,7 @@ function refreshWorkspaceSelect() {
   const names = Object.keys(workspaces).sort((a, b) => a.localeCompare(b, 'zh-CN'));
   if (names.length) {
     const group = document.createElement('optgroup');
-    group.label = '已保存工作区';
+    group.label = '自定义工作区';
     group.dataset.savedWorkspaces = 'true';
     names.forEach((name) => group.append(new Option(name, `saved:${name}`)));
     workspacePresetSelect.append(group);
@@ -12766,27 +12764,25 @@ function configureServerWorkspaceLibrary() {
   restoreWorkspaceSelection();
   if (workspacePresetSelect?.dataset.listenersBound !== 'true') {
     workspacePresetSelect?.addEventListener('change', () => applyWorkspaceSelection(workspacePresetSelect.value));
-    document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
-      // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
-      if (currentServerWorkspaceName) refreshWorkspaceSelect();
-      else if (currentBuiltinWorkspaceName && workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
-      syncWorkspaceControls();
+    document.getElementById('workspace-save-custom')?.addEventListener('click', () => {
+      // 正在使用自定义布局时原地更新，否则另存为新名称。
+      void saveCurrentWorkspace({ saveAs: !currentServerWorkspaceName });
     });
     document.getElementById('layout-reset')?.addEventListener('click', () => {
       const preset = currentBuiltinWorkspaceName;
       if (preset) {
         waveformEditor.setLayout(preset);
         void updateServerWorkspaceSettings({ resetPresetWorkspace: preset }).then(() => {
-          flashHint(`已恢复「${preset}」默认工作区`, 'success');
+          flashHint(`已恢复「${preset}」默认布局`, 'success');
         }).catch((error) => {
-          flashHint(`重置工作区失败：${error.message || error}`, 'warning');
+          flashHint(`恢复默认布局失败：${error.message || error}`, 'warning');
         });
+      } else {
+        applyWorkspaceSelection('wave-right');
+        flashHint('已恢复默认布局', 'success');
       }
       syncWorkspaceControls();
     });
-    saveWorkspaceButton?.addEventListener('click', () => { void saveCurrentWorkspace({ saveAs: false }); });
-    saveWorkspaceAsButton?.addEventListener('click', () => { void saveCurrentWorkspace({ saveAs: true }); });
-    deleteWorkspaceButton?.addEventListener('click', () => { void deleteCurrentServerWorkspace(); });
     workspacePresetSelect.dataset.listenersBound = 'true';
    }
    const initialWorkspace = currentServerWorkspaceName
@@ -12820,11 +12816,18 @@ function configureWorkspaceTransfer() {
     try {
       const data = JSON.parse(await file.text());
       const workspace = data.workspace || data;
-      pushLayoutUndo('导入工作区', waveformEditor.getLayoutHistorySnapshot?.());
+      pushLayoutUndo('导入界面配置', waveformEditor.getLayoutHistorySnapshot?.());
       waveformEditor.setLayoutData(workspace);
       applyEditorDisplaySettings(workspace?.editorDisplay);
       DATA.workspace = waveformEditor.getLayoutData();
-      flashHint(`已导入工作区：${file.name}`, 'success');
+      if (workspace.colors && typeof workspace.colors === 'object') {
+        updateEditorSettings({ colors: workspace.colors });
+      }
+      if (typeof workspace.themePreset === 'string') {
+        updateEditorSettings({ themePreset: workspace.themePreset });
+      }
+      applyThemeAndColors();
+      flashHint(`已导入界面配置：${file.name}`, 'success');
     } catch (error) {
       flashHint(`工作区导入失败：${error.message || error}`, 'warning');
     }
@@ -12838,10 +12841,6 @@ function configureWorkspaceTransfer() {
       waveformEditor.setLayout(selectedWorkspaceId);
       applyEditorDisplaySettings(window.AsrWaveform?.builtinWorkspaces?.[selectedWorkspaceId]?.editorDisplay);
     }
-  });
-  document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
-    // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
-    if (workspacePresetSelect) workspacePresetSelect.value = selectedWorkspaceId;
   });
 }
 
@@ -12860,6 +12859,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
     jsonEl.title = `点击复制工程文件名：${filename}`;
     jsonEl.classList.remove('empty');
   }
+  rememberProjectSavedAt(filename);
   renderAll();
   if (!silent) flashHint('保存成功！', 'success');
 }
@@ -13776,13 +13776,8 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
     dd.closest('.cue-list-toolbar, .toolbar')?.addEventListener('scroll', positioner);
   }
 }
-bindToolbarExportDropdown('subtitle-export-dropdown', 'subtitle-export-btn', 'subtitle-export-menu');
-bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn', 'gap-removed-export-menu');
-bindToolbarExportDropdown('extra-export-dropdown', 'extra-export-btn', 'extra-export-menu');
-bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
-bindToolbarExportDropdown('save-project-dropdown', 'save-project-menu-btn', 'save-project-menu');
-bindToolbarExportDropdown('workspace-transfer-dropdown', 'workspace-transfer-btn', 'workspace-transfer-menu');
-bindToolbarExportDropdown('multi-subtitle-settings-dropdown', 'multi-subtitle-settings-toggle', 'multi-subtitle-settings-menu');
+// 顶部工具栏已改为菜单栏（见文末 menubar 模块）；此函数继续服务
+// 字幕列表的批量操作与颜色过滤下拉（下方原有调用保持不变）。
 function positionBatchOperationsMenu() {
   const dropdown = document.getElementById('batch-operations-dropdown');
   const button = document.getElementById('batch-operations-btn');
@@ -17813,6 +17808,893 @@ initWaveformEditor();
 configureServerWorkspaceLibrary();
 configureWorkspaceTransfer();
 totalCountEl.textContent = DATA.segments.length;
+// === 菜单栏（UE 式顶部菜单）===
+// 六个选项卡的展开/切换、悬浮子菜单（menu-aim 防误触）、键盘导航、点击外部关闭。
+// 子菜单交互逻辑与 bindToolbarExportDropdown 同源（三角形意图检测），但向右展开。
+const menubarItems = [...document.querySelectorAll('.menubar-item')];
+let openMenubarItem = null;
+const MENUBAR_SUBMENU_CLOSE_DELAY_MS = 160;
+const MENUBAR_SUBMENU_AIM_TOLERANCE_PX = 8;
+
+function closeMenubarMenus() {
+  menubarItems.forEach((item) => {
+    item.classList.remove('open');
+    item.querySelector(':scope > .menubar-tab')?.setAttribute('aria-expanded', 'false');
+    item.querySelectorAll('.dropdown-submenu.open').forEach((submenu) => {
+      submenu.classList.remove('open');
+      submenu.querySelector(':scope > .dropdown-submenu-toggle')?.setAttribute('aria-expanded', 'false');
+    });
+  });
+  openMenubarItem = null;
+}
+
+// 鼠标移出整个菜单栏（含展开的菜单面板，它们都在 #menubar 的 DOM 内）后自动收起。
+const menubarContainer = menubarItems[0]?.closest('.menubar');
+let menubarLeaveTimer = null;
+if (menubarContainer) {
+  menubarContainer.addEventListener('pointerleave', () => {
+    clearTimeout(menubarLeaveTimer);
+    menubarLeaveTimer = setTimeout(() => closeMenubarMenus(), 280);
+  });
+  menubarContainer.addEventListener('pointerenter', () => {
+    clearTimeout(menubarLeaveTimer);
+    menubarLeaveTimer = null;
+  });
+}
+
+function refreshMenubarMenu(item) {
+  const name = item?.dataset?.menubarItem;
+  if (name === 'window') {
+    rebuildWorkspacePresetMenu();
+    rebuildShowModuleMenu();
+  }
+  else if (name === 'edit') refreshClipboardMenuState();
+  else if (name === 'subtitle') {
+    updateSubtitleExportUi();
+    updateMultiSubtitleUi();
+  }
+}
+
+function setMenubarItemOpen(item, open, { focusFirst = false } = {}) {
+  if (!item) return;
+  if (!open) {
+    item.classList.remove('open');
+    item.querySelector(':scope > .menubar-tab')?.setAttribute('aria-expanded', 'false');
+    if (openMenubarItem === item) openMenubarItem = null;
+    return;
+  }
+  closeMenubarMenus();
+  item.classList.add('open');
+  item.querySelector(':scope > .menubar-tab')?.setAttribute('aria-expanded', 'true');
+  openMenubarItem = item;
+  refreshMenubarMenu(item);
+  if (focusFirst) {
+    requestAnimationFrame(() => {
+      const menu = item.querySelector(':scope > .menubar-menu');
+      const first = menu && menu.querySelector('.dropdown-item:not(.disabled):not([hidden])');
+      first?.focus();
+    });
+  }
+}
+
+function bindMenubarSubmenus(menu) {
+  if (!menu || menu.dataset.submenusBound === 'true') return;
+  menu.dataset.submenusBound = 'true';
+  const submenuWrappers = [...menu.querySelectorAll('.dropdown-submenu')];
+  const submenuCloseTimers = new WeakMap();
+  let pendingSubmenuSwitch = null;
+  let lastPointerPoint = null;
+  let previousPointerPoint = null;
+  let lastPointInsideOpenWrapper = null;
+  const directItems = (container) => [...(container?.children || [])].flatMap((child) => {
+    if (child.classList.contains('dropdown-item')) {
+      return child.classList.contains('disabled') || child.hidden || child.disabled ? [] : [child];
+    }
+    if (!child.classList.contains('dropdown-submenu')) return [];
+    const toggle = child.querySelector(':scope > .dropdown-submenu-toggle');
+    return toggle && !toggle.classList.contains('disabled') && !toggle.hidden ? [toggle] : [];
+  });
+  const pointerPoint = (event) => {
+    if (!event || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return null;
+    return { x: event.clientX, y: event.clientY };
+  };
+  const clearPendingSubmenuSwitch = () => {
+    if (!pendingSubmenuSwitch) return;
+    clearTimeout(pendingSubmenuSwitch.timer);
+    pendingSubmenuSwitch = null;
+  };
+  const openSubmenu = () => submenuWrappers.find((wrapper) => wrapper.classList.contains('open'));
+  const pointInTriangle = (point, a, b, c) => {
+    const sign = (p1, p2, p3) => (
+      (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
+    );
+    const first = sign(point, a, b);
+    const second = sign(point, b, c);
+    const third = sign(point, c, a);
+    const hasNegative = first < 0 || second < 0 || third < 0;
+    const hasPositive = first > 0 || second > 0 || third > 0;
+    return !(hasNegative && hasPositive);
+  };
+  const shouldDelaySubmenuSwitch = (wrapper, point, previousPoint) => {
+    const active = openSubmenu();
+    const apex = previousPoint || lastPointInsideOpenWrapper;
+    if (!active || active === wrapper || !point || !apex) return false;
+    const submenu = active.querySelector(':scope > .dropdown-submenu-menu');
+    if (!submenu) return false;
+    const activeRect = active.getBoundingClientRect();
+    const submenuRect = submenu.getBoundingClientRect();
+    const opensLeft = submenuRect.right <= activeRect.left + MENUBAR_SUBMENU_AIM_TOLERANCE_PX;
+    const opensRight = submenuRect.left >= activeRect.right - MENUBAR_SUBMENU_AIM_TOLERANCE_PX;
+    if (!opensLeft && !opensRight) return false;
+    const direction = opensLeft ? -1 : 1;
+    if ((direction < 0 && point.x > apex.x + MENUBAR_SUBMENU_AIM_TOLERANCE_PX)
+        || (direction > 0 && point.x < apex.x - MENUBAR_SUBMENU_AIM_TOLERANCE_PX)) return false;
+    const edgeX = direction < 0 ? submenuRect.right : submenuRect.left;
+    return pointInTriangle(
+      point,
+      apex,
+      { x: edgeX, y: submenuRect.top - MENUBAR_SUBMENU_AIM_TOLERANCE_PX },
+      { x: edgeX, y: submenuRect.bottom + MENUBAR_SUBMENU_AIM_TOLERANCE_PX },
+    );
+  };
+  const clearSubmenuClose = (wrapper) => {
+    const timer = submenuCloseTimers.get(wrapper);
+    if (timer) {
+      clearTimeout(timer);
+      submenuCloseTimers.delete(wrapper);
+    }
+  };
+  const closeSubmenu = (wrapper) => {
+    clearSubmenuClose(wrapper);
+    if (wrapper.classList.contains('open')) lastPointInsideOpenWrapper = null;
+    wrapper.classList.remove('open');
+    wrapper.querySelector(':scope > .dropdown-submenu-toggle')
+      ?.setAttribute('aria-expanded', 'false');
+  };
+  const closeSubmenus = () => {
+    submenuWrappers.forEach(closeSubmenu);
+  };
+  const setSubmenuOpen = (wrapper, open, focusFirst = false) => {
+    if (!wrapper) return;
+    const toggle = wrapper.querySelector(':scope > .dropdown-submenu-toggle');
+    const submenu = wrapper.querySelector(':scope > .dropdown-submenu-menu');
+    if (!toggle || !submenu) return;
+    clearSubmenuClose(wrapper);
+    if (open) {
+      clearPendingSubmenuSwitch();
+      submenuWrappers.forEach((other) => {
+        if (other !== wrapper) closeSubmenu(other);
+      });
+    }
+    wrapper.classList.toggle('open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && focusFirst) directItems(submenu)[0]?.focus();
+  };
+  const scheduleSubmenuClose = (wrapper) => {
+    clearSubmenuClose(wrapper);
+    const timer = setTimeout(() => {
+      submenuCloseTimers.delete(wrapper);
+      if (!wrapper.matches(':hover') && !wrapper.contains(document.activeElement)) {
+        closeSubmenu(wrapper);
+      }
+    }, MENUBAR_SUBMENU_CLOSE_DELAY_MS);
+    submenuCloseTimers.set(wrapper, timer);
+  };
+  const scheduleSubmenuSwitch = (wrapper) => {
+    // menu-aim：鼠标进入同级菜单项时，沿当前子菜单近侧边缘的三角通道移动，先保留当前菜单。
+    clearPendingSubmenuSwitch();
+    const active = openSubmenu();
+    if (active && active !== wrapper) clearSubmenuClose(active);
+    const timer = setTimeout(() => {
+      if (!pendingSubmenuSwitch || pendingSubmenuSwitch.wrapper !== wrapper) return;
+      pendingSubmenuSwitch = null;
+      if (wrapper.matches(':hover') || wrapper.contains(document.activeElement)) {
+        setSubmenuOpen(wrapper, true);
+      }
+    }, MENUBAR_SUBMENU_CLOSE_DELAY_MS);
+    pendingSubmenuSwitch = { wrapper, timer };
+  };
+  submenuWrappers.forEach((wrapper) => {
+    const submenu = wrapper.querySelector(':scope > .dropdown-submenu-menu');
+    const keepOpen = (event) => {
+      const point = pointerPoint(event);
+      const sameAsLastPoint = point && lastPointerPoint
+        && point.x === lastPointerPoint.x && point.y === lastPointerPoint.y;
+      const previous = point
+        ? (sameAsLastPoint ? previousPointerPoint : lastPointerPoint)
+        : null;
+      if (point && !sameAsLastPoint) previousPointerPoint = lastPointerPoint;
+      if (point) lastPointerPoint = point;
+      if (point && shouldDelaySubmenuSwitch(wrapper, point, previous)) {
+        scheduleSubmenuSwitch(wrapper);
+        return;
+      }
+      setSubmenuOpen(wrapper, true);
+      if (point) lastPointInsideOpenWrapper = point;
+    };
+    const deferClose = (event) => {
+      if (pendingSubmenuSwitch?.wrapper === wrapper
+          && (!event?.relatedTarget || !wrapper.contains(event.relatedTarget))) {
+        clearPendingSubmenuSwitch();
+        const active = openSubmenu();
+        if (active && active !== wrapper) scheduleSubmenuClose(active);
+      }
+      scheduleSubmenuClose(wrapper);
+    };
+    wrapper.addEventListener('pointerenter', keepOpen);
+    wrapper.addEventListener('pointerleave', deferClose);
+    wrapper.addEventListener('focusin', keepOpen);
+    wrapper.addEventListener('focusout', (event) => {
+      if (!event.relatedTarget || !wrapper.contains(event.relatedTarget)) deferClose();
+    });
+    submenu?.addEventListener('pointerenter', keepOpen);
+    submenu?.addEventListener('pointerleave', deferClose);
+  });
+  menu.addEventListener('pointermove', (event) => {
+    const point = pointerPoint(event);
+    if (!point) return;
+    if (!lastPointerPoint || point.x !== lastPointerPoint.x || point.y !== lastPointerPoint.y) {
+      previousPointerPoint = lastPointerPoint;
+    }
+    lastPointerPoint = point;
+    const active = openSubmenu();
+    if (active?.contains(event.target)) lastPointInsideOpenWrapper = point;
+  });
+  menu.addEventListener('keydown', (event) => {
+    const item = event.target.closest('.dropdown-item');
+    if (!item || !menu.contains(item)) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenubarMenus();
+      menu.closest('.menubar-item')?.querySelector(':scope > .menubar-tab')?.focus();
+      return;
+    }
+    const submenuWrapper = item.closest('.dropdown-submenu');
+    const submenu = submenuWrapper?.querySelector(':scope > .dropdown-submenu-menu');
+    if (event.key === 'ArrowRight' && item.classList.contains('dropdown-submenu-toggle')) {
+      event.preventDefault();
+      setSubmenuOpen(submenuWrapper, true, true);
+      return;
+    }
+    if (event.key === 'ArrowLeft' && submenuWrapper && !item.classList.contains('dropdown-submenu-toggle')) {
+      event.preventDefault();
+      setSubmenuOpen(submenuWrapper, false);
+      submenuWrapper.querySelector(':scope > .dropdown-submenu-toggle')?.focus();
+      return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const container = submenu && submenu.contains(item) ? submenu : menu;
+      const items = directItems(container);
+      const index = items.indexOf(item);
+      if (index < 0 || !items.length) return;
+      const offset = event.key === 'ArrowDown' ? 1 : -1;
+      items[(index + offset + items.length) % items.length].focus();
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      if (item.tagName !== 'BUTTON') {
+        event.preventDefault();
+        item.click();
+      }
+    }
+  });
+}
+
+menubarItems.forEach((item) => {
+  const tab = item.querySelector(':scope > .menubar-tab');
+  const menu = item.querySelector(':scope > .menubar-menu');
+  if (!tab || !menu) return;
+  bindMenubarSubmenus(menu);
+  tab.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setMenubarItemOpen(item, !item.classList.contains('open'));
+  });
+  tab.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    setMenubarItemOpen(item, true, { focusFirst: event.key === 'ArrowDown' });
+  });
+  // 已有菜单展开时，横向滑到其它选项卡直接切换（UE 菜单栏行为）。
+  item.addEventListener('pointerenter', () => {
+    if (openMenubarItem && openMenubarItem !== item) setMenubarItemOpen(item, true);
+  });
+  menu.addEventListener('click', (event) => {
+    if (event.target.closest('label, select, input, textarea')) return;
+    const menuItem = event.target.closest('.dropdown-item');
+    if (!menuItem || !menu.contains(menuItem)) return;
+    if (menuItem.classList.contains('dropdown-submenu-toggle')) return;
+    if (menuItem.classList.contains('disabled') || menuItem.disabled) return;
+    closeMenubarMenus();
+  });
+});
+document.addEventListener('pointerdown', (event) => {
+  if (!openMenubarItem) return;
+  if (event.target instanceof Element && event.target.closest('.menubar')) return;
+  closeMenubarMenus();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !openMenubarItem) return;
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+  event.preventDefault();
+  const tab = openMenubarItem.querySelector(':scope > .menubar-tab');
+  closeMenubarMenus();
+  tab?.focus();
+});
+
+// 菜单快捷键提示按平台显示 Ctrl/Cmd。
+function localizeMenubarKbdHints() {
+  const label = modKeyLabel();
+  if (label === 'Ctrl') return;
+  document.querySelectorAll('.menu-kbd[data-mod]').forEach((kbd) => {
+    kbd.textContent = kbd.textContent.replace(/^Ctrl/, label);
+  });
+}
+localizeMenubarKbdHints();
+
+// === 「窗口 → 工作区」子菜单：从隐藏的 #workspace-preset select 同步生成 ===
+// select 仍是数据真源（服务器工作区库/单文件分支都在操作它），子菜单只做镜像 + 勾选态。
+function rebuildWorkspacePresetMenu() {
+  const menu = document.getElementById('workspace-preset-menu');
+  if (!menu || !workspacePresetSelect) return;
+  const selectedValue = workspacePresetSelect.value;
+  menu.replaceChildren();
+  const makeItem = (option) => {
+    const item = document.createElement('div');
+    item.className = 'dropdown-item workspace-preset-item';
+    item.dataset.workspaceValue = option.value;
+    item.setAttribute('role', 'menuitem');
+    item.setAttribute('tabindex', '0');
+    const check = document.createElement('span');
+    check.className = 'menu-check';
+    check.textContent = '✓';
+    if (option.value === selectedValue) item.classList.add('is-active');
+    const label = document.createElement('span');
+    label.className = 'workspace-preset-name';
+    label.textContent = option.textContent;
+    item.append(check, label);
+    item.addEventListener('click', () => {
+      if (option.value === workspacePresetSelect.value) return;
+      workspacePresetSelect.value = option.value;
+      workspacePresetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      rebuildWorkspacePresetMenu();
+    });
+    return item;
+  };
+  [...workspacePresetSelect.children].forEach((node) => {
+    if (node.tagName === 'OPTGROUP') {
+      if (menu.children.length) {
+        const separator = document.createElement('div');
+        separator.className = 'dropdown-separator';
+        menu.appendChild(separator);
+      }
+      const title = document.createElement('div');
+      title.className = 'menu-group-title';
+      title.textContent = node.label || '';
+      menu.appendChild(title);
+      [...node.children].forEach((option) => menu.appendChild(makeItem(option)));
+    } else if (node.tagName === 'OPTION') {
+      menu.appendChild(makeItem(node));
+    }
+  });
+}
+
+// === 字幕剪贴板：剪切 / 拷贝 / 粘贴 / 删除（主轨） ===
+let cueClipboardSegments = null;
+const cueCutButton = document.getElementById('cue-cut');
+const cueCopyButton = document.getElementById('cue-copy');
+const cuePasteButton = document.getElementById('cue-paste');
+const cueDeleteButton = document.getElementById('cue-delete');
+
+function cloneCueForClipboard(segment) {
+  if (!segment) return null;
+  const copy = JSON.parse(JSON.stringify(segment));
+  delete copy._dirty;
+  // 分组引用（颜色/表情包 head-ref）指向原字幕的组关系，粘贴副本后重连会指向
+  // 错误的对象；剪切时原分组关系已由 deleteSegments 的拆组逻辑处理。
+  delete copy.sticker_ref;
+  delete copy.color_ref;
+  return copy;
+}
+
+function refreshClipboardMenuState() {
+  const hasSelection = selectedIdxs.size > 0;
+  if (cueCutButton) cueCutButton.disabled = !hasSelection;
+  if (cueCopyButton) cueCopyButton.disabled = !hasSelection;
+  if (cueDeleteButton) cueDeleteButton.disabled = !hasSelection;
+  if (cuePasteButton) cuePasteButton.disabled = !cueClipboardSegments?.length;
+}
+
+function copySelectedCues() {
+  const idxs = [...selectedIdxs].sort((a, b) => a - b);
+  if (!idxs.length) return;
+  cueClipboardSegments = idxs
+    .map((index) => cloneCueForClipboard(DATA.segments[index]))
+    .filter(Boolean);
+  refreshClipboardMenuState();
+  if (cueClipboardSegments.length) {
+    flashHint(`已拷贝 ${cueClipboardSegments.length} 条字幕`, 'success');
+  }
+}
+
+function cutSelectedCues() {
+  const idxs = [...selectedIdxs].sort((a, b) => a - b);
+  if (!idxs.length || idxs.length === DATA.segments.length) return;
+  cueClipboardSegments = idxs
+    .map((index) => cloneCueForClipboard(DATA.segments[index]))
+    .filter(Boolean);
+  // deleteSegments 内部自带 pushUndo、分组拆分与编辑面板状态处理。
+  deleteSegments(idxs);
+  refreshClipboardMenuState();
+  flashHint(`已剪切 ${idxs.length} 条字幕`, 'success');
+}
+
+function pasteCuesFromClipboard() {
+  if (!cueClipboardSegments?.length) return;
+  if (editingState) finishEdit(true);
+  commitCuePanelEdit();
+  const stamp = Date.now();
+  const copies = cueClipboardSegments.map((segment, offset) => {
+    const copy = JSON.parse(JSON.stringify(segment));
+    copy.id = `pasted-${stamp}-${offset}`;
+    copy._dirty = true;
+    return copy;
+  });
+  // 副本整体平移到时间轴末尾之后（保留相对间隔）：保留原时间戳会与源字幕
+  // 在波形中完全重叠，看起来就像"粘贴没生效"。
+  const timelineEnd = DATA.segments.reduce(
+    (max, segment) => Math.max(max, Number(segment.end) || 0), 0,
+  );
+  const minCopyStart = Math.min(...copies.map((segment) => Number(segment.start) || 0));
+  const shift = Math.max(0, timelineEnd - minCopyStart);
+  copies.forEach((segment) => {
+    segment.start = (Number(segment.start) || 0) + shift;
+    segment.end = (Number(segment.end) || 0) + shift;
+  });
+  const insertAt = selectedIdxs.size
+    ? Math.max(...selectedIdxs) + 1
+    : DATA.segments.length;
+  pushUndo(`粘贴 ${copies.length} 条字幕`);
+  DATA.segments.splice(insertAt, 0, ...copies);
+  clearSelection({ silent: true, commitCuePanel: false });
+  copies.forEach((_, offset) => selectedIdxs.add(insertAt + offset));
+  if (selCountEl) selCountEl.textContent = String(copies.length);
+  renderAll({ waveform: 'full' });
+  if (waveformEditor) waveformEditor.updateSelection();
+  refreshClipboardMenuState();
+  flashHint(`已粘贴 ${copies.length} 条字幕到时间轴末尾`, 'success');
+}
+
+cueCutButton?.addEventListener('click', cutSelectedCues);
+cueCopyButton?.addEventListener('click', copySelectedCues);
+cuePasteButton?.addEventListener('click', pasteCuesFromClipboard);
+cueDeleteButton?.addEventListener('click', () => {
+  if (!selectedIdxs.size) return;
+  if (selectedExtensionIdxs.size > 0 && selectedIdxs.size === 0) {
+    deleteExtensionSegments([...selectedExtensionIdxs]);
+    return;
+  }
+  deleteSegments([...selectedIdxs]);
+});
+
+// Ctrl/Cmd+X / C / V：与 Delete 键同一套输入保护（输入框、右键菜单内不抢占）。
+document.addEventListener('keydown', (event) => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  const key = event.key.toLowerCase();
+  if (key !== 'x' && key !== 'c' && key !== 'v') return;
+  if (historyGuarded()) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (key === 'x') {
+    if (!selectedIdxs.size) return;
+    event.preventDefault();
+    cutSelectedCues();
+  } else if (key === 'c') {
+    if (!selectedIdxs.size) return;
+    event.preventDefault();
+    copySelectedCues();
+  } else if (cueClipboardSegments?.length) {
+    event.preventDefault();
+    pasteCuesFromClipboard();
+  }
+});
+
+// === 新菜单项绑定 ===
+document.getElementById('subtitle-load-srt')?.addEventListener('click', () => {
+  loadSrtFileInput.value = '';
+  loadSrtFileInput.click();
+});
+document.getElementById('download-main-srt')?.addEventListener('click', async () => {
+  if (editingState) finishEdit(true);
+  await downloadFile(buildSrt(), `${FILENAME_BASE}.srt`, 'text/plain', {
+    desc: '完整 SRT 字幕文件', types: { 'text/plain': ['.srt'] },
+  });
+});
+document.getElementById('media-player-settings-item')?.addEventListener('click', () => {
+  setSubtitlePreviewSettingsPanelOpen(true);
+});
+document.getElementById('waveform-settings-item')?.addEventListener('click', () => {
+  setWaveformSettingsPanelOpen(true);
+});
+document.getElementById('help-quick-start')?.addEventListener('click', () => {
+  // 复用帮助浮窗头部的「快速上手」重播按钮（editor-onboarding.js 绑定）。
+  document.getElementById('help-onboarding')?.click();
+});
+document.getElementById('help-basic')?.addEventListener('click', () => {
+  openHelpAtTab('basic');
+});
+document.getElementById('help-website')?.addEventListener('click', () => {
+  window.open('https://moyf.github.io/moys-asr-workflow/', '_blank', 'noopener');
+});
+
+// === 右上角项目名悬浮详情卡 ===
+const menubarProjectWrap = document.getElementById('menubar-project');
+const projectDetailCard = document.getElementById('project-detail-card');
+const PROJECT_SAVED_AT_KEY = 'moy.asr.editor.savedAt.v1';
+
+function readProjectSavedAtMap() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROJECT_SAVED_AT_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberProjectSavedAt(filename) {
+  if (!filename) return;
+  const map = readProjectSavedAtMap();
+  map[filename] = new Date().toISOString();
+  try {
+    localStorage.setItem(PROJECT_SAVED_AT_KEY, JSON.stringify(map));
+  } catch {
+    // file:// 隐私模式可能拒绝 localStorage；忽略。
+  }
+  updateProjectDetailCard();
+}
+
+function formatProjectSavedAt(iso) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function updateProjectDetailCard() {
+  const nameButton = document.getElementById('project-detail-name');
+  const jsonEl = document.getElementById('json-name');
+  const savedEl = document.getElementById('project-detail-saved');
+  if (!nameButton || !jsonEl || !savedEl) return;
+  const currentName = jsonEl.textContent.trim();
+  nameButton.textContent = currentName || '—';
+  nameButton.title = currentName ? `点击复制：${currentName}` : '';
+  const savedMap = readProjectSavedAtMap();
+  savedEl.textContent = currentName && savedMap[currentName]
+    ? formatProjectSavedAt(savedMap[currentName])
+    : '—';
+}
+
+if (menubarProjectWrap && projectDetailCard) {
+  let projectCardShowTimer = null;
+  let projectCardHideTimer = null;
+  const showProjectCard = () => {
+    clearTimeout(projectCardHideTimer);
+    projectCardHideTimer = null;
+    if (!projectDetailCard.hidden) return;
+    clearTimeout(projectCardShowTimer);
+    projectCardShowTimer = setTimeout(() => {
+      projectCardShowTimer = null;
+      updateProjectDetailCard();
+      projectDetailCard.hidden = false;
+    }, 120);
+  };
+  const hideProjectCard = () => {
+    clearTimeout(projectCardShowTimer);
+    projectCardShowTimer = null;
+    clearTimeout(projectCardHideTimer);
+    projectCardHideTimer = setTimeout(() => {
+      projectCardHideTimer = null;
+      projectDetailCard.hidden = true;
+    }, 180);
+  };
+  menubarProjectWrap.addEventListener('pointerenter', showProjectCard);
+  menubarProjectWrap.addEventListener('pointerleave', hideProjectCard);
+  menubarProjectWrap.addEventListener('focusin', showProjectCard);
+  menubarProjectWrap.addEventListener('focusout', (event) => {
+    if (!event.relatedTarget || !menubarProjectWrap.contains(event.relatedTarget)) hideProjectCard();
+  });
+  document.getElementById('project-detail-name')?.addEventListener('click', () => {
+    const name = document.getElementById('project-detail-name')?.textContent?.trim();
+    if (name && name !== '—') copyText(name, '已复制工程文件名');
+  });
+  document.getElementById('media-name')?.addEventListener('click', () => {
+    const name = document.getElementById('media-name')?.textContent?.trim();
+    if (name && name !== '—' && name !== '（未加载）') copyText(name, '已复制媒体文件名');
+  });
+}
+updateProjectDetailCard();
+refreshClipboardMenuState();
+
+// === 全局设置窗口：左侧分类导航 + 顶部搜索 ===
+const editorSettingsSearchInput = document.getElementById('editor-settings-search');
+const editorSettingsNavEl = document.getElementById('editor-settings-nav');
+const editorSettingsCategories = [...document.querySelectorAll('#editor-settings-content .settings-category')];
+let activeSettingsCategory = null;
+
+function settingsCategoryLabel(category) {
+  return category.querySelector('.editor-settings-title')?.textContent?.trim() || '';
+}
+
+function buildEditorSettingsNav() {
+  if (!editorSettingsNavEl) return;
+  editorSettingsNavEl.replaceChildren();
+  // 「全部」置顶：所有分类连续展示，各分类标题只在全部模式下显示。
+  const allButton = document.createElement('button');
+  allButton.type = 'button';
+  allButton.className = 'settings-nav-item';
+  allButton.dataset.settingsCategory = 'all';
+  allButton.textContent = '全部';
+  allButton.addEventListener('click', () => {
+    if (editorSettingsSearchInput?.value) {
+      editorSettingsSearchInput.value = '';
+      applyEditorSettingsSearch('');
+    }
+    activateEditorSettingsCategory(null);
+  });
+  editorSettingsNavEl.appendChild(allButton);
+  editorSettingsCategories.forEach((category) => {
+    // 内容整体被应用逻辑隐藏的分类（如无保存目标时的「保存」）不进导航。
+    const visibleSubGroup = category.querySelector('.editor-settings-sub-group:not([hidden])');
+    if (!visibleSubGroup) {
+      category.hidden = true;
+      category.dataset.unavailable = 'true';
+      return;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'settings-nav-item';
+    button.dataset.settingsCategory = category.dataset.settingsCategory || '';
+    button.textContent = settingsCategoryLabel(category);
+    button.addEventListener('click', () => {
+      if (editorSettingsSearchInput?.value) {
+        editorSettingsSearchInput.value = '';
+        applyEditorSettingsSearch('');
+      }
+      activateEditorSettingsCategory(category);
+    });
+    editorSettingsNavEl.appendChild(button);
+    // 含多个子分区的分类带 › 箭头（UE 式）：仅在该分类激活时展开二级导航。
+    const subsections = [...category.querySelectorAll(':scope .settings-subsection')];
+    if (subsections.length > 1) {
+      const caret = document.createElement('span');
+      caret.className = 'settings-nav-caret';
+      caret.setAttribute('aria-hidden', 'true');
+      caret.textContent = '›';
+      button.appendChild(caret);
+      subsections.forEach((subsection) => {
+        const title = subsection.querySelector('.settings-subsection-title')?.textContent?.trim();
+        if (!title) return;
+        const sub = document.createElement('button');
+        sub.type = 'button';
+        sub.className = 'settings-nav-item settings-nav-subitem';
+        sub.dataset.settingsCategory = category.dataset.settingsCategory || '';
+        sub.textContent = title;
+        sub.addEventListener('click', () => {
+          if (editorSettingsSearchInput?.value) {
+            editorSettingsSearchInput.value = '';
+            applyEditorSettingsSearch('');
+          }
+          activateEditorSettingsCategory(category);
+          requestAnimationFrame(() => {
+            subsection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        });
+        editorSettingsNavEl.appendChild(sub);
+      });
+    }
+  });
+}
+
+// category 为 null 时表示「全部」模式：所有分类连续展示并显示分类标题。
+function activateEditorSettingsCategory(category) {
+  if (category?.dataset.unavailable === 'true') return;
+  activeSettingsCategory = category || null;
+  const showAll = !category;
+  document.getElementById('editor-settings-content')?.classList.toggle('show-all-categories', showAll);
+  editorSettingsCategories.forEach((other) => {
+    if (other.dataset.unavailable === 'true') return;
+    other.hidden = showAll ? false : other !== category;
+  });
+  // UE 式：子分类只在所属分类激活时显示，父项箭头随展开旋转（无子分类的项没有箭头）。
+  const navButtons = [...(editorSettingsNavEl?.querySelectorAll('.settings-nav-item') || [])];
+  const expandedCategories = new Set(
+    navButtons
+      .filter((button) => !button.classList.contains('settings-nav-subitem')
+        && !showAll
+        && button.dataset.settingsCategory === category.dataset.settingsCategory
+        && button.querySelector('.settings-nav-caret'))
+      .map((button) => button.dataset.settingsCategory),
+  );
+  navButtons.forEach((button) => {
+    const isChild = button.classList.contains('settings-nav-subitem');
+    const matches = showAll
+      ? button.dataset.settingsCategory === 'all'
+      : button.dataset.settingsCategory === category.dataset.settingsCategory;
+    button.classList.toggle('active', !isChild && matches);
+    if (isChild) button.hidden = !expandedCategories.has(button.dataset.settingsCategory);
+    else button.classList.toggle('open', expandedCategories.has(button.dataset.settingsCategory));
+  });
+}
+
+// 搜索只通过 .search-hidden 类收起行，绝不改写 hidden 属性，
+// 避免与「自动保存间隔」「忍者彩蛋子项」等应用管理的隐藏态互相踩踏。
+function applyEditorSettingsSearch(query) {
+  const normalized = query.trim().toLowerCase();
+  const content = document.getElementById('editor-settings-content');
+  if (!normalized) {
+    editorSettingsCategories.forEach((category) => {
+      category.querySelectorAll('.search-hidden').forEach((row) => row.classList.remove('search-hidden'));
+      if (category.dataset.unavailable === 'true') category.hidden = true;
+      else category.hidden = activeSettingsCategory ? category !== activeSettingsCategory : false;
+    });
+    content?.classList.toggle('show-all-categories', !activeSettingsCategory);
+    return;
+  }
+  // 搜索时跨分类平铺结果，并显示分类标题便于区分。
+  content?.classList.add('show-all-categories');
+  editorSettingsCategories.forEach((category) => {
+    let categoryMatchCount = 0;
+    category.querySelectorAll('.settings-subsection').forEach((subsection) => {
+      let matchCount = 0;
+      subsection.querySelectorAll('.editor-settings-sub-group > *').forEach((row) => {
+        if (row.classList.contains('editor-settings-title')) return;
+        const rowText = `${row.textContent || ''}\n${row.getAttribute('title') || ''}`.toLowerCase();
+        const hit = rowText.includes(normalized) && !row.hidden;
+        row.classList.toggle('search-hidden', !hit);
+        if (hit) matchCount += 1;
+      });
+      subsection.classList.toggle('search-hidden', matchCount === 0);
+      categoryMatchCount += matchCount;
+    });
+    if (category.dataset.unavailable === 'true') category.hidden = true;
+    else category.hidden = categoryMatchCount === 0;
+  });
+  editorSettingsNavEl?.querySelectorAll('.settings-nav-item').forEach((button) => {
+    button.classList.remove('active');
+  });
+}
+
+function resetEditorSettingsSearch() {
+  if (editorSettingsSearchInput?.value) {
+    editorSettingsSearchInput.value = '';
+  }
+  applyEditorSettingsSearch('');
+  activateEditorSettingsCategory(activeSettingsCategory);
+}
+
+editorSettingsSearchInput?.addEventListener('input', () => {
+  applyEditorSettingsSearch(editorSettingsSearchInput.value);
+});
+buildEditorSettingsNav();
+// 默认进入「全部」模式；之后记住用户上次停留的分类。
+activateEditorSettingsCategory(activeSettingsCategory);
+
+// === 设置类弹窗的通用关闭（遮罩点击 / 捕获阶段 Esc） ===
+// 全局设置是可拖拽工具窗（createFloatingPanel 自带 Esc 关闭），无遮罩点击关闭。
+document.getElementById('editor-settings-close')?.addEventListener('click', () => setEditorSettingsPanelOpen(false));
+// 媒体/波形设置是可拖拽工具窗（createFloatingPanel 自带 Esc 关闭），无遮罩点击关闭。
+document.getElementById('media-settings-close')?.addEventListener('click', () => setSubtitlePreviewSettingsPanelOpen(false));
+document.getElementById('wave-settings-close')?.addEventListener('click', () => setWaveformSettingsPanelOpen(false));
+
+// === 「媒体 → 音频设置 → 空隙」：非字幕片段设为空隙（一次性动作，可撤销） ===
+function computeNonSubtitleGapPieces() {
+  const gaps = getGapRemoveGaps();
+  if (!gaps || !gaps.length) return null;
+  const enabled = DATA.segments.filter((segment) => !segment.disabled);
+  const pieces = [];
+  gaps.forEach((gap) => {
+    let spans = [[gap.start, gap.end]];
+    enabled.forEach((segment) => {
+      const next = [];
+      spans.forEach(([start, end]) => {
+        if (segment.end <= start || segment.start >= end) {
+          next.push([start, end]);
+          return;
+        }
+        if (segment.start > start) next.push([start, segment.start]);
+        if (segment.end < end) next.push([segment.end, end]);
+      });
+      spans = next.filter(([start, end]) => end - start >= 1);
+    });
+    spans.forEach(([start, end]) => pieces.push({ start, end }));
+  });
+  return pieces.length ? pieces : null;
+}
+document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () => {
+  const pieces = computeNonSubtitleGapPieces();
+  if (!pieces) {
+    flashHint('没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描', 'invalid');
+    return;
+  }
+  const state = getGapRemoveData(false);
+  pushGapRemoveUndo('非字幕片段设为空隙');
+  commitManualGapRemoveChange(
+    state,
+    pieces.map((piece) => ({ start: piece.start, end: piece.end, removed: true })),
+  );
+  flashHint(`已把 ${pieces.length} 段非字幕片段设为空隙`, 'success');
+});
+
+// === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===
+const DOCK_MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
+function rebuildShowModuleMenu() {
+  const menu = document.getElementById('show-module-menu');
+  const submenu = document.getElementById('show-module-submenu');
+  if (!menu || !submenu) return;
+  const hidden = waveformEditor?.getHiddenModules?.() || [];
+  submenu.hidden = hidden.length === 0;
+  menu.replaceChildren();
+  hidden.forEach((moduleId) => {
+    const item = document.createElement('div');
+    item.className = 'dropdown-item';
+    item.setAttribute('role', 'menuitem');
+    item.setAttribute('tabindex', '0');
+    item.textContent = DOCK_MODULE_LABELS[moduleId] || moduleId;
+    item.addEventListener('click', () => {
+      waveformEditor?.showModule?.(moduleId);
+      rebuildShowModuleMenu();
+    });
+    menu.appendChild(item);
+  });
+}
+
+// === 界面颜色（全局设置 → 外观）：自定义颜色覆盖主题预设 ===
+// 预设与整族强调色变量的应用见 applyThemeAndColors；这里负责取色器与恢复默认。
+const INTERFACE_COLOR_VARS = {
+  bg: '--bg-base',
+  text: '--text-primary',
+  wave: '--wave-peak',
+  subtitle: '--editor-cue-text',
+  accent: '--accent',
+};
+function interfaceColorDefault(key) {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(INTERFACE_COLOR_VARS[key]).trim();
+  return /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#888888';
+}
+function syncInterfaceColorControls() {
+  const colors = EDITOR_SETTINGS.colors || {};
+  Object.keys(INTERFACE_COLOR_VARS).forEach((key) => {
+    const input = document.getElementById(`interface-color-${key}`);
+    if (input) input.value = colors[key] || interfaceColorDefault(key);
+  });
+}
+Object.keys(INTERFACE_COLOR_VARS).forEach((key) => {
+  const input = document.getElementById(`interface-color-${key}`);
+  if (!input) return;
+  input.addEventListener('input', () => {
+    // 拖动取色器时只更新 CSS 变量（轻量）；松手后再持久化并重绘波形。
+    if (key === 'accent') setAccentVarFamily(document.documentElement.style, input.value);
+    else document.documentElement.style.setProperty(INTERFACE_COLOR_VARS[key], input.value);
+  });
+  input.addEventListener('change', () => {
+    const next = { ...(EDITOR_SETTINGS.colors || {}) };
+    if (/^#[0-9a-fA-F]{6}$/.test(input.value)) next[key] = input.value;
+    else delete next[key];
+    updateEditorSettings({ colors: Object.keys(next).length ? next : null });
+    applyThemeAndColors();
+  });
+});
+document.getElementById('interface-colors-reset')?.addEventListener('click', () => {
+  updateEditorSettings({ colors: null });
+  applyThemeAndColors();
+  flashHint('已恢复当前主题的默认颜色', 'success');
+});
+// 初次应用放在取色器区块之后：applyThemeAndColors 依赖本区块的 INTERFACE_COLOR_VARS。
+applyThemeAndColors({ rerenderWaveform: false });
+
 // 新手引导通过这个窄桥接访问编辑器核心状态；引导本身在 editor-onboarding.js 中按需初始化。
 window.MAWE_EDITOR_BRIDGE = Object.freeze({
   get data() { return DATA; },

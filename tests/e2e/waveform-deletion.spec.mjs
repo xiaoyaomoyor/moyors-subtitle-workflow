@@ -3,19 +3,8 @@
 // All selection is through real waveform pointer/click actions (no force).
 // All waits are on observable DOM/DATA state (no arbitrary sleeps).
 import { test, expect } from '@playwright/test';
-import {
-  makeTempDir,
-  cleanupTempDir,
-  findFreePort,
-  generateWav,
-  generateProjectJson,
-  generateBlankEditor,
-  startServer,
-  startStaticServer,
-  DURATION_MS,
-  disableOnboarding,
-} from './helpers.mjs';
 import { join } from 'node:path';
+import { DURATION_MS, cleanupTempDir, disableOnboarding, findFreePort, generateBlankEditor, generateProjectJson, generateWav, makeTempDir, startServer, startStaticServer } from './helpers.mjs';
 
 // ===========================================================================
 // Shared page utilities — used by both adapter suites.

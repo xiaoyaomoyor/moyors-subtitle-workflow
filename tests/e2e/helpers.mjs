@@ -499,3 +499,124 @@ export function generateBlankEditor(outputPath) {
   }
   return outputPath;
 }
+
+// ---------------------------------------------------------------------------
+// Menubar helpers (UE-style top menubar).
+// The old two-row toolbar moved into 文件/编辑/窗口/字幕/媒体/帮助 menus;
+// these helpers open a menu tab and click/hover items (submenu-aware).
+// ---------------------------------------------------------------------------
+export async function openMenubarMenu(page, tabLabel) {
+  const tab = page.locator('.menubar-tab').filter({ hasText: tabLabel }).first();
+  await tab.click();
+  await page.locator('.menubar-item.open > .menubar-menu').first().waitFor({ state: 'visible' });
+  return tab;
+}
+
+export async function closeMenubarMenus(page) {
+  await page.keyboard.press('Escape');
+}
+
+export async function clickMenubarItem(page, tabLabel, itemId) {
+  await openMenubarMenu(page, tabLabel);
+  const item = page.locator(`.menubar-menu #${itemId}`);
+  const wrapper = page.locator(`.dropdown-submenu:has(> .dropdown-submenu-menu #${itemId})`);
+  if (await wrapper.count() > 0) {
+    await wrapper.locator(':scope > .dropdown-submenu-toggle').hover();
+    await page.locator(`.dropdown-submenu.open > .dropdown-submenu-menu #${itemId}`)
+      .first().waitFor({ state: 'visible' });
+  }
+  await item.first().click();
+}
+
+// 「窗口 → 工作区」子菜单项以显示名选择（替代原 #workspace-preset select）。
+export async function selectWorkspacePreset(page, presetLabel) {
+  await openMenubarMenu(page, '窗口');
+  const wrapper = page.locator('#workspace-preset-submenu');
+  await wrapper.locator(':scope > .dropdown-submenu-toggle').hover();
+  const item = page.locator('#workspace-preset-menu .workspace-preset-item', { hasText: presetLabel }).first();
+  await item.waitFor({ state: 'visible' });
+  await item.click();
+}
+
+// 打开帮助浮窗（原 #help-toggle 的行为收进「帮助」菜单）。
+export async function openHelpPanel(page) {
+  await clickMenubarItem(page, '帮助', 'help-basic');
+}
+
+// 全局设置弹窗的等价开关（原 #editor-settings-toggle 的点击语义：开⇄关）。
+export async function toggleEditorSettings(page) {
+  const isOpen = await page.locator('#editor-settings-modal')
+    .evaluate((el) => el.classList.contains('show'));
+  if (isOpen) {
+    await page.locator('#editor-settings-close').click();
+  } else {
+    await clickMenubarItem(page, '编辑', 'editor-settings-toggle');
+  }
+}
+
+// 「字幕 → 多重字幕设置」子菜单（启用开关与全部设置项都在其中）。
+export async function openMultiSubtitleSettings(page) {
+  await openMenubarMenu(page, '字幕');
+  await page.locator('#multi-subtitle-settings-dropdown > .dropdown-submenu-toggle').hover();
+  await page.locator('#multi-subtitle-settings-menu').waitFor({ state: 'visible' });
+}
+
+export async function clickMultiSubtitleToggle(page) {
+  await openMultiSubtitleSettings(page);
+  await page.locator('#multi-subtitle-toggle').click();
+}
+
+export async function setMultiSubtitleToggle(page, checked) {
+  await openMultiSubtitleSettings(page);
+  if (checked) {
+    await page.locator('#multi-subtitle-toggle').check();
+  } else {
+    await page.locator('#multi-subtitle-toggle').uncheck();
+  }
+}
+
+// 语言切换按钮位于「全局设置 → 外观」分类中。
+export async function clickLanguageToggleViaSettings(page) {
+  await toggleEditorSettings(page);  // 若已打开则先关闭，保证状态确定
+  await toggleEditorSettings(page);
+  await page.locator('.settings-nav-item[data-settings-category="appearance"]').click();
+  await page.locator('#language-toggle').click();
+}
+
+// 媒体/波形设置弹窗与字幕设置子菜单的开关（原工具栏齿轮的点击语义）。
+export async function toggleWaveSettings(page) {
+  const open = await page.locator('#wave-settings-modal').evaluate((el) => el.classList.contains('show'));
+  if (open) {
+    await page.locator('#wave-settings-close').click();
+  } else {
+    await clickMenubarItem(page, '媒体', 'waveform-settings-item');
+  }
+}
+
+export async function toggleMediaSettings(page) {
+  const open = await page.locator('#media-settings-modal').evaluate((el) => el.classList.contains('show'));
+  if (open) {
+    await page.locator('#media-settings-close').click();
+  } else {
+    await clickMenubarItem(page, '媒体', 'media-player-settings-item');
+  }
+}
+
+async function toggleSettingsSubmenu(page, submenuId, panelId) {
+  const panel = page.locator(`#${panelId}`);
+  if (await panel.isVisible()) {
+    await page.keyboard.press('Escape');
+    return;
+  }
+  await openMenubarMenu(page, '字幕');
+  await page.locator(`#${submenuId} > .dropdown-submenu-toggle`).hover();
+  await panel.waitFor({ state: 'visible' });
+}
+
+export async function toggleCueListSettings(page) {
+  await toggleSettingsSubmenu(page, 'cue-list-settings-submenu', 'cue-list-settings-panel');
+}
+
+export async function toggleCueEditorSettings(page) {
+  await toggleSettingsSubmenu(page, 'cue-editor-settings-submenu', 'cue-editor-settings-panel');
+}

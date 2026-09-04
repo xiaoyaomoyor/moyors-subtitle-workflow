@@ -58,6 +58,14 @@
   const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'cinema'];
   const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
   const MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
+  // 工作区窗口图标：16x16 线性 SVG，stroke 跟随 currentColor（强调色）。
+  // 字幕编辑区用 T 形文字图标，与字幕列表的多行列表图标区分。
+  const MODULE_ICONS = {
+    player: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6.5 5.8v4.4L10.4 8z" class="dock-icon-fill"/></svg>',
+    panel: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4h9M8 4v8"/></svg>',
+    cues: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="12" rx="2"/><path d="M4 5h8M4 8h8M4 11h4"/></svg>',
+    wave: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h1.8l1.4-4 2 8 2-6 1.6 4 1.2-2h2.6"/></svg>',
+  };
   const DEFAULT_MODULE_ORDER = ['player', 'panel', 'cues', 'wave'];
   const DEFAULT_RIGHT_LAYOUT_TREE = {
     type: 'split', direction: 'row', ratio: 30,
@@ -176,6 +184,7 @@
     layoutColumnPercent: 30,
     layoutRows: [...DEFAULT_LAYOUT_ROWS],
     layoutTree: DEFAULT_RIGHT_LAYOUT_TREE,
+    hiddenModules: [],
     layoutEditing: false,
     waveformScale: 1,
     disabledDisplay: 'dim',
@@ -327,6 +336,14 @@
     return { type: 'module', id };
   }
 
+  function tabsLayoutNode(ids, activeIndex) {
+    const valid = ids.filter((id) => MODULE_IDS.includes(id));
+    const children = valid.map((id) => moduleLayoutNode(id));
+    const index = Number.isInteger(activeIndex) && activeIndex >= 0 && activeIndex < children.length
+      ? activeIndex : 0;
+    return { type: 'tabs', activeIndex: index, children };
+  }
+
   function splitLayoutNode(direction, ratio, first, second) {
     return {
       type: 'split',
@@ -339,6 +356,12 @@
   function cloneLayoutTree(node) {
     if (!node || typeof node !== 'object') return null;
     if (node.type === 'module') return moduleLayoutNode(node.id);
+    if (node.type === 'tabs') {
+      return tabsLayoutNode(
+        node.children.map((child) => child.id),
+        node.activeIndex,
+      );
+    }
     return splitLayoutNode(
       node.direction,
       node.ratio,
@@ -353,6 +376,10 @@
       result.push(node.id);
       return result;
     }
+    if (node.type === 'tabs') {
+      node.children.forEach((child) => collectLayoutModules(child, result));
+      return result;
+    }
     collectLayoutModules(node.children?.[0], result);
     collectLayoutModules(node.children?.[1], result);
     return result;
@@ -361,6 +388,26 @@
   function normalizeLayoutTree(value) {
     if (!value || typeof value !== 'object') return null;
     if (value.type === 'module' && MODULE_IDS.includes(value.id)) return moduleLayoutNode(value.id);
+    if (value.type === 'tabs' && Array.isArray(value.children)) {
+      // tabs 的子节点只能是模块且互不重复（模块唯一实例）；单成员组折叠回普通模块。
+      const seen = new Set();
+      const children = [];
+      value.children.forEach((child) => {
+        const normalized = normalizeLayoutTree(child);
+        if (normalized?.type === 'module' && !seen.has(normalized.id)) {
+          seen.add(normalized.id);
+          children.push(normalized);
+        }
+      });
+      if (!children.length) return null;
+      if (children.length === 1) return children[0];
+      let activeIndex = Number.isInteger(value.activeIndex) ? value.activeIndex : 0;
+      if (typeof value.active === 'string') {
+        const byId = children.findIndex((child) => child.id === value.active);
+        if (byId >= 0) activeIndex = byId;
+      }
+      return tabsLayoutNode(children.map((child) => child.id), activeIndex);
+    }
     if (value.type !== 'split' || !Array.isArray(value.children) || value.children.length !== 2) return null;
     const first = normalizeLayoutTree(value.children[0]);
     const second = normalizeLayoutTree(value.children[1]);
@@ -369,15 +416,25 @@
   }
 
   function isCompleteLayoutTree(tree) {
+    // 每个模块最多出现一次（模块是唯一实例，切换/替换走交换位置）；
+    // 不在树上的模块由 settings.hiddenModules 记录以便「窗口 → 显示窗口」找回。
     const modules = collectLayoutModules(tree);
-    return modules.length === MODULE_IDS.length
+    return modules.length >= 1
+      && modules.length <= MODULE_IDS.length
       && modules.every((id) => MODULE_IDS.includes(id))
-      && new Set(modules).size === MODULE_IDS.length;
+      && new Set(modules).size === modules.length;
   }
 
   function replaceLayoutModule(tree, moduleId, replacement) {
     if (!tree) return null;
     if (tree.type === 'module') return tree.id === moduleId ? replacement : tree;
+    if (tree.type === 'tabs') {
+      const children = tree.children.map((child) => replaceLayoutModule(child, moduleId, replacement))
+        .filter(Boolean);
+      if (!children.length) return null;
+      if (children.length === 1 && children[0].type === 'module') return children[0];
+      return tabsLayoutNode(children.map((child) => child.id), Math.min(tree.activeIndex || 0, children.length - 1));
+    }
     return splitLayoutNode(
       tree.direction,
       tree.ratio,
@@ -389,11 +446,124 @@
   function removeLayoutModule(tree, moduleId) {
     if (!tree) return null;
     if (tree.type === 'module') return tree.id === moduleId ? null : tree;
+    if (tree.type === 'tabs') {
+      const children = tree.children.filter((child) => child.id !== moduleId);
+      if (!children.length) return null;
+      if (children.length === 1) return children[0];
+      return tabsLayoutNode(children.map((child) => child.id), Math.min(tree.activeIndex || 0, children.length - 1));
+    }
     const first = removeLayoutModule(tree.children[0], moduleId);
     const second = removeLayoutModule(tree.children[1], moduleId);
     if (!first) return second;
     if (!second) return first;
     return splitLayoutNode(tree.direction, tree.ratio, first, second);
+  }
+
+  // 把「包含 moduleId 的节点」（模块或它的 tabs 组）整体替换为 replacer 的返回值。
+  function replaceOwnerOfModule(tree, moduleId, replacer) {
+    if (!tree) return null;
+    if (tree.type === 'module') return tree.id === moduleId ? replacer(tree) : tree;
+    if (tree.type === 'tabs') {
+      return tree.children.some((child) => child.id === moduleId) ? replacer(tree) : tree;
+    }
+    const first = replaceOwnerOfModule(tree.children[0], moduleId, replacer);
+    const second = replaceOwnerOfModule(tree.children[1], moduleId, replacer);
+    if (!first) return second;
+    if (!second) return first;
+    return splitLayoutNode(tree.direction, tree.ratio, first, second);
+  }
+
+  // ── 出现位置（path）操作：path 是从树根到某个出现的子索引序列 ──
+  // （split 节点取 children[0|1]，tabs 节点取成员下标）。
+  function occurrenceNodeAt(tree, path) {
+    let parent = null;
+    let index = -1;
+    let node = tree;
+    for (const seg of path) {
+      if (!node || (node.type !== 'split' && node.type !== 'tabs')) return null;
+      parent = node;
+      index = seg;
+      node = node.children[seg] || null;
+    }
+    if (!node) return null;
+    return { parent, index, node };
+  }
+
+  function collapseLayoutTree(node) {
+    if (!node) return null;
+    if (node.type === 'module') return node;
+    if (node.type === 'tabs') {
+      const children = node.children.map(collapseLayoutTree).filter(Boolean);
+      if (!children.length) return null;
+      if (children.length === 1) return children[0];
+      return tabsLayoutNode(children.map((child) => child.id), Math.min(node.activeIndex || 0, children.length - 1));
+    }
+    const first = collapseLayoutTree(node.children[0]);
+    const second = collapseLayoutTree(node.children[1]);
+    if (!first) return second;
+    if (!second) return first;
+    return splitLayoutNode(node.direction, node.ratio, first, second);
+  }
+
+  // 删除指定出现（标签 × / 拖走的就是这个出现）。
+  function removeOccurrenceAt(tree, path) {
+    const clone = cloneLayoutTree(tree);
+    const at = occurrenceNodeAt(clone, path);
+    if (!at || !at.parent) return null;
+    if (at.parent.type === 'tabs') {
+      at.parent.children.splice(at.index, 1);
+      return collapseLayoutTree(clone);
+    }
+    at.parent.children[at.index] = null;
+    return collapseLayoutTree(clone);
+  }
+
+  // 把指定出现替换为另一个节点（标签下拉「变成某模块」）。
+  function replaceOccurrenceAt(tree, path, replacement) {
+    const clone = cloneLayoutTree(tree);
+    const at = occurrenceNodeAt(clone, path);
+    if (!at || !at.parent) return null;
+    at.parent.children[at.index] = replacement;
+    return collapseLayoutTree(clone);
+  }
+
+  // 收集每个模块的全部出现（path 与所属 tabs 组信息），供宿主渲染与标签栏使用。
+  function collectModuleOccurrences(tree) {
+    const index = {};
+    MODULE_IDS.forEach((id) => { index[id] = []; });
+    const walk = (node, path, groupIds, basePath) => {
+      if (!node) return;
+      if (node.type === 'module') {
+        index[node.id].push({ path, groupIds: groupIds || [node.id], basePath: basePath || null });
+        return;
+      }
+      if (node.type === 'tabs') {
+        const groupPath = path;
+        node.children.forEach((child, i) => {
+          walk(child, [...path, i], node.children.map((c) => c.id), groupPath);
+        });
+        return;
+      }
+      walk(node.children[0], [...path, 0], null, null);
+      walk(node.children[1], [...path, 1], null, null);
+    };
+    walk(tree, [], null, null);
+    return index;
+  }
+
+  // 把 sourceId 作为标签并入 targetId 所在的区域（Windows 文件夹式标签组）。
+  function appendModuleAsTab(tree, targetId, sourceId) {
+    if (!isCompleteLayoutTree(tree) || sourceId === targetId) return cloneLayoutTree(tree);
+    const withoutSource = removeLayoutModule(cloneLayoutTree(tree), sourceId);
+    if (!withoutSource || !isCompleteLayoutTree(withoutSource)) return cloneLayoutTree(tree);
+    const merged = replaceOwnerOfModule(withoutSource, targetId, (owner) => {
+      if (owner.type === 'tabs') {
+        const ids = [...owner.children.map((child) => child.id), sourceId];
+        return tabsLayoutNode(ids, ids.length - 1);
+      }
+      return tabsLayoutNode([targetId, sourceId], 1);
+    });
+    return merged && isCompleteLayoutTree(merged) ? merged : cloneLayoutTree(tree);
   }
 
   function swapLayoutTreeModules(tree, sourceId, targetId) {
@@ -410,12 +580,14 @@
     const withoutSource = removeLayoutModule(cloneLayoutTree(tree), sourceId);
     if (!withoutSource) return cloneLayoutTree(tree);
     const source = moduleLayoutNode(sourceId);
-    const target = moduleLayoutNode(targetId);
     const splitDirection = direction === 'left' || direction === 'right' ? 'row' : 'column';
-    const replacement = direction === 'left' || direction === 'top'
-      ? splitLayoutNode(splitDirection, 50, source, target)
-      : splitLayoutNode(splitDirection, 50, target, source);
-    return replaceLayoutModule(withoutSource, targetId, replacement);
+    // 目标若是标签组，整组一起挪到分屏一侧（不能把分屏塞进组里）。
+    const merged = replaceOwnerOfModule(withoutSource, targetId, (owner) => (
+      direction === 'left' || direction === 'top'
+        ? splitLayoutNode(splitDirection, 50, source, owner)
+        : splitLayoutNode(splitDirection, 50, owner, source)
+    ));
+    return merged || withoutSource;
   }
 
   function insertLayoutModuleAtRootEdge(tree, sourceId, direction) {
@@ -439,7 +611,7 @@
     const nearest = Object.entries(distances).sort((a, b) => a[1] - b[1])[0];
     return nearest[1] <= MODULE_EDGE_DROP_RATIO
       ? { mode: 'insert', direction: nearest[0] }
-      : { mode: 'swap' };
+      : { mode: 'tab' };
   }
 
   function layoutRootEdgeSize(rect, direction) {
@@ -530,6 +702,11 @@
     const tree = isCompleteLayoutTree(candidateTree)
       ? candidateTree
       : cloneLayoutTree(preset === 'classic' ? CLASSIC_LAYOUT_EDIT_TREE : DEFAULT_RIGHT_LAYOUT_TREE);
+    const hiddenSource = Array.isArray(source.hiddenModules) ? source.hiddenModules : [];
+    // 只保留「确实不在树上」的隐藏模块，避免树与隐藏列表互相矛盾。
+    const treeModules = new Set(collectLayoutModules(tree));
+    const hiddenModules = [...new Set(hiddenSource)]
+      .filter((id) => MODULE_IDS.includes(id) && !treeModules.has(id));
     return {
       schema: WORKSPACE_SCHEMA,
       preset,
@@ -539,6 +716,7 @@
       columnPercent,
       rows,
       tree,
+      hiddenModules,
     };
   }
 
@@ -1416,11 +1594,15 @@
       this.panel = document.getElementById('current-cue-panel');
       this.playerWrap = this.workspace.querySelector('.player-wrap');
       this.cues = document.getElementById('cues-container');
+      // 字幕列表模块 = 工具栏 wrapper（data-dock-module 在 wrapper 上）；
+      // this.cues 仍指滚动容器，供滚动/渲染逻辑使用。
+      this.cuesModule = document.getElementById('cues-module') || this.cues;
       this.pane = document.getElementById('waveform-pane');
       this.scroll = document.getElementById('waveform-scroll');
       this.content = document.getElementById('waveform-content');
       this.empty = document.getElementById('waveform-empty');
       this.status = document.getElementById('waveform-status');
+      this.readout = document.getElementById('waveform-readout');
       this.spectralColorStatus = document.getElementById('waveform-spectral-status');
       this.divider = document.getElementById('workspace-divider');
       this.secondaryDivider = document.getElementById('workspace-divider-secondary');
@@ -1446,7 +1628,7 @@
       this._onPlayerTime = () => this.updatePlayback();
       this._onResize = () => this.scheduleRender();
       this.bindControls();
-      this.bindDockHandles();
+      this.bindModuleTabs();
       this.applyLayout();
 
       if (window.ResizeObserver) {
@@ -1477,6 +1659,8 @@
     }
 
     bindControls() {
+      this.displayModeSelect = document.getElementById('waveform-display-mode');
+      this.displayModeSelect?.addEventListener('change', () => this.setMode(this.displayModeSelect.value));
       document.querySelectorAll('[data-waveform-mode]').forEach((button) => {
         button.addEventListener('click', () => this.setMode(button.dataset.waveformMode));
       });
@@ -1744,6 +1928,7 @@
       document.querySelectorAll('[data-waveform-mode]').forEach((button) => {
         button.classList.toggle('active', button.dataset.waveformMode === this.settings.mode);
       });
+      if (this.displayModeSelect) this.displayModeSelect.value = this.settings.mode;
       this.windowLabel.textContent = `${this.settings.visibleSeconds} 秒`;
       if (this.waveformScaleLabel) this.waveformScaleLabel.textContent = `×${parseFloat(this.settings.waveformScale.toFixed(2))}`;
       this.secondsPerRowSelect.value = String(this.settings.secondsPerRow);
@@ -1756,8 +1941,9 @@
         this.layoutEditToggle.textContent = this.settings.layoutEditing ? '完成布局' : '编辑布局';
         this.layoutEditToggle.classList.toggle('active', !!this.settings.layoutEditing);
       }
-      if (this.layoutResetButton) this.layoutResetButton.hidden = !this.settings.layoutEditing;
+      if (this.layoutResetButton) this.layoutResetButton.hidden = false;
       this.updateAdvancedSettingsAvailability();
+      this.refreshModuleTabStrips();
     }
 
     updateAdvancedSettingsAvailability() {
@@ -1820,6 +2006,8 @@
       this.settings.layoutRows = normalized.rows;
       this.settings.layoutTree = normalized.tree;
       this.settings.layoutEditing = false;
+      // 预设布局固定展示全部四个模块：清掉标签/关闭留下的隐藏状态。
+      this.settings.hiddenModules = [];
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
@@ -1870,73 +2058,512 @@
     }
 
     isCustomLayout() {
-      return this.settings.layout === 'custom' && this.settings.layoutEditing;
+      // 布局管理改为「图标即手柄」后不再需要编辑布局模式；渲染条件与编辑态解耦。
+      return this.settings.layout === 'custom';
     }
 
+    // 拖拽图标时如果还在内置布局，自动以当前树转入自定义布局。
+    ensureCustomLayoutForDrag() {
+      if (this.settings.layout === 'custom') return true;
+      if (!isCompleteLayoutTree(this.settings.layoutTree)) {
+        this.settings.layoutTree = cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
+      }
+      this.settings.layout = 'custom';
+      this.settings.layoutEditing = false;
+      saveSettings(this.settings);
+      this.applyLayout();
+      return true;
+    }
+
+    getHiddenModules() {
+      return [...(this.settings.hiddenModules || [])].filter((id) => MODULE_IDS.includes(id));
+    }
+
+    closeDockModule(id) {
+      if (!MODULE_IDS.includes(id)) return false;
+      const visible = collectLayoutModules(this.settings.layoutTree);
+      if (visible.length <= 1) {
+        this.setStatus('至少保留一个窗口', 'busy');
+        return false;
+      }
+      const nextTree = removeLayoutModule(this.settings.layoutTree, id);
+      if (!nextTree || !isCompleteLayoutTree(nextTree)) return false;
+      this.recordLayoutUndo(`关闭「${MODULE_LABELS[id]}」窗口`, this.getLayoutHistorySnapshot());
+      this.settings.layout = 'custom';
+      this.settings.layoutTree = nextTree;
+      const present = new Set(collectLayoutModules(nextTree));
+      this.settings.hiddenModules = MODULE_IDS.filter((m) => !present.has(m));
+      saveSettings(this.settings);
+      this.applyLayout();
+      this.setStatus(`已关闭「${MODULE_LABELS[id]}」窗口；可在「窗口 → 显示窗口」找回`);
+      return true;
+    }
+
+    // 把 fromId 所在槽位切换为 toId（toId 已隐藏时换入；toId 可见时等价交换）。
+    switchDockModule(fromId, toId) {
+      if (fromId === toId || !MODULE_IDS.includes(fromId) || !MODULE_IDS.includes(toId)) return false;
+      const visible = collectLayoutModules(this.settings.layoutTree);
+      if (!visible.includes(fromId)) return false;
+      let nextTree;
+      if (visible.includes(toId)) {
+        nextTree = swapLayoutTreeModules(this.settings.layoutTree, fromId, toId);
+      } else {
+        nextTree = replaceLayoutModule(this.settings.layoutTree, fromId, moduleLayoutNode(toId));
+      }
+      if (!isCompleteLayoutTree(nextTree)) return false;
+      this.recordLayoutUndo(`切换窗口为「${MODULE_LABELS[toId]}」`, this.getLayoutHistorySnapshot());
+      this.settings.layout = 'custom';
+      this.settings.layoutTree = nextTree;
+      const hidden = new Set(this.settings.hiddenModules || []);
+      hidden.delete(toId);
+      if (!collectLayoutModules(nextTree).includes(fromId)) hidden.add(fromId);
+      this.settings.hiddenModules = [...hidden];
+      saveSettings(this.settings);
+      this.applyLayout();
+      this.setStatus(`已切换为「${MODULE_LABELS[toId]}」`);
+      return true;
+    }
+
+    showModule(id) {
+      if (!MODULE_IDS.includes(id)) return false;
+      if (!(this.settings.hiddenModules || []).includes(id)) return false;
+      const nextTree = insertLayoutModuleAtRootEdge(this.settings.layoutTree, id, 'bottom');
+      if (!isCompleteLayoutTree(nextTree)) return false;
+      this.recordLayoutUndo(`显示「${MODULE_LABELS[id]}」窗口`, this.getLayoutHistorySnapshot());
+      this.settings.layout = 'custom';
+      this.settings.layoutTree = nextTree;
+      const present = new Set(collectLayoutModules(nextTree));
+      this.settings.hiddenModules = MODULE_IDS.filter((m) => !present.has(m));
+      saveSettings(this.settings);
+      this.applyLayout();
+      this.setStatus(`已显示「${MODULE_LABELS[id]}」窗口`);
+      return true;
+    }
+
+    // ── Windows 文件夹式标签栏 ──────────────────────────────────────
+    // 每个模块顶部一条标签栏：标签（图标 + 名称 + ×）+ 行尾「+」。
+    // 标签组（tabs 树节点）的成员共享同一条标签栏；预设布局与单模块槽显示单个标签。
+    // 交互：点标签切换；× 关闭该模块；拖标签 = 半区分屏 / 中心并入标签 / 根边缘停靠；
+    // 「+」把其他模块并入当前标签组。
+
+    // 同一模块重复出现时，非宿主位置渲染占位卡片；点击其标签会把真实窗口切换过来。
+    createModuleStub(id) {
+      const stub = document.createElement('div');
+      stub.className = 'module-instance-stub';
+      stub.dataset.stubModule = id;
+      stub.insertAdjacentHTML('afterbegin', `
+        <span class="stub-icon">${MODULE_ICONS[id] || ''}</span>
+        <span class="stub-name">${MODULE_LABELS[id]}</span>
+        <small>此窗口当前显示在另一处标签；点击本标签切换到这里</small>`);
+      return stub;
+    }
+
+    // 预设里只有 wave-right 的网格行列可被拖拽调整。
     isPresetResizableLayout() {
       return this.settings.layout === 'wave-right';
     }
 
-    bindDockHandles() {
-      const modules = [
-        ['player', this.playerWrap],
-        ['panel', this.panel],
-        ['cues', this.cues],
-        ['wave', this.pane],
-      ];
-      modules.forEach(([id, element]) => {
+    commitLayoutTree(nextTree, undoLabel) {
+      if (!nextTree || !isCompleteLayoutTree(nextTree)) return false;
+      if (undoLabel) this.recordLayoutUndo(undoLabel, this.getLayoutHistorySnapshot());
+      this.settings.layout = 'custom';
+      this.settings.layoutTree = nextTree;
+      const present = new Set(collectLayoutModules(nextTree));
+      this.settings.hiddenModules = MODULE_IDS.filter((m) => !present.has(m));
+      saveSettings(this.settings);
+      this.applyLayout();
+      return true;
+    }
+
+    // 每个模块的宿主出现（唯一真实 DOM 的挂载点）：优先用户最近激活的出现，否则首个。
+    resolveModuleHosts(tree) {
+      const occurrences = collectModuleOccurrences(tree);
+      const hosts = {};
+      MODULE_IDS.forEach((id) => {
+        const list = occurrences[id] || [];
+        if (!list.length) { hosts[id] = null; return; }
+        const preferredPath = this.moduleHosts?.[id];
+        const preferred = preferredPath
+          ? list.find((occ) => JSON.stringify(occ.path) === JSON.stringify(preferredPath))
+          : null;
+        hosts[id] = preferred || list[0];
+      });
+      return { hosts, occurrences };
+    }
+
+    moduleTabGroupOf(id) {
+      if (!MODULE_IDS.includes(id)) return { ids: [id], active: id };
+      if (!this.isCustomLayout()) return { ids: [id], active: id };
+      let found = null;
+      const visit = (node) => {
+        if (found || !node) return;
+        if (node.type === 'module') {
+          if (node.id === id) found = { ids: [id], active: id };
+          return;
+        }
+        if (node.type === 'tabs') {
+          if (node.children.some((child) => child.id === id)) {
+            found = { ids: node.children.map((child) => child.id), active: node.active };
+          }
+          return;
+        }
+        node.children?.forEach(visit);
+      };
+      visit(this.settings.layoutTree);
+      return found || { ids: [id], active: id };
+    }
+
+    refreshModuleTabStrips() {
+      // 标签拖拽进行中不重建标签栏：被拖拽的标签节点一旦被替换，原生拖拽会话会断裂挂起。
+      if (this._tabDragHappened || this.layoutDragSource) return;
+      const elements = {
+        player: this.playerWrap,
+        panel: this.panel,
+        cues: this.cuesModule,
+        wave: this.pane,
+      };
+      MODULE_IDS.forEach((id) => {
+        const element = elements[id];
+        const strip = element?.querySelector(':scope > .module-tab-strip');
+        if (!element || !strip) return;
+        // 以「宿主出现」所在的标签组为准；预设布局或无树信息时按单标签处理。
+        const custom = this.isCustomLayout() && this.layoutOccurrences;
+        const hostOcc = custom ? (this.layoutHosts?.[id] || this.layoutOccurrences?.[id]?.[0]) : null;
+        let ids = [id];
+        let activeId = id;
+        let basePath = null;
+        let activeIndex = 0;
+        let memberPaths = [null];
+        if (custom && hostOcc) {
+          const tree = this.settings.layoutTree;
+          const at = hostOcc.basePath !== null ? occurrenceNodeAt(tree, hostOcc.basePath) : occurrenceNodeAt(tree, hostOcc.path);
+          const owner = at && at.node?.type === 'tabs' ? at.node : (at?.parent?.type === 'tabs' ? at.parent : null);
+          if (owner) {
+            ids = owner.children.map((child) => child.id);
+            activeIndex = owner.activeIndex || 0;
+            activeId = ids[activeIndex];
+            basePath = hostOcc.basePath !== null ? hostOcc.basePath : hostOcc.path.slice(0, -1);
+            memberPaths = owner.children.map((child, i) => [...(basePath || []), i]);
+          } else {
+            ids = [hostOcc.path === undefined ? id : at?.node?.id || id];
+            memberPaths = [hostOcc.path || []];
+          }
+        }
+        strip.replaceChildren();
+        ids.forEach((mid, i) => {
+          const tab = document.createElement('div');
+          tab.className = 'module-tab' + (i === activeIndex ? ' active' : '');
+          tab.dataset.tabFor = mid;
+          tab.dataset.path = JSON.stringify(memberPaths[i] || []);
+          tab.draggable = true;
+          tab.title = MODULE_LABELS[mid];
+          tab.setAttribute('role', 'tab');
+          tab.setAttribute('aria-selected', i === activeIndex ? 'true' : 'false');
+          tab.insertAdjacentHTML(
+            'afterbegin',
+            `<span class="tab-icon">${MODULE_ICONS[mid] || ''}</span><span class="tab-name">${MODULE_LABELS[mid]}</span>`,
+          );
+          const closeBtn = document.createElement('button');
+          closeBtn.type = 'button';
+          closeBtn.className = 'tab-close';
+          closeBtn.title = '关闭窗口';
+          closeBtn.setAttribute('aria-label', `关闭${MODULE_LABELS[mid]}窗口`);
+          closeBtn.textContent = '×';
+          tab.appendChild(closeBtn);
+          strip.appendChild(tab);
+        });
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'module-tab-add';
+        addBtn.title = '复制当前窗口为新标签';
+        addBtn.setAttribute('aria-label', '复制当前窗口为新标签');
+        addBtn.textContent = '+';
+        addBtn.dataset.basePath = JSON.stringify(basePath || []);
+        addBtn.dataset.moduleId = id;
+        strip.appendChild(addBtn);
+      });
+    }
+
+    activateModuleTab(id) {
+      if (!MODULE_IDS.includes(id) || this._tabDragHappened) return;
+      if (!this.isCustomLayout()) return;
+      const nextTree = cloneLayoutTree(this.settings.layoutTree);
+      let changed = false;
+      const visit = (node) => {
+        if (!node || node.type !== 'tabs') {
+          node?.children?.forEach(visit);
+          return;
+        }
+        const index = node.children.findIndex((child) => child.id === id);
+        if (index >= 0 && (node.activeIndex || 0) !== index) {
+          node.activeIndex = index;
+          changed = true;
+        }
+      };
+      visit(nextTree);
+      if (!changed) return;
+      this.settings.layoutTree = nextTree;
+      saveSettings(this.settings);
+      this.applyLayout();
+    }
+
+    // 预设布局下先转换为自定义树，再返回模块首个出现的路径（供 + / 下拉 / 关闭使用）。
+    ensureCustomAndFindPath(moduleId) {
+      if (!MODULE_IDS.includes(moduleId)) return null;
+      if (!this.isCustomLayout() && !this.ensureCustomLayoutForDrag()) return null;
+      const occurrence = this.layoutOccurrences?.[moduleId]?.[0];
+      return occurrence ? occurrence.path : null;
+    }
+
+    // 「+」：列出尚未出现在工作区的模块，选择后并入当前标签组；
+    // 模块唯一实例——所有模块都已显示时点击没有效果。
+    duplicateModuleTab(addBtn) {
+      const moduleId = addBtn.dataset.moduleId;
+      if (!MODULE_IDS.includes(moduleId)) return;
+      if (!this.isCustomLayout() && !this.ensureCustomLayoutForDrag()) return;
+      const present = new Set(collectLayoutModules(this.settings.layoutTree));
+      const candidates = MODULE_IDS.filter((mid) => !present.has(mid));
+      if (!candidates.length) return;
+      this.openTabAddMenu(moduleId, addBtn, candidates);
+    }
+
+    openTabAddMenu(anchorId, anchorEl, candidates) {
+      this.closeTabAddMenu();
+      const panel = document.createElement('div');
+      panel.className = 'dock-menu-panel tab-convert-menu';
+      panel.setAttribute('role', 'menu');
+      panel.setAttribute('aria-label', '添加窗口到此标签组');
+      candidates.forEach((mid) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'dock-menu-item';
+        item.title = `把${MODULE_LABELS[mid]}加入此标签组`;
+        item.setAttribute('aria-label', `把${MODULE_LABELS[mid]}加入此标签组`);
+        item.insertAdjacentHTML('afterbegin', `<span class="tab-icon">${MODULE_ICONS[mid] || ''}</span><span class="tab-name">${MODULE_LABELS[mid]}</span>`);
+        item.addEventListener('click', () => {
+          this.closeTabAddMenu();
+          const tree = isCompleteLayoutTree(this.settings.layoutTree)
+            ? this.settings.layoutTree
+            : cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
+          const next = appendModuleAsTab(tree, anchorId, mid);
+          if (!isCompleteLayoutTree(next)) return;
+          if (this.commitLayoutTree(next, `把「${MODULE_LABELS[mid]}」并入标签组`)) {
+            this.setStatus(`已把「${MODULE_LABELS[mid]}」并入标签组`);
+          }
+        });
+        panel.appendChild(item);
+      });
+      document.body.appendChild(panel);
+      const rect = anchorEl.getBoundingClientRect();
+      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
+      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, rect.bottom + 4))}px`;
+
+      let leaveTimer = null;
+      panel.addEventListener('pointerenter', () => { clearTimeout(leaveTimer); leaveTimer = null; });
+      panel.addEventListener('pointerleave', () => {
+        clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(() => this.closeTabAddMenu(), 250);
+      });
+      this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
+      const dismiss = (event) => {
+        if (panel.contains(event.target)) return;
+        this.closeTabAddMenu();
+      };
+      this.tabAddMenuDismiss = dismiss;
+      document.addEventListener('pointerdown', dismiss, true);
+      this.tabAddMenuKeydown = (event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        this.closeTabAddMenu();
+      };
+      document.addEventListener('keydown', this.tabAddMenuKeydown, true);
+      this.tabAddMenu = panel;
+    }
+
+    // 点单标签 → 与标签同宽的下拉：变成其他模块（本出现被替换，原模块不挪位）。
+    openTabConvertMenu(tabEl) {
+      this.closeTabAddMenu();
+      const currentId = tabEl?.dataset?.tabFor;
+      const path = this.ensureCustomAndFindPath(currentId);
+      if (!path) return;
+      const at = occurrenceNodeAt(this.settings.layoutTree, path);
+      if (!at?.node || at.node.type !== 'module') return;
+      const panel = document.createElement('div');
+      panel.className = 'dock-menu-panel tab-convert-menu';
+      panel.setAttribute('role', 'menu');
+      panel.setAttribute('aria-label', '把此窗口变成其他模块');
+      MODULE_IDS.forEach((mid) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'dock-menu-item' + (mid === currentId ? ' active' : '');
+        item.title = `变成${MODULE_LABELS[mid]}`;
+        item.setAttribute('aria-label', `变成${MODULE_LABELS[mid]}`);
+        item.insertAdjacentHTML('afterbegin', `<span class="tab-icon">${MODULE_ICONS[mid] || ''}</span><span class="tab-name">${MODULE_LABELS[mid]}</span>`);
+        item.addEventListener('click', () => {
+          this.closeTabAddMenu();
+          if (mid === currentId) return;
+          // 模块是唯一实例：选择后与该模块互换位置（替换），原模块去往它原来的位置。
+          // 预设布局在此刻才转换为自定义（打开下拉时不转换，避免布局重排出现空隙）。
+          if (!this.isCustomLayout() && !this.ensureCustomLayoutForDrag()) return;
+          const nextTree = swapLayoutTreeModules(this.settings.layoutTree, currentId, mid);
+          if (!isCompleteLayoutTree(nextTree)) return;
+          this.commitLayoutTree(nextTree, `替换为「${MODULE_LABELS[mid]}」窗口`);
+          this.setStatus(`已与「${MODULE_LABELS[mid]}」互换位置`);
+        });
+        panel.appendChild(item);
+      });
+      document.body.appendChild(panel);
+      panel.style.width = `${Math.max(96, tabEl.offsetWidth)}px`;
+      const rect = tabEl.getBoundingClientRect();
+      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
+      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, rect.bottom + 4))}px`;
+
+      let leaveTimer = null;
+      panel.addEventListener('pointerenter', () => { clearTimeout(leaveTimer); leaveTimer = null; });
+      panel.addEventListener('pointerleave', () => {
+        clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(() => this.closeTabAddMenu(), 250);
+      });
+      this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
+      const dismiss = (event) => {
+        if (panel.contains(event.target)) return;
+        this.closeTabAddMenu();
+      };
+      this.tabAddMenuDismiss = dismiss;
+      document.addEventListener('pointerdown', dismiss, true);
+      this.tabAddMenuKeydown = (event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        this.closeTabAddMenu();
+      };
+      document.addEventListener('keydown', this.tabAddMenuKeydown, true);
+      this.tabAddMenu = panel;
+    }
+
+    closeTabAddMenu() {
+      if (this.tabAddMenuDismiss) {
+        document.removeEventListener('pointerdown', this.tabAddMenuDismiss, true);
+        this.tabAddMenuDismiss = null;
+      }
+      if (this.tabAddMenuKeydown) {
+        document.removeEventListener('keydown', this.tabAddMenuKeydown, true);
+        this.tabAddMenuKeydown = null;
+      }
+      this.tabAddMenuCancelLeave?.();
+      this.tabAddMenuCancelLeave = null;
+      this.tabAddMenu?.remove();
+      this.tabAddMenu = null;
+    }
+
+    bindModuleTabs() {
+      const elements = {
+        player: this.playerWrap,
+        panel: this.panel,
+        cues: this.cuesModule,
+        wave: this.pane,
+      };
+      Object.entries(elements).forEach(([id, element]) => {
         if (!element) return;
         element.dataset.dockModule = id;
-        let handle = element.querySelector(':scope > .dock-handle');
-        if (!handle) {
-          handle = document.createElement('div');
-          handle.className = 'dock-handle';
-          handle.textContent = `⋮⋮ ${MODULE_LABELS[id]}`;
-          element.prepend(handle);
+        let strip = element.querySelector(':scope > .module-tab-strip');
+        if (!strip) {
+          strip = document.createElement('div');
+          strip.className = 'module-tab-strip';
+          strip.setAttribute('role', 'tablist');
+          strip.setAttribute('aria-label', `${MODULE_LABELS[id]}窗口标签`);
+          element.prepend(strip);
         }
-        handle.draggable = true;
-        handle.addEventListener('dragstart', (event) => {
-          if (!this.isCustomLayout()) {
+        if (!strip.dataset.bound) {
+          strip.dataset.bound = '1';
+          strip.addEventListener('click', (event) => {
+            const closeBtn = event.target.closest('.tab-close');
+            if (closeBtn) {
+              this.closeDockModule(closeBtn.closest('.module-tab').dataset.tabFor);
+              return;
+            }
+            if (event.target.closest('.module-tab-add')) {
+              this.duplicateModuleTab(event.target.closest('.module-tab-add'));
+              return;
+            }
+            const tab = event.target.closest('.module-tab');
+            if (!tab) return;
+            // 单标签（本区域只有这一个窗口）→ 打开「变成其他模块」下拉；
+            // 多标签组内 → 切换标签。
+            const siblings = strip.querySelectorAll('.module-tab');
+            if (siblings.length > 1) this.activateModuleTab(tab.dataset.tabFor);
+            else this.openTabConvertMenu(tab);
+          });
+          strip.addEventListener('dragstart', (event) => {
+            const tab = event.target.closest('.module-tab');
+            if (!tab) return;
+            this._tabDragHappened = true;
+            if (!this.ensureCustomLayoutForDrag()) {
+              event.preventDefault();
+              this._tabDragHappened = false;
+              return;
+            }
+            event.dataTransfer?.setData('text/plain', tab.dataset.tabFor);
+            event.dataTransfer?.setDragImage(tab, 20, 12);
+            this.layoutDragSource = tab.dataset.tabFor;
+            this.layoutDragPath = (() => { try { return JSON.parse(tab.dataset.path || '[]'); } catch (_) { return null; } })();
+            this.workspace.classList.add('layout-dragging');
+          });
+          strip.addEventListener('dragend', () => {
+            this.layoutDragSource = null;
+            this.layoutDragPath = null;
+            this.clearLayoutDropPreview();
+            this.workspace.classList.remove('layout-dragging');
+            // 拖拽保护期结束补一次刷新：drop 引起的布局变化期间 refresh 被跳过。
+            window.setTimeout(() => {
+              this._tabDragHappened = false;
+              this.refreshModuleTabStrips();
+            }, 150);
+          });
+        }
+        // 模块本体作为拖放目标：标签栏带内或中心 = 并入标签，四边半区 = 分屏。
+        if (!element.dataset.dropBound) {
+          element.dataset.dropBound = '1';
+          element.addEventListener('dragover', (event) => {
+            if (!this.isCustomLayout() || !this.layoutDragSource) return;
+            if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
+            if (this.layoutDragSource === id) return;
             event.preventDefault();
-            this.setStatus('请先进入「编辑布局」模式', 'busy');
-            return;
-          }
-          event.dataTransfer?.setData('text/plain', id);
-          event.dataTransfer?.setDragImage(handle, 16, 10);
-          this.layoutDragSource = id;
-          this.workspace.classList.add('layout-dragging');
-          element.classList.add('layout-drag-source');
-        });
-        handle.addEventListener('dragend', () => {
-          this.layoutDragSource = null;
-          element.classList.remove('layout-drag-source');
-          this.clearLayoutDropPreview();
-          this.workspace.classList.remove('layout-dragging');
-        });
-        element.addEventListener('dragover', (event) => {
-          if (!this.isCustomLayout() || !this.layoutDragSource) return;
-          if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
-          if (this.layoutDragSource === id) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = 'move';
-          const intent = layoutDropIntent(element.getBoundingClientRect(), event.clientX, event.clientY);
-          this.layoutDropIntent = { ...intent, targetId: id, sourceId: this.layoutDragSource };
-          this.showLayoutDropPreview(element, id, this.layoutDragSource, intent);
-        });
-        element.addEventListener('drop', (event) => {
-          if (!this.isCustomLayout()) return;
-          const source = this.layoutDragSource || event.dataTransfer?.getData('text/plain');
-          if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
-          event.preventDefault();
-          if (!source || source === id) return;
-          const intent = this.layoutDropIntent?.targetId === id
-            ? this.layoutDropIntent
-            : { ...layoutDropIntent(element.getBoundingClientRect(), event.clientX, event.clientY), targetId: id, sourceId: source };
-          this.applyLayoutDrop(source, id, intent);
-          this.clearLayoutDropPreview();
-        });
+            event.dataTransfer.dropEffect = 'move';
+            const rect = element.getBoundingClientRect();
+            const inTabBand = event.clientY < rect.top + 32;
+            const intent = inTabBand
+              ? { mode: 'tab' }
+              : layoutDropIntent(rect, event.clientX, event.clientY);
+            this.layoutDropIntent = { ...intent, targetId: id, sourceId: this.layoutDragSource };
+            this.showLayoutDropPreview(element, id, this.layoutDragSource, intent);
+          });
+          element.addEventListener('drop', (event) => {
+            if (!this.isCustomLayout()) return;
+            const source = this.layoutDragSource || event.dataTransfer?.getData('text/plain');
+            if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
+            event.preventDefault();
+            if (!source || source === id) return;
+            const intent = this.layoutDropIntent?.targetId === id
+              ? this.layoutDropIntent
+              : { mode: 'tab', targetId: id, sourceId: source };
+            this.applyLayoutDrop(source, id, intent);
+            this.clearLayoutDropPreview();
+          });
+        }
       });
       this.bindWorkspaceDockTarget();
+      this.refreshModuleTabStrips();
+      // 标签拖拽期间阻止浏览器默认行为：否则把可拖元素松开在页面/标签栏外时，
+      // 浏览器会按 URL 处理（打开或撕出标签页）。
+      if (!this._tabDragGuardsBound) {
+        this._tabDragGuardsBound = true;
+        document.addEventListener('dragover', (event) => {
+          if (this.layoutDragSource) event.preventDefault();
+        });
+        document.addEventListener('drop', (event) => {
+          if (this.layoutDragSource) event.preventDefault();
+        });
+      }
     }
 
     bindWorkspaceDockTarget() {
@@ -1969,19 +2596,28 @@
     }
 
     applyLayoutDrop(sourceId, targetId, intent) {
-      const tree = isCompleteLayoutTree(this.settings.layoutTree)
+      let tree = isCompleteLayoutTree(this.settings.layoutTree)
         ? this.settings.layoutTree
         : cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
+      // 重复出现时按拖起的出现移除源，避免误删另一处。
+      if (Array.isArray(this.layoutDragPath) && this.layoutDragPath.length) {
+        const at = occurrenceNodeAt(tree, this.layoutDragPath);
+        if (at?.node?.type === 'module' && at.node.id === sourceId) {
+          const without = removeOccurrenceAt(tree, this.layoutDragPath);
+          if (without && isCompleteLayoutTree(without)) tree = without;
+        }
+        this.layoutDragPath = null;
+      }
       const nextTree = intent.mode === 'root-insert'
         ? insertLayoutModuleAtRootEdge(tree, sourceId, intent.direction)
         : intent.mode === 'insert'
           ? insertLayoutModuleAtEdge(tree, sourceId, targetId, intent.direction)
-          : swapLayoutTreeModules(tree, sourceId, targetId);
+          : appendModuleAsTab(tree, targetId, sourceId);
       if (!isCompleteLayoutTree(nextTree)) return;
       this.recordLayoutUndo(
         intent.mode === 'root-insert'
           ? '停靠到窗口边缘'
-          : intent.mode === 'insert' ? '插入布局模块' : '交换布局模块',
+          : intent.mode === 'insert' ? '插入布局模块' : '并入标签组',
         this.getLayoutHistorySnapshot(),
       );
       this.settings.layoutTree = nextTree;
@@ -1992,7 +2628,7 @@
       } else if (intent.mode === 'insert') {
         this.setStatus(`已将「${MODULE_LABELS[sourceId]}」插入到「${MODULE_LABELS[targetId]}」${directionLabel(intent.direction)}`);
       } else {
-        this.setStatus(`已交换「${MODULE_LABELS[sourceId]}」与「${MODULE_LABELS[targetId]}」`);
+        this.setStatus(`已将「${MODULE_LABELS[sourceId]}」并入「${MODULE_LABELS[targetId]}」标签组`);
       }
     }
 
@@ -2014,7 +2650,9 @@
         ? `窗口${directionLabel(intent.direction)}：${MODULE_LABELS[sourceId]}`
         : intent.mode === 'insert'
           ? `新位置：${MODULE_LABELS[sourceId]} ${directionLabel(intent.direction)}`
-          : `新位置：与${MODULE_LABELS[id]}对换`;
+          : intent.mode === 'tab'
+            ? `并入标签：${MODULE_LABELS[sourceId]} → ${MODULE_LABELS[id]}`
+            : `新位置：与${MODULE_LABELS[id]}对换`;
       this.layoutPreview.classList.add('show');
       this.workspace.querySelectorAll('.layout-drop-target').forEach((target) => {
         target.classList.remove('layout-drop-target');
@@ -2044,13 +2682,14 @@
       const elements = {
         player: this.playerWrap,
         panel: this.panel,
-        cues: this.cues,
+        cues: this.cuesModule,
         wave: this.pane,
       };
       if (!this.customLayoutRoot?.isConnected) return;
       Object.values(elements).forEach((element) => {
         if (element) {
           element.style.gridArea = '';
+          element.hidden = false; // 标签组里被隐藏的成员回到预设时恢复显示
           this.workspace.insertBefore(element, this.customLayoutRoot);
         }
       });
@@ -2059,23 +2698,56 @@
       this.renderedCustomLayoutTree = null;
     }
 
-    createCustomLayoutNode(node) {
+    createCustomLayoutNode(node, path = []) {
       const elements = {
         player: this.playerWrap,
         panel: this.panel,
-        cues: this.cues,
+        cues: this.cuesModule,
         wave: this.pane,
       };
+      if (node.type === 'tabs') {
+        const slot = document.createElement('div');
+        slot.className = 'layout-child layout-module-slot layout-tabs-slot';
+        slot.dataset.layoutModule = node.children[node.activeIndex || 0]?.id || node.children[0]?.id;
+        node.children.forEach((child, i) => {
+          const active = i === (node.activeIndex || 0);
+          const host = this.layoutHosts?.[child.id];
+          const isHost = host && JSON.stringify([...path, i]) === JSON.stringify(host.path);
+          if (isHost) {
+            const element = elements[child.id];
+            if (element) {
+              element.hidden = !active;
+              slot.appendChild(element);
+            }
+          } else {
+            const stub = this.createModuleStub(child.id);
+            stub.hidden = !active;
+            slot.appendChild(stub);
+          }
+        });
+        return slot;
+      }
       if (node.type === 'module') {
         const slot = document.createElement('div');
         slot.className = 'layout-child layout-module-slot';
         slot.dataset.layoutModule = node.id;
-        if (elements[node.id]) slot.appendChild(elements[node.id]);
+        const host = this.layoutHosts?.[node.id];
+        const isHost = !host || JSON.stringify(path) === JSON.stringify(host.path);
+        if (isHost) {
+          const element = elements[node.id];
+          if (element) {
+            element.hidden = false;
+            slot.appendChild(elements[node.id]);
+          }
+        } else {
+          slot.appendChild(this.createModuleStub(node.id));
+        }
         return slot;
       }
       const split = document.createElement('div');
       split.className = `layout-split layout-split-${node.direction}`;
       split.dataset.layoutDirection = node.direction;
+      void path;
       const first = document.createElement('div');
       first.className = 'layout-child';
       const second = document.createElement('div');
@@ -2083,8 +2755,8 @@
       const divider = document.createElement('div');
       divider.className = `layout-split-divider layout-split-divider-${node.direction}`;
       divider.title = node.direction === 'row' ? '拖动调整左右区域比例' : '拖动调整上下区域比例';
-      first.appendChild(this.createCustomLayoutNode(node.children[0]));
-      second.appendChild(this.createCustomLayoutNode(node.children[1]));
+      first.appendChild(this.createCustomLayoutNode(node.children[0], [...path, 0]));
+      second.appendChild(this.createCustomLayoutNode(node.children[1], [...path, 1]));
       split.append(first, divider, second);
       this.applyCustomSplitRatio(first, node.ratio);
       this.bindCustomLayoutDivider(divider, split, first, node);
@@ -2139,11 +2811,26 @@
       const tree = isCompleteLayoutTree(this.settings.layoutTree)
         ? this.settings.layoutTree
         : cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
+      const resolved = this.resolveModuleHosts(tree);
+      this.layoutHosts = resolved.hosts;
+      this.layoutOccurrences = resolved.occurrences;
       this.settings.layoutTree = tree;
       if (this.renderedCustomLayoutTree === tree && root.childElementCount) return;
       root.replaceChildren();
       root.appendChild(this.createCustomLayoutNode(tree));
       this.renderedCustomLayoutTree = tree;
+      // 被关闭的窗口不在树上：把它的工作区元素移出 DOM（预设渲染器或恢复显示时会重新挂载），
+      // 否则从预设布局直接关闭窗口时元素仍是工作区直接子节点，会残留在画面上。
+      const renderedModules = new Set(collectLayoutModules(tree));
+      const moduleElements = {
+        player: this.playerWrap,
+        panel: this.panel,
+        cues: this.cuesModule,
+        wave: this.pane,
+      };
+      Object.entries(moduleElements).forEach(([id, element]) => {
+        if (!renderedModules.has(id) && element?.isConnected) element.remove();
+      });
     }
 
     getLayoutData() {
@@ -2165,6 +2852,7 @@
         columnPercent: this.settings.layoutColumnPercent,
         rows: [...this.settings.layoutRows],
         tree: cloneLayoutTree(this.settings.layoutTree),
+        hiddenModules: [...(this.settings.hiddenModules || [])],
       };
     }
 
@@ -2211,6 +2899,7 @@
       this.settings.layoutColumnPercent = layout.columnPercent;
       this.settings.layoutRows = layout.rows;
       this.settings.layoutTree = layout.tree;
+      this.settings.hiddenModules = [...layout.hiddenModules];
       this.settings.layoutEditing = false;
       saveSettings(this.settings);
       this.applyLayout();
@@ -2341,9 +3030,21 @@
     }
 
     setStatus(message, kind = '') {
+      // 瞬态消息不再占用顶部栏右侧（那里只放常显的「时长 · 峰值数」数据行）；
+      // 文本仍写入隐藏的状态元素供无障碍读取，同时以浮动提示展示。
       this.status.textContent = message;
       this.status.classList.toggle('error', kind === 'error');
       this.status.classList.toggle('busy', kind === 'busy');
+      if (message && typeof flashHint === 'function') {
+        flashHint(message, kind === 'error' ? 'invalid' : 'default');
+      }
+    }
+
+    // 常显数据行（时长 · 峰值数）：与瞬态操作消息分离，不再被工具/dock 消息覆盖。
+    updateReadout(text) {
+      if (!this.readout) return;
+      this.readout.hidden = !text;
+      this.readout.textContent = text || '';
     }
 
     setSpectralColorStatus(message = '') {
@@ -2424,9 +3125,10 @@
       this.mediaAvailable = next;
       this.pane.classList.toggle('waveform-media-unavailable', !next);
       if (!this.payload) return;
-      this.setStatus(next
+      // 数据行只显示「媒体总时长 · 波形峰值点数」；媒体未加载时不显示任何占位文本。
+      this.updateReadout(next
         ? `${formatCompact(this.payload.duration_ms)} · ${this.payload.peak_count.toLocaleString()} peaks`
-        : `${formatCompact(this.payload.duration_ms)} · 缓存波形（未加载媒体）`);
+        : null);
       this.render();
     }
 
@@ -2435,6 +3137,7 @@
       if (!decoded) {
         this.payload = null;
         this.peaks = null;
+        this.updateReadout(null);
         this.setStatus('等待波形数据');
         this.empty.textContent = '加载媒体后显示波形（大媒体需要先用 MAW 生成波形后拖入）';
         this.empty.classList.remove('hidden');
@@ -2444,9 +3147,9 @@
       this.payload = payload;
       this.peaks = decoded;
       this.empty.classList.add('hidden');
-      this.setStatus(this.mediaAvailable
+      this.updateReadout(this.mediaAvailable
         ? `${formatCompact(payload.duration_ms)} · ${payload.peak_count.toLocaleString()} peaks`
-        : `${formatCompact(payload.duration_ms)} · 缓存波形（未加载媒体）`);
+        : null);
       this.centerBasicOnCurrentTime();
       this.multiRange = [-1, -1];
       if (render) this.render();

@@ -178,7 +178,7 @@
 .editor-workspace.layout-wave-right > .player-wrap,
 .editor-workspace.layout-wave-right > .current-cue-panel,
 .editor-workspace.layout-wave-right > .waveform-pane,
-.editor-workspace.layout-wave-right > .cues-container {
+.editor-workspace.layout-wave-right > .cues-module {
   width: auto;
   height: auto;
   min-width: 0;
@@ -189,7 +189,7 @@
 }
 .editor-workspace.layout-wave-right > .player-wrap { grid-column: 1; grid-row: 1; }
 .editor-workspace.layout-wave-right > .current-cue-panel { grid-column: 1; grid-row: 3; }
-.editor-workspace.layout-wave-right > .cues-container { grid-column: 1; grid-row: 5; }
+.editor-workspace.layout-wave-right > .cues-module { grid-column: 1; grid-row: 5; }
 .editor-workspace.layout-wave-right > .waveform-pane { grid-column: 3; grid-row: 1 / 6; }
 .editor-workspace.layout-wave-right > .player-wrap video {
   width: 100%; height: 100%; max-height: none;
@@ -197,7 +197,6 @@
 .editor-workspace.layout-wave-right > .player-wrap audio { width: 100%; }
 .editor-workspace.layout-wave-right > .current-cue-panel {
   overflow: hidden;
-  padding-top: 10px;
 }
 .editor-workspace.layout-wave-right .cue-panel-text-wrap,
 .editor-workspace.layout-custom .cue-panel-text-wrap { flex: 1 1 auto; }
@@ -272,14 +271,9 @@
   max-height: none;
 }
 .layout-custom .player-wrap audio { width: 100%; }
+/* 标签栏已在文档流内：不再需要旧绝对定位手柄时代的 30px 顶部让位与 max-content 下限 */
 .layout-custom .current-cue-panel {
-  min-height: max-content;
   overflow: hidden;
-  padding-top: 30px;
-}
-.layout-custom .layout-module-slot[data-layout-module="panel"],
-.layout-custom .layout-child:has(.layout-module-slot[data-layout-module="panel"]) {
-  min-height: max-content;
 }
 .layout-custom .cue-panel-text-wrap { flex: 1 1 auto; }
 .layout-custom .cue-panel-navigation,
@@ -299,16 +293,21 @@
   overflow-x: hidden;
 }
 .layout-custom .layout-resizer { display: none; }
+/* 模块内容统一底色：波形面板与播放器舞台同色 */
+.waveform-pane { background: var(--module-content-bg); }
+.player-stage { background: var(--module-content-bg); }
+
+/* 分隔条：默认隐形（模块间无空白感），悬浮/拖动时才显示抓取线 */
 .layout-split-divider {
   position: relative;
   z-index: 35;
-  flex: 0 0 7px;
+  flex: 0 0 4px;
   background: transparent;
 }
 .layout-split-divider::after {
   content: "";
   position: absolute;
-  background: var(--border-strong);
+  background: transparent;
   border-radius: 2px;
   transition: background .12s;
 }
@@ -320,38 +319,38 @@
 .layout-split-divider-column::after { left: 0; right: 0; top: 2px; height: 3px; }
 
 .waveform-pane {
-  --waveform-content-top: var(--panel-toolbar-h);
+  --waveform-content-top: calc(var(--module-tab-h) + var(--panel-toolbar-h));
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg-wave);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background: var(--module-content-bg);
 }
 .waveform-pane.waveform-media-unavailable canvas { filter: saturate(0.2); }
 .waveform-pane:focus { outline: none; }
+/* 顶栏右侧只放常显数据行（时长 · 峰值数）；瞬态消息走 flashHint，
+   状态元素用 sr-only 裁剪保留（无障碍可读、测试可断言，视觉不占位）。 */
+#waveform-status {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
 /* 波形顶部工具栏：absolute 覆盖在 scroll 之上；布局编辑模式下让出 dock-handle 高度。 */
 .waveform-pane > .waveform-toolbar {
   position: absolute;
-  top: 0;
+  top: var(--module-tab-h);
   left: 0;
   right: 0;
   z-index: 30;
   background: var(--panel-toolbar-bg-wave);
 }
-.editor-workspace.layout-editing .waveform-pane {
-  --waveform-content-top: calc(var(--dock-handle-h) + var(--panel-toolbar-h));
-}
-.editor-workspace.layout-editing .waveform-pane > .waveform-toolbar {
-  top: var(--dock-handle-h);
-}
+
 .waveform-scroll {
   position: absolute;
-  inset: 0;
+  /* 顶部让出标签栏（点击/拖放标签不被滚动区拦截） */
+  top: var(--module-tab-h); bottom: 0; left: 0; right: 0;
   overflow: hidden;
   overscroll-behavior: contain;
-  padding: var(--waveform-content-top) 8px 8px;
+  padding: var(--panel-toolbar-h) 8px 8px;
 }
 .waveform-content {
   position: relative;
@@ -370,7 +369,7 @@
   font-size: 13px;
   text-align: center;
   pointer-events: none;
-  background: linear-gradient(180deg, var(--empty-overlay-1), var(--empty-overlay-2));
+  background: var(--module-content-bg);
 }
 .waveform-empty.hidden { display: none; }
 .workspace-divider {
@@ -417,23 +416,6 @@
 .layout-wave-right .layout-resizer-h1,
 .layout-wave-right .layout-resizer-h2 { display: block; }
 
-.dock-handle {
-  display: none; position: absolute; z-index: 40; top: 0; left: 0; right: 0; height: var(--dock-handle-h);
-  align-items: center; padding: 0 8px; color: var(--text-secondary); background: var(--dock-bg);
-  border-bottom: 1px solid var(--border-subtle); cursor: grab; user-select: none;
-  font: 11px/1 var(--font-mono); letter-spacing: 0.02em;
-}
-/* 字幕列表自身会滚动：拖拽把手改为 sticky 进入文档流，
-   滚动时始终钉在列表顶部，不会被内容顶走。 */
-.cues-container > .dock-handle {
-  position: sticky;
-  left: auto; right: auto;
-  margin: 0 -4px;
-  border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
-}
-  .dock-handle:hover { color: var(--amber-hover); background: var(--dock-bg-hover); }
-.dock-handle:active { cursor: grabbing; }
-.editor-workspace.layout-editing .dock-handle { display: flex; }
 .editor-workspace.layout-editing > .player-wrap,
 .editor-workspace.layout-editing > .current-cue-panel,
 .editor-workspace.layout-editing > .waveform-pane,

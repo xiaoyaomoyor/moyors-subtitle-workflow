@@ -211,8 +211,9 @@ class EditorAssetContractTests(unittest.TestCase):
     def test_generated_page_contains_registered_modules_in_order(self) -> None:
         page = edit.build_blank_html()
         self.assertNotRegex(page, r"__[A-Z][A-Z0-9_]+__")
+        # 版本徽标位于右上角项目名悬浮详情卡内。
         self.assertIn(
-            f'<span class="app-version" id="app-version" data-label="版本号">版本号 v{edit.get_app_version()}</span>',
+            f'<span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">版本号 v{edit.get_app_version()}</span>',
             page,
         )
         # 便携页禁止携带「生成时间：…」式硬编码时间戳；「正在生成时间线 OTIOZ…」

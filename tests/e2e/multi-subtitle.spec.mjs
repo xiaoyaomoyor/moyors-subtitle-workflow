@@ -2,14 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  findFreePort,
-  generateBlankEditor,
-  generateWaveformPayload,
-  makeTempDir,
-  startStaticServer,
-} from './helpers.mjs';
+import { cleanupTempDir, clickLanguageToggleViaSettings, clickMenubarItem, clickMultiSubtitleToggle, findFreePort, generateBlankEditor, generateWaveformPayload, makeTempDir, openMultiSubtitleSettings as openMultiSubtitleMenu, setMultiSubtitleToggle, startStaticServer, toggleCueListSettings, toggleEditorSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -78,7 +71,7 @@ async function importPair(page) {
 }
 
 async function openMultiSubtitleSettings(page) {
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleMenu(page);
   await expect(page.locator('#multi-subtitle-settings-menu')).toBeVisible();
 }
 
@@ -109,65 +102,44 @@ async function moveWaveformPointerToTime(page, blockLocator, timeMs) {
 
 test('defaults the waveform shape source to ReaPeaks', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   await expect(page.locator('#waveform-settings-panel')).toBeVisible();
   await expect(page.locator('#waveform-shape-source')).toHaveValue('reapeaks');
 });
 
 test('explains where to configure automatic timecode splitting', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   const hint = page.locator('#split-use-word-timestamps-hint');
   await expect(hint).toContainText('开启时，会自动按可用时间码拆分');
   await expect(hint).toContainText('关闭后将打开拆分弹窗');
   await expect(hint).not.toContainText('右上角「🔧 设置 → 拆分与合并」');
 });
 
-test('offers importing a second SRT when enabling multiple subtitles without an extension track', async ({ page }) => {
+test('enabling multiple subtitles requires importing a second SRT first', async ({ page }) => {
   await page.goto(server.url);
   await dropFiles(page, [srtSpec('main.srt', mainSrt)]);
 
-  await expect(page.locator('#multi-subtitle-controls')).toBeVisible();
-  await expect(page.locator('#multi-subtitle-toggle')).not.toBeDisabled();
-  await expect(page.locator('#multi-subtitle-settings-toggle')).toBeHidden();
+  // 菜单栏改造后：只有一种字幕时「启用多重字幕」灰显，提示先导入第二条字幕。
+  await openMultiSubtitleSettings(page);
+  await expect(page.locator('#multi-subtitle-toggle')).toBeDisabled();
   await expect(page.locator('#multi-subtitle-toggle-label'))
-    .toHaveAttribute('title', '当前工程如果有大于1条字幕，可以开启多重字幕模式，用于双语字幕编辑等。');
-  expect(await page.locator('#multi-subtitle-toggle-label').evaluate((element) => (
-    element.nextElementSibling?.id
-  ))).toBe('multi-subtitle-empty-hint');
+    .toHaveAttribute('title', '请先通过「字幕 → 加载字幕」导入第二条字幕，再启用多重字幕。');
 
-  // 开关状态恒等跟随多重字幕编辑模式本身：勾选即开启，
-  // 提示只决定是否现在导入第二条字幕。
-  page.once('dialog', (dialog) => {
-    expect(dialog.message()).toBe('是否导入第二条字幕？（后续也可以将字幕或工程拖入编辑器加载）');
-    dialog.dismiss();
-  });
-  await page.locator('#multi-subtitle-toggle').click();
-  await expect(page.locator('#multi-subtitle-toggle')).toBeChecked();
-  // 已开启但尚未导入副轨：齿轮不显示，改为开关右侧提示拖入第二条字幕。
-  await expect(page.locator('#multi-subtitle-settings-toggle')).toBeHidden();
-  await expect(page.locator('#multi-subtitle-empty-hint')).toBeVisible();
-
-  // 再次点击 = 关闭多重字幕（回到未开启状态）。
-  await page.locator('#multi-subtitle-toggle').click();
-  await expect(page.locator('#multi-subtitle-toggle')).not.toBeChecked();
-
-  page.once('dialog', (dialog) => {
-    expect(dialog.message()).toBe('是否导入第二条字幕？（后续也可以将字幕或工程拖入编辑器加载）');
-    dialog.accept();
-  });
-  const chooserPromise = page.waitForEvent('filechooser');
-  await page.locator('#multi-subtitle-toggle').click();
-  const chooser = await chooserPromise;
-  await chooser.setFiles({
-    name: 'translation.srt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from(extensionSrt, 'utf8'),
-  });
+  // 拖入第二条 SRT → 导入弹窗选择「作为多重字幕」→ 自动启用多重字幕编辑。
+  await dropFiles(page, [srtSpec('translation.srt', extensionSrt)]);
   await expect(page.locator('#multi-subtitle-import-modal')).toHaveClass(/show/);
+  await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
+  await openMultiSubtitleSettings(page);
   await expect(page.locator('#multi-subtitle-toggle')).toBeChecked();
-  await expect(page.locator('#multi-subtitle-settings-toggle')).toBeVisible();
+  await expect(page.locator('#multi-subtitle-toggle')).not.toBeDisabled();
+
+  // 关闭再开启：副轨已存在，开关始终可用。
+  await setMultiSubtitleToggle(page, false);
+  await expect(page.locator('#multi-subtitle-toggle')).not.toBeChecked();
+  await setMultiSubtitleToggle(page, true);
+  await expect(page.locator('#multi-subtitle-toggle')).toBeChecked();
 });
 
 test('waveform extension cue double-click focuses the extension editor', async ({ page }) => {
@@ -237,10 +209,10 @@ test('extension list clicks auto-scroll and double-click places the caret at the
   }]);
 
   const autoScroll = page.locator('#cue-list-auto-scroll-on-click');
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await autoScroll.check();
   // 关闭设置面板，避免面板高度压缩列表视口影响后续滚动几何断言。
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   const list = page.locator('#cues-container');
   const target = page.locator('.multi-dual-cue[data-ext-idx="20"] .multi-cue-column.extension');
   const targetRow = page.locator('.multi-dual-cue[data-ext-idx="20"]');
@@ -620,7 +592,7 @@ test('keeps track badges optional and uses striped disabled styling for secondar
   await expect(firstWaveformRow).toHaveClass(/show-track-badges/);
   await page.locator('#multi-subtitle-show-track-badges').uncheck();
   await expect(firstWaveformRow).not.toHaveClass(/show-track-badges/);
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
 
   const main = page.locator('.multi-cue-column.main:not(.multi-cue-empty)').first();
   await main.click({ modifiers: ['Alt'] });
@@ -769,7 +741,7 @@ test('uses the secondary language split mode and caret position for list B split
   await page.locator('#multi-subtitle-import-result-confirm').click();
   await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-extension-language-mode').selectOption('continuous');
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
 
   const extensionText = page.locator('.multi-dual-cue').first().locator('.multi-cue-column.extension .text');
   await extensionText.click();
@@ -882,6 +854,7 @@ test('applies text processing to selected extension subtitles', async ({ page })
 
   const row = page.locator('.multi-dual-cue').first();
   await row.locator('.multi-cue-column.extension .text').click();
+  await toggleCueListSettings(page);
   await page.locator('#batch-operations-btn').click();
   await page.locator('#text-process-btn').click();
   await expect(page.locator('#text-process-selected-only')).toBeChecked();
@@ -901,7 +874,7 @@ test('selects bound subtitle pairs without changing the current editor target', 
 
   const pairToggle = page.locator('#multi-subtitle-select-bound-pair');
   await expect(pairToggle).toBeChecked();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
   const panelTarget = page.locator('#cue-panel-target');
   const panelText = page.locator('#cue-panel-text');
   const firstRow = page.locator('.multi-dual-cue').first();
@@ -933,7 +906,7 @@ test('selects bound subtitle pairs without changing the current editor target', 
 
   await openMultiSubtitleSettings(page);
   await pairToggle.uncheck();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
   await page.keyboard.press('Escape');
   await extensionText.click();
   await expect(page.locator('#sel-count')).toHaveText('1');
@@ -941,7 +914,7 @@ test('selects bound subtitle pairs without changing the current editor target', 
 
   await openMultiSubtitleSettings(page);
   await pairToggle.check();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
   await page.keyboard.press('Escape');
   await extensionText.click();
   await expect(page.locator('#sel-count')).toHaveText('2');
@@ -1473,10 +1446,10 @@ test('uses the maximum waveform row height while multiple subtitles are enabled 
   await dropFiles(page, [srtSpec('main.srt', mainSrt)]);
   await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
 
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   await page.locator('#waveform-row-height').selectOption('64');
   await expect(page.locator('#waveform-row-height')).toHaveValue('64');
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
 
   await dropFiles(page, [srtSpec('translation.srt', extensionSrt)]);
   await page.locator('#multi-subtitle-import-extension').click();
@@ -1488,9 +1461,9 @@ test('uses the maximum waveform row height while multiple subtitles are enabled 
   await page.locator('#multi-subtitle-extension-row-height').selectOption('144');
   await expect(page.locator('#waveform-row-height')).toHaveValue('144');
 
-  await page.locator('#multi-subtitle-toggle').uncheck();
+  await setMultiSubtitleToggle(page, false);
   await expect(page.locator('#waveform-row-height')).toHaveValue('64');
-  await page.locator('#multi-subtitle-toggle').check();
+  await setMultiSubtitleToggle(page, true);
   await expect(page.locator('#waveform-row-height')).toHaveValue('144');
 });
 
@@ -1531,7 +1504,7 @@ test('auto-binds the earliest unbound main cue when an extension overlaps severa
   }]);
   await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-auto-sync-duration').uncheck();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
   await page.keyboard.press('Control+d');
 
   const autoExtension = page.locator('.multi-cue-column.extension').filter({ hasText: 'Auto bind me' });
@@ -1676,9 +1649,9 @@ test('uses the linked split dialog when the main cue is active with its bound ex
   await importPair(page);
   await page.locator('#multi-subtitle-import-result-confirm').click();
 
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await page.locator('#split-use-word-timestamps').uncheck();
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
 
   const mainColumn = page.locator('.multi-dual-cue').first().locator('.multi-cue-column.main');
   await mainColumn.click();
@@ -1781,9 +1754,9 @@ test('applies Subtitle Ninja feedback after a linked split-modal split', async (
 test('keeps the subtitle-list caret position as the linked main split point', async ({ page }) => {
   await importPair(page);
   await page.locator('#multi-subtitle-import-result-confirm').click();
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await page.locator('#split-use-word-timestamps').uncheck();
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
 
   await page.evaluate(() => {
     const main = DATA.segments[0];
@@ -1869,7 +1842,7 @@ test('uses G to bind a single extension cue and labels extension context shortcu
 
   await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-select-bound-pair').uncheck();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
   await mainCue.click();
   await unboundExtension.click({ modifiers: ['Control'] });
   await page.keyboard.press('g');
@@ -2049,11 +2022,11 @@ test('keeps extension selection, timing, disabled, and hide shortcuts in parity 
   const saved = await page.evaluate(() => JSON.parse(buildJson()));
   expect(saved.multi_subtitle.tracks[0].segments[0].disabled).toBe(true);
 
-  await page.locator('#cue-list-settings-toggle').click();
+  await toggleCueListSettings(page);
   await page.locator('#hide-disabled-toggle').check();
   await expect(extensionColumn).toBeHidden();
   await page.locator('#hide-disabled-toggle').uncheck();
-  await page.locator('#cue-list-settings-toggle').click();
+  await toggleCueListSettings(page);
   await extensionColumn.click({ modifiers: ['Alt'] });
   await expect(extensionColumn).not.toHaveClass(/disabled/);
 });
@@ -2091,7 +2064,7 @@ test('选中的主字幕与绑定副字幕一起合并并支持撤销', async ({
   await page.locator('#multi-subtitle-import-result-confirm').click();
   await openMultiSubtitleSettings(page);
   await expect(page.locator('#multi-subtitle-auto-sync-duration')).toBeChecked();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
 
   const first = page.locator('.multi-cue-column.main').filter({ hasText: 'Hello world.' });
   const second = page.locator('.multi-cue-column.main').filter({ hasText: 'Second line.' });
@@ -2151,7 +2124,7 @@ test('ignores a tiny unbound extension overlap at the main merge boundary', asyn
   // 避免把新的“绑定后按 H 整理冲突”语义混入本用例。
   await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-auto-sync-duration').uncheck();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
 
   await page.locator('.multi-cue-column.main').filter({ hasText: '主字幕一' }).click();
   await page.locator('.multi-cue-column.main').filter({ hasText: '主字幕二' }).click({ modifiers: ['Control'] });
@@ -2208,7 +2181,7 @@ test('拼合主字幕时同步延展绑定副字幕并支持撤销', async ({ pa
     base64: Buffer.from(JSON.stringify(project), 'utf8').toString('base64'),
   }]);
 
-  await page.locator('#auto-merge-manage').click();
+  await clickMenubarItem(page, '字幕', 'auto-merge-manage');
   await page.locator('#auto-merge-gap-ms').fill('200');
   await page.locator('#auto-merge-absorb-short').uncheck();
   await page.locator('#auto-merge-run').click();
@@ -2234,11 +2207,12 @@ test('shows independent extension preview controls with yellow defaults', async 
   await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
 
+  // 预览开关收进「媒体 → 媒体播放器设置」浮窗，先打开再断言。
+  await toggleMediaSettings(page);
   await expect(page.locator('#extension-overlay-toggle-wrap')).toBeVisible();
   await expect(page.locator('#extension-overlay-toggle')).toBeChecked();
   await expect(page.locator('#overlay')).toHaveCSS('flex-direction', 'column');
   await expect(page.locator('#overlay')).toHaveCSS('gap', '0px');
-  await page.locator('#subtitle-preview-settings-toggle').click();
   await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
   await expect(page.locator('#extension-subtitle-preview-settings')).toBeVisible();
   await expect(page.locator('#subtitle-color')).toHaveValue('#ffffff');
@@ -2265,7 +2239,7 @@ test('refreshes local font options for both main and extension subtitles', async
   await importPair(page);
   await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
 
   const scanButton = page.locator('#subtitle-font-family-scan');
   await expect(scanButton).toBeEnabled();
@@ -2295,7 +2269,7 @@ test('localizes approved scanned font labels in both selectors', async ({ page }
   await importPair(page);
   await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   await page.locator('#subtitle-font-family-scan').click();
   const options = await page.evaluate(() => ['subtitle-font-family', 'extension-subtitle-font-family']
     .map((id) => Array.from(document.getElementById(id).options, (option) => ({
@@ -2311,7 +2285,7 @@ test('localizes approved scanned font labels in both selectors', async ({ page }
   ]));
   await page.locator('#subtitle-font-family').selectOption('Source Han Sans SC');
   await page.locator('#extension-subtitle-font-family').selectOption('SimSun');
-  await page.locator('#language-toggle').click();
+  await clickLanguageToggleViaSettings(page);
   await expect(page.locator('#subtitle-font-family option:checked')).toHaveText('Source Han Sans SC');
   await expect(page.locator('#extension-subtitle-font-family option:checked')).toHaveText('SimSun');
   expect(await page.evaluate(() => ({
@@ -3016,8 +2990,9 @@ test('keeps one shared waveform background with two lanes, switch visibility, an
   }]);
 
   await expect(page.locator('.waveform-row.multi-subtitle-row')).not.toHaveCount(0);
-  await expect(page.locator('#multi-subtitle-waveform-controls')).toBeVisible();
-  await expect(page.locator('.row-actions #multi-subtitle-bind')).toHaveCount(0);
+  // 批量对齐入口移入「字幕 → 多重字幕设置」子菜单（无包装容器）
+  await expect(page.locator('#multi-subtitle-align')).toBeAttached();
+  await expect(page.locator('#multi-subtitle-bind')).toHaveCount(0);
   await expect(page.locator('.waveform-cue-block[data-track="main"]')).toHaveCount(2);
   await expect(page.locator('.waveform-cue-block[data-track="extension"]')).toHaveCount(2);
 
@@ -3041,13 +3016,12 @@ test('keeps one shared waveform background with two lanes, switch visibility, an
 
   await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-show-track-badges').check();
-  await page.locator('#multi-subtitle-toggle').uncheck();
+  await setMultiSubtitleToggle(page, false);
   await expect(page.locator('#multi-subtitle-toggle')).not.toBeChecked();
   await expect(page.locator('.waveform-row.multi-subtitle-row')).toHaveCount(0);
-  await expect(page.locator('#download-multi-srt')).toBeHidden();
-  await page.locator('#multi-subtitle-toggle').check();
+  await expect(page.locator('#download-multi-srt')).toBeDisabled();
+  await setMultiSubtitleToggle(page, true);
   await expect(page.locator('.waveform-row.multi-subtitle-row')).not.toHaveCount(0);
-  await expect(page.locator('#multi-subtitle-settings-menu')).toBeHidden();
 
   const [mainRect, extensionRect] = await Promise.all([
     mainBlock.boundingBox(),
@@ -3399,8 +3373,7 @@ test('snaps an extension cue to main-track boundaries when cross-track snapping 
 
   await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-cross-track-snap').uncheck();
-  await page.locator('#multi-subtitle-settings-toggle').click();
-  await expect(page.locator('#multi-subtitle-settings-menu')).toBeHidden();
+  await openMultiSubtitleSettings(page);
 
   await page.goto(server.url);
   await dropFiles(page, [{
@@ -3447,7 +3420,7 @@ test('confirms main replacement and makes both replacement paths undoable', asyn
   await page.locator('#multi-subtitle-import-result-confirm').click();
   await expect(page.locator('#multi-subtitle-toggle')).toBeChecked();
   await page.keyboard.press('Control+z');
-  await expect(page.locator('#multi-subtitle-controls')).toBeVisible();
+  await expect(page.locator('#multi-subtitle-settings-toggle')).toBeAttached();
   await expect(page.locator('#multi-subtitle-toggle')).not.toBeDisabled();
   await expect(page.locator('#multi-subtitle-toggle-label'))
     .toHaveAttribute('title', '当前工程如果有大于1条字幕，可以开启多重字幕模式，用于双语字幕编辑等。');
@@ -3476,10 +3449,10 @@ test('uses the split dialog for waveform main splitting when word timestamps are
     type: 'application/json',
     base64: Buffer.from(JSON.stringify(project), 'utf8').toString('base64'),
   }]);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await expect(page.locator('#split-use-word-timestamps')).toBeChecked();
   await page.locator('#split-use-word-timestamps').uncheck();
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
 
   await page.locator('[data-waveform-tool="razor"]').click();
   const block = page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]');
@@ -3556,9 +3529,9 @@ test('uses the split dialog for SRT-style main subtitles without word timestamps
     type: 'application/json',
     base64: Buffer.from(JSON.stringify(project), 'utf8').toString('base64'),
   }]);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await expect(page.locator('#split-use-word-timestamps')).toBeChecked();
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
 
   await page.locator('[data-waveform-tool="razor"]').click();
   const block = page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]');
@@ -3604,10 +3577,10 @@ test('keeps the waveform pointer as the absolute cut in a linked split dialog', 
     type: 'application/json',
     base64: Buffer.from(JSON.stringify(project), 'utf8').toString('base64'),
   }]);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await expect(page.locator('#split-use-word-timestamps')).toBeChecked();
   await page.locator('#split-use-word-timestamps').uncheck();
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
 
   await page.locator('[data-waveform-tool="razor"]').click();
   const block = page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]');
@@ -3700,9 +3673,9 @@ test('labels a linked split time inferred from main word timestamps', async ({ p
     .toContainText('右上角「🔧 设置 → 拆分与合并」');
   await page.keyboard.press('Escape');
 
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await page.locator('#split-use-word-timestamps').uncheck();
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await mainText.click();
   await page.keyboard.press('b');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);

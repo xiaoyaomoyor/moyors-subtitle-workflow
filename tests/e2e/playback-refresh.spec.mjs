@@ -1,14 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleMediaSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -128,7 +120,7 @@ test('JKL direction mode drives the timeline backward and forward', async ({ pag
     return media.readyState >= 1 && Number.isFinite(media.duration) && media.duration > 0;
   });
 
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   await expect(page.locator('#jkl-playback-mode')).toHaveValue('direction');
   await expect(page.locator('#jkl-playback-mode-hint')).toContainText('J 倒放');
 
@@ -180,7 +172,7 @@ test('JKL direction mode drives the timeline backward and forward', async ({ pag
   await page.keyboard.press('k');
   await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
   await page.locator('#jkl-playback-mode').selectOption('speed');
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   await page.keyboard.press('j');
   await expect.poll(() => page.evaluate(() => document.getElementById('player').playbackRate)).toBe(0.5);
 });

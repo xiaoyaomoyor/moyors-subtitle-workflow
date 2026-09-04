@@ -1,14 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, findFreePort, generateProjectJson, generateWav, makeTempDir, openHelpPanel, startServer } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -101,7 +93,7 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(page.locator('#onboarding-layer')).toBeHidden();
   expect(await page.evaluate(() => localStorage.getItem('moy.asr.editor.onboarding.v1'))).toBe('skipped');
 
-  await page.locator('#help-toggle').click();
+  await openHelpPanel(page);
   expect(await page.evaluate(() => document.activeElement?.id)).not.toBe('help-toggle');
   const helpPanel = page.locator('#help-panel');
   await expect(helpPanel).toHaveClass(/show/);
@@ -204,7 +196,7 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
 test('Gap help translates the updated operations in English', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('mawe.language', 'en'));
   await page.goto(server.url);
-  await page.locator('#help-toggle').click();
+  await openHelpPanel(page);
   await page.locator('#help-advanced-toggle').click();
   await page.getByRole('tab', { name: 'Gap operations', exact: true }).click();
 

@@ -1,17 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  addBwfTimeReference,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeFirstCueWordSplittable,
-  makeTempDir,
-  startServer,
-  testSegments,
-} from './helpers.mjs';
+import { DURATION_MS, addBwfTimeReference, cleanupTempDir, clickMenubarItem, findFreePort, generateProjectJson, generateWav, makeFirstCueWordSplittable, makeTempDir, openHelpPanel, startServer, testSegments, toggleEditorSettings, toggleCueEditorSettings, toggleCueListSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -155,9 +144,9 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
   ))).toBe(true);
 
   await setGaps([{ start: 10050, end: 10550, removed: true }], 'boundary_and_middle');
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   await expect(page.locator('#gap-remove-operation-mode')).toHaveValue('boundary_and_middle');
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   const middleRow = page.locator('.waveform-row[data-row-index="0"]').first();
   const middleBox = await middleRow.boundingBox();
   expect(middleBox).not.toBeNull();
@@ -283,7 +272,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
 
 test('gap settings expose compact actions and screenshot defaults', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#gap-remove-manage').click();
+  await clickMenubarItem(page, '媒体', 'gap-remove-manage');
 
   await expect(page.locator('#gap-remove-threshold')).toHaveValue('400');
   await expect(page.locator('#gap-remove-volume-threshold')).toHaveValue('-28');
@@ -336,7 +325,7 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
     renderAll({ waveform: 'full' });
   });
 
-  await page.locator('#gap-remove-manage').click();
+  await clickMenubarItem(page, '媒体', 'gap-remove-manage');
   await page.locator('#gap-remove-disable-toggle').click();
   await expect(page.locator('#gap-remove-disable-toggle')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#gap-remove-disable-coverage')).toHaveValue('80');
@@ -392,7 +381,7 @@ test('shrinks existing gaps from the gap settings padding', async ({ page }) => 
     renderAll({ waveform: 'full' });
   });
 
-  await page.locator('#gap-remove-manage').click();
+  await clickMenubarItem(page, '媒体', 'gap-remove-manage');
   await expect(page.locator('#gap-remove-advanced-toggle')).toContainText('空隙检测与调整');
   const advancedToggle = page.locator('#gap-remove-advanced-toggle');
   if (await advancedToggle.getAttribute('aria-expanded') !== 'true') await advancedToggle.click();
@@ -701,7 +690,12 @@ test('current-cue text keeps the list and waveform labels in sync through undo a
   const redo = page.getByRole('button', { name: /重做/ });
 
   await waveformCue.click();
-  await page.locator('#overlay-toggle').check();
+  // 预览字幕开关已收进「媒体 → 媒体播放器设置」浮窗；测试直接驱动状态。
+  await page.evaluate(() => {
+    const el = document.getElementById('overlay-toggle');
+    el.checked = true;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.evaluate(() => {
     const player = document.getElementById('player');
     player.currentTime = 1;
@@ -741,11 +735,11 @@ test('current-cue Escape behavior follows the operation setting', async ({ page 
   await expect(panelText).toHaveValue('Alpha kept');
   await expect(listText).toHaveText('Alpha kept');
 
-  await page.locator('#cue-editor-settings-toggle').click();
+  await toggleCueEditorSettings(page);
   const cancelOnEscape = page.locator('#cue-editor-cancel-on-escape');
   await expect(cancelOnEscape).not.toBeChecked();
   await cancelOnEscape.check();
-  await page.locator('#cue-editor-settings-toggle').click();
+  await toggleCueEditorSettings(page);
 
   await panelText.fill('Alpha reverted');
   await panelText.press('Escape');
@@ -755,7 +749,12 @@ test('current-cue Escape behavior follows the operation setting', async ({ page 
 
 test('C merge refreshes the paused main subtitle preview', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#overlay-toggle').check();
+  // 预览字幕开关已收进「媒体 → 媒体播放器设置」浮窗；测试直接驱动状态。
+  await page.evaluate(() => {
+    const el = document.getElementById('overlay-toggle');
+    el.checked = true;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.evaluate(() => {
     const player = document.getElementById('player');
     player.currentTime = 1;
@@ -819,7 +818,12 @@ test('B splits the selected subtitle under the cue-list pointer and supports und
   await page.goto(server.url);
   await makeFirstCueWordSplittable(page);
   const text = page.locator('.cue[data-idx="0"] .text');
-  await page.locator('#overlay-toggle').check();
+  // 预览字幕开关已收进「媒体 → 媒体播放器设置」浮窗；测试直接驱动状态。
+  await page.evaluate(() => {
+    const el = document.getElementById('overlay-toggle');
+    el.checked = true;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.evaluate(() => {
     const player = document.getElementById('player');
     player.currentTime = 1;
@@ -913,7 +917,7 @@ test('long-only filtering temporarily keeps split results visible until focus le
   await page.goto(server.url);
   await makeFirstCueWordSplittable(page);
 
-  await page.locator('#cue-list-settings-toggle').click();
+  await toggleCueListSettings(page);
   await page.locator('#charcount-threshold').fill('1');
   await expect(page.locator('#cue-list-keep-split-visible')).toBeChecked();
   await page.locator('#filter-over').click();
@@ -938,6 +942,7 @@ test('long-only filtering temporarily keeps split results visible until focus le
   await expect(page.locator('.cue[data-idx="0"] .text')).toHaveText('Alpha');
   await expect(page.locator('.cue[data-idx="1"] .text')).toHaveText('Bravo');
 
+  await toggleCueListSettings(page);
   await page.locator('#search').click();
   await expect(page.locator('.cue:not(.hidden)')).toHaveCount(0);
   await expect(page.locator('#visible-count')).toHaveText('0');
@@ -971,10 +976,10 @@ test('B split makes the selected latter half the Shift+click anchor', async ({ p
 
 test('waveform navigation keeps a cue row in the comfort zone', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   await page.locator('#waveform-seconds-per-row').selectOption('20');
   await page.locator('#waveform-row-height').selectOption('64');
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
 
   // 让下一条字幕所在行处于舒适区但不要正好居中，验证 A/D 不会强制重定位。
   await page.locator('.cue[data-idx="1"]').click();
@@ -1147,6 +1152,7 @@ test('Home and End preserve native search and help-tab behavior', async ({ page 
     media.dispatchEvent(new Event('timeupdate'));
   });
   const search = page.locator('#search');
+  await toggleCueListSettings(page);
   await search.fill('Alpha Bravo');
   await search.press('Home');
   expect(await search.evaluate((element) => element.selectionStart)).toBe(0);
@@ -1166,7 +1172,7 @@ test('Home and End preserve native search and help-tab behavior', async ({ page 
     await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBe(123);
   }
 
-  await page.locator('#help-toggle').click();
+  await openHelpPanel(page);
   const basicTab = page.locator('#help-tab-basic');
   const playbackTab = page.locator('#help-tab-playback');
   await basicTab.focus();
@@ -1244,7 +1250,7 @@ test('Home and End keep extension cue-list navigation on the exact track', async
 
 test('Home and End help explains cue-list and media routing in Chinese and English', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#help-toggle').click();
+  await openHelpPanel(page);
   const helpPanel = page.locator('#help-panel');
   await expect(helpPanel).toContainText('选择并显示当前轨道首/末条可见字幕');
   await expect(helpPanel).toContainText('在波形区或播放器跳转到媒体开头/结尾');
@@ -1535,65 +1541,50 @@ test('spectral color toggle shows pending state and ignores repeated clicks', as
   });
 });
 
-test('settings gears stay at the end of their headers and rise above dividers', async ({ page }) => {
+test('settings entry points live in the menubar and dialogs rise above dividers', async ({ page }) => {
   await page.goto(server.url);
-  const settings = [
-    ['#subtitle-preview-settings-toggle', '.player-toolbar', '#subtitle-preview-settings-panel'],
-    ['#cue-editor-settings-toggle', '.cue-editor-toolbar', '#cue-editor-settings-panel'],
-    ['#waveform-settings-toggle', '.waveform-toolbar', '#waveform-settings-panel'],
-    ['#cue-list-settings-toggle', '.cue-list-toolbar', '#cue-list-settings-panel'],
-  ];
 
-  for (const [toggleSelector, toolbarSelector, panelSelector] of settings) {
-    await expect(page.locator(toggleSelector)).toHaveText('⚙️');
-    const layout = await page.evaluate(({ toggleSelector: buttonSelector, toolbarSelector: headerSelector }) => {
-      const button = document.querySelector(buttonSelector);
-      const toolbar = document.querySelector(headerSelector);
-      if (!button || !toolbar) return null;
-      const children = [...toolbar.children]
-        .filter((element) => getComputedStyle(element).display !== 'none')
-        .map((element, index) => ({
-          element,
-          index,
-          order: Number.parseInt(getComputedStyle(element).order, 10) || 0,
-        }))
-        .sort((left, right) => left.order - right.order || left.index - right.index);
-      return {
-        gearIsLast: children.at(-1)?.element.contains(button) === true,
-        gearOrder: getComputedStyle(button.parentElement).order,
-      };
-    }, { toggleSelector, toolbarSelector });
-    expect(layout).not.toBeNull();
-    expect(layout.gearIsLast).toBe(true);
-    expect(layout.gearOrder).toBe('99');
+  // 媒体/波形设置从「媒体」菜单打开为居中弹窗。
+  await toggleMediaSettings(page);
+  await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
+  await toggleMediaSettings(page);
+  await expect(page.locator('#subtitle-preview-settings-panel')).toBeHidden();
 
-    await page.locator(toggleSelector).click();
-    await expect(page.locator(panelSelector)).toBeVisible();
-    await page.locator(toggleSelector).click();
-    await expect(page.locator(panelSelector)).toBeHidden();
-  }
+  await toggleWaveSettings(page);
+  await expect(page.locator('#waveform-settings-panel')).toBeVisible();
+  await toggleWaveSettings(page);
+  await expect(page.locator('#waveform-settings-panel')).toBeHidden();
 
-  await page.locator('#waveform-settings-toggle').click();
+  // 字幕编辑/列表设置收进「字幕」菜单的悬浮子菜单。
+  await toggleCueEditorSettings(page);
+  await expect(page.locator('#cue-editor-settings-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#cue-editor-settings-panel')).toBeHidden();
+
+  await toggleCueListSettings(page);
+  await expect(page.locator('#cue-list-settings-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#cue-list-settings-panel')).toBeHidden();
+
+  // 弹窗层级必须盖过布局分隔条与缩放手柄。
+  await toggleWaveSettings(page);
   const layering = await page.evaluate(() => {
-    const panel = document.getElementById('waveform-settings-panel');
-    const owner = document.getElementById('waveform-pane');
+    const mask = document.getElementById('wave-settings-modal');
     const dividerZIndexes = [...document.querySelectorAll(
       '.workspace-divider, .layout-split-divider, .layout-resizer',
     )].map((element) => Number.parseInt(getComputedStyle(element).zIndex, 10) || 0);
     return {
-      panelZIndex: Number.parseInt(getComputedStyle(panel).zIndex, 10),
-      ownerZIndex: Number.parseInt(getComputedStyle(owner).zIndex, 10),
+      maskZIndex: Number.parseInt(getComputedStyle(mask).zIndex, 10),
       dividerZIndex: Math.max(0, ...dividerZIndexes),
     };
   });
-  expect(layering.panelZIndex).toBeGreaterThan(layering.dividerZIndex);
-  expect(layering.ownerZIndex).toBeGreaterThan(layering.dividerZIndex);
+  expect(layering.maskZIndex).toBeGreaterThan(layering.dividerZIndex);
 });
 
 test('help reflects the selected subtitle-edit split key', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#editor-settings-toggle').click();
-  await page.locator('#help-toggle').click();
+  await toggleEditorSettings(page);
+  await openHelpPanel(page);
   const helpPanel = page.locator('#help-panel');
   await expect(helpPanel).toHaveClass(/show/);
   await expect(helpPanel).toHaveAttribute('aria-hidden', 'false');
@@ -1650,7 +1641,7 @@ test('contextual help links open their matching Help tabs', async ({ page }) => 
   await page.goto(server.url);
   const helpPanel = page.locator('#help-panel');
 
-  await page.locator('#gap-remove-manage').click();
+  await clickMenubarItem(page, '媒体', 'gap-remove-manage');
   await page.locator('#gap-remove-help').click();
   await expect(helpPanel).toHaveClass(/show/);
   await expect(page.locator('#help-tab-gap')).toHaveAttribute('aria-selected', 'true');
@@ -1662,7 +1653,7 @@ test('contextual help links open their matching Help tabs', async ({ page }) => 
     { button: '#keyboard-settings-help', tab: '#help-tab-fine-tuning' },
     { button: '#gap-settings-help', tab: '#help-tab-gap' },
   ]) {
-    await page.locator('#waveform-settings-toggle').click();
+    await toggleWaveSettings(page);
     await expect(page.locator('#waveform-settings-panel')).toBeVisible();
     await page.locator(button).click();
     await expect(helpPanel).toHaveClass(/show/);
@@ -1676,7 +1667,7 @@ test('Help settings actions open the related waveform and media settings', async
   await page.goto(server.url);
   const helpPanel = page.locator('#help-panel');
 
-  await page.locator('#help-toggle').click();
+  await openHelpPanel(page);
   await helpPanel.getByRole('tab', { name: '波形区', exact: true }).click();
   const waveformSettingsActionStyles = await helpPanel.locator('#help-open-waveform-settings').evaluate((element) => {
     const style = getComputedStyle(element);
@@ -1697,7 +1688,7 @@ test('Help settings actions open the related waveform and media settings', async
     scrollHeight: element.scrollHeight,
   }));
   expect(waveformSettingsMetrics.scrollHeight).toBeLessThanOrEqual(waveformSettingsMetrics.clientHeight);
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   await expect(helpPanel).toHaveClass(/show/);
 
   await helpPanel.locator('#help-advanced-toggle').click();
@@ -1705,13 +1696,13 @@ test('Help settings actions open the related waveform and media settings', async
   await helpPanel.locator('#help-open-waveform-keyboard-settings').click();
   await expect(helpPanel).toHaveClass(/show/);
   await expect(page.locator('#waveform-settings-panel')).toBeVisible();
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
 
   await helpPanel.getByRole('tab', { name: '空隙操作', exact: true }).click();
   await helpPanel.locator('#help-open-gap-settings').click();
   await expect(helpPanel).toHaveClass(/show/);
   await expect(page.locator('#waveform-settings-panel')).toBeVisible();
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
 
   await helpPanel.getByRole('tab', { name: '播放与导航', exact: true }).click();
   await helpPanel.locator('#help-open-media-settings').click();
@@ -1719,7 +1710,7 @@ test('Help settings actions open the related waveform and media settings', async
   await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
   await expect(page.locator('#waveform-settings-panel')).toBeHidden();
 
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   await helpPanel.getByRole('tab', { name: '空隙操作', exact: true }).click();
   await helpPanel.locator('#help-open-gap-remove-panel').click();
   await expect(helpPanel).toHaveClass(/show/);
@@ -1729,18 +1720,20 @@ test('Help settings actions open the related waveform and media settings', async
 test('waveform toolbar exposes grouped icon controls and selected cues use a yellow border', async ({ page }) => {
   await page.goto(server.url);
 
-  const utilityGroup = page.locator('.toolbar-utility-group');
+  // 工具栏改为菜单栏后：语言/设置/帮助收进菜单，顶部只保留波形工具组。
+  const toolSwitch = page.locator('.waveform-toolbar .waveform-tool-switch');
   const selectTool = page.locator('[data-waveform-tool="select"]');
   const splitTool = page.locator('[data-waveform-tool="razor"]');
-  await expect(utilityGroup).toHaveAttribute('role', 'group');
-  await expect(utilityGroup.locator('#editor-settings-toggle')).toBeVisible();
-  await expect(utilityGroup.locator('#help-toggle')).toBeVisible();
+  await expect(toolSwitch).toHaveAttribute('role', 'group');
+  const editTab = page.locator('.menubar-tab').filter({ hasText: '编辑' });
+  const helpTab = page.locator('.menubar-tab').filter({ hasText: '帮助' });
+  await expect(editTab).toBeVisible();
+  await expect(helpTab).toContainText('帮助');
   await expect(selectTool.locator('svg')).toHaveCount(1);
   await expect(splitTool).toContainText('分割');
   await expect(splitTool.locator('svg')).toHaveCount(1);
   await expect(selectTool).toHaveAttribute('title', /V/);
   await expect(splitTool).toHaveAttribute('title', /R/);
-  await expect(page.locator('#help-toggle')).toContainText('帮助');
 
   await page.keyboard.press('r');
   await expect(splitTool).toHaveClass(/active/);
@@ -1765,7 +1758,7 @@ test('extends selected subtitles without remapping items and undoes the batch in
   const before = await page.evaluate(() => JSON.parse(JSON.stringify({
     segments: DATA.segments.slice(0, 2),
   })));
-  await page.locator('#subtitle-extend-manage').click();
+  await clickMenubarItem(page, '字幕', 'subtitle-extend-manage');
   await expect(page.locator('#subtitle-extend-panel')).toHaveClass(/show/);
   await expect(page.locator('#subtitle-extend-forward-ms')).toHaveValue('120');
   await expect(page.locator('#subtitle-extend-backward-ms')).toHaveValue('60');
@@ -1898,13 +1891,13 @@ test('colored subtitles export per-color SRT files including the uncolored defau
   });
 
   await expect(page.locator('#subtitle-export-dropdown')).toBeVisible();
-  await page.locator('#subtitle-export-btn').click();
+  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#download-full-srt')).toBeVisible();
   await expect(page.locator('#download-color-srt')).toBeVisible();
 
   const downloads = [];
   page.on('download', (download) => downloads.push(download));
-  await page.locator('#download-color-srt').click();
+  await clickMenubarItem(page, '文件', 'download-color-srt');
   await expect.poll(() => downloads.length).toBe(3);
   expect(downloads.map((download) => download.suggestedFilename())).toEqual([
     'project_red.srt',
@@ -1917,12 +1910,12 @@ test('colored subtitles export per-color SRT files including the uncolored defau
     return Buffer.concat(chunks).toString('utf8');
   })).toContain('Alpha');
 
-  await page.locator('#extra-export-btn').click();
+  await clickMenubarItem(page, '文件', 'extra-export-btn');
   await page.locator('#extra-export-menu > .dropdown-submenu').nth(2)
     .locator('.dropdown-submenu-toggle').click();
   await expect(page.locator('#extra-data-menu')).toBeVisible();
   const textDownload = page.waitForEvent('download');
-  await page.locator('#download-plain-text').click();
+  await clickMenubarItem(page, '文件', 'download-plain-text');
   expect((await textDownload).suggestedFilename()).toBe('project.txt');
 });
 
@@ -1930,7 +1923,7 @@ test('subtitle export keeps a stable menu and hides colors without enabled color
   await page.goto(server.url);
   await expect(page.locator('#download-srt')).toHaveCount(0);
   await expect(page.locator('#subtitle-export-dropdown')).toBeVisible();
-  await page.locator('#subtitle-export-btn').click();
+  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#download-full-srt')).toBeVisible();
   await expect(page.locator('#download-color-srt')).toBeHidden();
 

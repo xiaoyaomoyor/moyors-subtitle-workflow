@@ -1,14 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleEditorSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -165,7 +157,7 @@ test('F seeks and plays a selected extension cue', async ({ page }) => {
 
 test('selected arrow keys move cues, adjust boundaries, and honor the configured step', async ({ page }) => {
   await loadAttachedCues(page, true);
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   const step = page.locator('#cue-move-step');
   await expect(step).toHaveValue('50');
   await step.fill('250');
@@ -365,7 +357,7 @@ test('Shift+arrow keys snap selected subtitle boundaries to neighbors', async ({
 
 test('A/D adjusts a held subtitle block and a held shared boundary', async ({ page }) => {
   await loadAttachedCues(page, true);
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   const step = page.locator('#cue-move-step');
   await step.fill('100');
   await step.press('Tab');
@@ -402,7 +394,7 @@ test('A/D adjusts a held subtitle block and a held shared boundary', async ({ pa
 
 test('A also compresses an attached preceding cue', async ({ page }) => {
   await loadAttachedCues(page, true);
-  await page.locator('#waveform-settings-toggle').click();
+  await toggleWaveSettings(page);
   const step = page.locator('#cue-move-step');
   await step.fill('100');
   await step.press('Tab');
@@ -432,7 +424,7 @@ test('Shift+A/D on a held subtitle snaps its outer boundaries to neighbors', asy
     DATA.segments[2].start = 20000;
     renderAll();
   });
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   const block = page.locator('.waveform-cue-block[data-idx="1"]').first();
   await expect(block).toBeVisible();
   const blockBox = await stableVisibleBoundingBox(page, block);

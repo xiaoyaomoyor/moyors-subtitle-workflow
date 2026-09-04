@@ -630,10 +630,11 @@ test('docks a module outside the whole layout tree at a window edge', () => {
 });
 
 
-test('uses center drops for swaps and edge drops for insertion', () => {
+test('uses center drops for tab merges and edge drops for insertion', () => {
   const rect = { left: 10, top: 20, width: 200, height: 100 };
   const intent = (x, y) => JSON.parse(JSON.stringify(helpers.layoutDropIntent(rect, x, y)));
-  assert.deepEqual(intent(110, 70), { mode: 'swap' });
+  // 中心 = 并入标签组（Windows 文件夹式标签，取代旧的交换）。
+  assert.deepEqual(intent(110, 70), { mode: 'tab' });
   assert.deepEqual(intent(20, 70), { mode: 'insert', direction: 'left' });
   assert.deepEqual(intent(110, 115), { mode: 'insert', direction: 'bottom' });
 });

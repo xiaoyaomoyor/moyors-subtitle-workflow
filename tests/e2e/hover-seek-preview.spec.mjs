@@ -1,15 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  disableOnboarding,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, disableOnboarding, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleMediaSettings } from './helpers.mjs';
 
 const EDITOR_SETTINGS_KEY = 'moy.asr.editor.settings.v1';
 // 默认 secondsPerRow=10：第一行波形覆盖 0–10s，行内水平比例即时间比例。
@@ -62,11 +53,11 @@ async function hoverFirstWaveformRow(page, ratio) {
 test('hover seek preview defaults off and hovering the waveform does not seek', async ({ page }) => {
   // Given: no persisted preference; the player 媒体设置 panel exposes the toggle unchecked.
   await openEditorWithMedia(page);
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   const toggle = page.getByRole('checkbox', { name: '自动预览鼠标位置画面' });
   await expect(toggle).toBeVisible();
   await expect(toggle).not.toBeChecked();
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
 
   // When: the pointer moves across the first waveform row.
   await hoverFirstWaveformRow(page, 0.5);

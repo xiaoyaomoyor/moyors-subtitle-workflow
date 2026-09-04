@@ -5,17 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  makeTempDir,
-  cleanupTempDir,
-  findFreePort,
-  generateWav,
-  generateWaveformPayload,
-  generateBlankEditor,
-  startServer,
-  startStaticServer,
-  disableOnboarding,
-} from './helpers.mjs';
+import { cleanupTempDir, disableOnboarding, findFreePort, generateBlankEditor, generateWav, generateWaveformPayload, makeTempDir, startServer, startStaticServer } from './helpers.mjs';
 
 // ---------------------------------------------------------------------------
 // Fixture: five cues packed into a 12s basic-mode window (plus one outside it),

@@ -3,15 +3,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  findFreePort,
-  generateBlankEditor,
-  generateProjectJson,
-  generateWav,
-  makeTempDir,
-  startStaticServer,
-} from './helpers.mjs';
+import { cleanupTempDir, findFreePort, generateBlankEditor, generateProjectJson, generateWav, makeTempDir, openMultiSubtitleSettings, startStaticServer } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -157,11 +149,11 @@ test('can use a dropped project subtitle as an extension and preserve optional i
     { text: '带字词时间码的副字幕', start: 100, end: 1900 },
   ]);
 
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-settings-menu').waitFor({ state: 'visible' });
   // 点击菜单项后齿轮菜单会关闭；交换回来需要重新打开菜单再点一次。
   await page.locator('#multi-subtitle-swap').click();
-  await page.locator('#multi-subtitle-settings-toggle').click();
+  await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-settings-menu').waitFor({ state: 'visible' });
   await page.locator('#multi-subtitle-swap').click();
 

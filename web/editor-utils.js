@@ -2523,7 +2523,7 @@
     cueListShowSticker: true, cueListShowCharcount: true, cueListAutoScrollOnClick: true,
     cueListKeepSplitVisible: true, cueListHideDisabled: false, cueListCharcountThreshold: 16,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
-    cueEditorCancelOnEscape: false, selectGroupMembers: false,
+    cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
     mergeJoinTextContinuous: '', mergeJoinTextWord: ' ',
     autoMergeGapMs: 200, autoMergeSnapDirection: 'backward', autoMergeShortCount: 3,
     autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true,
@@ -2534,12 +2534,23 @@
     ninjaSound: true, ninjaSlashEffect: true, ninjaSlashLengthPercent: 80,
     ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: true,
     multiSubtitleAutoSyncDuration: true, multiSubtitleShowTrackBadges: false, theme: 'dark',
-    waveShapeSource: 'reapeaks',
+    waveShapeSource: 'reapeaks', themePreset: 'dark', accent: 'blue', colors: null,
   });
 
   function clampInteger(value, fallback, minimum, maximum) {
     const rounded = Math.round(Number(value));
     return Math.min(maximum, Math.max(minimum, Number.isFinite(rounded) ? rounded : fallback));
+  }
+
+  function normalizeInterfaceColors(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const colors = {};
+    ['bg', 'text', 'wave', 'subtitle', 'accent'].forEach((key) => {
+      if (typeof value[key] === 'string' && /^#[0-9a-fA-F]{6}$/.test(value[key])) {
+        colors[key] = value[key].toLowerCase();
+      }
+    });
+    return Object.keys(colors).length ? colors : null;
   }
 
   function normalizeEditorSettings(saved = {}) {
@@ -2577,6 +2588,7 @@
       cueEditorShowTimeActions: savedSettings.cueEditorShowTimeActions === true,
       cueEditorShowSticker: savedSettings.cueEditorShowSticker === true,
       cueEditorCancelOnEscape: savedSettings.cueEditorCancelOnEscape === true,
+      toolbarKbdHints: savedSettings.toolbarKbdHints === true,
       selectGroupMembers: savedSettings.selectGroupMembers === true,
       // 合并连接符按字幕拆分类型区分：连续型默认直接拼接，单词型默认空格。
       // 旧版只有 mergeJoinText 一个值；用户自定义过则两个类型都沿用旧值。
@@ -2616,7 +2628,34 @@
       multiSubtitleAutoSyncDuration: savedSettings.multiSubtitleAutoSyncDuration !== false,
       multiSubtitleShowTrackBadges: savedSettings.multiSubtitleShowTrackBadges === true,
       theme: savedSettings.theme === 'light' ? 'light' : 'dark',
+      // 主题预设（深色/浅色/午夜/苔原/暖砂）。旧数据没有该字段时按
+      // 已存主题与自定义颜色迁移：颜色恰为某预设配色则直接归入该预设。
+      themePreset: (() => {
+        const presets = ['dark', 'light', 'midnight', 'forest', 'sepia'];
+        if (presets.includes(savedSettings.themePreset)) return savedSettings.themePreset;
+        const legacyColors = savedSettings.colors && typeof savedSettings.colors === 'object'
+          ? savedSettings.colors : null;
+        const palettes = {
+          midnight: { bg: '#0d1420', text: '#dbe6f4', wave: '#7aa2f7', subtitle: '#c9d8ee' },
+          forest: { bg: '#101713', text: '#dcefe3', wave: '#7cc97f', subtitle: '#d0e8d6' },
+          sepia: { bg: '#1d1712', text: '#f0e5d2', wave: '#d2a468', subtitle: '#e9d9c0' },
+        };
+        const match = Object.keys(palettes).find((name) => {
+          const palette = palettes[name];
+          return ['bg', 'text', 'wave', 'subtitle'].every((key) => {
+            const savedColor = typeof legacyColors?.[key] === 'string' ? legacyColors[key].toLowerCase() : null;
+            return savedColor === palette[key];
+          });
+        });
+        if (match) return match;
+        return savedSettings.theme === 'light' ? 'light' : 'dark';
+      })(),
       waveShapeSource: savedSettings.waveShapeSource === 'self' ? 'self' : 'reapeaks',
+      // 界面强调色预设；非法值回退默认蓝（blue 不写 dataset，走 :root 基础令牌）。
+      accent: ['blue', 'teal', 'violet', 'green', 'orange', 'pink'].includes(savedSettings.accent)
+        ? savedSettings.accent : 'blue',
+      // 界面自定义颜色（bg/text/wave/subtitle，#rrggbb）；空对象归一化为 null（全部走主题默认）。
+      colors: normalizeInterfaceColors(savedSettings.colors),
     };
   }
 

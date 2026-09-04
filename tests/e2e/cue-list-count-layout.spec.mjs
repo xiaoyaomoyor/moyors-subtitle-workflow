@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
 import { disableOnboarding } from './helpers.mjs';
+
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const blankEditorUrl = pathToFileURL(path.join(repoRoot, 'blank-editor.html')).href;
@@ -17,14 +17,16 @@ test('hides the cue-list visible count at narrow widths', async ({ page }) => {
 
     const state = await page.evaluate(() => {
       const count = document.querySelector('.cue-list-count');
-      const settings = document.querySelector('#cue-list-settings-toggle');
+      const menubar = document.getElementById('menubar');
       return {
         countDisplay: count ? getComputedStyle(count).display : '',
-        settingsWidth: settings?.getBoundingClientRect().width || 0,
+        menubarWidth: menubar?.getBoundingClientRect().width || 0,
+        tabCount: document.querySelectorAll('.menubar-tab').length,
       };
     });
 
     expect(state.countDisplay).toBe('none');
-    expect(state.settingsWidth).toBeGreaterThan(0);
+    expect(state.menubarWidth).toBeGreaterThan(0);
+    expect(state.tabCount).toBe(6);
   }
 });

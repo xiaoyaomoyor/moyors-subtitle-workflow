@@ -5,15 +5,7 @@
 import { expect, test } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  disableOnboarding,
-  findFreePort,
-  generateWaveformPayload,
-  generateWav,
-  makeTempDir,
-  startServer,
-} from './helpers.mjs';
+import { cleanupTempDir, clickMenubarItem, disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, startServer } from './helpers.mjs';
 
 // 与计划基线一致的 6 秒单媒体工程：移除 [1000,1600) 与 [4000,4500)，
 // 输出行长 4900ms；含禁用人、跨越切口、完全落入切口的字幕与一张贴纸。
@@ -77,8 +69,8 @@ async function stubSavePicker(page) {
 }
 
 async function openFcp7Modal(page) {
-  await page.locator('#extra-export-btn').click();
-  await page.locator('#download-fcp7-export').click();
+  await clickMenubarItem(page, '文件', 'extra-export-btn');
+  await clickMenubarItem(page, '文件', 'download-fcp7-export');
   await expect(page.locator('#fcp7-export-modal')).toHaveClass(/show/);
 }
 

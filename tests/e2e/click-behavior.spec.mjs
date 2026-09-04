@@ -3,17 +3,7 @@
 import { expect, test } from '@playwright/test';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  cleanupTempDir,
-  DURATION_MS,
-  findFreePort,
-  generateProjectJson,
-  generateWav,
-  makeFirstCueWordSplittable,
-  makeTempDir,
-  disableOnboarding,
-  startServer,
-} from './helpers.mjs';
+import { DURATION_MS, cleanupTempDir, clickMenubarItem, disableOnboarding, findFreePort, generateProjectJson, generateWav, makeFirstCueWordSplittable, makeTempDir, startServer, toggleEditorSettings, toggleCueListSettings, toggleMediaSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -39,7 +29,7 @@ test.beforeEach(async ({ page }) => {
 
 test('jump target is shown for both jump behaviors and hidden for select-only', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   const behavior = page.locator('#click-behavior');
   const targetField = page.locator('#click-target-field');
   await expect(targetField).toBeVisible();
@@ -62,7 +52,7 @@ test('media seek buttons and arrow keys use the configured seek duration', async
 
   const step = page.locator('#media-seek-step');
   await expect(step).toHaveValue('1000');
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   await step.fill('100');
   await step.press('Tab');
   await expect(step).toHaveValue('100');
@@ -103,7 +93,7 @@ test('media seek buttons and arrow keys use the configured seek duration', async
   await step.press('Tab');
   await expect(step).toHaveValue('7000');
   await expect(step).toHaveAttribute('step', '100');
-  await page.locator('#subtitle-preview-settings-toggle').click();
+  await toggleMediaSettings(page);
   await expect.poll(() => page.evaluate(() => JSON.parse(
     localStorage.getItem('moy.asr.editor.settings.v1') || '{}',
   ).mediaSeekStepMs)).toBe(7000);
@@ -129,7 +119,7 @@ test('media seek buttons and arrow keys use the configured seek duration', async
 
 test('marks a recent project as missing after the server detects a deleted file', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#recent-projects-toggle').click();
+  await clickMenubarItem(page, '文件', 'recent-projects-toggle');
   const item = page.locator('#recent-projects-list .dropdown-item').first();
   await expect(item).not.toHaveClass(/is-missing/);
 
@@ -169,7 +159,7 @@ test('context menu closes on pointerdown over blank waveform', async ({ page }) 
 
 test('list click auto-scroll can be disabled without disabling seek', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#cue-list-settings-toggle').click();
+  await toggleCueListSettings(page);
   const autoScroll = page.locator('#cue-list-auto-scroll-on-click');
   await expect(autoScroll).toBeChecked();
   await autoScroll.uncheck();
@@ -305,7 +295,7 @@ test('waveform cue double-click activates its subtitle editor while blank double
 
 test('the unconfigured Enter shortcut commits and exits cue-panel editing', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   const splitKey = page.locator('#split-key');
   const panel = page.locator('#cue-panel-text');
   await splitKey.selectOption('enter');
@@ -471,7 +461,7 @@ test('dragging the panel divider resizes the panel and stays consistent across s
 
 test('list context menu leads with text-position split', async ({ page }) => {
   await page.goto(server.url);
-  await page.locator('#editor-settings-toggle').click();
+  await toggleEditorSettings(page);
   await page.locator('#click-behavior').selectOption('select-only');
   await page.locator('.cue[data-idx="0"]').click({ button: 'right' });
 

@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
 import { disableOnboarding } from './helpers.mjs';
+
 
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -149,12 +149,14 @@ test('shows the installed OCR settings hint and highlights video drops', async (
   expect(state.backgroundChanged).toBe(true);
 
   await page.locator('#settingsButton').click();
+  // OCR 运行环境位于「运行环境」分页；设置弹窗默认打开「通用」分页。
+  await page.locator('#settingsRuntimeTab').click();
   await page.locator('#ocrRuntimeHint .runtime-path-link').click();
   await expect.poll(() => page.evaluate(() => window.__openedRuntimeFolder)).toEqual({ kind: 'ocr-runtime' });
 });
 
 
-test('keeps every Editor settings gear visible while left toolbar content shrinks', async ({ page }) => {
+test('keeps the menubar and waveform tools visible while content shrinks', async ({ page }) => {
   await disableOnboarding(page);
   await page.goto(blankEditorUrl);
   await page.waitForSelector('#editor-workspace');
@@ -163,30 +165,25 @@ test('keeps every Editor settings gear visible while left toolbar content shrink
     await page.setViewportSize({ width, height: 900 });
     await page.reload();
     await page.waitForSelector('#editor-workspace');
-    const gears = await page.evaluate(() => [
-      ['.player-toolbar', '#subtitle-preview-settings-toggle'],
-      ['.cue-editor-toolbar', '#cue-editor-settings-toggle'],
-      ['.waveform-toolbar', '#waveform-settings-toggle'],
-      ['.cue-list-toolbar', '#cue-list-settings-toggle'],
-    ].map(([toolbarSelector, buttonSelector]) => {
-      const toolbar = document.querySelector(toolbarSelector);
-      const button = document.querySelector(buttonSelector);
-      const toolbarRect = toolbar?.getBoundingClientRect();
-      const buttonRect = button?.getBoundingClientRect();
+    const controls = await page.evaluate(() => {
+      const menubar = document.getElementById('menubar');
+      const barRect = menubar.getBoundingClientRect();
+      const tabs = [...document.querySelectorAll('.menubar-tab')];
+      const tools = [...document.querySelectorAll('.waveform-toolbar .waveform-tool-switch button')];
       return {
-        buttonWidth: buttonRect?.width || 0,
-        buttonRight: buttonRect?.right || 0,
-        toolbarLeft: toolbarRect?.left || 0,
-        toolbarRight: toolbarRect?.right || 0,
-        gearFlexShrink: button?.parentElement ? getComputedStyle(button.parentElement).flexShrink : '',
+        tabCount: tabs.length,
+        tabsInside: tabs.every((tab) => {
+          const rect = tab.getBoundingClientRect();
+          return rect.width > 0 && rect.right <= barRect.right + 1 && rect.left >= barRect.left - 1;
+        }),
+        toolCount: tools.length,
+        toolsVisible: tools.every((tool) => tool.getBoundingClientRect().width > 0),
       };
-    }));
-    for (const gear of gears) {
-      expect(gear.buttonWidth).toBeGreaterThan(0);
-      expect(gear.buttonRight).toBeLessThanOrEqual(gear.toolbarRight + 1);
-      expect(gear.buttonRight).toBeGreaterThan(gear.toolbarLeft);
-      expect(gear.gearFlexShrink).toBe('0');
-    }
+    });
+    expect(controls.tabCount).toBe(6);
+    expect(controls.tabsInside).toBe(true);
+    expect(controls.toolCount).toBe(2);
+    expect(controls.toolsVisible).toBe(true);
   }
 
   const editorScrollbarState = await page.evaluate(() => [
@@ -206,4 +203,56 @@ test('keeps every Editor settings gear visible while left toolbar content shrink
     expect(state.scrollbarWidth, state.selector).toBe('thin');
     expect(state.webkitWidth, state.selector).toBe('6px');
   }
+});
+
+test('module tabs close a module from a preset layout and restore it afterwards', async ({ page }) => {
+  await disableOnboarding(page);
+  await page.goto(blankEditorUrl);
+  await page.waitForSelector('#editor-workspace');
+
+  const moduleIds = () => page.evaluate(() =>
+    [...document.querySelectorAll('[data-dock-module]')].map((el) => el.dataset.dockModule).sort());
+
+  // 初始为预设布局、四个窗口齐全，各带单标签 + 行尾「+」。
+  expect(await moduleIds()).toEqual(['cues', 'panel', 'player', 'wave']);
+  const stripState = await page.evaluate(() => {
+    const strip = document.querySelector('[data-dock-module="player"] .module-tab-strip');
+    return {
+      tabs: [...strip.querySelectorAll('.module-tab')].map((tab) => tab.dataset.tabFor),
+      hasAdd: !!strip.querySelector('.module-tab-add'),
+    };
+  });
+  expect(stripState.tabs).toEqual(['player']);
+  expect(stripState.hasAdd).toBe(true);
+
+  // Windows 文件夹式标签：点击标签上的 × 关闭该窗口。
+  await page.locator('[data-dock-module="player"] .module-tab[data-tab-for="player"] .tab-close').click();
+  await page.waitForTimeout(250);
+  expect(await moduleIds()).toEqual(['cues', 'panel', 'wave']);
+  const layoutClass = await page.evaluate(() => document.getElementById('editor-workspace').className);
+  expect(layoutClass).toContain('layout-custom');
+
+  // 「窗口 → 显示窗口 → 视频」找回被关闭的窗口。
+  await page.locator('.menubar-tab', { hasText: '窗口' }).click();
+  await page.locator('#show-module-submenu .dropdown-submenu-toggle').hover();
+  await page.waitForTimeout(300);
+  await page.locator('#show-module-submenu .dropdown-item', { hasText: '视频' }).first().click();
+  await page.waitForTimeout(250);
+  expect(await moduleIds()).toEqual(['cues', 'panel', 'player', 'wave']);
+  const restoredVisible = await page.evaluate(() => {
+    const rect = document.querySelector('[data-dock-module="player"]').getBoundingClientRect();
+    return rect.width > 10 && rect.height > 10;
+  });
+  expect(restoredVisible).toBe(true);
+
+  // 切回内置预设后恢复直接布局，四个窗口全部在场。
+  await page.evaluate(() => {
+    const select = document.getElementById('workspace-preset');
+    select.value = 'wave-right';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(250);
+  expect(await moduleIds()).toEqual(['cues', 'panel', 'player', 'wave']);
+  const presetClass = await page.evaluate(() => document.getElementById('editor-workspace').className);
+  expect(presetClass).toContain('layout-wave-right');
 });

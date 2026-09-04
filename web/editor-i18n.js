@@ -10,6 +10,42 @@
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
+    // 菜单栏（UE 式顶部菜单）与全局设置窗口
+    '文件': 'File', '窗口': 'Window', '全局设置': 'Global settings',
+    '工程': 'Project', '内容': 'Content', '导出': 'Export', '历史记录': 'History',
+    '配置': 'Configuration', '工作区': 'Workspace', '加载': 'Load',
+    '多重字幕': 'Multiple subtitles', '设置': 'Settings',
+    '加载内容': 'Load content', '另存为工程': 'Save project as', '去空隙版本': 'Gap-removed version',
+    '剪切': 'Cut', '拷贝': 'Copy', '粘贴': 'Paste', '删除': 'Delete',
+    '启用多重字幕': 'Enable multiple subtitles', '多重字幕设置': 'Multiple subtitle settings',
+    '仅导出主字幕': 'Export main subtitles only', '仅导出副字幕': 'Export secondary subtitles only',
+    '导出双语字幕': 'Export bilingual subtitles',
+    '字幕编辑设置': 'Subtitle editor settings', '字幕列表设置': 'Subtitle list settings',
+    '媒体播放器设置': 'Media player settings', '访问官网': 'Visit website',
+    '外观': 'Appearance', '界面语言': 'Interface language', '主题': 'Theme',
+    '深色': 'Dark', '浅色': 'Light', '强调色': 'Accent color',
+    '蓝': 'Blue', '青': 'Teal', '紫': 'Violet', '绿': 'Green', '橙': 'Orange', '粉': 'Pink',
+    '保存日期': 'Last saved', '版本': 'Version',
+    '点击工程名或媒体名可复制': 'Click the project or media name to copy',
+    '搜索设置…': 'Search settings…', '已复制工程文件名': 'Project file name copied',
+    // 第二轮：音频设置 / 工作区布局 / 界面配置 / 颜色 / dock 菜单
+    '音频设置': 'Audio settings', '多行波形': 'Multi-row waveform', '基础波形': 'Basic waveform',
+    '播放时跳过空隙': 'Skip removed gaps during playback', '快捷键提示': 'Keyboard hints', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '过滤与操作': 'Filter & actions', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
+    '非字幕片段设为空隙': 'Treat non-subtitle spans as gaps',
+    '静音空隙工具': 'Silence gap tools', '没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描': 'No gaps to process; load media and scan with the silence gap tools first', '拼接/合并字幕': 'Merge subtitles', '延长字幕': 'Extend subtitles',
+    '批量对齐': 'Batch align', '处理': 'Processing',
+    '布局': 'Layout', '切换工作区布局': 'Switch workspace layout',
+    '保存到自定义布局': 'Save to custom layout', '恢复默认布局': 'Restore default layout',
+    '显示窗口': 'Show windows', '窗口': 'Window',
+    '界面配置': 'Interface configuration',
+    '导出界面配置': 'Export interface configuration', '导入界面配置': 'Import interface configuration',
+    '自定义工作区': 'Custom workspaces', '通用': 'General',
+    '语言设置': 'Language', '颜色': 'Colors', '石墨': 'Graphite', '午夜': 'Midnight',
+    '苔原': 'Tundra', '暖砂': 'Warm sand', '背景色': 'Background', '文字色': 'Text',
+    '波形色': 'Waveform', '字幕色': 'Subtitles', '恢复默认颜色': 'Reset colors',
+    '视频': 'Video', '当前字幕': 'Current subtitle', '字幕列表': 'Subtitle list', '波形': 'Waveform',
+    '空隙': 'Gaps', '波形显示': 'Waveform display',
+    '切换为其他窗口类型，或关闭此窗口；拖动窗口图标可停靠到其他位置': 'Switch this window to another type or close it; drag a window icon to dock it elsewhere',
     '新建工程': 'New project', '创建并保存一个空白工程': 'Create and save a blank project',
     '当前有未保存的改动，是否确定新建工程？将丢失未保存内容。': 'There are unsaved changes. Create a new project and discard them?',
     '打开工程': 'Open project',
@@ -537,7 +573,63 @@
 
   const EN_ATTR = {
     '切换到亮色主题': 'Switch to light theme',
+    // 菜单栏与设置弹窗
+    'MAW 字幕编辑器': 'MAW subtitle editor',
+    '点击复制工程文件名；悬浮查看工程详情': 'Click to copy the project file name; hover for details',
+    '导出当前工程为 .mosp 文件': 'Export the current project as a .mosp file',
+    '导出 FCP7/OTIO/Lottie/OGraf 等更多格式': 'Export more formats such as FCP7/OTIO/Lottie/OGraf',
+    '在浏览器中直接加载视频或音频文件': 'Load a video or audio file directly in the browser',
+    '加载 SRT 字幕文件': 'Load an SRT subtitle file',
+    '另存为工程文件': 'Save as a project file',
+    '剪切选中的字幕到剪贴板': 'Cut the selected subtitles to the clipboard',
+    '拷贝选中的字幕到剪贴板': 'Copy the selected subtitles to the clipboard',
+    '在选中字幕之后粘贴剪贴板中的字幕': 'Paste clipboard subtitles after the selected subtitle',
+    '删除选中的字幕': 'Delete the selected subtitles',
+    '打开全局设置窗口': 'Open the global settings window',
+    '打开媒体播放器设置窗口': 'Open the media player settings window',
+    '打开波形设置窗口': 'Open the waveform settings window',
+    '重新播放新手快速上手引导': 'Replay the quick-start onboarding guide',
+    '打开帮助窗口的基础操作说明': 'Open basic operations in the help window',
+    '在浏览器中打开 MAW 官网': 'Open the MAW website in your browser',
+    '关闭（Esc）': 'Close (Esc)',
+    '关闭全局设置': 'Close global settings',
+    '关闭媒体播放器设置': 'Close media player settings',
+    '关闭波形设置': 'Close waveform settings',
+    '搜索设置': 'Search settings',
+    '设置分类': 'Settings categories',
+    '工程详情': 'Project details',
+    '强调色预设': 'Accent color presets',
+    '经典蓝': 'Classic blue', '青绿色': 'Teal', '紫色': 'Violet', '绿色': 'Green',
+    '橙色': 'Orange', '粉色': 'Pink',
+    '切换界面语言（中文 / English），立即生效': 'Switch the interface language (Chinese / English); applies immediately',
+    '深色或浅色主题': 'Dark or light theme',
+    '改变按钮、选中与高亮等界面强调色；对暗色与浅色主题分别适配。': 'Changes the accent color for buttons, selection, and highlights; adapted separately for dark and light themes.',
+    '当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕': 'No secondary subtitle track; load a second subtitle via “Subtitles → Load subtitles” first',
+    '仅导出主字幕轨（SRT）': 'Export the main subtitle track only (SRT)',
+    '导出合并后的双语字幕（SRT）': 'Export the merged bilingual subtitles (SRT)',
+    '请先通过「字幕 → 加载字幕」导入第二条字幕，再启用多重字幕。': 'Load a second subtitle via “Subtitles → Load subtitles” before enabling multiple subtitles.',
     '切换到暗色主题': 'Switch to dark theme',
+    // 第二轮
+    '波形显示与静音空隙设置': 'Waveform display and silence gap settings',
+    '多行波形：按每行长度滚动显示': 'Multi-row waveform: scroll by row length',
+    '基础波形：单行跟随播放头显示': 'Basic waveform: single row following the playhead',
+    '把音频中没有被字幕覆盖的片段全部标记为已移除的静音空隙；取消勾选恢复': 'Mark all spans not covered by subtitles as removed silence gaps; uncheck to restore',
+    '打开可拖动的移除静音空隙工具窗': 'Open the draggable silence-gap tools window', '在「当前字幕」等子工作区顶部栏显示 Enter / Esc 等快捷键提示（默认关闭）': 'Show Enter / Esc shortcut hints in module toolbars (off by default)', '把音频轨道中没有被字幕覆盖的片段全部设为空隙（一次操作，可撤销）；配合「播放时跳过空隙」只播放有字幕的区域': 'Mark every span not covered by subtitles as a gap (one action, undoable); combined with Skip gaps during playback, only subtitled ranges play.',
+    '切换工作区布局：窗口排列与显示状态': 'Switch workspace layout: window arrangement and display state',
+    '把当前布局保存为自定义工作区布局；正在使用自定义布局时直接更新它': 'Save the current layout as a custom workspace; updates it in place when a custom layout is active',
+    '恢复当前工作区布局的默认状态': 'Restore the current workspace layout to defaults',
+    '重新显示已关闭的工作区窗口': 'Reopen closed workspace windows',
+    '导出或导入界面配置（布局与颜色）': 'Export or import interface configuration (layout and colors)',
+    '关闭窗口菜单': 'Close window menu',
+    '当前播放头时间': 'Current playhead time', '当前选中的字幕数量': 'Number of selected subtitles',
+    '媒体总时长 · 波形峰值点数': 'Total media duration · waveform peak count',
+    '石墨（默认）': 'Graphite (default)', '午夜蓝调': 'Midnight blue', '苔原绿调': 'Tundra green', '主题预设': 'Theme preset', '自定义颜色': 'Custom colors', '恢复主题默认颜色': 'Reset theme colors', '已恢复当前主题的默认颜色': 'Restored the current theme defaults', 'MAW 深色（默认）': 'MAW Dark (default)', 'MAW 浅色': 'MAW Light', '午夜蓝调深色主题': 'Midnight-blue dark theme', '苔原绿调深色主题': 'Tundra-green dark theme', '暖砂棕调深色主题': 'Warm-sand dark theme', '主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。': 'A theme preset decides light/dark, accent and base palette; switching restores that theme defaults.', '任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。': 'Any color can override the current theme; custom colors apply instantly, persist locally and export/import with Window → Interface config. Subtitle color does not affect the in-player preview (see Media player settings).', '清除全部自定义颜色，恢复当前主题预设的默认': 'Clear all custom colors and restore the current theme preset', '按钮、选中与高亮等界面强调色': 'Accent color for buttons, selection and highlights',
+    '暖砂棕调': 'Warm sand brown', '界面主背景色': 'Main interface background color',
+    '界面主要文字色': 'Main interface text color', '波形峰值的颜色': 'Waveform peak color',
+    '字幕列表与编辑区的文字颜色（不含播放器画面内的预览字幕）': 'Text color of the subtitle list and editor (preview subtitles in the player excluded)',
+    '清除全部自定义颜色，恢复当前主题默认': 'Clear all custom colors and restore theme defaults',
+    '背景色': 'Background', '文字色': 'Text', '波形色': 'Waveform', '字幕色': 'Subtitles',
+    '颜色预设套色': 'Color preset palettes',
     '保存工程的更多选项': 'More save options',
     '波形显示模式': 'Waveform display mode',
     '打开更多文件': 'Open more files',
@@ -876,9 +968,6 @@
     // flashHint：已移除 N 段音量空隙，共 6秒（占比 2.1%）
     match = /^已移除\s+(\d+)\s+段音量空隙，共\s+(.+)$/.exec(text);
     if (match) return `Removed ${match[1]} loudness gaps, ${translateText(match[2], EN)} total`;
-    // 波形状态：12:34.567 · 缓存波形（未加载媒体）
-    match = /^(.+?)\s+·\s+缓存波形（未加载媒体）$/.exec(text);
-    if (match) return `${match[1]} · cached waveform (no media loaded)`;
     match = /^未扫描空隙(?:\s+·\s+人工修正)?$/.exec(text);
     if (match) return text.includes('人工修正') ? 'No gap scan yet · manually adjusted' : 'No gap scan yet';
     if (text === ' · 人工修正') return ' · manually adjusted';
@@ -890,6 +979,57 @@
     if (match) return match[2] ? `Subtitle ${match[1]} · item ${match[2]}` : `Subtitle ${match[1]}`;
     match = /^定位到第\s*(\d+)\s*条字幕$/.exec(text);
     if (match) return `Go to subtitle ${match[1]}`;
+    // 菜单栏剪贴板操作提示
+    match = /^已(拷贝|剪切|粘贴)\s+(\d+)\s*条字幕(?:到时间轴末尾)?$/.exec(text);
+    if (match) {
+      const verb = match[1] === '拷贝' ? 'Copied' : match[1] === '剪切' ? 'Cut' : 'Pasted';
+      return `${verb} ${match[2]} subtitle${Number(match[2]) === 1 ? '' : 's'}`;
+    }
+    match = /^点击复制：(.+)$/.exec(text);
+    if (match) return `Click to copy: ${match[1]}`;
+    // dock 菜单：模块名 + 窗口 / 切换为 / 关闭 / （交换位置）
+    match = /^(视频|当前字幕|字幕列表|波形)窗口$/.exec(text);
+    if (match) return `${translateText(match[1], EN)} window`;
+    match = /^(视频|当前字幕|字幕列表|波形)窗口：切换或关闭$/.exec(text);
+    if (match) return `${translateText(match[1], EN)} window: switch or close`;
+    match = /^切换为(视频|当前字幕|字幕列表|波形)窗口$/.exec(text);
+    if (match) return `Switch to ${translateText(match[1], EN)} window`;
+    match = /^已与「(视频|当前字幕|字幕列表|波形)」互换位置$/.exec(text);
+    if (match) return `Swapped positions with ${translateText(match[1], EN)}`;
+    match = /^把(视频|当前字幕|字幕列表|波形)加入此标签组$/.exec(text);
+    if (match) return `Add ${translateText(match[1], EN)} to this tab group`;
+    match = /^已把「(视频|当前字幕|字幕列表|波形)」并入标签组$/.exec(text);
+    if (match) return `Added ${translateText(match[1], EN)} to the tab group`;
+    match = /^已复制「(视频|当前字幕|字幕列表|波形)」为新标签$/.exec(text);
+    if (match) return `Duplicated ${translateText(match[1], EN)} as a new tab`;
+    match = /^变成(视频|当前字幕|字幕列表|波形)$/.exec(text);
+    if (match) return `Become ${translateText(match[1], EN)}`;
+    match = /^此窗口已变成「(视频|当前字幕|字幕列表|波形)」$/.exec(text);
+    if (match) return `This window became ${translateText(match[1], EN)}`;
+    match = /^把窗口变成「(视频|当前字幕|字幕列表|波形)」$/.exec(text);
+    if (match) return `Turn the window into ${translateText(match[1], EN)}`;
+    match = /^把(视频|当前字幕|字幕列表|波形)并入此标签组$/.exec(text);
+    if (match) return `Merge ${translateText(match[1], EN)} into this tab group`;
+    match = /^已把「(视频|当前字幕|字幕列表|波形)」并入标签组$/.exec(text);
+    if (match) return `Merged ${translateText(match[1], EN)} into the tab group`;
+    match = /^已将「(视频|当前字幕|字幕列表|波形)」并入「(视频|当前字幕|字幕列表|波形)」标签组$/.exec(text);
+    if (match) return `Merged ${translateText(match[1], EN)} into the ${translateText(match[2], EN)} tab group`;
+    match = /^并入标签：(视频|当前字幕|字幕列表|波形) → (视频|当前字幕|字幕列表|波形)$/.exec(text);
+    if (match) return `Merge as tab: ${translateText(match[1], EN)} → ${translateText(match[2], EN)}`;
+    match = /^(视频|当前字幕|字幕列表|波形)窗口标签$/.exec(text);
+    if (match) return `${translateText(match[1], EN)} window tabs`;
+    match = /^弹出(视频|当前字幕|字幕列表|波形)为浮动窗口$/.exec(text);
+    if (match) return `Pop ${translateText(match[1], EN)} out as a floating window`;
+    match = /^(视频|当前字幕|字幕列表|波形)：拖拽调整位置；点击切换或弹出窗口$/.exec(text);
+    if (match) return `${translateText(match[1], EN)}: drag to dock; click to switch or pop out`;
+    match = /^已弹出「(视频|当前字幕|字幕列表|波形)」浮动窗口；点击标题栏 × 收回$/.exec(text);
+    if (match) return `Popped ${translateText(match[1], EN)} out as a floating window; click the title-bar × to dock it back`;
+    match = /^关闭(视频|当前字幕|字幕列表|波形)窗口$/.exec(text);
+    if (match) return `Close ${translateText(match[1], EN)} window`;
+    match = /^已把 (\d+) 段非字幕片段设为空隙$/.exec(text);
+    if (match) return `Marked ${match[1]} non-subtitle span(s) as gaps`;
+    match = /^(.+?)（交换位置）$/.exec(text);
+    if (match) return `${translateText(match[1], EN)} (swap positions)`;
     match = /^保存失败：(.+)$/.exec(text);
     if (match) return `Save failed: ${match[1]}`;
     match = /^打开工程失败：(.+)$/.exec(text);

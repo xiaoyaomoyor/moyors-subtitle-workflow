@@ -5,14 +5,15 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
 import {
-  cleanupTempDir,
   DURATION_MS,
+  cleanupTempDir,
+  disableOnboarding,
   findFreePort,
   generateProjectJson,
   generateWav,
-  disableOnboarding,
-  startServer,
   makeTempDir,
+  startServer,
+  toggleCueListSettings
 } from './helpers.mjs';
 
 let tempDir;
@@ -59,6 +60,7 @@ test('color filter button appears only for projects with colored subtitles', asy
   await waitEditorReady(page);
   await expect(page.locator('#color-filter-btn')).toBeHidden();
   await paintFirstSegmentRed(page);
+  await toggleCueListSettings(page);
   await expect(page.locator('#color-filter-btn')).toBeVisible();
 });
 
@@ -67,6 +69,7 @@ test('clicking a row shows only that color; checkboxes multi-select; clear resto
   await paintFirstSegmentRed(page);
   const total = await page.evaluate(() => DATA.segments.length);
 
+  await toggleCueListSettings(page);
   await page.locator('#color-filter-btn').click();
   const rows = page.locator('#color-filter-menu .color-filter-item');
   await expect(rows).toHaveCount(2); // 默认 + 红
