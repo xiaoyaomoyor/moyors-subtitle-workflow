@@ -1011,7 +1011,7 @@
     toolbox_alignment_gap_hysteresis_hint: "The level must fall below the threshold to close the gate; 1–3 dB is a good starting range.",
   });
 
-  const HOME_URL = "https://github.com/Moyf/moys-asr-workflow";
+  const HOME_URL = "https://github.com/xiaoyaomoyor/moyors-subtitle-workflow";
   const LAST_MODEL_KEY = "MAW_GUI_LAST_MODEL";
   const LAST_LANGUAGE_KEY = "MAW_GUI_LAST_LANGUAGE";
   const ZOOM_PERCENT_KEY = "MAW_GUI_ZOOM_PERCENT";

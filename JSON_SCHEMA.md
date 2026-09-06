@@ -1,6 +1,6 @@
 # 字幕工程文件规范（`.mosp` / `.json`）
 
-本文档定义 MSWE（Moy's ASR Workflow Editor）、`edit.py` 生成的 `.edit.html` 以及 `blank-editor.html` 共同接受的工程文件格式。工程文件内容是 UTF-8 JSON；`.mosp` 是当前默认和推荐的扩展名，`.json` 作为旧工程与兼容输入/输出扩展名继续支持。
+本文档定义 MSWE（Moyor's Subtitle Workflow Editor）、`edit.py` 生成的 `.edit.html` 以及 `blank-editor.html` 共同接受的工程文件格式。工程文件内容是 UTF-8 JSON；`.mosp` 是当前默认和推荐的扩展名，`.json` 作为旧工程与兼容输入/输出扩展名继续支持。
 
 用途：让任意来源（ASR、第三方模型生成、人工手写）的 JSON 都能直接被编辑器加载、编辑、再导出。
 

@@ -4,7 +4,7 @@
 
 ## 产品与运行形态
 
-MSW（Moy's ASR Workflow）是一个收窄的本地工作流：本地媒体经云端 ASR 生成 SRT 与工程文件，再在本机浏览器编辑、导出。工程文件内容是 UTF-8 JSON，`.mosp` 是当前默认扩展名；`.json` 作为旧工程和兼容扩展名继续支持。完整字段契约见 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。
+MSW（Moyor's Subtitle Workflow）是一个收窄的本地工作流：本地媒体经云端 ASR 生成 SRT 与工程文件，再在本机浏览器编辑、导出。工程文件内容是 UTF-8 JSON，`.mosp` 是当前默认扩展名；`.json` 作为旧工程和兼容扩展名继续支持。完整字段契约见 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。
 
 - `generate_subtitle_qwen_api.py`：Qwen/Fun-ASR 转写命令入口，`--json` 为历史兼容参数名，默认生成 `.mosp` 工程。
 - `generate_subtitle_soniox_api.py`：Soniox 转写命令入口，同样默认生成 `.mosp` 工程。

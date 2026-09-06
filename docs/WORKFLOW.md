@@ -1,6 +1,6 @@
 # 从零完成一次字幕工程
 
-这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MSW 是 Moy's ASR Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
+这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MSW 是 Moyor's Subtitle Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
 
 ## 0. 安装依赖
 

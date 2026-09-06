@@ -2060,8 +2060,11 @@
             const percent = ((event.clientY - rect.top) / Math.max(1, rect.height)) * 100;
             const rows = [...this.settings.layoutRows];
             if (kind === 'rowTop') {
+              // 拖动 视频/当前字幕 分隔线：只移动这条边界（下方 h2 边界位置不动），
+              // 增减的空间由中间行（当前字幕）吸收，不再整块挤压底部字幕列表。
+              const lowerBoundary = previousRows[0] + previousRows[1];
               rows[0] = clamp(percent, 12, 76);
-              rows[1] = Math.min(rows[1], 88 - rows[0]);
+              rows[1] = clamp(lowerBoundary - rows[0], 6, 82);
             } else {
               rows[1] = clamp(percent - rows[0], 6, 82);
             }

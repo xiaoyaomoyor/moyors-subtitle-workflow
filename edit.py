@@ -1,4 +1,4 @@
-"""MSWE（Moy's ASR Workflow Editor）HTML 生成器（基于带字级时间戳的工程文件）+ 表情包管理。
+"""MSWE（Moyor's Subtitle Workflow Editor）HTML 生成器（基于带字级时间戳的工程文件）+ 表情包管理。
 
 用法:
     uv run python edit.py <subtitle.mosp|subtitle.json> [-m media] [-s stickers_dir] [-o output.html]
@@ -280,7 +280,7 @@ def build_blank_html(ninja_sfx_base_url_json: str | None = None) -> str:
         'style="width:100%;display:block;"></audio>'
     )
     return render_editor_page(
-        title=html.escape("MSWE — Moy's ASR Workflow Editor · 用「打开工程」加载工程文件"),
+        title=html.escape("MSWE — Moyor's Subtitle Workflow Editor · 用「打开工程」加载工程文件"),
         media_html=media_html,
         data_json=json.dumps(blank_data, ensure_ascii=False),
         filename_base_json=json.dumps("untitled", ensure_ascii=False),
@@ -299,7 +299,7 @@ def build_blank_html(ninja_sfx_base_url_json: str | None = None) -> str:
 def main():
     apply_msw_env_aliases()
     configure_utf8_stdio()
-    parser = argparse.ArgumentParser(description="MSWE — Moy's ASR Workflow Editor（含表情包管理 + 多选）")
+    parser = argparse.ArgumentParser(description="MSWE — Moyor's Subtitle Workflow Editor（含表情包管理 + 多选）")
     parser.add_argument(
         "json_path", nargs="?",
         help="工程文件路径（.mosp 或 .json，由 generate_subtitle_qwen_api.py --json 生成）；--blank 模式下可省略",

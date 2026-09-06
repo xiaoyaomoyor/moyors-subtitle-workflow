@@ -56,7 +56,7 @@ def _gui_port_value(value: str) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Moy's ASR Workflow GUI")
+    parser = argparse.ArgumentParser(description="Moyor's Subtitle Workflow GUI")
     parser.add_argument("--smoke-import", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--transcribe",

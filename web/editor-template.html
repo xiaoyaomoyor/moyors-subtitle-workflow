@@ -1375,36 +1375,36 @@ __WAVEFORM_CSS__
                 </label>
                 <small class="editor-settings-hint">选中字幕时，同时选中和它相同颜色/表情包的字幕</small>
               </div>
-              <div class="editor-settings-field timeline-settings-field" role="group" aria-labelledby="timeline-settings-title">
-                <span class="editor-settings-title" id="timeline-settings-title">时间基准</span>
-                <div class="timeline-settings-controls">
-                  <label class="editor-settings-item" title="字幕编辑使用的时间单位；切换为帧后，拖动、方向键和 A/D 微调都按帧执行">
-                    时间单位
-                    <select id="timeline-timebase">
-                      <option value="milliseconds" selected>毫秒</option>
-                      <option value="frames">帧</option>
-                    </select>
-                  </label>
-                  <label class="editor-settings-item" title="帧时间基准的帧率；帧模式会按此 FPS 保存并显示帧时间码">
-                    FPS
-                    <span class="gap-remove-number-control">
-                      <input type="number" id="timeline-fps" min="1" max="240" step="0.001" value="30" inputmode="decimal" aria-label="帧率 FPS">
-                      <span class="gap-remove-unit">fps</span>
-                    </span>
-                  </label>
-                  <label class="editor-settings-item" title="帧模式下把波形鼠标指针吸附到最近的帧；毫秒模式下不生效">
-                    <input type="checkbox" id="timeline-snap-to-frame">
-                    吸附到帧
-                  </label>
-                  <label class="editor-settings-item" title="帧时间码中秒与帧之间的分隔符；只使用一个非字母数字符号">
-                    时间码分隔符
-                    <input type="text" id="timeline-timecode-separator" class="timeline-timecode-separator-input" value=":" maxlength="1" size="1" inputmode="text" autocomplete="off" spellcheck="false" aria-label="时间码分隔符">
-                  </label>
-                </div>
-                <small class="editor-settings-hint" id="timeline-timebase-hint">毫秒模式保持原有时间编辑方式。帧模式使用 HH:MM:SS:FF 显示，FF 为当前秒内的帧号。</small>
-                <small class="editor-settings-hint" id="timeline-snap-to-frame-hint">仅帧模式生效；切换到帧模式后可启用。</small>
-                <small class="editor-settings-hint" id="timeline-timecode-separator-hint">帧时间码示例：HH:MM:SS:FF；只替换秒与帧之间的分隔符。</small>
-              </div>
+            </div>
+          </div>
+          <div class="settings-subsection timeline-settings-field" data-subsection="timebase">
+            <span class="settings-subsection-title">时间基准</span>
+            <div class="editor-settings-sub-group">
+              <label class="editor-settings-item" title="字幕编辑使用的时间单位；切换为帧后，拖动、方向键和 A/D 微调都按帧执行">
+                时间单位
+                <select id="timeline-timebase">
+                  <option value="milliseconds" selected>毫秒</option>
+                  <option value="frames">帧</option>
+                </select>
+              </label>
+              <small class="editor-settings-hint" id="timeline-timebase-hint">毫秒模式保持原有时间编辑方式。帧模式使用 HH:MM:SS:FF 显示，FF 为当前秒内的帧号。</small>
+              <label class="editor-settings-item" title="帧时间基准的帧率；帧模式会按此 FPS 保存并显示帧时间码">
+                FPS
+                <span class="gap-remove-number-control">
+                  <input type="number" id="timeline-fps" min="1" max="240" step="0.001" value="30" inputmode="decimal" aria-label="帧率 FPS">
+                  <span class="gap-remove-unit">fps</span>
+                </span>
+              </label>
+              <label class="toggle editor-settings-item" title="帧模式下把波形鼠标指针吸附到最近的帧；毫秒模式下不生效">
+                <input type="checkbox" id="timeline-snap-to-frame">
+                吸附到帧
+              </label>
+              <small class="editor-settings-hint" id="timeline-snap-to-frame-hint">仅帧模式生效；切换到帧模式后可启用。</small>
+              <label class="editor-settings-item" title="帧时间码中秒与帧之间的分隔符；只使用一个非字母数字符号">
+                时间码分隔符
+                <input type="text" id="timeline-timecode-separator" class="timeline-timecode-separator-input" value=":" maxlength="1" size="1" inputmode="text" autocomplete="off" spellcheck="false" aria-label="时间码分隔符">
+              </label>
+              <small class="editor-settings-hint" id="timeline-timecode-separator-hint">帧时间码示例：HH:MM:SS:FF；只替换秒与帧之间的分隔符。</small>
             </div>
           </div>
           <div class="settings-subsection" data-subsection="language">

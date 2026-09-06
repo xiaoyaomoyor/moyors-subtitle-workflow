@@ -1285,6 +1285,18 @@
     display: flex; flex-direction: column; gap: 0; align-items: center; justify-content: center;
     text-align: center; pointer-events: none;
     z-index: 10; padding: 0 12px; box-sizing: border-box;
+    transition: transform .16s ease;
+  }
+  /* B 站式控制条淡入时字幕带同步上移一个控制条高度：底部字幕行（含副字幕）
+     不再被进度条遮挡；触发条件与控制条显隐完全一致，几何契约（0.76/0.16）不变。 */
+  .player-stage:hover .subtitle-overlay,
+  .player-stage.media-controls-pinned .subtitle-overlay,
+  .player-stage:focus-within .subtitle-overlay {
+    transform: translateY(-38px);
+  }
+  /* 几何编辑中不上移：拖拽/键盘微调的落点不能因悬停而漂移。 */
+  .subtitle-overlay.geometry-enabled {
+    transform: none;
   }
   /* 几何可编辑时由 .geo-box.geometry-enabled 接收指针；文字 span 仍不拦截，避免选中文本干扰拖动 */
   .subtitle-overlay span {
@@ -3121,6 +3133,10 @@
   }
   .cue.multi-dual-cue .multi-cue-column-header .time {
     flex: 1 1 auto; min-width: 0; width: auto;
+  }
+  /* 双列字数：与时间同行、右对齐收尾；沿用 .cue .charcount 的弱文字样式与开关。 */
+  .cue.multi-dual-cue .multi-cue-column-header .charcount {
+    margin-left: auto; flex: 0 0 auto; margin-top: 0; min-width: 26px;
   }
   .cue.multi-dual-cue .multi-cue-column.extension { border-left: 1px solid var(--border-subtle); padding-left: 10px; }
   /* 双列中的文本仍保持与单列相同的编辑框；双列文本原本是 inline，导致

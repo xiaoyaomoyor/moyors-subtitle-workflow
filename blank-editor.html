@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>MSWE — Moy&#x27;s ASR Workflow Editor · 用「打开工程」加载工程文件</title>
+<title>MSWE — Moyor&#x27;s Subtitle Workflow Editor · 用「打开工程」加载工程文件</title>
 <script>
 /* 首帧前应用主题，避免亮色主题下先闪一帧暗色。
    与 editor.js 的 EDITOR_SETTINGS_KEY / theme 字段保持一致；
@@ -1305,6 +1305,18 @@
     display: flex; flex-direction: column; gap: 0; align-items: center; justify-content: center;
     text-align: center; pointer-events: none;
     z-index: 10; padding: 0 12px; box-sizing: border-box;
+    transition: transform .16s ease;
+  }
+  /* B 站式控制条淡入时字幕带同步上移一个控制条高度：底部字幕行（含副字幕）
+     不再被进度条遮挡；触发条件与控制条显隐完全一致，几何契约（0.76/0.16）不变。 */
+  .player-stage:hover .subtitle-overlay,
+  .player-stage.media-controls-pinned .subtitle-overlay,
+  .player-stage:focus-within .subtitle-overlay {
+    transform: translateY(-38px);
+  }
+  /* 几何编辑中不上移：拖拽/键盘微调的落点不能因悬停而漂移。 */
+  .subtitle-overlay.geometry-enabled {
+    transform: none;
   }
   /* 几何可编辑时由 .geo-box.geometry-enabled 接收指针；文字 span 仍不拦截，避免选中文本干扰拖动 */
   .subtitle-overlay span {
@@ -3142,6 +3154,10 @@
   .cue.multi-dual-cue .multi-cue-column-header .time {
     flex: 1 1 auto; min-width: 0; width: auto;
   }
+  /* 双列字数：与时间同行、右对齐收尾；沿用 .cue .charcount 的弱文字样式与开关。 */
+  .cue.multi-dual-cue .multi-cue-column-header .charcount {
+    margin-left: auto; flex: 0 0 auto; margin-top: 0; min-width: 26px;
+  }
   .cue.multi-dual-cue .multi-cue-column.extension { border-left: 1px solid var(--border-subtle); padding-left: 10px; }
   /* 双列中的文本仍保持与单列相同的编辑框；双列文本原本是 inline，导致
      背景、内边距和虚线只包住文字，且被列容器的省略样式影响。 */
@@ -4147,13 +4163,17 @@
   grid-template-rows:
     minmax(56px, calc(var(--layout-row-top) - 9.333px))
     7px
-    minmax(max-content, calc(var(--layout-row-middle) - 9.333px))
+    minmax(96px, calc(var(--layout-row-middle) - 9.333px))
     7px
     minmax(56px, calc(var(--layout-row-bottom) - 9.333px));
   gap: 0 8px;
   overflow: hidden;
 }
-/* 面板行对选中/未选中使用同一套轨道尺寸：高度只随手动拖拽变化，不再因选中跳变。 */
+/* 面板行轨道按百分比伸缩（拖动上下分隔线即时缩放，不再被内容高度钉死）；
+   轨道与内容解耦后选中字幕也不会改变行高（跳变的真正根因）。 */
+.editor-workspace.layout-wave-right > .current-cue-panel { overflow: hidden; }
+.layout-wave-right .cue-panel-text-wrap { flex: 1 1 auto; }
+.layout-wave-right .cue-panel-text-wrap > textarea { min-height: 2em; }
 .editor-workspace.layout-wave-right > .player-wrap,
 .editor-workspace.layout-wave-right > .current-cue-panel,
 .editor-workspace.layout-wave-right > .waveform-pane,
@@ -6306,36 +6326,36 @@
                 </label>
                 <small class="editor-settings-hint">选中字幕时，同时选中和它相同颜色/表情包的字幕</small>
               </div>
-              <div class="editor-settings-field timeline-settings-field" role="group" aria-labelledby="timeline-settings-title">
-                <span class="editor-settings-title" id="timeline-settings-title">时间基准</span>
-                <div class="timeline-settings-controls">
-                  <label class="editor-settings-item" title="字幕编辑使用的时间单位；切换为帧后，拖动、方向键和 A/D 微调都按帧执行">
-                    时间单位
-                    <select id="timeline-timebase">
-                      <option value="milliseconds" selected>毫秒</option>
-                      <option value="frames">帧</option>
-                    </select>
-                  </label>
-                  <label class="editor-settings-item" title="帧时间基准的帧率；帧模式会按此 FPS 保存并显示帧时间码">
-                    FPS
-                    <span class="gap-remove-number-control">
-                      <input type="number" id="timeline-fps" min="1" max="240" step="0.001" value="30" inputmode="decimal" aria-label="帧率 FPS">
-                      <span class="gap-remove-unit">fps</span>
-                    </span>
-                  </label>
-                  <label class="editor-settings-item" title="帧模式下把波形鼠标指针吸附到最近的帧；毫秒模式下不生效">
-                    <input type="checkbox" id="timeline-snap-to-frame">
-                    吸附到帧
-                  </label>
-                  <label class="editor-settings-item" title="帧时间码中秒与帧之间的分隔符；只使用一个非字母数字符号">
-                    时间码分隔符
-                    <input type="text" id="timeline-timecode-separator" class="timeline-timecode-separator-input" value=":" maxlength="1" size="1" inputmode="text" autocomplete="off" spellcheck="false" aria-label="时间码分隔符">
-                  </label>
-                </div>
-                <small class="editor-settings-hint" id="timeline-timebase-hint">毫秒模式保持原有时间编辑方式。帧模式使用 HH:MM:SS:FF 显示，FF 为当前秒内的帧号。</small>
-                <small class="editor-settings-hint" id="timeline-snap-to-frame-hint">仅帧模式生效；切换到帧模式后可启用。</small>
-                <small class="editor-settings-hint" id="timeline-timecode-separator-hint">帧时间码示例：HH:MM:SS:FF；只替换秒与帧之间的分隔符。</small>
-              </div>
+            </div>
+          </div>
+          <div class="settings-subsection timeline-settings-field" data-subsection="timebase">
+            <span class="settings-subsection-title">时间基准</span>
+            <div class="editor-settings-sub-group">
+              <label class="editor-settings-item" title="字幕编辑使用的时间单位；切换为帧后，拖动、方向键和 A/D 微调都按帧执行">
+                时间单位
+                <select id="timeline-timebase">
+                  <option value="milliseconds" selected>毫秒</option>
+                  <option value="frames">帧</option>
+                </select>
+              </label>
+              <small class="editor-settings-hint" id="timeline-timebase-hint">毫秒模式保持原有时间编辑方式。帧模式使用 HH:MM:SS:FF 显示，FF 为当前秒内的帧号。</small>
+              <label class="editor-settings-item" title="帧时间基准的帧率；帧模式会按此 FPS 保存并显示帧时间码">
+                FPS
+                <span class="gap-remove-number-control">
+                  <input type="number" id="timeline-fps" min="1" max="240" step="0.001" value="30" inputmode="decimal" aria-label="帧率 FPS">
+                  <span class="gap-remove-unit">fps</span>
+                </span>
+              </label>
+              <label class="toggle editor-settings-item" title="帧模式下把波形鼠标指针吸附到最近的帧；毫秒模式下不生效">
+                <input type="checkbox" id="timeline-snap-to-frame">
+                吸附到帧
+              </label>
+              <small class="editor-settings-hint" id="timeline-snap-to-frame-hint">仅帧模式生效；切换到帧模式后可启用。</small>
+              <label class="editor-settings-item" title="帧时间码中秒与帧之间的分隔符；只使用一个非字母数字符号">
+                时间码分隔符
+                <input type="text" id="timeline-timecode-separator" class="timeline-timecode-separator-input" value=":" maxlength="1" size="1" inputmode="text" autocomplete="off" spellcheck="false" aria-label="时间码分隔符">
+              </label>
+              <small class="editor-settings-hint" id="timeline-timecode-separator-hint">帧时间码示例：HH:MM:SS:FF；只替换秒与帧之间的分隔符。</small>
             </div>
           </div>
           <div class="settings-subsection" data-subsection="language">
@@ -17268,8 +17288,11 @@ export default MawDynamicCaptions;
             const percent = ((event.clientY - rect.top) / Math.max(1, rect.height)) * 100;
             const rows = [...this.settings.layoutRows];
             if (kind === 'rowTop') {
+              // 拖动 视频/当前字幕 分隔线：只移动这条边界（下方 h2 边界位置不动），
+              // 增减的空间由中间行（当前字幕）吸收，不再整块挤压底部字幕列表。
+              const lowerBoundary = previousRows[0] + previousRows[1];
               rows[0] = clamp(percent, 12, 76);
-              rows[1] = Math.min(rows[1], 88 - rows[0]);
+              rows[1] = clamp(lowerBoundary - rows[0], 6, 82);
             } else {
               rows[1] = clamp(percent - rows[0], 6, 82);
             }
@@ -27099,7 +27122,7 @@ cuePanelText?.addEventListener('input', () => {
   const textEl = getCuePanelTextElement(target);
   if (textEl) {
     setTextHtml(textEl, seg.text, searchEl.value);
-    applyCharCount(textEl.closest('.cue')?.querySelector('.charcount'), seg.text, splitMode);
+    applyCharCount(charCountTargetFor(textEl), seg.text, splitMode);
   }
   if (target.kind === 'extension') waveformEditor?.refreshExtensionCueLabel(target.index, target.trackId);
   else waveformEditor?.refreshCueLabel(target.index);
@@ -27311,6 +27334,15 @@ function buildMultiCueColumn(segment, index, track, kind) {
   indexEl.className = 'index';
   indexEl.textContent = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
   header.append(indexEl, buildMultiTimeEl(segment));
+  // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。
+  const cntEl = document.createElement('span');
+  cntEl.className = 'charcount';
+  applyCharCount(
+    cntEl,
+    segment.text || '',
+    kind === 'extension' ? getExtensionSubtitleSplitMode(track, segment) : getMainSubtitleSplitMode(segment),
+  );
+  header.append(cntEl);
   const text = document.createElement('span');
   text.className = 'text';
   setTextHtml(text, segment.text || '', searchEl.value);
@@ -27462,6 +27494,14 @@ function updateTimedTextEditSingleGuide() {
     `${getCharCountThreshold()}em`,
   );
 }
+// 字数元素定位：双列模式在文字所在列的列头（主/副各一个），单列模式在行尾。
+function charCountTargetFor(textEl) {
+  if (!textEl) return null;
+  const column = textEl.closest('.multi-cue-column');
+  if (column) return column.querySelector('.charcount');
+  return textEl.closest('.cue')?.querySelector(':scope > .charcount') || null;
+}
+
 function applyCharCount(cntEl, text, mode = null) {
   if (!cntEl) return;
   const w = calcCharWidth(text, mode);
@@ -27539,9 +27579,27 @@ function releaseTemporaryVisibleSplitCuesUnless(kind, index, track = null) {
 function refreshAllCharCounts() {
   const extensionTrack = getActiveExtensionTrack();
   container.querySelectorAll(':scope > .cue').forEach(el => {
+    const dualColumns = el.querySelectorAll('.multi-cue-column');
+    if (dualColumns.length) {
+      // 双列模式：主/副列各自的列头字数，分别按各自轨道与切句类型统计。
+      dualColumns.forEach(column => {
+        const cntEl = column.querySelector('.charcount');
+        if (!cntEl) return;
+        const extIdx = Number.parseInt(column.dataset.extIdx, 10);
+        const mainIdx = Number.parseInt(column.dataset.mainIdx, 10);
+        if (Number.isInteger(extIdx) && extensionTrack) {
+          const segment = extensionTrack.segments[extIdx];
+          if (segment) applyCharCount(cntEl, segment.text, getExtensionSubtitleSplitMode(extensionTrack, segment));
+        } else if (Number.isInteger(mainIdx)) {
+          const segment = DATA.segments[mainIdx];
+          if (segment) applyCharCount(cntEl, segment.text, getMainSubtitleSplitMode(segment));
+        }
+      });
+      return;
+    }
     const idx = Number.parseInt(el.dataset.idx, 10);
     const extensionIdx = Number.parseInt(el.dataset.extIdx, 10);
-    const cntEl = el.querySelector('.charcount');
+    const cntEl = el.querySelector(':scope > .charcount');
     const segment = Number.isInteger(extensionIdx) && extensionTrack
       ? extensionTrack.segments[extensionIdx]
       : (Number.isInteger(idx) ? DATA.segments[idx] : null);
@@ -28072,7 +28130,7 @@ function finishEdit(save) {
     }
   }
   setTextHtml(textEl, DATA.segments[idx].text, searchEl.value);
-  const cntEl = el.querySelector('.charcount');
+  const cntEl = charCountTargetFor(textEl);
   if (cntEl) applyCharCount(
     cntEl, DATA.segments[idx].text, getMainSubtitleSplitMode(DATA.segments[idx]),
   );

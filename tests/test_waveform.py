@@ -796,8 +796,10 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('let interceptedSpace = false;', page)
         self.assertIn('e.stopImmediatePropagation();', page)
         self.assertIn('width: 74px; aspect-ratio: 1;', page)
-        # 面板行对选中/未选中使用同一套轨道尺寸：高度只随手动拖拽变化，不再因选中跳变
-        self.assertIn('minmax(max-content, calc(var(--layout-row-middle)', page)
+        # 面板行轨道按百分比伸缩（拖动上下分隔线即时缩放），且与内容解耦：
+        # 选中字幕不再改变行高（跳变的根因），面板不再被内容高度钉死成"只平移不缩放"
+        self.assertIn('minmax(96px, calc(var(--layout-row-middle)', page)
+        self.assertNotIn('minmax(max-content, calc(var(--layout-row-middle)', page)
         self.assertNotIn(':has(> .current-cue-panel.empty)', page)
         # 不引入文本域自动增高：拖高面板时布局保持原样
         self.assertNotIn('.layout-wave-right #cue-panel-text { flex:', page)

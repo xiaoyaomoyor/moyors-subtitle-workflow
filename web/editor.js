@@ -5427,7 +5427,7 @@ cuePanelText?.addEventListener('input', () => {
   const textEl = getCuePanelTextElement(target);
   if (textEl) {
     setTextHtml(textEl, seg.text, searchEl.value);
-    applyCharCount(textEl.closest('.cue')?.querySelector('.charcount'), seg.text, splitMode);
+    applyCharCount(charCountTargetFor(textEl), seg.text, splitMode);
   }
   if (target.kind === 'extension') waveformEditor?.refreshExtensionCueLabel(target.index, target.trackId);
   else waveformEditor?.refreshCueLabel(target.index);
@@ -5639,6 +5639,15 @@ function buildMultiCueColumn(segment, index, track, kind) {
   indexEl.className = 'index';
   indexEl.textContent = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
   header.append(indexEl, buildMultiTimeEl(segment));
+  // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。
+  const cntEl = document.createElement('span');
+  cntEl.className = 'charcount';
+  applyCharCount(
+    cntEl,
+    segment.text || '',
+    kind === 'extension' ? getExtensionSubtitleSplitMode(track, segment) : getMainSubtitleSplitMode(segment),
+  );
+  header.append(cntEl);
   const text = document.createElement('span');
   text.className = 'text';
   setTextHtml(text, segment.text || '', searchEl.value);
@@ -5790,6 +5799,14 @@ function updateTimedTextEditSingleGuide() {
     `${getCharCountThreshold()}em`,
   );
 }
+// 字数元素定位：双列模式在文字所在列的列头（主/副各一个），单列模式在行尾。
+function charCountTargetFor(textEl) {
+  if (!textEl) return null;
+  const column = textEl.closest('.multi-cue-column');
+  if (column) return column.querySelector('.charcount');
+  return textEl.closest('.cue')?.querySelector(':scope > .charcount') || null;
+}
+
 function applyCharCount(cntEl, text, mode = null) {
   if (!cntEl) return;
   const w = calcCharWidth(text, mode);
@@ -5867,9 +5884,27 @@ function releaseTemporaryVisibleSplitCuesUnless(kind, index, track = null) {
 function refreshAllCharCounts() {
   const extensionTrack = getActiveExtensionTrack();
   container.querySelectorAll(':scope > .cue').forEach(el => {
+    const dualColumns = el.querySelectorAll('.multi-cue-column');
+    if (dualColumns.length) {
+      // 双列模式：主/副列各自的列头字数，分别按各自轨道与切句类型统计。
+      dualColumns.forEach(column => {
+        const cntEl = column.querySelector('.charcount');
+        if (!cntEl) return;
+        const extIdx = Number.parseInt(column.dataset.extIdx, 10);
+        const mainIdx = Number.parseInt(column.dataset.mainIdx, 10);
+        if (Number.isInteger(extIdx) && extensionTrack) {
+          const segment = extensionTrack.segments[extIdx];
+          if (segment) applyCharCount(cntEl, segment.text, getExtensionSubtitleSplitMode(extensionTrack, segment));
+        } else if (Number.isInteger(mainIdx)) {
+          const segment = DATA.segments[mainIdx];
+          if (segment) applyCharCount(cntEl, segment.text, getMainSubtitleSplitMode(segment));
+        }
+      });
+      return;
+    }
     const idx = Number.parseInt(el.dataset.idx, 10);
     const extensionIdx = Number.parseInt(el.dataset.extIdx, 10);
-    const cntEl = el.querySelector('.charcount');
+    const cntEl = el.querySelector(':scope > .charcount');
     const segment = Number.isInteger(extensionIdx) && extensionTrack
       ? extensionTrack.segments[extensionIdx]
       : (Number.isInteger(idx) ? DATA.segments[idx] : null);
@@ -6400,7 +6435,7 @@ function finishEdit(save) {
     }
   }
   setTextHtml(textEl, DATA.segments[idx].text, searchEl.value);
-  const cntEl = el.querySelector('.charcount');
+  const cntEl = charCountTargetFor(textEl);
   if (cntEl) applyCharCount(
     cntEl, DATA.segments[idx].text, getMainSubtitleSplitMode(DATA.segments[idx]),
   );

@@ -1,6 +1,6 @@
 # MOSE — Tauri 桌面应用开发目录
 
-本目录是 **MOSE（Moy's Open Subtitle Editor）** 的 Tauri 桌面应用开发目录，属于 MSW 仓库的一部分。
+本目录是 **MOSE（Moyor's Open Subtitle Editor）** 的 Tauri 桌面应用开发目录，属于 MSW 仓库的一部分。
 
 ## 架构定位
 

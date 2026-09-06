@@ -1,7 +1,7 @@
 [package]
 name = "mose"
 version = "0.1.0"
-description = "Moy's Open Subtitle Editor"
+description = "Moyor's Open Subtitle Editor"
 authors = ["Moy"]
 edition = "2021"
 
