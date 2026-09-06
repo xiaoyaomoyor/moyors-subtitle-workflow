@@ -34276,11 +34276,12 @@ function buildTimelineOtio({ gapRemoved = false } = {}) {
     ? [null]
     : audioMetadata.map((audioTrack, index) => ({ audioTrack, index }));
   const audioSpecs = audioEntries.length || player?.tagName !== 'AUDIO'
-    ? audioEntries.map(({ audioTrack, index }) => ({
-      name: otioAudioTrackName(audioTrack, index, audioEntries.length),
+    ? audioEntries.map((entry) => ({
+      // 无音轨清单的旧工程走单轨兼容路径：entry 为 null 时不解构，避免崩溃。
+      name: otioAudioTrackName(entry?.audioTrack ?? null, entry?.index ?? 0, audioEntries.length),
       kind: 'Audio',
-      audioTrack,
-      audioTrackIndex: index,
+      audioTrack: entry?.audioTrack ?? null,
+      audioTrackIndex: entry?.index ?? 0,
     }))
     : [{ name: '音频', kind: 'Audio', audioTrack: null, audioTrackIndex: 0 }];
   const trackSpecs = player?.tagName === 'AUDIO'

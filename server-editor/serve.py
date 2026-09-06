@@ -141,6 +141,24 @@ class RecentProjectError(ValueError):
     """A client attempted to open a project that was not explicitly remembered."""
 
 
+def _drop_derived_frame_fields(value):
+    """按毫秒语义比较工程内容时剔除派生的帧字段。
+
+    前端打开工程时总会按当前 FPS 给每条字幕/字词补 start_frame/end_frame；
+    磁盘上的旧工程没有这些字段。帧字段由毫秒 + FPS 派生，不代表内容差异，
+    参与一致性比较会让旧工程的接管被误判为「内容不一致」。
+    """
+    if isinstance(value, list):
+        return [_drop_derived_frame_fields(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _drop_derived_frame_fields(item)
+            for key, item in value.items()
+            if key not in {"start_frame", "end_frame"}
+        }
+    return value
+
+
 class AttachProjectError(ValueError):
     """A browser-opened project could not be bound to its on-disk file."""
 
@@ -370,9 +388,10 @@ def load_project(
     source_media_path = resolution.resolved_path
     media_path = source_media_path
     configured_ffmpeg = os.environ.get("FFMPEG_PATH") or load_env(DEFAULT_ENV_PATH).get("FFMPEG_PATH", "")
-    ffmpeg_path = resolve_ffmpeg_tools(
+    ffmpeg_tools = resolve_ffmpeg_tools(
         configured_path=configured_ffmpeg or None,
-    ).ffmpeg
+    )
+    ffmpeg_path = ffmpeg_tools.ffmpeg
     if resolution.status is MediaStatus.CONVERSION_NEEDED:
         print("[media] flv 无法预览，将会自动转换成 mp4 格式")
         try:
@@ -384,7 +403,12 @@ def load_project(
     data["media"] = str(source_media_path)
     # 旧工程可能没有源音轨清单；在加载时补探测，确保 OTIO 导出不会只
     # 看见容器中的第一条音频流。探测失败时继续按旧工程兼容路径导出。
-    data = normalize_project(enrich_project_media_metadata(data, media_path=source_media_path))
+    # ffprobe 用 FFMPEG_PATH/.env 解析出的路径：本机 ffmpeg 不在 PATH 时也能探测。
+    data = normalize_project(enrich_project_media_metadata(
+        data,
+        media_path=source_media_path,
+        ffprobe_path=ffmpeg_tools.ffprobe,
+    ))
     # .ReaPeaks 是转写时对"工程 media 字段原始文件"生成的；转换场景下
     # resolved_path 可能已被 _paired_mp4 升级为配对的 mp4，必须用原始
     # 请求路径（requested_path）查找，否则会漏读源媒体旁的缓存。
@@ -1000,7 +1024,7 @@ class EditorServer(ThreadingHTTPServer):
         )
         if self.defer_reapeaks:
             project = without_deferred_reapeaks(project)
-        if project.data.get("segments") != normalized_browser.get("segments"):
+        if _drop_derived_frame_fields(project.data.get("segments")) != _drop_derived_frame_fields(normalized_browser.get("segments")):
             raise AttachProjectError("媒体同目录的同名工程与打开的副本内容不一致，未接管")
         with self.settings_lock:
             self.project = project
