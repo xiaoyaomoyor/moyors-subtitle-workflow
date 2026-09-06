@@ -1264,6 +1264,14 @@
   .media-controls #media-seek { flex: 1 1 180px; width: 0; min-width: 120px; accent-color: var(--accent); }
   .media-volume-control,
   .media-rate-control { display: inline-flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; }
+  /* 音量图标：白色描边风（currentColor 跟随控制条），静音时只显示叉形 */
+  .media-volume-icon {
+    display: block; width: 15px; height: 15px; flex: 0 0 auto;
+    fill: currentColor; opacity: .92;
+  }
+  .media-volume-icon .volume-mute { display: none; }
+  .media-volume-control.muted .volume-wave { display: none; }
+  .media-volume-control.muted .volume-mute { display: block; opacity: .85; }
   .media-volume-control input { width: 78px; min-width: 0; accent-color: var(--accent); }
   .media-rate-control select { min-width: 0; padding: 3px 4px; }
   .media-controls #media-fullscreen { flex: 0 0 auto; }
@@ -2823,9 +2831,25 @@
     font-variant-numeric: tabular-nums;
     transition: color var(--t-fast);
   }
-  .cue.active .charcount { color: var(--accent-hover); }
+  .cue.active .charcount { color: var(--wave-playhead); }
   .cue .charcount.over { color: var(--text-muted); font-weight: 600; }
-  .cue.active .charcount.over { color: var(--accent-hover); font-weight: 600; }
+  .cue.active .charcount.over { color: var(--wave-playhead); font-weight: 600; }
+
+  /* 列表窄宽度分级退让（容器查询，随字幕列表模块实际宽度走）：
+     先藏字数 → 再藏时间 → 最后藏序号，保证任何宽度下文字区始终可用，
+     不用最小宽度强制顶住模块。双列模式列宽减半，字数更早退场。 */
+  @container cue-list (max-width: 360px) {
+    .cues-container .charcount { display: none; }
+  }
+  @container cue-list (max-width: 620px) {
+    .multi-cue-column .charcount { display: none; }
+  }
+  @container cue-list (max-width: 250px) {
+    .cue .time { display: none; }
+  }
+  @container cue-list (max-width: 150px) {
+    .cue .index { display: none; }
+  }
   .cue.active { background: var(--accent-tint-strong); border-left-color: var(--accent); color: var(--active-cue-fg); }
   /* 播放中行的悬停：必须保持蓝色身份（此前缺规则，会被后面的琥珀规则染黄）。 */
   .cue.active:hover {
@@ -5129,6 +5153,8 @@
           <div class="dropdown-item" id="workspace-import" role="menuitem" tabindex="0">导入界面配置</div>
         </div>
       </div>
+      <div class="dropdown-separator"></div>
+      <button type="button" class="dropdown-item" id="page-fullscreen-toggle" role="menuitem" title="让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）">页面全屏</button>
     </div>
   </div>
 
@@ -5275,7 +5301,7 @@
   </div>
 
   <div class="menubar-project" id="menubar-project">
-    <span class="menubar-project-name empty" id="json-name" title="点击复制工程文件名；悬浮查看工程详情">未加载工程</span>
+    <span class="menubar-project-name empty" id="json-name" title="点击打开工程所在文件夹；悬浮查看工程详情">未加载工程</span>
     <div class="menubar-project-card" id="project-detail-card" role="dialog" aria-label="工程详情" hidden>
       <div class="menubar-project-card-row">
         <span class="menubar-project-card-label">工程</span>
@@ -6566,7 +6592,10 @@
       </button>
       <span class="media-clock"><span id="media-current-time">00:00</span> / <span id="media-duration">00:00</span></span>
       <input type="range" id="media-seek" min="0" max="0" step="0.01" value="0" aria-label="媒体进度">
-      <label class="media-volume-control" title="音量">🔊 <input type="range" id="media-volume" min="0" max="1" step="0.01" value="1" aria-label="音量"></label>
+      <label class="media-volume-control" title="音量">
+        <svg class="media-volume-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="volume-on" d="M8 2.6v10.8c0 .5-.6.8-1 .5L4.1 11H2.4c-.5 0-.9-.4-.9-.9V5.9c0-.5.4-.9.9-.9h1.7L7 2.1c.4-.3 1 0 1 .5z"/><path class="volume-wave" d="M10.6 5.4a3.9 3.9 0 0 1 0 5.2l-.8-.8a2.7 2.7 0 0 0 0-3.6l.8-.8z"/><path class="volume-wave" d="M12.5 3.5a6.5 6.5 0 0 1 0 9l-.8-.8a5.3 5.3 0 0 0 0-7.4l.8-.8z"/><path class="volume-mute" d="M10.4 6.1 12 4.5l.8.8-1.6 1.6 1.6 1.6-.8.8-1.6-1.6L8.8 9.3 8 8.5l1.6-1.6L8 5.3l.8-.8 1.6 1.6z"/></svg>
+        <input type="range" id="media-volume" min="0" max="1" step="0.01" value="1" aria-label="音量">
+      </label>
       <label class="media-rate-control" title="播放速度">速度
         <select id="media-playback-rate" aria-label="播放速度">
           <option value="0.5">0.5×</option>
@@ -13946,7 +13975,7 @@ export default MawDynamicCaptions;
     '播放头色': 'Playhead color', '字幕文字': 'Subtitle text', '字幕文字色': 'Subtitle text color',
     '波形中当前位置的指示条与当前字幕块的轮廓色': 'Playhead bar and active-subtitle outline in the waveform',
     '选区': 'Selection', '命中': 'Hit',
-    '选区色': 'Selection color', '灵梦：红白配色浅色主题': 'Reimu: red-and-white light theme', '爱丽丝：金发蓝裙浅色主题': 'Alice: blonde-blue light theme', '恋：黄绿配色浅色主题': 'Koishi: yellow-green light theme', '退出编辑器': 'Exit editor', '尚未保存': 'Not saved yet', '删除此自定义工作区': 'Delete this custom workspace', '中文': 'Chinese', '服务器已停止，可以关闭此标签页了': 'Server stopped; you can close this tab now', '停止本地编辑器服务器并关闭本页': 'Stop the local editor server and close this page', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
+    '选区色': 'Selection color', '灵梦：红白配色浅色主题': 'Reimu: red-and-white light theme', '爱丽丝：金发蓝裙浅色主题': 'Alice: blonde-blue light theme', '恋：黄绿配色浅色主题': 'Koishi: yellow-green light theme', '退出编辑器': 'Exit editor', '页面全屏': 'Page fullscreen', '退出页面全屏': 'Exit page fullscreen', '让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）': 'Fill the screen with the editor page (browser fullscreen, Esc to exit).', '退出浏览器全屏（Esc）': 'Exit browser fullscreen (Esc).', '当前浏览器不支持页面全屏': 'Page fullscreen is not supported in this browser.', '尚未保存': 'Not saved yet', '删除此自定义工作区': 'Delete this custom workspace', '中文': 'Chinese', '服务器已停止，可以关闭此标签页了': 'Server stopped; you can close this tab now', '停止本地编辑器服务器并关闭本页': 'Stop the local editor server and close this page', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
     '非字幕片段设为空隙': 'Treat non-subtitle spans as gaps',
     '静音空隙工具': 'Silence gap tools', '没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描': 'No gaps to process; load media and scan with the silence gap tools first', '拼接/合并字幕': 'Merge subtitles', '延长字幕': 'Extend subtitles',
     '批量对齐': 'Batch align', '处理': 'Processing',
@@ -23139,6 +23168,9 @@ const mediaCurrentTime = document.getElementById('media-current-time');
 const mediaDuration = document.getElementById('media-duration');
 const mediaSeek = document.getElementById('media-seek');
 const mediaVolume = document.getElementById('media-volume');
+mediaVolume?.addEventListener('input', () => {
+  mediaVolume.closest?.('.media-volume-control')?.classList.toggle('muted', Number(mediaVolume.value) <= 0);
+});
 const mediaPlaybackRate = document.getElementById('media-playback-rate');
 const mediaFullscreen = document.getElementById('media-fullscreen');
 // 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
@@ -35491,6 +35523,33 @@ function configureServerWorkspaceLibrary() {
       // 正在使用自定义布局时原地更新，否则另存为新名称。
       void saveCurrentWorkspace({ saveAs: !currentServerWorkspaceName });
     });
+    // 页面全屏：整页进入/退出浏览器全屏（Esc 也可退出），菜单文案随状态切换。
+    const pageFullscreenToggle = document.getElementById('page-fullscreen-toggle');
+    const syncPageFullscreenLabel = () => {
+      if (!pageFullscreenToggle) return;
+      const active = Boolean(document.fullscreenElement);
+      const label = active ? '退出页面全屏' : '页面全屏';
+      pageFullscreenToggle.textContent = label;
+      pageFullscreenToggle.title = active
+        ? '退出浏览器全屏（Esc）'
+        : '让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）';
+      pageFullscreenToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+    };
+    pageFullscreenToggle?.addEventListener('click', () => {
+      const root = document.documentElement;
+      if (document.fullscreenElement) {
+        void document.exitFullscreen?.().catch(() => {});
+      } else if (root.requestFullscreen) {
+        void root.requestFullscreen().catch((error) => {
+          flashHint(`进入全屏失败：${error?.message || error}`, 'warning');
+        });
+      } else {
+        flashHint('当前浏览器不支持页面全屏', 'invalid');
+      }
+    });
+    document.addEventListener('fullscreenchange', syncPageFullscreenLabel);
+    syncPageFullscreenLabel();
+
     document.getElementById('layout-reset')?.addEventListener('click', () => {
       const preset = currentBuiltinWorkspaceName;
       if (preset) {
@@ -35702,9 +35761,32 @@ if (mediaNameEl && !mediaNameEl.classList.contains('empty')) {
 
 const jsonNameEl = document.getElementById('json-name');
 if (jsonNameEl && !jsonNameEl.classList.contains('empty')) {
-  jsonNameEl.addEventListener('click', () => {
+  // 服务器版：点击未展开的工程名 = 在系统文件管理器中打开工程所在文件夹
+  //（工程名详情卡内的完整路径仍可点击复制）；file:// 便携版回退为复制工程名。
+  jsonNameEl.addEventListener('click', async () => {
     const name = jsonNameEl.textContent.trim();
-    if (name) copyText(name, `已复制：${name}`);
+    if (!name) return;
+    const openUrl = SERVER_CONFIG?.openProjectFolderUrl;
+    if (openUrl) {
+      try {
+        const response = await fetch(openUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const payload = await response.json().catch(() => null);
+        if (response.ok && payload?.ok) {
+          flashHint('已打开工程所在文件夹', 'success');
+          return;
+        }
+        flashHint(payload?.error || '打开工程文件夹失败', 'warning');
+        return;
+      } catch {
+        flashHint('打开工程文件夹失败：无法连接本地服务器', 'warning');
+        return;
+      }
+    }
+    copyText(name, `已复制：${name}`);
   });
 }
 

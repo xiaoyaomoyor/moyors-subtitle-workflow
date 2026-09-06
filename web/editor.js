@@ -1444,6 +1444,9 @@ const mediaCurrentTime = document.getElementById('media-current-time');
 const mediaDuration = document.getElementById('media-duration');
 const mediaSeek = document.getElementById('media-seek');
 const mediaVolume = document.getElementById('media-volume');
+mediaVolume?.addEventListener('input', () => {
+  mediaVolume.closest?.('.media-volume-control')?.classList.toggle('muted', Number(mediaVolume.value) <= 0);
+});
 const mediaPlaybackRate = document.getElementById('media-playback-rate');
 const mediaFullscreen = document.getElementById('media-fullscreen');
 // 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
@@ -13796,6 +13799,33 @@ function configureServerWorkspaceLibrary() {
       // 正在使用自定义布局时原地更新，否则另存为新名称。
       void saveCurrentWorkspace({ saveAs: !currentServerWorkspaceName });
     });
+    // 页面全屏：整页进入/退出浏览器全屏（Esc 也可退出），菜单文案随状态切换。
+    const pageFullscreenToggle = document.getElementById('page-fullscreen-toggle');
+    const syncPageFullscreenLabel = () => {
+      if (!pageFullscreenToggle) return;
+      const active = Boolean(document.fullscreenElement);
+      const label = active ? '退出页面全屏' : '页面全屏';
+      pageFullscreenToggle.textContent = label;
+      pageFullscreenToggle.title = active
+        ? '退出浏览器全屏（Esc）'
+        : '让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）';
+      pageFullscreenToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+    };
+    pageFullscreenToggle?.addEventListener('click', () => {
+      const root = document.documentElement;
+      if (document.fullscreenElement) {
+        void document.exitFullscreen?.().catch(() => {});
+      } else if (root.requestFullscreen) {
+        void root.requestFullscreen().catch((error) => {
+          flashHint(`进入全屏失败：${error?.message || error}`, 'warning');
+        });
+      } else {
+        flashHint('当前浏览器不支持页面全屏', 'invalid');
+      }
+    });
+    document.addEventListener('fullscreenchange', syncPageFullscreenLabel);
+    syncPageFullscreenLabel();
+
     document.getElementById('layout-reset')?.addEventListener('click', () => {
       const preset = currentBuiltinWorkspaceName;
       if (preset) {
@@ -14007,9 +14037,32 @@ if (mediaNameEl && !mediaNameEl.classList.contains('empty')) {
 
 const jsonNameEl = document.getElementById('json-name');
 if (jsonNameEl && !jsonNameEl.classList.contains('empty')) {
-  jsonNameEl.addEventListener('click', () => {
+  // 服务器版：点击未展开的工程名 = 在系统文件管理器中打开工程所在文件夹
+  //（工程名详情卡内的完整路径仍可点击复制）；file:// 便携版回退为复制工程名。
+  jsonNameEl.addEventListener('click', async () => {
     const name = jsonNameEl.textContent.trim();
-    if (name) copyText(name, `已复制：${name}`);
+    if (!name) return;
+    const openUrl = SERVER_CONFIG?.openProjectFolderUrl;
+    if (openUrl) {
+      try {
+        const response = await fetch(openUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const payload = await response.json().catch(() => null);
+        if (response.ok && payload?.ok) {
+          flashHint('已打开工程所在文件夹', 'success');
+          return;
+        }
+        flashHint(payload?.error || '打开工程文件夹失败', 'warning');
+        return;
+      } catch {
+        flashHint('打开工程文件夹失败：无法连接本地服务器', 'warning');
+        return;
+      }
+    }
+    copyText(name, `已复制：${name}`);
   });
 }
 

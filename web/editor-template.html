@@ -178,6 +178,8 @@ __WAVEFORM_CSS__
           <div class="dropdown-item" id="workspace-import" role="menuitem" tabindex="0">导入界面配置</div>
         </div>
       </div>
+      <div class="dropdown-separator"></div>
+      <button type="button" class="dropdown-item" id="page-fullscreen-toggle" role="menuitem" title="让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）">页面全屏</button>
     </div>
   </div>
 
@@ -324,7 +326,7 @@ __WAVEFORM_CSS__
   </div>
 
   <div class="menubar-project" id="menubar-project">
-    <span class="menubar-project-name __JSON_NAME_CLASS__" id="json-name" title="点击复制工程文件名；悬浮查看工程详情">__JSON_DISPLAY__</span>
+    <span class="menubar-project-name __JSON_NAME_CLASS__" id="json-name" title="点击打开工程所在文件夹；悬浮查看工程详情">__JSON_DISPLAY__</span>
     <div class="menubar-project-card" id="project-detail-card" role="dialog" aria-label="工程详情" hidden>
       <div class="menubar-project-card-row">
         <span class="menubar-project-card-label">工程</span>
@@ -1615,7 +1617,10 @@ __WAVEFORM_CSS__
       </button>
       <span class="media-clock"><span id="media-current-time">00:00</span> / <span id="media-duration">00:00</span></span>
       <input type="range" id="media-seek" min="0" max="0" step="0.01" value="0" aria-label="媒体进度">
-      <label class="media-volume-control" title="音量">🔊 <input type="range" id="media-volume" min="0" max="1" step="0.01" value="1" aria-label="音量"></label>
+      <label class="media-volume-control" title="音量">
+        <svg class="media-volume-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="volume-on" d="M8 2.6v10.8c0 .5-.6.8-1 .5L4.1 11H2.4c-.5 0-.9-.4-.9-.9V5.9c0-.5.4-.9.9-.9h1.7L7 2.1c.4-.3 1 0 1 .5z"/><path class="volume-wave" d="M10.6 5.4a3.9 3.9 0 0 1 0 5.2l-.8-.8a2.7 2.7 0 0 0 0-3.6l.8-.8z"/><path class="volume-wave" d="M12.5 3.5a6.5 6.5 0 0 1 0 9l-.8-.8a5.3 5.3 0 0 0 0-7.4l.8-.8z"/><path class="volume-mute" d="M10.4 6.1 12 4.5l.8.8-1.6 1.6 1.6 1.6-.8.8-1.6-1.6L8.8 9.3 8 8.5l1.6-1.6L8 5.3l.8-.8 1.6 1.6z"/></svg>
+        <input type="range" id="media-volume" min="0" max="1" step="0.01" value="1" aria-label="音量">
+      </label>
       <label class="media-rate-control" title="播放速度">速度
         <select id="media-playback-rate" aria-label="播放速度">
           <option value="0.5">0.5×</option>

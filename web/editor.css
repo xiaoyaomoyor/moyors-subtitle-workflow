@@ -1244,6 +1244,14 @@
   .media-controls #media-seek { flex: 1 1 180px; width: 0; min-width: 120px; accent-color: var(--accent); }
   .media-volume-control,
   .media-rate-control { display: inline-flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; }
+  /* 音量图标：白色描边风（currentColor 跟随控制条），静音时只显示叉形 */
+  .media-volume-icon {
+    display: block; width: 15px; height: 15px; flex: 0 0 auto;
+    fill: currentColor; opacity: .92;
+  }
+  .media-volume-icon .volume-mute { display: none; }
+  .media-volume-control.muted .volume-wave { display: none; }
+  .media-volume-control.muted .volume-mute { display: block; opacity: .85; }
   .media-volume-control input { width: 78px; min-width: 0; accent-color: var(--accent); }
   .media-rate-control select { min-width: 0; padding: 3px 4px; }
   .media-controls #media-fullscreen { flex: 0 0 auto; }
@@ -2803,9 +2811,25 @@
     font-variant-numeric: tabular-nums;
     transition: color var(--t-fast);
   }
-  .cue.active .charcount { color: var(--accent-hover); }
+  .cue.active .charcount { color: var(--wave-playhead); }
   .cue .charcount.over { color: var(--text-muted); font-weight: 600; }
-  .cue.active .charcount.over { color: var(--accent-hover); font-weight: 600; }
+  .cue.active .charcount.over { color: var(--wave-playhead); font-weight: 600; }
+
+  /* 列表窄宽度分级退让（容器查询，随字幕列表模块实际宽度走）：
+     先藏字数 → 再藏时间 → 最后藏序号，保证任何宽度下文字区始终可用，
+     不用最小宽度强制顶住模块。双列模式列宽减半，字数更早退场。 */
+  @container cue-list (max-width: 360px) {
+    .cues-container .charcount { display: none; }
+  }
+  @container cue-list (max-width: 620px) {
+    .multi-cue-column .charcount { display: none; }
+  }
+  @container cue-list (max-width: 250px) {
+    .cue .time { display: none; }
+  }
+  @container cue-list (max-width: 150px) {
+    .cue .index { display: none; }
+  }
   .cue.active { background: var(--accent-tint-strong); border-left-color: var(--accent); color: var(--active-cue-fg); }
   /* 播放中行的悬停：必须保持蓝色身份（此前缺规则，会被后面的琥珀规则染黄）。 */
   .cue.active:hover {

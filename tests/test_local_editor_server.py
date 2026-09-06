@@ -287,7 +287,7 @@ class LocalEditorServerTests(unittest.TestCase):
         page = server_editor.build_server_page(project).decode("utf-8")
 
         self.assertIn('let FILENAME_BASE = "subtitles-only";', page)
-        self.assertIn('id="json-name" title="点击复制工程文件名；悬浮查看工程详情">subtitles-only.mosp</span>', page)
+        self.assertIn('id="json-name" title="点击打开工程所在文件夹；悬浮查看工程详情">subtitles-only.mosp</span>', page)
         self.assertNotIn('class="menubar-project-name empty"', page)
         self.assertIn('id="media-name" title="">未加载媒体</span>', page)
         self.assertIn('"canSave": true', page)
@@ -467,6 +467,32 @@ class LocalEditorServerTests(unittest.TestCase):
                     finally:
                         server.shutdown()
                         thread.join(timeout=2)
+
+    def test_open_project_folder_endpoint_reports_bound_directory(self) -> None:
+        """点击工程名打开所在文件夹：dryRun 返回工程目录且不触发系统调用；未传 dryRun 时同路径可打开。"""
+        project = server_editor.load_project(
+            self.project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,
+        )
+        with server_editor.EditorServer(("127.0.0.1", 0), project) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base_url = f"http://127.0.0.1:{server.server_address[1]}"
+                request = urllib.request.Request(
+                    f"{base_url}/api/project/open-folder",
+                    data=json.dumps({"dryRun": True}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=2) as response:
+                    self.assertEqual(response.status, 200)
+                    payload = json.loads(response.read().decode("utf-8"))
+                self.assertTrue(payload["ok"])
+                self.assertTrue(payload["dryRun"])
+                self.assertEqual(Path(payload["folder"]).resolve(), self.project_path.parent.resolve())
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
 
     def test_prproj_capability_endpoint_is_stable_and_loopback_only(self) -> None:
         project = server_editor.load_project(

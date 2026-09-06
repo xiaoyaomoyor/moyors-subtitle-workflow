@@ -14,6 +14,7 @@ import json
 import math
 import mimetypes
 import os
+import subprocess
 import secrets
 import shutil
 import socket
@@ -46,6 +47,7 @@ mimetypes.add_type("audio/ogg", ".opus")
 
 import edit  # noqa: E402
 from maw.console import configure_utf8_stdio  # noqa: E402
+from maw.gui_platform import startupinfo  # noqa: E402
 from maw import reapeaks  # noqa: E402
 from maw import stickers as _stickers  # noqa: E402
 from maw.app_paths import default_server_settings_path, legacy_server_settings_path  # noqa: E402
@@ -572,6 +574,7 @@ def build_server_page(
         ninja_sfx_base_url_json=json.dumps("/sfx/", ensure_ascii=False),
         server_config_json=json.dumps({
             "saveUrl": "/api/project",
+            "openProjectFolderUrl": "/api/project/open-folder",
             "requestToken": request_token,
             "stickerRootUrl": "/api/stickers/root",
             "portableStickerExportUrl": "/api/exports/sticker-otio",
@@ -1502,6 +1505,8 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self.save_project()
         elif path == "/api/project/attach":
             self.attach_project()
+        elif path == "/api/project/open-folder":
+            self.open_project_folder()
         elif path == "/api/recent-projects/open":
             self.open_recent_project()
         elif path == "/api/settings":
@@ -1809,6 +1814,28 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             "name": project.json_path.name if project.json_path else "",
             "mediaName": (project.source_media_path or project.media_path).name if project.media_path else "",
         })
+
+    def open_project_folder(self) -> None:
+        """在系统文件管理器中打开当前工程所在的文件夹（仅本机服务器）。"""
+        try:
+            request = self.read_json_request()
+            dry_run = request.get("dryRun") is True
+            project = self.editor_server.project
+            folder = project.json_path.parent if project and project.json_path else None
+            if folder is None or not folder.is_dir():
+                raise ValueError("当前服务器没有绑定工程文件，无法打开所在文件夹")
+            if not dry_run:
+                if sys.platform == "win32":
+                    os.startfile(str(folder))  # noqa: S606 - 用户主动请求打开本机目录
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", str(folder)], startupinfo=startupinfo())  # noqa: S603,S607
+                else:
+                    subprocess.Popen(["xdg-open", str(folder)], startupinfo=startupinfo())  # noqa: S603,S607
+            self.send_json(HTTPStatus.OK, {"ok": True, "folder": str(folder), "dryRun": dry_run})
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(error)})
+        except OSError as error:
+            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"打开文件夹失败：{error}"})
 
     def attach_project(self) -> None:
         try:
