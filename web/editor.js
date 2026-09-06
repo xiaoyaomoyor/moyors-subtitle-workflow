@@ -5579,6 +5579,7 @@ function buildCueEl(seg, idx, { extensionTrack = null } = {}) {
 
   const timeEl = document.createElement('span');
   timeEl.className = 'time';
+  timeEl.dataset.compact = `${fmtShortCompact(seg.start)} → ${fmtShortCompact(seg.end)}`;
   const timeStartEl = document.createElement('span');
   timeStartEl.className = 'time-start';
   timeStartEl.textContent = fmtShort(seg.start);
@@ -5623,6 +5624,7 @@ function buildMultiTimeEl(segment) {
   const time = document.createElement('span');
   time.className = 'time';
   time.textContent = `${fmtShort(segment.start)} → ${fmtShort(segment.end)}`;
+  time.dataset.compact = `${fmtShortCompact(segment.start)} → ${fmtShortCompact(segment.end)}`;
   return time;
 }
 
@@ -5640,7 +5642,11 @@ function buildMultiCueColumn(segment, index, track, kind) {
   header.className = 'multi-cue-column-header';
   const indexEl = document.createElement('span');
   indexEl.className = 'index';
-  indexEl.textContent = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'index-label';
+  labelEl.textContent = kind === 'main' ? '主字幕' : '副字幕';
+  indexEl.title = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
+  indexEl.append(labelEl, document.createTextNode(` ${index + 1}`));
   header.append(indexEl, buildMultiTimeEl(segment));
   // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。
   const cntEl = document.createElement('span');
@@ -5691,6 +5697,14 @@ function buildDualCueEl(mainIndex, extensionIndex, track) {
     bindExtensionCueEvents(extensionColumn, extensionIndex, track, el);
   }
   return el;
+}
+
+function fmtShortCompact(ms) {
+  // 窄容器下的紧凑时间：毫秒模式省去小数秒（00:00.000 → 00:00）；帧模式保持原样。
+  if (timelineIsFrameMode()) return fmtShort(ms);
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, '0')}:${String(s - m * 60).padStart(2, '0')}`;
 }
 
 function fmtShort(ms) {

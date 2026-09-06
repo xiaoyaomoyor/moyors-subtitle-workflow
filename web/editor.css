@@ -2815,19 +2815,31 @@
   .cue .charcount.over { color: var(--text-muted); font-weight: 600; }
   .cue.active .charcount.over { color: var(--wave-playhead); font-weight: 600; }
 
-  /* 列表窄宽度分级退让（容器查询，随字幕列表模块实际宽度走）：
-     先藏字数 → 再藏时间 → 最后藏序号，保证任何宽度下文字区始终可用，
-     不用最小宽度强制顶住模块。双列模式列宽减半，字数更早退场。 */
-  @container cue-list (max-width: 360px) {
-    .cues-container .charcount { display: none; }
+  /* 列表窄宽度：先压缩再退让（容器查询，随字幕列表模块实际宽度走）。
+     压缩：时间省去毫秒小数（00:00.000 → 00:00，data-compact 伪元素切换，
+     零额外 DOM），双列表头「主字幕/副字幕」缩为单字前缀；
+     退让：字数 → 时间 → 序号逐级隐藏。默认布局（列宽 ≈ 40%+）完整显示。 */
+  @container cue-list (max-width: 460px) {
+    .cue .time {
+      display: inline; width: auto; flex: 0 0 auto;
+      font-size: 0;
+    }
+    .cue .time::after {
+      content: attr(data-compact);
+      font-size: 11px;
+    }
+    .cue.multi-dual-cue .multi-cue-column-header .index-label { display: none; }
   }
-  @container cue-list (max-width: 620px) {
+  @container cue-list (max-width: 500px) {
     .multi-cue-column .charcount { display: none; }
   }
-  @container cue-list (max-width: 250px) {
+  @container cue-list (max-width: 300px) {
+    .cues-container .charcount { display: none; }
+  }
+  @container cue-list (max-width: 200px) {
     .cue .time { display: none; }
   }
-  @container cue-list (max-width: 150px) {
+  @container cue-list (max-width: 120px) {
     .cue .index { display: none; }
   }
   .cue.active { background: var(--accent-tint-strong); border-left-color: var(--accent); color: var(--active-cue-fg); }

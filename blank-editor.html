@@ -2835,19 +2835,31 @@
   .cue .charcount.over { color: var(--text-muted); font-weight: 600; }
   .cue.active .charcount.over { color: var(--wave-playhead); font-weight: 600; }
 
-  /* 列表窄宽度分级退让（容器查询，随字幕列表模块实际宽度走）：
-     先藏字数 → 再藏时间 → 最后藏序号，保证任何宽度下文字区始终可用，
-     不用最小宽度强制顶住模块。双列模式列宽减半，字数更早退场。 */
-  @container cue-list (max-width: 360px) {
-    .cues-container .charcount { display: none; }
+  /* 列表窄宽度：先压缩再退让（容器查询，随字幕列表模块实际宽度走）。
+     压缩：时间省去毫秒小数（00:00.000 → 00:00，data-compact 伪元素切换，
+     零额外 DOM），双列表头「主字幕/副字幕」缩为单字前缀；
+     退让：字数 → 时间 → 序号逐级隐藏。默认布局（列宽 ≈ 40%+）完整显示。 */
+  @container cue-list (max-width: 460px) {
+    .cue .time {
+      display: inline; width: auto; flex: 0 0 auto;
+      font-size: 0;
+    }
+    .cue .time::after {
+      content: attr(data-compact);
+      font-size: 11px;
+    }
+    .cue.multi-dual-cue .multi-cue-column-header .index-label { display: none; }
   }
-  @container cue-list (max-width: 620px) {
+  @container cue-list (max-width: 500px) {
     .multi-cue-column .charcount { display: none; }
   }
-  @container cue-list (max-width: 250px) {
+  @container cue-list (max-width: 300px) {
+    .cues-container .charcount { display: none; }
+  }
+  @container cue-list (max-width: 200px) {
     .cue .time { display: none; }
   }
-  @container cue-list (max-width: 150px) {
+  @container cue-list (max-width: 120px) {
     .cue .index { display: none; }
   }
   .cue.active { background: var(--accent-tint-strong); border-left-color: var(--accent); color: var(--active-cue-fg); }
@@ -6593,7 +6605,7 @@
       <span class="media-clock"><span id="media-current-time">00:00</span> / <span id="media-duration">00:00</span></span>
       <input type="range" id="media-seek" min="0" max="0" step="0.01" value="0" aria-label="媒体进度">
       <label class="media-volume-control" title="音量">
-        <svg class="media-volume-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="volume-on" d="M8 2.6v10.8c0 .5-.6.8-1 .5L4.1 11H2.4c-.5 0-.9-.4-.9-.9V5.9c0-.5.4-.9.9-.9h1.7L7 2.1c.4-.3 1 0 1 .5z"/><path class="volume-wave" d="M10.6 5.4a3.9 3.9 0 0 1 0 5.2l-.8-.8a2.7 2.7 0 0 0 0-3.6l.8-.8z"/><path class="volume-wave" d="M12.5 3.5a6.5 6.5 0 0 1 0 9l-.8-.8a5.3 5.3 0 0 0 0-7.4l.8-.8z"/><path class="volume-mute" d="M10.4 6.1 12 4.5l.8.8-1.6 1.6 1.6 1.6-.8.8-1.6-1.6L8.8 9.3 8 8.5l1.6-1.6L8 5.3l.8-.8 1.6 1.6z"/></svg>
+        <svg class="media-volume-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="volume-on" d="M8 2.6v10.8c0 .5-.6.8-1 .5L4.1 11H2.4c-.5 0-.9-.4-.9-.9V5.9c0-.5.4-.9.9-.9h1.7L7 2.1c.4-.3 1 0 1 .5z"/><path class="volume-wave" d="M10.6 5.4a3.9 3.9 0 0 1 0 5.2l-.8-.8a2.7 2.7 0 0 0 0-3.6l.8-.8z"/><path class="volume-wave" d="M12.5 3.5a6.5 6.5 0 0 1 0 9l-.8-.8a5.3 5.3 0 0 0 0-7.4l.8-.8z"/><path class="volume-mute" d="M9 5.8h.75l1.45 1.45L12.65 5.8h.75L11.95 8l1.45 2.2h-.75l-1.45-1.45L9.8 10.2H9L10.45 8 9 5.8z"/></svg>
         <input type="range" id="media-volume" min="0" max="1" step="0.01" value="1" aria-label="音量">
       </label>
       <label class="media-rate-control" title="播放速度">速度
@@ -27303,6 +27315,7 @@ function buildCueEl(seg, idx, { extensionTrack = null } = {}) {
 
   const timeEl = document.createElement('span');
   timeEl.className = 'time';
+  timeEl.dataset.compact = `${fmtShortCompact(seg.start)} → ${fmtShortCompact(seg.end)}`;
   const timeStartEl = document.createElement('span');
   timeStartEl.className = 'time-start';
   timeStartEl.textContent = fmtShort(seg.start);
@@ -27347,6 +27360,7 @@ function buildMultiTimeEl(segment) {
   const time = document.createElement('span');
   time.className = 'time';
   time.textContent = `${fmtShort(segment.start)} → ${fmtShort(segment.end)}`;
+  time.dataset.compact = `${fmtShortCompact(segment.start)} → ${fmtShortCompact(segment.end)}`;
   return time;
 }
 
@@ -27364,7 +27378,11 @@ function buildMultiCueColumn(segment, index, track, kind) {
   header.className = 'multi-cue-column-header';
   const indexEl = document.createElement('span');
   indexEl.className = 'index';
-  indexEl.textContent = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'index-label';
+  labelEl.textContent = kind === 'main' ? '主字幕' : '副字幕';
+  indexEl.title = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
+  indexEl.append(labelEl, document.createTextNode(` ${index + 1}`));
   header.append(indexEl, buildMultiTimeEl(segment));
   // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。
   const cntEl = document.createElement('span');
@@ -27415,6 +27433,14 @@ function buildDualCueEl(mainIndex, extensionIndex, track) {
     bindExtensionCueEvents(extensionColumn, extensionIndex, track, el);
   }
   return el;
+}
+
+function fmtShortCompact(ms) {
+  // 窄容器下的紧凑时间：毫秒模式省去小数秒（00:00.000 → 00:00）；帧模式保持原样。
+  if (timelineIsFrameMode()) return fmtShort(ms);
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, '0')}:${String(s - m * 60).padStart(2, '0')}`;
 }
 
 function fmtShort(ms) {
