@@ -214,7 +214,7 @@ class EditorAssetContractTests(unittest.TestCase):
         self.assertNotRegex(page, r"__[A-Z][A-Z0-9_]+__")
         # 版本徽标位于右上角项目名悬浮详情卡内。
         self.assertIn(
-            f'<span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">MAWE v{edit.get_app_version()}</span>',
+            f'<span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">MSWE v{edit.get_app_version()}</span>',
             page,
         )
         # 便携页禁止携带「生成时间：…」式硬编码时间戳；「正在生成时间线 OTIOZ…」
@@ -224,10 +224,10 @@ class EditorAssetContractTests(unittest.TestCase):
             "// Shared frontend runtime registry.",
             "global.AsrGapRemoveCore = Object.freeze({",
             "window.AsrEditorUtils = {",
-            "global.MAWE_I18N = {",
+            "global.MSWE_I18N = {",
             "window.AsrWaveform = {",
-            "window.MAWE_EDITOR_BRIDGE = Object.freeze({",
-            "window.MAWE_ONBOARDING = Object.freeze({",
+            "window.MSWE_EDITOR_BRIDGE = Object.freeze({",
+            "window.MSWE_ONBOARDING = Object.freeze({",
         )
         indices = [page.index(marker) for marker in markers]
         self.assertEqual(indices, sorted(indices))

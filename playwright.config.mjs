@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-const configuredChromiumPath = String(process.env.MAW_E2E_CHROMIUM_PATH || '').trim();
+const configuredChromiumPath = String(process.env.MSW_E2E_CHROMIUM_PATH || process.env.MAW_E2E_CHROMIUM_PATH || '').trim();
 
 export default defineConfig({
   testDir: './tests/e2e',

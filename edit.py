@@ -1,4 +1,4 @@
-"""MAWE（Moy's ASR Workflow Editor）HTML 生成器（基于带字级时间戳的工程文件）+ 表情包管理。
+"""MSWE（Moy's ASR Workflow Editor）HTML 生成器（基于带字级时间戳的工程文件）+ 表情包管理。
 
 用法:
     uv run python edit.py <subtitle.mosp|subtitle.json> [-m media] [-s stickers_dir] [-o output.html]
@@ -38,7 +38,7 @@ from maw.console import configure_utf8_stdio
 from maw.ffmpeg import resolve_ffmpeg_tools
 from maw.project import ProjectValidationFailed, normalize_project
 from maw.project_io import enrich_project_media_metadata
-from maw.stickers import get_default_sticker_dir, load_env
+from maw.stickers import get_default_sticker_dir, load_env, apply_msw_env_aliases
 from maw.media import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, read_bwf_time_reference
 from maw.waveform import (
     DEFAULT_PEAKS_PER_SECOND,
@@ -280,7 +280,7 @@ def build_blank_html(ninja_sfx_base_url_json: str | None = None) -> str:
         'style="width:100%;display:block;"></audio>'
     )
     return render_editor_page(
-        title=html.escape("MAWE — Moy's ASR Workflow Editor · 用「打开工程」加载工程文件"),
+        title=html.escape("MSWE — Moy's ASR Workflow Editor · 用「打开工程」加载工程文件"),
         media_html=media_html,
         data_json=json.dumps(blank_data, ensure_ascii=False),
         filename_base_json=json.dumps("untitled", ensure_ascii=False),
@@ -297,8 +297,9 @@ def build_blank_html(ninja_sfx_base_url_json: str | None = None) -> str:
 
 
 def main():
+    apply_msw_env_aliases()
     configure_utf8_stdio()
-    parser = argparse.ArgumentParser(description="MAWE — Moy's ASR Workflow Editor（含表情包管理 + 多选）")
+    parser = argparse.ArgumentParser(description="MSWE — Moy's ASR Workflow Editor（含表情包管理 + 多选）")
     parser.add_argument(
         "json_path", nargs="?",
         help="工程文件路径（.mosp 或 .json，由 generate_subtitle_qwen_api.py --json 生成）；--blank 模式下可省略",
@@ -339,7 +340,7 @@ def main():
         output_path.write_bytes(build_blank_html(
             json.dumps(ninja_sfx_base_url(output_path), ensure_ascii=False),
         ).encode("utf-8"))
-        print(f"MAWE 空壳编辑器已生成: {output_path}")
+        print(f"MSWE 空壳编辑器已生成: {output_path}")
         print("用法: file:// 打开 → 点「打开工程」选择 .mosp/.json（需要时按提示选择关联媒体）")
         return 0
 
@@ -454,7 +455,7 @@ def main():
     filename_base = json_path.stem
 
     page = render_editor_page(
-        title=html.escape(f"MAWE — {media_path.name}"),
+        title=html.escape(f"MSWE — {media_path.name}"),
         media_html=media_tag(media_path, media_url),
         data_json=json.dumps(data, ensure_ascii=False),
         filename_base_json=json.dumps(filename_base, ensure_ascii=False),

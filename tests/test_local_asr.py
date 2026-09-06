@@ -794,7 +794,7 @@ class LocalAsrFlowTests(unittest.TestCase):
         runtime = FakeRuntime()
         engine._runtime = runtime
 
-        result = engine.transcribe(Path("sample.wav"), language="zh", hotwords=["MAW"])
+        result = engine.transcribe(Path("sample.wav"), language="zh", hotwords=["MSW"])
 
         self.assertEqual([(item["start"], item["end"]) for item in result.items], [
             (123, 456),
@@ -811,7 +811,7 @@ class LocalAsrFlowTests(unittest.TestCase):
             {"min_silence_duration_ms": WHISPER_DEFAULT_VAD_MIN_SILENCE_MS},
         )
         self.assertEqual(runtime.kwargs["language"], "zh")
-        self.assertEqual(runtime.kwargs["hotwords"], "MAW")
+        self.assertEqual(runtime.kwargs["hotwords"], "MSW")
 
     def test_whisper_english_items_keep_inter_word_spacing(self) -> None:
         class FakeRuntime:
@@ -1244,12 +1244,12 @@ class LocalCliParserTests(unittest.TestCase):
     def test_parser_accepts_both_engines_and_local_options(self) -> None:
         args = build_parser().parse_args([
             "sample.mp4", "--engine", "funasr", "--device", "cpu",
-            "--model", "paraformer-zh", "--hotword", "MAW", "--length-limit", "2m",
+            "--model", "paraformer-zh", "--hotword", "MSW", "--length-limit", "2m",
         ])
 
         self.assertEqual(args.engine, "funasr")
         self.assertEqual(args.length_limit, 120.0)
-        self.assertEqual(args.hotword, ["MAW"])
+        self.assertEqual(args.hotword, ["MSW"])
         self.assertEqual(args.max_words, 13)
         self.assertEqual(args.min_words, 3)
 
@@ -1261,9 +1261,9 @@ class LocalCliParserTests(unittest.TestCase):
     def test_hotword_files_support_comments_and_deduplication(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "terms.txt"
-            path.write_text("\ufeff# comment\nMAW\n\nQwen3-ASR\nMAW\n", encoding="utf-8")
+            path.write_text("\ufeff# comment\nMSW\n\nQwen3-ASR\nMSW\n", encoding="utf-8")
 
-            self.assertEqual(load_hotword_files([str(path)]), ["MAW", "Qwen3-ASR"])
+            self.assertEqual(load_hotword_files([str(path)]), ["MSW", "Qwen3-ASR"])
 
 
 if __name__ == "__main__":

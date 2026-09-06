@@ -1,13 +1,13 @@
-# MAWE：本地服务器模式
+# MSWE：本地服务器模式
 
-这个目录提供 MAWE 的 `http://127.0.0.1` 本地服务器模式：媒体走明确实现的 HTTP Range 响应，浏览器可正常 seek，也便于用浏览器调试工具或自动化工具检查页面。
+这个目录提供 MSWE 的 `http://127.0.0.1` 本地服务器模式：媒体走明确实现的 HTTP Range 响应，浏览器可正常 seek，也便于用浏览器调试工具或自动化工具检查页面。
 
 前端不复制：每次访问首页都会从项目根目录的 `web/` 和 `web/editor-template.html` 渲染，因此它与 `edit.py` 生成的自包含 `file://` HTML 始终共享同一套功能和样式。
 
-Windows Release 中的 `MAW.exe` 用于生成工程和便携 HTML；生成完成后可以直接打开 HTML。需要 localhost 的媒体 Range、原路径安全保存和最近工程功能时，继续使用本页的源码服务器命令。
+Windows Release 中的 `MSW.exe` 用于生成工程和便携 HTML；生成完成后可以直接打开 HTML。需要 localhost 的媒体 Range、原路径安全保存和最近工程功能时，继续使用本页的源码服务器命令。
 
 ```powershell
-cd <MAW 仓库目录>
+cd <MSW 仓库目录>
 
 # 打开一个已有工程；默认会自动打开浏览器
 uv run python server-editor\serve.py D:\path\project.json -m D:\path\video.mp4 -s D:\path\stickers
@@ -38,7 +38,7 @@ uv run python server-editor\serve.py D:\path\project.json --port 0 --no-open
 这些记录不在工程 JSON、也不在浏览器 `localStorage`，而是在 Windows 的：
 
 ```text
-%LOCALAPPDATA%\MAW\server-editor-settings.json
+%LOCALAPPDATA%\MSW\server-editor-settings.json
 ```
 
 该文件仅包含开关和最近工程的 JSON 路径/名称；工程本身仍保留原位置。升级时，如果新文件不存在，服务器会只读回退到旧的 `%LOCALAPPDATA%\Moy\moys-asr-workflow\server-editor-settings.json`；后续保存只写入新位置。不存在、损坏或媒体已移动的记录都不会触发目录扫描；自动恢复失败会提示原因并启动空白编辑器。
@@ -54,7 +54,7 @@ uv run python server-editor\serve.py D:\path\project.json --port 0 --no-open
 - 工程文件的绝对路径只保存在 `ServerProject.json_path` 与本机最近工程设置中，不写入 `.mosp`，也不接受浏览器上传任意路径。
 - 空白和仅 SRT 的工程可以正常重新打开并继续保存；没有 `media` 时不会解析媒体、生成波形或寻找同名媒体。
 
-「打开工程」右侧菜单可单独加载媒体或 SRT 字幕；也可以同时拖入媒体和 SRT 开始编辑。打开或拖入 JSON 时会校验 MAW 工程结构，不符合要求的文件会提示使用 MAW 生成的 JSON 工程文件。
+「打开工程」右侧菜单可单独加载媒体或 SRT 字幕；也可以同时拖入媒体和 SRT 开始编辑。打开或拖入 JSON 时会校验 MSW 工程结构，不符合要求的文件会提示使用 MSW 生成的 JSON 工程文件。
 
 在服务器版中打开或拖入工程时，服务器会先尝试接管：浏览器拿不到工程的真实路径，但工程记录的 `media` 是绝对路径，服务器可按它定位媒体同目录下的同名工程文件；段落内容一致时接管该工程——关联媒体自动加载（含波形）、「保存工程」立即可用，并记入最近工程。接管失败（媒体已移动、同目录没有同名工程或内容不一致）时回退为便携流程：提示手动选择关联媒体，改动用「导出工程」下载。
 

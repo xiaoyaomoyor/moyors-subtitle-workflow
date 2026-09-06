@@ -18,7 +18,7 @@ const onboardingPrimary = document.getElementById('onboarding-primary');
 const onboardingHelp = document.getElementById('onboarding-help');
 const ONBOARDING_STORAGE_KEY = 'moy.asr.editor.onboarding.v1';
 const ONBOARDING_STEP_COUNT = 3;
-  const editor = window.MAWE_EDITOR_BRIDGE;
+  const editor = window.MSWE_EDITOR_BRIDGE;
   const {
     data: DATA,
     selectedIdxs,
@@ -137,7 +137,7 @@ function onboardingModKey() {
 }
 
 function onboardingIsEnglish() {
-  return window.MAWE_I18N?.language === 'en';
+  return window.MSWE_I18N?.language === 'en';
 }
 
 function onboardingSplitKey() {
@@ -146,7 +146,7 @@ function onboardingSplitKey() {
 
 function onboardingText(value) {
   const text = String(value ?? '');
-  const translateText = window.MAWE_I18N?.translateText;
+  const translateText = window.MSWE_I18N?.translateText;
   return typeof translateText === 'function' ? translateText(text) : text;
 }
 
@@ -619,11 +619,11 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-  window.MAWE_ONBOARDING = Object.freeze({
+  window.MSWE_ONBOARDING = Object.freeze({
     afterRender: scheduleOnboardingAfterRender,
     scheduleStart: scheduleOnboardingAfterRender,
     beginRealSplit: beginOnboardingRealSplit,
   });
-  window.MAWE?.register('onboarding', () => window.MAWE_ONBOARDING);
+  window.MSWE?.register('onboarding', () => window.MSWE_ONBOARDING);
   scheduleOnboardingAfterRender();
 })();

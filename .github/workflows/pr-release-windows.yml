@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build-windows:
-    name: Build Windows x64 MAW-lite preview
+    name: Build Windows x64 MSW-lite preview
     runs-on: windows-2022
     env:
       PYTHONUTF8: '1'
@@ -55,7 +55,7 @@ jobs:
           curl -L --retry 3 --connect-timeout 20 --max-time 300 -o build/python-3.11.9-embed-amd64.zip https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
           curl -L --retry 3 --connect-timeout 20 --max-time 120 -o build/get-pip.py https://bootstrap.pypa.io/get-pip.py
 
-      - name: Build MAW bundle
+      - name: Build MSW bundle
         shell: pwsh
         run: .\scripts\build-windows.ps1 -SkipTests
 
@@ -63,8 +63,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if (-not (Test-Path -LiteralPath 'dist\MAW\FAQ-常见问题.txt' -PathType Leaf)) {
-            throw 'Missing dist\MAW\FAQ-常见问题.txt after build.'
+          if (-not (Test-Path -LiteralPath 'dist\MSW\FAQ-常见问题.txt' -PathType Leaf)) {
+            throw 'Missing dist\MSW\FAQ-常见问题.txt after build.'
           }
 
       - name: Verify runtime requirements bundled
@@ -77,24 +77,24 @@ jobs:
             '_internal\moss-runtime\requirements-moss.txt'
           )
           foreach ($Relative in $Required) {
-            $Path = Join-Path 'dist\MAW' $Relative
+            $Path = Join-Path 'dist\MSW' $Relative
             if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
               throw "Missing runtime requirements in bundle: $Path"
             }
           }
 
-      - name: Smoke MAW executable
+      - name: Smoke MSW executable
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $ExePath = 'dist\MAW\MAW.exe'
+          $ExePath = 'dist\MSW\MSW.exe'
           if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
-            throw 'Missing dist\MAW\MAW.exe after build.'
+            throw 'Missing dist\MSW\MSW.exe after build.'
           }
           $HelpProcess = Start-Process -FilePath $ExePath -ArgumentList '--help' -PassThru -WindowStyle Hidden
           if ($HelpProcess.WaitForExit(10000)) {
             if ($HelpProcess.ExitCode -ne 0) {
-              throw "MAW.exe launch smoke exited with $($HelpProcess.ExitCode)."
+              throw "MSW.exe launch smoke exited with $($HelpProcess.ExitCode)."
             }
           } else {
             Stop-Process -Id $HelpProcess.Id -Force
@@ -104,26 +104,26 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $BundledFfmpeg = Get-ChildItem -LiteralPath 'dist\MAW' -Recurse -File |
+          $BundledFfmpeg = Get-ChildItem -LiteralPath 'dist\MSW' -Recurse -File |
             Where-Object { $_.Name -in @('ffmpeg.exe', 'ffprobe.exe', 'ffplay.exe') }
           if ($BundledFfmpeg) {
             throw "The PR preview must not bundle FFmpeg: $($BundledFfmpeg.FullName -join ', ')"
           }
 
-      - name: Create MAW-lite release preview archive
+      - name: Create MSW-lite release preview archive
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PrNumber = '${{ github.event.pull_request.number || 'manual' }}'
           $BuildSha = '${{ github.event.pull_request.head.sha || github.sha }}'
-          $Archive = "MAW-lite-Windows-x64-pr-$PrNumber-$BuildSha.zip"
-          Compress-Archive -LiteralPath 'dist\MAW' -DestinationPath $Archive -Force
+          $Archive = "MSW-lite-Windows-x64-pr-$PrNumber-$BuildSha.zip"
+          Compress-Archive -LiteralPath 'dist\MSW' -DestinationPath $Archive -Force
 
-      - name: Upload MAW-lite release preview
+      - name: Upload MSW-lite release preview
         uses: actions/upload-artifact@v6
         with:
-          name: MAW-lite-Windows-x64-pr-${{ github.event.pull_request.number || 'manual' }}-${{ github.event.pull_request.head.sha || github.sha }}
+          name: MSW-lite-Windows-x64-pr-${{ github.event.pull_request.number || 'manual' }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            MAW-lite-Windows-x64-pr-${{ github.event.pull_request.number || 'manual' }}-${{ github.event.pull_request.head.sha || github.sha }}.zip
+            MSW-lite-Windows-x64-pr-${{ github.event.pull_request.number || 'manual' }}-${{ github.event.pull_request.head.sha || github.sha }}.zip
           if-no-files-found: error
           retention-days: 14

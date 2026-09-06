@@ -19,12 +19,12 @@ const helpers = context.window.AsrEditorUtils;
 const i18nSource = fs.readFileSync(new URL('../web/editor-i18n.js', import.meta.url), 'utf8');
 const i18nContext = { window: {} };
 vm.runInNewContext(i18nSource, i18nContext);
-const i18n = i18nContext.window.MAWE_I18N;
+const i18n = i18nContext.window.MSWE_I18N;
 
 // XML assertions are part of the Node unit suite, but still need a Python
 // subprocess. Keep it on the same locked project environment as E2E instead
 // of silently selecting whichever python.exe happens to be on PATH.
-const configuredPython = String(process.env.MAW_TEST_PYTHON || '').trim();
+const configuredPython = String(process.env.MSW_TEST_PYTHON || process.env.MAW_TEST_PYTHON || '').trim();
 const PYTHON_COMMAND = configuredPython || 'uv';
 const PYTHON_PREFIX_ARGS = configuredPython ? [] : ['run', '--frozen', 'python'];
 
@@ -100,7 +100,7 @@ test('maps exactly the approved preview font families in Chinese', () => {
 
 
 test('leaves unknown and non-string preview font families unchanged', () => {
-  assert.equal(helpers.subtitleFontFamilyDisplayName('MAW Test Sans', 'zh'), 'MAW Test Sans');
+  assert.equal(helpers.subtitleFontFamilyDisplayName('MSW Test Sans', 'zh'), 'MSW Test Sans');
   assert.equal(helpers.subtitleFontFamilyDisplayName('Microsoft Yahei', 'zh'), 'Microsoft Yahei');
   assert.equal(helpers.subtitleFontFamilyDisplayName(null, 'zh'), null);
 });
@@ -2885,7 +2885,7 @@ test('builds ASS subtitles with the selected font, size, color and safe text', (
 
   assert.equal(helpers.assColorFromHex('#123456'), '&H00563412');
   assert.equal(helpers.normalizeAssFontFamily('song'), 'SimSun');
-  assert.equal(helpers.normalizeAssFontFamily('MAW, Test'), 'MAW Test');
+  assert.equal(helpers.normalizeAssFontFamily('MSW, Test'), 'MSW Test');
   assert.equal(helpers.formatAssTime(0), '0:00:00.00');
   assert.equal(helpers.formatAssTime(Infinity), '0:00:00.00');
   assert.equal(helpers.formatAssTime(3723456), '1:02:03.46');
@@ -3538,11 +3538,11 @@ test('sanitizes deterministic names and escapes XML and file URLs', () => {
     assert.equal(safe, safe.replace(/[. ]+$/, ''));
     assert.ok(!/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:[. ]*)$/i.test(safe));
   }
-  const dottedProject = helpers.buildExportNames('MAW-1.4更新说明');
-  assert.equal(dottedProject.baseName, 'MAW-1.4更新说明');
+  const dottedProject = helpers.buildExportNames('MSW-1.4更新说明');
+  assert.equal(dottedProject.baseName, 'MSW-1.4更新说明');
   assert.deepEqual(JSON.parse(JSON.stringify(dottedProject.files)), {
-    project: 'MAW-1.4更新说明.xml',
-    subtitles: 'MAW-1.4更新说明.srt',
+    project: 'MSW-1.4更新说明.xml',
+    subtitles: 'MSW-1.4更新说明.srt',
   });
   assert.equal(helpers.escapeExportXml('a<&>"\''), 'a&lt;&amp;&gt;&quot;&apos;');
   assert.equal(
@@ -3783,7 +3783,7 @@ test('clamps gap-removed cues and stickers to source duration before serializati
   assert.ok(plan.warnings.some((warning) => warning.code === 'clamped_cue_to_duration'));
   assert.ok(plan.warnings.some((warning) => warning.code === 'clamped_sticker_to_duration'));
   const xml = helpers.serializeFcp7Xml(plan, { nativeTextObjects: true });
-  const sequenceDuration = Number(/<sequence id="MAW-sequence">[\s\S]*?<duration>(\d+)<\/duration>/.exec(xml)[1]);
+  const sequenceDuration = Number(/<sequence id="MSW-sequence">[\s\S]*?<duration>(\d+)<\/duration>/.exec(xml)[1]);
   for (const match of xml.matchAll(/<(?:clipitem|generatoritem)[^>]*>[\s\S]*?<start>(\d+)<\/start><end>(\d+)<\/end>/g)) {
     assert.ok(Number(match[2]) <= sequenceDuration);
   }

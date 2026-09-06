@@ -1873,18 +1873,18 @@ test('normal extension clicks replace stale main selection with the clicked bind
 
   await mainOne.click();
   await expect(page.locator('#sel-count')).toHaveText('2');
-  expect(await page.evaluate(() => [...window.MAWE_EDITOR_BRIDGE.selectedIdxs])).toEqual([0]);
+  expect(await page.evaluate(() => [...window.MSWE_EDITOR_BRIDGE.selectedIdxs])).toEqual([0]);
 
   // 普通点击已绑定副字幕时，旧主字幕必须被替换为该副字幕实际绑定的主字幕。
   await extensionTwo.click();
   await expect(page.locator('#cue-panel-target')).toHaveText('副字幕');
   await expect(page.locator('#sel-count')).toHaveText('2');
-  expect(await page.evaluate(() => [...window.MAWE_EDITOR_BRIDGE.selectedIdxs])).toEqual([1]);
+  expect(await page.evaluate(() => [...window.MSWE_EDITOR_BRIDGE.selectedIdxs])).toEqual([1]);
 
   // 普通点击未绑定副字幕时，不应保留任何旧主字幕；G 不能因此误替换主字幕 2 的绑定。
   await unmatchedExtension.click();
   await expect(page.locator('#sel-count')).toHaveText('1');
-  expect(await page.evaluate(() => [...window.MAWE_EDITOR_BRIDGE.selectedIdxs])).toEqual([]);
+  expect(await page.evaluate(() => [...window.MSWE_EDITOR_BRIDGE.selectedIdxs])).toEqual([]);
   await page.keyboard.press('g');
   await expect(page.locator('#hint-stack')).toContainText('请点击一条主字幕完成绑定');
   const extensionIds = await page.evaluate(() => Object.fromEntries(
@@ -2236,8 +2236,8 @@ test('shows independent extension preview controls with yellow defaults', async 
 test('refreshes local font options for both main and extension subtitles', async ({ page }) => {
   await page.addInitScript(() => {
     window.queryLocalFonts = async () => [
-      { family: 'MAW Test Sans' },
-      { family: 'MAW Test Serif' },
+      { family: 'MSW Test Sans' },
+      { family: 'MSW Test Serif' },
     ];
   });
   await importPair(page);
@@ -2248,17 +2248,17 @@ test('refreshes local font options for both main and extension subtitles', async
   const scanButton = page.locator('#subtitle-font-family-scan');
   await expect(scanButton).toBeEnabled();
   await scanButton.click();
-  await expect(page.locator('#subtitle-font-family option[value="MAW Test Sans"]')).toHaveCount(1);
-  await expect(page.locator('#extension-subtitle-font-family option[value="MAW Test Sans"]')).toHaveCount(1);
+  await expect(page.locator('#subtitle-font-family option[value="MSW Test Sans"]')).toHaveCount(1);
+  await expect(page.locator('#extension-subtitle-font-family option[value="MSW Test Sans"]')).toHaveCount(1);
 
-  await page.locator('#subtitle-font-family').selectOption('MAW Test Sans');
-  await page.locator('#extension-subtitle-font-family').selectOption('MAW Test Serif');
+  await page.locator('#subtitle-font-family').selectOption('MSW Test Sans');
+  await page.locator('#extension-subtitle-font-family').selectOption('MSW Test Serif');
   const fontFamilies = await page.evaluate(() => ({
     main: document.getElementById('overlay-main-text').style.fontFamily,
     extension: document.getElementById('overlay-extension-text').style.fontFamily,
   }));
-  expect(fontFamilies.main).toContain('MAW Test Sans');
-  expect(fontFamilies.extension).toContain('MAW Test Serif');
+  expect(fontFamilies.main).toContain('MSW Test Sans');
+  expect(fontFamilies.extension).toContain('MSW Test Serif');
 });
 
 test('localizes approved scanned font labels in both selectors', async ({ page }) => {
@@ -2267,7 +2267,7 @@ test('localizes approved scanned font labels in both selectors', async ({ page }
       { family: 'Microsoft YaHei' },
       { family: 'SimSun' },
       { family: 'Source Han Sans SC' },
-      { family: 'MAW Test Sans' },
+      { family: 'MSW Test Sans' },
     ];
   });
   await importPair(page);
@@ -2285,7 +2285,7 @@ test('localizes approved scanned font labels in both selectors', async ({ page }
     { label: '微软雅黑', value: 'Microsoft YaHei' },
     { label: '宋体', value: 'SimSun' },
     { label: '思源黑体', value: 'Source Han Sans SC' },
-    { label: 'MAW Test Sans', value: 'MAW Test Sans' },
+    { label: 'MSW Test Sans', value: 'MSW Test Sans' },
   ]));
   await page.locator('#subtitle-font-family').selectOption('Source Han Sans SC');
   await page.locator('#extension-subtitle-font-family').selectOption('SimSun');

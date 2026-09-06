@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Align a MAW ``.mosp`` project with a corrected manuscript and emit SRT.
+"""Align a MSW ``.mosp`` project with a corrected manuscript and emit SRT.
 
-The implementation intentionally uses only Python's standard library.  MAW's
+The implementation intentionally uses only Python's standard library.  MSW's
 word/item-level timing is spread uniformly over the normalized characters in
 each item, then difflib anchors those characters to the corrected manuscript.
 """
@@ -598,7 +598,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--input-mosp",
         required=True,
         type=Path,
-        help="MAW 生成的 .mosp JSON 工程（必填）",
+        help="MSW 生成的 .mosp JSON 工程（必填）",
     )
     parser.add_argument(
         "-t",

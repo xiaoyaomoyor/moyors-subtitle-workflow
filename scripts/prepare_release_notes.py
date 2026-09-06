@@ -29,13 +29,13 @@ def build_release_notes(changelog: str, tag: str) -> str:
     """Build the shared download and usage guide followed by release notes."""
     guide = """## 下载哪个版本？
 
-**默认下载 `MAW`** ： 它内置了我们需要的 `ffmpeg` 和 `ffprobe`，解压即用。
-**如果你本机环境装有 `ffmpeg`** ： 可以选择体积更小的 `MAW-lite` 版本。
+**默认下载 `MSW`** ： 它内置了我们需要的 `ffmpeg` 和 `ffprobe`，解压即用。
+**如果你本机环境装有 `ffmpeg`** ： 可以选择体积更小的 `MSW-lite` 版本。
 
 ## 如何使用
 
 1. 下载安装包后解压
-2. 双击对应的 `MAW` 可执行文件，打开启动器
+2. 双击对应的 `MSW` 可执行文件，打开启动器
 3. 在启动器中，可以执行字幕转写、生成工程等操作
 4. 完成后，启动字幕编辑器，进行字幕精修
 

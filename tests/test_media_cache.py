@@ -183,7 +183,7 @@ class MediaCacheTests(unittest.TestCase):
         self.assertNotIn("waveform", result.project)
 
     def test_explicit_ffmpeg_path_is_shared_by_both_cache_generators(self) -> None:
-        ffmpeg = "C:/MAW/ffmpeg.exe"
+        ffmpeg = "C:/MSW/ffmpeg.exe"
         with (
             mock.patch(
                 "maw.media_cache.embed_waveform",

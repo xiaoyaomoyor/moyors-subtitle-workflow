@@ -1,7 +1,7 @@
-MAW 常见问题（随发布包附带）
+MSW 常见问题（随发布包附带）
 ================================
 
-本文件面向从 GitHub Releases 下载 MAW 图形版的用户。
+本文件面向从 GitHub Releases 下载 MSW 图形版的用户。
 提交问题前，请先确认版本号和下载的完整压缩包名称。
 
 
@@ -18,11 +18,11 @@ MAW 常见问题（随发布包附带）
 
 推荐处理步骤：
 
-1. 找到最初从 GitHub 下载的 MAW-*.zip，右键 -> 属性。
+1. 找到最初从 GitHub 下载的 MSW-*.zip，右键 -> 属性。
 2. 在“常规”页勾选“解除锁定”（英文 Windows 为 Unblock），点击“应用”。
 3. 删除或移走旧的解压目录。
-4. 从已经解除锁定的 ZIP 重新解压完整目录，然后启动目录中的 MAW.exe。
-5. 不要只复制 MAW.exe；MAW.exe 旁边的运行时目录和 DLL 必须完整保留。
+4. 从已经解除锁定的 ZIP 重新解压完整目录，然后启动目录中的 MSW.exe。
+5. 不要只复制 MSW.exe；MSW.exe 旁边的运行时目录和 DLL 必须完整保留。
 
 如果系统自带的解压方式仍然出现同样问题，可以使用 Bandizip 等可靠的解压软件，
 重新解压完整 ZIP；仍建议先解除原始 ZIP 的锁定。
@@ -40,22 +40,22 @@ Python.NET 使用 Windows .NET Framework；只有当错误明确指向 Framework
     [媒体] 正在读取原始视频时长...
     FileNotFoundError: [WinError 2] 系统找不到指定的文件。
 
-而你下载的是 MAW-lite，通常是因为 Lite 包不包含 FFmpeg 和 FFprobe。
+而你下载的是 MSW-lite，通常是因为 Lite 包不包含 FFmpeg 和 FFprobe。
 
-如果程序显示“找不到 FFmpeg，请下载完整版 MAW”，请直接下载完整版 MAW，不要下载文件名带 `lite` 的版本。
-请下载带内置 FFmpeg 的完整版 MAW 包，不要下载文件名带 `lite` 的版本。
-如果必须继续使用 MAW-lite，请自行安装 FFmpeg，并确保 `ffmpeg` 与 `ffprobe` 都已加入 PATH，
-然后重新打开 MAW。
+如果程序显示“找不到 FFmpeg，请下载完整版 MSW”，请直接下载完整版 MSW，不要下载文件名带 `lite` 的版本。
+请下载带内置 FFmpeg 的完整版 MSW 包，不要下载文件名带 `lite` 的版本。
+如果必须继续使用 MSW-lite，请自行安装 FFmpeg，并确保 `ffmpeg` 与 `ffprobe` 都已加入 PATH，
+然后重新打开 MSW。
 
 
 三、提示找不到 FFmpeg 或 FFprobe
 --------------------------------
 
-MAW 标准包（文件名通常包含 MAW-Windows、MAW-macOS 或 MAW-Linux）内置 FFmpeg。
-MAW-lite 为减小体积不包含 FFmpeg，需要用户自己安装，并确保 ffmpeg 和 ffprobe 都能找到。
+MSW 标准包（文件名通常包含 MSW-Windows、MSW-macOS 或 MSW-Linux）内置 FFmpeg。
+MSW-lite 为减小体积不包含 FFmpeg，需要用户自己安装，并确保 ffmpeg 和 ffprobe 都能找到。
 
-Windows：可以改用内置 FFmpeg 的标准 MAW 包，或安装 FFmpeg 后把 bin 目录加入 PATH，
-重新打开 PowerShell 和 MAW。
+Windows：可以改用内置 FFmpeg 的标准 MSW 包，或安装 FFmpeg 后把 bin 目录加入 PATH，
+重新打开 PowerShell 和 MSW。
 
 macOS：从 Finder 启动应用时不一定继承终端 PATH。可在 Launcher 的配置中填写同时包含
 ffmpeg 和 ffprobe 的目录；Apple Silicon Homebrew 常见目录是 /opt/homebrew/bin，
@@ -85,7 +85,7 @@ Intel Homebrew 常见目录是 /usr/local/bin。
 
 请在 GitHub Issue 中提供：
 
-- MAW 版本号和完整下载包名称；
+- MSW 版本号和完整下载包名称；
 - Windows/macOS/Linux 版本与 CPU 架构；
 - 从启动到报错的操作步骤；
 - 完整错误信息、终端输出或截图；

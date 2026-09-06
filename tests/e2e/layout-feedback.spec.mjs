@@ -12,7 +12,7 @@ const blankEditorUrl = pathToFileURL(path.join(repoRoot, 'blank-editor.html')).h
 
 async function openLauncher(page) {
   await page.goto(launcherUrl);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
 }
 
 
@@ -102,7 +102,7 @@ test('shows the installed OCR settings hint and highlights video drops', async (
   await openLauncher(page);
 
   const state = await page.evaluate(() => {
-    const config = window.MAWLauncher.config;
+    const config = window.MSWLauncher.config;
     config.ocrRuntime = {
       ...(config.ocrRuntime || {}),
       status: 'ready',
@@ -111,7 +111,7 @@ test('shows the installed OCR settings hint and highlights video drops', async (
       detail: 'OCR 模型已安装，可以在工具箱中使用。',
     };
     config.ocrModels = (config.ocrModels || []).map((model) => ({ ...model, installed: true, status: 'installed' }));
-    window.MAWLauncher.onBackendEvent({ type: 'ocrRuntimeReady', runtime: config.ocrRuntime, models: config.ocrModels });
+    window.MSWLauncher.onBackendEvent({ type: 'ocrRuntimeReady', runtime: config.ocrRuntime, models: config.ocrModels });
 
     const field = document.getElementById('ocrVideoPathField');
     const before = {

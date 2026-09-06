@@ -1,4 +1,4 @@
-name: Deploy MAW website to GitHub Pages
+name: Deploy MSW website to GitHub Pages
 
 on:
   push:
@@ -58,7 +58,7 @@ jobs:
         working-directory: website
         run: npm ci
 
-      - name: Sync MAW documentation
+      - name: Sync MSW documentation
         working-directory: website
         run: npm run sync:docs
 

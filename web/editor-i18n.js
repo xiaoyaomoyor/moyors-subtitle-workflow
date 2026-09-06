@@ -104,7 +104,7 @@
     '动态字幕（OGraf）': 'Dynamic captions (OGraf)',
     '导出符合 OGraf 规范的动态字幕包（需要以 server-editor 打开并绑定工程文件）': 'Export an OGraf-compliant dynamic-caption package (requires server-editor with a bound project file)',
     'Lottie 动态字幕': 'Lottie dynamic captions',
-    '导出单个 .lottie 文件，可直接拖入 DaVinci Resolve 21 的 Media Pool 或时间线。当前版本使用逐字/逐词高亮，并沿用 MAW 的字幕预览字体、颜色和位置。': 'Export one .lottie file that can be dragged into DaVinci Resolve 21 Media Pool or the timeline. This version uses character/word highlighting and follows the MAW subtitle preview font, color, and position.',
+    '导出单个 .lottie 文件，可直接拖入 DaVinci Resolve 21 的 Media Pool 或时间线。当前版本使用逐字/逐词高亮，并沿用 MSW 的字幕预览字体、颜色和位置。': 'Export one .lottie file that can be dragged into DaVinci Resolve 21 Media Pool or the timeline. This version uses character/word highlighting and follows the MSW subtitle preview font, color, and position.',
     '字幕轨道': 'Subtitle track', '副字幕轨': 'Secondary subtitles', '合成尺寸': 'Composition size',
     '1920 × 1080（横屏）': '1920 × 1080 (landscape)', '1080 × 1920（竖屏）': '1080 × 1920 (portrait)',
     '3840 × 2160（4K 横屏）': '3840 × 2160 (4K landscape)',
@@ -518,7 +518,7 @@
     '未选择': 'Not selected',
     '加载工程后显示字幕列表': 'Subtitle list appears after loading a project',
     '加载媒体后显示视频': 'Video appears after loading media',
-  '加载媒体后显示波形（大媒体需要先用 MAW 生成波形后拖入）': 'Waveform appears after loading media (for large media, generate the waveform with MAW first and drag it here)',
+  '加载媒体后显示波形（大媒体需要先用 MSW 生成波形后拖入）': 'Waveform appears after loading media (for large media, generate the waveform with MSW first and drag it here)',
     '‹ 前一条': '‹ Previous', '后一条 ›': 'Next ›', '＋ 表情包': '＋ Sticker',
     '在光标处拆分': 'Split at cursor', '在光标处拆分（': 'Split at cursor (', '范围：全部字幕': 'Scope: all subtitles',
     '查找': 'Find', '替换为': 'Replace with', '批量替换': 'Batch replace',
@@ -614,7 +614,7 @@
   const EN_ATTR = {
     '切换到亮色主题': 'Switch to light theme',
     // 菜单栏与设置弹窗
-    'MAW 字幕编辑器': 'MAW subtitle editor',
+    'MSW 字幕编辑器': 'MSW subtitle editor',
     '点击复制工程文件名；悬浮查看工程详情': 'Click to copy the project file name; hover for details',
     '导出当前工程为 .mosp 文件': 'Export the current project as a .mosp file',
     '导出 FCP7/OTIO/Lottie/OGraf 等更多格式': 'Export more formats such as FCP7/OTIO/Lottie/OGraf',
@@ -630,7 +630,7 @@
     '打开波形设置窗口': 'Open the waveform settings window',
     '重新播放新手快速上手引导': 'Replay the quick-start onboarding guide',
     '打开帮助窗口的基础操作说明': 'Open basic operations in the help window',
-    '在浏览器中打开 MAW 官网': 'Open the MAW website in your browser',
+    '在浏览器中打开 MSW 官网': 'Open the MSW website in your browser',
     '关闭（Esc）': 'Close (Esc)',
     '关闭全局设置': 'Close global settings',
     '关闭媒体播放器设置': 'Close media player settings',
@@ -661,7 +661,7 @@
     '关闭窗口菜单': 'Close window menu',
     '当前播放头时间': 'Current playhead time', '当前选中的字幕数量': 'Number of selected subtitles',
     '媒体总时长 · 波形峰值点数': 'Total media duration · waveform peak count',
-    '石墨（默认）': 'Graphite (default)', '午夜蓝调': 'Midnight blue', '苔原绿调': 'Tundra green', '主题预设': 'Theme preset', '自定义颜色': 'Custom colors', '恢复主题默认颜色': 'Reset theme colors', '已恢复当前主题的默认颜色': 'Restored the current theme defaults', 'MAW 深色（默认）': 'MAW Dark (default)', 'MAW 浅色': 'MAW Light',  '灵梦：红白配色深色主题': 'Reimu: red-and-white dark theme', '爱丽丝：金蓝浅色主题': 'Alice: gold-blue light theme', '恋：粉色系深色主题': 'Koishi: pink dark theme', '莲子：黑色系主题': 'Renko: black theme', '外面板色': 'Outer panel', '内面板色': 'Inner panel', '模块顶部栏等深色面板区域': 'Dark panel areas such as module tab bars', '模块内部的浅色背景面板区域': 'Light content panels inside modules', '默认': 'Default', '紫苑': 'Shion', '小铃': 'Kosuzu', '默认：MAW 标准深色主题': 'Default: standard MAW dark theme', '紫苑：深蓝紫夜色深色主题': 'Shion: deep blue-violet night dark theme', '小铃：黄棕橘暖调深色主题': 'Kosuzu: warm yellow-brown-orange dark theme', '灵梦': 'Reimu', '爱丽丝': 'Alice', '恋': 'Koishi', '莲子': 'Renko', '清除全部空隙': 'Clear all gaps', '当前没有空隙区段记录': 'No gap records to clear', '已清理全部空隙区段': 'Cleared all gap records', '没有可处理的空隙；请先加载媒体': 'No spans to process; load media first','午夜蓝调深色主题': 'Midnight-blue dark theme', '苔原绿调深色主题': 'Tundra-green dark theme', '暖砂棕调深色主题': 'Warm-sand dark theme', '主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。': 'A theme preset decides light/dark, accent and base palette; switching restores that theme defaults.', '任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。': 'Any color can override the current theme; custom colors apply instantly, persist locally and export/import with Window → Interface config. Subtitle color does not affect the in-player preview (see Media player settings).', '清除全部自定义颜色，恢复当前主题预设的默认': 'Clear all custom colors and restore the current theme preset', '按钮、选中与高亮等界面强调色': 'Accent color for buttons, selection and highlights',
+    '石墨（默认）': 'Graphite (default)', '午夜蓝调': 'Midnight blue', '苔原绿调': 'Tundra green', '主题预设': 'Theme preset', '自定义颜色': 'Custom colors', '恢复主题默认颜色': 'Reset theme colors', '已恢复当前主题的默认颜色': 'Restored the current theme defaults', 'MSW 深色（默认）': 'MSW Dark (default)', 'MSW 浅色': 'MSW Light',  '灵梦：红白配色深色主题': 'Reimu: red-and-white dark theme', '爱丽丝：金蓝浅色主题': 'Alice: gold-blue light theme', '恋：粉色系深色主题': 'Koishi: pink dark theme', '莲子：黑色系主题': 'Renko: black theme', '外面板色': 'Outer panel', '内面板色': 'Inner panel', '模块顶部栏等深色面板区域': 'Dark panel areas such as module tab bars', '模块内部的浅色背景面板区域': 'Light content panels inside modules', '默认': 'Default', '紫苑': 'Shion', '小铃': 'Kosuzu', '默认：MSW 标准深色主题': 'Default: standard MSW dark theme', '紫苑：深蓝紫夜色深色主题': 'Shion: deep blue-violet night dark theme', '小铃：黄棕橘暖调深色主题': 'Kosuzu: warm yellow-brown-orange dark theme', '灵梦': 'Reimu', '爱丽丝': 'Alice', '恋': 'Koishi', '莲子': 'Renko', '清除全部空隙': 'Clear all gaps', '当前没有空隙区段记录': 'No gap records to clear', '已清理全部空隙区段': 'Cleared all gap records', '没有可处理的空隙；请先加载媒体': 'No spans to process; load media first','午夜蓝调深色主题': 'Midnight-blue dark theme', '苔原绿调深色主题': 'Tundra-green dark theme', '暖砂棕调深色主题': 'Warm-sand dark theme', '主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。': 'A theme preset decides light/dark, accent and base palette; switching restores that theme defaults.', '任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。': 'Any color can override the current theme; custom colors apply instantly, persist locally and export/import with Window → Interface config. Subtitle color does not affect the in-player preview (see Media player settings).', '清除全部自定义颜色，恢复当前主题预设的默认': 'Clear all custom colors and restore the current theme preset', '按钮、选中与高亮等界面强调色': 'Accent color for buttons, selection and highlights',
     '暖砂棕调': 'Warm sand brown', '界面主背景色': 'Main interface background color',
     '界面主要文字色': 'Main interface text color', '波形峰值的颜色': 'Waveform peak color',
     '字幕列表与编辑区的文字颜色（不含播放器画面内的预览字幕）': 'Text color of the subtitle list and editor (preview subtitles in the player excluded)',
@@ -740,7 +740,7 @@
     '下次不带 JSON 路径启动服务器时，自动恢复上次打开的工程': 'Automatically restore the last project when the server starts without a JSON path',
     '只影响导出的 SRT，不改动工程或 OTIO 的时间轴': 'Only affects exported SRT; project and OTIO timelines are unchanged',
     '只把第一条导出字幕的起点拉到 00:00，保留其结束时间和后续字幕时间码；不改动工程或 OTIO 的时间轴': 'Move only the first exported subtitle start to 00:00; keep its end time and later subtitle timecodes; project and OTIO timelines are unchanged',
-    'MAWE 设置': 'MAWE settings', '操作帮助': 'Controls help', '帮助': 'Help',
+    'MSWE 设置': 'MSWE settings', '操作帮助': 'Controls help', '帮助': 'Help',
     '快速上手': 'Quick start', '重新查看快速上手': 'Replay quick start', '跳过': 'Skip', '跳过 (ESC)': 'Skip (ESC)',
     '帮助分类': 'Help categories',
     '打开工程后开始快速上手': 'Open a project to start the quick start guide',
@@ -1312,14 +1312,14 @@
     });
   }
 
-  global.MAWE_I18N = {
+  global.MSWE_I18N = {
     get language() { return language; },
     applyLanguage,
     start,
     translateText,
     validateTranslationKeys,
   };
-  global.MAWE?.register('i18n', () => global.MAWE_I18N);
+  global.MSWE?.register('i18n', () => global.MSWE_I18N);
 
   if (typeof document === 'undefined') return;
   if (document.readyState === 'loading') {

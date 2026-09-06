@@ -26,7 +26,7 @@
 - **前端**（web/launcher 三文件，由 visual-engineering 子代理实施、已逐项验收）：
   - 工具箱原 `postprocessMatchSegmentationOptions` 区块替换为 `<p class="hint"><button id="openPunctSettings" class="inline-link" …>`（镜像 OCR 先例，含 `<p class="hint">` 包裹）；
   - 新增 `punctuationSettingsSection`（LLM 与 OCR section 之间）：section 标题「断句与标点」+ 共享说明 hint + 两个 textarea（**ID 与 data-i18n key 原样保留**，`postprocessPreservePunctuationError` 一并随迁），工具箱网格专用 class `match-segmentation-field` 弃用、改用设置页统一的 `.field`；
-  - `postprocess.js` 新增 `openPunctSettings` → `window.MAWLauncher.openSettings("punctuationSettingsSection")`；同时移除随 wrapper 消亡的死代码 `renderMatchMode()`（定义 + 两处调用），满足"零孤儿引用"；
+  - `postprocess.js` 新增 `openPunctSettings` → `window.MSWLauncher.openSettings("punctuationSettingsSection")`；同时移除随 wrapper 消亡的死代码 `renderMatchMode()`（定义 + 两处调用），满足"零孤儿引用"；
   - `launcher.js` 中英 i18n：两条 hint 按共享语义改写，新增 `toolbox_punct_open_settings`、`settings_punctuation_title`、`settings_punctuation_hint` 三组键。
 - **后端**：
   - `postprocess_match.py`：基础断句集调整为逗号、句号、英文逗号、英文句号和换行；`prepare_script_text` 允许保留基础或额外断句符号；
@@ -53,7 +53,7 @@
 - **额外断句符号不接入 ASR 切句管线**：转写切句仍由模型分段 + 既有 STRONG/WEAK 标点逻辑决定；共享到转写后处理的是"保留符号 → 剥尾候选集（固定 `，。`）减法"推导出的剥除集。这样默认行为（逗号句号剥、问号感叹号留）与现网一致，且不会为个别符号去改动 jieba/词性切分深层逻辑。
 - **已保存的旧计划兼容迁移**：normalize 会把旧计划中已保留但未列入额外断句符号的问号/感叹号补回额外列表；其他显式空列表仍保持原设置。
 - **工具箱配置本就在 Launcher 后端持久化**（`maw-postprocess.json`，经 `save_postprocess_plan` 桥），迁移仅动 UI 位置与 ID 不变，持久化/消费代码零改动。
-- MAWE 编辑器（`web/editor.js`，localStorage `moy.asr.editor.settings.v1`）与此配置无关，不涉及 server-editor。
+- MSWE 编辑器（`web/editor.js`，localStorage `moy.asr.editor.settings.v1`）与此配置无关，不涉及 server-editor。
 
 ## 事实基线
 
@@ -72,6 +72,6 @@
 ## 探索结论（补充事实基线）
 
 - 工具箱两个 textarea 位于 **Launcher**（`web/launcher/index.html:575-583` 原位），持久化走 `save_postprocess_plan` 桥 → `maw-postprocess.json`（`.env` 同目录）计划 `match` 步骤的 `extraSplitPunctuation` / `preservePunctuation` 数组；前端消费点在 `postprocess.js`（`punctuationLines` / 校验 / 预览 / 运行 / 回填，全部按 ID 取值）。
-- ⚙️ 设置模态为 `#settingsModal` + `.settings-scroll` 内若干 `.settings-section`；"打开设置并滚动"先例为 `openOcrSettings` → `window.MAWLauncher.openSettings("ocrSettingsSection")`。
+- ⚙️ 设置模态为 `#settingsModal` + `.settings-scroll` 内若干 `.settings-section`；"打开设置并滚动"先例为 `openOcrSettings` → `window.MSWLauncher.openSettings("ocrSettingsSection")`。
 - Python 侧符号集原本四处独立定义：`generate_subtitle_qwen_api.py:615-616`（STRONG/WEAK，函数内局部）、`maw/local_asr.py` `_LOCAL_TAIL_PUNCT`、`scripts/mosp_match_text.py:22-24`、`maw/postprocess_match.py:29`；本次仅统一"保留符号 → 转写剥尾集"推导，切句内部逻辑不动。
 - server-editor 的设置存储为固定 schema（工作区/最近工程），无通用任意配置端点；本配置不经过它。

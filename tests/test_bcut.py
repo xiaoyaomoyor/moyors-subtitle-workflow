@@ -770,10 +770,10 @@ class GuiWorkflowTests(unittest.TestCase):
 
     def test_build_command_frozen_entry(self) -> None:
         command = gui_workflow.build_transcribe_command(
-            self._request(), executable="MAW.exe", frozen=True
+            self._request(), executable="MSW.exe", frozen=True
         )
 
-        self.assertEqual(command[:3], ["MAW.exe", "--transcribe-bcut", str(Path("clip.mp4"))])
+        self.assertEqual(command[:3], ["MSW.exe", "--transcribe-bcut", str(Path("clip.mp4"))])
 
     def test_child_environment_skips_credentials_for_bcut(self) -> None:
         env = gui_workflow._child_environment({}, api_key="ignored", provider="bcut")
@@ -788,7 +788,7 @@ class PublicCliWiringTests(unittest.TestCase):
     def test_parser_accepts_bcut_provider(self) -> None:
         from maw import cli
 
-        args = cli.build_parser("MAW.exe").parse_args(
+        args = cli.build_parser("MSW.exe").parse_args(
             ["--provider", "bcut", "-i", "clip.mp4"]
         )
 

@@ -1,5 +1,5 @@
 // MOSE server 级能力：Settings 读写 + IPC commands。
-// 等价于 MAW server-editor/serve.py 的 host 能力，但用 Tauri IPC 替代 HTTP。
+// 等价于 MSW server-editor/serve.py 的 host 能力，但用 Tauri IPC 替代 HTTP。
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -804,12 +804,12 @@ fn ffmpeg_command(
     } else {
         app.shell()
             .sidecar("ffmpeg")
-            .map_err(|error| format!("无法找到 FFmpeg：请安装 FFmpeg，或使用默认 MAW 版本：{}", error))?
+            .map_err(|error| format!("无法找到 FFmpeg：请安装 FFmpeg，或使用默认 MSW 版本：{}", error))?
     };
     Ok(command.args(args))
 }
 
-/// 为 WebView 准备实际可播放的媒体；优先使用 MAW 包内共享的 FFmpeg。
+/// 为 WebView 准备实际可播放的媒体；优先使用 MSW 包内共享的 FFmpeg。
 #[tauri::command]
 pub async fn prepare_media(
     app: tauri::AppHandle,

@@ -1,1 +1,1 @@
-"""Small shared MAW Python helpers."""
+"""Small shared MSW Python helpers."""

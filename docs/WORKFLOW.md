@@ -1,10 +1,10 @@
 # 从零完成一次字幕工程
 
-这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MAW 是 Moy's ASR Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
+这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MSW 是 Moy's ASR Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
 
 ## 0. 安装依赖
 
-如果使用 GitHub Releases 提供的 Windows 或 macOS 图形版，Python、uv、FFmpeg 与 ffprobe 已由默认 `MAW` 包打包，不需要单独安装；体积更小的 `MAW-lite` 包不包含 FFmpeg，需要系统已安装并可在 PATH 中找到 `ffmpeg` 和 `ffprobe`。Windows 解压后双击 `MAW.exe`；macOS 解压后打开 `MAW.app` 或 `MAW-lite.app`。Launcher 默认启动 Server 版编辑器，右侧菜单可打开工程 HTML 编辑器或空白 HTML 编辑器；MOSE 桌面版暂不随 Release 分发。
+如果使用 GitHub Releases 提供的 Windows 或 macOS 图形版，Python、uv、FFmpeg 与 ffprobe 已由默认 `MSW` 包打包，不需要单独安装；体积更小的 `MSW-lite` 包不包含 FFmpeg，需要系统已安装并可在 PATH 中找到 `ffmpeg` 和 `ffprobe`。Windows 解压后双击 `MSW.exe`；macOS 解压后打开 `MSW.app` 或 `MSW-lite.app`。Launcher 默认启动 Server 版编辑器，右侧菜单可打开工程 HTML 编辑器或空白 HTML 编辑器；MOSE 桌面版暂不随 Release 分发。
 
 源码方式继续按下列步骤安装：
 
@@ -35,10 +35,10 @@ py -3.11 -m venv .venv
 
 ## 1.5 使用图形包的 CLI
 
-Windows 图形包中的 `MAW.exe` 不带参数时启动 Launcher；带 `-h` 或 `--help` 时显示公开命令行帮助，也可以直接转写指定媒体：
+Windows 图形包中的 `MSW.exe` 不带参数时启动 Launcher；带 `-h` 或 `--help` 时显示公开命令行帮助，也可以直接转写指定媒体：
 
 ```powershell
-.\MAW.exe -i "D:\Videos\example.mp3" -o "D:\Videos\example.srt" "D:\Videos\example.mosp"
+.\MSW.exe -i "D:\Videos\example.mp3" -o "D:\Videos\example.srt" "D:\Videos\example.mosp"
 ```
 
 完整的参数表、Qwen/Soniox/腾讯云/OpenAI 兼容 ASR 示例、Server 管理、退出码和 AI/自动化调用模板见 [CLI 专门文档](CLI.md)。
@@ -97,7 +97,7 @@ Launcher 和 CLI 默认都使用 `qwen-audio-3.0-asr-flash-filetrans`；需要�
 uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen-audio-3.0-asr-flash-filetrans -ll 2m --json
 ```
 
-Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，由 MAW 自动适配；字/词时间戳不使用旧 Qwen3 的 `--enable-words` 开关。可选增强配置：
+Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，由 MSW 自动适配；字/词时间戳不使用旧 Qwen3 的 `--enable-words` 开关。可选增强配置：
 
 选择 Qwen-Audio 后，Launcher 的高级选项会显示 `Prompt / 上下文`、`即时热词` 和权重。
 预编译 `vocabulary_id` 暂不在 Launcher 开放，底层 CLI / `.env` 能力保留；Launcher 字段只随本次转写提交，
@@ -154,7 +154,7 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model fun-
 --with-waveform      把波形写进工程文件，CLI 默认不内嵌
 ```
 
-Fun-ASR 普通文件限制为 12 小时 / 2 GB；说话人分离只适用于单声道，官方建议启用时音频不超过 2 小时。MAW 提交前会提取单声道音频，且超过建议时长时给出警告。说话人标签是匿名 ID，不是现实姓名；颜色只是普通工程字段，之后可以在 MAWE 中修改。
+Fun-ASR 普通文件限制为 12 小时 / 2 GB；说话人分离只适用于单声道，官方建议启用时音频不超过 2 小时。MSW 提交前会提取单声道音频，且超过建议时长时给出警告。说话人标签是匿名 ID，不是现实姓名；颜色只是普通工程字段，之后可以在 MSWE 中修改。
 
 Fun-ASR 的 API 输入字段、轮询结果路径和 JSON 映射与 Qwen 不同，虽然二者共用一个入口脚本。实现细节和豆包 URL / Base64 调研记录在 [ASR_PROVIDER_RESEARCH.md](ASR_PROVIDER_RESEARCH.md)。
 
@@ -203,16 +203,16 @@ uv run python generate_subtitle_tencent_api.py "D:\Videos\example.mp4" -ll 2m --
 --debug-raw           保存腾讯云完整原始响应
 ```
 
-腾讯云结果中的 `Words` 会映射为工程 `items`，其中 `OffsetStartMs` / `OffsetEndMs` 是整数毫秒。启用 `--speaker` 时，MAW 会发送 `SpeakerDiarization=1`；说话人标签是匿名 ID。小于等于 5MB 的本地文件可直传，较大文件必须先上传到 COS 或其他公网可访问地址并使用 `--file-url`。
+腾讯云结果中的 `Words` 会映射为工程 `items`，其中 `OffsetStartMs` / `OffsetEndMs` 是整数毫秒。启用 `--speaker` 时，MSW 会发送 `SpeakerDiarization=1`；说话人标签是匿名 ID。小于等于 5MB 的本地文件可直传，较大文件必须先上传到 COS 或其他公网可访问地址并使用 `--file-url`。
 
 ## 用 OpenAI 兼容 ASR 转写（可选）
 
-MAW 支持 OpenAI 官方转写服务，以及实现同一 multipart 接口的自建或中转服务。默认地址和模型分别为 `https://api.openai.com/v1` 与支持时间戳的 `whisper-1`。在 `.env` 中配置：
+MSW 支持 OpenAI 官方转写服务，以及实现同一 multipart 接口的自建或中转服务。默认地址和模型分别为 `https://api.openai.com/v1` 与支持时间戳的 `whisper-1`。在 `.env` 中配置：
 
 ```ini
-MAW_OPENAI_ASR_API_KEY=你的 ASR 密钥
-MAW_OPENAI_ASR_BASE_URL=https://api.openai.com/v1
-MAW_OPENAI_ASR_MODEL=whisper-1
+MSW_OPENAI_ASR_API_KEY=你的 ASR 密钥
+MSW_OPENAI_ASR_BASE_URL=https://api.openai.com/v1
+MSW_OPENAI_ASR_MODEL=whisper-1
 ```
 
 直接调用生成器：
@@ -224,7 +224,7 @@ uv run python generate_subtitle_openai_api.py "D:\Videos\example.mp4" -ll 2m --j
 也可以从公开 CLI 调用，并用 `--base-url` 临时覆盖 `.env`：
 
 ```powershell
-MAW.exe --provider openai --base-url "https://api.openai.com/v1" -i "D:\Videos\example.mp4" -o "D:\Output\example.srt"
+MSW.exe --provider openai --base-url "https://api.openai.com/v1" -i "D:\Videos\example.mp4" -o "D:\Output\example.srt"
 ```
 
 接口必须接受 `POST /audio/transcriptions`，并返回带 `start` / `end` 时间戳的 `segments` 或 `words`。只有文本没有时间戳的响应会被拒绝；说话人开关、Qwen 热词和 Soniox context 不会转发给该接口。
@@ -327,7 +327,7 @@ Launcher 右下角的圆形按钮会打开工具箱。工具箱的标题、一�
 
 ### 压制字幕
 
-「压制字幕」需要视频媒体和 `.srt`、`.ass` 或 `.ssa` 字幕文件。字幕文件默认跟随 Launcher 当前的 SRT 输出，也可以手动选择或拖入 ASS / SSA。运行后调用 FFmpeg 的 libass 字幕滤镜重新编码为新的 H.264 MP4，默认样式与 MAW 的标准 ASS 导出一致；源视频不会被覆盖，已有同名结果会自动加后缀。压制过程可以在工具箱中停止。
+「压制字幕」需要视频媒体和 `.srt`、`.ass` 或 `.ssa` 字幕文件。字幕文件默认跟随 Launcher 当前的 SRT 输出，也可以手动选择或拖入 ASS / SSA。运行后调用 FFmpeg 的 libass 字幕滤镜重新编码为新的 H.264 MP4，默认样式与 MSW 的标准 ASS 导出一致；源视频不会被覆盖，已有同名结果会自动加后缀。压制过程可以在工具箱中停止。
 
 ### 提取音频
 
@@ -335,7 +335,7 @@ Launcher 右下角的圆形按钮会打开工具箱。工具箱的标题、一�
 
 ### 文稿匹配
 
-「文稿匹配」是工具箱的第一个工具。选择一个 UTF-8 编码的 `.txt`、`.md` 或 `.markdown` 文稿后，MAW 会把文稿文字按顺序对齐到当前工程或 SRT 的启用字幕段，并按输出选项生成新的 `*.matched.mosp`（或保留原工程扩展名）和/或 `*.matched.srt`。文稿是新的文字真源；旧工程、SRT 或不完整 `items` 输入保留原字幕的分段起止时间，完整逐词时间码输入则按字符时间码重算断句后的时间。文字变化的段会移除旧逐词 `items`。
+「文稿匹配」是工具箱的第一个工具。选择一个 UTF-8 编码的 `.txt`、`.md` 或 `.markdown` 文稿后，MSW 会把文稿文字按顺序对齐到当前工程或 SRT 的启用字幕段，并按输出选项生成新的 `*.matched.mosp`（或保留原工程扩展名）和/或 `*.matched.srt`。文稿是新的文字真源；旧工程、SRT 或不完整 `items` 输入保留原字幕的分段起止时间，完整逐词时间码输入则按字符时间码重算断句后的时间。文字变化的段会移除旧逐词 `items`。
 
 - 匹配时会忽略大小写、空白和标点，保留文稿中的实际文字与标点，适合修正识别错字、标点和断句边界。工程所有启用字幕段都有完整逐词 `items` 时，会按字符时间码重新计算断句后的 `segments` / `items` 时间；旧工程、SRT 或不完整 `items` 会保留原有分段时间槽。
 - `disabled` 字幕段会原样保留，不参与匹配。
@@ -381,7 +381,7 @@ LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 Ope
 - 播放器内的字幕预览可直接拖动；悬停或聚焦后拖动八个手柄可缩放。方向键移动，`Shift` 加速移动，`Alt + 方向键` 调整尺寸。几何保存在工程 `preview.subtitle`，不会改变字幕时间。
 - “移除静音空隙”只建立可逆的压缩时间线，不修改原媒体和原字幕时间。
 - 常规 SRT 或 ASS 通过工具栏导出；ASS 会把主字幕预览当前选中的字体、字号和文字颜色写入默认样式。若启用了空隙移除，可选择去空隙 SRT、OTIO、FFconcat 或保留区域 JSON。
-- 去空隙 OTIO 会把启用字幕作为保留媒体 clip 上的 marker，名称为字幕内容；字幕颜色映射为 Resolve 的 `RED`、`YELLOW`、`GREEN`、`BLUE`、`PURPLE`，跨越被移除空隙的字幕按保留区间拆分，无颜色时使用白色默认标记。marker 的 `marked_range` 使用媒体源坐标，与 clip 的 `source_range` 和外部引用的 `available_range` 保持一致；带 BWF `bext.time_reference` 的 WAV 会保留非零媒体起点，避免 Resolve 导入后片段内容错位。Resolve 的可用颜色参考还包括 Blue、Cyan、Green、Yellow、Red、Pink、Purple、Fuchsia、Rose、Lavender、Sky、Mint、Lemon、Sand、Cocoa、Cream；当前 MAW 使用其中五色。
+- 去空隙 OTIO 会把启用字幕作为保留媒体 clip 上的 marker，名称为字幕内容；字幕颜色映射为 Resolve 的 `RED`、`YELLOW`、`GREEN`、`BLUE`、`PURPLE`，跨越被移除空隙的字幕按保留区间拆分，无颜色时使用白色默认标记。marker 的 `marked_range` 使用媒体源坐标，与 clip 的 `source_range` 和外部引用的 `available_range` 保持一致；带 BWF `bext.time_reference` 的 WAV 会保留非零媒体起点，避免 Resolve 导入后片段内容错位。Resolve 的可用颜色参考还包括 Blue、Cyan、Green、Yellow、Red、Pink、Purple、Fuchsia、Rose、Lavender、Sky、Mint、Lemon、Sand、Cocoa、Cream；当前 MSW 使用其中五色。
 
 完整 JSON 约束在 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。若你打算用其他 ASR 或 LLM 生成工程，至少保证顶层有 `segments`，时间全部是整数毫秒。
 
@@ -391,11 +391,11 @@ LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 Ope
 
 安装 FFmpeg 后关闭并重开 PowerShell，再运行 `ffmpeg -version`。不要只把 `ffmpeg.exe` 放在仓库里；更稳妥的是把其 `bin` 目录加入系统 PATH。
 
-macOS 从 Finder 启动 `.app` 时不一定会继承终端里的 PATH。Launcher 会额外尝试 Apple Silicon Homebrew 的 `/opt/homebrew/bin` 和 Intel Homebrew 的 `/usr/local/bin`；如果仍提示缺少 FFmpeg，可把对应目录填入「配置」中的 FFmpeg 路径，并确认其中同时存在 `ffmpeg` 和 `ffprobe`。macOS GUI 会优先读取应用程序同目录的 `.env`，不存在时使用 `~/Library/Application Support/MAW/.env`，不写入只读或被 App Translocation 隔离的 `.app` 包。
+macOS 从 Finder 启动 `.app` 时不一定会继承终端里的 PATH。Launcher 会额外尝试 Apple Silicon Homebrew 的 `/opt/homebrew/bin` 和 Intel Homebrew 的 `/usr/local/bin`；如果仍提示缺少 FFmpeg，可把对应目录填入「配置」中的 FFmpeg 路径，并确认其中同时存在 `ffmpeg` 和 `ffprobe`。macOS GUI 会优先读取应用程序同目录的 `.env`，不存在时使用 `~/Library/Application Support/MSW/.env`，不写入只读或被 App Translocation 隔离的 `.app` 包。
 
 ### 提示未配置 API Key
 
-Release 版优先确认 `.env` 与应用程序同级；Windows 若同目录没有配置，再检查 `%LOCALAPPDATA%\MAW\.env`。源码方式确认 `.env` 位于仓库根目录。Key 行没有引号、没有额外空格，且没有把 `.env.example` 当成 `.env` 使用。环境变量若存在会覆盖 `.env`。
+Release 版优先确认 `.env` 与应用程序同级；Windows 若同目录没有配置，再检查 `%LOCALAPPDATA%\MSW\.env`。源码方式确认 `.env` 位于仓库根目录。Key 行没有引号、没有额外空格，且没有把 `.env.example` 当成 `.env` 使用。环境变量若存在会覆盖 `.env`。
 
 ### API 任务超时或上传失败
 
@@ -403,14 +403,14 @@ Release 版优先确认 `.env` 与应用程序同级；Windows 若同目录没�
 
 ### Fun-ASR 提交返回 HTTP 403
 
-MAW 会在 HTTP 状态后继续显示百炼返回的业务 `code`、`message` 和 `request_id`：
+MSW 会在 HTTP 状态后继续显示百炼返回的业务 `code`、`message` 和 `request_id`：
 
 - `AllocationQuota.FreeTierOnly`：免费额度已用完且账户启用了“仅使用免费额度”，需要在百炼控制台关闭该开关或开通按量付费。
 - `AccessDenied` + `Access denied by API-Key restrictions.`：当前 API Key 使用了自定义权限，但可访问模型范围不包含 Fun-ASR，或者 IP 白名单不允许当前网络。在百炼 API Key 页面编辑该 Key，把权限改为“全部”，或在“自定义”中加入 `fun-asr` 并核对 IP 白名单。若 Key 属于子业务空间，还要由超级管理员为该空间开放 Fun-ASR 模型调用。
 - `Workspace.AccessDenied` / `WorkSpaceNotFound`：检查 API Key、地域和 Workspace ID 是否属于同一业务空间。
 - 只有通用 `AccessDenied`：检查当前地域是否提供 Fun-ASR、账户是否有模型权限，以及 API Key 是否已失效。
 
-北京地域不填写 Workspace ID 时仍使用兼容域名 `dashscope.aliyuncs.com`；填写后使用官方推荐的 `{WorkspaceId}.cn-beijing.maas.aliyuncs.com` 专属域名。新加坡地域必须填写 Workspace ID。通过 HTTP 提交临时 `oss://` URL 时，MAW 已自动附加官方要求的 `X-DashScope-OssResourceResolve: enable`，无需用户手动处理。
+北京地域不填写 Workspace ID 时仍使用兼容域名 `dashscope.aliyuncs.com`；填写后使用官方推荐的 `{WorkspaceId}.cn-beijing.maas.aliyuncs.com` 专属域名。新加坡地域必须填写 Workspace ID。通过 HTTP 提交临时 `oss://` URL 时，MSW 已自动附加官方要求的 `X-DashScope-OssResourceResolve: enable`，无需用户手动处理。
 
 ### HTML 打开了但不能稳定拖动视频进度
 

@@ -101,7 +101,7 @@ from maw.soniox import SonioxContextError, build_soniox_context
 OPEN_DIALOG = 10
 SAVE_DIALOG = 30
 FOLDER_DIALOG = 20
-WINDOW_TITLE = "MAW Launcher"
+WINDOW_TITLE = "MSW Launcher"
 MEDIA_EXTS: Final = frozenset({".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"})
 MOSE_REGISTRY_KEY = r"Software\Moy\MOSE"
 MOSE_FILE_TYPE = "Moy.MOSE.Project"
@@ -159,10 +159,10 @@ ERROR_MESSAGES: Final[dict[str, str]] = {
     "alignment_media_invalid": "The selected speech-alignment media file does not exist or is unsupported.",
     "alignment_server_no_response": "Speech-alignment server did not respond.",
     "alignment_server_start_failed": "Speech-alignment server failed to start.",
-    "mose_not_found": "MOSE desktop editor was not found in this MAW package.",
+    "mose_not_found": "MOSE desktop editor was not found in this MSW package.",
     "mose_start_failed": "MOSE desktop editor failed to start.",
-    "server_stop_not_maw": "The process using this port is not a MAW editor server.",
-    "server_stop_failed": "Unable to stop the MAW editor server.",
+    "server_stop_not_maw": "The process using this port is not a MSW editor server.",
+    "server_stop_failed": "Unable to stop the MSW editor server.",
     "sticker_dir_invalid": "Sticker directory does not exist.",
     "config_save_failed": "Local configuration could not be saved.",
     "custom_prompt_required": "A custom prompt is required.",
@@ -264,7 +264,7 @@ def _macos_mose_executable(app_path: Path) -> Path | None:
 
 
 def _mose_search_paths() -> list[Path]:
-    """Return the optional MOSE paths that the MAW Launcher will inspect."""
+    """Return the optional MOSE paths that the MSW Launcher will inspect."""
     candidates: list[Path] = []
     registered = _registered_mose_executable()
     if registered is not None:
@@ -298,7 +298,7 @@ def _mose_search_paths() -> list[Path]:
                 executable_dir.parent.parent.parent / "mose.app",
             ]
             # In a normal PyInstaller .app, sys.executable is inside
-            # MAW.app/Contents/MacOS. Derive the sibling from the actual .app
+            # MSW.app/Contents/MacOS. Derive the sibling from the actual .app
             # ancestor instead of relying on a fixed number of parent levels;
             # this also works when the bundle is launched through a symlink or
             # when PyInstaller changes its internal layout.
@@ -331,7 +331,7 @@ def _mose_search_paths() -> list[Path]:
 
 
 def _find_mose_executable() -> Path | None:
-    """Find the optional MOSE executable or macOS app bundle for the MAW Launcher."""
+    """Find the optional MOSE executable or macOS app bundle for the MSW Launcher."""
     seen: set[Path] = set()
     for candidate in _mose_search_paths():
         if sys.platform == "darwin" and candidate.suffix.lower() == ".app":
@@ -352,7 +352,7 @@ def _find_mose_executable() -> Path | None:
 
 
 def _mose_environment() -> dict[str, str]:
-    """Pass the bundled MAW FFmpeg directory to MOSE when the apps are siblings."""
+    """Pass the bundled MSW FFmpeg directory to MOSE when the apps are siblings."""
     environment = os.environ.copy()
     bundled_directory = _bundled_ffmpeg_directory()
     if bundled_directory is not None:
@@ -371,7 +371,7 @@ def _register_mosp_association() -> bool:
         return False
     # MOSE.exe already embeds the MOSE icon.  Referencing the executable keeps
     # the association self-contained in the portable bundle and avoids pointing
-    # Explorer at MAW's launcher icon (or at a stale _MEIPASS path).
+    # Explorer at MSW's launcher icon (or at a stale _MEIPASS path).
     icon = executable
     try:
         import winreg
@@ -444,7 +444,7 @@ class EventPump:
         window = self.window_getter()
         if window is None:
             return
-        script = f"window.MAWLauncher && window.MAWLauncher.onBackendEvents({json.dumps(batch, ensure_ascii=False)})"
+        script = f"window.MSWLauncher && window.MSWLauncher.onBackendEvents({json.dumps(batch, ensure_ascii=False)})"
         window.evaluate_js(script)
 
     def shutdown(self) -> None:
@@ -464,17 +464,17 @@ class LauncherPaths:
 
 
 def default_paths() -> LauncherPaths:
-    # 冻结（PyInstaller / AppImage）时资源在 sys._MEIPASS（如 dist/MAW/_internal），
+    # 冻结（PyInstaller / AppImage）时资源在 sys._MEIPASS（如 dist/MSW/_internal），
     # 源码运行时在仓库根；与 maw.gui_platform.asset_path 的取法保持一致。
     root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
     return LauncherPaths(root=root, env_path=DEFAULT_ENV_PATH, launcher_html=root / "web" / "launcher" / "index.html")
 
 
 def _independent_app_child_environment() -> dict[str, str]:
-    """为独立运行的 MAW 子进程构建环境。
+    """为独立运行的 MSW 子进程构建环境。
 
     PyInstaller 6.9+ 默认把通过同一冻结程序启动的进程当作 worker。
-    编辑器 Server 是独立 MAW 实例，必须重置 bootloader 环境；源码模式
+    编辑器 Server 是独立 MSW 实例，必须重置 bootloader 环境；源码模式
     和外部 Python 解释器维持原行为。
     """
     environment = _child_environment(os.environ, "", provider="")
@@ -487,7 +487,7 @@ def _independent_app_child_environment() -> dict[str, str]:
 # 段落标题的 keycap 表情（1️⃣ 等）由「数字 + U+FE0F + U+20E3」组成，需要彩色 emoji 字体
 # 完整覆盖才可正常成型；部分 Linux 发行版（如 SteamOS 的 Twemoji）缺少 U+FE0F，会渲染成
 # 「3x」。Windows / macOS 系统 emoji 字体已覆盖 keycap，无需额外处理。
-# Linux 下首次启动时按顺序尝试以下地址下载到 MAW 用户数据目录，成功即缓存，之后离线可用；
+# Linux 下首次启动时按顺序尝试以下地址下载到 MSW 用户数据目录，成功即缓存，之后离线可用；
 # 可通过 MAW_EMOJI_FONT_URL 环境变量整体覆盖（例如指向其它可用镜像）。
 _EMOJI_FONT_MIN_BYTES = 1_000_000
 _EMOJI_FONT_REMOTE_URLS: Final[Sequence[str]] = (
@@ -498,7 +498,7 @@ _EMOJI_FONT_REMOTE_URLS: Final[Sequence[str]] = (
 
 
 def _emoji_font_cache_path() -> Path:
-    """返回 MAW 用户数据目录中的 Emoji 字体缓存路径。"""
+    """返回 MSW 用户数据目录中的 Emoji 字体缓存路径。"""
     return default_emoji_font_path()
 
 
@@ -1314,7 +1314,7 @@ class LauncherApi:
     def choose_file(self, payload: Mapping[str, object]) -> dict[str, object]:
         kind = str(payload.get("kind") or "media")
         if kind == "json":
-            file_types = ("MAW projects (*.mosp;*.json)",)
+            file_types = ("MSW projects (*.mosp;*.json)",)
         elif kind == "subtitle":
             file_types = ("Subtitle files (*.mosp;*.json;*.srt)",)
         elif kind == "subtitle-burn":
@@ -1689,7 +1689,7 @@ class LauncherApi:
         }
 
     def get_server_status(self, payload: Mapping[str, object]) -> dict[str, object]:
-        """Report a responding MAW server on the currently selected localhost port."""
+        """Report a responding MSW server on the currently selected localhost port."""
         port = _port(payload)
         url = f"http://127.0.0.1:{port}/"
         if not _wait_for_server(
@@ -3408,13 +3408,13 @@ def _process_command_line(pid: int) -> str:
 
 
 def _maw_server_process_id(port: int) -> int | None:
-    """Recognise only MAW's frozen --serve process or its checked-out serve.py command."""
+    """Recognise only MSW's frozen --serve process or its checked-out serve.py command."""
     pid = _listening_process_id(port)
     if pid is None:
         return None
     command = _process_command_line(pid).lower().replace("/", "\\")
     is_frozen_maw = any(flag in command for flag in ("--serve", "--server")) and bool(
-        re.search(r"(?:^|[\\\"\s])maw\.exe(?:[\\\"\s]|$)", command)
+        re.search(r"(?:^|[\\\"\s])m(?:aw|sw)\.exe(?:[\\\"\s]|$)", command)
     )
     is_source_maw = "server-editor\\serve.py" in command or (
         "maw_gui.py" in command and "--server" in command
@@ -3423,7 +3423,7 @@ def _maw_server_process_id(port: int) -> int | None:
 
 
 def _stop_external_maw_server(port: int) -> bool:
-    """Stop a verified MAW editor process without touching another local service."""
+    """Stop a verified MSW editor process without touching another local service."""
     pid = _maw_server_process_id(port)
     if pid is None:
         return False
@@ -3498,7 +3498,7 @@ def _frozen_ffmpeg_preflight(env_path: Path) -> dict[str, object] | None:
     return _error_result(
         "ffmpegPath",
         "ffmpeg_missing",
-        "One or both required tools (ffmpeg and ffprobe) were not found in this MAW package, FFMPEG_PATH, or PATH.",
+        "One or both required tools (ffmpeg and ffprobe) were not found in this MSW package, FFMPEG_PATH, or PATH.",
     )
 
 

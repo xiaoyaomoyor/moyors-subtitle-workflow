@@ -2,27 +2,27 @@
 
 > 注意：当前为 beta 版本，未经过充分测试，不保证后续的维护和更新，请谨慎使用。
 
-MAW 当前的正式入口仍然是云端 ASR。这个页面记录本地模型流程的第一版：
+MSW 当前的正式入口仍然是云端 ASR。这个页面记录本地模型流程的第一版：
 
 ```text
-本地媒体 -> SenseVoice / Fun-ASR-Nano / Qwen3-ASR / MOSS Transcribe-Diarize / Paraformer / Faster-Whisper -> MAW 统一时间戳 -> SRT + .mosp -> MAWE
+本地媒体 -> SenseVoice / Fun-ASR-Nano / Qwen3-ASR / MOSS Transcribe-Diarize / Paraformer / Faster-Whisper -> MSW 统一时间戳 -> SRT + .mosp -> MSWE
 ```
 
-Launcher 已提供实验性的「本地模型」识别方式，入口仍复用同一套媒体、输出和 MAWE 流程，而不是另做一套 UI。Windows 打包版可以直接在 Launcher 中安装本地运行环境；详细范围见 [MAW 1.2 本地模型 Launcher 开发记录](dev/MAW%201.2%20本地模型%20Launcher%20开发记录.md)。
+Launcher 已提供实验性的「本地模型」识别方式，入口仍复用同一套媒体、输出和 MSWE 流程，而不是另做一套 UI。Windows 打包版可以直接在 Launcher 中安装本地运行环境；详细范围见 [MSW 1.2 本地模型 Launcher 开发记录](dev/MSW%201.2%20本地模型%20Launcher%20开发记录.md)。
 
 ## MOSS Transcribe-Diarize
 
 MOSS Transcribe-Diarize 0.9B 是 Apache-2.0 许可的端到端转写与说话人分离模型。官方在 AISHELL-4、Alimeeting、Podcast 和 Movies 多说话人基准上报告了较低的 CER / cpCER，适合会议、访谈、播客和多人视频；说话人标签是当前音频内的相对编号（如 `S01`），不是跨文件的真实身份。
 
-MAW 通过独立的 MOSS 运行环境加载它：MOSS 需要 Transformers 5.x，而 QwenASR 运行环境固定使用 Transformers 4.x，因此两者不能安装在同一个环境中。Launcher 选择 MOSS 后，安装按钮会使用 Python 3.12 创建 `local-runtime-moss`，模型缓存仍使用统一的 Hugging Face 缓存目录。MOSS 需要 `trust_remote_code` 加载上游模型代码；MAW 对默认模型固定了 Hugging Face 模型仓库提交 `e8681d68...`，对 GitHub 推理包固定了提交 `e607537b...`。首次使用前仍请确认你信任 OpenMOSS 的模型仓库。使用 `--model` 指定其他模型时，MAW 不会替它推断或套用 revision；这类自定义模型会按其自身的远程代码配置加载。
+MSW 通过独立的 MOSS 运行环境加载它：MOSS 需要 Transformers 5.x，而 QwenASR 运行环境固定使用 Transformers 4.x，因此两者不能安装在同一个环境中。Launcher 选择 MOSS 后，安装按钮会使用 Python 3.12 创建 `local-runtime-moss`，模型缓存仍使用统一的 Hugging Face 缓存目录。MOSS 需要 `trust_remote_code` 加载上游模型代码；MSW 对默认模型固定了 Hugging Face 模型仓库提交 `e8681d68...`，对 GitHub 推理包固定了提交 `e607537b...`。首次使用前仍请确认你信任 OpenMOSS 的模型仓库。使用 `--model` 指定其他模型时，MSW 不会替它推断或套用 revision；这类自定义模型会按其自身的远程代码配置加载。
 
-MOSS 单次推理最多约 90 分钟，MAW 不对它做分块，以免不同块中的 `S01` / `S02` 失去跨长音频的一致性。它会把秒级浮点时间戳转换为 MAW 要求的整数毫秒，并保留每个字幕段的 `speaker` 字段。CPU 可以运行但预计较慢，建议使用 CUDA；首次验证建议使用 30 秒、包含两位说话人的中文音频。MOSS 的公开评测主要集中在中文多人场景，其他语言应先用自己的音频验收。
+MOSS 单次推理最多约 90 分钟，MSW 不对它做分块，以免不同块中的 `S01` / `S02` 失去跨长音频的一致性。它会把秒级浮点时间戳转换为 MSW 要求的整数毫秒，并保留每个字幕段的 `speaker` 字段。CPU 可以运行但预计较慢，建议使用 CUDA；首次验证建议使用 30 秒、包含两位说话人的中文音频。MOSS 的公开评测主要集中在中文多人场景，其他语言应先用自己的音频验收。
 
 MOSS 推理期间，Launcher 的日志会先显示输入准备状态，再按约 5 秒更新一次真实的“已生成 token 数”，结束时显示本次生成总数。上游没有可预知的最终输出长度，因此这里不计算百分比；如果首个 token 之前停留较久，仍属于音频特征准备或模型生成首 token 阶段。
 
 ## OpenAI Whisper（faster-whisper）
 
-faster-whisper 使用 CTranslate2 运行时实现 OpenAI Whisper 模型，自带 Silero VAD、30 秒滑动窗口和词级时间戳，长音频由上游内部处理，MAW 不再分块（`--batch-size-s` 对该引擎无效）。MAW 固定开启词级时间戳与 VAD 过滤并关闭跨段上下文（避免一句幻觉污染后续字幕），词级秒级时间戳会归一化为 MAW 要求的整数毫秒；句段拆分交给与 Qwen 路径相同的统一切句逻辑。
+faster-whisper 使用 CTranslate2 运行时实现 OpenAI Whisper 模型，自带 Silero VAD、30 秒滑动窗口和词级时间戳，长音频由上游内部处理，MSW 不再分块（`--batch-size-s` 对该引擎无效）。MSW 固定开启词级时间戳与 VAD 过滤并关闭跨段上下文（避免一句幻觉污染后续字幕），词级秒级时间戳会归一化为 MSW 要求的整数毫秒；句段拆分交给与 Qwen 路径相同的统一切句逻辑。
 
 CLI 默认模型为 `large-v3`（对应 Hugging Face Hub 的 Systran CTranslate2 版本），也可以使用 `small`、`turbo`、`distil-large-v3` 等名称或已转换好的本地 CTranslate2 目录：
 
@@ -36,7 +36,7 @@ uv run python generate_subtitle_local.py "D:\Videos\example.mp4" `
   --engine whisper --model large-v3-turbo --language zh --length-limit 30s --json
 ```
 
-热词通过 faster-whisper 的 `hotwords` 参数注入 decoder prompt，与 Qwen 路径的 context 提示类似，是提示而非保证命中的硬约束。按模型 ID 加载时同样遵循 `MAW_MODEL_CACHE_ROOT` 统一缓存根目录。该引擎不提供说话人分离（多人场景请用 MOSS）；GPU 推理需要用户自行安装 CUDA 12 与 cuDNN 9 库（CTranslate2 不复用 Torch 自带的 CUDA 依赖），设备选择为“自动”时如果 CUDA 运行库不可用会自动回退到 CPU，显式选择 CUDA 则保留错误。无 GPU 时以 int8 精度运行 CPU。Whisper 的词级时间戳来自交叉注意力对齐，精度低于 Qwen 的 Forced Aligner，静音处偶发幻觉属于上游已知行为；中文等非拉丁语言的验收请先用自己的音频进行。
+热词通过 faster-whisper 的 `hotwords` 参数注入 decoder prompt，与 Qwen 路径的 context 提示类似，是提示而非保证命中的硬约束。按模型 ID 加载时同样遵循 `MSW_MODEL_CACHE_ROOT` 统一缓存根目录。该引擎不提供说话人分离（多人场景请用 MOSS）；GPU 推理需要用户自行安装 CUDA 12 与 cuDNN 9 库（CTranslate2 不复用 Torch 自带的 CUDA 依赖），设备选择为“自动”时如果 CUDA 运行库不可用会自动回退到 CPU，显式选择 CUDA 则保留错误。无 GPU 时以 int8 精度运行 CPU。Whisper 的词级时间戳来自交叉注意力对齐，精度低于 Qwen 的 Forced Aligner，静音处偶发幻觉属于上游已知行为；中文等非拉丁语言的验收请先用自己的音频进行。
 
 ## 安装可选依赖
 
@@ -46,9 +46,9 @@ uv run python generate_subtitle_local.py "D:\Videos\example.mp4" `
 uv sync --group local
 ```
 
-这会安装 `qwen-asr`、FunASR 1.3.29+、faster-whisper（CTranslate2 运行时）、`torchaudio` 和它们需要的推理运行时。在 Windows 上，MAW 会从 PyTorch 官方 CUDA 13.0 索引安装 GPU 版 Torch / TorchAudio；默认设备选择会优先使用 CUDA，不可用时才回退 CPU。模型权重由上游运行时按模型 ID 下载到其缓存目录，不会写入仓库，也不会由 MAW 自动管理。
+这会安装 `qwen-asr`、FunASR 1.3.29+、faster-whisper（CTranslate2 运行时）、`torchaudio` 和它们需要的推理运行时。在 Windows 上，MSW 会从 PyTorch 官方 CUDA 13.0 索引安装 GPU 版 Torch / TorchAudio；默认设备选择会优先使用 CUDA，不可用时才回退 CPU。模型权重由上游运行时按模型 ID 下载到其缓存目录，不会写入仓库，也不会由 MSW 自动管理。
 
-普通用户不需要执行这个命令。Windows 打包版选择「本地模型」后，点击「安装本地模型支持」即可由 GUI 在 `%LOCALAPPDATA%\\MAW\\local-runtime` 创建独立 Python 环境并安装同一组依赖；安装完成后再点击「下载模型」。运行环境和模型缓存分别位于 `local-runtime` 与 `model-cache`，安装失败可以重试或修复，模型下载可以重新扫描。Launcher 的「模型保存目录」可以改到其他磁盘，设置会保存到 MAW 的 `.env`；Release 版优先使用应用程序同目录的 `.env`，不存在时使用 `%LOCALAPPDATA%\\MAW\\.env`，源码开发仍使用仓库根 `.env`。该设置同时作用于 Hugging Face 与 ModelScope 缓存。
+普通用户不需要执行这个命令。Windows 打包版选择「本地模型」后，点击「安装本地模型支持」即可由 GUI 在 `%LOCALAPPDATA%\\MSW\\local-runtime` 创建独立 Python 环境并安装同一组依赖；安装完成后再点击「下载模型」。运行环境和模型缓存分别位于 `local-runtime` 与 `model-cache`，安装失败可以重试或修复，模型下载可以重新扫描。Launcher 的「模型保存目录」可以改到其他磁盘，设置会保存到 MSW 的 `.env`；Release 版优先使用应用程序同目录的 `.env`，不存在时使用 `%LOCALAPPDATA%\\MSW\\.env`，源码开发仍使用仓库根 `.env`。该设置同时作用于 Hugging Face 与 ModelScope 缓存。
 
 ## 命令行用法
 
@@ -92,12 +92,12 @@ uv run python generate_subtitle_local.py "D:\Videos\meeting.mp4" `
   --engine moss --length-limit 30s --device cuda --speaker-colors --json
 ```
 
-`--model` 可以指定上游模型 ID，`--model-path` 可以指定已经下载好的本地模型目录。Qwen3-ASR 0.6B 和 1.7B 都默认加载 `Qwen/Qwen3-ForcedAligner-0.6B`，以输出可编辑字幕所需的词级时间戳；它不是可选增强。SenseVoice 默认配合 FSMN-VAD 并保留句级时间戳，Fun-ASR-Nano 默认配合 FSMN-VAD 请求句级时间戳；如果上游返回字符级时间戳，MAW 会再按标点和静音切分，否则至少按 VAD 语音区间生成字幕。默认 `--device auto` 会优先使用 CUDA；如需排查兼容性或没有 NVIDIA GPU，可显式传入 `--device cpu`。第一次验证建议加 `--length-limit 30s`。
+`--model` 可以指定上游模型 ID，`--model-path` 可以指定已经下载好的本地模型目录。Qwen3-ASR 0.6B 和 1.7B 都默认加载 `Qwen/Qwen3-ForcedAligner-0.6B`，以输出可编辑字幕所需的词级时间戳；它不是可选增强。SenseVoice 默认配合 FSMN-VAD 并保留句级时间戳，Fun-ASR-Nano 默认配合 FSMN-VAD 请求句级时间戳；如果上游返回字符级时间戳，MSW 会再按标点和静音切分，否则至少按 VAD 语音区间生成字幕。默认 `--device auto` 会优先使用 CUDA；如需排查兼容性或没有 NVIDIA GPU，可显式传入 `--device cpu`。第一次验证建议加 `--length-limit 30s`。
 
 不使用 Launcher 时，也可以通过环境变量指定统一的模型缓存根目录：
 
 ```powershell
-$env:MAW_MODEL_CACHE_ROOT = "D:\Models\MAW"
+$env:MSW_MODEL_CACHE_ROOT = "D:\Models\MSW"
 uv run python generate_subtitle_local.py "D:\Videos\example.mp4" --engine funasr --model iic/SenseVoiceSmall --json
 ```
 
@@ -130,7 +130,7 @@ uv run python generate_subtitle_local.py "D:\Videos\example.mp4" `
 
 ## 分段整理（字数上限 / 停顿切句）
 
-Launcher 与 CLI 的 `--max-len`（字符型每条最大字符数，默认 18）、`--min-len`（字符型短句合并阈值，默认 5）、`--max-words`（单词型每条最大单词数，默认 13）、`--min-words`（单词型短句合并阈值，默认 3）和 `--gap-split`（停顿切句毫秒，默认 800）会传给转写器。已知语言时由统一的 `split_mode` 选择字符型或单词型规则；没有语言元数据时，MAW 优先看文字脚本，能确认 CJK 就用字符型，无法确认的拉丁文本默认用单词型，但不会把它冒充成英语。
+Launcher 与 CLI 的 `--max-len`（字符型每条最大字符数，默认 18）、`--min-len`（字符型短句合并阈值，默认 5）、`--max-words`（单词型每条最大单词数，默认 13）、`--min-words`（单词型短句合并阈值，默认 3）和 `--gap-split`（停顿切句毫秒，默认 800）会传给转写器。已知语言时由统一的 `split_mode` 选择字符型或单词型规则；没有语言元数据时，MSW 优先看文字脚本，能确认 CJK 就用字符型，无法确认的拉丁文本默认用单词型，但不会把它冒充成英语。
 
 MOSS 模型输出契约只有"段级"一对 start/end 时间戳（`[start][Sxx]文本[end]`），没有字词级时序。因此 MOSS 不再把整段伪造成字符/单词 `items`，也不对它做基于字数的硬切；每个模型段原样成为一条字幕。需要更细的时间码时，仍需后续接入 Qwen3-ForcedAligner 做强制对齐（尚未实现）。
 
@@ -144,7 +144,7 @@ MOSS 模型输出契约只有"段级"一对 start/end 时间戳（`[start][Sxx]�
 - Launcher 也列出 MOSS Transcribe-Diarize 0.9B；它使用单独的 `local-runtime-moss` 环境和 Hugging Face 缓存，不与 QwenASR / FunASR 运行环境混装。
 - MOSS 运行环境的依赖清单不含 `.ReaPeaks` 的 Rust 生成内核，因此 MOSS 转写不生成 `.ReaPeaks` 波形/频谱缓存：日志会说明跳过原因，`.mosp` 仍带原生波形缓存，编辑器自动回退到它。需要 `.ReaPeaks` 时用 QwenASR / FunASR / faster-whisper 处理同一媒体即可，缓存写在媒体旁边，MOSS 的工程也能读到。
 - Launcher 可以把模型缓存切换到自定义目录；它参考了 [Voicebox 的模型目录配置方式](https://github.com/jamiepine/voicebox/blob/main/backend/config.py)，把运行环境和 Hugging Face / ModelScope 模型缓存分开管理。
-- Qwen3-ASR 0.6B 和 1.7B 都使用同一个 Forced Aligner；时间戳按秒读取并归一化为 MAW 要求的整数毫秒。FunASR 的常见句级/字词级时间戳也会归一化为同一格式。
+- Qwen3-ASR 0.6B 和 1.7B 都使用同一个 Forced Aligner；时间戳按秒读取并归一化为 MSW 要求的整数毫秒。FunASR 的常见句级/字词级时间戳也会归一化为同一格式。
 - Qwen3-ASR 长音频采用独立的 FFmpeg 分块识别，默认每块 30 秒，并在合并前恢复原始时间偏移，避免单次生成长度限制导致后半段字幕缺失。
 - 当模型没有可可靠映射的词级时间戳时，仍保留句级字幕，不人为伪造字词边界。
 - faster-whisper 在 Launcher「本地模型」中提供 large-v3 入口，与 Qwen/FunASR 共用同一本地运行环境；因 local dependency group 新增依赖（faster-whisper / CTranslate2），运行环境版本升级为 6，已有安装会提示重新安装或修复一次以补齐依赖。「下载模型」同样复用其 Hugging Face 上游加载器；Silero VAD 与分块由上游内部处理，`--batch-size-s` 对它无效。
@@ -157,6 +157,6 @@ MOSS 模型输出契约只有"段级"一对 start/end 时间戳（`[start][Sxx]�
 
 ## 模型准备的中断与继续
 
-Launcher 会复用 Hugging Face / ModelScope 已经写入的缓存文件，因此重新准备同一个模型时通常会从已有缓存继续；上游加载器是否能对单个仍在下载的临时文件做到字节级续传，不由 MAW 保证。准备界面会显示已写入的文件数和字节数，并给出按模型类型计算的粗略总量区间，百分比仅用于判断大致进度。
+Launcher 会复用 Hugging Face / ModelScope 已经写入的缓存文件，因此重新准备同一个模型时通常会从已有缓存继续；上游加载器是否能对单个仍在下载的临时文件做到字节级续传，不由 MSW 保证。准备界面会显示已写入的文件数和字节数，并给出按模型类型计算的粗略总量区间，百分比仅用于判断大致进度。
 
-准备时间过长时可以点击「取消准备」。MAW 会终止当前模型加载子进程并保留缓存，取消完成后即可切换到其他模型；切换模型不会复用不相关模型的权重，但 Qwen3-ASR 的两个选项会共用 Forced Aligner 缓存。
+准备时间过长时可以点击「取消准备」。MSW 会终止当前模型加载子进程并保留缓存，取消完成后即可切换到其他模型；切换模型不会复用不相关模型的权重，但 Qwen3-ASR 的两个选项会共用 Forced Aligner 缓存。

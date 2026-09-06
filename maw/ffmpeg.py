@@ -1,4 +1,4 @@
-"""Resolve the FFmpeg tools used by every MAW media entry point.
+"""Resolve the FFmpeg tools used by every MSW media entry point.
 
 The application can run from source, from a PyInstaller bundle, or with a
 user-supplied FFmpeg installation.  Keeping the lookup order here prevents a

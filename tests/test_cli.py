@@ -12,7 +12,7 @@ from maw import cli
 
 class CliTests(unittest.TestCase):
     def test_parser_accepts_srt_and_optional_mosp_outputs(self) -> None:
-        args = cli.build_parser("MAW.exe").parse_args(
+        args = cli.build_parser("MSW.exe").parse_args(
             ["-i", "clip.mp3", "-o", "clip.srt", "clip.mosp"]
         )
 
@@ -22,7 +22,7 @@ class CliTests(unittest.TestCase):
         self.assertIsNone(args.stop_server)
 
     def test_openai_provider_forwards_base_url_to_generator(self) -> None:
-        args = cli.build_parser("MAW.exe").parse_args(
+        args = cli.build_parser("MSW.exe").parse_args(
             [
                 "--provider",
                 "openai",
@@ -117,7 +117,7 @@ class CliTests(unittest.TestCase):
             self.assertIn("--no-html", invoke.call_args.args[1])
 
     def test_provider_options_are_forwarded_without_exposing_secrets(self) -> None:
-        args = cli.build_parser("MAW.exe").parse_args(
+        args = cli.build_parser("MSW.exe").parse_args(
             [
                 "--provider",
                 "qwen",
@@ -130,7 +130,7 @@ class CliTests(unittest.TestCase):
                 "--hotword",
                 "Moy",
                 "--hotword",
-                "MAW",
+                "MSW",
                 "--speaker-colors",
                 "--with-waveform",
                 "--with-spectral",
@@ -144,7 +144,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("--with-spectral", generated)
         self.assertEqual(
             [generated[index + 1] for index, value in enumerate(generated) if value == "--hotword"],
-            ["Moy", "MAW"],
+            ["Moy", "MSW"],
         )
         self.assertNotIn("workspace-1", generated)
 
@@ -186,7 +186,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
 
     def test_soniox_context_json_is_forwarded_to_soniox_generator(self) -> None:
-        args = cli.build_parser("MAW.exe").parse_args(
+        args = cli.build_parser("MSW.exe").parse_args(
             [
                 "--provider",
                 "soniox",
@@ -202,7 +202,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(generated[generated.index("--context-json") + 1], '{"terms":["MRI"]}')
 
     def test_tencent_forwards_debug_and_speaker_flags(self) -> None:
-        args = cli.build_parser("MAW.exe").parse_args(
+        args = cli.build_parser("MSW.exe").parse_args(
             [
                 "--provider", "tencent", "-i", "clip.mp3", "--debug", "--speaker",
                 "--strip-tail-punct", "，。！？",

@@ -202,7 +202,7 @@ class ReaPeaksParseTests(unittest.TestCase):
         self.assertIsNone(reapeaks.load_waveform_payload(self.media_path))
 
     def test_legacy_zero_metadata_cache_degrades(self) -> None:
-        # 旧版 MAW 缓存头部源元数据为 0，无法证明来源，视为失效。
+        # 旧版 MSW 缓存头部源元数据为 0，无法证明来源，视为失效。
         media = self.root / "legacy.mp3"
         media.write_bytes(b"\x00" * 8)
         os.utime(media, (FIXED_MTIME, FIXED_MTIME))
@@ -265,7 +265,7 @@ class ReaPeaksParseTests(unittest.TestCase):
 
 
 class GenerateReaPeaksTests(unittest.TestCase):
-    """生成 → 解析 往返：验证 MAW 能自建 .ReaPeaks 并被只读路径读取。"""
+    """生成 → 解析 往返：验证 MSW 能自建 .ReaPeaks 并被只读路径读取。"""
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()

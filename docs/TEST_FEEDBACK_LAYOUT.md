@@ -33,7 +33,7 @@
 - 反馈 5：`web/launcher/launcher.css` / `web/launcher/launcher.js` 覆盖文稿预览、批量详情、模型列表、日志、工具箱结果 / 输出等滚动区域；`web/editor.css` 同步覆盖编辑器列表、波形、设置面板、导入文稿预览等区域，统一为 `thin` 与 6px，并让滚动条闪现绑定覆盖 Launcher 内部区域。浏览器断言通过。
 - 反馈 6：在字幕列表工具栏的数量计数增加 `.cue-list-count` 标记，`cue-list` 容器宽度不足时隐藏该计数，保留字幕标题、搜索框和设置齿轮。
 - 反馈 7：`web/editor-template.html` 将字幕语言提示独立为「字幕语言类型」分组，使用 `editor-settings-item` 样式并显示 `当前为「单词型」（适用于英文、俄文等）` / `当前为「字符型」（适用于中文、日文等）` 说明，置于合并插入设置上方；合并插入文本框收窄为 100px 目标宽度并允许更窄容器继续收缩；拆分标点改为「配置拆分标点」按钮，沿用原有控件与持久化逻辑，在固定定位浮窗中配置，并支持点击外部或 Esc 关闭。
-- 反馈 8：`tests/e2e/helpers.mjs` 默认使用 `uv run --frozen python` 启动 `edit.py`、`server-editor` 和 `server-align`，不再把系统解释器与仓库 `.venv` 的 `site-packages` 混用；`MAW_E2E_PYTHON` 仅作为显式解释器覆盖，并保留清晰的 `uv sync` 提示。
+- 反馈 8：`tests/e2e/helpers.mjs` 默认使用 `uv run --frozen python` 启动 `edit.py`、`server-editor` 和 `server-align`，不再把系统解释器与仓库 `.venv` 的 `site-packages` 混用；`MSW_E2E_PYTHON` 仅作为显式解释器覆盖，并保留清晰的 `uv sync` 提示。
 - 反馈 9：全局设置中新增字幕语言类型 hint；「配置合并字符」与「配置拆分标点」并排显示，合并字符输入项移入独立浮窗，两个浮窗均支持定位、点击外部关闭和 Esc 关闭。
 - 反馈 10：`web/editor.css` 为批量操作下拉按钮及「仅看超长」按钮增加可收缩的最小宽度、单行和省略号规则；新增布局回归覆盖 180px 窄工具栏，确认两个按钮不换行且保持可见。
 
@@ -47,7 +47,7 @@
 - `npx playwright test tests/e2e/layout-feedback.spec.mjs --reporter=line`：2/2 通过（提升权限运行，普通沙箱启动 Chromium 会返回 `spawn EPERM`）。
 - `npx playwright test tests/e2e/waveform-history.spec.mjs --project=chromium --grep "removes adjacent corner radii" --reporter=line`：1/1 通过（真实普通多行波形跨 5 秒边界；`edit.py` 与 `server-editor` 均由 helper 默认的 `uv run --frozen python` 启动）。
 - `npx playwright test tests/e2e/multi-subtitle.spec.mjs --project=chromium --grep "keeps adjacent corners square" --reporter=line`：1/1 通过（不设置覆盖变量，helper 默认使用 `uv run --frozen python`，真实多重字幕双轨主、副字幕同时跨 5 秒边界）。
-- `$env:MAW_E2E_PYTHON = (Resolve-Path .venv\Scripts\python.exe).Path; npx playwright test tests/e2e/multi-subtitle.spec.mjs --project=chromium --grep "keeps adjacent corners square" --reporter=line`：1/1 通过（显式解释器覆盖仍可用）。
+- `$env:MSW_E2E_PYTHON = (Resolve-Path .venv\Scripts\python.exe).Path; npx playwright test tests/e2e/multi-subtitle.spec.mjs --project=chromium --grep "keeps adjacent corners square" --reporter=line`：1/1 通过（显式解释器覆盖仍可用）。
 - `node --check tests/e2e/helpers.mjs`：通过。
 - `npx playwright test tests/e2e/cue-list-count-layout.spec.mjs --project=chromium --reporter=line`：1/1 通过（620 / 480 / 360 宽度）。
 - `npx playwright test tests/e2e/cue-list-action-buttons-layout.spec.mjs --project=chromium --reporter=line`：1/1 通过（180px 窄工具栏中的两个操作按钮；提升权限运行）。
@@ -103,4 +103,4 @@
 
 - 本轮新增 Launcher 异步初始化与本地模型状态回归、云端/本地 ASR 时间码回退回归均通过；定向回归累计 76 项通过。
 - 全量 Chromium Playwright 已执行 295 项，281 项通过、14 项失败；失败涉及候选未改动的编辑器既有交互/多字幕断言、main 已有的帧字段与 gap 元数据/间隔语义、英文合并空格，以及一个旧工程加载竞态，未涉及本轮 Launcher 异步初始化或 ASR provider 时间码防御改动。
-- 最终验证：`.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"` 通过（1139 项，跳过 6 项）；`MAW_TEST_PYTHON=.venv\Scripts\python.exe node --test tests\test_editor_utils.mjs tests\test_waveform_js.mjs` 通过（269/269）；`.venv\Scripts\ruff.exe check .`、3 个前端入口语法检查和 `git diff --check` 均通过。
+- 最终验证：`.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"` 通过（1139 项，跳过 6 项）；`MSW_TEST_PYTHON=.venv\Scripts\python.exe node --test tests\test_editor_utils.mjs tests\test_waveform_js.mjs` 通过（269/269）；`.venv\Scripts\ruff.exe check .`、3 个前端入口语法检查和 `git diff --check` 均通过。

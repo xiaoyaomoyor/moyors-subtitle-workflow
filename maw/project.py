@@ -1,4 +1,4 @@
-"""Strict MAW project JSON boundary shared by CLI and local server."""
+"""Strict MSW project JSON boundary shared by CLI and local server."""
 
 from __future__ import annotations
 
@@ -180,7 +180,7 @@ class ProjectValidationResult:
 
 @final
 class ProjectValidationFailed(ValueError):
-    """Raised when a project cannot cross the strict MAW boundary."""
+    """Raised when a project cannot cross the strict MSW boundary."""
 
     def __init__(self, errors: tuple[ProjectValidationError, ...]) -> None:
         self.errors: tuple[ProjectValidationError, ...] = errors
@@ -191,7 +191,7 @@ class ProjectValidationFailed(ValueError):
 
 
 def validate_project(project: JsonValue, preview_duration_ms: int | None = None) -> ProjectValidationResult:
-    """Validate and normalize one JSON-loaded MAW project without sorting or coercing."""
+    """Validate and normalize one JSON-loaded MSW project without sorting or coercing."""
     errors: list[ProjectValidationError] = []
     normalized = _normalize_copy(project, errors)
     if preview_duration_ms is not None and not _is_int_ms(preview_duration_ms):
@@ -203,7 +203,7 @@ def validate_project(project: JsonValue, preview_duration_ms: int | None = None)
 
 
 def normalize_project(project: JsonValue, preview_duration_ms: int | None = None) -> JsonDict:
-    """Return a normalized MAW project or raise path-qualified validation errors."""
+    """Return a normalized MSW project or raise path-qualified validation errors."""
     result = validate_project(project, preview_duration_ms=preview_duration_ms)
     if result.project is None:
         raise ProjectValidationFailed(result.errors)
@@ -360,7 +360,7 @@ def _normalize_stable_ids(
     """Fill IDs omitted by legacy projects and validate explicit IDs.
 
     IDs are intentionally opaque strings. Missing IDs are the one legacy case we
-    repair because old MAW projects did not have them; malformed or duplicate
+    repair because old MSW projects did not have them; malformed or duplicate
     explicit IDs are reported rather than silently retargeting bindings.
     """
     reserved = {

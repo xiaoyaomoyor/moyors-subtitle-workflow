@@ -402,7 +402,7 @@ LOCAL_MODELS: Final[tuple[ModelConfig, ...]] = (
         id="moss-transcribe-diarize-local",
         label="MOSS Transcribe-Diarize 0.9B（无字词时间码）",
         env_key="",
-        # 无字词级时间码是 MOSS 输出契约的硬限制；MAW 不伪造 items，也不对
+        # 无字词级时间码是 MOSS 输出契约的硬限制；MSW 不伪造 items，也不对
         # 模型段做字数硬切，必须在模型说明里提前告知。
         note="端到端转写与说话人分离；仅段级时间戳，无字词级时间码；需要独立的 Transformers 5.x 运行环境，建议 CUDA",
         supports_speaker=True,

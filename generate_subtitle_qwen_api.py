@@ -5,7 +5,7 @@
 特点：
 - 无需 GPU、模型权重，只调 API（DASHSCOPE_API_KEY）
 - 走 filetrans 异步模式，原生支持字/词级时间戳，最长 12 小时音频
-- Qwen-Audio / Fun-ASR 可选说话人分离，speaker 标签写入 MAW 工程
+- Qwen-Audio / Fun-ASR 可选说话人分离，speaker 标签写入 MSW 工程
 - Qwen-Audio 支持即时热词、预编译 vocabulary_id 和 context 上下文
 - 文件自动上传到 DashScope 临时 OSS（oss:// URL，48 小时有效）
 - 全程 RESTful API（不用 SDK，因为 SDK 不支持 oss:// 给 filetrans）
@@ -29,7 +29,7 @@ from pathlib import Path
 
 import requests
 
-from maw.stickers import get_default_sticker_dir
+from maw.stickers import get_default_sticker_dir, apply_msw_env_aliases
 from maw.app_paths import default_env_path
 from maw.project import repair_segment_durations
 from maw.qwen_audio import parse_qwen_audio_hotwords
@@ -65,8 +65,8 @@ POLL_HEARTBEAT_SECONDS = 15
 TASK_SUCCESS_STATUSES = frozenset({"SUCCEEDED", "SUCCESS", "COMPLETED", "COMPLETE"})
 TASK_FAILURE_STATUSES = frozenset({"FAILED", "FAILURE", "ERROR"})
 FFMPEG_MISSING_MESSAGE = (
-    "找不到 FFmpeg，请下载完整版 MAW（MAW-lite 不包含 FFmpeg）；"
-    "如果要继续使用 MAW-lite，请安装 FFmpeg，并确保 ffmpeg 与 ffprobe 已加入 PATH。"
+    "找不到 FFmpeg，请下载完整版 MSW（MSW-lite 不包含 FFmpeg）；"
+    "如果要继续使用 MSW-lite，请安装 FFmpeg，并确保 ffmpeg 与 ffprobe 已加入 PATH。"
 )
 
 
@@ -1392,7 +1392,7 @@ def parse_transcription_result(result: dict) -> dict:
 
 
 def parse_funasr_transcription_result(result: dict) -> dict:
-    """把 Fun-ASR/Qwen-Audio 的句级结果映射为 MAW items 和句子组。"""
+    """把 Fun-ASR/Qwen-Audio 的句级结果映射为 MSW items 和句子组。"""
     transcripts = result.get("transcripts", [])
     if not transcripts:
         return {
@@ -1868,6 +1868,7 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
 # ===== main CLI =====
 
 def main():
+    apply_msw_env_aliases()
     configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="使用阿里云百炼 Qwen / Qwen-Audio / Fun-ASR API 生成视频字幕（云端版）",

@@ -260,7 +260,7 @@ test('search filtering does not jump to the top when the selected subtitle is hi
 test('split trim chips and extra input drive shared trim behavior and persist', async ({ page }) => {
   await waitEditorReady(page);
   await page.evaluate(() => {
-    window.MAWE_EDITOR_BRIDGE.setEditorSettingsPanelOpen(true);
+    window.MSWE_EDITOR_BRIDGE.setEditorSettingsPanelOpen(true);
   });
   const settingsToggle = page.locator('#split-trim-settings-toggle');
   const settingsPanel = page.locator('#split-trim-settings-panel');
@@ -315,7 +315,7 @@ test('split trim chips and extra input drive shared trim behavior and persist', 
 test('merge join hint shows detected main type; clicking pins and syncs the multi-subtitle dropdown', async ({ page }) => {
   await waitEditorReady(page);
   await page.evaluate(() => {
-    window.MAWE_EDITOR_BRIDGE.setEditorSettingsPanelOpen(true);
+    window.MSWE_EDITOR_BRIDGE.setEditorSettingsPanelOpen(true);
   });
   const hintText = page.locator('#merge-join-mode-text');
   const switchButton = page.locator('#merge-join-mode-switch');

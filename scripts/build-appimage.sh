@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 构建 MAW Linux AppImage。产物：build-appimage/MAW-Linux-x86_64.AppImage
+# 构建 MSW Linux AppImage。产物：build-appimage/MSW-Linux-x86_64.AppImage
 # 前置：系统需有 ffmpeg（生成图标）与 mksquashfs（appimagetool 内部使用）。
 set -euo pipefail
 
@@ -7,21 +7,21 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 BUILD_DIR="$REPO_ROOT/build-appimage"
-APP_DIR="$BUILD_DIR/MAW.AppDir"
+APP_DIR="$BUILD_DIR/MSW.AppDir"
 APPIMAGE_TOOL="$BUILD_DIR/appimagetool-x86_64.AppImage"
 APPIMAGE_URL="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
 mkdir -p "$BUILD_DIR"
 
-echo "==> 1/6 PyInstaller 构建 dist/MAW"
-# 生成托管 Runtime 的 frozen requirements txt（MAW.spec datas 条件追加打包）；
+echo "==> 1/6 PyInstaller 构建 dist/MSW"
+# 生成托管 Runtime 的 frozen requirements txt（MSW.spec datas 条件追加打包）；
 # 主清单与 CPU 变体统一由 freezer 模块执行（与 build-windows.ps1 /
 # release.yml / 源码模式自动补齐完全同源）。
 mkdir -p build
 uv run python -m maw.runtimes.freezer freeze --force
-uv run --group build pyinstaller --noconfirm --clean MAW.spec
+uv run --group build pyinstaller --noconfirm --clean MSW.spec
 # PyInstaller 6 places datas under _internal in an onedir bundle. Keep the
 # user-facing FAQ at the AppImage root as well, where users can find it easily.
-cp "FAQ-常见问题.txt" "dist/MAW/FAQ-常见问题.txt"
+cp "FAQ-常见问题.txt" "dist/MSW/FAQ-常见问题.txt"
 
 echo "==> 2/6 准备静态 ffmpeg（BtbN FFmpeg-Builds，固定 autobuild 版本）"
 FFMPEG_VERSION="N-126308-gd411d9e752"
@@ -50,16 +50,16 @@ if [ ! -x "$FFMPEG_DIR/bin/ffmpeg" ]; then
     chmod +x "$FFMPEG_DIR/bin/ffmpeg" "$FFMPEG_DIR/bin/ffprobe"
 fi
 # 放入 PyInstaller onedir 产物：frozen 时 _bundled_ffmpeg_directory() 查
-# sys.executable.parent / ffmpeg / bin（即 dist/MAW/ffmpeg/bin）。BtbN 包内
+# sys.executable.parent / ffmpeg / bin（即 dist/MSW/ffmpeg/bin）。BtbN 包内
 # 二进制位于解压根目录的 bin/ 子目录（与 johnvansickle 的根目录布局不同）。
-mkdir -p "dist/MAW/ffmpeg/bin"
-cp "$FFMPEG_DIR/bin/ffmpeg" "$FFMPEG_DIR/bin/ffprobe" "dist/MAW/ffmpeg/bin/"
+mkdir -p "dist/MSW/ffmpeg/bin"
+cp "$FFMPEG_DIR/bin/ffmpeg" "$FFMPEG_DIR/bin/ffprobe" "dist/MSW/ffmpeg/bin/"
 # GPL 合规：BtbN linux64-gpl 是 GPL 构建，分发须随附许可证文本与对应源码
 # 获取方式（GPLv3 §4 传递许可证副本、§6 提供源码书面要约）。GPLv3 全文
 # 优先从 gnu.org 拉取，失败时回退 GitHub 官方 SPDX 镜像（GitHub hosted
 # runner 上 gnu.org 偶发连接超时，curl (28) 会导致 AppImage 构建连带失败）；
 # SOURCE.txt 记录构建来源、归档地址与校验和。
-_GPL_TARGET="dist/MAW/ffmpeg/GPLv3.txt"
+_GPL_TARGET="dist/MSW/ffmpeg/GPLv3.txt"
 _GPL_TMP="${_GPL_TARGET}.tmp"
 rm -f "$_GPL_TMP"
 if curl --fail --location --silent --show-error --connect-timeout 15 --max-time 90 \
@@ -76,14 +76,14 @@ fi
 grep -q "GNU GENERAL" "$_GPL_TMP" || { rm -f "$_GPL_TMP"; echo "GPL 许可证文本内容校验失败" >&2; exit 1; }
 mv -f "$_GPL_TMP" "$_GPL_TARGET"
 test -s "$_GPL_TARGET"
-cat > "dist/MAW/ffmpeg/SOURCE.txt" <<EOF
+cat > "dist/MSW/ffmpeg/SOURCE.txt" <<EOF
 FFmpeg $FFMPEG_VERSION — BtbN FFmpeg-Builds linux64-gpl static build
 Build provider: https://github.com/BtbN/FFmpeg-Builds
 Original archive: $FFMPEG_URL
 Archive SHA-256: $FFMPEG_SHA256
 License: GPL-3.0 (full text in GPLv3.txt)
 Upstream FFmpeg source: https://github.com/FFmpeg/FFmpeg
-This MAW package includes only ffmpeg and ffprobe from the original build.
+This MSW package includes only ffmpeg and ffprobe from the original build.
 EOF
 echo "    静态 ffmpeg: $("$FFMPEG_DIR/bin/ffmpeg" -version 2>&1 | head -n 1)"
 
@@ -92,7 +92,7 @@ if [ -d "$APP_DIR" ]; then
     rm -r "$APP_DIR"
 fi
 mkdir -p "$APP_DIR"
-cp -a dist/MAW/. "$APP_DIR/"
+cp -a dist/MSW/. "$APP_DIR/"
 
 # PyInstaller 会把构建机（ubuntu-22.04，GCC 11）的 libstdc++/libgcc_s 收进
 # _internal。在系统 libstdc++ 更新的发行版（如 SteamOS 的 GCC 14）上，这两把
@@ -114,32 +114,32 @@ cat > "$APP_DIR/AppRun" <<'EOF'
 HERE="$(CDPATH= cd -- "$(dirname -- "$(readlink -f "$0")")" && pwd)"
 export QTWEBENGINE_DISABLE_SANDBOX=1
 export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:+$QTWEBENGINE_CHROMIUM_FLAGS }--no-sandbox"
-exec "$HERE/MAW" "$@"
+exec "$HERE/MSW" "$@"
 EOF
 chmod +x "$APP_DIR/AppRun"
 
-cat > "$APP_DIR/MAW.desktop" <<'EOF'
+cat > "$APP_DIR/MSW.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=MAW
-Name[zh_CN]=MAW
+Name=MSW
+Name[zh_CN]=MSW
 Comment=Moy's ASR Workflow - subtitle transcription and editing
 Comment[zh_CN]=Moy 的 ASR 工作流 - 字幕转写与编辑
-Exec=MAW
-Icon=MAW
+Exec=MSW
+Icon=MSW
 Terminal=false
 Categories=AudioVideo;AudioVideoEditing;
-StartupWMClass=MAW
+StartupWMClass=MSW
 EOF
 
-ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=256:256:flags=lanczos" "$APP_DIR/MAW.png"
+ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=256:256:flags=lanczos" "$APP_DIR/MSW.png"
 # 标准 hicolor 图标布局（appimagetool 与 AppImageLauncher / 文件管理器识别依赖它）
 mkdir -p "$APP_DIR/usr/share/icons/hicolor/256x256/apps"
-ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=256:256:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/MAW.png"
+ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=256:256:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/MSW.png"
 mkdir -p "$APP_DIR/usr/share/icons/hicolor/512x512/apps"
-ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=512:512:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/MAW.png"
+ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=512:512:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/MSW.png"
 mkdir -p "$APP_DIR/usr/share/applications"
-cp "$APP_DIR/MAW.desktop" "$APP_DIR/usr/share/applications/MAW.desktop"
+cp "$APP_DIR/MSW.desktop" "$APP_DIR/usr/share/applications/MSW.desktop"
 
 echo "==> 4/6 准备 appimagetool"
 if [ ! -x "$APPIMAGE_TOOL" ]; then
@@ -154,13 +154,13 @@ if [ ! -x "$APPIMAGE_TOOL" ]; then
 fi
 
 echo "==> 5/6 打包 AppImage"
-"$APPIMAGE_TOOL" --appimage-extract-and-run "$APP_DIR" "$BUILD_DIR/MAW-Linux-x86_64.AppImage"
+"$APPIMAGE_TOOL" --appimage-extract-and-run "$APP_DIR" "$BUILD_DIR/MSW-Linux-x86_64.AppImage"
 
 echo "==> 6/6 生成缩略图缓存（缺 libappimage 的系统上让文件管理器显示图标）"
-if uv run python "$REPO_ROOT/scripts/make-appimage-thumbnail.py" "$BUILD_DIR/MAW-Linux-x86_64.AppImage"; then
+if uv run python "$REPO_ROOT/scripts/make-appimage-thumbnail.py" "$BUILD_DIR/MSW-Linux-x86_64.AppImage"; then
     echo "    缩略图缓存已生成"
 else
     echo "    警告：缩略图缓存生成失败（不影响 AppImage 本身）"
 fi
 
-echo "==> 完成：$BUILD_DIR/MAW-Linux-x86_64.AppImage"
+echo "==> 完成：$BUILD_DIR/MSW-Linux-x86_64.AppImage"

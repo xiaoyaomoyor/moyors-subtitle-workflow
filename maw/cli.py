@@ -43,15 +43,15 @@ def _port_value(value: str) -> int:
 def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=prog or Path(sys.argv[0]).name,
-        description="MAW 命令行：直接转写媒体，或启动/停止本机字幕编辑器 Server。",
+        description="MSW 命令行：直接转写媒体，或启动/停止本机字幕编辑器 Server。",
         epilog=(
             "示例:\n"
-            "  MAW.exe -i \"clip.mp3\" -o \"clip.srt\" \"clip.mosp\"\n"
-            "  MAW.exe --provider soniox -i \"clip.mp4\" -o \"clip.srt\"\n"
-            "  MAW.exe --server 8250\n"
-            "  MAW.exe --stop-server 8250\n"
+            "  MSW.exe -i \"clip.mp3\" -o \"clip.srt\" \"clip.mosp\"\n"
+            "  MSW.exe --provider soniox -i \"clip.mp4\" -o \"clip.srt\"\n"
+            "  MSW.exe --server 8250\n"
+            "  MSW.exe --stop-server 8250\n"
             "\n"
-            "API Key 仍从环境变量或 MAW 本机 .env 读取，不要把密钥写进命令行。"
+            "API Key 仍从环境变量或 MSW 本机 .env 读取，不要把密钥写进命令行。"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -69,7 +69,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         nargs="?",
         const="",
         metavar="PORT",
-        help="停止指定端口上的 MAW Server；省略端口时使用 8250",
+        help="停止指定端口上的 MSW Server；省略端口时使用 8250",
     )
     parser.add_argument("--port", type=_port_value, help="用 --server/--stop-server 指定端口的另一种写法")
     parser.add_argument("server_project", nargs="?", metavar="PROJECT", help="Server 启动时打开的 .mosp/.json 工程")
@@ -108,7 +108,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--speaker", action="store_true", help="开启说话人分离")
     parser.add_argument("--speaker-colors", action="store_true", help="开启说话人分离并写入字幕颜色快照")
     parser.add_argument("-ll", "--length-limit", help="只处理媒体前 N 时长，例如 2m、20s、1h")
-    parser.add_argument("--json", dest="json_output", action="store_true", help="兼容旧 CLI；MAW CLI 默认总是生成 .mosp")
+    parser.add_argument("--json", dest="json_output", action="store_true", help="兼容旧 CLI；MSW CLI 默认总是生成 .mosp")
     parser.add_argument("--with-waveform", action="store_true", help="把波形峰值写入 .mosp 工程")
     parser.add_argument(
         "--with-spectral",
@@ -327,7 +327,7 @@ def _run_transcription(parser: argparse.ArgumentParser, args: argparse.Namespace
 
 
 def _generator_args(args: argparse.Namespace, input_path: Path, srt_path: Path) -> list[str]:
-    # Render the optional HTML in this process so frozen MAW can use the
+    # Render the optional HTML in this process so frozen MSW can use the
     # bundled editor module and web assets without requiring edit.py on disk.
     result = [str(input_path), "--output", str(srt_path), "--json", "--no-html"]
     if args.max_len is not None:
@@ -551,17 +551,17 @@ def _run_stop_server(parser: argparse.ArgumentParser, args: argparse.Namespace) 
     else:
         port = args.port or DEFAULT_SERVER_PORT
     if _request_server_shutdown(port):
-        print(f"已请求停止 MAW Server：127.0.0.1:{port}")
+        print(f"已请求停止 MSW Server：127.0.0.1:{port}")
         return 0
     try:
         from maw.gui_web import _stop_external_maw_server
 
         if _stop_external_maw_server(port):
-            print(f"已停止 MAW Server：127.0.0.1:{port}")
+            print(f"已停止 MSW Server：127.0.0.1:{port}")
             return 0
     except (ImportError, OSError):
         pass
-    print(f"没有找到可安全停止的 MAW Server：127.0.0.1:{port}", file=sys.stderr)
+    print(f"没有找到可安全停止的 MSW Server：127.0.0.1:{port}", file=sys.stderr)
     return 1
 
 

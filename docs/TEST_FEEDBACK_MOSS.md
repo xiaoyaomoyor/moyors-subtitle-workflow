@@ -58,7 +58,7 @@
 
 - 真实 MOSS 推理产物未经本机 GPU 环境复跑（开发机无该运行环境），上述验证基于 parse_transcript 产物的等价模拟输入；建议维护者在 Launcher 中用同一段媒体以 max_len=15 重跑一次比对。
 - 子段时间估算假设"块内匀速"，语速剧烈起伏的段会有秒内偏差；如需精确可立项接入 Qwen3-ForcedAligner 强制对齐（上游查证：MOSS 无字词级时间码）。
-- transformers 的 `feature_extractor_class` 弃用警告（用户先前反馈）：确认为上游 OpenMOSS 处理器声明方式触发的良性 warning_once 日志噪音，不影响功能；MAW 侧不作代码处理，待上游注册映射后自然消失。
+- transformers 的 `feature_extractor_class` 弃用警告（用户先前反馈）：确认为上游 OpenMOSS 处理器声明方式触发的良性 warning_once 日志噪音，不影响功能；MSW 侧不作代码处理，待上游注册映射后自然消失。
 
 ## 2026-09 追问：MOSS 粗粒度时间码与英文切句配置
 
@@ -82,7 +82,7 @@
 - 全量 Python 测试：1072 个中 1051 个通过、6 个失败、9 个错误、6 个跳过；剩余 15 个失败/错误均集中在本机 `reapeaks` 模块缺少 `ReapeaksStreamer`，以及因此无法生成 `.ReaPeaks` 的缓存断言，不涉及本次语言/切句改动。
 - `uv run --no-sync python edit.py --blank`：成功生成 `blank-editor.html`，源码产物无额外 diff。
 - 全量 Python 测试仍有既有本机 ReaPeaks 原生扩展环境失败（`reapeaks` 缺少 `ReapeaksStreamer`，以及由此导致的波形缓存断言）；不把这些失败归因于本次语言/切句改动。首次 `uv run` 还因 `.venv` 原生文件被占用而无法同步，因此验证使用 `--no-sync` 复用现有环境。
-- Node 编辑器测试：通过 `MAW_TEST_PYTHON=C:\Python314\python.exe node --test tests\\test_editor_utils.mjs tests\\test_waveform_js.mjs`，254 个通过；默认测试命令内部调用 `uv` 时会撞到本机 `uv` 路径权限，因此使用显式标准库 Python 解释器完成 XML 辅助校验。`node --check web\\launcher\\launcher.js` 也已通过。
+- Node 编辑器测试：通过 `MSW_TEST_PYTHON=C:\Python314\python.exe node --test tests\\test_editor_utils.mjs tests\\test_waveform_js.mjs`，254 个通过；默认测试命令内部调用 `uv` 时会撞到本机 `uv` 路径权限，因此使用显式标准库 Python 解释器完成 XML 辅助校验。`node --check web\\launcher\\launcher.js` 也已通过。
 - 收口复核：`uv run --no-sync python -m unittest tests.test_tencent tests.test_cli` 的 20 项通过；本次修改涉及的 Python 文件重新 `py_compile` 通过，`git diff --check` 通过。
 
 ### 当前边界

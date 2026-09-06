@@ -1,10 +1,10 @@
-# MAW 开发概览
+# MSW 开发概览
 
 本文件供后续维护者快速定位代码与数据边界。产品范围、约束和发布规则以仓库根目录的 `AGENTS.md` 为准。
 
 ## 产品与运行形态
 
-MAW（Moy's ASR Workflow）是一个收窄的本地工作流：本地媒体经云端 ASR 生成 SRT 与工程文件，再在本机浏览器编辑、导出。工程文件内容是 UTF-8 JSON，`.mosp` 是当前默认扩展名；`.json` 作为旧工程和兼容扩展名继续支持。完整字段契约见 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。
+MSW（Moy's ASR Workflow）是一个收窄的本地工作流：本地媒体经云端 ASR 生成 SRT 与工程文件，再在本机浏览器编辑、导出。工程文件内容是 UTF-8 JSON，`.mosp` 是当前默认扩展名；`.json` 作为旧工程和兼容扩展名继续支持。完整字段契约见 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。
 
 - `generate_subtitle_qwen_api.py`：Qwen/Fun-ASR 转写命令入口，`--json` 为历史兼容参数名，默认生成 `.mosp` 工程。
 - `generate_subtitle_soniox_api.py`：Soniox 转写命令入口，同样默认生成 `.mosp` 工程。
@@ -21,7 +21,7 @@ MAW（Moy's ASR Workflow）是一个收窄的本地工作流：本地媒体经�
 
 从 `1.3.2` 到当前 Beta 的功能演进记录见 [版本变更回顾](RELEASE_REVIEW_1.3.2_TO_1.4.0.md)。
 
-前端代码边界的渐进式整理方案见 [`dev/MAWE 前端渐进式重构企划案.md`](dev/MAWE%20前端渐进式重构企划案.md)，当前 Phase 0–1 的依赖、状态和装配快照见 [`dev/MAWE 前端重构基线.md`](dev/MAWE%20前端重构基线.md)。该企划当前不采用 React，不改变编辑器行为或工程契约。
+前端代码边界的渐进式整理方案见 [`dev/MSWE 前端渐进式重构企划案.md`](dev/MSWE%20前端渐进式重构企划案.md)，当前 Phase 0–1 的依赖、状态和装配快照见 [`dev/MSWE 前端重构基线.md`](dev/MSWE%20前端重构基线.md)。该企划当前不采用 React，不改变编辑器行为或工程契约。
 
 修改 `web/`、模板或内联资源后，必须执行：
 
@@ -36,12 +36,12 @@ uv run python edit.py --blank
 | `segments` | `.mosp` / `.json` 工程文件 | 字幕真源；时间均为整数毫秒。 |
 | `waveform` | 工程文件或可重建 sidecar | 性能缓存，不是字幕真源。 |
 | `workspace` | 工程文件（可选） | 随工程携带的窗口布局与显示状态。 |
-| 自定义服务器工作区 | 用户本机 `MAW/server-editor-settings.json` | 命名工作区库，跨工程复用，不改写工程文件。 |
+| 自定义服务器工作区 | 用户本机 `MSW/server-editor-settings.json` | 命名工作区库，跨工程复用，不改写工程文件。 |
 | 编辑器、波形偏好 | 浏览器 `localStorage` | 浏览器与 origin 级别偏好；`file://` 或隐私模式可能不可用。 |
 
-服务器设置文件的位置由 `server-editor/serve.py:default_settings_path()` 决定：Windows 为 `%LOCALAPPDATA%/MAW/server-editor-settings.json`，macOS 为 `~/Library/Application Support/MAW/server-editor-settings.json`，Linux 为 `$XDG_DATA_HOME/MAW/server-editor-settings.json`（未设置时使用 `~/.local/share/MAW`）。它包含最近工程、自动打开开关、`preset_workspaces`、`saved_workspaces` 和 `active_workspace_name`。Windows 升级时只在新文件不存在时读取旧的 `%LOCALAPPDATA%/Moy/moys-asr-workflow/server-editor-settings.json`，保存始终写入新路径。
+服务器设置文件的位置由 `server-editor/serve.py:default_settings_path()` 决定：Windows 为 `%LOCALAPPDATA%/MSW/server-editor-settings.json`，macOS 为 `~/Library/Application Support/MSW/server-editor-settings.json`，Linux 为 `$XDG_DATA_HOME/MSW/server-editor-settings.json`（未设置时使用 `~/.local/share/MSW`）。它包含最近工程、自动打开开关、`preset_workspaces`、`saved_workspaces` 和 `active_workspace_name`。Windows 升级时只在新文件不存在时读取旧的 `%LOCALAPPDATA%/Moy/moys-asr-workflow/server-editor-settings.json`，保存始终写入新路径。
 
-用户级目录和 `.env` 的公共解析规则集中在 `maw/app_paths.py`：源码运行继续读取仓库根 `.env`；冻结版优先读取应用程序同目录 `.env`，不存在时回退到 MAW 用户数据目录。Windows 用户数据根为 `%LOCALAPPDATA%/MAW`，其中还包括 `logs`、`local-runtime`、`model-cache` 和 Emoji 字体缓存。
+用户级目录和 `.env` 的公共解析规则集中在 `maw/app_paths.py`：源码运行继续读取仓库根 `.env`；冻结版优先读取应用程序同目录 `.env`，不存在时回退到 MSW 用户数据目录。Windows 用户数据根为 `%LOCALAPPDATA%/MSW`，其中还包括 `logs`、`local-runtime`、`model-cache` 和 Emoji 字体缓存。
 
 覆盖保存工程时，服务器保留原扩展名并先创建同目录备份：`project.mosp.bak` 或 `project.json.bak`。`.workspace.json`、Resolve JSON 和保留区域 JSON 是交换/配置文件，不是字幕工程真源。
 
@@ -135,7 +135,7 @@ git diff --check
 
 ### 浏览器回归环境
 
-`tests/e2e/helpers.mjs` 默认通过 `uv run --frozen python` 启动 Python-backed server，并删除继承的 `PYTHONPATH`；只有明确设置 `MAW_E2E_PYTHON` 时才使用指定解释器。这样可以避免把系统 Python 与仓库 `.venv` 的 `site-packages` 混用。
+`tests/e2e/helpers.mjs` 默认通过 `uv run --frozen python` 启动 Python-backed server，并删除继承的 `PYTHONPATH`；只有明确设置 `MSW_E2E_PYTHON` 时才使用指定解释器。这样可以避免把系统 Python 与仓库 `.venv` 的 `site-packages` 混用。
 
 Windows 上建议使用项目入口运行浏览器回归：
 
@@ -143,11 +143,11 @@ Windows 上建议使用项目入口运行浏览器回归：
 .\scripts\run-e2e.ps1 tests/e2e/ass-export.spec.mjs --reporter=line
 ```
 
-入口会先验证仓库 `.venv` 是否能导入锁定的 `reapeaks`；若不能，则用 `py -3` 找到系统 Python，在 `%TEMP%\maw-e2e` 下按 `uv.lock` 创建隔离环境和缓存，并以 `MAW_E2E_PYTHON` 启动测试。它还把默认 Playwright 输出放到用户临时目录，避免共享工作树的 `test-results` 权限或占用影响测试。
+入口会先验证仓库 `.venv` 是否能导入锁定的 `reapeaks`；若不能，则用 `py -3` 找到系统 Python，在 `%TEMP%\maw-e2e` 下按 `uv.lock` 创建隔离环境和缓存，并以 `MSW_E2E_PYTHON` 启动测试。它还把默认 Playwright 输出放到用户临时目录，避免共享工作树的 `test-results` 权限或占用影响测试。
 
 如果本机的 Playwright Chromium 被安全策略阻止启动，可显式指定已安装且可执行的 Chromium 系浏览器，不改变默认浏览器选择：
 
 ```powershell
-$env:MAW_E2E_CHROMIUM_PATH = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+$env:MSW_E2E_CHROMIUM_PATH = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 .\scripts\run-e2e.ps1 tests/e2e/ass-export.spec.mjs --reporter=line
 ```

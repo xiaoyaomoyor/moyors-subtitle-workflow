@@ -1,7 +1,7 @@
 """Optional local ASR adapters and the shared local-transcription flow.
 
 The optional model packages are deliberately imported inside the adapters.  The
-cloud-only MAW installation therefore remains importable and testable without
+cloud-only MSW installation therefore remains importable and testable without
 Torch, QwenASR, FunASR, or faster-whisper installed.
 """
 
@@ -85,7 +85,7 @@ class MissingLocalDependency(LocalAsrError):
 
 @dataclass(frozen=True, slots=True)
 class LocalTranscription:
-    """Provider-neutral result before MAW subtitle segmentation."""
+    """Provider-neutral result before MSW subtitle segmentation."""
 
     text: str
     language: str
@@ -226,7 +226,7 @@ def _restore_qwen_alignment_text(
 
     Qwen's forced aligner returns normalized word/character tokens without most
     punctuation, while the accompanying ASR text retains it.  Map each aligned
-    token back to the source text so MAW's sentence splitter can prefer actual
+    token back to the source text so MSW's sentence splitter can prefer actual
     sentence boundaries instead of falling back to word-count cuts.
     """
     restored = [dict(item) for item in items]
@@ -378,7 +378,7 @@ def items_from_timestamps(text: str, timestamps: object) -> list[dict[str, Any]]
     valid_pairs = [pair for pair in pairs if pair is not None]
     if len(valid_pairs) == len(text) and any(char.isspace() for char in text):
         # Fun-ASR-Nano returns character-level timestamps for western-language
-        # text.  MAW's western splitter works on words, so fold each character
+        # text.  MSW's western splitter works on words, so fold each character
         # span into a whitespace-preserving word span before splitting cues.
         word_matches = list(re.finditer(r"\s*\S+", text))
         if word_matches and "".join(match.group(0) for match in word_matches) == text:
@@ -1188,7 +1188,7 @@ class MossDiarizeEngine:
         if language and on_event:
             on_event("[local] MOSS 自动识别语言，已忽略语言提示")
         if hotwords and on_event:
-            on_event("[local] MOSS 不接受 MAW 热词参数，已忽略热词")
+            on_event("[local] MOSS 不接受 MSW 热词参数，已忽略热词")
         duration_s = _media_duration_seconds(str(audio_path), ffprobe_path)
         if math.isfinite(duration_s) and duration_s > MOSS_MAX_AUDIO_SECONDS:
             raise LocalAsrError("MOSS 单次推理最多支持约 90 分钟音频；请先裁剪媒体后重试。")
@@ -1306,8 +1306,8 @@ class WhisperEngine:
     """Lazy faster-whisper (CTranslate2) adapter.
 
     faster-whisper 自带 Silero VAD、30 秒滑窗与 word-level timestamps，
-    长音频由上游内部处理，不需要 MAW 的 FFmpeg 分块。词级时间戳以
-    浮点秒返回，统一归一化为 MAW 要求的整数毫秒 items；句段拆分交给
+    长音频由上游内部处理，不需要 MSW 的 FFmpeg 分块。词级时间戳以
+    浮点秒返回，统一归一化为 MSW 要求的整数毫秒 items；句段拆分交给
     共享的 ``split_segments_auto``（与 Qwen Forced Aligner 路径一致）。
     """
 
@@ -1402,7 +1402,7 @@ class WhisperEngine:
         ffmpeg_path: str | Path | None = None,
         ffprobe_path: str | Path | None = None,
     ) -> LocalTranscription:
-        del batch_size_s  # 上游自行处理长音频，MAW 无需再分块
+        del batch_size_s  # 上游自行处理长音频，MSW 无需再分块
         runtime = self._load(on_event)
         if on_event:
             on_event(f"[local] transcribing: {audio_path.name}")
@@ -1620,7 +1620,7 @@ def _expand_coarse_item(item: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Split one sentence-span item into per-character items with estimated times.
 
     Some local adapters return one coarse item covering a whole sentence with a
-    single start/end pair.  MAW's splitter can only regroup items, so a coarse
+    single start/end pair.  MSW's splitter can only regroup items, so a coarse
     item is expanded into character units whose timings are interpolated from
     the enclosing span; the last character always ends exactly at the original
     ``end`` so neighbouring segments keep their real boundaries. Segment-only
@@ -1679,7 +1679,7 @@ def _resplit_engine_segment(
     min_words: int,
     split_mode: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Re-group one engine-provided segment through MAW's shared splitter.
+    """Re-group one engine-provided segment through MSW's shared splitter.
 
     Only cues exceeding the configured character/word limit are rebuilt; well
     behaved engine cues pass through untouched so real word timestamps keep
@@ -1756,7 +1756,7 @@ def build_local_segments(
     min_words: int = DEFAULT_MIN_WORDS,
     strip_tail_punct: str = _LOCAL_TAIL_PUNCT,
 ) -> list[dict[str, Any]]:
-    """Turn adapter output into MAW's integer-millisecond subtitle segments."""
+    """Turn adapter output into MSW's integer-millisecond subtitle segments."""
     if transcription.segments:
         segments: list[dict[str, Any]] = []
         for source in transcription.segments:
@@ -1858,7 +1858,7 @@ def write_local_outputs(
     ffprobe_path: str | Path | None = None,
     audio_track: int = 0,
 ) -> LocalOutputPaths:
-    """Write SRT and optional MAW project/portable editor outputs."""
+    """Write SRT and optional MSW project/portable editor outputs."""
     output_srt.parent.mkdir(parents=True, exist_ok=True)
     output_srt.write_text(generate_srt(segments), encoding="utf-8", newline="\n")
     if not write_json:

@@ -1,13 +1,13 @@
 ---
-title: MAW 1.1 开发追踪
+title: MSW 1.1 开发追踪
 created_at: 2026-07-27
 updated_at: 2026-07-27
 status: planning
 ---
 
-# MAW 1.1 开发追踪
+# MSW 1.1 开发追踪
 
-本文件记录维护者与开发代理已经确认、可以进入开发的 MAW 1.1 项目，以及后续实施和验收状态。
+本文件记录维护者与开发代理已经确认、可以进入开发的 MSW 1.1 项目，以及后续实施和验收状态。
 
 状态约定：`已确认` → `开发中` → `待验收` → `已完成`；未达到客观技术门槛的探索项标记为 `未通过门槛`，不伪装成已实现。
 
@@ -17,7 +17,7 @@ status: planning
 - 当前状态：编辑器删除回归批次（Batch 1）开发完成，待验收
 - 产品代码开发：已开始（波形删除身份修复 + Del 键最小命令面 + 波形 Ctrl/Shift 多选最小命令面 + 浏览器回归测试）
 - 正式执行计划：`.omo/plans/maw-1-1-development.md`
-- 候选特性来源：`docs/dev/feat：MAW 1.1 待开发特性.md`
+- 候选特性来源：`docs/dev/feat：MSW 1.1 待开发特性.md`
 - 开发优先级：先完成编辑器体验关键路径，再开始供应商、GUI 与打包工作。
 - 证据路径：`.omo/evidence/maw-1-1-batch-1/`（调试日志、测试输出、幂等证明）
 
@@ -67,13 +67,13 @@ Batch 1 已验证场景（localhost 与便携 HTML 均通过真实波形交互�
 - 1.1 先提供 Intel 与 Apple Silicon 两个独立 Mac 工件，不承诺 `universal2`。
 - 普通 CI 构建为未签名开发工件；Apple Developer ID 签名和 notarization 留作受保护、人工触发的发布流程，不向 PR 暴露凭据。
 - 工作流只上传唯一命名的 ZIP 工件，不创建 tag、不推送、不创建 GitHub Release。
-- PR 会自动构建 Windows x64 无 FFmpeg 的 `MAW-lite` 预览 ZIP 工件并保留 14 天，构建完成后由独立 workflow 更新 PR 评论并提供 Actions 下载链接；正式 tag release 由发布工作流创建默认带 FFmpeg 的 `MAW` 版和无 FFmpeg 的 `MAW-lite` 版。
+- PR 会自动构建 Windows x64 无 FFmpeg 的 `MSW-lite` 预览 ZIP 工件并保留 14 天，构建完成后由独立 workflow 更新 PR 评论并提供 Actions 下载链接；正式 tag release 由发布工作流创建默认带 FFmpeg 的 `MSW` 版和无 FFmpeg 的 `MSW-lite` 版。
 - FFmpeg/ffprobe 继续作为外部依赖；Mac GUI 允许选择绝对路径，以兼容 Finder 启动时不含 Homebrew 目录的 PATH。
 
 ## FFmpeg 分发决策
 
 - 1.1 不捆绑 FFmpeg/ffprobe，也不在 GUI 内自动下载或执行系统安装命令。
-- 当前 Windows 8.1.2 essentials 包约为 104 MB ZIP（7z 约 32 MB），还包含 MAW 不需要的 ffplay。捆绑会显著增加每个平台工件；常用 Windows 静态包为 GPLv3，还需额外固定来源、版本、构建配置、SHA-256、对应源码与安全更新策略。
+- 当前 Windows 8.1.2 essentials 包约为 104 MB ZIP（7z 约 32 MB），还包含 MSW 不需要的 ffplay。捆绑会显著增加每个平台工件；常用 Windows 静态包为 GPLv3，还需额外固定来源、版本、构建配置、SHA-256、对应源码与安全更新策略。
 - GUI 解析顺序：仅测试/开发使用的显式 bundled override → 用户保存的 `ffmpeg` 与 `ffprobe` 绝对路径 → 当前进程 PATH。
 - `ffmpeg` 和 `ffprobe` 分别选择并分别运行 `-version` 校验，不能假定两者总在同一目录；机器路径只保存在用户 GUI 设置，不写入工程 JSON。
 - 未找到时提供“选择 ffmpeg”“选择 ffprobe”“重新检测”和安装文档。Windows 可展示 `winget install "FFmpeg (Essentials Build)"`，macOS 可展示 `brew install ffmpeg`，但应用不静默执行。
@@ -108,7 +108,7 @@ Batch 1 已验证场景（localhost 与便携 HTML 均通过真实波形交互�
 
 | 日期 | 项目 | 状态变化 | 证据/备注 |
 | --- | --- | --- | --- |
-| 2026-07-27 | MAW 1.1 范围 | 候选 → 已确认 | 已完成源码、测试、供应商、导出和打包契约调研 |
+| 2026-07-27 | MSW 1.1 范围 | 候选 → 已确认 | 已完成源码、测试、供应商、导出和打包契约调研 |
 | 2026-07-27 | Win + Mac GUI | 候选 → 已确认（低优先级） | 采用三个原生 GitHub Actions runner；签名与 notarization 延后 |
 | 2026-07-27 | FFmpeg 分发 | 候选 → 已确认 | 1.1 采用 PATH 自动检测 + 独立绝对路径选择，不捆绑、不自动安装 |
 | 2026-07-27 | 实施顺序 | 已确认 | 编辑器体验优先；删除 bug 的失败回归测试与修复作为首个用户可见交付 |
@@ -122,4 +122,4 @@ Batch 1 已验证场景（localhost 与便携 HTML 均通过真实波形交互�
 - 开始实现一个项目时，把状态改为 `开发中`，并记录对应分支/计划任务。
 - 自动化测试和真实界面 QA 均通过后改为 `待验收`。
 - 维护者确认后改为 `已完成`，附上测试、浏览器操作、打包或目标应用导入证据。
-- 任何范围变化先更新本文件和正式计划，不在实现中静默扩大 MAW 到 MOSE。
+- 任何范围变化先更新本文件和正式计划，不在实现中静默扩大 MSW 到 MOSE。

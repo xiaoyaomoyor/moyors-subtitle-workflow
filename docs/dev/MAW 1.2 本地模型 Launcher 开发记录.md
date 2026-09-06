@@ -1,15 +1,15 @@
 ---
-title: MAW 1.2 本地模型 Launcher 开发记录
+title: MSW 1.2 本地模型 Launcher 开发记录
 created_at: 2026-08-03
 updated_at: 2026-08-03
 status: development
 ---
 
-# MAW 1.2 本地模型 Launcher 开发记录
+# MSW 1.2 本地模型 Launcher 开发记录
 
 ## 这次确认的产品方向
 
-Launcher 的「供应商」改名为「识别方式」，新增「本地模型」。用户仍在同一条媒体 → SRT / `.mosp` → MAWE 流程中切换云端 API 与本地引擎，不另开一套本地转录界面。
+Launcher 的「供应商」改名为「识别方式」，新增「本地模型」。用户仍在同一条媒体 → SRT / `.mosp` → MSWE 流程中切换云端 API 与本地引擎，不另开一套本地转录界面。
 
 本地模式的第一版交互是：
 
@@ -27,7 +27,7 @@ Launcher 的「供应商」改名为「识别方式」，新增「本地模型�
 - 检测 Hugging Face / ModelScope 的常见缓存目录。
 - 支持通过文件夹选择器指定已有模型目录；该路径只在当前 Launcher 会话中使用，不写入 `.env`、工程 JSON 或日志。
 - 「下载模型」第一版调用 QwenASR / FunASR 自己的 `from_pretrained` / `AutoModel` 加载器，让上游负责下载与缓存；日志显示准备过程。
-- 本地转写使用已有 `maw.local_asr` 适配器，保持 Qwen Forced Aligner、FunASR 时间戳归一化和 MAW 整数毫秒工程契约。
+- 本地转写使用已有 `maw.local_asr` 适配器，保持 Qwen Forced Aligner、FunASR 时间戳归一化和 MSW 整数毫秒工程契约。
 - 普通 Windows 冻结包仍不捆绑 GPU Torch 或模型权重；源码环境仍可安装 `uv sync --extra local` 后直接使用本地模式。
 
 ## 第二阶段：GUI 完成本地运行环境部署
@@ -35,14 +35,14 @@ Launcher 的「供应商」改名为「识别方式」，新增「本地模型�
 为避免新用户遇到“请先运行 `uv sync --extra local`”的开发者提示，Launcher 将本地功能拆成两个明确阶段：
 
 1. **安装本地模型支持** ：在用户目录创建独立 Python 运行环境，自动安装 Torch、TorchAudio、FunASR、QwenASR 和相关依赖。
-2. **下载模型** ：环境就绪后，使用该独立环境调用 QwenASR / FunASR 上游加载器，把模型缓存写入 MAW 独立模型缓存目录。
+2. **下载模型** ：环境就绪后，使用该独立环境调用 QwenASR / FunASR 上游加载器，把模型缓存写入 MSW 独立模型缓存目录。
 
 运行环境与模型缓存分开：
 
-- 运行环境：Windows 默认位于 `%LOCALAPPDATA%\\MAW\\local-runtime`。
-- 模型缓存：Windows 默认位于 `%LOCALAPPDATA%\\MAW\\model-cache`，同时兼容既有 Hugging Face / ModelScope 缓存。
+- 运行环境：Windows 默认位于 `%LOCALAPPDATA%\\MSW\\local-runtime`。
+- 模型缓存：Windows 默认位于 `%LOCALAPPDATA%\\MSW\\model-cache`，同时兼容既有 Hugging Face / ModelScope 缓存。
 - 正式 Windows 包只携带小型 `uv.exe` 安装器和本地转录 helper，不携带数 GB 的 Torch 或模型权重。
-- 本地转录时，冻结版 MAW 使用独立环境的 Python 执行随包提供的本地转录脚本；云端 API 路径保持原有路由。
+- 本地转录时，冻结版 MSW 使用独立环境的 Python 执行随包提供的本地转录脚本；云端 API 路径保持原有路由。
 
 ## 状态契约
 
@@ -59,7 +59,7 @@ Launcher 的「供应商」改名为「识别方式」，新增「本地模型�
 ## 有意保留的边界
 
 - 这不是独立的模型管理器：第一版不提供模型删除、版本锁定、断点续传、磁盘空间规划或所有模型仓库的完整枚举。
-- 「下载模型」是“准备运行时缓存”的入口，不承诺 MAW 自己掌握每个上游模型的下载进度和校验细节。
+- 「下载模型」是“准备运行时缓存”的入口，不承诺 MSW 自己掌握每个上游模型的下载进度和校验细节。
 - FunASR 的 VAD、标点和说话人组件暂不在 Launcher 中扩展为完整组件选择器；需要特殊组件时仍使用 CLI 参数。
 - 本地模式暂不在基础 Windows 发行包中启用完整推理能力，避免让云端用户承担 GPU 依赖和数 GB 模型下载。
 

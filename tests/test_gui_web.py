@@ -838,7 +838,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn('setResult(postprocessErrorText(result), "error")', script)
         self.assertNotIn("t(result.code)", script)
         self.assertIn("if (openEditor) {", script)
-        self.assertIn("await window.MAWLauncher.openServerEditor()", script)
+        self.assertIn("await window.MSWLauncher.openServerEditor()", script)
 
     def test_launcher_toolbox_uses_primary_tabs_for_postprocessing_and_utilities(self) -> None:
         """Given Launcher assets, When rendering Toolbox, Then primary tabs split subtitle and media workflows."""
@@ -915,7 +915,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         ):
             self.assertIn(f'id="{element_id}"', page)
         self.assertIn('id="toolboxAlignmentProjectPath"', page)
-        self.assertIn('data-i18n="toolbox_alignment_input_project">MAW 工程</label>', page)
+        self.assertIn('data-i18n="toolbox_alignment_input_project">MSW 工程</label>', page)
         self.assertIn('data-i18n="toolbox_alignment_input_script">校对文稿</label>', page)
         self.assertNotIn('id="toolboxAlignmentMediaDropZone"', page)
         self.assertNotIn('id="toolboxAlignmentMediaPath"', page)
@@ -1558,7 +1558,7 @@ class GuiWebBridgeTests(unittest.TestCase):
     def test_packaged_alignment_child_resets_pyinstaller_environment(self) -> None:
         project = self.root / "project.mosp"
         script = self.root / "script.txt"
-        executable = self.root / "MAW"
+        executable = self.root / "MSW"
         project.write_text('{"segments": []}\n', encoding="utf-8")
         script.write_text("第一句\n", encoding="utf-8")
         executable.write_bytes(b"app")
@@ -1847,7 +1847,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(child_path[0], str(ffmpeg_dir))
 
     def test_find_mose_prefers_executable_beside_frozen_maw(self) -> None:
-        maw_executable = self.root / "MAW.exe"
+        maw_executable = self.root / "MSW.exe"
         mose_executable = self.root / "MOSE.exe"
         maw_executable.write_bytes(b"exe")
         mose_executable.write_bytes(b"exe")
@@ -1859,7 +1859,7 @@ class GuiWebBridgeTests(unittest.TestCase):
                         self.assertEqual(_find_mose_executable(), mose_executable.resolve())
 
     def test_find_mose_resolves_macos_app_beside_frozen_maw(self) -> None:
-        maw_executable = self.root / "MAW.app" / "Contents" / "MacOS" / "MAW"
+        maw_executable = self.root / "MSW.app" / "Contents" / "MacOS" / "MSW"
         mose_executable = self.root / "MOSE.app" / "Contents" / "MacOS" / "mose"
         maw_executable.parent.mkdir(parents=True)
         mose_executable.parent.mkdir(parents=True)
@@ -1944,7 +1944,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         bundled.parent.mkdir()
         registered.write_bytes(b"installed")
         bundled.write_bytes(b"bundled")
-        maw_executable = bundled.parent / "MAW.exe"
+        maw_executable = bundled.parent / "MSW.exe"
         maw_executable.write_bytes(b"maw")
 
         class FakeKey:
@@ -2033,7 +2033,7 @@ class GuiWebBridgeTests(unittest.TestCase):
     def test_packaged_server_child_resets_pyinstaller_environment(self) -> None:
         project = self.root / "project.json"
         media = self.root / "clip.mp4"
-        executable = self.root / "MAW"
+        executable = self.root / "MSW"
         project.write_text(json.dumps({"media": str(media), "segments": []}), encoding="utf-8")
         media.write_bytes(b"media")
         executable.write_bytes(b"app")
@@ -2210,13 +2210,13 @@ class GuiWebBridgeTests(unittest.TestCase):
 
     def test_maw_server_pid_verifies_the_frozen_serve_command(self) -> None:
         with mock.patch("maw.gui_web._listening_process_id", return_value=4321):
-            with mock.patch("maw.gui_web._process_command_line", return_value='"D:\\Tools\\MAW.exe" --serve --port 9876'):
+            with mock.patch("maw.gui_web._process_command_line", return_value='"D:\\Tools\\MSW.exe" --serve --port 9876'):
                 from maw.gui_web import _maw_server_process_id
                 self.assertEqual(_maw_server_process_id(9876), 4321)
 
     def test_maw_server_pid_verifies_the_public_server_command(self) -> None:
         with mock.patch("maw.gui_web._listening_process_id", return_value=4321):
-            with mock.patch("maw.gui_web._process_command_line", return_value='"D:\\Tools\\MAW.exe" --server 9876'):
+            with mock.patch("maw.gui_web._process_command_line", return_value='"D:\\Tools\\MSW.exe" --server 9876'):
                 from maw.gui_web import _maw_server_process_id
                 self.assertEqual(_maw_server_process_id(9876), 4321)
 
@@ -2303,7 +2303,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         executable_faq.parent.mkdir()
         executable_faq.write_text("fallback\n", encoding="utf-8")
 
-        with mock.patch("maw.gui_web.sys.executable", str(self.root / "exe" / "MAW.exe")), mock.patch(
+        with mock.patch("maw.gui_web.sys.executable", str(self.root / "exe" / "MSW.exe")), mock.patch(
             "maw.gui_web._open_existing_path", return_value={"ok": True}
         ) as open_path:
             result = self.api.open_faq()
@@ -2316,7 +2316,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         executable_faq.parent.mkdir()
         executable_faq.write_text("fallback\n", encoding="utf-8")
 
-        with mock.patch("maw.gui_web.sys.executable", str(self.root / "exe" / "MAW.exe")), mock.patch(
+        with mock.patch("maw.gui_web.sys.executable", str(self.root / "exe" / "MSW.exe")), mock.patch(
             "maw.gui_web._open_existing_path", return_value={"ok": True}
         ) as open_path:
             result = self.api.open_faq()
@@ -2326,7 +2326,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         open_path.assert_called_once_with(executable_faq.resolve())
 
     def test_open_faq_returns_structured_failure_when_both_release_locations_are_missing(self) -> None:
-        with mock.patch("maw.gui_web.sys.executable", str(self.root / "exe" / "MAW.exe")):
+        with mock.patch("maw.gui_web.sys.executable", str(self.root / "exe" / "MSW.exe")):
             result = self.api.open_faq()
 
         self.assertFalse(result["ok"])
@@ -2970,7 +2970,7 @@ class GuiWebBridgeTests(unittest.TestCase):
 
     def test_missing_ffmpeg_is_recognised_from_friendly_and_legacy_output(self) -> None:
         self.assertTrue(_is_ffmpeg_missing_failure([
-            "错误：找不到 FFmpeg / FFprobe。请下载不带 lite 的完整 MAW。",
+            "错误：找不到 FFmpeg / FFprobe。请下载不带 lite 的完整 MSW。",
         ]))
         self.assertTrue(_is_ffmpeg_missing_failure([
             "File generate_subtitle_qwen_api.py, line 266, in get_duration_sec",
@@ -3050,7 +3050,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         def fail_without_ffmpeg(*_args: object, **kwargs: object) -> None:
             callback = kwargs["on_event"]
             assert callable(callback)
-            callback("错误：找不到 FFmpeg / FFprobe。请下载不带 lite 的完整 MAW。")
+            callback("错误：找不到 FFmpeg / FFprobe。请下载不带 lite 的完整 MSW。")
             raise TranscriptionProcessError(1)
 
         with mock.patch("maw.gui_web.run_transcription", side_effect=fail_without_ffmpeg):
@@ -3088,7 +3088,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         )
         failure = PostprocessPipelineError(
             "后处理步骤 translate 失败：LLM provider returned HTTP 400: invalid request. This is a provider response, not a network outage.",
-            run_directory=self.root / "MAW-Postprocess" / "run",
+            run_directory=self.root / "MSW-Postprocess" / "run",
             failed_index=0,
             current_project=result.json_path,
             current_srt=result.srt_path,
@@ -3702,7 +3702,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('field.value = result.apiKey || "";', script)
         self.assertIn('void loadPostprocessApiKey(item.id, item.maskedApiKey || "");', script)
         self.assertIn('function postprocessErrorText(result)', script)
-        self.assertIn('window.MAWLauncher.errorText(result?.code || "", detail, result)', script)
+        self.assertIn('window.MSWLauncher.errorText(result?.code || "", detail, result)', script)
         self.assertIn('function postprocessFieldId(field)', script)
         self.assertIn('function renderSettingsError(result)', script)
         self.assertIn('setFieldError(field, message);\n      setSettingsSaveStatus("", "", 0);', script)
@@ -3786,7 +3786,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         self.assertIn('if (target === "serverMedia")', script)
         self.assertIn('setServerMedia(value)', script)
-        self.assertIn('!state.dropTarget && window.MAWLauncher?.onBatchDrop', script)
+        self.assertIn('!state.dropTarget && window.MSWLauncher?.onBatchDrop', script)
         self.assertIn("#serverMediaPath.drag-over", stylesheet)
 
     def test_launcher_exposes_segmentation_controls_and_payload_fields(self) -> None:
@@ -3869,13 +3869,13 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="batchSrtOnly" type="checkbox"', page)
         self.assertIn('bridge("cancel_transcription")', script)
         self.assertIn('batchSrtOnly', batch_script)
-        self.assertIn('window.MAWLauncher.confirm(t("batch_skip_completed_confirm"))', batch_script)
+        self.assertIn('window.MSWLauncher.confirm(t("batch_skip_completed_confirm"))', batch_script)
         self.assertIn('data-i18n="batch_confirm_yes">是', page)
         self.assertIn('data-i18n="batch_confirm_no">否', page)
         self.assertIn('batchDropNotice', page)
-        self.assertIn('window.MAWLauncher.appendLog?.(`[${message}]`, { inline: true })', batch_script)
-        self.assertIn('window.MAWLauncher.backend === "real"', batch_script)
-        self.assertLess(batch_script.index('if (window.MAWLauncher.backend === "real") return;'), batch_script.index('event.stopImmediatePropagation();'))
+        self.assertIn('window.MSWLauncher.appendLog?.(`[${message}]`, { inline: true })', batch_script)
+        self.assertIn('window.MSWLauncher.backend === "real"', batch_script)
+        self.assertLess(batch_script.index('if (window.MSWLauncher.backend === "real") return;'), batch_script.index('event.stopImmediatePropagation();'))
 
     def test_server_status_uses_clickable_link_and_independent_stop_control(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -4248,7 +4248,7 @@ class LauncherAssetContractTests(unittest.TestCase):
     def test_launcher_refreshes_auto_postprocess_state_after_ocr_install(self) -> None:
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
 
-        self.assertIn('window.MAWLauncher.onOcrRuntimeChanged = () => {', script)
+        self.assertIn('window.MSWLauncher.onOcrRuntimeChanged = () => {', script)
         self.assertIn('renderAutoPostprocessState();', script)
         self.assertIn('maybeEnablePendingAutoStep();', script)
 

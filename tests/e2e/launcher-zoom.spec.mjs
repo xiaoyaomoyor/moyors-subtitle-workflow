@@ -6,7 +6,7 @@ const launcherPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 
 test('Launcher theme choice remains selected after reload', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
 
   await page.locator('#settingsButton').click();
   await page.locator('#themeDark').click();
@@ -14,14 +14,14 @@ test('Launcher theme choice remains selected after reload', async ({ page }) => 
   await expect.poll(() => page.evaluate(() => localStorage.getItem('MAW_GUI_THEME'))).toBe('dark');
 
   await page.reload();
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#settingsButton').click();
   await expect(page.locator('#themeDark')).toHaveClass(/active/);
 });
 
 test('Launcher Ctrl+wheel zoom is bounded, persisted, and leaves ordinary wheel alone', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.zoomPercent === 100);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.zoomPercent === 100);
 
   const zoom = async (deltaY) => page.evaluate((delta) => {
     document.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true, deltaY: delta }));
@@ -52,14 +52,14 @@ test('Launcher Ctrl+wheel zoom is bounded, persisted, and leaves ordinary wheel 
 
   await page.waitForTimeout(400);
   await page.reload();
-  await page.waitForFunction(() => window.MAWLauncher?.config?.zoomPercent === 150);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.zoomPercent === 150);
   await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('150%');
 });
 
 test('Launcher keyboard zoom supports equals, plus, minus, and reset without stealing native controls', async ({ page }) => {
   // Given: a fresh Launcher at the default zoom.
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.zoomPercent === 100);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.zoomPercent === 100);
 
   // When: the supported Ctrl keyboard variants are pressed on the document.
   const shortcuts = await page.evaluate(() => {

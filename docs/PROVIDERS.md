@@ -1,6 +1,6 @@
 # ASR 服务与配置
 
-MAW 本身不托管转写服务。你选择的服务商会直接接收待转写媒体；MAW 只负责本地流程、工程生成和编辑。
+MSW 本身不托管转写服务。你选择的服务商会直接接收待转写媒体；MSW 只负责本地流程、工程生成和编辑。
 
 ## 选择转写方式
 
@@ -16,15 +16,15 @@ MAW 本身不托管转写服务。你选择的服务商会直接接收待转写�
 ## API Key 配置
 
 - 图形版：在 Launcher 中填写并保存到本机环境。
-- Release 包：优先读取应用程序同目录的 `.env`；不存在时使用 MAW 用户数据目录中的 `.env`，Windows 路径为 `%LOCALAPPDATA%\MAW\.env`。
-- 源码或 CLI：继续使用仓库根目录的 `.env`；可从 `.env.example` 复制后填写 `DASHSCOPE_API_KEY`、`SONIOX_API_KEY`、腾讯云的 `TENCENT_SECRET_ID` 与 `TENCENT_SECRET_KEY`，或 OpenAI（及兼容接口）的 `MAW_OPENAI_ASR_API_KEY`。
-- OpenAI（及兼容接口）：在 Launcher 选择“OpenAI（及兼容接口）”，从“模型”下拉列表选择官方模型；选择“自定义（Custom）”后再填写自定义模型名。兼容服务需要填写 `MAW_OPENAI_ASR_BASE_URL`，模型与 API Key 分别保存到 `MAW_OPENAI_ASR_MODEL` 和 `MAW_OPENAI_ASR_API_KEY`；程序调用 `POST {Base URL}/audio/transcriptions`。
+- Release 包：优先读取应用程序同目录的 `.env`；不存在时使用 MSW 用户数据目录中的 `.env`，Windows 路径为 `%LOCALAPPDATA%\MSW\.env`。
+- 源码或 CLI：继续使用仓库根目录的 `.env`；可从 `.env.example` 复制后填写 `DASHSCOPE_API_KEY`、`SONIOX_API_KEY`、腾讯云的 `TENCENT_SECRET_ID` 与 `TENCENT_SECRET_KEY`，或 OpenAI（及兼容接口）的 `MSW_OPENAI_ASR_API_KEY`。
+- OpenAI（及兼容接口）：在 Launcher 选择“OpenAI（及兼容接口）”，从“模型”下拉列表选择官方模型；选择“自定义（Custom）”后再填写自定义模型名。兼容服务需要填写 `MSW_OPENAI_ASR_BASE_URL`，模型与 API Key 分别保存到 `MSW_OPENAI_ASR_MODEL` 和 `MSW_OPENAI_ASR_API_KEY`；程序调用 `POST {Base URL}/audio/transcriptions`。
 - API Key 只应保存在环境变量或本机 `.env` 中，不要放进命令行、工程、日志、截图或 AI 对话。
 - Qwen Key 申请见[阿里云百炼官方文档](https://help.aliyun.com/zh/model-studio/get-api-key)；Soniox Key 见 [Soniox Console](https://console.soniox.com)。
 - OpenAI 官方 API Key 见 [OpenAI Platform](https://platform.openai.com/api-keys)。
 - 腾讯云密钥见[API 密钥管理](https://console.cloud.tencent.com/tokenhub/apikey)；录音文件识别使用 `CreateRecTask` / `DescribeTaskStatus`，默认引擎为 `16k_zh_en_2.0`。
 - 腾讯云的 `Words` 结果包含字词级毫秒时间码；传入 `--speaker` 会启用说话人分离并保留匿名 speaker 标签。完整示例见[完整工作流](WORKFLOW.md)。
-- 默认 Base URL 为 `https://api.openai.com/v1`，模型为支持词级时间戳的 `whisper-1`；使用兼容服务时，按服务商文档修改这两项。若服务只返回 `{ "text": "..." }` 而没有时间戳，MAW 会拒绝生成字幕，因为无法可靠对轨。
+- 默认 Base URL 为 `https://api.openai.com/v1`，模型为支持词级时间戳的 `whisper-1`；使用兼容服务时，按服务商文档修改这两项。若服务只返回 `{ "text": "..." }` 而没有时间戳，MSW 会拒绝生成字幕，因为无法可靠对轨。
 
 区域、模型、热词、上下文和完整参数见[完整工作流](WORKFLOW.md)与[CLI 文档](CLI.md)。
 
@@ -36,7 +36,7 @@ MAW 本身不托管转写服务。你选择的服务商会直接接收待转写�
 
 ## 数据与隐私边界
 
-- MAW 没有自己的云端服务器；云端转写时，媒体直接发送给你选择的服务商。
+- MSW 没有自己的云端服务器；云端转写时，媒体直接发送给你选择的服务商。
 - 编辑器、工程保存和导出默认在本机完成。`.mosp` 是字幕工程真源，SRT 只保留交付所需的基本字幕信息。
 - Launcher 的 LLM 后处理只发送带临时 ID 的字幕文字，不发送媒体路径、时间码或工程元数据；详见 [LLM 字幕后处理协议](LLM_POSTPROCESS_PROTOCOL.md)。
 - 使用任何第三方服务前，请自行确认其数据保留、训练使用和账户政策。

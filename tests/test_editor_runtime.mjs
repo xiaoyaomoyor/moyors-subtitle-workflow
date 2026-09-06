@@ -7,11 +7,11 @@ import vm from 'node:vm';
 const source = fs.readFileSync(new URL('../web/editor-runtime.js', import.meta.url), 'utf8');
 
 
-test('MAWE runtime exposes a factory-only module registry', () => {
+test('MSWE runtime exposes a factory-only module registry', () => {
   const context = { window: {} };
   vm.runInNewContext(source, context);
 
-  const runtime = context.window.MAWE;
+  const runtime = context.window.MSWE;
   assert.equal(runtime.version, 1);
   assert.deepEqual(Array.from(runtime.list()), []);
   assert.equal(runtime.has('demo'), false);
@@ -20,14 +20,14 @@ test('MAWE runtime exposes a factory-only module registry', () => {
   assert.equal(runtime.resolve('demo', 42).value, 42);
   assert.deepEqual(Array.from(runtime.list()), ['demo']);
   assert.throws(() => runtime.register('demo', () => null), /already registered/);
-  assert.throws(() => runtime.register('Demo', () => null), /Invalid MAWE module name/);
+  assert.throws(() => runtime.register('Demo', () => null), /Invalid MSWE module name/);
   assert.throws(() => runtime.register('bad', {}), /must register a factory/);
 });
 
 
-test('MAWE runtime does not replace an existing compatible registry', () => {
+test('MSWE runtime does not replace an existing compatible registry', () => {
   const existing = Object.freeze({ version: 1, register() {} });
-  const context = { window: { MAWE: existing } };
+  const context = { window: { MSWE: existing } };
   vm.runInNewContext(source, context);
-  assert.equal(context.window.MAWE, existing);
+  assert.equal(context.window.MSWE, existing);
 });

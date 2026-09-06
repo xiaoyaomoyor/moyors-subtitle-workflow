@@ -1,11 +1,11 @@
 ---
-title: MAWE 前端重构基线
+title: MSWE 前端重构基线
 created_at: 2026-08-13
 updated_at: 2026-08-13
 status: captured
 ---
 
-# MAWE 前端重构基线
+# MSWE 前端重构基线
 
 本文件记录 Phase 0 的重构前快照和 Phase 1 的装配合同。它是长期重构的对照点；后续阶段不能只描述“代码已经拆开”，还要说明相对本基线改变了哪些边界和行为。
 
@@ -24,7 +24,7 @@ status: captured
 | `web/waveform.js` | 3635 | 波形运行时、Canvas、虚拟化、工作区和拖拽交互 |
 | `web/editor-utils.js` | 962 | 可在 Node 中测试的纯逻辑和历史栈 |
 | `web/editor-i18n.js` | 665 | 翻译、动态属性和对话框适配 |
-| `web/editor-onboarding.js` | 621 | 新手引导及 `MAWE_EDITOR_BRIDGE` 消费者 |
+| `web/editor-onboarding.js` | 621 | 新手引导及 `MSWE_EDITOR_BRIDGE` 消费者 |
 | `web/editor-template.html` | 876 | 页面 DOM 和内联资源 token |
 
 测试规模基线为 15 个 Playwright E2E spec、约 3418 行 E2E JavaScript，以及 24 个 Python 测试文件。测试数字用于识别覆盖变化，不代表所有交互都已自动化。
@@ -33,12 +33,12 @@ status: captured
 
 Phase 1 起，编辑器脚本顺序唯一记录在 `web/editor-scripts.txt`：
 
-1. `editor-runtime.js`：建立 `window.MAWE` 模块工厂注册入口。
+1. `editor-runtime.js`：建立 `window.MSWE` 模块工厂注册入口。
 2. `editor-utils.js`：建立 `window.AsrEditorUtils`，并注册 `editor-utils`。
-3. `editor-i18n.js`：建立 `window.MAWE_I18N`，并注册 `i18n`。
+3. `editor-i18n.js`：建立 `window.MSWE_I18N`，并注册 `i18n`。
 4. `waveform.js`：建立 `window.AsrWaveform`，并注册 `waveform`。
-5. `editor.js`：启动主编辑器，建立 `window.MAWE_EDITOR_BRIDGE`，并注册 `editor-bridge`。
-6. `editor-onboarding.js`：建立 `window.MAWE_ONBOARDING`，并注册 `onboarding`。
+5. `editor.js`：启动主编辑器，建立 `window.MSWE_EDITOR_BRIDGE`，并注册 `editor-bridge`。
+6. `editor-onboarding.js`：建立 `window.MSWE_ONBOARDING`，并注册 `onboarding`。
 
 `edit.py`、Server 页面和 Tauri 构建都读取同一份清单；模板底部只保留 `__EDITOR_SCRIPTS_JS__` 一个脚本 token。旧的兼容出口继续存在，注册表不持有工程数据或控制器实例。
 
@@ -59,12 +59,12 @@ Phase 1 起，编辑器脚本顺序唯一记录在 `web/editor-scripts.txt`：
 | 出口 | 提供者 | 主要消费者 | 本阶段处理 |
 | --- | --- | --- | --- |
 | `window.AsrEditorUtils` | `editor-utils.js` | `editor.js`、测试 | 保留，增加工厂注册 |
-| `window.MAWE_I18N` | `editor-i18n.js` | `editor.js`、onboarding | 保留，增加工厂注册 |
+| `window.MSWE_I18N` | `editor-i18n.js` | `editor.js`、onboarding | 保留，增加工厂注册 |
 | `window.AsrWaveform` | `waveform.js` | `editor.js`、E2E | 保留，增加工厂注册 |
-| `window.MAWE_EDITOR_BRIDGE` | `editor.js` | `editor-onboarding.js` | 保留，增加工厂注册 |
-| `window.MAWE_ONBOARDING` | `editor-onboarding.js` | `editor.js` | 保留，增加工厂注册 |
+| `window.MSWE_EDITOR_BRIDGE` | `editor.js` | `editor-onboarding.js` | 保留，增加工厂注册 |
+| `window.MSWE_ONBOARDING` | `editor-onboarding.js` | `editor.js` | 保留，增加工厂注册 |
 
-`window.MAWE` 只提供 `register`、`has`、`list` 和 `resolve`。后续新模块应优先注册工厂；不得把 `DATA`、选择集合或 DOM 节点放进注册表。
+`window.MSWE` 只提供 `register`、`has`、`list` 和 `resolve`。后续新模块应优先注册工厂；不得把 `DATA`、选择集合或 DOM 节点放进注册表。
 
 ## 关键 DOM 合同
 

@@ -1,4 +1,4 @@
-// Dev-only Playwright helpers for MAW waveform deletion regression.
+// Dev-only Playwright helpers for MSW waveform deletion regression.
 // Deterministic synthetic WAV + project JSON generated at runtime; no committed media.
 // Event/process/port-based lifecycle — no arbitrary sleeps for correctness.
 import { execFileSync, spawn } from 'node:child_process';
@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 // repository's locked uv environment by default so the runner cannot silently
 // fall back to a system interpreter with an incomplete dependency set. Set
 // MAW_E2E_PYTHON only when deliberately testing with a specific interpreter.
-const configuredPython = String(process.env.MAW_E2E_PYTHON || '').trim();
+const configuredPython = String(process.env.MSW_E2E_PYTHON || process.env.MAW_E2E_PYTHON || '').trim();
 const PYTHON_RUNNER = configuredPython
   ? { command: configuredPython, prefixArgs: [] }
   : { command: 'uv', prefixArgs: ['run', '--frozen', 'python'] };
@@ -307,7 +307,7 @@ export function generateProjectJson(filePath) {
 }
 
 // ---------------------------------------------------------------------------
-// Start the MAW localhost editor server.
+// Start the MSW localhost editor server.
 // Returns { url, proc, stop } where stop() returns a Promise that resolves
 // when the process has fully exited.
 // ---------------------------------------------------------------------------

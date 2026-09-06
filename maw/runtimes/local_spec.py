@@ -23,7 +23,7 @@ class LocalRuntimeError(ManagedRuntimeError):
 
 
 class LocalRuntimeCancelled(LocalRuntimeError, RuntimeCancelled):
-    """Raised when the user closes MAW or cancels local runtime installation."""
+    """Raised when the user closes MSW or cancels local runtime installation."""
 
 
 LOCAL_SPEC = RuntimeSpec(
@@ -35,7 +35,7 @@ LOCAL_SPEC = RuntimeSpec(
     requirements_key="local",
     requirements_bundle_name="requirements-local.txt",
     # local 是 pyproject dependency-groups 中的独立运行时依赖组，不继承
-    # MAW 主程序的 GUI / OpenCC / 字体工具依赖。
+    # MSW 主程序的 GUI / OpenCC / 字体工具依赖。
     requirements_group="local",
     verify_command=_VERIFY_COMMAND,
     package_dirs=("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "reapeaks"),

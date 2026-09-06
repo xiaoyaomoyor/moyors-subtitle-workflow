@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MAW 口播对齐</title>
+  <title>MSW 口播对齐</title>
   <style>
     :root {
       color-scheme: dark;
@@ -564,7 +564,7 @@
 </head>
 <body>
 <main>
-  <h1>MAW 口播对齐</h1>
+  <h1>MSW 口播对齐</h1>
   <p id="meta" class="muted">正在读取 mosp……</p>
     <div class="notice">
     输入是「文稿 + 媒体 + ASR 生成的 mosp」。波形上的绿色块是采用的完整匹配，蓝色块是同一局部录制组的 Alternative（未选中的会自动静音），棕色块是远距离命中（默认保留、等待确认），灰色块是自动禁用的口吃/不完整/重复；不完整 take 可以直接点击波形块，或在下方手动启用，启用后会以绿色显示但仍保留 incomplete 标记。已采用的完整 take 可以直接点击切换「人工禁用」，也可以在下方操作，让额外版本替代它。橙色块是默认保留的额外片段，黄色斜纹是播放和导出时会移除的空隙。导出会生成新的对齐 `.mosp`，不会覆盖源工程。
@@ -618,7 +618,7 @@
           <input id="skip-gap-playback" type="checkbox" checked>
           播放时跳过空隙
         </label>
-        <label class="timeline-option" title="复刻 MAWE 的空隙人工修正方式；空白处 Alt+左键拖动始终可以新增范围；已有空隙可用 Alt+点击切换禁用">
+        <label class="timeline-option" title="复刻 MSWE 的空隙人工修正方式；空白处 Alt+左键拖动始终可以新增范围；已有空隙可用 Alt+点击切换禁用">
           空隙操作
           <select id="gap-operation-mode">
             <option value="none">无</option>
@@ -700,7 +700,7 @@
   let playbackFramePlayer = null;
   let timelineAutoScrollTarget = null;
 
-  // 与 MAWE 的波形模式保持同一类交互：基础模式使用固定像素/秒的完整横向时间轴，
+  // 与 MSWE 的波形模式保持同一类交互：基础模式使用固定像素/秒的完整横向时间轴，
   // 多行模式把固定时长切成多行；两种模式都使用同一份源媒体时间码。
   const TIMELINE_PIXELS_PER_SECOND = 80;
   const TIMELINE_STAGE_HEIGHT = 180;
@@ -3042,7 +3042,7 @@
 
   async function loadWaveform() {
     if (!state.waveform?.available) {
-      $('#waveform-hint').textContent = 'mosp 没有内嵌波形；候选块仍可使用，导出后可在 MAWE 重新扫描。';
+      $('#waveform-hint').textContent = 'mosp 没有内嵌波形；候选块仍可使用，导出后可在 MSWE 重新扫描。';
       return;
     }
     try {

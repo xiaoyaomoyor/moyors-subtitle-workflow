@@ -4,7 +4,7 @@
 
 特点：
 - 无需 GPU、模型权重，也无需 API Key（B 站必剪的非公开免费接口）
-- 分片上传 + 异步轮询，逐字毫秒时间戳（words → MAW items）
+- 分片上传 + 异步轮询，逐字毫秒时间戳（words → MSW items）
 - 单文件时长默认上限 2 小时（.env 的 BCUT_MAX_AUDIO_SECONDS 可调）
 - 轮询间隔有硬下限，申请上传/分片只对临时错误限次重试——非官方接口，请勿高频调用
 
@@ -26,7 +26,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from maw.stickers import get_default_sticker_dir
+from maw.stickers import get_default_sticker_dir, apply_msw_env_aliases
 from generate_subtitle_qwen_api import (
     extract_audio,
     generate_srt,
@@ -50,6 +50,7 @@ from maw.language import resolve_language, split_mode_for_text, timestamp_granul
 
 
 def main():
+    apply_msw_env_aliases()
     configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="使用必剪 ASR API 生成视频字幕（云端版，实验性，免 API Key）",

@@ -12,7 +12,7 @@
 
 ## API 差异与实现边界
 
-| 能力 | Qwen3 ASR Filetrans | Qwen-Audio 3.0 ASR Filetrans | MAW 处理方式 |
+| 能力 | Qwen3 ASR Filetrans | Qwen-Audio 3.0 ASR Filetrans | MSW 处理方式 |
 |---|---|---|---|
 | 输入 | `input.file_url` | `input.file_urls`（单元素数组） | 按模型构造请求 |
 | 完成结果 | `output.result.transcription_url` | `output.results[].transcription_url` | 按模型轮询 |
@@ -64,7 +64,7 @@ DASHSCOPE_FUNASR_VOCABULARY_ID=
 
 `DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID` 只对 Qwen-Audio 生效，
 `DASHSCOPE_FUNASR_VOCABULARY_ID` 只对 Fun-ASR 生效。即时热词和预编译词表同时
-配置时，以服务端对即时热词的处理规则为准；MAW 不会把本地 `.env`、热词内容或
+配置时，以服务端对即时热词的处理规则为准；MSW 不会把本地 `.env`、热词内容或
 API Key 写入工程 JSON。
 
 ## 验收清单

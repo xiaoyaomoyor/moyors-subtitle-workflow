@@ -125,7 +125,7 @@ class FfmpegResolverTests(unittest.TestCase):
         self.assertEqual(result.ffprobe, homebrew["ffprobe"].resolve())
 
     def test_frozen_bundle_is_checked_beside_launcher_executable(self) -> None:
-        executable = self.root / "MAW.exe"
+        executable = self.root / "MSW.exe"
         executable.write_bytes(b"launcher")
         bundled = self._write_tools(self.root / "ffmpeg" / "bin", "ffmpeg", "ffprobe")
 

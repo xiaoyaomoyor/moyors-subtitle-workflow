@@ -5,10 +5,10 @@
 
 ## 结论
 
-- **阿里云百炼云端 `fun-asr`** 基本覆盖 MAW 当前从
+- **阿里云百炼云端 `fun-asr`** 基本覆盖 MSW 当前从
   `qwen3-asr-flash-filetrans` 使用的能力：长音频异步转写、自动分句、标点、
   词级毫秒时间戳、自动语种识别和 ITN。它还支持说话人分离、热词和敏感词处理。
-- 对 MAW 而言，`fun-asr` 的返回结构可以直接映射到现有 JSON：
+- 对 MSW 而言，`fun-asr` 的返回结构可以直接映射到现有 JSON：
   `sentences[]` 对应 `segments[]`，`words[]` 对应 `items[]`，
   `speaker_id` 转成字符串后对应 `speaker`。
 - 这不表示 Fun-ASR 与 Qwen-ASR 的**识别准确率相同**。接口能力基本等价，
@@ -22,17 +22,17 @@
 
 “FunASR”可能指两件不同的东西：
 
-1. **阿里云百炼云端模型 `fun-asr`**：用 DashScope API 调用，符合 MAW
+1. **阿里云百炼云端模型 `fun-asr`**：用 DashScope API 调用，符合 MSW
    当前的 API-first 产品边界，已作为百炼 Provider 的第二模型接入。
 2. **开源 FunASR 工具箱**：在本机或自有服务器加载 Paraformer、CAM++、VAD、
    标点等模型组成流水线。它也能做时间戳和说话人分离，但会引入本地模型、PyTorch、
-   模型下载和设备适配，不应作为 MAW 的默认接入。
+   模型下载和设备适配，不应作为 MSW 的默认接入。
 
 开源工具箱的“支持说话人分离”是由 VAD、ASR、CAM++ 等组件组合得到的，
 不能理解为任意一个 FunASR 模型天然同时拥有所有能力。官方仓库也明确列出了
 `vad_model`、`punc_model` 和 `spk_model` 组成的流水线。
 
-## 与 MAW 当前 Qwen 路径的能力对照
+## 与 MSW 当前 Qwen 路径的能力对照
 
 | 能力 | Qwen3-ASR-Flash-Filetrans | Qwen-Audio-3.0-ASR-Flash-Filetrans | 百炼云端 Fun-ASR | 豆包大模型录音文件识别 |
 |---|---|---|---|---|
@@ -45,14 +45,14 @@
 | 说话人分离 | 不支持 | 支持，返回句级 `speaker_id` | 支持，返回句级 `speaker_id` | 支持，返回句级 speaker 信息 |
 | 热词 | 当前 Qwen Filetrans 不支持 | 支持即时 `vocabulary` 与预编译 `vocabulary_id` | 支持预建词表 | 支持平台级、请求级热词 |
 | 上下文增强 | 当前入口未发送 | 支持 `input.messages` | 当前入口未发送 | 需按具体接口核对 |
-| 情感识别 | 支持，但 MAW 当前没有写入工程 | 不支持 | 不支持 | 产品能力支持；极速版移除了部分客服能力字段，需按具体接口核对 |
-| 本地文件直传 | MAW 先上传到 DashScope 临时 OSS | MAW 先上传到 DashScope 临时 OSS | API 本身收 URL；可复用同类临时 OSS 流程 | 极速版支持 Base64；标准/闲时版主要收 URL |
+| 情感识别 | 支持，但 MSW 当前没有写入工程 | 不支持 | 不支持 | 产品能力支持；极速版移除了部分客服能力字段，需按具体接口核对 |
+| 本地文件直传 | MSW 先上传到 DashScope 临时 OSS | MSW 先上传到 DashScope 临时 OSS | API 本身收 URL；可复用同类临时 OSS 流程 | 极速版支持 Base64；标准/闲时版主要收 URL |
 
 ### Qwen-Audio 的关键限制
 
 - Qwen-Audio 的 REST 请求使用 `input.file_urls` 数组，单次仍只支持一个 URL；成功轮询结果位于 `output.results[]`。
 - 即时热词权重取 1–5 或 50；权重 50 是超级热词，数量最多 50 个。预编译词表必须按 Qwen-Audio 目标模型创建。
-- `input.messages` 用于专有词汇和领域上下文增强，每轮总长度最多 400 字符；MAW 的 `--context` / `--context-file` 发送一个 `user/input_text` 消息。
+- `input.messages` 用于专有词汇和领域上下文增强，每轮总长度最多 400 字符；MSW 的 `--context` / `--context-file` 发送一个 `user/input_text` 消息。
 - 说话人分离只适用于单声道，官方建议启用时音频不超过 2 小时。
 
 ### Fun-ASR 的关键限制
@@ -60,12 +60,12 @@
 - 说话人分离通过 `diarization_enabled: true` 开启，只支持单声道。
 - 开启说话人分离时，官方建议音频控制在 2 小时以内，否则可能失败或超时。
 - `speaker_count` 可提供 2–100 的人数提示，但只是提示，不保证返回完全相同的人数。
-- 说话人标签是匿名聚类 ID，不是现实姓名；这正好符合 MAW 将供应商 ID
+- 说话人标签是匿名聚类 ID，不是现实姓名；这正好符合 MSW 将供应商 ID
   作为 opaque string 保存的 JSON 契约。
 - 多人同时说话、极短插话、相似声线和强背景音乐仍是 diarization 的常见难点，
   需要单独测试，不能只凭“支持”判断效果。
 
-## Fun-ASR 在 MAW 中的实现
+## Fun-ASR 在 MSW 中的实现
 
 现有 Qwen Filetrans 已经实现：
 
@@ -77,7 +77,7 @@
   -> 提交异步任务
   -> 轮询
   -> 下载结果 JSON
-  -> 转成 MAW segments/items
+  -> 转成 MSW segments/items
 ```
 
 云端 Fun-ASR 可以复用其中大部分基础设施，但接口字段并非只改模型名：
@@ -102,7 +102,7 @@ SRT/JSON 生成及已有 speaker 颜色逻辑：
 - Qwen-Audio 的即时热词、预编译 `vocabulary_id` 和 `input.messages` 已接入；
   `hotwords.txt` 只对 Qwen-Audio 作为即时热词发送。
 - Fun-ASR 的句级 `speaker_id` 会复制到对应 `items[]`，切句前先按 speaker
-  变化硬切，确保一个 MAW segment 不跨说话人。
+  变化硬切，确保一个 MSW segment 不跨说话人。
 - 提交、成功/失败轮询、结果解析、说话人边界和零时长修复均有离线契约测试。
 - DashScope HTTP 错误会保留业务 `code`、`message` 和 `request_id`；北京地域配置
   Workspace ID 后使用官方推荐的业务空间专属域名，未配置时保留兼容域名。
@@ -145,7 +145,7 @@ SRT/JSON 生成及已有 speaker 颜色逻辑：
 - 二进制内容建议尽量控制在 20 MB 以内，实际还受用户上行带宽影响；
 - Base64 会令请求体约增大三分之一，并要求客户端把完整音频和编码结果放进内存。
 
-MAW 当前为 Qwen 提取的 16 kHz、16-bit、单声道 WAV 每小时约 115 MB，
+MSW 当前为 Qwen 提取的 16 kHz、16-bit、单声道 WAV 每小时约 115 MB，
 不能直接沿用到豆包 Base64 路径。豆包 adapter 应改为提取单声道 MP3 或 Opus，
 并在编码前检查**压缩后文件**的体积。不要为了卡进 20 MB 而过度压缩，
 否则节省上传时间可能换来识别和说话人分离质量下降。
@@ -170,9 +170,9 @@ MAW 当前为 Qwen 提取的 16 kHz、16-bit、单声道 WAV 每小时约 115 MB
 - 预签名 URL 的有效期必须覆盖排队与识别时间，并留出余量。
 - bucket 可以保持私有；只让单个对象在签名有效期内可下载。
 - 客户端应在成功和失败路径都尝试删除临时对象，并明确提示残留清理方式。
-- 不应把现有只监听 `127.0.0.1` 的 MAWE 编辑器服务器改成公网文件服务器。
+- 不应把现有只监听 `127.0.0.1` 的 MSWE 编辑器服务器改成公网文件服务器。
 - 临时隧道虽然技术上可行，但会扩大攻击面、依赖本机持续在线且容易中断，
-  不适合作为公开分发的 MAW 默认方案。
+  不适合作为公开分发的 MSW 默认方案。
 
 ### 方案 C：切片后逐段 Base64，不建议作为说话人模式的首选
 
@@ -186,10 +186,10 @@ MAW 当前为 Qwen 提取的 16 kHz、16-bit、单声道 WAV 每小时约 115 MB
 因此，普通字幕可以考虑切片兜底；需要说话人分离时，应尽量让整段音频在一次任务内完成，
 或使用对象存储 URL 调用标准版。
 
-## 豆包到 MAW JSON 的映射
+## 豆包到 MSW JSON 的映射
 
 豆包结果中的 `utterances[]` 已包含句级 `start_time`、`end_time`、`text`
-和 `words[]`；开启说话人后，句级 speaker 信息可映射到 MAW：
+和 `words[]`；开启说话人后，句级 speaker 信息可映射到 MSW：
 
 ```text
 utterance.start_time       -> segment.start
@@ -199,13 +199,13 @@ utterance.words[]          -> segment.items[]
 utterance speaker          -> segment.speaker（转成 string）
 ```
 
-若豆包只在句级返回 speaker，MAW 可给该句的所有 `items[]` 复制同一 speaker。
+若豆包只在句级返回 speaker，MSW 可给该句的所有 `items[]` 复制同一 speaker。
 遇到同一句内实际换人时，应按供应商 utterance 边界拆段，不能把两个 speaker 合进同一
-MAW segment。
+MSW segment。
 
 ## 推荐决策
 
-从接入成本、现有凭证和 MAW 边界看：
+从接入成本、现有凭证和 MSW 边界看：
 
 1. **百炼云端 Fun-ASR 已接入**。它与 Qwen 共用 DashScope 账户和大部分传输链路，
    返回结构也正好满足现有 speaker JSON 契约。

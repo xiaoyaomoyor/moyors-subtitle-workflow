@@ -143,14 +143,14 @@ class WaveformExtractionTests(unittest.TestCase):
             result = waveform_module.embed_waveform(
                 project,
                 self.media_path,
-                ffmpeg_bin="C:/MAW/ffmpeg.exe",
+                ffmpeg_bin="C:/MSW/ffmpeg.exe",
             )
 
         self.assertIsNone(result.error)
         extract.assert_called_once_with(
             self.media_path,
             peaks_per_second=waveform_module.DEFAULT_PEAKS_PER_SECOND,
-            ffmpeg_bin="C:/MAW/ffmpeg.exe",
+            ffmpeg_bin="C:/MSW/ffmpeg.exe",
             audio_track=0,
         )
 
@@ -192,11 +192,11 @@ class EditorAssetTests(unittest.TestCase):
 
     def test_long_media_waveform_hint_points_to_maw_gui(self) -> None:
         waveform = (ROOT / "web" / "waveform.js").read_text(encoding="utf-8")
-        self.assertIn("请使用 MAW GUI 预生成波形", waveform)
-        self.assertIn("use the MAW GUI to pre-generate the waveform", waveform)
+        self.assertIn("请使用 MSW GUI 预生成波形", waveform)
+        self.assertIn("use the MSW GUI to pre-generate the waveform", waveform)
         self.assertNotIn("请用 edit.py 预生成波形", waveform)
         page = edit.build_blank_html()
-        self.assertIn("请使用 MAW GUI 预生成波形", page)
+        self.assertIn("请使用 MSW GUI 预生成波形", page)
 
     def test_blank_editor_inlines_modular_assets(self) -> None:
         page = edit.build_blank_html()

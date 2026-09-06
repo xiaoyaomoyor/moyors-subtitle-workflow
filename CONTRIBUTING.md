@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢关注 MAW（moys-asr-workflow）！
+感谢关注 MSW（moys-asr-workflow）！
 
 ## 提交 PR 前
 

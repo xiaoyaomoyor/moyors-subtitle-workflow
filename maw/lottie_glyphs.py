@@ -144,7 +144,7 @@ def _open_font_faces(path_name: str) -> tuple[_FontFace, ...]:
         from fontTools.ttLib import TTCollection, TTFont
     except ImportError as error:  # pragma: no cover - exercised by packaging checks
         raise LottieGlyphError(
-            "矢量模式需要 fonttools；请重新安装 MAW 或运行 uv sync"
+            "矢量模式需要 fonttools；请重新安装 MSW 或运行 uv sync"
         ) from error
 
     opened: list[tuple[int | None, Any, Any]] = []
@@ -590,7 +590,7 @@ def _vector_layer(
         "ddd": 0,
         "ind": layer.get("ind", 1),
         "ty": 4,
-        "nm": f"{layer.get('nm', 'MAW 字幕')}（矢量）",
+        "nm": f"{layer.get('nm', 'MSW 字幕')}（矢量）",
         "sr": layer.get("sr", 1),
         "ks": {
             "o": {"a": 0, "k": 100},

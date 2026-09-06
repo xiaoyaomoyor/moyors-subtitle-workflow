@@ -20,7 +20,7 @@ class AppPathsTests(unittest.TestCase):
             ):
                 root = app_paths.default_app_data_root()
 
-                self.assertEqual(root, local_app_data / "MAW")
+                self.assertEqual(root, local_app_data / "MSW")
                 self.assertEqual(app_paths.default_log_directory(), root / "logs")
                 self.assertEqual(app_paths.default_emoji_font_path(), root / "NotoColorEmoji.ttf")
                 self.assertEqual(app_paths.default_server_settings_path(), root / "server-editor-settings.json")
@@ -31,7 +31,7 @@ class AppPathsTests(unittest.TestCase):
         ), mock.patch.dict(os.environ, {"MAW_APP_DATA_ROOT": ""}, clear=True):
             self.assertEqual(
                 app_paths.default_app_data_root(),
-                Path("/Users/test-user") / "Library" / "Application Support" / "MAW",
+                Path("/Users/test-user") / "Library" / "Application Support" / "MSW",
             )
 
     def test_linux_user_data_root_uses_xdg_data_home(self) -> None:
@@ -40,7 +40,7 @@ class AppPathsTests(unittest.TestCase):
             {"XDG_DATA_HOME": temp_dir, "MAW_APP_DATA_ROOT": ""},
             clear=True,
         ):
-            self.assertEqual(app_paths.default_app_data_root(), Path(temp_dir) / "MAW")
+            self.assertEqual(app_paths.default_app_data_root(), Path(temp_dir) / "MSW")
 
     def test_source_env_stays_at_repository_root(self) -> None:
         with mock.patch.object(app_paths.sys, "frozen", False, create=True), mock.patch.dict(
@@ -50,13 +50,13 @@ class AppPathsTests(unittest.TestCase):
 
     def test_frozen_env_prefers_file_beside_executable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            app_dir = Path(temp_dir) / "MAW"
+            app_dir = Path(temp_dir) / "MSW"
             app_dir.mkdir()
             adjacent = app_dir / ".env"
             adjacent.write_text("CONFIG_SOURCE=adjacent\n", encoding="utf-8")
             with mock.patch.object(app_paths.sys, "platform", "win32"), mock.patch.object(
                 app_paths.sys, "frozen", True, create=True
-            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MAW.exe")), mock.patch.dict(
+            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MSW.exe")), mock.patch.dict(
                 os.environ,
                 {"LOCALAPPDATA": str(Path(temp_dir) / "LocalAppData"), "MAW_ENV_FILE": ""},
                 clear=True,
@@ -65,18 +65,18 @@ class AppPathsTests(unittest.TestCase):
 
     def test_frozen_env_falls_back_to_shared_root_and_honors_child_override(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            app_dir = Path(temp_dir) / "MAW"
+            app_dir = Path(temp_dir) / "MSW"
             app_dir.mkdir()
             local_app_data = Path(temp_dir) / "LocalAppData"
             override = Path(temp_dir) / "explicit.env"
             with mock.patch.object(app_paths.sys, "platform", "win32"), mock.patch.object(
                 app_paths.sys, "frozen", True, create=True
-            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MAW.exe")), mock.patch.dict(
+            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MSW.exe")), mock.patch.dict(
                 os.environ,
                 {"LOCALAPPDATA": str(local_app_data), "MAW_ENV_FILE": ""},
                 clear=True,
             ):
-                self.assertEqual(app_paths.default_env_path(), (local_app_data / "MAW" / ".env").resolve())
+                self.assertEqual(app_paths.default_env_path(), (local_app_data / "MSW" / ".env").resolve())
                 os.environ["MAW_ENV_FILE"] = str(override)
                 self.assertEqual(app_paths.default_env_path(), override.resolve())
 

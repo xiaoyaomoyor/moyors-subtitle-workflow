@@ -425,7 +425,7 @@ test('N creates a subtitle at the waveform pointer and focuses the new cue', asy
 
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(7);
   await expect(page.locator('.cue[data-idx="1"]')).toHaveClass(/selected/);
-  await expect.poll(() => page.evaluate(() => window.MAWE_EDITOR_BRIDGE.currentCuePanelIdx)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.MSWE_EDITOR_BRIDGE.currentCuePanelIdx)).toBe(1);
   await expect(page.locator('#cue-panel-text')).toHaveValue('');
   await expect(page.locator('#cue-panel-text')).toBeFocused();
   await expect(page.locator('.cue[data-idx="1"] .text')).not.toHaveAttribute('contenteditable', 'plaintext-only');
@@ -469,7 +469,7 @@ test('Ctrl+dragging blank waveform creates the dragged duration and focuses the 
 
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(7);
   await expect(page.locator('.cue[data-idx="1"]')).toHaveClass(/selected/);
-  await expect.poll(() => page.evaluate(() => window.MAWE_EDITOR_BRIDGE.currentCuePanelIdx)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.MSWE_EDITOR_BRIDGE.currentCuePanelIdx)).toBe(1);
   await expect(page.locator('#cue-panel-text')).toBeFocused();
   await expect(page.locator('.cue[data-idx="1"] .text')).not.toHaveAttribute('contenteditable', 'plaintext-only');
   const created = await page.evaluate(() => DATA.segments[1]);
@@ -908,7 +908,7 @@ test('retries an inline split with B or Enter and clamps both halves to 100ms', 
   await page.getByRole('button', { name: /撤销/ }).click();
   await expect.poll(() => page.locator('.cue').count()).toBe(6);
   await expect(page.locator('.cue[data-idx="0"]')).toHaveClass(/selected/);
-  await expect.poll(() => page.evaluate(() => window.MAWE_EDITOR_BRIDGE.currentCuePanelIdx)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.MSWE_EDITOR_BRIDGE.currentCuePanelIdx)).toBe(0);
   await expect(page.locator('.cue[data-idx="0"] .text')).toHaveText('Alpha Bravo');
   expect(await page.evaluate(() => DATA.segments[0].end - DATA.segments[0].start)).toBe(8000);
 });

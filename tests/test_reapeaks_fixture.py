@@ -158,9 +158,9 @@ class FixtureReaPeaksTests(unittest.TestCase):
 
 
 class GeneratedFixtureTests(unittest.TestCase):
-    """验证 MAW 生成的 .ReaPeaks 与 REAPER 真机 fixture 二进制极其相似。
+    """验证 MSW 生成的 .ReaPeaks 与 REAPER 真机 fixture 二进制极其相似。
 
-    测试流程：gen_fixtures.py 生成 wav → MAW 生成器生成 .ReaPeaks → 对比
+    测试流程：gen_fixtures.py 生成 wav → MSW 生成器生成 .ReaPeaks → 对比
     fixture 目录里的 REAPER 真机 .ReaPeaks。头部（除 src_timestamp/
     src_filesize 外）和数据段应完全相同。
     """
@@ -174,9 +174,9 @@ class GeneratedFixtureTests(unittest.TestCase):
             gen_func = getattr(gen_fixtures, f"gen_{name}")
             gen_func()
             wav = TEST_DATA_DIR / f"{name}.wav"
-            # MAW 生成 .ReaPeaks
+            # MSW 生成 .ReaPeaks
             maw_reapeaks = reapeaks.generate_for_media(wav)
-            self.assertIsNotNone(maw_reapeaks, f"MAW 生成 {name}.wav.ReaPeaks 失败")
+            self.assertIsNotNone(maw_reapeaks, f"MSW 生成 {name}.wav.ReaPeaks 失败")
             maw_data = maw_reapeaks.read_bytes()
             # 写临时 .maw 供调试，避免把测试产物留在 fixture 目录。
             (Path(debug_dir.name) / f"{name}.wav.ReaPeaks.maw").write_bytes(maw_data)

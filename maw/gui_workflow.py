@@ -455,7 +455,7 @@ def render_editor_html(json_path: Path, media_path: Path, html_path: Path, ui_la
     except ValueError:
         media_url = media.as_uri()
     content = render_editor_page(
-        title=f"MAWE - {Path(json_path).name}",
+        title=f"MSWE - {Path(json_path).name}",
         media_html=media_tag(media, media_url),
         data_json=json.dumps(normalized, ensure_ascii=False),
         filename_base_json=json.dumps(Path(json_path).stem, ensure_ascii=False),

@@ -49,7 +49,7 @@ def main() -> int:
         print(f"文件不存在: {appimage}")
         return 1
 
-    icon_path = Path(__file__).resolve().parents[1] / "build-appimage" / "MAW.AppDir" / "MAW.png"
+    icon_path = Path(__file__).resolve().parents[1] / "build-appimage" / "MSW.AppDir" / "MSW.png"
     source = QImage(str(icon_path))
     if source.isNull():
         print(f"无法加载图标: {icon_path}")

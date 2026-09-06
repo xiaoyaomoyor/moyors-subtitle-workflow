@@ -1,4 +1,4 @@
-"""Shared media-path resolution for MAW project loading."""
+"""Shared media-path resolution for MSW project loading."""
 
 from __future__ import annotations
 

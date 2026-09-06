@@ -89,7 +89,7 @@ def _path(value: str) -> Path | None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="MAW optional OCR worker")
+    parser = argparse.ArgumentParser(description="MSW optional OCR worker")
     subparsers = parser.add_subparsers(dest="command", required=True)
     run = subparsers.add_parser("run")
     run.add_argument("--model-id", required=True)

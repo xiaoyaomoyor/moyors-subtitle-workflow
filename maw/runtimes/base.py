@@ -2,7 +2,7 @@
 
 The Launcher installs optional inference dependencies into separate Python
 environments under the user's app-data directory instead of growing the
-frozen MAW package.  Every managed runtime shares the same lifecycle:
+frozen MSW package.  Every managed runtime shares the same lifecycle:
 
     [Windows 打包] embedded Python 解压 -> get-pip ->
         pip install --target -r frozen txt（引导资产随包分发）
@@ -10,7 +10,7 @@ frozen MAW package.  Every managed runtime shares the same lifecycle:
         （不内嵌解释器，产物不携带 unix 用不到的引导资产）
     [源码模式]    零下载 —— 检测开发环境的 uv，直接
         ``uv pip install -r frozen txt --target <site-packages>``，
-        自检/worker 复用 MAW 自己的解释器。
+        自检/worker 复用 MSW 自己的解释器。
 
 ``RuntimeSpec`` 声明式描述单个 Runtime（frozen txt 名 / 镜像 / verify 命令 /
 关键包目录等）；``ManagedRuntime`` 把生命周期实现一次，local / ocr / moss
@@ -59,7 +59,7 @@ UV_MISSING_WARNING: Final = (
     "未检测到 uv。源码模式安装/修复运行环境需要它——"
     'Windows PowerShell 执行 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"；'
     "macOS / Linux 执行 curl -LsSf https://astral.sh/uv/install.sh | sh；"
-    "安装后重启 MAW 再重试。"
+    "安装后重启 MSW 再重试。"
 )
 
 RuntimeEvent = Callable[[str, int, str], None]
@@ -71,7 +71,7 @@ class ManagedRuntimeError(RuntimeError):
 
 
 class RuntimeCancelled(ManagedRuntimeError):
-    """Raised when the user cancels runtime work or MAW closes."""
+    """Raised when the user cancels runtime work or MSW closes."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,7 +247,7 @@ class ManagedRuntime:
         """实际执行自检 / worker 的解释器。
 
         打包版 = 托管环境内的解释器（Windows 内嵌 Python / unix 宿主 venv）；
-        源码模式 = MAW 自己的开发环境解释器（依赖通过 ``--target site-packages``
+        源码模式 = MSW 自己的开发环境解释器（依赖通过 ``--target site-packages``
         + PYTHONPATH 接入），因此源码模式不需要下载任何 bootstrap 资产。
         """
         if not getattr(sys, "frozen", False):
@@ -805,7 +805,7 @@ def _uv_install_command(
 ) -> list[str]:
     """Build the source-mode install command: reuse the dev interpreter, no downloads.
 
-    ``uv`` 自带锁定解析与并行下载；``--python`` 指向 MAW 自己的 venv 解释器，
+    ``uv`` 自带锁定解析与并行下载；``--python`` 指向 MSW 自己的 venv 解释器，
     依赖经 ``--target site-packages`` 与打包版保持同一目录布局，因此
     status / verify / worker 启动逻辑在两种模式下完全一致。
     """

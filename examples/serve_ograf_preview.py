@@ -1,6 +1,6 @@
 """Serve the local dynamic-graphic browser preview without modifying examples.
 
-Run from the MAW repository root:
+Run from the MSW repository root:
 
     py examples\\serve_ograf_preview.py
 
@@ -222,7 +222,7 @@ class PreviewServer(ThreadingHTTPServer):
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="启动 MAW 动态图形浏览器预览")
+    parser = argparse.ArgumentParser(description="启动 MSW 动态图形浏览器预览")
     parser.add_argument(
         "--port",
         type=int,

@@ -283,7 +283,7 @@ class SourceModeInstallTests(unittest.TestCase):
             self.assertEqual(install_command[:3], [str(Path("C:/tools/uv.exe")), "pip", "install"])
             self.assertIn("--target", install_command)
             self.assertIn("-r", install_command)
-            # 解释器是 MAW 自己的开发环境，而不是托管目录里的嵌入式 Python。
+            # 解释器是 MSW 自己的开发环境，而不是托管目录里的嵌入式 Python。
             self.assertNotIn(str(root), str(status.python_path))
             self.assertTrue(any("moss_transcribe_diarize" in str(arg) for arg in verify_command))
 

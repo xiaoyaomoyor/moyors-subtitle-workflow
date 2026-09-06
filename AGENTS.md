@@ -2,7 +2,7 @@
 
 ## 项目目标
 
-`moys-asr-workflow`（简称 **MAW**）是一个刻意收窄的、可公开分发的 ASR 工作流。正式主流程仍是 Qwen ASR API；当前分支另提供不接入 Launcher 的实验性本地 Qwen3-ASR / FunASR CLI：
+`moys-asr-workflow`（简称 **MSW**）是一个刻意收窄的、可公开分发的 ASR 工作流。正式主流程仍是 Qwen ASR API；当前分支另提供不接入 Launcher 的实验性本地 Qwen3-ASR / FunASR CLI：
 
 ```text
 本地媒体 -> Qwen API 或本地 Qwen3-ASR/FunASR -> SRT + JSON 工程 -> 本地浏览器编辑 -> 导出
@@ -112,7 +112,7 @@ Release Markdown 中，粗体闭合标记 `**` 与后续标点或正文之间必
 
 ## 上游关系
 
-MAW 从一开始就是独立项目。需要引入外部代码时，逐项审查、补测试并更新文档；不要整目录覆盖或带入开发者机器上的配置、缓存与辅助工具。
+MSW 从一开始就是独立项目。需要引入外部代码时，逐项审查、补测试并更新文档；不要整目录覆盖或带入开发者机器上的配置、缓存与辅助工具。
 
 ## 代码协作
 有时候多个 Agents 会同时开工，遇到文件变动的情况不用慌张。

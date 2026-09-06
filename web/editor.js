@@ -8,11 +8,11 @@ const NINJA_SFX_BASE_URL = __NINJA_SFX_BASE_URL_JSON__;
 // 关闭/删除叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
 const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
-const MAWE_DEBUG_ENABLED = Boolean(
+const MSWE_DEBUG_ENABLED = Boolean(
   SERVER_CONFIG?.debug || new URLSearchParams(window.location.search).has('mawe-debug'),
 );
 function maweDebug(stage, details = {}) {
-  if (MAWE_DEBUG_ENABLED) console.debug(`[MAWE][${stage}]`, details);
+  if (MSWE_DEBUG_ENABLED) console.debug(`[MSWE][${stage}]`, details);
 }
 // 输入框内拖选文字时阻止原生文本拖放：松开在页面任意位置会被浏览器当作
 // “拖放文本”处理（Chrome 里拖文字到页面 = 发起搜索），破坏选中替换的预期。
@@ -32,7 +32,7 @@ function maweDomContractCheck() {
   ];
   const missing = requiredIds.filter((id) => !document.getElementById(id));
   if (missing.length) {
-    console.error('[MAWE][boot] editor DOM contract is incomplete', { missing });
+    console.error('[MSWE][boot] editor DOM contract is incomplete', { missing });
   }
   maweDebug('boot:dom-contract', { checked: requiredIds.length, missing });
   return missing;
@@ -45,17 +45,17 @@ window.addEventListener('error', (event) => {
     column: event.colno,
     stack: event.error?.stack || null,
   };
-  window.MAWE_DEBUG_ERRORS = [...(window.MAWE_DEBUG_ERRORS || []), details];
-  console.error('[MAWE][runtime] uncaught error', details);
+  window.MSWE_DEBUG_ERRORS = [...(window.MSWE_DEBUG_ERRORS || []), details];
+  console.error('[MSWE][runtime] uncaught error', details);
 });
 window.addEventListener('unhandledrejection', (event) => {
-  window.MAWE_DEBUG_ERRORS = [...(window.MAWE_DEBUG_ERRORS || []), {
+  window.MSWE_DEBUG_ERRORS = [...(window.MSWE_DEBUG_ERRORS || []), {
     message: String(event.reason), stack: event.reason?.stack || null,
   }];
-  console.error('[MAWE][runtime] unhandled rejection', event.reason);
+  console.error('[MSWE][runtime] unhandled rejection', event.reason);
 });
 if (!window.AsrEditorUtils) {
-  console.error('[MAWE][boot] AsrEditorUtils is unavailable; editor scripts are incomplete or out of order');
+  console.error('[MSWE][boot] AsrEditorUtils is unavailable; editor scripts are incomplete or out of order');
 }
 
 const MULTI_SUBTITLE_UTILS = window.AsrEditorUtils;
@@ -3063,7 +3063,7 @@ function timelineFrameAlignedMilliseconds(valueMs) {
 }
 
 function timelineUiText(zh, en) {
-  return window.MAWE_I18N?.language === 'en' ? en : zh;
+  return window.MSWE_I18N?.language === 'en' ? en : zh;
 }
 
 function timelineMediaSeekStepMilliseconds() {
@@ -3443,7 +3443,7 @@ const CLICK_BEHAVIOR_HINTS = {
 };
 function refreshClickBehaviorHint() {
   const hint = document.getElementById('click-behavior-hint');
-  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
   if (hint) {
     hint.textContent = CLICK_BEHAVIOR_HINTS[language][EDITOR_SETTINGS.clickBehavior];
     hint.hidden = false;
@@ -3466,7 +3466,7 @@ const KEYBOARD_OPERATION_REFERENCE_HINTS = {
   },
 };
 function refreshKeyboardOperationReferenceHint() {
-  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
   const mode = normalizeKeyboardOperationReferenceMode(EDITOR_SETTINGS.keyboardOperationReference);
   if (keyboardOperationReferenceSelect) keyboardOperationReferenceSelect.value = mode;
   if (keyboardOperationReferenceHint) {
@@ -3487,7 +3487,7 @@ const JKL_MODE_UI_TEXT = {
   },
 };
 function refreshJklPlaybackModeUi() {
-  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
   const mode = normalizeJklPlaybackMode(EDITOR_SETTINGS.jklPlaybackMode);
   const text = JKL_MODE_UI_TEXT[language][mode];
   if (jklPlaybackModeSelect) jklPlaybackModeSelect.value = mode;
@@ -3769,7 +3769,7 @@ function disableSubtitlesInRemovedGaps() {
   if (!targetIndexes.length) {
     const message = matches.length ? '符合条件的字幕已全部禁用' : '没有符合条件的字幕';
     flashHint(
-      window.MAWE_I18N?.translateText?.(message) || message,
+      window.MSWE_I18N?.translateText?.(message) || message,
       matches.length ? 'success' : 'invalid',
     );
     return;
@@ -4949,7 +4949,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true } = {}) 
   updateSubtitleExportUi();
   refreshTimedTextEditButton();
   updateGapRemoveDisableHint();
-  window.MAWE_ONBOARDING?.afterRender();
+  window.MSWE_ONBOARDING?.afterRender();
   restoreCueListRenderAnchor(cueListAnchor);
 }
 
@@ -5161,7 +5161,7 @@ function renderCurrentCuePanel() {
   cuePanel.classList.toggle('extension-target', !empty && target.kind === 'extension');
   if (cuePanelTarget) {
     const label = empty ? '未选择' : target.kind === 'extension' ? '副字幕' : '主字幕';
-    cuePanelTarget.textContent = window.MAWE_I18N?.translateText?.(label) || label;
+    cuePanelTarget.textContent = window.MSWE_I18N?.translateText?.(label) || label;
     cuePanelTarget.classList.toggle('extension', !empty && target.kind === 'extension');
   }
   [cuePanelPrev, cuePanelNext, cuePanelStart, cuePanelDuration, cuePanelText, cuePanelAddSticker, cuePanelSplit]
@@ -5179,7 +5179,7 @@ function renderCurrentCuePanel() {
     cuePanelTotalLength.textContent = '0';
     cuePanelCharsPerSecond.textContent = '0.00';
     cuePanelSticker.replaceChildren();
-    cuePanelSticker.textContent = window.MAWE_I18N?.translateText?.('未选择') || '未选择';
+    cuePanelSticker.textContent = window.MSWE_I18N?.translateText?.('未选择') || '未选择';
     return;
   }
   if (document.activeElement !== cuePanelText || !cuePanelUndoPushed) cuePanelText.value = seg.text || '';
@@ -5213,8 +5213,8 @@ function renderCurrentCuePanel() {
     cuePanelSticker.title = '点击选择表情包；右键删除引用';
     cuePanelSticker.appendChild(ref);
   } else {
-    cuePanelSticker.textContent = window.MAWE_I18N?.translateText?.('暂无表情包') || '暂无表情包';
-    cuePanelSticker.title = window.MAWE_I18N?.translateText?.('点击添加表情包') || '点击添加表情包';
+    cuePanelSticker.textContent = window.MSWE_I18N?.translateText?.('暂无表情包') || '暂无表情包';
+    cuePanelSticker.title = window.MSWE_I18N?.translateText?.('点击添加表情包') || '点击添加表情包';
   }
   const segments = target.kind === 'extension' ? target.track.segments : DATA.segments;
   const previous = window.AsrEditorUtils.findAdjacentCueIndex(segments, idx, -1, hideDisabled);
@@ -5938,8 +5938,8 @@ function renderColorSwatches() {
     swatch.style.background = color.value;
     swatch.setAttribute('aria-pressed', colorFilterSelection?.has(color.name) ? 'true' : 'false');
     swatch.title = count
-      ? window.MAWE_I18N?.translateText?.(`该颜色的字幕共 ${count} 条；点击只显示所选颜色`) || `该颜色的字幕共 ${count} 条；点击只显示所选颜色`
-      : window.MAWE_I18N?.translateText?.('该颜色暂无字幕') || '该颜色暂无字幕';
+      ? window.MSWE_I18N?.translateText?.(`该颜色的字幕共 ${count} 条；点击只显示所选颜色`) || `该颜色的字幕共 ${count} 条；点击只显示所选颜色`
+      : window.MSWE_I18N?.translateText?.('该颜色暂无字幕') || '该颜色暂无字幕';
     swatch.addEventListener('click', () => {
       const next = new Set(colorFilterSelection || []);
       if (next.has(color.name)) next.delete(color.name);
@@ -6431,7 +6431,7 @@ function notifyMainSplitTimestampFallback(segment) {
   if (!EDITOR_SETTINGS.splitUseWordTimestamps
       || MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment)) return;
   const message = '已勾选“主字幕自动使用时间码拆分”，但当前主字幕没有可用的字词时间码，本次设置不生效，已改用拆分面板。';
-  flashHint(window.MAWE_I18N?.translateText?.(message) || message, 'warning');
+  flashHint(window.MSWE_I18N?.translateText?.(message) || message, 'warning');
 }
 
 function splitOffsetNearTime(segment, timeMs, splitMode) {
@@ -7146,7 +7146,7 @@ function renderSplitLane(state, lane) {
     const headingText = timestampLocked
       ? '⌚️ 主字幕按时间码会拆在这里'
       : isMain ? '主字幕拆分' : '副字幕拆分';
-    heading.textContent = window.MAWE_I18N?.translateText?.(headingText) || headingText;
+    heading.textContent = window.MSWE_I18N?.translateText?.(headingText) || headingText;
   }
   laneEl.classList.toggle('timestamp-locked-lane', timestampLocked);
   const visible = Boolean(displaySegment) && (isMain
@@ -7387,7 +7387,7 @@ function renderSplitMeta(text, state) {
   if (!hint) return;
   const hintEl = document.createElement('span');
   hintEl.className = 'multi-subtitle-split-cut-hint';
-  const translatedHint = window.MAWE_I18N?.translateText?.(hint) || hint;
+  const translatedHint = window.MSWE_I18N?.translateText?.(hint) || hint;
   hintEl.textContent = `（${translatedHint}）`;
   multiSubtitleSplitMeta.appendChild(hintEl);
 }
@@ -9454,7 +9454,7 @@ function bindCueEvents(el, idx) {
     // 普通双击的第一次 pointerdown 已选中该 cue；只有从特殊子控件触发、且尚未选中时
     // 才补一次选择，避免双击再次提交当前面板并重绘波形布局。
     if (!selectedIdxs.has(idx)) selectOnly(idx);
-    window.MAWE_ONBOARDING?.beginRealSplit(idx);
+    window.MSWE_ONBOARDING?.beginRealSplit(idx);
     startEdit(el, idx, e.clientX, e.clientY, { deferCaret: true });
   });
   el.addEventListener('contextmenu', (e) => {
@@ -9681,7 +9681,7 @@ function refreshMediaSeekStepHelp() {
 function refreshMediaSeekControlLabels() {
   const value = timelineMediaSeekStepValue();
   const unit = timelineIsFrameMode() ? 'F' : 'ms';
-  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
   const backLabel = language === 'en' ? `Back ${value}${unit}` : `后退 ${value}${unit}`;
   const forwardLabel = language === 'en' ? `Forward ${value}${unit}` : `前进 ${value}${unit}`;
   // 按钮内显示的短标签：毫秒模式显示秒数（1000ms → 1s；非整秒保留一位小数），帧模式显示帧数（如 2F）。
@@ -11062,7 +11062,7 @@ let subtitleFontFamilyScanState = 'idle';
 let subtitleFontFamilyScanCount = 0;
 function renderSubtitleFontFamilyStatus() {
   if (!subtitleFontFamilyStatus) return;
-  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
   const text = SUBTITLE_FONT_FAMILY_STATUS_TEXT[language][subtitleFontFamilyScanState];
   subtitleFontFamilyStatus.textContent = typeof text === 'function'
     ? text(subtitleFontFamilyScanCount) : text;
@@ -11076,7 +11076,7 @@ function subtitleFontFamilyOptionExists(select, value) {
   return !!select && Array.from(select.options).some((option) => option.value === value);
 }
 function subtitleFontFamilyDisplayName(family) {
-  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
   return GEO_UTILS.subtitleFontFamilyDisplayName(family, language);
 }
 function relabelSubtitleFontFamilyOptions() {
@@ -12866,7 +12866,7 @@ function buildGapRemovedStickerOtio() {
 // OTIOZ 打包：前端把 timeline 交给服务器，服务器读盘打包 zip（content.otio + version.txt + media/*）。
 // 需要 server-editor 模式 + 已绑定工程 + 已校验的表情包根目录（与便携文件夹导出同源）。
 async function exportStickerOtoz(kind, buildTimeline, filename, description) {
-  const tr = (s) => window.MAWE_I18N?.translateText?.(s) || s;
+  const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
   if (editingState) finishEdit(true);
   const payload = buildTimeline();
   if (!payload) return;
@@ -12900,7 +12900,7 @@ async function exportStickerOtoz(kind, buildTimeline, filename, description) {
 }
 
 async function exportTimelineOtioz(kind, buildTimeline, filename, description) {
-  const tr = (s) => window.MAWE_I18N?.translateText?.(s) || s;
+  const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
   if (editingState) finishEdit(true);
   const payload = buildTimeline();
   if (!payload) return;
@@ -12981,7 +12981,7 @@ function stickerExportBlocked(id) {
   const el = document.getElementById(id);
   if (el && el.classList.contains('sticker-disabled')) {
     const msg = `当前模式不可用：${el.title || '请使用另一种导出格式'}`;
-    flashHint(window.MAWE_I18N?.translateText?.(msg) || msg);
+    flashHint(window.MSWE_I18N?.translateText?.(msg) || msg);
     return true;
   }
   return false;
@@ -13404,7 +13404,7 @@ async function openRecentProject(project) {
   }
 }
 
-// 浏览器文件选择器拿不到工程的真实路径，但 MAW 工程记录的媒体是绝对路径。
+// 浏览器文件选择器拿不到工程的真实路径，但 MSW 工程记录的媒体是绝对路径。
 // 把工程名与内容交给服务器，由它定位同目录同名工程并接管：
 // 成功后整页刷新，由服务器渲染出自动加载媒体且可直接保存的状态。
 // 任何失败都静默回退为「手动选择媒体」的便携流程。
@@ -13979,7 +13979,7 @@ if (jsonNameEl && !jsonNameEl.classList.contains('empty')) {
 }
 
 function translatedEditorText(text) {
-  return window.MAWE_I18N?.translateText?.(text) || text;
+  return window.MSWE_I18N?.translateText?.(text) || text;
 }
 
 function closeFcp7ExportModal() {
@@ -14073,7 +14073,7 @@ function updateLottieExportButton() {
 function lottieExportBlocked() {
   if (lottieExportAvailable()) return false;
   const message = '当前模式不可用：动态字幕 .lottie 导出需要以 server-editor 打开并绑定工程文件';
-  flashHint(window.MAWE_I18N?.translateText?.(message) || message, 'warning');
+  flashHint(window.MSWE_I18N?.translateText?.(message) || message, 'warning');
   return true;
 }
 
@@ -14193,7 +14193,7 @@ function updateOgrafExportButton() {
 function ografExportBlocked() {
   if (ografExportAvailable()) return false;
   const message = '当前模式不可用：OGraf 动态字幕导出需要以 server-editor 打开并绑定工程文件';
-  flashHint(window.MAWE_I18N?.translateText?.(message) || message, 'warning');
+  flashHint(window.MSWE_I18N?.translateText?.(message) || message, 'warning');
   return true;
 }
 
@@ -14502,7 +14502,7 @@ document.getElementById('download-gap-removed-sticker-otioz')?.addEventListener(
   const removed = getRemovedGapRanges();
   if (!removed.length) {
     const msg = '没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除';
-    flashHint(window.MAWE_I18N?.translateText?.(msg) || msg);
+    flashHint(window.MSWE_I18N?.translateText?.(msg) || msg);
     return;
   }
   await exportStickerOtoz(
@@ -14803,7 +14803,7 @@ let pendingProjectMediaSelection = null;
 function closeProjectMediaModal(clearPending = false) {
   projectMediaModal.classList.remove('show');
   if (clearPending) pendingProjectMediaSelection = null;
-  setTimeout(() => window.MAWE_ONBOARDING?.scheduleStart(), 0);
+  setTimeout(() => window.MSWE_ONBOARDING?.scheduleStart(), 0);
 }
 
 function showProjectMediaModal() {
@@ -15434,7 +15434,7 @@ async function openProjectFile(file, options = {}) {
       syncProjectTimebaseAndBindingOffsets(data, { preferFrames: false });
     }
     if (!isMawProject(data)) {
-      flashHint('打开了错误的文件，请使用 MAW 生成的工程文件。', 'warning');
+      flashHint('打开了错误的文件，请使用 MSW 生成的工程文件。', 'warning');
       return false;
     }
     applyCanonicalProject(data, file.name);
@@ -15463,7 +15463,7 @@ async function openProjectFile(file, options = {}) {
   } catch (error) {
     pendingProjectMediaSelection = null;
     flashHint(error instanceof SyntaxError
-      ? '打开了错误的文件，请使用 MAW 生成的工程文件。'
+      ? '打开了错误的文件，请使用 MSW 生成的工程文件。'
       : `加载失败：${error.message}`, 'warning');
     console.error(error);
     return false;
@@ -18667,7 +18667,7 @@ const SERVER_STARTUP_LABELS = {
 };
 
 function serverStartupLabel(stage) {
-  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
   return SERVER_STARTUP_LABELS[language][stage] || SERVER_STARTUP_LABELS[language].preparing;
 }
 
@@ -20027,7 +20027,7 @@ applyThemeAndColors({ rerenderWaveform: false });
 void syncAppearanceBoot();
 
 // 新手引导通过这个窄桥接访问编辑器核心状态；引导本身在 editor-onboarding.js 中按需初始化。
-window.MAWE_EDITOR_BRIDGE = Object.freeze({
+window.MSWE_EDITOR_BRIDGE = Object.freeze({
   get data() { return DATA; },
   get selectedIdxs() { return selectedIdxs; },
   get currentCuePanelIdx() { return currentCuePanelIdx; },
@@ -20044,7 +20044,7 @@ window.MAWE_EDITOR_BRIDGE = Object.freeze({
   openHelpAtTab,
   closeHelp: () => helpFloatingPanel.close(),
 });
-window.MAWE?.register('editor-bridge', () => window.MAWE_EDITOR_BRIDGE);
+window.MSWE?.register('editor-bridge', () => window.MSWE_EDITOR_BRIDGE);
 renderAll({ waveform: 'full' });
 maweDebug('boot:complete', {
   renderedSegments: container?.querySelectorAll?.('.cue-row')?.length || 0,

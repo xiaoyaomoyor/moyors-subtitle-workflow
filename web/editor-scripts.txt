@@ -1,4 +1,4 @@
-# MAWE editor scripts are inlined in this order by edit.py and the Tauri build.
+# MSWE editor scripts are inlined in this order by edit.py and the Tauri build.
 # Keep runtime/bootstrap modules before the modules that consume their exports.
 editor-runtime.js
 gap-remove-core.js

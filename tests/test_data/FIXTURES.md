@@ -1,6 +1,6 @@
 # `.ReaPeaks` Fixture 规格
 
-> 目标：用 **REAPER 真机生成**的 `.ReaPeaks` 作为解析测试的真实 fixture，验证 MAW 解析器与 REAPER 字节级格式兼容（P2-3 核心缺口）。
+> 目标：用 **REAPER 真机生成**的 `.ReaPeaks` 作为解析测试的真实 fixture，验证 MSW 解析器与 REAPER 字节级格式兼容（P2-3 核心缺口）。
 >
 > 源 wav 由 `gen_fixtures.py` 生成（`*.wav` 被 gitignore，不入库）；`.ReaPeaks` 由用户在 REAPER 中打开对应 wav 生成后放回本目录（`.ReaPeaks` 可提交）。
 

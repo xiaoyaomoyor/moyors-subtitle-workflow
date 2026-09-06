@@ -440,7 +440,7 @@ class ScriptAlignmentTests(unittest.TestCase):
 
     def test_waveform_gap_detector_matches_mawe_gate_shape(self) -> None:
         # 10 peaks/s: loud, a long silent run, loud.  The middle gap is
-        # trimmed by the same lead-in/lead-out policy as MAWE.
+        # trimmed by the same lead-in/lead-out policy as MSWE.
         raw = bytearray()
         for index in range(20):
             value = 100 if index in {0, 12, 13, 19} else 0
@@ -784,8 +784,8 @@ class ScriptAlignmentTests(unittest.TestCase):
 
     def test_real_mosp_keeps_only_real_take_boundaries(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        project_path = root / "examples" / "MAW-1.4更新说明.bcut.mosp"
-        script_path = root / "examples" / "MAW-1.4更新说明-文稿.txt"
+        project_path = root / "examples" / "MSW-1.4更新说明.bcut.mosp"
+        script_path = root / "examples" / "MSW-1.4更新说明-文稿.txt"
         if not project_path.is_file() or not script_path.is_file():
             self.skipTest("real alignment example is not available")
 

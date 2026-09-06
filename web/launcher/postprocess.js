@@ -61,7 +61,7 @@
   let audioProbeRequest = 0;
 
   function t(key) {
-    return window.MAWLauncher.translate(key);
+    return window.MSWLauncher.translate(key);
   }
 
   function taskPromptText(operation = $("postprocessOperation").value) {
@@ -198,7 +198,7 @@
   }
 
   function bridge(method, payload = {}) {
-    return window.MAWLauncher.callBackend(method, payload);
+    return window.MSWLauncher.callBackend(method, payload);
   }
 
   function extension(path) {
@@ -319,7 +319,7 @@
   }
 
   function provider(providerId = $("postprocessProvider").value) {
-    const providers = window.MAWLauncher.config.postprocessProviders;
+    const providers = window.MSWLauncher.config.postprocessProviders;
     return providers.find((item) => item.id === providerId) || providers[0];
   }
 
@@ -330,8 +330,8 @@
 
   function postprocessErrorText(result) {
     const detail = result?.detail || result?.error || "";
-    return window.MAWLauncher.errorText
-      ? window.MAWLauncher.errorText(result?.code || "", detail, result)
+    return window.MSWLauncher.errorText
+      ? window.MSWLauncher.errorText(result?.code || "", detail, result)
       : (detail || t("failed"));
   }
 
@@ -359,7 +359,7 @@
   }
 
   function syncProviderOptionLabels() {
-    const providers = window.MAWLauncher.config?.postprocessProviders || [];
+    const providers = window.MSWLauncher.config?.postprocessProviders || [];
     [$("postprocessProvider"), $("llmProvider")].forEach((select) => {
       providers.forEach((item) => {
         const option = Array.from(select.options).find((candidate) => candidate.value === item.id);
@@ -545,7 +545,7 @@
   }
 
   function renderOcrModel() {
-    const config = window.MAWLauncher.config || {};
+    const config = window.MSWLauncher.config || {};
     const models = Array.isArray(config.ocrModels) && config.ocrModels.length
       ? config.ocrModels
       : [
@@ -669,8 +669,8 @@
   }
 
   function clampToolboxSize(width, height) {
-    const viewportWidth = window.MAWLauncher.viewportPixelsToPage(window.innerWidth);
-    const viewportHeight = window.MAWLauncher.viewportPixelsToPage(window.innerHeight);
+    const viewportWidth = window.MSWLauncher.viewportPixelsToPage(window.innerWidth);
+    const viewportHeight = window.MSWLauncher.viewportPixelsToPage(window.innerHeight);
     const maxWidth = Math.max(TOOLBOX_MIN_WIDTH, viewportWidth - 40);
     const maxHeight = Math.max(TOOLBOX_MIN_HEIGHT, Math.min(TOOLBOX_MAX_HEIGHT, viewportHeight - 156));
     return {
@@ -722,8 +722,8 @@
       handle.classList.add("dragging");
       const onMove = (moveEvent) => {
         size = axis === "y"
-          ? applyToolboxSize(start.width, start.height + window.MAWLauncher.viewportPixelsToPage(start.y - moveEvent.clientY))
-          : applyToolboxSize(start.width + window.MAWLauncher.viewportPixelsToPage(start.x - moveEvent.clientX), start.height);
+          ? applyToolboxSize(start.width, start.height + window.MSWLauncher.viewportPixelsToPage(start.y - moveEvent.clientY))
+          : applyToolboxSize(start.width + window.MSWLauncher.viewportPixelsToPage(start.x - moveEvent.clientX), start.height);
       };
       const onEnd = () => {
         handle.removeEventListener("pointermove", onMove);
@@ -1012,7 +1012,7 @@
     try {
       const result = await bridge("generate_waveform_project", {
         mediaPath,
-        audioTrack: window.MAWLauncher.getAudioTrackForMedia?.(mediaPath),
+        audioTrack: window.MSWLauncher.getAudioTrackForMedia?.(mediaPath),
         generateSpectral: $("toolboxGenerateSpectral").checked,
       });
       if (!result.ok) {
@@ -1020,8 +1020,8 @@
         return;
       }
       if (openEditor) {
-        window.MAWLauncher.setJsonPath(result.projectPath);
-        await window.MAWLauncher.openServerEditor();
+        window.MSWLauncher.setJsonPath(result.projectPath);
+        await window.MSWLauncher.openServerEditor();
       }
       const warnings = Array.isArray(result.warnings) ? result.warnings : [];
       setResult(`${t("toolbox_done")}\n${result.projectPath}${warnings.length ? `\n${warnings.join("\n")}` : ""}`, "success");
@@ -1125,8 +1125,8 @@
     const inset = 8;
     const left = Math.min(Math.max(event.clientX, inset), window.innerWidth - rect.width - inset);
     const top = Math.min(Math.max(event.clientY, inset), window.innerHeight - rect.height - inset);
-    menu.style.left = `${window.MAWLauncher.viewportPixelsToPage(Math.max(inset, left))}px`;
-    menu.style.top = `${window.MAWLauncher.viewportPixelsToPage(Math.max(inset, top))}px`;
+    menu.style.left = `${window.MSWLauncher.viewportPixelsToPage(Math.max(inset, left))}px`;
+    menu.style.top = `${window.MSWLauncher.viewportPixelsToPage(Math.max(inset, top))}px`;
     menu.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
   }
 
@@ -1332,7 +1332,7 @@
     if (stepId === "replace") return parseReplacements().length > 0 || $("postprocessConversion").value !== "off";
     if (["proofread", "resegment", "translate"].includes(stepId)) return autoLlmReady($("postprocessProvider").value);
     if (stepId === "ocr") {
-      const config = window.MAWLauncher.config || {};
+      const config = window.MSWLauncher.config || {};
       const ocrModel = (Array.isArray(config.ocrModels) ? config.ocrModels : [])
         .find((item) => item.id === $("ocrModel").value);
       if (!config.ocrRuntime?.ready || !ocrModel?.installed) return false;
@@ -1402,14 +1402,14 @@
   }
 
   function stateLangSeparator() {
-    return window.MAWLauncher?.translate("auto_postprocess_title")?.includes("Post-") ? ", " : "、";
+    return window.MSWLauncher?.translate("auto_postprocess_title")?.includes("Post-") ? ", " : "、";
   }
 
   function persistAutoPlanSoon() {
     window.clearTimeout(autoPlanSaveTimer);
     autoPlanSaveTimer = window.setTimeout(async () => {
       const result = await bridge("save_postprocess_plan", { plan: autoPlanFromControls() });
-      if (result.ok && window.MAWLauncher.config) window.MAWLauncher.config.postprocessAutoPlan = result.plan;
+      if (result.ok && window.MSWLauncher.config) window.MSWLauncher.config.postprocessAutoPlan = result.plan;
     }, 180);
   }
 
@@ -1458,7 +1458,7 @@
         ? invalidField
         : (item?.hasApiKey === false ? "llmApiKey" : (item?.hasBaseUrl === false ? "llmBaseUrl" : "llmModel"));
       if (highlightConnection) setTestConnectionAttention(true);
-      window.MAWLauncher.openSettings("llmSettingsSection", focusId);
+      window.MSWLauncher.openSettings("llmSettingsSection", focusId);
       return;
     }
     toolboxOpenMode = "auto-config";
@@ -1535,7 +1535,7 @@
   }
 
   function initializeAutoPostprocess() {
-    const plan = window.MAWLauncher.config?.postprocessAutoPlan || defaultAutoPlan();
+    const plan = window.MSWLauncher.config?.postprocessAutoPlan || defaultAutoPlan();
     applyAutoPostprocessPlan(plan);
     const providerId = (plan.steps || []).find((step) => step.enabled && step.providerId)?.providerId;
     if (providerId && provider(providerId)) {
@@ -1929,7 +1929,7 @@
   }
 
   function initialize() {
-    const config = window.MAWLauncher.config;
+    const config = window.MSWLauncher.config;
     if (!config?.postprocessProviders?.length) return;
     const selectedProvider = config.postprocessProviders.find((item) => item.selected)?.id || config.postprocessProviders[0].id;
     [$("postprocessProvider"), $("llmProvider")].forEach((select) => {
@@ -2000,8 +2000,8 @@
   $("postprocessMatchMode").addEventListener("change", () => { validateMatchPunctuation(); void refreshSplitPreview(); persistAutoPlanSoon(); });
   $("runOcrDedup").addEventListener("click", runOcrDedup);
   $("ocrModel").addEventListener("change", renderOcrModel);
-  $("openOcrSettings").addEventListener("click", () => window.MAWLauncher.openSettings("ocrSettingsSection"));
-  $("openPunctSettings").addEventListener("click", () => window.MAWLauncher.openSettings("punctuationSettingsSection"));
+  $("openOcrSettings").addEventListener("click", () => window.MSWLauncher.openSettings("ocrSettingsSection"));
+  $("openPunctSettings").addEventListener("click", () => window.MSWLauncher.openSettings("punctuationSettingsSection"));
   $("runLlmPostprocess").addEventListener("click", runLlm);
   $("runFixedProcess").addEventListener("click", runFixedProcess);
   $("runFfconcatRebuild").addEventListener("click", runFfconcat);
@@ -2116,7 +2116,7 @@
   });
   $("ocrRegionMode").addEventListener("change", renderOcrRegion);
   $("ocrThreshold").addEventListener("input", () => setFieldError("ocrThreshold", ""));
-  $("openLlmSettings").addEventListener("click", () => { window.MAWLauncher.openSettings("llmSettingsSection"); requestAnimationFrame(() => $("llmApiKey")?.focus()); });
+  $("openLlmSettings").addEventListener("click", () => { window.MSWLauncher.openSettings("llmSettingsSection"); requestAnimationFrame(() => $("llmApiKey")?.focus()); });
   $("postprocessScriptPath").addEventListener("input", () => { setFieldError("postprocessScriptPath", ""); renderAutoPostprocessState(); maybeEnablePendingAutoStep(); persistAutoPlanSoon(); });
   $("postprocessPrompt").addEventListener("input", () => {
     persistLlmPrompt();
@@ -2204,16 +2204,16 @@
   });
   setupToolboxResize();
   window.addEventListener("mawlauncherready", initialize, { once: true });
-  window.MAWLauncher.onPostprocessStatus = renderPostprocessStatus;
-  window.MAWLauncher.onPostprocessStream = renderPostprocessStream;
-  window.MAWLauncher.onPostprocessPipeline = (event) => {
+  window.MSWLauncher.onPostprocessStatus = renderPostprocessStatus;
+  window.MSWLauncher.onPostprocessStream = renderPostprocessStream;
+  window.MSWLauncher.onPostprocessPipeline = (event) => {
     if (event.stage === "step_start") setResult(`${autoStepLabel(event.step)}：${t("toolbox_running")}`);
     if (event.stage === "step_done") setResult(`${autoStepLabel(event.step)}：${t("toolbox_done")}`, "success");
   };
-  window.MAWLauncher.getAutoPostprocessPayload = autoPlanFromControls;
-  window.MAWLauncher.onLanguageChanged = () => {
+  window.MSWLauncher.getAutoPostprocessPayload = autoPlanFromControls;
+  window.MSWLauncher.onLanguageChanged = () => {
     syncProviderOptionLabels();
-    if (window.MAWLauncher.config?.postprocessProviders?.length) renderProviderKeyStatus(provider());
+    if (window.MSWLauncher.config?.postprocessProviders?.length) renderProviderKeyStatus(provider());
     renderOcrModel();
     document.querySelectorAll(".toolbox-chain-file").forEach(renderArtifactButton);
     syncBurnSubtitleName();
@@ -2223,11 +2223,11 @@
     renderMediaToolAction();
     renderAutoPostprocessState();
   };
-  window.MAWLauncher.onProjectPathChanged = () => {
+  window.MSWLauncher.onProjectPathChanged = () => {
     if (!alignmentProjectManual) $("toolboxAlignmentProjectPath").value = $("jsonPath").value.trim();
     syncAlignmentNames();
   };
-  window.MAWLauncher.onMediaPathChanged = ({ refreshOcrVideo = false } = {}) => {
+  window.MSWLauncher.onMediaPathChanged = ({ refreshOcrVideo = false } = {}) => {
     if (refreshOcrVideo) {
       ocrVideoManual = false;
       $("ocrVideoPath").value = autoOcrVideoPath();
@@ -2244,17 +2244,17 @@
     $("runScriptMatch").disabled = batchMode || busy;
     $("configureAutoMatch").disabled = batchMode;
   }
-  window.MAWLauncher.onBatchModeChanged = (active) => {
+  window.MSWLauncher.onBatchModeChanged = (active) => {
     batchMode = Boolean(active);
     applyBatchModeLocks();
     if (batchMode && $("toolboxMatchTab").classList.contains("active")) selectTool("replace");
     renderAutoPostprocessState();
   };
-  window.MAWLauncher.openAutoPostprocessStep = openAutoStep;
-  window.MAWLauncher.onOcrRuntimeChanged = () => {
+  window.MSWLauncher.openAutoPostprocessStep = openAutoStep;
+  window.MSWLauncher.onOcrRuntimeChanged = () => {
     renderOcrModel();
     renderAutoPostprocessState();
     maybeEnablePendingAutoStep();
   };
-  if (window.MAWLauncher.config) initialize();
+  if (window.MSWLauncher.config) initialize();
 })();

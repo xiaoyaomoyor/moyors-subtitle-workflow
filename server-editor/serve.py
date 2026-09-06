@@ -1,4 +1,4 @@
-"""MAWE 的本地 HTTP 字幕编辑器。
+"""MSWE 的本地 HTTP 字幕编辑器。
 
 与 edit.py 生成的 file:// 自包含 HTML 共用 web/ 下的同一份模板、样式和脚本，
 但通过 localhost 提供媒体的 HTTP Range 响应，方便浏览器调试和精确 seek。
@@ -47,6 +47,7 @@ mimetypes.add_type("audio/ogg", ".opus")
 import edit  # noqa: E402
 from maw.console import configure_utf8_stdio  # noqa: E402
 from maw import reapeaks  # noqa: E402
+from maw import stickers as _stickers  # noqa: E402
 from maw.app_paths import default_server_settings_path, legacy_server_settings_path  # noqa: E402
 from maw.ffmpeg import resolve_ffmpeg_tools  # noqa: E402
 from maw.gui_config import DEFAULT_ENV_PATH, load_env  # noqa: E402
@@ -519,7 +520,7 @@ def build_server_page(
     if project.media_path:
         media_html = edit.media_tag(project.media_path, "/media")
         source_media = project.source_media_path or project.media_path
-        title = html.escape(f"MAWE（本地服务器）- {source_media.name}")
+        title = html.escape(f"MSWE（本地服务器）- {source_media.name}")
         filename_base = project.json_path.stem if project.json_path else source_media.stem
         json_display = project.json_path.name if project.json_path else "未加载工程"
         media_display = source_media.name
@@ -529,9 +530,9 @@ def build_server_page(
     else:
         media_html = '<audio id="player" preload="metadata" style="width:100%;display:block;"></audio>'
         title = html.escape(
-            f"MAWE（本地服务器）- {project.json_path.name}"
+            f"MSWE（本地服务器）- {project.json_path.name}"
             if project.json_path
-            else "MAWE（本地服务器）- 用「打开工程」加载 JSON"
+            else "MSWE（本地服务器）- 用「打开工程」加载 JSON"
         )
         filename_base = project.json_path.stem if project.json_path else "untitled"
         json_display = project.json_path.name if project.json_path else "未加载工程"
@@ -978,7 +979,7 @@ class EditorServer(ThreadingHTTPServer):
     def attach_project(self, file_name: str, browser_project: dict) -> ServerProject:
         """Bind a project opened through the browser to its on-disk file.
 
-        Browser file pickers never reveal real paths, but a MAW project records
+        Browser file pickers never reveal real paths, but a MSW project records
         its media as an absolute path. When the same-named project file sits next
         to that media and its segments match the browser copy, the server takes
         over: media auto-loads and Ctrl+S saves back to the project file.
@@ -1316,7 +1317,7 @@ def export_timeline_otioz(project: ServerProject, kind: str, timeline: dict) -> 
     if reference_count == 0:
         raise ValueError("时间线 OTIO 没有可打包的媒体引用")
     if len(target_urls) > 1:
-        raise ValueError("当前 MAW 工程只绑定一个源媒体，无法导出含多个媒体文件的 OTIOZ")
+        raise ValueError("当前 MSW 工程只绑定一个源媒体，无法导出含多个媒体文件的 OTIOZ")
     suffix = "_gap-removed" if kind == "gap-removed" else ""
     otio_name = f"{project.json_path.stem}{suffix}.otio"
     buffer = io.BytesIO()
@@ -1529,7 +1530,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         super().send_error(status, status.phrase, detail)
 
     def shutdown_server(self) -> None:
-        """Stop this loopback-only server from the MAW CLI."""
+        """Stop this loopback-only server from the MSW CLI."""
         self.send_json(HTTPStatus.OK, {"ok": True, "service": "maw-editor"})
         threading.Thread(target=self.editor_server.shutdown, daemon=True).start()
 
@@ -2154,9 +2155,10 @@ def open_editor_server(
 
 
 def main() -> int:
+    _stickers.apply_msw_env_aliases()
     configure_utf8_stdio()
     parser = argparse.ArgumentParser(
-        description="启动 MAWE localhost 编辑器（与自包含 HTML 共用 web/ 源码，支持媒体 Range seek）",
+        description="启动 MSWE localhost 编辑器（与自包含 HTML 共用 web/ 源码，支持媒体 Range seek）",
     )
     parser.add_argument("json_path", nargs="?", help="字幕工程 JSON；省略时默认尝试恢复上次打开的工程")
     parser.add_argument("-m", "--media", help="媒体文件路径（默认按 JSON.media / 同目录探测）")
@@ -2235,7 +2237,7 @@ def main() -> int:
     with server:
         host, port = server.server_address[:2]
         url = f"http://{host}:{port}/"
-        print("MAWE 已启动（仅本机可访问）")
+        print("MSWE 已启动（仅本机可访问）")
         print(f"地址: {url}")
         print("按 Ctrl+C 停止服务；修改 web/ 下源码后刷新页面即可看到最新界面。")
         if not args.no_open:
@@ -2243,7 +2245,7 @@ def main() -> int:
         try:
             server.serve_forever()
         except KeyboardInterrupt:
-            print("\nMAWE 已停止")
+            print("\nMSWE 已停止")
     return 0
 
 

@@ -54,7 +54,7 @@ def convert_text(text: str, mode: object) -> str:
         return _converter(config).convert(text)
     except ImportError as error:
         raise TextConversionUnavailable(
-            "简繁转换需要 OpenCC 支持，请重新安装 MAW 或运行 `uv sync`。"
+            "简繁转换需要 OpenCC 支持，请重新安装 MSW 或运行 `uv sync`。"
         ) from error
 
 

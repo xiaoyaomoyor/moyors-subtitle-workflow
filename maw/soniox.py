@@ -1,8 +1,8 @@
 # pyright: reportAny=false, reportAttributeAccessIssue=false, reportMissingParameterType=false, reportMissingTypeArgument=false, reportMissingTypeStubs=false, reportReturnType=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportUnusedCallResult=false, reportUnusedVariable=false, reportImplicitStringConcatenation=false, reportArgumentType=false, reportIndexIssue=false
 
-"""Soniox 异步 STT 供应商：REST 客户端 + token → MAW 工程映射。
+"""Soniox 异步 STT 供应商：REST 客户端 + token → MSW 工程映射。
 
-范围（MAW 1.1 已确认）：异步文件转写、token 级毫秒时间戳、可选说话人分离。
+范围（MSW 1.1 已确认）：异步文件转写、token 级毫秒时间戳、可选说话人分离。
 不包含实时 WebSocket 与翻译流程。
 
 API 契约（2026-07 官方文档核验，https://soniox.com/docs/api-reference）：
@@ -373,7 +373,7 @@ def create_transcription(base_url: str, api_key: str, *,
                          context: dict[str, object] | None = None) -> str:
     """创建异步转写任务，返回 transcription_id。
 
-    file_id 与 audio_url 二选一（MAW 始终走本地上传，只用 file_id）。
+    file_id 与 audio_url 二选一（MSW 始终走本地上传，只用 file_id）。
     """
     payload: dict = {
         "model": model,
@@ -496,7 +496,7 @@ def delete_transcription(base_url: str, api_key: str, transcription_id: str, *,
         on_status(f"[soniox] [警告] 云端清理异常: {e}")
 
 
-# ===== tokens → MAW 工程映射 =====
+# ===== tokens → MSW 工程映射 =====
 
 def merge_word_fragments(tokens: list[dict]) -> list[dict]:
     """把 Soniox 的 sub-word 片段合并成「英文按词」的 token 序列。
@@ -540,7 +540,7 @@ def merge_word_fragments(tokens: list[dict]) -> list[dict]:
 
 
 def tokens_to_items(tokens: list[dict]) -> list[dict]:
-    """Soniox tokens → MAW items（整数毫秒）。一个 token 对应一个 item。
+    """Soniox tokens → MSW items（整数毫秒）。一个 token 对应一个 item。
 
     官方保证每个识别 token 都有 start_ms/end_ms；防御性处理：缺时间戳、
     负时间或时间倒挂的 token 直接跳过，不把未知范围伪造成零宽 item。

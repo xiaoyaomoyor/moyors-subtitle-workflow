@@ -1,4 +1,4 @@
-"""Generate MAW subtitle projects through an OpenAI-compatible ASR endpoint.
+"""Generate MSW subtitle projects through an OpenAI-compatible ASR endpoint.
 
 The endpoint must implement ``POST /audio/transcriptions`` and return either
 OpenAI ``verbose_json`` data with ``segments``/``words`` timestamps or an
@@ -49,6 +49,7 @@ from maw.language import (
 )
 from maw.project import repair_segment_durations
 from maw.project_io import write_mosp
+from maw.stickers import apply_msw_env_aliases
 
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -241,7 +242,7 @@ def _timestamp_envelope(items: list[dict[str, Any]]) -> tuple[int, int] | None:
 
 
 def parse_timestamped_response(body: Mapping[str, Any]) -> dict[str, Any]:
-    """Map common OpenAI-compatible timestamp shapes to MAW's contract."""
+    """Map common OpenAI-compatible timestamp shapes to MSW's contract."""
     payload = _as_mapping(body.get("data")) or body
     text = _text(payload.get("text")).strip()
     raw_segments = payload.get("segments")
@@ -604,9 +605,10 @@ def _strip_trailing_punct(
 
 
 def main() -> None:
+    apply_msw_env_aliases()
     configure_utf8_stdio()
     config = load_cli_config()
-    parser = argparse.ArgumentParser(description="通过 OpenAI 兼容 ASR 接口生成 MAW 字幕工程")
+    parser = argparse.ArgumentParser(description="通过 OpenAI 兼容 ASR 接口生成 MSW 字幕工程")
     parser.add_argument("input", help="输入视频或音频路径")
     parser.add_argument("-o", "--output", help="输出 SRT 路径")
     parser.add_argument("--base-url", default=config["base_url"])

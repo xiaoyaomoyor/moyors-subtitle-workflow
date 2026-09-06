@@ -20,7 +20,7 @@ from maw.local_asr import create_local_engine  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="MAW local runtime helper")
+    parser = argparse.ArgumentParser(description="MSW local runtime helper")
     subparsers = parser.add_subparsers(dest="command", required=True)
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--engine", required=True)

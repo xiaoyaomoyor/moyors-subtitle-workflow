@@ -1,6 +1,6 @@
-# MAW 命令行 CLI
+# MSW 命令行 CLI
 
-MAW 的 Release 包除了图形 Launcher，也支持直接用命令行完成转写和本机编辑器 Server 管理。本文以 Windows PowerShell 和 Release 包中的 `MAW.exe` 为例；源码运行时，把示例中的 `MAW.exe` 替换为 `uv run python maw_gui.py` 即可。
+MSW 的 Release 包除了图形 Launcher，也支持直接用命令行完成转写和本机编辑器 Server 管理。本文以 Windows PowerShell 和 Release 包中的 `MSW.exe` 为例；源码运行时，把示例中的 `MSW.exe` 替换为 `uv run python maw_gui.py` 即可。
 
 > 本文介绍公开 CLI。`--transcribe`、`--transcribe-soniox`、`--transcribe-bcut`、`--transcribe-tencent`、`--transcribe-openai` 和 `--serve` 是保留给旧 Launcher/内部调用的兼容入口，新脚本应使用本文的参数。
 
@@ -14,27 +14,27 @@ MAW 的 Release 包除了图形 Launcher，也支持直接用命令行完成转�
 | Launcher 调试 | `-dbg` / `--debug` | 启动 Launcher 的 pywebview 调试能力；不自动打开 DevTools |
 | Launcher DevTools | `-dt` / `--devtools` | 启动 Launcher 并自动打开 DevTools |
 | 转写 | `-i` / `--input` | 调用 Qwen/Fun-ASR、Soniox、腾讯云、自定义 OpenAI 兼容接口或必剪（实验性），生成 SRT 和 `.mosp` |
-| Server 管理 | `--server` / `--stop-server` | 启动或停止只监听 `127.0.0.1` 的 MAW 编辑器 Server |
+| Server 管理 | `--server` / `--stop-server` | 启动或停止只监听 `127.0.0.1` 的 MSW 编辑器 Server |
 
 先查看当前版本的帮助：
 
 ```powershell
-.\MAW.exe --help
+.\MSW.exe --help
 ```
 
 `-h` 是 `--help` 的短写法。帮助和参数错误不会调用 ASR API；自动化工具可以先执行它确认实际参数。
 
-开发 Launcher 时，可以使用 `MAW.exe -dbg` 或 `MAW.exe --debug` 开启 pywebview 调试能力，使用 `MAW.exe -dt` 或 `MAW.exe --devtools` 在启动后直接打开 DevTools。由于 `--debug` 也保留为转写模式的 API 调试参数，和 `-i`、`--server` 等 CLI 参数一起使用时仍按原有转写或 Server CLI 处理。
+开发 Launcher 时，可以使用 `MSW.exe -dbg` 或 `MSW.exe --debug` 开启 pywebview 调试能力，使用 `MSW.exe -dt` 或 `MSW.exe --devtools` 在启动后直接打开 DevTools。由于 `--debug` 也保留为转写模式的 API 调试参数，和 `-i`、`--server` 等 CLI 参数一起使用时仍按原有转写或 Server CLI 处理。
 
 ## 2. 准备工作
 
 ### Release 包
 
-请保留 Release 解压后的整个目录，不要只复制 `MAW.exe`。默认 `MAW` 包已经把 `ffmpeg.exe` 和 `ffprobe.exe` 放在包内；`MAW-lite` 包需要系统 PATH 中已有这两个命令。MAW 运行 CLI 时会自动把随包的 FFmpeg 加入当前进程环境。
+请保留 Release 解压后的整个目录，不要只复制 `MSW.exe`。默认 `MSW` 包已经把 `ffmpeg.exe` 和 `ffprobe.exe` 放在包内；`MSW-lite` 包需要系统 PATH 中已有这两个命令。MSW 运行 CLI 时会自动把随包的 FFmpeg 加入当前进程环境。
 
 ### API Key
 
-CLI 不接受 API Key 参数，也不应把 Key 写在命令行、脚本参数、日志或 AI 对话中。使用环境变量，或在 MAW 配置目录的 `.env` 中配置：
+CLI 不接受 API Key 参数，也不应把 Key 写在命令行、脚本参数、日志或 AI 对话中。使用环境变量，或在 MSW 配置目录的 `.env` 中配置：
 
 ```ini
 # Qwen-Audio、Qwen3-ASR、Fun-ASR
@@ -44,12 +44,12 @@ DASHSCOPE_API_KEY=你的百炼密钥
 SONIOX_API_KEY=你的 Soniox 密钥
 
 # OpenAI 官方或兼容 ASR；只使用 OpenAI 兼容接口时填写这一组
-MAW_OPENAI_ASR_API_KEY=你的 ASR 密钥
-MAW_OPENAI_ASR_BASE_URL=https://api.openai.com/v1
-MAW_OPENAI_ASR_MODEL=whisper-1
+MSW_OPENAI_ASR_API_KEY=你的 ASR 密钥
+MSW_OPENAI_ASR_BASE_URL=https://api.openai.com/v1
+MSW_OPENAI_ASR_MODEL=whisper-1
 ```
 
-Windows Release 包会优先读取 `MAW.exe` 同目录的 `.env`；该文件不存在时回退到 `%LOCALAPPDATA%\MAW\.env`。macOS / Linux 也优先读取应用程序同目录的 `.env`，再回退到对应的 MAW 用户数据目录；源码方式继续读取仓库根 `.env`。环境变量优先于 `.env`。API Key 的申请方式见 [ASR 服务与配置](PROVIDERS.md) 和[阿里云官方文档](https://help.aliyun.com/zh/model-studio/get-api-key)。
+Windows Release 包会优先读取 `MSW.exe` 同目录的 `.env`；该文件不存在时回退到 `%LOCALAPPDATA%\MSW\.env`。macOS / Linux 也优先读取应用程序同目录的 `.env`，再回退到对应的 MSW 用户数据目录；源码方式继续读取仓库根 `.env`。环境变量优先于 `.env`。API Key 的申请方式见 [ASR 服务与配置](PROVIDERS.md) 和[阿里云官方文档](https://help.aliyun.com/zh/model-studio/get-api-key)。
 
 ### PowerShell 路径
 
@@ -60,13 +60,13 @@ Windows Release 包会优先读取 `MAW.exe` 同目录的 `.env`；该文件不�
 最常用的语法是：
 
 ```text
-MAW.exe -i INPUT -o SRT [MOSP] [转写选项]
+MSW.exe -i INPUT -o SRT [MOSP] [转写选项]
 ```
 
 ### 最小示例
 
 ```powershell
-.\MAW.exe -i "D:\Videos\meeting.mp4" -o "D:\Output\meeting.srt" "D:\Output\meeting.mosp"
+.\MSW.exe -i "D:\Videos\meeting.mp4" -o "D:\Output\meeting.srt" "D:\Output\meeting.mosp"
 ```
 
 这个命令会：
@@ -89,13 +89,13 @@ MAW.exe -i INPUT -o SRT [MOSP] [转写选项]
 例如，只固定 SRT 路径，让工程自动使用同名路径：
 
 ```powershell
-.\MAW.exe -i "D:\Videos\meeting.mp4" -o "D:\Output\meeting.srt"
+.\MSW.exe -i "D:\Videos\meeting.mp4" -o "D:\Output\meeting.srt"
 ```
 
 或者使用 `--mosp` 把工程放到另一个目录：
 
 ```powershell
-.\MAW.exe -i "D:\Videos\meeting.mp4" `
+.\MSW.exe -i "D:\Videos\meeting.mp4" `
     -o "D:\Output\meeting.srt" `
     --mosp "D:\Projects\meeting.mosp"
 ```
@@ -105,7 +105,7 @@ MAW.exe -i INPUT -o SRT [MOSP] [转写选项]
 第一次调用或调试 API 时，建议先限制时长，避免误传整部视频：
 
 ```powershell
-.\MAW.exe -i "D:\Videos\long-video.mp4" `
+.\MSW.exe -i "D:\Videos\long-video.mp4" `
     -o "D:\Output\long-video-test.srt" `
     --mosp "D:\Output\long-video-test.mosp" `
     -ll 2m
@@ -140,7 +140,7 @@ MAW.exe -i INPUT -o SRT [MOSP] [转写选项]
 | `--speaker` | 启用说话人分离，并把匿名 speaker 标签写入 `.mosp`。需要选择支持该功能的模型。 |
 | `--speaker-colors` | 启用说话人分离，并按首次出现顺序写入一次性的字幕颜色快照；之后仍可在编辑器中修改。 |
 | `-ll VALUE`, `--length-limit VALUE` | 只处理媒体前指定时长，例如 `2m`、`20s`、`1h`、`90`。 |
-| `--json` | 旧 CLI 兼容参数；MAW 公开 CLI 默认已经生成 `.mosp`，通常不需要写。 |
+| `--json` | 旧 CLI 兼容参数；MSW 公开 CLI 默认已经生成 `.mosp`，通常不需要写。 |
 | `--with-waveform` | 将波形峰值嵌入 `.mosp`。会额外使用 FFmpeg 扫描媒体；不指定时波形由编辑器按需建立 sidecar 缓存。 |
 | `--html` | 在 SRT 和 `.mosp` 之外，再生成便携 `.edit.html`。 |
 | `--no-html` | 明确关闭便携 HTML；这是默认行为，也保留用于兼容旧脚本。不能和 `--html` 同时使用。 |
@@ -178,7 +178,7 @@ MAW.exe -i INPUT -o SRT [MOSP] [转写选项]
 示例：
 
 ```powershell
-.\MAW.exe `
+.\MSW.exe `
     --provider soniox `
     -i "D:\Videos\panel.mp4" `
     -o "D:\Output\panel.srt" `
@@ -193,16 +193,16 @@ PowerShell 中如果 context JSON 含有空格，请将整个 JSON 放在引号�
 
 | 参数 | 说明 |
 | --- | --- |
-| `--base-url URL` | OpenAI 官方或兼容服务的根地址、带 `/v1` 的地址，或完整的 `/audio/transcriptions` 地址；省略时读取 `MAW_OPENAI_ASR_BASE_URL`，默认 `https://api.openai.com/v1`。 |
+| `--base-url URL` | OpenAI 官方或兼容服务的根地址、带 `/v1` 的地址，或完整的 `/audio/transcriptions` 地址；省略时读取 `MSW_OPENAI_ASR_BASE_URL`，默认 `https://api.openai.com/v1`。 |
 
-接口必须接受 `POST /audio/transcriptions` 的 multipart 请求，并返回 `segments` 或 `words` 时间戳。MAW 会请求 `verbose_json`、segment 和 word 时间戳；只有文本而没有时间戳的响应会被拒绝。API Key 使用 `MAW_OPENAI_ASR_API_KEY`，不接受命令行参数。
+接口必须接受 `POST /audio/transcriptions` 的 multipart 请求，并返回 `segments` 或 `words` 时间戳。MSW 会请求 `verbose_json`、segment 和 word 时间戳；只有文本而没有时间戳的响应会被拒绝。API Key 使用 `MSW_OPENAI_ASR_API_KEY`，不接受命令行参数。
 
 ### 4.6 Server 参数
 
 | 参数 | 说明 |
 | --- | --- |
-| `--server [PORT]` | 启动本机 MAW Server；省略端口时使用 `8250`。Server 在前台运行，按 `Ctrl+C` 停止。 |
-| `--stop-server [PORT]` | 停止指定端口的 MAW Server；省略端口时使用 `8250`。 |
+| `--server [PORT]` | 启动本机 MSW Server；省略端口时使用 `8250`。Server 在前台运行，按 `Ctrl+C` 停止。 |
+| `--stop-server [PORT]` | 停止指定端口的 MSW Server；省略端口时使用 `8250`。 |
 | `--port PORT` | 用另一种写法指定 `--server` 或 `--stop-server` 的端口，范围为 `1` 到 `65535`。 |
 | `PROJECT` | Server 启动时打开的 `.mosp` 或旧 `.json` 工程；只能和 `--server` 一起使用。 |
 | `--media PATH` | 覆盖工程中记录的媒体路径；必须和 `PROJECT` 一起使用。 |
@@ -214,7 +214,7 @@ PowerShell 中如果 context JSON 含有空格，请将整个 JSON 放在引号�
 `--server` 后的可选值如果是整数，会被解释为端口；如果不是整数，会被解释为工程路径。为了让脚本更清晰，带工程时推荐使用显式的 `--port`：
 
 ```powershell
-.\MAW.exe --server --port 8250 `
+.\MSW.exe --server --port 8250 `
     "D:\Projects\meeting.mosp" `
     --media "D:\Videos\meeting.mp4" `
     --no-open
@@ -224,7 +224,7 @@ Server 永远只监听 `127.0.0.1`，不会把本地媒体和编辑器暴露到�
 
 ```powershell
 $server = Start-Process `
-    -FilePath ".\MAW.exe" `
+    -FilePath ".\MSW.exe" `
     -ArgumentList @("--server", "--port", "8250", "--no-open") `
     -WorkingDirectory (Get-Location) `
     -PassThru
@@ -233,17 +233,17 @@ $server = Start-Process `
 使用完后通过 CLI 停止，而不是按 PID 猜测进程：
 
 ```powershell
-.\MAW.exe --stop-server --port 8250
+.\MSW.exe --stop-server --port 8250
 ```
 
-停止命令优先请求 MAW Server 的 loopback 控制接口；对旧版 Windows Server，才会回退到经过命令行校验的 MAW 进程。停止前请先保存浏览器中的未保存工程修改。没有找到可安全停止的 Server 时会返回非零退出码。
+停止命令优先请求 MSW Server 的 loopback 控制接口；对旧版 Windows Server，才会回退到经过命令行校验的 MSW 进程。停止前请先保存浏览器中的未保存工程修改。没有找到可安全停止的 Server 时会返回非零退出码。
 
 ## 5. 常用范例
 
 ### Qwen-Audio：中文、说话人颜色和内嵌波形
 
 ```powershell
-.\MAW.exe `
+.\MSW.exe `
     --provider qwen `
     --model qwen-audio-3.0-asr-flash-filetrans `
     -i "D:\Videos\interview.mp4" `
@@ -256,7 +256,7 @@ $server = Start-Process `
 ### Qwen-Audio：热词和上下文
 
 ```powershell
-.\MAW.exe `
+.\MSW.exe `
     -i "D:\Videos\product-demo.mp4" `
     -o "D:\Output\product-demo.srt" `
     --hotword-file "D:\Config\hotwords.txt" `
@@ -267,7 +267,7 @@ $server = Start-Process `
 ### Soniox：多语言和说话人
 
 ```powershell
-.\MAW.exe `
+.\MSW.exe `
     --provider soniox `
     -i "D:\Videos\panel.mp4" `
     -o "D:\Output\panel.srt" "D:\Output\panel.mosp" `
@@ -277,10 +277,10 @@ $server = Start-Process `
 
 ### OpenAI 兼容 ASR：官方或自建服务
 
-先在 `.env` 中配置 `MAW_OPENAI_ASR_API_KEY`；兼容服务再设置 `MAW_OPENAI_ASR_BASE_URL` 和 `MAW_OPENAI_ASR_MODEL`：
+先在 `.env` 中配置 `MSW_OPENAI_ASR_API_KEY`；兼容服务再设置 `MSW_OPENAI_ASR_BASE_URL` 和 `MSW_OPENAI_ASR_MODEL`：
 
 ```powershell
-.\MAW.exe `
+.\MSW.exe `
     --provider openai `
     --base-url "https://api.openai.com/v1" `
     --model whisper-1 `
@@ -294,7 +294,7 @@ $server = Start-Process `
 ### 必剪：免 Key 快速体验（实验性，仅中文）
 
 ```powershell
-.\MAW.exe `
+.\MSW.exe `
     --provider bcut `
     -i "D:\Videos\clip.mp4" `
     -o "D:\Output\clip.srt" `
@@ -308,7 +308,7 @@ $server = Start-Process `
 CLI 总是先生成 SRT 和 `.mosp`；如果还需要带工程数据的便携 HTML：
 
 ```powershell
-.\MAW.exe `
+.\MSW.exe `
     -i "D:\Videos\clip.mp3" `
     -o "D:\Output\clip.srt" `
     --html
@@ -316,21 +316,21 @@ CLI 总是先生成 SRT 和 `.mosp`；如果还需要带工程数据的便携 HT
 
 ## 6. 给 AI 和自动化工具的调用指引
 
-如果让 AI、脚本或 CI 调用 MAW，可以把本节和本文路径 `docs/CLI.md` 作为工具说明。推荐遵守下面的规则：
+如果让 AI、脚本或 CI 调用 MSW，可以把本节和本文路径 `docs/CLI.md` 作为工具说明。推荐遵守下面的规则：
 
-1. 先确认 `MAW.exe` 的绝对路径，并在执行前调用 `MAW.exe --help`；不要假设当前目录就是 Release 包目录。
+1. 先确认 `MSW.exe` 的绝对路径，并在执行前调用 `MSW.exe --help`；不要假设当前目录就是 Release 包目录。
 2. 使用 PowerShell 时给每个含空格的路径加双引号；自动化任务优先使用绝对输入、SRT 和 `.mosp` 路径。
-3. 不要把 `DASHSCOPE_API_KEY`、`SONIOX_API_KEY` 或 `MAW_OPENAI_ASR_API_KEY` 放进命令行。要求用户在环境变量或 `.env` 中配置，日志和对话也不要回显它们。
+3. 不要把 `DASHSCOPE_API_KEY`、`SONIOX_API_KEY` 或 `MSW_OPENAI_ASR_API_KEY` 放进命令行。要求用户在环境变量或 `.env` 中配置，日志和对话也不要回显它们。
 4. 第一次处理大文件时先用 `-ll 2m` 做小样本；只有用户明确需要完整媒体时，才移除时长限制。不要默默截断用户要求的完整转写。
 5. 转写完成后同时检查进程退出码和输出文件。退出码为 `0` 且 SRT、`.mosp` 都存在，才报告成功；不要只根据终端出现了“开始”或“任务完成”字样判断成功。
 6. 如果用户要求启动 Server，使用 `--server --port PORT --no-open`；这是前台服务进程，自动化工具需要自行后台启动并等待端口可用。
-7. 用户要求关闭 Server 时使用 `--stop-server PORT`，不要自行结束不相关的 Python 或 MAW 进程。关闭前提醒用户保存浏览器中的修改。
+7. 用户要求关闭 Server 时使用 `--stop-server PORT`，不要自行结束不相关的 Python 或 MSW 进程。关闭前提醒用户保存浏览器中的修改。
 8. 不要在新脚本中使用旧的 `--transcribe`、`--transcribe-soniox` 或 `--serve` 内部入口；它们不是面向用户的稳定 CLI。
 
 一个最小的 PowerShell 自动化模板：
 
 ```powershell
-$maw = "D:\Apps\MAW\MAW.exe"
+$maw = "D:\Apps\MSW\MSW.exe"
 $inputPath = "D:\Videos\clip.mp4"
 $srtPath = "D:\Output\clip.srt"
 $mospPath = "D:\Output\clip.mosp"
@@ -338,13 +338,13 @@ $mospPath = "D:\Output\clip.mosp"
 & $maw -i $inputPath -o $srtPath $mospPath -ll 2m
 $exitCode = $LASTEXITCODE
 if ($exitCode -ne 0) {
-    throw "MAW 转写失败，退出码: $exitCode"
+    throw "MSW 转写失败，退出码: $exitCode"
 }
 if (-not (Test-Path -LiteralPath $srtPath)) {
-    throw "MAW 未生成 SRT: $srtPath"
+    throw "MSW 未生成 SRT: $srtPath"
 }
 if (-not (Test-Path -LiteralPath $mospPath)) {
-    throw "MAW 未生成 MOSP: $mospPath"
+    throw "MSW 未生成 MOSP: $mospPath"
 }
 ```
 
@@ -363,8 +363,8 @@ if (-not (Test-Path -LiteralPath $mospPath)) {
 
 常见问题：
 
-- `ffmpeg` 或 `ffprobe` 找不到：改用默认的 `MAW` 包，或把 FFmpeg 安装目录加入 PATH。
-- 报未配置 API Key：检查对应供应商的环境变量名，或检查 `.env` 是否位于 Release 的 `MAW.exe` 同目录；若未放置同目录文件，再检查 `%LOCALAPPDATA%\MAW\.env`。
+- `ffmpeg` 或 `ffprobe` 找不到：改用默认的 `MSW` 包，或把 FFmpeg 安装目录加入 PATH。
+- 报未配置 API Key：检查对应供应商的环境变量名，或检查 `.env` 是否位于 Release 的 `MSW.exe` 同目录；若未放置同目录文件，再检查 `%LOCALAPPDATA%\MSW\.env`。
 - OpenAI 兼容接口报时间戳错误：确认服务支持 `verbose_json`，并返回 `segments` 或 `words` 的 `start` / `end` 时间戳；仅有 `text` 的响应会被拒绝。
 - 输出路径包含空格但文件没有生成：检查 PowerShell 命令是否给路径加了双引号。
 - Server 打不开工程媒体：工程里的媒体路径可能已失效，使用 `PROJECT --media PATH` 指定当前媒体。

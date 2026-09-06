@@ -1,4 +1,4 @@
-name: Release MAW GUI
+name: Release MSW GUI
 
 on:
   push:
@@ -82,7 +82,7 @@ jobs:
           curl -L --retry 3 --connect-timeout 20 --max-time 300 -o build/python-3.11.9-embed-amd64.zip https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
           curl -L --retry 3 --connect-timeout 20 --max-time 120 -o build/get-pip.py https://bootstrap.pypa.io/get-pip.py
 
-      - name: Build MAW bundle
+      - name: Build MSW bundle
         shell: pwsh
         run: .\scripts\build-windows.ps1 -SkipTests
 
@@ -90,17 +90,17 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if (-not (Test-Path -LiteralPath 'dist\MAW\FAQ-常见问题.txt' -PathType Leaf)) {
-            throw 'Missing dist\MAW\FAQ-常见问题.txt after build.'
+          if (-not (Test-Path -LiteralPath 'dist\MSW\FAQ-常见问题.txt' -PathType Leaf)) {
+            throw 'Missing dist\MSW\FAQ-常见问题.txt after build.'
           }
 
-      - name: Smoke MAW executable
+      - name: Smoke MSW executable
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $ExePath = 'dist\MAW\MAW.exe'
+          $ExePath = 'dist\MSW\MSW.exe'
           if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
-            throw 'Missing dist\MAW\MAW.exe after build.'
+            throw 'Missing dist\MSW\MSW.exe after build.'
           }
           $HelpProcess = Start-Process -FilePath $ExePath -ArgumentList '--help' -PassThru -WindowStyle Hidden
           if ($HelpProcess.WaitForExit(10000)) {
@@ -113,7 +113,7 @@ jobs:
           $GuiProcess = Start-Process -FilePath $ExePath -PassThru -WindowStyle Hidden
           if ($GuiProcess.WaitForExit(5000)) {
             if ($GuiProcess.ExitCode -ne 0) {
-              throw "MAW.exe launch smoke exited with $($GuiProcess.ExitCode)."
+              throw "MSW.exe launch smoke exited with $($GuiProcess.ExitCode)."
             }
           } else {
             Stop-Process -Id $GuiProcess.Id -Force
@@ -132,7 +132,7 @@ jobs:
             '_internal\moss-runtime\requirements-moss-cpu.txt'
           )
           foreach ($Relative in $Required) {
-            $Path = Join-Path 'dist\MAW' $Relative
+            $Path = Join-Path 'dist\MSW' $Relative
             if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
               throw "Missing runtime requirements in bundle: $Path"
             }
@@ -143,7 +143,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $Version = '${{ steps.version.outputs.version }}'
-          Copy-Item -LiteralPath 'dist\MAW' -Destination 'dist\MAW-lite' -Recurse
+          Copy-Item -LiteralPath 'dist\MSW' -Destination 'dist\MSW-lite' -Recurse
 
       - name: Bundle FFmpeg and create release archives
         shell: pwsh
@@ -187,22 +187,22 @@ jobs:
           }
           Expand-Archive -LiteralPath $FfmpegArchive -DestinationPath 'build\ffmpeg-package' -Force
 
-          New-Item -ItemType Directory -Path 'dist\MAW\ffmpeg\bin' -Force | Out-Null
+          New-Item -ItemType Directory -Path 'dist\MSW\ffmpeg\bin' -Force | Out-Null
           $FfmpegExe = Get-ChildItem -LiteralPath 'build\ffmpeg-package' -Filter 'ffmpeg.exe' -File -Recurse | Select-Object -First 1
           $FfprobeExe = Get-ChildItem -LiteralPath 'build\ffmpeg-package' -Filter 'ffprobe.exe' -File -Recurse | Select-Object -First 1
           if (-not $FfmpegExe -or -not $FfprobeExe) {
             throw 'The downloaded FFmpeg package did not contain ffmpeg.exe and ffprobe.exe.'
           }
-          Copy-Item -LiteralPath $FfmpegExe.FullName -Destination 'dist\MAW\ffmpeg\bin\ffmpeg.exe'
-          Copy-Item -LiteralPath $FfprobeExe.FullName -Destination 'dist\MAW\ffmpeg\bin\ffprobe.exe'
+          Copy-Item -LiteralPath $FfmpegExe.FullName -Destination 'dist\MSW\ffmpeg\bin\ffmpeg.exe'
+          Copy-Item -LiteralPath $FfprobeExe.FullName -Destination 'dist\MSW\ffmpeg\bin\ffprobe.exe'
 
           $License = Get-ChildItem -LiteralPath 'build\ffmpeg-package' -Filter 'LICENSE' -File -Recurse | Select-Object -First 1
           $Readme = Get-ChildItem -LiteralPath 'build\ffmpeg-package' -Filter 'README.txt' -File -Recurse | Select-Object -First 1
           if (-not $License -or -not $Readme) {
             throw 'The downloaded FFmpeg package did not contain its license and README.'
           }
-          Copy-Item -LiteralPath $License.FullName -Destination 'dist\MAW\ffmpeg\LICENSE.txt'
-          Copy-Item -LiteralPath $Readme.FullName -Destination 'dist\MAW\ffmpeg\README.txt'
+          Copy-Item -LiteralPath $License.FullName -Destination 'dist\MSW\ffmpeg\LICENSE.txt'
+          Copy-Item -LiteralPath $Readme.FullName -Destination 'dist\MSW\ffmpeg\README.txt'
           @(
             "FFmpeg $FfmpegVersion Essentials build for Windows x64"
             "Build provider: https://www.gyan.dev/ffmpeg/builds/"
@@ -210,21 +210,21 @@ jobs:
             "Archive SHA-256: $ExpectedHash"
             "Corresponding FFmpeg source commit: https://github.com/FFmpeg/FFmpeg/commit/$FfmpegCommit"
             "FFmpeg source archive: https://github.com/FFmpeg/FFmpeg/archive/$FfmpegCommit.tar.gz"
-            'This MAW package includes only ffmpeg.exe and ffprobe.exe from the original build.'
+            'This MSW package includes only ffmpeg.exe and ffprobe.exe from the original build.'
             'See LICENSE.txt and README.txt in this directory for license and build configuration details.'
-          ) | Set-Content -LiteralPath 'dist\MAW\ffmpeg\SOURCE.txt' -Encoding utf8
+          ) | Set-Content -LiteralPath 'dist\MSW\ffmpeg\SOURCE.txt' -Encoding utf8
 
           $Version = '${{ steps.version.outputs.version }}'
-          Compress-Archive -LiteralPath 'dist\MAW-lite' -DestinationPath "MAW-lite-Windows-x64-$Version.zip" -Force
-          Compress-Archive -LiteralPath 'dist\MAW' -DestinationPath "MAW-Windows-x64-$Version.zip" -Force
+          Compress-Archive -LiteralPath 'dist\MSW-lite' -DestinationPath "MSW-lite-Windows-x64-$Version.zip" -Force
+          Compress-Archive -LiteralPath 'dist\MSW' -DestinationPath "MSW-Windows-x64-$Version.zip" -Force
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: MAW-Windows-x64-${{ steps.version.outputs.version }}
+          name: MSW-Windows-x64-${{ steps.version.outputs.version }}
           path: |
-            MAW-Windows-x64-${{ steps.version.outputs.version }}.zip
-            MAW-lite-Windows-x64-${{ steps.version.outputs.version }}.zip
+            MSW-Windows-x64-${{ steps.version.outputs.version }}.zip
+            MSW-lite-Windows-x64-${{ steps.version.outputs.version }}.zip
           if-no-files-found: error
 
   build-aux:
@@ -237,16 +237,16 @@ jobs:
             platform: macos
             os: macos-14
             arch: arm64
-            asset: MAW-macOS-arm64
+            asset: MSW-macOS-arm64
             paths: |
-              MAW-macOS-arm64-*.zip
-              MAW-lite-macOS-arm64-*.zip
+              MSW-macOS-arm64-*.zip
+              MSW-lite-macOS-arm64-*.zip
           - name: Linux x86_64
             platform: linux
             os: ubuntu-22.04
             arch: x64
-            asset: MAW-Linux-x86_64
-            paths: build-appimage/MAW-Linux-x86_64*.AppImage
+            asset: MSW-Linux-x86_64
+            paths: build-appimage/MSW-Linux-x86_64*.AppImage
     runs-on: ${{ matrix.os }}
     env:
       PYTHONUTF8: '1'
@@ -317,21 +317,21 @@ jobs:
         if: matrix.platform == 'macos'
         run: uv run python scripts/build_macos_icon.py --check
 
-      - name: Build MAW GUI bundle
+      - name: Build MSW GUI bundle
         if: matrix.platform == 'macos'
         run: |
           # 主清单与 CPU 变体统一由 freezer 模块生成（与 build-windows.ps1 /
           # build-appimage.sh / 源码模式自动补齐完全同源）。
           mkdir -p build
           uv run python -m maw.runtimes.freezer freeze --force
-          uv run --group build pyinstaller --noconfirm --clean MAW.spec
+          uv run --group build pyinstaller --noconfirm --clean MSW.spec
 
       - name: Verify bundled FAQ
         if: matrix.platform == 'macos'
         shell: bash
         run: |
           set -euo pipefail
-          FaqPath="$(find dist/MAW.app -type f -name 'FAQ-常见问题.txt' -print -quit)"
+          FaqPath="$(find dist/MSW.app -type f -name 'FAQ-常见问题.txt' -print -quit)"
           test -n "$FaqPath"
 
       - name: Verify runtime requirements bundled
@@ -340,25 +340,25 @@ jobs:
         run: |
           set -euo pipefail
           for Req in requirements-local.txt requirements-ocr.txt requirements-moss.txt; do
-            Found="$(find dist/MAW.app -type f -name "$Req" -print -quit)"
+            Found="$(find dist/MSW.app -type f -name "$Req" -print -quit)"
             if [ -z "$Found" ]; then
               echo "Missing $Req in macOS bundle"
               exit 1
             fi
           done
-          OcrConversion="$(find dist/MAW.app -type f -path '*/ocr-runtime/maw/text_conversion.py' -print -quit)"
+          OcrConversion="$(find dist/MSW.app -type f -path '*/ocr-runtime/maw/text_conversion.py' -print -quit)"
           if [ -z "$OcrConversion" ] || [ ! -f "$OcrConversion" ]; then
             echo "Missing OCR runtime text conversion module in macOS bundle"
             exit 1
           fi
           echo "OK: runtime requirements txt 随包分发"
 
-      - name: Smoke MAW executable
+      - name: Smoke MSW executable
         if: matrix.platform == 'macos'
         shell: bash
         run: |
           set -euo pipefail
-          AppExe="dist/MAW.app/Contents/MacOS/MAW"
+          AppExe="dist/MSW.app/Contents/MacOS/MSW"
           if [ ! -f "$AppExe" ]; then
             echo "Missing $AppExe after build."
             exit 1
@@ -369,10 +369,10 @@ jobs:
       - name: Ad-hoc codesign the app bundle
         if: matrix.platform == 'macos'
         run: |
-          codesign --force --deep --sign - dist/MAW.app
-          codesign --verify --deep --strict --verbose=2 dist/MAW.app
+          codesign --force --deep --sign - dist/MSW.app
+          codesign --verify --deep --strict --verbose=2 dist/MSW.app
 
-      - name: Create MAW-lite app bundle before bundling FFmpeg into MAW
+      - name: Create MSW-lite app bundle before bundling FFmpeg into MSW
         if: matrix.platform == 'macos'
         shell: bash
         run: |
@@ -410,8 +410,8 @@ jobs:
           printf '%s  %s\n' "$FfmpegBinarySha256" "$FfmpegBinary" | shasum -a 256 -c -
           printf '%s  %s\n' "$FfprobeBinarySha256" "$FfprobeBinary" | shasum -a 256 -c -
 
-          cp -R dist/MAW.app dist/MAW-lite.app
-          FfmpegDirectory="dist/MAW.app/Contents/MacOS/ffmpeg"
+          cp -R dist/MSW.app dist/MSW-lite.app
+          FfmpegDirectory="dist/MSW.app/Contents/MacOS/ffmpeg"
           mkdir -p "$FfmpegDirectory/bin"
           cp "$FfmpegBinary" "$FfmpegDirectory/bin/ffmpeg"
           cp "$FfprobeBinary" "$FfmpegDirectory/bin/ffprobe"
@@ -419,21 +419,21 @@ jobs:
           curl --fail --location --retry 3 --silent --show-error --output "$FfmpegDirectory/COPYING.GPLv3" "$LicenseBaseUrl/COPYING.GPLv3"
           curl --fail --location --retry 3 --silent --show-error --output "$FfmpegDirectory/COPYING.LGPLv2.1" "$LicenseBaseUrl/COPYING.LGPLv2.1"
           cat > "$FfmpegDirectory/SOURCE.txt" <<EOF
-          FFmpeg $FfmpegVersion Apple Silicon static binaries for MAW.
+          FFmpeg $FfmpegVersion Apple Silicon static binaries for MSW.
           Build provider: https://www.osxexperts.net/
           Original ffmpeg archive: $FfmpegArchiveUrl
           Original ffprobe archive: $FfprobeArchiveUrl
           FFmpeg license and reference source: $LicenseBaseUrl
-          This MAW package includes only ffmpeg and ffprobe from the original builds.
+          This MSW package includes only ffmpeg and ffprobe from the original builds.
           See LICENSE.md, COPYING.GPLv3, and COPYING.LGPLv2.1 in this directory.
           EOF
 
-          codesign --force --deep --sign - dist/MAW.app
-          dist/MAW.app/Contents/MacOS/ffmpeg/bin/ffmpeg -version >/dev/null
-          dist/MAW.app/Contents/MacOS/ffmpeg/bin/ffprobe -version >/dev/null
-          dist/MAW.app/Contents/MacOS/MAW --smoke-import
-          dist/MAW.app/Contents/MacOS/MAW --help >/dev/null
-          codesign --verify --deep --strict --verbose=2 dist/MAW.app
+          codesign --force --deep --sign - dist/MSW.app
+          dist/MSW.app/Contents/MacOS/ffmpeg/bin/ffmpeg -version >/dev/null
+          dist/MSW.app/Contents/MacOS/ffmpeg/bin/ffprobe -version >/dev/null
+          dist/MSW.app/Contents/MacOS/MSW --smoke-import
+          dist/MSW.app/Contents/MacOS/MSW --help >/dev/null
+          codesign --verify --deep --strict --verbose=2 dist/MSW.app
 
       - name: Create release archives
         if: matrix.platform == 'macos'
@@ -441,22 +441,22 @@ jobs:
         run: |
           set -euo pipefail
           Version="${{ steps.version.outputs.version }}"
-          StandardArchive="MAW-macOS-arm64-${Version}.zip"
-          LiteArchive="MAW-lite-macOS-arm64-${Version}.zip"
+          StandardArchive="MSW-macOS-arm64-${Version}.zip"
+          LiteArchive="MSW-lite-macOS-arm64-${Version}.zip"
           StandardStage="build/release/standard"
           LiteStage="build/release/lite"
           mkdir -p "$StandardStage" "$LiteStage"
-          ditto dist/MAW.app "$StandardStage/MAW.app"
-          ditto dist/MAW-lite.app "$LiteStage/MAW-lite.app"
+          ditto dist/MSW.app "$StandardStage/MSW.app"
+          ditto dist/MSW-lite.app "$LiteStage/MSW-lite.app"
           cp FAQ-常见问题.txt "$StandardStage/FAQ-常见问题.txt"
           cp FAQ-常见问题.txt "$LiteStage/FAQ-常见问题.txt"
           (
             cd "$StandardStage"
-            zip -qry "$GITHUB_WORKSPACE/$StandardArchive" MAW.app FAQ-常见问题.txt
+            zip -qry "$GITHUB_WORKSPACE/$StandardArchive" MSW.app FAQ-常见问题.txt
           )
           (
             cd "$LiteStage"
-            zip -qry "$GITHUB_WORKSPACE/$LiteArchive" MAW-lite.app FAQ-常见问题.txt
+            zip -qry "$GITHUB_WORKSPACE/$LiteArchive" MSW-lite.app FAQ-常见问题.txt
           )
           # 不使用 unzip | grep：macOS 的 unzip 输出、grep 管道和 pipefail
           # 组合过于脆弱，归档有效时也可能把校验误判为失败。
@@ -467,8 +467,8 @@ jobs:
 
           faq_bytes = Path("FAQ-常见问题.txt").read_bytes()
           checks = (
-              (sys.argv[1], "MAW.app/Contents/MacOS/MAW"),
-              (sys.argv[2], "MAW-lite.app/Contents/MacOS/MAW"),
+              (sys.argv[1], "MSW.app/Contents/MacOS/MSW"),
+              (sys.argv[2], "MSW-lite.app/Contents/MacOS/MSW"),
           )
 
           for archive_name, required_entry in checks:
@@ -513,7 +513,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           set -euo pipefail
-          AppImage="build-appimage/MAW-Linux-x86_64.AppImage"
+          AppImage="build-appimage/MSW-Linux-x86_64.AppImage"
           test -f "$AppImage"
           test -x "$AppImage"
           file "$AppImage" | grep -q 'ELF 64-bit'
@@ -523,7 +523,7 @@ jobs:
         run: |
           set -euo pipefail
           cd build-appimage
-          ./MAW-Linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+          ./MSW-Linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1
           if [ -e squashfs-root/_internal/libstdc++.so.6 ] || [ -e squashfs-root/_internal/libgcc_s.so.1 ] || [ -e squashfs-root/_internal/libgbm.so.1 ] || ls squashfs-root/_internal/libreadline.so.* >/dev/null 2>&1; then
             echo "FAIL: AppImage 内置了 libstdc++/libgcc_s/libgbm/libreadline，会污染系统 Mesa 驱动加载"
             exit 1
@@ -540,12 +540,12 @@ jobs:
       - name: Diagnose AppImage libraries
         if: ${{ always() && matrix.platform == 'linux' }}
         run: |
-          if [ ! -f build-appimage/MAW-Linux-x86_64.AppImage ]; then
+          if [ ! -f build-appimage/MSW-Linux-x86_64.AppImage ]; then
             echo "跳过 AppImage 诊断：构建产物不存在，前置步骤已失败。"
             exit 0
           fi
           cd build-appimage
-          ./MAW-Linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1 || true
+          ./MSW-Linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1 || true
           echo "=== Qt6/lib 里 xcb-cursor 相关:"
           ls squashfs-root/_internal/PyQt6/Qt6/lib/ 2>/dev/null | grep -i xcb || echo "(无)"
           echo "=== libqxcb.so 缺失依赖:"
@@ -557,7 +557,7 @@ jobs:
         run: |
           set -euo pipefail
           cd build-appimage
-          ./MAW-Linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+          ./MSW-Linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1
           BIN="squashfs-root/ffmpeg/bin"
           test -x "$BIN/ffmpeg"
           test -x "$BIN/ffprobe"
@@ -574,7 +574,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           set -euo pipefail
-          AppImage="build-appimage/MAW-Linux-x86_64.AppImage"
+          AppImage="build-appimage/MSW-Linux-x86_64.AppImage"
           # 无 FUSE 环境用解压运行模式；timeout 命中（124）说明 GUI 事件循环在正常存活。
           # 20 秒足以确认 Launcher 正常起屏（正常启动只需数秒），到期被杀即视为通过。
           set +e
@@ -591,8 +591,8 @@ jobs:
         if: ${{ matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/v') }}
         run: |
           set -euo pipefail
-          mv "build-appimage/MAW-Linux-x86_64.AppImage" "build-appimage/MAW-Linux-x86_64-${{ github.ref_name }}.AppImage"
-          test -f "build-appimage/MAW-Linux-x86_64-${{ github.ref_name }}.AppImage"
+          mv "build-appimage/MSW-Linux-x86_64.AppImage" "build-appimage/MSW-Linux-x86_64-${{ github.ref_name }}.AppImage"
+          test -f "build-appimage/MSW-Linux-x86_64-${{ github.ref_name }}.AppImage"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
@@ -637,7 +637,7 @@ jobs:
       - name: Download all build artifacts
         uses: actions/download-artifact@v7
         with:
-          pattern: MAW-*
+          pattern: MSW-*
           # 不要使用仓库已有的 assets/ 目录：上传时用 glob 会把源素材
           # （launcher.jpg、maw.icns、screenshot*.jpg 等）一起传进 Release。
           path: release-artifacts

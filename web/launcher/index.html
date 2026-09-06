@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MAW Launcher</title>
+  <title>MSW Launcher</title>
   <link rel="icon" href="../../assets/show.webp" type="image/webp">
   <script>
     // 首屏防闪烁：样式表加载前按 localStorage / 系统偏好提前设置 data-theme
@@ -449,7 +449,7 @@
               <input id="autoPostprocessRetain" type="checkbox">
               <span data-i18n="auto_retain_intermediate">保留中间产物</span>
             </label>
-            <p class="hint hint-top-spaced" data-i18n="auto_retain_hint">默认不保留；中间文件统一放在媒体目录的 MAW-Postprocess 子文件夹中。失败或取消时会保留以便排查。</p>
+            <p class="hint hint-top-spaced" data-i18n="auto_retain_hint">默认不保留；中间文件统一放在媒体目录的 MSW-Postprocess 子文件夹中。失败或取消时会保留以便排查。</p>
           </div>
         </div>
       </div>
@@ -619,18 +619,18 @@
       </section>
 
       <section id="toolboxAlignmentPanel" class="toolbox-panel hidden toolbox-utility-panel" role="tabpanel" aria-labelledby="toolboxAlignmentTab">
-        <p class="hint toolbox-panel-hint" data-i18n="toolbox_alignment_hint">适合初版 ASR 中有口吃、重录、重复或顺序混乱的口播；需要 MAW 工程和校对文稿，人工选择 take 后导出新工程。</p>
+        <p class="hint toolbox-panel-hint" data-i18n="toolbox_alignment_hint">适合初版 ASR 中有口吃、重录、重复或顺序混乱的口播；需要 MSW 工程和校对文稿，人工选择 take 后导出新工程。</p>
         <div id="toolboxAlignmentInputs" class="toolbox-alignment-inputs">
           <div id="toolboxAlignmentProjectDropZone" class="field toolbox-input">
             <div class="toolbox-input-heading">
-              <label for="toolboxAlignmentProjectPath" data-i18n="toolbox_alignment_input_project">MAW 工程</label>
+              <label for="toolboxAlignmentProjectPath" data-i18n="toolbox_alignment_input_project">MSW 工程</label>
               <span id="toolboxAlignmentProjectName" class="toolbox-input-name empty" aria-live="polite" data-i18n="toolbox_input_empty">未选择文件</span>
             </div>
             <div class="path-row">
               <input id="toolboxAlignmentProjectPath" type="text" autocomplete="off" data-i18n-placeholder="toolbox_alignment_project_placeholder" placeholder="选择或拖入 .mosp / .json 工程">
               <button id="pickToolboxAlignmentProject" class="ghost" type="button" data-i18n="choose">选择</button>
             </div>
-            <p class="hint" data-i18n="toolbox_alignment_project_hint">默认跟随当前 Launcher 工程；口播对齐需要 MAW 工程中的 ASR 时间码，不能只使用 SRT。</p>
+            <p class="hint" data-i18n="toolbox_alignment_project_hint">默认跟随当前 Launcher 工程；口播对齐需要 MSW 工程中的 ASR 时间码，不能只使用 SRT。</p>
             <p id="toolboxAlignmentProjectPathError" class="field-error"></p>
           </div>
           <div id="toolboxAlignmentScriptDropZone" class="field toolbox-input">
@@ -670,7 +670,7 @@
               <p class="hint" data-i18n="toolbox_alignment_gap_lead_out_hint">每段空隙结尾保留的静音，避免下一句贴得太紧。</p>
             </div>
           </div>
-          <p class="hint toolbox-alignment-gap-hint" data-i18n="toolbox_alignment_gap_hint">仅作用于口播对齐导出的自动空隙；与 MAWE 设置分开保存。</p>
+          <p class="hint toolbox-alignment-gap-hint" data-i18n="toolbox_alignment_gap_hint">仅作用于口播对齐导出的自动空隙；与 MSWE 设置分开保存。</p>
         </div>
         <p class="toolbox-notice" data-i18n="toolbox_alignment_notice">不会覆盖输入工程；导出后会生成 source.aligned.mosp。</p>
       </section>
@@ -909,7 +909,7 @@
       <div class="field">
         <label for="toolboxAudioTrack" data-i18n="toolbox_audio_track">音轨</label>
         <select id="toolboxAudioTrack"></select>
-        <p id="toolboxAudioTrackStatus" class="hint" aria-live="polite" data-i18n="toolbox_audio_track_choose">先选择媒体，MAW 会读取可用音轨。</p>
+        <p id="toolboxAudioTrackStatus" class="hint" aria-live="polite" data-i18n="toolbox_audio_track_choose">先选择媒体，MSW 会读取可用音轨。</p>
         <p id="toolboxAudioTrackError" class="field-error"></p>
       </div>
       <p class="toolbox-notice" data-i18n="toolbox_ready">选择工具后运行；始终生成新文件，不覆盖源文件。</p>

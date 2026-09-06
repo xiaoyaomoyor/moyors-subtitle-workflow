@@ -2,7 +2,7 @@
   "name": "moys-asr-workflow-dev",
   "version": "0.0.0",
   "private": true,
-  "description": "Dev-only browser regression tooling for MAW (Playwright). No production dependency.",
+  "description": "Dev-only browser regression tooling for MSW (Playwright). No production dependency.",
   "scripts": {
     "test": "playwright test --project=chromium",
     "test:headed": "playwright test --project=chromium --headed"

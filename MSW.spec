@@ -197,7 +197,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='MAW',
+    name='MSW',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -217,13 +217,13 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='MAW',
+    name='MSW',
 )
 
 if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
-        name='MAW.app',
+        name='MSW.app',
         icon=str(ROOT / 'assets' / 'maw.icns'),
         bundle_identifier='com.moy.mawsasrworkflow',
     )

@@ -1,4 +1,4 @@
-"""Local QwenASR / FunASR / MOSS / faster-whisper -> SRT + MAW project CLI.
+"""Local QwenASR / FunASR / MOSS / faster-whisper -> SRT + MSW project CLI.
 
 This remains a source-mode first step.  Model packages are optional; the
 Launcher only routes to this CLI and lets the upstream runtime prepare its
@@ -15,7 +15,7 @@ from typing import Sequence
 # Windows embedded Python uses ``python*._pth`` to control ``sys.path`` and
 # does not add the directory of a script executed by path.  The packaged copy
 # lives beside ``local-runtime/maw``; source mode has the same sibling layout
-# at the repository root.  Add that package root before importing MAW modules.
+# at the repository root.  Add that package root before importing MSW modules.
 _BUNDLE_ROOT = Path(__file__).resolve().parent
 if str(_BUNDLE_ROOT) not in sys.path:
     sys.path.insert(0, str(_BUNDLE_ROOT))
@@ -42,7 +42,7 @@ from maw.local_asr import (  # noqa: E402
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="使用本地 QwenASR、FunASR、MOSS 或 faster-whisper 生成 MAW 字幕工程",
+        description="使用本地 QwenASR、FunASR、MOSS 或 faster-whisper 生成 MSW 字幕工程",
     )
     parser.add_argument("input", help="输入视频或音频文件路径")
     parser.add_argument(
@@ -130,7 +130,17 @@ def load_hotword_files(paths: Sequence[str]) -> list[str]:
     return hotwords
 
 
+def _apply_msw_env_aliases() -> None:
+    """MSW_* 环境变量别名映射到 MAW_*（本地入口不依赖 maw.stickers，保持轻量）。"""
+    import os as _os
+    for key in [k for k in list(_os.environ) if k.startswith("MSW_")]:
+        legacy = "MAW_" + key[len("MSW_"):]
+        if legacy not in _os.environ or not _os.environ[legacy].strip():
+            _os.environ[legacy] = _os.environ[key]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    _apply_msw_env_aliases()
     configure_utf8_stdio()
     args = build_parser().parse_args(argv)
     input_path = Path(args.input).expanduser().resolve()

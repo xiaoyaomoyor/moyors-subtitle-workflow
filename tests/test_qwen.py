@@ -49,7 +49,7 @@ class QwenMediaExtractionTests(unittest.TestCase):
             "generate_subtitle_qwen_api.subprocess.run",
             side_effect=FileNotFoundError(2, "系统找不到指定的文件"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "找不到 FFmpeg，请下载完整版 MAW"):
+            with self.assertRaisesRegex(RuntimeError, "找不到 FFmpeg，请下载完整版 MSW"):
                 get_duration_sec("input.mp4")
 
     def test_video_extraction_can_limit_duration_in_the_first_ffmpeg_pass(self) -> None:

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MAW 动态图形预览</title>
+  <title>MSW 动态图形预览</title>
   <style>
     :root {
       color-scheme: dark;
@@ -222,7 +222,7 @@
 <body>
   <main class="app">
     <header>
-      <h1>MAW 动态图形预览</h1>
+      <h1>MSW 动态图形预览</h1>
       <p class="hint">可扫描 examples，也可直接拖入 .ograf.zip 或 .lottie；空格播放/暂停</p>
     </header>
 
@@ -561,7 +561,7 @@
         ? `${errorName}: ${rawMessage}`
         : rawMessage;
       if (/must not have attributes|NotSupportedError|缺少 load/iu.test(message)) {
-        return `${message}；请用修复后的 MAW 重新导出 OGraf 文件`;
+        return `${message}；请用修复后的 MSW 重新导出 OGraf 文件`;
       }
       if (/dotlottie|dynamically imported module|Failed to fetch/iu.test(message)) {
         return `${message}；Lottie 预览需要联网加载官方播放器`;
@@ -772,7 +772,7 @@
         if (!state.packages.length) {
           stage.replaceChildren(Object.assign(document.createElement('div'), {
             className: 'empty',
-            textContent: '请把从 MAW 导出的 .ograf.zip / .lottie 放进 examples，或直接拖到上方读取。',
+            textContent: '请把从 MSW 导出的 .ograf.zip / .lottie 放进 examples，或直接拖到上方读取。',
           }));
           setStatus('未找到 OGraf 或 Lottie 文件。', 'error');
           return;

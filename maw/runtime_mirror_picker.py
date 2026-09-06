@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PyPI mirror speed tester for MAW runtime installs.
+"""PyPI mirror speed tester for MSW runtime installs.
 
-MAW 的本地 ASR / OCR runtime 用 `pip install --target ... --index-url <mirror>`
+MSW 的本地 ASR / OCR runtime 用 `pip install --target ... --index-url <mirror>`
 拉依赖（torch 等体积很大），国内用户直连 pypi.org 往往很慢。
 本工具并发探测各候选源的 HTTP 延迟与下载速度，选最快的镜像供
 `--index-url` 使用。纯标准库实现，可独立运行，也可被
@@ -56,7 +56,7 @@ _READ_CHUNK_BYTES = 64 * 1024
 #: 首块字节数（取其到达时间作为"首字节"）
 _FIRST_CHUNK_BYTES = 1024
 
-_USER_AGENT = "MAW-RuntimeMirrorPicker/1.0"
+_USER_AGENT = "MSW-RuntimeMirrorPicker/1.0"
 
 _HREF_RE = re.compile(r"""href\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 
@@ -232,7 +232,7 @@ def _fmt_speed(bytes_per_sec: float | None) -> str:
 
 def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="PyPI mirror speed tester for MAW runtime pip install."
+        description="PyPI mirror speed tester for MSW runtime pip install."
     )
     parser.add_argument("--json", action="store_true",
                         help="print full results as JSON instead of a table")

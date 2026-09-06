@@ -1,4 +1,4 @@
-"""使用腾讯云录音文件识别 API 生成 SRT 与 MAW 工程。"""
+"""使用腾讯云录音文件识别 API 生成 SRT 与 MSW 工程。"""
 
 import argparse
 import json
@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from maw.stickers import get_default_sticker_dir
+from maw.stickers import get_default_sticker_dir, apply_msw_env_aliases
 from generate_subtitle_qwen_api import (
     build_segments_from_api_sentences,
     configure_console_output,
@@ -29,6 +29,7 @@ from maw.tencent import DEFAULT_ENGINE, load_config, transcribe
 
 
 def main() -> int:
+    apply_msw_env_aliases()
     parser = argparse.ArgumentParser(description="使用腾讯云录音文件识别 API 生成视频字幕")
     parser.add_argument("input", help="输入视频或音频文件路径")
     parser.add_argument("-o", "--output", help="输出 SRT 路径")
@@ -213,7 +214,7 @@ def main() -> int:
             project = merge_media_caches(project, cache_result)
         check = validate_project(project)
         if not check.ok:
-            raise RuntimeError("腾讯云结果未通过 MAW 工程校验: " + "; ".join(error.message for error in check.errors[:3]))
+            raise RuntimeError("腾讯云结果未通过 MSW 工程校验: " + "; ".join(error.message for error in check.errors[:3]))
         write_mosp(
             json_path,
             project,

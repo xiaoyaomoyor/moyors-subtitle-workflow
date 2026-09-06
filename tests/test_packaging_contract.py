@@ -112,15 +112,15 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("/build/", ignored_paths)
         self.assertIn("*.spec.bak", ignored_paths)
         self.assertIn("*.exe", ignored_paths)
-        self.assertIn("!MAW.spec", ignored_paths)
-        self.assertIn("/dist/MAW/MAW.exe", ignored_paths)
+        self.assertIn("!MSW.spec", ignored_paths)
+        self.assertIn("/dist/MSW/MSW.exe", ignored_paths)
 
     def test_spec_packages_full_gui_resources_without_sensitive_or_heavy_outputs(self) -> None:
-        """Given the Windows GUI bundle, When MAW.spec is read, Then it is onedir/windowed/noupx."""
-        spec = read_text("MAW.spec")
+        """Given the Windows GUI bundle, When MSW.spec is read, Then it is onedir/windowed/noupx."""
+        spec = read_text("MSW.spec")
 
         self.assertIn("maw_gui.py", spec)
-        self.assertIn("name='MAW'", spec)
+        self.assertIn("name='MSW'", spec)
         self.assertIn("console=False", spec)
         self.assertIn("upx=False", spec)
         self.assertIn('"maw.console"', spec)
@@ -171,8 +171,8 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("Python.Runtime.Loader.Initialize", faq)
         self.assertIn("解除锁定", faq)
         self.assertIn("Bandizip", faq)
-        self.assertIn("MAW-lite", faq)
-        self.assertIn("下载带内置 FFmpeg 的完整版 MAW 包", faq)
+        self.assertIn("MSW-lite", faq)
+        self.assertIn("下载带内置 FFmpeg 的完整版 MSW 包", faq)
         self.assertIn("FAQ-常见问题.txt", spec)
         for excluded_module in ("funasr", "qwen_asr", "onnxruntime", "PIL", "rapidocr", "torch", "torchaudio", "readline"):
             self.assertIn(f'"{excluded_module}"', spec)
@@ -183,7 +183,7 @@ class PackagingContractTests(unittest.TestCase):
 
     def test_runtime_uses_frozen_requirements_txt_not_handwritten_constants(self) -> None:
         """Given the frozen txt runtime install design, When runtime specs and base are read, Then no hand-written requirement constants remain and install reads -r txt."""
-        spec = read_text("MAW.spec")
+        spec = read_text("MSW.spec")
         runtimes_base = read_text("maw/runtimes/base.py")
         local_spec = read_text("maw/runtimes/local_spec.py")
         ocr_spec = read_text("maw/runtimes/ocr_spec.py")
@@ -224,7 +224,7 @@ class PackagingContractTests(unittest.TestCase):
         from maw.runtimes import freezer as freezer_mod
 
         pyproject = read_text("pyproject.toml")
-        spec = read_text("MAW.spec")
+        spec = read_text("MSW.spec")
 
         # 手写 CPU 声明文件已退役：声明源单一（pyproject dependency group /
         # moss-requirements.in）。
@@ -243,7 +243,7 @@ class PackagingContractTests(unittest.TestCase):
             self.assertNotIn("moss-cpu-requirements.in", build_entry)
             self.assertNotIn("freeze_cpu_requirements", build_entry)
 
-        # CPU 变体 frozen txt 仍随包分发（MAW.spec datas 条件追加）。
+        # CPU 变体 frozen txt 仍随包分发（MSW.spec datas 条件追加）。
         for txt in ("requirements-local-cpu.txt", "requirements-moss-cpu.txt"):
             self.assertIn(txt, spec)
 
@@ -319,7 +319,7 @@ class PackagingContractTests(unittest.TestCase):
         lockfile = read_text("uv.lock")
         self.assertIn('ocr = [', lockfile)
         self.assertNotIn('marker = "extra == \'ocr\'"', lockfile)
-        spec = read_text("MAW.spec")
+        spec = read_text("MSW.spec")
         for relative in (
             "maw/ocr_runtime_worker.py",
             "maw/postprocess_ocr.py",
@@ -331,7 +331,7 @@ class PackagingContractTests(unittest.TestCase):
 
     def test_local_runtime_bundles_every_local_import_dependency(self) -> None:
         """Given local ASR entrypoints, When packaging is read, Then their local imports are copied beside them."""
-        spec = read_text("MAW.spec")
+        spec = read_text("MSW.spec")
         bundled_paths = {
             str(_local_module_path(module).relative_to(ROOT)).replace("\\", "/")
             for module in _local_runtime_import_graph()
@@ -370,7 +370,7 @@ class PackagingContractTests(unittest.TestCase):
 
     def test_ocr_runtime_bundles_every_local_import_dependency(self) -> None:
         """Given the OCR worker entrypoint, When packaging is read, Then its local imports are copied beside it."""
-        spec = read_text("MAW.spec")
+        spec = read_text("MSW.spec")
         bundled_paths = {
             str(_local_module_path(module).relative_to(ROOT)).replace("\\", "/")
             for module in _ocr_runtime_import_graph()
@@ -384,7 +384,7 @@ class PackagingContractTests(unittest.TestCase):
 
     def test_macos_bundle_uses_the_icns_app_icon(self) -> None:
         """Given a macOS app bundle, When PyInstaller builds it, Then the bundle has the branded ICNS icon."""
-        spec = read_text("MAW.spec")
+        spec = read_text("MSW.spec")
         workflow = read_text(".github/workflows/release.yml")
         icon = (ROOT / "assets" / "maw.icns").read_bytes()
 
@@ -397,7 +397,7 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn(b"ic08", icon)
 
     def test_macos_release_workflow_publishes_maw_archives_without_mose_or_checksums(self) -> None:
-        """Given a macOS arm64 release, When packaging runs, Then only MAW app variants are uploaded."""
+        """Given a macOS arm64 release, When packaging runs, Then only MSW app variants are uploaded."""
         workflow = read_text(".github/workflows/release.yml")
 
         self.assertIn("os: macos-14", workflow)
@@ -428,19 +428,19 @@ class PackagingContractTests(unittest.TestCase):
         self.assertNotIn("tauri.macos.conf.json", macos_workflow)
         self.assertIn("ebb82529562b71170807bbc6b0e7eb4f0b13af8cbb0e085bb9e8f6fe709598ad", macos_workflow)
         self.assertIn("a6640a77d38a6f0527c5b597e599cb36a3427a6931444ed80bc62542421950a1", macos_workflow)
-        self.assertIn("MAW.app/Contents/MacOS/ffmpeg/bin", macos_workflow)
-        self.assertIn("codesign --force --deep --sign - dist/MAW.app", macos_workflow)
-        self.assertIn("MAW-macOS-arm64-${Version}.zip", macos_workflow)
-        self.assertIn("MAW-lite-macOS-arm64-${Version}.zip", macos_workflow)
+        self.assertIn("MSW.app/Contents/MacOS/ffmpeg/bin", macos_workflow)
+        self.assertIn("codesign --force --deep --sign - dist/MSW.app", macos_workflow)
+        self.assertIn("MSW-macOS-arm64-${Version}.zip", macos_workflow)
+        self.assertIn("MSW-lite-macOS-arm64-${Version}.zip", macos_workflow)
         self.assertIn("scripts/sync_launcher_version.py --write", macos_workflow)
         self.assertIn("scripts/sync_launcher_version.py --check", macos_workflow)
         self.assertIn('StandardStage="build/release/standard"', macos_workflow)
         self.assertIn('LiteStage="build/release/lite"', macos_workflow)
-        self.assertIn('zip -qry "$GITHUB_WORKSPACE/$StandardArchive" MAW.app', macos_workflow)
-        self.assertIn('zip -qry "$GITHUB_WORKSPACE/$LiteArchive" MAW-lite.app', macos_workflow)
+        self.assertIn('zip -qry "$GITHUB_WORKSPACE/$StandardArchive" MSW.app', macos_workflow)
+        self.assertIn('zip -qry "$GITHUB_WORKSPACE/$LiteArchive" MSW-lite.app', macos_workflow)
         self.assertIn('FAQ-常见问题.txt', macos_workflow)
         self.assertNotIn("MOSE.app", macos_workflow)
-        self.assertIn("MAW-lite-macOS-arm64-*.zip", macos_workflow)
+        self.assertIn("MSW-lite-macOS-arm64-*.zip", macos_workflow)
         self.assertNotIn(".zip.sha256", macos_workflow)
 
     def test_appimage_build_drops_bundled_cpp_runtime(self) -> None:
@@ -459,22 +459,22 @@ class PackagingContractTests(unittest.TestCase):
         """Given the AppImage build script, When the BtbN GPL ffmpeg build is bundled, Then the GPLv3 license text and a source notice are written into the bundle."""
         script = read_text("scripts/build-appimage.sh")
 
-        self.assertIn('cp "FAQ-常见问题.txt" "dist/MAW/FAQ-常见问题.txt"', script)
-        self.assertIn('dist/MAW/ffmpeg/GPLv3.txt', script)
-        self.assertIn('dist/MAW/ffmpeg/SOURCE.txt', script)
+        self.assertIn('cp "FAQ-常见问题.txt" "dist/MSW/FAQ-常见问题.txt"', script)
+        self.assertIn('dist/MSW/ffmpeg/GPLv3.txt', script)
+        self.assertIn('dist/MSW/ffmpeg/SOURCE.txt', script)
         self.assertIn('https://www.gnu.org/licenses/gpl-3.0.txt', script)
         self.assertIn('raw.githubusercontent.com/spdx/license-list-data', script)
         self.assertIn('Build provider: https://github.com/BtbN/FFmpeg-Builds', script)
         self.assertIn('Archive SHA-256: $FFMPEG_SHA256', script)
 
     def test_local_build_script_invokes_uv_and_pyinstaller_for_maw_onedir(self) -> None:
-        """Given a Windows developer build, When the script is read, Then it builds dist/MAW/MAW.exe."""
+        """Given a Windows developer build, When the script is read, Then it builds dist/MSW/MSW.exe."""
         script = read_text("scripts/build-windows.ps1")
 
         self.assertIn("uv sync --group build --frozen", script)
         self.assertIn("uv run --group build pyinstaller", script)
-        self.assertIn("MAW.spec", script)
-        self.assertIn("dist\\MAW\\MAW.exe", script)
+        self.assertIn("MSW.spec", script)
+        self.assertIn("dist\\MSW\\MSW.exe", script)
         self.assertIn("$FaqSource", script)
         self.assertIn("$FaqBundlePath", script)
         self.assertNotIn("cargo check --manifest-path", script)
@@ -517,7 +517,7 @@ class PackagingContractTests(unittest.TestCase):
         )
 
     def test_release_workflow_is_tag_triggered_and_publishes_both_windows_packages(self) -> None:
-        """Given a v* tag push, When workflow is read, Then it releases MAW and MAW-lite builds."""
+        """Given a v* tag push, When workflow is read, Then it releases MSW and MSW-lite builds."""
         workflow = read_text(".github/workflows/release.yml")
 
         self.assertRegex(workflow, re.compile(r"on:\s+push:\s+tags:\s+- 'v\*'", re.MULTILINE))
@@ -532,7 +532,7 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("scripts/sync_launcher_version.py --write", workflow)
         self.assertIn("scripts/sync_launcher_version.py --check", workflow)
         self.assertIn("PYTHONUTF8: '1'", workflow)
-        self.assertIn("dist\\MAW\\MAW.exe", workflow)
+        self.assertIn("dist\\MSW\\MSW.exe", workflow)
         self.assertNotIn("MOSE", workflow)
         self.assertIn("Compress-Archive", workflow)
         self.assertIn("Get-FileHash", workflow)
@@ -546,8 +546,8 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("ffmpeg.exe", workflow)
         self.assertIn("ffprobe.exe", workflow)
         self.assertNotIn("ffplay.exe", workflow)
-        self.assertIn("MAW-Windows-x64-${{ steps.version.outputs.version }}.zip", workflow)
-        self.assertIn("MAW-lite-Windows-x64-${{ steps.version.outputs.version }}.zip", workflow)
+        self.assertIn("MSW-Windows-x64-${{ steps.version.outputs.version }}.zip", workflow)
+        self.assertIn("MSW-lite-Windows-x64-${{ steps.version.outputs.version }}.zip", workflow)
         self.assertIn("actions/upload-artifact@v6", workflow)
         self.assertIn("gh release upload", workflow)
         self.assertIn("--target '${{ github.sha }}'", workflow)
@@ -638,13 +638,13 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", workflow)
         self.assertIn("uv sync --group build --frozen", workflow)
         self.assertIn("scripts\\build-windows.ps1 -SkipTests", workflow)
-        self.assertIn("dist\\MAW\\MAW.exe", workflow)
+        self.assertIn("dist\\MSW\\MSW.exe", workflow)
         self.assertNotIn("MOSE", workflow)
         self.assertIn("Verify no FFmpeg is bundled", workflow)
         self.assertIn("Compress-Archive", workflow)
         self.assertIn("actions/upload-artifact@v6", workflow)
         self.assertIn("retention-days: 14", workflow)
-        self.assertIn("MAW-lite-Windows-x64-pr-", workflow)
+        self.assertIn("MSW-lite-Windows-x64-pr-", workflow)
         self.assertNotIn(".zip.sha256", workflow)
         self.assertIn("persist-credentials: false", workflow)
         self.assertNotIn("MAWxFF", workflow)

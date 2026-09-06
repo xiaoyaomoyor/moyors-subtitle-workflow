@@ -81,7 +81,7 @@
       output_required: "请填写 SRT 输出路径。",
       key_required: "请填写 API Key，或先保存到 .env。",
       workspace_required: "新加坡地域需要 Workspace ID。",
-      json_required: "请选择工程文件后再打开 MAWE。",
+      json_required: "请选择工程文件后再打开 MSWE。",
       server_media_required: "工程没有可用媒体，请手动选择媒体文件。",
       speaker_colors: "给不同说话人分配字幕颜色",
       speaker_colors_hint: "最多 5 种颜色；说话人超过 5 个时颜色循环复用。",
@@ -166,7 +166,7 @@
       output_required: "Enter an SRT output path.",
       key_required: "Enter an API key, or save one to .env first.",
       workspace_required: "Workspace ID is required for Singapore.",
-      json_required: "Choose a project file before opening MAWE.",
+      json_required: "Choose a project file before opening MSWE.",
       server_media_required: "The project has no usable media. Choose media manually.",
       speaker_colors: "Assign subtitle colors to speakers",
       speaker_colors_hint: "Up to 5 colors; colors cycle when there are more than 5 speakers.",
@@ -196,10 +196,10 @@
     audio_track_id: "ID {id}"
   });
   Object.assign(STRINGS.zh, {
-    toolbox_burn_subtitle: "压制字幕", toolbox_burn_subtitle_hint: "将 SRT / ASS 字幕直接绘制进新的视频文件；会重新编码视频，不覆盖源文件。", toolbox_burn_subtitle_input: "字幕文件", toolbox_burn_subtitle_placeholder: "选择或拖入 .srt / .ass / .ssa 字幕", toolbox_burn_subtitle_input_hint: "默认跟随当前的 SRT 输出，也支持手动选择 ASS / SSA。", toolbox_burn_subtitle_invalid: "请选择 .srt、.ass 或 .ssa 字幕文件。", toolbox_burn_done: "字幕压制完成，已切换到新媒体：", toolbox_extract_audio: "提取音频", toolbox_extract_audio_hint: "从视频或音频中提取一个音轨，输出新的 AAC/M4A 文件；不会修改源文件。", toolbox_audio_track: "音轨", toolbox_audio_track_choose: "先选择媒体，MAW 会读取可用音轨。", toolbox_audio_tracks_reading: "正在读取音轨……", toolbox_audio_tracks_found: "已找到 {count} 条音轨。", toolbox_audio_tracks_none: "没有检测到可用音轨。", toolbox_audio_track_item: "音轨", toolbox_audio_track_default: "默认", toolbox_audio_track_invalid: "所选音轨无效，请重新选择。", toolbox_extract_audio_done: "音频提取完成，已切换到新媒体：", toolbox_utility_video_required: "压制字幕需要包含视频画面的媒体文件。", toolbox_status_burning: "正在压制字幕并重新编码视频……", toolbox_status_extracting: "正在提取音频……", toolbox_status_cancelling: "正在停止媒体处理……"
+    toolbox_burn_subtitle: "压制字幕", toolbox_burn_subtitle_hint: "将 SRT / ASS 字幕直接绘制进新的视频文件；会重新编码视频，不覆盖源文件。", toolbox_burn_subtitle_input: "字幕文件", toolbox_burn_subtitle_placeholder: "选择或拖入 .srt / .ass / .ssa 字幕", toolbox_burn_subtitle_input_hint: "默认跟随当前的 SRT 输出，也支持手动选择 ASS / SSA。", toolbox_burn_subtitle_invalid: "请选择 .srt、.ass 或 .ssa 字幕文件。", toolbox_burn_done: "字幕压制完成，已切换到新媒体：", toolbox_extract_audio: "提取音频", toolbox_extract_audio_hint: "从视频或音频中提取一个音轨，输出新的 AAC/M4A 文件；不会修改源文件。", toolbox_audio_track: "音轨", toolbox_audio_track_choose: "先选择媒体，MSW 会读取可用音轨。", toolbox_audio_tracks_reading: "正在读取音轨……", toolbox_audio_tracks_found: "已找到 {count} 条音轨。", toolbox_audio_tracks_none: "没有检测到可用音轨。", toolbox_audio_track_item: "音轨", toolbox_audio_track_default: "默认", toolbox_audio_track_invalid: "所选音轨无效，请重新选择。", toolbox_extract_audio_done: "音频提取完成，已切换到新媒体：", toolbox_utility_video_required: "压制字幕需要包含视频画面的媒体文件。", toolbox_status_burning: "正在压制字幕并重新编码视频……", toolbox_status_extracting: "正在提取音频……", toolbox_status_cancelling: "正在停止媒体处理……"
   });
   Object.assign(STRINGS.en, {
-    toolbox_burn_subtitle: "Burn subtitles", toolbox_burn_subtitle_hint: "Render SRT / ASS subtitles into a new video file. Video is re-encoded and the source is kept unchanged.", toolbox_burn_subtitle_input: "Subtitle file", toolbox_burn_subtitle_placeholder: "Choose or drop an .srt / .ass / .ssa subtitle", toolbox_burn_subtitle_input_hint: "Follows the current SRT output by default; ASS / SSA can be chosen manually.", toolbox_burn_subtitle_invalid: "Choose an .srt, .ass, or .ssa subtitle file.", toolbox_burn_done: "Subtitles burned; switched to the new media:", toolbox_extract_audio: "Extract audio", toolbox_extract_audio_hint: "Extract one audio track from video or audio into a new AAC/M4A file; the source is kept unchanged.", toolbox_audio_track: "Audio track", toolbox_audio_track_choose: "Choose media first; MAW will read its available tracks.", toolbox_audio_tracks_reading: "Reading audio tracks…", toolbox_audio_tracks_found: "Found {count} audio track(s).", toolbox_audio_tracks_none: "No usable audio tracks were found.", toolbox_audio_track_item: "Track", toolbox_audio_track_default: "default", toolbox_audio_track_invalid: "The selected audio track is invalid. Choose it again.", toolbox_extract_audio_done: "Audio extracted; switched to the new media:", toolbox_utility_video_required: "Burning subtitles requires media with a video stream.", toolbox_status_burning: "Burning subtitles and re-encoding the video…", toolbox_status_extracting: "Extracting audio…", toolbox_status_cancelling: "Stopping media operation…"
+    toolbox_burn_subtitle: "Burn subtitles", toolbox_burn_subtitle_hint: "Render SRT / ASS subtitles into a new video file. Video is re-encoded and the source is kept unchanged.", toolbox_burn_subtitle_input: "Subtitle file", toolbox_burn_subtitle_placeholder: "Choose or drop an .srt / .ass / .ssa subtitle", toolbox_burn_subtitle_input_hint: "Follows the current SRT output by default; ASS / SSA can be chosen manually.", toolbox_burn_subtitle_invalid: "Choose an .srt, .ass, or .ssa subtitle file.", toolbox_burn_done: "Subtitles burned; switched to the new media:", toolbox_extract_audio: "Extract audio", toolbox_extract_audio_hint: "Extract one audio track from video or audio into a new AAC/M4A file; the source is kept unchanged.", toolbox_audio_track: "Audio track", toolbox_audio_track_choose: "Choose media first; MSW will read its available tracks.", toolbox_audio_tracks_reading: "Reading audio tracks…", toolbox_audio_tracks_found: "Found {count} audio track(s).", toolbox_audio_tracks_none: "No usable audio tracks were found.", toolbox_audio_track_item: "Track", toolbox_audio_track_default: "default", toolbox_audio_track_invalid: "The selected audio track is invalid. Choose it again.", toolbox_extract_audio_done: "Audio extracted; switched to the new media:", toolbox_utility_video_required: "Burning subtitles requires media with a video stream.", toolbox_status_burning: "Burning subtitles and re-encoding the video…", toolbox_status_extracting: "Extracting audio…", toolbox_status_cancelling: "Stopping media operation…"
   });
   Object.assign(STRINGS.zh, {
     test_run: "快速测试",
@@ -224,7 +224,7 @@
     output_collision: "An output file with the same name already exists. To avoid overwriting it, the new output has been given a suffix.",
     custom_asr_base_url: "ASR Base URL",
     custom_asr_base_url_placeholder: "For example, https://api.openai.com/v1",
-    custom_asr_base_url_hint: "MAW calls /audio/transcriptions under this URL and requires timestamped output.",
+    custom_asr_base_url_hint: "MSW calls /audio/transcriptions under this URL and requires timestamped output.",
     custom_asr_model: "Custom ASR model name",
     custom_asr_model_placeholder: "For example, my-custom-model",
     custom_asr_model_hint: "Enter the model name provided by your relay or service provider.",
@@ -345,7 +345,7 @@
     auto_translate_en: "英文",
     auto_merge_bilingual: "合并双语字幕",
     auto_retain_intermediate: "保留中间产物",
-    auto_retain_hint: "默认不保留；中间文件统一放在媒体目录的 MAW-Postprocess 子文件夹中。失败或取消时会保留以便排查。",
+    auto_retain_hint: "默认不保留；中间文件统一放在媒体目录的 MSW-Postprocess 子文件夹中。失败或取消时会保留以便排查。",
     auto_summary_disabled: "自动处理未启用。",
     auto_summary_empty: "请在下方「后处理步骤」中勾选需要的工序。",
     auto_summary_steps: "已选择 {count} 步：{steps}",
@@ -381,7 +381,7 @@
     local_partial: "已检测到主模型，但仍缺少组件",
     local_installed: "已检测到本地模型",
     local_path_selected: "已使用指定的模型目录",
-    local_prepare_hint: "下载/准备会使用 QwenASR 或 FunASR 的上游缓存；模型文件不写入 MAW 工程。",
+    local_prepare_hint: "下载/准备会使用 QwenASR 或 FunASR 的上游缓存；模型文件不写入 MSW 工程。",
     local_prepare_running: "正在准备模型……",
     local_prepare_cancelling: "正在取消模型准备……",
     local_prepare_cancel: "取消准备",
@@ -426,7 +426,7 @@
     auto_translate_en: "English",
     auto_merge_bilingual: "Merge bilingual subtitles",
     auto_retain_intermediate: "Keep intermediate artifacts",
-    auto_retain_hint: "Off by default. Intermediate files stay in a MAW-Postprocess subfolder beside the media; failures and cancellations keep them for diagnosis.",
+    auto_retain_hint: "Off by default. Intermediate files stay in a MSW-Postprocess subfolder beside the media; failures and cancellations keep them for diagnosis.",
     auto_summary_disabled: "Automatic processing is disabled.",
     auto_summary_empty: "Select the processing steps you need in the “Post-processing steps” section below.",
     auto_summary_steps: "{count} selected step(s): {steps}",
@@ -462,7 +462,7 @@
     local_partial: "Main model found, but components are missing",
     local_installed: "Local model detected",
     local_path_selected: "Using the selected model folder",
-    local_prepare_hint: "Download/preparation uses the QwenASR or FunASR upstream cache; model files are not written into the MAW project.",
+    local_prepare_hint: "Download/preparation uses the QwenASR or FunASR upstream cache; model files are not written into the MSW project.",
     local_prepare_running: "Preparing model…",
     local_prepare_cancelling: "Cancelling model preparation…",
     local_prepare_cancel: "Cancel preparation",
@@ -577,7 +577,7 @@
     max_words_placeholder: "Default: 13",
     min_words_placeholder: "Default: 3",
     gap_split_placeholder: "Default: 800",
-    segmentation_hint: "Leave blank to use the defaults for character-mode and pause splitting (max characters: 18, short-cue threshold: 5, pause split: 800 ms); MAW chooses character or word rules from language/text metadata.",
+    segmentation_hint: "Leave blank to use the defaults for character-mode and pause splitting (max characters: 18, short-cue threshold: 5, pause split: 800 ms); MSW chooses character or word rules from language/text metadata.",
     english_segmentation_hint: "This configuration is used when generating English subtitles.",
     qwen_audio_options_title: "Qwen context & hotwords",
     toolbox_group_ocr_video: "Video source",
@@ -835,8 +835,8 @@
       json_not_found: "工程文件不存在，请检查路径。",
       media_not_found: "媒体文件不存在，请重新选择。",
       server_media_missing: "工程无可用媒体，请手动选择媒体文件。",
-      server_stop_not_maw: "当前端口上的进程不是 MAW 字幕编辑服务器，未执行停止。",
-      server_stop_failed: "无法停止当前端口上的 MAW 字幕编辑服务器。",
+      server_stop_not_maw: "当前端口上的进程不是 MSW 字幕编辑服务器，未执行停止。",
+      server_stop_failed: "无法停止当前端口上的 MSW 字幕编辑服务器。",
       api_key_missing: "请填写 API Key，或先在 ⚙ 配置/密钥区保存。",
       custom_asr_base_url_missing: "请填写自定义 ASR Base URL。",
       custom_asr_model_missing: "请填写自定义 ASR 模型名。",
@@ -874,11 +874,11 @@
       hotwords_file_missing: "请选择存在且为 UTF-8 编码的 .txt 热词文件。",
       output_missing: "请填写 SRT 输出路径。",
       segmentation_invalid: "切句参数无效：请输入整数，并确保最大字数不小于短句合并阈值。",
-      ffmpeg_missing: "未找到 FFmpeg / FFprobe，无法读取媒体。请下载不带 lite 的完整 MAW；或在“配置 → FFmpeg”选择同时包含 ffmpeg.exe 和 ffprobe.exe 的 bin 目录。",
-      ffmpeg_start_failed: "FFmpeg 被 Windows 阻止启动。请退出 MAW，对下载的 ZIP 解除锁定后重新完整解压，并检查 Windows 安全中心的拦截记录。",
+      ffmpeg_missing: "未找到 FFmpeg / FFprobe，无法读取媒体。请下载不带 lite 的完整 MSW；或在“配置 → FFmpeg”选择同时包含 ffmpeg.exe 和 ffprobe.exe 的 bin 目录。",
+      ffmpeg_start_failed: "FFmpeg 被 Windows 阻止启动。请退出 MSW，对下载的 ZIP 解除锁定后重新完整解压，并检查 Windows 安全中心的拦截记录。",
       transcription_failed: "转写失败，本次任务已停止。请查看日志后修正问题，再重新尝试。",
       transcription_cancelled: "转写已停止。",
-      ffprobe_start_failed: "FFprobe 被 Windows 阻止启动。请退出 MAW，对下载的 ZIP 解除锁定后重新完整解压，并检查 Windows 安全中心的拦截记录。",
+      ffprobe_start_failed: "FFprobe 被 Windows 阻止启动。请退出 MSW，对下载的 ZIP 解除锁定后重新完整解压，并检查 Windows 安全中心的拦截记录。",
       config_save_failed: (detail) => `无法保存本地配置：${detail || "请检查应用数据目录权限后重试。"}`,
       server_no_response: (detail) => `编辑器服务器没有响应（${detail || "http://127.0.0.1"}）——端口可能被占用，请检查端口后重试。`,
       server_start_failed: (detail) => `编辑器服务器启动失败：${detail || "请查看下方日志。"}`,
@@ -890,8 +890,8 @@
       json_not_found: "Project file does not exist. Check the path.",
       media_not_found: "Media file does not exist. Choose it again.",
       server_media_missing: "The project has no usable media. Choose the media file manually.",
-      server_stop_not_maw: "The current port is not used by a MAW subtitle editor server, so it was not stopped.",
-      server_stop_failed: "Unable to stop the MAW subtitle editor server on the current port.",
+      server_stop_not_maw: "The current port is not used by a MSW subtitle editor server, so it was not stopped.",
+      server_stop_failed: "Unable to stop the MSW subtitle editor server on the current port.",
       api_key_missing: "Enter an API Key, or save one first in Settings / API key.",
       custom_asr_base_url_missing: "Enter a custom ASR Base URL.",
       custom_asr_model_missing: "Enter a custom ASR model name.",
@@ -929,11 +929,11 @@
       hotwords_file_missing: "Choose an existing UTF-8 .txt hotword file.",
       output_missing: "Enter an SRT output path.",
       segmentation_invalid: "Invalid segmentation settings: enter integers and ensure max characters is at least the merge threshold.",
-      ffmpeg_missing: "FFmpeg / FFprobe was not found, so the media cannot be read. Download the full MAW package (not lite), or choose a bin folder containing both tools in Settings → FFmpeg.",
-      ffmpeg_start_failed: "Windows blocked FFmpeg from starting. Close MAW, unblock the downloaded ZIP, extract the complete package again, and check Windows Security protection history.",
+      ffmpeg_missing: "FFmpeg / FFprobe was not found, so the media cannot be read. Download the full MSW package (not lite), or choose a bin folder containing both tools in Settings → FFmpeg.",
+      ffmpeg_start_failed: "Windows blocked FFmpeg from starting. Close MSW, unblock the downloaded ZIP, extract the complete package again, and check Windows Security protection history.",
       transcription_failed: "Transcription failed and this run has stopped. Check the log, fix the problem, and retry.",
       transcription_cancelled: "Transcription stopped.",
-      ffprobe_start_failed: "Windows blocked FFprobe from starting. Close MAW, unblock the downloaded ZIP, extract the complete package again, and check Windows Security protection history.",
+      ffprobe_start_failed: "Windows blocked FFprobe from starting. Close MSW, unblock the downloaded ZIP, extract the complete package again, and check Windows Security protection history.",
       config_save_failed: (detail) => `Could not save local configuration: ${detail || "check the app-data directory permissions and try again."}`,
       server_no_response: (detail) => `The editor server did not respond (${detail || "http://127.0.0.1"}). The port may be occupied; check the port and retry.`,
       server_start_failed: (detail) => `The editor server failed to start: ${detail || "check the logs below."}`,
@@ -971,14 +971,14 @@
     error_copy_report_failed: "Copy failed; please copy the log manually.",
   });
   Object.assign(STRINGS.zh, {
-    toolbox_alignment_hint: "适合初版 ASR 中有口吃、重录、重复或顺序混乱的口播；需要 MAW 工程和校对文稿，人工选择 take 后导出新工程。",
-    toolbox_alignment_input_project: "MAW 工程",
-    toolbox_alignment_project_hint: "默认跟随当前 Launcher 工程；口播对齐需要 MAW 工程中的 ASR 时间码，不能只使用 SRT。",
+    toolbox_alignment_hint: "适合初版 ASR 中有口吃、重录、重复或顺序混乱的口播；需要 MSW 工程和校对文稿，人工选择 take 后导出新工程。",
+    toolbox_alignment_input_project: "MSW 工程",
+    toolbox_alignment_project_hint: "默认跟随当前 Launcher 工程；口播对齐需要 MSW 工程中的 ASR 时间码，不能只使用 SRT。",
     toolbox_alignment_input_script: "校对文稿",
     toolbox_alignment_script_placeholder: "选择或拖入 UTF-8 .txt / .md 校对文稿",
     toolbox_alignment_script_hint: "每个非空行视为一行校对文稿。",
     toolbox_alignment_gap_heading: "自动生成空隙",
-    toolbox_alignment_gap_hint: "仅作用于口播对齐导出的自动空隙；与 MAWE 设置分开保存。",
+    toolbox_alignment_gap_hint: "仅作用于口播对齐导出的自动空隙；与 MSWE 设置分开保存。",
     toolbox_alignment_gap_minimum: "最小空隙（ms）",
     toolbox_alignment_gap_minimum_hint: "短于此值的静音不处理。",
     toolbox_alignment_gap_threshold: "音量阈值（dB）",
@@ -991,14 +991,14 @@
     toolbox_alignment_gap_hysteresis_hint: "恢复静音需低于阈值；建议 1–3dB。",
   });
   Object.assign(STRINGS.en, {
-    toolbox_alignment_hint: "For rough first-pass ASR with stutters, retakes, repeats, or reordered speech. Requires a MAW project and proofreading script; choose takes manually, then export a new project.",
-    toolbox_alignment_input_project: "MAW project",
-    toolbox_alignment_project_hint: "Follows the current Launcher project by default; speech alignment needs ASR timestamps from a MAW project and cannot use SRT alone.",
+    toolbox_alignment_hint: "For rough first-pass ASR with stutters, retakes, repeats, or reordered speech. Requires a MSW project and proofreading script; choose takes manually, then export a new project.",
+    toolbox_alignment_input_project: "MSW project",
+    toolbox_alignment_project_hint: "Follows the current Launcher project by default; speech alignment needs ASR timestamps from a MSW project and cannot use SRT alone.",
     toolbox_alignment_input_script: "Proofreading script",
     toolbox_alignment_script_placeholder: "Choose or drop a UTF-8 .txt / .md proofreading script",
     toolbox_alignment_script_hint: "Each non-empty line is treated as one proofreading-script line.",
     toolbox_alignment_gap_heading: "Automatic gap generation",
-    toolbox_alignment_gap_hint: "Applies only to gaps generated during speech-alignment export; saved separately from MAWE settings.",
+    toolbox_alignment_gap_hint: "Applies only to gaps generated during speech-alignment export; saved separately from MSWE settings.",
     toolbox_alignment_gap_minimum: "Minimum gap (ms)",
     toolbox_alignment_gap_minimum_hint: "Silence shorter than this is ignored.",
     toolbox_alignment_gap_threshold: "Volume threshold (dB)",
@@ -1074,9 +1074,9 @@
           { id: "custom", label: saved.customDisplayName || "Custom (OpenAI-compatible)", defaultLabel: "Custom (OpenAI-compatible)", displayName: saved.customDisplayName || "", baseUrl: "", model: "", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: false, hasModel: false, selected: false }
         ],
         postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: false, steps: [] },
-        modelCacheRoot: saved.modelCacheRoot || "D:\\Models\\MAW",
-        localRuntime: { status: "missing", ready: false, path: "", pythonPath: "", modelCachePath: saved.modelCacheRoot || "D:\\Models\\MAW", detail: "" },
-        ocrRuntime: { status: "missing", ready: false, path: "D:\\Users\\Demo\\AppData\\Local\\MAW\\ocr-runtime", pythonPath: "", modelId: "pp-ocrv6-tiny", modelLabel: "PP-OCRv6 tiny（CPU）", detail: "" },
+        modelCacheRoot: saved.modelCacheRoot || "D:\\Models\\MSW",
+        localRuntime: { status: "missing", ready: false, path: "", pythonPath: "", modelCachePath: saved.modelCacheRoot || "D:\\Models\\MSW", detail: "" },
+        ocrRuntime: { status: "missing", ready: false, path: "D:\\Users\\Demo\\AppData\\Local\\MSW\\ocr-runtime", pythonPath: "", modelId: "pp-ocrv6-tiny", modelLabel: "PP-OCRv6 tiny（CPU）", detail: "" },
         ocrModels: [
           { id: "pp-ocrv6-tiny", label: "PP-OCRv6 tiny（CPU）", installed: false, status: "missing", detail: "" },
           { id: "pp-ocrv6-small", label: "PP-OCRv6 small（CPU）", installed: false, status: "missing", detail: "" }
@@ -1180,24 +1180,24 @@
       choose_file: async ({ kind }) => ({ ok: true, path: kind === "json" ? "D:\\Demo\\project.json" : (kind === "subtitle" ? "D:\\Demo\\project.mosp" : (kind === "subtitle-burn" ? "D:\\Demo\\clip.srt" : (kind === "video" ? "D:\\Demo\\clip.mp4" : (kind === "ffconcat" ? "D:\\Demo\\clip.ffconcat" : (kind === "script" ? "D:\\Demo\\script.txt" : (kind === "hotwords" ? "D:\\Demo\\hotwords.txt" : "D:\\Demo\\clip.mp4")))))) }),
       read_script_preview: async () => ({ ok: true, path: "D:\\Demo\\script.txt", preview: "第一行\n第二行", truncated: false }),
       read_hotword_file: async () => ({ ok: true, path: "D:\\Demo\\hotwords.txt", text: "张三\n阿里云百炼\n专业术语\n" }),
-      save_settings: async (payload) => { saved = { ...saved, ...payload }; if (Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot")) { state.config.modelCacheRoot = payload.modelCacheRoot || ""; state.config.localRuntime = { ...(state.config.localRuntime || {}), modelCachePath: payload.modelCacheRoot || "D:\\Models\\MAW" }; } return { ok: true, maskedApiKey: payload.apiKey ? "sk-…mock" : "", modelCacheRoot: Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot") ? (payload.modelCacheRoot || "") : (state.config?.modelCacheRoot || ""), message: "mock saved" }; },
+      save_settings: async (payload) => { saved = { ...saved, ...payload }; if (Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot")) { state.config.modelCacheRoot = payload.modelCacheRoot || ""; state.config.localRuntime = { ...(state.config.localRuntime || {}), modelCachePath: payload.modelCacheRoot || "D:\\Models\\MSW" }; } return { ok: true, maskedApiKey: payload.apiKey ? "sk-…mock" : "", modelCacheRoot: Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot") ? (payload.modelCacheRoot || "") : (state.config?.modelCacheRoot || ""), message: "mock saved" }; },
       get_local_runtime: async () => ({ ok: true, ...(state.config?.localRuntime || { status: "missing", ready: false }) }),
-      install_local_runtime: async () => { state.config.localRuntime = { status: "ready", ready: true, path: "D:\\Users\\Demo\\AppData\\Local\\MAW\\local-runtime", detail: "本地运行环境已就绪。" }; setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "localRuntimeReady", runtime: state.config.localRuntime }), 400); return { ok: true, installing: true }; },
+      install_local_runtime: async () => { state.config.localRuntime = { status: "ready", ready: true, path: "D:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime", detail: "本地运行环境已就绪。" }; setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "localRuntimeReady", runtime: state.config.localRuntime }), 400); return { ok: true, installing: true }; },
       cancel_local_runtime: async () => ({ ok: true }),
       get_ocr_runtime: async () => ({ ok: true, ...(state.config?.ocrRuntime || { status: "missing", ready: false }), models: state.config?.ocrModels || [] }),
-      save_ocr_settings: async ({ runtimePath }) => { state.config.ocrRuntime = { ...(state.config.ocrRuntime || {}), path: runtimePath || "D:\\Users\\Demo\\AppData\\Local\\MAW\\ocr-runtime" }; return { ok: true, runtimePath: state.config.ocrRuntime.path, runtime: state.config.ocrRuntime }; },
-      install_ocr_runtime: async () => { state.config.ocrRuntime = { ...(state.config.ocrRuntime || {}), status: "ready", ready: true, modelInstalled: true, detail: "OCR 模型已安装，可以在工具箱中使用。" }; state.config.ocrModels = (state.config.ocrModels || []).map((model) => ({ ...model, installed: true, status: "installed", detail: state.config.ocrRuntime.detail })); setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "ocrRuntimeReady", runtime: state.config.ocrRuntime, models: state.config.ocrModels }), 400); return { ok: true, installing: true }; },
+      save_ocr_settings: async ({ runtimePath }) => { state.config.ocrRuntime = { ...(state.config.ocrRuntime || {}), path: runtimePath || "D:\\Users\\Demo\\AppData\\Local\\MSW\\ocr-runtime" }; return { ok: true, runtimePath: state.config.ocrRuntime.path, runtime: state.config.ocrRuntime }; },
+      install_ocr_runtime: async () => { state.config.ocrRuntime = { ...(state.config.ocrRuntime || {}), status: "ready", ready: true, modelInstalled: true, detail: "OCR 模型已安装，可以在工具箱中使用。" }; state.config.ocrModels = (state.config.ocrModels || []).map((model) => ({ ...model, installed: true, status: "installed", detail: state.config.ocrRuntime.detail })); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "ocrRuntimeReady", runtime: state.config.ocrRuntime, models: state.config.ocrModels }), 400); return { ok: true, installing: true }; },
       cancel_ocr_runtime: async () => ({ ok: true }),
       get_local_models: async ({ modelId, modelPath }) => ({ ok: true, runtime: state.config?.localRuntime || {}, models: (state.config?.providers.find((item) => item.id === "local")?.models || []).map((model) => ({ ...model, localStatus: { ...(model.localStatus || {}), ...(model.id === modelId && modelPath ? { status: "installed", installed: true, path: modelPath, detail: "已使用指定的模型目录。" } : {}) } })) }),
-      prepare_local_model: async ({ modelId }) => { clearTimeout(modelPrepareTimer); modelPrepareTimer = setTimeout(() => { state.config?.providers.find((item) => item.id === "local")?.models.forEach((model) => { if (model.id === modelId) model.localStatus = { ...(model.localStatus || {}), status: "installed", installed: true, runtimeAvailable: true, canPrepare: false, detail: "已检测到本地模型。" }; }); window.MAWLauncher.onBackendEvent({ type: "modelPrepared", modelId }); }, 400); return { ok: true, preparing: true, modelId }; },
-      cancel_local_model: async () => { clearTimeout(modelPrepareTimer); setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "localPrepareCancelled" }), 80); return { ok: true, cancelling: true }; },
+      prepare_local_model: async ({ modelId }) => { clearTimeout(modelPrepareTimer); modelPrepareTimer = setTimeout(() => { state.config?.providers.find((item) => item.id === "local")?.models.forEach((model) => { if (model.id === modelId) model.localStatus = { ...(model.localStatus || {}), status: "installed", installed: true, runtimeAvailable: true, canPrepare: false, detail: "已检测到本地模型。" }; }); window.MSWLauncher.onBackendEvent({ type: "modelPrepared", modelId }); }, 400); return { ok: true, preparing: true, modelId }; },
+      cancel_local_model: async () => { clearTimeout(modelPrepareTimer); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "localPrepareCancelled" }), 80); return { ok: true, cancelling: true }; },
        save_prefs: async (payload) => { if (Object.prototype.hasOwnProperty.call(payload, "modelId")) localStorage.setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) localStorage.setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); if (Object.prototype.hasOwnProperty.call(payload, "theme")) saved.theme = payload.theme || "system"; if (Object.prototype.hasOwnProperty.call(payload, "zoomPercent")) localStorage.setItem(ZOOM_PERCENT_KEY, String(payload.zoomPercent)); return { ok: true, zoomPercent: Number(localStorage.getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT }; },
       open_url: async ({ url }) => { window.open(url, "_blank"); return { ok: true }; },
       open_runtime_folder: async (payload) => { window.__openedRuntimeFolder = payload; return { ok: true }; },
       open_blank_html: async () => ({ ok: true }),
       check_ffmpeg: async () => ({ ok: true, found: true, directory: "D:\\FFmpeg\\bin", ffmpeg: "D:\\FFmpeg\\bin\\ffmpeg.exe", ffprobe: "D:\\FFmpeg\\bin\\ffprobe.exe" }),
       save_ffmpeg_path: async ({ path }) => ({ ok: Boolean(path), found: Boolean(path), directory: path || "", ffmpeg: path || "", ffprobe: path || "" }),
-      choose_folder: async ({ kind } = {}) => ({ ok: true, path: kind === "model-cache" ? "D:\\Models\\MAW" : (kind === "ocr-runtime" ? "D:\\Models\\MAW\\ocr-runtime" : "D:\\Stickers") }),
+      choose_folder: async ({ kind } = {}) => ({ ok: true, path: kind === "model-cache" ? "D:\\Models\\MSW" : (kind === "ocr-runtime" ? "D:\\Models\\MSW\\ocr-runtime" : "D:\\Stickers") }),
       save_sticker_dir: async ({ path }) => { saved.stickerDir = path || ""; return { ok: Boolean(path), stickerDir: saved.stickerDir, field: path ? "" : "stickerDir", error: path ? "" : "missing" }; },
       get_postprocess_settings: async ({ providerId }) => { const apiKey = saved.postprocessApiKeys[providerId] || ""; return { ok: true, providerId, apiKey, maskedApiKey: apiKey ? "sk-…mock" : "" }; },
       save_postprocess_settings: async ({ providerId, apiKey, displayName, reasoningMode }) => { if (providerId === "custom") saved.customDisplayName = displayName || ""; if (apiKey) saved.postprocessApiKeys[providerId] = apiKey; return { ok: true, providerId, label: providerId === "custom" ? (displayName || "Custom (OpenAI-compatible)") : (providerId === "deepseek" ? "DeepSeek" : (providerId === "zhipu" ? "智谱 Coding Plan" : "阿里云 Qwen")), displayName: providerId === "custom" ? (displayName || "") : "", maskedApiKey: saved.postprocessApiKeys[providerId] ? "sk-…mock" : "", reasoningMode: reasoningMode || "off", verified: false }; },
@@ -1212,7 +1212,7 @@
       run_ocr_dedup: async ({ projectPath, srtPath, outputMode, report }) => ({ ok: true, projectPath: outputMode === "srt" ? "" : chainedPath(projectPath, "ocr-dedup", "D:\\Demo\\clip.ocr-dedup.mosp"), srtPath: outputMode === "json" ? "" : chainedPath(srtPath, "ocr-dedup", "D:\\Demo\\clip.ocr-dedup.srt"), reportPath: report ? "D:\\Demo\\clip.ocr-dedup.csv" : "", warnings: ["OCR 字幕去重完成：新增禁用 1 条，已有禁用 0 条，实际 OCR 1 条，跳过 0 条。"] }),
       run_llm_postprocess: async ({ projectPath, srtPath, outputMode }) => ({ ok: true, projectPath: outputMode === "srt" ? "" : chainedPath(projectPath, "llm", "D:\\Demo\\clip.llm.mosp"), srtPath: outputMode === "json" ? "" : chainedPath(srtPath, "llm", "D:\\Demo\\clip.llm.srt"), warnings: [] }),
       run_fixed_process: async ({ projectPath, srtPath, outputMode }) => ({ ok: true, projectPath: outputMode === "srt" ? "" : chainedPath(projectPath, "fixed", "D:\\Demo\\clip.fixed.mosp"), srtPath: outputMode === "json" ? "" : chainedPath(srtPath, "fixed", "D:\\Demo\\clip.fixed.srt"), warnings: [] }),
-      run_fixed_replacement: async (payload) => window.MAWLauncher.callBackend("run_fixed_process", payload),
+      run_fixed_replacement: async (payload) => window.MSWLauncher.callBackend("run_fixed_process", payload),
        run_ffconcat_rebuild: async () => ({ ok: true, mediaPath: "D:\\Demo\\clip.gap-removed.mp4" }),
        probe_audio_tracks: async () => ({ ok: true, tracks: [{ audioIndex: 0, streamIndex: 1, codec: "aac", channels: 2, sampleRate: 48000, language: "zh", title: "中文", default: true }, { audioIndex: 1, streamIndex: 2, codec: "aac", channels: 2, sampleRate: 48000, language: "en", title: "English", default: false }] }),
        run_burn_subtitles: async () => ({ ok: true, mediaPath: "D:\\Demo\\clip.subtitled.mp4" }),
@@ -1222,22 +1222,22 @@
        start_alignment_server: async ({ projectPath, scriptPath, mediaPath, gapRemove, guiLang }) => ({ ok: true, url: `http://127.0.0.1:8260/?lang=${guiLang || "zh"}`, projectPath, scriptPath, mediaPath: mediaPath || "D:\\Demo\\clip.mp4", gapRemove }),
        stop_alignment_server: async () => ({ ok: true, stopped: true }),
        check_server_media: async ({ jsonPath }) => ({ ok: Boolean(jsonPath), hasMedia: Boolean(jsonPath), mediaPath: "D:\\Demo\\clip.mp4", mediaExists: Boolean(jsonPath) }),
-      start_server: async () => { setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "log", message: "[mock] would open http://127.0.0.1:8250/ after server responds" }), 120); return { ok: true, url: "http://127.0.0.1:8250/" }; },
+      start_server: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "log", message: "[mock] would open http://127.0.0.1:8250/ after server responds" }), 120); return { ok: true, url: "http://127.0.0.1:8250/" }; },
       get_server_status: async ({ port = "8250" }) => ({ ok: true, running: false, url: `http://127.0.0.1:${port}/` }),
       stop_server: async () => ({ ok: true }),
-       start_transcription: async () => { setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "log", message: "[mock] 上传完成" }), 250); setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "done", result: { srtPath: "D:\\Demo\\clip.srt", jsonPath: "D:\\Demo\\clip.json", htmlPath: "D:\\Demo\\clip.edit.html" } }), 900); return { ok: true }; },
-       cancel_transcription: async () => { setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "error", code: "transcription_cancelled", detail: "Transcription cancelled" }), 120); return { ok: true }; },
+       start_transcription: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "log", message: "[mock] 上传完成" }), 250); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "done", result: { srtPath: "D:\\Demo\\clip.srt", jsonPath: "D:\\Demo\\clip.json", htmlPath: "D:\\Demo\\clip.edit.html" } }), 900); return { ok: true }; },
+       cancel_transcription: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "error", code: "transcription_cancelled", detail: "Transcription cancelled" }), 120); return { ok: true }; },
       start_batch_transcription: async ({ items }) => {
-        window.MAWLauncher.onBackendEvent({ type: "batchStarted", total: items.length });
+        window.MSWLauncher.onBackendEvent({ type: "batchStarted", total: items.length });
         items.forEach((item, index) => {
-          setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "batchItem", itemId: item.id, index, mediaPath: item.mediaPath, status: "running" }), index * 650 + 100);
-          setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "batchItemLog", itemId: item.id, index, message: `[mock] ${item.mediaPath}` }), index * 650 + 250);
-          setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "batchItem", itemId: item.id, index, mediaPath: item.mediaPath, status: "done", result: { srtPath: item.mediaPath.replace(/\.[^.\\/]+$/u, ".srt"), jsonPath: item.mediaPath.replace(/\.[^.\\/]+$/u, ".mosp") } }), index * 650 + 550);
+          setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "batchItem", itemId: item.id, index, mediaPath: item.mediaPath, status: "running" }), index * 650 + 100);
+          setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "batchItemLog", itemId: item.id, index, message: `[mock] ${item.mediaPath}` }), index * 650 + 250);
+          setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "batchItem", itemId: item.id, index, mediaPath: item.mediaPath, status: "done", result: { srtPath: item.mediaPath.replace(/\.[^.\\/]+$/u, ".srt"), jsonPath: item.mediaPath.replace(/\.[^.\\/]+$/u, ".mosp") } }), index * 650 + 550);
         });
-        setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "batchDone", total: items.length, cancelled: false }), items.length * 650 + 600);
+        setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "batchDone", total: items.length, cancelled: false }), items.length * 650 + 600);
         return { ok: true };
       },
-      cancel_batch_transcription: async () => { setTimeout(() => window.MAWLauncher.onBackendEvent({ type: "batchDone", cancelled: true }), 120); return { ok: true }; },
+      cancel_batch_transcription: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "batchDone", cancelled: true }), 120); return { ok: true }; },
       open_output_folder: async () => ({ ok: true }),
       open_log_folder: async () => ({ ok: true }),
       open_html: async () => ({ ok: true }),
@@ -1426,8 +1426,8 @@
     const version = state.config?.appVersion || $("appVersion")?.textContent?.trim() || "unknown";
     const log = redactSensitive($("log")?.textContent || "");
     const labels = state.lang === "zh"
-      ? { title: "MAW Launcher 错误报告", version: "版本", code: "错误码", message: "提示", detail: "详细信息", log: "日志" }
-      : { title: "MAW Launcher error report", version: "Version", code: "Error code", message: "Message", detail: "Detail", log: "Log" };
+      ? { title: "MSW Launcher 错误报告", version: "版本", code: "错误码", message: "提示", detail: "详细信息", log: "日志" }
+      : { title: "MSW Launcher error report", version: "Version", code: "Error code", message: "Message", detail: "Detail", log: "Log" };
     const message = compactDetail(report.message);
     const detail = compactDetail(report.detail);
     return [
@@ -1479,7 +1479,7 @@
   }
   async function openErrorFaq() {
     try {
-      const result = await window.MAWLauncher.callBackend("open_faq");
+      const result = await window.MSWLauncher.callBackend("open_faq");
       if (result?.ok) return;
       const detail = result?.detail || result?.error || t("error_open_faq_failed");
       setStatus(detail);
@@ -1492,7 +1492,7 @@
   }
   async function openErrorIssue() {
     try {
-      const result = await window.MAWLauncher.callBackend("open_url", { url: "https://github.com/Moyf/moys-asr-workflow" });
+      const result = await window.MSWLauncher.callBackend("open_url", { url: "https://github.com/Moyf/moys-asr-workflow" });
       if (result?.ok) return;
       const detail = result?.detail || result?.error || t("error_open_issue_failed");
       setStatus(detail);
@@ -1519,8 +1519,8 @@
   // 使用——那段时间逐行 [runtime] 输出已在自动滚动的列表与面板进度区出现，
   // 黄字再显示同一行会相邻重复。
   const appendLog = (text, { inline = false, quietLatest = false } = {}) => { const log = $("log"); const needsSpace = inline && log.textContent && !log.textContent.endsWith("\n"); log.textContent += `${needsSpace ? " " : ""}${text}${inline ? "" : "\n"}`; log.scrollTop = log.scrollHeight; state.lastLogMessage = text; const latest = $("logLatest"); if (quietLatest) { latest.classList.add("hidden"); latest.dataset.inline = "false"; return; } const inlineLatest = inline && latest.dataset.inline === "true"; latest.textContent = inlineLatest ? `${latest.textContent} ${text}` : text; latest.dataset.inline = String(inline); latest.classList.remove("hidden"); };
-  function confirmAction(message) { $("batchConfirmMessage").textContent = String(message || ""); $("batchConfirmModal").classList.remove("hidden"); $("batchConfirmYes").focus(); return new Promise((resolve) => { window.MAWLauncher.confirmResolve = resolve; }); }
-  function finishConfirm(value) { const resolve = window.MAWLauncher.confirmResolve; window.MAWLauncher.confirmResolve = null; $("batchConfirmModal").classList.add("hidden"); resolve?.(value); }
+  function confirmAction(message) { $("batchConfirmMessage").textContent = String(message || ""); $("batchConfirmModal").classList.remove("hidden"); $("batchConfirmYes").focus(); return new Promise((resolve) => { window.MSWLauncher.confirmResolve = resolve; }); }
+  function finishConfirm(value) { const resolve = window.MSWLauncher.confirmResolve; window.MSWLauncher.confirmResolve = null; $("batchConfirmModal").classList.add("hidden"); resolve?.(value); }
 
   function isThemePreference(value) { return value === "light" || value === "dark" || value === "system"; }
   function readStoredTheme() { try { const savedTheme = localStorage.getItem(THEME_KEY); return isThemePreference(savedTheme) ? savedTheme : "system"; } catch (error) { return "system"; } }
@@ -1542,7 +1542,7 @@
     if (!uri || document.querySelector("style[data-emoji-font]")) return;
     const style = document.createElement("style");
     style.dataset.emojiFont = "1";
-    style.textContent = `@font-face{font-family:"MAW Emoji";src:url("${uri}") format("truetype");font-weight:400;font-display:swap;}`;
+    style.textContent = `@font-face{font-family:"MSW Emoji";src:url("${uri}") format("truetype");font-weight:400;font-display:swap;}`;
     document.head.appendChild(style);
   }
 
@@ -1573,7 +1573,7 @@
   function setOutputNotice(message) { const notice = $("srtPathNotice"); if (!notice) return; renderMessage(notice, message); notice.classList.toggle("hidden", !message); }
   function mediaDropError() { const separator = state.lang === "zh" ? "、" : ", "; return t("drop_reject_media").replace("{extensions}", Array.from(MEDIA_EXTS).join(separator)); }
   function clearErrors() { ["mediaPath", "srtPath", "apiKey", "openaiBaseUrl", "openaiModel", "workspaceId", "localModelPath", "localModelCachePath", "maxLen", "minLen", "maxWords", "minWords", "gapSplit", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordsFile", "sonioxContextGeneral", "sonioxContextText", "sonioxContextTerms", "sonioxContextTranslationTerms", "jsonPath", "serverMediaPath", "port", "ffmpegPath", "stickerDir", "toolboxUtilityMediaPath", "toolboxBurnSubtitlePath", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "toolboxAlignmentScriptPath"].forEach((field) => setError(field, "")); hideErrorNotice(); }
-  function formPayload() { const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateSpectral: $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MAWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
+  function formPayload() { const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateSpectral: $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
   function serverPayload() { return { jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }; }
   function renderServerButton() {
     const button = $("openMawe");
@@ -1698,7 +1698,7 @@
     progress.classList.toggle("hidden", !installing);
     $("ocrRuntimeProgressBar").style.width = `${Math.max(0, Math.min(100, state.ocrRuntimeProgress))}%`;
     $("ocrRuntimeProgressMessage").textContent = state.ocrRuntimeProgressMessage || "";
-    window.MAWLauncher?.onOcrRuntimeChanged?.();
+    window.MSWLauncher?.onOcrRuntimeChanged?.();
   }
   async function refreshOcrRuntime() {
     const requestId = ++ocrRuntimeRequest;
@@ -1806,7 +1806,7 @@
     setStatus(t("saved"));
     return result;
   }
-  function renderLanguage() { document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en"; document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); }); document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => { node.placeholder = t(node.dataset.i18nPlaceholder); }); document.querySelectorAll("[data-i18n-title]").forEach((node) => { node.title = t(node.dataset.i18nTitle); }); document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => { node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel)); }); $("langToggle").textContent = t("other_language"); $("demoBadge").textContent = t("demo_mode"); renderAudioTracks(); if (state.audioTracks.length > 1) $("audioTrackHint").textContent = t("audio_track_hint"); renderKeyHint(); renderKeyStatus(); renderStickerCurrent(); renderPromptCharacterCount(); renderSonioxContextCharacterCount(); renderHotwordWarnings(); renderServerButton(); renderLocalRuntime(); renderOcrRuntime(); renderLocalModelStatus(); window.MAWLauncher?.onLanguageChanged?.(); }
+  function renderLanguage() { document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en"; document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); }); document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => { node.placeholder = t(node.dataset.i18nPlaceholder); }); document.querySelectorAll("[data-i18n-title]").forEach((node) => { node.title = t(node.dataset.i18nTitle); }); document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => { node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel)); }); $("langToggle").textContent = t("other_language"); $("demoBadge").textContent = t("demo_mode"); renderAudioTracks(); if (state.audioTracks.length > 1) $("audioTrackHint").textContent = t("audio_track_hint"); renderKeyHint(); renderKeyStatus(); renderStickerCurrent(); renderPromptCharacterCount(); renderSonioxContextCharacterCount(); renderHotwordWarnings(); renderServerButton(); renderLocalRuntime(); renderOcrRuntime(); renderLocalModelStatus(); window.MSWLauncher?.onLanguageChanged?.(); }
   function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); fillSelect("region", current.regions, state.config.region || "beijing"); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); if (openai) $("openaiBaseUrl").value = state.config.openaiBaseUrl || "https://api.openai.com/v1"; $("apiKeyField").classList.toggle("hidden", local || current.requiresApiKey === false); $("localRuntimePanel").classList.toggle("hidden", !local); $("localModelPanel").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); $("openKeyUrl").classList.toggle("hidden", local || current.requiresApiKey === false); $("apiKey").value = current.apiKey || ""; renderKeyHint(); $("providerNote").textContent = current.note || ""; $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); $("regionField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || current.regions.length === 0); renderKeyStatus(); syncWorkspace(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
   function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); syncOpenAiFields(); syncLocalModelPath(model); $("modelNote").textContent = model.note || ""; applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncSonioxContextOptions(model); renderLocalModelStatus(); if (!state.initializing) void syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
   function applyProviderLanguages(current, model, persistReset = false) { const el = $("language"); $("languageGroup").classList.toggle("hidden", current.supportsLanguage === false); const previous = el.multiple ? Array.from(el.selectedOptions).map((o) => o.value) : (el.value ? [el.value] : []); const remembered = state.config.lastLanguage; const wanted = previous.length && persistReset ? previous : (remembered !== null && remembered !== undefined ? (remembered ? remembered.split(",") : []) : [state.config.language].filter(Boolean)); el.multiple = Boolean(current.multiLanguage); $("advancedOptionsGrid").classList.toggle("single-language", !current.multiLanguage); if (current.multiLanguage) el.size = 6; else el.removeAttribute("size"); const showRare = Boolean(state.config.showRareLangs); const commons = current.commonLanguages || []; const available = model.languages?.length ? model.languages : current.languages; const visible = !showRare && commons.length ? available.filter((item) => commons.includes(item.id)) : available; fillSelect("language", visible, ""); const codes = new Set(visible.map((item) => item.id)); const restored = wanted.filter((code) => code && codes.has(code)); if (current.multiLanguage) { Array.from(el.options).forEach((o) => { o.selected = restored.includes(o.value); }); } else { el.value = restored[0] || ""; } $("languageHint").classList.toggle("hidden", !current.multiLanguage); $("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0); $("languageReset").classList.toggle("hidden", !current.multiLanguage); }
@@ -1918,7 +1918,7 @@
     if (audioTrackPathKey(value) !== state.audioTrackPath || state.audioTracks.length <= 1 || !Number.isInteger(state.audioTrack)) return null;
     return state.audioTrack;
   }
-  function setMedia(path, { refreshOcrVideo = false } = {}) { clearTimeout(state.audioTrackProbeTimer); $("mediaPath").value = path; setError("mediaPath", ""); setOutputNotice(""); syncFlvHints(); syncDefaultOutput(); void refreshAudioTracks(path); window.MAWLauncher?.onMediaPathChanged?.({ refreshOcrVideo }); }
+  function setMedia(path, { refreshOcrVideo = false } = {}) { clearTimeout(state.audioTrackProbeTimer); $("mediaPath").value = path; setError("mediaPath", ""); setOutputNotice(""); syncFlvHints(); syncDefaultOutput(); void refreshAudioTracks(path); window.MSWLauncher?.onMediaPathChanged?.({ refreshOcrVideo }); }
   function setDroppedPath(field, path, eventType = "input") {
     const value = String(path || "").trim();
     const input = $(field);
@@ -1936,8 +1936,8 @@
     }
     return setDroppedPath("serverMediaPath", value);
   }
-  function setJsonPath(path) { $("jsonPath").value = path; setError("jsonPath", ""); if (path !== state.serverProjectPath) $("openMawe").classList.add("attention"); refreshServerMedia(); window.MAWLauncher?.onProjectPathChanged?.(); }
-  function applyErrorResult(result, logDetail = true) { const detail = result.detail || result.error || ""; const message = errText(result.code, detail); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (result.field === "port" || result.field === "serverMediaPath" || result.field === "jsonPath") expandServer(); if (result.postprocessStep) window.MAWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
+  function setJsonPath(path) { $("jsonPath").value = path; setError("jsonPath", ""); if (path !== state.serverProjectPath) $("openMawe").classList.add("attention"); refreshServerMedia(); window.MSWLauncher?.onProjectPathChanged?.(); }
+  function applyErrorResult(result, logDetail = true) { const detail = result.detail || result.error || ""; const message = errText(result.code, detail); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (result.field === "port" || result.field === "serverMediaPath" || result.field === "jsonPath") expandServer(); if (result.postprocessStep) window.MSWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
   function validateSegmentation(data) { for (const [field, minimum] of [["maxLen", 1], ["minLen", 1], ["maxWords", 1], ["minWords", 1], ["gapSplit", 0]]) { const value = data[field]; if (!value) continue; if (!/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum) return fail(field, errText("segmentation_invalid", "")); } if (data.maxLen && data.minLen && Number(data.maxLen) < Number(data.minLen)) return fail("maxLen", errText("segmentation_invalid", "")); if (data.maxWords && data.minWords && Number(data.maxWords) < Number(data.minWords)) return fail("maxWords", errText("segmentation_invalid", "")); return true; }
   function validateLocal() { clearErrors(); const data = formPayload(); if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!validateSegmentation(data)) return false; if (isLocalProvider()) { const runtime = state.config.localRuntime || {}; const status = localStatus(); if (state.localRuntimeInstalling || runtime.status === "installing") return fail("model", t("local_runtime_installing")); if (state.localPreparing) return fail("model", t("local_prepare_running")); if (runtime.status === "checking") return fail("model", t("local_runtime_checking")); if (!runtime.ready && runtime.status !== "ready") return fail("model", errText("local_runtime_missing", "")); if (!status.status || status.status === "checking") return fail("model", t("local_checking")); if (status.status === "runtime_missing") return fail("model", errText("local_runtime_missing", "")); if (status.status === "path_invalid") return fail("localModelPath", errText("local_model_path_invalid", "")); if (status.status === "path_mismatch") return fail("localModelPath", errText("local_model_path_mismatch", "")); if (status.status === "missing") return fail("model", errText("local_model_missing", "")); if (status.status === "partial") return fail("model", errText("local_model_incomplete", "")); return true; } if (provider().requiresApiKey !== false && !data.apiKey && !provider().apiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().id === "openai" && !data.openaiBaseUrl) return fail("openaiBaseUrl", errText("custom_asr_base_url_missing", "")); if (isCustomOpenAiModel() && !data.openaiModel) return fail("openaiModel", errText("custom_asr_model_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); if (provider().id === "qwen" && selectedModel().supportsContext && Array.from(data.qwenAudioContext).length > 400) return fail("qwenAudioContext", errText("context_too_long", "")); if (provider().id === "soniox" && selectedModel().supportsContext && Array.from([data.sonioxContextGeneral, data.sonioxContextText, data.sonioxContextTerms, data.sonioxContextTranslationTerms].join("\n")).length > 10000) return fail("sonioxContextText", errText("soniox_context_too_long", "")); if (provider().id === "qwen" && selectedModel().supportsHotwords && data.qwenAudioHotwordsMode === "file" && ext(data.qwenAudioHotwordsFile) !== ".txt") return fail("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); return true; }
   function fail(field, message) { setError(field, message); setStatus(message); const input = $(field); if (input && input.scrollIntoView) input.scrollIntoView({ behavior: "smooth", block: "center" }); return false; }
@@ -2170,12 +2170,12 @@
     state.initializing = true;
     const realApi = await waitForBackend();
     api = realApi || mockApi();
-    window.MAWLauncher.backend = realApi ? "real" : "mock";
+    window.MSWLauncher.backend = realApi ? "real" : "mock";
     const savedTheme = readStoredTheme();
     state.theme = savedTheme;
     applyTheme();
     $("lengthLimitField").classList.toggle("hidden", !SHOW_LENGTH_LIMIT_FIELD);
-    $("demoBadge").classList.toggle("hidden", window.MAWLauncher.backend !== "mock");
+    $("demoBadge").classList.toggle("hidden", window.MSWLauncher.backend !== "mock");
     state.config = await bridge("get_config");
     const configuredServerPort = Number(state.config.serverPort);
     if (Number.isInteger(configuredServerPort) && configuredServerPort >= 1 && configuredServerPort <= 65535) {
@@ -2185,7 +2185,7 @@
     else if (savedTheme !== "system") { state.config.theme = savedTheme; void bridge("save_prefs", { theme: savedTheme }); }
     applyTheme();
     state.config.zoomPercent = applyZoomPercent(state.config.zoomPercent);
-    window.MAWLauncher.config = state.config;
+    window.MSWLauncher.config = state.config;
     void bridge("get_emoji_font_path").then((emojiFont) => {
       if (emojiFont && emojiFont.ok && emojiFont.path) injectEmojiFont(emojiFont.path);
     });
@@ -2194,7 +2194,7 @@
     applyProvider(false);
     $("workspaceId").value = state.config.workspaceId || "";
     syncWorkspace(); syncTestRun(); renderChevron("advancedCard"); renderChevron("serverCard"); renderLanguage();
-    appendLog(window.MAWLauncher.backend === "real" ? "MAW launcher ready." : "[mock] Static browser demo mode enabled.");
+    appendLog(window.MSWLauncher.backend === "real" ? "MSW launcher ready." : "[mock] Static browser demo mode enabled.");
     setStatus(t("ready"));
     revealLauncher();
     window.dispatchEvent(new CustomEvent("mawlauncherready"));
@@ -2202,12 +2202,12 @@
   }
 
   function handleBackendEvent(event) {
-    if (["batchStarted", "batchItem", "batchItemLog", "batchDone", "batch_started", "batch_item", "batch_item_log", "batch_done"].includes(event.type)) window.MAWLauncher?.onBatchEvent?.(event);
+    if (["batchStarted", "batchItem", "batchItemLog", "batchDone", "batch_started", "batch_item", "batch_item_log", "batch_done"].includes(event.type)) window.MSWLauncher?.onBatchEvent?.(event);
     if (event.type === "emojiFontReady" && event.path) injectEmojiFont(event.path);
     if (event.type === "log") appendLog(event.message, { quietLatest: Boolean(state.localRuntimeInstalling || state.ocrRuntimeInstalling) });
-    if (event.type === "postprocess_status") window.MAWLauncher?.onPostprocessStatus?.(event);
-    if (event.type === "postprocess_stream") window.MAWLauncher?.onPostprocessStream?.(event);
-    if (event.type === "postprocess_pipeline") window.MAWLauncher?.onPostprocessPipeline?.(event);
+    if (event.type === "postprocess_status") window.MSWLauncher?.onPostprocessStatus?.(event);
+    if (event.type === "postprocess_stream") window.MSWLauncher?.onPostprocessStream?.(event);
+    if (event.type === "postprocess_pipeline") window.MSWLauncher?.onPostprocessPipeline?.(event);
     if (event.type === "modelProgress") {
       state.localProgressMessage = event.message || "";
       state.localProgress = event;
@@ -2356,11 +2356,11 @@
       appendLog(t("done"));
       void checkExistingServer(t("done"));
     }
-    if (event.type === "dropMedia" && !state.dropTarget && window.MAWLauncher?.onBatchDrop?.(event.path || "")) return;
-    if (event.type === "dropReject" && !state.dropTarget && window.MAWLauncher?.onBatchDropReject?.(event.path || "")) return;
+    if (event.type === "dropMedia" && !state.dropTarget && window.MSWLauncher?.onBatchDrop?.(event.path || "")) return;
+    if (event.type === "dropReject" && !state.dropTarget && window.MSWLauncher?.onBatchDropReject?.(event.path || "")) return;
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
-  window.MAWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {} };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {} };
 
   $("langToggle").addEventListener("click", async () => { state.lang = state.lang === "zh" ? "en" : "zh"; renderLanguage(); const result = await bridge("save_settings", formPayload()); if (!result.ok) applyErrorResult(result); });
   $("themeLight").addEventListener("click", () => setTheme("light")); $("themeDark").addEventListener("click", () => setTheme("dark")); $("themeSystem").addEventListener("click", () => setTheme("system"));
@@ -2446,7 +2446,7 @@
   // 真实后端模式下 drop 由 Python 侧异步回传事件，不能在这里清理 dropTarget，否则 handleRoutedDrop 读不到目标。
   document.addEventListener("drop", (event) => {
     event.preventDefault();
-    if (window.MAWLauncher.backend === "real") return;
+    if (window.MSWLauncher.backend === "real") return;
     const files = Array.from(event.dataTransfer?.files || []);
     const file = files[0];
     if (state.dropTarget) {
@@ -2454,7 +2454,7 @@
       return;
     }
     let handled = false;
-    if (window.MAWLauncher?.onBatchDrop) files.forEach((item) => { handled = window.MAWLauncher.onBatchDrop(item.path || item.name || "") || handled; });
+    if (window.MSWLauncher?.onBatchDrop) files.forEach((item) => { handled = window.MSWLauncher.onBatchDrop(item.path || item.name || "") || handled; });
     if (handled) return;
     handleRoutedDrop(file?.path || file?.name || "");
   });

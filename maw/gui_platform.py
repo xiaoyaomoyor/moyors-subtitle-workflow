@@ -110,7 +110,7 @@ def _register_process_job(process: subprocess.Popen[Any]) -> None:
             return
 
         info = ExtendedLimitInformation()
-        # Kill descendants automatically if the MAW-side handle is released
+        # Kill descendants automatically if the MSW-side handle is released
         # after cancellation or shutdown.
         info.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
         set_info = kernel32.SetInformationJobObject
@@ -188,7 +188,7 @@ def _taskkill_process_tree(pid: int) -> bool:
 
 
 def terminate_process_tree(process: subprocess.Popen[Any], *, timeout: float = 5.0) -> None:
-    """Terminate a MAW-owned process and descendants, then reap the root."""
+    """Terminate a MSW-owned process and descendants, then reap the root."""
     running = process.poll() is None
     pid = getattr(process, "pid", None)
     if not isinstance(pid, int):

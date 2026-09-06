@@ -1,4 +1,4 @@
-// Shared gap-remove data and playback helpers used by MAWE and the alignment UI.
+// Shared gap-remove data and playback helpers used by MSWE and the alignment UI.
 // Keep this module free of DOM, media elements, editor history, and rendering.
 (function initAsrGapRemoveCore(global) {
   'use strict';

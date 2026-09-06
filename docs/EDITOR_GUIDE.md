@@ -1,10 +1,10 @@
-# MAWE — Moy's ASR Workflow Editor
+# MSWE — Moy's ASR Workflow Editor
 
-MAWE（Moy's ASR Workflow Editor）是 MAW 自带的字幕编辑器，提供 Server 版和单文件 HTML 两种入口，并共享同一份工程格式与前端代码。当前以 Server 版为主；单文件 HTML 暂时只作为兼容备用入口，不作为新功能的主要更新对象。工程文件内容是 UTF-8 JSON，主扩展名为 `.mosp`；`.json` 作为旧工程和兼容扩展名继续支持。
+MSWE（Moy's ASR Workflow Editor）是 MSW 自带的字幕编辑器，提供 Server 版和单文件 HTML 两种入口，并共享同一份工程格式与前端代码。当前以 Server 版为主；单文件 HTML 暂时只作为兼容备用入口，不作为新功能的主要更新对象。工程文件内容是 UTF-8 JSON，主扩展名为 `.mosp`；`.json` 作为旧工程和兼容扩展名继续支持。
 
 - 推荐：`uv run python server-editor\serve.py "subtitle-project.mosp"`。它通过 `http://127.0.0.1` 提供媒体 Range 请求，适合日常编辑和大型视频 Seek。
 - 便携：双击转写生成的 `.edit.html`，或打开仓库根目录的 `blank-editor.html` 后单独选择 `.mosp` / `.json` 工程；浏览器无法自动读取关联媒体时会提示选择。它不需要启动服务，适合携带和离线检查。
-- Windows 图形版：双击 Release 压缩包中的 `MAW.exe` 生成工程；完成后默认使用 Server 版编辑器，便携编辑器 HTML 仅保留兼容入口。
+- Windows 图形版：双击 Release 压缩包中的 `MSW.exe` 生成工程；完成后默认使用 Server 版编辑器，便携编辑器 HTML 仅保留兼容入口。
 
 无论用哪种方式，`.mosp` / `.json` 工程文件都是字幕真源；新工程优先使用 `.mosp`，旧 `.json` 工程无需迁移即可继续编辑。SRT 只能保留文本和时间，不能完整保留字/词级时间码、表情包、颜色、波形、工作区与静音空隙决定。
 
@@ -46,7 +46,7 @@ MAWE（Moy's ASR Workflow Editor）是 MAW 自带的字幕编辑器，提供 Ser
 - 从字幕文本处拆分：以当前文字光标为位置。
 - 从波形处拆分：以当前音频播放位置为位置。
 
-MAW 的工程文件会保存 `segments[*].items` 字/词级时间码。存在这些数据时，拆分后两段会按字/词边界重新分配时间，而不是粗略平分，因此时间仍然准确。没有 `items` 的外部 JSON 也能打开，但拆分时只能按字符比例估算，精度会下降。
+MSW 的工程文件会保存 `segments[*].items` 字/词级时间码。存在这些数据时，拆分后两段会按字/词边界重新分配时间，而不是粗略平分，因此时间仍然准确。没有 `items` 的外部 JSON 也能打开，但拆分时只能按字符比例估算，精度会下降。
 
 拆分弹窗除鼠标操作外也支持键盘：弹窗打开时会自动聚焦当前操作的轨道（带虚线边框标识），主字幕与副字幕都可拆分时先聚焦主字幕；`Tab` 在主字幕 / 副字幕区之间切换焦点（主字幕被 ⌚️ 时间码锚定、不可交互时无法切入）；`WASD` 或方向键移动 ✂️ 预切分位置——左右按当前语言类型（字符型 / 单词型）的合法边界逐个步进，上下在多行文本时按行移动，单行时无动作；`空格` 确认当前切分点，再次按下取消确认以便继续移动，效果与鼠标点击一致。已锁定的轨道上按移动键不会改动断点，而是闪烁边缘并提示先按空格解锁。弹窗打开期间，`WASD` 和方向键不会触发常规的字幕选择、轨道切换或播放头移动。
 
@@ -95,9 +95,9 @@ MAW 的工程文件会保存 `segments[*].items` 字/词级时间码。存在这
 - **工程文件（`.mosp` / `.json`）**：继续编辑时优先保存它；新工程建议使用 `.mosp`，`.json` 用于兼容旧工程和已有工作流。
 - **SRT / ASS / TXT**：SRT 用于播放器、剪辑软件和普通字幕交付；可选择把首条字幕的起点拉到 0（只延长首条，不改变其结束时间或后续字幕时间码）。ASS 使用主字幕预览当前选中的字体、字号和文字颜色写入默认样式，适合交给支持样式字幕的播放器或剪辑软件；位置、描边和背景采用通用底部居中样式，不写入预览框几何或每条字幕的颜色分组。工程存在颜色标记时，可导出完整字幕，或按每种已使用颜色（含无颜色的 `default`）分别生成带颜色名后缀的 SRT。也可导出逐字幕行排列的纯文本 TXT。
 - **去空隙导出**：仅在有已移除空隙时出现，包括完整或按颜色拆分的 SRT、时间线 OTIO、FFconcat 和保留区域 JSON。
-- **去空隙 OTIO marker**：每个保留区间会生成一个媒体 clip，启用字幕会作为 clip marker 写入，marker 名称是字幕内容；有颜色时映射为 DaVinci Resolve 的 `RED`、`YELLOW`、`GREEN`、`BLUE`、`PURPLE` 五种标记色，跨越被移除空隙的字幕会按保留区间拆分。marker 的 `marked_range` 使用媒体源坐标，与 clip 的 `source_range` 和外部引用的 `available_range` 保持同一坐标系；若 WAV 含 BWF `bext.time_reference`，还会保留该非零媒体起点，避免 Resolve 导入后片段内容错位。视频素材只写入视频 clip，纯音频素材写入音频 clip；无颜色字幕使用白色默认标记。Resolve 还提供 Blue、Cyan、Green、Yellow、Red、Pink、Purple、Fuchsia、Rose、Lavender、Sky、Mint、Lemon、Sand、Cocoa、Cream 这 16 种可用颜色，当前 MAW 只使用其中五色。
+- **去空隙 OTIO marker**：每个保留区间会生成一个媒体 clip，启用字幕会作为 clip marker 写入，marker 名称是字幕内容；有颜色时映射为 DaVinci Resolve 的 `RED`、`YELLOW`、`GREEN`、`BLUE`、`PURPLE` 五种标记色，跨越被移除空隙的字幕会按保留区间拆分。marker 的 `marked_range` 使用媒体源坐标，与 clip 的 `source_range` 和外部引用的 `available_range` 保持同一坐标系；若 WAV 含 BWF `bext.time_reference`，还会保留该非零媒体起点，避免 Resolve 导入后片段内容错位。视频素材只写入视频 clip，纯音频素材写入音频 clip；无颜色字幕使用白色默认标记。Resolve 还提供 Blue、Cyan、Green、Yellow、Red、Pink、Purple、Fuchsia、Rose、Lavender、Sky、Mint、Lemon、Sand、Cocoa、Cream 这 16 种可用颜色，当前 MSW 只使用其中五色。
 - **表情包 OTIO**：将已分配的表情包输出为独立图片轨道时间线。
-- **Resolve JSON**：保存字幕、颜色、表情包与媒体的批量导入数据。它是导出用的交换文件，不是 MAW 工程文件；MAW 只负责导出这个数据文件，要实际操作达芬奇仍需在达芬奇环境中运行兼容的执行脚本。
+- **Resolve JSON**：保存字幕、颜色、表情包与媒体的批量导入数据。它是导出用的交换文件，不是 MSW 工程文件；MSW 只负责导出这个数据文件，要实际操作达芬奇仍需在达芬奇环境中运行兼容的执行脚本。
 
 ## 界面语言与最近工程
 

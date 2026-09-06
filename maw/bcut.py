@@ -1,6 +1,6 @@
 # pyright: reportAny=false, reportAttributeAccessIssue=false, reportMissingParameterType=false, reportMissingTypeArgument=false, reportMissingTypeStubs=false, reportReturnType=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportUnusedCallResult=false, reportUnusedVariable=false, reportImplicitStringConcatenation=false, reportArgumentType=false, reportIndexIssue=false
 
-"""必剪 ASR 供应商（非官方免费接口，实验性）：REST 客户端 + 结果 → MAW 工程映射。
+"""必剪 ASR 供应商（非官方免费接口，实验性）：REST 客户端 + 结果 → MSW 工程映射。
 
 风险说明（务必保留在文档与 GUI 标注中）：
 - 这是 B 站必剪产品的内部接口，未公开、未授权第三方使用，可能随时变更或失效；
@@ -438,10 +438,10 @@ def poll_task(task_id: str, *, interval: int, timeout: int, on_status=print) -> 
     raise TimeoutError(f"必剪转写超时（{timeout}秒），task_id={task_id}")
 
 
-# ===== 结果 → MAW 工程映射 =====
+# ===== 结果 → MSW 工程映射 =====
 
 def utterances_to_items(utterances: list) -> list[dict]:
-    """必剪 utterances → MAW items（整数毫秒）。
+    """必剪 utterances → MSW items（整数毫秒）。
 
     优先使用逐字 words[]（label/start_time/end_time）；某句缺 words 时
     回退为句级单 item（该句内拆分精度会下降，但时间仍正确）。

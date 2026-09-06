@@ -45,7 +45,7 @@ from maw.text_conversion import TextConversion, normalize_text_conversion_mode
 
 POSTPROCESS_PLAN_VERSION: Final[int] = 1
 POSTPROCESS_CONFIG_FILENAME: Final[str] = "maw-postprocess.json"
-POSTPROCESS_WORKSPACE_NAME: Final[str] = "MAW-Postprocess"
+POSTPROCESS_WORKSPACE_NAME: Final[str] = "MSW-Postprocess"
 STEP_ORDER: Final[tuple[str, ...]] = (
     "match",
     "replace",

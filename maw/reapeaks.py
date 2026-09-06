@@ -414,7 +414,7 @@ def _reapeaks_matches_media(reapeaks_path: Path | str, media_path: Path | str) -
     timestamp match but was built from a different file (a 16 kHz mono
     extraction of a 48 kHz stereo video, or a length-limited clip) fails the
     size check and gets rebuilt instead of silently stretching the editor's
-    time axis.  A zero timestamp/filesize pair means a legacy MAW cache with no
+    time axis.  A zero timestamp/filesize pair means a legacy MSW cache with no
     provenance and is treated as stale for the same reason.
 
     对齐官方规格的容差：mtime/size 都只有 stat() 值的低 32 位精度，且

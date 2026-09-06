@@ -6,7 +6,7 @@ const launcherPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 
 async function openLauncher(page) {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#toolboxFab').click();
 }
 
@@ -55,13 +55,13 @@ test('OCR video source follows a newly dropped video media', async ({ page }) =>
     const jsonPath = document.getElementById('jsonPath');
     jsonPath.value = 'D:\\Demo\\previous.mosp';
     jsonPath.dispatchEvent(new Event('input', { bubbles: true }));
-    window.MAWLauncher.onBackendEvent({ type: 'dropMedia', path: 'D:\\Demo\\new-video.mp4' });
+    window.MSWLauncher.onBackendEvent({ type: 'dropMedia', path: 'D:\\Demo\\new-video.mp4' });
   });
 
   await expect(page.locator('#mediaPath')).toHaveValue('D:\\Demo\\new-video.mp4');
   await expect(page.locator('#ocrVideoPath')).toHaveValue('D:\\Demo\\new-video.mp4');
   await expect.poll(async () => page.evaluate(() => {
-    const step = window.MAWLauncher.config?.postprocessAutoPlan?.steps?.find((item) => item.id === 'ocr');
+    const step = window.MSWLauncher.config?.postprocessAutoPlan?.steps?.find((item) => item.id === 'ocr');
     return [step?.videoPath || '', step?.videoPathMode || ''];
   })).toEqual(['', 'auto']);
 });
@@ -70,13 +70,13 @@ test('automatic OCR video source is not persisted as a manual override', async (
   await openLauncher(page);
   await page.locator('#mediaPath').fill('D:\\Demo\\1.mov');
 
-  const ocrStep = await page.evaluate(() => window.MAWLauncher.getAutoPostprocessPayload()
+  const ocrStep = await page.evaluate(() => window.MSWLauncher.getAutoPostprocessPayload()
     .steps.find((step) => step.id === 'ocr'));
   expect(ocrStep.videoPath).toBe('');
   expect(ocrStep.videoPathMode).toBe('auto');
 
   await page.evaluate(() => {
-    window.MAWLauncher.onBackendEvent({ type: 'dropMedia', path: 'D:\\Demo\\2.mov' });
+    window.MSWLauncher.onBackendEvent({ type: 'dropMedia', path: 'D:\\Demo\\2.mov' });
   });
   await expect(page.locator('#ocrVideoPath')).toHaveValue('D:\\Demo\\2.mov');
 });
@@ -97,11 +97,11 @@ test('translation merge option follows manual and automatic translation controls
   await page.locator('#toolboxClose').click();
 
   await page.evaluate(() => {
-    const provider = window.MAWLauncher.config.postprocessProviders.find((item) => item.id === 'deepseek');
+    const provider = window.MSWLauncher.config.postprocessProviders.find((item) => item.id === 'deepseek');
     Object.assign(provider, { verified: true, hasApiKey: true, hasBaseUrl: true, hasModel: true });
     window.__savedPlans = [];
-    const original = window.MAWLauncher.callBackend;
-    window.MAWLauncher.callBackend = async (method, payload) => {
+    const original = window.MSWLauncher.callBackend;
+    window.MSWLauncher.callBackend = async (method, payload) => {
       if (method === 'save_postprocess_plan') window.__savedPlans.push(JSON.parse(JSON.stringify(payload.plan)));
       return original(method, payload);
     };
@@ -126,7 +126,7 @@ test('translation merge option follows manual and automatic translation controls
 
 test('Launcher settings switch between accessible tabs and deep links', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#settingsButton').click();
 
   const tabs = page.locator('#settingsTabList [role="tab"]');
@@ -161,13 +161,13 @@ test('Launcher settings switch between accessible tabs and deep links', async ({
   await expect(page.locator('#settingsRuntimeTab')).toBeFocused();
   await expect(page.locator('#settingsRuntimePanel')).toBeVisible();
 
-  await page.evaluate(() => window.MAWLauncher.openSettings('ffmpegSettingsSection'));
+  await page.evaluate(() => window.MSWLauncher.openSettings('ffmpegSettingsSection'));
   await expect(page.locator('#settingsRuntimeTab')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#ffmpegSettingsSection')).toBeVisible();
 
   await page.setViewportSize({ width: 520, height: 520 });
   await page.reload();
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#settingsButton').click();
   const tabLayout = await page.locator('#settingsTabList').evaluate((element) => {
     const style = getComputedStyle(element);
@@ -179,14 +179,14 @@ test('Launcher settings switch between accessible tabs and deep links', async ({
 
 test('does not start local transcription while model status is still checking', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#provider').selectOption('local');
   await expect(page.locator('#localModelPanel')).toBeVisible();
   await page.locator('#mediaPath').fill('D:\\Demo\\clip.mp4');
   await page.locator('#srtPath').fill('D:\\Demo\\clip.local.srt');
 
   await page.evaluate(() => {
-    const config = window.MAWLauncher.config;
+    const config = window.MSWLauncher.config;
     config.localRuntime = { status: 'ready', ready: true, path: '', pythonPath: '' };
     const local = config.providers.find((item) => item.id === 'local');
     const model = local.models.find((item) => item.id === document.querySelector('#model').value);
@@ -201,14 +201,14 @@ test('does not start local transcription while model status is still checking', 
 
 test('keeps local runtime events working after the page learns that installation is in progress', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#provider').selectOption('local');
   await expect(page.locator('#localRuntimePanel')).toBeVisible();
 
   await page.evaluate(() => {
-    const config = window.MAWLauncher.config;
+    const config = window.MSWLauncher.config;
     config.localRuntime = { status: 'installing', ready: false, path: 'D:\\Demo\\local-runtime', pythonPath: '' };
-    window.MAWLauncher.onBackendEvent({
+    window.MSWLauncher.onBackendEvent({
       type: 'localRuntimeProgress',
       percent: 37,
       message: '正在安装本地运行环境……',
@@ -218,7 +218,7 @@ test('keeps local runtime events working after the page learns that installation
   await expect.poll(() => page.locator('#localRuntimeProgressBar').getAttribute('style')).toContain('37%');
   await expect(page.locator('#localRuntimeProgressMessage')).toHaveText('正在安装本地运行环境……');
 
-  await page.evaluate(() => window.MAWLauncher.onBackendEvent({ type: 'localRuntimeReady' }));
+  await page.evaluate(() => window.MSWLauncher.onBackendEvent({ type: 'localRuntimeReady' }));
   await expect(page.locator('#status')).toHaveText('本地模型支持已安装完成');
 });
 
@@ -227,7 +227,7 @@ test('LLM settings refill the saved key and save only after a successful connect
   await page.locator('#toolboxLlmTab').click();
   await page.locator('#openLlmSettings').click();
   await page.evaluate(async () => {
-    await window.MAWLauncher.callBackend('save_postprocess_settings', {
+    await window.MSWLauncher.callBackend('save_postprocess_settings', {
       providerId: 'deepseek',
       apiKey: 'sk-saved-for-test',
       baseUrl: 'https://api.deepseek.com',
@@ -244,9 +244,9 @@ test('LLM settings refill the saved key and save only after a successful connect
   await expect(page.locator('#llmKeyStatus')).toHaveText('已从本地环境读取密钥 sk-…mock');
   await page.locator('#llmApiKey').fill('sk-entered-for-test');
   await page.evaluate(() => {
-    const callBackend = window.MAWLauncher.callBackend;
+    const callBackend = window.MSWLauncher.callBackend;
     window.__llmCalls = [];
-    window.MAWLauncher.callBackend = async (method, payload) => {
+    window.MSWLauncher.callBackend = async (method, payload) => {
       if (method === 'test_postprocess_connection' || method === 'save_postprocess_settings') {
         window.__llmCalls.push({ method, payload });
       }
@@ -277,7 +277,7 @@ test('Custom provider labels and missing-key errors follow the selected language
   await page.locator('#toolboxLlmTab').click();
   await page.locator('#openLlmSettings').click();
   await page.evaluate(() => {
-    window.MAWLauncher.callBackend = async (method) => (
+    window.MSWLauncher.callBackend = async (method) => (
       method === 'test_postprocess_connection'
         ? { ok: false, field: 'postprocessApiKey', code: 'api_key_missing', detail: 'Post-processing API key is required.', error: 'Post-processing API key is required.' }
         : { ok: true }
@@ -296,7 +296,7 @@ test('Custom provider labels and missing-key errors follow the selected language
   await expect(page.locator('#llmApiKeyError')).toHaveText('');
 
   await page.evaluate(() => {
-    window.MAWLauncher.callBackend = async (method) => (
+    window.MSWLauncher.callBackend = async (method) => (
       method === 'test_postprocess_connection'
         ? { ok: true, saved: true, verified: true, maskedApiKey: 'sk-…mock' }
         : { ok: true }
@@ -317,7 +317,7 @@ test('LLM HTTP failures give provider-aware actions without showing the key', as
   await page.evaluate(() => {
     window.__llmFailureStatus = 401;
     window.__llmFailureProvider = 'deepseek';
-    window.MAWLauncher.callBackend = async (method) => {
+    window.MSWLauncher.callBackend = async (method) => {
       if (method === 'test_postprocess_connection') {
         return {
           ok: false,
@@ -382,11 +382,11 @@ test('LLM HTTP failures give provider-aware actions without showing the key', as
 
 test('runtime errors show an actionable notice outside the log', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await expect(page.locator('#status')).toBeVisible();
   await expect(page.locator('#status')).toHaveText('就绪');
 
-  await page.evaluate(() => window.MAWLauncher.onBackendEvent({
+  await page.evaluate(() => window.MSWLauncher.onBackendEvent({
     type: 'error',
     code: 'ffmpeg_missing',
     detail: 'ffmpeg and ffprobe were not found',
@@ -413,9 +413,9 @@ test('runtime errors show an actionable notice outside the log', async ({ page }
   await expect(page.locator('#errorNoticeActions')).toHaveCSS('flex-direction', 'row');
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => {
-    const original = window.MAWLauncher.callBackend;
+    const original = window.MSWLauncher.callBackend;
     window.__faqCalls = [];
-    window.MAWLauncher.callBackend = async (method, payload) => {
+    window.MSWLauncher.callBackend = async (method, payload) => {
       if (method === 'open_faq') window.__faqCalls.push({ method, payload });
       return original(method, payload);
     };
@@ -435,7 +435,7 @@ test('runtime errors show an actionable notice outside the log', async ({ page }
 
 test('provider HTTP failures keep retry guidance and original transcription discoverable', async ({ page }) => {
   await openLauncher(page);
-  await page.evaluate(() => window.MAWLauncher.onBackendEvent({
+  await page.evaluate(() => window.MSWLauncher.onBackendEvent({
     type: 'error',
     code: 'postprocess_provider_response',
     detail: '后处理步骤 translate 失败：LLM provider returned HTTP 400: invalid request. This is a provider response, not a network outage.',
@@ -472,7 +472,7 @@ test('error notice and status remain above the fixed footer at desktop and narro
   });
   const showFailure = async () => {
     await page.evaluate(() => {
-      window.MAWLauncher.onBackendEvent({ type: 'error', code: 'ffmpeg_missing', detail: 'ffmpeg and ffprobe were not found' });
+      window.MSWLauncher.onBackendEvent({ type: 'error', code: 'ffmpeg_missing', detail: 'ffmpeg and ffprobe were not found' });
     });
     await expect(page.locator('#errorNotice')).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -495,7 +495,7 @@ test('error notice and status remain above the fixed footer at desktop and narro
 
   await page.setViewportSize({ width: 1180, height: 520 });
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await showFailure();
   const desktopNormal = await measure();
   expect(desktopNormal.notice.bottom).toBeLessThanOrEqual(desktopNormal.footer.top + 1);
@@ -517,7 +517,7 @@ test('error notice and status remain above the fixed footer at desktop and narro
 
   await page.setViewportSize({ width: 520, height: 520 });
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await showFailure();
   const narrowNormal = await measure();
   expect(narrowNormal.notice.bottom).toBeLessThanOrEqual(narrowNormal.footer.top + 1);
@@ -539,11 +539,11 @@ test('error notice and status remain above the fixed footer at desktop and narro
 
 test('error reports copy safe details and support file URL fallback', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#apiKey').fill('sk-secret-test-key');
   await page.evaluate(() => {
-    window.MAWLauncher.appendLog('child output: duration probe failed');
-    window.MAWLauncher.appendLog('Authorization: Bearer secret-bearer-token');
+    window.MSWLauncher.appendLog('child output: duration probe failed');
+    window.MSWLauncher.appendLog('Authorization: Bearer secret-bearer-token');
     window.__copiedReports = [];
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -552,10 +552,10 @@ test('error reports copy safe details and support file URL fallback', async ({ p
   });
   await page.evaluate(() => {
     const event = { type: 'error', code: 'transcription_failed', detail: 'backend detail' };
-    window.MAWLauncher.onBackendEvent(event);
-    window.MAWLauncher.onBackendEvent(event);
-    window.MAWLauncher.appendLog('[error] unrelated child failure');
-    window.MAWLauncher.appendLog('[detail] unrelated child detail');
+    window.MSWLauncher.onBackendEvent(event);
+    window.MSWLauncher.onBackendEvent(event);
+    window.MSWLauncher.appendLog('[error] unrelated child failure');
+    window.MSWLauncher.appendLog('[detail] unrelated child detail');
   });
   await expect(page.locator('#errorNoticeIssue')).toBeVisible();
   await page.locator('#errorNoticeCopy').click();
@@ -596,8 +596,8 @@ test('error reports copy safe details and support file URL fallback', async ({ p
 
 test('unknown errors stay generic and do not expose FFmpeg actions', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
-  await page.evaluate(() => window.MAWLauncher.onBackendEvent({
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.evaluate(() => window.MSWLauncher.onBackendEvent({
     type: 'error', code: 'unknown_backend_failure', detail: 'service exploded',
   }));
   await expect(page.locator('#errorNotice')).toBeVisible();
@@ -609,9 +609,9 @@ test('unknown errors stay generic and do not expose FFmpeg actions', async ({ pa
   await expect(page.locator('#errorNoticeIssue')).toHaveText('打开项目主页');
   await expect(page.locator('#errorNoticeIssue')).toBeVisible();
   await page.evaluate(() => {
-    const original = window.MAWLauncher.callBackend;
+    const original = window.MSWLauncher.callBackend;
     window.__issueCalls = [];
-    window.MAWLauncher.callBackend = async (method, payload) => {
+    window.MSWLauncher.callBackend = async (method, payload) => {
       if (method === 'open_url') window.__issueCalls.push({ method, payload });
       return original(method, payload);
     };
@@ -624,14 +624,14 @@ test('unknown errors stay generic and do not expose FFmpeg actions', async ({ pa
 
 test('error reports keep one structured hint when detail matches the hint', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => {
     window.__copiedReports = [];
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: async (text) => window.__copiedReports.push(text) },
     });
-    window.MAWLauncher.onBackendEvent({
+    window.MSWLauncher.onBackendEvent({
       type: 'error', code: 'unknown_backend_failure', detail: 'same\nmessage',
     });
   });
@@ -651,18 +651,18 @@ test('error reports keep one structured hint when detail matches the hint', asyn
 
 test('FAQ open failures remain visible without an unhandled rejection', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => {
-    window.MAWLauncher.callBackend = async (method) => method === 'open_faq' ? { ok: false, error: 'FAQ unavailable' } : { ok: true };
-    window.MAWLauncher.onBackendEvent({ type: 'error', code: 'transcription_failed', detail: 'failed' });
+    window.MSWLauncher.callBackend = async (method) => method === 'open_faq' ? { ok: false, error: 'FAQ unavailable' } : { ok: true };
+    window.MSWLauncher.onBackendEvent({ type: 'error', code: 'transcription_failed', detail: 'failed' });
   });
   await page.locator('#errorNoticeFaq').click();
   await expect(page.locator('#status')).toBeVisible();
   await expect(page.locator('#status')).toContainText('FAQ unavailable');
   await expect(page.locator('#log')).toContainText('open_faq: FAQ unavailable');
   await page.evaluate(() => {
-    window.MAWLauncher.callBackend = async (method) => method === 'open_url' ? { ok: false, error: 'Issue page unavailable' } : { ok: true };
-    window.MAWLauncher.onBackendEvent({ type: 'error', code: 'unknown_backend_failure', detail: 'unknown failure' });
+    window.MSWLauncher.callBackend = async (method) => method === 'open_url' ? { ok: false, error: 'Issue page unavailable' } : { ok: true };
+    window.MSWLauncher.onBackendEvent({ type: 'error', code: 'unknown_backend_failure', detail: 'unknown failure' });
   });
   await page.locator('#errorNoticeIssue').click();
   await expect(page.locator('#status')).toBeVisible();
@@ -702,7 +702,7 @@ test('artifact rows localize type labels while preserving MOSP-first and SRT-onl
 
 test('server media accepts a dropped file even when batch mode is selected', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#jsonPath').fill('D:\\Demo\\missing-media.mosp');
   await page.locator('#serverMediaField').evaluate((element) => element.classList.remove('hidden'));
   await page.locator('#batchMode').click();
@@ -728,8 +728,8 @@ test('artifact context menu exposes exactly three actions and closes on every re
   await page.locator('#langToggle').click();
   await page.evaluate(() => {
     window.__artifactCalls = [];
-    const callBackend = window.MAWLauncher.callBackend;
-    window.MAWLauncher.callBackend = async (method, payload) => {
+    const callBackend = window.MSWLauncher.callBackend;
+    window.MSWLauncher.callBackend = async (method, payload) => {
       if (['open_file', 'open_containing_folder'].includes(method)) {
         window.__artifactCalls.push({ method, payload });
         return { ok: true };
@@ -785,7 +785,7 @@ test('artifact context menu remains inside the viewport and reports failed bridg
   await runReplacement(page);
   await page.locator('#langToggle').click();
   await page.evaluate(() => {
-    window.MAWLauncher.callBackend = async (method) => (
+    window.MSWLauncher.callBackend = async (method) => (
       method === 'open_file' ? { ok: false, error: 'File does not exist' } : { ok: true }
     );
   });
@@ -818,8 +818,8 @@ test('artifact context menu restores artifact focus after each action closes it'
   await openLauncher(page);
   await runReplacement(page);
   await page.evaluate(() => {
-    const callBackend = window.MAWLauncher.callBackend;
-    window.MAWLauncher.callBackend = async (method, payload) => (
+    const callBackend = window.MSWLauncher.callBackend;
+    window.MSWLauncher.callBackend = async (method, payload) => (
       ['open_file', 'open_containing_folder'].includes(method)
         ? { ok: true }
         : callBackend(method, payload)
@@ -844,8 +844,8 @@ test('Escape closes an artifact context menu while postprocess is busy', async (
   await openLauncher(page);
   await runReplacement(page);
   await page.evaluate(() => {
-    const callBackend = window.MAWLauncher.callBackend;
-    window.MAWLauncher.callBackend = (method, payload) => (
+    const callBackend = window.MSWLauncher.callBackend;
+    window.MSWLauncher.callBackend = (method, payload) => (
       method === 'run_fixed_process'
         ? new Promise(() => {})
         : callBackend(method, payload)
@@ -874,7 +874,7 @@ test('Escape closes an artifact context menu while postprocess is busy', async (
 test('batch mode disables manuscript matching without changing its saved single-file choice', async ({ page }) => {
   // Given: manuscript matching is configured and selected for single-file transcription.
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#autoPostprocessEnabled').check();
   await page.evaluate(() => {
     const field = document.getElementById('postprocessScriptPath');
@@ -887,8 +887,8 @@ test('batch mode disables manuscript matching without changing its saved single-
   await expect(page.locator('#toolboxDrawer')).toBeHidden();
   await page.evaluate(() => {
     window.__savedPlans = [];
-    const callBackend = window.MAWLauncher.callBackend;
-    window.MAWLauncher.callBackend = async (method, payload) => {
+    const callBackend = window.MSWLauncher.callBackend;
+    window.MSWLauncher.callBackend = async (method, payload) => {
       if (method === 'save_postprocess_plan') window.__savedPlans.push(JSON.parse(JSON.stringify(payload.plan)));
       return callBackend(method, payload);
     };
@@ -926,11 +926,11 @@ test('batch mode disables manuscript matching without changing its saved single-
 test('batch start delegates output allocation and batchDone reconciles every terminal outcome', async ({ page }) => {
   // Given: three queued files and a bridge spy that leaves allocation to the batch backend.
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#batchMode').click();
   await page.evaluate(() => {
     window.__batchCalls = [];
-    window.MAWLauncher.callBackend = async (method, payload) => {
+    window.MSWLauncher.callBackend = async (method, payload) => {
       window.__batchCalls.push({ method, payload });
       return { ok: true };
     };
@@ -943,7 +943,7 @@ test('batch start delegates output allocation and batchDone reconciles every ter
 
   // When: the run starts and the backend reports one completed and one cancelled item.
   await page.locator('#startBatch').click();
-  await page.evaluate(() => window.MAWLauncher.onBackendEvent({
+  await page.evaluate(() => window.MSWLauncher.onBackendEvent({
     type: 'batch_done',
     status: 'cancelled',
     outcomes: [
@@ -979,10 +979,10 @@ test('batch start delegates output allocation and batchDone reconciles every ter
 test('batchDone fails rows that never reported when the batch was not cancelled', async ({ page }) => {
   // Given: two queued files started in batch mode.
   await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MAWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#batchMode').click();
   await page.evaluate(() => {
-    window.MAWLauncher.callBackend = async () => ({ ok: true });
+    window.MSWLauncher.callBackend = async () => ({ ok: true });
     const drop = new Event('drop', { bubbles: true, cancelable: true });
     Object.defineProperty(drop, 'dataTransfer', {
       value: { files: [{ path: 'D:\\Demo\\first.mp3' }, { path: 'D:\\Demo\\second.mp3' }] },
@@ -992,7 +992,7 @@ test('batchDone fails rows that never reported when the batch was not cancelled'
 
   // When: the batch finishes normally but only one item ever reported an outcome.
   await page.locator('#startBatch').click();
-  await page.evaluate(() => window.MAWLauncher.onBackendEvent({
+  await page.evaluate(() => window.MSWLauncher.onBackendEvent({
     type: 'batchDone',
     status: 'done',
     outcomes: [{ id: 'batch-1', status: 'done', srtPath: 'D:\\Demo\\first.srt', jsonPath: 'D:\\Demo\\first.mosp' }],

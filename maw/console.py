@@ -1,4 +1,4 @@
-"""Shared process-level console encoding setup for MAW entrypoints."""
+"""Shared process-level console encoding setup for MSW entrypoints."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def configure_utf8_environment(environment: MutableMapping[str, str]) -> None:
 
 
 def configure_utf8_stdio() -> None:
-    """Make MAW's already-created stdout/stderr streams safe for Unicode text."""
+    """Make MSW's already-created stdout/stderr streams safe for Unicode text."""
     configure_utf8_environment(os.environ)
     _configure_stream(sys.stdout)
     _configure_stream(sys.stderr)

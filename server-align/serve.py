@@ -1,8 +1,8 @@
-"""Start the MAW recording-alignment MVP server.
+"""Start the MSW recording-alignment MVP server.
 
-The server is intentionally separate from MAWE.  It previews script lines,
+The server is intentionally separate from MSWE.  It previews script lines,
 alternative recording blocks, and extra source ranges, then writes a new
-MAWE-compatible project with disabled source cues and gap-remove decisions.
+MSWE-compatible project with disabled source cues and gap-remove decisions.
 It does not rewrite the source media.
 """
 
@@ -403,9 +403,13 @@ def render_page() -> bytes:
     return page.replace(PAGE_CORE_PLACEHOLDER, core).encode("utf-8")
 
 
+from maw.stickers import apply_msw_env_aliases  # noqa: E402
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="启动 MAW 口播对齐 MVP Server（仅本机访问）")
-    parser.add_argument("project_path", help="MAW .mosp/.json 工程")
+    apply_msw_env_aliases()
+    parser = argparse.ArgumentParser(description="启动 MSW 口播对齐 MVP Server（仅本机访问）")
+    parser.add_argument("project_path", help="MSW .mosp/.json 工程")
     parser.add_argument("script_path", help="UTF-8 文稿，每个非空行视为一行文稿")
     parser.add_argument("-m", "--media", help="覆盖工程中的媒体路径")
     parser.add_argument("-p", "--port", type=int, default=8260, help="监听端口（默认 8260，0=自动选择）")
@@ -447,7 +451,7 @@ def main() -> int:
     with AlignmentServer(("127.0.0.1", args.port), state) as server:
         host, port = server.server_address[:2]
         url = f"http://{host}:{port}/"
-        print("MAW 口播对齐 MVP Server 已启动（仅本机可访问）")
+        print("MSW 口播对齐 MVP Server 已启动（仅本机可访问）")
         print(f"工程: {project_path}")
         print(f"文稿: {script_path}")
         print(f"地址: {url}")
@@ -456,7 +460,7 @@ def main() -> int:
         try:
             server.serve_forever()
         except KeyboardInterrupt:
-            print("\nMAW 口播对齐 MVP Server 已停止")
+            print("\nMSW 口播对齐 MVP Server 已停止")
     return 0
 
 

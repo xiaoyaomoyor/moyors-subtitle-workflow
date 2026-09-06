@@ -1,4 +1,4 @@
-"""Shared paths for MAW user data and frozen-application configuration.
+"""Shared paths for MSW user data and frozen-application configuration.
 
 The source tree, frozen package, and the small helper processes all need to
 agree on where user-owned data lives.  Keep this module dependency-free so it
@@ -13,21 +13,40 @@ from pathlib import Path
 from typing import Final
 
 
-APP_DATA_DIRECTORY_NAME: Final = "MAW"
+APP_DATA_DIRECTORY_NAME: Final = "MSW"
+LEGACY_APP_DATA_DIRECTORY_NAME: Final = "MAW"
 EMOJI_FONT_FILE_NAME: Final = "NotoColorEmoji.ttf"
 SERVER_SETTINGS_FILE_NAME: Final = "server-editor-settings.json"
 SOURCE_ROOT: Final = Path(__file__).resolve().parents[1]
 ENV_PATH_OVERRIDE_VARIABLE: Final = "MAW_ENV_FILE"
 
 
-def default_app_data_root() -> Path:
-    """Return the writable MAW user-data root for the current platform.
+def _migrate_legacy_app_data(root: Path) -> None:
+    """把旧 ``MAW`` 数据目录一次性拷贝为 ``MSW``（项目改名的平滑迁移）。
 
-    ``MAW_APP_DATA_ROOT`` is intentionally kept as a process-level override
-    for tests and portable deployments.  It is resolved so callers can use it
-    as a stable path even when the override contains a relative component.
+    仅在 ``MSW`` 目录尚不存在而旧 ``MAW`` 目录存在时执行；拷贝失败静默跳过，
+    旧目录保留不删，用户可手动回退。主题、服务器设置、日志等用户数据
+    全部随之保留。
     """
-    override = os.environ.get("MAW_APP_DATA_ROOT", "").strip()
+    legacy = root.parent / LEGACY_APP_DATA_DIRECTORY_NAME
+    try:
+        if root.exists() or not legacy.is_dir():
+            return
+        import shutil
+        shutil.copytree(legacy, root)
+    except OSError:
+        pass
+
+
+def default_app_data_root() -> Path:
+    """Return the writable MSW user-data root for the current platform.
+
+    ``MSW_APP_DATA_ROOT`` (preferred) and the legacy ``MAW_APP_DATA_ROOT`` are
+    process-level overrides for tests and portable deployments.  They are
+    resolved so callers can use them as a stable path even when the override
+    contains a relative component.
+    """
+    override = (os.environ.get("MSW_APP_DATA_ROOT") or os.environ.get("MAW_APP_DATA_ROOT", "")).strip()
     if override:
         return Path(override).expanduser().resolve(strict=False)
     if sys.platform == "win32":
@@ -36,7 +55,10 @@ def default_app_data_root() -> Path:
         base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
-    return base / APP_DATA_DIRECTORY_NAME
+    root = base / APP_DATA_DIRECTORY_NAME
+    if not getattr(sys, "frozen", False):
+        _migrate_legacy_app_data(root)
+    return root
 
 
 def application_directory() -> Path:
@@ -58,7 +80,7 @@ def default_env_path() -> Path:
 
     Development always keeps using the repository root ``.env``.  A frozen
     application first honors a file beside its executable, which is useful for
-    portable releases, and otherwise uses the shared MAW user-data directory.
+    portable releases, and otherwise uses the shared MSW user-data directory.
     """
     override = os.environ.get(ENV_PATH_OVERRIDE_VARIABLE, "").strip()
     if override:

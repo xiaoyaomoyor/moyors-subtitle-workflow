@@ -174,7 +174,7 @@ def prepare_model_in_runtime(
     on_event: Callable[[str], None] | None = None,
     cancel_event: Event | None = None,
 ) -> int:
-    """在托管环境里跑模型加载器（不经 MAW.exe 本进程）。"""
+    """在托管环境里跑模型加载器（不经 MSW.exe 本进程）。"""
     if _is_moss_engine(engine):
         status = _moss_runtime().managed_runtime_status(model_cache_root)
         if not status.ready:
@@ -229,9 +229,9 @@ def prepare_model_in_process(
 ) -> int:
     """在可取消的子进程里做源码模式模型准备。
 
-    源码模式开发环境的可选包装在 MAW 自己的 venv（而非 ``local-runtime``）。
+    源码模式开发环境的可选包装在 MSW 自己的 venv（而非 ``local-runtime``）。
     让加载器留在子进程里，取消行为与托管模式一致，且准备阶段与推理共用
-    同一套 MAW 模型缓存变量。
+    同一套 MSW 模型缓存变量。
     """
     helper = LOCAL.bundle_path("maw/local_runtime_worker.py")
     if not helper.exists():

@@ -11,7 +11,7 @@
   const WORKSPACE_SCHEMA = 'moy.asr.editor.workspace.v1';
 
   function localizedWaveformMessage(zh, en) {
-    return window.MAWE_I18N?.language === 'en' ? en : zh;
+    return window.MSWE_I18N?.language === 'en' ? en : zh;
   }
 
   const GAP_REMOVE_DISPLAY_LABELS = Object.freeze({
@@ -39,7 +39,7 @@
 
   function gapRemoveDisplayLabel(gap) {
     const type = window.AsrGapRemoveCore?.getGapRemoveDisplayType?.(gap) || 'unknown';
-    const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+    const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
     return GAP_REMOVE_DISPLAY_LABELS[language][type] || GAP_REMOVE_DISPLAY_LABELS[language].unknown;
   }
 
@@ -3380,7 +3380,7 @@
         this.peaks = null;
         this.updateReadout(null);
         this.setStatus('等待波形数据');
-        this.empty.textContent = '加载媒体后显示波形（大媒体需要先用 MAW 生成波形后拖入）';
+        this.empty.textContent = '加载媒体后显示波形（大媒体需要先用 MSW 生成波形后拖入）';
         this.empty.classList.remove('hidden');
         if (render) this.render();
         return false;
@@ -3475,8 +3475,8 @@
       this.setPayload(null);
       if (file.size > BROWSER_DECODE_LIMIT) {
         const message = localizedWaveformMessage(
-          '媒体过大，浏览器不会整段解码；请使用 MAW GUI 预生成波形',
-          'The media is too large for full browser decoding; use the MAW GUI to pre-generate the waveform',
+          '媒体过大，浏览器不会整段解码；请使用 MSW GUI 预生成波形',
+          'The media is too large for full browser decoding; use the MSW GUI to pre-generate the waveform',
         );
         this.setStatus(message, 'error');
         throw new Error(message);
@@ -3485,8 +3485,8 @@
       const estimatedPcmBytes = durationSeconds * 48000 * 2 * 4;
       if (durationSeconds > 0 && estimatedPcmBytes > BROWSER_PCM_ESTIMATE_LIMIT) {
         const message = localizedWaveformMessage(
-          '音轨较长，浏览器整段解码可能耗尽内存；请使用 MAW GUI 预生成波形',
-          'The audio track is long and full browser decoding may exhaust memory; use the MAW GUI to pre-generate the waveform',
+          '音轨较长，浏览器整段解码可能耗尽内存；请使用 MSW GUI 预生成波形',
+          'The audio track is long and full browser decoding may exhaust memory; use the MSW GUI to pre-generate the waveform',
         );
         this.setStatus(message, 'error');
         throw new Error(message);
@@ -3494,8 +3494,8 @@
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) {
         const message = localizedWaveformMessage(
-          '当前浏览器不支持 Web Audio；请使用 MAW GUI 预生成波形',
-          'This browser does not support Web Audio; use the MAW GUI to pre-generate the waveform',
+          '当前浏览器不支持 Web Audio；请使用 MSW GUI 预生成波形',
+          'This browser does not support Web Audio; use the MSW GUI to pre-generate the waveform',
         );
         this.setStatus(message, 'error');
         throw new Error(message);
@@ -3556,8 +3556,8 @@
       } catch (error) {
         const detail = error.message || error;
         const message = localizedWaveformMessage(
-          `浏览器无法解析音轨：${detail}；请使用 MAW GUI 预生成波形`,
-          `The browser could not decode the audio track: ${detail}; use the MAW GUI to pre-generate the waveform`,
+          `浏览器无法解析音轨：${detail}；请使用 MSW GUI 预生成波形`,
+          `The browser could not decode the audio track: ${detail}; use the MSW GUI to pre-generate the waveform`,
         );
         this.setStatus(message, 'error');
         throw new Error(message);
@@ -6457,7 +6457,7 @@
       cueBlockContinuationEdges,
     },
   };
-  if (window.MAWE?.register) {
-    window.MAWE.register('waveform', () => window.AsrWaveform);
+  if (window.MSWE?.register) {
+    window.MSWE.register('waveform', () => window.AsrWaveform);
   }
 })();

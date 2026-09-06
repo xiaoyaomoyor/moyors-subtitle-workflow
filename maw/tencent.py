@@ -236,7 +236,7 @@ def _detail_items(detail: dict[str, object]) -> tuple[list[dict[str, object]], b
 
 
 def parse_result(response: dict[str, object]) -> dict[str, object]:
-    """Normalize Tencent ResultDetail into MAW items and sentence groups."""
+    """Normalize Tencent ResultDetail into MSW items and sentence groups."""
     raw_details = response.get("ResultDetail", [])
     if isinstance(raw_details, str):
         raw_details = json.loads(raw_details)

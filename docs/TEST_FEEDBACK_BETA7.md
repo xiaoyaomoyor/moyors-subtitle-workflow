@@ -54,7 +54,7 @@
 | 37 | 编辑器 / 多字幕列表 | 双列多重字幕模式下，主字幕左侧的黄条覆盖文字 | 修改 | 已修复 |
 | 38 | 编辑器 / 多字幕命名 | 将「拓展字幕」及「扩展字幕」统一命名为「副字幕」 | 修改 | 已修复 |
 | 39 | 编辑器 / 导出菜单 | 去空隙版本与更多导出需要按字幕、OTIO、XML、动态字幕/Resolve JSON 等类别加分隔线；OTIO/OTIOZ 文案统一；去空隙菜单增加 FCPXML；二级菜单鼠标移动容易丢失焦点 | 修改 | 已修复 |
-| 40 | 编辑器 / 导出文件名 | 工程名 MAW-1.4更新说明 导出 FCPXML 时被截断为 MAW-1.xml | 修改 | 已修复 |
+| 40 | 编辑器 / 导出文件名 | 工程名 MSW-1.4更新说明 导出 FCPXML 时被截断为 MSW-1.xml | 修改 | 已修复 |
 | 41 | 编辑器 / 去空隙 OTIO | 导入 Resolve 后片段长度正确但源内容范围错位：前段大量从媒体 0 开始，后段虽有非零起点仍不正确 | 修改 | 已修复 |
 | 42 | 编辑器 / 切分 | 词级时间码存在静音空隙时（如本地 ASR「型、」end 6480 与下一词「AI」start 6720），在词后拆分左半句被拉长贴住下一词起点；应左段停在自家最后一词的 end、右段从自家首词的 start 开始并保留空隙。缺词或缺时间码时维持原共享切点 / 光标比例估算兜底 | 修改 | 已修复 |
 
@@ -62,7 +62,7 @@
 
 - 任务 39 已按类别整理两个导出菜单：去空隙版本分为字幕、OTIO、FFconcat/JSON 三组，并将去空隙 FCPXML 放在 OTIO 组末尾；更多导出分为 XML、OTIO、动态字幕/Resolve JSON 三组。OTIO 文案统一为“OTIO 工程”，OTIOZ 文案统一为“OTIOZ 打包工程”，中英文翻译同步更新。
 - FCPXML 弹窗默认的“导出时间线模式”改为“去空隙时间线”；从“导出去空隙版本”打开 FCPXML 时也会强制选择去空隙模式，避免沿用上一次手动选择的原始时间线。
-- 任务 40 的根因是文件名清理把任意最后一个点号当作扩展名；现在仅移除已知扩展名，因此 `MAW-1.4更新说明` 会生成 `MAW-1.4更新说明.xml`，不会截断为 `MAW-1.xml`。
+- 任务 40 的根因是文件名清理把任意最后一个点号当作扩展名；现在仅移除已知扩展名，因此 `MSW-1.4更新说明` 会生成 `MSW-1.4更新说明.xml`，不会截断为 `MSW-1.xml`。
 
 - 已验证：`.venv\Scripts\python.exe edit.py --blank`；`node --check web\editor.js`、`web\editor-utils.js`、`web\editor-i18n.js`；`node --test tests\test_editor_utils.mjs tests\test_waveform_js.mjs`（215/215）；`.venv\Scripts\python.exe -m unittest tests.test_waveform tests.test_editor_assets`（26/26）；使用 `.venv\Scripts\python.exe` 启动服务器的 `fcp7-export.spec.mjs` 浏览器回归（8/8）；`git diff --check`。
 - 首次直接运行 FCPXML 浏览器回归时使用了缺少 reapeaks 模块的系统 Python，服务器在启动阶段退出；切换到项目 .venv 解释器后全部通过。该次失败属于验证环境问题，不是代码断言失败。
@@ -95,7 +95,7 @@
 - 新增 `tests/e2e/split-word-gap.spec.mjs`（3/3 通过），把词间静音拆分行为固化为持久化回归：静音空隙场景断言左段 `end=6480`、右段 `start=6720` 且各自 item 贴合；连续词场景断言左右段仍共享 `20800` 单一切点；词内切点场景断言按比例插值共享 `6320` 且左右 item 不越过段边界。
 - 断言发现并记录既有行为：`cleanSplitItems` 会把左段末 item 的尾部标点裁掉（`型、`→`型`），时间不变；该行为早于本次改动，用例按现状固化。
 - 相邻既有拆分回归（`waveform-history.spec.mjs` 内联拆分 / 强制重试 / B 拆分 3 条）复跑 3/3 通过，确认无相互影响。
-- 运行方式：`$env:MAW_E2E_PYTHON='.venv\Scripts\python.exe'; npx playwright test tests/e2e/split-word-gap.spec.mjs --project=chromium`（系统 python 缺 `reapeaks`，按 beta7 既有结论使用仓库 .venv）。
+- 运行方式：`$env:MSW_E2E_PYTHON='.venv\Scripts\python.exe'; npx playwright test tests/e2e/split-word-gap.spec.mjs --project=chromium`（系统 python 缺 `reapeaks`，按 beta7 既有结论使用仓库 .venv）。
 
 ## 修复与验证记录
 
@@ -119,11 +119,11 @@
 | 23 | 已修复 | 配置弹窗改为固定顶部操作区和独立设置滚动区，标题/关闭按钮不会随设置内容离开顶部；Launcher 静态契约测试 38/38 通过。 |
 | 24 | 已修复 | 新增绑定和未绑定、且与主字幕时间重叠的波形区回归；`B` 均打开「选择副字幕拆分点」，主字幕时间不变。相关 Playwright 回归 4/4 通过；`node --check`、Node 119/119、便携版生成和 `git diff --check` 通过。 |
 | 26 | 已修复 | `C` 合并后新建的绑定副字幕在开关开启时同步到合并后的主字幕范围，并重算绑定 offset；关闭开关时保留原副字幕范围。相关 Playwright 回归 3/3 通过；`node --check web\\editor.js`、便携版生成和 `git diff --check` 通过。 |
-| 27 | 已修复 | 自动后处理 OCR 改为复用已安装的 managed runtime，并把运行结果转换回流水线产物契约；安装完成事件同时刷新 OCR 控件和自动步骤状态，自动步骤可在运行时状态就绪后恢复。OCR runtime / OCR 后处理 / 自动后处理 / Launcher GUI 回归分别纳入 64/64 和 154/154 通过批次；相关 MAW Python 模块、Launcher JS 和编辑器 JS 语法检查，以及 `git diff --check` 通过。 |
+| 27 | 已修复 | 自动后处理 OCR 改为复用已安装的 managed runtime，并把运行结果转换回流水线产物契约；安装完成事件同时刷新 OCR 控件和自动步骤状态，自动步骤可在运行时状态就绪后恢复。OCR runtime / OCR 后处理 / 自动后处理 / Launcher GUI 回归分别纳入 64/64 和 154/154 通过批次；相关 MSW Python 模块、Launcher JS 和编辑器 JS 语法检查，以及 `git diff --check` 通过。 |
 | 33 | 已修复 | 批量区域新增独立拖入提示；不支持格式和重复文件不再写入单文件错误区，重复文件提示“文件已在当前列表内”；`batch_item_log` 阶段名同步写入总日志并以内联形式显示；跳过已完成文件改为自定义“是 / 否”确认按钮。已通过完整 Python 643/643、Launcher 190/190、Node 126/126、Launcher JS 语法、便携版生成、`git diff --check` 和浏览器冒烟验证。 |
 | 34 | 已修复 | 批量开始时状态区显示当前文件序号（如 `正在处理第 1/3 个文件`）；切换文件时更新当前处理文件；每个文件完成、失败或取消时写入总日志；批量结束时汇总成功/失败数量。已通过 Launcher 190/190、Launcher JS 语法检查和浏览器批量冒烟验证。 |
 | 42 | 已修复 | `node --check web\editor.js`；`node --test tests\test_editor_utils.mjs tests\test_waveform_js.mjs`（218/218 通过）；`.venv\Scripts\python.exe edit.py --blank` 重生成便携版；真实浏览器 Playwright 冒烟（serve.py 挂载测试工程 → 双击第 0 行进入编辑 → 光标定位偏移 5「、」后 → Enter）：拆分前 row0 `00:05.760→00:08.880 本地模型、AI校准和翻译…`，拆分后 row0 `00:05.760→00:06.480 本地模型`、row1 `00:06.720→00:08.880 AI校准和翻译…`，左段停在 6480、右段起于 6720，240ms 词间静音保留；`git diff --check` 通过。 |
-| 42 补 | 已修复 | 入库 e2e：`npx playwright test tests/e2e/split-word-gap.spec.mjs --project=chromium`（3/3 通过，MAW_E2E_PYTHON 指向仓库 .venv）；相邻既有拆分回归 `waveform-history.spec.mjs --grep "retries an inline split|manual text split keeps malformed|B splits the selected subtitle under"`（3/3 通过）；`git diff --check` 通过。 |
+| 42 补 | 已修复 | 入库 e2e：`npx playwright test tests/e2e/split-word-gap.spec.mjs --project=chromium`（3/3 通过，MSW_E2E_PYTHON 指向仓库 .venv）；相邻既有拆分回归 `waveform-history.spec.mjs --grep "retries an inline split|manual text split keeps malformed|B splits the selected subtitle under"`（3/3 通过）；`git diff --check` 通过。 |
 
 ## 询问项结论
 
@@ -160,7 +160,7 @@
 ## 增量记录（任务 15：可选 ReaPeaks 频谱）
 
 - 生成器新增 `include_spectral` 开关：wave-only 文件保留 wave + loudness 层并跳过 FFT；完整文件继续支持 wave + spectral + loudness。已有完整缓存不会被删除，勾选频谱时如果发现匹配的缓存只有 wave 层会自动重建。
-- `media_cache`、四个 provider CLI、MAW CLI、Launcher 请求和本地 ASR 输出链路已贯通；默认 `generate_spectral=false`，显式 `--with-spectral` 必须同时使用 `--with-waveform`。
+- `media_cache`、四个 provider CLI、MSW CLI、Launcher 请求和本地 ASR 输出链路已贯通；默认 `generate_spectral=false`，显式 `--with-spectral` 必须同时使用 `--with-waveform`。
 - 编辑器的“频谱颜色”在没有合法 spectral payload 时显示为未勾选且禁用；服务器后台补齐频谱后重新启用，并保留用户此前的显示偏好。默认波形形状仍是自研波形。
 - 已重新生成 `blank-editor.html`，并同步更新 `JSON_SCHEMA.md`、`docs/WORKFLOW.md` 和 `CHANGELOG.md`。
 
@@ -213,7 +213,7 @@
 
 ## 增量记录（任务 16、17：长音轨提示与波形缓存重构询问）
 
-- 任务 16 已将浏览器无法整段解码、浏览器不支持 Web Audio、音轨解析失败等路径统一改为提示使用 MAW GUI 预生成波形；英文界面同步提供对应提示。`blank-editor.html` 由 `web/` 源码重新生成。
+- 任务 16 已将浏览器无法整段解码、浏览器不支持 Web Audio、音轨解析失败等路径统一改为提示使用 MSW GUI 预生成波形；英文界面同步提供对应提示。`blank-editor.html` 由 `web/` 源码重新生成。
 - 任务 17 当前只记录设计结论：统一媒体旁缓存是可行的，建议使用带媒体 `name / size / modified_ms` 签名的独立容器，内部放自研波形、ReaPeaks wave 层和可选 spectral 层；Server/桌面 GUI 可按媒体路径自动查找，单文件浏览器只能在用户同时提供缓存文件或工程内已有缓存时复用，不能绕过浏览器对相邻文件的访问限制。旧 `.ReaPeaks` 与 `.waveform.json` 应保留只读兼容后再迁移，避免一次性改写已有缓存协议。
 
 已验证：`node --check web\\waveform.js`；`node --test tests\\test_waveform_js.mjs`（36/36）；`.venv\\Scripts\\python.exe -m unittest tests.test_waveform`（15/15）；`.venv\\Scripts\\python.exe edit.py --blank`；`git diff --check`。未实施任务 17 的缓存协议重构，因此没有宣称拖入长视频已支持自动读取统一缓存。
@@ -273,7 +273,7 @@
 - 自动后处理现在从 Launcher 传入当前 OCR runtime 路径，OCR 步骤通过 managed worker 执行，并把 worker 结果恢复为原有 `OcrDedupArtifact`；同时转发中间产物输出目录，避免第一步 OCR 将产物写回原始媒体目录。
 - `ocrRuntimeReady` 事件触发后，Launcher 除了刷新 OCR 模型控件，也刷新自动后处理步骤状态并恢复等待配置的步骤；因此安装完成后无需重新加载 Launcher。
 
-已验证：`.venv\\Scripts\\python.exe -m unittest tests.test_ocr_runtime tests.test_postprocess_ocr tests.test_postprocess_pipeline tests.test_gui_web.LauncherAssetContractTests`（64/64）；`.venv\\Scripts\\python.exe -m unittest tests.test_gui_web`（154/154）；`.venv\\Scripts\\python.exe -m py_compile maw\\gui_web.py maw\\ocr_runtime.py maw\\ocr_runtime_worker.py maw\\postprocess_pipeline.py`；`node --check web\\launcher\\launcher.js`、`node --check web\\launcher\\postprocess.js`、`node --check web\\editor.js`；`git diff --check`。一次合并式 `py_compile` 还尝试写入共享工作区的 `tests\\__pycache__`，因权限被拒绝，随后改为仅编译相关 MAW 模块并通过。
+已验证：`.venv\\Scripts\\python.exe -m unittest tests.test_ocr_runtime tests.test_postprocess_ocr tests.test_postprocess_pipeline tests.test_gui_web.LauncherAssetContractTests`（64/64）；`.venv\\Scripts\\python.exe -m unittest tests.test_gui_web`（154/154）；`.venv\\Scripts\\python.exe -m py_compile maw\\gui_web.py maw\\ocr_runtime.py maw\\ocr_runtime_worker.py maw\\postprocess_pipeline.py`；`node --check web\\launcher\\launcher.js`、`node --check web\\launcher\\postprocess.js`、`node --check web\\editor.js`；`git diff --check`。一次合并式 `py_compile` 还尝试写入共享工作区的 `tests\\__pycache__`，因权限被拒绝，随后改为仅编译相关 MSW 模块并通过。
 
 ## 增量记录（任务 25：绑定自动同步时长的撤销显示）
 
@@ -335,7 +335,7 @@
 
 - 任务 37 已修复：多重字幕双列列表的主列 dirty 标记继续使用 3px 琥珀色内描边，同时为 `.multi-cue-column.main.dirty` 预留 `3px` 左内边距并使用 `border-box`，首个文字不再被黄条覆盖；新增浏览器回归断言。
 - 任务 38 已修复：用户可见的「拓展字幕」「扩展字幕」「扩展轨」已统一为「副字幕」「副轨」，英文界面同步使用 `secondary`；内部 `role: extension`、CSS 类、数据字段和导出协议保持不变。
-- 已验证：`.venv\\Scripts\\python.exe edit.py --blank`；`node --check web\\editor.js`、`node --check web\\editor-utils.js`、`node --check web\\editor-i18n.js`、`node --check tests\\e2e\\multi-subtitle.spec.mjs`；`node --test tests\\test_editor_utils.mjs tests\\test_waveform_js.mjs`（215/215）；`git diff --check`；本地 Chromium 目标回归（使用 `MAW_E2E_PYTHON=.venv\\Scripts\\python.exe`）1/1。
+- 已验证：`.venv\\Scripts\\python.exe edit.py --blank`；`node --check web\\editor.js`、`node --check web\\editor-utils.js`、`node --check web\\editor-i18n.js`、`node --check tests\\e2e\\multi-subtitle.spec.mjs`；`node --test tests\\test_editor_utils.mjs tests\\test_waveform_js.mjs`（215/215）；`git diff --check`；本地 Chromium 目标回归（使用 `MSW_E2E_PYTHON=.venv\\Scripts\\python.exe`）1/1。
 - localhost `server-editor --blank` 返回 200，页面包含副字幕文案和主列 dirty 规则，未发现旧中文称呼。完整 `multi-subtitle.spec.mjs` 为 80/81：唯一失败是既有的未绑定副字幕文本处理用例，其夹具的首个双列行本来是空主列，失败断言与本次修改无关。
 
 ## 增量记录（任务 41：去空隙 OTIO 源范围错位，复核）

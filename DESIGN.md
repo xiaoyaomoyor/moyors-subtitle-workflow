@@ -1,6 +1,6 @@
-# MAWE Design System
+# MSWE Design System
 
-This file is the minimal design contract for the MAW editor UI. It extracts the
+This file is the minimal design contract for the MSW editor UI. It extracts the
 implicit patterns already present in `web/editor.css` and `web/editor-template.html`
 so new components stay consistent without inventing new tokens. It is intentionally
 small: the editor is a single dark-theme tool, not a multi-product design system.
@@ -141,26 +141,26 @@ column. Long paths use `overflow-wrap: anywhere` and never force horizontal scro
   each `.toolbox-input` is a separate visual block; the parent must provide a visible
   vertical gap (use the existing 10px toolbox spacing) so adjacent inputs never touch.
 - The「口播对齐」panel keeps its four visible automatic-gap settings inside
-  `.toolbox-content`, below the MAW project and proofreading-script inputs. The
-  visible controls mirror MAWE's current defaults (400ms minimum, -28dB threshold,
+  `.toolbox-content`, below the MSW project and proofreading-script inputs. The
+  visible controls mirror MSWE's current defaults (400ms minimum, -28dB threshold,
   120ms lead-in, 80ms lead-out); the less frequently used 2dB hysteresis remains an
   internal compatibility default. The settings use the existing grouped-card and
   10–12px grid spacing, persist under the Launcher-only
-  `maw.launcher.alignment.gap_remove` key, and must not read or overwrite MAWE's
+  `maw.launcher.alignment.gap_remove` key, and must not read or overwrite MSWE's
   editor settings.
-- The standalone `server-align` page uses the same waveform interaction language as MAWE:
+- The standalone `server-align` page uses the same waveform interaction language as MSWE:
   `多行` is the default view, and `基础` / `多行` live in one two-option segmented slot.
   Clicking an active gap temporarily previews its original audio even when skip-gap playback
   is enabled; `Alt` + click toggles an existing gap, while `Alt` + click/drag on blank waveform
   adds a gap. Clicking an adopted complete take toggles its manual-disabled state.
-- Manual take overrides and manually adjusted gap ranges use the MAWE light-blue inset treatment:
+- Manual take overrides and manually adjusted gap ranges use the MSWE light-blue inset treatment:
   `box-shadow: inset 0 0 0 4px rgb(65 174 207 / 35%)`. Visible standalone labels use「空隙」and「额外」;
   internal `gap_remove` / `extra` field names remain data-contract identifiers.
 - The Utilities media input follows the Launcher's media path until the user chooses,
   drops, or types an override. Clearing that override restores following behavior.
   Waveform offers separate generate-only and generate-and-open-editor actions, with a
   scoped optional spectral-cache checkbox; only the latter changes the Launcher project
-  and starts the existing MAWE Server flow. FFconcat accepts a picked or dropped script
+  and starts the existing MSWE Server flow. FFconcat accepts a picked or dropped script
   that references the scoped Utilities media input.
 
 ## 6. Layering contract: popovers inside the sticky cue-list toolbar

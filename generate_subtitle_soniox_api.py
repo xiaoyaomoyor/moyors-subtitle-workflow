@@ -23,7 +23,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from maw.stickers import get_default_sticker_dir
+from maw.stickers import get_default_sticker_dir, apply_msw_env_aliases
 from generate_subtitle_qwen_api import (
     extract_audio,
     generate_srt,
@@ -70,6 +70,7 @@ def _language_hints(raw: str | None) -> list[str]:
 
 
 def main():
+    apply_msw_env_aliases()
     configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="使用 Soniox 异步 STT API 生成视频字幕（云端版，可选说话人分离）",

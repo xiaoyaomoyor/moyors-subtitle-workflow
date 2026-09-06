@@ -82,7 +82,7 @@ fn render_frontend() {
     let repository_root = manifest_dir
         .parent()
         .and_then(Path::parent)
-        .expect("无法定位 MAW 仓库根目录");
+        .expect("无法定位 MSW 仓库根目录");
     let web_dir = repository_root.join("web");
     let app_version = project_version(&repository_root);
     let mut page = read(&web_dir.join("editor-template.html"));

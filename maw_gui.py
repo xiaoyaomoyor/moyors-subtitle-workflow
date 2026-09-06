@@ -12,6 +12,7 @@ from pathlib import Path
 
 from maw.app_paths import default_log_directory
 from maw.console import configure_utf8_stdio
+from maw.stickers import apply_msw_env_aliases
 
 
 _INTERNAL_FLAGS = frozenset(
@@ -115,6 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    apply_msw_env_aliases()
     configure_utf8_stdio()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv and not _is_gui_debug_invocation(raw_argv) and raw_argv[0] not in _INTERNAL_FLAGS:
@@ -196,7 +198,7 @@ def _show_unknown_startup_hint() -> None:
     if sys.platform != "win32":
         return
     message = (
-        "MAW 启动时遇到未识别错误。\n\n"
+        "MSW 启动时遇到未识别错误。\n\n"
         "此提示不会替代随后出现的完整错误信息。请先查看发布包内的 FAQ-常见问题.txt；"
         "如仍无法解决，可前往项目 Issue 页面反馈：\n"
         "https://github.com/Moyf/moys-asr-workflow/issues/new\n\n"
@@ -205,7 +207,7 @@ def _show_unknown_startup_hint() -> None:
     try:
         import ctypes
 
-        ctypes.windll.user32.MessageBoxW(None, message, "MAW 启动失败", 0x10)
+        ctypes.windll.user32.MessageBoxW(None, message, "MSW 启动失败", 0x10)
     except (AttributeError, OSError):
         pass
 
@@ -242,19 +244,19 @@ def _friendly_child_error(error: Exception) -> str:
     filename = Path(str(getattr(error, "filename", "") or "")).name.casefold()
     if isinstance(error, FileNotFoundError) and filename in {"ffmpeg", "ffmpeg.exe", "ffprobe", "ffprobe.exe"}:
         return (
-            "找不到 FFmpeg / FFprobe。请下载不带 lite 的完整 MAW；"
+            "找不到 FFmpeg / FFprobe。请下载不带 lite 的完整 MSW；"
             "或安装 FFmpeg，并确保 ffmpeg 与 ffprobe 均可用。"
         )
     return detail or error.__class__.__name__
 
 
 def _startup_error_log_path() -> Path:
-    """Return the shared MAW startup diagnostics path."""
+    """Return the shared MSW startup diagnostics path."""
     return default_log_directory() / "launcher-startup.log"
 
 
 def _startup_error_fallback_log_path() -> Path:
-    """Return the shared MAW startup diagnostics path."""
+    """Return the shared MSW startup diagnostics path."""
     return default_log_directory() / "launcher-startup.log"
 
 
@@ -278,17 +280,17 @@ def _startup_error_message(error: Exception, log_path: Path | None = None) -> st
     detail = str(error).strip()
     if any(marker in detail.casefold() for marker in _WINDOWS_BLOCKED_RUNTIME_MARKERS):
         message = (
-            "MAW 的运行组件被 Windows 阻止加载。\n\n"
+            "MSW 的运行组件被 Windows 阻止加载。\n\n"
             "请按以下步骤处理：\n"
-            "1. 退出 MAW，并找到最初下载的 MAW ZIP 压缩包。\n"
+            "1. 退出 MSW，并找到最初下载的 MSW ZIP 压缩包。\n"
             "2. 右键 ZIP → 属性 → 勾选“解除锁定”→ 应用。\n"
             "3. 删除当前解压目录，再从已解除锁定的 ZIP 完整解压。\n"
-            "4. 保留 MAW.exe、_internal 和 bootstrap 在同一目录中。\n\n"
+            "4. 保留 MSW.exe、_internal 和 bootstrap 在同一目录中。\n\n"
             "若仍无法启动，请查看发布包内的 FAQ-常见问题.txt。"
         )
     else:
         summary = detail or error.__class__.__name__
-        message = f"MAW 启动失败：{summary}\n\n请查看发布包内的 FAQ-常见问题.txt。"
+        message = f"MSW 启动失败：{summary}\n\n请查看发布包内的 FAQ-常见问题.txt。"
     if log_path is not None:
         message += f"\n\n诊断日志：{log_path}"
     return message
@@ -300,7 +302,7 @@ def _show_startup_error(error: Exception, log_path: Path | None = None) -> None:
         try:
             import ctypes
 
-            ctypes.windll.user32.MessageBoxW(None, message, "MAW 启动失败", 0x10)
+            ctypes.windll.user32.MessageBoxW(None, message, "MSW 启动失败", 0x10)
             return
         except (AttributeError, OSError):
             pass

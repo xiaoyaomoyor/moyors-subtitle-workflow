@@ -1,4 +1,4 @@
-"""Shared MAW project serialization and source-media metadata enrichment."""
+"""Shared MSW project serialization and source-media metadata enrichment."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def serialize_mosp(
     media_path: Path | str | None = None,
     ffprobe_path: Path | str | None = None,
 ) -> str:
-    """Serialize a MAW project after optional source-media enrichment.
+    """Serialize a MSW project after optional source-media enrichment.
 
     Validation and normalization remain the responsibility of the caller.
     """

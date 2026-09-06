@@ -63,13 +63,13 @@ class GuiConfigTests(unittest.TestCase):
 
     def test_default_env_path_frozen_prefers_file_beside_executable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            app_dir = Path(temp_dir) / "MAW"
+            app_dir = Path(temp_dir) / "MSW"
             app_dir.mkdir()
             adjacent = app_dir / ".env"
             adjacent.write_text("CONFIG_SOURCE=adjacent\n", encoding="utf-8")
             with mock.patch.object(app_paths.sys, "platform", "win32"), mock.patch.object(
                 app_paths.sys, "frozen", True, create=True
-            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MAW.exe")):
+            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MSW.exe")):
                 with mock.patch.dict(
                     os.environ,
                     {"LOCALAPPDATA": str(Path(temp_dir) / "LocalAppData"), "MAW_ENV_FILE": ""},
@@ -79,12 +79,12 @@ class GuiConfigTests(unittest.TestCase):
 
     def test_default_env_path_frozen_falls_back_to_shared_app_data(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            app_dir = Path(temp_dir) / "MAW"
+            app_dir = Path(temp_dir) / "MSW"
             app_dir.mkdir()
             local_app_data = Path(temp_dir) / "LocalAppData"
             with mock.patch.object(app_paths.sys, "platform", "win32"), mock.patch.object(
                 app_paths.sys, "frozen", True, create=True
-            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MAW.exe")):
+            ), mock.patch.object(app_paths.sys, "executable", str(app_dir / "MSW.exe")):
                 with mock.patch.dict(
                     os.environ,
                     {"LOCALAPPDATA": str(local_app_data), "MAW_ENV_FILE": ""},
@@ -92,7 +92,7 @@ class GuiConfigTests(unittest.TestCase):
                 ):
                     self.assertEqual(
                         gui_config.default_env_path(),
-                        (local_app_data / "MAW" / ".env").resolve(),
+                        (local_app_data / "MSW" / ".env").resolve(),
                     )
 
     def test_default_env_path_keeps_windows_at_repo_root(self) -> None:
@@ -116,7 +116,7 @@ class GuiConfigTests(unittest.TestCase):
 
     def test_save_env_creates_missing_parent_directories(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            env_path = Path(temp_dir) / "Library" / "Application Support" / "Moy" / "MAW" / ".env"
+            env_path = Path(temp_dir) / "Library" / "Application Support" / "Moy" / "MSW" / ".env"
 
             gui_config.save_env(env_path, {"FFMPEG_PATH": "/opt/homebrew/bin"})
 

@@ -710,7 +710,7 @@ class PostprocessPipelineTests(unittest.TestCase):
                 ffmpeg_path=None,
                 cancel_event=cancel,
             )
-        workspace = self.root / "MAW-Postprocess"
+        workspace = self.root / "MSW-Postprocess"
         self.assertTrue(workspace.is_dir())
         self.assertEqual(len(tuple(workspace.iterdir())), 1)
 

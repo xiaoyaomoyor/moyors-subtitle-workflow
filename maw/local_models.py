@@ -1,6 +1,6 @@
 """Local model discovery and preparation for the experimental Launcher mode.
 
-This module deliberately keeps optional local runtimes lazy.  A cloud-only MAW
+This module deliberately keeps optional local runtimes lazy.  A cloud-only MSW
 installation can therefore open the Launcher and report that the local runtime
 is unavailable without importing Torch, QwenASR, or FunASR.
 """
@@ -322,7 +322,7 @@ def _prepare_in_managed_runtime(
 ) -> LocalModelStatus:
     emit = on_event or (lambda _message: None)
     refs = [model.model_ref, *model.required_model_refs]
-    emit(f"[local] 正在准备 {model.label}；使用 MAW 独立运行环境。")
+    emit(f"[local] 正在准备 {model.label}；使用 MSW 独立运行环境。")
     emit(f"[local] 模型组件：{'；'.join(ref for ref in refs if ref)}")
     stop_heartbeat = threading.Event()
     heartbeat = threading.Thread(

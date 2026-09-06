@@ -46,11 +46,11 @@ desktop/src/index.html
 # Local Windows GUI packaging outputs. Keep generated executables local.
 /build/
 /dist/
-/dist/MAW/MAW.exe
+/dist/MSW/MSW.exe
 *.zip
 *.exe
 *.spec.bak
-!MAW.spec
+!MSW.spec
 .playwright-mcp/
 
 # Local post-processing configuration (may contain personal paths and settings).

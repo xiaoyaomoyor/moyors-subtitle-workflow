@@ -39,7 +39,7 @@ class EditorPaletteInjectionTests(unittest.TestCase):
     @staticmethod
     def _minimal_context() -> dict[str, str]:
         return {
-            "title": "MAWE",
+            "title": "MSWE",
             "media_html": "",
             "data_json": "{}",
             "filename_base_json": '"project"',

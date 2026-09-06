@@ -87,11 +87,11 @@ class LocalEditorServerTests(unittest.TestCase):
         ):
             self.assertEqual(
                 server_editor.default_settings_path(),
-                self.root / "LocalAppData" / "MAW" / "server-editor-settings.json",
+                self.root / "LocalAppData" / "MSW" / "server-editor-settings.json",
             )
 
     def test_default_settings_read_uses_legacy_file_only_when_new_file_is_absent(self) -> None:
-        primary = self.root / "MAW" / "server-editor-settings.json"
+        primary = self.root / "MSW" / "server-editor-settings.json"
         legacy = self.root / "Moy" / "moys-asr-workflow" / "server-editor-settings.json"
         legacy.parent.mkdir(parents=True)
         legacy_settings = server_editor.replace(server_editor.ServerSettings(), auto_open_last_project=False)
@@ -106,7 +106,7 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertFalse(primary.exists())
 
     def test_default_settings_read_prefers_new_file_over_legacy_file(self) -> None:
-        primary = self.root / "MAW" / "server-editor-settings.json"
+        primary = self.root / "MSW" / "server-editor-settings.json"
         legacy = self.root / "Moy" / "moys-asr-workflow" / "server-editor-settings.json"
         primary.parent.mkdir(parents=True)
         legacy.parent.mkdir(parents=True)
@@ -544,7 +544,7 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('id="load-srt-file"', page)
         self.assertIn('function parseSrtSegments(text)', page)
         self.assertIn('function isMawProject(data)', page)
-        self.assertIn('请使用 MAW 生成的工程文件', page)
+        self.assertIn('请使用 MSW 生成的工程文件', page)
 
         self.assertIn('id="server-auto-save-settings"', page)
         self.assertIn('id="auto-save-project"', page)
@@ -1151,7 +1151,7 @@ class LocalEditorServerTests(unittest.TestCase):
                 "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
                 "id": "maw-dynamic-captions",
                 "version": "1.0.0",
-                "name": "MAW Dynamic Captions",
+                "name": "MSW Dynamic Captions",
                 "main": "maw-dynamic-captions.mjs",
                 "schema": {"type": "object"},
                 "supportsRealTime": True,
@@ -1188,7 +1188,7 @@ class LocalEditorServerTests(unittest.TestCase):
             "manifest": {
                 "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
                 "id": "maw-dynamic-captions",
-                "name": "MAW Dynamic Captions",
+                "name": "MSW Dynamic Captions",
                 "main": "maw-dynamic-captions.mjs",
                 "supportsRealTime": True,
                 "supportsNonRealTime": True,

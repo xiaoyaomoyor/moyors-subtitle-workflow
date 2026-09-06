@@ -325,9 +325,9 @@ class GuiWorkflowTests(unittest.TestCase):
             model="custom-model",
         )
 
-        command = build_transcribe_command(request, executable=Path("MAW"), frozen=True)
+        command = build_transcribe_command(request, executable=Path("MSW"), frozen=True)
 
-        self.assertEqual(command[:3], ["MAW", "--transcribe-openai", str(self.media_path)])
+        self.assertEqual(command[:3], ["MSW", "--transcribe-openai", str(self.media_path)])
         import maw_gui
 
         self.assertTrue(maw_gui._is_transcription_invocation(command[1:]))
@@ -375,9 +375,9 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_build_transcribe_command_frozen_mode_dispatches_same_executable(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)
 
-        command = build_transcribe_command(request, executable=Path("MAW.exe"), frozen=True)
+        command = build_transcribe_command(request, executable=Path("MSW.exe"), frozen=True)
 
-        self.assertEqual(command[:3], ["MAW.exe", "--transcribe", str(self.media_path)])
+        self.assertEqual(command[:3], ["MSW.exe", "--transcribe", str(self.media_path)])
         self.assertIn("--json", command)
         self.assertIn("--no-html", command)
         self.assertEqual(command.count("--with-waveform"), 1)
@@ -390,10 +390,10 @@ class GuiWorkflowTests(unittest.TestCase):
             engine="funasr",
             model="paraformer-zh",
             model_path="C:\\Users\\Demo\\model-cache",
-            runtime_python="C:\\Users\\Demo\\AppData\\Local\\MAW\\local-runtime\\Scripts\\python.exe",
+            runtime_python="C:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime\\Scripts\\python.exe",
         )
 
-        command = build_transcribe_command(request, executable=Path("MAW.exe"), frozen=True)
+        command = build_transcribe_command(request, executable=Path("MSW.exe"), frozen=True)
 
         self.assertEqual(command[0], request.runtime_python)
         self.assertIn("local-runtime", command[1])
@@ -592,14 +592,14 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertEqual(env["PATH"].split(os.pathsep)[0], str(ffmpeg_dir))
 
     def test_child_environment_uses_release_root_ffmpeg_in_frozen_mode(self) -> None:
-        app_root = self.root / "MAW"
+        app_root = self.root / "MSW"
         ffmpeg_dir = app_root / "ffmpeg" / "bin"
         ffmpeg_dir.mkdir(parents=True)
         (ffmpeg_dir / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")).write_bytes(b"exe")
         (ffmpeg_dir / ("ffprobe.exe" if os.name == "nt" else "ffprobe")).write_bytes(b"exe")
 
         with mock.patch("maw.gui_workflow.sys.frozen", True, create=True):
-            with mock.patch("maw.gui_workflow.sys.executable", str(app_root / "MAW.exe")):
+            with mock.patch("maw.gui_workflow.sys.executable", str(app_root / "MSW.exe")):
                 with mock.patch("maw.gui_workflow.load_env", return_value={}):
                     env = _child_environment({"PATH": "C:\\Windows"}, "", "")
 
@@ -821,9 +821,9 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_build_transcribe_command_frozen_local_dispatches_local_flag(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path, provider="local")
 
-        command = build_transcribe_command(request, executable=Path("MAW.exe"), frozen=True)
+        command = build_transcribe_command(request, executable=Path("MSW.exe"), frozen=True)
 
-        self.assertEqual(command[:3], ["MAW.exe", "--transcribe-local", str(self.media_path)])
+        self.assertEqual(command[:3], ["MSW.exe", "--transcribe-local", str(self.media_path)])
         self.assertNotIn("secret-key", " ".join(command))
 
     def test_build_transcribe_command_funasr_uses_dashscope_script_and_speaker_colors(self) -> None:
@@ -867,9 +867,9 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_build_transcribe_command_frozen_soniox_dispatches_soniox_flag(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path, provider="soniox")
 
-        command = build_transcribe_command(request, executable=Path("MAW.exe"), frozen=True)
+        command = build_transcribe_command(request, executable=Path("MSW.exe"), frozen=True)
 
-        self.assertEqual(command[:3], ["MAW.exe", "--transcribe-soniox", str(self.media_path)])
+        self.assertEqual(command[:3], ["MSW.exe", "--transcribe-soniox", str(self.media_path)])
         self.assertEqual(command.count("--with-waveform"), 1)
 
     def test_build_transcribe_command_frozen_tencent_dispatches_tencent_flag(self) -> None:
@@ -880,9 +880,9 @@ class GuiWorkflowTests(unittest.TestCase):
             model="16k_zh_en_2.0",
         )
 
-        command = build_transcribe_command(request, executable=Path("MAW.exe"), frozen=True)
+        command = build_transcribe_command(request, executable=Path("MSW.exe"), frozen=True)
 
-        self.assertEqual(command[:3], ["MAW.exe", "--transcribe-tencent", str(self.media_path)])
+        self.assertEqual(command[:3], ["MSW.exe", "--transcribe-tencent", str(self.media_path)])
         self.assertIn("--model", command)
 
     def test_child_environment_soniox_uses_soniox_key_only(self) -> None:
@@ -954,9 +954,9 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_build_serve_command_frozen_mode_dispatches_same_executable(self) -> None:
         project_path = self.root / "project.json"
 
-        command = build_serve_command(project_path, None, 8765, executable=Path("MAW.exe"), frozen=True)
+        command = build_serve_command(project_path, None, 8765, executable=Path("MSW.exe"), frozen=True)
 
-        self.assertEqual(command[:3], ["MAW.exe", "--serve", str(project_path)])
+        self.assertEqual(command[:3], ["MSW.exe", "--serve", str(project_path)])
         self.assertNotIn("-m", command)
         self.assertEqual(command[command.index("--port") + 1], "8765")
 
@@ -1002,11 +1002,11 @@ class GuiWorkflowTests(unittest.TestCase):
             script_path,
             None,
             9877,
-            executable=Path("MAW.exe"),
+            executable=Path("MSW.exe"),
             frozen=True,
         )
 
-        self.assertEqual(command[:4], ["MAW.exe", "--serve-alignment", str(project_path), str(script_path)])
+        self.assertEqual(command[:4], ["MSW.exe", "--serve-alignment", str(project_path), str(script_path)])
         self.assertNotIn("--media", command)
         self.assertEqual(command[command.index("--port") + 1], "9877")
 
@@ -1020,9 +1020,9 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertEqual(command[command.index("--port") + 1], "8765")
 
     def test_build_serve_command_without_project_frozen_uses_serve_flag(self) -> None:
-        command = build_serve_command(None, None, 8765, executable=Path("MAW.exe"), frozen=True)
+        command = build_serve_command(None, None, 8765, executable=Path("MSW.exe"), frozen=True)
 
-        self.assertEqual(command[:2], ["MAW.exe", "--serve"])
+        self.assertEqual(command[:2], ["MSW.exe", "--serve"])
         self.assertNotIn("--blank", command)
         self.assertEqual(command[command.index("--port") + 1], "8765")
 
@@ -1047,7 +1047,7 @@ class GuiWorkflowTests(unittest.TestCase):
         import maw_gui
 
         with mock.patch.object(maw_gui.sys, "platform", "win32"), mock.patch.object(
-            maw_gui.sys, "executable", str(self.root / "MAW.exe")
+            maw_gui.sys, "executable", str(self.root / "MSW.exe")
         ), mock.patch.object(maw_gui.sys, "frozen", True, create=True), mock.patch.dict(
             os.environ,
             {"LOCALAPPDATA": str(self.root / "LocalAppData"), "MAW_APP_DATA_ROOT": ""},
@@ -1055,7 +1055,7 @@ class GuiWorkflowTests(unittest.TestCase):
         ):
             self.assertEqual(
                 _startup_error_log_path(),
-                self.root / "LocalAppData" / "MAW" / "logs" / "launcher-startup.log",
+                self.root / "LocalAppData" / "MSW" / "logs" / "launcher-startup.log",
             )
 
     def test_startup_error_fallback_uses_shared_maw_log_directory(self) -> None:
@@ -1068,7 +1068,7 @@ class GuiWorkflowTests(unittest.TestCase):
         ):
             self.assertEqual(
                 maw_gui._startup_error_fallback_log_path(),
-                self.root / "LocalAppData" / "MAW" / "logs" / "launcher-startup.log",
+                self.root / "LocalAppData" / "MSW" / "logs" / "launcher-startup.log",
             )
 
     def test_entrypoint_debug_aliases_configure_launcher_debug_modes(self) -> None:
@@ -1088,7 +1088,7 @@ class GuiWorkflowTests(unittest.TestCase):
         import maw_gui
 
         error = RuntimeError(
-            r"Failed to resolve Python.Runtime.Loader.Initialize from C:\MAW\_internal\pythonnet\runtime\Python.Runtime.dll"
+            r"Failed to resolve Python.Runtime.Loader.Initialize from C:\MSW\_internal\pythonnet\runtime\Python.Runtime.dll"
         )
         log_path = Path(r"C:\Temp\launcher-startup.log")
         with mock.patch("maw_gui.sys.platform", "win32"):
@@ -1235,7 +1235,7 @@ class GuiWorkflowTests(unittest.TestCase):
         )
 
         self.assertEqual(completed.returncode, 0)
-        self.assertIn("MAW 命令行", completed.stdout)
+        self.assertIn("MSW 命令行", completed.stdout)
         self.assertIn("--server", completed.stdout)
 
 

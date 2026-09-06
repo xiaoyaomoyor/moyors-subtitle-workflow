@@ -21,7 +21,7 @@ TIMESTAMP_GRANULARITIES = frozenset({"char", "word", "segment", "unknown"})
 DEFAULT_MAX_WORDS = 13
 DEFAULT_MIN_WORDS = 3
 
-# These are the languages for which MAW counts text as a continuous character
+# These are the languages for which MSW counts text as a continuous character
 # stream. Korean remains word-mode: Hangul has whitespace-separated words and
 # the existing auto splitter treats it as a western/word language.
 CONTINUOUS_LANGUAGE_CODES = frozenset({"zh", "yue", "ja"})
@@ -262,7 +262,7 @@ def resolve_language(
 
 
 def split_mode_for_language(language: object) -> str:
-    """Map a known language to MAW's continuous or word counting mode."""
+    """Map a known language to MSW's continuous or word counting mode."""
     code = normalize_language_code(language)
     if not code:
         return ""
