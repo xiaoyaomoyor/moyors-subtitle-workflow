@@ -79,7 +79,7 @@ def default_postprocess_plan() -> dict[str, object]:
             {"id": "replace", "enabled": False, "replacements": [], "replacementSeparator": "arrow", "replacementTrim": True, "replacementCustomSeparator": "", "conversion": TextConversion.OFF.value},
             {"id": "proofread", "enabled": False, "providerId": "deepseek", "customPrompt": ""},
             {"id": "resegment", "enabled": False, "providerId": "deepseek", "customPrompt": ""},
-            {"id": "ocr", "enabled": False, "videoPath": "", "regionMode": "full", "regionX1": 0, "regionY1": 0, "regionX2": 100, "regionY2": 100, "threshold": 0.5, "report": False},
+            {"id": "ocr", "enabled": False, "videoPath": "", "videoPathMode": "", "regionMode": "full", "regionX1": 0, "regionY1": 0, "regionX2": 100, "regionY2": 100, "threshold": 0.5, "report": False},
             {"id": "translate", "enabled": False, "providerId": "deepseek", "target": "zh", "mergeBilingual": False, "customPrompt": ""},
         ],
     }
@@ -133,6 +133,9 @@ def normalize_plan(raw: object) -> dict[str, object]:
                 step[key] = bool(value)
             elif key == "matchMode":
                 step[key] = str(value or "script") if str(value or "script") in {"script", "text"} else "script"
+            elif key == "videoPathMode":
+                mode = str(value or "").strip()
+                step[key] = mode if mode in {"", "auto", "manual"} else ""
             elif key in {"extraSplitPunctuation", "preservePunctuation"}:
                 step[key] = [str(item).strip() for item in value if str(item).strip()] if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) else []
             else:
@@ -385,6 +388,8 @@ class PostprocessPipelineError(RuntimeError):
         current_project: Path,
         current_srt: Path,
         completed_steps: Sequence[str],
+        failed_step: str = "",
+        cause: BaseException | None = None,
     ) -> None:
         super().__init__(message)
         self.run_directory = run_directory
@@ -392,6 +397,11 @@ class PostprocessPipelineError(RuntimeError):
         self.current_project = current_project
         self.current_srt = current_srt
         self.completed_steps = tuple(completed_steps)
+        self.failed_step = failed_step
+        self.category = str(getattr(cause, "category", "") or "")
+        status_code = getattr(cause, "status_code", None)
+        self.status_code = status_code if isinstance(status_code, int) else None
+        self.diagnostic = str(getattr(cause, "diagnostic", "") or "")
 
 
 PipelineEvent = Callable[[Mapping[str, object]], None]
@@ -441,11 +451,13 @@ def run_postprocess_pipeline(
     current_srt = resume_srt_path or srt_path
     current_translated_srt: Path | None = None
     translation_target: str | None = None
+    bilingual_output = False
     resume_count = max(0, resume_from)
     manifest_steps = manifest.get("steps")
     for previous_index, previous_step in enumerate(steps[:resume_count]):
         if str(previous_step.get("id") or "") == "translate":
             translation_target = str(previous_step.get("target") or "zh")
+            bilingual_output = bool(previous_step.get("mergeBilingual"))
             previous_manifest_step = (
                 manifest_steps[previous_index]
                 if isinstance(manifest_steps, list) and previous_index < len(manifest_steps)
@@ -466,6 +478,8 @@ def run_postprocess_pipeline(
             manifest_steps[index - 1]["status"] = "running"
             _write_manifest(run_directory, manifest)
             _emit(on_event, {"stage": "step_start", "index": index, "total": len(steps), "step": step_id})
+            translation_intermediate_project: Path | None = None
+            translation_intermediate_srt: Path | None = None
             try:
                 artifact = _run_step(
                     step,
@@ -482,7 +496,13 @@ def run_postprocess_pipeline(
                 )
                 if step_id == "translate":
                     translation_target = str(step.get("target") or "zh")
+                    bilingual_output = bool(step.get("mergeBilingual"))
                     if bool(step.get("mergeBilingual")):
+                        # Keep the standalone translation in the run directory
+                        # as an inspectable intermediate; only the merged
+                        # artifact is published as the final output.
+                        translation_intermediate_project = artifact.project_path
+                        translation_intermediate_srt = artifact.srt_path
                         artifact = _merge_bilingual_subtitles(
                             source_project_path=current_project,
                             source_srt_path=current_srt,
@@ -504,12 +524,14 @@ def run_postprocess_pipeline(
                 raise
             except Exception as error:
                 raise PostprocessPipelineError(
-                    str(error),
+                    f"后处理步骤 {step_id} 失败：{error}",
                     run_directory=run_directory,
                     failed_index=index - 1,
                     current_project=current_project,
                     current_srt=current_srt,
                     completed_steps=completed,
+                    failed_step=step_id,
+                    cause=error,
                 ) from error
             _check_cancel(cancel_event)
             current_project = artifact.project_path or current_project
@@ -524,6 +546,10 @@ def run_postprocess_pipeline(
             manifest_steps[index - 1]["srtPath"] = str(current_srt)
             if current_translated_srt is not None:
                 manifest_steps[index - 1]["translatedSrtPath"] = str(current_translated_srt)
+            if translation_intermediate_project is not None:
+                manifest_steps[index - 1]["translationIntermediateProjectPath"] = str(translation_intermediate_project)
+            if translation_intermediate_srt is not None:
+                manifest_steps[index - 1]["translationIntermediateSrtPath"] = str(translation_intermediate_srt)
             _write_manifest(run_directory, manifest)
             _emit(on_event, {
                 "stage": "step_done",
@@ -541,6 +567,7 @@ def run_postprocess_pipeline(
             current_srt,
             translated_srt=current_translated_srt,
             translation_target=translation_target,
+            bilingual=bilingual_output,
         )
         manifest["status"] = "done"
         manifest["finalProjectPath"] = str(final_project)
@@ -563,6 +590,18 @@ def run_postprocess_pipeline(
         manifest["status"] = "cancelled"
         _write_manifest(run_directory, manifest)
         _emit(on_event, {"stage": "cancelled", "completed": len(completed), "total": len(steps), "runDirectory": str(run_directory)})
+        raise
+    except PostprocessPipelineError as error:
+        manifest["status"] = "failed"
+        _write_manifest(run_directory, manifest)
+        _emit(on_event, {
+            "stage": "failed",
+            "completed": len(completed),
+            "total": len(steps),
+            "runDirectory": str(run_directory),
+            "step": error.failed_step,
+            "failedIndex": error.failed_index,
+        })
         raise
     except Exception:
         manifest["status"] = "failed"
@@ -747,7 +786,11 @@ def _attach_translation_track(
             or source.get("id") != translated.get("id")
         ):
             raise ValueError(f"第 {index} 条翻译结果未保持原字幕时间范围或稳定 ID。")
-        if not isinstance(translated.get("text"), str) or not translated["text"].strip():
+        source_text = source.get("text")
+        translated_text = translated.get("text")
+        if not isinstance(source_text, str) or not isinstance(translated_text, str):
+            raise ValueError(f"第 {index} 条翻译结果为空。")
+        if not translated_text.strip() and source_text.strip():
             raise ValueError(f"第 {index} 条翻译结果为空。")
 
     combined = copy.deepcopy(source_project)
@@ -866,7 +909,11 @@ def _merge_bilingual_subtitles(
         raise ValueError("翻译步骤没有生成完整的工程和 SRT 产物。")
     source_project = read_project(source_project_path)
     translated_project = read_project(translated_artifact.project_path)
-    merged = merge_bilingual_project(source_project, translated_project)
+    merged = merge_bilingual_project(
+        source_project,
+        translated_project,
+        translation_target=target,
+    )
     warnings = (
         *translated_artifact.warnings,
         "翻译前后的独立字幕已保留为中间产物，最终输出为单条双语字幕。",
@@ -916,11 +963,13 @@ def _publish_final(
     *,
     translated_srt: Path | None = None,
     translation_target: str | None = None,
+    bilingual: bool = False,
 ) -> tuple[Path, Path, Path | None]:
     source_srt = source_srt.expanduser().resolve()
     source_project = source_project.expanduser().resolve()
     suffix = source_project.suffix.lower() if source_project.suffix.lower() in {".mosp", ".json"} else ".mosp"
-    base = source_srt.with_name(f"{source_srt.stem}.postprocess")
+    bilingual_suffix = ".bilingual" if bilingual else ""
+    base = source_srt.with_name(f"{source_srt.stem}.postprocess{bilingual_suffix}")
     counter = 1
     while True:
         marker = "" if counter == 1 else f"-{counter}"

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -60,7 +59,8 @@ class QwenMediaExtractionTests(unittest.TestCase):
         # FFmpeg 经统一解析器解析，可能是绝对路径；按可执行名断言。
         command = run.call_args.args[0]
         self.assertEqual(Path(command[0]).stem.lower(), "ffmpeg")
-        self.assertEqual(command[1:5], ["-i", "input.mp4", "-t", "120"])
+        # 多音轨支持：第一遍 ffmpeg 始终 -map 选中的音轨（默认第一条）。
+        self.assertEqual(command[1:7], ["-i", "input.mp4", "-map", "0:a:0", "-t", "120"])
         self.assertEqual(command[-1], "output.wav")
 
 
@@ -113,6 +113,34 @@ class QwenTimestampRepairTests(unittest.TestCase):
         self.assertEqual(repaired[0]["text"], "啊。")
         self.assertEqual((repaired[0]["start"], repaired[0]["end"]), (500, 501))
         normalize_project({"segments": repaired})
+
+    def test_repair_preserves_single_speaker_and_optional_items_shape(self) -> None:
+        repaired = repair_nonpositive_duration_segments([
+            {"start": 0, "end": 0, "text": "嗯", "speaker": "S01"},
+            {"start": 0, "end": 1000, "text": "继续", "speaker": "S01"},
+        ])
+
+        self.assertEqual(repaired, [{
+            "start": 0,
+            "end": 1000,
+            "text": "嗯继续",
+            "speaker": "S01",
+        }])
+
+    def test_repair_drops_conflicting_speakers_and_invalid_items(self) -> None:
+        repaired = repair_nonpositive_duration_segments([
+            {
+                "start": 0,
+                "end": 0,
+                "text": "嗯",
+                "speaker": "S01",
+                "items": [{"text": "嗯", "start": 0, "end": 0, "speaker": "S01"}],
+            },
+            {"start": 0, "end": 1000, "text": "继续", "speaker": "S02"},
+        ])
+
+        self.assertNotIn("speaker", repaired[0])
+        self.assertNotIn("items", repaired[0])
 
 
 if __name__ == "__main__":

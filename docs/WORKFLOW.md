@@ -41,7 +41,7 @@ Windows 图形包中的 `MAW.exe` 不带参数时启动 Launcher；带 `-h` 或 
 .\MAW.exe -i "D:\Videos\example.mp3" -o "D:\Videos\example.srt" "D:\Videos\example.mosp"
 ```
 
-完整的参数表、输出规则、Qwen/Soniox 示例、Server 管理、退出码和 AI/自动化调用模板见 [CLI 专门文档](CLI.md)。
+完整的参数表、Qwen/Soniox/腾讯云/OpenAI 兼容 ASR 示例、Server 管理、退出码和 AI/自动化调用模板见 [CLI 专门文档](CLI.md)。
 
 ## 1. 配置阿里云百炼 API
 
@@ -86,6 +86,8 @@ CLI 未指定 `--model` 时默认使用 `qwen-audio-3.0-asr-flash-filetrans`；�
 ```
 
 CLI 默认不内嵌波形；需要交给编辑器直接打开且不想生成 `<媒体名>.waveform.json` sidecar 时，加 `--with-waveform`。该选项默认生成媒体旁 `.ReaPeaks` 的 wave 层，但跳过耗时较高的频谱计算；只有同时加 `--with-spectral` 才生成频谱层。Launcher 中对应的“生成 ReaPeaks 频谱数据”默认不勾选。波形提取会额外用 FFmpeg 完整扫一遍媒体，失败时只给警告，不影响字幕与工程文件输出。输入视频会先由 FFmpeg 提取单声道 16kHz WAV；音频输入也会通过 FFprobe 获取时长。没有 FFmpeg/FFprobe 时，这一步无法完成。
+
+在 Launcher 放入包含两条或更多音轨的视频时，媒体路径下方会显示「声音轨道」。它优先选中 FFprobe 标记为默认的轨道（没有默认标记时选第一条）；转写、内嵌波形、频谱和 .ReaPeaks 都使用同一选择。单音轨视频和纯音频不会显示该控件；FFprobe 无法读取时保持与旧版本相同的第一条轨道行为。
 
 ## 用 Qwen-Audio 3.0 ASR 转写（热词与上下文）
 
@@ -203,6 +205,30 @@ uv run python generate_subtitle_tencent_api.py "D:\Videos\example.mp4" -ll 2m --
 
 腾讯云结果中的 `Words` 会映射为工程 `items`，其中 `OffsetStartMs` / `OffsetEndMs` 是整数毫秒。启用 `--speaker` 时，MAW 会发送 `SpeakerDiarization=1`；说话人标签是匿名 ID。小于等于 5MB 的本地文件可直传，较大文件必须先上传到 COS 或其他公网可访问地址并使用 `--file-url`。
 
+## 用 OpenAI 兼容 ASR 转写（可选）
+
+MAW 支持 OpenAI 官方转写服务，以及实现同一 multipart 接口的自建或中转服务。默认地址和模型分别为 `https://api.openai.com/v1` 与支持时间戳的 `whisper-1`。在 `.env` 中配置：
+
+```ini
+MAW_OPENAI_ASR_API_KEY=你的 ASR 密钥
+MAW_OPENAI_ASR_BASE_URL=https://api.openai.com/v1
+MAW_OPENAI_ASR_MODEL=whisper-1
+```
+
+直接调用生成器：
+
+```powershell
+uv run python generate_subtitle_openai_api.py "D:\Videos\example.mp4" -ll 2m --json
+```
+
+也可以从公开 CLI 调用，并用 `--base-url` 临时覆盖 `.env`：
+
+```powershell
+MAW.exe --provider openai --base-url "https://api.openai.com/v1" -i "D:\Videos\example.mp4" -o "D:\Output\example.srt"
+```
+
+接口必须接受 `POST /audio/transcriptions`，并返回带 `start` / `end` 时间戳的 `segments` 或 `words`。只有文本没有时间戳的响应会被拒绝；说话人开关、Qwen 热词和 Soniox context 不会转发给该接口。
+
 ## 用必剪转写（实验性，免 Key，仅中文）
 
 > [!warning]
@@ -305,7 +331,7 @@ Launcher 右下角的圆形按钮会打开工具箱。工具箱的标题、一�
 
 ### 提取音频
 
-「提取音频」会先用 FFprobe 读取媒体中的音轨，显示音轨序号、语言、标题、编码、声道数和采样率；多音轨时可选择需要的音轨，单音轨则默认选中它。运行后以 AAC 编码输出新的 `.m4a` 文件，不改写源媒体；没有音轨或未找到完整的 FFmpeg / FFprobe 时会给出明确提示。
+「提取音频」会先用 FFprobe 读取媒体中的音轨，显示音轨序号、语言、标题、编码、声道数和采样率；名称按容器的 `title`、`name`、`handler_name` 顺序读取。多音轨时可选择需要的音轨，单音轨则默认选中它。运行后以 AAC 编码输出新的 `.m4a` 文件，不改写源媒体；没有音轨或未找到完整的 FFmpeg / FFprobe 时会给出明确提示。
 
 ### 文稿匹配
 
@@ -318,7 +344,7 @@ Launcher 右下角的圆形按钮会打开工具箱。工具箱的标题、一�
 
 ### LLM 处理
 
-LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 OpenAI-compatible 接口，可执行校对、重新断句、中英翻译或自定义文字任务。任务下拉框的顺序是「校对文本 → 翻译成中文 → 翻译成英文 → 重新断句 → 自定义」。选择翻译任务后还可以勾选「合并双语字幕」，把每条字幕写成 `原始文本\n翻译文本` 的单轨格式。选择输出模式后可以生成新工程、新 SRT，或同时生成两者。
+LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 OpenAI-compatible 接口，可执行校对、重新断句、中英翻译或自定义文字任务。任务下拉框的顺序是「校对文本 → 翻译成中文 → 翻译成英文 → 重新断句 → 自定义」。选择翻译任务后还可以勾选「合并双语字幕」，把每条字幕写成单轨双语格式；翻译成中文时中文在上、外文在下，翻译成英文时原文在上、英文在下。选择输出模式后可以生成新工程、新 SRT，或同时生成两者；合并产物会带 `.bilingual` 后缀，后续翻译会拦截工程和 SRT 输入。
 
 - 选择前四项任务时，上方「预设提示词」会显示该任务的只读说明；选择「自定义」时显示「（无）」。下方「自定义提示词」始终可编辑，切换任务只更新上方预设，不会改动用户已经填写的文字；留空时只使用任务预设。
 
@@ -326,7 +352,7 @@ LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 Ope
 - 模型只能返回 cue ID 的分组与新文字；本地程序检查 ID 是否完整、连续且顺序不变，再使用本地时间槽生成结果。
 - 合并字幕时，新段使用第一段的开始时间和最后一段的结束时间；拆分单段时，本地在原时间槽内分配正时长，模型不能指定时间。
 - 文字改变后，旧的逐词 `items` 会被移除；重新断句后，可能错位的贴纸和颜色引用也会被移除。`segments` 仍是字幕与时间的真源。
-- 「合并双语字幕」会保留原始字幕的时间范围和安全元数据，移除无法对应双行文字的逐词时间码；自动后处理中的翻译前后独立结果会作为中间产物，不再额外发布译文副轨。
+- 「合并双语字幕」会保留原始字幕的时间范围和安全元数据，移除无法对应双行文字的逐词时间码并跳过空 cue；自动后处理中的翻译前后独立结果会作为中间产物，不再额外发布译文副轨，最终文件名为 `*.postprocess.bilingual.*`。
 
 供应商 API Key、URL 和模型可在 Launcher 右上角的 `⚙️ 配置` →「LLM 后处理」中保存到本机 `.env`；工具箱 LLM 面板提供快捷链接跳转到这里。界面和 bridge 结果只显示掩码，不会把完整 Key 写入工程或日志。留空已经保存过的 Key 输入框并再次保存 URL/模型时，原 Key 会保留。「测试连接」只使用当前表单值发送最小请求，不会写入配置；保存成功后显示的「LLM 设置已保存。」只是短暂的状态反馈。字幕文字会发送到所选 LLM 供应商，请根据素材敏感程度和供应商的数据政策决定是否使用。完整机器协议见 [LLM_POSTPROCESS_PROTOCOL.md](LLM_POSTPROCESS_PROTOCOL.md)。
 

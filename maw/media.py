@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import math
 import os
 import re
 import struct
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -85,6 +89,185 @@ def read_bwf_time_reference(path: Path) -> dict[str, int] | None:
     except (OSError, struct.error, ValueError):
         return None
     return None
+
+
+def find_ffprobe(configured_path: str | os.PathLike[str] | None = None) -> Path | None:
+    """Find FFprobe through the shared application-wide resolver."""
+    return resolve_ffmpeg_tool("ffprobe", configured_path)
+
+
+def _parse_probe_frame_rate(value: object) -> tuple[float, str] | None:
+    raw = str(value or "").strip()
+    if not raw or raw.upper() in {"N/A", "NA"}:
+        return None
+    try:
+        ratio = Fraction(raw)
+    except (OverflowError, ValueError, ZeroDivisionError):
+        return None
+    if ratio <= 0:
+        return None
+    fps = float(ratio)
+    if not math.isfinite(fps) or not 1.0 <= fps <= 240.0:
+        return None
+    return fps, f"{ratio.numerator}/{ratio.denominator}"
+
+
+def probe_video_fps(
+    path: Path | str,
+    *,
+    ffprobe_path: str | os.PathLike[str] | None = None,
+) -> dict[str, float | str] | None:
+    """Read a local video's frame rate as optional project metadata.
+
+    ``avg_frame_rate`` is preferred because it is the most useful constant
+    rate for the editor's frame-to-millisecond mapping; ``r_frame_rate`` is a
+    fallback for files where FFprobe cannot calculate an average.  A missing
+    FFprobe executable, an audio-only input, an invalid rate, or any probe
+    failure simply returns ``None`` so metadata enrichment never blocks ASR.
+    """
+
+    source = Path(path).expanduser()
+    if source.suffix.lower() not in VIDEO_EXTENSIONS:
+        return None
+    try:
+        if not source.is_file():
+            return None
+    except OSError:
+        return None
+
+    executable = find_ffprobe(ffprobe_path)
+    if executable is None:
+        return None
+    command = [
+        str(executable), "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=avg_frame_rate,r_frame_rate",
+        "-of", "json", str(source),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            timeout=10,
+        )
+        payload = json.loads(result.stdout or "")
+    except (OSError, subprocess.SubprocessError, TypeError, ValueError):
+        return None
+
+    streams = payload.get("streams") if isinstance(payload, dict) else None
+    stream = streams[0] if isinstance(streams, list) and streams else None
+    if not isinstance(stream, dict):
+        return None
+    for key in ("avg_frame_rate", "r_frame_rate"):
+        parsed = _parse_probe_frame_rate(stream.get(key))
+        if parsed is not None:
+            fps, ratio = parsed
+            return {"video_fps": fps, "video_fps_ratio": ratio}
+    return None
+
+
+def _parse_probe_integer(value: object, *, minimum: int = 0) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str) and re.fullmatch(r"\d+", value.strip()):
+        parsed = int(value.strip())
+    else:
+        return None
+    return parsed if parsed >= minimum else None
+
+
+def probe_audio_tracks(
+    path: Path | str,
+    *,
+    ffprobe_path: str | os.PathLike[str] | None = None,
+) -> list[dict[str, Any]] | None:
+    """Read the source media's audio streams as optional project metadata.
+
+    ``audio_index`` is the zero-based order among audio streams while
+    ``stream_index`` is FFmpeg's stream index in the original container.  A
+    successful probe with no audio streams returns an empty list; an absent
+    FFprobe executable or any probe failure returns ``None`` so metadata
+    enrichment never blocks project generation.
+    """
+
+    source = Path(path).expanduser()
+    if source.suffix.lower() not in MEDIA_EXTENSIONS:
+        return None
+    try:
+        if not source.is_file():
+            return None
+    except OSError:
+        return None
+
+    executable = find_ffprobe(ffprobe_path)
+    if executable is None:
+        return None
+    command = [
+        str(executable), "-v", "error",
+        "-select_streams", "a",
+        "-show_entries",
+        "stream=index,codec_name,channels,sample_rate:stream_tags=language,title,name,handler_name:stream_disposition=default",
+        "-of", "json", str(source),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            timeout=10,
+        )
+        payload = json.loads(result.stdout or "")
+    except (OSError, subprocess.SubprocessError, TypeError, ValueError):
+        return None
+
+    streams = payload.get("streams") if isinstance(payload, Mapping) else None
+    if not isinstance(streams, list):
+        return None
+    tracks: list[dict[str, Any]] = []
+    for stream in streams:
+        if not isinstance(stream, Mapping):
+            continue
+        stream_index = _parse_probe_integer(stream.get("index"))
+        if stream_index is None:
+            continue
+        tags = stream.get("tags") if isinstance(stream.get("tags"), Mapping) else {}
+        disposition = stream.get("disposition") if isinstance(stream.get("disposition"), Mapping) else {}
+        channels = _parse_probe_integer(stream.get("channels"), minimum=1)
+        sample_rate = _parse_probe_integer(stream.get("sample_rate"), minimum=1)
+        default_value = _parse_probe_integer(disposition.get("default"))
+        tracks.append({
+            "audio_index": len(tracks),
+            "stream_index": stream_index,
+            "codec": str(stream.get("codec_name") or "").strip(),
+            "channels": channels,
+            "sample_rate": sample_rate,
+            "language": str(tags.get("language") or "").strip(),
+            "title": _first_nonempty_tag(tags, "title", "name", "handler_name"),
+            "default": default_value == 1,
+        })
+    return tracks
+
+
+def _first_nonempty_tag(tags: Mapping[object, object], *names: str) -> str:
+    """Return the first non-empty FFprobe stream tag, tolerating key casing."""
+    normalized = {
+        str(key).strip().casefold(): value
+        for key, value in tags.items()
+    }
+    for name in names:
+        value = str(normalized.get(name.casefold()) or "").strip()
+        if value:
+            return value
+    return ""
 
 
 @dataclass(frozen=True, slots=True)

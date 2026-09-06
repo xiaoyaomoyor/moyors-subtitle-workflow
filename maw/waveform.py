@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import subprocess
 import sys
 from array import array
@@ -46,6 +47,47 @@ def media_signature(media_path: Path) -> dict[str, int | str]:
     }
 
 
+def _is_positive_number(value: Any) -> bool:
+    """True for a real int/float count. bool is rejected despite being an int."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )
+
+
+def waveform_peaks_per_second(payload: Any) -> float:
+    """Return the authoritative bin rate (peaks per second of audio).
+
+    ``peaks_per_second`` is a display-friendly approximation.  For caches
+    derived from ``.ReaPeaks`` the real rate is ``sample_rate / division``,
+    which is fractional for most sample rates (16 kHz with ``div=53`` is
+    301.8868, not 302).  Any geometry that maps a peak index to a timestamp
+    must use this function, otherwise the rounding error scales the whole time
+    axis and the drift grows linearly with the media length.
+    """
+    if not isinstance(payload, dict):
+        return 0.0
+    sample_rate = payload.get("sample_rate")
+    division = payload.get("division")
+    has_sample_rate = sample_rate is not None
+    has_division = division is not None
+    if has_sample_rate != has_division:
+        return 0.0
+    if has_sample_rate:
+        if (
+            _is_positive_number(sample_rate)
+            and isinstance(division, int)
+            and not isinstance(division, bool)
+            and division > 0
+        ):
+            return sample_rate / division
+        return 0.0
+    peaks_per_second = payload.get("peaks_per_second")
+    return float(peaks_per_second) if _is_positive_number(peaks_per_second) else 0.0
+
+
 def is_waveform_payload(value: Any) -> bool:
     """Check the cheap structural invariants of a cached waveform payload."""
     if not isinstance(value, dict):
@@ -59,19 +101,51 @@ def is_waveform_payload(value: Any) -> bool:
     peak_count = value.get("peak_count")
     peaks_per_second = value.get("peaks_per_second")
     duration_ms = value.get("duration_ms")
-    return (
+    if not (
         isinstance(peak_count, int)
+        and not isinstance(peak_count, bool)
         and peak_count >= 0
-        and isinstance(peaks_per_second, int)
-        and peaks_per_second > 0
+        and _is_positive_number(peaks_per_second)
         and isinstance(duration_ms, int)
+        and not isinstance(duration_ms, bool)
         and duration_ms >= 0
+    ):
+        return False
+    # The exact-rate pair is optional (older payloads only carry the rounded
+    # peaks_per_second), but when present it must be usable as a ratio.
+    sample_rate = value.get("sample_rate")
+    division = value.get("division")
+    if sample_rate is None and division is None:
+        return True
+    return (
+        _is_positive_number(sample_rate)
+        and isinstance(division, int)
+        and not isinstance(division, bool)
+        and division > 0
     )
 
 
-def waveform_matches_media(value: Any, media_path: Path) -> bool:
+def audio_track_from_payloads(*payloads: Any) -> int:
+    """Return the first valid logical audio-track number from cache payloads."""
+    for payload in payloads:
+        if not isinstance(payload, dict):
+            continue
+        value = payload.get("audio_track")
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    return 0
+
+
+def waveform_matches_media(
+    value: Any,
+    media_path: Path,
+    *,
+    audio_track: int | None = None,
+) -> bool:
     """Return true when a valid payload was derived from this exact file."""
     if not is_waveform_payload(value):
+        return False
+    if audio_track is not None and audio_track_from_payloads(value) != audio_track:
         return False
     return value.get("source") == media_signature(media_path)
 
@@ -118,6 +192,7 @@ def extract_waveform(
     peaks_per_second: int = DEFAULT_PEAKS_PER_SECOND,
     pcm_sample_rate: int | None = None,
     ffmpeg_bin: str | None = None,
+    audio_track: int = 0,
 ) -> dict[str, Any]:
     """Stream a mono PCM envelope from FFmpeg without retaining decoded audio.
 
@@ -127,6 +202,8 @@ def extract_waveform(
     media_path = Path(media_path).resolve()
     if not media_path.is_file():
         raise WaveformError(f"媒体文件不存在: {media_path}")
+    if not isinstance(audio_track, int) or isinstance(audio_track, bool) or audio_track < 0:
+        raise ValueError("audio_track must be a non-negative integer")
     if peaks_per_second <= 0:
         raise ValueError("peaks_per_second must be positive")
     if pcm_sample_rate is None:
@@ -153,7 +230,7 @@ def extract_waveform(
         "-i",
         str(media_path),
         "-map",
-        "0:a:0",
+        f"0:a:{audio_track}",
         "-vn",
         "-ac",
         "1",
@@ -217,9 +294,14 @@ def extract_waveform(
         "schema": WAVEFORM_SCHEMA,
         "encoding": WAVEFORM_ENCODING,
         "peaks_per_second": actual_peaks_per_second,
+        # bin i covers [i * division / sample_rate, (i + 1) * ...): the exact
+        # pair, so consumers never have to rely on the rounded rate above.
+        "sample_rate": pcm_sample_rate,
+        "division": bucket_samples,
         "peak_count": peak_count,
         "duration_ms": duration_ms,
         "data": base64.b64encode(encoded).decode("ascii"),
+        "audio_track": audio_track,
         "source": media_signature(media_path),
     }
 
@@ -230,6 +312,7 @@ def embed_waveform(
     *,
     peaks_per_second: int = DEFAULT_PEAKS_PER_SECOND,
     ffmpeg_bin: str | None = None,
+    audio_track: int = 0,
 ) -> EmbeddedWaveformResult:
     """Return a project copy with embedded peaks, or the original project on failure."""
     try:
@@ -237,6 +320,7 @@ def embed_waveform(
             media_path,
             peaks_per_second=peaks_per_second,
             ffmpeg_bin=ffmpeg_bin,
+            audio_track=audio_track,
         )
     except Exception as exc:  # noqa: BLE001
         return EmbeddedWaveformResult(project=project, error=exc)
@@ -251,16 +335,19 @@ def load_or_extract_waveform(
     *,
     peaks_per_second: int = DEFAULT_PEAKS_PER_SECOND,
     ffmpeg_bin: str | None = None,
+    audio_track: int = 0,
 ) -> tuple[dict[str, Any], bool]:
     """Return cached peaks when valid, otherwise extract a fresh payload."""
+    if not isinstance(audio_track, int) or isinstance(audio_track, bool) or audio_track < 0:
+        raise ValueError("audio_track must be a non-negative integer")
     if (
-        waveform_matches_media(existing, media_path)
+        waveform_matches_media(existing, media_path, audio_track=audio_track)
         and existing["peaks_per_second"] == peaks_per_second
     ):
         return existing, False
     sidecar = load_waveform_sidecar(media_path)
     if (
-        waveform_matches_media(sidecar, media_path)
+        waveform_matches_media(sidecar, media_path, audio_track=audio_track)
         and sidecar["peaks_per_second"] == peaks_per_second
     ):
         return sidecar, False
@@ -268,6 +355,7 @@ def load_or_extract_waveform(
         media_path,
         peaks_per_second=peaks_per_second,
         ffmpeg_bin=ffmpeg_bin,
+        audio_track=audio_track,
     )
     try:
         save_waveform_sidecar(payload, media_path)

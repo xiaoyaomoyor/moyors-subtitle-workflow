@@ -151,6 +151,7 @@ test('shows the installed OCR settings hint and highlights video drops', async (
   await page.locator('#settingsButton').click();
   // OCR 运行环境位于「运行环境」分页；设置弹窗默认打开「通用」分页。
   await page.locator('#settingsRuntimeTab').click();
+  await expect(page.locator('#settingsRuntimeTab')).toHaveAttribute('aria-selected', 'true');
   await page.locator('#ocrRuntimeHint .runtime-path-link').click();
   await expect.poll(() => page.evaluate(() => window.__openedRuntimeFolder)).toEqual({ kind: 'ocr-runtime' });
 });
