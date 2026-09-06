@@ -5644,9 +5644,12 @@ function buildMultiCueColumn(segment, index, track, kind) {
   indexEl.className = 'index';
   const labelEl = document.createElement('span');
   labelEl.className = 'index-label';
-  labelEl.textContent = kind === 'main' ? '主字幕' : '副字幕';
+  labelEl.textContent = kind === 'main' ? '主' : '副';
+  const labelRestEl = document.createElement('span');
+  labelRestEl.className = 'index-label-rest';
+  labelRestEl.textContent = '字幕';
   indexEl.title = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
-  indexEl.append(labelEl, document.createTextNode(` ${index + 1}`));
+  indexEl.append(labelEl, labelRestEl, document.createTextNode(` ${index + 1}`));
   header.append(indexEl, buildMultiTimeEl(segment));
   // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。
   const cntEl = document.createElement('span');

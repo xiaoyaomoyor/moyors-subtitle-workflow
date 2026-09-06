@@ -3273,12 +3273,18 @@
       if (this.settings.mode === 'basic') this.renderBasic();
     }
 
-    setStatus(message, kind = '') {
+    setStatus(message, kind = '', { quiet = false } = {}) {
       // 瞬态消息不再占用顶部栏右侧（那里只放常显的「时长 · 峰值数」数据行）；
       // 文本仍写入隐藏的状态元素供无障碍读取，同时以浮动提示展示。
+      // quiet：仅供拖动过程使用——实时增量改挂到常显数据行，不弹浮动气泡，
+      // 拖动结束时由提交方给一条总结提示（避免逐帧气泡刷屏）。
       this.status.textContent = message;
       this.status.classList.toggle('error', kind === 'error');
       this.status.classList.toggle('busy', kind === 'busy');
+      if (quiet) {
+        this.updateReadout(message);
+        return;
+      }
       if (message && typeof flashHint === 'function') {
         flashHint(message, kind === 'error' ? 'invalid' : 'default');
       }
@@ -3289,6 +3295,14 @@
       if (!this.readout) return;
       this.readout.hidden = !text;
       this.readout.textContent = text || '';
+    }
+
+    // 恢复常显数据行：拖动过程会把实时增量暂挂到该行（quiet 状态），
+    // 拖动结束后由此还原为「媒体总时长 · 波形峰值点数」。
+    refreshMediaReadout() {
+      this.updateReadout(this.mediaAvailable && this.payload
+        ? `${formatCompact(this.payload.duration_ms)} · ${this.payload.peak_count.toLocaleString()} peaks`
+        : null);
     }
 
     setSpectralColorStatus(message = '') {
@@ -6143,7 +6157,7 @@
         }
       }
       const deltaLabel = clock.unit === 'frames' ? `${delta >= 0 ? '+' : ''}${delta}F` : `${delta >= 0 ? '+' : ''}${delta} ms`;
-      this.setStatus(`${allowSqueeze ? '挤压移动' : '移动'} ${drag.indices.length} 条 · ${deltaLabel}`);
+      this.setStatus(`移动中 · ${allowSqueeze ? '挤压' : ''}${drag.indices.length} 条 · ${deltaLabel}`, '', { quiet: true });
     }
 
     applyResizeDrag(drag, rawDelta, disableSnap) {
@@ -6216,7 +6230,7 @@
       clock.setStart(rightSegment, boundary);
       leftSegment.items = remapItems(left.items, left.start, left.end, left.start, boundary, clock);
       rightSegment.items = remapItems(right.items, right.start, right.end, boundary, right.end, clock);
-      this.setStatus(`共享边界 ${clock.format(boundary)} · ${this.adjacentSnapModeStatusHint()}`);
+      this.setStatus(`共享边界 ${clock.format(boundary)} · ${this.adjacentSnapModeStatusHint()}`, '', { quiet: true });
       // 吸附模式提示只挂在「共享边界」状态上：共享边界拖动正是自动吸附
       // 默认联动/独立两种模式的直接体现，Alt 可随时临时反转。
     }
@@ -6224,6 +6238,7 @@
     endCueDrag(event) {
       const drag = this.drag;
       if (!drag || event.pointerId !== drag.pointerId) return;
+      this.refreshMediaReadout();
       window.removeEventListener('pointermove', this._dragMove);
       window.removeEventListener('pointerup', this._dragEnd);
       window.removeEventListener('pointercancel', this._dragEnd);

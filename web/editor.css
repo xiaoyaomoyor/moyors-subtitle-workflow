@@ -2828,9 +2828,10 @@
       content: attr(data-compact);
       font-size: 11px;
     }
-    .cue.multi-dual-cue .multi-cue-column-header .index-label { display: none; }
+    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
   }
-  @container cue-list (max-width: 500px) {
+  /* 压缩生效（<460px）后时间已省出约 100px：双列字数延后到 420px 才退场 */
+  @container cue-list (max-width: 420px) {
     .multi-cue-column .charcount { display: none; }
   }
   @container cue-list (max-width: 300px) {
