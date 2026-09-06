@@ -544,10 +544,13 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('appearance.font_size || EXTENSION_SUBTITLE_DEFAULT_FONT_SIZE', page)
         self.assertIn('id="merge-join-text-continuous"', page)
         self.assertIn('id="merge-join-text-word"', page)
-        self.assertIn('id="subtitle-extend-manage"', page)
-        self.assertIn('id="subtitle-extend-forward-ms" min="0" max="60000" step="50" value="120"', page)
-        self.assertIn('id="subtitle-extend-backward-ms" min="0" max="60000" step="50" value="60"', page)
-        self.assertIn('id="subtitle-extend-run"', page)
+        # 「延长字幕」已改为「缩放/偏移字幕」详情弹窗（即时执行，可拖动）。
+        self.assertIn('id="subtitle-scale-offset-open"', page)
+        self.assertIn('id="subtitle-scale-offset-modal"', page)
+        self.assertIn('id="subtitle-scale-percent"', page)
+        self.assertIn('id="subtitle-start-offset-ms"', page)
+        self.assertIn('id="subtitle-shift-ms"', page)
+        self.assertNotIn('id="subtitle-extend-run"', page)
         self.assertIn('id="waveform-drag-playhead"', page)
         self.assertIn('播放时跳过空隙', page)
         self.assertIn('const DEFAULT_LAYOUT_ROWS = [42, 16, 42];', page)
@@ -566,7 +569,7 @@ class EditorAssetTests(unittest.TestCase):
         # 时间码列由字幕列表容器统一切换：宽时单行，窄于 700px 时所有行一起变成两行。
         self.assertIn('container: cue-list / inline-size;', page)
         self.assertIn('grid-template-areas: "start arrow end";', page)
-        self.assertIn('width: 24ch; padding-top: 1px; flex: 0 0 24ch;', page)
+        self.assertIn('width: 24ch; padding-top: 2px; flex: 0 0 24ch;', page)
         self.assertIn('@container cue-list (max-width: 700px)', page)
         self.assertIn('"start arrow"\n        "end end";', page)
         self.assertIn("timeStartEl.className = 'time-start';", page)
@@ -683,7 +686,9 @@ class EditorAssetTests(unittest.TestCase):
         # 菜单栏改造后「更多导出」是文件菜单的最后一个子菜单；截到「编辑」菜单项为止。
         extra_menu_end = page.index('<div class="menubar-item" data-menubar-item="edit">', extra_menu_start)
         extra_menu = page[extra_menu_start:extra_menu_end]
-        self.assertEqual(extra_menu.count(separator), 3)
+        # 第 4 个分隔线在「更多导出」之后、「文件 → 退出编辑器」之前。
+        self.assertEqual(extra_menu.count(separator), 4)
+        self.assertIn('id="exit-editor"', extra_menu)
         first_separator = extra_menu.index(separator)
         second_separator = extra_menu.index(separator, first_separator + len(separator))
         third_separator = extra_menu.index(separator, second_separator + len(separator))

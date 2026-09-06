@@ -3,12 +3,12 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDir,
+  clickBatchOperation,
   findFreePort,
   generateWav,
   generateWaveformPayload,
   makeTempDir,
-  startServer,
-  toggleCueListSettings
+  startServer
 } from './helpers.mjs';
 
 let tempDir;
@@ -58,9 +58,7 @@ test('shows an invalid toast when applying unchanged text', async ({ page }) => 
   });
   await page.goto(server.url);
 
-  await toggleCueListSettings(page);
-  await page.locator('#batch-operations-btn').click();
-  await page.locator('#timed-text-edit-btn').click();
+  await clickBatchOperation(page, 'timed-text-edit-btn');
   await expect(page.locator('#timed-text-edit-apply')).toBeEnabled();
 
   await page.locator('#timed-text-edit-apply').click();
@@ -74,9 +72,7 @@ test('previews text changes and applies the reported item-timing mapping', async
   });
   await page.goto(server.url);
 
-  await toggleCueListSettings(page);
-  await page.locator('#batch-operations-btn').click();
-  await page.locator('#timed-text-edit-btn').click();
+  await clickBatchOperation(page, 'timed-text-edit-btn');
   await expect(page.locator('#timed-text-edit-modal')).toHaveClass(/show/);
   await expect(page.locator('#timed-text-edit-source-info')).toContainText('主字幕');
   await expect(page.locator('#timed-text-edit-track-control')).toBeHidden();
@@ -129,9 +125,7 @@ test('previews text changes and applies the reported item-timing mapping', async
   await page.locator('#timed-text-edit-cancel').click();
   await expect(page.locator('#timed-text-edit-modal')).not.toHaveClass(/show/);
 
-  await toggleCueListSettings(page);
-  await page.locator('#batch-operations-btn').click();
-  await page.locator('#timed-text-edit-btn').click();
+  await clickBatchOperation(page, 'timed-text-edit-btn');
 
   const reopenedRows = page.locator('#timed-text-edit-rows textarea');
   await reopenedRows.nth(0).fill('就是那颗');
@@ -164,9 +158,7 @@ test('shows disabled subtitles on demand without replacing hidden cues', async (
     localStorage.setItem('moy.asr.editor.onboarding.v1', 'completed');
   });
   await page.goto(server.url);
-  await toggleCueListSettings(page);
-  await page.locator('#batch-operations-btn').click();
-  await page.locator('#timed-text-edit-btn').click();
+  await clickBatchOperation(page, 'timed-text-edit-btn');
 
   const showDisabled = page.locator('#timed-text-edit-show-disabled');
   const rows = page.locator('#timed-text-edit-rows textarea');

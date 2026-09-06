@@ -66,13 +66,14 @@ class EditorAssetContractTests(unittest.TestCase):
     def test_gap_manual_drag_uses_blue_handles_and_preview_in_both_editors(self) -> None:
         waveform_styles = edit.read_web_asset("waveform.css")
         align_page = (ROOT / "server-align" / "index.html").read_text(encoding="utf-8")
-        for styles, handle, dragging in (
-            (waveform_styles, ".waveform-gap-handle::after", ".waveform-gap-block.dragging"),
-            (align_page, ".gap-handle::after", ".gap-range.dragging"),
+        # 编辑器侧：空隙手柄跟随主题强调键（默认主题下即蓝）；对齐页是独立工具页，保持固定蓝。
+        for styles, handle, dragging, handle_bg in (
+            (waveform_styles, ".waveform-gap-handle::after", ".waveform-gap-block.dragging", "background: var(--accent)"),
+            (align_page, ".gap-handle::after", ".gap-range.dragging", "background: #5ab6ff"),
         ):
             self.assertIn(handle, styles)
             self.assertIn(dragging, styles)
-            self.assertIn("background: #5ab6ff", styles)
+            self.assertIn(handle_bg, styles)
             self.assertIn("rgba(94", styles)
 
     def test_gap_core_exposes_restore_and_clear_semantics(self) -> None:
@@ -213,7 +214,7 @@ class EditorAssetContractTests(unittest.TestCase):
         self.assertNotRegex(page, r"__[A-Z][A-Z0-9_]+__")
         # 版本徽标位于右上角项目名悬浮详情卡内。
         self.assertIn(
-            f'<span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">版本号 v{edit.get_app_version()}</span>',
+            f'<span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">MAWE v{edit.get_app_version()}</span>',
             page,
         )
         # 便携页禁止携带「生成时间：…」式硬编码时间戳；「正在生成时间线 OTIOZ…」

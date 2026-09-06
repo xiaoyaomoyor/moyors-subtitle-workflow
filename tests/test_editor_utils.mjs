@@ -1180,7 +1180,8 @@ test('translates adjacent adjustment and current-cue operation settings to Engli
 });
 
 test('translates OTIOZ export labels, mode hints and dynamic messages to English', () => {
-  assert.equal(i18n.translateText('完整字幕（SRT）', 'en'), 'Full subtitles (SRT)');
+  assert.equal(i18n.translateText('主字幕（SRT）', 'en'), 'Main subtitles (SRT)');
+  assert.equal(i18n.translateText('副字幕（ASS）', 'en'), 'Secondary subtitles (ASS)');
   assert.equal(i18n.translateText('表情包 OTIO 工程', 'en'), 'Sticker OTIO project');
   assert.equal(i18n.translateText('表情包 OTIOZ 打包工程', 'en'), 'Sticker OTIOZ bundle');
   assert.equal(i18n.translateText('时间线 OTIO 工程', 'en'), 'Timeline OTIO project');

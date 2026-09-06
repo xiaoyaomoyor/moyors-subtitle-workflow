@@ -575,12 +575,14 @@ export async function setMultiSubtitleToggle(page, checked) {
   }
 }
 
-// 语言切换按钮位于「全局设置 → 外观」分类中。
+// 语言切换下拉位于「全局设置 → 外观」分类中。
 export async function clickLanguageToggleViaSettings(page) {
   await toggleEditorSettings(page);  // 若已打开则先关闭，保证状态确定
   await toggleEditorSettings(page);
   await page.locator('.settings-nav-item[data-settings-category="appearance"]').click();
-  await page.locator('#language-toggle').click();
+  const select = page.locator('#language-select');
+  const current = await select.inputValue();
+  await select.selectOption(current === 'en' ? 'zh' : 'en');
 }
 
 // 媒体/波形设置弹窗与字幕设置子菜单的开关（原工具栏齿轮的点击语义）。
@@ -614,7 +616,22 @@ async function toggleSettingsSubmenu(page, submenuId, panelId) {
 }
 
 export async function toggleCueListSettings(page) {
-  await toggleSettingsSubmenu(page, 'cue-list-settings-submenu', 'cue-list-settings-panel');
+  const open = await page.locator('#cue-list-settings-modal').evaluate((el) => el.classList.contains('show'));
+  if (open) {
+    await page.keyboard.press('Escape');
+    return;
+  }
+  await clickMenubarItem(page, '字幕', 'cue-list-settings-open');
+  await page.locator('#cue-list-settings-panel').waitFor({ state: 'visible' });
+}
+
+// 「字幕 → 批量操作」子菜单中的动作（批量替换 / 纯文本编辑 / 文本处理）。
+export async function clickBatchOperation(page, itemId) {
+  await openMenubarMenu(page, '字幕');
+  await page.locator('#batch-operations-group > .dropdown-submenu-toggle').hover();
+  const item = page.locator(`#batch-operations-submenu #${itemId}`);
+  await item.waitFor({ state: 'visible' });
+  await item.click();
 }
 
 export async function toggleCueEditorSettings(page) {

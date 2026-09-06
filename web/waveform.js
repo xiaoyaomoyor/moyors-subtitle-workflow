@@ -58,6 +58,8 @@
   const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'cinema'];
   const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
   const MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
+  // 模块标签叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
+  const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   // 工作区窗口图标：16x16 线性 SVG，stroke 跟随 currentColor（强调色）。
   // 字幕编辑区用 T 形文字图标，与字幕列表的多行列表图标区分。
   const MODULE_ICONS = {
@@ -1103,7 +1105,9 @@
     if (segment.color?.name && PALETTE[segment.color.name]) return PALETTE[segment.color.name];
     if (segment.color_ref?.name && PALETTE[segment.color_ref.name]) return PALETTE[segment.color_ref.name];
     if (segment.color?.value) return segment.color.value;
-    return '#66727d';
+    // 无语义色的字幕块用「字幕块」自定义颜色令牌（默认灰蓝）。
+    const custom = getComputedStyle(document.documentElement).getPropertyValue('--wave-cue-block').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(custom) ? custom : '#66727d';
   }
 
   function applySharedBoundary(segments, leftIndex, boundary, minDuration = MIN_CUE_MS) {
@@ -2268,7 +2272,7 @@
           closeBtn.className = 'tab-close';
           closeBtn.title = '关闭窗口';
           closeBtn.setAttribute('aria-label', `关闭${MODULE_LABELS[mid]}窗口`);
-          closeBtn.textContent = '×';
+          closeBtn.innerHTML = X_GLYPH_SVG;
           tab.appendChild(closeBtn);
           strip.appendChild(tab);
         });
@@ -2358,15 +2362,28 @@
       panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
       panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, rect.bottom + 4))}px`;
 
+      // 组合范围收起：指针同时离开标签与下拉才计时关闭（简单 leave 会在移动途中误关）。
       let leaveTimer = null;
-      panel.addEventListener('pointerenter', () => { clearTimeout(leaveTimer); leaveTimer = null; });
-      panel.addEventListener('pointerleave', () => {
-        clearTimeout(leaveTimer);
-        leaveTimer = setTimeout(() => this.closeTabAddMenu(), 250);
-      });
+      const inZone = (x, y) => {
+        const pr = panel.getBoundingClientRect();
+        const tr = tabEl.getBoundingClientRect();
+        return (x >= pr.left - 2 && x <= pr.right + 2 && y >= pr.top - 2 && y <= pr.bottom + 2)
+          || (x >= tr.left - 2 && x <= tr.right + 2 && y >= tr.top - 2 && y <= tr.bottom + 2)
+          || (x >= pr.left && x <= tr.right && y >= tr.top && y <= pr.bottom);
+      };
+      const onMove = (event) => {
+        if (inZone(event.clientX, event.clientY)) {
+          clearTimeout(leaveTimer);
+          leaveTimer = null;
+        } else if (!leaveTimer) {
+          leaveTimer = setTimeout(() => this.closeTabAddMenu(), 220);
+        }
+      };
+      document.addEventListener('pointermove', onMove);
+      this._tabConvertMoveGuard = onMove;
       this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
       const dismiss = (event) => {
-        if (panel.contains(event.target)) return;
+        if (panel.contains(event.target) || tabEl.contains(event.target)) return;
         this.closeTabAddMenu();
       };
       this.tabAddMenuDismiss = dismiss;
@@ -2382,14 +2399,28 @@
 
     // 点单标签 → 与标签同宽的下拉：变成其他模块（本出现被替换，原模块不挪位）。
     openTabConvertMenu(tabEl) {
+      // 再次点击同一标签 = 收起已打开的下拉。
+      if (this.tabAddMenu?.dataset?.convertFor === tabEl?.dataset?.tabFor) {
+        this.closeTabAddMenu();
+        return;
+      }
       this.closeTabAddMenu();
       const currentId = tabEl?.dataset?.tabFor;
-      const path = this.ensureCustomAndFindPath(currentId);
-      if (!path) return;
-      const at = occurrenceNodeAt(this.settings.layoutTree, path);
-      if (!at?.node || at.node.type !== 'module') return;
+      // 先记录标签矩形：菜单锚定在标签当前位置。
+      const anchorRect = tabEl?.getBoundingClientRect();
+      if (!anchorRect || anchorRect.width <= 0) return;
+      // 预设布局打开下拉时保持原样——不触发 preset→custom 转换（转换会重建整个工作区，
+      // 表现为「恢复默认布局后点一下标签、布局突然跳一下」）；真正选择替换目标时才转换。
+      // 自定义布局才查找并校验出现节点。
+      if (this.isCustomLayout()) {
+        const path = this.ensureCustomAndFindPath(currentId);
+        if (!path) return;
+        const at = occurrenceNodeAt(this.settings.layoutTree, path);
+        if (!at?.node || at.node.type !== 'module') return;
+      }
       const panel = document.createElement('div');
       panel.className = 'dock-menu-panel tab-convert-menu';
+      panel.dataset.convertFor = currentId;
       panel.setAttribute('role', 'menu');
       panel.setAttribute('aria-label', '把此窗口变成其他模块');
       MODULE_IDS.forEach((mid) => {
@@ -2413,20 +2444,36 @@
         panel.appendChild(item);
       });
       document.body.appendChild(panel);
-      panel.style.width = `${Math.max(96, tabEl.offsetWidth)}px`;
-      const rect = tabEl.getBoundingClientRect();
-      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
-      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, rect.bottom + 4))}px`;
+      panel.style.width = `${Math.max(96, Math.round(anchorRect.width))}px`;
+      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, anchorRect.left))}px`;
+      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, anchorRect.bottom + 4))}px`;
 
+      // 定位后重新解析真实标签节点（可能已被重建），供组合范围判定使用。
+      const liveTab = document.querySelector(`[data-dock-module="${currentId}"] .module-tab`) || tabEl;
+      const tabElRef = liveTab;
+
+      // 组合范围收起：指针同时离开标签与下拉才计时关闭（简单 leave 会在移动途中误关）。
       let leaveTimer = null;
-      panel.addEventListener('pointerenter', () => { clearTimeout(leaveTimer); leaveTimer = null; });
-      panel.addEventListener('pointerleave', () => {
-        clearTimeout(leaveTimer);
-        leaveTimer = setTimeout(() => this.closeTabAddMenu(), 250);
-      });
+      const inZone = (x, y) => {
+        const pr = panel.getBoundingClientRect();
+        const tr = tabElRef.getBoundingClientRect();
+        return (x >= pr.left - 2 && x <= pr.right + 2 && y >= pr.top - 2 && y <= pr.bottom + 2)
+          || (x >= tr.left - 2 && x <= tr.right + 2 && y >= tr.top - 2 && y <= tr.bottom + 2)
+          || (x >= pr.left && x <= tr.right && y >= tr.top && y <= pr.bottom);
+      };
+      const onMove = (event) => {
+        if (inZone(event.clientX, event.clientY)) {
+          clearTimeout(leaveTimer);
+          leaveTimer = null;
+        } else if (!leaveTimer) {
+          leaveTimer = setTimeout(() => this.closeTabAddMenu(), 220);
+        }
+      };
+      document.addEventListener('pointermove', onMove);
+      this._tabConvertMoveGuard = onMove;
       this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
       const dismiss = (event) => {
-        if (panel.contains(event.target)) return;
+        if (panel.contains(event.target) || tabElRef.contains(event.target)) return;
         this.closeTabAddMenu();
       };
       this.tabAddMenuDismiss = dismiss;
@@ -2441,6 +2488,10 @@
     }
 
     closeTabAddMenu() {
+      if (this._tabConvertMoveGuard) {
+        document.removeEventListener('pointermove', this._tabConvertMoveGuard);
+        this._tabConvertMoveGuard = null;
+      }
       if (this.tabAddMenuDismiss) {
         document.removeEventListener('pointerdown', this.tabAddMenuDismiss, true);
         this.tabAddMenuDismiss = null;
@@ -2487,11 +2538,13 @@
             }
             const tab = event.target.closest('.module-tab');
             if (!tab) return;
-            // 单标签（本区域只有这一个窗口）→ 打开「变成其他模块」下拉；
-            // 多标签组内 → 切换标签。
+            // 组内非激活标签 → 切换；单标签或组内已激活标签 → 弹「变成其他模块」下拉。
             const siblings = strip.querySelectorAll('.module-tab');
-            if (siblings.length > 1) this.activateModuleTab(tab.dataset.tabFor);
-            else this.openTabConvertMenu(tab);
+            if (siblings.length > 1 && !tab.classList.contains('active')) {
+              this.activateModuleTab(tab.dataset.tabFor);
+            } else {
+              this.openTabConvertMenu(tab);
+            }
           });
           strip.addEventListener('dragstart', (event) => {
             const tab = event.target.closest('.module-tab');

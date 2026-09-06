@@ -56,49 +56,41 @@ async function paintFirstSegmentRed(page) {
   }, FIRST_SEGMENT_END_MS);
 }
 
-test('color filter button appears only for projects with colored subtitles', async ({ page }) => {
+test('color swatches always render and report per-color counts', async ({ page }) => {
   await waitEditorReady(page);
-  await expect(page.locator('#color-filter-btn')).toBeHidden();
-  await paintFirstSegmentRed(page);
   await toggleCueListSettings(page);
-  await expect(page.locator('#color-filter-btn')).toBeVisible();
+  const swatches = page.locator('#color-filter-swatches .cue-list-color-swatch');
+  await expect(swatches).toHaveCount(5); // 与波形右键「标记颜色」同源的五个颜色圈
+  await expect(swatches.first()).toHaveAttribute('aria-pressed', 'false');
+  await expect(swatches.first()).toHaveAttribute('title', '该颜色暂无字幕');
+
+  await paintFirstSegmentRed(page);
+  const redSwatch = page.locator('#color-filter-swatches .cue-list-color-swatch[data-color-key="red"]');
+  await expect(redSwatch).toHaveAttribute('title', /共\s*1\s*条/);
 });
 
-test('clicking a row shows only that color; checkboxes multi-select; clear restores all', async ({ page }) => {
+test('clicking a swatch toggles color filtering and select-all reflects it', async ({ page }) => {
   await waitEditorReady(page);
   await paintFirstSegmentRed(page);
   const total = await page.evaluate(() => DATA.segments.length);
 
   await toggleCueListSettings(page);
-  await page.locator('#color-filter-btn').click();
-  const rows = page.locator('#color-filter-menu .color-filter-item');
-  await expect(rows).toHaveCount(2); // 默认 + 红
+  const redSwatch = page.locator('#color-filter-swatches .cue-list-color-swatch[data-color-key="red"]');
+  const selectAll = page.locator('#color-filter-select-all');
+  await expect(selectAll).toBeHidden();
 
-  // 点击“红”这一行（非 checkbox 区域）= 只显示该颜色。
-  await rows.nth(1).locator('.color-name').click();
-  let visibleCount = await page.locator('#visible-count').textContent();
-  expect(Number(visibleCount)).toBe(1);
+  // 点击“红”色圈 = 只显示红色字幕。
+  await redSwatch.click();
+  await expect(redSwatch).toHaveAttribute('aria-pressed', 'true');
+  expect(Number(await page.locator('#visible-count').textContent())).toBe(1);
   await expect(page.locator('.cue:not(.hidden)')).toHaveCount(1);
+  await expect(selectAll).toBeVisible();
 
-  // 勾选“默认”= 多选：红色行保持勾选，无颜色的字幕重新出现。
-  await rows.first().locator('input[type="checkbox"]').check();
-  visibleCount = await page.locator('#visible-count').textContent();
-  expect(Number(visibleCount)).toBe(total);
-  await expect(rows.nth(1).locator('input[type="checkbox"]')).toBeChecked();
-
-  // 取消“红”后只剩默认字幕。
-  await rows.nth(1).locator('input[type="checkbox"]').uncheck();
-  visibleCount = await page.locator('#visible-count').textContent();
-  expect(Number(visibleCount)).toBe(total - 1);
-
-  // 清除按钮恢复完整列表。
-  const clearButton = page.locator('#color-filter-menu .color-filter-clear');
-  await expect(clearButton).toBeVisible();
-  await clearButton.click();
-  await expect(clearButton).toBeHidden();
-  visibleCount = await page.locator('#visible-count').textContent();
-  expect(Number(visibleCount)).toBe(total);
-  await expect(page.locator('#color-filter-btn')).not.toHaveClass(/filter-active/);
+  // 再次点击取消该色，恢复完整列表。
+  await redSwatch.click();
+  await expect(redSwatch).toHaveAttribute('aria-pressed', 'false');
+  expect(Number(await page.locator('#visible-count').textContent())).toBe(total);
+  await expect(selectAll).toBeHidden();
 });
 
 test('assigning a color keeps the subtitle list at its current scroll position', async ({ page }) => {

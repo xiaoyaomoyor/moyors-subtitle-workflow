@@ -918,9 +918,9 @@ test('long-only filtering temporarily keeps split results visible until focus le
   await makeFirstCueWordSplittable(page);
 
   await toggleCueListSettings(page);
-  await page.locator('#charcount-threshold').fill('1');
   await expect(page.locator('#cue-list-keep-split-visible')).toBeChecked();
-  await page.locator('#filter-over').click();
+  // 字数过滤：输入 >= 1 的数值即生效（原「仅看超长」按钮已并入）。
+  await page.locator('#charcount-threshold').fill('2');
   await expect(page.locator('.cue:not(.hidden)')).toHaveCount(1);
 
   const text = page.locator('.cue[data-idx="0"] .text');
@@ -1255,7 +1255,7 @@ test('Home and End help explains cue-list and media routing in Chinese and Engli
   await expect(helpPanel).toContainText('选择并显示当前轨道首/末条可见字幕');
   await expect(helpPanel).toContainText('在波形区或播放器跳转到媒体开头/结尾');
 
-  await page.locator('#language-toggle').evaluate((button) => button.click());
+  await page.locator('#language-select').selectOption('en');
   await expect(helpPanel).toContainText('Select and reveal the first/last visible subtitle on the current track');
   await expect(helpPanel).toContainText('Seek to the start/end of the media from the waveform or player');
 });

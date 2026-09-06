@@ -18,8 +18,6 @@
     '加载内容': 'Load content', '另存为工程': 'Save project as', '去空隙版本': 'Gap-removed version',
     '剪切': 'Cut', '拷贝': 'Copy', '粘贴': 'Paste', '删除': 'Delete',
     '启用多重字幕': 'Enable multiple subtitles', '多重字幕设置': 'Multiple subtitle settings',
-    '仅导出主字幕': 'Export main subtitles only', '仅导出副字幕': 'Export secondary subtitles only',
-    '导出双语字幕': 'Export bilingual subtitles',
     '字幕编辑设置': 'Subtitle editor settings', '字幕列表设置': 'Subtitle list settings',
     '媒体播放器设置': 'Media player settings', '访问官网': 'Visit website',
     '外观': 'Appearance', '界面语言': 'Interface language', '主题': 'Theme',
@@ -30,7 +28,28 @@
     '搜索设置…': 'Search settings…', '已复制工程文件名': 'Project file name copied',
     // 第二轮：音频设置 / 工作区布局 / 界面配置 / 颜色 / dock 菜单
     '音频设置': 'Audio settings', '多行波形': 'Multi-row waveform', '基础波形': 'Basic waveform',
-    '播放时跳过空隙': 'Skip removed gaps during playback', '快捷键提示': 'Keyboard hints', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '过滤与操作': 'Filter & actions', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
+    '播放时跳过空隙': 'Skip removed gaps during playback', '快捷键提示': 'Keyboard hints', '菜单栏': 'Menubar', '缩放字幕': 'Scale subtitles', '缩放/偏移字幕': 'Scale / shift subtitles', '缩放与偏移': 'Scale & offset', '起点偏移': 'Start offset', '终点偏移': 'End offset', '整体偏移': 'Shift all', '输入即生效（可撤销）；未选中字幕时对全部字幕生效': 'Applies on input (undoable); affects all subtitles when none is selected',
+    '按比例缩放时长；中心不变，100 为不变；自动限制在相邻字幕之间，不产生重叠': 'Scales duration proportionally around the center; 100 = unchanged; automatically clamped between neighbors so nothing overlaps',
+    '正数向右、负数向左；应用后归零；自动限制在相邻字幕之间': 'Positive moves right, negative left; resets after applying; automatically clamped between neighbors',
+    '整条字幕平移；正右负左，应用后归零；自动限制在相邻字幕之间': 'Moves the whole cue; resets after applying; automatically clamped between neighbors',
+    '减小 1%（可长按连发）': 'Decrease by 1% (hold to repeat)', '增大 1%（可长按连发）': 'Increase by 1% (hold to repeat)',
+    '缩放锚点': 'Scale anchor', '各自中心': 'Each cue center', '整组范围': 'Whole selection',
+    '多选时的缩放基准': 'Anchor used when scaling multiple cues',
+    '整组范围按选中整体的起止等比缩放，组内间隔同比': 'Whole selection scales around the group start/end; gaps inside scale proportionally',
+    '向左减小 1%（可长按连发）': 'Decrease 1% leftward (hold to repeat)', '向右增大 1%（可长按连发）': 'Increase 1% rightward (hold to repeat)',
+    '向左减小 1ms（可长按连发）': 'Decrease 1ms leftward (hold to repeat)', '向右增大 1ms（可长按连发）': 'Increase 1ms rightward (hold to repeat)',
+    '减小 1ms（可长按连发）': 'Decrease by 1ms (hold to repeat)', '增大 1ms（可长按连发）': 'Increase by 1ms (hold to repeat)', '打开字幕列表设置窗口': 'Open the subtitle list settings window', '关闭字幕列表设置': 'Close subtitle list settings', '预设主题': 'Preset themes', '自定义主题': 'Custom themes', '已恢复该自定义主题建立时的颜色': 'Restored this custom theme to its saved colors', '字幕块': 'Cue block', '波形中字幕矩形的块体颜色': 'Body color of subtitle blocks in the waveform', '自定义': 'Custom', '基于当前外观新建自定义主题': 'Create a custom theme from the current look', '为新主题命名：': 'Name the new theme:', '选项卡': 'Tab overlay', '空隙': 'Gaps', '顶部菜单栏底色': 'Top menubar background', '选项卡弹窗底色': 'Tab overlay (dialogs) background', '波形上的空隙条纹与选区标记色': 'Gap stripes and selection markers on the waveform',
+    '模块内容、字幕列表等区域底色（原「抬升面」）': 'Module content and subtitle list backgrounds (formerly "raised")',
+    '菜单栏与模块标签展开的悬浮面板底色': 'Background of panels opened from the menubar and module tabs',
+    '居中弹窗与工具窗的底色': 'Background of centered dialogs and tool windows',
+    '波形中当前位置指示条、当前字幕块轮廓与当前行序号/时间': 'Playhead bar, active cue outline, and active row index/time in the waveform',
+    '内容区': 'Content area', '标签栏': 'Tab bar', '悬浮菜单': 'Floating menus', '弹窗': 'Dialogs', '播放头': 'Playhead',
+    '背景': 'Background', '文字': 'Text', '弱文字': 'Muted text', '输入框': 'Inputs', '强调': 'Accent',
+    '内容区色': 'Content area color', '标签栏色': 'Tab bar color', '悬浮菜单色': 'Floating menu color', '弹窗色': 'Dialog color',
+    '播放头色': 'Playhead color', '字幕文字': 'Subtitle text', '字幕文字色': 'Subtitle text color',
+    '波形中当前位置的指示条与当前字幕块的轮廓色': 'Playhead bar and active-subtitle outline in the waveform',
+    '选区': 'Selection', '命中': 'Hit',
+    '选区色': 'Selection color', '灵梦：红白配色浅色主题': 'Reimu: red-and-white light theme', '爱丽丝：金发蓝裙浅色主题': 'Alice: blonde-blue light theme', '恋：黄绿配色浅色主题': 'Koishi: yellow-green light theme', '退出编辑器': 'Exit editor', '尚未保存': 'Not saved yet', '删除此自定义工作区': 'Delete this custom workspace', '中文': 'Chinese', '服务器已停止，可以关闭此标签页了': 'Server stopped; you can close this tab now', '停止本地编辑器服务器并关闭本页': 'Stop the local editor server and close this page', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
     '非字幕片段设为空隙': 'Treat non-subtitle spans as gaps',
     '静音空隙工具': 'Silence gap tools', '没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描': 'No gaps to process; load media and scan with the silence gap tools first', '拼接/合并字幕': 'Merge subtitles', '延长字幕': 'Extend subtitles',
     '批量对齐': 'Batch align', '处理': 'Processing',
@@ -60,10 +79,12 @@
     '松开以加载工程、媒体或 SRT': 'Drop to load a project, media, or SRT',
     '自动保存': 'Auto-save', '自动保存间隔': 'Auto-save interval', '秒': 'sec',
     '导出字幕': 'Export subtitles', '导出字幕 ▾': 'Export subtitles ▾',
-    '导出完整字幕': 'Export full subtitles', '导出完整字幕（SRT）': 'Export full subtitles (SRT)',
-    '导出完整字幕（SRT/ASS）或按颜色分别导出字幕': 'Export full subtitles (SRT/ASS) or separate files by color',
-    '完整字幕（SRT）': 'Full subtitles (SRT)', '完整字幕（ASS）': 'Full subtitles (ASS)',
-    '导出副字幕': 'Export secondary subtitles', '导出当前副字幕轨（SRT）': 'Export the current secondary subtitle track (SRT)',
+    '主字幕（SRT）': 'Main subtitles (SRT)', '主字幕（ASS）': 'Main subtitles (ASS)',
+    '副字幕（SRT）': 'Secondary subtitles (SRT)', '副字幕（ASS）': 'Secondary subtitles (ASS)',
+    '双语字幕（SRT）': 'Bilingual subtitles (SRT)', '双语字幕（ASS）': 'Bilingual subtitles (ASS)',
+    '导出主字幕轨（SRT）': 'Export the main subtitle track (SRT)', '导出主字幕轨（ASS）': 'Export the main subtitle track (ASS)',
+    '导出当前副字幕轨（SRT）': 'Export the current secondary subtitle track (SRT)',
+    '导出当前副字幕轨（ASS）': 'Export the current secondary subtitle track (ASS)',
     '按颜色导出字幕': 'Export by color', '按颜色导出字幕（SRT）': 'Export by color (SRT)',
     '导出纯文本（TXT）': 'Export plain text (TXT)',
     '导出工程': 'Export project', '导出去空隙版本 ▾': 'Export gap-removed version ▾',
@@ -207,9 +228,19 @@
     '播放': 'Play', '暂停': 'Pause', '后退 1000ms': 'Back 1000ms', '前进 1000ms': 'Forward 1000ms',
     '媒体进度': 'Media progress', '音量': 'Volume', '速度': 'Speed', '播放速度': 'Playback speed',
     '全屏': 'Fullscreen', '退出全屏': 'Exit fullscreen',
-    '显示': 'Display', '筛选': 'Filter', '隐藏禁用': 'Hide disabled', '隐藏禁用字幕': 'Hide disabled subtitles', '批量操作 ▾': 'Batch operations ▾', '批量操作': 'Batch operations', '批量替换…': 'Batch replace…',
-    '字数阈值': 'Character threshold', '仅看超长': 'Long only', '字幕列表设置': 'Subtitle list settings',
+    '显示': 'Display', '筛选': 'Filter', '隐藏禁用': 'Hide disabled', '禁用字幕': 'Disabled subtitles',
+    '在列表中显示被禁用的字幕；不勾选则隐藏': 'Show disabled subtitles in the list; unchecked hides them', '批量操作 ▾': 'Batch operations ▾', '批量操作': 'Batch operations', '批量替换…': 'Batch replace…',
+    '字幕过滤': 'Subtitle filters', '列表': 'List', '字幕列表设置': 'Subtitle list settings',
     '拆分后临时保留显示': 'Temporarily keep split results visible', '点击字幕后自动滚动': 'Auto-scroll after clicking a subtitle', '显示内容': 'Displayed content',
+    '内容过滤': 'Content filter', '字数过滤': 'Length filter', '颜色过滤': 'Color filter',
+    '批量处理字幕文本': 'Batch-process subtitle text',
+    '输入包含的文字…': 'Type text to match…',
+    '只显示文本包含该内容的字幕；留空不过滤': 'Show only subtitles whose text contains this; leave empty to stop filtering',
+    '按字数过滤列表；留空或 0 不过滤。该字数同时用作字幕列表的字数标记阈值': 'Filter the list by character count; empty or 0 disables it. The value also drives the list char-count highlight threshold',
+    '字数比较方式': 'Length comparison',
+    '只显示所选颜色的字幕；再次点击色圈取消。不选则不过滤': 'Show only subtitles in the selected colors; click a swatch again to clear it. No selection disables filtering',
+    '该颜色暂无字幕': 'No subtitles have this color',
+    '该颜色的字幕共': 'Subtitles in this color:',
     '当前': 'Current', '已选': 'Selected', '波形': 'Waveform', '音频波形区': 'Audio waveform', '波形设置': 'Waveform settings', '波形轨道徽标（开启后）：': 'Waveform track badges (when enabled):', '使用频谱缓存按主频给波形着色；关闭时使用原来的纯色波形': 'Color the waveform using the spectral cache by dominant frequency; when disabled, use the original solid-color waveform',
     '多行': 'Multi-row', '基础': 'Basic', '隐藏': 'Hidden',
     '选择': 'Select', '分割': 'Razor', '移除静音空隙': 'Remove silent gaps',
@@ -605,8 +636,6 @@
     '深色或浅色主题': 'Dark or light theme',
     '改变按钮、选中与高亮等界面强调色；对暗色与浅色主题分别适配。': 'Changes the accent color for buttons, selection, and highlights; adapted separately for dark and light themes.',
     '当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕': 'No secondary subtitle track; load a second subtitle via “Subtitles → Load subtitles” first',
-    '仅导出主字幕轨（SRT）': 'Export the main subtitle track only (SRT)',
-    '导出合并后的双语字幕（SRT）': 'Export the merged bilingual subtitles (SRT)',
     '请先通过「字幕 → 加载字幕」导入第二条字幕，再启用多重字幕。': 'Load a second subtitle via “Subtitles → Load subtitles” before enabling multiple subtitles.',
     '切换到暗色主题': 'Switch to dark theme',
     // 第二轮
@@ -623,7 +652,7 @@
     '关闭窗口菜单': 'Close window menu',
     '当前播放头时间': 'Current playhead time', '当前选中的字幕数量': 'Number of selected subtitles',
     '媒体总时长 · 波形峰值点数': 'Total media duration · waveform peak count',
-    '石墨（默认）': 'Graphite (default)', '午夜蓝调': 'Midnight blue', '苔原绿调': 'Tundra green', '主题预设': 'Theme preset', '自定义颜色': 'Custom colors', '恢复主题默认颜色': 'Reset theme colors', '已恢复当前主题的默认颜色': 'Restored the current theme defaults', 'MAW 深色（默认）': 'MAW Dark (default)', 'MAW 浅色': 'MAW Light', '午夜蓝调深色主题': 'Midnight-blue dark theme', '苔原绿调深色主题': 'Tundra-green dark theme', '暖砂棕调深色主题': 'Warm-sand dark theme', '主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。': 'A theme preset decides light/dark, accent and base palette; switching restores that theme defaults.', '任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。': 'Any color can override the current theme; custom colors apply instantly, persist locally and export/import with Window → Interface config. Subtitle color does not affect the in-player preview (see Media player settings).', '清除全部自定义颜色，恢复当前主题预设的默认': 'Clear all custom colors and restore the current theme preset', '按钮、选中与高亮等界面强调色': 'Accent color for buttons, selection and highlights',
+    '石墨（默认）': 'Graphite (default)', '午夜蓝调': 'Midnight blue', '苔原绿调': 'Tundra green', '主题预设': 'Theme preset', '自定义颜色': 'Custom colors', '恢复主题默认颜色': 'Reset theme colors', '已恢复当前主题的默认颜色': 'Restored the current theme defaults', 'MAW 深色（默认）': 'MAW Dark (default)', 'MAW 浅色': 'MAW Light',  '灵梦：红白配色深色主题': 'Reimu: red-and-white dark theme', '爱丽丝：金蓝浅色主题': 'Alice: gold-blue light theme', '恋：粉色系深色主题': 'Koishi: pink dark theme', '莲子：黑色系主题': 'Renko: black theme', '外面板色': 'Outer panel', '内面板色': 'Inner panel', '模块顶部栏等深色面板区域': 'Dark panel areas such as module tab bars', '模块内部的浅色背景面板区域': 'Light content panels inside modules', '默认': 'Default', '紫苑': 'Shion', '小铃': 'Kosuzu', '默认：MAW 标准深色主题': 'Default: standard MAW dark theme', '紫苑：深蓝紫夜色深色主题': 'Shion: deep blue-violet night dark theme', '小铃：黄棕橘暖调深色主题': 'Kosuzu: warm yellow-brown-orange dark theme', '灵梦': 'Reimu', '爱丽丝': 'Alice', '恋': 'Koishi', '莲子': 'Renko', '清除全部空隙': 'Clear all gaps', '当前没有空隙区段记录': 'No gap records to clear', '已清理全部空隙区段': 'Cleared all gap records', '没有可处理的空隙；请先加载媒体': 'No spans to process; load media first','午夜蓝调深色主题': 'Midnight-blue dark theme', '苔原绿调深色主题': 'Tundra-green dark theme', '暖砂棕调深色主题': 'Warm-sand dark theme', '主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。': 'A theme preset decides light/dark, accent and base palette; switching restores that theme defaults.', '任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。': 'Any color can override the current theme; custom colors apply instantly, persist locally and export/import with Window → Interface config. Subtitle color does not affect the in-player preview (see Media player settings).', '清除全部自定义颜色，恢复当前主题预设的默认': 'Clear all custom colors and restore the current theme preset', '按钮、选中与高亮等界面强调色': 'Accent color for buttons, selection and highlights',
     '暖砂棕调': 'Warm sand brown', '界面主背景色': 'Main interface background color',
     '界面主要文字色': 'Main interface text color', '波形峰值的颜色': 'Waveform peak color',
     '字幕列表与编辑区的文字颜色（不含播放器画面内的预览字幕）': 'Text color of the subtitle list and editor (preview subtitles in the player excluded)',
@@ -752,7 +781,6 @@
     '波形模式': 'Waveform mode', '音频波形': 'Audio waveform',
     '点击替换；右键删除': 'Click to replace; right-click to delete', '暂无表情包': 'No stickers yet'
     ,
-    '导出完整字幕或按颜色分别导出字幕': 'Export full subtitles or separate files by color',
     '导出应用当前空隙移除结果的字幕、时间线或保留区域计划': 'Export subtitles, timelines, or kept regions using the current gap-removal result',
     '按移除静音空隙后的时间轴导出字幕；原工程时间不变': 'Export subtitles on the gap-removed timeline; project timing stays unchanged',
     '按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕': 'Export one subtitle file per used color on the gap-removed timeline',
@@ -886,7 +914,10 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
-    let match = /^(主字幕|副字幕)\s+(\d+)$/.exec(text);
+    let match = /^该颜色的字幕共\s*(\d+)\s*条；点击只显示所选颜色$/.exec(text);
+    if (match) return `${translateText('该颜色的字幕共', EN)} ${match[1]} — click to filter by the selected colors`;
+    let matchMainExt = /^(主字幕|副字幕)\s+(\d+)$/.exec(text);
+    if (matchMainExt) return `${translateText(matchMainExt[1], EN)} ${matchMainExt[2]}`;
     if (match) return `${translateText(match[1], EN)} ${match[2]}`;
     match = /^(主字幕|副字幕)(?:（(.+)）)?\s*·\s*(\d+)\s*条$/.exec(text);
     if (match) {
@@ -1026,6 +1057,32 @@
     if (match) return `Popped ${translateText(match[1], EN)} out as a floating window; click the title-bar × to dock it back`;
     match = /^关闭(视频|当前字幕|字幕列表|波形)窗口$/.exec(text);
     if (match) return `Close ${translateText(match[1], EN)} window`;
+    match = /^已存在同名主题「(.+)」$/.exec(text);
+    if (match) return `A theme named "${match[1]}" already exists`;
+    match = /^已切换到自定义主题「(.+)」$/.exec(text);
+    if (match) return `Switched to custom theme "${match[1]}"`;
+    match = /^已删除自定义主题「(.+)」$/.exec(text);
+    if (match) return `Deleted custom theme "${match[1]}"`;
+    match = /^删除自定义主题「(.+)」$/.exec(text);
+    if (match) return `Delete custom theme "${match[1]}"`;
+    match = /^自定义主题「(.+)」$/.exec(text);
+    if (match) return `Custom theme "${match[1]}"`;
+    match = /^已缩放字幕至 (\d+)%(?:（(\d+) 条受相邻字幕限制）)?$/.exec(text);
+    if (match) return `Scaled subtitles to ${match[1]}%${match[2] ? ` (${match[2]} limited by neighbors)` : ''}`;
+    match = /^缩放字幕 (\d+)%$/.exec(text);
+    if (match) return `Scale subtitles ${match[1]}%`;
+    match = /^已(起点|终点|整体)偏移 (-?\d+)ms(?:（(\d+) 条受相邻字幕限制）)?$/.exec(text);
+    if (match) return `Shifted ${match[1]} by ${match[2]}ms${match[3] ? ` (${match[3]} limited by neighbors)` : ''}`;
+    match = /^(起点|终点|整体)偏移 (-?\d+)ms$/.exec(text);
+    if (match) return `${match[1]} offset ${match[2]}ms`;
+    match = /^删除自定义工作区「(.+)」$/.exec(text);
+    if (match) return `Delete custom workspace "${match[1]}"`;
+    match = /^确定删除工作区「(.+)」吗？$/.exec(text);
+    if (match) return `Delete workspace "${match[1]}"?`;
+    match = /^已删除工作区：(.+)$/.exec(text);
+    if (match) return `Workspace deleted: ${match[1]}`;
+    match = /^删除工作区失败：(.+)$/.exec(text);
+    if (match) return `Failed to delete workspace: ${match[1]}`;
     match = /^已把 (\d+) 段非字幕片段设为空隙$/.exec(text);
     if (match) return `Marked ${match[1]} non-subtitle span(s) as gaps`;
     match = /^(.+?)（交换位置）$/.exec(text);
@@ -1193,11 +1250,9 @@
   }
 
   function refreshToggle() {
-    const button = document.getElementById('language-toggle');
-    if (!button) return;
-    button.textContent = language === ZH ? '🌐English' : '🌐中文';
-    button.title = language === ZH ? 'Switch to English' : '切换为中文';
-    button.setAttribute('aria-label', button.title);
+    const select = document.getElementById('language-select');
+    if (!select) return;
+    select.value = language === EN ? 'en' : 'zh';
   }
 
   function applyLanguage(nextLanguage, persist = true) {
@@ -1226,8 +1281,8 @@
   function start() {
     installDialogTranslation();
     applyLanguage(language, false);
-    document.getElementById('language-toggle')?.addEventListener('click', () => {
-      applyLanguage(language === ZH ? EN : ZH);
+    document.getElementById('language-select')?.addEventListener('change', (event) => {
+      applyLanguage(event.target.value === 'en' ? EN : ZH);
     });
     const observer = new MutationObserver((records) => {
       records.forEach((record) => {

@@ -18,10 +18,14 @@ test('cue-list filter and action controls live in the subtitle-list settings men
   expect(toolbarChildren).toBe(0);
 
   await toggleCueListSettings(page);
-  for (const selector of ['#search', '#filter-over', '#batch-operations-btn', '#color-filter-dropdown']) {
+  // 「字幕过滤」子类：内容过滤（输入框）、字数过滤（比较符 + 数值）、颜色过滤（五色圈）。
+  for (const selector of ['#search', '#charcount-filter-op', '#charcount-threshold', '#color-filter-swatches', '#visible-count']) {
     await expect(page.locator(selector)).toBeAttached();
   }
   await expect(page.locator('#search')).toBeVisible();
-  await expect(page.locator('#filter-over')).toBeVisible();
-  await expect(page.locator('#batch-operations-btn')).toBeVisible();
+  await expect(page.locator('#charcount-threshold')).toHaveValue('');
+  await expect(page.locator('#color-filter-swatches .cue-list-color-swatch')).toHaveCount(5);
+  // 批量操作已上移到「字幕 → 批量操作」子菜单。
+  await expect(page.locator('#batch-operations-group > .dropdown-submenu-toggle')).toBeAttached();
+  await expect(page.locator('#filter-over')).toHaveCount(0);
 });

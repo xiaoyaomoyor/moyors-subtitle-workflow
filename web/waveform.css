@@ -31,29 +31,25 @@
   color: var(--accent-hover);
   font-weight: 600;
 }
+.waveform-tool-switch button > span:not(.ninja-razor-icon) { display: none; }
+.waveform-tool-switch button svg.toolbar-button-icon { width: 15px; height: 15px; }
 .waveform-tool-switch {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--bg-input);
+  display: inline-flex; gap: 2px;
 }
+/* Pr 式工具按钮：默认纯图标 + 透明底；激活 = 强调色实心方块 */
 .toolbar .waveform-tool-switch button {
-  border: 0;
-  border-right: 1px solid var(--border-subtle);
-  border-radius: 0;
-  padding: 4px 10px;
+  border: 0; border-radius: var(--radius-sm);
+  padding: 3px 7px;
   background: transparent;
   color: var(--text-secondary);
-  min-height: var(--control-h);
+  min-height: 22px;
   transition: background var(--t-fast), color var(--t-fast);
 }
-.toolbar .waveform-tool-switch button:last-child { border-right: 0; }
-.toolbar .waveform-tool-switch button:hover { background: var(--accent-tint); color: var(--text-primary); }
+.toolbar .waveform-tool-switch button:hover { background: var(--bg-raised); color: var(--text-primary); }
 .toolbar .waveform-tool-switch button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
 .toolbar .waveform-tool-switch button.active {
-  background: var(--accent-tint-strong);
-  color: var(--accent-hover);
+  background: var(--accent);
+  color: #fff;
   font-weight: 600;
 }
 /* 分割工具下字幕块显示拆分光标，提示点击即拆分 */
@@ -159,7 +155,10 @@
 .layout-classic.waveform-multi .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--waveform-content-top) 8px 8px;
+  /* 顶部 = 工具栏 + 10px：第一条波形到工具栏的空余量与行间距（ROW_GAP=10）一致。
+     注意 --waveform-content-top 含标签栏高度，参照系是 .waveform-pane 顶（空态 overlay 用），
+     这里滚动区已从标签栏下方开始，不能再计入。 */
+  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
 }
 
 .editor-workspace.layout-wave-right {
@@ -208,7 +207,10 @@
 .editor-workspace.layout-wave-right .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--waveform-content-top) 8px 8px;
+  /* 顶部 = 工具栏 + 10px：第一条波形到工具栏的空余量与行间距（ROW_GAP=10）一致。
+     注意 --waveform-content-top 含标签栏高度，参照系是 .waveform-pane 顶（空态 overlay 用），
+     这里滚动区已从标签栏下方开始，不能再计入。 */
+  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
 }
 
 .editor-workspace.layout-custom {
@@ -284,7 +286,10 @@
 .layout-custom .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--waveform-content-top) 8px 8px;
+  /* 顶部 = 工具栏 + 10px：第一条波形到工具栏的空余量与行间距（ROW_GAP=10）一致。
+     注意 --waveform-content-top 含标签栏高度，参照系是 .waveform-pane 顶（空态 overlay 用），
+     这里滚动区已从标签栏下方开始，不能再计入。 */
+  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
 }
 /* 字幕列表本身始终可滚动；不要被预设/停靠模块的 overflow:hidden 截断。 */
 .editor-workspace.layout-wave-right > .cues-container,
@@ -350,7 +355,8 @@
   top: var(--module-tab-h); bottom: 0; left: 0; right: 0;
   overflow: hidden;
   overscroll-behavior: contain;
-  padding: var(--panel-toolbar-h) 8px 8px;
+  /* 顶部 = 工具栏高度 + 10px：第一条波形到顶部的空余量与行间距（waveform.js ROW_GAP=10）一致 */
+  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
 }
 .waveform-content {
   position: relative;
@@ -650,14 +656,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #ffe2a7;
-  background: rgba(35, 24, 14, 0.78);
+  color: color-mix(in srgb, var(--amber) 45%, #fff);
+  background: color-mix(in srgb, var(--amber) 22%, var(--bg-base));
   border-radius: 2px;
   padding: 1px 3px;
   font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
   pointer-events: none;
 }
-.waveform-gap-block.restored .waveform-gap-label { color: #b9cbd8; background: rgba(27, 38, 47, 0.76); }
+.waveform-gap-block.restored .waveform-gap-label { color: var(--text-secondary); background: color-mix(in srgb, var(--bg-base) 76%, transparent); }
 .waveform-gap-block.boundary-editable { cursor: pointer; }
 .waveform-gap-block.dragging {
   cursor: grabbing;
@@ -719,8 +725,8 @@
   left: 4px;
   width: 2px;
   border-radius: 2px;
-  background: #5ab6ff;
-  box-shadow: 0 0 0 1px rgba(14, 42, 76, .75);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg-base) 75%, transparent);
 }
 .waveform-gap-block.boundary-editable:hover .waveform-gap-handle,
 .waveform-gap-block.boundary-editable.dragging .waveform-gap-handle { opacity: 1; }
@@ -745,14 +751,14 @@
   top: 4px;
   padding: 1px 4px;
   border-radius: 2px;
-  color: #d9efff;
-  background: rgba(19, 36, 48, 0.86);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-base) 86%, transparent);
   white-space: nowrap;
   font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .waveform-gap-range-preview.remove > span {
-  color: #ffe1b4;
-  background: rgba(49, 27, 14, 0.88);
+  color: color-mix(in srgb, var(--amber) 40%, #fff);
+  background: color-mix(in srgb, var(--amber) 26%, var(--bg-base));
 }
 /* Shift+左键框选：选框覆盖层。挂在 #waveform-content 内随行滚动，
    z-index 与空隙范围预览同级（高于字幕块 5/6 与播放头 9），不接收指针事件。 */
@@ -765,7 +771,7 @@
   pointer-events: none;
 }
 .waveform-cue-block {
-  --cue-color: #4f8fc9;
+  --cue-color: var(--wave-cue-block, #4f8fc9);
   position: absolute;
   z-index: 5;
   bottom: 7px;
@@ -816,7 +822,7 @@
 }
 .waveform-cue-block.selected {
   z-index: 6;
-  outline: 2px solid var(--selection-yellow);
+  outline: 2px solid var(--selection-yellow);  /* 跟随「空隙」自定义颜色 */
   outline-offset: 1px;
   box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px var(--selection-yellow-glow);
 }

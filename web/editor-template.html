@@ -60,14 +60,16 @@ __WAVEFORM_CSS__
       <div class="menu-group-title">保存</div>
       <button type="button" class="dropdown-item" id="save-project" role="menuitem" title="保存回服务器启动时指定的工程文件" hidden><span>保存工程</span> <kbd class="menu-kbd" data-mod>Ctrl+S</kbd></button>
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
-      <button type="button" class="dropdown-item" id="download-json" role="menuitem" title="导出当前工程为 .mosp 文件">导出工程</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
+      <button type="button" class="dropdown-item" id="download-json" role="menuitem" title="导出当前工程为 .mosp 文件">导出工程</button>
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
-        <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出完整字幕（SRT/ASS）或按颜色分别导出字幕">导出字幕</div>
+        <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
-          <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0">完整字幕（SRT）</div>
-          <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0">完整字幕（ASS）</div>
+          <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0" title="导出主字幕轨（SRT）">主字幕（SRT）</div>
+          <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0" title="导出主字幕轨（ASS）">主字幕（ASS）</div>
+          <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
+          <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
           <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按颜色导出字幕</div>
         </div>
       </div>
@@ -128,6 +130,8 @@ __WAVEFORM_CSS__
           </div>
         </div>
       </div>
+      <div class="dropdown-separator" role="separator"></div>
+      <button type="button" class="dropdown-item" id="exit-editor" role="menuitem" hidden title="停止本地编辑器服务器并关闭本页">退出编辑器</button>
     </div>
   </div>
 
@@ -185,7 +189,15 @@ __WAVEFORM_CSS__
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">处理</div>
       <button type="button" class="dropdown-item" id="auto-merge-manage" role="menuitem" title="将间隔过短的前后字幕直接吸附在一起，去除中间的短暂空白（可直接吸收短字幕）">拼接/合并字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-      <button type="button" class="dropdown-item" id="subtitle-extend-manage" role="menuitem" title="打开可拖动的延长字幕工具窗">延长字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="subtitle-scale-offset-open" role="menuitem" title="打开缩放/偏移字幕窗口">缩放/偏移字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <div class="dropdown-submenu" id="batch-operations-group">
+        <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
+        <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
+          <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+          <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+          <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+        </div>
+      </div>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">多重字幕</div>
       <div class="dropdown-submenu" id="multi-subtitle-settings-dropdown">
@@ -252,10 +264,6 @@ __WAVEFORM_CSS__
         </div>
       </div>
       <div class="dropdown-separator"></div>
-      <div class="menu-group-title">导出</div>
-      <button type="button" class="dropdown-item" id="download-main-srt" role="menuitem" title="仅导出主字幕轨（SRT）">仅导出主字幕</button>
-      <button type="button" class="dropdown-item" id="download-multi-srt" role="menuitem" disabled title="导出当前副字幕轨（SRT）">仅导出副字幕</button>
-      <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
       <div class="dropdown-submenu" id="cue-editor-settings-submenu">
         <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">字幕编辑设置</div>
@@ -277,57 +285,7 @@ __WAVEFORM_CSS__
           </div>
         </div>
       </div>
-      <div class="dropdown-submenu" id="cue-list-settings-submenu">
-        <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">字幕列表设置</div>
-        <div class="dropdown-menu dropdown-submenu-menu cue-list-settings-menu" id="cue-list-settings-panel" role="group" aria-label="字幕列表设置">
-          <div class="settings-panel-section cue-list-settings-section">
-            <span class="settings-panel-title">过滤与操作</span>
-            <span class="input-clear cue-filter-search" id="search-wrap">
-              <input type="text" id="search" placeholder="过滤字幕…" autocomplete="off">
-              <span class="clear-x" id="search-clear" title="清空">×</span>
-            </span>
-            <div class="dropdown color-filter-dropdown" id="color-filter-dropdown">
-              <button type="button" id="color-filter-btn" hidden title="按颜色过滤显示的字幕" aria-expanded="false" aria-controls="color-filter-menu">🎨 按颜色过滤</button>
-              <div class="dropdown-menu color-filter-menu" id="color-filter-menu" role="menu"></div>
-            </div>
-            <div class="dropdown batch-operations-dropdown" id="batch-operations-dropdown">
-              <button type="button" id="batch-operations-btn" aria-expanded="false" aria-controls="batch-operations-menu" aria-haspopup="menu">批量操作 ▾</button>
-              <div class="dropdown-menu" id="batch-operations-menu" role="menu">
-                <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换</button>
-                <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑</button>
-                <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理</button>
-              </div>
-            </div>
-            <button type="button" class="cue-action-btn" id="filter-over" title="只显示超过阈值的字幕（再次点击关闭）">仅看超长</button>
-            <span class="info cue-list-count">显示 <b id="visible-count">0</b> / <b id="total-count">0</b></span>
-          </div>
-          <div class="settings-panel-section cue-list-settings-section">
-            <span class="settings-panel-title">筛选</span>
-            <label class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row" title="仅影响“仅看超长”筛选和字幕字数标记">
-              <span>字数阈值</span>
-              <input type="number" id="charcount-threshold" min="1" max="200" value="16">
-            </label>
-            <label class="toggle settings-panel-item cue-list-setting-toggle" title="开启后，在“仅看超长”筛选中拆分出的字幕会暂时保留，直到点击其他字幕、波形或空白处">
-              <input type="checkbox" id="cue-list-keep-split-visible" checked> 拆分后临时保留显示
-            </label>
-            <label class="toggle settings-panel-item cue-list-setting-toggle" title="关闭后，通过字幕列表点击字幕时不会自动滚动列表">
-              <input type="checkbox" id="cue-list-auto-scroll-on-click" checked> 点击字幕后自动滚动
-            </label>
-            <label class="toggle settings-panel-item cue-list-setting-toggle">
-              <input type="checkbox" id="hide-disabled-toggle"> 隐藏禁用字幕
-            </label>
-          </div>
-          <div class="settings-panel-section cue-list-settings-section">
-            <span class="settings-panel-title">显示</span>
-            <div class="cue-list-settings-display-group">
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-index" checked> 序号</label>
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-time" checked> 时间码</label>
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-sticker" checked> 表情包</label>
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-charcount" checked> 字数</label>
-            </div>
-          </div>
-        </div>
-      </div>
+      <button type="button" class="dropdown-item" id="cue-list-settings-open" role="menuitem" title="打开字幕列表设置窗口">字幕列表设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
     </div>
   </div>
 
@@ -346,6 +304,7 @@ __WAVEFORM_CSS__
           <label class="dropdown-item recent-project-setting" title="播放时跳过已移除的空隙；左键定位到空隙内时可临时预览">
             <input type="checkbox" id="gap-skip-playback" checked> 播放时跳过空隙
           </label>
+          <button type="button" class="dropdown-item" id="gap-clear-all-menu" role="menuitem" title="删除当前所有已移除和已恢复的空隙区段记录（可撤销）">清除全部空隙</button>
         </div>
       </div>
     </div>
@@ -377,11 +336,11 @@ __WAVEFORM_CSS__
       </div>
       <div class="menubar-project-card-row">
         <span class="menubar-project-card-label">保存日期</span>
-        <span class="menubar-project-card-value" id="project-detail-saved">—</span>
+        <span class="menubar-project-card-value" id="project-detail-saved">尚未保存</span>
       </div>
       <div class="menubar-project-card-row">
         <span class="menubar-project-card-label">版本</span>
-        <span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">版本号 __APP_VERSION__</span>
+        <span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">MAWE __APP_VERSION__</span>
       </div>
       <div class="menubar-project-card-hint">点击工程名或媒体名可复制</div>
     </div>
@@ -414,7 +373,7 @@ __WAVEFORM_CSS__
     </div>
     <div class="gap-remove-header-actions">
       <button type="button" id="gap-remove-help" class="gap-remove-help-button" data-help-tab-target="gap" title="打开帮助中的空隙操作说明" aria-label="打开帮助中的空隙操作说明">帮助</button>
-      <button type="button" id="gap-remove-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭移除静音空隙工具窗">×</button>
+      <button type="button" id="gap-remove-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭移除静音空隙工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
   <div class="gap-remove-panel-body">
@@ -545,7 +504,7 @@ __WAVEFORM_CSS__
       <span class="gap-remove-eyebrow">波形处理</span>
       <h3 id="auto-merge-panel-title">拼接/合并字幕</h3>
     </div>
-    <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗">×</button>
+    <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
     <section class="auto-merge-section" aria-labelledby="auto-merge-join-heading">
@@ -604,47 +563,141 @@ __WAVEFORM_CSS__
   </div>
 </aside>
 
-<!-- 可拖动的非模态延长字幕工具窗 -->
-<aside class="gap-remove-panel subtitle-extend-panel" id="subtitle-extend-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-extend-panel-title">
-  <header class="gap-remove-panel-header" id="subtitle-extend-drag-handle">
+<!-- 缩放/偏移字幕工具窗 -->
+<aside class="gap-remove-panel subtitle-scale-panel" id="subtitle-scale-offset-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-scale-offset-title">
+  <header class="gap-remove-panel-header" id="subtitle-scale-offset-drag">
     <div class="gap-remove-heading">
-      <span class="gap-remove-eyebrow">波形处理</span>
-      <h3 id="subtitle-extend-panel-title">延长字幕</h3>
+      <span class="gap-remove-eyebrow">字幕</span>
+      <h3 id="subtitle-scale-offset-title">缩放/偏移字幕</h3>
     </div>
-    <button type="button" id="subtitle-extend-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭延长字幕工具窗">×</button>
+    <button type="button" id="subtitle-scale-offset-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭缩放/偏移字幕"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
     <div class="gap-remove-parameters-heading">
-      <span>延长参数</span>
-      <small>先向前、再向后；整个操作一次撤销</small>
+      <span>缩放与偏移</span>
+      <small>输入后按 Enter 或点击其他位置生效；可撤销</small>
     </div>
     <div class="gap-remove-fields">
       <label class="gap-remove-field">
-        <span class="gap-remove-field-label">向前延长</span>
+        <span class="gap-remove-field-label">缩放字幕</span>
         <span class="gap-remove-number-control">
-          <input type="number" id="subtitle-extend-forward-ms" min="0" max="60000" step="50" value="120" inputmode="numeric">
-          <span class="gap-remove-unit">ms</span>
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-scale-percent" data-step-dir="-1" title="向左减小 1%（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+          <input type="number" id="subtitle-scale-percent" min="1" max="1000" step="1" value="100" inputmode="numeric">
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-scale-percent" data-step-dir="1" title="向右增大 1%（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
+          <span class="gap-remove-unit">%</span>
         </span>
-        <small>向字幕起点前延长，不越过前一条字幕边界；0 表示不处理</small>
+        <small>按比例缩放时长；中心不变，100 为不变；自动限制在相邻字幕之间，不产生重叠</small>
       </label>
       <label class="gap-remove-field">
-        <span class="gap-remove-field-label">向后延长</span>
+        <span class="gap-remove-field-label">缩放锚点</span>
+        <span class="gap-remove-number-control anchor-select-control">
+          <select id="subtitle-scale-anchor" title="多选时的缩放基准">
+            <option value="center" selected>各自中心</option>
+            <option value="group">整组范围</option>
+          </select>
+        </span>
+        <small>整组范围按选中整体的起止等比缩放，组内间隔同比</small>
+      </label>
+      <label class="gap-remove-field">
+        <span class="gap-remove-field-label">起点偏移</span>
         <span class="gap-remove-number-control">
-          <input type="number" id="subtitle-extend-backward-ms" min="0" max="60000" step="50" value="60" inputmode="numeric">
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-start-offset-ms" data-step-dir="-1" title="向左减小 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+          <input type="number" id="subtitle-start-offset-ms" step="1" value="0" inputmode="numeric">
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-start-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">ms</span>
         </span>
-        <small>向字幕终点后延长，不越过后一条字幕边界；0 表示不处理</small>
+        <small>正数向右、负数向左；应用后归零；自动限制在相邻字幕之间</small>
+      </label>
+      <label class="gap-remove-field">
+        <span class="gap-remove-field-label">终点偏移</span>
+        <span class="gap-remove-number-control">
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-end-offset-ms" data-step-dir="-1" title="向左减小 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+          <input type="number" id="subtitle-end-offset-ms" step="1" value="0" inputmode="numeric">
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-end-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
+          <span class="gap-remove-unit">ms</span>
+        </span>
+        <small>正数向右、负数向左；应用后归零</small>
+      </label>
+      <label class="gap-remove-field">
+        <span class="gap-remove-field-label">整体偏移</span>
+        <span class="gap-remove-number-control">
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-shift-ms" data-step-dir="-1" title="向左减小 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+          <input type="number" id="subtitle-shift-ms" step="1" value="0" inputmode="numeric">
+          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-shift-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
+          <span class="gap-remove-unit">ms</span>
+        </span>
+        <small>整条字幕平移；正右负左，应用后归零；自动限制在相邻字幕之间</small>
       </label>
     </div>
-    <button type="button" id="subtitle-extend-run" class="gap-remove-scan">
-      <span>执行</span>
-      <small>有选中字幕时只处理选中项，否则处理全部字幕</small>
-    </button>
     <footer class="gap-remove-panel-footer">
-      <span>滚轮可调数值 · Esc 关闭</span>
+      <span>未选中字幕时对全部生效 · Enter 确定 · Esc 关闭</span>
     </footer>
   </div>
 </aside>
+
+<!-- 字幕列表设置工具窗 -->
+<aside class="gap-remove-panel cue-list-settings-panelwin" id="cue-list-settings-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="cue-list-settings-modal-title">
+  <header class="gap-remove-panel-header" id="cue-list-settings-drag-handle">
+    <div class="gap-remove-heading">
+      <span class="gap-remove-eyebrow">字幕</span>
+      <h3 id="cue-list-settings-modal-title">字幕列表设置</h3>
+    </div>
+    <button type="button" id="cue-list-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕列表设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body settings-modal-body cue-list-settings-body">
+<div id="cue-list-settings-panel" role="group" aria-label="字幕列表设置">
+          <div class="settings-panel-section cue-list-settings-section">
+            <span class="settings-panel-title">字幕过滤</span>
+            <label class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row" title="只显示文本包含该内容的字幕；留空不过滤">
+              <span>内容过滤</span>
+              <span class="input-clear cue-filter-search" id="search-wrap" style="position:relative">
+                <input type="text" id="search" placeholder="输入包含的文字…" autocomplete="off">
+                <span class="clear-x" id="search-clear" title="清空"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              </span>
+            </label>
+            <label class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row" title="按字数过滤列表；留空或 0 不过滤。该字数同时用作字幕列表的字数标记阈值">
+              <span>字数过滤</span>
+              <span class="charcount-filter-controls">
+                <select id="charcount-filter-op" title="字数比较方式">
+                  <option value="ge" selected>&gt;=</option>
+                  <option value="le">&lt;=</option>
+                </select>
+                <input type="number" id="charcount-threshold" min="0" max="200" value="" placeholder="16">
+              </span>
+            </label>
+            <div class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row cue-list-color-filter-row" title="只显示所选颜色的字幕；再次点击色圈取消。不选则不过滤">
+              <span>颜色过滤</span>
+              <span class="cue-list-color-filter-body">
+                <span class="cue-list-color-swatches" id="color-filter-swatches"></span>
+                <button type="button" class="cue-list-color-select-all" id="color-filter-select-all" hidden>全选过滤结果</button>
+              </span>
+            </div>
+            <span class="info cue-list-count">显示 <b id="visible-count">0</b> / <b id="total-count">0</b></span>
+          </div>
+          <div class="settings-panel-section cue-list-settings-section">
+            <span class="settings-panel-title">列表</span>
+            <label class="toggle settings-panel-item cue-list-setting-toggle" title="开启后，字数过滤期间拆分出的字幕会暂时保留，直到点击其他字幕、波形或空白处">
+              <input type="checkbox" id="cue-list-keep-split-visible" checked> 拆分后临时保留显示
+            </label>
+            <label class="toggle settings-panel-item cue-list-setting-toggle" title="关闭后，通过字幕列表点击字幕时不会自动滚动列表">
+              <input type="checkbox" id="cue-list-auto-scroll-on-click" checked> 点击字幕后自动滚动
+            </label>
+          </div>
+          <div class="settings-panel-section cue-list-settings-section">
+            <span class="settings-panel-title">显示</span>
+            <div class="cue-list-settings-display-group">
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-index" checked> 序号</label>
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-time" checked> 时间码</label>
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-sticker" checked> 表情包</label>
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-charcount" checked> 字数</label>
+              <label class="toggle settings-panel-item" title="在列表中显示被禁用的字幕；不勾选则隐藏"><input type="checkbox" id="hide-disabled-toggle"> 禁用字幕</label>
+            </div>
+          </div>
+        </div>
+  </div>
+</aside>
+
+<!-- 可拖动的非模态延长字幕工具窗 -->
 <!-- 可拖动的非模态媒体播放器设置工具窗 -->
 <aside class="gap-remove-panel media-settings-panel" id="media-settings-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="media-settings-title">
   <header class="gap-remove-panel-header" id="media-settings-drag-handle">
@@ -652,7 +705,7 @@ __WAVEFORM_CSS__
       <span class="gap-remove-eyebrow">媒体</span>
       <h3 id="media-settings-title">媒体播放器设置</h3>
     </div>
-    <button type="button" id="media-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭媒体播放器设置">×</button>
+    <button type="button" id="media-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭媒体播放器设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="settings-modal-body media-settings-body subtitle-preview-settings-panel gap-remove-panel-body" id="subtitle-preview-settings-panel">
     <div class="settings-panel-section media-preview-settings-section">
@@ -810,7 +863,7 @@ __WAVEFORM_CSS__
       <span class="gap-remove-eyebrow">波形</span>
       <h3 id="wave-settings-title">波形设置</h3>
     </div>
-    <button type="button" id="wave-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭波形设置">×</button>
+    <button type="button" id="wave-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭波形设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="settings-modal-body wave-settings-body waveform-settings-panel gap-remove-panel-body" id="waveform-settings-panel">
     <div class="settings-panel-section waveform-settings-section">
@@ -920,8 +973,7 @@ __WAVEFORM_CSS__
       <h3 id="help-panel-title">操作帮助</h3>
     </div>
     <div class="help-header-actions">
-      <button type="button" id="help-onboarding" class="help-replay-button" title="重新查看快速上手">快速上手</button>
-      <button type="button" id="help-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭帮助窗口">×</button>
+      <button type="button" id="help-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭帮助窗口"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
   <div class="help-tab-bar">
@@ -931,6 +983,7 @@ __WAVEFORM_CSS__
       <button type="button" class="help-tab" id="help-tab-waveform" role="tab" aria-selected="false" aria-controls="help-tab-panel-waveform" data-help-tab="waveform" tabindex="-1">波形区</button>
       <button type="button" class="help-tab" id="help-tab-playback" role="tab" aria-selected="false" aria-controls="help-tab-panel-playback" data-help-tab="playback" tabindex="-1">播放与导航</button>
     </div>
+    <button type="button" class="help-tab" id="help-onboarding" title="重新查看快速上手">快速上手</button>
     <button type="button" class="help-tab help-advanced-toggle" id="help-advanced-toggle" aria-expanded="false" aria-controls="help-advanced-tabs">进阶</button>
   </div>
   <div class="help-tabs help-advanced-tabs" id="help-advanced-tabs" role="tablist" aria-label="进阶帮助分类" hidden>
@@ -1217,7 +1270,7 @@ __WAVEFORM_CSS__
     </div>
     <div class="gap-remove-header-actions">
       <input type="text" id="editor-settings-search" class="settings-modal-search editor-settings-search" placeholder="搜索设置…" autocomplete="off" aria-label="搜索设置">
-      <button type="button" id="editor-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭全局设置">×</button>
+      <button type="button" id="editor-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭全局设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
   <div class="settings-modal-body" id="editor-settings-panel">
@@ -1327,7 +1380,10 @@ __WAVEFORM_CSS__
               <div class="editor-settings-field">
                 <label class="editor-settings-item" title="切换界面语言（中文 / English），立即生效">
                   界面语言
-                  <button type="button" id="language-toggle" class="language-toggle" title="Switch to English">🌐English</button>
+                  <select id="language-select" class="settings-select language-select" aria-label="界面语言">
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                </select>
                 </label>
               </div>
             </div>
@@ -1424,35 +1480,74 @@ __WAVEFORM_CSS__
           <div class="editor-settings-sub-group">
             <span class="editor-settings-title">外观</span>
             <div class="editor-settings-field">
-              <span class="editor-settings-item">主题预设</span>
-              <div class="theme-preset-row" role="group" aria-label="主题预设">
-                <button type="button" class="theme-preset" data-theme-preset="dark" title="MAW 深色（默认）"><span class="theme-swatch" aria-hidden="true"></span><span>深色</span></button>
-                <button type="button" class="theme-preset" data-theme-preset="light" title="MAW 浅色"><span class="theme-swatch" aria-hidden="true"></span><span>浅色</span></button>
-                <button type="button" class="theme-preset" data-theme-preset="midnight" title="午夜蓝调深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>午夜</span></button>
-                <button type="button" class="theme-preset" data-theme-preset="forest" title="苔原绿调深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>苔原</span></button>
-                <button type="button" class="theme-preset" data-theme-preset="sepia" title="暖砂棕调深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>暖砂</span></button>
+              <span class="editor-settings-item">主题</span>
+              <div class="theme-group-title">预设主题</div>
+              <div class="theme-preset-row" role="group" aria-label="预设主题">
+                <button type="button" class="theme-preset" data-theme-preset="default" title="默认：MAW 标准深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>默认</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="aster" title="紫苑：深蓝紫夜色深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>紫苑</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="kosuzu" title="小铃：黄棕橘暖调深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>小铃</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="renko" title="莲子：黑色系主题"><span class="theme-swatch" aria-hidden="true"></span><span>莲子</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="reimu" title="灵梦：红白配色浅色主题"><span class="theme-swatch" aria-hidden="true"></span><span>灵梦</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="alice" title="爱丽丝：金发蓝裙浅色主题"><span class="theme-swatch" aria-hidden="true"></span><span>爱丽丝</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="koishi" title="恋：黄绿配色浅色主题"><span class="theme-swatch" aria-hidden="true"></span><span>恋</span></button>
+              </div>
+              <div class="theme-group-title">自定义主题
+                <button type="button" class="theme-custom-add" id="theme-custom-add" title="基于当前外观新建自定义主题">＋</button>
+              </div>
+              <div class="theme-custom-row">
+                <div class="theme-custom-list" id="theme-custom-list" role="group" aria-label="自定义主题"></div>
               </div>
               <small class="editor-settings-hint">主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。</small>
             </div>
             <div class="editor-settings-field">
               <span class="editor-settings-item">自定义颜色</span>
               <div class="color-picker-grid">
-                <label class="color-picker-cell" title="界面主背景色">背景色
+                <label class="color-picker-cell" title="界面最底层背景">背景
                   <input type="color" id="interface-color-bg" aria-label="背景色">
                 </label>
-                <label class="color-picker-cell" title="界面主要文字色">文字色
+                <label class="color-picker-cell" title="模块内容、字幕列表等区域底色（原「抬升面」）">内容区
+                  <input type="color" id="interface-color-raised" aria-label="内容区色">
+                </label>
+                <label class="color-picker-cell" title="顶部菜单栏底色">菜单栏
+                  <input type="color" id="interface-color-menubar" aria-label="菜单栏色">
+                </label>
+                <label class="color-picker-cell" title="模块顶部标签栏（外面板）">标签栏
+                  <input type="color" id="interface-color-toolbar" aria-label="标签栏色">
+                </label>
+                <label class="color-picker-cell" title="菜单栏与模块标签展开的悬浮面板底色">悬浮菜单
+                  <input type="color" id="interface-color-overlay" aria-label="悬浮菜单色">
+                </label>
+                <label class="color-picker-cell" title="居中弹窗与工具窗的底色">弹窗
+                  <input type="color" id="interface-color-popup" aria-label="弹窗色">
+                </label>
+                <label class="color-picker-cell" title="文本输入框底色">输入框
+                  <input type="color" id="interface-color-input" aria-label="输入框色">
+                </label>
+                <label class="color-picker-cell" title="主要文字">文字
                   <input type="color" id="interface-color-text" aria-label="文字色">
                 </label>
-                <label class="color-picker-cell" title="波形峰值的颜色">波形色
-                  <input type="color" id="interface-color-wave" aria-label="波形色">
+                <label class="color-picker-cell" title="次要说明文字">弱文字
+                  <input type="color" id="interface-color-textMuted" aria-label="弱文字色">
                 </label>
-                <label class="color-picker-cell" title="字幕列表与编辑区的文字颜色（不含播放器画面内的预览字幕）">字幕色
-                  <input type="color" id="interface-color-subtitle" aria-label="字幕色">
-                </label>
-                <label class="color-picker-cell" title="按钮、选中与高亮等界面强调色">强调色
+                <label class="color-picker-cell" title="按钮、选中与高亮">强调
                   <input type="color" id="interface-color-accent" aria-label="强调色">
                 </label>
-              </div>
+                <label class="color-picker-cell" title="波形峰值颜色">波形
+                  <input type="color" id="interface-color-wave" aria-label="波形色">
+                </label>
+                <label class="color-picker-cell" title="字幕列表/编辑区/波形块的文字色（不含播放器画面内预览）">字幕文字
+                  <input type="color" id="interface-color-subtitle" aria-label="字幕文字色">
+                </label>
+                <label class="color-picker-cell" title="波形中字幕矩形的块体颜色">字幕块
+                  <input type="color" id="interface-color-cueBlock" aria-label="字幕块色">
+                </label>
+                <label class="color-picker-cell" title="波形上的空隙条纹与选区标记色">选区
+                  <input type="color" id="interface-color-gap" aria-label="选区色">
+                </label>
+                <label class="color-picker-cell" title="波形中当前位置指示条、当前字幕块轮廓与当前行序号/时间">播放头
+                  <input type="color" id="interface-color-hit" aria-label="播放头色">
+                </label>
+               </div>
               <div class="color-actions-row">
                 <button type="button" id="interface-colors-reset" title="清除全部自定义颜色，恢复当前主题预设的默认">恢复主题默认颜色</button>
               </div>
@@ -1475,15 +1570,15 @@ __WAVEFORM_CSS__
     <div class="player-stage">
       __MEDIA_HTML__
           <div class="player-empty" id="player-empty">拖入工程、媒体或 SRT 开始编辑</div>
-      <div id="overlay" class="subtitle-overlay geo-box hidden" tabindex="0" role="group" aria-label="字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 显示控制点，Esc 退出。"><span id="overlay-main-text"></span><span id="overlay-extension-text" class="subtitle-extension-text hidden"></span><span class="overlay-handle" data-handle="nw" aria-hidden="true"></span><span class="overlay-handle" data-handle="n" aria-hidden="true"></span><span class="overlay-handle" data-handle="ne" aria-hidden="true"></span><span class="overlay-handle" data-handle="e" aria-hidden="true"></span><span class="overlay-handle" data-handle="se" aria-hidden="true"></span><span class="overlay-handle" data-handle="s" aria-hidden="true"></span><span class="overlay-handle" data-handle="sw" aria-hidden="true"></span><span class="overlay-handle" data-handle="w" aria-hidden="true"></span></div>
-    </div>
-    <div class="media-controls" id="media-controls" role="group" aria-label="媒体播放控制">
+<div class="media-controls" id="media-controls" role="group" aria-label="媒体播放控制">
       <button type="button" id="media-play-toggle" aria-label="播放" title="播放">▶</button>
       <button type="button" id="media-step-back" class="media-step-button" aria-label="后退 1000ms" title="后退 1000ms">
-        <svg class="media-seek-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path></svg>
+        <svg class="media-seek-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"></path></svg>
+        <span class="media-step-label" id="media-step-back-label">1s</span>
       </button>
       <button type="button" id="media-step-forward" class="media-step-button" aria-label="前进 1000ms" title="前进 1000ms">
-        <svg class="media-seek-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z"></path></svg>
+        <svg class="media-seek-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5V2l5 4-5 4V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"></path></svg>
+        <span class="media-step-label" id="media-step-forward-label">1s</span>
       </button>
       <span class="media-clock"><span id="media-current-time">00:00</span> / <span id="media-duration">00:00</span></span>
       <input type="range" id="media-seek" min="0" max="0" step="0.01" value="0" aria-label="媒体进度">
@@ -1500,7 +1595,8 @@ __WAVEFORM_CSS__
       </label>
       <button type="button" id="media-fullscreen" aria-label="全屏" title="全屏">⛶</button>
     </div>
-  </div>
+          <div id="overlay" class="subtitle-overlay geo-box hidden" tabindex="0" role="group" aria-label="字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 显示控制点，Esc 退出。"><span id="overlay-main-text"></span><span id="overlay-extension-text" class="subtitle-extension-text hidden"></span><span class="overlay-handle" data-handle="nw" aria-hidden="true"></span><span class="overlay-handle" data-handle="n" aria-hidden="true"></span><span class="overlay-handle" data-handle="ne" aria-hidden="true"></span><span class="overlay-handle" data-handle="e" aria-hidden="true"></span><span class="overlay-handle" data-handle="se" aria-hidden="true"></span><span class="overlay-handle" data-handle="s" aria-hidden="true"></span><span class="overlay-handle" data-handle="sw" aria-hidden="true"></span><span class="overlay-handle" data-handle="w" aria-hidden="true"></span></div>
+    </div>  </div>
   <section class="current-cue-panel" id="current-cue-panel" aria-label="当前字幕编辑区">
     <div class="toolbar cue-editor-toolbar">
       <span class="waveform-status cue-editor-key-hints" id="cue-editor-key-hints" aria-label="字幕编辑快捷键" hidden>
@@ -1800,7 +1896,7 @@ __WAVEFORM_CSS__
         </p>
       </div>
       <button type="button" id="timed-text-edit-close" class="timed-text-edit-close"
-              title="关闭（Esc）" aria-label="关闭纯文本编辑">×</button>
+              title="关闭（Esc）" aria-label="关闭纯文本编辑"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
     <div class="timed-text-edit-toolbar">
       <div class="timed-text-edit-track-control" id="timed-text-edit-track-control">

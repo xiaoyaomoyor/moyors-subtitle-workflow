@@ -2521,7 +2521,7 @@
     overlayEnabled: true, extensionOverlayEnabled: true, multiSubtitleRowHeight: 168,
     exportStartAtZero: false, cueListShowIndex: true, cueListShowTime: true,
     cueListShowSticker: true, cueListShowCharcount: true, cueListAutoScrollOnClick: true,
-    cueListKeepSplitVisible: true, cueListHideDisabled: false, cueListCharcountThreshold: 16,
+    cueListKeepSplitVisible: true, cueListHideDisabled: true, cueListCharcountThreshold: 0,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
     mergeJoinTextContinuous: '', mergeJoinTextWord: ' ',
@@ -2534,7 +2534,7 @@
     ninjaSound: true, ninjaSlashEffect: true, ninjaSlashLengthPercent: 80,
     ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: true,
     multiSubtitleAutoSyncDuration: true, multiSubtitleShowTrackBadges: false, theme: 'dark',
-    waveShapeSource: 'reapeaks', themePreset: 'dark', accent: 'blue', colors: null,
+    waveShapeSource: 'reapeaks', themePreset: 'default', accent: 'blue', colors: null,
   });
 
   function clampInteger(value, fallback, minimum, maximum) {
@@ -2543,9 +2543,10 @@
   }
 
   function normalizeInterfaceColors(value) {
+    if (value?.panel && !value?.menubar) value = { ...value, menubar: value.panel };
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const colors = {};
-    ['bg', 'text', 'wave', 'subtitle', 'accent'].forEach((key) => {
+    ['bg', 'menubar', 'raised', 'input', 'overlay', 'popup', 'text', 'textMuted', 'accent', 'wave', 'subtitle', 'waveCueText', 'toolbar', 'gap', 'cueBlock', 'hit'].forEach((key) => {
       if (typeof value[key] === 'string' && /^#[0-9a-fA-F]{6}$/.test(value[key])) {
         colors[key] = value[key].toLowerCase();
       }
@@ -2582,8 +2583,14 @@
       cueListShowCharcount: savedSettings.cueListShowCharcount !== false,
       cueListAutoScrollOnClick: savedSettings.cueListAutoScrollOnClick !== false,
       cueListKeepSplitVisible: savedSettings.cueListKeepSplitVisible !== false,
-      cueListHideDisabled: savedSettings.cueListHideDisabled === true,
-      cueListCharcountThreshold: clampInteger(savedSettings.cueListCharcountThreshold, 16, 1, 200),
+      cueListHideDisabled: savedSettings.cueListHideDisabled !== false,
+      // 字数过滤值：0 = 不过滤。这里只做范围校验；旧默认 16 的清理由一次性迁移 flag
+      // （migrateCharcountDefault）处理，不能无条件吞掉用户显式输入的 16。
+      cueListCharcountThreshold: (() => {
+        const raw = Number(savedSettings.cueListCharcountThreshold);
+        if (!Number.isFinite(raw) || raw < 1 || raw > 200) return 0;
+        return Math.round(raw);
+      })(),
       cueEditorShowNavigation: savedSettings.cueEditorShowNavigation === true,
       cueEditorShowTimeActions: savedSettings.cueEditorShowTimeActions === true,
       cueEditorShowSticker: savedSettings.cueEditorShowSticker === true,
@@ -2628,17 +2635,19 @@
       multiSubtitleAutoSyncDuration: savedSettings.multiSubtitleAutoSyncDuration !== false,
       multiSubtitleShowTrackBadges: savedSettings.multiSubtitleShowTrackBadges === true,
       theme: savedSettings.theme === 'light' ? 'light' : 'dark',
-      // 主题预设（深色/浅色/午夜/苔原/暖砂）。旧数据没有该字段时按
-      // 已存主题与自定义颜色迁移：颜色恰为某预设配色则直接归入该预设。
+      // 主题预设（紫苑（默认）/小铃/灵梦/爱丽丝/恋/莲子）。
+      // aster/yukari 已移除但保留识别：让 editor.js 的一次性迁移把它们重指到替代预设。
+      // 旧五套预设（dark/light/midnight/forest/sepia）与自定义颜色自动迁移。
       themePreset: (() => {
-        const presets = ['dark', 'light', 'midnight', 'forest', 'sepia'];
+        const presets = ['default', 'kosuzu', 'reimu', 'alice', 'koishi', 'renko', 'aster', 'yukari'];
         if (presets.includes(savedSettings.themePreset)) return savedSettings.themePreset;
+        const legacyMap = { dark: 'default', light: 'reimu', midnight: 'default' };
+        if (legacyMap[savedSettings.themePreset]) return legacyMap[savedSettings.themePreset];
         const legacyColors = savedSettings.colors && typeof savedSettings.colors === 'object'
           ? savedSettings.colors : null;
         const palettes = {
-          midnight: { bg: '#0d1420', text: '#dbe6f4', wave: '#7aa2f7', subtitle: '#c9d8ee' },
-          forest: { bg: '#101713', text: '#dcefe3', wave: '#7cc97f', subtitle: '#d0e8d6' },
-          sepia: { bg: '#1d1712', text: '#f0e5d2', wave: '#d2a468', subtitle: '#e9d9c0' },
+          reimu: { bg: '#101713', text: '#dcefe3', wave: '#7cc97f', subtitle: '#d0e8d6' },
+          koishi: { bg: '#1d1712', text: '#f0e5d2', wave: '#d2a468', subtitle: '#e9d9c0' },
         };
         const match = Object.keys(palettes).find((name) => {
           const palette = palettes[name];
@@ -2648,11 +2657,11 @@
           });
         });
         if (match) return match;
-        return savedSettings.theme === 'light' ? 'light' : 'dark';
+        return savedSettings.theme === 'light' ? 'reimu' : 'default';
       })(),
       waveShapeSource: savedSettings.waveShapeSource === 'self' ? 'self' : 'reapeaks',
       // 界面强调色预设；非法值回退默认蓝（blue 不写 dataset，走 :root 基础令牌）。
-      accent: ['blue', 'teal', 'violet', 'green', 'orange', 'pink'].includes(savedSettings.accent)
+      accent: ['blue', 'teal', 'violet', 'green', 'orange', 'pink', 'red', 'gold', 'silver', 'azure'].includes(savedSettings.accent)
         ? savedSettings.accent : 'blue',
       // 界面自定义颜色（bg/text/wave/subtitle，#rrggbb）；空对象归一化为 null（全部走主题默认）。
       colors: normalizeInterfaceColors(savedSettings.colors),

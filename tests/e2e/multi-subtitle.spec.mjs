@@ -2,7 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDir, clickLanguageToggleViaSettings, clickMenubarItem, clickMultiSubtitleToggle, findFreePort, generateBlankEditor, generateWaveformPayload, makeTempDir, openMultiSubtitleSettings as openMultiSubtitleMenu, setMultiSubtitleToggle, startStaticServer, toggleCueListSettings, toggleEditorSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
+import { cleanupTempDir, clickBatchOperation, clickLanguageToggleViaSettings, clickMenubarItem, clickMultiSubtitleToggle, findFreePort, generateBlankEditor, generateWaveformPayload, makeTempDir, openMultiSubtitleSettings as openMultiSubtitleMenu, setMultiSubtitleToggle, startStaticServer, toggleCueListSettings, toggleEditorSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -2023,9 +2023,13 @@ test('keeps extension selection, timing, disabled, and hide shortcuts in parity 
   expect(saved.multi_subtitle.tracks[0].segments[0].disabled).toBe(true);
 
   await toggleCueListSettings(page);
-  await page.locator('#hide-disabled-toggle').check();
+  // 「禁用字幕」开关：不勾选 = 隐藏禁用行（新默认），勾选 = 显示。
   await expect(extensionColumn).toBeHidden();
+  await page.locator('#hide-disabled-toggle').check();
+  await expect(extensionColumn).toBeVisible();
   await page.locator('#hide-disabled-toggle').uncheck();
+  await expect(extensionColumn).toBeHidden();
+  await page.locator('#hide-disabled-toggle').check();
   await toggleCueListSettings(page);
   await extensionColumn.click({ modifiers: ['Alt'] });
   await expect(extensionColumn).not.toHaveClass(/disabled/);
@@ -3019,7 +3023,7 @@ test('keeps one shared waveform background with two lanes, switch visibility, an
   await setMultiSubtitleToggle(page, false);
   await expect(page.locator('#multi-subtitle-toggle')).not.toBeChecked();
   await expect(page.locator('.waveform-row.multi-subtitle-row')).toHaveCount(0);
-  await expect(page.locator('#download-multi-srt')).toBeDisabled();
+  await expect(page.locator('#download-ext-srt')).toBeHidden();
   await setMultiSubtitleToggle(page, true);
   await expect(page.locator('.waveform-row.multi-subtitle-row')).not.toHaveCount(0);
 

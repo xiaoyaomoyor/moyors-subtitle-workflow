@@ -125,6 +125,9 @@ class ServerSettings:
     saved_workspaces: dict[str, dict[str, object]] = field(default_factory=dict)
     preset_workspaces: dict[str, dict[str, object]] = field(default_factory=dict)
     active_workspace_name: str = ""
+    # 外观偏好（主题预设/自定义颜色/自定义主题列表/逐键暂存）：跟服务器走而不是跟浏览器源走，
+    # 换端口（127.0.0.1:8250 / 18924…）或换浏览器不再丢失。
+    appearance: dict[str, object] = field(default_factory=dict)
 
 
 class SaveProjectError(ValueError):
@@ -218,12 +221,14 @@ def read_server_settings(path: Path) -> ServerSettings:
             if name in BUILTIN_WORKSPACE_IDS and isinstance(workspace, dict):
                 preset_workspaces[name] = copy.deepcopy(workspace)
     active_workspace_name = payload.get("active_workspace_name")
+    appearance = payload.get("appearance")
     return ServerSettings(
         auto_open_last_project=payload.get("auto_open_last_project") is not False,
         recent_projects=tuple(projects),
         saved_workspaces=saved_workspaces,
         preset_workspaces=preset_workspaces,
         active_workspace_name=active_workspace_name if active_workspace_name in saved_workspaces else "",
+        appearance=appearance if isinstance(appearance, dict) else {},
     )
 
 
@@ -237,6 +242,7 @@ def write_server_settings(path: Path, settings: ServerSettings) -> None:
         "saved_workspaces": settings.saved_workspaces,
         "preset_workspaces": settings.preset_workspaces,
         "active_workspace_name": settings.active_workspace_name,
+        "appearance": settings.appearance,
     }
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.stem}.", suffix=".tmp", dir=path.parent)
     try:
@@ -774,6 +780,29 @@ class EditorServer(ThreadingHTTPServer):
         with self.settings_lock:
             self.settings = replace(self.settings, auto_open_last_project=enabled)
             self.persist_settings()
+
+    def set_appearance(self, appearance: dict[str, object]) -> None:
+        """Store the editor appearance blob (theme preset / colors / custom themes)."""
+        with self.settings_lock:
+            self.settings = replace(self.settings, appearance=copy.deepcopy(appearance))
+            self.persist_settings()
+
+    def appearance_snapshot(self) -> dict[str, object]:
+        """外观快照：优先重读磁盘落盘，保证并存的多个本地实例/端口看到彼此的最新状态。"""
+        disk: dict[str, object] = {}
+        if self.settings_path is not None and self.settings_path.is_file():
+            try:
+                disk = read_server_settings(self.settings_path).appearance
+            except OSError:
+                disk = {}
+        with self.settings_lock:
+            memory = self.settings.appearance
+        if not disk:
+            return copy.deepcopy(memory)
+        if disk != memory:
+            with self.settings_lock:
+                self.settings = replace(self.settings, appearance=copy.deepcopy(disk))
+        return copy.deepcopy(disk)
 
     def save_workspace(self, name: str, workspace: dict[str, object], *, overwrite: bool) -> None:
         with self.settings_lock:
@@ -1416,6 +1445,8 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self.open_recent_project()
         elif path == "/api/settings":
             self.update_settings()
+        elif path == "/api/settings/appearance":
+            self.update_appearance()
         elif path == "/api/prproj":
             self.send_json(HTTPStatus.NOT_IMPLEMENTED, PRPROJ_CAPABILITY)
         elif path == "/api/stickers/root":
@@ -1740,6 +1771,21 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             "mediaName": (project.source_media_path or project.media_path).name if project.media_path else "",
         })
 
+    def update_appearance(self) -> None:
+        """Write-through appearance blob from the editor (theme/custom themes)."""
+        try:
+            request = self.read_json_request()
+            appearance = request.get("appearance")
+            if not isinstance(appearance, dict):
+                raise ValueError("appearance 必须是对象")
+            if len(json.dumps(appearance, ensure_ascii=False)) > 64 * 1024:
+                raise ValueError("appearance 不能超过 64 KB")
+            self.editor_server.set_appearance(appearance)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, OSError) as error:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(error)})
+            return
+        self.send_json(HTTPStatus.OK, {"ok": True})
+
     def update_settings(self) -> None:
         try:
             request = self.read_json_request()
@@ -1847,6 +1893,12 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/startup-status":
             self.send_json(HTTPStatus.OK, self.editor_server.startup_status_payload())
+            return
+        if path == "/api/settings/appearance":
+            self.send_json(HTTPStatus.OK, {
+                "ok": True,
+                "appearance": self.editor_server.appearance_snapshot(),
+            })
             return
         if path == "/api/waveform":
             self.send_json(HTTPStatus.OK, self.editor_server.reapeaks_status_payload())

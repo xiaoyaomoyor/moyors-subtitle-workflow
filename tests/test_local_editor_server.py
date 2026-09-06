@@ -396,6 +396,56 @@ class LocalEditorServerTests(unittest.TestCase):
             thread.join(timeout=2)
             self.assertFalse(thread.is_alive())
 
+    def test_appearance_endpoint_persists_and_refreshes_across_instances(self) -> None:
+        """外观偏好跟服务器走：写穿落盘；先启动的实例也能读到之后的写入；非法请求被拒。"""
+        project = server_editor.load_project(
+            self.project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,
+        )
+        appearance = {
+            "settings": {"themePreset": "kosuzu", "theme": "dark", "accent": "orange", "colors": None},
+            "customThemes": [{"name": "新主题", "theme": "dark", "colors": {"bg": "#170f08"}}],
+            "themeStash": {"kosuzu": {"bg": "#170f08"}},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "server-editor-settings.json"
+            # 先启动的实例（模拟另一端口的长驻服务器），此刻磁盘还没有外观。
+            with server_editor.EditorServer(("127.0.0.1", 0), project, settings_path=settings_path) as early:
+                with server_editor.EditorServer(("127.0.0.1", 0), project, settings_path=settings_path) as server:
+                    thread = threading.Thread(target=server.serve_forever, daemon=True)
+                    thread.start()
+                    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+                    try:
+                        with urllib.request.urlopen(f"{base_url}/api/settings/appearance", timeout=2) as response:
+                            self.assertEqual(json.loads(response.read())["appearance"], {})
+
+                        request = urllib.request.Request(
+                            f"{base_url}/api/settings/appearance",
+                            data=json.dumps({"appearance": appearance}).encode("utf-8"),
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        with urllib.request.urlopen(request, timeout=2) as response:
+                            self.assertEqual(json.loads(response.read()), {"ok": True})
+
+                        # 写穿落盘为原子 JSON，旧实例无需重启即可读到最新外观。
+                        self.assertEqual(
+                            server_editor.read_server_settings(settings_path).appearance, appearance,
+                        )
+                        self.assertEqual(early.appearance_snapshot(), appearance)
+
+                        bad = urllib.request.Request(
+                            f"{base_url}/api/settings/appearance",
+                            data=json.dumps({"appearance": "not-an-object"}).encode("utf-8"),
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        with self.assertRaises(urllib.error.HTTPError) as raised:
+                            urllib.request.urlopen(bad, timeout=2)
+                        self.assertEqual(raised.exception.code, 400)
+                    finally:
+                        server.shutdown()
+                        thread.join(timeout=2)
+
     def test_prproj_capability_endpoint_is_stable_and_loopback_only(self) -> None:
         project = server_editor.load_project(
             self.project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,

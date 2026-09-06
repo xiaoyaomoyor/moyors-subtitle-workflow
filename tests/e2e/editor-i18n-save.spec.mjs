@@ -45,7 +45,7 @@ test('English locale covers the editor shell and recent-project setting stays fi
     .filter((line) => /[\u3400-\u9fff]/u.test(line) && line !== '🌐中文');
   expect(untranslatedShellLines).toEqual([]);
   const untranslatedUiStrings = await page.evaluate(() => {
-    const skip = '#cue-list, #cue-panel-text, #overlay, #sticker-overlay-layer, #media-name, #json-name, #sticker-grid, #language-toggle, script, style';
+    const skip = '#cue-list, #cue-panel-text, #overlay, #sticker-overlay-layer, #media-name, #json-name, #sticker-grid, #language-select, script, style';
     const found = new Set();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node;

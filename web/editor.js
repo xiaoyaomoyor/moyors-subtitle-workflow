@@ -5,6 +5,8 @@ let STICKER_ROOT = __STICKER_ROOT_JSON__;  // 表情包根目录的绝对路径�
 let STICKER_URL_PREFIX = __STICKER_URL_PREFIX_JSON__;
 const SERVER_CONFIG = __SERVER_CONFIG_JSON__;
 const NINJA_SFX_BASE_URL = __NINJA_SFX_BASE_URL_JSON__;
+// 关闭/删除叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
+const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
 const MAWE_DEBUG_ENABLED = Boolean(
   SERVER_CONFIG?.debug || new URLSearchParams(window.location.search).has('mawe-debug'),
@@ -12,9 +14,20 @@ const MAWE_DEBUG_ENABLED = Boolean(
 function maweDebug(stage, details = {}) {
   if (MAWE_DEBUG_ENABLED) console.debug(`[MAWE][${stage}]`, details);
 }
+// 输入框内拖选文字时阻止原生文本拖放：松开在页面任意位置会被浏览器当作
+// “拖放文本”处理（Chrome 里拖文字到页面 = 发起搜索），破坏选中替换的预期。
+// 模块标签等元素的拖拽不受影响（这里只拦 input / textarea / 可编辑区起源的 dragstart）。
+document.addEventListener('dragstart', (event) => {
+  const target = event.target;
+  if (!target) return;
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+    event.preventDefault();
+  }
+});
+
 function maweDomContractCheck() {
   const requiredIds = [
-    'player', 'player-empty', 'cues-container', 'cues-empty', 'filter-over',
+    'player', 'player-empty', 'cues-container', 'cues-empty',
     'hide-disabled-toggle', 'waveform-scroll', 'waveform-content',
   ];
   const missing = requiredIds.filter((id) => !document.getElementById(id));
@@ -656,12 +669,12 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowCharcount: true,
   // 字幕列表普通点击是否把目标字幕滚动到列表中央。
   cueListAutoScrollOnClick: true,
-  // “仅看超长”开启时，拆分结果是否暂时保留在列表中，直到焦点离开。
+  // 字数过滤期间，拆分结果是否暂时保留在列表中，直到焦点离开。
   cueListKeepSplitVisible: true,
   // 字幕列表是否隐藏禁用字幕。
-  cueListHideDisabled: false,
-  // “仅看超长”与字数标记使用的字符阈值。
-  cueListCharcountThreshold: 16,
+  cueListHideDisabled: true,
+  // 字数过滤与字数标记使用的字符阈值（0 = 不过滤）。
+  cueListCharcountThreshold: 0,
   cueEditorShowNavigation: false,
   cueEditorShowTimeActions: false,
   cueEditorShowSticker: false,
@@ -1152,6 +1165,16 @@ const selCountEl = document.getElementById('sel-count');
 const overlayEl = document.getElementById('overlay');
 const overlayTextEl = document.getElementById('overlay-main-text');
 const overlayExtensionTextEl = document.getElementById('overlay-extension-text');
+// 媒体控制条：暂停时常显（pinned），播放中悬停显示（CSS 控制）。
+const mediaControlsEl = document.getElementById('media-controls');
+const playerStageEl = document.querySelector('.player-stage');
+document.addEventListener('play', (event) => {
+  if (event.target?.id === 'player' && playerStageEl) playerStageEl.classList.remove('media-controls-pinned');
+}, true);
+document.addEventListener('pause', (event) => {
+  if (event.target?.id === 'player' && playerStageEl) playerStageEl.classList.add('media-controls-pinned');
+}, true);
+
 const overlayToggle = document.getElementById('overlay-toggle');
 const extensionOverlayToggleWrap = document.getElementById('extension-overlay-toggle-wrap');
 const extensionOverlayToggle = document.getElementById('extension-overlay-toggle');
@@ -1202,7 +1225,7 @@ const cueListSettings = document.getElementById('cue-list-settings');
 const cueListSettingsToggle = document.getElementById('cue-list-settings-toggle');
 const cueListSettingsPanel = document.getElementById('cue-list-settings-panel');
 const hideDisabledToggle = document.getElementById('hide-disabled-toggle');
-let hideDisabled = false;  // 「隐藏禁用项」开关状态
+let hideDisabled = true;  // 禁用字幕是否隐藏（「禁用字幕」开关不勾选 = 隐藏）
 const cueEditorShowNavigationToggle = document.getElementById('cue-editor-show-navigation');
 const cueEditorShowTimeActionsToggle = document.getElementById('cue-editor-show-time-actions');
 const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-sticker');
@@ -1325,7 +1348,6 @@ const saveProjectButton = document.getElementById('save-project');
 const saveProjectAsButton = document.getElementById('save-project-as');
 const saveProjectDropdown = document.getElementById('save-project-dropdown');
 const gapRemovedExportDropdown = document.getElementById('gap-removed-export-dropdown');
-const downloadMultiSrtButton = document.getElementById('download-multi-srt');
 const subtitleExportDropdown = document.getElementById('subtitle-export-dropdown');
 const downloadColorSrtItem = document.getElementById('download-color-srt');
 const downloadGapRemovedColorSrtItem = document.getElementById('download-gap-removed-color-srt');
@@ -1437,13 +1459,6 @@ const autoMergeAbsorbShortToggle = document.getElementById('auto-merge-absorb-sh
 const autoMergeShortCountInput = document.getElementById('auto-merge-short-count');
 const autoMergeAbsorbDirectionSelect = document.getElementById('auto-merge-absorb-direction');
 const SUBTITLE_EXTEND_PANEL_POSITION_KEY = 'moy.asr.subtitle_extend.panel.v1';
-const subtitleExtendPanel = document.getElementById('subtitle-extend-panel');
-const subtitleExtendDragHandle = document.getElementById('subtitle-extend-drag-handle');
-const subtitleExtendCloseButton = document.getElementById('subtitle-extend-close');
-const subtitleExtendManageButton = document.getElementById('subtitle-extend-manage');
-const subtitleExtendRunButton = document.getElementById('subtitle-extend-run');
-const subtitleExtendForwardInput = document.getElementById('subtitle-extend-forward-ms');
-const subtitleExtendBackwardInput = document.getElementById('subtitle-extend-backward-ms');
 let gapPreviewRange = null;
 let gapRemovePanelDrag = null;
 let currentCuePanelIdx = -1;
@@ -1464,7 +1479,127 @@ function resetCuePanelEditState() {
 function updateEditorSettings(patch) {
   Object.assign(EDITOR_SETTINGS, patch);
   saveEditorSettings(EDITOR_SETTINGS);
+  // 外观相关键变化时写穿到服务器（仅服务器版；见下方「外观偏好跟服务器走」）。
+  if (APPEARANCE_SETTINGS_KEYS.some((key) => key in patch)) scheduleAppearanceSync();
 }
+
+// ── 外观偏好跟服务器走 ──
+// localStorage 按「协议+域名+端口」隔离：换端口（8250/18924…）或换浏览器后，
+// 主题偏好与自定义主题会整体"消失"（数据还在旧源的存储里）。服务器版把这些状态
+// 同步到 /api/settings/appearance（随 serve.py 落盘到本机 app-data）：
+// 启动时拉取服务器副本并覆盖本地（服务器为准）；服务器还没有时把本地现状播种上去；
+// 之后每次外观变更（切预设/取色/自定义主题增删/逐键暂存）去抖写穿，失败静默不打断编辑。
+const APPEARANCE_SETTINGS_KEYS = ['themePreset', 'theme', 'accent', 'colors'];
+const APPEARANCE_URL = SERVER_CONFIG?.settingsUrl ? `${SERVER_CONFIG.settingsUrl}/appearance` : null;
+const APPEARANCE_STASH_KEY = 'moy.asr.editor.themeCustomColors.v1';
+let appearanceSyncTimer = null;
+let appearanceBootPending = Boolean(APPEARANCE_URL);
+
+function collectAppearancePayload() {
+  let customThemes = [];
+  let themeStash = null;
+  try { customThemes = JSON.parse(localStorage.getItem('moy.asr.editor.customThemes.v1') || '[]'); } catch (_) { /* 损坏按空处理 */ }
+  try { themeStash = JSON.parse(localStorage.getItem(APPEARANCE_STASH_KEY) || 'null'); } catch (_) { themeStash = null; }
+  return {
+    settings: {
+      themePreset: EDITOR_SETTINGS.themePreset || 'default',
+      theme: EDITOR_SETTINGS.theme === 'light' ? 'light' : 'dark',
+      accent: EDITOR_SETTINGS.accent || 'blue',
+      colors: EDITOR_SETTINGS.colors || null,
+    },
+    customThemes: Array.isArray(customThemes) ? customThemes : [],
+    themeStash: themeStash && typeof themeStash === 'object' ? themeStash : null,
+  };
+}
+
+function scheduleAppearanceSync() {
+  if (!APPEARANCE_URL) return;
+  // 启动拉取完成前不推送，避免刚迁移过的本地旧态覆盖服务器上的真实偏好。
+  if (appearanceBootPending) return;
+  clearTimeout(appearanceSyncTimer);
+  appearanceSyncTimer = setTimeout(() => {
+    fetch(APPEARANCE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appearance: collectAppearancePayload() }),
+    }).catch(() => { /* 断网静默：本地仍已保存，下次变更重试 */ });
+  }, 400);
+}
+
+function applyServerAppearance(appearance) {
+  const settings = appearance.settings || {};
+  const serverThemes = Array.isArray(appearance.customThemes) ? appearance.customThemes : null;
+  let keepLocalThemes = false;
+  try {
+    if (serverThemes && serverThemes.length) {
+      localStorage.setItem('moy.asr.editor.customThemes.v1', JSON.stringify(serverThemes));
+    } else if (serverThemes) {
+      // 服务器副本为空而本地存有自定义主题：保留本地并回传（见函数尾），
+      // 避免某个空端口先播种后，把旧端口里用户唯一的主题副本覆盖掉。
+      let localCount = 0;
+      try { localCount = JSON.parse(localStorage.getItem('moy.asr.editor.customThemes.v1') || '[]').length; } catch (_) { localCount = 0; }
+      keepLocalThemes = localCount > 0;
+    }
+    if (appearance.themeStash && typeof appearance.themeStash === 'object') {
+      localStorage.setItem(APPEARANCE_STASH_KEY, JSON.stringify(appearance.themeStash));
+    }
+  } catch (_) { /* 隐私模式忽略 */ }
+  const patch = {};
+  if (typeof settings.themePreset === 'string') patch.themePreset = settings.themePreset;
+  if (settings.theme === 'light' || settings.theme === 'dark') patch.theme = settings.theme;
+  if (typeof settings.accent === 'string') patch.accent = settings.accent;
+  if (settings.colors === null || (settings.colors && typeof settings.colors === 'object')) patch.colors = settings.colors;
+  if (Object.keys(patch).length) updateEditorSettings(patch);
+  applyThemeAndColors();
+  refreshThemeCustomList();
+  if (keepLocalThemes) scheduleAppearanceSync();
+}
+
+async function syncAppearanceBoot() {
+  if (!APPEARANCE_URL) return;
+  try {
+    const res = await fetch(APPEARANCE_URL, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    appearanceBootPending = false; // 拉取完成即放行回写（含「本地主题回传」路径）
+    const appearance = data?.appearance;
+    if (appearance && typeof appearance === 'object'
+      && ((Array.isArray(appearance.customThemes) && appearance.customThemes.length) || appearance.settings)) {
+      applyServerAppearance(appearance);
+    } else {
+      scheduleAppearanceSync(); // 服务器还没有外观副本：把当前本地状态播种上去
+    }
+  } catch (_) { /* 请求失败：维持本地存储，不做任何覆盖 */ }
+  appearanceBootPending = false;
+}
+
+// 「隐藏禁用字幕」(勾选=隐藏) 改为「禁用字幕」(勾选=显示、默认不勾选)：
+// 一次性把旧实例的默认显示迁移为隐藏；此后尊重用户对新开关的每次勾选。
+(function migrateHideDisabledDefault() {
+  try {
+    const KEY = 'moy.asr.editor.hideDisabledFlipped.v1';
+    if (localStorage.getItem(KEY)) return;
+    if (!EDITOR_SETTINGS.cueListHideDisabled) {
+      updateEditorSettings({ cueListHideDisabled: true });
+      hideDisabled = true;
+      hideDisabledToggle.checked = false;
+      container.classList.add('hide-disabled');
+    }
+    localStorage.setItem(KEY, '1');
+  } catch (_) { /* 隐私模式忽略 */ }
+})();
+// 字数过滤旧默认值 16 一次性清零（0=不过滤），避免老实例升级后被意外过滤；
+// 迁移只做一次，此后用户显式输入的 16 是有效阈值，不再被吞掉。
+(function migrateCharcountDefault() {
+  try {
+    const KEY = 'moy.asr.editor.charcountMigrated.v1';
+    if (localStorage.getItem(KEY)) return;
+    if (EDITOR_SETTINGS.cueListCharcountThreshold === 16) {
+      updateEditorSettings({ cueListCharcountThreshold: 0 });
+    }
+    localStorage.setItem(KEY, '1');
+  } catch (_) { /* 隐私模式忽略 */ }
+})();
 
 const NINJA_SFX_VARIANTS = Object.freeze([
   'sfx_katana_slash_01.opus',
@@ -1731,7 +1866,7 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   cueListKeepSplitVisibleToggle.checked = EDITOR_SETTINGS.cueListKeepSplitVisible;
   syncCharCountThresholdInputs(EDITOR_SETTINGS.cueListCharcountThreshold);
   hideDisabled = EDITOR_SETTINGS.cueListHideDisabled;
-  hideDisabledToggle.checked = hideDisabled;
+  hideDisabledToggle.checked = !hideDisabled;  // 勾选 = 显示禁用字幕
   container.classList.toggle('hide-disabled', hideDisabled);
   container.classList.toggle('hide-cue-index', !EDITOR_SETTINGS.cueListShowIndex);
   container.classList.toggle('hide-cue-time', !EDITOR_SETTINGS.cueListShowTime);
@@ -2304,11 +2439,29 @@ if (helpPanel) {
 // 预设决定明暗、强调色与基础配色（令牌在 CSS：:root/[data-theme]/[data-accent]），
 // 自定义颜色按键覆盖（含强调色整族变量内联生成），清除后回到当前预设默认。
 const THEME_PRESETS = {
-  dark: { theme: 'dark', accent: 'blue', colors: null },
-  light: { theme: 'light', accent: 'blue', colors: null },
-  midnight: { theme: 'dark', accent: 'violet', colors: { bg: '#0d1420', text: '#dbe6f4', wave: '#7aa2f7', subtitle: '#c9d8ee' } },
-  forest: { theme: 'dark', accent: 'green', colors: { bg: '#101713', text: '#dcefe3', wave: '#7cc97f', subtitle: '#d0e8d6' } },
-  sepia: { theme: 'dark', accent: 'orange', colors: { bg: '#1d1712', text: '#f0e5d2', wave: '#d2a468', subtitle: '#e9d9c0' } },
+  default: { theme: 'dark', accent: 'blue', colors: null },
+  // 依神紫苑：用户自定义主题「新的紫苑配色」的 15 键配色固化（独立于该自定义主题存在）。
+  aster: { theme: 'dark', accent: 'azure', colors: {
+    bg: '#1a1b26', menubar: '#16161e', raised: '#1a1b26', input: '#16161e',
+    overlay: '#1a1b26', popup: '#1a1b26', text: '#c0caf5', textMuted: '#8388a0',
+    accent: '#80d0ff', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
+    toolbar: '#16161e', gap: '#ffdc00', hit: '#f8727c',
+  } },
+  // 本居小铃：深橘发红瞳红白格纹和服（深色，黄棕暖调：黄色+棕红+橘红）
+  kosuzu: { theme: 'dark', accent: 'orange', colors: {
+    bg: '#170f08', menubar: '#221510', raised: '#2a1a11', input: '#322016',
+    overlay: '#3a2517', popup: '#371c15', text: '#f5e7cd', textMuted: '#c2a685',
+    accent: '#c9552b', wave: '#e5a83d', subtitle: '#eee0c2', cueBlock: '#8f6a48',
+    toolbar: '#221510', gap: '#ffc04d',
+  } },
+  // 宇佐见莲子：黑礼帽白衬衫（黑色系）
+  renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707' } },
+  // 博丽灵梦：红白巫女（浅色，米白底红强调）
+  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40' } },
+  // 爱丽丝：金发蓝裙（浅色，淡蓝底金强调）
+  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261' } },
+  // 古明地恋：黄上衣绿裙黑帽（浅色，暖黄底绿强调）
+  koishi: { theme: 'light', accent: 'green', colors: { bg: '#f5f3e4', text: '#31362a', wave: '#3f7d3a', subtitle: '#4d5442' } },
 };
 const ACCENT_VAR_FAMILY = ['--accent', '--accent-hover', '--accent-strong', '--accent-tint', '--accent-tint-strong', '--accent-soft', '--accent-line'];
 function shiftHex(hex, amount) {
@@ -2332,8 +2485,30 @@ function setAccentVarFamily(style, hex) {
   style.setProperty('--accent-soft', hexAlpha(hex, 0.16));
   style.setProperty('--accent-line', hex);
 }
+// 「弹窗」自定义时，工具窗渐变底跟随（同色系深浅两档）；清除时移除内联覆盖。
+function applyOverlayDerived(value) {
+  const rootStyle = document.documentElement.style;
+  if (!value) {
+    rootStyle.removeProperty('--gap-panel-bg-1');
+    rootStyle.removeProperty('--gap-panel-bg-2');
+    return;
+  }
+  rootStyle.setProperty('--gap-panel-bg-1', hexAlpha(value, 0.98));
+  rootStyle.setProperty('--gap-panel-bg-2', hexAlpha(shiftHex(value, -0.06), 0.98));
+}
+// 「命中」自定义时，播放头光晕跟随同色。
+function applyHitDerived(value) {
+  const rootStyle = document.documentElement.style;
+  if (!value) {
+    rootStyle.removeProperty('--wave-playhead-glow');
+    return;
+  }
+  rootStyle.setProperty('--wave-playhead-glow', hexAlpha(value, 0.72));
+}
 function activeThemePreset() {
-  return THEME_PRESETS[EDITOR_SETTINGS.themePreset] || THEME_PRESETS.dark;
+  // 自定义主题（custom:*）以当前快照渲染：colors 已保存在设置里，这里只兜底基础预设。
+  if (String(EDITOR_SETTINGS.themePreset || '').startsWith('custom:')) return THEME_PRESETS.default;
+  return THEME_PRESETS[EDITOR_SETTINGS.themePreset] || THEME_PRESETS.default;
 }
 function resolvedInterfaceColors() {
   return { ...(activeThemePreset().colors || {}), ...(EDITOR_SETTINGS.colors || {}) };
@@ -2354,27 +2529,48 @@ function applyThemeAndColors({ rerenderWaveform = true } = {}) {
     else root.dataset.accent = preset.accent;
   }
   const rootStyle = root.style;
-  ['bg', 'text', 'wave', 'subtitle'].forEach((key) => {
-    const cssVar = { bg: '--bg-base', text: '--text-primary', wave: '--wave-peak', subtitle: '--editor-cue-text' }[key];
+  Object.entries(INTERFACE_COLOR_VARS).forEach(([key, cssVar]) => {
     const value = /^[#][0-9a-fA-F]{6}$/.test(colors[key] || '') ? colors[key] : null;
     if (value) rootStyle.setProperty(cssVar, value);
     else rootStyle.removeProperty(cssVar);
   });
+  // 「弹窗」键同时驱动工具窗家族的渐变底色，保持居中弹窗与工具窗同族视觉。
+  const popupColor = /^[#][0-9a-fA-F]{6}$/.test(colors.popup || '') ? colors.popup : null;
+  applyOverlayDerived(popupColor);
+  // 「命中」键同时派生播放头光晕。
+  const hitColor = /^[#][0-9a-fA-F]{6}$/.test(colors.hit || '') ? colors.hit : null;
+  applyHitDerived(hitColor);
+  // 字幕色联动波形字幕文字（列表/编辑区/波形共用一个键）。
+  const subtitleColor = /^[#][0-9a-fA-F]{6}$/.test(colors.subtitle || '') ? colors.subtitle : null;
+  if (subtitleColor) rootStyle.setProperty('--wave-cue-text', subtitleColor);
+  else if (!/^[#][0-9a-fA-F]{6}$/.test(colors.waveCueText || '')) rootStyle.removeProperty('--wave-cue-text');
   syncAppearanceSettings();
   syncInterfaceColorControls();
   if (rerenderWaveform && waveformEditor) waveformEditor.render();
 }
 function syncAppearanceSettings() {
   document.querySelectorAll('.theme-preset').forEach((button) => {
-    button.classList.toggle('active', button.dataset.themePreset === (EDITOR_SETTINGS.themePreset || 'dark'));
+    button.classList.toggle('active', button.dataset.themePreset === (EDITOR_SETTINGS.themePreset || 'default'));
   });
 }
 document.querySelectorAll('.theme-preset').forEach((button) => {
   button.addEventListener('click', () => {
     const preset = button.dataset.themePreset;
-    if (!THEME_PRESETS[preset] || (EDITOR_SETTINGS.themePreset || 'dark') === preset) return;
-    // 切换预设 = 采用该主题的完整默认外观（清除逐键覆盖）。
-    updateEditorSettings({ themePreset: preset, theme: THEME_PRESETS[preset].theme, accent: THEME_PRESETS[preset].accent, colors: null });
+    if (!THEME_PRESETS[preset] || (EDITOR_SETTINGS.themePreset || 'default') === preset) return;
+    // 切走前把当前逐键覆盖存入该预设的暂存区（切回时恢复，不再丢失）。
+    const CUSTOM_THEME_COLORS_KEY = 'moy.asr.editor.themeCustomColors.v1';
+    let stash = {};
+    try { stash = JSON.parse(localStorage.getItem(CUSTOM_THEME_COLORS_KEY) || '{}'); } catch (_) { stash = {}; }
+    const previousPreset = EDITOR_SETTINGS.themePreset || 'default';
+    if (EDITOR_SETTINGS.colors && Object.keys(EDITOR_SETTINGS.colors).length) {
+      stash[previousPreset] = EDITOR_SETTINGS.colors;
+    } else {
+      delete stash[previousPreset];
+    }
+    try { localStorage.setItem(CUSTOM_THEME_COLORS_KEY, JSON.stringify(stash)); } catch (_) { /* 隐私模式忽略 */ }
+    scheduleAppearanceSync(); // 逐键暂存变化同步到服务器
+    const restored = stash[preset] || null;
+    updateEditorSettings({ themePreset: preset, theme: THEME_PRESETS[preset].theme, accent: THEME_PRESETS[preset].accent, colors: restored });
     applyThemeAndColors();
   });
 });
@@ -2521,28 +2717,7 @@ autoMergePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }, { passive: false });
 });
-const subtitleExtendFloatingPanel = createFloatingPanel({
-  panel: subtitleExtendPanel,
-  dragHandle: subtitleExtendDragHandle,
-  manageButton: subtitleExtendManageButton,
-  anchorButton: subtitleExtendManageButton,
-  positionKey: SUBTITLE_EXTEND_PANEL_POSITION_KEY,
-});
-subtitleExtendCloseButton?.addEventListener('click', () => subtitleExtendFloatingPanel.close());
-subtitleExtendRunButton?.addEventListener('click', extendSubtitleRanges);
-subtitleExtendPanel?.querySelectorAll('input[type="number"]').forEach((input) => {
-  input.addEventListener('wheel', (event) => {
-    if (!event.deltaY) return;
-    event.preventDefault();
-    input.focus({ preventScroll: true });
-    try {
-      if (event.deltaY < 0) input.stepUp();
-      else input.stepDown();
-    } catch (_) {
-      return;
-    }
-  }, { passive: false });
-});
+// 「延长字幕」已改为「缩放字幕」悬浮子菜单（即时执行），工具窗绑定移除。
 bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
 bindCueListDisplayToggle(cueListShowStickerToggle, 'cueListShowSticker');
@@ -3702,7 +3877,7 @@ const selectedIdxs = new Set();
 const selectedExtensionIdxs = new Set();
 let lastClickedIdx = -1;  // 用于 Shift+click 范围选
 let lastClickedExtensionIdx = -1;
-// “仅看超长”开启时，刚拆出的字幕临时绕过字数过滤；使用稳定 ID，避免 splice 后下标错位。
+// 字数过滤期间，刚拆出的字幕临时绕过字数过滤；使用稳定 ID，避免 splice 后下标错位。
 const temporaryVisibleSplitCueKeys = new Set();
 // 右键选择「绑定到主字幕」后的等待状态。使用稳定 ID 而不是数组下标，
 // 这样等待期间即使列表重绘，也不会把另一条副字幕误绑定过去。
@@ -5053,29 +5228,49 @@ function calcCharWidth(text, mode = null) {
     : window.AsrEditorUtils.countTextUnits(text);
 }
 function getCharCountThreshold() {
+  // 字数过滤值（>=1）同时作为列表字数标记的阈值；未启用过滤时回落 16。
   const v = Number(EDITOR_SETTINGS.cueListCharcountThreshold);
-  return Number.isFinite(v) && v > 0
-    ? clampCharcountThreshold(v)
-    : DEFAULT_EDITOR_SETTINGS.cueListCharcountThreshold;
+  return Number.isFinite(v) && v > 0 ? clampCharcountThreshold(v) : 16;
 }
-function syncCharCountThresholdInputs(value = getCharCountThreshold()) {
-  const threshold = clampCharcountThreshold(value);
-  const text = String(threshold);
+// 字数过滤：输入了 1~200 的数值即生效；空 / 0 不过滤。比较符 >= / <=。
+let charCountFilterOp = 'ge';
+function charCountFilterActive() {
+  const v = Number(EDITOR_SETTINGS.cueListCharcountThreshold);
+  return Number.isFinite(v) && v >= 1 && v <= 200;
+}
+function charCountFilterMatches(count) {
+  const v = Number(EDITOR_SETTINGS.cueListCharcountThreshold);
+  return charCountFilterOp === 'le' ? count <= v : count >= v;
+}
+const charCountFilterOpSelect = document.getElementById('charcount-filter-op');
+charCountFilterOpSelect?.addEventListener('change', () => {
+  charCountFilterOp = charCountFilterOpSelect.value === 'le' ? 'le' : 'ge';
+  applySearch(searchEl.value);
+});
+function syncCharCountThresholdInputs(value = EDITOR_SETTINGS.cueListCharcountThreshold) {
+  // 0 / 无效值 = 未启用过滤：输入框显示为空，不能交给 clamp（min=1 会把 0 夹成 1）。
+  const numeric = Number(value);
+  const threshold = Number.isFinite(numeric) && numeric >= 1 ? clampCharcountThreshold(numeric) : 0;
+  const text = threshold >= 1 ? String(threshold) : '';
   if (cueListCharcountThresholdInput) cueListCharcountThresholdInput.value = text;
   if (timedTextEditCharcountThresholdInput) timedTextEditCharcountThresholdInput.value = text;
   return threshold;
 }
 function handleCharCountThresholdInput(input) {
-  const value = Number(input?.value);
-  if (Number.isFinite(value) && value >= 1 && value <= 200) {
-    const threshold = syncCharCountThresholdInputs(value);
-    updateEditorSettings({ cueListCharcountThreshold: threshold });
+  const raw = input?.value == null ? '' : String(input.value).trim();
+  const value = Number(raw);
+  let next = 0;
+  if (raw !== '' && Number.isFinite(value) && value >= 1 && value <= 200) {
+    next = clampCharcountThreshold(value);
   }
+  updateEditorSettings({ cueListCharcountThreshold: next });
+  // 两个阈值输入（字幕列表设置 / 纯文本编辑弹窗）保持同值；空 = 不过滤。
+  if (cueListCharcountThresholdInput) cueListCharcountThresholdInput.value = next >= 1 ? String(next) : '';
+  if (timedTextEditCharcountThresholdInput) timedTextEditCharcountThresholdInput.value = next >= 1 ? String(next) : '';
   updateTimedTextEditSingleGuide();
   refreshAllCharCounts();
-  if (document.getElementById('filter-over').classList.contains('active')) {
-    applySearch(searchEl.value);
-  }
+  if (!charCountFilterActive()) clearTemporaryVisibleSplitCues();
+  applySearch(searchEl.value);
 }
 function updateTimedTextEditSingleGuide() {
   if (!timedTextEditSingleEditor) return;
@@ -5135,7 +5330,7 @@ function rememberTemporaryVisibleSplitCues({
   extensionTrackId = null,
 } = {}) {
   if (!EDITOR_SETTINGS.cueListKeepSplitVisible) return;
-  if (!document.getElementById('filter-over')?.classList.contains('active')) return;
+  if (!charCountFilterActive()) return;
   mainSegments.forEach((segment) => {
     const key = splitCueVisibilityKey('main', segment);
     if (key) temporaryVisibleSplitCueKeys.add(key);
@@ -5178,9 +5373,8 @@ function refreshAllCharCounts() {
 // 工程中存在彩色字幕时，在过滤输入框右侧显示 🎨 按钮：
 // 点击行（非 checkbox）= 只显示该颜色；勾选 checkbox = 多选；清除 = 全部显示。
 const COLOR_FILTER_DEFAULT_KEY = '__default__';
-const colorFilterDropdown = document.getElementById('color-filter-dropdown');
-const colorFilterButton = document.getElementById('color-filter-btn');
-const colorFilterMenu = document.getElementById('color-filter-menu');
+const colorFilterSwatchesEl = document.getElementById('color-filter-swatches');
+const colorFilterSelectAllBtn = document.getElementById('color-filter-select-all');
 let colorFilterSelection = null; // null = 不过滤；Set<string> = 仅显示这些颜色键
 let colorFilterUsageCache = new Map();
 
@@ -5189,11 +5383,11 @@ function effectiveCueColorKey(mainSeg) {
   return MULTI_SUBTITLE_UTILS.effectiveColorName(mainSeg, DATA.segments) || COLOR_FILTER_DEFAULT_KEY;
 }
 
-// 双列 / 仅副轨显示模式下，列表行不携带颜色条：按钮隐藏且过滤暂停生效，
-// 避免出现“看不到过滤开关但列表被过滤”的死角。只有单列主轨列表参与过滤。
+// 颜色过滤按主轨颜色工作：双列模式下行仍携带主轨颜色，放开过滤；
+// 仅副轨显示时行内没有主轨信息，保持暂停（色圈行禁用并变暗）。
 function colorFilterSuspended() {
   if (!multiSubtitleVisible()) return false;
-  return getMultiSubtitleState().display_mode !== 'main';
+  return getMultiSubtitleState().display_mode === 'extension';
 }
 
 function collectProjectColorUsage() {
@@ -5205,59 +5399,55 @@ function collectProjectColorUsage() {
   return counts;
 }
 
-function colorFilterLabelFor(key) {
-  if (key === COLOR_FILTER_DEFAULT_KEY) return '默认';
-  return COLOR_BY_NAME[key]?.label || key;
-}
-
-function colorFilterValueFor(key) {
-  return COLOR_BY_NAME[key]?.value || null;
-}
-
 function syncColorFilterControls() {
-  const hasColors = !colorFilterSuspended()
-    && [...colorFilterUsageCache.keys()].some((key) => key !== COLOR_FILTER_DEFAULT_KEY);
-  colorFilterButton?.toggleAttribute('hidden', !hasColors);
-  colorFilterButton?.classList.toggle('filter-active', Boolean(colorFilterSelection));
-  renderColorFilterMenu();
+  const suspended = colorFilterSuspended();
+  colorFilterSwatchesEl?.classList.toggle('suspended', suspended);
+  colorFilterSwatchesEl?.toggleAttribute('aria-disabled', suspended ? 'true' : false);
+  renderColorSwatches();
+  if (colorFilterSelectAllBtn) colorFilterSelectAllBtn.hidden = !colorFilterSelection || suspended;
 }
 
-function renderColorFilterMenu() {
-  if (!colorFilterMenu) return;
+// 颜色过滤的五个色圈：与波形字幕块右键菜单的「标记颜色」色圈同源同样式
+// （COLOR_PALETTE 数值唯一来自 maw/colors.py）。点击 toggle 该颜色，可多选。
+function renderColorSwatches() {
+  if (!colorFilterSwatchesEl) return;
   const usage = colorFilterUsageCache;
-  // 过滤掉工程里已不存在的选择项，避免按钮显示“过滤中”但列表为空。
+  // 过滤掉工程里已不存在的选择项，避免色圈停在选中态但列表为空。
   if (colorFilterSelection) {
     const kept = new Set([...colorFilterSelection].filter((key) => usage.has(key)));
     colorFilterSelection = kept.size ? kept : null;
   }
-  const keys = [COLOR_FILTER_DEFAULT_KEY];
-  COLOR_PALETTE.forEach((palette) => { if (usage.has(palette.name)) keys.push(palette.name); });
-  usage.forEach((_count, key) => { if (!keys.includes(key)) keys.push(key); });
-  colorFilterMenu.replaceChildren();
-  keys.forEach((key) => {
-    colorFilterMenu.appendChild(buildColorFilterItem(key, usage.get(key) || 0));
+  colorFilterSwatchesEl.replaceChildren();
+  COLOR_PALETTE.forEach((color) => {
+    const count = usage.get(color.name) || 0;
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'cue-list-color-swatch';
+    swatch.dataset.colorKey = color.name;
+    swatch.style.background = color.value;
+    swatch.setAttribute('aria-pressed', colorFilterSelection?.has(color.name) ? 'true' : 'false');
+    swatch.title = count
+      ? window.MAWE_I18N?.translateText?.(`该颜色的字幕共 ${count} 条；点击只显示所选颜色`) || `该颜色的字幕共 ${count} 条；点击只显示所选颜色`
+      : window.MAWE_I18N?.translateText?.('该颜色暂无字幕') || '该颜色暂无字幕';
+    swatch.addEventListener('click', () => {
+      const next = new Set(colorFilterSelection || []);
+      if (next.has(color.name)) next.delete(color.name);
+      else next.add(color.name);
+      setColorFilterSelection(next);
+    });
+    colorFilterSwatchesEl.appendChild(swatch);
   });
-  const selectFilteredBtn = document.createElement('button');
-  selectFilteredBtn.type = 'button';
-  selectFilteredBtn.className = 'dropdown-item color-filter-clear';
-  selectFilteredBtn.textContent = '全选过滤结果';
-  selectFilteredBtn.hidden = !colorFilterSelection;
-  selectFilteredBtn.addEventListener('click', () => selectAllFilteredCues());
-  colorFilterMenu.appendChild(selectFilteredBtn);
-  const clearBtn = document.createElement('button');
-  clearBtn.type = 'button';
-  clearBtn.className = 'dropdown-item color-filter-clear';
-  clearBtn.textContent = '清除颜色过滤';
-  clearBtn.hidden = !colorFilterSelection;
-  clearBtn.addEventListener('click', () => setColorFilterSelection(null));
-  colorFilterMenu.appendChild(clearBtn);
+  if (colorFilterSelectAllBtn) colorFilterSelectAllBtn.hidden = !colorFilterSelection || colorFilterSuspended();
 }
 
 function setColorFilterSelection(next) {
   colorFilterSelection = next && next.size ? new Set(next) : null;
-  renderColorFilterMenu();
+  renderColorSwatches();
+  if (colorFilterSelectAllBtn) colorFilterSelectAllBtn.hidden = !colorFilterSelection || colorFilterSuspended();
   applySearch(searchEl.value);
 }
+
+colorFilterSelectAllBtn?.addEventListener('click', () => selectAllFilteredCues());
 
 function selectAllFilteredCues() {
   // 颜色过滤只作用于主轨字幕列表，这里同样只选中主轨里过滤命中的字幕，
@@ -5279,42 +5469,6 @@ function selectAllFilteredCues() {
   if (waveformEditor) waveformEditor.updateSelection();
   selCountEl.textContent = String(selectedIdxs.size + selectedExtensionIdxs.size);
   flashHint(`已选中 ${selectedIdxs.size} 条过滤字幕`, selectedIdxs.size ? 'success' : 'invalid');
-}
-
-function buildColorFilterItem(key, count) {
-  const label = document.createElement('label');
-  label.className = 'color-filter-item';
-  label.dataset.colorKey = key;
-  label.title = `该颜色的字幕共 ${count} 条；点击条目只显示此颜色，勾选可多选`;
-  const input = document.createElement('input');
-  input.type = 'checkbox';
-  input.checked = Boolean(colorFilterSelection?.has(key));
-  input.addEventListener('change', () => {
-    const next = new Set(colorFilterSelection || []);
-    if (input.checked) next.add(key); else next.delete(key);
-    setColorFilterSelection(next);
-  });
-  const dot = document.createElement('span');
-  dot.className = `color-dot${key === COLOR_FILTER_DEFAULT_KEY ? ' is-default' : ''}`;
-  const value = colorFilterValueFor(key);
-  if (value) dot.style.background = value;
-  const nameEl = document.createElement('span');
-  nameEl.className = 'color-name';
-  nameEl.textContent = colorFilterLabelFor(key);
-  const countEl = document.createElement('span');
-  countEl.className = 'color-count';
-  countEl.textContent = String(count);
-  label.addEventListener('click', (event) => {
-    // checkbox 自身的多选行为走 change 事件；点击行内其余区域 = 仅显示该颜色。
-    // 行内点击会同步重建菜单，必须阻止冒泡，否则点击目标脱离下拉容器后
-    // 会命中 document 的“点击外部关闭”逻辑，把刚选中的菜单关掉。
-    if (event.target === input) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setColorFilterSelection(new Set([key]));
-  });
-  label.append(input, dot, nameEl, countEl);
-  return label;
 }
 
 function refreshColorFilterUi() {
@@ -5383,8 +5537,7 @@ function refreshColorAssignmentUi() {
   refreshColorFilterUi();
   // 颜色过滤开启时，颜色变化可能改变当前行的显隐；只重新计算 class，
   // 不保存/恢复滚动位置，也不主动滚动。
-  if (searchEl.value || colorFilterSelection
-      || document.getElementById('filter-over')?.classList.contains('active')) {
+  if (searchEl.value || colorFilterSelection || charCountFilterActive()) {
     applySearch(searchEl.value, { refreshText: false, preserveCueListScroll: false });
   }
   waveformEditor?.refreshCueOverlay?.();
@@ -5392,32 +5545,7 @@ function refreshColorAssignmentUi() {
   updateSubtitleExportUi();
 }
 
-renderColorFilterMenu();
-function positionColorFilterMenu() {
-  if (!colorFilterDropdown?.classList.contains('open') || !colorFilterButton || !colorFilterMenu) return;
-  const buttonRect = colorFilterButton.getBoundingClientRect();
-  const menuWidth = colorFilterMenu.offsetWidth;
-  const menuHeight = colorFilterMenu.offsetHeight;
-  const margin = 8;
-  const left = Math.min(
-    Math.max(margin, buttonRect.left),
-    Math.max(margin, window.innerWidth - menuWidth - margin),
-  );
-  const belowTop = buttonRect.bottom + 6;
-  const aboveTop = buttonRect.top - menuHeight - 6;
-  let top = belowTop;
-  if (belowTop + menuHeight > window.innerHeight - margin && aboveTop >= margin) {
-    top = aboveTop;
-  } else if (belowTop + menuHeight > window.innerHeight - margin) {
-    top = Math.max(margin, window.innerHeight - menuHeight - margin);
-  }
-  colorFilterMenu.style.left = `${left}px`;
-  colorFilterMenu.style.top = `${top}px`;
-}
-bindToolbarExportDropdown(
-  'color-filter-dropdown', 'color-filter-btn', 'color-filter-menu',
-  positionColorFilterMenu,
-);
+renderColorSwatches();
 
 // === 搜索 ===
 function applySearch(query, { refreshText = true, preserveCueListScroll = true } = {}) {
@@ -5426,7 +5554,7 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
     const trimmed = query.trim();
     let visible = 0;
     const re = buildSearchRegex(trimmed, false);
-    const filterOver = document.getElementById('filter-over').classList.contains('active');
+    const filterOver = charCountFilterActive();
     const threshold = getCharCountThreshold();
     const extensionTrack = getActiveExtensionTrack();
     // 容器内还有布局拖拽栏和“加载工程后显示字幕列表”占位层；过滤只作用于真实字幕行。
@@ -5457,7 +5585,7 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
           + (extensionSeg
             ? calcCharWidth(extensionSeg.text, getExtensionSubtitleSplitMode(extensionTrack, extensionSeg))
             : 0);
-        matched = count > threshold;
+        matched = charCountFilterMatches(count);
       }
       el.classList.toggle('hidden', !matched);
       if (matched) visible++;
@@ -7746,63 +7874,233 @@ function mergeExtensionSegments(idxs, track = getActiveExtensionTrack()) {
   return true;
 }
 
-function parseSubtitleExtendMs(input) {
-  const raw = String(input?.value ?? '').trim();
-  const value = Number(raw);
-  if (!raw || !Number.isFinite(value) || value < 0) return null;
-  return Math.round(value);
-}
 
-function extendSubtitleRanges() {
-  const forwardMs = parseSubtitleExtendMs(subtitleExtendForwardInput);
-  if (forwardMs === null) {
-    flashHint('向前延长时长必须是大于等于 0 的数字', 'invalid');
-    return;
-  }
-  const backwardMs = parseSubtitleExtendMs(subtitleExtendBackwardInput);
-  if (backwardMs === null) {
-    flashHint('向后延长时长必须是大于等于 0 的数字', 'invalid');
-    return;
-  }
-
+// ── 「字幕 → 缩放字幕」子菜单：输入即生效（可撤销；未选中时对全部生效） ──
+function subtitleScaleOffsetTargets() {
   const hasSelection = selectedIdxs.size > 0;
-  const indices = hasSelection ? [...selectedIdxs] : [];
+  return hasSelection ? [...selectedIdxs] : [];
+}
+function applySubtitleTimeEdit(label, editFn) {
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
-  const plan = window.AsrEditorUtils.planSubtitleExtension(DATA.segments, indices, {
-    forwardMs,
-    backwardMs,
-    durationMs: getSubtitleTimelineDuration(),
+  const selected = subtitleScaleOffsetTargets();
+  // 按时间顺序逐条约束：前面的结果作为后面字幕的邻居边界，整组移动/缩放也不会互相重叠。
+  const indices = (selected.length ? selected : DATA.segments.map((_, i) => i))
+    .slice().sort((a, b) => DATA.segments[a].start - DATA.segments[b].start);
+  let changed = 0;
+  let limited = 0;
+  let linkedChanged = false;
+  const changedSegments = [];
+  const oldRanges = new Map();
+  const working = DATA.segments.map((segment) => ({ ...segment }));
+  indices.forEach((index) => {
+    const current = working[index];
+    if (!current) return;
+    const desired = editFn(current);
+    if (!desired) return;
+    // 防重叠：与波形拖动同一条约束路径——期望范围被夹到前句终点与后句起点之间，
+    // 空隙放不下时保持原时间不动。保存时的「时间重叠」修复卡片从此不再被触发。
+    const constrained = constrainCueRangeToTrack(current, desired.start, desired.end, working);
+    if (constrained.blocked) {
+      limited += 1;
+      return;
+    }
+    if (constrained.start !== desired.start || constrained.end !== desired.end) limited += 1;
+    if (constrained.start === current.start && constrained.end === current.end) return;
+    oldRanges.set(current.id, { start: current.start, end: current.end });
+    working[index] = { ...current, start: constrained.start, end: constrained.end };
+    changedSegments.push(working[index]);
+    changed += 1;
   });
-  if (plan.changedIndices.length) {
-    pushUndo('延长字幕');
-    let linkedChanged = false;
-    const changedSegments = [];
-    plan.changes.forEach((change) => {
-      const segment = DATA.segments[change.index];
-      if (!segment || !change.changed) return;
-      const syncPatch = { oldStart: segment.start, oldEnd: segment.end, mode: 'range' };
-      // 这里的 items 绝对时间码保持原样，延长只改变字幕段的外壳范围。
-      segment.start = change.start;
-      segment.end = change.end;
-      segment._dirty = true;
-      changedSegments.push(segment);
-      linkedChanged = syncBoundExtensionForMain(segment, syncPatch) || linkedChanged;
-    });
-    markMainSegmentsDirty(changedSegments);
-    syncTimelineGroupRanges();
-    if (linkedChanged || multiSubtitleVisible()) markMultiSubtitleDirty();
-    syncBindingOffsets();
-    scheduleAutoSaveFlush();
-    renderAll();
-    updateWithoutCueListAutoScroll();
-  }
-  const scope = hasSelection ? `已处理 ${plan.indices.length} 个选中字幕` : `已处理 ${plan.indices.length} 个字幕`;
-  flashHint(
-    `${scope}：完整延长 ${plan.fullCount} 条，部分延长 ${plan.partialCount} 条，未延长 ${plan.unchangedCount} 条`,
-    plan.changedIndices.length ? 'success' : 'warning',
-  );
+  if (!changed) return { changed: 0, limited };
+  pushUndo(label);
+  DATA.segments = working;
+  changedSegments.forEach((segment) => { segment._dirty = true; });
+  // 主字幕缩放/偏移同步带动绑定的副字幕（与延长字幕同一条绑定同步路径）。
+  changedSegments.forEach((segment) => {
+    const previous = oldRanges.get(segment.id);
+    if (!previous) return;
+    linkedChanged = syncBoundExtensionForMain(segment, {
+      oldStart: previous.start,
+      oldEnd: previous.end,
+      mode: 'range',
+    }) || linkedChanged;
+  });
+  markMainSegmentsDirty(changedSegments);
+  syncTimelineGroupRanges();
+  if (linkedChanged || multiSubtitleVisible()) markMultiSubtitleDirty();
+  syncBindingOffsets();
+  scheduleAutoSaveFlush();
+  renderAll();
+  if (linkedChanged) updateWithoutCueListAutoScroll();
+  return { changed, limited };
 }
+function clampSegmentTime(start, end) {
+  const s2 = Math.max(0, Math.round(start));
+  const e2 = Math.max(s2 + 1, Math.round(end));
+  return [s2, e2];
+}
+function initSubtitleScaleOffsetControls() {
+  const percentInput = document.getElementById('subtitle-scale-percent');
+  const startInput = document.getElementById('subtitle-start-offset-ms');
+  const endInput = document.getElementById('subtitle-end-offset-ms');
+  const shiftInput = document.getElementById('subtitle-shift-ms');
+  if (!percentInput || !startInput || !endInput || !shiftInput) return;
+  const num = (input) => {
+    const value = Number(input.value);
+    return Number.isFinite(value) ? value : null;
+  };
+  const limitedSuffix = (result) => (result?.limited
+    ? `（${result.limited} 条受相邻字幕限制）` : '');
+
+  // 缩放：percent% 缩放 + 邻居约束。锚点=各自中心（默认）或整组范围
+  // （选中整体的起止等比缩放，组内间隔同比）。供输入提交 / 滚轮 / 步进按钮共用。
+  const applyScalePercent = (percent) => {
+    if (!Number.isFinite(percent) || percent <= 0) {
+      flashHint('缩放比例必须是大于 0 的数字', 'invalid');
+      return null;
+    }
+    const factor = percent / 100;
+    const anchor = document.getElementById('subtitle-scale-anchor')?.value === 'group'
+      ? 'group' : 'center';
+    let groupStart = 0;
+    if (anchor === 'group') {
+      const targets = subtitleScaleOffsetTargets();
+      const indices = targets.length ? targets : DATA.segments.map((_, i) => i);
+      const starts = indices.map((i) => DATA.segments[i]?.start).filter(Number.isFinite);
+      groupStart = starts.length ? Math.min(...starts) : 0;
+    }
+    const result = applySubtitleTimeEdit(`缩放字幕 ${percent}%`, (segment) => {
+      let start; let end;
+      if (anchor === 'group') {
+        start = groupStart + (segment.start - groupStart) * factor;
+        end = groupStart + (segment.end - groupStart) * factor;
+      } else {
+        const duration = segment.end - segment.start;
+        const center = (segment.start + segment.end) / 2;
+        start = center - (duration * factor) / 2;
+        end = center + (duration * factor) / 2;
+      }
+      if (Math.round(start) === segment.start && Math.round(end) === segment.end) return null;
+      return { start, end };
+    });
+    if (result.changed) {
+      flashHint(`已缩放字幕至 ${percent}%${limitedSuffix(result)}`, 'success');
+      // 应用后回到 100：与偏移行“应用后归零”一致，避免误以为还会再次缩放。
+      percentInput.value = '100';
+    }
+    return result;
+  };
+  // 偏移：mode 决定动哪条边。供输入提交 / 滚轮 / 步进按钮共用。
+  const applyOffsetDelta = (mode, delta) => {
+    if (!Number.isFinite(delta) || delta === 0) return null;
+    const result = applySubtitleTimeEdit(`${mode}偏移 ${delta}ms`, (segment) => {
+      let start = segment.start; let end = segment.end;
+      if (mode === '起点') start += delta;
+      else if (mode === '终点') end += delta;
+      else { start += delta; end += delta; }
+      if (start === segment.start && end === segment.end) return null;
+      return { start, end };
+    });
+    if (result.changed) flashHint(`已${mode}偏移 ${delta}ms${limitedSuffix(result)}`, 'success');
+    return result;
+  };
+  // 暴露给滚轮多档步进（滚轮绑定在弹窗区块，位于本函数之后）。
+  applySubtitleScaleWheel = applyScalePercent;
+  applySubtitleOffsetWheel = applyOffsetDelta;
+
+  percentInput.addEventListener('change', () => applyScalePercent(num(percentInput)));
+  // 偏移行：Enter 或 change 提交后应用并把输入框归零（便于连续多次偏移）。
+  const offsetHandler = (input, mode) => {
+    const apply = () => {
+      const delta = num(input);
+      if (delta === null || delta === 0) return;
+      const result = applyOffsetDelta(mode, delta);
+      if (result?.changed) input.value = '0';
+    };
+    input.addEventListener('change', apply);
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      input.blur();
+      apply();
+    });
+  };
+  offsetHandler(startInput, '起点');
+  offsetHandler(endInput, '终点');
+  offsetHandler(shiftInput, '整体');
+
+}
+let applySubtitleScaleWheel = null;
+let applySubtitleOffsetWheel = null;
+initSubtitleScaleOffsetControls();
+
+// 「字幕 → 缩放/偏移字幕」详情弹窗。
+const subtitleScaleModal = document.getElementById('subtitle-scale-offset-modal');
+const subtitleScaleFloatingPanel = createFloatingPanel({
+  panel: subtitleScaleModal,
+  dragHandle: document.getElementById('subtitle-scale-offset-drag'),
+  positionKey: 'moy.asr.editor.subtitleScalePanel.pos.v1',
+});
+document.getElementById('subtitle-scale-offset-open')?.addEventListener('click', () => {
+  if (subtitleScaleModal?.classList.contains('show')) subtitleScaleFloatingPanel.close();
+  else subtitleScaleFloatingPanel.open();
+});
+document.getElementById('subtitle-scale-offset-close')?.addEventListener('click', () => subtitleScaleFloatingPanel.close());
+// 步进按钮：单击 ±1（缩放 1%、偏移 1ms）；长按 300ms 后每 70ms 连发。
+subtitleScaleModal?.querySelectorAll('.gap-remove-step-btn').forEach((button) => {
+  const input = document.getElementById(button.dataset.stepFor || '');
+  if (!input) return;
+  const dir = Number(button.dataset.stepDir) || 1;
+  const isScale = input.id === 'subtitle-scale-percent';
+  let repeatTimer = 0;
+  let holdTimer = 0;
+  const stop = () => { clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer = 0; repeatTimer = 0; };
+  const stepOnce = () => {
+    if (isScale) {
+      const current = Number(input.value) || 100;
+      applySubtitleScaleWheel?.(Math.min(1000, Math.max(1, Math.round(current + dir))));
+    } else {
+      const mode = input.id === 'subtitle-start-offset-ms' ? '起点'
+        : input.id === 'subtitle-end-offset-ms' ? '终点' : '整体';
+      applySubtitleOffsetWheel?.(mode, dir);
+    }
+  };
+  button.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    stepOnce();
+    holdTimer = setTimeout(() => {
+      repeatTimer = setInterval(stepOnce, 70);
+    }, 300);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => button.addEventListener(type, stop));
+});
+
+// 滚轮即时应用（多档步进）：缩放 ±1%（Shift ±5%）；偏移 ±10ms（Shift ±100ms、Ctrl ±1ms）。
+subtitleScaleModal?.querySelectorAll('input[type="number"]').forEach((input) => {
+  input.addEventListener('wheel', (event) => {
+    if (!event.deltaY) return;
+    event.preventDefault();
+    input.focus({ preventScroll: true });
+    const isScale = input.id === 'subtitle-scale-percent';
+    let step;
+    if (isScale) step = event.shiftKey ? 5 : 1;
+    else if (event.ctrlKey || event.metaKey) step = 1;
+    else if (event.shiftKey) step = 100;
+    else step = 10;
+    const dir = event.deltaY < 0 ? 1 : -1;
+    if (isScale) {
+      const current = Number(input.value) || 100;
+      applySubtitleScaleWheel?.(Math.min(1000, Math.max(1, Math.round(current + dir * step))));
+    } else {
+      const mode = input.id === 'subtitle-start-offset-ms' ? '起点'
+        : input.id === 'subtitle-end-offset-ms' ? '终点' : '整体';
+      applySubtitleOffsetWheel?.(mode, dir * step);
+    }
+  }, { passive: false });
+});
+
+// 「延长字幕」工具窗已由「缩放字幕」子菜单取代，原函数移除。
 
 // === 拼合字幕 ===
 // 把工具窗参数同步到控件；「吸收过短字幕」关闭时禁用短句相关参数。
@@ -8864,6 +9162,9 @@ function refreshMediaSeekControlLabels() {
   const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
   const backLabel = language === 'en' ? `Back ${milliseconds}ms` : `后退 ${milliseconds}ms`;
   const forwardLabel = language === 'en' ? `Forward ${milliseconds}ms` : `前进 ${milliseconds}ms`;
+  // 按钮内显示的秒数（1000ms → 1s；非整秒保留一位小数）。
+  const seconds = milliseconds / 1000;
+  const shortLabel = `${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)}s`;
   if (mediaStepBack) {
     mediaStepBack.setAttribute('aria-label', backLabel);
     mediaStepBack.title = backLabel;
@@ -8872,6 +9173,10 @@ function refreshMediaSeekControlLabels() {
     mediaStepForward.setAttribute('aria-label', forwardLabel);
     mediaStepForward.title = forwardLabel;
   }
+  const backText = document.getElementById('media-step-back-label');
+  const forwardText = document.getElementById('media-step-forward-label');
+  if (backText) backText.textContent = shortLabel;
+  if (forwardText) forwardText.textContent = shortLabel;
 }
 
 function syncPlaybackRateOption(rate) {
@@ -11107,29 +11412,25 @@ function isMergedBilingualProject() {
   return withNewline >= Math.ceil(segments.length * 0.6);
 }
 
-const downloadMainSrtButton = document.getElementById('download-main-srt');
 function updateSubtitleExportUi() {
   const hasColors = usedSubtitleColors().some((color) => color.name !== 'default');
   if (downloadColorSrtItem) downloadColorSrtItem.hidden = !hasColors;
   if (downloadGapRemovedColorSrtItem) downloadGapRemovedColorSrtItem.hidden = !hasColors;
   if (subtitleExportDropdown) subtitleExportDropdown.hidden = false;
-  if (downloadMultiSrtButton) {
-    // 无副轨时「仅导出副字幕」灰显（保持可见，用 title 说明原因）。
-    const hasExtension = multiSubtitleVisible() && Boolean(getActiveExtensionTrack()?.segments?.length);
-    downloadMultiSrtButton.disabled = !hasExtension;
-    downloadMultiSrtButton.title = hasExtension
-      ? '导出当前副字幕轨（SRT）' : '当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕';
-  }
-  if (downloadMainSrtButton) {
-    // 双语合并工程下主轨本身就是双语字幕：文案改为「导出双语字幕」。
-    const merged = isMergedBilingualProject();
-    const mainLabel = merged ? '导出双语字幕' : '仅导出主字幕';
-    const mainHint = merged ? '导出合并后的双语字幕（SRT）' : '仅导出主字幕轨（SRT）';
-    if (downloadMainSrtButton.textContent !== mainLabel) {
-      downloadMainSrtButton.textContent = mainLabel;
-    }
-    downloadMainSrtButton.title = mainHint;
-  }
+  const hasExtension = multiSubtitleVisible() && Boolean(getActiveExtensionTrack()?.segments?.length);
+  const extSrt = document.getElementById('download-ext-srt');
+  const extAss = document.getElementById('download-ext-ass');
+  if (extSrt) extSrt.hidden = !hasExtension;
+  if (extAss) extAss.hidden = !hasExtension;
+  // 双语合并工程的主轨本身就是双语字幕：主字幕项文案改为「双语字幕（SRT/ASS）」。
+  const merged = isMergedBilingualProject();
+  const mainSrt = document.getElementById('download-full-srt');
+  const mainAss = document.getElementById('download-full-ass');
+  if (mainSrt) mainSrt.textContent = merged ? '双语字幕（SRT）' : '主字幕（SRT）';
+  if (mainAss) mainAss.textContent = merged ? '双语字幕（ASS）' : '主字幕（ASS）';
+  const mainTitle = merged ? '主轨为双语合并字幕，导出即双语字幕' : '导出主字幕轨';
+  if (mainSrt) mainSrt.title = mainTitle;
+  if (mainAss) mainAss.title = mainTitle;
 }
 
 async function downloadColorSrts(gapRemoved = false) {
@@ -11414,7 +11715,7 @@ function buildWorkspaceJson() {
   const workspace = buildCurrentWorkspaceData();
   if (workspace) {
     workspace.colors = EDITOR_SETTINGS.colors || null;
-    workspace.themePreset = EDITOR_SETTINGS.themePreset || 'dark';
+    workspace.themePreset = EDITOR_SETTINGS.themePreset || 'default';
   }
   return JSON.stringify(workspace || {}, null, 2);
 }
@@ -12166,7 +12467,7 @@ function focusProjectValidationTarget(target) {
   // 校验错误不能因为用户当前的筛选状态而再次变得不可见。
   if (hideDisabled && segment.disabled) {
     hideDisabled = false;
-    hideDisabledToggle.checked = false;
+    hideDisabledToggle.checked = true;  // 勾选 = 显示
     container.classList.remove('hide-disabled');
   }
   const cueSelector = target.kind === 'extension'
@@ -12176,8 +12477,13 @@ function focusProjectValidationTarget(target) {
   if (cueBeforeFilter?.classList.contains('hidden')) {
     searchEl.value = '';
     refreshSearchClearVisibility();
-    const filterOver = document.getElementById('filter-over');
-    if (filterOver?.classList.contains('active')) filterOver.classList.remove('active');
+    const charInput = document.getElementById('charcount-threshold');
+    if (charInput?.value !== '') {
+      charInput.value = '';
+      if (timedTextEditCharcountThresholdInput) timedTextEditCharcountThresholdInput.value = '';
+      updateEditorSettings({ cueListCharcountThreshold: 0 });
+      clearTemporaryVisibleSplitCues();
+    }
     applySearch('');
   }
 
@@ -13300,24 +13606,45 @@ document.addEventListener('keydown', (event) => {
   closeOgrafExportModal();
 }, true);
 
-downloadMultiSrtButton?.addEventListener('click', async () => {
-  if (extensionEditingState) finishExtensionEdit(true);
-  const track = getActiveExtensionTrack();
-  if (!track) return;
-  await downloadFile(buildExtensionSrt(track), `${FILENAME_BASE}_extension.srt`, 'text/plain', {
-    desc: '副字幕 SRT 文件', types: { 'text/plain': ['.srt'] },
-  });
-});
 document.getElementById('download-full-srt')?.addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   await downloadFile(buildSrt(), `${FILENAME_BASE}.srt`, 'text/plain', {
-    desc: '完整 SRT 字幕文件', types: { 'text/plain': ['.srt'] }
+    desc: 'SRT 字幕文件', types: { 'text/plain': ['.srt'] }
   });
 });
 document.getElementById('download-full-ass')?.addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   await downloadFile(buildAss(), `${FILENAME_BASE}.ass`, 'text/plain', {
-    desc: '完整 ASS 字幕文件', types: { 'text/plain': ['.ass'] }
+    desc: 'ASS 字幕文件', types: { 'text/plain': ['.ass'] }
+  });
+});
+document.getElementById('download-ext-srt')?.addEventListener('click', async () => {
+  const track = getActiveExtensionTrack();
+  if (!track?.segments?.length) {
+    flashHint('当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕', 'invalid');
+    return;
+  }
+  if (editingState) finishEdit(true);
+  await downloadFile(buildExtensionSrt(track), `${FILENAME_BASE}.extension.srt`, 'text/plain', {
+    desc: '副字幕 SRT 文件', types: { 'text/plain': ['.srt'] },
+  });
+});
+document.getElementById('download-ext-ass')?.addEventListener('click', async () => {
+  const track = getActiveExtensionTrack();
+  if (!track?.segments?.length) {
+    flashHint('当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕', 'invalid');
+    return;
+  }
+  if (editingState) finishEdit(true);
+  const firstIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
+    track.segments, EDITOR_SETTINGS.exportStartAtZero,
+  );
+  await downloadFile(window.AsrEditorUtils.buildAssPayload(track.segments, {
+    alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
+    firstEnabledIndex: firstIndex,
+    appearance: getStoredExtensionSubtitleAppearance(),
+  }), `${FILENAME_BASE}.extension.ass`, 'text/plain', {
+    desc: '副字幕 ASS 文件', types: { 'text/plain': ['.ass'] },
   });
 });
 document.getElementById('download-color-srt')?.addEventListener('click', () => downloadColorSrts(false));
@@ -13776,36 +14103,8 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
     dd.closest('.cue-list-toolbar, .toolbar')?.addEventListener('scroll', positioner);
   }
 }
-// 顶部工具栏已改为菜单栏（见文末 menubar 模块）；此函数继续服务
-// 字幕列表的批量操作与颜色过滤下拉（下方原有调用保持不变）。
-function positionBatchOperationsMenu() {
-  const dropdown = document.getElementById('batch-operations-dropdown');
-  const button = document.getElementById('batch-operations-btn');
-  const menu = document.getElementById('batch-operations-menu');
-  if (!dropdown?.classList.contains('open') || !button || !menu) return;
-  const buttonRect = button.getBoundingClientRect();
-  const menuWidth = menu.offsetWidth;
-  const menuHeight = menu.offsetHeight;
-  const margin = 8;
-  const left = Math.min(
-    Math.max(margin, buttonRect.left),
-    Math.max(margin, window.innerWidth - menuWidth - margin),
-  );
-  const belowTop = buttonRect.bottom + 6;
-  const aboveTop = buttonRect.top - menuHeight - 6;
-  let top = belowTop;
-  if (belowTop + menuHeight > window.innerHeight - margin && aboveTop >= margin) {
-    top = aboveTop;
-  } else if (belowTop + menuHeight > window.innerHeight - margin) {
-    top = Math.max(margin, window.innerHeight - menuHeight - margin);
-  }
-  menu.style.left = `${left}px`;
-  menu.style.top = `${top}px`;
-}
-bindToolbarExportDropdown(
-  'batch-operations-dropdown', 'batch-operations-btn', 'batch-operations-menu',
-  positionBatchOperationsMenu,
-);
+// 字幕列表的批量操作已上移到「字幕 → 批量操作」子菜单；颜色过滤改为
+// 字幕列表设置弹窗内的色圈行，均不再需要旧的下拉定位逻辑。
 
 // === 打开工程 ===
 const openProjectFileInput = document.getElementById('open-project-file');
@@ -17828,18 +18127,50 @@ function closeMenubarMenus() {
   openMenubarItem = null;
 }
 
-// 鼠标移出整个菜单栏（含展开的菜单面板，它们都在 #menubar 的 DOM 内）后自动收起。
+// 鼠标离开当前展开的菜单标签（及其下拉面板）后自动收起，与模块标签栏一致。
+// 面板都在 #menubar 的 DOM 内，但菜单栏条上的空白区域不算「还在标签上」——
+// 用 document 级 pointerover 跟踪：不在展开条目（或其他标签，供悬浮切换）上即排程关闭；
+// 280ms 缓冲容忍标签与面板之间、子菜单 aim 走廊里的短暂划过。
 const menubarContainer = menubarItems[0]?.closest('.menubar');
 let menubarLeaveTimer = null;
+function scheduleMenubarClose() {
+  clearTimeout(menubarLeaveTimer);
+  menubarLeaveTimer = setTimeout(() => closeMenubarMenus(), 280);
+}
+function cancelMenubarClose() {
+  clearTimeout(menubarLeaveTimer);
+  menubarLeaveTimer = null;
+}
 if (menubarContainer) {
-  menubarContainer.addEventListener('pointerleave', () => {
-    clearTimeout(menubarLeaveTimer);
-    menubarLeaveTimer = setTimeout(() => closeMenubarMenus(), 280);
+  menubarContainer.addEventListener('pointerleave', scheduleMenubarClose);
+  menubarContainer.addEventListener('pointerenter', cancelMenubarClose);
+  document.addEventListener('pointerover', (event) => {
+    if (!openMenubarItem) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (openMenubarItem.contains(target) || target.closest('.menubar-item')) cancelMenubarClose();
+    else scheduleMenubarClose();
   });
-  menubarContainer.addEventListener('pointerenter', () => {
-    clearTimeout(menubarLeaveTimer);
-    menubarLeaveTimer = null;
-  });
+}
+
+// 子菜单若超出视口底部则向上翻转，避免页面出现滚动条（布局抖动的根因）。
+function clampMenubarSubmenu(menu) {
+  if (!menu || getComputedStyle(menu).display === 'none') return;
+  menu.style.maxHeight = '';
+  const rect = menu.getBoundingClientRect();
+  if (rect.height <= 0) return;
+  const wrapper = menu.closest('.dropdown-submenu');
+  const wrapperTop = wrapper ? wrapper.getBoundingClientRect().top : rect.top;
+  const spaceBelow = window.innerHeight - wrapperTop - 12;
+  if (rect.bottom > window.innerHeight - 8) {
+    // 向上翻并按可用高度截断（内容在菜单内滚动），不再把页面撑出滚动条。
+    menu.style.maxHeight = `${Math.max(160, Math.min(rect.height, spaceBelow))}px`;
+    menu.style.top = 'auto';
+    menu.style.bottom = '-5px';
+  } else {
+    menu.style.bottom = '';
+    menu.style.top = '';
+  }
 }
 
 function refreshMenubarMenu(item) {
@@ -17857,6 +18188,9 @@ function refreshMenubarMenu(item) {
 
 function setMenubarItemOpen(item, open, { focusFirst = false } = {}) {
   if (!item) return;
+  requestAnimationFrame(() => {
+    item.querySelectorAll('.dropdown-submenu-menu').forEach(clampMenubarSubmenu);
+  });
   if (!open) {
     item.classList.remove('open');
     item.querySelector(':scope > .menubar-tab')?.setAttribute('aria-expanded', 'false');
@@ -17963,20 +18297,45 @@ function bindMenubarSubmenus(menu) {
     if (open) {
       clearPendingSubmenuSwitch();
       submenuWrappers.forEach((other) => {
-        if (other !== wrapper) closeSubmenu(other);
+        // 嵌套子菜单（如「更多导出」里的 OTIO）是父菜单的后代：
+        // 打开嵌套项时保留祖先链，只关平级；关闭父项时连带关掉后代。
+        if (other !== wrapper && !wrapper.contains(other) && !other.contains(wrapper)) closeSubmenu(other);
       });
+      let ancestor = wrapper.parentElement?.closest('.dropdown-submenu');
+      while (ancestor) {
+        clearSubmenuClose(ancestor);
+        ancestor = ancestor.parentElement?.closest('.dropdown-submenu');
+      }
     }
     wrapper.classList.toggle('open', open);
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) requestAnimationFrame(() => clampMenubarSubmenu(submenu));
     if (open && focusFirst) directItems(submenu)[0]?.focus();
   };
   const scheduleSubmenuClose = (wrapper) => {
     clearSubmenuClose(wrapper);
     const timer = setTimeout(() => {
       submenuCloseTimers.delete(wrapper);
-      if (!wrapper.matches(':hover') && !wrapper.contains(document.activeElement)) {
-        closeSubmenu(wrapper);
+      if (wrapper.matches(':hover') || wrapper.contains(document.activeElement)) return;
+      // menu-aim：指针若正朝已开子菜单移动（toggle→子菜单近角的三角形内），
+      // 视为途中经过父菜单区域（如「更多导出」→OTIO 的斜线路径），顺延而非立即关闭。
+      const submenu = wrapper.querySelector(':scope > .dropdown-submenu-menu');
+      const point = lastPointerPoint;
+      if (submenu && point && lastPointInsideOpenWrapper) {
+        const submenuRect = submenu.getBoundingClientRect();
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const nearCorner = {
+          x: submenuRect.left <= wrapperRect.left + MENUBAR_SUBMENU_AIM_TOLERANCE_PX
+            ? submenuRect.right : submenuRect.left,
+          y: submenuRect.top + Math.min(24, submenuRect.height / 2),
+        };
+        const farCorner = { x: nearCorner.x, y: submenuRect.bottom };
+        if (pointInTriangle(point, lastPointInsideOpenWrapper, nearCorner, farCorner)) {
+          scheduleSubmenuClose(wrapper);
+          return;
+        }
       }
+      closeSubmenu(wrapper);
     }, MENUBAR_SUBMENU_CLOSE_DELAY_MS);
     submenuCloseTimers.set(wrapper, timer);
   };
@@ -18096,9 +18455,15 @@ menubarItems.forEach((item) => {
     event.preventDefault();
     setMenubarItemOpen(item, true, { focusFirst: event.key === 'ArrowDown' });
   });
-  // 已有菜单展开时，横向滑到其它选项卡直接切换（UE 菜单栏行为）。
+  // 悬浮直接展开；已有菜单时横向滑到其它选项卡直接切换（UE 菜单栏行为）。
+  let tabHoverTimer = null;
   item.addEventListener('pointerenter', () => {
-    if (openMenubarItem && openMenubarItem !== item) setMenubarItemOpen(item, true);
+    clearTimeout(tabHoverTimer);
+    tabHoverTimer = setTimeout(() => setMenubarItemOpen(item, true), 120);
+  });
+  item.addEventListener('pointerleave', () => {
+    clearTimeout(tabHoverTimer);
+    tabHoverTimer = null;
   });
   menu.addEventListener('click', (event) => {
     if (event.target.closest('label, select, input, textarea')) return;
@@ -18155,6 +18520,31 @@ function rebuildWorkspacePresetMenu() {
     label.className = 'workspace-preset-name';
     label.textContent = option.textContent;
     item.append(check, label);
+    // 自定义工作区（saved:*）条目带叉删除，与模块标签的 × 一致。
+    if (option.value.startsWith('saved:')) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'workspace-preset-delete';
+      remove.title = '删除此自定义工作区';
+      remove.setAttribute('aria-label', `删除自定义工作区「${option.textContent}」`);
+      remove.innerHTML = X_GLYPH_SVG;
+      remove.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        const name = option.value.slice('saved:'.length);
+        if (!confirm(`确定删除工作区「${name}」吗？`)) return;
+        try {
+          await updateServerWorkspaceSettings({ deleteWorkspaceName: name });
+          if (currentServerWorkspaceName === name) currentServerWorkspaceName = '';
+          refreshWorkspaceSelect();
+          syncWorkspaceControls();
+          rebuildWorkspacePresetMenu();
+          flashHint(`已删除工作区：${name}`, 'success');
+        } catch (error) {
+          flashHint(`删除工作区失败：${error.message || error}`, 'warning');
+        }
+      });
+      item.appendChild(remove);
+    }
     item.addEventListener('click', () => {
       if (option.value === workspacePresetSelect.value) return;
       workspacePresetSelect.value = option.value;
@@ -18305,12 +18695,7 @@ document.getElementById('subtitle-load-srt')?.addEventListener('click', () => {
   loadSrtFileInput.value = '';
   loadSrtFileInput.click();
 });
-document.getElementById('download-main-srt')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  await downloadFile(buildSrt(), `${FILENAME_BASE}.srt`, 'text/plain', {
-    desc: '完整 SRT 字幕文件', types: { 'text/plain': ['.srt'] },
-  });
-});
+// 「仅导出主/副字幕」已并入「文件 → 导出 → 导出字幕」。
 document.getElementById('media-player-settings-item')?.addEventListener('click', () => {
   setSubtitlePreviewSettingsPanelOpen(true);
 });
@@ -18324,6 +18709,26 @@ document.getElementById('help-quick-start')?.addEventListener('click', () => {
 document.getElementById('help-basic')?.addEventListener('click', () => {
   openHelpAtTab('basic');
 });
+// 「文件 → 退出编辑器」：通知本地服务器停止（仅服务器版可用），然后关闭页面。
+const exitEditorItem = document.getElementById('exit-editor');
+if (exitEditorItem && SERVER_CONFIG?.saveUrl) exitEditorItem.hidden = false;
+exitEditorItem?.addEventListener('click', async () => {
+  exitEditorItem.disabled = true;
+  try {
+    if (SERVER_CONFIG?.saveUrl) {
+      await fetch(new URL('/api/shutdown', window.location.href), { method: 'POST' });
+    }
+  } catch (_) {
+    // 服务器可能已停止或网络断开；仍然尝试关闭页面。
+  }
+  window.close();
+  // 浏览器可能拒绝脚本关闭非脚本打开的页面：给出可手动关闭的提示。
+  setTimeout(() => {
+    exitEditorItem.disabled = false;
+    flashHint('服务器已停止，可以关闭此标签页了', 'success');
+  }, 400);
+});
+
 document.getElementById('help-website')?.addEventListener('click', () => {
   window.open('https://moyf.github.io/moys-asr-workflow/', '_blank', 'noopener');
 });
@@ -18373,7 +18778,7 @@ function updateProjectDetailCard() {
   const savedMap = readProjectSavedAtMap();
   savedEl.textContent = currentName && savedMap[currentName]
     ? formatProjectSavedAt(savedMap[currentName])
-    : '—';
+    : '尚未保存';
 }
 
 if (menubarProjectWrap && projectDetailCard) {
@@ -18546,9 +18951,19 @@ function applyEditorSettingsSearch(query) {
   content?.classList.add('show-all-categories');
   editorSettingsCategories.forEach((category) => {
     let categoryMatchCount = 0;
-    category.querySelectorAll('.settings-subsection').forEach((subsection) => {
+    // 无子分区（如外观）的分类直接以子组行作为可搜索单元。
+    const subsections = category.querySelectorAll('.settings-subsection');
+    const searchScopes = subsections.length
+      ? subsections
+      : category.querySelectorAll('.editor-settings-sub-group').length
+        ? [category]
+        : [];
+    searchScopes.forEach((subsection) => {
       let matchCount = 0;
-      subsection.querySelectorAll('.editor-settings-sub-group > *').forEach((row) => {
+      const rowScope = subsections.length
+        ? subsection.querySelectorAll('.editor-settings-sub-group > *')
+        : subsection.querySelectorAll('.editor-settings-sub-group > *');
+      rowScope.forEach((row) => {
         if (row.classList.contains('editor-settings-title')) return;
         const rowText = `${row.textContent || ''}\n${row.getAttribute('title') || ''}`.toLowerCase();
         const hit = rowText.includes(normalized) && !row.hidden;
@@ -18590,40 +19005,69 @@ document.getElementById('wave-settings-close')?.addEventListener('click', () => 
 
 // === 「媒体 → 音频设置 → 空隙」：非字幕片段设为空隙（一次性动作，可撤销） ===
 function computeNonSubtitleGapPieces() {
-  const gaps = getGapRemoveGaps();
-  if (!gaps || !gaps.length) return null;
-  const enabled = DATA.segments.filter((segment) => !segment.disabled);
+  // 与音量/静音扫描无关：把「全部音频时长里未被启用字幕覆盖」的区段标记为空隙。
+  const duration = Number.isFinite(player?.duration) && player.duration > 0
+    ? Math.round(player.duration * 1000)
+    : Number(waveformEditor?.payload?.duration_ms || 0);
+  if (!Number.isFinite(duration) || duration <= 0) return null;
+  const enabled = DATA.segments
+    .filter((segment) => !segment.disabled)
+    .map((segment) => [Math.max(0, Number(segment.start) || 0), Math.min(duration, Number(segment.end) || 0)])
+    .filter(([start, end]) => end > start)
+    .sort((a, b) => a[0] - b[0]);
   const pieces = [];
-  gaps.forEach((gap) => {
-    let spans = [[gap.start, gap.end]];
-    enabled.forEach((segment) => {
-      const next = [];
-      spans.forEach(([start, end]) => {
-        if (segment.end <= start || segment.start >= end) {
-          next.push([start, end]);
-          return;
-        }
-        if (segment.start > start) next.push([start, segment.start]);
-        if (segment.end < end) next.push([segment.end, end]);
-      });
-      spans = next.filter(([start, end]) => end - start >= 1);
-    });
-    spans.forEach(([start, end]) => pieces.push({ start, end }));
+  let cursor = 0;
+  enabled.forEach(([start, end]) => {
+    if (start > cursor) pieces.push({ start: cursor, end: start });
+    cursor = Math.max(cursor, end);
   });
-  return pieces.length ? pieces : null;
+  if (cursor < duration) pieces.push({ start: cursor, end: duration });
+  const usable = pieces.filter((piece) => piece.end - piece.start >= 1);
+  return usable.length ? usable : null;
 }
+// 「字幕 → 字幕列表设置」详情弹窗
+const cueListSettingsModal = document.getElementById('cue-list-settings-modal');
+const cueListSettingsFloatingPanel = createFloatingPanel({
+  panel: cueListSettingsModal,
+  dragHandle: document.getElementById('cue-list-settings-drag-handle'),
+  positionKey: 'moy.asr.editor.cueListSettingsPanel.pos.v1',
+});
+document.getElementById('cue-list-settings-open')?.addEventListener('click', () => {
+  if (cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.close();
+  else cueListSettingsFloatingPanel.open();
+});
+document.getElementById('cue-list-settings-close')?.addEventListener('click', () => cueListSettingsFloatingPanel.close());
+
+document.getElementById('gap-clear-all-menu')?.addEventListener('click', () => {
+  const state = getGapRemoveData(false);
+  if (!state?.gaps?.length) {
+    flashHint('当前没有空隙区段记录', 'invalid');
+    return;
+  }
+  pushGapRemoveUndo('清理全部空隙区段');
+  state.gaps = [];
+  setGapRemoveData(state, { clearProvenance: true });
+  flashHint('已清理全部空隙区段', 'success');
+});
+
 document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () => {
   const pieces = computeNonSubtitleGapPieces();
   if (!pieces) {
-    flashHint('没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描', 'invalid');
+    flashHint('没有可处理的空隙；请先加载媒体', 'invalid');
     return;
   }
   const state = getGapRemoveData(false);
   pushGapRemoveUndo('非字幕片段设为空隙');
-  commitManualGapRemoveChange(
-    state,
-    pieces.map((piece) => ({ start: piece.start, end: piece.end, removed: true })),
-  );
+  // 以 audio_gate 源写入（而非手动记录），波形上与静音空隙同一样式，不带蓝框区分。
+  const core = window.AsrGapRemoveCore;
+  const provenance = core.normalizeGapRemoveProvenance(state?.provenance, core.normalizeGapRemoveGaps(state?.gaps));
+  provenance.sources.audio_gate = core.normalizeGapRemoveProvenance
+    ? [...provenance.sources.audio_gate, ...pieces.map((piece) => ({ start: piece.start, end: piece.end }))]
+    : provenance.sources.audio_gate;
+  const projectedGaps = core.gapRangesFromProvenance(provenance);
+  state.gaps = projectedGaps;
+  state.provenance = provenance;
+  setGapRemoveData(state, { provenance });
   flashHint(`已把 ${pieces.length} 段非字幕片段设为空隙`, 'success');
 });
 
@@ -18654,10 +19098,23 @@ function rebuildShowModuleMenu() {
 // 预设与整族强调色变量的应用见 applyThemeAndColors；这里负责取色器与恢复默认。
 const INTERFACE_COLOR_VARS = {
   bg: '--bg-base',
+  menubar: '--bg-panel',
+  raised: '--bg-raised',
+  input: '--form-input-bg',
+  overlay: '--menu-overlay-bg',   // 选项卡：菜单栏/模块标签展开的悬浮面板
+  popup: '--tab-overlay-bg',      // 弹窗：居中弹窗与工具窗
   text: '--text-primary',
-  wave: '--wave-peak',
-  subtitle: '--editor-cue-text',
+  textMuted: '--text-secondary',
   accent: '--accent',
+  wave: '--wave-peak',
+  // 字幕色：列表+编辑区+波形块文字（媒体预览字幕除外，归媒体播放器设置）。
+  subtitle: '--editor-cue-text',
+  waveCueText: '--wave-cue-text',  // 与 subtitle 联动（改字幕色同时覆盖两处）
+  toolbar: '--panel-toolbar-bg-wave',
+  gap: '--gap-accent',
+  cueBlock: '--wave-cue-block',
+  // 命中：波形中当前位置的指示条与当前字幕块的轮廓（同一令牌）。
+  hit: '--wave-playhead',
 };
 function interfaceColorDefault(key) {
   const value = getComputedStyle(document.documentElement)
@@ -18675,9 +19132,15 @@ Object.keys(INTERFACE_COLOR_VARS).forEach((key) => {
   const input = document.getElementById(`interface-color-${key}`);
   if (!input) return;
   input.addEventListener('input', () => {
-    // 拖动取色器时只更新 CSS 变量（轻量）；松手后再持久化并重绘波形。
+    // 拖动取色器时更新 CSS 变量；波形相关键即时重绘画布，其余松手后持久化。
     if (key === 'accent') setAccentVarFamily(document.documentElement.style, input.value);
     else document.documentElement.style.setProperty(INTERFACE_COLOR_VARS[key], input.value);
+    if (key === 'popup') applyOverlayDerived(input.value);
+    if (key === 'hit') applyHitDerived(input.value);
+    if (key === 'wave' || key === 'subtitle' || key === 'cueBlock' || key === 'gap') {
+      waveformEditor?._readWaveColors?.();
+      waveformEditor?.render?.();
+    }
   });
   input.addEventListener('change', () => {
     const next = { ...(EDITOR_SETTINGS.colors || {}) };
@@ -18688,12 +19151,147 @@ Object.keys(INTERFACE_COLOR_VARS).forEach((key) => {
   });
 });
 document.getElementById('interface-colors-reset')?.addEventListener('click', () => {
+  const presetId = EDITOR_SETTINGS.themePreset || 'default';
+  if (presetId.startsWith('custom:')) {
+    // 自定义主题：恢复到建立时保存的快照，而不是默认预设配色。
+    const snapshot = readCustomThemes().find((t) => `custom:${t.name}` === presetId);
+    updateEditorSettings({ colors: snapshot?.colors ? { ...snapshot.colors } : null });
+    applyThemeAndColors();
+    flashHint('已恢复该自定义主题建立时的颜色', 'success');
+    return;
+  }
   updateEditorSettings({ colors: null });
+  // 恢复默认同时清掉该预设的暂存覆盖。
+  const CUSTOM_THEME_COLORS_KEY = 'moy.asr.editor.themeCustomColors.v1';
+  try {
+    const stash = JSON.parse(localStorage.getItem(CUSTOM_THEME_COLORS_KEY) || '{}');
+    delete stash[presetId];
+    localStorage.setItem(CUSTOM_THEME_COLORS_KEY, JSON.stringify(stash));
+    scheduleAppearanceSync(); // 暂存清理同步到服务器
+  } catch (_) { /* 隐私模式忽略 */ }
   applyThemeAndColors();
   flashHint('已恢复当前主题的默认颜色', 'success');
 });
+// ── 自定义主题：按当前外观快照命名保存，可切换/删除 ──
+const CUSTOM_THEMES_KEY = 'moy.asr.editor.customThemes.v1';
+function readCustomThemes() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CUSTOM_THEMES_KEY) || '[]');
+    // 兼容早期快照：缺 theme 字段的记录按深色补默认，不再因字段缺失把用户主题从列表里藏掉
+    // （数据一直在 localStorage，此前只是被 filter 静默过滤导致「不见了」的观感）。
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((t) => t && t.name)
+      .map((t) => ({ ...t, theme: t.theme === 'light' ? 'light' : 'dark' }));
+  } catch (_) {
+    return [];
+  }
+}
+function writeCustomThemes(themes) {
+  try { localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes)); } catch (_) { /* 隐私模式忽略 */ }
+  scheduleAppearanceSync(); // 自定义主题增删同步到服务器
+}
+function refreshThemeCustomList() {
+  const list = document.getElementById('theme-custom-list');
+  if (!list) return;
+  const themes = readCustomThemes();
+  const active = (EDITOR_SETTINGS.themePreset || '').startsWith('custom:');
+  list.replaceChildren();
+  themes.forEach((theme) => {
+    const value = `custom:${theme.name}`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'theme-preset' + (active && EDITOR_SETTINGS.themePreset === value ? ' active' : '');
+    btn.dataset.themePreset = value;
+    btn.title = `自定义主题「${theme.name}」`;
+    btn.innerHTML = `<span class="theme-swatch" style="background: linear-gradient(135deg, ${theme.colors?.bg || '#22262e'} 50%, ${theme.colors?.accent || theme.accent || '#6ca5e8'} 50%);" aria-hidden="true"></span><span>${theme.name}</span>`;
+    btn.addEventListener('click', () => {
+      applyCustomTheme(theme);
+    });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'workspace-preset-delete';
+    remove.title = '删除此自定义主题';
+    remove.setAttribute('aria-label', `删除自定义主题「${theme.name}」`);
+    remove.innerHTML = X_GLYPH_SVG;
+    remove.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const themes2 = readCustomThemes().filter((item) => item.name !== theme.name);
+      writeCustomThemes(themes2);
+      if (EDITOR_SETTINGS.themePreset === `custom:${theme.name}`) {
+        updateEditorSettings({ themePreset: 'default', theme: 'dark', accent: 'blue', colors: null });
+        applyThemeAndColors();
+      }
+      refreshThemeCustomList();
+      flashHint(`已删除自定义主题「${theme.name}」`, 'success');
+    });
+    btn.appendChild(remove);
+    list.appendChild(btn);
+  });
+}
+function applyCustomTheme(theme) {
+  updateEditorSettings({
+    themePreset: `custom:${theme.name}`,
+    theme: theme.theme,
+    accent: theme.accent || 'blue',
+    colors: theme.colors || null,
+  });
+  applyThemeAndColors();
+  refreshThemeCustomList();
+  flashHint(`已切换到自定义主题「${theme.name}」`, 'success');
+}
+document.getElementById('theme-custom-add')?.addEventListener('click', () => {
+  const name = prompt('为新主题命名：');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim().slice(0, 24);
+  const themes = readCustomThemes();
+  if (themes.some((item) => item.name === trimmed)) {
+    flashHint(`已存在同名主题「${trimmed}」`, 'invalid');
+    return;
+  }
+  // 快照读取当前「实际生效」的颜色：设置里的自定义色 + 各取色器当前值（含被 CSS 变量内联覆盖的）。
+  const liveColors = {};
+  Object.keys(INTERFACE_COLOR_VARS).forEach((colorKey) => {
+    const input = document.getElementById(`interface-color-${colorKey}`);
+    if (input && /^#[0-9a-fA-F]{6}$/.test(input.value)) liveColors[colorKey] = input.value.toLowerCase();
+  });
+  const snapshot = {
+    name: trimmed,
+    theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
+    accent: EDITOR_SETTINGS.accent || 'blue',
+    colors: Object.keys(liveColors).length ? liveColors : (EDITOR_SETTINGS.colors || null),
+  };
+  themes.push(snapshot);
+  writeCustomThemes(themes);
+  applyCustomTheme(snapshot);
+});
+(function migrateRetiredPresets() {
+  // 已移除的预设：八云紫（由小铃接替）。一次性把仍指向它的存储迁到小铃并清掉它的暂存。
+  // 紫苑预设已回归（配色 = 用户「新的紫苑配色」固化值），不做任何迁移或暂存清理。
+  // 另清掉历史「吸收机制」的落盘残留。
+  try {
+    localStorage.removeItem('moy.asr.editor.asterPreset.v1');
+    localStorage.removeItem('moy.asr.editor.asterAbsorbed.v1');
+    const KEY = 'moy.asr.editor.themeCustomColors.v1';
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const stash = JSON.parse(raw);
+      if (stash && typeof stash === 'object' && stash.yukari) {
+        delete stash.yukari;
+        localStorage.setItem(KEY, JSON.stringify(stash));
+      }
+    }
+    if (EDITOR_SETTINGS.themePreset === 'yukari') {
+      updateEditorSettings({ themePreset: 'kosuzu', theme: 'dark', accent: 'orange', colors: null });
+    }
+  } catch (_) { /* 隐私模式忽略 */ }
+})();
+refreshThemeCustomList();
+
 // 初次应用放在取色器区块之后：applyThemeAndColors 依赖本区块的 INTERFACE_COLOR_VARS。
 applyThemeAndColors({ rerenderWaveform: false });
+// 服务器版：启动时拉取服务器上的外观副本（主题偏好/自定义主题），本地为准的模式（file://）跳过。
+void syncAppearanceBoot();
 
 // 新手引导通过这个窄桥接访问编辑器核心状态；引导本身在 editor-onboarding.js 中按需初始化。
 window.MAWE_EDITOR_BRIDGE = Object.freeze({
@@ -18731,18 +19329,10 @@ void loadServerStartup();
 startServerConnectionMonitor();
 if (SERVER_CONFIG?.startupStatus !== 'loading') void loadDeferredReapeaks();
 
-document.getElementById('filter-over')?.addEventListener('click', (e) => {
-  e.currentTarget.classList.toggle('active');
-  if (!e.currentTarget.classList.contains('active')) {
-    clearTemporaryVisibleSplitCues();
-  }
-  applySearch(searchEl.value);
-});
-
 // 「隐藏禁用项」开关：开启后禁用项 display:none，并从选中集移除
 hideDisabledToggle?.addEventListener('change', () => {
   const cueListAnchor = captureCueListRenderAnchor();
-  hideDisabled = hideDisabledToggle.checked;
+  hideDisabled = !hideDisabledToggle.checked;  // 勾选 = 显示禁用字幕
   updateEditorSettings({ cueListHideDisabled: hideDisabled });
   container.classList.toggle('hide-disabled', hideDisabled);
   if (hideDisabled) {

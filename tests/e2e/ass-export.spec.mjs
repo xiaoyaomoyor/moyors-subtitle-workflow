@@ -82,7 +82,7 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
   });
 
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
-  await expect(page.locator('#download-full-ass')).toHaveText('完整字幕（ASS）');
+  await expect(page.locator('#download-full-ass')).toHaveText('主字幕（ASS）');
   await clickMenubarItem(page, '文件', 'download-full-ass');
 
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
