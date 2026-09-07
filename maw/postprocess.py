@@ -197,11 +197,41 @@ def run_llm_postprocess(
 ) -> SubtitleArtifact:
     _notify_status(on_status, "toolbox_status_reading")
     project, source_project, source_srt = _load_input(request.project_path, request.srt_path)
+    if request.operation in ONE_TO_ONE_TRANSLATION_OPERATIONS:
+        _reject_recursive_translation_input(source_project, source_srt, request.operation)
+    result = process_llm_snapshot(project, request, complete=complete, on_status=on_status)
+    _notify_status(on_status, "toolbox_status_writing")
+    return _write(
+        result.project, source_project, source_srt, result.operation,
+        request.output_mode, result.warnings,
+        output_directory=request.output_directory, media_path=request.media_path,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LlmSnapshotResult:
+    project: JsonDict
+    warnings: tuple[str, ...]
+    operation: str
+
+
+def process_llm_snapshot(
+    project: JsonDict,
+    request: LlmPostprocessRequest,
+    *,
+    complete: LlmComplete,
+    on_status: LlmStatus | None = None,
+) -> LlmSnapshotResult:
+    """Process an immutable in-memory project without reading/writing artifacts.
+
+    The file workflow and editor jobs share the same batching, strict translation
+    repair budget and timestamp validation. Callers wrap ``complete`` to cancel
+    between requests, including protocol-repair requests.
+    """
+    project = normalize_project(copy.deepcopy(project))
     operation_prompt = PROMPTS.get(request.operation, PROMPTS["custom"]) if request.task_prompt is None else request.task_prompt.strip()
     custom = request.custom_prompt.strip()
     strict_translation = request.operation in ONE_TO_ONE_TRANSLATION_OPERATIONS
-    if strict_translation:
-        _reject_recursive_translation_input(source_project, source_srt, request.operation)
     item_aware_resegment = request.operation == "resegment" and _has_complete_items(project)
     system_prompt = _protocol_prompt(
         operation_prompt,
@@ -331,17 +361,7 @@ def run_llm_postprocess(
         )
         output_operation = f"{request.operation}-{BILINGUAL_ARTIFACT_MARKER}"
         warnings = ("已将原始文本和翻译文本合并为单条双语字幕。", *warnings)
-    _notify_status(on_status, "toolbox_status_writing")
-    return _write(
-        processed,
-        source_project,
-        source_srt,
-        output_operation,
-        request.output_mode,
-        warnings,
-        output_directory=request.output_directory,
-        media_path=request.media_path,
-    )
+    return LlmSnapshotResult(processed, tuple(warnings), output_operation)
 
 
 def merge_bilingual_project(

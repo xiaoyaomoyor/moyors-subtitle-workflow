@@ -22,9 +22,12 @@ class EditorAssetContractTests(unittest.TestCase):
                 "editor-runtime.js",
                 "gap-remove-core.js",
                 "editor-utils.js",
+                "msw-project.js",
+                "msw-translation-core.js",
                 "editor-i18n.js",
                 "waveform.js",
                 "editor.js",
+                "msw-processing.js",
                 "editor-onboarding.js",
             ),
         )
@@ -36,9 +39,12 @@ class EditorAssetContractTests(unittest.TestCase):
             "// Shared frontend runtime registry.",
             "// Shared gap-remove data and playback helpers",
             "// Pure editor helpers kept separate",
+            "// MSW project namespace:",
+            "// Pure translation selection,",
             "(function initMaweI18n(global) {",
             "// Framework-neutral waveform runtime.",
             "const EDITOR_SETTINGS_KEY = 'moy.asr.editor.settings.v1';",
+            "// Editor translation UI",
             "const helpOnboardingButton = document.getElementById('help-onboarding');",
         )
         for asset_name, marker in zip(edit.read_editor_script_manifest(), markers):

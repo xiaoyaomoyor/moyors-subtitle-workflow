@@ -198,6 +198,7 @@ __WAVEFORM_CSS__
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+          <button type="button" class="dropdown-item" id="subtitle-translate-btn" role="menuitem" title="翻译选中的主字幕；未选择时翻译全部主字幕">字幕翻译<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
         </div>
       </div>
       <div class="dropdown-separator"></div>
@@ -1879,6 +1880,40 @@ __WAVEFORM_CSS__
     </div>
   </div>
 </div>
+
+<!-- 字幕翻译：非模态工具窗，后台处理时可继续编辑。 -->
+<aside class="gap-remove-panel msw-processing-panel" id="subtitle-translation-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-translation-title">
+  <header class="gap-remove-panel-header" id="subtitle-translation-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕</span><h3 id="subtitle-translation-title">字幕翻译</h3></div>
+    <button type="button" id="subtitle-translation-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕翻译"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p id="translation-scope" class="msw-processing-hint"></p>
+    <p id="translation-unavailable" class="msw-processing-hint" hidden>字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
+    <div id="translation-controls">
+      <div class="msw-processing-fields">
+        <label>翻译目标<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
+        <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
+      </div>
+      <details id="translation-settings" open>
+        <summary>连接设置</summary>
+        <div class="msw-processing-fields msw-processing-single">
+          <label>API 地址<input type="text" id="translation-base-url" autocomplete="off" spellcheck="false"></label>
+          <label>模型<input type="text" id="translation-model" autocomplete="off" spellcheck="false"></label>
+          <label>API Key<input type="password" id="translation-api-key" autocomplete="off" placeholder="已在启动器配置时可留空"></label>
+          <label>思考强度<select id="translation-reasoning"><option value="auto">自动</option><option value="off">关闭</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+        </div>
+        <p id="translation-key-state" class="msw-processing-hint"></p>
+        <div class="msw-processing-actions"><button type="button" id="translation-save-settings">保存配置</button><button type="button" id="translation-test">测试连接</button></div>
+      </details>
+      <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>
+      <p class="msw-processing-hint">完成后写入副字幕；已有副字幕保留位置。处理期间可以继续编辑，修改过的内容不会被自动覆盖。</p>
+      <div class="msw-processing-actions"><button type="button" id="translation-start" class="primary">开始翻译</button></div>
+    </div>
+    <p id="translation-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <section aria-label="翻译任务"><div id="translation-jobs" class="msw-processing-jobs"></div></section>
+  </div>
+</aside>
 
 <!-- 批量替换 modal -->
 <div class="modal-mask" id="replace-modal">

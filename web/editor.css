@@ -1501,11 +1501,18 @@
     box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
   }
   /* 开启「快捷键提示」后提示行紧贴上方标签栏：抵消面板 flex 间距并去掉
-     上圆角（提示行不是模块顶缘，圆角会在标签栏下方留出缺口）。分隔线保留。 */
+     上圆角（提示行不是模块顶缘，圆角会在标签栏下方留出缺口）。分隔线保留。
+     窄宽度时提示换行、工具栏随之变厚（不再固定 28px / 横向裁切）。 */
   .current-cue-panel:has(.cue-editor-key-hints:not([hidden])) > .cue-editor-toolbar {
     margin-top: -10px;
     border-top-left-radius: 0;
     border-top-right-radius: 0;
+    height: auto; min-height: var(--panel-toolbar-h);
+    padding-block: 3px;
+    overflow: visible;
+  }
+  .current-cue-panel:has(.cue-editor-key-hints:not([hidden])) .cue-editor-key-hints {
+    flex-wrap: wrap; white-space: normal;
   }
   /* 自定义/标签布局：模块由槽位负责排布，清掉预设流式布局遗留的外边距（消除模块间空白缝） */
   .layout-module-slot > .player-wrap,
@@ -2334,23 +2341,32 @@
     white-space: nowrap;
   }
   .cue-editor-key-hint { display: inline-flex; align-items: center; gap: 4px; }
-  /* 各模块快捷键提示行：与字幕编辑器提示行同一视觉（贴标签栏、底部分隔线、
-     无上圆角），内容超出时横向滚动（波形行条目最多）。 */
+  /* 各模块快捷键提示行：与字幕编辑器提示行同一视觉（背景/分隔线/投影/kbd）。
+     窄宽度时自动换行变厚（min-height 起步，不横向滚动）。 */
   .module-key-hints:not([hidden]) {
-    display: flex; align-items: center; gap: 10px;
-    height: var(--panel-toolbar-h);
+    display: flex; flex-wrap: wrap; align-items: center; align-content: center;
+    gap: 5px 10px;
+    min-height: var(--panel-toolbar-h); height: auto;
     flex: 0 0 auto; min-width: 0;
-    padding: 0 8px; margin: 0;
+    padding: 3px 8px; margin: 0;
     background: var(--panel-toolbar-bg-wave);
     border-bottom: 1px solid var(--border-subtle);
+    box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
     color: var(--text-muted); font-size: 11px; line-height: 1;
     white-space: nowrap;
-    overflow-x: auto; overflow-y: hidden;
-    scrollbar-width: none;
+    overflow: visible;
   }
-  .module-key-hints::-webkit-scrollbar { display: none; }
   .module-key-hints kbd {
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  /* 波形窗格的 toolbar/scroll 是绝对定位（z-index 30）：提示行同样绝对定位
+     挂在标签栏下缘（z-index 31），显示时由 JS 同步实际高度并把两者下移。 */
+  .waveform-pane > .module-key-hints {
+    position: absolute; top: var(--module-tab-h); left: 0; right: 0; z-index: 31;
+  }
+  .waveform-pane.wave-hints-on > .waveform-toolbar,
+  .waveform-pane.wave-hints-on > .waveform-scroll {
+    top: calc(var(--module-tab-h) + var(--wave-hints-h, var(--panel-toolbar-h)));
   }
   .cue-editor-key-hints kbd {
     padding: 1px 4px; font-size: 10.5px;
@@ -2936,6 +2952,29 @@
   .cue mark { background: var(--amber); color: var(--mark-fg); padding: 0 2px; border-radius: 2px; }
 
   /* === Modal === */
+  .gap-remove-panel.msw-processing-panel { width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 60px); }
+  .msw-processing-panel .gap-remove-panel-body { overflow-y: auto; overscroll-behavior: contain; }
+  .msw-processing-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .msw-processing-single { grid-template-columns: minmax(0, 1fr); margin-top: 10px; }
+  .msw-processing-fields label, .msw-processing-prompt { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
+  .msw-processing-panel input, .msw-processing-panel select, .msw-processing-panel textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font: inherit; }
+  .msw-processing-panel input:focus, .msw-processing-panel select:focus, .msw-processing-panel textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .msw-processing-panel textarea { resize: vertical; min-height: 56px; max-height: 200px; }
+  .msw-processing-panel details { border-block: 1px solid var(--border-subtle); padding-block: 10px; margin-block: 12px; }
+  .msw-processing-panel summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+  .msw-processing-hint { color: var(--text-secondary); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; margin: 8px 0; }
+  .msw-processing-message { font-size: 12px; line-height: 1.65; color: var(--text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .msw-processing-message.is-error { color: var(--red); }
+  .msw-processing-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin-top: 10px; }
+  .msw-processing-actions button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
+  .msw-processing-actions button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  .msw-processing-actions button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .msw-processing-actions button.primary { background: var(--accent); color: var(--text-on-accent, #fff); }
+  .msw-processing-actions button:disabled { opacity: .5; cursor: not-allowed; }
+  .msw-processing-job { border-top: 1px solid var(--border-subtle); padding-block: 12px; font-size: 12px; }
+  .msw-translation-results { max-height: 260px; overflow-y: auto; margin-top: 10px; }
+  .msw-translation-results p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); }
+
   .modal-mask {
     position: fixed; inset: 0; background: rgba(0,0,0,0.62);
     backdrop-filter: blur(2px);

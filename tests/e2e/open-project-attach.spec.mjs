@@ -80,10 +80,10 @@ test('dropping a legacy project lets the blank server take over after ID normali
     canSave: SERVER_CONFIG.canSave,
   }))).toEqual({ text: 'AttachedSave', dirty: true, canSave: true });
   const saveRequest = page.waitForRequest((request) => (
-    request.url().endsWith('/api/project') && request.method() === 'POST'
+    request.url().endsWith('/api/msw/project') && request.method() === 'POST'
   ));
   const saveResponse = page.waitForResponse((response) => (
-    response.url().endsWith('/api/project') && response.request().method() === 'POST'
+    response.url().endsWith('/api/msw/project') && response.request().method() === 'POST'
   ));
   await page.keyboard.press('Control+s');
   expect(JSON.parse((await saveRequest).postData()).project.segments[0].text).toBe('AttachedSave');

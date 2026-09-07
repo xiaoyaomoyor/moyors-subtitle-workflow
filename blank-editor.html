@@ -1521,11 +1521,18 @@
     box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
   }
   /* 开启「快捷键提示」后提示行紧贴上方标签栏：抵消面板 flex 间距并去掉
-     上圆角（提示行不是模块顶缘，圆角会在标签栏下方留出缺口）。分隔线保留。 */
+     上圆角（提示行不是模块顶缘，圆角会在标签栏下方留出缺口）。分隔线保留。
+     窄宽度时提示换行、工具栏随之变厚（不再固定 28px / 横向裁切）。 */
   .current-cue-panel:has(.cue-editor-key-hints:not([hidden])) > .cue-editor-toolbar {
     margin-top: -10px;
     border-top-left-radius: 0;
     border-top-right-radius: 0;
+    height: auto; min-height: var(--panel-toolbar-h);
+    padding-block: 3px;
+    overflow: visible;
+  }
+  .current-cue-panel:has(.cue-editor-key-hints:not([hidden])) .cue-editor-key-hints {
+    flex-wrap: wrap; white-space: normal;
   }
   /* 自定义/标签布局：模块由槽位负责排布，清掉预设流式布局遗留的外边距（消除模块间空白缝） */
   .layout-module-slot > .player-wrap,
@@ -2354,23 +2361,32 @@
     white-space: nowrap;
   }
   .cue-editor-key-hint { display: inline-flex; align-items: center; gap: 4px; }
-  /* 各模块快捷键提示行：与字幕编辑器提示行同一视觉（贴标签栏、底部分隔线、
-     无上圆角），内容超出时横向滚动（波形行条目最多）。 */
+  /* 各模块快捷键提示行：与字幕编辑器提示行同一视觉（背景/分隔线/投影/kbd）。
+     窄宽度时自动换行变厚（min-height 起步，不横向滚动）。 */
   .module-key-hints:not([hidden]) {
-    display: flex; align-items: center; gap: 10px;
-    height: var(--panel-toolbar-h);
+    display: flex; flex-wrap: wrap; align-items: center; align-content: center;
+    gap: 5px 10px;
+    min-height: var(--panel-toolbar-h); height: auto;
     flex: 0 0 auto; min-width: 0;
-    padding: 0 8px; margin: 0;
+    padding: 3px 8px; margin: 0;
     background: var(--panel-toolbar-bg-wave);
     border-bottom: 1px solid var(--border-subtle);
+    box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
     color: var(--text-muted); font-size: 11px; line-height: 1;
     white-space: nowrap;
-    overflow-x: auto; overflow-y: hidden;
-    scrollbar-width: none;
+    overflow: visible;
   }
-  .module-key-hints::-webkit-scrollbar { display: none; }
   .module-key-hints kbd {
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  /* 波形窗格的 toolbar/scroll 是绝对定位（z-index 30）：提示行同样绝对定位
+     挂在标签栏下缘（z-index 31），显示时由 JS 同步实际高度并把两者下移。 */
+  .waveform-pane > .module-key-hints {
+    position: absolute; top: var(--module-tab-h); left: 0; right: 0; z-index: 31;
+  }
+  .waveform-pane.wave-hints-on > .waveform-toolbar,
+  .waveform-pane.wave-hints-on > .waveform-scroll {
+    top: calc(var(--module-tab-h) + var(--wave-hints-h, var(--panel-toolbar-h)));
   }
   .cue-editor-key-hints kbd {
     padding: 1px 4px; font-size: 10.5px;
@@ -2956,6 +2972,29 @@
   .cue mark { background: var(--amber); color: var(--mark-fg); padding: 0 2px; border-radius: 2px; }
 
   /* === Modal === */
+  .gap-remove-panel.msw-processing-panel { width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 60px); }
+  .msw-processing-panel .gap-remove-panel-body { overflow-y: auto; overscroll-behavior: contain; }
+  .msw-processing-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .msw-processing-single { grid-template-columns: minmax(0, 1fr); margin-top: 10px; }
+  .msw-processing-fields label, .msw-processing-prompt { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
+  .msw-processing-panel input, .msw-processing-panel select, .msw-processing-panel textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font: inherit; }
+  .msw-processing-panel input:focus, .msw-processing-panel select:focus, .msw-processing-panel textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .msw-processing-panel textarea { resize: vertical; min-height: 56px; max-height: 200px; }
+  .msw-processing-panel details { border-block: 1px solid var(--border-subtle); padding-block: 10px; margin-block: 12px; }
+  .msw-processing-panel summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+  .msw-processing-hint { color: var(--text-secondary); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; margin: 8px 0; }
+  .msw-processing-message { font-size: 12px; line-height: 1.65; color: var(--text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .msw-processing-message.is-error { color: var(--red); }
+  .msw-processing-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin-top: 10px; }
+  .msw-processing-actions button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
+  .msw-processing-actions button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  .msw-processing-actions button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .msw-processing-actions button.primary { background: var(--accent); color: var(--text-on-accent, #fff); }
+  .msw-processing-actions button:disabled { opacity: .5; cursor: not-allowed; }
+  .msw-processing-job { border-top: 1px solid var(--border-subtle); padding-block: 12px; font-size: 12px; }
+  .msw-translation-results { max-height: 260px; overflow-y: auto; margin-top: 10px; }
+  .msw-translation-results p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); }
+
   .modal-mask {
     position: fixed; inset: 0; background: rgba(0,0,0,0.62);
     backdrop-filter: blur(2px);
@@ -5227,6 +5266,7 @@
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+          <button type="button" class="dropdown-item" id="subtitle-translate-btn" role="menuitem" title="翻译选中的主字幕；未选择时翻译全部主字幕">字幕翻译<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
         </div>
       </div>
       <div class="dropdown-separator"></div>
@@ -6908,6 +6948,40 @@
     </div>
   </div>
 </div>
+
+<!-- 字幕翻译：非模态工具窗，后台处理时可继续编辑。 -->
+<aside class="gap-remove-panel msw-processing-panel" id="subtitle-translation-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-translation-title">
+  <header class="gap-remove-panel-header" id="subtitle-translation-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕</span><h3 id="subtitle-translation-title">字幕翻译</h3></div>
+    <button type="button" id="subtitle-translation-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕翻译"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p id="translation-scope" class="msw-processing-hint"></p>
+    <p id="translation-unavailable" class="msw-processing-hint" hidden>字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
+    <div id="translation-controls">
+      <div class="msw-processing-fields">
+        <label>翻译目标<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
+        <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
+      </div>
+      <details id="translation-settings" open>
+        <summary>连接设置</summary>
+        <div class="msw-processing-fields msw-processing-single">
+          <label>API 地址<input type="text" id="translation-base-url" autocomplete="off" spellcheck="false"></label>
+          <label>模型<input type="text" id="translation-model" autocomplete="off" spellcheck="false"></label>
+          <label>API Key<input type="password" id="translation-api-key" autocomplete="off" placeholder="已在启动器配置时可留空"></label>
+          <label>思考强度<select id="translation-reasoning"><option value="auto">自动</option><option value="off">关闭</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+        </div>
+        <p id="translation-key-state" class="msw-processing-hint"></p>
+        <div class="msw-processing-actions"><button type="button" id="translation-save-settings">保存配置</button><button type="button" id="translation-test">测试连接</button></div>
+      </details>
+      <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>
+      <p class="msw-processing-hint">完成后写入副字幕；已有副字幕保留位置。处理期间可以继续编辑，修改过的内容不会被自动覆盖。</p>
+      <div class="msw-processing-actions"><button type="button" id="translation-start" class="primary">开始翻译</button></div>
+    </div>
+    <p id="translation-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <section aria-label="翻译任务"><div id="translation-jobs" class="msw-processing-jobs"></div></section>
+  </div>
+</aside>
 
 <!-- 批量替换 modal -->
 <div class="modal-mask" id="replace-modal">
@@ -14011,6 +14085,225 @@ export default MawDynamicCaptions;
   }
 })();
 
+// MSW project namespace: preserve extensions through every editor entry point.
+(function (global) {
+  'use strict';
+  const SCHEMA = 'msw.editor.v1';
+  const validId = (value) => typeof value === 'string' && value.length >= 1 && value.length <= 128 && !/[^A-Za-z0-9_.:-]/.test(value);
+  const validCueId = (value) => typeof value === 'string' && value.length >= 1 && value.length <= 160 && value === value.trim();
+  const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
+  function normalize(value) {
+    if (value == null) return null;
+    if (typeof value !== 'object' || Array.isArray(value) || value.schema !== SCHEMA) {
+      throw new Error('此工程的 MSW 扩展版本不受支持，请使用对应版本的编辑器打开');
+    }
+    if (!validId(value.project_id)) throw new Error('MSW 工程标识无效');
+    const applied = value.applied_results ?? [];
+    if (!Array.isArray(applied) || applied.length > 10000 || !applied.every(validId)) {
+      throw new Error('MSW 结果记录格式无效');
+    }
+    const partial = value.translation_applications ?? {};
+    if (typeof partial !== 'object' || partial === null || Array.isArray(partial)
+      || Object.keys(partial).length > 10000 || Object.entries(partial).some(([key, ids]) =>
+        !validId(key) || !Array.isArray(ids) || ids.length > 10000 || !ids.every(validCueId))) {
+      throw new Error('MSW 翻译应用记录格式无效');
+    }
+    const targets = value.translation_target_tracks ?? {};
+    if (typeof targets !== 'object' || targets === null || Array.isArray(targets)
+      || Object.keys(targets).length > 10000 || Object.entries(targets).some(([key, id]) => !validId(key) || !validCueId(id))) {
+      throw new Error('MSW 翻译目标记录格式无效');
+    }
+    return clone(value);
+  }
+  function id(prefix = 'msw') {
+    return `${prefix}-${global.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+  }
+  function ensure(project, fallbackId) {
+    if (!project.msw) {
+      project.msw = { schema: SCHEMA, project_id: validId(fallbackId) ? fallbackId : id('project'), applied_results: [] };
+    }
+    return project.msw;
+  }
+  global.MSWProject = Object.freeze({ SCHEMA, validId, clone, normalize, ensure, id });
+  global.MSWE?.register('msw-project', () => global.MSWProject);
+})(window);
+
+// Pure translation selection, placement and optimistic reconciliation.
+(function (global) {
+  'use strict';
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const uid = (prefix) => global.MSWProject.id(prefix);
+  const tracks = (project) => project.multi_subtitle?.tracks || [];
+  const bindings = (project) => project.multi_subtitle?.bindings || [];
+  const overlaps = (a, b) => a.start < b.end && b.start < a.end;
+  function lowerBound(rows, value, field) {
+    let low = 0, high = rows.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (rows[middle][field] < value) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+  const mainBindingMap = (project) => new Map(bindings(project).flatMap(binding =>
+    (binding.main_segment_ids || []).map(id => [id, binding])));
+
+  function scope(project, mainIds = [], extensionIds = [], trackId = null, hasSelection = false) {
+    const selected = new Set(mainIds);
+    const byExtension = new Map(bindings(project).filter(binding => binding.track_id === trackId)
+      .flatMap(binding => (binding.extension_segment_ids || []).map(id => [id, binding])));
+    let ignored = 0;
+    for (const id of extensionIds) {
+      const binding = byExtension.get(id);
+      if (binding?.main_segment_ids?.length === 1) selected.add(binding.main_segment_ids[0]);
+      else ignored += 1;
+    }
+    const sources = (project.segments || []).filter((source) => (!hasSelection || selected.has(source.id))
+      && typeof source.text === 'string' && source.text.trim());
+    return { sources, ignored, all: !hasSelection };
+  }
+
+  function sourceCopy(source) {
+    const result = { id: source.id, start: source.start, end: source.end, text: source.text };
+    if (source.disabled) result.disabled = true;
+    return result;
+  }
+
+  function snapshot(project, selection) {
+    const selected = scope(project, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
+    if (!selected.sources.length) throw new Error('没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译');
+    const track = tracks(project)[0] || null;
+    const byMain = mainBindingMap(project);
+    const byTarget = new Map((track?.segments || []).map(cue => [cue.id, cue]));
+    const ordered = [...(track?.segments || [])].sort((a, b) => a.start - b.start);
+    const used = new Set(bindings(project).filter((binding) => binding.track_id === track?.id)
+      .flatMap((binding) => binding.extension_segment_ids || []));
+    const entries = selected.sources.map((source) => {
+      const binding = byMain.get(source.id);
+      let target = binding?.track_id === track?.id
+        ? byTarget.get(binding?.extension_segment_ids?.[0]) : null;
+      if (!target && !binding && track) {
+        const nearby = ordered.slice(lowerBound(ordered, source.start - 300, 'start'), lowerBound(ordered, source.start + 301, 'start'));
+        const candidates = nearby.filter((cue) => !used.has(cue.id)
+          && Math.abs(cue.start - source.start) <= 300 && Math.abs(cue.end - source.end) <= 300 && overlaps(cue, source))
+          .map((cue) => ({ cue, score: Math.abs(cue.start - source.start) + Math.abs(cue.end - source.end) }))
+          .sort((a, b) => a.score - b.score);
+        // A tie is ambiguous: leave it for conflict handling rather than guess.
+        if (candidates.length && (candidates.length === 1 || candidates[0].score < candidates[1].score)) {
+          target = candidates[0].cue;
+          used.add(target.id);
+        }
+      }
+      return { source: sourceCopy(source), target: target ? sourceCopy(target) : null, binding_id: binding?.id || null };
+    });
+    return { project_id: project.msw.project_id, track_id: track?.id || null, entries };
+  }
+
+  function reconcile(project, input, result, { onlyIds = null, createdTrackId = null } = {}) {
+    if (project.msw?.project_id !== input.project_id) throw new Error('翻译结果属于其他工程');
+    const translations = new Map();
+    const expected = new Set(input.entries.map((entry) => entry.source.id));
+    for (const row of result.translations || []) {
+      if (!expected.has(row.id) || translations.has(row.id) || typeof row.text !== 'string' || !row.text.trim()) {
+        throw new Error('翻译结果包含无效、重复或空白字幕，未应用');
+      }
+      translations.set(row.id, row.text);
+    }
+    if (translations.size !== expected.size) throw new Error('翻译结果缺少字幕，未应用');
+    const multi = clone(project.multi_subtitle || {
+      schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
+    });
+    const currentTrack = multi.tracks[0] || null;
+    const trackChanged = (currentTrack?.id || null) !== (input.track_id || createdTrackId);
+    const track = currentTrack || {
+      id: uid('extension'), role: 'extension', name: '副字幕',
+      language: result.language === 'zh' ? 'Chinese' : 'English',
+      split_mode: result.language === 'zh' ? 'continuous' : 'word', source_name: '字幕翻译', segments: [],
+    };
+    const appliedIds = [];
+    const conflicts = [];
+    const allowed = onlyIds ? new Set(onlyIds) : null;
+    const bySource = new Map(project.segments.map(cue => [cue.id, cue]));
+    const byMain = mainBindingMap(project);
+    const byTarget = new Map(track.segments.map(cue => [cue.id, cue]));
+    const byTargetBinding = new Map(multi.bindings.filter(binding => binding.track_id === track.id)
+      .flatMap(binding => (binding.extension_segment_ids || []).map(id => [id, binding])));
+    track.segments.sort((a, b) => a.start - b.start || a.end - b.end);
+    for (const entry of input.entries) {
+      if (allowed && !allowed.has(entry.source.id)) continue;
+      const source = bySource.get(entry.source.id);
+      const binding = byMain.get(entry.source.id);
+      let reason = '';
+      if (!source) reason = '主字幕已删除、拆分或合并';
+      else if (source.text !== entry.source.text) reason = '主字幕文本已修改';
+      else if (trackChanged) reason = '副字幕轨已变化';
+      else if ((binding?.id || null) !== entry.binding_id) reason = '字幕绑定已变化';
+      else if (binding && binding.track_id !== track.id) reason = '主字幕已绑定到其他副字幕轨';
+      let target = entry.target ? byTarget.get(entry.target.id) : null;
+      if (!reason && entry.target) {
+        const targetBinding = byTargetBinding.get(entry.target.id);
+        if (!target) reason = '目标副字幕已删除';
+        else if (target.text !== entry.target.text) reason = '副字幕文本已修改';
+        else if (targetBinding && (targetBinding.id !== entry.binding_id
+          || targetBinding.main_segment_ids?.[0] !== source.id)) reason = '副字幕已绑定到其他字幕';
+        else if (binding && (binding.track_id !== track.id
+          || binding.extension_segment_ids?.[0] !== target.id)) reason = '字幕绑定目标已变化';
+      }
+      if (!reason && !target) {
+        const slot = lowerBound(track.segments, source.start, 'start');
+        if ((slot > 0 && overlaps(track.segments[slot - 1], source))
+          || (slot < track.segments.length && overlaps(track.segments[slot], source))) reason = '没有可用副字幕位置，新建会与已有字幕重叠';
+        else {
+          target = { id: uid('translation'), start: source.start, end: source.end, text: '' };
+          if (Number.isInteger(source.start_frame) && Number.isInteger(source.end_frame)) {
+            target.start_frame = source.start_frame;
+            target.end_frame = source.end_frame;
+          }
+          if (source.disabled) target.disabled = true;
+          track.segments.splice(slot, 0, target);
+          byTarget.set(target.id, target);
+        }
+      }
+      if (reason) {
+        conflicts.push({ id: entry.source.id, source: entry.source.text, text: translations.get(entry.source.id), reason });
+        continue;
+      }
+      if (target.text !== translations.get(source.id)) delete target.items;
+      target.text = translations.get(source.id);
+      target._dirty = true;
+      if (!binding) {
+        multi.bindings.push({ id: uid('binding'), track_id: track.id,
+          main_segment_ids: [source.id], extension_segment_ids: [target.id],
+          start_offset_ms: target.start - source.start, end_offset_ms: target.end - source.end });
+      }
+      appliedIds.push(source.id);
+    }
+    if (appliedIds.length) {
+      track.segments.sort((a, b) => a.start - b.start || a.end - b.end);
+      for (let index = 1; index < track.segments.length; index += 1) {
+        if (track.segments[index].start < track.segments[index - 1].end) throw new Error('副字幕存在重叠，翻译结果未应用');
+      }
+      if (!currentTrack) multi.tracks.push(track);
+      multi.enabled = true;
+      multi._dirty = true;
+      if (!currentTrack) multi.display_mode = 'both';
+      for (const binding of multi.bindings) {
+        const source = bySource.get(binding.main_segment_ids?.[0]);
+        const targetTrack = multi.tracks.find((candidate) => candidate.id === binding.track_id);
+        const target = targetTrack?.id === track.id ? byTarget.get(binding.extension_segment_ids?.[0])
+          : targetTrack?.segments.find((cue) => cue.id === binding.extension_segment_ids?.[0]);
+        if (source && target) {
+          binding.start_offset_ms = target.start - source.start;
+          binding.end_offset_ms = target.end - source.end;
+        }
+      }
+    }
+    return { multi, appliedIds, conflicts };
+  }
+  global.MSWTranslation = Object.freeze({ scope, snapshot, reconcile });
+  global.MSWE?.register('msw-translation', () => global.MSWTranslation);
+})(window);
+
 (function initMaweI18n(global) {
   'use strict';
 
@@ -14022,6 +14315,39 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '字幕翻译': 'Translate subtitles', '关闭字幕翻译': 'Close subtitle translation',
+    '翻译选中的主字幕；未选择时翻译全部主字幕': 'Translate selected main subtitles, or all main subtitles when nothing is selected',
+    '字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。': 'Subtitle translation requires the local server. Open the editor from Launcher to use it.',
+    '翻译目标': 'Target language', '英文': 'English', '翻译服务': 'Translation service',
+    '连接设置': 'Connection settings', 'API 地址': 'API base URL', '模型': 'Model',
+    '已在启动器配置时可留空': 'Leave blank to use the key configured in Launcher',
+    '思考强度': 'Reasoning effort', '低': 'Low', '中': 'Medium', '高': 'High',
+    '自动': 'Auto', '智谱 Coding Plan': 'Zhipu Coding Plan', '阿里云 Qwen': 'Alibaba Cloud Qwen',
+    '保存配置': 'Save settings', '测试连接': 'Test connection', '开始翻译': 'Start translation',
+    '补充要求（可选）': 'Additional instructions (optional)',
+    '例如：人名保持原文，使用自然口语': 'For example: keep names unchanged and use natural dialogue',
+    '完成后写入副字幕；已有副字幕保留位置。处理期间可以继续编辑，修改过的内容不会被自动覆盖。': 'Results update secondary subtitles while preserving existing positions. You can keep editing; changed text will not be overwritten automatically.',
+    '翻译任务': 'Translation tasks', '范围：全部主字幕': 'Scope: all main subtitles',
+    '范围：选中的主字幕': 'Scope: selected main subtitles', '已忽略未绑定副字幕': 'Unbound secondary subtitles ignored',
+    '已配置本机密钥；留空即可复用启动器设置': 'A local key is configured; leave blank to reuse Launcher settings',
+    '尚未配置密钥；可填写后使用或保存': 'No key configured; enter one to use or save',
+    '等待处理': 'Queued', '正在处理': 'Processing', '处理完成': 'Completed', '处理失败': 'Failed',
+    '正在取消': 'Cancelling', '已取消': 'Cancelled', '服务中断，未自动重试': 'Service interrupted; not retried automatically',
+    '结果已应用': 'Results applied', '部分结果需要检查': 'Some results need review', '结果已忽略': 'Results dismissed',
+    '取消任务': 'Cancel task', '查看译文': 'View translations', '检查并应用': 'Review and apply', '忽略结果': 'Dismiss results',
+    '翻译结果': 'Translation results', '查看更多译文': 'Show more translations', '已更新副字幕': 'Secondary subtitles updated', '未应用': 'Not applied',
+    '翻译已开始，可以继续编辑；关闭此窗口不会取消任务': 'Translation started. You can keep editing; closing this panel does not cancel the task.',
+    '正在测试连接': 'Testing connection', '配置已保存，与启动器共用': 'Settings saved and shared with Launcher',
+    '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译': 'No main subtitles to translate. Selecting only unbound secondary subtitles does not translate everything.',
+    '处理服务请求失败': 'Processing request failed',
+    '上次提交尚未确认，请先重试相同操作以确认任务状态': 'The last submission is unconfirmed. Retry the same action to check its status.',
+    '再次点击将确认上次提交，不会重复创建任务': 'Click again to confirm the last submission without creating a duplicate task',
+    '主字幕已删除、拆分或合并': 'Main subtitle was deleted, split or merged', '主字幕文本已修改': 'Main subtitle text changed',
+    '副字幕轨已变化': 'Secondary track changed', '字幕绑定已变化': 'Subtitle binding changed',
+    '主字幕已绑定到其他副字幕轨': 'Main subtitle is bound to another track', '目标副字幕已删除': 'Target subtitle was deleted',
+    '副字幕文本已修改': 'Secondary subtitle text changed', '副字幕已绑定到其他字幕': 'Secondary subtitle is bound to another cue',
+    '字幕绑定目标已变化': 'Binding target changed', '没有可用副字幕位置，新建会与已有字幕重叠': 'No free secondary position; insertion would overlap an existing cue',
+    '保存完成；保存期间的新修改仍未保存': 'Saved; edits made during saving remain unsaved',
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
     // 菜单栏（UE 式顶部菜单）与全局设置窗口
     '文件': 'File', '窗口': 'Window', '全局设置': 'Global settings',
@@ -14886,7 +15212,7 @@ export default MawDynamicCaptions;
   const attributeOriginals = new WeakMap();
   const SKIP_SELECTOR = [
     '#cue-list', '#cue-panel-text', '#overlay', '#sticker-overlay-layer',
-    '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', 'script', 'style'
+    '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', 'script', 'style'
   ].join(',');
   const ATTRIBUTE_SKIP_SELECTOR = [
     // .waveform-cue-block 的 title 是用户字幕原文，不能参与翻译
@@ -14943,6 +15269,9 @@ export default MawDynamicCaptions;
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const processingScope = /^(范围：全部主字幕|范围：选中的主字幕) · (\d+)(?: · 已忽略未绑定副字幕 (\d+))?$/.exec(text);
+    if (processingScope) return `${translateText(processingScope[1], EN)} · ${processingScope[2]}`
+      + (processingScope[3] ? ` · ${translateText('已忽略未绑定副字幕', EN)} ${processingScope[3]}` : '');
     let match = /^该颜色的字幕共\s*(\d+)\s*条；点击只显示所选颜色$/.exec(text);
     if (match) return `${translateText('该颜色的字幕共', EN)} ${match[1]} — click to filter by the selected colors`;
     let matchMainExt = /^(主字幕|副字幕)\s+(\d+)$/.exec(text);
@@ -21830,6 +22159,8 @@ const STICKERS = [];
 let STICKER_ROOT = "";  // 表情包根目录的绝对路径（无尾斜杠）
 let STICKER_URL_PREFIX = "";
 const SERVER_CONFIG = null;
+let mswProjectGeneration = 0;
+window.MSWProject.ensure(DATA, SERVER_CONFIG?.processingContext?.projectId);
 const NINJA_SFX_BASE_URL = "web/sfx/";
 // 关闭/删除叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
 const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
@@ -22987,7 +23318,9 @@ let gapRemoveDirty = false;
 function snapshotSegments() {
   // _dirty 也保留，恢复后能再次导出"工程文件"时正确标记；多字幕数据与主轨
   // 必须处于同一条记录中，绑定/成对删除/联动拆分才能原子撤销。
-  return EDITOR_SETTINGS_UTILS.buildSegmentsHistorySnapshot(DATA.segments, getMultiSubtitleState());
+  const snapshot = EDITOR_SETTINGS_UTILS.buildSegmentsHistorySnapshot(DATA.segments, getMultiSubtitleState());
+  snapshot.msw = window.MSWProject.clone(DATA.msw ?? null);
+  return snapshot;
 }
 function snapshotEditorSelection() {
   const extensionTrack = getActiveExtensionTrack();
@@ -23149,6 +23482,7 @@ function applyHistoryRecord(record) {
   DATA.multi_subtitle = snapshot.multi_subtitle || {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'msw')) DATA.msw = window.MSWProject.normalize(snapshot.msw);
   normalizeMultiSubtitleState();
   // 历史恢复会改变下标身份；丢弃旧面板绑定，避免 clearSelection() 把旧面板
   // 内容提交到恢复后占据同一下标的另一条字幕，并因此生成新历史、清空 redo。
@@ -24066,11 +24400,29 @@ function bindCueListDisplayToggle(toggle, key) {
 }
 
 // 「帮助 → 快捷键提示」：控制四个模块顶部键位提示行（默认关闭）。
+// 波形窗格的 toolbar/scroll 为绝对定位：提示行显示时同步实际高度
+// （窄宽度换行变厚，用 ResizeObserver 跟踪）并把两者下移、滚动区让位。
+let waveHintsObserver = null;
+function syncWaveHintsGeometry() {
+  const pane = document.querySelector('.waveform-pane');
+  const hints = document.getElementById('wave-key-hints');
+  if (!pane) return;
+  const on = Boolean(hints && !hints.hidden);
+  pane.classList.toggle('wave-hints-on', on);
+  const height = on ? hints.offsetHeight : 0;
+  pane.style.setProperty('--wave-hints-h', `${height}px`);
+  if (waveHintsObserver) waveHintsObserver.disconnect();
+  if (on && hints && typeof ResizeObserver === 'function') {
+    waveHintsObserver = new ResizeObserver(() => syncWaveHintsGeometry());
+    waveHintsObserver.observe(hints);
+  }
+}
 function applyToolbarKbdHints() {
   const shown = Boolean(EDITOR_SETTINGS.toolbarKbdHints);
   document.querySelectorAll('.module-key-hints').forEach((el) => { el.hidden = !shown; });
   const hints = document.getElementById('cue-editor-key-hints');
   if (hints) hints.hidden = !shown;
+  syncWaveHintsGeometry();
 }
 const toolbarKbdHintsToggle = document.getElementById('toolbar-kbd-hints-toggle');
 toolbarKbdHintsToggle?.addEventListener('change', () => {
@@ -34045,6 +34397,7 @@ function buildJson() {
     }),
   };
   const multi = getMultiSubtitleState();
+  if (DATA.msw) out.msw = window.MSWProject.normalize(DATA.msw);
   out.multi_subtitle = {
     schema: multi.schema || MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SCHEMA,
     enabled: multi.enabled === true,
@@ -35777,19 +36130,25 @@ async function saveProjectToServer({ silent = false } = {}) {
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
   const projectJson = buildJson();
+  const savedGeneration = mswProjectGeneration;
   projectSaveInFlight = true;
   try {
-    const saveUrl = new URL(SERVER_CONFIG.saveUrl, window.location.href);
+    const processingContext = SERVER_CONFIG.processingContext;
+    const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: JSON.parse(projectJson), filename: null }),
+      headers: { 'Content-Type': 'application/json', ...(SERVER_CONFIG.processingUrl ? { 'X-MSW-Token': SERVER_CONFIG.requestToken } : {}) },
+      body: JSON.stringify({ project: JSON.parse(projectJson), filename: null,
+        ...(SERVER_CONFIG.processingUrl ? { binding: processingContext?.binding, saveRevision: processingContext?.saveRevision } : {}) }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) {
       throw new Error(result.error || `服务器返回 ${response.status}`);
     }
-    markProjectSaved(result.filename, result.backup, { silent });
+    if (savedGeneration !== mswProjectGeneration) return false;
+    if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
+    if (buildJson() === projectJson) markProjectSaved(result.filename, result.backup, { silent });
+    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
     return true;
   } catch (error) {
     const detail = error?.message || error;
@@ -35818,12 +36177,16 @@ async function saveProjectToHandle({ silent = false } = {}) {
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
   const projectJson = buildJson();
+  const savedGeneration = mswProjectGeneration;
+  const savedHandle = projectFileHandle;
   projectSaveInFlight = true;
   try {
-    const writable = await projectFileHandle.createWritable();
+    const writable = await savedHandle.createWritable();
     await writable.write(new Blob([projectJson], { type: 'application/json;charset=utf-8' }));
     await writable.close();
-    markProjectSaved(projectFileHandle.name, null, { silent });
+    if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
+    if (buildJson() === projectJson) markProjectSaved(savedHandle.name, null, { silent });
+    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
     return true;
   } catch (error) {
     flashHint(`保存失败：${error?.message || error}`, 'warning');
@@ -36816,6 +37179,9 @@ function suggestedProjectName(file = null) {
 }
 
 function applyCanonicalProject(data, filename) {
+  const msw = window.MSWProject.normalize(data.msw);
+  DATA.msw = msw;
+  mswProjectGeneration += 1;
   currentCuePanelIdx = -1;
   currentCuePanelKind = 'main';
   currentCuePanelTrackId = null;
@@ -36848,6 +37214,8 @@ function applyCanonicalProject(data, filename) {
   DATA.segments.length = 0;
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
+  window.MSWProject.ensure(DATA);
+  window.dispatchEvent(new Event('msw:project-changed'));
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: DATA.timebase.unit === 'frames' });
   editorHistory.clear();
   updateUndoRedoButtons();
@@ -37041,6 +37409,8 @@ function replaceMainTrack(segments, displayName = '字幕') {
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
   pushUndo('替换字幕');
+  mswProjectGeneration += 1;
+  window.dispatchEvent(new Event('msw:project-changed'));
   DATA.segments.length = 0;
   (segments || []).forEach((segment) => DATA.segments.push({ ...segment }));
   DATA.multi_subtitle = {
@@ -42118,6 +42488,76 @@ applyThemeAndColors({ rerenderWaveform: false });
 // 服务器版：启动时拉取服务器上的外观副本（主题偏好/自定义主题），本地为准的模式（file://）跳过。
 void syncAppearanceBoot();
 
+// Processing modules use commands rather than mutating editor state themselves.
+function commitProcessingEdits() {
+  if (editingState) finishEdit(true);
+  if (extensionEditingState) finishExtensionEdit(true);
+  commitCuePanelEdit();
+}
+function processingSelection() {
+  const track = getActiveExtensionTrack();
+  return {
+    mainIds: [...selectedIdxs].map((index) => DATA.segments[index]?.id).filter(Boolean),
+    extensionIds: [...selectedExtensionIdxs].map((index) => track?.segments[index]?.id).filter(Boolean),
+    trackId: track?.id || null,
+    hasSelection: selectedIdxs.size > 0 || selectedExtensionIdxs.size > 0,
+  };
+}
+function applyTranslationJob(job) {
+  commitProcessingEdits();
+  const extension = window.MSWProject.ensure(DATA);
+  if (extension.project_id !== job.project_id || job.status !== 'succeeded' || !job.snapshot || !job.result) {
+    throw new Error('翻译结果不属于当前工程或尚未完成');
+  }
+  if ((extension.applied_results || []).includes(job.id)) return { appliedIds: [], conflicts: [], complete: true };
+  const previousIds = extension.translation_applications?.[job.id] || [];
+  const onlyIds = job.snapshot.entries.map((entry) => entry.source.id).filter((id) => !previousIds.includes(id));
+  const createdTrackId = extension.translation_target_tracks?.[job.id] || null;
+  const plan = window.MSWTranslation.reconcile(DATA, job.snapshot, job.result, { onlyIds, createdTrackId });
+  if (plan.appliedIds.length) {
+    const previousStructure = multiSubtitleWaveformStructureKey();
+    const selection = snapshotEditorSelection();
+    pushUndo('字幕翻译', { captureView: true });
+    DATA.multi_subtitle = plan.multi;
+    const applied = [...new Set([...previousIds, ...plan.appliedIds])];
+    if (applied.length === job.snapshot.entries.length) {
+      extension.applied_results = [...(extension.applied_results || []), job.id].slice(-10000);
+      if (extension.translation_applications) delete extension.translation_applications[job.id];
+      if (extension.translation_target_tracks) delete extension.translation_target_tracks[job.id];
+    } else {
+      extension.translation_applications = { ...(extension.translation_applications || {}), [job.id]: applied };
+      if (!job.snapshot.track_id) extension.translation_target_tracks = {
+        ...(extension.translation_target_tracks || {}), [job.id]: plan.multi.tracks[0].id,
+      };
+    }
+    normalizeMultiSubtitleState();
+    projectImportDirty = true;
+    renderAll({ waveform: previousStructure === multiSubtitleWaveformStructureKey() ? 'overlay' : 'full' });
+    restoreEditorSelection(selection);
+    scheduleAutoSaveFlush();
+  }
+  return { ...plan, complete: plan.conflicts.length === 0 };
+}
+window.MSWE?.register('processing-host', () => Object.freeze({
+  get data() { return DATA; },
+  get config() { return SERVER_CONFIG; },
+  get generation() { return mswProjectGeneration; },
+  selection: processingSelection,
+  commitEdits: commitProcessingEdits,
+  isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()
+    || previewGesture || waveformPlayheadDragging || document.activeElement === cuePanelText
+    || document.activeElement?.isContentEditable),
+  capture: () => {
+    commitProcessingEdits();
+    window.MSWProject.ensure(DATA);
+    projectImportDirty = true;
+    return window.MSWTranslation.snapshot(DATA, processingSelection());
+  },
+  applyTranslation: applyTranslationJob,
+  createFloatingPanel,
+  flashHint,
+}));
+
 // 新手引导通过这个窄桥接访问编辑器核心状态；引导本身在 editor-onboarding.js 中按需初始化。
 window.MSWE_EDITOR_BRIDGE = Object.freeze({
   get data() { return DATA; },
@@ -42185,6 +42625,282 @@ hideDisabledToggle?.addEventListener('change', () => {
 window.addEventListener('beforeunload', (e) => {
   if (hasUnsavedProjectChanges()) { e.preventDefault(); e.returnValue = ''; }
 });
+
+// Editor translation UI and asynchronous job client. No provider secrets stored in the page's persistence.
+(function (global) {
+  'use strict';
+  const host = global.MSWE?.resolve('processing-host');
+  if (!host) return;
+  const el = (id) => document.getElementById(id);
+  const t = (value) => global.MSWE_I18N?.translateText?.(value) || value;
+  const panel = el('subtitle-translation-panel');
+  const button = el('subtitle-translate-btn');
+  const available = Boolean(host.config?.processingUrl);
+  const pageId = global.MSWProject.id('page');
+  const clientToken = () => `${pageId}.${host.generation}`;
+  const projectId = () => global.MSWProject.ensure(host.data).project_id;
+  const jobs = new Map();
+  const handled = new Set();
+  const applying = new Set();
+  let providers = [];
+  let cursor = 0;
+  let timer = null;
+  let polling = false;
+  let failures = 0;
+  let requestInFlight = false;
+  let pendingSubmission = null;
+
+  function message(value, error = false) {
+    el('translation-message').textContent = t(value);
+    el('translation-message').classList.toggle('is-error', error);
+  }
+  async function request(route, body = null) {
+    const response = await fetch(`${host.config.processingUrl}/${route}`, {
+      method: body ? 'POST' : 'GET', cache: 'no-store',
+      headers: { 'X-MSW-Token': host.config.requestToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      const error = new Error(data.error || `${t('处理服务请求失败')} (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  }
+  function updateScope() {
+    const selection = host.selection();
+    const scope = global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
+    el('translation-scope').textContent = `${t(scope.all ? '范围：全部主字幕' : '范围：选中的主字幕')} · ${scope.sources.length}`
+      + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
+    el('translation-start').disabled = !available || requestInFlight || !scope.sources.length;
+    const emptyScopeMessage = '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
+    if (selection.hasSelection && !scope.sources.length) message(emptyScopeMessage, true);
+    else if (el('translation-message').textContent === t(emptyScopeMessage)) message('');
+    return scope;
+  }
+  function providerInput() {
+    return { providerId: el('translation-provider').value, baseUrl: el('translation-base-url').value.trim(),
+      model: el('translation-model').value.trim(), apiKey: el('translation-api-key').value,
+      reasoningMode: el('translation-reasoning').value };
+  }
+  function selectProvider() {
+    const provider = providers.find((item) => item.id === el('translation-provider').value);
+    if (!provider) return;
+    el('translation-base-url').value = provider.baseUrl;
+    el('translation-model').value = provider.model;
+    el('translation-reasoning').value = provider.reasoningMode || 'auto';
+    el('translation-api-key').value = '';
+    el('translation-key-state').textContent = t(provider.hasApiKey
+      ? '已配置本机密钥；留空即可复用启动器设置' : '尚未配置密钥；可填写后使用或保存');
+  }
+  async function loadProviders() {
+    try {
+      const selected = el('translation-provider').value;
+      const data = await request('providers');
+      providers = data.providers;
+      el('translation-provider').replaceChildren(...providers.map((provider) => new Option(provider.label, provider.id)));
+      el('translation-provider').value = selected || data.selectedProvider || providers[0]?.id;
+      selectProvider();
+    } catch (error) { message(error.message, true); }
+  }
+  function action(label, callback) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = t(label);
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try { await callback(); } catch (error) { message(error.message, true); }
+      finally { button.disabled = false; }
+    });
+    return button;
+  }
+  const statusText = { queued: '等待处理', running: '正在处理', succeeded: '处理完成', failed: '处理失败',
+    cancel_requested: '正在取消', cancelled: '已取消', interrupted: '服务中断，未自动重试' };
+  function renderJobs() {
+    const fragment = document.createDocumentFragment();
+    for (const job of [...jobs.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 20)) {
+      const card = document.createElement('article');
+      card.className = 'msw-processing-job';
+      card.dataset.jobId = job.id;
+      const title = document.createElement('strong');
+      title.textContent = job.kind === 'connection_test' ? t('测试连接') : `${t('字幕翻译')} · ${job.count}`;
+      const status = document.createElement('p');
+      status.className = 'msw-processing-hint';
+      status.textContent = t(statusText[job.status] || job.status);
+      if (job.status === 'running' && job.progress?.total) status.textContent += ` · ${job.progress.current}/${job.progress.total}`;
+      if (job.application === 'applied') status.textContent += ` · ${t('结果已应用')}`;
+      if (job.application === 'stale') status.textContent += ` · ${t('部分结果需要检查')}`;
+      if (job.application === 'discarded') status.textContent += ` · ${t('结果已忽略')}`;
+      card.append(title, status);
+      if (job.error) {
+        const error = document.createElement('p');
+        error.className = 'msw-processing-message is-error';
+        error.textContent = job.error;
+        card.append(error);
+      }
+      const actions = document.createElement('div');
+      actions.className = 'msw-processing-actions';
+      if (['queued', 'running', 'cancel_requested'].includes(job.status)) {
+        actions.append(action('取消任务', async () => {
+          const result = await request(`jobs/${job.id}/cancel`, { project_id: job.project_id });
+          jobs.set(job.id, result.job); renderJobs(); schedulePoll(0);
+        }));
+      }
+      if (job.status === 'succeeded' && job.kind === 'translation') {
+        actions.append(action('查看译文', () => showResult(job, card)));
+        if (!['applied', 'discarded'].includes(job.application)) {
+          actions.append(action('检查并应用', () => applyResult(job, true)));
+          actions.append(action('忽略结果', async () => {
+            const result = await request(`jobs/${job.id}/ack`, { project_id: job.project_id, application: 'discarded' });
+            handled.add(job.id); jobs.set(job.id, result.job); renderJobs();
+          }));
+        }
+      }
+      card.append(actions);
+      fragment.append(card);
+    }
+    el('translation-jobs').replaceChildren(fragment);
+  }
+  async function showResult(job, card) {
+    const generation = host.generation;
+    const data = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
+    if (generation !== host.generation || job.project_id !== projectId()) return;
+    card.querySelector('.msw-translation-results')?.remove();
+    const preview = document.createElement('div');
+    preview.className = 'msw-translation-results';
+    const sources = new Map(data.job.snapshot.entries.map((entry) => [entry.source.id, entry.source.text]));
+    const rows = data.job.result.translations;
+    let shown = 0;
+    const more = action('查看更多译文', () => appendPage());
+    function appendPage() {
+      more.remove();
+      const end = Math.min(shown + 50, rows.length);
+      for (; shown < end; shown += 1) {
+        const row = rows[shown];
+        const item = document.createElement('div');
+        const source = document.createElement('p'); source.textContent = sources.get(row.id) || '';
+        const text = document.createElement('textarea'); text.readOnly = true; text.rows = 2; text.value = row.text;
+        text.setAttribute('aria-label', t('翻译结果'));
+        item.append(source, text); preview.append(item);
+      }
+      if (shown < rows.length) preview.append(more);
+    }
+    appendPage();
+    card.append(preview);
+  }
+  async function applyResult(job, manual = false) {
+    if (applying.has(job.id) || (!manual && (handled.has(job.id) || host.isEditing()))) return;
+    if (!manual && job.client_token !== clientToken()) return;
+    const generation = host.generation;
+    applying.add(job.id);
+    try {
+      const data = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
+      if (generation !== host.generation || job.project_id !== projectId() || (!manual && host.isEditing())) return;
+      const result = host.applyTranslation(data.job);
+      handled.add(job.id);
+      const text = `${t('已更新副字幕')} ${result.appliedIds.length}`
+        + (result.conflicts.length ? `；${t('未应用')} ${result.conflicts.length}：${[...new Set(result.conflicts.map((item) => t(item.reason)))].join('；')}` : '');
+      message(text, result.conflicts.length > 0);
+      host.flashHint(text, result.conflicts.length ? 'warning' : 'success');
+      // The edit above is synchronous and atomic. Failure to acknowledge never
+      // rolls it back; persistent per-result IDs prevent a duplicate application.
+      const application = result.complete ? 'applied' : 'stale';
+      jobs.set(job.id, { ...job, application }); renderJobs();
+      await request(`jobs/${job.id}/ack`, { project_id: job.project_id, application });
+    } catch (error) {
+      handled.add(job.id);
+      message(error.message, true);
+    } finally { applying.delete(job.id); }
+  }
+  function schedulePoll(delay = 800) {
+    if (!available) return;
+    clearTimeout(timer);
+    timer = setTimeout(poll, delay);
+  }
+  async function poll() {
+    if (polling || !available) return;
+    polling = true;
+    const generation = host.generation;
+    const id = projectId();
+    try {
+      const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${cursor}`);
+      if (generation !== host.generation || id !== projectId()) return;
+      failures = 0; cursor = data.revision;
+      for (const job of data.jobs) jobs.set(job.id, job);
+      if (data.jobs.length) renderJobs();
+      for (const job of jobs.values()) {
+        if (job.status === 'succeeded' && job.application === 'pending' && job.kind === 'translation') await applyResult(job);
+      }
+      const pending = [...jobs.values()].some((job) => ['queued', 'running', 'cancel_requested'].includes(job.status)
+        || (job.status === 'succeeded' && job.application === 'pending' && job.client_token === clientToken() && !handled.has(job.id)));
+      if (pending) schedulePoll();
+    } catch (error) {
+      failures += 1;
+      message(error.message, true);
+      if (failures < 6) schedulePoll(Math.min(10000, 1000 * 2 ** failures));
+    } finally {
+      polling = false;
+      if (generation !== host.generation) schedulePoll(0);
+    }
+  }
+  async function submit(kind) {
+    if (requestInFlight) return;
+    if (pendingSubmission && pendingSubmission.kind !== kind) {
+      message('上次提交尚未确认，请先重试相同操作以确认任务状态', true);
+      return;
+    }
+    const generation = host.generation;
+    try {
+      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture() : null;
+      requestInFlight = true; updateScope();
+      const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),
+        request_key: global.MSWProject.id('request'), snapshot, provider: providerInput(),
+        language: el('translation-language').value, prompt: el('translation-prompt').value };
+      pendingSubmission = payload;
+      const data = await request('jobs', payload);
+      pendingSubmission = null;
+      if (generation !== host.generation) return;
+      jobs.set(data.job.id, data.job);
+      message(kind === 'translation' ? '翻译已开始，可以继续编辑；关闭此窗口不会取消任务' : '正在测试连接');
+      if (kind === 'translation') el('translation-settings').open = false;
+      renderJobs(); schedulePoll(0);
+    } catch (error) {
+      if (error.status && error.status < 500) pendingSubmission = null;
+      message(pendingSubmission ? `${error.message}；${t('再次点击将确认上次提交，不会重复创建任务')}` : error.message, true);
+    } finally { requestInFlight = false; updateScope(); }
+  }
+  const floating = host.createFloatingPanel({ panel, dragHandle: el('subtitle-translation-drag'),
+    anchorButton: document.querySelector('[data-menubar-item="subtitle"] > button'), positionKey: 'msw.translation.panel.position' });
+  button.addEventListener('click', () => {
+    host.commitEdits(); updateScope(); floating.open();
+    if (available) {
+      if (!providers.length) void loadProviders();
+      schedulePoll(0);
+    }
+  });
+  el('subtitle-translation-close').addEventListener('click', () => floating.close());
+  el('translation-unavailable').hidden = available;
+  el('translation-controls').hidden = !available;
+  el('translation-provider').addEventListener('change', selectProvider);
+  el('translation-start').addEventListener('click', () => void submit('translation'));
+  el('translation-test').addEventListener('click', () => void submit('connection_test'));
+  el('translation-save-settings').addEventListener('click', async () => {
+    const button = el('translation-save-settings'); button.disabled = true;
+    try { await request('providers', providerInput()); await loadProviders(); message('配置已保存，与启动器共用'); }
+    catch (error) { message(error.message, true); }
+    finally { button.disabled = false; }
+  });
+  for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => {
+    if (floating.isOpen()) queueMicrotask(updateScope);
+  });
+  global.addEventListener('msw:project-changed', () => {
+    clearTimeout(timer); cursor = 0; jobs.clear(); handled.clear(); pendingSubmission = null;
+    queueMicrotask(() => { updateScope(); renderJobs(); message(''); schedulePoll(0); });
+  });
+  updateScope();
+  if (available) schedulePoll(0);
+})(window);
 
 (() => {
 const helpOnboardingButton = document.getElementById('help-onboarding');

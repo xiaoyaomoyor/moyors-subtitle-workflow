@@ -9,6 +9,39 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '字幕翻译': 'Translate subtitles', '关闭字幕翻译': 'Close subtitle translation',
+    '翻译选中的主字幕；未选择时翻译全部主字幕': 'Translate selected main subtitles, or all main subtitles when nothing is selected',
+    '字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。': 'Subtitle translation requires the local server. Open the editor from Launcher to use it.',
+    '翻译目标': 'Target language', '英文': 'English', '翻译服务': 'Translation service',
+    '连接设置': 'Connection settings', 'API 地址': 'API base URL', '模型': 'Model',
+    '已在启动器配置时可留空': 'Leave blank to use the key configured in Launcher',
+    '思考强度': 'Reasoning effort', '低': 'Low', '中': 'Medium', '高': 'High',
+    '自动': 'Auto', '智谱 Coding Plan': 'Zhipu Coding Plan', '阿里云 Qwen': 'Alibaba Cloud Qwen',
+    '保存配置': 'Save settings', '测试连接': 'Test connection', '开始翻译': 'Start translation',
+    '补充要求（可选）': 'Additional instructions (optional)',
+    '例如：人名保持原文，使用自然口语': 'For example: keep names unchanged and use natural dialogue',
+    '完成后写入副字幕；已有副字幕保留位置。处理期间可以继续编辑，修改过的内容不会被自动覆盖。': 'Results update secondary subtitles while preserving existing positions. You can keep editing; changed text will not be overwritten automatically.',
+    '翻译任务': 'Translation tasks', '范围：全部主字幕': 'Scope: all main subtitles',
+    '范围：选中的主字幕': 'Scope: selected main subtitles', '已忽略未绑定副字幕': 'Unbound secondary subtitles ignored',
+    '已配置本机密钥；留空即可复用启动器设置': 'A local key is configured; leave blank to reuse Launcher settings',
+    '尚未配置密钥；可填写后使用或保存': 'No key configured; enter one to use or save',
+    '等待处理': 'Queued', '正在处理': 'Processing', '处理完成': 'Completed', '处理失败': 'Failed',
+    '正在取消': 'Cancelling', '已取消': 'Cancelled', '服务中断，未自动重试': 'Service interrupted; not retried automatically',
+    '结果已应用': 'Results applied', '部分结果需要检查': 'Some results need review', '结果已忽略': 'Results dismissed',
+    '取消任务': 'Cancel task', '查看译文': 'View translations', '检查并应用': 'Review and apply', '忽略结果': 'Dismiss results',
+    '翻译结果': 'Translation results', '查看更多译文': 'Show more translations', '已更新副字幕': 'Secondary subtitles updated', '未应用': 'Not applied',
+    '翻译已开始，可以继续编辑；关闭此窗口不会取消任务': 'Translation started. You can keep editing; closing this panel does not cancel the task.',
+    '正在测试连接': 'Testing connection', '配置已保存，与启动器共用': 'Settings saved and shared with Launcher',
+    '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译': 'No main subtitles to translate. Selecting only unbound secondary subtitles does not translate everything.',
+    '处理服务请求失败': 'Processing request failed',
+    '上次提交尚未确认，请先重试相同操作以确认任务状态': 'The last submission is unconfirmed. Retry the same action to check its status.',
+    '再次点击将确认上次提交，不会重复创建任务': 'Click again to confirm the last submission without creating a duplicate task',
+    '主字幕已删除、拆分或合并': 'Main subtitle was deleted, split or merged', '主字幕文本已修改': 'Main subtitle text changed',
+    '副字幕轨已变化': 'Secondary track changed', '字幕绑定已变化': 'Subtitle binding changed',
+    '主字幕已绑定到其他副字幕轨': 'Main subtitle is bound to another track', '目标副字幕已删除': 'Target subtitle was deleted',
+    '副字幕文本已修改': 'Secondary subtitle text changed', '副字幕已绑定到其他字幕': 'Secondary subtitle is bound to another cue',
+    '字幕绑定目标已变化': 'Binding target changed', '没有可用副字幕位置，新建会与已有字幕重叠': 'No free secondary position; insertion would overlap an existing cue',
+    '保存完成；保存期间的新修改仍未保存': 'Saved; edits made during saving remain unsaved',
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
     // 菜单栏（UE 式顶部菜单）与全局设置窗口
     '文件': 'File', '窗口': 'Window', '全局设置': 'Global settings',
@@ -873,7 +906,7 @@
   const attributeOriginals = new WeakMap();
   const SKIP_SELECTOR = [
     '#cue-list', '#cue-panel-text', '#overlay', '#sticker-overlay-layer',
-    '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', 'script', 'style'
+    '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', 'script', 'style'
   ].join(',');
   const ATTRIBUTE_SKIP_SELECTOR = [
     // .waveform-cue-block 的 title 是用户字幕原文，不能参与翻译
@@ -930,6 +963,9 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const processingScope = /^(范围：全部主字幕|范围：选中的主字幕) · (\d+)(?: · 已忽略未绑定副字幕 (\d+))?$/.exec(text);
+    if (processingScope) return `${translateText(processingScope[1], EN)} · ${processingScope[2]}`
+      + (processingScope[3] ? ` · ${translateText('已忽略未绑定副字幕', EN)} ${processingScope[3]}` : '');
     let match = /^该颜色的字幕共\s*(\d+)\s*条；点击只显示所选颜色$/.exec(text);
     if (match) return `${translateText('该颜色的字幕共', EN)} ${match[1]} — click to filter by the selected colors`;
     let matchMainExt = /^(主字幕|副字幕)\s+(\d+)$/.exec(text);

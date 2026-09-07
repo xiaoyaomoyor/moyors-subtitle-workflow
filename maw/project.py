@@ -215,6 +215,8 @@ def _normalize_copy(project: JsonValue, errors: list[ProjectValidationError]) ->
         errors.append(ProjectValidationError("$", "must be an object"))
         return {"segments": []}
     normalized = copy.deepcopy(project)
+    from maw.msw.project_codec import validate_extension
+    errors.extend(ProjectValidationError(path, message) for path, message in validate_extension(normalized.get("msw")))
     _validate_timebase(normalized, errors)
     _validate_media_metadata(normalized, errors)
     segments = normalized.get("segments")

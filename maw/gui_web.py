@@ -3249,19 +3249,8 @@ def _mapping_list(value: object) -> tuple[Mapping[str, object], ...]:
 
 
 def _postprocess_values(env_path: Path, prefix: str) -> dict[str, str]:
-    from maw.gui_config import load_env
-
-    values = load_env(env_path)
-    api_key = os.environ.get(f"{prefix}_API_KEY") or values.get(f"{prefix}_API_KEY", "")
-    if prefix == "MAW_POSTPROCESS_QWEN" and not api_key:
-        api_key = os.environ.get("DASHSCOPE_API_KEY") or values.get("DASHSCOPE_API_KEY", "")
-    return {
-        "apiKey": api_key,
-        "baseUrl": os.environ.get(f"{prefix}_BASE_URL") or values.get(f"{prefix}_BASE_URL", ""),
-        "model": os.environ.get(f"{prefix}_MODEL") or values.get(f"{prefix}_MODEL", ""),
-        "displayName": os.environ.get(f"{prefix}_DISPLAY_NAME") or values.get(f"{prefix}_DISPLAY_NAME", ""),
-        "reasoningMode": os.environ.get(f"{prefix}_REASONING_MODE") or values.get(f"{prefix}_REASONING_MODE", DEFAULT_REASONING_MODE),
-    }
+    from maw.msw.config import read_values
+    return read_values(env_path, prefix)
 
 
 def _postprocess_reasoning_mode(payload: Mapping[str, object], file_values: Mapping[str, str]) -> str:

@@ -26,7 +26,7 @@ test('English locale covers the editor shell and recent-project setting stays fi
   await page.goto(server.url);
 
   await expect(page.locator('#open-project')).toHaveText('Open project');
-  await expect(page.locator('#save-project')).toHaveText('Save project');
+  await expect(page.locator('#save-project')).toHaveText(/^Save project(?: Ctrl\+S)?$/);
   await expect(page.locator('#recent-projects-toggle')).toHaveText('Recent projects');
   await expect(page.locator('#search')).toHaveAttribute('placeholder', 'Filter subtitles…');
   await expect(page.locator('#cue-panel-text')).toHaveAttribute('placeholder', 'Select a subtitle to start editing…');
@@ -72,7 +72,7 @@ test('English locale covers the editor shell and recent-project setting stays fi
   await page.keyboard.press('Escape');
 
   await clickLanguageToggleViaSettings(page);
-  await expect(page.locator('#save-project')).toHaveText('保存工程');
+  await expect(page.locator('#save-project')).toHaveText(/^保存工程(?: Ctrl\+S)?$/);
   await expect(page.locator('#search')).toHaveAttribute('placeholder', '过滤字幕…');
   await expect(page.locator('#cue-panel-text')).toHaveAttribute('placeholder', '选择一条字幕开始编辑…');
   expect(await page.evaluate(() => localStorage.getItem('mawe.language'))).toBe('zh');
@@ -83,12 +83,12 @@ test('GUI launch language overrides the saved editor language once and persists 
   await page.evaluate(() => localStorage.setItem('mawe.language', 'zh'));
   await page.goto(`${server.url}?lang=en`);
 
-  await expect(page.locator('#save-project')).toHaveText('Save project');
+  await expect(page.locator('#save-project')).toHaveText(/^Save project(?: Ctrl\+S)?$/);
   expect(await page.evaluate(() => localStorage.getItem('mawe.language'))).toBe('en');
   expect(new URL(page.url()).searchParams.has('lang')).toBe(false);
 
   await page.reload();
-  await expect(page.locator('#save-project')).toHaveText('Save project');
+  await expect(page.locator('#save-project')).toHaveText(/^Save project(?: Ctrl\+S)?$/);
 });
 
 test('Ctrl+S saves and Ctrl+Shift+S invokes save as', async ({ page }) => {
@@ -113,7 +113,7 @@ test('Ctrl+S saves and Ctrl+Shift+S invokes save as', async ({ page }) => {
   await page.goto(server.url);
 
   const saveResponse = page.waitForResponse((response) => (
-    response.url().endsWith('/api/project') && response.request().method() === 'POST'
+    response.url().endsWith('/api/msw/project') && response.request().method() === 'POST'
   ));
   await page.keyboard.press('Control+s');
   expect((await saveResponse).ok()).toBe(true);
@@ -129,7 +129,7 @@ test('Ctrl+S saves and Ctrl+Shift+S invokes save as', async ({ page }) => {
 
 test('validation save error previews the item and jumps to its subtitle', async ({ page }) => {
   await page.goto(server.url);
-  await page.route('**/api/project', async (route) => {
+  await page.route('**/api/msw/project', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
       return;
@@ -159,7 +159,7 @@ test('small subtitle-segment overlap can be auto-repaired and saved again', asyn
   await disableOnboarding(page);
   await page.goto(server.url);
   let saveAttempts = 0;
-  await page.route('**/api/project', async (route) => {
+  await page.route('**/api/msw/project', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
       return;
@@ -190,7 +190,7 @@ test('small subtitle-segment overlap can be auto-repaired and saved again', asyn
   await expect(hint.locator('.hint-project-repair-auto')).toContainText('自动修复');
 
   const retry = page.waitForResponse((response) => (
-    response.url().endsWith('/api/project') && response.request().method() === 'POST'
+    response.url().endsWith('/api/msw/project') && response.request().method() === 'POST'
   ));
   await hint.locator('.hint-project-repair-auto').click();
   expect((await retry).ok()).toBe(true);
@@ -202,7 +202,7 @@ test('small subtitle-segment overlap can be auto-repaired and saved again', asyn
 test('larger subtitle-segment overlap requires an explicit repair direction', async ({ page }) => {
   await disableOnboarding(page);
   await page.goto(server.url);
-  await page.route('**/api/project', async (route) => {
+  await page.route('**/api/msw/project', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
       return;
@@ -234,7 +234,7 @@ test('auto-saves a text edit shortly after it loses focus', async ({ page }) => 
   await page.locator('.cue').first().click();
 
   const saveResponse = page.waitForResponse((response) => (
-    response.url().endsWith('/api/project') && response.request().method() === 'POST'
+    response.url().endsWith('/api/msw/project') && response.request().method() === 'POST'
   ));
   const panelText = page.locator('#cue-panel-text');
   await panelText.fill('Alpha autosaved');
@@ -247,7 +247,7 @@ test('auto-saves a text edit shortly after it loses focus', async ({ page }) => 
 
 test('a disconnected save endpoint offers a JSON fallback download', async ({ page }) => {
   await page.goto(server.url);
-  await page.route('**/api/project', (route) => route.abort('connectionrefused'));
+  await page.route('**/api/msw/project', (route) => route.abort('connectionrefused'));
   await page.evaluate(() => { window.showSaveFilePicker = undefined; });
   page.once('dialog', (dialog) => dialog.accept());
   const download = page.waitForEvent('download');

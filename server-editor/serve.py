@@ -53,6 +53,7 @@ from maw import stickers as _stickers  # noqa: E402
 from maw.app_paths import default_server_settings_path, legacy_server_settings_path  # noqa: E402
 from maw.ffmpeg import resolve_ffmpeg_tools  # noqa: E402
 from maw.gui_config import DEFAULT_ENV_PATH, load_env  # noqa: E402
+from maw.msw.api import ProcessingAPI  # noqa: E402
 from maw.project import (  # noqa: E402
     ProjectValidationFailed,
     normalize_project,
@@ -504,6 +505,7 @@ def build_server_page(
     startup_status: dict[str, object] | None = None,
     *,
     defer_reapeaks: bool = True,
+    processing_context: dict | None = None,
 ) -> bytes:
     """Render with current web/ assets on every page request to prevent UI drift.
 
@@ -576,6 +578,8 @@ def build_server_page(
             "saveUrl": "/api/project",
             "openProjectFolderUrl": "/api/project/open-folder",
             "requestToken": request_token,
+            "processingUrl": "/api/msw" if processing_context is not None else None,
+            "processingContext": processing_context,
             "stickerRootUrl": "/api/stickers/root",
             "portableStickerExportUrl": "/api/exports/sticker-otio",
             "otiozStickerExportUrl": "/api/exports/sticker-otioz",
@@ -662,6 +666,15 @@ class EditorServer(ThreadingHTTPServer):
         self.startup_progress = 0 if project_loader is not None else 100
         self.startup_error = ""
         super().__init__(address, EditorRequestHandler)
+        self.processing_api = ProcessingAPI(
+            self, DEFAULT_ENV_PATH,
+            (settings_path or default_settings_path()).parent,
+        )
+
+    def server_close(self) -> None:
+        if hasattr(self, "processing_api"):
+            self.processing_api.close()
+        super().server_close()
 
     def persist_settings(self) -> None:
         if self.settings_path:
@@ -721,7 +734,9 @@ class EditorServer(ThreadingHTTPServer):
             project = loader(self.update_startup_progress)
             if self.defer_reapeaks:
                 project = without_deferred_reapeaks(project)
-            self.project = project
+            with self.save_lock:
+                self.project = project
+                self.processing_api.invalidate_binding()
             if project.json_path is not None:
                 try:
                     self.remember_project(project.json_path)
@@ -972,8 +987,9 @@ class EditorServer(ThreadingHTTPServer):
         )
         if self.defer_reapeaks:
             project = without_deferred_reapeaks(project)
-        with self.settings_lock:
+        with self.save_lock, self.settings_lock:
             self.project = project
+            self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
             self.persist_settings()
         self.start_deferred_reapeaks_load()
@@ -1030,14 +1046,17 @@ class EditorServer(ThreadingHTTPServer):
             project = without_deferred_reapeaks(project)
         if _drop_derived_frame_fields(project.data.get("segments")) != _drop_derived_frame_fields(normalized_browser.get("segments")):
             raise AttachProjectError("媒体同目录的同名工程与打开的副本内容不一致，未接管")
-        with self.settings_lock:
+        with self.save_lock, self.settings_lock:
             self.project = project
+            self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
             self.persist_settings()
         self.start_deferred_reapeaks_load()
         return project
 
-    def save_project(self, project_data: dict, filename: str | None = None) -> tuple[Path, Path | None]:
+    def save_project(self, project_data: dict, filename: str | None = None, *,
+                     expected_binding: str | None = None, expected_revision: str | None = None,
+                     include_context: bool = False) -> tuple:
         if not self.project.json_path:
             raise SaveProjectError("当前服务器没有绑定工程文件；请先导出 .mosp 工程，再重新打开该文件")
         try:
@@ -1049,18 +1068,23 @@ class EditorServer(ThreadingHTTPServer):
         except ProjectValidationFailed as error:
             raise SaveProjectError(str(error)) from error
 
-        target = self.project.json_path
-        if filename is not None:
-            target = safe_project_filename(target.parent, filename)
         if not self.save_lock.acquire(blocking=False):
             raise ProjectMutationInProgressError("另一个工程保存操作正在进行")
         try:
+            if expected_binding is not None:
+                self.processing_api.check_save(expected_binding, expected_revision)
+            target = self.project.json_path
+            if target is None:
+                raise SaveProjectError("当前服务器没有绑定工程文件")
+            if filename is not None:
+                target = safe_project_filename(target.parent, filename)
             backup = write_project_json(target, normalized_project)
             self.project = replace(self.project, data=normalized_project, json_path=target)
             self.remember_project(target)
+            context = self.processing_api.context() if include_context else None
         finally:
             self.save_lock.release()
-        return target, backup
+        return (target, backup, context) if include_context else (target, backup)
 
 
 def safe_project_filename(directory: Path, filename: str) -> Path:
@@ -1498,6 +1522,8 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         self.handle_request(include_body=False)
 
     def do_POST(self) -> None:  # noqa: N802
+        if self.editor_server.processing_api.handle(self, post=True):
+            return
         path = urlsplit(self.path).path
         if path == "/api/shutdown":
             self.shutdown_server()
@@ -1975,6 +2001,8 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         return False
 
     def handle_request(self, *, include_body: bool) -> None:
+        if self.editor_server.processing_api.handle(self):
+            return
         path = urlsplit(self.path).path
         if path == "/api/prproj-capability":
             self.send_json(HTTPStatus.OK, PRPROJ_CAPABILITY)
@@ -1992,12 +2020,16 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.OK, self.editor_server.reapeaks_status_payload())
             return
         if path == "/":
+            with self.editor_server.save_lock:
+                project = self.editor_server.project
+                processing_context = self.editor_server.processing_api.context()
             page = build_server_page(
-                self.editor_server.project,
+                project,
                 self.editor_server.settings,
                 self.editor_server.request_token,
                 self.editor_server.startup_status_payload(),
                 defer_reapeaks=self.editor_server.defer_reapeaks,
+                processing_context=processing_context,
             )
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")

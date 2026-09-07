@@ -3,7 +3,10 @@
 editor-runtime.js
 gap-remove-core.js
 editor-utils.js
+msw-project.js
+msw-translation-core.js
 editor-i18n.js
 waveform.js
 editor.js
+msw-processing.js
 editor-onboarding.js

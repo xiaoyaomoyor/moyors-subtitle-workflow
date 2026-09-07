@@ -4,6 +4,8 @@ const STICKERS = __STICKERS_JSON__;
 let STICKER_ROOT = __STICKER_ROOT_JSON__;  // 表情包根目录的绝对路径（无尾斜杠）
 let STICKER_URL_PREFIX = __STICKER_URL_PREFIX_JSON__;
 const SERVER_CONFIG = __SERVER_CONFIG_JSON__;
+let mswProjectGeneration = 0;
+window.MSWProject.ensure(DATA, SERVER_CONFIG?.processingContext?.projectId);
 const NINJA_SFX_BASE_URL = __NINJA_SFX_BASE_URL_JSON__;
 // 关闭/删除叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
 const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
@@ -1161,7 +1163,9 @@ let gapRemoveDirty = false;
 function snapshotSegments() {
   // _dirty 也保留，恢复后能再次导出"工程文件"时正确标记；多字幕数据与主轨
   // 必须处于同一条记录中，绑定/成对删除/联动拆分才能原子撤销。
-  return EDITOR_SETTINGS_UTILS.buildSegmentsHistorySnapshot(DATA.segments, getMultiSubtitleState());
+  const snapshot = EDITOR_SETTINGS_UTILS.buildSegmentsHistorySnapshot(DATA.segments, getMultiSubtitleState());
+  snapshot.msw = window.MSWProject.clone(DATA.msw ?? null);
+  return snapshot;
 }
 function snapshotEditorSelection() {
   const extensionTrack = getActiveExtensionTrack();
@@ -1323,6 +1327,7 @@ function applyHistoryRecord(record) {
   DATA.multi_subtitle = snapshot.multi_subtitle || {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'msw')) DATA.msw = window.MSWProject.normalize(snapshot.msw);
   normalizeMultiSubtitleState();
   // 历史恢复会改变下标身份；丢弃旧面板绑定，避免 clearSelection() 把旧面板
   // 内容提交到恢复后占据同一下标的另一条字幕，并因此生成新历史、清空 redo。
@@ -2240,11 +2245,29 @@ function bindCueListDisplayToggle(toggle, key) {
 }
 
 // 「帮助 → 快捷键提示」：控制四个模块顶部键位提示行（默认关闭）。
+// 波形窗格的 toolbar/scroll 为绝对定位：提示行显示时同步实际高度
+// （窄宽度换行变厚，用 ResizeObserver 跟踪）并把两者下移、滚动区让位。
+let waveHintsObserver = null;
+function syncWaveHintsGeometry() {
+  const pane = document.querySelector('.waveform-pane');
+  const hints = document.getElementById('wave-key-hints');
+  if (!pane) return;
+  const on = Boolean(hints && !hints.hidden);
+  pane.classList.toggle('wave-hints-on', on);
+  const height = on ? hints.offsetHeight : 0;
+  pane.style.setProperty('--wave-hints-h', `${height}px`);
+  if (waveHintsObserver) waveHintsObserver.disconnect();
+  if (on && hints && typeof ResizeObserver === 'function') {
+    waveHintsObserver = new ResizeObserver(() => syncWaveHintsGeometry());
+    waveHintsObserver.observe(hints);
+  }
+}
 function applyToolbarKbdHints() {
   const shown = Boolean(EDITOR_SETTINGS.toolbarKbdHints);
   document.querySelectorAll('.module-key-hints').forEach((el) => { el.hidden = !shown; });
   const hints = document.getElementById('cue-editor-key-hints');
   if (hints) hints.hidden = !shown;
+  syncWaveHintsGeometry();
 }
 const toolbarKbdHintsToggle = document.getElementById('toolbar-kbd-hints-toggle');
 toolbarKbdHintsToggle?.addEventListener('change', () => {
@@ -12219,6 +12242,7 @@ function buildJson() {
     }),
   };
   const multi = getMultiSubtitleState();
+  if (DATA.msw) out.msw = window.MSWProject.normalize(DATA.msw);
   out.multi_subtitle = {
     schema: multi.schema || MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SCHEMA,
     enabled: multi.enabled === true,
@@ -13951,19 +13975,25 @@ async function saveProjectToServer({ silent = false } = {}) {
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
   const projectJson = buildJson();
+  const savedGeneration = mswProjectGeneration;
   projectSaveInFlight = true;
   try {
-    const saveUrl = new URL(SERVER_CONFIG.saveUrl, window.location.href);
+    const processingContext = SERVER_CONFIG.processingContext;
+    const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: JSON.parse(projectJson), filename: null }),
+      headers: { 'Content-Type': 'application/json', ...(SERVER_CONFIG.processingUrl ? { 'X-MSW-Token': SERVER_CONFIG.requestToken } : {}) },
+      body: JSON.stringify({ project: JSON.parse(projectJson), filename: null,
+        ...(SERVER_CONFIG.processingUrl ? { binding: processingContext?.binding, saveRevision: processingContext?.saveRevision } : {}) }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) {
       throw new Error(result.error || `服务器返回 ${response.status}`);
     }
-    markProjectSaved(result.filename, result.backup, { silent });
+    if (savedGeneration !== mswProjectGeneration) return false;
+    if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
+    if (buildJson() === projectJson) markProjectSaved(result.filename, result.backup, { silent });
+    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
     return true;
   } catch (error) {
     const detail = error?.message || error;
@@ -13992,12 +14022,16 @@ async function saveProjectToHandle({ silent = false } = {}) {
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
   const projectJson = buildJson();
+  const savedGeneration = mswProjectGeneration;
+  const savedHandle = projectFileHandle;
   projectSaveInFlight = true;
   try {
-    const writable = await projectFileHandle.createWritable();
+    const writable = await savedHandle.createWritable();
     await writable.write(new Blob([projectJson], { type: 'application/json;charset=utf-8' }));
     await writable.close();
-    markProjectSaved(projectFileHandle.name, null, { silent });
+    if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
+    if (buildJson() === projectJson) markProjectSaved(savedHandle.name, null, { silent });
+    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
     return true;
   } catch (error) {
     flashHint(`保存失败：${error?.message || error}`, 'warning');
@@ -14990,6 +15024,9 @@ function suggestedProjectName(file = null) {
 }
 
 function applyCanonicalProject(data, filename) {
+  const msw = window.MSWProject.normalize(data.msw);
+  DATA.msw = msw;
+  mswProjectGeneration += 1;
   currentCuePanelIdx = -1;
   currentCuePanelKind = 'main';
   currentCuePanelTrackId = null;
@@ -15022,6 +15059,8 @@ function applyCanonicalProject(data, filename) {
   DATA.segments.length = 0;
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
+  window.MSWProject.ensure(DATA);
+  window.dispatchEvent(new Event('msw:project-changed'));
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: DATA.timebase.unit === 'frames' });
   editorHistory.clear();
   updateUndoRedoButtons();
@@ -15215,6 +15254,8 @@ function replaceMainTrack(segments, displayName = '字幕') {
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
   pushUndo('替换字幕');
+  mswProjectGeneration += 1;
+  window.dispatchEvent(new Event('msw:project-changed'));
   DATA.segments.length = 0;
   (segments || []).forEach((segment) => DATA.segments.push({ ...segment }));
   DATA.multi_subtitle = {
@@ -20291,6 +20332,76 @@ refreshThemeCustomList();
 applyThemeAndColors({ rerenderWaveform: false });
 // 服务器版：启动时拉取服务器上的外观副本（主题偏好/自定义主题），本地为准的模式（file://）跳过。
 void syncAppearanceBoot();
+
+// Processing modules use commands rather than mutating editor state themselves.
+function commitProcessingEdits() {
+  if (editingState) finishEdit(true);
+  if (extensionEditingState) finishExtensionEdit(true);
+  commitCuePanelEdit();
+}
+function processingSelection() {
+  const track = getActiveExtensionTrack();
+  return {
+    mainIds: [...selectedIdxs].map((index) => DATA.segments[index]?.id).filter(Boolean),
+    extensionIds: [...selectedExtensionIdxs].map((index) => track?.segments[index]?.id).filter(Boolean),
+    trackId: track?.id || null,
+    hasSelection: selectedIdxs.size > 0 || selectedExtensionIdxs.size > 0,
+  };
+}
+function applyTranslationJob(job) {
+  commitProcessingEdits();
+  const extension = window.MSWProject.ensure(DATA);
+  if (extension.project_id !== job.project_id || job.status !== 'succeeded' || !job.snapshot || !job.result) {
+    throw new Error('翻译结果不属于当前工程或尚未完成');
+  }
+  if ((extension.applied_results || []).includes(job.id)) return { appliedIds: [], conflicts: [], complete: true };
+  const previousIds = extension.translation_applications?.[job.id] || [];
+  const onlyIds = job.snapshot.entries.map((entry) => entry.source.id).filter((id) => !previousIds.includes(id));
+  const createdTrackId = extension.translation_target_tracks?.[job.id] || null;
+  const plan = window.MSWTranslation.reconcile(DATA, job.snapshot, job.result, { onlyIds, createdTrackId });
+  if (plan.appliedIds.length) {
+    const previousStructure = multiSubtitleWaveformStructureKey();
+    const selection = snapshotEditorSelection();
+    pushUndo('字幕翻译', { captureView: true });
+    DATA.multi_subtitle = plan.multi;
+    const applied = [...new Set([...previousIds, ...plan.appliedIds])];
+    if (applied.length === job.snapshot.entries.length) {
+      extension.applied_results = [...(extension.applied_results || []), job.id].slice(-10000);
+      if (extension.translation_applications) delete extension.translation_applications[job.id];
+      if (extension.translation_target_tracks) delete extension.translation_target_tracks[job.id];
+    } else {
+      extension.translation_applications = { ...(extension.translation_applications || {}), [job.id]: applied };
+      if (!job.snapshot.track_id) extension.translation_target_tracks = {
+        ...(extension.translation_target_tracks || {}), [job.id]: plan.multi.tracks[0].id,
+      };
+    }
+    normalizeMultiSubtitleState();
+    projectImportDirty = true;
+    renderAll({ waveform: previousStructure === multiSubtitleWaveformStructureKey() ? 'overlay' : 'full' });
+    restoreEditorSelection(selection);
+    scheduleAutoSaveFlush();
+  }
+  return { ...plan, complete: plan.conflicts.length === 0 };
+}
+window.MSWE?.register('processing-host', () => Object.freeze({
+  get data() { return DATA; },
+  get config() { return SERVER_CONFIG; },
+  get generation() { return mswProjectGeneration; },
+  selection: processingSelection,
+  commitEdits: commitProcessingEdits,
+  isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()
+    || previewGesture || waveformPlayheadDragging || document.activeElement === cuePanelText
+    || document.activeElement?.isContentEditable),
+  capture: () => {
+    commitProcessingEdits();
+    window.MSWProject.ensure(DATA);
+    projectImportDirty = true;
+    return window.MSWTranslation.snapshot(DATA, processingSelection());
+  },
+  applyTranslation: applyTranslationJob,
+  createFloatingPanel,
+  flashHint,
+}));
 
 // 新手引导通过这个窄桥接访问编辑器核心状态；引导本身在 editor-onboarding.js 中按需初始化。
 window.MSWE_EDITOR_BRIDGE = Object.freeze({

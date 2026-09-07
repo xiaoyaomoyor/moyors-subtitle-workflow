@@ -76,7 +76,7 @@ def _ocr_runtime_import_graph() -> set[str]:
 def _local_runtime_spec_entry(relative_path: str) -> str:
     parts = Path(relative_path).parts
     expression = " / ".join(["ROOT", *(f'"{part}"' for part in parts)])
-    target = "local-runtime/maw" if parts[0] == "maw" else "local-runtime"
+    target = str(Path('local-runtime', *parts[:-1])).replace('\\', '/')
     return f"(str({expression}), \"{target}\")"
 
 
@@ -380,7 +380,8 @@ class PackagingContractTests(unittest.TestCase):
         for relative_path in sorted(bundled_paths):
             parts = Path(relative_path).parts
             expression = " / ".join(["ROOT", *(f'"{part}"' for part in parts)])
-            self.assertIn(f'(str({expression}), "ocr-runtime/maw")', spec)
+            target = str(Path('ocr-runtime', *parts[:-1])).replace('\\', '/')
+            self.assertIn(f'(str({expression}), "{target}")', spec)
 
     def test_macos_bundle_uses_the_icns_app_icon(self) -> None:
         """Given a macOS app bundle, When PyInstaller builds it, Then the bundle has the branded ICNS icon."""
