@@ -2334,6 +2334,24 @@
     white-space: nowrap;
   }
   .cue-editor-key-hint { display: inline-flex; align-items: center; gap: 4px; }
+  /* 各模块快捷键提示行：与字幕编辑器提示行同一视觉（贴标签栏、底部分隔线、
+     无上圆角），内容超出时横向滚动（波形行条目最多）。 */
+  .module-key-hints:not([hidden]) {
+    display: flex; align-items: center; gap: 10px;
+    height: var(--panel-toolbar-h);
+    flex: 0 0 auto; min-width: 0;
+    padding: 0 8px; margin: 0;
+    background: var(--panel-toolbar-bg-wave);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-muted); font-size: 11px; line-height: 1;
+    white-space: nowrap;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .module-key-hints::-webkit-scrollbar { display: none; }
+  .module-key-hints kbd {
+    background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
   .cue-editor-key-hints kbd {
     padding: 1px 4px; font-size: 10.5px;
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);

@@ -244,6 +244,9 @@ function renderOnboarding() {
   if (!onboardingState.open) return;
 
   onboardingCard?.classList.toggle('complete', onboardingState.phase === 'complete');
+  // 完成态会把右上角按钮换成「介绍引导」；其余状态恢复默认「跳过」。
+  onboardingSkip.textContent = onboardingText('跳过 (ESC)');
+  onboardingSkip.title = '';
   onboardingStepCount.textContent = onboardingState.mode === 'empty'
     ? '' : `${onboardingState.step + 1} / ${ONBOARDING_STEP_COUNT}`;
   onboardingFootnote.hidden = onboardingState.mode === 'empty' || onboardingState.phase === 'complete';
@@ -277,8 +280,9 @@ function renderOnboarding() {
     ]);
     onboardingSetStatus('');
     onboardingPrimary.textContent = onboardingText('打开完整帮助');
-    onboardingSecondary.textContent = onboardingText('结束引导');
-    onboardingSecondary.hidden = false;
+    // 完成态不再提供「结束引导」：引导已经结束，右上角按钮转为重播入口。
+    onboardingSkip.textContent = onboardingText('介绍引导');
+    onboardingSkip.title = onboardingText('重新完整走一遍快速上手');
     renderOnboardingDemo();
     requestOnboardingPosition();
     return;
@@ -548,7 +552,13 @@ onboardingSecondary?.addEventListener('click', () => {
   }
 });
 
-onboardingSkip?.addEventListener('click', () => finishOnboarding('skipped'));
+onboardingSkip?.addEventListener('click', () => {
+  if (onboardingState.open && onboardingState.phase === 'complete') {
+    openOnboarding({ force: true });
+    return;
+  }
+  finishOnboarding('skipped');
+});
 onboardingHelp?.addEventListener('click', () => closeOnboardingAndOpenHelp());
 onboardingDemo?.addEventListener('click', (event) => {
   const target = event.target instanceof Element

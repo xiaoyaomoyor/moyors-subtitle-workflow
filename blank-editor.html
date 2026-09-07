@@ -2354,6 +2354,24 @@
     white-space: nowrap;
   }
   .cue-editor-key-hint { display: inline-flex; align-items: center; gap: 4px; }
+  /* 各模块快捷键提示行：与字幕编辑器提示行同一视觉（贴标签栏、底部分隔线、
+     无上圆角），内容超出时横向滚动（波形行条目最多）。 */
+  .module-key-hints:not([hidden]) {
+    display: flex; align-items: center; gap: 10px;
+    height: var(--panel-toolbar-h);
+    flex: 0 0 auto; min-width: 0;
+    padding: 0 8px; margin: 0;
+    background: var(--panel-toolbar-bg-wave);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-muted); font-size: 11px; line-height: 1;
+    white-space: nowrap;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .module-key-hints::-webkit-scrollbar { display: none; }
+  .module-key-hints kbd {
+    background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
   .cue-editor-key-hints kbd {
     padding: 1px 4px; font-size: 10.5px;
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -6613,6 +6631,12 @@
 <div class="editor-workspace waveform-basic" id="editor-workspace">
   <div class="player-wrap">
     <div class="toolbar player-toolbar" aria-label="媒体模块栏"></div>
+      <div class="module-key-hints" id="player-key-hints" aria-label="媒体播放器快捷键" hidden>
+        <span class="cue-editor-key-hint"><kbd>空格</kbd> 播放/暂停</span>
+        <span class="cue-editor-key-hint"><kbd>←</kbd>/<kbd>→</kbd> 跳转</span>
+        <span class="cue-editor-key-hint"><kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倒放/停止/播放</span>
+        <span class="cue-editor-key-hint"><kbd>Home</kbd>/<kbd>End</kbd> 媒体首/尾</span>
+      </div>
     <div class="player-stage">
       <audio id="player" preload="metadata" style="width:100%;display:block;"></audio>
           <div class="player-empty" id="player-empty">拖入工程、媒体或 SRT 开始编辑</div>
@@ -6688,7 +6712,25 @@
     </div>
   </section>
   <section class="waveform-pane" id="waveform-pane" aria-label="音频波形" tabindex="-1">
-    <div class="toolbar waveform-toolbar">
+    <div class="module-key-hints" id="wave-key-hints" aria-label="波形显示器快捷键" hidden>
+        <span class="cue-editor-key-hint"><kbd>V</kbd>/<kbd>R</kbd> 选择/分割工具</span>
+        <span class="cue-editor-key-hint"><kbd>Esc</kbd> 切回选择/清除选择</span>
+        <span class="cue-editor-key-hint"><kbd>双击波形</kbd> 播放/暂停</span>
+        <span class="cue-editor-key-hint"><kbd>N</kbd> 在鼠标位置创建字幕</span>
+        <span class="cue-editor-key-hint"><kbd>B</kbd> 按音频位置拆分</span>
+        <span class="cue-editor-key-hint"><kbd>Shift+拖拽</kbd> 框选字幕</span>
+        <span class="cue-editor-key-hint"><kbd>←</kbd>/<kbd>→</kbd> 微调移动字幕</span>
+        <span class="cue-editor-key-hint"><kbd>Shift+←</kbd>/<kbd>→</kbd> 起终点贴邻</span>
+        <span class="cue-editor-key-hint"><kbd>Z</kbd>/<kbd>X</kbd> 起终点到鼠标位置</span>
+        <span class="cue-editor-key-hint"><kbd>A</kbd>/<kbd>D</kbd> 按住微调移动</span>
+        <span class="cue-editor-key-hint"><kbd>Shift+A</kbd>/<kbd>D</kbd> 起终点贴邻</span>
+        <span class="cue-editor-key-hint"><kbd>G</kbd> 绑定 · <kbd>Shift+G</kbd> 解绑</span>
+        <span class="cue-editor-key-hint"><kbd>H</kbd> 副字幕对齐主字幕时长</span>
+        <span class="cue-editor-key-hint"><kbd>Alt+点击</kbd> 空隙启用/禁用</span>
+        <span class="cue-editor-key-hint"><kbd>Shift+滚轮</kbd> 调整振幅</span>
+        <span class="cue-editor-key-hint"><kbd>1~5</kbd>/<kbd>0</kbd> 分配/清除颜色</span>
+      </div>
+      <div class="toolbar waveform-toolbar">
       <span class="waveform-tool-switch" role="group" aria-label="波形工具">
         <button type="button" data-waveform-tool="select" class="active" title="选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl(Cmd)/Shift 多选，Shift+空白拖拽框选，Alt 临时反转相邻字幕联动，Alt+点击切换禁用">
           <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.75 12.25 8 8 9.25 6.25 13.5 3 1.75Z"/><path d="m8.3 9.2 3.2 3.05"/></svg>
@@ -6719,7 +6761,16 @@
   <div class="layout-resizer layout-resizer-h2" id="layout-resizer-h2" data-layout-resizer="row-middle" title="拖动调整当前字幕与字幕列表高度"></div>
   <div class="layout-drop-preview" id="layout-drop-preview" aria-hidden="true"></div>
   <div class="cues-module" id="cues-module">
-    <div class="toolbar cue-list-toolbar" aria-label="字幕列表模块栏"></div>
+    <div class="module-key-hints" id="cues-key-hints" aria-label="字幕列表快捷键" hidden>
+        <span class="cue-editor-key-hint"><kbd>WASD</kbd> 选择前/后字幕</span>
+        <span class="cue-editor-key-hint"><kbd>Shift+WASD</kbd> 连选</span>
+        <span class="cue-editor-key-hint"><kbd>Ctrl+Shift+A/D</kbd> 与前/后一条合并</span>
+        <span class="cue-editor-key-hint"><kbd>Ctrl+点击</kbd> 多选</span>
+        <span class="cue-editor-key-hint"><kbd>Shift+点击</kbd> 连选</span>
+        <span class="cue-editor-key-hint"><kbd>Ctrl+A</kbd> 全选</span>
+        <span class="cue-editor-key-hint"><kbd>Ctrl+D</kbd> 取消选择</span>
+      </div>
+      <div class="toolbar cue-list-toolbar" aria-label="字幕列表模块栏"></div>
     <div class="cues-container" id="cues-container">
       <div class="cues-empty" id="cues-empty">拖入工程或 SRT 后显示字幕列表</div>
     </div>
@@ -14011,7 +14062,7 @@ export default MawDynamicCaptions;
     '播放头色': 'Playhead color', '字幕文字': 'Subtitle text', '字幕文字色': 'Subtitle text color',
     '波形中当前位置的指示条与当前字幕块的轮廓色': 'Playhead bar and active-subtitle outline in the waveform',
     '选区': 'Selection', '命中': 'Hit',
-    '选区色': 'Selection color', '灵梦：红白配色浅色主题': 'Reimu: red-and-white light theme', '爱丽丝：金发蓝裙浅色主题': 'Alice: blonde-blue light theme', '恋：黄绿配色浅色主题': 'Koishi: yellow-green light theme', '退出编辑器': 'Exit editor', '页面全屏': 'Page fullscreen', '退出页面全屏': 'Exit page fullscreen', '让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）': 'Fill the screen with the editor page (browser fullscreen, Esc to exit).', '退出浏览器全屏（Esc）': 'Exit browser fullscreen (Esc).', '当前浏览器不支持页面全屏': 'Page fullscreen is not supported in this browser.', '尚未保存': 'Not saved yet', '删除此自定义工作区': 'Delete this custom workspace', '中文': 'Chinese', '服务器已停止，可以关闭此标签页了': 'Server stopped; you can close this tab now', '停止本地编辑器服务器并关闭本页': 'Stop the local editor server and close this page', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
+    '选区色': 'Selection color', '灵梦：红白配色浅色主题': 'Reimu: red-and-white light theme', '爱丽丝：金发蓝裙浅色主题': 'Alice: blonde-blue light theme', '恋：黄绿配色浅色主题': 'Koishi: yellow-green light theme', '退出编辑器': 'Exit editor', '页面全屏': 'Page fullscreen', '退出页面全屏': 'Exit page fullscreen', '介绍引导': 'Replay guide', '重新完整走一遍快速上手': 'Walk through the quick-start guide again', '跳过 (ESC)': 'Skip (Esc)', '播放/暂停': 'Play/Pause', '媒体首/尾': 'Media start/end', '选择前/后字幕': 'Select previous/next subtitle', '连选': 'Extend selection', '与前/后一条合并': 'Merge with previous/next', '多选': 'Multi-select', '全选': 'Select all', '取消选择': 'Deselect', '选择/分割工具': 'Select/Razor tool', '切回选择/清除选择': 'Back to select / clear selection', '在鼠标位置创建字幕': 'Create subtitle at the pointer', '按音频位置拆分': 'Split at the audio position', '框选字幕': 'Marquee-select subtitles', '微调移动字幕': 'Nudge subtitle', '起终点贴邻': 'Snap edge to neighbor', '起终点到鼠标位置': 'Edge to pointer', '按住微调移动': 'Hold to nudge', '绑定': 'Bind', '解绑': 'Unbind', '副字幕对齐主字幕时长': 'Align extension to main duration', '空隙启用/禁用': 'Toggle gap', '调整振幅': 'Adjust amplitude', '分配/清除颜色': 'Assign/Clear color', '让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）': 'Fill the screen with the editor page (browser fullscreen, Esc to exit).', '退出浏览器全屏（Esc）': 'Exit browser fullscreen (Esc).', '当前浏览器不支持页面全屏': 'Page fullscreen is not supported in this browser.', '尚未保存': 'Not saved yet', '删除此自定义工作区': 'Delete this custom workspace', '中文': 'Chinese', '服务器已停止，可以关闭此标签页了': 'Server stopped; you can close this tab now', '停止本地编辑器服务器并关闭本页': 'Stop the local editor server and close this page', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
     '非字幕片段设为空隙': 'Treat non-subtitle spans as gaps',
     '静音空隙工具': 'Silence gap tools', '没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描': 'No gaps to process; load media and scan with the silence gap tools first', '拼接/合并字幕': 'Merge subtitles', '延长字幕': 'Extend subtitles',
     '批量对齐': 'Batch align', '处理': 'Processing',
@@ -24014,10 +24065,12 @@ function bindCueListDisplayToggle(toggle, key) {
   });
 }
 
-// 「帮助 → 快捷键提示」：控制子工作区顶部栏的 Enter/Esc 等键位提示（默认关闭）。
+// 「帮助 → 快捷键提示」：控制四个模块顶部键位提示行（默认关闭）。
 function applyToolbarKbdHints() {
+  const shown = Boolean(EDITOR_SETTINGS.toolbarKbdHints);
+  document.querySelectorAll('.module-key-hints').forEach((el) => { el.hidden = !shown; });
   const hints = document.getElementById('cue-editor-key-hints');
-  if (hints) hints.hidden = !EDITOR_SETTINGS.toolbarKbdHints;
+  if (hints) hints.hidden = !shown;
 }
 const toolbarKbdHintsToggle = document.getElementById('toolbar-kbd-hints-toggle');
 toolbarKbdHintsToggle?.addEventListener('change', () => {
@@ -42379,6 +42432,9 @@ function renderOnboarding() {
   if (!onboardingState.open) return;
 
   onboardingCard?.classList.toggle('complete', onboardingState.phase === 'complete');
+  // 完成态会把右上角按钮换成「介绍引导」；其余状态恢复默认「跳过」。
+  onboardingSkip.textContent = onboardingText('跳过 (ESC)');
+  onboardingSkip.title = '';
   onboardingStepCount.textContent = onboardingState.mode === 'empty'
     ? '' : `${onboardingState.step + 1} / ${ONBOARDING_STEP_COUNT}`;
   onboardingFootnote.hidden = onboardingState.mode === 'empty' || onboardingState.phase === 'complete';
@@ -42412,8 +42468,9 @@ function renderOnboarding() {
     ]);
     onboardingSetStatus('');
     onboardingPrimary.textContent = onboardingText('打开完整帮助');
-    onboardingSecondary.textContent = onboardingText('结束引导');
-    onboardingSecondary.hidden = false;
+    // 完成态不再提供「结束引导」：引导已经结束，右上角按钮转为重播入口。
+    onboardingSkip.textContent = onboardingText('介绍引导');
+    onboardingSkip.title = onboardingText('重新完整走一遍快速上手');
     renderOnboardingDemo();
     requestOnboardingPosition();
     return;
@@ -42683,7 +42740,13 @@ onboardingSecondary?.addEventListener('click', () => {
   }
 });
 
-onboardingSkip?.addEventListener('click', () => finishOnboarding('skipped'));
+onboardingSkip?.addEventListener('click', () => {
+  if (onboardingState.open && onboardingState.phase === 'complete') {
+    openOnboarding({ force: true });
+    return;
+  }
+  finishOnboarding('skipped');
+});
 onboardingHelp?.addEventListener('click', () => closeOnboardingAndOpenHelp());
 onboardingDemo?.addEventListener('click', (event) => {
   const target = event.target instanceof Element

@@ -2239,10 +2239,12 @@ function bindCueListDisplayToggle(toggle, key) {
   });
 }
 
-// 「帮助 → 快捷键提示」：控制子工作区顶部栏的 Enter/Esc 等键位提示（默认关闭）。
+// 「帮助 → 快捷键提示」：控制四个模块顶部键位提示行（默认关闭）。
 function applyToolbarKbdHints() {
+  const shown = Boolean(EDITOR_SETTINGS.toolbarKbdHints);
+  document.querySelectorAll('.module-key-hints').forEach((el) => { el.hidden = !shown; });
   const hints = document.getElementById('cue-editor-key-hints');
-  if (hints) hints.hidden = !EDITOR_SETTINGS.toolbarKbdHints;
+  if (hints) hints.hidden = !shown;
 }
 const toolbarKbdHintsToggle = document.getElementById('toolbar-kbd-hints-toggle');
 toolbarKbdHintsToggle?.addEventListener('change', () => {
