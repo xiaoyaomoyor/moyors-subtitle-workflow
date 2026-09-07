@@ -3694,7 +3694,7 @@
 
   /* === Context menu === */
   .ctxmenu {
-    position: fixed; background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    position: fixed; background: var(--menu-overlay-bg); border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md); padding: 4px 0; min-width: 180px; font-size: 13px;
     box-shadow: var(--shadow-3); z-index: 200;
     display: block; opacity: 0; visibility: hidden; pointer-events: none;
@@ -3713,18 +3713,19 @@
   .ctxmenu .item:hover { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
-  /* 模块右键面板的设置入口与可展开设置组 */
-  .ctxmenu .ctx-window-item span { font-weight: 600; }
-  .ctxmenu .ctx-window-item::before {
-    content: '⚙'; margin-right: 7px; font-size: 11px; color: var(--text-muted);
+  /* 模块右键面板的设置入口与悬浮飞出子菜单：与菜单栏面板同一套
+     背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）。 */
+  .ctxmenu .ctx-expand-arrow { color: var(--text-muted); }
+  .ctxmenu .ctx-submenu { position: relative; }
+  .ctxmenu .ctx-submenu-menu {
+    display: none; position: absolute; left: calc(100% - 2px); top: -5px;
+    min-width: 170px; background: var(--menu-overlay-bg);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+    padding: 4px 0; box-shadow: var(--shadow-3); z-index: 210;
   }
-  .ctxmenu .ctx-expand-header .ctx-expand-arrow { color: var(--text-muted); transition: transform var(--t-fast); }
-  .ctxmenu .ctx-subgroup { display: none; }
-  .ctxmenu .ctx-subgroup.open { display: block; }
-  .ctxmenu .ctx-subgroup .ctx-subitem { padding-left: 18px; font-size: 12.5px; }
-  .ctxmenu .ctx-subgroup .ctx-subitem span:first-child::before {
-    content: ''; display: inline-block; width: 12px;
-  }
+  .ctxmenu .ctx-submenu.open .ctx-submenu-menu { display: block; }
+  .ctxmenu .ctx-submenu.open > .ctx-submenu-toggle { background: var(--accent-tint); color: var(--text-primary); }
+  .ctxmenu .ctx-submenu-menu .ctx-subitem { font-size: 12.5px; }
   .ctxmenu .item.danger { color: var(--red-hover); }
   .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
   .ctxmenu .sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }

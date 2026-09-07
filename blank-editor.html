@@ -3714,7 +3714,7 @@
 
   /* === Context menu === */
   .ctxmenu {
-    position: fixed; background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    position: fixed; background: var(--menu-overlay-bg); border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md); padding: 4px 0; min-width: 180px; font-size: 13px;
     box-shadow: var(--shadow-3); z-index: 200;
     display: block; opacity: 0; visibility: hidden; pointer-events: none;
@@ -3733,18 +3733,19 @@
   .ctxmenu .item:hover { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
-  /* 模块右键面板的设置入口与可展开设置组 */
-  .ctxmenu .ctx-window-item span { font-weight: 600; }
-  .ctxmenu .ctx-window-item::before {
-    content: '⚙'; margin-right: 7px; font-size: 11px; color: var(--text-muted);
+  /* 模块右键面板的设置入口与悬浮飞出子菜单：与菜单栏面板同一套
+     背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）。 */
+  .ctxmenu .ctx-expand-arrow { color: var(--text-muted); }
+  .ctxmenu .ctx-submenu { position: relative; }
+  .ctxmenu .ctx-submenu-menu {
+    display: none; position: absolute; left: calc(100% - 2px); top: -5px;
+    min-width: 170px; background: var(--menu-overlay-bg);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+    padding: 4px 0; box-shadow: var(--shadow-3); z-index: 210;
   }
-  .ctxmenu .ctx-expand-header .ctx-expand-arrow { color: var(--text-muted); transition: transform var(--t-fast); }
-  .ctxmenu .ctx-subgroup { display: none; }
-  .ctxmenu .ctx-subgroup.open { display: block; }
-  .ctxmenu .ctx-subgroup .ctx-subitem { padding-left: 18px; font-size: 12.5px; }
-  .ctxmenu .ctx-subgroup .ctx-subitem span:first-child::before {
-    content: ''; display: inline-block; width: 12px;
-  }
+  .ctxmenu .ctx-submenu.open .ctx-submenu-menu { display: block; }
+  .ctxmenu .ctx-submenu.open > .ctx-submenu-toggle { background: var(--accent-tint); color: var(--text-primary); }
+  .ctxmenu .ctx-submenu-menu .ctx-subitem { font-size: 12.5px; }
   .ctxmenu .item.danger { color: var(--red-hover); }
   .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
   .ctxmenu .sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }
@@ -14566,7 +14567,7 @@ export default MawDynamicCaptions;
     '切换到亮色主题': 'Switch to light theme',
     // 菜单栏与设置弹窗
     'MSW 字幕编辑器': 'MSW subtitle editor',
-    '点击复制工程文件名；悬浮查看工程详情': 'Click to copy the project file name; hover for details',
+    '点击复制工程文件名；悬浮查看工程详情': 'Click to copy the project file name; hover for details', '点击打开工程所在文件夹；悬浮查看工程详情': 'Click to open the project folder; hover for details', '点击打开工程所在文件夹': 'Click to open the project folder',
     '导出当前工程为 .mosp 文件': 'Export the current project as a .mosp file',
     '导出 FCP7/OTIO/Lottie/OGraf 等更多格式': 'Export more formats such as FCP7/OTIO/Lottie/OGraf',
     '在浏览器中直接加载视频或音频文件': 'Load a video or audio file directly in the browser',
@@ -14926,7 +14927,7 @@ export default MawDynamicCaptions;
     if (match) return `Inherits the sticker of subtitle ${match[1]}`;
     match = /^工程路径失效：(.+)$/.exec(text);
     if (match) return `Project path is no longer valid: ${match[1]}`;
-    match = /^点击复制工程文件名：(.+)$/.exec(text);
+    match = /^点击(?:复制工程文件名|打开工程所在文件夹)：(.+)$/.exec(text);
     if (match) return `Click to copy the project file name: ${match[1]}`;
     match = /^点击复制媒体名：(.+)$/.exec(text);
     if (match) return `Click to copy the media name: ${match[1]}`;
@@ -35695,7 +35696,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
-    jsonEl.title = `点击复制工程文件名：${filename}`;
+    jsonEl.title = `点击打开工程所在文件夹：${filename}；悬浮查看工程详情`;
     jsonEl.classList.remove('empty');
   }
   rememberProjectSavedAt(filename);
@@ -36806,7 +36807,7 @@ function applyCanonicalProject(data, filename) {
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
-    jsonEl.title = `点击复制工程文件名：${filename}`;
+    jsonEl.title = `点击打开工程所在文件夹：${filename}；悬浮查看工程详情`;
     jsonEl.classList.remove('empty');
     jsonEl.onclick = () => copyText(filename, `已复制：${filename}`);
   }
@@ -39874,11 +39875,15 @@ function ctxAppendSettingsEntry(label, onClick) {
   ctxAppendItem(label, onClick, { window: true });
 }
 
-// 可展开的设置组（字幕编辑器设置：一组开关，而非详情弹窗）。
+// 可展开的设置组（字幕编辑器设置：悬浮展开的飞出子菜单，与菜单栏子菜单
+// 同样的交互与样式；子项点击即时切换开关并刷新 ✓ 状态）。
 function ctxAppendExpandableSettings(label, children) {
-  ctxAppendSeparator();
+  const wrap = document.createElement('div');
+  wrap.className = 'ctx-submenu';
   const header = document.createElement('div');
-  header.className = 'item ctx-expand-header';
+  header.className = 'item ctx-submenu-toggle';
+  header.setAttribute('role', 'menuitem');
+  header.setAttribute('aria-haspopup', 'true');
   const text = document.createElement('span');
   text.textContent = label;
   header.appendChild(text);
@@ -39887,7 +39892,8 @@ function ctxAppendExpandableSettings(label, children) {
   arrow.textContent = '▸';
   header.appendChild(arrow);
   const group = document.createElement('div');
-  group.className = 'ctx-subgroup';
+  group.className = 'ctx-submenu-menu';
+  group.setAttribute('role', 'menu');
   children.forEach((child) => {
     const row = document.createElement('div');
     row.className = 'item ctx-subitem';
@@ -39904,12 +39910,24 @@ function ctxAppendExpandableSettings(label, children) {
     });
     group.appendChild(row);
   });
-  header.addEventListener('click', () => {
-    const open = group.classList.toggle('open');
-    header.classList.toggle('open', open);
-    arrow.textContent = open ? '▾' : '▸';
-  });
-  ctxmenu.append(header, group);
+  let closeTimer = null;
+  const openSub = () => {
+    clearTimeout(closeTimer);
+    wrap.classList.add('open');
+    header.setAttribute('aria-expanded', 'true');
+  };
+  const scheduleClose = () => {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      wrap.classList.remove('open');
+      header.setAttribute('aria-expanded', 'false');
+    }, 140);
+  };
+  wrap.addEventListener('pointerenter', openSub);
+  wrap.addEventListener('pointerleave', scheduleClose);
+  header.addEventListener('click', () => (wrap.classList.contains('open') ? scheduleClose() : openSub()));
+  wrap.append(header, group);
+  ctxmenu.appendChild(wrap);
 }
 
 // 共用的面板定位（贴边防溢出）。
@@ -39947,10 +39965,10 @@ function setupModuleContextMenu() {
   const openCueListSettings = () => {
     if (!cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.open();
   };
+  // 模块级面板往往只有设置一项：不再附加分隔线（有操作项的面板才分隔）。
   const showModulePanel = (entries, x, y) => {
     ctxmenu.innerHTML = '';
-    entries.forEach((entry, index) => {
-      if (index === 0) ctxAppendSeparator();
+    entries.forEach((entry) => {
       if (entry.expandable) ctxAppendExpandableSettings(entry.label, entry.children);
       else ctxAppendItem(entry.label, entry.onClick, { window: true });
     });
@@ -39960,9 +39978,12 @@ function setupModuleContextMenu() {
     if (!element) return;
     element.addEventListener('contextmenu', (event) => {
       if (event.defaultPrevented) return;
-      // 输入类控件与媒体画面保留原生菜单（文本框右键 = 复制/粘贴等）。
+      // 小型输入控件（时间输入/下拉）保留原生菜单；字幕编辑器的大文本区
+      // 属于模块内容区，右键一律出模块面板（粘贴用 Ctrl+V 不受影响）。
+      // 媒体画面同样直接出模块面板。
       const target = event.target;
-      if (target instanceof Element && target.closest('input, textarea, select, video, audio')) return;
+      const editable = target instanceof Element ? target.closest('input, select') : null;
+      if (editable) return;
       event.preventDefault();
       event.stopPropagation();
       showModulePanel(buildEntries(), event.clientX, event.clientY);

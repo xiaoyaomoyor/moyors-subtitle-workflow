@@ -615,7 +615,7 @@
     '切换到亮色主题': 'Switch to light theme',
     // 菜单栏与设置弹窗
     'MSW 字幕编辑器': 'MSW subtitle editor',
-    '点击复制工程文件名；悬浮查看工程详情': 'Click to copy the project file name; hover for details',
+    '点击复制工程文件名；悬浮查看工程详情': 'Click to copy the project file name; hover for details', '点击打开工程所在文件夹；悬浮查看工程详情': 'Click to open the project folder; hover for details', '点击打开工程所在文件夹': 'Click to open the project folder',
     '导出当前工程为 .mosp 文件': 'Export the current project as a .mosp file',
     '导出 FCP7/OTIO/Lottie/OGraf 等更多格式': 'Export more formats such as FCP7/OTIO/Lottie/OGraf',
     '在浏览器中直接加载视频或音频文件': 'Load a video or audio file directly in the browser',
@@ -975,7 +975,7 @@
     if (match) return `Inherits the sticker of subtitle ${match[1]}`;
     match = /^工程路径失效：(.+)$/.exec(text);
     if (match) return `Project path is no longer valid: ${match[1]}`;
-    match = /^点击复制工程文件名：(.+)$/.exec(text);
+    match = /^点击(?:复制工程文件名|打开工程所在文件夹)：(.+)$/.exec(text);
     if (match) return `Click to copy the project file name: ${match[1]}`;
     match = /^点击复制媒体名：(.+)$/.exec(text);
     if (match) return `Click to copy the media name: ${match[1]}`;

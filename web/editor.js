@@ -13931,7 +13931,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
-    jsonEl.title = `点击复制工程文件名：${filename}`;
+    jsonEl.title = `点击打开工程所在文件夹：${filename}；悬浮查看工程详情`;
     jsonEl.classList.remove('empty');
   }
   rememberProjectSavedAt(filename);
@@ -15042,7 +15042,7 @@ function applyCanonicalProject(data, filename) {
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
-    jsonEl.title = `点击复制工程文件名：${filename}`;
+    jsonEl.title = `点击打开工程所在文件夹：${filename}；悬浮查看工程详情`;
     jsonEl.classList.remove('empty');
     jsonEl.onclick = () => copyText(filename, `已复制：${filename}`);
   }
@@ -18110,11 +18110,15 @@ function ctxAppendSettingsEntry(label, onClick) {
   ctxAppendItem(label, onClick, { window: true });
 }
 
-// 可展开的设置组（字幕编辑器设置：一组开关，而非详情弹窗）。
+// 可展开的设置组（字幕编辑器设置：悬浮展开的飞出子菜单，与菜单栏子菜单
+// 同样的交互与样式；子项点击即时切换开关并刷新 ✓ 状态）。
 function ctxAppendExpandableSettings(label, children) {
-  ctxAppendSeparator();
+  const wrap = document.createElement('div');
+  wrap.className = 'ctx-submenu';
   const header = document.createElement('div');
-  header.className = 'item ctx-expand-header';
+  header.className = 'item ctx-submenu-toggle';
+  header.setAttribute('role', 'menuitem');
+  header.setAttribute('aria-haspopup', 'true');
   const text = document.createElement('span');
   text.textContent = label;
   header.appendChild(text);
@@ -18123,7 +18127,8 @@ function ctxAppendExpandableSettings(label, children) {
   arrow.textContent = '▸';
   header.appendChild(arrow);
   const group = document.createElement('div');
-  group.className = 'ctx-subgroup';
+  group.className = 'ctx-submenu-menu';
+  group.setAttribute('role', 'menu');
   children.forEach((child) => {
     const row = document.createElement('div');
     row.className = 'item ctx-subitem';
@@ -18140,12 +18145,24 @@ function ctxAppendExpandableSettings(label, children) {
     });
     group.appendChild(row);
   });
-  header.addEventListener('click', () => {
-    const open = group.classList.toggle('open');
-    header.classList.toggle('open', open);
-    arrow.textContent = open ? '▾' : '▸';
-  });
-  ctxmenu.append(header, group);
+  let closeTimer = null;
+  const openSub = () => {
+    clearTimeout(closeTimer);
+    wrap.classList.add('open');
+    header.setAttribute('aria-expanded', 'true');
+  };
+  const scheduleClose = () => {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      wrap.classList.remove('open');
+      header.setAttribute('aria-expanded', 'false');
+    }, 140);
+  };
+  wrap.addEventListener('pointerenter', openSub);
+  wrap.addEventListener('pointerleave', scheduleClose);
+  header.addEventListener('click', () => (wrap.classList.contains('open') ? scheduleClose() : openSub()));
+  wrap.append(header, group);
+  ctxmenu.appendChild(wrap);
 }
 
 // 共用的面板定位（贴边防溢出）。
@@ -18183,10 +18200,10 @@ function setupModuleContextMenu() {
   const openCueListSettings = () => {
     if (!cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.open();
   };
+  // 模块级面板往往只有设置一项：不再附加分隔线（有操作项的面板才分隔）。
   const showModulePanel = (entries, x, y) => {
     ctxmenu.innerHTML = '';
-    entries.forEach((entry, index) => {
-      if (index === 0) ctxAppendSeparator();
+    entries.forEach((entry) => {
       if (entry.expandable) ctxAppendExpandableSettings(entry.label, entry.children);
       else ctxAppendItem(entry.label, entry.onClick, { window: true });
     });
@@ -18196,9 +18213,12 @@ function setupModuleContextMenu() {
     if (!element) return;
     element.addEventListener('contextmenu', (event) => {
       if (event.defaultPrevented) return;
-      // 输入类控件与媒体画面保留原生菜单（文本框右键 = 复制/粘贴等）。
+      // 小型输入控件（时间输入/下拉）保留原生菜单；字幕编辑器的大文本区
+      // 属于模块内容区，右键一律出模块面板（粘贴用 Ctrl+V 不受影响）。
+      // 媒体画面同样直接出模块面板。
       const target = event.target;
-      if (target instanceof Element && target.closest('input, textarea, select, video, audio')) return;
+      const editable = target instanceof Element ? target.closest('input, select') : null;
+      if (editable) return;
       event.preventDefault();
       event.stopPropagation();
       showModulePanel(buildEntries(), event.clientX, event.clientY);
