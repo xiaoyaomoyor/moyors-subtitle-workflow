@@ -3713,6 +3713,18 @@
   .ctxmenu .item:hover { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
+  /* 模块右键面板的设置入口与可展开设置组 */
+  .ctxmenu .ctx-window-item span { font-weight: 600; }
+  .ctxmenu .ctx-window-item::before {
+    content: '⚙'; margin-right: 7px; font-size: 11px; color: var(--text-muted);
+  }
+  .ctxmenu .ctx-expand-header .ctx-expand-arrow { color: var(--text-muted); transition: transform var(--t-fast); }
+  .ctxmenu .ctx-subgroup { display: none; }
+  .ctxmenu .ctx-subgroup.open { display: block; }
+  .ctxmenu .ctx-subgroup .ctx-subitem { padding-left: 18px; font-size: 12.5px; }
+  .ctxmenu .ctx-subgroup .ctx-subitem span:first-child::before {
+    content: ''; display: inline-block; width: 12px;
+  }
   .ctxmenu .item.danger { color: var(--red-hover); }
   .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
   .ctxmenu .sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }

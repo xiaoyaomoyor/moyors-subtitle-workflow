@@ -2717,7 +2717,7 @@ const THEME_PRESETS = {
   // 宇佐见莲子：黑礼帽白衬衫（黑色系）
   renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707' } },
   // 博丽灵梦：红白巫女（浅色，米白底红强调）
-  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40' } },
+  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#ff0015', cueBlock: '#bbaaaa' } },
   // 爱丽丝：金发蓝裙（浅色，淡蓝底金强调）
   alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261' } },
   // 古明地恋：黄上衣绿裙黑帽（浅色，暖黄底绿强调）
@@ -18047,53 +18047,179 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
     }
     ctxmenu.appendChild(it);
   }
+  // 只显示当前可用的操作：位置已被占用就不显示「创建」，时间点上没有
+  // 命中字幕就不显示「按音频位置拆分」——无效项直接缺席而不是灰显。
   const mainIdx = findWaveformCueAtTime(timeMs, DATA.segments);
   const extensionTrack = getActiveExtensionTrack();
   const extensionIdx = findWaveformCueAtTime(timeMs, extensionTrack?.segments);
   if (effectiveTrack === 'extension') {
-    addItem(
-      '创建副字幕',
-      '',
-      () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack),
-      extensionIdx >= 0,
-    );
-  } else {
-    addItem(
-      '创建字幕',
-      '',
-      () => addCueAtWaveformTime(timeMs, clickX, clickY),
-      mainIdx >= 0,
-    );
+    if (extensionIdx < 0) {
+      addItem('创建副字幕', '', () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack));
+    }
+  } else if (mainIdx < 0) {
+    addItem('创建字幕', '', () => addCueAtWaveformTime(timeMs, clickX, clickY));
   }
   addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
-  if (Array.isArray(DATA.segments) && DATA.segments.length) {
-    addItem(
-      '按音频位置拆分主字幕',
-      'B',
-      () => splitFromContextMenu(mainIdx, clickX, clickY, timeMs),
-      mainIdx < 0,
-    );
+  if (Array.isArray(DATA.segments) && DATA.segments.length && mainIdx >= 0) {
+    addItem('按音频位置拆分主字幕', 'B', () => splitFromContextMenu(mainIdx, clickX, clickY, timeMs));
   }
-  if (Array.isArray(extensionTrack?.segments) && extensionTrack.segments.length) {
-    addItem(
-      '按音频位置拆分副字幕',
-      '',
-      () => openExtensionSplitModal(extensionIdx, timeMs, extensionTrack),
-      extensionIdx < 0,
-    );
+  if (Array.isArray(extensionTrack?.segments) && extensionTrack.segments.length && extensionIdx >= 0) {
+    addItem('按音频位置拆分副字幕', '', () => openExtensionSplitModal(extensionIdx, timeMs, extensionTrack));
   }
-
-  ctxmenu.classList.add('show');
-  const rect = ctxmenu.getBoundingClientRect();
-  let nx = clickX, ny = clickY;
-  if (clickX + rect.width > window.innerWidth) nx = window.innerWidth - rect.width - 4;
-  if (clickY + rect.height > window.innerHeight) ny = window.innerHeight - rect.height - 4;
-  ctxmenu.style.left = nx + 'px';
-  ctxmenu.style.top = ny + 'px';
+  ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
+  ctxShowAt(clickX, clickY);
 }
 
 // === 右键菜单 ===
 let ctxLastClickX = 0, ctxLastClickY = 0;
+
+// --- 模块右键面板通用能力 ---
+// 面板鼠标移出自动收起（280ms 缓冲容忍进出抖动，与菜单栏一致）；回到面板取消收起。
+let ctxMenuLeaveTimer = null;
+ctxmenu.addEventListener('pointerleave', () => {
+  clearTimeout(ctxMenuLeaveTimer);
+  ctxMenuLeaveTimer = setTimeout(() => ctxmenu.classList.remove('show'), 280);
+});
+ctxmenu.addEventListener('pointerenter', () => clearTimeout(ctxMenuLeaveTimer));
+
+function ctxAppendSeparator() {
+  const separator = document.createElement('div');
+  separator.className = 'sep';
+  ctxmenu.appendChild(separator);
+}
+
+function ctxAppendItem(label, onClick, options) {
+  const opts = options || {};
+  const item = document.createElement('div');
+  item.className = 'item ctx-settings-item' + (opts.window ? ' ctx-window-item' : '');
+  const text = document.createElement('span');
+  text.textContent = label;
+  item.appendChild(text);
+  const kb = document.createElement('kbd');
+  kb.textContent = opts.kbd || '';
+  if (!opts.kbd) kb.style.visibility = 'hidden';
+  item.appendChild(kb);
+  item.addEventListener('click', () => { ctxmenu.classList.remove('show'); onClick(); });
+  ctxmenu.appendChild(item);
+  return item;
+}
+
+// 各模块面板末尾的「…设置」入口：详情弹窗类（波形/列表/播放器）。
+function ctxAppendSettingsEntry(label, onClick) {
+  ctxAppendSeparator();
+  ctxAppendItem(label, onClick, { window: true });
+}
+
+// 可展开的设置组（字幕编辑器设置：一组开关，而非详情弹窗）。
+function ctxAppendExpandableSettings(label, children) {
+  ctxAppendSeparator();
+  const header = document.createElement('div');
+  header.className = 'item ctx-expand-header';
+  const text = document.createElement('span');
+  text.textContent = label;
+  header.appendChild(text);
+  const arrow = document.createElement('kbd');
+  arrow.className = 'ctx-expand-arrow';
+  arrow.textContent = '▸';
+  header.appendChild(arrow);
+  const group = document.createElement('div');
+  group.className = 'ctx-subgroup';
+  children.forEach((child) => {
+    const row = document.createElement('div');
+    row.className = 'item ctx-subitem';
+    const rowText = document.createElement('span');
+    rowText.textContent = (child.checked() ? '✓ ' : '') + child.label;
+    row.appendChild(rowText);
+    const kb = document.createElement('kbd');
+    kb.style.visibility = 'hidden';
+    row.appendChild(kb);
+    row.addEventListener('click', (event) => {
+      event.stopPropagation();
+      child.toggle();
+      rowText.textContent = (child.checked() ? '✓ ' : '') + child.label;
+    });
+    group.appendChild(row);
+  });
+  header.addEventListener('click', () => {
+    const open = group.classList.toggle('open');
+    header.classList.toggle('open', open);
+    arrow.textContent = open ? '▾' : '▸';
+  });
+  ctxmenu.append(header, group);
+}
+
+// 共用的面板定位（贴边防溢出）。
+function ctxShowAt(x, y) {
+  ctxmenu.classList.add('show');
+  const rect = ctxmenu.getBoundingClientRect();
+  const nx = Math.max(4, Math.min(x, window.innerWidth - rect.width - 4));
+  const ny = Math.max(4, Math.min(y, window.innerHeight - rect.height - 4));
+  ctxmenu.style.left = nx + 'px';
+  ctxmenu.style.top = ny + 'px';
+}
+
+// 字幕编辑器设置的四个开关（与「字幕 → 字幕编辑器设置」子菜单同一批模板控件）。
+function ctxToggleTemplateCheckbox(id) {
+  const checkbox = document.getElementById(id);
+  if (!checkbox) return;
+  checkbox.checked = !checkbox.checked;
+  checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function buildCueEditorSettingsChildren() {
+  return [
+    { label: '跳转按钮', checked: () => Boolean(document.getElementById('cue-editor-show-navigation')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-navigation') },
+    { label: '时间操作', checked: () => Boolean(document.getElementById('cue-editor-show-time-actions')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-time-actions') },
+    { label: '表情包', checked: () => Boolean(document.getElementById('cue-editor-show-sticker')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-sticker') },
+    { label: 'Esc 取消编辑', checked: () => Boolean(document.getElementById('cue-editor-cancel-on-escape')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-cancel-on-escape') },
+  ];
+}
+
+// 模块级右键面板（模块空白区/顶栏/工具栏）：只提供该模块的设置入口。
+// 行级/块级菜单各自 stopPropagation，不会落到这里。
+function setupModuleContextMenu() {
+  if (!waveformEditor) return;
+  const openWaveSettings = () => setWaveformSettingsPanelOpen(true);
+  const openMediaSettings = () => setSubtitlePreviewSettingsPanelOpen(true);
+  const openCueListSettings = () => {
+    if (!cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.open();
+  };
+  const showModulePanel = (entries, x, y) => {
+    ctxmenu.innerHTML = '';
+    entries.forEach((entry, index) => {
+      if (index === 0) ctxAppendSeparator();
+      if (entry.expandable) ctxAppendExpandableSettings(entry.label, entry.children);
+      else ctxAppendItem(entry.label, entry.onClick, { window: true });
+    });
+    ctxShowAt(x, y);
+  };
+  const bindModule = (element, buildEntries) => {
+    if (!element) return;
+    element.addEventListener('contextmenu', (event) => {
+      if (event.defaultPrevented) return;
+      // 输入类控件与媒体画面保留原生菜单（文本框右键 = 复制/粘贴等）。
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, video, audio')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      showModulePanel(buildEntries(), event.clientX, event.clientY);
+    });
+  };
+  bindModule(waveformEditor.playerWrap, () => [
+    { label: '媒体播放器设置', onClick: openMediaSettings },
+  ]);
+  bindModule(document.getElementById('current-cue-panel'), () => [
+    { label: '字幕编辑器设置', expandable: true, children: buildCueEditorSettingsChildren() },
+  ]);
+  const cuesModule = document.querySelector('.cues-module');
+  if (cuesModule) {
+    bindModule(cuesModule, () => [
+      { label: '字幕列表设置', onClick: openCueListSettings },
+    ]);
+  }
+  bindModule(waveformEditor.pane, () => [
+    { label: '波形显示器设置', onClick: openWaveSettings },
+  ]);
+}
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
   ctxLastClickX = x; ctxLastClickY = y;
   ctxmenu.innerHTML = '';
@@ -18229,14 +18355,15 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     addItem('取消选择', `${modKeyLabel()}+D`, () => clearSelection());
   }
 
-  // 调整 ctxmenu 位置（避免溢出）
-  ctxmenu.classList.add('show');
-  const rect = ctxmenu.getBoundingClientRect();
-  let nx = x, ny = y;
-  if (x + rect.width > window.innerWidth) nx = window.innerWidth - rect.width - 4;
-  if (y + rect.height > window.innerHeight) ny = window.innerHeight - rect.height - 4;
-  ctxmenu.style.left = nx + 'px';
-  ctxmenu.style.top = ny + 'px';
+  // 末尾设置入口：来自波形块 → 波形显示器设置；来自字幕列表行 → 字幕列表设置。
+  if (waveformTimeMs !== null) {
+    ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
+  } else {
+    ctxAppendSettingsEntry('字幕列表设置', () => {
+      if (!cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.open();
+    });
+  }
+  ctxShowAt(x, y);
 }
 
 function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveExtensionTrack()) {
@@ -18303,10 +18430,14 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
     // 选择最早的未绑定主字幕；明确绑定选中项则使用上面的入口。
     addItem('绑定到主字幕', () => beginPendingExtensionBinding(index, track), false, false, 'G');
   }
-  ctxmenu.classList.add('show');
-  const rect = ctxmenu.getBoundingClientRect();
-  ctxmenu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`;
-  ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
+  if (timeMs !== null) {
+    ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
+  } else {
+    ctxAppendSettingsEntry('字幕列表设置', () => {
+      if (!cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.open();
+    });
+  }
+  ctxShowAt(x, y);
 }
 
 function showGapContextMenu(x, y, index) {
@@ -18646,6 +18777,7 @@ function initWaveformEditor() {
     },
   });
   waveformEditor.attachPlayer(player);
+  setupModuleContextMenu();
   waveformEditor.setLayoutData(DATA.workspace || null, { render: false });
   applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
   waveformEditor.setSpectralPayload(DATA.spectral || null, { render: false });
@@ -19910,7 +20042,7 @@ document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () 
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===
-const DOCK_MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
+const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器' };
 function rebuildShowModuleMenu() {
   const menu = document.getElementById('show-module-menu');
   const submenu = document.getElementById('show-module-submenu');

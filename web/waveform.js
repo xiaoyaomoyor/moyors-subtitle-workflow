@@ -57,7 +57,7 @@
   // 内置工作区 id：下拉框可选项；custom 预设都由各自的布局树渲染。
   const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'cinema'];
   const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
-  const MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
+  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器' };
   // 模块标签叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
   const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   // 工作区窗口图标：16x16 线性 SVG，stroke 跟随 currentColor（强调色）。
