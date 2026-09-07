@@ -18099,6 +18099,13 @@ function ctxAppendItem(label, onClick, options) {
   kb.textContent = opts.kbd || '';
   if (!opts.kbd) kb.style.visibility = 'hidden';
   item.appendChild(kb);
+  // 可打开详情窗口的选项：与菜单栏相同的「窗口」图标（menu-window-icon）。
+  if (opts.window) {
+    item.insertAdjacentHTML(
+      'beforeend',
+      '<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg>',
+    );
+  }
   item.addEventListener('click', () => { ctxmenu.classList.remove('show'); onClick(); });
   ctxmenu.appendChild(item);
   return item;
@@ -18119,13 +18126,10 @@ function ctxAppendExpandableSettings(label, children) {
   header.className = 'item ctx-submenu-toggle';
   header.setAttribute('role', 'menuitem');
   header.setAttribute('aria-haspopup', 'true');
+  header.setAttribute('aria-expanded', 'false');
   const text = document.createElement('span');
   text.textContent = label;
   header.appendChild(text);
-  const arrow = document.createElement('kbd');
-  arrow.className = 'ctx-expand-arrow';
-  arrow.textContent = '▸';
-  header.appendChild(arrow);
   const group = document.createElement('div');
   group.className = 'ctx-submenu-menu';
   group.setAttribute('role', 'menu');
@@ -18165,12 +18169,15 @@ function ctxAppendExpandableSettings(label, children) {
   ctxmenu.appendChild(wrap);
 }
 
-// 共用的面板定位（贴边防溢出）。
+// 共用的面板定位：鼠标落在第一个选项的中心（而非面板左上角），贴边防溢出。
 function ctxShowAt(x, y) {
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
-  const nx = Math.max(4, Math.min(x, window.innerWidth - rect.width - 4));
-  const ny = Math.max(4, Math.min(y, window.innerHeight - rect.height - 4));
+  const first = ctxmenu.querySelector(':scope > .item, :scope > .ctx-submenu > .ctx-submenu-toggle');
+  const firstRect = first ? first.getBoundingClientRect() : { top: rect.top, height: 30 };
+  const firstCenterOffset = (firstRect.top - rect.top) + firstRect.height / 2;
+  const nx = Math.max(4, Math.min(x - rect.width / 2, window.innerWidth - rect.width - 4));
+  const ny = Math.max(4, Math.min(y - firstCenterOffset, window.innerHeight - rect.height - 4));
   ctxmenu.style.left = nx + 'px';
   ctxmenu.style.top = ny + 'px';
 }

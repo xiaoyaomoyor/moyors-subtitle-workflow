@@ -2415,42 +2415,40 @@
   }
   .onboarding-spotlight {
     position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none;
-    border: 2px solid var(--selection-yellow-line); border-radius: var(--radius-md);
-    box-shadow: 0 0 0 4px var(--selection-yellow-soft), 0 0 22px var(--selection-yellow-glow);
+    border: 2px solid var(--accent-line); border-radius: var(--radius-md);
+    box-shadow: 0 0 0 4px var(--accent-tint), 0 0 22px var(--accent-soft);
     opacity: 0; transition: left 160ms ease-out, top 160ms ease-out, width 160ms ease-out,
       height 160ms ease-out, opacity 160ms ease-out;
   }
   .onboarding-spotlight.show { opacity: 1; }
   .onboarding-card {
     position: fixed; right: 24px; bottom: 24px; width: min(408px, calc(100vw - 32px));
-    padding: 16px; color: var(--text-primary); background: color-mix(in srgb, var(--bg-overlay) 96%, var(--amber));
-    border: 1px solid color-mix(in srgb, var(--amber) 68%, var(--border-strong));
-    border-top: 3px solid var(--amber); border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-3), 0 0 0 1px var(--amber-soft);
+    padding: 16px; color: var(--text-primary); background: var(--tab-overlay-bg);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-3);
     pointer-events: none; animation: onboarding-rise 220ms ease-out;
   }
   .onboarding-card button { pointer-events: auto; }
   .onboarding-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .onboarding-progress {
-    color: var(--amber-hover); font-size: 11px; font-weight: 500; letter-spacing: .12em;
+    color: var(--accent-hover); font-size: 11px; font-weight: 500; letter-spacing: .12em;
     text-transform: uppercase;
   }
   .onboarding-skip {
-    min-height: 26px; padding: 4px 9px; color: var(--bg-base); background: var(--amber);
-    border: 1px solid var(--amber-hover); border-radius: var(--radius-sm); cursor: pointer;
+    min-height: 26px; padding: 4px 9px; color: var(--btn-text); background: var(--btn-bg);
+    border: 1px solid var(--btn-border); border-radius: var(--radius-sm); cursor: pointer;
     font-size: 12px; font-weight: 500; letter-spacing: .01em;
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--amber-hover) 70%, var(--border-strong));
     transition: background .15s ease, border-color .15s ease, transform .15s ease;
   }
-  .onboarding-skip:hover { color: var(--bg-base); background: var(--amber-hover); border-color: var(--amber-hover); }
+  .onboarding-skip:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
   .onboarding-skip:focus-visible, .onboarding-footnote button:focus-visible {
     outline: 2px solid var(--accent-line); outline-offset: 2px; border-radius: 2px;
   }
   .onboarding-heading { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 11px; align-items: start; margin-top: 13px; }
   .onboarding-glyph {
     display: grid; place-items: center; width: 42px; height: 42px; color: var(--bg-base);
-    background: var(--amber); border-radius: 9px; font-family: var(--font-mono); font-size: 19px; font-weight: 900;
-    box-shadow: 4px 4px 0 color-mix(in srgb, var(--amber) 34%, transparent);
+    background: var(--accent); border-radius: 9px; font-family: var(--font-mono); font-size: 19px; font-weight: 900;
+    box-shadow: 4px 4px 0 color-mix(in srgb, var(--accent) 34%, transparent);
   }
   .onboarding-eyebrow { color: var(--text-muted); font-size: 11px; letter-spacing: .11em; text-transform: uppercase; }
   .onboarding-card h2 { margin: 3px 0 5px; color: var(--text-primary); font-size: 17px; line-height: 1.28; }
@@ -2460,7 +2458,7 @@
     margin: 0; padding: 0 0 0 17px; color: var(--text-muted); font-size: 11px; line-height: 1.5;
   }
   .onboarding-extra-tips li { margin: 4px 0; padding-left: 2px; }
-  .onboarding-extra-tips li::marker { color: var(--amber-hover); font-size: 11px; }
+  .onboarding-extra-tips li::marker { color: var(--accent-hover); font-size: 11px; }
   .onboarding-extra-tips .onboarding-split-key-options { display: inline; }
   .onboarding-extra-tips button {
     padding: 0; color: var(--accent); background: transparent; border: 0; cursor: pointer; font: inherit;
@@ -2469,19 +2467,19 @@
   .onboarding-extra-tips button:hover { color: var(--accent-hover); }
   .onboarding-demo {
     min-height: 74px; margin-top: 13px; padding: 10px; overflow: hidden;
-    background: color-mix(in srgb, var(--form-input-bg) 92%, var(--amber));
+    background: var(--form-input-bg);
     border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
   }
   .onboarding-empty-demo { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 52px; color: var(--text-secondary); font-size: 12px; text-align: center; }
-  .onboarding-status { min-height: 18px; margin-top: 8px; color: var(--amber-hover); font-size: 11px; font-family: var(--font-mono); }
+  .onboarding-status { min-height: 18px; margin-top: 8px; color: var(--accent-hover); font-size: 11px; font-family: var(--font-mono); }
   .onboarding-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 11px; }
   .onboarding-actions button {
     min-height: 30px; padding: 6px 10px; color: var(--btn-text); background: var(--btn-bg);
     border: 1px solid var(--btn-border); border-radius: var(--radius-sm); cursor: pointer; font-size: 12px;
   }
   .onboarding-actions button:hover:not(:disabled) { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
-  .onboarding-actions button.primary { color: #1b1710; background: var(--amber); border-color: var(--amber-hover); font-weight: 500; }
-  .onboarding-actions button.primary:hover:not(:disabled) { background: var(--amber-hover); }
+  .onboarding-actions button.primary { color: var(--bg-base); background: var(--accent); border-color: var(--accent-hover); font-weight: 500; }
+  .onboarding-actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   .onboarding-actions button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
   .onboarding-actions button:disabled { opacity: .46; cursor: not-allowed; }
   .onboarding-footnote { margin-top: 11px !important; color: var(--text-muted) !important; font-size: 11px !important; }
@@ -2495,7 +2493,7 @@
     border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--radius-sm);
     font-family: var(--font-mono); font-size: 12px; font-weight: 700;
   }
-  .onboarding-key.active { color: var(--bg-base); background: var(--amber); border-color: var(--amber-hover); animation: onboarding-key-pulse 720ms ease-in-out infinite alternate; }
+  .onboarding-key.active { color: var(--bg-base); background: var(--accent); border-color: var(--accent-hover); animation: onboarding-key-pulse 720ms ease-in-out infinite alternate; }
   .onboarding-key.wide { grid-column: span 2; width: 73px; justify-self: end; }
   .onboarding-key.wide + .onboarding-key { grid-column: span 2; width: 73px; justify-self: start; }
   .onboarding-mini-cues { display: grid; gap: 5px; }
@@ -3734,9 +3732,14 @@
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
   /* 模块右键面板的设置入口与悬浮飞出子菜单：与菜单栏面板同一套
-     背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）。 */
-  .ctxmenu .ctx-expand-arrow { color: var(--text-muted); }
+     背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）与图标体系。 */
+  .ctxmenu .ctx-window-item .menu-window-icon { margin-left: auto; }
   .ctxmenu .ctx-submenu { position: relative; }
+  .ctxmenu .ctx-submenu-toggle { position: relative; padding-right: 26px; }
+  .ctxmenu .ctx-submenu-toggle::after {
+    content: '›'; position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%); color: var(--text-muted); font-size: 15px; line-height: 1;
+  }
   .ctxmenu .ctx-submenu-menu {
     display: none; position: absolute; left: calc(100% - 2px); top: -5px;
     min-width: 170px; background: var(--menu-overlay-bg);
@@ -39864,6 +39867,13 @@ function ctxAppendItem(label, onClick, options) {
   kb.textContent = opts.kbd || '';
   if (!opts.kbd) kb.style.visibility = 'hidden';
   item.appendChild(kb);
+  // 可打开详情窗口的选项：与菜单栏相同的「窗口」图标（menu-window-icon）。
+  if (opts.window) {
+    item.insertAdjacentHTML(
+      'beforeend',
+      '<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg>',
+    );
+  }
   item.addEventListener('click', () => { ctxmenu.classList.remove('show'); onClick(); });
   ctxmenu.appendChild(item);
   return item;
@@ -39884,13 +39894,10 @@ function ctxAppendExpandableSettings(label, children) {
   header.className = 'item ctx-submenu-toggle';
   header.setAttribute('role', 'menuitem');
   header.setAttribute('aria-haspopup', 'true');
+  header.setAttribute('aria-expanded', 'false');
   const text = document.createElement('span');
   text.textContent = label;
   header.appendChild(text);
-  const arrow = document.createElement('kbd');
-  arrow.className = 'ctx-expand-arrow';
-  arrow.textContent = '▸';
-  header.appendChild(arrow);
   const group = document.createElement('div');
   group.className = 'ctx-submenu-menu';
   group.setAttribute('role', 'menu');
@@ -39930,12 +39937,15 @@ function ctxAppendExpandableSettings(label, children) {
   ctxmenu.appendChild(wrap);
 }
 
-// 共用的面板定位（贴边防溢出）。
+// 共用的面板定位：鼠标落在第一个选项的中心（而非面板左上角），贴边防溢出。
 function ctxShowAt(x, y) {
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
-  const nx = Math.max(4, Math.min(x, window.innerWidth - rect.width - 4));
-  const ny = Math.max(4, Math.min(y, window.innerHeight - rect.height - 4));
+  const first = ctxmenu.querySelector(':scope > .item, :scope > .ctx-submenu > .ctx-submenu-toggle');
+  const firstRect = first ? first.getBoundingClientRect() : { top: rect.top, height: 30 };
+  const firstCenterOffset = (firstRect.top - rect.top) + firstRect.height / 2;
+  const nx = Math.max(4, Math.min(x - rect.width / 2, window.innerWidth - rect.width - 4));
+  const ny = Math.max(4, Math.min(y - firstCenterOffset, window.innerHeight - rect.height - 4));
   ctxmenu.style.left = nx + 'px';
   ctxmenu.style.top = ny + 'px';
 }
