@@ -1500,6 +1500,13 @@
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
   }
+  /* 开启「快捷键提示」后提示行紧贴上方标签栏：抵消面板 flex 间距并去掉
+     上圆角（提示行不是模块顶缘，圆角会在标签栏下方留出缺口）。分隔线保留。 */
+  .current-cue-panel:has(.cue-editor-key-hints:not([hidden])) > .cue-editor-toolbar {
+    margin-top: -10px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
   /* 自定义/标签布局：模块由槽位负责排布，清掉预设流式布局遗留的外边距（消除模块间空白缝） */
   .layout-module-slot > .player-wrap,
   .layout-module-slot > .current-cue-panel,
@@ -2069,7 +2076,7 @@
   }
   .editor-settings-stepper button { border: 0; border-radius: 0; min-width: 24px; }
   .editor-settings-stepper b {
-    min-width: 48px; padding: 0 5px; color: var(--amber-hover); text-align: center;
+    min-width: 48px; padding: 0 5px; color: var(--text-primary); text-align: center;
     font: 11px var(--font-mono);
     background: var(--form-input-bg);
   }
@@ -3866,15 +3873,15 @@
     overflow-wrap: anywhere;
   }
   .hint-project-location {
-    color: var(--amber-hover); font: 11px/1.4 var(--font-mono); font-weight: 600;
+    color: var(--text-secondary); font: 11px/1.4 var(--font-mono); font-weight: 600;
   }
   .hint-project-preview-label {
     color: var(--text-muted); font-size: 11px; letter-spacing: .08em;
   }
   .hint-project-preview-value {
     max-height: 5.4em; overflow: auto; padding: 7px 9px;
-    background: color-mix(in srgb, var(--form-input-bg) 82%, var(--amber-soft));
-    border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--border));
+    background: var(--form-input-bg);
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm); color: var(--text-primary);
     font: 13px/1.45 "Segoe UI", "Microsoft YaHei", sans-serif; white-space: pre-wrap;
     overflow-wrap: anywhere;

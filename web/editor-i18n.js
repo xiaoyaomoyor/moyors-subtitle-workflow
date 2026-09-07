@@ -62,7 +62,7 @@
     '语言设置': 'Language', '颜色': 'Colors', '石墨': 'Graphite', '午夜': 'Midnight',
     '苔原': 'Tundra', '暖砂': 'Warm sand', '背景色': 'Background', '文字色': 'Text',
     '波形色': 'Waveform', '字幕色': 'Subtitles', '恢复默认颜色': 'Reset colors',
-    '视频': 'Video', '当前字幕': 'Current subtitle', '字幕列表': 'Subtitle list', '波形': 'Waveform', '媒体播放器': 'Media player', '字幕编辑器': 'Subtitle editor', '波形显示器': 'Waveform display',
+    '视频': 'Video', '当前字幕': 'Current subtitle', '字幕列表': 'Subtitle list', '波形': 'Waveform', '媒体播放器': 'Media player', '字幕编辑器': 'Subtitle editor', '波形显示器': 'Waveform display', '波形显示器设置': 'Waveform display settings', '打开波形显示器设置窗口': 'Open the waveform display settings window', '关闭波形显示器设置': 'Close waveform display settings',
     '空隙': 'Gaps', '波形显示': 'Waveform display',
     '切换为其他窗口类型，或关闭此窗口；拖动窗口图标可停靠到其他位置': 'Switch this window to another type or close it; drag a window icon to dock it elsewhere',
     '新建工程': 'New project', '创建并保存一个空白工程': 'Create and save a blank project',
