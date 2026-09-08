@@ -24,6 +24,28 @@ __WAVEFORM_CSS__
 </head>
 <body>
 
+<div class="modal-mask" id="project-recovery-modal">
+  <div class="modal msw-save-box" role="dialog" aria-modal="true" aria-labelledby="project-recovery-title">
+    <h3 id="project-recovery-title">恢复记录</h3>
+    <p class="msw-save-note">本机草稿与保存历史。载入前保留当前草稿；载入后请另存为工程，不会覆盖原文件。</p>
+    <div id="project-recovery-list" class="msw-recovery-list"></div>
+    <p id="project-recovery-message" class="msw-save-note" role="status"></p>
+    <div class="actions"><button type="button" id="project-recovery-close">关闭</button></div>
+  </div>
+</div>
+
+<div class="modal-mask" id="project-save-as-modal">
+  <div class="modal msw-save-box" role="dialog" aria-modal="true" aria-labelledby="project-save-title">
+    <h3 id="project-save-title">另存为工程</h3>
+    <p class="msw-save-note">TTS 音频自动收集到新工程旁边；正在进行的处理任务保留在原工程。</p>
+    <button type="button" id="project-save-choose">选择保存位置</button>
+    <p id="project-save-path" class="msw-save-path">尚未选择保存位置</p>
+    <label class="toggle"><input type="checkbox" id="project-save-collect-media">同时收集原视频／音频</label>
+    <p id="project-save-message" role="status" class="msw-save-note"></p>
+    <button type="button" id="project-save-local" hidden>仅下载工程文件</button>
+    <div class="actions"><button type="button" id="project-save-cancel">取消</button><button type="button" class="primary" id="project-save-confirm" disabled>保存</button></div>
+  </div>
+</div>
 <!-- UE 式顶部菜单栏：左上 LOGO + 六个选项卡 + 右上项目名（悬浮显示详情卡） -->
 <div class="menubar" id="menubar">
   <span class="menubar-logo" aria-hidden="true" title="MSW 字幕编辑器">
@@ -60,9 +82,11 @@ __WAVEFORM_CSS__
       <div class="menu-group-title">保存</div>
       <button type="button" class="dropdown-item" id="save-project" role="menuitem" title="保存回服务器启动时指定的工程文件" hidden><span>保存工程</span> <kbd class="menu-kbd" data-mod>Ctrl+S</kbd></button>
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
+      <div id="project-persistence-status" class="msw-save-status" role="status" hidden></div>
+      <button type="button" class="dropdown-item" id="project-check-assets" role="menuitem" hidden>检查工程素材</button>
+      <button type="button" class="dropdown-item" id="project-recovery-open" role="menuitem" hidden>恢复记录</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
-      <button type="button" class="dropdown-item" id="download-json" role="menuitem" title="导出当前工程为 .mosp 文件">导出工程</button>
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
         <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
@@ -71,66 +95,69 @@ __WAVEFORM_CSS__
           <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
           <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
           <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按颜色导出字幕</div>
+          <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
+            <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用当前空隙移除结果的字幕、时间线或保留区域计划">去空隙版本</div>
+            <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
+              <div class="dropdown-item" id="download-gap-removed-srt" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出字幕；原工程时间不变">字幕 SRT</div>
+              <div class="dropdown-item" id="download-gap-removed-color-srt" role="menuitem" tabindex="0" hidden title="按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕">按颜色导出字幕</div>
+              <div class="dropdown-separator" role="separator"></div>
+              <div class="dropdown-submenu" role="none">
+                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
+                <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
+                  <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
+                  <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
+                  <div class="dropdown-item" id="download-gap-removed-sticker-otio" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIO；完全落在空隙内的表情包会被丢弃">表情包 OTIO 工程</div>
+                  <div class="dropdown-item" id="download-gap-removed-sticker-otioz" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）；完全落在空隙内的表情包会被丢弃">表情包 OTIOZ 打包工程</div>
+                </div>
+              </div>
+              <div class="dropdown-separator" role="separator"></div>
+              <div class="dropdown-submenu" role="none">
+                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-data-menu">数据文件</div>
+                <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-data-menu" role="menu">
+                  <div class="dropdown-item" id="download-gap-removed-ffconcat" role="menuitem" tabindex="0" title="导出 FFmpeg concat demuxer 可读取的保留区间；流复制的切点精度受关键帧和编码包限制">FFconcat 文件</div>
+                  <div class="dropdown-item" id="download-gap-removed-regions-json" role="menuitem" tabindex="0" title="以毫秒为单位导出原媒体中的全部保留区域，供自定义脚本或工具读取">保留区域 JSON</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="dropdown-submenu" id="extra-export-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" id="extra-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出 FCP7/OTIO/Lottie/OGraf 等更多格式">更多导出</div>
+            <div class="dropdown-menu dropdown-submenu-menu" id="extra-export-menu" role="menu">
+              <div class="dropdown-item" id="download-fcp7-export" role="menuitem" tabindex="0" title="实验性 Premiere 交接：导出 FCP 7 XML">Premiere FCP 7 XML（实验性）</div>
+              <div class="dropdown-separator" role="separator"></div>
+              <div class="dropdown-submenu" role="none">
+                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-otio-menu">OTIO</div>
+                <div class="dropdown-menu dropdown-submenu-menu" id="extra-otio-menu" role="menu">
+                  <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
+                  <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
+                  <div class="dropdown-item" id="download-sticker-otio" role="menuitem" tabindex="0" title="导出只包含表情包图片轨道的 OTIO 工程">表情包 OTIO 工程</div>
+                  <div class="dropdown-item" id="download-sticker-otioz" role="menuitem" tabindex="0" title="导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）">表情包 OTIOZ 打包工程</div>
+                </div>
+              </div>
+              <div class="dropdown-separator" role="separator"></div>
+              <div class="dropdown-submenu" role="none">
+                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-dynamic-menu">动态图形</div>
+                <div class="dropdown-menu dropdown-submenu-menu" id="extra-dynamic-menu" role="menu">
+                  <div class="dropdown-item" id="download-lottie" role="menuitem" tabindex="0" title="导出逐字高亮动态字幕 .lottie（需要以 server-editor 打开并绑定工程文件）">动态字幕（Lottie）</div>
+                  <div class="dropdown-item" id="download-ograf" role="menuitem" tabindex="0" title="导出符合 OGraf 规范的动态字幕包（需要以 server-editor 打开并绑定工程文件）">动态字幕（OGraf）</div>
+                </div>
+              </div>
+              <div class="dropdown-separator" role="separator"></div>
+              <div class="dropdown-submenu" role="none">
+                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-data-menu">数据文件</div>
+                <div class="dropdown-menu dropdown-submenu-menu" id="extra-data-menu" role="menu">
+                  <div class="dropdown-item" id="download-plain-text" role="menuitem" tabindex="0" title="导出纯文本 TXT 字幕">纯文本 TXT</div>
+                  <div class="dropdown-item" id="download-resolve-json" role="menuitem" tabindex="0" title="导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入">Resolve JSON</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="dropdown-separator" role="separator"></div>
         </div>
       </div>
-      <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
-        <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用当前空隙移除结果的字幕、时间线或保留区域计划">去空隙版本</div>
-        <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
-          <div class="dropdown-item" id="download-gap-removed-srt" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出字幕；原工程时间不变">字幕 SRT</div>
-          <div class="dropdown-item" id="download-gap-removed-color-srt" role="menuitem" tabindex="0" hidden title="按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕">按颜色导出字幕</div>
-          <div class="dropdown-separator" role="separator"></div>
-          <div class="dropdown-submenu" role="none">
-            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
-            <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
-              <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
-              <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
-              <div class="dropdown-item" id="download-gap-removed-sticker-otio" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIO；完全落在空隙内的表情包会被丢弃">表情包 OTIO 工程</div>
-              <div class="dropdown-item" id="download-gap-removed-sticker-otioz" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）；完全落在空隙内的表情包会被丢弃">表情包 OTIOZ 打包工程</div>
-            </div>
-          </div>
-          <div class="dropdown-separator" role="separator"></div>
-          <div class="dropdown-submenu" role="none">
-            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-data-menu">数据文件</div>
-            <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-data-menu" role="menu">
-              <div class="dropdown-item" id="download-gap-removed-ffconcat" role="menuitem" tabindex="0" title="导出 FFmpeg concat demuxer 可读取的保留区间；流复制的切点精度受关键帧和编码包限制">FFconcat 文件</div>
-              <div class="dropdown-item" id="download-gap-removed-regions-json" role="menuitem" tabindex="0" title="以毫秒为单位导出原媒体中的全部保留区域，供自定义脚本或工具读取">保留区域 JSON</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="dropdown-submenu" id="extra-export-dropdown">
-        <div class="dropdown-item dropdown-submenu-toggle" id="extra-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出 FCP7/OTIO/Lottie/OGraf 等更多格式">更多导出</div>
-        <div class="dropdown-menu dropdown-submenu-menu" id="extra-export-menu" role="menu">
-          <div class="dropdown-item" id="download-fcp7-export" role="menuitem" tabindex="0" title="实验性 Premiere 交接：导出 FCP 7 XML">Premiere FCP 7 XML（实验性）</div>
-          <div class="dropdown-separator" role="separator"></div>
-          <div class="dropdown-submenu" role="none">
-            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-otio-menu">OTIO</div>
-            <div class="dropdown-menu dropdown-submenu-menu" id="extra-otio-menu" role="menu">
-              <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
-              <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
-              <div class="dropdown-item" id="download-sticker-otio" role="menuitem" tabindex="0" title="导出只包含表情包图片轨道的 OTIO 工程">表情包 OTIO 工程</div>
-              <div class="dropdown-item" id="download-sticker-otioz" role="menuitem" tabindex="0" title="导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）">表情包 OTIOZ 打包工程</div>
-            </div>
-          </div>
-          <div class="dropdown-separator" role="separator"></div>
-          <div class="dropdown-submenu" role="none">
-            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-dynamic-menu">动态图形</div>
-            <div class="dropdown-menu dropdown-submenu-menu" id="extra-dynamic-menu" role="menu">
-              <div class="dropdown-item" id="download-lottie" role="menuitem" tabindex="0" title="导出逐字高亮动态字幕 .lottie（需要以 server-editor 打开并绑定工程文件）">动态字幕（Lottie）</div>
-              <div class="dropdown-item" id="download-ograf" role="menuitem" tabindex="0" title="导出符合 OGraf 规范的动态字幕包（需要以 server-editor 打开并绑定工程文件）">动态字幕（OGraf）</div>
-            </div>
-          </div>
-          <div class="dropdown-separator" role="separator"></div>
-          <div class="dropdown-submenu" role="none">
-            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-data-menu">数据文件</div>
-            <div class="dropdown-menu dropdown-submenu-menu" id="extra-data-menu" role="menu">
-              <div class="dropdown-item" id="download-plain-text" role="menuitem" tabindex="0" title="导出纯文本 TXT 字幕">纯文本 TXT</div>
-              <div class="dropdown-item" id="download-resolve-json" role="menuitem" tabindex="0" title="导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入">Resolve JSON</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="dropdown-separator" role="separator"></div>
+      <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="视频渲染暂不可用">导出视频</button>
+      <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频</button>
+      <div class="dropdown-separator"></div>
       <button type="button" class="dropdown-item" id="exit-editor" role="menuitem" hidden title="停止本地编辑器服务器并关闭本页">退出编辑器</button>
     </div>
   </div>
@@ -365,7 +392,7 @@ __WAVEFORM_CSS__
   <span class="server-connection-banner-icon" aria-hidden="true">!</span>
   <div class="server-connection-banner-copy">
     <strong class="server-connection-banner-title">服务器连接已断开</strong>
-    <span class="server-connection-banner-message">请在 Launcher 中确认服务器状态；当前无法自动保存工程，请使用右上角「导出工程」下载当前工程，避免进度丢失。</span>
+    <span class="server-connection-banner-message">请在 Launcher 中确认服务器状态；当前无法自动保存工程，请使用「文件 → 另存为工程」保存当前工程，避免进度丢失。</span>
   </div>
 </div>
 
@@ -1970,6 +1997,43 @@ __WAVEFORM_CSS__
     </div>
     <p id="translation-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <section aria-label="翻译任务"><div id="translation-jobs" class="msw-processing-jobs"></div></section>
+  </div>
+</aside>
+
+<aside class="gap-remove-panel msw-processing-panel" id="audio-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-export-title">
+  <header class="gap-remove-panel-header" id="audio-export-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">文件</span><h3 id="audio-export-title">导出音频</h3></div>
+    <button type="button" id="audio-export-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频导出"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <div class="msw-processing-fields">
+      <label>导出内容<select id="audio-export-mode"><option value="voice">配音轨（仅音频贴片）</option><option value="mix">原声 + 配音混音</option></select></label>
+      <label>采样率<select id="audio-export-rate"><option value="48000">48 kHz</option><option value="44100">44.1 kHz</option></select></label>
+    </div>
+    <p class="msw-processing-hint">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
+    <div id="audio-export-source" hidden>
+      <div class="msw-processing-fields">
+        <label>原声音轨<select id="audio-export-stream" aria-label="原声音轨"></select></label>
+        <label>原声音量（dB）<input id="audio-export-source-gain" type="number" value="0" min="-60" max="12" step="1"></label>
+      </div>
+      <p class="msw-processing-hint">原声音量独立于播放器的试听音量；不会自动去除原有人声。</p>
+    </div>
+    <div class="msw-processing-fields">
+      <label>配音总音量（dB）<input id="audio-export-voice-gain" type="number" value="0" min="-60" max="12" step="1"></label>
+      <label>导出范围<select id="audio-export-range"><option value="all">整个时间轴</option><option value="custom">指定源时间范围</option></select></label>
+    </div>
+    <div class="msw-processing-fields" id="audio-export-custom" hidden>
+      <label>源起点（秒）<input id="audio-export-start-time" type="number" value="0" min="0" step="0.001"></label>
+      <label>源终点（秒）<input id="audio-export-end-time" type="number" value="1" min="0.001" step="0.001"></label>
+    </div>
+    <label class="msw-tts-check"><input type="checkbox" id="audio-export-remove-gaps">移除已标记的空隙</label>
+    <p id="audio-export-gap-hint" class="msw-processing-hint"></p>
+    <label class="msw-tts-check"><input type="checkbox" id="audio-export-peak" checked>峰值保护（超限时整体降低音量）</label>
+    <p id="audio-export-summary" class="msw-processing-hint"></p>
+    <p class="msw-processing-hint">以点击开始时的内容导出，处理期间可继续编辑。关闭面板不会取消任务。</p>
+    <div class="msw-processing-actions"><button type="button" id="audio-export-start" class="primary">开始导出</button></div>
+    <p id="audio-export-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <section aria-label="音频导出任务"><div id="audio-export-jobs" class="msw-processing-jobs"></div></section>
   </div>
 </aside>
 

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 import requests
 from maw.msw import tts
+from maw.msw import persistence
 
 origin = os.environ["MSW_TEST_TTS_ORIGIN"]
 assert urlsplit(origin).hostname == "127.0.0.1"
@@ -30,4 +31,6 @@ class TestService(OriginalService):
 
 
 tts.TtsService = TestService
+if os.environ.get("MSW_TEST_SAVE_TARGET"):
+    persistence.pick_project_target = lambda _: Path(os.environ["MSW_TEST_SAVE_TARGET"])
 runpy.run_path(str(ROOT / "server-editor" / "serve.py"), run_name="__main__")

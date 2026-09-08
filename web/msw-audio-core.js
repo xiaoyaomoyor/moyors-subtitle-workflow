@@ -3,6 +3,7 @@
   'use strict';
   const duration = (clip, asset) => (clip.source_out_sample - clip.source_in_sample) * 1000 / asset.sample_rate;
   const end = (clip, asset) => clip.start_ms + duration(clip, asset);
+  const levelDb = (clip, track) => clip.gain_db + (track?.gain_db || 0);
   function validTrack(track) {
     return track && global.MSWProject.validId(track.id) && typeof track.name === 'string' && [...track.name].length <= 160
       && Number.isFinite(track.gain_db) && track.gain_db >= -60 && track.gain_db <= 12 && typeof track.muted === 'boolean';
@@ -109,5 +110,5 @@
     const ratio = Math.max(0, Math.min(1, (db + 60) / 54));
     return `hsl(${Math.round(215 - ratio * 175)} 48% ${Math.round(18 + ratio * 28)}%)`;
   }
-  global.MSWAudio = Object.freeze({ duration, end, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
+  global.MSWAudio = Object.freeze({ duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
 })(window);

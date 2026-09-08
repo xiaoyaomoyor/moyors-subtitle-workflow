@@ -120,7 +120,7 @@ test('opens the export modal with native text unchecked and closed choices only'
 test('opens the single FCP 7 XML entry with the gap-removed timeline by default', async ({ page }) => {
   await disableOnboarding(page);
   await page.goto(server.url);
-  await expect(page.locator('#extra-export-dropdown')).toBeVisible();
+  await expect(page.locator('#extra-export-dropdown')).toBeAttached();
 
   await openFcp7Modal(page);
   await expect(page.locator('#fcp7-export-timeline-mode')).toHaveValue('gap_removed');

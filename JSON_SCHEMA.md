@@ -806,6 +806,7 @@ uv run python edit.py your_generated.mosp
 | `translation_applications` | 可选，对部分应用的任务记录已经写入的主字幕 ID；对象及每个数组最多 10000 项。任务 ID 遵循上述 ASCII 规则；字幕 ID 沿用原工程的不透明字符串规范（规范化后最多 160 字符，可含中文） |
 | `translation_target_tracks` | 可选，部分应用时新建的副轨 ID，按任务 ID 索引，最多 10000 项；轨道 ID 沿用原工程的 160 字符规则。继续应用剩余结果时复用同一轨，完成后清除 |
 | `assets` | 可选，不可变音频素材数组，最多 10000 项；字段见下表。字幕历史保留该素材库存，不随字幕撤销删除 |
+| `source_project_id` | 可选，另存为时记录直接来源工程 ID，格式与 `project_id` 相同。副本使用新 `project_id`，素材 ID 保留；字幕撤销不会回滚当前工程身份 |
 | `audio_tracks` / `audio_clips` | 可选，配音轨及源时间轴上的独立贴片；不存在等同空数组，出现时不能为 null。详见 C 阶段契约 |
 | `audio_settings` | 可选，工程级的热力图和空隙策略；不存在使用默认值，出现时不能为 null |
 
@@ -832,6 +833,10 @@ uv run python edit.py your_generated.mosp
 任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
 
 工作区布局树的模块 ID 新增 `assets`，可进入已有 `module`、`tabs` 和 `split` 结构。旧布局缺少该模块时默认为隐藏；不会为了补足五个模块重排用户布局。
+
+另存为自动收集 TTS 音频；可选原媒体写入新工程旁 `msw-<新身份摘要>.assets/media/<内容摘要><扩展名>`，顶层 `media` 保存相对路径。未收集的原媒体继续使用原引用（搬出原目录时已知相对引用转换为绝对引用）。缺失音频不删除元数据或贴片，保存响应单独报告缺失清单。
+
+恢复草稿和按分钟采样的保存历史写入本机 `editor-recovery.sqlite3`，不属于工程契约，不随工程搬移；快照不保存可重建波形或音频字节。详见[保存与恢复](docs/EDITOR_PERSISTENCE.md)。
 
 ### 音频贴片（C 阶段）
 
@@ -868,6 +873,12 @@ uv run python edit.py your_generated.mosp
 
 贴片终点由 `start_ms + (source_out_sample − source_in_sample) × 1000 / sample_rate` 得到，可以有亚毫秒小数，不另存冗余终点。左边缘裁剪同时移动整数毫秒起点，采样范围保留整数帧；整数毫秒取整误差小于 1ms。
 
-`audio_settings.heatmap` 为布尔，默认 true；`audio_settings.gap_policy` 为 `protect`（默认）或 `follow`。`protect` 从实际跳过区间中减去未静音贴片覆盖范围（终点向上取整到毫秒）；`follow` 使用原空隙决定。保护不改写 `gap_remove.gaps`，删除／静音贴片后原有决定重新生效。编辑器的有效跳过区间包含此保护；音频混音导出仍属于 D 阶段。
+`audio_settings.heatmap` 为布尔，默认 true；`audio_settings.gap_policy` 为 `protect`（默认）或 `follow`。`protect` 从实际跳过区间中减去未静音贴片覆盖范围（终点向上取整到毫秒）；`follow` 使用原空隙决定。保护不改写 `gap_remove.gaps`，删除／静音贴片后原有决定重新生效。编辑器的有效跳过区间与 D1 / D2 音频导出共用此保护。
 
 轨道、贴片和这两项设置进入工程保存、备份与撤销／重做。音频字节继续独立存放，热力图和解码缓冲仅为可重建缓存，不写入工程。热力图采用约 400ms 窗口／100ms 步长的 RMS dBFS、固定 −60 至 −6 dBFS 色标，计入贴片和轨道增益；不是 LUFS 测量，也不是最终混音电平。
+
+### D1 / D2 派生渲染计划
+
+`msw.audio-render.v1` 是导出快照编译出的派生计划，不写入 `.mosp`，也不改变 `msw.editor.v1`。包括输出 `sample_rate`／`channels`／`sample_count`、源范围、保留区间到输出时间的映射、每段贴片的素材 ID／源采样入出点／输出采样起止点／叠加增益、所选原声音轨及峰值保护。取样位置使用非负数四舍五入（半值向上），区间为左闭右开。
+
+快照中的 `gap_remove.gaps` 是编辑器 `buildJson()` 已投影的当前空隙决定；后台验证这些区间，再独立应用贴片保护和时间映射，不接受客户端提交的 FFmpeg 图或任意素材路径。共同计划夹具位于 `tests/fixtures/msw_audio_render.json`。导出格式、范围和总音量记录于本机导出任务，不成为工程设置；WAV 成品不自动添加到 TTS 素材库。

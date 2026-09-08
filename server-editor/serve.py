@@ -580,6 +580,7 @@ def build_server_page(
             "requestToken": request_token,
             "processingUrl": "/api/msw" if processing_context is not None else None,
             "processingContext": processing_context,
+            "projectPersistence": processing_context is not None,
             "stickerRootUrl": "/api/stickers/root",
             "portableStickerExportUrl": "/api/exports/sticker-otio",
             "otiozStickerExportUrl": "/api/exports/sticker-otioz",
@@ -1054,6 +1055,29 @@ class EditorServer(ThreadingHTTPServer):
         self.start_deferred_reapeaks_load()
         return project
 
+    def write_project(self, target, project_data, *, media_source=...):
+        # Recovery failure must never turn a successful primary write into a
+        # reported save failure. The adjacent .bak remains independently useful.
+        persistence = self.processing_api.persistence
+        persistence.recovery_warning = None
+        media = media_source
+        if media_source is ...:
+            media = (self.project.source_media_path or self.project.media_path) if project_data.get("media") == self.project.data.get("media") else None
+        try:
+            if target.is_file():
+                previous = json.loads(target.read_text(encoding="utf-8"))
+                persistence.recovery.put(previous, kind="history", name=target.name, origin=target,
+                                         media=(self.project.source_media_path or self.project.media_path)
+                                         if target == self.project.json_path and previous.get("media") == self.project.data.get("media") else None)
+        except Exception:
+            persistence.recovery_warning = "历史备份暂不可用；请检查本机存储空间"
+        backup = write_project_json(target, project_data)
+        try:
+            persistence.recovery.put(project_data, kind="saved", name=target.name, origin=target, media=media)
+        except Exception:
+            persistence.recovery_warning = "工程已保存，但本机恢复记录未更新"
+        return backup
+
     def save_project(self, project_data: dict, filename: str | None = None, *,
                      expected_binding: str | None = None, expected_revision: str | None = None,
                      include_context: bool = False) -> tuple:
@@ -1078,12 +1102,14 @@ class EditorServer(ThreadingHTTPServer):
                 raise SaveProjectError("当前服务器没有绑定工程文件")
             if filename is not None:
                 target = safe_project_filename(target.parent, filename)
+            asset_report = {"total": 0, "available": 0, "copied": 0, "missing": []}
             if (normalized_project.get("msw") or {}).get("assets"):
-                self.processing_api.assets.persist_project(normalized_project, target, self.project.json_path)
-            backup = write_project_json(target, normalized_project)
+                asset_report = self.processing_api.assets.persist_project(normalized_project, target, self.project.json_path)
+            backup = self.write_project(target, normalized_project)
             self.project = replace(self.project, data=normalized_project, json_path=target)
             self.remember_project(target)
-            context = self.processing_api.context() if include_context else None
+            context = {**self.processing_api.context(), "assets": asset_report,
+                       "recoveryWarning": self.processing_api.persistence.recovery_warning} if include_context else None
         finally:
             self.save_lock.release()
         return (target, backup, context) if include_context else (target, backup)
@@ -1489,6 +1515,8 @@ def write_project_json(target: Path, project_data: dict) -> Path | None:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
             json.dump(project_data, output, ensure_ascii=False, indent=2)
             output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
         os.replace(temp_name, target)
     except Exception:
         # 保留未完成的临时文件以便排障；不要静默删除用户可恢复的文件。

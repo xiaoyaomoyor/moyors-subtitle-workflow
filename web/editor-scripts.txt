@@ -5,13 +5,16 @@ gap-remove-core.js
 editor-utils.js
 msw-project.js
 msw-audio-core.js
+msw-audio-render-core.js
 msw-translation-core.js
 msw-tts-core.js
 editor-i18n.js
 waveform.js
 editor.js
+msw-persistence.js
 msw-processing.js
 msw-tts.js
 msw-audio-transport.js
 msw-audio.js
+msw-audio-export.js
 editor-onboarding.js

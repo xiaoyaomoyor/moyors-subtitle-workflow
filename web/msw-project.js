@@ -25,6 +25,7 @@
       throw new Error('此工程的 MSW 扩展版本不受支持，请使用对应版本的编辑器打开');
     }
     if (!validId(value.project_id)) throw new Error('MSW 工程标识无效');
+    if (value.source_project_id != null && !validId(value.source_project_id)) throw new Error('MSW 来源工程标识无效');
     const applied = value.applied_results ?? [];
     if (!Array.isArray(applied) || applied.length > 10000 || !applied.every(validId)) {
       throw new Error('MSW 结果记录格式无效');

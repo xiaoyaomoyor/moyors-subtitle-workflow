@@ -24,6 +24,12 @@ function project(secondary = false) {
 const selection = (mainIds = [], extensionIds = [], hasSelection = false) => ({ mainIds, extensionIds, trackId: 'secondary', hasSelection });
 const output = (input) => ({ language: 'zh', translations: input.entries.map(({ source }) => ({ id: source.id, text: `译文 ${source.text}` })) });
 
+test('save-as provenance survives normalization and rejects malformed source IDs', () => {
+  const extension = {schema: codec.SCHEMA, project_id: 'new-project', source_project_id: 'old-project'};
+  assert.deepEqual(plain(codec.normalize(extension)), extension);
+  assert.throws(() => codec.normalize({...extension, source_project_id: '../outside'}), /来源工程标识/);
+});
+
 test('selection maps bound secondary to main, deduplicates and ignores unbound', () => {
   const data = project(true);
   assert.deepEqual(plain(core.scope(data, ['a'], ['x', 'z'], 'secondary', true).sources.map(c => c.id)), ['a']);

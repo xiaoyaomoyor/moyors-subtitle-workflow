@@ -125,7 +125,7 @@
         if (!plan || audioContext.state !== 'running') continue;
         const source = audioContext.createBufferSource(), gain = audioContext.createGain();
         source.buffer = item.buffer;
-        const level = Math.pow(10, (clip.gain_db + (state.tracks.get(clip.track_id)?.gain_db || 0)) / 20);
+        const level = Math.pow(10, global.MSWAudio.levelDb(clip, state.tracks.get(clip.track_id)) / 20);
         gain.gain.value = level * (player.muted ? 0 : player.volume);
         source.connect(gain); gain.connect(audioContext.destination);
         const node = { source, gain, level, assetId: asset.id, done: false }; nodes.set(clip.id, node);

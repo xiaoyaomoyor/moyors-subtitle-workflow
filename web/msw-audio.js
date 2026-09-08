@@ -215,7 +215,12 @@
     if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
   }, true);
   document.addEventListener('keydown', event => {
+    // Menus and dialogs own their keyboard navigation even when a clip remains
+    // selected. Do not swallow Save As controls or move clips behind a dialog.
+    if (event.target.closest('.menubar, [role="dialog"]')
+        || document.querySelector('.modal-mask.show')) return;
     if (event.key === 'Escape' && (drag || menu)) { event.preventDefault(); event.stopImmediatePropagation(); drag?.cancel(); closeMenu(); return; }
+    if (event.target.closest('[role="menu"], button, a')) return;
     if (!selected.size || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
     const mod = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
     if (mod && key === 's') return;

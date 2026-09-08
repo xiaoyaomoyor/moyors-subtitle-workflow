@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, startTtsServer, startStaticServer } from './helpers.mjs';
@@ -19,6 +19,8 @@ test.afterAll(async()=>{ await new Promise(resolve=>mock.close(resolve)); });
 test.beforeEach(async({page})=>{
   calls=[]; held=[]; holdText=null; failText=null;
   dir=makeTempDir('editor-tts'); process.env.MAW_ENV_FILE=join(dir,'isolated.env'); process.env.MSW_APP_DATA_ROOT=join(dir,'app-data');
+  mkdirSync(join(dir,'saved'));
+  process.env.MSW_TEST_SAVE_TARGET=join(dir,'saved','copy.mosp');
   wav=readFileSync(generateWav(join(dir,'tts-result.wav'),.2));
   await disableOnboarding(page);
   page.on('dialog',dialog=>dialog.type()==='beforeunload'?dialog.accept():dialog.dismiss());
@@ -65,6 +67,149 @@ async function prepareClips(page) {
   await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips?.length||0)).toBe(1);
   return page.locator('.msw-audio-clip').first();
 }
+test('save as collects audio and optional media and continues saving the new project', async ({page}) => {
+  await prepareClips(page);
+  await page.evaluate(async () => {
+    updateEditorSettings({ autoSaveProject: false }); scheduleAutoSave(); scheduleAutoSaveFlush();
+    await saveCurrentProject({ silent: true });
+  });
+  await expect.poll(() => JSON.parse(readFileSync(projectPath, 'utf8')).msw?.audio_clips?.length || 0).toBe(1);
+  const original = readFileSync(projectPath, 'utf8');
+  const originalId = await page.evaluate(() => DATA.msw.project_id);
+  await openMenubarMenu(page, '文件'); await page.locator('#save-project-as').click();
+  await expect(page.locator('#project-save-as-modal')).toBeVisible();
+  await page.locator('#project-save-choose').click();
+  await expect(page.locator('#project-save-confirm')).toBeEnabled();
+  if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'd0-save-as.png')});
+  await page.locator('#project-save-collect-media').check();
+  await page.locator('#project-save-confirm').click();
+  await expect(page.locator('#project-save-as-modal')).not.toBeVisible();
+  await expect(page.locator('#json-name')).toHaveText('copy.mosp');
+  const target = join(dir, 'saved', 'copy.mosp');
+  const saved = JSON.parse(readFileSync(target, 'utf8'));
+  expect(saved.msw.project_id).not.toBe(originalId);
+  expect(saved.msw.audio_clips).toHaveLength(1);
+  expect(saved.msw.assets).toHaveLength(2);
+  for (const asset of saved.msw.assets) expect(existsSync(join(dir, 'saved', asset.path))).toBe(true);
+  expect(existsSync(join(dir, 'saved', saved.media))).toBe(true);
+  expect(readFileSync(projectPath, 'utf8')).toBe(original);
+  await page.evaluate(() => { DATA.segments[0].text = 'Edited copy'; DATA.segments[0]._dirty = true; });
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => JSON.parse(readFileSync(target, 'utf8')).segments[0].text).toBe('Edited copy');
+  expect(readFileSync(projectPath, 'utf8')).toBe(original);
+  await page.reload();
+  await expect(page.locator('#json-name')).toHaveText('copy.mosp');
+  await expect.poll(() => page.evaluate(() => DATA.msw.audio_clips.length)).toBe(1);
+  await expect(page.locator('.msw-audio-clip').first()).toBeVisible();
+});
+
+test('save-as pauses original auto-save and preserves edits made while the copy is being written', async ({page}) => {
+  await open(page);
+  const original = readFileSync(projectPath, 'utf8');
+  await openMenubarMenu(page, '文件'); await page.locator('#save-project-as').click();
+  await page.evaluate(() => {
+    DATA.segments[0].text = 'Copy snapshot'; DATA.segments[0]._dirty = true;
+    scheduleAutoSaveFlush();
+  });
+  await expect.poll(() => page.evaluate(() => autoSaveFlushTimer)).toBe(null);
+  expect(readFileSync(projectPath, 'utf8')).toBe(original);
+  await page.locator('#project-save-choose').click();
+  await expect(page.locator('#project-save-confirm')).toBeEnabled();
+  let resume; const gate = new Promise(resolve => { resume = resolve; }); let posted = false;
+  await page.route('**/api/msw/save-as', async route => { posted = true; await gate; await route.continue(); });
+  await page.locator('#project-save-confirm').click();
+  await expect.poll(() => posted).toBe(true);
+  await page.evaluate(() => { DATA.segments[0].text = 'Edited during copy'; DATA.segments[0]._dirty = true; });
+  resume();
+  await expect(page.locator('#project-save-as-modal')).not.toBeVisible();
+  const copyPath = join(dir, 'saved', 'copy.mosp');
+  expect(JSON.parse(readFileSync(copyPath, 'utf8')).segments[0].text).toBe('Copy snapshot');
+  expect(await page.evaluate(() => [DATA.segments[0].text, hasUnsavedProjectChanges()])).toEqual(['Edited during copy', true]);
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => JSON.parse(readFileSync(copyPath, 'utf8')).segments[0].text).toBe('Edited during copy');
+  expect(readFileSync(projectPath, 'utf8')).toBe(original);
+});
+
+test('new project binds the new file and a failed save picker allows a data-only download', async ({page}) => {
+  await open(page);
+  const original = readFileSync(projectPath, 'utf8');
+  page.removeAllListeners('dialog'); page.on('dialog', dialog => dialog.accept());
+  await openMenubarMenu(page, '文件'); await page.locator('#new-project').click();
+  await expect(page.locator('#project-save-as-modal')).toBeVisible();
+  await page.locator('#project-save-choose').click();
+  await expect(page.locator('#project-save-confirm')).toBeEnabled();
+  await page.locator('#project-save-confirm').click();
+  await expect(page.locator('#project-save-as-modal')).not.toBeVisible();
+  expect(await page.evaluate(() => DATA.segments.length)).toBe(0);
+  expect(await page.evaluate(() => SERVER_CONFIG.canSave)).toBe(true);
+  expect(readFileSync(projectPath, 'utf8')).toBe(original);
+  await page.route('**/api/msw/save-target', route => route.abort());
+  await openMenubarMenu(page, '文件'); await page.locator('#save-project-as').click();
+  await page.locator('#project-save-choose').click();
+  await expect(page.locator('#project-save-local')).toBeVisible();
+  const pending = page.waitForEvent('download'); await page.locator('#project-save-local').click();
+  const download = await pending;
+  expect(download.suggestedFilename()).toBe('copy.mosp');
+  expect(await page.evaluate(() => projectSaveInFlight)).toBe(false);
+});
+
+test('recovery drafts restore subtitle and audio clip edits into an unsaved copy', async ({page}) => {
+  await prepareClips(page);
+  await page.evaluate(async () => {
+    updateEditorSettings({ autoSaveProject: false }); scheduleAutoSave(); scheduleAutoSaveFlush();
+    await saveCurrentProject({silent:true});
+  });
+  await expect.poll(() => JSON.parse(readFileSync(projectPath, 'utf8')).msw?.audio_clips?.length || 0).toBe(1);
+  const original = readFileSync(projectPath, 'utf8');
+  await page.evaluate(async () => {
+    DATA.segments[0].text = 'Recovered main'; DATA.segments[0]._dirty = true;
+    DATA.multi_subtitle.tracks[0].segments[0].text = 'Recovered secondary';
+    DATA.msw.audio_clips[0].muted = true;
+  });
+  await expect.poll(() => page.evaluate(() => MSWE.resolve('project-persistence').captureDraft({force:true}))).toBe(true);
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => DATA.segments[0].text)).toBe('Hello');
+  await openMenubarMenu(page, '文件'); await page.locator('#project-recovery-open').click();
+  const draft = page.locator('.msw-recovery-row').filter({hasText: '恢复草稿'}).first();
+  await expect(draft).toBeVisible();
+  if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'd0-recovery.png')});
+  await draft.getByRole('button').click();
+  await expect(page.locator('#project-recovery-modal')).not.toBeVisible();
+  expect(await page.evaluate(() => [DATA.segments[0].text, DATA.multi_subtitle.tracks[0].segments[0].text, DATA.msw.audio_clips[0].muted]))
+    .toEqual(['Recovered main', 'Recovered secondary', true]);
+  expect(await page.evaluate(() => SERVER_CONFIG.canSave)).toBe(false);
+  expect(readFileSync(projectPath, 'utf8')).toBe(original);
+  await openMenubarMenu(page, '文件'); await page.locator('#save-project-as').click();
+  await page.locator('#project-save-choose').click();
+  await expect(page.locator('#project-save-confirm')).toBeEnabled();
+  await page.locator('#project-save-collect-media').check();
+  await page.locator('#project-save-confirm').click();
+  await expect(page.locator('#project-save-as-modal')).not.toBeVisible();
+  const copy = JSON.parse(readFileSync(join(dir, 'saved', 'copy.mosp'), 'utf8'));
+  expect(copy.segments[0].text).toBe('Recovered main');
+  expect(copy.msw.audio_clips[0].muted).toBe(true);
+  expect(readFileSync(projectPath, 'utf8')).toBe(original);
+});
+
+test('an unnamed draft captures pending inline text without ending the edit', async ({page}) => {
+  await open(page);
+  await page.evaluate(() => {
+    updateEditorSettings({autoSaveProject:false}); scheduleAutoSave(); scheduleAutoSaveFlush();
+    const project = {media:'',segments:[{id:'new',start:0,end:1000,text:'New draft'}]};
+    applyCanonicalProject(project, 'untitled.mosp'); detachServerProjectSaving();
+    startEdit(document.querySelector('.cue[data-idx="0"]'), 0);
+  });
+  const text = page.locator('.cue[data-idx="0"] .text[contenteditable="plaintext-only"]');
+  await text.fill('Pending inline draft');
+  await expect.poll(() => page.evaluate(() => MSWE.resolve('project-persistence').captureDraft({force:true}))).toBe(true);
+  await expect(text).toBeVisible();
+  await page.reload();
+  await openMenubarMenu(page, '文件'); await page.locator('#project-recovery-open').click();
+  await page.locator('.msw-recovery-row').filter({hasText:'untitled.mosp'}).first().getByRole('button').click();
+  await expect.poll(() => page.evaluate(() => DATA.segments[0].text)).toBe('Pending inline draft');
+  expect(await page.evaluate(() => SERVER_CONFIG.canSave)).toBe(false);
+});
+
 test('audio clip click seeks to the pointer while move and trim keep their own gestures',async({page})=>{
   const clip=await prepareClips(page);
   await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toContain('linear-gradient');
@@ -97,10 +242,11 @@ test('audio clip palette follows subtitle, accent, selection and muted text colo
   const labels=page.locator('.cues-container .cue .text, .waveform-cue-label, .msw-audio-clip-label');
   expect(await labels.count()).toBeGreaterThanOrEqual(5);
   expect(await labels.evaluateAll(els=>[...new Set(els.map(el=>getComputedStyle(el).color))])).toEqual(['rgb(240, 190, 113)']);
+  await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toContain('linear-gradient');
   const heat=await clip.evaluate(el=>el.style.backgroundImage);
   await clip.click(); await expect(clip).toHaveCSS('outline-color','rgb(129, 216, 107)');
   await expect(clip).toHaveCSS('border-radius','4px');
-  expect(await clip.evaluate(el=>el.style.backgroundImage)).toBe(heat);
+  await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toBe(heat);
   await page.locator('#waveform-settings-item').evaluate(el=>el.click()); await page.locator('#audio-clips-heatmap').uncheck(); await page.keyboard.press('Escape');
   const solid=await clip.evaluate(el=>{
     const probe=document.createElement('span');probe.style.backgroundColor='color-mix(in srgb, var(--accent) 42%, var(--wave-cue-mix))';el.appendChild(probe);
@@ -427,4 +573,11 @@ test('English TTS controls and narrow panel keep user text unchanged',async({pag
   const box=await page.locator('#tts-panel').boundingBox(); expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x+box.width).toBeLessThanOrEqual(900);
   expect(await page.locator('#tts-panel').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'tts-settings-narrow.png')});
+  await page.locator('#tts-close').click();
+  await openMenubarMenu(page,'文件'); await page.locator('#save-project-as').click();
+  await expect(page.locator('#project-save-title')).toHaveText('Save project as');
+  await expect(page.locator('#project-save-choose')).toHaveText('Choose save location');
+  expect(await page.locator('#project-save-as-modal .modal').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  await page.locator('#project-save-cancel').click();
+  expect(await page.evaluate(()=>projectSaveInFlight)).toBe(false);
 });

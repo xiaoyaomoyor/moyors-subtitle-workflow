@@ -1,0 +1,575 @@
+[
+  {
+    "name": "follow splits source offsets and contracts output",
+    "project": {
+      "segments": [],
+      "msw": {
+        "schema": "msw.editor.v1",
+        "project_id": "fixture",
+        "assets": [
+          {
+            "id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "audio",
+            "path": "msw-bbbbbbbbbbbbbbbbbbbbbbbb.assets/audio/audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.wav",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sample_rate": 24000,
+            "channels": 1,
+            "sample_count": 96000,
+            "byte_size": 192044,
+            "generation": {
+              "provider": "bailian",
+              "model": "qwen3-tts-flash",
+              "voice": "Cherry",
+              "language_type": "Auto",
+              "display_text": "测试",
+              "spoken_text": "测试"
+            },
+            "source_ref": {
+              "key": "cue",
+              "id": "cue",
+              "track_id": null,
+              "text": "测试",
+              "start": 0,
+              "end": 4000
+            },
+            "job_id": "job"
+          }
+        ],
+        "audio_tracks": [
+          {
+            "id": "voice",
+            "name": "配音",
+            "gain_db": -3,
+            "muted": false
+          }
+        ],
+        "audio_clips": [
+          {
+            "id": "clip",
+            "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "track_id": "voice",
+            "start_ms": 1000,
+            "source_in_sample": 12000,
+            "source_out_sample": 84000,
+            "playback_rate": 1,
+            "gain_db": 6,
+            "muted": false,
+            "label": "测试"
+          }
+        ],
+        "audio_settings": {
+          "gap_policy": "follow"
+        }
+      },
+      "gap_remove": {
+        "gaps": [
+          {
+            "start": 1500,
+            "end": 2500,
+            "removed": true
+          },
+          {
+            "start": 5000,
+            "end": 6000,
+            "removed": true
+          }
+        ]
+      }
+    },
+    "options": {
+      "duration_ms": 7000,
+      "remove_gaps": true
+    },
+    "expected": {
+      "schema": "msw.audio-render.v1",
+      "sample_rate": 48000,
+      "channels": 2,
+      "source_start_ms": 0,
+      "source_end_ms": 7000,
+      "gap_policy": "follow",
+      "source": null,
+      "peak_protection": true,
+      "sample_count": 240000,
+      "intervals": [
+        {
+          "start_ms": 0,
+          "end_ms": 1500,
+          "output_start_ms": 0
+        },
+        {
+          "start_ms": 2500,
+          "end_ms": 5000,
+          "output_start_ms": 1500
+        },
+        {
+          "start_ms": 6000,
+          "end_ms": 7000,
+          "output_start_ms": 4000
+        }
+      ],
+      "pieces": [
+        {
+          "clip_id": "clip",
+          "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_in_sample": 12000,
+          "source_out_sample": 24000,
+          "output_start_sample": 48000,
+          "output_end_sample": 72000,
+          "gain_db": 3
+        },
+        {
+          "clip_id": "clip",
+          "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_in_sample": 48000,
+          "source_out_sample": 84000,
+          "output_start_sample": 72000,
+          "output_end_sample": 144000,
+          "gain_db": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "protect keeps the full audible clip",
+    "project": {
+      "segments": [],
+      "msw": {
+        "schema": "msw.editor.v1",
+        "project_id": "fixture",
+        "assets": [
+          {
+            "id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "audio",
+            "path": "msw-bbbbbbbbbbbbbbbbbbbbbbbb.assets/audio/audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.wav",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sample_rate": 24000,
+            "channels": 1,
+            "sample_count": 96000,
+            "byte_size": 192044,
+            "generation": {
+              "provider": "bailian",
+              "model": "qwen3-tts-flash",
+              "voice": "Cherry",
+              "language_type": "Auto",
+              "display_text": "测试",
+              "spoken_text": "测试"
+            },
+            "source_ref": {
+              "key": "cue",
+              "id": "cue",
+              "track_id": null,
+              "text": "测试",
+              "start": 0,
+              "end": 4000
+            },
+            "job_id": "job"
+          }
+        ],
+        "audio_tracks": [
+          {
+            "id": "voice",
+            "name": "配音",
+            "gain_db": -3,
+            "muted": false
+          }
+        ],
+        "audio_clips": [
+          {
+            "id": "clip",
+            "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "track_id": "voice",
+            "start_ms": 1000,
+            "source_in_sample": 12000,
+            "source_out_sample": 84000,
+            "playback_rate": 1,
+            "gain_db": 6,
+            "muted": false,
+            "label": "测试"
+          }
+        ],
+        "audio_settings": {
+          "gap_policy": "protect"
+        }
+      },
+      "gap_remove": {
+        "gaps": [
+          {
+            "start": 1500,
+            "end": 2500,
+            "removed": true
+          },
+          {
+            "start": 5000,
+            "end": 6000,
+            "removed": true
+          }
+        ]
+      }
+    },
+    "options": {
+      "duration_ms": 7000,
+      "remove_gaps": true
+    },
+    "expected": {
+      "schema": "msw.audio-render.v1",
+      "sample_rate": 48000,
+      "channels": 2,
+      "source_start_ms": 0,
+      "source_end_ms": 7000,
+      "gap_policy": "protect",
+      "source": null,
+      "peak_protection": true,
+      "sample_count": 288000,
+      "intervals": [
+        {
+          "start_ms": 0,
+          "end_ms": 5000,
+          "output_start_ms": 0
+        },
+        {
+          "start_ms": 6000,
+          "end_ms": 7000,
+          "output_start_ms": 5000
+        }
+      ],
+      "pieces": [
+        {
+          "clip_id": "clip",
+          "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_in_sample": 12000,
+          "source_out_sample": 84000,
+          "output_start_sample": 48000,
+          "output_end_sample": 192000,
+          "gain_db": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "custom source range rebases output and source samples",
+    "project": {
+      "segments": [],
+      "msw": {
+        "schema": "msw.editor.v1",
+        "project_id": "fixture",
+        "assets": [
+          {
+            "id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "audio",
+            "path": "msw-bbbbbbbbbbbbbbbbbbbbbbbb.assets/audio/audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.wav",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sample_rate": 24000,
+            "channels": 1,
+            "sample_count": 96000,
+            "byte_size": 192044,
+            "generation": {
+              "provider": "bailian",
+              "model": "qwen3-tts-flash",
+              "voice": "Cherry",
+              "language_type": "Auto",
+              "display_text": "测试",
+              "spoken_text": "测试"
+            },
+            "source_ref": {
+              "key": "cue",
+              "id": "cue",
+              "track_id": null,
+              "text": "测试",
+              "start": 0,
+              "end": 4000
+            },
+            "job_id": "job"
+          }
+        ],
+        "audio_tracks": [
+          {
+            "id": "voice",
+            "name": "配音",
+            "gain_db": -3,
+            "muted": false
+          }
+        ],
+        "audio_clips": [
+          {
+            "id": "clip",
+            "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "track_id": "voice",
+            "start_ms": 1000,
+            "source_in_sample": 12000,
+            "source_out_sample": 84000,
+            "playback_rate": 1,
+            "gain_db": 6,
+            "muted": false,
+            "label": "测试"
+          }
+        ],
+        "audio_settings": {
+          "gap_policy": "follow"
+        }
+      },
+      "gap_remove": {
+        "gaps": [
+          {
+            "start": 1500,
+            "end": 2500,
+            "removed": true
+          },
+          {
+            "start": 5000,
+            "end": 6000,
+            "removed": true
+          }
+        ]
+      }
+    },
+    "options": {
+      "duration_ms": 7000,
+      "start_ms": 1250,
+      "end_ms": 3500,
+      "voice_gain_db": -6,
+      "mode": "mix",
+      "source_audio_index": 1,
+      "source_gain_db": -9
+    },
+    "expected": {
+      "schema": "msw.audio-render.v1",
+      "sample_rate": 48000,
+      "channels": 2,
+      "source_start_ms": 1250,
+      "source_end_ms": 3500,
+      "gap_policy": "follow",
+      "source": {
+        "audio_index": 1,
+        "gain_db": -9
+      },
+      "peak_protection": true,
+      "sample_count": 108000,
+      "intervals": [
+        {
+          "start_ms": 1250,
+          "end_ms": 3500,
+          "output_start_ms": 0
+        }
+      ],
+      "pieces": [
+        {
+          "clip_id": "clip",
+          "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_in_sample": 18000,
+          "source_out_sample": 72000,
+          "output_start_sample": 0,
+          "output_end_sample": 108000,
+          "gain_db": -3
+        }
+      ]
+    }
+  },
+  {
+    "name": "muted track protects no gaps and produces silence",
+    "project": {
+      "segments": [],
+      "msw": {
+        "schema": "msw.editor.v1",
+        "project_id": "fixture",
+        "assets": [
+          {
+            "id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "audio",
+            "path": "msw-bbbbbbbbbbbbbbbbbbbbbbbb.assets/audio/audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.wav",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sample_rate": 24000,
+            "channels": 1,
+            "sample_count": 96000,
+            "byte_size": 192044,
+            "generation": {
+              "provider": "bailian",
+              "model": "qwen3-tts-flash",
+              "voice": "Cherry",
+              "language_type": "Auto",
+              "display_text": "测试",
+              "spoken_text": "测试"
+            },
+            "source_ref": {
+              "key": "cue",
+              "id": "cue",
+              "track_id": null,
+              "text": "测试",
+              "start": 0,
+              "end": 4000
+            },
+            "job_id": "job"
+          }
+        ],
+        "audio_tracks": [
+          {
+            "id": "voice",
+            "name": "配音",
+            "gain_db": -3,
+            "muted": true
+          }
+        ],
+        "audio_clips": [
+          {
+            "id": "clip",
+            "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "track_id": "voice",
+            "start_ms": 1000,
+            "source_in_sample": 12000,
+            "source_out_sample": 84000,
+            "playback_rate": 1,
+            "gain_db": 6,
+            "muted": false,
+            "label": "测试"
+          }
+        ],
+        "audio_settings": {
+          "gap_policy": "protect"
+        }
+      },
+      "gap_remove": {
+        "gaps": [
+          {
+            "start": 1500,
+            "end": 2500,
+            "removed": true
+          },
+          {
+            "start": 5000,
+            "end": 6000,
+            "removed": true
+          }
+        ]
+      }
+    },
+    "options": {
+      "duration_ms": 7000,
+      "remove_gaps": true
+    },
+    "expected": {
+      "schema": "msw.audio-render.v1",
+      "sample_rate": 48000,
+      "channels": 2,
+      "source_start_ms": 0,
+      "source_end_ms": 7000,
+      "gap_policy": "protect",
+      "source": null,
+      "peak_protection": true,
+      "sample_count": 240000,
+      "intervals": [
+        {
+          "start_ms": 0,
+          "end_ms": 1500,
+          "output_start_ms": 0
+        },
+        {
+          "start_ms": 2500,
+          "end_ms": 5000,
+          "output_start_ms": 1500
+        },
+        {
+          "start_ms": 6000,
+          "end_ms": 7000,
+          "output_start_ms": 4000
+        }
+      ],
+      "pieces": []
+    }
+  },
+  {
+    "name": "half output sample rounds up with source rate preserved",
+    "project": {
+      "segments": [],
+      "msw": {
+        "schema": "msw.editor.v1",
+        "project_id": "fixture",
+        "assets": [
+          {
+            "id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "audio",
+            "path": "msw-bbbbbbbbbbbbbbbbbbbbbbbb.assets/audio/audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.wav",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sample_rate": 24000,
+            "channels": 1,
+            "sample_count": 96000,
+            "byte_size": 192044,
+            "generation": {
+              "provider": "bailian",
+              "model": "qwen3-tts-flash",
+              "voice": "Cherry",
+              "language_type": "Auto",
+              "display_text": "测试",
+              "spoken_text": "测试"
+            },
+            "source_ref": {
+              "key": "cue",
+              "id": "cue",
+              "track_id": null,
+              "text": "测试",
+              "start": 0,
+              "end": 4000
+            },
+            "job_id": "job"
+          }
+        ],
+        "audio_tracks": [
+          {
+            "id": "voice",
+            "name": "配音",
+            "gain_db": -3,
+            "muted": false
+          }
+        ],
+        "audio_clips": [
+          {
+            "id": "clip",
+            "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "track_id": "voice",
+            "start_ms": 5,
+            "source_in_sample": 1,
+            "source_out_sample": 25,
+            "playback_rate": 1,
+            "gain_db": 0,
+            "muted": false,
+            "label": "测试"
+          }
+        ],
+        "audio_settings": {
+          "gap_policy": "follow"
+        }
+      }
+    },
+    "options": {
+      "duration_ms": 10,
+      "sample_rate": 44100
+    },
+    "expected": {
+      "schema": "msw.audio-render.v1",
+      "sample_rate": 44100,
+      "channels": 2,
+      "source_start_ms": 0,
+      "source_end_ms": 10,
+      "gap_policy": "follow",
+      "source": null,
+      "peak_protection": true,
+      "sample_count": 441,
+      "intervals": [
+        {
+          "start_ms": 0,
+          "end_ms": 10,
+          "output_start_ms": 0
+        }
+      ],
+      "pieces": [
+        {
+          "clip_id": "clip",
+          "asset_id": "audio-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_in_sample": 1,
+          "source_out_sample": 25,
+          "output_start_sample": 221,
+          "output_end_sample": 265,
+          "gain_db": -3
+        }
+      ]
+    }
+  }
+]

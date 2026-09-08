@@ -547,8 +547,7 @@
     border-radius: var(--radius-md); padding: 4px 0;
     box-shadow: var(--shadow-3); z-index: 201;
   }
-  .menubar .dropdown-submenu.open > .dropdown-submenu-menu,
-  .menubar .dropdown-submenu:focus-within > .dropdown-submenu-menu { display: block; }
+  .menubar .dropdown-submenu.open > .dropdown-submenu-menu { display: block; }
   .menubar .dropdown-submenu-toggle { position: relative; padding-right: 30px; }
   .menubar .dropdown-submenu-toggle::after {
     content: '›'; position: absolute; right: 12px; top: 50%;
@@ -2977,6 +2976,11 @@
   .msw-translation-results p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); }
   .msw-processing-field { display: flex; flex-direction: column; gap: 5px; margin-block: 10px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
   .msw-processing-field[hidden] { display: none; }
+  #audio-export-panel { width: min(440px, calc(100vw - 24px)); }
+  #audio-export-panel [hidden] { display: none !important; }
+  #audio-export-panel .msw-tts-check { margin-block: 10px; }
+  #audio-export-panel progress { width: 100%; height: 6px; accent-color: var(--accent); }
+  #audio-export-jobs:empty { display: none; }
   .msw-processing-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
   .msw-tts-check input { width: auto; }
@@ -3004,6 +3008,22 @@
   .msw-asset-player div { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; color: var(--text-secondary); }
   .msw-asset-player audio { display: block; width: 100%; height: 30px; }
   @container (max-width: 320px) { .msw-asset-actions { flex-direction: column; } .msw-asset-toolbar { gap: 4px; padding: 5px; } }
+
+.msw-save-box { width: min(560px, 90vw); padding: 22px; }
+.msw-recovery-list { display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.msw-recovery-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px; border: 1px solid var(--border); border-radius: 5px; }
+.msw-recovery-row span { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.msw-recovery-row small { display: block; color: var(--text-muted); margin-top: 4px; }
+.msw-recovery-row button { flex-shrink: 0; }
+.modal.msw-save-box button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
+.modal.msw-save-box button:hover:not(:disabled) { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+.modal.msw-save-box button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.modal.msw-save-box button:disabled { opacity: .45; cursor: default; }
+.modal.msw-save-box .primary { border-color: var(--accent); background: var(--accent-tint-strong); }
+.msw-save-note, .msw-save-status { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.msw-save-path { overflow-wrap: anywhere; font-size: 12px; padding: 10px; background: var(--bg-raised); border-radius: 4px; }
+.msw-save-status { padding: 5px 12px; max-width: 280px; }
+.msw-save-status.warning { color: var(--amber); }
 
   .modal-mask {
     position: fixed; inset: 0; background: rgba(0,0,0,0.62);

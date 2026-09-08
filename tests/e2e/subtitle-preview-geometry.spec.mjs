@@ -145,11 +145,11 @@ test('a drag gesture is a single undo step and redo re-applies it', async ({ pag
   const moved = await readGeometry(page);
   expect(moved.y).not.toBeCloseTo(original.y, 3);
 
-  const undo = page.getByRole('button', { name: /撤销/ });
-  const redo = page.getByRole('button', { name: /重做/ });
+  const undo = page.locator('#undo-btn');
+  const redo = page.locator('#redo-btn');
   await expect(undo).toBeEnabled();
 
-  await undo.click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
   const restored = await readGeometry(page);
   expect(restored.x).toBeCloseTo(original.x, 4);
   expect(restored.y).toBeCloseTo(original.y, 4);
@@ -157,7 +157,7 @@ test('a drag gesture is a single undo step and redo re-applies it', async ({ pag
   expect(restored.height).toBeCloseTo(original.height, 4);
 
   await expect(redo).toBeEnabled();
-  await redo.click();
+  await clickMenubarItem(page, '编辑', 'redo-btn');
   const redone = await readGeometry(page);
   expect(redone.x).toBeCloseTo(moved.x, 4);
   expect(redone.y).toBeCloseTo(moved.y, 4);
@@ -183,7 +183,7 @@ test('geometry persists through a server save and reload, segments untouched', a
   });
   const saved = await readGeometry(page);
 
-  await page.getByRole('button', { name: '保存工程', exact: true }).click();
+  await clickMenubarItem(page, '文件', 'save-project');
   await expect.poll(() => page.evaluate(() => previewGeometryDirty)).toBe(false);
 
   // The on-disk project must carry the normalized geometry and unchanged segment timing.
@@ -286,9 +286,10 @@ test.describe('portable HTML', () => {
     // Editing must never touch segment timing.
     expect(await readSegments(page)).toEqual(EXPECTED_SEGMENTS);
 
-    // --- Export project JSON via the real "导出工程" (#download-json) button ---
+    // Save As remains the single portable project download entry point.
+    await page.evaluate(() => { window.showSaveFilePicker = undefined; });
     const downloadPromise = page.waitForEvent('download');
-    await clickMenubarItem(page, '文件', 'download-json');
+    await clickMenubarItem(page, '文件', 'save-project-as');
     const download = await downloadPromise;
     const exportedPath = join(portableDir, 'exported.json');
     await download.saveAs(exportedPath);

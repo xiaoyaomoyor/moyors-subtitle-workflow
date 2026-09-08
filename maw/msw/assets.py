@@ -127,6 +127,8 @@ class AssetStore:
         with self.connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS assets (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE NOT NULL, project_id TEXT NOT NULL, job_id TEXT NOT NULL, payload TEXT NOT NULL)")
             db.execute("CREATE INDEX IF NOT EXISTS assets_project ON assets(project_id, seq)")
+            db.execute("CREATE TABLE IF NOT EXISTS asset_links (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, asset_id TEXT NOT NULL, UNIQUE(project_id, asset_id))")
+            db.execute("INSERT OR IGNORE INTO asset_links(project_id,asset_id) SELECT project_id,id FROM assets ORDER BY seq")
 
     def connect(self):
         # sqlite context managers commit but don't close connections.
@@ -156,27 +158,28 @@ class AssetStore:
             with self.connect() as db:
                 db.execute("INSERT INTO assets(id,project_id,job_id,payload) VALUES (?,?,?,?)",
                            (asset_id, project_id, job_id, json.dumps(asset, ensure_ascii=False)))
+                db.execute("INSERT INTO asset_links(project_id,asset_id) VALUES (?,?)", (project_id, asset_id))
         return asset
 
     def list(self, project_id, since=0):
         with self.connect() as db:
-            rows = db.execute("SELECT seq,payload FROM assets WHERE project_id=? AND seq>? ORDER BY seq LIMIT 500",
+            rows = db.execute("SELECT l.seq,a.payload FROM asset_links l JOIN assets a ON a.id=l.asset_id WHERE l.project_id=? AND l.seq>? ORDER BY l.seq LIMIT 500",
                               (project_id, since)).fetchall()
         return {"assets": [json.loads(row[1]) for row in rows], "cursor": rows[-1][0] if rows else since,
                 "more": len(rows) == 500}
 
     def get(self, project_id, asset_id):
         with self.connect() as db:
-            row = db.execute("SELECT payload FROM assets WHERE project_id=? AND id=?", (project_id, asset_id)).fetchone()
+            row = db.execute("SELECT a.payload FROM assets a JOIN asset_links l ON a.id=l.asset_id WHERE l.project_id=? AND a.id=?", (project_id, asset_id)).fetchone()
         return json.loads(row[0]) if row else None
 
     def count(self, project_id):
         with self.connect() as db:
-            return db.execute("SELECT COUNT(*) FROM assets WHERE project_id=?", (project_id,)).fetchone()[0]
+            return db.execute("SELECT COUNT(*) FROM asset_links WHERE project_id=?", (project_id,)).fetchone()[0]
 
     def ready_keys(self, project_id, job_id=None):
         with self.connect() as db:
-            rows = db.execute("SELECT payload FROM assets WHERE project_id=?" + (" AND job_id=?" if job_id else ""),
+            rows = db.execute("SELECT a.payload FROM assets a JOIN asset_links l ON a.id=l.asset_id WHERE l.project_id=?" + (" AND a.job_id=?" if job_id else ""),
                               (project_id, job_id) if job_id else (project_id,)).fetchall()
         return {json.loads(row[0])["source_ref"]["key"] for row in rows}
 
@@ -198,11 +201,16 @@ class AssetStore:
 
     def persist_project(self, project, target, source_path=None):
         msw = project.get("msw") or {}
+        if msw.get("source_project_id"):
+            self.adopt(msw["project_id"], msw.get("assets", []), msw["source_project_id"])
+        missing = []
+        copied = 0
         for asset in msw.get("assets", []):
             try:
                 source = self.resolve(msw["project_id"], asset, source_path)
             except FileNotFoundError:
                 # Preserve missing references: subtitle edits must still be saveable.
+                missing.append(asset["id"])
                 continue
             destination = confined_path(target.parent, asset["path"])
             if destination != source:
@@ -212,3 +220,16 @@ class AssetStore:
                         continue
                     raise ValueError("目标位置存在不同内容的同名音频，未覆盖保存")
                 atomic_bytes(destination, data)
+                copied += 1
+        total = len(msw.get("assets", []))
+        return {"total": total, "available": total - len(missing), "copied": copied, "missing": missing}
+
+    def adopt(self, project_id, assets, source_id):
+        """Fork ownership without rewriting or duplicating immutable audio bytes."""
+        if not valid_id(project_id) or not valid_id(source_id):
+            return
+        for asset in assets:
+            staged = self.get(source_id, asset["id"])
+            if staged and staged["sha256"] == asset["sha256"]:
+                with self.connect() as db:
+                    db.execute("INSERT OR IGNORE INTO asset_links(project_id,asset_id) VALUES (?,?)", (project_id, asset["id"]))

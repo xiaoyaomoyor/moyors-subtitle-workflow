@@ -29,6 +29,8 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
     errors = []
     if not valid_id(value.get("project_id")):
         errors.append(("$.msw.project_id", "must be a stable string ID"))
+    if value.get("source_project_id") is not None and not valid_id(value["source_project_id"]):
+        errors.append(("$.msw.source_project_id", "must be a stable source project ID"))
     applied = value.get("applied_results", [])
     if not isinstance(applied, list) or len(applied) > 10000 or not all(valid_id(item) for item in applied):
         errors.append(("$.msw.applied_results", "must contain at most 10000 result IDs"))

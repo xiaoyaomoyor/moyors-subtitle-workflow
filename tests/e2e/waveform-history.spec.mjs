@@ -1952,6 +1952,7 @@ test('subtitle export keeps a stable menu and hides colors without enabled color
     updateGapRemoveUi();
     renderAll();
   });
+  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#gap-removed-export-dropdown')).toBeVisible();
   await page.locator('#gap-removed-export-btn').click();
   await expect(page.locator('#download-gap-removed-color-srt')).toBeHidden();
@@ -1959,6 +1960,7 @@ test('subtitle export keeps a stable menu and hides colors without enabled color
 
 test('nested export menus preserve pointer reachability and keyboard focus', async ({ page }) => {
   await page.goto(server.url);
+  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   const exportButton = page.locator('#extra-export-btn');
   const otioToggle = page.locator('#extra-export-menu > .dropdown-submenu').first()
     .locator(':scope > .dropdown-submenu-toggle');
@@ -1975,7 +1977,7 @@ test('nested export menus preserve pointer reachability and keyboard focus', asy
   await expect(page.locator('#download-otio')).toBeVisible();
 
   await exportButton.focus();
-  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowRight');
   await expect(page.locator('#download-fcp7-export')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(otioToggle).toBeFocused();
@@ -1990,6 +1992,7 @@ test('nested export menus preserve pointer reachability and keyboard focus', asy
 
 test('nested export menus keep the current submenu while the pointer crosses its aim corridor', async ({ page }) => {
   await page.goto(server.url);
+  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   const exportButton = page.locator('#extra-export-btn');
   const otioWrapper = page.locator('#extra-export-menu > .dropdown-submenu').first();
   const dynamicWrapper = page.locator('#extra-export-menu > .dropdown-submenu').nth(1);
@@ -2004,13 +2007,15 @@ test('nested export menus keep the current submenu while the pointer crosses its
   const dynamicToggleBox = await dynamicToggle.boundingBox();
   expect(otioToggleBox).not.toBeNull();
   expect(dynamicToggleBox).not.toBeNull();
+  const submenuBox = await page.locator('#extra-otio-menu').boundingBox();
+  const opensLeft = submenuBox.right <= otioToggleBox.x + 8 || submenuBox.x < otioToggleBox.x;
 
   await page.mouse.move(
-    otioToggleBox.x + otioToggleBox.width * 0.7,
+    otioToggleBox.x + otioToggleBox.width * (opensLeft ? 0.7 : 0.3),
     otioToggleBox.y + otioToggleBox.height / 2,
   );
   await page.mouse.move(
-    dynamicToggleBox.x + dynamicToggleBox.width * 0.05,
+    dynamicToggleBox.x + dynamicToggleBox.width * (opensLeft ? 0.05 : 0.95),
     dynamicToggleBox.y + dynamicToggleBox.height / 2,
     { steps: 12 },
   );
@@ -2143,7 +2148,7 @@ test('gap-removed export includes color SRT and names OTIO as a timeline project
     window.showSaveFilePicker = undefined;
   });
 
-  await page.locator('#gap-removed-export-btn').click();
+  await clickMenubarItem(page, '文件', 'gap-removed-export-btn');
   await expect(page.locator('#download-gap-removed-color-srt')).toBeVisible();
   await expect(page.locator('#download-gap-removed-otio')).toHaveText('时间线 OTIO 工程');
 
@@ -2194,7 +2199,7 @@ test('server media loads from the resolved project path and OTIO keeps its absol
     window.showSaveFilePicker = undefined;
   });
   const downloadPromise = page.waitForEvent('download');
-  await page.locator('#gap-removed-export-btn').click();
+  await clickMenubarItem(page, '文件', 'gap-removed-export-btn');
   await page.locator('#gap-removed-export-menu > .dropdown-submenu').first()
     .locator(':scope > .dropdown-submenu-toggle').click();
   await page.locator('#download-gap-removed-otio').click();

@@ -25,6 +25,8 @@ class ProcessingAPI:
         self.lock = threading.RLock()
         self._manager = None
         self._assets = None
+        self._persistence = None
+        self._exports = None
         self._project_path = object()
         self.binding = ""
 
@@ -36,6 +38,22 @@ class ProcessingAPI:
                 self._manager = JobManager(self.data_root / "editor-jobs" / f"port-{port}.sqlite3",
                                            tts=tts.TtsService(self.assets))
             return self._manager
+
+    @property
+    def persistence(self):
+        from maw.msw.persistence import ProjectPersistence
+        with self.lock:
+            if self._persistence is None:
+                self._persistence = ProjectPersistence(self)
+            return self._persistence
+
+    @property
+    def exports(self):
+        from maw.msw.audio_exports import AudioExports
+        with self.lock:
+            if self._exports is None:
+                self._exports = AudioExports(self)
+            return self._exports
 
     @property
     def assets(self):
@@ -50,7 +68,14 @@ class ProcessingAPI:
             extension = self.server.project.data.get("msw") or {}
             bound = extension.get("project_id") == project_id
             asset = next((item for item in extension.get("assets", []) if item["id"] == asset_id), None) if bound else None
-            return (asset or staged), self.server.project.json_path if bound else None
+            if asset:
+                return asset, self.server.project.json_path
+            recovered = self._persistence.recovered.get(project_id) if self._persistence else None
+            if recovered:
+                asset = next((item for item in recovered["project"].get("msw", {}).get("assets", []) if item["id"] == asset_id), None)
+                if asset:
+                    return asset, recovered["origin"]
+            return staged, None
 
     def send_bundle(self, handler, payload):
         import json
@@ -104,9 +129,9 @@ class ProcessingAPI:
         if binding != current["binding"] or revision != current["saveRevision"]:
             raise ValueError("工程绑定或磁盘内容已变化；未覆盖保存，请另存为或重新打开工程。")
 
-    def authorize(self, handler):
+    def authorize(self, handler, *, require_token=True):
         token = handler.headers.get("X-MSW-Token", "")
-        if not token or not compare_digest(token, self.server.request_token):
+        if require_token and (not token or not compare_digest(token, self.server.request_token)):
             raise PermissionError("请求令牌无效，请重新打开编辑器")
         port = self.server.server_address[1]
         hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
@@ -124,20 +149,55 @@ class ProcessingAPI:
             return False
         status = HTTPStatus.OK
         try:
+            if url.path == "/api/msw/audio-download" and not post:
+                # A short-lived, single-use file grant allows native streaming
+                # downloads without placing the editor request token in a URL.
+                self.authorize(handler, require_token=False)
+                if handler.command != "GET":
+                    raise ValueError("下载需要 GET 请求")
+                ticket = parse_qs(url.query).get("ticket", [""])[0]
+                stream, name = self.exports.download(ticket)
+                import os
+                import shutil
+                with stream:
+                    handler.send_response(HTTPStatus.OK)
+                    handler.send_header("Content-Type", "audio/wav")
+                    handler.send_header("Content-Disposition", f'attachment; filename="{name}"')
+                    handler.send_header("Content-Length", str(os.fstat(stream.fileno()).st_size))
+                    handler.send_header("Cache-Control", "no-store")
+                    handler.send_header("Referrer-Policy", "no-referrer")
+                    handler.end_headers()
+                    try:
+                        shutil.copyfileobj(stream, handler.wfile, length=256 * 1024)
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass  # A cancelled download must not receive JSON in its WAV response.
+                return True
             self.authorize(handler)
             route = url.path[len("/api/msw/"):]
             if post:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "asset-bundle"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
             else:
                 payload = {key: values[0] for key, values in parse_qs(url.query).items()}
             if route == "capabilities" and not post:
-                result = {"translation": True, "tts": True, "assets": True, "persistentJobs": True, **self.context()}
+                result = {"translation": True, "tts": True, "assets": True, "audioExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
+            elif route == "save-target" and post:
+                result = self.persistence.choose_target(payload)
+            elif route == "save-as" and post:
+                result = self.persistence.save_as(payload, self.server.write_project)
+            elif route == "project-health" and not post:
+                result = {"assets": self.persistence.health(), **self.context()}
+            elif route == "recovery-draft" and post:
+                result = self.persistence.draft(payload)
+            elif route == "recovery-list" and not post:
+                result = {"records": self.persistence.recovery.list()}
+            elif route == "recovery-load" and post:
+                result = self.persistence.restore(payload.get("id"))
             elif route == "tts-settings":
                 with self.lock:
                     result = tts.save_settings(self.env_path, payload) if post else tts.config_payload(self.env_path)
@@ -164,7 +224,24 @@ class ProcessingAPI:
                 if route == "asset-bundle" and post:
                     self.send_bundle(handler, payload)
                     return True
-                if route == "assets" and not post:
+                if route == "audio-export-context" and not post:
+                    result = self.exports.context(project_id)
+                elif route == "audio-exports" and post:
+                    result = {"job": self.exports.submit(payload)}
+                    status = HTTPStatus.ACCEPTED
+                elif route == "audio-exports" and not post:
+                    result = {"jobs": self.exports.list(project_id)}
+                elif route.startswith("audio-exports/") and post:
+                    parts = route.split("/")
+                    if len(parts) != 3 or not valid_id(parts[1]):
+                        raise KeyError("未知导出操作")
+                    if parts[2] == "cancel":
+                        result = {"job": self.exports.cancel(parts[1], project_id)}
+                    elif parts[2] == "download":
+                        result = {"url": "/api/msw/audio-download?ticket=" + self.exports.ticket(parts[1], project_id)}
+                    else:
+                        raise KeyError("未知导出操作")
+                elif route == "assets" and not post:
                     result = self.assets.list(project_id, max(0, int(payload.get("since", 0))))
                 elif route == "asset-audio" and not post:
                     asset, project_path = self.asset_reference(project_id, payload.get("asset_id"))
@@ -213,5 +290,7 @@ class ProcessingAPI:
         return True
 
     def close(self):
+        if self._exports:
+            self._exports.close()
         if self._manager:
             self._manager.close()

@@ -1328,7 +1328,13 @@ function applyHistoryRecord(record) {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
   const retainedAssets = DATA.msw?.assets;
+  const retainedProjectId = DATA.msw?.project_id;
+  const retainedSourceProjectId = DATA.msw?.source_project_id;
   if (Object.prototype.hasOwnProperty.call(snapshot, 'msw')) DATA.msw = window.MSWProject.normalize(snapshot.msw);
+  // Save As forks identity; undo changes content, never the current save target.
+  if (retainedProjectId) Object.assign(window.MSWProject.ensure(DATA), {
+    project_id: retainedProjectId, ...(retainedSourceProjectId ? { source_project_id: retainedSourceProjectId } : {}),
+  });
   // Generated media is an immutable library inventory; subtitle undo does not remove it.
   if (retainedAssets?.length) window.MSWProject.ensure(DATA).assets = retainedAssets;
   normalizeMultiSubtitleState();
@@ -13384,6 +13390,8 @@ function showProjectSaveError(detail) {
 
 function configureServerSaveControls() {
   const hasServer = !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl);
+  const checkAssets = document.getElementById('project-check-assets');
+  if (checkAssets) checkAssets.disabled = !serverProjectSavingEnabled();
   // 浏览器持有工程句柄时同样显示保存项；服务器绑定优先于句柄。
   // 工具栏改为菜单栏后，「保存工程」菜单项在无保存目标时保持禁用灰显而非隐藏。
   if (saveProjectButton) saveProjectButton.hidden = !(hasServer || projectFileHandle !== null);
@@ -14005,6 +14013,8 @@ async function saveProjectToServer({ silent = false } = {}) {
     }
     if (savedGeneration !== mswProjectGeneration) return false;
     if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
+    window.MSWE?.resolve('project-persistence')?.status(result.assets,
+      buildJson() === projectJson ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
     if (buildJson() === projectJson) markProjectSaved(result.filename, result.backup, { silent });
     else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
     return true;
@@ -14064,33 +14074,46 @@ async function saveCurrentProject({ silent = false } = {}) {
 // 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新），
 // 且后续 Ctrl(Cmd)+S / 自动保存都写回这个新选定的文件。
 async function saveProjectAsToFile() {
+  const persistence = window.MSWE?.resolve('project-persistence');
+  if (persistence?.available()) return persistence.saveAs();
+  if (projectSaveInFlight || projectCheckpointInFlight) return false;
   if (editingState) finishEdit(true);
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
   const suggested = `${FILENAME_BASE}.mosp`;
+  const snapshot = buildJson();
+  const generation = mswProjectGeneration;
+  const warnReferences = () => {
+    if (DATA.msw?.assets?.length) flashHint('仅保存工程内容；音频素材仍需保留原 .assets 文件夹', 'warning');
+  };
   // 无原生保存对话框的浏览器：退化为普通下载（文件名不可考，标题保持不变）。
   if (!window.showSaveFilePicker) {
-    await downloadFile(buildJson(), suggested, 'application/json', {
+    await downloadFile(snapshot, suggested, 'application/json', {
       desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
     });
+    warnReferences();
     return;
   }
+  projectSaveInFlight = true;
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName: suggested,
       types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
     const writable = await handle.createWritable();
-    await writable.write(new Blob([buildJson()], { type: 'application/json;charset=utf-8' }));
+    await writable.write(new Blob([snapshot], { type: 'application/json;charset=utf-8' }));
     await writable.close();
+    if (generation !== mswProjectGeneration) return false;
     projectFileHandle = handle;
-    markProjectSaved(handle.name, null);
+    if (buildJson() === snapshot) markProjectSaved(handle.name, null);
+    else { projectImportDirty = true; flashHint('保存完成；保存期间的新修改仍未保存', 'warning'); }
     configureServerSaveControls();
     scheduleAutoSave();
+    warnReferences();
   } catch (error) {
     if (error && error.name === 'AbortError') return;  // 用户取消保存对话框
     flashHint(`保存失败：${error?.message || error}`, 'warning');
-  }
+  } finally { projectSaveInFlight = false; }
 }
 
 const mediaNameEl = document.getElementById('media-name');
@@ -14493,12 +14516,6 @@ document.getElementById('download-plain-text')?.addEventListener('click', async 
   if (editingState) finishEdit(true);
   await downloadFile(window.AsrEditorUtils.buildPlainTextPayload(DATA.segments), `${FILENAME_BASE}.txt`, 'text/plain', {
     desc: '纯文本字幕文件', types: { 'text/plain': ['.txt'] }
-  });
-});
-document.getElementById('download-json')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  await downloadFile(buildJson(), `${FILENAME_BASE}.mosp`, 'application/json', {
-    desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
   });
 });
 saveProjectButton?.addEventListener('click', () => saveCurrentProject());
@@ -15105,9 +15122,10 @@ function applyCanonicalProject(data, filename) {
   scheduleAutoSave();
 }
 
-// 新建工程：浏览器原生保存对话框选择位置，页面持有句柄持续写回。
-// 不再经过服务器 helper；服务器绑定的旧工程在创建成功后解除保存，避免串写。
+// 本机服务负责新工程绑定与素材收集；便携页保留浏览器句柄后备路径。
 async function createProjectCheckpoint(project, suggestedName) {
+  const persistence = window.MSWE?.resolve('project-persistence');
+  if (persistence?.available()) return persistence.saveAs({ project, name: suggestedName, newProject: true });
   if (projectCheckpointInFlight || projectSaveInFlight) {
     flashHint('工程正在保存，请稍候再试', 'warning');
     return false;
@@ -19189,7 +19207,13 @@ const menubarContainer = menubarItems[0]?.closest('.menubar');
 let menubarLeaveTimer = null;
 function scheduleMenubarClose() {
   clearTimeout(menubarLeaveTimer);
-  menubarLeaveTimer = setTimeout(() => closeMenubarMenus(), 280);
+  menubarLeaveTimer = setTimeout(() => {
+    // A layout refresh may emit pointerleave while keyboard focus is still
+    // navigating the menu. Keep that keyboard session open until focus leaves.
+    const focused = document.activeElement;
+    if (focused && openMenubarItem?.contains(focused) && focused.matches(':focus-visible')) return;
+    closeMenubarMenus();
+  }, 280);
 }
 function cancelMenubarClose() {
   clearTimeout(menubarLeaveTimer);
@@ -19210,20 +19234,21 @@ if (menubarContainer) {
 // 子菜单若超出视口底部则向上翻转，避免页面出现滚动条（布局抖动的根因）。
 function clampMenubarSubmenu(menu) {
   if (!menu || getComputedStyle(menu).display === 'none') return;
-  menu.style.maxHeight = '';
-  const rect = menu.getBoundingClientRect();
+  menu.style.maxHeight = `${Math.max(160, window.innerHeight - 16)}px`;
+  menu.style.top = ''; menu.style.bottom = ''; menu.style.left = ''; menu.style.right = '';
+  let rect = menu.getBoundingClientRect();
   if (rect.height <= 0) return;
   const wrapper = menu.closest('.dropdown-submenu');
   const wrapperTop = wrapper ? wrapper.getBoundingClientRect().top : rect.top;
-  const spaceBelow = window.innerHeight - wrapperTop - 12;
+  if (rect.right > window.innerWidth - 8) {
+    menu.style.left = 'auto'; menu.style.right = 'calc(100% - 1px)';
+    rect = menu.getBoundingClientRect();
+    if (rect.left < 8) {
+      menu.style.right = 'auto'; menu.style.left = `${8 - wrapper.getBoundingClientRect().left}px`;
+    }
+  }
   if (rect.bottom > window.innerHeight - 8) {
-    // 向上翻并按可用高度截断（内容在菜单内滚动），不再把页面撑出滚动条。
-    menu.style.maxHeight = `${Math.max(160, Math.min(rect.height, spaceBelow))}px`;
-    menu.style.top = 'auto';
-    menu.style.bottom = '-5px';
-  } else {
-    menu.style.bottom = '';
-    menu.style.top = '';
+    menu.style.top = `${Math.max(8, window.innerHeight - 8 - rect.height) - wrapperTop}px`;
   }
 }
 
@@ -19242,6 +19267,8 @@ function refreshMenubarMenu(item) {
 
 function setMenubarItemOpen(item, open, { focusFirst = false } = {}) {
   if (!item) return;
+  if (open) cancelMenubarClose();
+  if (open && openMenubarItem === item && item.classList.contains('open') && !focusFirst) return;
   requestAnimationFrame(() => {
     item.querySelectorAll('.dropdown-submenu-menu').forEach(clampMenubarSubmenu);
   });
@@ -19270,6 +19297,7 @@ function bindMenubarSubmenus(menu) {
   menu.dataset.submenusBound = 'true';
   const submenuWrappers = [...menu.querySelectorAll('.dropdown-submenu')];
   const submenuCloseTimers = new WeakMap();
+  let closingFocus = null;
   let pendingSubmenuSwitch = null;
   let lastPointerPoint = null;
   let previousPointerPoint = null;
@@ -19291,7 +19319,7 @@ function bindMenubarSubmenus(menu) {
     clearTimeout(pendingSubmenuSwitch.timer);
     pendingSubmenuSwitch = null;
   };
-  const openSubmenu = () => submenuWrappers.find((wrapper) => wrapper.classList.contains('open'));
+  const openSubmenu = (container = menu) => submenuWrappers.find((wrapper) => wrapper.parentElement === container && wrapper.classList.contains('open'));
   const pointInTriangle = (point, a, b, c) => {
     const sign = (p1, p2, p3) => (
       (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
@@ -19304,7 +19332,7 @@ function bindMenubarSubmenus(menu) {
     return !(hasNegative && hasPositive);
   };
   const shouldDelaySubmenuSwitch = (wrapper, point, previousPoint) => {
-    const active = openSubmenu();
+    const active = openSubmenu(wrapper.parentElement);
     const apex = previousPoint || lastPointInsideOpenWrapper;
     if (!active || active === wrapper || !point || !apex) return false;
     const submenu = active.querySelector(':scope > .dropdown-submenu-menu');
@@ -19396,7 +19424,7 @@ function bindMenubarSubmenus(menu) {
   const scheduleSubmenuSwitch = (wrapper) => {
     // menu-aim：鼠标进入同级菜单项时，沿当前子菜单近侧边缘的三角通道移动，先保留当前菜单。
     clearPendingSubmenuSwitch();
-    const active = openSubmenu();
+    const active = openSubmenu(wrapper.parentElement);
     if (active && active !== wrapper) clearSubmenuClose(active);
     const timer = setTimeout(() => {
       if (!pendingSubmenuSwitch || pendingSubmenuSwitch.wrapper !== wrapper) return;
@@ -19410,6 +19438,7 @@ function bindMenubarSubmenus(menu) {
   submenuWrappers.forEach((wrapper) => {
     const submenu = wrapper.querySelector(':scope > .dropdown-submenu-menu');
     const keepOpen = (event) => {
+      if (closingFocus === wrapper) return;
       const point = pointerPoint(event);
       const sameAsLastPoint = point && lastPointerPoint
         && point.x === lastPointerPoint.x && point.y === lastPointerPoint.y;
@@ -19429,7 +19458,7 @@ function bindMenubarSubmenus(menu) {
       if (pendingSubmenuSwitch?.wrapper === wrapper
           && (!event?.relatedTarget || !wrapper.contains(event.relatedTarget))) {
         clearPendingSubmenuSwitch();
-        const active = openSubmenu();
+        const active = openSubmenu(wrapper.parentElement);
         if (active && active !== wrapper) scheduleSubmenuClose(active);
       }
       scheduleSubmenuClose(wrapper);
@@ -19450,17 +19479,30 @@ function bindMenubarSubmenus(menu) {
       previousPointerPoint = lastPointerPoint;
     }
     lastPointerPoint = point;
-    const active = openSubmenu();
+    const active = submenuWrappers.filter(wrapper => wrapper.classList.contains('open') && wrapper.contains(event.target)).at(-1);
     if (active?.contains(event.target)) lastPointInsideOpenWrapper = point;
   });
   menu.addEventListener('keydown', (event) => {
     const item = event.target.closest('.dropdown-item');
     if (!item || !menu.contains(item)) return;
-    if (event.key === 'Escape') {
+    const container = item.parentElement.closest('[role="menu"]');
+    const parentWrapper = container?.closest('.dropdown-submenu');
+    if (event.key === 'Escape' || (event.key === 'ArrowLeft' && parentWrapper)) {
       event.preventDefault();
       event.stopPropagation();
-      closeMenubarMenus();
-      menu.closest('.menubar-item')?.querySelector(':scope > .menubar-tab')?.focus();
+      const ownWrapper = item.classList.contains('dropdown-submenu-toggle') ? item.closest('.dropdown-submenu') : null;
+      const closing = event.key === 'Escape' && ownWrapper?.classList.contains('open') ? ownWrapper : parentWrapper;
+      if (closing) {
+        clearPendingSubmenuSwitch();
+        closeSubmenu(closing);
+        closing.querySelectorAll('.dropdown-submenu').forEach(closeSubmenu);
+        closingFocus = closing;
+        closing.querySelector(':scope > .dropdown-submenu-toggle')?.focus();
+        closingFocus = null;
+      } else {
+        closeMenubarMenus();
+        menu.closest('.menubar-item')?.querySelector(':scope > .menubar-tab')?.focus();
+      }
       return;
     }
     const submenuWrapper = item.closest('.dropdown-submenu');
@@ -19470,15 +19512,8 @@ function bindMenubarSubmenus(menu) {
       setSubmenuOpen(submenuWrapper, true, true);
       return;
     }
-    if (event.key === 'ArrowLeft' && submenuWrapper && !item.classList.contains('dropdown-submenu-toggle')) {
-      event.preventDefault();
-      setSubmenuOpen(submenuWrapper, false);
-      submenuWrapper.querySelector(':scope > .dropdown-submenu-toggle')?.focus();
-      return;
-    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      const container = submenu && submenu.contains(item) ? submenu : menu;
       const items = directItems(container);
       const index = items.indexOf(item);
       if (index < 0 || !items.length) return;
@@ -20397,6 +20432,67 @@ function applyTranslationJob(job) {
   }
   return { ...plan, complete: plan.conflicts.length === 0 };
 }
+window.MSWE?.register('persistence-host', () => Object.freeze({
+  get data() { return DATA; },
+  get config() { return SERVER_CONFIG; },
+  get generation() { return mswProjectGeneration; },
+  name: () => `${FILENAME_BASE}.mosp`,
+  hint: message => flashHint(message, 'warning'),
+  downloadLocal: async (project, name) => {
+    commitProcessingEdits();
+    const content = project ? JSON.stringify(project, null, 2) : buildJson();
+    await downloadFile(content, name || `${FILENAME_BASE}.mosp`, 'application/json', {
+      desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] },
+    }, { usePicker: false });
+    flashHint('仅保存工程内容；音频素材仍需保留原 .assets 文件夹', 'warning');
+  },
+  commitEdits: commitProcessingEdits,
+  snapshot: () => JSON.parse(buildJson()),
+  draftSnapshot: () => {
+    const snapshot = JSON.parse(buildJson());
+    for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete snapshot[key];
+    if (editingState) snapshot.segments[editingState.idx].text = editingState.textEl.innerText.replace(/\r\n?/g, '\n').trimEnd();
+    if (extensionEditingState) {
+      const state = extensionEditingState;
+      const cue = snapshot.multi_subtitle?.tracks.find(track => track.id === state.trackId)?.segments[state.index];
+      if (cue) cue.text = state.textEl.innerText.replace(/\r\n?/g, '\n').trimEnd();
+    }
+    return snapshot;
+  },
+  restore: result => {
+    commitProcessingEdits();
+    applyCanonicalProject(result.project, result.filename);
+    detachServerProjectSaving();
+    projectImportDirty = true;
+    flashHint('恢复内容已载入，请另存为工程；原媒体可在保存后重新打开', 'success');
+  },
+  saving: () => projectSaveInFlight || projectCheckpointInFlight,
+  setSaving: value => { projectSaveInFlight = value; },
+  adopt: (result, { source, newProject }) => {
+    const unchanged = newProject || JSON.stringify(JSON.parse(buildJson())) === source;
+    if (newProject) applyCanonicalProject(result.project, result.filename);
+    else {
+      const previous = JSON.parse(source);
+      const extension = window.MSWProject.ensure(DATA);
+      Object.assign(extension, { project_id: result.projectId, source_project_id: result.project.msw.source_project_id, applied_results: [] });
+      delete extension.translation_applications; delete extension.translation_target_tracks;
+      if (DATA.media === previous.media) DATA.media = result.project.media;
+      mswProjectGeneration += 1;
+      window.dispatchEvent(new Event('msw:project-changed'));
+    }
+    projectFileHandle = null;
+    Object.assign(SERVER_CONFIG, { canSave: true, canPortableStickerExport: true, canLottieExport: true, canOgrafExport: true, processingContext: {
+      projectId: result.projectId, binding: result.binding, saveRevision: result.saveRevision,
+    } });
+    projectCheckpointed = true;
+    FILENAME_BASE = result.filename.replace(/\.(json|mosp)$/i, '');
+    const title = document.getElementById('json-name');
+    title.textContent = result.filename; title.classList.remove('empty');
+    configureServerSaveControls(); updateLottieExportButton(); updateOgrafExportButton(); scheduleAutoSave();
+    if (unchanged) markProjectSaved(result.filename, result.backup);
+    else { projectImportDirty = true; flashHint('保存完成；保存期间的新修改仍未保存', 'warning'); }
+  },
+}));
 window.MSWE?.register('processing-host', () => Object.freeze({
   get data() { return DATA; },
   get config() { return SERVER_CONFIG; },
@@ -20445,6 +20541,11 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     scheduleAutoSaveFlush();
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
+  audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
+  audioExportDuration: () => Math.ceil(Math.max(
+    Number.isFinite(player.duration) ? player.duration * 1000 : 0,
+    Number(waveformEditor?.durationMs) || 0,
+  )),
   showAssets: ({ automatic = false } = {}) => {
     if (waveformEditor?.showModule?.('assets', { recordUndo: !automatic })) rebuildShowModuleMenu();
     else waveformEditor?.activateModuleTab?.('assets');

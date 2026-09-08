@@ -518,8 +518,10 @@ export function generateBlankEditor(outputPath) {
 // these helpers open a menu tab and click/hover items (submenu-aware).
 // ---------------------------------------------------------------------------
 export async function openMenubarMenu(page, tabLabel) {
-  const tab = page.locator('.menubar-tab').filter({ hasText: tabLabel }).first();
-  await tab.click();
+  const tabId = { '文件': 'file', '编辑': 'edit', '窗口': 'window', '字幕': 'subtitle', '媒体': 'media', '帮助': 'help' }[tabLabel];
+  const tab = tabId ? page.locator(`.menubar-item[data-menubar-item="${tabId}"] > .menubar-tab`)
+    : page.locator('.menubar-tab').filter({ hasText: tabLabel }).first();
+  if (await tab.getAttribute('aria-expanded') !== 'true') await tab.press('ArrowDown');
   await page.locator('.menubar-item.open > .menubar-menu').first().waitFor({ state: 'visible' });
   return tab;
 }
@@ -532,10 +534,8 @@ export async function clickMenubarItem(page, tabLabel, itemId) {
   await openMenubarMenu(page, tabLabel);
   const item = page.locator(`.menubar-menu #${itemId}`);
   const wrapper = page.locator(`.dropdown-submenu:has(> .dropdown-submenu-menu #${itemId})`);
-  if (await wrapper.count() > 0) {
-    await wrapper.locator(':scope > .dropdown-submenu-toggle').hover();
-    await page.locator(`.dropdown-submenu.open > .dropdown-submenu-menu #${itemId}`)
-      .first().waitFor({ state: 'visible' });
+  for (let index = 0; index < await wrapper.count(); index++) {
+    await wrapper.nth(index).locator(':scope > .dropdown-submenu-toggle').hover();
   }
   await item.first().click();
 }
