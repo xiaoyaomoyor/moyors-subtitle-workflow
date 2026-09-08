@@ -13,6 +13,9 @@
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
   let previewUrl = null, previewId = null, previewSequence = 0;
+  const PAGE_SIZE = 90, DENSITY_KEY = 'msw.assets.columns';
+  let density = 3;
+  try { const saved = Number(localStorage.getItem(DENSITY_KEY)); if (Number.isInteger(saved) && saved >= 1 && saved <= 5) density = saved; } catch (_) {}
   const active = job => ['queued', 'running', 'cancel_requested'].includes(job.status);
   const assets = () => host.data.msw?.assets || [];
   const panel = host.createFloatingPanel({ panel: el('tts-panel'), dragHandle: el('tts-drag'),
@@ -88,6 +91,40 @@
       finally { button.disabled = false; }
     });
     return button;
+  }
+  const icons = {
+    play: '<path class="asset-icon-fill" d="M7 4v16l13-8z"/>',
+    pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
+    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+    insert: '<path d="M3 17h18M6 20v1m6-1v1m6-1v1M12 2v11m-4-4 4 4 4-4"/>',
+  };
+  function setIcon(button, icon, label) {
+    if (button.dataset.icon !== icon) {
+      // Constant, local SVG paths only; subtitle text never enters HTML.
+      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[icon]}</svg>`;
+      button.dataset.icon = icon;
+    }
+    const translated = t(label);
+    if (button.getAttribute('aria-label') !== translated) button.setAttribute('aria-label', translated);
+    if (button.title !== translated) button.title = translated;
+  }
+  function iconAction(label, icon, callback) {
+    const button = action(label, callback); button.dataset.assetAction = icon;
+    setIcon(button, icon, label); return button;
+  }
+  function updatePreviewButtons() {
+    for (const card of el('asset-list').children) {
+      const playing = card.dataset.assetId === previewId && !el('asset-audio').paused && !el('asset-audio').ended;
+      card.classList.toggle('playing', playing);
+      const button = card.querySelector('[data-asset-action="play"]');
+      if (button) setIcon(button, playing ? 'pause' : 'play', playing ? '暂停试听' : '试听');
+    }
+  }
+  function updateDensity() {
+    const list = el('asset-list'); if (!list.clientWidth) return;
+    const columns = Math.min(density, Math.max(1, Math.floor((list.clientWidth - 10) / 118)));
+    list.style.setProperty('--asset-columns', columns);
+    el('asset-density-value').value = String(columns);
   }
   const statuses = { queued: '等待处理', running: '正在合成', succeeded: '合成完成', failed: '合成失败',
     cancelled: '已取消', cancel_requested: '正在取消', interrupted: '服务中断，未自动重试' };
@@ -210,6 +247,7 @@
     el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = null; previewId = null;
+    updatePreviewButtons();
   }
   async function audioBlob(asset) {
     return request(`asset-audio?project_id=${encodeURIComponent(projectId())}&asset_id=${encodeURIComponent(asset.id)}`, null, true);
@@ -240,6 +278,9 @@
     a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   function renderAssets() {
+    const list = el('asset-list'), scroll = list.scrollTop;
+    const focus = list.contains(document.activeElement) ? document.activeElement : null;
+    const focusedId = focus?.closest('[data-asset-id]')?.dataset.assetId, focusedAction = focus?.dataset.assetAction;
     const all = [...assets()].sort((a, b) => b.created_at - a.created_at || a.source_ref.start - b.source_ref.start);
     const batch = el('asset-batch').value;
     const batches = new Map(all.map(a => [a.job_id, a]));
@@ -252,7 +293,7 @@
     el('asset-batch').value = batch;
     const term = el('asset-search').value.trim().toLocaleLowerCase();
     const rows = all.filter(a => (!batch || a.job_id === batch) && (!term || `${a.generation.display_text} ${a.generation.voice} ${a.generation.model}`.toLocaleLowerCase().includes(term)));
-    const pages = Math.max(1, Math.ceil(rows.length / 50)); page = Math.min(page, pages - 1);
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE)); page = Math.min(page, pages - 1);
     el('asset-count').textContent = `${rows.length} / ${all.length} ${t('条音频')}`;
     el('asset-page').textContent = `${page + 1} / ${pages}`;
     el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
@@ -261,7 +302,7 @@
       ? '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。'
       : '生成的音频会显示在这里。通过「媒体 → TTS」开始配音。');
     const fragment = document.createDocumentFragment();
-    for (const asset of rows.slice(page * 50, page * 50 + 50)) {
+    for (const asset of rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)) {
       const row = document.createElement('article'); row.className = 'msw-asset-row'; row.dataset.assetId = asset.id; row.setAttribute('role', 'listitem');
       row.draggable = available;
       row.addEventListener('dragstart', event => {
@@ -275,19 +316,25 @@
       const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
       meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
       if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
-      if (missing.has(asset.id)) meta.textContent += ` · ${t('素材缺失')}`;
+      if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
+      meta.title = meta.textContent;
       content.append(text, meta);
       const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
-      const play = action('试听', () => preview(asset)); play.disabled = !available;
-      const save = action('WAV', async () => {
+      const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
+      const save = iconAction('下载 WAV', 'download', async () => {
         const generation = host.generation, blob = await audioBlob(asset);
         if (generation === host.generation) download(blob, `${asset.id}.wav`);
       }); save.disabled = !available;
-      const insert = action('放入时间轴', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
+      const insert = iconAction('放入时间轴', 'insert', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
       insert.disabled = !available;
       buttons.append(play, save, insert); row.append(content, buttons); fragment.append(row);
     }
-    el('asset-list').replaceChildren(fragment);
+    list.replaceChildren(fragment); updatePreviewButtons();
+    if (focusedId && focusedAction) {
+      const card = [...list.children].find(row => row.dataset.assetId === focusedId);
+      card?.querySelector(`[data-asset-action="${focusedAction}"]`)?.focus({ preventScroll: true });
+    }
+    list.scrollTop = scroll;
   }
   el('tts-open').addEventListener('click', () => {
     host.commitEdits(); el('tts-target').value = ''; updateScope(); panel.open();
@@ -309,10 +356,17 @@
   });
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
   for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
-  el('asset-search').addEventListener('input', () => { page = 0; renderAssets(); });
-  el('asset-batch').addEventListener('change', () => { page = 0; renderAssets(); });
-  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); renderAssets(); });
-  el('asset-next').addEventListener('click', () => { page += 1; renderAssets(); });
+  el('asset-search').addEventListener('input', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-batch').addEventListener('change', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-next').addEventListener('click', () => { page += 1; el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-density').value = String(density);
+  el('asset-density').addEventListener('input', () => {
+    density = Number(el('asset-density').value); updateDensity();
+    try { localStorage.setItem(DENSITY_KEY, String(density)); } catch (_) {}
+  });
+  new ResizeObserver(updateDensity).observe(el('asset-list'));
+  for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
   el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
   el('asset-export-project').addEventListener('click', async () => {
     const button = el('asset-export-project'); button.disabled = true;

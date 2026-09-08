@@ -2599,7 +2599,7 @@
       this.tabAddMenu = panel;
     }
 
-    // 点单标签 → 与标签同宽的下拉：变成其他模块（本出现被替换，原模块不挪位）。
+    // 点单标签 → 按名称内容展开下拉，窄标签不能挤压模块名称。
     openTabConvertMenu(tabEl) {
       // 再次点击同一标签 = 收起已打开的下拉。
       if (this.tabAddMenu?.dataset?.convertFor === tabEl?.dataset?.tabFor) {
@@ -2646,7 +2646,7 @@
         panel.appendChild(item);
       });
       document.body.appendChild(panel);
-      panel.style.width = `${Math.max(96, Math.round(anchorRect.width))}px`;
+      panel.style.minWidth = `${Math.min(window.innerWidth - 16, Math.max(128, Math.round(anchorRect.width)))}px`;
       panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, anchorRect.left))}px`;
       panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, anchorRect.bottom + 4))}px`;
 
@@ -6334,6 +6334,7 @@
     updatePlayback(allowFollow = true) {
       if (!this.payload) return;
       const now = this.currentTimeMs();
+      this.audioLayer?.updatePlayhead(now);
       const segments = this.options.getSegments('main');
       const activeIndex = findActiveCueIndex(segments, now);
       const activeVisualHit = activeIndex >= 0 && isActiveCueVisualHit(segments, activeIndex, now);

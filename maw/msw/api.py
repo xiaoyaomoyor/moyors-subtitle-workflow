@@ -161,7 +161,7 @@ class ProcessingAPI:
                 import shutil
                 with stream:
                     handler.send_response(HTTPStatus.OK)
-                    handler.send_header("Content-Type", "audio/wav")
+                    handler.send_header("Content-Type", "application/zip" if name.endswith(".otioz") else "video/mp4" if name.endswith(".mp4") else "audio/wav")
                     handler.send_header("Content-Disposition", f'attachment; filename="{name}"')
                     handler.send_header("Content-Length", str(os.fstat(stream.fileno()).st_size))
                     handler.send_header("Cache-Control", "no-store")
@@ -185,7 +185,7 @@ class ProcessingAPI:
             else:
                 payload = {key: values[0] for key, values in parse_qs(url.query).items()}
             if route == "capabilities" and not post:
-                result = {"translation": True, "tts": True, "assets": True, "audioExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
+                result = {"translation": True, "tts": True, "assets": True, "audioExport": True, "videoExport": True, "timelineExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
             elif route == "save-target" and post:
                 result = self.persistence.choose_target(payload)
             elif route == "save-as" and post:
@@ -224,8 +224,8 @@ class ProcessingAPI:
                 if route == "asset-bundle" and post:
                     self.send_bundle(handler, payload)
                     return True
-                if route == "audio-export-context" and not post:
-                    result = self.exports.context(project_id)
+                if route in {"audio-export-context", "video-export-context", "timeline-export-context"} and not post:
+                    result = self.exports.context(project_id, video=route != "audio-export-context")
                 elif route == "audio-exports" and post:
                     result = {"job": self.exports.submit(payload)}
                     status = HTTPStatus.ACCEPTED

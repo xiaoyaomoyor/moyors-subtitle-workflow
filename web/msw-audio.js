@@ -165,6 +165,9 @@
         const lane = current.lanes.get(clip.id); if (lane < lo || lane > hi) continue;
         const asset = current.assets.get(clip.asset_id), finish = core.end(clip, asset), from = Math.max(start, clip.start_ms), to = Math.min(end, finish);
         const block = document.createElement('div'); block.className = 'msw-audio-clip'; block.dataset.clipId = clip.id; block.tabIndex = 0;
+        block.dataset.startMs = clip.start_ms; block.dataset.endMs = finish;
+        const now = Math.round(transport.currentTime() ?? (host.player.currentTime * 1000 || 0));
+        block.classList.toggle('active', clip.start_ms <= now && now < finish);
         block.setAttribute('role', 'button'); block.setAttribute('aria-label', `${t('音频贴片')} ${clip.label}`);
         block.classList.toggle('selected', selected.has(clip.id));
         const muted = clip.muted || current.tracks.get(clip.track_id)?.muted;
@@ -194,6 +197,12 @@
     area.addEventListener('wheel', e => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
     area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
     row.appendChild(area); area.scrollTop = laneScroll.get(key) || 0; paint();
+  }
+  function updatePlayhead(now) {
+    // Update visible blocks only; preserve DOM, heatmaps and ongoing gestures.
+    for (const block of timeline.pane.querySelectorAll('.msw-audio-clip')) {
+      block.classList.toggle('active', Number(block.dataset.startMs) <= now && now < Number(block.dataset.endMs));
+    }
   }
   timeline.pane.addEventListener('dragover', event => {
     if (!event.dataTransfer.types.includes(MIME)) return;
@@ -244,7 +253,7 @@
     if (heatToggle) heatToggle.checked = extension().audio_settings?.heatmap !== false;
     if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
   }
-  const api = Object.freeze({ insert, renderRow, hasAssets: () => (extension().assets || []).length > 0,
+  const api = Object.freeze({ insert, renderRow, updatePlayhead, hasAssets: () => (extension().assets || []).length > 0,
     durationMs: () => Math.ceil(sync().end), minimumRowHeight: () => sync().clips.length ? 41 + (timeline.dual() ? 40 : 24) + Math.min(3, sync().count) * ROW : 0,
     currentTimeMs: () => transport.currentTime(), togglePlayback: () => transport.toggle(), seek: ms => transport.seek(ms),
     virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,

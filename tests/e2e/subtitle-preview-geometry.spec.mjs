@@ -116,6 +116,8 @@ test('resizing via the south-east handle grows the box within player bounds', as
   const handle = overlay.locator('.overlay-handle[data-handle="se"]');
   // 手柄仅在预览框点击聚焦后显示（hover 不再触发）。
   await overlay.click();
+  // Wait for a stable, hittable handle before using raw pointer coordinates.
+  await handle.hover();
   const hb = await handle.boundingBox();
   expect(hb).not.toBeNull();
   await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);

@@ -18,6 +18,8 @@ from maw.gui_config import load_env
 from maw.msw.audio_plan import VERSION, compile_plan, options
 from maw.msw.audio_render import RenderCancelled, check_cancel, fingerprint, probe_source, render
 from maw.msw.project_codec import valid_id
+from maw.msw.video_render import prepare as prepare_video, render_video
+from maw.msw.timeline_export import editable_plan, render_bundle
 from maw.project import normalize_project
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
@@ -69,12 +71,14 @@ class AudioExports:
                 return record.get("media"), record["project"], 0
             return None, {}, 0
 
-    def context(self, project_id):
+    def context(self, project_id, *, video=False):
         source, project, selected = self.source_scope(project_id)
         tools = self.tools()
+        info = probe_source(tools.ffprobe, source, threading.Event()) if video and tools.complete and source and Path(source).is_file() else {}
         return dict(available=bool(tools.ffmpeg and tools.ffprobe), plan_schema=VERSION, source_available=bool(source and Path(source).is_file()),
                     media_reference=project.get("media"), audio_index=selected,
-                    audio_tracks=(project.get("media_metadata") or {}).get("audio_tracks", []))
+                    video=info.get("video"), duration_ms=info.get("duration_ms"),
+                    audio_tracks=info.get("audio_tracks", (project.get("media_metadata") or {}).get("audio_tracks", [])))
 
     def write(self, job):
         job["updated_at"] = time.time()
@@ -109,7 +113,19 @@ class AudioExports:
         for cache in ("waveform", "spectral", "waveform_reapeaks"):
             project.pop(cache, None)
         settings = options(payload.get("options"))
+        settings.setdefault("format", "wav")
+        settings.setdefault("video_tail", "ask")
+        settings.setdefault("video_encoding", "auto")
+        settings.setdefault("collect_media", True)
+        settings.setdefault('burn_subtitles', 'none')
+        if (settings["format"] not in {"wav", "mp4", "otioz"} or settings["video_tail"] not in {"ask", "truncate", "freeze"}
+                or settings["video_encoding"] not in {"auto", "h264"} or type(settings["collect_media"]) is not bool):
+            raise ValueError("导出格式或视频选项无效")
+        if settings['burn_subtitles'] not in {'none', 'main', 'secondary', 'both'}:
+            raise ValueError('字幕压制选项无效')
         plan = compile_plan(project, settings)
+        if settings["format"] == "otioz":
+            plan = editable_plan(project, plan)
         signature = hashlib.sha256(json.dumps(dict(project=project, options=settings), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         with self.lock:
             row = self.db.execute("SELECT payload FROM jobs WHERE project_id=? AND request_key=?", (project_id, request_key)).fetchone()
@@ -126,7 +142,8 @@ class AudioExports:
         if not isinstance(payload.get("binding"), str):
             raise ValueError("缺少本机工程绑定，请重新打开编辑器")
         source, owner, _ = self.source_scope(project_id, payload["binding"])
-        if settings["mode"] == "mix":
+        if (settings["mode"] == "mix" or settings["format"] == "mp4"
+                or settings["format"] == "otioz" and source and project.get("media") == owner.get("media")):
             if not source or project.get("media") != owner.get("media") or not Path(source).is_file():
                 raise ValueError("原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程")
             source = Path(source)
@@ -153,7 +170,7 @@ class AudioExports:
                 raise ValueError("已有较多音频导出任务，请等待或取消后重试")
             self.prune()
             job = dict(id=uuid.uuid4().hex, project_id=project_id, request_key=request_key, fingerprint=signature,
-                       client_token=payload["client_token"], plan_schema=VERSION, mode=settings["mode"],
+                       client_token=payload["client_token"], plan_schema=VERSION, mode=settings["mode"], format=settings["format"],
                        status="queued", stage="queued", progress=0, created_at=time.time(), error="", result=None,
                        options=settings, clip_count=len({p["clip_id"] for p in plan["pieces"]}))
             event = threading.Event()
@@ -188,7 +205,8 @@ class AudioExports:
         # Job IDs are generated UUID hex, never a user supplied path.
         if len(job["id"]) != 32 or any(c not in "0123456789abcdef" for c in job["id"]):
             raise ValueError("导出任务标识无效")
-        return self.root / (job["id"] + ".wav")
+        suffix = {"wav": ".wav", "mp4": ".mp4", "otioz": ".otioz"}[job.get("format", "wav")]
+        return self.root / (job["id"] + suffix)
 
     def cancel(self, job_id, project_id):
         with self.lock:
@@ -217,7 +235,10 @@ class AudioExports:
             if not entry or entry[0] <= time.monotonic():
                 raise PermissionError("下载链接已失效，请再次点击下载 WAV")
             job = self.get(entry[1], entry[2])
-            return self.artifact(job).open("rb"), "msw-voice.wav" if job["mode"] == "voice" else "msw-mix.wav"
+            name = "msw-video.mp4" if job.get("format") == "mp4" else "msw-voice.wav" if job["mode"] == "voice" else "msw-mix.wav"
+            if job.get("format") == "otioz":
+                name = "msw-timeline.otioz"
+            return self.artifact(job).open("rb"), name
 
     def work(self):
         while item := self.pending.get():
@@ -229,15 +250,17 @@ class AudioExports:
                     job.update(status="running", stage="preparing")
                     self.write(job)
                 source_channels = 0
+                info = {}
                 if source:
                     if fingerprint(source) != stamp:
                         raise ValueError("原媒体在排队期间发生变化，请重新导出")
                     info = probe_source(tools.ffprobe, source, event)
-                    if settings["source_audio_index"] >= len(info["audio_tracks"]):
+                    if settings["mode"] == "mix" and settings["source_audio_index"] >= len(info["audio_tracks"]):
                         raise ValueError("所选原声音轨不存在，请重新选择音轨")
-                    source_channels = info["audio_tracks"][settings["source_audio_index"]]["channels"]
+                    if settings["mode"] == "mix":
+                        source_channels = info["audio_tracks"][settings["source_audio_index"]]["channels"]
                     settings = {**settings, "duration_ms": max(settings["duration_ms"], info["duration_ms"])}
-                plan = compile_plan(project, settings)
+                plan = prepare_video(project, settings, info) if settings["format"] == "mp4" else compile_plan(project, settings)
                 resolved = {}
 
                 def resolve(asset_id):
@@ -260,8 +283,15 @@ class AudioExports:
                         current.update(stage=stage, progress=round(fraction * 100, 1))
                         self.write(current)
 
-                result = self.renderer(plan, self.artifact(job), tools.ffmpeg, event, progress, resolve,
-                                       source=source, source_channels=source_channels)
+                if settings["format"] == "mp4":
+                    result = render_video(plan, self.artifact(job), tools, event, progress, resolve,
+                                          source=source, source_channels=source_channels, info=info, settings=settings, project=project)
+                elif settings["format"] == "otioz":
+                    result = render_bundle(project, plan, self.artifact(job), tools, event, progress, resolve,
+                                           source=source, source_channels=source_channels, info=info, settings=settings)
+                else:
+                    result = self.renderer(plan, self.artifact(job), tools.ffmpeg, event, progress, resolve,
+                                           source=source, source_channels=source_channels)
                 with self.lock:
                     check_cancel(event)
                     job = self.get(job_id, project_id)

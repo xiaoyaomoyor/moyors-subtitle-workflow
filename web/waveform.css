@@ -847,7 +847,8 @@
    （.waveform-row.multi-subtitle-row .waveform-cue-block[data-track="extension"]）
    打平后靠本规则在文件中更靠后胜出：播放中的副轨块显示播放头轮廓，
    而不是轨道底色的 dotted 淡轮廓。 */
-.waveform-row .waveform-cue-block.active:not(.selected) {
+.waveform-row .waveform-cue-block.active:not(.selected),
+.waveform-row .msw-audio-clip.active:not(.selected) {
   outline: solid 1px var(--wave-playhead);
 }
 .waveform-cue-block.disabled {

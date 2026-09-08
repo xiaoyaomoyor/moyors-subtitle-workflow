@@ -288,6 +288,8 @@ Launcher 的「批量」模式用于把多个本地媒体按顺序转写。切�
 
 ## 3. 理解三个输出文件
 
+编辑器完成配音贴片后，还可从文件菜单导出[配音／混音 WAV](EDITOR_AUDIO_EXPORT.md)、[混音 MP4 或独立配音 OTIOZ](EDITOR_VIDEO_TIMELINE_EXPORT.md)。这些交付文件和素材包不替代下述 `.mosp` 工程保存。
+
 | File | Use it for | Keep it? |
 |---|---|---|
 | `.srt` | 导入播放器、剪辑软件 | 可随时重新导出 |

@@ -34,13 +34,13 @@ def check_cancel(cancel):
         raise RenderCancelled()
 
 
-def run(command, cancel, *, timeout=3600, stdout=None):
+def run(command, cancel, *, timeout=3600, stdout=None, cwd=None, failure_message=None):
     """Poll the child even if it produces no stdout; never pipe unbounded logs."""
     check_cancel(cancel)
     with tempfile.TemporaryFile() as errors:
         try:
             process = popen_process_tree(command, stdin=subprocess.DEVNULL,
-                                       stdout=stdout or subprocess.DEVNULL, stderr=errors,
+                                       stdout=stdout or subprocess.DEVNULL, stderr=errors, cwd=cwd,
                                        **process_group_kwargs())
         except OSError as error:
             raise ValueError("FFmpeg 无法启动，请检查启动器的 FFmpeg 配置") from error
@@ -55,7 +55,7 @@ def run(command, cancel, *, timeout=3600, stdout=None):
             if process.returncode:
                 # FFmpeg diagnostics can contain filenames/URLs, so keep the
                 # user-facing error actionable without echoing arbitrary logs.
-                raise ValueError("音频解码或混音失败，请检查媒体是否完整、原声音轨是否存在及磁盘空间")
+                raise ValueError(failure_message or "音频解码或混音失败，请检查媒体是否完整、原声音轨是否存在及磁盘空间")
         finally:
             if process.poll() is None:
                 terminate_process_tree(process, timeout=3)
@@ -89,17 +89,45 @@ def probe_source(ffprobe, source, cancel):
                 durations.append(number)
         except (TypeError, ValueError):
             pass
-    return dict(duration_ms=round_sample(max(durations, default=0) * 1000), audio_tracks=[
+    duration_ms = round_sample(max(durations, default=0) * 1000)
+    videos = [s for s in info.get("streams", []) if s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")]
+    video = None
+    if videos:
+        s = videos[0]
+        duration_is_length = False
+        try:
+            seconds = float(s.get("duration", 0))
+            duration_is_length = math.isfinite(seconds) and seconds > 0
+            if not math.isfinite(seconds) or seconds <= 0:
+                tag = s.get('tags', {}).get('DURATION', '')
+                parts = tag.split(':')
+                seconds = (float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])) if len(parts) == 3 else 0
+            video_ms = round_sample(seconds * 1000) if math.isfinite(seconds) and seconds > 0 else duration_ms
+        except (TypeError, ValueError, OverflowError):
+            video_ms = duration_ms
+        try:
+            offset = float(s.get('start_time', 0)) - float(info.get('format', {}).get('start_time', 0))
+            start_ms = round_sample(max(0, offset) * 1000) if math.isfinite(offset) else 0
+        except (TypeError, ValueError, OverflowError):
+            start_ms = 0
+        if duration_is_length:
+            video_ms += start_ms
+        video = dict(index=s["index"], duration_ms=video_ms, codec=s.get("codec_name"),
+                     start_ms=start_ms,
+                     width=s.get("width", 0), height=s.get("height", 0), pixel_format=s.get("pix_fmt"),
+                     frame_rate=s.get("avg_frame_rate") or s.get("r_frame_rate"),
+                     color_transfer=s.get("color_transfer"))
+    return dict(duration_ms=duration_ms, video=video, audio_tracks=[
         dict(audio_index=i, channels=s.get("channels", 0), title=str(s.get("tags", {}).get("title", ""))[:160],
              language=str(s.get("tags", {}).get("language", ""))[:40]) for i, s in enumerate(streams)])
 
 
-def render(plan, output, ffmpeg, cancel, progress, resolve_asset, *, source=None, source_channels=0):
+def render(plan, output, ffmpeg, cancel, progress, resolve_asset, *, source=None, source_channels=0, allow_silence=False):
     """resolve_asset(id) supplies a verified asset + path in a trusted scope."""
     rate, frames = plan["sample_rate"], plan["sample_count"]
     if frames * 4 + 44 > MAX_WAV_BYTES:
         raise ValueError("WAV 将超过 4 GB，请分段导出")
-    if not plan["pieces"] and not plan["source"]:
+    if not plan["pieces"] and not plan["source"] and not allow_silence:
         raise ValueError("导出范围内没有可发声的音频贴片")
     output = Path(output)
     source_stamp = fingerprint(source) if source else None

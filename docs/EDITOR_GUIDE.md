@@ -94,6 +94,7 @@ MSW 的工程文件会保存 `segments[*].items` 字/词级时间码。存在这
 在 localhost 编辑器中，“保存工程”（`Ctrl(Cmd)+S`）会原子写回当前 `.mosp` / `.json`，并保留同目录 `.bak`。“另存为工程”（`Ctrl(Cmd)+Shift+S`）可通过系统对话框选择新位置，自动收集 TTS 音频，可勾选收集原媒体；成功后继续写回新工程。弹窗打开期间暂停自动保存，保存期间的新修改仍保持未保存状态。文字编辑提交后的短暂防抖与常规定时自动保存继续沿用设置。便携 HTML 使用“另存为工程”的浏览器保存／下载路径；服务不可用时也可仅下载工程数据，但音频文件需要另行保留。文件菜单的“恢复记录”可以找回本机草稿与历史副本，详见[工程保存与恢复](EDITOR_PERSISTENCE.md)。空白 localhost 编辑器打开或拖入工程时，继续尝试按已知媒体位置和一致文件内容接管工程；无法接管时提示选择关联媒体。
 
 - **工程文件（`.mosp` / `.json`）**：继续编辑时优先保存它；新工程建议使用 `.mosp`，`.json` 用于兼容旧工程和已有工作流。
+- **WAV / MP4 / 配音 OTIOZ**：文件菜单可打开音频和视频导出窗口；「导出字幕 → 更多导出 → OTIO」中可导出带独立配音片段的剪辑素材包。操作与边界见[音频导出](EDITOR_AUDIO_EXPORT.md)及[视频与剪辑工程导出](EDITOR_VIDEO_TIMELINE_EXPORT.md)。
 - **SRT / ASS / TXT**：SRT 用于播放器、剪辑软件和普通字幕交付；可选择把首条字幕的起点拉到 0（只延长首条，不改变其结束时间或后续字幕时间码）。ASS 使用主字幕预览当前选中的字体、字号和文字颜色写入默认样式，适合交给支持样式字幕的播放器或剪辑软件；位置、描边和背景采用通用底部居中样式，不写入预览框几何或每条字幕的颜色分组。工程存在颜色标记时，可导出完整字幕，或按每种已使用颜色（含无颜色的 `default`）分别生成带颜色名后缀的 SRT。也可导出逐字幕行排列的纯文本 TXT。
 - **去空隙导出**：仅在有已移除空隙时出现，包括完整或按颜色拆分的 SRT、时间线 OTIO、FFconcat 和保留区域 JSON。
 - **去空隙 OTIO marker**：每个保留区间会生成一个媒体 clip，启用字幕会作为 clip marker 写入，marker 名称是字幕内容；有颜色时映射为 DaVinci Resolve 的 `RED`、`YELLOW`、`GREEN`、`BLUE`、`PURPLE` 五种标记色，跨越被移除空隙的字幕会按保留区间拆分。marker 的 `marked_range` 使用媒体源坐标，与 clip 的 `source_range` 和外部引用的 `available_range` 保持同一坐标系；若 WAV 含 BWF `bext.time_reference`，还会保留该非零媒体起点，避免 Resolve 导入后片段内容错位。视频素材只写入视频 clip，纯音频素材写入音频 clip；无颜色字幕使用白色默认标记。Resolve 还提供 Blue、Cyan、Green、Yellow、Red、Pink、Purple、Fuchsia、Rose、Lavender、Sky、Mint、Lemon、Sand、Cocoa、Cream 这 16 种可用颜色，当前 MSW 只使用其中五色。

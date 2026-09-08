@@ -184,6 +184,50 @@ class AudioExportApiTests(unittest.TestCase):
         self.assertEqual(result['status'],'failed')
         self.assertIn('音轨不存在',result['error'])
 
+    def test_video_and_timeline_share_idempotency_scope_and_download_types(self):
+        info = {'duration_ms':3000, 'audio_tracks':[{'channels':1}],
+                'video':{'duration_ms':3000, 'index':0, 'codec':'h264', 'pixel_format':'yuv420p'}}
+        def render_media(plan, output, *_args, **_kwargs):
+            output.write_bytes(b'fixture-output')
+            return {'sample_count':144000, 'sample_rate':48000, 'byte_size':14, 'attenuation_db':0, 'clipped':False}
+        with patch('maw.msw.audio_exports.probe_source', return_value=info), \
+             patch('maw.msw.audio_exports.render_video', side_effect=render_media), \
+             patch('maw.msw.audio_exports.render_bundle', side_effect=lambda project, *args, **kwargs: render_media(*args, **kwargs)):
+            for fmt, mime in [('mp4','video/mp4'), ('otioz','application/zip')]:
+                self.payload['request_key'] = 'request-' + fmt
+                self.payload['options']['format'] = fmt
+                job = self.submit()
+                self.assertEqual(self.wait(job['id'])['status'], 'succeeded')
+                self.assertEqual(self.submit()['id'], job['id'])
+                altered = copy.deepcopy(self.payload)
+                altered['options']['format'] = 'wav'
+                self.assertEqual(self.call('audio-exports', altered)[0], 400)
+                _, grant = self.call(f"audio-exports/{job['id']}/download", {'project_id':'p'})
+                with urlopen(self.url.split('/api/msw/')[0] + grant['url']) as response:
+                    self.assertEqual(response.headers['Content-Type'], mime)
+                    self.assertIn('.' + fmt, response.headers['Content-Disposition'])
+                    self.assertEqual(response.read(), b'fixture-output')
+
+    def test_video_cannot_reference_an_unbound_file_even_without_original_audio(self):
+        altered = copy.deepcopy(self.payload)
+        altered['options'].update(format='mp4', mode='voice')
+        altered['project']['media'] = str(self.root / 'unregistered.mp4')
+        self.assertEqual(self.call('audio-exports', altered)[0], 400)
+
+    def test_editable_package_requires_its_muted_originals_and_valid_options(self):
+        altered = copy.deepcopy(self.payload)
+        altered['options']['format'] = 'otioz'
+        for key, value in [('collect_media',1), ('format','../file'), ('video_tail','implicit')]:
+            bad = copy.deepcopy(altered)
+            bad['options'][key] = value
+            self.assertEqual(self.call('audio-exports',bad)[0],400)
+        altered['project']['msw']['audio_clips'][0]['muted'] = True
+        asset = altered['project']['msw']['assets'][0]
+        self.api.assets.resolve('p', asset, self.path).unlink()
+        result = self.wait(self.submit(altered)['id'])
+        self.assertEqual(result['status'], 'failed')
+        self.assertFalse(self.manager.artifact(result).exists())
+
     def test_source_media_change_during_queue_is_detected(self):
         self.release.clear()
         first = self.submit()

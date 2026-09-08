@@ -1622,8 +1622,8 @@
   }
   .module-instance-stub .stub-name { color: var(--text-muted); font-size: 13px; }
   .module-instance-stub small { font-size: 11px; max-width: 240px; text-align: center; line-height: 1.5; }
-  /* 标签「变成模块」下拉：与标签同宽，图标 + 名称 */
-  .tab-convert-menu { padding: 3px; }
+  /* 标签「变成模块」下拉按内容定宽，确保短标签也能展示完整名称。 */
+  .tab-convert-menu { padding: 3px; width: max-content; min-width: 128px; max-width: calc(100vw - 16px); }
   .tab-convert-menu .dock-menu-item {
     width: 100%; justify-content: flex-start; gap: 8px;
     padding: 0 8px; height: 26px;
@@ -1634,6 +1634,8 @@
     fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round;
   }
+  .tab-convert-menu .tab-icon { flex-shrink: 0; }
+  .tab-convert-menu .tab-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tab-convert-menu .dock-menu-item .tab-icon svg .dock-icon-fill { fill: currentColor; stroke: none; }
   .tab-convert-menu .dock-menu-item.active { color: var(--text-primary); background: var(--accent-tint); }
   .tab-convert-menu .dock-menu-item:hover { color: var(--text-primary); }
@@ -2996,10 +2998,10 @@
   .msw-translation-results p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); }
   .msw-processing-field { display: flex; flex-direction: column; gap: 5px; margin-block: 10px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
   .msw-processing-field[hidden] { display: none; }
-  #audio-export-panel { width: min(440px, calc(100vw - 24px)); }
-  #audio-export-panel [hidden] { display: none !important; }
-  #audio-export-panel .msw-tts-check { margin-block: 10px; }
-  #audio-export-panel progress { width: 100%; height: 6px; accent-color: var(--accent); }
+  .msw-media-export-panel { width: min(440px, calc(100vw - 24px)); }
+  .msw-media-export-panel [hidden] { display: none !important; }
+  .msw-media-export-panel .msw-tts-check { margin-block: 10px; }
+  .msw-media-export-panel progress { width: 100%; height: 6px; accent-color: var(--accent); }
   #audio-export-jobs:empty { display: none; }
   .msw-processing-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
@@ -3010,24 +3012,33 @@
   .msw-asset-library[hidden] { display: none; }
   .msw-asset-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; background: var(--panel-toolbar-bg-wave); }
   .msw-asset-toolbar input, .msw-asset-toolbar select { min-width: 0; flex: 1 1 120px; max-width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--form-input-bg); padding: 5px 6px; font: inherit; font-size: 12px; }
-  .msw-asset-library button, .msw-tts-result button { padding: 4px 8px; font-size: 12px; border: 1px solid var(--btn-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); cursor: pointer; }
-  .msw-asset-library button:hover, .msw-tts-result button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  .msw-asset-library :where(.msw-asset-toolbar, .msw-asset-summary, .msw-asset-list, .msw-asset-pagination) button, .msw-tts-result button { padding: 4px 8px; font-size: 12px; border: 1px solid var(--btn-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); cursor: pointer; }
+  .msw-asset-library :where(.msw-asset-toolbar, .msw-asset-summary, .msw-asset-list, .msw-asset-pagination) button:hover, .msw-tts-result button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
   .msw-asset-library button:disabled { opacity: .45; cursor: default; }
-  .msw-asset-library button:focus-visible, .msw-asset-toolbar input:focus-visible, .msw-asset-toolbar select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+  .msw-asset-library button:focus-visible, .msw-asset-library input:focus-visible, .msw-asset-toolbar select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
   .msw-asset-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 8px; font-size: 11px; color: var(--text-secondary); }
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
-  .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-  .msw-asset-row { display: flex; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid var(--border-subtle); }
-  .msw-asset-row:hover { background: var(--bg-raised); }
+  .msw-asset-density { display: flex; align-items: center; gap: 5px; margin-left: auto; white-space: nowrap; }
+  .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
+  .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: grid; grid-template-columns: repeat(var(--asset-columns, 3), minmax(0, 1fr)); align-content: start; gap: 6px; padding: 6px 8px; }
+  .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-raised); cursor: grab; }
+  .msw-asset-row:hover { border-color: var(--btn-border-hover); }
+  .msw-asset-row.playing { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-raised)); }
   .msw-asset-info { min-width: 0; flex: 1; }
-  .msw-asset-text { font-size: 12px; line-height: 1.45; margin: 0 0 5px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-  .msw-asset-meta { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
-  .msw-asset-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .msw-asset-text { font-size: 12px; line-height: 1.45; min-height: 2.9em; margin: 0 0 3px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .msw-asset-meta { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msw-asset-row.missing .msw-asset-meta { color: var(--amber); }
+  .msw-asset-actions { display: flex; gap: 4px; flex-shrink: 0; justify-content: flex-end; }
+  .msw-asset-library .msw-asset-actions button { display: grid; place-items: center; padding: 3px; width: 26px; height: 25px; flex-shrink: 0; }
+  .msw-asset-actions button:first-child { margin-right: auto; }
+  .msw-asset-actions svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .msw-asset-actions .asset-icon-fill { fill: currentColor; stroke: none; }
   .msw-asset-pagination { display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 12px; padding: 4px; font-size: 11px; border-top: 1px solid var(--border-subtle); }
   .msw-asset-player { flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border-subtle); }
   .msw-asset-player div { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; color: var(--text-secondary); }
   .msw-asset-player audio { display: block; width: 100%; height: 30px; }
-  @container (max-width: 320px) { .msw-asset-actions { flex-direction: column; } .msw-asset-toolbar { gap: 4px; padding: 5px; } }
+  @container (max-width: 320px) { .msw-asset-toolbar { gap: 4px; padding: 5px; } .msw-asset-density { margin-left: 0; } }
 
 .msw-save-box { width: min(560px, 90vw); padding: 22px; }
 .msw-recovery-list { display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }
@@ -5010,7 +5021,8 @@
    （.waveform-row.multi-subtitle-row .waveform-cue-block[data-track="extension"]）
    打平后靠本规则在文件中更靠后胜出：播放中的副轨块显示播放头轮廓，
    而不是轨道底色的 dotted 淡轮廓。 */
-.waveform-row .waveform-cue-block.active:not(.selected) {
+.waveform-row .waveform-cue-block.active:not(.selected),
+.waveform-row .msw-audio-clip.active:not(.selected) {
   outline: solid 1px var(--wave-playhead);
 }
 .waveform-cue-block.disabled {
@@ -5315,6 +5327,7 @@
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-otio-menu">OTIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="extra-otio-menu" role="menu">
+                  <button type="button" class="dropdown-item" id="timeline-export-btn" role="menuitem" disabled title="独立配音片段、原视频及字幕标记的剪辑工程">配音剪辑工程（OTIOZ）<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
                   <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
                   <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
                   <div class="dropdown-item" id="download-sticker-otio" role="menuitem" tabindex="0" title="导出只包含表情包图片轨道的 OTIO 工程">表情包 OTIO 工程</div>
@@ -5342,8 +5355,8 @@
           <div class="dropdown-separator" role="separator"></div>
         </div>
       </div>
-      <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="视频渲染暂不可用">导出视频</button>
-      <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频</button>
+      <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="导出带配音的视频 MP4">导出视频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-separator"></div>
       <button type="button" class="dropdown-item" id="exit-editor" role="menuitem" hidden title="停止本地编辑器服务器并关闭本页">退出编辑器</button>
     </div>
@@ -6833,7 +6846,14 @@
       <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
       <button type="button" id="asset-refresh" title="刷新素材库">刷新</button>
     </div>
-    <div class="msw-asset-summary"><span id="asset-count">0 条音频</span><button type="button" id="asset-export-project">导出工程与 TTS 音频</button></div>
+    <div class="msw-asset-summary">
+      <span id="asset-count">0 条音频</span>
+      <label class="msw-asset-density" title="调整每行卡片数量；窄窗口自动减少列数">卡片密度
+        <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
+        <output id="asset-density-value" for="asset-density">3</output>
+      </label>
+      <button type="button" id="asset-export-project">导出工程与 TTS 音频</button>
+    </div>
     <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
     <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
     <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
@@ -7187,7 +7207,20 @@
   </div>
 </aside>
 
-<aside class="gap-remove-panel msw-processing-panel" id="audio-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-export-title">
+<template id="video-export-fields">
+  <div class="msw-processing-fields">
+    <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
+    <label>超出画面尾部<select id="video-export-tail"><option value="ask">超出时提示选择</option><option value="truncate">截断到画面结尾</option><option value="freeze">定格延长画面</option></select></label>
+  </div>
+  <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
+  <p class="msw-processing-hint">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。字幕使用启动器的底部居中样式，双字幕分行；表情包不烧录。</p>
+</template>
+<template id="timeline-export-fields">
+  <label class="msw-tts-check"><input type="checkbox" id="timeline-export-collect-media" checked>同时打包原视频</label>
+  <p class="msw-processing-hint">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。</p>
+  <p class="msw-processing-hint">取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
+</template>
+<aside class="gap-remove-panel msw-processing-panel msw-media-export-panel" id="audio-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-export-title">
   <header class="gap-remove-panel-header" id="audio-export-drag">
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">文件</span><h3 id="audio-export-title">导出音频</h3></div>
     <button type="button" id="audio-export-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频导出"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
@@ -7197,7 +7230,7 @@
       <label>导出内容<select id="audio-export-mode"><option value="voice">配音轨（仅音频贴片）</option><option value="mix">原声 + 配音混音</option></select></label>
       <label>采样率<select id="audio-export-rate"><option value="48000">48 kHz</option><option value="44100">44.1 kHz</option></select></label>
     </div>
-    <p class="msw-processing-hint">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
+    <p class="msw-processing-hint" id="audio-export-format-hint">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
     <div id="audio-export-source" hidden>
       <div class="msw-processing-fields">
         <label>原声音轨<select id="audio-export-stream" aria-label="原声音轨"></select></label>
@@ -14835,6 +14868,56 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '导出带配音的视频 MP4': 'Export video with voice as MP4',
+    '关闭视频导出': 'Close video export',
+    '视频导出任务': 'Video export jobs',
+    '视频导出进度': 'Video export progress',
+    '画面编码': 'Video encoding',
+    '兼容时直接复制': 'Copy when compatible',
+    '重新编码 H.264': 'Encode as H.264',
+    '超出画面尾部': 'Beyond the picture end',
+    '超出时提示选择': 'Require a tail choice',
+    '截断到画面结尾': 'Trim at picture end',
+    '定格延长画面': 'Extend with a freeze frame',
+    '压制字幕': 'Burn subtitles',
+    '卡片密度': 'Card density',
+    '每行卡片数量': 'Cards per row',
+    '调整每行卡片数量；窄窗口自动减少列数': 'Adjust cards per row; narrow panels automatically use fewer columns',
+    '暂停试听': 'Pause preview',
+    '不压制字幕': 'Do not burn subtitles',
+    '主字幕 + 副字幕': 'Main + secondary subtitles',
+    '已压制字幕': 'Subtitles burned in',
+    '导出范围内没有所选轨道的可压制字幕': 'The selected track has no subtitles to burn in this export range',
+    'MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。字幕使用启动器的底部居中样式，双字幕分行；表情包不烧录。': 'MP4 · H.264 + AAC. Cuts, extensions and subtitle burning re-encode video. Subtitles use Launcher’s bottom-center style, with bilingual text on separate lines. Stickers are not burned in.',
+    '原媒体没有可导出的视频画面，请使用导出音频': 'The source has no video. Use Export audio.',
+    '导出范围超出画面尾部，请选择截断到画面结尾或定格延长画面': 'The export extends beyond the picture. Choose to trim or extend with a freeze frame.',
+    '视频导出范围短于一帧，请扩大范围': 'The video range is shorter than one frame. Expand the range.',
+    '编码视频': 'Encoding video',
+    '合并音画': 'Muxing video and audio',
+    '画面直接复制': 'Video stream copied',
+    '画面已重新编码': 'Video re-encoded',
+    '下载 MP4': 'Download MP4',
+    '视频导出需要通过本机编辑器服务打开工程': 'Open the project through the local editor service to export video',
+    '视频导出需要 FFmpeg 与 FFprobe，请在启动器配置后重试': 'Video export requires FFmpeg and FFprobe. Configure them in Launcher and retry.',
+    '当前服务尚未加载视频导出，请重启本机编辑器服务并刷新页面': 'Restart the local editor service and refresh this page to load video export.',
+    '视频导出已开始；可继续编辑，关闭面板不会取消任务': 'Video export started. Keep editing; closing the panel does not cancel the job.',
+    '视频导出完成，可在「文件 → 导出视频」下载 MP4': 'Video export completed. Download MP4 from File → Export video.',
+    '配音剪辑工程（OTIOZ）': 'Editable voice timeline (OTIOZ)',
+    '独立配音片段、原视频及字幕标记的剪辑工程': 'Editable voice clips, original video and subtitle markers',
+    '关闭剪辑工程导出': 'Close timeline export',
+    '剪辑工程导出任务': 'Timeline export jobs',
+    '剪辑工程导出进度': 'Timeline export progress',
+    '同时打包原视频': 'Include the original video',
+    '独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。': 'Overlapping voice clips use separate tracks. Gain is baked into 32-bit float WAVs. Muted clips contain silence; original TTS audio is retained. Subtitles are markers and SRT files.',
+    '取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。': 'Without bundling video, the timeline references the current local file. Voice beyond the picture end is retained over an empty video track.',
+    '打包剪辑素材': 'Packaging timeline media',
+    '原视频仍引用本机文件': 'Original video references a local file',
+    '下载 OTIOZ': 'Download OTIOZ',
+    '剪辑工程导出需要通过本机编辑器服务打开工程': 'Open the project through the local editor service to export a timeline',
+    '剪辑工程导出需要 FFmpeg 与 FFprobe，请在启动器配置后重试': 'Timeline export requires FFmpeg and FFprobe. Configure them in Launcher and retry.',
+    '当前服务尚未加载剪辑工程导出，请重启本机编辑器服务并刷新页面': 'Restart the local editor service and refresh this page to load timeline export.',
+    '剪辑工程导出已开始；可继续编辑，关闭面板不会取消任务': 'Timeline export started. Keep editing; closing the panel does not cancel the job.',
+    '剪辑工程导出完成，可在「更多导出 → OTIO」下载 OTIOZ': 'Timeline export completed. Download OTIOZ from More exports → OTIO.',
     '当前服务尚未加载音频导出，请重启本机编辑器服务并刷新页面': 'Restart the local editor service and refresh this page to load audio export.',
     "关闭音频导出": "Close audio export",
     "导出内容": "Export content",
@@ -18917,7 +19000,7 @@ export default MawDynamicCaptions;
       this.tabAddMenu = panel;
     }
 
-    // 点单标签 → 与标签同宽的下拉：变成其他模块（本出现被替换，原模块不挪位）。
+    // 点单标签 → 按名称内容展开下拉，窄标签不能挤压模块名称。
     openTabConvertMenu(tabEl) {
       // 再次点击同一标签 = 收起已打开的下拉。
       if (this.tabAddMenu?.dataset?.convertFor === tabEl?.dataset?.tabFor) {
@@ -18964,7 +19047,7 @@ export default MawDynamicCaptions;
         panel.appendChild(item);
       });
       document.body.appendChild(panel);
-      panel.style.width = `${Math.max(96, Math.round(anchorRect.width))}px`;
+      panel.style.minWidth = `${Math.min(window.innerWidth - 16, Math.max(128, Math.round(anchorRect.width)))}px`;
       panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, anchorRect.left))}px`;
       panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, anchorRect.bottom + 4))}px`;
 
@@ -22652,6 +22735,7 @@ export default MawDynamicCaptions;
     updatePlayback(allowFollow = true) {
       if (!this.payload) return;
       const now = this.currentTimeMs();
+      this.audioLayer?.updatePlayhead(now);
       const segments = this.options.getSegments('main');
       const activeIndex = findActiveCueIndex(segments, now);
       const activeVisualHit = activeIndex >= 0 && isActiveCueVisualHit(segments, activeIndex, now);
@@ -43974,6 +44058,9 @@ window.addEventListener('beforeunload', (e) => {
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
   let previewUrl = null, previewId = null, previewSequence = 0;
+  const PAGE_SIZE = 90, DENSITY_KEY = 'msw.assets.columns';
+  let density = 3;
+  try { const saved = Number(localStorage.getItem(DENSITY_KEY)); if (Number.isInteger(saved) && saved >= 1 && saved <= 5) density = saved; } catch (_) {}
   const active = job => ['queued', 'running', 'cancel_requested'].includes(job.status);
   const assets = () => host.data.msw?.assets || [];
   const panel = host.createFloatingPanel({ panel: el('tts-panel'), dragHandle: el('tts-drag'),
@@ -44049,6 +44136,40 @@ window.addEventListener('beforeunload', (e) => {
       finally { button.disabled = false; }
     });
     return button;
+  }
+  const icons = {
+    play: '<path class="asset-icon-fill" d="M7 4v16l13-8z"/>',
+    pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
+    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+    insert: '<path d="M3 17h18M6 20v1m6-1v1m6-1v1M12 2v11m-4-4 4 4 4-4"/>',
+  };
+  function setIcon(button, icon, label) {
+    if (button.dataset.icon !== icon) {
+      // Constant, local SVG paths only; subtitle text never enters HTML.
+      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[icon]}</svg>`;
+      button.dataset.icon = icon;
+    }
+    const translated = t(label);
+    if (button.getAttribute('aria-label') !== translated) button.setAttribute('aria-label', translated);
+    if (button.title !== translated) button.title = translated;
+  }
+  function iconAction(label, icon, callback) {
+    const button = action(label, callback); button.dataset.assetAction = icon;
+    setIcon(button, icon, label); return button;
+  }
+  function updatePreviewButtons() {
+    for (const card of el('asset-list').children) {
+      const playing = card.dataset.assetId === previewId && !el('asset-audio').paused && !el('asset-audio').ended;
+      card.classList.toggle('playing', playing);
+      const button = card.querySelector('[data-asset-action="play"]');
+      if (button) setIcon(button, playing ? 'pause' : 'play', playing ? '暂停试听' : '试听');
+    }
+  }
+  function updateDensity() {
+    const list = el('asset-list'); if (!list.clientWidth) return;
+    const columns = Math.min(density, Math.max(1, Math.floor((list.clientWidth - 10) / 118)));
+    list.style.setProperty('--asset-columns', columns);
+    el('asset-density-value').value = String(columns);
   }
   const statuses = { queued: '等待处理', running: '正在合成', succeeded: '合成完成', failed: '合成失败',
     cancelled: '已取消', cancel_requested: '正在取消', interrupted: '服务中断，未自动重试' };
@@ -44171,6 +44292,7 @@ window.addEventListener('beforeunload', (e) => {
     el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = null; previewId = null;
+    updatePreviewButtons();
   }
   async function audioBlob(asset) {
     return request(`asset-audio?project_id=${encodeURIComponent(projectId())}&asset_id=${encodeURIComponent(asset.id)}`, null, true);
@@ -44201,6 +44323,9 @@ window.addEventListener('beforeunload', (e) => {
     a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   function renderAssets() {
+    const list = el('asset-list'), scroll = list.scrollTop;
+    const focus = list.contains(document.activeElement) ? document.activeElement : null;
+    const focusedId = focus?.closest('[data-asset-id]')?.dataset.assetId, focusedAction = focus?.dataset.assetAction;
     const all = [...assets()].sort((a, b) => b.created_at - a.created_at || a.source_ref.start - b.source_ref.start);
     const batch = el('asset-batch').value;
     const batches = new Map(all.map(a => [a.job_id, a]));
@@ -44213,7 +44338,7 @@ window.addEventListener('beforeunload', (e) => {
     el('asset-batch').value = batch;
     const term = el('asset-search').value.trim().toLocaleLowerCase();
     const rows = all.filter(a => (!batch || a.job_id === batch) && (!term || `${a.generation.display_text} ${a.generation.voice} ${a.generation.model}`.toLocaleLowerCase().includes(term)));
-    const pages = Math.max(1, Math.ceil(rows.length / 50)); page = Math.min(page, pages - 1);
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE)); page = Math.min(page, pages - 1);
     el('asset-count').textContent = `${rows.length} / ${all.length} ${t('条音频')}`;
     el('asset-page').textContent = `${page + 1} / ${pages}`;
     el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
@@ -44222,7 +44347,7 @@ window.addEventListener('beforeunload', (e) => {
       ? '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。'
       : '生成的音频会显示在这里。通过「媒体 → TTS」开始配音。');
     const fragment = document.createDocumentFragment();
-    for (const asset of rows.slice(page * 50, page * 50 + 50)) {
+    for (const asset of rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)) {
       const row = document.createElement('article'); row.className = 'msw-asset-row'; row.dataset.assetId = asset.id; row.setAttribute('role', 'listitem');
       row.draggable = available;
       row.addEventListener('dragstart', event => {
@@ -44236,19 +44361,25 @@ window.addEventListener('beforeunload', (e) => {
       const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
       meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
       if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
-      if (missing.has(asset.id)) meta.textContent += ` · ${t('素材缺失')}`;
+      if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
+      meta.title = meta.textContent;
       content.append(text, meta);
       const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
-      const play = action('试听', () => preview(asset)); play.disabled = !available;
-      const save = action('WAV', async () => {
+      const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
+      const save = iconAction('下载 WAV', 'download', async () => {
         const generation = host.generation, blob = await audioBlob(asset);
         if (generation === host.generation) download(blob, `${asset.id}.wav`);
       }); save.disabled = !available;
-      const insert = action('放入时间轴', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
+      const insert = iconAction('放入时间轴', 'insert', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
       insert.disabled = !available;
       buttons.append(play, save, insert); row.append(content, buttons); fragment.append(row);
     }
-    el('asset-list').replaceChildren(fragment);
+    list.replaceChildren(fragment); updatePreviewButtons();
+    if (focusedId && focusedAction) {
+      const card = [...list.children].find(row => row.dataset.assetId === focusedId);
+      card?.querySelector(`[data-asset-action="${focusedAction}"]`)?.focus({ preventScroll: true });
+    }
+    list.scrollTop = scroll;
   }
   el('tts-open').addEventListener('click', () => {
     host.commitEdits(); el('tts-target').value = ''; updateScope(); panel.open();
@@ -44270,10 +44401,17 @@ window.addEventListener('beforeunload', (e) => {
   });
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
   for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
-  el('asset-search').addEventListener('input', () => { page = 0; renderAssets(); });
-  el('asset-batch').addEventListener('change', () => { page = 0; renderAssets(); });
-  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); renderAssets(); });
-  el('asset-next').addEventListener('click', () => { page += 1; renderAssets(); });
+  el('asset-search').addEventListener('input', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-batch').addEventListener('change', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-next').addEventListener('click', () => { page += 1; el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-density').value = String(density);
+  el('asset-density').addEventListener('input', () => {
+    density = Number(el('asset-density').value); updateDensity();
+    try { localStorage.setItem(DENSITY_KEY, String(density)); } catch (_) {}
+  });
+  new ResizeObserver(updateDensity).observe(el('asset-list'));
+  for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
   el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
   el('asset-export-project').addEventListener('click', async () => {
     const button = el('asset-export-project'); button.disabled = true;
@@ -44675,6 +44813,9 @@ window.addEventListener('beforeunload', (e) => {
         const lane = current.lanes.get(clip.id); if (lane < lo || lane > hi) continue;
         const asset = current.assets.get(clip.asset_id), finish = core.end(clip, asset), from = Math.max(start, clip.start_ms), to = Math.min(end, finish);
         const block = document.createElement('div'); block.className = 'msw-audio-clip'; block.dataset.clipId = clip.id; block.tabIndex = 0;
+        block.dataset.startMs = clip.start_ms; block.dataset.endMs = finish;
+        const now = Math.round(transport.currentTime() ?? (host.player.currentTime * 1000 || 0));
+        block.classList.toggle('active', clip.start_ms <= now && now < finish);
         block.setAttribute('role', 'button'); block.setAttribute('aria-label', `${t('音频贴片')} ${clip.label}`);
         block.classList.toggle('selected', selected.has(clip.id));
         const muted = clip.muted || current.tracks.get(clip.track_id)?.muted;
@@ -44704,6 +44845,12 @@ window.addEventListener('beforeunload', (e) => {
     area.addEventListener('wheel', e => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
     area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
     row.appendChild(area); area.scrollTop = laneScroll.get(key) || 0; paint();
+  }
+  function updatePlayhead(now) {
+    // Update visible blocks only; preserve DOM, heatmaps and ongoing gestures.
+    for (const block of timeline.pane.querySelectorAll('.msw-audio-clip')) {
+      block.classList.toggle('active', Number(block.dataset.startMs) <= now && now < Number(block.dataset.endMs));
+    }
   }
   timeline.pane.addEventListener('dragover', event => {
     if (!event.dataTransfer.types.includes(MIME)) return;
@@ -44754,7 +44901,7 @@ window.addEventListener('beforeunload', (e) => {
     if (heatToggle) heatToggle.checked = extension().audio_settings?.heatmap !== false;
     if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
   }
-  const api = Object.freeze({ insert, renderRow, hasAssets: () => (extension().assets || []).length > 0,
+  const api = Object.freeze({ insert, renderRow, updatePlayhead, hasAssets: () => (extension().assets || []).length > 0,
     durationMs: () => Math.ceil(sync().end), minimumRowHeight: () => sync().clips.length ? 41 + (timeline.dual() ? 40 : 24) + Math.min(3, sync().count) * ROW : 0,
     currentTimeMs: () => transport.currentTime(), togglePlayback: () => transport.toggle(), seek: ms => transport.seek(ms),
     virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,
@@ -44775,197 +44922,261 @@ window.addEventListener('beforeunload', (e) => {
 // Non-modal offline audio export UI; rendering owns an immutable job snapshot.
 (function (global) {
   'use strict';
-  const host = global.MSWE?.resolve('processing-host'), core = global.MSWAudioRender;
-  if (!host || !core) return;
-  const el = id => document.getElementById(id), t = s => global.MSWE_I18N?.translateText?.(s) || s;
-  const panel = el('audio-export-panel'), button = el('audio-export-btn');
-  const available = Boolean(host.config?.processingUrl), pageId = global.MSWProject.id('export-page');
-  const projectId = () => global.MSWProject.ensure(host.data).project_id;
-  const token = () => `${pageId}.${host.generation}`;
-  let context = null, busy = null, pending = null, timer = null, polling = false, jobs = [], rendered = '', contextRequest = 0;
-  const terminal = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
-  const labels = { queued: '等待导出', running: '正在导出', cancel_requested: '正在取消', cancelled: '已取消',
-    succeeded: '导出完成', failed: '导出失败', interrupted: '导出中断，请重新开始' };
-  const stages = { preparing: '检查音频素材', source: '准备原声', mixing: '渲染音频', encoding: '编码 WAV' };
-  function message(value, error = false) {
-    el('audio-export-message').textContent = t(value);
-    el('audio-export-message').classList.toggle('is-error', error);
-  }
-  async function request(route, payload) {
-    const response = await fetch(`${host.config.processingUrl}/${route}`, {
-      method: payload ? 'POST' : 'GET', cache: 'no-store',
-      headers: { 'X-MSW-Token': host.config.requestToken, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
-      ...(payload ? { body: JSON.stringify(payload) } : {}),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.ok) {
-      const error = Error(result.error || `HTTP ${response.status}`); error.status = response.status; throw error;
+  function mount(kind) {
+    const video = kind === 'video', timeline = kind === 'timeline', format = video ? 'mp4' : timeline ? 'otioz' : 'wav';
+    const host = global.MSWE?.resolve('processing-host'), core = global.MSWAudioRender;
+    if (!host || !core) return;
+    const el = id => document.getElementById(id.replace('audio-export-', `${kind}-export-`));
+    const t = value => {
+      const s = video ? value.replaceAll('音频导出', '视频导出').replaceAll('下载 WAV', '下载 MP4').replace('文件 → 导出音频', '文件 → 导出视频')
+        : timeline ? value.replaceAll('音频导出', '剪辑工程导出').replaceAll('下载 WAV', '下载 OTIOZ').replaceAll('导出音频', '配音剪辑工程') : value;
+      return global.MSWE_I18N?.translateText?.(s) || s;
+    };
+    const panel = el('audio-export-panel'), button = el('audio-export-btn');
+    const available = Boolean(host.config?.processingUrl), pageId = global.MSWProject.id('export-page');
+    const projectId = () => global.MSWProject.ensure(host.data).project_id;
+    const token = () => `${pageId}.${host.generation}`;
+    let context = null, busy = null, pending = null, timer = null, polling = false, jobs = [], rendered = '', contextRequest = 0;
+    const terminal = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
+    const labels = { queued: '等待导出', running: '正在导出', cancel_requested: '正在取消', cancelled: '已取消',
+      succeeded: '导出完成', failed: '导出失败', interrupted: '导出中断，请重新开始' };
+    const stages = { preparing: '检查音频素材', source: '准备原声', mixing: '渲染音频', encoding: '编码 WAV', video: '编码视频', muxing: '合并音画', packaging: '打包剪辑素材' };
+    function message(value, error = false) {
+      el('audio-export-message').textContent = t(value);
+      el('audio-export-message').classList.toggle('is-error', error);
     }
-    return result;
-  }
-  function selectedOptions() {
-    const custom = el('audio-export-range').value === 'custom';
-    const numeric = id => el(id).value.trim() ? Number(el(id).value) : NaN;
-    return core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
-      duration_ms: host.audioExportDuration(), start_ms: custom ? Math.round(numeric('audio-export-start-time') * 1000) : 0,
-      end_ms: custom ? Math.round(numeric('audio-export-end-time') * 1000) : null,
-      remove_gaps: el('audio-export-remove-gaps').checked, source_audio_index: Number(el('audio-export-stream').value || 0),
-      source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked });
-  }
-  const sourceAvailable = () => Boolean(context?.source_available && context.media_reference === host.data.media);
-  function update() {
-    const mix = el('audio-export-mode').value === 'mix';
-    el('audio-export-source').hidden = !mix;
-    el('audio-export-custom').hidden = el('audio-export-range').value !== 'custom';
-    el('audio-export-start').textContent = t(pending ? '确认上次导出请求' : '开始导出');
-    el('audio-export-start').disabled = Boolean(busy) || !available || !context?.available;
-    el('audio-export-gap-hint').textContent = t(host.data.msw?.audio_settings?.gap_policy === 'follow'
-      ? '移除空隙时，配音随媒体一起裁切。' : '移除空隙时，保留未静音贴片覆盖的区间。');
-    try {
-      const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
-      if (mix && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
-      if (!mix && !plan.pieces.length) throw Error('导出范围内没有可发声的音频贴片');
-      if (plan.sample_count * 4 + 44 > 0xFFFFFF00) throw Error('WAV 将超过 4 GB，请分段导出');
-      el('audio-export-summary').textContent = `${t('成品时长')} ${(plan.sample_count / plan.sample_rate).toFixed(3)} s · `
-        + `${new Set(plan.pieces.map(p => p.clip_id)).size} ${t('个音频贴片')} · ${(plan.sample_count * 4 / 1024**2).toFixed(1)} MB`;
-    } catch (error) {
-      el('audio-export-summary').textContent = t(error.message);
-      if (!pending) el('audio-export-start').disabled = true;
+    async function request(route, payload) {
+      const response = await fetch(`${host.config.processingUrl}/${route}`, {
+        method: payload ? 'POST' : 'GET', cache: 'no-store',
+        headers: { 'X-MSW-Token': host.config.requestToken, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
+        ...(payload ? { body: JSON.stringify(payload) } : {}),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        const error = Error(result.error || `HTTP ${response.status}`); error.status = response.status; throw error;
+      }
+      return result;
     }
-  }
-  async function loadContext() {
-    const generation = host.generation, id = projectId(), serial = ++contextRequest;
-    context = null; update();
-    try {
-      const result = await request(`audio-export-context?project_id=${encodeURIComponent(id)}`);
-      if (generation !== host.generation || id !== projectId() || serial !== contextRequest) return;
-      context = result;
-      const tracks = result.audio_tracks?.length ? result.audio_tracks : [{ audio_index: 0 }];
-      el('audio-export-stream').replaceChildren(...tracks.map((track, i) => {
-        const index = track.audio_index ?? i;
-        return new Option([`${t('音轨')} ${index + 1}`, track.title, track.language].filter(Boolean).join(' · '), String(index));
-      }));
-      el('audio-export-stream').value = String(result.audio_index || 0);
-      if (!el('audio-export-stream').value) el('audio-export-stream').selectedIndex = 0;
-      if (!result.available) message('音频导出需要 FFmpeg 与 FFprobe，请在启动器配置后重试', true);
-      update();
-    } catch (error) {
-      if (generation === host.generation && serial === contextRequest) {
-        message(error.status === 404 ? '当前服务尚未加载音频导出，请重启本机编辑器服务并刷新页面' : error.message, true); update();
+    function selectedOptions() {
+      const custom = el('audio-export-range').value === 'custom';
+      const numeric = id => el(id).value.trim() ? Number(el(id).value) : NaN;
+      const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
+        duration_ms: host.audioExportDuration(), start_ms: custom ? Math.round(numeric('audio-export-start-time') * 1000) : 0,
+        end_ms: custom ? Math.round(numeric('audio-export-end-time') * 1000) : null,
+        remove_gaps: el('audio-export-remove-gaps').checked, source_audio_index: Number(el('audio-export-stream').value || 0),
+        source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked });
+      if (video) {
+        settings.format = format;
+        settings.video_tail = el('audio-export-tail').value;
+        settings.video_encoding = el('audio-export-encoding').value;
+        settings.burn_subtitles = el('audio-export-burn-subtitles').value;
+        settings.duration_ms = Math.max(settings.duration_ms, context?.duration_ms || 0);
+        if (settings.video_tail === 'truncate' && context?.video) {
+          settings.end_ms = Math.min(settings.end_ms ?? Infinity, context.video.duration_ms);
+        }
+      }
+      if (timeline) {
+        settings.format = format;
+        settings.collect_media = el('audio-export-collect-media').checked;
+        settings.duration_ms = Math.max(settings.duration_ms, context?.duration_ms || 0);
+      }
+      return settings;
+    }
+    const sourceAvailable = () => Boolean(context?.source_available && context.media_reference === host.data.media);
+    function update() {
+      const mix = el('audio-export-mode').value === 'mix';
+      el('audio-export-source').hidden = !mix;
+      el('audio-export-custom').hidden = el('audio-export-range').value !== 'custom';
+      el('audio-export-start').textContent = t(pending ? '确认上次导出请求' : '开始导出');
+      el('audio-export-start').disabled = Boolean(busy) || !available || !context?.available;
+      el('audio-export-gap-hint').textContent = t(host.data.msw?.audio_settings?.gap_policy === 'follow'
+        ? '移除空隙时，配音随媒体一起裁切。' : '移除空隙时，保留未静音贴片覆盖的区间。');
+      try {
+        const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
+        if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
+        if (video && context && !context.video) throw Error('原媒体没有可导出的视频画面，请使用导出音频');
+        if (video && context?.video && plan.source_end_ms > context.video.duration_ms && o.video_tail === 'ask') {
+          throw Error('导出范围超出画面尾部，请选择截断到画面结尾或定格延长画面');
+        }
+        if (video && o.burn_subtitles !== 'none') {
+          const groups = [host.data.segments || [], host.data.multi_subtitle?.tracks?.[0]?.segments || []];
+          const candidates = o.burn_subtitles === 'main' ? groups[0] : o.burn_subtitles === 'secondary' ? groups[1] : groups.flat();
+          if (!candidates.some(c => !c.disabled && c.text?.trim() && plan.intervals.some(k => c.start < k.end_ms && c.end > k.start_ms))) {
+            throw Error('导出范围内没有所选轨道的可压制字幕');
+          }
+        }
+        if (!video && !timeline && !mix && !plan.pieces.length) throw Error('导出范围内没有可发声的音频贴片');
+        if (plan.sample_count * 4 + 44 > 0xFFFFFF00) throw Error('WAV 将超过 4 GB，请分段导出');
+        el('audio-export-summary').textContent = `${t('成品时长')} ${(plan.sample_count / plan.sample_rate).toFixed(3)} s · `
+          + `${new Set(plan.pieces.map(p => p.clip_id)).size} ${t('个音频贴片')}`
+          + (video || timeline ? '' : ` · ${(plan.sample_count * 4 / 1024**2).toFixed(1)} MB`);
+      } catch (error) {
+        el('audio-export-summary').textContent = t(error.message);
+        if (!pending) el('audio-export-start').disabled = true;
       }
     }
-  }
-  function action(label, job, callback) {
-    const button = document.createElement('button'); button.type = 'button'; button.textContent = t(label);
-    button.dataset.action = label; button.dataset.jobId = job.id;
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      try { await callback(); }
-      catch (error) { if (job.project_id === projectId()) message(error.message, true); }
-      finally { button.disabled = false; }
-    });
-    return button;
-  }
-  function renderJobs() {
-    const key = JSON.stringify(jobs) + token(); if (key === rendered) return; rendered = key;
-    const focused = document.activeElement?.closest('#audio-export-jobs button');
-    const focusId = focused?.dataset.jobId, focusAction = focused?.dataset.action;
-    const fragment = document.createDocumentFragment();
-    for (const job of jobs) {
-      const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
-      const title = document.createElement('strong');
-      title.textContent = t(job.mode === 'mix' ? '原声 + 配音混音' : '配音轨（仅音频贴片）');
-      const status = document.createElement('p'); status.className = 'msw-processing-hint';
-      status.textContent = `${t(labels[job.status] || job.status)} · ${new Date(job.created_at * 1000).toLocaleTimeString()}`;
-      if (job.client_token !== token()) status.textContent += ` · ${t('先前的工程快照')}`;
-      card.append(title, status);
-      if (!terminal.has(job.status)) {
-        const progress = document.createElement('progress'); progress.max = 100; progress.value = job.progress || 0;
-        progress.setAttribute('aria-label', t('音频导出进度'));
-        const stage = document.createElement('p'); stage.className = 'msw-processing-hint';
-        stage.textContent = `${t(stages[job.stage] || labels[job.status])} · ${Math.round(job.progress || 0)}%`;
-        card.append(progress, stage);
-      }
-      if (job.error) { const text = document.createElement('p'); text.className = 'msw-processing-message is-error'; text.textContent = t(job.error); card.append(text); }
-      const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
-      if (job.status === 'succeeded') {
-        const result = job.result, note = document.createElement('p'); note.className = 'msw-processing-hint';
-        note.textContent = `${(result.sample_count / result.sample_rate).toFixed(3)} s · ${(result.byte_size / 1024**2).toFixed(1)} MB`;
-        if (result.attenuation_db < -.001) note.textContent += ` · ${t('峰值保护衰减')} ${(-result.attenuation_db).toFixed(2)} dB`;
-        if (result.clipped) note.textContent += ` · ${t('部分声音超限，建议开启峰值保护重新导出')}`;
-        card.append(note);
-        actions.append(action('下载 WAV', job, async () => {
-          const data = await request(`audio-exports/${job.id}/download`, { project_id: job.project_id });
-          const link = document.createElement('a'); link.href = data.url; link.download = job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav';
-          document.body.append(link); link.click(); link.remove();
+    async function loadContext() {
+      const generation = host.generation, id = projectId(), serial = ++contextRequest;
+      context = null; update();
+      try {
+        const result = await request(`${kind}-export-context?project_id=${encodeURIComponent(id)}`);
+        if (generation !== host.generation || id !== projectId() || serial !== contextRequest) return;
+        context = result;
+        const tracks = result.audio_tracks?.length ? result.audio_tracks : [{ audio_index: 0 }];
+        el('audio-export-stream').replaceChildren(...tracks.map((track, i) => {
+          const index = track.audio_index ?? i;
+          return new Option([`${t('音轨')} ${index + 1}`, track.title, track.language].filter(Boolean).join(' · '), String(index));
         }));
-      } else if (!terminal.has(job.status)) {
-        const cancel = action('取消导出', job, async () => {
-          await request(`audio-exports/${job.id}/cancel`, { project_id: job.project_id }); schedule(0);
-        });
-        cancel.disabled = job.status === 'cancel_requested'; actions.append(cancel);
+        el('audio-export-stream').value = String(result.audio_index || 0);
+        if (!el('audio-export-stream').value) el('audio-export-stream').selectedIndex = 0;
+        if (!result.available) message('音频导出需要 FFmpeg 与 FFprobe，请在启动器配置后重试', true);
+        update();
+      } catch (error) {
+        if (generation === host.generation && serial === contextRequest) {
+          message(error.status === 404 ? '当前服务尚未加载音频导出，请重启本机编辑器服务并刷新页面' : error.message, true); update();
+        }
       }
-      card.append(actions); fragment.append(card);
     }
-    el('audio-export-jobs').replaceChildren(fragment);
-    if (focusId && focusAction) [...el('audio-export-jobs').querySelectorAll('button')]
-      .find(b => b.dataset.jobId === focusId && b.dataset.action === focusAction)?.focus({ preventScroll: true });
-  }
-  function schedule(delay = 1200) { clearTimeout(timer); timer = setTimeout(poll, delay); }
-  async function poll() {
-    if (!available || polling) { if (available) schedule(); return; }
-    const id = projectId(), generation = host.generation; polling = true;
-    try {
-      const data = await request(`audio-exports?project_id=${encodeURIComponent(id)}`);
-      if (generation !== host.generation || id !== projectId()) return;
-      const completed = data.jobs.some(j => j.status === 'succeeded' && jobs.some(old => old.id === j.id && !terminal.has(old.status)));
-      jobs = data.jobs; renderJobs();
-      if (completed && !floating.isOpen()) host.flashHint(t('音频导出完成，可在「文件 → 导出音频」下载 WAV'), 'success');
-    } catch (error) { if (floating.isOpen() && generation === host.generation) message(error.message, true); }
-    finally { polling = false; if (floating.isOpen() || jobs.some(j => !terminal.has(j.status))) schedule(); }
-  }
-  async function start() {
-    if (busy) return;
-    const generation = host.generation, ticket = {}; busy = ticket;
-    try {
-      if (!pending) {
-        const project = host.exportProject();
-        for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete project[key];
-        const options = selectedOptions(); core.compile(project, options);
-        pending = { project, options, plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
-          request_key: global.MSWProject.id('export-request'), binding: host.config.processingContext?.binding };
+    function action(label, job, callback) {
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = t(label);
+      button.dataset.action = label; button.dataset.jobId = job.id;
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try { await callback(); }
+        catch (error) { if (job.project_id === projectId()) message(error.message, true); }
+        finally { button.disabled = false; }
+      });
+      return button;
+    }
+    function renderJobs() {
+      const key = JSON.stringify(jobs) + token(); if (key === rendered) return; rendered = key;
+      const focused = document.activeElement?.closest(`#${kind}-export-jobs button`);
+      const focusId = focused?.dataset.jobId, focusAction = focused?.dataset.action;
+      const fragment = document.createDocumentFragment();
+      for (const job of jobs) {
+        const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
+        const title = document.createElement('strong');
+        title.textContent = t(job.mode === 'mix' ? '原声 + 配音混音' : '配音轨（仅音频贴片）');
+        if (video) title.textContent = `${t('导出视频')} · ${title.textContent}`;
+        if (timeline) title.textContent = t('配音剪辑工程（OTIOZ）');
+        const status = document.createElement('p'); status.className = 'msw-processing-hint';
+        status.textContent = `${t(labels[job.status] || job.status)} · ${new Date(job.created_at * 1000).toLocaleTimeString()}`;
+        if (job.client_token !== token()) status.textContent += ` · ${t('先前的工程快照')}`;
+        card.append(title, status);
+        if (!terminal.has(job.status)) {
+          const progress = document.createElement('progress'); progress.max = 100; progress.value = job.progress || 0;
+          progress.setAttribute('aria-label', t('音频导出进度'));
+          const stage = document.createElement('p'); stage.className = 'msw-processing-hint';
+          stage.textContent = `${t(stages[job.stage] || labels[job.status])} · ${Math.round(job.progress || 0)}%`;
+          card.append(progress, stage);
+        }
+        if (job.error) { const text = document.createElement('p'); text.className = 'msw-processing-message is-error'; text.textContent = t(job.error); card.append(text); }
+        const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
+        if (job.status === 'succeeded') {
+          const result = job.result, note = document.createElement('p'); note.className = 'msw-processing-hint';
+          note.textContent = `${(result.sample_count / result.sample_rate).toFixed(3)} s · ${(result.byte_size / 1024**2).toFixed(1)} MB`;
+          if (result.attenuation_db < -.001) note.textContent += ` · ${t('峰值保护衰减')} ${(-result.attenuation_db).toFixed(2)} dB`;
+          if (result.clipped) note.textContent += ` · ${t('部分声音超限，建议开启峰值保护重新导出')}`;
+          if (video) note.textContent += ` · ${t(result.video_encoding === 'copy' ? '画面直接复制' : '画面已重新编码')}`;
+          if (video && result.burn_subtitles && result.burn_subtitles !== 'none') note.textContent += ` · ${t('已压制字幕')}`;
+          if (timeline && result.external_media) note.textContent += ` · ${t('原视频仍引用本机文件')}`;
+          card.append(note);
+          actions.append(action('下载 WAV', job, async () => {
+            const data = await request(`audio-exports/${job.id}/download`, { project_id: job.project_id });
+            const link = document.createElement('a'); link.href = data.url;
+            link.download = video ? 'msw-video.mp4' : timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav';
+            document.body.append(link); link.click(); link.remove();
+          }));
+        } else if (!terminal.has(job.status)) {
+          const cancel = action('取消导出', job, async () => {
+            await request(`audio-exports/${job.id}/cancel`, { project_id: job.project_id }); schedule(0);
+          });
+          cancel.disabled = job.status === 'cancel_requested'; actions.append(cancel);
+        }
+        card.append(actions); fragment.append(card);
       }
-      update();
-      const result = await request('audio-exports', pending);
-      if (generation !== host.generation || busy !== ticket) return;
-      pending = null;
-      jobs = [result.job, ...jobs.filter(j => j.id !== result.job.id)]; renderJobs();
-      message('音频导出已开始；可继续编辑，关闭面板不会取消任务'); schedule(0);
-    } catch (error) {
-      if (generation !== host.generation || busy !== ticket) return;
-      if (error.status && error.status < 500) pending = null;
-      message(error.message, true);
-    } finally { if (busy === ticket) { busy = null; update(); } }
+      el('audio-export-jobs').replaceChildren(fragment);
+      if (focusId && focusAction) [...el('audio-export-jobs').querySelectorAll('button')]
+        .find(b => b.dataset.jobId === focusId && b.dataset.action === focusAction)?.focus({ preventScroll: true });
+    }
+    function schedule(delay = 1200) { clearTimeout(timer); timer = setTimeout(poll, delay); }
+    async function poll() {
+      if (!available || polling) { if (available) schedule(); return; }
+      const id = projectId(), generation = host.generation; polling = true;
+      try {
+        const data = await request(`audio-exports?project_id=${encodeURIComponent(id)}`);
+        if (generation !== host.generation || id !== projectId()) return;
+        const filtered = data.jobs.filter(j => (j.format || 'wav') === format);
+        const completed = filtered.some(j => j.status === 'succeeded' && jobs.some(old => old.id === j.id && !terminal.has(old.status)));
+        jobs = filtered; renderJobs();
+        if (completed && !floating.isOpen()) host.flashHint(t(timeline ? '剪辑工程导出完成，可在「更多导出 → OTIO」下载 OTIOZ' : '音频导出完成，可在「文件 → 导出音频」下载 WAV'), 'success');
+      } catch (error) { if (floating.isOpen() && generation === host.generation) message(error.message, true); }
+      finally { polling = false; if (floating.isOpen() || jobs.some(j => !terminal.has(j.status))) schedule(); }
+    }
+    async function start() {
+      if (busy) return;
+      const generation = host.generation, ticket = {}; busy = ticket;
+      try {
+        if (!pending) {
+          const project = host.exportProject();
+          for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete project[key];
+          const options = selectedOptions(); core.compile(project, options);
+          pending = { project, options, plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
+            request_key: global.MSWProject.id('export-request'), binding: host.config.processingContext?.binding };
+        }
+        update();
+        const result = await request('audio-exports', pending);
+        if (generation !== host.generation || busy !== ticket) return;
+        pending = null;
+        jobs = [result.job, ...jobs.filter(j => j.id !== result.job.id)]; renderJobs();
+        message('音频导出已开始；可继续编辑，关闭面板不会取消任务'); schedule(0);
+      } catch (error) {
+        if (generation !== host.generation || busy !== ticket) return;
+        if (error.status && error.status < 500) pending = null;
+        message(error.message, true);
+      } finally { if (busy === ticket) { busy = null; update(); } }
+    }
+    const floating = host.createFloatingPanel({ panel, dragHandle: el('audio-export-drag'),
+      anchorButton: document.querySelector('[data-menubar-item="file"] > button'), positionKey: `msw.${kind}.export.position` });
+    button.disabled = !available;
+    if (!available) button.title = t('音频导出需要通过本机编辑器服务打开工程');
+    button.addEventListener('click', () => {
+      host.commitEdits(); message('');
+      el('audio-export-remove-gaps').checked = host.audioExportPreview().gap_remove?.skip_playback === true;
+      el('audio-export-end-time').value = String(Math.max(.001, host.audioExportDuration() / 1000));
+      floating.open(); update(); void loadContext(); schedule(0);
+    });
+    el('audio-export-close').addEventListener('click', () => floating.close());
+    el('audio-export-start').addEventListener('click', () => void start());
+    for (const input of panel.querySelectorAll('input, select')) input.addEventListener('input', update);
+    global.addEventListener('msw:audio-changed', () => { if (floating.isOpen()) update(); });
+    global.addEventListener('msw:project-changed', () => {
+      ++contextRequest; context = null; busy = null; pending = null; jobs = []; rendered = ''; clearTimeout(timer);
+      renderJobs(); message('');
+      queueMicrotask(() => { update(); if (floating.isOpen()) { void loadContext(); schedule(0); } });
+    });
   }
-  const floating = host.createFloatingPanel({ panel, dragHandle: el('audio-export-drag'),
-    anchorButton: document.querySelector('[data-menubar-item="file"] > button'), positionKey: 'msw.audio.export.position' });
-  button.disabled = !available;
-  if (!available) button.title = t('音频导出需要通过本机编辑器服务打开工程');
-  button.addEventListener('click', () => {
-    host.commitEdits(); message('');
-    el('audio-export-remove-gaps').checked = host.audioExportPreview().gap_remove?.skip_playback === true;
-    el('audio-export-end-time').value = String(Math.max(.001, host.audioExportDuration() / 1000));
-    floating.open(); update(); void loadContext(); schedule(0);
-  });
-  el('audio-export-close').addEventListener('click', () => floating.close());
-  el('audio-export-start').addEventListener('click', () => void start());
-  for (const input of panel.querySelectorAll('input, select')) input.addEventListener('input', update);
-  global.addEventListener('msw:audio-changed', () => { if (floating.isOpen()) update(); });
-  global.addEventListener('msw:project-changed', () => {
-    ++contextRequest; context = null; busy = null; pending = null; jobs = []; rendered = ''; clearTimeout(timer);
-    renderJobs(); message('');
-    queueMicrotask(() => { update(); if (floating.isOpen()) { void loadContext(); schedule(0); } });
-  });
+  // Clone the common, uninitialized form once. Both windows then use the same
+  // controller, input layout and project-generation guards.
+  const blueprint = document.getElementById('audio-export-panel');
+  if (!blueprint) return;
+  for (const kind of ['video', 'timeline']) {
+    const copy = blueprint.cloneNode(true);
+    for (const node of [copy, ...copy.querySelectorAll('*')]) {
+      for (const attr of ['id', 'for', 'aria-labelledby']) {
+        if (node.hasAttribute(attr)) node.setAttribute(attr, node.getAttribute(attr).replaceAll('audio-export-', `${kind}-export-`));
+      }
+    }
+    copy.querySelector(`#${kind}-export-title`).textContent = kind === 'video' ? '导出视频' : '配音剪辑工程（OTIOZ）';
+    copy.querySelector(`#${kind}-export-close`).setAttribute('aria-label', kind === 'video' ? '关闭视频导出' : '关闭剪辑工程导出');
+    copy.querySelector('section').setAttribute('aria-label', kind === 'video' ? '视频导出任务' : '剪辑工程导出任务');
+    copy.querySelector(`#${kind}-export-mode`).value = 'mix';
+    copy.querySelector(`#${kind}-export-format-hint`).replaceWith(document.getElementById(`${kind}-export-fields`).content.cloneNode(true));
+    blueprint.after(copy);
+  }
+  mount('audio');
+  mount('video');
+  mount('timeline');
 })(window);
 
 (() => {

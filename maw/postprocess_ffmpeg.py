@@ -272,7 +272,7 @@ def run_burn_subtitles(
         "-i",
         str(media),
         "-vf",
-        _subtitle_filter(subtitle),
+        build_subtitle_filter(subtitle),
         "-map",
         "0:v:0",
         "-map",
@@ -427,7 +427,8 @@ def _escape_filter_value(value: str) -> str:
     return escaped
 
 
-def _subtitle_filter(subtitle: Path) -> str:
+def build_subtitle_filter(subtitle: Path) -> str:
+    """Shared libass filter; run FFmpeg with the subtitle directory as cwd."""
     filename = _escape_filter_value(subtitle.name)
     if subtitle.suffix.lower() in {".ass", ".ssa"}:
         return f"ass=filename='{filename}'"

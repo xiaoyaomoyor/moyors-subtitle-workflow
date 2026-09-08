@@ -1602,8 +1602,8 @@
   }
   .module-instance-stub .stub-name { color: var(--text-muted); font-size: 13px; }
   .module-instance-stub small { font-size: 11px; max-width: 240px; text-align: center; line-height: 1.5; }
-  /* 标签「变成模块」下拉：与标签同宽，图标 + 名称 */
-  .tab-convert-menu { padding: 3px; }
+  /* 标签「变成模块」下拉按内容定宽，确保短标签也能展示完整名称。 */
+  .tab-convert-menu { padding: 3px; width: max-content; min-width: 128px; max-width: calc(100vw - 16px); }
   .tab-convert-menu .dock-menu-item {
     width: 100%; justify-content: flex-start; gap: 8px;
     padding: 0 8px; height: 26px;
@@ -1614,6 +1614,8 @@
     fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round;
   }
+  .tab-convert-menu .tab-icon { flex-shrink: 0; }
+  .tab-convert-menu .tab-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tab-convert-menu .dock-menu-item .tab-icon svg .dock-icon-fill { fill: currentColor; stroke: none; }
   .tab-convert-menu .dock-menu-item.active { color: var(--text-primary); background: var(--accent-tint); }
   .tab-convert-menu .dock-menu-item:hover { color: var(--text-primary); }
@@ -2976,10 +2978,10 @@
   .msw-translation-results p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); }
   .msw-processing-field { display: flex; flex-direction: column; gap: 5px; margin-block: 10px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
   .msw-processing-field[hidden] { display: none; }
-  #audio-export-panel { width: min(440px, calc(100vw - 24px)); }
-  #audio-export-panel [hidden] { display: none !important; }
-  #audio-export-panel .msw-tts-check { margin-block: 10px; }
-  #audio-export-panel progress { width: 100%; height: 6px; accent-color: var(--accent); }
+  .msw-media-export-panel { width: min(440px, calc(100vw - 24px)); }
+  .msw-media-export-panel [hidden] { display: none !important; }
+  .msw-media-export-panel .msw-tts-check { margin-block: 10px; }
+  .msw-media-export-panel progress { width: 100%; height: 6px; accent-color: var(--accent); }
   #audio-export-jobs:empty { display: none; }
   .msw-processing-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
@@ -2990,24 +2992,33 @@
   .msw-asset-library[hidden] { display: none; }
   .msw-asset-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; background: var(--panel-toolbar-bg-wave); }
   .msw-asset-toolbar input, .msw-asset-toolbar select { min-width: 0; flex: 1 1 120px; max-width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--form-input-bg); padding: 5px 6px; font: inherit; font-size: 12px; }
-  .msw-asset-library button, .msw-tts-result button { padding: 4px 8px; font-size: 12px; border: 1px solid var(--btn-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); cursor: pointer; }
-  .msw-asset-library button:hover, .msw-tts-result button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  .msw-asset-library :where(.msw-asset-toolbar, .msw-asset-summary, .msw-asset-list, .msw-asset-pagination) button, .msw-tts-result button { padding: 4px 8px; font-size: 12px; border: 1px solid var(--btn-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); cursor: pointer; }
+  .msw-asset-library :where(.msw-asset-toolbar, .msw-asset-summary, .msw-asset-list, .msw-asset-pagination) button:hover, .msw-tts-result button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
   .msw-asset-library button:disabled { opacity: .45; cursor: default; }
-  .msw-asset-library button:focus-visible, .msw-asset-toolbar input:focus-visible, .msw-asset-toolbar select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+  .msw-asset-library button:focus-visible, .msw-asset-library input:focus-visible, .msw-asset-toolbar select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
   .msw-asset-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 8px; font-size: 11px; color: var(--text-secondary); }
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
-  .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-  .msw-asset-row { display: flex; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid var(--border-subtle); }
-  .msw-asset-row:hover { background: var(--bg-raised); }
+  .msw-asset-density { display: flex; align-items: center; gap: 5px; margin-left: auto; white-space: nowrap; }
+  .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
+  .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: grid; grid-template-columns: repeat(var(--asset-columns, 3), minmax(0, 1fr)); align-content: start; gap: 6px; padding: 6px 8px; }
+  .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-raised); cursor: grab; }
+  .msw-asset-row:hover { border-color: var(--btn-border-hover); }
+  .msw-asset-row.playing { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-raised)); }
   .msw-asset-info { min-width: 0; flex: 1; }
-  .msw-asset-text { font-size: 12px; line-height: 1.45; margin: 0 0 5px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-  .msw-asset-meta { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
-  .msw-asset-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .msw-asset-text { font-size: 12px; line-height: 1.45; min-height: 2.9em; margin: 0 0 3px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .msw-asset-meta { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msw-asset-row.missing .msw-asset-meta { color: var(--amber); }
+  .msw-asset-actions { display: flex; gap: 4px; flex-shrink: 0; justify-content: flex-end; }
+  .msw-asset-library .msw-asset-actions button { display: grid; place-items: center; padding: 3px; width: 26px; height: 25px; flex-shrink: 0; }
+  .msw-asset-actions button:first-child { margin-right: auto; }
+  .msw-asset-actions svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .msw-asset-actions .asset-icon-fill { fill: currentColor; stroke: none; }
   .msw-asset-pagination { display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 12px; padding: 4px; font-size: 11px; border-top: 1px solid var(--border-subtle); }
   .msw-asset-player { flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border-subtle); }
   .msw-asset-player div { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; color: var(--text-secondary); }
   .msw-asset-player audio { display: block; width: 100%; height: 30px; }
-  @container (max-width: 320px) { .msw-asset-actions { flex-direction: column; } .msw-asset-toolbar { gap: 4px; padding: 5px; } }
+  @container (max-width: 320px) { .msw-asset-toolbar { gap: 4px; padding: 5px; } .msw-asset-density { margin-left: 0; } }
 
 .msw-save-box { width: min(560px, 90vw); padding: 22px; }
 .msw-recovery-list { display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }

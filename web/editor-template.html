@@ -128,6 +128,7 @@ __WAVEFORM_CSS__
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-otio-menu">OTIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="extra-otio-menu" role="menu">
+                  <button type="button" class="dropdown-item" id="timeline-export-btn" role="menuitem" disabled title="独立配音片段、原视频及字幕标记的剪辑工程">配音剪辑工程（OTIOZ）<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
                   <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
                   <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
                   <div class="dropdown-item" id="download-sticker-otio" role="menuitem" tabindex="0" title="导出只包含表情包图片轨道的 OTIO 工程">表情包 OTIO 工程</div>
@@ -155,8 +156,8 @@ __WAVEFORM_CSS__
           <div class="dropdown-separator" role="separator"></div>
         </div>
       </div>
-      <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="视频渲染暂不可用">导出视频</button>
-      <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频</button>
+      <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="导出带配音的视频 MP4">导出视频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-separator"></div>
       <button type="button" class="dropdown-item" id="exit-editor" role="menuitem" hidden title="停止本地编辑器服务器并关闭本页">退出编辑器</button>
     </div>
@@ -1646,7 +1647,14 @@ __WAVEFORM_CSS__
       <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
       <button type="button" id="asset-refresh" title="刷新素材库">刷新</button>
     </div>
-    <div class="msw-asset-summary"><span id="asset-count">0 条音频</span><button type="button" id="asset-export-project">导出工程与 TTS 音频</button></div>
+    <div class="msw-asset-summary">
+      <span id="asset-count">0 条音频</span>
+      <label class="msw-asset-density" title="调整每行卡片数量；窄窗口自动减少列数">卡片密度
+        <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
+        <output id="asset-density-value" for="asset-density">3</output>
+      </label>
+      <button type="button" id="asset-export-project">导出工程与 TTS 音频</button>
+    </div>
     <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
     <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
     <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
@@ -2000,7 +2008,20 @@ __WAVEFORM_CSS__
   </div>
 </aside>
 
-<aside class="gap-remove-panel msw-processing-panel" id="audio-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-export-title">
+<template id="video-export-fields">
+  <div class="msw-processing-fields">
+    <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
+    <label>超出画面尾部<select id="video-export-tail"><option value="ask">超出时提示选择</option><option value="truncate">截断到画面结尾</option><option value="freeze">定格延长画面</option></select></label>
+  </div>
+  <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
+  <p class="msw-processing-hint">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。字幕使用启动器的底部居中样式，双字幕分行；表情包不烧录。</p>
+</template>
+<template id="timeline-export-fields">
+  <label class="msw-tts-check"><input type="checkbox" id="timeline-export-collect-media" checked>同时打包原视频</label>
+  <p class="msw-processing-hint">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。</p>
+  <p class="msw-processing-hint">取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
+</template>
+<aside class="gap-remove-panel msw-processing-panel msw-media-export-panel" id="audio-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-export-title">
   <header class="gap-remove-panel-header" id="audio-export-drag">
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">文件</span><h3 id="audio-export-title">导出音频</h3></div>
     <button type="button" id="audio-export-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频导出"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
@@ -2010,7 +2031,7 @@ __WAVEFORM_CSS__
       <label>导出内容<select id="audio-export-mode"><option value="voice">配音轨（仅音频贴片）</option><option value="mix">原声 + 配音混音</option></select></label>
       <label>采样率<select id="audio-export-rate"><option value="48000">48 kHz</option><option value="44100">44.1 kHz</option></select></label>
     </div>
-    <p class="msw-processing-hint">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
+    <p class="msw-processing-hint" id="audio-export-format-hint">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
     <div id="audio-export-source" hidden>
       <div class="msw-processing-fields">
         <label>原声音轨<select id="audio-export-stream" aria-label="原声音轨"></select></label>

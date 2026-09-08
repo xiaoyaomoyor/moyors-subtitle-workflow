@@ -270,6 +270,30 @@ test('audio clip palette follows subtitle, accent, selection and muted text colo
   expect(await labels.evaluateAll(els=>[...new Set(els.map(el=>getComputedStyle(el).color))])).toEqual(['rgb(153, 204, 238)']);
 });
 
+test('unselected audio clips follow the playhead while selected and muted clips keep their semantics',async({page})=>{
+  const clip=await prepareClips(page);
+  await page.locator('#interface-color-hit').evaluate(el=>{el.value='#f42b76';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  const seek=offset=>page.evaluate(offset=>{
+    const c=DATA.msw.audio_clips[0]; MSWE.resolve('processing-host').seek((c.start_ms+offset)/1000);
+  },offset);
+  await page.keyboard.press('Escape'); await seek(100);
+  await expect(clip).not.toHaveClass(/selected/); await expect(clip).toHaveClass(/active/);
+  await expect(clip).toHaveCSS('outline-color','rgb(244, 43, 118)');
+  await seek(1500); await expect(clip).not.toHaveClass(/active/);
+  await seek(-1); await expect(clip).not.toHaveClass(/active/);
+  await seek(0); await expect(clip).toHaveClass(/active/);
+  await clip.click(); await expect(clip).toHaveClass(/selected/);
+  await expect(clip).toHaveCSS('outline-width','2px');
+  await clip.click({button:'right'}); await page.locator('.msw-audio-menu').getByRole('button',{name:'静音音频贴片',exact:true}).click();
+  await page.keyboard.press('Escape'); await seek(100);
+  await expect(clip).toHaveClass(/muted/); await expect(clip).toHaveCSS('outline-color','rgb(244, 43, 118)');
+  await page.evaluate(()=>MSWE.resolve('processing-host').togglePlayback());
+  await expect(clip).not.toHaveClass(/active/,{timeout:5000});
+  await page.evaluate(()=>MSWE.resolve('processing-host').pauseMedia());
+  await seek(100);
+  if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'audio-playhead-outline.png')});
+});
+
 test('audio clips drag below compact subtitle lanes, mute, undo and delete independently',async({page})=>{
   const errors=[]; page.on('pageerror',e=>errors.push(e.message));
   const clip=await prepareClips(page);
@@ -444,7 +468,7 @@ test('TTS creates durable assets, opens lower-right, previews, exports and survi
   expect(library.y+library.height/2).toBeGreaterThan(workspace.y+workspace.height/2);
   await page.locator('.msw-asset-row').first().getByRole('button',{name:'试听',exact:true}).click();
   await expect.poll(()=>page.locator('#asset-audio').evaluate(audio=>audio.duration)).toBeCloseTo(.2);
-  const downloaded=page.waitForEvent('download'); await page.locator('.msw-asset-row').first().getByRole('button',{name:'WAV',exact:true}).click();
+  const downloaded=page.waitForEvent('download'); await page.locator('.msw-asset-row').first().getByRole('button',{name:'下载 WAV',exact:true}).click();
   expect(readFileSync(await(await downloaded).path()).subarray(0,4).toString()).toBe('RIFF');
   const bundle=page.waitForEvent('download'); await page.locator('#asset-export-project').click();
   expect(readFileSync(await(await bundle).path()).subarray(0,2).toString()).toBe('PK');
@@ -489,7 +513,7 @@ test('blank TTS key reuses ASR settings and streaming WAV becomes a playable sec
   await page.locator('.msw-asset-row').getByRole('button',{name:'试听',exact:true}).click();
   await expect.poll(()=>page.locator('#asset-audio').evaluate(audio=>audio.duration)).toBeCloseTo(.2);
   const downloaded=page.waitForEvent('download');
-  await page.locator('.msw-asset-row').getByRole('button',{name:'WAV',exact:true}).click();
+  await page.locator('.msw-asset-row').getByRole('button',{name:'下载 WAV',exact:true}).click();
   const result=readFileSync(await(await downloaded).path());
   expect(result.readUInt32LE(4)).toBe(result.length-8);
   expect(result.readUInt32LE(dataOffset+4)).toBe(wav.length-dataOffset-8);
@@ -516,9 +540,11 @@ test('asset library pages large batches and can be closed and restored from Wind
   await open(page,false,105); await panel(page); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page),{timeout:30000}).toBe(105);
   await expect(page.locator('#tts-jobs')).toContainText('合成完成'); await page.locator('#tts-close').click();
-  await expect(page.locator('.msw-asset-row')).toHaveCount(50);
-  await page.locator('#asset-next').click(); await expect(page.locator('#asset-page')).toHaveText('2 / 3');
-  await page.locator('#asset-next').click(); await expect(page.locator('.msw-asset-row')).toHaveCount(5);
+  await expect(page.locator('.msw-asset-row')).toHaveCount(90);
+  await expect.poll(()=>page.locator('#asset-list').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(3);
+  expect(await page.locator('#asset-list').evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
+  await page.locator('#asset-next').click(); await expect(page.locator('#asset-page')).toHaveText('2 / 2');
+  await expect(page.locator('.msw-asset-row')).toHaveCount(15);
   await page.locator('#asset-search').fill('Hello'); await expect(page.locator('.msw-asset-row')).toHaveCount(1);
   await page.locator('#asset-library .tab-close').click(); await expect(page.locator('#asset-library')).not.toBeVisible();
   await openMenubarMenu(page,'窗口');
@@ -526,9 +552,62 @@ test('asset library pages large batches and can be closed and restored from Wind
   await page.locator('#show-module-menu').getByRole('menuitem',{name:'素材库',exact:true}).click();
   await expect(page.locator('#asset-library')).toBeVisible();
 });
+
+test('asset cards show three columns, icon actions and responsive saved density',async({page})=>{
+  const errors=[]; page.on('pageerror',error=>errors.push(error.message));
+  await open(page,false,18); wav=readFileSync(generateWav(join(dir,'preview-long.wav'),2));
+  await page.evaluate(()=>{DATA.segments[0].text='这是一段较长的配音文本，用来核对卡片中的换行、截断与完整文本提示。';});
+  await panel(page); await page.locator('#tts-start').click();
+  await expect.poll(()=>countAssets(page)).toBe(18); await page.locator('#tts-close').click();
+  const list=page.locator('#asset-list'), cards=page.locator('.msw-asset-row');
+  const columns=()=>list.evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  await expect.poll(columns).toBe(3);
+  const geometry=await cards.evaluateAll(els=>els.slice(0,4).map(el=>{const b=el.getBoundingClientRect();return {x:b.x,y:b.y};}));
+  expect(geometry[0].y).toBe(geometry[2].y);expect(geometry[3].y).toBeGreaterThan(geometry[0].y);
+  const first=cards.first(); await expect(first.locator('button svg')).toHaveCount(3);
+  expect(await first.locator('button').allTextContents()).toEqual(['','','']);
+  if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-cards-default.png')});
+  await first.getByRole('button',{name:'试听',exact:true}).click();
+  await first.getByRole('button',{name:'暂停试听',exact:true}).click();
+  await expect(first.getByRole('button',{name:'试听',exact:true})).toBeVisible();
+  expect(await page.locator('#asset-audio').evaluate(el=>el.paused)).toBe(true);
+  const downloaded=page.waitForEvent('download');await first.getByRole('button',{name:'下载 WAV',exact:true}).click();
+  expect(readFileSync(await(await downloaded).path()).subarray(0,4).toString()).toBe('RIFF');
+  await first.getByRole('button',{name:'放入时间轴',exact:true}).click();
+  await expect(page.locator('.msw-audio-clip').first()).toBeVisible();
+  const slider=page.locator('#asset-density');await slider.focus();await slider.press('End');
+  await expect.poll(columns).toBe(5);
+  const focused=first.getByRole('button',{name:'试听',exact:true});await focused.focus();
+  await page.locator('#asset-refresh').evaluate(el=>el.click());await expect(focused).toBeFocused();
+  await page.reload();await expect(slider).toHaveValue('5');
+  await expect.poll(columns).toBe(5);
+  await page.locator('#asset-library').evaluate(el=>{el.style.width='270px';el.style.maxWidth='270px';});
+  await expect.poll(columns).toBe(2);
+  expect(await list.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  expect(await cards.evaluateAll(els=>els.every(el=>el.scrollWidth<=el.clientWidth))).toBe(true);
+  if(process.env.MSW_UI_EVIDENCE_DIR) await page.locator('#asset-library').screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-cards-narrow.png')});
+  expect(errors).toEqual([]);
+});
 test('portable editor explains TTS capability without active controls',async({page})=>{
   server=await startStaticServer('blank-editor.html',await findFreePort()); await page.goto(server.url);
   await panel(page,false); await expect(page.locator('#tts-unavailable')).toBeVisible(); await expect(page.locator('#tts-controls')).not.toBeVisible();
+});
+
+test('asset module dropdown keeps full module names on one line within the viewport',async({page})=>{
+  await open(page); await page.evaluate(()=>MSWE.resolve('processing-host').showAssets());
+  await page.locator('#asset-library .module-tab').click();
+  const menu=page.locator('.tab-convert-menu'); await expect(menu).toBeVisible();
+  const dimensions=await menu.evaluate(el=>({width:el.offsetWidth,right:el.getBoundingClientRect().right,
+    viewport:innerWidth,names:[...el.querySelectorAll('.tab-name')].map(label=>{
+      const range=document.createRange();range.selectNodeContents(label);
+      return {lines:range.getClientRects().length,overflow:label.scrollWidth>label.clientWidth};
+    })}));
+  expect(dimensions.width).toBeGreaterThanOrEqual(128); expect(dimensions.right).toBeLessThanOrEqual(dimensions.viewport);
+  expect(dimensions.names).toHaveLength(5);
+  for(const name of dimensions.names) {expect(name.lines).toBe(1);expect(name.overflow).toBe(false);}
+  if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-module-menu.png')});
+  await menu.getByRole('button',{name:'变成字幕列表',exact:true}).click();
+  await expect(menu).toHaveCount(0);
 });
 
 test('editing and undo during generation preserve source snapshot and library inventory',async({page})=>{

@@ -882,3 +882,11 @@ uv run python edit.py your_generated.mosp
 `msw.audio-render.v1` 是导出快照编译出的派生计划，不写入 `.mosp`，也不改变 `msw.editor.v1`。包括输出 `sample_rate`／`channels`／`sample_count`、源范围、保留区间到输出时间的映射、每段贴片的素材 ID／源采样入出点／输出采样起止点／叠加增益、所选原声音轨及峰值保护。取样位置使用非负数四舍五入（半值向上），区间为左闭右开。
 
 快照中的 `gap_remove.gaps` 是编辑器 `buildJson()` 已投影的当前空隙决定；后台验证这些区间，再独立应用贴片保护和时间映射，不接受客户端提交的 FFmpeg 图或任意素材路径。共同计划夹具位于 `tests/fixtures/msw_audio_render.json`。导出格式、范围和总音量记录于本机导出任务，不成为工程设置；WAV 成品不自动添加到 TTS 素材库。
+
+### D3 / D4 媒体与剪辑工程派生输出
+
+视频和 OTIOZ 复用 `msw.audio-render.v1`，不升级 `.mosp` 或 `msw.editor.v1`。导出任务的 `options.format` 为 `wav`（兼容默认值）、`mp4` 或 `otioz`；`video_encoding` 为 `auto` / `h264`，`video_tail` 为 `ask` / `truncate` / `freeze`，`collect_media` 为布尔。上述值仅保存在本机任务与包的导出记录中，不写入工程或试听设置。
+
+`options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕相交时合成同一段多行字幕。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
+
+OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结构，配音按输出采样率表示时间，视频保留有理帧率对应时间。重叠片段分轨，增益与统一峰值衰减写入浮点 WAV；静音片段同时禁用并提供静音副本，原始 TTS 另行收集。`msw-export.json` 使用 `msw.otio-bundle.v1`，记录 `options`、`plan`、`assets`、`audio_clips`、`attenuation_db`，用途是追溯和重新链接，不是可替代 `.mosp` 的保存文件。具体引用与交付边界见 [视频与剪辑工程导出](docs/EDITOR_VIDEO_TIMELINE_EXPORT.md)。
