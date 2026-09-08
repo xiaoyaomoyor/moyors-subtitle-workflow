@@ -24,6 +24,8 @@ MSW（Moyor's Subtitle Workflow）是一个以 API 转写为主的字幕生成�
 
 - 使用 Qwen / Fun-ASR / Soniox / 腾讯云录音文件识别，或 OpenAI（及兼容接口）转写，生成 SRT 与 `.mosp` 工程。
 - MSWE Server 编辑器支持波形定位、拆分合并、静音空隙处理、画面预览和多种导出格式。
+- MSWE 的「媒体 → TTS」可用百炼 Qwen3 为选中或整轨字幕配音；素材库支持逐条试听、搜索分页、WAV 导出和工程音频包。用法见 [TTS 与素材库](docs/EDITOR_TTS.md)。
+- 把素材库音频拖到波形显示器即可放置[音频贴片](docs/EDITOR_AUDIO_CLIPS.md)，支持重叠子行、裁剪、静音、RMS 热力图、空隙保护与 1× 同步试听。
 - MSWE 支持可选的多重字幕：拖入第二条字幕作为副轨，支持主副字幕交换、绑定/解绑、联动编辑、跨轨道吸附，以及 `G` / `Shift+G` / `H` / `B` 快捷操作。
 - 公开 CLI 可用于批处理和 AI 自动化，详见[命令行文档](docs/CLI.md)。
 - [本地 Qwen3-ASR / FunASR / Faster-Whisper](docs/LOCAL_ASR.md) 和免 Key 的必剪 ASR 均属于实验性入口，仅适合体验。

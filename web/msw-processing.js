@@ -199,7 +199,7 @@
       const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${cursor}`);
       if (generation !== host.generation || id !== projectId()) return;
       failures = 0; cursor = data.revision;
-      for (const job of data.jobs) jobs.set(job.id, job);
+      for (const job of data.jobs) if (job.kind !== 'tts') jobs.set(job.id, job);
       if (data.jobs.length) renderJobs();
       for (const job of jobs.values()) {
         if (job.status === 'succeeded' && job.application === 'pending' && job.kind === 'translation') await applyResult(job);

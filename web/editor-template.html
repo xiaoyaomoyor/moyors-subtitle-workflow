@@ -295,6 +295,8 @@ __WAVEFORM_CSS__
   <div class="menubar-item" data-menubar-item="media">
     <button type="button" class="menubar-tab" aria-haspopup="menu" aria-expanded="false">媒体</button>
     <div class="dropdown-menu menubar-menu" role="menu" aria-label="媒体">
+      <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
       <button type="button" class="dropdown-item" id="media-player-settings-item" role="menuitem" title="打开媒体播放器设置窗口">媒体播放器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="waveform-settings-item" role="menuitem" title="打开波形显示器设置窗口">波形显示器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -897,6 +899,16 @@ __WAVEFORM_CSS__
           <button type="button" id="waveform-zoom-in" title="放大时间轴">＋</button>
         </span>
       </span>
+      <label class="toggle editor-settings-item" title="按音频各时刻的 RMS 电平显示固定色标；关闭后贴片使用纯色">
+        <input type="checkbox" id="audio-clips-heatmap" checked> 音频贴片热力图
+      </label>
+      <label class="editor-settings-item">配音与空隙
+        <select id="audio-clips-gap-policy">
+          <option value="protect">保留配音覆盖的区间</option>
+          <option value="follow">配音随媒体跳过空隙</option>
+        </select>
+      </label>
+      <small class="editor-settings-hint">配音热力图：暗 → 亮对应低 → 高电平（RMS −60 至 −6 dBFS）。配音随时间轴以 1× 播放。</small>
       <span class="editor-settings-item">振幅
         <span class="editor-settings-stepper">
           <button type="button" id="waveform-scale-down" title="减小波形振幅">−</button>
@@ -1601,6 +1613,18 @@ __WAVEFORM_CSS__
 <input type="file" id="load-srt-file" accept=".srt,text/plain" style="display:none">
 
 <div class="editor-workspace waveform-basic" id="editor-workspace">
+  <section class="msw-asset-library" id="asset-library" aria-label="素材库" hidden>
+    <div class="msw-asset-toolbar">
+      <input type="search" id="asset-search" placeholder="搜索配音文本、音色…" aria-label="搜索素材">
+      <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
+      <button type="button" id="asset-refresh" title="刷新素材库">刷新</button>
+    </div>
+    <div class="msw-asset-summary"><span id="asset-count">0 条音频</span><button type="button" id="asset-export-project">导出工程与 TTS 音频</button></div>
+    <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
+    <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
+    <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
+    <footer class="msw-asset-player" id="asset-player" hidden><div id="asset-playing" class="msw-asset-content">选择音频试听</div><audio id="asset-audio" controls preload="none" aria-label="素材试听"></audio></footer>
+  </section>
   <div class="player-wrap">
     <div class="toolbar player-toolbar" aria-label="媒体模块栏"></div>
       <div class="module-key-hints" id="player-key-hints" aria-label="媒体播放器快捷键" hidden>
@@ -1882,6 +1906,40 @@ __WAVEFORM_CSS__
 </div>
 
 <!-- 字幕翻译：非模态工具窗，后台处理时可继续编辑。 -->
+<aside class="gap-remove-panel msw-processing-panel" id="tts-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="tts-title">
+  <header class="gap-remove-panel-header" id="tts-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">媒体</span><h3 id="tts-title">TTS · 字幕配音</h3></div>
+    <button type="button" id="tts-close" class="gap-remove-close" aria-label="关闭 TTS"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p class="msw-processing-hint" id="tts-unavailable" hidden>TTS 需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
+    <div id="tts-controls">
+      <p id="tts-scope" class="msw-processing-hint" aria-live="polite"></p>
+      <label class="msw-processing-field" id="tts-target-field" hidden><span>操作对象</span><select id="tts-target"><option value="">请选择主字幕或副字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option></select><small>连锁字幕按所选对象合成；独立字幕保留原选区。</small></label>
+      <div class="msw-processing-grid">
+        <label class="msw-processing-field"><span>模型</span><select id="tts-model"></select></label>
+        <label class="msw-processing-field"><span>语言</span><select id="tts-language"></select></label>
+      </div>
+      <label class="msw-processing-field"><span>音色</span><input id="tts-voice" list="tts-voices" value="Cherry" maxlength="128" autocomplete="off"><datalist id="tts-voices"><option value="Cherry">芊悦</option><option value="Ethan">晨煦</option><option value="Serena">苏瑶</option><option value="Chelsie">千雪</option></datalist></label>
+      <small class="msw-processing-hint">可输入系统音色 ID；音色与模型的兼容范围见 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">百炼音色列表</a>。</small>
+      <div id="tts-instruct" hidden>
+        <label class="msw-processing-field"><span>声音描述（可选）</span><textarea id="tts-instructions" rows="2" maxlength="1600" placeholder="例如：语速舒缓、吐字清晰、语气温柔"></textarea></label>
+        <label class="msw-tts-check"><input type="checkbox" id="tts-optimize">优化声音描述</label>
+        <small class="msw-processing-hint">描述使用中文或英文，最多 1600 字符，且不超过百炼 1600 Token 限制。</small>
+      </div>
+      <details id="tts-settings"><summary>连接设置</summary>
+        <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
+        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
+        <p id="tts-key-state" class="msw-processing-hint"></p>
+      </details>
+      <div class="msw-processing-actions"><button type="button" id="tts-save-settings">保存配置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
+      <p class="msw-processing-hint">每条字幕生成一个 WAV，最长 600 字符。保留完整音频，不自动裁剪到字幕时长；生成期间可继续编辑。</p>
+    </div>
+    <p id="tts-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务"></div>
+  </div>
+</aside>
+
 <aside class="gap-remove-panel msw-processing-panel" id="subtitle-translation-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-translation-title">
   <header class="gap-remove-panel-header" id="subtitle-translation-drag">
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕</span><h3 id="subtitle-translation-title">字幕翻译</h3></div>

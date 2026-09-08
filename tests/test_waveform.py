@@ -255,7 +255,8 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('function triggerNinjaSplitFeedback(', page)
         # 帮助按钮改用 🤔 文本图标后，SVG 工具图标只剩选择/分割两个
         self.assertEqual(page.count('class="toolbar-button-icon"'), 2)
-        self.assertIn('.waveform-cue-block.selected {', page)
+        # 字幕与音频贴片可共用选中规则，不依赖选择器是否独占一行。
+        self.assertRegex(page, r'\.waveform-cue-block\.selected\s*(?:,[^{]+)?\{')
         # 选中字幕块只用 outline + 阴影高亮（颜色走 --selection-* 变量），不再改 border-color
         self.assertIn('outline: 2px solid var(--selection-yellow);', page)
         self.assertIn('filter: brightness(1.08);', page)

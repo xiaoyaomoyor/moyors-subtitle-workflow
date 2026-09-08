@@ -13,6 +13,8 @@ from urllib.parse import parse_qs, urlsplit
 from maw.msw.config import provider_payloads, resolve_settings, save_settings
 from maw.msw.jobs import JobManager
 from maw.msw.project_codec import valid_id
+from maw.msw.assets import AssetStore
+from maw.msw import tts
 
 
 class ProcessingAPI:
@@ -22,6 +24,7 @@ class ProcessingAPI:
         self.data_root = data_root
         self.lock = threading.RLock()
         self._manager = None
+        self._assets = None
         self._project_path = object()
         self.binding = ""
 
@@ -30,8 +33,54 @@ class ProcessingAPI:
         with self.lock:
             if self._manager is None:
                 port = self.server.server_address[1]
-                self._manager = JobManager(self.data_root / "editor-jobs" / f"port-{port}.sqlite3")
+                self._manager = JobManager(self.data_root / "editor-jobs" / f"port-{port}.sqlite3",
+                                           tts=tts.TtsService(self.assets))
             return self._manager
+
+    @property
+    def assets(self):
+        with self.lock:
+            if self._assets is None:
+                self._assets = AssetStore(self.data_root / "editor-assets")
+            return self._assets
+
+    def asset_reference(self, project_id, asset_id):
+        staged = self.assets.get(project_id, asset_id)
+        with self.server.save_lock:
+            extension = self.server.project.data.get("msw") or {}
+            bound = extension.get("project_id") == project_id
+            asset = next((item for item in extension.get("assets", []) if item["id"] == asset_id), None) if bound else None
+            return (asset or staged), self.server.project.json_path if bound else None
+
+    def send_bundle(self, handler, payload):
+        import json
+        import shutil
+        import tempfile
+        import zipfile
+        from maw.project import normalize_project
+        project = normalize_project(payload.get("project"))
+        extension = project.get("msw") or {}
+        project_id = extension.get("project_id")
+        if project_id != payload.get("project_id"):
+            raise ValueError("工程与素材不匹配")
+        with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as stream:
+            with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_STORED) as archive:
+                for asset in extension.get("assets", []):
+                    trusted, project_path = self.asset_reference(project_id, asset["id"])
+                    if not trusted or trusted["sha256"] != asset["sha256"]:
+                        raise ValueError("素材尚未被本机服务接管，请在本机服务重新打开工程")
+                    path = self.assets.resolve(project_id, trusted, project_path)
+                    archive.write(path, asset["path"])
+                archive.writestr("project.mosp", json.dumps(project, ensure_ascii=False, indent=2) + "\n")
+            size = stream.tell()
+            stream.seek(0)
+            handler.send_response(HTTPStatus.OK)
+            handler.send_header("Content-Type", "application/zip")
+            handler.send_header("Content-Disposition", 'attachment; filename="project-with-audio.zip"')
+            handler.send_header("Content-Length", str(size))
+            handler.send_header("Cache-Control", "no-store")
+            handler.end_headers()
+            shutil.copyfileobj(stream, handler.wfile)
 
     def context(self):
         path = self.server.project.json_path
@@ -81,14 +130,17 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route == "project" else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "asset-bundle"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
             else:
                 payload = {key: values[0] for key, values in parse_qs(url.query).items()}
             if route == "capabilities" and not post:
-                result = {"translation": True, "persistentJobs": True, **self.context()}
+                result = {"translation": True, "tts": True, "assets": True, "persistentJobs": True, **self.context()}
+            elif route == "tts-settings":
+                with self.lock:
+                    result = tts.save_settings(self.env_path, payload) if post else tts.config_payload(self.env_path)
             elif route == "providers":
                 with self.lock:
                     result = save_settings(self.env_path, payload) if post else provider_payloads(self.env_path)
@@ -109,11 +161,23 @@ class ProcessingAPI:
                 project_id = payload.get("project_id")
                 if not valid_id(project_id):
                     raise ValueError("缺少有效工程标识")
-                if route == "jobs" and post:
+                if route == "asset-bundle" and post:
+                    self.send_bundle(handler, payload)
+                    return True
+                if route == "assets" and not post:
+                    result = self.assets.list(project_id, max(0, int(payload.get("since", 0))))
+                elif route == "asset-audio" and not post:
+                    asset, project_path = self.asset_reference(project_id, payload.get("asset_id"))
+                    if asset is None:
+                        raise KeyError("素材不存在")
+                    path = self.assets.resolve(project_id, asset, project_path)
+                    handler.send_file(path, handler.command != "HEAD")
+                    return True
+                elif route == "jobs" and post:
                     provider = payload.get("provider", {})
                     if not isinstance(provider, dict):
                         raise ValueError("翻译服务配置无效")
-                    settings = resolve_settings(self.env_path, provider)
+                    settings = tts.resolve_settings(self.env_path, provider) if payload.get("kind") == "tts" else resolve_settings(self.env_path, provider)
                     result = {"job": self.jobs.submit(payload, settings)}
                     status = HTTPStatus.ACCEPTED
                 elif route == "jobs" and not post:
@@ -137,6 +201,8 @@ class ProcessingAPI:
             handler.send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": str(error)})
         except KeyError:
             handler.send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "任务或接口不存在"})
+        except FileNotFoundError as error:
+            handler.send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(error)})
         except (ValueError, TypeError, UnicodeError) as error:
             handler.send_json(status if status == HTTPStatus.CONFLICT else HTTPStatus.BAD_REQUEST,
                               {"ok": False, "error": str(error)})

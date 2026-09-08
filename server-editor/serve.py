@@ -1078,6 +1078,8 @@ class EditorServer(ThreadingHTTPServer):
                 raise SaveProjectError("当前服务器没有绑定工程文件")
             if filename is not None:
                 target = safe_project_filename(target.parent, filename)
+            if (normalized_project.get("msw") or {}).get("assets"):
+                self.processing_api.assets.persist_project(normalized_project, target, self.project.json_path)
             backup = write_project_json(target, normalized_project)
             self.project = replace(self.project, data=normalized_project, json_path=target)
             self.remember_project(target)

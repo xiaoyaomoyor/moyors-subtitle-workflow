@@ -412,6 +412,18 @@ export async function startServer(projectJsonPath, mediaPath, port) {
   }), { waitForStartup: true });
 }
 
+// Only this test entry point injects a loopback fake TTS adapter. Production
+// endpoints remain fixed to Bailian and never accept an arbitrary provider URL.
+export async function startTtsServer(projectJsonPath, mediaPath, port, mockOrigin) {
+  const settingsRoot = join(dirname(projectJsonPath), '.settings');
+  mkdirSync(settingsRoot, { recursive: true });
+  return launchServerProcess(['tests/e2e/tts_server_fixture.py', projectJsonPath, ...(mediaPath ? ['-m', mediaPath] : []),
+    '--no-waveform', '--port', String(port), '--no-open'], port, buildE2EProcessEnv({
+    PYTHONUNBUFFERED: '1', PYTHONUTF8: '1', LOCALAPPDATA: settingsRoot, XDG_CONFIG_HOME: settingsRoot,
+    MSW_TEST_TTS_ORIGIN: mockOrigin,
+  }), { waitForStartup: true });
+}
+
 // 空白服务器（--blank）：用于「浏览器打开工程后由服务器接管」的回归测试。
 // settingsRoot 隔离本机最近工程记录，保证每次都以空白状态启动。
 export async function startBlankServer(port, settingsRoot) {

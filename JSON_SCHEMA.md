@@ -805,9 +805,69 @@ uv run python edit.py your_generated.mosp
 | `applied_results` | 可选，完全应用过的任务 ID 数组，最多 10000 项；用于避免重复应用 |
 | `translation_applications` | 可选，对部分应用的任务记录已经写入的主字幕 ID；对象及每个数组最多 10000 项。任务 ID 遵循上述 ASCII 规则；字幕 ID 沿用原工程的不透明字符串规范（规范化后最多 160 字符，可含中文） |
 | `translation_target_tracks` | 可选，部分应用时新建的副轨 ID，按任务 ID 索引，最多 10000 项；轨道 ID 沿用原工程的 160 字符规则。继续应用剩余结果时复用同一轨，完成后清除 |
+| `assets` | 可选，不可变音频素材数组，最多 10000 项；字段见下表。字幕历史保留该素材库存，不随字幕撤销删除 |
+| `audio_tracks` / `audio_clips` | 可选，配音轨及源时间轴上的独立贴片；不存在等同空数组，出现时不能为 null。详见 C 阶段契约 |
+| `audio_settings` | 可选，工程级的热力图和空隙策略；不存在使用默认值，出现时不能为 null |
 
 `msw` 内未识别的字段按 JSON 原样保留，经历加载、保存、另存为及字幕撤销/重做时不能被白名单裁掉。结果应用记录与副字幕变动进入同一条撤销记录；撤销翻译会同步撤销其应用记录。旧版本编辑器不一定保留这个扩展，不能用旧版本往返保存承诺兼容。
 
 任务状态、输入快照和译文存入本机应用数据目录的 `editor-jobs/port-<端口>.sqlite3`，不嵌入工程文件。工程中不写 API Key 或连接配置。旧工程首次以服务器打开时，未保存身份前按工程路径派生 ID；浏览器导入的旧工程则生成新 ID，因此想在重新打开后找回任务应先保存工程。
 
 当前翻译仅写入现有唯一副字幕轨；新建块采用当前主字幕位置，已有目标保持当前起止时间，绑定偏移随实际时间更新。修改译文后清除目标原有字词时间码，因为旧时间码已不能描述新文本。
+
+### TTS 音频素材（B 阶段）
+
+音频字节存入工程旁的素材目录，本机尚未保存的结果暂存于应用数据目录。工程不保存临时下载 URL，也不保存 API Key。来源字幕后续修改不改变已有音频。
+
+| 素材字段 | 契约 |
+| --- | --- |
+| `id` / `kind` | `audio-` 加 32 位小写十六进制 UUID；`kind` 固定 `audio` |
+| `path` | 相对工程目录：`msw-<24 位小写十六进制身份摘要>.assets/audio/<id>.wav`。拒绝绝对路径、反斜线和目录穿越 |
+| `sha256` / `byte_size` | WAV 文件 SHA-256（64 位小写十六进制），字节数 44–33554432 |
+| `sample_rate` / `channels` / `sample_count` | 实测整数，采样率 8000–192000，通道 1–8，样本帧数 1–2^32。时长由 `sample_count / sample_rate` 得到 |
+| `job_id` / `created_at` | 生成任务 ID；生成时间为 Unix 秒 |
+| `generation` | 不含密钥的可复现配置：`provider`、`region`、`model`、`voice`、`language_type`、`instructions`、`optimize_instructions`、`display_text`、`spoken_text`。模型稳定别名按实际请求名记录，不伪造解析后的快照版本 |
+| `source_ref` | `key` 为任务条目 ID；`id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒 |
+
+任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
+
+工作区布局树的模块 ID 新增 `assets`，可进入已有 `module`、`tabs` 和 `split` 结构。旧布局缺少该模块时默认为隐藏；不会为了补足五个模块重排用户布局。
+
+### 音频贴片（C 阶段）
+
+贴片与字幕块独立；移动、裁剪和静音只修改贴片，不改素材音频或字幕。多个贴片可以引用同一素材，并在同一配音轨内重叠混合。界面子行由时间重叠计算，不另存行号。
+
+`audio_tracks` 最多 32 项，每项包含唯一 `id`（沿用工程 ASCII ID 规则）、`name`（最多 160 字符）、`gain_db`（有限数值 −60 至 +12）和 `muted`（布尔）。当前界面自动建立一个配音轨，保留多轨的工程契约。
+
+`audio_clips` 最多 10000 项，单条示例（引用的素材及轨道须同时存在）：
+
+```json
+{
+  "id": "clip-example",
+  "track_id": "voice-1",
+  "asset_id": "audio-0123456789abcdef0123456789abcdef",
+  "start_ms": 2500,
+  "source_in_sample": 12000,
+  "source_out_sample": 48000,
+  "playback_rate": 1,
+  "gain_db": 0,
+  "muted": false,
+  "label": "这是配音文字"
+}
+```
+
+| 字段 | 契约 |
+| --- | --- |
+| `id` | 工程内唯一，沿用 ASCII ID 规则 |
+| `track_id` / `asset_id` | 引用现存配音轨和素材；文件缺失不删除引用，但悬空 ID 拒绝加载 |
+| `start_ms` | 源媒体时间轴的整数毫秒，0–10^12，不受字幕后续移动或空隙移除改变 |
+| `source_in_sample` / `source_out_sample` | 素材原始采样率下的整数**样本帧**，左闭右开；0 ≤ 入点 < 出点 ≤ 素材 `sample_count`，不乘声道数 |
+| `playback_rate` | C 阶段仅接受数字 1；不支持的变速值拒绝加载 |
+| `gain_db` / `muted` | 有限数值 −60 至 +12 dB／布尔。试听叠加贴片和轨道增益，任一静音则不播放 |
+| `label` | 最多 2000 字符；初始为素材显示文本，不随字幕修改变化 |
+
+贴片终点由 `start_ms + (source_out_sample − source_in_sample) × 1000 / sample_rate` 得到，可以有亚毫秒小数，不另存冗余终点。左边缘裁剪同时移动整数毫秒起点，采样范围保留整数帧；整数毫秒取整误差小于 1ms。
+
+`audio_settings.heatmap` 为布尔，默认 true；`audio_settings.gap_policy` 为 `protect`（默认）或 `follow`。`protect` 从实际跳过区间中减去未静音贴片覆盖范围（终点向上取整到毫秒）；`follow` 使用原空隙决定。保护不改写 `gap_remove.gaps`，删除／静音贴片后原有决定重新生效。编辑器的有效跳过区间包含此保护；音频混音导出仍属于 D 阶段。
+
+轨道、贴片和这两项设置进入工程保存、备份与撤销／重做。音频字节继续独立存放，热力图和解码缓冲仅为可重建缓存，不写入工程。热力图采用约 400ms 窗口／100ms 步长的 RMS dBFS、固定 −60 至 −6 dBFS 色标，计入贴片和轨道增益；不是 LUFS 测量，也不是最终混音电平。

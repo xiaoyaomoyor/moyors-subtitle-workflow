@@ -1126,7 +1126,7 @@ function getRemovedGapRanges() {
     removedGapRangesCacheState = state;
     removedGapRangesCache = window.AsrEditorUtils.getRemovedGapRanges(state.gaps);
   }
-  return removedGapRangesCache;
+  return window.MSWE?.resolve('audio-timeline')?.protectGaps(removedGapRangesCache) || removedGapRangesCache;
 }
 
 const container = document.getElementById('cues-container');
@@ -1327,7 +1327,10 @@ function applyHistoryRecord(record) {
   DATA.multi_subtitle = snapshot.multi_subtitle || {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
+  const retainedAssets = DATA.msw?.assets;
   if (Object.prototype.hasOwnProperty.call(snapshot, 'msw')) DATA.msw = window.MSWProject.normalize(snapshot.msw);
+  // Generated media is an immutable library inventory; subtitle undo does not remove it.
+  if (retainedAssets?.length) window.MSWProject.ensure(DATA).assets = retainedAssets;
   normalizeMultiSubtitleState();
   // 历史恢复会改变下标身份；丢弃旧面板绑定，避免 clearSelection() 把旧面板
   // 内容提交到恢复后占据同一下标的另一条字幕，并因此生成新历史、清空 redo。
@@ -9704,6 +9707,7 @@ function playJklForward() {
 }
 
 function togglePlayback() {
+  if (window.MSWE?.resolve('audio-timeline')?.togglePlayback()) return;
   if (!hasLoadedMedia()) {
     flashHint('请先加载媒体，然后才能预览', 'invalid');
     return;
@@ -9802,16 +9806,17 @@ function syncMediaControls() {
   playerWrap?.classList.toggle('fullscreen-preview', document.fullscreenElement === playerWrap);
   refreshMediaSeekControlLabels();
   if (!mediaPlayToggle || !player) return;
-  const hasMedia = hasLoadedMedia();
-  const duration = Number.isFinite(player.duration) && player.duration > 0 ? player.duration : 0;
-  const current = Number.isFinite(player.currentTime) ? Math.max(0, player.currentTime) : 0;
-  const active = hasMedia && (jklReversePlaying || !player.paused);
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const hasMedia = hasLoadedMedia() || audio?.hasAudible();
+  const duration = Math.max(Number.isFinite(player.duration) && player.duration > 0 ? player.duration : 0, (audio?.durationMs() || 0) / 1000);
+  const current = (audio?.currentTimeMs() ?? (Number.isFinite(player.currentTime) ? player.currentTime * 1000 : 0)) / 1000;
+  const active = audio?.virtualPlaying() ?? (hasMedia && (jklReversePlaying || !player.paused));
   mediaPlayToggle.disabled = !hasMedia;
   mediaStepBack.disabled = !hasMedia;
   mediaStepForward.disabled = !hasMedia;
   mediaSeek.disabled = !hasMedia || !duration;
   mediaVolume.disabled = !hasMedia;
-  mediaPlaybackRate.disabled = !hasMedia;
+  mediaPlaybackRate.disabled = !hasMedia || audio?.hasAudible();
   mediaFullscreen.disabled = !hasMedia || typeof playerWrap?.requestFullscreen !== 'function';
   mediaPlayToggle.textContent = active ? '⏸' : '▶';
   const playbackLabel = active ? '暂停' : '播放';
@@ -9908,21 +9913,22 @@ function bindPlayerEvents(mediaElement) {
 }
 
 function seekMediaBy(deltaSeconds) {
-  if (!hasLoadedMedia()) return;
-  const duration = Number.isFinite(player.duration) ? player.duration : Infinity;
-  player.currentTime = Math.max(0, Math.min(duration, player.currentTime + deltaSeconds));
+  const audio = window.MSWE?.resolve('audio-timeline');
+  if (!hasLoadedMedia() && !audio?.hasAudible()) return;
+  const duration = Math.max(Number.isFinite(player.duration) ? player.duration : 0, (audio?.durationMs() || 0) / 1000);
+  const current = (audio?.currentTimeMs() ?? player.currentTime * 1000) / 1000;
+  seekFromWaveform(Math.max(0, Math.min(duration, current + deltaSeconds)));
   update();
   syncMediaControls();
 }
 
 function seekMediaTo(timeSeconds) {
-  if (!hasLoadedMedia()) return false;
-  const duration = Number.isFinite(player.duration) && player.duration > 0
-    ? player.duration : null;
-  if (!Number.isFinite(duration)) return false;
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const duration = Math.max(Number.isFinite(player.duration) ? player.duration : 0, (audio?.durationMs() || 0) / 1000);
+  if (!duration) return false;
   stopJklReversePlayback({ render: false });
   const targetSeconds = Math.max(0, Math.min(duration, Number(timeSeconds) || 0));
-  player.currentTime = targetSeconds;
+  seekFromWaveform(targetSeconds);
   update();
   waveformEditor?.revealTime(targetSeconds * 1000, true);
   waveformEditor?.updatePlayback();
@@ -9934,8 +9940,8 @@ mediaPlayToggle?.addEventListener('click', togglePlayback);
 mediaStepBack?.addEventListener('click', () => seekMediaBy(-timelineMediaSeekStepMilliseconds() / 1000));
 mediaStepForward?.addEventListener('click', () => seekMediaBy(timelineMediaSeekStepMilliseconds() / 1000));
 mediaSeek?.addEventListener('input', () => {
-  if (!hasLoadedMedia()) return;
-  player.currentTime = Number(mediaSeek.value) || 0;
+  if (!hasLoadedMedia() && !window.MSWE?.resolve('audio-timeline')?.hasAudible()) return;
+  seekFromWaveform(Number(mediaSeek.value) || 0);
   update();
   syncMediaControls();
 });
@@ -10297,6 +10303,12 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   e.preventDefault();
   const k = e.key.toLowerCase();
+  if (window.MSWE?.resolve('audio-timeline')?.hasAudible()) {
+    stopJklReversePlayback({ render: false }); jklPlaybackRate = 1; player.playbackRate = 1;
+    if (k === 'k' && isJklDirectionMode()) togglePlayback();
+    else flashHint('带配音贴片时使用 1× 播放');
+    return;
+  }
   if (isJklDirectionMode()) {
     if (k === 'k') {
       const wasPlaying = jklReversePlaying || !player.paused;
@@ -11795,7 +11807,8 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
 }
 
 function update() {
-  const tMs = player.currentTime * 1000;
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const tMs = audio?.currentTimeMs() ?? player.currentTime * 1000;
   if (gapPreviewRange && (tMs < gapPreviewRange.start || tMs >= gapPreviewRange.end)) {
     gapPreviewRange = null;
   }
@@ -11805,12 +11818,12 @@ function update() {
     tMs,
     {
       skipPlayback: gapState?.skip_playback === true,
-      isPlaying: !player.paused,
+      isPlaying: audio?.virtualPlaying() ?? !player.paused,
       previewRange: gapPreviewRange,
     },
   );
   if (skippedGap) {
-    player.currentTime = skippedGap.end / 1000;
+    seekFromWaveform(skippedGap.end / 1000);
     return;
   }
   nowEl.textContent = fmtShort(tMs);
@@ -18657,6 +18670,7 @@ function syncTimelineGroupRanges() {
 }
 
 function seekFromWaveform(timeSec, { dragPreview = false } = {}) {
+  if (window.MSWE?.resolve('audio-timeline')?.seek(Math.max(0, timeSec * 1000))) return;
   const seekableEnd = player.seekable.length ? player.seekable.end(player.seekable.length - 1) : 0;
   if (seekableEnd <= 0 && !seekWarned) {
     if (player.readyState < 1 || player.networkState === HTMLMediaElement.NETWORK_LOADING) {
@@ -20112,7 +20126,7 @@ document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () 
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===
-const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器' };
+const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库' };
 function rebuildShowModuleMenu() {
   const menu = document.getElementById('show-module-menu');
   const submenu = document.getElementById('show-module-submenu');
@@ -20399,6 +20413,58 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return window.MSWTranslation.snapshot(DATA, processingSelection());
   },
   applyTranslation: applyTranslationJob,
+  get assetLibrary() { return waveformEditor?.assetLibrary; },
+  get player() { return player; },
+  audioPlaybackSkip: timeMs => window.AsrGapRemoveCore.getGapPlaybackSkip(getRemovedGapRanges(), timeMs,
+    { skipPlayback: getGapRemoveData(false)?.skip_playback === true, isPlaying: true, previewRange: gapPreviewRange }),
+  refreshAudioPlayback: (timeMs) => {
+    if (Number.isFinite(timeMs)) {
+      const index = findActive(timeMs);
+      nowEl.textContent = fmtShort(timeMs); updateActiveCue(index); refreshSubtitlePreview(timeMs, index);
+    }
+    waveformEditor?.updatePlayback();
+    syncMediaControls();
+  },
+  get timeline() { return waveformEditor?.getAudioTimelineHost(); },
+  clearSubtitleSelection: () => { commitProcessingEdits(); clearSelection(); },
+  undo: performUndo,
+  redo: performRedo,
+  togglePlayback,
+  seek: seekFromWaveform,
+  commitAudio: (label, change) => {
+    commitProcessingEdits();
+    const next = window.MSWProject.clone(window.MSWProject.ensure(DATA));
+    change(next);
+    window.MSWProject.normalize(next);
+    pushUndo(label);
+    DATA.msw = next;
+    projectImportDirty = true;
+    window.dispatchEvent(new Event('msw:audio-changed'));
+    waveformEditor?.refreshAudioTimeline();
+    updateGapRemoveUi();
+    scheduleAutoSaveFlush();
+  },
+  exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
+  showAssets: ({ automatic = false } = {}) => {
+    if (waveformEditor?.showModule?.('assets', { recordUndo: !automatic })) rebuildShowModuleMenu();
+    else waveformEditor?.activateModuleTab?.('assets');
+  },
+  pauseMedia: () => { window.MSWE?.resolve('audio-timeline')?.pause(); player.pause(); },
+  addAssets: (projectId, assets) => {
+    const extension = window.MSWProject.ensure(DATA);
+    if (extension.project_id !== projectId) return 0;
+    if (!assets.every(window.MSWProject.validAsset)) throw new Error('MSW 音频素材格式无效');
+    const byId = new Map((extension.assets || []).map(asset => [asset.id, asset]));
+    const incoming = assets.filter(asset => !byId.has(asset.id));
+    if (byId.size + incoming.length > 10000) throw new Error('素材库已达到 10000 条上限');
+    if (incoming.length) {
+      extension.assets = [...byId.values(), ...window.MSWProject.clone(incoming)];
+      projectImportDirty = true;
+      scheduleAutoSaveFlush();
+      window.dispatchEvent(new Event('msw:assets-changed'));
+    }
+    return incoming.length;
+  },
   createFloatingPanel,
   flashHint,
 }));

@@ -1135,7 +1135,8 @@
 
   /* 字幕文字颜色令牌（字幕列表与编辑区；播放器画面内预览不受影响） */
   :root { --editor-cue-text: var(--text-primary); }
-  .cues-container .cue .text { color: var(--editor-cue-text); }
+  .cues-container .cue .text,
+  .cues-container .multi-cue-column .text { color: var(--editor-cue-text); }
   #cue-panel-text { color: var(--editor-cue-text); }
   .cue-panel-target { color: var(--editor-cue-text); }
 
@@ -2951,12 +2952,12 @@
   }
   /* 禁用项：灰色底不透明，文字变淡；active 高亮照常覆盖以便播放时定位 */
   .cue.disabled { background: var(--disabled-cue-bg); border-left-color: var(--border-strong); }
-  .cue.disabled .text { color: var(--text-muted); }
+  .cue.disabled .text { color: var(--editor-cue-text); }
   .cue.disabled .time, .cue.disabled .index { color: var(--text-faint); }
   .cue.disabled.active { background: var(--accent-tint-strong); border-left: 3px dashed var(--accent); }
   .cue.disabled.selected { background: var(--accent-tint); border-left: 3px dashed var(--accent-hover); }
   .cue.disabled.selected:hover { background: var(--accent-tint-strong); border-left: 3px dashed var(--accent); }
-  .cue.disabled.active .text { color: var(--text-secondary); }
+  .cue.disabled.active .text { color: var(--editor-cue-text); }
   /* 隐藏禁用项开关：开启后禁用项从列表移除，不参与选择 */
   .cues-container.hide-disabled .cue.disabled { display: none; }
   .cues-container.hide-disabled .multi-cue-column.disabled { display: none; }
@@ -2994,6 +2995,35 @@
   .msw-processing-job { border-top: 1px solid var(--border-subtle); padding-block: 12px; font-size: 12px; }
   .msw-translation-results { max-height: 260px; overflow-y: auto; margin-top: 10px; }
   .msw-translation-results p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); }
+  .msw-processing-field { display: flex; flex-direction: column; gap: 5px; margin-block: 10px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
+  .msw-processing-field[hidden] { display: none; }
+  .msw-processing-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
+  .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+  .msw-tts-check input { width: auto; }
+  .msw-tts-result { max-height: 260px; overflow: auto; overflow-wrap: anywhere; }
+  .msw-tts-result p { white-space: pre-wrap; }
+  .msw-asset-library { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); overflow: hidden; container-type: inline-size; }
+  .msw-asset-library[hidden] { display: none; }
+  .msw-asset-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; background: var(--panel-toolbar-bg-wave); }
+  .msw-asset-toolbar input, .msw-asset-toolbar select { min-width: 0; flex: 1 1 120px; max-width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--form-input-bg); padding: 5px 6px; font: inherit; font-size: 12px; }
+  .msw-asset-library button, .msw-tts-result button { padding: 4px 8px; font-size: 12px; border: 1px solid var(--btn-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); cursor: pointer; }
+  .msw-asset-library button:hover, .msw-tts-result button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  .msw-asset-library button:disabled { opacity: .45; cursor: default; }
+  .msw-asset-library button:focus-visible, .msw-asset-toolbar input:focus-visible, .msw-asset-toolbar select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+  .msw-asset-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 8px; font-size: 11px; color: var(--text-secondary); }
+  .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
+  .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .msw-asset-row { display: flex; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid var(--border-subtle); }
+  .msw-asset-row:hover { background: var(--bg-raised); }
+  .msw-asset-info { min-width: 0; flex: 1; }
+  .msw-asset-text { font-size: 12px; line-height: 1.45; margin: 0 0 5px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .msw-asset-meta { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+  .msw-asset-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .msw-asset-pagination { display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 12px; padding: 4px; font-size: 11px; border-top: 1px solid var(--border-subtle); }
+  .msw-asset-player { flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border-subtle); }
+  .msw-asset-player div { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; color: var(--text-secondary); }
+  .msw-asset-player audio { display: block; width: 100%; height: 30px; }
+  @container (max-width: 320px) { .msw-asset-actions { flex-direction: column; } .msw-asset-toolbar { gap: 4px; padding: 5px; } }
 
   .modal-mask {
     position: fixed; inset: 0; background: rgba(0,0,0,0.62);
@@ -3239,8 +3269,8 @@
     );
   }
   .multi-cue-column.disabled .index,
-  .multi-cue-column.disabled .time,
-  .multi-cue-column.disabled .text { color: var(--text-muted); }
+  .multi-cue-column.disabled .time { color: var(--text-muted); }
+  .multi-cue-column.disabled .text { color: var(--editor-cue-text); }
   .multi-cue-empty { color: var(--text-faint); font-style: italic; }
   .cue.multi-dual-cue { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; }
   .cue.multi-dual-cue .multi-cue-column { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4674,7 +4704,7 @@
   bottom: calc(var(--multi-subtitle-bottom-inset) + (var(--multi-subtitle-lane-height) * 2) + var(--multi-subtitle-lane-gap) + 2px);
 }
 .waveform-row.multi-subtitle-row .waveform-cue-block[data-track="extension"] .waveform-cue-label {
-  color: var(--text-secondary);
+  color: var(--editor-cue-text);
 }
 .waveform-row.multi-subtitle-row .waveform-cue-block[data-track="extension"].selected {
   outline-style: solid;
@@ -4912,11 +4942,13 @@
 }
 /* 多行波形中被行边界截开的同一字幕：去掉相接一侧的上下圆角，
    让上一行末端与下一行起端看起来像一块连续字幕。 */
-.waveform-cue-block.continues-from-previous-row {
+.waveform-cue-block.continues-from-previous-row,
+.msw-audio-clip.continues-from-previous-row {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
-.waveform-cue-block.continues-to-next-row {
+.waveform-cue-block.continues-to-next-row,
+.msw-audio-clip.continues-to-next-row {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -4937,7 +4969,8 @@
 .waveform-basic .waveform-cue-badge {
   bottom: calc(9px + max(35px, min(72px, 40%)) + var(--badge-stack-index, 0) * 16px);
 }
-.waveform-cue-block.selected {
+.waveform-cue-block.selected,
+.msw-audio-clip.selected {
   z-index: 6;
   outline: 2px solid var(--selection-yellow);  /* 跟随「空隙」自定义颜色 */
   outline-offset: 1px;
@@ -4983,7 +5016,73 @@
 }
 .waveform-cue-handle.left { left: 0; border-radius: 3px 0 0 3px; }
 .waveform-cue-handle.right { right: 0; border-radius: 0 3px 3px 0; }
-.waveform-cue-label { pointer-events: none; }
+.waveform-cue-label { pointer-events: none; color: var(--editor-cue-text); }
+
+/* Audio occupies an independent band below the subtitle lanes. */
+.waveform-row.has-audio-clips,
+.waveform-basic .waveform-row.has-audio-clips.multi-subtitle-row {
+  --multi-subtitle-bottom-inset: calc(7px + var(--audio-lane-space));
+  --multi-subtitle-lane-height: 20px;
+  --multi-subtitle-lane-gap: 1px;
+}
+.waveform-row.has-audio-clips .waveform-cue-block,
+.waveform-basic .waveform-row.has-audio-clips .waveform-cue-block {
+  height: 20px;
+  line-height: 20px;
+  font-size: 11px;
+  bottom: calc(7px + var(--audio-lane-space));
+}
+.waveform-row.has-audio-clips.multi-subtitle-row .waveform-cue-block[data-track="main"] {
+  bottom: calc(28px + var(--audio-lane-space));
+}
+.waveform-row.has-audio-clips.multi-subtitle-row .waveform-cue-block[data-track="extension"] {
+  bottom: calc(7px + var(--audio-lane-space));
+}
+.waveform-row.has-audio-clips .waveform-cue-badge {
+  bottom: calc(30px + var(--audio-lane-space) + var(--badge-stack-index, 0) * 16px);
+}
+.waveform-row.has-audio-clips.multi-subtitle-row .waveform-cue-badge {
+  bottom: calc(51px + var(--audio-lane-space) + var(--badge-stack-index, 0) * 16px);
+}
+.msw-audio-lanes {
+  position: absolute; left: 0; right: 0; bottom: 5px; z-index: 6;
+  overflow-y: auto; overflow-x: hidden; scrollbar-width: none;
+  border-top: 1px dashed var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-wave-row) 32%, transparent);
+  overscroll-behavior: contain;
+}
+.msw-audio-lanes::-webkit-scrollbar { display: none; }
+.msw-audio-lanes-inner { position: relative; width: 100%; }
+.msw-audio-clip {
+  position: absolute; box-sizing: border-box; height: 20px; min-width: 0;
+  --audio-clip-color: var(--accent);
+  padding: 0; border: 0; border-radius: 4px;
+  outline: 1px solid color-mix(in srgb, var(--audio-clip-color) 80%, white);
+  box-shadow: 0 1px 5px var(--wave-cue-shadow);
+  background-color: color-mix(in srgb, var(--audio-clip-color) 42%, var(--wave-cue-mix));
+  color: var(--editor-cue-text); font: 11px/18px var(--font-sans, sans-serif);
+  white-space: nowrap; overflow: hidden; cursor: grab; touch-action: none;
+}
+.msw-audio-icon { position: absolute; left: 3px; width: 9px; font-size: 10px; pointer-events: none; }
+.msw-audio-clip:hover { filter: brightness(var(--wave-hover-brightness)); }
+.msw-audio-clip-label { display: block; padding: 1px 9px 1px 12px; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.msw-audio-clip.muted { --audio-clip-color: var(--wave-cue-block); color: var(--text-muted); }
+.msw-audio-clip.muted .msw-audio-clip-label { text-decoration: line-through; }
+.msw-audio-clip.muted .msw-audio-icon::after {
+  content: ''; position: absolute; width: 11px; height: 1px; left: -1px; top: 9px;
+  background: currentColor; transform: rotate(-45deg);
+}
+.msw-audio-clip.missing:not(.selected) { outline: 1px dashed var(--amber); outline-offset: -1px; }
+.msw-audio-handle { position: absolute; top: 0; bottom: 0; width: min(6px, 25%); cursor: ew-resize; z-index: 2; }
+.msw-audio-handle.start { left: 0; }
+.msw-audio-handle.end { right: 0; }
+.msw-audio-handle:hover { background: #ffffff30; }
+.waveform-pane.audio-drop-target { box-shadow: inset 0 0 0 2px var(--accent); }
+.msw-audio-menu { min-width: 180px; }
+.msw-audio-menu button.item { width: 100%; border: 0; background: transparent; text-align: left; color: inherit; font: inherit; }
+.msw-audio-gain { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 10px; font-size: 12px; }
+.msw-audio-gain input { width: 58px; }
+.msw-asset-row[draggable="true"] { cursor: grab; }
 .waveform-binding-marker {
   position: absolute;
   z-index: 3;
@@ -5059,7 +5158,7 @@
   pointer-events: none;
 }
 .waveform-cue-block.waveform-create-preview > .waveform-cue-label {
-  color: var(--wave-cue-text);
+  color: var(--editor-cue-text);
 }
 
 @media (max-width: 820px) {
@@ -5363,6 +5462,8 @@
   <div class="menubar-item" data-menubar-item="media">
     <button type="button" class="menubar-tab" aria-haspopup="menu" aria-expanded="false">媒体</button>
     <div class="dropdown-menu menubar-menu" role="menu" aria-label="媒体">
+      <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
       <button type="button" class="dropdown-item" id="media-player-settings-item" role="menuitem" title="打开媒体播放器设置窗口">媒体播放器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="waveform-settings-item" role="menuitem" title="打开波形显示器设置窗口">波形显示器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -5965,6 +6066,16 @@
           <button type="button" id="waveform-zoom-in" title="放大时间轴">＋</button>
         </span>
       </span>
+      <label class="toggle editor-settings-item" title="按音频各时刻的 RMS 电平显示固定色标；关闭后贴片使用纯色">
+        <input type="checkbox" id="audio-clips-heatmap" checked> 音频贴片热力图
+      </label>
+      <label class="editor-settings-item">配音与空隙
+        <select id="audio-clips-gap-policy">
+          <option value="protect">保留配音覆盖的区间</option>
+          <option value="follow">配音随媒体跳过空隙</option>
+        </select>
+      </label>
+      <small class="editor-settings-hint">配音热力图：暗 → 亮对应低 → 高电平（RMS −60 至 −6 dBFS）。配音随时间轴以 1× 播放。</small>
       <span class="editor-settings-item">振幅
         <span class="editor-settings-stepper">
           <button type="button" id="waveform-scale-down" title="减小波形振幅">−</button>
@@ -6669,6 +6780,18 @@
 <input type="file" id="load-srt-file" accept=".srt,text/plain" style="display:none">
 
 <div class="editor-workspace waveform-basic" id="editor-workspace">
+  <section class="msw-asset-library" id="asset-library" aria-label="素材库" hidden>
+    <div class="msw-asset-toolbar">
+      <input type="search" id="asset-search" placeholder="搜索配音文本、音色…" aria-label="搜索素材">
+      <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
+      <button type="button" id="asset-refresh" title="刷新素材库">刷新</button>
+    </div>
+    <div class="msw-asset-summary"><span id="asset-count">0 条音频</span><button type="button" id="asset-export-project">导出工程与 TTS 音频</button></div>
+    <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
+    <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
+    <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
+    <footer class="msw-asset-player" id="asset-player" hidden><div id="asset-playing" class="msw-asset-content">选择音频试听</div><audio id="asset-audio" controls preload="none" aria-label="素材试听"></audio></footer>
+  </section>
   <div class="player-wrap">
     <div class="toolbar player-toolbar" aria-label="媒体模块栏"></div>
       <div class="module-key-hints" id="player-key-hints" aria-label="媒体播放器快捷键" hidden>
@@ -6950,6 +7073,40 @@
 </div>
 
 <!-- 字幕翻译：非模态工具窗，后台处理时可继续编辑。 -->
+<aside class="gap-remove-panel msw-processing-panel" id="tts-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="tts-title">
+  <header class="gap-remove-panel-header" id="tts-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">媒体</span><h3 id="tts-title">TTS · 字幕配音</h3></div>
+    <button type="button" id="tts-close" class="gap-remove-close" aria-label="关闭 TTS"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p class="msw-processing-hint" id="tts-unavailable" hidden>TTS 需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
+    <div id="tts-controls">
+      <p id="tts-scope" class="msw-processing-hint" aria-live="polite"></p>
+      <label class="msw-processing-field" id="tts-target-field" hidden><span>操作对象</span><select id="tts-target"><option value="">请选择主字幕或副字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option></select><small>连锁字幕按所选对象合成；独立字幕保留原选区。</small></label>
+      <div class="msw-processing-grid">
+        <label class="msw-processing-field"><span>模型</span><select id="tts-model"></select></label>
+        <label class="msw-processing-field"><span>语言</span><select id="tts-language"></select></label>
+      </div>
+      <label class="msw-processing-field"><span>音色</span><input id="tts-voice" list="tts-voices" value="Cherry" maxlength="128" autocomplete="off"><datalist id="tts-voices"><option value="Cherry">芊悦</option><option value="Ethan">晨煦</option><option value="Serena">苏瑶</option><option value="Chelsie">千雪</option></datalist></label>
+      <small class="msw-processing-hint">可输入系统音色 ID；音色与模型的兼容范围见 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">百炼音色列表</a>。</small>
+      <div id="tts-instruct" hidden>
+        <label class="msw-processing-field"><span>声音描述（可选）</span><textarea id="tts-instructions" rows="2" maxlength="1600" placeholder="例如：语速舒缓、吐字清晰、语气温柔"></textarea></label>
+        <label class="msw-tts-check"><input type="checkbox" id="tts-optimize">优化声音描述</label>
+        <small class="msw-processing-hint">描述使用中文或英文，最多 1600 字符，且不超过百炼 1600 Token 限制。</small>
+      </div>
+      <details id="tts-settings"><summary>连接设置</summary>
+        <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
+        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
+        <p id="tts-key-state" class="msw-processing-hint"></p>
+      </details>
+      <div class="msw-processing-actions"><button type="button" id="tts-save-settings">保存配置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
+      <p class="msw-processing-hint">每条字幕生成一个 WAV，最长 600 字符。保留完整音频，不自动裁剪到字幕时长；生成期间可继续编辑。</p>
+    </div>
+    <p id="tts-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务"></div>
+  </div>
+</aside>
+
 <aside class="gap-remove-panel msw-processing-panel" id="subtitle-translation-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-translation-title">
   <header class="gap-remove-panel-header" id="subtitle-translation-drag">
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕</span><h3 id="subtitle-translation-title">字幕翻译</h3></div>
@@ -14092,6 +14249,20 @@ export default MawDynamicCaptions;
   const validId = (value) => typeof value === 'string' && value.length >= 1 && value.length <= 128 && !/[^A-Za-z0-9_.:-]/.test(value);
   const validCueId = (value) => typeof value === 'string' && value.length >= 1 && value.length <= 160 && value === value.trim();
   const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
+  function validAsset(asset) {
+    if (!asset || typeof asset !== 'object' || !/^audio-[0-9a-f]{32}$/.test(asset.id || '') || asset.kind !== 'audio') return false;
+    if (typeof asset.path !== 'string' || !new RegExp(`^msw-[0-9a-f]{24}\\.assets/audio/${asset.id}\\.wav$`).test(asset.path)) return false;
+    if (typeof asset.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(asset.sha256)) return false;
+    for (const [key, low, high] of [['sample_rate', 8000, 192000], ['channels', 1, 8], ['sample_count', 1, 2 ** 32], ['byte_size', 44, 32 * 1024 * 1024]]) {
+      if (!Number.isInteger(asset[key]) || asset[key] < low || asset[key] > high) return false;
+    }
+    const recipe = asset.generation, source = asset.source_ref;
+    if (!recipe || !source || ['provider', 'model', 'voice', 'language_type', 'display_text', 'spoken_text']
+      .some(key => typeof recipe[key] !== 'string' || [...recipe[key]].length > 2000)) return false;
+    return validId(asset.job_id) && validId(source.key) && validCueId(source.id)
+      && (source.track_id == null || validCueId(source.track_id)) && typeof source.text === 'string' && [...source.text].length <= 600
+      && Number.isInteger(source.start) && Number.isInteger(source.end) && source.start >= 0 && source.start < source.end;
+  }
   function normalize(value) {
     if (value == null) return null;
     if (typeof value !== 'object' || Array.isArray(value) || value.schema !== SCHEMA) {
@@ -14113,6 +14284,14 @@ export default MawDynamicCaptions;
       || Object.keys(targets).length > 10000 || Object.entries(targets).some(([key, id]) => !validId(key) || !validCueId(id))) {
       throw new Error('MSW 翻译目标记录格式无效');
     }
+    const assets = value.assets ?? [];
+    if (!Array.isArray(assets) || assets.length > 10000 || !assets.every(validAsset) || new Set(assets.map(a => a.id)).size !== assets.length) {
+      throw new Error('MSW 音频素材格式无效或重复');
+    }
+    if (['audio_tracks', 'audio_clips', 'audio_settings'].some(key => key in value)) {
+      if (!global.MSWAudio) throw new Error('音频贴片模块未加载');
+      global.MSWAudio.validate(value);
+    }
     return clone(value);
   }
   function id(prefix = 'msw') {
@@ -14124,8 +14303,122 @@ export default MawDynamicCaptions;
     }
     return project.msw;
   }
-  global.MSWProject = Object.freeze({ SCHEMA, validId, clone, normalize, ensure, id });
+  global.MSWProject = Object.freeze({ SCHEMA, validId, validAsset, clone, normalize, ensure, id });
   global.MSWE?.register('msw-project', () => global.MSWProject);
+})(window);
+
+// Pure sample/time math shared by timeline, playback and project validation.
+(function (global) {
+  'use strict';
+  const duration = (clip, asset) => (clip.source_out_sample - clip.source_in_sample) * 1000 / asset.sample_rate;
+  const end = (clip, asset) => clip.start_ms + duration(clip, asset);
+  function validTrack(track) {
+    return track && global.MSWProject.validId(track.id) && typeof track.name === 'string' && [...track.name].length <= 160
+      && Number.isFinite(track.gain_db) && track.gain_db >= -60 && track.gain_db <= 12 && typeof track.muted === 'boolean';
+  }
+  function validClip(clip, assets, tracks) {
+    const asset = assets.get(clip?.asset_id);
+    return !!asset && global.MSWProject.validId(clip.id) && tracks.has(clip.track_id)
+      && Number.isInteger(clip.start_ms) && clip.start_ms >= 0 && clip.start_ms <= 1e12
+      && Number.isInteger(clip.source_in_sample) && clip.source_in_sample >= 0
+      && Number.isInteger(clip.source_out_sample) && clip.source_out_sample <= asset.sample_count
+      && clip.source_in_sample < clip.source_out_sample && clip.playback_rate === 1
+      && Number.isFinite(clip.gain_db) && clip.gain_db >= -60 && clip.gain_db <= 12
+      && typeof clip.muted === 'boolean' && typeof clip.label === 'string' && [...clip.label].length <= 2000;
+  }
+  function validate(extension) {
+    const { audio_tracks: tracks = [], audio_clips: clips = [], audio_settings: settings = {} } = extension;
+    if (!Array.isArray(tracks) || tracks.length > 32 || !tracks.every(validTrack)
+      || new Set(tracks.map(t => t.id)).size !== tracks.length) throw Error('MSW 配音轨格式无效或重复');
+    const assets = new Map((extension.assets || []).map(a => [a.id, a])), trackMap = new Map(tracks.map(t => [t.id, t]));
+    if (!Array.isArray(clips) || clips.length > 10000 || !clips.every(c => validClip(c, assets, trackMap))
+      || new Set(clips.map(c => c.id)).size !== clips.length) throw Error('MSW 音频贴片格式无效或素材引用丢失');
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)
+      || ('heatmap' in settings && typeof settings.heatmap !== 'boolean')
+      || ('gap_policy' in settings && !['protect', 'follow'].includes(settings.gap_policy))) throw Error('MSW 配音设置格式无效');
+  }
+  function create(asset, trackId, startMs, id) {
+    return { id, track_id: trackId, asset_id: asset.id, start_ms: Math.max(0, Math.round(startMs)),
+      source_in_sample: 0, source_out_sample: asset.sample_count, playback_rate: 1, gain_db: 0, muted: false,
+      label: asset.generation.display_text };
+  }
+  function edit(clip, asset, mode, deltaMs) {
+    const next = { ...clip }, sampleDelta = Math.round(deltaMs * asset.sample_rate / 1000);
+    if (mode === 'move') next.start_ms = Math.max(0, Math.round(clip.start_ms + deltaMs));
+    if (mode === 'end') next.source_out_sample = Math.max(clip.source_in_sample + 1, Math.min(asset.sample_count, clip.source_out_sample + sampleDelta));
+    if (mode === 'start') {
+      // Commit at integer timeline milliseconds while keeping source offsets
+      // in integer sample frames. Never move the start before timeline zero.
+      const delta = Math.max(-clip.start_ms, Math.round(deltaMs));
+      next.source_in_sample = Math.max(0, Math.min(clip.source_out_sample - 1, clip.source_in_sample + Math.round(delta * asset.sample_rate / 1000)));
+      next.start_ms = clip.start_ms + Math.round((next.source_in_sample - clip.source_in_sample) * 1000 / asset.sample_rate);
+    }
+    return next;
+  }
+  function arrange(clips, assets) {
+    // Greedy interval partitioning with a min heap: O(n log n), including
+    // large overlapping batches. Lane IDs stay stable for a fixed clip set.
+    const heap = [], lanes = new Map(); let count = 0;
+    const push = item => {
+      heap.push(item); let i = heap.length - 1;
+      while (i > 0) { const p = (i - 1) >> 1; if (heap[p].end <= item.end) break; heap[i] = heap[p]; i = p; }
+      heap[i] = item;
+    };
+    const pop = () => {
+      const first = heap[0], last = heap.pop();
+      if (heap.length) { let i = 0; while (i * 2 + 1 < heap.length) {
+        let child = i * 2 + 1; if (child + 1 < heap.length && heap[child + 1].end < heap[child].end) child++;
+        if (heap[child].end >= last.end) break; heap[i] = heap[child]; i = child;
+      } heap[i] = last; }
+      return first;
+    };
+    for (const clip of [...clips].sort((a, b) => a.start_ms - b.start_ms || a.id.localeCompare(b.id))) {
+      const asset = assets.get(clip.asset_id); if (!asset) continue;
+      const lane = heap.length && heap[0].end <= clip.start_ms ? pop().lane : count++;
+      lanes.set(clip.id, lane); push({ end: end(clip, asset), lane });
+    }
+    return { lanes, count };
+  }
+  function audible(extension) {
+    const tracks = new Map((extension?.audio_tracks || []).map(t => [t.id, t]));
+    return (extension?.audio_clips || []).filter(c => !c.muted && tracks.has(c.track_id) && !tracks.get(c.track_id).muted);
+  }
+  function protectGaps(gaps, extension) {
+    if (extension?.audio_settings?.gap_policy === 'follow') return gaps;
+    const assets = new Map((extension?.assets || []).map(a => [a.id, a]));
+    const intervals = audible(extension).filter(c => assets.has(c.asset_id))
+      .map(c => ({ start: c.start_ms, end: Math.ceil(end(c, assets.get(c.asset_id))) }))
+      .sort((a, b) => a.start - b.start);
+    if (!intervals.length) return gaps;
+    const merged = [];
+    for (const interval of intervals) {
+      const last = merged.at(-1); if (last && interval.start <= last.end) last.end = Math.max(last.end, interval.end); else merged.push({ ...interval });
+    }
+    const result = []; let first = 0;
+    for (const gap of gaps) {
+      let cursor = gap.start;
+      while (first < merged.length && merged[first].end <= cursor) first++;
+      for (let i = first; i < merged.length && merged[i].start < gap.end; i++) {
+        const keep = merged[i];
+        if (keep.start > cursor) result.push({ ...gap, start: cursor, end: keep.start });
+        cursor = Math.max(cursor, keep.end); if (cursor >= gap.end) break;
+      }
+      if (cursor < gap.end) result.push({ ...gap, start: cursor });
+    }
+    return result;
+  }
+  function plan(clip, asset, timeMs, horizonMs = 200) {
+    const finish = end(clip, asset), start = Math.max(timeMs, clip.start_ms);
+    if (finish <= timeMs || clip.start_ms > timeMs + horizonMs) return null;
+    return { when: Math.max(0, (clip.start_ms - timeMs) / 1000),
+      offset: clip.source_in_sample / asset.sample_rate + (start - clip.start_ms) / 1000,
+      duration: (finish - start) / 1000 };
+  }
+  function dbColor(db) {
+    const ratio = Math.max(0, Math.min(1, (db + 60) / 54));
+    return `hsl(${Math.round(215 - ratio * 175)} 48% ${Math.round(18 + ratio * 28)}%)`;
+  }
+  global.MSWAudio = Object.freeze({ duration, end, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
 })(window);
 
 // Pure translation selection, placement and optimistic reconciliation.
@@ -14304,6 +14597,56 @@ export default MawDynamicCaptions;
   global.MSWE?.register('msw-translation', () => global.MSWTranslation);
 })(window);
 
+// Immutable subtitle selection for per-cue speech synthesis.
+(function (global) {
+  'use strict';
+  function scope(project, selection, side = null) {
+    const track = (project.multi_subtitle?.tracks || []).find(t => t.id === selection.trackId)
+      || project.multi_subtitle?.tracks?.[0] || null;
+    const mains = project.segments || [], secondary = track?.segments || [];
+    const mainById = new Map(mains.map(cue => [cue.id, cue]));
+    const extById = new Map(secondary.map(cue => [cue.id, cue]));
+    const links = (project.multi_subtitle?.bindings || []).filter(b => b.track_id === track?.id
+      && b.main_segment_ids?.length === 1 && b.extension_segment_ids?.length === 1
+      && mainById.has(b.main_segment_ids[0]) && extById.has(b.extension_segment_ids[0]));
+    const byMain = new Map(links.map(b => [b.main_segment_ids[0], b]));
+    const byExt = new Map(links.map(b => [b.extension_segment_ids[0], b]));
+    const selectedMain = new Set(selection.mainIds || []), selectedExt = new Set(selection.extensionIds || []);
+    const hasSelection = Boolean(selection.hasSelection);
+    const linked = links.filter(b => selectedMain.has(b.main_segment_ids[0]) || selectedExt.has(b.extension_segment_ids[0]));
+    const needsChoice = hasSelection ? linked.length > 0 : mains.length > 0 && secondary.length > 0;
+    const rows = new Map();
+    const add = (cue, trackId) => { if (cue && typeof cue.text === 'string' && cue.text.trim()) rows.set(JSON.stringify([trackId, cue.id]), { cue, trackId }); };
+    if (!hasSelection) {
+      const chosen = needsChoice ? side : (mains.length ? 'main' : 'secondary');
+      if (chosen === 'main') mains.forEach(cue => add(cue, null));
+      if (chosen === 'secondary') secondary.forEach(cue => add(cue, track?.id));
+    } else {
+      selectedMain.forEach(id => { if (!byMain.has(id)) add(mainById.get(id), null); });
+      selectedExt.forEach(id => { if (!byExt.has(id)) add(extById.get(id), track?.id); });
+      linked.forEach(b => {
+        if (side === 'main') add(mainById.get(b.main_segment_ids[0]), null);
+        if (side === 'secondary') add(extById.get(b.extension_segment_ids[0]), track?.id);
+      });
+    }
+    const sources = [...rows.values()].sort((a, b) => a.cue.start - b.cue.start || a.cue.end - b.cue.end);
+    return { sources, needsChoice, all: !hasSelection, linked: linked.length,
+      tooLong: sources.filter(row => [...row.cue.text].length > 600).length,
+      signature: JSON.stringify([hasSelection, [...selectedMain].sort(), [...selectedExt].sort(), track?.id, linked.map(b => b.id)]) };
+  }
+  function snapshot(project, selection, side) {
+    const selected = scope(project, selection, side);
+    if (selected.needsChoice && !['main', 'secondary'].includes(side)) throw new Error('请先选择主字幕或副字幕');
+    if (!selected.sources.length) throw new Error('没有可合成的字幕');
+    if (selected.tooLong) throw new Error('存在超过 600 字符的字幕，请先拆分');
+    return { project_id: project.msw.project_id, entries: selected.sources.map(({cue, trackId}) => ({
+      key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,
+    })) };
+  }
+  global.MSWTts = Object.freeze({ scope, snapshot });
+  global.MSWE?.register('msw-tts-core', () => global.MSWTts);
+})(window);
+
 (function initMaweI18n(global) {
   'use strict';
 
@@ -14315,6 +14658,60 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '素材库': 'Asset library', 'TTS · 字幕配音': 'TTS · Subtitle voiceover', '关闭 TTS': 'Close TTS',
+    '语言': 'Language',
+    '将所选字幕或全部字幕合成为音频': 'Synthesize selected subtitles, or all subtitles',
+    'TTS 需要本机 Server 编辑器，请从启动器打开编辑器后使用。': 'TTS requires the local server editor. Open the editor from Launcher.',
+    '操作对象': 'Text source', '请选择主字幕或副字幕': 'Choose main or secondary subtitles',
+    '请先选择主字幕或副字幕': 'Choose main or secondary subtitles first',
+    '连锁字幕按所选对象合成；独立字幕保留原选区。': 'Linked subtitles use the chosen side; independent subtitles keep their original selection.',
+    '范围：全部字幕': 'Scope: all subtitles', '范围：所选字幕': 'Scope: selected subtitles', '条': 'items',
+    '条超过 600 字符，请先拆分': 'items exceed 600 characters; split them first',
+    '音色': 'Voice', '声音描述（可选）': 'Voice instructions (optional)', '优化声音描述': 'Optimize instructions',
+    '例如：语速舒缓、吐字清晰、语气温柔': 'For example: speak slowly, clearly and gently',
+    '可输入系统音色 ID；音色与模型的兼容范围见': 'Enter a system voice ID; see model compatibility in the',
+    '百炼音色列表': 'Bailian voice list', '百炼地域': 'Bailian region', '北京': 'Beijing', '新加坡': 'Singapore',
+    '描述使用中文或英文，最多 1600 字符，且不超过百炼 1600 Token 限制。': 'Use Chinese or English, up to 1600 characters and within the provider limit of 1600 tokens.',
+    '留空复用本机已保存的密钥': 'Leave blank to reuse the locally saved key',
+    '此地域已有本机密钥，留空即可复用': 'A key is saved for this region; leave blank to reuse it',
+    '请填写此地域的百炼密钥；北京和新加坡密钥不同': 'Enter a key for this region; Beijing and Singapore use different keys',
+    '开始合成': 'Synthesize', '确认上次提交': 'Check previous submission',
+    '每条字幕生成一个 WAV，最长 600 字符。保留完整音频，不自动裁剪到字幕时长；生成期间可继续编辑。': 'One WAV per subtitle, up to 600 characters. Full audio is retained without cropping to subtitle duration. You can keep editing.',
+    'TTS 任务': 'TTS tasks', '正在合成': 'Synthesizing', '合成完成': 'Synthesis complete', '合成失败': 'Synthesis failed',
+    '成功': 'Ready', '失败': 'Failed', '查看素材': 'View assets', '检查未完成项': 'Review unfinished items',
+    '尚未完成': 'Unfinished', '条未完成；重试可能再次计费，已成功的音频不会重发。': 'unfinished items. Retrying may incur charges; successful audio will not be regenerated.',
+    '重新合成未完成项': 'Retry unfinished items',
+    'TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务': 'TTS started. Preview completed items in the asset library. Closing this panel does not cancel the task.',
+    'TTS 配置已保存到本机': 'TTS settings saved locally', '本次没有生成音频，请检查未完成项': 'No audio was generated. Review unfinished items.',
+    '搜索配音文本、音色…': 'Search text or voice…', '搜索素材': 'Search assets', '筛选生成批次': 'Filter by batch',
+    '全部批次': 'All batches', '刷新素材库': 'Refresh asset library', '刷新': 'Refresh', '音频素材': 'Audio assets',
+    '放入时间轴': 'Insert into timeline', '音频贴片': 'Audio clip', '音频贴片热力图': 'Audio clip heatmap',
+    '配音与空隙': 'Voice clips and gaps', '保留配音覆盖的区间': 'Keep intervals covered by voice clips',
+    '配音随媒体跳过空隙': 'Skip voice clips with media gaps', '配音轨道': 'Voice track',
+    '静音音频贴片': 'Mute audio clips', '取消静音': 'Unmute', '取消贴片静音': 'Unmute audio clips',
+    '定位到贴片起点': 'Seek to clip start', '恢复完整音频': 'Restore full audio', '贴片音量': 'Clip gain',
+    '删除音频贴片': 'Delete audio clips', '重新加载素材': 'Reload audio asset', '添加音频贴片': 'Add audio clip',
+    '移动音频贴片': 'Move audio clips', '裁剪音频贴片': 'Trim audio clip', '调整贴片音量': 'Adjust clip gain',
+    '切换贴片热力图': 'Toggle clip heatmap', '修改配音空隙策略': 'Change voice gap policy',
+    '带配音贴片时使用 1× 播放': 'Voice clips use 1× playback',
+    '正在准备配音，加载完成后继续播放': 'Preparing voice clips; playback will resume when ready',
+    '点击播放以启用配音试听': 'Click Play to enable voice playback',
+    '重叠配音可在此区域内滚动查看': 'Scroll here to view overlapping voice clips',
+    '配音轨道：拖动移动，边缘裁剪，右键静音': 'Voice track: drag to move, trim at edges, right-click to mute',
+    '按音频各时刻的 RMS 电平显示固定色标；关闭后贴片使用纯色': 'Show RMS levels over time on a fixed color scale; disable for solid clips',
+    '素材缺失，请恢复工程旁的素材目录': 'Audio is missing; restore the asset folder beside the project',
+    '音频加载失败，请检查本机服务': 'Audio could not load; check the local editor service',
+    '此素材超出试听解码内存限制，请先裁短源音频': 'This asset exceeds preview memory limits; shorten the source audio first',
+    '同时播放的素材超出解码内存限制': 'Concurrent audio assets exceed preview memory limits',
+    '请通过本机编辑器服务打开音频素材': 'Open audio assets through the local editor service',
+    '只能放入当前工程的音频素材': 'Only audio assets from the current project can be inserted',
+    '配音热力图：暗 → 亮对应低 → 高电平（RMS −60 至 −6 dBFS）。配音随时间轴以 1× 播放。': 'Voice heatmap: dark → bright means low → high level (RMS −60 to −6 dBFS). Voice clips play at 1×.',
+    '导出工程与 TTS 音频': 'Export project and TTS audio', '条音频': 'audio items', '0 条音频': '0 audio items',
+    '生成的音频会显示在这里。通过「媒体 → TTS」开始配音。': 'Generated audio appears here. Open Media → TTS to start.',
+    '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。': 'Keep the adjacent .assets folder when moving the project. Unsaved projects can export a project and TTS audio bundle.',
+    '选择音频试听': 'Choose audio to preview', '素材试听': 'Asset preview', '试听': 'Preview', '长于字幕': 'Longer than subtitle', '素材缺失': 'Missing audio',
+    '正在加载音频…': 'Loading audio…', '上一页': 'Previous page', '下一页': 'Next page',
+    '已导出工程与 TTS 音频；解压后打开 project.mosp。原视频仍需原媒体文件。': 'Project and TTS audio exported. Extract and open project.mosp. The original video still requires the original media file.',
     '字幕翻译': 'Translate subtitles', '关闭字幕翻译': 'Close subtitle translation',
     '翻译选中的主字幕；未选择时翻译全部主字幕': 'Translate selected main subtitles, or all main subtitles when nothing is selected',
     '字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。': 'Subtitle translation requires the local server. Open the editor from Launcher to use it.',
@@ -15212,7 +15609,7 @@ export default MawDynamicCaptions;
   const attributeOriginals = new WeakMap();
   const SKIP_SELECTOR = [
     '#cue-list', '#cue-panel-text', '#overlay', '#sticker-overlay-layer',
-    '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', 'script', 'style'
+    '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', '.msw-asset-content', 'script', 'style'
   ].join(',');
   const ATTRIBUTE_SKIP_SELECTOR = [
     // .waveform-cue-block 的 title 是用户字幕原文，不能参与翻译
@@ -15729,19 +16126,20 @@ export default MawDynamicCaptions;
   const RENDERER_PRESETS = ['classic', 'wave-right', 'custom'];
   // 内置工作区 id：下拉框可选项；custom 预设都由各自的布局树渲染。
   const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'cinema'];
-  const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
-  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器' };
+  const MODULE_IDS = ['player', 'panel', 'cues', 'wave', 'assets'];
+  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库' };
   // 模块标签叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
   const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   // 工作区窗口图标：16x16 线性 SVG，stroke 跟随 currentColor（强调色）。
   // 字幕编辑区用 T 形文字图标，与字幕列表的多行列表图标区分。
   const MODULE_ICONS = {
+    assets: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4h5l1-2h7v12h-13z"/><path d="M5 8v3M8 6v6M11 8v3"/></svg>',
     player: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6.5 5.8v4.4L10.4 8z" class="dock-icon-fill"/></svg>',
     panel: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4h9M8 4v8"/></svg>',
     cues: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="12" rx="2"/><path d="M4 5h8M4 8h8M4 11h4"/></svg>',
     wave: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h1.8l1.4-4 2 8 2-6 1.6 4 1.2-2h2.6"/></svg>',
   };
-  const DEFAULT_MODULE_ORDER = ['player', 'panel', 'cues', 'wave'];
+  const DEFAULT_MODULE_ORDER = [...MODULE_IDS];
   const DEFAULT_RIGHT_LAYOUT_TREE = {
     type: 'split', direction: 'row', ratio: 30,
     children: [
@@ -15859,7 +16257,7 @@ export default MawDynamicCaptions;
     layoutColumnPercent: 30,
     layoutRows: [...DEFAULT_LAYOUT_ROWS],
     layoutTree: DEFAULT_RIGHT_LAYOUT_TREE,
-    hiddenModules: [],
+    hiddenModules: ['assets'],
     layoutEditing: false,
     waveformScale: 1,
     disabledDisplay: 'dim',
@@ -16061,6 +16459,7 @@ export default MawDynamicCaptions;
   }
 
   function normalizeModuleOrder(value) {
+    if (Array.isArray(value) && value.length === 4 && new Set(value).size === 4 && value.every(id => MODULE_IDS.includes(id) && id !== 'assets')) value = [...value, 'assets'];
     return Array.isArray(value) && value.length === MODULE_IDS.length
       && value.every((id) => MODULE_IDS.includes(id))
       && new Set(value).size === MODULE_IDS.length
@@ -16437,10 +16836,9 @@ export default MawDynamicCaptions;
     const tree = isCompleteLayoutTree(candidateTree)
       ? candidateTree
       : cloneLayoutTree(preset === 'classic' ? CLASSIC_LAYOUT_EDIT_TREE : DEFAULT_RIGHT_LAYOUT_TREE);
-    const hiddenSource = Array.isArray(source.hiddenModules) ? source.hiddenModules : [];
     // 只保留「确实不在树上」的隐藏模块，避免树与隐藏列表互相矛盾。
     const treeModules = new Set(collectLayoutModules(tree));
-    const hiddenModules = [...new Set(hiddenSource)]
+    const hiddenModules = MODULE_IDS
       .filter((id) => MODULE_IDS.includes(id) && !treeModules.has(id));
     return {
       schema: WORKSPACE_SCHEMA,
@@ -16489,6 +16887,7 @@ export default MawDynamicCaptions;
         layoutColumnPercent: layoutData.columnPercent,
         layoutRows: layoutData.rows,
         layoutTree: layoutData.tree,
+        hiddenModules: layoutData.hiddenModules,
         layoutEditing: false,
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
@@ -17440,6 +17839,7 @@ export default MawDynamicCaptions;
       // this.cues 仍指滚动容器，供滚动/渲染逻辑使用。
       this.cuesModule = document.getElementById('cues-module') || this.cues;
       this.pane = document.getElementById('waveform-pane');
+      this.assetLibrary = document.getElementById('asset-library');
       this.scroll = document.getElementById('waveform-scroll');
       this.content = document.getElementById('waveform-content');
       this.empty = document.getElementById('waveform-empty');
@@ -17875,7 +18275,7 @@ export default MawDynamicCaptions;
       this.settings.layoutTree = normalized.tree;
       this.settings.layoutEditing = false;
       // 预设布局固定展示全部四个模块：清掉标签/关闭留下的隐藏状态。
-      this.settings.hiddenModules = [];
+      this.settings.hiddenModules = ['assets'];
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
@@ -17944,7 +18344,8 @@ export default MawDynamicCaptions;
     }
 
     getHiddenModules() {
-      return [...(this.settings.hiddenModules || [])].filter((id) => MODULE_IDS.includes(id));
+      const visible = new Set(collectLayoutModules(this.settings.layoutTree));
+      return MODULE_IDS.filter(id => !visible.has(id));
     }
 
     closeDockModule(id) {
@@ -17992,12 +18393,18 @@ export default MawDynamicCaptions;
       return true;
     }
 
-    showModule(id) {
+    showModule(id, { recordUndo = true } = {}) {
       if (!MODULE_IDS.includes(id)) return false;
-      if (!(this.settings.hiddenModules || []).includes(id)) return false;
-      const nextTree = insertLayoutModuleAtRootEdge(this.settings.layoutTree, id, 'bottom');
+      if (!this.getHiddenModules().includes(id)) return false;
+      let nextTree;
+      if (id === 'assets') {
+        let corner = this.settings.layoutTree, direction = 'column';
+        while (corner?.type === 'split') { direction = corner.direction === 'row' ? 'column' : 'row'; corner = corner.children[1]; }
+        const target = corner?.type === 'tabs' ? corner.children[0].id : corner?.id;
+        nextTree = replaceOwnerOfModule(this.settings.layoutTree, target, node => splitLayoutNode(direction, 60, node, moduleLayoutNode(id)));
+      } else nextTree = insertLayoutModuleAtRootEdge(this.settings.layoutTree, id, 'bottom');
       if (!isCompleteLayoutTree(nextTree)) return false;
-      this.recordLayoutUndo(`显示「${MODULE_LABELS[id]}」窗口`, this.getLayoutHistorySnapshot());
+      if (recordUndo) this.recordLayoutUndo(`显示「${MODULE_LABELS[id]}」窗口`, this.getLayoutHistorySnapshot());
       this.settings.layout = 'custom';
       this.settings.layoutTree = nextTree;
       const present = new Set(collectLayoutModules(nextTree));
@@ -18089,6 +18496,7 @@ export default MawDynamicCaptions;
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       MODULE_IDS.forEach((id) => {
         const element = elements[id];
@@ -18376,6 +18784,7 @@ export default MawDynamicCaptions;
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       Object.entries(elements).forEach(([id, element]) => {
         if (!element) return;
@@ -18601,12 +19010,13 @@ export default MawDynamicCaptions;
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       if (!this.customLayoutRoot?.isConnected) return;
-      Object.values(elements).forEach((element) => {
+      Object.entries(elements).forEach(([id, element]) => {
         if (element) {
           element.style.gridArea = '';
-          element.hidden = false; // 标签组里被隐藏的成员回到预设时恢复显示
+          element.hidden = id === 'assets'; // 新素材模块在内置布局中默认隐藏
           this.workspace.insertBefore(element, this.customLayoutRoot);
         }
       });
@@ -18621,6 +19031,7 @@ export default MawDynamicCaptions;
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       if (node.type === 'tabs') {
         const slot = document.createElement('div');
@@ -18744,6 +19155,7 @@ export default MawDynamicCaptions;
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       Object.entries(moduleElements).forEach(([id, element]) => {
         if (!renderedModules.has(id) && element?.isConnected) element.remove();
@@ -18910,15 +19322,15 @@ export default MawDynamicCaptions;
       }
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowIndex = clamp(Math.floor(timeMs / rowDurationMs), 0, Math.max(0, Math.ceil(this.durationMs / rowDurationMs) - 1));
-      const stride = this.settings.rowHeight + ROW_GAP;
+      const stride = this.effectiveRowHeight + ROW_GAP;
       const currentScrollTop = this.scroll.scrollTop;
       const rowInComfortZone = isMultiRowInComfortZone(
-        rowIndex, currentScrollTop, this.scroll.clientHeight, this.settings.rowHeight,
+        rowIndex, currentScrollTop, this.scroll.clientHeight, this.effectiveRowHeight,
       );
       const scrollTop = center && rowInComfortZone
         ? currentScrollTop
         : (center
-          ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.settings.rowHeight) * 0.45)
+          ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.effectiveRowHeight) * 0.45)
           : rowIndex * stride);
       const nextScrollTop = Math.max(0, scrollTop);
       this.autoScrolling = Math.abs(nextScrollTop - currentScrollTop) > 0.5;
@@ -19064,6 +19476,7 @@ export default MawDynamicCaptions;
     }
 
     setPayload(payload, { render = true } = {}) {
+      this.audioOnlyTimeline = false;
       const decoded = decodePayload(payload);
       if (!decoded) {
         this.payload = null;
@@ -19279,12 +19692,47 @@ export default MawDynamicCaptions;
     }
 
     get durationMs() {
-      if (this.payload) return this.payload.duration_ms;
-      if (this.player && Number.isFinite(this.player.duration)) return Math.round(this.player.duration * 1000);
-      return 0;
+      const base = this.payload?.duration_ms || (Number.isFinite(this.player?.duration) ? this.player.duration * 1000 : 0);
+      return Math.max(base, this.audioLayer?.durationMs() || 0);
+    }
+
+    get effectiveRowHeight() {
+      return Math.max(this.settings.rowHeight, this.audioLayer?.minimumRowHeight() || 0);
+    }
+
+    getAudioTimelineHost() {
+      return Object.freeze({
+        pane: this.pane,
+        attach: (layer) => { this.audioLayer = layer; this.refreshAudioTimeline(); },
+        refresh: () => this.refreshAudioTimeline(),
+        refreshOverlays: () => this.renderedRows.forEach(row => this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs))),
+        timeAt: (x, y) => {
+          const row = document.elementFromPoint(x, y)?.closest('.waveform-row');
+          if (!row || !this.pane.contains(row)) return null;
+          const rect = row.getBoundingClientRect(), start = Number(row.dataset.startMs), end = Number(row.dataset.endMs);
+          return { time: start + clamp((x - rect.left) / Math.max(1, rect.width), 0, 1) * (end - start),
+            msPerPixel: (end - start) / Math.max(1, rect.width) };
+        },
+        snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
+        dual: () => this.options.multiSubtitleVisible?.() === true,
+      });
+    }
+
+    refreshAudioTimeline() {
+      if (!this.payload && this.audioLayer?.hasAssets()) {
+        this.payload = { duration_ms: 20000, peaks_per_second: 1, peak_count: 20 };
+        this.peaks = new Int8Array(40);
+        this.audioOnlyTimeline = true;
+      } else if (this.audioOnlyTimeline && !this.audioLayer?.hasAssets()) {
+        this.payload = null; this.peaks = null; this.audioOnlyTimeline = false;
+      }
+      this.audioGeometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
+      this.render();
     }
 
     currentTimeMs() {
+      const audioTime = this.audioLayer?.currentTimeMs();
+      if (Number.isFinite(audioTime)) return Math.round(audioTime);
       return this.player && Number.isFinite(this.player.currentTime)
         ? Math.round(this.player.currentTime * 1000) : 0;
     }
@@ -19399,7 +19847,7 @@ export default MawDynamicCaptions;
       this.multiFollowCheckPending = true;
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
-      const stride = this.settings.rowHeight + ROW_GAP;
+      const stride = this.effectiveRowHeight + ROW_GAP;
       this.content.style.height = `${rowCount * stride - ROW_GAP}px`;
 
       // 先改已有行的几何，再根据新的 stride 增量补齐视口；已有行保留其
@@ -19411,7 +19859,7 @@ export default MawDynamicCaptions;
         const startMs = index * rowDurationMs;
         const endMs = Math.min(this.durationMs, startMs + rowDurationMs);
         row.style.top = `${index * stride}px`;
-        row.style.height = `${this.settings.rowHeight}px`;
+        row.style.height = `${this.effectiveRowHeight}px`;
         row.style.width = `${Math.max(0.01, Math.min(1, (endMs - startMs) / rowDurationMs) * 100)}%`;
       });
       this.multiRange = [-1, -1];
@@ -19450,7 +19898,7 @@ export default MawDynamicCaptions;
     renderMulti() {
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
-      this.content.style.height = `${rowCount * (this.settings.rowHeight + ROW_GAP) - ROW_GAP}px`;
+      this.content.style.height = `${rowCount * (this.effectiveRowHeight + ROW_GAP) - ROW_GAP}px`;
       this.multiRange = [-1, -1];
       this.multiFollowCheckPending = true;
       this.renderMultiVisible(true);
@@ -19460,7 +19908,7 @@ export default MawDynamicCaptions;
       if (!this.isMultiMode() || !this.payload) return;
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
-      const stride = this.settings.rowHeight + ROW_GAP;
+      const stride = this.effectiveRowHeight + ROW_GAP;
       const first = clamp(Math.floor(this.scroll.scrollTop / stride) - MULTI_ROW_BUFFER, 0, rowCount - 1);
       const last = clamp(Math.ceil((this.scroll.scrollTop + this.scroll.clientHeight) / stride) + MULTI_ROW_BUFFER, 0, rowCount - 1);
       if (!force && first === this.multiRange[0] && last === this.multiRange[1]) {
@@ -19505,8 +19953,8 @@ export default MawDynamicCaptions;
       const startMs = index * rowDurationMs;
       const endMs = Math.min(this.durationMs, startMs + rowDurationMs);
       const row = this.createRow(startMs, endMs, index, false, groupBadges);
-      row.style.top = `${index * (this.settings.rowHeight + ROW_GAP)}px`;
-      row.style.height = `${this.settings.rowHeight}px`;
+      row.style.top = `${index * (this.effectiveRowHeight + ROW_GAP)}px`;
+      row.style.height = `${this.effectiveRowHeight}px`;
       // 最后一行只代表媒体剩余的真实时长；缩短容器不会减少采样量，
       // 但能避免把不存在的尾部时间误画成整行波形。
       row.style.right = 'auto';
@@ -19554,6 +20002,7 @@ export default MawDynamicCaptions;
 
       this.appendGapBlocks(row, startMs, endMs);
       this.appendCueBlocks(row, startMs, endMs, groupBadges || computeGroupBadges(this.options.getSegments('main')));
+      this.audioLayer?.renderRow(row, startMs, endMs);
 
       row.addEventListener('pointerdown', (event) => {
         // 每次按下时读取最新模式；设置切换会重绘空隙块，但不会重建仍在
@@ -19948,6 +20397,9 @@ export default MawDynamicCaptions;
     }
 
     refreshCueOverlay() {
+      if (this.audioLayer && this.audioGeometry !== `${this.audioLayer.minimumRowHeight()}:${this.durationMs}`) {
+        this.refreshAudioTimeline(); return;
+      }
       if (!this.payload) return;
       const rows = [...this.content.querySelectorAll('.waveform-row')];
       if (!rows.length) return;
@@ -19963,6 +20415,7 @@ export default MawDynamicCaptions;
           Number(row.dataset.endMs),
           groupBadges,
         );
+        this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
       });
       this.updatePlayback(false);
     }
@@ -20339,7 +20792,9 @@ export default MawDynamicCaptions;
         const parsed = Number.parseFloat(value);
         return Number.isFinite(parsed) ? parsed : fallback;
       };
-      const bottomInset = parsePx(rowStyle.getPropertyValue('--multi-subtitle-bottom-inset'), 7);
+      const bottomInset = hitRow.classList.contains('has-audio-clips')
+        ? 7 + parsePx(rowStyle.getPropertyValue('--audio-lane-space'), 0)
+        : parsePx(rowStyle.getPropertyValue('--multi-subtitle-bottom-inset'), 7);
       const visibleCue = hitRow.querySelector(
         '.waveform-cue-block[data-track="main"], .waveform-cue-block[data-track="extension"]',
       );
@@ -21996,9 +22451,9 @@ export default MawDynamicCaptions;
         this.multiFollowCheckPending = false;
         const viewportHeight = this.scroll.clientHeight;
         const rowInComfortZone = viewportHeight > 0 && isMultiRowInComfortZone(
-          rowIndex, this.scroll.scrollTop, viewportHeight, this.settings.rowHeight,
+          rowIndex, this.scroll.scrollTop, viewportHeight, this.effectiveRowHeight,
         );
-        const stride = this.settings.rowHeight + ROW_GAP;
+        const stride = this.effectiveRowHeight + ROW_GAP;
         const targetScrollTop = clamp(
           rowIndex * stride - viewportHeight * 0.35,
           0,
@@ -22032,7 +22487,7 @@ export default MawDynamicCaptions;
           mode: this.settings.mode,
           basicWindowStartMs: this.basicWindowStartMs,
           scrollTop: this.scroll?.scrollTop,
-          rowHeight: this.settings.rowHeight,
+          rowHeight: this.effectiveRowHeight,
           rowGap: ROW_GAP,
           secondsPerRow: this.settings.secondsPerRow,
         }),
@@ -22062,7 +22517,7 @@ export default MawDynamicCaptions;
           this.renderBasic();
         } else {
           const rowDurationMs = Math.max(1, this.settings.secondsPerRow * 1000);
-          const stride = this.settings.rowHeight + ROW_GAP;
+          const stride = this.effectiveRowHeight + ROW_GAP;
           const rowTop = Math.floor(topEdgeMs / rowDurationMs) * stride;
           const maxTop = Math.max(0, this.scroll.scrollHeight - this.scroll.clientHeight);
           this.scroll.scrollTop = clamp(rowTop, 0, maxTop);
@@ -23281,7 +23736,7 @@ function getRemovedGapRanges() {
     removedGapRangesCacheState = state;
     removedGapRangesCache = window.AsrEditorUtils.getRemovedGapRanges(state.gaps);
   }
-  return removedGapRangesCache;
+  return window.MSWE?.resolve('audio-timeline')?.protectGaps(removedGapRangesCache) || removedGapRangesCache;
 }
 
 const container = document.getElementById('cues-container');
@@ -23482,7 +23937,10 @@ function applyHistoryRecord(record) {
   DATA.multi_subtitle = snapshot.multi_subtitle || {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
+  const retainedAssets = DATA.msw?.assets;
   if (Object.prototype.hasOwnProperty.call(snapshot, 'msw')) DATA.msw = window.MSWProject.normalize(snapshot.msw);
+  // Generated media is an immutable library inventory; subtitle undo does not remove it.
+  if (retainedAssets?.length) window.MSWProject.ensure(DATA).assets = retainedAssets;
   normalizeMultiSubtitleState();
   // 历史恢复会改变下标身份；丢弃旧面板绑定，避免 clearSelection() 把旧面板
   // 内容提交到恢复后占据同一下标的另一条字幕，并因此生成新历史、清空 redo。
@@ -31859,6 +32317,7 @@ function playJklForward() {
 }
 
 function togglePlayback() {
+  if (window.MSWE?.resolve('audio-timeline')?.togglePlayback()) return;
   if (!hasLoadedMedia()) {
     flashHint('请先加载媒体，然后才能预览', 'invalid');
     return;
@@ -31957,16 +32416,17 @@ function syncMediaControls() {
   playerWrap?.classList.toggle('fullscreen-preview', document.fullscreenElement === playerWrap);
   refreshMediaSeekControlLabels();
   if (!mediaPlayToggle || !player) return;
-  const hasMedia = hasLoadedMedia();
-  const duration = Number.isFinite(player.duration) && player.duration > 0 ? player.duration : 0;
-  const current = Number.isFinite(player.currentTime) ? Math.max(0, player.currentTime) : 0;
-  const active = hasMedia && (jklReversePlaying || !player.paused);
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const hasMedia = hasLoadedMedia() || audio?.hasAudible();
+  const duration = Math.max(Number.isFinite(player.duration) && player.duration > 0 ? player.duration : 0, (audio?.durationMs() || 0) / 1000);
+  const current = (audio?.currentTimeMs() ?? (Number.isFinite(player.currentTime) ? player.currentTime * 1000 : 0)) / 1000;
+  const active = audio?.virtualPlaying() ?? (hasMedia && (jklReversePlaying || !player.paused));
   mediaPlayToggle.disabled = !hasMedia;
   mediaStepBack.disabled = !hasMedia;
   mediaStepForward.disabled = !hasMedia;
   mediaSeek.disabled = !hasMedia || !duration;
   mediaVolume.disabled = !hasMedia;
-  mediaPlaybackRate.disabled = !hasMedia;
+  mediaPlaybackRate.disabled = !hasMedia || audio?.hasAudible();
   mediaFullscreen.disabled = !hasMedia || typeof playerWrap?.requestFullscreen !== 'function';
   mediaPlayToggle.textContent = active ? '⏸' : '▶';
   const playbackLabel = active ? '暂停' : '播放';
@@ -32063,21 +32523,22 @@ function bindPlayerEvents(mediaElement) {
 }
 
 function seekMediaBy(deltaSeconds) {
-  if (!hasLoadedMedia()) return;
-  const duration = Number.isFinite(player.duration) ? player.duration : Infinity;
-  player.currentTime = Math.max(0, Math.min(duration, player.currentTime + deltaSeconds));
+  const audio = window.MSWE?.resolve('audio-timeline');
+  if (!hasLoadedMedia() && !audio?.hasAudible()) return;
+  const duration = Math.max(Number.isFinite(player.duration) ? player.duration : 0, (audio?.durationMs() || 0) / 1000);
+  const current = (audio?.currentTimeMs() ?? player.currentTime * 1000) / 1000;
+  seekFromWaveform(Math.max(0, Math.min(duration, current + deltaSeconds)));
   update();
   syncMediaControls();
 }
 
 function seekMediaTo(timeSeconds) {
-  if (!hasLoadedMedia()) return false;
-  const duration = Number.isFinite(player.duration) && player.duration > 0
-    ? player.duration : null;
-  if (!Number.isFinite(duration)) return false;
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const duration = Math.max(Number.isFinite(player.duration) ? player.duration : 0, (audio?.durationMs() || 0) / 1000);
+  if (!duration) return false;
   stopJklReversePlayback({ render: false });
   const targetSeconds = Math.max(0, Math.min(duration, Number(timeSeconds) || 0));
-  player.currentTime = targetSeconds;
+  seekFromWaveform(targetSeconds);
   update();
   waveformEditor?.revealTime(targetSeconds * 1000, true);
   waveformEditor?.updatePlayback();
@@ -32089,8 +32550,8 @@ mediaPlayToggle?.addEventListener('click', togglePlayback);
 mediaStepBack?.addEventListener('click', () => seekMediaBy(-timelineMediaSeekStepMilliseconds() / 1000));
 mediaStepForward?.addEventListener('click', () => seekMediaBy(timelineMediaSeekStepMilliseconds() / 1000));
 mediaSeek?.addEventListener('input', () => {
-  if (!hasLoadedMedia()) return;
-  player.currentTime = Number(mediaSeek.value) || 0;
+  if (!hasLoadedMedia() && !window.MSWE?.resolve('audio-timeline')?.hasAudible()) return;
+  seekFromWaveform(Number(mediaSeek.value) || 0);
   update();
   syncMediaControls();
 });
@@ -32452,6 +32913,12 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   e.preventDefault();
   const k = e.key.toLowerCase();
+  if (window.MSWE?.resolve('audio-timeline')?.hasAudible()) {
+    stopJklReversePlayback({ render: false }); jklPlaybackRate = 1; player.playbackRate = 1;
+    if (k === 'k' && isJklDirectionMode()) togglePlayback();
+    else flashHint('带配音贴片时使用 1× 播放');
+    return;
+  }
   if (isJklDirectionMode()) {
     if (k === 'k') {
       const wasPlaying = jklReversePlaying || !player.paused;
@@ -33950,7 +34417,8 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
 }
 
 function update() {
-  const tMs = player.currentTime * 1000;
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const tMs = audio?.currentTimeMs() ?? player.currentTime * 1000;
   if (gapPreviewRange && (tMs < gapPreviewRange.start || tMs >= gapPreviewRange.end)) {
     gapPreviewRange = null;
   }
@@ -33960,12 +34428,12 @@ function update() {
     tMs,
     {
       skipPlayback: gapState?.skip_playback === true,
-      isPlaying: !player.paused,
+      isPlaying: audio?.virtualPlaying() ?? !player.paused,
       previewRange: gapPreviewRange,
     },
   );
   if (skippedGap) {
-    player.currentTime = skippedGap.end / 1000;
+    seekFromWaveform(skippedGap.end / 1000);
     return;
   }
   nowEl.textContent = fmtShort(tMs);
@@ -40812,6 +41280,7 @@ function syncTimelineGroupRanges() {
 }
 
 function seekFromWaveform(timeSec, { dragPreview = false } = {}) {
+  if (window.MSWE?.resolve('audio-timeline')?.seek(Math.max(0, timeSec * 1000))) return;
   const seekableEnd = player.seekable.length ? player.seekable.end(player.seekable.length - 1) : 0;
   if (seekableEnd <= 0 && !seekWarned) {
     if (player.readyState < 1 || player.networkState === HTMLMediaElement.NETWORK_LOADING) {
@@ -42267,7 +42736,7 @@ document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () 
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===
-const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器' };
+const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库' };
 function rebuildShowModuleMenu() {
   const menu = document.getElementById('show-module-menu');
   const submenu = document.getElementById('show-module-submenu');
@@ -42554,6 +43023,58 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return window.MSWTranslation.snapshot(DATA, processingSelection());
   },
   applyTranslation: applyTranslationJob,
+  get assetLibrary() { return waveformEditor?.assetLibrary; },
+  get player() { return player; },
+  audioPlaybackSkip: timeMs => window.AsrGapRemoveCore.getGapPlaybackSkip(getRemovedGapRanges(), timeMs,
+    { skipPlayback: getGapRemoveData(false)?.skip_playback === true, isPlaying: true, previewRange: gapPreviewRange }),
+  refreshAudioPlayback: (timeMs) => {
+    if (Number.isFinite(timeMs)) {
+      const index = findActive(timeMs);
+      nowEl.textContent = fmtShort(timeMs); updateActiveCue(index); refreshSubtitlePreview(timeMs, index);
+    }
+    waveformEditor?.updatePlayback();
+    syncMediaControls();
+  },
+  get timeline() { return waveformEditor?.getAudioTimelineHost(); },
+  clearSubtitleSelection: () => { commitProcessingEdits(); clearSelection(); },
+  undo: performUndo,
+  redo: performRedo,
+  togglePlayback,
+  seek: seekFromWaveform,
+  commitAudio: (label, change) => {
+    commitProcessingEdits();
+    const next = window.MSWProject.clone(window.MSWProject.ensure(DATA));
+    change(next);
+    window.MSWProject.normalize(next);
+    pushUndo(label);
+    DATA.msw = next;
+    projectImportDirty = true;
+    window.dispatchEvent(new Event('msw:audio-changed'));
+    waveformEditor?.refreshAudioTimeline();
+    updateGapRemoveUi();
+    scheduleAutoSaveFlush();
+  },
+  exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
+  showAssets: ({ automatic = false } = {}) => {
+    if (waveformEditor?.showModule?.('assets', { recordUndo: !automatic })) rebuildShowModuleMenu();
+    else waveformEditor?.activateModuleTab?.('assets');
+  },
+  pauseMedia: () => { window.MSWE?.resolve('audio-timeline')?.pause(); player.pause(); },
+  addAssets: (projectId, assets) => {
+    const extension = window.MSWProject.ensure(DATA);
+    if (extension.project_id !== projectId) return 0;
+    if (!assets.every(window.MSWProject.validAsset)) throw new Error('MSW 音频素材格式无效');
+    const byId = new Map((extension.assets || []).map(asset => [asset.id, asset]));
+    const incoming = assets.filter(asset => !byId.has(asset.id));
+    if (byId.size + incoming.length > 10000) throw new Error('素材库已达到 10000 条上限');
+    if (incoming.length) {
+      extension.assets = [...byId.values(), ...window.MSWProject.clone(incoming)];
+      projectImportDirty = true;
+      scheduleAutoSaveFlush();
+      window.dispatchEvent(new Event('msw:assets-changed'));
+    }
+    return incoming.length;
+  },
   createFloatingPanel,
   flashHint,
 }));
@@ -42827,7 +43348,7 @@ window.addEventListener('beforeunload', (e) => {
       const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${cursor}`);
       if (generation !== host.generation || id !== projectId()) return;
       failures = 0; cursor = data.revision;
-      for (const job of data.jobs) jobs.set(job.id, job);
+      for (const job of data.jobs) if (job.kind !== 'tts') jobs.set(job.id, job);
       if (data.jobs.length) renderJobs();
       for (const job of jobs.values()) {
         if (job.status === 'succeeded' && job.application === 'pending' && job.kind === 'translation') await applyResult(job);
@@ -42900,6 +43421,814 @@ window.addEventListener('beforeunload', (e) => {
   });
   updateScope();
   if (available) schedulePoll(0);
+})(window);
+
+// TTS task UI and project asset library. Audio bytes stay outside editor snapshots.
+(function (global) {
+  'use strict';
+  const host = global.MSWE?.resolve('processing-host');
+  if (!host?.assetLibrary) return;
+  const library = host.assetLibrary;
+  const el = id => document.getElementById(id) || library.querySelector(`#${id}`);
+  const t = value => global.MSWE_I18N?.translateText?.(value) || value;
+  const available = Boolean(host.config?.processingUrl);
+  const projectId = () => global.MSWProject.ensure(host.data).project_id;
+  const pageId = global.MSWProject.id('tts-page');
+  const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set(), missing = new Set();
+  let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
+  let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
+  let previewUrl = null, previewId = null, previewSequence = 0;
+  const active = job => ['queued', 'running', 'cancel_requested'].includes(job.status);
+  const assets = () => host.data.msw?.assets || [];
+  const panel = host.createFloatingPanel({ panel: el('tts-panel'), dragHandle: el('tts-drag'),
+    anchorButton: document.querySelector('[data-menubar-item="media"] > button'), positionKey: 'msw.tts.panel.position' });
+
+  function message(text, error = false) {
+    el('tts-message').textContent = t(text);
+    el('tts-message').classList.toggle('is-error', error);
+  }
+  async function request(route, body = null, binary = false) {
+    const response = await fetch(`${host.config.processingUrl}/${route}`, {
+      method: body ? 'POST' : 'GET', cache: 'no-store',
+      headers: { 'X-MSW-Token': host.config.requestToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (binary && response.ok) return response.blob();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      const error = new Error(data.error || `${t('处理服务请求失败')} (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  }
+  function updateScope() {
+    let scope = global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
+    if (scope.signature !== scopeSignature) {
+      scopeSignature = scope.signature;
+      el('tts-target').value = '';
+      scope = global.MSWTts.scope(host.data, host.selection());
+    }
+    el('tts-target-field').hidden = !scope.needsChoice;
+    el('tts-scope').textContent = `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
+      + (scope.needsChoice && !el('tts-target').value ? ` · ${t('请先选择主字幕或副字幕')}` : '')
+      + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过 600 字符，请先拆分')}` : '');
+    el('tts-start').disabled = !available || !configured || busy || (!pending && (!scope.sources.length || scope.tooLong || (scope.needsChoice && !el('tts-target').value)));
+    el('tts-start').textContent = t(pending ? '确认上次提交' : '开始合成');
+    return scope;
+  }
+  function recipe() {
+    const instruct = el('tts-model').value.includes('-instruct-');
+    return { provider: 'qwen', region: el('tts-region').value, model: el('tts-model').value,
+      voice: el('tts-voice').value.trim(), language_type: el('tts-language').value,
+      instructions: instruct ? el('tts-instructions').value.trim() : '',
+      optimize_instructions: instruct && el('tts-optimize').checked };
+  }
+  function updateModel() { el('tts-instruct').hidden = !el('tts-model').value.includes('-instruct-'); }
+  function keyState() {
+    const configured = regions.find(region => region.id === el('tts-region').value)?.hasApiKey;
+    el('tts-key-state').textContent = t(configured ? '此地域已有本机密钥，留空即可复用' : '请填写此地域的百炼密钥；北京和新加坡密钥不同');
+    return configured;
+  }
+  async function loadSettings() {
+    const data = await request('tts-settings');
+    regions = data.regions;
+    el('tts-model').replaceChildren(...data.models.map(model => new Option(model, model)));
+    el('tts-language').replaceChildren(...data.languages.map(language => new Option(t(language), language)));
+    const value = data.recipe;
+    for (const [id, key] of [['tts-model', 'model'], ['tts-language', 'language_type'], ['tts-voice', 'voice'], ['tts-region', 'region'], ['tts-instructions', 'instructions']]) el(id).value = value[key];
+    el('tts-optimize').checked = value.optimize_instructions;
+    el('tts-key').value = '';
+    el('tts-settings').open = !keyState();
+    configured = true; updateModel(); updateScope();
+  }
+  function action(label, callback) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = t(label);
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      const generation = host.generation;
+      try { await callback(); }
+      catch (error) { if (generation === host.generation) { message(error.message, true); el('asset-notice').textContent = error.message; } }
+      finally { button.disabled = false; }
+    });
+    return button;
+  }
+  const statuses = { queued: '等待处理', running: '正在合成', succeeded: '合成完成', failed: '合成失败',
+    cancelled: '已取消', cancel_requested: '正在取消', interrupted: '服务中断，未自动重试' };
+  function renderJobs() {
+    const fragment = document.createDocumentFragment();
+    for (const job of [...jobs.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 20)) {
+      const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
+      const heading = document.createElement('strong'); heading.textContent = `TTS · ${job.count} · ${job.recipe?.voice || ''}`;
+      const status = document.createElement('p'); status.className = 'msw-processing-hint';
+      status.textContent = `${t(statuses[job.status] || job.status)} · ${t('成功')} ${job.progress?.ready || 0} / ${job.count}`
+        + (job.progress?.failed ? ` · ${t('失败')} ${job.progress.failed}` : '');
+      card.append(heading, status);
+      if (job.error) { const error = document.createElement('p'); error.textContent = job.error; card.append(error); }
+      const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
+      if (active(job)) actions.append(action('取消任务', async () => {
+        const generation = host.generation;
+        const data = await request(`jobs/${job.id}/cancel`, { project_id: job.project_id });
+        if (generation !== host.generation) return;
+        jobs.set(job.id, data.job); renderJobs(); schedule(0);
+      }));
+      actions.append(action('查看素材', () => { host.showAssets(); el('asset-batch').value = job.id; page = 0; renderAssets(); }));
+      if (!active(job) && (job.progress?.ready || 0) < job.count) {
+        actions.append(action('检查未完成项', () => inspectUnfinished(job, card)));
+      }
+      card.append(actions); fragment.append(card);
+    }
+    el('tts-jobs').replaceChildren(fragment);
+  }
+  async function inspectUnfinished(job, card) {
+    const generation = host.generation;
+    const { job: detail } = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
+    if (generation !== host.generation) return;
+    card.querySelector('.msw-tts-result')?.remove();
+    const saved = new Set(assets().map(a => a.source_ref.key));
+    const items = new Map((detail.result?.items || []).map(row => [row.key, row]));
+    const entries = detail.snapshot.entries.filter(row => !saved.has(row.key) && items.get(row.key)?.status !== 'ready');
+    const view = document.createElement('div'); view.className = 'msw-tts-result';
+    for (const row of entries.slice(0, 50)) {
+      const text = document.createElement('p'); text.className = 'msw-asset-content';
+      text.textContent = `${row.text}\n${items.get(row.key)?.error || t('尚未完成')}`; view.append(text);
+    }
+    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t('条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
+    view.append(notice);
+    if (entries.length) view.append(action('重新合成未完成项', () => submit({
+      snapshot: { project_id: job.project_id, entries }, retry_of: job.id, recipe: job.recipe,
+    })));
+    card.append(view);
+  }
+  async function submit(retry = null) {
+    if (busy) return;
+    const generation = host.generation;
+    try {
+      host.commitEdits(); updateScope();
+      const options = retry?.recipe || recipe();
+      const input = pending || { kind: 'tts', project_id: projectId(), client_token: `${pageId}.${generation}`,
+        library_size: assets().length,
+        request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value),
+        provider: { recipe: options, apiKey: options.region === el('tts-region').value ? el('tts-key').value : '' },
+        ...(retry ? { retry_of: retry.retry_of } : {}) };
+      pending = input; busy = true; updateScope();
+      const data = await request('jobs', input);
+      if (generation !== host.generation) return;
+      pending = null;
+      jobs.set(data.job.id, data.job); watched.add(data.job.id);
+      el('tts-target').value = ''; updateScope();
+      message('TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务');
+      el('tts-settings').open = false;
+      renderJobs(); schedule(0);
+    } catch (error) {
+      if (generation !== host.generation) return;
+      if (error.status && error.status < 500) pending = null;
+      message(pending ? `${error.message}；${t('再次点击将确认上次提交，不会重复创建任务')}` : error.message, true);
+    } finally { if (generation === host.generation) { busy = false; updateScope(); } }
+  }
+  function schedule(delay = 800) {
+    clearTimeout(timer);
+    if (available) timer = setTimeout(() => void poll(), delay);
+  }
+  async function poll() {
+    if (polling || !available) return;
+    polling = true;
+    const generation = host.generation, id = projectId();
+    try {
+      const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${jobCursor}`);
+      if (generation !== host.generation) return;
+      jobCursor = data.revision;
+      let changed = false;
+      for (const job of data.jobs.filter(job => job.kind === 'tts')) {
+        if (active(job)) watched.add(job.id);
+        jobs.set(job.id, job); changed = true;
+      }
+      const incoming = await request(`assets?project_id=${encodeURIComponent(id)}&since=${assetCursor}`);
+      if (generation !== host.generation) return;
+      host.addAssets(id, incoming.assets);
+      assetCursor = incoming.cursor;
+      if (incoming.assets.length) {
+        renderAssets();
+        if (incoming.assets.some(asset => watched.has(asset.job_id) && !firstReady.has(asset.job_id))) host.showAssets({ automatic: true });
+        incoming.assets.forEach(asset => firstReady.add(asset.job_id));
+      }
+      for (const job of jobs.values()) if (!active(job) && watched.has(job.id) && !opened.has(job.id)) {
+        opened.add(job.id);
+        if (assets().some(asset => asset.job_id === job.id)) host.showAssets({ automatic: true });
+        else message('本次没有生成音频，请检查未完成项', true);
+      }
+      if (changed) renderJobs();
+      pollFailures = 0;
+      if (incoming.more || [...jobs.values()].some(active)) schedule(incoming.more ? 0 : 800);
+    } catch (error) {
+      if (generation !== host.generation) return;
+      message(error.message, true); pollFailures += 1;
+      if (pollFailures < 6) schedule(Math.min(10000, 1000 * 2 ** pollFailures));
+    } finally {
+      polling = false;
+      if (generation !== host.generation) schedule(0);
+    }
+  }
+  function stopPreview() {
+    previewSequence += 1;
+    el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = null; previewId = null;
+  }
+  async function audioBlob(asset) {
+    return request(`asset-audio?project_id=${encodeURIComponent(projectId())}&asset_id=${encodeURIComponent(asset.id)}`, null, true);
+  }
+  async function preview(asset) {
+    if (previewId === asset.id && previewUrl) {
+      if (el('asset-audio').paused) { host.pauseMedia(); await el('asset-audio').play(); } else el('asset-audio').pause();
+      return;
+    }
+    stopPreview();
+    const sequence = previewSequence, generation = host.generation;
+    el('asset-playing').textContent = t('正在加载音频…');
+    try {
+      const blob = await audioBlob(asset);
+      if (sequence !== previewSequence || generation !== host.generation) return;
+      previewId = asset.id; previewUrl = URL.createObjectURL(blob);
+      el('asset-player').hidden = false;
+      el('asset-audio').src = previewUrl; el('asset-playing').textContent = asset.generation.display_text;
+      host.pauseMedia(); await el('asset-audio').play();
+    } catch (error) {
+      if (sequence !== previewSequence || generation !== host.generation) return;
+      if (error.status === 404) missing.add(asset.id);
+      el('asset-playing').textContent = error.message; renderAssets(); throw error;
+    }
+  }
+  function download(blob, name) {
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  function renderAssets() {
+    const all = [...assets()].sort((a, b) => b.created_at - a.created_at || a.source_ref.start - b.source_ref.start);
+    const batch = el('asset-batch').value;
+    const batches = new Map(all.map(a => [a.job_id, a]));
+    const known = new Map([...jobs.values()].map(job => [job.id, job]));
+    for (const [id, asset] of batches) if (!known.has(id)) known.set(id, { id, recipe: asset.generation, created_at: asset.created_at });
+    const recent = [...known.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 200);
+    if (batch && known.has(batch) && !recent.some(job => job.id === batch)) recent.push(known.get(batch));
+    el('asset-batch').replaceChildren(new Option(t('全部批次'), ''), ...recent.map(job =>
+      new Option(`${new Date(job.created_at * 1000).toLocaleString()} · ${job.recipe?.voice || 'TTS'} · ${job.id.slice(-6)}`, job.id)));
+    el('asset-batch').value = batch;
+    const term = el('asset-search').value.trim().toLocaleLowerCase();
+    const rows = all.filter(a => (!batch || a.job_id === batch) && (!term || `${a.generation.display_text} ${a.generation.voice} ${a.generation.model}`.toLocaleLowerCase().includes(term)));
+    const pages = Math.max(1, Math.ceil(rows.length / 50)); page = Math.min(page, pages - 1);
+    el('asset-count').textContent = `${rows.length} / ${all.length} ${t('条音频')}`;
+    el('asset-page').textContent = `${page + 1} / ${pages}`;
+    el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
+    el('asset-export-project').disabled = !available || !all.length;
+    el('asset-notice').textContent = t(all.length
+      ? '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。'
+      : '生成的音频会显示在这里。通过「媒体 → TTS」开始配音。');
+    const fragment = document.createDocumentFragment();
+    for (const asset of rows.slice(page * 50, page * 50 + 50)) {
+      const row = document.createElement('article'); row.className = 'msw-asset-row'; row.dataset.assetId = asset.id; row.setAttribute('role', 'listitem');
+      row.draggable = available;
+      row.addEventListener('dragstart', event => {
+        if (event.target.closest('button, input, audio')) { event.preventDefault(); return; }
+        event.dataTransfer.effectAllowed = 'copy';
+        event.dataTransfer.setData('application/x-msw-audio-asset', JSON.stringify({ project_id: projectId(), asset_id: asset.id }));
+      });
+      const content = document.createElement('div'); content.className = 'msw-asset-info';
+      const text = document.createElement('p'); text.className = 'msw-asset-text msw-asset-content'; text.textContent = asset.generation.display_text; text.title = text.textContent;
+      const meta = document.createElement('p'); meta.className = 'msw-asset-meta';
+      const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
+      meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
+      if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
+      if (missing.has(asset.id)) meta.textContent += ` · ${t('素材缺失')}`;
+      content.append(text, meta);
+      const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
+      const play = action('试听', () => preview(asset)); play.disabled = !available;
+      const save = action('WAV', async () => {
+        const generation = host.generation, blob = await audioBlob(asset);
+        if (generation === host.generation) download(blob, `${asset.id}.wav`);
+      }); save.disabled = !available;
+      const insert = action('放入时间轴', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
+      insert.disabled = !available;
+      buttons.append(play, save, insert); row.append(content, buttons); fragment.append(row);
+    }
+    el('asset-list').replaceChildren(fragment);
+  }
+  el('tts-open').addEventListener('click', () => {
+    host.commitEdits(); el('tts-target').value = ''; updateScope(); panel.open();
+    if (available) {
+      if (!configured) void loadSettings().catch(error => message(error.message, true));
+      schedule(0);
+    }
+  });
+  el('tts-close').addEventListener('click', () => panel.close());
+  el('tts-start').addEventListener('click', () => void submit());
+  el('tts-target').addEventListener('change', updateScope);
+  el('tts-model').addEventListener('change', updateModel);
+  el('tts-region').addEventListener('change', () => { el('tts-key').value = ''; keyState(); });
+  el('tts-save-settings').addEventListener('click', async () => {
+    el('tts-save-settings').disabled = true;
+    try { await request('tts-settings', { recipe: recipe(), apiKey: el('tts-key').value }); await loadSettings(); message('TTS 配置已保存到本机'); }
+    catch (error) { message(error.message, true); }
+    finally { el('tts-save-settings').disabled = false; }
+  });
+  el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
+  for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
+  el('asset-search').addEventListener('input', () => { page = 0; renderAssets(); });
+  el('asset-batch').addEventListener('change', () => { page = 0; renderAssets(); });
+  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); renderAssets(); });
+  el('asset-next').addEventListener('click', () => { page += 1; renderAssets(); });
+  el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
+  el('asset-export-project').addEventListener('click', async () => {
+    const button = el('asset-export-project'); button.disabled = true;
+    const generation = host.generation;
+    try {
+      const blob = await request('asset-bundle', { project_id: projectId(), project: host.exportProject() }, true);
+      if (generation !== host.generation) return;
+      download(blob, 'project-with-tts.zip');
+      el('asset-notice').textContent = t('已导出工程与 TTS 音频；解压后打开 project.mosp。原视频仍需原媒体文件。');
+    } catch (error) { if (generation === host.generation) el('asset-notice').textContent = error.message; }
+    finally { button.disabled = false; }
+  });
+  document.addEventListener('play', event => {
+    if (event.target === el('asset-audio')) host.pauseMedia();
+    else if (event.target.id === 'player') el('asset-audio').pause();
+  }, true);
+  global.addEventListener('msw:project-changed', () => {
+    stopPreview(); jobs.clear(); watched.clear(); opened.clear(); firstReady.clear(); missing.clear();
+    jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = ''; page = 0;
+    el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = '';
+    el('asset-playing').textContent = t('选择音频试听');
+    el('asset-player').hidden = true;
+    queueMicrotask(() => { updateScope(); renderAssets(); renderJobs(); message(''); schedule(0); });
+  });
+  updateScope(); renderAssets(); if (available) schedule(0);
+})(window);
+
+// Bounded Web Audio cache and cancellable scheduling on the source timeline.
+(function (global) {
+  'use strict';
+  function create({ player, getState, load, changed, hint, frame, beforePlay = () => {}, skipAt = () => null }) {
+    let context, epoch = 0, timer, anchor, virtual = null, busy = 0, buffering = null, internalPause = false;
+    const buffers = new Map(), heats = new Map(), pending = new Map(), failures = new Map(), nodes = new Map(), queue = [];
+    const reportedErrors = new Set();
+    const LIMIT = 128 * 1024 * 1024;
+    const clock = () => performance.now() / 1000;
+    const ctx = () => context ||= new (global.AudioContext || global.webkitAudioContext)();
+    const time = () => virtual ? virtual.time + (virtual.playing ? (clock() - virtual.stamp) * 1000 : 0) : player.currentTime * 1000;
+    const playing = () => !buffering && (virtual ? virtual.playing : !player.paused && !player.ended && !player.seeking && player.readyState >= 3);
+    const reset = () => {
+      anchor = null;
+      for (const item of nodes.values()) { try { item.source?.stop(); } catch (_) {} item.source?.disconnect(); item.gain?.disconnect(); }
+      nodes.clear();
+    };
+    async function analyze(buffer) {
+      const step = Math.max(1, Math.round(buffer.sampleRate / 10)), energy = [], counts = [], db = [];
+      const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
+      for (let start = 0; start < buffer.length; start += step) {
+        const finish = Math.min(start + step, buffer.length); let sum = 0;
+        for (const channel of channels) for (let i = start; i < finish; i++) sum += channel[i] * channel[i];
+        energy.push(sum); counts.push((finish - start) * channels.length);
+        const lo = Math.max(0, energy.length - 4); let total = 0, count = 0;
+        for (let i = lo; i < energy.length; i++) { total += energy[i]; count += counts[i]; }
+        db.push(total > 0 ? Math.max(-120, 10 * Math.log10(total / count)) : -120);
+        if (energy.length % 32 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      return { step_ms: step / buffer.sampleRate * 1000, db };
+    }
+    function pump() {
+      while (busy < 2 && queue.length) {
+        const work = queue.shift(); busy++;
+        (async () => {
+          try {
+            if (work.epoch !== epoch) return work.resolve(null);
+            const audioContext = ctx(), estimate = Math.ceil(work.asset.sample_count * audioContext.sampleRate / work.asset.sample_rate) * work.asset.channels * 4;
+            if (estimate > LIMIT / 2) throw Error('此素材超出试听解码内存限制，请先裁短源音频');
+            const data = await load(work.asset, work.controller.signal);
+            if (work.epoch !== epoch) return work.resolve(null);
+            const buffer = await audioContext.decodeAudioData(data), heat = await analyze(buffer);
+            if (work.epoch !== epoch) return work.resolve(null);
+            const bytes = buffer.length * buffer.numberOfChannels * 4;
+            let total = [...buffers.values()].reduce((n, item) => n + item.bytes, 0);
+            for (const [id, item] of buffers) {
+              if (total + bytes <= LIMIT) break;
+              if (buffering?.ids.has(id) || [...nodes.values()].some(n => n.assetId === id && !n.done)) continue;
+              buffers.delete(id); total -= item.bytes;
+            }
+            if (total + bytes > LIMIT) throw Error('同时播放的素材超出解码内存限制');
+            const item = { buffer, heat, bytes }; buffers.set(work.asset.id, item); heats.set(work.asset.id, heat);
+            work.resolve(item); changed();
+          } catch (error) {
+            if (work.epoch === epoch && error.name !== 'AbortError') {
+              failures.set(work.asset.id, error.message); changed();
+              if (!reportedErrors.has(error.message)) { reportedErrors.add(error.message); hint(error.message); }
+            }
+            work.resolve(null);
+          } finally {
+            if (pending.get(work.asset.id) === work) pending.delete(work.asset.id);
+            busy--; pump();
+          }
+        })();
+      }
+    }
+    function ensure(asset, urgent = false) {
+      if (buffers.has(asset.id)) { const item = buffers.get(asset.id); buffers.delete(asset.id); buffers.set(asset.id, item); return Promise.resolve(item); }
+      if (failures.has(asset.id)) return Promise.resolve(null);
+      if (pending.has(asset.id)) {
+        const work = pending.get(asset.id), index = queue.indexOf(work);
+        if (urgent && index > 0) { queue.splice(index, 1); queue.unshift(work); }
+        return work.promise;
+      }
+      const work = { asset, epoch, controller: new AbortController() };
+      work.promise = new Promise(resolve => { work.resolve = resolve; });
+      pending.set(asset.id, work); urgent ? queue.unshift(work) : queue.push(work); pump(); return work.promise;
+    }
+    function cancelBuffering() { buffering = null; }
+    function bufferBeforePlay(assets, now) {
+      const ticket = { ids: new Set(assets.map(a => a.id)), epoch };
+      buffering = ticket; stop();
+      if (virtual) virtual = { time: now, stamp: clock(), playing: false };
+      if (!player.paused) { internalPause = true; player.pause(); }
+      hint('正在准备配音，加载完成后继续播放'); frame();
+      void Promise.all(assets.map(a => ensure(a, true))).then(() => {
+        if (buffering !== ticket || ticket.epoch !== epoch) return;
+        buffering = null;
+        if (virtual) { virtual = { time: now, stamp: clock(), playing: true }; wake(); }
+        else void player.play().catch(() => { stop(); frame(); });
+        frame();
+      });
+    }
+    function tick() {
+      clearTimeout(timer);
+      if (!playing()) return;
+      const state = getState(), now = time(), audioContext = ctx();
+      if (!virtual && player.playbackRate !== 1 && state.audible.length) {
+        player.playbackRate = 1; hint('带配音贴片时使用 1× 播放');
+      }
+      if (virtual && now >= state.end) {
+        virtual = { time: state.end, stamp: clock(), playing: false }; reset(); frame(); return;
+      }
+      const skipped = skipAt(now);
+      if (skipped) {
+        reset();
+        if (virtual) { virtual = { time: skipped.end, stamp: clock(), playing: true }; frame(); timer = setTimeout(tick, 0); }
+        else player.currentTime = skipped.end / 1000;
+        return;
+      }
+      const required = state.audible.filter(c => {
+        const asset = state.assets.get(c.asset_id);
+        return asset && global.MSWAudio.plan(c, asset, now) && !failures.has(asset.id);
+      }).map(c => state.assets.get(c.asset_id));
+      if (required.some(a => !buffers.has(a.id))) { bufferBeforePlay([...new Map(required.map(a => [a.id, a])).values()], now); return; }
+      if (anchor && Math.abs(now - (anchor.media + (audioContext.currentTime - anchor.context) * 1000)) > 100) reset();
+      anchor ||= { media: now, context: audioContext.currentTime };
+      for (const clip of state.audible) {
+        const asset = state.assets.get(clip.asset_id);
+        if (!asset || clip.start_ms > now + 5000 || global.MSWAudio.end(clip, asset) <= now) continue;
+        const item = buffers.get(asset.id);
+        if (!item) { void ensure(asset); continue; }
+        if (nodes.has(clip.id)) continue;
+        const plan = global.MSWAudio.plan(clip, asset, now);
+        if (!plan || audioContext.state !== 'running') continue;
+        const source = audioContext.createBufferSource(), gain = audioContext.createGain();
+        source.buffer = item.buffer;
+        const level = Math.pow(10, (clip.gain_db + (state.tracks.get(clip.track_id)?.gain_db || 0)) / 20);
+        gain.gain.value = level * (player.muted ? 0 : player.volume);
+        source.connect(gain); gain.connect(audioContext.destination);
+        const node = { source, gain, level, assetId: asset.id, done: false }; nodes.set(clip.id, node);
+        source.onended = () => {
+          node.done = true; source.disconnect(); gain.disconnect(); source.onended = null;
+          // Retain only the completion marker. Finished source nodes retain
+          // their AudioBuffer and would defeat cache eviction on long projects.
+          node.source = null; node.gain = null;
+        };
+        source.start(audioContext.currentTime + plan.when, plan.offset, plan.duration);
+      }
+      if (virtual) frame();
+      timer = setTimeout(tick, 50);
+    }
+    function wake() {
+      if (buffering) return;
+      if (!getState().audible.length) {
+        if (virtual) virtual = { time: time(), stamp: clock(), playing: false };
+        stop(); frame(); return;
+      }
+      const audioContext = ctx();
+      beforePlay();
+      void audioContext.resume().then(tick).catch(() => hint('点击播放以启用配音试听'));
+    }
+    function stop() { clearTimeout(timer); reset(); }
+    function onPause() {
+      if (internalPause) { internalPause = false; return; }
+      if (!virtual) { cancelBuffering(); stop(); }
+    }
+    const events = { play: wake, playing: wake, pause: onPause, waiting: stop, seeking: stop,
+      seeked: () => { if (playing()) wake(); }, ratechange: () => { reset(); if (playing()) wake(); },
+      volumechange: () => { for (const node of nodes.values()) if (node.gain) node.gain.gain.value = node.level * (player.muted ? 0 : player.volume); },
+      ended: () => {
+        stop(); const state = getState(), end = player.duration * 1000;
+        if (state.audible.length && state.end > end) { virtual = { time: end, stamp: clock(), playing: true }; wake(); }
+      }, emptied: () => { cancelBuffering(); virtual = null; stop(); } };
+    events.seeking = () => { cancelBuffering(); stop(); };
+    for (const [event, listener] of Object.entries(events)) player.addEventListener(event, listener);
+    return Object.freeze({
+      ensure, buffers, heats, failures,
+      reset: () => { const resume = !!buffering; cancelBuffering(); reset();
+        if (resume) { if (virtual) { virtual.playing = true; virtual.stamp = clock(); } else void player.play().catch(() => {}); }
+        if (playing()) wake(); },
+      currentTime: () => virtual ? time() : null,
+      virtualPlaying: () => buffering ? true : virtual?.playing ?? null,
+      pause: () => { cancelBuffering(); if (virtual) virtual = { time: time(), stamp: clock(), playing: false }; player.pause(); stop(); frame(); },
+      toggle: () => {
+        if (buffering) { cancelBuffering(); stop(); frame(); return true; }
+        if (!virtual && Number.isFinite(player.duration) && player.duration > 0) return false;
+        const state = getState(); if (!state.audible.length) return false;
+        const now = time(); const nextPlaying = !virtual?.playing;
+        if (now >= state.end && nextPlaying && Number.isFinite(player.duration) && player.duration > 0) {
+          virtual = null; stop(); player.currentTime = 0; void player.play().catch(() => {}); frame(); return true;
+        }
+        virtual = { time: now >= state.end ? 0 : now || 0, stamp: clock(), playing: nextPlaying };
+        stop(); if (nextPlaying) wake(); frame(); return true;
+      },
+      seek: ms => {
+        const mediaEnd = Number.isFinite(player.duration) ? player.duration * 1000 : 0;
+        const wasBuffering = !!buffering, wasPlaying = playing() || wasBuffering; cancelBuffering();
+        if (ms <= mediaEnd && mediaEnd > 0) {
+          if (virtual || wasBuffering) { virtual = null; reset(); if (wasPlaying) queueMicrotask(() => void player.play().catch(() => {})); }
+          return false;
+        }
+        if (!getState().end) return false;
+        virtual = { time: ms, stamp: clock(), playing: wasPlaying }; player.pause(); reset(); if (wasPlaying) wake(); frame(); return true;
+      },
+      clear: () => {
+        epoch++; cancelBuffering(); virtual = null; stop();
+        for (const work of pending.values()) work.controller.abort();
+        for (const work of queue.splice(0)) work.resolve(null);
+        pending.clear(); buffers.clear(); heats.clear(); failures.clear(); reportedErrors.clear();
+      },
+      diagnostics: () => ({ active: [...nodes.values()].filter(n => !n.done).length, decoded: buffers.size, bytes: [...buffers.values()].reduce((n, item) => n + item.bytes, 0), time: time(), virtual: !!virtual, buffering: !!buffering }),
+    });
+  }
+  global.MSWAudioTransport = Object.freeze({ create });
+})(window);
+
+// Audio clips have their own selection/gestures; subtitle edit rules stay local.
+(function (global) {
+  'use strict';
+  const host = global.MSWE?.resolve('processing-host'), timeline = host?.timeline, core = global.MSWAudio;
+  if (!timeline || !core) return;
+  const t = s => global.MSWE_I18N?.translateText?.(s) || s;
+  const selected = new Set(), MIME = 'application/x-msw-audio-asset', ROW = 22, EMPTY = Object.freeze([]), EMPTY_EXTENSION = Object.freeze({});
+  let dataRef, clipsRef, assetsRef, tracksRef, state, drag = null, repaint = 0, menu, menuTimer, gapSource, protectedRanges;
+  let laneScroll = new Map();
+  const extension = () => host.data.msw || EMPTY_EXTENSION;
+  function sync() {
+    const ext = extension(), clips = drag?.preview || ext.audio_clips || EMPTY;
+    if (state && dataRef === ext && clipsRef === clips && assetsRef === ext.assets && tracksRef === ext.audio_tracks) return state;
+    const timelineChanged = !!state && (dataRef !== ext || clipsRef !== clips || tracksRef !== ext.audio_tracks);
+    dataRef = ext; clipsRef = clips; assetsRef = ext.assets; tracksRef = ext.audio_tracks;
+    const assets = new Map((ext.assets || []).map(a => [a.id, a])), tracks = new Map((ext.audio_tracks || []).map(a => [a.id, a]));
+    const arranged = core.arrange(clips, assets);
+    state = { clips, assets, tracks, ...arranged, audible: core.audible({ ...ext, audio_clips: clips }),
+      end: clips.reduce((n, c) => Math.max(n, assets.has(c.asset_id) ? core.end(c, assets.get(c.asset_id)) : 0), 0) };
+    gapSource = null;
+    for (const id of selected) if (!clips.some(c => c.id === id)) selected.delete(id);
+    if (timelineChanged && !drag) { refreshSettings(); transport.reset(); }
+    return state;
+  }
+  const hint = message => host.flashHint(t(message));
+  function schedulePaint() {
+    if (repaint) return;
+    repaint = requestAnimationFrame(() => { repaint = 0; timeline.refreshOverlays(); });
+  }
+  const transport = global.MSWAudioTransport.create({ player: host.player, getState: sync, changed: schedulePaint, hint,
+    frame: () => host.refreshAudioPlayback(transport.currentTime()),
+    beforePlay: () => host.assetLibrary?.querySelector('audio')?.pause(),
+    skipAt: time => host.audioPlaybackSkip(time),
+    load: async (asset, signal) => {
+      if (!host.config?.processingUrl) throw Error('请通过本机编辑器服务打开音频素材');
+      const projectId = extension().project_id;
+      const response = await fetch(`${host.config.processingUrl}/asset-audio?project_id=${encodeURIComponent(projectId)}&asset_id=${encodeURIComponent(asset.id)}`,
+        { headers: { 'X-MSW-Token': host.config.requestToken }, signal, cache: 'no-store' });
+      if (!response.ok) throw Error(response.status === 404 ? '素材缺失，请恢复工程旁的素材目录' : '音频加载失败，请检查本机服务');
+      return response.arrayBuffer();
+    } });
+  function commit(label, change) { closeMenu(); transport.reset(); host.commitAudio(t(label), change); }
+  function insert(assetId, at = transport.currentTime() ?? (host.player.currentTime * 1000 || 0)) {
+    const asset = sync().assets.get(assetId); if (!asset) return;
+    const id = global.MSWProject.id('clip');
+    commit('添加音频贴片', ext => {
+      ext.audio_tracks ||= [{ id: 'voice-1', name: '配音', gain_db: 0, muted: false }];
+      if (!ext.audio_tracks.length) ext.audio_tracks.push({ id: 'voice-1', name: '配音', gain_db: 0, muted: false });
+      ext.audio_clips ||= [];
+      ext.audio_clips.push(core.create(asset, ext.audio_tracks[0].id, Math.round(timeline.snap(at)), id));
+    });
+    host.clearSubtitleSelection(); selected.clear(); selected.add(id); timeline.refreshOverlays();
+    void transport.ensure(asset);
+  }
+  function select(id, additive = false) {
+    host.clearSubtitleSelection();
+    if (!additive && !selected.has(id)) selected.clear();
+    if (additive && selected.has(id)) selected.delete(id); else selected.add(id);
+    timeline.pane.dataset.audioFocus = 'true'; schedulePaint();
+  }
+  function remove() {
+    if (!selected.size) return;
+    commit('删除音频贴片', ext => { ext.audio_clips = ext.audio_clips.filter(c => !selected.has(c.id)); });
+    selected.clear();
+  }
+  function mute() {
+    const shouldMute = sync().clips.some(c => selected.has(c.id) && !c.muted);
+    commit(shouldMute ? '静音音频贴片' : '取消贴片静音', ext => {
+      ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.muted = shouldMute; });
+    });
+  }
+  function closeMenu() { clearTimeout(menuTimer); menu?.remove(); menu = null; }
+  function showMenu(event, clip) {
+    event.preventDefault(); event.stopPropagation(); select(clip.id); closeMenu();
+    menu = document.createElement('div'); menu.className = 'ctxmenu show msw-audio-menu'; menu.setAttribute('role', 'menu');
+    menu.addEventListener('mouseenter', () => clearTimeout(menuTimer));
+    menu.addEventListener('mouseleave', () => { menuTimer = setTimeout(closeMenu, 280); });
+    const item = (label, fn) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'item'; button.textContent = t(label);
+      button.addEventListener('click', fn); menu.appendChild(button); };
+    item(clip.muted ? '取消静音' : '静音音频贴片', mute);
+    item('定位到贴片起点', () => { host.seek(clip.start_ms / 1000); closeMenu(); });
+    item('恢复完整音频', () => commit('恢复完整音频', ext => { ext.audio_clips.forEach(c => {
+      if (selected.has(c.id)) { c.source_in_sample = 0; c.source_out_sample = sync().assets.get(c.asset_id).sample_count; }
+    }); }));
+    const label = document.createElement('label'); label.className = 'msw-audio-gain'; label.textContent = `${t('贴片音量')} (dB)`;
+    const input = document.createElement('input'); input.type = 'number'; input.min = '-60'; input.max = '12'; input.step = '1'; input.value = clip.gain_db;
+    input.setAttribute('aria-label', t('贴片音量'));
+    input.addEventListener('change', () => { const gain = Number(input.value); if (!Number.isFinite(gain) || gain < -60 || gain > 12) return;
+      commit('调整贴片音量', ext => ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.gain_db = gain; })); });
+    label.appendChild(input); menu.appendChild(label);
+    item('删除音频贴片', remove);
+    if (transport.failures.has(clip.asset_id)) item('重新加载素材', () => { transport.failures.delete(clip.asset_id); void transport.ensure(sync().assets.get(clip.asset_id)); closeMenu(); });
+    document.body.appendChild(menu);
+    menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
+    menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
+  }
+  function begin(event, clip, mode) {
+    if (event.button !== 0) return;
+    event.preventDefault(); event.stopPropagation(); closeMenu();
+    select(clip.id, event.ctrlKey || event.metaKey || event.shiftKey);
+    if (!selected.has(clip.id)) return;
+    const point = timeline.timeAt(event.clientX, event.clientY); if (!point) return;
+    const originals = extension().audio_clips, ids = mode === 'move' ? new Set(selected) : new Set([clip.id]);
+    drag = { id: clip.id, mode, point, originals, ids, x: event.clientX, y: event.clientY, preview: originals, generation: host.generation, moved: false };
+    const onMove = e => {
+      e.stopPropagation();
+      if (!drag || drag.generation !== host.generation) return finish(false);
+      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 3 && !drag.moved) return;
+      const current = timeline.timeAt(e.clientX, e.clientY);
+      let delta = (current?.time ?? (drag.point.time + (e.clientX - drag.x) * drag.point.msPerPixel)) - drag.point.time;
+      const edge = mode === 'end' ? core.end(clip, sync().assets.get(clip.asset_id)) : clip.start_ms;
+      delta = timeline.snap(edge + delta) - edge;
+      if (mode === 'move') delta = Math.max(delta, -Math.min(...originals.filter(c => ids.has(c.id)).map(c => c.start_ms)));
+      drag.preview = originals.map(c => ids.has(c.id) ? core.edit(c, sync().assets.get(c.asset_id), mode, delta) : c);
+      drag.moved = true; schedulePaint();
+    };
+    const finish = apply => {
+      document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerup', onUp, true);
+      document.removeEventListener('pointercancel', onCancel, true); global.removeEventListener('blur', onCancel);
+      const current = drag; drag = null;
+      if (apply && current?.moved && current.generation === host.generation) {
+        commit(mode === 'move' ? '移动音频贴片' : '裁剪音频贴片', ext => { ext.audio_clips = current.preview; });
+      } else {
+        state = null; timeline.refreshOverlays();
+        if (apply && current && !current.moved && current.generation === host.generation && mode === 'move') {
+          host.seek(current.point.time / 1000);
+        }
+      }
+    };
+    const onUp = e => { e.preventDefault(); e.stopPropagation(); finish(true); }, onCancel = () => finish(false);
+    drag.cancel = onCancel;
+    document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerup', onUp, true);
+    document.addEventListener('pointercancel', onCancel, true); global.addEventListener('blur', onCancel);
+  }
+  function heatBackground(clip, asset, from, to) {
+    const heat = transport.heats.get(asset.id);
+    if (!heat || extension().audio_settings?.heatmap === false) return '';
+    const count = Math.min(96, Math.max(2, Math.ceil((to - from) / 100)));
+    const gain = clip.gain_db + (sync().tracks.get(clip.track_id)?.gain_db || 0), colors = [];
+    for (let i = 0; i <= count; i++) {
+      const sourceMs = clip.source_in_sample / asset.sample_rate * 1000 + from - clip.start_ms + (to - from) * i / count;
+      const db = heat.db[Math.min(heat.db.length - 1, Math.max(0, Math.floor(sourceMs / heat.step_ms)))] + gain;
+      colors.push(`${core.dbColor(db)} ${i / count * 100}%`);
+    }
+    return `linear-gradient(90deg,${colors.join(',')})`;
+  }
+  function renderRow(row, start, end) {
+    const current = sync(), has = current.clips.length > 0;
+    const key = `${start}:${end}`, previous = row.querySelector('.msw-audio-lanes');
+    if (previous) laneScroll.set(key, previous.scrollTop);
+    previous?.remove();
+    row.classList.toggle('has-audio-clips', has);
+    const visible = Math.min(3, Math.max(1, current.count)), height = visible * ROW + 6;
+    row.style.setProperty('--audio-lane-space', `${has ? height + 5 : 0}px`);
+    if (!has) return;
+    const area = document.createElement('div'); area.className = 'msw-audio-lanes';
+    area.style.height = `${height}px`; area.tabIndex = 0; area.setAttribute('aria-label', t('配音轨道'));
+    area.title = t(current.count > 3 ? '重叠配音可在此区域内滚动查看' : '配音轨道：拖动移动，边缘裁剪，右键静音');
+    const inner = document.createElement('div'); inner.className = 'msw-audio-lanes-inner'; inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`; area.appendChild(inner);
+    const overlaps = current.clips.filter(c => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
+    function paint() {
+      const lo = Math.max(0, Math.floor(area.scrollTop / ROW) - 1), hi = lo + visible + 2;
+      const fragment = document.createDocumentFragment();
+      for (const clip of overlaps) {
+        const lane = current.lanes.get(clip.id); if (lane < lo || lane > hi) continue;
+        const asset = current.assets.get(clip.asset_id), finish = core.end(clip, asset), from = Math.max(start, clip.start_ms), to = Math.min(end, finish);
+        const block = document.createElement('div'); block.className = 'msw-audio-clip'; block.dataset.clipId = clip.id; block.tabIndex = 0;
+        block.setAttribute('role', 'button'); block.setAttribute('aria-label', `${t('音频贴片')} ${clip.label}`);
+        block.classList.toggle('selected', selected.has(clip.id));
+        const muted = clip.muted || current.tracks.get(clip.track_id)?.muted;
+        block.classList.toggle('muted', muted);
+        block.classList.toggle('continues-from-previous-row', clip.start_ms < start);
+        block.classList.toggle('continues-to-next-row', finish > end);
+        block.classList.toggle('missing', transport.failures.has(asset.id));
+        block.style.cssText = `left:${(from - start) / (end - start) * 100}%;width:${(to - from) / (end - start) * 100}%;top:${lane * ROW + 3}px`;
+        const background = muted ? '' : heatBackground(clip, asset, from, to); if (background) block.style.backgroundImage = background;
+        block.title = `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
+          + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '');
+        const icon = document.createElement('span'); icon.className = 'msw-audio-icon'; icon.textContent = '♪'; icon.setAttribute('aria-hidden', 'true'); block.appendChild(icon);
+        const label = document.createElement('span'); label.className = 'msw-audio-clip-label'; label.textContent = clip.label || t('音频贴片'); block.appendChild(label);
+        for (const mode of ['start', 'end']) {
+          if (mode === 'start' && clip.start_ms < start || mode === 'end' && finish > end) continue;
+          const handle = document.createElement('span'); handle.className = `msw-audio-handle ${mode}`; handle.dataset.mode = mode; block.appendChild(handle);
+        }
+        block.addEventListener('pointerdown', e => begin(e, clip, e.target.dataset.mode || 'move'));
+        block.addEventListener('contextmenu', e => showMenu(e, clip));
+        block.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); });
+        fragment.appendChild(block);
+        if (!transport.heats.has(asset.id) && !transport.failures.has(asset.id)) void transport.ensure(asset);
+      }
+      inner.replaceChildren(fragment);
+    }
+    for (const event of ['pointerdown', 'pointermove', 'dblclick', 'contextmenu']) area.addEventListener(event, e => { e.stopPropagation(); if (event === 'contextmenu') e.preventDefault(); });
+    area.addEventListener('wheel', e => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
+    area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
+    row.appendChild(area); area.scrollTop = laneScroll.get(key) || 0; paint();
+  }
+  timeline.pane.addEventListener('dragover', event => {
+    if (!event.dataTransfer.types.includes(MIME)) return;
+    event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy'; timeline.pane.classList.add('audio-drop-target');
+  });
+  timeline.pane.addEventListener('dragleave', event => { if (!timeline.pane.contains(event.relatedTarget)) timeline.pane.classList.remove('audio-drop-target'); });
+  timeline.pane.addEventListener('drop', event => {
+    if (!event.dataTransfer.types.includes(MIME)) return;
+    event.preventDefault(); event.stopPropagation(); timeline.pane.classList.remove('audio-drop-target');
+    try { const value = JSON.parse(event.dataTransfer.getData(MIME));
+      if (value.project_id !== extension().project_id || !sync().assets.has(value.asset_id)) throw Error('只能放入当前工程的音频素材');
+      const point = timeline.timeAt(event.clientX, event.clientY); insert(value.asset_id, point?.time ?? 0);
+    } catch (error) { hint(error.message); }
+  }, true);
+  document.addEventListener('pointerdown', event => {
+    if (menu?.contains(event.target)) return;
+    closeMenu();
+    if (event.target.closest('.msw-audio-lanes')) return;
+    if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
+  }, true);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && (drag || menu)) { event.preventDefault(); event.stopImmediatePropagation(); drag?.cancel(); closeMenu(); return; }
+    if (!selected.size || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
+    const mod = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
+    if (mod && key === 's') return;
+    event.stopImmediatePropagation();
+    if (mod && key === 'z') { event.preventDefault(); drag?.cancel(); event.shiftKey ? host.redo() : host.undo(); }
+    else if (mod && key === 'y') { event.preventDefault(); host.redo(); }
+    else if (key === 'delete' || key === 'backspace') { event.preventDefault(); remove(); }
+    else if (key === 'm') { event.preventDefault(); mute(); }
+    else if (key === ' ') { event.preventDefault(); host.togglePlayback(); }
+    else if (key === 'escape') { selected.clear(); schedulePaint(); }
+    else if (key === 'arrowleft' || key === 'arrowright') {
+      event.preventDefault(); let delta = (key === 'arrowleft' ? -1 : 1) * (event.shiftKey ? 100 : 10);
+      delta = Math.max(delta, -Math.min(...sync().clips.filter(c => selected.has(c.id)).map(c => c.start_ms)));
+      commit('移动音频贴片', ext => { ext.audio_clips = ext.audio_clips.map(c => selected.has(c.id) ? core.edit(c, sync().assets.get(c.asset_id), 'move', delta) : c); });
+    }
+  }, true);
+  const heatToggle = document.getElementById('audio-clips-heatmap'), gapSelect = document.getElementById('audio-clips-gap-policy');
+  heatToggle?.addEventListener('change', () => commit('切换贴片热力图', ext => { ext.audio_settings = { ...ext.audio_settings, heatmap: heatToggle.checked }; }));
+  gapSelect?.addEventListener('change', () => commit('修改配音空隙策略', ext => { ext.audio_settings = { ...ext.audio_settings, gap_policy: gapSelect.value }; }));
+  function refreshSettings() {
+    if (heatToggle) heatToggle.checked = extension().audio_settings?.heatmap !== false;
+    if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
+  }
+  const api = Object.freeze({ insert, renderRow, hasAssets: () => (extension().assets || []).length > 0,
+    durationMs: () => Math.ceil(sync().end), minimumRowHeight: () => sync().clips.length ? 41 + (timeline.dual() ? 40 : 24) + Math.min(3, sync().count) * ROW : 0,
+    currentTimeMs: () => transport.currentTime(), togglePlayback: () => transport.toggle(), seek: ms => transport.seek(ms),
+    virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,
+    protectGaps: gaps => { sync(); if (gapSource !== gaps) { gapSource = gaps; protectedRanges = core.protectGaps(gaps, extension()); } return protectedRanges; },
+    diagnostics: transport.diagnostics,
+  });
+  global.MSWE.register('audio-timeline', () => api);
+  global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
+  global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
+  global.addEventListener('msw:project-changed', () => {
+    drag?.cancel(); closeMenu(); selected.clear(); state = null; laneScroll.clear(); transport.clear();
+    queueMicrotask(() => { refreshSettings(); timeline.refresh(); });
+  });
+  global.addEventListener('pagehide', () => transport.clear());
+  refreshSettings(); timeline.attach(api);
 })(window);
 
 (() => {

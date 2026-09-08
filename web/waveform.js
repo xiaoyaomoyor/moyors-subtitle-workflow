@@ -56,19 +56,20 @@
   const RENDERER_PRESETS = ['classic', 'wave-right', 'custom'];
   // 内置工作区 id：下拉框可选项；custom 预设都由各自的布局树渲染。
   const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'cinema'];
-  const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
-  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器' };
+  const MODULE_IDS = ['player', 'panel', 'cues', 'wave', 'assets'];
+  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库' };
   // 模块标签叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
   const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   // 工作区窗口图标：16x16 线性 SVG，stroke 跟随 currentColor（强调色）。
   // 字幕编辑区用 T 形文字图标，与字幕列表的多行列表图标区分。
   const MODULE_ICONS = {
+    assets: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4h5l1-2h7v12h-13z"/><path d="M5 8v3M8 6v6M11 8v3"/></svg>',
     player: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6.5 5.8v4.4L10.4 8z" class="dock-icon-fill"/></svg>',
     panel: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4h9M8 4v8"/></svg>',
     cues: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="12" rx="2"/><path d="M4 5h8M4 8h8M4 11h4"/></svg>',
     wave: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h1.8l1.4-4 2 8 2-6 1.6 4 1.2-2h2.6"/></svg>',
   };
-  const DEFAULT_MODULE_ORDER = ['player', 'panel', 'cues', 'wave'];
+  const DEFAULT_MODULE_ORDER = [...MODULE_IDS];
   const DEFAULT_RIGHT_LAYOUT_TREE = {
     type: 'split', direction: 'row', ratio: 30,
     children: [
@@ -186,7 +187,7 @@
     layoutColumnPercent: 30,
     layoutRows: [...DEFAULT_LAYOUT_ROWS],
     layoutTree: DEFAULT_RIGHT_LAYOUT_TREE,
-    hiddenModules: [],
+    hiddenModules: ['assets'],
     layoutEditing: false,
     waveformScale: 1,
     disabledDisplay: 'dim',
@@ -388,6 +389,7 @@
   }
 
   function normalizeModuleOrder(value) {
+    if (Array.isArray(value) && value.length === 4 && new Set(value).size === 4 && value.every(id => MODULE_IDS.includes(id) && id !== 'assets')) value = [...value, 'assets'];
     return Array.isArray(value) && value.length === MODULE_IDS.length
       && value.every((id) => MODULE_IDS.includes(id))
       && new Set(value).size === MODULE_IDS.length
@@ -764,10 +766,9 @@
     const tree = isCompleteLayoutTree(candidateTree)
       ? candidateTree
       : cloneLayoutTree(preset === 'classic' ? CLASSIC_LAYOUT_EDIT_TREE : DEFAULT_RIGHT_LAYOUT_TREE);
-    const hiddenSource = Array.isArray(source.hiddenModules) ? source.hiddenModules : [];
     // 只保留「确实不在树上」的隐藏模块，避免树与隐藏列表互相矛盾。
     const treeModules = new Set(collectLayoutModules(tree));
-    const hiddenModules = [...new Set(hiddenSource)]
+    const hiddenModules = MODULE_IDS
       .filter((id) => MODULE_IDS.includes(id) && !treeModules.has(id));
     return {
       schema: WORKSPACE_SCHEMA,
@@ -816,6 +817,7 @@
         layoutColumnPercent: layoutData.columnPercent,
         layoutRows: layoutData.rows,
         layoutTree: layoutData.tree,
+        hiddenModules: layoutData.hiddenModules,
         layoutEditing: false,
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
@@ -1767,6 +1769,7 @@
       // this.cues 仍指滚动容器，供滚动/渲染逻辑使用。
       this.cuesModule = document.getElementById('cues-module') || this.cues;
       this.pane = document.getElementById('waveform-pane');
+      this.assetLibrary = document.getElementById('asset-library');
       this.scroll = document.getElementById('waveform-scroll');
       this.content = document.getElementById('waveform-content');
       this.empty = document.getElementById('waveform-empty');
@@ -2202,7 +2205,7 @@
       this.settings.layoutTree = normalized.tree;
       this.settings.layoutEditing = false;
       // 预设布局固定展示全部四个模块：清掉标签/关闭留下的隐藏状态。
-      this.settings.hiddenModules = [];
+      this.settings.hiddenModules = ['assets'];
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
@@ -2271,7 +2274,8 @@
     }
 
     getHiddenModules() {
-      return [...(this.settings.hiddenModules || [])].filter((id) => MODULE_IDS.includes(id));
+      const visible = new Set(collectLayoutModules(this.settings.layoutTree));
+      return MODULE_IDS.filter(id => !visible.has(id));
     }
 
     closeDockModule(id) {
@@ -2319,12 +2323,18 @@
       return true;
     }
 
-    showModule(id) {
+    showModule(id, { recordUndo = true } = {}) {
       if (!MODULE_IDS.includes(id)) return false;
-      if (!(this.settings.hiddenModules || []).includes(id)) return false;
-      const nextTree = insertLayoutModuleAtRootEdge(this.settings.layoutTree, id, 'bottom');
+      if (!this.getHiddenModules().includes(id)) return false;
+      let nextTree;
+      if (id === 'assets') {
+        let corner = this.settings.layoutTree, direction = 'column';
+        while (corner?.type === 'split') { direction = corner.direction === 'row' ? 'column' : 'row'; corner = corner.children[1]; }
+        const target = corner?.type === 'tabs' ? corner.children[0].id : corner?.id;
+        nextTree = replaceOwnerOfModule(this.settings.layoutTree, target, node => splitLayoutNode(direction, 60, node, moduleLayoutNode(id)));
+      } else nextTree = insertLayoutModuleAtRootEdge(this.settings.layoutTree, id, 'bottom');
       if (!isCompleteLayoutTree(nextTree)) return false;
-      this.recordLayoutUndo(`显示「${MODULE_LABELS[id]}」窗口`, this.getLayoutHistorySnapshot());
+      if (recordUndo) this.recordLayoutUndo(`显示「${MODULE_LABELS[id]}」窗口`, this.getLayoutHistorySnapshot());
       this.settings.layout = 'custom';
       this.settings.layoutTree = nextTree;
       const present = new Set(collectLayoutModules(nextTree));
@@ -2416,6 +2426,7 @@
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       MODULE_IDS.forEach((id) => {
         const element = elements[id];
@@ -2703,6 +2714,7 @@
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       Object.entries(elements).forEach(([id, element]) => {
         if (!element) return;
@@ -2928,12 +2940,13 @@
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       if (!this.customLayoutRoot?.isConnected) return;
-      Object.values(elements).forEach((element) => {
+      Object.entries(elements).forEach(([id, element]) => {
         if (element) {
           element.style.gridArea = '';
-          element.hidden = false; // 标签组里被隐藏的成员回到预设时恢复显示
+          element.hidden = id === 'assets'; // 新素材模块在内置布局中默认隐藏
           this.workspace.insertBefore(element, this.customLayoutRoot);
         }
       });
@@ -2948,6 +2961,7 @@
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       if (node.type === 'tabs') {
         const slot = document.createElement('div');
@@ -3071,6 +3085,7 @@
         panel: this.panel,
         cues: this.cuesModule,
         wave: this.pane,
+        assets: this.assetLibrary,
       };
       Object.entries(moduleElements).forEach(([id, element]) => {
         if (!renderedModules.has(id) && element?.isConnected) element.remove();
@@ -3237,15 +3252,15 @@
       }
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowIndex = clamp(Math.floor(timeMs / rowDurationMs), 0, Math.max(0, Math.ceil(this.durationMs / rowDurationMs) - 1));
-      const stride = this.settings.rowHeight + ROW_GAP;
+      const stride = this.effectiveRowHeight + ROW_GAP;
       const currentScrollTop = this.scroll.scrollTop;
       const rowInComfortZone = isMultiRowInComfortZone(
-        rowIndex, currentScrollTop, this.scroll.clientHeight, this.settings.rowHeight,
+        rowIndex, currentScrollTop, this.scroll.clientHeight, this.effectiveRowHeight,
       );
       const scrollTop = center && rowInComfortZone
         ? currentScrollTop
         : (center
-          ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.settings.rowHeight) * 0.45)
+          ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.effectiveRowHeight) * 0.45)
           : rowIndex * stride);
       const nextScrollTop = Math.max(0, scrollTop);
       this.autoScrolling = Math.abs(nextScrollTop - currentScrollTop) > 0.5;
@@ -3391,6 +3406,7 @@
     }
 
     setPayload(payload, { render = true } = {}) {
+      this.audioOnlyTimeline = false;
       const decoded = decodePayload(payload);
       if (!decoded) {
         this.payload = null;
@@ -3606,12 +3622,47 @@
     }
 
     get durationMs() {
-      if (this.payload) return this.payload.duration_ms;
-      if (this.player && Number.isFinite(this.player.duration)) return Math.round(this.player.duration * 1000);
-      return 0;
+      const base = this.payload?.duration_ms || (Number.isFinite(this.player?.duration) ? this.player.duration * 1000 : 0);
+      return Math.max(base, this.audioLayer?.durationMs() || 0);
+    }
+
+    get effectiveRowHeight() {
+      return Math.max(this.settings.rowHeight, this.audioLayer?.minimumRowHeight() || 0);
+    }
+
+    getAudioTimelineHost() {
+      return Object.freeze({
+        pane: this.pane,
+        attach: (layer) => { this.audioLayer = layer; this.refreshAudioTimeline(); },
+        refresh: () => this.refreshAudioTimeline(),
+        refreshOverlays: () => this.renderedRows.forEach(row => this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs))),
+        timeAt: (x, y) => {
+          const row = document.elementFromPoint(x, y)?.closest('.waveform-row');
+          if (!row || !this.pane.contains(row)) return null;
+          const rect = row.getBoundingClientRect(), start = Number(row.dataset.startMs), end = Number(row.dataset.endMs);
+          return { time: start + clamp((x - rect.left) / Math.max(1, rect.width), 0, 1) * (end - start),
+            msPerPixel: (end - start) / Math.max(1, rect.width) };
+        },
+        snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
+        dual: () => this.options.multiSubtitleVisible?.() === true,
+      });
+    }
+
+    refreshAudioTimeline() {
+      if (!this.payload && this.audioLayer?.hasAssets()) {
+        this.payload = { duration_ms: 20000, peaks_per_second: 1, peak_count: 20 };
+        this.peaks = new Int8Array(40);
+        this.audioOnlyTimeline = true;
+      } else if (this.audioOnlyTimeline && !this.audioLayer?.hasAssets()) {
+        this.payload = null; this.peaks = null; this.audioOnlyTimeline = false;
+      }
+      this.audioGeometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
+      this.render();
     }
 
     currentTimeMs() {
+      const audioTime = this.audioLayer?.currentTimeMs();
+      if (Number.isFinite(audioTime)) return Math.round(audioTime);
       return this.player && Number.isFinite(this.player.currentTime)
         ? Math.round(this.player.currentTime * 1000) : 0;
     }
@@ -3726,7 +3777,7 @@
       this.multiFollowCheckPending = true;
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
-      const stride = this.settings.rowHeight + ROW_GAP;
+      const stride = this.effectiveRowHeight + ROW_GAP;
       this.content.style.height = `${rowCount * stride - ROW_GAP}px`;
 
       // 先改已有行的几何，再根据新的 stride 增量补齐视口；已有行保留其
@@ -3738,7 +3789,7 @@
         const startMs = index * rowDurationMs;
         const endMs = Math.min(this.durationMs, startMs + rowDurationMs);
         row.style.top = `${index * stride}px`;
-        row.style.height = `${this.settings.rowHeight}px`;
+        row.style.height = `${this.effectiveRowHeight}px`;
         row.style.width = `${Math.max(0.01, Math.min(1, (endMs - startMs) / rowDurationMs) * 100)}%`;
       });
       this.multiRange = [-1, -1];
@@ -3777,7 +3828,7 @@
     renderMulti() {
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
-      this.content.style.height = `${rowCount * (this.settings.rowHeight + ROW_GAP) - ROW_GAP}px`;
+      this.content.style.height = `${rowCount * (this.effectiveRowHeight + ROW_GAP) - ROW_GAP}px`;
       this.multiRange = [-1, -1];
       this.multiFollowCheckPending = true;
       this.renderMultiVisible(true);
@@ -3787,7 +3838,7 @@
       if (!this.isMultiMode() || !this.payload) return;
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
-      const stride = this.settings.rowHeight + ROW_GAP;
+      const stride = this.effectiveRowHeight + ROW_GAP;
       const first = clamp(Math.floor(this.scroll.scrollTop / stride) - MULTI_ROW_BUFFER, 0, rowCount - 1);
       const last = clamp(Math.ceil((this.scroll.scrollTop + this.scroll.clientHeight) / stride) + MULTI_ROW_BUFFER, 0, rowCount - 1);
       if (!force && first === this.multiRange[0] && last === this.multiRange[1]) {
@@ -3832,8 +3883,8 @@
       const startMs = index * rowDurationMs;
       const endMs = Math.min(this.durationMs, startMs + rowDurationMs);
       const row = this.createRow(startMs, endMs, index, false, groupBadges);
-      row.style.top = `${index * (this.settings.rowHeight + ROW_GAP)}px`;
-      row.style.height = `${this.settings.rowHeight}px`;
+      row.style.top = `${index * (this.effectiveRowHeight + ROW_GAP)}px`;
+      row.style.height = `${this.effectiveRowHeight}px`;
       // 最后一行只代表媒体剩余的真实时长；缩短容器不会减少采样量，
       // 但能避免把不存在的尾部时间误画成整行波形。
       row.style.right = 'auto';
@@ -3881,6 +3932,7 @@
 
       this.appendGapBlocks(row, startMs, endMs);
       this.appendCueBlocks(row, startMs, endMs, groupBadges || computeGroupBadges(this.options.getSegments('main')));
+      this.audioLayer?.renderRow(row, startMs, endMs);
 
       row.addEventListener('pointerdown', (event) => {
         // 每次按下时读取最新模式；设置切换会重绘空隙块，但不会重建仍在
@@ -4275,6 +4327,9 @@
     }
 
     refreshCueOverlay() {
+      if (this.audioLayer && this.audioGeometry !== `${this.audioLayer.minimumRowHeight()}:${this.durationMs}`) {
+        this.refreshAudioTimeline(); return;
+      }
       if (!this.payload) return;
       const rows = [...this.content.querySelectorAll('.waveform-row')];
       if (!rows.length) return;
@@ -4290,6 +4345,7 @@
           Number(row.dataset.endMs),
           groupBadges,
         );
+        this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
       });
       this.updatePlayback(false);
     }
@@ -4666,7 +4722,9 @@
         const parsed = Number.parseFloat(value);
         return Number.isFinite(parsed) ? parsed : fallback;
       };
-      const bottomInset = parsePx(rowStyle.getPropertyValue('--multi-subtitle-bottom-inset'), 7);
+      const bottomInset = hitRow.classList.contains('has-audio-clips')
+        ? 7 + parsePx(rowStyle.getPropertyValue('--audio-lane-space'), 0)
+        : parsePx(rowStyle.getPropertyValue('--multi-subtitle-bottom-inset'), 7);
       const visibleCue = hitRow.querySelector(
         '.waveform-cue-block[data-track="main"], .waveform-cue-block[data-track="extension"]',
       );
@@ -6323,9 +6381,9 @@
         this.multiFollowCheckPending = false;
         const viewportHeight = this.scroll.clientHeight;
         const rowInComfortZone = viewportHeight > 0 && isMultiRowInComfortZone(
-          rowIndex, this.scroll.scrollTop, viewportHeight, this.settings.rowHeight,
+          rowIndex, this.scroll.scrollTop, viewportHeight, this.effectiveRowHeight,
         );
-        const stride = this.settings.rowHeight + ROW_GAP;
+        const stride = this.effectiveRowHeight + ROW_GAP;
         const targetScrollTop = clamp(
           rowIndex * stride - viewportHeight * 0.35,
           0,
@@ -6359,7 +6417,7 @@
           mode: this.settings.mode,
           basicWindowStartMs: this.basicWindowStartMs,
           scrollTop: this.scroll?.scrollTop,
-          rowHeight: this.settings.rowHeight,
+          rowHeight: this.effectiveRowHeight,
           rowGap: ROW_GAP,
           secondsPerRow: this.settings.secondsPerRow,
         }),
@@ -6389,7 +6447,7 @@
           this.renderBasic();
         } else {
           const rowDurationMs = Math.max(1, this.settings.secondsPerRow * 1000);
-          const stride = this.settings.rowHeight + ROW_GAP;
+          const stride = this.effectiveRowHeight + ROW_GAP;
           const rowTop = Math.floor(topEdgeMs / rowDurationMs) * stride;
           const maxTop = Math.max(0, this.scroll.scrollHeight - this.scroll.clientHeight);
           this.scroll.scrollTop = clamp(rowTop, 0, maxTop);

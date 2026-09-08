@@ -670,9 +670,18 @@ test('swaps custom docking slots without mutating the source order', () => {
   const order = ['player', 'panel', 'cues', 'wave'];
   assert.deepEqual(
     JSON.parse(JSON.stringify(helpers.swapLayoutModuleOrder(order, 'wave', 'panel'))),
-    ['player', 'wave', 'cues', 'panel'],
+    ['player', 'wave', 'cues', 'panel', 'assets'],
   );
   assert.deepEqual(order, ['player', 'panel', 'cues', 'wave']);
+});
+
+test('legacy layouts hide the asset module and preserve it after docking', () => {
+  const legacy = helpers.normalizeLayoutData({ preset: 'custom' });
+  assert.ok(legacy.hiddenModules.includes('assets'));
+  const tree = helpers.insertLayoutModuleAtEdge(legacy.tree, 'assets', 'cues', 'bottom');
+  const saved = helpers.normalizeLayoutData({ preset: 'custom', tree });
+  assert.equal(helpers.collectLayoutModules(saved.tree).filter(id => id === 'assets').length, 1);
+  assert.equal(saved.hiddenModules.includes('assets'), false);
 });
 
 
