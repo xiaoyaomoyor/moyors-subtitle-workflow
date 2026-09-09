@@ -97,6 +97,7 @@ jobs:
           exit $LASTEXITCODE
 
       - name: Check editor in Chromium
+        id: editor-browser
         shell: pwsh
         run: |
           npx playwright install chromium
@@ -104,6 +105,15 @@ jobs:
           $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
           npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs --project=chromium
           exit $LASTEXITCODE
+
+      - name: Keep failed browser diagnostics
+        if: ${{ failure() && steps.editor-browser.outcome == 'failure' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: editor-test-diagnostics-${{ github.run_attempt }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Download embedded Python bootstrap assets
         run: |

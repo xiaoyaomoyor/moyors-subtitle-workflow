@@ -630,7 +630,19 @@ test('asset cards show three columns, icon actions and responsive saved density'
   await page.keyboard.press('Tab'); await page.keyboard.press('Escape');
   const focused=first.getByRole('button',{name:'试听',exact:true});await focused.focus();
   await page.locator('#asset-refresh').evaluate(el=>el.click());await expect(focused).toBeFocused();
+  // Density is independent of whether the module is open. Reopen through the
+  // window menu before measuring; a hidden grid reports the CSS fallback.
+  await page.locator('#asset-library .tab-close').click();
+  await expect(page.locator('#asset-library')).not.toBeVisible();
   await page.reload();await expect(slider).toHaveValue('5');
+  await expect(page.locator('#editor-loading')).not.toBeVisible();
+  if (!await page.locator('#asset-library').isVisible()) {
+    await openMenubarMenu(page,'窗口');
+    const toggle=page.locator('#show-module-submenu > .dropdown-submenu-toggle');
+    await toggle.focus();await toggle.press('ArrowRight');
+    await page.locator('#show-module-menu').getByRole('menuitem',{name:'素材库',exact:true}).click();
+  }
+  await expect(page.locator('#asset-library')).toBeVisible();
   await expect.poll(columns).toBe(5);
   await page.locator('#asset-library').evaluate(el=>{el.style.width='270px';el.style.maxWidth='270px';});
   await expect.poll(columns).toBe(2);
