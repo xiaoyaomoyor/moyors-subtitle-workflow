@@ -29,6 +29,7 @@ class ProcessingAPI:
         self._exports = None
         self._yukkuri = None
         self._importer = None
+        self._qwen_voices = None
         self._project_path = object()
         self.binding = ""
 
@@ -56,6 +57,14 @@ class ProcessingAPI:
             if self._exports is None:
                 self._exports = AudioExports(self)
             return self._exports
+
+    @property
+    def qwen_voices(self):
+        from maw.msw.qwen_voices import QwenVoices
+        with self.lock:
+            if self._qwen_voices is None:
+                self._qwen_voices = QwenVoices(self.data_root / 'qwen-voices', self.server.server_address[1], lambda: self.exports.tools())
+            return self._qwen_voices
 
     @property
     def importer(self):
@@ -196,7 +205,7 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports", "asset-import"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports", "asset-import", "qwen-voices"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
@@ -226,6 +235,23 @@ class ProcessingAPI:
                         self.yukkuri.save(engine="qwen")
                     result = {**tts.config_payload(self.env_path), "yukkuri": self.yukkuri.payload(),
                               "engine": self.yukkuri.payload()["engine"]}
+            elif route == 'qwen-voices' and post:
+                settings = tts.resolve_settings(self.env_path, payload.get('provider', {}), require_voice=False)
+                if payload.get('action') == 'create':
+                    result = {'operation': self.qwen_voices.start(payload, settings)}
+                    status = HTTPStatus.ACCEPTED
+                elif payload.get('action') == 'list':
+                    result = self.qwen_voices.catalog(settings)
+                else:
+                    raise ValueError('未知音色操作')
+            elif route.startswith('qwen-voice-jobs/') and not post:
+                parts = route.split('/')
+                if len(parts) == 3 and parts[2] == 'preview':
+                    handler.send_file(self.qwen_voices.preview(parts[1]), handler.command != 'HEAD')
+                    return True
+                if len(parts) != 2:
+                    raise KeyError('未知音色任务')
+                result = {'operation': self.qwen_voices.get(parts[1])}
             elif route == "yukkuri-runtime":
                 result = {"runtime": self.yukkuri.start(payload.get("action"), payload.get("directory", ""))
                           if post else self.yukkuri.payload()}
@@ -289,6 +315,8 @@ class ProcessingAPI:
                         settings = resolve_local_tts(self.yukkuri, provider)
                     else:
                         settings = tts.resolve_settings(self.env_path, provider) if payload.get("kind") == "tts" else resolve_settings(self.env_path, provider)
+                        if payload.get('kind') == 'tts' and settings.recipe.get('model_type') != 'CustomVoice':
+                            self.qwen_voices.validate_voice(settings)
                     result = {"job": self.jobs.submit(payload, settings)}
                     status = HTTPStatus.ACCEPTED
                 elif route == "jobs" and not post:
@@ -324,6 +352,8 @@ class ProcessingAPI:
         return True
 
     def close(self):
+        if self._qwen_voices:
+            self._qwen_voices.close()
         if self._importer:
             self._importer.close()
         if self._yukkuri:

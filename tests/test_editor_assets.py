@@ -32,6 +32,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "editor.js",
                 "msw-persistence.js",
                 "msw-processing.js",
+                "msw-qwen-voices.js",
                 "msw-tts.js",
                 "msw-audio-transport.js",
                 "msw-audio.js",

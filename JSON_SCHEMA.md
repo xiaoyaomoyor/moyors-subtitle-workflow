@@ -828,12 +828,14 @@ uv run python edit.py your_generated.mosp
 | `sha256` / `byte_size` | WAV 文件 SHA-256（64 位小写十六进制），字节数 44–33554432 |
 | `sample_rate` / `channels` / `sample_count` | 实测整数，采样率 8000–192000，通道 1–8，样本帧数 1–2^32。时长由 `sample_count / sample_rate` 得到 |
 | `job_id` / `created_at` | 生成任务 ID；生成时间为 Unix 秒 |
-| `generation` | 不含密钥的可复现配置：`provider`、`region`、`model`、`voice`、`language_type`、`instructions`、`optimize_instructions`、`display_text`、`spoken_text`。模型稳定别名按实际请求名记录，不伪造解析后的快照版本 |
+| `generation` | 不含密钥的生成配置：`provider`、`region`、`model`、`voice`、`language_type`、`instructions`、`optimize_instructions`、`display_text`、`spoken_text`；百炼新增可选 `model_type`（`CustomVoice`／`VoiceDesign`／`VoiceClone`）。旧素材可缺少模式；模型稳定别名按实际请求名记录，不伪造解析后的快照版本，不保证云端音色永久有效 |
 | `source_ref` | `key` 为任务条目 ID；`id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒 |
 
 任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
 
 工作区布局树的模块 ID 新增 `assets`，可进入已有 `module`、`tabs` 和 `split` 结构。旧布局缺少该模块时默认为隐藏；不会为了补足五个模块重排用户布局。
+
+百炼音色设计／复刻的本机音色库与创建任务另存应用数据目录 `qwen-voices/voices.sqlite3`，试听预览存 `qwen-voices/previews/`，不作为工程素材自动导出。工程仅记录合成时使用的模式、精确请求模型与音色 ID；API Key、密钥配置摘要、参考音频、音色创建输入不写入工程。音色创建与逐字幕 TTS 是独立操作，不由字幕合成隐式触发。
 
 外部导入音频沿用相同的不可变素材结构，`generation.provider = "imported"`、`model = "external-audio"`、`voice = ""`、`language_type = "Auto"`；另存原始 `filename`、上传内容的 `source_sha256` 和 `text_origin = "filename"`。`display_text` 与 `source_ref.text` 为去扩展名的文件名，`spoken_text = ""`，不伪造识别文本。`job_id`、来源 `key/id` 为 `import-<请求标识>`，`track_id = null`，`start = 0`、`end` 为素材实际时长换算的整数毫秒。这些来源标识不代表已有字幕绑定。标准 PCM WAV 保留原采样参数；其他支持格式转换为 48 kHz、双声道、16-bit WAV。素材 `sha256` 始终描述最终 WAV，与原文件摘要区分。
 

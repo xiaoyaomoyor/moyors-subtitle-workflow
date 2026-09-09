@@ -2992,6 +2992,11 @@
   .msw-job-history > .msw-processing-jobs:empty::before { content: '—'; display: block; padding-block: 12px; color: var(--text-muted); }
   .msw-processing-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+  .msw-qwen-voice-picker { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; margin-block: 8px; background: var(--bg-panel); }
+  .msw-qwen-voice-picker .msw-processing-field { margin-block: 4px; }
+  #tts-voice-preview { width: 100%; max-height: 40px; margin-block: 8px; }
+  #tts-voice-reference { max-width: 100%; }
+  #tts-voice-current, #tts-voice-message { overflow-wrap: anywhere; }
   .msw-tts-check input { width: auto; }
   .msw-tts-result { max-height: 260px; overflow: auto; overflow-wrap: anywhere; }
   .msw-tts-result p { white-space: pre-wrap; }

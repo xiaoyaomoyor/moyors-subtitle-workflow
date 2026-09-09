@@ -43,6 +43,8 @@
     }
     return data;
   }
+  const qwenVoices = global.MSWQwenVoices.create({el, t, request, recipe: qwenRecipe, updateScope,
+    stopAssetPreview: stopPreview, pauseMedia: () => host.pauseMedia(), generation: () => host.generation});
   function updateScope() {
     let scope = global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
     if (scope.signature !== scopeSignature) {
@@ -58,6 +60,7 @@
     el('tts-yukkuri-pronunciation-field').hidden = scope.sources.length !== 1 || (scope.needsChoice && !el('tts-target').value);
     el('tts-start').disabled = !available || !configured || busy || (!pending && (
       (isYukkuri() && (!runtime.runtime_path || runtime.state === 'working' || runtimeRequest))
+      || (!isYukkuri() && !el('tts-voice').value.trim())
       || !scope.sources.length || scope.tooLong || (scope.needsChoice && !el('tts-target').value)));
     el('tts-start').textContent = t(pending ? '确认上次提交' : '开始合成');
     return scope;
@@ -65,13 +68,15 @@
   function recipe() {
     if (isYukkuri()) return {provider: 'yukkuri', model: 'aquestalk1', voice: el('tts-yukkuri-voice').value,
       language_type: el('tts-yukkuri-language').value, speed: Number(el('tts-yukkuri-speed').value)};
+    return qwenRecipe();
+  }
+  function qwenRecipe() {
     const instruct = el('tts-model').value.includes('-instruct-');
-    return { provider: 'qwen', region: el('tts-region').value, model: el('tts-model').value,
+    return { provider: 'qwen', region: el('tts-region').value, model_type: el('tts-model-type').value, model: el('tts-model').value,
       voice: el('tts-voice').value.trim(), language_type: el('tts-language').value,
       instructions: instruct ? el('tts-instructions').value.trim() : '',
       optimize_instructions: instruct && el('tts-optimize').checked };
   }
-  function updateModel() { el('tts-instruct').hidden = !el('tts-model').value.includes('-instruct-'); }
   function updateEngine() {
     el('tts-qwen-fields').hidden = isYukkuri();
     el('tts-yukkuri-fields').hidden = !isYukkuri();
@@ -121,11 +126,14 @@
   }
   async function loadSettings() {
     const data = await request('tts-settings');
+    if (!data.modelTypes || !data.systemVoices) {
+      configured = false; updateScope();
+      throw new Error(t('本机 TTS 服务仍是旧版本，请重启编辑器服务后刷新页面'));
+    }
     regions = data.regions;
-    el('tts-model').replaceChildren(...data.models.map(model => new Option(model, model)));
     el('tts-language').replaceChildren(...data.languages.map(language => new Option(t(language), language)));
     const value = data.recipe;
-    for (const [id, key] of [['tts-model', 'model'], ['tts-language', 'language_type'], ['tts-voice', 'voice'], ['tts-region', 'region'], ['tts-instructions', 'instructions']]) el(id).value = value[key];
+    for (const [id, key] of [['tts-language', 'language_type'], ['tts-region', 'region'], ['tts-instructions', 'instructions']]) el(id).value = value[key];
     el('tts-optimize').checked = value.optimize_instructions;
     el('tts-key').value = '';
     el('tts-settings').open = !keyState();
@@ -137,7 +145,7 @@
       el('tts-yukkuri-directory').value = data.yukkuri.runtime_path;
       renderRuntime(data.yukkuri);
     }
-    configured = true; updateModel(); updateEngine();
+    configured = true; qwenVoices.configure(data); updateEngine();
   }
   function action(label, callback) {
     const button = document.createElement('button');
@@ -417,6 +425,7 @@
     if (available) {
       if (!configured) void loadSettings().catch(error => message(error.message, true));
       else if (isYukkuri()) void pollRuntime();
+      else qwenVoices.reopen();
       schedule(0);
     }
   });
@@ -428,8 +437,7 @@
   el('tts-yukkuri-install').addEventListener('click', () => void runtimeAction('install'));
   el('tts-yukkuri-check').addEventListener('click', () => void runtimeAction('check'));
   el('tts-yukkuri-cancel').addEventListener('click', () => void runtimeAction('cancel'));
-  el('tts-model').addEventListener('change', updateModel);
-  el('tts-region').addEventListener('change', () => { el('tts-key').value = ''; keyState(); });
+  el('tts-region').addEventListener('change', () => { el('tts-key').value = ''; keyState(); qwenVoices.credentialsChanged(); });
   el('tts-save-settings').addEventListener('click', async () => {
     el('tts-save-settings').disabled = true;
     try { await request('tts-settings', { recipe: recipe(), ...(isYukkuri() ? {} : {apiKey: el('tts-key').value}) }); await loadSettings(); message('TTS 配置已保存到本机'); }

@@ -11,16 +11,15 @@ import requests
 
 from maw.gui_config import load_env, save_env
 from maw.msw.project_codec import valid_cue_id, valid_id
+from maw.msw.qwen_catalog import MODELS, MODEL_TYPES, model_type, voices_for, catalog_payload
 
 ENDPOINTS = {
     "beijing": "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
     "singapore": "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
 }
-MODELS = ["qwen3-tts-flash", "qwen3-tts-flash-2025-11-27", "qwen3-tts-flash-2025-09-18",
-          "qwen3-tts-instruct-flash", "qwen3-tts-instruct-flash-2026-01-26"]
 LANGUAGES = ["Auto", "Chinese", "English", "German", "Italian", "Portuguese", "Spanish",
              "Japanese", "Korean", "French", "Russian"]
-DEFAULT_RECIPE = {"provider": "qwen", "region": "beijing", "model": MODELS[0], "voice": "Cherry",
+DEFAULT_RECIPE = {"provider": "qwen", "region": "beijing", "model_type": "CustomVoice", "model": MODELS[0], "voice": "Cherry",
                   "language_type": "Auto", "instructions": "", "optimize_instructions": False}
 MAX_AUDIO_BYTES = 32 * 1024 * 1024
 
@@ -29,14 +28,22 @@ class TtsServiceError(ValueError):
     """A service/configuration failure stops the batch without automatic retries."""
 
 
-def validate_recipe(raw):
+def validate_recipe(raw, *, require_voice=True):
     if not isinstance(raw, dict):
         raise ValueError("TTS 配置格式无效")
     value = {key: raw.get(key, default) for key, default in DEFAULT_RECIPE.items()}
+    if "model_type" not in raw:
+        value["model_type"] = model_type(value["model"])
     if value["provider"] != "qwen" or value["region"] not in ENDPOINTS or value["model"] not in MODELS:
         raise ValueError("不支持的 TTS 服务、地域或模型")
-    if not isinstance(value["voice"], str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,127}", value["voice"]):
-        raise ValueError("请输入有效的百炼系统音色 ID")
+    if value["model_type"] not in MODEL_TYPES or value["model"] not in MODEL_TYPES[value["model_type"]]:
+        raise ValueError("配音模式与百炼模型不匹配")
+    voice = value["voice"]
+    if not isinstance(voice, str) or (not voice and require_voice) or (voice and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_ -]{0,255}", voice)):
+        raise ValueError("请选择或填写有效的百炼音色 ID")
+    known = {row["id"] for row in voices_for(MODELS[0])}
+    if voice in known and voice not in {row["id"] for row in voices_for(value["model"])}:
+        raise ValueError("此系统音色不支持当前模型；请重新选择音色")
     if value["language_type"] not in LANGUAGES:
         raise ValueError("不支持的 TTS 语言")
     if not isinstance(value["instructions"], str) or len(value["instructions"]) > 1600:
@@ -75,18 +82,18 @@ def config_payload(env_path):
         return os.environ.get(name) or values.get(name, default)
     import json
     try:
-        recipe = validate_recipe(json.loads(pick("MSW_TTS_RECIPE", "{}")))
+        recipe = validate_recipe(json.loads(pick("MSW_TTS_RECIPE", "{}")), require_voice=False)
     except (ValueError, TypeError):
         recipe = dict(DEFAULT_RECIPE)
-    return {"recipe": recipe, "models": MODELS, "languages": LANGUAGES,
+    return {"recipe": recipe, "models": MODELS, "languages": LANGUAGES, **catalog_payload(),
             "regions": [{"id": region, "hasApiKey": bool(pick(f"MSW_TTS_{region.upper()}_API_KEY")
                 or (region == "beijing" and pick("DASHSCOPE_API_KEY")))} for region in ENDPOINTS]}
 
 
-def resolve_settings(env_path, raw):
+def resolve_settings(env_path, raw, *, require_voice=True):
     if not isinstance(raw, dict):
         raise ValueError("TTS 配置格式无效")
-    recipe = validate_recipe(raw.get("recipe", config_payload(env_path)["recipe"]))
+    recipe = validate_recipe(raw.get("recipe", config_payload(env_path)["recipe"]), require_voice=require_voice)
     values = load_env(env_path)
     key_name = f"MSW_TTS_{recipe['region'].upper()}_API_KEY"
     key = raw.get("apiKey") or os.environ.get(key_name) or values.get(key_name)
@@ -99,7 +106,7 @@ def resolve_settings(env_path, raw):
 
 def save_settings(env_path, raw):
     import json
-    settings = resolve_settings(env_path, raw)
+    settings = resolve_settings(env_path, raw, require_voice=False)
     save_env(env_path, {f"MSW_TTS_{settings.recipe['region'].upper()}_API_KEY": settings.api_key,
                         "MSW_TTS_RECIPE": json.dumps(settings.recipe, ensure_ascii=False)})
     return config_payload(env_path)

@@ -1964,12 +1964,39 @@ __WAVEFORM_CSS__
       <label class="msw-processing-field" id="tts-target-field" hidden><span>操作对象</span><select id="tts-target"><option value="">请选择主字幕或副字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option></select><small>连锁字幕按所选对象合成；独立字幕保留原选区。</small></label>
       <label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option></select></label>
       <div id="tts-qwen-fields">
+      <label class="msw-processing-field"><span>配音模式 · ModelType</span><select id="tts-model-type"><option value="CustomVoice">CustomVoice · 预设音色</option><option value="VoiceDesign">VoiceDesign · 声音设计</option><option value="VoiceClone">VoiceClone · 声音复刻</option></select></label>
       <div class="msw-processing-grid">
         <label class="msw-processing-field"><span>模型</span><select id="tts-model"></select></label>
         <label class="msw-processing-field"><span>语言</span><select id="tts-language"></select></label>
       </div>
-      <label class="msw-processing-field"><span>音色</span><input id="tts-voice" list="tts-voices" value="Cherry" maxlength="128" autocomplete="off"><datalist id="tts-voices"><option value="Cherry">芊悦</option><option value="Ethan">晨煦</option><option value="Serena">苏瑶</option><option value="Chelsie">千雪</option></datalist></label>
-      <small class="msw-processing-hint">可输入系统音色 ID；音色与模型的兼容范围见 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">百炼音色列表</a>。</small>
+      <div class="msw-qwen-voice-picker">
+        <label class="msw-processing-field"><span id="tts-voice-list-label">系统音色</span><input id="tts-voice-search" type="search" autocomplete="off" placeholder="搜索名称、音色 ID、方言或性别" aria-label="搜索音色"></label>
+        <label class="msw-processing-field"><span>选择音色</span><select id="tts-voice-select" aria-label="选择音色"></select></label>
+        <p id="tts-voice-current" class="msw-processing-hint" aria-live="polite"></p>
+      </div>
+      <details id="tts-voice-manual"><summary>手动填写音色 ID</summary><label class="msw-processing-field"><span>音色 ID</span><input id="tts-voice" value="Cherry" maxlength="256" autocomplete="off" spellcheck="false"></label><small class="msw-processing-hint">已有百炼音色也可直接粘贴 ID；须与当前模型、地域和密钥匹配。</small></details>
+      <p id="tts-voice-catalog-hint" class="msw-processing-hint"></p>
+      <div id="tts-custom-voices" hidden>
+        <div class="msw-processing-actions"><button type="button" id="tts-voice-refresh">刷新本机音色</button></div>
+        <details id="tts-voice-create-fields"><summary>创建音色</summary>
+          <label class="msw-processing-field"><span>音色名称</span><input id="tts-voice-name" maxlength="60" placeholder="例如：温柔旁白"></label>
+          <div id="tts-design-fields">
+            <label class="msw-processing-field"><span>音色描述</span><textarea id="tts-voice-prompt" rows="3" maxlength="2048" placeholder="例如：年轻女声，温暖明亮，普通话清晰，语速舒缓。支持中文或英文描述。"></textarea></label>
+            <label class="msw-processing-field"><span>试听文本</span><textarea id="tts-voice-preview-text" rows="2" maxlength="500">你好，欢迎使用字幕配音。Hello, welcome to our story.</textarea></label>
+          </div>
+          <div id="tts-clone-fields" hidden>
+            <label class="msw-processing-field"><span>参考音频</span><input type="file" id="tts-voice-reference" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4"></label>
+            <p class="msw-processing-hint">推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
+            <p class="msw-processing-hint">点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。</p>
+          </div>
+          <p class="msw-processing-hint">创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。</p>
+          <div class="msw-processing-actions"><button type="button" id="tts-voice-create">创建音色</button></div>
+        </details>
+        <p id="tts-voice-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+        <audio id="tts-voice-preview" controls hidden preload="none" aria-label="音色试听"></audio>
+        <details class="msw-job-history" id="tts-voice-history"><summary>音色创建记录 <span id="tts-voice-history-count"></span></summary><div class="msw-processing-jobs" id="tts-voice-operations" tabindex="0" aria-label="音色创建记录"></div></details>
+      </div>
+      <small class="msw-processing-hint">查看百炼 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">音色列表</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-design-user-guide" target="_blank" rel="noopener noreferrer">声音设计</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-cloning-user-guide" target="_blank" rel="noopener noreferrer">声音复刻</a>。</small>
       <div id="tts-instruct" hidden>
         <label class="msw-processing-field"><span>声音描述（可选）</span><textarea id="tts-instructions" rows="2" maxlength="1600" placeholder="例如：语速舒缓、吐字清晰、语气温柔"></textarea></label>
         <label class="msw-tts-check"><input type="checkbox" id="tts-optimize">优化声音描述</label>
