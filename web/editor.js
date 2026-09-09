@@ -2073,6 +2073,7 @@ function setEditorSettingsPanelOpen(open) {
   editorSettingsToggle?.classList.add('active');
   editorSettingsToggle?.setAttribute('aria-expanded', 'true');
   resetEditorSettingsSearch();
+  window.dispatchEvent(new Event('msw:settings-opened'));
   document.getElementById('editor-settings-search')?.focus();
 }
 
@@ -4074,7 +4075,10 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     manageButton?.classList.add('active');
     manageButton?.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => {
-      if (!restorePosition()) positionNearAnchor();
+      if (!restorePosition() && !positionNearAnchor()) {
+        const rect = panel.getBoundingClientRect();
+        setPosition(rect.left, rect.top);
+      }
     });
   }
 
@@ -20008,7 +20012,7 @@ function buildEditorSettingsNav() {
     editorSettingsNavEl.appendChild(button);
     // 含多个子分区的分类带 › 箭头（UE 式）：仅在该分类激活时展开二级导航。
     const subsections = [...category.querySelectorAll(':scope .settings-subsection')];
-    if (subsections.length > 1) {
+    if (subsections.length > 1 || category.dataset.settingsCategory === 'environment') {
       const caret = document.createElement('span');
       caret.className = 'settings-nav-caret';
       caret.setAttribute('aria-hidden', 'true');
@@ -20541,6 +20545,12 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
 }));
 window.MSWE?.register('processing-host', () => Object.freeze({
+  editorText: () => cuePanelText.value,
+  playheadMs: () => Math.max(0, Math.round((player.currentTime || 0) * 1000)),
+  showCueEditor: () => {
+    if (waveformEditor?.showModule?.('panel', {recordUndo: false})) rebuildShowModuleMenu();
+    else waveformEditor?.activateModuleTab?.('panel');
+  },
   get data() { return DATA; },
   get config() { return SERVER_CONFIG; },
   get generation() { return mswProjectGeneration; },
@@ -20624,6 +20634,10 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     updateUndoRedoButtons(); return true;
   },
   createFloatingPanel,
+  openTtsEnvironment: () => {
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+  },
   flashHint,
 }));
 

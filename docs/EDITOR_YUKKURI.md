@@ -2,9 +2,11 @@
 
 油库里是可选的本地配音引擎，在「媒体 → TTS → 引擎 → 油库里（本地）」使用。不需要百炼 API Key；安装资源后，合成不访问网络。
 
+「合成设置」中的「试听音色」按当前音色、语言读法和语速生成一段固定短句，自动打开素材库底部播放器；试听结果仅临时播放，不新增素材或合成记录。语速在合成设置底部占满一行。需要保存实际字幕或草稿音频时点击「开始合成」。
+
 ## 资源在哪里获取
 
-推荐在 TTS 窗口展开「油库里资源」，点击「安装资源包」。MSW 从下列公开来源下载固定版本并校验摘要：
+推荐在「编辑 → 全局设置 → 环境配置 → TTS」选择油库里，展开「油库里资源」，点击「安装资源包」。MSW 从下列公开来源下载固定版本并校验摘要：
 
 - [aquestalk.js](https://github.com/y52en/aquestalk.js)：WASM 引擎及原始八音色 ZIP，使用 npm 发布的 1.0.7。
 - [Node.js 官方发行版](https://nodejs.org/dist/v24.19.0/)：独立 Node 24.19.0 运行时，无需用户预先安装 Node 或 npm。
@@ -21,7 +23,7 @@ uv run python -m maw.msw.yukkuri_runtime install ./yukkuri-resources
 uv run python -m maw.msw.yukkuri_runtime pack "<资源目录>" --output ./msw-yukkuri-resources.zip
 ```
 
-解压 ZIP，在 TTS 窗口的「资源目录」中填写**包含 `msw-runtime.json` 的目录**，点击「应用目录并检测」。检测通过后才替换当前配置。ZIP 是 MSW 资源布局；单独下载指定参考项目的 `dist.js` 或 AquesTalk DLL 不等于完整资源包。目前没有承诺已发布的 MSW GitHub Release 资源附件；程序内安装与上述命令是可用的获取方式。
+解压 ZIP，在全局环境配置的「资源目录」中填写**包含 `msw-runtime.json` 的目录**，点击「应用目录并检测」。检测通过后才替换当前配置。ZIP 是 MSW 资源布局；单独下载指定参考项目的 `dist.js` 或 AquesTalk DLL 不等于完整资源包。目前没有承诺已发布的 MSW GitHub Release 资源附件；程序内安装与上述命令是可用的获取方式。
 
 下载／校验／试合成均为后台操作，可以取消。失败时不会替换之前可用的资源配置；已校验的下载缓存供下次使用。安装路径位于 MSW 应用数据目录下的 `yukkuri`，也可使用用户指定的离线目录。失败尝试目录及旧版本保留，确认无任务使用后可手动移除；不要删除当前启用的目录。
 

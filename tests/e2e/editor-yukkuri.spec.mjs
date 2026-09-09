@@ -2,7 +2,7 @@ import {test, expect} from '@playwright/test';
 import {existsSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir,
-  openMenubarMenu, clickMenubarItem, startServer} from './helpers.mjs';
+  openMenubarMenu, clickMenubarItem, startServer, openTtsEnvironment, closeTtsEnvironment} from './helpers.mjs';
 
 let server, dir, projectPath;
 const resourcePath = process.env.MSW_TEST_YUKKURI_RUNTIME;
@@ -35,24 +35,38 @@ async function panel(page) {
 }
 async function configure(page) {
   await panel(page);
+  await openTtsEnvironment(page, 'yukkuri');
   await page.locator('#tts-yukkuri-directory').fill(resourcePath);
   await page.locator('#tts-yukkuri-check').click();
   await expect(page.locator('#tts-yukkuri-runtime-status')).toContainText('资源可用', {timeout: 15000});
-  await page.locator('#tts-yukkuri-resources summary').click();
+  await closeTtsEnvironment(page);
 }
 const assetCount = page => page.evaluate(() => DATA.msw.assets?.length || 0);
+
+test('local voice audition plays a temporary sample in the library', async ({page}) => {
+  await configure(page);
+  await page.locator('#tts-yukkuri-language').selectOption('English');
+  await page.locator('#tts-yukkuri-voice').selectOption('m2');
+  await page.locator('#tts-yukkuri-preview').click();
+  await expect.poll(() => page.locator('#asset-audio').evaluate(audio => Number.isFinite(audio.duration) ? audio.duration : 0), {timeout: 15000}).toBeGreaterThan(0);
+  expect(await assetCount(page)).toBe(0);
+  await expect(page.locator('#tts-jobs')).toBeEmpty();
+  await expect(page.locator('#tts-panel audio')).toHaveCount(0);
+  await page.locator('#tts-yukkuri-voice').selectOption('f1');
+  await expect(page.locator('#asset-player')).toBeHidden();
+});
 
 test('real local voices synthesize selected secondary, preserve pronunciation, save and export WAV', async ({page}) => {
   await page.locator('.multi-cue-column.extension .text').filter({hasText: /^重庆 English 123$/}).click();
   await configure(page);
-  await expect(page.locator('#tts-start')).toBeDisabled();
+  await expect(page.locator('#tts-target')).toHaveValue('main');
   await page.locator('#tts-target').selectOption('secondary');
   await expect(page.locator('#tts-scope')).toContainText('1 条');
   await page.locator('#tts-yukkuri-pronunciation').fill('虫庆 English 123');
   await page.locator('#tts-yukkuri-voice').selectOption('m2');
   await page.locator('#tts-yukkuri-speed').fill('140');
   await page.locator('#tts-save-settings').click();
-  await expect(page.locator('#tts-message')).toContainText('配置已保存');
+  await expect(page.locator('#tts-message')).toContainText('设置已保存');
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'e-yukkuri-settings.png')});
   await page.locator('#tts-start').click();
   await expect.poll(() => assetCount(page), {timeout: 15000}).toBe(1);
@@ -93,10 +107,10 @@ test('real local voices synthesize selected secondary, preserve pronunciation, s
 
 test('all subtitles require a track and engine settings survive reopen without a cloud key', async ({page}) => {
   await configure(page);
-  await expect(page.locator('#tts-start')).toBeDisabled();
+  await expect(page.locator('#tts-target')).toHaveValue('main');
   await page.locator('#tts-target').selectOption('main');
   await page.locator('#tts-yukkuri-voice').selectOption('r1'); await page.locator('#tts-save-settings').click();
-  await expect(page.locator('#tts-message')).toContainText('配置已保存');
+  await expect(page.locator('#tts-message')).toContainText('设置已保存');
   await page.locator('#tts-start').click(); await expect.poll(() => assetCount(page), {timeout: 20000}).toBe(2);
   expect(await page.evaluate(() => DATA.msw.assets.map(a => a.source_ref.id).sort())).toEqual(['main-a', 'main-b']);
   await page.reload(); await panel(page);
@@ -108,12 +122,27 @@ test('all subtitles require a track and engine settings survive reopen without a
 test('missing resource feedback and expanded local controls fit a small viewport', async ({page}) => {
   await page.setViewportSize({width: 900, height: 600}); await panel(page);
   await expect(page.locator('#tts-start')).toBeDisabled();
+  await expect(page.locator('#tts-environment-notice')).toContainText('资源未就绪');
+  await openTtsEnvironment(page, 'yukkuri');
   await page.locator('#tts-yukkuri-directory').fill(join(dir, 'missing'));
   await page.locator('#tts-yukkuri-check').click();
   await expect(page.locator('#tts-yukkuri-runtime-status')).toContainText('目录不完整');
+  await closeTtsEnvironment(page);
   await expect.poll(() => page.locator('#tts-panel').evaluate(panel => {
     const r = panel.getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
   })).toBe(true);
   await page.locator('#tts-start').scrollIntoViewIfNeeded();
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'e-yukkuri-small.png')});
+});
+
+test('real local engine synthesizes an independent bilingual draft without modifying subtitles', async ({page}) => {
+  await configure(page);
+  const before = await page.evaluate(() => JSON.stringify(DATA.segments));
+  await page.locator('#tts-target').selectOption('editor_text'); await page.locator('#cue-panel-tts-text').fill('你好 Hello');
+  await expect(page.locator('#tts-yukkuri-pronunciation')).not.toBeVisible(); await page.locator('#tts-start').click();
+  await expect.poll(() => assetCount(page), {timeout: 15000}).toBe(1);
+  expect(await page.evaluate(() => JSON.stringify(DATA.segments))).toBe(before);
+  const asset = await page.evaluate(() => DATA.msw.assets[0]);
+  expect(asset.source_ref.kind).toBe('editor_text'); expect(asset.generation.display_text).toBe('你好 Hello');
+  expect(asset.source_ref.end-asset.source_ref.start).toBe(Math.ceil(asset.sample_count*1000/asset.sample_rate));
 });

@@ -135,6 +135,12 @@ def validate_snapshot(raw):
             raise ValueError("TTS 字幕时间须为有效整数毫秒")
         seen.add(key)
         clean.append({"key": key, "id": entry["id"], "track_id": track, "text": text, "start": start, "end": end})
+        if 'kind' in entry:
+            if entry['kind'] not in ('subtitle', 'editor_text'):
+                raise ValueError('TTS 文本来源类型无效')
+            if entry['kind'] == 'editor_text' and (len(entries) != 1 or track is not None):
+                raise ValueError('独立配音草稿必须是单条无字幕轨道的文本')
+            clean[-1]['kind'] = entry['kind']
         override = entry.get("pronunciation_override", "")
         if not isinstance(override, str) or len(override) > 600:
             raise ValueError("读音修正请限制在 600 字符以内")
@@ -228,6 +234,10 @@ class TtsService:
                 if settings.provider_id == "yukkuri":
                     from maw.msw.yukkuri import synthesize as synthesize_local
                     audio, spoken = synthesize_local(settings, entry.get("pronunciation_override") or entry["text"], cancel)
+                elif settings.provider_id == 'indextts':
+                    from maw.msw.index_tts import synthesize as synthesize_index
+                    spoken = entry.get('pronunciation_override') or entry['text']
+                    audio = synthesize_index(settings, spoken, cancel)
                 else:
                     audio = self.synthesize_one(settings, entry["text"], cancel)
                 if cancel.is_set():

@@ -1323,8 +1323,9 @@
     transform: translateY(-38px);
   }
   /* 几何编辑中不上移：拖拽/键盘微调的落点不能因悬停而漂移。 */
-  .subtitle-overlay.geometry-enabled {
+  .player-stage .subtitle-overlay.geometry-enabled {
     transform: none;
+    transition: none;
   }
   /* 几何可编辑时由 .geo-box.geometry-enabled 接收指针；文字 span 仍不拦截，避免选中文本干扰拖动 */
   .subtitle-overlay span {
@@ -2659,6 +2660,14 @@
   .cue-panel-sticker img { width: 100%; height: 100%; object-fit: contain; }
   .cue-panel-sticker .ref { padding: 4px; color: var(--text-secondary); font-size: 11px; text-align: center; }
   #cue-panel-add-sticker { padding: 4px 7px; font-size: 11px; }
+  .current-cue-panel.tts-draft-mode .cue-panel-layout { grid-template-columns: minmax(0, 1fr) !important; }
+  .current-cue-panel.tts-draft-mode :is(.cue-panel-navigation, .cue-panel-time-actions, .cue-panel-sticker-wrap, .cue-panel-footer, #cue-panel-text) { display: none !important; }
+  #cue-panel-tts-text { box-sizing: border-box; width: 100%; min-height: 58px; resize: vertical; padding: 7px 9px; background: var(--form-input-bg); color: var(--editor-cue-text); border: 1px solid var(--wave-playhead); border-radius: var(--radius-sm); font: 16px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  #cue-panel-tts-text:focus { outline: none; border-color: var(--wave-playhead); box-shadow: 0 0 0 2px color-mix(in srgb, var(--wave-playhead) 20%, transparent); }
+  #cue-panel-tts-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: 11px; }
+  #cue-panel-tts-footer[hidden], #cue-panel-tts-text[hidden] { display: none; }
+  #cue-panel-tts-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+  #cue-panel-tts-copy { padding: 3px 6px; font-size: 11px; }
   @container cue-panel (min-width: 681px) {
     .current-cue-panel.hide-cue-editor-navigation .cue-panel-layout {
       grid-template-columns: auto minmax(220px, 1fr) auto;
@@ -2991,16 +3000,31 @@
   #tts-yukkuri-speed { accent-color: var(--accent); padding-inline: 0; cursor: pointer; }
   #tts-yukkuri-progress { width: 100%; height: 6px; accent-color: var(--accent); }
   .msw-processing-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin-top: 10px; }
-  .msw-processing-actions button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
-  .msw-processing-actions button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
-  .msw-processing-actions button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-  .msw-processing-actions button.primary { background: var(--accent); color: var(--text-on-accent, #fff); }
-  .msw-processing-actions button:disabled { opacity: .5; cursor: not-allowed; }
+  :is(.msw-processing-actions, .msw-voice-picker-footer) button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
+  :is(.msw-processing-actions, .msw-voice-picker-footer) button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  :is(.msw-processing-actions, .msw-voice-picker-footer) button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  :is(.msw-processing-actions, .msw-voice-picker-footer) button.primary { background: var(--accent); color: var(--text-on-accent, #fff); }
+  :is(.msw-processing-actions, .msw-voice-picker-footer) button:disabled { opacity: .5; cursor: not-allowed; }
   .msw-processing-job { border-top: 1px solid var(--border-subtle); padding-block: 12px; font-size: 12px; }
   .msw-translation-results { max-height: 260px; overflow-y: auto; margin-top: 10px; }
   .msw-translation-results p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); }
   .msw-processing-field { display: flex; flex-direction: column; gap: 5px; margin-block: 10px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
   .msw-processing-field[hidden] { display: none; }
+  .msw-tts-top-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+  .msw-tts-top-row .msw-processing-field { margin-top: 0; }
+  .msw-tts-top-row small { grid-column: 1 / -1; }
+  .msw-tts-environment { display: block; min-width: 0; }
+  .msw-tts-environment [hidden], #tts-controls [hidden] { display: none !important; }
+  .msw-tts-environment .msw-processing-field { display: flex; margin-block: 10px; }
+  .msw-tts-environment :is(input, select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font: inherit; }
+  .msw-tts-environment input[type="checkbox"] { width: auto; align-self: flex-start; }
+  .msw-tts-environment :is(input, select, textarea):focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .msw-tts-environment textarea { resize: vertical; min-height: 56px; max-height: 200px; }
+  .msw-tts-environment details { border-block: 1px solid var(--border-subtle); padding-block: 10px; margin-block: 12px; }
+  .msw-tts-environment summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+  .msw-tts-environment a, .msw-tts-environment a:visited { color: var(--accent); }
+  .msw-tts-environment a:hover { text-decoration: underline; }
+  #tts-panel .msw-processing-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .msw-media-export-panel { width: min(440px, calc(100vw - 24px)); }
   .msw-media-export-panel [hidden] { display: none !important; }
   .msw-media-export-panel .msw-tts-check { margin-block: 10px; }
@@ -3014,7 +3038,9 @@
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
   .msw-qwen-voice-picker { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; margin-block: 8px; background: var(--bg-panel); }
   .msw-qwen-voice-picker .msw-processing-field { margin-block: 4px; }
-  #tts-voice-preview { width: 100%; max-height: 40px; margin-block: 8px; }
+  .msw-voice-picker-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .msw-voice-picker-footer .msw-processing-hint { flex: 1; min-width: 0; overflow-wrap: anywhere; margin: 0; }
+  .msw-voice-picker-footer button { flex: none; white-space: nowrap; }
   #tts-voice-reference { max-width: 100%; }
   #tts-voice-current, #tts-voice-message { overflow-wrap: anywhere; }
   .msw-tts-check input { width: auto; }
@@ -4190,6 +4216,38 @@
   .timed-text-edit-report::-webkit-scrollbar-thumb:hover,
   .timed-text-edit-single-textarea::-webkit-scrollbar-thumb:hover,
   .hint-project-preview-value::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); background-clip: padding-box; }
+.msw-index-controls {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.msw-index-controls > legend {
+  padding: 8px 0;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 12px;
+}
+.msw-index-reference-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0;
+}
+.msw-index-vector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+.msw-index-vector .msw-processing-field { margin-block: 6px; }
+.msw-index-vector input[type="range"] { padding: 0; height: 20px; }
+#tts-index-fields [hidden] { display: none !important; }
+#tts-index-fields details { margin: 10px 0; }
+#tts-index-fields details > summary { cursor: pointer; }
+#tts-index-fields .msw-processing-field { min-width: 0; }
+#tts-index-fields select, #tts-index-fields input:not([type="checkbox"]) { max-width: 100%; }
+#tts-index-fields output { font-variant-numeric: tabular-nums; }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -5607,7 +5665,6 @@
   </div>
 </div>
 
-
 <!-- 工作区选项的隐藏数据源：菜单栏的「工作区」子菜单由它同步生成 -->
 <select id="workspace-preset" hidden title="工作区：窗口布局与显示状态（列表显示项、波形模式等）">
   <option value="wave-right" selected>右侧整列波形</option>
@@ -6550,6 +6607,77 @@
       <nav class="settings-modal-nav" id="editor-settings-nav" aria-label="设置分类"></nav>
       <div class="settings-modal-content" id="editor-settings-content">
 
+        <div class="editor-settings-group settings-category" data-settings-category="environment" id="tts-environment-category">
+          <div class="settings-category-header">环境配置</div>
+          <div class="editor-settings-sub-group"><span class="editor-settings-title">环境配置</span></div>
+          <div class="settings-subsection" data-subsection="tts" id="tts-environment-section">
+            <span class="settings-subsection-title">TTS</span>
+            <div class="editor-settings-sub-group msw-tts-environment">
+              <p id="tts-environment-unavailable" class="msw-processing-hint" hidden>环境配置需要本机 Server 编辑器。</p>
+              <label class="msw-processing-field"><span>TTS 环境</span><select id="tts-environment-engine"><option value="qwen">百炼 Qwen TTS</option><option value="yukkuri">油库里</option><option value="indextts">IndexTTS 本机服务</option></select></label>
+              <div id="tts-environment-qwen">
+                <details id="tts-settings"><summary>连接设置</summary>
+        <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
+        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
+        <p id="tts-key-state" class="msw-processing-hint"></p>
+      </details>
+                <details id="tts-qwen-management" open><summary>音色管理</summary>
+                  <div class="msw-processing-grid"><label class="msw-processing-field"><span>管理模式</span><select id="tts-manage-model-type"><option value="VoiceDesign">声音设计</option><option value="VoiceClone">声音复刻</option><option value="CustomVoice">预设／外部音色</option></select></label><label class="msw-processing-field"><span>目标模型</span><select id="tts-manage-model"></select></label></div>
+                  <label class="msw-processing-field"><span>本机音色记录</span><select id="tts-manage-voice"><option value="">选择已登记音色</option></select></label>
+                  <label class="msw-processing-field"><span>本机显示名称</span><input id="tts-manage-name" maxlength="60" placeholder="用于搜索和识别音色"></label>
+                  <div class="msw-processing-actions"><button type="button" id="tts-manage-refresh">刷新音色</button><button type="button" id="tts-manage-rename">重命名</button></div>
+                  <details id="tts-voice-register-fields"><summary>登记已有音色 ID</summary><label class="msw-processing-field"><span>音色 ID</span><input id="tts-voice-external-id" maxlength="256" autocomplete="off" spellcheck="false"></label><p class="msw-processing-hint">将在当前地域、密钥和目标模型下登记，之后可在合成面板搜索选择。本机名称不改变云端音色 ID。</p><div class="msw-processing-actions"><button type="button" id="tts-voice-register">登记到本机列表</button></div></details>
+                  <details id="tts-voice-create-fields"><summary>创建音色</summary>
+          <label class="msw-processing-field"><span>音色名称</span><input id="tts-voice-name" maxlength="60" placeholder="例如：温柔旁白"></label>
+          <div id="tts-design-fields">
+            <label class="msw-processing-field"><span>音色描述</span><textarea id="tts-voice-prompt" rows="3" maxlength="2048" placeholder="例如：年轻女声，温暖明亮，普通话清晰，语速舒缓。支持中文或英文描述。"></textarea></label>
+            <label class="msw-processing-field"><span>试听文本</span><textarea id="tts-voice-preview-text" rows="2" maxlength="500">你好，欢迎使用字幕配音。Hello, welcome to our story.</textarea></label>
+          </div>
+          <div id="tts-clone-fields" hidden>
+            <label class="msw-processing-field"><span>参考音频</span><input type="file" id="tts-voice-reference" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4"></label>
+            <p class="msw-processing-hint">推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
+            <p class="msw-processing-hint">点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。</p>
+          </div>
+          <p class="msw-processing-hint">创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。</p>
+          <div class="msw-processing-actions"><button type="button" id="tts-voice-create">创建音色</button></div>
+        </details><p id="tts-voice-message" class="msw-processing-message" role="status" aria-live="polite"></p><details class="msw-job-history" id="tts-voice-history"><summary>音色创建记录 <span id="tts-voice-history-count"></span></summary><div class="msw-processing-jobs" id="tts-voice-operations" tabindex="0" aria-label="音色创建记录"></div></details>
+                </details>
+                <small class="msw-processing-hint">查看百炼 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">音色列表</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-design-user-guide" target="_blank" rel="noopener noreferrer">声音设计</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-cloning-user-guide" target="_blank" rel="noopener noreferrer">声音复刻</a>。</small>
+              </div>
+              <div id="tts-environment-yukkuri" hidden><details id="tts-yukkuri-resources">
+          <summary>油库里资源</summary>
+          <p class="msw-processing-hint" id="tts-yukkuri-runtime-status" role="status" aria-live="polite">尚未检测本机资源</p>
+          <progress id="tts-yukkuri-progress" hidden aria-label="油库里资源安装进度"></progress>
+          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-install">安装资源包</button><button type="button" id="tts-yukkuri-cancel" hidden>取消安装／检测</button></div>
+          <label class="msw-processing-field"><span>资源目录</span><input id="tts-yukkuri-directory" autocomplete="off" spellcheck="false" placeholder="离线包解压后包含 msw-runtime.json 的目录"></label>
+          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-check">应用目录并检测</button></div>
+          <p class="msw-processing-hint">自动下载独立运行时和八音色，安装后可离线使用。离线电脑也可复制此资源目录，再应用检测。</p>
+          <p class="msw-processing-hint">资源来源：<a href="https://github.com/y52en/aquestalk.js" target="_blank" rel="noopener noreferrer">aquestalk.js</a>、<a href="https://nodejs.org/dist/v24.19.0/" target="_blank" rel="noopener noreferrer">Node.js</a>、<a href="https://github.com/Love-Kogasa/bakak2k" target="_blank" rel="noopener noreferrer">英文规则</a>。使用 AquesTalk，版权归株式会社アクエスト；保留随包许可，参阅 <a href="https://www.a-quest.com/licence.html" target="_blank" rel="noopener noreferrer">官方许可说明</a>。</p>
+        </details></div>
+              <div id="tts-environment-indextts" hidden>
+                <details id="tts-index-connection" open><summary>IndexTTS 连接设置</summary>
+          <label class="msw-processing-field"><span>本机服务地址</span><input id="tts-index-url" type="url" value="http://127.0.0.1:7860" spellcheck="false" autocomplete="off"></label>
+          <label class="msw-processing-field"><span>单次等待上限（秒）</span><input id="tts-index-timeout" type="number" min="60" max="3600" step="1" value="600"></label>
+          <div class="msw-processing-actions"><button type="button" id="tts-index-check">连接／检测</button></div>
+          <p class="msw-processing-hint">使用已启动的官方 IndexTTS 2.5 WebUI，无需 API Key。计算设备和模型由该服务管理。</p>
+        </details><p id="tts-index-status" class="msw-processing-message" role="status" aria-live="polite"></p><p id="tts-index-emotion-capability" class="msw-processing-hint"></p>
+                <details id="tts-index-references" open><summary>参考音频</summary><div class="msw-processing-actions"><button type="button" id="tts-index-speaker-upload">上传参考</button><button type="button" id="tts-index-emotion-upload">上传情感参考</button></div><input id="tts-index-reference-file" type="file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" hidden><p class="msw-processing-hint">参考音频用于克隆音色。推荐清晰单人说话；音色和情感参考均取前 15 秒，最大 32 MiB。文件保存在本机参考库。</p><p class="msw-processing-hint">上传后选作当前音色或情感参考，可在合成设置中切换。</p></details>
+                <details id="tts-index-advanced"><summary>高级生成参数</summary><div id="tts-index-advanced-fields" class="msw-processing-grid"></div><p class="msw-processing-hint">较低的最大音频 Token 数可能截断长句；情感向量由 IndexTTS 归一化。时长系数影响语速，不保证精确匹配字幕时长。</p></details><details id="tts-index-presets"><summary>配音预设</summary>
+            <label class="msw-processing-field"><span>MSWE 本机预设</span><select id="tts-index-preset-manage"><option value="">选择已保存预设</option></select></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-preset-rename">重命名预设</button><button type="button" id="tts-index-preset-delete">移除预设</button></div>
+            <label class="msw-processing-field"><span>预设名称</span><input id="tts-index-preset-name" maxlength="80" placeholder="例如：中文旁白"></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-preset-save">保存为本机预设</button></div>
+            <label class="msw-processing-field"><span>IndexTTS 服务预设</span><select id="tts-index-server-preset"><option value="">当前服务没有已保存预设</option></select></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-server-preset-load">载入服务预设</button></div>
+            <p class="msw-processing-hint">读取当前连接的 IndexTTS WebUI 已保存预设；载入后可保存为 MSWE 本机预设，在 TTS 面板中直接选择。</p>
+            <p class="msw-processing-hint">载入预设会应用音色和生成参数。服务的旧预设不包含语言与时长系数，载入时保留这两项；MSWE 本机预设保存完整参数。</p>
+          </details>
+              </div>
+              <div class="msw-processing-actions"><button type="button" id="tts-environment-save">保存环境配置</button></div>
+              <p id="tts-environment-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
         <div class="editor-settings-group settings-category" data-settings-category="general">
           <div class="settings-category-header">通用</div>
           <div class="editor-settings-sub-group">
@@ -6956,6 +7084,8 @@
       </div>
       <div class="cue-panel-text-wrap">
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
+        <textarea id="cue-panel-tts-text" rows="3" placeholder="输入要合成的文字…" aria-label="独立配音草稿" hidden></textarea>
+        <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 / 600</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button></div>
         <div class="cue-panel-footer">
           <div class="cue-panel-target" id="cue-panel-target">未选择</div>
           <div class="cue-panel-metrics">
@@ -7177,9 +7307,10 @@
   <div class="gap-remove-panel-body">
     <p class="msw-processing-hint" id="tts-unavailable" hidden>TTS 需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
     <div id="tts-controls">
+      <div class="msw-tts-top-row"><label class="msw-processing-field" id="tts-target-field"><span>操作对象</span><select id="tts-target"><option value="editor_text">字幕编辑器内容</option><option value="main" selected>主字幕</option><option value="secondary">副字幕</option></select></label><label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option><option value="indextts">IndexTTS 2.5（本机服务）</option></select></label></div>
       <p id="tts-scope" class="msw-processing-hint" aria-live="polite"></p>
-      <label class="msw-processing-field" id="tts-target-field" hidden><span>操作对象</span><select id="tts-target"><option value="">请选择主字幕或副字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option></select><small>连锁字幕按所选对象合成；独立字幕保留原选区。</small></label>
-      <label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option></select></label>
+      <p id="tts-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="tts-environment-reminder" hidden><button type="button" id="tts-environment-open">前往环境配置</button></div>
+      <details id="tts-synthesis-settings" class="msw-tts-section" open><summary>合成设置</summary>
       <div id="tts-qwen-fields">
       <label class="msw-processing-field"><span>配音模式 · ModelType</span><select id="tts-model-type"><option value="CustomVoice">CustomVoice · 预设音色</option><option value="VoiceDesign">VoiceDesign · 声音设计</option><option value="VoiceClone">VoiceClone · 声音复刻</option></select></label>
       <div class="msw-processing-grid">
@@ -7189,63 +7320,71 @@
       <div class="msw-qwen-voice-picker">
         <label class="msw-processing-field"><span id="tts-voice-list-label">系统音色</span><input id="tts-voice-search" type="search" autocomplete="off" placeholder="搜索名称、音色 ID、方言或性别" aria-label="搜索音色"></label>
         <label class="msw-processing-field"><span>选择音色</span><select id="tts-voice-select" aria-label="选择音色"></select></label>
-        <p id="tts-voice-current" class="msw-processing-hint" aria-live="polite"></p>
+        <div class="msw-voice-picker-footer"><p id="tts-voice-current" class="msw-processing-hint" aria-live="polite"></p><button type="button" id="tts-voice-audition" disabled>试听音色</button></div>
       </div>
-      <details id="tts-voice-manual"><summary>手动填写音色 ID</summary><label class="msw-processing-field"><span>音色 ID</span><input id="tts-voice" value="Cherry" maxlength="256" autocomplete="off" spellcheck="false"></label><small class="msw-processing-hint">已有百炼音色也可直接粘贴 ID；须与当前模型、地域和密钥匹配。</small></details>
+      <input id="tts-voice" type="hidden" value="Cherry">
       <p id="tts-voice-catalog-hint" class="msw-processing-hint"></p>
       <div id="tts-custom-voices" hidden>
         <div class="msw-processing-actions"><button type="button" id="tts-voice-refresh">刷新本机音色</button></div>
-        <details id="tts-voice-create-fields"><summary>创建音色</summary>
-          <label class="msw-processing-field"><span>音色名称</span><input id="tts-voice-name" maxlength="60" placeholder="例如：温柔旁白"></label>
-          <div id="tts-design-fields">
-            <label class="msw-processing-field"><span>音色描述</span><textarea id="tts-voice-prompt" rows="3" maxlength="2048" placeholder="例如：年轻女声，温暖明亮，普通话清晰，语速舒缓。支持中文或英文描述。"></textarea></label>
-            <label class="msw-processing-field"><span>试听文本</span><textarea id="tts-voice-preview-text" rows="2" maxlength="500">你好，欢迎使用字幕配音。Hello, welcome to our story.</textarea></label>
-          </div>
-          <div id="tts-clone-fields" hidden>
-            <label class="msw-processing-field"><span>参考音频</span><input type="file" id="tts-voice-reference" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4"></label>
-            <p class="msw-processing-hint">推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
-            <p class="msw-processing-hint">点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。</p>
-          </div>
-          <p class="msw-processing-hint">创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。</p>
-          <div class="msw-processing-actions"><button type="button" id="tts-voice-create">创建音色</button></div>
-        </details>
-        <p id="tts-voice-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-        <audio id="tts-voice-preview" controls hidden preload="none" aria-label="音色试听"></audio>
-        <details class="msw-job-history" id="tts-voice-history"><summary>音色创建记录 <span id="tts-voice-history-count"></span></summary><div class="msw-processing-jobs" id="tts-voice-operations" tabindex="0" aria-label="音色创建记录"></div></details>
+
       </div>
-      <small class="msw-processing-hint">查看百炼 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">音色列表</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-design-user-guide" target="_blank" rel="noopener noreferrer">声音设计</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-cloning-user-guide" target="_blank" rel="noopener noreferrer">声音复刻</a>。</small>
+
       <div id="tts-instruct" hidden>
         <label class="msw-processing-field"><span>声音描述（可选）</span><textarea id="tts-instructions" rows="2" maxlength="1600" placeholder="例如：语速舒缓、吐字清晰、语气温柔"></textarea></label>
         <label class="msw-tts-check"><input type="checkbox" id="tts-optimize">优化声音描述</label>
         <small class="msw-processing-hint">描述使用中文或英文，最多 1600 字符，且不超过百炼 1600 Token 限制。</small>
       </div>
-      <details id="tts-settings"><summary>连接设置</summary>
-        <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
-        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
-        <p id="tts-key-state" class="msw-processing-hint"></p>
-      </details>
+
       </div>
       <div id="tts-yukkuri-fields" hidden>
         <div class="msw-processing-grid">
           <label class="msw-processing-field"><span>音色</span><select id="tts-yukkuri-voice"><option value="f1">F1</option><option value="f2">F2</option><option value="m1">M1</option><option value="m2">M2</option><option value="dvd">DVD</option><option value="imd1">IMD1</option><option value="jgr">JGR</option><option value="r1">R1</option></select></label>
           <label class="msw-processing-field"><span>语言读法</span><select id="tts-yukkuri-language"><option value="Auto">自动</option><option value="Chinese">中文</option><option value="English">英文</option></select></label>
         </div>
-        <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
+
         <label class="msw-processing-field" id="tts-yukkuri-pronunciation-field" hidden><span>读音修正（可选，仅此次配音）</span><input id="tts-yukkuri-pronunciation" maxlength="600" placeholder="可填同音字、英文或假名，不改字幕原文"></label>
         <p class="msw-processing-hint">支持中英文混合，保留油库里的假名近似读法。英文数字逐位读；自动模式在含汉字时使用中文数字读法。无需 API Key。</p>
-        <details id="tts-yukkuri-resources">
-          <summary>油库里资源</summary>
-          <p class="msw-processing-hint" id="tts-yukkuri-runtime-status" role="status" aria-live="polite">尚未检测本机资源</p>
-          <progress id="tts-yukkuri-progress" hidden aria-label="油库里资源安装进度"></progress>
-          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-install">安装资源包</button><button type="button" id="tts-yukkuri-cancel" hidden>取消安装／检测</button></div>
-          <label class="msw-processing-field"><span>资源目录</span><input id="tts-yukkuri-directory" autocomplete="off" spellcheck="false" placeholder="离线包解压后包含 msw-runtime.json 的目录"></label>
-          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-check">应用目录并检测</button></div>
-          <p class="msw-processing-hint">自动下载独立运行时和八音色，安装后可离线使用。离线电脑也可复制此资源目录，再应用检测。</p>
-          <p class="msw-processing-hint">资源来源：<a href="https://github.com/y52en/aquestalk.js" target="_blank" rel="noopener noreferrer">aquestalk.js</a>、<a href="https://nodejs.org/dist/v24.19.0/" target="_blank" rel="noopener noreferrer">Node.js</a>、<a href="https://github.com/Love-Kogasa/bakak2k" target="_blank" rel="noopener noreferrer">英文规则</a>。使用 AquesTalk，版权归株式会社アクエスト；保留随包许可，参阅 <a href="https://www.a-quest.com/licence.html" target="_blank" rel="noopener noreferrer">官方许可说明</a>。</p>
-        </details>
+
+        <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-preview" disabled>试听音色</button></div>
+        <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
       </div>
-      <div class="msw-processing-actions"><button type="button" id="tts-save-settings">保存配置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
-      <p class="msw-processing-hint">每条字幕生成一个 WAV，最长 600 字符。保留完整音频，不自动裁剪到字幕时长；生成期间可继续编辑。</p>
+      <div id="tts-index-fields" hidden>
+        <p id="tts-index-call-status" class="msw-processing-message is-error" role="status" hidden></p>
+        <fieldset id="tts-index-controls" class="msw-index-controls">
+          <div class="msw-processing-grid">
+            <label class="msw-processing-field"><span>音色参考来源</span><select id="tts-index-voice-source"><option value="official">官方示例</option><option value="local">本机音频</option></select></label>
+            <label class="msw-processing-field"><span>配音预设</span><select id="tts-index-preset"><option value="">选择已保存预设</option></select></label>
+          </div>
+          <div class="msw-processing-grid">
+            <label class="msw-processing-field"><span>情感控制</span><select id="tts-index-emotion-mode"><option value="follow">跟随音色参考</option><option value="audio">情感参考音频</option><option value="vector">八维情感向量</option><option value="text">情感描述文本（实验）</option></select></label>
+            <label class="msw-processing-field"><span>配音语言</span><select id="tts-index-language"><option value="ZH">中文</option><option value="EN">English</option><option value="JA">日本語</option><option value="ES">Español</option><option value="AR">العربية</option></select></label>
+          </div>
+          <div class="msw-qwen-voice-picker">
+            <label class="msw-processing-field"><span>音色搜索</span><input id="tts-index-voice-search" type="search" autocomplete="off" placeholder="搜索音色名称或语言" aria-label="搜索 IndexTTS 音色"></label>
+            <label class="msw-processing-field" id="tts-index-official-field"><span>选择音色</span><select id="tts-index-example"><option value="">连接后选择官方示例</option></select></label>
+            <label class="msw-processing-field" id="tts-index-local-field" hidden><span>选择音色</span><select id="tts-index-local-voice"><option value="">请选择或上传参考音频</option></select></label>
+            <input id="tts-index-speaker" type="hidden">
+            <div class="msw-voice-picker-footer"><p id="tts-index-speaker-info" class="msw-processing-hint" aria-live="polite"></p><button type="button" id="tts-index-speaker-preview">试听参考</button></div>
+          </div>
+          <div id="tts-index-emotion-audio" hidden>
+            <label class="msw-processing-field"><span>官方情感示例</span><select id="tts-index-emotion-example"><option value="">选择情感示例</option></select></label>
+            <label class="msw-processing-field"><span>情感参考音频</span><select id="tts-index-emotion-ref"><option value="">请选择或上传情感参考</option></select></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-emotion-preview">试听情感参考</button></div>
+          </div>
+          <div id="tts-index-emotion-vector" class="msw-index-vector" hidden></div>
+          <label id="tts-index-emotion-text-field" class="msw-processing-field" hidden><span>情感描述文本</span><textarea id="tts-index-emotion-text" rows="2" maxlength="600" placeholder="例如：委屈、兴奋、温柔；留空时使用每条字幕文本判断情感"></textarea></label>
+          <div id="tts-index-emotion-weight-field" hidden>
+            <label class="msw-processing-field"><span>情感权重 · <output id="tts-index-weight-value">0.65</output></span><input id="tts-index-weight" type="range" min="0" max="1" step="0.01" value="0.65"></label>
+          </div>
+          <label id="tts-index-random-field" class="msw-tts-check" hidden><input id="tts-index-random" type="checkbox">情感随机采样（每次生成可能不同）</label>
+          <label class="msw-processing-field" id="tts-index-pronunciation-field" hidden><span>读音修正（可选，仅此次配音）</span><input id="tts-index-pronunciation" maxlength="600" placeholder="可用 &lt;行|HANG2&gt;、英文音素或日语假名，不改字幕原文"></label>
+
+          <label class="msw-processing-field"><span>语速 · <output id="tts-index-speed-value">100%</output></span><input id="tts-index-speed" type="range" min="50" max="200" step="1" value="100"></label>
+        </fieldset>
+      </div>
+      </details>
+      <div class="msw-processing-actions"><button type="button" id="tts-save-settings" title="记住当前引擎和合成参数，下次打开时使用；不保存工程或生成音频">保存合成设置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
+      <p class="msw-processing-hint">每条字幕或一份草稿生成一个完整 WAV，最多 600 字符；生成期间可继续编辑。</p>
     </div>
     <p id="tts-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details class="msw-job-history" id="tts-history" open><summary>合成记录 <span id="tts-history-count"></span></summary><div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务" tabindex="0"></div></details>
@@ -14457,6 +14596,8 @@ export default MawDynamicCaptions;
     if (source.pronunciation_override !== undefined && (typeof source.pronunciation_override !== 'string'
       || [...source.pronunciation_override].length > 600)) return false;
     return validId(asset.job_id) && validId(source.key) && validCueId(source.id)
+      && ['subtitle', 'editor_text'].includes(source.kind === undefined ? 'subtitle' : source.kind)
+      && (source.kind !== 'editor_text' || source.track_id == null)
       && (source.track_id == null || validCueId(source.track_id)) && typeof source.text === 'string' && [...source.text].length <= 600
       && Number.isInteger(source.start) && Number.isInteger(source.end) && source.start >= 0 && source.start < source.end;
   }
@@ -14913,7 +15054,7 @@ export default MawDynamicCaptions;
     const rows = new Map();
     const add = (cue, trackId) => { if (cue && typeof cue.text === 'string' && cue.text.trim()) rows.set(JSON.stringify([trackId, cue.id]), { cue, trackId }); };
     if (!hasSelection) {
-      const chosen = needsChoice ? side : (mains.length ? 'main' : 'secondary');
+      const chosen = side || (needsChoice ? null : (mains.length ? 'main' : 'secondary'));
       if (chosen === 'main') mains.forEach(cue => add(cue, null));
       if (chosen === 'secondary') secondary.forEach(cue => add(cue, track?.id));
     } else {
@@ -14938,7 +15079,16 @@ export default MawDynamicCaptions;
       key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,
     })) };
   }
-  global.MSWTts = Object.freeze({ scope, snapshot });
+  function textSnapshot(project, text, start = 0) {
+    if (typeof text !== 'string' || !text.trim()) throw new Error('请输入要合成的配音草稿');
+    if ([...text].length > 600) throw new Error('配音草稿超过 600 字符，请分段合成');
+    if (!Number.isSafeInteger(start) || start < 0) throw new Error('配音起始位置无效');
+    const id = global.MSWProject.id('text');
+    // end is provisional; AssetStore replaces it with the actual audio duration.
+    return {project_id: project.msw.project_id, entries: [{key: global.MSWProject.id('entry'), id,
+      kind: 'editor_text', track_id: null, text, start, end: start + 1}]};
+  }
+  global.MSWTts = Object.freeze({ scope, snapshot, textSnapshot });
   global.MSWE?.register('msw-tts-core', () => global.MSWTts);
 })(window);
 
@@ -14953,6 +15103,52 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '环境配置': 'Environment', 'TTS 环境': 'TTS environment',
+    '引擎': 'Engine', '百炼 Qwen TTS（云端）': 'Bailian Qwen TTS (cloud)', '百炼 Qwen TTS': 'Bailian Qwen TTS',
+    '油库里': 'Yukkuri', '油库里（本地）': 'Yukkuri (local)', 'IndexTTS 本机服务': 'IndexTTS local service',
+    'IndexTTS 2.5（本机服务）': 'IndexTTS 2.5 (local service)', '油库里资源': 'Yukkuri resources',
+    '配音模式 · ModelType': 'Voice mode · ModelType', 'CustomVoice · 预设音色': 'CustomVoice · Preset voices',
+    'VoiceDesign · 声音设计': 'VoiceDesign · Voice design', 'VoiceClone · 声音复刻': 'VoiceClone · Voice cloning',
+    '系统音色': 'System voices', '选择音色': 'Select a voice', '请选择音色': 'Select a voice',
+    '搜索音色': 'Search voices', '搜索名称、音色 ID、方言或性别': 'Search name, voice ID, dialect or gender',
+    '当前音色': 'Current voice', '没有匹配音色': 'No matching voices', '刷新本机音色': 'Refresh local voices',
+    '本机音色': 'Local voices', '本机创建音色': 'Local custom voices', '创建音色': 'Create voice',
+    '请选择音色；可在环境配置中创建或登记': 'Select a voice; create or register voices in environment settings',
+    '当前模型的本机音色；创建和管理请前往环境配置。': 'Local voices for this model; use environment settings to create and manage them.',
+    '当前模型支持': 'This model supports', '个系统音色': 'system voices', '可搜索中文名称、音色 ID 和方言': 'Search by name, ID or dialect',
+    '合成设置': 'Synthesis settings', '字幕编辑器内容': 'Subtitle editor text',
+    '独立配音草稿': 'Independent voice draft', '输入要合成的文字…': 'Enter text to synthesize…',
+    '未提交草稿仅保留在当前页面，刷新或换工程时清除': 'Unsubmitted drafts stay on this page and are cleared on reload or project switch',
+    '每条字幕或一份草稿生成一个完整 WAV，最多 600 字符；生成期间可继续编辑。': 'One complete WAV per subtitle or draft, up to 600 characters. You can keep editing while it generates.',
+    '独立配音草稿 · 不修改字幕': 'Independent voice draft · subtitles stay unchanged',
+    '范围：独立配音草稿 · 不修改字幕': 'Scope: independent voice draft · subtitles stay unchanged',
+    '复制当前字幕': 'Copy current subtitle', '文本配音': 'Text voiceover',
+    '用当前字幕替换配音草稿？字幕不会被修改。': 'Replace the voice draft with the current subtitle? Subtitles will stay unchanged.',
+    '请输入要合成的配音草稿': 'Enter a voice draft to synthesize',
+    '配音草稿超过 600 字符，请分段合成': 'Voice draft exceeds 600 characters; synthesize it in parts',
+    '前往环境配置': 'Open environment settings', '保存环境配置': 'Save environment settings',
+    '保存合成设置': 'Save synthesis settings', '合成设置已保存到本机': 'Synthesis settings saved locally',
+    '环境配置已保存到本机': 'Environment settings saved locally',
+    '正在读取本机 TTS 配置…': 'Loading local TTS settings…',
+    '环境配置需要本机 Server 编辑器。': 'Environment settings require the local server editor.',
+    '百炼密钥尚未配置，请前往环境配置填写。': 'No Bailian key configured. Add one in environment settings.',
+    '油库里资源未就绪，请前往环境配置安装或检测。': 'Yukkuri resources are not ready. Install or check them in environment settings.',
+    '连锁字幕按操作对象合成，独立字幕保留原选区': 'Linked subtitles use the selected source; independent subtitles keep their original selection',
+    '音色管理': 'Voice management', '管理模式': 'Management mode', '目标模型': 'Target model',
+    '声音设计': 'Voice design', '声音复刻': 'Voice cloning', '预设／外部音色': 'Preset / external voices',
+    '本机音色记录': 'Local voice records', '本机显示名称': 'Local display name',
+    '选择已登记音色': 'Select a registered voice', '刷新音色': 'Refresh voices', '重命名': 'Rename',
+    '登记已有音色 ID': 'Register an existing voice ID', '音色 ID': 'Voice ID', '登记到本机列表': 'Register locally',
+    '配音预设': 'Voice presets', '选择已保存预设': 'Select a saved preset',
+    '应用预设': 'Apply preset', '重命名预设': 'Rename preset', '移除预设': 'Remove preset',
+    '音色参考来源': 'Voice reference source', '官方示例': 'Official examples', '本机音频': 'Local audio',
+    '音色搜索': 'Voice search', '搜索音色名称或语言': 'Search voice name or language', '搜索 IndexTTS 音色': 'Search IndexTTS voices',
+    '试听音色': 'Preview voice', '试听参考': 'Preview reference', '音色试听': 'Voice preview',
+    '在素材库播放已有试听音频，不发起云端合成': 'Play an existing sample in the library without cloud synthesis',
+    '此音色暂无已有试听音频': 'No existing preview audio for this voice',
+    '试听音频无法加载，请检查连接后重试': 'Could not load the sample. Check the connection and try again.',
+    '记住当前引擎和合成参数，下次打开时使用；不保存工程或生成音频': 'Remember the engine and synthesis defaults for next time; does not save the project or generate audio',
+    '读取当前连接的 IndexTTS WebUI 已保存预设；载入后可保存为 MSWE 本机预设，在 TTS 面板中直接选择。': 'Read presets saved in the connected IndexTTS WebUI. Load one, then save it as an MSWE local preset to select it in the TTS panel.',
     '导出带配音的视频 MP4': 'Export video with voice as MP4',
     '关闭视频导出': 'Close video export',
     '视频导出任务': 'Video export jobs',
@@ -25112,6 +25308,7 @@ function setEditorSettingsPanelOpen(open) {
   editorSettingsToggle?.classList.add('active');
   editorSettingsToggle?.setAttribute('aria-expanded', 'true');
   resetEditorSettingsSearch();
+  window.dispatchEvent(new Event('msw:settings-opened'));
   document.getElementById('editor-settings-search')?.focus();
 }
 
@@ -27113,7 +27310,10 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     manageButton?.classList.add('active');
     manageButton?.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => {
-      if (!restorePosition()) positionNearAnchor();
+      if (!restorePosition() && !positionNearAnchor()) {
+        const rect = panel.getBoundingClientRect();
+        setPosition(rect.left, rect.top);
+      }
     });
   }
 
@@ -43047,7 +43247,7 @@ function buildEditorSettingsNav() {
     editorSettingsNavEl.appendChild(button);
     // 含多个子分区的分类带 › 箭头（UE 式）：仅在该分类激活时展开二级导航。
     const subsections = [...category.querySelectorAll(':scope .settings-subsection')];
-    if (subsections.length > 1) {
+    if (subsections.length > 1 || category.dataset.settingsCategory === 'environment') {
       const caret = document.createElement('span');
       caret.className = 'settings-nav-caret';
       caret.setAttribute('aria-hidden', 'true');
@@ -43580,6 +43780,12 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
 }));
 window.MSWE?.register('processing-host', () => Object.freeze({
+  editorText: () => cuePanelText.value,
+  playheadMs: () => Math.max(0, Math.round((player.currentTime || 0) * 1000)),
+  showCueEditor: () => {
+    if (waveformEditor?.showModule?.('panel', {recordUndo: false})) rebuildShowModuleMenu();
+    else waveformEditor?.activateModuleTab?.('panel');
+  },
   get data() { return DATA; },
   get config() { return SERVER_CONFIG; },
   get generation() { return mswProjectGeneration; },
@@ -43663,6 +43869,10 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     updateUndoRedoButtons(); return true;
   },
   createFloatingPanel,
+  openTtsEnvironment: () => {
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+  },
   flashHint,
 }));
 
@@ -44201,15 +44411,21 @@ window.addEventListener('beforeunload', (e) => {
 // in this page's memory; only the local server stores reusable voice IDs.
 (function (global) {
   'use strict';
-  global.MSWQwenVoices = {create({el, t, request, recipe, updateScope, stopAssetPreview, pauseMedia, generation}) {
+  global.MSWQwenVoices = {create({el, t, request, recipe, updateScope, playReference, stopReference, generation}) {
     let metadata = {}, currentModel = '', currentNamespace = '', currentType = 'CustomVoice';
     let records = [], loadSequence = 0, timer, polling = false, failures = 0;
-    let submitting = false, pending = null, previewUrl = null, previewSequence = 0;
-    const drafts = new Map(), modelDrafts = new Map(), operations = new Map(), origins = new Map();
+    let managed = [], manageSequence = 0, managedContext = '';
+    let submitting = false, pending = null, previewSequence = 0;
+    const drafts = new Map(), modelDrafts = new Map(), operations = new Map();
     const type = () => el('tts-model-type').value;
     const namespace = () => `${el('tts-region').value}\0${el('tts-key').value}`;
     const context = () => `${namespace()}\0${el('tts-model').value}`;
     const custom = () => type() !== 'CustomVoice';
+    const manageType = () => el('tts-manage-model-type').value;
+    const manageContext = () => `${namespace()}\0${el('tts-manage-model').value}`;
+    const manageRecipe = () => ({provider: 'qwen', region: el('tts-region').value, model_type: manageType(),
+      model: el('tts-manage-model').value, voice: '', language_type: 'Auto', instructions: '', optimize_instructions: false});
+    const hasKey = () => Boolean(el('tts-key').value.trim() || metadata.regions?.find(row => row.id === el('tts-region').value)?.hasApiKey);
     const active = op => ['queued', 'preparing', 'creating'].includes(op.status);
     function message(text, error = false) {
       el('tts-voice-message').textContent = t(text);
@@ -44217,13 +44433,18 @@ window.addEventListener('beforeunload', (e) => {
     }
     function stopPreview() {
       previewSequence++;
-      const audio = el('tts-voice-preview'); audio.pause(); audio.removeAttribute('src'); audio.load(); audio.hidden = true;
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      previewUrl = null;
+      stopReference('qwen');
     }
     function rows() {
-      return custom() ? records.map(row => ({...row, id: row.voice, group: t('本机创建音色')}))
-        : (metadata.systemVoices?.[el('tts-model').value] || []);
+      const local = records.map(row => ({...row, id: row.voice, group: t('本机音色')}));
+      return custom() ? local : [...(metadata.systemVoices?.[el('tts-model').value] || []).filter(row => !local.some(v => v.id === row.id)), ...local];
+    }
+    function previewSource() {
+      const selected = rows().find(row => row.id === el('tts-voice').value);
+      // URLs come only from the built-in official catalog, never registered voice IDs.
+      if (selected?.preview_url && /^https:\/\/help-static-aliyun-doc\.aliyuncs\.com\//.test(selected.preview_url)) return {url: selected.preview_url};
+      const op = [...operations.values()].find(op => op.context === context() && op.voice === el('tts-voice').value && op.preview);
+      return op ? {operation: op} : null;
     }
     function renderPicker() {
       const all = rows(), query = el('tts-voice-search').value.trim().toLocaleLowerCase();
@@ -44239,10 +44460,13 @@ window.addEventListener('beforeunload', (e) => {
       }
       const id = el('tts-voice').value.trim(), selected = all.find(row => row.id === id);
       select.value = filtered.some(row => row.id === id) ? id : '';
-      el('tts-voice-current').textContent = id ? `${t('当前音色')}：${selected ? t(selected.name) + ' · ' : ''}${id}` : t('请先选择、创建或填写音色 ID');
+      el('tts-voice-current').textContent = id ? `${t('当前音色')}：${selected ? t(selected.name) + ' · ' : ''}${id}` : t('请选择音色；可在环境配置中创建或登记');
+      const audition = el('tts-voice-audition');
+      audition.disabled = !previewSource();
+      audition.title = t(previewSource() ? '在素材库播放已有试听音频，不发起云端合成' : '此音色暂无已有试听音频');
       el('tts-voice-list-label').textContent = t(custom() ? '本机创建音色' : '系统音色');
       el('tts-voice-catalog-hint').textContent = custom()
-        ? t('仅列出当前模型、地域和密钥配置下在本机创建的音色；可手动填写已有百炼音色 ID。')
+        ? t('当前模型的本机音色；创建和管理请前往环境配置。')
         : `${t('当前模型支持')} ${all.length} ${t('个系统音色')} · ${t('可搜索中文名称、音色 ID 和方言')}`;
       updateScope();
     }
@@ -44256,9 +44480,7 @@ window.addEventListener('beforeunload', (e) => {
       el('tts-model').value = models.includes(selected) ? selected : models[0] || '';
     }
     function modeView() {
-      el('tts-custom-voices').hidden = !custom();
-      el('tts-design-fields').hidden = type() !== 'VoiceDesign';
-      el('tts-clone-fields').hidden = type() !== 'VoiceClone';
+      el('tts-custom-voices').hidden = false;
       el('tts-instruct').hidden = !el('tts-model').value.includes('-instruct-');
       currentModel = el('tts-model').value; currentNamespace = namespace(); currentType = type();
       renderPicker(); renderOperations();
@@ -44269,10 +44491,10 @@ window.addEventListener('beforeunload', (e) => {
       const saved = drafts.get(context());
       el('tts-voice').value = credentials && custom() ? '' : saved ?? (custom() ? '' : 'Cherry');
       modeView();
-      if (custom()) void refresh();
+      void refresh();
     }
     async function refresh() {
-      if (!custom()) return;
+      if (!hasKey()) { records = []; renderPicker(); return; }
       const key = context(), sequence = ++loadSequence;
       el('tts-voice-refresh').disabled = true;
       try {
@@ -44281,15 +44503,60 @@ window.addEventListener('beforeunload', (e) => {
         records = data.voices;
         for (const operation of data.operations) operations.set(operation.id, {...operation, context: key});
         renderPicker(); renderOperations(); failures = 0; schedule();
-      } catch (error) { if (sequence === loadSequence) message(error.message, true); }
+      } catch (error) { if (sequence === loadSequence) { message(error.message, true); el('tts-voice-catalog-hint').textContent = error.message; } }
       finally { if (sequence === loadSequence) el('tts-voice-refresh').disabled = false; }
+    }
+    function managementView({fill = false} = {}) {
+      if (fill) {
+        const old = el('tts-manage-model').value, models = metadata.modelTypes?.[manageType()] || [];
+        el('tts-manage-model').replaceChildren(...models.map(model => new Option(model, model)));
+        el('tts-manage-model').value = models.includes(old) ? old : models[0] || '';
+      }
+      el('tts-design-fields').hidden = manageType() !== 'VoiceDesign';
+      el('tts-clone-fields').hidden = manageType() !== 'VoiceClone';
+      el('tts-voice-create-fields').hidden = manageType() === 'CustomVoice';
+      renderOperations();
+    }
+    async function refreshManagement() {
+      const key = manageContext(), sequence = ++manageSequence;
+      if (key !== managedContext || !hasKey()) {
+        managed = []; managedContext = key;
+        el('tts-manage-voice').replaceChildren(new Option(t('选择已登记音色'), ''));
+        el('tts-manage-name').value = ''; renderOperations();
+      }
+      if (!hasKey()) { el('tts-manage-refresh').disabled = false; message('请先在连接设置填写或保存百炼密钥。'); return; }
+      el('tts-manage-refresh').disabled = true;
+      try {
+        const data = await request('qwen-voices', {action: 'list', provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}});
+        if (sequence !== manageSequence || key !== manageContext()) return;
+        managed = data.voices;
+        const selected = el('tts-manage-voice').value;
+        el('tts-manage-voice').replaceChildren(new Option(t('选择已登记音色'), ''), ...managed.map(row => new Option(`${row.name} · ${row.voice}`, row.voice)));
+        el('tts-manage-voice').value = selected;
+        for (const op of data.operations) operations.set(op.id, {...op, context: key});
+        renderOperations(); schedule();
+      } catch (error) { if (sequence === manageSequence) message(error.message, true); }
+      finally { if (sequence === manageSequence) el('tts-manage-refresh').disabled = false; }
+    }
+    async function manageVoice(action) {
+      const key = manageContext(), version = generation();
+      const button = el(action === 'register' ? 'tts-voice-register' : 'tts-manage-rename'); button.disabled = true;
+      try {
+        const voice = action === 'register' ? el('tts-voice-external-id').value.trim() : el('tts-manage-voice').value;
+        await request('qwen-voices', {action, voice, name: el('tts-manage-name').value.trim(), provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}});
+        if (key !== manageContext() || version !== generation()) return;
+        await refreshManagement(); el('tts-manage-voice').value = voice;
+        if (key === context()) await refresh();
+        message(action === 'register' ? '已登记，可在合成设置搜索选择。' : '本机显示名称已更新。');
+      } catch (error) { if (key === manageContext()) message(error.message, true); }
+      finally { button.disabled = false; }
     }
     function button(text, callback) {
       const element = document.createElement('button'); element.type = 'button'; element.textContent = t(text);
       element.addEventListener('click', () => void callback()); return element;
     }
     function renderOperations() {
-      const visible = [...operations.values()].filter(op => op.context === context()).sort((a, b) => b.created_at - a.created_at);
+      const visible = [...operations.values()].filter(op => op.context === manageContext()).sort((a, b) => b.created_at - a.created_at);
       const target = el('tts-voice-operations'), scroll = target.scrollTop, fragment = document.createDocumentFragment();
       const states = {queued: '等待创建', preparing: '检查参考音频', creating: '正在创建', succeeded: '已创建', failed: '创建失败', interrupted: '服务中断'};
       for (const op of visible) {
@@ -44299,7 +44566,7 @@ window.addEventListener('beforeunload', (e) => {
         card.append(title, detail);
         if (op.voice) {
           const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
-          actions.append(button('使用此音色', () => { el('tts-voice').value = op.voice; remember(); renderPicker(); message('已选择音色，可开始字幕配音'); }));
+          actions.append(button('选择此记录', () => { el('tts-manage-voice').value = op.voice; el('tts-manage-name').value = managed.find(row => row.voice === op.voice)?.name || op.name; }));
           if (op.preview) actions.append(button('试听音色', () => playPreview(op)));
           card.append(actions);
         }
@@ -44308,28 +44575,26 @@ window.addEventListener('beforeunload', (e) => {
       target.replaceChildren(fragment); target.scrollTop = scroll;
       el('tts-voice-history-count').textContent = `(${visible.length})`;
       el('tts-voice-create').disabled = submitting || (!pending && [...operations.values()].some(active));
-      el('tts-voice-create').textContent = t(pending ? '确认上次音色提交' : type() === 'VoiceClone' ? '上传参考音频并创建' : '创建音色');
+      el('tts-voice-create').textContent = t(pending ? '确认上次音色提交' : manageType() === 'VoiceClone' ? '上传参考音频并创建' : '创建音色');
     }
     async function playPreview(op) {
-      stopPreview(); const sequence = previewSequence, key = context(), version = generation();
+      stopPreview(); const sequence = previewSequence, key = manageContext(), version = generation();
       try {
-        const blob = await request(`qwen-voice-jobs/${op.id}/preview`, null, true);
-        if (sequence !== previewSequence || key !== context() || version !== generation()) return;
-        previewUrl = URL.createObjectURL(blob);
-        const audio = el('tts-voice-preview'); audio.src = previewUrl; audio.hidden = false;
-        stopAssetPreview(); pauseMedia(); await audio.play();
+        await playReference('qwen', `${t('音色试听')} · ${op.name || op.voice || ''}`,
+          () => request(`qwen-voice-jobs/${op.id}/preview`, null, true),
+          () => sequence === previewSequence && key === manageContext() && version === generation());
       } catch (error) { if (sequence === previewSequence) message(error.message, true); }
     }
     async function createVoice() {
       if (submitting) return;
       submitting = true; renderOperations();
-      const origin = {context: context(), generation: generation(), voice: el('tts-voice').value};
+      const origin = {context: manageContext(), generation: generation(), voice: el('tts-voice').value};
       try {
         if (!pending) {
           const input = {action: 'create', request_key: global.MSWProject.id('voice'), name: el('tts-voice-name').value.trim(),
-            provider: {recipe: {...recipe(), voice: ''}, apiKey: el('tts-key').value}};
+            provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}};
           if (!input.name) throw new Error(t('请填写音色名称'));
-          if (type() === 'VoiceDesign') {
+          if (manageType() === 'VoiceDesign') {
             input.voice_prompt = el('tts-voice-prompt').value.trim(); input.preview_text = el('tts-voice-preview-text').value.trim();
             if (!input.voice_prompt || !input.preview_text) throw new Error(t('请填写音色描述与试听文本'));
           } else {
@@ -44342,15 +44607,14 @@ window.addEventListener('beforeunload', (e) => {
               reader.onerror = () => reject(new Error(t('无法读取参考音频'))); reader.readAsDataURL(file);
             });
           }
-          if (origin.context !== context() || origin.generation !== generation()) return;
+          if (origin.context !== manageContext() || origin.generation !== generation()) return;
           pending = {input, origin};
         }
         const capture = pending;
         const data = await request('qwen-voices', capture.input);
-        origins.set(data.operation.id, capture.origin);
         operations.set(data.operation.id, {...data.operation, context: capture.origin.context}); pending = null;
         el('tts-voice-history').open = true;
-        if (capture.origin.context === context()) message(data.operation.message);
+        if (capture.origin.context === manageContext()) message(data.operation.message);
         await finishOperation(data.operation, capture.origin.context);
         failures = 0; schedule(0);
       } catch (error) {
@@ -44360,15 +44624,11 @@ window.addEventListener('beforeunload', (e) => {
     }
     async function finishOperation(op, key) {
       if (active(op)) return;
-      const origin = origins.get(op.id); origins.delete(op.id);
-      if (key !== context()) return;
       if (op.status === 'succeeded') {
-        await refresh();
-        if (origin && el('tts-engine').value === 'qwen' && origin.context === context() && origin.generation === generation() && origin.voice === el('tts-voice').value) {
-          el('tts-voice').value = op.voice; remember(); renderPicker();
-        }
+        if (key === manageContext()) await refreshManagement();
+        if (key === context()) await refresh();
       }
-      message(op.message, op.status !== 'succeeded');
+      if (key === manageContext()) message(op.message, op.status !== 'succeeded');
     }
     function schedule(delay = 800) {
       clearTimeout(timer);
@@ -44392,31 +44652,299 @@ window.addEventListener('beforeunload', (e) => {
     el('tts-model-type').addEventListener('change', () => changed({mode: true}));
     el('tts-model').addEventListener('change', () => changed());
     el('tts-voice-search').addEventListener('input', renderPicker);
+    el('tts-voice-audition').addEventListener('click', async () => {
+      const source = previewSource(); if (!source) return;
+      stopPreview();
+      const sequence = previewSequence, key = context(), voice = el('tts-voice').value;
+      try {
+        await playReference('qwen', `${t('音色试听')} · ${rows().find(row => row.id === voice)?.name || voice}`,
+          () => source.url || request(`qwen-voice-jobs/${source.operation.id}/preview`, null, true),
+          () => sequence === previewSequence && key === context() && voice === el('tts-voice').value);
+      } catch (error) { if (sequence === previewSequence) el('tts-voice-catalog-hint').textContent = error.message; }
+    });
     el('tts-voice-select').addEventListener('change', () => {
+      stopPreview();
       if (el('tts-voice-select').value) el('tts-voice').value = el('tts-voice-select').value;
       remember(); renderPicker();
     });
     el('tts-voice').addEventListener('input', () => { remember(); renderPicker(); });
     el('tts-voice-refresh').addEventListener('click', () => void refresh());
     el('tts-voice-create').addEventListener('click', () => void createVoice());
-    el('tts-key').addEventListener('change', () => changed({credentials: true}));
+    el('tts-manage-model-type').addEventListener('change', () => { stopPreview(); managementView({fill: true}); void refreshManagement(); });
+    el('tts-manage-model').addEventListener('change', () => { stopPreview(); managementView(); void refreshManagement(); });
+    el('tts-manage-refresh').addEventListener('click', () => void refreshManagement());
+    el('tts-voice-register').addEventListener('click', () => void manageVoice('register'));
+    el('tts-manage-rename').addEventListener('click', () => void manageVoice('rename'));
+    el('tts-manage-voice').addEventListener('change', () => { el('tts-manage-name').value = managed.find(row => row.voice === el('tts-manage-voice').value)?.name || ''; });
+    el('tts-key').addEventListener('change', () => { changed({credentials: true}); void refreshManagement(); });
     el('tts-engine').addEventListener('change', () => { stopPreview(); if (el('tts-engine').value === 'qwen' && custom()) void refresh(); });
     global.addEventListener('msw:project-changed', () => { stopPreview(); el('tts-voice-reference').value = ''; });
-    document.addEventListener('play', event => {
-      if (event.target === el('tts-voice-preview')) { stopAssetPreview(); pauseMedia(); }
-      else if (['player', 'asset-audio'].includes(event.target.id)) el('tts-voice-preview').pause();
-    }, true);
     return {
       configure(data) {
         metadata = data; records = []; loadSequence++; stopPreview();
         el('tts-model-type').value = data.recipe.model_type || 'CustomVoice';
         fillModels(data.recipe.model); el('tts-voice').value = data.recipe.voice;
-        modeView(); remember(); if (custom() && el('tts-engine').value === 'qwen') void refresh();
+        modeView(); managementView({fill: true}); remember(); if (el('tts-engine').value === 'qwen') void refresh();
       },
-      credentialsChanged: () => changed({credentials: true}),
-      reopen: () => { if (custom()) void refresh(); },
+      credentialsChanged: () => { changed({credentials: true}); void refreshManagement(); },
+      reopen: () => void refresh(),
+      management: () => { managementView({fill: true}); void refreshManagement(); },
+      stopPreview,
     };
   }};
+})(window);
+
+// IndexTTS controls. Reference bytes and connection settings remain on this computer.
+(function (global) {
+  'use strict';
+  function create({el, t, request, updateScope, generation, playReference, stopReference}) {
+    let cap = null, capUrl = '', refs = [], presets = {}, busy = false, sequence = 0, uploadKind = 'speaker';
+    let previewSequence = 0;
+    let durationFactor = 1, statusText = '', connectionFailure = false;
+    const officialRefs = new Map();
+    const fields = {
+      do_sample: ['随机采样 · do_sample', true],
+      top_p: ['Top P', 0.8, 0, 1, 0.01], top_k: ['Top K（0 表示不限）', 30, 0, 100, 1],
+      temperature: ['温度', 0.8, 0.1, 2, 0.1], length_penalty: ['长度惩罚', 0, -2, 2, 0.1],
+      num_beams: ['束搜索数', 3, 1, 10, 1], repetition_penalty: ['重复惩罚', 10, 0.1, 20, 0.1],
+      max_mel_tokens: ['最大音频 Token 数', 1500, 50, 1815, 1],
+      max_text_tokens_per_segment: ['每段最大文本 Token 数', 120, 20, 600, 2],
+    };
+    const lang = {ZH: '中文', EN: 'English', JA: '日本語', ES: 'Español', AR: 'العربية'};
+    const value = id => el('tts-index-' + id).value;
+    const active = () => el('tts-engine').value === 'indextts' || (el('editor-settings-modal').classList.contains('show') && el('tts-environment-engine').value === 'indextts');
+    const connection = () => ({service_url: value('url').trim(), timeout: Number(value('timeout'))});
+    function message(text, error = false) {
+      el('tts-index-status').textContent = t(text);
+      el('tts-index-status').classList.toggle('is-error', error);
+      statusText = text;
+      el('tts-index-call-status').textContent = error ? text : '';
+      el('tts-index-call-status').hidden = !error;
+    }
+    function options(id, rows, placeholder, current = value(id)) {
+      el('tts-index-' + id).replaceChildren(new Option(t(placeholder), ''), ...rows.map(row => new Option(row.label, row.id)));
+      el('tts-index-' + id).value = current;
+    }
+    function renderReferences(selected = {}) {
+      const rows = refs.map(ref => ({id: ref.id, label: `${ref.name} · ${(ref.sample_count / ref.sample_rate).toFixed(1)} s`}));
+      if (selected.speaker !== undefined) el('tts-index-speaker').value = selected.speaker;
+      options('emotion-ref', rows, '请选择或上传情感参考', selected.emotion ?? value('emotion-ref'));
+      renderPicker(); render();
+    }
+    function renderPicker() {
+      const official = value('voice-source') === 'official', query = value('voice-search').trim().toLocaleLowerCase();
+      const matches = row => row.label.toLocaleLowerCase().includes(query);
+      el('tts-index-official-field').hidden = !official;
+      el('tts-index-local-field').hidden = official;
+      const rows = (cap?.voices || []).map(row => ({id: String(row.index), label: `${row.name} · ${lang[row.language] || row.language} · ${row.language}`}));
+      const selected = [...officialRefs].find(([, ref]) => ref === value('speaker'))?.[0] || '';
+      options('example', rows.filter(matches), '选择官方示例音色', selected);
+      options('local-voice', refs.map(ref => ({id: ref.id, label: ref.name})).filter(matches), '请选择或上传参考音频', value('speaker'));
+    }
+    function renderPresets() {
+      options('preset', Object.keys(presets).map(name => ({id: name, label: name})), '选择已保存预设');
+      options('preset-manage', Object.keys(presets).map(name => ({id: name, label: name})), '选择已保存预设');
+      options('server-preset', (cap?.presets || []).map(name => ({id: name, label: name})), '选择服务预设');
+    }
+    function renderCapability() {
+      renderPicker();
+      options('emotion-example', (cap?.emotion_examples || []).map(row => ({id: String(row.index), label: row.name})), '选择情感示例');
+      el('tts-index-emotion-mode').querySelector('[value="text"]').disabled = !cap?.text_emotion;
+      el('tts-index-emotion-capability').textContent = t(cap?.text_emotion
+        ? '文本情感模型已加载，可以使用实验性情感描述。'
+        : '文本情感需 IndexTTS 加载 QwenEmotion。可用 --qwen_emo 启动该服务后重新检测；MSWE 不会自动重启服务。');
+      for (const key of ['max_mel_tokens', 'max_text_tokens_per_segment']) el('tts-index-' + key).max = cap?.[key] || fields[key][3];
+      renderPresets(); render();
+    }
+    function ready() {
+      return !busy && Boolean(cap && capUrl === connection().service_url && value('speaker'))
+        && (value('emotion-mode') !== 'audio' || Boolean(value('emotion-ref')))
+        && (value('emotion-mode') !== 'text' || Boolean(cap?.text_emotion));
+    }
+    function render() {
+      const mode = value('emotion-mode');
+      el('tts-index-controls').disabled = busy;
+      el('tts-index-check').disabled = busy;
+      el('tts-index-url').disabled = busy; el('tts-index-timeout').disabled = busy;
+      for (const input of el('tts-environment-indextts').querySelectorAll('input, select, button')) input.disabled = busy;
+      for (const kind of ['audio', 'vector']) el('tts-index-emotion-' + kind).hidden = mode !== kind;
+      el('tts-index-emotion-text-field').hidden = mode !== 'text';
+      el('tts-index-emotion-weight-field').hidden = mode === 'follow';
+      el('tts-index-random-field').hidden = !['vector', 'text'].includes(mode);
+      el('tts-index-speed-value').value = `${Math.round(100 / durationFactor)}%`;
+      el('tts-index-weight-value').value = Number(value('weight')).toFixed(2);
+      for (let i = 0; i < 8; i++) el(`tts-index-vector-${i}-value`).value = Number(value(`vector-${i}`)).toFixed(2);
+      for (const [kind, id] of [['speaker', 'speaker'], ['emotion', 'emotion-ref']]) el(`tts-index-${kind}-preview`).disabled = !value(id);
+      const speaker = refs.find(ref => ref.id === value('speaker'));
+      el('tts-index-speaker-info').textContent = speaker ? `${t('当前音色')}：${speaker.name} · ${(speaker.sample_count / speaker.sample_rate).toFixed(1)} s` : t('请选择音色');
+      el('tts-index-server-preset-load').disabled = busy || !value('server-preset') || !cap;
+      updateScope();
+    }
+    function recipe() {
+      return {provider: 'indextts', model: 'index-tts-2.5', voice: refs.find(ref => ref.id === value('speaker'))?.name || '',
+        speaker_ref: value('speaker'), emotion_ref: value('emotion-ref'), language_type: value('language'),
+        duration_factor: durationFactor, emotion_mode: value('emotion-mode'), emotion_weight: Number(value('weight')),
+        emotion_vector: Array.from({length: 8}, (_, i) => Number(value(`vector-${i}`))),
+        emotion_text: value('emotion-text').trim(), emotion_random: el('tts-index-random').checked,
+        ...Object.fromEntries(Object.entries(fields).map(([key, spec]) => [key, typeof spec[1] === 'boolean'
+          ? el('tts-index-' + key).checked : Number(value(key))]))};
+    }
+    function apply(recipe) {
+      for (const [id, key] of Object.entries({speaker: 'speaker_ref', 'emotion-ref': 'emotion_ref', language: 'language_type',
+        'emotion-mode': 'emotion_mode', weight: 'emotion_weight', 'emotion-text': 'emotion_text'})) {
+        if (recipe[key] !== undefined) el('tts-index-' + id).value = String(recipe[key]);
+      }
+      durationFactor = Number(recipe.duration_factor) || 1;
+      el('tts-index-speed').value = String(Math.round(100 / durationFactor));
+      el('tts-index-random').checked = Boolean(recipe.emotion_random);
+      for (let i = 0; i < 8; i++) el(`tts-index-vector-${i}`).value = String(recipe.emotion_vector?.[i] || 0);
+      for (const [key, spec] of Object.entries(fields)) {
+        if (typeof spec[1] === 'boolean') el('tts-index-' + key).checked = recipe[key] ?? spec[1];
+        else el('tts-index-' + key).value = String(recipe[key] ?? spec[1]);
+      }
+      el('tts-index-voice-source').value = [...officialRefs.values()].includes(value('speaker')) || !value('speaker') ? 'official' : 'local';
+      renderPicker(); render();
+    }
+    async function operation(body, complete) {
+      if (busy) return;
+      const token = ++sequence, project = generation();
+      busy = true; render(); message(body.action === 'check' ? '正在检测 IndexTTS 服务…' : '正在处理参考音频或预设…');
+      try {
+        const data = await request('index-tts', {...connection(), ...body});
+        if (token !== sequence || project !== generation()) return;
+        complete(data);
+      } catch (error) {
+        if (token === sequence && project === generation()) { if (body.action === 'check') connectionFailure = true; message(error.message, true); }
+      } finally { if (token === sequence) { busy = false; render(); } }
+    }
+    function stopPreview() {
+      previewSequence++;
+      stopReference('indextts');
+    }
+    async function preview(id) {
+      stopPreview();
+      const token = previewSequence, project = generation();
+      try {
+        await playReference('indextts', `${t('试听参考')} · ${refs.find(ref => ref.id === id)?.name || ''}`,
+          () => request(`index-reference?id=${encodeURIComponent(id)}`, null, true),
+          () => token === previewSequence && project === generation() && active());
+      } catch (error) { if (token === previewSequence && project === generation()) message(error.message, true); }
+    }
+    function invalidate() { sequence++; busy = false; stopPreview(); render(); }
+    function configure(data) {
+      invalidate();
+      if (!data) { cap = null; message('本机服务未提供 IndexTTS 接口，请重启编辑器服务。', true); return; }
+      el('tts-index-url').value = data.service_url; el('tts-index-timeout').value = String(data.timeout);
+      cap = data.capability; capUrl = cap ? data.service_url : ''; refs = data.references || []; presets = data.presets || {}; connectionFailure = false;
+      renderReferences(); apply(data.recipe || {}); renderCapability();
+      message(cap ? 'IndexTTS 服务已连接。' : '请先连接并检测本机服务。');
+    }
+    for (const [key, spec] of Object.entries(fields)) {
+      const label = document.createElement('label'); label.className = 'msw-processing-field';
+      const title = document.createElement('span'); title.textContent = t(spec[0]);
+      const input = document.createElement('input'); input.id = 'tts-index-' + key;
+      if (typeof spec[1] === 'boolean') { input.type = 'checkbox'; input.checked = spec[1]; }
+      else { input.type = 'number'; [input.value, input.min, input.max, input.step] = spec.slice(1).map(String); }
+      label.append(title, input); el('tts-index-advanced-fields').append(label);
+    }
+    ['喜', '怒', '哀', '惧', '厌恶', '低落', '惊喜', '平静'].forEach((name, i) => {
+      const label = document.createElement('label'); label.className = 'msw-processing-field';
+      const title = document.createElement('span'); title.append(t(name) + ' · ');
+      const output = document.createElement('output'); output.id = `tts-index-vector-${i}-value`; output.value = '0.00';
+      const input = document.createElement('input'); input.id = `tts-index-vector-${i}`;
+      input.type = 'range'; input.min = '0'; input.max = '1'; input.step = '.05'; input.value = '0';
+      title.append(output); label.append(title, input); el('tts-index-emotion-vector').append(label);
+    });
+    el('tts-index-fields').addEventListener('input', render);
+    el('tts-index-fields').addEventListener('change', render);
+    el('tts-environment-indextts').addEventListener('input', render);
+    el('tts-environment-indextts').addEventListener('change', render);
+    el('tts-index-speed').addEventListener('input', () => { durationFactor = 100 / Number(value('speed')); render(); });
+    el('tts-index-voice-source').addEventListener('change', () => { el('tts-index-voice-search').value = ''; renderPicker(); });
+    el('tts-index-voice-search').addEventListener('input', renderPicker);
+    el('tts-index-local-voice').addEventListener('change', () => {
+      if (!value('local-voice')) return;
+      stopPreview(); el('tts-index-speaker').value = value('local-voice'); render();
+    });
+    el('tts-index-url').addEventListener('input', () => { cap = null; capUrl = ''; renderCapability(); message('地址已变更，请重新检测。'); });
+    function check() {
+      if (busy) return;
+      cap = null; capUrl = ''; officialRefs.clear(); renderCapability();
+      connectionFailure = false;
+      return operation({action: 'check'}, data => {
+        cap = data.capability; capUrl = data.service_url; el('tts-index-url').value = capUrl;
+        renderCapability(); el('tts-index-connection').open = false;
+        message(`IndexTTS 已连接 · ${cap.voices.length} 个官方示例音色`);
+      });
+    }
+    el('tts-index-check').addEventListener('click', () => void check());
+    for (const [id, kind] of [['example', 'speaker'], ['emotion-example', 'emotion']]) {
+      el('tts-index-' + id).addEventListener('change', () => {
+        if (!value(id)) return;
+        stopPreview();
+        const index = value(id);
+        void operation({action: 'example', index: Number(index), kind}, data => {
+          if (kind === 'speaker') officialRefs.set(index, data.reference.id);
+          refs = data.references; renderReferences({[kind]: data.reference.id}); message('参考音频已保存到本机。');
+        });
+      });
+    }
+    for (const [kind, id] of [['speaker', 'speaker'], ['emotion', 'emotion-ref']]) {
+      el(`tts-index-${kind}-upload`).addEventListener('click', () => { uploadKind = kind; el('tts-index-reference-file').click(); });
+      el(`tts-index-${kind}-preview`).addEventListener('click', () => void preview(value(id)));
+      el('tts-index-' + id).addEventListener('change', stopPreview);
+    }
+    el('tts-index-reference-file').addEventListener('change', async event => {
+      const file = event.target.files[0], kind = uploadKind, project = generation(), token = sequence;
+      event.target.value = '';
+      if (!file || busy) return;
+      if (!file.size || file.size > 32 * 1024 * 1024) { message('参考音频须小于等于 32 MiB。', true); return; }
+      try {
+        const encoded = await new Promise((resolve, reject) => {
+          const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]);
+          reader.onerror = () => reject(new Error(t('无法读取音频文件'))); reader.readAsDataURL(file);
+        });
+        if (project !== generation() || token !== sequence || !active()) return;
+        stopPreview();
+        await operation({action: 'upload', filename: file.name, audio_base64: encoded}, data => {
+          if (kind === 'speaker') el('tts-index-voice-source').value = 'local';
+          refs = data.references; renderReferences({[kind]: data.reference.id}); message('参考音频已保存到本机。');
+        });
+      } catch (error) { if (project === generation()) message(error.message, true); }
+    });
+    el('tts-index-preset-save').addEventListener('click', () => {
+      const name = value('preset-name').trim();
+      if (presets[name] && !global.confirm(t('覆盖此本机配音预设？'))) return;
+      void operation({action: 'save_preset', name, recipe: recipe()}, data => {
+        presets = data.presets; renderPresets(); el('tts-index-preset').value = name; message('完整配音参数已保存为本机预设。');
+      });
+    });
+    el('tts-index-preset').addEventListener('change', () => {
+      const saved = presets[value('preset')]; if (saved) { stopPreview(); apply(saved); message('已应用本机预设。'); }
+    });
+    for (const action of ['rename', 'delete']) el(`tts-index-preset-${action}`).addEventListener('click', () => {
+      const name = value('preset-manage');
+      if (!name) { message('请先选择要管理的预设。', true); return; }
+      if (action === 'delete' && !global.confirm(t(`移除本机预设“${name}”？参考音频和已生成素材会保留。`))) return;
+      const newName = value('preset-name').trim();
+      void operation({action: `${action}_preset`, name, new_name: newName}, data => {
+        presets = data.presets; renderPresets(); message(action === 'rename' ? '预设已重命名。' : '本机预设已移除。');
+      });
+    });
+    el('tts-index-preset-manage').addEventListener('change', () => { el('tts-index-preset-name').value = value('preset-manage'); });
+    el('tts-index-server-preset-load').addEventListener('click', () => {
+      stopPreview();
+      void operation({action: 'server_preset', name: value('server-preset'), recipe: recipe()}, data => {
+        refs = data.references; renderReferences(); apply(data.recipe); el('tts-index-preset-name').value = value('server-preset'); message('已载入服务预设，保留当前语言和语速。');
+      });
+    });
+    global.addEventListener('msw:project-changed', invalidate);
+    return {configure, recipe, connection, ready, stopPreview, invalidate, check,
+      isBusy: () => busy,
+      connected: () => Boolean(cap && capUrl === connection().service_url),
+      problem: () => connectionFailure ? statusText : cap ? '' : busy ? '正在检测 IndexTTS 连接…' : 'IndexTTS 尚未连接，请在环境配置中检测服务。'};
+  }
+  global.MSWIndexTts = Object.freeze({create});
 })(window);
 
 // TTS task UI and project asset library. Audio bytes stay outside editor snapshots.
@@ -44433,10 +44961,14 @@ window.addEventListener('beforeunload', (e) => {
   const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set(), missing = new Set();
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
+  let settingsPromise = null, savingSettings = false;
+  let draftActive = false, draftInitialized = false;
+  const isText = () => el('tts-target').value === 'editor_text';
   let runtime = {state: 'idle', runtime_path: ''}, runtimeTimer, runtimeRequest = false;
   const isYukkuri = () => el('tts-engine').value === 'yukkuri';
-  let previewUrl = null, previewId = null, previewSequence = 0;
-  let importing = false, stopImport = false;
+  const isIndex = () => el('tts-engine').value === 'indextts';
+  let previewUrl = null, previewId = null, previewSequence = 0, previewOwner = '';
+  let importing = false, stopImport = false, yukkuriPreviewBusy = false;
   const PAGE_SIZE = 90, DENSITY_KEY = 'msw.assets.columns';
   let density = 3;
   try { const saved = Number(localStorage.getItem(DENSITY_KEY)); if (Number.isInteger(saved) && saved >= 1 && saved <= 5) density = saved; } catch (_) {}
@@ -44465,29 +44997,62 @@ window.addEventListener('beforeunload', (e) => {
     return data;
   }
   const qwenVoices = global.MSWQwenVoices.create({el, t, request, recipe: qwenRecipe, updateScope,
-    stopAssetPreview: stopPreview, pauseMedia: () => host.pauseMedia(), generation: () => host.generation});
+    playReference, stopReference, generation: () => host.generation});
+  const indexTts = global.MSWIndexTts.create({el, t, request, updateScope,
+    playReference, stopReference, generation: () => host.generation});
+  function syncDraft() {
+    const next = available && isText() && panel.isOpen();
+    if (next === draftActive) return;
+    if (next) {
+      host.commitEdits();
+      if (!draftInitialized) { el('cue-panel-tts-text').value = host.editorText(); draftInitialized = true; }
+      host.showCueEditor();
+    }
+    draftActive = next;
+    el('current-cue-panel').classList.toggle('tts-draft-mode', next);
+    el('cue-panel-tts-text').hidden = !next; el('cue-panel-tts-footer').hidden = !next;
+    if (next) {
+      el('cue-panel-tts-text').focus({preventScroll: true});
+      requestAnimationFrame(() => {
+        if (!draftActive || !panel.isOpen()) return;
+        const input = el('cue-panel-tts-text').getBoundingClientRect(), box = el('tts-panel').getBoundingClientRect();
+        if (box.left >= input.right || box.right <= input.left || box.bottom <= input.top || box.top >= input.bottom) return;
+        const left = input.right + box.width + 16 <= innerWidth ? input.right + 8 : input.left - box.width - 8 >= 6 ? input.left - box.width - 8 : null;
+        if (left !== null) { el('tts-panel').style.left = `${left}px`; el('tts-panel').style.right = 'auto'; }
+      });
+    }
+  }
   function updateScope() {
-    let scope = global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
+    const scope = isText() ? {signature: 'editor_text', sources: el('cue-panel-tts-text').value.trim() ? [{}] : [],
+      tooLong: [...el('cue-panel-tts-text').value].length > 600 ? 1 : 0} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
     if (scope.signature !== scopeSignature) {
       scopeSignature = scope.signature;
       el('tts-yukkuri-pronunciation').value = '';
-      el('tts-target').value = '';
-      scope = global.MSWTts.scope(host.data, host.selection());
+      el('tts-index-pronunciation').value = '';
     }
-    el('tts-target-field').hidden = !scope.needsChoice;
-    el('tts-scope').textContent = `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
-      + (scope.needsChoice && !el('tts-target').value ? ` · ${t('请先选择主字幕或副字幕')}` : '')
+    el('tts-scope').textContent = (isText() ? t('范围：独立配音草稿 · 不修改字幕')
+      : `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
+        + (scope.linked ? ` · ${t('连锁字幕按操作对象合成，独立字幕保留原选区')}` : ''))
       + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过 600 字符，请先拆分')}` : '');
-    el('tts-yukkuri-pronunciation-field').hidden = scope.sources.length !== 1 || (scope.needsChoice && !el('tts-target').value);
+    el('cue-panel-tts-count').textContent = `${[...el('cue-panel-tts-text').value].length} / 600`;
+    el('tts-yukkuri-pronunciation-field').hidden = isText() || scope.sources.length !== 1;
+    el('tts-index-pronunciation-field').hidden = el('tts-yukkuri-pronunciation-field').hidden;
     el('tts-start').disabled = !available || !configured || busy || (!pending && (
       (isYukkuri() && (!runtime.runtime_path || runtime.state === 'working' || runtimeRequest))
-      || (!isYukkuri() && !el('tts-voice').value.trim())
+      || (isIndex() && !indexTts.ready())
+      || (!isYukkuri() && !isIndex() && (!el('tts-voice').value.trim() || (!keyState() && !el('tts-key').value.trim())))
       || !scope.sources.length || scope.tooLong || (scope.needsChoice && !el('tts-target').value)));
     el('tts-start').textContent = t(pending ? '确认上次提交' : '开始合成');
+    for (const id of ['tts-save-settings', 'tts-environment-save']) el(id).disabled = !available || !configured || savingSettings || indexTts.isBusy();
+    environmentNotice();
     return scope;
   }
   function recipe() {
-    if (isYukkuri()) return {provider: 'yukkuri', model: 'aquestalk1', voice: el('tts-yukkuri-voice').value,
+    return recipeFor(el('tts-engine').value);
+  }
+  function recipeFor(engine) {
+    if (engine === 'indextts') return indexTts.recipe();
+    if (engine === 'yukkuri') return {provider: 'yukkuri', model: 'aquestalk1', voice: el('tts-yukkuri-voice').value,
       language_type: el('tts-yukkuri-language').value, speed: Number(el('tts-yukkuri-speed').value)};
     return qwenRecipe();
   }
@@ -44499,10 +45064,15 @@ window.addEventListener('beforeunload', (e) => {
       optimize_instructions: instruct && el('tts-optimize').checked };
   }
   function updateEngine() {
-    el('tts-qwen-fields').hidden = isYukkuri();
+    stopReference('yukkuri');
+    el('tts-qwen-fields').hidden = isYukkuri() || isIndex();
     el('tts-yukkuri-fields').hidden = !isYukkuri();
+    el('tts-index-fields').hidden = !isIndex();
+    if (!isIndex() && !el('editor-settings-modal').classList.contains('show')) indexTts.invalidate();
+    else indexTts.stopPreview();
     updateScope();
     if (isYukkuri() && runtime.state === 'idle' && runtime.runtime_path) void runtimeAction('check');
+    if (configured && isIndex() && !indexTts.connected()) void indexTts.check();
   }
   function renderRuntime(value) {
     runtime = value;
@@ -44512,6 +45082,7 @@ window.addEventListener('beforeunload', (e) => {
     el('tts-yukkuri-install').disabled = working || runtimeRequest;
     el('tts-yukkuri-check').disabled = working || runtimeRequest;
     el('tts-yukkuri-cancel').hidden = !working;
+    el('tts-yukkuri-preview').disabled = value.state !== 'ready' || yukkuriPreviewBusy;
     const progress = el('tts-yukkuri-progress'); progress.hidden = !working;
     if (value.total) { progress.max = value.total; progress.value = value.current; } else progress.removeAttribute('value');
     if (value.state === 'ready') el('tts-yukkuri-directory').value = value.runtime_path;
@@ -44545,28 +45116,56 @@ window.addEventListener('beforeunload', (e) => {
     el('tts-key-state').textContent = t(configured ? '此地域已有本机密钥，留空即可复用' : '请填写此地域的百炼密钥；北京和新加坡密钥不同');
     return configured;
   }
-  async function loadSettings() {
+  async function loadSettings(preserve = false) {
+    const previous = preserve && configured ? {engine: el('tts-engine').value, qwen: qwenRecipe(),
+      yukkuri: recipeFor('yukkuri'), index: indexTts.recipe(), key: el('tts-key').value} : null;
     const data = await request('tts-settings');
-    if (!data.modelTypes || !data.systemVoices) {
+    if (!data.modelTypes || !data.systemVoices || data.workspace_version !== 2) {
       configured = false; updateScope();
       throw new Error(t('本机 TTS 服务仍是旧版本，请重启编辑器服务后刷新页面'));
     }
     regions = data.regions;
     el('tts-language').replaceChildren(...data.languages.map(language => new Option(t(language), language)));
-    const value = data.recipe;
+    const value = previous?.qwen || data.recipe;
     for (const [id, key] of [['tts-language', 'language_type'], ['tts-region', 'region'], ['tts-instructions', 'instructions']]) el(id).value = value[key];
     el('tts-optimize').checked = value.optimize_instructions;
-    el('tts-key').value = '';
+    el('tts-key').value = previous?.key || '';
     el('tts-settings').open = !keyState();
-    el('tts-engine').value = data.engine || 'qwen';
+    el('tts-engine').value = previous?.engine || data.engine || 'qwen';
     if (data.yukkuri) {
-      const local = data.yukkuri.recipe;
+      const local = previous?.yukkuri || data.yukkuri.recipe;
       el('tts-yukkuri-voice').value = local.voice; el('tts-yukkuri-language').value = local.language_type;
       el('tts-yukkuri-speed').value = String(local.speed); el('tts-yukkuri-speed-value').value = String(local.speed);
       el('tts-yukkuri-directory').value = data.yukkuri.runtime_path;
       renderRuntime(data.yukkuri);
     }
-    configured = true; qwenVoices.configure(data); updateEngine();
+    configured = true; qwenVoices.configure({...data, recipe: value});
+    indexTts.configure({...data.index_tts, ...(previous ? {recipe: previous.index} : {})}); updateEngine();
+  }
+  function ensureSettings() {
+    if (configured) return Promise.resolve();
+    if (!settingsPromise) settingsPromise = loadSettings().finally(() => { settingsPromise = null; });
+    return settingsPromise;
+  }
+  function environmentNotice() {
+    let text = '';
+    if (!configured) text = '正在读取本机 TTS 配置…';
+    else if (isIndex()) text = indexTts.problem();
+    else if (isYukkuri() && (!runtime.runtime_path || runtime.state === 'failed')) text = '油库里资源未就绪，请前往环境配置安装或检测。';
+    else if (!isYukkuri() && !isIndex() && !keyState() && !el('tts-key').value.trim()) text = '百炼密钥尚未配置，请前往环境配置填写。';
+    el('tts-environment-notice').textContent = t(text); el('tts-environment-notice').hidden = !text;
+    el('tts-environment-reminder').hidden = !text || !configured;
+  }
+  async function environmentView() {
+    const engine = el('tts-environment-engine').value;
+    for (const id of ['qwen', 'yukkuri', 'indextts']) el('tts-environment-' + id).hidden = engine !== id;
+    if (!available) return;
+    try {
+      await ensureSettings();
+      if (el('tts-environment-engine').value !== engine) return;
+      if (engine === 'qwen') qwenVoices.management();
+      else if (engine === 'yukkuri') await pollRuntime();
+    } catch (error) { el('tts-environment-message').textContent = error.message; }
   }
   function action(label, callback) {
     const button = document.createElement('button');
@@ -44658,7 +45257,7 @@ window.addEventListener('beforeunload', (e) => {
       const text = document.createElement('p'); text.className = 'msw-asset-content';
       text.textContent = `${row.text}\n${items.get(row.key)?.error || t('尚未完成')}`; view.append(text);
     }
-    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t(job.recipe?.provider === 'yukkuri'
+    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t(['yukkuri', 'indextts'].includes(job.recipe?.provider)
       ? '条未完成；使用本机资源重试，已成功的音频不会重发。' : '条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
     view.append(notice);
     if (entries.length) view.append(action('重新合成未完成项', () => submit({
@@ -44675,11 +45274,14 @@ window.addEventListener('beforeunload', (e) => {
       const input = pending || { kind: 'tts', project_id: projectId(), client_token: `${pageId}.${generation}`,
         library_size: assets().length,
         removed_asset_ids: host.data.msw?.removed_asset_ids || [],
-        request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value),
-        provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''} : {}) },
+        request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || (isText()
+          ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs())
+          : global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value)),
+        provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''}
+          : options.provider === 'indextts' ? indexTts.connection() : {}) },
         ...(retry ? { retry_of: retry.retry_of } : {}) };
-      if (!pending && !retry && options.provider === 'yukkuri' && input.snapshot.entries.length === 1) {
-        const override = el('tts-yukkuri-pronunciation').value.trim();
+      if (!pending && !retry && !isText() && ['yukkuri', 'indextts'].includes(options.provider) && input.snapshot.entries.length === 1) {
+        const override = el(options.provider === 'indextts' ? 'tts-index-pronunciation' : 'tts-yukkuri-pronunciation').value.trim();
         if (override) input.snapshot.entries[0].pronunciation_override = override;
       }
       pending = input; busy = true; updateScope();
@@ -44687,7 +45289,7 @@ window.addEventListener('beforeunload', (e) => {
       if (generation !== host.generation) return;
       pending = null;
       jobs.set(data.job.id, data.job); watched.add(data.job.id);
-      el('tts-target').value = ''; updateScope();
+      updateScope();
       message('TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务');
       el('tts-settings').open = false;
       renderJobs(); schedule(0);
@@ -44744,8 +45346,26 @@ window.addEventListener('beforeunload', (e) => {
     previewSequence += 1;
     el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = null; previewId = null;
+    previewUrl = null; previewId = null; previewOwner = '';
+    el('asset-player').hidden = true;
     updatePreviewButtons();
+  }
+  function stopReference(owner) { if (previewOwner === owner) stopPreview(); }
+  async function playReference(owner, label, load, valid = () => true) {
+    stopPreview(); previewOwner = owner;
+    const sequence = previewSequence, generation = host.generation;
+    host.showAssets({automatic: true}); el('asset-player').hidden = false;
+    el('asset-playing').textContent = t('正在加载音频…');
+    try {
+      const source = await load();
+      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
+      previewUrl = typeof source === 'string' ? source : URL.createObjectURL(source);
+      el('asset-audio').src = previewUrl; el('asset-playing').textContent = label;
+      host.pauseMedia(); await el('asset-audio').play();
+    } catch (error) {
+      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
+      el('asset-playing').textContent = error.message; throw error;
+    }
   }
   async function audioBlob(asset) {
     return request(`asset-audio?project_id=${encodeURIComponent(projectId())}&asset_id=${encodeURIComponent(asset.id)}`, null, true);
@@ -44814,6 +45434,7 @@ window.addEventListener('beforeunload', (e) => {
       const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
       meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
       if (asset.generation.provider === 'imported') meta.textContent = `${t('外部音频')} · ${duration.toFixed(2)} s · ${asset.generation.filename || ''}`;
+      else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
       else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
       if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
       meta.title = meta.textContent;
@@ -44842,28 +45463,77 @@ window.addEventListener('beforeunload', (e) => {
     list.scrollTop = scroll;
   }
   el('tts-open').addEventListener('click', () => {
-    host.commitEdits(); el('tts-target').value = ''; updateScope(); panel.open();
+    host.commitEdits(); panel.open(); syncDraft(); updateScope();
     if (available) {
-      if (!configured) void loadSettings().catch(error => message(error.message, true));
+      if (!configured) void ensureSettings().catch(error => message(error.message, true));
       else if (isYukkuri()) void pollRuntime();
-      else qwenVoices.reopen();
+      else if (!isIndex()) qwenVoices.reopen();
       schedule(0);
     }
   });
-  el('tts-close').addEventListener('click', () => panel.close());
+  el('tts-close').addEventListener('click', () => { indexTts.stopPreview(); panel.close(); syncDraft(); });
   el('tts-start').addEventListener('click', () => void submit());
-  el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; updateScope(); });
+  el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; el('tts-index-pronunciation').value = ''; syncDraft(); updateScope(); });
+  el('cue-panel-tts-text').addEventListener('input', updateScope);
+  el('cue-panel-tts-copy').addEventListener('click', () => {
+    if (el('cue-panel-tts-text').value.trim() && !global.confirm(t('用当前字幕替换配音草稿？字幕不会被修改。'))) return;
+    el('cue-panel-tts-text').value = host.editorText(); updateScope(); el('cue-panel-tts-text').focus();
+  });
+  // Includes Escape and window-management closure, not just the close button.
+  new MutationObserver(() => { syncDraft(); updateScope(); }).observe(el('tts-panel'), {attributes: true, attributeFilter: ['class']});
   el('tts-engine').addEventListener('change', updateEngine);
   el('tts-yukkuri-speed').addEventListener('input', () => { el('tts-yukkuri-speed-value').value = el('tts-yukkuri-speed').value; });
+  for (const id of ['voice', 'language', 'speed']) el(`tts-yukkuri-${id}`).addEventListener('input', () => stopReference('yukkuri'));
+  el('tts-yukkuri-preview').addEventListener('click', async () => {
+    if (yukkuriPreviewBusy || runtime.state !== 'ready') return;
+    yukkuriPreviewBusy = true; el('tts-yukkuri-preview').disabled = true;
+    const settings = recipeFor('yukkuri'), version = host.generation;
+    try {
+      await playReference('yukkuri', `${t('音色试听')} · ${settings.voice.toUpperCase()} · ${settings.speed}%`,
+        () => request('yukkuri-preview', {recipe: settings}, true), () => isYukkuri());
+    } catch (error) { if (version === host.generation && isYukkuri()) message(error.message, true); }
+    finally { yukkuriPreviewBusy = false; el('tts-yukkuri-preview').disabled = runtime.state !== 'ready'; }
+  });
   el('tts-yukkuri-install').addEventListener('click', () => void runtimeAction('install'));
   el('tts-yukkuri-check').addEventListener('click', () => void runtimeAction('check'));
   el('tts-yukkuri-cancel').addEventListener('click', () => void runtimeAction('cancel'));
   el('tts-region').addEventListener('change', () => { el('tts-key').value = ''; keyState(); qwenVoices.credentialsChanged(); });
+  el('tts-key').addEventListener('input', updateScope);
+  el('tts-environment-open').addEventListener('click', () => {
+    el('tts-environment-engine').value = el('tts-engine').value;
+    panel.close(); host.openTtsEnvironment();
+  });
+  el('tts-environment-engine').addEventListener('change', () => {
+    qwenVoices.stopPreview(); indexTts.stopPreview(); void environmentView();
+  });
+  global.addEventListener('msw:settings-opened', () => void environmentView());
+  el('tts-environment-unavailable').hidden = available;
+  el('tts-environment-save').disabled = !available;
+  el('tts-environment-engine').disabled = !available;
+  if (!available) for (const control of el('tts-environment-category').querySelectorAll('input, select, textarea, button')) control.disabled = true;
+  el('tts-environment-save').addEventListener('click', async () => {
+    if (savingSettings || indexTts.isBusy()) return;
+    const button = el('tts-environment-save'), engine = el('tts-environment-engine').value;
+    savingSettings = true; button.disabled = true; updateScope();
+    try {
+      await ensureSettings();
+      await request('tts-environment', {recipe: recipeFor(engine), ...(engine === 'indextts' ? indexTts.connection()
+        : engine === 'qwen' ? {apiKey: el('tts-key').value} : {})});
+      if (engine === 'qwen') el('tts-key').value = '';
+      await loadSettings(true);
+      el('tts-environment-message').textContent = t('环境配置已保存到本机');
+      if (engine === 'qwen') qwenVoices.management();
+    } catch (error) { el('tts-environment-message').textContent = error.message; }
+    finally { savingSettings = false; updateScope(); }
+  });
   el('tts-save-settings').addEventListener('click', async () => {
-    el('tts-save-settings').disabled = true;
-    try { await request('tts-settings', { recipe: recipe(), ...(isYukkuri() ? {} : {apiKey: el('tts-key').value}) }); await loadSettings(); message('TTS 配置已保存到本机'); }
+    if (savingSettings || indexTts.isBusy()) return;
+    savingSettings = true; updateScope();
+    try { await request('tts-settings', { recipe: recipe(), ...(isIndex() ? indexTts.connection() : isYukkuri() ? {} : {apiKey: el('tts-key').value}) });
+      if (!isIndex() && !isYukkuri()) el('tts-key').value = '';
+      await loadSettings(true); message('合成设置已保存到本机'); }
     catch (error) { message(error.message, true); }
-    finally { el('tts-save-settings').disabled = false; }
+    finally { savingSettings = false; updateScope(); }
   });
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
   for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
@@ -44882,6 +45552,9 @@ window.addEventListener('beforeunload', (e) => {
     renderAssets();
   });
   for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
+  el('asset-audio').addEventListener('error', () => {
+    if (previewOwner && el('asset-audio').getAttribute('src')) el('asset-playing').textContent = t('试听音频无法加载，请检查连接后重试');
+  });
   el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
   el('asset-import').disabled = !available;
   el('asset-import').addEventListener('click', () => { if (!importing) el('asset-import-file').click(); });
@@ -44935,13 +45608,17 @@ window.addEventListener('beforeunload', (e) => {
   });
   document.addEventListener('play', event => {
     if (event.target === el('asset-audio')) host.pauseMedia();
-    else if (event.target.id === 'player') el('asset-audio').pause();
+    else if (event.target.id === 'player') {
+      if (previewOwner && !previewUrl) stopPreview();
+      else el('asset-audio').pause();
+    }
   }, true);
   global.addEventListener('msw:project-changed', () => {
     stopImport = true; el('asset-import-status').hidden = true;
     stopPreview(); jobs.clear(); watched.clear(); opened.clear(); firstReady.clear(); missing.clear();
     jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = ''; page = 0;
-    el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = '';
+    el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = 'main';
+    draftInitialized = false; el('cue-panel-tts-text').value = ''; syncDraft();
     el('asset-playing').textContent = t('选择音频试听');
     el('asset-player').hidden = true;
     queueMicrotask(() => { updateScope(); renderAssets(); renderJobs(); message(''); schedule(0); });

@@ -12,6 +12,19 @@ const project = {segments:main,msw:{schema:'msw.editor.v1',project_id:'project'}
 const selection = (m=[], e=[], hasSelection=true) => ({mainIds:m,extensionIds:e,trackId:'ext',hasSelection});
 const texts = scope => Array.from(scope.sources, row=>row.cue.text);
 
+test('free text captures immutable source without subtitle identity and honors unicode bounds', () => {
+  const p = structuredClone(project), before = JSON.stringify(p);
+  const snapshot = core.textSnapshot(p, '😀'.repeat(600), 1234);
+  assert.equal(snapshot.entries[0].kind, 'editor_text');
+  assert.equal(snapshot.entries[0].track_id, null);
+  assert.equal(snapshot.entries[0].start, 1234);
+  assert.equal(JSON.stringify(p), before);
+  for (const text of ['', ' ', '字'.repeat(601)]) assert.throws(() => core.textSnapshot(p, text));
+  assert.throws(() => core.textSnapshot(p, 'text', -1));
+  const single = {segments: main};
+  assert.equal(core.scope(single, selection([], [], false), 'secondary').sources.length, 0);
+});
+
 test('asset removal records survive project round trips and reject invalid or contradictory inventory', () => {
   const codec = context.window.MSWProject, id = 'audio-' + 'a'.repeat(32);
   const extension = {schema: 'msw.editor.v1', project_id: 'p', removed_asset_ids: [id]};

@@ -30,8 +30,11 @@ class ProcessingAPI:
         self._yukkuri = None
         self._importer = None
         self._qwen_voices = None
+        self._index_tts = None
         self._project_path = object()
         self.binding = ""
+        self._preview_lock = threading.Lock()
+        self._preview_cancel = threading.Event()
 
     @property
     def jobs(self):
@@ -65,6 +68,31 @@ class ProcessingAPI:
             if self._qwen_voices is None:
                 self._qwen_voices = QwenVoices(self.data_root / 'qwen-voices', self.server.server_address[1], lambda: self.exports.tools())
             return self._qwen_voices
+
+    @property
+    def index_tts(self):
+        from maw.msw.index_tts import IndexTts
+        with self.lock:
+            if self._index_tts is None:
+                self._index_tts = IndexTts(self.data_root, self.importer.convert)
+            return self._index_tts
+
+    def tts_engine(self, engine=None):
+        import json
+        from maw.msw.assets import atomic_bytes
+        path = self.data_root / 'tts-engine.json'
+        if engine is not None:
+            if engine not in {'qwen', 'yukkuri', 'indextts'}:
+                raise ValueError('不支持的 TTS 引擎')
+            atomic_bytes(path, (json.dumps({'engine': engine}) + '\n').encode())
+            return engine
+        try:
+            value = json.loads(path.read_text(encoding='utf-8')).get('engine')
+            if value in {'qwen', 'yukkuri', 'indextts'}:
+                return value
+        except (OSError, ValueError, AttributeError):
+            pass
+        return self.yukkuri.payload()['engine']
 
     @property
     def importer(self):
@@ -205,7 +233,7 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports", "asset-import", "qwen-voices"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports", "asset-import", "qwen-voices", "index-tts"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
@@ -225,16 +253,29 @@ class ProcessingAPI:
                 result = {"records": self.persistence.recovery.list()}
             elif route == "recovery-load" and post:
                 result = self.persistence.restore(payload.get("id"))
-            elif route == "tts-settings":
+            elif route in {'tts-settings', 'tts-environment'}:
                 with self.lock:
-                    local = isinstance(payload.get("recipe"), dict) and payload["recipe"].get("provider") == "yukkuri"
-                    if post and local:
-                        self.yukkuri.save(engine="yukkuri", recipe=payload["recipe"])
-                    elif post:
-                        tts.save_settings(self.env_path, payload)
-                        self.yukkuri.save(engine="qwen")
+                    if post:
+                        engine = (payload.get('recipe') or {}).get('provider', 'qwen')
+                        if engine == 'indextts':
+                            self.index_tts.save(payload)
+                        elif engine == 'yukkuri':
+                            self.yukkuri.save(engine='yukkuri' if route == 'tts-settings' else self.yukkuri.payload()['engine'], recipe=payload["recipe"])
+                        else:
+                            tts.save_settings(self.env_path, payload)
+                            if route == 'tts-settings':
+                                self.yukkuri.save(engine="qwen")
+                        if route == 'tts-settings':
+                            self.tts_engine(engine)
                     result = {**tts.config_payload(self.env_path), "yukkuri": self.yukkuri.payload(),
-                              "engine": self.yukkuri.payload()["engine"]}
+                              "engine": self.tts_engine(), 'index_tts': self.index_tts.payload(), 'workspace_version': 2}
+            elif route == 'index-tts':
+                result = self.index_tts.action(payload) if post else self.index_tts.payload()
+            elif route == 'index-reference' and not post:
+                identity = payload.get('id')
+                self.index_tts.reference(identity)
+                handler.send_file(self.index_tts.root / 'references' / (identity + '.wav'), handler.command != 'HEAD')
+                return True
             elif route == 'qwen-voices' and post:
                 settings = tts.resolve_settings(self.env_path, payload.get('provider', {}), require_voice=False)
                 if payload.get('action') == 'create':
@@ -242,6 +283,8 @@ class ProcessingAPI:
                     status = HTTPStatus.ACCEPTED
                 elif payload.get('action') == 'list':
                     result = self.qwen_voices.catalog(settings)
+                elif payload.get('action') in {'register', 'rename'}:
+                    result = self.qwen_voices.manage(payload, settings)
                 else:
                     raise ValueError('未知音色操作')
             elif route.startswith('qwen-voice-jobs/') and not post:
@@ -255,6 +298,26 @@ class ProcessingAPI:
             elif route == "yukkuri-runtime":
                 result = {"runtime": self.yukkuri.start(payload.get("action"), payload.get("directory", ""))
                           if post else self.yukkuri.payload()}
+            elif route == 'yukkuri-preview' and post:
+                from maw.msw.yukkuri import resolve_settings as local_settings, synthesize
+                if not self._preview_lock.acquire(blocking=False):
+                    raise ValueError('油库里试听正在生成，请稍后重试')
+                try:
+                    settings = local_settings(self.yukkuri, payload)
+                    sample = 'Hello, welcome to our story.' if settings.recipe['language_type'] == 'English' else '你好，欢迎使用字幕配音。'
+                    audio, _ = synthesize(settings, sample, self._preview_cancel)
+                finally:
+                    self._preview_lock.release()
+                handler.send_response(HTTPStatus.OK)
+                handler.send_header('Content-Type', 'audio/wav')
+                handler.send_header('Content-Length', str(len(audio)))
+                handler.send_header('Cache-Control', 'no-store')
+                handler.end_headers()
+                try:
+                    handler.wfile.write(audio)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                return True
             elif route == "providers":
                 with self.lock:
                     result = save_settings(self.env_path, payload) if post else provider_payloads(self.env_path)
@@ -313,6 +376,8 @@ class ProcessingAPI:
                     if payload.get("kind") == "tts" and isinstance(provider.get("recipe"), dict) and provider["recipe"].get("provider") == "yukkuri":
                         from maw.msw.yukkuri import resolve_settings as resolve_local_tts
                         settings = resolve_local_tts(self.yukkuri, provider)
+                    elif payload.get('kind') == 'tts' and isinstance(provider.get('recipe'), dict) and provider['recipe'].get('provider') == 'indextts':
+                        settings = self.index_tts.resolve(provider)
                     else:
                         settings = tts.resolve_settings(self.env_path, provider) if payload.get("kind") == "tts" else resolve_settings(self.env_path, provider)
                         if payload.get('kind') == 'tts' and settings.recipe.get('model_type') != 'CustomVoice':
@@ -352,6 +417,9 @@ class ProcessingAPI:
         return True
 
     def close(self):
+        self._preview_cancel.set()
+        if self._index_tts:
+            self._index_tts.close()
         if self._qwen_voices:
             self._qwen_voices.close()
         if self._importer:

@@ -70,6 +70,20 @@ class TtsTests(unittest.TestCase):
             time.sleep(.01)
         self.fail("TTS task did not terminate")
 
+    def test_independent_text_source_roundtrip_and_actual_duration(self):
+        source = {**snapshot()['entries'][0], 'kind': 'editor_text', 'start': 1234, 'end': 1235}
+        raw = {'project_id': 'tts-project', 'entries': [source]}
+        self.assertEqual(validate_snapshot(raw), raw)
+        asset = self.assets.add('tts-project', 'text-job', source, DEFAULT_RECIPE, wav_bytes())
+        self.assertEqual(asset['source_ref']['end'], 1334)
+        self.assertEqual(source['end'], 1235)
+        self.assertEqual(normalize_extension({'schema': 'msw.editor.v1', 'project_id': 'tts-project', 'assets': [asset]})['assets'][0], asset)
+        for update in [{'kind': 'invalid'}, {'track_id': 'ext'}, {'kind': None}]:
+            with self.subTest(update=update), self.assertRaises(ValueError):
+                validate_snapshot({**raw, 'entries': [{**source, **update}]})
+        with self.assertRaises(ValueError):
+            validate_snapshot({**raw, 'entries': [source, {**source, 'key': 'another'}]})
+
     def test_config_is_region_specific_and_masks_keys(self):
         env = self.root / "test.env"
         with patch.dict(os.environ, {}, clear=True):
@@ -342,6 +356,17 @@ class TtsTests(unittest.TestCase):
 
 
 class TtsApiTests(processing_tests.ProcessingApiTests):
+    def test_environment_save_does_not_switch_the_active_synthesis_engine(self):
+        from maw.msw.yukkuri_runtime import DEFAULT_RECIPE as LOCAL_RECIPE
+        self.server.processing_api.tts_engine('qwen')
+        status, data = self.call('tts-environment', {'recipe': LOCAL_RECIPE})
+        self.assertEqual(status, 200, data)
+        self.assertEqual(data['engine'], 'qwen')
+        self.assertEqual(data['workspace_version'], 2)
+        status, data = self.call('tts-settings', {'recipe': LOCAL_RECIPE})
+        self.assertEqual(status, 200, data)
+        self.assertEqual(data['engine'], 'yukkuri')
+
     def test_saved_asset_audio_range_and_project_bundle(self):
         api = self.server.processing_api
         api.data_root = self.root / "appdata"

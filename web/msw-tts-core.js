@@ -19,7 +19,7 @@
     const rows = new Map();
     const add = (cue, trackId) => { if (cue && typeof cue.text === 'string' && cue.text.trim()) rows.set(JSON.stringify([trackId, cue.id]), { cue, trackId }); };
     if (!hasSelection) {
-      const chosen = needsChoice ? side : (mains.length ? 'main' : 'secondary');
+      const chosen = side || (needsChoice ? null : (mains.length ? 'main' : 'secondary'));
       if (chosen === 'main') mains.forEach(cue => add(cue, null));
       if (chosen === 'secondary') secondary.forEach(cue => add(cue, track?.id));
     } else {
@@ -44,6 +44,15 @@
       key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,
     })) };
   }
-  global.MSWTts = Object.freeze({ scope, snapshot });
+  function textSnapshot(project, text, start = 0) {
+    if (typeof text !== 'string' || !text.trim()) throw new Error('请输入要合成的配音草稿');
+    if ([...text].length > 600) throw new Error('配音草稿超过 600 字符，请分段合成');
+    if (!Number.isSafeInteger(start) || start < 0) throw new Error('配音起始位置无效');
+    const id = global.MSWProject.id('text');
+    // end is provisional; AssetStore replaces it with the actual audio duration.
+    return {project_id: project.msw.project_id, entries: [{key: global.MSWProject.id('entry'), id,
+      kind: 'editor_text', track_id: null, text, start, end: start + 1}]};
+  }
+  global.MSWTts = Object.freeze({ scope, snapshot, textSnapshot });
   global.MSWE?.register('msw-tts-core', () => global.MSWTts);
 })(window);

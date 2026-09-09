@@ -24,8 +24,9 @@ MSW（Moyor's Subtitle Workflow）是一个以 API 转写为主的字幕生成�
 
 - 使用 Qwen / Fun-ASR / Soniox / 腾讯云录音文件识别，或 OpenAI（及兼容接口）转写，生成 SRT 与 `.mosp` 工程。
 - MSWE Server 编辑器支持波形定位、拆分合并、静音空隙处理、画面预览和多种导出格式。
-- MSWE 的「媒体 → TTS」可用百炼 Qwen3 为选中或整轨字幕配音；素材库支持逐条试听、搜索分页、WAV 导出和工程音频包。用法见 [TTS 与素材库](docs/EDITOR_TTS.md)。
+- MSWE 的「媒体 → TTS」支持选中／整轨字幕配音，也可在字幕编辑器输入独立草稿直接配音，不改字幕。连接、资源、音色与预设管理集中在「全局设置 → 环境配置 → TTS」，调用参数集中在面板的「合成设置」。素材库支持试听、搜索分页、WAV 与工程音频包，见 [TTS 与素材库](docs/EDITOR_TTS.md)。
 - 「媒体 → TTS」也支持 [本地油库里配音](docs/EDITOR_YUKKURI.md)：中英文输入、八音色与语速调节；可在编辑器安装资源或加载单独离线资源包，无需 API Key。
+- 已安装 IndexTTS 的用户可连接 [IndexTTS 2.5 本机服务](docs/EDITOR_INDEXTTS.md)，选择官方示例或自有参考音频，调节情感、时长与高级参数，生成结果继续用于素材库、贴片和导出。
 - 把素材库音频拖到波形显示器即可放置[音频贴片](docs/EDITOR_AUDIO_CLIPS.md)，支持重叠子行、裁剪、静音、RMS 热力图、空隙保护与 1× 同步试听。
 - [工程保存与恢复](docs/EDITOR_PERSISTENCE.md)：另存为自动收集 TTS 音频，可勾选收集原媒体；提供素材完整性检查、本机恢复草稿与保存历史。
 - [音频导出](docs/EDITOR_AUDIO_EXPORT.md)：从音频贴片导出配音轨或原声混音 WAV，支持空隙移除、峰值保护与后台任务。

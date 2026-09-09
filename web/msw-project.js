@@ -18,6 +18,8 @@
     if (source.pronunciation_override !== undefined && (typeof source.pronunciation_override !== 'string'
       || [...source.pronunciation_override].length > 600)) return false;
     return validId(asset.job_id) && validId(source.key) && validCueId(source.id)
+      && ['subtitle', 'editor_text'].includes(source.kind === undefined ? 'subtitle' : source.kind)
+      && (source.kind !== 'editor_text' || source.track_id == null)
       && (source.track_id == null || validCueId(source.track_id)) && typeof source.text === 'string' && [...source.text].length <= 600
       && Number.isInteger(source.start) && Number.isInteger(source.end) && source.start >= 0 && source.start < source.end;
   }

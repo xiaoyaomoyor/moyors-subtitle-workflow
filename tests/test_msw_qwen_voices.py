@@ -88,6 +88,21 @@ class QwenVoiceServiceTests(unittest.TestCase):
         self.assertFalse(controller.worker.is_alive())
         return controller.get(operation['id'])
 
+    def test_local_registration_and_rename_are_scoped_without_cloud_creation(self):
+        controller = self.controller(lambda *_: self.fail('local management must not call cloud'))
+        config = settings()
+        raw = {'action': 'register', 'voice': 'external-narrator', 'name': '我的旁白'}
+        result = controller.manage(raw, config)
+        self.assertEqual(result['voices'][0]['name'], '我的旁白')
+        result = controller.manage({**raw, 'action': 'rename', 'name': '新名字'}, config)
+        self.assertEqual(result['voices'][0]['name'], '新名字')
+        self.assertEqual(result['operations'], [])
+        for other in [settings(region='singapore'), TtsSettings('another-synthetic-key', config.recipe), settings('VoiceClone')]:
+            with self.subTest(other=other.recipe), self.assertRaises(ValueError):
+                controller.manage({**raw, 'action': 'rename'}, other)
+        with self.assertRaises(ValueError):
+            controller.manage({**raw, 'name': ' '}, config)
+
     def test_design_protocol_preview_idempotence_and_restart(self):
         calls = []
         def create(config, body):

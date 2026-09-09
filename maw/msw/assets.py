@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import hashlib
 import io
 import json
@@ -152,6 +153,8 @@ class AssetStore:
                  "generation": {**copy.deepcopy(recipe), "display_text": source["text"],
                                 "spoken_text": source["text"] if spoken_text is None else spoken_text},
                  "source_ref": copy.deepcopy(source)}
+        if source.get('kind') == 'editor_text':
+            asset['source_ref']['end'] = source['start'] + max(1, math.ceil(info['sample_count'] * 1000 / info['sample_rate']))
         if not valid_id(project_id) or not valid_id(job_id):
             raise ValueError("素材来源标识无效")
         with self.lock:

@@ -819,6 +819,8 @@ uv run python edit.py your_generated.mosp
 
 ### TTS 音频素材（B 阶段）
 
+独立文本配音是 v1 的可选扩展：`source_ref.kind = "editor_text"`，`id` 为独立草稿来源标识（不引用字幕），`track_id = null`，`text` 是提交时的正文，`start` 是提交时播放头的整数毫秒，`end` 为 start 加实际音频时长（向上取整到毫秒）。任务快照仅允许一条此类来源；其中临时 end=start+1 在入库时被实际时长替换，快照本身不变。省略 kind 的旧记录及显式 kind="subtitle" 继续按既有来源规则读取；未知 kind 拒绝。草稿可用于三种引擎，生成素材沿用同一保存／收集／导出结构；未提交草稿仅在页面内暂存，不进入浏览器持久存储或工程。
+
 音频字节存入工程旁的素材目录，本机尚未保存的结果暂存于应用数据目录。工程不保存临时下载 URL，也不保存 API Key。来源字幕后续修改不改变已有音频。
 
 | 素材字段 | 契约 |
@@ -829,7 +831,7 @@ uv run python edit.py your_generated.mosp
 | `sample_rate` / `channels` / `sample_count` | 实测整数，采样率 8000–192000，通道 1–8，样本帧数 1–2^32。时长由 `sample_count / sample_rate` 得到 |
 | `job_id` / `created_at` | 生成任务 ID；生成时间为 Unix 秒 |
 | `generation` | 不含密钥的生成配置：`provider`、`region`、`model`、`voice`、`language_type`、`instructions`、`optimize_instructions`、`display_text`、`spoken_text`；百炼新增可选 `model_type`（`CustomVoice`／`VoiceDesign`／`VoiceClone`）。旧素材可缺少模式；模型稳定别名按实际请求名记录，不伪造解析后的快照版本，不保证云端音色永久有效 |
-| `source_ref` | `key` 为任务条目 ID；`id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒 |
+| `source_ref` | `key` 为任务条目 ID；字幕来源的 `id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒。独立文本来源见上文 |
 
 任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
 
@@ -840,6 +842,8 @@ uv run python edit.py your_generated.mosp
 外部导入音频沿用相同的不可变素材结构，`generation.provider = "imported"`、`model = "external-audio"`、`voice = ""`、`language_type = "Auto"`；另存原始 `filename`、上传内容的 `source_sha256` 和 `text_origin = "filename"`。`display_text` 与 `source_ref.text` 为去扩展名的文件名，`spoken_text = ""`，不伪造识别文本。`job_id`、来源 `key/id` 为 `import-<请求标识>`，`track_id = null`，`start = 0`、`end` 为素材实际时长换算的整数毫秒。这些来源标识不代表已有字幕绑定。标准 PCM WAV 保留原采样参数；其他支持格式转换为 48 kHz、双声道、16-bit WAV。素材 `sha256` 始终描述最终 WAV，与原文件摘要区分。
 
 油库里使用 `generation.provider = "yukkuri"`、`model = "aquestalk1"`，音色为 `f1/f2/m1/m2/dvd/imd1/jgr/r1`，另记 `speed`（50–300 的整数）、`engine_version`、`resource_version`、`text_version`。`language_type` 为 `Auto/Chinese/English`。`display_text` 保留原文，`spoken_text` 是实际传给引擎的假名，允许最长 12000 字符；其他必需配方字符串仍最多 2000 字符。可选 `source_ref.pronunciation_override` 为最长 600 字符的单条读音修正，批量快照中逐条独立保存；来源 `text` 不被替换。素材为普通 8 kHz、16-bit、单声道 WAV。以上为 v1 的兼容扩展，不改变时间或采样单位。引擎路径与当前 TTS 引擎偏好仅保存本机，不进入工程。
+
+IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`，`voice` 为音色参考名称，`language_type` 为 `ZH/EN/JA/AR/ES`。配方包含 `speaker_ref`、`emotion_ref`（`ref-<WAV SHA256>` 或未使用时为空）、对应可用的 `_name`／`_sha256`，以及 `emotion_mode`（`follow/audio/vector/text`）、`emotion_weight`、八项 `emotion_vector`、`emotion_text`、`emotion_random`、`duration_factor`、`max_text_tokens_per_segment`、`do_sample`、`top_p`、`top_k`、`temperature`、`length_penalty`、`num_beams`、`repetition_penalty`、`max_mel_tokens`。`source_ref.pronunciation_override` 可覆盖单条配音输入，`display_text` 保留字幕，`spoken_text` 保存实际输入。参考字节和服务地址只在本机 `index-tts/` 下保存，不嵌入工程；生成 WAV 继续自动收集。全局引擎偏好迁入本机 `tts-engine.json`，兼容读取旧油库里设置。以上为 v1 兼容扩展，采样与时间单位不变，详见 [IndexTTS 配音](docs/EDITOR_INDEXTTS.md)。
 
 另存为自动收集 TTS 音频；可选原媒体写入新工程旁 `msw-<新身份摘要>.assets/media/<内容摘要><扩展名>`，顶层 `media` 保存相对路径。未收集的原媒体继续使用原引用（搬出原目录时已知相对引用转换为绝对引用）。缺失音频不删除元数据或贴片，保存响应单独报告缺失清单。
 

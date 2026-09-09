@@ -390,7 +390,6 @@ __WAVEFORM_CSS__
   </div>
 </div>
 
-
 <!-- 工作区选项的隐藏数据源：菜单栏的「工作区」子菜单由它同步生成 -->
 <select id="workspace-preset" hidden title="工作区：窗口布局与显示状态（列表显示项、波形模式等）">
   <option value="wave-right" selected>右侧整列波形</option>
@@ -1333,6 +1332,77 @@ __WAVEFORM_CSS__
       <nav class="settings-modal-nav" id="editor-settings-nav" aria-label="设置分类"></nav>
       <div class="settings-modal-content" id="editor-settings-content">
 
+        <div class="editor-settings-group settings-category" data-settings-category="environment" id="tts-environment-category">
+          <div class="settings-category-header">环境配置</div>
+          <div class="editor-settings-sub-group"><span class="editor-settings-title">环境配置</span></div>
+          <div class="settings-subsection" data-subsection="tts" id="tts-environment-section">
+            <span class="settings-subsection-title">TTS</span>
+            <div class="editor-settings-sub-group msw-tts-environment">
+              <p id="tts-environment-unavailable" class="msw-processing-hint" hidden>环境配置需要本机 Server 编辑器。</p>
+              <label class="msw-processing-field"><span>TTS 环境</span><select id="tts-environment-engine"><option value="qwen">百炼 Qwen TTS</option><option value="yukkuri">油库里</option><option value="indextts">IndexTTS 本机服务</option></select></label>
+              <div id="tts-environment-qwen">
+                <details id="tts-settings"><summary>连接设置</summary>
+        <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
+        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
+        <p id="tts-key-state" class="msw-processing-hint"></p>
+      </details>
+                <details id="tts-qwen-management" open><summary>音色管理</summary>
+                  <div class="msw-processing-grid"><label class="msw-processing-field"><span>管理模式</span><select id="tts-manage-model-type"><option value="VoiceDesign">声音设计</option><option value="VoiceClone">声音复刻</option><option value="CustomVoice">预设／外部音色</option></select></label><label class="msw-processing-field"><span>目标模型</span><select id="tts-manage-model"></select></label></div>
+                  <label class="msw-processing-field"><span>本机音色记录</span><select id="tts-manage-voice"><option value="">选择已登记音色</option></select></label>
+                  <label class="msw-processing-field"><span>本机显示名称</span><input id="tts-manage-name" maxlength="60" placeholder="用于搜索和识别音色"></label>
+                  <div class="msw-processing-actions"><button type="button" id="tts-manage-refresh">刷新音色</button><button type="button" id="tts-manage-rename">重命名</button></div>
+                  <details id="tts-voice-register-fields"><summary>登记已有音色 ID</summary><label class="msw-processing-field"><span>音色 ID</span><input id="tts-voice-external-id" maxlength="256" autocomplete="off" spellcheck="false"></label><p class="msw-processing-hint">将在当前地域、密钥和目标模型下登记，之后可在合成面板搜索选择。本机名称不改变云端音色 ID。</p><div class="msw-processing-actions"><button type="button" id="tts-voice-register">登记到本机列表</button></div></details>
+                  <details id="tts-voice-create-fields"><summary>创建音色</summary>
+          <label class="msw-processing-field"><span>音色名称</span><input id="tts-voice-name" maxlength="60" placeholder="例如：温柔旁白"></label>
+          <div id="tts-design-fields">
+            <label class="msw-processing-field"><span>音色描述</span><textarea id="tts-voice-prompt" rows="3" maxlength="2048" placeholder="例如：年轻女声，温暖明亮，普通话清晰，语速舒缓。支持中文或英文描述。"></textarea></label>
+            <label class="msw-processing-field"><span>试听文本</span><textarea id="tts-voice-preview-text" rows="2" maxlength="500">你好，欢迎使用字幕配音。Hello, welcome to our story.</textarea></label>
+          </div>
+          <div id="tts-clone-fields" hidden>
+            <label class="msw-processing-field"><span>参考音频</span><input type="file" id="tts-voice-reference" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4"></label>
+            <p class="msw-processing-hint">推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
+            <p class="msw-processing-hint">点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。</p>
+          </div>
+          <p class="msw-processing-hint">创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。</p>
+          <div class="msw-processing-actions"><button type="button" id="tts-voice-create">创建音色</button></div>
+        </details><p id="tts-voice-message" class="msw-processing-message" role="status" aria-live="polite"></p><details class="msw-job-history" id="tts-voice-history"><summary>音色创建记录 <span id="tts-voice-history-count"></span></summary><div class="msw-processing-jobs" id="tts-voice-operations" tabindex="0" aria-label="音色创建记录"></div></details>
+                </details>
+                <small class="msw-processing-hint">查看百炼 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">音色列表</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-design-user-guide" target="_blank" rel="noopener noreferrer">声音设计</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-cloning-user-guide" target="_blank" rel="noopener noreferrer">声音复刻</a>。</small>
+              </div>
+              <div id="tts-environment-yukkuri" hidden><details id="tts-yukkuri-resources">
+          <summary>油库里资源</summary>
+          <p class="msw-processing-hint" id="tts-yukkuri-runtime-status" role="status" aria-live="polite">尚未检测本机资源</p>
+          <progress id="tts-yukkuri-progress" hidden aria-label="油库里资源安装进度"></progress>
+          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-install">安装资源包</button><button type="button" id="tts-yukkuri-cancel" hidden>取消安装／检测</button></div>
+          <label class="msw-processing-field"><span>资源目录</span><input id="tts-yukkuri-directory" autocomplete="off" spellcheck="false" placeholder="离线包解压后包含 msw-runtime.json 的目录"></label>
+          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-check">应用目录并检测</button></div>
+          <p class="msw-processing-hint">自动下载独立运行时和八音色，安装后可离线使用。离线电脑也可复制此资源目录，再应用检测。</p>
+          <p class="msw-processing-hint">资源来源：<a href="https://github.com/y52en/aquestalk.js" target="_blank" rel="noopener noreferrer">aquestalk.js</a>、<a href="https://nodejs.org/dist/v24.19.0/" target="_blank" rel="noopener noreferrer">Node.js</a>、<a href="https://github.com/Love-Kogasa/bakak2k" target="_blank" rel="noopener noreferrer">英文规则</a>。使用 AquesTalk，版权归株式会社アクエスト；保留随包许可，参阅 <a href="https://www.a-quest.com/licence.html" target="_blank" rel="noopener noreferrer">官方许可说明</a>。</p>
+        </details></div>
+              <div id="tts-environment-indextts" hidden>
+                <details id="tts-index-connection" open><summary>IndexTTS 连接设置</summary>
+          <label class="msw-processing-field"><span>本机服务地址</span><input id="tts-index-url" type="url" value="http://127.0.0.1:7860" spellcheck="false" autocomplete="off"></label>
+          <label class="msw-processing-field"><span>单次等待上限（秒）</span><input id="tts-index-timeout" type="number" min="60" max="3600" step="1" value="600"></label>
+          <div class="msw-processing-actions"><button type="button" id="tts-index-check">连接／检测</button></div>
+          <p class="msw-processing-hint">使用已启动的官方 IndexTTS 2.5 WebUI，无需 API Key。计算设备和模型由该服务管理。</p>
+        </details><p id="tts-index-status" class="msw-processing-message" role="status" aria-live="polite"></p><p id="tts-index-emotion-capability" class="msw-processing-hint"></p>
+                <details id="tts-index-references" open><summary>参考音频</summary><div class="msw-processing-actions"><button type="button" id="tts-index-speaker-upload">上传参考</button><button type="button" id="tts-index-emotion-upload">上传情感参考</button></div><input id="tts-index-reference-file" type="file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" hidden><p class="msw-processing-hint">参考音频用于克隆音色。推荐清晰单人说话；音色和情感参考均取前 15 秒，最大 32 MiB。文件保存在本机参考库。</p><p class="msw-processing-hint">上传后选作当前音色或情感参考，可在合成设置中切换。</p></details>
+                <details id="tts-index-advanced"><summary>高级生成参数</summary><div id="tts-index-advanced-fields" class="msw-processing-grid"></div><p class="msw-processing-hint">较低的最大音频 Token 数可能截断长句；情感向量由 IndexTTS 归一化。时长系数影响语速，不保证精确匹配字幕时长。</p></details><details id="tts-index-presets"><summary>配音预设</summary>
+            <label class="msw-processing-field"><span>MSWE 本机预设</span><select id="tts-index-preset-manage"><option value="">选择已保存预设</option></select></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-preset-rename">重命名预设</button><button type="button" id="tts-index-preset-delete">移除预设</button></div>
+            <label class="msw-processing-field"><span>预设名称</span><input id="tts-index-preset-name" maxlength="80" placeholder="例如：中文旁白"></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-preset-save">保存为本机预设</button></div>
+            <label class="msw-processing-field"><span>IndexTTS 服务预设</span><select id="tts-index-server-preset"><option value="">当前服务没有已保存预设</option></select></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-server-preset-load">载入服务预设</button></div>
+            <p class="msw-processing-hint">读取当前连接的 IndexTTS WebUI 已保存预设；载入后可保存为 MSWE 本机预设，在 TTS 面板中直接选择。</p>
+            <p class="msw-processing-hint">载入预设会应用音色和生成参数。服务的旧预设不包含语言与时长系数，载入时保留这两项；MSWE 本机预设保存完整参数。</p>
+          </details>
+              </div>
+              <div class="msw-processing-actions"><button type="button" id="tts-environment-save">保存环境配置</button></div>
+              <p id="tts-environment-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
         <div class="editor-settings-group settings-category" data-settings-category="general">
           <div class="settings-category-header">通用</div>
           <div class="editor-settings-sub-group">
@@ -1739,6 +1809,8 @@ __WAVEFORM_CSS__
       </div>
       <div class="cue-panel-text-wrap">
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
+        <textarea id="cue-panel-tts-text" rows="3" placeholder="输入要合成的文字…" aria-label="独立配音草稿" hidden></textarea>
+        <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 / 600</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button></div>
         <div class="cue-panel-footer">
           <div class="cue-panel-target" id="cue-panel-target">未选择</div>
           <div class="cue-panel-metrics">
@@ -1960,9 +2032,10 @@ __WAVEFORM_CSS__
   <div class="gap-remove-panel-body">
     <p class="msw-processing-hint" id="tts-unavailable" hidden>TTS 需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
     <div id="tts-controls">
+      <div class="msw-tts-top-row"><label class="msw-processing-field" id="tts-target-field"><span>操作对象</span><select id="tts-target"><option value="editor_text">字幕编辑器内容</option><option value="main" selected>主字幕</option><option value="secondary">副字幕</option></select></label><label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option><option value="indextts">IndexTTS 2.5（本机服务）</option></select></label></div>
       <p id="tts-scope" class="msw-processing-hint" aria-live="polite"></p>
-      <label class="msw-processing-field" id="tts-target-field" hidden><span>操作对象</span><select id="tts-target"><option value="">请选择主字幕或副字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option></select><small>连锁字幕按所选对象合成；独立字幕保留原选区。</small></label>
-      <label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option></select></label>
+      <p id="tts-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="tts-environment-reminder" hidden><button type="button" id="tts-environment-open">前往环境配置</button></div>
+      <details id="tts-synthesis-settings" class="msw-tts-section" open><summary>合成设置</summary>
       <div id="tts-qwen-fields">
       <label class="msw-processing-field"><span>配音模式 · ModelType</span><select id="tts-model-type"><option value="CustomVoice">CustomVoice · 预设音色</option><option value="VoiceDesign">VoiceDesign · 声音设计</option><option value="VoiceClone">VoiceClone · 声音复刻</option></select></label>
       <div class="msw-processing-grid">
@@ -1972,63 +2045,71 @@ __WAVEFORM_CSS__
       <div class="msw-qwen-voice-picker">
         <label class="msw-processing-field"><span id="tts-voice-list-label">系统音色</span><input id="tts-voice-search" type="search" autocomplete="off" placeholder="搜索名称、音色 ID、方言或性别" aria-label="搜索音色"></label>
         <label class="msw-processing-field"><span>选择音色</span><select id="tts-voice-select" aria-label="选择音色"></select></label>
-        <p id="tts-voice-current" class="msw-processing-hint" aria-live="polite"></p>
+        <div class="msw-voice-picker-footer"><p id="tts-voice-current" class="msw-processing-hint" aria-live="polite"></p><button type="button" id="tts-voice-audition" disabled>试听音色</button></div>
       </div>
-      <details id="tts-voice-manual"><summary>手动填写音色 ID</summary><label class="msw-processing-field"><span>音色 ID</span><input id="tts-voice" value="Cherry" maxlength="256" autocomplete="off" spellcheck="false"></label><small class="msw-processing-hint">已有百炼音色也可直接粘贴 ID；须与当前模型、地域和密钥匹配。</small></details>
+      <input id="tts-voice" type="hidden" value="Cherry">
       <p id="tts-voice-catalog-hint" class="msw-processing-hint"></p>
       <div id="tts-custom-voices" hidden>
         <div class="msw-processing-actions"><button type="button" id="tts-voice-refresh">刷新本机音色</button></div>
-        <details id="tts-voice-create-fields"><summary>创建音色</summary>
-          <label class="msw-processing-field"><span>音色名称</span><input id="tts-voice-name" maxlength="60" placeholder="例如：温柔旁白"></label>
-          <div id="tts-design-fields">
-            <label class="msw-processing-field"><span>音色描述</span><textarea id="tts-voice-prompt" rows="3" maxlength="2048" placeholder="例如：年轻女声，温暖明亮，普通话清晰，语速舒缓。支持中文或英文描述。"></textarea></label>
-            <label class="msw-processing-field"><span>试听文本</span><textarea id="tts-voice-preview-text" rows="2" maxlength="500">你好，欢迎使用字幕配音。Hello, welcome to our story.</textarea></label>
-          </div>
-          <div id="tts-clone-fields" hidden>
-            <label class="msw-processing-field"><span>参考音频</span><input type="file" id="tts-voice-reference" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4"></label>
-            <p class="msw-processing-hint">推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
-            <p class="msw-processing-hint">点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。</p>
-          </div>
-          <p class="msw-processing-hint">创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。</p>
-          <div class="msw-processing-actions"><button type="button" id="tts-voice-create">创建音色</button></div>
-        </details>
-        <p id="tts-voice-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-        <audio id="tts-voice-preview" controls hidden preload="none" aria-label="音色试听"></audio>
-        <details class="msw-job-history" id="tts-voice-history"><summary>音色创建记录 <span id="tts-voice-history-count"></span></summary><div class="msw-processing-jobs" id="tts-voice-operations" tabindex="0" aria-label="音色创建记录"></div></details>
+
       </div>
-      <small class="msw-processing-hint">查看百炼 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list" target="_blank" rel="noopener noreferrer">音色列表</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-design-user-guide" target="_blank" rel="noopener noreferrer">声音设计</a>、<a href="https://help.aliyun.com/zh/model-studio/voice-cloning-user-guide" target="_blank" rel="noopener noreferrer">声音复刻</a>。</small>
+
       <div id="tts-instruct" hidden>
         <label class="msw-processing-field"><span>声音描述（可选）</span><textarea id="tts-instructions" rows="2" maxlength="1600" placeholder="例如：语速舒缓、吐字清晰、语气温柔"></textarea></label>
         <label class="msw-tts-check"><input type="checkbox" id="tts-optimize">优化声音描述</label>
         <small class="msw-processing-hint">描述使用中文或英文，最多 1600 字符，且不超过百炼 1600 Token 限制。</small>
       </div>
-      <details id="tts-settings"><summary>连接设置</summary>
-        <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
-        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
-        <p id="tts-key-state" class="msw-processing-hint"></p>
-      </details>
+
       </div>
       <div id="tts-yukkuri-fields" hidden>
         <div class="msw-processing-grid">
           <label class="msw-processing-field"><span>音色</span><select id="tts-yukkuri-voice"><option value="f1">F1</option><option value="f2">F2</option><option value="m1">M1</option><option value="m2">M2</option><option value="dvd">DVD</option><option value="imd1">IMD1</option><option value="jgr">JGR</option><option value="r1">R1</option></select></label>
           <label class="msw-processing-field"><span>语言读法</span><select id="tts-yukkuri-language"><option value="Auto">自动</option><option value="Chinese">中文</option><option value="English">英文</option></select></label>
         </div>
-        <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
+
         <label class="msw-processing-field" id="tts-yukkuri-pronunciation-field" hidden><span>读音修正（可选，仅此次配音）</span><input id="tts-yukkuri-pronunciation" maxlength="600" placeholder="可填同音字、英文或假名，不改字幕原文"></label>
         <p class="msw-processing-hint">支持中英文混合，保留油库里的假名近似读法。英文数字逐位读；自动模式在含汉字时使用中文数字读法。无需 API Key。</p>
-        <details id="tts-yukkuri-resources">
-          <summary>油库里资源</summary>
-          <p class="msw-processing-hint" id="tts-yukkuri-runtime-status" role="status" aria-live="polite">尚未检测本机资源</p>
-          <progress id="tts-yukkuri-progress" hidden aria-label="油库里资源安装进度"></progress>
-          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-install">安装资源包</button><button type="button" id="tts-yukkuri-cancel" hidden>取消安装／检测</button></div>
-          <label class="msw-processing-field"><span>资源目录</span><input id="tts-yukkuri-directory" autocomplete="off" spellcheck="false" placeholder="离线包解压后包含 msw-runtime.json 的目录"></label>
-          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-check">应用目录并检测</button></div>
-          <p class="msw-processing-hint">自动下载独立运行时和八音色，安装后可离线使用。离线电脑也可复制此资源目录，再应用检测。</p>
-          <p class="msw-processing-hint">资源来源：<a href="https://github.com/y52en/aquestalk.js" target="_blank" rel="noopener noreferrer">aquestalk.js</a>、<a href="https://nodejs.org/dist/v24.19.0/" target="_blank" rel="noopener noreferrer">Node.js</a>、<a href="https://github.com/Love-Kogasa/bakak2k" target="_blank" rel="noopener noreferrer">英文规则</a>。使用 AquesTalk，版权归株式会社アクエスト；保留随包许可，参阅 <a href="https://www.a-quest.com/licence.html" target="_blank" rel="noopener noreferrer">官方许可说明</a>。</p>
-        </details>
+
+        <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-preview" disabled>试听音色</button></div>
+        <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
       </div>
-      <div class="msw-processing-actions"><button type="button" id="tts-save-settings">保存配置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
-      <p class="msw-processing-hint">每条字幕生成一个 WAV，最长 600 字符。保留完整音频，不自动裁剪到字幕时长；生成期间可继续编辑。</p>
+      <div id="tts-index-fields" hidden>
+        <p id="tts-index-call-status" class="msw-processing-message is-error" role="status" hidden></p>
+        <fieldset id="tts-index-controls" class="msw-index-controls">
+          <div class="msw-processing-grid">
+            <label class="msw-processing-field"><span>音色参考来源</span><select id="tts-index-voice-source"><option value="official">官方示例</option><option value="local">本机音频</option></select></label>
+            <label class="msw-processing-field"><span>配音预设</span><select id="tts-index-preset"><option value="">选择已保存预设</option></select></label>
+          </div>
+          <div class="msw-processing-grid">
+            <label class="msw-processing-field"><span>情感控制</span><select id="tts-index-emotion-mode"><option value="follow">跟随音色参考</option><option value="audio">情感参考音频</option><option value="vector">八维情感向量</option><option value="text">情感描述文本（实验）</option></select></label>
+            <label class="msw-processing-field"><span>配音语言</span><select id="tts-index-language"><option value="ZH">中文</option><option value="EN">English</option><option value="JA">日本語</option><option value="ES">Español</option><option value="AR">العربية</option></select></label>
+          </div>
+          <div class="msw-qwen-voice-picker">
+            <label class="msw-processing-field"><span>音色搜索</span><input id="tts-index-voice-search" type="search" autocomplete="off" placeholder="搜索音色名称或语言" aria-label="搜索 IndexTTS 音色"></label>
+            <label class="msw-processing-field" id="tts-index-official-field"><span>选择音色</span><select id="tts-index-example"><option value="">连接后选择官方示例</option></select></label>
+            <label class="msw-processing-field" id="tts-index-local-field" hidden><span>选择音色</span><select id="tts-index-local-voice"><option value="">请选择或上传参考音频</option></select></label>
+            <input id="tts-index-speaker" type="hidden">
+            <div class="msw-voice-picker-footer"><p id="tts-index-speaker-info" class="msw-processing-hint" aria-live="polite"></p><button type="button" id="tts-index-speaker-preview">试听参考</button></div>
+          </div>
+          <div id="tts-index-emotion-audio" hidden>
+            <label class="msw-processing-field"><span>官方情感示例</span><select id="tts-index-emotion-example"><option value="">选择情感示例</option></select></label>
+            <label class="msw-processing-field"><span>情感参考音频</span><select id="tts-index-emotion-ref"><option value="">请选择或上传情感参考</option></select></label>
+            <div class="msw-processing-actions"><button type="button" id="tts-index-emotion-preview">试听情感参考</button></div>
+          </div>
+          <div id="tts-index-emotion-vector" class="msw-index-vector" hidden></div>
+          <label id="tts-index-emotion-text-field" class="msw-processing-field" hidden><span>情感描述文本</span><textarea id="tts-index-emotion-text" rows="2" maxlength="600" placeholder="例如：委屈、兴奋、温柔；留空时使用每条字幕文本判断情感"></textarea></label>
+          <div id="tts-index-emotion-weight-field" hidden>
+            <label class="msw-processing-field"><span>情感权重 · <output id="tts-index-weight-value">0.65</output></span><input id="tts-index-weight" type="range" min="0" max="1" step="0.01" value="0.65"></label>
+          </div>
+          <label id="tts-index-random-field" class="msw-tts-check" hidden><input id="tts-index-random" type="checkbox">情感随机采样（每次生成可能不同）</label>
+          <label class="msw-processing-field" id="tts-index-pronunciation-field" hidden><span>读音修正（可选，仅此次配音）</span><input id="tts-index-pronunciation" maxlength="600" placeholder="可用 &lt;行|HANG2&gt;、英文音素或日语假名，不改字幕原文"></label>
+
+          <label class="msw-processing-field"><span>语速 · <output id="tts-index-speed-value">100%</output></span><input id="tts-index-speed" type="range" min="50" max="200" step="1" value="100"></label>
+        </fieldset>
+      </div>
+      </details>
+      <div class="msw-processing-actions"><button type="button" id="tts-save-settings" title="记住当前引擎和合成参数，下次打开时使用；不保存工程或生成音频">保存合成设置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
+      <p class="msw-processing-hint">每条字幕或一份草稿生成一个完整 WAV，最多 600 字符；生成期间可继续编辑。</p>
     </div>
     <p id="tts-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details class="msw-job-history" id="tts-history" open><summary>合成记录 <span id="tts-history-count"></span></summary><div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务" tabindex="0"></div></details>

@@ -330,7 +330,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('<span class="editor-settings-title">彩蛋</span>', page)
         self.assertIn('<span class="editor-settings-title">外观</span>', page)
         self.assertNotIn('<span class="editor-settings-title">🥷🏻</span>', page)
-        self.assertEqual(page.count('class="editor-settings-group settings-category"'), 6)
+        self.assertEqual(page.count('class="editor-settings-group settings-category"'), 7)
         # 「静音空隙」分区（含空隙区段操作方式）已移入静音空隙工具窗
         wave_panel = page[page.index('id="waveform-settings-panel"'):]
         self.assertNotIn('静音空隙', wave_panel[:2000])

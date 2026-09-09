@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, startTtsServer, startStaticServer } from './helpers.mjs';
+import { disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, startTtsServer, startStaticServer, openTtsEnvironment, closeTtsEnvironment } from './helpers.mjs';
 
 let mock, origin, server, dir, projectPath, mediaPath, wav, calls, held, holdText, failText;
 test.beforeAll(async () => {
@@ -47,8 +47,10 @@ async function panel(page,configure=true) {
   await expect(page.locator('#tts-panel')).toBeVisible();
   if(configure) {
     await expect(page.locator('#tts-model option')).toHaveCount(5);
-    await page.locator('#tts-settings').evaluate(el=>el.open=true);
+    await openTtsEnvironment(page);
+    if (!(await page.locator('#tts-key').isVisible())) await page.locator('#tts-settings > summary').click();
     await page.locator('#tts-key').fill('synthetic-tts-key');
+    await closeTtsEnvironment(page);
   }
 }
 const countAssets=page=>page.evaluate(()=>DATA.msw?.assets?.length||0);
@@ -419,6 +421,8 @@ test('audio clips keep dense lanes scrollable in basic and multi modes',async({p
     const c=ext.audio_clips[0]; ext.audio_clips=Array.from({length:50},(_,i)=>({...c,id:`dense-${i}`}));
   }));
   const lanes=page.locator('.msw-audio-lanes').first();
+  // Audio lanes render on the next animation frame; wait for their full extent.
+  await expect.poll(()=>lanes.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeGreaterThan(900);
   expect(await page.locator('.msw-audio-clip').count()).toBeLessThan(10);
   await lanes.evaluate(el=>el.scrollTop=el.scrollHeight);
   await expect.poll(()=>lanes.evaluate(el=>el.scrollTop)).toBeGreaterThan(900);
@@ -485,12 +489,12 @@ test('TTS creates durable assets, opens lower-right, previews, exports and survi
 });
 test('all dual subtitles require a side and bound selection maps to secondary only',async({page})=>{
   await open(page,true); await panel(page);
-  await expect(page.locator('#tts-target')).toBeVisible(); await expect(page.locator('#tts-start')).toBeDisabled();
+  await expect(page.locator('#tts-target')).toBeVisible(); await expect(page.locator('#tts-target')).toHaveValue('main');
   await page.locator('#tts-target').selectOption('secondary'); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page)).toBe(2); expect(calls.map(c=>c.text)).toEqual(['Secondary Hello','Independent']);
   await page.locator('#tts-close').click();
   await page.locator('.multi-cue-column.main .text').filter({hasText:/^Hello$/}).click();
-  await panel(page); await expect(page.locator('#tts-start')).toBeDisabled();
+  await panel(page); await expect(page.locator('#tts-target')).toHaveValue('secondary');
   await page.locator('#tts-target').selectOption('secondary'); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page)).toBe(3); expect(calls.map(c=>c.text)).toEqual(['Secondary Hello','Independent','Secondary Hello']);
 });

@@ -133,6 +133,8 @@ def valid_asset(asset):
            for key in ("provider", "model", "voice", "language_type", "display_text", "spoken_text")):
         return False
     return (valid_id(asset.get("job_id")) and valid_id(source.get("key")) and valid_cue_id(source.get("id"))
+            and source.get('kind', 'subtitle') in ('subtitle', 'editor_text')
+            and (source.get('kind') != 'editor_text' or source.get('track_id') is None)
             and (source.get("track_id") is None or valid_cue_id(source["track_id"]))
             and isinstance(source.get("text"), str) and len(source["text"]) <= 600
             and isinstance(source.get("pronunciation_override", ""), str)

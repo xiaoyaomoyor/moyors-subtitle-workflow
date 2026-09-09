@@ -566,6 +566,20 @@ export async function toggleEditorSettings(page) {
   }
 }
 
+// Exercise the visible settings navigation; never unhide relocated TTS controls.
+export async function openTtsEnvironment(page, engine = 'qwen') {
+  if (await page.locator('#tts-panel').isVisible()) await page.locator('#tts-close').click();
+  if (!(await page.locator('#editor-settings-modal').evaluate(el => el.classList.contains('show')))) await toggleEditorSettings(page);
+  await page.locator('.settings-nav-item[data-settings-category="environment"]').first().click();
+  await page.locator('#tts-environment-engine').selectOption(engine);
+  await page.locator('#tts-environment-' + engine).waitFor({state: 'visible'});
+}
+
+export async function closeTtsEnvironment(page) {
+  await page.locator('#editor-settings-close').click();
+  await openMenubarMenu(page, '媒体'); await page.locator('#tts-open').click();
+}
+
 // 「字幕 → 多重字幕设置」子菜单（启用开关与全部设置项都在其中）。
 export async function openMultiSubtitleSettings(page) {
   await openMenubarMenu(page, '字幕');

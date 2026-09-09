@@ -183,6 +183,32 @@ class QwenVoices:
         if rows and not any(json.loads(payload)['region'] == settings.recipe['region'] and json.loads(payload)['model'] == settings.model for _, payload in rows):
             raise ValueError('此音色与当前地域或模型不匹配，请重新选择或创建音色')
 
+    def manage(self, payload, settings):
+        """Register or rename a local display record; never mutate cloud voices."""
+        from maw.msw.tts import validate_recipe
+        name, voice = payload.get('name'), payload.get('voice')
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 60:
+            raise ValueError('本机音色名称须为 1–60 字符')
+        validate_recipe({**settings.recipe, 'voice': voice})
+        scope = voice_scope(settings)
+        with self.lock, self.db() as db:
+            row = db.execute('SELECT payload FROM voices WHERE scope=? AND voice=?', (scope, voice)).fetchone()
+            if payload.get('action') == 'rename':
+                if not row or json.loads(row[0])['model'] != settings.model:
+                    raise ValueError('音色不在当前本机列表中，请刷新后重试')
+                record = json.loads(row[0])
+            elif payload.get('action') == 'register':
+                if row and json.loads(row[0])['model'] != settings.model:
+                    raise ValueError('该音色已登记到另一模型，请选择原目标模型')
+                record = json.loads(row[0]) if row else {
+                    'voice': voice, 'model_type': settings.recipe['model_type'], 'model': settings.model,
+                    'region': settings.recipe['region'], 'created_at': time.time(), 'external': True}
+            else:
+                raise ValueError('未知音色管理操作')
+            record['name'] = name.strip()
+            db.execute('INSERT OR REPLACE INTO voices VALUES (?,?,?)', (scope, voice, json.dumps(record, ensure_ascii=False)))
+        return self.catalog(settings)
+
     def start(self, payload, settings):
         kind, model = settings.recipe['model_type'], settings.model
         if kind not in {'VoiceDesign', 'VoiceClone'}:

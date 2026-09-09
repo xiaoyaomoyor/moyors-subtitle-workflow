@@ -198,6 +198,27 @@ class LiveYukkuriTests(unittest.TestCase):
 
 
 class YukkuriApiTests(processing_tests.ProcessingApiTests):
+    def test_preview_is_guarded_and_only_synthesizes_a_fixed_temporary_sample(self):
+        from types import SimpleNamespace
+        from urllib.request import Request, urlopen
+        self.assertEqual(self.call('yukkuri-preview', {}, headers={'X-MSW-Token': ''})[0], 403)
+        self.assertEqual(self.call('yukkuri-preview', {}, headers={'Origin': 'https://example.test'})[0], 403)
+        api = self.server.processing_api
+        with api._preview_lock:
+            self.assertEqual(self.call('yukkuri-preview', {})[0], 400)
+        with patch('maw.msw.yukkuri.resolve_settings', return_value=SimpleNamespace(recipe={'language_type': 'English'})), \
+                patch('maw.msw.yukkuri.synthesize', return_value=(b'preview-bytes', 'spoken')) as synth:
+            request = Request(self.url + 'yukkuri-preview', data=json.dumps({'text': 'ignored user text'}).encode(),
+                              headers={'X-MSW-Token': self.server.request_token, 'Content-Type': 'application/json'})
+            with urlopen(request, timeout=3) as response:
+                self.assertEqual(response.headers['Content-Type'], 'audio/wav')
+                self.assertEqual(response.read(), b'preview-bytes')
+            self.assertEqual(synth.call_args.args[1], 'Hello, welcome to our story.')
+            self.assertIsNone(api._manager)
+            self.assertIsNone(api._assets)
+        api.close()
+        self.assertTrue(api._preview_cancel.is_set())
+
     def test_local_settings_and_runtime_routes_are_guarded(self):
         self.server.processing_api.data_root = self.root / "local-data"
         with patch.dict(os.environ, {}, clear=True):

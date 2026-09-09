@@ -3,7 +3,7 @@ import {createServer} from 'node:http';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, startTtsServer} from './helpers.mjs';
+import {disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, startTtsServer, openTtsEnvironment, closeTtsEnvironment} from './helpers.mjs';
 
 let mock, server, dir, origin, calls, resultAudio, held, hold, pageErrors;
 test.beforeAll(async () => {
@@ -38,19 +38,40 @@ test.beforeEach(async ({page}) => {
   page.on('dialog', dialog => dialog.type() === 'beforeunload' ? dialog.accept() : dialog.dismiss());
   await page.goto(server.url); await expect(page.locator('#editor-loading')).not.toBeVisible();
   await openPanel(page);
-  await page.locator('#tts-settings').evaluate(el => el.open = true);
+  await openTtsEnvironment(page);
   await page.locator('#tts-key').fill('synthetic-browser-key');
-  await page.locator('#tts-save-settings').click();
-  await expect(page.locator('#tts-message')).toContainText('已保存');
+  await page.locator('#tts-environment-save').click();
+  await expect(page.locator('#tts-environment-message')).toContainText('已保存');
+  await closeTtsEnvironment(page);
 });
 test.afterEach(async () => { for (const resume of held.splice(0)) resume(); await server?.stop(); server = null; expect(pageErrors).toEqual([]); });
+test('official voice audition uses the library without synthesis or saved assets', async ({page}) => {
+  await page.route('https://help-static-aliyun-doc.aliyuncs.com/**', route => {
+    const range = route.request().headers().range?.match(/^bytes=(\d+)-(\d*)$/);
+    const start = range ? Number(range[1]) : 0, end = range?.[2] ? Math.min(Number(range[2]), resultAudio.length - 1) : resultAudio.length - 1;
+    return route.fulfill({status: range ? 206 : 200, contentType: 'audio/wav', body: resultAudio.subarray(start, end + 1),
+      headers: {'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1),
+        ...(range ? {'Content-Range': `bytes ${start}-${end}/${resultAudio.length}`} : {})}});
+  });
+  await expect(page.locator('#tts-voice-audition')).toBeEnabled();
+  await page.locator('#tts-voice-audition').click();
+  await expect.poll(() => page.locator('#asset-audio').evaluate(audio => audio.duration)).toBeCloseTo(.5);
+  await page.locator('#asset-audio').evaluate(audio => { audio.pause(); audio.currentTime = .2; });
+  await expect.poll(() => page.locator('#asset-audio').evaluate(audio => audio.currentTime)).toBeCloseTo(.2);
+  expect(calls).toHaveLength(0);
+  expect(await page.evaluate(() => DATA.msw.assets?.length || 0)).toBe(0);
+  await page.locator('#tts-voice-select').selectOption('Ethan');
+  await expect(page.locator('#asset-player')).toBeHidden();
+});
 async function openPanel(page) {
   await openMenubarMenu(page, '媒体'); await page.locator('#tts-open').click();
   await expect(page.locator('#tts-model option').first()).toBeAttached();
 }
 async function designFields(page) {
   await page.locator('#tts-model-type').selectOption('VoiceDesign');
-  await page.locator('#tts-voice-create-fields').evaluate(el => el.open = true);
+  await openTtsEnvironment(page);
+  await page.locator('#tts-manage-model-type').selectOption('VoiceDesign');
+  if (!(await page.locator('#tts-voice-create-fields').evaluate(el => el.open))) await page.locator('#tts-voice-create-fields > summary').click();
   await page.locator('#tts-voice-name').fill('温柔旁白');
   await page.locator('#tts-voice-prompt').fill('清晰温暖的女声，支持中文和英文叙述。');
   await expect(page.locator('#tts-start')).toBeDisabled();
@@ -58,7 +79,8 @@ async function designFields(page) {
 const customCalls = () => calls.filter(call => call.customization);
 async function createDesign(page) {
   await designFields(page); await page.locator('#tts-voice-create').click();
-  await expect(page.locator('#tts-voice')).toHaveValue(/^qwen-designed-/);
+  await expect(page.locator('#tts-manage-voice option')).toHaveCount(2);
+  await closeTtsEnvironment(page); await page.locator('#tts-voice-select').selectOption({index: 1});
   return page.locator('#tts-voice').inputValue();
 }
 
@@ -93,9 +115,12 @@ test('design creates one reusable voice, previews it, synthesizes and restores s
   const voice = await createDesign(page);
   expect(customCalls()).toHaveLength(1);
   expect(customCalls()[0].customization.input.target_model).toBe('qwen3-tts-vd-2026-01-26');
+  await openTtsEnvironment(page);
+  await page.locator('#tts-voice-history').evaluate(el => el.open = true);
   await page.getByRole('button', {name: '试听音色', exact: true}).click();
-  await expect(page.locator('#tts-voice-preview')).toBeVisible();
-  await expect.poll(() => page.locator('#tts-voice-preview').evaluate(audio => audio.readyState)).toBeGreaterThan(1);
+  await expect(page.locator('#asset-audio')).toBeVisible();
+  await expect.poll(() => page.locator('#asset-audio').evaluate(audio => audio.readyState)).toBeGreaterThan(1);
+  await closeTtsEnvironment(page);
   await page.locator('#tts-start').click();
   await expect.poll(() => page.evaluate(() => DATA.msw.assets?.length || 0)).toBe(1);
   expect(await page.evaluate(() => DATA.msw.assets[0].generation)).toMatchObject({voice, model_type: 'VoiceDesign'});
@@ -109,6 +134,7 @@ test('design creates one reusable voice, previews it, synthesizes and restores s
   expect(customCalls()).toHaveLength(1);
   expect(await page.evaluate(() => JSON.stringify(DATA))).not.toContain('synthetic-browser-key');
   if (process.env.MSW_UI_EVIDENCE_DIR) {
+    await openTtsEnvironment(page);
     await page.locator('#tts-voice-create-fields').evaluate(el => el.open = true);
     await page.locator('#tts-voice-name').scrollIntoViewIfNeeded();
     await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'qwen-voice-design.png')});
@@ -117,6 +143,7 @@ test('design creates one reusable voice, previews it, synthesizes and restores s
 
 test('clone validates selected audio then uploads reference and supports multilingual subtitle synthesis', async ({page}) => {
   await page.locator('#tts-model-type').selectOption('VoiceClone');
+  await openTtsEnvironment(page); await page.locator('#tts-manage-model-type').selectOption('VoiceClone');
   await page.locator('#tts-voice-create-fields').evaluate(el => el.open = true);
   await page.locator('#tts-voice-name').fill('双语复刻');
   await page.locator('#tts-voice-create').click();
@@ -125,7 +152,8 @@ test('clone validates selected audio then uploads reference and supports multili
   const reference = generateWav(join(dir, 'reference.wav'), 4);
   await page.locator('#tts-voice-reference').setInputFiles(reference);
   await page.locator('#tts-voice-create').click();
-  await expect(page.locator('#tts-voice')).toHaveValue(/^qwen-cloned-/);
+  await expect(page.locator('#tts-manage-voice option')).toHaveCount(2);
+  await closeTtsEnvironment(page); await page.locator('#tts-voice-select').selectOption({index: 1});
   const body = customCalls()[0].customization;
   expect(body.model).toBe('qwen-voice-enrollment');
   expect(body.input.target_model).toBe('qwen3-tts-vc-2026-01-22');
@@ -152,13 +180,14 @@ test('lost submit response can be confirmed without sending a second cloud creat
   await page.locator('#tts-voice-create').click();
   await expect(page.locator('#tts-voice-create')).toHaveText('确认上次音色提交');
   await page.locator('#tts-voice-create').click();
-  await expect(page.locator('#tts-voice')).toHaveValue(/^qwen-designed-/);
+  await expect(page.locator('#tts-manage-voice option')).toHaveCount(2);
   expect(customCalls()).toHaveLength(1);
 });
 
 test('late created voice does not replace a selection after changing mode', async ({page}) => {
   hold = true; await designFields(page); await page.locator('#tts-voice-create').click();
   await expect.poll(() => held.length).toBe(1);
+  await closeTtsEnvironment(page);
   await page.locator('#tts-model-type').selectOption('CustomVoice');
   await page.locator('#tts-voice-select').selectOption('Serena');
   for (const resume of held.splice(0)) resume(); hold = false;
@@ -177,7 +206,7 @@ test('switching project while creating retains the voice without applying it to 
   const other = {segments: [{id: 'other', start: 0, end: 1000, text: 'Another project'}],
     msw: {schema: 'msw.editor.v1', project_id: randomUUID()}};
   page.removeAllListeners('dialog'); page.on('dialog', dialog => dialog.accept());
-  await page.locator('#tts-close').click(); await openMenubarMenu(page, '文件');
+  await page.locator('#editor-settings-close').click(); await openMenubarMenu(page, '文件');
   const chooser = page.waitForEvent('filechooser'); await page.locator('#open-project').click();
   await (await chooser).setFiles({name: 'other.mosp', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(other))});
   await expect.poll(() => page.evaluate(() => DATA.msw.project_id)).toBe(other.msw.project_id);
@@ -189,8 +218,9 @@ test('switching project while creating retains the voice without applying it to 
   expect(customCalls()).toHaveLength(1);
 });
 
-test('voice catalogs stay isolated across regions and manual external IDs remain usable', async ({page}) => {
+test('voice catalogs stay isolated across regions and registered external IDs remain usable', async ({page}) => {
   await createDesign(page);
+  await openTtsEnvironment(page);
   await page.locator('#tts-settings').evaluate(el => el.open = true);
   await page.locator('#tts-region').selectOption('singapore');
   await expect(page.locator('#tts-voice')).toHaveValue('');
@@ -198,8 +228,10 @@ test('voice catalogs stay isolated across regions and manual external IDs remain
   await page.locator('#tts-key').fill('different-synthetic-key');
   await page.locator('#tts-key').blur();
   await expect(page.locator('#tts-voice-select option')).toHaveCount(1);
-  await page.locator('#tts-voice-manual').evaluate(el => el.open = true);
-  await page.locator('#tts-voice').fill('external-custom-voice');
+  await page.locator('#tts-voice-register-fields > summary').click();
+  await page.locator('#tts-manage-name').fill('外部音色'); await page.locator('#tts-voice-external-id').fill('external-custom-voice');
+  await page.locator('#tts-voice-register').click(); await expect(page.locator('#tts-voice-message')).toContainText('已登记');
+  await closeTtsEnvironment(page); await page.locator('#tts-voice-select').selectOption('external-custom-voice');
   await page.locator('#tts-start').click();
   await expect.poll(() => calls.filter(call => call.text).length).toBe(1);
   expect(calls.find(call => call.text).recipe).toMatchObject({region: 'singapore', voice: 'external-custom-voice'});
@@ -210,6 +242,7 @@ test('changing engine while creating does not mix Qwen voice requests with Yukku
   page.on('request', request => { if (request.url().endsWith('/qwen-voices')) requests.push(request.postDataJSON()); });
   hold = true; await designFields(page); await page.locator('#tts-voice-create').click();
   await expect.poll(() => held.length).toBe(1);
+  await closeTtsEnvironment(page);
   await page.locator('#tts-engine').selectOption('yukkuri');
   for (const resume of held.splice(0)) resume(); hold = false;
   await expect(page.locator('#tts-voice-create')).toBeEnabled();
@@ -220,13 +253,14 @@ test('changing engine while creating does not mix Qwen voice requests with Yukku
   await expect(page.locator('#tts-voice-select option')).toHaveCount(2);
 });
 
-test('expanded cloning controls fit a narrow panel with internal scrolling and collapsed histories', async ({page}) => {
+test('expanded cloning controls fit global settings with internal scrolling and collapsed histories', async ({page}) => {
   await page.setViewportSize({width: 720, height: 600});
   await page.locator('#tts-model-type').selectOption('VoiceClone');
+  await openTtsEnvironment(page); await page.locator('#tts-manage-model-type').selectOption('VoiceClone');
   await page.locator('#tts-voice-create-fields').evaluate(el => el.open = true);
   await page.locator('#tts-voice-create').scrollIntoViewIfNeeded();
-  const geometry = await page.locator('#tts-panel').evaluate(panel => {
-    const body = panel.querySelector('.gap-remove-panel-body'), rect = panel.getBoundingClientRect();
+  const geometry = await page.locator('#editor-settings-modal').evaluate(panel => {
+    const body = panel.querySelector('#editor-settings-content'), rect = panel.getBoundingClientRect();
     return {right: rect.right, bottom: rect.bottom, width: body.clientWidth, scrollWidth: body.scrollWidth,
       height: body.clientHeight, scrollHeight: body.scrollHeight};
   });

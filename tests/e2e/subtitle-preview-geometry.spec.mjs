@@ -118,13 +118,17 @@ test('resizing via the south-east handle grows the box within player bounds', as
   await overlay.click();
   // Wait for a stable, hittable handle before using raw pointer coordinates.
   await handle.hover();
+  await expect(overlay).toHaveCSS('transform', 'none');
   const hb = await handle.boundingBox();
   expect(hb).not.toBeNull();
   await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
   await page.mouse.down();
+  await expect(overlay).toHaveClass(/dragging/);
+  await expect.poll(() => page.evaluate(() => previewGesture?.handle)).toBe('se');
   await page.mouse.move(hb.x + 120, hb.y + 80, { steps: 8 });
   await page.mouse.up();
 
+  await expect.poll(async () => (await readGeometry(page)).width).toBeGreaterThan(before.width);
   const after = await readGeometry(page);
   expect(after.width).toBeGreaterThan(before.width);
   expect(after.height).toBeGreaterThan(before.height);
