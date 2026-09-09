@@ -4,7 +4,7 @@
 
 [![English README](https://img.shields.io/badge/README-English-2563eb?style=flat-square)](README-en.md)
 
-[![GitHub Release](https://img.shields.io/github/v/release/xiaoyaomoyor/moyors-subtitle-workflow?display_name=tag&sort=semver)](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/latest)
+[![GitHub Release](https://img.shields.io/github/v/release/xiaoyaomoyor/moyors-subtitle-workflow?display_name=tag&sort=semver&include_prereleases)](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/xiaoyaomoyor/moyors-subtitle-workflow)](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/stargazers)
 [![License](https://img.shields.io/github/license/xiaoyaomoyor/moyors-subtitle-workflow)](LICENSE)
 

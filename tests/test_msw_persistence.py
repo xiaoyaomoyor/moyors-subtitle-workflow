@@ -80,12 +80,14 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(clean_store.resolve(result["projectId"], asset, self.destination).read_bytes(), wav_data())
         self.assertEqual(result["assets"]["available"], 1)
         self.assertEqual(self.path.read_bytes(), previous)
-        self.assertEqual(self.server.project.json_path, self.destination)
+        # Save targets are canonicalized: Windows short paths and macOS /var
+        # aliases must compare to the same resolved file, not their spelling.
+        self.assertEqual(self.server.project.json_path, self.destination.resolve())
 
     def test_optional_media_collection_and_relative_reference_relocation(self):
         self.server.project.data["media"] = self.media.name
         result = self.save_as()
-        self.assertEqual(result["project"]["media"], str(self.media))
+        self.assertEqual(result["project"]["media"], str(self.media.resolve()))
         self.assertFalse(any(self.destination.parent.glob("*.assets/media/*")))
 
     def test_unbound_project_does_not_borrow_media_from_the_bound_project(self):
@@ -191,7 +193,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(result["assets"]["available"], 1)
         self.assertEqual((self.destination.parent / asset["path"]).read_bytes(), wav_data())
         saved_record = next(row for row in self.service.recovery.list() if row["kind"] == "saved")
-        self.assertEqual(self.service.recovery.get(saved_record["id"])["media"], self.destination.parent / result["project"]["media"])
+        self.assertEqual(self.service.recovery.get(saved_record["id"])["media"],
+                         (self.destination.parent / result["project"]["media"]).resolve())
 
     def test_history_retention_drafts_and_rebuildable_caches(self):
         store = RecoveryStore(self.root / "history")
