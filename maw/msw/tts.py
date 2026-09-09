@@ -128,6 +128,11 @@ def validate_snapshot(raw):
             raise ValueError("TTS 字幕时间须为有效整数毫秒")
         seen.add(key)
         clean.append({"key": key, "id": entry["id"], "track_id": track, "text": text, "start": start, "end": end})
+        override = entry.get("pronunciation_override", "")
+        if not isinstance(override, str) or len(override) > 600:
+            raise ValueError("读音修正请限制在 600 字符以内")
+        if override.strip():
+            clean[-1]["pronunciation_override"] = override.strip()
     if sum(len(entry["text"]) for entry in clean) > 1000000:
         raise ValueError("单次 TTS 文本过长，请分批选择")
     return {"project_id": raw["project_id"], "entries": clean}
@@ -212,17 +217,22 @@ class TtsService:
             if cancel.is_set():
                 raise JobCancelled()
             try:
-                audio = self.synthesize_one(settings, entry["text"], cancel)
+                spoken = entry["text"]
+                if settings.provider_id == "yukkuri":
+                    from maw.msw.yukkuri import synthesize as synthesize_local
+                    audio, spoken = synthesize_local(settings, entry.get("pronunciation_override") or entry["text"], cancel)
+                else:
+                    audio = self.synthesize_one(settings, entry["text"], cancel)
                 if cancel.is_set():
                     raise JobCancelled()
-                asset = self.assets.add(job["project_id"], job["id"], entry, settings.recipe, audio)
+                asset = self.assets.add(job["project_id"], job["id"], entry, settings.recipe, audio, spoken_text=spoken)
                 item = {"key": entry["key"], "status": "ready", "asset_id": asset["id"]}
             except JobCancelled:
                 raise
             except TtsServiceError:
                 raise
             except Exception as error:
-                detail = str(error).replace(settings.api_key, "[已隐藏]")
+                detail = str(error).replace(settings.api_key, "[已隐藏]") if settings.api_key else str(error)
                 item = {"key": entry["key"], "status": "failed", "error": detail[:500]}
             result["items"].append(item)
             ready += item["status"] == "ready"

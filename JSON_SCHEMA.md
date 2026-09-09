@@ -806,6 +806,7 @@ uv run python edit.py your_generated.mosp
 | `translation_applications` | 可选，对部分应用的任务记录已经写入的主字幕 ID；对象及每个数组最多 10000 项。任务 ID 遵循上述 ASCII 规则；字幕 ID 沿用原工程的不透明字符串规范（规范化后最多 160 字符，可含中文） |
 | `translation_target_tracks` | 可选，部分应用时新建的副轨 ID，按任务 ID 索引，最多 10000 项；轨道 ID 沿用原工程的 160 字符规则。继续应用剩余结果时复用同一轨，完成后清除 |
 | `assets` | 可选，不可变音频素材数组，最多 10000 项；字段见下表。字幕历史保留该素材库存，不随字幕撤销删除 |
+| `removed_asset_ids` | 可选，已从当前工程移除的素材 ID 数组，最多 100000 项，不接受 null、重复项或与 `assets` 同时存在的 ID；ID 为 `audio-` 加 32 位小写十六进制。保存／恢复后过滤后台重复结果。删除素材及其贴片是独立可撤销操作，字幕撤销保留当前删除决定；磁盘字节保留，不因移除引用立即删除 |
 | `source_project_id` | 可选，另存为时记录直接来源工程 ID，格式与 `project_id` 相同。副本使用新 `project_id`，素材 ID 保留；字幕撤销不会回滚当前工程身份 |
 | `audio_tracks` / `audio_clips` | 可选，配音轨及源时间轴上的独立贴片；不存在等同空数组，出现时不能为 null。详见 C 阶段契约 |
 | `audio_settings` | 可选，工程级的热力图和空隙策略；不存在使用默认值，出现时不能为 null |
@@ -833,6 +834,10 @@ uv run python edit.py your_generated.mosp
 任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
 
 工作区布局树的模块 ID 新增 `assets`，可进入已有 `module`、`tabs` 和 `split` 结构。旧布局缺少该模块时默认为隐藏；不会为了补足五个模块重排用户布局。
+
+外部导入音频沿用相同的不可变素材结构，`generation.provider = "imported"`、`model = "external-audio"`、`voice = ""`、`language_type = "Auto"`；另存原始 `filename`、上传内容的 `source_sha256` 和 `text_origin = "filename"`。`display_text` 与 `source_ref.text` 为去扩展名的文件名，`spoken_text = ""`，不伪造识别文本。`job_id`、来源 `key/id` 为 `import-<请求标识>`，`track_id = null`，`start = 0`、`end` 为素材实际时长换算的整数毫秒。这些来源标识不代表已有字幕绑定。标准 PCM WAV 保留原采样参数；其他支持格式转换为 48 kHz、双声道、16-bit WAV。素材 `sha256` 始终描述最终 WAV，与原文件摘要区分。
+
+油库里使用 `generation.provider = "yukkuri"`、`model = "aquestalk1"`，音色为 `f1/f2/m1/m2/dvd/imd1/jgr/r1`，另记 `speed`（50–300 的整数）、`engine_version`、`resource_version`、`text_version`。`language_type` 为 `Auto/Chinese/English`。`display_text` 保留原文，`spoken_text` 是实际传给引擎的假名，允许最长 12000 字符；其他必需配方字符串仍最多 2000 字符。可选 `source_ref.pronunciation_override` 为最长 600 字符的单条读音修正，批量快照中逐条独立保存；来源 `text` 不被替换。素材为普通 8 kHz、16-bit、单声道 WAV。以上为 v1 的兼容扩展，不改变时间或采样单位。引擎路径与当前 TTS 引擎偏好仅保存本机，不进入工程。
 
 另存为自动收集 TTS 音频；可选原媒体写入新工程旁 `msw-<新身份摘要>.assets/media/<内容摘要><扩展名>`，顶层 `media` 保存相对路径。未收集的原媒体继续使用原引用（搬出原目录时已知相对引用转换为绝对引用）。缺失音频不删除元数据或贴片，保存响应单独报告缺失清单。
 

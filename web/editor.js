@@ -1196,6 +1196,12 @@ function pushUndo(label, { captureView = false } = {}) {
   updateUndoRedoButtons();
   return record;
 }
+function snapshotAssetRemoval(assetId, label) {
+  const extension = window.MSWProject.ensure(DATA);
+  return {kind: 'asset-removal', label, assetId,
+    asset: window.MSWProject.clone((extension.assets || []).find(asset => asset.id === assetId) || null),
+    clips: window.MSWProject.clone((extension.audio_clips || []).filter(clip => clip.asset_id === assetId))};
+}
 function pushLayoutUndo(label, snapshot) {
   if (!snapshot) return;
   editorHistory.push(EDITOR_SETTINGS_UTILS.buildHistoryRecord('layout', label, snapshot));
@@ -1237,6 +1243,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if (kind === 'asset-removal') return snapshotAssetRemoval(sourceRecord.assetId, label);
   if (kind === 'layout') {
     return EDITOR_SETTINGS_UTILS.buildHistoryRecord(
       'layout', label, waveformEditor?.getLayoutHistorySnapshot?.() || null,
@@ -1301,6 +1308,20 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if (record.kind === 'asset-removal') {
+    const next = window.MSWProject.clone(window.MSWProject.ensure(DATA));
+    next.assets = (next.assets || []).filter(asset => asset.id !== record.assetId);
+    if (record.asset) next.assets.push(window.MSWProject.clone(record.asset));
+    next.audio_clips = (next.audio_clips || []).filter(clip => clip.asset_id !== record.assetId).concat(window.MSWProject.clone(record.clips));
+    const removed = new Set(next.removed_asset_ids || []);
+    if (record.asset) removed.delete(record.assetId); else removed.add(record.assetId);
+    next.removed_asset_ids = [...removed];
+    window.MSWProject.normalize(next); DATA.msw = next;
+    projectImportDirty = true; scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:assets-changed')); window.dispatchEvent(new Event('msw:audio-changed'));
+    waveformEditor?.refreshAudioTimeline(); updateGapRemoveUi();
+    return true;
+  }
   if (record.kind === 'layout') {
     if (!waveformEditor?.restoreLayoutHistorySnapshot?.(record.layout)) {
       flashHint('工作区恢复失败：波形模块尚未加载', 'warning');
@@ -1328,6 +1349,7 @@ function applyHistoryRecord(record) {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
   const retainedAssets = DATA.msw?.assets;
+  const retainedRemoved = DATA.msw?.removed_asset_ids || [];
   const retainedProjectId = DATA.msw?.project_id;
   const retainedSourceProjectId = DATA.msw?.source_project_id;
   if (Object.prototype.hasOwnProperty.call(snapshot, 'msw')) DATA.msw = window.MSWProject.normalize(snapshot.msw);
@@ -1336,7 +1358,11 @@ function applyHistoryRecord(record) {
     project_id: retainedProjectId, ...(retainedSourceProjectId ? { source_project_id: retainedSourceProjectId } : {}),
   });
   // Generated media is an immutable library inventory; subtitle undo does not remove it.
-  if (retainedAssets?.length) window.MSWProject.ensure(DATA).assets = retainedAssets;
+  if (Array.isArray(retainedAssets)) window.MSWProject.ensure(DATA).assets = retainedAssets;
+  const retainedExtension = window.MSWProject.ensure(DATA);
+  retainedExtension.removed_asset_ids = retainedRemoved;
+  const removedIds = new Set(retainedRemoved);
+  if (retainedExtension.audio_clips) retainedExtension.audio_clips = retainedExtension.audio_clips.filter(clip => !removedIds.has(clip.asset_id));
   normalizeMultiSubtitleState();
   // 历史恢复会改变下标身份；丢弃旧面板绑定，避免 clearSelection() 把旧面板
   // 内容提交到恢复后占据同一下标的另一条字幕，并因此生成新历史、清空 redo。
@@ -1357,6 +1383,9 @@ function applyHistoryRecord(record) {
 function performUndo() {
   const top = editorHistory.peekUndo();
   if (!top) { flashHint('没有可撤销的操作', 'invalid'); return; }
+  if (top.kind === 'asset-removal' && top.asset && (DATA.msw?.assets?.length || 0) >= 10000) {
+    flashHint('素材库已满，请先移除其他素材再撤销', 'warning'); return;
+  }
   if (top.kind === 'layout' && typeof waveformEditor?.restoreLayoutHistorySnapshot !== 'function') {
     flashHint('工作区撤销失败：波形模块尚未加载', 'warning');
     return;
@@ -18219,7 +18248,9 @@ function ctxAppendExpandableSettings(label, children) {
     row.addEventListener('click', (event) => {
       event.stopPropagation();
       child.toggle();
-      rowText.textContent = (child.checked() ? '✓ ' : '') + child.label;
+      [...group.children].forEach((item, index) => {
+        item.firstChild.textContent = (children[index].checked() ? '✓ ' : '') + children[index].label;
+      });
     });
     group.appendChild(row);
   });
@@ -18228,6 +18259,12 @@ function ctxAppendExpandableSettings(label, children) {
     clearTimeout(closeTimer);
     wrap.classList.add('open');
     header.setAttribute('aria-expanded', 'true');
+    group.style.left = ''; group.style.right = ''; group.style.transform = '';
+    const rect = group.getBoundingClientRect();
+    if (rect.right > innerWidth - 4) { group.style.left = 'auto'; group.style.right = '100%'; }
+    const placed = group.getBoundingClientRect();
+    const dy = Math.max(4 - placed.top, Math.min(0, innerHeight - 4 - placed.bottom));
+    if (dy) group.style.transform = `translateY(${dy}px)`;
   };
   const scheduleClose = () => {
     clearTimeout(closeTimer);
@@ -18319,6 +18356,16 @@ function setupModuleContextMenu() {
   }
   bindModule(waveformEditor.pane, () => [
     { label: '波形显示器设置', onClick: openWaveSettings },
+  ]);
+  bindModule(waveformEditor.assetLibrary, () => [
+    { label: '素材库设置', expandable: true, children: [1, 2, 3, 4, 5].map(count => ({
+      label: `卡片密度：${count} 列`,
+      checked: () => Number(document.getElementById('asset-density')?.value) === count,
+      toggle: () => {
+        const input = document.getElementById('asset-density');
+        input.value = String(count); input.dispatchEvent(new Event('input', {bubbles: true}));
+      },
+    })) },
   ]);
 }
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
@@ -20556,7 +20603,8 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     if (extension.project_id !== projectId) return 0;
     if (!assets.every(window.MSWProject.validAsset)) throw new Error('MSW 音频素材格式无效');
     const byId = new Map((extension.assets || []).map(asset => [asset.id, asset]));
-    const incoming = assets.filter(asset => !byId.has(asset.id));
+    const removed = new Set(extension.removed_asset_ids || []);
+    const incoming = assets.filter(asset => !byId.has(asset.id) && !removed.has(asset.id));
     if (byId.size + incoming.length > 10000) throw new Error('素材库已达到 10000 条上限');
     if (incoming.length) {
       extension.assets = [...byId.values(), ...window.MSWProject.clone(incoming)];
@@ -20565,6 +20613,15 @@ window.MSWE?.register('processing-host', () => Object.freeze({
       window.dispatchEvent(new Event('msw:assets-changed'));
     }
     return incoming.length;
+  },
+  removeAsset: assetId => {
+    commitProcessingEdits();
+    const record = snapshotAssetRemoval(assetId, '删除素材及其音频贴片');
+    if (!record.asset) return false;
+    if ((DATA.msw.removed_asset_ids?.length || 0) >= 100000) throw new Error('素材删除记录已达上限，请在新工程中继续处理');
+    editorHistory.push(record);
+    applyHistoryRecord({...record, asset: null, clips: []});
+    updateUndoRedoButtons(); return true;
   },
   createFloatingPanel,
   flashHint,

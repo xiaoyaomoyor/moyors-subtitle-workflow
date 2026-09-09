@@ -143,13 +143,14 @@ class AssetStore:
                 db.close()
         return connection()
 
-    def add(self, project_id, job_id, source, recipe, audio):
+    def add(self, project_id, job_id, source, recipe, audio, *, spoken_text=None):
         audio = normalize_generated_wav(audio)
         info = audio_info(audio)
         asset_id = "audio-" + uuid.uuid4().hex
         asset = {"id": asset_id, "kind": "audio", "path": asset_relative_path(project_id, asset_id),
                  **info, "created_at": time.time(), "job_id": job_id,
-                 "generation": {**copy.deepcopy(recipe), "display_text": source["text"], "spoken_text": source["text"]},
+                 "generation": {**copy.deepcopy(recipe), "display_text": source["text"],
+                                "spoken_text": source["text"] if spoken_text is None else spoken_text},
                  "source_ref": copy.deepcopy(source)}
         if not valid_id(project_id) or not valid_id(job_id):
             raise ValueError("素材来源标识无效")
@@ -173,9 +174,18 @@ class AssetStore:
             row = db.execute("SELECT a.payload FROM assets a JOIN asset_links l ON a.id=l.asset_id WHERE l.project_id=? AND a.id=?", (project_id, asset_id)).fetchone()
         return json.loads(row[0]) if row else None
 
-    def count(self, project_id):
+    def count(self, project_id, removed=()):
         with self.connect() as db:
+            if removed:
+                excluded = set(removed)
+                return sum(row[0] not in excluded for row in db.execute("SELECT asset_id FROM asset_links WHERE project_id=?", (project_id,)))
             return db.execute("SELECT COUNT(*) FROM asset_links WHERE project_id=?", (project_id,)).fetchone()[0]
+
+    def imported(self, project_id, job_id):
+        with self.connect() as db:
+            row = db.execute("SELECT a.payload FROM assets a JOIN asset_links l ON a.id=l.asset_id WHERE l.project_id=? AND a.job_id=?",
+                             (project_id, job_id)).fetchone()
+        return json.loads(row[0]) if row else None
 
     def ready_keys(self, project_id, job_id=None):
         with self.connect() as db:

@@ -27,3 +27,28 @@
 | [DeepSeek](https://www.deepseek.com/) / [Zhipu Coding Plan](https://open.bigmodel.cn/) / Alibaba Cloud Model Studio Qwen / custom OpenAI-compatible endpoint | Optional subtitle text post-processing in the Launcher toolbox | External services; subject to the selected provider's terms, billing, and privacy policy |
 
 The `web/` editor, Python scripts, and documentation in this repository are distributed under the repository's `AGPL-3.0-only` license unless a file states otherwise.
+
+## Optional Yukkuri resources
+
+MSW's optional Yukkuri installer fetches pinned releases listed in
+`maw/msw/yukkuri_resources.json`. These binaries and packages are not included in
+the main MSW source repository. Installation preserves their license files.
+
+- `aquestalk.js` 1.0.7 — MIT, https://github.com/y52en/aquestalk.js.
+- `bakak2k` English rules, commit `fa8ff762e39eb0065801010d44ef5bc295d109da` — MIT,
+  copyright its contributors; https://github.com/Love-Kogasa/bakak2k. Only the
+  standalone English module and LICENSE are downloaded; no Japanese dictionary.
+- `tiny-pinyin` 1.3.2, `pinyin-to-kana` 1.0.1, and
+  `number-to-chinese-words` 1.0.20 — MIT. Their licenses and all pinned transitive
+  package licenses are retained in the resource directory.
+- Node.js 24.19.0 — Node.js license and bundled third-party notices, retained as
+  `node/LICENSE`; https://nodejs.org/.
+- AquesTalk native voice resources — copyright AQUEST Corporation. Original
+  voice ZIPs retain the DLLs and `AqLicence.txt`; these resources have their own
+  terms, separate from the surrounding JavaScript MIT license. MSW uses AquesTalk
+  for speech synthesis. See https://www.a-quest.com/licence.html and the actual
+  accompanying license. No DLL modification or renaming is performed.
+
+MSW independently implements its text adapter, referring to the conversion flow
+in https://github.com/Love-Kogasa/zh-yukkuri.js. No code from that wrapper is
+redistributed in MSW or its resource pack.

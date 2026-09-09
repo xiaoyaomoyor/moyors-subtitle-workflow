@@ -27,6 +27,8 @@ class ProcessingAPI:
         self._assets = None
         self._persistence = None
         self._exports = None
+        self._yukkuri = None
+        self._importer = None
         self._project_path = object()
         self.binding = ""
 
@@ -54,6 +56,22 @@ class ProcessingAPI:
             if self._exports is None:
                 self._exports = AudioExports(self)
             return self._exports
+
+    @property
+    def importer(self):
+        from maw.msw.audio_import import AudioImporter
+        with self.lock:
+            if self._importer is None:
+                self._importer = AudioImporter(self)
+            return self._importer
+
+    @property
+    def yukkuri(self):
+        from maw.msw.yukkuri_runtime import RuntimeController
+        with self.lock:
+            if self._yukkuri is None:
+                self._yukkuri = RuntimeController(self.data_root)
+            return self._yukkuri
 
     @property
     def assets(self):
@@ -178,7 +196,7 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports", "asset-import"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
@@ -200,7 +218,17 @@ class ProcessingAPI:
                 result = self.persistence.restore(payload.get("id"))
             elif route == "tts-settings":
                 with self.lock:
-                    result = tts.save_settings(self.env_path, payload) if post else tts.config_payload(self.env_path)
+                    local = isinstance(payload.get("recipe"), dict) and payload["recipe"].get("provider") == "yukkuri"
+                    if post and local:
+                        self.yukkuri.save(engine="yukkuri", recipe=payload["recipe"])
+                    elif post:
+                        tts.save_settings(self.env_path, payload)
+                        self.yukkuri.save(engine="qwen")
+                    result = {**tts.config_payload(self.env_path), "yukkuri": self.yukkuri.payload(),
+                              "engine": self.yukkuri.payload()["engine"]}
+            elif route == "yukkuri-runtime":
+                result = {"runtime": self.yukkuri.start(payload.get("action"), payload.get("directory", ""))
+                          if post else self.yukkuri.payload()}
             elif route == "providers":
                 with self.lock:
                     result = save_settings(self.env_path, payload) if post else provider_payloads(self.env_path)
@@ -243,6 +271,8 @@ class ProcessingAPI:
                         raise KeyError("未知导出操作")
                 elif route == "assets" and not post:
                     result = self.assets.list(project_id, max(0, int(payload.get("since", 0))))
+                elif route == "asset-import" and post:
+                    result = {"asset": self.importer.import_audio(payload)}
                 elif route == "asset-audio" and not post:
                     asset, project_path = self.asset_reference(project_id, payload.get("asset_id"))
                     if asset is None:
@@ -254,7 +284,11 @@ class ProcessingAPI:
                     provider = payload.get("provider", {})
                     if not isinstance(provider, dict):
                         raise ValueError("翻译服务配置无效")
-                    settings = tts.resolve_settings(self.env_path, provider) if payload.get("kind") == "tts" else resolve_settings(self.env_path, provider)
+                    if payload.get("kind") == "tts" and isinstance(provider.get("recipe"), dict) and provider["recipe"].get("provider") == "yukkuri":
+                        from maw.msw.yukkuri import resolve_settings as resolve_local_tts
+                        settings = resolve_local_tts(self.yukkuri, provider)
+                    else:
+                        settings = tts.resolve_settings(self.env_path, provider) if payload.get("kind") == "tts" else resolve_settings(self.env_path, provider)
                     result = {"job": self.jobs.submit(payload, settings)}
                     status = HTTPStatus.ACCEPTED
                 elif route == "jobs" and not post:
@@ -290,6 +324,10 @@ class ProcessingAPI:
         return True
 
     def close(self):
+        if self._importer:
+            self._importer.close()
+        if self._yukkuri:
+            self._yukkuri.close()
         if self._exports:
             self._exports.close()
         if self._manager:

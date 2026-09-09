@@ -12,7 +12,10 @@
   const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set(), missing = new Set();
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
+  let runtime = {state: 'idle', runtime_path: ''}, runtimeTimer, runtimeRequest = false;
+  const isYukkuri = () => el('tts-engine').value === 'yukkuri';
   let previewUrl = null, previewId = null, previewSequence = 0;
+  let importing = false, stopImport = false;
   const PAGE_SIZE = 90, DENSITY_KEY = 'msw.assets.columns';
   let density = 3;
   try { const saved = Number(localStorage.getItem(DENSITY_KEY)); if (Number.isInteger(saved) && saved >= 1 && saved <= 5) density = saved; } catch (_) {}
@@ -44,6 +47,7 @@
     let scope = global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
     if (scope.signature !== scopeSignature) {
       scopeSignature = scope.signature;
+      el('tts-yukkuri-pronunciation').value = '';
       el('tts-target').value = '';
       scope = global.MSWTts.scope(host.data, host.selection());
     }
@@ -51,11 +55,16 @@
     el('tts-scope').textContent = `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
       + (scope.needsChoice && !el('tts-target').value ? ` · ${t('请先选择主字幕或副字幕')}` : '')
       + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过 600 字符，请先拆分')}` : '');
-    el('tts-start').disabled = !available || !configured || busy || (!pending && (!scope.sources.length || scope.tooLong || (scope.needsChoice && !el('tts-target').value)));
+    el('tts-yukkuri-pronunciation-field').hidden = scope.sources.length !== 1 || (scope.needsChoice && !el('tts-target').value);
+    el('tts-start').disabled = !available || !configured || busy || (!pending && (
+      (isYukkuri() && (!runtime.runtime_path || runtime.state === 'working' || runtimeRequest))
+      || !scope.sources.length || scope.tooLong || (scope.needsChoice && !el('tts-target').value)));
     el('tts-start').textContent = t(pending ? '确认上次提交' : '开始合成');
     return scope;
   }
   function recipe() {
+    if (isYukkuri()) return {provider: 'yukkuri', model: 'aquestalk1', voice: el('tts-yukkuri-voice').value,
+      language_type: el('tts-yukkuri-language').value, speed: Number(el('tts-yukkuri-speed').value)};
     const instruct = el('tts-model').value.includes('-instruct-');
     return { provider: 'qwen', region: el('tts-region').value, model: el('tts-model').value,
       voice: el('tts-voice').value.trim(), language_type: el('tts-language').value,
@@ -63,6 +72,48 @@
       optimize_instructions: instruct && el('tts-optimize').checked };
   }
   function updateModel() { el('tts-instruct').hidden = !el('tts-model').value.includes('-instruct-'); }
+  function updateEngine() {
+    el('tts-qwen-fields').hidden = isYukkuri();
+    el('tts-yukkuri-fields').hidden = !isYukkuri();
+    updateScope();
+    if (isYukkuri() && runtime.state === 'idle' && runtime.runtime_path) void runtimeAction('check');
+  }
+  function renderRuntime(value) {
+    runtime = value;
+    const working = value.state === 'working';
+    el('tts-yukkuri-runtime-status').textContent = t(value.message || '尚未检测本机资源');
+    el('tts-yukkuri-runtime-status').classList.toggle('is-error', value.state === 'failed');
+    el('tts-yukkuri-install').disabled = working || runtimeRequest;
+    el('tts-yukkuri-check').disabled = working || runtimeRequest;
+    el('tts-yukkuri-cancel').hidden = !working;
+    const progress = el('tts-yukkuri-progress'); progress.hidden = !working;
+    if (value.total) { progress.max = value.total; progress.value = value.current; } else progress.removeAttribute('value');
+    if (value.state === 'ready') el('tts-yukkuri-directory').value = value.runtime_path;
+    if (!value.runtime_path || value.state === 'failed') el('tts-yukkuri-resources').open = true;
+    clearTimeout(runtimeTimer);
+    if (working) runtimeTimer = setTimeout(() => void pollRuntime(), 800);
+    updateScope();
+  }
+  async function pollRuntime() {
+    try { const data = await request('yukkuri-runtime'); renderRuntime(data.runtime); }
+    catch (error) {
+      el('tts-yukkuri-runtime-status').textContent = error.message;
+      if (panel.isOpen()) runtimeTimer = setTimeout(() => void pollRuntime(), 3000);
+    }
+  }
+  async function runtimeAction(action) {
+    if (runtimeRequest) return;
+    runtimeRequest = true; renderRuntime(runtime);
+    try {
+      const data = await request('yukkuri-runtime', {action, directory: el('tts-yukkuri-directory').value.trim()});
+      runtimeRequest = false; renderRuntime(data.runtime);
+    } catch (error) { el('tts-yukkuri-runtime-status').textContent = error.message; }
+    finally {
+      runtimeRequest = false;
+      el('tts-yukkuri-install').disabled = runtime.state === 'working';
+      el('tts-yukkuri-check').disabled = runtime.state === 'working'; updateScope();
+    }
+  }
   function keyState() {
     const configured = regions.find(region => region.id === el('tts-region').value)?.hasApiKey;
     el('tts-key-state').textContent = t(configured ? '此地域已有本机密钥，留空即可复用' : '请填写此地域的百炼密钥；北京和新加坡密钥不同');
@@ -78,7 +129,15 @@
     el('tts-optimize').checked = value.optimize_instructions;
     el('tts-key').value = '';
     el('tts-settings').open = !keyState();
-    configured = true; updateModel(); updateScope();
+    el('tts-engine').value = data.engine || 'qwen';
+    if (data.yukkuri) {
+      const local = data.yukkuri.recipe;
+      el('tts-yukkuri-voice').value = local.voice; el('tts-yukkuri-language').value = local.language_type;
+      el('tts-yukkuri-speed').value = String(local.speed); el('tts-yukkuri-speed-value').value = String(local.speed);
+      el('tts-yukkuri-directory').value = data.yukkuri.runtime_path;
+      renderRuntime(data.yukkuri);
+    }
+    configured = true; updateModel(); updateEngine();
   }
   function action(label, callback) {
     const button = document.createElement('button');
@@ -97,6 +156,7 @@
     pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
     download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
     insert: '<path d="M3 17h18M6 20v1m6-1v1m6-1v1M12 2v11m-4-4 4 4 4-4"/>',
+    remove: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
   };
   function setIcon(button, icon, label) {
     if (button.dataset.icon !== icon) {
@@ -121,16 +181,17 @@
     }
   }
   function updateDensity() {
+    el('asset-density-value').value = String(density);
     const list = el('asset-list'); if (!list.clientWidth) return;
     const columns = Math.min(density, Math.max(1, Math.floor((list.clientWidth - 10) / 118)));
     list.style.setProperty('--asset-columns', columns);
-    el('asset-density-value').value = String(columns);
   }
   const statuses = { queued: '等待处理', running: '正在合成', succeeded: '合成完成', failed: '合成失败',
     cancelled: '已取消', cancel_requested: '正在取消', interrupted: '服务中断，未自动重试' };
   function renderJobs() {
+    const scroll = el('tts-jobs').scrollTop;
     const fragment = document.createDocumentFragment();
-    for (const job of [...jobs.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 20)) {
+    for (const job of [...jobs.values()].sort((a, b) => b.created_at - a.created_at)) {
       const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
       const heading = document.createElement('strong'); heading.textContent = `TTS · ${job.count} · ${job.recipe?.voice || ''}`;
       const status = document.createElement('p'); status.className = 'msw-processing-hint';
@@ -152,6 +213,8 @@
       card.append(actions); fragment.append(card);
     }
     el('tts-jobs').replaceChildren(fragment);
+    el('tts-jobs').scrollTop = scroll;
+    el('tts-history-count').textContent = `(${jobs.size})`;
   }
   async function inspectUnfinished(job, card) {
     const generation = host.generation;
@@ -166,7 +229,8 @@
       const text = document.createElement('p'); text.className = 'msw-asset-content';
       text.textContent = `${row.text}\n${items.get(row.key)?.error || t('尚未完成')}`; view.append(text);
     }
-    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t('条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
+    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t(job.recipe?.provider === 'yukkuri'
+      ? '条未完成；使用本机资源重试，已成功的音频不会重发。' : '条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
     view.append(notice);
     if (entries.length) view.append(action('重新合成未完成项', () => submit({
       snapshot: { project_id: job.project_id, entries }, retry_of: job.id, recipe: job.recipe,
@@ -181,9 +245,14 @@
       const options = retry?.recipe || recipe();
       const input = pending || { kind: 'tts', project_id: projectId(), client_token: `${pageId}.${generation}`,
         library_size: assets().length,
+        removed_asset_ids: host.data.msw?.removed_asset_ids || [],
         request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value),
-        provider: { recipe: options, apiKey: options.region === el('tts-region').value ? el('tts-key').value : '' },
+        provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''} : {}) },
         ...(retry ? { retry_of: retry.retry_of } : {}) };
+      if (!pending && !retry && options.provider === 'yukkuri' && input.snapshot.entries.length === 1) {
+        const override = el('tts-yukkuri-pronunciation').value.trim();
+        if (override) input.snapshot.entries[0].pronunciation_override = override;
+      }
       pending = input; busy = true; updateScope();
       const data = await request('jobs', input);
       if (generation !== host.generation) return;
@@ -289,7 +358,7 @@
     const recent = [...known.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 200);
     if (batch && known.has(batch) && !recent.some(job => job.id === batch)) recent.push(known.get(batch));
     el('asset-batch').replaceChildren(new Option(t('全部批次'), ''), ...recent.map(job =>
-      new Option(`${new Date(job.created_at * 1000).toLocaleString()} · ${job.recipe?.voice || 'TTS'} · ${job.id.slice(-6)}`, job.id)));
+      new Option(`${new Date(job.created_at * 1000).toLocaleString()} · ${job.recipe?.provider === 'imported' ? t('外部音频') : job.recipe?.voice || 'TTS'} · ${job.id.slice(-6)}`, job.id)));
     el('asset-batch').value = batch;
     const term = el('asset-search').value.trim().toLocaleLowerCase();
     const rows = all.filter(a => (!batch || a.job_id === batch) && (!term || `${a.generation.display_text} ${a.generation.voice} ${a.generation.model}`.toLocaleLowerCase().includes(term)));
@@ -315,7 +384,8 @@
       const meta = document.createElement('p'); meta.className = 'msw-asset-meta';
       const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
       meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
-      if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
+      if (asset.generation.provider === 'imported') meta.textContent = `${t('外部音频')} · ${duration.toFixed(2)} s · ${asset.generation.filename || ''}`;
+      else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
       if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
       meta.title = meta.textContent;
       content.append(text, meta);
@@ -327,7 +397,13 @@
       }); save.disabled = !available;
       const insert = iconAction('放入时间轴', 'insert', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
       insert.disabled = !available;
-      buttons.append(play, save, insert); row.append(content, buttons); fragment.append(row);
+      const remove = iconAction('删除素材', 'remove', () => {
+        const count = (host.data.msw?.audio_clips || []).filter(clip => clip.asset_id === asset.id).length;
+        if (count && !global.confirm(t(`此素材已被 ${count} 个音频贴片使用。删除素材并同时移除这些贴片？可撤销。`))) return;
+        if (previewId === asset.id || !previewId) stopPreview();
+        if (host.removeAsset(asset.id)) host.flashHint(t('素材已移除，可撤销；原文件保留'), 'success');
+      });
+      buttons.append(play, save, insert, remove); row.append(content, buttons); fragment.append(row);
     }
     list.replaceChildren(fragment); updatePreviewButtons();
     if (focusedId && focusedAction) {
@@ -340,17 +416,23 @@
     host.commitEdits(); el('tts-target').value = ''; updateScope(); panel.open();
     if (available) {
       if (!configured) void loadSettings().catch(error => message(error.message, true));
+      else if (isYukkuri()) void pollRuntime();
       schedule(0);
     }
   });
   el('tts-close').addEventListener('click', () => panel.close());
   el('tts-start').addEventListener('click', () => void submit());
-  el('tts-target').addEventListener('change', updateScope);
+  el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; updateScope(); });
+  el('tts-engine').addEventListener('change', updateEngine);
+  el('tts-yukkuri-speed').addEventListener('input', () => { el('tts-yukkuri-speed-value').value = el('tts-yukkuri-speed').value; });
+  el('tts-yukkuri-install').addEventListener('click', () => void runtimeAction('install'));
+  el('tts-yukkuri-check').addEventListener('click', () => void runtimeAction('check'));
+  el('tts-yukkuri-cancel').addEventListener('click', () => void runtimeAction('cancel'));
   el('tts-model').addEventListener('change', updateModel);
   el('tts-region').addEventListener('change', () => { el('tts-key').value = ''; keyState(); });
   el('tts-save-settings').addEventListener('click', async () => {
     el('tts-save-settings').disabled = true;
-    try { await request('tts-settings', { recipe: recipe(), apiKey: el('tts-key').value }); await loadSettings(); message('TTS 配置已保存到本机'); }
+    try { await request('tts-settings', { recipe: recipe(), ...(isYukkuri() ? {} : {apiKey: el('tts-key').value}) }); await loadSettings(); message('TTS 配置已保存到本机'); }
     catch (error) { message(error.message, true); }
     finally { el('tts-save-settings').disabled = false; }
   });
@@ -366,8 +448,51 @@
     try { localStorage.setItem(DENSITY_KEY, String(density)); } catch (_) {}
   });
   new ResizeObserver(updateDensity).observe(el('asset-list'));
+  global.addEventListener('msw:assets-changed', () => {
+    if (previewId && !assets().some(asset => asset.id === previewId)) stopPreview();
+    renderAssets();
+  });
   for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
   el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
+  el('asset-import').disabled = !available;
+  el('asset-import').addEventListener('click', () => { if (!importing) el('asset-import-file').click(); });
+  el('asset-import-stop').addEventListener('click', () => { stopImport = true; el('asset-import-stop').disabled = true; });
+  el('asset-import-file').addEventListener('change', async event => {
+    const files = [...event.target.files]; event.target.value = '';
+    if (importing || !files.length) return;
+    if (files.length > 100) { host.flashHint(t('每次最多导入 100 个音频文件'), 'warning'); return; }
+    importing = true; stopImport = false; el('asset-import').disabled = true;
+    const generation = host.generation, id = projectId();
+    el('asset-import-status').hidden = false; el('asset-import-stop').hidden = false; el('asset-import-stop').disabled = false;
+    let success = 0;
+    const failures = [];
+    try {
+      for (const [index, file] of files.entries()) {
+        if (stopImport || generation !== host.generation) break;
+        el('asset-import-message').textContent = `${t('正在导入')} ${index + 1}/${files.length} · ${file.name}`;
+        try {
+          if (!/\.(wav|mp3|flac|m4a|aac|ogg|opus)$/i.test(file.name)) throw new Error(t('不支持的音频格式'));
+          if (!file.size || file.size > 32 * 1024 * 1024) throw new Error(t('单个导入文件须为 1 字节至 32 MiB'));
+          const encoded = await new Promise((resolve, reject) => {
+            const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]);
+            reader.onerror = () => reject(new Error(t('无法读取音频文件'))); reader.readAsDataURL(file);
+          });
+          if (generation !== host.generation || stopImport) break;
+          const result = await request('asset-import', {project_id: id, request_key: global.MSWProject.id('upload'),
+            filename: file.name, audio_base64: encoded, library_size: assets().length, removed_asset_ids: host.data.msw?.removed_asset_ids || []});
+          if (generation !== host.generation) break;
+          host.addAssets(id, [result.asset]); success++; renderAssets();
+        } catch (error) { failures.push(`${file.name}：${error.message}`); }
+      }
+    } finally {
+      importing = false; el('asset-import').disabled = !available; el('asset-import-stop').hidden = true;
+      if (generation === host.generation) {
+        el('asset-import-message').textContent = `${t('已导入')} ${success}/${files.length}`
+          + (stopImport ? ` · ${t('已停止后续导入')}` : '') + (failures.length ? `\n${failures.join('\n')}` : '');
+        if (success) { host.showAssets({automatic: true}); schedule(0); }
+      }
+    }
+  });
   el('asset-export-project').addEventListener('click', async () => {
     const button = el('asset-export-project'); button.disabled = true;
     const generation = host.generation;
@@ -384,6 +509,7 @@
     else if (event.target.id === 'player') el('asset-audio').pause();
   }, true);
   global.addEventListener('msw:project-changed', () => {
+    stopImport = true; el('asset-import-status').hidden = true;
     stopPreview(); jobs.clear(); watched.clear(); opened.clear(); firstReady.clear(); missing.clear();
     jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = ''; page = 0;
     el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = '';

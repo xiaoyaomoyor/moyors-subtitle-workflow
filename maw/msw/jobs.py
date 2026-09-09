@@ -205,16 +205,14 @@ class JobManager:
                 raise ValueError("待处理任务较多，请等待或取消已有任务")
             if kind == "tts":
                 library_size = payload.get("library_size", 0)
+                from maw.msw.project_codec import valid_removed_assets
+                removed = payload.get("removed_asset_ids", [])
+                if not valid_removed_assets(removed):
+                    raise ValueError("素材删除记录无效")
                 if type(library_size) is not int or not 0 <= library_size <= 10000:
                     raise ValueError("素材数量无效")
-                reserved = 0
-                for pending_id in self.cancel_events:
-                    row = self.db.execute("SELECT payload FROM jobs WHERE id=? AND project_id=?", (pending_id, project_id)).fetchone()
-                    if row:
-                        pending_job = json.loads(row[0])
-                        if pending_job["kind"] == "tts" and pending_job["status"] not in TERMINAL:
-                            reserved += max(0, pending_job["count"] - pending_job.get("progress", {}).get("current", 0))
-                if max(library_size, self.tts.assets.count(project_id)) + reserved + len(snapshot["entries"]) > 10000:
+                reserved = self.reserved_tts_assets(project_id)
+                if max(library_size, self.tts.assets.count(project_id, removed)) + reserved + len(snapshot["entries"]) > 10000:
                     raise ValueError("本批将超过工程 10000 条素材上限，请等待已有任务或在新工程中处理")
             if kind == "tts" and payload.get("retry_of"):
                 previous = self._get(payload["retry_of"], project_id)
@@ -248,6 +246,17 @@ class JobManager:
             self.cancel_events[job["id"]] = cancel
             self.pending.put_nowait((job["id"], project_id, settings, cancel))
             return self.public(job)
+
+    def reserved_tts_assets(self, project_id):
+        with self.lock:
+            reserved = 0
+            for pending_id in self.cancel_events:
+                row = self.db.execute("SELECT payload FROM jobs WHERE id=? AND project_id=?", (pending_id, project_id)).fetchone()
+                if row:
+                    job = json.loads(row[0])
+                    if job["kind"] == "tts" and job["status"] not in TERMINAL:
+                        reserved += max(0, job["count"] - job.get("progress", {}).get("current", 0))
+            return reserved
 
     def list(self, project_id: str, since=0) -> dict:
         with self.lock:

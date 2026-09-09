@@ -19,6 +19,12 @@ def valid_cue_id(value: object) -> bool:
     return isinstance(value, str) and 0 < len(value) <= 160 and value == value.strip()
 
 
+def valid_removed_assets(value):
+    return (isinstance(value, list) and len(value) <= 100000
+            and all(isinstance(item, str) and re.fullmatch(r"audio-[0-9a-f]{32}", item) for item in value)
+            and len(set(value)) == len(value))
+
+
 def validate_extension(value: object) -> list[tuple[str, str]]:
     if value is None:
         return []
@@ -44,12 +50,17 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
             or any(not valid_id(key) or not valid_cue_id(track_id) for key, track_id in targets.items())):
         errors.append(("$.msw.translation_target_tracks", "must map job IDs to target track IDs"))
     assets = value.get("assets", [])
+    removed = value.get("removed_asset_ids", [])
+    if not valid_removed_assets(removed):
+        errors.append(("$.msw.removed_asset_ids", "invalid asset removal records"))
+        removed = []
+    removed_ids = set(removed)
     if not isinstance(assets, list) or len(assets) > 10000:
         errors.append(("$.msw.assets", "must contain at most 10000 audio assets"))
     else:
         seen = set()
         for index, asset in enumerate(assets):
-            if not valid_asset(asset) or asset["id"] in seen:
+            if not valid_asset(asset) or asset["id"] in seen or asset["id"] in removed_ids:
                 errors.append((f"$.msw.assets[{index}]", "invalid or duplicate audio asset"))
             else:
                 seen.add(asset["id"])
@@ -118,12 +129,14 @@ def valid_asset(asset):
     recipe, source = asset.get("generation"), asset.get("source_ref")
     if not isinstance(recipe, dict) or not isinstance(source, dict):
         return False
-    if any(not isinstance(recipe.get(key), str) or len(recipe[key]) > 2000
+    if any(not isinstance(recipe.get(key), str) or len(recipe[key]) > (12000 if key == "spoken_text" else 2000)
            for key in ("provider", "model", "voice", "language_type", "display_text", "spoken_text")):
         return False
     return (valid_id(asset.get("job_id")) and valid_id(source.get("key")) and valid_cue_id(source.get("id"))
             and (source.get("track_id") is None or valid_cue_id(source["track_id"]))
             and isinstance(source.get("text"), str) and len(source["text"]) <= 600
+            and isinstance(source.get("pronunciation_override", ""), str)
+            and len(source.get("pronunciation_override", "")) <= 600
             and type(source.get("start")) is int and type(source.get("end")) is int
             and 0 <= source["start"] < source["end"])
 

@@ -14,7 +14,9 @@
     }
     const recipe = asset.generation, source = asset.source_ref;
     if (!recipe || !source || ['provider', 'model', 'voice', 'language_type', 'display_text', 'spoken_text']
-      .some(key => typeof recipe[key] !== 'string' || [...recipe[key]].length > 2000)) return false;
+      .some(key => typeof recipe[key] !== 'string' || [...recipe[key]].length > (key === 'spoken_text' ? 12000 : 2000))) return false;
+    if (source.pronunciation_override !== undefined && (typeof source.pronunciation_override !== 'string'
+      || [...source.pronunciation_override].length > 600)) return false;
     return validId(asset.job_id) && validId(source.key) && validCueId(source.id)
       && (source.track_id == null || validCueId(source.track_id)) && typeof source.text === 'string' && [...source.text].length <= 600
       && Number.isInteger(source.start) && Number.isInteger(source.end) && source.start >= 0 && source.start < source.end;
@@ -42,9 +44,14 @@
       throw new Error('MSW 翻译目标记录格式无效');
     }
     const assets = value.assets ?? [];
+    const removed = value.removed_asset_ids === undefined ? [] : value.removed_asset_ids;
+    if (!Array.isArray(removed) || removed.length > 100000 || removed.some(id => typeof id !== 'string' || !/^audio-[0-9a-f]{32}$/.test(id))
+      || new Set(removed).size !== removed.length) throw new Error('MSW 素材删除记录无效');
     if (!Array.isArray(assets) || assets.length > 10000 || !assets.every(validAsset) || new Set(assets.map(a => a.id)).size !== assets.length) {
       throw new Error('MSW 音频素材格式无效或重复');
     }
+    const deleted = new Set(removed);
+    if (assets.some(asset => deleted.has(asset.id))) throw new Error('素材不能同时存在于素材库和删除记录');
     if (['audio_tracks', 'audio_clips', 'audio_settings'].some(key => key in value)) {
       if (!global.MSWAudio) throw new Error('音频贴片模块未加载');
       global.MSWAudio.validate(value);

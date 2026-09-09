@@ -248,7 +248,11 @@ test('audio clip palette follows subtitle, accent, selection and muted text colo
   await expect(clip).toHaveCSS('border-radius','4px');
   await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toBe(heat);
   await page.locator('#waveform-settings-item').evaluate(el=>el.click()); await page.locator('#audio-clips-heatmap').uncheck(); await page.keyboard.press('Escape');
-  const solid=await clip.evaluate(el=>{
+  await expect(clip).toHaveCSS('background-image','none');
+  // Timeline refresh replaces nodes. Read and probe the current node in one
+  // browser task instead of retaining an element handle across the refresh.
+  const solid=await page.evaluate(()=>{
+    const el=document.querySelector('.msw-audio-clip');
     const probe=document.createElement('span');probe.style.backgroundColor='color-mix(in srgb, var(--accent) 42%, var(--wave-cue-mix))';el.appendChild(probe);
     const color=getComputedStyle(probe).backgroundColor;probe.remove();return {actual:getComputedStyle(el).backgroundColor,expected:color,image:getComputedStyle(el).backgroundImage};
   });
@@ -564,8 +568,8 @@ test('asset cards show three columns, icon actions and responsive saved density'
   await expect.poll(columns).toBe(3);
   const geometry=await cards.evaluateAll(els=>els.slice(0,4).map(el=>{const b=el.getBoundingClientRect();return {x:b.x,y:b.y};}));
   expect(geometry[0].y).toBe(geometry[2].y);expect(geometry[3].y).toBeGreaterThan(geometry[0].y);
-  const first=cards.first(); await expect(first.locator('button svg')).toHaveCount(3);
-  expect(await first.locator('button').allTextContents()).toEqual(['','','']);
+  const first=cards.first(); await expect(first.locator('button svg')).toHaveCount(4);
+  expect(await first.locator('button').allTextContents()).toEqual(['','','','']);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-cards-default.png')});
   await first.getByRole('button',{name:'试听',exact:true}).click();
   await first.getByRole('button',{name:'暂停试听',exact:true}).click();
@@ -575,8 +579,10 @@ test('asset cards show three columns, icon actions and responsive saved density'
   expect(readFileSync(await(await downloaded).path()).subarray(0,4).toString()).toBe('RIFF');
   await first.getByRole('button',{name:'放入时间轴',exact:true}).click();
   await expect(page.locator('.msw-audio-clip').first()).toBeVisible();
+  await openMenubarMenu(page,'媒体'); await page.locator('#asset-settings-submenu > .dropdown-submenu-toggle').hover();
   const slider=page.locator('#asset-density');await slider.focus();await slider.press('End');
   await expect.poll(columns).toBe(5);
+  await page.keyboard.press('Tab'); await page.keyboard.press('Escape');
   const focused=first.getByRole('button',{name:'试听',exact:true});await focused.focus();
   await page.locator('#asset-refresh').evaluate(el=>el.click());await expect(focused).toBeFocused();
   await page.reload();await expect(slider).toHaveValue('5');
@@ -587,6 +593,86 @@ test('asset cards show three columns, icon actions and responsive saved density'
   expect(await cards.evaluateAll(els=>els.every(el=>el.scrollWidth<=el.clientWidth))).toBe(true);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.locator('#asset-library').screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-cards-narrow.png')});
   expect(errors).toEqual([]);
+});
+
+test('asset settings are in the media menu and module context submenu',async({page})=>{
+  await prepareClips(page);
+  expect(await page.locator('#asset-library #asset-density').count()).toBe(0);
+  await openMenubarMenu(page,'媒体'); await page.locator('#asset-settings-submenu > .dropdown-submenu-toggle').hover();
+  await expect(page.locator('#asset-density')).toBeVisible();
+  await page.locator('#asset-density').fill('2'); await page.locator('#asset-density').dispatchEvent('input');
+  await page.keyboard.press('Tab'); await page.keyboard.press('Escape');
+  await page.locator('#asset-list').click({button:'right',position:{x:20,y:20}});
+  const header=page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:'素材库设置'});
+  await expect(header).toBeVisible(); await header.hover();
+  const choice=page.locator('#ctxmenu .ctx-subitem').filter({hasText:'密度：4 列'});
+  await expect(choice).toBeVisible(); await choice.click();
+  await expect(page.locator('#asset-density')).toHaveValue('4');
+  expect(await page.locator('#ctxmenu .ctx-subitem').allTextContents()).toEqual([
+    '卡片密度：1 列','卡片密度：2 列','卡片密度：3 列','✓ 卡片密度：4 列','卡片密度：5 列']);
+  expect(await choice.locator('span').evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;})).toBe(1);
+  expect(await choice.evaluate(el=>{const r=el.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight;})).toBe(true);
+  if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-settings-context.png')});
+});
+
+test('synthesis history collapses without hiding controls and scrolls older jobs',async({page})=>{
+  await open(page); await panel(page);
+  await page.route('**/api/msw/jobs?*',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,revision:99,jobs:
+    Array.from({length:24},(_,i)=>({id:`history-${i}`,kind:'tts',project_id:'test',status:'succeeded',count:2,progress:{ready:2},created_at:i+1,recipe:{voice:'Cherry'}}))})}));
+  await page.locator('#asset-refresh').evaluate(el=>el.click());
+  await expect(page.locator('#tts-jobs .msw-processing-job')).toHaveCount(24);
+  const history=page.locator('#tts-history'), jobs=page.locator('#tts-jobs');
+  await expect(history.locator('summary')).toContainText('合成记录');
+  expect(await jobs.evaluate(el=>el.scrollHeight>el.clientHeight&&el.clientHeight<=280)).toBe(true);
+  await history.locator('summary').click(); await expect(jobs).toBeHidden(); await expect(page.locator('#tts-start')).toBeVisible();
+  await page.locator('#asset-refresh').evaluate(el=>el.click()); await expect(jobs).toBeHidden();
+  await history.locator('summary').click(); await jobs.evaluate(el=>el.scrollTop=el.scrollHeight);
+  await expect(page.locator('[data-job-id="history-0"]')).toBeVisible();
+});
+
+test('deleting a used asset confirms, removes all clips, undoes and stays removed after refresh',async({page})=>{
+  await prepareClips(page);
+  const id=await page.evaluate(()=>DATA.msw.audio_clips[0].asset_id);
+  const card=page.locator(`.msw-asset-row[data-asset-id="${id}"]`);
+  await card.getByRole('button',{name:'放入时间轴',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips.length)).toBe(2);
+  // The default dialog handler dismisses: no data is changed.
+  await card.getByRole('button',{name:'删除素材',exact:true}).click();
+  expect(await countAssets(page)).toBe(2);
+  page.removeAllListeners('dialog'); page.on('dialog',dialog=>dialog.accept());
+  await card.getByRole('button',{name:'删除素材',exact:true}).click();
+  await expect.poll(()=>countAssets(page)).toBe(1); await expect(page.locator('.msw-audio-clip')).toHaveCount(0);
+  await page.evaluate(()=>performUndo()); await expect.poll(()=>countAssets(page)).toBe(2);
+  await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips.length)).toBe(2);
+  await page.evaluate(()=>performRedo()); await expect.poll(()=>countAssets(page)).toBe(1);
+  await page.evaluate(async()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();scheduleAutoSaveFlush();await saveCurrentProject({silent:true});});
+  await page.reload(); await expect.poll(()=>countAssets(page)).toBe(1);
+  expect(await page.evaluate(id=>DATA.msw.removed_asset_ids.includes(id),id)).toBe(true);
+  await page.locator('#asset-refresh').evaluate(el=>el.click());
+  await expect(card).toHaveCount(0);
+});
+
+test('external audio imports from file picker, reports invalid files and saves usable clips',async({page})=>{
+  await open(page);
+  await page.evaluate(()=>window.MSWE.resolve('processing-host').showAssets());
+  const audio=generateWav(join(dir,'外部配音.wav'),1.5), bad=join(dir,'损坏.wav');writeFileSync(bad,'not an audio file');
+  const chooser=page.waitForEvent('filechooser');await page.locator('#asset-import').click();
+  await (await chooser).setFiles([audio,bad]);
+  await expect(page.locator('#asset-import-message')).toContainText('已导入 1/2',{timeout:20000});
+  await expect(page.locator('#asset-import-message')).toContainText('损坏.wav');
+  await expect.poll(()=>countAssets(page)).toBe(1);
+  const asset=await page.evaluate(()=>DATA.msw.assets[0]);expect(asset.generation.provider).toBe('imported');
+  expect(asset.generation.display_text).toBe('外部配音');expect(asset.generation.spoken_text).toBe('');
+  await page.locator('.msw-asset-row [data-asset-action="play"]').click();
+  await expect.poll(()=>page.locator('#asset-audio').evaluate(el=>el.currentTime)).toBeGreaterThan(0);
+  await page.locator('.msw-asset-row [data-asset-action="insert"]').click();
+  await expect(page.locator('.msw-audio-clip')).toHaveCount(1);
+  await page.evaluate(async()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();scheduleAutoSaveFlush();await saveCurrentProject({silent:true});});
+  const saved=JSON.parse(readFileSync(projectPath,'utf8'));
+  expect(existsSync(join(dir,saved.msw.assets[0].path))).toBe(true);
+  expect(readFileSync(audio).subarray(0,4).toString()).toBe('RIFF');
+  await page.reload();await expect.poll(()=>countAssets(page)).toBe(1);await expect(page.locator('.msw-audio-clip')).toHaveCount(1);
+  if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-import-result.png')});
 });
 test('portable editor explains TTS capability without active controls',async({page})=>{
   server=await startStaticServer('blank-editor.html',await findFreePort()); await page.goto(server.url);

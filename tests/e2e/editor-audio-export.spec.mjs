@@ -71,6 +71,9 @@ test('voice export uses a snapshot and downloads a WAV while editing remains ava
   const card=page.locator('#audio-export-jobs .msw-processing-job').first();
   await expect(card.getByRole('button',{name:'下载 WAV',exact:true})).toBeVisible();
   const wav=await download(page,card,'voice.wav'); expect(wav.frames).toBe(4*48000); expect(wav.at(.5)).toBe(0); expect(wav.at(1.2)).not.toBe(0);
+  await page.locator('#audio-export-history summary').click(); await expect(card).toBeHidden();
+  await expect(page.locator('#audio-export-start')).toBeVisible();
+  await page.locator('#audio-export-history summary').click(); await expect(card).toBeVisible();
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'d1-audio-export.png')});
   await page.reload(); await open(page);
   await expect(page.locator('#audio-export-jobs')).toContainText('先前的工程快照');

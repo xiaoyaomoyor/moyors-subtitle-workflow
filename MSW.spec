@@ -47,6 +47,8 @@ if sys.platform == "linux":
         print(f"Warning: libxcb-cursor collection failed: {exc}", file=sys.stderr)
 
 datas = [
+    (str(ROOT / "maw" / "msw" / "yukkuri_resources.json"), "maw/msw"),
+    (str(ROOT / "maw" / "msw" / "yukkuri_worker.mjs"), "maw/msw"),
     (str(ROOT / "web"), "web"),
     (str(ROOT / "server-editor"), "server-editor"),
     (str(ROOT / "server-align"), "server-align"),

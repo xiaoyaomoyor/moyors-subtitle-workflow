@@ -328,6 +328,16 @@ __WAVEFORM_CSS__
       <div class="menu-group-title">设置</div>
       <button type="button" class="dropdown-item" id="media-player-settings-item" role="menuitem" title="打开媒体播放器设置窗口">媒体播放器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="waveform-settings-item" role="menuitem" title="打开波形显示器设置窗口">波形显示器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <div class="dropdown-submenu" id="asset-settings-submenu">
+        <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">素材库设置</div>
+        <div class="dropdown-menu dropdown-submenu-menu asset-settings-menu" role="group" aria-label="素材库设置">
+          <label class="settings-panel-item msw-asset-density" title="调整每行卡片数量；窄窗口自动减少列数">卡片密度
+            <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
+            <output id="asset-density-value" for="asset-density">3</output>
+          </label>
+          <small class="settings-panel-hint">每行 1–5 张卡片，默认 3 张；窄窗口自动减列。</small>
+        </div>
+      </div>
       <div class="dropdown-separator"></div>
       <div class="dropdown-submenu" id="audio-settings-submenu">
         <div class="dropdown-item dropdown-submenu-toggle" id="audio-settings-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="静音空隙工具与播放跳过设置">空隙设置</div>
@@ -1649,12 +1659,13 @@ __WAVEFORM_CSS__
     </div>
     <div class="msw-asset-summary">
       <span id="asset-count">0 条音频</span>
-      <label class="msw-asset-density" title="调整每行卡片数量；窄窗口自动减少列数">卡片密度
-        <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
-        <output id="asset-density-value" for="asset-density">3</output>
-      </label>
-      <button type="button" id="asset-export-project">导出工程与 TTS 音频</button>
+      <div class="msw-asset-summary-actions">
+        <button type="button" id="asset-import">导入音频</button>
+        <button type="button" id="asset-export-project">导出工程与 TTS 音频</button>
+      </div>
+      <input type="file" id="asset-import-file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" multiple hidden>
     </div>
+    <div class="msw-asset-import-status" id="asset-import-status" hidden><span id="asset-import-message" role="status" aria-live="polite"></span><button type="button" id="asset-import-stop">停止后续导入</button></div>
     <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
     <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
     <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
@@ -1951,6 +1962,8 @@ __WAVEFORM_CSS__
     <div id="tts-controls">
       <p id="tts-scope" class="msw-processing-hint" aria-live="polite"></p>
       <label class="msw-processing-field" id="tts-target-field" hidden><span>操作对象</span><select id="tts-target"><option value="">请选择主字幕或副字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option></select><small>连锁字幕按所选对象合成；独立字幕保留原选区。</small></label>
+      <label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option></select></label>
+      <div id="tts-qwen-fields">
       <div class="msw-processing-grid">
         <label class="msw-processing-field"><span>模型</span><select id="tts-model"></select></label>
         <label class="msw-processing-field"><span>语言</span><select id="tts-language"></select></label>
@@ -1967,11 +1980,31 @@ __WAVEFORM_CSS__
         <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
         <p id="tts-key-state" class="msw-processing-hint"></p>
       </details>
+      </div>
+      <div id="tts-yukkuri-fields" hidden>
+        <div class="msw-processing-grid">
+          <label class="msw-processing-field"><span>音色</span><select id="tts-yukkuri-voice"><option value="f1">F1</option><option value="f2">F2</option><option value="m1">M1</option><option value="m2">M2</option><option value="dvd">DVD</option><option value="imd1">IMD1</option><option value="jgr">JGR</option><option value="r1">R1</option></select></label>
+          <label class="msw-processing-field"><span>语言读法</span><select id="tts-yukkuri-language"><option value="Auto">自动</option><option value="Chinese">中文</option><option value="English">英文</option></select></label>
+        </div>
+        <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
+        <label class="msw-processing-field" id="tts-yukkuri-pronunciation-field" hidden><span>读音修正（可选，仅此次配音）</span><input id="tts-yukkuri-pronunciation" maxlength="600" placeholder="可填同音字、英文或假名，不改字幕原文"></label>
+        <p class="msw-processing-hint">支持中英文混合，保留油库里的假名近似读法。英文数字逐位读；自动模式在含汉字时使用中文数字读法。无需 API Key。</p>
+        <details id="tts-yukkuri-resources">
+          <summary>油库里资源</summary>
+          <p class="msw-processing-hint" id="tts-yukkuri-runtime-status" role="status" aria-live="polite">尚未检测本机资源</p>
+          <progress id="tts-yukkuri-progress" hidden aria-label="油库里资源安装进度"></progress>
+          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-install">安装资源包</button><button type="button" id="tts-yukkuri-cancel" hidden>取消安装／检测</button></div>
+          <label class="msw-processing-field"><span>资源目录</span><input id="tts-yukkuri-directory" autocomplete="off" spellcheck="false" placeholder="离线包解压后包含 msw-runtime.json 的目录"></label>
+          <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-check">应用目录并检测</button></div>
+          <p class="msw-processing-hint">自动下载独立运行时和八音色，安装后可离线使用。离线电脑也可复制此资源目录，再应用检测。</p>
+          <p class="msw-processing-hint">资源来源：<a href="https://github.com/y52en/aquestalk.js" target="_blank" rel="noopener noreferrer">aquestalk.js</a>、<a href="https://nodejs.org/dist/v24.19.0/" target="_blank" rel="noopener noreferrer">Node.js</a>、<a href="https://github.com/Love-Kogasa/bakak2k" target="_blank" rel="noopener noreferrer">英文规则</a>。使用 AquesTalk，版权归株式会社アクエスト；保留随包许可，参阅 <a href="https://www.a-quest.com/licence.html" target="_blank" rel="noopener noreferrer">官方许可说明</a>。</p>
+        </details>
+      </div>
       <div class="msw-processing-actions"><button type="button" id="tts-save-settings">保存配置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
       <p class="msw-processing-hint">每条字幕生成一个 WAV，最长 600 字符。保留完整音频，不自动裁剪到字幕时长；生成期间可继续编辑。</p>
     </div>
     <p id="tts-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-    <div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务"></div>
+    <details class="msw-job-history" id="tts-history" open><summary>合成记录 <span id="tts-history-count"></span></summary><div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务" tabindex="0"></div></details>
   </div>
 </aside>
 
@@ -2054,7 +2087,7 @@ __WAVEFORM_CSS__
     <p class="msw-processing-hint">以点击开始时的内容导出，处理期间可继续编辑。关闭面板不会取消任务。</p>
     <div class="msw-processing-actions"><button type="button" id="audio-export-start" class="primary">开始导出</button></div>
     <p id="audio-export-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-    <section aria-label="音频导出任务"><div id="audio-export-jobs" class="msw-processing-jobs"></div></section>
+    <details class="msw-job-history" id="audio-export-history" open><summary>导出记录 <span id="audio-export-history-count"></span></summary><div id="audio-export-jobs" class="msw-processing-jobs" aria-label="音频导出任务" tabindex="0"></div></details>
   </div>
 </aside>
 

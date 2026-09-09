@@ -128,6 +128,7 @@
       return button;
     }
     function renderJobs() {
+      const scroll = el('audio-export-jobs').scrollTop;
       const key = JSON.stringify(jobs) + token(); if (key === rendered) return; rendered = key;
       const focused = document.activeElement?.closest(`#${kind}-export-jobs button`);
       const focusId = focused?.dataset.jobId, focusAction = focused?.dataset.action;
@@ -175,6 +176,8 @@
         card.append(actions); fragment.append(card);
       }
       el('audio-export-jobs').replaceChildren(fragment);
+      el('audio-export-jobs').scrollTop = scroll;
+      el('audio-export-history-count').textContent = `(${jobs.length})`;
       if (focusId && focusAction) [...el('audio-export-jobs').querySelectorAll('button')]
         .find(b => b.dataset.jobId === focusId && b.dataset.action === focusAction)?.focus({ preventScroll: true });
     }
@@ -248,7 +251,7 @@
     }
     copy.querySelector(`#${kind}-export-title`).textContent = kind === 'video' ? '导出视频' : '配音剪辑工程（OTIOZ）';
     copy.querySelector(`#${kind}-export-close`).setAttribute('aria-label', kind === 'video' ? '关闭视频导出' : '关闭剪辑工程导出');
-    copy.querySelector('section').setAttribute('aria-label', kind === 'video' ? '视频导出任务' : '剪辑工程导出任务');
+    copy.querySelector(`#${kind}-export-jobs`).setAttribute('aria-label', kind === 'video' ? '视频导出任务' : '剪辑工程导出任务');
     copy.querySelector(`#${kind}-export-mode`).value = 'mix';
     copy.querySelector(`#${kind}-export-format-hint`).replaceWith(document.getElementById(`${kind}-export-fields`).content.cloneNode(true));
     blueprint.after(copy);

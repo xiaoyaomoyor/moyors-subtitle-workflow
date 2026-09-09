@@ -2967,6 +2967,9 @@
   .msw-processing-hint { color: var(--text-secondary); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; margin: 8px 0; }
   .msw-processing-message { font-size: 12px; line-height: 1.65; color: var(--text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
   .msw-processing-message.is-error { color: var(--red); }
+  #tts-yukkuri-runtime-status.is-error { color: var(--red); }
+  #tts-yukkuri-speed { accent-color: var(--accent); padding-inline: 0; cursor: pointer; }
+  #tts-yukkuri-progress { width: 100%; height: 6px; accent-color: var(--accent); }
   .msw-processing-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin-top: 10px; }
   .msw-processing-actions button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
   .msw-processing-actions button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
@@ -2983,6 +2986,10 @@
   .msw-media-export-panel .msw-tts-check { margin-block: 10px; }
   .msw-media-export-panel progress { width: 100%; height: 6px; accent-color: var(--accent); }
   #audio-export-jobs:empty { display: none; }
+  .msw-job-history > .msw-processing-jobs { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 4px; }
+  .msw-job-history > summary { display: list-item; }
+  .msw-job-history > summary span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .msw-job-history > .msw-processing-jobs:empty::before { content: '—'; display: block; padding-block: 12px; color: var(--text-muted); }
   .msw-processing-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
   .msw-tts-check input { width: auto; }
@@ -2997,10 +3004,16 @@
   .msw-asset-library button:disabled { opacity: .45; cursor: default; }
   .msw-asset-library button:focus-visible, .msw-asset-library input:focus-visible, .msw-asset-toolbar select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
   .msw-asset-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 8px; font-size: 11px; color: var(--text-secondary); }
+  .msw-asset-summary-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-left: auto; }
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
-  .msw-asset-density { display: flex; align-items: center; gap: 5px; margin-left: auto; white-space: nowrap; }
+  .msw-asset-density { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .asset-settings-menu { width: 240px; padding: 12px; }
+  .asset-settings-menu .msw-asset-density { justify-content: space-between; }
+  .asset-settings-menu .settings-panel-hint { display: block; margin-top: 8px; white-space: normal; }
   .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
+  .msw-asset-import-status { padding: 6px 8px; font-size: 11px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 100px; overflow-y: auto; flex-shrink: 0; }
+  .msw-asset-import-status button { margin-top: 5px; font: inherit; color: var(--text-primary); background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: var(--radius-sm); cursor: pointer; }
   .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: grid; grid-template-columns: repeat(var(--asset-columns, 3), minmax(0, 1fr)); align-content: start; gap: 6px; padding: 6px 8px; }
   .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-raised); cursor: grab; }
   .msw-asset-row:hover { border-color: var(--btn-border-hover); }

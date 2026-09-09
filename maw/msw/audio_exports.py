@@ -98,7 +98,7 @@ class AudioExports:
 
     def list(self, project_id):
         with self.lock:
-            rows = self.db.execute("SELECT payload FROM jobs WHERE project_id=? ORDER BY rowid DESC LIMIT 20", (project_id,)).fetchall()
+            rows = self.db.execute("SELECT payload FROM jobs WHERE project_id=? ORDER BY rowid DESC", (project_id,)).fetchall()
             return [self.public(json.loads(row[0])) for row in rows]
 
     def submit(self, payload):
