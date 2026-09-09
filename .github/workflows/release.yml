@@ -428,8 +428,10 @@ jobs:
           FfprobeArchive="$DownloadRoot/ffprobe81arm.zip"
           mkdir -p "$DownloadRoot" "$ExtractRoot/ffmpeg" "$ExtractRoot/ffprobe"
 
-          curl --fail --location --retry 3 --silent --show-error --output "$FfmpegArchive" "$FfmpegArchiveUrl"
-          curl --fail --location --retry 3 --silent --show-error --output "$FfprobeArchive" "$FfprobeArchiveUrl"
+          # This provider sometimes aborts HTTP/2 streams; use HTTP/1.1 with
+          # bounded retries, then retain both archive and binary hash checks.
+          curl --http1.1 --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 300 --silent --show-error --output "$FfmpegArchive" "$FfmpegArchiveUrl"
+          curl --http1.1 --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 300 --silent --show-error --output "$FfprobeArchive" "$FfprobeArchiveUrl"
           printf '%s  %s\n' "$FfmpegArchiveSha256" "$FfmpegArchive" | shasum -a 256 -c -
           printf '%s  %s\n' "$FfprobeArchiveSha256" "$FfprobeArchive" | shasum -a 256 -c -
           unzip -q -o "$FfmpegArchive" -d "$ExtractRoot/ffmpeg"

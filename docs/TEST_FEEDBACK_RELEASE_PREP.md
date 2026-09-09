@@ -30,3 +30,5 @@ Windows 隔离 PyInstaller 核心包构建成功；EXE `--smoke-import` 返回 0
 边界：本机 EXE 为核心打包冒烟，不等于含 bootstrap、可选环境清单和 FFmpeg 的最终五包；macOS／Linux 将由推送后的构建预演验证，目标平台上的真实桌面验收仍需分别进行。当前不创建 tag 或 Release。
 
 R6：首次预演 `34350755205` 基于 `04c33d8`。Windows 与 macOS 在相同三处持久化断言失败：实际返回规范化路径，测试预期保留临时目录的短路径或别名。已将预期路径规范化，保留保存位置、素材内容和恢复引用的原有校验；不改变生产保存逻辑。首页版本徽标纳入 prerelease，下载链接统一进入版本列表。继续运行候选构建。
+
+首次 Linux AppImage 构建与冒烟成功。第二次预演 `34351371548` 基于 `e9dde53`，Windows／macOS 全量 Python 已通过；macOS 应用构建、实际导入及 ad-hoc 签名检查通过，但外部 FFmpeg 下载遇到 HTTP/2 `PROTOCOL_ERROR`。下载调整为 HTTP/1.1 和有限重试／超时，继续保持原固定 URL、版本及压缩包／二进制双重 SHA-256 检查。
