@@ -254,10 +254,17 @@ test('an unnamed draft captures pending inline text without ending the edit', as
 });
 
 test('audio clip click seeks to the pointer while move and trim keep their own gestures',async({page})=>{
+  // Seeking redraws timeline nodes. Locator.boundingBox can see the old node
+  // detach between protocol calls, so wait for a visible replacement.
+  const visibleBox=async(locator)=>{
+    let result;
+    await expect.poll(async()=>{result=await locator.boundingBox();return Boolean(result?.width&&result?.height);}).toBe(true);
+    return result;
+  };
   const clip=await prepareClips(page);
   await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toContain('linear-gradient');
   const initial=await page.evaluate(()=>({...DATA.msw.audio_clips[0]}));
-  const box=await clip.boundingBox(), row=await page.locator('.waveform-row').first().boundingBox();
+  const box=await visibleBox(clip), row=await visibleBox(page.locator('.waveform-row').first());
   const point={x:box.width*.72,y:10};
   const expected=await page.locator('.waveform-row').first().evaluate((el,{x,left,width})=>{
     const start=Number(el.dataset.startMs), end=Number(el.dataset.endMs); return (start+(x-left)/width*(end-start))/1000;
@@ -266,11 +273,11 @@ test('audio clip click seeks to the pointer while move and trim keep their own g
   await expect.poll(()=>page.evaluate(()=>document.getElementById('player').currentTime)).toBeCloseTo(expected,2);
   expect(await page.evaluate(()=>DATA.msw.audio_clips[0])).toEqual(initial);
   const before=await page.evaluate(()=>document.getElementById('player').currentTime);
-  const b=await clip.boundingBox(); await page.mouse.move(b.x+b.width/2,b.y+10); await page.mouse.down();
+  const b=await visibleBox(clip); await page.mouse.move(b.x+b.width/2,b.y+10); await page.mouse.down();
   await page.mouse.move(b.x+b.width/2+35,b.y+10,{steps:5}); await page.mouse.up();
   expect(await page.evaluate(()=>DATA.msw.audio_clips[0].start_ms)).toBeGreaterThan(initial.start_ms);
   expect(await page.evaluate(()=>document.getElementById('player').currentTime)).toBeCloseTo(before,2);
-  const trimmed=await clip.boundingBox(); await page.mouse.move(trimmed.x+trimmed.width-3,trimmed.y+10); await page.mouse.down();
+  const trimmed=await visibleBox(clip); await page.mouse.move(trimmed.x+trimmed.width-3,trimmed.y+10); await page.mouse.down();
   await page.mouse.move(trimmed.x+trimmed.width-22,trimmed.y+10,{steps:5}); await page.mouse.up();
   expect(await page.evaluate(()=>DATA.msw.audio_clips[0].source_out_sample)).toBeLessThan(initial.source_out_sample);
   expect(await page.evaluate(()=>document.getElementById('player').currentTime)).toBeCloseTo(before,2);
