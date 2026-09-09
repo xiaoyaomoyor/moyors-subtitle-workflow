@@ -21,10 +21,27 @@
   let failures = 0;
   let requestInFlight = false;
   let pendingSubmission = null;
+  let loadingProviders = null, savingSettings = false, providerError = '';
 
   function message(value, error = false) {
     el('translation-message').textContent = t(value);
     el('translation-message').classList.toggle('is-error', error);
+  }
+  function environmentMessage(value, error = false) {
+    el('llm-message').textContent = t(value);
+    el('llm-message').classList.toggle('is-error', error);
+  }
+  function updateEnvironment() {
+    const provider = providers.find(item => item.id === el('translation-provider').value);
+    const issue = providerError || (!provider ? '正在读取本机 LLM 配置…' : !provider.hasApiKey
+      ? '当前 LLM 服务尚未配置密钥，请前往环境配置。' : !provider.baseUrl || !provider.model ? '请在 LLM 环境配置中填写 API 地址和模型。' : '');
+    el('translation-environment-notice').hidden = !available || !issue;
+    el('translation-environment-notice').textContent = t(issue);
+    const failed = [...jobs.values()].some(job => job.kind === 'translation' && job.status === 'failed');
+    el('translation-environment-reminder').hidden = !available || (!issue && !failed);
+    for (const field of el('llm-controls').querySelectorAll('input, select, button')) field.disabled = savingSettings || Boolean(loadingProviders) || requestInFlight || Boolean(pendingSubmission);
+    if (pendingSubmission?.kind === 'connection_test' && !requestInFlight) el('translation-test').disabled = false;
+    return Boolean(provider && !issue);
   }
   async function request(route, body = null) {
     const response = await fetch(`${host.config.processingUrl}/${route}`, {
@@ -45,19 +62,20 @@
     const scope = global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
     el('translation-scope').textContent = `${t(scope.all ? '范围：全部主字幕' : '范围：选中的主字幕')} · ${scope.sources.length}`
       + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
-    el('translation-start').disabled = !available || requestInFlight || !scope.sources.length;
+    const ready = updateEnvironment();
+    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || !scope.sources.length;
     const emptyScopeMessage = '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
     if (selection.hasSelection && !scope.sources.length) message(emptyScopeMessage, true);
     else if (el('translation-message').textContent === t(emptyScopeMessage)) message('');
     return scope;
   }
   function providerInput() {
-    return { providerId: el('translation-provider').value, baseUrl: el('translation-base-url').value.trim(),
+    return { providerId: el('llm-provider').value, baseUrl: el('translation-base-url').value.trim(),
       model: el('translation-model').value.trim(), apiKey: el('translation-api-key').value,
       reasoningMode: el('translation-reasoning').value };
   }
   function selectProvider() {
-    const provider = providers.find((item) => item.id === el('translation-provider').value);
+    const provider = providers.find((item) => item.id === el('llm-provider').value);
     if (!provider) return;
     el('translation-base-url').value = provider.baseUrl;
     el('translation-model').value = provider.model;
@@ -67,14 +85,21 @@
       ? '已配置本机密钥；留空即可复用启动器设置' : '尚未配置密钥；可填写后使用或保存');
   }
   async function loadProviders() {
-    try {
+    if (loadingProviders) return loadingProviders;
+    loadingProviders = (async () => { try {
       const selected = el('translation-provider').value;
+      const managed = el('llm-provider').value;
       const data = await request('providers');
       providers = data.providers;
       el('translation-provider').replaceChildren(...providers.map((provider) => new Option(provider.label, provider.id)));
       el('translation-provider').value = selected || data.selectedProvider || providers[0]?.id;
+      el('llm-provider').replaceChildren(...providers.map((provider) => new Option(provider.label, provider.id)));
+      el('llm-provider').value = managed || el('translation-provider').value;
+      providerError = '';
       selectProvider();
-    } catch (error) { message(error.message, true); }
+    } catch (error) { providerError = error.message; environmentMessage(error.message, true); }
+    finally { loadingProviders = null; updateScope(); } })();
+    updateScope(); return loadingProviders;
   }
   function action(label, callback) {
     const button = document.createElement('button');
@@ -90,8 +115,13 @@
   const statusText = { queued: '等待处理', running: '正在处理', succeeded: '处理完成', failed: '处理失败',
     cancel_requested: '正在取消', cancelled: '已取消', interrupted: '服务中断，未自动重试' };
   function renderJobs() {
+    const target = el('translation-jobs'), scroll = target.scrollTop;
+    const tests = el('llm-test-jobs'), testScroll = tests.scrollTop, testFragment = document.createDocumentFragment();
+    const previews = new Map([...target.children].map(card => [card.dataset.jobId, card.querySelector('.msw-translation-results')]));
     const fragment = document.createDocumentFragment();
-    for (const job of [...jobs.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 20)) {
+    const sorted = [...jobs.values()].sort((a, b) => b.created_at - a.created_at);
+    const translations = sorted.filter(job => job.kind === 'translation').slice(0, 20), connections = sorted.filter(job => job.kind === 'connection_test').slice(0, 20);
+    for (const job of [...translations, ...connections]) {
       const card = document.createElement('article');
       card.className = 'msw-processing-job';
       card.dataset.jobId = job.id;
@@ -130,14 +160,21 @@
         }
       }
       card.append(actions);
-      fragment.append(card);
+      if (previews.get(job.id)) card.append(previews.get(job.id));
+      (job.kind === 'connection_test' ? testFragment : fragment).append(card);
     }
-    el('translation-jobs').replaceChildren(fragment);
+    target.replaceChildren(fragment); target.scrollTop = scroll;
+    tests.replaceChildren(testFragment); tests.scrollTop = testScroll;
+    el('translation-history-count').textContent = `(${translations.length})`;
+    el('llm-test-count').textContent = `(${connections.length})`;
+    updateEnvironment();
   }
   async function showResult(job, card) {
     const generation = host.generation;
     const data = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
     if (generation !== host.generation || job.project_id !== projectId()) return;
+    card = [...el('translation-jobs').children].find(item => item.dataset.jobId === job.id);
+    if (!card) return;
     card.querySelector('.msw-translation-results')?.remove();
     const preview = document.createElement('div');
     preview.className = 'msw-translation-results';
@@ -199,7 +236,12 @@
       const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${cursor}`);
       if (generation !== host.generation || id !== projectId()) return;
       failures = 0; cursor = data.revision;
-      for (const job of data.jobs) if (job.kind !== 'tts') jobs.set(job.id, job);
+      for (const job of data.jobs) if (job.kind !== 'tts') {
+        jobs.set(job.id, job);
+        if (job.kind === 'connection_test' && !['queued', 'running', 'cancel_requested'].includes(job.status)) {
+          environmentMessage(`${t('测试连接')}：${t(statusText[job.status] || job.status)}${job.error ? ' · ' + job.error : ''}`, job.status === 'failed');
+        }
+      }
       if (data.jobs.length) renderJobs();
       for (const job of jobs.values()) {
         if (job.status === 'succeeded' && job.application === 'pending' && job.kind === 'translation') await applyResult(job);
@@ -217,9 +259,10 @@
     }
   }
   async function submit(kind) {
-    if (requestInFlight) return;
+    if (requestInFlight || savingSettings || (kind === 'translation' && !pendingSubmission && !updateEnvironment())) return;
+    const report = kind === 'connection_test' ? environmentMessage : message;
     if (pendingSubmission && pendingSubmission.kind !== kind) {
-      message('上次提交尚未确认，请先重试相同操作以确认任务状态', true);
+      report('上次提交尚未确认，请先重试相同操作以确认任务状态', true);
       return;
     }
     const generation = host.generation;
@@ -227,19 +270,19 @@
       const snapshot = kind === 'translation' && !pendingSubmission ? host.capture() : null;
       requestInFlight = true; updateScope();
       const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),
-        request_key: global.MSWProject.id('request'), snapshot, provider: providerInput(),
+        request_key: global.MSWProject.id('request'), snapshot, provider: kind === 'connection_test' ? providerInput() : {providerId: el('translation-provider').value},
         language: el('translation-language').value, prompt: el('translation-prompt').value };
       pendingSubmission = payload;
       const data = await request('jobs', payload);
       pendingSubmission = null;
       if (generation !== host.generation) return;
       jobs.set(data.job.id, data.job);
-      message(kind === 'translation' ? '翻译已开始，可以继续编辑；关闭此窗口不会取消任务' : '正在测试连接');
-      if (kind === 'translation') el('translation-settings').open = false;
+      report(kind === 'translation' ? '翻译已开始，可以继续编辑；关闭此窗口不会取消任务' : '正在测试连接');
+      el(kind === 'translation' ? 'translation-history' : 'llm-test-history').open = true;
       renderJobs(); schedulePoll(0);
     } catch (error) {
       if (error.status && error.status < 500) pendingSubmission = null;
-      message(pendingSubmission ? `${error.message}；${t('再次点击将确认上次提交，不会重复创建任务')}` : error.message, true);
+      report(pendingSubmission ? `${error.message}；${t('再次点击将确认上次提交，不会重复创建任务')}` : error.message, true);
     } finally { requestInFlight = false; updateScope(); }
   }
   const floating = host.createFloatingPanel({ panel, dragHandle: el('subtitle-translation-drag'),
@@ -254,14 +297,23 @@
   el('subtitle-translation-close').addEventListener('click', () => floating.close());
   el('translation-unavailable').hidden = available;
   el('translation-controls').hidden = !available;
-  el('translation-provider').addEventListener('change', selectProvider);
+  el('translation-provider').addEventListener('change', updateScope);
+  el('llm-provider').addEventListener('change', selectProvider);
+  el('llm-unavailable').hidden = available;
+  el('llm-controls').hidden = !available;
+  global.addEventListener('msw:settings-opened', () => { if (available && (!providers.length || providerError)) void loadProviders(); });
+  el('translation-environment-open').addEventListener('click', () => {
+    if (providers.length) { el('llm-provider').value = el('translation-provider').value; selectProvider(); }
+    floating.close(); host.openLlmEnvironment();
+  });
   el('translation-start').addEventListener('click', () => void submit('translation'));
   el('translation-test').addEventListener('click', () => void submit('connection_test'));
   el('translation-save-settings').addEventListener('click', async () => {
-    const button = el('translation-save-settings'); button.disabled = true;
-    try { await request('providers', providerInput()); await loadProviders(); message('配置已保存，与启动器共用'); }
-    catch (error) { message(error.message, true); }
-    finally { button.disabled = false; }
+    if (savingSettings || requestInFlight || pendingSubmission) return;
+    savingSettings = true; updateScope();
+    try { await request('providers', providerInput()); await loadProviders(); environmentMessage('配置已保存，与启动器共用'); }
+    catch (error) { environmentMessage(error.message, true); }
+    finally { savingSettings = false; updateScope(); }
   });
   for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => {
     if (floating.isOpen()) queueMicrotask(updateScope);

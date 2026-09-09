@@ -19,6 +19,7 @@
   const isYukkuri = () => el('tts-engine').value === 'yukkuri';
   const isIndex = () => el('tts-engine').value === 'indextts';
   let previewUrl = null, previewId = null, previewSequence = 0, previewOwner = '';
+  let assetScrubbing = false;
   let importing = false, stopImport = false, yukkuriPreviewBusy = false;
   const PAGE_SIZE = 90, DENSITY_KEY = 'msw.assets.columns';
   let density = 3;
@@ -236,6 +237,8 @@
     download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
     insert: '<path d="M3 17h18M6 20v1m6-1v1m6-1v1M12 2v11m-4-4 4 4 4-4"/>',
     remove: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
+    sound: '<path d="M11 4 5 9H2v6h3l6 5zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
+    muted: '<path d="M11 4 5 9H2v6h3l6 5zm5 5 6 6m0-6-6 6"/>',
   };
   function setIcon(button, icon, label) {
     if (button.dataset.icon !== icon) {
@@ -394,14 +397,41 @@
     }
   }
   function stopPreview() {
+    assetScrubbing = false;
     previewSequence += 1;
     el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = null; previewId = null; previewOwner = '';
     el('asset-player').hidden = true;
     updatePreviewButtons();
+    updateAssetTransport();
+  }
+  function updateAssetTransport() {
+    const audio = el('asset-audio'), duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const ready = duration > 0 && !audio.error;
+    const clock = value => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
+    el('asset-seek').disabled = !ready; el('asset-seek').max = String(duration);
+    if (!assetScrubbing) el('asset-seek').value = String(current);
+    el('asset-clock').value = `${clock(current)} / ${clock(duration)}`;
+    el('asset-seek').setAttribute('aria-valuetext', `${clock(current)} / ${clock(duration)}`);
+    el('asset-play-toggle').disabled = !ready;
+    setIcon(el('asset-play-toggle'), audio.paused || audio.ended ? 'play' : 'pause', audio.paused || audio.ended ? '播放试听' : '暂停试听');
+    const muted = audio.muted || audio.volume === 0;
+    setIcon(el('asset-mute'), muted ? 'muted' : 'sound', muted ? '取消试听静音' : '静音试听');
+    el('asset-mute').setAttribute('aria-pressed', String(muted));
+    el('asset-volume').value = String(audio.muted ? 0 : audio.volume);
+    el('asset-rate').value = String(audio.playbackRate);
   }
   function stopReference(owner) { if (previewOwner === owner) stopPreview(); }
+  async function playAssetAudio() {
+    host.pauseMedia();
+    try { await el('asset-audio').play(); }
+    catch (error) {
+      // Pausing or changing the source during play() is a normal user action.
+      if (error.name !== 'AbortError') throw error;
+    }
+  }
   async function playReference(owner, label, load, valid = () => true) {
     stopPreview(); previewOwner = owner;
     const sequence = previewSequence, generation = host.generation;
@@ -412,7 +442,7 @@
       if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
       previewUrl = typeof source === 'string' ? source : URL.createObjectURL(source);
       el('asset-audio').src = previewUrl; el('asset-playing').textContent = label;
-      host.pauseMedia(); await el('asset-audio').play();
+      await playAssetAudio();
     } catch (error) {
       if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
       el('asset-playing').textContent = error.message; throw error;
@@ -423,7 +453,7 @@
   }
   async function preview(asset) {
     if (previewId === asset.id && previewUrl) {
-      if (el('asset-audio').paused) { host.pauseMedia(); await el('asset-audio').play(); } else el('asset-audio').pause();
+      if (el('asset-audio').paused) await playAssetAudio(); else el('asset-audio').pause();
       return;
     }
     stopPreview();
@@ -435,7 +465,7 @@
       previewId = asset.id; previewUrl = URL.createObjectURL(blob);
       el('asset-player').hidden = false;
       el('asset-audio').src = previewUrl; el('asset-playing').textContent = asset.generation.display_text;
-      host.pauseMedia(); await el('asset-audio').play();
+      await playAssetAudio();
     } catch (error) {
       if (sequence !== previewSequence || generation !== host.generation) return;
       if (error.status === 404) missing.add(asset.id);
@@ -603,6 +633,29 @@
     renderAssets();
   });
   for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
+  for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
+  el('asset-play-toggle').addEventListener('click', async () => {
+    const audio = el('asset-audio');
+    if (!audio.paused && !audio.ended) { audio.pause(); return; }
+    try { await playAssetAudio(); }
+    catch (error) { el('asset-playing').textContent = error.message; }
+  });
+  el('asset-seek').addEventListener('pointerdown', () => { assetScrubbing = true; });
+  for (const event of ['pointerup', 'pointercancel']) document.addEventListener(event, () => { if (assetScrubbing) { assetScrubbing = false; updateAssetTransport(); } });
+  el('asset-seek').addEventListener('input', () => {
+    const audio = el('asset-audio');
+    if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Math.max(0, Math.min(audio.duration, Number(el('asset-seek').value)));
+    updateAssetTransport();
+  });
+  el('asset-mute').addEventListener('click', () => {
+    const audio = el('asset-audio');
+    if (audio.muted || !audio.volume) { audio.muted = false; if (!audio.volume) audio.volume = 1; }
+    else audio.muted = true;
+    updateAssetTransport();
+  });
+  el('asset-volume').addEventListener('input', () => { el('asset-audio').volume = Number(el('asset-volume').value); el('asset-audio').muted = false; });
+  el('asset-rate').addEventListener('change', () => { el('asset-audio').playbackRate = Number(el('asset-rate').value); });
+  updateAssetTransport();
   el('asset-audio').addEventListener('error', () => {
     if (previewOwner && el('asset-audio').getAttribute('src')) el('asset-playing').textContent = t('试听音频无法加载，请检查连接后重试');
   });

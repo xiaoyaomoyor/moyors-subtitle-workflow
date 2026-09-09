@@ -178,10 +178,7 @@ body:not(.launcher-ready) .shell {
   width: 72px;
   height: 72px;
   flex: 0 0 72px;
-  object-fit: cover;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-1);
+  object-fit: contain;
 }
 
 .hero-copy {
@@ -195,6 +192,8 @@ body:not(.launcher-ready) .shell {
 }
 
 .wordmark .version {
+  display: inline-block;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: .02em;

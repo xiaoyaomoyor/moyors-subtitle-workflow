@@ -1,20 +1,27 @@
 # Moyor's Subtitle Workflow（MSW）
 
+<img src="web/launcher/logo.svg" width="80" height="80" alt="MSW Launcher"> <img src="web/favicon.svg" width="80" height="80" alt="MSWE 编辑器">
+
 [![English README](https://img.shields.io/badge/README-English-2563eb?style=flat-square)](README-en.md)
 
 [![GitHub Release](https://img.shields.io/github/v/release/xiaoyaomoyor/moyors-subtitle-workflow?display_name=tag&sort=semver)](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/latest)
 [![GitHub Stars](https://img.shields.io/github/stars/xiaoyaomoyor/moyors-subtitle-workflow)](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/stargazers)
 [![License](https://img.shields.io/github/license/xiaoyaomoyor/moyors-subtitle-workflow)](LICENSE)
 
-> 本地媒体 → AI 转写 → SRT + `.mosp` 工程 → MSWE 编辑 → 导出。
-> 中文名（计划）：**我的字幕流** —— “我的”（my）既是 Moyor 的缩写，也是 moy 的谐音。
+MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 的本机 Web 字幕编辑工作流。基于 [Moyf/moys-asr-workflow](https://github.com/Moyf/moys-asr-workflow)，补充了配音、编辑中翻译、素材库与音频贴片，并长期按需引入上游功能和修复。它提供 Windows、macOS、Linux 启动器、命令行和本机浏览器编辑器；字幕编辑与工程保存都在本机完成。
 
-MSW（Moyor's Subtitle Workflow）是一个以 API 转写为主的字幕生成与编辑工作流，个人维护版：基于 [Moyf/moys-asr-workflow](https://github.com/Moyf/moys-asr-workflow) 长期同步上游新功能与修复，并在编辑器交互与外观上深度定制。它提供 Windows/macOS 图形版、公开 CLI 和本机 Server 编辑器；字幕编辑与工程保存都在本机完成。
+[项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
+
+当前准备发布 **1.6.0-beta.1**，基于 MAW 同版本发展；这是 MSW 自己的预发布版本，两个项目的版本号相同不代表功能和兼容性完全一致。
+
+![MSWE：双语字幕、配音贴片与素材库](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
+
+*界面使用合成演示数据；展示当前编辑布局，不代表任何云端音色的真实合成质量。*
 
 ## 快速开始
 
-1. [下载最新版](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/latest)。默认下载带 FFmpeg 的 `MSW-Windows-x64-v*.zip`；如果已安装 `ffmpeg` / `ffprobe`，也可以选择体积更小的 `MSW-lite-Windows-x64-v*.zip`，macOS 下载对应的 `MSW.app` 或 `MSW-lite.app`。
-2. 解压并启动 `MSW.exe` 或 `MSW.app`。
+1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择 MSW 安装包。预发布版请进入具体版本，`latest` 可能只显示旧的正式版。各平台与标准／lite 包的区别见[安装与升级](docs/INSTALLATION.md)。
+2. Windows 解压并启动 `MSW.exe`；macOS 打开 `MSW.app` / `MSW-lite.app`；Linux 为 AppImage 添加执行权限后运行。
 3. 在 Launcher 配置转写服务的 API Key，选择媒体并点击生成。
 4. 在 MSWE 中检查、编辑字幕，导出 SRT、ASS 或其他格式。
 
@@ -38,6 +45,8 @@ MSW（Moyor's Subtitle Workflow）是一个以 API 转写为主的字幕生成�
 ## 文档
 
 - [完整工作流](docs/WORKFLOW.md) ：安装、配置、转写、编辑、导出和排错。
+- [安装与升级](docs/INSTALLATION.md) ：五种发行包、首次启动、升级与已知边界。
+- [可选环境](docs/ENVIRONMENT.md) ：FFmpeg、云端服务、本机 ASR、油库里与 IndexTTS。
 - [常见问题](docs/FAQ.md) ：Windows 下载解压、启动故障与问题反馈。
 - [ASR 服务与配置](docs/PROVIDERS.md) ：服务商选择、Key、费用和隐私边界。
 - [编辑器指南](docs/EDITOR_GUIDE.md) ：MSWE 的编辑、保存和导出。
@@ -54,20 +63,20 @@ MSW（Moyor's Subtitle Workflow）是一个以 API 转写为主的字幕生成�
 - 选择云端服务转写时，媒体会直接上传到对应服务商；MSW 没有自己的云端服务器，也不会代管 API Key。
 - `.mosp` 工程是字幕真源；SRT 适合普通交付，ASS 可保留主字幕预览选择的字体、字号和文字颜色，但两者都不会保留全部字级时间码、波形和其他工程数据。
 - 费用、数据保留和服务可用性以服务商当前政策为准，详见[ASR 服务与配置](docs/PROVIDERS.md)。
-- [3 分钟视频速览](https://www.bilibili.com/video/BV1hXum6yELT)
+- [上游 MAW 的 3 分钟视频速览](https://www.bilibili.com/video/BV1hXum6yELT)（历史操作参考，未涵盖 MSW 新增的配音功能）
 
 ## Star History
 
 <a href="https://www.star-history.com/?repos=xiaoyaomoyor%2Fmoyors-subtitle-workflow&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=xiaoyaomoyor/moyors-subtitle-workflow&type=date&theme=dark&legend=top-left&sealed_token=_PToQhiZM0l9HWee443BsVO_Ent6c7W9XhetqS-GqzovCVxrR29_zMbiDuhZOZRQd-vsEaQhUvF262_K7KBgtzedaZ57WJ3lkgoDR9-QocuvQgw7_My_06JAPfChISW3AJh0fgpAJWVAi1XXRPs7I-5caimIiS5mNri_lJrB_9iBnvtf8_vvhtgAh-fL" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=xiaoyaomoyor/moyors-subtitle-workflow&type=date&legend=top-left&sealed_token=_PToQhiZM0l9HWee443BsVO_Ent6c7W9XhetqS-GqzovCVxrR29_zMbiDuhZOZRQd-vsEaQhUvF262_K7KBgtzedaZ57WJ3lkgoDR9-QocuvQgw7_My_06JAPfChISW3AJh0fgpAJWVAi1XXRPs7I-5caimIiS5mNri_lJrB_9iBnvtf8_vvhtgAh-fL" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=xiaoyaomoyor/moyors-subtitle-workflow&type=date&legend=top-left&sealed_token=_PToQhiZM0l9HWee443BsVO_Ent6c7W9XhetqS-GqzovCVxrR29_zMbiDuhZOZRQd-vsEaQhUvF262_K7KBgtzedaZ57WJ3lkgoDR9-QocuvQgw7_My_06JAPfChISW3AJh0fgpAJWVAi1XXRPs7I-5caimIiS5mNri_lJrB_9iBnvtf8_vvhtgAh-fL" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=xiaoyaomoyor/moyors-subtitle-workflow&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=xiaoyaomoyor/moyors-subtitle-workflow&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=xiaoyaomoyor/moyors-subtitle-workflow&type=date&legend=top-left" />
  </picture>
 </a>
 
 ## 反馈与许可
 
-问题和建议请提 [GitHub Issues](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues)；交流可加入 [QQ 群 1079160201](https://qm.qq.com/q/4YtxZIpzxC)。
+MSW 的问题和建议请提 [GitHub Issues](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues)。[上游 MAW 交流群](https://qm.qq.com/q/4YtxZIpzxC)仅作为上游交流入口，MSW 特有问题请在本仓库反馈。
 
 本项目采用 [AGPL-3.0-only](LICENSE)。

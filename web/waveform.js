@@ -2481,7 +2481,6 @@
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
         addBtn.className = 'module-tab-add';
-        addBtn.title = '复制当前窗口为新标签';
         addBtn.setAttribute('aria-label', '复制当前窗口为新标签');
         addBtn.textContent = '+';
         addBtn.dataset.basePath = JSON.stringify(basePath || []);

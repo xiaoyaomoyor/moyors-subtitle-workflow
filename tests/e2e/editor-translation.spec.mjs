@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { openMenubarMenu, disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, startServer, startBlankServer, startStaticServer } from './helpers.mjs';
+import { openMenubarMenu, disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, startServer, startBlankServer, startStaticServer, openTtsEnvironment } from './helpers.mjs';
 
 let mockProvider, providerUrl, server, tempDir, projectPath;
 let held = [], requests = [], hold = false;
@@ -12,7 +12,12 @@ test.beforeAll(async () => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    const cues = JSON.parse(body.messages.find(item => item.role === 'user').content);
+    const input = body.messages.find(item => item.role === 'user').content;
+    if (input === 'Reply with OK.') {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({choices: [{message: {content: 'OK'}}]})); return;
+    }
+    const cues = JSON.parse(input);
     requests.push(cues);
     const respond = () => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -81,12 +86,83 @@ async function panel(page) {
   await expect(page.locator('#subtitle-translation-panel')).toBeVisible();
   await expect(page.locator('#translation-provider option')).toHaveCount(4);
   await page.locator('#translation-provider').selectOption('custom');
+  await page.locator('#translation-environment-open').click();
+  await expect(page.locator('#llm-provider')).toHaveValue('custom');
   await page.locator('#translation-base-url').fill(providerUrl);
   await page.locator('#translation-model').fill('test-model');
   await page.locator('#translation-api-key').fill('synthetic-test-key');
+  await page.locator('#translation-save-settings').click();
+  await expect(page.locator('#llm-message')).toContainText('配置已保存');
+  await page.locator('#editor-settings-close').click();
+  await openTranslationPanel(page);
 }
 const secondaryTexts = (page) => page.evaluate(() => DATA.multi_subtitle.tracks[0]?.segments.map(cue => cue.text) || []);
 async function release() { hold = false; for (const respond of held.splice(0)) respond(); }
+
+test('LLM management stays global and unsaved edits do not change the call configuration', async ({page}) => {
+  await open(page); await openTranslationPanel(page);
+  await expect(page.locator('#translation-start')).toBeDisabled();
+  await expect(page.locator('#translation-environment-open')).toBeVisible();
+  await page.locator('#subtitle-translation-close').click(); await panel(page);
+  await expect(page.locator('#subtitle-translation-panel #translation-settings')).toHaveCount(0);
+  await page.locator('#subtitle-translation-close').click(); await openTtsEnvironment(page);
+  await page.locator('.settings-nav-subitem').filter({hasText: /^LLM$/}).click();
+  await page.locator('#translation-test').click();
+  await expect(page.locator('#llm-test-jobs')).toContainText('处理完成');
+  const width = await page.locator('#translation-base-url').evaluate(input => input.clientWidth / input.parentElement.clientWidth);
+  expect(width).toBeGreaterThan(.95);
+  if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'llm-environment-settings.png')});
+  await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(0);
+  await page.locator('#translation-model').fill('unsaved-model');
+  await page.locator('#translation-base-url').fill('https://unconfigured.example.invalid/v1');
+  await page.locator('#llm-provider').selectOption('deepseek');
+  await page.locator('#editor-settings-close').click(); await openTranslationPanel(page);
+  await expect(page.locator('#translation-provider')).toHaveValue('custom');
+  const submitted = page.waitForRequest(request => request.url().endsWith('/api/msw/jobs') && request.method() === 'POST');
+  await page.locator('#translation-start').click();
+  expect((await submitted).postDataJSON().provider).toEqual({providerId: 'custom'});
+  await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
+});
+
+test('translation history collapses, scrolls and retains opened results after an update', async ({page}) => {
+  await open(page); await panel(page);
+  for (let count = 1; count <= 3; count++) {
+    await page.locator('#translation-start').click();
+    await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(count);
+    await expect(page.locator('#translation-jobs .msw-processing-job').first()).toContainText('结果已应用');
+  }
+  const history = page.locator('#translation-jobs');
+  await history.getByRole('button', {name: '查看译文', exact: true}).first().click();
+  await expect(history.locator('.msw-translation-results')).toHaveCount(1);
+  await page.locator('#translation-history > summary').click(); await expect(history).toBeHidden();
+  await page.locator('#translation-history > summary').click();
+  await expect(history.locator('.msw-translation-results')).toHaveCount(1);
+  expect(await history.evaluate(el => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === 'auto')).toBe(true);
+  await history.evaluate(el => el.scrollTop = 60);
+  await page.locator('#translation-start').click();
+  await expect(page.locator('#translation-history-count')).toHaveText('(4)');
+  await expect(history.locator('.msw-translation-results')).toHaveCount(1);
+  expect(await history.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+});
+
+test('an uncertain submission locks connection edits until its existing job is confirmed', async ({page}) => {
+  await open(page); await panel(page); hold = true;
+  let lost = false;
+  await page.route('**/api/msw/jobs', async route => {
+    if (route.request().method() === 'POST' && !lost) {
+      lost = true; await route.fetch(); await route.abort('failed');
+    } else await route.continue();
+  });
+  await page.locator('#translation-start').click();
+  await expect(page.locator('#translation-message')).toContainText('不会重复创建任务');
+  await expect(page.locator('#translation-save-settings')).toBeDisabled();
+  await page.locator('#translation-start').click();
+  await expect(page.locator('#translation-message')).toContainText('翻译已开始');
+  await expect(page.locator('#translation-save-settings')).toBeEnabled();
+  await release();
+  await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
+  expect(requests).toHaveLength(1);
+});
 
 test('blank server imports, translates all, creates aligned secondary and undoes once', async ({ page }) => {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -207,10 +283,14 @@ test('partial results can finish on the track they created without duplicating e
 
 test('English translation panel uses translated labels and shared saved provider settings', async ({ page }) => {
   await open(page); await panel(page);
+  await page.locator('#subtitle-translation-close').click();
+  await openTtsEnvironment(page);
+  await page.locator('.settings-nav-subitem').filter({hasText: /^LLM$/}).click();
   await page.locator('#translation-save-settings').click();
-  await expect(page.locator('#translation-message')).toContainText('配置已保存');
+  await expect(page.locator('#llm-message')).toContainText('配置已保存');
   await expect(page.locator('#translation-api-key')).toHaveValue('');
   await expect(page.locator('#translation-key-state')).toContainText('已配置本机密钥');
+  await page.locator('#editor-settings-close').click(); await openTranslationPanel(page);
   await page.evaluate(() => MSWE_I18N.applyLanguage('en'));
   await expect(page.locator('#subtitle-translation-title')).toHaveText('Translate subtitles');
   await expect(page.locator('#translation-scope')).toContainText('Scope: all main subtitles');
@@ -242,7 +322,6 @@ test('old project results never apply after switching projects and panel fits na
   await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(0);
   expect(await secondaryTexts(page)).toEqual([]);
   await page.setViewportSize({ width: 560, height: 650 });
-  await page.locator('#translation-settings').evaluate(node => { node.open = true; });
   const box = await page.locator('#subtitle-translation-panel').boundingBox();
   expect(box.width).toBeLessThan(560);
   expect(box.y + box.height).toBeLessThanOrEqual(650);

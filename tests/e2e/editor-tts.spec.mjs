@@ -54,6 +54,47 @@ async function panel(page,configure=true) {
   }
 }
 const countAssets=page=>page.evaluate(()=>DATA.msw?.assets?.length||0);
+
+test('library transport seeks, mutes and changes speed using the module theme', async ({page}) => {
+  wav = readFileSync(generateWav(join(dir, 'preview-long.wav'), 5));
+  await open(page); await panel(page); await page.locator('#tts-start').click();
+  await expect.poll(() => countAssets(page)).toBe(2); await page.locator('#tts-close').click();
+  await page.locator('.msw-asset-row').first().getByRole('button', {name: '试听', exact: true}).click();
+  await expect(page.locator('#asset-seek')).toBeEnabled();
+  await page.locator('#asset-play-toggle').click();
+  await expect.poll(() => page.locator('#asset-audio').evaluate(audio => audio.paused)).toBe(true);
+  await expect(page.locator('#asset-playing')).toHaveText(/^(Hello|World)$/);
+  await expect(page.locator('#asset-notice')).not.toContainText('interrupted');
+  const seek = await page.locator('#asset-seek').boundingBox();
+  await page.mouse.click(seek.x + seek.width * .45, seek.y + seek.height / 2);
+  await expect.poll(() => page.locator('#asset-audio').evaluate(audio => audio.currentTime)).toBeGreaterThan(1);
+  await page.locator('#asset-volume').fill('0.3');
+  await expect.poll(() => page.locator('#asset-audio').evaluate(audio => audio.volume)).toBeCloseTo(.3);
+  await page.locator('#asset-mute').click(); await expect(page.locator('#asset-mute')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#asset-mute').click(); await expect(page.locator('#asset-mute')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#asset-rate').selectOption('1.5');
+  expect(await page.locator('#asset-audio').evaluate(audio => audio.playbackRate)).toBe(1.5);
+  await page.evaluate(() => {
+    for (const [key, value] of Object.entries({raised: '#25364a', input: '#152433', toolbar: '#30465b', accent: '#ee9944'})) {
+      const input = document.getElementById('interface-color-' + key);
+      input.value = value; input.dispatchEvent(new Event('input', {bubbles: true})); input.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+  });
+  await expect(page.locator('#asset-library')).toHaveCSS('background-color', 'rgb(37, 54, 74)');
+  await expect(page.locator('.msw-asset-row').first()).toHaveCSS('background-color', 'rgb(21, 36, 51)');
+  await expect(page.locator('#asset-search')).toHaveCSS('background-color', 'rgb(21, 36, 51)');
+  await expect(page.locator('#asset-player')).toHaveCSS('background-color', 'rgb(48, 70, 91)');
+  await expect(page.locator('.msw-asset-toolbar')).toHaveCSS('background-color', 'rgb(48, 70, 91)');
+  await expect(page.locator('#asset-seek')).toHaveCSS('accent-color', 'rgb(238, 153, 68)');
+  await page.mouse.move(0, 0);
+  await expect(page.locator('.msw-asset-actions button').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(page.locator('#asset-audio')).not.toHaveAttribute('controls');
+  const plus = page.locator('.module-tab-add').first();
+  await expect(plus).toBeVisible(); await expect(plus).not.toHaveAttribute('title'); await expect(plus).toHaveAttribute('aria-label', '复制当前窗口为新标签');
+  if (process.env.MSW_UI_EVIDENCE_DIR) await page.locator('#asset-library').screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'asset-theme-player.png')});
+  await page.setViewportSize({width: 560, height: 650});
+  expect(await page.locator('#asset-player').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+});
 async function prepareClips(page) {
   await open(page,true);
   wav=readFileSync(generateWav(join(dir,'clip.wav'),1.5));

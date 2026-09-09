@@ -3751,7 +3751,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
         self.assertIn('<div class="hero-brand">', page)
-        self.assertIn('<img class="hero-icon" src="../../assets/show.webp"', page)
+        self.assertIn('<img class="hero-icon" src="logo.svg"', page)
         self.assertIn(".hero-icon {\n  width: 72px;\n  height: 72px;", stylesheet)
 
     def test_launcher_reports_media_drop_rejection_and_output_collision(self) -> None:

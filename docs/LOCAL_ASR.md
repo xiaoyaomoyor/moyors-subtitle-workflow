@@ -8,7 +8,7 @@ MSW 当前的正式入口仍然是云端 ASR。这个页面记录本地模型流
 本地媒体 -> SenseVoice / Fun-ASR-Nano / Qwen3-ASR / MOSS Transcribe-Diarize / Paraformer / Faster-Whisper -> MSW 统一时间戳 -> SRT + .mosp -> MSWE
 ```
 
-Launcher 已提供实验性的「本地模型」识别方式，入口仍复用同一套媒体、输出和 MSWE 流程，而不是另做一套 UI。Windows 打包版可以直接在 Launcher 中安装本地运行环境；详细范围见 [MSW 1.2 本地模型 Launcher 开发记录](dev/MSW%201.2%20本地模型%20Launcher%20开发记录.md)。
+Launcher 已提供实验性的「本地模型」识别方式，入口复用媒体、输出和 MSWE 流程。Windows 打包版可以在 Launcher 中安装独立本地运行环境；功能与分发边界见[可选环境清单](ENVIRONMENT.md)，下文提供各引擎配置与命令行说明。
 
 ## MOSS Transcribe-Diarize
 

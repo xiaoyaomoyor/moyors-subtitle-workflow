@@ -22,6 +22,7 @@ uv run --group build pyinstaller --noconfirm --clean MSW.spec
 # PyInstaller 6 places datas under _internal in an onedir bundle. Keep the
 # user-facing FAQ at the AppImage root as well, where users can find it easily.
 cp "FAQ-常见问题.txt" "dist/MSW/FAQ-常见问题.txt"
+cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md dist/MSW/
 
 echo "==> 2/6 准备静态 ffmpeg（BtbN FFmpeg-Builds，固定 autobuild 版本）"
 FFMPEG_VERSION="N-126308-gd411d9e752"
@@ -132,12 +133,12 @@ Categories=AudioVideo;AudioVideoEditing;
 StartupWMClass=MSW
 EOF
 
-ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=256:256:flags=lanczos" "$APP_DIR/MSW.png"
+ffmpeg -y -loglevel error -i assets/msw-launcher.png -vf "scale=256:256:flags=lanczos" "$APP_DIR/MSW.png"
 # 标准 hicolor 图标布局（appimagetool 与 AppImageLauncher / 文件管理器识别依赖它）
 mkdir -p "$APP_DIR/usr/share/icons/hicolor/256x256/apps"
-ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=256:256:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/MSW.png"
+ffmpeg -y -loglevel error -i assets/msw-launcher.png -vf "scale=256:256:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/MSW.png"
 mkdir -p "$APP_DIR/usr/share/icons/hicolor/512x512/apps"
-ffmpeg -y -loglevel error -i assets/show.webp -vf "scale=512:512:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/MSW.png"
+ffmpeg -y -loglevel error -i assets/msw-launcher.png -vf "scale=512:512:flags=lanczos" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/MSW.png"
 mkdir -p "$APP_DIR/usr/share/applications"
 cp "$APP_DIR/MSW.desktop" "$APP_DIR/usr/share/applications/MSW.desktop"
 

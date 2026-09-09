@@ -19870,8 +19870,9 @@ exitEditorItem?.addEventListener('click', async () => {
 });
 
 document.getElementById('help-website')?.addEventListener('click', () => {
-  window.open('https://moyf.github.io/moys-asr-workflow/', '_blank', 'noopener');
+  window.open('https://github.com/xiaoyaomoyor/moyors-subtitle-workflow', '_blank', 'noopener');
 });
+document.getElementById('help-about')?.addEventListener('click', () => openHelpAtTab('about'));
 
 // === 右上角项目名悬浮详情卡 ===
 const menubarProjectWrap = document.getElementById('menubar-project');
@@ -20637,6 +20638,12 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   openTtsEnvironment: () => {
     setEditorSettingsPanelOpen(true);
     activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+    requestAnimationFrame(() => document.getElementById('tts-environment-section').scrollIntoView({block: 'start'}));
+  },
+  openLlmEnvironment: () => {
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+    requestAnimationFrame(() => document.getElementById('llm-environment-section').scrollIntoView({block: 'start'}));
   },
   flashHint,
 }));

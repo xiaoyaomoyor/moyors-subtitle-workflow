@@ -17,7 +17,7 @@
   } catch (e) { /* 忽略：保持默认暗色 */ }
 })();
 </script>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f172a'/%3E%3Cpath d='M13 16h38v25H31l-11 9v-9h-7z' fill='%2314b8a6'/%3E%3Cpath d='M22 24h20M22 30h15M22 36h11' fill='none' stroke='white' stroke-linecap='round' stroke-width='4'/%3E%3C/svg%3E"><style>
+<link rel="icon" type="image/svg+xml" href="__EDITOR_BRAND_ICON__"><style>
 __EDITOR_CSS__
 __WAVEFORM_CSS__
 </style>
@@ -49,7 +49,7 @@ __WAVEFORM_CSS__
 <!-- UE 式顶部菜单栏：左上 LOGO + 六个选项卡 + 右上项目名（悬浮显示详情卡） -->
 <div class="menubar" id="menubar">
   <span class="menubar-logo" aria-hidden="true" title="MSW 字幕编辑器">
-    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="var(--bg-raised)"/><path d="M13 16h38v25H31l-11 9v-9h-7z" fill="var(--accent)"/><path d="M22 24h20M22 30h15M22 36h11" fill="none" stroke="var(--text-primary)" stroke-linecap="round" stroke-width="4"/></svg>
+    <img src="__EDITOR_BRAND_ICON__" alt="" width="24" height="24">
   </span>
 
   <div class="menubar-item" data-menubar-item="file">
@@ -363,6 +363,7 @@ __WAVEFORM_CSS__
       <button type="button" class="dropdown-item" id="help-quick-start" role="menuitem" title="重新播放新手快速上手引导">快速上手</button>
       <button type="button" class="dropdown-item" id="help-basic" role="menuitem" title="打开帮助窗口的基础操作说明">基础操作</button>
       <button type="button" class="dropdown-item" id="help-website" role="menuitem" title="在浏览器中打开 MSW 官网">访问官网</button>
+      <button type="button" class="dropdown-item" id="help-about" role="menuitem">关于 MSWE</button>
     </div>
   </div>
 
@@ -1043,8 +1044,17 @@ __WAVEFORM_CSS__
     <button type="button" class="help-tab" id="help-tab-fine-tuning" role="tab" aria-selected="false" aria-controls="help-tab-panel-fine-tuning" data-help-tab="fine-tuning" tabindex="-1">微调字幕</button>
     <button type="button" class="help-tab" id="help-tab-gap" role="tab" aria-selected="false" aria-controls="help-tab-panel-gap" data-help-tab="gap" tabindex="-1">空隙操作</button>
     <button type="button" class="help-tab" id="help-tab-batch" role="tab" aria-selected="false" aria-controls="help-tab-panel-batch" data-help-tab="batch" tabindex="-1">批量操作</button>
+    <button type="button" class="help-tab" id="help-tab-about" role="tab" aria-selected="false" aria-controls="help-tab-panel-about" data-help-tab="about" tabindex="-1">关于</button>
   </div>
   <div class="gap-remove-panel-body help-panel-body">
+    <section class="help-group help-tab-panel msw-about" id="help-tab-panel-about" role="tabpanel" aria-labelledby="help-tab-about" data-help-tab-panel="about" tabindex="0" hidden>
+      <img src="__EDITOR_BRAND_ICON__" alt="MSWE" width="64" height="64">
+      <h4>MSWE __APP_VERSION__</h4>
+      <p>Moyor's Subtitle Workflow Editor · 我的字幕流</p>
+      <p>字幕编辑、翻译与配音。由 Moyor 维护，基于 MAW 开源项目发展。</p>
+      <p><a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow" target="_blank" rel="noopener noreferrer">项目官网</a> · <a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases" target="_blank" rel="noopener noreferrer">下载与更新</a> · <a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues" target="_blank" rel="noopener noreferrer">问题反馈</a></p>
+      <p><a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/README.md" target="_blank" rel="noopener noreferrer">使用文档</a> · <a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0-only</a> · <a href="https://github.com/Moyf/moys-asr-workflow" target="_blank" rel="noopener noreferrer">上游 MAW</a></p>
+    </section>
     <section class="help-group help-tab-panel" id="help-tab-panel-basic" role="tabpanel" aria-labelledby="help-tab-basic" data-help-tab-panel="basic" tabindex="0">
       <h4 class="help-title">基础操作</h4>
       <section class="help-subgroup">
@@ -1335,6 +1345,27 @@ __WAVEFORM_CSS__
         <div class="editor-settings-group settings-category" data-settings-category="environment" id="tts-environment-category">
           <div class="settings-category-header">环境配置</div>
           <div class="editor-settings-sub-group"><span class="editor-settings-title">环境配置</span></div>
+          <div class="settings-subsection" data-subsection="llm" id="llm-environment-section">
+            <span class="settings-subsection-title">LLM</span>
+            <div class="editor-settings-sub-group msw-tts-environment">
+              <p id="llm-unavailable" class="msw-processing-hint" hidden>环境配置需要本机 Server 编辑器。</p>
+              <div id="llm-controls"><label class="msw-processing-field"><span>LLM 服务</span><select id="llm-provider"></select></label>
+      <details id="translation-settings" open>
+        <summary>连接设置</summary>
+        <div class="msw-processing-fields msw-processing-single">
+          <label>API 地址<input type="text" id="translation-base-url" autocomplete="off" spellcheck="false"></label>
+          <label>模型<input type="text" id="translation-model" autocomplete="off" spellcheck="false"></label>
+          <label>API Key<input type="password" id="translation-api-key" autocomplete="off" placeholder="已在启动器配置时可留空"></label>
+          <label>思考强度<select id="translation-reasoning"><option value="auto">自动</option><option value="off">关闭</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+        </div>
+        <p id="translation-key-state" class="msw-processing-hint"></p>
+        <div class="msw-processing-actions"><button type="button" id="translation-save-settings">保存配置</button><button type="button" id="translation-test">测试连接</button></div>
+      </details>
+              <p class="msw-processing-hint">LLM 连接配置与启动器共用，保存后可在字幕翻译中调用。密钥仅保存在本机。</p></div>
+              <p id="llm-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+              <details class="msw-job-history" id="llm-test-history"><summary>连接测试记录 <span id="llm-test-count"></span></summary><div id="llm-test-jobs" class="msw-processing-jobs" tabindex="0" aria-label="连接测试记录"></div></details>
+            </div>
+          </div>
           <div class="settings-subsection" data-subsection="tts" id="tts-environment-section">
             <span class="settings-subsection-title">TTS</span>
             <div class="editor-settings-sub-group msw-tts-environment">
@@ -1739,7 +1770,18 @@ __WAVEFORM_CSS__
     <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
     <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
     <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
-    <footer class="msw-asset-player" id="asset-player" hidden><div id="asset-playing" class="msw-asset-content">选择音频试听</div><audio id="asset-audio" controls preload="none" aria-label="素材试听"></audio></footer>
+    <footer class="msw-asset-player" id="asset-player" hidden>
+      <div id="asset-playing" class="msw-asset-content">选择音频试听</div>
+      <div class="msw-asset-transport">
+        <button type="button" id="asset-play-toggle" aria-label="播放试听" disabled></button>
+        <input type="range" id="asset-seek" min="0" max="0" step="0.01" value="0" aria-label="试听进度" disabled>
+        <output id="asset-clock" class="msw-asset-clock">0:00 / 0:00</output>
+        <button type="button" id="asset-mute" aria-label="静音试听"></button>
+        <input type="range" id="asset-volume" min="0" max="1" step="0.01" value="1" aria-label="试听音量">
+        <select id="asset-rate" aria-label="试听速度"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+      </div>
+      <audio id="asset-audio" hidden preload="none" aria-label="素材试听"></audio>
+    </footer>
   </section>
   <div class="player-wrap">
     <div class="toolbar player-toolbar" aria-label="媒体模块栏"></div>
@@ -2129,23 +2171,14 @@ __WAVEFORM_CSS__
         <label>翻译目标<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
         <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
       </div>
-      <details id="translation-settings" open>
-        <summary>连接设置</summary>
-        <div class="msw-processing-fields msw-processing-single">
-          <label>API 地址<input type="text" id="translation-base-url" autocomplete="off" spellcheck="false"></label>
-          <label>模型<input type="text" id="translation-model" autocomplete="off" spellcheck="false"></label>
-          <label>API Key<input type="password" id="translation-api-key" autocomplete="off" placeholder="已在启动器配置时可留空"></label>
-          <label>思考强度<select id="translation-reasoning"><option value="auto">自动</option><option value="off">关闭</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
-        </div>
-        <p id="translation-key-state" class="msw-processing-hint"></p>
-        <div class="msw-processing-actions"><button type="button" id="translation-save-settings">保存配置</button><button type="button" id="translation-test">测试连接</button></div>
-      </details>
+      <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>
+
       <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>
       <p class="msw-processing-hint">完成后写入副字幕；已有副字幕保留位置。处理期间可以继续编辑，修改过的内容不会被自动覆盖。</p>
       <div class="msw-processing-actions"><button type="button" id="translation-start" class="primary">开始翻译</button></div>
     </div>
     <p id="translation-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-    <section aria-label="翻译任务"><div id="translation-jobs" class="msw-processing-jobs"></div></section>
+    <details class="msw-job-history" id="translation-history" open><summary>翻译记录 <span id="translation-history-count"></span></summary><div id="translation-jobs" class="msw-processing-jobs" tabindex="0" aria-label="翻译记录"></div></details>
   </div>
 </aside>
 

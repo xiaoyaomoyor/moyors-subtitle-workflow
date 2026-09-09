@@ -118,7 +118,8 @@ test('design creates one reusable voice, previews it, synthesizes and restores s
   await openTtsEnvironment(page);
   await page.locator('#tts-voice-history').evaluate(el => el.open = true);
   await page.getByRole('button', {name: '试听音色', exact: true}).click();
-  await expect(page.locator('#asset-audio')).toBeVisible();
+  await expect(page.locator('#asset-player')).toBeVisible();
+  await expect(page.getByRole('button', {name: '选择此记录', exact: true})).toHaveCount(0);
   await expect.poll(() => page.locator('#asset-audio').evaluate(audio => audio.readyState)).toBeGreaterThan(1);
   await closeTtsEnvironment(page);
   await page.locator('#tts-start').click();

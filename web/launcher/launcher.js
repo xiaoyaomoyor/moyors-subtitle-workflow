@@ -13,7 +13,7 @@
       test_run_override: "测试运行已限定前 2 分钟",
       debug_raw: "调试运行（保存完整返回数据）",
       debug_raw_title: "额外保存 ASR 服务端返回的原始 JSON，便于排查断句、标点和时间码问题",
-      hero_desc: "本地媒体 ➜ AI 转写 ➜ 可编辑字幕工程",
+      hero_desc: "我的字幕流 · AI 转写、字幕精修与配音",
       project_home: "项目官网",
       media: "媒体文件",
       srt_output: "SRT 输出",
@@ -98,7 +98,7 @@
       test_run_override: "Test run is limited to the first 2 minutes",
       debug_raw: "Debug run (save full response)",
       debug_raw_title: "Also save the raw ASR service response as JSON for investigating segmentation, punctuation, and timestamps.",
-      hero_desc: "Local media ➜ AI transcription ➜ Editable subtitle projects",
+      hero_desc: "AI transcription, subtitle editing and voiceover",
       project_home: "Project",
       media: "Media file",
       srt_output: "SRT output",
@@ -1492,7 +1492,7 @@
   }
   async function openErrorIssue() {
     try {
-      const result = await window.MSWLauncher.callBackend("open_url", { url: "https://github.com/Moyf/moys-asr-workflow" });
+      const result = await window.MSWLauncher.callBackend("open_url", { url: `${HOME_URL}/issues/new` });
       if (result?.ok) return;
       const detail = result?.detail || result?.error || t("error_open_issue_failed");
       setStatus(detail);

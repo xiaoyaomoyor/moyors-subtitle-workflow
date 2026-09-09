@@ -159,7 +159,7 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("maw.bcut", spec)
         self.assertIn("assets", spec)
         self.assertIn("maw.ico", spec)
-        self.assertIn("show.webp", spec)
+        self.assertIn("msw-launcher.png", spec)
         self.assertIn("icon=str(ROOT / 'assets' / 'maw.ico')", spec)
         self.assertIn("COLLECT(", spec)
         self.assertNotIn("onefile=True", spec)
@@ -418,12 +418,12 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("scripts/prepare_release_notes.py", workflow)
         self.assertIn("gh release edit", workflow)
         self.assertIn("--notes-file release-notes.md", workflow)
-        # publish 必须同时满足 tag 触发 + Windows 构建成功，否则 dispatch 会误发 Release
-        self.assertIn("startsWith(github.ref, 'refs/tags/v') && !cancelled() && needs.build-windows.result == 'success'", workflow)
-        # 不完整构建警告：needs 上下文只提供单数 result（矩阵 job 的聚合结果），
-        # 复数 results 不是有效属性，会让警告永不触发
-        self.assertIn("needs.build-aux.result == 'failure'", workflow)
-        self.assertNotIn("needs.build-aux.results", workflow)
+        # Only a tag push may publish; all platform jobs feed the five-package gate.
+        self.assertIn("github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')", workflow)
+        self.assertIn("needs.verify-assets.result == 'success'", workflow)
+        self.assertIn('needs: [build-windows, build-aux]', workflow)
+        self.assertIn('scripts/check_release_assets.py --directory release-artifacts', workflow)
+        self.assertNotIn('Append incomplete-build warning', workflow)
         # macOS-specific assertions
         macos_workflow = read_text(".github/workflows/release.yml")
         self.assertNotIn("tauri.macos.conf.json", macos_workflow)

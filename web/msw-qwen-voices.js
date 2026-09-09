@@ -155,10 +155,9 @@
         const title = document.createElement('strong'); title.textContent = `${op.name} · ${t(states[op.status] || op.status)}`;
         const detail = document.createElement('p'); detail.className = 'msw-processing-hint'; detail.textContent = `${new Date(op.created_at * 1000).toLocaleString()} · ${op.message}`;
         card.append(title, detail);
-        if (op.voice) {
+        if (op.voice && op.preview) {
           const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
-          actions.append(button('选择此记录', () => { el('tts-manage-voice').value = op.voice; el('tts-manage-name').value = managed.find(row => row.voice === op.voice)?.name || op.name; }));
-          if (op.preview) actions.append(button('试听音色', () => playPreview(op)));
+          actions.append(button('试听音色', () => playPreview(op)));
           card.append(actions);
         }
         fragment.append(card);

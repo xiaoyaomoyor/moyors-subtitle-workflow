@@ -126,6 +126,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args, rest = build_parser().parse_known_args(raw_argv)
     if args.smoke_import:
+        # Exercise frozen imports without opening a window, reading user settings
+        # or sending requests. Returning immediately used to miss missing modules.
+        for module_name in (
+            'webview', 'edit', 'maw.gui_web', 'maw.msw.api',
+            'maw.msw.tts', 'maw.msw.qwen_voices', 'maw.msw.index_tts',
+            'maw.msw.yukkuri_runtime',
+        ):
+            importlib.import_module(module_name)
         return 0
     if args.transcribe:
         return _run_internal_transcribe(rest)

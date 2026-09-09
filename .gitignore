@@ -42,6 +42,7 @@ desktop/src-tauri/gen/
 desktop/src-tauri/binaries/
 # index.html 由 Rust 从 web/ 渲染生成（等价 edit.py --blank）
 desktop/src/index.html
+desktop/src/favicon.svg
 
 # Local Windows GUI packaging outputs. Keep generated executables local.
 /build/

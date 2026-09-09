@@ -618,7 +618,7 @@ test('unknown errors stay generic and do not expose FFmpeg actions', async ({ pa
   });
   await page.locator('#errorNoticeIssue').click();
   await expect.poll(() => page.evaluate(() => window.__issueCalls[0])).toEqual({
-    method: 'open_url', payload: { url: 'https://github.com/Moyf/moys-asr-workflow' },
+    method: 'open_url', payload: { url: 'https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues/new' },
   });
 });
 

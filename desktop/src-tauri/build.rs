@@ -94,6 +94,7 @@ fn render_frontend() {
     replace_all(
         &mut page,
         &[
+            ("__EDITOR_BRAND_ICON__", "favicon.svg"),
             ("__EDITOR_CSS__", editor_css.as_str()),
             ("__WAVEFORM_CSS__", waveform_css.as_str()),
             ("__EDITOR_SCRIPTS_JS__", editor_scripts.as_str()),
@@ -124,6 +125,8 @@ fn render_frontend() {
         .expect("无法定位 desktop 目录")
         .join("src");
     fs::create_dir_all(&output_dir).expect("无法创建 desktop/src");
+    fs::copy(web_dir.join("favicon.svg"), output_dir.join("favicon.svg"))
+        .expect("无法复制编辑器图标");
     fs::write(output_dir.join("index.html"), page).expect("无法写入 desktop/src/index.html");
 
     println!("cargo:rerun-if-changed={}", web_dir.display());

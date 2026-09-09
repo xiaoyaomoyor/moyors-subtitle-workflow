@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Windows 是发布门禁：它失败则整个 Release 不发布；
-  # macOS / Linux 失败仅提醒（publish 追加警告），不阻断。
+  # 三个平台、五种安装包全部成功且通过完整性检查后才允许发布。
+  # workflow_dispatch 在指定分支构建预演，不创建标签或公开 Release。
   build-windows:
     name: Build Windows x64 bundle
     runs-on: windows-2022
@@ -45,9 +45,8 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           else
-            # dispatch 触发时 ref_name 是分支名；上传 artifact 禁止 / \ * ? " < > | 等字符，统一清洗
-            CleanName="${GITHUB_REF_NAME//[^a-zA-Z0-9._-]/-}"
-            echo "version=${CleanName}" >> "$GITHUB_OUTPUT"
+            Version="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+            echo "version=v${Version}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Verify tag matches pyproject version
@@ -70,11 +69,41 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --group build --frozen
 
+      - name: Regenerate portable editor
+        run: uv run python edit.py --blank
+
       - name: Run packaging contract tests
         run: uv run python -m unittest tests/test_packaging_contract.py
 
       - name: Run Python tests
         run: uv run python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Set up Node for editor checks
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Check editor scripts and core tests
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check web/editor.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check web/waveform.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test tests/test_editor_utils.mjs tests/test_waveform_js.mjs tests/test_msw_translation.mjs tests/test_msw_tts.mjs tests/test_msw_audio.mjs tests/test_msw_audio_render.mjs
+          exit $LASTEXITCODE
+
+      - name: Check editor in Chromium
+        shell: pwsh
+        run: |
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
+          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs --project=chromium
+          exit $LASTEXITCODE
 
       - name: Download embedded Python bootstrap assets
         run: |
@@ -102,6 +131,12 @@ jobs:
           if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
             throw 'Missing dist\MSW\MSW.exe after build.'
           }
+          $ImportProcess = Start-Process -FilePath $ExePath -ArgumentList '--smoke-import' -PassThru -WindowStyle Hidden
+          if (-not $ImportProcess.WaitForExit(30000)) {
+            Stop-Process -Id $ImportProcess.Id -Force
+            throw 'MSW.exe import smoke timed out.'
+          }
+          if ($ImportProcess.ExitCode -ne 0) { throw 'MSW.exe import smoke failed.' }
           $HelpProcess = Start-Process -FilePath $ExePath -ArgumentList '--help' -PassThru -WindowStyle Hidden
           if ($HelpProcess.WaitForExit(10000)) {
             if ($HelpProcess.ExitCode -eq 0) {
@@ -274,9 +309,8 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           else
-            # dispatch 触发时 ref_name 是分支名；上传 artifact 禁止 / \ * ? " < > | 等字符，统一清洗
-            CleanName="${GITHUB_REF_NAME//[^a-zA-Z0-9._-]/-}"
-            echo "version=${CleanName}" >> "$GITHUB_OUTPUT"
+            Version="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+            echo "version=v${Version}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Verify tag matches pyproject version
@@ -298,6 +332,9 @@ jobs:
 
       - name: Install locked dependencies
         run: uv sync --group build --frozen
+
+      - name: Regenerate portable editor
+        run: uv run python edit.py --blank
 
       - name: Run packaging contract tests
         run: uv run python -m unittest tests/test_packaging_contract.py
@@ -450,13 +487,15 @@ jobs:
           ditto dist/MSW-lite.app "$LiteStage/MSW-lite.app"
           cp FAQ-常见问题.txt "$StandardStage/FAQ-常见问题.txt"
           cp FAQ-常见问题.txt "$LiteStage/FAQ-常见问题.txt"
+          cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md "$StandardStage/"
+          cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md "$LiteStage/"
           (
             cd "$StandardStage"
-            zip -qry "$GITHUB_WORKSPACE/$StandardArchive" MSW.app FAQ-常见问题.txt
+            zip -qry "$GITHUB_WORKSPACE/$StandardArchive" MSW.app FAQ-常见问题.txt README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md
           )
           (
             cd "$LiteStage"
-            zip -qry "$GITHUB_WORKSPACE/$LiteArchive" MSW-lite.app FAQ-常见问题.txt
+            zip -qry "$GITHUB_WORKSPACE/$LiteArchive" MSW-lite.app FAQ-常见问题.txt README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md
           )
           # 不使用 unzip | grep：macOS 的 unzip 输出、grep 管道和 pipefail
           # 组合过于脆弱，归档有效时也可能把校验误判为失败。
@@ -588,11 +627,11 @@ jobs:
           fi
 
       - name: Rename AppImage with version
-        if: ${{ matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/v') }}
+        if: matrix.platform == 'linux'
         run: |
           set -euo pipefail
-          mv "build-appimage/MSW-Linux-x86_64.AppImage" "build-appimage/MSW-Linux-x86_64-${{ github.ref_name }}.AppImage"
-          test -f "build-appimage/MSW-Linux-x86_64-${{ github.ref_name }}.AppImage"
+          mv "build-appimage/MSW-Linux-x86_64.AppImage" "build-appimage/MSW-Linux-x86_64-${{ steps.version.outputs.version }}.AppImage"
+          test -f "build-appimage/MSW-Linux-x86_64-${{ steps.version.outputs.version }}.AppImage"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
@@ -601,10 +640,37 @@ jobs:
           path: ${{ matrix.paths }}
           if-no-files-found: error
 
+  verify-assets:
+    name: Verify all five release packages
+    needs: [build-windows, build-aux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: MSW-*
+          path: release-artifacts
+          merge-multiple: true
+      - name: Generate and check release preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          Version="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          python scripts/prepare_release_notes.py --tag "v$Version" --output release-notes.md
+          python scripts/check_release_assets.py --directory release-artifacts --tag "v$Version" --notes release-notes.md
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-preflight
+          path: release-notes.md
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub Release
-    if: ${{ startsWith(github.ref, 'refs/tags/v') && !cancelled() && needs.build-windows.result == 'success' }}
-    needs: [build-windows, build-aux]
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !cancelled() && needs.verify-assets.result == 'success' }}
+    needs: [build-windows, build-aux, verify-assets]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -622,18 +688,6 @@ jobs:
       - name: Prepare release notes from CHANGELOG
         run: python3 scripts/prepare_release_notes.py --tag "${{ github.ref_name }}" --output release-notes.md
 
-      - name: Append incomplete-build warning
-        if: ${{ needs.build-aux.result == 'failure' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat >> release-notes.md <<'EOF'
-          ## 平台构建不完整
-
-          Windows 构建成功，但 macOS / Linux 构建未全部成功，本次 Release 仅包含成功平台的安装包。
-          开发者请查看本次 Actions 运行日志排查失败平台。
-          EOF
-
       - name: Download all build artifacts
         uses: actions/download-artifact@v7
         with:
@@ -642,6 +696,9 @@ jobs:
           # （launcher.jpg、maw.icns、screenshot*.jpg 等）一起传进 Release。
           path: release-artifacts
           merge-multiple: true
+
+      - name: Validate all five packages before upload
+        run: python3 scripts/check_release_assets.py --directory release-artifacts --tag "${{ github.ref_name }}" --notes release-notes.md
 
       - name: Create or update GitHub Release
         env:

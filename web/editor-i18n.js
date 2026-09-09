@@ -9,6 +9,16 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '关于 MSWE': 'About MSWE', '关于': 'About', '项目官网': 'Project home', '下载与更新': 'Downloads and updates',
+    '问题反馈': 'Report an issue', '使用文档': 'Documentation', '上游 MAW': 'Upstream MAW',
+    '字幕编辑、翻译与配音。由 Moyor 维护，基于 MAW 开源项目发展。': 'Subtitle editing, translation and voiceover. Maintained by Moyor and based on the open-source MAW project.',
+    '播放试听': 'Play preview', '试听进度': 'Preview position', '试听音量': 'Preview volume', '试听速度': 'Preview speed',
+    '静音试听': 'Mute preview', '取消试听静音': 'Unmute preview',
+    '翻译记录': 'Translation history', '连接测试记录': 'Connection test history', 'LLM 服务': 'LLM service',
+    '前往 LLM 环境配置': 'Open LLM environment settings', '正在读取本机 LLM 配置…': 'Loading local LLM settings…',
+    '当前 LLM 服务尚未配置密钥，请前往环境配置。': 'This LLM service needs a key. Add one in environment settings.',
+    '请在 LLM 环境配置中填写 API 地址和模型。': 'Set the API URL and model in LLM environment settings.',
+    'LLM 连接配置与启动器共用，保存后可在字幕翻译中调用。密钥仅保存在本机。': 'LLM settings are shared with the launcher and become available for translation after saving. Keys stay on this computer.',
     '环境配置': 'Environment', 'TTS 环境': 'TTS environment',
     '引擎': 'Engine', '百炼 Qwen TTS（云端）': 'Bailian Qwen TTS (cloud)', '百炼 Qwen TTS': 'Bailian Qwen TTS',
     '油库里': 'Yukkuri', '油库里（本地）': 'Yukkuri (local)', 'IndexTTS 本机服务': 'IndexTTS local service',

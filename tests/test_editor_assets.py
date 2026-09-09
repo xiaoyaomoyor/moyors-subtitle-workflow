@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+import base64
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -15,6 +17,16 @@ import edit  # noqa: E402
 
 
 class EditorAssetContractTests(unittest.TestCase):
+    def test_portable_brand_icon_is_self_contained_and_shared_with_favicon(self) -> None:
+        page = edit.build_blank_html()
+        favicon = re.search(r'<link rel="icon"[^>]*href="([^"]+)"', page).group(1)
+        logo = re.search(r'class="menubar-logo"[^>]*>\s*<img src="([^"]+)"', page).group(1)
+        self.assertEqual(logo, favicon)
+        self.assertTrue(favicon.startswith("data:image/svg+xml;base64,"))
+        self.assertEqual(base64.b64decode(favicon.split(",", 1)[1]).decode("utf-8"),
+                         edit.read_web_asset("favicon.svg"))
+        self.assertNotIn("__EDITOR_BRAND_ICON__", page)
+
     def test_editor_script_manifest_is_ordered_and_complete(self) -> None:
         self.assertEqual(
             edit.read_editor_script_manifest(),
@@ -253,6 +265,8 @@ class EditorAssetContractTests(unittest.TestCase):
         build_script = (ROOT / "desktop" / "src-tauri" / "build.rs").read_text(encoding="utf-8")
         self.assertIn('web_dir.join("editor-scripts.txt")', build_script)
         self.assertIn('("__EDITOR_SCRIPTS_JS__", editor_scripts.as_str())', build_script)
+        self.assertIn('("__EDITOR_BRAND_ICON__", "favicon.svg")', build_script)
+        self.assertIn('fs::copy(web_dir.join("favicon.svg"), output_dir.join("favicon.svg"))', build_script)
         for legacy_token in (
             "__EDITOR_UTILS_JS__",
             "__EDITOR_I18N_JS__",

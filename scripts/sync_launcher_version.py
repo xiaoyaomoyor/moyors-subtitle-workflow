@@ -39,6 +39,12 @@ def _targets() -> tuple[tuple[str, Path, str, str], ...]:
             r'(BUNDLED_EDITOR_VERSION\s*=\s*")[^"]+(")',
             r'BUNDLED_EDITOR_VERSION\s*=\s*"([^"]+)"',
         ),
+        (
+            "packaged quickstart",
+            ROOT / "README-开始使用.txt",
+            r'(MSW )[^ \r\n]+( · 我的字幕流)',
+            r'MSW ([^ \r\n]+) · 我的字幕流',
+        ),
     )
 
 

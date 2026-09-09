@@ -2,9 +2,11 @@
 
 本文件供后续维护者快速定位代码与数据边界。产品范围、约束和发布规则以仓库根目录的 `AGENTS.md` 为准。
 
+安装与功能环境见[环境清单](ENVIRONMENT.md)，跨平台构建和发行门禁见[构建与发布](RELEASING.md)。
+
 ## 产品与运行形态
 
-MSW（Moyor's Subtitle Workflow）是一个收窄的本地工作流：本地媒体经云端 ASR 生成 SRT 与工程文件，再在本机浏览器编辑、导出。工程文件内容是 UTF-8 JSON，`.mosp` 是当前默认扩展名；`.json` 作为旧工程和兼容扩展名继续支持。完整字段契约见 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。
+MSW（Moyor's Subtitle Workflow / 我的字幕流）是以本机 Web 编辑器为中心的 ASR、翻译与 TTS 工作流，按需引入上游 MAW 更新。Launcher 负责识别和启动服务，编辑器可在编辑期间提交翻译、配音与导出任务。工程文件内容是 UTF-8 JSON，`.mosp` 是当前默认扩展名；`.json` 作为旧工程和兼容扩展名继续支持。完整字段契约见 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。
 
 - `generate_subtitle_qwen_api.py`：Qwen/Fun-ASR 转写命令入口，`--json` 为历史兼容参数名，默认生成 `.mosp` 工程。
 - `generate_subtitle_soniox_api.py`：Soniox 转写命令入口，同样默认生成 `.mosp` 工程。
@@ -21,7 +23,7 @@ MSW（Moyor's Subtitle Workflow）是一个收窄的本地工作流：本地媒�
 
 从 `1.3.2` 到当前 Beta 的功能演进记录见 [版本变更回顾](RELEASE_REVIEW_1.3.2_TO_1.4.0.md)。
 
-前端代码边界的渐进式整理方案见 [`dev/MSWE 前端渐进式重构企划案.md`](dev/MSWE%20前端渐进式重构企划案.md)，当前 Phase 0–1 的依赖、状态和装配快照见 [`dev/MSWE 前端重构基线.md`](dev/MSWE%20前端重构基线.md)。该企划当前不采用 React，不改变编辑器行为或工程契约。
+前端以 `web/editor-scripts.txt` 记录装配顺序，通过 `MSWE` 注册表连接处理模块。当前不采用 React；维护时核对 `tests/test_editor_assets.py` 的装配契约与相应浏览器回归，避免依赖未随仓库分发的个人设计笔记。
 
 修改 `web/`、模板或内联资源后，必须执行：
 

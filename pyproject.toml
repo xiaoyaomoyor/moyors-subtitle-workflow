@@ -1,7 +1,7 @@
 [project]
 name = "moyors-subtitle-workflow"
 version = "1.6.0-beta.1"
-description = "Moyor's Subtitle Workflow (MSW) - cloud ASR API to local subtitle-editor workflow."
+description = "Moyor's Subtitle Workflow (MSW) - local subtitle editing, ASR, translation and TTS voiceover."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-only" }

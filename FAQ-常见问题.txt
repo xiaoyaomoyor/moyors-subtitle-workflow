@@ -93,4 +93,4 @@ Intel Homebrew 常见目录是 /usr/local/bin。
 
 提交前请删除 API Key、访问令牌、原始媒体和其他隐私内容；本地路径可以脱敏。
 
-Issue 地址：https://github.com/Moyf/moys-asr-workflow/issues/new
+Issue 地址：https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues/new

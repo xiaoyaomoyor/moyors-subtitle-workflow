@@ -25,7 +25,7 @@
 
 ## 如何反馈问题
 
-如果常见问题没有解决你的情况，请在 GitHub 提交 [Issue](https://github.com/Moyf/moys-asr-workflow/issues/new)，方便我们继续排查。
+如果常见问题没有解决你的情况，请在 GitHub 提交 [Issue](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues/new)，方便我们继续排查。
 
 反馈时请尽量提供：
 

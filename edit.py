@@ -24,6 +24,7 @@
 """
 
 import argparse
+import base64
 import html
 import json
 import os
@@ -231,7 +232,12 @@ def build_palette_json() -> str:
 
 def render_editor_page(**context: str) -> str:
     """Render the modular web sources back into one portable HTML file."""
+    # One SVG source for the menu logo and favicon; portable files need no assets folder.
+    brand_icon = "data:image/svg+xml;base64," + base64.b64encode(
+        read_web_asset("favicon.svg").encode("utf-8")
+    ).decode("ascii")
     replacements = {
+        "__EDITOR_BRAND_ICON__": brand_icon,
         "__EDITOR_CSS__": read_web_asset("editor.css").rstrip(),
         "__WAVEFORM_CSS__": read_web_asset("waveform.css").rstrip(),
         "__EDITOR_SCRIPTS_JS__": build_editor_scripts(),
