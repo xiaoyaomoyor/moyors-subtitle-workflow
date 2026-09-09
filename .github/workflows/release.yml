@@ -501,14 +501,10 @@ jobs:
           cp FAQ-常见问题.txt "$LiteStage/FAQ-常见问题.txt"
           cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md "$StandardStage/"
           cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md "$LiteStage/"
-          (
-            cd "$StandardStage"
-            zip -qry "$GITHUB_WORKSPACE/$StandardArchive" MSW.app FAQ-常见问题.txt README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md
-          )
-          (
-            cd "$LiteStage"
-            zip -qry "$GITHUB_WORKSPACE/$LiteArchive" MSW-lite.app FAQ-常见问题.txt README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md
-          )
+          # Apple's zip omits the UTF-8 filename flag. Preserve Chinese names,
+          # executable modes and framework symlinks with the shared writer.
+          python scripts/create_release_zip.py --directory "$StandardStage" --output "$StandardArchive"
+          python scripts/create_release_zip.py --directory "$LiteStage" --output "$LiteArchive"
           # 不使用 unzip | grep：macOS 的 unzip 输出、grep 管道和 pipefail
           # 组合过于脆弱，归档有效时也可能把校验误判为失败。
           python3 - "$StandardArchive" "$LiteArchive" <<'PY'

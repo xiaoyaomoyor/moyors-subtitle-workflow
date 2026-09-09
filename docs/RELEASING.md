@@ -18,6 +18,8 @@
 
 校验包括：锁定依赖与版本、Python 回归、Windows 上的 JS／Chromium 回归、实际打包程序导入与启动、图标／帮助／油库里接入脚本、standard / lite 的 FFmpeg 差异、ZIP CRC 和 AppImage 标识。打包程序 `--smoke-import` 真正导入关键模块，不再立即返回成功。
 
+macOS ZIP 使用 `scripts/create_release_zip.py`，保留 UTF-8 中文名称、执行权限和框架符号链接；不要直接换回缺少 UTF-8 名称标记的系统 `zip`。浏览器回归失败时的诊断记录保存在独立 Actions artifact，不属于 Release 附件。
+
 ## 本机准备
 
 ```sh
