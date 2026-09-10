@@ -32,7 +32,7 @@
 | C | 已修复 | Launcher 设置／布局／本地环境／英文文案及耗时统计完成 |
 | D | 已修复 | 空隙填充、设置／帮助、源媒体 OTIO 选项完成，保留 MSW 配音与工程兼容 |
 | E | 已修复 | 本地源码／Windows 验证与三平台五包原生 CI 预演均已完成；桌面真机、真实模型及外部剪辑软件边界另列 |
-| F | 进行中 | 已获提交、推送及发布授权，执行候选固化、五包预演、分支同步和最终预发布 |
+| F | 已修复 | 已提交推送、完成五包预演、同步产品分支与上游镜像，并发布及验收 MSW v1.6.0-beta.2 |
 
 ## A 阶段执行记录
 
@@ -237,8 +237,8 @@ A 阶段没有未完成项。Python 的 29 个跳过记录涉及未向该测试�
 |---|---|---|
 | F1 固化适配与上游关系 | 已修复 | 适配提交 `b67faca`；集成提交 `ba5a189` 的两个父节点为该适配提交与上游 `860f354`，合并前后产品树完全一致；已推送集成分支。全部 22 项处理见上表 |
 | F2 五包原生预演 | 已修复 | [第四轮预演 34465587331](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/34465587331) 针对 `d6fb3ebf5c66bad5bad2fa3b4bbae12849e05b18`，三平台构建及五包总校验全部成功；已下载并核对实际发行说明 |
-| F3 产品分支与标签 | 进行中 | 固化本次验收记录后快进 my-feature 并创建 beta.2 标签；从通过预演的提交起仅更新本账本，产品代码与构建配置相同 |
-| F4 公开预发布验收 | 待处理 | 标签构建会重建、校验并上传五包；随后检查 Release 状态、提交、实际下载与说明；保留桌面／真实模型等未验证边界 |
+| F3 产品分支与标签 | 已修复 | my-feature 已快进至 `8ce0b62` 并推送；标签 `v1.6.0-beta.2` 指向该提交。从通过预演的 `d6fb3eb` 起仅更新本账本，产品代码与构建配置相同 |
+| F4 公开预发布验收 | 已修复 | [正式发布构建 34466571349](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/34466571349) 第二次执行整体成功；[beta.2 预发布](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0-beta.2) 已公开，五包实际下载及 Windows 两包导出验收完成 |
 
 F 阶段原始日志及 API 结果保留在仓库外 `msw-checks/phase-f-validation/`；凭据只经已配置的 Git 凭据管理器在内存中使用，不写入日志、工程或发布包。
 
@@ -265,3 +265,29 @@ F 阶段原始日志及 API 结果保留在仓库外 `msw-checks/phase-f-validat
 五包总校验成功，包括准确的包集合、非空文件、ZIP CRC、标准／lite 差异、资源／许可、AppImage 标识和 SHA-256。下载 `release-preflight` 后再次校验，其正文与当前 `prepare_release_notes.py` 根据 CHANGELOG 生成的正文逐字一致；固定标签文档链接、预发布下载说明和五行 SHA-256 表全部正确。候选包校验和只属于预演，最终 Release 由标签重新构建，其实际校验和以后者为准。
 
 已解决发布阻塞：三项跨平台临时路径断言和 Linux FFmpeg 归档失效。没有升级 MSW Python 锁定依赖、修改配音命名或扩大到上游 beta.3。未验证边界仍为真实付费／本地模型、macOS／Linux 用户桌面交互、WebKit 与外部剪辑软件导入；历史波形套件的 24 项失败仍按前述基线保留，未声称完整浏览器套件全部通过。
+
+### 标签与正式发布
+
+产品版本提交 `8ce0b62ed097d31f3b9ae2702a217dd10138938b` 已推送至 my-feature 和集成分支；标注标签 `v1.6.0-beta.2` 的解引用结果与之相同。main 继续保持上游 `bc5262c`。标签触发的正式发布构建为 `34466571349`，在最终发布及下载验收之前不把仅创建标签视为发布完成。
+
+正式构建首轮 Linux／macOS 成功。Windows Chromium 为 82 通过、1 失败：`asset cards show three columns, icon actions and responsive saved density` 的 5 秒素材生成等待收到 17 个，预期 18 个，未到后续卡片布局断言。该用例在最终候选预演中通过；保留了首轮日志与诊断 artifact，并在相同标签、相同代码上重跑失败任务，没有跳过用例或移动标签。最终结果待重跑及发布完成后记入下文。
+
+### 已发布结果与下载验收
+
+GitHub Release ID `386199082` 于 2026-09-10 10:50:20 UTC（北京时间 18:50:20）发布，`draft=false`、`prerelease=true`，目标为 `8ce0b62ed097d31f3b9ae2702a217dd10138938b`。正式构建 run `34466571349` 的 attempt 2 为整体 `success`，包括五包总校验及 Publish GitHub Release；重跑复用同一提交中已成功的 macOS／Linux 任务，Windows 83 项 Chromium 全部通过，309 项 Node 全部通过，27 项随包媒体回归通过（跳过 1 项可选解析器）。首轮超时作为运行记录保留。
+
+五个公开安装包已通过 GitHub 官方附件 API 实际下载；初次浏览器直链下载遇到本机 github.com DNS 解析失败，切换官方 API 后全部完成。下载字节的 SHA-256 与 Release API digest、发行说明三方一致，四个 ZIP 的 CRC／资源／标准与 lite 差异通过，AppImage 头部正确。四个 ZIP 的核心编辑器、Launcher、Server 与便携 HTML 源文件逐字节匹配发布源码。GitHub 自动生成的 Source code ZIP／tar.gz 请求均返回 HTTP 200；Release 附件保持五个应用包，加两项自动源码下载。
+
+| 实际发布文件 | 字节数 | SHA-256 |
+|---|---:|---|
+| `MSW-Windows-x64-v1.6.0-beta.2.zip` | 131308193 | `aa9b6026eb79df26bb17893d19b19dea52a10e56236726a8ddcc988c6d4adb14` |
+| `MSW-lite-Windows-x64-v1.6.0-beta.2.zip` | 54956878 | `4c93e2667ade534eac250d304dbd7f660c63fd0f0a9ef3a1135fc4eceb0e7df6` |
+| `MSW-macOS-arm64-v1.6.0-beta.2.zip` | 82493264 | `a355e29615610f6e9be83576bc47bdc5be39fd1ddc88a414248033b5a07fce55` |
+| `MSW-lite-macOS-arm64-v1.6.0-beta.2.zip` | 37455825 | `1e8cf5a4773b1f84badee2f3cb6d2b4de325cde81e3ebfff06663ca531ee20df` |
+| `MSW-Linux-x86_64-v1.6.0-beta.2.AppImage` | 368686272 | `a9c812475a628bdf07a01934fca0bcc6e41648760d5481fee6e253a4e7737f1a` |
+
+对最终下载的 Windows 标准版和 lite 版分别执行 `--smoke-import`、`--help`、127.0.0.1 编辑器启动及真实 Chromium 操作。两包均实际导出源媒体 OTIO／OTIOZ、含配音 OTIOZ、WAV 和 MP4，ZIP 中文素材字节、配音素材 ID、音视频流与时长检查通过；lite 使用外部 FFmpeg，包内没有媒体工具。临时服务在检查后均已停止。官方 OpenTimelineIO 0.18.1 另行读取两包导出的四个 OTIOZ，均为 5 秒、3 个 Clip，解包后全部引用存在。
+
+最终解析检查脚本最初误以为官方适配器会改写相对 URL，并复用了已有解包目录；读取适配器实现后，改用独立空目录并按解包根目录解析保留的相对 URL，四份实际产物全部通过。没有据此修改产品导出逻辑。下载、浏览器、源码匹配及解析证据均保留于本轮仓库外验证目录。
+
+A～F 已完成，没有剩余发布阻塞。前述真实模型、macOS／Linux 用户桌面、WebKit、外部剪辑软件和 24 项历史波形用例仍属于明确保留的验证边界。最后仅更新验收账本并推送产品分支；发布标签继续固定在版本提交，避免改写已公开历史。
