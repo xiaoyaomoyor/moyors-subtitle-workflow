@@ -24,21 +24,23 @@ uv run --group build pyinstaller --noconfirm --clean MSW.spec
 cp "FAQ-常见问题.txt" "dist/MSW/FAQ-常见问题.txt"
 cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md dist/MSW/
 
-echo "==> 2/6 准备静态 ffmpeg（BtbN FFmpeg-Builds，固定 autobuild 版本）"
-FFMPEG_VERSION="N-126308-gd411d9e752"
-FFMPEG_TARBALL="$BUILD_DIR/ffmpeg-${FFMPEG_VERSION}-linux64-gpl.tar.xz"
-FFMPEG_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-28-17-08/ffmpeg-${FFMPEG_VERSION}-linux64-gpl.tar.xz"
-FFMPEG_SHA256="980678387f826c27bc9e8e754e39cc1b1c8573e17a0b97effc148b9eab90bca9"
-FFMPEG_DIR="$BUILD_DIR/ffmpeg-static"
+echo "==> 2/6 准备静态 ffmpeg（BtbN FFmpeg-Builds，固定月末 8.1 构建）"
+FFMPEG_VERSION="n8.1.2-50-g1a748fe2cd"
+FFMPEG_TARBALL="$BUILD_DIR/ffmpeg-${FFMPEG_VERSION}-linux64-gpl-8.1.tar.xz"
+FFMPEG_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-${FFMPEG_VERSION}-linux64-gpl-8.1.tar.xz"
+FFMPEG_SHA256="c733b4b2951e5957e15505f788b2c65a7a41b6da4b289e295852cc38079b4d2b"
+FFMPEG_DIR="$BUILD_DIR/ffmpeg-static-$FFMPEG_VERSION"
 # 静态版自包含 libstdc++ 依赖，不受 PyInstaller 的 _internal 旧库污染；
 # 动态版 ffmpeg 若打进包内，AppRun 污染环境下照样会 GLIBCXX 报错。
-# BtbN autobuild 固定版本 + 写死 SHA256：版本与校验双固定，完全可复现；
-# 升级时改 FFMPEG_VERSION / FFMPEG_URL / FFMPEG_SHA256 三处即可
-# （checksums 见 https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-08-28-17-08）。
+# BtbN 仅保留最近 14 个每日构建，月末构建保留两年；固定月末版本与 SHA256，
+# 到期前需重新审查可用归档。8.1 稳定分支保留现有混音导出的参数兼容性。
+# 升级时同时核对版本、URL、归档名和 SHA256；缓存目录随版本隔离。
+# checksums: https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-08-31-13-27
 if [ ! -x "$FFMPEG_DIR/bin/ffmpeg" ]; then
     if [ ! -f "$FFMPEG_TARBALL" ]; then
         echo "    下载静态 ffmpeg..."
-        curl -sL --retry 3 --retry-delay 2 -o "$FFMPEG_TARBALL" "$FFMPEG_URL"
+        curl --fail --location --silent --show-error --retry 3 --retry-all-errors \
+            --retry-delay 2 --connect-timeout 20 --max-time 300 -o "$FFMPEG_TARBALL" "$FFMPEG_URL"
     fi
     echo "    校验静态 ffmpeg 完整性..."
     if ! echo "$FFMPEG_SHA256  $FFMPEG_TARBALL" | sha256sum -c - >/dev/null; then
@@ -83,7 +85,7 @@ Build provider: https://github.com/BtbN/FFmpeg-Builds
 Original archive: $FFMPEG_URL
 Archive SHA-256: $FFMPEG_SHA256
 License: GPL-3.0 (full text in GPLv3.txt)
-Upstream FFmpeg source: https://github.com/FFmpeg/FFmpeg
+Upstream FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/1a748fe2cd
 This MSW package includes only ffmpeg and ffprobe from the original build.
 EOF
 echo "    静态 ffmpeg: $("$FFMPEG_DIR/bin/ffmpeg" -version 2>&1 | head -n 1)"

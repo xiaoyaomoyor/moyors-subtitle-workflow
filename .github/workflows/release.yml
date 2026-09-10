@@ -263,6 +263,14 @@ jobs:
           Compress-Archive -LiteralPath 'dist\MSW-lite' -DestinationPath "MSW-lite-Windows-x64-$Version.zip" -Force
           Compress-Archive -LiteralPath 'dist\MSW' -DestinationPath "MSW-Windows-x64-$Version.zip" -Force
 
+      - name: Verify exports with bundled FFmpeg
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = 'tests'
+          $env:MSW_TEST_FFMPEG = Join-Path $PWD 'dist/MSW/ffmpeg/bin'
+          uv run --frozen python -m unittest test_msw_audio_render test_msw_video_render test_msw_timeline_export
+          exit $LASTEXITCODE
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -484,6 +492,12 @@ jobs:
           dist/MSW.app/Contents/MacOS/MSW --help >/dev/null
           codesign --verify --deep --strict --verbose=2 dist/MSW.app
 
+      - name: Verify macOS exports with bundled FFmpeg
+        if: matrix.platform == 'macos'
+        run: |
+          PYTHONPATH=tests MSW_TEST_FFMPEG="$PWD/dist/MSW.app/Contents/MacOS/ffmpeg/bin" \
+            uv run --frozen python -m unittest test_msw_audio_render test_msw_video_render test_msw_timeline_export
+
       - name: Create release archives
         if: matrix.platform == 'macos'
         shell: bash
@@ -615,6 +629,13 @@ jobs:
           "$BIN/ffmpeg" -version >/dev/null
           "$BIN/ffprobe" -version >/dev/null
           echo "OK: 静态 ffmpeg 在污染 LD_LIBRARY_PATH 下正常运行"
+          # 用实际随包二进制验证混音、视频与配音时间线；Python 自身不继承污染库路径。
+          (
+            cd "$GITHUB_WORKSPACE"
+            env -u LD_LIBRARY_PATH PYTHONPATH=tests \
+              MSW_TEST_FFMPEG="$GITHUB_WORKSPACE/build-appimage/$BIN" \
+              uv run --frozen python -m unittest test_msw_audio_render test_msw_video_render test_msw_timeline_export
+          )
           rm -r squashfs-root
 
       - name: Smoke AppImage (headless)

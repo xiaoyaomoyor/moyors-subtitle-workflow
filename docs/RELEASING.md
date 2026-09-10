@@ -18,6 +18,8 @@
 
 校验包括：锁定依赖与版本、Python 回归、Windows 上的 JS／Chromium 回归、实际打包程序导入与启动、图标／帮助／油库里接入脚本、standard / lite 的 FFmpeg 差异、ZIP CRC 和 AppImage 标识。打包程序 `--smoke-import` 真正导入关键模块，不再立即返回成功。
 
+三平台在 FFmpeg 入包后额外运行合成媒体的混音、视频和配音时间线回归。Linux 固定使用 BtbN 月末 8.1 稳定分支归档及 SHA-256；构建方仅保留最近 14 个每日构建，月末归档保留两年，维护时应在到期前重新核对来源与校验和。不能把 HTTP 错误页面当作有效归档，下载失败或校验失败均停止构建。
+
 macOS ZIP 使用 `scripts/create_release_zip.py`，保留 UTF-8 中文名称、执行权限和框架符号链接；不要直接换回缺少 UTF-8 名称标记的系统 `zip`。浏览器回归失败时的诊断记录保存在独立 Actions artifact，不属于 Release 附件。
 
 ## 本机准备

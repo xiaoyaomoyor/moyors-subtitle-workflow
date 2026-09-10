@@ -247,3 +247,9 @@ F 阶段原始日志及 API 结果保留在仓库外 `msw-checks/phase-f-validat
 首次预演的 Windows／macOS Python 各运行 1326 项，均有两项路径字符串断言失败：批量默认 manifest 防覆盖、后处理已有媒体优先于备用媒体。实际输出已规范化，分别与 Windows 临时目录短名称、macOS `/var` 符号链接写法不同。两项断言改为比较预期的 `Path.resolve()` 结果，继续校验文件名、防覆盖和媒体优先级，产品路径逻辑没有改变。本地启用 FFmpeg 后的总数较多，是部分媒体测试类在 CI 缺少工具时整体跳过所致；不能把 CI 跳过项计为通过。
 
 远端 main 已仅快进至 `bc5262cd7f9f972d1efc299d4537fd13eaa657ce`，与本次查询的上游 main 一致。中英文 README 已移除“准备发布”文案。
+
+路径修正本地 96 项回归通过，提交 `0464894`；[第二轮预演](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/34464304329) 继续核对三平台。首轮 Linux Python 为 1326 项、跳过 29 项，其后的构建失败来自旧 BtbN 每日归档 HTTP 404；原脚本未启用 curl `--fail`，错误页面最终触发 SHA-256 不匹配。首次预演已经自行结束，尝试停止旧运行返回 409，没有取消任何其他任务。
+
+修正为 [2026-08-31 月末 8.1 稳定分支构建](https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-08-31-13-27) `n8.1.2-50-g1a748fe2cd`。实际下载的 125758156 字节归档 SHA-256 为 `c733b4b2951e5957e15505f788b2c65a7a41b6da4b289e295852cc38079b4d2b`，与发布 API digest 和构建方 checksums 文件一致。按[构建方保留政策](https://github.com/BtbN/FFmpeg-Builds#release-retention-policy)，月末归档保留两年；脚本补 HTTP 失败退出、有限重试／超时和按版本隔离缓存。三平台增加随包 FFmpeg 的现有合成音频、视频及配音时间线测试，实际执行结果在后续预演记录。
+
+本地打包契约、发行说明／资产校验及三组媒体回归共 61 项，`OK (skipped=1)`；唯一跳过为未安装到该进程的可选 OTIO 官方解析器（E 阶段有单独产物解析证据）。`bash -n scripts/build-appimage.sh` 与差异检查通过。第二轮 macOS 两包已成功，Windows 进入产物上传，Linux 仍因同一旧地址失败；下一轮统一使用修正后的提交。
