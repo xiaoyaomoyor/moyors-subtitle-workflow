@@ -253,3 +253,5 @@ F 阶段原始日志及 API 结果保留在仓库外 `msw-checks/phase-f-validat
 修正为 [2026-08-31 月末 8.1 稳定分支构建](https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-08-31-13-27) `n8.1.2-50-g1a748fe2cd`。实际下载的 125758156 字节归档 SHA-256 为 `c733b4b2951e5957e15505f788b2c65a7a41b6da4b289e295852cc38079b4d2b`，与发布 API digest 和构建方 checksums 文件一致。按[构建方保留政策](https://github.com/BtbN/FFmpeg-Builds#release-retention-policy)，月末归档保留两年；脚本补 HTTP 失败退出、有限重试／超时和按版本隔离缓存。三平台增加随包 FFmpeg 的现有合成音频、视频及配音时间线测试，实际执行结果在后续预演记录。
 
 本地打包契约、发行说明／资产校验及三组媒体回归共 61 项，`OK (skipped=1)`；唯一跳过为未安装到该进程的可选 OTIO 官方解析器（E 阶段有单独产物解析证据）。`bash -n scripts/build-appimage.sh` 与差异检查通过。第二轮 macOS 两包已成功，Windows 进入产物上传，Linux 仍因同一旧地址失败；下一轮统一使用修正后的提交。
+
+[第三轮预演](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/34464993419) 使用 `7b28b43`：Linux 已完成 AppImage 构建、污染库环境下的 FFmpeg 启动、27 项媒体回归及无界面 Launcher 启动，任务成功。macOS 新启用的媒体测试运行 27 项，一处既有断言仍将规范化后的外部媒体 URL 与未经 resolve 的临时路径比较；改为 `self.source.resolve().as_uri()`，保留“不收集媒体时引用正确源文件”的检查。全部 48 个工作流嵌入脚本经 YAML 解析及 PowerShell／Bash 语法检查通过。

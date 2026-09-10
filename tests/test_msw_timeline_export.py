@@ -135,7 +135,7 @@ class TimelineExportTests(unittest.TestCase):
         with zipfile.ZipFile(path) as package:
             video = json.loads(package.read('content.otio'))['tracks']['children'][0]
             url = video['children'][0]['media_references']['DEFAULT_MEDIA']['target_url']
-            self.assertEqual(url, self.source.as_uri())
+            self.assertEqual(url, self.source.resolve().as_uri())
             self.assertNotIn('media/source.mp4', package.namelist())
         _, _, path = self.export(source=False)
         with zipfile.ZipFile(path) as package:
