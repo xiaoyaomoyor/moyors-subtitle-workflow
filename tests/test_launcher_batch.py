@@ -388,7 +388,7 @@ class BatchApiTests(unittest.TestCase):
             with mock.patch("maw.gui_web._request_from_payload", return_value=TranscriptionRequest(media, root / "clip.srt")), mock.patch("maw.gui_web.run_batch"):
                 result = api.start_batch_transcription({"items": [{"id": "a", "mediaPath": str(media), "srtPath": str(root / "clip.srt")}], "apiKey": "secret"})
             self.assertTrue(result["ok"])
-            self.assertEqual(result["manifestPath"], str(root / "_msw" / "maw-batch-manifest-1.json"))
+            self.assertEqual(result["manifestPath"], str((root / "_msw" / "maw-batch-manifest-1.json").resolve()))
             api.shutdown()
 
 

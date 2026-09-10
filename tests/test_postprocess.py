@@ -389,7 +389,7 @@ class PostprocessTests(unittest.TestCase):
 
         if result.project_path is None:
             self.fail("JSON output mode must create a project")
-        self.assertEqual(read_project(result.project_path)["media"], str(self.media))
+        self.assertEqual(read_project(result.project_path)["media"], str(self.media.resolve()))
     def test_llm_groups_can_redistribute_text_but_not_timing(self) -> None:
         project = sample_project(self.media)
         groups: JsonDict = {
