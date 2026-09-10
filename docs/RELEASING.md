@@ -1,6 +1,6 @@
 # 构建与发布 MSW
 
-当前目标为 MSW `1.6.0-beta.1`，基于 MAW 同版本。仓库和标签相互独立；MSW 的 `v1.6.0-beta.1` 应指向 `my-feature` 上经过验证的提交，不能指向用于跟踪上游的 `main`。
+当前目标为 MSW `1.6.0-beta.2`，适配 MAW 同版本（固定提交 `860f354d74e81979e0d7a17f5e64f470a5b0fbef`）。仓库和标签相互独立；MSW 的 `v1.6.0-beta.2` 应指向 `my-feature` 上经过验证的提交，不能指向用于跟踪上游的 `main`。
 
 ## 发布清单
 
@@ -12,7 +12,7 @@
 
 ## 构建预演
 
-在仓库 Actions 中选择 **Release MSW GUI → Run workflow → my-feature**。手动运行会按 `pyproject.toml` 中的版本生成正式命名的候选包，并运行五包完整性检查；不会创建 tag 或 GitHub Release。最终 `release-preflight` artifact 含发行说明预览与各包 SHA-256。
+在仓库 Actions 中选择 **Release MSW GUI → Run workflow**，选择维护者已推送并核准的候选分支（本次集成分支为 `sync/upstream-1.6.0-beta.2`）。手动运行会按 `pyproject.toml` 中的版本生成正式命名的候选包，并运行五包完整性检查；不会创建 tag 或 GitHub Release。最终 `release-preflight` artifact 含发行说明预览与各包 SHA-256。
 
 工作流为 `.github/workflows/release.yml`，复用 `MSW.spec`、`scripts/build-windows.ps1`、`scripts/build-appimage.sh` 和 macOS 原生步骤。三个构建平台全部成功才能进入总校验；任一失败都会阻止公开发布，不再降级为只发布 Windows。
 
@@ -40,8 +40,8 @@ GUI 分发资源采用明确清单；不携带仓库历史截图、开发反馈�
 
 1. 核对候选包的提交 SHA；分别在目标平台启动 Launcher、打开 Server 编辑器、加载工程并保存，至少完成一次对应环境可用的配音与导出。CI 的启动检查不能代替真实用户环境验收。
 2. 检查 `CHANGELOG.md` 的 MSW 版本条目。旧上游版本说明和开发明细放在 `archived/`，避免发行说明只列上游更新而漏掉 MSW 配音功能。
-3. 运行 `python scripts/prepare_release_notes.py --tag v1.6.0-beta.1 --output <临时目录>/release-notes.md`，审阅实际正文。文档链接固定到该标签，预发布版本不会自动成为 GitHub 的 latest 正式版。
-4. 维护者确认公开发布后，在已验证的 `my-feature` 提交上创建并推送 `v1.6.0-beta.1` 标签。标签 push 会重新构建并验证五个包，随后创建标记为 prerelease 的 GitHub Release。
+3. 运行 `python scripts/prepare_release_notes.py --tag v1.6.0-beta.2 --output <临时目录>/release-notes.md`，审阅实际正文。文档链接固定到该标签，预发布版本不会自动成为 GitHub 的 latest 正式版。
+4. 维护者确认公开发布后，在已验证的 `my-feature` 提交上创建并推送 `v1.6.0-beta.2` 标签。标签 push 会重新构建并验证五个包，随后创建标记为 prerelease 的 GitHub Release。
 5. 若同名 Release 已有附件，先核查附件来源与状态；失败运行不能视为发布完成。完成后复查七项下载、版本、SHA-256 与文档链接。
 
-本文件是发布流程，不代表本轮已建立远端标签或已经发布。当前验证证据见 [发布准备账本](TEST_FEEDBACK_RELEASE_PREP.md)。
+本文件是发布流程，不代表本轮已建立远端标签或已经发布。本次验证证据见 [beta.2 同步账本](UPSTREAM_SYNC_1.6.0-beta.2.md)；[beta.1 发布准备账本](TEST_FEEDBACK_RELEASE_PREP.md)仅保留历史证据，不能作为 beta.2 五包通过的依据。

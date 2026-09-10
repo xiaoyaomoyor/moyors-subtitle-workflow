@@ -1897,6 +1897,7 @@ class LocalEditorServerTests(unittest.TestCase):
                     "segments": [{"start": 0, "end": 1000, "text": "保存后的字幕"}],
                 }
                 normalized_saved_project = {
+                    "schema": "moy.asr.project.v1",
                     "media": str(self.media),
                     "segments": [{"id": "main-001", "start": 0, "end": 1000, "text": "保存后的字幕"}],
                 }
@@ -2092,6 +2093,7 @@ class LocalEditorServerTests(unittest.TestCase):
                 self.assertEqual(
                     json.loads(self.project_path.read_text(encoding="utf-8")),
                     {
+                        "schema": "moy.asr.project.v1",
                         "media": str(self.media.resolve()),
                         "segments": [{"id": "main-001", "start": 0, "end": 1000, "text": "接管后保存"}],
                     },

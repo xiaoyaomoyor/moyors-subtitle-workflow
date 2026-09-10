@@ -1,5 +1,7 @@
 # 实验性本地 ASR
 
+Launcher 的安装／修复和目录选择位于“设置 → 运行环境”。非 MOSS 环境支持 `MSW_LOCAL_RUNTIME_ROOT`（兼容 `MAW_LOCAL_RUNTIME_ROOT`），保存后重新扫描，重启后继续使用；安装、模型准备和单项／批量转写期间禁止切换。MOSS、OCR、TTS 与模型权重目录保持独立，详见[输出布局与环境设置](OUTPUT_LAYOUT.md)。
+
 > 注意：当前为 beta 版本，未经过充分测试，不保证后续的维护和更新，请谨慎使用。
 
 MSW 当前的正式入口仍然是云端 ASR。这个页面记录本地模型流程的第一版：

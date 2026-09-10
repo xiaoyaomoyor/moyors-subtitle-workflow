@@ -381,13 +381,14 @@ class BatchApiTests(unittest.TestCase):
             root = Path(temp)
             media = root / "clip.mp3"
             media.write_bytes(b"media")
-            existing = root / "maw-batch-manifest.json"
+            existing = root / "_msw" / "maw-batch-manifest.json"
+            existing.parent.mkdir()
             existing.write_text("existing", encoding="utf-8")
             api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html"), window_getter=lambda: None)
             with mock.patch("maw.gui_web._request_from_payload", return_value=TranscriptionRequest(media, root / "clip.srt")), mock.patch("maw.gui_web.run_batch"):
                 result = api.start_batch_transcription({"items": [{"id": "a", "mediaPath": str(media), "srtPath": str(root / "clip.srt")}], "apiKey": "secret"})
             self.assertTrue(result["ok"])
-            self.assertEqual(result["manifestPath"], str(root / "maw-batch-manifest-1.json"))
+            self.assertEqual(result["manifestPath"], str(root / "_msw" / "maw-batch-manifest-1.json"))
             api.shutdown()
 
 

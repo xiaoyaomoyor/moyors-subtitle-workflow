@@ -5,7 +5,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDir, clickMenubarItem, findFreePort, generateBlankEditor, generateWav, makeTempDir, startStaticServer } from './helpers.mjs';
+import { cleanupTempDir, clickMenubarItem, openMenubarMenu, findFreePort, generateBlankEditor, generateWav, makeTempDir, startStaticServer } from './helpers.mjs';
 
 let tempDir;
 let server;       // 便携版（SERVER_CONFIG = null）
@@ -76,11 +76,14 @@ test('New Project binds a browser handle and later saves write the same file', a
 
   await expect(page.locator('#json-name')).toHaveText('untitled.mosp');
   // 便携版最初隐藏保存控件；句柄绑定后出现并可用。
+  await openMenubarMenu(page, '文件');
   await expect(page.locator('#save-project')).toBeVisible();
   await expect(page.locator('#save-project')).toBeEnabled();
+  await page.keyboard.press('Escape');
   expect(await page.evaluate(() => DATA.segments)).toEqual([]);
   expect(await page.evaluate(() => window.__handleWrites)).toHaveLength(1);
   expect((await page.evaluate(() => window.__handleWrites[0])).segments).toEqual([]);
+  expect((await page.evaluate(() => window.__handleWrites[0])).schema).toBe('moy.asr.project.v1');
 
   // 编辑后 Ctrl+S 必须写回同一个句柄文件（方案 A 的核心承诺）。
   await page.evaluate(() => DATA.segments.push({ start: 0, end: 500, text: 'after', _dirty: true }));

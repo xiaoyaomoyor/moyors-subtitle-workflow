@@ -103,7 +103,7 @@ jobs:
           npx playwright install chromium
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
-          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs --project=chromium
+          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs --project=chromium
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics

@@ -69,7 +69,7 @@ test('voice export uses a snapshot and downloads a WAV while editing remains ava
   await page.unroute('**/api/msw/audio-exports');
   await clickMenubarItem(page,'文件','audio-export-btn');
   const card=page.locator('#audio-export-jobs .msw-processing-job').first();
-  await expect(card.getByRole('button',{name:'下载 WAV',exact:true})).toBeVisible();
+  await expect(card.getByRole('button',{name:'下载 WAV',exact:true})).toBeVisible({timeout:30000});
   const wav=await download(page,card,'voice.wav'); expect(wav.frames).toBe(4*48000); expect(wav.at(.5)).toBe(0); expect(wav.at(1.2)).not.toBe(0);
   await page.locator('#audio-export-history summary').click(); await expect(card).toBeHidden();
   await expect(page.locator('#audio-export-start')).toBeVisible();

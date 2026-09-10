@@ -1,5 +1,7 @@
 # MSW 命令行 CLI
 
+默认输出路径遵循[输出布局设置](OUTPUT_LAYOUT.md)，显式 `--output` 优先。六个底层 `generate_subtitle_*` 脚本支持 `--no-model-tag`；公开 `MSW.exe` 参数没有新增该开关，请通过配置文件控制默认模型后缀。
+
 MSW 的 Release 包除了图形 Launcher，也支持直接用命令行完成转写和本机编辑器 Server 管理。本文以 Windows PowerShell 和 Release 包中的 `MSW.exe` 为例；源码运行时，把示例中的 `MSW.exe` 替换为 `uv run python maw_gui.py` 即可。
 
 > 本文介绍公开 CLI。`--transcribe`、`--transcribe-soniox`、`--transcribe-bcut`、`--transcribe-tencent`、`--transcribe-openai` 和 `--serve` 是保留给旧 Launcher/内部调用的兼容入口，新脚本应使用本文的参数。

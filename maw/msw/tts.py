@@ -10,6 +10,7 @@ from urllib.parse import urlsplit, urlunsplit
 import requests
 
 from maw.gui_config import load_env, save_env
+from maw.msw.assets import MAX_AUDIO_BYTES
 from maw.msw.project_codec import valid_cue_id, valid_id
 from maw.msw.qwen_catalog import MODELS, MODEL_TYPES, model_type, voices_for, catalog_payload
 
@@ -21,7 +22,6 @@ LANGUAGES = ["Auto", "Chinese", "English", "German", "Italian", "Portuguese", "S
              "Japanese", "Korean", "French", "Russian"]
 DEFAULT_RECIPE = {"provider": "qwen", "region": "beijing", "model_type": "CustomVoice", "model": MODELS[0], "voice": "Cherry",
                   "language_type": "Auto", "instructions": "", "optimize_instructions": False}
-MAX_AUDIO_BYTES = 32 * 1024 * 1024
 
 
 class TtsServiceError(ValueError):

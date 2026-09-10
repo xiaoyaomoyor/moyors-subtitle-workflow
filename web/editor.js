@@ -1,4 +1,23 @@
 const DATA = __DATA_JSON__;
+const CANONICAL_PROJECT_FIELDS = new Set([
+  'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
+  'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'waveform',
+  'media_metadata', 'media_time_reference', 'spectral', 'waveform_reapeaks', 'gap_remove',
+  'script_alignment', 'workspace', 'preview', 'msw',
+]);
+function getProjectExtensionFields(project) {
+  return Object.fromEntries(Object.entries(project).filter(([key]) => !CANONICAL_PROJECT_FIELDS.has(key)));
+}
+function validateProjectForLoad(project) {
+  if (!window.AsrEditorUtils.supportsProjectSchema(project)) {
+    const message = '此工程的格式版本不受支持，请使用对应版本的编辑器打开';
+    throw new Error(window.MSWE_I18N?.translateText?.(message) || message);
+  }
+  return window.MSWProject.normalize(project.msw);
+}
+validateProjectForLoad(DATA);
+DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
+let projectExtensionFields = getProjectExtensionFields(DATA);
 let FILENAME_BASE = __FILENAME_BASE_JSON__;
 const STICKERS = __STICKERS_JSON__;
 let STICKER_ROOT = __STICKER_ROOT_JSON__;  // 表情包根目录的绝对路径（无尾斜杠）
@@ -704,6 +723,9 @@ const DEFAULT_EDITOR_SETTINGS = {
   stickerOverlayEnabled: false,
   // 表情包 OTIO：保留用户偏好的原始素材引用 / 便携文件夹模式。
   stickerOtioExportMode: 'original',
+  otioExportIncludeSrt: true,
+  otioExportIncludeStickers: true,
+  otioExportIncludeMarkers: true,
   // 字幕单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
   clickBehavior: 'select-and-seek',
   // 波形字幕块的跳转目标，默认使用鼠标所在位置；字幕列表点击始终跳转到字幕开头。
@@ -782,6 +804,9 @@ function readEditorSettings() {
     cueEditorCancelOnEscape: saved.cueEditorCancelOnEscape === true,
     autoSnapAdjacentCues: saved.autoSnapAdjacentCues !== false,
     stickerOtioExportMode: saved.stickerOtioExportMode === 'portable' ? 'portable' : 'original',
+    otioExportIncludeSrt: saved.otioExportIncludeSrt !== false,
+    otioExportIncludeStickers: saved.otioExportIncludeStickers !== false,
+    otioExportIncludeMarkers: saved.otioExportIncludeMarkers !== false,
   });
 }
 
@@ -1538,9 +1563,6 @@ const cueEditorSplitKey = document.getElementById('cue-editor-split-key');
 const cueEditorConfirmKey = document.getElementById('cue-editor-confirm-key');
 const helpTabButtons = Array.from(document.querySelectorAll('[data-help-tab]'));
 const helpTabPanels = Array.from(document.querySelectorAll('[data-help-tab-panel]'));
-const helpAdvancedToggle = document.getElementById('help-advanced-toggle');
-const helpAdvancedTabs = document.getElementById('help-advanced-tabs');
-const helpAdvancedTabButtons = Array.from(helpAdvancedTabs?.querySelectorAll('[data-help-tab]') || []);
 const helpOpenWaveformSettingsButtons = Array.from(document.querySelectorAll('[data-help-open-waveform-settings]'));
 const helpOpenMediaSettingsButtons = Array.from(document.querySelectorAll('[data-help-open-media-settings]'));
 const helpOpenGapRemovePanelButton = document.getElementById('help-open-gap-remove-panel');
@@ -2649,27 +2671,9 @@ function visibleHelpTabButtons() {
   return helpTabButtons.filter((button) => !button.closest('[hidden]'));
 }
 
-function setHelpAdvancedTabsOpen(open, { focus = false } = {}) {
-  if (!helpAdvancedTabs || !helpAdvancedToggle) return;
-  const nextOpen = Boolean(open);
-  if (!nextOpen && helpAdvancedTabButtons.some((button) => button.getAttribute('aria-selected') === 'true')) {
-    selectHelpTab('basic');
-  }
-  helpAdvancedTabs.hidden = !nextOpen;
-  helpAdvancedToggle.setAttribute('aria-expanded', String(nextOpen));
-  helpAdvancedToggle.classList.toggle('is-active', nextOpen);
-  if (focus) {
-    const activeButton = helpAdvancedTabButtons.find((button) => button.getAttribute('aria-selected') === 'true');
-    (activeButton || helpAdvancedTabButtons[0])?.focus();
-  }
-}
-
 function selectHelpTab(tabName, { focus = false } = {}) {
   const activeButton = helpTabButtons.find((button) => button.dataset.helpTab === tabName);
   if (!activeButton) return;
-  if (helpAdvancedTabButtons.includes(activeButton) && helpAdvancedTabs?.hidden) {
-    setHelpAdvancedTabsOpen(true);
-  }
   helpTabButtons.forEach((button) => {
     const active = button === activeButton;
     button.classList.toggle('is-active', active);
@@ -2683,10 +2687,6 @@ function selectHelpTab(tabName, { focus = false } = {}) {
   });
   if (focus) activeButton.focus();
 }
-
-helpAdvancedToggle?.addEventListener('click', () => {
-  setHelpAdvancedTabsOpen(helpAdvancedTabs?.hidden === true);
-});
 
 helpTabButtons.forEach((button) => {
   button.addEventListener('click', () => selectHelpTab(button.dataset.helpTab));
@@ -3928,6 +3928,36 @@ function addGapAtWaveformTime(timeMs) {
   );
   waveformEditor?.revealTime(start, true);
   flashHint(`已添加 ${formatGapRemoveTotal(end - start)} 静音空隙`, 'success');
+  return true;
+}
+
+function fillGapRangeAtWaveformTime(timeMs) {
+  const gaps = getGapRemoveGaps();
+  if (!gaps.some((gap) => gap.removed !== false)) {
+    flashHint('当前没有已激活的空隙，无法填充区间空隙', 'invalid');
+    return false;
+  }
+  const range = window.AsrEditorUtils.resolveGapFillRange(gaps, timeMs, gapRemoveMediaDurationMs());
+  if (!range) {
+    flashHint('媒体时长尚不可用；请先加载媒体后再填充区间空隙', 'invalid');
+    return false;
+  }
+  const state = getGapRemoveData(true);
+  const sourceGaps = window.AsrGapRemoveCore.normalizeGapRemoveGaps(state.gaps);
+  const nextGaps = window.AsrEditorUtils.applyGapRemoveRange(sourceGaps, range.start, range.end, true);
+  // Provenance can split one visible gap into several source ranges. Compare
+  // their union before voice protection; a no-op must not rewrite history.
+  const rangesOnly = window.AsrEditorUtils.getRemovedGapRanges;
+  if (JSON.stringify(rangesOnly(nextGaps)) === JSON.stringify(rangesOnly(sourceGaps))) {
+    flashHint('该位置已经是已移除的空隙', 'invalid');
+    return false;
+  }
+  pushGapRemoveUndo('填充区间空隙');
+  state.detector = 'audio_gate';
+  commitManualGapRemoveChange(state, [{ ...range, removed: true }]);
+  const effectiveMs = getRemovedGapRanges().reduce((total, gap) =>
+    total + Math.max(0, Math.min(gap.end, range.end) - Math.max(gap.start, range.start)), 0);
+  flashHint(`已填充区间空隙：标记 ${formatGapRemoveTotal(range.end - range.start)}，实际移除 ${formatGapRemoveTotal(effectiveMs)}`, 'success');
   return true;
 }
 
@@ -12135,7 +12165,7 @@ async function downloadColorSrts(gapRemoved = false) {
     DATA.segments,
     EDITOR_SETTINGS.exportStartAtZero,
   );
-  const gapSuffix = gapRemoved ? '_gap-removed' : '';
+  const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
   const buildPayload = (color) => window.AsrEditorUtils.buildSrtPayload(DATA.segments, {
     colorName: color.name,
     timeOffset: 0,
@@ -12263,6 +12293,8 @@ function buildGapRemovedRegionsJson() {
 }
 
 function buildJson() {
+  // Validate before timing repair, and always serialize the live MSW extension.
+  const msw = validateProjectForLoad(DATA);
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const repairedTimingCount = repairCurrentProjectTimings();
   if (repairedTimingCount > 0) {
@@ -12270,6 +12302,8 @@ function buildJson() {
   }
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const out = {
+    schema: window.AsrEditorUtils.PROJECT_SCHEMA,
+    ...projectExtensionFields,
     media: DATA.media || '',
     language: DATA.language || '',
     model: DATA.model || '',
@@ -12293,8 +12327,11 @@ function buildJson() {
       return o;
     }),
   };
+  for (const key of ['language_source', 'split_mode', 'timestamp_granularity']) {
+    if (typeof DATA[key] === 'string') out[key] = DATA[key];
+  }
   const multi = getMultiSubtitleState();
-  if (DATA.msw) out.msw = window.MSWProject.normalize(DATA.msw);
+  if (msw) out.msw = msw;
   out.multi_subtitle = {
     schema: multi.schema || MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SCHEMA,
     enabled: multi.enabled === true,
@@ -12701,7 +12738,7 @@ function buildTimelineMediaClip(
   };
 }
 
-function buildTimelineOtio({ gapRemoved = false } = {}) {
+function buildTimelineOtio({ gapRemoved = false, includeStickers = false, includeSubtitleMarkers = true } = {}) {
   const removed = gapRemoved ? getRemovedGapRanges() : [];
   if (gapRemoved && !removed.length) {
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
@@ -12768,8 +12805,8 @@ function buildTimelineOtio({ gapRemoved = false } = {}) {
       sourceStartFrame,
       sourceDurationFrames,
       {
-        includeSubtitleMarkers: track.kind === 'Video'
-          || (track.kind === 'Audio' && player?.tagName === 'AUDIO' && trackIndex === 0),
+        includeSubtitleMarkers: includeSubtitleMarkers && (track.kind === 'Video'
+          || (track.kind === 'Audio' && player?.tagName === 'AUDIO' && trackIndex === 0)),
         gapRemoved,
         audioTrack: track.audioTrack,
         audioTrackIndex: track.audioTrackIndex,
@@ -12778,6 +12815,16 @@ function buildTimelineOtio({ gapRemoved = false } = {}) {
     )),
     kind: track.kind,
   }));
+  if (includeStickers) {
+    const collected = collectStickerOtioEntries(removed);
+    const result = collected.error ? collected : buildStickerOtioTrack(collected.entries);
+    if (result.error) {
+      const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
+      flashHint(`${tr(result.error)} ${tr('可关闭「时间线包含表情包」后重试。')}`, 'warning');
+      return null;
+    }
+    if (collected.entries.length) tracks.push(result.track);
+  }
   const metadata = {
     moy: {
       source_media: targetUrl,
@@ -12815,11 +12862,15 @@ function buildTimelineOtio({ gapRemoved = false } = {}) {
 }
 
 function buildSourceOtio() {
-  return buildTimelineOtio({ gapRemoved: false });
+  return buildTimelineOtio({ gapRemoved: false,
+    includeStickers: EDITOR_SETTINGS.otioExportIncludeStickers,
+    includeSubtitleMarkers: EDITOR_SETTINGS.otioExportIncludeMarkers });
 }
 
 function buildGapRemovedOtio() {
-  return buildTimelineOtio({ gapRemoved: true });
+  return buildTimelineOtio({ gapRemoved: true,
+    includeStickers: EDITOR_SETTINGS.otioExportIncludeStickers,
+    includeSubtitleMarkers: EDITOR_SETTINGS.otioExportIncludeMarkers });
 }
 
 function stickerOtioName(sticker, absPath) {
@@ -12888,7 +12939,7 @@ function collectStickerOtioEntries(removed) {
   return { entries };
 }
 
-function buildStickerOtioTimeline(stickers, timelineName) {
+function buildStickerOtioTrack(stickers) {
   stickers.sort((a, b) => (a.startMs - b.startMs) || (a.endMs - b.endMs) || (a.idx - b.idx));
   const children = [];
   let cursor = 0;
@@ -12941,6 +12992,15 @@ function buildStickerOtioTimeline(stickers, timelineName) {
     });
     cursor = startFrame + durationFrames;
   }
+  return { track: {
+    OTIO_SCHEMA: 'Track.1', metadata: {}, name: '表情包', source_range: null,
+    effects: [], markers: [], enabled: true, color: null, children, kind: 'Video',
+  } };
+}
+
+function buildStickerOtioTimeline(stickers, timelineName) {
+  const result = buildStickerOtioTrack(stickers);
+  if (result.error) return result;
   return {
     json: JSON.stringify({
       OTIO_SCHEMA: 'Timeline.1',
@@ -12956,18 +13016,7 @@ function buildStickerOtioTimeline(stickers, timelineName) {
         markers: [],
         enabled: true,
         color: null,
-        children: [{
-          OTIO_SCHEMA: 'Track.1',
-          metadata: {},
-          name: '表情包',
-          source_range: null,
-          effects: [],
-          markers: [],
-          enabled: true,
-          color: null,
-          children,
-          kind: 'Video',
-        }],
+        children: [result.track],
       },
     }, null, 4),
   };
@@ -13032,40 +13081,58 @@ async function exportStickerOtoz(kind, buildTimeline, filename, description) {
   }
 }
 
-async function exportTimelineOtioz(kind, buildTimeline, filename, description) {
-  const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
+// Build both files synchronously before the first picker/request can yield.
+// Later edits, project switches and language changes cannot mix two snapshots.
+async function exportSourceTimeline({ gapRemoved = false, archive = false } = {}) {
   if (editingState) finishEdit(true);
-  const payload = buildTimeline();
-  if (!payload) return;
-  if (!SERVER_CONFIG?.canOtozTimelineExport || !SERVER_CONFIG?.otiozTimelineExportUrl) {
-    flashHint(tr('当前工程无法导出时间线 OTIOZ（需要以 server-editor 打开并绑定工程文件）'), 'warning');
-    return;
-  }
-  flashHint(tr('正在生成时间线 OTIOZ 打包工程…'));
-  try {
-    const response = await fetch(new URL(SERVER_CONFIG.otiozTimelineExportUrl, window.location.href), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requestToken: SERVER_CONFIG.requestToken,
-        kind,
-        timeline: JSON.parse(payload),
-      }),
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || `服务器返回 ${response.status}`);
+  const payload = gapRemoved ? buildGapRemovedOtio() : buildSourceOtio();
+  if (!payload) return false;
+  const srt = EDITOR_SETTINGS.otioExportIncludeSrt ? (gapRemoved ? buildGapRemovedSrt() : buildSrt()) : null;
+  const suffix = gapRemoved ? '_' + (window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed') : '';
+  const basename = FILENAME_BASE + suffix;
+  const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
+  let content = payload;
+  if (archive) {
+    if (!SERVER_CONFIG?.canOtozTimelineExport || !SERVER_CONFIG?.otiozTimelineExportUrl) {
+      flashHint(tr('当前工程无法导出时间线 OTIOZ（需要以 server-editor 打开并绑定工程文件）'), 'warning');
+      return false;
     }
-    const blob = await response.blob();
-    flashHint(tr('时间线 OTIOZ 已生成，媒体已打包进 zip'), 'success');
-    await downloadFile(blob, filename, 'application/zip', {
-      desc: description, types: { 'application/zip': ['.otioz'] },
-    });
-  } catch (error) {
-    flashHint(`${tr('时间线 OTIOZ 导出失败')}：${error.message || error}`, 'warning');
+    flashHint(tr('正在生成时间线 OTIOZ 打包工程…'));
+    try {
+      const response = await fetch(new URL(SERVER_CONFIG.otiozTimelineExportUrl, window.location.href), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestToken: SERVER_CONFIG.requestToken,
+          kind: gapRemoved ? 'gap-removed' : 'source', timeline: JSON.parse(payload) }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || String(response.status));
+      }
+      content = await response.blob();
+    } catch (error) {
+      flashHint(tr('时间线 OTIOZ 导出失败') + '：' + (error.message || error), 'warning');
+      return false;
+    }
   }
+  const extension = archive ? '.otioz' : '.otio';
+  const mime = archive ? 'application/zip' : 'application/vnd.opentimelineio+json';
+  const result = await downloadFile(content, basename + extension, mime,
+    { desc: archive ? 'OTIOZ' : 'OTIO', types: { [mime]: [extension] } }, { detailed: true });
+  if (!['saved', 'dispatched'].includes(result.status)) {
+    if (result.status === 'failed') flashHint(tr('源媒体时间线保存失败，请检查目标文件权限后重试。'), 'warning');
+    return false;
+  }
+  if (srt !== null) {
+    const subtitleResult = await downloadFile(srt, basename + '.srt', 'text/plain',
+      { desc: 'SRT', types: { 'text/plain': ['.srt'] } }, { detailed: true });
+    if (!['saved', 'dispatched'].includes(subtitleResult.status)) {
+      flashHint(tr(subtitleResult.status === 'cancelled'
+        ? '时间线已导出；已取消附带 SRT 的保存。'
+        : '时间线已导出；附带 SRT 保存失败，请单独导出字幕。'), 'warning');
+    }
+  }
+  return true;
 }
-
 
 const TIMELINE_OTIOZ_BUTTONS = ['download-otioz', 'download-gap-removed-otioz'];
 
@@ -14356,7 +14423,7 @@ async function exportLottieDynamicCaptions() {
     const blob = await response.blob();
     closeLottieExportModal();
     const suffix = extension ? '_extension' : '';
-    const gapSuffix = gapRemoved ? '_gap-removed' : '';
+    const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
     const saved = await downloadFile(
       blob,
       `${FILENAME_BASE}${suffix}${gapSuffix}_dynamic-caption.lottie`,
@@ -14475,7 +14542,7 @@ async function exportOgrafDynamicCaptions() {
     const blob = await response.blob();
     closeOgrafExportModal();
     const suffix = extension ? '_extension' : '';
-    const gapSuffix = gapRemoved ? '_gap-removed' : '';
+    const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
     const saved = await downloadFile(
       blob,
       `${FILENAME_BASE}${suffix}${gapSuffix}_dynamic-caption.ograf.zip`,
@@ -14629,58 +14696,44 @@ async function exportStickerOtio(kind, buildTimeline, filename, description) {
 document.getElementById('download-sticker-otio')?.addEventListener('click', () => {
   if (stickerExportBlocked('download-sticker-otio')) return;
   exportStickerOtio(
-    'stickers', buildStickerOtio, `${FILENAME_BASE}_stickers.otio`, 'OTIO 工程文件'
+    'stickers', buildStickerOtio, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otio`, 'OTIO 工程文件'
   );
 });
 document.getElementById('download-gap-removed-srt')?.addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildGapRemovedSrt();
   if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.srt`, 'text/plain', {
+    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.srt`, 'text/plain', {
       desc: '去空隙字幕 SRT', types: { 'text/plain': ['.srt'] }
     });
   }
 });
 document.getElementById('download-gap-removed-color-srt')?.addEventListener('click', () => downloadColorSrts(true));
-document.getElementById('download-otio')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  const payload = buildSourceOtio();
-  if (payload) {
-    await downloadFile(payload, FILENAME_BASE + '.otio', 'application/vnd.opentimelineio+json', {
-      desc: 'OTIO 工程', types: { 'application/vnd.opentimelineio+json': ['.otio'] }
-    });
-  }
+const OTIO_EXPORT_OPTIONS = {
+  srt: 'otioExportIncludeSrt', stickers: 'otioExportIncludeStickers', markers: 'otioExportIncludeMarkers',
+};
+function syncOtioExportOptions() {
+  document.querySelectorAll('[data-otio-export-option]').forEach(input => {
+    input.checked = EDITOR_SETTINGS[OTIO_EXPORT_OPTIONS[input.dataset.otioExportOption]] !== false;
+  });
+}
+document.querySelectorAll('[data-otio-export-option]').forEach(input => {
+  input.addEventListener('change', () => {
+    updateEditorSettings({ [OTIO_EXPORT_OPTIONS[input.dataset.otioExportOption]]: input.checked });
+    syncOtioExportOptions();
+    if (!input.matches(':focus-visible')) input.blur();
+  });
 });
-document.getElementById('download-otioz')?.addEventListener('click', async () => {
-  await exportTimelineOtioz(
-    'source',
-    buildSourceOtio,
-    FILENAME_BASE + '.otioz',
-    'OTIOZ 打包工程',
-  );
-});
-document.getElementById('download-gap-removed-otio')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  const payload = buildGapRemovedOtio();
-  if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.otio`, 'application/vnd.opentimelineio+json', {
-      desc: '去空隙 OTIO 工程', types: { 'application/vnd.opentimelineio+json': ['.otio'] }
-    });
-  }
-});
-document.getElementById('download-gap-removed-otioz')?.addEventListener('click', async () => {
-  await exportTimelineOtioz(
-    'gap-removed',
-    buildGapRemovedOtio,
-    `${FILENAME_BASE}_gap-removed.otioz`,
-    '去空隙时间线 OTIOZ 打包工程',
-  );
-});
+syncOtioExportOptions();
+document.getElementById('download-otio')?.addEventListener('click', () => exportSourceTimeline());
+document.getElementById('download-otioz')?.addEventListener('click', () => exportSourceTimeline({ archive: true }));
+document.getElementById('download-gap-removed-otio')?.addEventListener('click', () => exportSourceTimeline({ gapRemoved: true }));
+document.getElementById('download-gap-removed-otioz')?.addEventListener('click', () => exportSourceTimeline({ gapRemoved: true, archive: true }));
 document.getElementById('download-gap-removed-ffconcat')?.addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildGapRemovedFfconcat();
   if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.ffconcat`, 'text/plain', {
+    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.ffconcat`, 'text/plain', {
       desc: 'FFconcat 剪辑计划', types: { 'text/plain': ['.ffconcat'] }
     });
   }
@@ -14689,7 +14742,7 @@ document.getElementById('download-gap-removed-regions-json')?.addEventListener('
   if (editingState) finishEdit(true);
   const payload = buildGapRemovedRegionsJson();
   if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.keep-regions.json`, 'application/json', {
+    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.keep-regions.json`, 'application/json', {
       desc: '去空隙保留区域 JSON', types: { 'application/json': ['.json'] }
     });
   }
@@ -14698,7 +14751,7 @@ document.getElementById('download-gap-removed-sticker-otio')?.addEventListener('
   if (stickerExportBlocked('download-gap-removed-sticker-otio')) return;
   await exportStickerOtio(
     'gap-removed-stickers', buildGapRemovedStickerOtio,
-    `${FILENAME_BASE}_gap-removed-stickers.otio`, '去空隙表情包 OTIO 工程'
+    `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}-${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otio`, '去空隙表情包 OTIO 工程'
   );
 });
 document.getElementById('download-gap-removed-sticker-otioz')?.addEventListener('click', async () => {
@@ -14711,14 +14764,14 @@ document.getElementById('download-gap-removed-sticker-otioz')?.addEventListener(
   }
   await exportStickerOtoz(
     'gap-removed-stickers', buildGapRemovedStickerOtio,
-    `${FILENAME_BASE}_gap-removed-stickers.otioz`, '去空隙表情包 OTIOZ 打包工程'
+    `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}-${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otioz`, '去空隙表情包 OTIOZ 打包工程'
   );
 });
 document.getElementById('download-sticker-otioz')?.addEventListener('click', async () => {
   if (stickerExportBlocked('download-sticker-otioz')) return;
   await exportStickerOtoz(
     'stickers', buildStickerOtio,
-    `${FILENAME_BASE}_stickers.otioz`, '表情包 OTIOZ 打包工程'
+    `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otioz`, '表情包 OTIOZ 打包工程'
   );
 });
 
@@ -15075,6 +15128,7 @@ function resetLoadedMedia() {
 
 function buildBlankProject() {
   return {
+    schema: window.AsrEditorUtils.PROJECT_SCHEMA,
     media: '', language: '', model: '',
     timebase: { unit: 'milliseconds', fps: 30 },
     segments: [],
@@ -15087,7 +15141,9 @@ function suggestedProjectName(file = null) {
 }
 
 function applyCanonicalProject(data, filename) {
-  const msw = window.MSWProject.normalize(data.msw);
+  const msw = validateProjectForLoad(data);
+  projectExtensionFields = getProjectExtensionFields(data);
+  DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
   DATA.msw = msw;
   mswProjectGeneration += 1;
   currentCuePanelIdx = -1;
@@ -15097,6 +15153,9 @@ function applyCanonicalProject(data, filename) {
   resetLoadedMedia();
   DATA.media = typeof data.media === 'string' ? data.media : '';
   DATA.language = data.language || '';
+  for (const key of ['language_source', 'split_mode', 'timestamp_granularity']) {
+    DATA[key] = typeof data[key] === 'string' ? data[key] : undefined;
+  }
   DATA.model = data.model || '';
   DATA.timebase = normalizeTimelineTimebase(data.timebase);
   timelineFpsManuallySet = hasExplicitTimelineFps(data.timebase);
@@ -15157,6 +15216,8 @@ function applyCanonicalProject(data, filename) {
 
 // 本机服务负责新工程绑定与素材收集；便携页保留浏览器句柄后备路径。
 async function createProjectCheckpoint(project, suggestedName) {
+  validateProjectForLoad(project);
+  project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
   const persistence = window.MSWE?.resolve('project-persistence');
   if (persistence?.available()) return persistence.saveAs({ project, name: suggestedName, newProject: true });
   if (projectCheckpointInFlight || projectSaveInFlight) {
@@ -15386,6 +15447,7 @@ async function parseSubtitleImportFile(file) {
   try {
     if (isSrtFile(file)) return parseSrtSegments(await readFileTextWithProgress(file));
     const data = JSON.parse(await readFileTextWithProgress(file));
+    validateProjectForLoad(data);
     if (!data || !Array.isArray(data.segments)) throw new Error('缺少有效 segments 数组');
     const sourceSegments = data.segments.map((segment) => {
       const copy = {
@@ -15635,6 +15697,12 @@ async function openProjectFile(file, options = {}) {
     const text = await readFileTextWithProgress(file);
     updateEditorLoading(60, `正在解析工程 ${file.name}…`);
     const data = JSON.parse(text);
+    try {
+      validateProjectForLoad(data);
+    } catch (error) {
+      flashHint(error.message, 'warning');
+      return false;
+    }
     // 先兜底修复 0 长/倒挂时间码（保底 100ms），再校验结构，让旧工程仍能打开。
     if (data && Array.isArray(data.segments)) {
       data.timebase = normalizeTimelineTimebase(data.timebase);
@@ -18161,17 +18229,21 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   const extensionIdx = findWaveformCueAtTime(timeMs, extensionTrack?.segments);
   if (effectiveTrack === 'extension') {
     if (extensionIdx < 0) {
-      addItem('创建副字幕', '', () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack));
+      addItem('创建副字幕', 'N', () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack));
     }
   } else if (mainIdx < 0) {
-    addItem('创建字幕', '', () => addCueAtWaveformTime(timeMs, clickX, clickY));
+    addItem('创建字幕', 'N', () => addCueAtWaveformTime(timeMs, clickX, clickY));
   }
-  addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
   if (Array.isArray(DATA.segments) && DATA.segments.length && mainIdx >= 0) {
     addItem('按音频位置拆分主字幕', 'B', () => splitFromContextMenu(mainIdx, clickX, clickY, timeMs));
   }
   if (Array.isArray(extensionTrack?.segments) && extensionTrack.segments.length && extensionIdx >= 0) {
     addItem('按音频位置拆分副字幕', '', () => openExtensionSplitModal(extensionIdx, timeMs, extensionTrack));
+  }
+  ctxAppendSeparator();
+  addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
+  if (getGapRemoveGaps().some((gap) => gap.removed !== false)) {
+    addItem('填充区间空隙', '', () => fillGapRangeAtWaveformTime(timeMs));
   }
   ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
   ctxShowAt(clickX, clickY);
@@ -19967,7 +20039,12 @@ refreshClipboardMenuState();
 const editorSettingsSearchInput = document.getElementById('editor-settings-search');
 const editorSettingsNavEl = document.getElementById('editor-settings-nav');
 const editorSettingsCategories = [...document.querySelectorAll('#editor-settings-content .settings-category')];
+const EDITOR_SETTINGS_CATEGORY_KEY = 'msw.editor.settings.category.v1';
 let activeSettingsCategory = null;
+try {
+  const savedCategory = localStorage.getItem(EDITOR_SETTINGS_CATEGORY_KEY);
+  activeSettingsCategory = editorSettingsCategories.find(category => category.dataset.settingsCategory === savedCategory) || null;
+} catch (_) { /* Browser storage may be unavailable. */ }
 
 function settingsCategoryLabel(category) {
   return category.querySelector('.editor-settings-title')?.textContent?.trim() || '';
@@ -19998,6 +20075,7 @@ function buildEditorSettingsNav() {
       category.dataset.unavailable = 'true';
       return;
     }
+    delete category.dataset.unavailable;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'settings-nav-item';
@@ -20045,8 +20123,9 @@ function buildEditorSettingsNav() {
 
 // category 为 null 时表示「全部」模式：所有分类连续展示并显示分类标题。
 function activateEditorSettingsCategory(category) {
-  if (category?.dataset.unavailable === 'true') return;
+  if (category?.dataset.unavailable === 'true') category = null;
   activeSettingsCategory = category || null;
+  try { localStorage.setItem(EDITOR_SETTINGS_CATEGORY_KEY, category?.dataset.settingsCategory || 'all'); } catch (_) {}
   const showAll = !category;
   document.getElementById('editor-settings-content')?.classList.toggle('show-all-categories', showAll);
   editorSettingsCategories.forEach((other) => {
@@ -20069,6 +20148,7 @@ function activateEditorSettingsCategory(category) {
       ? button.dataset.settingsCategory === 'all'
       : button.dataset.settingsCategory === category.dataset.settingsCategory;
     button.classList.toggle('active', !isChild && matches);
+    button.setAttribute('aria-current', String(!isChild && matches));
     if (isChild) button.hidden = !expandedCategories.has(button.dataset.settingsCategory);
     else button.classList.toggle('open', expandedCategories.has(button.dataset.settingsCategory));
   });
@@ -20119,10 +20199,12 @@ function applyEditorSettingsSearch(query) {
   });
   editorSettingsNavEl?.querySelectorAll('.settings-nav-item').forEach((button) => {
     button.classList.remove('active');
+    button.setAttribute('aria-current', 'false');
   });
 }
 
 function resetEditorSettingsSearch() {
+  buildEditorSettingsNav();
   if (editorSettingsSearchInput?.value) {
     editorSettingsSearchInput.value = '';
   }
@@ -20130,11 +20212,27 @@ function resetEditorSettingsSearch() {
   activateEditorSettingsCategory(activeSettingsCategory);
 }
 
+editorSettingsNavEl?.addEventListener('keydown', event => {
+  const button = event.target.closest('.settings-nav-item');
+  if (!button) return;
+  const buttons = [...editorSettingsNavEl.querySelectorAll('.settings-nav-item:not([hidden])')];
+  const index = buttons.indexOf(button);
+  if (index < 0) return;
+  let target;
+  if (event.key === 'ArrowDown') target = buttons[(index + 1) % buttons.length];
+  else if (event.key === 'ArrowUp') target = buttons[(index - 1 + buttons.length) % buttons.length];
+  else if (event.key === 'Home') target = buttons[0];
+  else if (event.key === 'End') target = buttons.at(-1);
+  else return;
+  event.preventDefault(); event.stopPropagation();
+  target.click(); target.focus(); target.scrollIntoView({ block: 'nearest' });
+});
+
 editorSettingsSearchInput?.addEventListener('input', () => {
   applyEditorSettingsSearch(editorSettingsSearchInput.value);
 });
 buildEditorSettingsNav();
-// 默认进入「全部」模式；之后记住用户上次停留的分类。
+// 恢复上次分类；未知或当前不可用的分类回退到「全部」。
 activateEditorSettingsCategory(activeSettingsCategory);
 
 // === 设置类弹窗的通用关闭（遮罩点击 / 捕获阶段 Esc） ===
@@ -20491,6 +20589,10 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   name: () => `${FILENAME_BASE}.mosp`,
   hint: message => flashHint(message, 'warning'),
   downloadLocal: async (project, name) => {
+    if (project) {
+      validateProjectForLoad(project);
+      project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
+    }
     commitProcessingEdits();
     const content = project ? JSON.stringify(project, null, 2) : buildJson();
     await downloadFile(content, name || `${FILENAME_BASE}.mosp`, 'application/json', {
@@ -20512,6 +20614,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     return snapshot;
   },
   restore: result => {
+    validateProjectForLoad(result.project);
     commitProcessingEdits();
     applyCanonicalProject(result.project, result.filename);
     detachServerProjectSaving();
@@ -20521,6 +20624,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   saving: () => projectSaveInFlight || projectCheckpointInFlight,
   setSaving: value => { projectSaveInFlight = value; },
   adopt: (result, { source, newProject }) => {
+    validateProjectForLoad(result.project);
     const unchanged = newProject || JSON.stringify(JSON.parse(buildJson())) === source;
     if (newProject) applyCanonicalProject(result.project, result.filename);
     else {

@@ -546,6 +546,14 @@
   .menubar .dropdown-item:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
   .menubar .dropdown-item.disabled, .menubar .dropdown-item:disabled { opacity: .42; cursor: not-allowed; }
   .menubar .dropdown-item[hidden] { display: none; }
+  .menubar .dropdown-label { padding: 5px 12px; color: var(--text-faint); font-size: 11px; }
+  .menubar .dropdown-setting-toggle {
+    display: flex; align-items: center; gap: 7px; padding: 6px 12px;
+    color: var(--text-secondary); font-size: 12px; cursor: pointer; white-space: nowrap;
+  }
+  .menubar .dropdown-setting-toggle:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .menubar .dropdown-setting-toggle input { margin: 0; accent-color: var(--accent); }
+  .menubar .dropdown-setting-toggle:has(input:focus-visible) { outline: 2px solid var(--accent-line); outline-offset: -2px; }
   .menubar .dropdown-item.danger { color: var(--red-hover); }
   .menubar .dropdown-separator { height: 1px; margin: 4px 8px; background: var(--border-subtle); }
   .menu-kbd {
@@ -2264,44 +2272,39 @@
 
   /* === 操作帮助 === */
   .gap-remove-panel.help-panel {
-    width: min(720px, calc(100vw - 24px));
-    min-width: 320px; min-height: 240px; max-width: calc(100vw - 24px);
+    width: min(760px, calc(100vw - 24px));
+    height: min(640px, calc(100vh - 40px));
+    max-height: calc(100vh - 24px);
+    min-width: min(320px, calc(100vw - 24px)); min-height: 240px; max-width: calc(100vw - 24px);
     resize: both;
     container: help-panel / inline-size;
   }
-  .help-tab-bar {
-    flex: 0 0 auto; display: flex; align-items: flex-end; min-width: 0;
-    padding: 9px 14px 0; overflow: hidden; border-bottom: 1px solid var(--border-subtle);
-  }
+  .help-layout { display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; }
   .help-tabs {
-    flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 4px 6px; align-content: flex-start;
-    padding: 9px 14px 0; overflow: hidden; border-bottom: 1px solid var(--border-subtle);
+    display: flex; flex-direction: column; flex: 0 0 clamp(104px, 22%, 150px);
+    min-height: 0; gap: 3px; padding: 10px 8px; box-sizing: border-box;
+    overflow-y: auto; overflow-x: hidden; background: var(--bg-raised);
+    border-right: 1px solid var(--border-subtle);
   }
-  .help-tab-bar .help-tabs {
-    flex: 1 1 auto; min-width: 0; padding: 0; overflow: visible; border-bottom: 0;
-  }
-  .help-advanced-toggle { margin-left: 6px; }
-  .help-advanced-toggle[aria-expanded="true"] {
-    color: var(--text-primary); background: var(--bg-raised);
-    border-color: var(--border-subtle); border-bottom-color: var(--bg-raised);
-    margin-bottom: -1px;
-  }
-  .help-advanced-tabs[hidden] { display: none; }
   .help-tab {
-    flex: 0 0 auto; min-height: 35px; padding: 7px 13px;
-    color: var(--text-muted); background: transparent;
-    border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    cursor: pointer; font-size: 13px; white-space: nowrap;
+    flex: 0 0 auto; min-height: 35px; padding: 7px 10px;
+    color: var(--text-secondary); background: transparent; text-align: left;
+    border: 1px solid transparent; border-radius: var(--radius-sm);
+    cursor: pointer; font: inherit; font-size: 13px; overflow-wrap: anywhere;
     transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast);
   }
-  .help-tab:hover { color: var(--text-primary); background: var(--bg-raised); }
+  .help-tab:hover { color: var(--text-primary); background: var(--accent-tint); }
   .help-tab[aria-selected="true"] {
-    color: var(--text-primary); background: var(--bg-raised);
-    border-color: var(--border-subtle); border-bottom-color: var(--bg-raised);
-    margin-bottom: -1px;
+    color: var(--text-primary); background: var(--accent-tint-strong); border-color: var(--accent-line);
   }
-  .help-tab:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
-  .help-panel-body { flex: 1 1 auto; display: block; }
+  .help-tab:focus-visible, .help-onboarding-button:focus-visible, .settings-nav-item:focus-visible {
+    outline: 2px solid var(--accent-line); outline-offset: -2px;
+  }
+  .help-onboarding-button {
+    padding: 5px 10px; background: var(--bg-raised); color: var(--text-secondary);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); cursor: pointer;
+  }
+  .help-panel-body { flex: 1 1 auto; display: block; min-width: 0; min-height: 0; overflow-y: auto; }
   .help-tab-panel[hidden] { display: none; }
   .help-tab-panel { width: 100%; box-sizing: border-box; }
   .help-group {
@@ -5394,8 +5397,14 @@
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
-                  <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
-                  <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-label">源媒体导出选项</div>
+                  <label class="dropdown-setting-toggle" title="额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出"><input type="checkbox" data-otio-export-option="srt" checked><span>同时导出 SRT 字幕</span></label>
+                  <label class="dropdown-setting-toggle" title="将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程"><input type="checkbox" data-otio-export-option="stickers" checked><span>时间线包含表情包</span></label>
+                  <label class="dropdown-setting-toggle" title="将主字幕内容写入源媒体片段标记"><input type="checkbox" data-otio-export-option="markers" checked><span>将字幕内容作为标记写入</span></label>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">源媒体时间线（OTIO）</div>
+                  <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出源媒体及所选表情包的去空隙 OTIOZ 时间线">源媒体打包工程（OTIOZ）</div>
                   <div class="dropdown-item" id="download-gap-removed-sticker-otio" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIO；完全落在空隙内的表情包会被丢弃">表情包 OTIO 工程</div>
                   <div class="dropdown-item" id="download-gap-removed-sticker-otioz" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）；完全落在空隙内的表情包会被丢弃">表情包 OTIOZ 打包工程</div>
                 </div>
@@ -5418,9 +5427,15 @@
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-otio-menu">OTIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="extra-otio-menu" role="menu">
-                  <button type="button" class="dropdown-item" id="timeline-export-btn" role="menuitem" disabled title="独立配音片段、原视频及字幕标记的剪辑工程">配音剪辑工程（OTIOZ）<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-                  <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
-                  <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
+                  <button type="button" class="dropdown-item" id="timeline-export-btn" role="menuitem" disabled title="独立配音片段、原视频及字幕标记的剪辑工程">含配音的剪辑工程（OTIOZ）<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-label">源媒体导出选项</div>
+                  <label class="dropdown-setting-toggle" title="额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出"><input type="checkbox" data-otio-export-option="srt" checked><span>同时导出 SRT 字幕</span></label>
+                  <label class="dropdown-setting-toggle" title="将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程"><input type="checkbox" data-otio-export-option="stickers" checked><span>时间线包含表情包</span></label>
+                  <label class="dropdown-setting-toggle" title="将主字幕内容写入源媒体片段标记"><input type="checkbox" data-otio-export-option="markers" checked><span>将字幕内容作为标记写入</span></label>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">源媒体时间线（OTIO）</div>
+                  <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出源媒体及所选表情包的完整 OTIOZ 时间线">源媒体打包工程（OTIOZ）</div>
                   <div class="dropdown-item" id="download-sticker-otio" role="menuitem" tabindex="0" title="导出只包含表情包图片轨道的 OTIO 工程">表情包 OTIO 工程</div>
                   <div class="dropdown-item" id="download-sticker-otioz" role="menuitem" tabindex="0" title="导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）">表情包 OTIOZ 打包工程</div>
                 </div>
@@ -5674,7 +5689,7 @@
       </div>
       <div class="menubar-project-card-row">
         <span class="menubar-project-card-label">版本</span>
-        <span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">MSWE v1.6.0-beta.1</span>
+        <span class="menubar-project-card-value app-version" id="app-version" data-label="版本号">MSWE v1.6.0-beta.2</span>
       </div>
       <div class="menubar-project-card-hint">点击工程名或媒体名可复制</div>
     </div>
@@ -6317,29 +6332,25 @@
       <h3 id="help-panel-title">操作帮助</h3>
     </div>
     <div class="help-header-actions">
+      <button type="button" class="help-onboarding-button" id="help-onboarding" title="重新查看快速上手">快速上手</button>
       <button type="button" id="help-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭帮助窗口"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
-  <div class="help-tab-bar">
-    <div class="help-tabs" role="tablist" aria-label="常用帮助分类">
+  <div class="help-layout">
+    <nav class="help-tabs" role="tablist" aria-orientation="vertical" aria-label="帮助分类">
       <button type="button" class="help-tab" id="help-tab-basic" role="tab" aria-selected="true" aria-controls="help-tab-panel-basic" data-help-tab="basic">基础操作</button>
       <button type="button" class="help-tab" id="help-tab-shortcuts" role="tab" aria-selected="false" aria-controls="help-tab-panel-shortcuts" data-help-tab="shortcuts" tabindex="-1">快捷操作</button>
       <button type="button" class="help-tab" id="help-tab-waveform" role="tab" aria-selected="false" aria-controls="help-tab-panel-waveform" data-help-tab="waveform" tabindex="-1">波形区</button>
       <button type="button" class="help-tab" id="help-tab-playback" role="tab" aria-selected="false" aria-controls="help-tab-panel-playback" data-help-tab="playback" tabindex="-1">播放与导航</button>
-    </div>
-    <button type="button" class="help-tab" id="help-onboarding" title="重新查看快速上手">快速上手</button>
-    <button type="button" class="help-tab help-advanced-toggle" id="help-advanced-toggle" aria-expanded="false" aria-controls="help-advanced-tabs">进阶</button>
-  </div>
-  <div class="help-tabs help-advanced-tabs" id="help-advanced-tabs" role="tablist" aria-label="进阶帮助分类" hidden>
-    <button type="button" class="help-tab" id="help-tab-fine-tuning" role="tab" aria-selected="false" aria-controls="help-tab-panel-fine-tuning" data-help-tab="fine-tuning" tabindex="-1">微调字幕</button>
-    <button type="button" class="help-tab" id="help-tab-gap" role="tab" aria-selected="false" aria-controls="help-tab-panel-gap" data-help-tab="gap" tabindex="-1">空隙操作</button>
-    <button type="button" class="help-tab" id="help-tab-batch" role="tab" aria-selected="false" aria-controls="help-tab-panel-batch" data-help-tab="batch" tabindex="-1">批量操作</button>
-    <button type="button" class="help-tab" id="help-tab-about" role="tab" aria-selected="false" aria-controls="help-tab-panel-about" data-help-tab="about" tabindex="-1">关于</button>
-  </div>
+      <button type="button" class="help-tab" id="help-tab-fine-tuning" role="tab" aria-selected="false" aria-controls="help-tab-panel-fine-tuning" data-help-tab="fine-tuning" tabindex="-1">微调字幕</button>
+      <button type="button" class="help-tab" id="help-tab-gap" role="tab" aria-selected="false" aria-controls="help-tab-panel-gap" data-help-tab="gap" tabindex="-1">空隙操作</button>
+      <button type="button" class="help-tab" id="help-tab-batch" role="tab" aria-selected="false" aria-controls="help-tab-panel-batch" data-help-tab="batch" tabindex="-1">批量操作</button>
+      <button type="button" class="help-tab" id="help-tab-about" role="tab" aria-selected="false" aria-controls="help-tab-panel-about" data-help-tab="about" tabindex="-1">关于</button>
+    </nav>
   <div class="gap-remove-panel-body help-panel-body">
     <section class="help-group help-tab-panel msw-about" id="help-tab-panel-about" role="tabpanel" aria-labelledby="help-tab-about" data-help-tab-panel="about" tabindex="0" hidden>
       <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzNTIuNjIgMzUyLjYzIj4KICA8ZGVmcz4KICAgIDxzdHlsZT4KICAgICAgLmNscy0xIHsKICAgICAgICBmaWxsOiAjMjQyODNiOwogICAgICB9CgogICAgICAuY2xzLTIgewogICAgICAgIGZpbGw6ICM0NzM5OWI7CiAgICAgIH0KCiAgICAgIC5jbHMtMyB7CiAgICAgICAgZmlsbDogI2ZmZjsKICAgICAgfQoKICAgICAgLmNscy00IHsKICAgICAgICBmaWxsOiAjMWExYjI2OwogICAgICB9CgogICAgICAuY2xzLTUgewogICAgICAgIGZpbGw6IG5vbmU7CiAgICAgICAgc3Ryb2tlOiAjZmZmOwogICAgICAgIHN0cm9rZS1taXRlcmxpbWl0OiAxMDsKICAgICAgICBzdHJva2Utd2lkdGg6IDNweDsKICAgICAgfQogICAgICBAbWVkaWEgKHByZWZlcnMtY29sb3Itc2NoZW1lOiBkYXJrKSB7CiAgICAgICAgLmNscy0xIHsgZmlsbDogI2I5YmRkNDsgfQogICAgICB9CiAgICA8L3N0eWxlPgogIDwvZGVmcz4KICA8Zz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTM1MS4xMiwyMy4zNnYzMDUuOTJjMCwxMi4wNy05Ljc4LDIxLjg1LTIxLjg1LDIxLjg1SDIzLjM1Yy0xMi4wNywwLTIxLjg1LTkuNzgtMjEuODUtMjEuODVWMjMuMzZDMS41LDExLjI5LDExLjI4LDEuNSwyMy4zNSwxLjVoMzA1LjkyYzEyLjA3LDAsMjEuODUsOS43OSwyMS44NSwyMS44NlpNMzAzLjAxLDE5Ni41MWM2Ljc2LTE3LjktMS00NC43Mi0yMS41MS01My44Mi02LjI2LTIuOTEtMTMuNTQtNS45MS0yMS41My04Ljk0LjU1LjE2LDEuMTEuMzIsMS42Ni40Nyw2LjU4LDIuMTIsMTIuMjYsMy4xOCwxNywzLjE4LDUuNTgsMCw5Ljg3LTEuNDcsMTIuODItNC40MS4xMS0uMTEuMjItLjIyLjMzLS4zNCw2Ljk2LTcuNDQsMy44OC0yMS43NywxLjI5LTI4LjMtNy42Ni0yMC4wMi0yNi42OC0zNC4wNS00OS44OC00NC4xMywyLjUyLjQxLDQuNzUuNjIsNi43MS42MiwyLjQ5LDAsNC41NC0uMzQsNi4xMS0xLjAxLDEuNTEtLjY0LDIuNi0xLjU4LDMuMjUtMi44MiwyLjgxLTUuMzEtMy4zMS0xNC45MS0xMC4yLTIxLjU3LTEwLjU1LTEwLjIxLTM5LjY5LTE5LjQyLTQwLjkyLTE5LjhoLS4wMmMtMS41Ni0uNDUtMzguNDEtMTAuNjUtNTUuODkuOC01LjA2LDMuMzEtNy4xNCw2LjQ4LTYuMiw5LjQ0LDEuNjUsNS4xOSwxMi41Nyw3LjY5LDE5LjUsNy40NC4xMiwwLC4yNC0uMDEuMzgtLjAxaDBjLjk3LjE0LDIuMDQuMjcsMy4yMi40MSw0Ljc1Ljk0LDEyLjc0LDMuNDksMjMuOTIsNy42My0uMywxLjAzLS41OCwyLjA3LS44NSwzLjEyLTExLjYzLTIuNTYtMjMuMS00LjU5LTMzLjc0LTYuMjgtMzEuNDctNS4xOS00OC42OSwxLjU5LTU3LjYsOC4xOS05LjQ1LDcuMDEtMTEuNzgsMTUuMTEtMTEuOTksMTUuOTEtMS4yNCwzLjE0LTEuMTUsNS45OS4yNyw4LjQ3LDQuNzcsOC4zNCwyMy43MiwxMS4yMSw0Mi4wNCwxMy45OSw3LjMyLDEuMTEsMTQuMjQsMi4xNiwyMC4wNywzLjUyLDEuNDMuMzMsMi45My43NSw0LjUsMS4yMywxLjg3LjU4LDMuODQsMS4yNiw1LjksMi4wMy0xLjcxLDMuMjYtMi42MSw2LjcyLTIuODUsMTAuNDMtNDIuNjctMTEuODEtNzguMjMtMjAuMzItNzguOTUtMjAuNDlsLS4xNS0uMDJjLTIyLjA1LS43My0zNy4yMiwxMi43Ny00MC42LDM2LjE0LTIuNDMsMTYuNzksMi41LDMzLjk0LDEwLjI1LDM1LjkzLDkuMDEsMy41OSwyMyw4LjIyLDM5LjY1LDEzLjMyLTMuNDItLjQ2LTYuNTQtLjY5LTkuMzYtLjY5LTQuOSwwLTguODguNy0xMS45NSwyLjA5LTIuMzIsMS4wNS0zLjk5LDMuNzEtNC41Nyw3LjI5LTEuMTksNy4zMiwyLjA1LDE5LjM1LDE0Ljc3LDMxLjE4LDEyLjQsMTAuNTMsMzEuMiwxOS4zNyw1MC45MywyNi4zLjIyLDEuOTkuNjEsMy45NiwxLjE3LDUuODguMzgsMS4xNC43NiwyLjI5LDEuMTIsMy40NC00LjI5LDUuNDEtNy4wOCwxMi4wMi03LjU4LDE4Ljg5LS40LDQuMi0uMTEsOC40Mi42NiwxMi41Mi0zLjUsMy40OS02LjcxLDcuMjUtOS40NywxMS4zNSwyLjk1LTMuNzIsNi4yMi03LjA5LDkuNy0xMC4yMS40NCwyLjExLDEuMDEsNC4xOSwxLjY4LDYuMjEuMTUuNjUuMjcsMS4zLjM3LDEuOTYtLjgsMS4wMi0xLjYzLDIuMDItMi40OSwyLjk5bC0zLjgyLDQuMzRjLTEwLjkxLDEzLjQ4LTE1LjY0LDMyLjc2LTEwLjc2LDQ5LjUyLTMuNTYtMTQuOTUuNDYtMzEuMDksOC45Mi00My42NywxLjk3LTMuMTUsNC44LTUuNzQsNy40MS04LjY0LjM2LS4zNy43Mi0uNzUsMS4wNi0xLjEzLjE5LDQuNzUtLjYsOS42MS0xLjYxLDE0LjIxLDEuMzYtNC44NywyLjQ1LTkuOTQsMi4zMy0xNS4wMiw1LjM4LTYuMTQsOC45Mi0xMy4yMiw5Ljk2LTIxLjAyLDEuMzItLjkyLDIuNjUtMS44NCwzLjk5LTIuNzQsNi43LTUuMjEsMTEuMjctMTIuNywxMy40Mi0yMC44NSwyMy45Niw2LjQ0LDQ1LjY3LDkuODYsNTQuODgsOS44Ni44NSwwLDEuNi0uMDMsMi4yMy0uMDksMjMuMjMtLjQzLDM3LjIzLTExLjA0LDQwLjQxLTIwLjcsMS40OS00LjUzLjQ1LTguNTgtMi44Ni0xMS4xMi0xLjg5LTEuNDUtNC4yNC0yLjQ1LTYuNzktMi44OS0zLjY4LS42NC03LjA4LTEuMjYtMTAuMjYtMS44OS0yMi44Mi00LjQ4LTMzLjg2LTguNzgtNDguNDQtMTQuNDctMS43Ny0uNjktMy41Ny0xLjM5LTUuNDQtMi4xMS4zMy0xLjcxLjUtMy40MS41Mi01LjA5LDMxLjA5LDguNDYsNTkuNDcsMTUuODYsNzUuMjgsMTkuODgsNi43OSwyLjE0LDEzLjExLDMuMTksMTguODQsMy4xOSwxNC40LDAsMjUuMDMtNi42LDI5Ljc2LTE5LjFaIi8+CiAgICA8cGF0aCBkPSJNMjgxLjUsMTQyLjY5YzIwLjUxLDkuMSwyOC4yNywzNS45MiwyMS41MSw1My44Mi00LjczLDEyLjUtMTUuMzYsMTkuMS0yOS43NiwxOS4xLTUuNzMsMC0xMi4wNS0xLjA1LTE4Ljg0LTMuMTktMTUuODEtNC4wMi00NC4xOS0xMS40Mi03NS4yOC0xOS44OCwwLS4xMywwLS4yNiwwLS4zOS42My0uMiwxLjI1LS40MiwxLjg3LS42NCwzMC41MSw4LjI3LDU4LjIzLDE1LjUsNzMuODEsMTkuNDcsMzMuMTcsMTAuNDQsNDMuNzYtNy4wMSw0Ni43OC0xNSw2LjUzLTE3LjI3LS45NC00My4xNS0yMC43Mi01MS45My0yMS44MS0xMC4xMy01NS45MS0yMS4zMy04OS44OC0zMS4zNS4yNS0uNDUuNDktLjkuNzItMS4zNSwxNC42OSw0LjMzLDI5LjM5LDguODksNDMuMTIsMTMuNDksOC40NCwzLjQ2LDE2Ljg5LDYuNTUsMjUuMTMsOC45MSw3Ljk5LDMuMDMsMTUuMjcsNi4wMywyMS41Myw4Ljk0WiIvPgogICAgPHBhdGggZD0iTTI5My4wNywxMDQuMzVjMi41OSw2LjUzLDUuNjcsMjAuODYtMS4yOSwyOC4zLS4xMS4xMi0uMjIuMjMtLjMzLjM0bC0uMjUtLjI0Yy0uMDItLjEtLjExLS41Mi0uNDQtMS4yMSw2LjU4LTcuMTgsMi44OS0yMS42NS45MS0yNi42NC04LjMzLTIxLjc5LTMwLjUzLTM2LjQtNTYuOS00Ni41MWwuMTUtLjM5YzEuOC43NCwzLjU5LDEuMzEsNS4zNCwxLjY3LDEuMDIuMjEsMS45OS4zOSwyLjkzLjU1LDIzLjIsMTAuMDgsNDIuMjIsMjQuMTEsNDkuODgsNDQuMTNaIi8+CiAgICA8cGF0aCBkPSJNMjkxLjIsMTMyLjc1bC4yNS4yNGMtMi45NSwyLjk0LTcuMjQsNC40MS0xMi44Miw0LjQxLTQuNzQsMC0xMC40Mi0xLjA2LTE3LTMuMTgtLjU1LS4xNS0xLjExLS4zMS0xLjY2LS40Ny03Ljc5LTIuOTYtMTYuMjUtNS45NC0yNS4xMy04LjkxLTEzLjM3LTUuNDktMjYuNzEtMTEuOTItMzkuMDYtMTcuODctLjUyLS4yNS0xLjA0LS41LTEuNTYtLjc2LjIxLS40NS40LS45MS41OS0xLjM4bDEuNjIuNzhjMjAuNjEsOS45NCw0My45NywyMS4yMSw2NS42MywyNy4xNywxMy4wOCw0LjIyLDIyLjMzLDQuMTcsMjcuNTMtLjEzLjEuMjQuMTQuMzguMTQuMzlsMS40Ny0uMjlaIi8+CiAgICA8cGF0aCBkPSJNMjkxLjIsMTMyLjc1bC0xLjQ3LjI5cy0uMDQtLjE1LS4xNC0uMzljLjM5LS4zMS43NS0uNjUsMS4wOS0xLjAyLjAzLS4wMy4wNS0uMDYuMDgtLjA5LjMzLjY5LjQyLDEuMTEuNDQsMS4yMVoiLz4KICAgIDxwYXRoIGQ9Ik0yOTAuNzYsMTMxLjU0cy0uMDUuMDYtLjA4LjA5Yy0uMzQuMzctLjcuNzEtMS4wOSwxLjAyLTEuMDQtMi41NS05LjMxLTE3LjA5LTY0LjkxLTI5LjMzLTEwLjY1LTIuMzUtMTkuNzItNC4zLTI3LjQyLTUuOTIuMTEtLjQ4LjIyLS45Ny4zMi0xLjQ2LDcuNywxLjYyLDE2Ljc2LDMuNTcsMjcuNDIsNS45Miw1My4zNSwxMS43NCw2My43OSwyNS41NSw2NS43NiwyOS42OFoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtNCIgZD0iTTIyNC42OCwxMDMuMzJjNTUuNiwxMi4yNCw2My44NywyNi43OCw2NC45MSwyOS4zMy01LjIsNC4zLTE0LjQ1LDQuMzUtMjcuNTMuMTMtMjEuNjYtNS45Ni00NS4wMi0xNy4yMy02NS42My0yNy4xN2wtMS42Mi0uNzhjMS0yLjQyLDEuODMtNC45LDIuNDUtNy40Myw3LjcsMS42MiwxNi43NywzLjU3LDI3LjQyLDUuOTJaIi8+CiAgICA8cGF0aCBkPSJNMjQ5LjA2LDM1LjQ0YzYuODksNi42NiwxMy4wMSwxNi4yNiwxMC4yLDIxLjU3LS42NSwxLjI0LTEuNzQsMi4xOC0zLjI1LDIuODIuNTYtLjM0LDEuNDYtMS4yOSwxLjMyLTIuNjcuMjQtLjI2LjQ0LS41NC42LS44NSwyLjM1LTQuNDMtMy4yMS0xMy4zMS05LjkxLTE5Ljc5LTEwLjIzLTkuOS0zOS42Mi0xOS4yMy00MC4zMi0xOS40NS0uMTQtLjA0LTEuMzUtLjM3LTMuMzYtLjg0LTkuNjItMi4yNi0zNy4zNy03LjY1LTUxLjI5LDEuNDYtMy4wNCwxLjk5LTYuNDgsNC45NS01LjU5LDcuNzQsMS4zNSw0LjI1LDExLjU5LDYuNjIsMTguMDIsNi4zOWguMjdjLjExLDAsLjIzLDAsLjM1LjAxbC0uMTksMS40OGMtLjE0LDAtLjI2LjAxLS4zOC4wMS02LjkzLjI1LTE3Ljg1LTIuMjUtMTkuNS03LjQ0LS45NC0yLjk2LDEuMTQtNi4xMyw2LjItOS40NCwxNy40OC0xMS40NSw1NC4zMy0xLjI1LDU1Ljg5LS44MWguMDJjMS4yMy4zOSwzMC4zNyw5LjYsNDAuOTIsMTkuODFaIi8+CiAgICA8cGF0aCBkPSJNMjU3LjMzLDU3LjE2Yy4xNCwxLjM4LS43NiwyLjMzLTEuMzIsMi42N2wtLjc5LTEuMjhzLjAzLS4wMi4wNS0uMDN0LjAxLDBjLjg1LS4zNCwxLjU0LS43OSwyLjA1LTEuMzVaIi8+CiAgICA8cGF0aCBkPSJNMjU3LjMyLDU3LjA4cy4wMS4wNi4wMS4wOGMtLjUxLjU2LTEuMiwxLjAxLTIuMDUsMS4zNS4xNy0uMTMuNjUtLjU1LjU1LTEuMjUtLjIxLTEuNDMtMi45Ny01LjQxLTIzLjk0LTExLjI4LTE0LjE1LTMuOTYtMjYuNC02LjYtMzYuNTUtOC40My4xMS0uNDMuMjQtLjg1LjM2LTEuMjguMDItLjA2LjAzLS4xMS4wNS0uMTcsMTAuMTYsMS44MywyMi40LDQuNDgsMzYuNTQsOC40NCwxNi4wOSw0LjUsMjQuNTEsOC43MiwyNS4wMywxMi41NFoiLz4KICAgIDxwYXRoIGQ9Ik0yNTUuMjIsNTguNTVsLjc5LDEuMjhjLTEuNTcuNjctMy42MiwxLjAxLTYuMTEsMS4wMS0xLjk2LDAtNC4xOS0uMjEtNi43MS0uNjItMi4zNy0xLjAzLTQuNzgtMi4wMi03LjIyLTIuOTZsLjE2LS40YzEuNS41OSwyLjk4LDEuMDQsNC40NCwxLjM0LDYuNzcsMS40MSwxMS43NSwxLjUxLDE0LjcuMzItLjAyLjAxLS4wNC4wMi0uMDUuMDNaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTQiIGQ9Ik0yNTUuODMsNTcuMjZjLjEuNy0uMzgsMS4xMi0uNTUsMS4yNXQtLjAxLDBjLTIuOTUsMS4xOS03LjkzLDEuMDktMTQuNy0uMzItMS40Ni0uMy0yLjk0LS43NS00LjQ0LTEuMzQtLjIxLS4wOC0uNDItLjE2LS42My0uMjUtMTYuNTUtNi44OC0zMC4xNi0xMi4zLTQwLjkxLTE2LjI5LjIzLS45My40OC0xLjg1Ljc1LTIuNzcsMTAuMTUsMS44MywyMi40LDQuNDcsMzYuNTUsOC40MywyMC45Nyw1Ljg3LDIzLjczLDkuODUsMjMuOTQsMTEuMjhaIi8+CiAgICA8cGF0aCBkPSJNMjQ5LjU0LDIxOC45OWMzLjMxLDIuNTQsNC4zNSw2LjU5LDIuODYsMTEuMTItMy4xOCw5LjY2LTE3LjE4LDIwLjI3LTQwLjQxLDIwLjctLjYzLjA2LTEuMzguMDktMi4yMy4wOS05LjIxLDAtMzAuOTItMy40Mi01NC44OC05Ljg2LjEyLS40Ny4yNC0uOTUuMzQtMS40MiwyNS45Niw2Ljk4LDQ5LjI3LDEwLjM5LDU2LjY4LDkuNywyMS41Ni0uNDEsMzUuOTYtMTAuMjEsMzkuMDgtMTkuNjgsMS4yOC0zLjg5LjQyLTcuMzMtMi4zNS05LjQ2LTEuNy0xLjMtMy44Mi0yLjItNi4xMy0yLjYtMy41OS0uNjItNi45My0xLjI0LTEwLjA0LTEuODRsLjAyLTEuNDV2LS4wOGMzLjE5LjYzLDYuNTksMS4yNSwxMC4yNywxLjg5LDIuNTUuNDQsNC45LDEuNDQsNi43OSwyLjg5WiIvPgogICAgPHBhdGggZD0iTTI0My4xOSw2MC4yMmMtLjk0LS4xNi0xLjkxLS4zNC0yLjkzLS41NS0xLjc1LS4zNi0zLjU0LS45My01LjM0LTEuNjctNS44MS0yLjQxLTExLjI2LTQuNjUtMTYuMzYtNi43MSw1LjkzLDEuOCwxMS43NywzLjc4LDE3LjQxLDUuOTcsMi40NC45NCw0Ljg1LDEuOTMsNy4yMiwyLjk2WiIvPgogICAgPHBhdGggZD0iTTI1OS45NywxMzMuNzVjLTguMjQtMi4zNi0xNi42OS01LjQ1LTI1LjEzLTguOTEsOC44OCwyLjk3LDE3LjM0LDUuOTUsMjUuMTMsOC45MVoiLz4KICAgIDxwYXRoIGQ9Ik0yMzUuNSw1Ni42MWMuMjEuMDkuNDIuMTcuNjMuMjVsLS4xNi40Yy01LjY0LTIuMTktMTEuNDgtNC4xNy0xNy40MS01Ljk3LTkuMjktMy43NS0xNy40LTYuOTMtMjQuMzQtOS41MS4xMi0uNDkuMjQtLjk4LjM3LTEuNDYsMTAuNzUsMy45OSwyNC4zNiw5LjQxLDQwLjkxLDE2LjI5WiIvPgogICAgPHBhdGggZD0iTTIzNC45Miw1OGwtLjE1LjM5Yy0xMS44NS00LjU1LTI0LjUzLTguMTktMzcuMTgtMTEuMTYtMS40NC0uMzQtMi44OS0uNjctNC4zMy0uOTkuMDktLjQ5LjE4LS45OC4yOS0xLjQ3LDguMzUsMS44NywxNi43Nyw0LjAyLDI1LjAxLDYuNTIsNS4xLDIuMDYsMTAuNTUsNC4zLDE2LjM2LDYuNzFaIi8+CiAgICA8cGF0aCBkPSJNMjMyLjQ5LDIxNC4yMXYuMDhjLTIuODEtLjAyLTYuMjQtLjI3LTEwLjEzLS42OS0xNi42Mi0zLjc5LTI2LjQ2LTcuNjMtMzguODUtMTIuNDYtMS43LS42Ni0zLjQzLTEuMzQtNS4yMy0yLjAzLjEyLS41LjIzLS45OS4zMy0xLjQ4LDEuODcuNzIsMy42NywxLjQyLDUuNDQsMi4xMSwxNC41OCw1LjY5LDI1LjYyLDkuOTksNDguNDQsMTQuNDdaIi8+CiAgICA8cGF0aCBkPSJNMjMyLjQ4LDIxNC4yOWwtLjAyLDEuNDVjLTMuNjUtLjcyLTYuOTktMS40My0xMC4xLTIuMTQsMy44OS40Miw3LjMyLjY3LDEwLjEyLjY5WiIvPgogICAgPHBhdGggZD0iTTIzMi40NiwyMTUuNzR2LjA1Yy0xMS45NC0uMDktMzUuMDUtNC4xOC01Ny4zNi04Ljk4LjI2LS40NS41MS0uOS43NS0xLjM3LDE2LjgyLDMuNjEsMzQuMDUsNi44MSw0Ni41MSw4LjE2LDMuMTEuNzEsNi40NSwxLjQyLDEwLjEsMi4xNFoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTE5NS43OCwxMDYuOTdjMTIuMzUsNS45NSwyNS42OSwxMi4zOCwzOS4wNiwxNy44Ny0xMy43My00LjYtMjguNDMtOS4xNi00My4xMi0xMy40OS45LTEuNjgsMS43NC0zLjM5LDIuNS01LjE0LjUyLjI2LDEuMDQuNTEsMS41Ni43NloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtNCIgZD0iTTE4My41MSwyMDEuMTRjMTIuMzksNC44MywyMi4yMyw4LjY3LDM4Ljg1LDEyLjQ2LTEyLjQ2LTEuMzUtMjkuNjktNC41NS00Ni41MS04LjE2LjM0LS42NC42Ni0xLjMuOTYtMS45Ny42Mi0xLjQ2LDEuMTEtMi45MiwxLjQ3LTQuMzYsMS44LjY5LDMuNTMsMS4zNyw1LjIzLDIuMDNaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0yMDMuODMsMTguNGMtMi41NiwyLjExLTMuNiw1LjU0LTQuOTEsOC40OS0xLjIsMy4wMS0yLjI0LDYuMS0zLjE3LDkuMjFsLS45OS0uMThjMS42My00LjcsMy40My05LjM4LDUuOTItMTMuNy44Ny0xLjQsMS43My0yLjkzLDMuMTUtMy44MloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE5OC4zNCw5MC4wM2MtLjEsMi0uMzYsMy45Ny0uNzYsNS45MS0uMTUtLjAzLS4zMS0uMDYtLjQ2LS4xLjUzLTEuOTEuOTQtMy44NSwxLjIyLTUuODFaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xOTcuMjYsNDguNjRjMS44Myw3LjM5LS45NiwxMy4wNC01LjY2LDE3Ljk5bC4wOS0xLjMyYzQuMjUtNC40LDYuODYtOS42NSw1LjU3LTE2LjY3WiIvPgogICAgPHBhdGggZD0iTTE5Ny41OCw5NS45NGMtLjEuNDktLjIxLjk4LS4zMiwxLjQ2LS4xOS0uMDQtLjM3LS4wOC0uNTYtLjEyLjE2LS40OC4zLS45Ni40Mi0xLjQ0LjE1LjA0LjMxLjA3LjQ2LjFaIi8+CiAgICA8cGF0aCBkPSJNMTk3LjEyLDk1Ljg0Yy0uMTIuNDgtLjI2Ljk2LS40MiwxLjQ0LTMuOS0uODItNy40NS0xLjU1LTEwLjY4LTIuMjEuMjItLjQ2LjQzLS45My42Mi0xLjQsMy4xNy42NCw2LjY2LDEuMzcsMTAuNDgsMi4xN1oiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE5Ni43LDk3LjI4Yy4xOS4wNC4zNy4wOC41Ni4xMi0uNjIsMi41My0xLjQ1LDUuMDEtMi40NSw3LjQzLS4yOS0uMTQtLjU4LS4yOC0uODctLjQxLDEuMDktMi4zMywyLjAyLTQuNzEsMi43Ni03LjE0WiIvPgogICAgPHBhdGggZD0iTTE5NS43NSwzNi4xYy0uMDIuMDYtLjAzLjExLS4wNS4xNy0uMTIuNDMtLjI1Ljg1LS4zNiwxLjI4LS4zNS0uMDctLjctLjEzLTEuMDUtLjE5LjE1LS40Ny4zLS45My40Ni0xLjQsMC0uMDEuMDEtLjAzLjAxLS4wNGwuOTkuMThaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0yMTguNTYsNTEuMjljLTguMjQtMi41LTE2LjY2LTQuNjUtMjUuMDEtNi41Mi4yLTEsLjQzLTIsLjY3LTIuOTksNi45NCwyLjU4LDE1LjA1LDUuNzYsMjQuMzQsOS41MVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE5NC4yOSwzNy4zNmMuMzUuMDYuNy4xMiwxLjA1LjE5LS4yNy45Mi0uNTIsMS44NC0uNzUsMi43Ny0uMzgtLjE0LS43NS0uMjgtMS4xMS0uNDEuMjYtLjg1LjUzLTEuNy44MS0yLjU1WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTk0LjU3LDE3OC4xN2M3Ljg2LTkuMDQsMi40MS0yMC45NC00LjM0LTI4Ljk0LTQuNjQtNS42My0xMC42NS05LjkyLTE2LjE0LTE0LjU4LjM1LS40LjctLjgsMS4wNS0xLjE5LjM5LS40MS43OS0uODIsMS4xOC0xLjIzLDUuNzIsNC42NywxMi4wNCw4LjkxLDE2LjY5LDE0LjY3LDEyLjc1LDE0LjgsMTMuNSwzMS4yNC00Ljk2LDQxLjQtMi4yNiwxLjI1LTQuNjIsMi4zMS03LjA0LDMuMjEtLjYzLS4xOC0xLjI2LS4zNS0xLjktLjUyLS4wMi0uOTgtLjExLTEuOTctLjI0LTIuOTQsNS45OS0yLjA0LDExLjU5LTUuMTcsMTUuNy05Ljg4WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTkzLjk0LDEwNC40MmMuMjkuMTMuNTguMjcuODcuNDEtLjE5LjQ3LS4zOC45My0uNTksMS4zOC0uMzEtLjE0LS42Mi0uMjktLjkyLS40NC4yMi0uNDUuNDQtLjkuNjQtMS4zNVoiLz4KICAgIDxwYXRoIGQ9Ik0xOTQuNzYsMzUuOTJzLS4wMS4wMy0uMDEuMDRjLS4xNi40Ny0uMzEuOTMtLjQ2LDEuNC01LjU5LS45OS0xMC41My0xLjc0LTE0Ljc4LTIuMzItNC40Mi0xLjQxLTcuOS0yLjM1LTEwLjQ3LTIuODQuNDEuMDUuODMuMSwxLjI2LjE1LDUuNzMuNywxMy45NSwxLjY5LDI0LjQ2LDMuNTdaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xOTQuNTksNDAuMzJjLS4xMy40OC0uMjUuOTctLjM3LDEuNDYtLjM5LS4xNS0uNzgtLjI5LTEuMTctLjQzLjE0LS40OC4yOC0uOTYuNDMtMS40NC4zNi4xMy43My4yNywxLjExLjQxWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy00IiBkPSJNMTc5LjUxLDM1LjA0YzQuMjUuNTgsOS4xOSwxLjMzLDE0Ljc4LDIuMzItLjI4Ljg1LS41NSwxLjctLjgxLDIuNTUtNS40LTItMTAuMDUtMy42Mi0xMy45Ny00Ljg3WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTkzLjMsMTA1Ljc3Yy4zLjE1LjYxLjMuOTIuNDQtLjc2LDEuNzUtMS42LDMuNDYtMi41LDUuMTQtLjQyLS4xMy0uODUtLjI1LTEuMjctLjM3LDEuMDItMS43LDEuOTgtMy40NCwyLjg1LTUuMjFaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTQiIGQ9Ik0xOTYuNyw5Ny4yOGMtLjc0LDIuNDMtMS42Nyw0LjgxLTIuNzYsNy4xNC0zLjUyLTEuNy02Ljk0LTMuMzQtMTAuMjUtNC45Ljg1LTEuNDUsMS42NC0yLjkzLDIuMzMtNC40NSwzLjIzLjY2LDYuNzgsMS4zOSwxMC42OCwyLjIxWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTk0LjIyLDQxLjc4Yy0uMjQuOTktLjQ3LDEuOTktLjY3LDIuOTlsLTEuMzUtLjNjLjI3LTEuMDUuNTUtMi4wOS44NS0zLjEyLjM5LjE0Ljc4LjI4LDEuMTcuNDNaIi8+CiAgICA8cGF0aCBkPSJNMTkzLjk0LDEwNC40MmMtLjIuNDUtLjQyLjktLjY0LDEuMzUtMy41Ny0xLjcyLTcuMDQtMy4zOS0xMC4zOS00Ljk2LjI3LS40My41My0uODUuNzgtMS4yOSwzLjMxLDEuNTYsNi43MywzLjIsMTAuMjUsNC45WiIvPgogICAgPHBhdGggZD0iTTE5My41NSw0NC43N2MtLjExLjQ5LS4yLjk4LS4yOSwxLjQ3LS40Ny0uMTEtLjk0LS4yMS0xLjQxLS4zMS4xMS0uNDkuMjMtLjk4LjM1LTEuNDZsMS4zNS4zWiIvPgogICAgPHBhdGggZD0iTTE5My40OCwzOS45MWMtLjE1LjQ4LS4yOS45Ni0uNDMsMS40NC0xMS4xOC00LjE0LTE5LjE3LTYuNjktMjMuOTItNy42My4zMi4wNC42NS4wOC45OS4xMiwyLjYyLjMyLDUuNzUuNyw5LjM5LDEuMiwzLjkyLDEuMjUsOC41NywyLjg3LDEzLjk3LDQuODdaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xOTEuODUsNDUuOTNjLjQ3LjEuOTQuMiwxLjQxLjMxLS41OCwzLjEtLjk2LDYuMjMtMS4wMyw5LjQtLjE1LDMuMjEtLjMyLDYuNDQtLjU0LDkuNjctLjc4LjgxLTEuNjIsMS41OC0yLjQ5LDIuMzQuNjItNS42OSwxLjAyLTExLjQzLDEuNzMtMTcuMTQuMjUtMS41NC41Ni0zLjA3LjkyLTQuNThaIi8+CiAgICA8cGF0aCBkPSJNMTkyLjIsNDQuNDdjLS4xMi40OC0uMjQuOTctLjM1LDEuNDYtMTEuNTktMi41Ni0yMy4wMy00LjU4LTMzLjYzLTYuMjYtNy43LTEuMjctMTQuNTUtMS44My0yMC42My0xLjgzLTQwLjU2LDAtNDcuMiwyNC41OC00Ny4yNywyNC44NmwtLjAzLjFjLTEuMSwyLjc1LTEuMDUsNS4xMS4xNSw3LjIyLDQuNDEsNy43LDIzLjgzLDEwLjY1LDQwLjk2LDEzLjI0LDcuMzUsMS4xMiwxNC4zLDIuMTcsMjAuMTksMy41NSwxLjQuMzMsMi44Ny43Myw0LjQsMS4yLS4wNS0uMDEtLjA4LS4wMS0uMS0uMDFsLS4xNCwxLjQ5aDBjLTEuNTctLjQ3LTMuMDctLjg5LTQuNS0xLjIyLTUuODMtMS4zNi0xMi43NS0yLjQxLTIwLjA3LTMuNTItMTguMzItMi43OC0zNy4yNy01LjY1LTQyLjA0LTEzLjk5LTEuNDItMi40OC0xLjUxLTUuMzMtLjI3LTguNDcuMjEtLjgsMi41NC04LjksMTEuOTktMTUuOTEsOC45MS02LjYsMjYuMTMtMTMuMzgsNTcuNi04LjE5LDEwLjY0LDEuNjksMjIuMTEsMy43MiwzMy43NCw2LjI4WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTkzLjMsMTA1Ljc3Yy0uODcsMS43Ny0xLjgzLDMuNTEtMi44NSw1LjIxLTQuMDUtMS4yLTguMDktMi4zNy0xMi4xMS0zLjUyLDEuNjEtMi4xNiwzLjE3LTQuMzcsNC41Ny02LjY1LDMuMzUsMS41Nyw2LjgyLDMuMjQsMTAuMzksNC45NloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE5MS42OSw2NS4zMWwtLjA5LDEuMzJjLS44MS44NS0xLjY3LDEuNjktMi41OCwyLjUuMDctLjQ5LjEyLS45OS4xOC0xLjQ4Ljg3LS43NiwxLjcxLTEuNTMsMi40OS0yLjM0WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTkxLjYsNjYuNjNjLS40OCw2LjM0LTEuMiwxMi42Ny0yLjU4LDE4Ljg4LS40NywyLjg2LTEuMjksNS41Ny0yLjM4LDguMTYtMS4wNS0uMjItMi4wNy0uNDMtMy4wNi0uNjMsMi4zNS01LjU3LDMuNTktMTEuNzEsNC41OS0xNy44Mi4zNC0yLjAyLjYyLTQuMDUuODUtNi4wOS45MS0uODEsMS43Ny0xLjY1LDIuNTgtMi41WiIvPgogICAgPHBhdGggZD0iTTE5MS43MiwxMTEuMzVjLS4yMy40NS0uNDcuOS0uNzIsMS4zNS0uNDYtLjE0LS45MS0uMjctMS4zNi0uNGwuODEtMS4zMmMuNDIuMTIuODUuMjQsMS4yNy4zN1oiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE4OS42NCwxMTIuM2MuNDUuMTMuOS4yNiwxLjM2LjQtLjc1LDEuMzctMS41MywyLjcyLTIuMzMsNC4wNC0zLjQzLDUuNjMtNy44MSwxMC43Mi0xMi4zNSwxNS40OS0uNjQtLjUzLTEuMjgtMS4wNi0xLjktMS41OSwxLjMxLTEuMzMsMi42NC0yLjY0LDMuOTQtMy45Myw0LjA2LTQuMzUsNy45OC05LjE5LDExLjI4LTE0LjQxWiIvPgogICAgPHBhdGggZD0iTTE5MC40NSwxMTAuOThsLS44MSwxLjMyYy00LjEtMS4yMS04LjItMi40LTEyLjI3LTMuNTYuMzMtLjQzLjY1LS44NS45Ny0xLjI4LDQuMDIsMS4xNSw4LjA2LDIuMzIsMTIuMTEsMy41MloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE4OS4yLDY3LjY1Yy0uMDYuNDktLjExLjk5LS4xOCwxLjQ4LTcuNjQsNi44Ni0xOC4yNywxMi42Mi0yMy41OSwyMC40LS44NS0uMTYtMS42My0uMjktMi4zNC0uNDIsMS42NS0yLjQ3LDMuODItNC44Myw2LjU2LTcuMTIsNS40MS00Ljk1LDEzLjQ4LTkuMSwxOS41NS0xNC4zNFoiLz4KICAgIDxwYXRoIGQ9Ik0xODYuNjQsOTMuNjdjLS4xOS40Ny0uNC45NC0uNjIsMS40LTEuMDYtLjIyLTIuMDktLjQzLTMuMDgtLjYzLjA3LS4xNC4xNC0uMjkuMjEtLjQzLjE1LS4zMi4yOS0uNjQuNDMtLjk3Ljk5LjIsMi4wMS40MSwzLjA2LjYzWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTg2LjAyLDk1LjA3Yy0uNjksMS41Mi0xLjQ4LDMtMi4zMyw0LjQ1LS45Ni0uNDYtMS45LS45LTIuODQtMS4zNC43NS0xLjIxLDEuNDUtMi40NSwyLjA5LTMuNzQuOTkuMiwyLjAyLjQxLDMuMDguNjNaIi8+CiAgICA8cGF0aCBkPSJNMTgzLjU4LDkzLjA0Yy0uMTQuMzMtLjI4LjY1LS40My45Ny0uMDcuMTQtLjE0LjI5LS4yMS40My04LjMxLTEuNjgtMTQuMjMtMi43OS0xOC4zNy0zLjU0LjI3LS40Ni41NS0uOTIuODYtMS4zNyw0LjE2Ljc1LDEwLjAyLDEuODYsMTguMTUsMy41MVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE4MC44NSw5OC4xOGMuOTQuNDQsMS44OC44OCwyLjg0LDEuMzQtLjI1LjQ0LS41MS44Ni0uNzgsMS4yOS0uOTgtLjQ3LTEuOTQtLjkyLTIuODktMS4zNi4yOS0uNDIuNTYtLjg0LjgzLTEuMjdaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xODAuMDIsOTkuNDVjLjk1LjQ0LDEuOTEuODksMi44OSwxLjM2LTEuNCwyLjI4LTIuOTYsNC40OS00LjU3LDYuNjUtMS4xNy0uMzQtMi4zMy0uNjctMy40OS0xLDEuODEtMi4yOCwzLjU5LTQuNTksNS4xNy03LjAxWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy00IiBkPSJNMTgyLjk0LDk0LjQ0Yy0uNjQsMS4yOS0xLjM0LDIuNTMtMi4wOSwzLjc0LTUuODYtMi43NC0xMS4zNC01LjE4LTE2LjM2LTcuMTUuMDMtLjA0LjA1LS4wOS4wOC0uMTMsNC4xNC43NSwxMC4wNiwxLjg2LDE4LjM3LDMuNTRaIi8+CiAgICA8cGF0aCBkPSJNMTgwLjg1LDk4LjE4Yy0uMjcuNDMtLjU0Ljg1LS44MywxLjI3LTUuODMtMi43Mi0xMS4yNy01LjE0LTE2LjIzLTcuMDkuMDQtLjA5LjA4LS4xNy4xMy0uMjYuMTgtLjM2LjM3LS43Mi41Ny0xLjA3LDUuMDIsMS45NywxMC41LDQuNDEsMTYuMzYsNy4xNVoiLz4KICAgIDxwYXRoIGQ9Ik0xNzkuMTEsMTkwLjk5Yy42NC4xNywxLjI3LjM0LDEuOS41Mi0uNjIuMjItMS4yNC40NC0xLjg3LjY0LDAtLjM5LDAtLjc4LS4wMy0xLjE2WiIvPgogICAgPHBhdGggZD0iTTE3OS4xMSwxOTAuOTljLjAyLjM4LjAzLjc3LjAzLDEuMTYtLjIyLjA4LS40My4xNS0uNjUuMjItMS4wOC0uMjktMi4xNi0uNTktMy4yNC0uODgtLjAyLS41My0uMDUtMS4wNi0uMS0xLjU4LDEuMzMuMzYsMi42NS43MiwzLjk2LDEuMDhaIi8+CiAgICA8cGF0aCBkPSJNMTc4LjQ5LDE5Mi4zN2MuMjItLjA3LjQzLS4xNC42NS0uMjIsMCwuMTMsMCwuMjYsMCwuMzktLjIxLS4wNS0uNDItLjExLS42NC0uMTdaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNzguNDksMTkyLjM3Yy4yMi4wNi40My4xMi42NC4xNy0uMDIsMS42OC0uMTksMy4zOC0uNTIsNS4wOS0xLjE4LS40NS0yLjM4LS45Mi0zLjYzLTEuMzkuMTUtLjk3LjI1LTEuOTUuMjgtMi45NiwxLjA4LS4yNywyLjE2LS41OCwzLjIzLS45MVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE3OC44NywxODguMDVjLjEzLjk3LjIyLDEuOTYuMjQsMi45NC0xLjMxLS4zNi0yLjYzLS43Mi0zLjk2LTEuMDgtLjAyLS4yNC0uMDQtLjQ4LS4wNy0uNzIsMS4yOC0uMzMsMi41NC0uNzEsMy43OS0xLjE0WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTgwLjAyLDk5LjQ1Yy0xLjU4LDIuNDItMy4zNiw0LjczLTUuMTcsNy4wMS00LjU0LTEuMjktOS4wMy0yLjU1LTEzLjQ2LTMuNzh2LS4wNmMtLjA3LTMuNTcuNzUtNy4xLDIuNC0xMC4yNiw0Ljk2LDEuOTUsMTAuNCw0LjM3LDE2LjIzLDcuMDlaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNzguNDksMTkyLjM3Yy0xLjA3LjMzLTIuMTUuNjQtMy4yMy45MS4wMS0uMDkuMDEtLjE4LjAxLS4yNy4wMS0uNTEsMC0xLjAxLS4wMi0xLjUyLDEuMDguMjksMi4xNi41OSwzLjI0Ljg4WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTc4LjYxLDE5Ny42M2MtLjEuNDktLjIxLjk4LS4zMywxLjQ4LTEuMTYtLjQ1LTIuMzYtLjkxLTMuNTktMS4zOC4xMS0uNDkuMjEtLjk5LjI5LTEuNDksMS4yNS40NywyLjQ1Ljk0LDMuNjMsMS4zOVoiLz4KICAgIDxwYXRoIGQ9Ik0xNzguMzQsMTA3LjQ2Yy0uMzIuNDMtLjY0Ljg1LS45NywxLjI4LTEuMTgtLjM1LTIuMzYtLjY4LTMuNTQtMS4wMmwxLjAyLTEuMjZjMS4xNi4zMywyLjMyLjY2LDMuNDksMVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE3OC4yOCwxOTkuMTFjLS4zNiwxLjQ0LS44NSwyLjktMS40Nyw0LjM2LS4zLjY3LS42MiwxLjMzLS45NiwxLjk3LTEuMjYtLjI3LTIuNTItLjU1LTMuNzctLjgyLDEuMTctMi4xOCwyLjA3LTQuNDcsMi42MS02Ljg5LDEuMjMuNDcsMi40My45MywzLjU5LDEuMzhaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNzguODcsMTg4LjA1Yy0xLjI1LjQzLTIuNTEuODEtMy43OSwxLjE0LTEuNDItMTMtMTAuNDUtMjQuNjUtMTUuMTEtMzcuMDQuOTItMS4zMSwxLjg2LTIuNiwyLjgzLTMuODcsNC40NiwxMi45NywxNC4zNiwyNi4wMiwxNi4wNywzOS43N1oiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE3Ni4zMiwxMzIuMjNjLS4zOS40MS0uNzkuODItMS4xOCwxLjIzLS4zNS4zOS0uNy43OS0xLjA1LDEuMTktLjY2LS41NS0xLjMxLTEuMTItMS45NC0xLjY4Ljc1LS43OCwxLjUxLTEuNTYsMi4yNy0yLjMzLjYyLjUzLDEuMjYsMS4wNiwxLjksMS41OVoiLz4KICAgIDxwYXRoIGQ9Ik0xNzUuODUsMjA1LjQ0Yy0uMjQuNDctLjQ5LjkyLS43NSwxLjM3LTEuMjctLjI3LTIuNTMtLjU1LTMuNzktLjgyLjI3LS40NS41My0uOTEuNzctMS4zNywxLjI1LjI3LDIuNTEuNTUsMy43Ny44MloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE3NS4yNSwxOTEuNDljLjAyLjUxLjAzLDEuMDEuMDIsMS41MiwwLC4wOSwwLC4xOC0uMDEuMjctMS42Mi40Mi0zLjI3Ljc2LTQuOTIsMS4wMy0yLjMtMS4wMi00LjU2LTIuMDEtNi43OS0yLjk3LDEuMzgtLjI5LDIuNzYtLjUsNC4xMi0uNjMuOTYtLjE0LDEuOTItLjMxLDIuODktLjUsMS41Ny40MywzLjEzLjg1LDQuNjksMS4yOFoiLz4KICAgIDxwYXRoIGQ9Ik0xNzUuMTUsMTg5LjkxYy4wNS41Mi4wOCwxLjA1LjEsMS41OC0xLjU2LS40My0zLjEyLS44NS00LjY5LTEuMjgsMS4wNi0uMTksMi4xMy0uNDIsMy4xOS0uNjguNDcuMTMuOTQuMjUsMS40LjM4WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTc1LjA4LDE4OS4xOWMuMDMuMjQuMDUuNDguMDcuNzItLjQ2LS4xMy0uOTMtLjI1LTEuNC0uMzguNDUtLjEuODktLjIyLDEuMzMtLjM0WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTc1LjI2LDE5My4yOGMtLjAzLDEuMDEtLjEzLDEuOTktLjI4LDIuOTYtLjY3LS4yNi0xLjM1LS41Mi0yLjA1LS43OC0uODctLjM5LTEuNzMtLjc3LTIuNTktMS4xNSwxLjY1LS4yNywzLjMtLjYxLDQuOTItMS4wM1oiLz4KICAgIDxwYXRoIGQ9Ik0xNzQuODUsMTA2LjQ2bC0xLjAyLDEuMjZjLTQuMTctMS4xOC04LjMxLTIuMzUtMTIuMzgtMy40OC0uMDMtLjUyLS4wNS0xLjA0LS4wNi0xLjU2LDQuNDMsMS4yMyw4LjkyLDIuNDksMTMuNDYsMy43OFoiLz4KICAgIDxwYXRoIGQ9Ik0xNzQuOTgsMTk2LjI0Yy0uMDguNS0uMTgsMS0uMjksMS40OS0uNzYtLjI5LTEuNTQtLjU4LTIuMzMtLjg4LTEuNjItLjcyLTMuMjItMS40My00LjgxLTIuMTMuOTMtLjExLDEuODYtLjI1LDIuNzktLjQxLjg2LjM4LDEuNzIuNzYsMi41OSwxLjE1LjcuMjYsMS4zOC41MiwyLjA1Ljc4WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTczLjgzLDEwNy43MmMxLjE4LjM0LDIuMzYuNjcsMy41NCwxLjAyLTMuNTYsNC42OS03LjMyLDkuMjItMTAuMzcsMTMuOTQtLjc5LTEuMTEtMS40OS0yLjI5LTIuMTEtMy41NCwyLjI4LTMuMjMsNC43OS02LjI4LDcuMTQtOS4xOC42LS43NSwxLjIxLTEuNDksMS44LTIuMjRaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNzIuMTUsMTMyLjk3Yy42My41NiwxLjI4LDEuMTMsMS45NCwxLjY4LTMuODcsNC4zOS03LjcyLDguOTEtMTEuMjksMTMuNjMtLjI1LS43LS40Ny0xLjQxLS42OC0yLjExLS4xMy0uNDYtLjI1LS45Mi0uMzYtMS4zOCwyLjE2LTIuNjYsNC4zOS01LjI2LDYuNjUtNy44MSwxLjIxLTEuMzUsMi40Ni0yLjY5LDMuNzQtNC4wMVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtNCIgZD0iTTE3Mi4zNiwxOTYuODVjLjc5LjMsMS41Ny41OSwyLjMzLjg4LS41NCwyLjQyLTEuNDQsNC43MS0yLjYxLDYuODktNy4wMS0xLjUzLTEzLjg4LTMuMTItMjAuMjItNC42Niw0LjI1LTIuMzYsOC44NC00LjA4LDEzLjQ4LTUuMDEuNzQtLjA2LDEuNDctLjE0LDIuMjEtLjIzLDEuNTkuNywzLjE5LDEuNDEsNC44MSwyLjEzWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTc0LjQyLDEzMC42NGMtLjc2Ljc3LTEuNTIsMS41NS0yLjI3LDIuMzMtMi41NS0yLjI3LTQuOTItNC42Ny02LjkxLTcuMzkuNTQtLjk4LDEuMTMtMS45NCwxLjc2LTIuOSwyLjA2LDIuOTgsNC42Myw1LjU1LDcuNDIsNy45NloiLz4KICAgIDxwYXRoIGQ9Ik0xNzIuMDgsMjA0LjYyYy0uMjQuNDYtLjUuOTItLjc3LDEuMzctNy4wMy0xLjU1LTEzLjkxLTMuMTQtMjAuMjUtNC42OCwwLS4wMy0uMDEtLjA1LS4wMi0uMDgtLjA2LS4yMy0uMTMtLjQ3LS4xOS0uNy4zMy0uMTkuNjctLjM5LDEuMDEtLjU3LDYuMzQsMS41NCwxMy4yMSwzLjEzLDIwLjIyLDQuNjZaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNzEuMzEsMjA1Ljk5YzEuMjYuMjcsMi41Mi41NSwzLjc5LjgyLTQuNTYsNy45Ny0xMS41OSwxMy45LTE4LjkzLDE5LjI5LS4wNi0xLjMxLS4xOC0yLjYtLjM0LTMuOSwyLjA3LTEuNjUsNC4xLTMuMzQsNi4wNC01LjExLDMuNjEtMy4yOSw2Ljk4LTYuOTgsOS40NC0xMS4xWiIvPgogICAgPHBhdGggZD0iTTE3My43NSwxODkuNTNjLTEuMDYuMjYtMi4xMy40OS0zLjE5LjY4LTcuNjktMi4xMS0xNS40OS00LjI2LTIzLjI2LTYuNDMtLjAzLS41Mi0uMDUtMS4wNS0uMDUtMS41Nyw4Ljg2LDIuNDgsMTcuNzcsNC45MywyNi41LDcuMzJaIi8+CiAgICA8cGF0aCBkPSJNMTc5LjUxLDM1LjA0Yy0zLjY0LS41LTYuNzctLjg4LTkuMzktMS4yLS4zNC0uMDQtLjY3LS4wOC0uOTktLjEyLTEuMzMtLjI2LTIuNC0uNC0zLjIyLS40MWwuMTktMS40OGguMDFjLjg3LjExLDEuODIuMjMsMi44Ni4zNi4wMiwwLC4wNCwwLC4wNy4wMSwyLjU3LjQ5LDYuMDUsMS40MywxMC40NywyLjg0WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTcwLjU2LDE5MC4yMWMtLjk3LjE5LTEuOTMuMzYtMi44OS41LTEuMzYuMTMtMi43NC4zNC00LjEyLjYzLTUuNjItMi40NC0xMS4wMi00LjY5LTE2LjE5LTYuNzctLjAzLS4yNi0uMDUtLjUzLS4wNi0uNzksNy43NywyLjE3LDE1LjU3LDQuMzIsMjMuMjYsNi40M1oiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE3MC4zNCwxOTQuMzFjLS45My4xNi0xLjg2LjMtMi43OS40MS0yLjE4LS45Ni00LjMzLTEuODktNi40NC0yLjguODEtLjIyLDEuNjItLjQyLDIuNDQtLjU4LDIuMjMuOTYsNC40OSwxLjk1LDYuNzksMi45N1oiLz4KICAgIDxwYXRoIGQ9Ik0xNjguOTcsMzIuMTljLTEuMDQtLjEzLTEuOTktLjI1LTIuODYtLjM2Ljc3LjAzLDEuNzIuMTUsMi44Ni4zNloiLz4KICAgIDxwYXRoIGQ9Ik0xNjkuMTMsMzMuNzJjLTEuMTgtLjE0LTIuMjUtLjI3LTMuMjItLjRoMGMuODIsMCwxLjg5LjE0LDMuMjIuNFoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE2Ny41NSwxOTQuNzJjLS43NC4wOS0xLjQ3LjE3LTIuMjEuMjMtNC42NC45My05LjIzLDIuNjUtMTMuNDgsNS4wMS0uNDItLjEtLjg0LS4yMS0xLjI1LS4zLS4yNy0xLS41NS0yLS44My0zLjAxLDMuNjEtMi4wNSw3LjQ2LTMuNjgsMTEuMzMtNC43MywyLjExLjkxLDQuMjYsMS44NCw2LjQ0LDIuOFoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE2NywxMjIuNjhjLS42My45Ni0xLjIyLDEuOTItMS43NiwyLjktLjgzLTEuMTItMS42LTIuMy0yLjI4LTMuNTUuNjItLjk4LDEuMjctMS45NCwxLjkzLTIuODkuNjIsMS4yNSwxLjMyLDIuNDMsMi4xMSwzLjU0WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTY0Ljc1LDExOC44N2MuMDQuMDkuMDkuMTguMTQuMjctLjY2Ljk1LTEuMzEsMS45MS0xLjkzLDIuODktMS4yNi0yLjI3LTIuMjUtNC43OC0yLjktNy41OS0uODktMy45LTEuMzctNy41My0xLjMxLTEwLjk1LjkuMjUsMS43OS41LDIuNy43NS4yNCw1LjA2LDEuMTMsMTAuMDYsMy4zLDE0LjYzWiIvPgogICAgPHBhdGggZD0iTTE2NS40Myw4OS41M2MtLjMxLjQ1LS41OS45MS0uODYsMS4zNy0uMjQtLjA0LS40OC0uMDgtLjcxLS4xMi0uNS0uMi0uOTktLjM4LTEuNDgtLjU2LjIyLS4zNy40Ni0uNzQuNzEtMS4xMS43MS4xMywxLjQ5LjI2LDIuMzQuNDJaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNjQuNTcsOTAuOXMtLjA1LjA5LS4wOC4xM2MtLjIxLS4wOS0uNDItLjE3LS42My0uMjUuMjMuMDQuNDcuMDguNzEuMTJaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNjMuODYsOTAuNzhjLjIxLjA4LjQyLjE2LjYzLjI1LS4yLjM1LS4zOS43MS0uNTcsMS4wNy0uMDUuMDktLjA5LjE3LS4xMy4yNi0uNzMtLjI5LTEuNDQtLjU2LTIuMTQtLjgzLjE4LS4zNS4zNy0uNy41OC0xLjA0LjUxLjA5LDEuMDUuMTgsMS42My4yOVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE2NS4yNCwxMjUuNThjLS41MS44OC0uOTgsMS43Ni0xLjQxLDIuNjYtLjUxLDEuMDgtMS40LDMuMjgtMS44LDQuNDEtMS40MywzLjk0LTEuMjQsOC4wNi0uMjcsMTIuMTQtMS4wMiwxLjI2LTIuMDIsMi41My0yLjk5LDMuODItMS4xNi0zLjg2LTEuNzgtNy44Mi0xLjU0LTExLjkzLjY1LTUuMjgsMi44OC0xMC4xNCw1LjczLTE0LjY1LjY4LDEuMjUsMS40NSwyLjQzLDIuMjgsMy41NVoiLz4KICAgIDxwYXRoIGQ9Ik0xNjIuMzgsOTAuMjJjLjQ5LjE4Ljk4LjM2LDEuNDguNTYtLjU4LS4xMS0xLjEyLS4yLTEuNjMtLjI5LjA0LS4wOS4xLS4xOC4xNS0uMjdaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNjEuNjUsOTEuNTNjLjcuMjcsMS40MS41NCwyLjE0LjgzLTEuNjUsMy4xNi0yLjQ3LDYuNjktMi40LDEwLjI2di4wNmMtLjg2LS4yNS0xLjczLS40OS0yLjU5LS43Mi4yNC0zLjcxLDEuMTQtNy4xNywyLjg1LTEwLjQzWiIvPgogICAgPHBhdGggZD0iTTE2My4wOSw4OS4xMWMtLjI1LjM3LS40OS43NC0uNzEsMS4xMS0yLjIzLS44NS00LjM3LTEuNTktNi4zOS0yLjIxLjQ1LjA1LDIuMzEuMjcsNy4xLDEuMVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE2Mi4xMiwxNDYuMTdjLjIxLjcuNDMsMS40MS42OCwyLjExLS45NywxLjI3LTEuOTEsMi41Ni0yLjgzLDMuODctLjQ1LTEuMTctLjg1LTIuMzUtMS4yLTMuNTQuOTctMS4yOSwxLjk3LTIuNTYsMi45OS0zLjgyLjExLjQ2LjIzLjkyLjM2LDEuMzhaIi8+CiAgICA8cGF0aCBkPSJNMTYyLjM4LDkwLjIyYy0uMDUuMDktLjExLjE4LS4xNS4yNy00Ljg3LS44NC02LjQ0LS45OS02LjQ4LTFsLjE0LTEuNDlzLjA1LDAsLjEuMDFjMi4wMi42Miw0LjE2LDEuMzYsNi4zOSwyLjIxWiIvPgogICAgPHBhdGggZD0iTTE2Mi4yMyw5MC40OWMtLjIxLjM0LS40LjY5LS41OCwxLjA0LTIuMDYtLjc3LTQuMDMtMS40NS01LjktMi4wM2gwczEuNjEuMTUsNi40OC45OVoiLz4KICAgIDxwYXRoIGQ9Ik0xNjMuNTUsMTkxLjM0Yy0uODIuMTYtMS42My4zNi0yLjQ0LjU4LTQuNjktMi4wMS05LjIxLTMuOS0xMy41Ny01LjY2LS4wOC0uNTYtLjE0LTEuMTMtLjE4LTEuNjksNS4xNywyLjA4LDEwLjU3LDQuMzMsMTYuMTksNi43N1oiLz4KICAgIDxwYXRoIGQ9Ik0xNjEuNDUsMTA0LjI0Yy0uOTEtLjI1LTEuOC0uNS0yLjctLjc1LDAtLjUxLjAyLTEuMDIuMDUtMS41My44Ni4yMywxLjczLjQ3LDIuNTkuNzIuMDEuNTIuMDMsMS4wNC4wNiwxLjU2WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTU5Ljk3LDE1Mi4xNWMtNC44Myw2Ljg3LTguOTUsMTQuMTgtMTEuNjEsMjIuMTItLjgzLDIuNjItMS4xNSw1LjI3LTEuMTEsNy45NC0xLjE1LS4zMi0yLjMtLjY0LTMuNDYtLjk3LjA1LTIuNjguNDQtNS4zNiwxLjMxLTcuOTcsMi45OS05LjA0LDcuOTQtMTcuMTQsMTMuNjctMjQuNjYuMzUsMS4xOS43NSwyLjM3LDEuMiwzLjU0WiIvPgogICAgPHBhdGggZD0iTTE1OC44LDEwMS45NmMtLjAzLjUxLS4wNSwxLjAyLS4wNSwxLjUzLTQyLjAyLTExLjYyLTc3LjI0LTIwLjA4LTc5LjE4LTIwLjU0LS41OC0uMDItMS4xNi0uMDMtMS43My0uMDMtMjkuMDQsMC0zNS43MiwyNC4yOC0zNy4yNiwzNC44OC0yLjI4LDE1LjgxLDIuMiwzMi40OCw5LjIzLDM0LjMsMTEuNyw0LjY3LDMxLjc5LDExLjA3LDU1LjE5LDE3Ljk5LTUuOTEtMS41My0xMS4yNC0yLjYxLTE2LTMuMjUtMTYuNjUtNS4xLTMwLjY0LTkuNzMtMzkuNjUtMTMuMzItNy43NS0xLjk5LTEyLjY4LTE5LjE0LTEwLjI1LTM1LjkzLDMuMzgtMjMuMzcsMTguNTUtMzYuODcsNDAuNi0zNi4xNGwuMTUuMDJjLjcyLjE3LDM2LjI4LDguNjgsNzguOTUsMjAuNDlaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNTYuMjcsMjI5LjU5Yy4wNSwzLjM2LS4zLDYuNzQtMS4wNSwxMC4wMy0uOTQtLjI1LTEuODctLjUtMi44MS0uNzYuNjYtMy40NS45LTcsLjc3LTEwLjYsMS0uNzEsMi0xLjQzLDIuOTktMi4xNi4wOCwxLjE2LjExLDIuMzIuMSwzLjQ5WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTU1LjgzLDIyMi4yYy4xNiwxLjMuMjgsMi41OS4zNCwzLjktLjk5LjczLTEuOTksMS40NS0yLjk5LDIuMTYtLjA0LTEuMjYtLjEzLTIuNTItLjI2LTMuNzkuOTgtLjc1LDEuOTUtMS41MSwyLjkxLTIuMjdaIi8+CiAgICA8cGF0aCBkPSJNMTU1LjIyLDIzOS42MmMtLjEuNDctLjIyLjk1LS4zNCwxLjQyLS45Mi0uMjQtMS44NC0uNDktMi43Ni0uNzUuMTEtLjQ3LjIxLS45NS4yOS0xLjQzLjk0LjI2LDEuODcuNTEsMi44MS43NloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE1NS44MywyMjIuMmMtLjk2Ljc2LTEuOTMsMS41Mi0yLjkxLDIuMjctLjI5LTIuODgtLjc5LTUuNzgtMS40OC04LjY1LTEtNC40Ny0yLjMtOC45LTMuNi0xMy4zNy43LS40OSwxLjQyLS45NSwyLjE1LTEuNDFoLjAxYy4zNS4wOS43LjE4LDEuMDYuMjcsMS45OCw2LjgyLDMuOTMsMTMuNzksNC43NywyMC44OVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE1Mi45MiwyMjQuNDdjLjEzLDEuMjcuMjIsMi41My4yNiwzLjc5LTEuNjcsMS4yLTMuMzQsMi4zNy00Ljk5LDMuNTUtMi4wNiwxLjQtNC4wNCwyLjc1LTUuODksNC4xLTEuMS0uMzQtMi4yLS42OC0zLjMxLTEuMDMsNC41Ny0zLjUzLDkuMzMtNi45LDEzLjkzLTEwLjQxWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTUyLjEyLDI0MC4yOWMuOTIuMjYsMS44NC41MSwyLjc2Ljc1LTIuMTUsOC4xNS02LjcyLDE1LjY0LTEzLjQyLDIwLjg1LTEuMzQuOS0yLjY3LDEuODItMy45OSwyLjc0LjExLS44MS4xOS0xLjY0LjI0LTIuNDcuODItLjY0LDEuNjYtMS4yNiwyLjQ5LTEuODcsNi40Ny01LjU2LDEwLjIzLTEyLjQ4LDExLjkyLTIwWiIvPgogICAgPHBhdGggZD0iTTE1Mi40MSwyMzguODZjLS4wOC40OC0uMTguOTYtLjI5LDEuNDMtMy43My0xLjAzLTcuNS0yLjEzLTExLjI5LTMuMzEuNDgtLjM2Ljk3LS43MiwxLjQ3LTEuMDcsMy4zOSwxLjA0LDYuNzcsMi4wMiwxMC4xMSwyLjk1WiIvPgogICAgPHBhdGggZD0iTTE1MS4wNCwyMDEuMjNzLjAyLjA1LjAyLjA4Yy0uMzYtLjA5LS43MS0uMTgtMS4wNi0uMjcuMjgtLjE3LjU2LS4zNC44NS0uNTEuMDYuMjMuMTMuNDcuMTkuN1oiLz4KICAgIDxwYXRoIGQ9Ik0xNTEuODYsMTk5Ljk2Yy0uMzQuMTgtLjY4LjM4LTEuMDEuNTdsLS4yNC0uODdjLjQxLjA5LjgzLjIsMS4yNS4zWiIvPgogICAgPHBhdGggZD0iTTE1MC44NSwyMDAuNTNjLS4yOS4xNy0uNTcuMzQtLjg1LjUxaC0uMDFjLS45My0uMjItMS44NS0uNDUtMi43NS0uNjctLjE2LS41NS0uMzItMS4xLS40Ny0xLjY2LDEuMjUuMzEsMi41My42MywzLjg0Ljk1bC4yNC44N1oiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtNCIgZD0iTTE2MS4xMSwxOTEuOTJjLTMuODcsMS4wNS03LjcyLDIuNjgtMTEuMzMsNC43My0uOTMtMy40Mi0xLjgxLTYuOTEtMi4yNC0xMC4zOSw0LjM2LDEuNzYsOC44OCwzLjY1LDEzLjU3LDUuNjZaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNDkuNzgsMTk2LjY1Yy4yOCwxLjAxLjU2LDIuMDEuODMsMy4wMS0xLjMxLS4zMi0yLjU5LS42NC0zLjg0LS45NS0uMDItLjA2LS4wNC0uMTEtLjA1LS4xNy45OS0uNjcsMi4wMi0xLjMsMy4wNi0xLjg5WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTQwLjgzLDIzNi45OGMzLjc5LDEuMTgsNy41NiwyLjI4LDExLjI5LDMuMzEtMS42OSw3LjUyLTUuNDUsMTQuNDQtMTEuOTIsMjAtLjgzLjYxLTEuNjcsMS4yMy0yLjQ5LDEuODcuMTUtMi4zMS4wOC00LjY5LS4yMi03LjEyLS4zOC00LjM0LTEuNTktOC41OS0yLjg2LTEyLjc0LDEuODYtMS44OCwzLjk0LTMuNjEsNi4yLTUuMzJaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xNDkuNzgsMTk2LjY1Yy0xLjA0LjU5LTIuMDcsMS4yMi0zLjA2LDEuODktMS4yNi00LjQ1LTIuNDQtOS4wOS0yLjgxLTEzLjczLDEuMi40NywyLjQxLjk1LDMuNjMsMS40NS40MywzLjQ4LDEuMzEsNi45NywyLjI0LDEwLjM5WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTQ3LjI0LDIwMC4zN2MuOS4yMiwxLjgyLjQ1LDIuNzUuNjctLjczLjQ2LTEuNDUuOTItMi4xNSwxLjQxLS4wMy0uMDktLjA1LS4xOC0uMDgtLjI3LS4xNy0uNi0uMzUtMS4yLS41Mi0xLjgxWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTQ3Ljc2LDIwMi4xOGMuMDMuMDkuMDUuMTguMDguMjctMy44NywyLjY4LTcuMzIsNS45Mi0xMC4wNiw5LjU4LTQuNDcsNS45MS02LjIxLDEzLjM2LTUuNDcsMjAuNjQtMS4yMi0uNDEtMi40My0uODMtMy42NC0xLjI2LS41MS03LjYyLDEuNDUtMTUuNCw2LjAyLTIxLjYsMi42OS0zLjcxLDYuMjItNy4xMywxMC4yMi0xMC4wMi43Ny4xOSwxLjU0LjM4LDIuMzMuNTguMTcuNjEuMzUsMS4yMS41MiwxLjgxWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTQ3LjM2LDE4NC41N2MuMDQuNTYuMSwxLjEzLjE4LDEuNjktMS4yMi0uNS0yLjQzLS45OC0zLjYzLTEuNDUtLjA1LS41NS0uMDktMS4xMS0uMTEtMS42NiwxLjE3LjQ2LDIuMzYuOTQsMy41NiwxLjQyWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTQ3LjMsMTgzLjc4Yy4wMS4yNi4wMy41My4wNi43OS0xLjItLjQ4LTIuMzktLjk2LTMuNTYtMS40MiwwLS4xMiwwLS4yMy0uMDEtLjM1LDEuMTcuMzIsMi4zNC42NSwzLjUxLjk4WiIvPgogICAgPHBhdGggZD0iTTE0Ny4yNSwxODIuMjFjMCwuNTIuMDIsMS4wNS4wNSwxLjU3LTEuMTctLjMzLTIuMzQtLjY2LTMuNTEtLjk4LS4wMS0uNTItLjAxLTEuMDQsMC0xLjU2LDEuMTYuMzMsMi4zMS42NSwzLjQ2Ljk3WiIvPgogICAgPHBhdGggZD0iTTE0Ni43NywxOTguNzFjLjE1LjU2LjMxLDEuMTEuNDcsMS42Ni0uNzktLjItMS41Ni0uMzktMi4zMy0uNTguNTQtLjM5LDEuMDgtLjc3LDEuNjQtMS4xNC4wNy4wMi4xNS4wNC4yMi4wNloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTE0Ni43MiwxOTguNTRjLjAxLjA2LjAzLjExLjA1LjE3LS4wNy0uMDItLjE1LS4wNC0uMjItLjA2LjA1LS4wNC4xMS0uMDguMTctLjExWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy00IiBkPSJNMTQ2LjcyLDE5OC41NGMtLjA2LjAzLS4xMi4wNy0uMTcuMTEtOC45MS0yLjIyLTE2LjQzLTQuMjctMjEuMzUtNS44MS00Ni43MS0xNC42LTUyLjY1LTIyLjU1LTUzLjQxLTI0LjRoMGM3LjE0LTEuNzIsMTcuODQtLjc2LDMyLjA0LDIuODYsNC45NiwxLjQ3LDEwLjA2LDIuOTcsMTUuMjcsNC40Nyw3LjU0LDIuNDYsMTUuODIsNS40NywyNC44MSw5LjA0LjM3LDQuNjQsMS41NSw5LjI4LDIuODEsMTMuNzNaIi8+CiAgICA8cGF0aCBkPSJNMTQ2LjU1LDE5OC42NWMtLjU2LjM3LTEuMS43NS0xLjY0LDEuMTQtOC4zOC0yLjExLTE1LjQ2LTQuMDUtMjAuMTUtNS41Mi00NS44NC0xNC4zMi01My4zNS0yMi41LTU0LjQyLTI1LjQ0LjQ3LS4xNS45NS0uMjgsMS40NS0uMzkuNzYsMS44NSw2LjcsOS44LDUzLjQxLDI0LjQsNC45MiwxLjU0LDEyLjQ0LDMuNTksMjEuMzUsNS44MVoiLz4KICAgIDxwYXRoIGQ9Ik0xNDMuOCwxODMuMTVjLjAyLjU1LjA2LDEuMTEuMTEsMS42Ni04Ljk5LTMuNTctMTcuMjctNi41OC0yNC44MS05LjA0LDcsMi4wMywxNC4xOCw0LjA3LDIxLjQ0LDYuMTEsMS4wNy40MSwyLjE2Ljg0LDMuMjYsMS4yN1oiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMiIgZD0iTTE0My43OSwxODIuOGMuMDEuMTIuMDEuMjMuMDEuMzUtMS4xLS40My0yLjE5LS44Ni0zLjI2LTEuMjcsMS4wOC4zMSwyLjE3LjYxLDMuMjUuOTJaIi8+CiAgICA8cGF0aCBkPSJNMTQzLjc5LDE4MS4yNGMtLjAxLjUyLS4wMSwxLjA0LDAsMS41Ni0xLjA4LS4zMS0yLjE3LS42MS0zLjI1LS45Mi03LjgtMy4wMi0xNS4wMy01LjYtMjEuNzEtNy43NCw4LjEzLDIuMzUsMTYuNTEsNC43MywyNC45Niw3LjFaIi8+CiAgICA8cGF0aCBkPSJNMTQyLjMsMjM1LjkxYy0uNS4zNS0uOTkuNzEtMS40NywxLjA3LTEuMDgtLjMzLTIuMTctLjY4LTMuMjYtMS4wMy4yOC0uMjIuNTYtLjQzLjg0LS42My4xOS0uMTUuMzgtLjMuNTgtLjQ0LDEuMTEuMzUsMi4yMS42OSwzLjMxLDEuMDNaIi8+CiAgICA8cGF0aCBkPSJNMTM4Ljk5LDIzNC44OGMtLjIuMTQtLjM5LjI5LS41OC40NC0uMjguMi0uNTYuNDEtLjg0LjYzLTEuNjgtLjUzLTMuMzYtMS4wOS01LjA0LTEuNjUtLjA5LS41NC0uMTYtMS4wOC0uMjItMS42MiwyLjIyLjc2LDQuNDUsMS40OSw2LjY4LDIuMloiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTEzNy41NywyMzUuOTVjMS4wOS4zNSwyLjE4LjcsMy4yNiwxLjAzLTIuMjYsMS43MS00LjM0LDMuNDQtNi4yLDUuMzItLjMtLjk5LS42MS0xLjk3LS45LTIuOTQsMS4yLTEuMjMsMi40OC0yLjM3LDMuODQtMy40MVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTEzNy40OSwyNTUuMDRjLjMsMi40My4zNyw0LjgxLjIyLDcuMTItMS4wOC44MS0yLjE2LDEuNjQtMy4yMiwyLjQ5LjgtNi42MS0uNTYtMTMuMDgtMi40Ny0xOS40My44MS0xLjAyLDEuNjgtMS45OSwyLjYxLTIuOTIsMS4yNyw0LjE1LDIuNDgsOC40LDIuODYsMTIuNzRaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xMzcuNzEsMjYyLjE2Yy0uMDUuODMtLjEzLDEuNjYtLjI0LDIuNDctMS4xMy44LTIuMjUsMS42LTMuMzYsMi40MS4wNS0uMTkuMDgtLjM4LjExLS41Ny4xMS0uNjEuMi0xLjIxLjI3LTEuODIsMS4wNi0uODUsMi4xNC0xLjY4LDMuMjItMi40OVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTEzMi4wMiwyNDUuMjJjMS45MSw2LjM1LDMuMjcsMTIuODIsMi40NywxOS40My0zLjE2LDIuNS02LjIzLDUuMTMtOS4xMyw3Ljk1LS40Ny0zLjcxLS41Mi03LjQ2LDAtMTEuMTcuOTctNi45MywzLjMtMTEuOTksNi42Ni0xNi4yMVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTEzNC40OSwyNjQuNjVjLS4wNy42MS0uMTYsMS4yMS0uMjcsMS44Mi0uMDMuMTktLjA2LjM4LS4xMS41Ny0yLjk1LDIuMTctNS44Myw0LjQ0LTguNTgsNi44NC0uMDctLjQzLS4xMy0uODUtLjE3LTEuMjgsMi45LTIuODIsNS45Ny01LjQ1LDkuMTMtNy45NVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMyIgZD0iTTEzNC4xMSwyNjcuMDRjMS4xMS0uODEsMi4yMy0xLjYxLDMuMzYtMi40MS0xLjA0LDcuOC00LjU4LDE0Ljg4LTkuOTYsMjEuMDItLjAxLTEuMjEtLjExLTIuNDEtLjI4LTMuNjEsMy4zMi00LjQ5LDUuODctOS40Nyw2Ljg4LTE1WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTM3LjU3LDIzNS45NWMtMS4zNiwxLjA0LTIuNjQsMi4xOC0zLjg0LDMuNDEtLjE0LS40NS0uMjgtLjktLjQxLTEuMzUtLjM0LTEuMjItLjYxLTIuNDYtLjc5LTMuNzEsMS42OC41NiwzLjM2LDEuMTIsNS4wNCwxLjY1WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTMzLjczLDIzOS4zNmMuMjkuOTcuNiwxLjk1LjksMi45NC0uOTMuOTMtMS44LDEuOS0yLjYxLDIuOTItLjI5LS45Ny0uNTktMS45My0uOTEtMi44OS44Mi0xLjA0LDEuNjktMi4wMywyLjYyLTIuOTdaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xMzMuMzIsMjM4LjAxYy4xMy40NS4yNy45LjQxLDEuMzUtLjkzLjk0LTEuOCwxLjkzLTIuNjIsMi45Ny0uMzYtMS4xNS0uNzQtMi4zLTEuMTItMy40NC0uNTYtMS45Mi0uOTUtMy44OS0xLjE3LTUuODgsMS4yMy40NCwyLjQ3Ljg3LDMuNzEsMS4yOS4xOCwxLjI1LjQ1LDIuNDkuNzksMy43MVoiLz4KICAgIDxwYXRoIGQ9Ik0xMzIuMzEsMjMyLjY4Yy4wNi41NC4xMywxLjA4LjIyLDEuNjItMS4yNC0uNDItMi40OC0uODUtMy43MS0xLjI5LS4wNy0uNTMtLjEyLTEuMDctLjE1LTEuNiwxLjIxLjQzLDIuNDIuODUsMy42NCwxLjI2aDBaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xMzEuMTEsMjQyLjMzYy4zMi45Ni42MiwxLjkyLjkxLDIuODktMy4zNiw0LjIyLTUuNjksOS4yOC02LjY2LDE2LjIxLS41MiwzLjcxLS40Nyw3LjQ2LDAsMTEuMTctLjQuMzctLjc5Ljc1LTEuMTcsMS4xNC0uNzctNC4xLTEuMDYtOC4zMi0uNjYtMTIuNTIuNS02Ljg3LDMuMjktMTMuNDgsNy41OC0xOC44OVoiLz4KICAgIDxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTEzNC4xMSwyNjcuMDRjLTEuMDEsNS41My0zLjU2LDEwLjUxLTYuODgsMTUtLjA1LS4zOS0uMTItLjc4LS4xOS0xLjE3LS42NC0yLjI5LTEuMTYtNC42My0xLjUxLTYuOTksMi43NS0yLjQsNS42My00LjY3LDguNTgtNi44NFoiLz4KICAgIDxwYXRoIGQ9Ik0xMjguNjcsMjMxLjQxYy4wMy41My4wOCwxLjA3LjE1LDEuNi0xOS43My02LjkzLTM4LjUzLTE1Ljc3LTUwLjkzLTI2LjMtMTIuNzItMTEuODMtMTUuOTYtMjMuODYtMTQuNzctMzEuMTguNTgtMy41OCwyLjI1LTYuMjQsNC41Ny03LjI5LDMuMDctMS4zOSw3LjA1LTIuMDksMTEuOTUtMi4wOSwyLjgyLDAsNS45NC4yMyw5LjM2LjY5LDQuNzUsMS40NSw5LjcxLDIuOTUsMTQuODMsNC40Ni0xNC4yLTMuNjItMjQuOS00LjU4LTMyLjA0LTIuODctLjExLS4yNi0uMTEtLjQtLjExLS40MWwtLjctLjEzaC0uMDNzLS43Mi0uMjQtLjcyLS4yNGMtLjA1LjE2LS4xMi41NS4xMSwxLjE4LS43Mi4yMi0xLjM5LjQ4LTIuMDMuNzctMS44Ni44NS0zLjIxLDMuMS0zLjcxLDYuMTctMS4xMyw2Ljk0LDIuMDMsMTguNDIsMTQuMjksMjkuODIsMTIuMTMsMTAuMzEsMzAuNDgsMTguOTgsNDkuNzgsMjUuODJaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xMjcuNTEsMjg1LjY1Yy4xMiw1LjA4LS45NywxMC4xNS0yLjMzLDE1LjAyLDEuMDEtNC42LDEuOC05LjQ2LDEuNjEtMTQuMjEuMjUtLjI3LjQ5LS41NC43Mi0uODFaIi8+CiAgICA8cGF0aCBjbGFzcz0iY2xzLTMiIGQ9Ik0xMjcuMjMsMjgyLjA0Yy4xNywxLjIuMjcsMi40LjI4LDMuNjEtLjIzLjI3LS40Ny41NC0uNzIuODEtLjA1LTEuMTUtLjE1LTIuMjgtLjMyLTMuNDEuMjYtLjMzLjUxLS42Ny43Ni0xLjAxWiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTI3LjA0LDI4MC44N2MuMDcuMzkuMTQuNzguMTksMS4xNy0uMjUuMzQtLjUuNjgtLjc2LDEuMDEtLjEtLjY2LS4yMi0xLjMxLS4zNy0xLjk2LS42Ny0yLjAyLTEuMjQtNC4xLTEuNjgtNi4yMS4zNy0uMzQuNzQtLjY3LDEuMTEtMSwuMzUsMi4zNi44Nyw0LjcsMS41MSw2Ljk5WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTI2LjQ3LDI4My4wNWMuMTcsMS4xMy4yNywyLjI2LjMyLDMuNDEtLjM0LjM4LS43Ljc2LTEuMDYsMS4xMy0yLjYxLDIuOS01LjQ0LDUuNDktNy40MSw4LjY0LTguNDYsMTIuNTgtMTIuNDgsMjguNzItOC45Miw0My42Ny00Ljg4LTE2Ljc2LS4xNS0zNi4wNCwxMC43Ni00OS41MmwzLjgyLTQuMzRjLjg2LS45NywxLjY5LTEuOTcsMi40OS0yLjk5WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTI1LjM2LDI3Mi42Yy4wNC40My4xLjg1LjE3LDEuMjgtLjM3LjMzLS43NC42Ni0xLjExLDEtLjA4LS4zOC0uMTYtLjc2LS4yMy0xLjE0LjM4LS4zOS43Ny0uNzcsMS4xNy0xLjE0WiIvPgogICAgPHBhdGggY2xhc3M9ImNscy0zIiBkPSJNMTI0LjE5LDI3My43NGMuMDcuMzguMTUuNzYuMjMsMS4xNC0zLjQ4LDMuMTItNi43NSw2LjQ5LTkuNywxMC4yMSwyLjc2LTQuMSw1Ljk3LTcuODYsOS40Ny0xMS4zNVoiLz4KICAgIDxwYXRoIGQ9Ik0xNDAuNTQsMTgxLjg4Yy03LjI2LTIuMDQtMTQuNDQtNC4wOC0yMS40NC02LjExLTUuNDctMS43OC0xMC41Ni0zLjI3LTE1LjI3LTQuNDctNS4xMi0xLjUxLTEwLjA4LTMuMDEtMTQuODMtNC40Niw0Ljc2LjY0LDEwLjA5LDEuNzIsMTYsMy4yNSw0LjQ0LDEuMzEsOC45OSwyLjY1LDEzLjY0LDMuOTkuMDYuMDEuMTMuMDMuMTkuMDYsNi42OCwyLjE0LDEzLjkxLDQuNzIsMjEuNzEsNy43NFoiLz4KICAgIDxwYXRoIGQ9Ik0xMTguNjQsMTc0LjA4Yy00LjY1LTEuMzQtOS4yLTIuNjgtMTMuNjQtMy45OSw0LjI1LDEuMSw4LjgsMi40MiwxMy42NCwzLjk5WiIvPgogICAgPHBhdGggZD0iTTEwMy44MywxNzEuM2M0LjcxLDEuMiw5LjgsMi42OSwxNS4yNyw0LjQ3LTUuMjEtMS41LTEwLjMxLTMtMTUuMjctNC40N1oiLz4KICAgIDxwYXRoIGQ9Ik03MC45OCwxNjcuODlsLjcuMTNzMCwuMTUuMTEuNDFoMGMtLjUuMTItLjk4LjI1LTEuNDUuNC0uMjMtLjYzLS4xNi0xLjAyLS4xMS0xLjE4bC43Mi4yM2guMDNaIi8+CiAgPC9nPgogIDxwYXRoIGNsYXNzPSJjbHMtNSIgZD0iTTMyOS4yNywzNTEuMTNIMjMuMzVjLTEyLjA3LDAtMjEuODUtOS43OC0yMS44NS0yMS44NVYyMy4zNkMxLjUsMTEuMjksMTEuMjgsMS41LDIzLjM1LDEuNWgzMDUuOTJjMTIuMDcsMCwyMS44NSw5Ljc5LDIxLjg1LDIxLjg2djMwNS45MmMwLDEyLjA3LTkuNzgsMjEuODUtMjEuODUsMjEuODVaIi8+Cjwvc3ZnPgo=" alt="MSWE" width="64" height="64">
-      <h4>MSWE v1.6.0-beta.1</h4>
+      <h4>MSWE v1.6.0-beta.2</h4>
       <p>Moyor's Subtitle Workflow Editor · 我的字幕流</p>
       <p>字幕编辑、翻译与配音。由 Moyor 维护，基于 MAW 开源项目发展。</p>
       <p><a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow" target="_blank" rel="noopener noreferrer">项目官网</a> · <a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases" target="_blank" rel="noopener noreferrer">下载与更新</a> · <a href="https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues" target="_blank" rel="noopener noreferrer">问题反馈</a></p>
@@ -6505,6 +6516,8 @@
           <span><kbd>Alt+点击</kbd> 切换空隙的启用/禁用状态</span>
           <span class="help-important"><kbd>Alt+左键拖动</kbd> 添加新的移除空隙</span>
           <span class="help-note">（也可以在右键中选择「添加空隙」）</span>
+          <span>在波形背景右键选择「填充区间空隙」，合并鼠标前后最近的已激活空隙；边界外延伸到媒体开头或结尾。</span>
+          <span class="help-note">填充支持撤销，保留配音保护；提示分别显示标记时长与实际移除时长。</span>
         </div>
       </section>
       <section class="help-subgroup">
@@ -6584,6 +6597,7 @@
         </div>
       </section>
     </section>
+  </div>
   </div>
 </aside>
 
@@ -9275,6 +9289,12 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
 // without constructing the full browser editor DOM.
 (function () {
   'use strict';
+
+  const PROJECT_SCHEMA = 'moy.asr.project.v1';
+  function supportsProjectSchema(project) {
+    return Boolean(project && typeof project === 'object' && !Array.isArray(project)
+      && (!Object.prototype.hasOwnProperty.call(project, 'schema') || project.schema === PROJECT_SCHEMA));
+  }
 
   const SUBTITLE_FONT_FAMILY_DISPLAY_NAMES_ZH = Object.freeze({
     'Microsoft YaHei': '微软雅黑',
@@ -11998,6 +12018,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true,
     autoSaveProject: true, autoSaveIntervalSeconds: 30, stickerOverlayEnabled: false,
     stickerOtioExportMode: 'original', clickBehavior: 'select-and-seek', clickTarget: 'pointer',
+    otioExportIncludeSrt: true, otioExportIncludeStickers: true, otioExportIncludeMarkers: true,
     keyboardOperationReference: 'pointer', jklPlaybackMode: 'direction', mediaSeekStepMs: 1000,
     mediaSeekStepFrames: 1, cueMoveStepMs: 50, cueMoveStepFrames: 1,
     timelineSnapToFrame: true, timelineTimecodeSeparator: DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
@@ -12086,6 +12107,9 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       autoSaveIntervalSeconds: clampInteger(savedSettings.autoSaveIntervalSeconds, 30, 5, 3600),
       stickerOverlayEnabled: savedSettings.stickerOverlayEnabled === true,
       stickerOtioExportMode: savedSettings.stickerOtioExportMode === 'portable' ? 'portable' : 'original',
+      otioExportIncludeSrt: savedSettings.otioExportIncludeSrt !== false,
+      otioExportIncludeStickers: savedSettings.otioExportIncludeStickers !== false,
+      otioExportIncludeMarkers: savedSettings.otioExportIncludeMarkers !== false,
       clickBehavior: ['select-only', 'select-and-seek', 'select-and-play'].includes(savedSettings.clickBehavior)
         ? savedSettings.clickBehavior : 'select-and-seek',
       clickTarget: ['cue-start', 'pointer'].includes(savedSettings.clickTarget) ? savedSettings.clickTarget : 'pointer',
@@ -12230,6 +12254,23 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       }
       return [mapped];
     });
+  }
+
+  // Fill between the closest active gaps; inactive gaps do not set boundaries.
+  function resolveGapFillRange(gaps, pointMs, durationMs = 0) {
+    const active = normalizeGapRemoveGaps(gaps).filter((gap) => gap.removed !== false);
+    const point = Number(pointMs);
+    if (!active.length || !Number.isFinite(point)) return null;
+    const containing = active.find((gap) => gap.start <= point && gap.end >= point);
+    if (containing) return { start: containing.start, end: containing.end };
+    const previous = [...active].reverse().find((gap) => gap.end <= point);
+    const next = active.find((gap) => gap.start >= point);
+    const rawDuration = Number(durationMs);
+    const duration = Number.isFinite(rawDuration) ? Math.max(0, Math.round(rawDuration)) : 0;
+    if (!next && duration <= 0) return null;
+    const start = previous ? previous.start : 0;
+    const end = next ? next.end : duration;
+    return end > start ? { start, end } : null;
   }
 
   const HISTORY_RECORD_DEFAULT_LABELS = Object.freeze({
@@ -14450,6 +14491,8 @@ export default MawDynamicCaptions;
   }
 
   window.AsrEditorUtils = {
+    PROJECT_SCHEMA,
+    supportsProjectSchema,
     subtitleFontFamilyDisplayName,
     decodeSubtitleText,
     parseBwfTimeReference,
@@ -14589,6 +14632,7 @@ export default MawDynamicCaptions;
     mapGapRemovedTime,
     buildGapRemovedIntervals,
     buildGapRemovedDynamicSegments,
+    resolveGapFillRange,
     EXPORT_FRAME_PROFILES,
     resolveExportFrameProfile,
     exportMsToFrames,
@@ -15151,6 +15195,29 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "源媒体导出选项": "Source media export options",
+    "同时导出 SRT 字幕": "Also export SRT subtitles",
+    "额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出": "Save a separate SRT file outside the OTIOZ archive; applies to source media exports only",
+    "时间线包含表情包": "Include stickers in the timeline",
+    "将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程": "Add stickers as a separate video track to the source media timeline; does not affect voiceover projects",
+    "将字幕内容作为标记写入": "Write subtitles as markers",
+    "将主字幕内容写入源媒体片段标记": "Write main subtitles as markers on source media clips",
+    "源媒体时间线（OTIO）": "Source media timeline (OTIO)",
+    "源媒体打包工程（OTIOZ）": "Source media archive (OTIOZ)",
+    "含配音的剪辑工程（OTIOZ）": "Timeline with voiceover (OTIOZ)",
+    "导出源媒体及所选表情包的完整 OTIOZ 时间线": "Export the full OTIOZ timeline with source media and selected stickers",
+    "导出源媒体及所选表情包的去空隙 OTIOZ 时间线": "Export the gap-removed OTIOZ timeline with source media and selected stickers",
+    "可关闭「时间线包含表情包」后重试。": "Turn off Include stickers in the timeline and retry.",
+    "源媒体时间线保存失败，请检查目标文件权限后重试。": "Could not save the source timeline. Check destination permissions and retry.",
+    "时间线已导出；已取消附带 SRT 的保存。": "Timeline exported; saving the companion SRT was cancelled.",
+    "时间线已导出；附带 SRT 保存失败，请单独导出字幕。": "Timeline exported; the companion SRT could not be saved. Export subtitles separately.",
+    '帮助分类': 'Help categories',
+    '在波形背景右键选择「填充区间空隙」，合并鼠标前后最近的已激活空隙；边界外延伸到媒体开头或结尾。': 'Right-click the waveform background and choose Fill gap interval to join the nearest active gaps around the pointer, extending to the media start or end when outside those gaps.',
+    '填充支持撤销，保留配音保护；提示分别显示标记时长与实际移除时长。': 'Filling supports undo and voice protection. The hint shows marked duration and effective removal separately.',
+    '填充区间空隙': 'Fill gap interval',
+    '当前没有已激活的空隙，无法填充区间空隙': 'No active gaps are available to fill an interval.',
+    '媒体时长尚不可用；请先加载媒体后再填充区间空隙': 'Media duration is unavailable; load media before filling the interval.',
+    '此工程的格式版本不受支持，请使用对应版本的编辑器打开': 'This project format version is not supported. Open it with a compatible editor.',
     '关于 MSWE': 'About MSWE', '关于': 'About', '项目官网': 'Project home', '下载与更新': 'Downloads and updates',
     '问题反馈': 'Report an issue', '使用文档': 'Documentation', '上游 MAW': 'Upstream MAW',
     '字幕编辑、翻译与配音。由 Moyor 维护，基于 MAW 开源项目发展。': 'Subtitle editing, translation and voiceover. Maintained by Moyor and based on the open-source MAW project.',
@@ -16343,11 +16410,21 @@ export default MawDynamicCaptions;
 
   let language = readLanguage();
 
+  // 导出文件名中的技术段（按当前语言映射；中文界面译出，英文界面原样）。
+  const EXPORT_NAME_SEGMENTS = { 'gap-removed': '去空隙', 'stickers': '表情包' };
+
+  function exportTag(segment) {
+    if (language !== ZH) return segment;
+    return EXPORT_NAME_SEGMENTS[segment] || segment;
+  }
+
   function translateText(value, lang = language) {
     const text = String(value ?? '');
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const filledGap = /^已填充区间空隙：标记 (.+)，实际移除 (.+)$/.exec(text);
+    if (filledGap) return `Gap interval filled: marked ${translateText(filledGap[1], EN)}, effectively removed ${translateText(filledGap[2], EN)}`;
     const processingScope = /^(范围：全部主字幕|范围：选中的主字幕) · (\d+)(?: · 已忽略未绑定副字幕 (\d+))?$/.exec(text);
     if (processingScope) return `${translateText(processingScope[1], EN)} · ${processingScope[2]}`
       + (processingScope[3] ? ` · ${translateText('已忽略未绑定副字幕', EN)} ${processingScope[3]}` : '');
@@ -16736,6 +16813,7 @@ export default MawDynamicCaptions;
   global.MSWE_I18N = {
     get language() { return language; },
     applyLanguage,
+    exportTag,
     start,
     translateText,
     validateTranslationKeys,
@@ -23291,6 +23369,25 @@ export default MawDynamicCaptions;
 })();
 
 const DATA = {"segments": [], "media": "", "language": "", "model": ""};
+const CANONICAL_PROJECT_FIELDS = new Set([
+  'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
+  'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'waveform',
+  'media_metadata', 'media_time_reference', 'spectral', 'waveform_reapeaks', 'gap_remove',
+  'script_alignment', 'workspace', 'preview', 'msw',
+]);
+function getProjectExtensionFields(project) {
+  return Object.fromEntries(Object.entries(project).filter(([key]) => !CANONICAL_PROJECT_FIELDS.has(key)));
+}
+function validateProjectForLoad(project) {
+  if (!window.AsrEditorUtils.supportsProjectSchema(project)) {
+    const message = '此工程的格式版本不受支持，请使用对应版本的编辑器打开';
+    throw new Error(window.MSWE_I18N?.translateText?.(message) || message);
+  }
+  return window.MSWProject.normalize(project.msw);
+}
+validateProjectForLoad(DATA);
+DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
+let projectExtensionFields = getProjectExtensionFields(DATA);
 let FILENAME_BASE = "untitled";
 const STICKERS = [];
 let STICKER_ROOT = "";  // 表情包根目录的绝对路径（无尾斜杠）
@@ -23996,6 +24093,9 @@ const DEFAULT_EDITOR_SETTINGS = {
   stickerOverlayEnabled: false,
   // 表情包 OTIO：保留用户偏好的原始素材引用 / 便携文件夹模式。
   stickerOtioExportMode: 'original',
+  otioExportIncludeSrt: true,
+  otioExportIncludeStickers: true,
+  otioExportIncludeMarkers: true,
   // 字幕单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
   clickBehavior: 'select-and-seek',
   // 波形字幕块的跳转目标，默认使用鼠标所在位置；字幕列表点击始终跳转到字幕开头。
@@ -24074,6 +24174,9 @@ function readEditorSettings() {
     cueEditorCancelOnEscape: saved.cueEditorCancelOnEscape === true,
     autoSnapAdjacentCues: saved.autoSnapAdjacentCues !== false,
     stickerOtioExportMode: saved.stickerOtioExportMode === 'portable' ? 'portable' : 'original',
+    otioExportIncludeSrt: saved.otioExportIncludeSrt !== false,
+    otioExportIncludeStickers: saved.otioExportIncludeStickers !== false,
+    otioExportIncludeMarkers: saved.otioExportIncludeMarkers !== false,
   });
 }
 
@@ -24830,9 +24933,6 @@ const cueEditorSplitKey = document.getElementById('cue-editor-split-key');
 const cueEditorConfirmKey = document.getElementById('cue-editor-confirm-key');
 const helpTabButtons = Array.from(document.querySelectorAll('[data-help-tab]'));
 const helpTabPanels = Array.from(document.querySelectorAll('[data-help-tab-panel]'));
-const helpAdvancedToggle = document.getElementById('help-advanced-toggle');
-const helpAdvancedTabs = document.getElementById('help-advanced-tabs');
-const helpAdvancedTabButtons = Array.from(helpAdvancedTabs?.querySelectorAll('[data-help-tab]') || []);
 const helpOpenWaveformSettingsButtons = Array.from(document.querySelectorAll('[data-help-open-waveform-settings]'));
 const helpOpenMediaSettingsButtons = Array.from(document.querySelectorAll('[data-help-open-media-settings]'));
 const helpOpenGapRemovePanelButton = document.getElementById('help-open-gap-remove-panel');
@@ -25941,27 +26041,9 @@ function visibleHelpTabButtons() {
   return helpTabButtons.filter((button) => !button.closest('[hidden]'));
 }
 
-function setHelpAdvancedTabsOpen(open, { focus = false } = {}) {
-  if (!helpAdvancedTabs || !helpAdvancedToggle) return;
-  const nextOpen = Boolean(open);
-  if (!nextOpen && helpAdvancedTabButtons.some((button) => button.getAttribute('aria-selected') === 'true')) {
-    selectHelpTab('basic');
-  }
-  helpAdvancedTabs.hidden = !nextOpen;
-  helpAdvancedToggle.setAttribute('aria-expanded', String(nextOpen));
-  helpAdvancedToggle.classList.toggle('is-active', nextOpen);
-  if (focus) {
-    const activeButton = helpAdvancedTabButtons.find((button) => button.getAttribute('aria-selected') === 'true');
-    (activeButton || helpAdvancedTabButtons[0])?.focus();
-  }
-}
-
 function selectHelpTab(tabName, { focus = false } = {}) {
   const activeButton = helpTabButtons.find((button) => button.dataset.helpTab === tabName);
   if (!activeButton) return;
-  if (helpAdvancedTabButtons.includes(activeButton) && helpAdvancedTabs?.hidden) {
-    setHelpAdvancedTabsOpen(true);
-  }
   helpTabButtons.forEach((button) => {
     const active = button === activeButton;
     button.classList.toggle('is-active', active);
@@ -25975,10 +26057,6 @@ function selectHelpTab(tabName, { focus = false } = {}) {
   });
   if (focus) activeButton.focus();
 }
-
-helpAdvancedToggle?.addEventListener('click', () => {
-  setHelpAdvancedTabsOpen(helpAdvancedTabs?.hidden === true);
-});
 
 helpTabButtons.forEach((button) => {
   button.addEventListener('click', () => selectHelpTab(button.dataset.helpTab));
@@ -27220,6 +27298,36 @@ function addGapAtWaveformTime(timeMs) {
   );
   waveformEditor?.revealTime(start, true);
   flashHint(`已添加 ${formatGapRemoveTotal(end - start)} 静音空隙`, 'success');
+  return true;
+}
+
+function fillGapRangeAtWaveformTime(timeMs) {
+  const gaps = getGapRemoveGaps();
+  if (!gaps.some((gap) => gap.removed !== false)) {
+    flashHint('当前没有已激活的空隙，无法填充区间空隙', 'invalid');
+    return false;
+  }
+  const range = window.AsrEditorUtils.resolveGapFillRange(gaps, timeMs, gapRemoveMediaDurationMs());
+  if (!range) {
+    flashHint('媒体时长尚不可用；请先加载媒体后再填充区间空隙', 'invalid');
+    return false;
+  }
+  const state = getGapRemoveData(true);
+  const sourceGaps = window.AsrGapRemoveCore.normalizeGapRemoveGaps(state.gaps);
+  const nextGaps = window.AsrEditorUtils.applyGapRemoveRange(sourceGaps, range.start, range.end, true);
+  // Provenance can split one visible gap into several source ranges. Compare
+  // their union before voice protection; a no-op must not rewrite history.
+  const rangesOnly = window.AsrEditorUtils.getRemovedGapRanges;
+  if (JSON.stringify(rangesOnly(nextGaps)) === JSON.stringify(rangesOnly(sourceGaps))) {
+    flashHint('该位置已经是已移除的空隙', 'invalid');
+    return false;
+  }
+  pushGapRemoveUndo('填充区间空隙');
+  state.detector = 'audio_gate';
+  commitManualGapRemoveChange(state, [{ ...range, removed: true }]);
+  const effectiveMs = getRemovedGapRanges().reduce((total, gap) =>
+    total + Math.max(0, Math.min(gap.end, range.end) - Math.max(gap.start, range.start)), 0);
+  flashHint(`已填充区间空隙：标记 ${formatGapRemoveTotal(range.end - range.start)}，实际移除 ${formatGapRemoveTotal(effectiveMs)}`, 'success');
   return true;
 }
 
@@ -35427,7 +35535,7 @@ async function downloadColorSrts(gapRemoved = false) {
     DATA.segments,
     EDITOR_SETTINGS.exportStartAtZero,
   );
-  const gapSuffix = gapRemoved ? '_gap-removed' : '';
+  const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
   const buildPayload = (color) => window.AsrEditorUtils.buildSrtPayload(DATA.segments, {
     colorName: color.name,
     timeOffset: 0,
@@ -35555,6 +35663,8 @@ function buildGapRemovedRegionsJson() {
 }
 
 function buildJson() {
+  // Validate before timing repair, and always serialize the live MSW extension.
+  const msw = validateProjectForLoad(DATA);
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const repairedTimingCount = repairCurrentProjectTimings();
   if (repairedTimingCount > 0) {
@@ -35562,6 +35672,8 @@ function buildJson() {
   }
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const out = {
+    schema: window.AsrEditorUtils.PROJECT_SCHEMA,
+    ...projectExtensionFields,
     media: DATA.media || '',
     language: DATA.language || '',
     model: DATA.model || '',
@@ -35585,8 +35697,11 @@ function buildJson() {
       return o;
     }),
   };
+  for (const key of ['language_source', 'split_mode', 'timestamp_granularity']) {
+    if (typeof DATA[key] === 'string') out[key] = DATA[key];
+  }
   const multi = getMultiSubtitleState();
-  if (DATA.msw) out.msw = window.MSWProject.normalize(DATA.msw);
+  if (msw) out.msw = msw;
   out.multi_subtitle = {
     schema: multi.schema || MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SCHEMA,
     enabled: multi.enabled === true,
@@ -35993,7 +36108,7 @@ function buildTimelineMediaClip(
   };
 }
 
-function buildTimelineOtio({ gapRemoved = false } = {}) {
+function buildTimelineOtio({ gapRemoved = false, includeStickers = false, includeSubtitleMarkers = true } = {}) {
   const removed = gapRemoved ? getRemovedGapRanges() : [];
   if (gapRemoved && !removed.length) {
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
@@ -36060,8 +36175,8 @@ function buildTimelineOtio({ gapRemoved = false } = {}) {
       sourceStartFrame,
       sourceDurationFrames,
       {
-        includeSubtitleMarkers: track.kind === 'Video'
-          || (track.kind === 'Audio' && player?.tagName === 'AUDIO' && trackIndex === 0),
+        includeSubtitleMarkers: includeSubtitleMarkers && (track.kind === 'Video'
+          || (track.kind === 'Audio' && player?.tagName === 'AUDIO' && trackIndex === 0)),
         gapRemoved,
         audioTrack: track.audioTrack,
         audioTrackIndex: track.audioTrackIndex,
@@ -36070,6 +36185,16 @@ function buildTimelineOtio({ gapRemoved = false } = {}) {
     )),
     kind: track.kind,
   }));
+  if (includeStickers) {
+    const collected = collectStickerOtioEntries(removed);
+    const result = collected.error ? collected : buildStickerOtioTrack(collected.entries);
+    if (result.error) {
+      const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
+      flashHint(`${tr(result.error)} ${tr('可关闭「时间线包含表情包」后重试。')}`, 'warning');
+      return null;
+    }
+    if (collected.entries.length) tracks.push(result.track);
+  }
   const metadata = {
     moy: {
       source_media: targetUrl,
@@ -36107,11 +36232,15 @@ function buildTimelineOtio({ gapRemoved = false } = {}) {
 }
 
 function buildSourceOtio() {
-  return buildTimelineOtio({ gapRemoved: false });
+  return buildTimelineOtio({ gapRemoved: false,
+    includeStickers: EDITOR_SETTINGS.otioExportIncludeStickers,
+    includeSubtitleMarkers: EDITOR_SETTINGS.otioExportIncludeMarkers });
 }
 
 function buildGapRemovedOtio() {
-  return buildTimelineOtio({ gapRemoved: true });
+  return buildTimelineOtio({ gapRemoved: true,
+    includeStickers: EDITOR_SETTINGS.otioExportIncludeStickers,
+    includeSubtitleMarkers: EDITOR_SETTINGS.otioExportIncludeMarkers });
 }
 
 function stickerOtioName(sticker, absPath) {
@@ -36180,7 +36309,7 @@ function collectStickerOtioEntries(removed) {
   return { entries };
 }
 
-function buildStickerOtioTimeline(stickers, timelineName) {
+function buildStickerOtioTrack(stickers) {
   stickers.sort((a, b) => (a.startMs - b.startMs) || (a.endMs - b.endMs) || (a.idx - b.idx));
   const children = [];
   let cursor = 0;
@@ -36233,6 +36362,15 @@ function buildStickerOtioTimeline(stickers, timelineName) {
     });
     cursor = startFrame + durationFrames;
   }
+  return { track: {
+    OTIO_SCHEMA: 'Track.1', metadata: {}, name: '表情包', source_range: null,
+    effects: [], markers: [], enabled: true, color: null, children, kind: 'Video',
+  } };
+}
+
+function buildStickerOtioTimeline(stickers, timelineName) {
+  const result = buildStickerOtioTrack(stickers);
+  if (result.error) return result;
   return {
     json: JSON.stringify({
       OTIO_SCHEMA: 'Timeline.1',
@@ -36248,18 +36386,7 @@ function buildStickerOtioTimeline(stickers, timelineName) {
         markers: [],
         enabled: true,
         color: null,
-        children: [{
-          OTIO_SCHEMA: 'Track.1',
-          metadata: {},
-          name: '表情包',
-          source_range: null,
-          effects: [],
-          markers: [],
-          enabled: true,
-          color: null,
-          children,
-          kind: 'Video',
-        }],
+        children: [result.track],
       },
     }, null, 4),
   };
@@ -36324,40 +36451,58 @@ async function exportStickerOtoz(kind, buildTimeline, filename, description) {
   }
 }
 
-async function exportTimelineOtioz(kind, buildTimeline, filename, description) {
-  const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
+// Build both files synchronously before the first picker/request can yield.
+// Later edits, project switches and language changes cannot mix two snapshots.
+async function exportSourceTimeline({ gapRemoved = false, archive = false } = {}) {
   if (editingState) finishEdit(true);
-  const payload = buildTimeline();
-  if (!payload) return;
-  if (!SERVER_CONFIG?.canOtozTimelineExport || !SERVER_CONFIG?.otiozTimelineExportUrl) {
-    flashHint(tr('当前工程无法导出时间线 OTIOZ（需要以 server-editor 打开并绑定工程文件）'), 'warning');
-    return;
-  }
-  flashHint(tr('正在生成时间线 OTIOZ 打包工程…'));
-  try {
-    const response = await fetch(new URL(SERVER_CONFIG.otiozTimelineExportUrl, window.location.href), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requestToken: SERVER_CONFIG.requestToken,
-        kind,
-        timeline: JSON.parse(payload),
-      }),
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || `服务器返回 ${response.status}`);
+  const payload = gapRemoved ? buildGapRemovedOtio() : buildSourceOtio();
+  if (!payload) return false;
+  const srt = EDITOR_SETTINGS.otioExportIncludeSrt ? (gapRemoved ? buildGapRemovedSrt() : buildSrt()) : null;
+  const suffix = gapRemoved ? '_' + (window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed') : '';
+  const basename = FILENAME_BASE + suffix;
+  const tr = (s) => window.MSWE_I18N?.translateText?.(s) || s;
+  let content = payload;
+  if (archive) {
+    if (!SERVER_CONFIG?.canOtozTimelineExport || !SERVER_CONFIG?.otiozTimelineExportUrl) {
+      flashHint(tr('当前工程无法导出时间线 OTIOZ（需要以 server-editor 打开并绑定工程文件）'), 'warning');
+      return false;
     }
-    const blob = await response.blob();
-    flashHint(tr('时间线 OTIOZ 已生成，媒体已打包进 zip'), 'success');
-    await downloadFile(blob, filename, 'application/zip', {
-      desc: description, types: { 'application/zip': ['.otioz'] },
-    });
-  } catch (error) {
-    flashHint(`${tr('时间线 OTIOZ 导出失败')}：${error.message || error}`, 'warning');
+    flashHint(tr('正在生成时间线 OTIOZ 打包工程…'));
+    try {
+      const response = await fetch(new URL(SERVER_CONFIG.otiozTimelineExportUrl, window.location.href), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestToken: SERVER_CONFIG.requestToken,
+          kind: gapRemoved ? 'gap-removed' : 'source', timeline: JSON.parse(payload) }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || String(response.status));
+      }
+      content = await response.blob();
+    } catch (error) {
+      flashHint(tr('时间线 OTIOZ 导出失败') + '：' + (error.message || error), 'warning');
+      return false;
+    }
   }
+  const extension = archive ? '.otioz' : '.otio';
+  const mime = archive ? 'application/zip' : 'application/vnd.opentimelineio+json';
+  const result = await downloadFile(content, basename + extension, mime,
+    { desc: archive ? 'OTIOZ' : 'OTIO', types: { [mime]: [extension] } }, { detailed: true });
+  if (!['saved', 'dispatched'].includes(result.status)) {
+    if (result.status === 'failed') flashHint(tr('源媒体时间线保存失败，请检查目标文件权限后重试。'), 'warning');
+    return false;
+  }
+  if (srt !== null) {
+    const subtitleResult = await downloadFile(srt, basename + '.srt', 'text/plain',
+      { desc: 'SRT', types: { 'text/plain': ['.srt'] } }, { detailed: true });
+    if (!['saved', 'dispatched'].includes(subtitleResult.status)) {
+      flashHint(tr(subtitleResult.status === 'cancelled'
+        ? '时间线已导出；已取消附带 SRT 的保存。'
+        : '时间线已导出；附带 SRT 保存失败，请单独导出字幕。'), 'warning');
+    }
+  }
+  return true;
 }
-
 
 const TIMELINE_OTIOZ_BUTTONS = ['download-otioz', 'download-gap-removed-otioz'];
 
@@ -37648,7 +37793,7 @@ async function exportLottieDynamicCaptions() {
     const blob = await response.blob();
     closeLottieExportModal();
     const suffix = extension ? '_extension' : '';
-    const gapSuffix = gapRemoved ? '_gap-removed' : '';
+    const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
     const saved = await downloadFile(
       blob,
       `${FILENAME_BASE}${suffix}${gapSuffix}_dynamic-caption.lottie`,
@@ -37767,7 +37912,7 @@ async function exportOgrafDynamicCaptions() {
     const blob = await response.blob();
     closeOgrafExportModal();
     const suffix = extension ? '_extension' : '';
-    const gapSuffix = gapRemoved ? '_gap-removed' : '';
+    const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
     const saved = await downloadFile(
       blob,
       `${FILENAME_BASE}${suffix}${gapSuffix}_dynamic-caption.ograf.zip`,
@@ -37921,58 +38066,44 @@ async function exportStickerOtio(kind, buildTimeline, filename, description) {
 document.getElementById('download-sticker-otio')?.addEventListener('click', () => {
   if (stickerExportBlocked('download-sticker-otio')) return;
   exportStickerOtio(
-    'stickers', buildStickerOtio, `${FILENAME_BASE}_stickers.otio`, 'OTIO 工程文件'
+    'stickers', buildStickerOtio, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otio`, 'OTIO 工程文件'
   );
 });
 document.getElementById('download-gap-removed-srt')?.addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildGapRemovedSrt();
   if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.srt`, 'text/plain', {
+    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.srt`, 'text/plain', {
       desc: '去空隙字幕 SRT', types: { 'text/plain': ['.srt'] }
     });
   }
 });
 document.getElementById('download-gap-removed-color-srt')?.addEventListener('click', () => downloadColorSrts(true));
-document.getElementById('download-otio')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  const payload = buildSourceOtio();
-  if (payload) {
-    await downloadFile(payload, FILENAME_BASE + '.otio', 'application/vnd.opentimelineio+json', {
-      desc: 'OTIO 工程', types: { 'application/vnd.opentimelineio+json': ['.otio'] }
-    });
-  }
+const OTIO_EXPORT_OPTIONS = {
+  srt: 'otioExportIncludeSrt', stickers: 'otioExportIncludeStickers', markers: 'otioExportIncludeMarkers',
+};
+function syncOtioExportOptions() {
+  document.querySelectorAll('[data-otio-export-option]').forEach(input => {
+    input.checked = EDITOR_SETTINGS[OTIO_EXPORT_OPTIONS[input.dataset.otioExportOption]] !== false;
+  });
+}
+document.querySelectorAll('[data-otio-export-option]').forEach(input => {
+  input.addEventListener('change', () => {
+    updateEditorSettings({ [OTIO_EXPORT_OPTIONS[input.dataset.otioExportOption]]: input.checked });
+    syncOtioExportOptions();
+    if (!input.matches(':focus-visible')) input.blur();
+  });
 });
-document.getElementById('download-otioz')?.addEventListener('click', async () => {
-  await exportTimelineOtioz(
-    'source',
-    buildSourceOtio,
-    FILENAME_BASE + '.otioz',
-    'OTIOZ 打包工程',
-  );
-});
-document.getElementById('download-gap-removed-otio')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  const payload = buildGapRemovedOtio();
-  if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.otio`, 'application/vnd.opentimelineio+json', {
-      desc: '去空隙 OTIO 工程', types: { 'application/vnd.opentimelineio+json': ['.otio'] }
-    });
-  }
-});
-document.getElementById('download-gap-removed-otioz')?.addEventListener('click', async () => {
-  await exportTimelineOtioz(
-    'gap-removed',
-    buildGapRemovedOtio,
-    `${FILENAME_BASE}_gap-removed.otioz`,
-    '去空隙时间线 OTIOZ 打包工程',
-  );
-});
+syncOtioExportOptions();
+document.getElementById('download-otio')?.addEventListener('click', () => exportSourceTimeline());
+document.getElementById('download-otioz')?.addEventListener('click', () => exportSourceTimeline({ archive: true }));
+document.getElementById('download-gap-removed-otio')?.addEventListener('click', () => exportSourceTimeline({ gapRemoved: true }));
+document.getElementById('download-gap-removed-otioz')?.addEventListener('click', () => exportSourceTimeline({ gapRemoved: true, archive: true }));
 document.getElementById('download-gap-removed-ffconcat')?.addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildGapRemovedFfconcat();
   if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.ffconcat`, 'text/plain', {
+    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.ffconcat`, 'text/plain', {
       desc: 'FFconcat 剪辑计划', types: { 'text/plain': ['.ffconcat'] }
     });
   }
@@ -37981,7 +38112,7 @@ document.getElementById('download-gap-removed-regions-json')?.addEventListener('
   if (editingState) finishEdit(true);
   const payload = buildGapRemovedRegionsJson();
   if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_gap-removed.keep-regions.json`, 'application/json', {
+    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.keep-regions.json`, 'application/json', {
       desc: '去空隙保留区域 JSON', types: { 'application/json': ['.json'] }
     });
   }
@@ -37990,7 +38121,7 @@ document.getElementById('download-gap-removed-sticker-otio')?.addEventListener('
   if (stickerExportBlocked('download-gap-removed-sticker-otio')) return;
   await exportStickerOtio(
     'gap-removed-stickers', buildGapRemovedStickerOtio,
-    `${FILENAME_BASE}_gap-removed-stickers.otio`, '去空隙表情包 OTIO 工程'
+    `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}-${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otio`, '去空隙表情包 OTIO 工程'
   );
 });
 document.getElementById('download-gap-removed-sticker-otioz')?.addEventListener('click', async () => {
@@ -38003,14 +38134,14 @@ document.getElementById('download-gap-removed-sticker-otioz')?.addEventListener(
   }
   await exportStickerOtoz(
     'gap-removed-stickers', buildGapRemovedStickerOtio,
-    `${FILENAME_BASE}_gap-removed-stickers.otioz`, '去空隙表情包 OTIOZ 打包工程'
+    `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}-${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otioz`, '去空隙表情包 OTIOZ 打包工程'
   );
 });
 document.getElementById('download-sticker-otioz')?.addEventListener('click', async () => {
   if (stickerExportBlocked('download-sticker-otioz')) return;
   await exportStickerOtoz(
     'stickers', buildStickerOtio,
-    `${FILENAME_BASE}_stickers.otioz`, '表情包 OTIOZ 打包工程'
+    `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otioz`, '表情包 OTIOZ 打包工程'
   );
 });
 
@@ -38367,6 +38498,7 @@ function resetLoadedMedia() {
 
 function buildBlankProject() {
   return {
+    schema: window.AsrEditorUtils.PROJECT_SCHEMA,
     media: '', language: '', model: '',
     timebase: { unit: 'milliseconds', fps: 30 },
     segments: [],
@@ -38379,7 +38511,9 @@ function suggestedProjectName(file = null) {
 }
 
 function applyCanonicalProject(data, filename) {
-  const msw = window.MSWProject.normalize(data.msw);
+  const msw = validateProjectForLoad(data);
+  projectExtensionFields = getProjectExtensionFields(data);
+  DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
   DATA.msw = msw;
   mswProjectGeneration += 1;
   currentCuePanelIdx = -1;
@@ -38389,6 +38523,9 @@ function applyCanonicalProject(data, filename) {
   resetLoadedMedia();
   DATA.media = typeof data.media === 'string' ? data.media : '';
   DATA.language = data.language || '';
+  for (const key of ['language_source', 'split_mode', 'timestamp_granularity']) {
+    DATA[key] = typeof data[key] === 'string' ? data[key] : undefined;
+  }
   DATA.model = data.model || '';
   DATA.timebase = normalizeTimelineTimebase(data.timebase);
   timelineFpsManuallySet = hasExplicitTimelineFps(data.timebase);
@@ -38449,6 +38586,8 @@ function applyCanonicalProject(data, filename) {
 
 // 本机服务负责新工程绑定与素材收集；便携页保留浏览器句柄后备路径。
 async function createProjectCheckpoint(project, suggestedName) {
+  validateProjectForLoad(project);
+  project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
   const persistence = window.MSWE?.resolve('project-persistence');
   if (persistence?.available()) return persistence.saveAs({ project, name: suggestedName, newProject: true });
   if (projectCheckpointInFlight || projectSaveInFlight) {
@@ -38678,6 +38817,7 @@ async function parseSubtitleImportFile(file) {
   try {
     if (isSrtFile(file)) return parseSrtSegments(await readFileTextWithProgress(file));
     const data = JSON.parse(await readFileTextWithProgress(file));
+    validateProjectForLoad(data);
     if (!data || !Array.isArray(data.segments)) throw new Error('缺少有效 segments 数组');
     const sourceSegments = data.segments.map((segment) => {
       const copy = {
@@ -38927,6 +39067,12 @@ async function openProjectFile(file, options = {}) {
     const text = await readFileTextWithProgress(file);
     updateEditorLoading(60, `正在解析工程 ${file.name}…`);
     const data = JSON.parse(text);
+    try {
+      validateProjectForLoad(data);
+    } catch (error) {
+      flashHint(error.message, 'warning');
+      return false;
+    }
     // 先兜底修复 0 长/倒挂时间码（保底 100ms），再校验结构，让旧工程仍能打开。
     if (data && Array.isArray(data.segments)) {
       data.timebase = normalizeTimelineTimebase(data.timebase);
@@ -41453,17 +41599,21 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   const extensionIdx = findWaveformCueAtTime(timeMs, extensionTrack?.segments);
   if (effectiveTrack === 'extension') {
     if (extensionIdx < 0) {
-      addItem('创建副字幕', '', () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack));
+      addItem('创建副字幕', 'N', () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack));
     }
   } else if (mainIdx < 0) {
-    addItem('创建字幕', '', () => addCueAtWaveformTime(timeMs, clickX, clickY));
+    addItem('创建字幕', 'N', () => addCueAtWaveformTime(timeMs, clickX, clickY));
   }
-  addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
   if (Array.isArray(DATA.segments) && DATA.segments.length && mainIdx >= 0) {
     addItem('按音频位置拆分主字幕', 'B', () => splitFromContextMenu(mainIdx, clickX, clickY, timeMs));
   }
   if (Array.isArray(extensionTrack?.segments) && extensionTrack.segments.length && extensionIdx >= 0) {
     addItem('按音频位置拆分副字幕', '', () => openExtensionSplitModal(extensionIdx, timeMs, extensionTrack));
+  }
+  ctxAppendSeparator();
+  addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
+  if (getGapRemoveGaps().some((gap) => gap.removed !== false)) {
+    addItem('填充区间空隙', '', () => fillGapRangeAtWaveformTime(timeMs));
   }
   ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
   ctxShowAt(clickX, clickY);
@@ -43259,7 +43409,12 @@ refreshClipboardMenuState();
 const editorSettingsSearchInput = document.getElementById('editor-settings-search');
 const editorSettingsNavEl = document.getElementById('editor-settings-nav');
 const editorSettingsCategories = [...document.querySelectorAll('#editor-settings-content .settings-category')];
+const EDITOR_SETTINGS_CATEGORY_KEY = 'msw.editor.settings.category.v1';
 let activeSettingsCategory = null;
+try {
+  const savedCategory = localStorage.getItem(EDITOR_SETTINGS_CATEGORY_KEY);
+  activeSettingsCategory = editorSettingsCategories.find(category => category.dataset.settingsCategory === savedCategory) || null;
+} catch (_) { /* Browser storage may be unavailable. */ }
 
 function settingsCategoryLabel(category) {
   return category.querySelector('.editor-settings-title')?.textContent?.trim() || '';
@@ -43290,6 +43445,7 @@ function buildEditorSettingsNav() {
       category.dataset.unavailable = 'true';
       return;
     }
+    delete category.dataset.unavailable;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'settings-nav-item';
@@ -43337,8 +43493,9 @@ function buildEditorSettingsNav() {
 
 // category 为 null 时表示「全部」模式：所有分类连续展示并显示分类标题。
 function activateEditorSettingsCategory(category) {
-  if (category?.dataset.unavailable === 'true') return;
+  if (category?.dataset.unavailable === 'true') category = null;
   activeSettingsCategory = category || null;
+  try { localStorage.setItem(EDITOR_SETTINGS_CATEGORY_KEY, category?.dataset.settingsCategory || 'all'); } catch (_) {}
   const showAll = !category;
   document.getElementById('editor-settings-content')?.classList.toggle('show-all-categories', showAll);
   editorSettingsCategories.forEach((other) => {
@@ -43361,6 +43518,7 @@ function activateEditorSettingsCategory(category) {
       ? button.dataset.settingsCategory === 'all'
       : button.dataset.settingsCategory === category.dataset.settingsCategory;
     button.classList.toggle('active', !isChild && matches);
+    button.setAttribute('aria-current', String(!isChild && matches));
     if (isChild) button.hidden = !expandedCategories.has(button.dataset.settingsCategory);
     else button.classList.toggle('open', expandedCategories.has(button.dataset.settingsCategory));
   });
@@ -43411,10 +43569,12 @@ function applyEditorSettingsSearch(query) {
   });
   editorSettingsNavEl?.querySelectorAll('.settings-nav-item').forEach((button) => {
     button.classList.remove('active');
+    button.setAttribute('aria-current', 'false');
   });
 }
 
 function resetEditorSettingsSearch() {
+  buildEditorSettingsNav();
   if (editorSettingsSearchInput?.value) {
     editorSettingsSearchInput.value = '';
   }
@@ -43422,11 +43582,27 @@ function resetEditorSettingsSearch() {
   activateEditorSettingsCategory(activeSettingsCategory);
 }
 
+editorSettingsNavEl?.addEventListener('keydown', event => {
+  const button = event.target.closest('.settings-nav-item');
+  if (!button) return;
+  const buttons = [...editorSettingsNavEl.querySelectorAll('.settings-nav-item:not([hidden])')];
+  const index = buttons.indexOf(button);
+  if (index < 0) return;
+  let target;
+  if (event.key === 'ArrowDown') target = buttons[(index + 1) % buttons.length];
+  else if (event.key === 'ArrowUp') target = buttons[(index - 1 + buttons.length) % buttons.length];
+  else if (event.key === 'Home') target = buttons[0];
+  else if (event.key === 'End') target = buttons.at(-1);
+  else return;
+  event.preventDefault(); event.stopPropagation();
+  target.click(); target.focus(); target.scrollIntoView({ block: 'nearest' });
+});
+
 editorSettingsSearchInput?.addEventListener('input', () => {
   applyEditorSettingsSearch(editorSettingsSearchInput.value);
 });
 buildEditorSettingsNav();
-// 默认进入「全部」模式；之后记住用户上次停留的分类。
+// 恢复上次分类；未知或当前不可用的分类回退到「全部」。
 activateEditorSettingsCategory(activeSettingsCategory);
 
 // === 设置类弹窗的通用关闭（遮罩点击 / 捕获阶段 Esc） ===
@@ -43783,6 +43959,10 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   name: () => `${FILENAME_BASE}.mosp`,
   hint: message => flashHint(message, 'warning'),
   downloadLocal: async (project, name) => {
+    if (project) {
+      validateProjectForLoad(project);
+      project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
+    }
     commitProcessingEdits();
     const content = project ? JSON.stringify(project, null, 2) : buildJson();
     await downloadFile(content, name || `${FILENAME_BASE}.mosp`, 'application/json', {
@@ -43804,6 +43984,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     return snapshot;
   },
   restore: result => {
+    validateProjectForLoad(result.project);
     commitProcessingEdits();
     applyCanonicalProject(result.project, result.filename);
     detachServerProjectSaving();
@@ -43813,6 +43994,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   saving: () => projectSaveInFlight || projectCheckpointInFlight,
   setSaving: value => { projectSaveInFlight = value; },
   adopt: (result, { source, newProject }) => {
+    validateProjectForLoad(result.project);
     const unchanged = newProject || JSON.stringify(JSON.parse(buildJson())) === source;
     if (newProject) applyCanonicalProject(result.project, result.filename);
     else {

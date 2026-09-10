@@ -401,11 +401,9 @@ class EditorAssetTests(unittest.TestCase):
         )
         self.assertIn('function syncProjectTimebaseAndBindingOffsets(', page)
         self.assertIn('window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);', page)
-        self.assertIn(
-            'function buildJson() {\n'
-            '  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });',
-            page,
-        )
+        self.assertIn('function buildJson() {', page)
+        self.assertIn('syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });', page)
+        self.assertIn('const msw = validateProjectForLoad(DATA);', page)
         self.assertIn('id="help-media-seek-step"', page)
         self.assertIn('class="help-break"', page)
         self.assertIn(
@@ -457,10 +455,9 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="help-tab-panel-fine-tuning"', page)
         self.assertIn('id="help-tab-panel-gap"', page)
         self.assertIn('id="help-tab-panel-batch"', page)
-        self.assertIn('id="help-advanced-toggle"', page)
-        self.assertIn('id="help-advanced-tabs"', page)
-        self.assertIn('aria-label="常用帮助分类"', page)
-        self.assertIn('aria-label="进阶帮助分类"', page)
+        self.assertIn('class="help-layout"', page)
+        self.assertIn('aria-orientation="vertical"', page)
+        self.assertIn('aria-label="帮助分类"', page)
         self.assertNotIn('id="help-tab-panel-advanced"', page)
         self.assertIn('class="help-tip-callout"', page)
         self.assertIn('class="help-category"', page)
@@ -685,9 +682,9 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="download-gap-removed-color-srt"', page)
         self.assertIn('id="download-gap-removed-otio"', page)
         self.assertIn('>OpenTimelineIO</div>', page)
-        self.assertIn('>时间线 OTIO 工程</div>', page)
+        self.assertIn('>源媒体时间线（OTIO）</div>', page)
         self.assertIn('id="download-gap-removed-otioz"', page)
-        self.assertIn('>时间线 OTIOZ 打包工程</div>', page)
+        self.assertIn('>源媒体打包工程（OTIOZ）</div>', page)
         self.assertIn('id="download-gap-removed-sticker-otio"', page)
         self.assertIn('>表情包 OTIO 工程</div>', page)
         self.assertIn('id="download-gap-removed-sticker-otioz"', page)
@@ -732,9 +729,9 @@ class EditorAssetTests(unittest.TestCase):
         gap_menu_end = page.index('<div class="dropdown-submenu" id="extra-export-dropdown">', gap_menu_start)
         gap_menu = page[gap_menu_start:gap_menu_end]
         separator = '<div class="dropdown-separator" role="separator"></div>'
-        self.assertEqual(gap_menu.count(separator), 2)
+        self.assertEqual(gap_menu.count(separator), 4)
         first_separator = gap_menu.index(separator)
-        second_separator = gap_menu.index(separator, first_separator + len(separator))
+        second_separator = gap_menu.index(separator, gap_menu.index('id="download-gap-removed-sticker-otioz"'))
         self.assertLess(gap_menu.index('id="download-gap-removed-color-srt"'), first_separator)
         self.assertLess(first_separator, gap_menu.index('id="download-gap-removed-otio"'))
         self.assertLess(gap_menu.index('id="download-gap-removed-otioz"'), second_separator)
@@ -748,11 +745,11 @@ class EditorAssetTests(unittest.TestCase):
         # 菜单栏改造后「更多导出」是文件菜单的最后一个子菜单；截到「编辑」菜单项为止。
         extra_menu_end = page.index('<div class="menubar-item" data-menubar-item="edit">', extra_menu_start)
         extra_menu = page[extra_menu_start:extra_menu_end]
-        # 第 4 个分隔线在「更多导出」之后、「文件 → 退出编辑器」之前。
-        self.assertEqual(extra_menu.count(separator), 4)
+        # 源媒体选项增加两个内部分隔线，外层格式分组保持原顺序。
+        self.assertEqual(extra_menu.count(separator), 6)
         self.assertIn('id="exit-editor"', extra_menu)
         first_separator = extra_menu.index(separator)
-        second_separator = extra_menu.index(separator, first_separator + len(separator))
+        second_separator = extra_menu.index(separator, extra_menu.index('id="download-sticker-otioz"'))
         third_separator = extra_menu.index(separator, second_separator + len(separator))
         self.assertLess(extra_menu.index('id="download-fcp7-export"'), first_separator)
         self.assertLess(first_separator, extra_menu.index('id="download-otio"'))

@@ -124,13 +124,56 @@ fn media_stem(value: &str) -> String {
         .and_then(|part| part.to_str())
         .unwrap_or_default()
         .to_lowercase();
-    [
+    // 中段标记（带前导与尾随点）命中即截断到标记前。
+    let tags = [
         ".qwen3-asr.", ".qwen3-asr-api.", ".funasr.", ".glm-asr.",
         ".paraformer.", ".sensevoice.", ".nano.",
-    ]
-    .iter()
-    .find_map(|tag| stem.find(*tag).map(|index| stem[..index].to_string()))
-    .unwrap_or(stem)
+        // 本地化操作后缀（与 output_naming.OPERATION_NAMES 的两种语言带点形式
+        // 一致，小写匹配；同时兼容旧英文翻译命名。
+        ".postprocess.", ".后处理.",
+        ".ocr-dedup.", ".ocr去重.",
+        ".match.", ".匹配.",
+        ".翻译为中文.", ".翻译为英文.",
+        ".双语合一.", ".整合.",
+        ".translate-zh.", ".translate-en.", ".bilingual.", ".combined.",
+        ".translate-zh-bilingual.", ".translate-en-bilingual.",
+        ".translate-zh-combined.", ".translate-en-combined.",
+        // 媒体工具产物后缀（与 output_naming.MEDIA_SUFFIX_NAMES 一致）。
+        ".gap-removed.", ".去空隙.",
+        ".subtitled.", ".压字幕.",
+        ".audio.", ".音频.",
+    ];
+    if let Some(tag) = tags.iter().find(|tag| stem.contains(*tag)) {
+        let index = stem.find(*tag).unwrap_or(0);
+        return stem[..index].to_string();
+    }
+    // 操作名直接顶在扩展名前（`<原始主名>.<操作>.<扩展名>`）时按末尾段剥离，
+    // 与 Python _media_stem 保持同语义：clip.OCR去重.mp4 -> clip。
+    let terminals = [
+        ".postprocess", ".后处理",
+        ".ocr-dedup", ".ocr去重",
+        ".match", ".匹配",
+        ".翻译为中文", ".翻译为英文",
+        ".双语合一", ".整合",
+        ".translate-zh", ".translate-en", ".bilingual", ".combined",
+        ".translate-zh-bilingual", ".translate-en-bilingual",
+        ".translate-zh-combined", ".translate-en-combined",
+        ".gap-removed", ".去空隙",
+        ".subtitled", ".压字幕",
+        ".audio", ".音频",
+    ];
+    if let Some(term) = terminals.iter().find(|term| stem.ends_with(*term)) {
+        let end = stem.len() - term.len();
+        return stem[..end].to_string();
+    }
+    if let Some((base, counter)) = stem.rsplit_once('-') {
+        if !counter.is_empty() && counter.chars().all(|ch| ch.is_ascii_digit()) {
+            if let Some(term) = terminals.iter().find(|term| base.ends_with(*term)) {
+                return base[..base.len() - term.len()].to_string();
+            }
+        }
+    }
+    stem
 }
 
 fn absolute_path(path: PathBuf) -> PathBuf {

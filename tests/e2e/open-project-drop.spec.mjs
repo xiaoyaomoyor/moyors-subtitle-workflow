@@ -145,7 +145,7 @@ test('can use a dropped project subtitle as an extension and preserve optional i
   await page.locator('#multi-subtitle-import-result-confirm').click();
 
   const imported = await page.evaluate(() => JSON.parse(buildJson()));
-  expect(imported.multi_subtitle.tracks[0].segments[0].items).toEqual([
+  expect(imported.multi_subtitle.tracks[0].segments[0].items).toMatchObject([
     { text: '带字词时间码的副字幕', start: 100, end: 1900 },
   ]);
 
@@ -158,7 +158,6 @@ test('can use a dropped project subtitle as an extension and preserve optional i
   await page.locator('#multi-subtitle-swap').click();
 
   const roundTripped = await page.evaluate(() => JSON.parse(buildJson()));
-  expect(roundTripped.multi_subtitle.tracks[0].segments[0].items).toEqual([
-    { text: '带字词时间码的副字幕', start: 100, end: 1900 },
-  ]);
+  expect(roundTripped.multi_subtitle.tracks[0].segments[0].items)
+    .toEqual(imported.multi_subtitle.tracks[0].segments[0].items);
 });

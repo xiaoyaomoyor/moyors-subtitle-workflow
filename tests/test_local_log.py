@@ -162,7 +162,7 @@ class LocalLogSinkTests(unittest.TestCase):
 class DefaultLogDirectoryTests(unittest.TestCase):
     def test_uses_localappdata_namespace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict(os.environ, {"LOCALAPPDATA": tmp}, clear=False):
+            with patch.dict(os.environ, {"LOCALAPPDATA": tmp, "MAW_APP_DATA_ROOT": "", "MSW_APP_DATA_ROOT": ""}, clear=False):
                 result = default_log_directory()
         self.assertEqual(result, Path(tmp) / "MSW" / "logs")
 
@@ -281,13 +281,13 @@ class DefaultLogDirectoryOverrideTests(unittest.TestCase):
     def test_maw_app_data_root_overrides_base_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             override_root = Path(tmp) / "app-data"
-            with patch.dict(os.environ, {"MAW_APP_DATA_ROOT": str(override_root)}, clear=False):
+            with patch.dict(os.environ, {"MAW_APP_DATA_ROOT": str(override_root), "MSW_APP_DATA_ROOT": ""}, clear=False):
                 result = default_log_directory()
         # default_log_directory 会对覆盖路径 resolve，Windows 短路径（8.3）也会被展开。
         self.assertEqual(result, override_root.resolve(strict=False) / "logs")
 
     def test_blank_override_falls_back_to_platform_directory(self) -> None:
-        with patch.dict(os.environ, {"MAW_APP_DATA_ROOT": "   "}, clear=False):
+        with patch.dict(os.environ, {"MAW_APP_DATA_ROOT": "   ", "MSW_APP_DATA_ROOT": ""}, clear=False):
             result = default_log_directory()
         self.assertEqual(result.name, "logs")
         self.assertIn("MSW", result.parts)

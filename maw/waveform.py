@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from maw.ffmpeg import resolve_ffmpeg_tool
+from maw.output_naming import maw_root, maw_root_candidates
 
 
 WAVEFORM_SCHEMA = "moy.asr.waveform.v1"
@@ -151,23 +152,53 @@ def waveform_matches_media(
 
 
 def waveform_sidecar_path(media_path: Path) -> Path:
-    """Return the portable sidecar path used for media-derived waveforms."""
+    """Return the primary sidecar path for media-derived waveforms.
+
+    The sidecar is a rebuildable cache, so it lives in the media's ``_msw``
+    directory instead of cluttering the folder that holds the source media.
+    When ``per_video`` is enabled the folder is ``<名称>_msw``, otherwise the
+    shared ``_msw``; both are decided by :func:`maw.output_naming.maw_root`.
+    """
     media_path = Path(media_path)
-    return media_path.with_suffix(".waveform.json")
+    return maw_root(media_path) / f"{media_path.stem}.waveform.json"
 
 
-def load_waveform_sidecar(media_path: Path) -> dict[str, Any] | None:
+def _waveform_sidecar_candidates(media_path: Path) -> list[Path]:
+    """Locations to check when reading a sidecar, newest layout first.
+
+    Order: the active MSW root, other shared/per-video MSW and MAW roots,
+    then the legacy media-adjacent path. Legacy files are read in place;
+    this module never migrates them.
+    """
+    media_path = Path(media_path)
+    candidates = [
+        root / f"{media_path.stem}.waveform.json"
+        for root in maw_root_candidates(media_path)
+    ]
+    legacy = media_path.with_suffix(".waveform.json")
+    if legacy not in candidates:
+        candidates.append(legacy)
+    return candidates
+
+
+def load_waveform_sidecar(media_path: Path, *, audio_track: int | None = None) -> dict[str, Any] | None:
     """Read a valid-looking waveform sidecar, ignoring missing/corrupt files."""
-    try:
-        value = json.loads(waveform_sidecar_path(media_path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return None
-    return value if is_waveform_payload(value) else None
+    for candidate in _waveform_sidecar_candidates(media_path):
+        try:
+            value = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        if is_waveform_payload(value) and (
+            not Path(media_path).is_file() or waveform_matches_media(value, media_path, audio_track=audio_track)
+        ):
+            return value
+    return None
 
 
 def save_waveform_sidecar(payload: dict[str, Any], media_path: Path) -> Path:
-    """Persist a waveform payload beside its source media for future reuse."""
+    """Persist a waveform payload into the media's ``_msw`` directory."""
     sidecar = waveform_sidecar_path(media_path)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
     # write_bytes() keeps the sidecar LF-only on Windows as well.
     sidecar.write_bytes((json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     return sidecar
@@ -345,7 +376,7 @@ def load_or_extract_waveform(
         and existing["peaks_per_second"] == peaks_per_second
     ):
         return existing, False
-    sidecar = load_waveform_sidecar(media_path)
+    sidecar = load_waveform_sidecar(media_path, audio_track=audio_track)
     if (
         waveform_matches_media(sidecar, media_path, audio_track=audio_track)
         and sidecar["peaks_per_second"] == peaks_per_second

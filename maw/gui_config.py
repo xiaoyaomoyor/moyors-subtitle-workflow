@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Final
 
 from maw.app_paths import SOURCE_ROOT, default_env_path
+from maw.env_config import alias_keys, aliased_values, read_env
 
 
 ROOT: Final = SOURCE_ROOT
@@ -81,6 +82,9 @@ class EffectiveConfig:
     gui_lang: str
     sticker_dir: str
     show_rare_langs: bool = False
+    output_subfolder: bool = False
+    per_video_subfolder: bool = False
+    attach_model_name: bool = True
     last_model: str | None = None
     last_language: str | None = None
     model_cache_root: str = ""
@@ -518,19 +522,8 @@ MODELS: Final[tuple[ModelConfig, ...]] = PROVIDERS[0].models
 LEGACY_MODELS: Final[tuple[ModelConfig, ...]] = tuple(model for model in QWEN_MODELS if model.id == QWEN3_ASR_MODEL_ID)
 
 
-def load_env(path: Path = DEFAULT_ENV_PATH) -> dict[str, str]:
-    values: dict[str, str] = {}
-    try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
-    except FileNotFoundError:
-        return values
-    for raw_line in lines:
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip()
-    return values
+def load_env(path: Path | None = None) -> dict[str, str]:
+    return read_env(path if path is not None else default_env_path())
 
 
 def normalize_zoom_percent(value: object) -> int:
@@ -543,10 +536,19 @@ def normalize_zoom_percent(value: object) -> int:
     return min(150, max(80, round(parsed / 5) * 5))
 
 
+def _env_bool(value: str, default: bool = False) -> bool:
+    value = value.strip().lower()
+    return value in ("1", "true", "yes", "on") if value else default
+
+
 def save_env(path: Path, updates: Mapping[str, str]) -> None:
     for key, value in updates.items():
         if "\x00" in value or (value and value.splitlines() != [value]):
             raise ValueError(f"{key}: value must not contain control characters")
+    expanded_updates = aliased_values(updates)
+    for key, value in tuple(expanded_updates.items()):
+        for alias in alias_keys(key):
+            expanded_updates[alias] = value
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     text = _initial_env_text(target)
@@ -555,9 +557,9 @@ def save_env(path: Path, updates: Mapping[str, str]) -> None:
     output: list[str] = []
     for line in lines:
         key = _env_key(line)
-        if key is not None and key in updates:
-            output.append(f"{key}={updates[key]}")
-            seen.add(key)
+        if key is not None and key in expanded_updates:
+            output.append(f"{key}={expanded_updates[key]}")
+            seen.update(alias_keys(key))
         else:
             output.append(line)
     for key, value in updates.items():
@@ -566,11 +568,13 @@ def save_env(path: Path, updates: Mapping[str, str]) -> None:
     _ = target.write_text("\n".join(output).rstrip("\n") + "\n", encoding="utf-8", newline="\n")
 
 
-def effective_config(path: Path = DEFAULT_ENV_PATH, environ: Mapping[str, str] | None = None) -> EffectiveConfig:
+def effective_config(path: Path | None = None, environ: Mapping[str, str] | None = None) -> EffectiveConfig:
     file_values = load_env(path)
-    env = environ or os.environ
+    env = aliased_values(os.environ if environ is None else environ)
 
     def pick(key: str, default: str = "") -> str:
+        if key.startswith("MAW_") and key in env:
+            return env[key]
         return env.get(key) or file_values.get(key, default)
 
     def pick_optional(key: str) -> str | None:
@@ -588,6 +592,9 @@ def effective_config(path: Path = DEFAULT_ENV_PATH, environ: Mapping[str, str] |
         gui_lang=_gui_language(pick("MAW_GUI_LANG", "zh")),
         sticker_dir=pick("STICKER_DIR"),
         show_rare_langs=pick("MAW_GUI_SHOW_RARE_LANGS").strip().lower() in ("1", "true", "yes", "on"),
+        output_subfolder=_env_bool(pick("MAW_GUI_OUTPUT_SUBFOLDER")),
+        per_video_subfolder=_env_bool(pick("MAW_GUI_PER_VIDEO_SUBFOLDER")),
+        attach_model_name=_env_bool(pick("MAW_GUI_ATTACH_MODEL_NAME"), default=True),
         last_model=pick_optional("MAW_GUI_LAST_MODEL"),
         last_language=pick_optional("MAW_GUI_LAST_LANGUAGE"),
         model_cache_root=pick("MAW_MODEL_CACHE_ROOT").strip(),
@@ -626,7 +633,9 @@ def api_key_for_provider(provider_id: str, path: Path = DEFAULT_ENV_PATH, enviro
     if not provider.models:
         return ""
     env_key = provider.models[0].env_key
-    env = environ or os.environ
+    env = aliased_values(os.environ if environ is None else environ)
+    if env_key.startswith("MAW_") and env_key in env:
+        return env[env_key]
     return env.get(env_key) or load_env(path).get(env_key, "")
 
 

@@ -35,6 +35,7 @@ from threading import Event
 from typing import Final, TextIO
 
 from maw.app_paths import default_app_data_root
+from maw.env_config import aliased_values
 from maw.gui_platform import (
     asset_path,
     popen_process_tree,
@@ -225,7 +226,7 @@ class ManagedRuntime:
 
     def resolve_root(self, configured: str | Path | None = None) -> Path:
         """显式配置 -> 进程级环境变量 -> 默认 app-data 目录。"""
-        override = str(configured or "").strip() or os.environ.get(self.spec.root_env, "").strip()
+        override = str(configured or "").strip() or aliased_values(os.environ).get(self.spec.root_env, "").strip()
         if override:
             return Path(override).expanduser().resolve(strict=False)
         return default_app_data_root() / self.spec.dir_name

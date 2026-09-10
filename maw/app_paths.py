@@ -82,7 +82,7 @@ def default_env_path() -> Path:
     application first honors a file beside its executable, which is useful for
     portable releases, and otherwise uses the shared MSW user-data directory.
     """
-    override = os.environ.get(ENV_PATH_OVERRIDE_VARIABLE, "").strip()
+    override = os.environ.get("MSW_ENV_FILE", os.environ.get(ENV_PATH_OVERRIDE_VARIABLE, "")).strip()
     if override:
         return Path(override).expanduser().resolve(strict=False)
     if not getattr(sys, "frozen", False):

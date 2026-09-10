@@ -90,6 +90,7 @@ class RecoveryStore:
             row = db.execute("SELECT * FROM snapshots WHERE id=?", (record_id,)).fetchone()
         if not row:
             raise KeyError("恢复记录不存在或已超过保留期限")
-        return {"id": row["id"], "name": row["name"], "project": json.loads(zlib.decompress(row["body"])),
+        project = normalize_project(json.loads(zlib.decompress(row["body"])))
+        return {"id": row["id"], "name": row["name"], "project": project,
                 "origin": Path(row["origin"]) if row["origin"] else None,
                 "media": Path(row["media"]) if row["media"] else None}

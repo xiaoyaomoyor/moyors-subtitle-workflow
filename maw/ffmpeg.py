@@ -9,7 +9,9 @@ post-processing worker launched by the same application.
 from __future__ import annotations
 
 import os
+import math
 import shutil
+import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -289,6 +291,33 @@ def resolve_ffmpeg_tool(
     return _configured_tool_path(configured_value, normalized)
 
 
+def media_duration_seconds(
+    media_path: str | os.PathLike[str],
+    *,
+    ffprobe_path: str | os.PathLike[str] | None = None,
+) -> float | None:
+    """用 ffprobe 返回媒体时长（秒）；ffprobe 缺失或探测失败返回 None。
+
+    仅供耗时统计等非关键路径使用，失败必须静默降级。
+    """
+    try:
+        ffprobe = resolve_ffmpeg_tool("ffprobe", configured_path=ffprobe_path)
+        if ffprobe is None:
+            return None
+        cmd = [
+            str(ffprobe), "-v", "quiet",
+            "-show_entries", "format=duration",
+            "-of", "csv=p=0", str(media_path),
+        ]
+        result = subprocess.run(  # noqa: S603 - 固定参数的媒体探测
+            cmd, check=True, capture_output=True, text=True, timeout=30,
+        )
+        duration = float(result.stdout.strip())
+        return duration if math.isfinite(duration) and duration > 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
 __all__ = [
     "FFMPEG_PATH_ENV",
     "FFMPEG_TOOL_NAMES",
@@ -297,6 +326,7 @@ __all__ = [
     "bundled_ffmpeg_directories",
     "bundled_ffmpeg_directory",
     "ffmpeg_search_path",
+    "media_duration_seconds",
     "resolve_ffmpeg_tool",
     "resolve_ffmpeg_tools",
 ]

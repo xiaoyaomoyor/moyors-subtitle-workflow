@@ -203,6 +203,7 @@ test('keeps local runtime events working after the page learns that installation
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('#provider').selectOption('local');
+  await page.locator('#openLocalRuntimeSettings').click();
   await expect(page.locator('#localRuntimePanel')).toBeVisible();
 
   await page.evaluate(() => {

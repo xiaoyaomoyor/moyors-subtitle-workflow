@@ -9,6 +9,29 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "源媒体导出选项": "Source media export options",
+    "同时导出 SRT 字幕": "Also export SRT subtitles",
+    "额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出": "Save a separate SRT file outside the OTIOZ archive; applies to source media exports only",
+    "时间线包含表情包": "Include stickers in the timeline",
+    "将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程": "Add stickers as a separate video track to the source media timeline; does not affect voiceover projects",
+    "将字幕内容作为标记写入": "Write subtitles as markers",
+    "将主字幕内容写入源媒体片段标记": "Write main subtitles as markers on source media clips",
+    "源媒体时间线（OTIO）": "Source media timeline (OTIO)",
+    "源媒体打包工程（OTIOZ）": "Source media archive (OTIOZ)",
+    "含配音的剪辑工程（OTIOZ）": "Timeline with voiceover (OTIOZ)",
+    "导出源媒体及所选表情包的完整 OTIOZ 时间线": "Export the full OTIOZ timeline with source media and selected stickers",
+    "导出源媒体及所选表情包的去空隙 OTIOZ 时间线": "Export the gap-removed OTIOZ timeline with source media and selected stickers",
+    "可关闭「时间线包含表情包」后重试。": "Turn off Include stickers in the timeline and retry.",
+    "源媒体时间线保存失败，请检查目标文件权限后重试。": "Could not save the source timeline. Check destination permissions and retry.",
+    "时间线已导出；已取消附带 SRT 的保存。": "Timeline exported; saving the companion SRT was cancelled.",
+    "时间线已导出；附带 SRT 保存失败，请单独导出字幕。": "Timeline exported; the companion SRT could not be saved. Export subtitles separately.",
+    '帮助分类': 'Help categories',
+    '在波形背景右键选择「填充区间空隙」，合并鼠标前后最近的已激活空隙；边界外延伸到媒体开头或结尾。': 'Right-click the waveform background and choose Fill gap interval to join the nearest active gaps around the pointer, extending to the media start or end when outside those gaps.',
+    '填充支持撤销，保留配音保护；提示分别显示标记时长与实际移除时长。': 'Filling supports undo and voice protection. The hint shows marked duration and effective removal separately.',
+    '填充区间空隙': 'Fill gap interval',
+    '当前没有已激活的空隙，无法填充区间空隙': 'No active gaps are available to fill an interval.',
+    '媒体时长尚不可用；请先加载媒体后再填充区间空隙': 'Media duration is unavailable; load media before filling the interval.',
+    '此工程的格式版本不受支持，请使用对应版本的编辑器打开': 'This project format version is not supported. Open it with a compatible editor.',
     '关于 MSWE': 'About MSWE', '关于': 'About', '项目官网': 'Project home', '下载与更新': 'Downloads and updates',
     '问题反馈': 'Report an issue', '使用文档': 'Documentation', '上游 MAW': 'Upstream MAW',
     '字幕编辑、翻译与配音。由 Moyor 维护，基于 MAW 开源项目发展。': 'Subtitle editing, translation and voiceover. Maintained by Moyor and based on the open-source MAW project.',
@@ -1201,11 +1224,21 @@
 
   let language = readLanguage();
 
+  // 导出文件名中的技术段（按当前语言映射；中文界面译出，英文界面原样）。
+  const EXPORT_NAME_SEGMENTS = { 'gap-removed': '去空隙', 'stickers': '表情包' };
+
+  function exportTag(segment) {
+    if (language !== ZH) return segment;
+    return EXPORT_NAME_SEGMENTS[segment] || segment;
+  }
+
   function translateText(value, lang = language) {
     const text = String(value ?? '');
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const filledGap = /^已填充区间空隙：标记 (.+)，实际移除 (.+)$/.exec(text);
+    if (filledGap) return `Gap interval filled: marked ${translateText(filledGap[1], EN)}, effectively removed ${translateText(filledGap[2], EN)}`;
     const processingScope = /^(范围：全部主字幕|范围：选中的主字幕) · (\d+)(?: · 已忽略未绑定副字幕 (\d+))?$/.exec(text);
     if (processingScope) return `${translateText(processingScope[1], EN)} · ${processingScope[2]}`
       + (processingScope[3] ? ` · ${translateText('已忽略未绑定副字幕', EN)} ${processingScope[3]}` : '');
@@ -1594,6 +1627,7 @@
   global.MSWE_I18N = {
     get language() { return language; },
     applyLanguage,
+    exportTag,
     start,
     translateText,
     validateTranslationKeys,

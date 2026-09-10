@@ -614,7 +614,7 @@
   }
 
   function activeToolboxView() {
-    return activeToolboxSection === "postprocess" ? $("toolboxPostprocessView") : $("toolboxUtilitiesView");
+    return activeToolboxSection === "postprocess" ? $("toolboxPostprocessView") : $("toolboxUtilitiesContent");
   }
 
   function selectToolboxSection(section) {
@@ -626,7 +626,9 @@
       tab.tabIndex = active ? 0 : -1;
     });
     $("toolboxPostprocessView").classList.toggle("hidden", section !== "postprocess");
+    $("toolboxUtilitiesContent").classList.toggle("hidden", section !== "utilities");
     $("toolboxUtilitiesView").classList.toggle("hidden", section !== "utilities");
+    $("toolboxDrawer").classList.toggle("toolbox-utilities-active", section === "utilities");
     const activeTab = activeToolboxView().querySelector(".toolbox-tab.active") || activeToolboxView().querySelector(".toolbox-tab");
     if (activeTab) selectTool(activeTab.dataset.tool);
   }
@@ -671,11 +673,18 @@
   function clampToolboxSize(width, height) {
     const viewportWidth = window.MSWLauncher.viewportPixelsToPage(window.innerWidth);
     const viewportHeight = window.MSWLauncher.viewportPixelsToPage(window.innerHeight);
-    const maxWidth = Math.max(TOOLBOX_MIN_WIDTH, viewportWidth - 40);
-    const maxHeight = Math.max(TOOLBOX_MIN_HEIGHT, Math.min(TOOLBOX_MAX_HEIGHT, viewportHeight - 156));
+    const bottom = viewportHeight < 600 ? 12 : 134;
+    const maxWidth = Math.max(120, viewportWidth - 24);
+    const maxHeight = Math.max(120, Math.min(TOOLBOX_MAX_HEIGHT, viewportHeight - bottom - 12));
+    const drawer = $("toolboxDrawer");
+    drawer.style.bottom = `${bottom}px`;
+    drawer.style.minInlineSize = `${Math.min(TOOLBOX_MIN_WIDTH, maxWidth)}px`;
+    drawer.style.maxInlineSize = `${maxWidth}px`;
+    drawer.style.minBlockSize = `${Math.min(TOOLBOX_MIN_HEIGHT, maxHeight)}px`;
+    drawer.style.maxBlockSize = `${maxHeight}px`;
     return {
-      width: Math.round(Math.min(Math.max(width, TOOLBOX_MIN_WIDTH), maxWidth)),
-      height: Math.round(Math.min(Math.max(height, TOOLBOX_MIN_HEIGHT), maxHeight)),
+      width: Math.round(Math.min(Math.max(width, Math.min(TOOLBOX_MIN_WIDTH, maxWidth)), maxWidth)),
+      height: Math.round(Math.min(Math.max(height, Math.min(TOOLBOX_MIN_HEIGHT, maxHeight)), maxHeight)),
     };
   }
 
@@ -700,8 +709,8 @@
     } catch (error) {
       stored = null;
     }
-    if (!stored || !Number.isFinite(stored.width) || !Number.isFinite(stored.height)) return;
-    applyToolboxSize(stored.width, stored.height);
+    const valid = stored && Number.isFinite(stored.width) && Number.isFinite(stored.height);
+    applyToolboxSize(valid ? stored.width : 600, valid ? stored.height : 640);
   }
 
   // 抽屉右下锚定：顶边把手向上拉高、左边把手向左拉宽，拖拽结束写入 localStorage。
@@ -757,6 +766,7 @@
     bindToolboxResize($("toolboxResizeX"), "x");
     restoreToolboxSize();
     window.addEventListener("resize", restoreToolboxSize);
+    window.addEventListener("launcherzoomchange", restoreToolboxSize);
   }
 
   function setResult(message, kind = "") {

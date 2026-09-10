@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,6 +33,9 @@ from maw.postprocess_pipeline import (
 
 class PostprocessPipelineTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = mock.patch.dict(os.environ, {"MSW_GUI_LANG": "en"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name)
         self.env_path = self.root / ".env"
@@ -710,7 +714,7 @@ class PostprocessPipelineTests(unittest.TestCase):
                 ffmpeg_path=None,
                 cancel_event=cancel,
             )
-        workspace = self.root / "MSW-Postprocess"
+        workspace = self.root / "_msw" / "postprocess"
         self.assertTrue(workspace.is_dir())
         self.assertEqual(len(tuple(workspace.iterdir())), 1)
 

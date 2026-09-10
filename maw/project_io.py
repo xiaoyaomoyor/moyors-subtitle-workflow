@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from maw.media import probe_audio_tracks, probe_video_fps
+from maw.project import PROJECT_SCHEMA, ProjectValidationError, ProjectValidationFailed, project_schema_errors
+from maw.msw.project_codec import validate_extension
 
 
 def enrich_project_media_metadata(
@@ -66,15 +68,22 @@ def serialize_mosp(
 ) -> str:
     """Serialize a MSW project after optional source-media enrichment.
 
-    Validation and normalization remain the responsibility of the caller.
+    Reject unsupported versions before enrichment or output. Full project
+    validation and normalization remain the responsibility of the caller.
     """
 
+    errors = project_schema_errors(project) + tuple(
+        ProjectValidationError(path, message) for path, message in validate_extension(project.get("msw"))
+    )
+    if errors:
+        raise ProjectValidationFailed(errors)
     enriched = enrich_project_media_metadata(
         project,
         media_path,
         ffprobe_path=ffprobe_path,
     )
-    return json.dumps(enriched, ensure_ascii=False, indent=2) + "\n"
+    enriched.pop("schema", None)
+    return json.dumps({"schema": PROJECT_SCHEMA, **enriched}, ensure_ascii=False, indent=2) + "\n"
 
 
 def write_mosp(

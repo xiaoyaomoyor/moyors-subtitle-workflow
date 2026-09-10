@@ -3,6 +3,12 @@
 (function () {
   'use strict';
 
+  const PROJECT_SCHEMA = 'moy.asr.project.v1';
+  function supportsProjectSchema(project) {
+    return Boolean(project && typeof project === 'object' && !Array.isArray(project)
+      && (!Object.prototype.hasOwnProperty.call(project, 'schema') || project.schema === PROJECT_SCHEMA));
+  }
+
   const SUBTITLE_FONT_FAMILY_DISPLAY_NAMES_ZH = Object.freeze({
     'Microsoft YaHei': '微软雅黑',
     'Microsoft YaHei UI': '微软雅黑',
@@ -2725,6 +2731,7 @@
     autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true,
     autoSaveProject: true, autoSaveIntervalSeconds: 30, stickerOverlayEnabled: false,
     stickerOtioExportMode: 'original', clickBehavior: 'select-and-seek', clickTarget: 'pointer',
+    otioExportIncludeSrt: true, otioExportIncludeStickers: true, otioExportIncludeMarkers: true,
     keyboardOperationReference: 'pointer', jklPlaybackMode: 'direction', mediaSeekStepMs: 1000,
     mediaSeekStepFrames: 1, cueMoveStepMs: 50, cueMoveStepFrames: 1,
     timelineSnapToFrame: true, timelineTimecodeSeparator: DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
@@ -2813,6 +2820,9 @@
       autoSaveIntervalSeconds: clampInteger(savedSettings.autoSaveIntervalSeconds, 30, 5, 3600),
       stickerOverlayEnabled: savedSettings.stickerOverlayEnabled === true,
       stickerOtioExportMode: savedSettings.stickerOtioExportMode === 'portable' ? 'portable' : 'original',
+      otioExportIncludeSrt: savedSettings.otioExportIncludeSrt !== false,
+      otioExportIncludeStickers: savedSettings.otioExportIncludeStickers !== false,
+      otioExportIncludeMarkers: savedSettings.otioExportIncludeMarkers !== false,
       clickBehavior: ['select-only', 'select-and-seek', 'select-and-play'].includes(savedSettings.clickBehavior)
         ? savedSettings.clickBehavior : 'select-and-seek',
       clickTarget: ['cue-start', 'pointer'].includes(savedSettings.clickTarget) ? savedSettings.clickTarget : 'pointer',
@@ -2957,6 +2967,23 @@
       }
       return [mapped];
     });
+  }
+
+  // Fill between the closest active gaps; inactive gaps do not set boundaries.
+  function resolveGapFillRange(gaps, pointMs, durationMs = 0) {
+    const active = normalizeGapRemoveGaps(gaps).filter((gap) => gap.removed !== false);
+    const point = Number(pointMs);
+    if (!active.length || !Number.isFinite(point)) return null;
+    const containing = active.find((gap) => gap.start <= point && gap.end >= point);
+    if (containing) return { start: containing.start, end: containing.end };
+    const previous = [...active].reverse().find((gap) => gap.end <= point);
+    const next = active.find((gap) => gap.start >= point);
+    const rawDuration = Number(durationMs);
+    const duration = Number.isFinite(rawDuration) ? Math.max(0, Math.round(rawDuration)) : 0;
+    if (!next && duration <= 0) return null;
+    const start = previous ? previous.start : 0;
+    const end = next ? next.end : duration;
+    return end > start ? { start, end } : null;
   }
 
   const HISTORY_RECORD_DEFAULT_LABELS = Object.freeze({
@@ -5177,6 +5204,8 @@ export default MawDynamicCaptions;
   }
 
   window.AsrEditorUtils = {
+    PROJECT_SCHEMA,
+    supportsProjectSchema,
     subtitleFontFamilyDisplayName,
     decodeSubtitleText,
     parseBwfTimeReference,
@@ -5316,6 +5345,7 @@ export default MawDynamicCaptions;
     mapGapRemovedTime,
     buildGapRemovedIntervals,
     buildGapRemovedDynamicSegments,
+    resolveGapFillRange,
     EXPORT_FRAME_PROFILES,
     resolveExportFrameProfile,
     exportMsToFrames,

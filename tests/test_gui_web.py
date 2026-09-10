@@ -71,7 +71,7 @@ class GuiWebBridgeTests(unittest.TestCase):
             {"DASHSCOPE_API_KEY": "", "DASHSCOPE_REGION": "", "MAW_GUI_LANG": "", "STICKER_DIR": ""},
             clear=False,
         ):
-            for key in ("MAW_GUI_LAST_MODEL", "MAW_GUI_LAST_LANGUAGE"):
+            for key in ("MAW_GUI_LAST_MODEL", "MAW_GUI_LAST_LANGUAGE", "MAW_GUI_LANG", "MSW_GUI_LANG"):
                 os.environ.pop(key, None)
             config = self.api.get_config()
 
@@ -406,12 +406,11 @@ class GuiWebBridgeTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        # 宿主环境变量优先于 .env；置空 DEEPSEEK 相关变量，保证断言的是 .env 里的值。
-        with mock.patch.dict(os.environ, {
-            "MAW_POSTPROCESS_DEEPSEEK_MODEL": "",
-            "MAW_POSTPROCESS_DEEPSEEK_BASE_URL": "",
-            "MAW_POSTPROCESS_DEEPSEEK_REASONING_MODE": "",
-        }, clear=False):
+        # Clear both aliases: explicit empty values now mean clearing a setting.
+        with mock.patch.dict(os.environ, {}, clear=False):
+            for prefix in ("MSW_", "MAW_"):
+                for suffix in ("MODEL", "BASE_URL", "REASONING_MODE"):
+                    os.environ.pop(f"{prefix}POSTPROCESS_DEEPSEEK_{suffix}", None)
             config = self.api.get_config()
             result = self.api.save_postprocess_settings({
                 "providerId": "qwen",
@@ -482,7 +481,9 @@ class GuiWebBridgeTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        with mock.patch.dict(os.environ, {"MAW_POSTPROCESS_DEEPSEEK_API_KEY": ""}, clear=False):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("MAW_POSTPROCESS_DEEPSEEK_API_KEY", None)
+            os.environ.pop("MSW_POSTPROCESS_DEEPSEEK_API_KEY", None)
             result = self.api.get_postprocess_settings({"providerId": "deepseek"})
 
         self.assertTrue(result["ok"])
@@ -951,7 +952,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn("const gapRemove = alignmentGapRemoveFromControls({ normalizeFields: true });", postprocess_script)
         self.assertIn('.toolbox-alignment-inputs {\n  display: grid;\n  gap: 10px;\n}', styles)
         self.assertIn('.toolbox-panel .toolbox-alignment-gap-settings {\n  margin-top: 12px;\n}', styles)
-        self.assertIn('.toolbox-utility-tab-list {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }', styles)
+        self.assertIn('.toolbox-utility-tab-list {\n  grid-template-columns: 1fr;\n}', styles)
         self.assertNotIn('"alignment"', postprocess_script[postprocess_script.index("const AUTO_STEP_ORDER"):postprocess_script.index("let autoPlanSaveTimer")])
 
     def test_toolbox_close_restores_trigger_focus_and_ffconcat_marks_its_input(self) -> None:
@@ -3596,7 +3597,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertLess(primary_tabs, utilities_view)
         self.assertLess(postprocess_view, utilities_view)
         self.assertLess(postprocess_tabs, content)
-        self.assertLess(utilities_tabs, content)
+        self.assertLess(content, utilities_tabs)
         self.assertLess(content, progress)
         self.assertLess(progress, result)
         self.assertIn('data-i18n="toolbox_chain_hint">每次生成新文件，并自动作为下一步输入；选择工具后运行。</p>', page)
@@ -3662,7 +3663,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn(".toolbox-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 10px;\n  align-items: start;\n}", stylesheet)
         # 文稿匹配保持单字段；固定处理按批量替换和简繁转换分组。
         match_panel = page[page.index('id="toolboxMatchPanel"'):page.index('id="toolboxOcrPanel"')]
-        replace_panel = page[page.index('id="toolboxReplacePanel"'):page.index('id="toolboxFfconcatPanel"')]
+        replace_start = page.index('id="toolboxReplacePanel"')
+        replace_panel = page[replace_start:page.index('</section>', replace_start)]
         self.assertNotIn("adv-group", match_panel)
         self.assertIn('data-i18n="toolbox_group_fixed_replacements"', replace_panel)
         self.assertIn('data-i18n="toolbox_group_fixed_conversion"', replace_panel)
@@ -4041,7 +4043,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
-        self.assertIn('id="segmentationField" class="adv-group segmentation-field"', page)
+        self.assertIn('id="segmentationField" class="segmentation-settings-fields"', page)
         self.assertIn('id="advancedParamsGroup" class="adv-group"', page)
         self.assertIn("function syncAdvancedParamsGroup()", script)
         self.assertIn("syncWorkspace(); syncAdvancedParamsGroup();", script)

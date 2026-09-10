@@ -461,7 +461,7 @@ class GuiWorkflowTests(unittest.TestCase):
         render_html.assert_called_once_with(
             self.srt_path.with_suffix(".mosp"),
             self.media_path,
-            self.srt_path.with_suffix(".edit.html"),
+            self.media_path.parent / "_msw" / f"{self.srt_path.stem}.edit.html",
             "en",
         )
 
@@ -1050,7 +1050,7 @@ class GuiWorkflowTests(unittest.TestCase):
             maw_gui.sys, "executable", str(self.root / "MSW.exe")
         ), mock.patch.object(maw_gui.sys, "frozen", True, create=True), mock.patch.dict(
             os.environ,
-            {"LOCALAPPDATA": str(self.root / "LocalAppData"), "MAW_APP_DATA_ROOT": ""},
+            {"LOCALAPPDATA": str(self.root / "LocalAppData"), "MAW_APP_DATA_ROOT": "", "MSW_APP_DATA_ROOT": ""},
             clear=False,
         ):
             self.assertEqual(
@@ -1063,7 +1063,7 @@ class GuiWorkflowTests(unittest.TestCase):
 
         with mock.patch("maw.app_paths.sys.platform", "win32"), mock.patch.dict(
             os.environ,
-            {"LOCALAPPDATA": str(self.root / "LocalAppData"), "MAW_APP_DATA_ROOT": ""},
+            {"LOCALAPPDATA": str(self.root / "LocalAppData"), "MAW_APP_DATA_ROOT": "", "MSW_APP_DATA_ROOT": ""},
             clear=False,
         ):
             self.assertEqual(

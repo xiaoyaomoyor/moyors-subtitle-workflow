@@ -1,5 +1,7 @@
 # 从零完成一次字幕工程
 
+输出目录、旧缓存兼容和 Launcher 新设置见[输出布局与环境设置](OUTPUT_LAYOUT.md)。
+
 首次使用请先看[安装与升级](INSTALLATION.md)和[可选环境清单](ENVIRONMENT.md)。项目官网：[MSW GitHub 仓库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow)。
 
 这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MSW 是 Moyor's Subtitle Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
@@ -435,3 +437,11 @@ MSW 会在 HTTP 状态后继续显示百炼返回的业务 `code`、`message` �
 ### HTML 打开了但不能稳定拖动视频进度
 
 优先用 `server-editor\\serve.py`。不要用 `python -m http.server` 替代它；该服务器专门实现了媒体 Range 响应。
+
+## beta.2 编辑与源媒体导出
+
+- 在波形背景右键选择「填充区间空隙」，连接前后最近的活动空隙；外侧延伸至媒体边界。填充是可撤销的手工修改，仍按 MSW 配音保护计算实际移除区间。提示同时显示标记时长与有效移除时长。
+- 全局设置记住上次分类，不可用分类回退到「全部」；保留搜索与 LLM／TTS 子导航。帮助的八个分类纵向排列，支持方向键与 Home／End，沿用 MSW 深浅及自定义主题。
+- 「文件 → 更多导出 → OTIO」中的源媒体时间线和「去空隙版本 → OpenTimelineIO」共用三个选项，默认都开启：额外保存独立 SRT、表情包作为视频轨道、主字幕作为片段标记。SRT 不在 OTIOZ 压缩包内；取消主文件保存时不再保存 SRT。两份内容与名称在开始导出时固定，等待期间编辑不会混入本次导出。
+- 源媒体 OTIOZ 打包服务器绑定的媒体与已校验根目录中的表情包，保留中文文件名并处理同名图片；表情包重叠或缺失时请修复素材，或关闭对应选项后重试。多音轨、BWF 起点和去空隙配音保护延续 MSW 的映射。
+- 「含配音的剪辑工程（OTIOZ）」仍是独立入口，包含 MSW 配音片段、轨道增益／静音与素材，不受上述源媒体选项影响。

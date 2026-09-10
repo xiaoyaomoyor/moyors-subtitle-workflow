@@ -422,7 +422,7 @@ def load_project(
         try:
             waveform, extracted = edit.load_or_extract_waveform(
                 data.get("waveform"),
-                media_path,
+                source_media_path,
                 peaks_per_second=peaks_per_second,
                 ffmpeg_bin=str(ffmpeg_path) if ffmpeg_path is not None else None,
                 audio_track=audio_track,
@@ -1324,8 +1324,10 @@ def export_sticker_otioz(project: ServerProject, kind: str, timeline: dict, root
     return buffer.getvalue(), otio_name, len(used)
 
 
-def export_timeline_otioz(project: ServerProject, kind: str, timeline: dict) -> tuple[bytes, str]:
-    """Build an OTIOZ archive containing only the bound project's source media."""
+def export_timeline_otioz(
+    project: ServerProject, kind: str, timeline: dict, sticker_root: Path | None = None,
+) -> tuple[bytes, str]:
+    """Pack the bound source and validated stickers; never read client media URLs."""
     if project.json_path is None:
         raise ValueError("当前服务器没有绑定工程文件")
     if timeline.get("OTIO_SCHEMA") != "Timeline.1":
@@ -1348,16 +1350,55 @@ def export_timeline_otioz(project: ServerProject, kind: str, timeline: dict) -> 
     payload = copy.deepcopy(timeline)
     reference_count = 0
     target_urls: set[str] = set()
+    stickers: dict[Path, str] = {}
+    used_names = {source.name.casefold()}
 
     def visit(value: dict) -> None:
         nonlocal reference_count
+        metadata = value.get("metadata")
+        moy = metadata.get("moy") if isinstance(metadata, dict) else None
+        if value.get("OTIO_SCHEMA") == "Clip.2" and isinstance(moy, dict) and "sticker_rel" in moy:
+            relative = moy["sticker_rel"]
+            if not isinstance(relative, str) or not relative.strip():
+                raise ValueError("表情包 Clip 缺少 sticker_rel")
+            if sticker_root is None:
+                raise ValueError("请先校验表情包根目录，或关闭「时间线包含表情包」后重试")
+            sticker = _sticker_rel_path(relative, sticker_root)
+            references = value.get("media_references")
+            if not isinstance(references, dict) or not references or any(
+                not isinstance(ref, dict) or ref.get("OTIO_SCHEMA") != "ExternalReference.1"
+                for ref in references.values()
+            ):
+                raise ValueError("表情包 Clip 缺少有效媒体引用")
+            if sticker not in stickers:
+                name = sticker.name
+                collision = 1
+                while name.casefold() in used_names:
+                    collision += 1
+                    name = f"{sticker.stem}-{collision}{sticker.suffix}"
+                stickers[sticker] = "media/" + name
+                used_names.add(name.casefold())
+            source_range = value.get("source_range")
+            duration = source_range.get("duration") if isinstance(source_range, dict) else None
+            rate = duration.get("rate") if isinstance(duration, dict) else None
+            if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not math.isfinite(rate) or rate <= 0:
+                rate = 60
+            for reference in references.values():
+                reference["target_url"] = stickers[sticker]
+                # Still images need a finite available range for Resolve.
+                if not isinstance(reference.get("available_range"), dict):
+                    reference["available_range"] = {
+                        "OTIO_SCHEMA": "TimeRange.1",
+                        "start_time": {"OTIO_SCHEMA": "RationalTime.1", "value": 0, "rate": rate},
+                        "duration": {"OTIO_SCHEMA": "RationalTime.1", "value": 1, "rate": rate},
+                    }
+            return
         if value.get("OTIO_SCHEMA") == "ExternalReference.1":
             target_url = value.get("target_url")
             if not isinstance(target_url, str) or not target_url.strip():
                 raise ValueError("时间线 OTIO 缺少媒体引用")
             target_urls.add(unquote(target_url.strip().replace("\\", "/")).casefold())
-            # Never trust client-supplied paths: every reference in this
-            # endpoint is rewritten to the server's bound project media.
+            # Non-sticker references always use the server's bound media.
             value["target_url"] = media_target
             reference_count += 1
         for child in value.values():
@@ -1384,6 +1425,8 @@ def export_timeline_otioz(project: ServerProject, kind: str, timeline: dict) -> 
         )
         archive.writestr("version.txt", "1.0.0".encode("utf-8"), compress_type=zipfile.ZIP_DEFLATED)
         archive.writestr(media_target, source.read_bytes(), compress_type=zipfile.ZIP_STORED)
+        for sticker, target in stickers.items():
+            archive.writestr(target, sticker.read_bytes(), compress_type=zipfile.ZIP_STORED)
     return buffer.getvalue(), otio_name
 
 
@@ -1738,6 +1781,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             try:
                 zip_bytes, otio_name = export_timeline_otioz(
                     self.editor_server.project, kind, timeline,
+                    sticker_root=self.editor_server.project.sticker_root,
                 )
             finally:
                 self.editor_server.timeline_otioz_lock.release()

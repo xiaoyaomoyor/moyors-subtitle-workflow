@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -91,6 +92,9 @@ class PostprocessTests(unittest.TestCase):
     project_path: Path
 
     def setUp(self) -> None:
+        environment = mock.patch.dict(os.environ, {"MSW_GUI_LANG": "en"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name)
         self.media = self.root / "clip.mp4"
@@ -1992,7 +1996,7 @@ class FfconcatTests(unittest.TestCase):
         self.assertIsInstance(command, list)
         self.assertIn("-safe", command)
         self.assertIn(str(self.concat.resolve()), command)
-        self.assertEqual(result.media_path.name, "clip.gap-removed.mp4")
+        self.assertEqual(result.media_path.name, "clip.去空隙.mp4")
 
     def test_ffconcat_rebuild_rejects_success_without_output_file(self) -> None:
         completed = mock.Mock(returncode=0, stderr="")
@@ -2107,7 +2111,7 @@ class MediaToolTests(unittest.TestCase):
         self.assertIn("-vf", command)
         self.assertIn("subtitles=filename='clip.srt'", command[command.index("-vf") + 1])
         self.assertIn("libx264", command)
-        self.assertEqual(result.media_path.name, "clip.subtitled.mp4")
+        self.assertEqual(result.media_path.name, "clip.压字幕.mp4")
         self.assertTrue(result.media_path.read_bytes())
         self.assertEqual(self.media.read_bytes(), b"media")
 
@@ -2126,7 +2130,7 @@ class MediaToolTests(unittest.TestCase):
 
         command = popen.call_args.args[0]
         self.assertEqual(command[command.index("-map") + 1], "0:2")
-        self.assertEqual(result.media_path.name, "clip.audio.m4a")
+        self.assertEqual(result.media_path.name, "clip.音频.m4a")
         self.assertEqual(result.audio_track.stream_index, 2)
 
 

@@ -11,6 +11,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from maw.output_naming import OPERATION_NAMES, is_translation_operation, operation_suffix
 from maw.project import normalize_project
 from maw.project_preview import JsonDict, JsonValue
 
@@ -105,7 +106,8 @@ def write_artifacts(
     project_path = _available_output(base, operation, base.suffix if source_project_path else ".mosp", output_directory=output_directory) if write_project else None
     srt_path = _available_output(base, operation, ".srt", output_directory=output_directory) if write_srt else None
     if project_path is not None:
-        _atomic_write(project_path, json.dumps(normalized, ensure_ascii=False, indent=2) + "\n")
+        asset_warnings = write_derived_project(normalized, project_path, source_project_path or base)
+        warnings = (*warnings, *asset_warnings)
     if srt_path is not None:
         _atomic_write(srt_path, render_srt(normalized))
     return SubtitleArtifact(
@@ -115,6 +117,31 @@ def write_artifacts(
         srt_path=srt_path,
         warnings=warnings,
     )
+
+
+def write_derived_project(project: JsonDict, target: Path, source: Path) -> tuple[str, ...]:
+    """Preserve MSW assets and anchor relative media when publishing a derived project."""
+    normalized = normalize_project(project)
+    media = normalized.get("media")
+    if isinstance(media, str) and media.strip():
+        from maw.media import resolve_project_media
+
+        resolved = resolve_project_media(source, normalized).resolved_path
+        if resolved is not None:
+            normalized["media"] = str(resolved)
+        elif not Path(media).is_absolute() and "://" not in media:
+            normalized["media"] = str((source.parent / media).resolve(strict=False))
+    warnings: tuple[str, ...] = ()
+    if (normalized.get("msw") or {}).get("assets"):
+        from maw.app_paths import default_app_data_root
+        from maw.msw.assets import AssetStore
+
+        assets = AssetStore(default_app_data_root() / "editor-assets")
+        result = assets.persist_project(normalized, target, source)
+        if result["missing"]:
+            warnings = (f"{len(result['missing'])} 个音频素材缺失；已保留引用，请恢复原工程的 .assets 文件夹。",)
+    _atomic_write(target, json.dumps(normalized, ensure_ascii=False, indent=2) + "\n")
+    return warnings
 
 
 def render_srt(project: JsonDict) -> str:
@@ -155,8 +182,8 @@ def _format_srt_time(milliseconds: int) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
 
 
-def _available_output(source: Path, operation: str, suffix: str, *, output_directory: Path | None = None) -> Path:
-    safe_operation = re.sub(r"[^a-z0-9-]+", "-", operation.lower()).strip("-") or "processed"
+def _available_output(source: Path, operation: str, suffix: str, *, output_directory: Path | None = None, lang: str | None = None) -> Path:
+    safe_operation = _operation_file_token(operation, lang=lang)
     directory = output_directory or source.parent
     candidate = directory / f"{source.stem}.{safe_operation}{suffix}"
     counter = 2
@@ -164,6 +191,30 @@ def _available_output(source: Path, operation: str, suffix: str, *, output_direc
         candidate = directory / f"{source.stem}.{safe_operation}-{counter}{suffix}"
         counter += 1
     return candidate.resolve()
+
+
+def _operation_file_token(operation: str, *, lang: str | None = None) -> str:
+    """Return the safe filename segment for an artifact operation.
+
+    Operations listed in the naming contract and translation artifacts
+    (``translate-{target}`` with optional ``-bilingual``/``-combined`` marker;
+    both hyphen and underscore bases are recognized) get their localized display
+    name. In the zh UI the marker is localized too, keeping the dot separator
+    (``翻译为中文.双语合一``); the en UI keeps the pre-change byte output
+    (``translate-zh-bilingual`` / legacy ``translate-zh`` for underscore bases).
+    Operations that fall outside both groups keep the legacy ASCII cleaning so
+    unrelated names do not change shape.
+    """
+    if operation in OPERATION_NAMES:
+        display = operation_suffix(operation, lang=lang).lstrip(".")
+        return re.sub(r"[^\w-]+", "-", display, flags=re.UNICODE).strip("-") or "processed"
+    if is_translation_operation(operation):
+        display = operation_suffix(operation, lang=lang).lstrip(".")
+        # zh 界面翻译段以点分隔本地化标记（翻译为中文.双语合一），点必须保留；
+        # en 界面 / 未知 target 的 display 即 legacy 清洗后的 operation，
+        # 结果与改动前逐字节一致。
+        return re.sub(r"[^\w.-]+", "-", display, flags=re.UNICODE).strip(".-") or "processed"
+    return re.sub(r"[^a-z0-9-]+", "-", operation.lower()).strip("-") or "processed"
 
 
 def _atomic_write(path: Path, text: str) -> None:

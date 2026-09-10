@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from maw.gui_config import load_env, save_env
+from maw.env_config import aliased_values
 from maw.postprocess_llm import DEFAULT_REASONING_MODE, PRESETS, LlmSettings, normalize_reasoning_mode
 from maw.postprocess_pipeline import invalidate_llm_verification_if_changed
 
@@ -24,9 +25,12 @@ def preset_for(provider_id: str):
 
 def read_values(env_path: Path, prefix: str) -> dict[str, str]:
     values = load_env(env_path)
+    environment = aliased_values(os.environ)
     def pick(name: str, default: str = "") -> str:
         # Keep Launcher's existing environment-over-file precedence and keys.
-        return os.environ.get(name) or values.get(name, default)
+        if name.startswith("MAW_") and name in environment:
+            return environment[name]
+        return environment.get(name) or values.get(name, default)
     api_key = pick(f"{prefix}_API_KEY")
     if prefix == "MAW_POSTPROCESS_QWEN" and not api_key:
         api_key = pick("DASHSCOPE_API_KEY")

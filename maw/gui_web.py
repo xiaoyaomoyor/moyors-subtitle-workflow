@@ -17,12 +17,14 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from functools import wraps
 from pathlib import Path
 from threading import Event, Lock
 from typing import BinaryIO, Final, final
 
 from maw.app_paths import default_emoji_font_path
-from maw.ffmpeg import FfmpegTools, resolve_ffmpeg_tools
+from maw.env_config import aliased_values, alias_keys
+from maw.ffmpeg import FfmpegTools, media_duration_seconds, resolve_ffmpeg_tools
 from maw.media_cache import embed_media_caches
 from maw.gui_config import (
     DEFAULT_ENV_PATH,
@@ -45,8 +47,9 @@ from maw.gui_config import (
     save_env,
 )
 from maw.gui_platform import apply_dark_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
-from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
+from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
+from maw.output_naming import format_elapsed, maw_root
 from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, install_stdio_tee
 from maw.local_runtime import (
     LocalRuntimeCancelled,
@@ -114,7 +117,7 @@ EDITOR_HEALTH_PROBE_PATH: Final = "/api/startup-status"
 # 短暂超过默认 0.25s，但仍远小于 SERVER_START_TIMEOUT 的总预算。
 EDITOR_HEALTH_PROBE_TIMEOUT: Final = 2.0
 # Keep this aligned with pyproject.toml; release workflows synchronize and verify it.
-BUNDLED_APP_VERSION = "1.6.0-beta.1"
+BUNDLED_APP_VERSION = "1.6.0-beta.2"
 MOSE_VERSION = "0.1.0"
 
 
@@ -551,6 +554,14 @@ def download_emoji_font(urls: Sequence[str], dest: Path, timeout: float = 20.0) 
     return None
 
 
+def _runtime_state_guard(method):
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        with self._runtime_state_lock:
+            return method(self, *args, **kwargs)
+    return guarded
+
+
 @final
 class LauncherApi:
     def __init__(
@@ -562,6 +573,7 @@ class LauncherApi:
         log_sink: LocalLogSink | None = None,
     ) -> None:
         self.paths = paths or default_paths()
+        self._runtime_state_lock = threading.RLock()
         self.window_getter = window_getter or _active_window
         self.default_server_port = default_server_port
         self._log_sink = log_sink
@@ -594,6 +606,7 @@ class LauncherApi:
         self.postprocess_translation_srt_path: Path | None = None
         self._last_postprocess_progress_at = 0.0
         self.pump = EventPump(window_getter=self.window_getter)
+        _sync_local_runtime_root(self.paths.env_path)
 
     def get_emoji_font_path(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         """返回本地可用的 Noto Color Emoji 路径（file:// URI；未就绪或非 Linux 为空字符串）。
@@ -703,6 +716,9 @@ class LauncherApi:
             "appVersion": _app_version(self.paths),
             "stickerDir": config.sticker_dir,
             "showRareLangs": config.show_rare_langs,
+            "outputSubfolder": config.output_subfolder,
+            "perVideoSubfolder": config.per_video_subfolder,
+            "attachModelName": config.attach_model_name,
             "lastModel": config.last_model,
             "lastLanguage": config.last_language,
             "theme": config.theme,
@@ -763,10 +779,10 @@ class LauncherApi:
         model_id = str(payload.get("modelId") or DEFAULT_MODEL_ID)
         test_run = bool(payload.get("testRun"))
         requested = (
-            default_srt_path(Path(media_text), provider=provider_id, model=model_id, test_run=test_run)
+            default_srt_path(Path(media_text), provider=provider_id, model=model_id, test_run=test_run, env_path=self.paths.env_path)
             if media_text else Path()
         )
-        selected = unique_output_path(requested) if media_text else requested
+        selected = unique_output_path(requested, Path(media_text), env_path=self.paths.env_path) if media_text else requested
         return {
             "ok": bool(media_text),
             "path": str(selected) if media_text else "",
@@ -820,6 +836,13 @@ class LauncherApi:
             updates["MAW_GUI_LAST_LANGUAGE"] = str(payload.get("language") or "")
         if "showRareLangs" in payload:
             updates["MAW_GUI_SHOW_RARE_LANGS"] = "true" if payload.get("showRareLangs") else "false"
+        for payload_key, env_key in (
+            ("outputSubfolder", "MSW_GUI_OUTPUT_SUBFOLDER"),
+            ("perVideoSubfolder", "MSW_GUI_PER_VIDEO_SUBFOLDER"),
+            ("attachModelName", "MSW_GUI_ATTACH_MODEL_NAME"),
+        ):
+            if payload_key in payload:
+                updates[env_key] = "true" if payload.get(payload_key) else "false"
         if "theme" in payload:
             updates["MAW_GUI_THEME"] = _gui_theme(str(payload.get("theme") or "")) or "system"
         if "zoomPercent" in payload:
@@ -1828,6 +1851,7 @@ class LauncherApi:
             return {"ok": True, "stopped": True}
         return {"ok": True, "stopped": False}
 
+    @_runtime_state_guard
     def start_transcription(self, payload: Mapping[str, object]) -> dict[str, object]:
         if self.batch_worker and self.batch_worker.is_alive():
             return {"ok": False, "error": "A batch transcription is already running."}
@@ -1844,7 +1868,7 @@ class LauncherApi:
         ffmpeg_error = _frozen_ffmpeg_preflight(self.paths.env_path)
         if ffmpeg_error is not None:
             return ffmpeg_error
-        selected_output = unique_output_path(request.srt_path)
+        selected_output = unique_output_path(request.srt_path, request.media_path, env_path=self.paths.env_path)
         output_renamed = selected_output != request.srt_path
         if output_renamed:
             request = replace(request, srt_path=selected_output)
@@ -1863,7 +1887,10 @@ class LauncherApi:
             "rawPath": str(raw_response_path(request.srt_path)) if request.debug_raw and request.provider != "local" else "",
         }
 
+    @_runtime_state_guard
     def start_batch_transcription(self, payload: Mapping[str, object]) -> dict[str, object]:
+        if any(worker and worker.is_alive() for worker in (self.local_runtime_worker, self.local_prepare_worker)):
+            return _error_result("model", "local_runtime_busy", "请等待本地环境安装或模型准备完成。")
         if self.worker and self.worker.is_alive() or self.batch_worker and self.batch_worker.is_alive():
             return {"ok": False, "error": "Transcription is already running."}
         raw_items = payload.get("items")
@@ -1891,15 +1918,16 @@ class LauncherApi:
                             Path(media_text),
                             provider=str(merged.get("providerId") or "qwen"),
                             model=str(merged.get("modelId") or DEFAULT_MODEL_ID),
+                            env_path=self.paths.env_path,
                         )
                     )
                 raw_plan = merged.get("autoPostprocess")
                 if isinstance(raw_plan, Mapping):
                     merged["autoPostprocess"] = _batch_postprocess_plan(raw_plan)
                 request = _request_from_payload(merged, self.paths.env_path)
-                selected = _batch_unique_output_path(request.srt_path, reserved)
+                selected = _batch_unique_output_path(request.srt_path, reserved, request.media_path, env_path=self.paths.env_path)
                 items.append(BatchItem(str(raw_item.get("id") or index), replace(request, srt_path=selected)))
-                reserved.update(_artifact_paths(selected))
+                reserved.update(_artifact_paths(selected, request.media_path, env_path=self.paths.env_path))
             except PreflightError as error:
                 items.append(BatchItem(item_id, None, error.message))
             except (OSError, ValueError) as error:
@@ -1922,7 +1950,13 @@ class LauncherApi:
         ffmpeg_error = _frozen_ffmpeg_preflight(self.paths.env_path)
         if ffmpeg_error is not None:
             return ffmpeg_error
-        manifest_path = Path(manifest_text).expanduser() if manifest_text else _unique_batch_manifest_path(first_request.srt_path.parent)
+        if manifest_text:
+            manifest_path = Path(manifest_text).expanduser()
+        else:
+            # 批量清单属于「其余文件」：默认落在媒体对应的 MSW 根目录。
+            manifest_root = maw_root(first_request.media_path, env_path=self.paths.env_path)
+            manifest_root.mkdir(parents=True, exist_ok=True)
+            manifest_path = _unique_batch_manifest_path(manifest_root)
         self.batch_cancel_event = Event()
         self.pump.start()
         self.batch_worker = threading.Thread(
@@ -2076,6 +2110,31 @@ class LauncherApi:
         status = self._ocr_runtime_status()
         return {"ok": True, "runtimePath": status.path, "runtime": status.to_payload()}
 
+    @_runtime_state_guard
+    def save_local_settings(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """保存本地（非 MOSS）运行环境根目录：.env 持久化 + 进程环境变量即时生效。
+
+        托管 runtime 的根目录解析链是「显式配置 -> 进程级 MAW_LOCAL_RUNTIME_ROOT ->
+        默认 app-data」；这里不改动任何调用方签名，只负责维护 .env 与进程环境变量。
+        """
+        if any(worker and worker.is_alive() for worker in (self.worker, self.batch_worker, self.local_runtime_worker, self.local_prepare_worker)):
+            return _error_result("localRuntimePath", "local_runtime_busy", "转写、安装或模型准备进行中，暂时不能切换本地运行环境目录。")
+        value = str(payload.get("runtimePath") or payload.get("path") or "").strip()
+        candidate = Path(value).expanduser().resolve(strict=False) if value else None
+        if candidate is not None and candidate.exists() and not candidate.is_dir():
+            return _error_result("localRuntimePath", "local_runtime_path_invalid", str(candidate))
+        try:
+            save_env(self.paths.env_path, {"MSW_LOCAL_RUNTIME_ROOT": str(candidate) if candidate else ""})
+        except (OSError, UnicodeError, ValueError) as error:
+            return _error_result("localRuntimePath", "config_save_failed", f"{self.paths.env_path}: {error}")
+        for key in alias_keys("MSW_LOCAL_RUNTIME_ROOT"):
+            if candidate is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = str(candidate)
+        status = managed_runtime_status(effective_config(self.paths.env_path).model_cache_root)
+        return {"ok": True, "runtimePath": status.path, "runtime": status.to_payload()}
+
     def install_ocr_runtime(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         if self.ocr_runtime_worker and self.ocr_runtime_worker.is_alive():
             return _error_result("ocrModel", "ocr_runtime_install_failed", "OCR 运行环境正在安装中。")
@@ -2097,8 +2156,9 @@ class LauncherApi:
             event.set()
         return {"ok": True}
 
+    @_runtime_state_guard
     def install_local_runtime(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
-        if self.worker and self.worker.is_alive():
+        if (self.worker and self.worker.is_alive()) or (self.batch_worker and self.batch_worker.is_alive()):
             return {"ok": False, "error": "Transcription is already running."}
         if self.local_prepare_worker and self.local_prepare_worker.is_alive():
             return _error_result("model", "local_prepare_running")
@@ -2158,8 +2218,9 @@ class LauncherApi:
             event.set()
         return {"ok": True, "cancelling": active}
 
+    @_runtime_state_guard
     def prepare_local_model(self, payload: Mapping[str, object]) -> dict[str, object]:
-        if self.worker and self.worker.is_alive():
+        if (self.worker and self.worker.is_alive()) or (self.batch_worker and self.batch_worker.is_alive()):
             return {"ok": False, "error": "Transcription is already running."}
         if self.local_runtime_worker and self.local_runtime_worker.is_alive():
             return _error_result("model", "local_runtime_install_failed", "本地运行环境正在安装中。")
@@ -2308,6 +2369,7 @@ class LauncherApi:
 
     def _worker_main(self, request: TranscriptionRequest, cancel_event: Event) -> None:
         child_output: list[str] = []
+        flow_t0 = time.perf_counter()
 
         def on_child_event(line: str) -> None:
             child_output.append(line)
@@ -2359,6 +2421,7 @@ class LauncherApi:
             self.pump.flush()
             return
         self.result = result
+        transcription_elapsed = time.perf_counter() - flow_t0
         self.postprocess_retry_context = None
         self._last_postprocess_progress_at = 0.0
         auto_run_directory: Path | None = None
@@ -2430,6 +2493,23 @@ class LauncherApi:
                 return
         result = self.result
         assert result is not None
+        if request.postprocess_plan:
+            total_elapsed = time.perf_counter() - flow_t0
+            postprocess_elapsed = max(0.0, total_elapsed - transcription_elapsed)
+            self._emit({"type": "log", "message": f"[计时] 全程总用时: {format_elapsed(total_elapsed)}"})
+            self._emit({
+                "type": "log",
+                "message": (
+                    f"[计时] 耗时汇总: 转写 {format_elapsed(transcription_elapsed)}"
+                    f" / 后处理 {format_elapsed(postprocess_elapsed)}"
+                ),
+            })
+            media_duration = media_duration_seconds(request.media_path)
+            if media_duration is not None and media_duration > 0 and total_elapsed > 0:
+                self._emit({
+                    "type": "log",
+                    "message": f"[计时] 全程耗时为媒体时长的 {total_elapsed / media_duration:.2f} 倍",
+                })
         self.postprocess_workspace_directory = auto_run_directory if auto_run_directory and auto_run_directory.is_dir() else None
         self._emit({"type": "done", "result": {"srtPath": str(result.srt_path), "translatedSrtPath": str(self.postprocess_translation_srt_path or ""), "jsonPath": str(result.json_path), "htmlPath": str(result.html_path or ""), "rawPath": str(result.raw_path or ""), "postprocessRunDirectory": str(self.postprocess_workspace_directory or "")}})
         if self.worker is threading.current_thread():
@@ -2984,6 +3064,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
                 auto_plan = candidate_plan
                 auto_llm_settings = snapshot_postprocess_llm_settings(env_path, candidate_plan)
     return TranscriptionRequest(
+        env_path=env_path,
         media_path=media,
         srt_path=srt,
         audio_track=audio_track,
@@ -3058,14 +3139,15 @@ def _dialog_result(selected: tuple[str, ...] | None, *, include_paths: bool = Fa
     return result
 
 
-def _artifact_paths(path: Path) -> set[Path]:
-    return {path, path.with_suffix(".mosp"), path.with_suffix(".edit.html")}
+def _artifact_paths(path: Path, media_path: Path | None = None, *, env_path: Path | None = None) -> set[Path]:
+    srt = Path(path)
+    return {srt, srt.with_suffix(".mosp"), build_output_paths(srt, media_path, env_path=env_path).html}
 
 
-def _batch_unique_output_path(path: Path, reserved: set[Path]) -> Path:
-    candidate = unique_output_path(path)
+def _batch_unique_output_path(path: Path, reserved: set[Path], media_path: Path | None = None, *, env_path: Path | None = None) -> Path:
+    candidate = unique_output_path(path, media_path, env_path=env_path)
     counter = 1
-    while _artifact_paths(candidate) & reserved:
+    while _artifact_paths(candidate, media_path, env_path=env_path) & reserved or any(item.exists() for item in _artifact_paths(candidate, media_path, env_path=env_path)):
         candidate = path.with_name(f"{path.stem}-{counter}{path.suffix}")
         counter += 1
     return candidate
@@ -3513,7 +3595,20 @@ def _check_ffmpeg(env_path: Path, override: str = "") -> dict[str, object]:
 def effective_config_value(env_path: Path, key: str) -> str:
     from maw.gui_config import load_env
 
-    return os.environ.get(key) or load_env(env_path).get(key, "")
+    environment = aliased_values(os.environ)
+    return environment[key] if key in environment else load_env(env_path).get(key, "")
+
+
+def _sync_local_runtime_root(env_path: Path) -> None:
+    """启动时把 .env 持久化的本地运行环境根目录回填进进程环境变量。
+
+    托管 runtime 的 resolve_root 只读进程级 ``MAW_LOCAL_RUNTIME_ROOT``；
+    不回填的话，重启后 .env 里的自定义目录会被忽略。进程里已显式设置时
+    以外部环境变量优先，与 resolve_root 的优先级一致。
+    """
+    override = effective_config_value(env_path, "MAW_LOCAL_RUNTIME_ROOT")
+    if not any(key in os.environ for key in alias_keys("MSW_LOCAL_RUNTIME_ROOT")) and override:
+        os.environ["MSW_LOCAL_RUNTIME_ROOT"] = os.environ["MAW_LOCAL_RUNTIME_ROOT"] = override
 
 
 def _provider_payload(

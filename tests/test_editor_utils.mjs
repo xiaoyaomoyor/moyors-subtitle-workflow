@@ -21,6 +21,43 @@ const i18nContext = { window: {} };
 vm.runInNewContext(i18nSource, i18nContext);
 const i18n = i18nContext.window.MSWE_I18N;
 
+test('source OTIO options default on and preserve explicit off independently', () => {
+  const keys = ['otioExportIncludeSrt', 'otioExportIncludeStickers', 'otioExportIncludeMarkers'];
+  for (const key of keys) {
+    assert.equal(helpers.normalizeEditorSettings({})[key], true);
+    const normalized = helpers.normalizeEditorSettings({ [key]: false });
+    for (const option of keys) assert.equal(normalized[option], option !== key);
+  }
+});
+
+test('gap filling uses active boundaries, ignores inactive gaps and extends to media edges', () => {
+  const gaps = [{ start: 1000, end: 2000, removed: true }, { start: 3000, end: 3500, removed: false }, { start: 5000, end: 6000, removed: true }];
+  const resolve = (point, duration = 10000) => JSON.parse(JSON.stringify(helpers.resolveGapFillRange(gaps, point, duration)));
+  assert.deepEqual(resolve(4000), { start: 1000, end: 6000 });
+  assert.deepEqual(resolve(3200), { start: 1000, end: 6000 });
+  assert.deepEqual(resolve(500), { start: 0, end: 2000 });
+  assert.deepEqual(resolve(8000), { start: 5000, end: 10000 });
+  assert.deepEqual(resolve(1500), { start: 1000, end: 2000 });
+  assert.deepEqual(resolve(4000, 0), { start: 1000, end: 6000 });
+  assert.equal(resolve(8000, 0), null);
+  assert.equal(resolve(8000, Infinity), null);
+  assert.equal(resolve(NaN), null);
+  assert.equal(helpers.resolveGapFillRange([], 1000, 10000), null);
+  assert.equal(helpers.resolveGapFillRange([{ start: 0, end: 1000, removed: false }], 500, 10000), null);
+});
+
+test('project schema accepts legacy and v1 objects but rejects explicit unsupported discriminators', () => {
+  assert.equal(helpers.PROJECT_SCHEMA, 'moy.asr.project.v1');
+  assert.equal(helpers.supportsProjectSchema({ segments: [] }), true);
+  assert.equal(helpers.supportsProjectSchema({ schema: helpers.PROJECT_SCHEMA }), true);
+  for (const schema of ['moy.asr.project.v2', '', null, undefined, false, 1, [], {}]) {
+    assert.equal(helpers.supportsProjectSchema({ schema }), false);
+  }
+  for (const project of [null, undefined, [], '', 1, true]) {
+    assert.equal(helpers.supportsProjectSchema(project), false);
+  }
+});
+
 // XML assertions are part of the Node unit suite, but still need a Python
 // subprocess. Keep it on the same locked project environment as E2E instead
 // of silently selecting whichever python.exe happens to be on PATH.

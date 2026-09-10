@@ -8,11 +8,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import wave
+import zlib
 
 from test_msw_processing import server_module
 from maw.msw.assets import AssetStore
 from maw.msw.tts import DEFAULT_RECIPE
 from maw.msw.recovery import RecoveryStore
+from maw.project import PROJECT_SCHEMA, ProjectValidationFailed
+from test_msw_project_schema import legacy_project
 
 
 def wav_data():
@@ -218,3 +221,90 @@ class PersistenceTests(unittest.TestCase):
             result = self.save_as()
         self.assertTrue(self.destination.is_file())
         self.assertIn("恢复记录未更新", result["recoveryWarning"])
+
+    def test_legacy_voice_project_save_draft_restore_and_save_as_round_trip(self):
+        asset = self.asset()
+        project = legacy_project()
+        project["media"] = str(self.media)
+        project["msw"]["project_id"] = "original"
+        project["msw"]["assets"] = [asset]
+        project["msw"]["audio_clips"][0]["asset_id"] = asset["id"]
+        self.server.project.data.update(copy.deepcopy(project))
+        self.path.write_text(json.dumps(project), encoding="utf-8")
+        original_bytes = self.path.read_bytes()
+        context = self.api.context()
+        self.server.save_project(project, expected_binding=context["binding"], expected_revision=context["saveRevision"])
+        saved = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["schema"], PROJECT_SCHEMA)
+        self.assertEqual(self.path.with_suffix(".mosp.bak").read_bytes(), original_bytes)
+        for key in ("msw", "multi_subtitle", "fixture_metadata", "fixture_optional_null",
+                    "language_source", "split_mode", "timestamp_granularity"):
+            self.assertEqual(saved[key], project[key], key)
+        self.assertEqual((self.path.parent / asset["path"]).read_bytes(), wav_data())
+        record = self.service.draft({"session": "schema-round-trip", "binding": self.api.context()["binding"],
+                                     "project": saved, "filename": self.path.name})
+        restored = self.service.restore(record["id"])["project"]
+        self.assertEqual(restored, saved)
+        result = self.service.save_as({**self.target(), "project": restored, "collectMedia": True}, self.server.write_project)
+        forked = json.loads(self.destination.read_text(encoding="utf-8"))
+        expected_extension = copy.deepcopy(saved["msw"])
+        expected_extension.update(project_id=result["projectId"], source_project_id="original", applied_results=[])
+        del expected_extension["translation_applications"]
+        del expected_extension["translation_target_tracks"]
+        self.assertEqual(forked["msw"], expected_extension)
+        for key in ("schema", "segments", "multi_subtitle", "fixture_metadata", "fixture_optional_null",
+                    "language_source", "split_mode", "timestamp_granularity"):
+            self.assertEqual(forked[key], saved[key], key)
+        self.assertEqual((self.destination.parent / asset["path"]).read_bytes(), wav_data())
+        self.assertEqual((self.destination.parent / forked["media"]).read_bytes(), wav_data())
+
+    def test_unknown_versions_do_not_change_project_files_binding_or_recovery(self):
+        for field in ("root", "msw"):
+            with self.subTest(field=field):
+                project = copy.deepcopy(self.server.project.data)
+                if field == "root":
+                    project["schema"] = "moy.asr.project.v2"
+                else:
+                    project["msw"]["schema"] = "msw.editor.v2"
+                original = copy.deepcopy(self.server.project.data)
+                original_bytes = self.path.read_bytes()
+                context = self.api.context()
+                records = self.service.recovery.list()
+                with self.assertRaises(server_module.SaveProjectError):
+                    self.server.save_project(project, expected_binding=context["binding"], expected_revision=context["saveRevision"])
+                with self.assertRaises(ProjectValidationFailed):
+                    self.service.draft({"session": "schema-reject", "binding": context["binding"], "project": project})
+                with self.assertRaises(ProjectValidationFailed):
+                    self.service.save_as({**self.target(), "project": project, "collectMedia": True}, self.server.write_project)
+                self.assertEqual(self.server.project.data, original)
+                self.assertEqual(self.path.read_bytes(), original_bytes)
+                self.assertFalse(self.path.with_suffix(".mosp.bak").exists())
+                self.assertEqual(self.api.context(), context)
+                self.assertEqual(self.service.recovery.list(), records)
+                self.assertEqual(list(self.destination.parent.iterdir()), [])
+
+    def test_recovery_read_validates_stored_versions_without_rewriting_legacy_snapshot(self):
+        project = legacy_project()
+        record_id = self.service.recovery.put(project, kind="draft", name="legacy.mosp", session="legacy")
+        # Simulate database records written by beta.1 or a future editor.
+        for field in ("legacy", "root", "msw"):
+            with self.subTest(field=field):
+                stored = copy.deepcopy(project)
+                if field == "root":
+                    stored["schema"] = "moy.asr.project.v2"
+                elif field == "msw":
+                    stored["msw"]["schema"] = "msw.editor.v2"
+                body = zlib.compress(json.dumps(stored).encode())
+                with self.service.recovery.connect() as db:
+                    db.execute("UPDATE snapshots SET body=? WHERE id=?", (body, record_id))
+                previous = copy.deepcopy(self.service.recovered)
+                if field == "legacy":
+                    restored = self.service.restore(record_id)["project"]
+                    self.assertEqual(restored["schema"], PROJECT_SCHEMA)
+                    self.assertEqual(restored["msw"], project["msw"])
+                else:
+                    with self.assertRaises(ProjectValidationFailed):
+                        self.service.restore(record_id)
+                    self.assertEqual(self.service.recovered, previous)
+                with self.service.recovery.connect() as db:
+                    self.assertEqual(db.execute("SELECT body FROM snapshots WHERE id=?", (record_id,)).fetchone()["body"], body)

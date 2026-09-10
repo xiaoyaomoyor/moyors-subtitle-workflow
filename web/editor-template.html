@@ -104,8 +104,14 @@ __WAVEFORM_CSS__
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
-                  <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
-                  <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-label">源媒体导出选项</div>
+                  <label class="dropdown-setting-toggle" title="额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出"><input type="checkbox" data-otio-export-option="srt" checked><span>同时导出 SRT 字幕</span></label>
+                  <label class="dropdown-setting-toggle" title="将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程"><input type="checkbox" data-otio-export-option="stickers" checked><span>时间线包含表情包</span></label>
+                  <label class="dropdown-setting-toggle" title="将主字幕内容写入源媒体片段标记"><input type="checkbox" data-otio-export-option="markers" checked><span>将字幕内容作为标记写入</span></label>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">源媒体时间线（OTIO）</div>
+                  <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出源媒体及所选表情包的去空隙 OTIOZ 时间线">源媒体打包工程（OTIOZ）</div>
                   <div class="dropdown-item" id="download-gap-removed-sticker-otio" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIO；完全落在空隙内的表情包会被丢弃">表情包 OTIO 工程</div>
                   <div class="dropdown-item" id="download-gap-removed-sticker-otioz" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）；完全落在空隙内的表情包会被丢弃">表情包 OTIOZ 打包工程</div>
                 </div>
@@ -128,9 +134,15 @@ __WAVEFORM_CSS__
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-otio-menu">OTIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="extra-otio-menu" role="menu">
-                  <button type="button" class="dropdown-item" id="timeline-export-btn" role="menuitem" disabled title="独立配音片段、原视频及字幕标记的剪辑工程">配音剪辑工程（OTIOZ）<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-                  <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">时间线 OTIO 工程</div>
-                  <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIOZ 时间线；服务器只打包当前工程媒体文件">时间线 OTIOZ 打包工程</div>
+                  <button type="button" class="dropdown-item" id="timeline-export-btn" role="menuitem" disabled title="独立配音片段、原视频及字幕标记的剪辑工程">含配音的剪辑工程（OTIOZ）<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-label">源媒体导出选项</div>
+                  <label class="dropdown-setting-toggle" title="额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出"><input type="checkbox" data-otio-export-option="srt" checked><span>同时导出 SRT 字幕</span></label>
+                  <label class="dropdown-setting-toggle" title="将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程"><input type="checkbox" data-otio-export-option="stickers" checked><span>时间线包含表情包</span></label>
+                  <label class="dropdown-setting-toggle" title="将主字幕内容写入源媒体片段标记"><input type="checkbox" data-otio-export-option="markers" checked><span>将字幕内容作为标记写入</span></label>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-item" id="download-otio" role="menuitem" tabindex="0" title="导出原视频/音频的完整 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">源媒体时间线（OTIO）</div>
+                  <div class="dropdown-item" id="download-otioz" role="menuitem" tabindex="0" title="导出源媒体及所选表情包的完整 OTIOZ 时间线">源媒体打包工程（OTIOZ）</div>
                   <div class="dropdown-item" id="download-sticker-otio" role="menuitem" tabindex="0" title="导出只包含表情包图片轨道的 OTIO 工程">表情包 OTIO 工程</div>
                   <div class="dropdown-item" id="download-sticker-otioz" role="menuitem" tabindex="0" title="导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）">表情包 OTIOZ 打包工程</div>
                 </div>
@@ -1027,25 +1039,21 @@ __WAVEFORM_CSS__
       <h3 id="help-panel-title">操作帮助</h3>
     </div>
     <div class="help-header-actions">
+      <button type="button" class="help-onboarding-button" id="help-onboarding" title="重新查看快速上手">快速上手</button>
       <button type="button" id="help-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭帮助窗口"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
-  <div class="help-tab-bar">
-    <div class="help-tabs" role="tablist" aria-label="常用帮助分类">
+  <div class="help-layout">
+    <nav class="help-tabs" role="tablist" aria-orientation="vertical" aria-label="帮助分类">
       <button type="button" class="help-tab" id="help-tab-basic" role="tab" aria-selected="true" aria-controls="help-tab-panel-basic" data-help-tab="basic">基础操作</button>
       <button type="button" class="help-tab" id="help-tab-shortcuts" role="tab" aria-selected="false" aria-controls="help-tab-panel-shortcuts" data-help-tab="shortcuts" tabindex="-1">快捷操作</button>
       <button type="button" class="help-tab" id="help-tab-waveform" role="tab" aria-selected="false" aria-controls="help-tab-panel-waveform" data-help-tab="waveform" tabindex="-1">波形区</button>
       <button type="button" class="help-tab" id="help-tab-playback" role="tab" aria-selected="false" aria-controls="help-tab-panel-playback" data-help-tab="playback" tabindex="-1">播放与导航</button>
-    </div>
-    <button type="button" class="help-tab" id="help-onboarding" title="重新查看快速上手">快速上手</button>
-    <button type="button" class="help-tab help-advanced-toggle" id="help-advanced-toggle" aria-expanded="false" aria-controls="help-advanced-tabs">进阶</button>
-  </div>
-  <div class="help-tabs help-advanced-tabs" id="help-advanced-tabs" role="tablist" aria-label="进阶帮助分类" hidden>
-    <button type="button" class="help-tab" id="help-tab-fine-tuning" role="tab" aria-selected="false" aria-controls="help-tab-panel-fine-tuning" data-help-tab="fine-tuning" tabindex="-1">微调字幕</button>
-    <button type="button" class="help-tab" id="help-tab-gap" role="tab" aria-selected="false" aria-controls="help-tab-panel-gap" data-help-tab="gap" tabindex="-1">空隙操作</button>
-    <button type="button" class="help-tab" id="help-tab-batch" role="tab" aria-selected="false" aria-controls="help-tab-panel-batch" data-help-tab="batch" tabindex="-1">批量操作</button>
-    <button type="button" class="help-tab" id="help-tab-about" role="tab" aria-selected="false" aria-controls="help-tab-panel-about" data-help-tab="about" tabindex="-1">关于</button>
-  </div>
+      <button type="button" class="help-tab" id="help-tab-fine-tuning" role="tab" aria-selected="false" aria-controls="help-tab-panel-fine-tuning" data-help-tab="fine-tuning" tabindex="-1">微调字幕</button>
+      <button type="button" class="help-tab" id="help-tab-gap" role="tab" aria-selected="false" aria-controls="help-tab-panel-gap" data-help-tab="gap" tabindex="-1">空隙操作</button>
+      <button type="button" class="help-tab" id="help-tab-batch" role="tab" aria-selected="false" aria-controls="help-tab-panel-batch" data-help-tab="batch" tabindex="-1">批量操作</button>
+      <button type="button" class="help-tab" id="help-tab-about" role="tab" aria-selected="false" aria-controls="help-tab-panel-about" data-help-tab="about" tabindex="-1">关于</button>
+    </nav>
   <div class="gap-remove-panel-body help-panel-body">
     <section class="help-group help-tab-panel msw-about" id="help-tab-panel-about" role="tabpanel" aria-labelledby="help-tab-about" data-help-tab-panel="about" tabindex="0" hidden>
       <img src="__EDITOR_BRAND_ICON__" alt="MSWE" width="64" height="64">
@@ -1215,6 +1223,8 @@ __WAVEFORM_CSS__
           <span><kbd>Alt+点击</kbd> 切换空隙的启用/禁用状态</span>
           <span class="help-important"><kbd>Alt+左键拖动</kbd> 添加新的移除空隙</span>
           <span class="help-note">（也可以在右键中选择「添加空隙」）</span>
+          <span>在波形背景右键选择「填充区间空隙」，合并鼠标前后最近的已激活空隙；边界外延伸到媒体开头或结尾。</span>
+          <span class="help-note">填充支持撤销，保留配音保护；提示分别显示标记时长与实际移除时长。</span>
         </div>
       </section>
       <section class="help-subgroup">
@@ -1294,6 +1304,7 @@ __WAVEFORM_CSS__
         </div>
       </section>
     </section>
+  </div>
   </div>
 </aside>
 

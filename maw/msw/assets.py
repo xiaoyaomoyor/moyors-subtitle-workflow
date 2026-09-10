@@ -18,9 +18,9 @@ from pathlib import Path
 
 from maw.msw.project_codec import valid_id
 
+MAX_AUDIO_BYTES = 32 * 1024 * 1024
 
 def audio_info(data):
-    from maw.msw.tts import MAX_AUDIO_BYTES
     if not isinstance(data, bytes) or not 44 <= len(data) <= MAX_AUDIO_BYTES:
         raise ValueError("音频文件为空或超过大小限制")
     try:
@@ -51,7 +51,6 @@ def normalize_generated_wav(data):
     size mismatches, which could hide a truncated download. A streaming data
     chunk extends to EOF; its samples must contain complete PCM frames.
     """
-    from maw.msw.tts import MAX_AUDIO_BYTES
     if not isinstance(data, bytes) or not 44 <= len(data) <= MAX_AUDIO_BYTES:
         raise ValueError("音频文件为空或超过大小限制")
     if data[:4] != b"RIFF" or data[8:12] != b"WAVE":

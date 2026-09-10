@@ -62,7 +62,7 @@ class MossRuntimeConstantTests(unittest.TestCase):
 class MossRuntimePathTests(unittest.TestCase):
     def test_default_root_uses_dedicated_moss_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            with mock.patch.dict(os.environ, {"MAW_APP_DATA_ROOT": str(Path(temp_dir) / "app")}):
+            with mock.patch.dict(os.environ, {"MAW_APP_DATA_ROOT": str(Path(temp_dir) / "app"), "MSW_APP_DATA_ROOT": ""}):
                 root = default_runtime_root()
         self.assertEqual(root.name, "local-runtime-moss")
         self.assertEqual(root.parent, (Path(temp_dir) / "app").resolve())

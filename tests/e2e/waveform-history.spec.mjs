@@ -1174,11 +1174,11 @@ test('Home and End preserve native search and help-tab behavior', async ({ page 
 
   await openHelpPanel(page);
   const basicTab = page.locator('#help-tab-basic');
-  const playbackTab = page.locator('#help-tab-playback');
+  const lastTab = page.locator('#help-tab-about');
   await basicTab.focus();
   await basicTab.press('End');
-  await expect(playbackTab).toBeFocused();
-  await expect(playbackTab).toHaveAttribute('aria-selected', 'true');
+  await expect(lastTab).toBeFocused();
+  await expect(lastTab).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.cue[data-idx="2"]')).toHaveClass(/selected/);
 });
 
@@ -1255,7 +1255,12 @@ test('Home and End help explains cue-list and media routing in Chinese and Engli
   await expect(helpPanel).toContainText('选择并显示当前轨道首/末条可见字幕');
   await expect(helpPanel).toContainText('在波形区或播放器跳转到媒体开头/结尾');
 
+  await page.locator('#help-close').click();
+  await toggleEditorSettings(page);
+  await page.locator('.settings-nav-item[data-settings-category="all"]').click();
   await page.locator('#language-select').selectOption('en');
+  await page.locator('#editor-settings-close').click();
+  await openHelpPanel(page);
   await expect(helpPanel).toContainText('Select and reveal the first/last visible subtitle on the current track');
   await expect(helpPanel).toContainText('Seek to the start/end of the media from the waveform or player');
 });
@@ -1691,7 +1696,6 @@ test('Help settings actions open the related waveform and media settings', async
   await toggleWaveSettings(page);
   await expect(helpPanel).toHaveClass(/show/);
 
-  await helpPanel.locator('#help-advanced-toggle').click();
   await helpPanel.getByRole('tab', { name: '微调字幕', exact: true }).click();
   await helpPanel.locator('#help-open-waveform-keyboard-settings').click();
   await expect(helpPanel).toHaveClass(/show/);
@@ -2150,12 +2154,12 @@ test('gap-removed export includes color SRT and names OTIO as a timeline project
 
   await clickMenubarItem(page, '文件', 'gap-removed-export-btn');
   await expect(page.locator('#download-gap-removed-color-srt')).toBeVisible();
-  await expect(page.locator('#download-gap-removed-otio')).toHaveText('时间线 OTIO 工程');
+  await expect(page.locator('#download-gap-removed-otio')).toHaveText('源媒体时间线（OTIO）');
 
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#download-gap-removed-color-srt').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('project_gap-removed_red.srt');
+  expect(download.suggestedFilename()).toBe('project_去空隙_red.srt');
 });
 
 test('server media loads from the resolved project path and OTIO keeps its absolute source URL', async ({ page }) => {
@@ -2247,7 +2251,6 @@ test('server media loads from the resolved project path and OTIO keeps its absol
       : null,
   }));
   expect(resolveMappings).toEqual([
-    { kind: 'Video', linkGroupIds: [1, 2, 3, 4], sourceTrackIds: null },
     { kind: 'Audio', linkGroupIds: [1, 2, 3, 4], sourceTrackIds: [[0, 0], [0, 0], [0, 0], [0, 0]] },
     { kind: 'Audio', linkGroupIds: [1, 2, 3, 4], sourceTrackIds: [[1, 1], [1, 1], [1, 1], [1, 1]] },
     { kind: 'Audio', linkGroupIds: [1, 2, 3, 4], sourceTrackIds: [[2, 2], [2, 2], [2, 2], [2, 2]] },

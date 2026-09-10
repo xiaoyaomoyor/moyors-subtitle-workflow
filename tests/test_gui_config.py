@@ -51,10 +51,12 @@ class GuiConfigTests(unittest.TestCase):
 
         self.assertEqual(resolved.theme, "system")
 
+    @mock.patch.dict(os.environ, {"MAW_ENV_FILE": ""})
     def test_default_env_path_keeps_repo_root_for_source_on_macos(self) -> None:
         with mock.patch.object(app_paths.sys, "platform", "darwin"):
             self.assertEqual(gui_config.default_env_path(), ROOT / ".env")
 
+    @mock.patch.dict(os.environ, {"MAW_ENV_FILE": ""})
     def test_default_env_path_keeps_repo_root_when_running_from_source(self) -> None:
         """Given 源码运行（非冻结）的 Linux, When 解析, Then 保持仓库根 .env 不变。"""
         with mock.patch.object(app_paths.sys, "platform", "linux"):
@@ -95,6 +97,7 @@ class GuiConfigTests(unittest.TestCase):
                         (local_app_data / "MSW" / ".env").resolve(),
                     )
 
+    @mock.patch.dict(os.environ, {"MAW_ENV_FILE": ""})
     def test_default_env_path_keeps_windows_at_repo_root(self) -> None:
         """Given Windows, When resolving, Then it stays at the repository root (unchanged)."""
         with mock.patch.object(app_paths.sys, "platform", "win32"):

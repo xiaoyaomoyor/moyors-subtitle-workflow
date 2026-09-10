@@ -247,7 +247,7 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertEqual(result.read_bytes(), b"mp4")
         process.assert_called_once()
 
-    def test_flv_conversion_defaults_to_adjacent_mp4(self) -> None:
+    def test_flv_conversion_defaults_to_msw_cache(self) -> None:
         source = self.root / "take.flv"
         source.write_bytes(b"flv")
         ffmpeg = self.root / "ffmpeg.exe"
@@ -261,7 +261,7 @@ class MediaResolutionTests(unittest.TestCase):
         with mock.patch("maw.media.subprocess.run", side_effect=run) as process:
             result = convert_media_for_browser(source, ffmpeg_path=ffmpeg)
 
-        self.assertEqual(result, self.root / "take.mp4")
+        self.assertEqual(result, self.root / "_msw" / "take.mp4")
         self.assertTrue(result.is_file())
         self.assertFalse(list(self.root.glob("take.part-*.mp4")))
         self.assertEqual(Path(process.call_args.args[0][-1]).name, "take.part-0.mp4")

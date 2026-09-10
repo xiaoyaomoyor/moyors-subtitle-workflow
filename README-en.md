@@ -12,7 +12,7 @@ MSW (Moyor's Subtitle Workflow / 我的字幕流) is a local web workflow for AS
 
 [Project home](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [Documentation](docs/README.md) · [Optional environments](docs/ENVIRONMENT.md)
 
-The upcoming **1.6.0-beta.1** is MSW's own prerelease, based on the upstream release with the same version number. Equal version numbers do not imply identical features.
+The upcoming **1.6.0-beta.2** is MSW's own prerelease, based on the upstream release with the same version number. Equal version numbers do not imply identical features.
 
 ![MSWE with bilingual subtitles, voiceover clips and the asset library](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 

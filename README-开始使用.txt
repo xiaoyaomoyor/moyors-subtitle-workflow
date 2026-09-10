@@ -1,4 +1,4 @@
-MSW 1.6.0-beta.1 · 我的字幕流
+MSW 1.6.0-beta.2 · 我的字幕流
 Moyor's Subtitle Workflow
 
 官网与下载：https://github.com/xiaoyaomoyor/moyors-subtitle-workflow

@@ -29,6 +29,13 @@
       settings_language: "语言",
       show_rare_langs: "显示相对小众的语言",
       show_rare_langs_hint: "开启后，「语言」列表显示供应商支持的全部语种；关闭时只显示 8 种常用语言。",
+      settings_file_output: "文件输出",
+      output_subfolder: "将所有输出文件放入子文件夹",
+      output_subfolder_title: "将所有输出文件放入子文件夹（默认关闭）：SRT、工程与编辑器页面写入媒体旁的 _msw 子目录",
+      per_video_subfolder: "每个视频单独创建子文件夹",
+      per_video_subfolder_title: "每个视频单独创建子文件夹（默认关闭）：需要先开启「将所有输出文件放入子文件夹」，每个媒体各自使用「视频名_msw」目录",
+      attach_model_name: "附加模型名称",
+      attach_model_name_title: "附加模型名称（默认开启）：SRT 文件名带上供应商/模型段，如 clip.qwen-audio.srt",
       key: "API Key",
       save_key: "存入本地环境",
       key_hint_prefix: "在",
@@ -42,7 +49,7 @@
       flv_media_hint: "flv 无法预览，将会自动转换成 mp4 格式",
       port: "端口",
       advanced: "高级选项",
-      open_mawe: "🎬 启动字幕编辑器",
+      open_mswe: "🎬 启动字幕编辑器",
       server_stop: "⏹️ 停止服务器",
       start: "✨ 生成字幕和工程",
       open_folder: "📁 打开输出文件夹",
@@ -114,6 +121,13 @@
       settings_language: "Language",
       show_rare_langs: "Show less common languages",
       show_rare_langs_hint: "When enabled, the language list shows every supported language; otherwise it shows 8 common languages.",
+      settings_file_output: "File output",
+      output_subfolder: "Put all outputs in a subfolder",
+      output_subfolder_title: "Put all outputs in a subfolder (off by default): SRT, project, and editor page go to the _msw subfolder next to the media.",
+      per_video_subfolder: "Create a separate subfolder per video",
+      per_video_subfolder_title: "Create a separate subfolder per video (off by default): requires “Put all outputs in a subfolder”; each media uses its own “video-name_msw” folder.",
+      attach_model_name: "Append model name",
+      attach_model_name_title: "Append model name (on by default): SRT filenames carry the provider/model segment, e.g. clip.qwen-audio.srt.",
       key: "API Key",
       save_key: "Save locally",
       key_hint_prefix: "Get an API Key from",
@@ -127,7 +141,7 @@
       flv_media_hint: "flv cannot be previewed and will be converted to mp4 automatically",
       port: "Port",
       advanced: "Advanced options",
-      open_mawe: "🎬 Launch Subtitle Editor",
+      open_mswe: "🎬 Launch Subtitle Editor",
       server_stop: "⏹️ Stop server",
       start: "✨ Generate subtitles & project",
       open_folder: "📁 Open output folder",
@@ -404,7 +418,11 @@
     open_folder_hint: "点击打开所在文件夹",
     local_runtime_install_done: "本地模型支持已安装完成",
     local_runtime_install_failed: "本地运行环境安装失败",
-    local_runtime_cancelled: "本地运行环境安装已取消"
+    local_runtime_cancelled: "本地运行环境安装已取消",
+    settings_local_runtime: "本地模型运行时",
+    local_runtime_view_settings: "在 ⚙️ 设置中查看",
+    local_runtime_path_label: "本地运行环境目录",
+    local_runtime_path_hint: "默认安装到用户目录；可改到空间更充足的磁盘。运行环境与模型缓存分开保存，更改后按新目录重新扫描。"
   });
   Object.assign(STRINGS.en, {
     auto_postprocess_title: "3️⃣ Post-transcription processing (Beta)",
@@ -485,7 +503,11 @@
     open_folder_hint: "Click to open this folder",
     local_runtime_install_done: "Local model support is ready",
     local_runtime_install_failed: "Local runtime installation failed",
-    local_runtime_cancelled: "Local runtime installation was cancelled"
+    local_runtime_cancelled: "Local runtime installation was cancelled",
+    settings_local_runtime: "Local model runtime",
+    local_runtime_view_settings: "View in ⚙️ Settings",
+    local_runtime_path_label: "Local runtime directory",
+    local_runtime_path_hint: "Installed in your user directory by default; move it to a drive with more space if needed. The runtime and model cache are kept separate; the install status is rescanned for the new directory."
   });
   Object.assign(STRINGS.zh, {
     advanced_params: "识别参数",
@@ -835,7 +857,7 @@
       json_not_found: "工程文件不存在，请检查路径。",
       media_not_found: "媒体文件不存在，请重新选择。",
       server_media_missing: "工程无可用媒体，请手动选择媒体文件。",
-      server_stop_not_maw: "当前端口上的进程不是 MSW 字幕编辑服务器，未执行停止。",
+      server_stop_not_msw: "当前端口上的进程不是 MSW 字幕编辑服务器，未执行停止。",
       server_stop_failed: "无法停止当前端口上的 MSW 字幕编辑服务器。",
       api_key_missing: "请填写 API Key，或先在 ⚙ 配置/密钥区保存。",
       custom_asr_base_url_missing: "请填写自定义 ASR Base URL。",
@@ -855,6 +877,7 @@
       ocr_runtime_cancelled: "OCR 运行环境安装已取消。",
       ocr_model_missing: "OCR 模型尚未安装。请打开设置下载安装。",
       ocr_runtime_path_invalid: "OCR 运行环境路径不能是一个文件。",
+    local_runtime_path_invalid: "本地运行环境路径不能是一个文件。",
       workspace_missing: "新加坡地域需要 Workspace ID。",
       context_too_long: "Qwen-Audio 上下文最多 400 个字符。",
       soniox_context_too_long: "Soniox 上下文约限制为 10000 个字符。",
@@ -890,7 +913,7 @@
       json_not_found: "Project file does not exist. Check the path.",
       media_not_found: "Media file does not exist. Choose it again.",
       server_media_missing: "The project has no usable media. Choose the media file manually.",
-      server_stop_not_maw: "The current port is not used by a MSW subtitle editor server, so it was not stopped.",
+      server_stop_not_msw: "The current port is not used by a MSW subtitle editor server, so it was not stopped.",
       server_stop_failed: "Unable to stop the MSW subtitle editor server on the current port.",
       api_key_missing: "Enter an API Key, or save one first in Settings / API key.",
       custom_asr_base_url_missing: "Enter a custom ASR Base URL.",
@@ -910,6 +933,7 @@
       ocr_runtime_cancelled: "OCR runtime installation was cancelled.",
       ocr_model_missing: "The OCR model is not installed. Open Settings to download it.",
       ocr_runtime_path_invalid: "The OCR runtime path cannot point to a file.",
+    local_runtime_path_invalid: "The local runtime path cannot point to a file.",
       workspace_missing: "Singapore region requires a Workspace ID.",
       context_too_long: "Qwen-Audio context is limited to 400 characters.",
       soniox_context_too_long: "Soniox context is limited to approximately 10,000 characters.",
@@ -1043,7 +1067,7 @@
   let activeSettingsTab = "general";
 
   function mockApi() {
-    let saved = { apiKey: "", region: "beijing", language: "", workspaceId: "", guiLang: "zh", customDisplayName: "", openaiBaseUrl: "https://api.openai.com/v1", openaiModel: "whisper-1", postprocessApiKeys: {}, theme: null };
+    let saved = { apiKey: "", region: "beijing", language: "", workspaceId: "", guiLang: "zh", customDisplayName: "", openaiBaseUrl: "https://api.openai.com/v1", openaiModel: "whisper-1", postprocessApiKeys: {}, theme: null, outputSubfolder: false, perVideoSubfolder: false, attachModelName: true };
     const chainedPath = (path, operation, fallback) => path
       ? path.replace(/(\.[^.\\/]+)$/u, `.${operation}$1`)
       : fallback;
@@ -1065,7 +1089,10 @@
         openaiBaseUrl: saved.openaiBaseUrl,
         openaiModel: saved.openaiModel,
         showRareLangs: saved.showRareLangs || false,
-        appVersion: "1.6.0-beta.1",
+        outputSubfolder: saved.outputSubfolder,
+        perVideoSubfolder: saved.perVideoSubfolder,
+        attachModelName: saved.attachModelName,
+        appVersion: "1.6.0-beta.2",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [
           { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: true },
@@ -1171,7 +1198,23 @@
           }
         ]
       }),
-      default_output: async ({ mediaPath, providerId, modelId, testRun }) => ({ ok: true, path: mediaPath ? mediaPath.replace(/\.[^.\\/]+$/, `${providerId === "openai" ? ".custom-asr" : (providerId === "soniox" ? ".soniox" : (providerId === "bcut" ? ".bcut" : (providerId === "local" ? (modelId.includes("sensevoice") ? ".sensevoice-local" : ((modelId.includes("funasr") || modelId.includes("fun-asr")) ? ".funasr-local" : (modelId.includes("1.7b") ? ".qwen3-asr-1.7b-local" : ".qwen-asr-local"))) : (modelId === "fun-asr" ? ".fun-asr" : (modelId === "qwen-audio-3.0-asr-flash-filetrans" ? ".qwen-audio" : ".qwen3-asr-api"))))) }${testRun ? "-test" : ""}.srt`) : "" }),
+      default_output: async ({ mediaPath, providerId, modelId, testRun }) => {
+        let path = "";
+        if (mediaPath) {
+          const sep = mediaPath.includes("\\") ? "\\" : "/";
+          const dirIndex = Math.max(mediaPath.lastIndexOf("/"), mediaPath.lastIndexOf("\\"));
+          const dir = dirIndex >= 0 ? mediaPath.slice(0, dirIndex + 1) : "";
+          const stem = mediaPath.slice(dirIndex + 1).replace(/\.[^.\\/]+$/, "");
+          const tag = saved.attachModelName === false ? "" : (providerId === "openai" ? ".custom-asr" : (providerId === "soniox" ? ".soniox" : (providerId === "bcut" ? ".bcut" : (providerId === "local" ? (modelId.includes("sensevoice") ? ".sensevoice-local" : ((modelId.includes("funasr") || modelId.includes("fun-asr")) ? ".funasr-local" : (modelId.includes("1.7b") ? ".qwen3-asr-1.7b-local" : ".qwen-asr-local"))) : (modelId === "fun-asr" ? ".fun-asr" : (modelId === "qwen-audio-3.0-asr-flash-filetrans" ? ".qwen-audio" : ".qwen3-asr-api"))))));
+          let outputDir = dir;
+          if (saved.outputSubfolder) {
+            const root = saved.perVideoSubfolder ? `${stem}_msw` : "_msw";
+            outputDir = dir ? `${dir}${root}${sep}` : `${root}${sep}`;
+          }
+          path = `${outputDir}${stem}${tag}${testRun ? "-test" : ""}.srt`;
+        }
+        return { ok: true, path };
+      },
       get_audio_tracks: async ({ mediaPath = "" } = {}) => VIDEO_EXTS.has(ext(mediaPath)) ? ({ ok: true, tracks: [
         { audioIndex: 0, streamIndex: 1, title: "Mix", channels: 2, sampleRate: 48000, default: true },
         { audioIndex: 1, streamIndex: 2, title: "Voice", channels: 2, sampleRate: 48000, default: false },
@@ -1186,18 +1229,19 @@
       cancel_local_runtime: async () => ({ ok: true }),
       get_ocr_runtime: async () => ({ ok: true, ...(state.config?.ocrRuntime || { status: "missing", ready: false }), models: state.config?.ocrModels || [] }),
       save_ocr_settings: async ({ runtimePath }) => { state.config.ocrRuntime = { ...(state.config.ocrRuntime || {}), path: runtimePath || "D:\\Users\\Demo\\AppData\\Local\\MSW\\ocr-runtime" }; return { ok: true, runtimePath: state.config.ocrRuntime.path, runtime: state.config.ocrRuntime }; },
+  save_local_settings: async ({ runtimePath }) => { state.config.localRuntime = { ...(state.config.localRuntime || {}), path: runtimePath || "D:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime" }; return { ok: true, runtimePath: state.config.localRuntime.path, runtime: state.config.localRuntime }; },
       install_ocr_runtime: async () => { state.config.ocrRuntime = { ...(state.config.ocrRuntime || {}), status: "ready", ready: true, modelInstalled: true, detail: "OCR 模型已安装，可以在工具箱中使用。" }; state.config.ocrModels = (state.config.ocrModels || []).map((model) => ({ ...model, installed: true, status: "installed", detail: state.config.ocrRuntime.detail })); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "ocrRuntimeReady", runtime: state.config.ocrRuntime, models: state.config.ocrModels }), 400); return { ok: true, installing: true }; },
       cancel_ocr_runtime: async () => ({ ok: true }),
       get_local_models: async ({ modelId, modelPath }) => ({ ok: true, runtime: state.config?.localRuntime || {}, models: (state.config?.providers.find((item) => item.id === "local")?.models || []).map((model) => ({ ...model, localStatus: { ...(model.localStatus || {}), ...(model.id === modelId && modelPath ? { status: "installed", installed: true, path: modelPath, detail: "已使用指定的模型目录。" } : {}) } })) }),
       prepare_local_model: async ({ modelId }) => { clearTimeout(modelPrepareTimer); modelPrepareTimer = setTimeout(() => { state.config?.providers.find((item) => item.id === "local")?.models.forEach((model) => { if (model.id === modelId) model.localStatus = { ...(model.localStatus || {}), status: "installed", installed: true, runtimeAvailable: true, canPrepare: false, detail: "已检测到本地模型。" }; }); window.MSWLauncher.onBackendEvent({ type: "modelPrepared", modelId }); }, 400); return { ok: true, preparing: true, modelId }; },
       cancel_local_model: async () => { clearTimeout(modelPrepareTimer); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "localPrepareCancelled" }), 80); return { ok: true, cancelling: true }; },
-       save_prefs: async (payload) => { if (Object.prototype.hasOwnProperty.call(payload, "modelId")) localStorage.setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) localStorage.setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); if (Object.prototype.hasOwnProperty.call(payload, "theme")) saved.theme = payload.theme || "system"; if (Object.prototype.hasOwnProperty.call(payload, "zoomPercent")) localStorage.setItem(ZOOM_PERCENT_KEY, String(payload.zoomPercent)); return { ok: true, zoomPercent: Number(localStorage.getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT }; },
+       save_prefs: async (payload) => { if (Object.prototype.hasOwnProperty.call(payload, "modelId")) localStorage.setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) localStorage.setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); for (const key of ["outputSubfolder", "perVideoSubfolder", "attachModelName"]) { if (Object.prototype.hasOwnProperty.call(payload, key)) saved[key] = Boolean(payload[key]); } if (Object.prototype.hasOwnProperty.call(payload, "theme")) saved.theme = payload.theme || "system"; if (Object.prototype.hasOwnProperty.call(payload, "zoomPercent")) localStorage.setItem(ZOOM_PERCENT_KEY, String(payload.zoomPercent)); return { ok: true, zoomPercent: Number(localStorage.getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT }; },
       open_url: async ({ url }) => { window.open(url, "_blank"); return { ok: true }; },
       open_runtime_folder: async (payload) => { window.__openedRuntimeFolder = payload; return { ok: true }; },
       open_blank_html: async () => ({ ok: true }),
       check_ffmpeg: async () => ({ ok: true, found: true, directory: "D:\\FFmpeg\\bin", ffmpeg: "D:\\FFmpeg\\bin\\ffmpeg.exe", ffprobe: "D:\\FFmpeg\\bin\\ffprobe.exe" }),
       save_ffmpeg_path: async ({ path }) => ({ ok: Boolean(path), found: Boolean(path), directory: path || "", ffmpeg: path || "", ffprobe: path || "" }),
-      choose_folder: async ({ kind } = {}) => ({ ok: true, path: kind === "model-cache" ? "D:\\Models\\MSW" : (kind === "ocr-runtime" ? "D:\\Models\\MSW\\ocr-runtime" : "D:\\Stickers") }),
+      choose_folder: async ({ kind } = {}) => ({ ok: true, path: kind === "model-cache" ? "D:\\Models\\MSW" : (kind === "ocr-runtime" ? "D:\\Models\\MSW\\ocr-runtime" : (kind === "runtime" ? "D:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime" : "D:\\Stickers")) }),
       save_sticker_dir: async ({ path }) => { saved.stickerDir = path || ""; return { ok: Boolean(path), stickerDir: saved.stickerDir, field: path ? "" : "stickerDir", error: path ? "" : "missing" }; },
       get_postprocess_settings: async ({ providerId }) => { const apiKey = saved.postprocessApiKeys[providerId] || ""; return { ok: true, providerId, apiKey, maskedApiKey: apiKey ? "sk-…mock" : "" }; },
       save_postprocess_settings: async ({ providerId, apiKey, displayName, reasoningMode }) => { if (providerId === "custom") saved.customDisplayName = displayName || ""; if (apiKey) saved.postprocessApiKeys[providerId] = apiKey; return { ok: true, providerId, label: providerId === "custom" ? (displayName || "Custom (OpenAI-compatible)") : (providerId === "deepseek" ? "DeepSeek" : (providerId === "zhipu" ? "智谱 Coding Plan" : "阿里云 Qwen")), displayName: providerId === "custom" ? (displayName || "") : "", maskedApiKey: saved.postprocessApiKeys[providerId] ? "sk-…mock" : "", reasoningMode: reasoningMode || "off", verified: false }; },
@@ -1248,6 +1292,63 @@
 
   const t = (key) => STRINGS[state.lang][key] || key;
   function compactDetail(detail) { return String(detail || "").replace(/\s+/g, " ").trim(); }
+  // 后端 status detail 是中文固定文案（就绪/未安装/需修复等），界面语言下应改用本地化文案；
+  // 只有非标准状态的动态信息（如安装失败原因）才原样透传。
+  function runtimeHintText(runtime, readyKey, otherKey) {
+    const fallbackKey = runtime.ready || runtime.status === "ready" ? readyKey : otherKey;
+    if (runtime.status === "broken" || runtime.error || runtime.diagnostic) return [t(fallbackKey), runtime.detail, runtime.error, runtime.diagnostic].filter(Boolean).join("\n");
+    return ["ready", "missing", "installing", "checking"].includes(runtime.status) ? t(fallbackKey) : (runtime.detail || t(fallbackKey));
+  }
+  function localModelHintText(status) {
+    return ["installed", "missing", "checking", "runtime_missing"].includes(status.status) ? t("local_prepare_hint") : (status.detail || t("local_prepare_hint"));
+  }
+  // 供应商 / 模型配置的 label 与 note 由后端（maw/gui_config.py）以中文下发；
+  // 英文界面按稳定 id 映射为英文，id 未收录时回退后端原文。
+  const PROVIDER_LABELS_EN = { qwen: "Alibaba Cloud Bailian (QwenASR / FunASR)", soniox: "Soniox STT", tencent: "Tencent Cloud recorded-file ASR", openai: "OpenAI (and compatible)", local: "Local models (Beta)", bcut: "Bcut ASR (unofficial · free · experimental)" };
+  const PROVIDER_NOTES_EN = {
+    openai: "The API must return segments or words timestamps to produce accurately aligned subtitles.",
+    tencent: "Requires TENCENT_SECRET_ID and TENCENT_SECRET_KEY; use a COS URL for media larger than 5 MB.",
+    bcut: "Unofficial free endpoint: no API key, Chinese only, 2-hour per-file limit. The endpoint may change, break, or rate-limit at any time; avoid high-frequency calls. For important or batch tasks, prefer the official providers above.",
+  };
+  const MODEL_LABELS_EN = {
+    "qwen-audio-3.0-asr-flash-filetrans": "qwen-audio-3.0-asr (hotwords / context)",
+    "fun-asr": "fun-asr (speaker support)",
+    "qwen3-asr-flash-filetrans": "qwen3-asr (higher accuracy)",
+    "custom-asr": "Custom",
+    "stt-async-v5": "Soniox Async STT (v5, context)",
+    "16k_zh_en_2.0": "Tencent Cloud recorded-file ASR (large model 2.0)",
+    "qwen3-asr-local": "Qwen3-ASR 0.6B (recommended)",
+    "qwen3-asr-1.7b-local": "Qwen3-ASR 1.7B",
+    "fun-asr-nano-local": "Fun-ASR-Nano 2512 (GPU)",
+    "sensevoice-small-local": "SenseVoice Small",
+    "moss-transcribe-diarize-local": "MOSS Transcribe-Diarize 0.9B (segment timestamps only)",
+    "whisper-large-v3-local": "Faster-Whisper large-v3 (experimental)",
+    "bcut-asr": "Bcut ASR (no key / Chinese only)",
+  };
+  const MODEL_NOTES_EN = {
+    "qwen-audio-3.0-asr-flash-filetrans": "Supports instant hotwords, context, and speaker diarization.",
+    "fun-asr": "Supports speaker diarization and word-level timestamps.",
+    "custom-asr": "Fill in your custom ASR model name after selecting this.",
+    "stt-async-v5": "Supports general, text, terms, and translation_terms context.",
+    "16k_zh_en_2.0": "Enter the SecretId here; configure SecretKey in the local .env.",
+    "qwen3-asr-local": "Runs locally; the first preparation downloads Qwen3-ASR and the Forced Aligner.",
+    "qwen3-asr-1.7b-local": "Higher recognition quality; shares the Qwen3 Forced Aligner with 0.6B.",
+    "fun-asr-nano-local": "LLM-ASR approach with FSMN-VAD by default; Chinese, English, Japanese, and Chinese dialects; CUDA recommended.",
+    "funasr-local": "Runs locally; uses the FunASR upstream model cache.",
+    "sensevoice-small-local": "Multilingual local recognition with FSMN-VAD by default; runs on CPU or GPU.",
+    "moss-transcribe-diarize-local": "End-to-end transcription with speaker diarization; segment timestamps only, no word-level timecodes; requires a separate Transformers 5.x runtime; CUDA recommended.",
+    "whisper-large-v3-local": "OpenAI Whisper multilingual local recognition; the CTranslate2 runtime bundles VAD and has no speaker diarization. GPU use requires installing CUDA 12 and cuDNN 9 yourself; otherwise it falls back to CPU.",
+    "bcut-asr": "Millisecond per-character timestamps; no API key required.",
+  };
+  const REGION_LABELS_EN = { beijing: "Beijing (China North 2, default)", singapore: "Singapore (Workspace ID required)" };
+  const LANGUAGE_LABELS_EN = { "": "Auto detect", zh: "Chinese", yue: "Cantonese", en: "English", ja: "Japanese", de: "German", ko: "Korean", ru: "Russian", fr: "French", pt: "Portuguese", ar: "Arabic", it: "Italian", es: "Spanish", hi: "Hindi", id: "Indonesian", th: "Thai", tr: "Turkish", uk: "Ukrainian", vi: "Vietnamese", cs: "Czech", da: "Danish", fil: "Filipino", fi: "Finnish", is: "Icelandic", ms: "Malay", no: "Norwegian", pl: "Polish", sv: "Swedish", nl: "Dutch", el: "Greek", hu: "Hungarian", ro: "Romanian", bg: "Bulgarian", hr: "Croatian", sk: "Slovak", sl: "Slovenian", sw: "Swahili", tl: "Tagalog", ta: "Tamil", te: "Telugu", ur: "Urdu", cy: "Welsh", af: "Afrikaans", sq: "Albanian", az: "Azerbaijani", eu: "Basque", be: "Belarusian", bn: "Bengali", bs: "Bosnian", ca: "Catalan", et: "Estonian", gl: "Galician", gu: "Gujarati", he: "Hebrew", kn: "Kannada", kk: "Kazakh", lv: "Latvian", lt: "Lithuanian", mk: "Macedonian", ml: "Malayalam", mr: "Marathi", fa: "Persian", pa: "Punjabi", sr: "Serbian" };
+  function localizedSelectLabel(selectId, item) {
+    if (state.lang !== "en") return item.label;
+    const map = { provider: PROVIDER_LABELS_EN, model: MODEL_LABELS_EN, region: REGION_LABELS_EN, language: LANGUAGE_LABELS_EN }[selectId];
+    return map?.[item.id] || item.label;
+  }
+  function providerNoteText(providerItem) { return state.lang === "en" ? (PROVIDER_NOTES_EN[providerItem.id] || providerItem.note) : providerItem.note; }
+  function modelNoteText(modelItem) { return state.lang === "en" ? (MODEL_NOTES_EN[modelItem.id] || modelItem.note) : modelItem.note; }
   function llmProviderLabel(providerId) {
     const id = String(providerId || "").trim();
     const item = state.config?.postprocessProviders?.find((candidate) => candidate.id === id);
@@ -1567,8 +1668,27 @@
     });
   }
 
-  function setRunning(running) { state.running = running; $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : t("ready")); }
-  function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(item.label, item.id))); el.value = value ?? ""; }
+  function setRunning(running) { state.running = running; syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : t("ready")); }
+  function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(localizedSelectLabel(id, item), item.id))); el.value = value ?? ""; }
+  function refillSelectLabels() {
+    // 语言切换后，后端下发的下拉选项（供应商/模型/地域/语言）与说明行需要按新语言重建。
+    if (!state.config) return;
+    const current = provider();
+    fillSelect("provider", state.config.providers, $("provider").value);
+    fillSelect("model", current.models, $("model").value);
+    fillSelect("region", current.regions, $("region").value || state.config.region || "beijing");
+    const el = $("language");
+    const showRare = Boolean(state.config.showRareLangs);
+    const commons = current.commonLanguages || [];
+    const available = selectedModel().languages?.length ? selectedModel().languages : current.languages;
+    const visible = !showRare && commons.length ? available.filter((item) => commons.includes(item.id)) : available;
+    const selected = el.multiple ? Array.from(el.selectedOptions).map((option) => option.value) : (el.value ? [el.value] : []);
+    fillSelect("language", visible, "");
+    if (el.multiple) Array.from(el.options).forEach((option) => { option.selected = selected.includes(option.value); });
+    else el.value = selected[0] || "";
+    $("providerNote").textContent = providerNoteText(current);
+    $("modelNote").textContent = modelNoteText(selectedModel());
+  }
   function setError(field, message) { const input = $(field); const hint = $(`${field}Error`); if (input) input.classList.toggle("invalid", Boolean(message)); if (hint) { renderMessage(hint, message); hint.classList.toggle("visible", Boolean(message)); } }
   function setOutputNotice(message) { const notice = $("srtPathNotice"); if (!notice) return; renderMessage(notice, message); notice.classList.toggle("hidden", !message); }
   function mediaDropError() { const separator = state.lang === "zh" ? "、" : ", "; return t("drop_reject_media").replace("{extensions}", Array.from(MEDIA_EXTS).join(separator)); }
@@ -1604,7 +1724,7 @@
   function renderHotwordWarnings(value = $("qwenAudioHotwords").value, weight = Number($("qwenAudioHotwordWeight").value), ignoreComments = false) { const warning = $("qwenAudioHotwordsWarning"); const issues = collectHotwordWarnings(value, weight, ignoreComments); if (!issues.length) { warning.textContent = ""; warning.classList.remove("visible"); return; } const details = issues.slice(0, 5).map((issue) => t("qwen_audio_hotword_warning_item").replace("{label}", hotwordWarningLabel(issue)).replace("{reason}", t(`qwen_audio_hotword_issue_${issue.code}`))); if (issues.length > details.length) details.push(t("qwen_audio_hotword_warning_more")); warning.textContent = `${t("qwen_audio_hotwords_warning").replace("{count}", String(issues.length))}\n${details.join("\n")}`; warning.classList.add("visible"); }
   function syncQwenAudioHotwordsMode() { const fileMode = $("qwenAudioHotwordsMode").value === "file"; $("qwenAudioHotwordsTextField").classList.toggle("hidden", fileMode); $("qwenAudioHotwordsFileField").classList.toggle("hidden", !fileMode); renderHotwordWarnings(fileMode ? "" : $("qwenAudioHotwords").value, Number($("qwenAudioHotwordWeight").value)); }
   function setHotwordsMode(mode) { $("qwenAudioHotwordsMode").value = mode; $("qwenAudioHotwordsModeText").classList.toggle("active", mode === "text"); $("qwenAudioHotwordsModeFile").classList.toggle("active", mode === "file"); syncQwenAudioHotwordsMode(); }
-  function clearDropState() { dragState.depth = 0; state.dropTarget = ""; setDropHighlight(false); ["mediaPath", "qwenAudioHotwords", "qwenAudioHotwordsFile", "jsonPath", "serverMediaPath", "localModelCachePath", "localModelPath", "ocrRuntimePath", "ffmpegPath", "stickerDir", "toolboxInputDropZone", "toolboxUtilityMediaDropZone", "toolboxBurnSubtitleDropZone", "toolboxFfconcatDropZone", "toolboxAlignmentProjectDropZone", "toolboxAlignmentScriptDropZone", "ocrVideoPathField", "postprocessScriptPath"].forEach((id) => $(id)?.classList.remove("drag-over")); }
+  function clearDropState() { dragState.depth = 0; state.dropTarget = ""; setDropHighlight(false); ["mediaPath", "qwenAudioHotwords", "qwenAudioHotwordsFile", "jsonPath", "serverMediaPath", "localModelCachePath", "localModelPath", "localRuntimePath", "ocrRuntimePath", "ffmpegPath", "stickerDir", "toolboxInputDropZone", "toolboxUtilityMediaDropZone", "toolboxBurnSubtitleDropZone", "toolboxFfconcatDropZone", "toolboxAlignmentProjectDropZone", "toolboxAlignmentScriptDropZone", "ocrVideoPathField", "postprocessScriptPath"].forEach((id) => $(id)?.classList.remove("drag-over")); }
   function setQwenAudioHotwordsFile(path) { if (ext(path) !== ".txt") { setError("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); return false; } $("qwenAudioHotwordsFile").value = path; setHotwordsMode("file"); setError("qwenAudioHotwordsFile", ""); return true; }
   async function loadHotwordFile(path, appendToText = false) { if (ext(path) !== ".txt") { setError("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); clearDropState(); return; } const result = await bridge("read_hotword_file", { path }); if (!result.ok) { applyErrorResult(result, false); clearDropState(); return; } if (appendToText) { const incoming = String(result.text || "").trim(); if (incoming) { const current = $("qwenAudioHotwords").value.trimEnd(); $("qwenAudioHotwords").value = current ? `${current}\n${incoming}` : incoming; } setHotwordsMode("text"); renderHotwordWarnings($("qwenAudioHotwords").value); setStatus(t("qwen_audio_hotwords_loaded")); } else { setQwenAudioHotwordsFile(result.path || path); renderHotwordWarnings(String(result.text || ""), Number($("qwenAudioHotwordWeight").value), true); } clearDropState(); }
   function isLocalProvider() { return provider()?.kind === "local" || provider()?.id === "local"; }
@@ -1614,7 +1734,6 @@
     container.textContent = "";
     const entries = [
       { label: t("local_runtime_path"), path: runtime.path || "", payload: { kind: "runtime", modelId: $("model").value } },
-      { label: t("local_model_cache_path"), path: runtime.modelCachePath || "", payload: { kind: "model-cache" } },
     ].filter((entry) => entry.path);
     for (const entry of entries) {
       const line = document.createElement("span");
@@ -1636,10 +1755,31 @@
     }
     container.classList.toggle("hidden", !entries.length);
   }
+  function renderLocalModelCachePathLine(runtime) {
+    // 模型缓存链接跟随主页面「模型保存目录」的说明文字，不放在设置运行时区块里。
+    const container = $("localModelCachePathLine");
+    container.textContent = "";
+    const path = runtime.modelCachePath || "";
+    container.classList.toggle("hidden", !path);
+    if (!path) return;
+    container.append(document.createTextNode(t("local_model_cache_path")));
+    const link = document.createElement("a");
+    link.href = "#";
+    link.className = "inline-link runtime-path-link";
+    link.textContent = path;
+    link.title = t("open_folder_hint");
+    link.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const result = await bridge("open_runtime_folder", { kind: "model-cache" });
+      if (!result.ok) setStatus(result.detail || result.error || t("failed"));
+      else setStatus(t("saved"));
+    });
+    container.append(link);
+  }
   function renderOcrRuntimeHint(runtime) {
     const container = $("ocrRuntimeHint");
     container.replaceChildren();
-    const detail = runtime.detail || (runtime.ready ? t("ocr_runtime_ready") : t("settings_ocr_hint"));
+    const detail = runtimeHintText(runtime, "ocr_runtime_ready", "settings_ocr_hint");
     if (detail) appendMessageText(container, detail);
     if (!runtime.path) return;
     if (detail) container.append(document.createElement("br"));
@@ -1659,18 +1799,25 @@
   }
   function renderLocalRuntime() {
     if (!isLocalProvider()) return;
+    syncLocalRuntimeControls();
     const runtime = state.config.localRuntime || {};
     const installing = state.localRuntimeInstalling || runtime.status === "installing";
     const key = installing ? "local_runtime_installing" : ({ ready: "local_runtime_ready", broken: "local_runtime_broken", missing: "local_runtime_missing", checking: "local_runtime_checking", installing: "local_runtime_installing" }[runtime.status] || "local_runtime_missing");
     renderLocalRuntimePaths(runtime);
+    renderLocalModelCachePathLine(runtime);
     const target = $("localRuntimeStatus");
     // 实时流水只保留在进度条下方的 ProgressMessage 行，避免上下双显同一句。
     target.textContent = t(key);
     target.className = `local-status ${installing ? "warn" : (runtime.ready ? "ready" : "warn")}`;
-    $("localRuntimeHint").textContent = runtime.detail || (runtime.ready ? t("local_runtime_ready_hint") : t("local_runtime_hint"));
+    // 高级选项里的检测结果行与 Runtime 面板状态保持一致。
+    const checkStatus = $("localRuntimeCheckStatus");
+    checkStatus.textContent = target.textContent;
+    checkStatus.className = target.className;
+    $("localRuntimeHint").textContent = runtimeHintText(runtime, "local_runtime_ready_hint", "local_runtime_hint");
+    $("localRuntimePath").value = runtime.path || $("localRuntimePath").value || "";
     $("localModelCachePath").value = state.config.modelCacheRoot || runtime.modelCachePath || $("localModelCachePath").value || "";
     const button = $("installLocalRuntime");
-    button.disabled = false;
+    button.disabled = !installing && (state.running || state.batchRunning || state.localPreparing);
     button.classList.toggle("hidden", !installing && runtime.status === "ready");
     button.textContent = installing || runtime.status === "installing" ? t("local_runtime_cancel") : (runtime.status === "missing" ? t("local_runtime_install") : t("local_runtime_repair"));
     $("refreshLocalRuntime").disabled = installing;
@@ -1726,16 +1873,42 @@
     setStatus(t("saved"));
     return result;
   }
+  function localRuntimeBusy() { return state.running || state.batchRunning || state.localPreparing || state.localRuntimeInstalling || state.config?.localRuntime?.status === "installing"; }
+  function syncLocalRuntimeControls() {
+    const busy = Boolean(localRuntimeBusy());
+    const moss = selectedModel()?.engine === "moss";
+    $("localRuntimePath").disabled = busy || moss;
+    $("pickLocalRuntimePath").disabled = busy || moss;
+    $("localRuntimePath").closest(".field").classList.toggle("hidden", moss);
+  }
+  async function saveLocalRuntimePath(path) {
+    if (localRuntimeBusy() || selectedModel()?.engine === "moss") {
+      const result = { ok: false, field: "localRuntimePath", code: "local_runtime_busy", detail: state.lang === "en" ? "Wait for the current task to finish before changing the runtime directory." : "请等待当前任务结束后再切换运行环境目录。" };
+      applyErrorResult(result); return result;
+    }
+    const requestId = ++localRuntimeRequest;
+    const value = String(path || "").trim();
+    const result = await bridge("save_local_settings", { runtimePath: value });
+    if (requestId !== localRuntimeRequest) return result;
+    if (!result.ok) { applyErrorResult(result); return result; }
+    state.config.localRuntime = result.runtime || state.config.localRuntime || {};
+    renderLocalRuntime();
+    if (isLocalProvider()) void refreshLocalModels();
+    setError("localRuntimePath", "");
+    setStatus(t("saved"));
+    return result;
+  }
   function renderLocalModelStatus() {
     if (!isLocalProvider()) { $("model").disabled = false; return; }
     const status = localStatus();
+    syncLocalRuntimeControls();
     const preparing = state.localPreparing;
     const target = $("localModelStatus");
     const key = status.status === "installed" && status.path ? "local_path_selected" : ({ installed: "local_installed", partial: "local_partial", runtime_missing: "local_runtime_missing", path_mismatch: "local_model_path_mismatch", missing: "local_missing", checking: "local_checking" }[status.status] || "local_missing");
     // 与 runtime 面板一致：preparing 状态行固定"正在准备"文案，实时流水只在进度条下方。
     target.textContent = t(preparing ? "local_prepare_running" : key);
     target.className = `local-status ${preparing ? "warn" : (status.status === "installed" ? "ready" : "warn")}`;
-    $("localModelHint").textContent = status.detail || t("local_prepare_hint");
+    $("localModelHint").textContent = localModelHintText(status);
     $("localModelPath").value = status.path || $("localModelPath").value || "";
     const canPrepare = Boolean(status.canPrepare) && !preparing;
     const button = $("prepareLocalModel");
@@ -1806,9 +1979,9 @@
     setStatus(t("saved"));
     return result;
   }
-  function renderLanguage() { document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en"; document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); }); document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => { node.placeholder = t(node.dataset.i18nPlaceholder); }); document.querySelectorAll("[data-i18n-title]").forEach((node) => { node.title = t(node.dataset.i18nTitle); }); document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => { node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel)); }); $("langToggle").textContent = t("other_language"); $("demoBadge").textContent = t("demo_mode"); renderAudioTracks(); if (state.audioTracks.length > 1) $("audioTrackHint").textContent = t("audio_track_hint"); renderKeyHint(); renderKeyStatus(); renderStickerCurrent(); renderPromptCharacterCount(); renderSonioxContextCharacterCount(); renderHotwordWarnings(); renderServerButton(); renderLocalRuntime(); renderOcrRuntime(); renderLocalModelStatus(); window.MSWLauncher?.onLanguageChanged?.(); }
-  function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); fillSelect("region", current.regions, state.config.region || "beijing"); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); if (openai) $("openaiBaseUrl").value = state.config.openaiBaseUrl || "https://api.openai.com/v1"; $("apiKeyField").classList.toggle("hidden", local || current.requiresApiKey === false); $("localRuntimePanel").classList.toggle("hidden", !local); $("localModelPanel").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); $("openKeyUrl").classList.toggle("hidden", local || current.requiresApiKey === false); $("apiKey").value = current.apiKey || ""; renderKeyHint(); $("providerNote").textContent = current.note || ""; $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); $("regionField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || current.regions.length === 0); renderKeyStatus(); syncWorkspace(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
-  function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); syncOpenAiFields(); syncLocalModelPath(model); $("modelNote").textContent = model.note || ""; applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncSonioxContextOptions(model); renderLocalModelStatus(); if (!state.initializing) void syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
+  function renderLanguage() { document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en"; document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); }); document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => { node.placeholder = t(node.dataset.i18nPlaceholder); }); document.querySelectorAll("[data-i18n-title]").forEach((node) => { node.title = t(node.dataset.i18nTitle); }); document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => { node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel)); }); $("langToggle").textContent = t("other_language"); $("demoBadge").textContent = t("demo_mode"); renderAudioTracks(); if (state.audioTracks.length > 1) $("audioTrackHint").textContent = t("audio_track_hint"); renderKeyHint(); renderKeyStatus(); renderStickerCurrent(); renderPromptCharacterCount(); renderSonioxContextCharacterCount(); renderHotwordWarnings(); renderServerButton(); refillSelectLabels(); renderLocalRuntime(); renderOcrRuntime(); renderLocalModelStatus(); window.MSWLauncher?.onLanguageChanged?.(); }
+  function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); fillSelect("region", current.regions, state.config.region || "beijing"); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); if (openai) $("openaiBaseUrl").value = state.config.openaiBaseUrl || "https://api.openai.com/v1"; $("apiKeyField").classList.toggle("hidden", local || current.requiresApiKey === false); $("localRuntimePanel").classList.toggle("hidden", !local); $("localModelPanel").classList.toggle("hidden", !local); $("localRuntimeCheckField").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); $("openKeyUrl").classList.toggle("hidden", local || current.requiresApiKey === false); $("apiKey").value = current.apiKey || ""; renderKeyHint(); $("providerNote").textContent = providerNoteText(current); $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); $("regionField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || current.regions.length === 0); renderKeyStatus(); syncWorkspace(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
+  function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); syncOpenAiFields(); syncLocalModelPath(model); $("modelNote").textContent = modelNoteText(model); applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncSonioxContextOptions(model); renderLocalModelStatus(); if (!state.initializing) void syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
   function applyProviderLanguages(current, model, persistReset = false) { const el = $("language"); $("languageGroup").classList.toggle("hidden", current.supportsLanguage === false); const previous = el.multiple ? Array.from(el.selectedOptions).map((o) => o.value) : (el.value ? [el.value] : []); const remembered = state.config.lastLanguage; const wanted = previous.length && persistReset ? previous : (remembered !== null && remembered !== undefined ? (remembered ? remembered.split(",") : []) : [state.config.language].filter(Boolean)); el.multiple = Boolean(current.multiLanguage); $("advancedOptionsGrid").classList.toggle("single-language", !current.multiLanguage); if (current.multiLanguage) el.size = 6; else el.removeAttribute("size"); const showRare = Boolean(state.config.showRareLangs); const commons = current.commonLanguages || []; const available = model.languages?.length ? model.languages : current.languages; const visible = !showRare && commons.length ? available.filter((item) => commons.includes(item.id)) : available; fillSelect("language", visible, ""); const codes = new Set(visible.map((item) => item.id)); const restored = wanted.filter((code) => code && codes.has(code)); if (current.multiLanguage) { Array.from(el.options).forEach((o) => { o.selected = restored.includes(o.value); }); } else { el.value = restored[0] || ""; } $("languageHint").classList.toggle("hidden", !current.multiLanguage); $("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0); $("languageReset").classList.toggle("hidden", !current.multiLanguage); }
   function languageValue() { const el = $("language"); if (el.multiple) return Array.from(el.selectedOptions).map((o) => o.value).filter(Boolean).join(","); return el.value; }
   function syncWorkspace() { $("workspaceField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || provider().regions.length === 0); }
@@ -1818,7 +1991,7 @@
   function syncTestRun() { const on = $("testRun").checked; $("testRunHint").classList.toggle("hidden", !on); $("lengthLimit").disabled = on; if (state.srtAuto) { if (!state.initializing) void syncDefaultOutput(); return; } const current = $("srtPath").value.trim(); if (on) { const next = appendTestSuffix(current); state.testSuffixAdded = Boolean(current && next !== current); $("srtPath").value = next; } else if (state.testSuffixAdded) { $("srtPath").value = removeTestSuffix(current); state.testSuffixAdded = false; } }
   function savePrefsDebounced(payload) { clearTimeout(prefsTimer); prefsTimer = setTimeout(() => bridge("save_prefs", payload), 300); }
   function normalizeZoomPercent(value) { const parsed = Number(value); if (!Number.isFinite(parsed)) return ZOOM_DEFAULT; return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(parsed / ZOOM_STEP) * ZOOM_STEP)); }
-  function applyZoomPercent(value) { const zoomPercent = normalizeZoomPercent(value); document.documentElement.style.zoom = `${zoomPercent}%`; state.config.zoomPercent = zoomPercent; return zoomPercent; }
+  function applyZoomPercent(value) { const zoomPercent = normalizeZoomPercent(value); document.documentElement.style.zoom = `${zoomPercent}%`; document.documentElement.style.setProperty("--launcher-shell-height", `${100 / (zoomPercent / 100)}dvh`); state.config.zoomPercent = zoomPercent; window.dispatchEvent(new Event('launcherzoomchange')); return zoomPercent; }
   function viewportPixelsToPage(value) { return value / (normalizeZoomPercent(state.config?.zoomPercent) / 100); }
   function persistZoomPercent(value) { const zoomPercent = applyZoomPercent(value); savePrefsDebounced({ zoomPercent }); }
   function handleZoomWheel(event) { if (!event.ctrlKey) return; const direction = Math.sign(event.deltaY); if (!direction) return; event.preventDefault(); const zoomPercent = applyZoomPercent(state.config.zoomPercent - direction * ZOOM_STEP); savePrefsDebounced({ zoomPercent }); }
@@ -1940,7 +2113,15 @@
   function applyErrorResult(result, logDetail = true) { const detail = result.detail || result.error || ""; const message = errText(result.code, detail); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (result.field === "port" || result.field === "serverMediaPath" || result.field === "jsonPath") expandServer(); if (result.postprocessStep) window.MSWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
   function validateSegmentation(data) { for (const [field, minimum] of [["maxLen", 1], ["minLen", 1], ["maxWords", 1], ["minWords", 1], ["gapSplit", 0]]) { const value = data[field]; if (!value) continue; if (!/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum) return fail(field, errText("segmentation_invalid", "")); } if (data.maxLen && data.minLen && Number(data.maxLen) < Number(data.minLen)) return fail("maxLen", errText("segmentation_invalid", "")); if (data.maxWords && data.minWords && Number(data.maxWords) < Number(data.minWords)) return fail("maxWords", errText("segmentation_invalid", "")); return true; }
   function validateLocal() { clearErrors(); const data = formPayload(); if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!validateSegmentation(data)) return false; if (isLocalProvider()) { const runtime = state.config.localRuntime || {}; const status = localStatus(); if (state.localRuntimeInstalling || runtime.status === "installing") return fail("model", t("local_runtime_installing")); if (state.localPreparing) return fail("model", t("local_prepare_running")); if (runtime.status === "checking") return fail("model", t("local_runtime_checking")); if (!runtime.ready && runtime.status !== "ready") return fail("model", errText("local_runtime_missing", "")); if (!status.status || status.status === "checking") return fail("model", t("local_checking")); if (status.status === "runtime_missing") return fail("model", errText("local_runtime_missing", "")); if (status.status === "path_invalid") return fail("localModelPath", errText("local_model_path_invalid", "")); if (status.status === "path_mismatch") return fail("localModelPath", errText("local_model_path_mismatch", "")); if (status.status === "missing") return fail("model", errText("local_model_missing", "")); if (status.status === "partial") return fail("model", errText("local_model_incomplete", "")); return true; } if (provider().requiresApiKey !== false && !data.apiKey && !provider().apiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().id === "openai" && !data.openaiBaseUrl) return fail("openaiBaseUrl", errText("custom_asr_base_url_missing", "")); if (isCustomOpenAiModel() && !data.openaiModel) return fail("openaiModel", errText("custom_asr_model_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); if (provider().id === "qwen" && selectedModel().supportsContext && Array.from(data.qwenAudioContext).length > 400) return fail("qwenAudioContext", errText("context_too_long", "")); if (provider().id === "soniox" && selectedModel().supportsContext && Array.from([data.sonioxContextGeneral, data.sonioxContextText, data.sonioxContextTerms, data.sonioxContextTranslationTerms].join("\n")).length > 10000) return fail("sonioxContextText", errText("soniox_context_too_long", "")); if (provider().id === "qwen" && selectedModel().supportsHotwords && data.qwenAudioHotwordsMode === "file" && ext(data.qwenAudioHotwordsFile) !== ".txt") return fail("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); return true; }
-  function fail(field, message) { setError(field, message); setStatus(message); const input = $(field); if (input && input.scrollIntoView) input.scrollIntoView({ behavior: "smooth", block: "center" }); return false; }
+  function fail(field, message) {
+    setError(field, message);
+    setStatus(message);
+    const input = $(field);
+    const settingsSection = input?.closest?.(".settings-section");
+    if (settingsSection?.id) openSettings(settingsSection.id, field);
+    if (input && input.scrollIntoView) input.scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  }
   function toggle(id) { $(id).classList.toggle("collapsed"); renderChevron(id); }
   function setupScrollbarFlash() {
     const VISIBLE_MS = 900;
@@ -1977,6 +2158,7 @@
     const pathTargets = {
       localModelCache: ["localModelCachePath", "change"],
       localModel: ["localModelPath", "input"],
+      localRuntime: ["localRuntimePath", "change"],
       ocrRuntime: ["ocrRuntimePath", "change"],
       ffmpeg: ["ffmpegPath", "input"],
       stickerDir: ["stickerDir", "change"],
@@ -2101,9 +2283,17 @@
     void refreshOcrRuntime();
     renderStickerCurrent();
     $("showRareLangs").checked = Boolean(state.config.showRareLangs);
+    $("outputSubfolder").checked = Boolean(state.config.outputSubfolder);
+    $("perVideoSubfolder").checked = Boolean(state.config.perVideoSubfolder);
+    $("perVideoSubfolder").disabled = !state.config.outputSubfolder;
+    $("attachModelName").checked = state.config.attachModelName !== false;
     if (sectionId) {
       requestAnimationFrame(() => {
-        $(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        // 只滚动 .settings-scroll 容器；scrollIntoView 会连带滚动 overflow:hidden 的
+        // .modal-card，把标题和标签页顶出视野，区块位于容器顶部时表现为下坠一小段。
+        const section = $(sectionId);
+        const scroll = section?.closest(".settings-scroll");
+        if (section && scroll) scroll.scrollTo({ top: Math.max(0, section.offsetTop - scroll.offsetTop), behavior: "smooth" });
         if (focusId) requestAnimationFrame(() => $(focusId)?.focus());
       });
     }
@@ -2362,6 +2552,7 @@
   }
   window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {} };
 
+  window.MSWLauncher.onBatchBusyChanged = (busy) => { state.batchRunning = busy; syncLocalRuntimeControls(); renderLocalRuntime(); };
   $("langToggle").addEventListener("click", async () => { state.lang = state.lang === "zh" ? "en" : "zh"; renderLanguage(); const result = await bridge("save_settings", formPayload()); if (!result.ok) applyErrorResult(result); });
   $("themeLight").addEventListener("click", () => setTheme("light")); $("themeDark").addEventListener("click", () => setTheme("dark")); $("themeSystem").addEventListener("click", () => setTheme("system"));
   document.querySelectorAll("[data-settings-tab]").forEach((tab) => {
@@ -2412,10 +2603,14 @@
   $("pickOcrRuntimePath").addEventListener("click", async () => { const result = await bridge("choose_folder", { kind: "ocr-runtime" }); if (result.ok) { $("ocrRuntimePath").value = result.path; await saveOcrRuntimePath(result.path); } });
   $("ocrRuntimePath").addEventListener("input", () => setError("ocrRuntimePath", ""));
   $("ocrRuntimePath").addEventListener("change", async () => { await saveOcrRuntimePath($("ocrRuntimePath").value); });
+  $("pickLocalRuntimePath").addEventListener("click", async () => { const result = await bridge("choose_folder", { kind: "runtime" }); if (result.ok) { $("localRuntimePath").value = result.path; await saveLocalRuntimePath(result.path); } });
+  $("localRuntimePath").addEventListener("input", () => setError("localRuntimePath", ""));
+  $("localRuntimePath").addEventListener("change", async () => { await saveLocalRuntimePath($("localRuntimePath").value); });
   $("refreshOcrRuntime").addEventListener("click", async () => { $("refreshOcrRuntime").disabled = true; try { await refreshOcrRuntime(); } finally { $("refreshOcrRuntime").disabled = false; } });
   $("installOcrRuntime").addEventListener("click", async () => { const runtime = state.config?.ocrRuntime || {}; if (state.ocrRuntimeInstalling || runtime.status === "installing") { await bridge("cancel_ocr_runtime"); return; } state.ocrRuntimeInstalling = true; state.ocrRuntimeProgress = 0; state.ocrRuntimeProgressMessage = t("ocr_runtime_installing"); renderOcrRuntime(); appendLog(t("ocr_runtime_installing")); const result = await bridge("install_ocr_runtime", { repair: state.config.ocrRuntime?.status === "broken" }); if (!result.ok) { state.ocrRuntimeInstalling = false; state.ocrRuntimeProgressMessage = ""; applyErrorResult(result); renderOcrRuntime(); } });
   $("localModelPath").addEventListener("input", () => { setError("localModelPath", ""); if (isLocalProvider()) { state.localModelPaths[selectedModel().id] = $("localModelPath").value.trim(); void refreshLocalModels(); } });
   $("refreshLocalRuntime").addEventListener("click", async () => { $("refreshLocalRuntime").disabled = true; try { await refreshLocalRuntime(); await refreshLocalModels(); } finally { $("refreshLocalRuntime").disabled = false; } });
+  $("openLocalRuntimeSettings").addEventListener("click", () => { openSettings("localRuntimePanel"); void refreshLocalRuntime(); });
   $("installLocalRuntime").addEventListener("click", async () => { if (!isLocalProvider()) return; const runtime = state.config?.localRuntime || {}; if (state.localRuntimeInstalling || runtime.status === "installing") { await bridge("cancel_local_runtime"); return; } state.localRuntimeInstalling = true; state.localRuntimeProgress = 0; state.localRuntimeProgressMessage = t("local_runtime_installing"); renderLocalRuntime(); appendLog(t("local_runtime_installing")); const runtimeStatus = state.config.localRuntime?.status || ""; const result = await bridge("install_local_runtime", { modelId: $("model").value, repair: Boolean(runtimeStatus && runtimeStatus !== "missing") }); if (!result.ok) { state.localRuntimeInstalling = false; state.localRuntimeProgressMessage = ""; applyErrorResult(result); renderLocalRuntime(); } });
   $("refreshLocalModels").addEventListener("click", async () => { $("refreshLocalModels").disabled = true; try { await refreshLocalModels(); } finally { $("refreshLocalModels").disabled = false; } });
   $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
@@ -2427,6 +2622,11 @@
   $("pickStickerDir").addEventListener("click", async () => { const result = await bridge("choose_folder"); if (result.ok) await saveStickerDirectory(result.path); });
   $("stickerDir").addEventListener("change", async () => { const path = $("stickerDir").value.trim(); if (path) await saveStickerDirectory(path); });
   $("showRareLangs").addEventListener("change", async () => { state.config.showRareLangs = $("showRareLangs").checked; applyProviderLanguages(provider(), selectedModel()); const result = await bridge("save_prefs", { showRareLangs: state.config.showRareLangs }); if (result.ok) setStatus(t("saved")); else applyErrorResult(result); });
+  const syncDefaultOutputPreview = () => { if (!state.initializing) void syncDefaultOutput(); };
+  const saveOutputPref = async (key) => { const on = $(key).checked; state.config[key] = on; const result = await bridge("save_prefs", { [key]: on }); if (result.ok) setStatus(t("saved")); else applyErrorResult(result); };
+  $("outputSubfolder").addEventListener("change", async () => { await saveOutputPref("outputSubfolder"); $("perVideoSubfolder").disabled = !state.config.outputSubfolder; syncDefaultOutputPreview(); });
+  $("perVideoSubfolder").addEventListener("change", async () => { await saveOutputPref("perVideoSubfolder"); syncDefaultOutputPreview(); });
+  $("attachModelName").addEventListener("change", async () => { await saveOutputPref("attachModelName"); syncDefaultOutputPreview(); });
   $("languageReset").addEventListener("click", () => { const el = $("language"); Array.from(el.options).forEach((o) => { o.selected = false; }); savePrefsDebounced({ language: "" }); });
   $("saveSettings").addEventListener("click", async () => { const payload = formPayload(); const result = await bridge("save_settings", payload); if (result.ok) { const current = provider(); current.apiKey = $("apiKey").value.trim(); current.maskedApiKey = result.maskedApiKey; state.config.apiKey = current.apiKey; state.config.maskedApiKey = result.maskedApiKey; if (current.id === "openai") { state.config.openaiBaseUrl = payload.openaiBaseUrl; state.config.openaiModel = payload.openaiModel; } renderKeyStatus(); setStatus(t("saved")); } else applyErrorResult(result); });
   $("start").addEventListener("click", async () => { if (!validateLocal()) return; hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" }); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); } });
@@ -2442,6 +2642,7 @@
   bindDropField("serverMediaPath", "serverMedia");
   bindDropField("localModelCachePath", "localModelCache");
   bindDropField("localModelPath", "localModel");
+  bindDropField("localRuntimePath", "localRuntime");
   bindDropField("ocrRuntimePath", "ocrRuntime");
   bindDropField("ffmpegPath", "ffmpeg");
   bindDropField("stickerDir", "stickerDir");

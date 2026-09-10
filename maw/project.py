@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import copy
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TypeGuard, final
+from typing import Final, TypeGuard, final
 
 from maw.project_preview import JsonDict, JsonValue, clamped_preview, validate_preview
 from maw.language import LANGUAGE_SOURCES, SPLIT_MODES, TIMESTAMP_GRANULARITIES
@@ -14,6 +15,7 @@ from maw.language import LANGUAGE_SOURCES, SPLIT_MODES, TIMESTAMP_GRANULARITIES
 # disabled for this compatibility module.
 # pyright: reportImplicitOverride=false
 
+PROJECT_SCHEMA: Final = "moy.asr.project.v1"
 MIN_SEGMENT_DURATION_MS = 100
 TIMELINE_TIMEBASE_UNITS = frozenset({"milliseconds", "frames"})
 MIN_TIMELINE_FPS = 1.0
@@ -190,6 +192,13 @@ class ProjectValidationFailed(ValueError):
         return "; ".join(f"{error.path}: {error.message}" for error in self.errors)
 
 
+def project_schema_errors(project: Mapping[str, object]) -> tuple[ProjectValidationError, ...]:
+    """Accept legacy projects without a discriminator, but never downgrade one."""
+    if "schema" in project and project["schema"] != PROJECT_SCHEMA:
+        return (ProjectValidationError("$.schema", f"must be {PROJECT_SCHEMA}"),)
+    return ()
+
+
 def validate_project(project: JsonValue, preview_duration_ms: int | None = None) -> ProjectValidationResult:
     """Validate and normalize one JSON-loaded MSW project without sorting or coercing."""
     errors: list[ProjectValidationError] = []
@@ -215,6 +224,8 @@ def _normalize_copy(project: JsonValue, errors: list[ProjectValidationError]) ->
         errors.append(ProjectValidationError("$", "must be an object"))
         return {"segments": []}
     normalized = copy.deepcopy(project)
+    errors.extend(project_schema_errors(normalized))
+    normalized["schema"] = PROJECT_SCHEMA
     from maw.msw.project_codec import validate_extension
     errors.extend(ProjectValidationError(path, message) for path, message in validate_extension(normalized.get("msw")))
     _validate_timebase(normalized, errors)

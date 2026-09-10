@@ -34,6 +34,8 @@ class LocalRuntimeTests(unittest.TestCase):
                 bundle_root / "generate_subtitle_local.py",
             )
             (package_root / "__init__.py").write_text("\n", encoding="utf-8")
+            for module in ("output_naming.py", "gui_config.py", "env_config.py", "app_paths.py"):
+                shutil.copyfile(Path(__file__).resolve().parents[1] / "maw" / module, package_root / module)
             shutil.copyfile(
                 Path(__file__).resolve().parents[1] / "maw" / "ffmpeg.py",
                 package_root / "ffmpeg.py",
