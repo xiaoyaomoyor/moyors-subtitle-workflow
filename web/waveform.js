@@ -4039,8 +4039,6 @@
         // 清除选中会提交当前字幕面板编辑，而提交可能同步重建虚拟行。
         // 在调用外部回调前保存坐标，后续 seek 不依赖可能已脱离 DOM 的 row。
         const geometry = this.captureRowGeometry(row);
-      const rowRect = row.getBoundingClientRect();
-      drag.msPerPixel = rowRect.width > 0 ? (Number(row.dataset.endMs) - Number(row.dataset.startMs)) / rowRect.width : 0;
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
         this.options.clearSelection?.();
         // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
@@ -5231,6 +5229,9 @@
       // 虚拟行重建。先保存按下瞬间的几何数据，避免 pointerup 使用已脱离
       // DOM 的旧行并把比例钳到该行末尾（也就是下一行开头）。
       const geometry = this.captureRowGeometry(row);
+      const beginRect = row.getBoundingClientRect();
+      const msPerPixel = beginRect.width > 0
+        ? (Number(row.dataset.endMs) - Number(row.dataset.startMs)) / beginRect.width : 0;
       const selected = this.options.getSelection(track);
       if (!selected.has(index)) {
         if (track === 'extension') this.options.selectExtensionCue?.(index);
@@ -5267,6 +5268,7 @@
         currentClientX: event.clientX,
         rangeMs: geometry.endMs - geometry.startMs,
         rowWidth: geometry.width,
+        msPerPixel,
         geometry,
         kind,
         track,

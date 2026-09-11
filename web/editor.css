@@ -2365,7 +2365,11 @@
   }
   .module-key-hints kbd {
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 2px 6px; font-size: 13px; color: var(--text-secondary); font-family: var(--font-mono);
+    box-shadow: 0 1px 0 var(--border-subtle);
   }
+  .module-key-hints .cue-editor-key-hint { gap: 5px; }
+  .module-key-hints .cue-editor-key-hint + .cue-editor-key-hint { margin-left: 3px; }
   /* 波形窗格的 toolbar/scroll 是绝对定位（z-index 30）：提示行同样绝对定位
      挂在标签栏下缘（z-index 31），显示时由 JS 同步实际高度并把两者下移。 */
   .waveform-pane > .module-key-hints {
