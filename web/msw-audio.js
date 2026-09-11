@@ -69,6 +69,37 @@
       ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.muted = shouldMute; });
     });
   }
+  // === 贴片剪贴板：Ctrl+X/C/V（贴片选中时接管，未选中时让位给字幕剪贴板） ===
+  let clipClipboard = null;
+  const selectedClips = () => sync().clips.filter(c => selected.has(c.id));
+  function copySelectedClips(cut = false) {
+    const clips = selectedClips();
+    if (!clips.length) return;
+    clipClipboard = JSON.parse(JSON.stringify(clips));
+    if (cut) {
+      commit(cut === 'cut' ? '剪切音频贴片' : '剪切音频贴片', ext => { ext.audio_clips = ext.audio_clips.filter(c => !selected.has(c.id)); });
+      selected.clear();
+    }
+    hint(`${cut ? '已剪切' : '已拷贝'} ${clips.length} 个音频贴片`);
+  }
+  function pasteClipsFromClipboard() {
+    if (!clipClipboard?.length) { hint('剪贴板里没有音频贴片'); return; }
+    const state = sync();
+    const copies = clipClipboard.filter(c => state.assets.has(c.asset_id));
+    if (!copies.length) { hint('素材已不在当前工程，无法粘贴'); return; }
+    const anchor = transport.currentTime() ?? (host.player.currentTime * 1000 || 0);
+    const minStart = Math.min(...copies.map(c => c.start_ms));
+    const shift = Math.max(0, Math.round(timeline.snap(anchor)) - minStart);
+    const idMap = new Map(copies.map(c => [c.id, global.MSWProject.id('clip')]));
+    commit('粘贴音频贴片', ext => {
+      ext.audio_clips.push(...copies.map(c => ({ ...JSON.parse(JSON.stringify(c)),
+        id: idMap.get(c.id), start_ms: Math.max(0, c.start_ms + shift) })));
+    });
+    host.clearSubtitleSelection(); selected.clear();
+    for (const id of idMap.values()) selected.add(id);
+    timeline.refreshOverlays();
+    hint(`已粘贴 ${copies.length} 个音频贴片到 ${(anchor / 1000).toFixed(1)}s`);
+  }
   function closeMenu() { clearTimeout(menuTimer); menu?.remove(); menu = null; }
   function showMenu(event, clip) {
     event.preventDefault(); event.stopPropagation(); select(clip.id); closeMenu();
@@ -77,6 +108,9 @@
     menu.addEventListener('mouseleave', () => { menuTimer = setTimeout(closeMenu, 280); });
     const item = (label, fn) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'item'; button.textContent = t(label);
       button.addEventListener('click', fn); menu.appendChild(button); };
+    item('剪切音频贴片', () => { copySelectedClips(true); closeMenu(); });
+    item('拷贝音频贴片', () => { copySelectedClips(false); closeMenu(); });
+    item('粘贴音频贴片到播放头', () => { pasteClipsFromClipboard(); closeMenu(); });
     item(clip.muted ? '取消静音' : '静音音频贴片', mute);
     item('定位到贴片起点', () => { host.seek(clip.start_ms / 1000); closeMenu(); });
     item('恢复完整音频', () => commit('恢复完整音频', ext => { ext.audio_clips.forEach(c => {
@@ -94,6 +128,34 @@
     menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
     menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
   }
+  // 计算磁吸修正量：拖动集合的各边缘（原始位置 + delta）与静态边缘
+  // （字幕块 + 未被拖动的贴片）距离小于阈值时，取最近的一条对齐。
+  function magneticAdjust(delta, mode, clip, threshold) {
+    const state = sync();
+    const dragged = state.clips.filter(c => drag?.ids.has(c.id) && c.id !== clip.id);
+    const movingEdges = [];
+    const selfStart = clip.start_ms;
+    const selfEnd = core.end(clip, state.assets.get(clip.asset_id));
+    if (mode === 'move') {
+      movingEdges.push(selfStart + delta, selfEnd + delta);
+      for (const other of dragged) {
+        movingEdges.push(other.start_ms + delta, core.end(other, state.assets.get(other.asset_id)) + delta);
+      }
+    } else if (mode === 'start') movingEdges.push(selfStart + delta);
+    else movingEdges.push(selfEnd + delta);
+    const statics = timeline.magneticEdges({ clipExclude: drag?.ids });
+    let best = null;
+    for (const moving of movingEdges) {
+      for (const target of statics) {
+        const distance = Math.abs(moving - target);
+        if (distance > 0 && distance <= threshold && (!best || distance < best.distance)) {
+          best = { distance, shift: target - moving };
+        }
+      }
+    }
+    return best ? best.shift : 0;
+  }
+
   function begin(event, clip, mode) {
     if (event.button !== 0) return;
     event.preventDefault(); event.stopPropagation(); closeMenu();
@@ -110,6 +172,9 @@
       let delta = (current?.time ?? (drag.point.time + (e.clientX - drag.x) * drag.point.msPerPixel)) - drag.point.time;
       const edge = mode === 'end' ? core.end(clip, sync().assets.get(clip.asset_id)) : clip.start_ms;
       delta = timeline.snap(edge + delta) - edge;
+      // PR 式边缘磁吸：拖动中的贴片边缘靠近字幕块 / 其他贴片边缘时自动对齐。
+      const threshold = 8 * (current?.msPerPixel ?? drag.point.msPerPixel ?? 1);
+      delta += magneticAdjust(delta, mode, clip, threshold);
       if (mode === 'move') delta = Math.max(delta, -Math.min(...originals.filter(c => ids.has(c.id)).map(c => c.start_ms)));
       drag.preview = originals.map(c => ids.has(c.id) ? core.edit(c, sync().assets.get(c.asset_id), mode, delta) : c);
       drag.moved = true; schedulePaint();
@@ -193,7 +258,13 @@
       }
       inner.replaceChildren(fragment);
     }
-    for (const event of ['pointerdown', 'pointermove', 'dblclick', 'contextmenu']) area.addEventListener(event, e => { e.stopPropagation(); if (event === 'contextmenu') e.preventDefault(); });
+    // 贴片/手柄上的指针事件仍由贴片交互接管；轨道空白处放行给波形行
+    // （点击 = 定位播放头，双击 = 播放/暂停），不再被轨道层整体拦截。
+    const onClip = e => Boolean(e.target.closest('.msw-audio-clip'));
+    for (const event of ['pointerdown', 'pointermove', 'dblclick']) {
+      area.addEventListener(event, e => { if (onClip(e)) e.stopPropagation(); });
+    }
+    area.addEventListener('contextmenu', e => { if (onClip(e)) { e.stopPropagation(); e.preventDefault(); } });
     area.addEventListener('wheel', e => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
     area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
     row.appendChild(area); area.scrollTop = laneScroll.get(key) || 0; paint();
@@ -233,6 +304,9 @@
     if (!selected.size || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
     const mod = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
     if (mod && key === 's') return;
+    if (mod && key === 'x') { event.preventDefault(); copySelectedClips(true); return; }
+    if (mod && key === 'c') { event.preventDefault(); copySelectedClips(false); return; }
+    if (mod && key === 'v') { event.preventDefault(); pasteClipsFromClipboard(); return; }
     event.stopImmediatePropagation();
     if (mod && key === 'z') { event.preventDefault(); drag?.cancel(); event.shiftKey ? host.redo() : host.undo(); }
     else if (mod && key === 'y') { event.preventDefault(); host.redo(); }
@@ -253,7 +327,12 @@
     if (heatToggle) heatToggle.checked = extension().audio_settings?.heatmap !== false;
     if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
   }
-  const api = Object.freeze({ insert, renderRow, updatePlayhead, hasAssets: () => (extension().assets || []).length > 0,
+  const api = Object.freeze({ insert, renderRow, updatePlayhead,
+    edges: (excludeIds) => { const state = sync(); const edges = [];
+      for (const clip of state.clips) { if (excludeIds?.has(clip.id)) continue;
+        edges.push(clip.start_ms, core.end(clip, state.assets.get(clip.asset_id))); }
+      return edges; },
+    hasAssets: () => (extension().assets || []).length > 0,
     durationMs: () => Math.ceil(sync().end), minimumRowHeight: () => sync().clips.length ? 41 + (timeline.dual() ? 40 : 24) + Math.min(3, sync().count) * ROW : 0,
     currentTimeMs: () => transport.currentTime(), togglePlayback: () => transport.toggle(), seek: ms => transport.seek(ms),
     virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,

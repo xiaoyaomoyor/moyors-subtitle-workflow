@@ -628,7 +628,8 @@ class EditorAssetTests(unittest.TestCase):
         # 时间码列由字幕列表容器统一切换：宽时单行，窄于 700px 时所有行一起变成两行。
         self.assertIn('container: cue-list / inline-size;', page)
         self.assertIn('grid-template-areas: "start arrow end";', page)
-        self.assertIn('width: 24ch; padding-top: 2px; flex: 0 0 24ch;', page)
+        # 时间盒为弹性（帧模式长码可收缩裁切，不再溢出压到字数）
+        self.assertIn('width: auto; max-width: 26ch; min-width: 0; overflow: hidden;', page)
         self.assertIn('@container cue-list (max-width: 700px)', page)
         self.assertIn('"start arrow"\n        "end end";', page)
         self.assertIn("timeStartEl.className = 'time-start';", page)

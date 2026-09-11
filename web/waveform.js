@@ -1936,6 +1936,8 @@
 
     showPointerLine(event, row, marker) {
       if (!row || !marker) return;
+      // 正在拖动播放头时不再显示灰色指针线（红色播放头本身就是位置指示）。
+      if (this.playheadDragActive) { this.hidePointerLine(marker); return; }
       const rect = row.getBoundingClientRect();
       const rawLeft = clamp(event.clientX - rect.left, 0, rect.width);
       const startMs = Number(row.dataset.startMs);
@@ -2628,7 +2630,6 @@
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'dock-menu-item' + (mid === currentId ? ' active' : '');
-        item.title = `变成${MODULE_LABELS[mid]}`;
         item.setAttribute('aria-label', `变成${MODULE_LABELS[mid]}`);
         item.insertAdjacentHTML('afterbegin', `<span class="tab-icon">${MODULE_ICONS[mid] || ''}</span><span class="tab-name">${MODULE_LABELS[mid]}</span>`);
         item.addEventListener('click', () => {
@@ -3629,6 +3630,49 @@
       return Math.max(this.settings.rowHeight, this.audioLayer?.minimumRowHeight() || 0);
     }
 
+    // PR 式磁吸的静态边缘集合：字幕块（主/副轨，可排除拖动中的下标）+ 音频贴片。
+    getMagneticEdges(cueExclude = null, clipExclude = null) {
+      const edges = [];
+      const collect = (segments) => {
+        if (!Array.isArray(segments)) return;
+        segments.forEach((segment, index) => {
+          if (cueExclude?.has(index)) return;
+          edges.push(Number(segment.start), Number(segment.end));
+        });
+      };
+      collect(this.options.getSegments?.('main') || []);
+      if (this.options.multiSubtitleVisible?.()) {
+        collect(this.options.getExtensionSegments?.() || []);
+      }
+      if (this.audioLayer?.edges) edges.push(...this.audioLayer.edges(clipExclude));
+      return edges;
+    }
+
+    // 拖动集合的磁吸修正：边缘（原位置 + delta）与静态边缘距离在阈值内
+    // 取最近一条对齐。返回修正后的 delta。
+    magneticSnapDelta(drag, rawDelta, thresholdMs) {
+      if (!Number.isFinite(thresholdMs) || thresholdMs <= 0) return rawDelta;
+      const segments = this.options.getSegments(drag.track);
+      const clock = resolveTiming(drag.timing || this.cueTiming());
+      const moving = [];
+      for (const index of drag.indices) {
+        const original = drag.originals.get(index);
+        if (!original) continue;
+        moving.push(clock.toMs(Number(original.start)) + rawDelta, clock.toMs(Number(original.end)) + rawDelta);
+      }
+      const statics = this.getMagneticEdges(new Set(drag.indices), null);
+      let best = null;
+      for (const position of moving) {
+        for (const target of statics) {
+          const distance = Math.abs(position - target);
+          if (distance > 0 && distance <= thresholdMs && (!best || distance < best.distance)) {
+            best = { distance, shift: target - position };
+          }
+        }
+      }
+      return best ? rawDelta + best.shift : rawDelta;
+    }
+
     getAudioTimelineHost() {
       return Object.freeze({
         pane: this.pane,
@@ -3644,6 +3688,7 @@
         },
         snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
         dual: () => this.options.multiSubtitleVisible?.() === true,
+        magneticEdges: ({ cueExclude = null, clipExclude = null } = {}) => this.getMagneticEdges(cueExclude, clipExclude),
       });
     }
 
@@ -3994,6 +4039,8 @@
         // 清除选中会提交当前字幕面板编辑，而提交可能同步重建虚拟行。
         // 在调用外部回调前保存坐标，后续 seek 不依赖可能已脱离 DOM 的 row。
         const geometry = this.captureRowGeometry(row);
+      const rowRect = row.getBoundingClientRect();
+      drag.msPerPixel = rowRect.width > 0 ? (Number(row.dataset.endMs) - Number(row.dataset.startMs)) / rowRect.width : 0;
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
         this.options.clearSelection?.();
         // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
@@ -6081,6 +6128,8 @@
     }
 
     applyMoveDrag(drag, rawDelta, disableSnap, allowSqueeze = false) {
+      // PR 式边缘磁吸：8px 阈值内自动对齐其他字幕块 / 音频贴片边缘。
+      rawDelta = this.magneticSnapDelta(drag, rawDelta, (drag.msPerPixel || 0) * 8);
       const clock = resolveTiming(drag.timing || this.cueTiming());
       const segments = this.options.getSegments(drag.track);
       const moved = new Set(drag.indices);
@@ -6257,7 +6306,7 @@
       clock.setStart(segment, newStart);
       clock.setEnd(segment, newEnd);
       segment.items = remapItems(original.items, original.start, original.end, newStart, newEnd, clock);
-      this.setStatus(`${clock.format(newStart)} → ${clock.format(newEnd)}`);
+      this.setStatus(`调整中 ${clock.format(newStart)} → ${clock.format(newEnd)}`, '', { quiet: true });
     }
 
     applyBoundaryDrag(drag, rawDelta, disableSnap) {

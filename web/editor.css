@@ -2808,7 +2808,10 @@
     font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); user-select: none;
     display: grid; grid-template-columns: max-content max-content max-content;
     grid-template-areas: "start arrow end"; column-gap: .55ch; align-items: start;
-    width: 24ch; padding-top: 2px; flex: 0 0 24ch;
+    /* 弹性时间盒：常规内容按 24ch 占位；帧模式等更长的时间码在空间不足时
+       允许收缩并裁切（min-width 0 + overflow hidden），不再溢出压到字数。 */
+    width: auto; max-width: 26ch; min-width: 0; overflow: hidden;
+    padding-top: 2px; flex: 0 1 auto;
     font-variant-numeric: tabular-nums;
   }
   .cue .time-start { grid-area: start; }
@@ -2884,6 +2887,8 @@
     }
     .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
   }
+  .cues-container.frame-time-mode .cue .time { max-width: 32ch; }
+  .cues-container.frame-time-mode .cue .time::after { letter-spacing: -0.02em; }
   /* 压缩生效（<460px）后时间已省出约 100px：双列字数延后到 420px 才退场 */
   @container cue-list (max-width: 420px) {
     .multi-cue-column .charcount { display: none; }
@@ -3348,7 +3353,8 @@
   .cue.multi-dual-cue { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; }
   .cue.multi-dual-cue .multi-cue-column { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cue.multi-dual-cue .multi-cue-column-header {
-    display: flex; align-items: flex-start; gap: 6px; min-width: 0;
+    display: flex; align-items: flex-start; gap: 4px 6px; min-width: 0;
+    flex-wrap: wrap; row-gap: 2px;
   }
   .cue.multi-dual-cue .multi-cue-column-header .index {
     flex: 0 0 auto; min-width: 0; width: auto; text-align: left;

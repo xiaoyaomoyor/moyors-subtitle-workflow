@@ -2186,6 +2186,8 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   container.classList.toggle('hide-disabled', hideDisabled);
   container.classList.toggle('hide-cue-index', !EDITOR_SETTINGS.cueListShowIndex);
   container.classList.toggle('hide-cue-time', !EDITOR_SETTINGS.cueListShowTime);
+  // 帧模式时间码更长（HH:MM:SS:FF）：列表用更宽的时间盒上限与更紧凑的字距。
+  container.classList.toggle('frame-time-mode', timelineIsFrameMode());
   // 设置保留用户的显示偏好；当前工程完全没有表情包时，整列仍自动收起，
   // 分配首个表情包时由本函数根据最新数据直接恢复。
   const projectHasStickers = DATA.segments.some(segment => segment.sticker || segment.sticker_ref);
@@ -5800,8 +5802,14 @@ function buildDualCueEl(mainIndex, extensionIndex, track) {
 }
 
 function fmtShortCompact(ms) {
-  // 窄容器下的紧凑时间：毫秒模式省去小数秒（00:00.000 → 00:00）；帧模式保持原样。
-  if (timelineIsFrameMode()) return fmtShort(ms);
+  // 窄容器下的紧凑时间：毫秒模式省去小数秒（00:00.000 → 00:00）；
+  // 帧模式省去为零的小时位（00:00:03:12 → 00:03:12）。
+  if (timelineIsFrameMode()) {
+    const text = fmtShort(ms);
+    const [start, arrow, end] = text.split(' ');
+    const trimHours = (code) => (code.startsWith('00:') ? code.slice(3) : code);
+    return `${trimHours(start)} ${arrow} ${trimHours(end)}`;
+  }
   const s = Math.max(0, Math.round(ms / 1000));
   const m = Math.floor(s / 60);
   return `${String(m).padStart(2, '0')}:${String(s - m * 60).padStart(2, '0')}`;
@@ -13969,7 +13977,13 @@ function configureServerWorkspaceLibrary() {
       if (!pageFullscreenToggle) return;
       const active = Boolean(document.fullscreenElement);
       const label = active ? '退出页面全屏' : '页面全屏';
-      pageFullscreenToggle.textContent = label;
+      // 文案写在独立 span 里：直接改 textContent 会抹掉 F11 键位提示。
+      const labelSpan = pageFullscreenToggle.querySelector(':scope > span') || (() => {
+        const span = document.createElement('span');
+        pageFullscreenToggle.prepend(span);
+        return span;
+      })();
+      labelSpan.textContent = label;
       pageFullscreenToggle.title = active
         ? '退出浏览器全屏（Esc）'
         : '让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）';
@@ -19844,13 +19858,19 @@ function pasteCuesFromClipboard() {
     copy._dirty = true;
     return copy;
   });
-  // 副本整体平移到时间轴末尾之后（保留相对间隔）：保留原时间戳会与源字幕
-  // 在波形中完全重叠，看起来就像"粘贴没生效"。
-  const timelineEnd = DATA.segments.reduce(
-    (max, segment) => Math.max(max, Number(segment.end) || 0), 0,
-  );
+  // 粘贴落点：优先当前播放头位置（PR 习惯）；无媒体时落在最后一条选中
+  // 字幕之后；否则退回时间轴末尾（保留相对间隔）。保留原时间戳会与源
+  // 字幕在波形中完全重叠，看起来就像"粘贴没生效"。
   const minCopyStart = Math.min(...copies.map((segment) => Number(segment.start) || 0));
-  const shift = Math.max(0, timelineEnd - minCopyStart);
+  let pasteAnchor;
+  if (hasLoadedMedia() && Number.isFinite(player.currentTime) && player.currentTime > 0) {
+    pasteAnchor = Math.round(player.currentTime * 1000);
+  } else if (selectedIdxs.size) {
+    pasteAnchor = Math.max(...[...selectedIdxs].map((idx) => Number(DATA.segments[idx]?.end) || 0));
+  } else {
+    pasteAnchor = DATA.segments.reduce((max, segment) => Math.max(max, Number(segment.end) || 0), 0);
+  }
+  const shift = Math.max(0, pasteAnchor - minCopyStart);
   copies.forEach((segment) => {
     segment.start = (Number(segment.start) || 0) + shift;
     segment.end = (Number(segment.end) || 0) + shift;
@@ -19866,7 +19886,7 @@ function pasteCuesFromClipboard() {
   renderAll({ waveform: 'full' });
   if (waveformEditor) waveformEditor.updateSelection();
   refreshClipboardMenuState();
-  flashHint(`已粘贴 ${copies.length} 条字幕到时间轴末尾`, 'success');
+  flashHint(`已粘贴 ${copies.length} 条字幕到 ${(pasteAnchor / 1000).toFixed(1)}s`, 'success');
 }
 
 cueCutButton?.addEventListener('click', cutSelectedCues);
