@@ -1603,7 +1603,11 @@ test('help reflects the selected subtitle-edit split key', async ({ page }) => {
   const editorConfirmKey = page.locator('#cue-editor-confirm-key');
   await expect(page.locator('#cue-editor-key-hints')).toHaveClass(/waveform-status/);
   await expect(page.locator('.cue-editor-key-hint')).toHaveCount(4);
-  await expect(page.locator('#cue-editor-key-hints')).toHaveCSS('gap', '14px');
+  // 与其他模块提示行（.module-key-hints）对齐：间距一致、kbd 键帽同尺寸同投影。
+  await expect(page.locator('#cue-editor-key-hints')).toHaveCSS('gap', '10px');
+  const editorKbd = page.locator('#cue-editor-key-hints kbd').first();
+  await expect(editorKbd).toHaveCSS('font-size', '13px');
+  await expect(editorKbd).toHaveCSS('padding', '2px 6px');
   await expect(settingsPanel).not.toContainText('波形区拆分按键');
   await expect(displayRows).toHaveCount(0);
   const modKey = await page.evaluate(() => (

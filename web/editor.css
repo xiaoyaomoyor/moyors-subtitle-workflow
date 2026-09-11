@@ -2379,12 +2379,6 @@
   .waveform-pane.wave-hints-on > .waveform-scroll {
     top: calc(var(--module-tab-h) + var(--wave-hints-h, var(--panel-toolbar-h)));
   }
-  .cue-editor-key-hints kbd {
-    padding: 1px 4px; font-size: 10.5px;
-    background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    color: var(--text-secondary); font-family: var(--font-mono);
-    box-shadow: none;
-  }
   /* 字幕编辑区工具栏不出现横向滚动条：空间不足时压缩按键提示并用省略号截断，
      后置齿轮按钮（settings-anchor，flex 不收缩）始终保持完整可见。 */
   .waveform-status.cue-editor-key-hints {
@@ -2395,7 +2389,7 @@
   .waveform-status.cue-editor-key-hints:not([hidden]) {
     display: inline-flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -2405,7 +2399,7 @@
   .cue-editor-key-hint {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     margin-left: 0;
   }
   .cue-editor-key-hint:first-child { margin-left: 0; }
@@ -2879,6 +2873,7 @@
   /* 列表窄宽度：先压缩再退让（容器查询，随字幕列表模块实际宽度走）。
      压缩：时间省去毫秒小数（00:00.000 → 00:00，data-compact 伪元素切换，
      零额外 DOM），双列表头「主字幕/副字幕」缩为单字前缀；
+     双列每列只有容器一半宽，同样的压缩在约两倍宽度（940px）提前生效；
      退让：字数 → 时间 → 序号逐级隐藏。默认布局（列宽 ≈ 40%+）完整显示。 */
   @container cue-list (max-width: 460px) {
     .cue .time {
@@ -2886,6 +2881,19 @@
       font-size: 0;
     }
     .cue .time::after {
+      content: attr(data-compact);
+      font-size: 11px;
+    }
+    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
+  }
+  /* 双列模式每列宽度约为容器一半：同样的压缩在约两倍宽度（940px）就要开始，
+     否则完整毫秒时间放不进单行表头（字数只能被挤掉或换行）。 */
+  @container cue-list (max-width: 940px) {
+    .cue.multi-dual-cue .multi-cue-column-header .time {
+      display: inline; width: auto; flex: 0 0 auto;
+      font-size: 0;
+    }
+    .cue.multi-dual-cue .multi-cue-column-header .time::after {
       content: attr(data-compact);
       font-size: 11px;
     }
@@ -3356,15 +3364,17 @@
   .multi-cue-empty { color: var(--text-faint); font-style: italic; }
   .cue.multi-dual-cue { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; }
   .cue.multi-dual-cue .multi-cue-column { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 表头保持单行：不换行（此前 flex-wrap 会把字数挤到第二行）。
+     空间不足时由时间盒收缩截断（配合下方容器查询的提前压缩）。 */
   .cue.multi-dual-cue .multi-cue-column-header {
     display: flex; align-items: flex-start; gap: 4px 6px; min-width: 0;
-    flex-wrap: wrap; row-gap: 2px;
   }
   .cue.multi-dual-cue .multi-cue-column-header .index {
     flex: 0 0 auto; min-width: 0; width: auto; text-align: left;
   }
   .cue.multi-dual-cue .multi-cue-column-header .time {
     flex: 1 1 auto; min-width: 0; width: auto;
+    overflow: hidden; text-overflow: ellipsis;
   }
   /* 双列字数：与时间同行、右对齐收尾；沿用 .cue .charcount 的弱文字样式与开关。 */
   .cue.multi-dual-cue .multi-cue-column-header .charcount {

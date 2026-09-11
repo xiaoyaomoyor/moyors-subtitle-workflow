@@ -1420,6 +1420,63 @@ test('keeps the dual-column index and timecode on the same header row', async ({
   expect(Math.abs((indexBox.y + indexBox.height / 2) - (timeBox.y + timeBox.height / 2))).toBeLessThan(4);
 });
 
+// 双列表头必须保持单行：此前 flex-wrap 会把字数挤到第二行。各宽度下断言
+// 表头高度（两行必然 ≥ 30px）、可见子元素同行且不水平重叠、不溢出列盒；
+// 双列每列只有容器一半宽，容器 ≤940px 即切换紧凑时间（同单列 460px 的逻辑）。
+test('keeps the dual-column header on a single line across cue-list widths', async ({ page }) => {
+  await importPair(page);
+  await page.locator('#multi-subtitle-import-extension').click();
+  await page.locator('#multi-subtitle-import-result-confirm').click();
+  await expect(page.locator('.multi-dual-cue').first()).toBeVisible();
+
+  for (const width of [1100, 950, 939, 700, 500, 460, 421, 419, 300, 199, 119]) {
+    await page.evaluate((px) => {
+      const el = document.querySelector('.cues-container');
+      el.style.flex = `0 0 ${px}px`;
+      el.style.width = `${px}px`;
+    }, width);
+    await page.waitForTimeout(60);
+    const report = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('.multi-dual-cue')];
+      const out = [];
+      for (const row of rows) {
+        for (const col of row.querySelectorAll('.multi-cue-column')) {
+          const header = col.querySelector('.multi-cue-column-header');
+          const colRect = col.getBoundingClientRect();
+          const headerRect = header.getBoundingClientRect();
+          const kids = [...header.children].filter((k) => {
+            const cs = getComputedStyle(k);
+            return cs.display !== 'none' && k.getBoundingClientRect().width > 0;
+          }).map((k) => ({ cls: k.className, r: k.getBoundingClientRect().toJSON() }));
+          out.push({
+            headerHeight: headerRect.height,
+            bottomOverflow: headerRect.bottom - colRect.bottom,
+            rightOverflow: headerRect.right - colRect.right,
+            kids,
+          });
+        }
+      }
+      return out;
+    });
+    expect(report.length).toBeGreaterThan(0);
+    for (const col of report) {
+      expect(col.headerHeight, `width=${width} 表头应单行`).toBeLessThan(24);
+      expect(col.bottomOverflow, `width=${width} 垂直不溢出`).toBeLessThanOrEqual(0.5);
+      expect(col.rightOverflow, `width=${width} 水平不溢出`).toBeLessThanOrEqual(0.5);
+      for (let i = 1; i < col.kids.length; i++) {
+        const a = col.kids[0].r;
+        const b = col.kids[i].r;
+        expect(Math.abs((a.y + a.height / 2) - (b.y + b.height / 2)), `width=${width} ${col.kids[i].cls} 应与首元素同行`).toBeLessThan(4);
+      }
+      for (let i = 1; i < col.kids.length; i++) {
+        const a = col.kids[i - 1].r;
+        const b = col.kids[i].r;
+        expect(b.left - a.right, `width=${width} 相邻元素不重叠`).toBeGreaterThanOrEqual(-0.5);
+      }
+    }
+  }
+});
+
 test('swaps main and extension subtitles from the gear menu and supports undo', async ({ page }) => {
   await importPair(page);
   await page.locator('#multi-subtitle-import-extension').click();
