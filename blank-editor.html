@@ -3074,7 +3074,8 @@
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
   .msw-asset-density { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .asset-settings-menu { width: 240px; padding: 12px; }
-  .asset-settings-menu .msw-asset-density { justify-content: space-between; }
+  .asset-settings-menu .msw-asset-density { display: flex; align-items: center; gap: 8px; }
+  .asset-settings-menu .msw-asset-density input { width: 84px; flex: 0 0 auto; }
   .asset-settings-menu .settings-panel-hint { display: block; margin-top: 8px; white-space: normal; }
   .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
@@ -3094,7 +3095,20 @@
   .msw-asset-actions button:first-child { margin-right: auto; }
   .msw-asset-actions svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   .msw-asset-actions .asset-icon-fill { fill: currentColor; stroke: none; }
-  .msw-asset-pagination { display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 12px; padding: 4px; font-size: 11px; border-top: 1px solid var(--border-subtle); }
+  /* 素材库图标按钮：透明底、线性图标，与模块工具栏图标体系一致 */
+  .msw-asset-library .msw-asset-iconbtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+    background: transparent; border: 0; border-radius: var(--radius-sm);
+    color: var(--text-secondary); cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+  }
+  .msw-asset-library .msw-asset-iconbtn svg { width: 15px; height: 15px; }
+  .msw-asset-library .msw-asset-iconbtn:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .msw-asset-library .msw-asset-iconbtn:disabled { color: var(--text-faint); cursor: not-allowed; background: transparent; }
+  /* 分页：随导入/导出一起放在 summary 右上角 */
+  .msw-asset-pagenum { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-left: 2px; }
+  .msw-asset-summary-actions { display: flex; align-items: center; gap: 2px; }
   .msw-asset-player { flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border-subtle); background: var(--panel-toolbar-bg-wave); }
   #asset-playing { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; color: var(--text-secondary); }
   .msw-asset-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
@@ -3970,6 +3984,13 @@
   .ctxmenu .ctx-submenu.open .ctx-submenu-menu { display: block; }
   .ctxmenu .ctx-submenu.open > .ctx-submenu-toggle { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .ctx-submenu-menu .ctx-subitem { font-size: 12.5px; }
+  /* 右键展开设置的勾选框行 */
+  .ctxmenu .ctx-subitem.ctx-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .ctxmenu .ctx-subitem.ctx-check input { margin: 0; accent-color: var(--accent); width: 13px; height: 13px; flex: 0 0 auto; }
+  /* 右键面板的卡片密度滑条行：宽度匹配面板（约 150px）而非菜单栏的 240px */
+  .ctxmenu .ctx-subitem.ctx-density { display: flex; align-items: center; gap: 8px; }
+  .ctxmenu .ctx-subitem.ctx-density input { width: 76px; height: 14px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
+  .ctxmenu .ctx-subitem.ctx-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
   .ctxmenu .item.danger { color: var(--red-hover); }
   .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
   .ctxmenu .sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }
@@ -5202,7 +5223,8 @@
 .waveform-pane.audio-drop-target { box-shadow: inset 0 0 0 2px var(--accent); }
 .msw-audio-menu { min-width: 180px; }
 .msw-audio-menu button.item { width: 100%; border: 0; background: transparent; text-align: left; color: inherit; font: inherit; }
-.msw-audio-gain { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 10px; font-size: 12px; }
+/* 贴片音量行：与菜单项同一内边距起排（文字开头对齐其他选项），数值输入靠右 */
+.msw-audio-gain { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 22px 5px 26px; font-size: 13px; }
 .msw-audio-gain input { width: 58px; }
 .msw-asset-row[draggable="true"] { cursor: grab; }
 .waveform-binding-marker {
@@ -5371,6 +5393,14 @@
 .waveform-row.v-track-muted-ext .waveform-cue-block[data-track="extension"] {
   opacity: .38;
 }
+
+/* 拖动磁吸参考线：命中吸附时贯穿当前波形行，指示对齐目标时间。 */
+.waveform-magnet-guide {
+  position: absolute; top: 0; bottom: 0; z-index: 8;
+  width: 0; border-left: 1px dashed var(--selection-yellow);
+  pointer-events: none;
+}
+.waveform-magnet-guide[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -5695,7 +5725,6 @@
             <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
             <output id="asset-density-value" for="asset-density">3</output>
           </label>
-          <small class="settings-panel-hint">每行 1–5 张卡片，默认 3 张；窄窗口自动减列。</small>
         </div>
       </div>
       <div class="dropdown-separator"></div>
@@ -6300,8 +6329,8 @@
       <label class="toggle editor-settings-item" title="按音频各时刻的 RMS 电平显示固定色标；关闭后贴片使用纯色">
         <input type="checkbox" id="audio-clips-heatmap" checked> 音频贴片热力图
       </label>
-      <label class="toggle editor-settings-item" title="在波形条左侧显示 Pr 式轨道头（V1/V2 字幕轨、A1/A2 配音轨）；点击轨道头可禁用/启用整条轨道">
-        <input type="checkbox" id="waveform-show-track-heads" checked> 轨道头
+      <label class="toggle editor-settings-item" title="在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行">
+        <input type="checkbox" id="waveform-show-track-heads" checked> 行编号
       </label>
       <label class="editor-settings-item">配音与空隙
         <select id="audio-clips-gap-policy">
@@ -7115,20 +7144,22 @@
     <div class="msw-asset-toolbar">
       <input type="search" id="asset-search" placeholder="搜索配音文本、音色…" aria-label="搜索素材">
       <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
-      <button type="button" id="asset-refresh" title="刷新素材库">刷新</button>
+      <button type="button" id="asset-refresh" class="msw-asset-iconbtn" title="刷新素材库" aria-label="刷新素材库"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="msw-asset-summary">
       <span id="asset-count">0 条音频</span>
       <div class="msw-asset-summary-actions">
-        <button type="button" id="asset-import">导入音频</button>
-        <button type="button" id="asset-export-project">导出工程与 TTS 音频</button>
+        <button type="button" id="asset-import" class="msw-asset-iconbtn" title="导入音频" aria-label="导入音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7m0 0 3-3m-3 3-3-3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与 TTS 音频" aria-label="导出工程与 TTS 音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="msw-asset-pagenum" id="asset-page">1 / 1</span>
+        <button type="button" id="asset-prev" class="msw-asset-iconbtn" title="上一页" aria-label="上一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="asset-next" class="msw-asset-iconbtn" title="下一页" aria-label="下一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <input type="file" id="asset-import-file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" multiple hidden>
     </div>
     <div class="msw-asset-import-status" id="asset-import-status" hidden><span id="asset-import-message" role="status" aria-live="polite"></span><button type="button" id="asset-import-stop">停止后续导入</button></div>
     <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
     <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
-    <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
     <footer class="msw-asset-player" id="asset-player" hidden>
       <div id="asset-playing" class="msw-asset-content">选择音频试听</div>
       <div class="msw-asset-transport">
@@ -14846,29 +14877,37 @@ export default MawDynamicCaptions;
     }
     return next;
   }
-  function arrange(clips, assets) {
-    // Greedy interval partitioning with a min heap: O(n log n), including
-    // large overlapping batches. Lane IDs stay stable for a fixed clip set.
-    const heap = [], lanes = new Map(); let count = 0;
-    const push = item => {
-      heap.push(item); let i = heap.length - 1;
-      while (i > 0) { const p = (i - 1) >> 1; if (heap[p].end <= item.end) break; heap[i] = heap[p]; i = p; }
-      heap[i] = item;
-    };
-    const pop = () => {
-      const first = heap[0], last = heap.pop();
-      if (heap.length) { let i = 0; while (i * 2 + 1 < heap.length) {
-        let child = i * 2 + 1; if (child + 1 < heap.length && heap[child + 1].end < heap[child].end) child++;
-        if (heap[child].end >= last.end) break; heap[i] = heap[child]; i = child;
-      } heap[i] = last; }
-      return first;
-    };
-    for (const clip of [...clips].sort((a, b) => a.start_ms - b.start_ms || a.id.localeCompare(b.id))) {
-      const asset = assets.get(clip.asset_id); if (!asset) continue;
-      const lane = heap.length && heap[0].end <= clip.start_ms ? pop().lane : count++;
-      lanes.set(clip.id, lane); push({ end: end(clip, asset), lane });
+  function arrange(clips, assets, prevLanes = null) {
+    // 按 start 顺序做区间装箱（首适应低位优先），带「重叠规则化粘性 lane」：
+    // 一条贴片只在【与其他贴片仍有时间重叠】时保留上一次的轨道——重叠状态下
+    // 拖动/松手都不与对方换位；一旦与所有贴片分离，立即回到贪心收纳
+    // （自动折叠回单轨）。规则使 lane 记忆可以跨提交长期保存而不会
+    // 阻碍折叠（分离即失粘）。
+    const laneEnds = new Map(), lanes = new Map();
+    const sorted = [...clips].sort((a, b) => a.start_ms - b.start_ms || a.id.localeCompare(b.id));
+    const ends = sorted.map((clip) => {
+      const asset = assets.get(clip.asset_id);
+      return asset ? end(clip, asset) : -Infinity;
+    });
+    const overlapsAny = (index) => sorted.some((_, other) => other !== index
+      && sorted[index].start_ms < ends[other] && sorted[other].start_ms < ends[index]);
+    for (let index = 0; index < sorted.length; index += 1) {
+      const clip = sorted[index];
+      if (ends[index] === -Infinity) continue;
+      const clipEnd = ends[index];
+      const busy = (lane) => (laneEnds.get(lane) ?? -Infinity) > clip.start_ms;
+      const sticky = prevLanes?.get(clip.id);
+      let lane = Number.isInteger(sticky) && sticky >= 0 && overlapsAny(index) && !busy(sticky)
+        ? sticky
+        : null;
+      if (lane == null) {
+        lane = 0;
+        while (busy(lane)) lane += 1;
+      }
+      laneEnds.set(lane, Math.max(laneEnds.get(lane) ?? -Infinity, clipEnd));
+      lanes.set(clip.id, lane);
     }
-    return { lanes, count };
+    return { lanes, count: laneEnds.size };
   }
   function audible(extension) {
     const tracks = new Map((extension?.audio_tracks || []).map(t => [t.id, t]));
@@ -15473,6 +15512,8 @@ export default MawDynamicCaptions;
     '定位到贴片起点': 'Seek to clip start', '恢复完整音频': 'Restore full audio', '贴片音量': 'Clip gain',
     '删除音频贴片': 'Delete audio clips', '重新加载素材': 'Reload audio asset', '添加音频贴片': 'Add audio clip',
     '移动音频贴片': 'Move audio clips', '裁剪音频贴片': 'Trim audio clip', '调整贴片音量': 'Adjust clip gain',
+    '在播放头处拆分': 'Split at playhead', '移动贴片': 'Moving clip', '裁切起点': 'Trim start', '裁切终点': 'Trim end',
+    '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。': 'Keep the adjacent .assets folder when moving the project. Unsaved projects can export a project and TTS audio bundle.',
     '切换贴片热力图': 'Toggle clip heatmap', '修改配音空隙策略': 'Change voice gap policy',
     '带配音贴片时使用 1× 播放': 'Voice clips use 1× playback',
     '正在准备配音，加载完成后继续播放': 'Preparing voice clips; playback will resume when ready',
@@ -15489,7 +15530,6 @@ export default MawDynamicCaptions;
     '配音热力图：暗 → 亮对应低 → 高电平（RMS −60 至 −6 dBFS）。配音随时间轴以 1× 播放。': 'Voice heatmap: dark → bright means low → high level (RMS −60 to −6 dBFS). Voice clips play at 1×.',
     '导出工程与 TTS 音频': 'Export project and TTS audio', '条音频': 'audio items', '0 条音频': '0 audio items',
     '生成的音频会显示在这里。通过「媒体 → TTS」开始配音。': 'Generated audio appears here. Open Media → TTS to start.',
-    '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。': 'Keep the adjacent .assets folder when moving the project. Unsaved projects can export a project and TTS audio bundle.',
     '选择音频试听': 'Choose audio to preview', '素材试听': 'Asset preview', '试听': 'Preview', '长于字幕': 'Longer than subtitle', '素材缺失': 'Missing audio',
     '正在加载音频…': 'Loading audio…', '上一页': 'Previous page', '下一页': 'Next page',
     '已导出工程与 TTS 音频；解压后打开 project.mosp。原视频仍需原媒体文件。': 'Project and TTS audio exported. Extract and open project.mosp. The original video still requires the original media file.',
@@ -15906,7 +15946,7 @@ export default MawDynamicCaptions;
     '5 秒': '5 sec', '10 秒': '10 sec', '20 秒': '20 sec', '30 秒': '30 sec',
     '每行长度': 'Seconds per row', '每行高度': 'Row height', '静音空隙': 'Silent gaps',
     '空隙区段操作方式': 'Gap region operation', 'Alt+点击': 'Alt+click',
-    '中键拖动': 'Middle-button drag', '轨道头': 'Track headers', '允许拖动指针': 'Drag to move playhead',
+    '中键拖动': 'Middle-button drag', '行编号': 'Row numbers', '允许拖动指针': 'Drag to move playhead',
     '彩色字幕统一导出': 'Export colored subtitles together',
     '选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。': 'When enabled, export all color groups as filename_color; otherwise each color opens its own save dialog.',
     'Oi！检测到你添加了表情包，是否需要帮你打开「设置」中的字幕列表/编辑区的表情包显示开关？   ヾ(´･ω･｀)ﾉ': 'Oi! You added a sticker. Would you like to enable sticker display in the subtitle list and editor under Settings?   ヾ(´･ω･｀)ﾉ',
@@ -18855,14 +18895,15 @@ export default MawDynamicCaptions;
         divider.addEventListener('pointerdown', (event) => {
           if (!this.isMultiMode() || this.settings.layout !== 'classic') return;
           event.preventDefault();
-          dividerDrag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
+          dividerDrag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false,
+            rect: this.workspace.getBoundingClientRect() };
           divider.classList.add('dragging');
           divider.setPointerCapture(event.pointerId);
           this.layoutDragging = true;
         });
         divider.addEventListener('pointermove', (event) => {
           if (!dividerDrag || dividerDrag.pointerId !== event.pointerId) return;
-          const rect = this.workspace.getBoundingClientRect();
+          const rect = dividerDrag.rect;
           const percent = axis === 'x'
             ? ((event.clientX - rect.left) / Math.max(1, rect.width)) * 100
             : ((event.clientY - rect.top) / Math.max(1, rect.height)) * 100;
@@ -18904,14 +18945,15 @@ export default MawDynamicCaptions;
         resizer.addEventListener('pointerdown', (event) => {
           if (!this.isPresetResizableLayout()) return;
           event.preventDefault();
-          drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
+          drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false,
+            rect: this.workspace.getBoundingClientRect() };
           resizer.classList.add('dragging');
           resizer.setPointerCapture?.(event.pointerId);
           this.layoutDragging = true;
         });
         resizer.addEventListener('pointermove', (event) => {
           if (!drag || drag.pointerId !== event.pointerId) return;
-          const rect = this.workspace.getBoundingClientRect();
+          const rect = drag.rect;
           const previousColumn = this.settings.layoutColumnPercent;
           const previousRows = [...this.settings.layoutRows];
           if (kind === 'column') {
@@ -20509,8 +20551,33 @@ export default MawDynamicCaptions;
 
     // 拖动集合的磁吸修正：边缘（原位置 + delta）与静态边缘距离在阈值内
     // 取最近一条对齐。返回修正后的 delta。
+    // 拖动磁吸参考线：命中吸附时在对应时间位置显示一条贯穿行的竖线。
+    showMagnetGuide(timeMs) {
+      if (!this.content || !Number.isFinite(timeMs)) return;
+      const rows = [...this.content.querySelectorAll('.waveform-row')];
+      if (!rows.length) return;
+      // 只在「真实覆盖目标时间的已渲染行」内显示：目标时间不在可视行范围时
+      // 宁可不显示，也不能钳位到某行边缘（那正是参考线出现在奇怪位置的原因）。
+      const row = rows.find((r) => Number(r.dataset.startMs) <= timeMs && Number(r.dataset.endMs) > timeMs);
+      if (!row) { this.hideMagnetGuide(); return; }
+      let guide = this.content.querySelector('.waveform-magnet-guide');
+      if (!guide) {
+        guide = document.createElement('div');
+        guide.className = 'waveform-magnet-guide';
+        guide.setAttribute('aria-hidden', 'true');
+      }
+      if (guide.parentElement !== row) row.appendChild(guide);
+      const start = Number(row.dataset.startMs), end = Number(row.dataset.endMs);
+      guide.style.left = `${Math.max(0, Math.min(1, (timeMs - start) / (end - start))) * 100}%`;
+      guide.hidden = false;
+    }
+
+    hideMagnetGuide() {
+      this.content?.querySelector('.waveform-magnet-guide')?.remove();
+    }
+
     magneticSnapDelta(drag, rawDelta, thresholdMs) {
-      if (!Number.isFinite(thresholdMs) || thresholdMs <= 0) return rawDelta;
+      if (!Number.isFinite(thresholdMs) || thresholdMs <= 0) { this.hideMagnetGuide(); return rawDelta; }
       const segments = this.options.getSegments(drag.track);
       const clock = resolveTiming(drag.timing || this.cueTiming());
       const moving = [];
@@ -20525,10 +20592,12 @@ export default MawDynamicCaptions;
         for (const target of statics) {
           const distance = Math.abs(position - target);
           if (distance > 0 && distance <= thresholdMs && (!best || distance < best.distance)) {
-            best = { distance, shift: target - position };
+            best = { distance, shift: target - position, target };
           }
         }
       }
+      if (best) this.showMagnetGuide(best.target);
+      else this.hideMagnetGuide();
       return best ? rawDelta + best.shift : rawDelta;
     }
 
@@ -20548,6 +20617,11 @@ export default MawDynamicCaptions;
         snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
         dual: () => this.options.multiSubtitleVisible?.() === true,
         magneticEdges: ({ cueExclude = null, clipExclude = null } = {}) => this.getMagneticEdges(cueExclude, clipExclude),
+        showMagnetGuide: (timeMs) => this.showMagnetGuide(timeMs),
+        hideMagnetGuide: () => this.hideMagnetGuide(),
+        setStatus: (message, kind = '', options = {}) => this.setStatus(message, kind, options),
+        refreshMediaReadout: () => this.refreshMediaReadout(),
+        openWaveSettings: () => this.options.openWaveSettings?.(),
       });
     }
 
@@ -20559,7 +20633,16 @@ export default MawDynamicCaptions;
       } else if (this.audioOnlyTimeline && !this.audioLayer?.hasAssets()) {
         this.payload = null; this.peaks = null; this.audioOnlyTimeline = false;
       }
-      this.audioGeometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
+      const geometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
+      if (geometry === this.audioGeometry) {
+        // 几何未变（移动/裁剪/静音等提交）：只重刷各行 lanes 覆盖层，
+        // 不做全量 render——后者会重建所有行与贴片节点，松手瞬间闪一下。
+        this.renderedRows.forEach((row) => this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs)));
+        // 贴片 mute 等状态变化会影响 A 轨道头，轻量路径也要同步轨道头列。
+        this.syncTrackHeads();
+        return;
+      }
+      this.audioGeometry = geometry;
       this.render();
     }
 
@@ -20713,8 +20796,8 @@ export default MawDynamicCaptions;
           group.appendChild(makeHead('V2', 'v-ext', `V2 副字幕轨——点击${extMuted ? '启用' : '禁用'}整条轨道`,
             () => this.options.toggleSubtitleTrackMuted?.('extension'), extMuted));
         }
-        // A 头：按行内配音 lane 的实际打包位置对齐（inner 高度 = 数量×22+6，
-        // 区域底距 5px；滚动查看的罕见场景按未滚动对齐）。
+        // A 头：按全局打包 lane 数渲染，对齐 lanes 区域（区域底距 5px、
+        // lane 高 22、可视上限 3 条；所有行的轨道带高度一致——按原模式）。
         const audioCount = this.options.getAudioTrackCount?.() || 0;
         const lanesInner = row.querySelector('.msw-audio-lanes-inner');
         if (audioCount > 0 && lanesInner) {
@@ -20736,9 +20819,13 @@ export default MawDynamicCaptions;
     }
 
     render() {
-      // 主题切换后令牌值变化：每次全量渲染前刷新画布颜色缓存，供 drawRow 读取。
-      this._readWaveColors();
-      this.applyTrackHeadsVisibility();
+      // 布局拖动中（分隔线/尺寸柄）：宽度逐帧变化，头部这两步都是强制样式/
+      // 布局读取（getComputedStyle + 每行 offsetTop），会把每帧布局翻倍造成
+      // 拖动卡顿；颜色与轨道头此时都不会变，跳过。
+      if (!this.layoutDragging) {
+        this._readWaveColors();
+        this.applyTrackHeadsVisibility();
+      }
       this.applyLayout();
       if (!this.payload || !this.peaks) {
         this.content.replaceChildren();
@@ -23231,7 +23318,10 @@ export default MawDynamicCaptions;
           const nearest = targets.reduce((best, value) => (
             Math.abs(value - newStart) < Math.abs(best - newStart) ? value : best
           ), Infinity);
-          if (Number.isFinite(nearest) && Math.abs(nearest - newStart) <= clock.snapThreshold) newStart = nearest;
+          if (Number.isFinite(nearest) && Math.abs(nearest - newStart) <= clock.snapThreshold) {
+            newStart = nearest;
+            this.showMagnetGuide(clock.toMs(nearest));
+          } else this.hideMagnetGuide();
         }
         newStart = clamp(clock.round(newStart), lower, upper);
       } else {
@@ -23246,7 +23336,10 @@ export default MawDynamicCaptions;
           const nearest = targets.reduce((best, value) => (
             Math.abs(value - newEnd) < Math.abs(best - newEnd) ? value : best
           ), Infinity);
-          if (Number.isFinite(nearest) && Math.abs(nearest - newEnd) <= clock.snapThreshold) newEnd = nearest;
+          if (Number.isFinite(nearest) && Math.abs(nearest - newEnd) <= clock.snapThreshold) {
+            newEnd = nearest;
+            this.showMagnetGuide(clock.toMs(nearest));
+          } else this.hideMagnetGuide();
         }
         newEnd = clamp(clock.round(newEnd), lower, upper);
       }
@@ -23274,7 +23367,10 @@ export default MawDynamicCaptions;
         const nearest = candidates.reduce((best, value) => (
           Math.abs(value - boundary) < Math.abs(best - boundary) ? value : best
         ), Infinity);
-        if (Number.isFinite(nearest) && Math.abs(nearest - boundary) <= clock.snapThreshold) boundary = nearest;
+        if (Number.isFinite(nearest) && Math.abs(nearest - boundary) <= clock.snapThreshold) {
+          boundary = nearest;
+          this.showMagnetGuide(clock.toMs(nearest));
+        } else this.hideMagnetGuide();
       }
       boundary = clamp(clock.round(boundary), lower, upper);
       const leftSegment = segments[drag.index];
@@ -23289,6 +23385,7 @@ export default MawDynamicCaptions;
     }
 
     endCueDrag(event) {
+      this.hideMagnetGuide();
       const drag = this.drag;
       if (!drag || event.pointerId !== drag.pointerId) return;
       this.refreshMediaReadout();
@@ -41940,20 +42037,22 @@ function ctxAppendExpandableSettings(label, children) {
   group.className = 'ctx-submenu-menu';
   group.setAttribute('role', 'menu');
   children.forEach((child) => {
-    const row = document.createElement('div');
-    row.className = 'item ctx-subitem';
+    // 自定义节点（如滑条行）直接挂载，不套勾选框结构。
+    if (child.node) { group.appendChild(child.node); return; }
+    // 勾选框形式：与设置面板的开关控件同语义，比“✓ 文本”更明确可点。
+    const row = document.createElement('label');
+    row.className = 'item ctx-subitem ctx-check';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = child.checked() === true;
     const rowText = document.createElement('span');
-    rowText.textContent = (child.checked() ? '✓ ' : '') + child.label;
-    row.appendChild(rowText);
-    const kb = document.createElement('kbd');
-    kb.style.visibility = 'hidden';
-    row.appendChild(kb);
+    rowText.textContent = child.label;
+    row.append(box, rowText);
     row.addEventListener('click', (event) => {
+      event.preventDefault();
       event.stopPropagation();
       child.toggle();
-      [...group.children].forEach((item, index) => {
-        item.firstChild.textContent = (children[index].checked() ? '✓ ' : '') + children[index].label;
-      });
+      box.checked = child.checked() === true;
     });
     group.appendChild(row);
   });
@@ -42060,15 +42159,31 @@ function setupModuleContextMenu() {
   bindModule(waveformEditor.pane, () => [
     { label: '波形显示器设置', onClick: openWaveSettings },
   ]);
+  // 右键面板的卡片密度：与菜单栏素材库设置同一滑条（宽度收窄匹配面板），
+  // 双向同步模板控件的值。
+  const buildAssetDensitySlider = () => {
+    const source = document.getElementById('asset-density');
+    const row = document.createElement('label');
+    row.className = 'item ctx-subitem ctx-density';
+    const text = document.createElement('span');
+    text.textContent = '卡片密度';
+    const input = document.createElement('input');
+    input.type = 'range'; input.min = '1'; input.max = '5'; input.step = '1';
+    input.value = source?.value || '3';
+    input.setAttribute('aria-label', '每行卡片数量');
+    const value = document.createElement('output');
+    value.textContent = input.value;
+    input.addEventListener('input', () => {
+      value.textContent = input.value;
+      if (source) { source.value = input.value; source.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+    row.append(text, input, value);
+    return row;
+  };
   bindModule(waveformEditor.assetLibrary, () => [
-    { label: '素材库设置', expandable: true, children: [1, 2, 3, 4, 5].map(count => ({
-      label: `卡片密度：${count} 列`,
-      checked: () => Number(document.getElementById('asset-density')?.value) === count,
-      toggle: () => {
-        const input = document.getElementById('asset-density');
-        input.value = String(count); input.dispatchEvent(new Event('input', {bubbles: true}));
-      },
-    })) },
+    { label: '素材库设置', expandable: true, children: [
+      { label: '卡片密度', node: buildAssetDensitySlider() },
+    ] },
   ]);
 }
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
@@ -42529,13 +42644,17 @@ function initWaveformEditor() {
       lastClickedExtensionIdx = idx;
     },
     selectExtensionRange: (idx) => {
+      // Shift 跨轨首点：另一轨还没有锚点时【追加】本条而不清空主轨选区——
+      // 此前走 selectOnlyExtension 会把主字幕选区清掉，表现为“Shift 无法
+      // 同时选中主字幕与副字幕”。
       if (lastClickedExtensionIdx >= 0) selectExtensionRange(lastClickedExtensionIdx, idx);
-      else selectOnlyExtension(idx);
+      else addExtensionToSelection(idx, getActiveExtensionTrack());
       lastClickedExtensionIdx = idx;
     },
     selectCueRange: (idx) => {
+      // 同上：副轨有选区时，主轨 Shift 首点只追加，不清副轨。
       if (lastClickedIdx >= 0) selectRange(lastClickedIdx, idx);
-      else selectOnly(idx);
+      else addToSelection(idx);
       lastClickedIdx = idx;
     },
     // 波形 Shift+框选：把命中的一批下标追加进当前多选（追加语义，不改 Shift 锚点）
@@ -42585,6 +42704,7 @@ function initWaveformEditor() {
     getHoverSeekPreview: () => EDITOR_SETTINGS.hoverSeekPreview && !jklReversePlaying,
     subtitleTrackMuted,
     toggleSubtitleTrackMuted,
+    openWaveSettings: () => setWaveformSettingsPanelOpen(true),
     getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
     audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
     toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
@@ -42615,17 +42735,8 @@ function initWaveformEditor() {
       if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
       renderAll();
       updateWithoutCueListAutoScroll();
-      flashHint(kind === 'move'
-        ? track === 'extension'
-          ? `已移动 ${idxs.length} 条副字幕`
-          : `已${independent ? '独立' : '联动'}移动 ${idxs.length} 条字幕`
-        : kind === 'resize-boundary-pointer'
-          ? `已将${track === 'extension' ? '副字幕' : '字幕'}${details?.edge === 'start' ? '起点' : '终点'}定位到鼠标位置`
-        : kind === 'resize-boundary'
-          ? `已${independent ? '独立' : '联动'}调整第 ${idxs[0] + 1} / ${idxs[1] + 1} 条边界`
-          : kind === 'resize-boundary-independent'
-            ? `已独立调整第 ${idxs[0] + 1} 条字幕边界`
-            : `已调整第 ${idxs[0] + 1} 条字幕时间`);
+      // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
+      // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。
     },
     onPayload: (payload) => {
       DATA.waveform = payload;
@@ -46587,6 +46698,9 @@ window.addEventListener('beforeunload', (e) => {
   const t = s => global.MSWE_I18N?.translateText?.(s) || s;
   const selected = new Set(), MIME = 'application/x-msw-audio-asset', ROW = 22, EMPTY = Object.freeze([]), EMPTY_EXTENSION = Object.freeze({});
   let dataRef, clipsRef, assetsRef, tracksRef, state, drag = null, repaint = 0, menu, menuTimer, gapSource, protectedRanges;
+  // lane 记忆跨 state 重建长期保存：重叠中的贴片拖动/松手都不换位；
+  // 分离的贴片由 arrange 的重叠规则自动折叠回单轨（不会阻碍收纳）。
+  let lastLanes = null;
   let laneScroll = new Map();
   const extension = () => host.data.msw || EMPTY_EXTENSION;
   function sync() {
@@ -46595,9 +46709,10 @@ window.addEventListener('beforeunload', (e) => {
     const timelineChanged = !!state && (dataRef !== ext || clipsRef !== clips || tracksRef !== ext.audio_tracks);
     dataRef = ext; clipsRef = clips; assetsRef = ext.assets; tracksRef = ext.audio_tracks;
     const assets = new Map((ext.assets || []).map(a => [a.id, a])), tracks = new Map((ext.audio_tracks || []).map(a => [a.id, a]));
-    const arranged = core.arrange(clips, assets);
+    const arranged = core.arrange(clips, assets, lastLanes);
     state = { clips, assets, tracks, ...arranged, audible: core.audible({ ...ext, audio_clips: clips }),
       end: clips.reduce((n, c) => Math.max(n, assets.has(c.asset_id) ? core.end(c, assets.get(c.asset_id)) : 0), 0) };
+    lastLanes = arranged.lanes;
     gapSource = null;
     for (const id of selected) if (!clips.some(c => c.id === id)) selected.delete(id);
     if (timelineChanged && !drag) { refreshSettings(); transport.reset(); }
@@ -46650,6 +46765,29 @@ window.addEventListener('beforeunload', (e) => {
       ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.muted = shouldMute; });
     });
   }
+  // 在播放头处把一条贴片一分为二：左段保留原 id 与起点，右段新 id 从拆分点
+  // 起播（source 区间按采样率精确切分），标签沿用。
+  function splitClipAtPlayhead(clip) {
+    const state = sync();
+    const asset = state.assets.get(clip.asset_id);
+    if (!asset) return;
+    const at = Math.round(transport.currentTime() ?? (host.player.currentTime * 1000 || 0));
+    const finish = core.end(clip, asset);
+    if (!(at > clip.start_ms + 50 && at < finish - 50)) { hint('播放头不在贴片范围内，无法拆分'); return; }
+    const splitSample = clip.source_in_sample + Math.round((at - clip.start_ms) * asset.sample_rate / 1000);
+    commit('拆分音频贴片', ext => {
+      const target = ext.audio_clips.find(c => c.id === clip.id);
+      if (!target) return;
+      const right = JSON.parse(JSON.stringify(target));
+      right.id = global.MSWProject.id('clip');
+      right.start_ms = at;
+      right.source_in_sample = splitSample;
+      ext.audio_clips.push(right);
+      target.source_out_sample = splitSample;
+    });
+    hint(`已在 ${(at / 1000).toFixed(3)}s 处拆分音频贴片`);
+  }
+
   // === 贴片剪贴板：Ctrl+X/C/V（Ctrl+V 按「最后拷贝的对象」路由，见键盘处理） ===
   let clipClipboard = null;
   const selectedClips = () => sync().clips.filter(c => selected.has(c.id));
@@ -46690,9 +46828,13 @@ window.addEventListener('beforeunload', (e) => {
     menu.addEventListener('mouseleave', () => { menuTimer = setTimeout(closeMenu, 280); });
     const item = (label, fn) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'item'; button.textContent = t(label);
       button.addEventListener('click', fn); menu.appendChild(button); };
-    item('剪切音频贴片', () => { copySelectedClips(true); closeMenu(); });
-    item('拷贝音频贴片', () => { copySelectedClips(false); closeMenu(); });
-    item('粘贴音频贴片到播放头', () => { pasteClipsFromClipboard(); closeMenu(); });
+    {
+      const at = transport.currentTime() ?? (host.player.currentTime * 1000 || 0);
+      const finishTime = core.end(clip, sync().assets.get(clip.asset_id));
+      if (at > clip.start_ms + 50 && at < finishTime - 50) {
+        item('在播放头处拆分', () => { splitClipAtPlayhead(clip); closeMenu(); });
+      }
+    }
     item(clip.muted ? '取消静音' : '静音音频贴片', mute);
     item('定位到贴片起点', () => { host.seek(clip.start_ms / 1000); closeMenu(); });
     item('恢复完整音频', () => commit('恢复完整音频', ext => { ext.audio_clips.forEach(c => {
@@ -46706,6 +46848,7 @@ window.addEventListener('beforeunload', (e) => {
     label.appendChild(input); menu.appendChild(label);
     item('删除音频贴片', remove);
     if (transport.failures.has(clip.asset_id)) item('重新加载素材', () => { transport.failures.delete(clip.asset_id); void transport.ensure(sync().assets.get(clip.asset_id)); closeMenu(); });
+    item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); });
     document.body.appendChild(menu);
     menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
     menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
@@ -46731,10 +46874,13 @@ window.addEventListener('beforeunload', (e) => {
       for (const target of statics) {
         const distance = Math.abs(moving - target);
         if (distance > 0 && distance <= threshold && (!best || distance < best.distance)) {
-          best = { distance, shift: target - moving };
+          best = { distance, shift: target - moving, target };
         }
       }
     }
+    // 磁吸命中时在目标时间处显示对齐参考线（与字幕块拖动同一视觉）。
+    if (best) timeline.showMagnetGuide?.(best.target);
+    else timeline.hideMagnetGuide?.();
     return best ? best.shift : 0;
   }
 
@@ -46759,11 +46905,24 @@ window.addEventListener('beforeunload', (e) => {
       delta += magneticAdjust(delta, mode, clip, threshold);
       if (mode === 'move') delta = Math.max(delta, -Math.min(...originals.filter(c => ids.has(c.id)).map(c => c.start_ms)));
       drag.preview = originals.map(c => ids.has(c.id) ? core.edit(c, sync().assets.get(c.asset_id), mode, delta) : c);
-      drag.moved = true; schedulePaint();
+      drag.moved = true;
+      // 移动/裁切中的实时时间挂到右上常显数据行（与字幕块拖动一致），
+      // 不弹浮动气泡。
+      const previewSelf = drag.preview.find(c => c.id === clip.id);
+      if (previewSelf) {
+        const asset = sync().assets.get(previewSelf.asset_id);
+        const finish = core.end(previewSelf, asset);
+        timeline.setStatus?.(mode === 'move'
+          ? `${t('移动贴片')} ${(previewSelf.start_ms / 1000).toFixed(3)} – ${(finish / 1000).toFixed(3)} s`
+          : `${t(mode === 'start' ? '裁切起点' : '裁切终点')} ${((mode === 'start' ? previewSelf.start_ms : finish) / 1000).toFixed(3)} s`, '', { quiet: true });
+      }
+      schedulePaint();
     };
     const finish = apply => {
       document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('pointercancel', onCancel, true); global.removeEventListener('blur', onCancel);
+      timeline.hideMagnetGuide?.();
+      timeline.refreshMediaReadout?.();
       const current = drag; drag = null;
       if (apply && current?.moved && current.generation === host.generation) {
         commit(mode === 'move' ? '移动音频贴片' : '裁剪音频贴片', ext => { ext.audio_clips = current.preview; });
@@ -46793,63 +46952,85 @@ window.addEventListener('beforeunload', (e) => {
   }
   function renderRow(row, start, end) {
     const current = sync(), has = current.clips.length > 0;
-    const key = `${start}:${end}`, previous = row.querySelector('.msw-audio-lanes');
-    if (previous) laneScroll.set(key, previous.scrollTop);
-    previous?.remove();
+    const key = `${start}:${end}`;
+    // 复用同一时间窗的 lanes 容器：拖动期间每帧的覆盖层刷新若整体重建
+    // DOM，鼠标下的贴片会因节点被替换而闪烁（悬停/过渡态每帧丢失）。
+    let area = row.querySelector('.msw-audio-lanes');
+    if (!(area && area.dataset.key === key)) {
+      if (area) { laneScroll.set(key, area.scrollTop); area.remove(); }
+      area = document.createElement('div'); area.className = 'msw-audio-lanes'; area.dataset.key = key;
+      area.tabIndex = 0; area.setAttribute('aria-label', t('配音轨道'));
+      const inner = document.createElement('div'); inner.className = 'msw-audio-lanes-inner'; area.appendChild(inner);
+      // 贴片/手柄上的指针事件仍由贴片交互接管；轨道空白处放行给波形行
+      // （点击 = 定位播放头，双击 = 播放/暂停），不再被轨道层整体拦截。
+      const onClip = (e) => Boolean(e.target.closest('.msw-audio-clip'));
+      for (const event of ['pointerdown', 'pointermove', 'dblclick']) {
+        area.addEventListener(event, (e) => { if (onClip(e)) e.stopPropagation(); });
+      }
+      area.addEventListener('contextmenu', (e) => { if (onClip(e)) { e.stopPropagation(); e.preventDefault(); } });
+      area.addEventListener('wheel', (e) => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
+      area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
+      row.appendChild(area);
+    } else {
+      laneScroll.set(key, area.scrollTop);
+    }
     row.classList.toggle('has-audio-clips', has);
     const visible = Math.min(3, Math.max(1, current.count)), height = visible * ROW + 6;
     row.style.setProperty('--audio-lane-space', `${has ? height + 5 : 0}px`);
-    if (!has) return;
-    const area = document.createElement('div'); area.className = 'msw-audio-lanes';
-    area.style.height = `${height}px`; area.tabIndex = 0; area.setAttribute('aria-label', t('配音轨道'));
+    if (!has) { area.remove(); return; }
+    const inner = area.querySelector('.msw-audio-lanes-inner');
+    area.style.height = `${height}px`;
     area.title = t(current.count > 3 ? '重叠配音可在此区域内滚动查看' : '配音轨道：拖动移动，边缘裁剪，右键静音');
-    const inner = document.createElement('div'); inner.className = 'msw-audio-lanes-inner'; inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`; area.appendChild(inner);
-    const overlaps = current.clips.filter(c => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
+    inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`;
+    const overlaps = current.clips.filter((c) => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
     function paint() {
       const lo = Math.max(0, Math.floor(area.scrollTop / ROW) - 1), hi = lo + visible + 2;
-      const fragment = document.createDocumentFragment();
+      // 键控复用：按 clipId 复用已有元素、只更新几何与状态类；新出现的才
+      // 建节点，消失的移除——拖动每帧刷新不再重建整棵 DOM（闪烁与性能根因）。
+      const existing = new Map([...inner.children].map((el) => [el.dataset.clipId, el]));
+      const seen = new Set();
       for (const clip of overlaps) {
         const lane = current.lanes.get(clip.id); if (lane < lo || lane > hi) continue;
         const asset = current.assets.get(clip.asset_id), finish = core.end(clip, asset), from = Math.max(start, clip.start_ms), to = Math.min(end, finish);
-        const block = document.createElement('div'); block.className = 'msw-audio-clip'; block.dataset.clipId = clip.id; block.tabIndex = 0;
+        seen.add(clip.id);
+        let block = existing.get(clip.id);
+        if (!block) {
+          block = document.createElement('div'); block.className = 'msw-audio-clip'; block.dataset.clipId = clip.id; block.tabIndex = 0;
+          block.setAttribute('role', 'button'); block.setAttribute('aria-label', `${t('音频贴片')} ${clip.label}`);
+          const icon = document.createElement('span'); icon.className = 'msw-audio-icon'; icon.textContent = '♪'; icon.setAttribute('aria-hidden', 'true'); block.appendChild(icon);
+          const label = document.createElement('span'); label.className = 'msw-audio-clip-label'; label.textContent = clip.label || t('音频贴片'); block.appendChild(label);
+          for (const mode of ['start', 'end']) {
+            const handle = document.createElement('span'); handle.className = `msw-audio-handle ${mode}`; handle.dataset.mode = mode; block.appendChild(handle);
+          }
+          // 键控复用后监听器只绑一次：闭包里的 clip 是创建时的旧数据对象，
+          // 事件发生时必须按 id 取当前数据（否则右键菜单的静音态等是过期值）。
+          const liveClip = () => sync().clips.find((c) => c.id === clip.id) || clip;
+          block.addEventListener('pointerdown', (e) => begin(e, liveClip(), e.target.dataset.mode || 'move'));
+          block.addEventListener('contextmenu', (e) => showMenu(e, liveClip()));
+          block.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); });
+          inner.appendChild(block);
+        }
         block.dataset.startMs = clip.start_ms; block.dataset.endMs = finish;
         const now = Math.round(transport.currentTime() ?? (host.player.currentTime * 1000 || 0));
         block.classList.toggle('active', clip.start_ms <= now && now < finish);
-        block.setAttribute('role', 'button'); block.setAttribute('aria-label', `${t('音频贴片')} ${clip.label}`);
         block.classList.toggle('selected', selected.has(clip.id));
         const muted = clip.muted || current.tracks.get(clip.track_id)?.muted;
         block.classList.toggle('muted', muted);
         block.classList.toggle('continues-from-previous-row', clip.start_ms < start);
         block.classList.toggle('continues-to-next-row', finish > end);
         block.classList.toggle('missing', transport.failures.has(asset.id));
-        block.style.cssText = `left:${(from - start) / (end - start) * 100}%;width:${(to - from) / (end - start) * 100}%;top:${lane * ROW + 3}px`;
-        const background = muted ? '' : heatBackground(clip, asset, from, to); if (background) block.style.backgroundImage = background;
+        block.style.left = `${(from - start) / (end - start) * 100}%`;
+        block.style.width = `${(to - from) / (end - start) * 100}%`;
+        block.style.top = `${lane * ROW + 3}px`;
+        const background = muted ? '' : heatBackground(clip, asset, from, to);
+        if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
         block.title = `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
           + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '');
-        const icon = document.createElement('span'); icon.className = 'msw-audio-icon'; icon.textContent = '♪'; icon.setAttribute('aria-hidden', 'true'); block.appendChild(icon);
-        const label = document.createElement('span'); label.className = 'msw-audio-clip-label'; label.textContent = clip.label || t('音频贴片'); block.appendChild(label);
-        for (const mode of ['start', 'end']) {
-          if (mode === 'start' && clip.start_ms < start || mode === 'end' && finish > end) continue;
-          const handle = document.createElement('span'); handle.className = `msw-audio-handle ${mode}`; handle.dataset.mode = mode; block.appendChild(handle);
-        }
-        block.addEventListener('pointerdown', e => begin(e, clip, e.target.dataset.mode || 'move'));
-        block.addEventListener('contextmenu', e => showMenu(e, clip));
-        block.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); });
-        fragment.appendChild(block);
         if (!transport.heats.has(asset.id) && !transport.failures.has(asset.id)) void transport.ensure(asset);
       }
-      inner.replaceChildren(fragment);
+      existing.forEach((el, id) => { if (!seen.has(id)) el.remove(); });
     }
-    // 贴片/手柄上的指针事件仍由贴片交互接管；轨道空白处放行给波形行
-    // （点击 = 定位播放头，双击 = 播放/暂停），不再被轨道层整体拦截。
-    const onClip = e => Boolean(e.target.closest('.msw-audio-clip'));
-    for (const event of ['pointerdown', 'pointermove', 'dblclick']) {
-      area.addEventListener(event, e => { if (onClip(e)) e.stopPropagation(); });
-    }
-    area.addEventListener('contextmenu', e => { if (onClip(e)) { e.stopPropagation(); e.preventDefault(); } });
-    area.addEventListener('wheel', e => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
-    area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
-    row.appendChild(area); area.scrollTop = laneScroll.get(key) || 0; paint();
+    paint();
   }
   function updatePlayhead(now) {
     // Update visible blocks only; preserve DOM, heatmaps and ongoing gestures.
@@ -46929,6 +47110,8 @@ window.addEventListener('beforeunload', (e) => {
     trackCount: () => (extension().audio_tracks || []).length,
     // 打包 lane 数（贴片重叠增多时 A 轨道头随之增加）；与 lanes 区域一致。
     laneCount: () => sync().count,
+    // 当前 lane 分配快照（测试/诊断用）。
+    laneSnapshot: () => Object.fromEntries(sync().lanes),
     audioTrackMuted: (index) => (extension().audio_tracks || [])[index]?.muted === true,
     toggleAudioTrackMuted: (index) => {
       const track = (extension().audio_tracks || [])[index];
@@ -46963,7 +47146,7 @@ window.addEventListener('beforeunload', (e) => {
   global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
   global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
   global.addEventListener('msw:project-changed', () => {
-    drag?.cancel(); closeMenu(); selected.clear(); state = null; laneScroll.clear(); transport.clear();
+    drag?.cancel(); closeMenu(); selected.clear(); state = null; lastLanes = null; laneScroll.clear(); transport.clear();
     queueMicrotask(() => { refreshSettings(); timeline.refresh(); });
   });
   global.addEventListener('pagehide', () => transport.clear());

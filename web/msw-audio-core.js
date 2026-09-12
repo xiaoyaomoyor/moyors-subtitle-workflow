@@ -47,29 +47,37 @@
     }
     return next;
   }
-  function arrange(clips, assets) {
-    // Greedy interval partitioning with a min heap: O(n log n), including
-    // large overlapping batches. Lane IDs stay stable for a fixed clip set.
-    const heap = [], lanes = new Map(); let count = 0;
-    const push = item => {
-      heap.push(item); let i = heap.length - 1;
-      while (i > 0) { const p = (i - 1) >> 1; if (heap[p].end <= item.end) break; heap[i] = heap[p]; i = p; }
-      heap[i] = item;
-    };
-    const pop = () => {
-      const first = heap[0], last = heap.pop();
-      if (heap.length) { let i = 0; while (i * 2 + 1 < heap.length) {
-        let child = i * 2 + 1; if (child + 1 < heap.length && heap[child + 1].end < heap[child].end) child++;
-        if (heap[child].end >= last.end) break; heap[i] = heap[child]; i = child;
-      } heap[i] = last; }
-      return first;
-    };
-    for (const clip of [...clips].sort((a, b) => a.start_ms - b.start_ms || a.id.localeCompare(b.id))) {
-      const asset = assets.get(clip.asset_id); if (!asset) continue;
-      const lane = heap.length && heap[0].end <= clip.start_ms ? pop().lane : count++;
-      lanes.set(clip.id, lane); push({ end: end(clip, asset), lane });
+  function arrange(clips, assets, prevLanes = null) {
+    // 按 start 顺序做区间装箱（首适应低位优先），带「重叠规则化粘性 lane」：
+    // 一条贴片只在【与其他贴片仍有时间重叠】时保留上一次的轨道——重叠状态下
+    // 拖动/松手都不与对方换位；一旦与所有贴片分离，立即回到贪心收纳
+    // （自动折叠回单轨）。规则使 lane 记忆可以跨提交长期保存而不会
+    // 阻碍折叠（分离即失粘）。
+    const laneEnds = new Map(), lanes = new Map();
+    const sorted = [...clips].sort((a, b) => a.start_ms - b.start_ms || a.id.localeCompare(b.id));
+    const ends = sorted.map((clip) => {
+      const asset = assets.get(clip.asset_id);
+      return asset ? end(clip, asset) : -Infinity;
+    });
+    const overlapsAny = (index) => sorted.some((_, other) => other !== index
+      && sorted[index].start_ms < ends[other] && sorted[other].start_ms < ends[index]);
+    for (let index = 0; index < sorted.length; index += 1) {
+      const clip = sorted[index];
+      if (ends[index] === -Infinity) continue;
+      const clipEnd = ends[index];
+      const busy = (lane) => (laneEnds.get(lane) ?? -Infinity) > clip.start_ms;
+      const sticky = prevLanes?.get(clip.id);
+      let lane = Number.isInteger(sticky) && sticky >= 0 && overlapsAny(index) && !busy(sticky)
+        ? sticky
+        : null;
+      if (lane == null) {
+        lane = 0;
+        while (busy(lane)) lane += 1;
+      }
+      laneEnds.set(lane, Math.max(laneEnds.get(lane) ?? -Infinity, clipEnd));
+      lanes.set(clip.id, lane);
     }
-    return { lanes, count };
+    return { lanes, count: laneEnds.size };
   }
   function audible(extension) {
     const tracks = new Map((extension?.audio_tracks || []).map(t => [t.id, t]));

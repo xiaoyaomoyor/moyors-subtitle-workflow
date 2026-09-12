@@ -6,6 +6,9 @@
   const t = s => global.MSWE_I18N?.translateText?.(s) || s;
   const selected = new Set(), MIME = 'application/x-msw-audio-asset', ROW = 22, EMPTY = Object.freeze([]), EMPTY_EXTENSION = Object.freeze({});
   let dataRef, clipsRef, assetsRef, tracksRef, state, drag = null, repaint = 0, menu, menuTimer, gapSource, protectedRanges;
+  // lane 记忆跨 state 重建长期保存：重叠中的贴片拖动/松手都不换位；
+  // 分离的贴片由 arrange 的重叠规则自动折叠回单轨（不会阻碍收纳）。
+  let lastLanes = null;
   let laneScroll = new Map();
   const extension = () => host.data.msw || EMPTY_EXTENSION;
   function sync() {
@@ -14,9 +17,10 @@
     const timelineChanged = !!state && (dataRef !== ext || clipsRef !== clips || tracksRef !== ext.audio_tracks);
     dataRef = ext; clipsRef = clips; assetsRef = ext.assets; tracksRef = ext.audio_tracks;
     const assets = new Map((ext.assets || []).map(a => [a.id, a])), tracks = new Map((ext.audio_tracks || []).map(a => [a.id, a]));
-    const arranged = core.arrange(clips, assets);
+    const arranged = core.arrange(clips, assets, lastLanes);
     state = { clips, assets, tracks, ...arranged, audible: core.audible({ ...ext, audio_clips: clips }),
       end: clips.reduce((n, c) => Math.max(n, assets.has(c.asset_id) ? core.end(c, assets.get(c.asset_id)) : 0), 0) };
+    lastLanes = arranged.lanes;
     gapSource = null;
     for (const id of selected) if (!clips.some(c => c.id === id)) selected.delete(id);
     if (timelineChanged && !drag) { refreshSettings(); transport.reset(); }
@@ -69,6 +73,29 @@
       ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.muted = shouldMute; });
     });
   }
+  // 在播放头处把一条贴片一分为二：左段保留原 id 与起点，右段新 id 从拆分点
+  // 起播（source 区间按采样率精确切分），标签沿用。
+  function splitClipAtPlayhead(clip) {
+    const state = sync();
+    const asset = state.assets.get(clip.asset_id);
+    if (!asset) return;
+    const at = Math.round(transport.currentTime() ?? (host.player.currentTime * 1000 || 0));
+    const finish = core.end(clip, asset);
+    if (!(at > clip.start_ms + 50 && at < finish - 50)) { hint('播放头不在贴片范围内，无法拆分'); return; }
+    const splitSample = clip.source_in_sample + Math.round((at - clip.start_ms) * asset.sample_rate / 1000);
+    commit('拆分音频贴片', ext => {
+      const target = ext.audio_clips.find(c => c.id === clip.id);
+      if (!target) return;
+      const right = JSON.parse(JSON.stringify(target));
+      right.id = global.MSWProject.id('clip');
+      right.start_ms = at;
+      right.source_in_sample = splitSample;
+      ext.audio_clips.push(right);
+      target.source_out_sample = splitSample;
+    });
+    hint(`已在 ${(at / 1000).toFixed(3)}s 处拆分音频贴片`);
+  }
+
   // === 贴片剪贴板：Ctrl+X/C/V（Ctrl+V 按「最后拷贝的对象」路由，见键盘处理） ===
   let clipClipboard = null;
   const selectedClips = () => sync().clips.filter(c => selected.has(c.id));
@@ -109,9 +136,13 @@
     menu.addEventListener('mouseleave', () => { menuTimer = setTimeout(closeMenu, 280); });
     const item = (label, fn) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'item'; button.textContent = t(label);
       button.addEventListener('click', fn); menu.appendChild(button); };
-    item('剪切音频贴片', () => { copySelectedClips(true); closeMenu(); });
-    item('拷贝音频贴片', () => { copySelectedClips(false); closeMenu(); });
-    item('粘贴音频贴片到播放头', () => { pasteClipsFromClipboard(); closeMenu(); });
+    {
+      const at = transport.currentTime() ?? (host.player.currentTime * 1000 || 0);
+      const finishTime = core.end(clip, sync().assets.get(clip.asset_id));
+      if (at > clip.start_ms + 50 && at < finishTime - 50) {
+        item('在播放头处拆分', () => { splitClipAtPlayhead(clip); closeMenu(); });
+      }
+    }
     item(clip.muted ? '取消静音' : '静音音频贴片', mute);
     item('定位到贴片起点', () => { host.seek(clip.start_ms / 1000); closeMenu(); });
     item('恢复完整音频', () => commit('恢复完整音频', ext => { ext.audio_clips.forEach(c => {
@@ -125,6 +156,7 @@
     label.appendChild(input); menu.appendChild(label);
     item('删除音频贴片', remove);
     if (transport.failures.has(clip.asset_id)) item('重新加载素材', () => { transport.failures.delete(clip.asset_id); void transport.ensure(sync().assets.get(clip.asset_id)); closeMenu(); });
+    item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); });
     document.body.appendChild(menu);
     menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
     menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
@@ -150,10 +182,13 @@
       for (const target of statics) {
         const distance = Math.abs(moving - target);
         if (distance > 0 && distance <= threshold && (!best || distance < best.distance)) {
-          best = { distance, shift: target - moving };
+          best = { distance, shift: target - moving, target };
         }
       }
     }
+    // 磁吸命中时在目标时间处显示对齐参考线（与字幕块拖动同一视觉）。
+    if (best) timeline.showMagnetGuide?.(best.target);
+    else timeline.hideMagnetGuide?.();
     return best ? best.shift : 0;
   }
 
@@ -178,11 +213,24 @@
       delta += magneticAdjust(delta, mode, clip, threshold);
       if (mode === 'move') delta = Math.max(delta, -Math.min(...originals.filter(c => ids.has(c.id)).map(c => c.start_ms)));
       drag.preview = originals.map(c => ids.has(c.id) ? core.edit(c, sync().assets.get(c.asset_id), mode, delta) : c);
-      drag.moved = true; schedulePaint();
+      drag.moved = true;
+      // 移动/裁切中的实时时间挂到右上常显数据行（与字幕块拖动一致），
+      // 不弹浮动气泡。
+      const previewSelf = drag.preview.find(c => c.id === clip.id);
+      if (previewSelf) {
+        const asset = sync().assets.get(previewSelf.asset_id);
+        const finish = core.end(previewSelf, asset);
+        timeline.setStatus?.(mode === 'move'
+          ? `${t('移动贴片')} ${(previewSelf.start_ms / 1000).toFixed(3)} – ${(finish / 1000).toFixed(3)} s`
+          : `${t(mode === 'start' ? '裁切起点' : '裁切终点')} ${((mode === 'start' ? previewSelf.start_ms : finish) / 1000).toFixed(3)} s`, '', { quiet: true });
+      }
+      schedulePaint();
     };
     const finish = apply => {
       document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('pointercancel', onCancel, true); global.removeEventListener('blur', onCancel);
+      timeline.hideMagnetGuide?.();
+      timeline.refreshMediaReadout?.();
       const current = drag; drag = null;
       if (apply && current?.moved && current.generation === host.generation) {
         commit(mode === 'move' ? '移动音频贴片' : '裁剪音频贴片', ext => { ext.audio_clips = current.preview; });
@@ -212,63 +260,85 @@
   }
   function renderRow(row, start, end) {
     const current = sync(), has = current.clips.length > 0;
-    const key = `${start}:${end}`, previous = row.querySelector('.msw-audio-lanes');
-    if (previous) laneScroll.set(key, previous.scrollTop);
-    previous?.remove();
+    const key = `${start}:${end}`;
+    // 复用同一时间窗的 lanes 容器：拖动期间每帧的覆盖层刷新若整体重建
+    // DOM，鼠标下的贴片会因节点被替换而闪烁（悬停/过渡态每帧丢失）。
+    let area = row.querySelector('.msw-audio-lanes');
+    if (!(area && area.dataset.key === key)) {
+      if (area) { laneScroll.set(key, area.scrollTop); area.remove(); }
+      area = document.createElement('div'); area.className = 'msw-audio-lanes'; area.dataset.key = key;
+      area.tabIndex = 0; area.setAttribute('aria-label', t('配音轨道'));
+      const inner = document.createElement('div'); inner.className = 'msw-audio-lanes-inner'; area.appendChild(inner);
+      // 贴片/手柄上的指针事件仍由贴片交互接管；轨道空白处放行给波形行
+      // （点击 = 定位播放头，双击 = 播放/暂停），不再被轨道层整体拦截。
+      const onClip = (e) => Boolean(e.target.closest('.msw-audio-clip'));
+      for (const event of ['pointerdown', 'pointermove', 'dblclick']) {
+        area.addEventListener(event, (e) => { if (onClip(e)) e.stopPropagation(); });
+      }
+      area.addEventListener('contextmenu', (e) => { if (onClip(e)) { e.stopPropagation(); e.preventDefault(); } });
+      area.addEventListener('wheel', (e) => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
+      area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
+      row.appendChild(area);
+    } else {
+      laneScroll.set(key, area.scrollTop);
+    }
     row.classList.toggle('has-audio-clips', has);
     const visible = Math.min(3, Math.max(1, current.count)), height = visible * ROW + 6;
     row.style.setProperty('--audio-lane-space', `${has ? height + 5 : 0}px`);
-    if (!has) return;
-    const area = document.createElement('div'); area.className = 'msw-audio-lanes';
-    area.style.height = `${height}px`; area.tabIndex = 0; area.setAttribute('aria-label', t('配音轨道'));
+    if (!has) { area.remove(); return; }
+    const inner = area.querySelector('.msw-audio-lanes-inner');
+    area.style.height = `${height}px`;
     area.title = t(current.count > 3 ? '重叠配音可在此区域内滚动查看' : '配音轨道：拖动移动，边缘裁剪，右键静音');
-    const inner = document.createElement('div'); inner.className = 'msw-audio-lanes-inner'; inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`; area.appendChild(inner);
-    const overlaps = current.clips.filter(c => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
+    inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`;
+    const overlaps = current.clips.filter((c) => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
     function paint() {
       const lo = Math.max(0, Math.floor(area.scrollTop / ROW) - 1), hi = lo + visible + 2;
-      const fragment = document.createDocumentFragment();
+      // 键控复用：按 clipId 复用已有元素、只更新几何与状态类；新出现的才
+      // 建节点，消失的移除——拖动每帧刷新不再重建整棵 DOM（闪烁与性能根因）。
+      const existing = new Map([...inner.children].map((el) => [el.dataset.clipId, el]));
+      const seen = new Set();
       for (const clip of overlaps) {
         const lane = current.lanes.get(clip.id); if (lane < lo || lane > hi) continue;
         const asset = current.assets.get(clip.asset_id), finish = core.end(clip, asset), from = Math.max(start, clip.start_ms), to = Math.min(end, finish);
-        const block = document.createElement('div'); block.className = 'msw-audio-clip'; block.dataset.clipId = clip.id; block.tabIndex = 0;
+        seen.add(clip.id);
+        let block = existing.get(clip.id);
+        if (!block) {
+          block = document.createElement('div'); block.className = 'msw-audio-clip'; block.dataset.clipId = clip.id; block.tabIndex = 0;
+          block.setAttribute('role', 'button'); block.setAttribute('aria-label', `${t('音频贴片')} ${clip.label}`);
+          const icon = document.createElement('span'); icon.className = 'msw-audio-icon'; icon.textContent = '♪'; icon.setAttribute('aria-hidden', 'true'); block.appendChild(icon);
+          const label = document.createElement('span'); label.className = 'msw-audio-clip-label'; label.textContent = clip.label || t('音频贴片'); block.appendChild(label);
+          for (const mode of ['start', 'end']) {
+            const handle = document.createElement('span'); handle.className = `msw-audio-handle ${mode}`; handle.dataset.mode = mode; block.appendChild(handle);
+          }
+          // 键控复用后监听器只绑一次：闭包里的 clip 是创建时的旧数据对象，
+          // 事件发生时必须按 id 取当前数据（否则右键菜单的静音态等是过期值）。
+          const liveClip = () => sync().clips.find((c) => c.id === clip.id) || clip;
+          block.addEventListener('pointerdown', (e) => begin(e, liveClip(), e.target.dataset.mode || 'move'));
+          block.addEventListener('contextmenu', (e) => showMenu(e, liveClip()));
+          block.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); });
+          inner.appendChild(block);
+        }
         block.dataset.startMs = clip.start_ms; block.dataset.endMs = finish;
         const now = Math.round(transport.currentTime() ?? (host.player.currentTime * 1000 || 0));
         block.classList.toggle('active', clip.start_ms <= now && now < finish);
-        block.setAttribute('role', 'button'); block.setAttribute('aria-label', `${t('音频贴片')} ${clip.label}`);
         block.classList.toggle('selected', selected.has(clip.id));
         const muted = clip.muted || current.tracks.get(clip.track_id)?.muted;
         block.classList.toggle('muted', muted);
         block.classList.toggle('continues-from-previous-row', clip.start_ms < start);
         block.classList.toggle('continues-to-next-row', finish > end);
         block.classList.toggle('missing', transport.failures.has(asset.id));
-        block.style.cssText = `left:${(from - start) / (end - start) * 100}%;width:${(to - from) / (end - start) * 100}%;top:${lane * ROW + 3}px`;
-        const background = muted ? '' : heatBackground(clip, asset, from, to); if (background) block.style.backgroundImage = background;
+        block.style.left = `${(from - start) / (end - start) * 100}%`;
+        block.style.width = `${(to - from) / (end - start) * 100}%`;
+        block.style.top = `${lane * ROW + 3}px`;
+        const background = muted ? '' : heatBackground(clip, asset, from, to);
+        if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
         block.title = `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
           + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '');
-        const icon = document.createElement('span'); icon.className = 'msw-audio-icon'; icon.textContent = '♪'; icon.setAttribute('aria-hidden', 'true'); block.appendChild(icon);
-        const label = document.createElement('span'); label.className = 'msw-audio-clip-label'; label.textContent = clip.label || t('音频贴片'); block.appendChild(label);
-        for (const mode of ['start', 'end']) {
-          if (mode === 'start' && clip.start_ms < start || mode === 'end' && finish > end) continue;
-          const handle = document.createElement('span'); handle.className = `msw-audio-handle ${mode}`; handle.dataset.mode = mode; block.appendChild(handle);
-        }
-        block.addEventListener('pointerdown', e => begin(e, clip, e.target.dataset.mode || 'move'));
-        block.addEventListener('contextmenu', e => showMenu(e, clip));
-        block.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); });
-        fragment.appendChild(block);
         if (!transport.heats.has(asset.id) && !transport.failures.has(asset.id)) void transport.ensure(asset);
       }
-      inner.replaceChildren(fragment);
+      existing.forEach((el, id) => { if (!seen.has(id)) el.remove(); });
     }
-    // 贴片/手柄上的指针事件仍由贴片交互接管；轨道空白处放行给波形行
-    // （点击 = 定位播放头，双击 = 播放/暂停），不再被轨道层整体拦截。
-    const onClip = e => Boolean(e.target.closest('.msw-audio-clip'));
-    for (const event of ['pointerdown', 'pointermove', 'dblclick']) {
-      area.addEventListener(event, e => { if (onClip(e)) e.stopPropagation(); });
-    }
-    area.addEventListener('contextmenu', e => { if (onClip(e)) { e.stopPropagation(); e.preventDefault(); } });
-    area.addEventListener('wheel', e => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
-    area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
-    row.appendChild(area); area.scrollTop = laneScroll.get(key) || 0; paint();
+    paint();
   }
   function updatePlayhead(now) {
     // Update visible blocks only; preserve DOM, heatmaps and ongoing gestures.
@@ -348,6 +418,8 @@
     trackCount: () => (extension().audio_tracks || []).length,
     // 打包 lane 数（贴片重叠增多时 A 轨道头随之增加）；与 lanes 区域一致。
     laneCount: () => sync().count,
+    // 当前 lane 分配快照（测试/诊断用）。
+    laneSnapshot: () => Object.fromEntries(sync().lanes),
     audioTrackMuted: (index) => (extension().audio_tracks || [])[index]?.muted === true,
     toggleAudioTrackMuted: (index) => {
       const track = (extension().audio_tracks || [])[index];
@@ -382,7 +454,7 @@
   global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
   global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
   global.addEventListener('msw:project-changed', () => {
-    drag?.cancel(); closeMenu(); selected.clear(); state = null; laneScroll.clear(); transport.clear();
+    drag?.cancel(); closeMenu(); selected.clear(); state = null; lastLanes = null; laneScroll.clear(); transport.clear();
     queueMicrotask(() => { refreshSettings(); timeline.refresh(); });
   });
   global.addEventListener('pagehide', () => transport.clear());

@@ -344,7 +344,6 @@ __WAVEFORM_CSS__
             <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
             <output id="asset-density-value" for="asset-density">3</output>
           </label>
-          <small class="settings-panel-hint">每行 1–5 张卡片，默认 3 张；窄窗口自动减列。</small>
         </div>
       </div>
       <div class="dropdown-separator"></div>
@@ -949,8 +948,8 @@ __WAVEFORM_CSS__
       <label class="toggle editor-settings-item" title="按音频各时刻的 RMS 电平显示固定色标；关闭后贴片使用纯色">
         <input type="checkbox" id="audio-clips-heatmap" checked> 音频贴片热力图
       </label>
-      <label class="toggle editor-settings-item" title="在波形条左侧显示 Pr 式轨道头（V1/V2 字幕轨、A1/A2 配音轨）；点击轨道头可禁用/启用整条轨道">
-        <input type="checkbox" id="waveform-show-track-heads" checked> 轨道头
+      <label class="toggle editor-settings-item" title="在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行">
+        <input type="checkbox" id="waveform-show-track-heads" checked> 行编号
       </label>
       <label class="editor-settings-item">配音与空隙
         <select id="audio-clips-gap-policy">
@@ -1764,20 +1763,22 @@ __WAVEFORM_CSS__
     <div class="msw-asset-toolbar">
       <input type="search" id="asset-search" placeholder="搜索配音文本、音色…" aria-label="搜索素材">
       <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
-      <button type="button" id="asset-refresh" title="刷新素材库">刷新</button>
+      <button type="button" id="asset-refresh" class="msw-asset-iconbtn" title="刷新素材库" aria-label="刷新素材库"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="msw-asset-summary">
       <span id="asset-count">0 条音频</span>
       <div class="msw-asset-summary-actions">
-        <button type="button" id="asset-import">导入音频</button>
-        <button type="button" id="asset-export-project">导出工程与 TTS 音频</button>
+        <button type="button" id="asset-import" class="msw-asset-iconbtn" title="导入音频" aria-label="导入音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7m0 0 3-3m-3 3-3-3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与 TTS 音频" aria-label="导出工程与 TTS 音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="msw-asset-pagenum" id="asset-page">1 / 1</span>
+        <button type="button" id="asset-prev" class="msw-asset-iconbtn" title="上一页" aria-label="上一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="asset-next" class="msw-asset-iconbtn" title="下一页" aria-label="下一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <input type="file" id="asset-import-file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" multiple hidden>
     </div>
     <div class="msw-asset-import-status" id="asset-import-status" hidden><span id="asset-import-message" role="status" aria-live="polite"></span><button type="button" id="asset-import-stop">停止后续导入</button></div>
     <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
     <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
-    <div class="msw-asset-pagination"><button type="button" id="asset-prev">上一页</button><span id="asset-page">1 / 1</span><button type="button" id="asset-next">下一页</button></div>
     <footer class="msw-asset-player" id="asset-player" hidden>
       <div id="asset-playing" class="msw-asset-content">选择音频试听</div>
       <div class="msw-asset-transport">

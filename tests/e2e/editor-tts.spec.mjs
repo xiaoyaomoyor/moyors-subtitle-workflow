@@ -669,13 +669,13 @@ test('asset settings are in the media menu and module context submenu',async({pa
   await page.locator('#asset-list').click({button:'right',position:{x:20,y:20}});
   const header=page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:'素材库设置'});
   await expect(header).toBeVisible(); await header.hover();
-  const choice=page.locator('#ctxmenu .ctx-subitem').filter({hasText:'密度：4 列'});
-  await expect(choice).toBeVisible(); await choice.click();
+  // 右键面板的卡片密度已改为滑条行（与菜单栏同一控件语义）
+  const slider=page.locator('#ctxmenu .ctx-density input');
+  await expect(slider).toBeVisible();
+  await slider.fill('4'); await slider.dispatchEvent('input');
   await expect(page.locator('#asset-density')).toHaveValue('4');
-  expect(await page.locator('#ctxmenu .ctx-subitem').allTextContents()).toEqual([
-    '卡片密度：1 列','卡片密度：2 列','卡片密度：3 列','✓ 卡片密度：4 列','卡片密度：5 列']);
-  expect(await choice.locator('span').evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return range.getClientRects().length;})).toBe(1);
-  expect(await choice.evaluate(el=>{const r=el.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight;})).toBe(true);
+  expect(await page.locator('#ctxmenu .ctx-subitem').count()).toBe(1);
+  expect(await slider.evaluate(el=>{const r=el.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight;})).toBe(true);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-settings-context.png')});
 });
 

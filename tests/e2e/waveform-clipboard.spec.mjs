@@ -370,3 +370,221 @@ async function dropSrtPair(page) {
   await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
 }
+
+test('dragging a clip past another keeps its lane', async ({ page }) => {
+  // 构造三段时间互不重叠的贴片对（每对内部重叠 → 两条 lane），
+  // 另有一个只有单贴片的时间段做行高对照。
+  const setup = await page.evaluate(() => {
+    const data = window.MSWE.resolve('processing-host').data;
+    const ext = data.msw;
+    const track = ext.audio_tracks[0];
+    const mk = (id, start) => ({
+      id, track_id: track.id, asset_id: ext.assets[0].id, start_ms: start,
+      source_in_sample: 0, source_out_sample: 22050, playback_rate: 1,
+      gain_db: 0, muted: false, label: id,
+    });
+    // 10-12s 重叠对；40-42s 重叠对；70s 单贴片（只有一条 lane）
+    ext.audio_clips = [
+      mk('clipA', 10000), mk('clipB', 10500),
+      mk('clipC', 40000), mk('clipD', 40500),
+      mk('clipE', 70000),
+    ];
+    window.dispatchEvent(new Event('msw:project-changed'));
+    return true;
+  });
+  expect(setup).toBe(true);
+  await page.waitForTimeout(500);
+
+  const readState = () => page.evaluate(() => {
+    const audio = window.MSWE.resolve('audio-timeline');
+    const rowAt = (t) => [...document.querySelectorAll('.waveform-row')].find((r) =>
+      Number(r.dataset.startMs) <= t && Number(r.dataset.endMs) > t);
+    const laneSpace = (t) => {
+      const row = rowAt(t);
+      return row ? (parseFloat(row.style.getPropertyValue('--audio-lane-space')) || 0) : -1;
+    };
+    return {
+      lanes: JSON.stringify(audio.laneSnapshot()),
+      dualRowSpace: laneSpace(10500),
+      singleRowSpace: laneSpace(70500),
+      aHeadsInDualRow: rowAt(10500) ? [...document.querySelectorAll('.waveform-track-heads')].find((g) => Math.abs(g.getBoundingClientRect().top - rowAt(10500).getBoundingClientRect().top) < 2)?.querySelectorAll('.a-track').length : -1,
+      aHeadsInSingleRow: rowAt(70500) ? [...document.querySelectorAll('.waveform-track-heads')].find((g) => Math.abs(g.getBoundingClientRect().top - rowAt(70500).getBoundingClientRect().top) < 2)?.querySelectorAll('.a-track').length : -1,
+    };
+  });
+
+  const before = await readState();
+  // 原模式：轨道带高度由全局打包数统一决定——所有行一致（2 lane ≈ 51px）
+  expect(before.dualRowSpace).toBeGreaterThan(45);
+  expect(before.singleRowSpace).toBe(before.dualRowSpace);
+
+  // 把 clipA（lane0，10-11s）移到 clipB 之后（13s）：粘性 lane 保持 A=0、B=1
+  // （走与真实拖动提交相同的 audio-changed 事件 + 行覆盖层刷新）
+  await page.evaluate(() => {
+    const data = window.MSWE.resolve('processing-host').data;
+    const clip = data.msw.audio_clips.find((c) => c.id === 'clipA');
+    clip.start_ms = 13000;
+    window.dispatchEvent(new Event('msw:audio-changed'));
+    const audio = window.MSWE.resolve('audio-timeline');
+    document.querySelectorAll('.waveform-row').forEach((row) => {
+      audio.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
+    });
+  });
+  await page.waitForTimeout(400);
+  const after = await readState();
+  // 松手后不再重叠：折叠回单轨（原贪心收纳）；拖动中没有换位发生
+  expect(after.lanes).toContain('"clipA":0');
+  expect(after.lanes).toContain('"clipB":0');
+  const settled = JSON.parse(after.lanes);
+  expect(settled.clipA).toBe(settled.clipB);
+});
+
+test('real pointer drag across another clip never swaps lanes mid-drag', async ({ page }) => {
+  // 真实指针拖拽：A(lane0) 向右拖过 B(lane1) 的起点——拖动全程保持
+  // A=0/B=1（贪心重排会在越过的瞬间互换，粘性会话阻止它）；
+  // 完全移出重叠后松手则折叠回单轨。
+  const setup = await page.evaluate(() => {
+    const data = window.MSWE.resolve('processing-host').data;
+    const ext = data.msw;
+    const track = ext.audio_tracks[0];
+    const mk = (id, start) => ({
+      id, track_id: track.id, asset_id: ext.assets[0].id, start_ms: start,
+      source_in_sample: 0, source_out_sample: 22050, playback_rate: 1,
+      gain_db: 0, muted: false, label: id,
+    });
+    ext.audio_clips = [mk('clipA', 10000), mk('clipB', 10500)];
+    window.dispatchEvent(new Event('msw:project-changed'));
+    return true;
+  });
+  expect(setup).toBe(true);
+  await page.waitForSelector('.msw-audio-clip[data-clip-id="clipA"]');
+  await page.waitForFunction(() => document.getElementById('player')?.readyState >= 1);
+
+  const lanes = () => page.evaluate(() => window.MSWE.resolve('audio-timeline').laneSnapshot());
+  expect(await lanes()).toEqual({ clipA: 0, clipB: 1 });
+
+  const box = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.waveform-row')].find((r) =>
+      Number(r.dataset.startMs) <= 10000 && Number(r.dataset.endMs) > 10000);
+    const clip = row.querySelector('.msw-audio-clip[data-clip-id="clipA"]');
+    const r = clip.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    return {
+      x: r.x + r.width / 2, y: r.y + r.height / 2,
+      rowStart: Number(row.dataset.startMs), rowEnd: Number(row.dataset.endMs),
+      rowWidth: rowRect.width,
+    };
+  });
+  const msPerPx = (box.rowEnd - box.rowStart) / box.rowWidth;
+  const dragBy = async (shiftMs) => {
+    const b = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.waveform-row')].find((r) =>
+        Number(r.dataset.startMs) <= 10500 && Number(r.dataset.endMs) > 10500);
+      const clip = row.querySelector('.msw-audio-clip[data-clip-id="clipA"]');
+      const r = clip.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      return {
+        x: r.x + r.width / 2, y: r.y + r.height / 2,
+        rowStart: Number(row.dataset.startMs), rowEnd: Number(row.dataset.endMs),
+        rowWidth: rowRect.width,
+      };
+    });
+    const px = shiftMs / ((b.rowEnd - b.rowStart) / b.rowWidth);
+    await page.mouse.move(b.x, b.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 4; i += 1) {
+      await page.mouse.move(b.x + (px * i) / 4, b.y, { steps: 2 });
+      await page.waitForTimeout(50);
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+  };
+  // 拖动中的 DOM 复用验证：给 A 打标记，拖动数步后标记仍在（节点未被重建
+  // ——整树重建正是拖动闪烁的根因）。
+  await page.evaluate(() => { document.querySelector('.msw-audio-clip[data-clip-id="clipA"]').__stable = 1; });
+  // 第一段：拖过 B 的起点但仍在重叠中松手 → 双方保持原轨（不换位）
+  await dragBy(600); // A 起点 10.6s（B 起点 10.5s），仍重叠
+  expect(await lanes()).toEqual({ clipA: 0, clipB: 1 });
+  const stable = await page.evaluate(() =>
+    document.querySelector('.msw-audio-clip[data-clip-id="clipA"]').__stable === 1);
+  expect(stable).toBe(true);
+  // 第二段：完全拖出重叠 → 折叠回单轨
+  await dragBy(1200); // A 起点 11.8s，已过 B 结尾(11.5s)
+  const settled = await lanes();
+  expect(settled.clipA).toBe(settled.clipB);
+});
+
+test('magnet guide line appears while dragging near another edge', async ({ page }) => {
+  // A(10-11s) 的右缘拖向 B(18-19s) 的起点：进入磁吸阈值后出现对齐参考线。
+  const setup = await page.evaluate(() => {
+    const data = window.MSWE.resolve('processing-host').data;
+    const ext = data.msw;
+    const track = ext.audio_tracks[0];
+    const mk = (id, start) => ({
+      id, track_id: track.id, asset_id: ext.assets[0].id, start_ms: start,
+      source_in_sample: 0, source_out_sample: 22050, playback_rate: 1,
+      gain_db: 0, muted: false, label: id,
+    });
+    ext.audio_clips = [mk('clipA', 10000), mk('clipB', 18000)];
+    window.dispatchEvent(new Event('msw:project-changed'));
+    return true;
+  });
+  expect(setup).toBe(true);
+  await page.waitForSelector('.msw-audio-clip[data-clip-id="clipA"]');
+  await page.waitForFunction(() => document.getElementById('player')?.readyState >= 1);
+
+  const handle = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.waveform-row')].find((r) =>
+      Number(r.dataset.startMs) <= 10000 && Number(r.dataset.endMs) > 10000);
+    const el = row.querySelector('.msw-audio-clip[data-clip-id="clipA"] .msw-audio-handle.end');
+    const r = el.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2, rowStart: Number(row.dataset.startMs), rowEnd: Number(row.dataset.endMs), rowWidth: rowRect.width };
+  });
+  const msPerPx = (handle.rowEnd - handle.rowStart) / handle.rowWidth;
+  // 终点 11s → 18s（B 起点）：拖到位后磁吸应吸附并显示参考线
+  const dx = 7000 / msPerPx;
+  await page.mouse.move(handle.x, handle.y);
+  await page.mouse.down();
+  let guideSeen = false;
+  for (let i = 1; i <= 8; i += 1) {
+    await page.mouse.move(handle.x + (dx * i) / 8, handle.y, { steps: 2 });
+    await page.waitForTimeout(50);
+    guideSeen ||= await page.evaluate(() => {
+      const g = document.querySelector('.waveform-magnet-guide');
+      return Boolean(g && !g.hidden);
+    });
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  expect(guideSeen).toBe(true);
+  // 松手后参考线收起
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelector('.waveform-magnet-guide') === null)).toBe(true);
+});
+
+test('shift-click accumulates across main and extension tracks', async ({ page }) => {
+  // 主轨选中后 Shift 点副轨：追加副轨选区而不清空主轨（跨轨混合多选）；
+  // 反向同理。纯 Ctrl 的单点多选不受影响。
+  await dropSrtPair(page);
+  await expect(page.locator('.multi-dual-cue').first()).toBeVisible();
+
+  const readSel = () => page.evaluate(() => ({ m: selectedIdxs.size, e: selectedExtensionIdxs.size }));
+
+  await page.locator('.waveform-cue-block[data-track="main"]').first().click();
+  await page.waitForTimeout(150);
+  expect(await readSel()).toEqual({ m: 1, e: 0 });
+
+  // Shift 点副轨块：此前 selectOnlyExtension 会清空主轨选区
+  await page.locator('.waveform-cue-block[data-track="extension"]').first().click({ modifiers: ['Shift'] });
+  await page.waitForTimeout(200);
+  const mixed = await readSel();
+  expect(mixed.m).toBeGreaterThanOrEqual(1);
+  expect(mixed.e).toBeGreaterThanOrEqual(1);
+
+  // 再 Shift 点另一条主轨：副轨选区仍在
+  await page.locator('.waveform-cue-block[data-track="main"]').nth(1).click({ modifiers: ['Shift'] });
+  await page.waitForTimeout(200);
+  const after = await readSel();
+  expect(after.m).toBeGreaterThanOrEqual(2);
+  expect(after.e).toBeGreaterThanOrEqual(1);
+});

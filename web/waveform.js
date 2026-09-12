@@ -1970,14 +1970,15 @@
         divider.addEventListener('pointerdown', (event) => {
           if (!this.isMultiMode() || this.settings.layout !== 'classic') return;
           event.preventDefault();
-          dividerDrag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
+          dividerDrag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false,
+            rect: this.workspace.getBoundingClientRect() };
           divider.classList.add('dragging');
           divider.setPointerCapture(event.pointerId);
           this.layoutDragging = true;
         });
         divider.addEventListener('pointermove', (event) => {
           if (!dividerDrag || dividerDrag.pointerId !== event.pointerId) return;
-          const rect = this.workspace.getBoundingClientRect();
+          const rect = dividerDrag.rect;
           const percent = axis === 'x'
             ? ((event.clientX - rect.left) / Math.max(1, rect.width)) * 100
             : ((event.clientY - rect.top) / Math.max(1, rect.height)) * 100;
@@ -2019,14 +2020,15 @@
         resizer.addEventListener('pointerdown', (event) => {
           if (!this.isPresetResizableLayout()) return;
           event.preventDefault();
-          drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
+          drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false,
+            rect: this.workspace.getBoundingClientRect() };
           resizer.classList.add('dragging');
           resizer.setPointerCapture?.(event.pointerId);
           this.layoutDragging = true;
         });
         resizer.addEventListener('pointermove', (event) => {
           if (!drag || drag.pointerId !== event.pointerId) return;
-          const rect = this.workspace.getBoundingClientRect();
+          const rect = drag.rect;
           const previousColumn = this.settings.layoutColumnPercent;
           const previousRows = [...this.settings.layoutRows];
           if (kind === 'column') {
@@ -3624,8 +3626,33 @@
 
     // 拖动集合的磁吸修正：边缘（原位置 + delta）与静态边缘距离在阈值内
     // 取最近一条对齐。返回修正后的 delta。
+    // 拖动磁吸参考线：命中吸附时在对应时间位置显示一条贯穿行的竖线。
+    showMagnetGuide(timeMs) {
+      if (!this.content || !Number.isFinite(timeMs)) return;
+      const rows = [...this.content.querySelectorAll('.waveform-row')];
+      if (!rows.length) return;
+      // 只在「真实覆盖目标时间的已渲染行」内显示：目标时间不在可视行范围时
+      // 宁可不显示，也不能钳位到某行边缘（那正是参考线出现在奇怪位置的原因）。
+      const row = rows.find((r) => Number(r.dataset.startMs) <= timeMs && Number(r.dataset.endMs) > timeMs);
+      if (!row) { this.hideMagnetGuide(); return; }
+      let guide = this.content.querySelector('.waveform-magnet-guide');
+      if (!guide) {
+        guide = document.createElement('div');
+        guide.className = 'waveform-magnet-guide';
+        guide.setAttribute('aria-hidden', 'true');
+      }
+      if (guide.parentElement !== row) row.appendChild(guide);
+      const start = Number(row.dataset.startMs), end = Number(row.dataset.endMs);
+      guide.style.left = `${Math.max(0, Math.min(1, (timeMs - start) / (end - start))) * 100}%`;
+      guide.hidden = false;
+    }
+
+    hideMagnetGuide() {
+      this.content?.querySelector('.waveform-magnet-guide')?.remove();
+    }
+
     magneticSnapDelta(drag, rawDelta, thresholdMs) {
-      if (!Number.isFinite(thresholdMs) || thresholdMs <= 0) return rawDelta;
+      if (!Number.isFinite(thresholdMs) || thresholdMs <= 0) { this.hideMagnetGuide(); return rawDelta; }
       const segments = this.options.getSegments(drag.track);
       const clock = resolveTiming(drag.timing || this.cueTiming());
       const moving = [];
@@ -3640,10 +3667,12 @@
         for (const target of statics) {
           const distance = Math.abs(position - target);
           if (distance > 0 && distance <= thresholdMs && (!best || distance < best.distance)) {
-            best = { distance, shift: target - position };
+            best = { distance, shift: target - position, target };
           }
         }
       }
+      if (best) this.showMagnetGuide(best.target);
+      else this.hideMagnetGuide();
       return best ? rawDelta + best.shift : rawDelta;
     }
 
@@ -3663,6 +3692,11 @@
         snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
         dual: () => this.options.multiSubtitleVisible?.() === true,
         magneticEdges: ({ cueExclude = null, clipExclude = null } = {}) => this.getMagneticEdges(cueExclude, clipExclude),
+        showMagnetGuide: (timeMs) => this.showMagnetGuide(timeMs),
+        hideMagnetGuide: () => this.hideMagnetGuide(),
+        setStatus: (message, kind = '', options = {}) => this.setStatus(message, kind, options),
+        refreshMediaReadout: () => this.refreshMediaReadout(),
+        openWaveSettings: () => this.options.openWaveSettings?.(),
       });
     }
 
@@ -3674,7 +3708,16 @@
       } else if (this.audioOnlyTimeline && !this.audioLayer?.hasAssets()) {
         this.payload = null; this.peaks = null; this.audioOnlyTimeline = false;
       }
-      this.audioGeometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
+      const geometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
+      if (geometry === this.audioGeometry) {
+        // 几何未变（移动/裁剪/静音等提交）：只重刷各行 lanes 覆盖层，
+        // 不做全量 render——后者会重建所有行与贴片节点，松手瞬间闪一下。
+        this.renderedRows.forEach((row) => this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs)));
+        // 贴片 mute 等状态变化会影响 A 轨道头，轻量路径也要同步轨道头列。
+        this.syncTrackHeads();
+        return;
+      }
+      this.audioGeometry = geometry;
       this.render();
     }
 
@@ -3828,8 +3871,8 @@
           group.appendChild(makeHead('V2', 'v-ext', `V2 副字幕轨——点击${extMuted ? '启用' : '禁用'}整条轨道`,
             () => this.options.toggleSubtitleTrackMuted?.('extension'), extMuted));
         }
-        // A 头：按行内配音 lane 的实际打包位置对齐（inner 高度 = 数量×22+6，
-        // 区域底距 5px；滚动查看的罕见场景按未滚动对齐）。
+        // A 头：按全局打包 lane 数渲染，对齐 lanes 区域（区域底距 5px、
+        // lane 高 22、可视上限 3 条；所有行的轨道带高度一致——按原模式）。
         const audioCount = this.options.getAudioTrackCount?.() || 0;
         const lanesInner = row.querySelector('.msw-audio-lanes-inner');
         if (audioCount > 0 && lanesInner) {
@@ -3851,9 +3894,13 @@
     }
 
     render() {
-      // 主题切换后令牌值变化：每次全量渲染前刷新画布颜色缓存，供 drawRow 读取。
-      this._readWaveColors();
-      this.applyTrackHeadsVisibility();
+      // 布局拖动中（分隔线/尺寸柄）：宽度逐帧变化，头部这两步都是强制样式/
+      // 布局读取（getComputedStyle + 每行 offsetTop），会把每帧布局翻倍造成
+      // 拖动卡顿；颜色与轨道头此时都不会变，跳过。
+      if (!this.layoutDragging) {
+        this._readWaveColors();
+        this.applyTrackHeadsVisibility();
+      }
       this.applyLayout();
       if (!this.payload || !this.peaks) {
         this.content.replaceChildren();
@@ -6346,7 +6393,10 @@
           const nearest = targets.reduce((best, value) => (
             Math.abs(value - newStart) < Math.abs(best - newStart) ? value : best
           ), Infinity);
-          if (Number.isFinite(nearest) && Math.abs(nearest - newStart) <= clock.snapThreshold) newStart = nearest;
+          if (Number.isFinite(nearest) && Math.abs(nearest - newStart) <= clock.snapThreshold) {
+            newStart = nearest;
+            this.showMagnetGuide(clock.toMs(nearest));
+          } else this.hideMagnetGuide();
         }
         newStart = clamp(clock.round(newStart), lower, upper);
       } else {
@@ -6361,7 +6411,10 @@
           const nearest = targets.reduce((best, value) => (
             Math.abs(value - newEnd) < Math.abs(best - newEnd) ? value : best
           ), Infinity);
-          if (Number.isFinite(nearest) && Math.abs(nearest - newEnd) <= clock.snapThreshold) newEnd = nearest;
+          if (Number.isFinite(nearest) && Math.abs(nearest - newEnd) <= clock.snapThreshold) {
+            newEnd = nearest;
+            this.showMagnetGuide(clock.toMs(nearest));
+          } else this.hideMagnetGuide();
         }
         newEnd = clamp(clock.round(newEnd), lower, upper);
       }
@@ -6389,7 +6442,10 @@
         const nearest = candidates.reduce((best, value) => (
           Math.abs(value - boundary) < Math.abs(best - boundary) ? value : best
         ), Infinity);
-        if (Number.isFinite(nearest) && Math.abs(nearest - boundary) <= clock.snapThreshold) boundary = nearest;
+        if (Number.isFinite(nearest) && Math.abs(nearest - boundary) <= clock.snapThreshold) {
+          boundary = nearest;
+          this.showMagnetGuide(clock.toMs(nearest));
+        } else this.hideMagnetGuide();
       }
       boundary = clamp(clock.round(boundary), lower, upper);
       const leftSegment = segments[drag.index];
@@ -6404,6 +6460,7 @@
     }
 
     endCueDrag(event) {
+      this.hideMagnetGuide();
       const drag = this.drag;
       if (!drag || event.pointerId !== drag.pointerId) return;
       this.refreshMediaReadout();

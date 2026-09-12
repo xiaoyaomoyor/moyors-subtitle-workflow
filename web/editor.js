@@ -18405,20 +18405,22 @@ function ctxAppendExpandableSettings(label, children) {
   group.className = 'ctx-submenu-menu';
   group.setAttribute('role', 'menu');
   children.forEach((child) => {
-    const row = document.createElement('div');
-    row.className = 'item ctx-subitem';
+    // 自定义节点（如滑条行）直接挂载，不套勾选框结构。
+    if (child.node) { group.appendChild(child.node); return; }
+    // 勾选框形式：与设置面板的开关控件同语义，比“✓ 文本”更明确可点。
+    const row = document.createElement('label');
+    row.className = 'item ctx-subitem ctx-check';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = child.checked() === true;
     const rowText = document.createElement('span');
-    rowText.textContent = (child.checked() ? '✓ ' : '') + child.label;
-    row.appendChild(rowText);
-    const kb = document.createElement('kbd');
-    kb.style.visibility = 'hidden';
-    row.appendChild(kb);
+    rowText.textContent = child.label;
+    row.append(box, rowText);
     row.addEventListener('click', (event) => {
+      event.preventDefault();
       event.stopPropagation();
       child.toggle();
-      [...group.children].forEach((item, index) => {
-        item.firstChild.textContent = (children[index].checked() ? '✓ ' : '') + children[index].label;
-      });
+      box.checked = child.checked() === true;
     });
     group.appendChild(row);
   });
@@ -18525,15 +18527,31 @@ function setupModuleContextMenu() {
   bindModule(waveformEditor.pane, () => [
     { label: '波形显示器设置', onClick: openWaveSettings },
   ]);
+  // 右键面板的卡片密度：与菜单栏素材库设置同一滑条（宽度收窄匹配面板），
+  // 双向同步模板控件的值。
+  const buildAssetDensitySlider = () => {
+    const source = document.getElementById('asset-density');
+    const row = document.createElement('label');
+    row.className = 'item ctx-subitem ctx-density';
+    const text = document.createElement('span');
+    text.textContent = '卡片密度';
+    const input = document.createElement('input');
+    input.type = 'range'; input.min = '1'; input.max = '5'; input.step = '1';
+    input.value = source?.value || '3';
+    input.setAttribute('aria-label', '每行卡片数量');
+    const value = document.createElement('output');
+    value.textContent = input.value;
+    input.addEventListener('input', () => {
+      value.textContent = input.value;
+      if (source) { source.value = input.value; source.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+    row.append(text, input, value);
+    return row;
+  };
   bindModule(waveformEditor.assetLibrary, () => [
-    { label: '素材库设置', expandable: true, children: [1, 2, 3, 4, 5].map(count => ({
-      label: `卡片密度：${count} 列`,
-      checked: () => Number(document.getElementById('asset-density')?.value) === count,
-      toggle: () => {
-        const input = document.getElementById('asset-density');
-        input.value = String(count); input.dispatchEvent(new Event('input', {bubbles: true}));
-      },
-    })) },
+    { label: '素材库设置', expandable: true, children: [
+      { label: '卡片密度', node: buildAssetDensitySlider() },
+    ] },
   ]);
 }
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
@@ -18994,13 +19012,17 @@ function initWaveformEditor() {
       lastClickedExtensionIdx = idx;
     },
     selectExtensionRange: (idx) => {
+      // Shift 跨轨首点：另一轨还没有锚点时【追加】本条而不清空主轨选区——
+      // 此前走 selectOnlyExtension 会把主字幕选区清掉，表现为“Shift 无法
+      // 同时选中主字幕与副字幕”。
       if (lastClickedExtensionIdx >= 0) selectExtensionRange(lastClickedExtensionIdx, idx);
-      else selectOnlyExtension(idx);
+      else addExtensionToSelection(idx, getActiveExtensionTrack());
       lastClickedExtensionIdx = idx;
     },
     selectCueRange: (idx) => {
+      // 同上：副轨有选区时，主轨 Shift 首点只追加，不清副轨。
       if (lastClickedIdx >= 0) selectRange(lastClickedIdx, idx);
-      else selectOnly(idx);
+      else addToSelection(idx);
       lastClickedIdx = idx;
     },
     // 波形 Shift+框选：把命中的一批下标追加进当前多选（追加语义，不改 Shift 锚点）
@@ -19050,6 +19072,7 @@ function initWaveformEditor() {
     getHoverSeekPreview: () => EDITOR_SETTINGS.hoverSeekPreview && !jklReversePlaying,
     subtitleTrackMuted,
     toggleSubtitleTrackMuted,
+    openWaveSettings: () => setWaveformSettingsPanelOpen(true),
     getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
     audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
     toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
@@ -19080,17 +19103,8 @@ function initWaveformEditor() {
       if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
       renderAll();
       updateWithoutCueListAutoScroll();
-      flashHint(kind === 'move'
-        ? track === 'extension'
-          ? `已移动 ${idxs.length} 条副字幕`
-          : `已${independent ? '独立' : '联动'}移动 ${idxs.length} 条字幕`
-        : kind === 'resize-boundary-pointer'
-          ? `已将${track === 'extension' ? '副字幕' : '字幕'}${details?.edge === 'start' ? '起点' : '终点'}定位到鼠标位置`
-        : kind === 'resize-boundary'
-          ? `已${independent ? '独立' : '联动'}调整第 ${idxs[0] + 1} / ${idxs[1] + 1} 条边界`
-          : kind === 'resize-boundary-independent'
-            ? `已独立调整第 ${idxs[0] + 1} 条字幕边界`
-            : `已调整第 ${idxs[0] + 1} 条字幕时间`);
+      // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
+      // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。
     },
     onPayload: (payload) => {
       DATA.waveform = payload;

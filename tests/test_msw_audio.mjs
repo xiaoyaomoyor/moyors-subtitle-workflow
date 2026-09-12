@@ -24,6 +24,51 @@ test('overlapping clips occupy independent lanes, touching ends reuse lanes', ()
   assert.notEqual(layout.lanes.get('a'), layout.lanes.get('b'));
   assert.equal(layout.lanes.get('a'), layout.lanes.get('c'));
 });
+test('drag-session lanes keep each clip on its lane while still overlapping', () => {
+  // a 在 lane0（0-2s），b 在 lane1（1-3s）。拖动 a 越过 b 但仍重叠（1.2s 起）：
+  // 纯贪心重排会互换行（b→lane0、a→lane1）；带拖动起点 lane 的重排不换位。
+  const clips = [make('a', 0), make('b', 1000)];
+  const first = core.arrange(clips, new Map([['a', asset]]));
+  assert.equal(first.lanes.get('a'), 0);
+  assert.equal(first.lanes.get('b'), 1);
+  const dragging = [{ ...clips[0], start_ms: 1200 }, clips[1]];
+  const during = core.arrange(dragging, new Map([['a', asset]]), first.lanes);
+  assert.equal(during.lanes.get('a'), 0);
+  assert.equal(during.lanes.get('b'), 1);
+  assert.equal(during.count, 2);
+});
+test('releasing while still overlapping keeps lanes; separating collapses even with memory', () => {
+  const clips = [make('a', 0), make('b', 1000)];
+  const first = core.arrange(clips, new Map([['a', asset]]));
+  // 重叠中松手（a 拖到 1.2s，与 b 仍重叠）：带记忆重排不换位
+  const midDrag = [{ ...clips[0], start_ms: 1200 }, clips[1]];
+  const settledOverlap = core.arrange(midDrag, new Map([['a', asset]]), first.lanes);
+  assert.equal(settledOverlap.lanes.get('a'), 0);
+  assert.equal(settledOverlap.lanes.get('b'), 1);
+  // 拖出重叠（4s）：即使带着记忆，重叠规则也让双方折叠回单轨
+  const moved = [{ ...clips[0], start_ms: 4000 }, clips[1]];
+  const settled = core.arrange(moved, new Map([['a', asset]]), settledOverlap.lanes);
+  assert.equal(settled.count, 1);
+  assert.equal(settled.lanes.get('a'), 0);
+  assert.equal(settled.lanes.get('b'), 0);
+  // 不带记忆的贪心同样折叠（原行为）
+  const greedy = core.arrange(moved, new Map([['a', asset]]));
+  assert.equal(greedy.count, 1);
+});
+test('lane falls back to the lowest free lane when its lane is busy', () => {
+  const clips = [make('a', 0), make('b', 1000)];
+  const first = core.arrange(clips, new Map([['a', asset]]));
+  // b 拖到 2.5s（与 a 不再重叠）：重叠规则让 b 立即折叠回 lane0（a 已结束）
+  const dragging = [clips[0], { ...clips[1], start_ms: 2500 }];
+  const during = core.arrange(dragging, new Map([['a', asset]]), first.lanes);
+  assert.equal(during.lanes.get('b'), 0);
+  assert.equal(during.count, 1);
+  // 新贴片 c 插到 1.5s（与 a、b 都重叠）：无空闲轨道 → 落到 lane2
+  const tight = [...clips, make('c', 1500)];
+  const third = core.arrange(tight, new Map([['a', asset]]), first.lanes);
+  assert.equal(third.lanes.get('c'), 2);
+  assert.equal(third.count, 3);
+});
 test('timeline validation rejects unresolved references and invalid sample ranges', () => {
   core.validate(extension([make()]));
   for (const changes of [{ asset_id: 'absent' }, { source_out_sample: 48001 }, { source_in_sample: 48000 }, { playback_rate: 2 }, { muted: 1 }, { gain_db: Infinity }]) {

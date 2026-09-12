@@ -3054,7 +3054,8 @@
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
   .msw-asset-density { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .asset-settings-menu { width: 240px; padding: 12px; }
-  .asset-settings-menu .msw-asset-density { justify-content: space-between; }
+  .asset-settings-menu .msw-asset-density { display: flex; align-items: center; gap: 8px; }
+  .asset-settings-menu .msw-asset-density input { width: 84px; flex: 0 0 auto; }
   .asset-settings-menu .settings-panel-hint { display: block; margin-top: 8px; white-space: normal; }
   .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
@@ -3074,7 +3075,20 @@
   .msw-asset-actions button:first-child { margin-right: auto; }
   .msw-asset-actions svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   .msw-asset-actions .asset-icon-fill { fill: currentColor; stroke: none; }
-  .msw-asset-pagination { display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 12px; padding: 4px; font-size: 11px; border-top: 1px solid var(--border-subtle); }
+  /* 素材库图标按钮：透明底、线性图标，与模块工具栏图标体系一致 */
+  .msw-asset-library .msw-asset-iconbtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+    background: transparent; border: 0; border-radius: var(--radius-sm);
+    color: var(--text-secondary); cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+  }
+  .msw-asset-library .msw-asset-iconbtn svg { width: 15px; height: 15px; }
+  .msw-asset-library .msw-asset-iconbtn:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .msw-asset-library .msw-asset-iconbtn:disabled { color: var(--text-faint); cursor: not-allowed; background: transparent; }
+  /* 分页：随导入/导出一起放在 summary 右上角 */
+  .msw-asset-pagenum { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-left: 2px; }
+  .msw-asset-summary-actions { display: flex; align-items: center; gap: 2px; }
   .msw-asset-player { flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border-subtle); background: var(--panel-toolbar-bg-wave); }
   #asset-playing { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; color: var(--text-secondary); }
   .msw-asset-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
@@ -3950,6 +3964,13 @@
   .ctxmenu .ctx-submenu.open .ctx-submenu-menu { display: block; }
   .ctxmenu .ctx-submenu.open > .ctx-submenu-toggle { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .ctx-submenu-menu .ctx-subitem { font-size: 12.5px; }
+  /* 右键展开设置的勾选框行 */
+  .ctxmenu .ctx-subitem.ctx-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .ctxmenu .ctx-subitem.ctx-check input { margin: 0; accent-color: var(--accent); width: 13px; height: 13px; flex: 0 0 auto; }
+  /* 右键面板的卡片密度滑条行：宽度匹配面板（约 150px）而非菜单栏的 240px */
+  .ctxmenu .ctx-subitem.ctx-density { display: flex; align-items: center; gap: 8px; }
+  .ctxmenu .ctx-subitem.ctx-density input { width: 76px; height: 14px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
+  .ctxmenu .ctx-subitem.ctx-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
   .ctxmenu .item.danger { color: var(--red-hover); }
   .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
   .ctxmenu .sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }
