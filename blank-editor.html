@@ -526,7 +526,10 @@
     min-width: 220px; max-width: min(340px, calc(100vw - 16px));
     background: var(--menu-overlay-bg); border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md); padding: 4px 0;
-    box-shadow: var(--shadow-3); z-index: 200;
+    box-shadow: var(--shadow-3);
+    /* 高于设置/填隙等浮动面板（gap-remove 系 340），否则面板打开时
+       落在面板区域内的菜单项会被拦截点不到；低于模块齿轮面板（420）与 dock 菜单（440）。 */
+    z-index: 350;
   }
   .menubar-item.open > .menubar-menu { display: block; }
 
@@ -2351,10 +2354,17 @@
     color: var(--bg-base); background: var(--amber); border-color: var(--amber-hover);
     box-shadow: 0 1px 0 color-mix(in srgb, var(--amber-hover) 70%, var(--border-strong));
   }
-  .help-panel kbd,
-  .cue-editor-key-hints kbd {
+  .help-panel kbd {
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
     padding: 2px 6px; font-size: 13px; color: var(--text-secondary); font-family: var(--font-mono);
+    box-shadow: 0 1px 0 var(--border-subtle);
+  }
+  /* 各模块快捷键提示行键帽：比帮助面板小约 1/4（13px→10px、2px 6px→1px 4px），
+     四条提示行（含字幕编辑器）共用同一套键帽。 */
+  .cue-editor-key-hints kbd,
+  .module-key-hints kbd {
+    background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 1px 4px; font-size: 10px; color: var(--text-secondary); font-family: var(--font-mono);
     box-shadow: 0 1px 0 var(--border-subtle);
   }
   /* 字幕编辑区工具栏不出现横向滚动条：空间不足时压缩按键提示并用省略号截断，
@@ -2364,7 +2374,7 @@
   .waveform-status.cue-editor-key-hints:not([hidden]) {
     display: inline-flex; align-items: center; gap: 10px;
     flex: 0 1 auto; min-width: 0; overflow: hidden;
-    color: var(--text-muted); font-size: 11px; line-height: 1;
+    color: var(--text-muted); font-size: 10px; line-height: 1;
     white-space: nowrap;
   }
   .cue-editor-key-hint { display: inline-flex; align-items: center; gap: 4px; }
@@ -2379,14 +2389,9 @@
     background: var(--panel-toolbar-bg-wave);
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
-    color: var(--text-muted); font-size: 11px; line-height: 1;
+    color: var(--text-muted); font-size: 10px; line-height: 1;
     white-space: nowrap;
     overflow: visible;
-  }
-  .module-key-hints kbd {
-    background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    padding: 2px 6px; font-size: 13px; color: var(--text-secondary); font-family: var(--font-mono);
-    box-shadow: 0 1px 0 var(--border-subtle);
   }
   .module-key-hints .cue-editor-key-hint { gap: 5px; }
   .module-key-hints .cue-editor-key-hint + .cue-editor-key-hint { margin-left: 3px; }
@@ -2826,9 +2831,11 @@
     font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); user-select: none;
     display: grid; grid-template-columns: max-content max-content max-content;
     grid-template-areas: "start arrow end"; column-gap: .55ch; align-items: start;
-    /* 弹性时间盒：常规内容按 24ch 占位；帧模式等更长的时间码在空间不足时
-       允许收缩并裁切（min-width 0 + overflow hidden），不再溢出压到字数。 */
-    width: auto; max-width: 26ch; min-width: 0; overflow: hidden;
+    /* 弹性时间盒：常规内容按 26ch 占位；帧模式等更长的时间码在空间不足时
+       允许收缩并裁切（min-width 0 + overflow hidden），不再溢出压到字数。
+       上限必须写 px 不能写 ch：窄宽度压缩会把元素 font-size 归零，
+       ch 单位随之坍缩成 0，会把整个时间盒裁没（已修复的时间消失回归）。 */
+    width: auto; max-width: 158px; min-width: 0; overflow: hidden;
     padding-top: 2px; flex: 0 1 auto;
     font-variant-numeric: tabular-nums;
   }
@@ -2892,9 +2899,9 @@
 
   /* 列表窄宽度：先压缩再退让（容器查询，随字幕列表模块实际宽度走）。
      压缩：时间省去毫秒小数（00:00.000 → 00:00，data-compact 伪元素切换，
-     零额外 DOM），双列表头「主字幕/副字幕」缩为单字前缀；
-     双列每列只有容器一半宽，同样的压缩在约两倍宽度（940px）提前生效；
-     退让：字数 → 时间 → 序号逐级隐藏。默认布局（列宽 ≈ 40%+）完整显示。 */
+     零额外 DOM）；退让：字数 → 时间 → 序号逐级隐藏。
+     单列阶梯在此（460 压缩 → 300 字数 → 200 时间 → 120 序号）；
+     双列每列只有容器一半宽，单独一套更宽的阶梯见双列区块（580/530/320）。 */
   @container cue-list (max-width: 460px) {
     .cue .time {
       display: inline; width: auto; flex: 0 0 auto;
@@ -2904,24 +2911,10 @@
       content: attr(data-compact);
       font-size: 11px;
     }
-    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
   }
-  /* 双列模式每列宽度约为容器一半：同样的压缩在约两倍宽度（940px）就要开始，
-     否则完整毫秒时间放不进单行表头（字数只能被挤掉或换行）。 */
-  @container cue-list (max-width: 940px) {
-    .cue.multi-dual-cue .multi-cue-column-header .time {
-      display: inline; width: auto; flex: 0 0 auto;
-      font-size: 0;
-    }
-    .cue.multi-dual-cue .multi-cue-column-header .time::after {
-      content: attr(data-compact);
-      font-size: 11px;
-    }
-    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
-  }
-  .cues-container.frame-time-mode .cue .time { max-width: 32ch; }
+  .cues-container.frame-time-mode .cue .time { max-width: 195px; }
   .cues-container.frame-time-mode .cue .time::after { letter-spacing: -0.02em; }
-  /* 压缩生效（<460px）后时间已省出约 100px：双列字数延后到 420px 才退场 */
+  /* 双列在 530px 起省毫秒（见双列区块的阶梯）：字数延后到 420px 才退场（单列 300px） */
   @container cue-list (max-width: 420px) {
     .multi-cue-column .charcount { display: none; }
   }
@@ -3399,6 +3392,26 @@
   /* 双列字数：与时间同行、右对齐收尾；沿用 .cue .charcount 的弱文字样式与开关。 */
   .cue.multi-dual-cue .multi-cue-column-header .charcount {
     margin-left: auto; flex: 0 0 auto; margin-top: 0; min-width: 26px;
+  }
+  /* 双列表头分级退让（表头永远单行、不重叠）：每列只有容器一半宽，
+     阈值≈单列的两倍并按副列（窄 11px 边框+内边距）实测内容宽校准。
+     先缩「主字幕/副字幕」→「主/副」，再省毫秒（00:08.520 → 00:08），
+     然后字数退场（上方 420px 规则）；时间只在放不下、即将重叠时才隐藏。 */
+  @container cue-list (max-width: 580px) {
+    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
+  }
+  @container cue-list (max-width: 530px) {
+    .cue.multi-dual-cue .multi-cue-column-header .time {
+      display: inline; width: auto; flex: 0 0 auto;
+      font-size: 0;
+    }
+    .cue.multi-dual-cue .multi-cue-column-header .time::after {
+      content: attr(data-compact);
+      font-size: 11px;
+    }
+  }
+  @container cue-list (max-width: 320px) {
+    .cue.multi-dual-cue .multi-cue-column-header .time { display: none; }
   }
   .cue.multi-dual-cue .multi-cue-column.extension { border-left: 1px solid var(--border-subtle); padding-left: 10px; }
   /* 双列中的文本仍保持与单列相同的编辑框；双列文本原本是 inline，导致
@@ -27541,10 +27554,24 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     return true;
   }
 
+  // 后打开的工具窗置顶：当已有打开的同族浮窗层级不低于自己时，把自己的
+  // 内联 z 抬到其上（如设置窗开着再开帮助，帮助不能再被压在设置后面）；
+  // 自己本来就更高（如媒体/波形设置 420）则不动。关闭时还原 CSS 默认层级。
+  function bringToFront() {
+    const own = parseInt(getComputedStyle(panel).zIndex, 10) || 0;
+    let max = 0;
+    document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show').forEach((other) => {
+      if (other === panel) return;
+      max = Math.max(max, parseInt(getComputedStyle(other).zIndex, 10) || 0);
+    });
+    if (max >= own) panel.style.zIndex = String(max + 1);
+  }
+
   function open() {
     if (typeof onOpen === 'function') onOpen();
     panel.classList.add('show');
     panel.setAttribute('aria-hidden', 'false');
+    bringToFront();
     manageButton?.classList.add('active');
     manageButton?.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => {
@@ -27557,6 +27584,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
 
   function close() {
     panel.classList.remove('show', 'dragging');
+    panel.style.zIndex = '';
     panel.setAttribute('aria-hidden', 'true');
     drag = null;
     manageButton?.classList.remove('active');
@@ -34002,6 +34030,15 @@ document.addEventListener('keydown', (e) => {
   mergeAdjacentSubtitle(e.key.toLowerCase() === 'a' ? -1 : 1);
 });
 
+// 波形显示器模块内指针驻留标记：Ctrl+A 的分场景全选以此判定「在波形模块中」。
+// pointerenter/leave 维护而非 :hover 实时取值，避免事件时序导致的偶发误判。
+let wavePanePointerIn = false;
+{
+  const wavePaneForHover = document.getElementById('waveform-pane');
+  wavePaneForHover?.addEventListener('pointerenter', () => { wavePanePointerIn = true; });
+  wavePaneForHover?.addEventListener('pointerleave', () => { wavePanePointerIn = false; });
+}
+
 // Ctrl(Cmd)+A：选中所有字幕。仅在「非编辑字幕」状态下生效；
 // 焦点在输入框/文本域/可编辑元素或内联编辑态时，保留浏览器原生的「全选文本」行为。
 document.addEventListener('keydown', (e) => {
@@ -34024,6 +34061,28 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
+  // 波形显示器模块内的分场景全选：已有选区决定对象——选中过贴片则全选贴片、
+  // 选中过字幕则全选字幕；没有任何选区时字幕块与音频贴片一起全选。
+  // 波形模块之外维持旧行为（只全选字幕）。
+  const wavePane = document.getElementById('waveform-pane');
+  const inWave = Boolean(wavePane && (wavePanePointerIn || wavePane.matches(':hover') || wavePane.contains(document.activeElement)));
+  const audio = inWave ? window.MSWE?.resolve('audio-timeline') : null;
+  if (audio?.selectAllClips) {
+    if (audio.selectedCount?.() > 0) {
+      clearSelection({ silent: true });
+      audio.selectAllClips();
+      return;
+    }
+    if (selectedIdxs.size || selectedExtensionIdxs.size) {
+      audio.clearClipSelection?.();
+      selectAll();
+      return;
+    }
+    // 先字幕后贴片；selectAllClips(false) 不清字幕选区，两边互不覆盖。
+    selectAll();
+    audio.selectAllClips(false);
+    return;
+  }
   selectAll();
 });
 
@@ -43115,7 +43174,9 @@ menubarItems.forEach((item) => {
   bindMenubarSubmenus(menu);
   tab.addEventListener('click', (event) => {
     event.stopPropagation();
-    setMenubarItemOpen(item, !item.classList.contains('open'));
+    // 点击已展开的选项卡不再折叠（悬浮展开后误点很常见）：常开。
+    // 关闭途径：点击菜单项/菜单外/Esc/鼠标移开 280ms 自动收起。
+    setMenubarItemOpen(item, true);
   });
   tab.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -43270,6 +43331,7 @@ function copySelectedCues() {
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
+  window.MSW_CLIPBOARD_KIND = 'cues';
   refreshClipboardMenuState();
   if (cueClipboardSegments.length) {
     flashHint(`已拷贝 ${cueClipboardSegments.length} 条字幕`, 'success');
@@ -43282,6 +43344,7 @@ function cutSelectedCues() {
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
+  window.MSW_CLIPBOARD_KIND = 'cues';
   // deleteSegments 内部自带 pushUndo、分组拆分与编辑面板状态处理。
   deleteSegments(idxs);
   refreshClipboardMenuState();
@@ -46345,13 +46408,14 @@ window.addEventListener('beforeunload', (e) => {
       ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.muted = shouldMute; });
     });
   }
-  // === 贴片剪贴板：Ctrl+X/C/V（贴片选中时接管，未选中时让位给字幕剪贴板） ===
+  // === 贴片剪贴板：Ctrl+X/C/V（Ctrl+V 按「最后拷贝的对象」路由，见键盘处理） ===
   let clipClipboard = null;
   const selectedClips = () => sync().clips.filter(c => selected.has(c.id));
   function copySelectedClips(cut = false) {
     const clips = selectedClips();
     if (!clips.length) return;
     clipClipboard = JSON.parse(JSON.stringify(clips));
+    global.MSW_CLIPBOARD_KIND = 'clips';
     if (cut) {
       commit(cut === 'cut' ? '剪切音频贴片' : '剪切音频贴片', ext => { ext.audio_clips = ext.audio_clips.filter(c => !selected.has(c.id)); });
       selected.clear();
@@ -46571,12 +46635,24 @@ window.addEventListener('beforeunload', (e) => {
     if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
   }, true);
   document.addEventListener('keydown', event => {
-    // Menus and dialogs own their keyboard navigation even when a clip remains
+    // Menus and modals own their keyboard navigation even when a clip remains
     // selected. Do not swallow Save As controls or move clips behind a dialog.
-    if (event.target.closest('.menubar, [role="dialog"]')
+    // 守卫只针对真正的菜单栏/菜单/模态遮罩；帮助窗、设置窗、引导卡片这类
+    // 工具窗此前也在守卫里（role="dialog"），焦点恰好落在其上时会吞掉贴片的
+    // Ctrl+X/C/V 等全部快捷键——表现为“复制/粘贴没反应”（已修复的回归）。
+    if (event.target.closest('.menubar, [role="menu"]')
         || document.querySelector('.modal-mask.show')) return;
     if (event.key === 'Escape' && (drag || menu)) { event.preventDefault(); event.stopImmediatePropagation(); drag?.cancel(); closeMenu(); return; }
     if (event.target.closest('[role="menu"], button, a')) return;
+    // Ctrl+V 按「最后拷贝的对象」路由，且不要求当前有贴片选中——复制/剪切
+    // 贴片后选区即被清空（点空白处也会清），旧逻辑让 Ctrl+V 落到字幕粘贴上，
+    // 表现为“粘贴没反应”。当前选中的是贴片时仍优先贴贴片。
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'v'
+        && !/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) && !event.target.isContentEditable) {
+      const wantClips = selected.size > 0 || global.MSW_CLIPBOARD_KIND === 'clips';
+      if (wantClips && clipClipboard?.length) { event.preventDefault(); event.stopPropagation(); pasteClipsFromClipboard(); }
+      return;
+    }
     if (!selected.size || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
     const mod = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
     if (mod && key === 's') return;
@@ -46604,6 +46680,17 @@ window.addEventListener('beforeunload', (e) => {
     if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
   }
   const api = Object.freeze({ insert, renderRow, updatePlayhead,
+    selectedCount: () => selected.size,
+    // clearCues=false 供「字幕+贴片一起全选」使用：不清字幕选区。
+    selectAllClips: (clearCues = true) => {
+      const clips = sync().clips;
+      if (clearCues) host.clearSubtitleSelection();
+      selected.clear();
+      for (const c of clips) selected.add(c.id);
+      if (clips.length) timeline.pane.dataset.audioFocus = 'true';
+      schedulePaint();
+    },
+    clearClipSelection: () => { if (selected.size) { selected.clear(); schedulePaint(); } },
     edges: (excludeIds) => { const state = sync(); const edges = [];
       for (const clip of state.clips) { if (excludeIds?.has(clip.id)) continue;
         edges.push(clip.start_ms, core.end(clip, state.assets.get(clip.asset_id))); }

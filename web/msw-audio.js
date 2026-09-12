@@ -69,13 +69,14 @@
       ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.muted = shouldMute; });
     });
   }
-  // === 贴片剪贴板：Ctrl+X/C/V（贴片选中时接管，未选中时让位给字幕剪贴板） ===
+  // === 贴片剪贴板：Ctrl+X/C/V（Ctrl+V 按「最后拷贝的对象」路由，见键盘处理） ===
   let clipClipboard = null;
   const selectedClips = () => sync().clips.filter(c => selected.has(c.id));
   function copySelectedClips(cut = false) {
     const clips = selectedClips();
     if (!clips.length) return;
     clipClipboard = JSON.parse(JSON.stringify(clips));
+    global.MSW_CLIPBOARD_KIND = 'clips';
     if (cut) {
       commit(cut === 'cut' ? '剪切音频贴片' : '剪切音频贴片', ext => { ext.audio_clips = ext.audio_clips.filter(c => !selected.has(c.id)); });
       selected.clear();
@@ -295,12 +296,24 @@
     if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
   }, true);
   document.addEventListener('keydown', event => {
-    // Menus and dialogs own their keyboard navigation even when a clip remains
+    // Menus and modals own their keyboard navigation even when a clip remains
     // selected. Do not swallow Save As controls or move clips behind a dialog.
-    if (event.target.closest('.menubar, [role="dialog"]')
+    // 守卫只针对真正的菜单栏/菜单/模态遮罩；帮助窗、设置窗、引导卡片这类
+    // 工具窗此前也在守卫里（role="dialog"），焦点恰好落在其上时会吞掉贴片的
+    // Ctrl+X/C/V 等全部快捷键——表现为“复制/粘贴没反应”（已修复的回归）。
+    if (event.target.closest('.menubar, [role="menu"]')
         || document.querySelector('.modal-mask.show')) return;
     if (event.key === 'Escape' && (drag || menu)) { event.preventDefault(); event.stopImmediatePropagation(); drag?.cancel(); closeMenu(); return; }
     if (event.target.closest('[role="menu"], button, a')) return;
+    // Ctrl+V 按「最后拷贝的对象」路由，且不要求当前有贴片选中——复制/剪切
+    // 贴片后选区即被清空（点空白处也会清），旧逻辑让 Ctrl+V 落到字幕粘贴上，
+    // 表现为“粘贴没反应”。当前选中的是贴片时仍优先贴贴片。
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'v'
+        && !/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) && !event.target.isContentEditable) {
+      const wantClips = selected.size > 0 || global.MSW_CLIPBOARD_KIND === 'clips';
+      if (wantClips && clipClipboard?.length) { event.preventDefault(); event.stopPropagation(); pasteClipsFromClipboard(); }
+      return;
+    }
     if (!selected.size || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
     const mod = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
     if (mod && key === 's') return;
@@ -328,6 +341,17 @@
     if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
   }
   const api = Object.freeze({ insert, renderRow, updatePlayhead,
+    selectedCount: () => selected.size,
+    // clearCues=false 供「字幕+贴片一起全选」使用：不清字幕选区。
+    selectAllClips: (clearCues = true) => {
+      const clips = sync().clips;
+      if (clearCues) host.clearSubtitleSelection();
+      selected.clear();
+      for (const c of clips) selected.add(c.id);
+      if (clips.length) timeline.pane.dataset.audioFocus = 'true';
+      schedulePaint();
+    },
+    clearClipSelection: () => { if (selected.size) { selected.clear(); schedulePaint(); } },
     edges: (excludeIds) => { const state = sync(); const edges = [];
       for (const clip of state.clips) { if (excludeIds?.has(clip.id)) continue;
         edges.push(clip.start_ms, core.end(clip, state.assets.get(clip.asset_id))); }

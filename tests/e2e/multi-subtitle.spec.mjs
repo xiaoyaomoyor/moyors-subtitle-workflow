@@ -1420,16 +1420,29 @@ test('keeps the dual-column index and timecode on the same header row', async ({
   expect(Math.abs((indexBox.y + indexBox.height / 2) - (timeBox.y + timeBox.height / 2))).toBeLessThan(4);
 });
 
-// 双列表头必须保持单行：此前 flex-wrap 会把字数挤到第二行。各宽度下断言
-// 表头高度（两行必然 ≥ 30px）、可见子元素同行且不水平重叠、不溢出列盒；
-// 双列每列只有容器一半宽，容器 ≤940px 即切换紧凑时间（同单列 460px 的逻辑）。
-test('keeps the dual-column header on a single line across cue-list widths', async ({ page }) => {
+// 双列表头分级退让（表头永远单行）：≤580 缩「主字幕→主」，≤530 时间省毫秒，
+// ≤420 字数退场，≤320 时间才允许隐藏（最后手段）。各宽度断言表头单行、
+// 不溢出不重叠，并按阶梯明确断言时间的形态（完整/紧凑/隐藏）——
+// 此前的零宽时间回归（ch 上限随 font-size:0 坍缩）就是漏在这里。
+test('dual-column header degrades gradually without wrapping or hiding time early', async ({ page }) => {
   await importPair(page);
   await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
   await expect(page.locator('.multi-dual-cue').first()).toBeVisible();
 
-  for (const width of [1100, 950, 939, 700, 500, 460, 421, 419, 300, 199, 119]) {
+  // width → { labelRest, time: 'full' | 'compact' | 'hidden', charcount }
+  const stages = [
+    [900, { labelRest: true, time: 'full', charcount: true }],
+    [590, { labelRest: true, time: 'full', charcount: true }],
+    [570, { labelRest: false, time: 'full', charcount: true }],
+    [540, { labelRest: false, time: 'full', charcount: true }],
+    [520, { labelRest: false, time: 'compact', charcount: true }],
+    [450, { labelRest: false, time: 'compact', charcount: true }],
+    [330, { labelRest: false, time: 'compact', charcount: false }],
+    [310, { labelRest: false, time: 'hidden', charcount: false }],
+    [150, { labelRest: false, time: 'hidden', charcount: false }],
+  ];
+  for (const [width, expected] of stages) {
     await page.evaluate((px) => {
       const el = document.querySelector('.cues-container');
       el.style.flex = `0 0 ${px}px`;
@@ -1442,8 +1455,13 @@ test('keeps the dual-column header on a single line across cue-list widths', asy
       for (const row of rows) {
         for (const col of row.querySelectorAll('.multi-cue-column')) {
           const header = col.querySelector('.multi-cue-column-header');
+          if (!header) continue; // 空列（未绑定侧渲染为「—」，无表头）
           const colRect = col.getBoundingClientRect();
           const headerRect = header.getBoundingClientRect();
+          const rest = header.querySelector('.index-label-rest');
+          const time = header.querySelector('.time');
+          const timeCs = getComputedStyle(time);
+          const charcount = header.querySelector('.charcount');
           const kids = [...header.children].filter((k) => {
             const cs = getComputedStyle(k);
             return cs.display !== 'none' && k.getBoundingClientRect().width > 0;
@@ -1452,6 +1470,11 @@ test('keeps the dual-column header on a single line across cue-list widths', asy
             headerHeight: headerRect.height,
             bottomOverflow: headerRect.bottom - colRect.bottom,
             rightOverflow: headerRect.right - colRect.right,
+            labelRestVisible: Boolean(rest) && getComputedStyle(rest).display !== 'none',
+            timeDisplay: timeCs.display,
+            timeVisibleWidth: timeCs.display === 'none' ? 0 : time.getBoundingClientRect().width,
+            timeAfter: getComputedStyle(time, '::after').content,
+            charcountVisible: Boolean(charcount) && getComputedStyle(charcount).display !== 'none',
             kids,
           });
         }
@@ -1460,19 +1483,71 @@ test('keeps the dual-column header on a single line across cue-list widths', asy
     });
     expect(report.length).toBeGreaterThan(0);
     for (const col of report) {
-      expect(col.headerHeight, `width=${width} 表头应单行`).toBeLessThan(24);
-      expect(col.bottomOverflow, `width=${width} 垂直不溢出`).toBeLessThanOrEqual(0.5);
-      expect(col.rightOverflow, `width=${width} 水平不溢出`).toBeLessThanOrEqual(0.5);
+      const tag = `width=${width}`;
+      expect(col.headerHeight, `${tag} 表头应单行`).toBeLessThan(24);
+      expect(col.bottomOverflow, `${tag} 垂直不溢出`).toBeLessThanOrEqual(0.5);
+      expect(col.rightOverflow, `${tag} 水平不溢出`).toBeLessThanOrEqual(0.5);
+      expect(col.labelRestVisible, `${tag} 标签后缀形态`).toBe(expected.labelRest);
+      expect(col.charcountVisible, `${tag} 字数形态`).toBe(expected.charcount);
+      if (expected.time === 'hidden') {
+        expect(col.timeDisplay, `${tag} 时间应隐藏`).toBe('none');
+      } else {
+        // 关键守卫：时间盒必须有实际宽度（零宽 = 被裁没的回归）
+        expect(col.timeDisplay, `${tag} 时间不应隐藏`).not.toBe('none');
+        expect(col.timeVisibleWidth, `${tag} 时间盒应有宽度`).toBeGreaterThan(40);
+        if (expected.time === 'compact') {
+          expect(col.timeAfter, `${tag} 应显示紧凑时间`).toContain('→');
+          expect(col.timeVisibleWidth, `${tag} 紧凑时间应比完整毫秒窄`).toBeLessThan(120);
+        } else {
+          expect(col.timeVisibleWidth, `${tag} 完整时间宽度`).toBeGreaterThan(130);
+        }
+      }
       for (let i = 1; i < col.kids.length; i++) {
         const a = col.kids[0].r;
         const b = col.kids[i].r;
-        expect(Math.abs((a.y + a.height / 2) - (b.y + b.height / 2)), `width=${width} ${col.kids[i].cls} 应与首元素同行`).toBeLessThan(4);
+        expect(Math.abs((a.y + a.height / 2) - (b.y + b.height / 2)), `${tag} ${col.kids[i].cls} 应与首元素同行`).toBeLessThan(4);
       }
       for (let i = 1; i < col.kids.length; i++) {
         const a = col.kids[i - 1].r;
         const b = col.kids[i].r;
-        expect(b.left - a.right, `width=${width} 相邻元素不重叠`).toBeGreaterThanOrEqual(-0.5);
+        expect(b.left - a.right, `${tag} 相邻元素不重叠`).toBeGreaterThanOrEqual(-0.5);
       }
+    }
+  }
+});
+
+// 单列阶梯回归守卫：紧凑时间（≤460）必须有实际宽度——同一 ch 坍缩回归
+// 曾让单列紧凑时间也整体消失。
+test('single-column compact time stays visible at narrow widths', async ({ page }) => {
+  await page.goto(server.url);
+  await dropFiles(page, [srtSpec('main.srt', mainSrt)]);
+  await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
+
+  for (const [width, timeVisible] of [[700, true], [460, true], [400, true], [250, true], [180, false]]) {
+    await page.evaluate((px) => {
+      const el = document.querySelector('.cues-container');
+      el.style.flex = `0 0 ${px}px`;
+      el.style.width = `${px}px`;
+    }, width);
+    await page.waitForTimeout(60);
+    const state = await page.evaluate(() => {
+      const time = document.querySelector('#cues-container > .cue .time');
+      const cs = getComputedStyle(time);
+      const row = time.closest('.cue').getBoundingClientRect();
+      const tr = time.getBoundingClientRect();
+      return {
+        display: cs.display,
+        w: tr.width,
+        headerOverflow: tr.right - row.right,
+      };
+    });
+    const tag = `width=${width}`;
+    if (timeVisible) {
+      expect(state.display, `${tag} 时间不应隐藏`).not.toBe('none');
+      expect(state.w, `${tag} 时间盒应有宽度`).toBeGreaterThan(30);
+      expect(state.headerOverflow, `${tag} 时间不溢出行`).toBeLessThanOrEqual(0.5);
+    } else {
+      expect(state.display, `${tag} 时间应隐藏`).toBe('none');
     }
   }
 });

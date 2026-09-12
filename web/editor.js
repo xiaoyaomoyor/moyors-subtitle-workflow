@@ -4100,10 +4100,24 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     return true;
   }
 
+  // 后打开的工具窗置顶：当已有打开的同族浮窗层级不低于自己时，把自己的
+  // 内联 z 抬到其上（如设置窗开着再开帮助，帮助不能再被压在设置后面）；
+  // 自己本来就更高（如媒体/波形设置 420）则不动。关闭时还原 CSS 默认层级。
+  function bringToFront() {
+    const own = parseInt(getComputedStyle(panel).zIndex, 10) || 0;
+    let max = 0;
+    document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show').forEach((other) => {
+      if (other === panel) return;
+      max = Math.max(max, parseInt(getComputedStyle(other).zIndex, 10) || 0);
+    });
+    if (max >= own) panel.style.zIndex = String(max + 1);
+  }
+
   function open() {
     if (typeof onOpen === 'function') onOpen();
     panel.classList.add('show');
     panel.setAttribute('aria-hidden', 'false');
+    bringToFront();
     manageButton?.classList.add('active');
     manageButton?.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => {
@@ -4116,6 +4130,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
 
   function close() {
     panel.classList.remove('show', 'dragging');
+    panel.style.zIndex = '';
     panel.setAttribute('aria-hidden', 'true');
     drag = null;
     manageButton?.classList.remove('active');
@@ -10561,6 +10576,15 @@ document.addEventListener('keydown', (e) => {
   mergeAdjacentSubtitle(e.key.toLowerCase() === 'a' ? -1 : 1);
 });
 
+// 波形显示器模块内指针驻留标记：Ctrl+A 的分场景全选以此判定「在波形模块中」。
+// pointerenter/leave 维护而非 :hover 实时取值，避免事件时序导致的偶发误判。
+let wavePanePointerIn = false;
+{
+  const wavePaneForHover = document.getElementById('waveform-pane');
+  wavePaneForHover?.addEventListener('pointerenter', () => { wavePanePointerIn = true; });
+  wavePaneForHover?.addEventListener('pointerleave', () => { wavePanePointerIn = false; });
+}
+
 // Ctrl(Cmd)+A：选中所有字幕。仅在「非编辑字幕」状态下生效；
 // 焦点在输入框/文本域/可编辑元素或内联编辑态时，保留浏览器原生的「全选文本」行为。
 document.addEventListener('keydown', (e) => {
@@ -10583,6 +10607,28 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
+  // 波形显示器模块内的分场景全选：已有选区决定对象——选中过贴片则全选贴片、
+  // 选中过字幕则全选字幕；没有任何选区时字幕块与音频贴片一起全选。
+  // 波形模块之外维持旧行为（只全选字幕）。
+  const wavePane = document.getElementById('waveform-pane');
+  const inWave = Boolean(wavePane && (wavePanePointerIn || wavePane.matches(':hover') || wavePane.contains(document.activeElement)));
+  const audio = inWave ? window.MSWE?.resolve('audio-timeline') : null;
+  if (audio?.selectAllClips) {
+    if (audio.selectedCount?.() > 0) {
+      clearSelection({ silent: true });
+      audio.selectAllClips();
+      return;
+    }
+    if (selectedIdxs.size || selectedExtensionIdxs.size) {
+      audio.clearClipSelection?.();
+      selectAll();
+      return;
+    }
+    // 先字幕后贴片；selectAllClips(false) 不清字幕选区，两边互不覆盖。
+    selectAll();
+    audio.selectAllClips(false);
+    return;
+  }
   selectAll();
 });
 
@@ -19674,7 +19720,9 @@ menubarItems.forEach((item) => {
   bindMenubarSubmenus(menu);
   tab.addEventListener('click', (event) => {
     event.stopPropagation();
-    setMenubarItemOpen(item, !item.classList.contains('open'));
+    // 点击已展开的选项卡不再折叠（悬浮展开后误点很常见）：常开。
+    // 关闭途径：点击菜单项/菜单外/Esc/鼠标移开 280ms 自动收起。
+    setMenubarItemOpen(item, true);
   });
   tab.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -19829,6 +19877,7 @@ function copySelectedCues() {
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
+  window.MSW_CLIPBOARD_KIND = 'cues';
   refreshClipboardMenuState();
   if (cueClipboardSegments.length) {
     flashHint(`已拷贝 ${cueClipboardSegments.length} 条字幕`, 'success');
@@ -19841,6 +19890,7 @@ function cutSelectedCues() {
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
+  window.MSW_CLIPBOARD_KIND = 'cues';
   // deleteSegments 内部自带 pushUndo、分组拆分与编辑面板状态处理。
   deleteSegments(idxs);
   refreshClipboardMenuState();

@@ -506,7 +506,10 @@
     min-width: 220px; max-width: min(340px, calc(100vw - 16px));
     background: var(--menu-overlay-bg); border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md); padding: 4px 0;
-    box-shadow: var(--shadow-3); z-index: 200;
+    box-shadow: var(--shadow-3);
+    /* 高于设置/填隙等浮动面板（gap-remove 系 340），否则面板打开时
+       落在面板区域内的菜单项会被拦截点不到；低于模块齿轮面板（420）与 dock 菜单（440）。 */
+    z-index: 350;
   }
   .menubar-item.open > .menubar-menu { display: block; }
 
@@ -2331,10 +2334,17 @@
     color: var(--bg-base); background: var(--amber); border-color: var(--amber-hover);
     box-shadow: 0 1px 0 color-mix(in srgb, var(--amber-hover) 70%, var(--border-strong));
   }
-  .help-panel kbd,
-  .cue-editor-key-hints kbd {
+  .help-panel kbd {
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
     padding: 2px 6px; font-size: 13px; color: var(--text-secondary); font-family: var(--font-mono);
+    box-shadow: 0 1px 0 var(--border-subtle);
+  }
+  /* 各模块快捷键提示行键帽：比帮助面板小约 1/4（13px→10px、2px 6px→1px 4px），
+     四条提示行（含字幕编辑器）共用同一套键帽。 */
+  .cue-editor-key-hints kbd,
+  .module-key-hints kbd {
+    background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 1px 4px; font-size: 10px; color: var(--text-secondary); font-family: var(--font-mono);
     box-shadow: 0 1px 0 var(--border-subtle);
   }
   /* 字幕编辑区工具栏不出现横向滚动条：空间不足时压缩按键提示并用省略号截断，
@@ -2344,7 +2354,7 @@
   .waveform-status.cue-editor-key-hints:not([hidden]) {
     display: inline-flex; align-items: center; gap: 10px;
     flex: 0 1 auto; min-width: 0; overflow: hidden;
-    color: var(--text-muted); font-size: 11px; line-height: 1;
+    color: var(--text-muted); font-size: 10px; line-height: 1;
     white-space: nowrap;
   }
   .cue-editor-key-hint { display: inline-flex; align-items: center; gap: 4px; }
@@ -2359,14 +2369,9 @@
     background: var(--panel-toolbar-bg-wave);
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
-    color: var(--text-muted); font-size: 11px; line-height: 1;
+    color: var(--text-muted); font-size: 10px; line-height: 1;
     white-space: nowrap;
     overflow: visible;
-  }
-  .module-key-hints kbd {
-    background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    padding: 2px 6px; font-size: 13px; color: var(--text-secondary); font-family: var(--font-mono);
-    box-shadow: 0 1px 0 var(--border-subtle);
   }
   .module-key-hints .cue-editor-key-hint { gap: 5px; }
   .module-key-hints .cue-editor-key-hint + .cue-editor-key-hint { margin-left: 3px; }
@@ -2806,9 +2811,11 @@
     font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); user-select: none;
     display: grid; grid-template-columns: max-content max-content max-content;
     grid-template-areas: "start arrow end"; column-gap: .55ch; align-items: start;
-    /* 弹性时间盒：常规内容按 24ch 占位；帧模式等更长的时间码在空间不足时
-       允许收缩并裁切（min-width 0 + overflow hidden），不再溢出压到字数。 */
-    width: auto; max-width: 26ch; min-width: 0; overflow: hidden;
+    /* 弹性时间盒：常规内容按 26ch 占位；帧模式等更长的时间码在空间不足时
+       允许收缩并裁切（min-width 0 + overflow hidden），不再溢出压到字数。
+       上限必须写 px 不能写 ch：窄宽度压缩会把元素 font-size 归零，
+       ch 单位随之坍缩成 0，会把整个时间盒裁没（已修复的时间消失回归）。 */
+    width: auto; max-width: 158px; min-width: 0; overflow: hidden;
     padding-top: 2px; flex: 0 1 auto;
     font-variant-numeric: tabular-nums;
   }
@@ -2872,9 +2879,9 @@
 
   /* 列表窄宽度：先压缩再退让（容器查询，随字幕列表模块实际宽度走）。
      压缩：时间省去毫秒小数（00:00.000 → 00:00，data-compact 伪元素切换，
-     零额外 DOM），双列表头「主字幕/副字幕」缩为单字前缀；
-     双列每列只有容器一半宽，同样的压缩在约两倍宽度（940px）提前生效；
-     退让：字数 → 时间 → 序号逐级隐藏。默认布局（列宽 ≈ 40%+）完整显示。 */
+     零额外 DOM）；退让：字数 → 时间 → 序号逐级隐藏。
+     单列阶梯在此（460 压缩 → 300 字数 → 200 时间 → 120 序号）；
+     双列每列只有容器一半宽，单独一套更宽的阶梯见双列区块（580/530/320）。 */
   @container cue-list (max-width: 460px) {
     .cue .time {
       display: inline; width: auto; flex: 0 0 auto;
@@ -2884,24 +2891,10 @@
       content: attr(data-compact);
       font-size: 11px;
     }
-    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
   }
-  /* 双列模式每列宽度约为容器一半：同样的压缩在约两倍宽度（940px）就要开始，
-     否则完整毫秒时间放不进单行表头（字数只能被挤掉或换行）。 */
-  @container cue-list (max-width: 940px) {
-    .cue.multi-dual-cue .multi-cue-column-header .time {
-      display: inline; width: auto; flex: 0 0 auto;
-      font-size: 0;
-    }
-    .cue.multi-dual-cue .multi-cue-column-header .time::after {
-      content: attr(data-compact);
-      font-size: 11px;
-    }
-    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
-  }
-  .cues-container.frame-time-mode .cue .time { max-width: 32ch; }
+  .cues-container.frame-time-mode .cue .time { max-width: 195px; }
   .cues-container.frame-time-mode .cue .time::after { letter-spacing: -0.02em; }
-  /* 压缩生效（<460px）后时间已省出约 100px：双列字数延后到 420px 才退场 */
+  /* 双列在 530px 起省毫秒（见双列区块的阶梯）：字数延后到 420px 才退场（单列 300px） */
   @container cue-list (max-width: 420px) {
     .multi-cue-column .charcount { display: none; }
   }
@@ -3379,6 +3372,26 @@
   /* 双列字数：与时间同行、右对齐收尾；沿用 .cue .charcount 的弱文字样式与开关。 */
   .cue.multi-dual-cue .multi-cue-column-header .charcount {
     margin-left: auto; flex: 0 0 auto; margin-top: 0; min-width: 26px;
+  }
+  /* 双列表头分级退让（表头永远单行、不重叠）：每列只有容器一半宽，
+     阈值≈单列的两倍并按副列（窄 11px 边框+内边距）实测内容宽校准。
+     先缩「主字幕/副字幕」→「主/副」，再省毫秒（00:08.520 → 00:08），
+     然后字数退场（上方 420px 规则）；时间只在放不下、即将重叠时才隐藏。 */
+  @container cue-list (max-width: 580px) {
+    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
+  }
+  @container cue-list (max-width: 530px) {
+    .cue.multi-dual-cue .multi-cue-column-header .time {
+      display: inline; width: auto; flex: 0 0 auto;
+      font-size: 0;
+    }
+    .cue.multi-dual-cue .multi-cue-column-header .time::after {
+      content: attr(data-compact);
+      font-size: 11px;
+    }
+  }
+  @container cue-list (max-width: 320px) {
+    .cue.multi-dual-cue .multi-cue-column-header .time { display: none; }
   }
   .cue.multi-dual-cue .multi-cue-column.extension { border-left: 1px solid var(--border-subtle); padding-left: 10px; }
   /* 双列中的文本仍保持与单列相同的编辑框；双列文本原本是 inline，导致

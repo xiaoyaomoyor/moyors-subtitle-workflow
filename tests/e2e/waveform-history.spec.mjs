@@ -1587,6 +1587,12 @@ test('settings entry points live in the menubar and dialogs rise above dividers'
 });
 
 test('help reflects the selected subtitle-edit split key', async ({ page }) => {
+  // 提示行默认隐藏（toolbarKbdHints 关）：本用例直接以开启状态启动，
+  // 间距/键帽样式断言才有实际渲染可查（不走「帮助」菜单——勾选项不关菜单，
+  // 会吃掉结尾用于关闭帮助窗的 Escape）。
+  await page.addInitScript(() => {
+    localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({ autoSaveProject: false, toolbarKbdHints: true }));
+  });
   await page.goto(server.url);
   await toggleEditorSettings(page);
   await openHelpPanel(page);
@@ -1602,12 +1608,20 @@ test('help reflects the selected subtitle-edit split key', async ({ page }) => {
   const editorSplitKey = page.locator('#cue-editor-split-key');
   const editorConfirmKey = page.locator('#cue-editor-confirm-key');
   await expect(page.locator('#cue-editor-key-hints')).toHaveClass(/waveform-status/);
-  await expect(page.locator('.cue-editor-key-hint')).toHaveCount(4);
-  // 与其他模块提示行（.module-key-hints）对齐：间距一致、kbd 键帽同尺寸同投影。
+  // 只数字幕编辑器自己的提示项：各模块提示行（.module-key-hints）复用同一
+  // 条目类但属于各自的提示行，不能混入计数。
+  await expect(page.locator('#cue-editor-key-hints .cue-editor-key-hint')).toHaveCount(4);
+  // 提示行已随本用例的启动设置（toolbarKbdHints: true）直接可见。
+  await expect(page.locator('#cue-editor-key-hints')).toBeVisible();
+  // 与其他模块提示行（.module-key-hints）对齐：间距一致、kbd 键帽同尺寸同投影
+  // （提示行键帽整体比帮助面板小约 1/4：10px / 1px 4px）。
   await expect(page.locator('#cue-editor-key-hints')).toHaveCSS('gap', '10px');
   const editorKbd = page.locator('#cue-editor-key-hints kbd').first();
-  await expect(editorKbd).toHaveCSS('font-size', '13px');
-  await expect(editorKbd).toHaveCSS('padding', '2px 6px');
+  await expect(editorKbd).toHaveCSS('font-size', '10px');
+  await expect(editorKbd).toHaveCSS('padding', '1px 4px');
+  const moduleKbd = page.locator('#player-key-hints kbd').first();
+  await expect(moduleKbd).toHaveCSS('font-size', '10px');
+  await expect(moduleKbd).toHaveCSS('padding', '1px 4px');
   await expect(settingsPanel).not.toContainText('波形区拆分按键');
   await expect(displayRows).toHaveCount(0);
   const modKey = await page.evaluate(() => (
@@ -1660,7 +1674,8 @@ test('contextual help links open their matching Help tabs', async ({ page }) => 
   for (const { button, tab } of [
     { button: '#waveform-settings-help', tab: '#help-tab-waveform' },
     { button: '#keyboard-settings-help', tab: '#help-tab-fine-tuning' },
-    { button: '#gap-settings-help', tab: '#help-tab-gap' },
+    // #gap-settings-help 已随 967060e 布局重构从设置面板移除，空隙帮助入口
+    // 改走下方 Help settings actions 用例的 #help-open-gap-settings。
   ]) {
     await toggleWaveSettings(page);
     await expect(page.locator('#waveform-settings-panel')).toBeVisible();
@@ -1696,7 +1711,11 @@ test('Help settings actions open the related waveform and media settings', async
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
   }));
-  expect(waveformSettingsMetrics.scrollHeight).toBeLessThanOrEqual(waveformSettingsMetrics.clientHeight);
+  // 面板自带 overflow-y: auto：内容超出时内部滚动即可达（配音/贴片区块加入后
+  // 内容高度已超过固定窗高），只要求窗口本身不超出视口、内容不被裁剪丢失。
+  expect(waveformSettingsMetrics.scrollHeight).toBeGreaterThanOrEqual(waveformSettingsMetrics.clientHeight);
+  const waveWindowBox = await page.locator('#wave-settings-modal').boundingBox();
+  expect(waveWindowBox.y + waveWindowBox.height).toBeLessThanOrEqual(800);
   await toggleWaveSettings(page);
   await expect(helpPanel).toHaveClass(/show/);
 
