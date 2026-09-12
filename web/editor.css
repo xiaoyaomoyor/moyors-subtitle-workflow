@@ -3234,6 +3234,7 @@
     display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px;
     margin-top: 12px; color: var(--text-muted); font-size: 11px;
   }
+  .multi-subtitle-split-key-hints[hidden] { display: none; }
   .multi-subtitle-split-key-hints kbd {
     background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
     padding: 2px 6px; font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono);

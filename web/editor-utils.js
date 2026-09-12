@@ -2738,7 +2738,7 @@
     hoverSeekPreview: false, autoSnapAdjacentCues: true, ninjaMode: false,
     ninjaSound: true, ninjaSlashEffect: true, ninjaSlashLengthPercent: 80,
     ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: true,
-    multiSubtitleAutoSyncDuration: true, multiSubtitleShowTrackBadges: false, theme: 'dark',
+    multiSubtitleAutoSyncDuration: true, theme: 'dark',
     waveShapeSource: 'reapeaks', themePreset: 'default', accent: 'blue', colors: null,
   });
 
@@ -2845,7 +2845,6 @@
       crossTrackSnap: savedSettings.crossTrackSnap !== false,
       selectBoundSubtitlePair: savedSettings.selectBoundSubtitlePair !== false,
       multiSubtitleAutoSyncDuration: savedSettings.multiSubtitleAutoSyncDuration !== false,
-      multiSubtitleShowTrackBadges: savedSettings.multiSubtitleShowTrackBadges === true,
       theme: savedSettings.theme === 'light' ? 'light' : 'dark',
       // 主题预设（紫苑（默认）/小铃/灵梦/爱丽丝/恋/莲子）。
       // aster/yukari 已移除但保留识别：让 editor.js 的一次性迁移把它们重指到替代预设。

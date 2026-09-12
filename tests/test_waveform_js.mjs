@@ -216,35 +216,6 @@ test('registers the cinema built-in workspace from the example layout', () => {
 });
 
 
-test('keeps color and sticker group badges independent for overlapping groups', () => {
-  const badges = helpers.computeGroupBadges([
-    { color: { name: 'red' } },
-    { color_ref: { headIdx: 0 }, sticker: { name: 'haha' } },
-    { color_ref: { headIdx: 0 }, sticker_ref: { headIdx: 1 } },
-    { sticker_ref: { headIdx: 1 } },
-  ]);
-  assert.deepEqual(JSON.parse(JSON.stringify(badges.get(1))), [
-    { type: 'color', ordinal: 2, total: 3 },
-    { type: 'sticker', ordinal: 1, total: 3 },
-  ]);
-  assert.deepEqual(JSON.parse(JSON.stringify(badges.get(2))), [
-    { type: 'color', ordinal: 3, total: 3 },
-    { type: 'sticker', ordinal: 2, total: 3 },
-  ]);
-});
-
-test('shows a sticker badge even when the sticker has no group members', () => {
-  const badges = helpers.computeGroupBadges([
-    { sticker: { name: 'solo' } },
-    { color: { name: 'red' } },
-  ]);
-  assert.deepEqual(JSON.parse(JSON.stringify(badges.get(0))), [
-    { type: 'sticker', ordinal: 1, total: 1 },
-  ]);
-  assert.equal(badges.has(1), false);
-});
-
-
 test('moves one shared boundary while preserving both cue durations', () => {
   const segments = [
     { start: 0, end: 1000 },
@@ -637,13 +608,13 @@ test('normalizes waveform display settings carried by a layout', () => {
     waveformMode: 'basic',
     waveformSettings: {
       visibleSeconds: 30, secondsPerRow: 20, rowHeight: 144, waveformScale: 9,
-      side: 'right', disabledDisplay: 'hidden', showGroupBadges: false, dragPlayhead: false,
+      side: 'right', disabledDisplay: 'hidden', showTrackHeads: false, dragPlayhead: false,
     },
   });
   assert.equal(normalized.waveformMode, 'basic');
   assert.deepEqual(JSON.parse(JSON.stringify(normalized.waveformSettings)), {
     visibleSeconds: 30, secondsPerRow: 20, rowHeight: 144, waveformScale: 6,
-    side: 'right', disabledDisplay: 'hidden', showGroupBadges: false, dragPlayhead: false,
+    side: 'right', disabledDisplay: 'hidden', showTrackHeads: false, dragPlayhead: false,
   });
 });
 

@@ -191,7 +191,7 @@
     layoutEditing: false,
     waveformScale: 1,
     disabledDisplay: 'dim',
-    showGroupBadges: true,
+    showTrackHeads: true,
     dragPlayhead: true,
     spectralColor: false,
   };
@@ -229,7 +229,7 @@
       preset: 'custom', waveformMode: 'multi',
       waveformSettings: {
         visibleSeconds: 20, secondsPerRow: 10, rowHeight: 120, waveformScale: 4,
-        side: 'left', disabledDisplay: 'dim', showGroupBadges: true, dragPlayhead: true,
+        side: 'left', disabledDisplay: 'dim', showTrackHeads: true, dragPlayhead: true,
       },
       splitPercent: 60, columnPercent: 30, rows: [42, 16, 42], tree: THREE_FOLD_LAYOUT_TREE,
       editorDisplay: THREE_FOLD_EDITOR_DISPLAY,
@@ -239,7 +239,7 @@
       preset: 'custom', waveformMode: 'basic',
       waveformSettings: {
         visibleSeconds: 20, secondsPerRow: 10, rowHeight: 120, waveformScale: 5.5,
-        side: 'left', disabledDisplay: 'dim', showGroupBadges: true, dragPlayhead: true,
+        side: 'left', disabledDisplay: 'dim', showTrackHeads: true, dragPlayhead: true,
       },
       splitPercent: 60, columnPercent: 36, rows: [42, 18, 40], tree: CINEMA_SCREEN_LAYOUT_TREE,
       editorDisplay: CINEMA_SCREEN_EDITOR_DISPLAY,
@@ -282,36 +282,6 @@
     }
     const rowDurationMs = Math.max(1, Number(state?.secondsPerRow) * 1000 || 1);
     return Math.floor(Math.min(value, durationMs) / rowDurationMs) * rowDurationMs;
-  }
-
-  // 组序号徽章：颜色与表情包分组彼此独立，因此同一条字幕可同时拥有两枚徽章。
-  // 颜色组大小 <2 时不显示；表情包即使只有单条也显示 🦊 作为非视觉化标记。
-  function computeGroupBadges(segments) {
-    const badges = new Map();
-    const apply = (type, headField, refField) => {
-      // 每个波形行都会使用同一份徽章数据；按 head 建索引，避免每个 head
-      // 再扫描整个字幕数组，长工程或多行缓存下可从 O(N²) 降到 O(N)。
-      const membersByHead = new Map();
-      segments.forEach((seg, headIdx) => {
-        if (seg[headField]) membersByHead.set(headIdx, [headIdx]);
-      });
-      segments.forEach((seg, idx) => {
-        const headIdx = seg[refField]?.headIdx;
-        const members = membersByHead.get(headIdx);
-        if (members && headIdx !== idx) members.push(idx);
-      });
-      membersByHead.forEach((members) => {
-        if (type === 'color' && members.length < 2) return;
-        members.forEach((idx, i) => {
-          const cueBadges = badges.get(idx) || [];
-          cueBadges.push({ type, ordinal: i + 1, total: members.length });
-          badges.set(idx, cueBadges);
-        });
-      });
-    };
-    apply('color', 'color', 'color_ref');
-    apply('sticker', 'sticker', 'sticker_ref');
-    return badges;
   }
 
   function roundMs(value) {
@@ -757,8 +727,11 @@
         ? { side: rawWaveformSettings.side } : {}),
       ...(rawWaveformSettings.disabledDisplay === 'hidden' || rawWaveformSettings.disabledDisplay === 'dim'
         ? { disabledDisplay: rawWaveformSettings.disabledDisplay } : {}),
-      ...(typeof rawWaveformSettings.showGroupBadges === 'boolean'
-        ? { showGroupBadges: rawWaveformSettings.showGroupBadges } : {}),
+      // 旧设置键 showGroupBadges（分组标记）由「轨道头」承接，旧值迁移。
+      ...(typeof rawWaveformSettings.showTrackHeads === 'boolean'
+        ? { showTrackHeads: rawWaveformSettings.showTrackHeads }
+        : (typeof rawWaveformSettings.showGroupBadges === 'boolean'
+          ? { showTrackHeads: rawWaveformSettings.showGroupBadges } : {})),
       ...(typeof rawWaveformSettings.dragPlayhead === 'boolean'
         ? { dragPlayhead: rawWaveformSettings.dragPlayhead } : {}),
     } : null;
@@ -821,7 +794,7 @@
         layoutEditing: false,
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
-        showGroupBadges: parsed.showGroupBadges !== false,
+        showTrackHeads: parsed.showTrackHeads ?? (parsed.showGroupBadges !== false),
         dragPlayhead: parsed.dragPlayhead !== false,
         spectralColor: parsed.spectralColor === true,
       };
@@ -1784,7 +1757,7 @@
       this.waveformScaleUpButton = document.getElementById('waveform-scale-up');
       this.secondsPerRowSelect = document.getElementById('waveform-seconds-per-row');
       this.rowHeightSelect = document.getElementById('waveform-row-height');
-      this.showGroupBadgesToggle = document.getElementById('waveform-show-group-badges');
+      this.showTrackHeadsToggle = document.getElementById('waveform-show-track-heads');
       this.dragPlayheadToggle = document.getElementById('waveform-drag-playhead');
       this.spectralColorToggle = document.getElementById('waveform-spectral-color');
       this.sideSelect = document.getElementById('waveform-side');
@@ -1864,9 +1837,10 @@
       this.rowHeightSelect?.addEventListener('change', () => {
         this.setRowHeight(Number(this.rowHeightSelect.value));
       });
-      this.showGroupBadgesToggle?.addEventListener('change', () => {
-        this.settings.showGroupBadges = this.showGroupBadgesToggle.checked;
+      this.showTrackHeadsToggle?.addEventListener('change', () => {
+        this.settings.showTrackHeads = this.showTrackHeadsToggle.checked;
         saveSettings(this.settings);
+        this.applyTrackHeadsVisibility();
         this.render();
       });
       if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
@@ -2135,7 +2109,7 @@
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(this.settings.rowHeight);
       if (this.sideSelect) this.sideSelect.value = this.settings.side;
       if (this.disabledDisplaySelect) this.disabledDisplaySelect.value = this.settings.disabledDisplay;
-      if (this.showGroupBadgesToggle) this.showGroupBadgesToggle.checked = this.settings.showGroupBadges !== false;
+      if (this.showTrackHeadsToggle) this.showTrackHeadsToggle.checked = this.settings.showTrackHeads !== false;
       if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
       if (this.layoutEditToggle) {
         this.layoutEditToggle.textContent = this.settings.layoutEditing ? '完成布局' : '编辑布局';
@@ -3104,7 +3078,7 @@
           waveformScale: this.settings.waveformScale,
           side: this.settings.side,
           disabledDisplay: this.settings.disabledDisplay,
-          showGroupBadges: this.settings.showGroupBadges !== false,
+          showTrackHeads: this.settings.showTrackHeads !== false,
           dragPlayhead: this.settings.dragPlayhead === true,
         },
         splitPercent: this.settings.splitPercent,
@@ -3771,13 +3745,120 @@
       return this._waveColors;
     }
 
+    applyTrackHeadsVisibility() {
+      // 轨道头（V 字幕头 + A 配音头）统一由内容根类控制显隐。
+      this.content?.classList.toggle('wave-track-heads-on', this.settings.showTrackHeads !== false);
+      this.syncTrackHeads();
+    }
+
+    // Pr 式轨道头独立列：挂在内容根上的一个 36px 明沟（行整体右移让出，
+    // 不遮挡波形/字幕块/贴片）。每个波形行一组头，V1/V2 对齐行内字幕 lane，
+    // A1/A2… 对齐行内配音 lane。行是视窗化创建/回收的，每次行集合变化后
+    // 由各渲染路径调用本方法重建（行数 ≤ 视窗行数，代价可忽略）。
+    syncTrackHeads() {
+      if (!this.content) return;
+      const rows = [...this.content.querySelectorAll(':scope > .waveform-row')];
+      let column = this.content.querySelector(':scope > .waveform-track-heads-column');
+      if (this.settings.showTrackHeads === false || !rows.length) {
+        column?.remove();
+        return;
+      }
+      if (!column) {
+        column = document.createElement('div');
+        column.className = 'waveform-track-heads-column';
+        this.content.appendChild(column);
+      }
+      const makeHead = (label, className, title, onClick, muted) => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = `waveform-track-head ${className}`;
+        el.textContent = label;
+        el.title = title;
+        el.setAttribute('aria-pressed', String(muted === true));
+        if (muted === true) el.classList.add('track-muted');
+        el.dataset.headAction = String(headActions.size);
+        headActions.set(el.dataset.headAction, onClick);
+        return el;
+      };
+      // click 绑在组容器上按 data 分发：Chromium 会把按钮按下后的 pointerup
+      // 派发给最近的非 none 祖先（组），合成 click 也落在组级——绑在按钮上
+      // 收不到。组同时拦下 pointerdown，避免行级 seek/preventDefault 吃掉手势。
+      const headActions = new Map();
+      const fragment = document.createDocumentFragment();
+      for (const row of rows) {
+        const group = document.createElement('div');
+        group.className = 'waveform-track-heads';
+        if (row.classList.contains('multi-subtitle-row')) group.classList.add('multi');
+        if (row.dataset.basic === 'true') group.classList.add('wf-basic');
+        group.style.top = `${row.offsetTop}px`;
+        group.style.height = `${row.offsetHeight}px`;
+        const audioSpace = parseFloat(row.style.getPropertyValue('--audio-lane-space')) || 0;
+        group.style.setProperty('--head-audio-space', `${audioSpace}px`);
+        group.classList.toggle('has-audio', audioSpace > 0);
+
+        // 按下/抬起都在组内同一颗头上才触发（等于 click 语义）。
+        // 不用 click 事件：Chromium 把按钮按下后的 pointerup 派发给组级，
+        // 合成 click 不可靠；pointerup 稳定可达组。键盘激活走组上的 click
+        // 兜底（按钮聚焦后 Enter/Space）。
+        let pressedHead = null;
+        group.addEventListener('pointerdown', (event) => {
+          event.stopPropagation();
+          if (event.button === 0) pressedHead = event.target.closest('.waveform-track-head');
+        });
+        group.addEventListener('pointerup', (event) => {
+          const head = pressedHead;
+          pressedHead = null;
+          if (!head || event.button !== 0) return;
+          event.stopPropagation();
+          headActions.get(head.dataset.headAction)?.();
+        });
+        group.addEventListener('click', (event) => {
+          // 键盘路径（Enter/Space 触发按钮 click）；指针路径已被 pointerup 处理，
+          // 这里只处理 target 直接是按钮且不是刚完成指针激活的场景。
+          const head = event.target.closest('.waveform-track-head');
+          if (!head || event.detail > 0) return;
+          event.stopPropagation();
+          headActions.get(head.dataset.headAction)?.();
+        });
+        const mainMuted = this.options.subtitleTrackMuted?.('main') === true;
+        group.appendChild(makeHead('V1', 'v-main', `V1 主字幕轨——点击${mainMuted ? '启用' : '禁用'}整条轨道`,
+          () => this.options.toggleSubtitleTrackMuted?.('main'), mainMuted));
+        if (this.options.multiSubtitleVisible?.() === true) {
+          const extMuted = this.options.subtitleTrackMuted?.('extension') === true;
+          group.appendChild(makeHead('V2', 'v-ext', `V2 副字幕轨——点击${extMuted ? '启用' : '禁用'}整条轨道`,
+            () => this.options.toggleSubtitleTrackMuted?.('extension'), extMuted));
+        }
+        // A 头：按行内配音 lane 的实际打包位置对齐（inner 高度 = 数量×22+6，
+        // 区域底距 5px；滚动查看的罕见场景按未滚动对齐）。
+        const audioCount = this.options.getAudioTrackCount?.() || 0;
+        const lanesInner = row.querySelector('.msw-audio-lanes-inner');
+        if (audioCount > 0 && lanesInner) {
+          const ROW_H = 22;
+          const innerH = Math.max(1, audioCount) * ROW_H + 6;
+          const areaH = Math.min(innerH, 3 * ROW_H + 6);
+          for (let i = 0; i < audioCount; i += 1) {
+            const muted = this.options.audioTrackMuted?.(i) === true;
+            const head = makeHead(`A${i + 1}`, 'a-track',
+              `A${i + 1} 配音轨——点击${muted ? '启用' : '禁用'}整条轨道`,
+              () => this.options.toggleAudioTrackMuted?.(i), muted);
+            head.style.top = `${row.offsetHeight - 5 - areaH + 3 + i * ROW_H}px`;
+            group.appendChild(head);
+          }
+        }
+        fragment.appendChild(group);
+      }
+      column.replaceChildren(fragment);
+    }
+
     render() {
       // 主题切换后令牌值变化：每次全量渲染前刷新画布颜色缓存，供 drawRow 读取。
       this._readWaveColors();
+      this.applyTrackHeadsVisibility();
       this.applyLayout();
       if (!this.payload || !this.peaks) {
         this.content.replaceChildren();
         this.renderedRows = [];
+        this.syncTrackHeads();
         this.empty.classList.remove('hidden');
         return;
       }
@@ -3861,10 +3942,10 @@
       const endMs = Math.min(this.durationMs, this.basicWindowStartMs + windowMs);
       this.content.replaceChildren();
       this.content.style.height = '100%';
-      const groupBadges = computeGroupBadges(this.options.getSegments('main'));
-      const row = this.createRow(this.basicWindowStartMs, endMs, -1, true, groupBadges);
+      const row = this.createRow(this.basicWindowStartMs, endMs, -1, true);
       this.content.appendChild(row);
       this.renderedRows = [row];
+      this.syncTrackHeads();
       this.drawRow(row);
       this.updatePlayback(false);
     }
@@ -3891,15 +3972,15 @@
       }
       this.multiRange = [first, last];
       this.content.style.height = `${rowCount * stride - ROW_GAP}px`;
-      const groupBadges = computeGroupBadges(this.options.getSegments('main'));
       if (force) {
         // 全量重建：先完成所有 DOM 变更再统一绘制，避免逐行强制同步布局
         this.content.replaceChildren();
         const rows = [];
         for (let index = first; index <= last; index++) {
-          rows.push(this.content.appendChild(this.createMultiRow(index, rowDurationMs, groupBadges)));
+          rows.push(this.content.appendChild(this.createMultiRow(index, rowDurationMs)));
         }
         this.renderedRows = rows;
+        this.syncTrackHeads();
         for (const row of rows) this.drawRow(row);
         this.updatePlayback(false);
         return;
@@ -3916,17 +3997,18 @@
       const created = [];
       for (let index = first; index <= last; index++) {
         if (existing.has(String(index))) continue;
-        created.push(this.content.appendChild(this.createMultiRow(index, rowDurationMs, groupBadges)));
+        created.push(this.content.appendChild(this.createMultiRow(index, rowDurationMs)));
       }
       this.renderedRows = [...this.content.querySelectorAll('.waveform-row')];
+      this.syncTrackHeads();
       for (const row of created) this.drawRow(row);
       this.updatePlayback(false);
     }
 
-    createMultiRow(index, rowDurationMs, groupBadges = null) {
+    createMultiRow(index, rowDurationMs) {
       const startMs = index * rowDurationMs;
       const endMs = Math.min(this.durationMs, startMs + rowDurationMs);
-      const row = this.createRow(startMs, endMs, index, false, groupBadges);
+      const row = this.createRow(startMs, endMs, index, false);
       row.style.top = `${index * (this.effectiveRowHeight + ROW_GAP)}px`;
       row.style.height = `${this.effectiveRowHeight}px`;
       // 最后一行只代表媒体剩余的真实时长；缩短容器不会减少采样量，
@@ -3936,13 +4018,12 @@
       return row;
     }
 
-    createRow(startMs, endMs, rowIndex, basic, groupBadges = null) {
+    createRow(startMs, endMs, rowIndex, basic) {
       const row = document.createElement('div');
       row.className = 'waveform-row';
       const multiLane = this.options.multiSubtitleVisible?.() === true;
       if (multiLane) {
         row.classList.add('multi-subtitle-row');
-        if (this.options.showTrackBadges?.() === true) row.classList.add('show-track-badges');
       }
       row.dataset.startMs = String(startMs);
       row.dataset.endMs = String(endMs);
@@ -3974,8 +4055,12 @@
       splitFlash.hidden = true;
       row.appendChild(splitFlash);
 
+      const mainMuted = this.options.subtitleTrackMuted?.('main') === true;
+      const extMuted = this.options.subtitleTrackMuted?.('extension') === true;
+      row.classList.toggle('v-track-muted-main', mainMuted);
+      row.classList.toggle('v-track-muted-ext', extMuted);
       this.appendGapBlocks(row, startMs, endMs);
-      this.appendCueBlocks(row, startMs, endMs, groupBadges || computeGroupBadges(this.options.getSegments('main')));
+      this.appendCueBlocks(row, startMs, endMs);
       this.audioLayer?.renderRow(row, startMs, endMs);
 
       row.addEventListener('pointerdown', (event) => {
@@ -4177,7 +4262,7 @@
       }
     }
 
-    appendCueBlocks(row, startMs, endMs, groupBadges = null) {
+    appendCueBlocks(row, startMs, endMs) {
       const multiLane = this.options.multiSubtitleVisible?.() === true;
       const segments = this.options.getSegments('main');
       const selected = this.options.getSelection('main');
@@ -4185,7 +4270,6 @@
       const mainBindingMarkers = bindingMarkerTargets.main;
       const now = this.currentTimeMs();
       const activeMainIndex = findActiveCueIndex(segments, now);
-      const badgesByIndex = groupBadges || computeGroupBadges(segments);
       const firstMainIndex = firstCueIndexOverlapping(segments, startMs);
       for (let index = firstMainIndex; index < segments.length; index += 1) {
         const segment = segments[index];
@@ -4210,26 +4294,6 @@
         this.setBindingMarker(block, mainBindingMarkers?.has?.(index) === true);
         // 短块内文字会被截断，悬浮 title 给出完整字幕文本
         block.title = label.textContent;
-        const badges = this.settings.showGroupBadges !== false ? badgesByIndex.get(index) : null;
-        if (badges?.length) {
-          // 徽章挂在行上、块上方（不遮挡块内文字）；短字幕也保留最小显示空间，
-          // 让分组提示可以正常出现。
-          const badgeDuration = Math.max(1, endMs - startMs);
-          const badgeVisibleStart = Math.max(startMs, segment.start);
-          const badgeVisibleEnd = Math.min(endMs, segment.end);
-          // 行创建时还未挂载（clientWidth=0），用容器宽度估算块像素宽（行宽=容器宽）
-          const blockWidthPx = ((badgeVisibleEnd - badgeVisibleStart) / badgeDuration) * this.content.clientWidth;
-          if (blockWidthPx >= 24) badges.forEach((badge, badgeIndex) => {
-            const badgeEl = document.createElement('span');
-            badgeEl.className = `waveform-cue-badge ${badge.type}`;
-            badgeEl.textContent = badge.type === 'sticker' && badge.total === 1
-              ? '🦊'
-              : `${badge.type === 'color' ? '🎨' : '🦊'} ${badge.ordinal}/${badge.total}`;
-            badgeEl.style.left = `${((badgeVisibleStart - startMs) / badgeDuration) * 100}%`;
-            badgeEl.style.setProperty('--badge-stack-index', String(badgeIndex));
-            row.appendChild(badgeEl);
-          });
-        }
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
           leftHandle.className = 'waveform-cue-handle left';
@@ -4377,20 +4441,16 @@
       if (!this.payload) return;
       const rows = [...this.content.querySelectorAll('.waveform-row')];
       if (!rows.length) return;
-      const groupBadges = computeGroupBadges(this.options.getSegments('main'));
       rows.forEach((row) => {
         // 绑定、解绑和字幕时间变化只影响覆盖层；保留已有行与 Canvas，
         // 避免重新采样/绘制波形导致操作出现一帧卡顿。
-        row.querySelectorAll('.waveform-cue-block, .waveform-cue-badge')
+        row.querySelectorAll('.waveform-cue-block')
           .forEach((element) => element.remove());
-        this.appendCueBlocks(
-          row,
-          Number(row.dataset.startMs),
-          Number(row.dataset.endMs),
-          groupBadges,
-        );
+        this.appendCueBlocks(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
         this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
       });
+      // 配音 lane 数量/占位可能变化（--audio-lane-space 影响 V 头抬升）。
+      this.syncTrackHeads();
       this.updatePlayback(false);
     }
 
@@ -6580,7 +6640,6 @@
       isMultiRowInComfortZone,
       waveformTopEdgeMs,
       restoreWaveformTopEdgeMs,
-      computeGroupBadges,
       cueBlockContinuationEdges,
     },
   };

@@ -298,9 +298,6 @@ __WAVEFORM_CSS__
           <label class="multi-subtitle-setting-toggle" title="绑定字幕后自动把副字幕的起止时间同步到主字幕，相当于随后按一次 H">
             <input type="checkbox" id="multi-subtitle-auto-sync-duration" checked> 绑定时自动同步时长
           </label>
-          <label class="multi-subtitle-setting-toggle" title="在多重字幕波形中显示主字幕和副字幕的轨道编号徽标">
-            <input type="checkbox" id="multi-subtitle-show-track-badges"> 显示轨道徽标
-          </label>
           <div class="dropdown-separator"></div>
           <div class="dropdown-item" id="multi-subtitle-swap" role="menuitem" tabindex="0" title="交换主字幕和副字幕的文本、时间与绑定关系">交换主副字幕</div>
           <div class="dropdown-item" id="multi-subtitle-align" role="menuitem" tabindex="0" hidden title="将当前选中的副字幕批量对齐到各自绑定的主字幕时间范围">批量对齐</div>
@@ -373,7 +370,7 @@ __WAVEFORM_CSS__
       </label>
       <div class="dropdown-separator"></div>
       <button type="button" class="dropdown-item" id="help-quick-start" role="menuitem" title="重新播放新手快速上手引导">快速上手</button>
-      <button type="button" class="dropdown-item" id="help-basic" role="menuitem" title="打开帮助窗口的基础操作说明">基础操作</button>
+      <button type="button" class="dropdown-item" id="help-basic" role="menuitem" title="打开帮助窗口的操作说明">操作帮助</button>
       <button type="button" class="dropdown-item" id="help-website" role="menuitem" title="在浏览器中打开 MSW 官网">访问官网</button>
       <button type="button" class="dropdown-item" id="help-about" role="menuitem">关于 MSWE</button>
     </div>
@@ -952,6 +949,9 @@ __WAVEFORM_CSS__
       <label class="toggle editor-settings-item" title="按音频各时刻的 RMS 电平显示固定色标；关闭后贴片使用纯色">
         <input type="checkbox" id="audio-clips-heatmap" checked> 音频贴片热力图
       </label>
+      <label class="toggle editor-settings-item" title="在波形条左侧显示 Pr 式轨道头（V1/V2 字幕轨、A1/A2 配音轨）；点击轨道头可禁用/启用整条轨道">
+        <input type="checkbox" id="waveform-show-track-heads" checked> 轨道头
+      </label>
       <label class="editor-settings-item">配音与空隙
         <select id="audio-clips-gap-policy">
           <option value="protect">保留配音覆盖的区间</option>
@@ -984,9 +984,6 @@ __WAVEFORM_CSS__
           <option value="144">144 px</option>
           <option value="168">168 px</option>
         </select>
-      </label>
-      <label class="toggle editor-settings-item" title="在多行波形中，为成组（颜色/表情包）字幕在块上方显示队长皇冠与组内序号">
-        <input type="checkbox" id="waveform-show-group-badges" checked> 显示分组标记
       </label>
     </div>
     <div class="settings-panel-section waveform-settings-section">

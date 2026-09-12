@@ -49,8 +49,11 @@
     el('project-save-path').textContent = t('尚未选择保存位置');
     el('project-save-message').textContent = '';
     el('project-save-local').hidden = true;
-    el('project-save-collect-media').checked = false;
-    el('project-save-collect-media').disabled = newProject || !(project || host.data).media;
+    // 自动链接媒体（除非不存在）：工程带有媒体时默认勾选收集，
+    // 保存后媒体随工程落位，下次打开按同名自动链接；无媒体时禁用。
+    const collectable = Boolean((project || host.data).media);
+    el('project-save-collect-media').checked = collectable && !newProject ? true : false;
+    el('project-save-collect-media').disabled = newProject || !collectable;
     modal.classList.add('show');
     return new Promise(resolve => {
       active = { project, name, newProject, resolve, generation: host.generation };

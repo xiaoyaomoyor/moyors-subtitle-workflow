@@ -305,13 +305,15 @@
         || document.querySelector('.modal-mask.show')) return;
     if (event.key === 'Escape' && (drag || menu)) { event.preventDefault(); event.stopImmediatePropagation(); drag?.cancel(); closeMenu(); return; }
     if (event.target.closest('[role="menu"], button, a')) return;
-    // Ctrl+V 按「最后拷贝的对象」路由，且不要求当前有贴片选中——复制/剪切
-    // 贴片后选区即被清空（点空白处也会清），旧逻辑让 Ctrl+V 落到字幕粘贴上，
-    // 表现为“粘贴没反应”。当前选中的是贴片时仍优先贴贴片。
+    // Ctrl+V 只按「最后拷贝的对象」路由：拷的是贴片就贴贴片、拷的是字幕就
+    // 完全让位给字幕粘贴——当前选中了什么不影响路由（否则“复制字幕后顺手
+    // 点了一下贴片”会把字幕粘贴劫持成贴片粘贴）。不要求有贴片选中：复制/
+    // 剪切后选区即被清空，旧逻辑会让 Ctrl+V 落空，表现为“粘贴没反应”。
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'v'
         && !/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) && !event.target.isContentEditable) {
-      const wantClips = selected.size > 0 || global.MSW_CLIPBOARD_KIND === 'clips';
-      if (wantClips && clipClipboard?.length) { event.preventDefault(); event.stopPropagation(); pasteClipsFromClipboard(); }
+      if (global.MSW_CLIPBOARD_KIND === 'clips' && clipClipboard?.length) {
+        event.preventDefault(); event.stopPropagation(); pasteClipsFromClipboard();
+      }
       return;
     }
     if (!selected.size || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
@@ -342,6 +344,19 @@
   }
   const api = Object.freeze({ insert, renderRow, updatePlayhead,
     selectedCount: () => selected.size,
+    // 配音轨道头（波形轨道头列读取）：轨数与静音态；toggle 走 commit 可撤销。
+    trackCount: () => (extension().audio_tracks || []).length,
+    // 打包 lane 数（贴片重叠增多时 A 轨道头随之增加）；与 lanes 区域一致。
+    laneCount: () => sync().count,
+    audioTrackMuted: (index) => (extension().audio_tracks || [])[index]?.muted === true,
+    toggleAudioTrackMuted: (index) => {
+      const track = (extension().audio_tracks || [])[index];
+      if (!track) return;
+      commit(track.muted ? '启用配音轨' : '禁用配音轨', ext => {
+        const target = (ext.audio_tracks || []).find(t => t.id === track.id);
+        if (target) target.muted = !target.muted;
+      });
+    },
     // clearCues=false 供「字幕+贴片一起全选」使用：不清字幕选区。
     selectAllClips: (clearCues = true) => {
       const clips = sync().clips;

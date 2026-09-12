@@ -534,19 +534,6 @@
 .waveform-basic .waveform-row.multi-subtitle-row {
   --multi-subtitle-lane-height: min(54px, calc((100% - (var(--multi-subtitle-bottom-inset) * 2) - var(--multi-subtitle-lane-gap)) / 2));
 }
-.waveform-row.multi-subtitle-row.show-track-badges::before {
-  content: "1";
-  color: var(--active-cue-fg);
-  background: var(--accent);
-  top: auto;
-  bottom: calc(var(--multi-subtitle-bottom-inset) + var(--multi-subtitle-lane-height) + ((var(--multi-subtitle-lane-height) - var(--multi-subtitle-label-height)) / 2));
-}
-.waveform-row.multi-subtitle-row.show-track-badges::after {
-  content: "2";
-  color: var(--mark-fg);
-  background: var(--amber);
-  bottom: calc(var(--multi-subtitle-bottom-inset) + ((var(--multi-subtitle-lane-height) - var(--multi-subtitle-label-height)) / 2));
-}
 .waveform-row.multi-subtitle-row .waveform-cue-block[data-track="main"] {
   bottom: calc(var(--multi-subtitle-bottom-inset) + var(--multi-subtitle-lane-height) + var(--multi-subtitle-lane-gap));
 }
@@ -556,16 +543,13 @@
   outline-color: color-mix(in srgb, var(--cue-color) 50%, var(--wave-cue-mix));
   background: color-mix(in srgb, var(--cue-color) 10%, var(--wave-cue-mix));
 }
-.waveform-row.multi-subtitle-row .waveform-cue-badge {
-  /* 双字幕时 badge 要放在最上方主字幕块之上；单层行继续使用默认 bottom。 */
-  bottom: calc(var(--multi-subtitle-bottom-inset) + (var(--multi-subtitle-lane-height) * 2) + var(--multi-subtitle-lane-gap) + 2px);
-}
 .waveform-row.multi-subtitle-row .waveform-cue-block[data-track="extension"] .waveform-cue-label {
   color: var(--editor-cue-text);
 }
 .waveform-row.multi-subtitle-row .waveform-cue-block[data-track="extension"].selected {
   outline-style: solid;
-  outline-color: var(--accent-hover);
+  /* 与主字幕块同用「选区」色（此前是强调色，与选区语义不一致） */
+  outline-color: var(--selection-yellow);
 }
 .waveform-playhead {
   position: absolute;
@@ -810,22 +794,6 @@
   border-bottom-right-radius: 0;
 }
 .waveform-cue-block:hover { filter: brightness(var(--wave-hover-brightness)); }
-/* 分组徽章：放在块上方的行内区域（bottom = 块高35 + 块底7 + 间距2），
-   纯视觉提示不遮挡块内文字；left 由 JS 按块位置写入 */
-.waveform-cue-badge {
-  position: absolute; bottom: calc(44px + var(--badge-stack-index, 0) * 16px); z-index: 6;
-  font-size: 11px; line-height: 1.3; padding: 1px 5px; white-space: nowrap;
-  color: var(--text-secondary); background: var(--wave-badge-bg); border-radius: 3px;
-  pointer-events: none; font-family: var(--font-mono);
-}
-.waveform-cue-badge.color { color: var(--selection-yellow); }
-.waveform-cue-badge.sticker { color: var(--wave-badge-sticker); }
-/* 单行（基础）模式块高不是固定 35px，而是 max(35px, min(72px, 40%))
-   （见 .waveform-basic .waveform-cue-block）；徽章 bottom 同步按
-   「块底 7 + 实际块高 + 间距 2」计算，否则会嵌进更高的单行块内。 */
-.waveform-basic .waveform-cue-badge {
-  bottom: calc(9px + max(35px, min(72px, 40%)) + var(--badge-stack-index, 0) * 16px);
-}
 .waveform-cue-block.selected,
 .msw-audio-clip.selected {
   z-index: 6;
@@ -895,12 +863,6 @@
 }
 .waveform-row.has-audio-clips.multi-subtitle-row .waveform-cue-block[data-track="extension"] {
   bottom: calc(7px + var(--audio-lane-space));
-}
-.waveform-row.has-audio-clips .waveform-cue-badge {
-  bottom: calc(30px + var(--audio-lane-space) + var(--badge-stack-index, 0) * 16px);
-}
-.waveform-row.has-audio-clips.multi-subtitle-row .waveform-cue-badge {
-  bottom: calc(51px + var(--audio-lane-space) + var(--badge-stack-index, 0) * 16px);
 }
 .msw-audio-lanes {
   position: absolute; left: 0; right: 0; bottom: 5px; z-index: 6;
@@ -1044,4 +1006,66 @@
   .editor-workspace.layout-wave-right .layout-resizer { display: none; }
   .editor-workspace.layout-custom .free-layout-root { flex-direction: column; }
   .editor-workspace.layout-custom .layout-module-slot { min-height: 170px; }
+}
+
+/* === Pr 式轨道头（独立左列） ===
+   内容根开启轨道头时行整体右移让出 36px 明沟，标签列挂在内容根上，
+   不遮挡波形/字幕块/贴片。V1/V2 按行内字幕 lane 对齐（多行模式行复用
+   同一组 lane 公式），A1/A2… 由 JS 按行内配音 lane 实际位置定位。 */
+.wave-track-heads-on .waveform-row { left: 36px; }
+.waveform-basic .waveform-row { left: 8px; }
+.wave-track-heads-on .waveform-basic .waveform-row { left: 44px; }
+.waveform-track-heads-column {
+  display: none;
+  position: absolute; left: 0; top: 0; bottom: 0; z-index: 9;
+  width: 36px;
+  /* 沟槽里只有轨道头，整列放行指针（Chromium 对 pointer-events:none 祖先链
+     里的 auto 按钮会在按下后把后续指针事件重定向给最近的非 none 祖先，
+     表现为按钮收不到 pointerup/click）。 */
+  pointer-events: auto;
+}
+.wave-track-heads-on .waveform-track-heads-column { display: block; }
+.waveform-track-heads {
+  position: absolute; left: 0; width: 100%;
+  /* 打包 lane 超过可视 3 条时多出的 A 头在区域内滚动可见范围外，裁掉 */
+  overflow: hidden;
+  /* 与字幕块的 lane 公式严格一致：无贴片 lane=min(35,(高-14)/2)、块高 35；
+     有贴片 lane=20、块高 20、lane 间距 1px、底距 7+audio（见
+     .waveform-row.has-audio-clips 系列），轨道头随同一组变量对齐。 */
+  --head-lane-h: min(35px, calc((100% - 14px) / 2));
+  --head-lane-gap: 0px;
+  --head-block-h: 35px;
+}
+.waveform-track-heads.wf-basic { --head-lane-h: min(54px, calc((100% - 14px) / 2)); --head-block-h: max(35px, min(72px, 40%)); }
+.waveform-track-heads.has-audio { --head-lane-h: 20px; --head-lane-gap: 1px; --head-block-h: 20px; }
+.waveform-track-head {
+  pointer-events: auto; position: absolute; left: 4px;
+  min-width: 28px; height: 17px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-subtle); border-radius: 3px;
+  background: var(--wave-badge-bg); color: var(--text-secondary);
+  font: 10px/1 var(--font-mono); cursor: pointer; user-select: none;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+}
+.waveform-track-head:hover { color: var(--accent-hover); border-color: var(--accent-line); }
+.waveform-track-head.track-muted {
+  text-decoration: line-through; color: var(--text-faint);
+  background: transparent; border-style: dashed;
+}
+/* 单 lane：对齐块（底距 7+audio，块高 --head-block-h），不再用行高中点 */
+.waveform-track-head.v-main {
+  top: auto; transform: none;
+  bottom: calc(7px + var(--head-audio-space, 0px) + ((var(--head-block-h) - 17px) / 2));
+}
+.waveform-track-heads.multi .v-main {
+  bottom: calc(7px + var(--head-audio-space, 0px) + var(--head-lane-gap) + var(--head-lane-h) + ((var(--head-lane-h) - 17px) / 2));
+}
+.waveform-track-heads.multi .v-ext {
+  bottom: calc(7px + var(--head-audio-space, 0px) + ((var(--head-lane-h) - 17px) / 2));
+}
+/* 被禁用字幕轨的块降透明度（非破坏性：数据不动，预览也跳过该轨） */
+.waveform-row.v-track-muted-main .waveform-cue-block[data-track="main"],
+.waveform-row.v-track-muted-ext .waveform-cue-block[data-track="extension"] {
+  opacity: .38;
 }

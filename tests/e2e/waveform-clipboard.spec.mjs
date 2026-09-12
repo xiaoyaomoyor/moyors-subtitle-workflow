@@ -70,6 +70,17 @@ test.afterAll(async () => {
   cleanupTempDir(tempDir);
 });
 
+
+// 轨道头坐标点击：Chromium 将按钮按下后的 pointerup 派发给组容器，
+// Playwright 的 locator.click 动作性检查会误报「被拦截」；坐标点击等价于
+// 真实用户输入且稳定可达激活路径（组级 pointerup 分发）。
+async function clickTrackHead(page, selector) {
+  const box = await page.locator(selector).first().boundingBox();
+  if (!box) throw new Error(`轨道头未渲染：${selector}`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(250);
+}
+
 test.beforeEach(async ({ page }) => {
   // 跳过新手引导：引导聚光会选中第一条字幕，破坏「无选区」的默认场景。
   await page.addInitScript(() => {
@@ -127,7 +138,8 @@ test('clip paste stays reachable after the selection clears and never double-pas
   expect(state.clipsSelected).toBe(1);
   expect(state.cueTotal).toBe(3);
 
-  // 贴片选中 + 字幕剪贴板有内容：Ctrl+V 只粘贴贴片（历史 bug 是两者同时粘贴）
+  // 拷贝字幕后顺手点了贴片：Ctrl+V 仍按「最后拷贝的对象」贴字幕，
+  // 不被贴片选中劫持（历史 bug 是两者同时粘贴/劫持成贴片粘贴）
   await page.locator('.waveform-cue-block[data-idx="0"]').click();
   await page.keyboard.press('Control+c');
   await page.locator('.msw-audio-clip').first().click();
@@ -139,8 +151,8 @@ test('clip paste stays reachable after the selection clears and never double-pas
     clipTotal: document.querySelectorAll('.msw-audio-clip').length,
     cueTotal: document.querySelectorAll('#cues-container > .cue').length,
   }));
-  expect(after.clipTotal).toBe(4);
-  expect(after.cueTotal).toBe(3);
+  expect(after.clipTotal).toBe(3);
+  expect(after.cueTotal).toBe(4);
 });
 
 test('clicking an open menubar tab keeps it open', async ({ page }) => {
@@ -154,3 +166,207 @@ test('clicking an open menubar tab keeps it open', async ({ page }) => {
   await page.locator('#cues-container').click({ position: { x: 5, y: 5 } });
   await expect(page.locator('.menubar-item[data-menubar-item="file"]')).not.toHaveClass(/open/);
 });
+
+test('Pr-style track heads toggle track disabling', async ({ page }) => {
+  // 前序用例把播放头移到 70s，波形自动跟随滚动会把第 0 行滚出视口；
+  // 先回滚顶部再点第 0 行的轨道头，避免与自动跟随相争。
+  await page.evaluate(() => {
+    const scroll = document.getElementById('waveform-scroll');
+    scroll.scrollTop = 0;
+  });
+  await page.waitForTimeout(200);
+  // V1：点击后标签删除线、主字幕块降透明度、预览叠层隐藏该轨、状态写入工程扩展
+  await clickTrackHead(page, '.waveform-track-head.v-main');
+  await page.waitForTimeout(300);
+  let state = await page.evaluate(() => {
+    const row = document.querySelector('.waveform-row');
+    const block = row.querySelector('.waveform-cue-block[data-track="main"]');
+    player.currentTime = 1;
+    return new Promise((resolve) => setTimeout(() => resolve({
+      struck: document.querySelector('.waveform-track-head.v-main').classList.contains('track-muted'),
+      dim: getComputedStyle(block).opacity,
+      overlayHidden: document.getElementById('overlay-main-text').classList.contains('hidden'),
+      persisted: Boolean(window.MSWE.resolve('processing-host').data.msw?.subtitle_tracks_muted?.main),
+    }), 300));
+  });
+  expect(state.struck).toBe(true);
+  expect(parseFloat(state.dim)).toBeLessThan(1);
+  expect(state.overlayHidden).toBe(true);
+  expect(state.persisted).toBe(true);
+
+  await page.evaluate(() => {
+    const scroll = document.getElementById('waveform-scroll');
+    scroll.scrollTop = 0;
+  });
+  await page.waitForTimeout(200);
+  // 再点恢复
+  await clickTrackHead(page, '.waveform-track-head.v-main');
+  await page.waitForTimeout(300);
+  state = await page.evaluate(() => ({
+    struck: document.querySelector('.waveform-track-head.v-main').classList.contains('track-muted'),
+    persisted: Boolean(window.MSWE.resolve('processing-host').data.msw?.subtitle_tracks_muted?.main),
+  }));
+  expect(state.struck).toBe(false);
+  expect(state.persisted).toBe(false);
+
+  await page.evaluate(() => {
+    const scroll = document.getElementById('waveform-scroll');
+    scroll.scrollTop = 0;
+  });
+  await page.waitForTimeout(200);
+  // A1：禁用配音轨（audio_tracks[0].muted，随工程持久化），贴片带 muted 态
+  await clickTrackHead(page, '.waveform-track-head.a-track');
+  await page.waitForTimeout(300);
+  state = await page.evaluate(() => {
+    const data = window.MSWE.resolve('processing-host').data;
+    return {
+      trackMuted: data.msw?.audio_tracks?.[0]?.muted === true,
+      labelStruck: document.querySelector('.waveform-track-head.a-track').classList.contains('track-muted'),
+      clipMutedClass: document.querySelector('.msw-audio-clip')?.classList.contains('muted'),
+    };
+  });
+  expect(state.trackMuted).toBe(true);
+  expect(state.labelStruck).toBe(true);
+  expect(state.clipMutedClass).toBe(true);
+
+  // 「轨道头」设置关闭后整层隐藏
+  await page.evaluate(() => {
+    const toggle = document.getElementById('waveform-show-track-heads');
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect.poll(() => page.evaluate(() =>
+    document.getElementById('waveform-content').classList.contains('wave-track-heads-on'))).toBe(false);
+});
+
+test('cut cue block then paste at an earlier playhead lands on the track', async ({ page }) => {
+  // 剪切后段的字幕贴到更早的播放头：负偏移生效（不再保持原时间），
+  // 且按时间有序插入——乱序插入会让波形的二分查找漏画字幕块
+  // （“列表有、轨道上没有”的历史 bug）。
+  const block = page.locator('.waveform-cue-block[data-idx="1"]');
+  await block.click();
+  await page.keyboard.press('Control+x');
+  // 剪切后列表少一条（波形块是否可见取决于滚动窗口，不作全局计数）
+  await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
+
+  await page.evaluate(() => { player.currentTime = 20; });
+  await page.waitForTimeout(200);
+  await page.keyboard.press('Control+v');
+  await page.waitForTimeout(400);
+  const state = await page.evaluate(() => {
+    const cues = [...document.querySelectorAll('#cues-container > .cue')].map((el) => ({
+      text: (el.querySelector('.text')?.textContent || '').trim(),
+    }));
+    // 播放头跟随已把 20s 行滚入视口：找到覆盖 20s 的行并检查其中的块
+    const row = [...document.querySelectorAll('.waveform-row')].find((r) =>
+      Number(r.dataset.startMs) <= 20000 && Number(r.dataset.endMs) > 20000);
+    return {
+      cueTotal: cues.length,
+      order: cues.map((c) => c.text.slice(0, 5)).join(','),
+      rowHasPastedBlock: Boolean(row?.querySelector('.waveform-cue-block[data-idx="1"], .waveform-cue-block[data-idx="0"]')),
+    };
+  });
+  expect(state.cueTotal).toBe(3);
+  expect(state.order).toContain('Alpha');
+  expect(state.order.indexOf('Bravo')).toBeLessThan(state.order.indexOf('Charl'));
+  expect(state.rowHasPastedBlock).toBe(true);
+});
+
+test('bound pair cut and paste keeps main and extension together', async ({ page }) => {
+  // 连锁选择（selectBoundSubtitlePair 默认开）：点主块会同时选中绑定的副字幕。
+  // 剪切这对 → 粘贴到播放头：主副一起回来且配对绑定重建。
+  await dropSrtPair(page);
+  await expect(page.locator('.multi-dual-cue').first()).toBeVisible();
+
+  const state = () => page.evaluate(() => ({
+    cues: document.querySelectorAll('#cues-container > .cue').length,
+    bindings: (window.MSWE.resolve('processing-host').data.multi_subtitle?.bindings || []).length,
+  }));
+
+  // 自动绑定受时间容差影响，测试里显式建一对绑定（与主字幕绑定的右键入口）
+  await page.locator('.multi-cue-column.main').last().click();
+  await page.locator('.multi-cue-column.extension[data-ext-idx="0"]').first()
+    .click({ button: 'right' });
+  await page.locator('#ctxmenu .item').filter({ hasText: '与选中的主字幕绑定' }).click();
+  await page.waitForTimeout(300);
+
+  const before = await state();
+  expect(before.bindings).toBe(1);
+  const baseCues = before.cues;
+
+  // 选中刚绑定那条主字幕（列表里最后一列主列对应的波形块）
+  const mainIdxToCut = await page.evaluate(() => {
+    const col = [...document.querySelectorAll('.multi-cue-column.main')].pop();
+    return Number(col?.closest('.cue')?.dataset?.mainIdx ?? -1);
+  });
+  await page.locator(`.waveform-cue-block[data-track="main"][data-idx="${mainIdxToCut}"]`).click();
+  await page.waitForTimeout(250);
+  const sel = await page.evaluate(() => ({ main: selectedIdxs.size, ext: selectedExtensionIdxs.size }));
+  expect(sel.main).toBe(1);
+  expect(sel.ext).toBeGreaterThanOrEqual(1);
+
+  await page.keyboard.press('Control+x');
+  await page.waitForTimeout(400);
+  const afterCut = await state();
+  expect(afterCut.cues).toBe(baseCues - 1); // 主副一起被剪切（主轨少一条）
+  expect(afterCut.bindings).toBe(0); // 这对的绑定随之拆除
+
+  await page.evaluate(() => { player.currentTime = 20; });
+  await page.waitForTimeout(200);
+  await page.keyboard.press('Control+v');
+  await page.waitForTimeout(500);
+  const afterPaste = await page.evaluate(() => ({
+    cues: document.querySelectorAll('#cues-container > .cue').length,
+    bindings: (window.MSWE.resolve('processing-host').data.multi_subtitle?.bindings || []).length,
+    extSel: selectedExtensionIdxs.size,
+    mainSel: selectedIdxs.size,
+  }));
+  expect(afterPaste.cues).toBe(baseCues); // 主副一起回来
+  expect(afterPaste.bindings).toBe(1); // 配对绑定重建
+  expect(afterPaste.mainSel).toBe(1);
+  expect(afterPaste.extSel).toBeGreaterThanOrEqual(1);
+});
+
+test('A track heads grow with packed lanes', async ({ page }) => {
+  // 两个时间重叠的贴片 → 打包成 2 条 lane → A1/A2 轨道头
+  await page.evaluate(() => {
+    const audio = window.MSWE.resolve('audio-timeline');
+    window.__laneCount = audio.laneCount?.();
+  });
+  const heads = await page.evaluate(() =>
+    [...document.querySelectorAll('.waveform-track-heads')].flatMap((g) =>
+      [...g.querySelectorAll('.a-track')].map((el) => el.textContent)));
+  const laneCount = await page.evaluate(() => window.__laneCount);
+  expect(laneCount).toBeGreaterThanOrEqual(1);
+  // 每个波形行组都应渲染 A1..A{laneCount}
+  const perGroup = new Set(heads.map((_, i) => i).map(() => heads.length));
+  expect(heads.length).toBeGreaterThan(0);
+  expect(new Set(heads).size).toBe(laneCount);
+});
+
+async function dropSrtPair(page) {
+  // 与 multi-subtitle.spec 的 importPair 同源数据、同顺序投放：
+  // 先主 SRT（直接成为主轨），再副 SRT（弹导入框，按时间自动绑定 2 对）。
+  const dropOne = async (name, text) => {
+    await page.evaluate(({ n, t }) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([new TextEncoder().encode(t)], n, { type: 'text/plain' }));
+      document.body.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true }));
+    }, { n: name, t: text });
+  };
+  const main = [
+    '1', '00:00:00,000 --> 00:00:02,000', 'Hello world.', '',
+    '2', '00:00:03,000 --> 00:00:05,000', 'Second line.', '',
+  ].join('\n');
+  const ext = [
+    '1', '00:00:00,050 --> 00:00:01,950', '你好，世界。', '',
+    '2', '00:00:03,050 --> 00:00:04,950', '第二句。', '',
+    '3', '00:00:08,000 --> 00:00:09,000', 'unmatched', '',
+  ].join('\n');
+  await dropOne('main.srt', main);
+  await page.waitForTimeout(400);
+  await dropOne('translation.srt', ext);
+  await page.waitForTimeout(400);
+  await page.locator('#multi-subtitle-import-extension').click();
+  await page.locator('#multi-subtitle-import-result-confirm').click();
+}

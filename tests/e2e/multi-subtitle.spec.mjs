@@ -586,12 +586,6 @@ test('keeps track badges optional and uses striped disabled styling for secondar
   const firstWaveformRow = page.locator('.waveform-row.multi-subtitle-row').first();
 
   await openMultiSubtitleSettings(page);
-  await expect(page.locator('#multi-subtitle-show-track-badges')).not.toBeChecked();
-  await expect(firstWaveformRow).not.toHaveClass(/show-track-badges/);
-  await page.locator('#multi-subtitle-show-track-badges').check();
-  await expect(firstWaveformRow).toHaveClass(/show-track-badges/);
-  await page.locator('#multi-subtitle-show-track-badges').uncheck();
-  await expect(firstWaveformRow).not.toHaveClass(/show-track-badges/);
   await openMultiSubtitleSettings(page);
 
   const main = page.locator('.multi-cue-column.main:not(.multi-cue-empty)').first();
@@ -1108,6 +1102,11 @@ function selectedSnapshot() {
 }
 
 test('moves the split point with WASD, switches lanes with Tab and confirms with Space', async ({ page }) => {
+  // 拆分弹窗底部的按键提示词随「快捷键提示」开关显隐（默认关）；
+  // 本用例要读这些提示，先以开启状态启动。
+  await page.addInitScript(() => {
+    localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({ toolbarKbdHints: true }));
+  });
   await page.goto(server.url);
   await dropFiles(page, [srtSpec('main.srt', [
     '1',
@@ -3151,7 +3150,6 @@ test('keeps one shared waveform background with two lanes, switch visibility, an
   await expect(page.locator('#cue-panel-target')).toHaveText('主字幕');
 
   await openMultiSubtitleSettings(page);
-  await page.locator('#multi-subtitle-show-track-badges').check();
   await setMultiSubtitleToggle(page, false);
   await expect(page.locator('#multi-subtitle-toggle')).not.toBeChecked();
   await expect(page.locator('.waveform-row.multi-subtitle-row')).toHaveCount(0);

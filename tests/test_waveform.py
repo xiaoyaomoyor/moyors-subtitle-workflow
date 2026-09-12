@@ -265,9 +265,10 @@ class EditorAssetTests(unittest.TestCase):
             'background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--accent) 30%);',
             page,
         )
-        # 单行模式徽章位置跟随块高公式，避免嵌进更高的块内
-        self.assertIn('.waveform-basic .waveform-cue-badge {', page)
-        self.assertIn('bottom: calc(9px + max(35px, min(72px, 40%))', page)
+        # 旧的分组徽章已删除；Pr 式轨道头（V1/V2/A1…）由「轨道头」设置控制
+        self.assertNotIn('.waveform-cue-badge', page)
+        self.assertIn('.waveform-track-head {', page)
+        self.assertIn('id="waveform-show-track-heads"', page)
         self.assertIn('id="layout-drop-preview"', page)
         self.assertIn('layout-insert-preview', page)
         self.assertIn('insertLayoutModuleAtEdge', page)

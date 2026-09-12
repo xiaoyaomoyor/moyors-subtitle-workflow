@@ -763,7 +763,6 @@ const DEFAULT_EDITOR_SETTINGS = {
   // G 绑定后是否自动把副字幕时间范围同步到主字幕（等同随后按 H）。
   multiSubtitleAutoSyncDuration: true,
   // 多重字幕波形是否显示主/副轨道编号徽标。
-  multiSubtitleShowTrackBadges: false,
   // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
   theme: 'dark',
   // 波形形状来源：reapeaks（默认，有 .ReaPeaks 缓存时用其最细 wave 层，缺数据自动回退自研）/ self（自研 1000Hz 重采样缓存）。
@@ -1675,7 +1674,6 @@ const multiSubtitleSwapButton = document.getElementById('multi-subtitle-swap');
 const multiSubtitleCrossTrackSnapToggle = document.getElementById('multi-subtitle-cross-track-snap');
 const multiSubtitleSelectBoundPairToggle = document.getElementById('multi-subtitle-select-bound-pair');
 const multiSubtitleAutoSyncDurationToggle = document.getElementById('multi-subtitle-auto-sync-duration');
-const multiSubtitleShowTrackBadgesToggle = document.getElementById('multi-subtitle-show-track-badges');
 const multiSubtitleToggle = document.getElementById('multi-subtitle-toggle');
 const multiSubtitleDisplayMode = document.getElementById('multi-subtitle-display-mode');
 const multiSubtitleMainLanguageMode = document.getElementById('multi-subtitle-main-language-mode');
@@ -2276,10 +2274,6 @@ function updateMultiSubtitleUi() {
     multiSubtitleAutoSyncDurationToggle.checked = EDITOR_SETTINGS.multiSubtitleAutoSyncDuration;
     multiSubtitleAutoSyncDurationToggle.disabled = !enabled;
   }
-  if (multiSubtitleShowTrackBadgesToggle) {
-    multiSubtitleShowTrackBadgesToggle.checked = EDITOR_SETTINGS.multiSubtitleShowTrackBadges;
-    multiSubtitleShowTrackBadgesToggle.disabled = !enabled;
-  }
   if (multiSubtitleSwapButton) {
     const canSwap = enabled && (getMultiSubtitleState().tracks || []).length === 1
       && DATA.segments.length > 0 && (track?.segments || []).length > 0;
@@ -2327,9 +2321,15 @@ function syncWaveHintsGeometry() {
 }
 function applyToolbarKbdHints() {
   const shown = Boolean(EDITOR_SETTINGS.toolbarKbdHints);
+  // 复选框同步设置值：此前加载时从不回填，设置里开着、菜单里却显示未勾选，
+  // 看起来就像「没勾选也出现提示词」。
+  const toggle = document.getElementById('toolbar-kbd-hints-toggle');
+  if (toggle) toggle.checked = shown;
   document.querySelectorAll('.module-key-hints').forEach((el) => { el.hidden = !shown; });
   const hints = document.getElementById('cue-editor-key-hints');
   if (hints) hints.hidden = !shown;
+  // 拆分弹窗底部的按键提示词同样归这个开关管（此前不受控，未勾选也显示）。
+  document.querySelectorAll('.multi-subtitle-split-key-hints').forEach((el) => { el.hidden = !shown; });
   syncWaveHintsGeometry();
 }
 const toolbarKbdHintsToggle = document.getElementById('toolbar-kbd-hints-toggle');
@@ -2586,10 +2586,6 @@ multiSubtitleSelectBoundPairToggle?.addEventListener('change', () => {
 });
 multiSubtitleAutoSyncDurationToggle?.addEventListener('change', () => {
   updateEditorSettings({ multiSubtitleAutoSyncDuration: multiSubtitleAutoSyncDurationToggle.checked });
-});
-multiSubtitleShowTrackBadgesToggle?.addEventListener('change', () => {
-  updateEditorSettings({ multiSubtitleShowTrackBadges: multiSubtitleShowTrackBadgesToggle.checked });
-  waveformEditor?.render?.();
 });
 multiSubtitleSwapButton?.addEventListener('click', () => {
   swapMainAndExtensionSubtitles();
@@ -11888,11 +11884,32 @@ function updatePlaybackFrame() {
   waveformEditor?.updatePlayback();
 }
 
+// V1/V2 轨道头的禁用状态（非破坏性）：写在 MSW 扩展的未知可选键里随工程
+// 持久化；预览叠层跳过被禁轨，波形块降透明度。不影响字幕数据本身。
+function subtitleTrackMuted(kind) {
+  return Boolean(DATA.msw?.subtitle_tracks_muted?.[kind]);
+}
+
+function toggleSubtitleTrackMuted(kind) {
+  if (kind !== 'main' && kind !== 'extension') return;
+  const extension = window.MSWProject.ensure(DATA);
+  const next = { ...(extension.subtitle_tracks_muted || {}) };
+  next[kind] = !next[kind];
+  extension.subtitle_tracks_muted = next;
+  const label = `${next[kind] ? '禁用' : '启用'}${kind === 'main' ? 'V1 主字幕' : 'V2 副字幕'}轨道`;
+  flashHint(label, next[kind] ? 'warning' : 'success');
+  renderAll({ waveform: 'full' });
+  refreshSubtitlePreview();
+}
+
 function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActive(tMs)) {
   // 编辑字幕文本时只刷新播放器预览，避免每输入一个字都触发字幕列表的自动滚动。
   const seg = idx >= 0 ? DATA.segments[idx] : null;
-  const mainVisible = !!overlayToggle.checked && isSubtitlePreviewActive(seg, tMs);
-  const extension = extensionSegmentAtTime(tMs, idx);
+  // V1/V2 轨道头禁用的轨不再进入预览（Pr 的轨输出开关语义）。
+  const mainTrackMuted = subtitleTrackMuted('main');
+  const extTrackMuted = subtitleTrackMuted('extension');
+  const mainVisible = !!overlayToggle.checked && !mainTrackMuted && isSubtitlePreviewActive(seg, tMs);
+  const extension = extTrackMuted ? null : extensionSegmentAtTime(tMs, idx);
   const extensionVisible = !!extensionOverlayToggle?.checked && !!extension;
   // 播放刷新每帧都会经过这里；只在可见状态或文字真的变化时触碰 DOM，
   // 避免连续 textContent/classList 写入触发不必要的样式和绘制工作。
@@ -13295,7 +13312,8 @@ function serverProjectSavingEnabled() {
 }
 
 function projectSaveTargetEnabled() {
-  return serverProjectSavingEnabled() || projectFileHandle !== null;
+  return serverProjectSavingEnabled() || projectFileHandle !== null
+    || Boolean(window.MSWE?.resolve('project-persistence')?.available());
 }
 
 function parseProjectValidationTarget(detail) {
@@ -13549,9 +13567,14 @@ function configureServerSaveControls() {
   // 浏览器持有工程句柄时同样显示保存项；服务器绑定优先于句柄。
   // 工具栏改为菜单栏后，「保存工程」菜单项在无保存目标时保持禁用灰显而非隐藏。
   if (saveProjectButton) saveProjectButton.hidden = !(hasServer || projectFileHandle !== null);
+  const bindSaveAvailable = Boolean(window.MSWE?.resolve('project-persistence')?.available());
   if (saveProjectButton) {
-    saveProjectButton.disabled = !projectSaveTargetEnabled();
-    if (!projectSaveTargetEnabled()) saveProjectButton.title = '当前服务器未绑定工程；请先导出 .mosp，再重新打开该文件';
+    saveProjectButton.disabled = !(projectSaveTargetEnabled() || bindSaveAvailable);
+    if (!projectSaveTargetEnabled()) {
+      saveProjectButton.title = bindSaveAvailable
+        ? '保存并绑定工程文件（Ctrl(Cmd)+S）：选择保存位置后媒体将随工程自动链接'
+        : '当前服务器未绑定工程；请先导出 .mosp，再重新打开该文件';
+    }
   }
   if (saveProjectButton && projectSaveTargetEnabled()) {
     saveProjectButton.title = '保存回当前工程文件（Ctrl(Cmd)+S）';
@@ -14148,6 +14171,15 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
 
 async function saveProjectToServer({ silent = false } = {}) {
   if (!serverProjectSavingEnabled()) {
+    // 服务器在跑但本会话尚未绑定工程文件（如拖入 SRT / 浏览器打开的 .mosp）：
+    // Ctrl+S 自动转入「绑定保存」流程（选择保存位置 + 可选收集媒体），
+    // 绑定后媒体随工程落位、下次打开按同名自动链接（媒体不存在时该选项自动禁用）。
+    // 静默自动保存不弹窗，保持原状；无服务器时（便携模式）才提示导出。
+    const persistence = window.MSWE?.resolve('project-persistence');
+    if (!silent && persistence?.available()) {
+      flashHint('当前会话尚未绑定工程文件；请选择保存位置完成绑定', 'info');
+      return persistence.saveAs();
+    }
     if (!silent) flashHint('当前服务器未绑定工程；请先导出 .mosp，再重新打开该文件', 'invalid');
     return false;
   }
@@ -19016,7 +19048,11 @@ function initWaveformEditor() {
     getWaveShapeSource: () => EDITOR_SETTINGS.waveShapeSource,
     // JKL 倒放靠逐帧回退实现，媒体元素本身处于暂停态；倒放期间同样视为播放中。
     getHoverSeekPreview: () => EDITOR_SETTINGS.hoverSeekPreview && !jklReversePlaying,
-    showTrackBadges: () => EDITOR_SETTINGS.multiSubtitleShowTrackBadges,
+    subtitleTrackMuted,
+    toggleSubtitleTrackMuted,
+    getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
+    audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
+    toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
     onBeginEdit: (label) => pushUndo(label),
     syncBoundCueDrag,
     onLayoutUndo: (label, snapshot) => pushLayoutUndo(label, snapshot),
@@ -19070,6 +19106,7 @@ function initWaveformEditor() {
   waveformLoadedFromProject = waveformEditor.setPayload(DATA.waveform || null, { render: false });
 }
 
+let deferredReapeaksErrorCount = 0;
 async function loadDeferredReapeaks() {
   const url = SERVER_CONFIG?.waveformUrl;
   if (!url || !waveformEditor) return;
@@ -19077,6 +19114,7 @@ async function loadDeferredReapeaks() {
     const response = await fetch(url, { cache: 'no-store' });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok !== true) throw new Error(result.error || `服务器返回 ${response.status}`);
+    deferredReapeaksErrorCount = 0;
     if (result.status === 'loading' || result.status === 'pending') {
       window.setTimeout(() => { void loadDeferredReapeaks(); }, 500);
       return;
@@ -19090,16 +19128,27 @@ async function loadDeferredReapeaks() {
     waveformEditor.setReapeaksWaveform(DATA.waveform_reapeaks, { render: false });
     renderAll({ waveform: 'full' });
   } catch (_error) {
-    window.setTimeout(() => { void loadDeferredReapeaks(); }, 1000);
+    // 失败退避（1s→2s→5s 封顶）：服务器忙或已退出时不再每秒硬轮询，
+    // 避免与连接探测一起形成请求风暴拖垮刚打开的页面。
+    deferredReapeaksErrorCount += 1;
+    const delay = [1000, 2000, 5000][Math.min(2, deferredReapeaksErrorCount - 1)];
+    window.setTimeout(() => { void loadDeferredReapeaks(); }, delay);
   }
 }
 
 // Server-editor 页面可能在本地服务退出后继续留在浏览器中。定期复用
 // startup-status 这个轻量 JSON 接口：断联时保留页面里的编辑内容，并显示
 // 持久横幅；服务恢复后自动清掉横幅，不刷新页面，避免覆盖未保存的改动。
+// 防误报三原则：
+// 1) 启动阶段（startupStatus 非 ready/error）不监控——服务器正在生成波形，
+//    探测超时是预期现象，不是断开；
+// 2) 只有「连接被拒」（TypeError，进程已退出）累计失败；探测超时（AbortError）
+//    或收到任何 HTTP 响应都证明进程活着，不计数；
+// 3) 连续失败按 2s→4s→8s 退避，避免对已退出的服务高频轰炸。
 const SERVER_CONNECTION_CHECK_INTERVAL_MS = 2000;
-const SERVER_CONNECTION_REQUEST_TIMEOUT_MS = 1500;
-const SERVER_CONNECTION_FAILURE_THRESHOLD = 2;
+const SERVER_CONNECTION_REQUEST_TIMEOUT_MS = 2500;
+const SERVER_CONNECTION_FAILURE_THRESHOLD = 3;
+const SERVER_CONNECTION_MAX_INTERVAL_MS = 8000;
 const serverConnectionBanner = document.getElementById('server-connection-banner');
 let serverConnectionCheckTimer = 0;
 let serverConnectionCheckInFlight = false;
@@ -19129,16 +19178,23 @@ async function checkServerConnection() {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), SERVER_CONNECTION_REQUEST_TIMEOUT_MS);
   let healthy = false;
+  let refused = false;
   try {
     const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    const result = await response.json().catch(() => null);
-    healthy = response.ok && result?.ok === true;
-  } catch (_error) {
-    // A refused/aborted local request is the expected signal that the server disappeared.
+    // 收到任何 HTTP 响应都说明服务进程在响应：横幅语义是「连接断开」而非
+    // 「接口报错」，这里不把 5xx 当作断开。
+    healthy = true;
+    await response.json().catch(() => null);
+  } catch (error) {
+    // 连接被拒（TypeError）= 进程已退出，这才是断开信号；
+    // 超时（AbortError）= 进程忙（波形/导出占满 CPU）或系统刚从睡眠恢复，
+    // 不计入失败，下一轮再探。
+    refused = error instanceof TypeError;
   } finally {
     window.clearTimeout(timeout);
     serverConnectionCheckInFlight = false;
   }
+  if (!healthy && !refused) healthy = true;
 
   if (healthy) {
     serverConnectionFailureCount = 0;
@@ -19149,7 +19205,8 @@ async function checkServerConnection() {
       renderServerConnectionBanner(true);
     }
   }
-  scheduleServerConnectionCheck();
+  scheduleServerConnectionCheck(SERVER_CONNECTION_CHECK_INTERVAL_MS
+    * Math.min(4, 2 ** Math.max(0, serverConnectionFailureCount - 1)));
 }
 
 function startServerConnectionMonitor() {
@@ -19863,6 +19920,32 @@ function cloneCueForClipboard(segment) {
   return copy;
 }
 
+// 连锁对剪贴板：复制/剪切时若同时选中了主+副字幕（连锁选择正是这种状态），
+// 副字幕副本与主副配对（原 id 对）一并入板；粘贴时两侧一起落位并重建绑定。
+let cueClipboardExtensionSegments = null;
+let cueClipboardPairIds = [];
+
+function captureExtensionClipboard(mainIdxs) {
+  cueClipboardExtensionSegments = null;
+  cueClipboardPairIds = [];
+  if (!selectedExtensionIdxs.size) return;
+  const track = getActiveExtensionTrack();
+  if (!track) return;
+  const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
+  cueClipboardExtensionSegments = extIdxs
+    .map((index) => cloneCueForClipboard(track.segments[index]))
+    .filter(Boolean);
+  const copiedExtIds = new Set(extIdxs.map((index) => track.segments[index]?.id).filter(Boolean));
+  mainIdxs.forEach((index) => {
+    const binding = bindingForMainIndex(index);
+    const mainId = DATA.segments[index]?.id;
+    if (!binding || !mainId) return;
+    (binding.extension_segment_ids || []).forEach((extId) => {
+      if (copiedExtIds.has(extId)) cueClipboardPairIds.push({ mainId, extId });
+    });
+  });
+}
+
 function refreshClipboardMenuState() {
   const hasSelection = selectedIdxs.size > 0;
   if (cueCutButton) cueCutButton.disabled = !hasSelection;
@@ -19873,32 +19956,37 @@ function refreshClipboardMenuState() {
 
 function copySelectedCues() {
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
-  if (!idxs.length) return;
+  if (!idxs.length && !selectedExtensionIdxs.size) return;
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
+  captureExtensionClipboard(idxs);
   window.MSW_CLIPBOARD_KIND = 'cues';
   refreshClipboardMenuState();
-  if (cueClipboardSegments.length) {
-    flashHint(`已拷贝 ${cueClipboardSegments.length} 条字幕`, 'success');
-  }
+  const total = cueClipboardSegments.length + (cueClipboardExtensionSegments?.length || 0);
+  if (total) flashHint(`已拷贝 ${total} 条字幕（含副字幕）`, 'success');
 }
 
 function cutSelectedCues() {
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
-  if (!idxs.length || idxs.length === DATA.segments.length) return;
+  if (!idxs.length && !selectedExtensionIdxs.size) return;
+  // 全量主字幕禁剪的保护仅在纯主轨剪切时生效；连锁对剪切（含副轨）放行。
+  if (idxs.length && idxs.length === DATA.segments.length && !selectedExtensionIdxs.size) return;
+  const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
+  captureExtensionClipboard(idxs);
   window.MSW_CLIPBOARD_KIND = 'cues';
   // deleteSegments 内部自带 pushUndo、分组拆分与编辑面板状态处理。
   deleteSegments(idxs);
+  if (extIdxs.length) deleteExtensionSegments(extIdxs);
   refreshClipboardMenuState();
-  flashHint(`已剪切 ${idxs.length} 条字幕`, 'success');
+  flashHint(`已剪切 ${idxs.length + extIdxs.length} 条字幕（含副字幕）`, 'success');
 }
 
 function pasteCuesFromClipboard() {
-  if (!cueClipboardSegments?.length) return;
+  if (!cueClipboardSegments?.length && !cueClipboardExtensionSegments?.length) return;
   if (editingState) finishEdit(true);
   commitCuePanelEdit();
   const stamp = Date.now();
@@ -19911,7 +19999,9 @@ function pasteCuesFromClipboard() {
   // 粘贴落点：优先当前播放头位置（PR 习惯）；无媒体时落在最后一条选中
   // 字幕之后；否则退回时间轴末尾（保留相对间隔）。保留原时间戳会与源
   // 字幕在波形中完全重叠，看起来就像"粘贴没生效"。
-  const minCopyStart = Math.min(...copies.map((segment) => Number(segment.start) || 0));
+  const minCopyStart = copies.length
+    ? Math.min(...copies.map((segment) => Number(segment.start) || 0))
+    : Math.min(...(cueClipboardExtensionSegments || []).map((segment) => Number(segment.start) || 0));
   let pasteAnchor;
   if (hasLoadedMedia() && Number.isFinite(player.currentTime) && player.currentTime > 0) {
     pasteAnchor = Math.round(player.currentTime * 1000);
@@ -19920,23 +20010,87 @@ function pasteCuesFromClipboard() {
   } else {
     pasteAnchor = DATA.segments.reduce((max, segment) => Math.max(max, Number(segment.end) || 0), 0);
   }
-  const shift = Math.max(0, pasteAnchor - minCopyStart);
+  // 贴到播放头：目标时间可以早于源时间（负偏移），只钳制不早于 0。
+  // 此前 max(0, …) 会把负偏移吃掉——字幕保持原时间却被追加到数组末尾，
+  // segments 乱序后波形的二分查找漏画字幕块（“列表有、轨道上没有”）。
+  let shift = pasteAnchor - minCopyStart;
+  const earliestAfterShift = minCopyStart + shift;
+  if (earliestAfterShift < 0) shift -= earliestAfterShift;
   copies.forEach((segment) => {
     segment.start = (Number(segment.start) || 0) + shift;
     segment.end = (Number(segment.end) || 0) + shift;
   });
-  const insertAt = selectedIdxs.size
-    ? Math.max(...selectedIdxs) + 1
-    : DATA.segments.length;
-  pushUndo(`粘贴 ${copies.length} 条字幕`);
+  // 插入位置按时间有序（首条副本的 start 落点）而非数组末尾：
+  // 波形渲染与列表联动都假设 segments 按 start 升序。有选中时仍贴在选中之后。
+  // 纯副轨剪贴板（主轨 copies 为空）跳过主轨插入。
+  let insertAt = DATA.segments.length;
+  if (copies.length) {
+    const pastedFirstStart = Number(copies[0].start) || 0;
+    insertAt = DATA.segments.findIndex((segment) => Number(segment.start) > pastedFirstStart);
+    if (insertAt < 0) insertAt = DATA.segments.length;
+    if (selectedIdxs.size && insertAt <= Math.max(...selectedIdxs)) {
+      insertAt = Math.max(...selectedIdxs) + 1;
+    }
+  }
+  pushUndo(`粘贴 ${copies.length + (cueClipboardExtensionSegments?.length || 0)} 条字幕`);
+  // 原 id → 新副本 id（copies 与 cueClipboardSegments 顺序一一对应）：
+  // 粘贴后按剪贴板里记录的主副配对重建绑定。
+  const mainOldToNew = new Map();
+  copies.forEach((copy, offset) => mainOldToNew.set(cueClipboardSegments[offset]?.id, copy.id));
   DATA.segments.splice(insertAt, 0, ...copies);
+
+  // 连锁对：副字幕副本同一偏移落位（时间有序插入 + 排序契约），
+  // 再按原配对重建绑定；多重字幕已关闭时只贴主轨（副轨无处落位）。
+  let extInserted = 0;
+  const pastedExtIndexes = [];
+  const extTrack = multiSubtitleVisible() ? getActiveExtensionTrack() : null;
+  const extOldToNew = new Map();
+  if (cueClipboardExtensionSegments?.length && extTrack) {
+    const extCopies = cueClipboardExtensionSegments.map((segment, offset) => {
+      const copy = JSON.parse(JSON.stringify(segment));
+      copy.id = `ext-pasted-${stamp}-${offset}`;
+      copy._dirty = true;
+      copy.start = (Number(copy.start) || 0) + shift;
+      copy.end = (Number(copy.end) || 0) + shift;
+      return copy;
+    });
+    const extFirstStart = Number(extCopies[0].start) || 0;
+    let extAt = extTrack.segments.findIndex((segment) => Number(segment.start) > extFirstStart);
+    if (extAt < 0) extAt = extTrack.segments.length;
+    extTrack.segments.splice(extAt, 0, ...extCopies);
+    sortExtensionTrackSegments(extTrack);
+    extInserted = extCopies.length;
+    cueClipboardExtensionSegments.forEach((segment, offset) => {
+      extOldToNew.set(segment.id, `ext-pasted-${stamp}-${offset}`);
+    });
+    const multi = getMultiSubtitleState();
+    cueClipboardPairIds.forEach(({ mainId, extId }) => {
+      const newMainId = mainOldToNew.get(mainId);
+      const newExtId = extOldToNew.get(extId);
+      const mainSegment = DATA.segments.find((segment) => segment.id === newMainId);
+      const extSegment = extTrack.segments.find((segment) => segment.id === newExtId);
+      if (mainSegment && extSegment) {
+        multi.bindings.push(MULTI_SUBTITLE_UTILS.buildSubtitleBinding(mainSegment, extSegment, extTrack.id));
+      }
+    });
+    // 在规范化（可能改写新副本 id）之前按「新 id 集合」捕获副轨新副本下标
+    //（extOldToNew 是旧→新映射，匹配要用它的值而非键）。
+    const newExtIds = new Set(extOldToNew.values());
+    extTrack.segments.forEach((segment, index) => {
+      if (newExtIds.has(segment.id)) pastedExtIndexes.push(index);
+    });
+    if (cueClipboardPairIds.length) markMultiSubtitleDirty();
+  }
+
   clearSelection({ silent: true, commitCuePanel: false });
   copies.forEach((_, offset) => selectedIdxs.add(insertAt + offset));
-  if (selCountEl) selCountEl.textContent = String(copies.length);
+  // 副轨副本也进入选中（clearSelection 已清空，下标在规范化前捕获）
+  pastedExtIndexes.forEach((index) => selectedExtensionIdxs.add(index));
+  if (selCountEl) selCountEl.textContent = String(copies.length + extInserted);
   renderAll({ waveform: 'full' });
   if (waveformEditor) waveformEditor.updateSelection();
   refreshClipboardMenuState();
-  flashHint(`已粘贴 ${copies.length} 条字幕到 ${(pasteAnchor / 1000).toFixed(1)}s`, 'success');
+  flashHint(`已粘贴 ${copies.length + extInserted} 条字幕到 ${(pasteAnchor / 1000).toFixed(1)}s`, 'success');
 }
 
 cueCutButton?.addEventListener('click', cutSelectedCues);
@@ -19959,14 +20113,14 @@ document.addEventListener('keydown', (event) => {
   if (historyGuarded()) return;
   if (ctxmenu.classList.contains('show')) return;
   if (key === 'x') {
-    if (!selectedIdxs.size) return;
+    if (!selectedIdxs.size && !selectedExtensionIdxs.size) return;
     event.preventDefault();
     cutSelectedCues();
   } else if (key === 'c') {
-    if (!selectedIdxs.size) return;
+    if (!selectedIdxs.size && !selectedExtensionIdxs.size) return;
     event.preventDefault();
     copySelectedCues();
-  } else if (cueClipboardSegments?.length) {
+  } else if (cueClipboardSegments?.length || cueClipboardExtensionSegments?.length) {
     event.preventDefault();
     pasteCuesFromClipboard();
   }
@@ -20855,7 +21009,11 @@ if (repairedTimingCount > 0) {
   flashHint(`已自动修复 ${repairedGroupReferenceCount} 处分组引用`, 'warning');
 }
 void loadServerStartup();
-startServerConnectionMonitor();
+// 启动阶段（波形生成中）服务器忙，探测超时会被误判为断开；ready 后的
+// 页面重载才会走到这里正常启动监控。启动失败的页面保留监控（进程通常还在）。
+if (SERVER_CONFIG?.startupStatus === 'ready' || SERVER_CONFIG?.startupStatus === 'error') {
+  startServerConnectionMonitor();
+}
 if (SERVER_CONFIG?.startupStatus !== 'loading') void loadDeferredReapeaks();
 
 // 「隐藏禁用项」开关：开启后禁用项 display:none，并从选中集移除
