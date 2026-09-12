@@ -5318,9 +5318,14 @@
         else this.options.toggleCueSelection?.(index);
         return;
       }
-      // Shift+click selects a range from lastClickedIdx to index
+      // Shift+click：已选中的块再 Shift 点一次 → 取消该块（与音频贴片的
+      // Shift 行为一致）；未选中则从锚点选范围/跨轨追加。
       if (event.shiftKey) {
-        if (track === 'extension') this.options.selectExtensionRange?.(index);
+        const alreadySelected = this.options.getSelection(track)?.has(index) === true;
+        if (alreadySelected) {
+          if (track === 'extension') this.options.toggleExtensionSelection?.(index);
+          else this.options.toggleCueSelection?.(index);
+        } else if (track === 'extension') this.options.selectExtensionRange?.(index);
         else this.options.selectCueRange?.(index);
         return;
       }

@@ -588,3 +588,15 @@ test('shift-click accumulates across main and extension tracks', async ({ page }
   expect(after.m).toBeGreaterThanOrEqual(2);
   expect(after.e).toBeGreaterThanOrEqual(1);
 });
+
+test('shift-click on a selected block deselects it', async ({ page }) => {
+  const block = page.locator('.waveform-cue-block[data-idx="1"]');
+  await block.click();
+  await expect.poll(() => page.evaluate(() => selectedIdxs.size)).toBe(1);
+  // Shift 再点同一块：取消选择（与音频贴片行为一致）
+  await block.click({ modifiers: ['Shift'] });
+  await expect.poll(() => page.evaluate(() => selectedIdxs.size)).toBe(0);
+  // Shift 点未选中的块仍是范围/追加选择
+  await block.click({ modifiers: ['Shift'] });
+  await expect.poll(() => page.evaluate(() => selectedIdxs.size)).toBeGreaterThanOrEqual(1);
+});

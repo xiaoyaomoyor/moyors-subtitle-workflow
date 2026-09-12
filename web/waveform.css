@@ -837,9 +837,14 @@
   bottom: 0;
   width: 7px;
   z-index: 2;
-  background: var(--wave-cue-handle);
+  /* 平时无白色边缘，悬浮/选中时才显示（对齐音频贴片手柄的行为） */
+  background: transparent;
   cursor: ew-resize;
+  transition: background var(--t-fast);
 }
+.waveform-cue-block:hover .waveform-cue-handle,
+.waveform-cue-block.selected .waveform-cue-handle,
+.waveform-cue-block.dragging .waveform-cue-handle { background: var(--wave-cue-handle); }
 .waveform-cue-handle.left { left: 0; border-radius: 3px 0 0 3px; }
 .waveform-cue-handle.right { right: 0; border-radius: 0 3px 3px 0; }
 .waveform-cue-label { pointer-events: none; color: var(--editor-cue-text); }

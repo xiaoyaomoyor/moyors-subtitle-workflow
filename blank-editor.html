@@ -2936,8 +2936,9 @@
   /* 当前（播放中）行的序号/时间用「命中」色，与波形播放头/当前块轮廓同源 */
   .cue.active .time { color: var(--wave-playhead); }
   .cue.active .index { color: var(--wave-playhead); }
-  .cue.dirty { border-left-color: var(--amber); }
-  .cue.editing { background: var(--amber-soft); border-left-color: var(--amber); cursor: text; }
+  /* 琥珀色左线按需求移除：dirty/editing 不再画左侧竖线（编辑态仍保留琥珀底色） */
+  .cue.dirty { border-left-color: transparent; }
+  .cue.editing { background: var(--amber-soft); border-left-color: transparent; cursor: text; }
   /* 选中用琥珀色系（内描边环），与 active 的蓝色系明确区分 */
   .cue.selected { background: var(--selection-yellow-soft); box-shadow: inset 0 0 0 1px var(--selection-yellow-line); }
   .cue.selected.active { background: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: inset 0 0 0 1px var(--selection-yellow-line); }
@@ -3074,8 +3075,8 @@
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
   .msw-asset-density { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .asset-settings-menu { width: 240px; padding: 12px; }
-  .asset-settings-menu .msw-asset-density { display: flex; align-items: center; gap: 8px; }
-  .asset-settings-menu .msw-asset-density input { width: 84px; flex: 0 0 auto; }
+  .asset-settings-menu .msw-asset-density { display: flex; align-items: center; gap: 8px; padding-right: 6px; }
+  .asset-settings-menu .msw-asset-density input { flex: 1 1 auto; width: auto; min-width: 0; }
   .asset-settings-menu .settings-panel-hint { display: block; margin-top: 8px; white-space: normal; }
   .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
@@ -3988,8 +3989,9 @@
   .ctxmenu .ctx-subitem.ctx-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .ctxmenu .ctx-subitem.ctx-check input { margin: 0; accent-color: var(--accent); width: 13px; height: 13px; flex: 0 0 auto; }
   /* 右键面板的卡片密度滑条行：宽度匹配面板（约 150px）而非菜单栏的 240px */
-  .ctxmenu .ctx-subitem.ctx-density { display: flex; align-items: center; gap: 8px; }
-  .ctxmenu .ctx-subitem.ctx-density input { width: 76px; height: 14px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
+  .ctxmenu .ctx-subitem.ctx-density { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .ctxmenu .ctx-subitem.ctx-density > span { font-size: 12px; flex: 0 0 auto; }
+  .ctxmenu .ctx-subitem.ctx-density input { width: 58px; height: 14px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
   .ctxmenu .ctx-subitem.ctx-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
   .ctxmenu .item.danger { color: var(--red-hover); }
   .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
@@ -5160,9 +5162,14 @@
   bottom: 0;
   width: 7px;
   z-index: 2;
-  background: var(--wave-cue-handle);
+  /* 平时无白色边缘，悬浮/选中时才显示（对齐音频贴片手柄的行为） */
+  background: transparent;
   cursor: ew-resize;
+  transition: background var(--t-fast);
 }
+.waveform-cue-block:hover .waveform-cue-handle,
+.waveform-cue-block.selected .waveform-cue-handle,
+.waveform-cue-block.dragging .waveform-cue-handle { background: var(--wave-cue-handle); }
 .waveform-cue-handle.left { left: 0; border-radius: 3px 0 0 3px; }
 .waveform-cue-handle.right { right: 0; border-radius: 0 3px 3px 0; }
 .waveform-cue-label { pointer-events: none; color: var(--editor-cue-text); }
@@ -22243,9 +22250,14 @@ export default MawDynamicCaptions;
         else this.options.toggleCueSelection?.(index);
         return;
       }
-      // Shift+click selects a range from lastClickedIdx to index
+      // Shift+click：已选中的块再 Shift 点一次 → 取消该块（与音频贴片的
+      // Shift 行为一致）；未选中则从锚点选范围/跨轨追加。
       if (event.shiftKey) {
-        if (track === 'extension') this.options.selectExtensionRange?.(index);
+        const alreadySelected = this.options.getSelection(track)?.has(index) === true;
+        if (alreadySelected) {
+          if (track === 'extension') this.options.toggleExtensionSelection?.(index);
+          else this.options.toggleCueSelection?.(index);
+        } else if (track === 'extension') this.options.selectExtensionRange?.(index);
         else this.options.selectCueRange?.(index);
         return;
       }

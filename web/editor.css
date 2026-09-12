@@ -2916,8 +2916,9 @@
   /* 当前（播放中）行的序号/时间用「命中」色，与波形播放头/当前块轮廓同源 */
   .cue.active .time { color: var(--wave-playhead); }
   .cue.active .index { color: var(--wave-playhead); }
-  .cue.dirty { border-left-color: var(--amber); }
-  .cue.editing { background: var(--amber-soft); border-left-color: var(--amber); cursor: text; }
+  /* 琥珀色左线按需求移除：dirty/editing 不再画左侧竖线（编辑态仍保留琥珀底色） */
+  .cue.dirty { border-left-color: transparent; }
+  .cue.editing { background: var(--amber-soft); border-left-color: transparent; cursor: text; }
   /* 选中用琥珀色系（内描边环），与 active 的蓝色系明确区分 */
   .cue.selected { background: var(--selection-yellow-soft); box-shadow: inset 0 0 0 1px var(--selection-yellow-line); }
   .cue.selected.active { background: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: inset 0 0 0 1px var(--selection-yellow-line); }
@@ -3054,8 +3055,8 @@
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
   .msw-asset-density { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .asset-settings-menu { width: 240px; padding: 12px; }
-  .asset-settings-menu .msw-asset-density { display: flex; align-items: center; gap: 8px; }
-  .asset-settings-menu .msw-asset-density input { width: 84px; flex: 0 0 auto; }
+  .asset-settings-menu .msw-asset-density { display: flex; align-items: center; gap: 8px; padding-right: 6px; }
+  .asset-settings-menu .msw-asset-density input { flex: 1 1 auto; width: auto; min-width: 0; }
   .asset-settings-menu .settings-panel-hint { display: block; margin-top: 8px; white-space: normal; }
   .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
@@ -3968,8 +3969,9 @@
   .ctxmenu .ctx-subitem.ctx-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .ctxmenu .ctx-subitem.ctx-check input { margin: 0; accent-color: var(--accent); width: 13px; height: 13px; flex: 0 0 auto; }
   /* 右键面板的卡片密度滑条行：宽度匹配面板（约 150px）而非菜单栏的 240px */
-  .ctxmenu .ctx-subitem.ctx-density { display: flex; align-items: center; gap: 8px; }
-  .ctxmenu .ctx-subitem.ctx-density input { width: 76px; height: 14px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
+  .ctxmenu .ctx-subitem.ctx-density { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .ctxmenu .ctx-subitem.ctx-density > span { font-size: 12px; flex: 0 0 auto; }
+  .ctxmenu .ctx-subitem.ctx-density input { width: 58px; height: 14px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
   .ctxmenu .ctx-subitem.ctx-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
   .ctxmenu .item.danger { color: var(--red-hover); }
   .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
