@@ -58,7 +58,7 @@ def _container_with_provenance(
 class QuapeaksGenerationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.tone = self.root / "tone.wav"
         _make_tone(self.tone)
         self.payload = waveform.extract_waveform(self.tone, peaks_per_second=100)
@@ -228,7 +228,7 @@ class MopeaksFallbackTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.tone = self.root / "tone.wav"
         _make_tone(self.tone)
         self.project: dict = {"media": str(self.tone), "segments": []}
@@ -309,7 +309,7 @@ class FindReapeaksPreferenceTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.tone = self.root / "tone.wav"
         self.tone.write_bytes(b"RIFF" + b"\x00" * 40)
         st = self.tone.stat()
@@ -407,7 +407,7 @@ class SpectralCapabilityFilterTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.tone = self.root / "tone.wav"
         self.tone.write_bytes(b"RIFF" + b"\x00" * 40)
 
@@ -465,7 +465,7 @@ class SameBasenameDifferentDirTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.src_dir = self.root / "src"
         self.cache_dir = self.root / "cache"
         self.src_dir.mkdir()

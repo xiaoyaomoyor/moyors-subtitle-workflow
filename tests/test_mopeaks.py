@@ -357,7 +357,7 @@ class WaveformPlacementContractTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.media_path = self.root / "ICE.mkv"
         self.media_path.write_bytes(b"RIFF" + b"\x00" * 40)
         self.payload = make_payload(media_path=self.media_path)

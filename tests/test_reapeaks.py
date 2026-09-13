@@ -91,7 +91,7 @@ def build_reapeaks(
 class ReapeaksParseTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.media_path = self.root / "clip.wav"
         self.media_path.write_bytes(b"RIFF" + b"\x00" * 64)
         os.utime(self.media_path, (FIXED_MTIME, FIXED_MTIME))
@@ -289,7 +289,7 @@ class GenerateReapeaksTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.tone_path = self.root / "tone.wav"
         sample_rate = 8000
         duration_seconds = 1.0
@@ -452,7 +452,7 @@ class WaveformTimeBaseTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.media_path = self.root / "clip16k.wav"
         self.media_path.write_bytes(b"RIFF" + b"\x00" * 64)
         os.utime(self.media_path, (FIXED_MTIME, FIXED_MTIME))
@@ -542,7 +542,7 @@ class GeneratedFractionalRateTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.sample_rate = 16000
         self.tone_path = self.root / "clip.wav"
         frames = bytearray()
@@ -603,7 +603,7 @@ class ChannelMergeTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.media = self.root / "dual.wav"
         self.media.write_bytes(b"RIFF" + b"\x00" * 64)
         os.utime(self.media, (FIXED_MTIME, FIXED_MTIME))

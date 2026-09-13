@@ -16,7 +16,7 @@ class CacheBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.env = patch.dict('os.environ', {'MSW_APP_DATA_ROOT': str(self.root / 'app')})
         self.env.start(); self.addCleanup(self.env.stop)
         self.media = self.root / 'source.wav'
