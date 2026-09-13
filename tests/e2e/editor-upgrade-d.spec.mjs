@@ -42,7 +42,9 @@ for (const policy of ['protect', 'follow']) {
     }, policy);
     await page.evaluate(() => showWaveformBlankMenu(2500, 300, 300));
     await expect(page.locator('#ctxmenu .item').filter({ hasText: '创建字幕' }).locator('kbd')).toHaveText('N');
-    await page.locator('#ctxmenu .item').filter({ hasText: '填充区间空隙' }).click();
+    await expect(page.locator('#ctxmenu')).not.toContainText('填充区间空隙');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => fillGapRangeAtWaveformTime(2500));
     expect(await page.evaluate(() => getGapRemoveGaps())).toMatchObject([{ start: 1000, end: 4000, removed: true, origins: expect.arrayContaining(['manual']) }]);
     expect(await page.evaluate(() => getRemovedGapRanges())).toEqual(policy === 'protect'
       ? [{ start: 1000, end: 2200 }, { start: 2800, end: 4000 }]

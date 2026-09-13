@@ -3007,8 +3007,8 @@ test('offers extension cue creation on the empty extension lane and makes it und
   const box = await row.boundingBox();
   if (!box) throw new Error('双 lane 波形行没有布局');
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height - 2, { button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '创建副字幕' })).toBeVisible();
-  await page.locator('#ctxmenu .item').filter({ hasText: '创建副字幕' }).click();
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^创建字幕/ })).toBeVisible();
+  await page.locator('#ctxmenu .item').filter({ hasText: /^创建字幕/ }).click();
   await expect(page.locator('.waveform-cue-block[data-track="extension"]')).toHaveCount(2);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+z');
@@ -3056,23 +3056,16 @@ test('uses the waveform lane to choose blank-area context-menu semantics', async
   const x = box.x + ((2000 - rowStart) / (rowEnd - rowStart)) * box.width;
   const extensionY = extensionBlock.y + extensionBlock.height / 2;
 
-  // 右键落在副字幕 lane 的空白处时，创建动作按当前 lane 判定；两条轨道
-  // 的拆分入口则按鼠标时间分别显示，当前没有对应字幕时置灰。
+  // 空白菜单仅保留五项，创建仍按鼠标所在 lane 选择主轨或副轨。
   await page.mouse.click(x, extensionY, { button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '创建副字幕' })).toBeVisible();
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '按音频位置拆分主字幕' })).toBeVisible();
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '按音频位置拆分主字幕' })).not.toHaveClass(/disabled/);
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '按音频位置拆分副字幕' })).toHaveClass(/disabled/);
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^创建字幕/ })).toBeVisible();
+  await expect(page.locator('#ctxmenu')).not.toContainText('拆分');
   await page.keyboard.press('Escape');
 
-  // 同一行的主字幕 lane 空白处仍按主轨处理；两条轨道仍保留拆分入口，
-  // 但当前位置没有字幕时不可用。
   const mainBlankX = box.x + ((3500 - rowStart) / (rowEnd - rowStart)) * box.width;
   const mainY = mainBlock.y + mainBlock.height / 2;
   await page.mouse.click(mainBlankX, mainY, { button: 'right' });
-  const mainSplitItem = page.locator('#ctxmenu .item').filter({ hasText: '按音频位置拆分主字幕' });
-  await expect(mainSplitItem).toHaveClass(/disabled/);
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '按音频位置拆分副字幕' })).toHaveClass(/disabled/);
+  await expect(page.locator('#ctxmenu')).not.toContainText('拆分');
   await expect(page.locator('#ctxmenu .item').filter({ hasText: '创建字幕' })).toBeVisible();
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => DATA.segments.length)).toBe(1);

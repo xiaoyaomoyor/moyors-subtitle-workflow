@@ -71,6 +71,32 @@ test('independent editor draft supports multiline, native undo, mode switches an
   await page.reload(); await expect(page.locator('.msw-audio-clip')).toHaveCount(1);
 });
 
+for (const side of ['main','secondary']) test(`${side}: subtitle context inside a time range opens selected TTS without submitting`,async({page})=>{
+  await page.evaluate(side=>{
+    DATA.segments.push({id:'main-2',start:2500,end:4000,text:'第二条主字幕'});
+    if(side==='secondary') DATA.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',
+      tracks:[{id:'ext',role:'extension',name:'English',language:'English',segments:[{id:'ext-1',start:0,end:2000,text:'Secondary speech'}]}],bindings:[]};
+    renderAll();MSWE.resolve('time-range').setRange({start:0,end:5000});
+    document.getElementById('tts-target').value='editor_text';
+    if(side==='main'){selectOnly(0);addToSelection(1);}
+  },side);
+  const cue=page.locator(`.waveform-cue-block[data-track="${side==='main'?'main':'extension'}"]`).first();
+  await cue.click({button:'right'});
+  await expect(page.locator('.msw-range-menu')).toBeHidden();
+  const menu=page.locator('#ctxmenu');await expect(menu).toBeVisible();
+  await expect(menu).not.toContainText('加选播放头');await expect(menu).not.toContainText('精确编辑时间选区');await expect(menu).not.toContainText('清除时间选区');
+  const action=menu.locator('.item').filter({hasText:'配音所选字幕（TTS）'});
+  expect(await action.evaluate(n=>n.nextElementSibling.textContent)).toContain('删除');
+  await page.screenshot({path:join(projectPath,'..',`subtitle-context-${side}.png`)});
+  await action.click();await expect(page.locator('#tts-panel')).toHaveClass(/show/);
+  await expect(page.locator('#tts-target')).toHaveValue(side);
+  await expect(page.locator('#tts-scope')).toContainText(`所选字幕 · ${side==='main'?2:1} 条`);
+  expect(calls).toHaveLength(0);
+  const texts=await page.evaluate(()=>MSWTts.snapshot(DATA,MSWE.resolve('processing-host').selection(),document.getElementById('tts-target').value).entries.map(row=>row.text));
+  expect(texts).toEqual(side==='main'?['字幕原文','第二条主字幕']:['Secondary speech']);
+  expect(errors).toEqual([]);
+});
+
 test('empty or oversized draft cannot synthesize and an absent secondary track never falls back to main', async ({page}) => {
   await openTtsEnvironment(page); await page.locator('#tts-key').fill('synthetic-workspace-key'); await closeTtsEnvironment(page);
   await page.locator('#tts-target').selectOption('secondary'); await expect(page.locator('#tts-start')).toBeDisabled();

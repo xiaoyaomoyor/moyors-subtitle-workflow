@@ -105,6 +105,30 @@ test('Ctrl+Shift drag starting on an audio clip selects time without moving the 
   expect(range.end).toBeGreaterThan(range.start);
 });
 
+test('audio clip context wins inside a time range, aligns gain and supports red Delete with undo',async({page},testInfo)=>{
+  await page.evaluate(()=>MSWE.resolve('time-range').setRange({start:0,end:40000}));
+  const clip=page.locator('.msw-audio-clip[data-clip-id="clip-1"]').first();
+  await clip.click({button:'right'});
+  const menu=page.locator('.msw-audio-menu');await expect(menu).toBeVisible();await expect(page.locator('.msw-range-menu')).toBeHidden();
+  await expect(menu).not.toContainText('加选播放头');await expect(menu).not.toContainText('精确编辑时间选区');
+  const normal=menu.locator('button.item').nth(1),gain=menu.locator('.msw-audio-gain');
+  expect((await normal.locator('span').boundingBox()).x).toBe((await gain.locator('span').boundingBox()).x);
+  const style=await normal.evaluate(n=>({font:getComputedStyle(n).fontSize,color:getComputedStyle(n).color,padding:getComputedStyle(n).padding}));
+  expect(await gain.evaluate(n=>({font:getComputedStyle(n).fontSize,color:getComputedStyle(n).color,padding:getComputedStyle(n).padding}))).toEqual(style);
+  const remove=menu.getByRole('button',{name:/删除音频贴片/});await expect(remove).toHaveClass(/danger/);await expect(remove.locator('kbd')).toHaveText('Delete');
+  expect(await remove.evaluate(n=>getComputedStyle(n).color)).not.toBe(style.color);
+  await expect(menu.locator('.ctx-window-item svg')).toHaveCount(1);
+  await page.screenshot({path:testInfo.outputPath('audio-context-menu.png')});
+  await page.keyboard.press('Escape');await expect(menu).toHaveCount(0);
+  expect(await page.evaluate(()=>MSWE.resolve('time-range').range)).toEqual({start:0,end:40000});
+  await clip.click({button:'right'});
+  await menu.getByRole('spinbutton',{name:'贴片音量增益',exact:true}).fill('3');await page.keyboard.press('Tab');
+  await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips.find(c=>c.id==='clip-1').gain_db)).toBe(3);
+  await clip.click({button:'right'});await page.locator('.msw-audio-menu').getByRole('button',{name:/删除音频贴片/}).click();
+  await expect(page.locator('.msw-audio-clip[data-clip-id="clip-1"]')).toHaveCount(0);
+  await page.keyboard.press('Control+z');await expect(page.locator('.msw-audio-clip[data-clip-id="clip-1"]').first()).toBeVisible();
+});
+
 test('Ctrl+A in the waveform module selects cues and clips by scenario', async ({ page }) => {
   const pane = page.locator('#waveform-pane');
   const state = () => page.evaluate(() => ({

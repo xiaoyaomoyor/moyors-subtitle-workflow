@@ -26,33 +26,44 @@
     return result;
   }
   const format = ms => `${Math.floor(ms / 60000)}:${(ms % 60000 / 1000).toFixed(3).padStart(6, '0')}`;
-  const menu = document.createElement('div'); menu.className = 'msw-range-menu'; menu.hidden = true;
-  const transcribe = document.createElement('button'); transcribe.textContent = '识别所选片段';
-  const edit = document.createElement('button'); edit.textContent = '精确编辑时间选区';
-  const clear = document.createElement('button'); clear.textContent = '清除时间选区';
-  const addFromPlayhead = document.createElement('button'); addFromPlayhead.textContent = '加选播放头至鼠标位置';
-  const settings = document.createElement('button'); settings.textContent = '波形显示器设置';
-  settings.addEventListener('click', () => {menu.hidden = true; host.openWaveSettings();});
-  menu.append(addFromPlayhead, transcribe, edit, clear, settings); document.body.append(menu);
-  function appendMenu(target, x, y, close) {
-    if (!context || context.x !== x || context.y !== y) return;
-    const span = {...context.range};
-    const separator = document.createElement('div'); separator.className = 'sep'; target.append(separator);
-    const add = (label, action, disabled = false) => {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'item msw-range-action';
-      button.textContent = t(label); button.disabled = disabled;
-      button.addEventListener('click', () => {close(); action();}); target.append(button);
-    };
-    add('加选播放头至鼠标位置', () => setRange([...selection, span]), span.start === span.end);
-    if (selection.length) {
-      add('精确编辑时间选区', openEditor);
-      add('清除时间选区', clearRange);
-    }
+  const menu = document.createElement('div'); menu.className = 'ctxmenu show msw-range-menu'; menu.hidden = true; menu.setAttribute('role','menu');
+  let menuTimer = null;
+  menu.addEventListener('mouseenter', () => clearTimeout(menuTimer));
+  menu.addEventListener('mouseleave', () => {menuTimer = setTimeout(() => {menu.hidden = true;},280);});
+  function menuItem(label, {danger=false, shortcut='',window=false}={}) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = `item${danger?' danger':''}${window?' ctx-window-item':''}`;
+    const text = document.createElement('span'); text.textContent = label; button.append(text);
+    if(shortcut){const key=document.createElement('kbd');key.textContent=shortcut;button.append(key);}
+    if(window)button.insertAdjacentHTML('beforeend','<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg>');
+    return button;
   }
+  const transcribe = menuItem('识别所选片段（ASR）');
+  const edit = menuItem('精确编辑时间选区');
+  const clear = menuItem('清除时间选区',{danger:true,shortcut:'Esc'});
+  const addFromPlayhead = menuItem('加选播放头到鼠标位置');
+  const settings = menuItem('波形显示器设置',{window:true});
+  settings.addEventListener('click', () => {menu.hidden = true; host.openWaveSettings();});
+  const separator = document.createElement('div'); separator.className='sep';
+  menu.append(addFromPlayhead, transcribe, edit, clear, separator, settings); document.body.append(menu);
   function sourceRange() {
     const duration = Number(global.MSWE.resolve('media')?.current?.metadata.duration_ms) || 0;
     const range = selection.length === 1 ? selection[0] : null;
     return range && range.start >= 0 && range.end <= duration && range.end > range.start ? {...range} : null;
+  }
+  function appendBlankMenu(target, time, x, y, close) {
+    const duration = wave.durationMs;
+    const span = context && context.x === x && context.y === y ? {...context.range}
+      : {start:Math.min(time,wave.currentTimeMs()),end:Math.max(time,wave.currentTimeMs())};
+    const add = (label, action, disabled) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'item msw-range-action';
+      button.textContent = t(label); button.disabled = disabled;
+      button.addEventListener('click', () => {close(); action();}); target.append(button);
+    };
+    add('添加时间选区', () => {
+      const start = Math.round(clamp(time,0,Math.max(0,duration-1))), end = Math.min(duration,start+1000);
+      setRange([...selection,{start,end}]); activeIndex = selection.findIndex(item => item.start <= start && item.end >= end); openEditor();
+    }, !duration);
+    add('加选播放头到鼠标位置', () => setRange([...selection,span]), span.start === span.end);
   }
   function setRange(value) {
     selection = normalize(Array.isArray(value) ? value : value ? [value] : []);
@@ -172,6 +183,7 @@
     }
   }, true);
   global.addEventListener('keydown', event => {
+    if (!drag && document.querySelector('.ctxmenu.show:not(.msw-range-menu)')) return;
     if (event.key !== 'Escape' || (!drag && !selection.length && menu.hidden)) return;
     if (!drag && event.target.closest?.('input,textarea,[contenteditable="true"],dialog')) return;
     event.preventDefault(); event.stopImmediatePropagation(); menu.hidden = true;
@@ -180,6 +192,7 @@
   global.addEventListener('contextmenu', event => {
     context = null;
     if (!event.target.closest?.('.waveform-row') || !wave.scroll.contains(event.target)) return;
+    if (event.target.closest('.waveform-cue-block,.msw-audio-clip,.waveform-gap-block')) return;
     const time = wave.timeAtViewportPoint(event.clientX, event.clientY);
     const playhead = clamp(wave.currentTimeMs(), 0, wave.durationMs);
     const span = {start:Math.round(Math.min(time,playhead)), end:Math.round(Math.max(time,playhead))};
@@ -193,8 +206,10 @@
     transcribe.disabled = selection.some(item => item.end > duration) || !global.MSWE.resolve('asr');
     addFromPlayhead.disabled = span.start === span.end;
     addFromPlayhead.onclick = () => {menu.hidden = true; setRange([...selection,span]);};
-    menu.hidden = false; menu.style.left = `${clamp(event.clientX, 4, innerWidth - 200)}px`;
-    menu.style.top = `${clamp(event.clientY, 4, innerHeight - menu.offsetHeight - 4)}px`;
+    clearTimeout(menuTimer); menu.hidden = false;
+    const rect=menu.getBoundingClientRect(),first=menu.firstElementChild.getBoundingClientRect();
+    menu.style.left = `${clamp(event.clientX-rect.width/2, 4, innerWidth-rect.width-4)}px`;
+    menu.style.top = `${clamp(event.clientY-(first.top-rect.top+first.height/2), 4, innerHeight-rect.height-4)}px`;
   }, true);
   function openEditor() {
     const range = selection[activeIndex];
@@ -233,7 +248,7 @@
   clear.addEventListener('click', clearRange);
   transcribe.addEventListener('click', () => { menu.hidden = true; global.MSWE.resolve('asr')?.open('range'); });
   global.addEventListener('msw:project-changed', clearRange); global.addEventListener('msw:media-changed', clearRange);
-  global.MSWE.register('time-range', () => ({setRange, clear:clearRange, openEditor, sourceRange, appendMenu,
+  global.MSWE.register('time-range', () => ({setRange, clear:clearRange, openEditor, sourceRange, appendBlankMenu,
     get ranges() { return copy(selection); },
     get range() { return selection.length === 1 ? {...selection[0]} : null; }, get dragging() { return Boolean(drag); }}));
 })(window);

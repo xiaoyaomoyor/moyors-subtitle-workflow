@@ -18357,11 +18357,10 @@ function findWaveformCueAtTime(timeMs, segments = DATA.segments) {
   });
 }
 
-// 右键波形背景：添加空隙、创建字幕，或按右键对应的音频位置拆分命中的字幕。
+// 空白波形右键：按所在轨道创建字幕，添加空隙或时间选区。
 function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   ctxmenu.innerHTML = '';
-  // 空白波形按鼠标实际落入的 lane 决定创建轨道；但拆分动作按时间点上
-  // 实际存在的两条轨道分别展示，避免用户为了拆副字幕必须先点到副轨空白。
+  // 创建动作沿用鼠标所在 lane；字幕块和贴片各自拥有专用菜单。
   const effectiveTrack = track === 'extension' ? 'extension' : 'main';
   function addItem(label, kbd, fn, disabled = false) {
     const it = document.createElement('div');
@@ -18377,29 +18376,13 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
     }
     ctxmenu.appendChild(it);
   }
-  // 只显示当前可用的操作：位置已被占用就不显示「创建」，时间点上没有
-  // 命中字幕就不显示「按音频位置拆分」——无效项直接缺席而不是灰显。
-  const mainIdx = findWaveformCueAtTime(timeMs, DATA.segments);
   const extensionTrack = getActiveExtensionTrack();
-  const extensionIdx = findWaveformCueAtTime(timeMs, extensionTrack?.segments);
-  if (effectiveTrack === 'extension') {
-    if (extensionIdx < 0) {
-      addItem('创建副字幕', 'N', () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack));
-    }
-  } else if (mainIdx < 0) {
-    addItem('创建字幕', 'N', () => addCueAtWaveformTime(timeMs, clickX, clickY));
-  }
-  if (Array.isArray(DATA.segments) && DATA.segments.length && mainIdx >= 0) {
-    addItem('按音频位置拆分主字幕', 'B', () => splitFromContextMenu(mainIdx, clickX, clickY, timeMs));
-  }
-  if (Array.isArray(extensionTrack?.segments) && extensionTrack.segments.length && extensionIdx >= 0) {
-    addItem('按音频位置拆分副字幕', '', () => openExtensionSplitModal(extensionIdx, timeMs, extensionTrack));
-  }
-  ctxAppendSeparator();
+  const occupied = findWaveformCueAtTime(timeMs, effectiveTrack === 'extension' ? extensionTrack?.segments : DATA.segments) >= 0;
+  addItem('创建字幕', 'N', () => effectiveTrack === 'extension'
+    ? addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack)
+    : addCueAtWaveformTime(timeMs, clickX, clickY), occupied);
   addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
-  if (getGapRemoveGaps().some((gap) => gap.removed !== false)) {
-    addItem('填充区间空隙', '', () => fillGapRangeAtWaveformTime(timeMs));
-  }
+  window.MSWE.resolve('time-range')?.appendBlankMenu(ctxmenu, timeMs, clickX, clickY, () => ctxmenu.classList.remove('show'));
   ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
   ctxShowAt(clickX, clickY);
 }
@@ -18515,7 +18498,6 @@ function ctxAppendExpandableSettings(label, children) {
 
 // 共用的面板定位：鼠标落在第一个选项的中心（而非面板左上角），贴边防溢出。
 function ctxShowAt(x, y) {
-  window.MSWE.resolve('time-range')?.appendMenu(ctxmenu, x, y, () => ctxmenu.classList.remove('show'));
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
   const first = ctxmenu.querySelector(':scope > .item, :scope > .ctx-submenu > .ctx-submenu-toggle');
@@ -18618,6 +18600,14 @@ function setupModuleContextMenu() {
     ] },
   ]);
 }
+function openSelectedCueTts(side) {
+  const target = document.getElementById('tts-target');
+  if (!target) return;
+  target.value = side;
+  target.dispatchEvent(new Event('change', {bubbles:true}));
+  document.getElementById('tts-open')?.click();
+}
+
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
   ctxLastClickX = x; ctxLastClickY = y;
   ctxmenu.innerHTML = '';
@@ -18717,6 +18707,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       'Alt+点击',
       () => toggleDisabled([idx])
     );
+    addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem('删除字幕', 'Delete', () => {
       deleteSegments([idx]);
     }, { danger: true });
@@ -18747,6 +18738,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       '',
       () => toggleDisabled(targetIdxs)
     );
+    addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
     }, { danger: true });
@@ -18805,6 +18797,10 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
     false,
     'Alt+点击',
   );
+  addItem('配音所选字幕（TTS）', () => {
+    if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
+    openSelectedCueTts('secondary');
+  });
   addItem('删除副字幕', () => deleteExtensionSegments([index]), true);
   if (binding) addItem('对齐主字幕时间范围', () => alignExtensionToMainTimeRange(index, track), false, false, 'H');
   if (binding) addItem('解绑', () => {

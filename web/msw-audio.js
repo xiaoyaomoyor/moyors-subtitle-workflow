@@ -138,7 +138,11 @@
     menu = document.createElement('div'); menu.className = 'ctxmenu show msw-audio-menu'; menu.setAttribute('role', 'menu');
     menu.addEventListener('mouseenter', () => clearTimeout(menuTimer));
     menu.addEventListener('mouseleave', () => { menuTimer = setTimeout(closeMenu, 280); });
-    const item = (label, fn) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'item'; button.textContent = t(label);
+    const item = (label, fn, {danger=false, shortcut='',window=false}={}) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = `item${danger?' danger':''}${window?' ctx-window-item':''}`;
+      const text = document.createElement('span'); text.textContent=t(label); button.append(text);
+      if(shortcut){const key=document.createElement('kbd');key.textContent=shortcut;button.append(key);}
+      if(window)button.insertAdjacentHTML('beforeend','<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg>');
       button.addEventListener('click', fn); menu.appendChild(button); };
     {
       const at = transport.currentTime() ?? (host.player.currentTime * 1000 || 0);
@@ -152,19 +156,21 @@
     item('恢复完整音频', () => commit('恢复完整音频', ext => { ext.audio_clips.forEach(c => {
       if (selected.has(c.id)) { c.source_in_sample = 0; c.source_out_sample = sync().assets.get(c.asset_id).sample_count; }
     }); }));
-    const label = document.createElement('label'); label.className = 'msw-audio-gain'; label.textContent = `${t('贴片音量')} (dB)`;
+    const label = document.createElement('label'); label.className = 'item msw-audio-gain';
+    const gainText = document.createElement('span'); gainText.textContent = `${t('贴片音量增益')} (dB)`; label.append(gainText);
     const input = document.createElement('input'); input.type = 'number'; input.min = '-60'; input.max = '12'; input.step = '1'; input.value = clip.gain_db;
-    input.setAttribute('aria-label', t('贴片音量'));
+    input.setAttribute('aria-label', t('贴片音量增益'));
     input.addEventListener('change', () => { const gain = Number(input.value); if (!Number.isFinite(gain) || gain < -60 || gain > 12) return;
       commit('调整贴片音量', ext => ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.gain_db = gain; })); });
     label.appendChild(input); menu.appendChild(label);
-    item('删除音频贴片', remove);
+    item('删除音频贴片', remove, {danger:true,shortcut:'Delete'});
     if (transport.failures.has(clip.asset_id)) item('重新加载素材', () => { transport.failures.delete(clip.asset_id); void transport.ensure(sync().assets.get(clip.asset_id)); closeMenu(); });
-    item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); });
-    global.MSWE.resolve('time-range')?.appendMenu(menu, event.clientX, event.clientY, closeMenu);
+    const separator=document.createElement('div');separator.className='sep';menu.append(separator);
+    item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); }, {window:true});
     document.body.appendChild(menu);
-    menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
-    menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
+    const rect=menu.getBoundingClientRect(),first=menu.firstElementChild.getBoundingClientRect();
+    menu.style.left = `${Math.max(4, Math.min(event.clientX-rect.width/2, innerWidth-rect.width-4))}px`;
+    menu.style.top = `${Math.max(4, Math.min(event.clientY-(first.top-rect.top+first.height/2), innerHeight-rect.height-4))}px`;
   }
   // 计算磁吸修正量：拖动集合的各边缘（原始位置 + delta）与静态边缘
   // （字幕块 + 未被拖动的贴片）距离小于阈值时，取最近的一条对齐。

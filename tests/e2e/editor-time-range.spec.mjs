@@ -233,6 +233,42 @@ test('range tool resizes either boundary, restores all parts on cancel and leave
   expect(await page.evaluate(()=>DATA.segments[0].start)).toBeGreaterThan(1500);expect(await selections(page)).toEqual(items);
 });
 
+test('blank waveform menu has five ordered actions and adds an editable interval without losing existing ranges',async({page})=>{
+  await setup(page,server.url);
+  await page.evaluate(()=>MSWE.resolve('time-range').setRange({start:1000,end:2000}));
+  const row=await page.locator('.waveform-row').first().boundingBox();
+  await page.mouse.click(row.x+row.width*.4,row.y+row.height*.3,{button:'right'});
+  const menu=page.locator('#ctxmenu');
+  expect(await menu.locator(':scope > .item').evaluateAll(nodes=>nodes.map(n=>n.querySelector('span')?.textContent||n.textContent)))
+    .toEqual(['创建字幕','添加空隙','添加时间选区','加选播放头到鼠标位置','波形显示器设置']);
+  await expect(menu.locator('.ctx-window-item svg')).toHaveCount(1);
+  await expect(menu).toHaveCSS('opacity','1');
+  await page.screenshot({path:join(root,'blank-context-menu.png')});
+  await menu.getByRole('button',{name:'添加时间选区',exact:true}).click();
+  await expect(page.locator('#msw-range-dialog')).toBeVisible();
+  const items=await selections(page);expect(items).toHaveLength(2);expect(items[0]).toEqual({start:1000,end:2000});
+  expect(Math.abs(items[1].start-4000)).toBeLessThanOrEqual(Math.ceil(10000/row.width));
+  await page.locator('#msw-range-end').fill('5.500');await page.locator('#msw-range-save').click();
+  expect((await selections(page))[1].end).toBe(5500);
+});
+
+test('range menu shares blank menu typography, has a red clear action and window icon',async({page})=>{
+  await setup(page,server.url);
+  await page.evaluate(()=>MSWE.resolve('time-range').setRange({start:1000,end:3000}));
+  const row=await page.locator('.waveform-row').first().boundingBox();
+  await page.mouse.click(row.x+row.width*.6,row.y+row.height*.3,{button:'right'});
+  const style=await page.locator('#ctxmenu .item').nth(1).evaluate(n=>({font:getComputedStyle(n).fontSize,color:getComputedStyle(n).color,padding:getComputedStyle(n).padding}));
+  await page.mouse.click(row.x+row.width*.2,row.y+row.height*.3,{button:'right'});
+  const menu=page.locator('.msw-range-menu');await expect(menu).toBeVisible();
+  expect(await menu.getByRole('button',{name:'精确编辑时间选区',exact:true}).evaluate(n=>({font:getComputedStyle(n).fontSize,color:getComputedStyle(n).color,padding:getComputedStyle(n).padding}))).toEqual(style);
+  await expect(menu.getByRole('button',{name:'识别所选片段（ASR）',exact:true})).toBeVisible();
+  const clear=menu.locator('.danger');await expect(clear).toContainText('清除时间选区');await expect(clear.locator('kbd')).toHaveText('Esc');
+  expect(await clear.evaluate(n=>getComputedStyle(n).color)).not.toBe(style.color);
+  await expect(menu.locator('.ctx-window-item svg')).toHaveCount(1);
+  await page.screenshot({path:join(root,'range-context-menu.png')});
+  await clear.click();expect(await selections(page)).toEqual([]);
+});
+
 for (const tool of ['select','razor','range']) test(`${tool}: context menu adds a frozen playhead-to-pointer interval and retains existing ranges`,async ({page})=>{
   await setup(page,server.url);
   await page.evaluate(()=>{waveformEditor.currentTimeMs=()=>6000;MSWE.resolve('time-range').setRange({start:1000,end:2000});});
@@ -245,12 +281,12 @@ for (const tool of ['select','razor','range']) test(`${tool}: context menu adds 
     await page.screenshot({path:join(root,'waveform-range-context.png')});
   }
   await page.evaluate(()=>{waveformEditor.currentTimeMs=()=>8000;});
-  await page.locator('#ctxmenu').getByRole('button',{name:'加选播放头至鼠标位置',exact:true}).click();
+  await page.locator('#ctxmenu').getByRole('button',{name:'加选播放头到鼠标位置',exact:true}).click();
   let items=await selections(page);expect(items).toHaveLength(2);expect(items[0]).toEqual({start:1000,end:2000});
   expect(Math.abs(items[1].start-4000)).toBeLessThanOrEqual(Math.ceil(10000/row.width));expect(items[1].end).toBe(6000);
   const originalStart=items[1].start;
   await page.mouse.click(row.x+row.width*.5,row.y+row.height*.3,{button:'right'});
-  await page.locator('.msw-range-menu').getByRole('button',{name:'加选播放头至鼠标位置',exact:true}).click();
+  await page.locator('.msw-range-menu').getByRole('button',{name:'加选播放头到鼠标位置',exact:true}).click();
   items=await selections(page);expect(items[1].start).toBe(originalStart);expect(items[1].end).toBe(8000);
   expect(await page.evaluate(()=>DATA.segments)).toEqual([]);
 });

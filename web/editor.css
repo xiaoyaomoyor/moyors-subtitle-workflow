@@ -3960,9 +3960,9 @@
   .ctxmenu .item:hover { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
-  .ctxmenu button.msw-range-action { border: 0; border-radius: 0; width: 100%; background: transparent; font: inherit; text-align: left; }
-  .ctxmenu button.msw-range-action:hover:not(:disabled) { background: var(--accent-tint); }
-  .ctxmenu button.msw-range-action:disabled { color: var(--text-faint); cursor: not-allowed; }
+  .ctxmenu button.item { border: 0; border-radius: 0; width: 100%; background: transparent; font: inherit; text-align: left; }
+  .ctxmenu button.item:disabled:hover { background: transparent; }
+  .ctxmenu button.item:disabled { color: var(--text-faint); cursor: not-allowed; }
   /* 模块右键面板的设置入口与悬浮飞出子菜单：与菜单栏面板同一套
      背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）与图标体系。 */
   .ctxmenu .ctx-window-item .menu-window-icon { margin-left: auto; }
@@ -4222,11 +4222,7 @@
     border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
   .msw-tools-dialog input { display: block; width: 100%; margin-top: 8px; }
   .msw-tools-dialog::backdrop { background: #0008; }
-  .msw-range-menu { position: fixed; z-index: 500; display: grid; width: 196px; padding: 4px;
-    border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); box-shadow: 0 4px 20px #0005; }
   .msw-range-menu[hidden] { display: none; }
-  .msw-range-menu button { text-align: left; border: 0; background: transparent; color: var(--text-primary); padding: 7px; }
-  .msw-range-menu button:hover { background: var(--accent-tint); }
   #msw-asr-controls [hidden] { display: none !important; }
   #msw-asr-scope { white-space: pre-line; max-height: 120px; overflow-y: auto; font-variant-numeric: tabular-nums; }
   #msw-asr-jobs { max-height: 320px; overflow-y: auto; }

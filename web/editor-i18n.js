@@ -9,6 +9,11 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '贴片音量增益': 'Clip volume gain',
+    '配音所选字幕（TTS）': 'Dub selected subtitles (TTS)',
+    '识别所选片段（ASR）': 'Transcribe selected ranges (ASR)',
+    '添加时间选区': 'Add time range',
+    '加选播放头到鼠标位置': 'Add range from playhead to pointer',
     '选区时长': 'Range duration',
     '保存识别设置': 'Save transcription settings',
     '识别设置已保存': 'Transcription settings saved',

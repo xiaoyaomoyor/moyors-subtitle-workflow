@@ -3980,9 +3980,9 @@
   .ctxmenu .item:hover { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
-  .ctxmenu button.msw-range-action { border: 0; border-radius: 0; width: 100%; background: transparent; font: inherit; text-align: left; }
-  .ctxmenu button.msw-range-action:hover:not(:disabled) { background: var(--accent-tint); }
-  .ctxmenu button.msw-range-action:disabled { color: var(--text-faint); cursor: not-allowed; }
+  .ctxmenu button.item { border: 0; border-radius: 0; width: 100%; background: transparent; font: inherit; text-align: left; }
+  .ctxmenu button.item:disabled:hover { background: transparent; }
+  .ctxmenu button.item:disabled { color: var(--text-faint); cursor: not-allowed; }
   /* 模块右键面板的设置入口与悬浮飞出子菜单：与菜单栏面板同一套
      背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）与图标体系。 */
   .ctxmenu .ctx-window-item .menu-window-icon { margin-left: auto; }
@@ -4242,11 +4242,7 @@
     border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
   .msw-tools-dialog input { display: block; width: 100%; margin-top: 8px; }
   .msw-tools-dialog::backdrop { background: #0008; }
-  .msw-range-menu { position: fixed; z-index: 500; display: grid; width: 196px; padding: 4px;
-    border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); box-shadow: 0 4px 20px #0005; }
   .msw-range-menu[hidden] { display: none; }
-  .msw-range-menu button { text-align: left; border: 0; background: transparent; color: var(--text-primary); padding: 7px; }
-  .msw-range-menu button:hover { background: var(--accent-tint); }
   #msw-asr-controls [hidden] { display: none !important; }
   #msw-asr-scope { white-space: pre-line; max-height: 120px; overflow-y: auto; font-variant-numeric: tabular-nums; }
   #msw-asr-jobs { max-height: 320px; overflow-y: auto; }
@@ -5308,10 +5304,9 @@
 .msw-audio-handle:hover { background: #ffffff30; }
 .waveform-pane.audio-drop-target { box-shadow: inset 0 0 0 2px var(--accent); }
 .msw-audio-menu { min-width: 180px; }
-.msw-audio-menu button.item { width: 100%; border: 0; background: transparent; text-align: left; color: inherit; font: inherit; }
 /* 贴片音量行：与菜单项同一内边距起排（文字开头对齐其他选项），数值输入靠右 */
-.msw-audio-gain { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 22px 5px 26px; font-size: 13px; }
-.msw-audio-gain input { width: 58px; }
+.ctxmenu .msw-audio-gain { align-items: center; cursor: default; }
+.msw-audio-gain input { width: 58px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font: inherit; padding: 3px 5px; }
 .msw-asset-row[draggable="true"] { cursor: grab; }
 .waveform-binding-marker {
   position: absolute;
@@ -6665,7 +6660,7 @@
           <span><kbd data-mod-key>Ctrl+滚轮</kbd> 调整时间缩放/每行长度</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+Shift+滚轮</kbd> 调整每行高度</span>
-          <span><kbd data-mod-key>Ctrl+Shift</kbd> + 鼠标左键拖动：选择连续时间范围（Mac 可用 Cmd）；Esc 清除，点击范围读数精确调整</span>
+          <span><kbd data-mod-key>Ctrl+Shift</kbd> + 鼠标左键拖动：选择连续时间范围（Mac 可用 Cmd）；Esc 清除，右键选区精确调整</span>
         </div>
       </section>
     </section>
@@ -15654,6 +15649,11 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '贴片音量增益': 'Clip volume gain',
+    '配音所选字幕（TTS）': 'Dub selected subtitles (TTS)',
+    '识别所选片段（ASR）': 'Transcribe selected ranges (ASR)',
+    '添加时间选区': 'Add time range',
+    '加选播放头到鼠标位置': 'Add range from playhead to pointer',
     '选区时长': 'Range duration',
     '保存识别设置': 'Save transcription settings',
     '识别设置已保存': 'Transcription settings saved',
@@ -42575,11 +42575,10 @@ function findWaveformCueAtTime(timeMs, segments = DATA.segments) {
   });
 }
 
-// 右键波形背景：添加空隙、创建字幕，或按右键对应的音频位置拆分命中的字幕。
+// 空白波形右键：按所在轨道创建字幕，添加空隙或时间选区。
 function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   ctxmenu.innerHTML = '';
-  // 空白波形按鼠标实际落入的 lane 决定创建轨道；但拆分动作按时间点上
-  // 实际存在的两条轨道分别展示，避免用户为了拆副字幕必须先点到副轨空白。
+  // 创建动作沿用鼠标所在 lane；字幕块和贴片各自拥有专用菜单。
   const effectiveTrack = track === 'extension' ? 'extension' : 'main';
   function addItem(label, kbd, fn, disabled = false) {
     const it = document.createElement('div');
@@ -42595,29 +42594,13 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
     }
     ctxmenu.appendChild(it);
   }
-  // 只显示当前可用的操作：位置已被占用就不显示「创建」，时间点上没有
-  // 命中字幕就不显示「按音频位置拆分」——无效项直接缺席而不是灰显。
-  const mainIdx = findWaveformCueAtTime(timeMs, DATA.segments);
   const extensionTrack = getActiveExtensionTrack();
-  const extensionIdx = findWaveformCueAtTime(timeMs, extensionTrack?.segments);
-  if (effectiveTrack === 'extension') {
-    if (extensionIdx < 0) {
-      addItem('创建副字幕', 'N', () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack));
-    }
-  } else if (mainIdx < 0) {
-    addItem('创建字幕', 'N', () => addCueAtWaveformTime(timeMs, clickX, clickY));
-  }
-  if (Array.isArray(DATA.segments) && DATA.segments.length && mainIdx >= 0) {
-    addItem('按音频位置拆分主字幕', 'B', () => splitFromContextMenu(mainIdx, clickX, clickY, timeMs));
-  }
-  if (Array.isArray(extensionTrack?.segments) && extensionTrack.segments.length && extensionIdx >= 0) {
-    addItem('按音频位置拆分副字幕', '', () => openExtensionSplitModal(extensionIdx, timeMs, extensionTrack));
-  }
-  ctxAppendSeparator();
+  const occupied = findWaveformCueAtTime(timeMs, effectiveTrack === 'extension' ? extensionTrack?.segments : DATA.segments) >= 0;
+  addItem('创建字幕', 'N', () => effectiveTrack === 'extension'
+    ? addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack)
+    : addCueAtWaveformTime(timeMs, clickX, clickY), occupied);
   addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
-  if (getGapRemoveGaps().some((gap) => gap.removed !== false)) {
-    addItem('填充区间空隙', '', () => fillGapRangeAtWaveformTime(timeMs));
-  }
+  window.MSWE.resolve('time-range')?.appendBlankMenu(ctxmenu, timeMs, clickX, clickY, () => ctxmenu.classList.remove('show'));
   ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
   ctxShowAt(clickX, clickY);
 }
@@ -42733,7 +42716,6 @@ function ctxAppendExpandableSettings(label, children) {
 
 // 共用的面板定位：鼠标落在第一个选项的中心（而非面板左上角），贴边防溢出。
 function ctxShowAt(x, y) {
-  window.MSWE.resolve('time-range')?.appendMenu(ctxmenu, x, y, () => ctxmenu.classList.remove('show'));
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
   const first = ctxmenu.querySelector(':scope > .item, :scope > .ctx-submenu > .ctx-submenu-toggle');
@@ -42836,6 +42818,14 @@ function setupModuleContextMenu() {
     ] },
   ]);
 }
+function openSelectedCueTts(side) {
+  const target = document.getElementById('tts-target');
+  if (!target) return;
+  target.value = side;
+  target.dispatchEvent(new Event('change', {bubbles:true}));
+  document.getElementById('tts-open')?.click();
+}
+
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
   ctxLastClickX = x; ctxLastClickY = y;
   ctxmenu.innerHTML = '';
@@ -42935,6 +42925,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       'Alt+点击',
       () => toggleDisabled([idx])
     );
+    addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem('删除字幕', 'Delete', () => {
       deleteSegments([idx]);
     }, { danger: true });
@@ -42965,6 +42956,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       '',
       () => toggleDisabled(targetIdxs)
     );
+    addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
     }, { danger: true });
@@ -43023,6 +43015,10 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
     false,
     'Alt+点击',
   );
+  addItem('配音所选字幕（TTS）', () => {
+    if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
+    openSelectedCueTts('secondary');
+  });
   addItem('删除副字幕', () => deleteExtensionSegments([index]), true);
   if (binding) addItem('对齐主字幕时间范围', () => alignExtensionToMainTimeRange(index, track), false, false, 'H');
   if (binding) addItem('解绑', () => {
@@ -45749,33 +45745,44 @@ window.addEventListener('beforeunload', (e) => {
     return result;
   }
   const format = ms => `${Math.floor(ms / 60000)}:${(ms % 60000 / 1000).toFixed(3).padStart(6, '0')}`;
-  const menu = document.createElement('div'); menu.className = 'msw-range-menu'; menu.hidden = true;
-  const transcribe = document.createElement('button'); transcribe.textContent = '识别所选片段';
-  const edit = document.createElement('button'); edit.textContent = '精确编辑时间选区';
-  const clear = document.createElement('button'); clear.textContent = '清除时间选区';
-  const addFromPlayhead = document.createElement('button'); addFromPlayhead.textContent = '加选播放头至鼠标位置';
-  const settings = document.createElement('button'); settings.textContent = '波形显示器设置';
-  settings.addEventListener('click', () => {menu.hidden = true; host.openWaveSettings();});
-  menu.append(addFromPlayhead, transcribe, edit, clear, settings); document.body.append(menu);
-  function appendMenu(target, x, y, close) {
-    if (!context || context.x !== x || context.y !== y) return;
-    const span = {...context.range};
-    const separator = document.createElement('div'); separator.className = 'sep'; target.append(separator);
-    const add = (label, action, disabled = false) => {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'item msw-range-action';
-      button.textContent = t(label); button.disabled = disabled;
-      button.addEventListener('click', () => {close(); action();}); target.append(button);
-    };
-    add('加选播放头至鼠标位置', () => setRange([...selection, span]), span.start === span.end);
-    if (selection.length) {
-      add('精确编辑时间选区', openEditor);
-      add('清除时间选区', clearRange);
-    }
+  const menu = document.createElement('div'); menu.className = 'ctxmenu show msw-range-menu'; menu.hidden = true; menu.setAttribute('role','menu');
+  let menuTimer = null;
+  menu.addEventListener('mouseenter', () => clearTimeout(menuTimer));
+  menu.addEventListener('mouseleave', () => {menuTimer = setTimeout(() => {menu.hidden = true;},280);});
+  function menuItem(label, {danger=false, shortcut='',window=false}={}) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = `item${danger?' danger':''}${window?' ctx-window-item':''}`;
+    const text = document.createElement('span'); text.textContent = label; button.append(text);
+    if(shortcut){const key=document.createElement('kbd');key.textContent=shortcut;button.append(key);}
+    if(window)button.insertAdjacentHTML('beforeend','<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg>');
+    return button;
   }
+  const transcribe = menuItem('识别所选片段（ASR）');
+  const edit = menuItem('精确编辑时间选区');
+  const clear = menuItem('清除时间选区',{danger:true,shortcut:'Esc'});
+  const addFromPlayhead = menuItem('加选播放头到鼠标位置');
+  const settings = menuItem('波形显示器设置',{window:true});
+  settings.addEventListener('click', () => {menu.hidden = true; host.openWaveSettings();});
+  const separator = document.createElement('div'); separator.className='sep';
+  menu.append(addFromPlayhead, transcribe, edit, clear, separator, settings); document.body.append(menu);
   function sourceRange() {
     const duration = Number(global.MSWE.resolve('media')?.current?.metadata.duration_ms) || 0;
     const range = selection.length === 1 ? selection[0] : null;
     return range && range.start >= 0 && range.end <= duration && range.end > range.start ? {...range} : null;
+  }
+  function appendBlankMenu(target, time, x, y, close) {
+    const duration = wave.durationMs;
+    const span = context && context.x === x && context.y === y ? {...context.range}
+      : {start:Math.min(time,wave.currentTimeMs()),end:Math.max(time,wave.currentTimeMs())};
+    const add = (label, action, disabled) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'item msw-range-action';
+      button.textContent = t(label); button.disabled = disabled;
+      button.addEventListener('click', () => {close(); action();}); target.append(button);
+    };
+    add('添加时间选区', () => {
+      const start = Math.round(clamp(time,0,Math.max(0,duration-1))), end = Math.min(duration,start+1000);
+      setRange([...selection,{start,end}]); activeIndex = selection.findIndex(item => item.start <= start && item.end >= end); openEditor();
+    }, !duration);
+    add('加选播放头到鼠标位置', () => setRange([...selection,span]), span.start === span.end);
   }
   function setRange(value) {
     selection = normalize(Array.isArray(value) ? value : value ? [value] : []);
@@ -45895,6 +45902,7 @@ window.addEventListener('beforeunload', (e) => {
     }
   }, true);
   global.addEventListener('keydown', event => {
+    if (!drag && document.querySelector('.ctxmenu.show:not(.msw-range-menu)')) return;
     if (event.key !== 'Escape' || (!drag && !selection.length && menu.hidden)) return;
     if (!drag && event.target.closest?.('input,textarea,[contenteditable="true"],dialog')) return;
     event.preventDefault(); event.stopImmediatePropagation(); menu.hidden = true;
@@ -45903,6 +45911,7 @@ window.addEventListener('beforeunload', (e) => {
   global.addEventListener('contextmenu', event => {
     context = null;
     if (!event.target.closest?.('.waveform-row') || !wave.scroll.contains(event.target)) return;
+    if (event.target.closest('.waveform-cue-block,.msw-audio-clip,.waveform-gap-block')) return;
     const time = wave.timeAtViewportPoint(event.clientX, event.clientY);
     const playhead = clamp(wave.currentTimeMs(), 0, wave.durationMs);
     const span = {start:Math.round(Math.min(time,playhead)), end:Math.round(Math.max(time,playhead))};
@@ -45916,8 +45925,10 @@ window.addEventListener('beforeunload', (e) => {
     transcribe.disabled = selection.some(item => item.end > duration) || !global.MSWE.resolve('asr');
     addFromPlayhead.disabled = span.start === span.end;
     addFromPlayhead.onclick = () => {menu.hidden = true; setRange([...selection,span]);};
-    menu.hidden = false; menu.style.left = `${clamp(event.clientX, 4, innerWidth - 200)}px`;
-    menu.style.top = `${clamp(event.clientY, 4, innerHeight - menu.offsetHeight - 4)}px`;
+    clearTimeout(menuTimer); menu.hidden = false;
+    const rect=menu.getBoundingClientRect(),first=menu.firstElementChild.getBoundingClientRect();
+    menu.style.left = `${clamp(event.clientX-rect.width/2, 4, innerWidth-rect.width-4)}px`;
+    menu.style.top = `${clamp(event.clientY-(first.top-rect.top+first.height/2), 4, innerHeight-rect.height-4)}px`;
   }, true);
   function openEditor() {
     const range = selection[activeIndex];
@@ -45956,7 +45967,7 @@ window.addEventListener('beforeunload', (e) => {
   clear.addEventListener('click', clearRange);
   transcribe.addEventListener('click', () => { menu.hidden = true; global.MSWE.resolve('asr')?.open('range'); });
   global.addEventListener('msw:project-changed', clearRange); global.addEventListener('msw:media-changed', clearRange);
-  global.MSWE.register('time-range', () => ({setRange, clear:clearRange, openEditor, sourceRange, appendMenu,
+  global.MSWE.register('time-range', () => ({setRange, clear:clearRange, openEditor, sourceRange, appendBlankMenu,
     get ranges() { return copy(selection); },
     get range() { return selection.length === 1 ? {...selection[0]} : null; }, get dragging() { return Boolean(drag); }}));
 })(window);
@@ -48376,7 +48387,11 @@ window.addEventListener('beforeunload', (e) => {
     menu = document.createElement('div'); menu.className = 'ctxmenu show msw-audio-menu'; menu.setAttribute('role', 'menu');
     menu.addEventListener('mouseenter', () => clearTimeout(menuTimer));
     menu.addEventListener('mouseleave', () => { menuTimer = setTimeout(closeMenu, 280); });
-    const item = (label, fn) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'item'; button.textContent = t(label);
+    const item = (label, fn, {danger=false, shortcut='',window=false}={}) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = `item${danger?' danger':''}${window?' ctx-window-item':''}`;
+      const text = document.createElement('span'); text.textContent=t(label); button.append(text);
+      if(shortcut){const key=document.createElement('kbd');key.textContent=shortcut;button.append(key);}
+      if(window)button.insertAdjacentHTML('beforeend','<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg>');
       button.addEventListener('click', fn); menu.appendChild(button); };
     {
       const at = transport.currentTime() ?? (host.player.currentTime * 1000 || 0);
@@ -48390,19 +48405,21 @@ window.addEventListener('beforeunload', (e) => {
     item('恢复完整音频', () => commit('恢复完整音频', ext => { ext.audio_clips.forEach(c => {
       if (selected.has(c.id)) { c.source_in_sample = 0; c.source_out_sample = sync().assets.get(c.asset_id).sample_count; }
     }); }));
-    const label = document.createElement('label'); label.className = 'msw-audio-gain'; label.textContent = `${t('贴片音量')} (dB)`;
+    const label = document.createElement('label'); label.className = 'item msw-audio-gain';
+    const gainText = document.createElement('span'); gainText.textContent = `${t('贴片音量增益')} (dB)`; label.append(gainText);
     const input = document.createElement('input'); input.type = 'number'; input.min = '-60'; input.max = '12'; input.step = '1'; input.value = clip.gain_db;
-    input.setAttribute('aria-label', t('贴片音量'));
+    input.setAttribute('aria-label', t('贴片音量增益'));
     input.addEventListener('change', () => { const gain = Number(input.value); if (!Number.isFinite(gain) || gain < -60 || gain > 12) return;
       commit('调整贴片音量', ext => ext.audio_clips.forEach(c => { if (selected.has(c.id)) c.gain_db = gain; })); });
     label.appendChild(input); menu.appendChild(label);
-    item('删除音频贴片', remove);
+    item('删除音频贴片', remove, {danger:true,shortcut:'Delete'});
     if (transport.failures.has(clip.asset_id)) item('重新加载素材', () => { transport.failures.delete(clip.asset_id); void transport.ensure(sync().assets.get(clip.asset_id)); closeMenu(); });
-    item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); });
-    global.MSWE.resolve('time-range')?.appendMenu(menu, event.clientX, event.clientY, closeMenu);
+    const separator=document.createElement('div');separator.className='sep';menu.append(separator);
+    item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); }, {window:true});
     document.body.appendChild(menu);
-    menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
-    menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
+    const rect=menu.getBoundingClientRect(),first=menu.firstElementChild.getBoundingClientRect();
+    menu.style.left = `${Math.max(4, Math.min(event.clientX-rect.width/2, innerWidth-rect.width-4))}px`;
+    menu.style.top = `${Math.max(4, Math.min(event.clientY-(first.top-rect.top+first.height/2), innerHeight-rect.height-4))}px`;
   }
   // 计算磁吸修正量：拖动集合的各边缘（原始位置 + delta）与静态边缘
   // （字幕块 + 未被拖动的贴片）距离小于阈值时，取最近的一条对齐。
