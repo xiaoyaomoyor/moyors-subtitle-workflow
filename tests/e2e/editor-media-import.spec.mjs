@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -7,7 +7,7 @@ import { disableOnboarding, findFreePort, makeTempDir, startTtsServer, clickMenu
 
 let root, video, saved, server, errors;
 test.beforeEach(async ({ page }, testInfo) => {
-  root = makeTempDir('editor-media'); video = join(root, 'source.mp4'); saved = join(root, 'saved.mosp');
+  root = realpathSync.native(makeTempDir('editor-media')); video = join(root, 'source.mp4'); saved = join(root, 'saved.mosp');
   const ffmpeg = process.env.FFMPEG_PATH;
   test.skip(!ffmpeg, 'Explicit FFmpeg executable required');
   const conflict = testInfo.tags.includes('@track-conflict');

@@ -9333,6 +9333,37 @@ function scrollCueToCenter(cueEl, { behavior = 'smooth' } = {}) {
   const visibleTopOffset = visibleTop - cRect.top;
   const target = offsetTop + eRect.height / 2 - visibleTopOffset - visibleHeight / 2;
   container.scrollTo({ top: Math.max(0, target), behavior });
+
+  // 平滑滚动经过尚未布局的行时，占位高度会被实际行高替换，旧目标
+  // scrollTop 不再对应所点字幕。动画停稳后按可见区域重新定位，并沿用
+  // 有界的布局补偿；新输入、重绘或另一次导航会使 generation 失效。
+  const generation = cueListVisualAnchorGeneration;
+  const started = performance.now();
+  let previousTop = container.scrollTop;
+  let previousHeight = container.scrollHeight;
+  let stableFrames = 0;
+  let frameCount = 0;
+  const settle = () => {
+    if (generation !== cueListVisualAnchorGeneration || !cueEl.isConnected
+        || cueEl.classList.contains('hidden')) return;
+    const top = container.scrollTop;
+    const height = container.scrollHeight;
+    stableFrames = Math.abs(top - previousTop) < 0.75 && height === previousHeight
+      ? stableFrames + 1 : 0;
+    previousTop = top;
+    previousHeight = height;
+    if (stableFrames >= 3) {
+      const bounds = cueListVisibleBounds();
+      const rect = cueEl.getBoundingClientRect();
+      restoreCueListVisualAnchor(cueEl, {
+        top: bounds.top + (bounds.bottom - bounds.top - rect.height) / 2,
+      });
+      return;
+    }
+    frameCount += 1;
+    if (frameCount < 60 && performance.now() - started < 5000) requestAnimationFrame(settle);
+  };
+  requestAnimationFrame(settle);
 }
 function scrollCueIntoViewIfNeeded(cueEl, options) {
   if (!cueEl || cueEl.classList.contains('hidden')) return;

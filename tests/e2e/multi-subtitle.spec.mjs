@@ -173,6 +173,9 @@ test('waveform extension cue double-click focuses the extension editor', async (
 });
 
 test('extension list clicks auto-scroll and double-click places the caret at the pointer', async ({ page }) => {
+  // 慢布局会在平滑滚动途中回填视口外行高，不能只验证高速机器上的瞬态位置。
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: 6 });
   const segments = Array.from({ length: 30 }, (_, index) => ({
     id: `main-${index + 1}`,
     start: index * 10000,
@@ -215,8 +218,6 @@ test('extension list clicks auto-scroll and double-click places the caret at the
   await toggleEditorSettings(page);
   const list = page.locator('#cues-container');
   const target = page.locator('.multi-dual-cue[data-ext-idx="20"] .multi-cue-column.extension');
-  const targetRow = page.locator('.multi-dual-cue[data-ext-idx="20"]');
-  const mainRow = page.locator('.multi-dual-cue[data-main-idx="20"]');
   await expect(target).toHaveCount(1);
   await list.evaluate((element) => { element.scrollTop = 0; });
   const before = await list.evaluate((element) => element.scrollTop);
@@ -225,16 +226,23 @@ test('extension list clicks auto-scroll and double-click places the caret at the
   await target.dispatchEvent('pointerdown', { bubbles: true, button: 0, clientX: 120, clientY: 120 });
   await target.dispatchEvent('click', { bubbles: true, clientX: 120, clientY: 120 });
   await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(before);
+  let centeredSamples = 0;
   await expect.poll(async () => {
-    const [listBox, targetBox, mainBox] = await Promise.all([
-      list.boundingBox(), targetRow.boundingBox(), mainRow.boundingBox(),
-    ]);
-    if (!listBox || !targetBox || !mainBox) return false;
-    const listCenter = listBox.y + listBox.height / 2;
-    const targetDistance = Math.abs(targetBox.y + targetBox.height / 2 - listCenter);
-    const mainDistance = Math.abs(mainBox.y + mainBox.height / 2 - listCenter);
-    return targetDistance < mainDistance;
-  }).toBe(true);
+    const centered = await page.evaluate(() => {
+      // 同一次页面调用读取几何，避免平滑动画期间多个 CDP 请求跨帧采样。
+      const listBox = container.getBoundingClientRect();
+      const toolbarBox = container.querySelector(':scope > .cue-list-toolbar')?.getBoundingClientRect();
+      const targetBox = container.querySelector('.multi-dual-cue[data-ext-idx="20"]').getBoundingClientRect();
+      const mainBox = container.querySelector('.multi-dual-cue[data-main-idx="20"]').getBoundingClientRect();
+      const center = (Math.max(listBox.top, toolbarBox?.bottom ?? listBox.top) + listBox.bottom) / 2;
+      const targetDistance = Math.abs(targetBox.top + targetBox.height / 2 - center);
+      const mainDistance = Math.abs(mainBox.top + mainBox.height / 2 - center);
+      return targetDistance < 2 && targetDistance < mainDistance;
+    });
+    centeredSamples = centered ? centeredSamples + 1 : 0;
+    return centeredSamples;
+  }, { timeout: 10000, intervals: [100, 150, 250] }).toBeGreaterThanOrEqual(3);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   await expect.poll(async () => {
     const box = await target.boundingBox();
     const viewportHeight = await page.evaluate(() => innerHeight);
