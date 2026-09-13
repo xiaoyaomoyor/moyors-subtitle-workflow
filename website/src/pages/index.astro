@@ -3,7 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { sitePath } from '../lib/site-path';
 
 const repoUrl = 'https://github.com/xiaoyaomoyor/moyors-subtitle-workflow';
-const releasesUrl = `${repoUrl}/releases/latest`;
+const releasesUrl = `${repoUrl}/releases/tag/v1.6.0-beta.3`;
 const docsUrl = sitePath('docs/');
 const editorUrl = sitePath('editor/');
 ---
@@ -36,13 +36,13 @@ const editorUrl = sitePath('editor/');
         <p class="eyebrow">开源 · 本地优先 · API-FIRST</p>
         <h1>把声音变成<br />可继续编辑的<br /><em>字幕工程</em></h1>
         <p class="hero-lede">
-          MSW 把本地音视频交给云端 ASR，拿回带字级时间戳的字幕工程，再在浏览器里的 MSW 编辑器继续精修。
+          直接导入音视频，在 MSW 编辑器里生成波形、转写整段或选中的片段，再翻译、配音和精修字幕。
         </p>
         <div class="hero-actions">
           <a class="button button-primary" href={editorUrl}>在线编辑器 ↗</a>
-          <a class="button button-ghost" href={releasesUrl}>下载 Windows 版 ↗</a>
+          <a class="button button-ghost" href={releasesUrl}>下载 beta.3 ↗</a>
         </div>
-        <p class="hero-meta mono">本地媒体 → ASR API → .mosp 工程 → MSW 编辑器 编辑 → SRT</p>
+        <p class="hero-meta mono">导入媒体 → 转写 / 翻译 / 配音 → 保存工程与导出</p>
       </div>
       <figure class="hero-figure">
         <img src={sitePath('launcher.jpg')} alt="MSW Launcher：拖入媒体文件，选择供应商并填入 API Key，一键生成字幕和工程" width="884" height="771" fetchpriority="high" />
@@ -59,19 +59,19 @@ const editorUrl = sitePath('editor/');
         <article class="flow-step">
           <span class="step-num mono">01</span>
           <h3>选择媒体</h3>
-          <p>在 Launcher 里拖入音视频，选阿里云百炼（Qwen / Fun-ASR）或 Soniox，填入自己的 Key。</p>
+          <p>直接在编辑器中导入音视频，也可用 Launcher 批量转写。没有字幕或真实波形时也能使用 TTS。</p>
           <code>example.mp4</code>
         </article>
         <article class="flow-step">
           <span class="step-num mono">02</span>
           <h3>云端转写</h3>
-          <p>媒体直接上传到你选择的 ASR 服务，返回字幕文本和字/词级时间戳。</p>
-          <code>Qwen · Fun-ASR · Soniox</code>
+          <p>按需转写整个视频或多个片段；媒体直接发送给所选服务，字幕保留服务实际提供的时间精度。</p>
+          <code>Qwen · Soniox · 豆包 · OpenAI</code>
         </article>
         <article class="flow-step">
           <span class="step-num mono">03</span>
           <h3>本地编辑</h3>
-          <p>在 MSW 编辑器 里修文字、调时间、去空隙，导出 SRT，或保留整个工程。</p>
+          <p>修文字、调时间、翻译和生成配音，把音频放到时间轴，再导出字幕、视频或剪辑工程。</p>
           <code>.srt · .mosp · .edit.html</code>
         </article>
       </div>
@@ -83,7 +83,7 @@ const editorUrl = sitePath('editor/');
           <p class="eyebrow">02 —— MSW 编辑器</p>
           <h2>SRT 只是出口，<br />工程才是源头。</h2>
         </div>
-        <p>.mosp 工程保留字级时间戳、波形缓存、布局和可逆的编辑决策。识别完成后，从工程继续工作，而不是重新开始。</p>
+        <p>.mosp 工程保留时间戳、布局、素材引用和编辑决策；波形单独缓存，兼容旧工程。磁盘版本可恢复为副本继续编辑。</p>
       </div>
       <figure class="editor-figure">
         <img src={sitePath('editor-screenshot.jpg')} alt="MSW 编辑器 字幕编辑器：左侧是视频与字幕列表，右侧是多行波形和带说话人颜色的字幕块" loading="lazy" />
@@ -92,7 +92,7 @@ const editorUrl = sitePath('editor/');
       <div class="feature-grid">
         <div>
           <h3>拆分 / 合并</h3>
-          <p>按字级时间码分配两侧时间，拆分后依然准确。</p>
+          <p>优先使用真实字词时间码；句级降级结果保留近似精度标记。</p>
         </div>
         <div>
           <h3>静音空隙移除</h3>
@@ -137,7 +137,7 @@ const editorUrl = sitePath('editor/');
       </div>
       <div class="start-grid">
         <div class="start-col">
-          <h3 class="start-title">图形版<span class="mono start-tag">Windows 10/11</span></h3>
+          <h3 class="start-title">图形版<span class="mono start-tag">Windows · macOS · Linux</span></h3>
           <dl class="spec-list">
             <div><dt class="mono">MSW</dt><dd>内置 FFmpeg，解压即用，推荐</dd></div>
             <div><dt class="mono">MSW-lite</dt><dd>体积更小，需系统已有 FFmpeg</dd></div>
@@ -163,11 +163,11 @@ const editorUrl = sitePath('editor/');
       <div class="faq-grid">
         <details open>
           <summary>需要 GPU 吗？</summary>
-          <p>不需要。识别在云端 API 完成，你的电脑只负责上传媒体和运行编辑器。</p>
+          <p>云端识别无需本地 GPU；可选本地 ASR 和 TTS 的硬件要求随引擎而异，详见环境配置文档。</p>
         </details>
         <details>
           <summary>转写要花多少钱？</summary>
-          <p>MSW 免费（AGPL-3.0），费用取决于你的 API 账户：百炼 Qwen ASR 注册赠 10 小时，超出约 ¥0.792/小时；Soniox 约 $0.10/小时。</p>
+          <p>MSW 以 AGPL-3.0 开源；云端计费和可用额度以服务商当前价格及你的账户为准，应用不附带 API Key 或额度。</p>
         </details>
         <details>
           <summary>MSW 是在线字幕网站吗？</summary>

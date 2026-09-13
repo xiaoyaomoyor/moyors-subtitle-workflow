@@ -98,25 +98,6 @@ jobs:
           node --test $TestFiles
           exit $LASTEXITCODE
 
-      - name: Check editor in Chromium
-        id: editor-browser
-        shell: pwsh
-        run: |
-          npx playwright install chromium
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
-          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs --project=chromium
-          exit $LASTEXITCODE
-
-      - name: Keep failed browser diagnostics
-        if: ${{ failure() && steps.editor-browser.outcome == 'failure' }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: editor-test-diagnostics-${{ github.run_attempt }}
-          path: test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Download embedded Python bootstrap assets
         run: |
           mkdir -p build
@@ -264,6 +245,27 @@ jobs:
           $Version = '${{ steps.version.outputs.version }}'
           Compress-Archive -LiteralPath 'dist\MSW-lite' -DestinationPath "MSW-lite-Windows-x64-$Version.zip" -Force
           Compress-Archive -LiteralPath 'dist\MSW' -DestinationPath "MSW-Windows-x64-$Version.zip" -Force
+
+      - name: Check editor in Chromium
+        id: editor-browser
+        shell: pwsh
+        run: |
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
+          $env:FFMPEG_PATH = Join-Path $PWD 'dist/MSW/ffmpeg/bin/ffmpeg.exe'
+          if (-not (Test-Path -LiteralPath $env:FFMPEG_PATH)) { throw 'Missing bundled FFmpeg for media/ASR browser checks' }
+          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs --project=chromium
+          exit $LASTEXITCODE
+
+      - name: Keep failed browser diagnostics
+        if: ${{ failure() && steps.editor-browser.outcome == 'failure' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: editor-test-diagnostics-${{ github.run_attempt }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Smoke beta.3 standard and lite direct editors
         shell: pwsh
