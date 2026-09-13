@@ -2194,6 +2194,7 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   );
   container.classList.toggle('hide-cue-charcount', !EDITOR_SETTINGS.cueListShowCharcount);
   restoreCueListRenderAnchor(cueListAnchor);
+  window.dispatchEvent(new Event('msw:subtitles-changed'));
 }
 
 let previousMultiSubtitlePreviewEnabled = false;
@@ -5670,6 +5671,7 @@ function buildCueEl(seg, idx, { extensionTrack = null } = {}) {
   el.className = multiSubtitleVisible() ? 'cue multi-cue' : 'cue';
   if (isExtension) {
     el.classList.add('multi-extension-cue');
+    markAsrReview(el, extensionTrack, seg);
     el.dataset.extIdx = String(idx);
   } else {
     el.dataset.idx = idx;
@@ -5738,6 +5740,13 @@ function buildMultiTimeEl(segment) {
   return time;
 }
 
+function markAsrReview(node, track, cue) {
+  if (!DATA.msw?.asr_stale_subtitles?.[track?.id]?.[cue?.id]) return;
+  node.classList.add('msw-source-stale');
+  node.dataset.reviewStatus = window.MSWE_I18N?.translateText?.('需复核') || '需复核';
+  node.title = window.MSWE_I18N?.translateText?.('主字幕已重新识别，副字幕内容已保留，请复核') || '主字幕已重新识别，副字幕内容已保留，请复核';
+}
+
 function buildMultiCueColumn(segment, index, track, kind) {
   const column = document.createElement('div');
   column.className = `multi-cue-column ${kind}`;
@@ -5747,6 +5756,7 @@ function buildMultiCueColumn(segment, index, track, kind) {
     return column;
   }
   if (segment._dirty) column.classList.add('dirty');
+  if (kind === 'extension') markAsrReview(column, track, segment);
   if (segment.disabled) column.classList.add('disabled');
   const header = document.createElement('div');
   header.className = 'multi-cue-column-header';
@@ -8870,7 +8880,7 @@ function applyAutoMergeSnapsWithBindings(snaps) {
 //         首条升级为新 head，后续 ref 指向它。
 //   - 删除场景：cutSet = 被物理删除的 idx；切完后由调用方负责 splice
 //   - 清除场景：cutSet = 被清除 group 字段的 idx；调用方不删除字幕本身
-function splitGroupsAtCutPoints(cutSet, headField, refField) {
+function splitGroupsAtCutPoints(cutSet, headField, refField, segments = DATA.segments, { affectedOnly = false } = {}) {
   function groupHeadOf(seg, idx) {
     if (seg[headField]) return idx;
     if (seg[refField]) return seg[refField].headIdx;
@@ -8878,7 +8888,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
   }
   // 1) 收集所有原始 group：headIdx → [members 升序]
   const groups = new Map();
-  DATA.segments.forEach((s, i) => {
+  segments.forEach((s, i) => {
     const g = groupHeadOf(s, i);
     if (g < 0) return;
     if (!groups.has(g)) groups.set(g, []);
@@ -8886,6 +8896,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
   });
 
   for (const [oldHeadIdx, members] of groups.entries()) {
+    if (affectedOnly && !members.some(index => cutSet.has(index))) continue;
     // 把成员按"切点"切成多个连续段
     const sub = [];
     let cur = [];
@@ -8899,7 +8910,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
     if (cur.length) sub.push(cur);
 
     // 拿原 head 数据作为新 head 的模板（深拷贝）
-    const oldHead = DATA.segments[oldHeadIdx];
+    const oldHead = segments[oldHeadIdx];
     const template = oldHead ? oldHead[headField] : null;
     if (!template) continue;
 
@@ -8907,8 +8918,8 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
       if (!segIdxs.length) return;
       const segHeadIdx = segIdxs[0];
       const segLastIdx = segIdxs[segIdxs.length - 1];
-      const newStart = DATA.segments[segHeadIdx].start;
-      const newEnd = DATA.segments[segLastIdx].end;
+      const newStart = segments[segHeadIdx].start;
+      const newEnd = segments[segLastIdx].end;
 
       if (segNo === 0 && segHeadIdx === oldHeadIdx) {
         // 原 head 还活着且未被切除 → 仅修正其时间范围
@@ -8921,11 +8932,11 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
         const promoted = JSON.parse(JSON.stringify(template));
         promoted.start = newStart;
         promoted.end = newEnd;
-        DATA.segments[segHeadIdx][headField] = promoted;
-        DATA.segments[segHeadIdx][refField] = null;
+        segments[segHeadIdx][headField] = promoted;
+        segments[segHeadIdx][refField] = null;
         // 段内其余 ref 改指向新 head
         for (let k = 1; k < segIdxs.length; k++) {
-          const refSeg = DATA.segments[segIdxs[k]];
+          const refSeg = segments[segIdxs[k]];
           if (refSeg[refField]) {
             refSeg[refField].headIdx = segHeadIdx;
           }
@@ -8936,7 +8947,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
 
   // 把切点位置的 head/ref 字段全部清空（调用方期望的副作用）
   cutSet.forEach(i => {
-    const s = DATA.segments[i];
+    const s = segments[i];
     if (!s) return;
     if (s[headField]) s[headField] = null;
     if (s[refField])  s[refField]  = null;
@@ -8953,13 +8964,11 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
 //   当被删的是 head：前段为空，整段后段重组（与之前的"head 晋升"语义吻合）
 //   当被删的是 ref：head 仍是 head，但 group 被切成两块——这是用户原话
 //     "删除中间的 3 → 4 变 head，5 改 ref→4"
-function deleteSegments(idxs) {
+function deleteSegments(idxs, { recordHistory = true } = {}) {
   if (!idxs.length) return;
-  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
-  if (sorted.length === DATA.segments.length) {
-    flashHint('不能删除全部字幕', 'warning');
-    return;
-  }
+  const sorted = [...new Set(idxs)].filter(index => Number.isInteger(index)
+    && index >= 0 && index < DATA.segments.length).sort((a, b) => a - b);
+  if (!sorted.length) return;
   // Commit any pending cue-panel edit and reset panel state BEFORE splicing.
   // Without this, clearSelection() → setCurrentCuePanelIndex(-1) → commitCuePanelEdit()
   // would write the stale panel text to whatever segment now occupies the old index
@@ -8969,7 +8978,8 @@ function deleteSegments(idxs) {
   currentCuePanelKind = 'main';
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
-  pushUndo(`删除 ${sorted.length} 条字幕`);
+  if (recordHistory) pushUndo(`删除 ${sorted.length} 条字幕`);
+  projectImportDirty = true;
   const pairedExtensionIndices = new Set();
   const pairedMainIds = sorted.map((index) => DATA.segments[index]?.id).filter(Boolean);
   const multi = getMultiSubtitleState();
@@ -9032,7 +9042,7 @@ function deleteSegments(idxs) {
   flashHint(`已删除 ${sorted.length} 条`, 'success');
 }
 
-function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
+function deleteExtensionSegments(indices, track = getActiveExtensionTrack(), { recordHistory = true } = {}) {
   if (!track || !indices?.length) return;
   const sorted = [...new Set(indices)].filter((index) => Number.isInteger(index)
     && index >= 0 && index < track.segments.length).sort((a, b) => a - b);
@@ -9045,6 +9055,8 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
   const ids = sorted.map((index) => track.segments[index]?.id).filter(Boolean);
+  if (recordHistory) pushUndo(`删除 ${sorted.length} 条副字幕`);
+  projectImportDirty = true;
 
   // 删除绑定副字幕时沿用主轨删除语义：绑定关系和另一侧字幕一起删除，
   // 这样从任意 lane 删除都能用同一条撤销记录完整恢复。未绑定的副轨段
@@ -9062,7 +9074,7 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
     unboundIds.delete(id);
   });
   if (pairedMainIndices.size) {
-    deleteSegments([...pairedMainIndices]);
+    deleteSegments([...pairedMainIndices], { recordHistory: false });
   }
 
   const remainingIndices = track.segments
@@ -9070,13 +9082,48 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
     .filter((index) => index >= 0);
   if (!remainingIndices.length) return;
 
-  pushUndo(`删除 ${sorted.length} 条副字幕`);
   removeBindingsForSegmentIds([], [...unboundIds]);
   remainingIndices.reverse().forEach((index) => track.segments.splice(index, 1));
   markMultiSubtitleDirty();
   selectedExtensionIdxs.clear();
   renderAll();
   flashHint(`已删除 ${remainingIndices.length} 条副字幕`, 'success');
+}
+
+function deleteSelectedCues(label = '删除选中字幕') {
+  const main = [...selectedIdxs].filter(index => DATA.segments[index]);
+  const track = getActiveExtensionTrack();
+  const extensionIds = new Set([...selectedExtensionIdxs].map(index => track?.segments[index]?.id).filter(Boolean));
+  if (!main.length && !extensionIds.size) return;
+  commitProcessingEdits();
+  pushUndo(label, { captureView: true });
+  deleteSegments(main, { recordHistory: false });
+  // Resolve IDs again after paired deletion; old extension indices may now name unrelated cues.
+  const remaining = (track?.segments || []).flatMap((segment, index) => extensionIds.has(segment.id) ? [index] : []);
+  deleteExtensionSegments(remaining, track, { recordHistory: false });
+  refreshClipboardMenuState();
+}
+
+function clearAllSubtitles() {
+  const multi = getMultiSubtitleState();
+  if (!DATA.segments.length && !(multi.tracks || []).some(track => track.segments.length)) return;
+  commitProcessingEdits();
+  pushUndo('清空全部字幕', { captureView: true });
+  currentCuePanelIdx = -1;
+  currentCuePanelKind = 'main';
+  currentCuePanelTrackId = null;
+  resetCuePanelEditState();
+  DATA.segments.length = 0;
+  for (const track of multi.tracks || []) track.segments.length = 0;
+  multi.bindings = [];
+  markMultiSubtitleDirty();
+  projectImportDirty = true;
+  clearSelection({ silent: true, commitCuePanel: false });
+  lastActive = -1;
+  renderAll({ waveform: 'full' });
+  refreshClipboardMenuState();
+  scheduleAutoSaveFlush();
+  flashHint('已清空全部字幕', 'success');
 }
 
 // === 滚动 ===
@@ -10800,13 +10847,13 @@ document.addEventListener('keydown', (e) => {
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size > 0) {
     e.preventDefault();
     e.stopPropagation();
-    deleteExtensionSegments([...selectedExtensionIdxs]);
+    deleteSelectedCues();
     return;
   }
   if (selectedIdxs.size === 0) return;
   e.preventDefault();
   e.stopPropagation();
-  deleteSegments([...selectedIdxs]);
+  deleteSelectedCues();
 });
 
 // 波形工具切换：V=选择（默认），R=剃刀，Esc=切回选择。与 J/K/L 一样只在
@@ -12292,7 +12339,7 @@ function gapRemovedExportContext() {
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
     return null;
   }
-  const durationMs = waveformEditor?.durationMs || Math.round(Number(player?.duration) * 1000) || 0;
+  const durationMs = waveformEditor?.contentDurationMs || Math.round(Number(player?.duration) * 1000) || 0;
   if (!durationMs) {
     flashHint('媒体时长尚不可用；请先加载媒体后再导出', 'invalid');
     return null;
@@ -12307,7 +12354,7 @@ function gapRemovedExportContext() {
 
 function buildDynamicCaptionExportData(segments, gapRemoved) {
   const source = Array.isArray(segments) ? segments : [];
-  const sourceDurationMs = waveformEditor?.durationMs
+  const sourceDurationMs = waveformEditor?.contentDurationMs
     || Math.round(Number(player?.duration) * 1000)
     || DATA.waveform?.duration_ms
     || 0;
@@ -12815,7 +12862,7 @@ function buildTimelineOtio({ gapRemoved = false, includeStickers = false, includ
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
     return null;
   }
-  const durationMs = waveformEditor?.durationMs || Math.round(Number(player?.duration) * 1000) || 0;
+  const durationMs = waveformEditor?.sourceDurationMs || Math.round(Number(player?.duration) * 1000) || 0;
   if (!durationMs) {
     flashHint('媒体时长尚不可用；请先加载媒体后再导出 OTIO', 'invalid');
     return null;
@@ -14371,7 +14418,7 @@ function openFcp7ExportModal() {
 async function exportFcp7Xml() {
   fcp7ExportConfirm.disabled = true;
   try {
-    const durationMs = waveformEditor?.durationMs
+    const durationMs = waveformEditor?.sourceDurationMs
       || Math.round(Number(player?.duration) * 1000)
       || DATA.waveform?.duration_ms
       || 0;
@@ -15199,7 +15246,9 @@ function updateUnloadedMediaLabel(mediaPath) {
   mediaNameEl.onclick = () => copyText(mediaPath, `已复制媒体路径：${mediaPath}`);
 }
 
+let mediaLoadSequence = 0;
 function resetLoadedMedia() {
+  mediaLoadSequence += 1;
   if (currentMediaBlobUrl) URL.revokeObjectURL(currentMediaBlobUrl);
   currentMediaBlobUrl = null;
   const oldPlayer = player;
@@ -15382,6 +15431,12 @@ function detachServerProjectSaving() {
 
 async function ensureProjectCheckpointForImport(file, { usePicker = true } = {}) {
   if (projectCheckpointed) return true;
+  if (window.MSWE?.resolve('media')?.available()) {
+    window.MSWProject.ensure(DATA);
+    projectCheckpointed = true;
+    projectImportDirty = true;
+    return true;
+  }
   if (usePicker && window.showSaveFilePicker) {
     return createProjectCheckpoint(buildBlankProject(), suggestedProjectName(file));
   }
@@ -15872,6 +15927,8 @@ openProjectFileInput.addEventListener('change', async (e) => {
 // 如果媒体类型与当前播放器标签不一致（video<->audio），会原地替换整个 <video>/<audio> 元素。
 document.getElementById('load-media')?.addEventListener('click', () => {
   pendingProjectMediaSelection = null;
+  const media = window.MSWE?.resolve('media');
+  if (media?.available()) { void media.choose(); return; }
   loadMediaFileInput.value = '';
   loadMediaFileInput.click();
 });
@@ -16031,14 +16088,17 @@ document.addEventListener('keydown', (event) => {
   updateLinkedSplitPreview(nextOffset, lane);
 }, true);
 
-async function loadMediaFile(file) {
+async function loadMediaFile(file, { localOnly = false, previewOnly = false, preservePrevious = false } = {}) {
   if (!file) return;
+  const media = window.MSWE?.resolve('media');
+  if (!localOnly && media?.available()) return media.importFile(file);
+  const loadSequence = ++mediaLoadSequence;
   const finishLoading = beginEditorLoading(`正在加载媒体 ${file.name}…`, 5);
   try {
   stopJklReversePlayback({ render: false });
   const preserveProjectWaveform = waveformLoadedFromProject
     && Boolean(waveformEditor?.getPayload?.());
-  const url = URL.createObjectURL(file);
+  const url = file.url || URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video/') ||
     /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i.test(file.name);
   const oldPlayer = document.getElementById('player');
@@ -16079,6 +16139,7 @@ async function loadMediaFile(file) {
     updateEditorLoading(45, `正在读取媒体信息 ${file.name}…`);
     await waitForMediaMetadata(candidatePlayer, file);
   } catch (error) {
+    if (loadSequence !== mediaLoadSequence) return false;
     if (candidatePlayer !== oldPlayer && oldParent) {
       oldParent.replaceChild(oldPlayer, candidatePlayer);
       player = oldPlayer;
@@ -16097,9 +16158,10 @@ async function loadMediaFile(file) {
     return false;
   }
 
+  if (loadSequence !== mediaLoadSequence) return false;
   let mediaTimeReference = null;
   try {
-    mediaTimeReference = await window.AsrEditorUtils.readBwfTimeReferenceFromFile(file);
+    if (file instanceof Blob) mediaTimeReference = await window.AsrEditorUtils.readBwfTimeReferenceFromFile(file);
   } catch (_) {
     // BWF metadata is optional; an unreadable header must not block playback.
   }
@@ -16110,8 +16172,9 @@ async function loadMediaFile(file) {
   waveformEditor?.setMediaAvailable(true);
 
   // 释放旧 blob URL（不会影响 file:// 加载的原始媒体——那不是 blob URL）
-  if (currentMediaBlobUrl) URL.revokeObjectURL(currentMediaBlobUrl);
+  if (currentMediaBlobUrl && !preservePrevious) URL.revokeObjectURL(currentMediaBlobUrl);
   currentMediaBlobUrl = url;
+  if (previewOnly) { waveformEditor?.setPayload(null); return true; }
 
   // 更新标题区媒体名 + FILENAME_BASE（用文件名去扩展名作为导出基名）
   const stem = file.name.replace(/\.[^.]+$/, '');
@@ -18452,6 +18515,7 @@ function ctxAppendExpandableSettings(label, children) {
 
 // 共用的面板定位：鼠标落在第一个选项的中心（而非面板左上角），贴边防溢出。
 function ctxShowAt(x, y) {
+  window.MSWE.resolve('time-range')?.appendMenu(ctxmenu, x, y, () => ctxmenu.classList.remove('show'));
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
   const first = ctxmenu.querySelector(':scope > .item, :scope > .ctx-submenu > .ctx-submenu-toggle');
@@ -18795,11 +18859,7 @@ function showGapContextMenu(x, y, index) {
   separator.className = 'sep';
   ctxmenu.appendChild(separator);
   addItem('清理空隙', () => clearGap(index), { danger: true });
-
-  ctxmenu.classList.add('show');
-  const rect = ctxmenu.getBoundingClientRect();
-  ctxmenu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`;
-  ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
+  ctxShowAt(x, y);
 }
 
 function closeContextMenuOnOutsidePointerDown(event) {
@@ -18963,6 +19023,9 @@ function initWaveformEditor() {
     return;
   }
   waveformEditor = window.AsrWaveform.create({
+    getMediaDurationMs: () => Number(DATA.media_metadata?.duration_ms) || 0,
+    getCueSourceStatus: segment => DATA.msw?.asr_stale_subtitles?.[getActiveExtensionTrack()?.id]?.[segment.id]
+      ? (window.MSWE_I18N?.translateText?.('需复核') || '需复核') : '',
     getSegments: (track = 'main') => track === 'extension'
       ? (getActiveExtensionTrack()?.segments || []) : DATA.segments,
     getExtensionSegments: (trackId = null) => getExtensionTrack(trackId)?.segments || [],
@@ -19961,11 +20024,11 @@ function captureExtensionClipboard(mainIdxs) {
 }
 
 function refreshClipboardMenuState() {
-  const hasSelection = selectedIdxs.size > 0;
+  const hasSelection = selectedIdxs.size > 0 || selectedExtensionIdxs.size > 0;
   if (cueCutButton) cueCutButton.disabled = !hasSelection;
   if (cueCopyButton) cueCopyButton.disabled = !hasSelection;
   if (cueDeleteButton) cueDeleteButton.disabled = !hasSelection;
-  if (cuePasteButton) cuePasteButton.disabled = !cueClipboardSegments?.length;
+  if (cuePasteButton) cuePasteButton.disabled = !cueClipboardSegments?.length && !cueClipboardExtensionSegments?.length;
 }
 
 function copySelectedCues() {
@@ -19984,17 +20047,13 @@ function copySelectedCues() {
 function cutSelectedCues() {
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
   if (!idxs.length && !selectedExtensionIdxs.size) return;
-  // 全量主字幕禁剪的保护仅在纯主轨剪切时生效；连锁对剪切（含副轨）放行。
-  if (idxs.length && idxs.length === DATA.segments.length && !selectedExtensionIdxs.size) return;
   const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
   captureExtensionClipboard(idxs);
   window.MSW_CLIPBOARD_KIND = 'cues';
-  // deleteSegments 内部自带 pushUndo、分组拆分与编辑面板状态处理。
-  deleteSegments(idxs);
-  if (extIdxs.length) deleteExtensionSegments(extIdxs);
+  deleteSelectedCues('剪切字幕');
   refreshClipboardMenuState();
   flashHint(`已剪切 ${idxs.length + extIdxs.length} 条字幕（含副字幕）`, 'success');
 }
@@ -20110,14 +20169,8 @@ function pasteCuesFromClipboard() {
 cueCutButton?.addEventListener('click', cutSelectedCues);
 cueCopyButton?.addEventListener('click', copySelectedCues);
 cuePasteButton?.addEventListener('click', pasteCuesFromClipboard);
-cueDeleteButton?.addEventListener('click', () => {
-  if (!selectedIdxs.size) return;
-  if (selectedExtensionIdxs.size > 0 && selectedIdxs.size === 0) {
-    deleteExtensionSegments([...selectedExtensionIdxs]);
-    return;
-  }
-  deleteSegments([...selectedIdxs]);
-});
+cueDeleteButton?.addEventListener('click', () => deleteSelectedCues());
+document.getElementById('clear-all-subtitles')?.addEventListener('click', clearAllSubtitles);
 
 // Ctrl/Cmd+X / C / V：与 Delete 键同一套输入保护（输入框、右键菜单内不抢占）。
 document.addEventListener('keydown', (event) => {
@@ -20785,6 +20838,34 @@ function processingSelection() {
     hasSelection: selectedIdxs.size > 0 || selectedExtensionIdxs.size > 0,
   };
 }
+function applyAsrJob(job, media) {
+  commitProcessingEdits();
+  const plan = window.MSWAsr.plan(DATA, media, job, { splitGroups: splitGroupsAtCutPoints });
+  if (!plan.applied) return plan;
+  // Normalize only new cues; frame rounding must not push untouched cues.
+  const inserted = new Set(plan.insertedIds);
+  for (const cue of plan.segments) if (inserted.has(cue.id)) syncSegmentTimebase(cue, projectTimebase(DATA), { preferFrames: false });
+  for (let index = 1; index < plan.segments.length; index++) {
+    if ((inserted.has(plan.segments[index].id) || inserted.has(plan.segments[index - 1].id))
+      && plan.segments[index].start < plan.segments[index - 1].end) throw Error('帧对齐后的 ASR 字幕与邻近字幕重叠，请调整识别范围');
+  }
+  window.MSWProject.normalize(plan.msw);
+  const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
+  pushUndo('应用 ASR 结果', { captureView: true });
+  currentCuePanelIdx = -1; currentCuePanelKind = 'main'; currentCuePanelTrackId = null; resetCuePanelEditState();
+  DATA.segments.splice(0, DATA.segments.length, ...plan.segments);
+  if (plan.multi) DATA.multi_subtitle = plan.multi;
+  DATA.msw = plan.msw;
+  normalizeMultiSubtitleState();
+  projectImportDirty = true;
+  clearSelection({ silent: true }); lastActive = -1;
+  renderAll({ waveform: 'full' });
+  restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
+  window.dispatchEvent(new Event('msw:assets-changed'));
+  scheduleAutoSaveFlush();
+  return {applied:true,insertedIds:plan.insertedIds,removedIds:plan.removedIds};
+}
+
 function applyTranslationJob(job) {
   commitProcessingEdits();
   const extension = window.MSWProject.ensure(DATA);
@@ -20801,6 +20882,11 @@ function applyTranslationJob(job) {
     const selection = snapshotEditorSelection();
     pushUndo('字幕翻译', { captureView: true });
     DATA.multi_subtitle = plan.multi;
+    if (extension.asr_stale_subtitles) {
+      for (const binding of plan.multi.bindings || []) if (binding.main_segment_ids?.some(id => plan.appliedIds.includes(id))) {
+        for (const id of binding.extension_segment_ids || []) delete extension.asr_stale_subtitles[binding.track_id]?.[id];
+      }
+    }
     const applied = [...new Set([...previousIds, ...plan.appliedIds])];
     if (applied.length === job.snapshot.entries.length) {
       extension.applied_results = [...(extension.applied_results || []), job.id].slice(-10000);
@@ -20888,6 +20974,68 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
 }));
 window.MSWE?.register('processing-host', () => Object.freeze({
+  ensureMediaProject: () => ensureProjectCheckpointForImport(null, { usePicker: false }),
+  get waveform() { return waveformEditor; },
+  applyWaveform: payload => {
+    if (!waveformEditor?.setPayload(payload, { preserveView: true })) return false;
+    DATA.waveform = payload; waveformLoadedFromProject = true;
+    scheduleAutoSave(); return true;
+  },
+  clearWaveform: () => {
+    DATA.waveform = null; DATA.spectral = null; DATA.waveform_reapeaks = null;
+    waveformLoadedFromProject = false;
+    waveformEditor?.setSpectralPayload(null, { render: false });
+    waveformEditor?.setReapeaksWaveform(null, { render: false });
+    waveformEditor?.setPayload(null, { preserveView: true });
+    scheduleAutoSave();
+  },
+  previewProxy: async (media, url) => {
+    const generation = mswProjectGeneration;
+    const snapshot = waveformEditor?.getNavigationSnapshot();
+    const peak = DATA.waveform, time = player.currentTime || 0;
+    const playable = await loadMediaFile({name: media.name, type: media.video ? 'video/mp4' : 'audio/mp4', url},
+      {localOnly: true, previewOnly: true});
+    if (generation !== mswProjectGeneration || DATA.media !== media.reference
+      || DATA.msw?.source_audio_index !== media.audio_index) return false;
+    waveformEditor?.setPayload(peak, { preserveView: true });
+    waveformEditor?.restoreNavigation(snapshot);
+    if (playable) player.currentTime = time;
+    return playable;
+  },
+  suspendSourcePlayback: () => { player.pause(); resetLoadedMedia(); },
+  mediaSnapshot: () => ({ media: DATA.media, metadata: window.MSWProject.clone(DATA.media_metadata),
+    waveform: DATA.waveform, spectral: DATA.spectral, reapeaks: DATA.waveform_reapeaks,
+    url: player.currentSrc || player.querySelector('source')?.src || '',
+    name: document.getElementById('media-name')?.textContent || '', type: player.tagName === 'VIDEO' ? 'video/mp4' : 'audio/wav' }),
+  previewMedia: file => loadMediaFile(file, { localOnly: true, previewOnly: true, preservePrevious: true }),
+  restoreMedia: async state => {
+    if (state.url) await loadMediaFile({ name: state.name, type: state.type, url: state.url }, { localOnly: true, previewOnly: true });
+    else resetLoadedMedia();
+    DATA.media = state.media;
+    DATA.media_metadata = state.metadata;
+    waveformEditor?.setPayload(state.waveform);
+    waveformEditor?.setSpectralPayload(state.spectral);
+    waveformEditor?.setReapeaksWaveform(state.reapeaks);
+  },
+  acceptMedia: (media, { playable, previous }) => {
+    if (!playable) resetLoadedMedia();
+    if (previous.url?.startsWith('blob:') && previous.url !== currentMediaBlobUrl) URL.revokeObjectURL(previous.url);
+    DATA.media = media.reference;
+    DATA.media_metadata = normalizeMediaMetadata(media.metadata);
+    window.MSWProject.ensure(DATA).source_audio_index = media.audio_index;
+    DATA.media_time_reference = media.time_reference;
+    DATA.waveform = null; DATA.spectral = null; DATA.waveform_reapeaks = null;
+    waveformLoadedFromProject = false;
+    waveformEditor?.setPayload(null, { render: false });
+    waveformEditor?.setSpectralPayload(null, { render: false });
+    waveformEditor?.setReapeaksWaveform(null, { render: false });
+    FILENAME_BASE = media.name.replace(/\.[^.]+$/, '');
+    const label = document.getElementById('media-name');
+    label.textContent = media.name; label.title = media.name; label.classList.remove('empty');
+    label.onclick = () => copyText(media.name);
+    projectImportDirty = true; projectCheckpointed = true;
+    renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
+  },
   editorText: () => cuePanelText.value,
   playheadMs: () => Math.max(0, Math.round((player.currentTime || 0) * 1000)),
   showCueEditor: () => {
@@ -20909,6 +21057,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return window.MSWTranslation.snapshot(DATA, processingSelection());
   },
   applyTranslation: applyTranslationJob,
+  applyASR: applyAsrJob,
   get assetLibrary() { return waveformEditor?.assetLibrary; },
   get player() { return player; },
   audioPlaybackSkip: timeMs => window.AsrGapRemoveCore.getGapPlaybackSkip(getRemovedGapRanges(), timeMs,
@@ -20944,7 +21093,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
   audioExportDuration: () => Math.ceil(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
-    Number(waveformEditor?.durationMs) || 0,
+    Number(waveformEditor?.contentDurationMs) || 0,
   )),
   showAssets: ({ automatic = false } = {}) => {
     if (waveformEditor?.showModule?.('assets', { recordUndo: !automatic })) rebuildShowModuleMenu();
@@ -20977,6 +21126,19 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     updateUndoRedoButtons(); return true;
   },
   createFloatingPanel,
+  openWaveSettings: () => setWaveformSettingsPanelOpen(true),
+  openMediaToolsEnvironment: () => {
+    setWaveformSettingsPanelOpen(false);
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+    requestAnimationFrame(() => document.getElementById('media-tools-environment-section').scrollIntoView({block: 'start'}));
+  },
+  openAsrEnvironment: () => {
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+    requestAnimationFrame(() => document.getElementById('asr-environment-section').scrollIntoView({block: 'start'}));
+  },
+  closeProcessingEnvironment: () => setEditorSettingsPanelOpen(false),
   openTtsEnvironment: () => {
     setEditorSettingsPanelOpen(true);
     activateEditorSettingsCategory(document.getElementById('tts-environment-category'));

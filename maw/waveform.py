@@ -14,6 +14,7 @@ import json
 import math
 import subprocess
 import sys
+import threading
 from array import array
 from dataclasses import dataclass
 from pathlib import Path
@@ -224,6 +225,8 @@ def extract_waveform(
     pcm_sample_rate: int | None = None,
     ffmpeg_bin: str | None = None,
     audio_track: int = 0,
+    cancel_event: threading.Event | None = None,
+    progress=None,
 ) -> dict[str, Any]:
     """Stream a mono PCM envelope from FFmpeg without retaining decoded audio.
 
@@ -271,49 +274,84 @@ def extract_waveform(
         "s16le",
         "pipe:1",
     ]
+    if cancel_event is not None and cancel_event.is_set():
+        raise WaveformError('波形生成已取消')
+    from maw.gui_platform import process_group_kwargs
     try:
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            **process_group_kwargs(),
         )
     except OSError as exc:
         raise WaveformError(f"无法启动 ffmpeg: {exc}") from exc
 
     assert process.stdout is not None
     assert process.stderr is not None
+    # Drain diagnostics concurrently; malformed inputs must not fill stderr
+    # and deadlock the PCM reader. Keep only a bounded diagnostic tail.
+    errors = bytearray()
+    def drain_errors():
+        while chunk := process.stderr.read(4096):
+            errors.extend(chunk)
+            if len(errors) > 16384:
+                del errors[:-16384]
+    reader = threading.Thread(target=drain_errors, daemon=True)
+    reader.start()
+    finished = threading.Event()
+    def watch_cancel():
+        while not finished.wait(.1):
+            if cancel_event.is_set():
+                from maw.gui_platform import terminate_process_tree
+                terminate_process_tree(process, timeout=3)
+                return
+    watcher = threading.Thread(target=watch_cancel, daemon=True) if cancel_event is not None else None
+    if watcher:
+        watcher.start()
     encoded = bytearray()
     byte_carry = b""
     sample_carry = array("h")
     total_samples = 0
 
-    while True:
-        chunk = process.stdout.read(64 * 1024)
-        if not chunk:
-            break
-        raw = byte_carry + chunk
-        even_length = len(raw) - (len(raw) % 2)
-        byte_carry = raw[even_length:]
-        values = array("h")
-        values.frombytes(raw[:even_length])
-        if sys.byteorder != "little":
-            values.byteswap()
-        total_samples += len(values)
+    try:
+        while True:
+            chunk = process.stdout.read(64 * 1024)
+            if not chunk:
+                break
+            raw = byte_carry + chunk
+            even_length = len(raw) - (len(raw) % 2)
+            byte_carry = raw[even_length:]
+            values = array("h")
+            values.frombytes(raw[:even_length])
+            if sys.byteorder != "little":
+                values.byteswap()
+            total_samples += len(values)
+            if progress:
+                progress(round(total_samples * 1000 / pcm_sample_rate))
+            if sample_carry:
+                sample_carry.extend(values)
+                values = sample_carry
+            complete_length = (len(values) // bucket_samples) * bucket_samples
+            for offset in range(0, complete_length, bucket_samples):
+                _append_bucket(encoded, values[offset : offset + bucket_samples])
+            sample_carry = array("h", values[complete_length:])
         if sample_carry:
-            sample_carry.extend(values)
-            values = sample_carry
-        complete_length = (len(values) // bucket_samples) * bucket_samples
-        for offset in range(0, complete_length, bucket_samples):
-            _append_bucket(encoded, values[offset : offset + bucket_samples])
-        sample_carry = array("h", values[complete_length:])
-
-    if sample_carry:
-        _append_bucket(encoded, sample_carry)
-
-    stderr = process.stderr.read().decode("utf-8", errors="replace").strip()
-    process.stdout.close()
-    process.stderr.close()
-    return_code = process.wait()
+            _append_bucket(encoded, sample_carry)
+        return_code = process.wait()
+    finally:
+        finished.set()
+        if process.poll() is None:
+            from maw.gui_platform import terminate_process_tree
+            terminate_process_tree(process, timeout=3)
+        reader.join()
+        if watcher:
+            watcher.join()
+        process.stdout.close()
+        process.stderr.close()
+    stderr = errors.decode("utf-8", errors="replace").strip()
+    if cancel_event is not None and cancel_event.is_set():
+        raise WaveformError('波形生成已取消')
     if return_code != 0:
         raise WaveformError(stderr or f"ffmpeg 退出码 {return_code}")
     if byte_carry:

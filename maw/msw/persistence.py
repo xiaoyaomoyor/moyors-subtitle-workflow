@@ -87,6 +87,9 @@ class ProjectPersistence:
             origin = bound.json_path if same else recovered.get("origin")
             media = ((bound.source_media_path or bound.media_path) if same and project.get("media") == bound.data.get("media")
                      else recovered.get("media") if project.get("media") == recovered.get("project", {}).get("media") else None)
+            registered = self.api._media.active(project_id, project.get('media')) if getattr(self.api, '_media', None) else None
+            if registered:
+                media = registered['path']
             return {"id": self.recovery.put(project, kind="draft", name=str(payload.get("filename") or "untitled.mosp"),
                         origin=origin, media=media, session=payload["session"])}
 
@@ -180,6 +183,10 @@ class ProjectPersistence:
             media_owner = recovered.get("project", {}) if recovering else old.data
             origin_path = recovered.get("origin") if recovering else old.json_path if bound_source else None
             original_reference = project.get("media")
+            registered = self.api._media.active(source_id, original_reference) if getattr(self.api, '_media', None) else None
+            if registered:
+                media_source = Path(registered['path'])
+                media_owner = {'media': registered['reference']}
             if collect:
                 if not media_source or original_reference != media_owner.get("media"):
                     raise ValueError("当前原媒体尚未由服务器接管，请从本机服务器重新打开含媒体的工程")
@@ -195,7 +202,7 @@ class ProjectPersistence:
             backup = write_project(target, normalized, media_source=saved_media)
             same_media = not recovering and bound_source and original_reference == old.data.get("media")
             server.project = replace(old, data=normalized, json_path=target,
-                                     media_path=old.media_path if same_media and original_reference else None,
+                                     media_path=old.media_path if same_media and original_reference else saved_media,
                                      source_media_path=(target.parent / normalized["media"]) if collect else (media_source if original_reference == media_owner.get("media") else None))
             self.api.invalidate_binding()
             server.remember_project(target)

@@ -168,7 +168,11 @@ test('save-as pauses original auto-save and preserves edits made while the copy 
   const copyPath = join(dir, 'saved', 'copy.mosp');
   expect(JSON.parse(readFileSync(copyPath, 'utf8')).segments[0].text).toBe('Copy snapshot');
   expect(await page.evaluate(() => [DATA.segments[0].text, hasUnsavedProjectChanges()])).toEqual(['Edited during copy', true]);
+  const savedAfterCopy = page.waitForResponse(response => response.url().endsWith('/api/msw/project') && response.request().method() === 'POST');
   await page.keyboard.press('Control+s');
+  const savedReply = await savedAfterCopy;
+  const savedBody = await savedReply.json();
+  expect(savedBody.ok, JSON.stringify(savedBody)).toBe(true);
   await expect.poll(() => JSON.parse(readFileSync(copyPath, 'utf8')).segments[0].text).toBe('Edited during copy');
   expect(readFileSync(projectPath, 'utf8')).toBe(original);
 });

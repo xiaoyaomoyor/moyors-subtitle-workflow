@@ -2911,7 +2911,7 @@ def _transcribe_strip_tail_punct(env_path: Path) -> str:
     return "".join(candidate for candidate in _TAIL_STRIP_CANDIDATES if candidate not in preserved)
 
 
-def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> TranscriptionRequest:
+def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, validate_media: bool = True) -> TranscriptionRequest:
     media_text = str(payload.get("mediaPath") or "").strip()
     srt_text = str(payload.get("srtPath") or "").strip()
     media = Path(media_text).expanduser()
@@ -2948,7 +2948,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
     region = str(payload.get("region") or "beijing") if provider.id == "qwen" else ""
     workspace_id = str(payload.get("workspaceId") or "").strip()
     runtime_python = ""
-    if not media_text or not media.exists():
+    if validate_media and (not media_text or not media.exists()):
         raise PreflightError("mediaPath", "media_not_found", "Media file does not exist.")
     if not srt_text or not srt.name:
         raise PreflightError("srtPath", "output_missing", "SRT output path is required.")

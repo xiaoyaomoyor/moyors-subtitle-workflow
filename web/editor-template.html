@@ -235,6 +235,7 @@ __WAVEFORM_CSS__
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
+          <button type="button" class="dropdown-item" id="clear-all-subtitles" role="menuitem">清空全部字幕</button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -332,6 +333,7 @@ __WAVEFORM_CSS__
   <div class="menubar-item" data-menubar-item="media">
     <button type="button" class="menubar-tab" aria-haspopup="menu" aria-expanded="false">媒体</button>
     <div class="dropdown-menu menubar-menu" role="menu" aria-label="媒体">
+      <button type="button" class="dropdown-item" id="msw-asr-open" role="menuitem" title="识别整个源视频或时间选区">ASR<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
@@ -411,7 +413,7 @@ __WAVEFORM_CSS__
   <span class="server-connection-banner-icon" aria-hidden="true">!</span>
   <div class="server-connection-banner-copy">
     <strong class="server-connection-banner-title">服务器连接已断开</strong>
-    <span class="server-connection-banner-message">请在 Launcher 中确认服务器状态；当前无法自动保存工程，请使用「文件 → 另存为工程」保存当前工程，避免进度丢失。</span>
+    <span class="server-connection-banner-message">请确认本机编辑器服务仍在运行；当前无法自动保存工程，请使用「文件 → 另存为工程」保存当前工程，避免进度丢失。</span>
   </div>
 </div>
 
@@ -917,6 +919,23 @@ __WAVEFORM_CSS__
     <button type="button" id="wave-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭波形显示器设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="settings-modal-body wave-settings-body waveform-settings-panel gap-remove-panel-body" id="waveform-settings-panel">
+    <section class="settings-panel-section waveform-settings-section" id="msw-analysis-settings">
+      <span class="settings-panel-title waveform-settings-title">媒体分析</span>
+      <p id="msw-analysis-unavailable" class="msw-processing-hint">媒体分析需要本机编辑器服务。</p>
+      <div id="msw-analysis-controls" hidden>
+        <p id="msw-analysis-source" class="msw-processing-hint">导入媒体后可生成波形或播放代理。</p>
+        <label class="editor-settings-item" id="msw-source-track-field" hidden>源音轨 <select id="msw-source-track" aria-label="源音轨" title="波形、试听和 ASR 使用的源音轨" hidden></select></label>
+        <label class="toggle editor-settings-item" id="msw-waveform-auto-label" hidden><input type="checkbox" id="msw-waveform-auto" checked>自动波形</label>
+        <div class="msw-processing-actions"><button type="button" id="msw-waveform-generate" hidden>生成波形</button><button type="button" id="msw-waveform-cancel" hidden>取消波形</button></div>
+        <p class="msw-processing-hint" id="msw-waveform-status" role="status" hidden></p>
+        <details class="msw-wave-proxy-settings"><summary>播放代理</summary>
+          <p class="msw-processing-hint">原媒体无法预览时生成兼容副本；识别仍使用原媒体。</p>
+          <div class="msw-processing-actions"><button type="button" id="msw-proxy-generate" hidden>生成播放代理</button><button type="button" id="msw-proxy-cancel" hidden>取消代理</button></div>
+          <p class="msw-processing-hint" id="msw-proxy-status" role="status" hidden></p>
+        </details>
+        <div class="msw-processing-actions"><button type="button" id="msw-tools-open">前往媒体工具环境配置</button></div>
+      </div>
+    </section>
     <div class="settings-panel-section waveform-settings-section">
       <div class="settings-panel-title-row">
         <span class="settings-panel-title waveform-settings-title">音频波形区</span>
@@ -1179,6 +1198,7 @@ __WAVEFORM_CSS__
           <span><kbd data-mod-key>Ctrl+滚轮</kbd> 调整时间缩放/每行长度</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+Shift+滚轮</kbd> 调整每行高度</span>
+          <span><kbd data-mod-key>Ctrl+Shift</kbd> + 鼠标左键拖动：选择连续时间范围（Mac 可用 Cmd）；Esc 清除，点击范围读数精确调整</span>
         </div>
       </section>
     </section>
@@ -1352,6 +1372,37 @@ __WAVEFORM_CSS__
         <div class="editor-settings-group settings-category" data-settings-category="environment" id="tts-environment-category">
           <div class="settings-category-header">环境配置</div>
           <div class="editor-settings-sub-group"><span class="editor-settings-title">环境配置</span></div>
+          <div class="settings-subsection" data-subsection="media-tools" id="media-tools-environment-section">
+            <span class="settings-subsection-title">媒体工具</span>
+            <div class="editor-settings-sub-group msw-tts-environment">
+              <p class="msw-processing-hint">FFmpeg / FFprobe 用于媒体信息读取、波形、播放代理及音视频处理。</p>
+              <p id="msw-tools-unavailable" class="msw-processing-hint">环境配置需要本机 Server 编辑器。</p>
+              <div id="msw-tools-controls" hidden>
+                <label class="msw-processing-field"><span>FFmpeg 可执行文件或所在目录</span><input id="msw-tools-path" type="text" spellcheck="false" placeholder="留空自动查找"></label>
+                <p id="msw-tools-status" class="msw-processing-message" role="status" aria-live="polite"></p>
+                <div class="msw-processing-actions"><button type="button" id="msw-tools-save" disabled>保存环境配置</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-subsection" data-subsection="asr" id="asr-environment-section">
+            <span class="settings-subsection-title">ASR</span>
+            <div class="editor-settings-sub-group msw-tts-environment">
+              <p id="msw-asr-environment-unavailable" class="msw-processing-hint" hidden>环境配置需要本机 Server 编辑器。</p>
+              <div id="msw-asr-environment-controls">
+      <div class="msw-asr-fields" id="msw-asr-environment-fields">
+          <label>服务 <select id="msw-asr-environment-provider"></select></label>
+          <label data-asr-qwen>地域 <select id="msw-asr-region"></select></label>
+          <label data-asr-qwen>Workspace ID <input id="msw-asr-workspaceId" spellcheck="false"></label>
+          <label data-asr-openai>API 地址 <input id="msw-asr-openaiBaseUrl" spellcheck="false"></label>
+          <label>API Key <input id="msw-asr-apiKey" type="password" autocomplete="off" placeholder="留空使用本机已保存密钥"></label>
+      </div>
+      <p id="msw-asr-key-state" class="msw-processing-hint"></p>
+      <div class="msw-processing-actions"><button type="button" id="msw-asr-save-environment">保存环境配置</button></div>
+              </div>
+              <p id="msw-asr-environment-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+              <div class="msw-processing-actions"><button type="button" id="msw-asr-environment-return">打开 ASR 面板</button></div>
+            </div>
+          </div>
           <div class="settings-subsection" data-subsection="llm" id="llm-environment-section">
             <span class="settings-subsection-title">LLM</span>
             <div class="editor-settings-sub-group msw-tts-environment">
@@ -1906,6 +1957,10 @@ __WAVEFORM_CSS__
           <span class="ninja-razor-icon" aria-hidden="true" hidden>🔪</span>
           <span>分割</span>
         </button>
+        <button type="button" data-waveform-tool="range" title="选区编辑：拖动选择波形；Shift 加选，Ctrl(Cmd) 减选；拖动选区边界扩大或缩小。Ctrl(Cmd)+Shift 拖动仍可临时选择">
+          <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2H2v12h3M11 2h3v12h-3M5 8h6M8 5v6"/></svg>
+          <span>选区编辑</span>
+        </button>
       </span>
       <span class="sep"></span>
       <span class="info" title="当前播放头时间">当前 <b id="now">00:00.000</b></span>
@@ -1914,9 +1969,30 @@ __WAVEFORM_CSS__
       <span class="waveform-status" id="waveform-status">等待波形数据</span>
       <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数" hidden></span>
     </div>
+    <div class="msw-source-toolbar" id="msw-source-toolbar" hidden>
+      <span class="waveform-status" id="msw-media-progress" role="status" hidden></span>
+      <button type="button" id="msw-media-cancel" hidden>取消导入</button>
+    </div>
     <div class="waveform-scroll" id="waveform-scroll">
       <div class="waveform-content" id="waveform-content"></div>
     </div>
+    <dialog id="msw-range-dialog" class="msw-range-dialog msw-processing-panel" aria-labelledby="msw-range-title">
+      <form novalidate>
+        <header class="gap-remove-panel-header"><h3 id="msw-range-title">精确编辑时间选区</h3>
+          <button type="button" id="msw-range-close" class="gap-remove-close" aria-label="关闭"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        </header>
+        <div class="msw-range-dialog-body">
+          <label id="msw-range-part-field" class="msw-processing-field" hidden>编辑片段 <select id="msw-range-part"></select></label>
+          <div class="msw-range-times">
+            <label class="msw-processing-field">起点（秒）<input type="number" min="0" step="0.001" id="msw-range-start" required autofocus></label>
+            <label class="msw-processing-field">终点（秒）<input type="number" min="0" step="0.001" id="msw-range-end" required></label>
+          </div>
+          <p id="msw-range-duration" class="msw-processing-hint"></p>
+          <p id="msw-range-error" class="msw-processing-message is-error" role="alert"></p>
+          <div class="msw-processing-actions"><button type="button" id="msw-range-cancel">取消</button><button type="submit" id="msw-range-save" class="primary">应用范围</button></div>
+        </div>
+      </form>
+    </dialog>
         <div class="waveform-empty" id="waveform-empty">拖入媒体后显示波形</div>
   </section>
   <div class="workspace-divider" id="workspace-divider" title="拖动调整波形与字幕区域比例"></div>
@@ -2074,6 +2150,54 @@ __WAVEFORM_CSS__
   </div>
 </div>
 
+<aside class="gap-remove-panel msw-processing-panel" id="msw-asr-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="msw-asr-title">
+  <header class="gap-remove-panel-header" id="msw-asr-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">媒体</span><h3 id="msw-asr-title">ASR · 源音频识别</h3></div>
+    <button type="button" id="msw-asr-close" class="gap-remove-close" aria-label="关闭 ASR"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p id="msw-asr-unavailable" hidden>此便携页面不能调用本机处理服务，请通过独立编辑器入口打开。</p>
+    <div id="msw-asr-controls">
+      <p id="msw-asr-source" class="msw-processing-hint"></p>
+      <div id="msw-asr-settings">
+        <div class="msw-asr-fields">
+          <label>服务 <select id="msw-asr-providerId"></select></label>
+          <label>模型 <select id="msw-asr-modelId"></select></label>
+          <label>语言 <input id="msw-asr-language" list="msw-asr-languages" placeholder="留空自动识别"></label><datalist id="msw-asr-languages"></datalist>
+      <label ><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option></select></label>
+          <label data-asr-openai>自定义模型 <input id="msw-asr-openaiModel" spellcheck="false"></label>
+          <label data-asr-speaker><input id="msw-asr-speakerColors" type="checkbox">区分说话人</label>
+        </div>
+        <details><summary>断句、热词与上下文</summary><div class="msw-asr-fields">
+          <label>最大字数 <input id="msw-asr-maxLen" type="number" min="1"></label>
+          <label>短句合并阈值 <input id="msw-asr-minLen" type="number" min="1"></label>
+          <label>英文最大单词数 <input id="msw-asr-maxWords" type="number" min="1"></label>
+          <label>英文短句合并阈值 <input id="msw-asr-minWords" type="number" min="1"></label>
+          <label>停顿切句阈值（毫秒）<input id="msw-asr-gapSplit" type="number" min="0"></label>
+          <label data-asr-context>Qwen 上下文（最多 400 字）<textarea id="msw-asr-qwenAudioContext" maxlength="400"></textarea></label>
+          <label data-asr-hotwords>即时热词 <textarea id="msw-asr-qwenAudioHotwords"></textarea></label>
+          <label data-asr-hotwords>热词权重 <input id="msw-asr-qwenAudioHotwordWeight"></label>
+          <label data-asr-vocabulary>热词表 ID <input id="msw-asr-qwenAudioVocabularyId"></label>
+          <label data-asr-soniox>Soniox 通用上下文 <textarea id="msw-asr-sonioxContextGeneral"></textarea></label>
+          <label data-asr-soniox>Soniox 文本上下文 <textarea id="msw-asr-sonioxContextText"></textarea></label>
+          <label data-asr-soniox>Soniox 术语 <textarea id="msw-asr-sonioxContextTerms"></textarea></label>
+          <label data-asr-soniox>Soniox 翻译术语 <textarea id="msw-asr-sonioxContextTranslationTerms"></textarea></label>
+        </div></details>
+      </div>
+      <p id="msw-asr-scope" class="msw-processing-hint"></p>
+      <div class="msw-processing-actions" id="msw-asr-scope-actions"><button type="button" id="msw-asr-edit-range">精确编辑时间选区</button>
+      <button type="button" id="msw-asr-expand" hidden>扩展到完整字幕边界</button></div>
+      <div class="msw-processing-actions"><button type="button" id="msw-asr-save-settings">保存识别设置</button><button type="button" id="msw-asr-start" class="primary">开始识别</button>
+      <button type="button" id="msw-asr-forget" hidden>放弃未确认提交</button></div>
+      <p id="msw-asr-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+      <details id="msw-asr-history" class="msw-tts-section"><summary>识别记录 <span id="msw-asr-count">0</span></summary><div id="msw-asr-jobs" class="msw-job-list"></div></details>
+      <p id="msw-asr-selected" class="msw-processing-hint" role="status"></p>
+        <div class="msw-processing-actions"><button type="button" id="msw-asr-apply" class="primary">应用到主字幕</button>
+        <button type="button" id="msw-asr-discard">搁置结果</button>
+        <button type="button" id="msw-asr-export-json">导出候选工程</button><button type="button" id="msw-asr-export-srt">导出候选 SRT</button></div>
+    </div>
+  </div>
+</aside>
 <!-- 字幕翻译：非模态工具窗，后台处理时可继续编辑。 -->
 <aside class="gap-remove-panel msw-processing-panel" id="tts-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="tts-title">
   <header class="gap-remove-panel-header" id="tts-drag">

@@ -118,7 +118,10 @@ def probe_source(ffprobe, source, cancel):
                      frame_rate=s.get("avg_frame_rate") or s.get("r_frame_rate"),
                      color_transfer=s.get("color_transfer"))
     return dict(duration_ms=duration_ms, video=video, audio_tracks=[
-        dict(audio_index=i, channels=s.get("channels", 0), title=str(s.get("tags", {}).get("title", ""))[:160],
+        dict(audio_index=i, stream_index=s['index'], codec=s.get('codec_name', ''),
+             sample_rate=int(s['sample_rate']) if s.get('sample_rate') else None,
+             default=bool(s.get('disposition', {}).get('default')),
+             channels=s.get("channels") or None, title=str(s.get("tags", {}).get("title", ""))[:160],
              language=str(s.get("tags", {}).get("language", ""))[:40]) for i, s in enumerate(streams)])
 
 

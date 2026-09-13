@@ -8,7 +8,10 @@ Moyor's Subtitle Workflow
 1. 完整解压应用包，运行 MSW.exe / MSW.app；Linux 运行 AppImage。
    不要只移动 EXE，也不要从压缩软件中直接运行。
 2. 标准版内置 ffmpeg 和 ffprobe；lite 需要自行配置这两个程序。
-3. 需要识别时，在启动器配置 ASR；然后打开本机 Server 字幕编辑器。
+3. 可直接打开编辑器：Windows 双击 Start-Editor.vbs，macOS 双击
+   Start-Editor.command；Linux AppImage 增加 --editor 参数。
+   在编辑器加载视频，通过「媒体 → ASR」配置和识别；Ctrl/Cmd+Shift
+   拖选波形可识别片段。也可继续使用启动器批处理。
 4. 编辑器「编辑 → 全局设置 → 环境配置」管理 LLM 与 TTS 连接。
    云端服务需要用户自己的 Key 和额度。
    油库里可单独安装资源；IndexTTS 需要用户先安装并启动本机服务。

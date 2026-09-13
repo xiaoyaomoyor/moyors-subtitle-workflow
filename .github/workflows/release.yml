@@ -513,6 +513,9 @@ jobs:
           ditto dist/MSW-lite.app "$LiteStage/MSW-lite.app"
           cp FAQ-常见问题.txt "$StandardStage/FAQ-常见问题.txt"
           cp FAQ-常见问题.txt "$LiteStage/FAQ-常见问题.txt"
+          cp scripts/Start-Editor.command "$StandardStage/Start-Editor.command"
+          cp scripts/Start-Editor.command "$LiteStage/Start-Editor.command"
+          chmod +x "$StandardStage/Start-Editor.command" "$LiteStage/Start-Editor.command"
           cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md "$StandardStage/"
           cp README-开始使用.txt LICENSE THIRD_PARTY_NOTICES.md "$LiteStage/"
           # Apple's zip omits the UTF-8 filename flag. Preserve Chinese names,

@@ -22,8 +22,8 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择 MSW 安装包。预发布版请进入具体版本，`latest` 可能只显示旧的正式版。各平台与标准／lite 包的区别见[安装与升级](docs/INSTALLATION.md)。
 2. Windows 解压并启动 `MSW.exe`；macOS 打开 `MSW.app` / `MSW-lite.app`；Linux 为 AppImage 添加执行权限后运行。
-3. 在 Launcher 配置转写服务的 API Key，选择媒体并点击生成。
-4. 在 MSWE 中检查、编辑字幕，导出 SRT、ASS 或其他格式。
+3. 可在 Launcher 批处理；也可直接打开编辑器：Windows 双击 `Start-Editor.vbs`，macOS 双击 `Start-Editor.command`，Linux 为 AppImage 增加 `--editor` 参数。源码使用 `uv run python maw_gui.py --editor --blank`。
+4. 在编辑器加载原视频，后台生成波形；通过「媒体 → ASR」整段识别或 Ctrl/Cmd+Shift 拖选片段识别，然后编辑、翻译、TTS 和导出。也可跳过 ASR 直接纯文本配音，见 [编辑器直接导入与 ASR](docs/EDITOR_ASR.md)。
 
 第一次使用、API 配置、编辑和排错：请从[完整工作流](docs/WORKFLOW.md)开始。
 

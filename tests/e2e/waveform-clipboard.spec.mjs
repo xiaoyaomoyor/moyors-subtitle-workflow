@@ -93,6 +93,18 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => document.getElementById('player')?.readyState >= 1);
 });
 
+test('Ctrl+Shift drag starting on an audio clip selects time without moving the clip', async ({page}) => {
+  const before = await page.evaluate(() => JSON.stringify(DATA.msw.audio_clips));
+  const box = await page.locator('.msw-audio-clip').first().boundingBox();
+  await page.keyboard.down('Control'); await page.keyboard.down('Shift');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2, {steps:8}); await page.mouse.up();
+  await page.keyboard.up('Shift'); await page.keyboard.up('Control');
+  expect(await page.evaluate(() => JSON.stringify(DATA.msw.audio_clips))).toBe(before);
+  const range = await page.evaluate(() => MSWE.resolve('time-range').range);
+  expect(range.end).toBeGreaterThan(range.start);
+});
+
 test('Ctrl+A in the waveform module selects cues and clips by scenario', async ({ page }) => {
   const pane = page.locator('#waveform-pane');
   const state = () => page.evaluate(() => ({

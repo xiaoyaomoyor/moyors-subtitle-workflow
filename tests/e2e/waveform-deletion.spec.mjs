@@ -137,23 +137,6 @@ async function pressDeleteAndWait(page, expectedSegmentCount) {
   );
 }
 
-// Press Delete and verify the project is NOT mutated (all-delete refusal).
-async function pressDeleteAndExpectRefusal(page, expectedSegmentCount) {
-  await page.keyboard.press('Delete');
-  // Wait for the refusal hint to appear（提示卡片为堆栈结构，匹配任一卡片文本）
-  await page.waitForFunction(
-    () => [...document.querySelectorAll('.hint-card')]
-      .some((el) => el.textContent.includes('不能删除全部字幕')),
-    { timeout: 5000 },
-  );
-  // Verify segment count is unchanged
-  await page.waitForFunction(
-    (expected) => DATA.segments.length === expected,
-    expectedSegmentCount,
-    { timeout: 2000 },
-  );
-}
-
 // Collect all console errors during a test.
 function attachErrorCollector(page) {
   const errors = [];
@@ -268,7 +251,7 @@ test.describe('localhost server', () => {
     ]);
     expect(errors, 'no console errors (multi-delete)').toEqual([]);
 
-    // --- Scenario 5: All-delete refused via Shift+click ---
+    // --- Scenario 5: All-delete and undo via Shift+click ---
     await page.reload();
     await waitForWaveformCues(page);
     await scrollToTop(page);
@@ -278,9 +261,11 @@ test.describe('localhost server', () => {
     await shiftClickWaveformCue(page, 5);
     expect(await getSelectedIndices(page), 'all selected').toEqual([0, 1, 2, 3, 4, 5]);
     const beforeTexts = await getSegmentTexts(page);
-    await pressDeleteAndExpectRefusal(page, 6);
-    expect(await getSegmentTexts(page), 'all-delete refused, no mutation').toEqual(beforeTexts);
-    expect(errors, 'no console errors (all-delete refusal)').toEqual([]);
+    await pressDeleteAndWait(page, 0);
+    await page.keyboard.press('Control+z');
+    await page.waitForFunction(() => DATA.segments.length === 6);
+    expect(await getSegmentTexts(page), 'all-delete restores in one undo').toEqual(beforeTexts);
+    expect(errors, 'no console errors (all-delete undo)').toEqual([]);
   });
 });
 
@@ -404,7 +389,7 @@ test.describe('portable HTML', () => {
     ]);
     expect(errors, 'no console errors (multi-delete)').toEqual([]);
 
-    // --- Scenario 5: All-delete refused via Shift+click ---
+    // --- Scenario 5: All-delete and undo via Shift+click ---
     await page.goto(portableStaticServer.url);
     await loadProjectAndMedia(page);
     await waitForWaveformCues(page);
@@ -415,8 +400,10 @@ test.describe('portable HTML', () => {
     await shiftClickWaveformCue(page, 5);
     expect(await getSelectedIndices(page), 'all selected').toEqual([0, 1, 2, 3, 4, 5]);
     const beforeTexts = await getSegmentTexts(page);
-    await pressDeleteAndExpectRefusal(page, 6);
-    expect(await getSegmentTexts(page), 'all-delete refused, no mutation').toEqual(beforeTexts);
-    expect(errors, 'no console errors (all-delete refusal)').toEqual([]);
+    await pressDeleteAndWait(page, 0);
+    await page.keyboard.press('Control+z');
+    await page.waitForFunction(() => DATA.segments.length === 6);
+    expect(await getSegmentTexts(page), 'all-delete restores in one undo').toEqual(beforeTexts);
+    expect(errors, 'no console errors (all-delete undo)').toEqual([]);
   });
 });

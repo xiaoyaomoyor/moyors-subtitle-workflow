@@ -2,7 +2,7 @@
 // Deterministic synthetic WAV + project JSON generated at runtime; no committed media.
 // Event/process/port-based lifecycle — no arbitrary sleeps for correctness.
 import { execFileSync, spawn } from 'node:child_process';
-import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
@@ -302,6 +302,14 @@ export function generateProjectJson(filePath) {
     segments: testSegments(),
     waveform: generateWaveformPayload(DURATION_MS),
   };
+  // This fixture carries a valid embedded cache, just like an existing saved
+  // project. Background cache replacement belongs to media-analysis tests.
+  const sourcePath = join(dirname(filePath), project.media);
+  if (existsSync(sourcePath)) {
+    const source = statSync(sourcePath);
+    project.waveform.audio_track = 0;
+    project.waveform.source = {name:project.media,size:source.size,modified_ms:Math.floor(source.mtimeMs)};
+  }
   writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf-8');
   return filePath;
 }

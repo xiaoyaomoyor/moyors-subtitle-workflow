@@ -350,6 +350,7 @@ def load_project(
         print(f"[project] 已兜底修复 {repaired_count} 处异常时间码（保底 100ms）")
     data = normalize_project(raw_data)
     audio_track = audio_track_from_payloads(
+        {'audio_track': data.get('msw', {}).get('source_audio_index')},
         data.get("waveform"),
         data.get("spectral"),
         data.get("waveform_reapeaks"),

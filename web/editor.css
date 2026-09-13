@@ -1850,6 +1850,19 @@
     outline: 2px solid var(--accent-line); outline-offset: 1px;
   }
   .waveform-settings-section button:disabled { opacity: .42; cursor: not-allowed; }
+  #msw-analysis-settings [hidden] { display: none !important; }
+  #msw-analysis-settings .msw-processing-actions { margin-block: 6px; }
+  #msw-source-track { max-width: none; }
+  .wave-settings-body [hidden] { display: none !important; }
+  .msw-wave-proxy-settings { border-top: 1px solid var(--border-subtle); margin-top: 10px; padding-top: 10px; }
+  .msw-wave-proxy-settings summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
+  .wave-settings-body .editor-settings-item:has(> select),
+  .wave-settings-body .editor-settings-item:has(> .editor-settings-stepper) {
+    display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 10px;
+  }
+  .wave-settings-body .editor-settings-item > select { width: 100%; min-width: 0; max-width: none; box-sizing: border-box; }
+  #msw-analysis-controls > .toggle { display: flex; margin-block: 8px; gap: 8px; }
+  #msw-analysis-settings > .settings-panel-title { text-align: left; align-self: stretch; }
   .subtitle-preview-setting-row {
     display: grid; grid-template-columns: 8em minmax(0, 1fr); align-items: center; gap: 8px;
     color: var(--text-secondary); font-size: 12px; white-space: nowrap;
@@ -3013,7 +3026,7 @@
   .msw-tts-environment .msw-processing-field { display: flex; margin-block: 10px; }
   .msw-tts-environment :is(input, select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font: inherit; }
   .msw-tts-environment input[type="checkbox"] { width: auto; align-self: flex-start; }
-  #llm-controls input[type="text"] { width: 100%; max-width: none; }
+  :is(#llm-controls, #msw-tools-controls) input[type="text"] { width: 100%; max-width: none; }
   .msw-tts-environment :is(input, select, textarea):focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .msw-tts-environment textarea { resize: vertical; min-height: 56px; max-height: 200px; }
   .msw-tts-environment details { border-block: 1px solid var(--border-subtle); padding-block: 10px; margin-block: 12px; }
@@ -3947,6 +3960,9 @@
   .ctxmenu .item:hover { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
+  .ctxmenu button.msw-range-action { border: 0; border-radius: 0; width: 100%; background: transparent; font: inherit; text-align: left; }
+  .ctxmenu button.msw-range-action:hover:not(:disabled) { background: var(--accent-tint); }
+  .ctxmenu button.msw-range-action:disabled { color: var(--text-faint); cursor: not-allowed; }
   /* 模块右键面板的设置入口与悬浮飞出子菜单：与菜单栏面板同一套
      背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）与图标体系。 */
   .ctxmenu .ctx-window-item .menu-window-icon { margin-left: auto; }
@@ -4189,6 +4205,61 @@
   .editor-loading-progress-row progress { flex: 1 1 auto; min-width: 0; height: 8px; accent-color: var(--accent); }
   .editor-loading-progress-row span { flex: 0 0 3em; color: var(--text-muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
 
+  .msw-source-toolbar { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    position: absolute; top: calc(var(--module-tab-h) + var(--panel-toolbar-h)); left: 0; right: 0;
+    height: 38px; box-sizing: border-box; z-index: 31; background: var(--panel-toolbar-bg-wave);
+    border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; font-size: 12px;
+    scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
+  .msw-source-toolbar[hidden], .msw-source-toolbar [hidden] { display: none !important; }
+  .msw-source-toolbar > * { flex: 0 0 auto; }
+  .msw-source-toolbar button { white-space: nowrap; min-height: 26px; }
+  .msw-source-toolbar select { max-width: 180px; }
+  .msw-source-toolbar label { display: inline-flex; align-items: center; gap: 4px; }
+  .waveform-pane:has(> .msw-source-toolbar:not([hidden])) { --source-toolbar-h: 38px; }
+  .waveform-pane.wave-hints-on > .msw-source-toolbar {
+    top: calc(var(--module-tab-h) + var(--panel-toolbar-h) + var(--wave-hints-h, var(--panel-toolbar-h))); }
+  .msw-tools-dialog { width: min(520px, 90vw); background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .msw-tools-dialog input { display: block; width: 100%; margin-top: 8px; }
+  .msw-tools-dialog::backdrop { background: #0008; }
+  .msw-range-menu { position: fixed; z-index: 500; display: grid; width: 196px; padding: 4px;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); box-shadow: 0 4px 20px #0005; }
+  .msw-range-menu[hidden] { display: none; }
+  .msw-range-menu button { text-align: left; border: 0; background: transparent; color: var(--text-primary); padding: 7px; }
+  .msw-range-menu button:hover { background: var(--accent-tint); }
+  #msw-asr-controls [hidden] { display: none !important; }
+  #msw-asr-scope { white-space: pre-line; max-height: 120px; overflow-y: auto; font-variant-numeric: tabular-nums; }
+  #msw-asr-jobs { max-height: 320px; overflow-y: auto; }
+  #msw-asr-jobs .msw-processing-job > p { margin: 0 0 5px; }
+  #msw-asr-settings { margin-block: 10px; }
+  #msw-asr-settings summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+  .msw-asr-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px 10px; padding-block: 8px; }
+  .msw-asr-fields datalist { display: none; }
+  .msw-asr-fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
+  .msw-asr-fields label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; }
+  .msw-asr-fields input[type="checkbox"] { width: auto; }
+  .msw-asr-fields input, .msw-asr-fields select, .msw-asr-fields textarea { min-width: 0; max-width: 100%; }
+  .msw-asr-fields [hidden] { display: none !important; }
+  .msw-asr-fields label:has(textarea), #msw-asr-key-state { grid-column: 1 / -1; }
+  .msw-asr-fields textarea { resize: vertical; min-height: 64px; max-height: 200px; }
+  @media (max-width: 600px) { .msw-asr-fields { grid-template-columns: minmax(0, 1fr); } }
+  .msw-asr-candidates { max-height: 180px; overflow: auto; }
+  .msw-asr-candidates p { white-space: pre-wrap; border-bottom: 1px solid var(--border-subtle); padding: 5px; }
+  #msw-asr-history { margin-block: 12px; border-block: 1px solid var(--border-subtle); padding-block: 10px; }
+  #msw-asr-history summary { cursor: pointer; font-size: 12px; }
+  .msw-asr-result-preview { margin-top: 8px; }
+  .msw-asr-result-choice { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }
+  .msw-asr-result-choice input[type="radio"] { width: auto; }
+  #msw-asr-jobs .is-selected { border-color: var(--accent); }
+  #msw-asr-selected:empty, #msw-asr-message:empty { display: none; }
+  .msw-range-dialog { width: min(420px, calc(100vw - 32px)); padding: 0; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: 0 16px 64px #0006; }
+  .msw-range-dialog::backdrop { background: #0008; }
+  .msw-range-dialog h3 { margin: 0; font-size: 14px; }
+  .msw-range-dialog-body { padding: 8px 16px 16px; }
+  .msw-range-times { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+  .msw-range-times input { font-variant-numeric: tabular-nums; }
+  #msw-range-error:empty { display: none; }
+
   /* === 统一细滚动条（字幕列表 / 波形 / 面板工具栏 / 模态预览 / 空隙面板 / 表情网格）=== */
   .cues-container,
   .waveform-scroll,
@@ -4303,3 +4374,7 @@
 #tts-index-fields .msw-processing-field { min-width: 0; }
 #tts-index-fields select, #tts-index-fields input:not([type="checkbox"]) { max-width: 100%; }
 #tts-index-fields output { font-variant-numeric: tabular-nums; }
+.msw-source-stale { outline: 1px dashed #c4913d; outline-offset: -1px; }
+.msw-source-stale[data-review-status]::after {
+  content: attr(data-review-status); color: #c4913d; font-size: 10px; padding: 0 4px; white-space: nowrap;
+}

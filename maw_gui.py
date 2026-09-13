@@ -25,6 +25,7 @@ _INTERNAL_FLAGS = frozenset(
         "--transcribe-tencent",
         "--transcribe-openai",
         "--serve",
+        "--editor",
         "--serve-alignment",
     }
 )
@@ -58,6 +59,7 @@ def _gui_port_value(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Moyor's Subtitle Workflow GUI")
     parser.add_argument("--smoke-import", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--editor", action="store_true", help="直接打开本机编辑器，省略工程时恢复上次编辑")
     parser.add_argument(
         "--transcribe",
         action="store_true",
@@ -119,6 +121,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     apply_msw_env_aliases()
     configure_utf8_stdio()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
+    # Preserve every server argument (notably --port) for the direct editor.
+    if raw_argv and raw_argv[0] == '--editor':
+        return _run_internal_serve(raw_argv[1:])
     if raw_argv and not _is_gui_debug_invocation(raw_argv) and raw_argv[0] not in _INTERNAL_FLAGS:
         from maw.cli import main as cli_main
 
@@ -132,6 +137,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             'webview', 'edit', 'maw.gui_web', 'maw.msw.api',
             'maw.msw.tts', 'maw.msw.qwen_voices', 'maw.msw.index_tts',
             'maw.msw.yukkuri_runtime',
+            'maw.msw.media_service', 'maw.msw.media_jobs', 'maw.msw.asr', 'maw.msw.asr_config',
         ):
             importlib.import_module(module_name)
         return 0

@@ -97,7 +97,7 @@ class JobManager:
     A different port owns a separate store and cannot interrupt another editor.
     """
 
-    def __init__(self, path: Path, *, translate=translate_snapshot, test_connection=test_llm_connection, tts=None):
+    def __init__(self, path: Path, *, translate=translate_snapshot, test_connection=test_llm_connection, tts=None, asr=None):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self.db = sqlite3.connect(path, check_same_thread=False)
@@ -112,6 +112,7 @@ class JobManager:
         self.translate = translate
         self.test_connection = test_connection
         self.tts = tts
+        self.asr = asr
         self.pending = queue.Queue(maxsize=32)
         self.cancel_events = {}
         self.closed = False
@@ -166,7 +167,7 @@ class JobManager:
 
     def submit(self, payload: dict, settings: LlmSettings) -> dict:
         kind = payload.get("kind", "translation")
-        if kind not in {"translation", "connection_test", "tts"}:
+        if kind not in {"translation", "connection_test", "tts", "asr"}:
             raise ValueError("未知处理任务")
         project_id = payload.get("project_id")
         request_key = payload.get("request_key")
@@ -174,6 +175,11 @@ class JobManager:
         if not valid_id(project_id) or not valid_id(request_key) or not valid_id(client_token):
             raise ValueError("任务缺少工程标识或请求标识")
         snapshot = validate_snapshot(payload.get("snapshot")) if kind == "translation" else None
+        if kind == 'asr':
+            from maw.msw.asr import validate_snapshot as validate_asr_snapshot
+            if self.asr is None:
+                raise ValueError('ASR 服务尚未启用')
+            snapshot = validate_asr_snapshot(payload.get('snapshot'))
         if kind == "tts":
             from maw.msw.tts import validate_snapshot as validate_tts_snapshot
             if self.tts is None:
@@ -183,7 +189,9 @@ class JobManager:
             raise ValueError("任务工程标识与快照不一致")
         language = payload.get("language", "en")
         prompt = payload.get("prompt", "")
-        if language not in {"zh", "en"} or not isinstance(prompt, str) or len(prompt) > 8000:
+        if kind == 'asr':
+            language, prompt = settings.request.language, ''
+        if (kind != 'asr' and language not in {"zh", "en"}) or not isinstance(prompt, str) or len(prompt) > 8000:
             raise ValueError("翻译目标或补充要求无效")
         recipe = {"kind": kind, "snapshot": snapshot, "language": language, "prompt": prompt,
                   "provider": settings.provider_id, "model": settings.model, "base_url": settings.base_url,
@@ -191,6 +199,8 @@ class JobManager:
         if kind == "tts":
             recipe["tts"] = settings.recipe
             recipe["retry_of"] = payload.get("retry_of")
+        elif kind == 'asr':
+            recipe['asr'] = settings.recipe
         fingerprint = hashlib.sha256(json.dumps(recipe, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         with self.lock:
             if self.closed:
@@ -236,11 +246,14 @@ class JobManager:
                    "fingerprint": fingerprint, "kind": kind, "status": "queued", "application": "pending",
                    "snapshot": snapshot, "result": None, "language": language, "prompt": prompt,
                    "provider": settings.provider_id, "model": settings.model,
-                   "count": len(snapshot["entries"]) if snapshot else 0, "stage": "queued", "progress": {},
+                   "count": len(snapshot.get('entries', snapshot.get('targets', []))) if snapshot else 0, "stage": "queued", "progress": {},
                    "created_at": time.time(), "error": ""}
             if kind == "tts":
                 job["recipe"] = copy.deepcopy(settings.recipe)
                 job["retry_of"] = payload.get("retry_of")
+            elif kind == 'asr':
+                job['recipe'] = copy.deepcopy(settings.recipe)
+                job['source_range'] = copy.deepcopy(snapshot['range'])
             self._write(job)
             cancel = threading.Event()
             self.cancel_events[job["id"]] = cancel
@@ -326,6 +339,8 @@ class JobManager:
                     result = {"connected": True}
                 elif job["kind"] == "tts":
                     result = self.tts.run(job, settings, cancel, progress)
+                elif job['kind'] == 'asr':
+                    result = self.asr.run(job, settings, cancel, progress)
                 else:
                     result = self.translate(job["snapshot"], job["language"], job["prompt"], settings, cancel, progress)
                 with self.lock:

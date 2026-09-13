@@ -31,10 +31,20 @@ class ProcessingAPI:
         self._importer = None
         self._qwen_voices = None
         self._index_tts = None
+        self._media = None
+        self._asr = None
         self._project_path = object()
         self.binding = ""
         self._preview_lock = threading.Lock()
         self._preview_cancel = threading.Event()
+
+    @property
+    def media(self):
+        from maw.msw.media_service import MediaService
+        with self.lock:
+            if self._media is None:
+                self._media = MediaService(self)
+            return self._media
 
     @property
     def jobs(self):
@@ -42,8 +52,16 @@ class ProcessingAPI:
             if self._manager is None:
                 port = self.server.server_address[1]
                 self._manager = JobManager(self.data_root / "editor-jobs" / f"port-{port}.sqlite3",
-                                           tts=tts.TtsService(self.assets))
+                                           tts=tts.TtsService(self.assets), asr=self.asr)
             return self._manager
+
+    @property
+    def asr(self):
+        with self.lock:
+            if self._asr is None:
+                from maw.msw.asr import AsrService
+                self._asr = AsrService(self)
+            return self._asr
 
     @property
     def persistence(self):
@@ -204,6 +222,24 @@ class ProcessingAPI:
             return False
         status = HTTPStatus.OK
         try:
+            if url.path == '/api/msw/media-proxy' and not post:
+                self.authorize(handler, require_token=False)
+                query = parse_qs(url.query)
+                project_id = query.get('project_id', [''])[0]
+                job_id = query.get('job_id', [''])[0]
+                job = self.media.jobs.get(job_id, project_id)
+                self.media.jobs.result(job_id, project_id)
+                if job['kind'] != 'proxy':
+                    raise KeyError('播放代理不存在')
+                handler.send_file(self.media.jobs.artifact(job), handler.command != 'HEAD')
+                return True
+            if url.path == '/api/msw/media-source' and not post:
+                self.authorize(handler, require_token=False)
+                query = parse_qs(url.query)
+                record = self.media.get(query.get('media_id', [''])[0], query.get('project_id', [''])[0])
+                from pathlib import Path
+                handler.send_file(Path(record['path']), handler.command != 'HEAD')
+                return True
             if url.path == "/api/msw/audio-download" and not post:
                 # A short-lived, single-use file grant allows native streaming
                 # downloads without placing the editor request token in a URL.
@@ -229,6 +265,19 @@ class ProcessingAPI:
                 return True
             self.authorize(handler)
             route = url.path[len("/api/msw/"):]
+            if route == 'media-upload-chunk' and post:
+                from maw.msw.media_service import CHUNK_BYTES
+                query = parse_qs(url.query)
+                length = int(handler.headers.get('Content-Length', '0'))
+                if handler.headers.get('Content-Type') != 'application/octet-stream' or not 0 < length <= CHUNK_BYTES:
+                    raise ValueError('媒体分块类型或大小无效')
+                data = handler.rfile.read(length)
+                if len(data) != length:
+                    raise ValueError('媒体分块不完整')
+                result = self.media.chunk(query.get('upload_id', [''])[0], query.get('project_id', [''])[0],
+                                          int(query.get('offset', ['-1'])[0]), data)
+                handler.send_json(HTTPStatus.OK, {'ok': True, **result})
+                return True
             if post:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
@@ -240,7 +289,19 @@ class ProcessingAPI:
             else:
                 payload = {key: values[0] for key, values in parse_qs(url.query).items()}
             if route == "capabilities" and not post:
-                result = {"translation": True, "tts": True, "assets": True, "audioExport": True, "videoExport": True, "timelineExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
+                result = {"translation": True, "tts": True, "asr": True, "assets": True, "mediaImport": True, "audioExport": True, "videoExport": True, "timelineExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
+                from maw.msw.audio_exports import configured_tools
+                result.update(mediaAnalysis=True, waveform=True, mediaToolsReady=configured_tools(self.env_path).complete)
+            elif route == 'media-tools':
+                with self.lock:
+                    result = self.media.tools_settings(payload if post else None)
+            elif route == 'asr-settings':
+                from maw.msw import asr_config
+                if post:
+                    with self.lock:
+                        result = asr_config.save_settings(self.env_path, payload.get('provider', {}), section=payload.get('section'))
+                else:
+                    result = asr_config.catalog(self.env_path)
             elif route == "save-target" and post:
                 result = self.persistence.choose_target(payload)
             elif route == "save-as" and post:
@@ -338,10 +399,42 @@ class ProcessingAPI:
                 project_id = payload.get("project_id")
                 if not valid_id(project_id):
                     raise ValueError("缺少有效工程标识")
-                if route == "asset-bundle" and post:
+                if route == 'asr-validate' and post:
+                    self.media.check_context(payload)
+                    job = self.jobs.get(payload.get('job_id'), project_id)
+                    if job['kind'] != 'asr':
+                        raise ValueError('任务不是 ASR 结果')
+                    self.asr.source(job['snapshot'], require_active=True)
+                    result = {'valid': True}
+                elif route.startswith('media-'):
+                    if route == 'media-context' and not post:
+                        result = {'media': self.media.context(project_id, payload.get('reference'))}
+                    elif route == 'media-choose' and post:
+                        result = self.media.choose(payload)
+                    elif route == 'media-bind' and post:
+                        result = self.media.bind(payload)
+                    elif route == 'media-track' and post:
+                        result = self.media.select_track(payload)
+                    elif route == 'media-analysis' and post:
+                        result = {'job': self.media.jobs.submit(payload)}
+                    elif route == 'media-analysis' and not post:
+                        result = {'job': self.media.jobs.get(payload.get('job_id'), project_id)}
+                    elif route == 'media-analysis-result' and not post:
+                        result = self.media.jobs.result(payload.get('job_id'), project_id)
+                    elif route == 'media-analysis-cancel' and post:
+                        result = {'job': self.media.jobs.cancel(payload.get('job_id'), project_id)}
+                    elif route == 'media-upload-begin' and post:
+                        result = self.media.begin_upload(payload)
+                    elif route == 'media-upload-finish' and post:
+                        result = self.media.finish_upload(payload)
+                    elif route == 'media-upload-cancel' and post:
+                        result = self.media.cancel_upload(payload)
+                    else:
+                        raise KeyError('未知媒体操作')
+                elif route == "asset-bundle" and post:
                     self.send_bundle(handler, payload)
                     return True
-                if route in {"audio-export-context", "video-export-context", "timeline-export-context"} and not post:
+                elif route in {"audio-export-context", "video-export-context", "timeline-export-context"} and not post:
                     result = self.exports.context(project_id, video=route != "audio-export-context")
                 elif route == "audio-exports" and post:
                     result = {"job": self.exports.submit(payload)}
@@ -373,7 +466,12 @@ class ProcessingAPI:
                     provider = payload.get("provider", {})
                     if not isinstance(provider, dict):
                         raise ValueError("翻译服务配置无效")
-                    if payload.get("kind") == "tts" and isinstance(provider.get("recipe"), dict) and provider["recipe"].get("provider") == "yukkuri":
+                    if payload.get('kind') == 'asr':
+                        from maw.msw import asr_config
+                        snapshot, source = self.asr.prepare(payload)
+                        payload = {**payload, 'snapshot': snapshot}
+                        settings = asr_config.resolve_settings(self.env_path, provider, source['path'])
+                    elif payload.get("kind") == "tts" and isinstance(provider.get("recipe"), dict) and provider["recipe"].get("provider") == "yukkuri":
                         from maw.msw.yukkuri import resolve_settings as resolve_local_tts
                         settings = resolve_local_tts(self.yukkuri, provider)
                     elif payload.get('kind') == 'tts' and isinstance(provider.get('recipe'), dict) and provider['recipe'].get('provider') == 'indextts':
@@ -418,6 +516,8 @@ class ProcessingAPI:
 
     def close(self):
         self._preview_cancel.set()
+        if self._media:
+            self._media.close()
         if self._index_tts:
             self._index_tts.close()
         if self._qwen_voices:

@@ -301,6 +301,8 @@ def _validate_media_metadata(project: JsonDict, errors: list[ProjectValidationEr
                     f"must be between {MIN_TIMELINE_FPS:g} and {MAX_TIMELINE_FPS:g}",
                 )
             )
+    if 'duration_ms' in metadata and (type(metadata['duration_ms']) is not int or not 0 <= metadata['duration_ms'] <= 7 * 86400000):
+        errors.append(ProjectValidationError('$.media_metadata.duration_ms', 'must be non-negative integer milliseconds, at most 7 days'))
     if "video_fps_ratio" in metadata:
         ratio = metadata.get("video_fps_ratio")
         if not isinstance(ratio, str) or not ratio.strip():

@@ -481,6 +481,7 @@
     const focus = list.contains(document.activeElement) ? document.activeElement : null;
     const focusedId = focus?.closest('[data-asset-id]')?.dataset.assetId, focusedAction = focus?.dataset.assetAction;
     const all = [...assets()].sort((a, b) => b.created_at - a.created_at || a.source_ref.start - b.source_ref.start);
+    const sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map();
     const batch = el('asset-batch').value;
     const batches = new Map(all.map(a => [a.job_id, a]));
     const known = new Map([...jobs.values()].map(job => [job.id, job]));
@@ -518,6 +519,7 @@
       else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
       else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
       if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
+      if (sourceStatuses.has(asset.id)) { meta.textContent += ` · ${t(sourceStatuses.get(asset.id))}`; row.classList.add('msw-source-stale'); }
       meta.title = meta.textContent;
       content.append(text, meta);
       const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
@@ -632,6 +634,7 @@
     if (previewId && !assets().some(asset => asset.id === previewId)) stopPreview();
     renderAssets();
   });
+  global.addEventListener('msw:subtitles-changed', () => { if (assets().length) renderAssets(); });
   for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
   for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
   el('asset-play-toggle').addEventListener('click', async () => {

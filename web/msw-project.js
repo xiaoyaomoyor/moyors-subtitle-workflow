@@ -29,12 +29,27 @@
       throw new Error('此工程的 MSW 扩展版本不受支持，请使用对应版本的编辑器打开');
     }
     if (!validId(value.project_id)) throw new Error('MSW 工程标识无效');
+    if (value.source_audio_index !== undefined && (!Number.isInteger(value.source_audio_index)
+      || value.source_audio_index < 0 || value.source_audio_index > 255)) throw new Error('源音轨序号无效');
     if (value.source_project_id != null && !validId(value.source_project_id)) throw new Error('MSW 来源工程标识无效');
     const applied = value.applied_results ?? [];
     if (!Array.isArray(applied) || applied.length > 10000 || !applied.every(validId)) {
       throw new Error('MSW 结果记录格式无效');
     }
     const partial = value.translation_applications ?? {};
+    const object = item => item !== null && typeof item === 'object' && !Array.isArray(item);
+    const stale = value.asr_stale_subtitles === undefined ? {} : value.asr_stale_subtitles;
+    if (!object(stale) || Object.keys(stale).length > 1000 || Object.entries(stale).some(([track, marks]) =>
+      !validCueId(track) || !object(marks) || Object.keys(marks).length > 10000
+      || Object.entries(marks).some(([cue, job]) => !validCueId(cue) || !validId(job)))) throw Error('ASR 副字幕复核记录无效');
+    const applications = value.asr_applications === undefined ? {} : value.asr_applications;
+    if (!object(applications) || Object.keys(applications).length > 1000 || Object.entries(applications).some(([job, record]) =>
+      !validId(job) || !object(record) || !validId(record.source_id) || !/^[0-9a-f]{64}$/.test(record.source_revision || '')
+      || !Number.isInteger(record.audio_index) || record.audio_index < 0 || record.audio_index > 255
+      || !object(record.range) || ![record.range.start, record.range.end].every(Number.isSafeInteger)
+      || record.range.start < 0 || record.range.start >= record.range.end || record.range.end > 604800000
+      || ['provider', 'model'].some(key => typeof record[key] !== 'string' || record[key].length > 256)
+      || ['removed_count', 'added_count'].some(key => !Number.isInteger(record[key]) || record[key] < 0 || record[key] > 10000))) throw Error('ASR 应用记录无效');
     if (typeof partial !== 'object' || partial === null || Array.isArray(partial)
       || Object.keys(partial).length > 10000 || Object.entries(partial).some(([key, ids]) =>
         !validId(key) || !Array.isArray(ids) || ids.length > 10000 || !ids.every(validCueId))) {

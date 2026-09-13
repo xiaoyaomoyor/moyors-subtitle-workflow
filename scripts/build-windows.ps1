@@ -43,6 +43,7 @@ try {
     # PyInstaller 6 places datas under _internal in an onedir bundle. Keep the
     # user-facing FAQ beside MSW.exe as well, so it is easy to find in the ZIP.
     Copy-Item -LiteralPath $FaqSource -Destination $FaqBundlePath -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Start-Editor.vbs') -Destination (Split-Path -Parent $ExePath) -Force
     foreach ($Document in @('README-开始使用.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md')) {
         Copy-Item -LiteralPath (Join-Path $RepoRoot $Document) -Destination (Join-Path (Split-Path -Parent $ExePath) $Document) -Force
     }

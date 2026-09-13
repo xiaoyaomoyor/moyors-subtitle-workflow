@@ -1,5 +1,7 @@
 # MSW 文档目录
 
+- [编辑器直接导入与 ASR](EDITOR_ASR.md)：独立启动、后台波形、时间选区、整段／片段识别、结果替换和撤销。
+
 项目官网暂为 [GitHub 仓库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow)。当前使用说明以本目录与根 README 为准；`website/` 暂留作后续官网维护，历史同步页面不作为 MSW 新功能说明。
 
 ## 第一次使用

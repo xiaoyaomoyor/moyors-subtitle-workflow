@@ -2,10 +2,10 @@
 
 ## 项目目标
 
-`moys-asr-workflow`（简称 **MSW**）是一个刻意收窄的、可公开分发的 ASR 工作流。正式主流程仍是 Qwen ASR API；当前分支另提供不接入 Launcher 的实验性本地 Qwen3-ASR / FunASR CLI：
+`moyors-subtitle-workflow`（简称 **MSW**）是基于 MAW 长期独立维护的本机字幕编辑、ASR 与 TTS 工作流。已有云端 ASR、编辑中翻译、TTS 和音频贴片；本地 ASR 仍属于实验性入口。2026-09-12 已批准编辑器直接导入媒体和发起 ASR，复用现有 Python 后端，不要求经过 Launcher 窗口；实施范围和进度见 `docs/TEST_FEEDBACK_EDITOR_ASR.md`。
 
 ```text
-本地媒体 -> Qwen API 或本地 Qwen3-ASR/FunASR -> SRT + JSON 工程 -> 本地浏览器编辑 -> 导出
+本地媒体 -> 编辑器内处理，或 Launcher 批处理 -> .mosp 工程 / 字幕 / 配音 -> 导出
 ```
 
 它不是完整的 ASR 平台。不要在没有明确需求时继续引入其他识别引擎、模型下载管理器、剪辑软件脚本、比较工具或任何个人工作流资产。未来完整产品是 MOSE，见 `docs/MOSE.md`。

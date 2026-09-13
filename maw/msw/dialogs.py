@@ -5,10 +5,16 @@ import subprocess
 import sys
 
 
-def pick_project_target(suggested_name):
+def pick_media_source():
+    return pick_project_target('', _open_media=True)
+
+
+def pick_project_target(suggested_name, *, _open_media=False):
     name = Path(str(suggested_name)).name
     if not name.lower().endswith((".mosp", ".json")):
         name = "untitled.mosp"
+    if _open_media:
+        name = ''
     if sys.platform == "win32":
         import ctypes
         from ctypes import wintypes as w
@@ -31,16 +37,24 @@ def pick_project_target(suggested_name):
         options = OpenFileName()
         options.lStructSize = ctypes.sizeof(options)
         options.lpstrFilter = "MSW 工程 (*.mosp)\0*.mosp\0JSON 工程 (*.json)\0*.json\0\0"
+        if _open_media:
+            from maw.media import MEDIA_EXTENSIONS
+            options.lpstrFilter = '音视频文件\0' + ';'.join('*' + suffix for suffix in sorted(MEDIA_EXTENSIONS)) + '\0\0'
         options.lpstrFile = ctypes.cast(buffer, w.LPWSTR)
         options.nMaxFile = len(buffer)
         options.lpstrTitle = "另存为 MSW 工程"
         options.lpstrDefExt = "mosp"
         # Explorer dialog, overwrite confirmation, existing parent, no CWD change.
         options.Flags = 0x80000 | 0x2 | 0x800 | 0x8
+        if _open_media:
+            options.lpstrTitle = '导入媒体'
+            options.lpstrDefExt = None
+            options.Flags = 0x80000 | 0x1000 | 0x800 | 0x8
         dll = ctypes.WinDLL("comdlg32", use_last_error=True)
-        dll.GetSaveFileNameW.argtypes = [ctypes.POINTER(OpenFileName)]
-        dll.GetSaveFileNameW.restype = w.BOOL
-        if dll.GetSaveFileNameW(ctypes.byref(options)):
+        picker = dll.GetOpenFileNameW if _open_media else dll.GetSaveFileNameW
+        picker.argtypes = [ctypes.POINTER(OpenFileName)]
+        picker.restype = w.BOOL
+        if picker(ctypes.byref(options)):
             return Path(buffer.value)
         if dll.CommDlgExtendedError():
             raise ValueError("无法打开系统保存对话框，请重试")
@@ -48,9 +62,13 @@ def pick_project_target(suggested_name):
     if sys.platform == "darwin":
         script = 'on run argv\nset f to choose file name with prompt "Save MSW project" default name (item 1 of argv)\nreturn POSIX path of f\nend run'
         args = ["osascript", "-e", script, name]
+        if _open_media:
+            args = ['osascript', '-e', 'POSIX path of (choose file with prompt "Import media")']
     else:
         args = ["zenity", "--file-selection", "--save", "--confirm-overwrite",
                 "--title=Save MSW project", f"--filename={name}", "--file-filter=*.mosp *.json"]
+        if _open_media:
+            args = ['zenity', '--file-selection', '--title=Import media']
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=300, check=False)
     except (OSError, subprocess.TimeoutExpired) as error:

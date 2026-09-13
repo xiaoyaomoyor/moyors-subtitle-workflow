@@ -33,6 +33,8 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
     if value.get("schema") != SCHEMA:
         return [("$.msw.schema", f"unsupported schema; expected {SCHEMA}")]
     errors = []
+    if 'source_audio_index' in value and (type(value['source_audio_index']) is not int or not 0 <= value['source_audio_index'] <= 255):
+        errors.append(('$.msw.source_audio_index', 'must be a logical source audio index from 0 to 255'))
     if not valid_id(value.get("project_id")):
         errors.append(("$.msw.project_id", "must be a stable string ID"))
     if value.get("source_project_id") is not None and not valid_id(value["source_project_id"]):
@@ -41,6 +43,16 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
     if not isinstance(applied, list) or len(applied) > 10000 or not all(valid_id(item) for item in applied):
         errors.append(("$.msw.applied_results", "must contain at most 10000 result IDs"))
     partial = value.get("translation_applications", {})
+    stale = value.get("asr_stale_subtitles", {})
+    if (not isinstance(stale, dict) or len(stale) > 1000 or any(
+            not valid_cue_id(track) or not isinstance(marks, dict) or len(marks) > 10000
+            or any(not valid_cue_id(cue) or not valid_id(job) for cue, job in marks.items())
+            for track, marks in stale.items())):
+        errors.append(('$.msw.asr_stale_subtitles', 'invalid secondary subtitle review records'))
+    applications = value.get('asr_applications', {})
+    if (not isinstance(applications, dict) or len(applications) > 1000
+            or any(not valid_id(job) or not valid_asr_application(record) for job, record in applications.items())):
+        errors.append(('$.msw.asr_applications', 'invalid ASR application records'))
     if (not isinstance(partial, dict) or len(partial) > 10000
             or any(not valid_id(key) or not isinstance(ids, list) or len(ids) > 10000
                    or not all(valid_cue_id(item) for item in ids) for key, ids in partial.items())):
@@ -66,6 +78,20 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
                 seen.add(asset["id"])
     errors.extend(validate_audio_timeline(value))
     return errors
+
+
+def valid_asr_application(record):
+    if not isinstance(record, dict):
+        return False
+    span = record.get('range')
+    return (valid_id(record.get('source_id'))
+            and isinstance(record.get('source_revision'), str)
+            and re.fullmatch(r'[0-9a-f]{64}', record['source_revision']) is not None
+            and type(record.get('audio_index')) is int and 0 <= record['audio_index'] <= 255
+            and isinstance(span, dict) and all(type(span.get(key)) is int for key in ('start', 'end'))
+            and 0 <= span['start'] < span['end'] <= 604800000
+            and all(isinstance(record.get(key), str) and len(record[key]) <= 256 for key in ('provider', 'model'))
+            and all(type(record.get(key)) is int and 0 <= record[key] <= 10000 for key in ('removed_count', 'added_count')))
 
 
 def validate_audio_timeline(value):

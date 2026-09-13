@@ -2613,9 +2613,12 @@
     if (value.video_fps_ratio !== undefined
         && (!hasFps || typeof value.video_fps_ratio !== 'string' || !value.video_fps_ratio.trim())) return null;
     const hasAudioTracks = value.audio_tracks !== undefined;
+    const hasDuration = value.duration_ms !== undefined;
+    if (hasDuration && (!Number.isInteger(value.duration_ms) || value.duration_ms < 0 || value.duration_ms > 7 * 86400000)) return null;
     if (hasAudioTracks && !Array.isArray(value.audio_tracks)) return null;
-    if (!hasFps && !hasAudioTracks) return null;
+    if (!hasFps && !hasAudioTracks && !hasDuration) return null;
     const metadata = {};
+    if (hasDuration) metadata.duration_ms = value.duration_ms;
     if (hasFps) metadata.video_fps = normalizeTimelineFps(fps);
     if (typeof value.video_fps_ratio === 'string') {
       metadata.video_fps_ratio = value.video_fps_ratio.trim();

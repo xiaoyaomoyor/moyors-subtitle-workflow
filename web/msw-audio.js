@@ -9,6 +9,10 @@
   // lane 记忆跨 state 重建长期保存：重叠中的贴片拖动/松手都不换位；
   // 分离的贴片由 arrange 的重叠规则自动折叠回单轨（不会阻碍收纳）。
   let lastLanes = null;
+  let sourceStatuses = new Map();
+  for (const event of ['msw:subtitles-changed', 'msw:assets-changed']) global.addEventListener(event, () => {
+    sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map(); schedulePaint();
+  });
   let laneScroll = new Map();
   const extension = () => host.data.msw || EMPTY_EXTENSION;
   function sync() {
@@ -157,6 +161,7 @@
     item('删除音频贴片', remove);
     if (transport.failures.has(clip.asset_id)) item('重新加载素材', () => { transport.failures.delete(clip.asset_id); void transport.ensure(sync().assets.get(clip.asset_id)); closeMenu(); });
     item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); });
+    global.MSWE.resolve('time-range')?.appendMenu(menu, event.clientX, event.clientY, closeMenu);
     document.body.appendChild(menu);
     menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
     menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
@@ -327,12 +332,14 @@
         block.classList.toggle('continues-from-previous-row', clip.start_ms < start);
         block.classList.toggle('continues-to-next-row', finish > end);
         block.classList.toggle('missing', transport.failures.has(asset.id));
+        block.classList.toggle('msw-source-stale', sourceStatuses.has(asset.id));
         block.style.left = `${(from - start) / (end - start) * 100}%`;
         block.style.width = `${(to - from) / (end - start) * 100}%`;
         block.style.top = `${lane * ROW + 3}px`;
         const background = muted ? '' : heatBackground(clip, asset, from, to);
         if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
         block.title = `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
+          + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
           + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '');
         if (!transport.heats.has(asset.id) && !transport.failures.has(asset.id)) void transport.ensure(asset);
       }

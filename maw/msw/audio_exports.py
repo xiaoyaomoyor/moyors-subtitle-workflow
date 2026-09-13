@@ -25,6 +25,11 @@ from maw.project import normalize_project
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
 
 
+def configured_tools(env_path):
+    configured = os.environ.get("FFMPEG_PATH") or load_env(env_path).get("FFMPEG_PATH", "")
+    return resolve_ffmpeg_tools(configured_path=configured or None)
+
+
 class AudioExports:
     def __init__(self, api, *, renderer=render):
         self.api, self.renderer = api, renderer
@@ -55,14 +60,16 @@ class AudioExports:
         self.worker.start()
 
     def tools(self):
-        configured = os.environ.get("FFMPEG_PATH") or load_env(self.api.env_path).get("FFMPEG_PATH", "")
-        return resolve_ffmpeg_tools(configured_path=configured or None)
+        return configured_tools(self.api.env_path)
 
     def source_scope(self, project_id, binding=None):
         with self.api.server.save_lock:
             context = self.api.context()
             if binding is not None and context["binding"] != binding:
                 raise ValueError("工程已切换，请重新打开音频导出面板")
+            registered = self.api._media.active(project_id) if getattr(self.api, '_media', None) else None
+            if registered:
+                return Path(registered['path']), {'media': registered['reference'], 'media_metadata': registered['metadata']}, registered['audio_index']
             bound = self.api.server.project
             if context["projectId"] == project_id:
                 return bound.source_media_path or bound.media_path, bound.data, bound.audio_track

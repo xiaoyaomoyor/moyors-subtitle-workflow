@@ -1870,6 +1870,19 @@
     outline: 2px solid var(--accent-line); outline-offset: 1px;
   }
   .waveform-settings-section button:disabled { opacity: .42; cursor: not-allowed; }
+  #msw-analysis-settings [hidden] { display: none !important; }
+  #msw-analysis-settings .msw-processing-actions { margin-block: 6px; }
+  #msw-source-track { max-width: none; }
+  .wave-settings-body [hidden] { display: none !important; }
+  .msw-wave-proxy-settings { border-top: 1px solid var(--border-subtle); margin-top: 10px; padding-top: 10px; }
+  .msw-wave-proxy-settings summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
+  .wave-settings-body .editor-settings-item:has(> select),
+  .wave-settings-body .editor-settings-item:has(> .editor-settings-stepper) {
+    display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 10px;
+  }
+  .wave-settings-body .editor-settings-item > select { width: 100%; min-width: 0; max-width: none; box-sizing: border-box; }
+  #msw-analysis-controls > .toggle { display: flex; margin-block: 8px; gap: 8px; }
+  #msw-analysis-settings > .settings-panel-title { text-align: left; align-self: stretch; }
   .subtitle-preview-setting-row {
     display: grid; grid-template-columns: 8em minmax(0, 1fr); align-items: center; gap: 8px;
     color: var(--text-secondary); font-size: 12px; white-space: nowrap;
@@ -3033,7 +3046,7 @@
   .msw-tts-environment .msw-processing-field { display: flex; margin-block: 10px; }
   .msw-tts-environment :is(input, select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); font: inherit; }
   .msw-tts-environment input[type="checkbox"] { width: auto; align-self: flex-start; }
-  #llm-controls input[type="text"] { width: 100%; max-width: none; }
+  :is(#llm-controls, #msw-tools-controls) input[type="text"] { width: 100%; max-width: none; }
   .msw-tts-environment :is(input, select, textarea):focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .msw-tts-environment textarea { resize: vertical; min-height: 56px; max-height: 200px; }
   .msw-tts-environment details { border-block: 1px solid var(--border-subtle); padding-block: 10px; margin-block: 12px; }
@@ -3967,6 +3980,9 @@
   .ctxmenu .item:hover { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
+  .ctxmenu button.msw-range-action { border: 0; border-radius: 0; width: 100%; background: transparent; font: inherit; text-align: left; }
+  .ctxmenu button.msw-range-action:hover:not(:disabled) { background: var(--accent-tint); }
+  .ctxmenu button.msw-range-action:disabled { color: var(--text-faint); cursor: not-allowed; }
   /* 模块右键面板的设置入口与悬浮飞出子菜单：与菜单栏面板同一套
      背景/文字/悬停色彩体系（选项卡色键 --menu-overlay-bg）与图标体系。 */
   .ctxmenu .ctx-window-item .menu-window-icon { margin-left: auto; }
@@ -4209,6 +4225,61 @@
   .editor-loading-progress-row progress { flex: 1 1 auto; min-width: 0; height: 8px; accent-color: var(--accent); }
   .editor-loading-progress-row span { flex: 0 0 3em; color: var(--text-muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
 
+  .msw-source-toolbar { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    position: absolute; top: calc(var(--module-tab-h) + var(--panel-toolbar-h)); left: 0; right: 0;
+    height: 38px; box-sizing: border-box; z-index: 31; background: var(--panel-toolbar-bg-wave);
+    border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; font-size: 12px;
+    scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
+  .msw-source-toolbar[hidden], .msw-source-toolbar [hidden] { display: none !important; }
+  .msw-source-toolbar > * { flex: 0 0 auto; }
+  .msw-source-toolbar button { white-space: nowrap; min-height: 26px; }
+  .msw-source-toolbar select { max-width: 180px; }
+  .msw-source-toolbar label { display: inline-flex; align-items: center; gap: 4px; }
+  .waveform-pane:has(> .msw-source-toolbar:not([hidden])) { --source-toolbar-h: 38px; }
+  .waveform-pane.wave-hints-on > .msw-source-toolbar {
+    top: calc(var(--module-tab-h) + var(--panel-toolbar-h) + var(--wave-hints-h, var(--panel-toolbar-h))); }
+  .msw-tools-dialog { width: min(520px, 90vw); background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .msw-tools-dialog input { display: block; width: 100%; margin-top: 8px; }
+  .msw-tools-dialog::backdrop { background: #0008; }
+  .msw-range-menu { position: fixed; z-index: 500; display: grid; width: 196px; padding: 4px;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); box-shadow: 0 4px 20px #0005; }
+  .msw-range-menu[hidden] { display: none; }
+  .msw-range-menu button { text-align: left; border: 0; background: transparent; color: var(--text-primary); padding: 7px; }
+  .msw-range-menu button:hover { background: var(--accent-tint); }
+  #msw-asr-controls [hidden] { display: none !important; }
+  #msw-asr-scope { white-space: pre-line; max-height: 120px; overflow-y: auto; font-variant-numeric: tabular-nums; }
+  #msw-asr-jobs { max-height: 320px; overflow-y: auto; }
+  #msw-asr-jobs .msw-processing-job > p { margin: 0 0 5px; }
+  #msw-asr-settings { margin-block: 10px; }
+  #msw-asr-settings summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+  .msw-asr-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px 10px; padding-block: 8px; }
+  .msw-asr-fields datalist { display: none; }
+  .msw-asr-fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
+  .msw-asr-fields label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; }
+  .msw-asr-fields input[type="checkbox"] { width: auto; }
+  .msw-asr-fields input, .msw-asr-fields select, .msw-asr-fields textarea { min-width: 0; max-width: 100%; }
+  .msw-asr-fields [hidden] { display: none !important; }
+  .msw-asr-fields label:has(textarea), #msw-asr-key-state { grid-column: 1 / -1; }
+  .msw-asr-fields textarea { resize: vertical; min-height: 64px; max-height: 200px; }
+  @media (max-width: 600px) { .msw-asr-fields { grid-template-columns: minmax(0, 1fr); } }
+  .msw-asr-candidates { max-height: 180px; overflow: auto; }
+  .msw-asr-candidates p { white-space: pre-wrap; border-bottom: 1px solid var(--border-subtle); padding: 5px; }
+  #msw-asr-history { margin-block: 12px; border-block: 1px solid var(--border-subtle); padding-block: 10px; }
+  #msw-asr-history summary { cursor: pointer; font-size: 12px; }
+  .msw-asr-result-preview { margin-top: 8px; }
+  .msw-asr-result-choice { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }
+  .msw-asr-result-choice input[type="radio"] { width: auto; }
+  #msw-asr-jobs .is-selected { border-color: var(--accent); }
+  #msw-asr-selected:empty, #msw-asr-message:empty { display: none; }
+  .msw-range-dialog { width: min(420px, calc(100vw - 32px)); padding: 0; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: 0 16px 64px #0006; }
+  .msw-range-dialog::backdrop { background: #0008; }
+  .msw-range-dialog h3 { margin: 0; font-size: 14px; }
+  .msw-range-dialog-body { padding: 8px 16px 16px; }
+  .msw-range-times { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+  .msw-range-times input { font-variant-numeric: tabular-nums; }
+  #msw-range-error:empty { display: none; }
+
   /* === 统一细滚动条（字幕列表 / 波形 / 面板工具栏 / 模态预览 / 空隙面板 / 表情网格）=== */
   .cues-container,
   .waveform-scroll,
@@ -4323,6 +4394,10 @@
 #tts-index-fields .msw-processing-field { min-width: 0; }
 #tts-index-fields select, #tts-index-fields input:not([type="checkbox"]) { max-width: 100%; }
 #tts-index-fields output { font-variant-numeric: tabular-nums; }
+.msw-source-stale { outline: 1px dashed #c4913d; outline-offset: -1px; }
+.msw-source-stale[data-review-status]::after {
+  content: attr(data-review-status); color: #c4913d; font-size: 10px; padding: 0 4px; white-space: nowrap;
+}
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -4380,6 +4455,10 @@
 /* 分割工具下字幕块显示拆分光标，提示点击即拆分 */
 .waveform-pane.tool-razor .waveform-cue-block { cursor: crosshair; }
 .waveform-pane.tool-razor .waveform-cue-handle { cursor: crosshair; }
+.waveform-pane.tool-range .waveform-row,
+.waveform-pane.tool-range .waveform-row * { cursor: crosshair; }
+.waveform-pane.tool-range .waveform-scroll.range-boundary-hover,
+.waveform-pane.tool-range .waveform-scroll.range-boundary-hover * { cursor: ew-resize; }
 .waveform-setting {
   display: inline-flex;
   align-items: center;
@@ -4483,7 +4562,7 @@
   /* 顶部 = 工具栏 + 10px：第一条波形到工具栏的空余量与行间距（ROW_GAP=10）一致。
      注意 --waveform-content-top 含标签栏高度，参照系是 .waveform-pane 顶（空态 overlay 用），
      这里滚动区已从标签栏下方开始，不能再计入。 */
-  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
+  padding: calc(var(--panel-toolbar-h) + var(--source-toolbar-h, 0px) + 10px) 8px 8px;
 }
 
 .editor-workspace.layout-wave-right {
@@ -4539,7 +4618,7 @@
   /* 顶部 = 工具栏 + 10px：第一条波形到工具栏的空余量与行间距（ROW_GAP=10）一致。
      注意 --waveform-content-top 含标签栏高度，参照系是 .waveform-pane 顶（空态 overlay 用），
      这里滚动区已从标签栏下方开始，不能再计入。 */
-  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
+  padding: calc(var(--panel-toolbar-h) + var(--source-toolbar-h, 0px) + 10px) 8px 8px;
 }
 
 .editor-workspace.layout-custom {
@@ -4618,7 +4697,7 @@
   /* 顶部 = 工具栏 + 10px：第一条波形到工具栏的空余量与行间距（ROW_GAP=10）一致。
      注意 --waveform-content-top 含标签栏高度，参照系是 .waveform-pane 顶（空态 overlay 用），
      这里滚动区已从标签栏下方开始，不能再计入。 */
-  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
+  padding: calc(var(--panel-toolbar-h) + var(--source-toolbar-h, 0px) + 10px) 8px 8px;
 }
 /* 字幕列表本身始终可滚动；不要被预设/停靠模块的 overflow:hidden 截断。 */
 .editor-workspace.layout-wave-right > .cues-container,
@@ -4653,7 +4732,7 @@
 .layout-split-divider-column::after { left: 0; right: 0; top: 2px; height: 3px; }
 
 .waveform-pane {
-  --waveform-content-top: calc(var(--module-tab-h) + var(--panel-toolbar-h));
+  --waveform-content-top: calc(var(--module-tab-h) + var(--panel-toolbar-h) + var(--source-toolbar-h, 0px));
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -4685,7 +4764,7 @@
   overflow: hidden;
   overscroll-behavior: contain;
   /* 顶部 = 工具栏高度 + 10px：第一条波形到顶部的空余量与行间距（waveform.js ROW_GAP=10）一致 */
-  padding: calc(var(--panel-toolbar-h) + 10px) 8px 8px;
+  padding: calc(var(--panel-toolbar-h) + var(--source-toolbar-h, 0px) + 10px) 8px 8px;
 }
 .waveform-content {
   position: relative;
@@ -5623,6 +5702,7 @@
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
+          <button type="button" class="dropdown-item" id="clear-all-subtitles" role="menuitem">清空全部字幕</button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -5720,6 +5800,7 @@
   <div class="menubar-item" data-menubar-item="media">
     <button type="button" class="menubar-tab" aria-haspopup="menu" aria-expanded="false">媒体</button>
     <div class="dropdown-menu menubar-menu" role="menu" aria-label="媒体">
+      <button type="button" class="dropdown-item" id="msw-asr-open" role="menuitem" title="识别整个源视频或时间选区">ASR<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
@@ -5799,7 +5880,7 @@
   <span class="server-connection-banner-icon" aria-hidden="true">!</span>
   <div class="server-connection-banner-copy">
     <strong class="server-connection-banner-title">服务器连接已断开</strong>
-    <span class="server-connection-banner-message">请在 Launcher 中确认服务器状态；当前无法自动保存工程，请使用「文件 → 另存为工程」保存当前工程，避免进度丢失。</span>
+    <span class="server-connection-banner-message">请确认本机编辑器服务仍在运行；当前无法自动保存工程，请使用「文件 → 另存为工程」保存当前工程，避免进度丢失。</span>
   </div>
 </div>
 
@@ -6305,6 +6386,23 @@
     <button type="button" id="wave-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭波形显示器设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="settings-modal-body wave-settings-body waveform-settings-panel gap-remove-panel-body" id="waveform-settings-panel">
+    <section class="settings-panel-section waveform-settings-section" id="msw-analysis-settings">
+      <span class="settings-panel-title waveform-settings-title">媒体分析</span>
+      <p id="msw-analysis-unavailable" class="msw-processing-hint">媒体分析需要本机编辑器服务。</p>
+      <div id="msw-analysis-controls" hidden>
+        <p id="msw-analysis-source" class="msw-processing-hint">导入媒体后可生成波形或播放代理。</p>
+        <label class="editor-settings-item" id="msw-source-track-field" hidden>源音轨 <select id="msw-source-track" aria-label="源音轨" title="波形、试听和 ASR 使用的源音轨" hidden></select></label>
+        <label class="toggle editor-settings-item" id="msw-waveform-auto-label" hidden><input type="checkbox" id="msw-waveform-auto" checked>自动波形</label>
+        <div class="msw-processing-actions"><button type="button" id="msw-waveform-generate" hidden>生成波形</button><button type="button" id="msw-waveform-cancel" hidden>取消波形</button></div>
+        <p class="msw-processing-hint" id="msw-waveform-status" role="status" hidden></p>
+        <details class="msw-wave-proxy-settings"><summary>播放代理</summary>
+          <p class="msw-processing-hint">原媒体无法预览时生成兼容副本；识别仍使用原媒体。</p>
+          <div class="msw-processing-actions"><button type="button" id="msw-proxy-generate" hidden>生成播放代理</button><button type="button" id="msw-proxy-cancel" hidden>取消代理</button></div>
+          <p class="msw-processing-hint" id="msw-proxy-status" role="status" hidden></p>
+        </details>
+        <div class="msw-processing-actions"><button type="button" id="msw-tools-open">前往媒体工具环境配置</button></div>
+      </div>
+    </section>
     <div class="settings-panel-section waveform-settings-section">
       <div class="settings-panel-title-row">
         <span class="settings-panel-title waveform-settings-title">音频波形区</span>
@@ -6567,6 +6665,7 @@
           <span><kbd data-mod-key>Ctrl+滚轮</kbd> 调整时间缩放/每行长度</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+Shift+滚轮</kbd> 调整每行高度</span>
+          <span><kbd data-mod-key>Ctrl+Shift</kbd> + 鼠标左键拖动：选择连续时间范围（Mac 可用 Cmd）；Esc 清除，点击范围读数精确调整</span>
         </div>
       </section>
     </section>
@@ -6740,6 +6839,37 @@
         <div class="editor-settings-group settings-category" data-settings-category="environment" id="tts-environment-category">
           <div class="settings-category-header">环境配置</div>
           <div class="editor-settings-sub-group"><span class="editor-settings-title">环境配置</span></div>
+          <div class="settings-subsection" data-subsection="media-tools" id="media-tools-environment-section">
+            <span class="settings-subsection-title">媒体工具</span>
+            <div class="editor-settings-sub-group msw-tts-environment">
+              <p class="msw-processing-hint">FFmpeg / FFprobe 用于媒体信息读取、波形、播放代理及音视频处理。</p>
+              <p id="msw-tools-unavailable" class="msw-processing-hint">环境配置需要本机 Server 编辑器。</p>
+              <div id="msw-tools-controls" hidden>
+                <label class="msw-processing-field"><span>FFmpeg 可执行文件或所在目录</span><input id="msw-tools-path" type="text" spellcheck="false" placeholder="留空自动查找"></label>
+                <p id="msw-tools-status" class="msw-processing-message" role="status" aria-live="polite"></p>
+                <div class="msw-processing-actions"><button type="button" id="msw-tools-save" disabled>保存环境配置</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-subsection" data-subsection="asr" id="asr-environment-section">
+            <span class="settings-subsection-title">ASR</span>
+            <div class="editor-settings-sub-group msw-tts-environment">
+              <p id="msw-asr-environment-unavailable" class="msw-processing-hint" hidden>环境配置需要本机 Server 编辑器。</p>
+              <div id="msw-asr-environment-controls">
+      <div class="msw-asr-fields" id="msw-asr-environment-fields">
+          <label>服务 <select id="msw-asr-environment-provider"></select></label>
+          <label data-asr-qwen>地域 <select id="msw-asr-region"></select></label>
+          <label data-asr-qwen>Workspace ID <input id="msw-asr-workspaceId" spellcheck="false"></label>
+          <label data-asr-openai>API 地址 <input id="msw-asr-openaiBaseUrl" spellcheck="false"></label>
+          <label>API Key <input id="msw-asr-apiKey" type="password" autocomplete="off" placeholder="留空使用本机已保存密钥"></label>
+      </div>
+      <p id="msw-asr-key-state" class="msw-processing-hint"></p>
+      <div class="msw-processing-actions"><button type="button" id="msw-asr-save-environment">保存环境配置</button></div>
+              </div>
+              <p id="msw-asr-environment-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+              <div class="msw-processing-actions"><button type="button" id="msw-asr-environment-return">打开 ASR 面板</button></div>
+            </div>
+          </div>
           <div class="settings-subsection" data-subsection="llm" id="llm-environment-section">
             <span class="settings-subsection-title">LLM</span>
             <div class="editor-settings-sub-group msw-tts-environment">
@@ -7294,6 +7424,10 @@
           <span class="ninja-razor-icon" aria-hidden="true" hidden>🔪</span>
           <span>分割</span>
         </button>
+        <button type="button" data-waveform-tool="range" title="选区编辑：拖动选择波形；Shift 加选，Ctrl(Cmd) 减选；拖动选区边界扩大或缩小。Ctrl(Cmd)+Shift 拖动仍可临时选择">
+          <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2H2v12h3M11 2h3v12h-3M5 8h6M8 5v6"/></svg>
+          <span>选区编辑</span>
+        </button>
       </span>
       <span class="sep"></span>
       <span class="info" title="当前播放头时间">当前 <b id="now">00:00.000</b></span>
@@ -7302,9 +7436,30 @@
       <span class="waveform-status" id="waveform-status">等待波形数据</span>
       <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数" hidden></span>
     </div>
+    <div class="msw-source-toolbar" id="msw-source-toolbar" hidden>
+      <span class="waveform-status" id="msw-media-progress" role="status" hidden></span>
+      <button type="button" id="msw-media-cancel" hidden>取消导入</button>
+    </div>
     <div class="waveform-scroll" id="waveform-scroll">
       <div class="waveform-content" id="waveform-content"></div>
     </div>
+    <dialog id="msw-range-dialog" class="msw-range-dialog msw-processing-panel" aria-labelledby="msw-range-title">
+      <form novalidate>
+        <header class="gap-remove-panel-header"><h3 id="msw-range-title">精确编辑时间选区</h3>
+          <button type="button" id="msw-range-close" class="gap-remove-close" aria-label="关闭"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        </header>
+        <div class="msw-range-dialog-body">
+          <label id="msw-range-part-field" class="msw-processing-field" hidden>编辑片段 <select id="msw-range-part"></select></label>
+          <div class="msw-range-times">
+            <label class="msw-processing-field">起点（秒）<input type="number" min="0" step="0.001" id="msw-range-start" required autofocus></label>
+            <label class="msw-processing-field">终点（秒）<input type="number" min="0" step="0.001" id="msw-range-end" required></label>
+          </div>
+          <p id="msw-range-duration" class="msw-processing-hint"></p>
+          <p id="msw-range-error" class="msw-processing-message is-error" role="alert"></p>
+          <div class="msw-processing-actions"><button type="button" id="msw-range-cancel">取消</button><button type="submit" id="msw-range-save" class="primary">应用范围</button></div>
+        </div>
+      </form>
+    </dialog>
         <div class="waveform-empty" id="waveform-empty">拖入媒体后显示波形</div>
   </section>
   <div class="workspace-divider" id="workspace-divider" title="拖动调整波形与字幕区域比例"></div>
@@ -7462,6 +7617,54 @@
   </div>
 </div>
 
+<aside class="gap-remove-panel msw-processing-panel" id="msw-asr-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="msw-asr-title">
+  <header class="gap-remove-panel-header" id="msw-asr-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">媒体</span><h3 id="msw-asr-title">ASR · 源音频识别</h3></div>
+    <button type="button" id="msw-asr-close" class="gap-remove-close" aria-label="关闭 ASR"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p id="msw-asr-unavailable" hidden>此便携页面不能调用本机处理服务，请通过独立编辑器入口打开。</p>
+    <div id="msw-asr-controls">
+      <p id="msw-asr-source" class="msw-processing-hint"></p>
+      <div id="msw-asr-settings">
+        <div class="msw-asr-fields">
+          <label>服务 <select id="msw-asr-providerId"></select></label>
+          <label>模型 <select id="msw-asr-modelId"></select></label>
+          <label>语言 <input id="msw-asr-language" list="msw-asr-languages" placeholder="留空自动识别"></label><datalist id="msw-asr-languages"></datalist>
+      <label ><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option></select></label>
+          <label data-asr-openai>自定义模型 <input id="msw-asr-openaiModel" spellcheck="false"></label>
+          <label data-asr-speaker><input id="msw-asr-speakerColors" type="checkbox">区分说话人</label>
+        </div>
+        <details><summary>断句、热词与上下文</summary><div class="msw-asr-fields">
+          <label>最大字数 <input id="msw-asr-maxLen" type="number" min="1"></label>
+          <label>短句合并阈值 <input id="msw-asr-minLen" type="number" min="1"></label>
+          <label>英文最大单词数 <input id="msw-asr-maxWords" type="number" min="1"></label>
+          <label>英文短句合并阈值 <input id="msw-asr-minWords" type="number" min="1"></label>
+          <label>停顿切句阈值（毫秒）<input id="msw-asr-gapSplit" type="number" min="0"></label>
+          <label data-asr-context>Qwen 上下文（最多 400 字）<textarea id="msw-asr-qwenAudioContext" maxlength="400"></textarea></label>
+          <label data-asr-hotwords>即时热词 <textarea id="msw-asr-qwenAudioHotwords"></textarea></label>
+          <label data-asr-hotwords>热词权重 <input id="msw-asr-qwenAudioHotwordWeight"></label>
+          <label data-asr-vocabulary>热词表 ID <input id="msw-asr-qwenAudioVocabularyId"></label>
+          <label data-asr-soniox>Soniox 通用上下文 <textarea id="msw-asr-sonioxContextGeneral"></textarea></label>
+          <label data-asr-soniox>Soniox 文本上下文 <textarea id="msw-asr-sonioxContextText"></textarea></label>
+          <label data-asr-soniox>Soniox 术语 <textarea id="msw-asr-sonioxContextTerms"></textarea></label>
+          <label data-asr-soniox>Soniox 翻译术语 <textarea id="msw-asr-sonioxContextTranslationTerms"></textarea></label>
+        </div></details>
+      </div>
+      <p id="msw-asr-scope" class="msw-processing-hint"></p>
+      <div class="msw-processing-actions" id="msw-asr-scope-actions"><button type="button" id="msw-asr-edit-range">精确编辑时间选区</button>
+      <button type="button" id="msw-asr-expand" hidden>扩展到完整字幕边界</button></div>
+      <div class="msw-processing-actions"><button type="button" id="msw-asr-save-settings">保存识别设置</button><button type="button" id="msw-asr-start" class="primary">开始识别</button>
+      <button type="button" id="msw-asr-forget" hidden>放弃未确认提交</button></div>
+      <p id="msw-asr-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+      <details id="msw-asr-history" class="msw-tts-section"><summary>识别记录 <span id="msw-asr-count">0</span></summary><div id="msw-asr-jobs" class="msw-job-list"></div></details>
+      <p id="msw-asr-selected" class="msw-processing-hint" role="status"></p>
+        <div class="msw-processing-actions"><button type="button" id="msw-asr-apply" class="primary">应用到主字幕</button>
+        <button type="button" id="msw-asr-discard">搁置结果</button>
+        <button type="button" id="msw-asr-export-json">导出候选工程</button><button type="button" id="msw-asr-export-srt">导出候选 SRT</button></div>
+    </div>
+  </div>
+</aside>
 <!-- 字幕翻译：非模态工具窗，后台处理时可继续编辑。 -->
 <aside class="gap-remove-panel msw-processing-panel" id="tts-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="tts-title">
   <header class="gap-remove-panel-header" id="tts-drag">
@@ -11993,9 +12196,12 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     if (value.video_fps_ratio !== undefined
         && (!hasFps || typeof value.video_fps_ratio !== 'string' || !value.video_fps_ratio.trim())) return null;
     const hasAudioTracks = value.audio_tracks !== undefined;
+    const hasDuration = value.duration_ms !== undefined;
+    if (hasDuration && (!Number.isInteger(value.duration_ms) || value.duration_ms < 0 || value.duration_ms > 7 * 86400000)) return null;
     if (hasAudioTracks && !Array.isArray(value.audio_tracks)) return null;
-    if (!hasFps && !hasAudioTracks) return null;
+    if (!hasFps && !hasAudioTracks && !hasDuration) return null;
     const metadata = {};
+    if (hasDuration) metadata.duration_ms = value.duration_ms;
     if (hasFps) metadata.video_fps = normalizeTimelineFps(fps);
     if (typeof value.video_fps_ratio === 'string') {
       metadata.video_fps_ratio = value.video_fps_ratio.trim();
@@ -14791,12 +14997,27 @@ export default MawDynamicCaptions;
       throw new Error('此工程的 MSW 扩展版本不受支持，请使用对应版本的编辑器打开');
     }
     if (!validId(value.project_id)) throw new Error('MSW 工程标识无效');
+    if (value.source_audio_index !== undefined && (!Number.isInteger(value.source_audio_index)
+      || value.source_audio_index < 0 || value.source_audio_index > 255)) throw new Error('源音轨序号无效');
     if (value.source_project_id != null && !validId(value.source_project_id)) throw new Error('MSW 来源工程标识无效');
     const applied = value.applied_results ?? [];
     if (!Array.isArray(applied) || applied.length > 10000 || !applied.every(validId)) {
       throw new Error('MSW 结果记录格式无效');
     }
     const partial = value.translation_applications ?? {};
+    const object = item => item !== null && typeof item === 'object' && !Array.isArray(item);
+    const stale = value.asr_stale_subtitles === undefined ? {} : value.asr_stale_subtitles;
+    if (!object(stale) || Object.keys(stale).length > 1000 || Object.entries(stale).some(([track, marks]) =>
+      !validCueId(track) || !object(marks) || Object.keys(marks).length > 10000
+      || Object.entries(marks).some(([cue, job]) => !validCueId(cue) || !validId(job)))) throw Error('ASR 副字幕复核记录无效');
+    const applications = value.asr_applications === undefined ? {} : value.asr_applications;
+    if (!object(applications) || Object.keys(applications).length > 1000 || Object.entries(applications).some(([job, record]) =>
+      !validId(job) || !object(record) || !validId(record.source_id) || !/^[0-9a-f]{64}$/.test(record.source_revision || '')
+      || !Number.isInteger(record.audio_index) || record.audio_index < 0 || record.audio_index > 255
+      || !object(record.range) || ![record.range.start, record.range.end].every(Number.isSafeInteger)
+      || record.range.start < 0 || record.range.start >= record.range.end || record.range.end > 604800000
+      || ['provider', 'model'].some(key => typeof record[key] !== 'string' || record[key].length > 256)
+      || ['removed_count', 'added_count'].some(key => !Number.isInteger(record[key]) || record[key] < 0 || record[key] > 10000))) throw Error('ASR 应用记录无效');
     if (typeof partial !== 'object' || partial === null || Array.isArray(partial)
       || Object.keys(partial).length > 10000 || Object.entries(partial).some(([key, ids]) =>
         !validId(key) || !Array.isArray(ids) || ids.length > 10000 || !ids.every(validCueId))) {
@@ -15284,6 +15505,144 @@ export default MawDynamicCaptions;
   global.MSWE?.register('msw-tts-core', () => global.MSWTts);
 })(window);
 
+// Pure source/range snapshots and replacement conflict detection.
+(function (global) {
+  'use strict';
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const overlaps = (a,b) => a.start < b.end && b.start < a.end;
+  function canonical(value) {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.keys(value).filter(key => !key.startsWith('_')).sort()
+      .map(key => [key, canonical(value[key])]));
+  }
+  const affected = (project,mode,range) => (project.segments || []).filter(cue => mode === 'whole' || overlaps(cue,range));
+  function boundaries(project,range,duration) {
+    if (!range) return {crossing:[],expanded:null,canExpand:false};
+    let start=range.start,end=range.end;
+    const crossing=affected(project,'range',range).filter(cue=>cue.start<start||cue.end>end);
+    let changed=true;
+    while (changed) {
+      changed=false;
+      for (const cue of project.segments || []) if (overlaps(cue,{start,end})) {
+        const low=Math.min(start,cue.start),high=Math.max(end,cue.end);
+        if (low!==start||high!==end) {start=low;end=high;changed=true;}
+      }
+    }
+    return {crossing,expanded:{start,end},canExpand:start>=0&&end<=duration};
+  }
+  function snapshot(project,media,mode,range) {
+    if (!media || !media.revision || !media.metadata?.duration_ms || !media.metadata.audio_tracks?.length) throw Error('请先导入包含音轨的媒体');
+    const duration=media.metadata.duration_ms;
+    if (mode==='whole') range={start:0,end:duration};
+    if (!['whole','range'].includes(mode)||!range||![range.start,range.end].every(Number.isSafeInteger)
+      ||range.start<0||range.end>duration||range.end<=range.start) throw Error('请选择源媒体内的有效时间范围；未改为整段识别');
+    if (mode==='range'&&boundaries(project,range,duration).crossing.length) throw Error('选区切穿已有字幕；请调整范围或先扩展到完整字幕边界');
+    return {project_id:project.msw.project_id,mode,range:clone(range),
+      source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
+      targets:affected(project,mode,range).map(canonical)};
+  }
+  function conflict(project,media,input) {
+    if (project.msw?.project_id!==input.project_id) return '结果属于其他工程';
+    if (!media||media.id!==input.source.id||media.revision!==input.source.revision||media.audio_index!==input.source.audio_index) return '媒体或源音轨已改变';
+    const now=affected(project,input.mode,input.range).map(canonical);
+    if (JSON.stringify(now)!==JSON.stringify(input.targets.map(canonical))) return '目标范围内字幕已新增、删除、拆分、移动或编辑，请重新识别';
+    return '';
+  }
+  function plan(project,media,job,{splitGroups=null}={}) {
+    if (job.status!=='succeeded'||!job.snapshot||!job.result||!global.MSWProject.validId(job.id)) throw Error('ASR 结果尚未完成');
+    if (project.msw?.applied_results?.includes(job.id)) return {applied:false,duplicate:true};
+    const issue=conflict(project,media,job.snapshot);if(issue)throw Error(issue);
+    const candidates=job.result.segments;
+    if (!Array.isArray(candidates)||candidates.length>10000) throw Error('ASR 候选字幕无效');
+    if (!candidates.length) return {applied:false,empty:true};
+    let previousEnd=job.snapshot.range.start;
+    const inserted=candidates.map((cue,index)=>{
+      if (!cue||!Number.isSafeInteger(cue.start)||!Number.isSafeInteger(cue.end)||cue.start<previousEnd
+        ||cue.end<=cue.start||cue.end>job.snapshot.range.end||typeof cue.text!=='string') throw Error('ASR 结果时间超出目标范围或发生重叠');
+      previousEnd=cue.end;
+      const result=clone(cue);result.id=`asr-${job.id}-${index}`;result._dirty=true;
+      delete result.start_frame;delete result.end_frame;
+      for (const item of result.items||[]) {delete item.start_frame;delete item.end_frame;}
+      return result;
+    });
+    if (job.snapshot.mode === 'range') {
+      const originals = project.segments.filter(cue => job.snapshot.targets.some(target => target.id === cue.id));
+      for (const cue of inserted) {
+        let source = null, bestOverlap = 0;
+        for (const original of originals) {
+          const overlap = Math.min(cue.end, original.end) - Math.max(cue.start, original.start);
+          if (overlap > bestOverlap) { source = original; bestOverlap = overlap; }
+        }
+        if (!source) continue;
+        const color = source.color || (source.color_ref
+          ? {...(project.segments[source.color_ref.headIdx]?.color || {}), name:source.color_ref.name} : null);
+        // Each replacement owns its inherited color; never leave a reference
+        // pointing at a removed group head or stretch color outside the cue.
+        delete cue.color_ref;
+        if (color) cue.color = {...clone(color), start:cue.start, end:cue.end};
+        else delete cue.color;
+      }
+    }
+    const removed=new Set(job.snapshot.targets.map(cue=>cue.id));
+    const working=clone(project.segments),cut=new Set();
+    working.forEach((cue,index)=>{if(removed.has(cue.id))cut.add(index);});
+    if (cut.size&&splitGroups) for (const [head,ref] of [['sticker','sticker_ref'],['color','color_ref']]) splitGroups(cut,head,ref,working,{affectedOnly:true});
+    const survivors=working.filter(cue=>!removed.has(cue.id));
+    const segments=[...survivors,...inserted].sort((a,b)=>a.start-b.start||a.end-b.end);
+    const newIds=new Set(inserted.map(cue=>cue.id));
+    let outsideEnd=-1,newEnd=-1;
+    for(const cue of segments){
+      if(newIds.has(cue.id)){if(cue.start<outsideEnd)throw Error('ASR 结果与目标范围外字幕重叠');newEnd=Math.max(newEnd,cue.end);}
+      else{if(cue.start<newEnd)throw Error('ASR 结果与目标范围外字幕重叠');outsideEnd=Math.max(outsideEnd,cue.end);}
+    }
+    const indices=new Map(segments.map((cue,index)=>[cue.id,index]));
+    for (const cue of survivors) for (const key of ['sticker_ref','color_ref']) if(cue[key]) {
+      const id=working[cue[key].headIdx]?.id;
+      if(indices.has(id))cue[key].headIdx=indices.get(id);else cue[key]=null;
+    }
+    for (const cue of inserted) for (const key of ['sticker_ref','color_ref']) if(cue[key]) {
+      const id=inserted[cue[key].headIdx]?.id;
+      if(indices.has(id))cue[key].headIdx=indices.get(id);else cue[key]=null;
+    }
+    const multi=project.multi_subtitle?clone(project.multi_subtitle):null;
+    const stale=clone(project.msw.asr_stale_subtitles||{});
+    if(multi) {
+      const invalid=(multi.bindings||[]).filter(binding=>binding.main_segment_ids?.some(id=>removed.has(id)));
+      multi.bindings=(multi.bindings||[]).filter(binding=>!invalid.includes(binding));
+      for(const track of multi.tracks||[]) {
+        const linked=new Set(invalid.filter(binding=>binding.track_id===track.id).flatMap(binding=>binding.extension_segment_ids||[]));
+        const marks=Object.hasOwn(stale,track.id)?stale[track.id]:{};
+        for(const cue of track.segments||[]) if(linked.has(cue.id)||overlaps(cue,job.snapshot.range)) Object.defineProperty(marks,cue.id,{value:job.id,enumerable:true,writable:true,configurable:true});
+        if(Object.keys(marks).length)Object.defineProperty(stale,track.id,{value:marks,enumerable:true,writable:true,configurable:true});
+      }
+      multi._dirty=true;
+    }
+    const record={source_id:job.snapshot.source.id,source_revision:job.snapshot.source.revision,
+      audio_index:job.snapshot.source.audio_index,range:clone(job.snapshot.range),provider:job.provider,model:job.model,
+      removed_count:removed.size,added_count:inserted.length};
+    const applications=Object.fromEntries([...Object.entries(project.msw.asr_applications||{}),[job.id,record]].slice(-1000));
+    const msw={...project.msw,asr_stale_subtitles:stale,asr_applications:applications,
+      applied_results:[...(project.msw.applied_results||[]),job.id].slice(-10000)};
+    return {applied:true,segments,multi,msw,insertedIds:inserted.map(cue=>cue.id),removedIds:[...removed]};
+  }
+  function assetStatuses(project) {
+    const cues=new Map((project.segments||[]).map(cue=>[JSON.stringify([null,cue.id]),cue]));
+    for(const track of project.multi_subtitle?.tracks||[]) for(const cue of track.segments||[])cues.set(JSON.stringify([track.id,cue.id]),cue);
+    const statuses=new Map();
+    for(const asset of project.msw?.assets||[]) {
+      const source=asset.source_ref;
+      if(!source||source.kind==='editor_text'||asset.generation?.provider==='imported')continue;
+      const cue=cues.get(JSON.stringify([source.track_id??null,source.id]));
+      const reason=!cue?'来源字幕已删除或被 ASR 替换':project.msw?.asr_stale_subtitles?.[source.track_id]?.[source.id]
+        ?'配音来源副字幕需复核':cue.text!==source.text||cue.start!==source.start||cue.end!==source.end?'来源字幕已修改，配音需复核':'';
+      if(reason)statuses.set(asset.id,reason);
+    }
+    return statuses;
+  }
+  global.MSWAsr=Object.freeze({canonical,affected,boundaries,snapshot,conflict,plan,assetStatuses});
+})(window);
+
 (function initMaweI18n(global) {
   'use strict';
 
@@ -15295,6 +15654,150 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '选区时长': 'Range duration',
+    '保存识别设置': 'Save transcription settings',
+    '识别设置已保存': 'Transcription settings saved',
+    '识别记录': 'Transcription history',
+    '选择结果': 'Select result',
+    '当前结果': 'Selected result',
+    '候选字幕': 'Candidate subtitles',
+    '仅预览前 300 条，可导出全部': 'Showing the first 300; export includes all',
+    '识别已开始': 'Transcription started',
+    'ASR 环境配置已保存': 'ASR environment settings saved',
+    '媒体分析': 'Media analysis',
+    '媒体工具': 'Media tools',
+    '媒体分析需要本机编辑器服务。': 'Media analysis requires the local editor service.',
+    '导入媒体后可生成波形或播放代理。': 'Import media to generate peaks or a playback proxy.',
+    '播放代理': 'Playback proxy',
+    '原媒体无法预览时生成兼容副本；识别仍使用原媒体。': 'Generate a compatible copy when the original cannot play; transcription still uses the original.',
+    '前往媒体工具环境配置': 'Open media tools environment settings',
+    'FFmpeg / FFprobe 用于媒体信息读取、波形、播放代理及音视频处理。': 'FFmpeg / FFprobe handle media metadata, peaks, playback proxies and audio/video processing.',
+    '加选播放头至鼠标位置': 'Add range from playhead to pointer',
+    '选区编辑': 'Edit range',
+    '编辑片段': 'Edit interval',
+    '关闭 ASR': 'Close ASR',
+    '打开 ASR 面板': 'Open ASR panel',
+    '前往 ASR 环境配置': 'Open ASR environment settings',
+    '自动识别语言': 'Detect language automatically',
+    '使用已保存的 ASR 配置': 'Using saved ASR settings',
+    '请先在环境配置中保存此服务的 API Key': 'Save this service API key in environment settings first',
+    '请在环境配置中配置 ASR 服务': 'Configure an ASR service in environment settings',
+    '配置有未保存的修改；识别仍使用上次保存的配置': 'Unsaved changes; transcription still uses the last saved settings',
+    'ASR 配置与启动器共用，保存后用于编辑器识别。密钥仅保存在本机。': 'ASR settings are shared with Launcher. Save them for editor transcription. Keys stay on this computer.',
+    '多个选区会分别创建任务；结果按片段预览和应用，中间未选中的内容保持原样。': 'Each selected interval creates a separate job. Preview and apply each result; unselected gaps stay unchanged.',
+    '选区编辑：拖动选择，Shift 加选，Ctrl/Cmd 减选，拖动边界调整': 'Edit range: drag to select, Shift to add, Ctrl/Cmd to subtract; drag boundaries to resize',
+    '选区编辑：拖动选择波形；Shift 加选，Ctrl(Cmd) 减选；拖动选区边界扩大或缩小。Ctrl(Cmd)+Shift 拖动仍可临时选择': 'Edit range: drag to select, Shift to add, Ctrl/Cmd to subtract; drag boundaries to resize. Ctrl/Cmd+Shift drag still selects temporarily',
+    '识别完成，等待结果应用': 'Transcription finished; ready to apply',
+    '正在提取所选源音轨': 'Extracting the selected source audio track',
+    '正在识别源音频': 'Transcribing source audio',
+    '正在等待识别结果': 'Waiting for transcription results',
+    '媒体正在导入，请等待完成后再识别': 'Wait for media import to finish before transcribing',
+    '全部': 'All',
+    '查看百炼 音色列表、Voice design、Voice cloning。': 'View the Bailian voice list, Voice design and Voice cloning.',
+    '请确认本机编辑器服务仍在运行；当前无法自动保存工程，请使用「文件 → 另存为工程」保存当前工程，避免进度丢失。': 'Check that the local editor service is running. Auto-save is unavailable; use File → Save project as to preserve your edits.',
+    'ASR · 源音频识别': 'ASR · Source audio transcription',
+    '识别范围': 'Transcription range',
+    '整个源视频': 'Entire source media',
+    '扩展到完整字幕边界': 'Expand to complete subtitle boundaries',
+    'ASR 服务配置': 'ASR service settings',
+    '保存服务配置': 'Save service settings',
+    '地域': 'Region',
+    '留空自动识别': 'Leave blank to detect automatically',
+    '留空使用本机已保存密钥': 'Leave blank to use the locally saved key',
+    '已配置本机密钥，留空继续使用': 'A local key is configured; leave blank to keep using it',
+    '尚未配置此服务密钥': 'No key configured for this service',
+    '区分说话人': 'Identify speakers',
+    '断句、热词与上下文': 'Segmentation, hotwords and context',
+    '最大字数': 'Maximum characters',
+    '最小字数': 'Minimum characters',
+    '最大词数': 'Maximum words',
+    '最小词数': 'Minimum words',
+    '停顿阈值（秒）': 'Pause threshold (seconds)',
+    '音频上下文': 'Audio context',
+    '热词': 'Hotwords',
+    '词表 ID': 'Vocabulary ID',
+    '热词权重': 'Hotword weight',
+    '识别使用原媒体和所选源音轨。已有主字幕时先预览结果；不会自动翻译或生成配音。': 'Transcribes the original media and selected audio track. Existing subtitles require preview before applying. Translation and TTS run separately.',
+    '此便携页面不能调用本机处理服务，请通过独立编辑器入口打开。': 'This portable page cannot call local processing services. Use the direct editor entry.',
+    '开始识别': 'Start transcription',
+    '确认上次提交': 'Confirm previous submission',
+    '放弃未确认提交': 'Forget unconfirmed submission',
+    '识别已开始，可以继续编辑；关闭面板不会取消任务': 'Transcription started. You can keep editing; closing the panel does not cancel the job.',
+    '识别结果预览': 'Transcription result preview',
+    '预览结果': 'Preview result',
+    '应用到主字幕': 'Apply to main subtitles',
+    '搁置结果': 'Set result aside',
+    '导出候选工程': 'Export candidate project',
+    '导出候选 SRT': 'Export candidate SRT',
+    '受影响主字幕': 'Affected main subtitles',
+    '替换主字幕': 'Replace main subtitles',
+    '保留副字幕待复核': 'Secondary subtitles kept for review',
+    '保留原配音': 'Original voice assets kept',
+    '此结果已应用': 'This result has been applied',
+    '没有识别到语音；保留现有字幕': 'No speech detected; existing subtitles are retained',
+    'ASR 结果已应用，可一次撤销': 'ASR result applied; undo in one step',
+    '候选结果已搁置，仍可在任务列表预览或导出': 'Result set aside; preview or export it from the job list',
+    '等待识别': 'Queued for transcription',
+    '正在识别': 'Transcribing',
+    '识别完成': 'Transcription completed',
+    '识别失败': 'Transcription failed',
+    '服务中断': 'Service interrupted',
+    '使用此范围重试': 'Retry this range',
+    '范围已恢复；检查当前配置后点击开始识别': 'Range restored. Check settings, then start transcription.',
+    'ASR 服务配置已保存，与启动器共用': 'ASR settings saved and shared with Launcher',
+    '请先导入包含音轨的媒体': 'Import media with an audio track first',
+    '请选择源媒体内的有效时间范围；未改为整段识别': 'Select a valid range within the source; full-media transcription was not selected',
+    '选区切穿已有字幕；请调整范围或先扩展到完整字幕边界': 'The range crosses existing subtitles. Adjust it or expand to complete subtitle boundaries.',
+    '结果属于其他工程': 'Result belongs to another project',
+    '媒体或源音轨已改变': 'Media or source audio track has changed',
+    '目标范围内字幕已新增、删除、拆分、移动或编辑，请重新识别': 'Subtitles in this range were added, removed, split, moved or edited. Transcribe again.',
+    '需复核': 'Review needed',
+    '主字幕已重新识别，副字幕内容已保留，请复核': 'Main subtitles were transcribed again. Secondary text is retained for review.',
+    '来源字幕已删除或被 ASR 替换': 'Source subtitle was deleted or replaced by ASR',
+    '配音来源副字幕需复核': 'Secondary subtitle used for this voice needs review',
+    '来源字幕已修改，配音需复核': 'Source subtitle changed; review this voice asset',
+    '波形已取消；可继续编辑': 'Waveform cancelled; you can keep editing',
+    '代理已取消；可继续处理源媒体': 'Proxy cancelled; source processing remains available',
+    '正在准备媒体分析…': 'Preparing media analysis…',
+    '媒体分析已取消': 'Media analysis cancelled',
+    '正在读取工具配置…': 'Loading media tool settings…',
+    '路径由启动环境设置。': 'The startup environment controls this path.',
+    'FFmpeg 与 FFprobe 已就绪。': 'FFmpeg and FFprobe are ready.',
+    '未找到完整媒体工具。': 'FFmpeg or FFprobe is missing.',
+    '已保存；可重新导入媒体以刷新音轨信息。': 'Saved. Reimport the media to refresh audio track details.',
+    '时间选区': 'Time range',
+    '识别所选片段': 'Transcribe selected range',
+    '精确编辑时间选区': 'Edit time range precisely',
+    '清除时间选区': 'Clear time range',
+    '清除选区': 'Clear range',
+    '清除时间选区（Esc）': 'Clear time range (Esc)',
+    '起点（秒）': 'Start (seconds)',
+    '终点（秒）': 'End (seconds)',
+    '应用范围': 'Apply range',
+    '请输入时间轴范围内的有效起止时间。': 'Enter valid start and end times within the timeline.',
+    '生成波形': 'Generate waveform',
+    '重新生成波形': 'Regenerate waveform',
+    '取消波形': 'Cancel waveform',
+    '自动波形': 'Auto waveform',
+    '取消导入': 'Cancel import',
+    '源音轨': 'Source audio track',
+    '波形、试听和 ASR 使用的源音轨': 'Source audio track for waveform, playback and ASR',
+    '波形已就绪': 'Waveform ready',
+    '使用已有波形': 'Using cached waveform',
+    '自动波形已关闭；使用占位波形': 'Auto waveform off; showing placeholder',
+    '无音轨；可继续编辑或使用 TTS': 'No audio track; editing and TTS remain available',
+    '生成播放代理': 'Generate playback proxy',
+    '取消代理': 'Cancel proxy',
+    '播放代理已就绪': 'Playback proxy ready',
+    '正在生成播放代理…': 'Generating playback proxy…',
+    '工具配置': 'Tool settings',
+    '媒体工具配置': 'Media tool settings',
+    'FFmpeg 可执行文件或所在目录': 'FFmpeg executable or directory',
+    '留空自动查找': 'Leave blank to auto-detect',
+    '媒体已就绪': 'Media ready',
+    '清空全部字幕': 'Clear all subtitles',
+    '已清空全部字幕': 'All subtitles cleared',
+    '占位波形': 'Placeholder waveform',
     "源媒体导出选项": "Source media export options",
     "同时导出 SRT 字幕": "Also export SRT subtitles",
     "额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出": "Save a separate SRT file outside the OTIOZ archive; applies to source media exports only",
@@ -16525,6 +17028,16 @@ export default MawDynamicCaptions;
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const voiceRecords = /^音色创建记录 \((\d+)\)$/.exec(text);
+    if (voiceRecords) return `Voice creation history (${voiceRecords[1]})`;
+    const waveformProgress = /^解析波形 (\d+)%$/.exec(text);
+    if (waveformProgress) return `Generating waveform ${waveformProgress[1]}%`;
+    const sourceTrack = /^源音轨 (\d+)(.*)$/.exec(text);
+    if (sourceTrack) return `Source audio track ${sourceTrack[1]}${sourceTrack[2]}`;
+    const candidates = /^候选字幕 (\d+) 条（显示前 300 条，可导出全部）$/.exec(text);
+    if (candidates) return `${candidates[1]} candidate subtitles (showing 300; export includes all)`;
+    const candidateCount = /^候选字幕 (\d+) 条$/.exec(text);
+    if (candidateCount) return `${candidateCount[1]} candidate subtitles`;
     const filledGap = /^已填充区间空隙：标记 (.+)，实际移除 (.+)$/.exec(text);
     if (filledGap) return `Gap interval filled: marked ${translateText(filledGap[1], EN)}, effectively removed ${translateText(filledGap[2], EN)}`;
     const processingScope = /^(范围：全部主字幕|范围：选中的主字幕) · (\d+)(?: · 已忽略未绑定副字幕 (\d+))?$/.exec(text);
@@ -18702,7 +19215,10 @@ export default MawDynamicCaptions;
         rowTop: document.getElementById('layout-resizer-h1'),
         rowMiddle: document.getElementById('layout-resizer-h2'),
       };
-      this._onPlayerTime = () => this.updatePlayback();
+      this._onPlayerTime = (event) => {
+        if (event?.type === 'loadedmetadata') { this.refreshMediaReadout(); this.render(); }
+        else this.updatePlayback();
+      };
       this._onResize = () => this.scheduleRender();
       this.bindControls();
       this.bindModuleTabs();
@@ -19086,15 +19602,16 @@ export default MawDynamicCaptions;
     // 拖动行为；'razor' 让左键点击字幕块在指针位置安全拆分。切回 select
     // 不会清除已有选中，便于拆分后立即继续操作。
     setTool(tool) {
-      if (tool !== 'select' && tool !== 'razor') return;
+      if (!['select', 'razor', 'range'].includes(tool)) return;
       if (this.tool === tool) return;
       this.tool = tool;
       this.pane?.classList.toggle('tool-razor', tool === 'razor');
       this.pane?.classList.toggle('tool-select', tool === 'select');
+      this.pane?.classList.toggle('tool-range', tool === 'range');
       document.querySelectorAll('[data-waveform-tool]').forEach((button) => {
         button.classList.toggle('active', button.dataset.waveformTool === tool);
       });
-      this.setStatus(tool === 'razor' ? '分割工具：点击字幕块在指针位置拆分' : '选择工具');
+      this.setStatus(tool === 'range' ? '选区编辑：拖动选择，Shift 加选，Ctrl/Cmd 减选，拖动边界调整' : tool === 'razor' ? '分割工具：点击字幕块在指针位置拆分' : '选择工具');
     }
 
     getTool() {
@@ -19157,7 +19674,7 @@ export default MawDynamicCaptions;
       this.settings.rowHeight = next;
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(next);
       saveSettings(this.settings);
-      if (this.isMultiMode() && this.payload) {
+      if (this.isMultiMode()) {
         this.updateMultiRowLayout();
       } else {
         this.render();
@@ -20141,7 +20658,6 @@ export default MawDynamicCaptions;
     }
 
     revealTime(timeMs, center = true) {
-      if (!this.payload) return;
       this.autoScrolling = false;
       this.autoScrollTarget = null;
       this.multiFollowCheckPending = true;
@@ -20223,9 +20739,9 @@ export default MawDynamicCaptions;
     // 恢复常显数据行：拖动过程会把实时增量暂挂到该行（quiet 状态），
     // 拖动结束后由此还原为「媒体总时长 · 波形峰值点数」。
     refreshMediaReadout() {
-      this.updateReadout(this.mediaAvailable && this.payload
+      this.updateReadout(this.payload
         ? `${formatCompact(this.payload.duration_ms)} · ${this.payload.peak_count.toLocaleString()} peaks`
-        : null);
+        : localizedWaveformMessage('占位波形', 'Placeholder waveform'));
     }
 
     setSpectralColorStatus(message = '') {
@@ -20305,24 +20821,19 @@ export default MawDynamicCaptions;
       if (next === this.mediaAvailable) return;
       this.mediaAvailable = next;
       this.pane.classList.toggle('waveform-media-unavailable', !next);
-      if (!this.payload) return;
-      // 数据行只显示「媒体总时长 · 波形峰值点数」；媒体未加载时不显示任何占位文本。
-      this.updateReadout(next
-        ? `${formatCompact(this.payload.duration_ms)} · ${this.payload.peak_count.toLocaleString()} peaks`
-        : null);
+      this.refreshMediaReadout();
       this.render();
     }
 
-    setPayload(payload, { render = true } = {}) {
-      this.audioOnlyTimeline = false;
+    setPayload(payload, { render = true, preserveView = false } = {}) {
+      const previousDuration = this.durationMs;
+      const navigation = preserveView ? this.getNavigationSnapshot() : null;
       const decoded = decodePayload(payload);
       if (!decoded) {
         this.payload = null;
         this.peaks = null;
-        this.updateReadout(null);
-        this.setStatus('等待波形数据');
-        this.empty.textContent = '加载媒体后显示波形（大媒体需要先用 MSW 生成波形后拖入）';
-        this.empty.classList.remove('hidden');
+        this.refreshMediaReadout();
+        this.empty.classList.add('hidden');
         if (render) this.render();
         return false;
       }
@@ -20332,9 +20843,18 @@ export default MawDynamicCaptions;
       this.updateReadout(this.mediaAvailable
         ? `${formatCompact(payload.duration_ms)} · ${payload.peak_count.toLocaleString()} peaks`
         : null);
-      this.centerBasicOnCurrentTime();
-      this.multiRange = [-1, -1];
-      if (render) this.render();
+      if (!preserveView) this.centerBasicOnCurrentTime();
+      if (render && preserveView) {
+        this.refreshTimelineDuration();
+        if (previousDuration === this.durationMs && this.renderedRows.length) this.redrawWaveformCanvases();
+        else {
+          if (this.settings.mode === 'basic') this.renderBasic(); else this.renderMulti();
+          if (navigation) this.restoreNavigation(navigation);
+        }
+      } else {
+        this.multiRange = [-1, -1];
+        if (render) this.render();
+      }
       if (this.pendingNavigation) {
         const navigation = this.pendingNavigation;
         this.pendingNavigation = null;
@@ -20529,9 +21049,27 @@ export default MawDynamicCaptions;
       });
     }
 
+    refreshTimelineDuration() {
+      let end = 0;
+      for (const segments of [this.options.getSegments?.('main'), this.options.getExtensionSegments?.()]) {
+        for (const segment of segments || []) end = Math.max(end, Number(segment.end) || 0);
+      }
+      this.cueDurationMs = end;
+    }
+
+    get sourceDurationMs() {
+      return Math.max(0, Number(this.options.getMediaDurationMs?.()) || 0,
+        Number.isFinite(this.player?.duration) ? this.player.duration * 1000 : 0,
+        this.payload?.duration_ms || 0);
+    }
+
+    get contentDurationMs() {
+      return Math.max(this.sourceDurationMs, this.cueDurationMs || 0, this.audioLayer?.durationMs() || 0);
+    }
+
     get durationMs() {
-      const base = this.payload?.duration_ms || (Number.isFinite(this.player?.duration) ? this.player.duration * 1000 : 0);
-      return Math.max(base, this.audioLayer?.durationMs() || 0);
+      // An empty editing viewport is not media and must never become an export duration.
+      return Math.max(this.contentDurationMs, this.sourceDurationMs ? 0 : 20000, this.currentTimeMs());
     }
 
     get effectiveRowHeight() {
@@ -20633,13 +21171,7 @@ export default MawDynamicCaptions;
     }
 
     refreshAudioTimeline() {
-      if (!this.payload && this.audioLayer?.hasAssets()) {
-        this.payload = { duration_ms: 20000, peaks_per_second: 1, peak_count: 20 };
-        this.peaks = new Int8Array(40);
-        this.audioOnlyTimeline = true;
-      } else if (this.audioOnlyTimeline && !this.audioLayer?.hasAssets()) {
-        this.payload = null; this.peaks = null; this.audioOnlyTimeline = false;
-      }
+      this.refreshTimelineDuration();
       const geometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
       if (geometry === this.audioGeometry) {
         // 几何未变（移动/裁剪/静音等提交）：只重刷各行 lanes 覆盖层，
@@ -20826,6 +21358,7 @@ export default MawDynamicCaptions;
     }
 
     render() {
+      this.refreshTimelineDuration();
       // 布局拖动中（分隔线/尺寸柄）：宽度逐帧变化，头部这两步都是强制样式/
       // 布局读取（getComputedStyle + 每行 offsetTop），会把每帧布局翻倍造成
       // 拖动卡顿；颜色与轨道头此时都不会变，跳过。
@@ -20834,13 +21367,6 @@ export default MawDynamicCaptions;
         this.applyTrackHeadsVisibility();
       }
       this.applyLayout();
-      if (!this.payload || !this.peaks) {
-        this.content.replaceChildren();
-        this.renderedRows = [];
-        this.syncTrackHeads();
-        this.empty.classList.remove('hidden');
-        return;
-      }
       this.empty.classList.add('hidden');
       if (this.layoutDragging) {
         // 布局拖拽中：不做全量重建（每帧 14 个 canvas 重绘会卡顿），
@@ -20864,7 +21390,6 @@ export default MawDynamicCaptions;
     }
 
     redrawWaveformCanvases({ measure = true } = {}) {
-      if (!this.payload || !this.peaks) return;
       if (!this.renderedRows.length) {
         this.renderSegments();
         return;
@@ -20874,7 +21399,7 @@ export default MawDynamicCaptions;
     }
 
     updateMultiRowLayout() {
-      if (!this.isMultiMode() || !this.payload) {
+      if (!this.isMultiMode()) {
         this.render();
         return;
       }
@@ -20894,7 +21419,7 @@ export default MawDynamicCaptions;
         const endMs = Math.min(this.durationMs, startMs + rowDurationMs);
         row.style.top = `${index * stride}px`;
         row.style.height = `${this.effectiveRowHeight}px`;
-        row.style.width = `${Math.max(0.01, Math.min(1, (endMs - startMs) / rowDurationMs) * 100)}%`;
+        this.setMultiRowWidth(row, startMs, endMs, rowDurationMs);
       });
       this.multiRange = [-1, -1];
       this.renderMultiVisible(false);
@@ -20905,16 +21430,12 @@ export default MawDynamicCaptions;
     }
 
     renderSegments() {
-      if (!this.payload) {
-        this.render();
-        return;
-      }
+      this.refreshTimelineDuration();
       if (this.settings.mode === 'basic') this.renderBasic();
       else this.renderMultiVisible(true);
     }
 
     renderBasic() {
-      if (!this.payload) return;
       const windowMs = this.settings.visibleSeconds * 1000;
       const maxStart = Math.max(0, this.durationMs - windowMs);
       this.basicWindowStartMs = clamp(this.basicWindowStartMs, 0, maxStart);
@@ -20939,7 +21460,7 @@ export default MawDynamicCaptions;
     }
 
     renderMultiVisible(force = false) {
-      if (!this.isMultiMode() || !this.payload) return;
+      if (!this.isMultiMode()) return;
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
       const stride = this.effectiveRowHeight + ROW_GAP;
@@ -20993,8 +21514,14 @@ export default MawDynamicCaptions;
       // 最后一行只代表媒体剩余的真实时长；缩短容器不会减少采样量，
       // 但能避免把不存在的尾部时间误画成整行波形。
       row.style.right = 'auto';
-      row.style.width = `${Math.max(0.01, Math.min(1, (endMs - startMs) / rowDurationMs) * 100)}%`;
+      this.setMultiRowWidth(row, startMs, endMs, rowDurationMs);
       return row;
+    }
+
+    setMultiRowWidth(row, startMs, endMs, rowDurationMs) {
+      const fraction = Math.max(0.0001, Math.min(1, (endMs - startMs) / rowDurationMs));
+      const gutter = this.settings.showTrackHeads !== false ? 36 : 0;
+      row.style.width = `calc(${fraction * 100}% - ${fraction * gutter}px)`;
     }
 
     createRow(startMs, endMs, rowIndex, basic) {
@@ -21330,6 +21857,8 @@ export default MawDynamicCaptions;
         block.title = label.textContent;
         block.appendChild(label);
         this.setBindingMarker(block, extensionBindingMarkers?.has?.(index) === true);
+        const sourceStatus = this.options.getCueSourceStatus?.(segment);
+        if (sourceStatus) { block.classList.add('msw-source-stale'); block.title += ` · ${sourceStatus}`; }
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
           leftHandle.className = 'waveform-cue-handle left';
@@ -21405,7 +21934,6 @@ export default MawDynamicCaptions;
     }
 
     refreshGapOverlay() {
-      if (!this.payload) return;
       this.content.querySelectorAll('.waveform-row').forEach((row) => {
         row.querySelectorAll('.waveform-gap-block').forEach((element) => element.remove());
         this.appendGapBlocks(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
@@ -21414,10 +21942,10 @@ export default MawDynamicCaptions;
     }
 
     refreshCueOverlay() {
+      this.refreshTimelineDuration();
       if (this.audioLayer && this.audioGeometry !== `${this.audioLayer.minimumRowHeight()}:${this.durationMs}`) {
         this.refreshAudioTimeline(); return;
       }
-      if (!this.payload) return;
       const rows = [...this.content.querySelectorAll('.waveform-row')];
       if (!rows.length) return;
       rows.forEach((row) => {
@@ -21519,9 +22047,51 @@ export default MawDynamicCaptions;
       return envelope;
     }
 
+    timeAtViewportPoint(clientX, clientY, { unboundedX = false } = {}) {
+      if (this.settings.mode === 'basic') {
+        const row = this.renderedRows[0];
+        return row ? this.timeFromPointer({ clientX }, row) : 0;
+      }
+      const rect = this.content.getBoundingClientRect();
+      const rowMs = this.settings.secondsPerRow * 1000;
+      const anchor = this.renderedRows[0];
+      if (!anchor) return 0;
+      const rowRect = anchor.getBoundingClientRect();
+      const fullWidth = rowRect.width * rowMs / Math.max(1, Number(anchor.dataset.endMs) - Number(anchor.dataset.startMs));
+      const index = clamp(Math.floor((clientY - rect.top) / (this.effectiveRowHeight + ROW_GAP)),
+        0, Math.max(0, Math.ceil(this.durationMs / rowMs) - 1));
+      const fraction = (clientX - rowRect.left) / Math.max(1, fullWidth);
+      return clamp((index + (unboundedX ? fraction : clamp(fraction, 0, 1))) * rowMs, 0, this.durationMs);
+    }
+
+    setTimeRange(range) {
+      this.timeRanges = (Array.isArray(range) ? range : range ? [range] : []).map(item => ({...item}));
+      this.timeRange = this.timeRanges.length === 1 ? {...this.timeRanges[0]} : null;
+      this.renderedRows.forEach(row => this.drawRow(row, { measure: false }));
+    }
+
+    drawTimeRange(ctx, startMs, endMs, width, height) {
+      for (const range of this.timeRanges || (this.timeRange ? [this.timeRange] : [])) {
+      if (range.end <= startMs || range.start >= endMs) continue;
+      const left = clamp((range.start - startMs) / (endMs - startMs), 0, 1) * width;
+      const right = clamp((range.end - startMs) / (endMs - startMs), 0, 1) * width;
+      ctx.save();
+      ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#ffffff';
+      ctx.fillRect(left, 0, right - left, height);
+      ctx.globalCompositeOperation = 'source-over';
+      for (const time of [range.start, range.end]) {
+        if (time < startMs || time > endMs) continue;
+        const x = (time - startMs) / (endMs - startMs) * width;
+        ctx.fillStyle = '#101010'; ctx.fillRect(x - 2, 0, 4, height);
+        ctx.fillStyle = '#e2f5ff'; ctx.fillRect(x - 1, 0, 2, height);
+      }
+      ctx.restore();
+      }
+    }
+
     drawRow(row, { measure = true } = {}) {
       const canvas = row.querySelector('canvas');
-      if (!canvas || !this.peaks) return;
+      if (!canvas) return;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       let width = Number(row._waveformCanvasWidth);
       let height = Number(row._waveformCanvasHeight);
@@ -21584,7 +22154,19 @@ export default MawDynamicCaptions;
 
       // 形状来源开关（默认 .ReaPeaks，缺数据自动回退自研）与音量门限检测共用同一选取。
       const waveShape = this.activeWaveShape();
-      if (!waveShape) return;
+      if (!waveShape) {
+        ctx.strokeStyle = colors.peakDim;
+        ctx.globalAlpha = 0.4;
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 2) {
+          const y = height * 0.46 + Math.sin(x / 18) * Math.min(12, height * 0.1);
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        this.drawTimeRange(ctx, startMs, endMs, width, height);
+        return;
+      }
       const activePeaks = waveShape.peaks;
       const peaksPerSecond = waveShape.peaksPerSecond;
       const activeCount = waveShape.peakCount;
@@ -21641,6 +22223,7 @@ export default MawDynamicCaptions;
         }
       }
       if (!spectral && pathOpen) ctx.stroke();
+      this.drawTimeRange(ctx, startMs, endMs, width, height);
     }
 
     seekFromPointer(
@@ -23436,7 +24019,6 @@ export default MawDynamicCaptions;
     }
 
     updatePlayback(allowFollow = true) {
-      if (!this.payload) return;
       const now = this.currentTimeMs();
       this.audioLayer?.updatePlayhead(now);
       const segments = this.options.getSegments('main');
@@ -23531,14 +24113,6 @@ export default MawDynamicCaptions;
 
     restoreNavigation(snapshot) {
       if (!snapshot || typeof snapshot !== 'object') return false;
-      if (!this.payload) {
-        this.pendingNavigation = snapshot;
-        if (typeof snapshot.cueListScrollTop === 'number' && Number.isFinite(snapshot.cueListScrollTop)) {
-          const maxTop = Math.max(0, this.cues.scrollHeight - this.cues.clientHeight);
-          this.cues.scrollTop = clamp(Math.round(snapshot.cueListScrollTop), 0, maxTop);
-        }
-        return true;
-      }
       const topEdgeMs = restoreWaveformTopEdgeMs({
         mode: this.settings.mode,
         durationMs: this.durationMs,
@@ -25838,6 +26412,7 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   );
   container.classList.toggle('hide-cue-charcount', !EDITOR_SETTINGS.cueListShowCharcount);
   restoreCueListRenderAnchor(cueListAnchor);
+  window.dispatchEvent(new Event('msw:subtitles-changed'));
 }
 
 let previousMultiSubtitlePreviewEnabled = false;
@@ -29314,6 +29889,7 @@ function buildCueEl(seg, idx, { extensionTrack = null } = {}) {
   el.className = multiSubtitleVisible() ? 'cue multi-cue' : 'cue';
   if (isExtension) {
     el.classList.add('multi-extension-cue');
+    markAsrReview(el, extensionTrack, seg);
     el.dataset.extIdx = String(idx);
   } else {
     el.dataset.idx = idx;
@@ -29382,6 +29958,13 @@ function buildMultiTimeEl(segment) {
   return time;
 }
 
+function markAsrReview(node, track, cue) {
+  if (!DATA.msw?.asr_stale_subtitles?.[track?.id]?.[cue?.id]) return;
+  node.classList.add('msw-source-stale');
+  node.dataset.reviewStatus = window.MSWE_I18N?.translateText?.('需复核') || '需复核';
+  node.title = window.MSWE_I18N?.translateText?.('主字幕已重新识别，副字幕内容已保留，请复核') || '主字幕已重新识别，副字幕内容已保留，请复核';
+}
+
 function buildMultiCueColumn(segment, index, track, kind) {
   const column = document.createElement('div');
   column.className = `multi-cue-column ${kind}`;
@@ -29391,6 +29974,7 @@ function buildMultiCueColumn(segment, index, track, kind) {
     return column;
   }
   if (segment._dirty) column.classList.add('dirty');
+  if (kind === 'extension') markAsrReview(column, track, segment);
   if (segment.disabled) column.classList.add('disabled');
   const header = document.createElement('div');
   header.className = 'multi-cue-column-header';
@@ -32514,7 +33098,7 @@ function applyAutoMergeSnapsWithBindings(snaps) {
 //         首条升级为新 head，后续 ref 指向它。
 //   - 删除场景：cutSet = 被物理删除的 idx；切完后由调用方负责 splice
 //   - 清除场景：cutSet = 被清除 group 字段的 idx；调用方不删除字幕本身
-function splitGroupsAtCutPoints(cutSet, headField, refField) {
+function splitGroupsAtCutPoints(cutSet, headField, refField, segments = DATA.segments, { affectedOnly = false } = {}) {
   function groupHeadOf(seg, idx) {
     if (seg[headField]) return idx;
     if (seg[refField]) return seg[refField].headIdx;
@@ -32522,7 +33106,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
   }
   // 1) 收集所有原始 group：headIdx → [members 升序]
   const groups = new Map();
-  DATA.segments.forEach((s, i) => {
+  segments.forEach((s, i) => {
     const g = groupHeadOf(s, i);
     if (g < 0) return;
     if (!groups.has(g)) groups.set(g, []);
@@ -32530,6 +33114,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
   });
 
   for (const [oldHeadIdx, members] of groups.entries()) {
+    if (affectedOnly && !members.some(index => cutSet.has(index))) continue;
     // 把成员按"切点"切成多个连续段
     const sub = [];
     let cur = [];
@@ -32543,7 +33128,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
     if (cur.length) sub.push(cur);
 
     // 拿原 head 数据作为新 head 的模板（深拷贝）
-    const oldHead = DATA.segments[oldHeadIdx];
+    const oldHead = segments[oldHeadIdx];
     const template = oldHead ? oldHead[headField] : null;
     if (!template) continue;
 
@@ -32551,8 +33136,8 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
       if (!segIdxs.length) return;
       const segHeadIdx = segIdxs[0];
       const segLastIdx = segIdxs[segIdxs.length - 1];
-      const newStart = DATA.segments[segHeadIdx].start;
-      const newEnd = DATA.segments[segLastIdx].end;
+      const newStart = segments[segHeadIdx].start;
+      const newEnd = segments[segLastIdx].end;
 
       if (segNo === 0 && segHeadIdx === oldHeadIdx) {
         // 原 head 还活着且未被切除 → 仅修正其时间范围
@@ -32565,11 +33150,11 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
         const promoted = JSON.parse(JSON.stringify(template));
         promoted.start = newStart;
         promoted.end = newEnd;
-        DATA.segments[segHeadIdx][headField] = promoted;
-        DATA.segments[segHeadIdx][refField] = null;
+        segments[segHeadIdx][headField] = promoted;
+        segments[segHeadIdx][refField] = null;
         // 段内其余 ref 改指向新 head
         for (let k = 1; k < segIdxs.length; k++) {
-          const refSeg = DATA.segments[segIdxs[k]];
+          const refSeg = segments[segIdxs[k]];
           if (refSeg[refField]) {
             refSeg[refField].headIdx = segHeadIdx;
           }
@@ -32580,7 +33165,7 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
 
   // 把切点位置的 head/ref 字段全部清空（调用方期望的副作用）
   cutSet.forEach(i => {
-    const s = DATA.segments[i];
+    const s = segments[i];
     if (!s) return;
     if (s[headField]) s[headField] = null;
     if (s[refField])  s[refField]  = null;
@@ -32597,13 +33182,11 @@ function splitGroupsAtCutPoints(cutSet, headField, refField) {
 //   当被删的是 head：前段为空，整段后段重组（与之前的"head 晋升"语义吻合）
 //   当被删的是 ref：head 仍是 head，但 group 被切成两块——这是用户原话
 //     "删除中间的 3 → 4 变 head，5 改 ref→4"
-function deleteSegments(idxs) {
+function deleteSegments(idxs, { recordHistory = true } = {}) {
   if (!idxs.length) return;
-  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
-  if (sorted.length === DATA.segments.length) {
-    flashHint('不能删除全部字幕', 'warning');
-    return;
-  }
+  const sorted = [...new Set(idxs)].filter(index => Number.isInteger(index)
+    && index >= 0 && index < DATA.segments.length).sort((a, b) => a - b);
+  if (!sorted.length) return;
   // Commit any pending cue-panel edit and reset panel state BEFORE splicing.
   // Without this, clearSelection() → setCurrentCuePanelIndex(-1) → commitCuePanelEdit()
   // would write the stale panel text to whatever segment now occupies the old index
@@ -32613,7 +33196,8 @@ function deleteSegments(idxs) {
   currentCuePanelKind = 'main';
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
-  pushUndo(`删除 ${sorted.length} 条字幕`);
+  if (recordHistory) pushUndo(`删除 ${sorted.length} 条字幕`);
+  projectImportDirty = true;
   const pairedExtensionIndices = new Set();
   const pairedMainIds = sorted.map((index) => DATA.segments[index]?.id).filter(Boolean);
   const multi = getMultiSubtitleState();
@@ -32676,7 +33260,7 @@ function deleteSegments(idxs) {
   flashHint(`已删除 ${sorted.length} 条`, 'success');
 }
 
-function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
+function deleteExtensionSegments(indices, track = getActiveExtensionTrack(), { recordHistory = true } = {}) {
   if (!track || !indices?.length) return;
   const sorted = [...new Set(indices)].filter((index) => Number.isInteger(index)
     && index >= 0 && index < track.segments.length).sort((a, b) => a - b);
@@ -32689,6 +33273,8 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
   const ids = sorted.map((index) => track.segments[index]?.id).filter(Boolean);
+  if (recordHistory) pushUndo(`删除 ${sorted.length} 条副字幕`);
+  projectImportDirty = true;
 
   // 删除绑定副字幕时沿用主轨删除语义：绑定关系和另一侧字幕一起删除，
   // 这样从任意 lane 删除都能用同一条撤销记录完整恢复。未绑定的副轨段
@@ -32706,7 +33292,7 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
     unboundIds.delete(id);
   });
   if (pairedMainIndices.size) {
-    deleteSegments([...pairedMainIndices]);
+    deleteSegments([...pairedMainIndices], { recordHistory: false });
   }
 
   const remainingIndices = track.segments
@@ -32714,13 +33300,48 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack()) {
     .filter((index) => index >= 0);
   if (!remainingIndices.length) return;
 
-  pushUndo(`删除 ${sorted.length} 条副字幕`);
   removeBindingsForSegmentIds([], [...unboundIds]);
   remainingIndices.reverse().forEach((index) => track.segments.splice(index, 1));
   markMultiSubtitleDirty();
   selectedExtensionIdxs.clear();
   renderAll();
   flashHint(`已删除 ${remainingIndices.length} 条副字幕`, 'success');
+}
+
+function deleteSelectedCues(label = '删除选中字幕') {
+  const main = [...selectedIdxs].filter(index => DATA.segments[index]);
+  const track = getActiveExtensionTrack();
+  const extensionIds = new Set([...selectedExtensionIdxs].map(index => track?.segments[index]?.id).filter(Boolean));
+  if (!main.length && !extensionIds.size) return;
+  commitProcessingEdits();
+  pushUndo(label, { captureView: true });
+  deleteSegments(main, { recordHistory: false });
+  // Resolve IDs again after paired deletion; old extension indices may now name unrelated cues.
+  const remaining = (track?.segments || []).flatMap((segment, index) => extensionIds.has(segment.id) ? [index] : []);
+  deleteExtensionSegments(remaining, track, { recordHistory: false });
+  refreshClipboardMenuState();
+}
+
+function clearAllSubtitles() {
+  const multi = getMultiSubtitleState();
+  if (!DATA.segments.length && !(multi.tracks || []).some(track => track.segments.length)) return;
+  commitProcessingEdits();
+  pushUndo('清空全部字幕', { captureView: true });
+  currentCuePanelIdx = -1;
+  currentCuePanelKind = 'main';
+  currentCuePanelTrackId = null;
+  resetCuePanelEditState();
+  DATA.segments.length = 0;
+  for (const track of multi.tracks || []) track.segments.length = 0;
+  multi.bindings = [];
+  markMultiSubtitleDirty();
+  projectImportDirty = true;
+  clearSelection({ silent: true, commitCuePanel: false });
+  lastActive = -1;
+  renderAll({ waveform: 'full' });
+  refreshClipboardMenuState();
+  scheduleAutoSaveFlush();
+  flashHint('已清空全部字幕', 'success');
 }
 
 // === 滚动 ===
@@ -34444,13 +35065,13 @@ document.addEventListener('keydown', (e) => {
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size > 0) {
     e.preventDefault();
     e.stopPropagation();
-    deleteExtensionSegments([...selectedExtensionIdxs]);
+    deleteSelectedCues();
     return;
   }
   if (selectedIdxs.size === 0) return;
   e.preventDefault();
   e.stopPropagation();
-  deleteSegments([...selectedIdxs]);
+  deleteSelectedCues();
 });
 
 // 波形工具切换：V=选择（默认），R=剃刀，Esc=切回选择。与 J/K/L 一样只在
@@ -35936,7 +36557,7 @@ function gapRemovedExportContext() {
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
     return null;
   }
-  const durationMs = waveformEditor?.durationMs || Math.round(Number(player?.duration) * 1000) || 0;
+  const durationMs = waveformEditor?.contentDurationMs || Math.round(Number(player?.duration) * 1000) || 0;
   if (!durationMs) {
     flashHint('媒体时长尚不可用；请先加载媒体后再导出', 'invalid');
     return null;
@@ -35951,7 +36572,7 @@ function gapRemovedExportContext() {
 
 function buildDynamicCaptionExportData(segments, gapRemoved) {
   const source = Array.isArray(segments) ? segments : [];
-  const sourceDurationMs = waveformEditor?.durationMs
+  const sourceDurationMs = waveformEditor?.contentDurationMs
     || Math.round(Number(player?.duration) * 1000)
     || DATA.waveform?.duration_ms
     || 0;
@@ -36459,7 +37080,7 @@ function buildTimelineOtio({ gapRemoved = false, includeStickers = false, includ
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
     return null;
   }
-  const durationMs = waveformEditor?.durationMs || Math.round(Number(player?.duration) * 1000) || 0;
+  const durationMs = waveformEditor?.sourceDurationMs || Math.round(Number(player?.duration) * 1000) || 0;
   if (!durationMs) {
     flashHint('媒体时长尚不可用；请先加载媒体后再导出 OTIO', 'invalid');
     return null;
@@ -38015,7 +38636,7 @@ function openFcp7ExportModal() {
 async function exportFcp7Xml() {
   fcp7ExportConfirm.disabled = true;
   try {
-    const durationMs = waveformEditor?.durationMs
+    const durationMs = waveformEditor?.sourceDurationMs
       || Math.round(Number(player?.duration) * 1000)
       || DATA.waveform?.duration_ms
       || 0;
@@ -38843,7 +39464,9 @@ function updateUnloadedMediaLabel(mediaPath) {
   mediaNameEl.onclick = () => copyText(mediaPath, `已复制媒体路径：${mediaPath}`);
 }
 
+let mediaLoadSequence = 0;
 function resetLoadedMedia() {
+  mediaLoadSequence += 1;
   if (currentMediaBlobUrl) URL.revokeObjectURL(currentMediaBlobUrl);
   currentMediaBlobUrl = null;
   const oldPlayer = player;
@@ -39026,6 +39649,12 @@ function detachServerProjectSaving() {
 
 async function ensureProjectCheckpointForImport(file, { usePicker = true } = {}) {
   if (projectCheckpointed) return true;
+  if (window.MSWE?.resolve('media')?.available()) {
+    window.MSWProject.ensure(DATA);
+    projectCheckpointed = true;
+    projectImportDirty = true;
+    return true;
+  }
   if (usePicker && window.showSaveFilePicker) {
     return createProjectCheckpoint(buildBlankProject(), suggestedProjectName(file));
   }
@@ -39516,6 +40145,8 @@ openProjectFileInput.addEventListener('change', async (e) => {
 // 如果媒体类型与当前播放器标签不一致（video<->audio），会原地替换整个 <video>/<audio> 元素。
 document.getElementById('load-media')?.addEventListener('click', () => {
   pendingProjectMediaSelection = null;
+  const media = window.MSWE?.resolve('media');
+  if (media?.available()) { void media.choose(); return; }
   loadMediaFileInput.value = '';
   loadMediaFileInput.click();
 });
@@ -39675,14 +40306,17 @@ document.addEventListener('keydown', (event) => {
   updateLinkedSplitPreview(nextOffset, lane);
 }, true);
 
-async function loadMediaFile(file) {
+async function loadMediaFile(file, { localOnly = false, previewOnly = false, preservePrevious = false } = {}) {
   if (!file) return;
+  const media = window.MSWE?.resolve('media');
+  if (!localOnly && media?.available()) return media.importFile(file);
+  const loadSequence = ++mediaLoadSequence;
   const finishLoading = beginEditorLoading(`正在加载媒体 ${file.name}…`, 5);
   try {
   stopJklReversePlayback({ render: false });
   const preserveProjectWaveform = waveformLoadedFromProject
     && Boolean(waveformEditor?.getPayload?.());
-  const url = URL.createObjectURL(file);
+  const url = file.url || URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video/') ||
     /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i.test(file.name);
   const oldPlayer = document.getElementById('player');
@@ -39723,6 +40357,7 @@ async function loadMediaFile(file) {
     updateEditorLoading(45, `正在读取媒体信息 ${file.name}…`);
     await waitForMediaMetadata(candidatePlayer, file);
   } catch (error) {
+    if (loadSequence !== mediaLoadSequence) return false;
     if (candidatePlayer !== oldPlayer && oldParent) {
       oldParent.replaceChild(oldPlayer, candidatePlayer);
       player = oldPlayer;
@@ -39741,9 +40376,10 @@ async function loadMediaFile(file) {
     return false;
   }
 
+  if (loadSequence !== mediaLoadSequence) return false;
   let mediaTimeReference = null;
   try {
-    mediaTimeReference = await window.AsrEditorUtils.readBwfTimeReferenceFromFile(file);
+    if (file instanceof Blob) mediaTimeReference = await window.AsrEditorUtils.readBwfTimeReferenceFromFile(file);
   } catch (_) {
     // BWF metadata is optional; an unreadable header must not block playback.
   }
@@ -39754,8 +40390,9 @@ async function loadMediaFile(file) {
   waveformEditor?.setMediaAvailable(true);
 
   // 释放旧 blob URL（不会影响 file:// 加载的原始媒体——那不是 blob URL）
-  if (currentMediaBlobUrl) URL.revokeObjectURL(currentMediaBlobUrl);
+  if (currentMediaBlobUrl && !preservePrevious) URL.revokeObjectURL(currentMediaBlobUrl);
   currentMediaBlobUrl = url;
+  if (previewOnly) { waveformEditor?.setPayload(null); return true; }
 
   // 更新标题区媒体名 + FILENAME_BASE（用文件名去扩展名作为导出基名）
   const stem = file.name.replace(/\.[^.]+$/, '');
@@ -42096,6 +42733,7 @@ function ctxAppendExpandableSettings(label, children) {
 
 // 共用的面板定位：鼠标落在第一个选项的中心（而非面板左上角），贴边防溢出。
 function ctxShowAt(x, y) {
+  window.MSWE.resolve('time-range')?.appendMenu(ctxmenu, x, y, () => ctxmenu.classList.remove('show'));
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
   const first = ctxmenu.querySelector(':scope > .item, :scope > .ctx-submenu > .ctx-submenu-toggle');
@@ -42439,11 +43077,7 @@ function showGapContextMenu(x, y, index) {
   separator.className = 'sep';
   ctxmenu.appendChild(separator);
   addItem('清理空隙', () => clearGap(index), { danger: true });
-
-  ctxmenu.classList.add('show');
-  const rect = ctxmenu.getBoundingClientRect();
-  ctxmenu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`;
-  ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
+  ctxShowAt(x, y);
 }
 
 function closeContextMenuOnOutsidePointerDown(event) {
@@ -42607,6 +43241,9 @@ function initWaveformEditor() {
     return;
   }
   waveformEditor = window.AsrWaveform.create({
+    getMediaDurationMs: () => Number(DATA.media_metadata?.duration_ms) || 0,
+    getCueSourceStatus: segment => DATA.msw?.asr_stale_subtitles?.[getActiveExtensionTrack()?.id]?.[segment.id]
+      ? (window.MSWE_I18N?.translateText?.('需复核') || '需复核') : '',
     getSegments: (track = 'main') => track === 'extension'
       ? (getActiveExtensionTrack()?.segments || []) : DATA.segments,
     getExtensionSegments: (trackId = null) => getExtensionTrack(trackId)?.segments || [],
@@ -43605,11 +44242,11 @@ function captureExtensionClipboard(mainIdxs) {
 }
 
 function refreshClipboardMenuState() {
-  const hasSelection = selectedIdxs.size > 0;
+  const hasSelection = selectedIdxs.size > 0 || selectedExtensionIdxs.size > 0;
   if (cueCutButton) cueCutButton.disabled = !hasSelection;
   if (cueCopyButton) cueCopyButton.disabled = !hasSelection;
   if (cueDeleteButton) cueDeleteButton.disabled = !hasSelection;
-  if (cuePasteButton) cuePasteButton.disabled = !cueClipboardSegments?.length;
+  if (cuePasteButton) cuePasteButton.disabled = !cueClipboardSegments?.length && !cueClipboardExtensionSegments?.length;
 }
 
 function copySelectedCues() {
@@ -43628,17 +44265,13 @@ function copySelectedCues() {
 function cutSelectedCues() {
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
   if (!idxs.length && !selectedExtensionIdxs.size) return;
-  // 全量主字幕禁剪的保护仅在纯主轨剪切时生效；连锁对剪切（含副轨）放行。
-  if (idxs.length && idxs.length === DATA.segments.length && !selectedExtensionIdxs.size) return;
   const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
   cueClipboardSegments = idxs
     .map((index) => cloneCueForClipboard(DATA.segments[index]))
     .filter(Boolean);
   captureExtensionClipboard(idxs);
   window.MSW_CLIPBOARD_KIND = 'cues';
-  // deleteSegments 内部自带 pushUndo、分组拆分与编辑面板状态处理。
-  deleteSegments(idxs);
-  if (extIdxs.length) deleteExtensionSegments(extIdxs);
+  deleteSelectedCues('剪切字幕');
   refreshClipboardMenuState();
   flashHint(`已剪切 ${idxs.length + extIdxs.length} 条字幕（含副字幕）`, 'success');
 }
@@ -43754,14 +44387,8 @@ function pasteCuesFromClipboard() {
 cueCutButton?.addEventListener('click', cutSelectedCues);
 cueCopyButton?.addEventListener('click', copySelectedCues);
 cuePasteButton?.addEventListener('click', pasteCuesFromClipboard);
-cueDeleteButton?.addEventListener('click', () => {
-  if (!selectedIdxs.size) return;
-  if (selectedExtensionIdxs.size > 0 && selectedIdxs.size === 0) {
-    deleteExtensionSegments([...selectedExtensionIdxs]);
-    return;
-  }
-  deleteSegments([...selectedIdxs]);
-});
+cueDeleteButton?.addEventListener('click', () => deleteSelectedCues());
+document.getElementById('clear-all-subtitles')?.addEventListener('click', clearAllSubtitles);
 
 // Ctrl/Cmd+X / C / V：与 Delete 键同一套输入保护（输入框、右键菜单内不抢占）。
 document.addEventListener('keydown', (event) => {
@@ -44429,6 +45056,34 @@ function processingSelection() {
     hasSelection: selectedIdxs.size > 0 || selectedExtensionIdxs.size > 0,
   };
 }
+function applyAsrJob(job, media) {
+  commitProcessingEdits();
+  const plan = window.MSWAsr.plan(DATA, media, job, { splitGroups: splitGroupsAtCutPoints });
+  if (!plan.applied) return plan;
+  // Normalize only new cues; frame rounding must not push untouched cues.
+  const inserted = new Set(plan.insertedIds);
+  for (const cue of plan.segments) if (inserted.has(cue.id)) syncSegmentTimebase(cue, projectTimebase(DATA), { preferFrames: false });
+  for (let index = 1; index < plan.segments.length; index++) {
+    if ((inserted.has(plan.segments[index].id) || inserted.has(plan.segments[index - 1].id))
+      && plan.segments[index].start < plan.segments[index - 1].end) throw Error('帧对齐后的 ASR 字幕与邻近字幕重叠，请调整识别范围');
+  }
+  window.MSWProject.normalize(plan.msw);
+  const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
+  pushUndo('应用 ASR 结果', { captureView: true });
+  currentCuePanelIdx = -1; currentCuePanelKind = 'main'; currentCuePanelTrackId = null; resetCuePanelEditState();
+  DATA.segments.splice(0, DATA.segments.length, ...plan.segments);
+  if (plan.multi) DATA.multi_subtitle = plan.multi;
+  DATA.msw = plan.msw;
+  normalizeMultiSubtitleState();
+  projectImportDirty = true;
+  clearSelection({ silent: true }); lastActive = -1;
+  renderAll({ waveform: 'full' });
+  restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
+  window.dispatchEvent(new Event('msw:assets-changed'));
+  scheduleAutoSaveFlush();
+  return {applied:true,insertedIds:plan.insertedIds,removedIds:plan.removedIds};
+}
+
 function applyTranslationJob(job) {
   commitProcessingEdits();
   const extension = window.MSWProject.ensure(DATA);
@@ -44445,6 +45100,11 @@ function applyTranslationJob(job) {
     const selection = snapshotEditorSelection();
     pushUndo('字幕翻译', { captureView: true });
     DATA.multi_subtitle = plan.multi;
+    if (extension.asr_stale_subtitles) {
+      for (const binding of plan.multi.bindings || []) if (binding.main_segment_ids?.some(id => plan.appliedIds.includes(id))) {
+        for (const id of binding.extension_segment_ids || []) delete extension.asr_stale_subtitles[binding.track_id]?.[id];
+      }
+    }
     const applied = [...new Set([...previousIds, ...plan.appliedIds])];
     if (applied.length === job.snapshot.entries.length) {
       extension.applied_results = [...(extension.applied_results || []), job.id].slice(-10000);
@@ -44532,6 +45192,68 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
 }));
 window.MSWE?.register('processing-host', () => Object.freeze({
+  ensureMediaProject: () => ensureProjectCheckpointForImport(null, { usePicker: false }),
+  get waveform() { return waveformEditor; },
+  applyWaveform: payload => {
+    if (!waveformEditor?.setPayload(payload, { preserveView: true })) return false;
+    DATA.waveform = payload; waveformLoadedFromProject = true;
+    scheduleAutoSave(); return true;
+  },
+  clearWaveform: () => {
+    DATA.waveform = null; DATA.spectral = null; DATA.waveform_reapeaks = null;
+    waveformLoadedFromProject = false;
+    waveformEditor?.setSpectralPayload(null, { render: false });
+    waveformEditor?.setReapeaksWaveform(null, { render: false });
+    waveformEditor?.setPayload(null, { preserveView: true });
+    scheduleAutoSave();
+  },
+  previewProxy: async (media, url) => {
+    const generation = mswProjectGeneration;
+    const snapshot = waveformEditor?.getNavigationSnapshot();
+    const peak = DATA.waveform, time = player.currentTime || 0;
+    const playable = await loadMediaFile({name: media.name, type: media.video ? 'video/mp4' : 'audio/mp4', url},
+      {localOnly: true, previewOnly: true});
+    if (generation !== mswProjectGeneration || DATA.media !== media.reference
+      || DATA.msw?.source_audio_index !== media.audio_index) return false;
+    waveformEditor?.setPayload(peak, { preserveView: true });
+    waveformEditor?.restoreNavigation(snapshot);
+    if (playable) player.currentTime = time;
+    return playable;
+  },
+  suspendSourcePlayback: () => { player.pause(); resetLoadedMedia(); },
+  mediaSnapshot: () => ({ media: DATA.media, metadata: window.MSWProject.clone(DATA.media_metadata),
+    waveform: DATA.waveform, spectral: DATA.spectral, reapeaks: DATA.waveform_reapeaks,
+    url: player.currentSrc || player.querySelector('source')?.src || '',
+    name: document.getElementById('media-name')?.textContent || '', type: player.tagName === 'VIDEO' ? 'video/mp4' : 'audio/wav' }),
+  previewMedia: file => loadMediaFile(file, { localOnly: true, previewOnly: true, preservePrevious: true }),
+  restoreMedia: async state => {
+    if (state.url) await loadMediaFile({ name: state.name, type: state.type, url: state.url }, { localOnly: true, previewOnly: true });
+    else resetLoadedMedia();
+    DATA.media = state.media;
+    DATA.media_metadata = state.metadata;
+    waveformEditor?.setPayload(state.waveform);
+    waveformEditor?.setSpectralPayload(state.spectral);
+    waveformEditor?.setReapeaksWaveform(state.reapeaks);
+  },
+  acceptMedia: (media, { playable, previous }) => {
+    if (!playable) resetLoadedMedia();
+    if (previous.url?.startsWith('blob:') && previous.url !== currentMediaBlobUrl) URL.revokeObjectURL(previous.url);
+    DATA.media = media.reference;
+    DATA.media_metadata = normalizeMediaMetadata(media.metadata);
+    window.MSWProject.ensure(DATA).source_audio_index = media.audio_index;
+    DATA.media_time_reference = media.time_reference;
+    DATA.waveform = null; DATA.spectral = null; DATA.waveform_reapeaks = null;
+    waveformLoadedFromProject = false;
+    waveformEditor?.setPayload(null, { render: false });
+    waveformEditor?.setSpectralPayload(null, { render: false });
+    waveformEditor?.setReapeaksWaveform(null, { render: false });
+    FILENAME_BASE = media.name.replace(/\.[^.]+$/, '');
+    const label = document.getElementById('media-name');
+    label.textContent = media.name; label.title = media.name; label.classList.remove('empty');
+    label.onclick = () => copyText(media.name);
+    projectImportDirty = true; projectCheckpointed = true;
+    renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
+  },
   editorText: () => cuePanelText.value,
   playheadMs: () => Math.max(0, Math.round((player.currentTime || 0) * 1000)),
   showCueEditor: () => {
@@ -44553,6 +45275,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return window.MSWTranslation.snapshot(DATA, processingSelection());
   },
   applyTranslation: applyTranslationJob,
+  applyASR: applyAsrJob,
   get assetLibrary() { return waveformEditor?.assetLibrary; },
   get player() { return player; },
   audioPlaybackSkip: timeMs => window.AsrGapRemoveCore.getGapPlaybackSkip(getRemovedGapRanges(), timeMs,
@@ -44588,7 +45311,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
   audioExportDuration: () => Math.ceil(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
-    Number(waveformEditor?.durationMs) || 0,
+    Number(waveformEditor?.contentDurationMs) || 0,
   )),
   showAssets: ({ automatic = false } = {}) => {
     if (waveformEditor?.showModule?.('assets', { recordUndo: !automatic })) rebuildShowModuleMenu();
@@ -44621,6 +45344,19 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     updateUndoRedoButtons(); return true;
   },
   createFloatingPanel,
+  openWaveSettings: () => setWaveformSettingsPanelOpen(true),
+  openMediaToolsEnvironment: () => {
+    setWaveformSettingsPanelOpen(false);
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+    requestAnimationFrame(() => document.getElementById('media-tools-environment-section').scrollIntoView({block: 'start'}));
+  },
+  openAsrEnvironment: () => {
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
+    requestAnimationFrame(() => document.getElementById('asr-environment-section').scrollIntoView({block: 'start'}));
+  },
+  closeProcessingEnvironment: () => setEditorSettingsPanelOpen(false),
   openTtsEnvironment: () => {
     setEditorSettingsPanelOpen(true);
     activateEditorSettingsCategory(document.getElementById('tts-environment-category'));
@@ -44705,6 +45441,801 @@ hideDisabledToggle?.addEventListener('change', () => {
 window.addEventListener('beforeunload', (e) => {
   if (hasUnsavedProjectChanges()) { e.preventDefault(); e.returnValue = ''; }
 });
+
+// Browser preview and backend processing share one committed source identity.
+(function (global) {
+  'use strict';
+  const host = global.MSWE?.resolve('processing-host');
+  if (!host) return;
+  const available = () => Boolean(host.config?.processingUrl);
+  const t = value => global.MSWE_I18N?.translateText?.(value) || value;
+  const pageId = global.MSWProject.id('media-page');
+  const projectId = () => global.MSWProject.ensure(host.data).project_id;
+  let operation = null, current = null;
+  const status = document.getElementById('msw-media-progress');
+  const cancelButton = document.getElementById('msw-media-cancel');
+  function message(text) {
+    document.getElementById('msw-source-toolbar').hidden = !available() || !operation;
+    status.hidden = !text; status.textContent = t(text);
+  }
+  function payload(extra = {}) {
+    return { project_id: projectId(), binding: host.config.processingContext?.binding,
+      client_token: `${pageId}.${host.generation}`, ...extra };
+  }
+  async function request(route, body = null, signal = null) {
+    const response = await fetch(`${host.config.processingUrl}/${route}`, {
+      method: body ? 'POST' : 'GET', cache: 'no-store', signal,
+      headers: { 'X-MSW-Token': host.config.requestToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      const error = Error(result.error || `HTTP ${response.status}`); error.status = response.status; throw error;
+    }
+    return result;
+  }
+  function valid(action) { return operation === action && action.generation === host.generation && !action.controller.signal.aborted; }
+  async function cancel({ restore = true } = {}) {
+    const action = operation;
+    if (!action) return;
+    operation = null; action.controller.abort();
+    if (action.upload) void request('media-upload-cancel', { ...action.scope, upload_id: action.upload }).catch(() => {});
+    if (restore && action.generation === host.generation && action.preview) await host.restoreMedia(action.previous);
+    cancelButton.hidden = true; message('媒体导入已取消');
+  }
+  async function begin() {
+    const previous = operation?.previous || host.mediaSnapshot();
+    await cancel({ restore: false });
+    const action = { previous, generation: host.generation, scope: payload(), controller: new AbortController(), preview: false };
+    operation = action; cancelButton.hidden = false;
+    return action;
+  }
+  async function accept(action, media, file = null) {
+    if (!valid(action)) return false;
+    if (!action.preview) action.preview = await host.previewMedia(file || {
+      name: media.name, type: media.video ? 'video/mp4' : 'audio/wav', url: media.url });
+    if (!valid(action)) return false;
+    await request('media-bind', { ...action.scope, media_id: media.id }, action.controller.signal);
+    if (!valid(action)) return false;
+    host.acceptMedia(media, { playable: action.preview, previous: action.previous });
+    media.needs_proxy = !action.preview || (media.metadata.audio_tracks?.length || 0) > 1;
+    current = media; operation = null; cancelButton.hidden = true;
+    message(action.preview ? '媒体已就绪' : '媒体已导入；当前浏览器无法预览，可继续处理');
+    global.dispatchEvent(new CustomEvent('msw:media-changed', { detail: media }));
+    return true;
+  }
+  async function failure(action, error) {
+    if (!valid(action)) return false;
+    await cancel(); message(error.message); host.flashHint(error.message, 'warning'); return false;
+  }
+  async function choose() {
+    await host.ensureMediaProject();
+    const action = await begin(); message('正在选择媒体…');
+    try {
+      const result = await request('media-choose', action.scope, action.controller.signal);
+      if (result.cancelled) { if (valid(action)) await cancel(); return false; }
+      return await accept(action, result.media);
+    } catch (error) { return failure(action, error); }
+  }
+  async function importFile(file) {
+    const action = await begin(); message('正在导入媒体…');
+    try {
+      action.preview = await host.previewMedia(file);
+      if (!valid(action)) return false;
+      const start = await request('media-upload-begin', { ...action.scope, name: file.name, size: file.size }, action.controller.signal);
+      action.upload = start.upload_id;
+      let offset = start.offset;
+      while (offset < file.size) {
+        if (!valid(action)) return false;
+        const chunk = file.slice(offset, offset + start.chunk_bytes);
+        let result;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const query = new URLSearchParams({ upload_id: action.upload, project_id: action.scope.project_id, offset });
+            const response = await fetch(`${host.config.processingUrl}/media-upload-chunk?${query}`, {
+              method: 'POST', signal: action.controller.signal,
+              headers: { 'X-MSW-Token': host.config.requestToken, 'Content-Type': 'application/octet-stream' }, body: chunk,
+            });
+            result = await response.json();
+            if (!response.ok || !result.ok) throw Error(result.error || `HTTP ${response.status}`);
+            break;
+          } catch (error) { if (attempt === 2 || !valid(action)) throw error; }
+        }
+        if (!Number.isInteger(result.offset) || result.offset <= offset || result.offset > file.size) throw Error('媒体传输进度无效');
+        offset = result.offset; message(`${t('正在导入媒体')} ${Math.round(offset * 100 / file.size)}%`);
+      }
+      const result = await request('media-upload-finish', { ...action.scope, upload_id: action.upload }, action.controller.signal);
+      return await accept(action, result.media, file);
+    } catch (error) { return failure(action, error); }
+  }
+  async function refresh() {
+    if (!available() || operation) return current;
+    const generation = host.generation, id = projectId(), reference = host.data.media;
+    if (!reference) { current = null; return null; }
+    try {
+      const result = await request(`media-context?${new URLSearchParams({ project_id: id, reference })}`);
+      if (generation !== host.generation || operation || host.data.media !== reference) return null;
+      current = result.media;
+      if (current) current.needs_proxy = (current.metadata.audio_tracks?.length || 0) > 1;
+      if (current) global.dispatchEvent(new CustomEvent('msw:media-ready', { detail: current }));
+      return current;
+    } catch (error) { if (generation === host.generation) message(error.message); return null; }
+  }
+  cancelButton.addEventListener('click', () => void cancel());
+  async function changeTrack(audio_index) {
+    if (!current || operation) return false;
+    const action = await begin();
+    try {
+      const result = await request('media-track', {...action.scope, media_id: current.id, audio_index}, action.controller.signal);
+      return await accept(action, result.media);
+    } catch (error) { return failure(action, error); }
+  }
+  global.addEventListener('msw:project-changed', () => { void cancel({ restore: false }); current = null; queueMicrotask(refresh); });
+  global.MSWE.register('media', () => ({ available, choose, importFile, refresh, request, changeTrack,
+    get current() { return current; }, get busy() { return Boolean(operation); }, payload, message }));
+  if (available()) void refresh();
+})(window);
+
+(function (global) {
+  'use strict';
+  const host = global.MSWE.resolve('processing-host'), media = global.MSWE.resolve('media');
+  if (!host || !media?.available()) return;
+  const byId = id => document.getElementById(`msw-${id}`);
+  const tasks = new Map();
+  const terminal = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
+  const auto = byId('waveform-auto'), track = byId('source-track');
+  auto.checked = localStorage.getItem('msw.waveform.auto') !== 'false';
+  byId('waveform-auto-label').hidden = false;
+  byId('analysis-unavailable').hidden = true;
+  byId('analysis-controls').hidden = false;
+  function status(kind, text) {
+    const node = byId(`${kind}-status`);
+    node.textContent = text; node.hidden = !text;
+  }
+  const valid = action => tasks.get(action.kind) === action && action.generation === host.generation
+    && media.current?.id === action.media.id;
+  function controls(kind, running) {
+    byId(`${kind}-cancel`).hidden = !running;
+    byId(`${kind}-generate`).hidden = !media.current;
+    byId(`${kind}-generate`).disabled = running || (kind === 'waveform' && !media.current?.metadata.audio_tracks?.length);
+    byId(`${kind}-generate`).textContent = kind === 'waveform' && host.data.waveform ? '重新生成波形' : kind === 'waveform' ? '生成波形' : '生成播放代理';
+  }
+  async function cancel(kind, quiet = false) {
+    const action = tasks.get(kind);
+    if (!action) return;
+    tasks.delete(kind); clearTimeout(action.timer);
+    if (action.job) void media.request('media-analysis-cancel', {...action.scope, job_id: action.job.id}).catch(() => {});
+    controls(kind, false);
+    if (!quiet) status(kind, kind === 'waveform' ? '波形已取消；可继续编辑' : '代理已取消；可继续处理源媒体');
+  }
+  async function poll(action) {
+    if (!valid(action)) return;
+    try {
+      const query = new URLSearchParams({project_id: action.scope.project_id, job_id: action.job.id});
+      const result = await media.request(`media-analysis?${query}`);
+      if (!valid(action)) return;
+      action.job = result.job;
+      if (!terminal.has(result.job.status)) {
+        status(action.kind, action.kind === 'waveform' ? `解析波形 ${result.job.progress}%` : '正在生成播放代理…');
+        action.timer = setTimeout(() => void poll(action), 500); return;
+      }
+      if (result.job.status === 'succeeded') {
+        const output = await media.request(`media-analysis-result?${query}`);
+        if (!valid(action)) return;
+        if (action.kind === 'waveform') {
+          host.applyWaveform(output.waveform); status(action.kind, '波形已就绪');
+        } else {
+          const playable = await host.previewProxy(action.media, output.url);
+          if (!valid(action)) return;
+          status(action.kind, playable ? '播放代理已就绪' : '播放代理无法预览，可继续处理源媒体');
+        }
+      } else status(action.kind, result.job.error || '媒体分析已取消');
+      tasks.delete(action.kind); controls(action.kind, false);
+    } catch (error) {
+      if (valid(action)) { tasks.delete(action.kind); controls(action.kind, false); status(action.kind, error.message); }
+    }
+  }
+  async function start(kind, force = false) {
+    if (!media.current) return;
+    await cancel(kind, true);
+    const action = {kind, generation: host.generation, media: media.current, scope: media.payload(), job: null};
+    tasks.set(kind, action); controls(kind, true); status(kind, '正在准备媒体分析…');
+    try {
+      const result = await media.request('media-analysis', {...action.scope, media_id: action.media.id, kind, force});
+      action.job = result.job;
+      if (!valid(action)) {
+        await media.request('media-analysis-cancel', {...action.scope, job_id: result.job.id}).catch(() => {}); return;
+      }
+      void poll(action);
+    } catch (error) {
+      if (valid(action)) { tasks.delete(kind); controls(kind, false); status(kind, error.message); }
+    }
+  }
+  function ready(event) {
+    const source = event.detail;
+    byId('analysis-source').textContent = source.name;
+    for (const kind of ['waveform', 'proxy']) { void cancel(kind, true); controls(kind, false); status(kind, ''); }
+    track.replaceChildren();
+    for (const item of source.metadata.audio_tracks || []) {
+      const option = document.createElement('option'); option.value = item.audio_index;
+      option.textContent = `源音轨 ${item.audio_index + 1}${item.title ? ` · ${item.title}` : ''}${item.language ? ` (${item.language})` : ''}`;
+      track.append(option);
+    }
+    track.value = source.audio_index; track.hidden = !track.options.length;
+    byId('source-track-field').hidden = track.hidden;
+    if (!track.options.length) status('waveform', '无音轨；可继续编辑或使用 TTS');
+    else if (host.data.waveform?.audio_track === source.audio_index && host.data.waveform?.source?.size === source.stamp[0]
+      && host.data.waveform?.source?.modified_ms === Math.floor(source.stamp[1] / 1e6)) status('waveform', '使用已有波形');
+    else if (auto.checked) void start('waveform');
+    else status('waveform', '自动波形已关闭；使用占位波形');
+    if (source.needs_proxy) { host.suspendSourcePlayback(); void start('proxy'); }
+  }
+  track.addEventListener('change', async () => {
+    track.disabled = true;
+    await media.changeTrack(Number(track.value));
+    track.value = media.current?.audio_index ?? 0; track.disabled = false;
+  });
+  auto.addEventListener('change', () => {
+    localStorage.setItem('msw.waveform.auto', String(auto.checked));
+    if (auto.checked) void start('waveform'); else void cancel('waveform');
+  });
+  for (const kind of ['waveform', 'proxy']) {
+    byId(`${kind}-generate`).addEventListener('click', () => void start(kind, true));
+    byId(`${kind}-cancel`).addEventListener('click', () => void cancel(kind));
+  }
+  global.addEventListener('msw:media-changed', ready);
+  let toolsLoading = false, toolsReadOnly = true, toolsDirty = false, toolsSaving = false;
+  byId('tools-unavailable').hidden = true; byId('tools-controls').hidden = false;
+  byId('tools-path').addEventListener('input', () => {toolsDirty = true;});
+  async function loadTools() {
+    if (toolsLoading || toolsSaving || toolsDirty) return;
+    toolsLoading = true; byId('tools-save').disabled = true; byId('tools-path').disabled = true;
+    byId('tools-status').textContent = '正在读取工具配置…';
+    try {
+      const result = await media.request('media-tools');
+      toolsReadOnly = result.read_only;
+      byId('tools-path').value = result.ffmpeg_path;
+      byId('tools-status').textContent = result.read_only ? '路径由启动环境设置。' : result.ready ? 'FFmpeg 与 FFprobe 已就绪。' : '未找到完整媒体工具。';
+    } catch (error) { toolsReadOnly = true; byId('tools-status').textContent = error.message; }
+    finally {toolsLoading = false; byId('tools-save').disabled = toolsReadOnly; byId('tools-path').disabled = toolsReadOnly;}
+  }
+  byId('tools-open').addEventListener('click', () => host.openMediaToolsEnvironment());
+  global.addEventListener('msw:settings-opened', () => void loadTools());
+  byId('tools-save').addEventListener('click', async () => {
+    if (toolsReadOnly || toolsSaving || toolsLoading) return;
+    toolsSaving = true; byId('tools-save').disabled = true; byId('tools-path').disabled = true;
+    try {
+      const result = await media.request('media-tools', {ffmpeg_path: byId('tools-path').value});
+      toolsDirty = false; toolsReadOnly = result.read_only;
+      byId('tools-status').textContent = '已保存；可重新导入媒体以刷新音轨信息。';
+    } catch (error) { byId('tools-status').textContent = error.message; }
+    finally { toolsSaving = false; byId('tools-save').disabled = toolsReadOnly; byId('tools-path').disabled = toolsReadOnly; }
+  });
+  global.addEventListener('msw:media-ready', ready);
+  global.addEventListener('msw:project-changed', () => {
+    for (const kind of ['waveform', 'proxy']) { void cancel(kind, true); controls(kind, false); status(kind, ''); }
+    track.hidden = true;
+    byId('source-track-field').hidden = true;
+    byId('analysis-source').textContent = '导入媒体后可生成波形或播放代理。';
+  });
+  global.MSWE.register('media-analysis', () => ({start, cancel, get tasks() { return [...tasks.values()].map(item => item.job); }}));
+})(window);
+
+// Source milliseconds survive row virtualization, zoom and rebuildable peaks.
+(function (global) {
+  'use strict';
+  const host = global.MSWE?.resolve('processing-host'), wave = host?.waveform;
+  if (!wave) return;
+  const node = id => document.getElementById(`msw-range-${id}`);
+  const clamp = (value, lo, hi) => Math.min(hi, Math.max(lo, value));
+  const t = value => global.MSWE_I18N?.translateText?.(value) || value;
+  let context = null;
+  let selection = [], activeIndex = 0, drag = null, frame = 0, suppressClickUntil = 0;
+  const copy = values => values.map(value => ({...value}));
+  function normalize(values) {
+    const result = [];
+    for (const value of values) {
+      if (!Number.isFinite(value.start) || !Number.isFinite(value.end)) throw Error('时间选区必须是有效时间');
+    }
+    const sorted = values.map(value => ({
+      start: Math.round(clamp(Math.min(value.start, value.end), 0, wave.durationMs)),
+      end: Math.round(clamp(Math.max(value.start, value.end), 0, wave.durationMs)),
+    })).filter(value => value.end > value.start).sort((a,b) => a.start - b.start);
+    for (const value of sorted) {
+      const last = result.at(-1);
+      if (last && value.start <= last.end) last.end = Math.max(last.end, value.end);
+      else result.push(value);
+    }
+    return result;
+  }
+  const format = ms => `${Math.floor(ms / 60000)}:${(ms % 60000 / 1000).toFixed(3).padStart(6, '0')}`;
+  const menu = document.createElement('div'); menu.className = 'msw-range-menu'; menu.hidden = true;
+  const transcribe = document.createElement('button'); transcribe.textContent = '识别所选片段';
+  const edit = document.createElement('button'); edit.textContent = '精确编辑时间选区';
+  const clear = document.createElement('button'); clear.textContent = '清除时间选区';
+  const addFromPlayhead = document.createElement('button'); addFromPlayhead.textContent = '加选播放头至鼠标位置';
+  const settings = document.createElement('button'); settings.textContent = '波形显示器设置';
+  settings.addEventListener('click', () => {menu.hidden = true; host.openWaveSettings();});
+  menu.append(addFromPlayhead, transcribe, edit, clear, settings); document.body.append(menu);
+  function appendMenu(target, x, y, close) {
+    if (!context || context.x !== x || context.y !== y) return;
+    const span = {...context.range};
+    const separator = document.createElement('div'); separator.className = 'sep'; target.append(separator);
+    const add = (label, action, disabled = false) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'item msw-range-action';
+      button.textContent = t(label); button.disabled = disabled;
+      button.addEventListener('click', () => {close(); action();}); target.append(button);
+    };
+    add('加选播放头至鼠标位置', () => setRange([...selection, span]), span.start === span.end);
+    if (selection.length) {
+      add('精确编辑时间选区', openEditor);
+      add('清除时间选区', clearRange);
+    }
+  }
+  function sourceRange() {
+    const duration = Number(global.MSWE.resolve('media')?.current?.metadata.duration_ms) || 0;
+    const range = selection.length === 1 ? selection[0] : null;
+    return range && range.start >= 0 && range.end <= duration && range.end > range.start ? {...range} : null;
+  }
+  function setRange(value) {
+    selection = normalize(Array.isArray(value) ? value : value ? [value] : []);
+    activeIndex = clamp(activeIndex, 0, Math.max(0, selection.length - 1));
+    wave.setTimeRange(selection);
+    global.dispatchEvent(new CustomEvent('msw:range-changed', {detail: copy(selection)}));
+  }
+  function stop(event, cancelled = false) {
+    if (!drag || (event?.pointerId != null && event.pointerId !== drag.id)) return;
+    const previous = drag.previous, moved = drag.moved, id = drag.id;
+    drag = null; cancelAnimationFrame(frame); frame = 0;
+    try { wave.scroll.releasePointerCapture(id); } catch (_) {}
+    wave.manualFollowUntil = Date.now() + 3000;
+    if (cancelled || !moved) setRange(previous);
+    suppressClickUntil = performance.now() + 200;
+    if (event?.cancelable) event.preventDefault();
+    event?.stopImmediatePropagation?.();
+  }
+  function update() {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(drag.x - drag.downX, drag.y - drag.downY) < 4) return;
+    drag.moved = true;
+    const end = Math.round(wave.timeAtViewportPoint(drag.x, drag.y, {unboundedX:Boolean(drag.boundary)}));
+    const start = Math.round(drag.start);
+    const swept = {start: Math.min(start, end), end: Math.max(start, end)};
+    let next;
+    if (drag.boundary) {
+      next = copy(drag.previous);
+      const target = next[drag.boundary.index];
+      target[drag.boundary.side] = drag.boundary.side === 'start'
+        ? Math.min(end, target.end - 1) : Math.max(end, target.start + 1);
+    } else if (drag.operation === 'add') next = [...drag.previous, swept];
+    else if (drag.operation === 'subtract') next = drag.previous.flatMap(item => {
+      if (swept.end <= item.start || swept.start >= item.end) return [item];
+      const pieces = [];
+      if (swept.start > item.start) pieces.push({start:item.start, end:swept.start});
+      if (swept.end < item.end) pieces.push({start:swept.end, end:item.end});
+      return pieces;
+    });
+    else next = [swept];
+    next = normalize(next);
+    if (JSON.stringify(next) !== JSON.stringify(selection)) setRange(next);
+  }
+  function tick() {
+    if (!drag) return;
+    if (drag.moved) {
+      const viewport = wave.scroll.getBoundingClientRect();
+      if (wave.isMultiMode()) {
+        const toolbar = document.getElementById('msw-source-toolbar');
+        const top = toolbar && !toolbar.hidden ? toolbar.getBoundingClientRect().bottom : viewport.top + 28;
+        const delta = drag.y < top + 24 ? -clamp((top + 24 - drag.y) / 3, 0, 20)
+          : drag.y > viewport.bottom - 24 ? clamp((drag.y - viewport.bottom + 24) / 3, 0, 20) : 0;
+        if (delta) { wave.scroll.scrollTop += delta; wave.renderMultiVisible(false); }
+      } else {
+        const row = wave.renderedRows[0]?.getBoundingClientRect();
+        if (row) {
+          const direction = drag.x < row.left + 20 ? -1 : drag.x > row.right - 20 ? 1 : 0;
+          if (direction) {
+            const next = clamp(wave.basicWindowStartMs + direction * wave.settings.visibleSeconds * 10,
+              0, Math.max(0, wave.durationMs - wave.settings.visibleSeconds * 1000));
+            if (next !== wave.basicWindowStartMs) { wave.basicWindowStartMs = next; wave.renderBasic(); }
+          }
+        }
+      }
+      update();
+    }
+    frame = requestAnimationFrame(tick);
+  }
+  function boundaryTolerance(x, y, time) {
+    return Math.max(Math.abs(wave.timeAtViewportPoint(x + 7,y) - time),
+      Math.abs(wave.timeAtViewportPoint(x - 7,y) - time));
+  }
+  global.addEventListener('pointerdown', event => {
+    if (!event.target.closest?.('.msw-range-menu')) menu.hidden = true;
+    const ctrl = event.ctrlKey || event.metaKey, temporary = ctrl && event.shiftKey;
+    if (event.button !== 0 || (!temporary && wave.getTool() !== 'range') || event.altKey) return;
+    const row = event.target.closest?.('.waveform-row');
+    if (!row || !wave.scroll.contains(row) || event.target.closest('button,input,select,textarea')) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    wave.focusWaveform(); wave.autoScrolling = false; wave.autoScrollTarget = null; wave.manualFollowUntil = Infinity;
+    const time = wave.timeAtViewportPoint(event.clientX,event.clientY);
+    const tolerance = boundaryTolerance(event.clientX,event.clientY,time);
+    let boundary = null, distance = Infinity;
+    if (!ctrl && !event.shiftKey && wave.getTool() === 'range') selection.forEach((item,index) => {
+      for (const side of ['start','end']) {
+        const delta = Math.abs(item[side] - time);
+        if (delta <= tolerance && delta < distance) { boundary = {index,side}; distance = delta; }
+      }
+    });
+    drag = {id:event.pointerId, start:time, boundary,
+      operation:temporary ? 'replace' : ctrl ? 'subtract' : event.shiftKey ? 'add' : 'replace',
+      x:event.clientX,y:event.clientY,downX:event.clientX,downY:event.clientY,previous:copy(selection),moved:false};
+    try { wave.scroll.setPointerCapture(event.pointerId); } catch (_) {}
+    frame = requestAnimationFrame(tick);
+  }, true);
+  global.addEventListener('pointermove', event => {
+    if (!drag) {
+      const inRow = event.target.closest?.('.waveform-row');
+      const time = inRow ? wave.timeAtViewportPoint(event.clientX,event.clientY) : 0;
+      const tolerance = inRow ? boundaryTolerance(event.clientX,event.clientY,time) : 0;
+      wave.scroll.classList.toggle('range-boundary-hover', Boolean(inRow && wave.getTool() === 'range'
+        && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
+        && selection.some(item => [item.start,item.end].some(edge => Math.abs(edge-time) <= tolerance))));
+    }
+    if (!drag || event.pointerId !== drag.id) return;
+    event.preventDefault(); event.stopImmediatePropagation(); drag.x = event.clientX; drag.y = event.clientY; update();
+  }, true);
+  global.addEventListener('pointerup', event => { if (drag) { update(); stop(event); } }, true);
+  global.addEventListener('pointercancel', event => stop(event, true), true);
+  global.addEventListener('blur', () => stop(null, true));
+  global.addEventListener('wheel', event => {
+    if (drag) { event.preventDefault(); event.stopImmediatePropagation(); }
+  }, {capture:true, passive:false});
+  global.addEventListener('click', event => {
+    if (performance.now() < suppressClickUntil && wave.scroll.contains(event.target)) {
+      event.preventDefault(); event.stopImmediatePropagation();
+    }
+  }, true);
+  global.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || (!drag && !selection.length && menu.hidden)) return;
+    if (!drag && event.target.closest?.('input,textarea,[contenteditable="true"],dialog')) return;
+    event.preventDefault(); event.stopImmediatePropagation(); menu.hidden = true;
+    if (drag) stop(null, true); else setRange(null);
+  }, true);
+  global.addEventListener('contextmenu', event => {
+    context = null;
+    if (!event.target.closest?.('.waveform-row') || !wave.scroll.contains(event.target)) return;
+    const time = wave.timeAtViewportPoint(event.clientX, event.clientY);
+    const playhead = clamp(wave.currentTimeMs(), 0, wave.durationMs);
+    const span = {start:Math.round(Math.min(time,playhead)), end:Math.round(Math.max(time,playhead))};
+    context = {x:event.clientX,y:event.clientY,range:span};
+    if (!selection.length) return;
+    const index = selection.findIndex(item => time >= item.start && time <= item.end);
+    if (index < 0) return;
+    activeIndex = index;
+    event.preventDefault(); event.stopImmediatePropagation();
+    const duration = Number(global.MSWE.resolve('media')?.current?.metadata.duration_ms) || 0;
+    transcribe.disabled = selection.some(item => item.end > duration) || !global.MSWE.resolve('asr');
+    addFromPlayhead.disabled = span.start === span.end;
+    addFromPlayhead.onclick = () => {menu.hidden = true; setRange([...selection,span]);};
+    menu.hidden = false; menu.style.left = `${clamp(event.clientX, 4, innerWidth - 200)}px`;
+    menu.style.top = `${clamp(event.clientY, 4, innerHeight - menu.offsetHeight - 4)}px`;
+  }, true);
+  function openEditor() {
+    const range = selection[activeIndex];
+    if (!range) return;
+    node('part').replaceChildren(...selection.map((item,index) => {
+      const option = document.createElement('option'); option.value = index;
+      option.textContent = `${index + 1}. ${format(item.start)}–${format(item.end)}`; return option;
+    }));
+    node('part').value = activeIndex; node('part-field').hidden = selection.length < 2;
+    menu.hidden = true; node('start').value = (range.start / 1000).toFixed(3); node('end').value = (range.end / 1000).toFixed(3);
+    node('error').textContent = ''; updateDuration(); node('dialog').showModal(); node('start').select();
+  }
+  function updateDuration() {
+    const duration = Number(node('end').value) - Number(node('start').value);
+    node('duration').textContent = t('选区时长') + ' · ' + (Number.isFinite(duration) && duration > 0 ? duration.toFixed(3) : '—') + ' s';
+  }
+  node('dialog').querySelector('form').addEventListener('submit', event => {
+    event.preventDefault();
+    const start = Math.round(Number(node('start').value) * 1000), end = Math.round(Number(node('end').value) * 1000);
+    if (!node('start').value || !node('end').value || !Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > wave.durationMs || !selection[activeIndex]) {
+      node('error').textContent = t('请输入时间轴范围内的有效起止时间。'); return;
+    }
+    const next = copy(selection); next[activeIndex] = {start,end}; setRange(next); node('dialog').close();
+  });
+  node('part').addEventListener('change', () => {
+    activeIndex = Number(node('part').value);
+    node('start').value = (selection[activeIndex].start / 1000).toFixed(3);
+    node('end').value = (selection[activeIndex].end / 1000).toFixed(3);
+    node('error').textContent = '';
+    updateDuration();
+  });
+  for (const key of ['start','end']) node(key).addEventListener('input', () => {node('error').textContent = ''; updateDuration();});
+  for (const key of ['close','cancel']) node(key).addEventListener('click', () => node('dialog').close());
+  edit.addEventListener('click', openEditor);
+  function clearRange() { menu.hidden = true; node('dialog').close(); stop(null,true); setRange(null); }
+  clear.addEventListener('click', clearRange);
+  transcribe.addEventListener('click', () => { menu.hidden = true; global.MSWE.resolve('asr')?.open('range'); });
+  global.addEventListener('msw:project-changed', clearRange); global.addEventListener('msw:media-changed', clearRange);
+  global.MSWE.register('time-range', () => ({setRange, clear:clearRange, openEditor, sourceRange, appendMenu,
+    get ranges() { return copy(selection); },
+    get range() { return selection.length === 1 ? {...selection[0]} : null; }, get dragging() { return Boolean(drag); }}));
+})(window);
+
+(function (global) {
+  'use strict';
+  const host=global.MSWE.resolve('processing-host'),media=global.MSWE.resolve('media'),ranges=global.MSWE.resolve('time-range');
+  if (!host||!media) return;
+  const el=id=>document.getElementById(`msw-asr-${id}`),t=value=>global.MSWE_I18N?.translateText?.(value)||value;
+  const available=media.available(),panel=el('panel'),settingsRoot=el('settings'),jobs=new Map(),details=new Map();
+  const pageId=global.MSWProject.id('asr-page'),token=()=>`${pageId}.${host.generation}`;
+  const fields=['providerId','modelId','language','region','workspaceId','openaiModel','openaiBaseUrl','maxLen','minLen',
+    'maxWords','minWords','gapSplit','qwenAudioContext','qwenAudioHotwords','qwenAudioVocabularyId','qwenAudioHotwordWeight',
+    'sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms'];
+  const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
+  let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,selected=null,loading=null;
+  function message(value) {el('message').textContent=t(value);}
+  function options(node,values,selectedValue='') {
+    node.replaceChildren(...values.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.label;return option;}));
+    if (values.some(item=>item.id===selectedValue)) node.value=selectedValue;
+  }
+  const connectionFields=['region','workspaceId','openaiBaseUrl'];
+  function providerInput() {return {...Object.fromEntries(fields.map(key=>[key,connectionFields.includes(key)?savedConnection[key]:el(key).value])),speakerColors:el('speakerColors').checked,apiKey:''};}
+  function selectProvider(modelId=null) {
+    const provider=providers.find(item=>item.id===el('providerId').value);
+    if (!provider) return;
+    options(el('modelId'),provider.models,modelId||provider.models[0].id);
+    for (const kind of ['qwen','soniox','openai']) settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=provider.id!==kind);
+    selectModel();
+  }
+  function selectEnvironment() {
+    const provider=providers.find(item=>item.id===el('environment-provider').value);
+    if (!provider) return;
+    options(el('region'),provider.regions,savedConnection.region||'beijing');
+    for (const key of connectionFields) if(key!=='region')el(key).value=savedConnection[key]||'';
+    el('apiKey').value='';el('key-state').textContent=t(provider.hasApiKey?'已配置本机密钥，留空继续使用':'尚未配置此服务密钥');
+    for(const kind of ['qwen','openai'])el('environment-fields').querySelectorAll('[data-asr-'+kind+']').forEach(node=>node.hidden=provider.id!==kind);
+  }
+  function selectModel() {
+    const provider=providers.find(item=>item.id===el('providerId').value),model=provider?.models.find(item=>item.id===el('modelId').value);
+    if (!model) return;
+    options(el('languages'),model.languages);
+    el('openaiModel').closest('label').hidden=provider.id!=='openai'||model.id!=='custom-asr';
+    for (const [kind,key] of [['context','supportsContext'],['hotwords','supportsHotwords'],['vocabulary','supportsVocabulary'],['speaker','supportsSpeaker']])
+      settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=!model[key]||(kind==='context'&&provider.id!=='qwen'));
+    updateScope();
+  }
+  async function loadSettings() {
+    if (loading) return loading;
+    loading=(async()=>{
+      const config=await media.request('asr-settings');providers=config.providers;
+      savedConnection=Object.fromEntries(connectionFields.map(key=>[key,config.options[key]||'']));
+      options(el('environment-provider'),providers,config.options.providerId);selectEnvironment();
+      options(el('providerId'),providers,config.options.providerId);selectProvider(config.options.modelId);
+      for (const key of fields) if (!['providerId','modelId'].includes(key)&&config.options[key]!==undefined) el(key).value=config.options[key];
+      el('speakerColors').checked=config.options.speakerColors===true;selectModel();
+    })();
+    try {await loading;} catch(error){message(error.message);} finally {loading=null;updateScope();}
+  }
+  function updateScope() {
+    const current=media.current,mode=el('mode').value,selection=ranges?.ranges||[];
+    const provider=providers.find(item=>item.id===el('providerId').value);
+    const ready=Boolean(provider?.hasApiKey);
+    el('scope-actions').hidden=mode!=='range';
+    el('source').textContent=current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
+    el('edit-range').hidden=mode!=='range';el('edit-range').disabled=!selection.length;
+    let issue='',snapshot=null;
+    try {global.MSWProject.ensure(host.data);snapshot=snapshots();} catch(error){issue=error.message;}
+    const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
+    el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
+    el('scope').textContent=issue||(!ready?t('请先在环境配置中保存此服务的 API Key'):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
+    el('start').disabled=!available||busy||media.busy||(!submission&&(!snapshot||!ready));
+    el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
+    el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
+    el('save-environment').disabled=!available||busy||Boolean(loading);
+    for (const input of document.querySelectorAll('#msw-asr-settings input,#msw-asr-settings select,#msw-asr-settings textarea,#msw-asr-environment-fields input,#msw-asr-environment-fields select')) input.disabled=busy||Boolean(loading);
+    return snapshot;
+  }
+  function snapshots() {
+    const mode=el('mode').value,selection=mode==='range'?ranges?.ranges:[];
+    return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range));
+  }
+  async function submit() {
+    if (busy) return;
+    if (media.busy) {message('媒体正在导入，请等待完成后再识别');return;}
+    try {
+      host.commitEdits();
+      if (!submission) {
+        if (!providers.find(item=>item.id===el('providerId').value)?.hasApiKey) throw Error('请先在环境配置中保存此服务的 API Key');
+        const provider=providerInput();
+        submission=snapshots().map(snapshot=>({...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot,provider}));
+        batchSubmission=submission.length>1;
+      }
+      busy=true;updateScope();
+      const generation=host.generation;
+      while (submission?.length) {
+        const result=await media.request('jobs',submission[0]);
+        if (generation!==host.generation) return;
+        jobs.set(result.job.id,result.job);submission.shift();renderJobs();schedule(0);
+      }
+      submission=null;
+      message('识别已开始');renderJobs();schedule(0);
+    } catch(error) {
+      if (error.status>=400&&error.status<500&&error.status!==429&&!batchSubmission) submission=null;
+      message(`${error.message}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
+    } finally {busy=false;updateScope();}
+  }
+  function renderJobs() {
+    const opened=new Set([...el('jobs').querySelectorAll('details[open]')].map(node=>node.dataset.resultId));
+    const fragment=document.createDocumentFragment();
+    const labels={queued:'等待识别',running:'正在识别',cancel_requested:'正在取消',succeeded:'识别完成',failed:'识别失败',cancelled:'已取消',interrupted:'服务中断'};
+    for (const job of [...jobs.values()].sort((a,b)=>b.created_at-a.created_at).slice(0,30)) {
+      const card=document.createElement('div');card.className='msw-processing-job';card.dataset.asrJob=job.id;
+      const line=document.createElement('p');line.textContent=`${job.model} · ${t(labels[job.status]||job.status)}${job.error?` · ${job.error}`:''}`;
+      const range=job.source_range||details.get(job.id)?.snapshot?.range;
+      if (range) line.textContent+=` · ${(range.start/1000).toFixed(3)}–${(range.end/1000).toFixed(3)} s`;
+      const status=document.createElement('small');status.textContent=t(job.progress?.message||'');
+      const actions=document.createElement('div');actions.className='msw-processing-actions';card.append(line,status,actions);
+      function button(label,action) {const node=document.createElement('button');node.type='button';node.textContent=t(label);node.addEventListener('click',action);actions.append(node);}
+      if (!terminal.has(job.status)) button('取消',async()=>{
+        try {await media.request(`jobs/${job.id}/cancel`,{project_id:job.project_id});schedule(0);}catch(error){message(error.message);}
+      });
+      if (job.status==='succeeded') {
+        const choose=document.createElement('label');choose.className='msw-asr-result-choice';
+        const radio=document.createElement('input');radio.type='radio';radio.name='msw-asr-result';radio.checked=selected?.id===job.id;
+        radio.addEventListener('change',()=>void showResult(job.id));choose.append(radio,t('选择结果'));actions.append(choose);
+        const result=details.get(job.id),view=document.createElement('details');view.dataset.resultId=job.id;view.className='msw-asr-result-preview';
+        const summary=document.createElement('summary');summary.textContent=t('预览结果');view.append(summary);
+        if (result) {
+          const status=document.createElement('p');status.className='msw-processing-hint';status.textContent=resultStatus(result);
+          const candidates=document.createElement('div');candidates.className='msw-asr-candidates';
+          for(const cue of (result.result?.segments||[]).slice(0,300)) {
+            const line=document.createElement('p');line.textContent=[(cue.start/1000).toFixed(3),(cue.end/1000).toFixed(3)].join('–')+'  '+cue.text;candidates.append(line);
+          }
+          if(selected?.id===job.id){view.id='msw-asr-preview';status.id='msw-asr-result-status';candidates.id='msw-asr-candidates';card.classList.add('is-selected');}
+          view.append(status,candidates);
+        }
+        view.open=opened.has(job.id);
+        view.addEventListener('toggle',()=>{if(view.isConnected&&view.open&&!details.has(job.id))void showResult(job.id);});
+        card.append(view);
+      }
+      if (['failed','cancelled','interrupted'].includes(job.status)) button('使用此范围重试',async()=>{
+        try {
+          const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
+          if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision) throw Error('媒体已改变，请重新选择识别范围');
+          el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);updateScope();message('范围已恢复；检查当前配置后点击开始识别');
+        }catch(error){message(error.message);}
+      });
+      fragment.append(card);
+    }
+    el('jobs').replaceChildren(fragment);el('count').textContent=String(jobs.size);refreshFooter();
+  }
+  function resultStatus(job) {
+    const rows=job.result?.segments||[],conflict=global.MSWAsr.conflict(host.data,media.current,job.snapshot);
+    const applied=host.data.msw?.applied_results?.includes(job.id);
+    let text=conflict||t(applied?'此结果已应用':rows.length?'候选字幕':'没有识别到语音；保留现有字幕');
+    if(rows.length&&!applied&&!conflict)text+=' '+rows.length+' · '+t('替换主字幕')+' '+job.snapshot.targets.length+' → '+rows.length;
+    if(rows.length>300)text+=' · '+t('仅预览前 300 条，可导出全部');
+    if(job.result?.warnings?.length)text+=' · '+job.result.warnings.join('；');
+    return text;
+  }
+  function refreshFooter() {
+    const rows=selected?.result?.segments||[];
+    el('apply').disabled=!selected||!rows.length||!host.applyASR||Boolean(global.MSWAsr.conflict(host.data,media.current,selected.snapshot))||host.data.msw?.applied_results?.includes(selected.id);
+    for(const key of ['discard','export-json','export-srt'])el(key).disabled=!selected?.result;
+    el('selected').textContent=selected?t('当前结果')+' · '+selected.result.model+' · '+(selected.snapshot.range.start/1000).toFixed(3)+'–'+(selected.snapshot.range.end/1000).toFixed(3)+' s':'';
+    const status=el('result-status');if(status&&selected)status.textContent=resultStatus(selected);
+  }
+  function preview(job,reveal=true) {
+    selected=job;details.set(job.id,job);renderJobs();
+    if(reveal){el('history').open=true;if(el('preview'))el('preview').open=true;}
+  }
+  async function showResult(id) {
+    const projectId=host.data.msw?.project_id,generation=host.generation;
+    try {
+      const result=await media.request(`jobs/${id}/result?${new URLSearchParams({project_id:projectId})}`);
+      if (generation!==host.generation) return;
+      details.set(id,result.job);preview(result.job);
+    }catch(error){message(error.message);}
+  }
+  async function apply(job,automatic=false) {
+    if (!host.applyASR) return;
+    const generation=host.generation;
+    try {
+      await media.request('asr-validate',{...media.payload(),job_id:job.id});
+      if (generation!==host.generation) return;
+      if (automatic&&(job.client_token!==token()||host.data.segments.length||host.isEditing())) return;
+      const result=host.applyASR(job,media.current);
+      if (!result.applied) {preview(job);return;}
+      await media.request(`jobs/${job.id}/ack`,{project_id:job.project_id,application:'applied'});
+      if (generation!==host.generation) return;
+      preview(job);message('ASR 结果已应用，可一次撤销');
+    }catch(error){message(error.message);}
+  }
+  async function handleReady(job) {
+    if (details.has(job.id)) return;
+    const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
+    if (host.data.msw?.project_id!==job.project_id) return;
+    details.set(job.id,result.job);
+    if (job.client_token===token()&&job.application==='pending'&&!host.data.segments.length
+      &&!result.job.snapshot.targets.length&&!host.isEditing()&&result.job.result?.segments?.length) await apply(result.job,true);
+    else if (panel.classList.contains('show')&&!selected) preview(result.job,false);
+  }
+  function schedule(delay=1000) {clearTimeout(timer);timer=setTimeout(()=>void poll(),delay);}
+  async function poll() {
+    if (polling||!available) return;
+    polling=true;const generation=host.generation,id=global.MSWProject.ensure(host.data).project_id;
+    try {
+      const result=await media.request(`jobs?${new URLSearchParams({project_id:id,since:cursor})}`);
+      if (generation!==host.generation) return;
+      cursor=result.revision;
+      for (const job of result.jobs) if (job.kind==='asr') {
+        jobs.set(job.id,job);
+      }
+      for (const job of jobs.values()) if (job.status==='succeeded'&&!details.has(job.id)) await handleReady(job);
+      if (result.jobs.some(job=>job.kind==='asr')) renderJobs();
+      if (selected&&panel.classList.contains('show')) refreshFooter();
+    }catch(error){if(panel.classList.contains('show'))message(error.message);}
+    finally {polling=false;schedule([...jobs.values()].some(job=>!terminal.has(job.status))?750:2500);}
+  }
+  function download(kind) {
+    if (!selected?.result) return;
+    const project={schema:'moy.asr.project.v1',media:selected.snapshot.source.reference,segments:selected.result.segments,
+      language:selected.result.language,model:selected.result.model};
+    const stamp=ms=>`${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')},${String(ms%1000).padStart(3,'0')}`;
+    const content=kind==='mosp'?JSON.stringify(project,null,2):project.segments.map((cue,index)=>`${index+1}\n${stamp(cue.start)} --> ${stamp(cue.end)}\n${cue.text}\n`).join('\n');
+    const url=URL.createObjectURL(new Blob([content],{type:kind==='mosp'?'application/json':'text/plain;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;link.download=`${selected.snapshot.source.name.replace(/\.[^.]+$/,'').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_')}.asr-candidates.${kind}`;
+    link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }
+  const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.querySelector('[data-menubar-item="media"] > button'),positionKey:'msw.asr.panel.position'});
+  async function open(mode='whole') {
+    host.commitEdits();el('mode').value=mode;floating.open();updateScope();
+    if (available) {if (!media.current) await media.refresh();if (!providers.length) await loadSettings();updateScope();schedule(0);}
+  }
+  el('open').addEventListener('click',()=>void open());el('close').addEventListener('click',()=>floating.close());
+  el('unavailable').hidden=available;el('controls').hidden=!available;
+  el('environment-unavailable').hidden=available;el('environment-controls').hidden=!available;
+  el('environment-return').addEventListener('click',()=>{host.closeProcessingEnvironment();void open(el('mode').value);});
+  el('environment-provider').addEventListener('change',selectEnvironment);
+  settingsRoot.addEventListener('input',updateScope);
+  el('providerId').addEventListener('change',()=>selectProvider());el('modelId').addEventListener('change',selectModel);
+  el('mode').addEventListener('change',updateScope);el('edit-range').addEventListener('click',()=>ranges.openEditor());
+  el('expand').addEventListener('click',()=>{
+    const reports=ranges.ranges.map(range=>global.MSWAsr.boundaries(host.data,range,media.current?.metadata.duration_ms||0));
+    if(reports.every(report=>report.canExpand))ranges.setRange(reports.map(report=>report.expanded));
+  });
+  el('start').addEventListener('click',()=>void submit());el('forget').addEventListener('click',()=>{submission=null;updateScope();message('已放弃未确认提交；此前请求若已到达服务，仍会显示在任务列表');});
+  el('save-settings').addEventListener('click',async()=>{
+    if (busy||!available) return;
+    busy=true;updateScope();
+    try {await media.request('asr-settings',{section:'call',provider:providerInput()});message('识别设置已保存');}
+    catch(error){message(error.message);}finally{busy=false;updateScope();}
+  });
+  el('save-environment').addEventListener('click',async()=>{
+    if (busy||!available) return;
+    busy=true;updateScope();
+    try {
+      const config=await media.request('asr-settings',{section:'environment',provider:{providerId:el('environment-provider').value,
+        ...Object.fromEntries(connectionFields.map(key=>[key,el(key).value])),apiKey:el('apiKey').value}});
+      providers=config.providers;savedConnection=Object.fromEntries(connectionFields.map(key=>[key,config.options[key]||'']));
+      selectEnvironment();el('environment-message').textContent=t('ASR 环境配置已保存');
+    }catch(error){el('environment-message').textContent=error.message;}finally{busy=false;updateScope();}
+  });
+  el('apply').addEventListener('click',()=>{if(selected)void apply(selected);});
+  el('discard').addEventListener('click',async()=>{
+    if(!selected)return;
+    const job=selected,generation=host.generation;
+    try {await media.request(`jobs/${job.id}/ack`,{project_id:job.project_id,application:'discarded'});
+      if(generation===host.generation){if(el('preview'))el('preview').open=false;selected=null;renderJobs();message('候选结果已搁置，仍可在任务列表预览或导出');schedule(0);}
+    }catch(error){message(error.message);}
+  });
+  el('export-json').addEventListener('click',()=>download('mosp'));el('export-srt').addEventListener('click',()=>download('srt'));
+  for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
+  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
+  global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
+  refreshFooter();
+  if (available) {void loadSettings();schedule(0);}
+})(window);
 
 // Project save UI. Native targets and collection belong to the local server.
 (function (global) {
@@ -45134,7 +46665,7 @@ window.addEventListener('beforeunload', (e) => {
       const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${cursor}`);
       if (generation !== host.generation || id !== projectId()) return;
       failures = 0; cursor = data.revision;
-      for (const job of data.jobs) if (job.kind !== 'tts') {
+      for (const job of data.jobs) if (['translation', 'connection_test'].includes(job.kind)) {
         jobs.set(job.id, job);
         if (job.kind === 'connection_test' && !['queued', 'running', 'cancel_requested'].includes(job.status)) {
           environmentMessage(`${t('测试连接')}：${t(statusText[job.status] || job.status)}${job.error ? ' · ' + job.error : ''}`, job.status === 'failed');
@@ -46246,6 +47777,7 @@ window.addEventListener('beforeunload', (e) => {
     const focus = list.contains(document.activeElement) ? document.activeElement : null;
     const focusedId = focus?.closest('[data-asset-id]')?.dataset.assetId, focusedAction = focus?.dataset.assetAction;
     const all = [...assets()].sort((a, b) => b.created_at - a.created_at || a.source_ref.start - b.source_ref.start);
+    const sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map();
     const batch = el('asset-batch').value;
     const batches = new Map(all.map(a => [a.job_id, a]));
     const known = new Map([...jobs.values()].map(job => [job.id, job]));
@@ -46283,6 +47815,7 @@ window.addEventListener('beforeunload', (e) => {
       else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
       else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
       if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
+      if (sourceStatuses.has(asset.id)) { meta.textContent += ` · ${t(sourceStatuses.get(asset.id))}`; row.classList.add('msw-source-stale'); }
       meta.title = meta.textContent;
       content.append(text, meta);
       const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
@@ -46397,6 +47930,7 @@ window.addEventListener('beforeunload', (e) => {
     if (previewId && !assets().some(asset => asset.id === previewId)) stopPreview();
     renderAssets();
   });
+  global.addEventListener('msw:subtitles-changed', () => { if (assets().length) renderAssets(); });
   for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
   for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
   el('asset-play-toggle').addEventListener('click', async () => {
@@ -46713,6 +48247,10 @@ window.addEventListener('beforeunload', (e) => {
   // lane 记忆跨 state 重建长期保存：重叠中的贴片拖动/松手都不换位；
   // 分离的贴片由 arrange 的重叠规则自动折叠回单轨（不会阻碍收纳）。
   let lastLanes = null;
+  let sourceStatuses = new Map();
+  for (const event of ['msw:subtitles-changed', 'msw:assets-changed']) global.addEventListener(event, () => {
+    sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map(); schedulePaint();
+  });
   let laneScroll = new Map();
   const extension = () => host.data.msw || EMPTY_EXTENSION;
   function sync() {
@@ -46861,6 +48399,7 @@ window.addEventListener('beforeunload', (e) => {
     item('删除音频贴片', remove);
     if (transport.failures.has(clip.asset_id)) item('重新加载素材', () => { transport.failures.delete(clip.asset_id); void transport.ensure(sync().assets.get(clip.asset_id)); closeMenu(); });
     item('波形显示器设置', () => { closeMenu(); timeline.openWaveSettings?.(); });
+    global.MSWE.resolve('time-range')?.appendMenu(menu, event.clientX, event.clientY, closeMenu);
     document.body.appendChild(menu);
     menu.style.left = `${Math.max(4, Math.min(event.clientX, innerWidth - menu.offsetWidth - 4))}px`;
     menu.style.top = `${Math.max(4, Math.min(event.clientY, innerHeight - menu.offsetHeight - 4))}px`;
@@ -47031,12 +48570,14 @@ window.addEventListener('beforeunload', (e) => {
         block.classList.toggle('continues-from-previous-row', clip.start_ms < start);
         block.classList.toggle('continues-to-next-row', finish > end);
         block.classList.toggle('missing', transport.failures.has(asset.id));
+        block.classList.toggle('msw-source-stale', sourceStatuses.has(asset.id));
         block.style.left = `${(from - start) / (end - start) * 100}%`;
         block.style.width = `${(to - from) / (end - start) * 100}%`;
         block.style.top = `${lane * ROW + 3}px`;
         const background = muted ? '' : heatBackground(clip, asset, from, to);
         if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
         block.title = `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
+          + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
           + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '');
         if (!transport.heats.has(asset.id) && !transport.failures.has(asset.id)) void transport.ensure(asset);
       }

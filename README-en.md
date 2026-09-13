@@ -1,5 +1,7 @@
 # Moyor's Subtitle Workflow (MSW)
 
+Direct editor workflow: Windows packages include `Start-Editor.vbs`; macOS packages include `Start-Editor.command`; Linux AppImages accept `--editor`. From source, run `uv run python maw_gui.py --editor --blank`. Import a video, generate its waveform in the background, then use **Media → ASR** for the whole source or Ctrl/Cmd+Shift-drag a time range. Preview replacements, retain old translations and audio for review, and undo the application in one step. Empty timelines and text-only TTS are supported. See the [editor ASR guide](docs/EDITOR_ASR.md). The default application entry still opens Launcher.
+
 <img src="web/launcher/logo.svg" width="80" height="80" alt="MSW Launcher"> <img src="web/favicon.svg" width="80" height="80" alt="MSWE Editor">
 
 [![中文 README](https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-2563eb?style=flat-square)](README.md)

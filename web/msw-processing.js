@@ -236,7 +236,7 @@
       const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${cursor}`);
       if (generation !== host.generation || id !== projectId()) return;
       failures = 0; cursor = data.revision;
-      for (const job of data.jobs) if (job.kind !== 'tts') {
+      for (const job of data.jobs) if (['translation', 'connection_test'].includes(job.kind)) {
         jobs.set(job.id, job);
         if (job.kind === 'connection_test' && !['queued', 'running', 'cancel_requested'].includes(job.status)) {
           environmentMessage(`${t('测试连接')}：${t(statusText[job.status] || job.status)}${job.error ? ' · ' + job.error : ''}`, job.status === 'failed');

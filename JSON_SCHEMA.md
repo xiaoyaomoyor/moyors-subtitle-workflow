@@ -6,6 +6,8 @@
 
 适用版本：对应 `edit.py` / `generate_subtitle_qwen_api.py` 当前实现。
 
+编辑器独立媒体工作流可在 `msw.source_audio_index` 保存所选源音轨的逻辑序号（整数 0–255），与容器 `stream_index` 区分；缺省沿用波形缓存的 `audio_track`，再缺省为 0。播放代理与后台分析任务保存在本机可重建缓存，不能替代工程的 `media` 原素材引用。
+
 ---
 
 ## 一、顶层结构
@@ -76,6 +78,8 @@
 `media_metadata.audio_tracks` 是从源容器读取的音轨清单。`audio_index` 是音频流内部的从 0 开始顺序，`stream_index` 是源容器中的 FFmpeg stream index；其余字段用于保留编码、声道、采样率、语言、标题和默认标记。编辑器导出 OTIO 时会为每条清单建立独立的 `Audio` 轨道，在达芬奇使用的 `Resolve_OTIO.Channels` 中写入源音轨/声道映射，并在 `moy` 元数据中保留对应的 stream index。旧工程缺少该字段时继续生成一条兼容的音频轨道。
 
 `timebase` 是字幕编辑器的时间基准，不改变媒体本身的时间单位。`unit: "milliseconds"` 保持旧行为；`unit: "frames"` 时，拖动、边界调整、方向键和 A/D 微调使用独立的帧字段，`fps` 决定帧与实际媒体时间的换算。为兼容旧工具，`start` / `end` 及字词时间码仍始终保存为整数毫秒；帧模式额外保存成对的 `start_frame` / `end_frame` 字段。帧时间码显示采用较通行的非丢帧格式 `HH:MM:SS:FF`，其中 `FF` 是当前秒内的帧号。
+
+`media_metadata.duration_ms` 是可选的非负整数毫秒源媒体时长（最多 7 天），用于没有波形缓存时恢复时间轴。它不包含配音贴片延长的编排时间。`segments: []` 和空音频贴片数组是合法工程；20 秒空编辑视图不写成媒体时长，也不生成伪峰值。
 
 ### 1.0 工程文件扩展名
 
@@ -901,6 +905,12 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 `msw.audio-render.v1` 是导出快照编译出的派生计划，不写入 `.mosp`，也不改变 `msw.editor.v1`。包括输出 `sample_rate`／`channels`／`sample_count`、源范围、保留区间到输出时间的映射、每段贴片的素材 ID／源采样入出点／输出采样起止点／叠加增益、所选原声音轨及峰值保护。取样位置使用非负数四舍五入（半值向上），区间为左闭右开。
 
 快照中的 `gap_remove.gaps` 是编辑器 `buildJson()` 已投影的当前空隙决定；后台验证这些区间，再独立应用贴片保护和时间映射，不接受客户端提交的 FFmpeg 图或任意素材路径。共同计划夹具位于 `tests/fixtures/msw_audio_render.json`。导出格式、范围和总音量记录于本机导出任务，不成为工程设置；WAV 成品不自动添加到 TTS 素材库。
+
+### 编辑器 ASR 应用与派生内容复核
+
+`msw.asr_applications` 为可选对象，最多保留 1000 个任务 ID 对应的应用记录。每条记录包含 `source_id`、64 位小写十六进制 `source_revision`、`audio_index`（0–255）、`range.start/end`（整数源毫秒，0 ≤ start < end ≤ 604800000）、`provider`、`model`（最长 256 字符）和 `removed_count/added_count`（0–10000）。已应用任务 ID 同时加入原有 `msw.applied_results`，避免重复插入。记录不包含密钥、请求头或临时音频路径。
+
+`msw.asr_stale_subtitles` 是可选的 `{副轨ID: {字幕ID: ASR任务ID}}` 对象（最多 1000 个轨记录，每轨最多 10000 个字幕记录），表示原主字幕已被重新识别，保留的副字幕需要复核。失效主副绑定被解除，副字幕原文和时间保持；后续重新翻译成功覆盖该副字幕时清除相应标记。历史标记不要求当前仍存在对应字幕。音频素材和贴片保持原数据，界面依据 `source_ref` 与当前字幕／复核标记计算提示；该提示不改变播放或导出。整次应用及上述记录属于一次撤销事务。没有候选字幕时不删除旧字幕。
 
 ### D3 / D4 媒体与剪辑工程派生输出
 

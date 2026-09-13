@@ -60,6 +60,7 @@ class TranscriptionRequest:
     generate_spectral: bool = False
     ui_language: str = "zh"
     generate_html: bool = True
+    generate_waveform: bool = True
     srt_only: bool = False
     debug_raw: bool = False
     engine: str = ""
@@ -74,6 +75,7 @@ class TranscriptionRequest:
     max_words: str = ""
     min_words: str = ""
     env_path: Path | None = None
+    environment_overrides: dict[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -283,7 +285,9 @@ def build_transcribe_command(
     else:
         command = [exe, str(script)]
     command.append(str(request.media_path))
-    command.extend(["--output", str(build_output_paths(request.srt_path).srt), "--json", "--no-html", "--with-waveform"])
+    command.extend(["--output", str(build_output_paths(request.srt_path).srt), "--json", "--no-html"])
+    if request.generate_waveform:
+        command.append('--with-waveform')
     command.extend(["--audio-track", str(request.audio_track)])
     if request.generate_spectral:
         command.append("--with-spectral")
@@ -427,6 +431,8 @@ def run_transcription(
         request.base_url,
         env_path=request.env_path,
     )
+    if request.environment_overrides:
+        env.update(request.environment_overrides)
     command = build_transcribe_command(request, executable=executable, frozen=frozen)
     process = popen_process_tree(
         command,
@@ -441,13 +447,17 @@ def run_transcription(
     collected: list[str] = []
 
     def forward(line: str) -> None:
-        collected.append(line)
+        collected.append(line[-16000:])
+        if len(collected) > 200:
+            del collected[:-200]
         if on_event:
             on_event(line)
 
     try:
         _stream_process(process, forward, cancel_event)
     finally:
+        if process.poll() is None:
+            terminate_process_tree(process, timeout=3)
         release_process_tree(process)
     if process.returncode != 0:
         raise TranscriptionProcessError(process.returncode, output=collected)

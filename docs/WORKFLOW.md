@@ -1,5 +1,7 @@
 # 从零完成一次字幕工程
 
+也可以全程从编辑器开始：使用发行包的 `Start-Editor` 脚本或 `uv run python maw_gui.py --editor --blank`，加载视频，按需生成波形、整段／片段 ASR，再翻译、TTS、保存与导出。无需先生成工程，详见 [编辑器直接导入与 ASR](EDITOR_ASR.md)。下文的 Launcher 流程继续适用于批处理。
+
 输出目录、旧缓存兼容和 Launcher 新设置见[输出布局与环境设置](OUTPUT_LAYOUT.md)。
 
 首次使用请先看[安装与升级](INSTALLATION.md)和[可选环境清单](ENVIRONMENT.md)。项目官网：[MSW GitHub 仓库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow)。

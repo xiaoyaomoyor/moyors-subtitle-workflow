@@ -81,6 +81,25 @@ test('empty or oversized draft cannot synthesize and an absent secondary track n
   await page.keyboard.press('Escape'); await expect(page.locator('#cue-panel-tts-text')).not.toBeVisible();
   expect(calls).toHaveLength(0);
 });
+test('empty project can synthesize independent text and delete its last audio clip without losing the timeline', async ({page}) => {
+  await page.evaluate(() => { clearAllSubtitles(); resetLoadedMedia(); DATA.media = ''; DATA.waveform = null;
+    waveformEditor.setPayload(null); renderAll({waveform: 'full'}); });
+  await openTtsEnvironment(page); await page.locator('#tts-key').fill('synthetic-empty-key');
+  await closeTtsEnvironment(page); await page.locator('#tts-target').selectOption('editor_text');
+  await page.locator('#cue-panel-tts-text').fill('Empty project voice');
+  await page.locator('#tts-start').click();
+  await expect.poll(() => page.evaluate(() => DATA.msw.assets?.length || 0)).toBe(1);
+  await page.locator('#tts-close').click();
+  await page.locator('.msw-asset-row').first().getByRole('button', {name: '放入时间轴', exact: true}).click();
+  await expect(page.locator('.msw-audio-clip').first()).toBeVisible();
+  await page.locator('.msw-audio-clip').first().click(); await page.keyboard.press('Delete');
+  await expect.poll(() => page.evaluate(() => DATA.msw.audio_clips.length)).toBe(0);
+  await expect(page.locator('.waveform-row').first()).toBeVisible();
+  expect(await page.evaluate(() => [DATA.segments.length, DATA.msw.assets.length, waveformEditor.getPayload()])).toEqual([0, 1, null]);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => page.evaluate(() => DATA.msw.audio_clips.length)).toBe(1);
+});
+
 test.afterEach(async () => { await server?.stop(); expect(errors).toEqual([]); });
 
 test('environment navigation saves a key independently and the call panel stays compact', async ({page}) => {

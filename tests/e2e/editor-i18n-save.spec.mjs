@@ -6,6 +6,10 @@ import { DURATION_MS, cleanupTempDir, clickLanguageToggleViaSettings, clickMenub
 let tempDir;
 let server;
 let projectPath;
+test.beforeEach(async ({page}) => {
+  await disableOnboarding(page);
+  await page.addInitScript(() => { if(!localStorage.getItem('mawe.language'))localStorage.setItem('mawe.language', 'zh'); });
+});
 
 test.beforeAll(async () => {
   tempDir = makeTempDir('editor-i18n-save');
@@ -28,7 +32,7 @@ test('English locale covers the editor shell and recent-project setting stays fi
   await expect(page.locator('#open-project')).toHaveText('Open project');
   await expect(page.locator('#save-project')).toHaveText(/^Save project(?: Ctrl\+S)?$/);
   await expect(page.locator('#recent-projects-toggle')).toHaveText('Recent projects');
-  await expect(page.locator('#search')).toHaveAttribute('placeholder', 'Filter subtitles…');
+  await expect(page.locator('#search')).toHaveAttribute('placeholder', 'Type text to match…');
   await expect(page.locator('#cue-panel-text')).toHaveAttribute('placeholder', 'Select a subtitle to start editing…');
   await clickMenubarItem(page, '文件', 'recent-projects-toggle');
   await expect(page.locator('#server-project-settings')).toContainText('Automatically open last project');
@@ -73,7 +77,7 @@ test('English locale covers the editor shell and recent-project setting stays fi
 
   await clickLanguageToggleViaSettings(page);
   await expect(page.locator('#save-project')).toHaveText(/^保存工程(?: Ctrl\+S)?$/);
-  await expect(page.locator('#search')).toHaveAttribute('placeholder', '过滤字幕…');
+  await expect(page.locator('#search')).toHaveAttribute('placeholder', '输入包含的文字…');
   await expect(page.locator('#cue-panel-text')).toHaveAttribute('placeholder', '选择一条字幕开始编辑…');
   expect(await page.evaluate(() => localStorage.getItem('mawe.language'))).toBe('zh');
 });
@@ -116,7 +120,8 @@ test('Ctrl+S saves and Ctrl+Shift+S invokes save as', async ({ page }) => {
     response.url().endsWith('/api/msw/project') && response.request().method() === 'POST'
   ));
   await page.keyboard.press('Control+s');
-  expect((await saveResponse).ok()).toBe(true);
+  const savedResponse = await saveResponse;
+  expect(await savedResponse.json()).toMatchObject({ok:true});
   await expect(page.locator('.hint-card').last()).toContainText('Saved!');
   await expect(page.locator('.hint-card').last()).toHaveClass(/hint-success/);
 
@@ -262,7 +267,7 @@ test('shows a persistent warning when the server connection is lost and clears a
   const banner = page.locator('#server-connection-banner');
   await expect(banner).toBeVisible({ timeout: 7000 });
   await expect(banner).toContainText('服务器连接已断开');
-  await expect(banner).toContainText('请在 Launcher 中确认服务器状态；当前无法自动保存工程');
+  await expect(banner).toContainText('请确认本机编辑器服务仍在运行；当前无法自动保存工程');
 
   await page.unroute('**/api/startup-status');
   await expect(banner).toBeHidden({ timeout: 7000 });

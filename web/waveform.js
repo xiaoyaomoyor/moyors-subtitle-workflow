@@ -1770,7 +1770,10 @@
         rowTop: document.getElementById('layout-resizer-h1'),
         rowMiddle: document.getElementById('layout-resizer-h2'),
       };
-      this._onPlayerTime = () => this.updatePlayback();
+      this._onPlayerTime = (event) => {
+        if (event?.type === 'loadedmetadata') { this.refreshMediaReadout(); this.render(); }
+        else this.updatePlayback();
+      };
       this._onResize = () => this.scheduleRender();
       this.bindControls();
       this.bindModuleTabs();
@@ -2154,15 +2157,16 @@
     // 拖动行为；'razor' 让左键点击字幕块在指针位置安全拆分。切回 select
     // 不会清除已有选中，便于拆分后立即继续操作。
     setTool(tool) {
-      if (tool !== 'select' && tool !== 'razor') return;
+      if (!['select', 'razor', 'range'].includes(tool)) return;
       if (this.tool === tool) return;
       this.tool = tool;
       this.pane?.classList.toggle('tool-razor', tool === 'razor');
       this.pane?.classList.toggle('tool-select', tool === 'select');
+      this.pane?.classList.toggle('tool-range', tool === 'range');
       document.querySelectorAll('[data-waveform-tool]').forEach((button) => {
         button.classList.toggle('active', button.dataset.waveformTool === tool);
       });
-      this.setStatus(tool === 'razor' ? '分割工具：点击字幕块在指针位置拆分' : '选择工具');
+      this.setStatus(tool === 'range' ? '选区编辑：拖动选择，Shift 加选，Ctrl/Cmd 减选，拖动边界调整' : tool === 'razor' ? '分割工具：点击字幕块在指针位置拆分' : '选择工具');
     }
 
     getTool() {
@@ -2225,7 +2229,7 @@
       this.settings.rowHeight = next;
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(next);
       saveSettings(this.settings);
-      if (this.isMultiMode() && this.payload) {
+      if (this.isMultiMode()) {
         this.updateMultiRowLayout();
       } else {
         this.render();
@@ -3209,7 +3213,6 @@
     }
 
     revealTime(timeMs, center = true) {
-      if (!this.payload) return;
       this.autoScrolling = false;
       this.autoScrollTarget = null;
       this.multiFollowCheckPending = true;
@@ -3291,9 +3294,9 @@
     // 恢复常显数据行：拖动过程会把实时增量暂挂到该行（quiet 状态），
     // 拖动结束后由此还原为「媒体总时长 · 波形峰值点数」。
     refreshMediaReadout() {
-      this.updateReadout(this.mediaAvailable && this.payload
+      this.updateReadout(this.payload
         ? `${formatCompact(this.payload.duration_ms)} · ${this.payload.peak_count.toLocaleString()} peaks`
-        : null);
+        : localizedWaveformMessage('占位波形', 'Placeholder waveform'));
     }
 
     setSpectralColorStatus(message = '') {
@@ -3373,24 +3376,19 @@
       if (next === this.mediaAvailable) return;
       this.mediaAvailable = next;
       this.pane.classList.toggle('waveform-media-unavailable', !next);
-      if (!this.payload) return;
-      // 数据行只显示「媒体总时长 · 波形峰值点数」；媒体未加载时不显示任何占位文本。
-      this.updateReadout(next
-        ? `${formatCompact(this.payload.duration_ms)} · ${this.payload.peak_count.toLocaleString()} peaks`
-        : null);
+      this.refreshMediaReadout();
       this.render();
     }
 
-    setPayload(payload, { render = true } = {}) {
-      this.audioOnlyTimeline = false;
+    setPayload(payload, { render = true, preserveView = false } = {}) {
+      const previousDuration = this.durationMs;
+      const navigation = preserveView ? this.getNavigationSnapshot() : null;
       const decoded = decodePayload(payload);
       if (!decoded) {
         this.payload = null;
         this.peaks = null;
-        this.updateReadout(null);
-        this.setStatus('等待波形数据');
-        this.empty.textContent = '加载媒体后显示波形（大媒体需要先用 MSW 生成波形后拖入）';
-        this.empty.classList.remove('hidden');
+        this.refreshMediaReadout();
+        this.empty.classList.add('hidden');
         if (render) this.render();
         return false;
       }
@@ -3400,9 +3398,18 @@
       this.updateReadout(this.mediaAvailable
         ? `${formatCompact(payload.duration_ms)} · ${payload.peak_count.toLocaleString()} peaks`
         : null);
-      this.centerBasicOnCurrentTime();
-      this.multiRange = [-1, -1];
-      if (render) this.render();
+      if (!preserveView) this.centerBasicOnCurrentTime();
+      if (render && preserveView) {
+        this.refreshTimelineDuration();
+        if (previousDuration === this.durationMs && this.renderedRows.length) this.redrawWaveformCanvases();
+        else {
+          if (this.settings.mode === 'basic') this.renderBasic(); else this.renderMulti();
+          if (navigation) this.restoreNavigation(navigation);
+        }
+      } else {
+        this.multiRange = [-1, -1];
+        if (render) this.render();
+      }
       if (this.pendingNavigation) {
         const navigation = this.pendingNavigation;
         this.pendingNavigation = null;
@@ -3597,9 +3604,27 @@
       });
     }
 
+    refreshTimelineDuration() {
+      let end = 0;
+      for (const segments of [this.options.getSegments?.('main'), this.options.getExtensionSegments?.()]) {
+        for (const segment of segments || []) end = Math.max(end, Number(segment.end) || 0);
+      }
+      this.cueDurationMs = end;
+    }
+
+    get sourceDurationMs() {
+      return Math.max(0, Number(this.options.getMediaDurationMs?.()) || 0,
+        Number.isFinite(this.player?.duration) ? this.player.duration * 1000 : 0,
+        this.payload?.duration_ms || 0);
+    }
+
+    get contentDurationMs() {
+      return Math.max(this.sourceDurationMs, this.cueDurationMs || 0, this.audioLayer?.durationMs() || 0);
+    }
+
     get durationMs() {
-      const base = this.payload?.duration_ms || (Number.isFinite(this.player?.duration) ? this.player.duration * 1000 : 0);
-      return Math.max(base, this.audioLayer?.durationMs() || 0);
+      // An empty editing viewport is not media and must never become an export duration.
+      return Math.max(this.contentDurationMs, this.sourceDurationMs ? 0 : 20000, this.currentTimeMs());
     }
 
     get effectiveRowHeight() {
@@ -3701,13 +3726,7 @@
     }
 
     refreshAudioTimeline() {
-      if (!this.payload && this.audioLayer?.hasAssets()) {
-        this.payload = { duration_ms: 20000, peaks_per_second: 1, peak_count: 20 };
-        this.peaks = new Int8Array(40);
-        this.audioOnlyTimeline = true;
-      } else if (this.audioOnlyTimeline && !this.audioLayer?.hasAssets()) {
-        this.payload = null; this.peaks = null; this.audioOnlyTimeline = false;
-      }
+      this.refreshTimelineDuration();
       const geometry = `${this.audioLayer?.minimumRowHeight() || 0}:${this.durationMs}`;
       if (geometry === this.audioGeometry) {
         // 几何未变（移动/裁剪/静音等提交）：只重刷各行 lanes 覆盖层，
@@ -3894,6 +3913,7 @@
     }
 
     render() {
+      this.refreshTimelineDuration();
       // 布局拖动中（分隔线/尺寸柄）：宽度逐帧变化，头部这两步都是强制样式/
       // 布局读取（getComputedStyle + 每行 offsetTop），会把每帧布局翻倍造成
       // 拖动卡顿；颜色与轨道头此时都不会变，跳过。
@@ -3902,13 +3922,6 @@
         this.applyTrackHeadsVisibility();
       }
       this.applyLayout();
-      if (!this.payload || !this.peaks) {
-        this.content.replaceChildren();
-        this.renderedRows = [];
-        this.syncTrackHeads();
-        this.empty.classList.remove('hidden');
-        return;
-      }
       this.empty.classList.add('hidden');
       if (this.layoutDragging) {
         // 布局拖拽中：不做全量重建（每帧 14 个 canvas 重绘会卡顿），
@@ -3932,7 +3945,6 @@
     }
 
     redrawWaveformCanvases({ measure = true } = {}) {
-      if (!this.payload || !this.peaks) return;
       if (!this.renderedRows.length) {
         this.renderSegments();
         return;
@@ -3942,7 +3954,7 @@
     }
 
     updateMultiRowLayout() {
-      if (!this.isMultiMode() || !this.payload) {
+      if (!this.isMultiMode()) {
         this.render();
         return;
       }
@@ -3962,7 +3974,7 @@
         const endMs = Math.min(this.durationMs, startMs + rowDurationMs);
         row.style.top = `${index * stride}px`;
         row.style.height = `${this.effectiveRowHeight}px`;
-        row.style.width = `${Math.max(0.01, Math.min(1, (endMs - startMs) / rowDurationMs) * 100)}%`;
+        this.setMultiRowWidth(row, startMs, endMs, rowDurationMs);
       });
       this.multiRange = [-1, -1];
       this.renderMultiVisible(false);
@@ -3973,16 +3985,12 @@
     }
 
     renderSegments() {
-      if (!this.payload) {
-        this.render();
-        return;
-      }
+      this.refreshTimelineDuration();
       if (this.settings.mode === 'basic') this.renderBasic();
       else this.renderMultiVisible(true);
     }
 
     renderBasic() {
-      if (!this.payload) return;
       const windowMs = this.settings.visibleSeconds * 1000;
       const maxStart = Math.max(0, this.durationMs - windowMs);
       this.basicWindowStartMs = clamp(this.basicWindowStartMs, 0, maxStart);
@@ -4007,7 +4015,7 @@
     }
 
     renderMultiVisible(force = false) {
-      if (!this.isMultiMode() || !this.payload) return;
+      if (!this.isMultiMode()) return;
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowCount = Math.max(1, Math.ceil(this.durationMs / rowDurationMs));
       const stride = this.effectiveRowHeight + ROW_GAP;
@@ -4061,8 +4069,14 @@
       // 最后一行只代表媒体剩余的真实时长；缩短容器不会减少采样量，
       // 但能避免把不存在的尾部时间误画成整行波形。
       row.style.right = 'auto';
-      row.style.width = `${Math.max(0.01, Math.min(1, (endMs - startMs) / rowDurationMs) * 100)}%`;
+      this.setMultiRowWidth(row, startMs, endMs, rowDurationMs);
       return row;
+    }
+
+    setMultiRowWidth(row, startMs, endMs, rowDurationMs) {
+      const fraction = Math.max(0.0001, Math.min(1, (endMs - startMs) / rowDurationMs));
+      const gutter = this.settings.showTrackHeads !== false ? 36 : 0;
+      row.style.width = `calc(${fraction * 100}% - ${fraction * gutter}px)`;
     }
 
     createRow(startMs, endMs, rowIndex, basic) {
@@ -4398,6 +4412,8 @@
         block.title = label.textContent;
         block.appendChild(label);
         this.setBindingMarker(block, extensionBindingMarkers?.has?.(index) === true);
+        const sourceStatus = this.options.getCueSourceStatus?.(segment);
+        if (sourceStatus) { block.classList.add('msw-source-stale'); block.title += ` · ${sourceStatus}`; }
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
           leftHandle.className = 'waveform-cue-handle left';
@@ -4473,7 +4489,6 @@
     }
 
     refreshGapOverlay() {
-      if (!this.payload) return;
       this.content.querySelectorAll('.waveform-row').forEach((row) => {
         row.querySelectorAll('.waveform-gap-block').forEach((element) => element.remove());
         this.appendGapBlocks(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
@@ -4482,10 +4497,10 @@
     }
 
     refreshCueOverlay() {
+      this.refreshTimelineDuration();
       if (this.audioLayer && this.audioGeometry !== `${this.audioLayer.minimumRowHeight()}:${this.durationMs}`) {
         this.refreshAudioTimeline(); return;
       }
-      if (!this.payload) return;
       const rows = [...this.content.querySelectorAll('.waveform-row')];
       if (!rows.length) return;
       rows.forEach((row) => {
@@ -4587,9 +4602,51 @@
       return envelope;
     }
 
+    timeAtViewportPoint(clientX, clientY, { unboundedX = false } = {}) {
+      if (this.settings.mode === 'basic') {
+        const row = this.renderedRows[0];
+        return row ? this.timeFromPointer({ clientX }, row) : 0;
+      }
+      const rect = this.content.getBoundingClientRect();
+      const rowMs = this.settings.secondsPerRow * 1000;
+      const anchor = this.renderedRows[0];
+      if (!anchor) return 0;
+      const rowRect = anchor.getBoundingClientRect();
+      const fullWidth = rowRect.width * rowMs / Math.max(1, Number(anchor.dataset.endMs) - Number(anchor.dataset.startMs));
+      const index = clamp(Math.floor((clientY - rect.top) / (this.effectiveRowHeight + ROW_GAP)),
+        0, Math.max(0, Math.ceil(this.durationMs / rowMs) - 1));
+      const fraction = (clientX - rowRect.left) / Math.max(1, fullWidth);
+      return clamp((index + (unboundedX ? fraction : clamp(fraction, 0, 1))) * rowMs, 0, this.durationMs);
+    }
+
+    setTimeRange(range) {
+      this.timeRanges = (Array.isArray(range) ? range : range ? [range] : []).map(item => ({...item}));
+      this.timeRange = this.timeRanges.length === 1 ? {...this.timeRanges[0]} : null;
+      this.renderedRows.forEach(row => this.drawRow(row, { measure: false }));
+    }
+
+    drawTimeRange(ctx, startMs, endMs, width, height) {
+      for (const range of this.timeRanges || (this.timeRange ? [this.timeRange] : [])) {
+      if (range.end <= startMs || range.start >= endMs) continue;
+      const left = clamp((range.start - startMs) / (endMs - startMs), 0, 1) * width;
+      const right = clamp((range.end - startMs) / (endMs - startMs), 0, 1) * width;
+      ctx.save();
+      ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#ffffff';
+      ctx.fillRect(left, 0, right - left, height);
+      ctx.globalCompositeOperation = 'source-over';
+      for (const time of [range.start, range.end]) {
+        if (time < startMs || time > endMs) continue;
+        const x = (time - startMs) / (endMs - startMs) * width;
+        ctx.fillStyle = '#101010'; ctx.fillRect(x - 2, 0, 4, height);
+        ctx.fillStyle = '#e2f5ff'; ctx.fillRect(x - 1, 0, 2, height);
+      }
+      ctx.restore();
+      }
+    }
+
     drawRow(row, { measure = true } = {}) {
       const canvas = row.querySelector('canvas');
-      if (!canvas || !this.peaks) return;
+      if (!canvas) return;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       let width = Number(row._waveformCanvasWidth);
       let height = Number(row._waveformCanvasHeight);
@@ -4652,7 +4709,19 @@
 
       // 形状来源开关（默认 .ReaPeaks，缺数据自动回退自研）与音量门限检测共用同一选取。
       const waveShape = this.activeWaveShape();
-      if (!waveShape) return;
+      if (!waveShape) {
+        ctx.strokeStyle = colors.peakDim;
+        ctx.globalAlpha = 0.4;
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 2) {
+          const y = height * 0.46 + Math.sin(x / 18) * Math.min(12, height * 0.1);
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        this.drawTimeRange(ctx, startMs, endMs, width, height);
+        return;
+      }
       const activePeaks = waveShape.peaks;
       const peaksPerSecond = waveShape.peaksPerSecond;
       const activeCount = waveShape.peakCount;
@@ -4709,6 +4778,7 @@
         }
       }
       if (!spectral && pathOpen) ctx.stroke();
+      this.drawTimeRange(ctx, startMs, endMs, width, height);
     }
 
     seekFromPointer(
@@ -6504,7 +6574,6 @@
     }
 
     updatePlayback(allowFollow = true) {
-      if (!this.payload) return;
       const now = this.currentTimeMs();
       this.audioLayer?.updatePlayhead(now);
       const segments = this.options.getSegments('main');
@@ -6599,14 +6668,6 @@
 
     restoreNavigation(snapshot) {
       if (!snapshot || typeof snapshot !== 'object') return false;
-      if (!this.payload) {
-        this.pendingNavigation = snapshot;
-        if (typeof snapshot.cueListScrollTop === 'number' && Number.isFinite(snapshot.cueListScrollTop)) {
-          const maxTop = Math.max(0, this.cues.scrollHeight - this.cues.clientHeight);
-          this.cues.scrollTop = clamp(Math.round(snapshot.cueListScrollTop), 0, maxTop);
-        }
-        return true;
-      }
       const topEdgeMs = restoreWaveformTopEdgeMs({
         mode: this.settings.mode,
         durationMs: this.durationMs,

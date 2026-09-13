@@ -71,6 +71,7 @@ datas = [
     (str(ROOT / "maw" / "app_paths.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "output_naming.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "gui_config.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "gui_platform.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "env_config.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "console.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "local_asr.py"), "local-runtime/maw"),
