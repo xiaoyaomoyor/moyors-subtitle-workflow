@@ -75,8 +75,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p website/dist/editor
-          uv run --no-sync python edit.py --blank -o website/dist/editor/index.html
+          mkdir -p website/dist/editor/web
+          uv run --no-sync python -c "from pathlib import Path; import edit; Path('website/dist/editor/index.html').write_bytes(edit.build_blank_html().encode('utf-8'))"
+          cp -r web/sfx website/dist/editor/web/sfx
           touch website/dist/.nojekyll
 
       - name: Setup Pages

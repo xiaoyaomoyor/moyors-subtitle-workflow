@@ -36,13 +36,13 @@ const editorUrl = sitePath('editor/');
         <p class="eyebrow">开源 · 本地优先 · API-FIRST</p>
         <h1>把声音变成<br />可继续编辑的<br /><em>字幕工程</em></h1>
         <p class="hero-lede">
-          直接导入音视频，在 MSW 编辑器里生成波形、转写整段或选中的片段，再翻译、配音和精修字幕。
+          在 MSW 桌面版编辑器中直接导入音视频，生成波形、转写整段或选中的片段，再翻译、配音和精修字幕。
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href={editorUrl}>在线编辑器 ↗</a>
-          <a class="button button-ghost" href={releasesUrl}>下载 beta.3 ↗</a>
+          <a class="button button-primary" href={releasesUrl}>下载 beta.3 ↗</a>
+          <a class="button button-ghost" href={editorUrl}>在线体验编辑器 ↗</a>
         </div>
-        <p class="hero-meta mono">导入媒体 → 转写 / 翻译 / 配音 → 保存工程与导出</p>
+        <p class="hero-meta mono">完整处理功能使用桌面版；在线版可体验字幕编辑。</p>
       </div>
       <figure class="hero-figure">
         <img src={sitePath('launcher.jpg')} alt="MSW Launcher：拖入媒体文件，选择供应商并填入 API Key，一键生成字幕和工程" width="884" height="771" fetchpriority="high" />
@@ -113,7 +113,7 @@ const editorUrl = sitePath('editor/');
       <div class="privacy-copy">
         <p class="eyebrow">03 —— 边界</p>
         <h2>本地优先，边界清楚。</h2>
-        <p>MSW 没有自己的服务器，不代管 Key 和媒体。转写时媒体直接发给你选择的 ASR；之后的编辑、保存、导出都在本机完成。</p>
+        <p>MSW 不托管你的 Key 和媒体。桌面版由本机服务完成处理；使用云端识别、翻译或配音时，相关内容会发给你选择的服务。字幕编辑、工程保存和媒体导出在本机完成。</p>
         <a class="text-link" href={`${repoUrl}#关于-api`}>API 与费用说明 ↗</a>
       </div>
       <div class="privacy-diagram" aria-label="数据边界示意图">
@@ -171,7 +171,7 @@ const editorUrl = sitePath('editor/');
         </details>
         <details>
           <summary>MSW 是在线字幕网站吗？</summary>
-          <p>不是。它没有后端，不代管媒体和 Key，所有编辑都在本机浏览器完成。</p>
+          <p>完整功能由桌面版的本机服务提供，无需先经过启动器处理。本站在线版可体验手工字幕编辑；ASR、翻译、TTS、后台波形和完整媒体导出需要运行桌面版。</p>
         </details>
         <details>
           <summary>为什么要保留 .mosp 工程？</summary>
