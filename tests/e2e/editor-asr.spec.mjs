@@ -25,7 +25,13 @@ test.beforeEach(async({page})=>{
   await clickMenubarItem(page,'文件','load-media');
   await expect.poll(()=>page.evaluate(()=>Boolean(MSWE.resolve('media').current))).toBe(true);
 });
-test.afterEach(async()=>{reply={segments:[]};for(const send of pending)send();await server?.stop();await new Promise(resolve=>mock?.close(resolve));});
+test.afterEach(async({page})=>{
+  // Stop browser polling before its localhost server; avoid racing a pending
+  // beforeunload dialog against Chromium session teardown.
+  await page.close({runBeforeUnload:false});
+  reply={segments:[]};for(const send of pending || [])send();await server?.stop();
+  if(mock)await new Promise(resolve=>mock.close(resolve));
+});
 async function open(page,mode='whole') {await page.evaluate(mode=>MSWE.resolve('asr').open(mode),mode);await expect(page.locator('#msw-asr-providerId option')).not.toHaveCount(0);}
 async function completed(page) {
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.find(job=>job.status==='succeeded')?.id)).toBeTruthy();
@@ -229,6 +235,7 @@ test(`${provider}/${model}: editor settings route to the existing cloud transcri
   await page.locator('#msw-asr-providerId').selectOption(provider);await page.locator('#msw-asr-modelId').selectOption(model);
   await page.locator('#msw-asr-start').click();await completed(page);
   expect(calls[0].asr).toMatchObject({provider,model,duration_ms:4000});
+  await expect.poll(()=>page.evaluate(()=>DATA.segments[0]?.text)).toBe('Recognized speech');
 });
 
 test('ASR uses TTS panel geometry with two call columns and separate environment configuration',async({page})=>{

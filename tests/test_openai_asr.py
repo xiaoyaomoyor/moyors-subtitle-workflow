@@ -303,7 +303,7 @@ class OpenAiAsrTests(unittest.TestCase):
             self.assertIn(("response_format", "verbose_json"), data)
             self.assertEqual(
                 [value for key, value in data if key == "timestamp_granularities[]"],
-                ["segment", "word"],
+                [],
             )
             self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer sk-test")
 

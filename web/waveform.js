@@ -870,7 +870,7 @@
     const bytes = new Uint8Array(arrayBuffer);
     if (bytes.length < 18) return null;
     const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-    if (!['RPKM', 'RPKN', 'RPKL'].includes(magic)) return null;
+    if (!['QPK1', 'RPKM', 'RPKN', 'RPKL'].includes(magic)) return null;
     const channels = bytes[4];
     const mipmapCount = bytes[5];
     if (!channels || !mipmapCount) return null;
@@ -885,7 +885,9 @@
       const division = view.getInt32(headerOffset, true);
       const peakCount = view.getInt32(headerOffset + 4, true);
       if (peakCount < 0) return null;
-      const kind = division === -'s'.charCodeAt(0)
+      const kind = division === -'m'.charCodeAt(0)
+        ? 'self-wave'
+        : division === -'s'.charCodeAt(0)
         ? 'spectral'
         : division === -'g'.charCodeAt(0)
           ? 'spectrogram'
@@ -952,6 +954,12 @@
             spectral[peak * 2 + 1] = density;
           }
           spectralMips.push({ mip, data: spectral });
+          continue;
+        }
+        if (mip.kind === 'self-wave') {
+          need(8 + mip.peakCount * 2);
+          if (!view.getUint32(offset, true) || !view.getUint32(offset + 4, true)) return null;
+          offset += 8 + mip.peakCount * 2;
           continue;
         }
         // 跳过当前编辑器不显示的 spectrogram/loudness 层，但仍准确推进
@@ -5919,6 +5927,7 @@
       event.stopPropagation();
       const gaps = this.options.getGapRemoveGaps?.() || [];
       this.gapBoundaryDrag = {
+        startClientX:event.clientX,startClientY:event.clientY,moved:false,
         pointerId: event.pointerId,
         index,
         edge,
@@ -5982,6 +5991,7 @@
       if (dx * dx + dy * dy >= 9) {
         drag.moved = true;
       }
+      if(!drag.moved)return;
       const pointerMs = this.timeFromPointerUnbounded(event, drag.row);
       const deltaMs = roundMs(pointerMs - drag.startPointerMs);
       drag.targetGap = this.gapMoveTarget(drag.originalGaps[drag.index], deltaMs);
@@ -6135,6 +6145,8 @@
       const drag = this.gapBoundaryDrag;
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.preventDefault();
+      if(!drag.moved&&Math.hypot(event.clientX-drag.startClientX,event.clientY-drag.startClientY)<3)return;
+      drag.moved=true;
       const valueMs = clamp(
         roundMs(this.timeFromPointerUnbounded(event, drag.row)),
         0,
@@ -6170,7 +6182,7 @@
       this.content.querySelectorAll('.waveform-gap-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.clearGapBoundaryPreview();
       this.gapBoundaryDrag = null;
-      if (event.type === 'pointercancel' || !drag.changed) {
+      if (event.type === 'pointercancel' || !drag.moved || !drag.changed) {
         this.refreshGapBlocks(drag.originalGaps);
         return;
       }
@@ -6184,6 +6196,7 @@
       const startMs = this.gapRangePointerTime(event, row);
       this.clearGapRangePreviews();
       this.gapRangeDrag = {
+        startClientX:event.clientX,startClientY:event.clientY,moved:false,
         pointerId: event.pointerId,
         row,
         startMs,
@@ -6256,6 +6269,8 @@
       const drag = this.gapRangeDrag;
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.preventDefault();
+      if(!drag.moved&&Math.hypot(event.clientX-drag.startClientX,event.clientY-drag.startClientY)<3)return;
+      drag.moved=true;
       drag.endMs = this.gapRangePointerTime(event, drag.row);
       this.layoutGapRangePreview(drag);
     }
@@ -6269,7 +6284,7 @@
       try { drag.row.releasePointerCapture?.(event.pointerId); } catch (_) {}
       this.clearGapRangePreviews();
       this.gapRangeDrag = null;
-      if (event.type === 'pointercancel') return;
+      if (event.type === 'pointercancel'||!drag.moved) return;
       const start = roundMs(Math.min(drag.startMs, drag.endMs));
       const end = roundMs(Math.max(drag.startMs, drag.endMs));
       if (end - start < ROUND_MS) return;

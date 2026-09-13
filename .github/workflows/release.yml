@@ -93,7 +93,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check web/waveform.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test tests/test_editor_utils.mjs tests/test_waveform_js.mjs tests/test_msw_translation.mjs tests/test_msw_tts.mjs tests/test_msw_audio.mjs tests/test_msw_audio_render.mjs
+          $env:MSW_TEST_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
+          $TestFiles = (Get-ChildItem tests/test_*.mjs).FullName
+          node --test $TestFiles
           exit $LASTEXITCODE
 
       - name: Check editor in Chromium
@@ -103,7 +105,7 @@ jobs:
           npx playwright install chromium
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
-          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs --project=chromium
+          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs --project=chromium
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics
@@ -262,6 +264,14 @@ jobs:
           $Version = '${{ steps.version.outputs.version }}'
           Compress-Archive -LiteralPath 'dist\MSW-lite' -DestinationPath "MSW-lite-Windows-x64-$Version.zip" -Force
           Compress-Archive -LiteralPath 'dist\MSW' -DestinationPath "MSW-Windows-x64-$Version.zip" -Force
+
+      - name: Smoke beta.3 standard and lite direct editors
+        shell: pwsh
+        run: |
+          uv run --frozen python scripts/smoke_beta3_bundle.py dist/MSW/MSW.exe --standard
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen python scripts/smoke_beta3_bundle.py dist/MSW-lite/MSW.exe
+          exit $LASTEXITCODE
 
       - name: Verify exports with bundled FFmpeg
         shell: pwsh
@@ -492,6 +502,12 @@ jobs:
           dist/MSW.app/Contents/MacOS/MSW --help >/dev/null
           codesign --verify --deep --strict --verbose=2 dist/MSW.app
 
+      - name: Smoke beta.3 macOS direct editors
+        if: matrix.platform == 'macos'
+        run: |
+          uv run --frozen python scripts/smoke_beta3_bundle.py dist/MSW.app/Contents/MacOS/MSW --standard
+          uv run --frozen python scripts/smoke_beta3_bundle.py dist/MSW-lite.app/Contents/MacOS/MSW
+
       - name: Verify macOS exports with bundled FFmpeg
         if: matrix.platform == 'macos'
         run: |
@@ -657,6 +673,15 @@ jobs:
             tail -50 /tmp/maw-smoke.log
             exit 1
           fi
+
+      - name: Smoke beta.3 extracted Linux direct editor
+        if: matrix.platform == 'linux'
+        run: |
+          set -euo pipefail
+          cd build-appimage
+          ./MSW-Linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+          cd "$GITHUB_WORKSPACE"
+          uv run --frozen python scripts/smoke_beta3_bundle.py build-appimage/squashfs-root/MSW --standard
 
       - name: Rename AppImage with version
         if: matrix.platform == 'linux'

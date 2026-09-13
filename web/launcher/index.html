@@ -40,7 +40,7 @@
       <div class="hero-brand">
         <img class="hero-icon" src="logo.svg" alt="" aria-hidden="true" width="72" height="72">
         <div class="hero-copy">
-          <div class="wordmark">Moyor's Subtitle Workflow <span class="version" id="appVersion">v1.6.0-beta.2</span></div>
+          <div class="wordmark">Moyor's Subtitle Workflow <span class="version" id="appVersion">v1.6.0-beta.3</span></div>
           <p data-i18n="hero_desc">我的字幕流 · AI 转写、字幕精修与配音</p>
           <span id="demoBadge" class="demo-badge hidden" data-i18n="demo_mode">演示模式</span>
         </div>
@@ -137,6 +137,10 @@
           <p class="hint" data-i18n="custom_asr_base_url_hint">默认使用 OpenAI 官方地址；程序会请求 /audio/transcriptions。</p>
           <p id="openaiBaseUrlError" class="field-error"></p>
         </div>
+        <div class="field"><label for="openaiPrompt">Prompt</label><textarea id="openaiPrompt" maxlength="12000"></textarea></div>
+        <div class="field"><label for="openaiKeywords">Keywords <span data-i18n="doubao_hotwords">即时热词（每行一个）</span></label><textarea id="openaiKeywords" maxlength="12000"></textarea></div>
+        <label><input id="openaiDiarize" type="checkbox"> diarized_json</label>
+        <p id="openaiCapabilityHint" class="hint"></p>
         <div id="openaiModelField" class="field">
           <label for="openaiModel" data-i18n="custom_asr_model">ASR 模型名</label>
           <input id="openaiModel" type="text" autocomplete="off" data-i18n-placeholder="custom_asr_model_placeholder">
@@ -214,6 +218,14 @@
                     <p id="languageFilterHint" class="hint hint-top-spaced hidden" data-i18n="language_filter_hint">默认仅显示常用语言，其余可在「配置」中开启。</p>
                   </div>
                 </div>
+              </div>
+            </div>
+            <div id="doubaoOptions" class="adv-group hidden">
+              <h3 data-i18n="doubao_options_title">豆包即时热词</h3>
+              <div class="field">
+                <label for="doubaoHotwords" data-i18n="doubao_hotwords">即时热词（每行一个）</label>
+                <textarea id="doubaoHotwords" rows="3" maxlength="12000"></textarea>
+                <p id="doubaoHotwordsError" class="field-error"></p>
               </div>
             </div>
             <div id="qwenAudioOptions" class="adv-group qwen-audio-options hidden">
@@ -313,9 +325,9 @@
               <div id="generateSpectralField" class="field">
                 <label class="check-field" for="generateSpectral" data-i18n-title="generate_spectral_title">
                   <input id="generateSpectral" type="checkbox">
-                  <span data-i18n="generate_spectral">生成 ReaPeaks 频谱数据</span>
+                  <span data-i18n="generate_spectral">生成频谱颜色数据</span>
                 </label>
-                <p class="hint" data-i18n="generate_spectral_hint">默认只生成 ReaPeaks 波形层；勾选后会额外计算频谱，耗时和文件体积都会增加。</p>
+                <p class="hint" data-i18n="generate_spectral_hint">默认只生成波形；勾选后会额外计算频谱，耗时和文件体积都会增加。</p>
               </div>
               <div id="debugRawField" class="field">
                 <label class="check-field" for="debugRaw" data-i18n-title="debug_raw_title">
@@ -560,13 +572,13 @@
         </nav>
         <div class="toolbox-utility-panels">
       <section id="toolboxWaveformPanel" class="toolbox-panel hidden toolbox-utility-panel" role="tabpanel" aria-labelledby="toolboxWaveformTab">
-        <p class="hint toolbox-panel-hint" data-i18n="toolbox_waveform_hint">仅使用上方媒体生成带内嵌波形的媒体工程，不需要字幕或转写。</p>
+        <p class="hint toolbox-panel-hint" data-i18n="toolbox_waveform_hint">仅使用上方媒体生成媒体工程和独立波形缓存，不需要字幕或转写。</p>
         <div class="field toolbox-waveform-spectral-field">
           <label class="check-field" for="toolboxGenerateSpectral" data-i18n-title="generate_spectral_title">
             <input id="toolboxGenerateSpectral" type="checkbox">
-            <span data-i18n="generate_spectral">生成 ReaPeaks 频谱数据</span>
+            <span data-i18n="generate_spectral">生成频谱颜色数据</span>
           </label>
-          <p class="hint" data-i18n="generate_spectral_hint">默认只生成 ReaPeaks 波形层；勾选后会额外计算频谱，耗时和文件体积都会增加。</p>
+          <p class="hint" data-i18n="generate_spectral_hint">默认只生成波形；勾选后会额外计算频谱，耗时和文件体积都会增加。</p>
         </div>
       </section>
 
@@ -699,6 +711,13 @@
          </select>
          <p class="hint" data-i18n="toolbox_match_mode_hint">按文稿换行会使用文稿中的换行和断句符号；只更正文本保留现有字幕分段。</p>
          <p id="postprocessMatchStats" class="match-stats hidden" aria-live="polite"></p>
+        </div>
+        <div class="field">
+          <label class="check-field" for="postprocessCleanMarkdownSymbols">
+            <input id="postprocessCleanMarkdownSymbols" type="checkbox" checked>
+            <span data-i18n="toolbox_clean_markdown_symbols">自动清理 Markdown 符号</span>
+          </label>
+          <p class="hint" data-i18n="toolbox_clean_markdown_symbols_hint">匹配前移除粗体、斜体、删除线、行内代码和 ==高亮== 标记，只保留可见文字。</p>
         </div>
         <p class="hint"><button id="openPunctSettings" class="inline-link" type="button" data-i18n="toolbox_punct_open_settings">在 ⚙️ 设置中配置断句与保留符号</button></p>
     </section>

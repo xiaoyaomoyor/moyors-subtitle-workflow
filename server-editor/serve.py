@@ -59,7 +59,10 @@ from maw.project import (  # noqa: E402
     normalize_project,
     repair_project_timing_ranges,
 )
-from maw.project_io import enrich_project_media_metadata  # noqa: E402
+from maw.project_io import (  # noqa: E402
+                            enrich_project_media_metadata, persist_audio_track,
+                            selected_audio_track_from_project, default_audio_track_from_metadata,
+                            strip_inline_caches, restore_runtime_caches, discard_stale_inline_caches)
 from maw.media import (  # noqa: E402
     MEDIA_EXTENSIONS,
     MediaConversionError,
@@ -69,7 +72,6 @@ from maw.media import (  # noqa: E402
     read_bwf_time_reference,
     resolve_project_media,
 )
-from maw.waveform import audio_track_from_payloads  # noqa: E402
 from maw.lottie_glyphs import LottieGlyphError, vectorize_lottie_animation  # noqa: E402
 
 
@@ -349,19 +351,17 @@ def load_project(
     if repaired_count:
         print(f"[project] 已兜底修复 {repaired_count} 处异常时间码（保底 100ms）")
     data = normalize_project(raw_data)
-    audio_track = audio_track_from_payloads(
-        {'audio_track': data.get('msw', {}).get('source_audio_index')},
-        data.get("waveform"),
-        data.get("spectral"),
-        data.get("waveform_reapeaks"),
-    )
+    audio_track = selected_audio_track_from_project(data)
     report("validating_project", 20)
     sticker_source = data.get("sticker_root")
     sticker_root: Path | None = None
     stickers: list[dict] = []
     if isinstance(sticker_source, str) and sticker_source.strip():
         try:
-            sticker_root, stickers = validate_sticker_root(sticker_source)
+            sticker_candidate = Path(sticker_source).expanduser()
+            if not sticker_candidate.is_absolute():
+                sticker_candidate = json_path.parent / sticker_candidate
+            sticker_root, stickers = validate_sticker_root(str(sticker_candidate))
         except (OSError, ValueError):
             sticker_root = None
     if sticker_root is None:
@@ -414,19 +414,23 @@ def load_project(
         media_path=source_media_path,
         ffprobe_path=ffmpeg_tools.ffprobe,
     ))
+    audio_track = selected_audio_track_from_project(data)
+    data = discard_stale_inline_caches(persist_audio_track(data, audio_track), source_media_path)
     # .ReaPeaks 是转写时对"工程 media 字段原始文件"生成的；转换场景下
     # resolved_path 可能已被 _paired_mp4 升级为配对的 mp4，必须用原始
     # 请求路径（requested_path）查找，否则会漏读源媒体旁的缓存。
     reapeaks_base = resolution.requested_path or source_media_path
     if not no_waveform:
-        report("preparing_waveform", 50)
+        report("reading_waveform_cache", 50)
         try:
             waveform, extracted = edit.load_or_extract_waveform(
                 data.get("waveform"),
                 source_media_path,
+                progress=lambda _ms: report("preparing_waveform", 60),
                 peaks_per_second=peaks_per_second,
                 ffmpeg_bin=str(ffmpeg_path) if ffmpeg_path is not None else None,
                 audio_track=audio_track,
+                default_audio_track=default_audio_track_from_metadata(data.get("media_metadata")),
             )
             data["waveform"] = waveform
             state = "已提取" if extracted else "使用缓存"
@@ -438,10 +442,12 @@ def load_project(
         if load_reapeaks:
             # 频谱缓存：源媒体旁存在 .ReaPeaks 时读取并内联下发，供波形染色。
             # 缺失/损坏/无 spectral 层一律静默降级，不影响编辑器。
+            report("reading_waveform_cache", 80)
             spectral = reapeaks.load_spectral_payload(
                 reapeaks_base,
                 peaks_per_second=peaks_per_second,
                 audio_track=audio_track,
+                default_audio_track=default_audio_track_from_metadata(data.get("media_metadata")),
             )
             if spectral is not None:
                 data["spectral"] = spectral
@@ -451,6 +457,7 @@ def load_project(
             reapeaks_wave = reapeaks.load_waveform_payload(
                 reapeaks_base,
                 audio_track=audio_track,
+                default_audio_track=default_audio_track_from_metadata(data.get("media_metadata")),
             )
             if reapeaks_wave is not None:
                 data["waveform_reapeaks"] = reapeaks_wave
@@ -594,7 +601,7 @@ def build_server_page(
             "startupStage": startup_status.get("stage", "ready"),
             "startupProgress": startup_status.get("progress", 100),
             "startupError": startup_status.get("error", ""),
-            "canSave": project.json_path is not None,
+            "canSave": project.json_path is not None and project.json_path.suffix.lower() != ".mosp-bak",
             "canPortableStickerExport": project.json_path is not None,
             "canOtozStickerExport": project.json_path is not None,
             "canOtozTimelineExport": project.json_path is not None,
@@ -801,12 +808,14 @@ class EditorServer(ThreadingHTTPServer):
                 spectral = reapeaks.load_spectral_payload(
                     reapeaks_base, peaks_per_second=self.peaks_per_second,
                     audio_track=project.audio_track,
+                    default_audio_track=default_audio_track_from_metadata(project.data.get("media_metadata")),
                 )
                 if spectral is not None:
                     print(f"[spectral] 后台加载 {spectral['peak_count']} 频谱点 (div={spectral['division']})")
                 reapeaks_wave = reapeaks.load_waveform_payload(
                     reapeaks_base,
                     audio_track=project.audio_track,
+                    default_audio_track=default_audio_track_from_metadata(project.data.get("media_metadata")),
                 )
                 if reapeaks_wave is not None:
                     print(
@@ -1082,7 +1091,7 @@ class EditorServer(ThreadingHTTPServer):
     def save_project(self, project_data: dict, filename: str | None = None, *,
                      expected_binding: str | None = None, expected_revision: str | None = None,
                      include_context: bool = False) -> tuple:
-        if not self.project.json_path:
+        if not self.project.json_path or self.project.json_path.suffix.lower() == ".mosp-bak":
             raise SaveProjectError("当前服务器没有绑定工程文件；请先导出 .mosp 工程，再重新打开该文件")
         try:
             repaired_project = copy.deepcopy(project_data)
@@ -1107,7 +1116,10 @@ class EditorServer(ThreadingHTTPServer):
             if (normalized_project.get("msw") or {}).get("assets"):
                 asset_report = self.processing_api.assets.persist_project(normalized_project, target, self.project.json_path)
             backup = self.write_project(target, normalized_project)
-            self.project = replace(self.project, data=normalized_project, json_path=target)
+            runtime = restore_runtime_caches(persist_audio_track(normalized_project), self.project.data,
+                                             self.project.source_media_path or self.project.media_path)
+            self.project = replace(self.project, data=runtime, json_path=target,
+                                   audio_track=selected_audio_track_from_project(runtime))
             self.remember_project(target)
             context = {**self.processing_api.context(), "assets": asset_report,
                        "recoveryWarning": self.processing_api.persistence.recovery_warning} if include_context else None
@@ -1557,7 +1569,7 @@ def write_project_json(target: Path, project_data: dict) -> Path | None:
     fd, temp_name = tempfile.mkstemp(prefix=f".{target.stem}.", suffix=".tmp", dir=target.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
-            json.dump(project_data, output, ensure_ascii=False, indent=2)
+            json.dump(strip_inline_caches(persist_audio_track(project_data)), output, ensure_ascii=False, indent=2)
             output.write("\n")
             output.flush()
             os.fsync(output.fileno())

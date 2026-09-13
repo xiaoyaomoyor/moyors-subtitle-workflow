@@ -76,6 +76,12 @@ class AsrTests(unittest.TestCase):
         request.srt_path.write_bytes(b'')
         return SimpleNamespace(json_path=output)
 
+    def test_conflicting_source_track_blocks_asr_before_any_transcription(self):
+        self.media.records[self.record['id']]['track_conflict'] = True
+        with self.assertRaisesRegex(ValueError, '音轨'):
+            self.service.source(self.snapshot)
+        self.assertEqual(self.calls, [])
+
     def settings(self, **options):
         return asr_config.resolve_settings(self.env_path, {'providerId':'qwen','modelId':DEFAULT_MODEL_ID,**options},self.source)
 
@@ -112,7 +118,7 @@ class AsrTests(unittest.TestCase):
 
     def test_catalog_shares_existing_keys_without_returning_secrets_and_validates_models(self):
         catalog=asr_config.catalog(self.env_path)
-        self.assertEqual({p['id'] for p in catalog['providers']},{'qwen','soniox','openai'})
+        self.assertEqual({p['id'] for p in catalog['providers']},{'qwen','soniox','openai','doubao'})
         self.assertNotIn('synthetic-',json.dumps(catalog))
         for provider,model in [('qwen','fun-asr'),('soniox','stt-async-v5'),('openai','whisper-1')]:
             settings=self.settings(providerId=provider,modelId=model,openaiBaseUrl='http://127.0.0.1:1/v1')

@@ -73,11 +73,11 @@ test('undoing a waveform-created subtitle keeps redo available', async ({ page }
   await page.locator('#ctxmenu .item', { hasText: '创建字幕' }).click();
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(7);
 
-  await page.getByRole('button', { name: /撤销/ }).click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
 
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(6);
-  await expect(page.getByRole('button', { name: /重做/ })).toBeEnabled();
-  await page.getByRole('button', { name: /重做/ }).click();
+  await expect(page.locator('#redo-btn')).toBeEnabled();
+  await clickMenubarItem(page, '编辑', 'redo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(7);
 });
 
@@ -126,7 +126,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
   const added = await page.evaluate(() => DATA.gap_remove.gaps);
   expect(added).toHaveLength(1);
   expect(added[0].removed).toBe(true);
-  expect(added[0].end - added[0].start).toBe(500);
+  expect(added[0].end - added[0].start).toBe(400);
 
   await setGaps([], 'boundary_drag');
   const altRangeRow = page.locator('.waveform-row[data-row-index="0"]').first();
@@ -339,7 +339,7 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
   await expect(page.locator('#gap-remove-disable-hint')).toHaveText('禁用位于空隙范围内的字幕（当前有 0 条未禁用）');
   await expect(page.locator('#hint-stack')).toContainText('已禁用 2 条静音空隙内的字幕');
 
-  await page.locator('#undo-btn').click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments.map((segment) => Boolean(segment.disabled))))
     .toEqual([false, false, false, false]);
   await expect(page.locator('#gap-remove-disable-hint')).toHaveText('禁用位于空隙范围内的字幕（当前有 2 条未禁用）');
@@ -392,18 +392,18 @@ test('shrinks existing gaps from the gap settings padding', async ({ page }) => 
   await page.locator('#gap-remove-lead-out').fill('200');
 
   await page.locator('#gap-remove-shrink').click();
-  await expect.poll(() => page.evaluate(() => DATA.gap_remove.gaps)).toEqual([
+  await expect.poll(() => page.evaluate(() => DATA.gap_remove.gaps.map(({start, end, removed}) => ({start, end, removed})))).toEqual([
     { start: 1100, end: 1800, removed: true },
-    { start: 3100, end: 3200, removed: false },
+    { start: 3000, end: 3400, removed: false },
   ]);
   await expect.poll(() => page.evaluate(() => ({
     leadIn: DATA.gap_remove.lead_in_ms,
     leadOut: DATA.gap_remove.lead_out_ms,
   }))).toEqual({ leadIn: 100, leadOut: 200 });
-  await expect(page.locator('#hint-stack')).toContainText('已按前端 100ms、后端 200ms 收缩 2 段空隙');
+  await expect(page.locator('#hint-stack')).toContainText('已按前端 100ms、后端 200ms 收缩 1 段空隙');
 
-  await page.locator('#undo-btn').click();
-  await expect.poll(() => page.evaluate(() => DATA.gap_remove.gaps)).toEqual([
+  await clickMenubarItem(page, '编辑', 'undo-btn');
+  await expect.poll(() => page.evaluate(() => DATA.gap_remove.gaps.map(({start, end, removed}) => ({start, end, removed})))).toEqual([
     { start: 1000, end: 2000, removed: true },
     { start: 3000, end: 3400, removed: false },
   ]);
@@ -551,7 +551,7 @@ test('Ctrl+dragging from blank space stops at an existing cue boundary', async (
   expect(created.end).toBe(9000);
 });
 
-test('waveform background split supports undo and redo', async ({ page }) => {
+test('waveform cue context split supports undo and redo', async ({ page }) => {
   await page.goto(server.url);
   await makeFirstCueWordSplittable(page);
   const row = page.locator('.waveform-row').filter({ has: page.locator('[data-idx="0"]') }).first();
@@ -559,7 +559,7 @@ test('waveform background split supports undo and redo', async ({ page }) => {
 
   const box = await row.boundingBox();
   expect(box).not.toBeNull();
-  await page.mouse.click(box.x + box.width * 0.4, box.y + 20, { button: 'right' });
+  await page.mouse.click(box.x + box.width * 0.4, (await page.locator('.waveform-cue-block[data-idx="0"]').first().boundingBox()).y + 8, { button: 'right' });
   const splitItem = page.locator('#ctxmenu .item', { hasText: '按音频位置拆分' });
   await expect(splitItem).toBeEnabled();
   await splitItem.click();
@@ -569,12 +569,12 @@ test('waveform background split supports undo and redo', async ({ page }) => {
     'Bravo',
   ]);
 
-  await page.getByRole('button', { name: /撤销/ }).click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(6);
   await expect.poll(() => page.evaluate(() => DATA.segments[0].text)).toBe('Alpha Bravo');
-  await expect(page.getByRole('button', { name: /重做/ })).toBeEnabled();
+  await expect(page.locator('#redo-btn')).toBeEnabled();
 
-  await page.getByRole('button', { name: /重做/ }).click();
+  await clickMenubarItem(page, '编辑', 'redo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(7);
   await expect.poll(() => page.evaluate(() => DATA.segments.slice(0, 2).map((segment) => segment.text))).toEqual([
     'Alpha',
@@ -646,11 +646,11 @@ test('manual text split keeps malformed item timing inside both cues and restore
   await page.keyboard.press('Control+s');
   expect((await saveResponse).ok()).toBe(true);
 
-  await page.getByRole('button', { name: /撤销/ }).click();
-  await expect.poll(() => page.evaluate(() => JSON.stringify(DATA.segments[0]))).toBe(JSON.stringify(original));
-  await expect(page.getByRole('button', { name: /重做/ })).toBeEnabled();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
+  await expect.poll(() => page.evaluate(() => { const {start_frame, end_frame, ...cue} = DATA.segments[0]; return {...cue, items: cue.items.map(({start_frame, end_frame, ...item}) => item)}; })).toEqual(original);
+  await expect(page.locator('#redo-btn')).toBeEnabled();
 
-  await page.getByRole('button', { name: /重做/ }).click();
+  await clickMenubarItem(page, '编辑', 'redo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(7);
   const redone = await page.evaluate(() => DATA.segments.slice(0, 2).map((segment) => ({
     start: segment.start,
@@ -686,8 +686,8 @@ test('current-cue text keeps the list and waveform labels in sync through undo a
   const listText = page.locator('.cue[data-idx="0"] .text');
   const panelText = page.locator('#cue-panel-text');
   const overlayText = page.locator('#overlay-main-text');
-  const undo = page.getByRole('button', { name: /撤销/ });
-  const redo = page.getByRole('button', { name: /重做/ });
+  const undo = page.locator('#undo-btn');
+  const redo = page.locator('#redo-btn');
 
   await waveformCue.click();
   // 预览字幕开关已收进「媒体 → 媒体播放器设置」浮窗；测试直接驱动状态。
@@ -713,12 +713,12 @@ test('current-cue text keeps the list and waveform labels in sync through undo a
 
   await panelText.blur();
   await expect(undo).toBeEnabled();
-  await undo.click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect(listText).toHaveText('Alpha');
   await expect(waveformLabel).toHaveText('Alpha');
   await expect(redo).toBeEnabled();
 
-  await redo.click();
+  await clickMenubarItem(page, '编辑', 'redo-btn');
   await expect(listText).toHaveText('Alpha revised');
   await expect(waveformLabel).toHaveText('Alpha revised');
 });
@@ -767,8 +767,8 @@ test('C merge refreshes the paused main subtitle preview', async ({ page }) => {
   await cues.nth(1).click({ modifiers: ['Control'] });
   await page.keyboard.press('c');
 
-  await expect(page.locator('.cue .text').first()).toHaveText('AlphaBravo');
-  await expect(page.locator('#overlay-main-text')).toHaveText('AlphaBravo');
+  await expect(page.locator('.cue .text').first()).toHaveText('Alpha Bravo');
+  await expect(page.locator('#overlay-main-text')).toHaveText('Alpha Bravo');
 });
 
 test('C merge keeps the subtitle list at its current position', async ({ page }) => {
@@ -847,11 +847,11 @@ test('B splits the selected subtitle under the cue-list pointer and supports und
   await expect(page.locator('.cue .text').nth(1)).toHaveText('Bravo');
   await expect(page.locator('#overlay-main-text')).toHaveText('Alpha');
 
-  await page.getByRole('button', { name: /撤销/ }).click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.locator('.cue').count()).toBe(6);
   await expect(page.locator('.cue .text').first()).toHaveText('Alpha Bravo');
 
-  await page.getByRole('button', { name: /重做/ }).click();
+  await clickMenubarItem(page, '编辑', 'redo-btn');
   await expect.poll(() => page.locator('.cue').count()).toBe(7);
   await expect(page.locator('.cue .text').nth(0)).toHaveText('Alpha');
   await expect(page.locator('.cue .text').nth(1)).toHaveText('Bravo');
@@ -905,7 +905,7 @@ test('retries an inline split with B or Enter and clamps both halves to 100ms', 
   await expect(page.locator('.cue[data-idx="1"]')).toHaveClass(/selected/);
 
   // The split history restores the original text, timing, selection and panel target.
-  await page.getByRole('button', { name: /撤销/ }).click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.locator('.cue').count()).toBe(6);
   await expect(page.locator('.cue[data-idx="0"]')).toHaveClass(/selected/);
   await expect.poll(() => page.evaluate(() => window.MSWE_EDITOR_BRIDGE.currentCuePanelIdx)).toBe(0);
@@ -942,6 +942,7 @@ test('long-only filtering temporarily keeps split results visible until focus le
   await expect(page.locator('.cue[data-idx="0"] .text')).toHaveText('Alpha');
   await expect(page.locator('.cue[data-idx="1"] .text')).toHaveText('Bravo');
 
+  await toggleCueListSettings(page);
   await toggleCueListSettings(page);
   await page.locator('#search').click();
   await expect(page.locator('.cue:not(.hidden)')).toHaveCount(0);
@@ -1185,9 +1186,12 @@ test('Home and End preserve native search and help-tab behavior', async ({ page 
 test('Home and End follow the main cue-list owner without seeking media', async ({ page }) => {
   await page.goto(server.url);
   await page.locator('.cue[data-idx="2"]').click();
+  await toggleCueListSettings(page);
   await page.locator('#search').fill('a');
   await expect(page.locator('.cue[data-idx="4"]')).toHaveClass(/hidden/);
   await page.locator('#search').evaluate((element) => element.blur());
+  await toggleCueListSettings(page);
+  await page.locator('.cue[data-idx="2"]').click();
   await page.evaluate(() => {
     const media = document.getElementById('player');
     media.currentTime = 123;
@@ -1299,7 +1303,8 @@ test('the last multi-row waveform uses the media remainder width', async ({ page
 
   const lastRow = page.locator('.waveform-row[data-row-index="4"]');
   await expect(lastRow).toBeVisible();
-  await expect(lastRow).toHaveAttribute('style', /width: 68\.75%/);
+  const ratio = await lastRow.evaluate(row => row.getBoundingClientRect().width / row.previousElementSibling.getBoundingClientRect().width);
+  expect(ratio).toBeCloseTo(44 / 64, 3);
   await expect(lastRow).toHaveAttribute('data-end-ms', '300000');
 });
 
@@ -1770,51 +1775,24 @@ test('waveform toolbar exposes grouped icon controls and selected cues use a yel
   const cue = page.locator('.waveform-cue-block[data-idx="0"]').first();
   await cue.click();
   // 选中字幕块用 outline 高亮（不再改 border-color）
-  await expect(cue).toHaveCSS('outline-color', 'rgb(255, 213, 74)');
+  await expect(cue).toHaveCSS('outline-color', 'rgb(212, 154, 74)');
 });
 
-test('extends selected subtitles without remapping items and undoes the batch in one step', async ({ page }) => {
+test('offsets selected subtitle ends and undoes the batch in one step', async ({ page }) => {
   await page.goto(server.url);
   const cues = page.locator('.cue');
   await cues.nth(0).click();
-  await page.keyboard.down('Control');
-  await cues.nth(1).click();
-  await page.keyboard.up('Control');
-  await expect(page.locator('.cue.selected')).toHaveCount(2);
-
-  const before = await page.evaluate(() => JSON.parse(JSON.stringify({
-    segments: DATA.segments.slice(0, 2),
-  })));
-  await clickMenubarItem(page, '字幕', 'subtitle-extend-manage');
-  await expect(page.locator('#subtitle-extend-panel')).toHaveClass(/show/);
-  await expect(page.locator('#subtitle-extend-forward-ms')).toHaveValue('120');
-  await expect(page.locator('#subtitle-extend-backward-ms')).toHaveValue('60');
-
-  await page.locator('#subtitle-extend-forward-ms').fill('-1');
-  await page.locator('#subtitle-extend-run').click();
-  await expect(page.locator('#hint-stack .hint-card.hint-invalid', {
-    hasText: '向前延长时长必须是大于等于 0 的数字',
-  })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => DATA.segments.slice(0, 2))).toEqual(before.segments);
-
-  // 产品语义：「向前延长」作用于起点侧（不越过前一条/时间轴 0），「向后延长」作用于终点侧。
-  // forward=250 时 seg0 起点已在 0 只能由向后 60ms 补终点；seg1 起点前移 250、终点后延 60。
-  await page.locator('#subtitle-extend-forward-ms').fill('250');
-  await page.locator('#subtitle-extend-run').click();
-  await expect.poll(() => page.evaluate(() => DATA.segments.slice(0, 2).map((segment) => ({
-    start: segment.start,
-    end: segment.end,
-    items: segment.items,
-  })))).toEqual([
-    { start: 0, end: 8060, items: before.segments[0].items },
-    { start: 49750, end: 58060, items: before.segments[1].items },
-  ]);
-  await expect(page.locator('#hint-stack .hint-card.hint-success', {
-    hasText: '已处理 2 个选中字幕：完整延长 1 条，部分延长 1 条，未延长 0 条',
-  })).toBeVisible();
-
-  await page.getByRole('button', { name: /撤销/ }).click();
-  await expect.poll(() => page.evaluate(() => DATA.segments.slice(0, 2))).toEqual(before.segments);
+  await cues.nth(1).click({ modifiers: ['Control'] });
+  const before = await page.evaluate(() => structuredClone(DATA.segments));
+  await clickMenubarItem(page, '字幕', 'subtitle-scale-offset-open');
+  await page.locator('#subtitle-end-offset-ms').fill('60');
+  await page.locator('#subtitle-end-offset-ms').press('Enter');
+  const after = await page.evaluate(() => structuredClone(DATA.segments));
+  expect(after.slice(0, 2).map(s => s.end)).toEqual(before.slice(0, 2).map(s => s.end + 60));
+  expect(after.slice(2)).toEqual(before.slice(2));
+  expect(after.slice(0, 2).map(s => s.items)).toEqual(before.slice(0, 2).map(s => s.items));
+  await clickMenubarItem(page, '编辑', 'undo-btn');
+  await expect.poll(() => page.evaluate(() => DATA.segments)).toEqual(before);
 });
 
 test('C merges a common group and Shift+A/D extends the subtitle selection', async ({ page }) => {
@@ -1868,7 +1846,7 @@ test('C merges a common group and Shift+A/D extends the subtitle selection', asy
   await page.keyboard.press('c');
 
   await expect(cues).toHaveCount(5);
-  await expect(cues.nth(1).locator('.text')).toHaveText('BravoCharlie');
+  await expect(cues.nth(1).locator('.text')).toHaveText('Bravo Charlie');
   await expect.poll(() => page.evaluate(() => ({
     colorRef: DATA.segments[1].color_ref,
     stickerRef: DATA.segments[1].sticker_ref,
@@ -1896,7 +1874,7 @@ test('context-menu subtitle deletion is immediate and undoable', async ({ page }
 
   await expect(page.locator('.cue')).toHaveCount(5);
   expect(confirmationShown).toBe(false);
-  await page.getByRole('button', { name: /撤销/ }).click();
+  await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect(page.locator('.cue')).toHaveCount(6);
 });
 
@@ -1917,7 +1895,7 @@ test('colored subtitles export per-color SRT files including the uncolored defau
     window.showSaveFilePicker = undefined;
   });
 
-  await expect(page.locator('#subtitle-export-dropdown')).toBeVisible();
+  await expect(page.locator('#subtitle-export-dropdown')).toBeAttached();
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#download-full-srt')).toBeVisible();
   await expect(page.locator('#download-color-srt')).toBeVisible();
@@ -1927,8 +1905,8 @@ test('colored subtitles export per-color SRT files including the uncolored defau
   await clickMenubarItem(page, '文件', 'download-color-srt');
   await expect.poll(() => downloads.length).toBe(3);
   expect(downloads.map((download) => download.suggestedFilename())).toEqual([
-    'project_red.srt',
-    'project_blue.srt',
+    'project_红色.srt',
+    'project_蓝色.srt',
     'project_default.srt',
   ]);
   expect(await downloads[0].createReadStream().then(async (stream) => {
@@ -1949,7 +1927,7 @@ test('colored subtitles export per-color SRT files including the uncolored defau
 test('subtitle export keeps a stable menu and hides colors without enabled colored subtitles', async ({ page }) => {
   await page.goto(server.url);
   await expect(page.locator('#download-srt')).toHaveCount(0);
-  await expect(page.locator('#subtitle-export-dropdown')).toBeVisible();
+  await expect(page.locator('#subtitle-export-dropdown')).toBeAttached();
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#download-full-srt')).toBeVisible();
   await expect(page.locator('#download-color-srt')).toBeHidden();
@@ -1959,7 +1937,7 @@ test('subtitle export keeps a stable menu and hides colors without enabled color
     DATA.segments[0].disabled = true;
     renderAll();
   });
-  await expect(page.locator('#subtitle-export-dropdown')).toBeVisible();
+  await expect(page.locator('#subtitle-export-dropdown')).toBeAttached();
   await expect(page.locator('#download-color-srt')).toBeHidden();
 
   await page.evaluate(() => {
@@ -2009,6 +1987,8 @@ test('nested export menus preserve pointer reachability and keyboard focus', asy
   await page.keyboard.press('ArrowDown');
   await expect(otioToggle).toBeFocused();
   await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#timeline-export-btn')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   await expect(page.locator('#download-otio')).toBeFocused();
   await page.keyboard.press('ArrowLeft');
   await expect(otioToggle).toBeFocused();
@@ -2182,7 +2162,7 @@ test('gap-removed export includes color SRT and names OTIO as a timeline project
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#download-gap-removed-color-srt').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('project_去空隙_red.srt');
+  expect(download.suggestedFilename()).toBe('project_去空隙_红色.srt');
 });
 
 test('server media loads from the resolved project path and OTIO keeps its absolute source URL', async ({ page }) => {

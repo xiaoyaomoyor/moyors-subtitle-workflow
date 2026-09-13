@@ -509,7 +509,7 @@
     box-shadow: var(--shadow-3);
     /* 高于设置/填隙等浮动面板（gap-remove 系 340），否则面板打开时
        落在面板区域内的菜单项会被拦截点不到；低于模块齿轮面板（420）与 dock 菜单（440）。 */
-    z-index: 350;
+    z-index: 450;
   }
   .menubar-item.open > .menubar-menu { display: block; }
 
@@ -3430,7 +3430,7 @@
     width: 100%;
     min-width: 0;
   }
-  #sticker-root-modal { z-index: 280; }
+  #sticker-root-modal { z-index: 510; }
   #sticker-root-modal .modal {
     width: min(540px, calc(100vw - 32px));
     min-width: 0;
@@ -4374,3 +4374,17 @@
 .msw-source-stale[data-review-status]::after {
   content: attr(data-review-status); color: #c4913d; font-size: 10px; padding: 0 4px; white-space: nowrap;
 }
+
+/* Speaker controls share the MSW settings layout and stay usable in narrow panels. */
+#speaker-label-settings input:not([type="checkbox"]) { min-width: 0; width: min(12em, 55%); }
+#project-version-settings input[type="number"] { width: 7em; min-width: 0; }
+#speaker-label-settings input:not([type="checkbox"]), #project-version-settings input[type="number"] {
+  background: var(--form-input-bg); color: var(--text-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px 6px; min-height: var(--control-h);
+}
+#speaker-label-settings input:focus, #project-version-settings input:focus {
+  outline: none; border-color: var(--accent); box-shadow: var(--focus-ring);
+}
+
+/* Blocking dialogs must cover the floating tool tier and its menus. */
+.modal-mask { z-index: 500; }

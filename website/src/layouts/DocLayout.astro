@@ -4,11 +4,11 @@ import { sitePath } from '../lib/site-path';
 import '../styles/docs.css';
 
 const { frontmatter = {} } = Astro.props;
-const title = frontmatter.title ?? Astro.props.title ?? 'MAW 文档';
-const description = frontmatter.description ?? Astro.props.description ?? 'MAW 官方使用与工程文档。';
+const title = frontmatter.title ?? Astro.props.title ?? 'MSW 文档';
+const description = frontmatter.description ?? Astro.props.description ?? 'MSW 官方使用与工程文档。';
 const source = frontmatter.source ?? Astro.props.source;
 const currentPath = Astro.url.pathname;
-const repoUrl = 'https://github.com/Moyf/moys-asr-workflow';
+const repoUrl = 'https://github.com/xiaoyaomoyor/moyors-subtitle-workflow';
 
 const navigation = [
   ['getting-started', '开始使用'],
@@ -27,10 +27,10 @@ const navigation = [
 ];
 ---
 
-<BaseLayout title={`${title} — MAW 文档`} description={description}>
+<BaseLayout title={`${title} — MSW 文档`} description={description}>
   <header class="docs-header">
     <div class="docs-topbar shell">
-      <a class="docs-wordmark" href={sitePath('docs/')}>MAW / DOCS</a>
+      <a class="docs-wordmark" href={sitePath('docs/')}>MSW / DOCS</a>
       <nav aria-label="文档导航">
         <a href={sitePath()}>返回首页</a>
         <a href={repoUrl}>GitHub ↗</a>
@@ -40,7 +40,7 @@ const navigation = [
 
   <main class="docs-shell shell">
     <div class="docs-intro">
-      <p class="docs-kicker">MAW documentation</p>
+      <p class="docs-kicker">MSW documentation</p>
       <h1>{title}</h1>
       <p>{description}</p>
     </div>
@@ -54,14 +54,14 @@ const navigation = [
           ))}
         </nav>
         {source && (
-          <a class="docs-source" href={`${repoUrl}/blob/main/${source}`}>
+          <a class="docs-source" href={`${repoUrl}/blob/my-feature/${source}`}>
             来源：{source}<br />在 GitHub 查看原文 ↗
           </a>
         )}
       </aside>
 
       <article class="docs-content">
-        {source && <p class="docs-source-note">本文同步自 MAW 原始仓库的 <a href={`${repoUrl}/blob/main/${source}`}>{source}</a>。</p>}
+        {source && <p class="docs-source-note">本文同步自 MSW 原始仓库的 <a href={`${repoUrl}/blob/my-feature/${source}`}>{source}</a>。</p>}
         <slot />
       </article>
     </div>
@@ -69,7 +69,7 @@ const navigation = [
 
   <footer class="docs-footer">
     <div class="shell">
-      文档随 MAW 原始仓库维护 · <a href={repoUrl}>GitHub ↗</a>
+      文档随 MSW 原始仓库维护 · <a href={repoUrl}>GitHub ↗</a>
     </div>
   </footer>
 </BaseLayout>

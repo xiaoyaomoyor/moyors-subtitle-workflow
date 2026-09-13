@@ -100,11 +100,11 @@ test('media seek buttons and arrow keys use the configured seek duration', async
 
   await page.evaluate(() => { document.getElementById('player').currentTime = 20; });
   await expect(page.locator('#media-step-back')).toHaveAttribute('aria-label', '后退 7000ms');
-  await page.locator('#media-step-back').click();
+  await page.keyboard.press('ArrowLeft');
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeGreaterThan(12.85);
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeLessThan(13.15);
 
-  await page.locator('#media-step-forward').click();
+  await page.keyboard.press('ArrowRight');
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeGreaterThan(19.85);
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeLessThan(20.15);
 
@@ -200,7 +200,14 @@ test('default list click keeps a cue already in the middle in place', async ({ p
     const cue = document.querySelector('.cue[data-idx="30"]');
     list.scrollTop = Math.max(0, cue.offsetTop - list.clientHeight / 2 + cue.offsetHeight / 2);
   });
-  const before = await page.evaluate(() => document.getElementById('cues-container').scrollTop);
+  const target = page.locator('.cue[data-idx="30"]');
+  // 懒布局的真实行高会改变 scrollTop；这里验证用户看到的字幕位置。
+  await expect.poll(async () => {
+    const top = await target.evaluate(el => el.getBoundingClientRect().top);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    return Math.abs(top - await target.evaluate(el => el.getBoundingClientRect().top));
+  }).toBeLessThan(0.5);
+  const before = await target.evaluate(el => el.getBoundingClientRect().top);
   await page.evaluate(() => {
     const cue = document.querySelector('.cue[data-idx="30"]');
     cue.dispatchEvent(new PointerEvent('pointerdown', {
@@ -209,7 +216,7 @@ test('default list click keeps a cue already in the middle in place', async ({ p
     cue.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
   });
   await expect(page.locator('.cue[data-idx="30"]')).toHaveClass(/selected/);
-  await expect.poll(() => page.evaluate(() => document.getElementById('cues-container').scrollTop)).toBe(before);
+  await expect.poll(async () => Math.abs(before - await target.evaluate(el => el.getBoundingClientRect().top))).toBeLessThan(1.5);
 });
 
 test('default list click selects and seeks to cue start while keeping playback', async ({ page }) => {
@@ -452,8 +459,8 @@ test('dragging the panel divider resizes the panel and stays consistent across s
 
   const panelAfter = await measure();
   expect(panelAfter).toBeGreaterThan(panelBefore + 50);
-  // 文本域保持默认高度（不做自动增高）
-  expect(await measureText()).toBe(textBefore);
+  // 文本域随 MSW 当前字幕编辑器窗口增高，保持可编辑区域充满面板。
+  expect(await measureText()).toBeGreaterThan(textBefore);
   // 选中后面板高度与拖拽后的空态保持一致
   await page.locator('.cue[data-idx="0"]').click();
   expect(await measure()).toBe(panelAfter);
@@ -601,7 +608,8 @@ test('B split keeps the source cue visually anchored while lazy rows relayout', 
   });
   await target.dispatchEvent('click', { bubbles: true, detail: 1, clientX: splitPoint.x, clientY: splitPoint.y });
   await expect(target).toHaveClass(/selected/);
-  await page.mouse.move(splitPoint.x, splitPoint.y);
+  const currentPoint = await text.evaluate(element => { const range=document.createRange(); range.setStart(element.firstChild, Math.floor(element.firstChild.textContent.length / 2)); range.collapse(true); const rect=range.getBoundingClientRect(); return {x:rect.x, y:rect.y+rect.height/2}; });
+  await page.mouse.move(currentPoint.x, currentPoint.y);
   await expect(page.locator('.cue-split-preview')).toHaveCount(1);
   const beforeTop = await target.evaluate((element) => element.getBoundingClientRect().top);
   await page.keyboard.press('b');
@@ -845,8 +853,10 @@ test('mouse-clicked utility buttons release focus for the space playback shortcu
       const player = document.getElementById('player');
       return player.readyState >= 1 && Number.isFinite(player.duration) && player.duration > 0;
     });
-    await page.locator(`#${id}`).click();
+    await clickMenubarItem(page, id === 'help-toggle' ? '帮助' : '编辑', id === 'help-toggle' ? 'help-basic' : id);
     await expect.poll(() => page.evaluate(() => document.activeElement?.id || '')).not.toBe(id);
+    await page.keyboard.press('Escape');
+    await page.locator('#waveform-pane').focus();
     await page.keyboard.press(' ');
     await page.waitForFunction(() => !document.getElementById('player').paused);
     await page.evaluate(() => document.getElementById('player').pause());

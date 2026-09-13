@@ -9,11 +9,33 @@ source: "docs/WORKFLOW.md"
 
 # 从零完成一次字幕工程
 
-这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MAW 是 Moy's ASR Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
+也可以全程从编辑器开始：使用发行包的 `Start-Editor` 脚本或 `uv run python maw_gui.py --editor --blank`，加载视频，按需生成波形、整段／片段 ASR，再翻译、TTS、保存与导出。无需先生成工程，详见 [编辑器直接导入与 ASR](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_ASR.md)。下文的 Launcher 流程继续适用于批处理。
+
+输出目录、旧缓存兼容和 Launcher 新设置见[输出布局与环境设置](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/OUTPUT_LAYOUT.md)。
+
+首次使用请先看[安装与升级](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/INSTALLATION.md)和[可选环境清单](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/ENVIRONMENT.md)。项目官网：[MSW GitHub 仓库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow)。
+
+这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MSW 是 Moyor's Subtitle Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
+
+## 在编辑器中翻译字幕
+
+工程的保存、TTS 素材收集、可选原媒体收集及恢复记录，见[工程保存与恢复](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_PERSISTENCE.md)。
+
+配音贴片可通过「文件 → 导出音频」生成配音轨或原声混音 WAV，支持原声音轨、增益、空隙移除与后台导出。详见[音频导出](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_AUDIO_EXPORT.md)。
+
+从启动器打开 Server 版编辑器，在「编辑 → 全局设置 → 环境配置 → LLM」配置并保存地址、模型、API Key 与思考强度，也可测试连接。连接设置与启动器共用：已有 API Key 时留空即可复用；支持现有的 DeepSeek、智谱、通义千问和自定义兼容接口。回「字幕 → 批量操作 → 字幕翻译」选择中文或英文及要调用的服务；未保存的环境配置草稿不会影响翻译调用。未配置或调用失败时，面板提供环境配置入口。独立 HTML 可以继续编辑、保存译文；发起翻译需要本机 Server 版。
+
+- 没有选中任何字幕块：翻译全部非空主字幕（包含已禁用字幕）。有选区：只翻译其中的主字幕及选中副字幕所绑定的主字幕，自动去重。
+- 只选中未绑定的副字幕：提示没有可翻译主字幕，不会意外翻译全部。
+- 没有副字幕时：创建副轨和对齐的字幕块，并建立绑定。有副字幕时：优先更新已绑定目标，只改文本，保留当前位置。未绑定的目标仅在起止都相差不超过 300ms 且匹配唯一时复用；否则仅在空闲位置新建，不能放入的位置会保留译文供检查。
+- 处理期间可继续编辑、播放和拖动时间，关闭翻译面板不取消任务。完成后自动应用仍有效的结果；文本、绑定或轨道有变化的条目留下提示，可查看和复制译文，或在恢复到兼容状态后点击「检查并应用」。一次撤销会撤回本次实际写入的所有副字幕。
+- 「取消任务」停止后续处理并丢弃晚到的结果；已经发送给服务商的请求可能仍完成并计费。刷新页面不会自动重复发送任务，完成的结果可在面板检查后应用；服务退出时未完成的任务标为中断，不自动重试。
+
+任务保存在本机应用数据目录，按服务器端口隔离；重启时使用原端口和已保存工程可找回结果。任务记录包括字幕原文和译文，复制工程文件到另一台机器不会携带任务记录。「翻译记录」显示最近 20 个翻译任务，可折叠并滚动查看译文，任务刷新会保留已打开译文和滚动位置；连接测试记录位于全局 LLM 设置中。保存时若发现磁盘文件或服务器绑定已变化，会拒绝覆盖并提示另存为或重新打开。
 
 ## 0. 安装依赖
 
-如果使用 GitHub Releases 提供的 Windows 或 macOS 图形版，Python、uv、FFmpeg 与 ffprobe 已由默认 `MAW` 包打包，不需要单独安装；体积更小的 `MAW-lite` 包不包含 FFmpeg，需要系统已安装并可在 PATH 中找到 `ffmpeg` 和 `ffprobe`。Windows 解压后双击 `MAW.exe`；macOS 解压后打开 `MAW.app` 或 `MAW-lite.app`。Launcher 默认启动 Server 版编辑器，右侧菜单可打开工程 HTML 编辑器或空白 HTML 编辑器；MOSE 桌面版暂不随 Release 分发。
+如果使用 GitHub Releases 提供的 Windows 或 macOS 图形版，Python、uv、FFmpeg 与 ffprobe 已由默认 `MSW` 包打包，不需要单独安装；体积更小的 `MSW-lite` 包不包含 FFmpeg，需要系统已安装并可在 PATH 中找到 `ffmpeg` 和 `ffprobe`。Windows 解压后双击 `MSW.exe`；macOS 解压后打开 `MSW.app` 或 `MSW-lite.app`。Launcher 默认启动 Server 版编辑器，右侧菜单可打开工程 HTML 编辑器或空白 HTML 编辑器；MOSE 桌面版暂不随 Release 分发。
 
 源码方式继续按下列步骤安装：
 
@@ -44,13 +66,13 @@ py -3.11 -m venv .venv
 
 ## 1.5 使用图形包的 CLI
 
-Windows 图形包中的 `MAW.exe` 不带参数时启动 Launcher；带 `-h` 或 `--help` 时显示公开命令行帮助，也可以直接转写指定媒体：
+Windows 图形包中的 `MSW.exe` 不带参数时启动 Launcher；带 `-h` 或 `--help` 时显示公开命令行帮助，也可以直接转写指定媒体：
 
 ```powershell
-.\MAW.exe -i "D:\Videos\example.mp3" -o "D:\Videos\example.srt" "D:\Videos\example.mosp"
+.\MSW.exe -i "D:\Videos\example.mp3" -o "D:\Videos\example.srt" "D:\Videos\example.mosp"
 ```
 
-完整的参数表、输出规则、Qwen/Soniox 示例、Server 管理、退出码和 AI/自动化调用模板见 [CLI 专门文档](../cli/)。
+完整的参数表、Qwen/Soniox/腾讯云/OpenAI 兼容 ASR 示例、Server 管理、退出码和 AI/自动化调用模板见 [CLI 专门文档](../cli/)。
 
 ## 1. 配置阿里云百炼 API
 
@@ -89,12 +111,14 @@ CLI 未指定 `--model` 时默认使用 `qwen-audio-3.0-asr-flash-filetrans`；�
 --keep-punct         保留每条字幕末尾的逗号和句号
 --no-html            只要 SRT 和工程文件，不生成便携 HTML
 --with-waveform      把波形写进工程文件，免去编辑器首次打开的 sidecar 缓存文件
---with-spectral      在 ReaPeaks 波形缓存中额外生成频谱数据（需要 --with-waveform）
+--with-spectral      在 quapeaks 波形缓存中额外生成频谱数据（需要 --with-waveform）
 --debug              输出部分 API 原始结果，便于反馈问题
 --debug-raw          单独保存完整 ASR 原始 JSON（<输出文件名>.asr-response.json）
 ```
 
-CLI 默认不内嵌波形；需要交给编辑器直接打开且不想生成 `<媒体名>.waveform.json` sidecar 时，加 `--with-waveform`。该选项默认生成媒体旁 `.ReaPeaks` 的 wave 层，但跳过耗时较高的频谱计算；只有同时加 `--with-spectral` 才生成频谱层。Launcher 中对应的“生成 ReaPeaks 频谱数据”默认不勾选。波形提取会额外用 FFmpeg 完整扫一遍媒体，失败时只给警告，不影响字幕与工程文件输出。输入视频会先由 FFmpeg 提取单声道 16kHz WAV；音频输入也会通过 FFprobe 获取时长。没有 FFmpeg/FFprobe 时，这一步无法完成。
+CLI 的 `--with-waveform` 会生成独立 `.quapeaks` 波形缓存，缺少原生内核时回退到 `.mopeaks`；加 `--with-spectral` 可额外计算频谱。新缓存写入 `_msw` / `视频名_msw`，普通工程不再内嵌峰值，便携 HTML 仍保留运行所需峰值。旧工程内嵌、`.waveform.json`、`.ReaPeaks`、媒体旁和旧 MAW 目录继续可读，不自动移动或删除。生成会扫描完整媒体，失败不阻止字幕输出；独立编辑器仍支持后台解析、进度和取消。
+
+在 Launcher 放入多音轨视频时，可选择源音轨；默认采用 FFprobe 的默认轨，没有默认标记时用第 0 轨。所选源轨与容器默认轨分别传给转写和缓存链；工具箱使用自己的音轨选择，批处理对每个媒体单独探测。新工程用 `media_metadata.selected_audio_track` 保存选择，兼容旧 `msw.source_audio_index`；两字段冲突时先在编辑器媒体设置中确认源音轨，再发起 ASR。只有匹配所选轨的波形可用于绘制与静音检测。
 
 ## 用 Qwen-Audio 3.0 ASR 转写（热词与上下文）
 
@@ -104,7 +128,7 @@ Launcher 和 CLI 默认都使用 `qwen-audio-3.0-asr-flash-filetrans`；需要�
 uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen-audio-3.0-asr-flash-filetrans -ll 2m --json
 ```
 
-Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，由 MAW 自动适配；字/词时间戳不使用旧 Qwen3 的 `--enable-words` 开关。可选增强配置：
+Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，由 MSW 自动适配；字/词时间戳不使用旧 Qwen3 的 `--enable-words` 开关。可选增强配置：
 
 选择 Qwen-Audio 后，Launcher 的高级选项会显示 `Prompt / 上下文`、`即时热词` 和权重。
 预编译 `vocabulary_id` 暂不在 Launcher 开放，底层 CLI / `.env` 能力保留；Launcher 字段只随本次转写提交，
@@ -161,7 +185,7 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model fun-
 --with-waveform      把波形写进工程文件，CLI 默认不内嵌
 ```
 
-Fun-ASR 普通文件限制为 12 小时 / 2 GB；说话人分离只适用于单声道，官方建议启用时音频不超过 2 小时。MAW 提交前会提取单声道音频，且超过建议时长时给出警告。说话人标签是匿名 ID，不是现实姓名；颜色只是普通工程字段，之后可以在 MAWE 中修改。
+Fun-ASR 普通文件限制为 12 小时 / 2 GB；说话人分离只适用于单声道，官方建议启用时音频不超过 2 小时。MSW 提交前会提取单声道音频，且超过建议时长时给出警告。说话人标签是匿名 ID，不是现实姓名；颜色只是普通工程字段，之后可以在 MSWE 中修改。
 
 Fun-ASR 的 API 输入字段、轮询结果路径和 JSON 映射与 Qwen 不同，虽然二者共用一个入口脚本。实现细节和豆包 URL / Base64 调研记录在 [ASR_PROVIDER_RESEARCH.md](../provider-research/)。
 
@@ -210,7 +234,31 @@ uv run python generate_subtitle_tencent_api.py "D:\Videos\example.mp4" -ll 2m --
 --debug-raw           保存腾讯云完整原始响应
 ```
 
-腾讯云结果中的 `Words` 会映射为工程 `items`，其中 `OffsetStartMs` / `OffsetEndMs` 是整数毫秒。启用 `--speaker` 时，MAW 会发送 `SpeakerDiarization=1`；说话人标签是匿名 ID。小于等于 5MB 的本地文件可直传，较大文件必须先上传到 COS 或其他公网可访问地址并使用 `--file-url`。
+腾讯云结果中的 `Words` 会映射为工程 `items`，其中 `OffsetStartMs` / `OffsetEndMs` 是整数毫秒。启用 `--speaker` 时，MSW 会发送 `SpeakerDiarization=1`；说话人标签是匿名 ID。小于等于 5MB 的本地文件可直传，较大文件必须先上传到 COS 或其他公网可访问地址并使用 `--file-url`。
+
+## 用 OpenAI 兼容 ASR 转写（可选）
+
+MSW 支持 OpenAI 官方转写服务，以及实现同一 multipart 接口的自建或中转服务。默认地址和模型分别为 `https://api.openai.com/v1` 与支持时间戳的 `whisper-1`。在 `.env` 中配置：
+
+```ini
+MSW_OPENAI_ASR_API_KEY=你的 ASR 密钥
+MSW_OPENAI_ASR_BASE_URL=https://api.openai.com/v1
+MSW_OPENAI_ASR_MODEL=whisper-1
+```
+
+直接调用生成器：
+
+```powershell
+uv run python generate_subtitle_openai_api.py "D:\Videos\example.mp4" -ll 2m --json
+```
+
+也可以从公开 CLI 调用，并用 `--base-url` 临时覆盖 `.env`：
+
+```powershell
+MSW.exe --provider openai --base-url "https://api.openai.com/v1" -i "D:\Videos\example.mp4" -o "D:\Output\example.srt"
+```
+
+接口必须接受 `POST /audio/transcriptions`，并返回带 `start` / `end` 时间戳的 `segments` 或 `words`。只有文本没有时间戳的响应会被拒绝；说话人开关、Qwen 热词和 Soniox context 不会转发给该接口。
 
 ## 用必剪转写（实验性，免 Key，仅中文）
 
@@ -238,9 +286,9 @@ uv run python generate_subtitle_bcut_api.py "D:\Videos\example.mp4" -ll 2m --jso
 
 ## 2.5 转写后自动处理
 
-Launcher 可以在转写成功后自动串接文稿匹配、固定处理、LLM 校对、重新断句、OCR 字幕去重和翻译。功能默认关闭；配置、LLM 连接验证、中间产物目录、失败恢复和安全边界见[转写后自动处理](https://github.com/Moyf/moys-asr-workflow/blob/main/docs/POSTPROCESS_PIPELINE.md)。
+Launcher 可以在转写成功后自动串接文稿匹配、固定处理、LLM 校对、重新断句、OCR 字幕去重和翻译。功能默认关闭；配置、LLM 连接验证、中间产物目录、失败恢复和安全边界见[转写后自动处理](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/POSTPROCESS_PIPELINE.md)。
 
-自动处理会保留原始转写结果，最终结果另写为带 `.postprocess` 后缀的 `.mosp` 和 `.srt`；启用「合并双语字幕」时最终文件额外带 `.bilingual` 后缀。翻译前后的独立字幕在保留中间产物时会存于运行目录，不会另作为副轨发布。失败或取消不会影响原始结果，并会保留中间目录供恢复。
+自动处理会保留原始转写结果，最终结果另写为带 `.postprocess` 后缀的 `.mosp` 和 `.srt`。失败或取消不会影响原始结果，并会保留中间目录供恢复。
 
 ## 2.6 Launcher 批量转写
 
@@ -251,9 +299,11 @@ Launcher 的「批量」模式用于把多个本地媒体按顺序转写。切�
 - 每个文件仍会生成自己的 `.srt`、`.mosp`，以及启用 HTML 输出时的 `.edit.html`。如果默认输出名已存在或与队列中其他文件冲突，Launcher 会自动加上 `-1`、`-2` 等后缀，源媒体不会被覆盖。
 - 单个文件的预检、转写或后处理失败只会标记该行失败，后续文件仍会继续执行。完成的条目可直接打开工程或所在文件夹。
 - 每批会在第一个有效媒体的输出目录创建 `maw-batch-manifest.json`；文件名冲突时同样自动加后缀。它记录已脱敏的设置和每个文件的结果，并以原子方式更新，便于排查已完成、失败或取消的条目；它不是恢复或继续执行批次的入口。
-- 批量 V1 会跳过「文稿匹配」步骤，避免把同一份文稿错误用于多个媒体；这个限制不会修改已保存的单文件文稿匹配设置。其他自动处理步骤仍按 [转写后自动处理](https://github.com/Moyf/moys-asr-workflow/blob/main/docs/POSTPROCESS_PIPELINE.md) 的规则执行。
+- 批量 V1 会跳过「文稿匹配」步骤，避免把同一份文稿错误用于多个媒体；这个限制不会修改已保存的单文件文稿匹配设置。其他自动处理步骤仍按 [转写后自动处理](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/POSTPROCESS_PIPELINE.md) 的规则执行。
 
 ## 3. 理解三个输出文件
+
+编辑器完成配音贴片后，还可从文件菜单导出[配音／混音 WAV](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_AUDIO_EXPORT.md)、[混音 MP4 或独立配音 OTIOZ](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_VIDEO_TIMELINE_EXPORT.md)。这些交付文件和素材包不替代下述 `.mosp` 工程保存。
 
 | File | Use it for | Keep it? |
 |---|---|---|
@@ -277,6 +327,8 @@ uv run python edit.py "D:\Videos\example.qwen3-asr-api.mosp" -m "D:\Videos\examp
 ```powershell
 uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.mosp"
 ```
+
+服务器会先绑定并响应本机端口，再在后台读取工程、准备媒体和生成或读取波形；页面会显示“准备中”及当前阶段，完成后自动载入完整工程。长视频不再因为首次波形准备超过启动器的等待窗口而被误报为服务器无响应；如果工程读取失败，页面会保留并显示具体错误。
 
 服务器只监听本机 `127.0.0.1`。它会尝试按工程文件的 `media` 字段加载原媒体；媒体搬家后，显式指定：
 
@@ -304,11 +356,19 @@ Launcher 右下角的圆形按钮会打开工具箱。工具箱的标题、一�
 
 工具箱的一级标签页默认选中「后处理」。「后处理」包含文稿匹配、OCR 字幕去重、LLM 处理和固定替换，面向现有字幕工程或 SRT；它的「处理文件」默认跟随 Launcher 当前填写的工程（或 SRT）路径，也可以手动选择或拖入其他 `.mosp` / `.json` / `.srt` 文件作为处理对象。字幕工具可以在「工程 + SRT」「仅工程」「仅 SRT」之间选择输出。每次成功处理都会生成带操作后缀的新文件，并把新路径自动填回 Launcher 和「处理文件」，供下一步继续处理；工具箱中的处理产物列表也可以点击切换输入。源文件不会被覆盖。
 
-切换到「实用工具」后，页面只显示媒体操作：生成波形和媒体重组。它自己的「媒体文件」默认跟随 Launcher 当前媒体，但允许选择、拖入或直接输入独立覆盖值；清空该输入即可恢复跟随 Launcher。生成波形提供「生成波形文件」和「生成波形并打开编辑器」两个按钮，并可单独选择是否写入 ReaPeaks 频谱数据：前者只写出媒体专用 `.mosp`，后者还会把该工程切换为 Launcher 当前工程并打开编辑器。媒体重组同样只使用此页面的媒体文件，不会改写字幕时间轴或后处理的输入链；先在编辑器中执行「移除静音空隙」，导出 FFconcat 文件后可选择或拖入该文件重组媒体。
+切换到「实用工具」后，页面只显示媒体操作：生成波形、媒体重组、压制字幕和提取音频。它自己的「媒体文件」默认跟随 Launcher 当前媒体，但允许选择、拖入或直接输入独立覆盖值；清空该输入即可恢复跟随 Launcher。生成波形提供「生成波形文件」和「生成波形并打开编辑器」两个按钮，并可单独选择是否写入 ReaPeaks 频谱数据：前者写出媒体专用 `.mosp` 和独立二进制波形缓存，后者还会把该工程切换为 Launcher 当前工程并打开编辑器。媒体重组同样只使用此页面的媒体文件，不会改写字幕时间轴或后处理的输入链；先在编辑器中执行「移除静音空隙」，导出 FFconcat 文件后可选择或拖入该文件重组媒体。
+
+### 压制字幕
+
+「压制字幕」需要视频媒体和 `.srt`、`.ass` 或 `.ssa` 字幕文件。字幕文件默认跟随 Launcher 当前的 SRT 输出，也可以手动选择或拖入 ASS / SSA。运行后调用 FFmpeg 的 libass 字幕滤镜重新编码为新的 H.264 MP4，默认样式与 MSW 的标准 ASS 导出一致；源视频不会被覆盖，已有同名结果会自动加后缀。压制过程可以在工具箱中停止。
+
+### 提取音频
+
+「提取音频」会先用 FFprobe 读取媒体中的音轨，显示音轨序号、语言、标题、编码、声道数和采样率；名称按容器的 `title`、`name`、`handler_name` 顺序读取。多音轨时可选择需要的音轨，单音轨则默认选中它。运行后以 AAC 编码输出新的 `.m4a` 文件，不改写源媒体；没有音轨或未找到完整的 FFmpeg / FFprobe 时会给出明确提示。
 
 ### 文稿匹配
 
-「文稿匹配」是工具箱的第一个工具。选择一个 UTF-8 编码的 `.txt`、`.md` 或 `.markdown` 文稿后，MAW 会把文稿文字按顺序对齐到当前工程或 SRT 的启用字幕段，并按输出选项生成新的 `*.matched.mosp`（或保留原工程扩展名）和/或 `*.matched.srt`。文稿是新的文字真源；旧工程、SRT 或不完整 `items` 输入保留原字幕的分段起止时间，完整逐词时间码输入则按字符时间码重算断句后的时间。文字变化的段会移除旧逐词 `items`。
+「文稿匹配」是工具箱的第一个工具。选择一个 UTF-8 编码的 `.txt`、`.md` 或 `.markdown` 文稿后，MSW 会把文稿文字按顺序对齐到当前工程或 SRT 的启用字幕段，并按输出选项生成新的 `*.matched.mosp`（或保留原工程扩展名）和/或 `*.matched.srt`。文稿是新的文字真源；旧工程、SRT 或不完整 `items` 输入保留原字幕的分段起止时间，完整逐词时间码输入则按字符时间码重算断句后的时间。文字变化的段会移除旧逐词 `items`。
 
 - 匹配时会忽略大小写、空白和标点，保留文稿中的实际文字与标点，适合修正识别错字、标点和断句边界。工程所有启用字幕段都有完整逐词 `items` 时，会按字符时间码重新计算断句后的 `segments` / `items` 时间；旧工程、SRT 或不完整 `items` 会保留原有分段时间槽。
 - `disabled` 字幕段会原样保留，不参与匹配。
@@ -325,7 +385,7 @@ LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 Ope
 - 模型只能返回 cue ID 的分组与新文字；本地程序检查 ID 是否完整、连续且顺序不变，再使用本地时间槽生成结果。
 - 合并字幕时，新段使用第一段的开始时间和最后一段的结束时间；拆分单段时，本地在原时间槽内分配正时长，模型不能指定时间。
 - 文字改变后，旧的逐词 `items` 会被移除；重新断句后，可能错位的贴纸和颜色引用也会被移除。`segments` 仍是字幕与时间的真源。
-- 「合并双语字幕」会保留原始字幕的时间范围和安全元数据，移除逐词时间码并跳过空 cue；自动后处理中的翻译前后独立结果会作为中间产物，最终文件名为 `*.postprocess.bilingual.*`。
+- 「合并双语字幕」会保留原始字幕的时间范围和安全元数据，移除无法对应双行文字的逐词时间码并跳过空 cue；自动后处理中的翻译前后独立结果会作为中间产物，不再额外发布译文副轨，最终文件名为 `*.postprocess.bilingual.*`。
 
 供应商 API Key、URL 和模型可在 Launcher 右上角的 `⚙️ 配置` →「LLM 后处理」中保存到本机 `.env`；工具箱 LLM 面板提供快捷链接跳转到这里。界面和 bridge 结果只显示掩码，不会把完整 Key 写入工程或日志。留空已经保存过的 Key 输入框并再次保存 URL/模型时，原 Key 会保留。「测试连接」只使用当前表单值发送最小请求，不会写入配置；保存成功后显示的「LLM 设置已保存。」只是短暂的状态反馈。字幕文字会发送到所选 LLM 供应商，请根据素材敏感程度和供应商的数据政策决定是否使用。完整机器协议见 [LLM_POSTPROCESS_PROTOCOL.md](../llm-postprocess/)。
 
@@ -353,8 +413,8 @@ LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 Ope
 - 可拖动波形中的字幕块或边缘微调时间；相邻字幕共享边界时会保持连续。
 - 播放器内的字幕预览可直接拖动；悬停或聚焦后拖动八个手柄可缩放。方向键移动，`Shift` 加速移动，`Alt + 方向键` 调整尺寸。几何保存在工程 `preview.subtitle`，不会改变字幕时间。
 - “移除静音空隙”只建立可逆的压缩时间线，不修改原媒体和原字幕时间。
-- 常规 SRT 通过工具栏导出；若启用了空隙移除，可选择去空隙 SRT、OTIO、FFconcat 或保留区域 JSON。
-- 去空隙 OTIO 会把启用字幕作为保留媒体 clip 上的 marker，名称为字幕内容；字幕颜色映射为 Resolve 的 `RED`、`YELLOW`、`GREEN`、`BLUE`、`PURPLE`，跨越被移除空隙的字幕按保留区间拆分，无颜色时使用白色默认标记。marker 的 `marked_range` 使用媒体源坐标，与 clip 的 `source_range` 和外部引用的 `available_range` 保持一致；带 BWF `bext.time_reference` 的 WAV 会保留非零媒体起点，避免 Resolve 导入后片段内容错位。Resolve 的可用颜色参考还包括 Blue、Cyan、Green、Yellow、Red、Pink、Purple、Fuchsia、Rose、Lavender、Sky、Mint、Lemon、Sand、Cocoa、Cream；当前 MAW 使用其中五色。
+- 常规 SRT 或 ASS 通过工具栏导出；ASS 会把主字幕预览当前选中的字体、字号和文字颜色写入默认样式。若启用了空隙移除，可选择去空隙 SRT、OTIO、FFconcat 或保留区域 JSON。
+- 去空隙 OTIO 会把启用字幕作为保留媒体 clip 上的 marker，名称为字幕内容；字幕颜色映射为 Resolve 的 `RED`、`YELLOW`、`GREEN`、`BLUE`、`PURPLE`，跨越被移除空隙的字幕按保留区间拆分，无颜色时使用白色默认标记。marker 的 `marked_range` 使用媒体源坐标，与 clip 的 `source_range` 和外部引用的 `available_range` 保持一致；带 BWF `bext.time_reference` 的 WAV 会保留非零媒体起点，避免 Resolve 导入后片段内容错位。Resolve 的可用颜色参考还包括 Blue、Cyan、Green、Yellow、Red、Pink、Purple、Fuchsia、Rose、Lavender、Sky、Mint、Lemon、Sand、Cocoa、Cream；当前 MSW 使用其中五色。
 
 完整 JSON 约束在 [JSON_SCHEMA.md](../json-schema/)。若你打算用其他 ASR 或 LLM 生成工程，至少保证顶层有 `segments`，时间全部是整数毫秒。
 
@@ -364,11 +424,11 @@ LLM 工具支持 DeepSeek、智谱 Coding Plan、阿里云 Qwen 和自定义 Ope
 
 安装 FFmpeg 后关闭并重开 PowerShell，再运行 `ffmpeg -version`。不要只把 `ffmpeg.exe` 放在仓库里；更稳妥的是把其 `bin` 目录加入系统 PATH。
 
-macOS 从 Finder 启动 `.app` 时不一定会继承终端里的 PATH。Launcher 会额外尝试 Apple Silicon Homebrew 的 `/opt/homebrew/bin` 和 Intel Homebrew 的 `/usr/local/bin`；如果仍提示缺少 FFmpeg，可把对应目录填入「配置」中的 FFmpeg 路径，并确认其中同时存在 `ffmpeg` 和 `ffprobe`。macOS GUI 会优先读取应用程序同目录的 `.env`，不存在时使用 `~/Library/Application Support/MAW/.env`，不写入只读或被 App Translocation 隔离的 `.app` 包。
+macOS 从 Finder 启动 `.app` 时不一定会继承终端里的 PATH。Launcher 会额外尝试 Apple Silicon Homebrew 的 `/opt/homebrew/bin` 和 Intel Homebrew 的 `/usr/local/bin`；如果仍提示缺少 FFmpeg，可把对应目录填入「配置」中的 FFmpeg 路径，并确认其中同时存在 `ffmpeg` 和 `ffprobe`。macOS GUI 会优先读取应用程序同目录的 `.env`，不存在时使用 `~/Library/Application Support/MSW/.env`，不写入只读或被 App Translocation 隔离的 `.app` 包。
 
 ### 提示未配置 API Key
 
-Release 版优先确认 `.env` 与应用程序同级；Windows 若同目录没有配置，再检查 `%LOCALAPPDATA%\\MAW\\.env`。源码方式确认 `.env` 位于仓库根目录。Key 行没有引号、没有额外空格，且没有把 `.env.example` 当成 `.env` 使用。环境变量若存在会覆盖 `.env`。
+Release 版优先确认 `.env` 与应用程序同级；Windows 若同目录没有配置，再检查 `%LOCALAPPDATA%\MSW\.env`。源码方式确认 `.env` 位于仓库根目录。Key 行没有引号、没有额外空格，且没有把 `.env.example` 当成 `.env` 使用。环境变量若存在会覆盖 `.env`。
 
 ### API 任务超时或上传失败
 
@@ -376,15 +436,39 @@ Release 版优先确认 `.env` 与应用程序同级；Windows 若同目录没�
 
 ### Fun-ASR 提交返回 HTTP 403
 
-MAW 会在 HTTP 状态后继续显示百炼返回的业务 `code`、`message` 和 `request_id`：
+MSW 会在 HTTP 状态后继续显示百炼返回的业务 `code`、`message` 和 `request_id`：
 
 - `AllocationQuota.FreeTierOnly`：免费额度已用完且账户启用了“仅使用免费额度”，需要在百炼控制台关闭该开关或开通按量付费。
 - `AccessDenied` + `Access denied by API-Key restrictions.`：当前 API Key 使用了自定义权限，但可访问模型范围不包含 Fun-ASR，或者 IP 白名单不允许当前网络。在百炼 API Key 页面编辑该 Key，把权限改为“全部”，或在“自定义”中加入 `fun-asr` 并核对 IP 白名单。若 Key 属于子业务空间，还要由超级管理员为该空间开放 Fun-ASR 模型调用。
 - `Workspace.AccessDenied` / `WorkSpaceNotFound`：检查 API Key、地域和 Workspace ID 是否属于同一业务空间。
 - 只有通用 `AccessDenied`：检查当前地域是否提供 Fun-ASR、账户是否有模型权限，以及 API Key 是否已失效。
 
-北京地域不填写 Workspace ID 时仍使用兼容域名 `dashscope.aliyuncs.com`；填写后使用官方推荐的 `{WorkspaceId}.cn-beijing.maas.aliyuncs.com` 专属域名。新加坡地域必须填写 Workspace ID。通过 HTTP 提交临时 `oss://` URL 时，MAW 已自动附加官方要求的 `X-DashScope-OssResourceResolve: enable`，无需用户手动处理。
+北京地域不填写 Workspace ID 时仍使用兼容域名 `dashscope.aliyuncs.com`；填写后使用官方推荐的 `{WorkspaceId}.cn-beijing.maas.aliyuncs.com` 专属域名。新加坡地域必须填写 Workspace ID。通过 HTTP 提交临时 `oss://` URL 时，MSW 已自动附加官方要求的 `X-DashScope-OssResourceResolve: enable`，无需用户手动处理。
 
 ### HTML 打开了但不能稳定拖动视频进度
 
 优先用 `server-editor\\serve.py`。不要用 `python -m http.server` 替代它；该服务器专门实现了媒体 Range 响应。
+
+## beta.2 编辑与源媒体导出
+
+- 在波形背景右键选择「填充区间空隙」，连接前后最近的活动空隙；外侧延伸至媒体边界。填充是可撤销的手工修改，仍按 MSW 配音保护计算实际移除区间。提示同时显示标记时长与有效移除时长。
+- 全局设置记住上次分类，不可用分类回退到「全部」；保留搜索与 LLM／TTS 子导航。帮助的八个分类纵向排列，支持方向键与 Home／End，沿用 MSW 深浅及自定义主题。
+- 「文件 → 更多导出 → OTIO」中的源媒体时间线和「去空隙版本 → OpenTimelineIO」共用三个选项，默认都开启：额外保存独立 SRT、表情包作为视频轨道、主字幕作为片段标记。SRT 不在 OTIOZ 压缩包内；取消主文件保存时不再保存 SRT。两份内容与名称在开始导出时固定，等待期间编辑不会混入本次导出。
+- 源媒体 OTIOZ 打包服务器绑定的媒体与已校验根目录中的表情包，保留中文文件名并处理同名图片；表情包重叠或缺失时请修复素材，或关闭对应选项后重试。多音轨、BWF 起点和去空隙配音保护延续 MSW 的映射。
+- 「含配音的剪辑工程（OTIOZ）」仍是独立入口，包含 MSW 配音片段、轨道增益／静音与素材，不受上述源媒体选项影响。
+
+## beta.3 C/D 增量：识别、版本与显示
+
+**豆包识别：** 在环境配置保存火山引擎 Key，识别参数选择豆包及资源 ID；支持 `volc.seedasr.auc`、`volc.bigasr.auc`、`volc.bigasr.auc_idle`，可填写每行一个即时热词、开启说话人颜色。Launcher 和编辑器使用同一后端与配置。当前适配器将选中音轨/片段转换为 16 kHz 单声道 Ogg Opus 后提交，内联音频上限 25 MiB、输入上限 120 分钟；实际可用资源取决于账户开通情况。取消不应用迟到结果。
+
+**OpenAI 兼容接口：** Prompt、Keywords 与 diarize 根据接口和模型显示。OpenRouter 根地址自动补为 `https://openrouter.ai/api/v1`，预设模型添加 `openai/` 前缀，自定义 ID 原样发送。官方 Whisper 使用可靠词/段时间戳；官方 diarize 使用说话人分段且不能附加 Prompt/Keywords。已知只返回文本的模型在提交前提示更换模型；未知兼容接口仍必须返回真实时间戳，纯文本不会伪造整段字幕。编辑器只显示已接入云端供应商，本地引擎继续是实验性入口。
+
+**Qwen 与文稿：** 混合词/句时间码保留供应商真实锚点。只有句锚点的细分标记为近似时间，不伪装词级精度。共享后处理计划中的额外断句符号进入 Qwen 参数。文稿匹配默认清理成对行内 Markdown 符号；可以关闭，并明确配置保留标点。文稿和匹配预览使用相同设置；匹配过低或输入损坏不生成输出。
+
+**磁盘版本：** 设置 → 保存中默认每 300 秒检查一次、最多保留 20 个版本；可以调整、手动创建、查看版本或打开目录。仅绑定且已保存的工程可用，未命名工程继续使用本机恢复草稿。版本位于 MSW 输出目录的 backups；内容不变不重复创建，也不覆盖普通保存、清除未保存标记。音频素材按需收集一次，不重复复制原视频。只有本工程自动命名的旧版本在新版本成功写入后移入回收站；手工版本不清理，回收站失败会提示。音频资产可供多个历史版本共用，不随单个版本淘汰而删除。
+
+载入版本先保护当前草稿，再作为未保存副本打开；请另存为新工程。也可直接导入 .mosp-bak。跨机器/目录使用需保留原媒体及整个相对目录结构，单独复制版本文件不等于完整工程素材包。SQLite 恢复草稿和普通保存的 .bak 仍保留。
+
+**颜色说话人：** 设置 → 说话人，默认关闭映射和预览名称。为五种颜色指定名字后，可分别开启预览、SRT 名称前缀和分色 SRT 的姓名后缀。主字幕可用下划线、文字、阴影、描边显示颜色；不会改变字幕正文、原始 speaker 或配音文本。普通/副轨/去空隙/分色 SRT 支持显式前缀；同名和非法文件名会消歧。ASS、压制与含配音 OTIOZ 保持原规则。
+
+**编辑交互：** 字数过滤可选择主轨、副轨或任一轨，两轨独立计数；缺失轨不会当作零字参与 ≤ 过滤。交换主副轨按绑定传递统一颜色，来源颜色冲突时保留目标色并提示复核，支持一次撤销。浮动面板点击/聚焦时置顶，恢复与目录选择仍为模态窗口。空隙拖动需超过 3 像素；引导完成/跳过状态由同一本机配置跨端口共享，可在帮助中重播。

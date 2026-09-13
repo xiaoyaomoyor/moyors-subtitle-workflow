@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 const siteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sourceRoot = path.resolve(process.env.MAW_SOURCE_DIR || path.join(siteRoot, '..'));
 const outputRoot = path.join(siteRoot, 'src', 'pages', 'docs');
-const githubRoot = 'https://github.com/Moyf/moys-asr-workflow/blob/main';
-const rawRoot = 'https://raw.githubusercontent.com/Moyf/moys-asr-workflow/main';
+const githubRoot = 'https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature';
+const rawRoot = 'https://raw.githubusercontent.com/xiaoyaomoyor/moyors-subtitle-workflow/my-feature';
 
 // Keep this list deliberately curated. Internal notes can stay in the source
 // repository without becoming part of the public site navigation by accident.
@@ -15,8 +15,8 @@ const documents = [
   {
     source: 'README.md',
     slug: 'getting-started',
-    title: '开始使用 MAW',
-    description: 'MAW 的产品简介、安装方式和第一次转写的完整入口。',
+    title: '开始使用 MSW',
+    description: 'MSW 的产品简介、安装方式和第一次转写的完整入口。',
   },
   {
     source: 'docs/WORKFLOW.md',
@@ -33,7 +33,7 @@ const documents = [
   {
     source: 'docs/EDITOR_GUIDE.md',
     slug: 'editor-guide',
-    title: 'MAWE 编辑器指南',
+    title: 'MSW 编辑器 编辑器指南',
     description: '字幕编辑、波形操作、拆分合并、导出和工程文件的使用说明。',
   },
   {
@@ -76,7 +76,7 @@ const documents = [
     source: 'docs/MOSE.md',
     slug: 'mose',
     title: '与 MOSE 的关系',
-    description: 'MAW、MAWE 和未来 MOSE 之间的定位与工程格式边界。',
+    description: 'MSW、MSW 编辑器 和未来 MOSE 之间的定位与工程格式边界。',
   },
   {
     source: 'docs/ASR_PROVIDER_RESEARCH.md',
@@ -188,7 +188,7 @@ async function main() {
     synced += 1;
   }
 
-  console.log(`已同步 ${synced} 篇 MAW 文档 → ${path.relative(siteRoot, outputRoot)}`);
+  console.log(`已同步 ${synced} 篇 MSW 文档 → ${path.relative(siteRoot, outputRoot)}`);
   if (sourceRoot === path.resolve(siteRoot, '..')) {
     console.log(`来源：${sourceRoot}`);
   } else {

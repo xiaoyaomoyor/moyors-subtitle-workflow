@@ -81,6 +81,8 @@
 
 `media_metadata.duration_ms` 是可选的非负整数毫秒源媒体时长（最多 7 天），用于没有波形缓存时恢复时间轴。它不包含配音贴片延长的编排时间。`segments: []` 和空音频贴片数组是合法工程；20 秒空编辑视图不写成媒体时长，也不生成伪峰值。
 
+`media_metadata.selected_audio_track` 是可选的非负整数，表示源媒体中从 0 开始的逻辑音轨编号，与 `audio_tracks[*].audio_index` 对应。新输出写入此公共字段；读取优先级为公共字段、旧 `msw.source_audio_index`、旧内嵌缓存的 `audio_track`、容器默认轨（没有默认标记时为 0）。公共字段与旧 MSW 字段均存在但冲突时，保留原值并提示用户确认源音轨；确认前不能发起 ASR。显式切轨同步两字段。源轨编号与临时单声道 WAV 的解码轨 0 分开处理。
+
 ### 1.0 工程文件扩展名
 
 - 转写器和 Launcher 默认生成 `.mosp`；命令行的 `--json` 参数名称为历史兼容名称，含义是“同时生成工程文件”。
@@ -92,6 +94,12 @@
 ### 1.1 waveform 波形缓存
 
 `waveform` 不是工程真源，而是从媒体派生的性能缓存。第三方生成 JSON 时可以完全省略；编辑器加载媒体后会补算。
+
+从 beta.3 同步起，普通 `.mosp` / `.json` 保存、另存为、下载、恢复快照及对齐导出剥离顶层 `waveform`、`spectral`、`waveform_reapeaks`。只处理持久化副本，保留运行态同源同轨缓存、真实媒体时长和 MSW 配音素材。旧工程内嵌缓存仍可读取；便携 `.edit.html` 继续内嵌运行所需峰值。
+
+新公共缓存写入 `_msw` 或按输出设置写入 `视频名_msw`：`.quapeaks` 使用 QPK1 容器保存 REAPER 形状、可选频谱和自研波形层；无内核时自研峰值使用纯 Python 的 MPK1 `.mopeaks`。默认轨使用 `<媒体完整名>.quapeaks/.mopeaks`；其他轨使用 `<媒体完整名>.track-<audio_index+1>.quapeaks/.mopeaks`。无后缀文件属于容器默认轨，不能一律视作第 0 轨。只将精确匹配轨的层用于绘制和静音检测，缺失时重建该轨或显示占位。
+
+读取还会检查媒体旁、旧 MSW/MAW 目录、旧 `.waveform.json` 和 `.ReaPeaks`；不自动移动、删除或批量改写旧文件。只读媒体目录可退回本机按完整源路径隔离的缓存。受管导入的后台任务使用版本 2 的 `.mopeaks` 产物，仍能读取旧任务清单对应的 JSON 产物；HTTP 下发格式继续使用下面的运行态 JSON 载荷。
 
 ```json
 {
@@ -116,15 +124,15 @@
 - **时间刻度**：第 i 个峰覆盖 `[i × division / sample_rate, (i+1) × division / sample_rate)` 秒。做"峰值序号 ↔ 毫秒"换算时必须用 `sample_rate / division`；`peaks_per_second` 只是给人看的近似值。老缓存可以没有这两个字段（此时退化为 `peaks_per_second`），但只要出现一个就必须成对且合法，否则视为无效载荷。
 - `.ReaPeaks` 派生的载荷里 `sample_rate / division` 多数情况下是**分数**（16 kHz 媒体 `division=53` → 301.8868 峰/秒）。把它取整当刻度会按比例缩放整条时间轴，错位随媒体时长线性累积。
 - `source` 用于缓存失效；媒体文件名、字节大小或最后修改时间变化时会重新计算。
-- `audio_track` 可选，表示生成缓存时使用的、从 0 开始的音频流顺序；缺失时按 0 兼容。`waveform`、`spectral` 和 `waveform_reapeaks` 必须使用同一值；非 0 的 `.ReaPeaks` 使用 `<媒体名>.track-N.ReaPeaks`（N 为从 1 开始的显示编号），避免覆盖默认音轨缓存。
+- `audio_track` 可选，表示生成缓存时使用的、从 0 开始的音频流顺序；旧内嵌载荷缺失时按 0 兼容。`waveform`、`spectral` 和 `waveform_reapeaks` 必须使用同一值；新文件按本节前述容器默认轨规则命名，旧 `.ReaPeaks` 的显式 `.track-N` 后缀继续兼容。
 - 默认密度 100 峰/秒。三小时音频约产生 108 万峰、2.88 MB base64 字符串。
 - 未识别的 `schema` / `encoding` 会被忽略，不阻止工程加载。
-- Qwen/Soniox/必剪/本地命令行生成器默认不内嵌波形；加 `--with-waveform` 时可在转写生成工程文件时把同一 payload 写入顶层 `waveform`，并在媒体旁生成只含 wave 层的 `.ReaPeaks` 缓存。GUI 转写默认开启该模式。
-- 编辑器首次打开缺少有效 `waveform` 的工程时，仍可能在媒体旁写入 `<媒体名>.waveform.json` sidecar；它使用同一 `source` 签名，可被后续工程复用。sidecar 不属于字幕真源，删除后可重新提取。
+- 六个命令行生成器的 `--with-waveform` 生成独立 `.quapeaks`，内核不可用时回退 `.mopeaks`；GUI 转写默认开启波形生成。运行态仍使用上述 payload，普通工程落盘剥离它。
+- 编辑器缺少有效波形时可后台提取并保存二进制缓存，不再新写 `.waveform.json`；旧 JSON 继续原位读取。缓存可重建，生成失败或取消不影响字幕与配音编辑。
 
 ### 1.1a spectral 频谱缓存（可选）
 
-`spectral` 同样是媒体派生的性能缓存，只用于编辑器把波形按主频染色。它不是真源，第三方生成 JSON 时可以完全省略；服务器加载媒体时若在媒体旁找到 REAPER 生成的 `<媒体名>.ReaPeaks`，会解析出光谱层并内联下发。
+`spectral` 同样是媒体派生的性能缓存，只用于编辑器把波形按主频染色。它不是真源，第三方生成 JSON 时可以完全省略；服务器加载媒体时若找到精确匹配的 `.quapeaks` 或旧 `.ReaPeaks`，会解析频谱层并在运行态下发。
 
 ```json
 {
@@ -145,15 +153,15 @@
 
 - `data` 每个频谱采样占 4 字节：主频 uint16（低 15 位有效，0–32767）、密度 uint16（低 14 位有效，0–16383），整体再做 base64。
 - `division` 是时间对齐用的每采样样本数：`sample_rate / division` 即每秒频谱采样数。`sample_rate`、`source` 与主波形一致。
-- **生成时机**：转写生成工程时，`--with-waveform` 在媒体旁自动生成 `<媒体名>.ReaPeaks` 的 wave 层（GUI 默认开启）；只有同时勾选 Launcher 的“生成 ReaPeaks 频谱数据”或传入 `--with-spectral`，才额外执行频谱 FFT 并写入 spectral 层。`--with-spectral` 必须与 `--with-waveform` 一起使用。服务器只读取已有的 `.ReaPeaks`，不负责生成。生成由 Rust 内核（`reapeaks`）承担，经 ffmpeg 解码媒体；缺少 ffmpeg 或解码失败时打日志跳过。numpy 不参与 `.ReaPeaks` 生成（仅 OCR 后处理路径 lazy import）。
-- 解析器读取 REAPER 的 `RPKN`/`RPKL` 文件，取匹配 `peaks_per_second` 分辨率的 spectral 层（`-(int)'s'` 标记）；无 spectral 层、文件缺失或损坏时静默降级，不影响编辑器。
+- **生成时机**：`--with-waveform` 生成 `.quapeaks` 的 wave 层；同时勾选 Launcher 的频谱选项或传入 `--with-spectral` 才额外计算频谱 FFT。`--with-spectral` 必须与 `--with-waveform` 一起使用。生成由 Rust 内核 `quapeaks` 与 FFmpeg 完成，numpy 不参与；缺内核时仅保留 `.mopeaks` 自研波形。编辑器后台解析保留进度和取消，对齐工具只读取已有缓存。
+- 解析器读取 QPK1 及 REAPER 的 `RPKN`/`RPKL` 文件，取匹配 `peaks_per_second` 分辨率的 spectral 层（`-(int)'s'` 标记）；未知版本、无 spectral 层、文件缺失或损坏时降级，不影响编辑器。
 - 未识别的 `schema` / `encoding` 会被忽略。浏览器端在 `decodeSpectralPayload` 校验这两字段与 `data` 长度（`peak_count * 4`）。
 - **与主波形层的对齐关系**：第 i 个频谱采样与第 i 个峰是同一时刻，两者共用 `division`，**不需要任何索引偏移**。频谱层的 `peak_count` 通常比配对的 wave 层少若干（44.1 kHz 真机文件少 7、16 kHz 少 25），因为末尾的 FFT 窗口填不满——缺口在尾部而非头部（用已知时刻的窄带脉冲实测：48 kHz 下频谱响应中心 bin 4207.5，wave 层最强 bin 4207）。因此这段尾部只是不上色，编辑器按索引越界处理，不得据此平移染色层。
 - 多声道媒体取声道 0 的主频/密度，服务端与浏览器端一致。
 
 ### 1.1b waveform_reapeaks 波形层（可选）
 
-`waveform_reapeaks` 是 `.ReaPeaks` 最细 wave 层转成的 `moy.asr.waveform.v1` payload（字段与 §1.1 完全一致）。它是**默认的波形形状来源**：编辑器默认使用本字段绘制包络，没有可用 `.ReaPeaks` 时自动回退原生 `waveform`（1000 Hz 重采样）；用户可在波形设置中手动切换两种来源。
+`waveform_reapeaks` 保留旧字段名，表示 `.quapeaks` 或 `.ReaPeaks` 最细 wave 层转成的 `moy.asr.waveform.v1` payload（字段与 §1.1 完全一致）。它是**默认的波形形状来源**：没有可用层时回退原生 `waveform`（1000 Hz 重采样）；用户可在波形设置中切换两种来源。
 
 ```json
 {
@@ -170,12 +178,12 @@
 }
 ```
 
-- 由服务器加载媒体时从 `find_reapeaks` 找到的 `.ReaPeaks` 解析最细 wave 层得到；刻度是 `sample_rate / division`（约 300 峰/秒），整除时 `peaks_per_second` 写成整数，否则写成精确比率（保留 6 位小数），**绝不取整**——取整会把整条时间轴按比例缩放，错位随媒体时长线性累积。
-- `.ReaPeaks` 永远描述"被解码的那份文件"。因此缓存生成一律优先解码工程记录的源媒体本身，不使用本地 ASR 的 16 kHz 单声道提取音频或 `--length-limit` 截断片段；头部 provenance 是源媒体的 `(mtime, size)` 双因子，任一不符即视为过期并重建。
+- 由服务器从精确匹配轨的 `.quapeaks` / `.ReaPeaks` 解析最细 wave 层得到；刻度是 `sample_rate / division`（约 300 峰/秒），整除时 `peaks_per_second` 写成整数，否则保留精确比率，**绝不取整**——取整会把整条时间轴按比例缩放，错位随媒体时长线性累积。
+- 容器描述实际解码的文件。优先解码完整源媒体；仅源媒体失败时才尝试派生音频，派生缓存使用派生文件路径和指纹，不能冒充源媒体缓存。头部 provenance 比较 `(mtime, size)` 的低 32 位；运行态载荷保留完整 `source` 签名。不同解码文件的自研峰值不能注入同一容器。
 - **多声道合并**：本载荷把 `.ReaPeaks` 各声道合并成一条包络（min 取各声道最小、max 取各声道最大），与浏览器端 `decodeReapeaksFile` 完全一致。只取单一声道会让"双单声道"素材（人声只在右声道）画成直线。
 - 当前形状来源被切换时，波形绘制与「按音量移除空隙」的检测共用同一份包络，不会出现"看到的是一条曲线、按另一条曲线判断"。
-- 缺失 `.ReaPeaks` 或没有 wave 层时该字段不出现，编辑器回退原生波形。
-- 与 `spectral` 同源，均为 `.ReaPeaks` 派生的可丢弃缓存，非真源。
+- 缺失可用容器或没有 wave 层时该字段不出现，编辑器回退原生波形。
+- 与 `spectral` 同源，均为可丢弃缓存，非真源。
 - 没有 `spectral` 数据时，编辑器会自动取消并禁用“频谱颜色”开关；后台读到合法频谱后重新启用该开关。
 
 ### 1.2 workspace 工作区
@@ -383,6 +391,8 @@
 | `background_alpha` | `number` | 否 | 字幕预览背景不透明度，范围 `[0, 1]`；缺失时使用 `0.65`，设为 `0` 时隐藏背景 |
 | `color` | `string` | 否 | 六位十六进制颜色，如 `#ffffff`；主字幕默认白色，拓展字幕默认黄色 `#ffd34d` |
 | `color_underline` | `boolean` | 否 | 播放预览按字幕颜色快照给文字加下划线以区分不同颜色的字幕；缺失时视为 `true`（默认开启），设为 `false` 时关闭下划线。编辑器仅在关闭时写入该字段 |
+| `color_style` | `string` | 否 | 主字幕的颜色显示样式：`underline`（默认）、`text`、`shadow`、`stroke`。`color_underline: false` 关闭按分组颜色显示；不更改 segment 颜色或文字 |
+| `speaker_labels` | `object` | 否 | 颜色说话人映射。`mapping_enabled` 控制映射（默认 false），`enabled` 控制播放器名称显示（默认 false），`names` 为五种颜色到姓名的映射（每名最多 64 字符），`separator` 最多 16 字符；名称与分隔符不允许控制字符。兼容旧 `enabled: true` 且缺少 `mapping_enabled` 的工程 |
 | `preview.extension_subtitle` | `object` | 否 | 拓展字幕样式；同样支持 `font_size`、`font_family`、`color`，没有字号时默认比主字幕小 2px |
 
 ### 约束
@@ -505,6 +515,7 @@
 | `items` | `array<object>` | 推荐填 | 字级时间戳数组。用于「双击拆分时按字分配时间」。可填 `[]`，此时拆分会按字符比例估算时间点 |
 | `disabled` | `bool` | 否 | 禁用该字幕；预览、隐藏禁用项和默认导出会跳过它 |
 | `speaker` | `string` | 否 | 说话人标签（非空字符串）。保存供应商返回的 opaque ID（如 Soniox 的 `"1"`/`"2"`），不转换为整数或姓名。仅当该段所有带语音 items 都是同一 speaker 时才写入；缺少该字段的旧工程继续有效 |
+| `timing_precision` | `string` | 否 | Qwen 仅有句级真实锚点而需要细分时写 `interpolated`，表示按真实句范围估算的子句；这些子句不含伪造的词级 `items`。无真实时间锚点的纯文本不能生成字幕 |
 | `sticker` | `object\|null` | 否 | 表情包 head 信息。见第四节 |
 | `sticker_ref` | `object\|null` | 否 | 引用上方 head 的表情包（跨多句用） |
 | `color` | `object\|null` | 否 | 颜色标记 head。见第四节 |
@@ -919,3 +930,11 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 `options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕相交时合成同一段多行字幕。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
 
 OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结构，配音按输出采样率表示时间，视频保留有理帧率对应时间。重叠片段分轨，增益与统一峰值衰减写入浮点 WAV；静音片段同时禁用并提供静音副本，原始 TTS 另行收集。`msw-export.json` 使用 `msw.otio-bundle.v1`，记录 `options`、`plan`、`assets`、`audio_clips`、`attenuation_db`，用途是追溯和重新链接，不是可替代 `.mosp` 的保存文件。具体引用与交付边界见 [视频与剪辑工程导出](docs/EDITOR_VIDEO_TIMELINE_EXPORT.md)。
+
+### beta.3：说话人、轨道颜色与磁盘版本
+
+说话人显示设置位于主预览的 `speaker_labels`，两条预览文字共用映射。缺省名称为 SP1～SP5。姓名仅用于显示及显式启用的 SRT 导出；不替换原始 `speaker`、正文、语音名称或音频素材引用。SRT 前缀和文件名选项属于编辑器偏好，不写入此映射对象。
+
+副轨也可保存 `color` / `color_ref`；引用的 `headIdx` 必须位于同一轨 segments 内。主副轨交换整体保留稳定 ID、绑定与各段扩展字段，再按绑定映射统一的源颜色；冲突保留目标颜色。说话人来源 ID、MSW 合成记录与不可变素材元数据仍保留原值。
+
+受控版本文件以 `.mosp-bak` 结尾，结构仍为普通 MOSP，并去掉可重建内嵌缓存。相对媒体/表情包目录引用以备份文件所在目录为基准；TTS 音频按原 `msw.assets[*].path` 收集到备份目录，多个版本共用不可变文件。版本文件不包含原视频，也不替代完整素材备份；移动时保留工程目录的相对结构。恢复接口返回带新 project_id 的待另存副本，原 project_id 保存在 source_project_id。

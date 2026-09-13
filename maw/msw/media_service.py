@@ -18,6 +18,8 @@ from maw.msw.assets import atomic_bytes
 from maw.msw.audio_render import fingerprint, probe_source
 from maw.msw.dialogs import pick_media_source
 from maw.msw.project_codec import valid_id
+from maw.project_io import (selected_audio_track_from_project, selected_audio_track_from_metadata,
+                            default_audio_track_from_metadata, audio_track_conflict)
 
 CHUNK_BYTES = 4 * 1024 * 1024
 MAX_BYTES = 64 * 1024 ** 3
@@ -65,8 +67,9 @@ class MediaService:
         tracks = record['metadata'].get('audio_tracks', [])
         if type(index) is not int or index not in [track['audio_index'] for track in tracks]:
             raise ValueError('源音轨不存在')
-        if index != record['audio_index']:
-            record.update(id='media-' + uuid.uuid4().hex, audio_index=index, committed=False, created=time.time())
+        if index != record['audio_index'] or record.get('track_conflict'):
+            record.update(id='media-' + uuid.uuid4().hex, audio_index=index, track_conflict=False, committed=False, created=time.time())
+            record['metadata']['selected_audio_track'] = index
             with self.lock:
                 self.records[record['id']] = record
                 self.persist()
@@ -112,9 +115,10 @@ class MediaService:
                 ('id', 'project_id', 'name', 'reference', 'metadata', 'video', 'audio_index', 'stamp', 'time_reference')} | {
                     'url': f"/api/msw/media-source?project_id={record['project_id']}&media_id={record['id']}",
                     'managed': record.get('managed', False),
+                    'track_conflict': record.get('track_conflict', False),
                     'revision': hashlib.sha256(json.dumps([record['path'], record['stamp'], record['audio_index']]).encode()).hexdigest()}
 
-    def register(self, path, project_id, *, name=None, audio_index=0, managed=False, metadata=None):
+    def register(self, path, project_id, *, name=None, audio_index=None, managed=False, metadata=None):
         path = Path(path).resolve(strict=True)
         if path.suffix.lower() not in MEDIA_EXTENSIONS or not path.is_file():
             raise ValueError('请选择支持的音视频文件')
@@ -138,6 +142,11 @@ class MediaService:
                     pass
         if list(fingerprint(path)) != stamp:
             raise ValueError('读取时媒体文件发生变化，请重试')
+        if audio_index is None:
+            audio_index = selected_audio_track_from_metadata(media_metadata)
+            if audio_index is None:
+                audio_index = default_audio_track_from_metadata(media_metadata)
+        media_metadata['selected_audio_track'] = audio_index
         identity = 'media-' + uuid.uuid4().hex
         record = dict(id=identity, project_id=project_id, name=name or path.name, path=str(path),
                       reference=str(path), stamp=stamp, metadata=media_metadata, video=info.get('video'),
@@ -151,25 +160,37 @@ class MediaService:
     def context(self, project_id, reference=None):
         record = self.active(project_id, reference)
         if record:
-            return self.public(self.get(record['id'], project_id))
+            with self.api.server.save_lock:
+                bound = self.api.server.project
+                if self.api.context()['projectId'] == project_id and record['reference'] == bound.data.get('media'):
+                    if record['audio_index'] != selected_audio_track_from_project(bound.data):
+                        record = None
+                    else:
+                        with self.lock:
+                            self.records[record['id']]['track_conflict'] = audio_track_conflict(bound.data)
+            if record:
+                return self.public(self.get(record['id'], project_id))
         pending = None
         with self.api.server.save_lock:
             bound = self.api.server.project
             context = self.api.context()
             source = bound.source_media_path or bound.media_path
             if context['projectId'] == project_id and source and (reference is None or reference == bound.data.get('media')):
-                pending = (source, bound.audio_track, copy.deepcopy(bound.data.get('media_metadata')),
-                           bound.data.get('media') or str(source))
+                pending = (source, selected_audio_track_from_project(bound.data), copy.deepcopy(bound.data.get('media_metadata')),
+                           bound.data.get('media') or str(source), audio_track_conflict(bound.data))
             else:
                 recovered = self.api._persistence.recovered.get(project_id) if self.api._persistence else None
                 if recovered and recovered.get('media') and reference == recovered['project'].get('media'):
-                    pending = (recovered['media'], recovered['project'].get('msw', {}).get('source_audio_index', 0), None, reference)
+                    pending = (recovered['media'], selected_audio_track_from_project(recovered['project']),
+                               copy.deepcopy(recovered['project'].get('media_metadata')), reference,
+                               audio_track_conflict(recovered['project']))
         if pending is None:
             return None
         # FFprobe may take seconds. Never hold the save lock while discovering
         # media in the background (including immediately after Save As).
-        source, audio_index, metadata, saved_reference = pending
+        source, audio_index, metadata, saved_reference, conflict = pending
         record = self.register(source, project_id, audio_index=audio_index, metadata=metadata)
+        record['track_conflict'] = conflict
         with self.api.server.save_lock:
             if self.api.context()['binding'] != context['binding']:
                 return None
@@ -181,7 +202,7 @@ class MediaService:
             # Concurrent windows share an already committed registration.
             # A late probe must not replace a newer source or its identity.
             existing = self.active(project_id, saved_reference)
-            if existing:
+            if existing and existing['audio_index'] == audio_index:
                 return self.public(self.get(existing['id'], project_id))
             record['reference'] = saved_reference
             record['committed'] = True
@@ -193,6 +214,8 @@ class MediaService:
         from dataclasses import replace
         self.check_context(payload)
         record = self.get(payload.get('media_id'), payload['project_id'])
+        if record.get('track_conflict'):
+            raise ValueError('工程的公共音轨与旧 MSW 音轨冲突，请先确认源音轨')
         with self.api.server.save_lock:
             self.check_context(payload)
             with self.lock:
@@ -202,6 +225,10 @@ class MediaService:
             if self.api.context()['projectId'] == payload['project_id']:
                 data = copy.deepcopy(bound.data)
                 data.update(media=record['reference'], media_metadata=record['metadata'])
+                if isinstance(data.get('msw'), dict):
+                    data['msw']['source_audio_index'] = record['audio_index']
+                for key in ('waveform', 'spectral', 'waveform_reapeaks'):
+                    data.pop(key, None)
                 self.api.server.project = replace(bound, data=data, media_path=Path(record['path']),
                                                   source_media_path=Path(record['path']), audio_track=record['audio_index'])
         return {'media': self.public(record)}

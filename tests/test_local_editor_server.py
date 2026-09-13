@@ -1899,6 +1899,7 @@ class LocalEditorServerTests(unittest.TestCase):
                 normalized_saved_project = {
                     "schema": "moy.asr.project.v1",
                     "media": str(self.media),
+                    "media_metadata": {"selected_audio_track": 0},
                     "segments": [{"id": "main-001", "start": 0, "end": 1000, "text": "保存后的字幕"}],
                 }
                 status, result = post({"project": saved_project, "filename": None})
@@ -2096,6 +2097,7 @@ class LocalEditorServerTests(unittest.TestCase):
                         "schema": "moy.asr.project.v1",
                         "media": str(self.media.resolve()),
                         "segments": [{"id": "main-001", "start": 0, "end": 1000, "text": "接管后保存"}],
+                        "media_metadata": {"selected_audio_track": 0},
                     },
                 )
             finally:

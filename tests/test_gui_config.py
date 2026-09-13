@@ -301,7 +301,8 @@ class GuiConfigTests(unittest.TestCase):
         self.assertEqual(provider.key_url, "https://platform.openai.com/api-keys")
         self.assertEqual(
             [model.id for model in provider.models],
-            ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "custom-asr"],
+            ["whisper-1", "gpt-transcribe", "gpt-4o-transcribe", "gpt-4o-mini-transcribe",
+             "gpt-4o-transcribe-diarize", "whisper-large-v3-turbo", "whisper-large-v3", "custom-asr"],
         )
         self.assertEqual(provider.models[-1].label, "自定义（Custom）")
         self.assertEqual(provider.models[0].env_key, "MAW_OPENAI_ASR_API_KEY")

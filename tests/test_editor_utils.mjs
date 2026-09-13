@@ -16,6 +16,19 @@ const source = fs.readFileSync(new URL('../web/editor-utils.js', import.meta.url
 vm.runInNewContext(source, context);
 const gapCore = context.window.AsrGapRemoveCore;
 const helpers = context.window.AsrEditorUtils;
+test('public source selection and disk cache stripping preserve independent MSW metadata', () => {
+  const project = { media_metadata: { selected_audio_track: 2, duration_ms: 10800000, future: { keep: true } },
+    msw: { source_audio_index: 0, assets: [{ id: 'synthetic' }] }, waveform: { audio_track: 0 }, spectral: {}, waveform_reapeaks: {}, segments: [] };
+  const before = JSON.stringify(project);
+  assert.equal(helpers.selectedAudioTrackFromProject(project), 2);
+  assert.equal(JSON.stringify(helpers.normalizeMediaMetadata(project.media_metadata)), JSON.stringify(project.media_metadata));
+  assert.equal(helpers.normalizeMediaMetadata({ selected_audio_track: true }), null);
+  const saved = helpers.stripInlineCaches(project);
+  assert.equal(saved.msw, project.msw);
+  assert.equal(saved.media_metadata, project.media_metadata);
+  assert.equal('waveform' in saved, false);
+  assert.equal(JSON.stringify(project), before);
+});
 const i18nSource = fs.readFileSync(new URL('../web/editor-i18n.js', import.meta.url), 'utf8');
 const i18nContext = { window: {} };
 vm.runInNewContext(i18nSource, i18nContext);

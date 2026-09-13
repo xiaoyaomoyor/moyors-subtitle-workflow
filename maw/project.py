@@ -290,6 +290,10 @@ def _validate_media_metadata(project: JsonDict, errors: list[ProjectValidationEr
     if not isinstance(metadata, dict):
         errors.append(ProjectValidationError("$.media_metadata", "must be an object"))
         return
+    if "selected_audio_track" in metadata:
+        selected = metadata["selected_audio_track"]
+        if type(selected) is not int or selected < 0:
+            errors.append(ProjectValidationError("$.media_metadata.selected_audio_track", "must be a non-negative integer"))
     if "video_fps" in metadata:
         fps = metadata.get("video_fps")
         if type(fps) not in (int, float) or not math.isfinite(float(fps)):
@@ -506,6 +510,7 @@ def _normalize_multi_subtitle(
                 errors.append(ProjectValidationError(segment_path, "must be an object"))
                 continue
             _validate_extension_segment(segment, segment_path, previous_end, errors)
+            _validate_ref_pair(raw_segments, segment_index, segment_path, "color", "color_ref", errors)
             segment_id = segment.get("id")
             if isinstance(track_id, str) and _is_stable_id(segment_id):
                 extension_ids[track_id].add(segment_id.strip())

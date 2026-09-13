@@ -32,6 +32,87 @@
     return SUBTITLE_FONT_FAMILY_DISPLAY_NAMES_ZH[family] || family;
   }
 
+  const SPEAKER_LABEL_COLORS = Object.freeze([
+    'yellow', 'green', 'red', 'purple', 'blue',
+  ]);
+  const DEFAULT_SPEAKER_LABELS = Object.freeze({
+    yellow: 'SP1',
+    green: 'SP2',
+    red: 'SP3',
+    purple: 'SP4',
+    blue: 'SP5',
+  });
+  const SPEAKER_LABEL_MAX_LENGTH = 64;
+  const DEFAULT_SPEAKER_LABEL_SEPARATOR = '：';
+  const SPEAKER_LABEL_SEPARATOR_MAX_LENGTH = 16;
+
+  function colorExportSuffixes(colors,{names=null,language='zh'}={}) {
+    const labels={yellow:'黄色',green:'绿色',red:'红色',purple:'紫色',blue:'蓝色',default:'default'},used=new Set(),result={};
+    for(const color of colors){
+      let base=String(names?.[color]||(language==='en'?color:labels[color])||color).replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/gu,'_').replace(/[. ]+$/gu,'').slice(0,80)||color;
+      if(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(base))base='_'+base;
+      let suffix=base,index=2;while(used.has(suffix.toLocaleLowerCase()))suffix=base+'_'+index++;
+      used.add(suffix.toLocaleLowerCase());result[color]=suffix;
+    }return result;
+  }
+  function normalizeSpeakerLabel(value, fallback = '') {
+    if (typeof value !== 'string') return fallback;
+    const normalized = value
+      .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+      .replace(/\s+/gu, ' ')
+      .trim();
+    return normalized.length <= SPEAKER_LABEL_MAX_LENGTH ? normalized : fallback;
+  }
+
+  function normalizeSpeakerLabels(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(SPEAKER_LABEL_COLORS.map((color) => [
+      color,
+      Object.prototype.hasOwnProperty.call(source, color)
+        ? normalizeSpeakerLabel(source[color], DEFAULT_SPEAKER_LABELS[color])
+        : DEFAULT_SPEAKER_LABELS[color],
+    ]));
+  }
+
+  function normalizeSpeakerLabelSeparator(value) {
+    if (typeof value !== 'string') return DEFAULT_SPEAKER_LABEL_SEPARATOR;
+    const normalized = value.replace(/[\u0000-\u001f\u007f]/g, '');
+    return normalized.length <= SPEAKER_LABEL_SEPARATOR_MAX_LENGTH
+      ? normalized
+      : DEFAULT_SPEAKER_LABEL_SEPARATOR;
+  }
+
+  function normalizeSpeakerLabelSettings(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const hasMappingEnabled = Object.prototype.hasOwnProperty.call(source, 'mapping_enabled');
+    return {
+      // 旧工程没有独立的映射开关时，沿用原来的 enabled 语义，避免升级后
+      // 已配置的说话人名称突然失效；新工程则默认关闭颜色到说话人的映射。
+      mapping_enabled: hasMappingEnabled ? source.mapping_enabled === true : source.enabled === true,
+      enabled: source.enabled === true,
+      separator: normalizeSpeakerLabelSeparator(source.separator),
+      names: normalizeSpeakerLabels(source.names),
+    };
+  }
+
+  function speakerLabelForSegment(segment, segments, labels) {
+    const colorName = effectiveColorName(segment, segments);
+    if (!colorName) return '';
+    return normalizeSpeakerLabels(labels)[colorName] || '';
+  }
+
+  function formatSpeakerLabelledText(
+    text,
+    segment,
+    segments,
+    labels,
+    separator = DEFAULT_SPEAKER_LABEL_SEPARATOR,
+  ) {
+    const content = String(text ?? '');
+    const label = speakerLabelForSegment(segment, segments, labels);
+    return label ? `${label}${normalizeSpeakerLabelSeparator(separator)}${content}` : content;
+  }
+
   // SRT files commonly come from Windows subtitle tools, which may save them
   // as UTF-8 (with or without BOM) or as the local GBK code page. Decode the
   // bytes here instead of relying on File.text(), whose encoding is fixed to
@@ -2603,6 +2684,19 @@
     };
   }
 
+  function selectedAudioTrackFromProject(project) {
+    for (const value of [project?.media_metadata?.selected_audio_track, project?.msw?.source_audio_index,
+      project?.waveform?.audio_track, project?.spectral?.audio_track, project?.waveform_reapeaks?.audio_track]) {
+      if (Number.isInteger(value) && value >= 0) return value;
+    }
+    const value = project?.media_metadata?.audio_tracks?.find(track => track.default === true)?.audio_index;
+    return Number.isInteger(value) && value >= 0 ? value : 0;
+  }
+
+  function stripInlineCaches(project) {
+    return Object.fromEntries(Object.entries(project).filter(([key]) => !['waveform', 'spectral', 'waveform_reapeaks'].includes(key)));
+  }
+
   function normalizeMediaMetadata(value) {
     if (value == null) return null;
     if (typeof value !== 'object' || Array.isArray(value)) return null;
@@ -2614,10 +2708,13 @@
         && (!hasFps || typeof value.video_fps_ratio !== 'string' || !value.video_fps_ratio.trim())) return null;
     const hasAudioTracks = value.audio_tracks !== undefined;
     const hasDuration = value.duration_ms !== undefined;
+    const hasSelectedTrack = value.selected_audio_track !== undefined;
+    if (hasSelectedTrack && (!Number.isInteger(value.selected_audio_track) || value.selected_audio_track < 0)) return null;
     if (hasDuration && (!Number.isInteger(value.duration_ms) || value.duration_ms < 0 || value.duration_ms > 7 * 86400000)) return null;
     if (hasAudioTracks && !Array.isArray(value.audio_tracks)) return null;
-    if (!hasFps && !hasAudioTracks && !hasDuration) return null;
-    const metadata = {};
+    if (!hasFps && !hasAudioTracks && !hasDuration && !hasSelectedTrack) return null;
+    const metadata = { ...value };
+    if (hasSelectedTrack) metadata.selected_audio_track = value.selected_audio_track;
     if (hasDuration) metadata.duration_ms = value.duration_ms;
     if (hasFps) metadata.video_fps = normalizeTimelineFps(fps);
     if (typeof value.video_fps_ratio === 'string') {
@@ -2731,7 +2828,7 @@
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
     mergeJoinTextContinuous: '', mergeJoinTextWord: ' ',
     autoMergeGapMs: 200, autoMergeSnapDirection: 'backward', autoMergeShortCount: 3,
-    autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true,
+    autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true, exportSpeakerLabels: false, exportSpeakerNamesAsSuffix: false,
     autoSaveProject: true, autoSaveIntervalSeconds: 30, stickerOverlayEnabled: false,
     stickerOtioExportMode: 'original', clickBehavior: 'select-and-seek', clickTarget: 'pointer',
     otioExportIncludeSrt: true, otioExportIncludeStickers: true, otioExportIncludeMarkers: true,
@@ -2819,6 +2916,8 @@
       autoMergeAbsorbShort: savedSettings.autoMergeAbsorbShort !== false,
       autoMergeAbsorbDirection: savedSettings.autoMergeAbsorbDirection === 'next' ? 'next' : 'previous',
       exportColorUnified: savedSettings.exportColorUnified !== false,
+      exportSpeakerLabels: savedSettings.exportSpeakerLabels === true,
+      exportSpeakerNamesAsSuffix: savedSettings.exportSpeakerNamesAsSuffix === true,
       autoSaveProject: savedSettings.autoSaveProject !== false,
       autoSaveIntervalSeconds: clampInteger(savedSettings.autoSaveIntervalSeconds, 30, 5, 3600),
       stickerOverlayEnabled: savedSettings.stickerOverlayEnabled === true,
@@ -3094,6 +3193,7 @@
         });
       ensureStableSegmentIds(segments, `${id}-segment`);
       return {
+        ...track,
         id,
         role: 'extension',
         name: typeof track.name === 'string' && track.name.trim() ? track.name : '副字幕',
@@ -3120,6 +3220,7 @@
         .map(stableId).filter((id) => trackIds.has(id));
       if (!mainSegmentIds.length || !extensionSegmentIds.length) return null;
       return {
+        ...binding,
         id: stableId(binding.id) || `binding-${String(index + 1).padStart(3, '0')}`,
         track_id: trackId,
         main_segment_ids: [...new Set(mainSegmentIds)],
@@ -3145,6 +3246,7 @@
       dedupedBindings.push(binding);
     });
     const normalized = {
+      ...source,
       schema: MULTI_SUBTITLE_SCHEMA,
       enabled: source.enabled === true,
       display_mode: MULTI_SUBTITLE_DISPLAY_MODES.has(source.display_mode)
@@ -3343,9 +3445,30 @@
     return multiSubtitle;
   }
 
-  // 交换主轨与当前唯一副轨。副轨保留可选的 items，
-  // 但不携带表情包和颜色分组等主轨专属字段。
-  // 绑定关系按端点整体交换，并在新主轨写入后重新计算 offset。
+  // 轨道独立计数；缺失轨不会被当作空字幕。
+  function matchesTrackCharCount(main,extension,{target='main',op='ge',threshold=0}={}) {
+    const values=target==='extension'?[extension]:target==='either'?[main,extension]:[main];
+    return values.some(value=>Number.isFinite(value)&&(op==='le'?value<=threshold:value>=threshold));
+  }
+  function subtitleColorGroups(segments,prefix) {
+    return segments.map((segment,index)=>{
+      const head=segment.color?index:segment.color_ref?.headIdx,name=effectiveColorName(segment,segments);
+      return name?{key:prefix+':'+(Number.isInteger(head)?head:index),color:{...(segments[head]?.color||{}),name}}:null;
+    });
+  }
+  function rebuildSubtitleColors(segments,groups) {
+    const heads=new Map();
+    segments.forEach((segment,index)=>{
+      delete segment.color;delete segment.color_ref;
+      const group=groups[index];if(!group)return;
+      if(!heads.has(group.key)){
+        heads.set(group.key,index);segment.color={...group.color,start:segment.start,end:segment.end};
+      }else{
+        const headIdx=heads.get(group.key);segment.color_ref={name:group.color.name,headIdx};
+        segments[headIdx].color.end=Math.max(segments[headIdx].color.end,segment.end);
+      }
+    });
+  }
   function swapMainAndExtensionSubtitle(project, trackId = null) {
     if (!project || typeof project !== 'object' || !Array.isArray(project.segments)) {
       return { swapped: false, reason: 'invalid-project' };
@@ -3364,19 +3487,24 @@
     const oldMainSplitMode = multi.main_split_mode;
     const oldExtensionSplitMode = track.split_mode;
     const nextMain = oldExtension.map((segment) => ({ ...segment }));
-    const nextExtension = oldMain.map((segment) => {
-      const copy = {
-        id: stableId(segment.id),
-        start: segment.start,
-        end: segment.end,
-        text: typeof segment.text === 'string' ? segment.text : '',
-      };
-      if (Array.isArray(segment.items)) {
-        copy.items = segment.items.map((item) => ({ ...item }));
-      }
-      if (segment._dirty) copy._dirty = true;
-      return copy;
-    });
+    const nextExtension = oldMain.map(segment=>({...segment}));
+    const mainGroups=subtitleColorGroups(oldMain,'main'),nextGroups=subtitleColorGroups(oldExtension,'extension');
+    const mainIndices=new Map(oldMain.map((segment,index)=>[segment.id,index]));
+    const extIndices=new Map(oldExtension.map((segment,index)=>[segment.id,index]));
+    let colorConflictCount=0,mappedColorCount=0;
+    for(const binding of multi.bindings||[]){
+      if(binding.track_id!==track.id)continue;
+      const sources=binding.main_segment_ids.map(id=>mainGroups[mainIndices.get(id)]);
+      const names=new Set(sources.map(group=>group?.color.name||''));
+      if(names.size!==1){colorConflictCount++;continue;}
+      const group=sources.find(Boolean);if(!group)continue;
+      for(const id of binding.extension_segment_ids){const index=extIndices.get(id);if(index===undefined)continue;nextGroups[index]=group;mappedColorCount++;}
+    }
+    rebuildSubtitleColors(nextMain,nextGroups);rebuildSubtitleColors(nextExtension,mainGroups);
+    const oldLanguage=project.language;
+    if(track.language)project.language=track.language;else delete project.language;
+    track.language=typeof oldLanguage==='string'?oldLanguage:'';
+
 
     project.segments.length = 0;
     nextMain.forEach((segment) => project.segments.push(segment));
@@ -3398,7 +3526,7 @@
       trackId: track.id,
       mainCount: project.segments.length,
       extensionCount: track.segments.length,
-      bindingCount,
+      bindingCount, mappedColorCount, colorConflictCount,
     };
   }
 
@@ -3617,6 +3745,12 @@
       ? options.firstEnabledIndex
       : getSrtExportFirstIndex(source, alignFirstStart);
     const keepDisabledPlaceholder = options.keepDisabledPlaceholder === true && !colorName;
+    const speakerLabels = options.speakerLabelsEnabled === true
+      ? normalizeSpeakerLabels(options.speakerLabels)
+      : null;
+    const speakerLabelSeparator = options.speakerLabelsEnabled === true
+      ? normalizeSpeakerLabelSeparator(options.speakerLabelSeparator)
+      : DEFAULT_SPEAKER_LABEL_SEPARATOR;
     const parts = [];
     let outputIndex = 0;
     source.forEach((segment, sourceIndex) => {
@@ -3635,7 +3769,11 @@
       outputIndex += 1;
       parts.push(String(outputIndex));
       parts.push(`${formatTime(start)} --> ${formatTime(end)}`);
-      parts.push(disabled ? '' : String(segment.text || ''));
+      parts.push(disabled ? '' : speakerLabels
+        ? formatSpeakerLabelledText(
+          segment.text, segment, source, speakerLabels, speakerLabelSeparator,
+        )
+        : String(segment.text || ''));
       parts.push('');
     });
     return parts.join('\n');
@@ -5209,6 +5347,18 @@ export default MawDynamicCaptions;
     PROJECT_SCHEMA,
     supportsProjectSchema,
     subtitleFontFamilyDisplayName,
+    SPEAKER_LABEL_COLORS,
+    DEFAULT_SPEAKER_LABELS,
+    SPEAKER_LABEL_MAX_LENGTH,
+    DEFAULT_SPEAKER_LABEL_SEPARATOR,
+    SPEAKER_LABEL_SEPARATOR_MAX_LENGTH,
+    colorExportSuffixes,
+    normalizeSpeakerLabel,
+    normalizeSpeakerLabels,
+    normalizeSpeakerLabelSeparator,
+    normalizeSpeakerLabelSettings,
+    speakerLabelForSegment,
+    formatSpeakerLabelledText,
     decodeSubtitleText,
     parseBwfTimeReference,
     readBwfTimeReferenceFromFile,
@@ -5272,6 +5422,7 @@ export default MawDynamicCaptions;
     buildSubtitleBinding,
     rebuildBindingOffsets,
     swapMainAndExtensionSubtitle,
+    matchesTrackCharCount,
     removeSubtitleBindings,
     matchSubtitleSegments,
     buildMultiDisplayRows,
@@ -5287,6 +5438,8 @@ export default MawDynamicCaptions;
     normalizeTimelineTimecodeSeparator,
     normalizeTimelineTimebase,
     normalizeMediaMetadata,
+    selectedAudioTrackFromProject,
+    stripInlineCaches,
     frameNumberFromMilliseconds,
     millisecondsFromFrameNumber,
     formatFrameTimecode,

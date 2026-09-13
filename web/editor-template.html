@@ -711,6 +711,7 @@ __WAVEFORM_CSS__
             <label class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row" title="按字数过滤列表；留空或 0 不过滤。该字数同时用作字幕列表的字数标记阈值">
               <span>字数过滤</span>
               <span class="charcount-filter-controls">
+                <select id="charcount-filter-target" title="字数过滤目标"><option value="main">主轨</option><option value="extension">副轨</option><option value="either">任一轨</option></select>
                 <select id="charcount-filter-op" title="字数比较方式">
                   <option value="ge" selected>&gt;=</option>
                   <option value="le">&lt;=</option>
@@ -1080,6 +1081,11 @@ __WAVEFORM_CSS__
     </section>
     <section class="help-group help-tab-panel" id="help-tab-panel-basic" role="tabpanel" aria-labelledby="help-tab-basic" data-help-tab-panel="basic" tabindex="0">
       <h4 class="help-title">基础操作</h4>
+      <section class="help-subgroup">
+        <h5 class="help-subtitle">版本与说话人</h5>
+        <p>设置 → 保存：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。</p>
+        <p>设置 → 说话人：五色映射默认关闭；预览与 SRT 名称独立开启，不修改字幕正文或配音。</p>
+      </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">鼠标操作</h5>
         <div class="help-category">
@@ -1651,8 +1657,35 @@ __WAVEFORM_CSS__
           </div>
         </div>
 
+        <div class="editor-settings-group settings-category" data-settings-category="subtitle-speakers">
+          <div class="settings-category-header">字幕颜色与说话人</div>
+          <div class="editor-settings-sub-group" id="speaker-label-settings">
+            <span class="editor-settings-title">字幕颜色与说话人</span>
+            <label class="toggle editor-settings-item"><input id="speaker-mapping-enabled" type="checkbox">启用五色说话人映射</label>
+            <label class="toggle editor-settings-item"><input id="speaker-preview-enabled" type="checkbox">在预览中显示说话人</label>
+            <label class="editor-settings-item">分隔符<input id="speaker-label-separator" maxlength="16" value="："></label>
+            <label class="editor-settings-item">黄色<input data-speaker-name="yellow" maxlength="64" value="SP1"></label>
+            <label class="editor-settings-item">绿色<input data-speaker-name="green" maxlength="64" value="SP2"></label>
+            <label class="editor-settings-item">红色<input data-speaker-name="red" maxlength="64" value="SP3"></label>
+            <label class="editor-settings-item">紫色<input data-speaker-name="purple" maxlength="64" value="SP4"></label>
+            <label class="editor-settings-item">蓝色<input data-speaker-name="blue" maxlength="64" value="SP5"></label>
+            <label class="editor-settings-item">预览字幕颜色样式<select id="subtitle-color-style"><option value="underline">下划线</option><option value="text">文字</option><option value="shadow">阴影</option><option value="stroke">描边</option></select></label>
+            <small class="editor-settings-hint">名称仅用于显示和明确启用的 SRT 导出，不修改正文、原始 speaker 或 TTS 音色。</small>
+            <label class="toggle editor-settings-item"><input id="export-speaker-labels" type="checkbox">SRT 导出说话人</label>
+            <label class="toggle editor-settings-item"><input id="export-speaker-names-suffix" type="checkbox">以说话人名称作为分色 SRT 后缀</label>
+          </div>
+        </div>
         <div class="editor-settings-group settings-category" data-settings-category="save">
           <div class="settings-category-header">保存</div>
+          <div class="editor-settings-sub-group" id="project-version-settings" hidden>
+            <span class="editor-settings-title">磁盘版本备份</span>
+            <label class="toggle editor-settings-item"><input id="project-version-enabled" type="checkbox" checked>启用磁盘版本备份</label>
+            <label class="editor-settings-item">备份间隔（秒）<input id="project-version-interval" type="number" min="30" max="86400" value="300"></label>
+            <label class="editor-settings-item">最多保留版本<input id="project-version-limit" type="number" min="1" max="1000" value="20"></label>
+            <div class="msw-processing-actions"><button type="button" id="project-version-configure">保存备份设置</button><button type="button" id="project-version-create">立即创建版本</button><button type="button" id="project-version-directory">打开备份目录</button><button type="button" id="project-version-list">恢复磁盘版本</button></div>
+            <small class="editor-settings-hint">版本共用备份目录中的音频素材，不包含原视频；移动工程时请保留媒体和备份目录。未命名工程仍使用本机恢复草稿。</small>
+            <p id="project-version-status" class="msw-processing-message" role="status"></p>
+          </div>
           <div class="editor-settings-sub-group" id="server-auto-save-settings" hidden>
             <span class="editor-settings-title">保存</span>
             <label class="toggle editor-settings-item" title="将改动自动保存回当前工程文件">
@@ -2176,6 +2209,13 @@ __WAVEFORM_CSS__
           <label>停顿切句阈值（毫秒）<input id="msw-asr-gapSplit" type="number" min="0"></label>
           <label data-asr-context>Qwen 上下文（最多 400 字）<textarea id="msw-asr-qwenAudioContext" maxlength="400"></textarea></label>
           <label data-asr-hotwords>即时热词 <textarea id="msw-asr-qwenAudioHotwords"></textarea></label>
+          <div data-asr-openai class="msw-processing-fields">
+            <p id="msw-asr-openaiHint" class="msw-processing-hint"></p>
+            <label>Prompt<textarea id="msw-asr-openaiPrompt" maxlength="12000"></textarea></label>
+            <label>Keywords<textarea id="msw-asr-openaiKeywords" maxlength="12000" placeholder="每行一个"></textarea></label>
+            <label><input id="msw-asr-openaiDiarize" type="checkbox"> diarized_json（说话人段落）</label>
+          </div>
+          <label data-asr-doubao>即时热词（每行一个） <textarea id="msw-asr-doubaoHotwords" maxlength="12000"></textarea></label>
           <label data-asr-hotwords>热词权重 <input id="msw-asr-qwenAudioHotwordWeight"></label>
           <label data-asr-vocabulary>热词表 ID <input id="msw-asr-qwenAudioVocabularyId"></label>
           <label data-asr-soniox>Soniox 通用上下文 <textarea id="msw-asr-sonioxContextGeneral"></textarea></label>

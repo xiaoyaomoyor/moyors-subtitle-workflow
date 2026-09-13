@@ -373,3 +373,14 @@ if (-not (Test-Path -LiteralPath $mospPath)) {
 - Server 端口被占用：选择其他 `--port`，或先对正确的端口执行 `--stop-server`。
 
 完整工作流和 API 配置仍可参考 [WORKFLOW.md](WORKFLOW.md)；编辑 `.mosp`、波形和导出格式请看 [EDITOR_GUIDE.md](EDITOR_GUIDE.md)。
+
+## beta.3 新增接口
+
+豆包入口：
+
+```powershell
+MSW.exe --transcribe-doubao --help
+uv run python generate_subtitle_doubao_api.py --help
+```
+
+豆包 API Key 使用 VOLC_API_KEY；资源 ID、热词、说话人及轮询参数以帮助输出为准。OpenAI 兼容服务使用原 --transcribe-openai 入口；模型必须有可靠时间戳。直接启动编辑器可使用 MSW.exe --editor，无需先转写生成工程。新波形缓存为 quapeaks/mopeaks，旧缓存继续兼容读取。

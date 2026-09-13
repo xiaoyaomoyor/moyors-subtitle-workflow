@@ -33,6 +33,28 @@ function snapshot(page) {
   return page.evaluate(() => window.MSWE.resolve('persistence-host').snapshot());
 }
 
+test('portable editor reads a dropped QPK1 and keeps runtime peaks after downloading a cache-free project', async ({page}) => {
+  await open(page, {segments:[{id:'keep', start:0, end:1000, text:'Portable'}]}, 'portable.mosp');
+  const loaded = await page.evaluate(async () => {
+    const bytes = new Uint8Array(26 + 100 * 4), view = new DataView(bytes.buffer);
+    bytes.set(new TextEncoder().encode('QPK1')); bytes[4] = 1; bytes[5] = 1;
+    view.setUint32(6, 1000, true); view.setUint32(18, 10, true); view.setUint32(22, 100, true);
+    for (let offset = 26; offset < bytes.length; offset += 4) {
+      view.setInt16(offset, 12000, true); view.setInt16(offset + 2, -12000, true);
+    }
+    await handleDroppedFiles([new File([bytes], 'portable.wav.quapeaks')]);
+    return DATA.waveform_reapeaks?.data;
+  });
+  expect(loaded).toBeTruthy();
+  const downloading = page.waitForEvent('download');
+  await page.evaluate(() => MSWE.resolve('persistence-host').downloadLocal(null, 'portable-saved.mosp'));
+  const saved = JSON.parse(readFileSync(await (await downloading).path(), 'utf8'));
+  for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) expect(saved).not.toHaveProperty(key);
+  expect(saved.segments[0].id).toBe('keep');
+  expect(await page.evaluate(() => DATA.waveform_reapeaks.data)).toBe(loaded);
+  await expect(page.locator('.waveform-row').first()).toBeVisible();
+});
+
 test('legacy voice project opens, edits and downloads with current metadata and live MSW state', async ({ page }) => {
   await open(page, legacy);
   const opened = await snapshot(page);

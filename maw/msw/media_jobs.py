@@ -11,7 +11,9 @@ import uuid
 
 from maw.msw.assets import atomic_bytes
 from maw.msw.audio_render import RenderCancelled, check_cancel, command_prefix, run
-from maw.waveform import extract_waveform, load_waveform_sidecar, waveform_matches_media
+from maw.waveform import extract_waveform, waveform_matches_media
+from maw import mopeaks, quapeaks
+from maw.project_io import default_audio_track_from_metadata, selected_audio_track_from_project
 
 TERMINAL = {'succeeded', 'failed', 'cancelled', 'interrupted'}
 
@@ -52,7 +54,18 @@ class MediaJobs:
     def artifact(self, job):
         with self.lock:
             stored = self.jobs[job['id']]
-            return self.root / (stored['key'] + ('.json' if job['kind'] == 'waveform' else '.mp4'))
+            suffix = '.mopeaks' if stored.get('cache_version', 1) >= 2 else '.json'
+            return self.root / (stored['key'] + (suffix if job['kind'] == 'waveform' else '.mp4'))
+
+    def read_waveform(self, job, media):
+        path = self.artifact(job)
+        if path.suffix == '.mopeaks':
+            return mopeaks.read_mopeaks(path, media['path'], audio_track=media['audio_index'])
+        try:
+            cached = json.loads(path.read_text(encoding='utf-8'))
+            return cached if waveform_matches_media(cached, Path(media['path']), audio_track=media['audio_index']) else None
+        except (OSError, ValueError):
+            return None
 
     def submit(self, payload):
         self.media.check_context(payload)
@@ -65,7 +78,7 @@ class MediaJobs:
             raise ValueError('找不到 FFmpeg，请在工具配置中设置路径后重试')
         if kind == 'waveform' and not media['metadata'].get('audio_tracks'):
             raise ValueError('媒体没有可分析的音轨')
-        key = hashlib.sha256(json.dumps([media['path'], media['stamp'], media['audio_index'], kind, 1]).encode()).hexdigest()
+        key = hashlib.sha256(json.dumps([media['path'], media['stamp'], media['audio_index'], kind, 2]).encode()).hexdigest()
         with self.lock:
             for job in self.jobs.values():
                 if job['key'] == key and job['media_id'] == media['id'] and job['project_id'] == media['project_id']:
@@ -74,7 +87,7 @@ class MediaJobs:
             if self.closed or self.pending.full():
                 raise ValueError('媒体分析队列已满，请稍后重试')
             job = dict(id='analysis-' + uuid.uuid4().hex, project_id=media['project_id'], media_id=media['id'],
-                       kind=kind, key=key, force=payload.get('force') is True, status='queued', progress=0, created=time.time(), error=None)
+                       kind=kind, key=key, cache_version=2, force=payload.get('force') is True, status='queued', progress=0, created=time.time(), error=None)
             self.jobs[job['id']] = job
             self.events[job['id']] = threading.Event()
             self.persist()
@@ -93,12 +106,25 @@ class MediaJobs:
 
     def result(self, identity, project_id):
         job = self.get(identity, project_id)
-        self.media.get(job['media_id'], project_id)
+        media = self.media.get(job['media_id'], project_id)
         if job['status'] != 'succeeded':
             raise ValueError('媒体分析尚未完成')
-        path = self.artifact(job)
         if job['kind'] == 'waveform':
-            return {'waveform': json.loads(path.read_text(encoding='utf-8'))}
+            cached = self.read_waveform(job, media)
+            if cached is None:
+                raise ValueError('波形缓存失效，请重新生成')
+            source = Path(media['path'])
+            options = dict(audio_track=media['audio_index'], default_audio_track=default_audio_track_from_metadata(media['metadata']))
+            layers = {'waveform': cached, 'spectral': quapeaks.load_spectral_payload(source, **options),
+                      'waveform_reapeaks': quapeaks.load_waveform_payload(source, **options)}
+            with self.media.api.server.save_lock:
+                bound = self.media.api.server.project
+                active = self.media.active(project_id)
+                if (self.media.api.context()['projectId'] == project_id and active and active['id'] == media['id']
+                        and (bound.source_media_path or bound.media_path) == source
+                        and selected_audio_track_from_project(bound.data) == media['audio_index']):
+                    bound.data.update(layers)  # Runtime-only under the save lock; disk writers strip these keys.
+            return layers
         return {'url': f'/api/msw/media-proxy?project_id={project_id}&job_id={identity}'}
 
     def work(self):
@@ -117,15 +143,19 @@ class MediaJobs:
                 self.media.get(media['id'], media['project_id'])
                 if job['kind'] == 'waveform':
                     path = Path(media['path'])
-                    try:
-                        cached = json.loads(target.read_text(encoding='utf-8')) if target.is_file() and not job['force'] else None
-                    except (OSError, ValueError):
-                        cached = None
+                    cached = self.read_waveform(job, media) if not job['force'] else None
+                    options = dict(audio_track=media['audio_index'], default_audio_track=default_audio_track_from_metadata(media['metadata']))
                     if not job['force'] and not waveform_matches_media(cached, path, audio_track=media['audio_index']):
-                        cached = load_waveform_sidecar(path, audio_track=media['audio_index'])
+                        cached = quapeaks.load_self_wave_payload(path, **options) or mopeaks.load_waveform_cache(path, **options)
                         if cached is None:
-                            from maw.reapeaks import load_waveform_payload
-                            cached = load_waveform_payload(path, audio_track=media['audio_index'])
+                            cached = quapeaks.load_waveform_payload(path, **options)
+                        if cached is None:
+                            # Old manifests remain readable without bulk migration.
+                            with self.lock:
+                                old = [dict(item) for item in self.jobs.values() if item.get('cache_version', 1) == 1
+                                       and item['kind'] == 'waveform' and item['media_id'] == media['id']
+                                       and item['status'] == 'succeeded']
+                            cached = next((value for item in old if (value := self.read_waveform(item, media)) is not None), None)
                     if not waveform_matches_media(cached, path, audio_track=media['audio_index']):
                         def progress(milliseconds):
                             with self.lock:
@@ -134,7 +164,12 @@ class MediaJobs:
                                                   cancel_event=cancel, progress=progress)
                     check_cancel(cancel)
                     self.media.get(media['id'], media['project_id'])
-                    atomic_bytes(target, (json.dumps(cached) + '\n').encode())
+                    atomic_bytes(target, mopeaks.encode_mopeaks(cached, path))
+                    if not media.get('managed') and not quapeaks.find_self_wave_container(path, **options):
+                        try:
+                            mopeaks.save_mopeaks(cached, path, **options)
+                        except OSError:
+                            pass  # The verified managed artifact remains available.
                 elif not target.is_file() or job['force']:
                     command = command_prefix(ffmpeg) + ['-protocol_whitelist', 'file,pipe', '-i', media['path']]
                     if media['video']:

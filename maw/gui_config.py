@@ -260,6 +260,55 @@ SONIOX_COMMON_LANGUAGES: Final[tuple[str, ...]] = (
     "zh", "en", "ja", "ko", "fr", "de", "es", "ru",
 )
 
+# 豆包 audio.language 显式支持的语种（官方文档）；中文与粤语不传 language
+# 即自动识别（还覆盖上海话、闽南语、四川、陕西等方言），因此映射为空。
+# https://www.volcengine.com/docs/6561/1354868
+DOUBAO_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
+    ("", "自动识别"),
+    ("zh", "中文 / Mandarin"),
+    ("yue", "粤语 / Cantonese"),
+    ("en", "英语 / English"),
+    ("ja", "日语 / Japanese"),
+    ("ko", "韩语 / Korean"),
+    ("de", "德语 / German"),
+    ("fr", "法语 / French"),
+    ("es", "西班牙语 / Spanish"),
+    ("pt", "葡萄牙语 / Portuguese"),
+    ("ar", "阿拉伯语 / Arabic"),
+    ("id", "印尼语 / Indonesian"),
+    ("ms", "马来语 / Malay"),
+    ("th", "泰语 / Thai"),
+    ("fil", "菲律宾语 / Filipino"),
+)
+
+DOUBAO_COMMON_LANGUAGES: Final[tuple[str, ...]] = (
+    "", "zh", "yue", "en", "ja", "ko",
+)
+
+DOUBAO_MODELS: Final[tuple[ModelConfig, ...]] = (
+    ModelConfig(
+        id="volc.seedasr.auc",
+        label="豆包录音文件识别 2.0（Seed-ASR）",
+        env_key="VOLC_API_KEY",
+        note="支持说话人分离与即时热词；2.0 准确率更高",
+        supports_speaker=True,
+        supports_hotwords=True,
+        languages=DOUBAO_LANGUAGES,
+    ),
+    ModelConfig(id="volc.bigasr.auc", label="豆包录音文件识别 1.0", env_key="VOLC_API_KEY",
+                supports_speaker=True, supports_hotwords=True, languages=DOUBAO_LANGUAGES),
+    ModelConfig(id="volc.bigasr.auc_idle", label="豆包录音文件识别（闲时）", env_key="VOLC_API_KEY",
+                supports_speaker=True, supports_hotwords=True, languages=DOUBAO_LANGUAGES),
+)
+
+
+def provider_models(provider: ProviderConfig, env_path: Path) -> tuple[ModelConfig, ...]:
+    """Honor the saved Doubao resource without changing other provider defaults."""
+    if provider.id != "doubao":
+        return provider.models
+    selected = os.environ.get("VOLC_ASR_RESOURCE_ID") or load_env(env_path).get("VOLC_ASR_RESOURCE_ID", "")
+    return tuple(sorted(provider.models, key=lambda model: model.id != selected))
+
 QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
     ModelConfig(
         id=QWEN_AUDIO_MODEL_ID,
@@ -288,33 +337,16 @@ QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
     ),
 )
 
-OPENAI_ASR_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="whisper-1",
-        label="whisper-1",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="gpt-4o-transcribe",
-        label="gpt-4o-transcribe",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="gpt-4o-mini-transcribe",
-        label="gpt-4o-mini-transcribe",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id=OPENAI_ASR_MODEL_ID,
-        label="自定义（Custom）",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        note="选择后填写自定义 ASR 模型名",
-        languages=LANGUAGES,
-    ),
-)
+OPENAI_ASR_MODELS: Final[tuple[ModelConfig, ...]] = tuple(
+    ModelConfig(id=model, label=model, env_key="MAW_OPENAI_ASR_API_KEY", languages=LANGUAGES,
+                supports_speaker=model == "gpt-4o-transcribe-diarize",
+                note=("仅段级时间戳；不支持 Prompt/Keywords" if model.endswith("diarize") else
+                      "官方接口无可靠字幕时间戳；兼容接口须实际返回时间戳" if model.startswith("gpt-") else
+                      "OpenRouter / 兼容接口模型" if model.startswith("whisper-large") else "字词及段级时间戳"))
+    for model in ("whisper-1", "gpt-transcribe", "gpt-4o-transcribe", "gpt-4o-mini-transcribe",
+                  "gpt-4o-transcribe-diarize", "whisper-large-v3-turbo", "whisper-large-v3")
+) + (ModelConfig(id=OPENAI_ASR_MODEL_ID, label="自定义（Custom）", env_key="MAW_OPENAI_ASR_API_KEY",
+                 note="使用接口提供的完整模型 ID；必须返回可靠时间戳", languages=LANGUAGES),)
 
 SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
     ModelConfig(
@@ -466,6 +498,20 @@ PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
         supports_speaker=True,
         multi_language=True,
         common_languages=SONIOX_COMMON_LANGUAGES,
+    ),
+    ProviderConfig(
+        id="doubao",
+        label="豆包语音识别（火山引擎）",
+        key_url="https://console.volcengine.com/speech/new/experience/asr",
+        models=DOUBAO_MODELS,
+        regions=(),
+        languages=DOUBAO_LANGUAGES,
+        supports_speaker=True,
+        common_languages=DOUBAO_COMMON_LANGUAGES,
+        note=(
+            "媒体会直接上传到火山引擎；此适配器直传上限为 25 MiB / 120 分钟，"
+            "MSW 会先提取为低码率单声道音频再提交。"
+        ),
     ),
     ProviderConfig(
         id="tencent",

@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import math
+import os
+import hashlib
 import re
 from contextvars import ContextVar
 from functools import wraps
@@ -133,6 +135,61 @@ def maw_root(media_path: Path | str, *, per_video: bool | None = None, env_path:
     if per_video:
         return media.parent / f"{sanitize_component(media.stem, '视频')}{MSW_DIR_NAME}"
     return media.parent / MSW_DIR_NAME
+
+
+def waveform_dirs(media_path: Path | str) -> list[Path]:
+    """New caches always use MSW output roots; all historical roots remain readable."""
+    media = Path(media_path).expanduser().resolve(strict=False)
+    candidates = [maw_root(media), media.parent, *maw_root_candidates(media), waveform_local_root(media)]
+    unique = {}
+    for directory in candidates:
+        unique.setdefault(os.path.normcase(str(directory)), directory)
+    return list(unique.values())
+
+
+def waveform_local_root(media_path: Path | str) -> Path:
+    from maw.app_paths import default_app_data_root
+    source = os.path.normcase(str(Path(media_path).expanduser().resolve(strict=False)))
+    return default_app_data_root() / 'waveform-cache' / hashlib.sha256(source.encode('utf-8')).hexdigest()
+
+
+def audio_track_cache_suffix(
+    audio_track: int,
+    *,
+    default_audio_track: int | None = None,
+) -> str:
+    """Return the cache suffix for a logical audio track.
+
+    Unsuffixed caches belong to the container's default audio track. When the
+    container has no default disposition, index 0 is the deterministic fallback.
+    """
+    if not isinstance(audio_track, int) or isinstance(audio_track, bool) or audio_track < 0:
+        raise ValueError("audio_track must be a non-negative integer")
+    if default_audio_track is None:
+        default_audio_track = 0
+    if (
+        not isinstance(default_audio_track, int)
+        or isinstance(default_audio_track, bool)
+        or default_audio_track < 0
+    ):
+        raise ValueError("default_audio_track must be a non-negative integer or None")
+    return "" if audio_track == default_audio_track else f".track-{audio_track + 1}"
+
+
+def audio_track_cache_candidates(
+    audio_track: int,
+    *,
+    default_audio_track: int | None = None,
+) -> tuple[tuple[int, str], ...]:
+    """Return ``(track, suffix)`` candidates, exact first then default fallback."""
+    default_track = 0 if default_audio_track is None else default_audio_track
+    exact = audio_track_cache_suffix(
+        audio_track,
+        default_audio_track=default_track,
+    )
+    if audio_track == default_track:
+        return ((audio_track, exact),)
+    return ((audio_track, exact), (default_track, ""))
 
 
 def maw_root_candidates(media_path: Path | str) -> list[Path]:

@@ -1170,7 +1170,7 @@ function isMediaFile(file) {
   return Boolean(file) && (file.type.startsWith('video/') || file.type.startsWith('audio/') || MEDIA_FILE_RE.test(file.name));
 }
 function isReapeaksFile(file) {
-  return Boolean(file) && /\.reapeaks$/i.test(file.name);
+  return Boolean(file) && /\.(reapeaks|quapeaks)$/i.test(file.name);
 }
 
 // === 统一撤销/重做 ===
@@ -2836,6 +2836,26 @@ function activeThemePreset() {
 function resolvedInterfaceColors() {
   return { ...(activeThemePreset().colors || {}), ...(EDITOR_SETTINGS.colors || {}) };
 }
+let editorBrandSvg = null;
+let editorBrandColor = '';
+function syncEditorBrandColor() {
+  const favicon = document.querySelector('link[rel="icon"]');
+  const color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  if (!favicon || !color || color === editorBrandColor) return;
+  // Images and favicons cannot inherit the page's currentColor. Keep the
+  // shared SVG embedded, and recolor its root when the app theme changes.
+  const prefix = 'data:image/svg+xml;base64,';
+  if (!editorBrandSvg) {
+    const source = favicon.getAttribute('href') || '';
+    if (!source.startsWith(prefix)) return;
+    editorBrandSvg = new DOMParser().parseFromString(atob(source.slice(prefix.length)), 'image/svg+xml').documentElement;
+  }
+  editorBrandSvg.setAttribute('fill', color);
+  const data = prefix + btoa(new XMLSerializer().serializeToString(editorBrandSvg));
+  document.querySelectorAll('.menubar-logo img, .msw-about > img').forEach(img => { img.src = data; });
+  favicon.setAttribute('href', data);
+  editorBrandColor = color;
+}
 function applyThemeAndColors({ rerenderWaveform = true } = {}) {
   const preset = activeThemePreset();
   const colors = resolvedInterfaceColors();
@@ -2867,6 +2887,7 @@ function applyThemeAndColors({ rerenderWaveform = true } = {}) {
   const subtitleColor = /^[#][0-9a-fA-F]{6}$/.test(colors.subtitle || '') ? colors.subtitle : null;
   if (subtitleColor) rootStyle.setProperty('--wave-cue-text', subtitleColor);
   else if (!/^[#][0-9a-fA-F]{6}$/.test(colors.waveCueText || '')) rootStyle.removeProperty('--wave-cue-text');
+  syncEditorBrandColor();
   syncAppearanceSettings();
   syncInterfaceColorControls();
   if (rerenderWaveform && waveformEditor) waveformEditor.render();
@@ -4101,14 +4122,13 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
   // 内联 z 抬到其上（如设置窗开着再开帮助，帮助不能再被压在设置后面）；
   // 自己本来就更高（如媒体/波形设置 420）则不动。关闭时还原 CSS 默认层级。
   function bringToFront() {
-    const own = parseInt(getComputedStyle(panel).zIndex, 10) || 0;
-    let max = 0;
-    document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show').forEach((other) => {
-      if (other === panel) return;
-      max = Math.max(max, parseInt(getComputedStyle(other).zIndex, 10) || 0);
-    });
-    if (max >= own) panel.style.zIndex = String(max + 1);
+    const panels=[...document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show')]
+      .filter(other=>other!==panel).sort((a,b)=>(parseInt(getComputedStyle(a).zIndex)||0)-(parseInt(getComputedStyle(b).zIndex)||0));
+    panels.push(panel);panels.forEach((node,index)=>{node.style.zIndex=String(380+Math.min(index,39));});
   }
+  panel.addEventListener('pointerdown',bringToFront,true);
+  panel.addEventListener('focusin',bringToFront);
+
 
   function open() {
     if (typeof onOpen === 'function') onOpen();
@@ -5900,6 +5920,8 @@ function getCharCountThreshold() {
 }
 // 字数过滤：输入了 1~200 的数值即生效；空 / 0 不过滤。比较符 >= / <=。
 let charCountFilterOp = 'ge';
+let charCountFilterTarget='main';
+document.getElementById('charcount-filter-target')?.addEventListener('change',event=>{charCountFilterTarget=event.target.value;applySearch(searchEl.value);});
 function charCountFilterActive() {
   const v = Number(EDITOR_SETTINGS.cueListCharcountThreshold);
   return Number.isFinite(v) && v >= 1 && v <= 200;
@@ -6273,11 +6295,10 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         && EDITOR_SETTINGS.cueListKeepSplitVisible
         && cueElementHasTemporarySplitVisibility(el);
       if (matched && filterOver && !keepTemporaryVisible) {
-        const count = (mainSeg ? calcCharWidth(mainSeg.text, getMainSubtitleSplitMode(mainSeg)) : 0)
-          + (extensionSeg
-            ? calcCharWidth(extensionSeg.text, getExtensionSubtitleSplitMode(extensionTrack, extensionSeg))
-            : 0);
-        matched = charCountFilterMatches(count);
+        matched = window.AsrEditorUtils.matchesTrackCharCount(
+          mainSeg ? calcCharWidth(mainSeg.text,getMainSubtitleSplitMode(mainSeg)) : null,
+          extensionSeg ? calcCharWidth(extensionSeg.text,getExtensionSubtitleSplitMode(extensionTrack,extensionSeg)) : null,
+          {target:charCountFilterTarget,op:charCountFilterOp,threshold:Number(EDITOR_SETTINGS.cueListCharcountThreshold)});
       }
       el.classList.toggle('hidden', !matched);
       if (matched) visible++;
@@ -9246,13 +9267,17 @@ function restoreCueListVisualAnchor(cueEl, anchor) {
   const epsilon = 0.75;
   let frameCount = 0;
   let lastManagedScrollTop = container.scrollTop;
+  let lastManagedScrollHeight = container.scrollHeight;
 
   const restore = () => {
     if (generation !== cueListVisualAnchorGeneration) return;
     // renderAll() 的调用方可能在返回后立即设置 scrollTop（例如显式恢复
     // 用户位置或执行导航）。这不是 content-visibility 的布局误差，不能
     // 被后续稳定帧补偿覆盖。
-    if (frameCount > 0 && Math.abs(container.scrollTop - lastManagedScrollTop) > epsilon) return;
+    // content-visibility 回填会改变 scrollHeight，并由浏览器收缩 scrollTop。
+    // 只有布局高度未变的外部定位才让出控制；用户输入仍由 generation 立即取消。
+    if (frameCount > 0 && Math.abs(container.scrollTop - lastManagedScrollTop) > epsilon
+        && Math.abs(container.scrollHeight - lastManagedScrollHeight) <= epsilon) return;
     const visualTop = readVisualTop();
     if (visualTop !== null) {
       const delta = visualTop - anchor.top;
@@ -9269,6 +9294,7 @@ function restoreCueListVisualAnchor(cueEl, anchor) {
       container.scrollTop = Math.min(Math.max(0, anchor.scrollTop), maxScrollTop);
       lastManagedScrollTop = container.scrollTop;
     }
+    lastManagedScrollHeight = container.scrollHeight;
     frameCount += 1;
     // content-visibility 可能先稳定几帧，再因滚动到新的行而继续回填真实
     // 高度；短暂覆盖完整观察窗口，避免连续拆分时出现延迟的二次位移。
@@ -9276,6 +9302,14 @@ function restoreCueListVisualAnchor(cueEl, anchor) {
   };
 
   restore();
+  // 调用方可在 renderAll 返回后立即导航；在下一帧懒布局前识别显式
+  // 覆盖，不能把它误认成 scrollHeight 回填后的浏览器自动收缩。
+  queueMicrotask(() => {
+    if (generation === cueListVisualAnchorGeneration
+        && Math.abs(container.scrollTop - lastManagedScrollTop) > epsilon) {
+      invalidateCueListVisualAnchorRestore();
+    }
+  });
 }
 
 function scrollCueToCenter(cueEl, { behavior = 'smooth' } = {}) {
@@ -11365,6 +11399,8 @@ function normalizeSubtitleAppearance(value) {
   const color = normalizeSubtitleColor(value?.color);
   if (color) result.color = color;
   if (value?.color_underline === false) result.color_underline = false;
+  if(['underline','text','shadow','stroke'].includes(value?.color_style))result.color_style=value.color_style;
+  if(value?.speaker_labels)result.speaker_labels=window.AsrEditorUtils.normalizeSpeakerLabelSettings(value.speaker_labels);
   return result;
 }
 function getSubtitleAppearance(value = DATA.preview?.subtitle) {
@@ -11434,6 +11470,7 @@ function syncSubtitleAppearanceControls(appearance = getSubtitleAppearance()) {
     }
   }
   if (subtitleColorInput) subtitleColorInput.value = appearance.color || DEFAULT_SUBTITLE_COLOR;
+  syncSpeakerControls();
 }
 function syncExtensionSubtitleAppearanceControls() {
   const stored = getStoredExtensionSubtitleAppearance();
@@ -11498,6 +11535,8 @@ function applyExtensionSubtitleAppearance(value = DATA.preview?.extension_subtit
 }
 function setSubtitleAppearance(patch, { markDirty = true } = {}) {
   const next = { ...getSubtitleAppearance() };
+  if(patch.speaker_labels)next.speaker_labels=window.AsrEditorUtils.normalizeSpeakerLabelSettings(patch.speaker_labels);
+  if(["underline","text","shadow","stroke"].includes(patch.color_style))next.color_style=patch.color_style;
   if (Object.prototype.hasOwnProperty.call(patch, 'font_size')) {
     if (patch.font_size === null || patch.font_size === 'auto') delete next.font_size;
     else Object.assign(next, normalizeSubtitleAppearance({ font_size: patch.font_size }));
@@ -11966,8 +12005,9 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   if (overlayExtensionTextEl.classList.contains('hidden') === extensionVisible) {
     overlayExtensionTextEl.classList.toggle('hidden', !extensionVisible);
   }
-  const mainText = mainVisible ? (seg.text || '') : '';
-  const extensionText = extensionVisible ? (extension.text || '') : '';
+  const labels=speakerSettings(),decorate=(text,cue,segments)=>labels.mapping_enabled&&labels.enabled?window.AsrEditorUtils.formatSpeakerLabelledText(text,cue,segments,labels.names,labels.separator):text;
+  const mainText = mainVisible ? decorate(seg.text||'',seg,DATA.segments) : '';
+  const extensionText = extensionVisible ? decorate(extension.text||'',extension,getActiveExtensionTrack()?.segments||[]) : '';
   if (mainVisible && overlayTextEl.textContent !== mainText) overlayTextEl.textContent = mainText;
   if (extensionVisible && overlayExtensionTextEl.textContent !== extensionText) {
     overlayExtensionTextEl.textContent = extensionText;
@@ -11980,6 +12020,12 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
     const colorName = MULTI_SUBTITLE_UTILS.effectiveColorName(seg, DATA.segments);
     colorUnderline = colorName ? COLOR_BY_NAME[colorName]?.value || '' : '';
   }
+  const style=DATA.preview?.subtitle?.color_style||'underline',segmentColor=colorUnderline;
+  colorUnderline=style==='underline'?segmentColor:'';
+  overlayTextEl.style.color=style==='text'&&segmentColor?segmentColor:getSubtitleAppearance().color;
+  overlayTextEl.style.webkitTextStroke=style==='stroke'&&segmentColor?`.1em ${segmentColor}`:'';
+  overlayTextEl.style.paintOrder=style==='stroke'?'stroke fill':'';
+  overlayTextEl.style.textShadow=style==='shadow'&&segmentColor?`0 .08em .1em ${segmentColor}`:'';
   if (overlayTextEl.dataset.colorUnderline !== colorUnderline) {
     overlayTextEl.dataset.colorUnderline = colorUnderline;
     overlayTextEl.style.textDecorationLine = colorUnderline ? 'underline' : '';
@@ -12173,6 +12219,33 @@ overlayToggle.addEventListener('change', () => {
 // 程序内开关（不暴露 GUI）：导出 SRT 时保留禁用项的时间轴序号但内容替换为空白
 let EXPORT_KEEP_DISABLED_PLACEHOLDER = false;
 
+function speakerSettings() {return window.AsrEditorUtils.normalizeSpeakerLabelSettings(DATA.preview?.subtitle?.speaker_labels);}
+function speakerExportOptions() {
+  const settings=speakerSettings();
+  return {speakerLabelsEnabled:EDITOR_SETTINGS.exportSpeakerLabels===true&&settings.mapping_enabled,
+    speakerLabels:{...settings.names},speakerLabelSeparator:settings.separator};
+}
+function syncSpeakerControls() {
+  const settings=speakerSettings();
+  document.getElementById('speaker-mapping-enabled').checked=settings.mapping_enabled;
+  document.getElementById('speaker-preview-enabled').checked=settings.enabled;
+  document.getElementById('speaker-label-separator').value=settings.separator;
+  document.querySelectorAll('[data-speaker-name]').forEach(node=>{node.value=settings.names[node.dataset.speakerName];});
+  document.getElementById('subtitle-color-style').value=DATA.preview?.subtitle?.color_style||'underline';
+}
+document.getElementById('speaker-label-settings').addEventListener('change',event=>{
+  if(event.target.id.startsWith('export-')){
+    updateEditorSettings({exportSpeakerLabels:document.getElementById('export-speaker-labels').checked,
+      exportSpeakerNamesAsSuffix:document.getElementById('export-speaker-names-suffix').checked});return;
+  }
+  pushPreviewUndo('调整说话人与预览样式',snapshotPreviewState());
+  const settings=window.AsrEditorUtils.normalizeSpeakerLabelSettings({mapping_enabled:document.getElementById('speaker-mapping-enabled').checked,
+    enabled:document.getElementById('speaker-preview-enabled').checked,separator:document.getElementById('speaker-label-separator').value,
+    names:Object.fromEntries([...document.querySelectorAll('[data-speaker-name]')].map(node=>[node.dataset.speakerName,node.value]))});
+  setSubtitleAppearance({speaker_labels:settings,color_style:document.getElementById('subtitle-color-style').value});syncSpeakerControls();update();
+});
+document.getElementById('export-speaker-labels').checked=EDITOR_SETTINGS.exportSpeakerLabels===true;
+document.getElementById('export-speaker-names-suffix').checked=EDITOR_SETTINGS.exportSpeakerNamesAsSuffix===true;
 function buildSrt() {
   const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
     DATA.segments,
@@ -12183,6 +12256,7 @@ function buildSrt() {
     firstEnabledIndex,
     keepDisabledPlaceholder: EXPORT_KEEP_DISABLED_PLACEHOLDER,
     formatTime: fmtSrtTime,
+    ...speakerExportOptions(),
   });
 }
 
@@ -12200,6 +12274,7 @@ function buildAss() {
 
 function buildExtensionSrt(track = getActiveExtensionTrack()) {
   return window.AsrEditorUtils.buildSrtPayload(track?.segments || [], {
+    ...speakerExportOptions(),
     formatTime: fmtSrtTime,
   });
 }
@@ -12219,6 +12294,7 @@ function buildGapRemovedSrt() {
     firstEnabledIndex,
     mapTime: (timeMs) => window.AsrEditorUtils.mapGapRemovedTime(timeMs, removed),
     ensurePositiveDuration: true,
+    ...speakerExportOptions(),
     formatTime: fmtSrtTime,
   });
 }
@@ -12269,6 +12345,9 @@ function updateSubtitleExportUi() {
 
 async function downloadColorSrts(gapRemoved = false) {
   if (editingState) finishEdit(true);
+  if (extensionEditingState) finishExtensionEdit(true);
+  commitCuePanelEdit();
+  const unified = EDITOR_SETTINGS.exportColorUnified;
   const colors = usedSubtitleColors();
   const removed = gapRemoved ? getRemovedGapRanges() : [];
   if (!colors.length) {
@@ -12284,7 +12363,11 @@ async function downloadColorSrts(gapRemoved = false) {
     EDITOR_SETTINGS.exportStartAtZero,
   );
   const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
-  const buildPayload = (color) => window.AsrEditorUtils.buildSrtPayload(DATA.segments, {
+  const speakerOptions=speakerExportOptions(),sourceSegments=structuredClone(DATA.segments),names=speakerSettings().names;
+  const useNames=EDITOR_SETTINGS.exportSpeakerNamesAsSuffix&&speakerSettings().mapping_enabled;
+  const payloads=new Map();
+  const buildPayload = (color) => window.AsrEditorUtils.buildSrtPayload(sourceSegments, {
+    ...speakerOptions,
     colorName: color.name,
     timeOffset: 0,
     alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
@@ -12295,10 +12378,12 @@ async function downloadColorSrts(gapRemoved = false) {
     ensurePositiveDuration: gapRemoved,
     formatTime: fmtSrtTime,
   });
+  for(const color of colors)payloads.set(color.name,buildPayload(color));
+  const suffixes=window.AsrEditorUtils.colorExportSuffixes(colors.map(c=>c.name),{names:useNames?names:null,language:window.MSWE_I18N?.language});
   let filenameBase = `${FILENAME_BASE}${gapSuffix}`;
   // 浏览器不允许从一个文件句柄取得其父目录，因此不再请求文件夹权限。
   // 先让用户选择一个 SRT 文件名，并把该名称（不含 .srt）作为所有颜色文件的前缀。
-  if (EDITOR_SETTINGS.exportColorUnified && window.showSaveFilePicker) {
+  if (unified && window.showSaveFilePicker) {
     try {
       const handle = await window.showSaveFilePicker({
         id: 'maw-color-srt-export-prefix',
@@ -12313,9 +12398,9 @@ async function downloadColorSrts(gapRemoved = false) {
     }
   }
   for (const color of colors) {
-    const filename = `${filenameBase}_${color.name}.srt`;
-    if (EDITOR_SETTINGS.exportColorUnified) {
-      const blob = new Blob([buildPayload(color)], { type: 'text/plain;charset=utf-8' });
+    const filename = `${filenameBase}_${suffixes[color.name]}.srt`;
+    if (unified) {
+      const blob = new Blob([payloads.get(color.name)], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -12324,7 +12409,7 @@ async function downloadColorSrts(gapRemoved = false) {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } else {
       const saved = await downloadFile(
-        buildPayload(color), filename, 'text/plain',
+        payloads.get(color.name), filename, 'text/plain',
         { desc: `${color.label}色字幕 SRT`, types: { 'text/plain': ['.srt'] } },
       );
       if (!saved) return;
@@ -12487,11 +12572,10 @@ function buildJson() {
       end_offset_ms: binding.end_offset_ms || 0,
     })),
   };
-  if (DATA.waveform) out.waveform = DATA.waveform;
   const mediaMetadata = normalizeMediaMetadata(DATA.media_metadata);
   if (mediaMetadata) out.media_metadata = mediaMetadata;
-  if (DATA.spectral) out.spectral = DATA.spectral;
-  if (DATA.waveform_reapeaks) out.waveform_reapeaks = DATA.waveform_reapeaks;
+  if (DATA.media || mediaMetadata) out.media_metadata = { ...mediaMetadata,
+    selected_audio_track: window.AsrEditorUtils.selectedAudioTrackFromProject(DATA) };
   if (DATA.gap_remove) out.gap_remove = normalizedGapRemoveData(DATA.gap_remove);
   if (DATA.script_alignment) out.script_alignment = DATA.script_alignment;
   const workspace = buildCurrentWorkspaceData();
@@ -14204,7 +14288,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   gapRemoveDirty = false;
   previewGeometryDirty = false;
   projectImportDirty = false;
-  FILENAME_BASE = filename.replace(/\.(json|mosp)$/i, '');
+  FILENAME_BASE = filename.replace(/\.(json|mosp|mosp-bak)$/i, '');
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
@@ -15342,7 +15426,7 @@ function applyCanonicalProject(data, filename) {
   renderAll({ waveform: 'full', preserveCueListScroll: false });
   refreshSubtitlePreview(0, -1);
   updateUnloadedMediaLabel(DATA.media);
-  FILENAME_BASE = filename.replace(/\.(json|mosp)$/i, '');
+  FILENAME_BASE = filename.replace(/\.(json|mosp|mosp-bak)$/i, '');
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
@@ -15394,7 +15478,7 @@ async function createProjectCheckpoint(project, suggestedName) {
           JSON.stringify(project, null, 2),
           suggestedName,
           'application/json',
-          { desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] } },
+          { desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json', '.mosp-bak'] } },
           { usePicker: false },
         );
         if (saved) {
@@ -15816,7 +15900,7 @@ function swapMainAndExtensionSubtitles() {
   clearSelection();
   renderAll({ waveform: 'full' });
   updateWithoutCueListAutoScroll();
-  flashHint(`已交换主副字幕：主轨 ${result.mainCount} 条，副轨 ${result.extensionCount} 条`, 'success');
+  flashHint(`已交换主副字幕：主轨 ${result.mainCount} 条，副轨 ${result.extensionCount} 条`+(result.colorConflictCount?`；${result.colorConflictCount} 个绑定的来源颜色冲突，已保留目标颜色，请复核`:''),result.colorConflictCount?'warning':'success');
   return true;
 }
 
@@ -19300,6 +19384,7 @@ const SERVER_STARTUP_LABELS = {
     validating_project: '正在校验工程…',
     preparing_media: '正在准备媒体…',
     preparing_waveform: '正在生成波形…',
+    reading_waveform_cache: '正在读取波形缓存…',
     finalizing: '正在完成工程加载…',
     ready: '工程加载完成',
     error: '工程加载失败',
@@ -19311,6 +19396,7 @@ const SERVER_STARTUP_LABELS = {
     validating_project: 'Validating project…',
     preparing_media: 'Preparing media…',
     preparing_waveform: 'Generating waveform…',
+    reading_waveform_cache: 'Reading waveform cache…',
     finalizing: 'Finishing project loading…',
     ready: 'Project loaded',
     error: 'Project loading failed',
@@ -19373,7 +19459,7 @@ async function loadServerStartup() {
 const dragOverlay = document.getElementById('drag-overlay');
 function isJsonFile(f) {
   const name = f.name.toLowerCase();
-  return f.type === 'application/json' || name.endsWith('.json') || name.endsWith('.mosp');
+  return f.type === 'application/json' || name.endsWith('.json') || name.endsWith('.mosp') || name.endsWith('.mosp-bak');
 }
 function isSrtFile(f) {
   return f.name.toLowerCase().endsWith('.srt');
@@ -20334,7 +20420,7 @@ try {
 } catch (_) { /* Browser storage may be unavailable. */ }
 
 function settingsCategoryLabel(category) {
-  return category.querySelector('.editor-settings-title')?.textContent?.trim() || '';
+  return category.querySelector('.settings-category-header, .editor-settings-title')?.textContent?.trim() || '';
 }
 
 function buildEditorSettingsNav() {
@@ -20659,7 +20745,10 @@ Object.keys(INTERFACE_COLOR_VARS).forEach((key) => {
   if (!input) return;
   input.addEventListener('input', () => {
     // 拖动取色器时更新 CSS 变量；波形相关键即时重绘画布，其余松手后持久化。
-    if (key === 'accent') setAccentVarFamily(document.documentElement.style, input.value);
+    if (key === 'accent') {
+      setAccentVarFamily(document.documentElement.style, input.value);
+      syncEditorBrandColor();
+    }
     else document.documentElement.style.setProperty(INTERFACE_COLOR_VARS[key], input.value);
     if (key === 'popup') applyOverlayDerived(input.value);
     if (key === 'hit') applyHitDerived(input.value);
@@ -20914,9 +21003,9 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
       project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
     }
     commitProcessingEdits();
-    const content = project ? JSON.stringify(project, null, 2) : buildJson();
+    const content = project ? JSON.stringify(window.AsrEditorUtils.stripInlineCaches(project), null, 2) : buildJson();
     await downloadFile(content, name || `${FILENAME_BASE}.mosp`, 'application/json', {
-      desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] },
+      desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json', '.mosp-bak'] },
     }, { usePicker: false });
     flashHint('仅保存工程内容；音频素材仍需保留原 .assets 文件夹', 'warning');
   },
@@ -20961,7 +21050,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
       projectId: result.projectId, binding: result.binding, saveRevision: result.saveRevision,
     } });
     projectCheckpointed = true;
-    FILENAME_BASE = result.filename.replace(/\.(json|mosp)$/i, '');
+    FILENAME_BASE = result.filename.replace(/\.(json|mosp|mosp-bak)$/i, '');
     const title = document.getElementById('json-name');
     title.textContent = result.filename; title.classList.remove('empty');
     configureServerSaveControls(); updateLottieExportButton(); updateOgrafExportButton(); scheduleAutoSave();
@@ -20972,9 +21061,17 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
 window.MSWE?.register('processing-host', () => Object.freeze({
   ensureMediaProject: () => ensureProjectCheckpointForImport(null, { usePicker: false }),
   get waveform() { return waveformEditor; },
-  applyWaveform: payload => {
+  applyWaveform: (payload, layers = {}) => {
     if (!waveformEditor?.setPayload(payload, { preserveView: true })) return false;
     DATA.waveform = payload; waveformLoadedFromProject = true;
+    if (Object.hasOwn(layers, 'spectral')) {
+      DATA.spectral = layers.spectral;
+      waveformEditor.setSpectralPayload(layers.spectral, { render: false });
+    }
+    if (Object.hasOwn(layers, 'waveform_reapeaks')) {
+      DATA.waveform_reapeaks = layers.waveform_reapeaks;
+      waveformEditor.setReapeaksWaveform(layers.waveform_reapeaks);
+    }
     scheduleAutoSave(); return true;
   },
   clearWaveform: () => {
@@ -20992,7 +21089,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     const playable = await loadMediaFile({name: media.name, type: media.video ? 'video/mp4' : 'audio/mp4', url},
       {localOnly: true, previewOnly: true});
     if (generation !== mswProjectGeneration || DATA.media !== media.reference
-      || DATA.msw?.source_audio_index !== media.audio_index) return false;
+      || window.AsrEditorUtils.selectedAudioTrackFromProject(DATA) !== media.audio_index) return false;
     waveformEditor?.setPayload(peak, { preserveView: true });
     waveformEditor?.restoreNavigation(snapshot);
     if (playable) player.currentTime = time;
@@ -21017,7 +21114,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     if (!playable) resetLoadedMedia();
     if (previous.url?.startsWith('blob:') && previous.url !== currentMediaBlobUrl) URL.revokeObjectURL(previous.url);
     DATA.media = media.reference;
-    DATA.media_metadata = normalizeMediaMetadata(media.metadata);
+    DATA.media_metadata = normalizeMediaMetadata({ ...media.metadata, selected_audio_track: media.audio_index });
     window.MSWProject.ensure(DATA).source_audio_index = media.audio_index;
     DATA.media_time_reference = media.time_reference;
     DATA.waveform = null; DATA.spectral = null; DATA.waveform_reapeaks = null;

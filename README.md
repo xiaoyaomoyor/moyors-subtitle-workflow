@@ -12,7 +12,7 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-当前版本为 **1.6.0-beta.2**，基于 MAW 同版本发展；这是 MSW 自己的预发布版本，两个项目的版本号相同不代表功能和兼容性完全一致。
+当前版本为 **1.6.0-beta.3**，基于 MAW 同版本发展；这是 MSW 自己的预发布版本，两个项目的版本号相同不代表功能和兼容性完全一致。
 
 ![MSWE：双语字幕、配音贴片与素材库](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 
@@ -60,6 +60,8 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 ## 重要说明
 
+普通 `.mosp` 工程与波形缓存分开保存：新缓存写在媒体的 `_msw` / `视频名_msw` 目录，旧 MAW/MSW 工程和缓存仍可读取。移动项目请保留原媒体与 `.assets` 配音素材；缺失波形可重新生成。便携 `.edit.html` 继续包含波形。详情见 [工程契约](JSON_SCHEMA.md#11-waveform-波形缓存)。
+
 - 选择云端服务转写时，媒体会直接上传到对应服务商；MSW 没有自己的云端服务器，也不会代管 API Key。
 - `.mosp` 工程是字幕真源；SRT 适合普通交付，ASS 可保留主字幕预览选择的字体、字号和文字颜色，但两者都不会保留全部字级时间码、波形和其他工程数据。
 - 费用、数据保留和服务可用性以服务商当前政策为准，详见[ASR 服务与配置](docs/PROVIDERS.md)。
@@ -80,3 +82,7 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 MSW 的问题和建议请提 [GitHub Issues](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues)。[上游 MAW 交流群](https://qm.qq.com/q/4YtxZIpzxC)仅作为上游交流入口，MSW 特有问题请在本仓库反馈。
 
 本项目采用 [AGPL-3.0-only](LICENSE)。
+
+### beta.3 适配中的新增能力
+
+开发分支已接入豆包 ASR、按模型区分的 OpenAI/OpenRouter 参数，以及磁盘版本备份、颜色说话人显示和 SRT 导出。Launcher 与独立编辑器共享后端；可靠时间戳仍是生成字幕的前提。使用方法、备份目录和兼容边界见 [工作流说明](docs/WORKFLOW.md#beta3-cd-增量识别版本与显示)。产品版本号在正式发行阶段统一更新。

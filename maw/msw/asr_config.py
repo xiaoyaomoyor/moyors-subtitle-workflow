@@ -6,13 +6,14 @@ import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from maw.openai_asr_capabilities import capabilities
 from maw.env_config import aliased_values
-from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_URL, api_key_for_provider, load_env, save_env
+from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_URL, api_key_for_provider, load_env, save_env, provider_models
 
 FIELDS = {'providerId', 'modelId', 'language', 'region', 'workspaceId', 'openaiModel', 'openaiBaseUrl',
           'maxLen', 'minLen', 'maxWords', 'minWords', 'gapSplit', 'speakerColors', 'qwenAudioContext',
           'qwenAudioHotwords', 'qwenAudioVocabularyId', 'qwenAudioHotwordWeight',
-          'sonioxContextGeneral', 'sonioxContextText', 'sonioxContextTerms', 'sonioxContextTranslationTerms'}
+          'openaiPrompt', 'openaiKeywords', 'openaiDiarize', 'sonioxContextGeneral', 'sonioxContextText', 'sonioxContextTerms', 'sonioxContextTranslationTerms', 'doubaoHotwords'}
 PROVIDERS_BY_ID = {provider.id: provider for provider in PROVIDERS
                    if provider.kind == 'cloud' and provider.requires_api_key and not provider.hidden}
 CONNECTION_FIELDS = {'region', 'workspaceId', 'openaiBaseUrl'}
@@ -46,9 +47,11 @@ def catalog(env_path):
             'hasApiKey': bool(api_key_for_provider(provider.id, env_path)),
             'models': [{'id': model.id, 'label': model.label, 'supportsContext': model.supports_context,
                         'supportsHotwords': model.supports_hotwords, 'supportsVocabulary': model.supports_vocabulary,
-                        'supportsSpeaker': model.supports_speaker,
+                        'supportsSpeaker': model.supports_speaker, 'note': model.note,
+                        'openaiCapabilities': {family: capabilities(url, model.id) for family, url in
+                            (('openai', 'https://api.openai.com'), ('openrouter', 'https://openrouter.ai'), ('compatible', 'https://example.test'))},
                         'languages': [{'id': k, 'label': v} for k, v in (model.languages or provider.languages)]}
-                       for model in provider.models if not model.hidden],
+                       for model in provider_models(provider, env_path) if not model.hidden],
             'regions': [{'id': k, 'label': v} for k, v in provider.regions], 'multiLanguage': provider.multi_language})
     return {'providers': providers, 'options': defaults}
 
@@ -74,14 +77,15 @@ def resolve_settings(env_path, raw, media_path=None):
         raise ValueError('ASR 配置无效')
     options = {k: v for k, v in raw.items() if k in FIELDS}
     for key, value in options.items():
-        if key == 'speakerColors':
-            if type(value) is not bool: raise ValueError('说话人选项必须是布尔值')
+        if key in {'speakerColors', 'openaiDiarize'}:
+            if type(value) is not bool:
+                raise ValueError('说话人选项必须是布尔值')
         elif not isinstance(value, str) or len(value) > 12000 or '\0' in value:
             raise ValueError('ASR 配置文本无效或过长')
     provider = PROVIDERS_BY_ID.get(options.get('providerId', 'qwen'))
     if provider is None:
         raise ValueError('此 ASR 引擎尚未接入编辑器')
-    model_id = options.get('modelId') or provider.models[0].id
+    model_id = options.get('modelId') or provider_models(provider, env_path)[0].id
     if model_id not in {model.id for model in provider.models if not model.hidden}:
         raise ValueError('ASR 模型不属于所选服务')
     options.update(providerId=provider.id, modelId=model_id)
@@ -115,14 +119,15 @@ def resolve_settings(env_path, raw, media_path=None):
     overrides = {key: str(configured.get(key, default)) for key, default in {
         'DASHSCOPE_ENABLE_WORDS': 'true', 'DASHSCOPE_ENABLE_ITN': 'false',
         'DASHSCOPE_FUNASR_VOCABULARY_ID': '', 'SONIOX_POLL_INTERVAL': '3', 'SONIOX_POLL_TIMEOUT': '1800',
+        'VOLC_POLL_INTERVAL': '3', 'VOLC_POLL_TIMEOUT': '1800',
         'FFMPEG_PATH': ''}.items()}
     overrides.update(DASHSCOPE_DEFAULT_LANGUAGE=request.language, DASHSCOPE_WORKSPACE_ID=request.workspace_id,
                      DASHSCOPE_QWEN_AUDIO_CONTEXT_FILE='')
     request = replace(request, environment_overrides=overrides)
     recipe = {key: getattr(request, key) for key in ('provider', 'model', 'language', 'region', 'workspace_id',
-              'max_len', 'min_len', 'max_words', 'min_words', 'gap_split', 'strip_tail_punct', 'speaker_colors',
+              'max_len', 'min_len', 'max_words', 'min_words', 'gap_split', 'strip_tail_punct', 'extra_strong_punct', 'speaker_colors',
               'qwen_audio_context', 'qwen_audio_hotwords', 'qwen_audio_vocabulary_id', 'qwen_audio_hotword_weight',
-              'soniox_context', 'base_url')}
+              'soniox_context', 'doubao_hotwords', 'openai_prompt', 'openai_keywords', 'openai_diarize', 'base_url')}
     recipe['environment'] = {key: value for key, value in overrides.items() if key != 'FFMPEG_PATH'}
     return AsrSettings(request, recipe)
 
@@ -152,7 +157,8 @@ def save_settings(env_path, raw, media_path=None, *, section=None):
         save_env(env_path, {'MSW_EDITOR_ASR_OPTIONS': json.dumps(options, ensure_ascii=False),
                             'MAW_GUI_LAST_MODEL': options.get('modelId', provider.models[0].id),
                             'MAW_GUI_LAST_LANGUAGE': request.language,
-                            **({'MAW_OPENAI_ASR_MODEL': request.model} if request.provider == 'openai' else {})})
+                            **({'MAW_OPENAI_ASR_MODEL': request.model} if request.provider == 'openai' else {}),
+                            **({'VOLC_ASR_RESOURCE_ID': request.model} if request.provider == 'doubao' else {})})
         return catalog(env_path)
     updates = {provider.models[0].env_key: request.api_key,
                'MAW_GUI_LAST_MODEL': options.get('modelId', provider.models[0].id),
@@ -163,5 +169,7 @@ def save_settings(env_path, raw, media_path=None, *, section=None):
                        DASHSCOPE_DEFAULT_LANGUAGE=request.language)
     elif request.provider == 'openai':
         updates.update(MAW_OPENAI_ASR_BASE_URL=request.base_url, MAW_OPENAI_ASR_MODEL=request.model)
+    elif request.provider == 'doubao':
+        updates['VOLC_ASR_RESOURCE_ID'] = request.model
     save_env(env_path, updates)
     return catalog(env_path)

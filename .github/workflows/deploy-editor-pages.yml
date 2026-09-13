@@ -2,7 +2,7 @@ name: Deploy MSW website to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [my-feature]
     paths:
       - "website/**"
       - "README.md"
@@ -11,6 +11,8 @@ on:
       - "edit.py"
       - "web/**"
       - "maw/reapeaks.py"
+      - "maw/quapeaks.py"
+      - "maw/mopeaks.py"
       - "maw/**"
       - ".github/workflows/deploy-editor-pages.yml"
   workflow_dispatch:
@@ -65,8 +67,8 @@ jobs:
       - name: Build website
         working-directory: website
         env:
-          SITE_URL: https://moyf.github.io/moys-asr-workflow
-          BASE_PATH: /moys-asr-workflow
+          SITE_URL: https://xiaoyaomoyor.github.io/moyors-subtitle-workflow
+          BASE_PATH: /moyors-subtitle-workflow
         run: npm run build
 
       - name: Add portable editor page

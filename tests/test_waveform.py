@@ -87,13 +87,16 @@ class WaveformExtractionTests(unittest.TestCase):
             "data": "AAA=",
             "source": waveform_module.media_signature(self.media_path),
         }
-        sidecar = waveform_module.waveform_sidecar_path(self.media_path)
-        waveform_module.save_waveform_sidecar(payload, self.media_path)
+        from maw import mopeaks
+        sidecar = waveform_module.save_waveform_sidecar(payload, self.media_path)
         self.assertTrue(sidecar.exists())
-        self.assertNotIn(b"\r\n", sidecar.read_bytes())
-        self.assertEqual(waveform_module.load_waveform_sidecar(self.media_path), payload)
+        self.assertEqual(sidecar.suffix, '.mopeaks')
+        self.assertEqual(sidecar.read_bytes()[:4], b'MPK1')
+        self.assertFalse(waveform_module.waveform_sidecar_path(self.media_path).exists())
         cached, extracted = waveform_module.load_or_extract_waveform(None, self.media_path)
-        self.assertEqual(cached, payload)
+        self.assertEqual(cached, mopeaks.load_mopeaks(self.media_path))
+        for key, value in payload.items():
+            self.assertEqual(cached[key], value)
         self.assertFalse(extracted)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg is required")
@@ -254,7 +257,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('const NINJA_SFX_HISTORY = [];', page)
         self.assertIn('function triggerNinjaSplitFeedback(', page)
         # 帮助按钮改用 🤔 文本图标后，SVG 工具图标只剩选择/分割两个
-        self.assertEqual(page.count('class="toolbar-button-icon"'), 2)
+        self.assertEqual(page.count('class="toolbar-button-icon"'), 3)
         # 字幕与音频贴片可共用选中规则，不依赖选择器是否独占一行。
         self.assertRegex(page, r'\.waveform-cue-block\.selected\s*(?:,[^{]+)?\{')
         # 选中字幕块只用 outline + 阴影高亮（颜色走 --selection-* 变量），不再改 border-color
@@ -331,7 +334,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('<span class="editor-settings-title">彩蛋</span>', page)
         self.assertIn('<span class="editor-settings-title">外观</span>', page)
         self.assertNotIn('<span class="editor-settings-title">🥷🏻</span>', page)
-        self.assertEqual(page.count('class="editor-settings-group settings-category"'), 7)
+        self.assertEqual(page.count('class="editor-settings-group settings-category"'), 8)
         # 「静音空隙」分区（含空隙区段操作方式）已移入静音空隙工具窗
         wave_panel = page[page.index('id="waveform-settings-panel"'):]
         self.assertNotIn('静音空隙', wave_panel[:2000])
@@ -534,7 +537,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="help-open-gap-remove-panel"', page)
         self.assertIn('在「', page)
         self.assertIn('」中点击「全部清理」 清除所有空隙', page)
-        self.assertEqual(page.count('<section class="help-subgroup">'), 20)
+        self.assertEqual(page.count('<section class="help-subgroup">'), 21)
         self.assertNotIn('确定删除第 ${idx + 1} 条字幕', page)
         self.assertNotIn('确定删除选中的 ${targetIdxs.length} 条字幕', page)
         self.assertIn('id="export-start-at-zero"', page)

@@ -1,13 +1,12 @@
-// Render the Launcher SVG into native icons. Dev-only: uses the existing Playwright install.
+// Render the editor's single-color SVG into native icons. Dev-only: uses Playwright.
 // Run: node scripts/build_brand_icons.mjs && python scripts/build_macos_icon.py
 import { chromium } from 'playwright';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const root = new URL('../', import.meta.url);
-const source = await readFile(new URL('web/launcher/logo.svg', root), 'utf8');
+const svg = await readFile(new URL('web/favicon.svg', root), 'utf8');
 // Native icon files cannot follow the OS theme. This middle violet remains visible
 // on both light and dark surfaces, without adding a plate behind the hollow mark.
-const svg = source.replace('</style>', 'svg .cls-1 { fill: #7063a8; }</style>');
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ deviceScaleFactor: 1, colorScheme: 'light' });
@@ -37,7 +36,7 @@ try {
     offset += png.length;
   });
   await writeFile(new URL('assets/maw.ico', root), Buffer.concat([header, ...frames]));
-  console.log('Updated Launcher PNG and seven-size ICO from web/launcher/logo.svg.');
+  console.log('Updated native PNG and seven-size ICO from web/favicon.svg.');
 } finally {
   await browser.close();
 }

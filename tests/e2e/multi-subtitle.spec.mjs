@@ -111,7 +111,7 @@ test('explains where to configure automatic timecode splitting', async ({ page }
   await page.goto(server.url);
   await toggleEditorSettings(page);
   const hint = page.locator('#split-use-word-timestamps-hint');
-  await expect(hint).toContainText('开启时，会自动按可用时间码拆分');
+  await expect(hint).toContainText('开启时，自动按可用时间码拆分');
   await expect(hint).toContainText('关闭后将打开拆分弹窗');
   await expect(hint).not.toContainText('右上角「🔧 设置 → 拆分与合并」');
 });
@@ -350,7 +350,7 @@ test('reserves space for the dirty marker beside main dual-column text', async (
     };
   });
   expect(geometry.boxSizing).toBe('border-box');
-  expect(geometry.paddingLeft).toBe('3px');
+  expect(geometry.paddingLeft).toBe('8px');
   expect(geometry.textLeft).toBeGreaterThanOrEqual(geometry.columnLeft + 3);
 });
 
@@ -442,7 +442,7 @@ test('raises both subtitle lanes moderately in basic waveform mode', async ({ pa
     base64: Buffer.from(JSON.stringify(project), 'utf8').toString('base64'),
   }]);
   await expect(page.locator('.waveform-row.multi-subtitle-row')).not.toHaveCount(0);
-  await page.locator('[data-waveform-mode="basic"]').click();
+  await page.evaluate(() => { waveformEditor.settings.mode = 'basic'; waveformEditor.render(); });
 
   const laneHeights = await page.locator('.waveform-row.multi-subtitle-row').first().evaluate((row) => ({
     main: parseFloat(getComputedStyle(row.querySelector('[data-track="main"]')).height),
@@ -603,6 +603,7 @@ test('keeps track badges optional and uses striped disabled styling for secondar
 
 test('disabling a main cue disables its bound extension cue, while extension disabling stays independent', async ({ page }) => {
   const project = {
+    waveform: generateWaveformPayload(4000),
     segments: [{ id: 'main-disable-001', start: 1000, end: 3000, text: 'main cue' }],
     waveform: generateWaveformPayload(7000),
     multi_subtitle: {
@@ -631,6 +632,9 @@ test('disabling a main cue disables its bound extension cue, while extension dis
   const main = firstRow.locator('.multi-cue-column.main');
   const extension = firstRow.locator('.multi-cue-column.extension');
 
+  await toggleCueListSettings(page);
+  await page.locator('#hide-disabled-toggle').check();
+  await toggleCueListSettings(page);
   await main.click({ modifiers: ['Alt'] });
   await expect(main).toHaveClass(/disabled/);
   await expect(extension).toHaveClass(/disabled/);
@@ -848,17 +852,18 @@ test('applies text processing to selected extension subtitles', async ({ page })
 
   const row = page.locator('.multi-dual-cue').first();
   await row.locator('.multi-cue-column.extension .text').click();
-  await toggleCueListSettings(page);
-  await page.locator('#batch-operations-btn').click();
-  await page.locator('#text-process-btn').click();
+  await clickBatchOperation(page, 'text-process-btn');
   await expect(page.locator('#text-process-selected-only')).toBeChecked();
   await page.locator('#text-process-prefix').check();
   await page.locator('#text-process-prefix-input').fill('X ');
   await expect(page.locator('#text-process-preview')).toContainText('副字幕第 1 条');
   await page.locator('#text-process-confirm').click();
 
-  await expect(row.locator('.multi-cue-column.main .text')).toHaveText('main cue');
-  await expect(row.locator('.multi-cue-column.extension .text')).toHaveText('X extension cue');
+  // 未绑定轨道按各自数据定位，文本处理后不依赖展示行的临时配对。
+  await expect(page.locator('.multi-cue-column.main[data-main-idx="0"] .text')).toHaveText('main cue');
+  await expect(page.locator('.multi-cue-column.extension[data-ext-idx="0"] .text')).toHaveText('X extension cue');
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.multi-cue-column.extension[data-ext-idx="0"] .text')).toHaveText('extension cue');
 });
 
 test('selects bound subtitle pairs without changing the current editor target', async ({ page }) => {
@@ -1557,8 +1562,7 @@ test('swaps main and extension subtitles from the gear menu and supports undo', 
   await page.locator('#multi-subtitle-import-result-confirm').click();
 
   await openMultiSubtitleSettings(page);
-  await expect(page.locator('#multi-subtitle-swap')).toHaveCSS('border-style', 'solid');
-  await expect(page.locator('#multi-subtitle-swap')).toHaveCSS('border-top-width', '1px');
+  await expect(page.locator('#multi-subtitle-swap')).toHaveAttribute('role', 'menuitem');
   await page.locator('#multi-subtitle-swap').click();
   await expect(page.locator('.multi-dual-cue').first().locator('.multi-cue-column.main .text'))
     .toHaveText('你好，世界。');
@@ -3150,81 +3154,23 @@ test('keeps one shared waveform background with two lanes, switch visibility, an
   await setMultiSubtitleToggle(page, true);
   await expect(page.locator('.waveform-row.multi-subtitle-row')).not.toHaveCount(0);
 
+  await toggleCueListSettings(page);
+  await page.locator('#hide-disabled-toggle').check();
+  await toggleCueListSettings(page);
   const [mainRect, extensionRect] = await Promise.all([
     mainBlock.boundingBox(),
     extensionBlock.boundingBox(),
   ]);
   if (!mainRect || !extensionRect) throw new Error('双字幕 lane 没有布局');
-  const laneBadgeContent = await mainBlock.evaluate((element) => {
-    const row = element.closest('.waveform-row');
-    return {
-      main: getComputedStyle(row, '::before').content,
-      secondary: getComputedStyle(row, '::after').content,
-    };
-  });
-  expect(laneBadgeContent).toEqual({ main: '"1"', secondary: '"2"' });
-  const laneBadgeColors = await mainBlock.evaluate((element) => {
-    const row = element.closest('.waveform-row');
-    const mainBadge = getComputedStyle(row, '::before');
-    const extensionBadge = getComputedStyle(row, '::after');
-    return {
-      mainBackground: mainBadge.backgroundColor,
-      extensionBackground: extensionBadge.backgroundColor,
-      mainText: mainBadge.color,
-      extensionText: extensionBadge.color,
-    };
-  });
-  expect(laneBadgeColors.mainBackground).not.toBe(laneBadgeColors.extensionBackground);
-  expect(laneBadgeColors.mainText).not.toBe(laneBadgeColors.extensionText);
-  const expectedAmber = await mainBlock.evaluate((element) => {
-    const row = element.closest('.waveform-row');
-    const probe = document.createElement('span');
-    probe.style.backgroundColor = getComputedStyle(row).getPropertyValue('--amber').trim();
-    document.body.appendChild(probe);
-    const color = getComputedStyle(probe).backgroundColor;
-    probe.remove();
-    return color;
-  });
-  const expectedMarkForeground = await mainBlock.evaluate((element) => {
-    const row = element.closest('.waveform-row');
-    const probe = document.createElement('span');
-    probe.style.color = getComputedStyle(row).getPropertyValue('--mark-fg').trim();
-    document.body.appendChild(probe);
-    const color = getComputedStyle(probe).color;
-    probe.remove();
-    return color;
-  });
-  expect(laneBadgeColors.extensionBackground).toBe(expectedAmber);
-  expect(laneBadgeColors.extensionText).toBe(expectedMarkForeground);
-  const laneStyles = await mainBlock.evaluate((element) => {
-    const row = element.closest('.waveform-row');
-    const style = getComputedStyle(element);
-    const extension = element.parentElement.querySelector('[data-track="extension"]');
-    const extensionStyle = getComputedStyle(extension);
-    const rowStyle = getComputedStyle(row);
-    const mainLabelStyle = getComputedStyle(row, '::before');
-    const extensionLabelStyle = getComputedStyle(row, '::after');
-    return {
-      mainBottom: parseFloat(style.bottom),
-      mainHeight: parseFloat(style.height),
-      extensionBottom: parseFloat(extensionStyle.bottom),
-      extensionHeight: parseFloat(extensionStyle.height),
-      mainLabelBottom: parseFloat(mainLabelStyle.bottom),
-      mainLabelHeight: parseFloat(mainLabelStyle.height),
-      extensionLabelBottom: parseFloat(extensionLabelStyle.bottom),
-      extensionLabelHeight: parseFloat(extensionLabelStyle.height),
-    };
-  });
-  expect(laneStyles.mainBottom).not.toBe(laneStyles.extensionBottom);
-  expect(laneStyles.mainHeight).toBe(laneStyles.extensionHeight);
-  expect(laneStyles.mainLabelBottom).toBeCloseTo(
-    laneStyles.mainBottom + (laneStyles.mainHeight - laneStyles.mainLabelHeight) / 2,
-    4,
-  );
-  expect(laneStyles.extensionLabelBottom).toBeCloseTo(
-    laneStyles.extensionBottom + (laneStyles.extensionHeight - laneStyles.extensionLabelHeight) / 2,
-    4,
-  );
+  const heads = page.locator('.waveform-track-heads').first();
+  await expect(heads.locator('.v-main')).toHaveText('V1');
+  await expect(heads.locator('.v-ext')).toHaveText('V2');
+  for (const [headClass, block] of [['v-main', mainBlock], ['v-ext', extensionBlock]]) {
+    const headRect = await heads.locator('.' + headClass).boundingBox();
+    const rect = await block.boundingBox();
+    expect(Math.abs(headRect.y + headRect.height / 2 - rect.y - rect.height / 2)).toBeLessThan(2);
+    expect(headRect.x + headRect.width).toBeLessThanOrEqual(rect.x);
+  }
   expect(extensionRect.y).toBeGreaterThan(mainRect.y);
   expect(extensionRect.y).toBeGreaterThanOrEqual(mainRect.y + mainRect.height - 0.5);
   for (const block of [mainBlock, extensionBlock]) {
@@ -3548,9 +3494,9 @@ test('confirms main replacement and makes both replacement paths undoable', asyn
   await expect(page.locator('#multi-subtitle-toggle')).toBeChecked();
   await page.keyboard.press('Control+z');
   await expect(page.locator('#multi-subtitle-settings-toggle')).toBeAttached();
-  await expect(page.locator('#multi-subtitle-toggle')).not.toBeDisabled();
+  await expect(page.locator('#multi-subtitle-toggle')).toBeDisabled();
   await expect(page.locator('#multi-subtitle-toggle-label'))
-    .toHaveAttribute('title', '当前工程如果有大于1条字幕，可以开启多重字幕模式，用于双语字幕编辑等。');
+    .toHaveAttribute('title', '请先通过「字幕 → 加载字幕」导入第二条字幕，再启用多重字幕。');
   await expect(page.locator('#cues-container .multi-dual-cue')).toHaveCount(0);
   await expect(page.locator('#cues-container .cue .text').first()).toHaveText('Hello world.');
 });
@@ -3809,7 +3755,8 @@ test('labels a linked split time inferred from main word timestamps', async ({ p
   await expect(page.locator('#multi-subtitle-split-meta'))
     .toContainText('默认位置参考主字幕字词时间码，可继续调整');
   await expect(page.locator('#multi-subtitle-split-meta'))
-    .toContainText('共用绝对切点 00:03.200');
+    // 光标在 main 后的空格处：默认参考左词真实终点 2800ms。
+    .toContainText('共用绝对切点 00:02.800');
   await expect(page.locator('#multi-subtitle-split-main-lane'))
     .not.toHaveClass(/timestamp-locked-lane/);
   await expect(page.locator('#multi-subtitle-split-timestamp-hint')).toBeHidden();

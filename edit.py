@@ -38,13 +38,13 @@ from maw.colors import COLOR_PALETTE
 from maw.console import configure_utf8_stdio
 from maw.ffmpeg import resolve_ffmpeg_tools
 from maw.project import ProjectValidationFailed, normalize_project
-from maw.project_io import enrich_project_media_metadata
+from maw.project_io import (enrich_project_media_metadata, persist_audio_track,
+                            selected_audio_track_from_project, default_audio_track_from_metadata, discard_stale_inline_caches)
 from maw.stickers import get_default_sticker_dir, load_env, apply_msw_env_aliases
 from maw.media import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, read_bwf_time_reference
 from maw.waveform import (
     DEFAULT_PEAKS_PER_SECOND,
     WaveformError,
-    audio_track_from_payloads,
     load_or_extract_waveform,
 )
 
@@ -54,7 +54,7 @@ VIDEO_EXTS = set(VIDEO_EXTENSIONS)
 AUDIO_EXTS = set(AUDIO_EXTENSIONS)
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 # Keep this aligned with pyproject.toml; release workflows synchronize it.
-BUNDLED_EDITOR_VERSION = "1.6.0-beta.2"
+BUNDLED_EDITOR_VERSION = "1.6.0-beta.3"
 
 
 class Sticker(TypedDict):
@@ -387,12 +387,6 @@ def main():
         print("错误: 找不到媒体文件，请用 -m 参数指定")
         return 1
 
-    audio_track = audio_track_from_payloads(
-        data.get("waveform"),
-        data.get("spectral"),
-        data.get("waveform_reapeaks"),
-    )
-
     # 旧工程可能只有视频 FPS 元数据；补探测音频流信息，供 OTIO 导出
     # 为每条源音轨建立独立的音频轨道。FFprobe 失败时保留旧工程行为。
     # ffprobe 用 FFMPEG_PATH/.env 解析出的路径：本机 ffmpeg 不在 PATH 时也能探测。
@@ -404,6 +398,8 @@ def main():
         ffprobe_path=ffprobe_path,
     ))
 
+    audio_track = selected_audio_track_from_project(data)
+    data = discard_stale_inline_caches(persist_audio_track(data, audio_track), media_path)
     # BWF 的媒体时间基准属于源媒体，不属于字幕时间码；每次根据当前
     # 实际加载的文件重新读取，避免沿用工程中可能过期的值。
     data.pop("media_time_reference", None)
@@ -418,6 +414,7 @@ def main():
                 media_path,
                 peaks_per_second=args.waveform_peaks_per_second,
                 audio_track=audio_track,
+                default_audio_track=default_audio_track_from_metadata(data.get("media_metadata")),
             )
             data["waveform"] = waveform
             state = "已提取" if extracted else "使用缓存"
@@ -434,10 +431,12 @@ def main():
             media_path,
             peaks_per_second=args.waveform_peaks_per_second,
             audio_track=audio_track,
+            default_audio_track=default_audio_track_from_metadata(data.get("media_metadata")),
         )
         if spectral is not None:
             data["spectral"] = spectral
-        reapeaks_wave = reapeaks.load_waveform_payload(media_path, audio_track=audio_track)
+        reapeaks_wave = reapeaks.load_waveform_payload(media_path, audio_track=audio_track,
+            default_audio_track=default_audio_track_from_metadata(data.get('media_metadata')))
         if reapeaks_wave is not None:
             data["waveform_reapeaks"] = reapeaks_wave
 

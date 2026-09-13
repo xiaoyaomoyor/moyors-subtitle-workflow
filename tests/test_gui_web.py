@@ -331,7 +331,7 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         request = _request_from_payload({
             "providerId": "openai",
-            "modelId": "gpt-4o-transcribe",
+            "modelId": "whisper-1",
             "mediaPath": str(media),
             "srtPath": str(self.root / "clip.srt"),
             "apiKey": "sk-openai",
@@ -341,7 +341,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         }, self.env_path)
 
         self.assertEqual(request.provider, "openai")
-        self.assertEqual(request.model, "gpt-4o-transcribe")
+        self.assertEqual(request.model, "whisper-1")
 
     def test_save_settings_persists_the_selected_official_openai_model(self) -> None:
         result = self.api.save_settings({
@@ -727,8 +727,8 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(json.loads(Path(str(result["projectPath"])).read_text(encoding="utf-8"))["segments"][0]["text"], "软件")
 
-    def test_generate_waveform_project_creates_media_only_embedded_project(self) -> None:
-        """Given media, When generating waveform, Then a normalized cache-only project is written."""
+    def test_generate_waveform_project_persists_track_without_inline_peaks(self) -> None:
+        """The toolbox keeps runtime peaks while writing a compact media-only project."""
         media = self.root / "clip.wav"
         media.write_bytes(b"audio")
         embedded = {
@@ -761,7 +761,9 @@ class GuiWebBridgeTests(unittest.TestCase):
         project = json.loads(project_path.read_text(encoding="utf-8"))
         self.assertEqual(project["segments"], [])
         self.assertEqual(project["media"], str(media.resolve()))
-        self.assertEqual(project["waveform"]["data"], "AQIDBA==")
+        self.assertNotIn('waveform', project)
+        self.assertEqual(project['media_metadata']['selected_audio_track'], 2)
+        self.assertEqual(embedded['waveform']['data'], 'AQIDBA==')
         embed.assert_called_once_with(
             {"media": str(media.resolve()), "segments": []},
             media.resolve(),
@@ -769,6 +771,7 @@ class GuiWebBridgeTests(unittest.TestCase):
             generate_spectral=True,
             ffmpeg_bin=str(ffmpeg),
             audio_track=2,
+            default_audio_track=0,
         )
 
     def test_generate_waveform_project_rejects_invalid_embedded_waveform(self) -> None:
@@ -1001,7 +1004,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         output_srt = Path(str(result["srtPath"]))
         self.assertTrue(output_project.is_file())
         self.assertTrue(output_srt.is_file())
-        self.assertEqual(json.loads(output_project.read_text(encoding="utf-8"))["segments"][0]["text"], "旧句。")
+        self.assertEqual(json.loads(output_project.read_text(encoding="utf-8"))["segments"][0]["text"], "旧句")
 
     def test_script_preview_returns_bounded_utf8_text(self) -> None:
         script = self.root / "preview.txt"
@@ -1012,6 +1015,29 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(len(str(result["preview"])), 240)
         self.assertTrue(result["truncated"])
+
+    def test_match_input_errors_are_classified_without_creating_output(self) -> None:
+        project = self.root / 'bad.mosp'
+        script = self.root / 'valid.md'
+        project.write_text('{bad json', encoding='utf-8')
+        script.write_text('**hello**', encoding='utf-8')
+        request = {'projectPath': str(project), 'scriptPath': str(script)}
+        for method in (self.api.preview_script_match, self.api.run_script_match):
+            self.assertEqual(method(request)['code'], 'subtitle_invalid')
+        self.assertEqual(self.api.read_script_preview({'path': str(self.root/'missing.md')})['code'], 'script_invalid')
+
+    def test_match_previews_share_explicit_markdown_and_punctuation_settings(self) -> None:
+        project, script = self.root/'clip.mosp', self.root/'script.md'
+        project.write_text(json.dumps({'segments': [{'start': 0, 'end': 1000, 'text': 'hello world'}]}), encoding='utf-8')
+        script.write_text('**hello world**！', encoding='utf-8')
+        options = {'cleanMarkdownSymbols': True, 'extraSplitPunctuation': ['！'], 'preservePunctuation': ['！']}
+        text = self.api.read_script_preview({'path': str(script), **options})
+        matched = self.api.preview_script_match({'projectPath': str(project), 'scriptPath': str(script), **options})
+        self.assertEqual(text['preview'], 'hello world！')
+        self.assertTrue(matched['ok'], matched)
+        self.assertIn(text['preview'], matched['preview'])
+        raw = self.api.read_script_preview({'path': str(script), **options, 'cleanMarkdownSymbols': False})
+        self.assertIn('**hello world**', raw['preview'])
 
     def test_markdown_script_preview_omits_front_matter_and_heading_markers(self) -> None:
         script = self.root / "preview.md"
@@ -1028,7 +1054,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         result = self.api.read_script_preview({"path": str(script)})
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["preview"], "标题\n正文\n")
+        self.assertEqual(result["preview"], "标题\n正文")
         self.assertFalse(result["truncated"])
 
     def test_script_match_preview_returns_split_text(self) -> None:
@@ -3736,7 +3762,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
         self.assertIn(
-            '{ id: "match", enabled: false, scriptPath: "", matchMode: "script", extraSplitPunctuation: ["？", "！", ","], preservePunctuation: ["？", "！"] },',
+            '{ id: "match", enabled: false, scriptPath: "", matchMode: "script", extraSplitPunctuation: ["？", "！", ","], preservePunctuation: ["？", "！"], cleanMarkdownSymbols: true },',
             script,
         )
         self.assertIn(
@@ -3810,8 +3836,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('minWords: $("minWords").value.trim()', script)
         self.assertIn('gapSplit: $("gapSplit").value.trim()', script)
         self.assertIn('generateSpectral: $("generateSpectral").checked', script)
-        self.assertIn('generate_spectral: "生成 ReaPeaks 频谱数据"', script)
-        self.assertIn('generate_spectral: "Generate ReaPeaks spectral data"', script)
+        self.assertIn('generate_spectral: "生成频谱颜色数据"', script)
+        self.assertIn('generate_spectral: "Generate spectral color data"', script)
         self.assertIn('segmentation: "字幕切句"', script)
         self.assertIn('english_segmentation_hint: "在生成英文字幕时，会启用该配置。"', script)
         self.assertIn('english_segmentation_hint: "This configuration is used when generating English subtitles."', script)

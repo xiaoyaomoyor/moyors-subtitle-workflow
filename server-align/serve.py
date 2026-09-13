@@ -32,6 +32,12 @@ if str(ROOT) not in os.sys.path:
 
 from maw.postprocess_io import read_project  # noqa: E402
 from maw.project import normalize_project  # noqa: E402
+from maw import quapeaks, mopeaks  # noqa: E402
+from maw.project_io import (  # noqa: E402
+    default_audio_track_from_metadata, selected_audio_track_from_project,
+    strip_inline_caches, persist_audio_track,
+)
+from maw.waveform import waveform_matches_media  # noqa: E402
 from maw.script_alignment import (  # noqa: E402
     align_project_to_script,
     apply_alignment_to_project,
@@ -333,8 +339,9 @@ def load_state(
 ) -> AlignmentState:
     project = read_project(project_path)
     script = script_path.read_text(encoding="utf-8-sig")
-    alignment = align_project_to_script(project, script)
     resolved_media = resolve_media_path(project_path, project, media_path)
+    _load_waveform_cache(project, resolved_media)
+    alignment = align_project_to_script(project, script)
     normalized_gap_remove = (
         normalize_gap_remove_settings(gap_remove_override)
         if gap_remove_override is not None
@@ -348,6 +355,22 @@ def load_state(
         alignment,
         normalized_gap_remove,
     )
+
+
+def _load_waveform_cache(project: dict, media_path: Path | None) -> None:
+    """Read exact existing peaks only; alignment never starts an implicit media scan."""
+    if media_path is None:
+        return
+    selected = selected_audio_track_from_project(project)
+    if waveform_matches_media(project.get('waveform'), media_path, audio_track=selected):
+        return
+    project.pop('waveform', None)
+    options = dict(audio_track=selected, default_audio_track=default_audio_track_from_metadata(project.get('media_metadata')))
+    for loader in (quapeaks.load_self_wave_payload, mopeaks.load_waveform_cache, quapeaks.load_waveform_payload):
+        cached = loader(media_path, **options)
+        if waveform_matches_media(cached, media_path, audio_track=selected):
+            project['waveform'] = cached
+            return
 
 
 def _gap_detection_kwargs(state: AlignmentState) -> dict[str, object]:
@@ -382,7 +405,7 @@ def write_project(project_path: Path, payload: dict[str, object]) -> Path:
     while candidate.exists():
         candidate = directory / f"{project_path.stem}.aligned-{counter}.mosp"
         counter += 1
-    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    text = json.dumps(strip_inline_caches(persist_audio_track(payload)), ensure_ascii=False, indent=2) + "\n"
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{candidate.name}.", suffix=".tmp", dir=directory)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:

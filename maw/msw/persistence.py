@@ -65,6 +65,8 @@ class ProjectPersistence:
         self._recovery = None
         self.recovered = {}
         self.recovery_warning = None
+        from maw.msw.versions import DiskVersions
+        self.versions = DiskVersions(self)
 
     @property
     def recovery(self):
@@ -201,7 +203,10 @@ class ProjectPersistence:
             saved_media = (target.parent / normalized["media"]) if collect else (media_source if original_reference == media_owner.get("media") else None)
             backup = write_project(target, normalized, media_source=saved_media)
             same_media = not recovering and bound_source and original_reference == old.data.get("media")
-            server.project = replace(old, data=normalized, json_path=target,
+            from maw.project_io import persist_audio_track, restore_runtime_caches, selected_audio_track_from_project
+            normalized = persist_audio_track(normalized)
+            runtime = restore_runtime_caches(normalized, {**old.data, 'media': normalized.get('media')}, saved_media) if same_media else normalized
+            server.project = replace(old, data=runtime, json_path=target, audio_track=selected_audio_track_from_project(normalized),
                                      media_path=old.media_path if same_media and original_reference else saved_media,
                                      source_media_path=(target.parent / normalized["media"]) if collect else (media_source if original_reference == media_owner.get("media") else None))
             self.api.invalidate_binding()

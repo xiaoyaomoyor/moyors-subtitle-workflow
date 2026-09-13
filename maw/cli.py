@@ -91,12 +91,16 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--mosp", dest="mosp_output", help="单独指定 .mosp 工程输出路径（等价于 -o SRT MOSP 的第二个路径）")
     parser.add_argument(
         "--provider",
-        choices=("qwen", "soniox", "tencent", "openai", "bcut"),
+        choices=("qwen", "soniox", "doubao", "tencent", "openai", "bcut"),
         default="qwen",
         help="ASR 供应商（默认 qwen；openai 为 OpenAI 兼容接口）",
     )
+    parser.add_argument("--prompt", default="", help="OpenAI Prompt")
+    parser.add_argument("--keyword", action="append", default=[], help="OpenAI Keywords；可重复")
+    parser.add_argument("--diarize", action="store_true", help="OpenAI diarized_json")
     parser.add_argument("--model", help="覆盖当前供应商的 ASR 模型")
     parser.add_argument("--base-url", help="OpenAI 兼容 ASR Base URL（仅适用于 --provider openai；默认读取 .env）")
+    parser.add_argument("--extra-strong-punct", default="", help="阿里云额外强断句符号")
     parser.add_argument("--max-len", type=int, help="每条字幕最大字数")
     parser.add_argument("--min-len", type=int, help="句号间最短字数")
     parser.add_argument("--max-words", type=int, help="英文每条字幕最大单词数")
@@ -109,11 +113,11 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--speaker-colors", action="store_true", help="开启说话人分离并写入字幕颜色快照")
     parser.add_argument("-ll", "--length-limit", help="只处理媒体前 N 时长，例如 2m、20s、1h")
     parser.add_argument("--json", dest="json_output", action="store_true", help="兼容旧 CLI；MSW CLI 默认总是生成 .mosp")
-    parser.add_argument("--with-waveform", action="store_true", help="把波形峰值写入 .mosp 工程")
+    parser.add_argument("--with-waveform", action="store_true", help="生成独立二进制波形缓存")
     parser.add_argument(
         "--with-spectral",
         action="store_true",
-        help="在 .ReaPeaks 波形缓存中额外生成频谱数据（需要 --with-waveform）",
+        help="在 .quapeaks 波形缓存中额外生成频谱数据（需要 --with-waveform）",
     )
     html_group = parser.add_mutually_exclusive_group()
     html_group.add_argument("--html", action="store_true", help="额外生成便携 .edit.html（默认不生成）")
@@ -208,6 +212,8 @@ def _run_transcription(parser: argparse.ArgumentParser, args: argparse.Namespace
         parser.error("请在 -o/--output 的第二个路径和 --mosp 中选择一个工程输出路径")
     if args.with_spectral and not args.with_waveform:
         parser.error("--with-spectral 需要同时指定 --with-waveform")
+    if (args.prompt or args.keyword or args.diarize) and args.provider != "openai":
+        parser.error("--prompt/--keyword/--diarize 仅适用于 OpenAI 兼容接口")
     if args.base_url and args.provider != "openai":
         parser.error("--base-url 仅适用于 --provider openai")
     if args.provider == "openai" and (
@@ -357,6 +363,16 @@ def _generator_args(args: argparse.Namespace, input_path: Path, srt_path: Path) 
     ):
         if value is not None and value != "":
             result.extend([flag, str(value)])
+    if args.prompt:
+        result.extend(["--prompt", args.prompt])
+    for keyword in args.keyword:
+        result.extend(["--keyword", keyword])
+    if args.diarize:
+        result.append("--diarize")
+    if args.extra_strong_punct:
+        if args.provider != "qwen":
+            raise ValueError("--extra-strong-punct 仅适用于 qwen")
+        result.extend(["--extra-strong-punct", args.extra_strong_punct])
     if args.keep_punct:
         result.append("--keep-punct")
     if args.speaker:
@@ -391,6 +407,10 @@ def _invoke_generator(provider: str, argv: Sequence[str]) -> int:
         import generate_subtitle_openai_api as generator
 
         script_name = "generate_subtitle_openai_api.py"
+    elif provider == "doubao":
+        import generate_subtitle_doubao_api as generator
+
+        script_name = "generate_subtitle_doubao_api.py"
     else:
         import generate_subtitle_qwen_api as generator
 

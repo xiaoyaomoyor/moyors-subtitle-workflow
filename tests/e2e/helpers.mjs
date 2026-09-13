@@ -611,9 +611,9 @@ export async function setMultiSubtitleToggle(page, checked) {
 
 // 语言切换下拉位于「全局设置 → 外观」分类中。
 export async function clickLanguageToggleViaSettings(page) {
-  await toggleEditorSettings(page);  // 若已打开则先关闭，保证状态确定
-  await toggleEditorSettings(page);
-  await page.locator('.settings-nav-item[data-settings-category="appearance"]').click();
+  if (!(await page.locator('#editor-settings-modal').evaluate(el => el.classList.contains('show')))) await toggleEditorSettings(page);
+  const category = await page.locator('#language-select').evaluate(el => el.closest('.settings-category').dataset.settingsCategory);
+  await page.locator(`.settings-nav-item[data-settings-category="${category}"]`).first().click();
   const select = page.locator('#language-select');
   const current = await select.inputValue();
   await select.selectOption(current === 'en' ? 'zh' : 'en');

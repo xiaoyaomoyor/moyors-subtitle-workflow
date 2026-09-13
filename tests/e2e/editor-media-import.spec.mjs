@@ -10,10 +10,15 @@ test.beforeEach(async ({ page }, testInfo) => {
   root = makeTempDir('editor-media'); video = join(root, 'source.mp4'); saved = join(root, 'saved.mosp');
   const ffmpeg = process.env.FFMPEG_PATH;
   test.skip(!ffmpeg, 'Explicit FFmpeg executable required');
+  const conflict = testInfo.tags.includes('@track-conflict');
   execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=25',
-    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000', '-t', '3', '-c:v', 'libx264', '-c:a', 'aac', video], { windowsHide: true });
+    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000',
+    ...(conflict ? ['-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono', '-map', '0:v', '-map', '1:a', '-map', '2:a'] : []),
+    '-t', '3', '-c:v', 'libx264', '-c:a', 'aac', video], { windowsHide: true });
   const project = join(root, 'initial.mosp');
-  writeFileSync(project, JSON.stringify({ segments: [], media: '', msw: {schema: 'msw.editor.v1', project_id: randomUUID()} }));
+  writeFileSync(project, JSON.stringify({ segments: [], media: conflict ? video : '',
+    ...(conflict ? {media_metadata: {selected_audio_track: 0}} : {}),
+    msw: {schema: 'msw.editor.v1', project_id: randomUUID(), ...(conflict ? {source_audio_index: 1} : {})} }));
   process.env.MAW_ENV_FILE = join(root, 'isolated.env'); process.env.MSW_APP_DATA_ROOT = join(root, 'app-data');
   process.env.MSW_TEST_MEDIA_SOURCE = video; process.env.MSW_TEST_SAVE_TARGET = saved;
   if (testInfo.tags.includes('@editable-tools')) {
@@ -108,6 +113,38 @@ test('background peaks preserve edits and playhead, and multi audio playback use
   const response = await request.get(url, {headers:{Range:'bytes=0-31'}});
   expect(response.status()).toBe(206);
   await page.screenshot({path: join(root, 'media-analysis.png')});
+  const peaks = await page.evaluate(() => DATA.waveform.data);
+  await page.locator('#wave-settings-close').click();
+  const saving = page.waitForResponse(response => new URL(response.url()).pathname === '/api/msw/project' && response.request().method() === 'POST');
+  await page.keyboard.press('Control+s'); await saving;
+  const disk = JSON.parse(readFileSync(join(root, 'initial.mosp')));
+  for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) expect(disk).not.toHaveProperty(key);
+  expect(disk.media_metadata.selected_audio_track).toBe(1);
+  expect(await page.evaluate(() => DATA.waveform.data)).toBe(peaks);
+  await page.reload(); await imported(page);
+  await expect.poll(() => page.evaluate(() => DATA.waveform?.data)).toBe(peaks);
+  expect(await page.evaluate(() => DATA.segments[0].text)).toBe('Keep edit');
+});
+
+test('public audio selection requires explicit confirmation when a legacy MSW field conflicts', {tag:'@track-conflict'}, async ({page}) => {
+  const source = await imported(page);
+  expect(source.audio_index).toBe(0); expect(source.track_conflict).toBe(true);
+  expect(await page.evaluate(() => DATA.msw.source_audio_index)).toBe(1);
+  const rejected = await page.evaluate(async () => {
+    const media = MSWE.resolve('media'), current = media.current;
+    try {
+      await media.request('media-bind', {...media.payload(), media_id: current.id});
+      return '';
+    } catch (error) { return error.message; }
+  });
+  expect(rejected).toContain('音轨');
+  await page.evaluate(() => MSWE.resolve('processing-host').openWaveSettings());
+  await expect(page.locator('#msw-source-track')).toHaveValue('0');
+  await expect(page.locator('#msw-waveform-status')).toContainText('冲突');
+  await page.getByRole('button', {name:'确认使用此源音轨', exact:true}).click();
+  await expect.poll(() => page.evaluate(() => MSWE.resolve('media').current.track_conflict)).toBe(false);
+  expect(await page.evaluate(() => [DATA.media_metadata.selected_audio_track, DATA.msw.source_audio_index])).toEqual([0, 0]);
+  await expect(page.getByRole('button', {name:'确认使用此源音轨', exact:true})).toBeHidden();
 });
 
 test('media tools are in global environment settings and honor a startup-controlled path',async({page})=>{

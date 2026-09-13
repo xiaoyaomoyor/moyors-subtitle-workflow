@@ -20,6 +20,7 @@ _INTERNAL_FLAGS = frozenset(
         "--smoke-import",
         "--transcribe",
         "--transcribe-soniox",
+        "--transcribe-doubao",
         "--transcribe-local",
         "--transcribe-bcut",
         "--transcribe-tencent",
@@ -33,6 +34,7 @@ _TRANSCRIPTION_FLAGS = frozenset(
     {
         "--transcribe",
         "--transcribe-soniox",
+        "--transcribe-doubao",
         "--transcribe-local",
         "--transcribe-bcut",
         "--transcribe-tencent",
@@ -67,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--transcribe-soniox",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--transcribe-doubao",
         action="store_true",
         help=argparse.SUPPRESS,
     )
@@ -138,13 +145,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             'maw.msw.tts', 'maw.msw.qwen_voices', 'maw.msw.index_tts',
             'maw.msw.yukkuri_runtime',
             'maw.msw.media_service', 'maw.msw.media_jobs', 'maw.msw.asr', 'maw.msw.asr_config',
+            'maw.quapeaks', 'maw.mopeaks',
+            'maw.doubao', 'generate_subtitle_doubao_api',
         ):
             importlib.import_module(module_name)
+        if getattr(sys, 'frozen', False):
+            importlib.import_module('quapeaks')  # Verify the bundled native extension too.
         return 0
     if args.transcribe:
         return _run_internal_transcribe(rest)
     if args.transcribe_soniox:
         return _run_internal_transcribe_soniox(rest)
+    if args.transcribe_doubao:
+        return _run_internal_transcribe_doubao(rest)
     if args.transcribe_local:
         return _run_internal_transcribe_local(rest)
     if args.transcribe_bcut:
@@ -358,6 +371,18 @@ def _run_internal_transcribe_soniox(argv: Sequence[str]) -> int:
     try:
         sys.argv = ["generate_subtitle_soniox_api.py", *argv]
         result = generate_subtitle_soniox_api.main()
+    finally:
+        sys.argv = old_argv
+    return 0 if result is None else int(result)
+
+
+def _run_internal_transcribe_doubao(argv: Sequence[str]) -> int:
+    import generate_subtitle_doubao_api
+
+    old_argv = sys.argv[:]
+    try:
+        sys.argv = ["generate_subtitle_doubao_api.py", *argv]
+        result = generate_subtitle_doubao_api.main()
     finally:
         sys.argv = old_argv
     return 0 if result is None else int(result)

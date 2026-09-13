@@ -100,7 +100,7 @@ class MswOutputLayoutTests(unittest.TestCase):
             legacy.write_text(json.dumps(payload), encoding="utf-8")
             self.assertEqual(load_waveform_sidecar(self.media), payload)
         new_path = save_waveform_sidecar(payload, self.media)
-        self.assertEqual(new_path, self.root / "_msw" / "视频.waveform.json")
+        self.assertEqual(new_path, self.root / "_msw" / "视频.wav.mopeaks")
         self.assertTrue((self.root / "_maw" / "视频.waveform.json").exists())
         stale = copy.deepcopy(payload)
         stale["source"]["size"] = -1

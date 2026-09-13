@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { DURATION_MS, cleanupTempDir, findFreePort, generateProjectJson, generateWav, makeTempDir, openHelpPanel, startServer } from './helpers.mjs';
 
 let tempDir;
@@ -7,6 +8,7 @@ let server;
 
 test.beforeAll(async () => {
   tempDir = makeTempDir('onboarding');
+  process.env.MAW_ENV_FILE = join(tempDir, 'isolated.env');
   const mediaPath = join(tempDir, 'synthetic.wav');
   const projectPath = join(tempDir, 'project.json');
   generateWav(mediaPath, DURATION_MS / 1000);
@@ -20,6 +22,8 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
+  // Lessons need a fresh user; cross-port persistence has its own integration test.
+  writeFileSync(join(tempDir, 'isolated.env'), '');
   await page.addInitScript(() => {
     const settingsKey = 'moy.asr.editor.settings.v1';
     const saved = JSON.parse(localStorage.getItem(settingsKey) || '{}');

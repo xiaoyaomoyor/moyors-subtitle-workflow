@@ -26,6 +26,7 @@ from maw.app_paths import default_emoji_font_path
 from maw.env_config import aliased_values, alias_keys
 from maw.ffmpeg import FfmpegTools, media_duration_seconds, resolve_ffmpeg_tools
 from maw.media_cache import embed_media_caches
+from maw.openai_asr_capabilities import model_for_endpoint, capabilities, validate_options
 from maw.gui_config import (
     DEFAULT_ENV_PATH,
     DEFAULT_MODEL_ID,
@@ -60,11 +61,11 @@ from maw.local_runtime import (
     resolve_model_cache_root,
 )
 from maw.local_models import inspect_local_model, local_model_payload, prepare_local_model as prepare_model
-from maw.media import resolve_project_media
+from maw.media import resolve_project_media, resolve_default_audio_track
 from maw.postprocess import FixedProcessRequest, LlmPostprocessRequest, OutputMode, PostprocessStepError, Replacement, run_fixed_process as process_fixed_process, run_llm_postprocess as process_llm_postprocess
-from maw.postprocess_io import read_project, read_srt
+from maw.postprocess_io import PostprocessFileError, read_project, read_srt
 from maw.project_io import write_mosp
-from maw.project import normalize_project
+from maw.project import ProjectValidationFailed, normalize_project
 from maw.postprocess_ffmpeg import (
     BurnSubtitleRequest,
     ExtractAudioRequest,
@@ -76,7 +77,7 @@ from maw.postprocess_ffmpeg import (
     run_extract_audio as process_extract_audio,
     run_ffconcat_rebuild as process_ffconcat_rebuild,
 )
-from maw.postprocess_match import DEFAULT_SPLIT_PUNCTUATION, MARKDOWN_EXTENSIONS, SCRIPT_EXTENSIONS, ScriptMatchRequest, _match_project, _read_script, clean_markdown_text, prepare_script_text, run_script_match as process_script_match
+from maw.postprocess_match import DEFAULT_SPLIT_PUNCTUATION, SCRIPT_EXTENSIONS, MatchCoverageError, ScriptMatchRequest, SubtitleMatchError, _has_complete_item_timings, _match_project, _match_project_with_character_timings, _read_script, prepare_script_text, processed_script_text, run_script_match as process_script_match
 from maw.postprocess_ocr import OcrDedupRequest, OcrRegion
 from maw.postprocess_llm import DEFAULT_REASONING_MODE, LlmClientError, LlmSettings, PRESETS as POSTPROCESS_PRESETS, complete_subtitle_groups, list_llm_models, normalize_reasoning_mode, preset_by_id, test_llm_connection
 from maw.postprocess_pipeline import (
@@ -99,6 +100,7 @@ from maw.ocr_runtime import OCR_MODEL_ID, OCR_MODEL_IDS, OCR_MODEL_LABELS, OCR_M
 from maw.waveform import is_waveform_payload
 from maw.project_preview import JsonValue
 from maw.soniox import SonioxContextError, build_soniox_context
+from maw.gui_config import provider_models
 
 
 OPEN_DIALOG = 10
@@ -117,11 +119,15 @@ EDITOR_HEALTH_PROBE_PATH: Final = "/api/startup-status"
 # 短暂超过默认 0.25s，但仍远小于 SERVER_START_TIMEOUT 的总预算。
 EDITOR_HEALTH_PROBE_TIMEOUT: Final = 2.0
 # Keep this aligned with pyproject.toml; release workflows synchronize and verify it.
-BUNDLED_APP_VERSION = "1.6.0-beta.2"
+BUNDLED_APP_VERSION = "1.6.0-beta.3"
 MOSE_VERSION = "0.1.0"
 
 
 ERROR_MESSAGES: Final[dict[str, str]] = {
+    "subtitle_invalid": "Cannot parse subtitle/project input.",
+    "script_invalid": "Cannot read manuscript input.",
+    "match_invalid": "Invalid manuscript matching settings.",
+    "match_too_low": "Manuscript match coverage is too low.",
     "json_not_found": "Project file does not exist.",
     "media_not_found": "Media file does not exist.",
     "server_media_missing": "Project media is missing, unsupported, or ambiguous. Choose media manually.",
@@ -817,6 +823,8 @@ class LauncherApi:
                 if model.id != OPENAI_ASR_MODEL_ID
                 else str(payload.get("openaiModel") or "").strip()
             )
+        elif provider.id == "doubao":
+            updates["VOLC_ASR_RESOURCE_ID"] = model.id
         try:
             save_env(self.paths.env_path, updates)
         except (OSError, UnicodeError, ValueError) as error:
@@ -1051,23 +1059,40 @@ class LauncherApi:
     def run_script_match(self, payload: Mapping[str, object]) -> dict[str, object]:
         script_path = _optional_path(payload.get("scriptPath"))
         if script_path is None:
-            return _error_result("postprocessScriptPath", "postprocess_failed", "A script file is required.")
+            return _error_result("postprocessScriptPath", "script_invalid", "A script file is required.")
+        project_path = _optional_path(payload.get("projectPath"))
+        srt_path = _optional_path(payload.get("srtPath"))
         self._emit_postprocess_status("toolbox_status_reading")
         try:
             self._emit_postprocess_status("toolbox_status_matching")
             result = process_script_match(
                 ScriptMatchRequest(
-                    project_path=_optional_path(payload.get("projectPath")),
-                    srt_path=_optional_path(payload.get("srtPath")),
+                    project_path=project_path,
+                    srt_path=srt_path,
                     script_path=script_path,
                     output_mode=_output_mode(payload.get("outputMode")),
                     media_path=_optional_path(payload.get("mediaPath")),
                     extra_split_punctuation=tuple(str(value) for value in payload.get("extraSplitPunctuation", ()) if str(value)),
                     preserve_punctuation=tuple(str(value) for value in payload.get("preservePunctuation", ()) if str(value)),
                     match_mode=str(payload.get("matchMode") or "script"),
+                    clean_markdown_symbols=payload.get("cleanMarkdownSymbols", True) is not False,
                 )
             )
             self._emit_postprocess_status("toolbox_status_writing")
+        except MatchCoverageError as error:
+            return _match_coverage_error_result("postprocessScriptPath", error)
+        except PostprocessFileError as error:
+            code = _script_match_input_error_code(
+                error,
+                script_path=script_path,
+                project_path=project_path,
+                srt_path=srt_path,
+            )
+            return _error_result("postprocessScriptPath", code, str(error))
+        except ProjectValidationFailed as error:
+            return _error_result("postprocessScriptPath", "subtitle_invalid", str(error))
+        except SubtitleMatchError as error:
+            return _error_result("postprocessScriptPath", "subtitle_invalid", str(error))
         except (OSError, UnicodeError, ValueError) as error:
             return {"ok": False, "field": "postprocessScriptPath", "code": "postprocess_failed", "detail": str(error), "error": str(error)}
         return _subtitle_artifact_result(result)
@@ -1368,18 +1393,28 @@ class LauncherApi:
         return {"ok": True, "path": str(path), "text": text}
 
     def read_script_preview(self, payload: Mapping[str, object]) -> dict[str, object]:
-        """Return a bounded UTF-8 manuscript preview for the Launcher."""
+        """Return the bounded, processed manuscript preview used by matching."""
 
         value = str(payload.get("path") or "").strip()
         path = Path(value).expanduser()
         if not value or not path.is_file() or path.suffix.lower() not in SCRIPT_EXTENSIONS:
-            return _error_result("postprocessScriptPath", "script_preview_missing", "文稿文件不存在或格式不支持。")
+            return _error_result("postprocessScriptPath", "script_invalid", "文稿文件不存在或格式不支持。")
         try:
-            text = path.read_text(encoding="utf-8-sig")
-        except (OSError, UnicodeError) as error:
-            return _error_result("postprocessScriptPath", "script_preview_failed", str(error))
-        if path.suffix.lower() in MARKDOWN_EXTENSIONS:
-            text = clean_markdown_text(text)
+            _script_path, script_text = _read_script(path)
+            match_mode = str(payload.get("matchMode") or "script")
+            extra_split = tuple(str(value) for value in payload.get("extraSplitPunctuation", ()) if str(value))
+            preserve = tuple(str(value) for value in payload.get("preservePunctuation", ()) if str(value))
+            text = processed_script_text(
+                script_text,
+                match_mode=match_mode,
+                extra_split_punctuation=extra_split,
+                preserve_punctuation=preserve,
+                clean_markdown_symbols=payload.get("cleanMarkdownSymbols", True) is not False,
+            )
+        except PostprocessFileError as error:
+            return _error_result("postprocessScriptPath", "script_invalid", str(error))
+        except (OSError, UnicodeError, ValueError) as error:
+            return _error_result("postprocessScriptPath", "match_invalid", str(error))
         preview_limit = 240
         preview = text.replace("\r\n", "\n").replace("\r", "\n")[:preview_limit]
         return {"ok": True, "path": str(path), "preview": preview, "truncated": len(text) > preview_limit}
@@ -1391,23 +1426,39 @@ class LauncherApi:
         if script_path is None or (project_path is None and srt_path is None):
             return {"ok": False, "preview": "", "errorCode": "missing_source"}
         try:
-            project = read_project(project_path) if project_path is not None else read_srt(srt_path)
-            _, script_text = _read_script(script_path)
+            try:
+                project = read_project(project_path) if project_path is not None else read_srt(srt_path)
+            except (PostprocessFileError, ProjectValidationFailed) as error:
+                return {"ok": False, "preview": "", "errorCode": "subtitle_invalid", "code": "subtitle_invalid", "detail": str(error)}
+            try:
+                _, script_text = _read_script(script_path)
+            except PostprocessFileError as error:
+                return {"ok": False, "preview": "", "errorCode": "script_invalid", "code": "script_invalid", "detail": str(error)}
             match_mode = str(payload.get("matchMode") or "script")
             extra_split = tuple(str(value) for value in payload.get("extraSplitPunctuation", ()) if str(value))
             preserve = tuple(str(value) for value in payload.get("preservePunctuation", ()) if str(value))
+            clean_markdown_symbols = payload.get("cleanMarkdownSymbols", True) is not False
             prepared, _warning = prepare_script_text(
                 script_text,
                 extra_split if match_mode == "script" else (),
                 preserve if match_mode == "script" else (),
+                clean_markdown_symbols=clean_markdown_symbols,
             )
-            matched, warnings = _match_project(
-                project,
-                prepared,
-                DEFAULT_SPLIT_PUNCTUATION | frozenset(extra_split if match_mode == "script" else ()),
-                DEFAULT_SPLIT_PUNCTUATION | frozenset(preserve if match_mode == "script" else ()),
-                match_mode,
-            )
+            if match_mode == "script" and project_path is not None and _has_complete_item_timings(project):
+                matched, warnings = _match_project_with_character_timings(
+                    project,
+                    prepared,
+                    extra_split,
+                    preserve,
+                )
+            else:
+                matched, warnings = _match_project(
+                    project,
+                    prepared,
+                    DEFAULT_SPLIT_PUNCTUATION | frozenset(extra_split if match_mode == "script" else ()),
+                    frozenset(preserve if match_mode == "script" else ()),
+                    match_mode,
+                )
             segments = matched.get("segments", [])
             preview = "\n".join(
                 f"{index + 1}. {segment.get('text', '')}"
@@ -1436,9 +1487,20 @@ class LauncherApi:
                 "matchedSegmentCount": matched_segment_count,
                 "truncated": False,
             }
+        except MatchCoverageError as error:
+            return {
+                "ok": False,
+                "preview": "",
+                "errorCode": "match_too_low",
+                "code": "match_too_low",
+                "detail": str(error),
+                "matchRate": round(error.coverage * 100),
+                "minimumMatchRate": round(error.minimum_coverage * 100),
+            }
+        except SubtitleMatchError as error:
+            return {"ok": False, "preview": "", "errorCode": "subtitle_invalid", "code": "subtitle_invalid", "detail": str(error)}
         except ValueError as error:
-            error_code = "match_too_low" if "coverage is too low" in str(error) else "preview_failed"
-            return {"ok": False, "preview": "", "errorCode": error_code}
+            return {"ok": False, "preview": "", "errorCode": "match_invalid", "code": "match_invalid", "detail": str(error)}
         except (OSError, UnicodeError):
             return {"ok": False, "preview": "", "errorCode": "preview_failed"}
 
@@ -1912,6 +1974,27 @@ class LauncherApi:
                 }
                 merged = dict(item_payload)
                 media_text = str(merged.get("mediaPath") or "").strip()
+                raw_audio_track = merged.get("audioTrack")
+                if media_text and (raw_audio_track is None or not str(raw_audio_track).strip()):
+                    raw_default = merged.get("defaultAudioTrack")
+                    explicit_default = (
+                        None
+                        if raw_default is None or not str(raw_default).strip()
+                        else _payload_audio_track(merged, field="defaultAudioTrack")
+                    )
+                    if raw_default is not None and str(raw_default).strip() and explicit_default is None:
+                        raise PreflightError(
+                            "defaultAudioTrack",
+                            "audio_track_invalid",
+                            "默认音频轨道必须是非负整数。",
+                        )
+                    default_audio_track = resolve_default_audio_track(
+                        Path(media_text).expanduser().resolve(),
+                        explicit_default,
+                        ffprobe_path=_postprocess_ffmpeg_tools(self.paths.env_path).ffprobe,
+                    )
+                    merged["audioTrack"] = default_audio_track
+                    merged["defaultAudioTrack"] = default_audio_track
                 if media_text and not str(merged.get("srtPath") or "").strip():
                     merged["srtPath"] = str(
                         default_srt_path(
@@ -2015,7 +2098,19 @@ class LauncherApi:
                 "audio_track_invalid",
                 "音频轨道必须是非负整数。",
             )
+        ffmpeg_tools = _postprocess_ffmpeg_tools(self.paths.env_path)
+        default_audio_track = (_payload_audio_track(payload, field="defaultAudioTrack")
+                               if payload.get('defaultAudioTrack') is not None
+                               else resolve_default_audio_track(media_path, None, ffprobe_path=ffmpeg_tools.ffprobe))
+        if default_audio_track is None:
+            return _error_result(
+                "defaultAudioTrack",
+                "audio_track_invalid",
+                "默认音频轨道必须是非负整数。",
+            )
 
+        if payload.get('audioTrack') is None:
+            audio_track = default_audio_track
         output_seed = unique_output_path(media_path.with_suffix(".waveform.srt"))
         project_path = output_seed.with_suffix(".mosp")
         project: dict[str, object] = {"media": str(media_path), "segments": []}
@@ -2029,6 +2124,7 @@ class LauncherApi:
                 generate_spectral=bool(payload.get("generateSpectral")),
                 ffmpeg_bin=str(ffmpeg_path) if ffmpeg_path is not None else None,
                 audio_track=audio_track,
+                default_audio_track=default_audio_track,
             )
             normalized = normalize_project(cached.project)
             waveform = normalized.get("waveform")
@@ -2043,13 +2139,14 @@ class LauncherApi:
                 normalized,
                 media_path=media_path,
                 ffprobe_path=ffmpeg_tools.ffprobe,
+                selected_audio_track=audio_track,
             )
         except (OSError, TypeError, ValueError) as error:
             return _error_result("mediaPath", "waveform_generation_failed", str(error))
 
         warnings: list[str] = []
         if cached.reapeaks_path is None:
-            warnings.append("ReaPeaks cache was not generated.")
+            warnings.append("reapeaks cache was not generated.")
         return {
             "ok": True,
             "mediaPath": str(media_path),
@@ -2833,7 +2930,7 @@ def run_app(*, debug: bool = False, devtools: bool = False, server_port: int | N
             api.pump.start()
 
         window.events.loaded += _on_loaded
-    icon = asset_path("assets/maw.ico")
+    icon = _launcher_icon_path()
     webview.start(
         lambda: bind_launcher_drop(window, api),
         debug=debug or devtools,
@@ -2923,8 +3020,9 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
     requested_model = str(payload.get("modelId") or "")
     model = next(
         (item for item in provider.models if requested_model in (item.id, item.label)),
-        provider.models[0],
+        provider_models(provider, env_path)[0],
     )
+    openai_prompt, openai_keywords, openai_diarize = "", (), False
     custom_model = ""
     custom_base_url = ""
     if provider.id == "openai":
@@ -2944,6 +3042,14 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
             raise PreflightError("openaiModel", "custom_asr_model_missing", "请填写自定义 ASR 模型名。")
         if not custom_base_url:
             raise PreflightError("openaiBaseUrl", "custom_asr_base_url_missing", "请填写自定义 ASR Base URL。")
+        custom_model = model_for_endpoint(custom_base_url, custom_model, preset=model.id != OPENAI_ASR_MODEL_ID)
+        openai_prompt = str(payload.get("openaiPrompt") or "").strip()
+        openai_keywords = tuple(dict.fromkeys(word.strip() for word in str(payload.get("openaiKeywords") or "").splitlines() if word.strip()))
+        openai_diarize = bool(payload.get("openaiDiarize")) or capabilities(custom_base_url, custom_model)['diarize']
+        try:
+            openai_diarize = validate_options(custom_base_url, custom_model, openai_prompt, openai_keywords, openai_diarize)
+        except ValueError as error:
+            raise PreflightError("openaiModel", "custom_asr_capability", str(error)) from error
     api_key = str(payload.get("apiKey") or "").strip() or api_key_for_provider(provider.id, env_path)
     region = str(payload.get("region") or "beijing") if provider.id == "qwen" else ""
     workspace_id = str(payload.get("workspaceId") or "").strip()
@@ -2959,6 +3065,27 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
             "audio_track_invalid",
             "音频轨道必须是非负整数。",
         )
+    raw_default_audio_track = payload.get("defaultAudioTrack")
+    default_audio_track = (
+        None
+        if raw_default_audio_track is None or not str(raw_default_audio_track).strip()
+        else _payload_audio_track(payload, field="defaultAudioTrack")
+    )
+    if (
+        raw_default_audio_track is not None
+        and str(raw_default_audio_track).strip()
+        and default_audio_track is None
+    ):
+        raise PreflightError(
+            "defaultAudioTrack",
+            "audio_track_invalid",
+            "默认音频轨道必须是非负整数。",
+        )
+    if (validate_media and (payload.get('audioTrack') is None or not str(payload['audioTrack']).strip())
+            and _frozen_ffmpeg_preflight(env_path) is None):
+        default_audio_track = resolve_default_audio_track(media, default_audio_track,
+            ffprobe_path=_postprocess_ffmpeg_tools(env_path).ffprobe)
+        audio_track = default_audio_track
     max_len = _segmentation_option(payload, field="maxLen", label="最大字数", minimum=1)
     min_len = _segmentation_option(payload, field="minLen", label="短句合并阈值", minimum=1)
     max_words = _segmentation_option(payload, field="maxWords", label="英文最大单词数", minimum=1)
@@ -3028,7 +3155,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
     qwen_audio_hotwords_mode = str(payload.get("qwenAudioHotwordsMode") or "text").strip().lower()
     qwen_audio_hotwords_file = ""
     qwen_audio_hotwords = ""
-    if model.supports_hotwords and qwen_audio_hotwords_mode == "file":
+    if provider.id == "qwen" and model.supports_hotwords and qwen_audio_hotwords_mode == "file":
         hotwords_file_text = str(payload.get("qwenAudioHotwordsFile") or "").strip()
         hotwords_file = Path(hotwords_file_text).expanduser()
         if not hotwords_file.is_file() or hotwords_file.suffix.lower() != ".txt":
@@ -3038,8 +3165,14 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
                 "Qwen-Audio hotword source must be an existing .txt file.",
             )
         qwen_audio_hotwords_file = str(hotwords_file)
-    elif model.supports_hotwords:
+    elif provider.id == "qwen" and model.supports_hotwords:
         qwen_audio_hotwords = str(payload.get("qwenAudioHotwords") or "").strip()
+    doubao_hotwords = ()
+    if provider.id == "doubao":
+        raw_hotwords = str(payload.get("doubaoHotwords") or "")
+        if len(raw_hotwords) > 12000 or '\0' in raw_hotwords:
+            raise PreflightError("doubaoHotwords", "hotwords_invalid", "豆包热词过长或包含无效字符。")
+        doubao_hotwords = tuple(dict.fromkeys(word.strip() for word in raw_hotwords.splitlines() if word.strip()))
     auto_plan: dict[str, object] | None = None
     auto_llm_settings: dict[str, dict[str, str]] | None = None
     raw_auto_plan = payload.get("autoPostprocess")
@@ -3068,6 +3201,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         media_path=media,
         srt_path=srt,
         audio_track=audio_track,
+        default_audio_track=default_audio_track,
         model=custom_model if provider.id == "openai" else (model.model_ref or model.id),
         language=str(payload.get("language") or ""),
         api_key=api_key,
@@ -3078,6 +3212,9 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         min_words=min_words,
         gap_split=gap_split,
         strip_tail_punct=strip_tail_punct,
+        extra_strong_punct="".join(str(symbol) for step in load_postprocess_plan(env_path).get("steps", [])
+            if isinstance(step, Mapping) and step.get("id") == "match"
+            for symbol in step.get("extraSplitPunctuation", []) if isinstance(symbol, str)),
         qwen_audio_context=qwen_audio_context,
         qwen_audio_hotwords=qwen_audio_hotwords,
         qwen_audio_hotwords_file=qwen_audio_hotwords_file,
@@ -3090,6 +3227,8 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
             if model.supports_hotwords else ""
         ),
         soniox_context=soniox_context,
+        doubao_hotwords=doubao_hotwords,
+        openai_prompt=openai_prompt, openai_keywords=openai_keywords, openai_diarize=openai_diarize,
         region=region,
         workspace_id=workspace_id,
         provider=provider.id,
@@ -3202,6 +3341,32 @@ def _free_local_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return int(sock.getsockname()[1])
+
+
+def _script_match_input_error_code(
+    error: PostprocessFileError,
+    *,
+    script_path: Path,
+    project_path: Path | None,
+    srt_path: Path | None,
+) -> str:
+    error_path = error.path.expanduser().resolve(strict=False)
+    if error_path == script_path.expanduser().resolve(strict=False):
+        return "script_invalid"
+    input_paths = tuple(path.expanduser().resolve(strict=False) for path in (project_path, srt_path) if path is not None)
+    if error_path in input_paths:
+        return "subtitle_invalid"
+    return "postprocess_failed"
+
+
+def _match_coverage_error_result(field: str, error: MatchCoverageError) -> dict[str, object]:
+    result = _error_result(field, "match_too_low", str(error))
+    result.update(
+        matchRate=round(error.coverage * 100),
+        minimumMatchRate=round(error.minimum_coverage * 100),
+    )
+    return result
+
 
 
 def _error_result(field: str, code: str, detail: str = "") -> dict[str, object]:
@@ -3638,7 +3803,7 @@ def _provider_payload(
                 model_cache_root=model_cache_root,
                 include_local_status=include_local_status,
             )
-            for item in provider.models
+            for item in provider_models(provider, env_path)
             if not item.hidden
         ],
         "regions": [{"id": value, "label": label} for value, label in provider.regions],
@@ -3659,6 +3824,8 @@ def _model_payload(
         "label": model.label,
         "envKey": model.env_key,
         "note": model.note,
+        "openaiCapabilities": {family: capabilities(url, model.id) for family, url in
+            (("openai", "https://api.openai.com"), ("openrouter", "https://openrouter.ai"), ("compatible", "https://example.test"))},
         "supportsSpeaker": model.supports_speaker,
         "supportsContext": model.supports_context,
         "supportsHotwords": model.supports_hotwords,
@@ -3695,3 +3862,11 @@ def _model_payload(
                 "canPrepare": False,
             }
     return payload
+
+
+def _launcher_icon_path() -> Path:
+    if sys.platform == "darwin":
+        if getattr(sys, "frozen", False):
+            return Path(sys.executable).resolve().parent.parent / "Resources" / "maw.icns"
+        return asset_path("assets/maw.icns")
+    return asset_path("assets/maw.ico")

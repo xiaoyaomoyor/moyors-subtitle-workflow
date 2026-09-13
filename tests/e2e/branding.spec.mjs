@@ -32,6 +32,42 @@ async function inspectLogo(page, selector, name) {
   expect(Math.abs(box.width - box.height)).toBeLessThan(1);
 }
 
+async function inspectEditorLogo(page, name) {
+  const logo = page.locator('.menubar-logo img');
+  await expect(logo).toBeVisible();
+  await expect.poll(() => logo.evaluate(img => {
+    const xml = new DOMParser().parseFromString(atob(img.src.split(',')[1]), 'image/svg+xml');
+    return xml.documentElement.getAttribute('fill');
+  })).toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()));
+  await logo.evaluate(img => img.decode());
+  const source = await logo.getAttribute('src');
+  expect(source).toBe(await page.locator('link[rel="icon"]').getAttribute('href'));
+  expect(source).toBe(await page.locator('.msw-about > img').getAttribute('src'));
+  const svg = Buffer.from(source.split(',')[1], 'base64').toString();
+  // Only the root fill changes; all seven user-supplied shapes are preserved.
+  const shapes = text => text.match(/<(?:path|polygon)\b[^>]*>/g).map(tag => tag.replace(/\s*\/>$/, '>'));
+  expect(shapes(svg)).toEqual(shapes(readFileSync('web/favicon.svg', 'utf8')));
+  expect(svg).not.toMatch(/<rect\b/);
+  expect(await logo.evaluate(img => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 32, 32);
+    const pixels = ctx.getImageData(0, 0, 32, 32).data;
+    return [0, 31, 992, 1023].map(index => pixels[index * 4 + 3]);
+  })).toEqual([0, 0, 0, 0]);
+  if (process.env.MSW_UI_EVIDENCE_DIR) {
+    mkdirSync(process.env.MSW_UI_EVIDENCE_DIR, {recursive: true});
+    await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, `brand-${name}.png`)});
+  }
+}
+
+async function openAppearance(page) {
+  await page.locator('[data-menubar-item="edit"] > button').click();
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('.settings-nav-item[data-settings-category="appearance"]').click();
+}
+
 test('Launcher loads one SVG for its mark and favicon in either app theme', async ({page}) => {
   await page.goto(pathToFileURL(resolve('web/launcher/index.html')).href);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
@@ -46,15 +82,32 @@ test('Portable editor branding survives moving its HTML away from the assets', a
   writeFileSync(target, readFileSync('blank-editor.html'));
   await disableOnboarding(page);
   await page.goto(pathToFileURL(target).href);
-  await inspectLogo(page, '.menubar-logo img', 'portable');
-  expect(await page.locator('.menubar-logo img').getAttribute('src')).toEqual(
-    await page.locator('link[rel="icon"]').getAttribute('href'));
+  await inspectEditorLogo(page, 'portable-default');
+  await openAppearance(page);
+  for (const preset of ['aster', 'reimu', 'koishi']) {
+    await page.locator(`[data-theme-preset="${preset}"]`).click();
+    await inspectEditorLogo(page, `portable-${preset}`);
+  }
+  // Live preview, commit, and reload must all use the custom accent.
+  const color = page.locator('#interface-color-accent');
+  await color.evaluate(input => {
+    input.value = '#df4589';
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+  });
+  await inspectEditorLogo(page, 'portable-custom-live');
+  await color.dispatchEvent('change');
+  await page.locator('#editor-settings-close').click();
+  await page.reload();
+  await expect(page.locator('#editor-loading')).toBeHidden();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#df4589');
+  await inspectEditorLogo(page, 'portable-custom-reloaded');
   await page.locator('[data-menubar-item="file"] > button').click();
   await expect(page.locator('#new-project')).toBeVisible();
   await page.locator('#help-toggle').click();
   await page.locator('#help-about').click();
   const about = page.locator('#help-tab-panel-about');
   await expect(about).toBeVisible();
+  await inspectEditorLogo(page, 'portable-about');
   await expect(about).toContainText('我的字幕流');
   await expect(about.locator('a').first()).toHaveAttribute('href', 'https://github.com/xiaoyaomoyor/moyors-subtitle-workflow');
   await expect(about.locator('a').nth(2)).toHaveAttribute('href', /moyors-subtitle-workflow\/issues$/);
@@ -68,11 +121,7 @@ test('Server editor embeds the same brand SVG and has no template token left', a
   try {
     await disableOnboarding(page);
     await page.goto(server.url);
-    const logo = page.locator('.menubar-logo img');
-    await logo.evaluate(img => img.decode());
-    const src = await logo.getAttribute('src');
-    expect(src).toBe(await page.locator('link[rel="icon"]').getAttribute('href'));
-    expect(Buffer.from(src.split(',')[1], 'base64').toString()).toBe(readFileSync('web/favicon.svg', 'utf8'));
+    await inspectEditorLogo(page, 'server');
     expect(await page.content()).not.toContain('__EDITOR_BRAND_ICON__');
   } finally { await server.stop(); }
 });

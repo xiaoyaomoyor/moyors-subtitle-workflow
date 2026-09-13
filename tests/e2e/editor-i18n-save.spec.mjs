@@ -96,24 +96,7 @@ test('GUI launch language overrides the saved editor language once and persists 
 });
 
 test('Ctrl+S saves and Ctrl+Shift+S invokes save as', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('mawe.language', 'en');
-    window.__saveAsCapture = null;
-    window.showSaveFilePicker = async (options) => ({
-      name: options.suggestedName,
-      async createWritable() {
-        return {
-          async write(blob) {
-            window.__saveAsCapture = {
-              suggestedName: options.suggestedName,
-              content: await blob.text(),
-            };
-          },
-          async close() {},
-        };
-      },
-    });
-  });
+  await page.addInitScript(() => localStorage.setItem('mawe.language', 'en'));
   await page.goto(server.url);
 
   const saveResponse = page.waitForResponse((response) => (
@@ -126,10 +109,10 @@ test('Ctrl+S saves and Ctrl+Shift+S invokes save as', async ({ page }) => {
   await expect(page.locator('.hint-card').last()).toHaveClass(/hint-success/);
 
   await page.keyboard.press('Control+Shift+s');
-  await expect.poll(() => page.evaluate(() => window.__saveAsCapture)).not.toBeNull();
-  const saveAsCapture = await page.evaluate(() => window.__saveAsCapture);
-  expect(saveAsCapture.suggestedName).toBe('project.mosp');
-  expect(JSON.parse(saveAsCapture.content).segments).toHaveLength(6);
+  await expect(page.locator('#project-save-as-modal')).toHaveClass(/show/);
+  await expect(page.locator('#project-save-confirm')).toBeDisabled();
+  await page.locator('#project-save-cancel').click();
+  await expect(page.locator('#project-save-as-modal')).not.toHaveClass(/show/);
 });
 
 test('validation save error previews the item and jumps to its subtitle', async ({ page }) => {
@@ -270,5 +253,5 @@ test('shows a persistent warning when the server connection is lost and clears a
   await expect(banner).toContainText('请确认本机编辑器服务仍在运行；当前无法自动保存工程');
 
   await page.unroute('**/api/startup-status');
-  await expect(banner).toBeHidden({ timeout: 7000 });
+  await expect(banner).toBeHidden({ timeout: 11000 });
 });

@@ -6,6 +6,8 @@
   const library = host.assetLibrary;
   const el = id => document.getElementById(id) || library.querySelector(`#${id}`);
   const t = value => global.MSWE_I18N?.translateText?.(value) || value;
+  // The asset content region skips automatic translation to protect user text.
+  el('asset-playing').textContent = t('选择音频试听');
   const available = Boolean(host.config?.processingUrl);
   const projectId = () => global.MSWProject.ensure(host.data).project_id;
   const pageId = global.MSWProject.id('tts-page');

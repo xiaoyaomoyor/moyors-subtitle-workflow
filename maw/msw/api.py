@@ -282,7 +282,7 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "audio-exports", "asset-import", "qwen-voices", "index-tts"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "version-create", "audio-exports", "asset-import", "qwen-voices", "index-tts"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
@@ -302,6 +302,26 @@ class ProcessingAPI:
                         result = asr_config.save_settings(self.env_path, payload.get('provider', {}), section=payload.get('section'))
                 else:
                     result = asr_config.catalog(self.env_path)
+            elif route == 'onboarding-status':
+                from maw.gui_config import load_env, save_env
+                with self.lock:
+                    if post:
+                        value = payload.get('status')
+                        if value not in {'completed', 'skipped'}:
+                            raise ValueError('引导状态无效')
+                        save_env(self.env_path, {'MSW_EDITOR_ONBOARDING_STATUS': value})
+                    result = {'status': load_env(self.env_path).get('MSW_EDITOR_ONBOARDING_STATUS', '')}
+            elif route == 'version-settings':
+                with self.lock:
+                    result = {'settings': self.persistence.versions.configure(payload) if post else self.persistence.versions.settings()}
+            elif route == 'version-create' and post:
+                result = self.persistence.versions.write(payload)
+            elif route == 'version-list' and not post:
+                result = self.persistence.versions.list()
+            elif route == 'version-load' and post:
+                result = self.persistence.versions.restore(payload)
+            elif route == 'version-directory' and post:
+                result = self.persistence.versions.open_directory(payload)
             elif route == "save-target" and post:
                 result = self.persistence.choose_target(payload)
             elif route == "save-as" and post:
@@ -500,6 +520,25 @@ class ProcessingAPI:
                         raise KeyError("未知任务操作")
             handler.send_json(status, {"ok": True, **result})
         except PermissionError as error:
+            # urllib sends POST headers and body separately. Closing with unread
+            # body bytes can reset the connection on Windows before the client
+            # receives 403. Drain only a small, bounded body with a short timeout;
+            # rejected uploads and slow clients must never hold this thread open.
+            if post:
+                handler.close_connection = True
+                try:
+                    length = int(handler.headers.get("Content-Length", "0"))
+                except (TypeError, ValueError):
+                    length = 0
+                if 0 < length <= 65536 and not handler.headers.get("Transfer-Encoding"):
+                    previous_timeout = handler.connection.gettimeout()
+                    try:
+                        handler.connection.settimeout(0.25)
+                        handler.rfile.read1(length)
+                    except (OSError, TimeoutError):
+                        pass
+                    finally:
+                        handler.connection.settimeout(previous_timeout)
             handler.send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": str(error)})
         except KeyError:
             handler.send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "任务或接口不存在"})

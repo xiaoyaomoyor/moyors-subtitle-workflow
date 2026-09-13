@@ -28,7 +28,9 @@ class ProjectSchemaTests(unittest.TestCase):
                     "language_source", "split_mode", "timestamp_granularity"):
             self.assertEqual(normalized[key], original[key], key)
         saved = json.loads(serialize_mosp(normalized))
-        self.assertEqual(saved, normalized)
+        expected = copy.deepcopy(normalized)
+        expected.setdefault('media_metadata', {})['selected_audio_track'] = 0
+        self.assertEqual(saved, expected)
         self.assertEqual(original, before)
         self.assertNotIn("schema", original)
 

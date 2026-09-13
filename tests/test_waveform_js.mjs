@@ -29,6 +29,25 @@ const helpers = context.window.AsrWaveform.testing;
 const builtinWorkspaces = context.window.AsrWaveform.builtinWorkspaces;
 
 
+test('quapeaks self layers preserve following wave offsets and reject unknown versions', () => {
+  const original = buildReapeaksBuffer({ sampleRate: 16000, division: 53, peaks: 3 });
+  const buffer = context.newArrayBuffer(original.byteLength + 20);
+  const bytes = new Uint8Array(buffer), view = new DataView(buffer);
+  bytes.set(new Uint8Array(original).slice(0, 18));
+  bytes.set(Buffer.from('QPK1'), 0); view.setUint8(5, 2);
+  view.setInt32(18, -109, true); view.setInt32(22, 2, true);
+  bytes.set(new Uint8Array(original).slice(18, 26), 26);
+  view.setUint32(34, 1000, true); view.setUint32(38, 10, true);
+  bytes.set([0, 127, 0, 127], 42);
+  bytes.set(new Uint8Array(original).slice(26), 46);
+  const decoded = helpers.decodeReapeaksFile(buffer);
+  assert.equal(decoded.waveform.peak_count, 3);
+  assert.equal(decoded.waveform.division, 53);
+  assert.deepEqual(Array.from(helpers.decodePayload(decoded.waveform)), Array.from(helpers.decodePayload(helpers.decodeReapeaksFile(original).waveform)));
+  bytes[3] = 50;
+  assert.equal(helpers.decodeReapeaksFile(buffer), null);
+});
+
 test('decodes compact signed min/max peaks', () => {
   const bytes = Buffer.from([0x81, 0x7f, 0xf6, 0x0a]);
   const decoded = helpers.decodePayload({

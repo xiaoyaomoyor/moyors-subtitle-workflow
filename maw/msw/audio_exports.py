@@ -75,7 +75,8 @@ class AudioExports:
                 return bound.source_media_path or bound.media_path, bound.data, bound.audio_track
             record = self.api._persistence.recovered.get(project_id) if self.api._persistence else None
             if record:
-                return record.get("media"), record["project"], 0
+                from maw.project_io import selected_audio_track_from_project
+                return record.get("media"), record["project"], selected_audio_track_from_project(record['project'])
             return None, {}, 0
 
     def context(self, project_id, *, video=False):

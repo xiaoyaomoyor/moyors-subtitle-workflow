@@ -52,16 +52,24 @@ const onboardingState = {
 };
 let onboardingPositionFrame = 0;
 let onboardingAdvanceTimer = 0;
+let sharedOnboardingStatus="",onboardingReady=false;
+const onboardingConfig=window.MSWE?.resolve("persistence-host")?.config;
+async function onboardingRequest(status){
+  const response=await fetch(onboardingConfig.processingUrl+"/onboarding-status",{method:status?"POST":"GET",signal:AbortSignal.timeout(3000),headers:{"Content-Type":"application/json","X-MSW-Token":onboardingConfig.requestToken},...(status?{body:JSON.stringify({status})}:{})});
+  if(!response.ok)throw Error("onboarding status unavailable");return response.json();
+}
 
 function readOnboardingStatus() {
   try {
-    return localStorage.getItem(ONBOARDING_STORAGE_KEY) || '';
+    return sharedOnboardingStatus || localStorage.getItem(ONBOARDING_STORAGE_KEY) || '';
   } catch (_) {
     return '';
   }
 }
 
 function saveOnboardingStatus(status) {
+  sharedOnboardingStatus=status;
+  if(onboardingConfig?.processingUrl)void onboardingRequest(status).catch(()=>{});
   try {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, status);
   } catch (_) {
@@ -579,6 +587,7 @@ window.addEventListener('resize', requestOnboardingPosition);
 window.addEventListener('scroll', requestOnboardingPosition, true);
 
 function scheduleOnboardingAfterRender() {
+  if(!onboardingReady)return;
   requestAnimationFrame(() => {
     maybeStartOnboarding();
     onboardingObserveRender();
@@ -635,5 +644,10 @@ document.addEventListener('keydown', (event) => {
     beginRealSplit: beginOnboardingRealSplit,
   });
   window.MSWE?.register('onboarding', () => window.MSWE_ONBOARDING);
-  scheduleOnboardingAfterRender();
+  async function initializeStatus(){
+    try{if(onboardingConfig?.processingUrl){const result=await onboardingRequest();sharedOnboardingStatus=result.status||'';const local=readOnboardingStatus();if(!sharedOnboardingStatus&&['completed','skipped'].includes(local))await onboardingRequest(local);}}
+    catch(_){/* Keep browser fallback available when the server is unreachable. */}
+    finally{onboardingReady=true;scheduleOnboardingAfterRender();}
+  }
+  void initializeStatus();
 })();

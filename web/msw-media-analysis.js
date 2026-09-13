@@ -6,6 +6,11 @@
   const tasks = new Map();
   const terminal = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
   const auto = byId('waveform-auto'), track = byId('source-track');
+  const confirmTrack = document.createElement('button');
+  confirmTrack.type = 'button'; confirmTrack.hidden = true;
+  confirmTrack.textContent = '确认使用此源音轨';
+  track.after(confirmTrack);
+  confirmTrack.addEventListener('click', () => void media.changeTrack(Number(track.value)));
   auto.checked = localStorage.getItem('msw.waveform.auto') !== 'false';
   byId('waveform-auto-label').hidden = false;
   byId('analysis-unavailable').hidden = true;
@@ -45,7 +50,7 @@
         const output = await media.request(`media-analysis-result?${query}`);
         if (!valid(action)) return;
         if (action.kind === 'waveform') {
-          host.applyWaveform(output.waveform); status(action.kind, '波形已就绪');
+          host.applyWaveform(output.waveform, output); status(action.kind, '波形已就绪');
         } else {
           const playable = await host.previewProxy(action.media, output.url);
           if (!valid(action)) return;
@@ -85,11 +90,13 @@
     }
     track.value = source.audio_index; track.hidden = !track.options.length;
     byId('source-track-field').hidden = track.hidden;
+    confirmTrack.hidden = !source.track_conflict;
     if (!track.options.length) status('waveform', '无音轨；可继续编辑或使用 TTS');
     else if (host.data.waveform?.audio_track === source.audio_index && host.data.waveform?.source?.size === source.stamp[0]
       && host.data.waveform?.source?.modified_ms === Math.floor(source.stamp[1] / 1e6)) status('waveform', '使用已有波形');
     else if (auto.checked) void start('waveform');
     else status('waveform', '自动波形已关闭；使用占位波形');
+    if (source.track_conflict) status('waveform', '公共音轨与旧 MSW 音轨记录冲突，请确认源音轨后再识别');
     if (source.needs_proxy) { host.suspendSourcePlayback(); void start('proxy'); }
   }
   track.addEventListener('change', async () => {
@@ -137,6 +144,7 @@
   global.addEventListener('msw:project-changed', () => {
     for (const kind of ['waveform', 'proxy']) { void cancel(kind, true); controls(kind, false); status(kind, ''); }
     track.hidden = true;
+    confirmTrack.hidden = true;
     byId('source-track-field').hidden = true;
     byId('analysis-source').textContent = '导入媒体后可生成波形或播放代理。';
   });

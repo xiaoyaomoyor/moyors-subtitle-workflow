@@ -34,7 +34,7 @@ class LocalRuntimeTests(unittest.TestCase):
                 bundle_root / "generate_subtitle_local.py",
             )
             (package_root / "__init__.py").write_text("\n", encoding="utf-8")
-            for module in ("output_naming.py", "gui_config.py", "env_config.py", "app_paths.py"):
+            for module in ("output_naming.py", "gui_config.py", "env_config.py", "app_paths.py", "media.py"):
                 shutil.copyfile(Path(__file__).resolve().parents[1] / "maw" / module, package_root / module)
             shutil.copyfile(
                 Path(__file__).resolve().parents[1] / "maw" / "ffmpeg.py",
@@ -89,17 +89,17 @@ class LocalRuntimeTests(unittest.TestCase):
         self.assertIn("usage:", result.stdout.lower())
 
     def test_local_entry_imports_without_rust_kernel(self) -> None:
-        """Issue 96 回归：托管 Runtime 未装 Rust 波形内核（reapeaks）时，转写入口必须可导入。
+        """Issue 96 回归：托管 Runtime 未装 Rust 波形内核（quapeaks）时，转写入口必须可导入。
 
         MOSS 用独立的 ``local-runtime-moss`` 环境跑 ``local-runtime`` 脚本镜像，该环境
-        的依赖清单里没有 ``reapeaks``。此前入口经 ``maw.local_asr`` → 共享 API 模块 →
-        ``edit.py`` → ``maw.reapeaks`` 在导入期就 ModuleNotFoundError，模型根本没机会加载。
+        的依赖清单里没有 ``quapeaks``。此前入口经 ``maw.local_asr`` → 共享 API 模块 →
+        ``edit.py`` → ``maw.quapeaks`` 在导入期就 ModuleNotFoundError，模型根本没机会加载。
         """
         repo_root = Path(__file__).resolve().parents[1]
         driver = (
             "import sys\n"
             f"sys.path.insert(0, {str(repo_root)!r})\n"
-            "sys.modules['reapeaks'] = None\n"
+            "sys.modules['quapeaks'] = None\n"
             "import generate_subtitle_local\n"
             "print('MAW_LOCAL_ENTRY_IMPORT_OK')\n"
         )
@@ -198,7 +198,7 @@ class LocalRuntimeTests(unittest.TestCase):
             def fake_run(command: list[str], **_kwargs: object) -> int:
                 if "install" in command:
                     packages = root / "site-packages"
-                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "reapeaks"):
+                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks"):
                         (packages / name).mkdir(parents=True, exist_ok=True)
                 return 0
 

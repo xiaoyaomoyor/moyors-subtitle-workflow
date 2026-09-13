@@ -7,21 +7,27 @@
   const pageId=global.MSWProject.id('asr-page'),token=()=>`${pageId}.${host.generation}`;
   const fields=['providerId','modelId','language','region','workspaceId','openaiModel','openaiBaseUrl','maxLen','minLen',
     'maxWords','minWords','gapSplit','qwenAudioContext','qwenAudioHotwords','qwenAudioVocabularyId','qwenAudioHotwordWeight',
-    'sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms'];
+    'openaiPrompt','openaiKeywords','sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms','doubaoHotwords'];
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
   let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,selected=null,loading=null;
   function message(value) {el('message').textContent=t(value);}
   function options(node,values,selectedValue='') {
-    node.replaceChildren(...values.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.label;return option;}));
+    node.replaceChildren(...values.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=t(item.label);return option;}));
     if (values.some(item=>item.id===selectedValue)) node.value=selectedValue;
   }
   const connectionFields=['region','workspaceId','openaiBaseUrl'];
-  function providerInput() {return {...Object.fromEntries(fields.map(key=>[key,connectionFields.includes(key)?savedConnection[key]:el(key).value])),speakerColors:el('speakerColors').checked,apiKey:''};}
+  function providerInput() {
+    const caps=openaiOptions(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&el('openaiDiarize').checked));
+    return {...Object.fromEntries(fields.map(key=>[key,connectionFields.includes(key)?savedConnection[key]:el(key).value])),
+      speakerColors:el('speakerColors').checked,openaiDiarize:diarize,apiKey:'',
+      openaiPrompt:caps?.prompt&&!diarize?el('openaiPrompt').value:'',
+      openaiKeywords:caps?.keywords&&!diarize?el('openaiKeywords').value:''};
+  }
   function selectProvider(modelId=null) {
     const provider=providers.find(item=>item.id===el('providerId').value);
     if (!provider) return;
     options(el('modelId'),provider.models,modelId||provider.models[0].id);
-    for (const kind of ['qwen','soniox','openai']) settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=provider.id!==kind);
+    for (const kind of ['qwen','soniox','openai','doubao']) settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=provider.id!==kind);
     selectModel();
   }
   function selectEnvironment() {
@@ -32,13 +38,29 @@
     el('apiKey').value='';el('key-state').textContent=t(provider.hasApiKey?'已配置本机密钥，留空继续使用':'尚未配置此服务密钥');
     for(const kind of ['qwen','openai'])el('environment-fields').querySelectorAll('[data-asr-'+kind+']').forEach(node=>node.hidden=provider.id!==kind);
   }
+  function openaiOptions() {
+    const provider=providers.find(item=>item.id===el('providerId').value);
+    if(provider?.id!=='openai')return null;
+    let name=el('modelId').value==='custom-asr'?el('openaiModel').value.trim():el('modelId').value;
+    let hostname='';try{hostname=new URL(savedConnection.openaiBaseUrl).hostname.toLowerCase().replace(/\.$/,'');}catch{}
+    const family=hostname==='api.openai.com'?'openai':['openrouter.ai','www.openrouter.ai'].includes(hostname)?'openrouter':'compatible';
+    const model=provider.models.find(m=>m.id===name.replace(/^openai\//,''))||provider.models.find(m=>m.id==='custom-asr');
+    const caps=model.openaiCapabilities[family],diarize=caps.diarize||el('openaiDiarize').checked;
+    el('openaiHint').textContent=t(caps.timestamps?'接口必须返回可靠时间戳；Keywords 每行一个':'此模型在当前接口没有可靠字幕时间戳，请更换模型');
+    el('openaiPrompt').closest('label').hidden=!caps.prompt||diarize;
+    el('openaiKeywords').closest('label').hidden=!caps.keywords||diarize;
+    el('openaiDiarize').closest('label').hidden=!caps.diarize&&!caps.customDiarize;
+    return caps;
+  }
   function selectModel() {
     const provider=providers.find(item=>item.id===el('providerId').value),model=provider?.models.find(item=>item.id===el('modelId').value);
     if (!model) return;
     options(el('languages'),model.languages);
     el('openaiModel').closest('label').hidden=provider.id!=='openai'||model.id!=='custom-asr';
     for (const [kind,key] of [['context','supportsContext'],['hotwords','supportsHotwords'],['vocabulary','supportsVocabulary'],['speaker','supportsSpeaker']])
-      settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=!model[key]||(kind==='context'&&provider.id!=='qwen'));
+      settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=!model[key]||(['context','hotwords'].includes(kind)&&provider.id!=='qwen'));
+    el('openaiDiarize').checked=provider.id==='openai'&&model.id==='gpt-4o-transcribe-diarize';
+    if(el('openaiDiarize').checked){el('openaiPrompt').value='';el('openaiKeywords').value='';}
     updateScope();
   }
   async function loadSettings() {
@@ -49,14 +71,14 @@
       options(el('environment-provider'),providers,config.options.providerId);selectEnvironment();
       options(el('providerId'),providers,config.options.providerId);selectProvider(config.options.modelId);
       for (const key of fields) if (!['providerId','modelId'].includes(key)&&config.options[key]!==undefined) el(key).value=config.options[key];
-      el('speakerColors').checked=config.options.speakerColors===true;selectModel();
+      el('speakerColors').checked=config.options.speakerColors===true;selectModel();el('openaiDiarize').checked=config.options.openaiDiarize===true||el('modelId').value==='gpt-4o-transcribe-diarize';
     })();
     try {await loading;} catch(error){message(error.message);} finally {loading=null;updateScope();}
   }
   function updateScope() {
     const current=media.current,mode=el('mode').value,selection=ranges?.ranges||[];
     const provider=providers.find(item=>item.id===el('providerId').value);
-    const ready=Boolean(provider?.hasApiKey);
+    const caps=openaiOptions(),ready=Boolean(provider?.hasApiKey)&&caps?.timestamps!==false;
     el('scope-actions').hidden=mode!=='range';
     el('source').textContent=current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
     el('edit-range').hidden=mode!=='range';el('edit-range').disabled=!selection.length;
@@ -233,6 +255,7 @@
   el('unavailable').hidden=available;el('controls').hidden=!available;
   el('environment-unavailable').hidden=available;el('environment-controls').hidden=!available;
   el('environment-return').addEventListener('click',()=>{host.closeProcessingEnvironment();void open(el('mode').value);});
+  el('openaiDiarize').addEventListener('change',()=>{if(el('openaiDiarize').checked){el('openaiPrompt').value='';el('openaiKeywords').value='';}updateScope();});
   el('environment-provider').addEventListener('change',selectEnvironment);
   settingsRoot.addEventListener('input',updateScope);
   el('providerId').addEventListener('change',()=>selectProvider());el('modelId').addEventListener('change',selectModel);

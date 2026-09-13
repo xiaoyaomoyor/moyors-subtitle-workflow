@@ -45,15 +45,17 @@ async function pixel(page, fraction) {
 
 for (const mode of ['server','portable']) test(`${mode}: reverse drag selects source time and inverts only the canvas without creating subtitles`, async ({page}) => {
   await setup(page, mode === 'server' ? server.url : portable.url);
-  const before = await pixel(page,.4), outside = await pixel(page,.8);
+  // Sample between tick lines: GPU antialiasing at exact second boundaries
+  // can round difference compositing by a few RGB levels.
+  const before = await pixel(page,.41), outside = await pixel(page,.81);
   const row = await page.locator('.waveform-row').first().boundingBox();
   await drag(page,{x:row.x+row.width*.6,y:row.y+row.height*.3},{x:row.x+row.width*.2,y:row.y+row.height*.3});
   const result = await range(page); expect(result.start).toBeCloseTo(2000,-1); expect(result.end).toBeCloseTo(6000,-1);
-  const selected = await pixel(page,.4);
-  expect(selected.slice(0,3)).toEqual(before.slice(0,3).map(x=>255-x)); expect(await pixel(page,.8)).toEqual(outside);
+  const selected = await pixel(page,.41);
+  expect(selected.slice(0,3)).toEqual(before.slice(0,3).map(x=>255-x)); expect(await pixel(page,.81)).toEqual(outside);
   expect(await page.evaluate(()=>DATA.segments)).toEqual([]);
   await page.keyboard.press('Delete'); expect(await range(page)).toEqual(result);
-  await page.keyboard.press('Escape'); expect(await range(page)).toBeNull(); expect(await pixel(page,.4)).toEqual(before);
+  await page.keyboard.press('Escape'); expect(await range(page)).toBeNull(); expect(await pixel(page,.41)).toEqual(before);
 });
 
 test('cross-row selection keeps its gesture after modifier release and survives zoom and resize',async ({page})=>{

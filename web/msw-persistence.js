@@ -8,6 +8,7 @@
   let active = null, target = null, working = false;
   let recovering = false, draftBusy = false, draftTimer = null, lastDraft = null, lastGeneration = host.generation;
   let session = global.MSWProject.id('session');
+  let versionSettings={enabled:true,interval:300,limit:20},versionBusy=false,lastVersion=Date.now();
   const recoveryModal = el('project-recovery-modal');
   const modal = el('project-save-as-modal');
   const available = () => Boolean(host.config?.projectPersistence && host.config?.processingUrl);
@@ -138,14 +139,15 @@
     } finally { draftBusy = false; }
   }
   el('project-recovery-open').hidden = !available();
-  el('project-recovery-open').addEventListener('click', async () => {
+  async function showRecovery(disk=false) {
     if (host.saving() || working) return;
     recoveryModal.classList.add('show');
     el('project-recovery-message').textContent = t('正在读取恢复记录…');
     el('project-recovery-list').replaceChildren();
     const generation = host.generation;
     try {
-      const { records } = await request('recovery-list');
+      const response = await request(disk?'version-list':'recovery-list');
+      const records=disk?response.versions.map(v=>({...v,id:v.name,kind:'history'})):response.records;
       if (generation !== host.generation || !recoveryModal.classList.contains('show')) return;
       el('project-recovery-message').textContent = records.length ? '' : t('暂无恢复记录');
       for (const record of records) {
@@ -161,7 +163,7 @@
           try {
             // Fetch before preserving current edits: loading our own draft may
             // otherwise replace its contents before the user can restore it.
-            const result = await request('recovery-load', { id: record.id });
+            const result = await request(disk?'version-load':'recovery-load', disk?{name:record.id,binding:host.config.processingContext?.binding}:{id:record.id});
             if (!await captureDraft({ force: true })) throw Error(t('当前草稿未能保存，未切换恢复内容'));
             if (generation !== host.generation) return;
             host.restore(result); recovering = true; lastDraft = null;
@@ -174,7 +176,34 @@
         row.append(label, button); el('project-recovery-list').append(row);
       }
     } catch (error) { el('project-recovery-message').textContent = error.message; }
+  }
+  el('project-recovery-open').addEventListener('click',()=>void showRecovery());
+  el('project-version-list').addEventListener('click',()=>void showRecovery(true));
+  async function createVersion(manual=false) {
+    if(!available())return;
+    if(recovering||!host.config.canSave){if(manual)el('project-version-status').textContent=t('请先另存为工程，再创建磁盘版本');return;}
+    if(versionBusy||working||host.saving()||global.MSWE.resolve('processing-host')?.isEditing?.()){if(manual)el('project-version-status').textContent=t('当前正在编辑或保存，请稍后创建版本');return;}
+    if(!manual&&(!versionSettings.enabled||Date.now()-lastVersion<versionSettings.interval*1000))return;
+    versionBusy=true;const generation=host.generation;
+    try{
+      const result=await request('version-create',{project:host.snapshot(),backupOnly:true,...host.config.processingContext});
+      if(generation!==host.generation)return;
+      lastVersion=Date.now();el('project-version-status').textContent=result.warning||t(result.deduplicated?'内容未变化，已保留现有版本':'磁盘版本已创建')+' · '+result.name;
+    }catch(error){lastVersion=Date.now();el('project-version-status').textContent=t('磁盘版本备份失败')+' · '+error.message;}
+    finally{versionBusy=false;}
+  }
+  function versionControls(){for(const key of ['enabled','interval','limit']){const node=el('project-version-'+key);if(key==='enabled')node.checked=versionSettings[key];else node.value=versionSettings[key];}}
+  el('project-version-create').addEventListener('click',()=>void createVersion(true));
+  el('project-version-configure').addEventListener('click',async()=>{
+    try{const result=await request('version-settings',{enabled:el('project-version-enabled').checked,interval:Number(el('project-version-interval').value),limit:Number(el('project-version-limit').value)});versionSettings=result.settings;versionControls();el('project-version-status').textContent=t('备份设置已保存');}
+    catch(error){el('project-version-status').textContent=error.message;}
   });
+  el('project-version-directory').addEventListener('click',async()=>{try{await request('version-directory',{binding:host.config.processingContext?.binding});}catch(error){el('project-version-status').textContent=error.message;}});
+  if(available()){
+    el('project-version-settings').hidden=false;
+    request('version-settings').then(result=>{versionSettings=result.settings;versionControls();}).catch(error=>{el('project-version-status').textContent=error.message;});
+    setInterval(()=>void createVersion(),15000);
+  }
   el('project-recovery-close').addEventListener('click', () => { if (!working) recoveryModal.classList.remove('show'); });
   if (available()) {
     // No browser storage quota dependency; the server owns bounded snapshots.

@@ -56,6 +56,9 @@ class MediaJobsTests(unittest.TestCase):
         media = self.media.register(self.source, 'temporary')
         first = self.wait(self.submit(media))
         self.assertEqual(first['status'], 'succeeded', first)
+        artifact = self.media.jobs.artifact(first)
+        self.assertEqual(artifact.suffix, '.mopeaks')
+        self.assertEqual(artifact.read_bytes()[:4], b'MPK1')
         self.assertEqual(self.submit(media)['id'], first['id'])
         with self.assertRaises(KeyError):
             self.media.jobs.result(first['id'], 'other')
@@ -113,3 +116,42 @@ class MediaJobsTests(unittest.TestCase):
         with self.assertRaises(WaveformError):
             extract_waveform(long, ffmpeg_bin=str(self.tools.ffmpeg), cancel_event=cancel,
                              progress=lambda milliseconds: cancel.set())
+
+    def test_old_json_manifest_remains_readable_and_can_seed_new_binary_job(self):
+        import json
+        from maw.msw.media_jobs import MediaJobs
+        media = self.media.register(self.source, 'temporary', managed=True)
+        peaks = extract_waveform(self.source, ffmpeg_bin=str(self.tools.ffmpeg))
+        jobs = self.media.jobs
+        old = dict(id='analysis-old', project_id='temporary', media_id=media['id'], kind='waveform',
+                   key='legacy-key', status='succeeded', progress=100, created=0, error=None)
+        jobs.jobs[old['id']] = old
+        artifact = jobs.artifact(old)
+        artifact.write_text(json.dumps(peaks), encoding='utf-8')
+        jobs.persist(); jobs.close()
+        self.media._waveforms = MediaJobs(self.media)
+        self.assertEqual(self.media.jobs.result(old['id'], 'temporary')['waveform'], peaks)
+        with mock.patch('maw.msw.media_jobs.extract_waveform', side_effect=AssertionError('legacy cache was lost')):
+            result = self.wait(self.submit(media))
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertEqual(self.media.jobs.artifact(result).read_bytes()[:4], b'MPK1')
+        self.assertEqual(json.loads(artifact.read_text(encoding='utf-8')), peaks)
+
+    def test_container_default_second_track_and_explicit_first_track_have_separate_caches(self):
+        from maw.output_naming import maw_root
+        video = self.root / 'default-second.mkv'
+        run(command_prefix(self.tools.ffmpeg) + ['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000',
+            '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono', '-map', '0:a', '-map', '1:a', '-t', '1',
+            '-c:a', 'pcm_s16le', '-disposition:a:0', '0', '-disposition:a:1', 'default', str(video)], threading.Event())
+        default = self.media.register(video, 'temporary')
+        self.assertEqual(default['audio_index'], 1)
+        self.assertEqual(default['metadata']['selected_audio_track'], 1)
+        selected = self.media.select_track({**self.scope, 'media_id': default['id'], 'audio_index': 0})['media']
+        for record, audible in [(default, False), (selected, True)]:
+            result = self.wait(self.submit(record))
+            self.assertEqual(result['status'], 'succeeded', result)
+            waveform = self.media.jobs.result(result['id'], 'temporary')['waveform']
+            self.assertEqual(waveform['audio_track'], record['audio_index'])
+            self.assertEqual(any(base64.b64decode(waveform['data'])), audible)
+        self.assertTrue((maw_root(video) / (video.name + '.mopeaks')).is_file())
+        self.assertTrue((maw_root(video) / (video.name + '.track-1.mopeaks')).is_file())

@@ -153,7 +153,7 @@ def waveform_matches_media(
 
 
 def waveform_sidecar_path(media_path: Path) -> Path:
-    """Return the primary sidecar path for media-derived waveforms.
+    """Return the historical JSON path (new writes use ``save_mopeaks``).
 
     The sidecar is a rebuildable cache, so it lives in the media's ``_msw``
     directory instead of cluttering the folder that holds the source media.
@@ -173,13 +173,14 @@ def _waveform_sidecar_candidates(media_path: Path) -> list[Path]:
     """
     media_path = Path(media_path)
     candidates = [
-        root / f"{media_path.stem}.waveform.json"
-        for root in maw_root_candidates(media_path)
+        root / name
+        for root in [*maw_root_candidates(media_path), media_path.parent]
+        for name in (f"{media_path.stem}.waveform.json", f"{media_path.name}.waveform.json")
     ]
     legacy = media_path.with_suffix(".waveform.json")
     if legacy not in candidates:
         candidates.append(legacy)
-    return candidates
+    return list(dict.fromkeys(candidates))
 
 
 def load_waveform_sidecar(media_path: Path, *, audio_track: int | None = None) -> dict[str, Any] | None:
@@ -189,20 +190,18 @@ def load_waveform_sidecar(media_path: Path, *, audio_track: int | None = None) -
             value = json.loads(candidate.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
             continue
-        if is_waveform_payload(value) and (
+        if is_waveform_payload(value) and (audio_track is None or audio_track_from_payloads(value) == audio_track) and (
             not Path(media_path).is_file() or waveform_matches_media(value, media_path, audio_track=audio_track)
         ):
             return value
     return None
 
 
-def save_waveform_sidecar(payload: dict[str, Any], media_path: Path) -> Path:
-    """Persist a waveform payload into the media's ``_msw`` directory."""
-    sidecar = waveform_sidecar_path(media_path)
-    sidecar.parent.mkdir(parents=True, exist_ok=True)
-    # write_bytes() keeps the sidecar LF-only on Windows as well.
-    sidecar.write_bytes((json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
-    return sidecar
+def save_waveform_sidecar(payload: dict[str, Any], media_path: Path, *, default_audio_track: int | None = None) -> Path:
+    """Compatibility writer: new output is binary; legacy JSON is read-only."""
+    from maw.mopeaks import save_mopeaks
+    return save_mopeaks(payload, media_path, audio_track=audio_track_from_payloads(payload),
+                       default_audio_track=default_audio_track)
 
 
 def _quantize_sample(value: int) -> int:
@@ -405,10 +404,18 @@ def load_or_extract_waveform(
     peaks_per_second: int = DEFAULT_PEAKS_PER_SECOND,
     ffmpeg_bin: str | None = None,
     audio_track: int = 0,
+    default_audio_track: int | None = None,
+    cancel_event: Any = None,
+    progress: Any = None,
 ) -> tuple[dict[str, Any], bool]:
     """Return cached peaks when valid, otherwise extract a fresh payload."""
     if not isinstance(audio_track, int) or isinstance(audio_track, bool) or audio_track < 0:
         raise ValueError("audio_track must be a non-negative integer")
+    from maw import quapeaks, mopeaks
+    for loader in (quapeaks.load_self_wave_payload, mopeaks.load_mopeaks):
+        cached = loader(media_path, audio_track=audio_track, default_audio_track=default_audio_track)
+        if cached is not None and cached['peaks_per_second'] == peaks_per_second:
+            return cached, False
     if (
         waveform_matches_media(existing, media_path, audio_track=audio_track)
         and existing["peaks_per_second"] == peaks_per_second
@@ -425,9 +432,11 @@ def load_or_extract_waveform(
         peaks_per_second=peaks_per_second,
         ffmpeg_bin=ffmpeg_bin,
         audio_track=audio_track,
+        cancel_event=cancel_event,
+        progress=progress,
     )
     try:
-        save_waveform_sidecar(payload, media_path)
+        save_waveform_sidecar(payload, media_path, default_audio_track=default_audio_track)
     except OSError:
         # A read-only media folder must not prevent HTML generation.
         pass

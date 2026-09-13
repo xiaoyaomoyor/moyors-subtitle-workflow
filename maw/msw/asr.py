@@ -78,7 +78,8 @@ def map_candidates(project, span, job_id):
             first, last = members[0], members[-1]
             style = copy.deepcopy(cues[head_index][head])
             style.update(start=output[first]['start'], end=output[last]['end'])
-            style.pop('start_frame', None); style.pop('end_frame', None)
+            style.pop('start_frame', None)
+            style.pop('end_frame', None)
             output[first][head] = style
             for index in members[1:]:
                 output[index][ref] = {'headIdx':first}
@@ -94,6 +95,8 @@ class AsrService:
     def source(self, snapshot, *, require_active=False):
         source = snapshot['source']
         record = self.api.media.get(source['id'], snapshot['project_id'])
+        if record.get('track_conflict'):
+            raise ValueError('工程的公共音轨与旧 MSW 音轨冲突，请在媒体设置中确认源音轨后再识别')
         public = self.api.media.public(record)
         if source['revision'] != public['revision'] or source['duration_ms'] != record['metadata'].get('duration_ms'):
             raise ValueError('媒体或音轨已改变，旧 ASR 任务不能应用到当前媒体')
@@ -146,7 +149,7 @@ class AsrService:
             isolated_env = root / 'isolated.env'
             isolated_env.write_bytes(b'')
             request = replace(settings.request, media_path=source, srt_path=root / 'result.srt', audio_track=0,
-                              env_path=isolated_env)
+                              default_audio_track=0, env_path=isolated_env)
             last_progress = 0
             def on_event(_line):
                 nonlocal last_progress

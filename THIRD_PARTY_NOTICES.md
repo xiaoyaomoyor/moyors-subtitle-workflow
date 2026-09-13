@@ -8,7 +8,7 @@
 | [jieba](https://github.com/fxsjy/jieba) | Chinese subtitle segmentation | MIT |
 | [fontTools](https://github.com/fonttools/fonttools) | Convert installed font outlines into font-independent Lottie vector glyphs | MIT |
 | [opencc-python-reimplemented](https://github.com/yichen0831/opencc-python) / [OpenCC](https://github.com/BYVoid/OpenCC) | Local Simplified/Traditional Chinese conversion in the post-processing toolbox | Apache-2.0 |
-| [reapeaks](https://pypi.org/project/reapeaks/) | Rust kernel that generates the `.ReaPeaks` waveform/spectral cache beside media files | MIT OR Apache-2.0 |
+| [quapeaks](https://pypi.org/project/quapeaks/) (formerly reapeaks-rs) | Rust kernel generating QPK1 waveform/spectral caches; existing REAPER files remain readable | MIT OR Apache-2.0 |
 | [RapidOCR](https://github.com/RapidAI/RapidOCR) / PP-OCRv6 | Local CPU OCR for the 「OCR 字幕去重」 toolbox; the optional managed OCR runtime downloads its own model files; the main GUI bundle excludes them | Apache-2.0; bundled model files remain subject to upstream model terms |
 | [ONNX Runtime](https://onnxruntime.ai/) | CPU inference runtime for RapidOCR | MIT |
 | [Pillow](https://python-pillow.github.io/) | Decode, crop, and resize video frames before OCR | HPND |
@@ -52,3 +52,18 @@ the main MSW source repository. Installation preserves their license files.
 MSW independently implements its text adapter, referring to the conversion flow
 in https://github.com/Love-Kogasa/zh-yukkuri.js. No code from that wrapper is
 redistributed in MSW or its resource pack.
+
+## Send2Trash
+
+Send2Trash 1.8.3 is used to recycle old automatic project versions. BSD 3-Clause license; source: https://github.com/arsenetar/send2trash.
+
+Copyright (c) 2017, Virgil Dupras
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    * Neither the name of Hardcoded Software Inc. nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
