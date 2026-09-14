@@ -713,12 +713,17 @@ class EditorServer(ThreadingHTTPServer):
 
     def startup_status_payload(self) -> dict[str, object]:
         with self.startup_lock:
+            with self.save_lock:
+                # 工程身份随启动状态一起暴露：启动器据此校验「选 A 打开 A」，
+                # 不因端口可访问就直接把现有会话当成目标工程。
+                project_path = self.project.json_path if self.project is not None else None
             return {
                 "ok": True,
                 "status": self.startup_status,
                 "stage": self.startup_stage,
                 "progress": self.startup_progress,
                 "error": self.startup_error,
+                "projectPath": str(project_path) if project_path is not None else "",
             }
 
     def start_project_load(self) -> bool:

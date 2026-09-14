@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | A | 视觉原型与交互定稿 | 已完成 |
 | B | 横向应用框架与品牌 | 已完成 |
-| C | 最近工程、明确空白启动与会话兼容 | 待处理 |
+| C | 最近工程、明确空白启动与会话兼容 | 已完成 |
 | D | 预制模块编排与旧配置迁移 | 待处理 |
 | E | 统一预制执行与复杂工程保护 | 待处理 |
 | F | 实用工具、更多设置与指南 | 待处理 |
@@ -25,6 +25,26 @@
 - `maw/gui_web.py:109` `WINDOW_TITLE = "MSW Launcher"`；`run_app()` 初始窗口 900×880、min 760×640、背景 `#16181d`。B 阶段改横向 1200×780 并按屏幕工作区收敛。
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
+
+## C：最近工程、明确空白启动与会话兼容
+
+状态：已完成（2026-09-14）。
+
+改动：
+
+1. `maw/launcher_projects.py`（新增）：最近工程合并视图——只读编辑器真源 `server-editor-settings.json`（`recent_projects`，编辑器打开/保存/另存为都会更新），叠加启动器侧元数据 `launcher-recent.json`（固定、移除、失效路径 alias 重定位、启动器打开时间）。提供 `recent_projects_payload / note_project_opened / remove_recent_project / set_recent_project_pinned / relocate_recent_project / project_stats_payload`（统计：主字幕=顶层 segments、副=multi_subtitle 非主轨、音频贴片=msw.audio_clips；>64MB 跳过不伪造）。原子写、LF、容错读。
+2. `server-editor/serve.py`：`/api/startup-status` 增加 `projectPath`，供启动器校验「选 A 打开 A」。
+3. `maw/gui_web.py`：`start_server` 显式 `intent: blank/project/resume`——blank 附加 `--blank` 不恢复上次工程；project 缺媒体不再拒绝（编辑器加载时提示手动指定媒体）；端口已有服务先 `_probe_existing_server` 取工程身份：目标一致才复用（`sameProject`/`blankProject`），不一致返回 `server_conflict`（含 url/projectPath/owned），`independentPort` 走空闲端口、`restart` 仅重启受管服务，不杀外部进程。新增桥接：`get_recent_projects`、`get_recent_project_stats`、`remove_recent_project`、`set_recent_project_pinned`、`relocate_recent_project`（原生文件对话框）。`LauncherPaths.recent_metadata` 可注入，测试不污染真实用户数据。
+4. `web/launcher/project-home.js`（新增）：首页卡片渲染（名称/目录/时间[打开时间优先，文件修改为后备并标注]/统计逐项拉取显示「读取中」/失效警告/固定标记）；搜索过滤、默认 12 项+加载更多；单击选择、再击取消、双击打开、Enter 打开/Space 选择；右键菜单（固定/取消固定、打开所在文件夹、失效时重新定位、从最近记录移除——只删记录不删文件）；切页/窗口聚焦刷新索引。等 `mawlauncherready` 后再拉取。
+5. `web/launcher/launcher.js`：`openServerEditor(options)` 支持意图与重试参数；冲突处理（返回现有会话→独立端口→重启受管服务三步确认，且在 finally 之后执行避免 serverStarting 守卫死锁）；`startBlankEditor()` 显式空白启动；缺媒体预检放开为提示；bridge 增加 `bridgeOverride` 注入点（带 next 直通防递归）；mock 增加 recent 系列方法并记录 start_server 意图。
+6. `web/launcher/index.html` / `launcher.css`：首页工具栏（搜索+计数）、卡片网格、空态、加载更多、底部「启动空白编辑器 + 打开所选工程（选中时出现）」；recent 卡片与右键菜单样式（紫色选中描边+小勾、琥珀失效、固定标记）。
+
+验证（2026-09-14）：
+
+- 单元：`tests/test_launcher_projects.py` 新增 11 项（合并视图、移除恢复、重定位映射、统计、元数据往返、blank/--blank、冲突上报不复用、同工程复用、空白冲突、独立端口）。全套 1542 项通过（5 个 start_server 用例按新语义更新：单次 `_wait_for_server`、`_probe_existing_server` mock、缺媒体改为允许启动断言）。
+- e2e：`tests/e2e/launcher-home.spec.mjs` 新增 5 项（卡片渲染/统计/搜索/选择、双击打开+空白启动意图断言、失效重定位确认、右键菜单动作、会话冲突三步流程）；启动器相关 46/46 通过。
+- 浏览器（mock）：双击卡片 jsonPath 正确回填 clip.mosp 完整路径（修复过 mock 反斜杠转义）、按钮转「打开字幕编辑器」、空白启动清空目标并 blank 意图；首页截图视觉核验通过（搜索/计数/两张卡/统计/固定/失效/底部按钮）。
+- 未验证：真实后端下的最近工程数据（编辑器 settings 实际联动）、pywebview 原生窗口与文件对话框（G 阶段实测）；「恢复未保存内容」入口需要编辑器恢复记录协议，C 首版未加入（编辑器内已有恢复 UI，账本跟踪）。
 
 ## B：横向应用框架与品牌
 

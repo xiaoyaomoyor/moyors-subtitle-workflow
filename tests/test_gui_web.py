@@ -51,7 +51,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.env_path = self.root / ".env"
         self.example_path = self.root / ".env.example"
         _ = self.example_path.write_text("DASHSCOPE_API_KEY=\nDASHSCOPE_REGION=beijing\n", encoding="utf-8")
-        self.paths = LauncherPaths(root=self.root, env_path=self.env_path, launcher_html=self.root / "launcher.html")
+        self.paths = LauncherPaths(root=self.root, env_path=self.env_path, launcher_html=self.root / "launcher.html", recent_metadata=self.root / "launcher-recent.json")
         self.window = FakeWindow()
         self.api = LauncherApi(paths=self.paths, window_getter=lambda: self.window)
 
@@ -1493,7 +1493,7 @@ class GuiWebBridgeTests(unittest.TestCase):
                 return self.returncode or 0
 
         with mock.patch("maw.gui_web.subprocess.Popen", return_value=FakeProcess()) as popen:
-            with mock.patch("maw.gui_web._wait_for_server", side_effect=[False, True]) as wait_for_server:
+            with mock.patch("maw.gui_web._wait_for_server", return_value=True) as wait_for_server:
                 result = self.api.start_server({
                     "jsonPath": str(project),
                     "mediaPath": str(media),
@@ -1510,12 +1510,6 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(
             wait_for_server.call_args_list,
             [
-                mock.call(
-                    "http://127.0.0.1:9876/",
-                    timeout=0.25,
-                    probe_path=EDITOR_HEALTH_PROBE_PATH,
-                    probe_timeout=EDITOR_HEALTH_PROBE_TIMEOUT,
-                ),
                 mock.call(
                     "http://127.0.0.1:9876/",
                     timeout=SERVER_START_TIMEOUT,
@@ -2072,7 +2066,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         with mock.patch.object(sys, "frozen", True, create=True):
             with mock.patch.object(sys, "executable", str(executable)):
                 with mock.patch("maw.gui_web.subprocess.Popen", return_value=FakeProcess()) as popen:
-                    with mock.patch("maw.gui_web._wait_for_server", side_effect=[False, True]):
+                    with mock.patch("maw.gui_web._wait_for_server", return_value=True):
                         result = self.api.start_server({
                             "jsonPath": str(project),
                             "mediaPath": str(media),
@@ -2140,18 +2134,18 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         def wait(_url: str, *, timeout: float, probe_path: str = "/", probe_timeout: float = 0.25) -> bool:
             calls.append("wait")
-            return len(calls) > 1
+            return True
 
         with mock.patch("maw.gui_web.subprocess.Popen", return_value=FakeProcess()):
             with mock.patch("maw.gui_web._wait_for_server", side_effect=wait):
                 result = self.api.start_server({"jsonPath": str(project), "mediaPath": str(media), "port": "9876"})
 
         self.assertTrue(result["ok"])
-        self.assertEqual(calls, ["wait", "wait"])
+        self.assertEqual(calls, ["wait"])
 
     def test_start_server_returns_existing_server_url_without_spawning(self) -> None:
         """Given a responding port, When starting server, Then it reports the existing server instead of spawning."""
-        with mock.patch("maw.gui_web._wait_for_server", return_value=True):
+        with mock.patch("maw.gui_web._probe_existing_server", return_value={"projectPath": ""}):
             with mock.patch("maw.gui_web.subprocess.Popen") as popen:
                 result = self.api.start_server({"port": "9876", "guiLang": "zh"})
 
@@ -2194,7 +2188,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.api.server_process = previous_process
 
         with mock.patch("maw.gui_web.subprocess.Popen", return_value=replacement_process) as popen:
-            with mock.patch("maw.gui_web._wait_for_server", side_effect=[True, True]):
+            with mock.patch("maw.gui_web._wait_for_server", return_value=True):
                 result = self.api.start_server({
                     "jsonPath": str(project),
                     "port": "9876",
@@ -2283,16 +2277,26 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertFalse(result["hasMedia"])
 
-    def test_start_server_requires_manual_media_when_project_media_missing(self) -> None:
-        """Given project media is unusable, When no override is provided, Then server blocks."""
+    def test_start_server_allows_project_with_missing_media(self) -> None:
+        """缺媒体工程不再拒绝启动：编辑器加载时提示手动指定媒体（C 阶段契约）。"""
         project = self.root / "project.json"
         project.write_text('{"segments": []}\n', encoding="utf-8")
 
-        result = self.api.start_server({"jsonPath": str(project), "mediaPath": "", "port": "8765"})
+        class FakeProcess:
+            returncode = None
 
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["field"], "serverMediaPath")
-        self.assertEqual(result["code"], "server_media_missing")
+            def poll(self) -> int | None:
+                return None
+
+        with mock.patch("maw.gui_web.subprocess.Popen", return_value=FakeProcess()) as popen:
+            with mock.patch("maw.gui_web._wait_for_server", return_value=True):
+                result = self.api.start_server({"jsonPath": str(project), "mediaPath": "", "port": "8765"})
+
+        self.assertTrue(result["ok"])
+        command = popen.call_args.args[0]
+        self.assertEqual(command[command.index("--port") + 1], "8765")
+        self.assertNotIn("-m", command)
+        self.assertEqual(command[2], str(project))
 
     def test_open_blank_html_opens_repo_template_when_present(self) -> None:
         """Given blank editor exists, When opened, Then browser receives its file URL."""
@@ -3650,7 +3654,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="toolboxFfconcatTab" class="toolbox-tab"', page)
         self.assertIn("overflow-y: auto", stylesheet)
         self.assertNotIn("resize: both", stylesheet)
-        self.assertIn("block-size: min(640px, calc(100dvh - 156px))", stylesheet)
+        self.assertIn("block-size: min(640px, calc(100dvh - 226px))", stylesheet)
         self.assertIn("min-inline-size: min(360px, calc(100vw - 24px))", stylesheet)
         self.assertIn(".toolbox-footer", stylesheet)
         self.assertIn(".toolbox-resize-y", stylesheet)
@@ -3975,7 +3979,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('$("openMawe").addEventListener("click", openServerEditor)', script)
         self.assertNotIn("openMose", script)
         self.assertNotIn("open_mose", script)
-        self.assertIn('function openServerEditor()', script)
+        self.assertIn('async function openServerEditor(options = {})', script)
         self.assertIn('bridge("start_server"', script)
 
     def test_project_change_marks_server_editor_action_for_rebinding(self) -> None:

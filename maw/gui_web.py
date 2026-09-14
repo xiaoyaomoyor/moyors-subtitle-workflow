@@ -50,6 +50,14 @@ from maw.gui_config import (
 from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
 from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
+from maw.launcher_projects import (
+    note_project_opened,
+    project_stats_payload,
+    recent_projects_payload,
+    relocate_recent_project,
+    remove_recent_project,
+    set_recent_project_pinned,
+)
 from maw.output_naming import format_elapsed, maw_root
 from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, install_stdio_tee
 from maw.local_runtime import (
@@ -474,6 +482,9 @@ class LauncherPaths:
     root: Path
     env_path: Path
     launcher_html: Path
+    # 启动器侧最近工程元数据（固定/移除/重定位）。None 时用用户数据目录默认路径；
+    # 测试注入临时路径，避免污染真实 launcher-recent.json。
+    recent_metadata: Path | None = None
 
 
 def default_paths() -> LauncherPaths:
@@ -617,6 +628,40 @@ class LauncherApi:
         self._last_postprocess_progress_at = 0.0
         self.pump = EventPump(window_getter=self.window_getter)
         _sync_local_runtime_root(self.paths.env_path)
+
+    def get_recent_projects(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """List recent projects for the home page (editor index + launcher view state)."""
+        return recent_projects_payload(metadata_path=self.paths.recent_metadata)
+
+    def get_recent_project_stats(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Parse lightweight card statistics for one project file."""
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        return project_stats_payload(path)
+
+    def remove_recent_project(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Remove one entry from the launcher view; the project file itself is untouched."""
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        return remove_recent_project(path, metadata_path=self.paths.recent_metadata)
+
+    def set_recent_project_pinned(self, payload: Mapping[str, object]) -> dict[str, object]:
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        return set_recent_project_pinned(path, payload.get("pinned") is True, metadata_path=self.paths.recent_metadata)
+
+    def relocate_recent_project(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Re-locate a moved project: the user picks the new file via the native dialog."""
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        selected = _file_dialog(open_dialog=True, file_types=(".mosp", ".json"))
+        if not selected:
+            return {"ok": False, "cancelled": True}
+        return relocate_recent_project(path, Path(selected[0]), metadata_path=self.paths.recent_metadata)
 
     def sync_theme_title_bar(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Sync the native title bar with the app's effective theme.
@@ -1578,34 +1623,72 @@ class LauncherApi:
         return {"ok": True, "usedMose": True, "path": str(executable)}
 
     def start_server(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Start (or reuse) the local editor server with an explicit intent.
+
+        intent:
+        - ``blank``：显式空白编辑器，不恢复上次工程（serve.py --blank）。
+        - ``project``：打开 jsonPath 指定的工程；缺媒体不再拒绝启动，
+          由编辑器在加载时提示手动指定媒体。
+        - ``resume``：跟随服务器「自动打开上次工程」设置（旧默认行为）。
+
+        端口上已有服务时先校验其工程身份：目标一致才复用；不一致返回
+        ``server_conflict``，由前端询问用户（返回现有会话／重启受管服务／
+        独立端口），不盲目把现有会话当作目标工程返回。
+        """
         json_text = str(payload.get("jsonPath") or "").strip()
+        intent = str(payload.get("intent") or ("project" if json_text else "resume"))
+        if intent not in {"blank", "project", "resume"}:
+            intent = "project" if json_text else "resume"
+        restart = payload.get("restart") is True
+        independent = payload.get("independentPort") is True
         port = _port(payload)
+        if independent:
+            try:
+                port = _free_local_port()
+            except OSError as error:
+                return _error_result("port", "server_start_failed", str(error))
         url = f"http://127.0.0.1:{port}/"
         launch_url = f"{url}?lang={_gui_lang(payload)}"
 
-        owned_server_running = self.server_process is not None and self.server_process.poll() is None
-        if _wait_for_server(
-            url,
-            timeout=0.25,
-            probe_path=EDITOR_HEALTH_PROBE_PATH,
-            probe_timeout=EDITOR_HEALTH_PROBE_TIMEOUT,
-        ) and (not json_text or not owned_server_running):
-            return {"ok": True, "url": launch_url, "serverAlreadyRunning": True}
-        if not json_text:
-            # 无工程：不带 JSON 路径启动，由服务器按「自动打开上次工程」设置恢复最近工程或回落为空白编辑器
+        existing = _probe_existing_server(url)
+        if existing is not None and not restart and not independent:
+            existing_project = existing.get("projectPath") or ""
+            owned_server_running = self.server_process is not None and self.server_process.poll() is None
+            if intent == "project" and json_text and _same_existing_project(existing_project, json_text):
+                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "sameProject": True}
+            if intent == "blank" and not existing_project:
+                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "blankProject": True}
+            if intent == "resume":
+                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True}
+            return {
+                "ok": False,
+                "field": "port",
+                "code": "server_conflict",
+                "detail": url,
+                "conflict": {
+                    "url": launch_url,
+                    "projectPath": existing_project,
+                    "owned": owned_server_running,
+                },
+            }
+
+        if intent == "blank":
+            # 显式空白：带 --blank 启动，服务器不按「自动打开上次工程」恢复旧工程。
             command = build_serve_command(None, None, port)
-        else:
+            command.append("--blank")
+        elif intent == "project":
             json_path = Path(json_text).expanduser()
             if not json_path.exists():
                 return _error_result("jsonPath", "json_not_found", str(json_path))
-            media_state = self.check_server_media({"jsonPath": str(json_path)})
             media_text = str(payload.get("mediaPath") or "").strip()
             media_path = Path(media_text).expanduser() if media_text else None
-            if media_path and not media_path.exists():
+            if media_path is not None and not media_path.exists():
                 media_path = None
-            if (not media_state.get("hasMedia") or not media_state.get("mediaExists")) and media_path is None:
-                return _error_result("serverMediaPath", "server_media_missing", str(media_state.get("mediaPath") or ""))
             command = build_serve_command(json_path, media_path, port)
+            note_project_opened(json_path, metadata_path=self.paths.recent_metadata)
+        else:
+            # 无工程：由服务器按「自动打开上次工程」设置恢复最近工程或回落为空白编辑器
+            command = build_serve_command(None, None, port)
         command.append("--no-open")
         _ = self._stop_owned_server()
         self.server_log_file = tempfile.TemporaryFile(mode="w+b")
@@ -3674,6 +3757,37 @@ def _wait_for_server(
         if remaining <= 0:
             return False
         time.sleep(min(0.1, remaining))
+
+
+def _probe_existing_server(url: str) -> dict[str, object] | None:
+    """Ask a responding local server which project it currently holds.
+
+    只把「带工程身份的健康响应」当作可复用会话；探测失败按无服务处理，
+    保持与旧版启动流程一致的兜底行为。
+    """
+    probe_url = f"{url.rstrip('/')}{EDITOR_HEALTH_PROBE_PATH}"
+    try:
+        with urlopen(probe_url, timeout=EDITOR_HEALTH_PROBE_TIMEOUT) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, ValueError, UnicodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        return None
+    return {"projectPath": str(payload.get("projectPath") or "")}
+
+
+def _same_existing_project(existing: str, target: str) -> bool:
+    """Compare two project paths for identity (case-insensitive on Windows)."""
+    if not existing or not target:
+        return False
+    try:
+        left = Path(existing).expanduser().resolve()
+        right = Path(target).expanduser().resolve()
+    except OSError:
+        return existing == target
+    if os.name == "nt":
+        return str(left).casefold() == str(right).casefold()
+    return str(left) == str(right)
 
 
 def _listening_process_id(port: int) -> int | None:

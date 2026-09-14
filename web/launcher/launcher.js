@@ -72,6 +72,35 @@
       tool_postprocess_hint: "改变字幕内容的处理链在预制工程页编排；此处直接打开工具箱配置或单独运行。",
       tool_waveform: "生成波形",
       tool_waveform_hint: "仅为媒体生成波形缓存；预制工程页的「波形生成」模块会在建工程时统一执行。",
+      home_blank_launch: "启动空白编辑器",
+      home_open_selected: "打开所选工程",
+      recent_search_placeholder: "搜索最近工程…",
+      recent_grid_label: "最近工程",
+      recent_empty: "暂无最近工程；生成或保存工程后会出现在这里。",
+      recent_more: "加载更多",
+      recent_count: "{n} 个工程",
+      recent_stats_loading: "统计读取中…",
+      recent_stats_summary: "主 {main} / 副 {sub} · 音频 {audio}",
+      recent_missing: "文件已移动或不存在",
+      recent_pinned: "已固定",
+      recent_pin: "固定到列表顶部",
+      recent_unpin: "取消固定",
+      recent_open_folder: "打开所在文件夹",
+      recent_relocate: "重新定位…",
+      recent_relocate_confirm: "「{name}」已移动或不存在。现在选择它的新位置吗？",
+      recent_relocate_failed: "重新定位失败：",
+      recent_remove: "从最近记录移除",
+      recent_time_unknown: "时间未知",
+      recent_time_file_prefix: "文件修改 · ",
+      recent_time_just_now: "刚刚",
+      recent_time_minutes: "{n} 分钟前",
+      recent_time_hours: "{n} 小时前",
+      recent_time_days: "{n} 天前",
+      server_conflict_blank: "（空白会话）",
+      server_conflict_return: "编辑器正在打开「{name}」。返回现有会话吗？",
+      server_conflict_independent: "改用独立端口启动目标工程？（不影响当前会话）",
+      server_conflict_restart: "停止受管编辑器服务并重启到目标工程？（未保存内容会丢失）",
+      server_conflict_kept: "已保留现有编辑器会话。",
       media: "媒体文件",
       srt_output: "SRT 输出",
       choose: "选择",
@@ -221,6 +250,35 @@
       tool_postprocess_hint: "Subtitle-changing chains are orchestrated on the prefab page; this opens the toolbox to configure or run one directly.",
       tool_waveform: "Generate waveform",
       tool_waveform_hint: "Build a waveform cache for the media only; the prefab “Waveform” module runs it together with project creation.",
+      home_blank_launch: "Launch blank editor",
+      home_open_selected: "Open selected project",
+      recent_search_placeholder: "Search recent projects…",
+      recent_grid_label: "Recent projects",
+      recent_empty: "No recent projects yet; generated or saved projects will appear here.",
+      recent_more: "Load more",
+      recent_count: "{n} projects",
+      recent_stats_loading: "Reading stats…",
+      recent_stats_summary: "main {main} / sub {sub} · audio {audio}",
+      recent_missing: "File moved or missing",
+      recent_pinned: "Pinned",
+      recent_pin: "Pin to top",
+      recent_unpin: "Unpin",
+      recent_open_folder: "Open containing folder",
+      recent_relocate: "Relocate…",
+      recent_relocate_confirm: "“{name}” moved or is missing. Choose its new location now?",
+      recent_relocate_failed: "Relocate failed:",
+      recent_remove: "Remove from recent list",
+      recent_time_unknown: "Unknown time",
+      recent_time_file_prefix: "Modified · ",
+      recent_time_just_now: "just now",
+      recent_time_minutes: "{n} min ago",
+      recent_time_hours: "{n} h ago",
+      recent_time_days: "{n} d ago",
+      server_conflict_blank: "(blank session)",
+      server_conflict_return: "The editor is currently open on “{name}”. Return to that session?",
+      server_conflict_independent: "Start the target project on an independent port instead? (current session stays)",
+      server_conflict_restart: "Stop the managed editor service and restart on the target project? (unsaved work is lost)",
+      server_conflict_kept: "Kept the existing editor session.",
       media: "Media file",
       srt_output: "SRT output",
       choose: "Choose",
@@ -1388,7 +1446,11 @@
        start_alignment_server: async ({ projectPath, scriptPath, mediaPath, gapRemove, guiLang }) => ({ ok: true, url: `http://127.0.0.1:8260/?lang=${guiLang || "zh"}`, projectPath, scriptPath, mediaPath: mediaPath || "D:\\Demo\\clip.mp4", gapRemove }),
        stop_alignment_server: async () => ({ ok: true, stopped: true }),
        check_server_media: async ({ jsonPath }) => ({ ok: Boolean(jsonPath), hasMedia: Boolean(jsonPath), mediaPath: "D:\\Demo\\clip.mp4", mediaExists: Boolean(jsonPath) }),
-      start_server: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "log", message: "[mock] would open http://127.0.0.1:8250/ after server responds" }), 120); return { ok: true, url: "http://127.0.0.1:8250/" }; },
+      start_server: async (payload = {}) => {
+        (window.__mockServerIntents ||= []).push({ intent: payload.intent || "", jsonPath: payload.jsonPath || "", independentPort: payload.independentPort === true, restart: payload.restart === true });
+        setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "log", message: "[mock] would open http://127.0.0.1:8250/ after server responds" }), 120);
+        return { ok: true, url: "http://127.0.0.1:8250/" };
+      },
       get_server_status: async ({ port = "8250" }) => ({ ok: true, running: false, url: `http://127.0.0.1:${port}/` }),
       stop_server: async () => ({ ok: true }),
        start_transcription: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "log", message: "[mock] 上传完成" }), 250); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "done", result: { srtPath: "D:\\Demo\\clip.srt", jsonPath: "D:\\Demo\\clip.json", htmlPath: "D:\\Demo\\clip.edit.html" } }), 900); return { ok: true }; },
@@ -1408,7 +1470,19 @@
       open_log_folder: async () => ({ ok: true }),
       open_html: async () => ({ ok: true }),
       open_faq: async () => ({ ok: true }),
-      get_emoji_font_path: async () => ({ ok: true, path: "" })
+      get_emoji_font_path: async () => ({ ok: true, path: "" }),
+      get_recent_projects: async () => ({
+        ok: true,
+        projects: [
+          { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00" },
+          { path: "E:\\Gone\\moved.mosp", name: "moved.mosp", dir: "E:\\Gone", exists: false, pinned: false, lastOpenedAt: "", modifiedAt: "" },
+        ],
+      }),
+      get_recent_project_stats: async ({ path }) => ({ ok: true, path, mainSubtitles: 12, subSubtitles: 0, audioClips: 2 }),
+      remove_recent_project: async () => ({ ok: true }),
+      set_recent_project_pinned: async () => ({ ok: true }),
+      relocate_recent_project: async () => ({ ok: true, path: "D:\\Demo\\clip.mosp" }),
+      sync_theme_title_bar: async () => ({ ok: true })
     };
   }
 
@@ -1774,6 +1848,15 @@
 
   async function bridge(method, payload = {}) {
     try {
+      // 测试/高级注入点：允许拦截启动器自身的桥接调用（如 e2e 注入会话冲突）。
+      // next 直通真实 API，转发时不会再进入 override，避免递归。
+      const override = window.MSWLauncher?.bridgeOverride;
+      if (typeof override === "function") {
+        return await override(method, payload, (innerMethod = method, innerPayload = payload) => {
+          const handler = api[innerMethod];
+          return handler.call(api, innerPayload);
+        });
+      }
       return await api[method](payload);
     } catch (error) {
       const message = `${method}: ${error && error.message ? error.message : error}`;
@@ -1819,7 +1902,7 @@
   function mediaDropError() { const separator = state.lang === "zh" ? "、" : ", "; return t("drop_reject_media").replace("{extensions}", Array.from(MEDIA_EXTS).join(separator)); }
   function clearErrors() { ["mediaPath", "srtPath", "apiKey", "openaiBaseUrl", "openaiModel", "workspaceId", "localModelPath", "localModelCachePath", "maxLen", "minLen", "maxWords", "minWords", "gapSplit", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordsFile", "sonioxContextGeneral", "sonioxContextText", "sonioxContextTerms", "sonioxContextTranslationTerms", "jsonPath", "serverMediaPath", "port", "ffmpegPath", "stickerDir", "toolboxUtilityMediaPath", "toolboxBurnSubtitlePath", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "toolboxAlignmentScriptPath"].forEach((field) => setError(field, "")); hideErrorNotice(); }
   function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateSpectral: $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
-  function serverPayload() { return { jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }; }
+  function serverPayload(extra = {}) { return Object.assign({ jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }, extra); }
   function renderServerButton() {
     const button = $("openMawe");
     if (!button) return;
@@ -2450,25 +2533,24 @@
     // 设置已是「更多设置」页面的一部分：返回上一个页面而不是隐藏内容。
     if (window.MSWNavigation?.current() === "settings") window.MSWNavigation.back();
   }
-  async function openServerEditor() {
+  async function openServerEditor(options = {}) {
     clearErrors();
     $("htmlMenu").classList.add("hidden");
     if (state.serverStarting) return;
     const projectPath = $("jsonPath").value.trim();
     const currentUrl = state.detectedServerUrl || `http://127.0.0.1:${$("port").value || "8250"}/?lang=${state.lang}`;
-    if ((state.serverRunning && projectPath === state.serverProjectPath) || (state.detectedServerUrl && !projectPath)) { await bridge("open_url", { url: currentUrl }); return; }
+    if (!options.force && ((state.serverRunning && projectPath === state.serverProjectPath) || (state.detectedServerUrl && !projectPath))) { await bridge("open_url", { url: currentUrl }); return; }
     serverStatusRequest += 1;
     state.serverStarting = true;
+    let conflict = null;
     renderServerButton();
     try {
-      if (projectPath) {
-        const mediaState = await refreshServerMedia();
-        if ((!mediaState.hasMedia || !mediaState.mediaExists) && !$("serverMediaPath").value.trim()) {
-          expandServer();
-          return fail("serverMediaPath", errText("server_media_missing", ""));
-        }
+      const intent = options.intent || (projectPath ? "project" : "resume");
+      if (projectPath && intent === "project") {
+        // 缺媒体不再阻断启动：后端允许打开，编辑器加载时提示手动指定媒体（C 阶段）。
+        void refreshServerMedia();
       }
-      const result = await bridge("start_server", serverPayload());
+      const result = await bridge("start_server", serverPayload({ intent, restart: Boolean(options.restart), independentPort: Boolean(options.independentPort) }));
       if (result.ok) {
         state.serverRunning = !result.serverAlreadyRunning;
         state.serverProjectPath = state.serverRunning ? projectPath : "";
@@ -2478,7 +2560,11 @@
         if (result.url) {
           setServerStatus(result.url, Boolean(result.serverAlreadyRunning));
           await bridge("open_url", { url: result.url });
+          window.MSWProjectHome?.refresh?.();
         } else setStatus(t("ready"));
+      } else if (result.code === "server_conflict") {
+        // 冲突处理放在 finally 之后：重试需要走出 serverStarting 守卫。
+        conflict = result;
       } else {
         applyErrorResult(result);
       }
@@ -2486,6 +2572,37 @@
       state.serverStarting = false;
       renderServerButton();
     }
+    if (conflict) await handleServerConflict(conflict, options);
+  }
+
+  async function handleServerConflict(result, options = {}) {
+    // 端口上的编辑器会话与目标不一致：让用户决定，不盲目复用或杀进程。
+    const conflict = result.conflict || {};
+    const runningName = conflict.projectPath ? conflict.projectPath.split(/[\/]/).pop() : t("server_conflict_blank");
+    const back = await window.MSWLauncher.confirm(t("server_conflict_return").replace("{name}", runningName));
+    if (back) {
+      await bridge("open_url", { url: conflict.url || result.detail || "" });
+      return;
+    }
+    const independent = await window.MSWLauncher.confirm(t("server_conflict_independent"));
+    if (independent) {
+      await openServerEditor(Object.assign({}, options, { force: true, independentPort: true }));
+      return;
+    }
+    if (conflict.owned) {
+      const restartOwned = await window.MSWLauncher.confirm(t("server_conflict_restart"));
+      if (restartOwned) await openServerEditor(Object.assign({}, options, { force: true, restart: true }));
+      return;
+    }
+    setStatus(t("server_conflict_kept"));
+  }
+
+  async function startBlankEditor() {
+    // 显式空白启动：不读取上次工程替代目标（serve.py --blank）。
+    $("jsonPath").value = "";
+    setError("jsonPath", "");
+    $("serverMediaField").classList.add("hidden");
+    await openServerEditor({ intent: "blank", force: true });
   }
 
   function refreshStartupState() {
@@ -2701,7 +2818,7 @@
     if (event.type === "dropReject" && !state.dropTarget && window.MSWLauncher?.onBatchDropReject?.(event.path || "")) return;
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
-  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {} };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {} };
 
   window.MSWLauncher.onBatchBusyChanged = (busy) => { state.batchRunning = busy; syncLocalRuntimeControls(); renderLocalRuntime(); };
   $("langToggle").addEventListener("click", async () => { state.lang = state.lang === "zh" ? "en" : "zh"; renderLanguage(); const result = await bridge("save_settings", formPayload()); if (!result.ok) applyErrorResult(result); });

@@ -101,6 +101,15 @@
           <p class="page-sub" data-i18n="home_sub">打开最近工程，或直接进入空白编辑器开始导入媒体。</p>
         </div>
 
+        <div class="home-toolbar">
+          <input id="recentSearch" class="search-input" type="text" autocomplete="off" placeholder="搜索最近工程…" data-i18n-placeholder="recent_search_placeholder">
+          <span class="home-toolbar-spacer"></span>
+          <span id="recentCount" class="hint" aria-live="polite"></span>
+        </div>
+        <div id="recentGrid" class="recent-grid" role="list" aria-label="recent projects" data-i18n-aria-label="recent_grid_label"></div>
+        <p id="recentEmpty" class="recent-empty hint hidden" data-i18n="recent_empty">暂无最近工程；生成或保存工程后会出现在这里。</p>
+        <button id="recentMore" class="ghost hidden" type="button" data-i18n="recent_more">加载更多</button>
+
         <section id="serverCard" class="card" aria-labelledby="serverTitle">
           <h2 id="serverTitle" data-i18n="server">字幕编辑器</h2>
           <div id="serverBody">
@@ -127,6 +136,10 @@
         </section>
       </div>
       <footer class="page-actions home-launch">
+        <span id="homeServerStatus" class="status-line"></span>
+        <span class="footer-spacer"></span>
+        <button id="homeBlank" class="ghost" type="button" data-i18n="home_blank_launch">启动空白编辑器</button>
+        <button id="homeOpenSelected" class="primary hidden" type="button" data-i18n="home_open_selected">打开所选工程</button>
         <div class="split-wrap">
           <button id="openMawe" class="ghost split-main" type="button" data-i18n="start_server_editor">启动 Server 版字幕编辑器</button>
           <button id="openMenu" class="ghost split-caret" type="button" aria-haspopup="true">▾</button>
@@ -1391,6 +1404,7 @@
 
   <script src="navigation.js"></script>
   <script src="launcher.js"></script>
+  <script src="project-home.js"></script>
   <script src="batch.js"></script>
   <script src="postprocess.js"></script>
 </body>
