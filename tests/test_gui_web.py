@@ -3525,7 +3525,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
         self.assertNotIn('id="launcherBoot"', page)
-        self.assertIn('background: #16181d;', page)
+        self.assertIn('background: #101010;', page)
         self.assertIn('html[data-theme="light"]', page)
         self.assertIn('pointer-events: none;', page)
         self.assertIn('<main class="shell" inert aria-busy="true">', page)
@@ -3778,9 +3778,14 @@ class LauncherAssetContractTests(unittest.TestCase):
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
-        self.assertIn('<div class="hero-brand">', page)
-        self.assertIn('<img class="hero-icon" src="logo.svg"', page)
-        self.assertIn(".hero-icon {\n  width: 72px;\n  height: 72px;", stylesheet)
+        # 品牌区使用内联水母轮廓并以 currentColor 随应用有效主题反色（规划 §3.3），
+        # 不再通过 <img> 引用随系统主题翻转的 logo.svg。
+        self.assertIn('<div class="brand">', page)
+        self.assertIn('class="brand-logo" viewBox="169 18 600 600" fill="currentColor"', page)
+        self.assertIn('class="brand-name-zh" data-i18n="brand_name_zh"', page)
+        self.assertIn('<div class="brand-name-en">Moyor\'s Subtitle Workflow</div>', page)
+        self.assertIn(".brand-logo {\n  width: 38px;\n  height: 38px;", stylesheet)
+        self.assertIn("color: var(--text-primary);", stylesheet)
 
     def test_launcher_reports_media_drop_rejection_and_output_collision(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -3893,7 +3898,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         batch_script = (ROOT / "web" / "launcher" / "batch.js").read_text(encoding="utf-8")
 
         self.assertIn('id="stop" class="ghost server-stop hidden"', page)
-        self.assertIn('data-i18n="batch_start">✨ 开始批量生成', page)
+        self.assertIn('data-i18n="batch_start">开始批量生成', page)
         self.assertIn('id="batchSrtOnly" type="checkbox"', page)
         self.assertIn('bridge("cancel_transcription")', script)
         self.assertIn('batchSrtOnly', batch_script)
@@ -4130,8 +4135,12 @@ class LauncherAssetContractTests(unittest.TestCase):
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
-        for expected in ("1️⃣ 媒体与输出", "2️⃣ 识别设置", "3️⃣ 转写后自动处理 （Beta）", "4️⃣ 日志", "5️⃣ 字幕编辑器设置"):
+        # B 阶段起段落标题不再使用 emoji 序号（规划 §3.1：改用 01/02 序号标记），
+        # 五个段落标题保持统一字号与层级。
+        for expected in ("媒体与输出", "识别设置", "转写后自动处理（Beta）", "日志", "字幕编辑器"):
             self.assertIn(expected, page)
+        for emoji in ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "✨", "🎬", "🧰", "⚙️"):
+            self.assertNotIn(emoji, page)
         self.assertIn(".card h2 {\n  margin: 0 0 12px;\n  color: var(--text-secondary);\n  font-size: 16px;", stylesheet)
 
     def test_launcher_theme_round_trips_through_local_config(self) -> None:

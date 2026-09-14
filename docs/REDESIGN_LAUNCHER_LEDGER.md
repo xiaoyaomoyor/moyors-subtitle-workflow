@@ -11,7 +11,7 @@
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | A | 视觉原型与交互定稿 | 已完成 |
-| B | 横向应用框架与品牌 | 待处理 |
+| B | 横向应用框架与品牌 | 已完成 |
 | C | 最近工程、明确空白启动与会话兼容 | 待处理 |
 | D | 预制模块编排与旧配置迁移 | 待处理 |
 | E | 统一预制执行与复杂工程保护 | 待处理 |
@@ -25,6 +25,29 @@
 - `maw/gui_web.py:109` `WINDOW_TITLE = "MSW Launcher"`；`run_app()` 初始窗口 900×880、min 760×640、背景 `#16181d`。B 阶段改横向 1200×780 并按屏幕工作区收敛。
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
+
+## B：横向应用框架与品牌
+
+状态：已完成（2026-09-14）。
+
+改动：
+
+1. `maw/gui_web.py`：`WINDOW_TITLE` 改为「我的字幕流 · Moyor's Subtitle Workflow」；初始窗口 1200×780、最小 960×640（按屏幕工作区收敛，`_initial_window_size()`/`_screen_work_area()`，Windows 用 SPI_GETWORKAREA，其他平台回落 pywebview.screens）；`background_color` 改 `#101010`；新增桥接 `sync_theme_title_bar(payload.dark)`。
+2. `maw/gui_platform.py`：`apply_theme_title_bar(window_title, dark)` 支持亮色回退（原 `apply_dark_title_bar` 保留为别名）。
+3. `web/launcher/index.html`：重写为横向五页框架（页头/左导航/页内容/页操作栏），全部既有元素 ID 保留。工程文件与端口字段移入首页「字幕编辑器」卡；识别/媒体/后处理/日志与错误提示在预制页；工具箱抽屉、批量确认弹窗、右键菜单原位保留。品牌区使用内联水母 SVG（`fill="currentColor"`），设置由弹窗改为「更多设置」页面（保留 4 标签页结构与深链）。
+4. `web/launcher/navigation.js`（新增）：五页切换、滚动位置记忆、页面历史（back）、≤980px 紧凑导航、`window.MSWNavigation` API。
+5. `web/launcher/launcher.css`：令牌重定为中性黑/紫（`--bg-base #101010`、`--bg-side #171717`、卡片 `--bg-panel #1E1E1E`、`--accent #b19acb/#73568f`，亮色对应），去掉 body 蓝色径向渐变；新增 app-header/app-nav/page/page-actions/tools/guide/settings-page 组件层；页脚改为页面内操作栏（按钮不收缩、窄窗换行）；滚动条样式接入 `.page-scroll`。
+6. `web/launcher/launcher.js`：全部 emoji 序号/按钮文案清除（1️⃣/✨/🎬/🧰/⚙️/🚀/📝 等，含中英两套）；新增五页/指南/工具文案；`openSettings` 改为收起工具箱+导航到设置页（保留深链滚动与字段聚焦），`closeSettings` 变为返回上一页；`syncFixedFooterClearance`/`revealErrorNotice` 面向当前页滚动容器；`applyTheme` 同步原生标题栏（仅真实后端）；新增 `bindStaticPages()`（指南跳转、FAQ 折叠、工具页入口打开抽屉对应工具）。
+7. `web/launcher/postprocess.js`：暴露 `MSWLauncher.closeToolbox`；抽屉高度钳制增加顶部预留 92px，不再覆盖页头。
+
+验证（2026-09-14）：
+
+- 单元/契约：`uv run python -m unittest discover` 1531 通过（更新 5 个断言以匹配新契约：#101010 防闪烁背景、内联品牌 SVG、无 emoji 标题、非 emoji 批量按钮；11px 字号禁令以 11.5px 遵守）。
+- e2e（Playwright/Chromium）：`launcher-interactions` 28/28、`launcher-upgrade-bc` 13/13、`launcher-zoom`、`beta3-launcher`、`branding` 3/3 全部通过。测试更新：打开启动器后切到「预制工程」页；工程字段测试切首页；错误提示测试改用页面滚动容器与预制页操作栏；工具箱高度测试初始值避开新的页头预留钳制；窄页脚「必须增高」放宽为「不低于」（单行可容纳三按钮是新布局的合法状态）；品牌测试改为内联 SVG 契约（fill=currentColor、主题取色不同、方形包围盒）。
+- 浏览器（mock 模式）：首页/预制页截图视觉核验通过（品牌栏、五导航高亮、卡片、底部按钮、黑紫主题、亮色反黑水母）；工具页 6 卡入口→打开抽屉并选中正确工具→可关闭；指南 FAQ 折叠与页面跳转；`openSettings('ffmpegSettingsSection')` 深链正确切运行环境标签并滚动到 FFmpeg 区块。截图存档 `../msw-checks/launcher-redesign/`（10 张，暗/亮/紧凑）。
+- 未验证：pywebview 原生窗口（WebView2 标题栏双语、1200×780 初始尺寸、系统文件对话框、拖放）需真实窗口环境，G 阶段实测；macOS/Linux 未测。
+
+遗留（按规划顺延）：页头 `#status` 为全局状态行（后续 C 阶段首页提供更完整的会话状态展示）；「更多设置」分类重排与设置保存热刷新在 F 阶段。
 
 ## A：视觉原型与交互定稿
 

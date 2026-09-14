@@ -23,6 +23,8 @@
   const TOOLBOX_MIN_WIDTH = 360;
   const TOOLBOX_MIN_HEIGHT = 320;
   const TOOLBOX_MAX_HEIGHT = 680;
+  // 顶边预留：横向工作台的页头（约 78px）是全局入口，抽屉展开不得覆盖（B 阶段布局约定）。
+  const TOOLBOX_TOP_RESERVE = 92;
   const CUSTOM_DEFAULT_LABEL = "Custom (OpenAI-compatible)";
   const AUTO_STEP_ORDER = ["match", "replace", "proofread", "resegment", "ocr", "translate"];
   const AUTO_STEP_CHECKBOXES = {
@@ -692,7 +694,7 @@
     const viewportHeight = window.MSWLauncher.viewportPixelsToPage(window.innerHeight);
     const bottom = viewportHeight < 600 ? 12 : 134;
     const maxWidth = Math.max(120, viewportWidth - 24);
-    const maxHeight = Math.max(120, Math.min(TOOLBOX_MAX_HEIGHT, viewportHeight - bottom - 12));
+    const maxHeight = Math.max(120, Math.min(TOOLBOX_MAX_HEIGHT, viewportHeight - bottom - TOOLBOX_TOP_RESERVE));
     const drawer = $("toolboxDrawer");
     drawer.style.bottom = `${bottom}px`;
     drawer.style.minInlineSize = `${Math.min(TOOLBOX_MIN_WIDTH, maxWidth)}px`;
@@ -2293,6 +2295,7 @@
     renderAutoPostprocessState();
   };
   window.MSWLauncher.openAutoPostprocessStep = openAutoStep;
+  window.MSWLauncher.closeToolbox = () => { if (!$("toolboxDrawer").classList.contains("hidden")) setOpen(false); };
   window.MSWLauncher.onOcrRuntimeChanged = () => {
     renderOcrModel();
     renderAutoPostprocessState();

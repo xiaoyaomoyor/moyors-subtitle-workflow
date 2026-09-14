@@ -3,10 +3,10 @@
 
   const STRINGS = {
     zh: {
-      media_output: "1️⃣ 媒体与输出",
-      recognition: "2️⃣ 识别设置",
-      server: "5️⃣ 字幕编辑器设置",
-      logs: "4️⃣ 日志",
+      media_output: "媒体与输出",
+      recognition: "识别设置",
+      server: "字幕编辑器",
+      logs: "日志",
       provider: "识别方式",
       test_run: "测试运行",
       test_run_title: "仅截取前2分钟内容，用于测试功能和 API",
@@ -15,6 +15,63 @@
       debug_raw_title: "额外保存 ASR 服务端返回的原始 JSON，便于排查断句、标点和时间码问题",
       hero_desc: "我的字幕流 · AI 转写、字幕精修与配音",
       project_home: "项目官网",
+      brand_name_zh: "我的字幕流",
+      header_actions_label: "快捷操作",
+      nav_label: "主导航",
+      nav_home: "启动编辑器",
+      nav_prefab: "预制工程",
+      nav_tools: "实用工具",
+      nav_guide: "使用指南",
+      nav_settings: "更多设置",
+      home_sub: "打开最近工程，或直接进入空白编辑器开始导入媒体。",
+      prefab_sub: "按处理方案生成可进入编辑器的工程；未勾选的步骤直接跳过。",
+      tools_sub: "独立文件工具：每次生成新文件，不修改当前工程。",
+      guide_sub: "启动器是可选的预处理入口；编辑器内已能直接导入媒体、生成波形、发起 ASR、翻译与 TTS。",
+      settings_sub: "连接配置与调用参数分层保存；修改默认值不覆盖正在编辑的方案。",
+      settings_back: "返回",
+      guide_direct_title: "直接进编辑器",
+      guide_direct_s1: "首页点「启动 Server 版字幕编辑器」（无工程时为空白编辑器）",
+      guide_direct_s2: "编辑器内拖入媒体并生成波形",
+      guide_direct_s3: "选区或整段发起 ASR",
+      guide_direct_s4: "保存为 .mosp 工程",
+      guide_goto_home: "前往启动编辑器",
+      guide_prefab_title: "提前预制工程",
+      guide_prefab_s1: "预制页选择媒体（支持单文件与批量）",
+      guide_prefab_s2: "按需勾选识别与转写后处理",
+      guide_prefab_s3: "生成字幕和工程",
+      guide_prefab_s4: "打开编辑器继续精修",
+      guide_goto_prefab: "前往预制工程",
+      guide_voice_title: "纯配音与素材",
+      guide_voice_s1: "编辑器内导入配音文本或主副字幕",
+      guide_voice_s2: "使用 TTS 配方生成音频",
+      guide_voice_s3: "素材入库后插入时间线",
+      guide_voice_note: "音频素材导入与 TTS 预制模块属于后续扩展阶段。",
+      guide_faq_title: "常见问题",
+      guide_faq_ffmpeg_q: "缺少 FFmpeg 怎么办？",
+      guide_faq_ffmpeg_a: "在「更多设置 → 运行环境」中检测并设置 FFmpeg 路径；视频转音频依赖它。",
+      guide_faq_key_q: "API 配置存放在哪里？",
+      guide_faq_key_a: "密钥只保存在本机环境文件；方案与页面不包含密钥，界面仅显示遮罩与「已配置」。",
+      guide_faq_media_q: "媒体丢失或工程搬移后打不开？",
+      guide_faq_media_a: "工程与 .assets 目录保持相对位置整体搬移；缺失媒体由编辑器打开时提示重新定位。",
+      guide_faq_cancel_q: "任务取消或状态未知？",
+      guide_faq_cancel_a: "使用停止按钮取消本次任务；云端响应未知时界面提供确认／检查入口，不会自动重新付费执行。",
+      guide_links_title: "链接",
+      guide_link_repo: "项目仓库",
+      guide_link_docs: "在线文档",
+      guide_link_faq: "常见问题文件",
+      tool_open: "打开工具",
+      tool_extract_audio: "提取音频",
+      tool_extract_audio_hint: "从视频或音频中提取一个音轨，输出新的 AAC/M4A 文件；不会修改源文件。",
+      tool_burn_subtitle: "压制字幕",
+      tool_burn_subtitle_hint: "将现有 SRT/ASS 字幕压入视频，生成新视频副本；含配音贴片的完整合成仍由编辑器导出。",
+      tool_ffconcat: "媒体重组",
+      tool_ffconcat_hint: "按 FFconcat 清单用 FFmpeg 重组当前媒体；不回写工程、不重映射时间线。",
+      tool_alignment: "口播对齐",
+      tool_alignment_hint: "适合口播初稿顺序混乱的素材；人工选择 take 后导出新工程，再接回预制流程。",
+      tool_postprocess: "文稿与字幕处理",
+      tool_postprocess_hint: "改变字幕内容的处理链在预制工程页编排；此处直接打开工具箱配置或单独运行。",
+      tool_waveform: "生成波形",
+      tool_waveform_hint: "仅为媒体生成波形缓存；预制工程页的「波形生成」模块会在建工程时统一执行。",
       media: "媒体文件",
       srt_output: "SRT 输出",
       choose: "选择",
@@ -49,15 +106,15 @@
       flv_media_hint: "flv 无法预览，将会自动转换成 mp4 格式",
       port: "端口",
       advanced: "高级选项",
-      open_mswe: "🎬 启动字幕编辑器",
-      server_stop: "⏹️ 停止服务器",
-      start: "✨ 生成字幕和工程",
-      open_folder: "📁 打开输出文件夹",
+      open_mswe: "启动字幕编辑器",
+      server_stop: "停止服务器",
+      start: "生成字幕和工程",
+      open_folder: "打开输出文件夹",
       open_log_folder: "打开日志文件夹",
       open_html: "打开 html 编辑器",
       open_blank_html: "打开 html 空模板",
       demo_mode: "演示模式",
-      settings_title: "配置",
+      settings_title: "更多设置",
       settings_ffmpeg: "FFmpeg",
       settings_stickers: "默认表情包路径",
       stickers_explain: "表情包根目录供 HTML 编辑器使用；支持嵌套子目录（如 大狗/、Nox/ 等）。",
@@ -107,6 +164,63 @@
       debug_raw_title: "Also save the raw ASR service response as JSON for investigating segmentation, punctuation, and timestamps.",
       hero_desc: "AI transcription, subtitle editing and voiceover",
       project_home: "Project",
+      brand_name_zh: "我的字幕流",
+      header_actions_label: "Quick actions",
+      nav_label: "Primary navigation",
+      nav_home: "Launch Editor",
+      nav_prefab: "Prefabricate",
+      nav_tools: "Utilities",
+      nav_guide: "Guide",
+      nav_settings: "More Settings",
+      home_sub: "Open a recent project, or start a blank editor and import media there.",
+      prefab_sub: "Build a project from a processing plan; unchecked steps are skipped.",
+      tools_sub: "Standalone file tools: always new files, projects untouched.",
+      guide_sub: "The launcher is an optional pre-processing entry; the editor can already import media, build waveforms, run ASR, translation, and TTS.",
+      settings_sub: "Connections and call parameters are layered; defaults never overwrite an editing plan.",
+      settings_back: "Back",
+      guide_direct_title: "Straight into the editor",
+      guide_direct_s1: "Click “Launch Subtitle Editor” on the home page (blank editor when no project is set)",
+      guide_direct_s2: "Drop media in the editor and build the waveform",
+      guide_direct_s3: "Run ASR on a range or the whole track",
+      guide_direct_s4: "Save as a .mosp project",
+      guide_goto_home: "Go to Launch Editor",
+      guide_prefab_title: "Prefabricate first",
+      guide_prefab_s1: "Pick media on the prefab page (single or batch)",
+      guide_prefab_s2: "Check recognition and post-processing as needed",
+      guide_prefab_s3: "Generate subtitles and the project",
+      guide_prefab_s4: "Open the editor to refine",
+      guide_goto_prefab: "Go to Prefabricate",
+      guide_voice_title: "Voiceover & assets only",
+      guide_voice_s1: "Import voiceover text or subtitles in the editor",
+      guide_voice_s2: "Generate audio with TTS recipes",
+      guide_voice_s3: "Insert from the asset library",
+      guide_voice_note: "Audio import and the TTS prefab module are planned for a later phase.",
+      guide_faq_title: "FAQ",
+      guide_faq_ffmpeg_q: "FFmpeg is missing — what now?",
+      guide_faq_ffmpeg_a: "Detect and set the FFmpeg path under “More Settings → Runtime”; video-to-audio depends on it.",
+      guide_faq_key_q: "Where are API keys stored?",
+      guide_faq_key_a: "Keys stay in the local environment file only; plans and pages never contain keys — the UI shows a masked “configured” state.",
+      guide_faq_media_q: "Media missing or the project moved?",
+      guide_faq_media_a: "Keep the project and its .assets folders together when moving; the editor prompts to relocate missing media on open.",
+      guide_faq_cancel_q: "Task cancelled or status unknown?",
+      guide_faq_cancel_a: "Use the stop button to cancel this run; unknown cloud responses surface a confirm/check action instead of auto re-running paid work.",
+      guide_links_title: "Links",
+      guide_link_repo: "Repository",
+      guide_link_docs: "Online docs",
+      guide_link_faq: "FAQ file",
+      tool_open: "Open tool",
+      tool_extract_audio: "Extract audio",
+      tool_extract_audio_hint: "Extract one audio track into a new AAC/M4A file; the source is never modified.",
+      tool_burn_subtitle: "Burn subtitles",
+      tool_burn_subtitle_hint: "Burn an existing SRT/ASS into a new video copy; full mixes with voiceover patches still export from the editor.",
+      tool_ffconcat: "Media rebuild",
+      tool_ffconcat_hint: "Rebuild media from an FFconcat manifest via FFmpeg; projects are not rewritten and timelines are not remapped.",
+      tool_alignment: "Speech alignment",
+      tool_alignment_hint: "For messy first-pass narration; pick takes manually, export a new project, then return to the prefab flow.",
+      tool_postprocess: "Script & subtitle tools",
+      tool_postprocess_hint: "Subtitle-changing chains are orchestrated on the prefab page; this opens the toolbox to configure or run one directly.",
+      tool_waveform: "Generate waveform",
+      tool_waveform_hint: "Build a waveform cache for the media only; the prefab “Waveform” module runs it together with project creation.",
       media: "Media file",
       srt_output: "SRT output",
       choose: "Choose",
@@ -141,10 +255,10 @@
       flv_media_hint: "flv cannot be previewed and will be converted to mp4 automatically",
       port: "Port",
       advanced: "Advanced options",
-      open_mswe: "🎬 Launch Subtitle Editor",
-      server_stop: "⏹️ Stop server",
-      start: "✨ Generate subtitles & project",
-      open_folder: "📁 Open output folder",
+      open_mswe: "Launch Subtitle Editor",
+      server_stop: "Stop server",
+      start: "Generate subtitles & project",
+      open_folder: "Open output folder",
       open_log_folder: "Open log folder",
       open_html: "Open HTML editor",
       open_blank_html: "Open blank HTML template",
@@ -262,7 +376,7 @@
     batch_duplicate: "文件已在当前列表内",
     batch_outcome_missing: "批量结束时未收到该文件的结果。",
     batch_manuscript_disabled: "批量模式不支持逐文件文稿映射。本次批量运行会跳过文稿匹配；单文件设置保持不变。",
-    batch_start: "✨ 开始批量生成",
+    batch_start: "开始批量生成",
     batch_stop: "停止全部",
     batch_srt_only: "只生成 SRT 字幕",
     batch_skip_completed_confirm: "队列中有已处理完成的文件。是否跳过已处理完成的文件？",
@@ -309,7 +423,7 @@
     batch_duplicate: "The file is already in the current list.",
     batch_outcome_missing: "No result was reported for this file when the batch finished.",
     batch_manuscript_disabled: "Batch mode does not support per-file manuscript mapping. Script match is skipped for this batch; your single-file setting is unchanged.",
-    batch_start: "✨ Generate batch",
+    batch_start: "Generate batch",
     batch_stop: "Stop all",
     batch_srt_only: "Generate SRT subtitles only",
     batch_skip_completed_confirm: "Some files in the queue are already complete. Skip completed files?",
@@ -340,7 +454,7 @@
     batch_remove: "Remove",
   });
   Object.assign(STRINGS.zh, {
-    auto_postprocess_title: "3️⃣ 转写后自动处理 （Beta）",
+    auto_postprocess_title: "转写后自动处理（Beta）",
     auto_postprocess_hint: "转写完成后按固定顺序处理字幕；首次启用某一步前，请先在工具箱中完成配置。",
     auto_postprocess_enable: "启用转写后自动处理",
     auto_postprocess_steps: "后处理步骤",
@@ -371,14 +485,14 @@
     retry_postprocess: "从失败步骤重试后处理",
     generate_html: "同时生成单文件版网页编辑器（html）",
     generate_html_title: "单文件版编辑器直接在浏览器打开就能用，优势是便携，但是会缺少保存功能（只能通过导出下载）",
-    open_html: "📝 打开该工程的 HTML 编辑器",
-    open_blank_html: "📝 打开空的 HTML 编辑器",
+    open_html: "打开该工程的 HTML 编辑器",
+    open_blank_html: "打开空的 HTML 编辑器",
     server_already_running: "🌐 当前字幕编辑服务器已在运行中：",
     server_address: "🌐 当前服务器地址：",
     server_start_hint: "请点击「启动字幕服务器」",
     server_no_response_hint: "编辑器服务器没有响应，请检查端口或下方状态。",
     server_start_failed_hint: "编辑器服务器启动失败，请查看下方状态和日志。",
-    open_editor: "🚀 打开字幕编辑器",
+    open_editor: "打开字幕编辑器",
     server_refresh: "刷新",
     local_model_path: "已有模型目录（可选）",
     local_model_cache_path_label: "模型保存目录",
@@ -420,12 +534,12 @@
     local_runtime_install_failed: "本地运行环境安装失败",
     local_runtime_cancelled: "本地运行环境安装已取消",
     settings_local_runtime: "本地模型运行时",
-    local_runtime_view_settings: "在 ⚙️ 设置中查看",
+    local_runtime_view_settings: "在更多设置中查看",
     local_runtime_path_label: "本地运行环境目录",
     local_runtime_path_hint: "默认安装到用户目录；可改到空间更充足的磁盘。运行环境与模型缓存分开保存，更改后按新目录重新扫描。"
   });
   Object.assign(STRINGS.en, {
-    auto_postprocess_title: "3️⃣ Post-transcription processing (Beta)",
+    auto_postprocess_title: "Post-transcription processing (Beta)",
     auto_postprocess_hint: "Process subtitles in a fixed order after transcription. Configure a step in the toolbox before enabling it.",
     auto_postprocess_enable: "Enable automatic post-processing",
     auto_postprocess_steps: "Post-processing steps",
@@ -456,14 +570,14 @@
     retry_postprocess: "Retry post-processing from the failed step",
     generate_html: "Also generate a single-file web editor (HTML)",
     generate_html_title: "The single-file editor works directly in a browser and is portable, but cannot save changes locally; export/download instead.",
-    open_html: "📝 Open this project's HTML editor",
-    open_blank_html: "📝 Open blank HTML editor",
+    open_html: "Open this project's HTML editor",
+    open_blank_html: "Open blank HTML editor",
     server_already_running: "🌐 A subtitle editor server is already running: ",
     server_address: "🌐 Current server address: ",
     server_start_hint: "click \"Launch Subtitle Editor\"",
     server_no_response_hint: "The editor server did not respond. Check the port or the status below.",
     server_start_failed_hint: "The editor server failed to start. Check the status and logs below.",
-    open_editor: "🚀 Open Subtitle Editor",
+    open_editor: "Open Subtitle Editor",
     server_refresh: "Refresh",
     local_model_path: "Existing model folder (optional)",
     local_model_cache_path_label: "Model storage directory",
@@ -505,7 +619,7 @@
     local_runtime_install_failed: "Local runtime installation failed",
     local_runtime_cancelled: "Local runtime installation was cancelled",
     settings_local_runtime: "Local model runtime",
-    local_runtime_view_settings: "View in ⚙️ Settings",
+    local_runtime_view_settings: "View in More Settings",
     local_runtime_path_label: "Local runtime directory",
     local_runtime_path_hint: "Installed in your user directory by default; move it to a drive with more space if needed. The runtime and model cache are kept separate; the install status is rescanned for the new directory."
   });
@@ -768,9 +882,9 @@
   Object.assign(STRINGS.zh, {
     toolbox_open: "打开工具箱", toolbox_title: "工具箱", toolbox_group_postprocess: "后处理", toolbox_group_utilities: "实用工具", toolbox_chain_hint: "每次生成新文件，并自动作为下一步输入。", toolbox_no_media: "未选择媒体", toolbox_input_empty: "未选择文件", toolbox_chain_heading: "处理产物（点击文件名切换输入）", toolbox_resize_width: "调整工具箱宽度", toolbox_resize_height: "调整工具箱高度",
     toolbox_input: "处理文件", toolbox_input_placeholder: "跟随工程文件，也可拖入 .mosp / .json / .srt", toolbox_input_hint: "默认跟随「工程文件」并随每次处理更新；手动选择或拖入后以这里为准。", toolbox_drop_reject: "这里只接受 .mosp / .json / .srt 字幕或工程文件。", toolbox_utility_media: "媒体文件", toolbox_utility_media_placeholder: "默认跟随 Launcher 媒体，也可选择或拖入媒体文件", toolbox_utility_media_hint: "默认跟随 Launcher 媒体；选择或拖入媒体后，以这里为准。清空可恢复跟随。", toolbox_utility_media_reject: "这里仅接受媒体文件。", toolbox_ffconcat_reject: "这里只接受 .ffconcat 文件。",
-     toolbox_waveform: "生成波形", toolbox_waveform_hint: "仅使用上方媒体生成媒体工程和独立波形缓存，不需要字幕或转写；打开编辑器后可扫描静音空隙并导出去空隙 OTIO。", toolbox_generate_waveform: "生成波形文件", toolbox_run_waveform: "生成波形并打开编辑器", toolbox_match: "文稿匹配", toolbox_script: "文稿文件", toolbox_script_placeholder: "UTF-8 .txt / .md 文稿", toolbox_script_hint: "文稿文字会替换字幕文字；原字幕时间保持不变。", toolbox_script_preview: "文稿预览（前 240 字）", toolbox_script_reject: "文稿只支持 .txt / .md / .markdown 文件。", toolbox_split_preview: "拆分预览", toolbox_match_mode: "换行来源", toolbox_match_mode_script: "按文稿换行（默认）", toolbox_match_mode_text: "只更正文本", toolbox_match_mode_hint: "按文稿换行会使用文稿中的换行和断句符号；只更正文本保留现有字幕分段。", toolbox_extra_split_punctuation: "额外断句符号", toolbox_extra_split_punctuation_placeholder: "？\n！\n——\n~", toolbox_extra_split_punctuation_hint: "每行一个符号；逗号、句号和换行默认生效，同时对转写后处理的句尾剥除生效。", toolbox_preserve_punctuation: "保留符号", toolbox_preserve_punctuation_placeholder: "？\n！\n~", toolbox_preserve_punctuation_hint: "断句后仍将符号保留在字幕末尾；转写输出的这些尾部符号同样保留，其余默认剥除逗号和句号。", toolbox_preserve_punctuation_invalid: "保留符号必须存在于额外断句符号中：", toolbox_match_hint: "匹配度过低时会停止，不写出可能错配的结果。", toolbox_run_match: "匹配文稿", toolbox_punct_open_settings: "在 ⚙️ 设置中配置断句与保留符号",
+     toolbox_waveform: "生成波形", toolbox_waveform_hint: "仅使用上方媒体生成媒体工程和独立波形缓存，不需要字幕或转写；打开编辑器后可扫描静音空隙并导出去空隙 OTIO。", toolbox_generate_waveform: "生成波形文件", toolbox_run_waveform: "生成波形并打开编辑器", toolbox_match: "文稿匹配", toolbox_script: "文稿文件", toolbox_script_placeholder: "UTF-8 .txt / .md 文稿", toolbox_script_hint: "文稿文字会替换字幕文字；原字幕时间保持不变。", toolbox_script_preview: "文稿预览（前 240 字）", toolbox_script_reject: "文稿只支持 .txt / .md / .markdown 文件。", toolbox_split_preview: "拆分预览", toolbox_match_mode: "换行来源", toolbox_match_mode_script: "按文稿换行（默认）", toolbox_match_mode_text: "只更正文本", toolbox_match_mode_hint: "按文稿换行会使用文稿中的换行和断句符号；只更正文本保留现有字幕分段。", toolbox_extra_split_punctuation: "额外断句符号", toolbox_extra_split_punctuation_placeholder: "？\n！\n——\n~", toolbox_extra_split_punctuation_hint: "每行一个符号；逗号、句号和换行默认生效，同时对转写后处理的句尾剥除生效。", toolbox_preserve_punctuation: "保留符号", toolbox_preserve_punctuation_placeholder: "？\n！\n~", toolbox_preserve_punctuation_hint: "断句后仍将符号保留在字幕末尾；转写输出的这些尾部符号同样保留，其余默认剥除逗号和句号。", toolbox_preserve_punctuation_invalid: "保留符号必须存在于额外断句符号中：", toolbox_match_hint: "匹配度过低时会停止，不写出可能错配的结果。", toolbox_run_match: "匹配文稿", toolbox_punct_open_settings: "在更多设置中配置断句与保留符号",
      toolbox_llm: "LLM 处理", toolbox_replace: "固定处理", toolbox_ffconcat: "媒体重组", toolbox_provider: "供应商", toolbox_operation: "任务", toolbox_proofread: "校对文本", toolbox_resegment: "重新断句", toolbox_translate_en: "翻译成英文", toolbox_translate_zh: "翻译成中文", toolbox_merge_bilingual: "合并双语字幕", toolbox_custom: "自定义",
-    toolbox_open_settings: "在 ⚙️ 设置中配置 API Key", toolbox_preset_prompt: "预设提示词", toolbox_preset_prompt_hint: "由当前任务决定，不可编辑。", toolbox_prompt: "自定义提示词", toolbox_prompt_placeholder: "例如：保留专有名词，不要使用书面腔。", toolbox_prompt_hint: "可按需追加要求；留空则只使用预设提示词。", toolbox_task_none: "（无）", toolbox_task_proofread: "校对字幕中的错别字、漏字和明显识别错误，不扩写事实。", toolbox_task_resegment: "重新整理句子的字幕拆分。可以合并或拆分连续字幕，但不得删除内容。", toolbox_task_translate_en: "翻译为自然英文。必须保持原字幕的段数、顺序和每段时间范围，一条输入字幕只能对应一条输出字幕；不得合并、拆分或重排相邻字幕。", toolbox_task_translate_zh: "翻译为自然中文。必须保持原字幕的段数、顺序和每段时间范围，一条输入字幕只能对应一条输出字幕；不得合并、拆分或重排相邻字幕。", toolbox_time_hint: "模型只处理带 ID 的文字；本地时间槽始终是时间真源。", toolbox_output: "输出", toolbox_output_both: "工程 + SRT", toolbox_output_project: "仅工程", toolbox_output_srt: "仅 SRT", toolbox_run: "运行处理",
+    toolbox_open_settings: "在更多设置中配置 API Key", toolbox_preset_prompt: "预设提示词", toolbox_preset_prompt_hint: "由当前任务决定，不可编辑。", toolbox_prompt: "自定义提示词", toolbox_prompt_placeholder: "例如：保留专有名词，不要使用书面腔。", toolbox_prompt_hint: "可按需追加要求；留空则只使用预设提示词。", toolbox_task_none: "（无）", toolbox_task_proofread: "校对字幕中的错别字、漏字和明显识别错误，不扩写事实。", toolbox_task_resegment: "重新整理句子的字幕拆分。可以合并或拆分连续字幕，但不得删除内容。", toolbox_task_translate_en: "翻译为自然英文。必须保持原字幕的段数、顺序和每段时间范围，一条输入字幕只能对应一条输出字幕；不得合并、拆分或重排相邻字幕。", toolbox_task_translate_zh: "翻译为自然中文。必须保持原字幕的段数、顺序和每段时间范围，一条输入字幕只能对应一条输出字幕；不得合并、拆分或重排相邻字幕。", toolbox_time_hint: "模型只处理带 ID 的文字；本地时间槽始终是时间真源。", toolbox_output: "输出", toolbox_output_both: "工程 + SRT", toolbox_output_project: "仅工程", toolbox_output_srt: "仅 SRT", toolbox_run: "运行处理",
      toolbox_group_fixed_replacements: "批量替换", toolbox_group_fixed_conversion: "简繁转换", toolbox_conversion: "转换方向", toolbox_conversion_off: "不转换", toolbox_conversion_to_simplified: "转为简体", toolbox_conversion_to_traditional: "转为繁体（通用）", toolbox_conversion_to_traditional_tw: "转为繁体（台湾）", toolbox_conversion_to_traditional_twp: "转为繁体（台湾增强）", toolbox_conversion_to_traditional_hk: "转为繁体（香港）", toolbox_conversion_hint: "先执行批量替换，再转换文字；不访问网络。", toolbox_replace_rules: "批量替换规则", toolbox_replace_placeholder: "错别字 => 正确文字\n旧名称 => 新名称", toolbox_replace_separator: "替换分隔符号", toolbox_replace_separator_arrow: "=>", toolbox_replace_separator_comma: "中英文逗号", toolbox_replace_separator_tab: "Tab 制表符", toolbox_replace_separator_custom: "自定义", toolbox_replace_custom_separator: "自定义分隔符", toolbox_replace_trim: "自动去除前后空白", toolbox_replace_preview: "规则预览", toolbox_replace_preview_hint: "输入规则后显示解析结果。", toolbox_replace_preview_empty: "没有识别到有效规则。", toolbox_replace_hint: "每行一条替换规则；修改文本后会移除失真的逐词时间。", toolbox_replace_safe: "分段起止时间保持不变。", toolbox_run_replace: "执行固定处理",
      toolbox_ffconcat_placeholder: "选择或拖入 FFconcat 文件；将通过 FFmpeg 按清单重组当前媒体", toolbox_ffconcat_warning: "先在编辑器中执行「移除静音空隙」，然后可选择导出 FFconcat 文件。只允许引用当前媒体；重组会生成新媒体，但不会改写字幕时间轴。", toolbox_run_media: "生成新媒体", toolbox_ready: "选择工具后运行；始终生成新文件，不覆盖源文件。", toolbox_running: "处理中……", toolbox_status_starting: "正在准备处理……", toolbox_status_reading: "正在读取字幕文件……", toolbox_status_matching: "正在匹配文稿……", toolbox_status_fixed_processing: "正在执行固定处理……", toolbox_status_preparing_llm: "正在准备大模型……", toolbox_status_llm_batch: "正在处理第 {current}/{total} 批字幕……", toolbox_status_llm_batch_done: "已完成第 {current}/{total} 批字幕。", toolbox_status_reorganizing: "正在整理模型结果……", toolbox_status_writing: "正在写出处理结果……", toolbox_status_validating_media: "正在校验媒体清单……", toolbox_status_rebuilding_media: "正在重组媒体……", toolbox_stream_title: "模型实时输出", toolbox_thinking: "思考", toolbox_model_output: "模型输出（JSON）", toolbox_stream_batch: "第 {batch} 批", toolbox_stream_chars: "{count} 个字符", toolbox_saved: "LLM 设置已保存。", toolbox_key_empty: "未保存此供应商的密钥", toolbox_key_loaded: "已从本地环境读取密钥 {key}", toolbox_chain_match: "[文稿匹配]", toolbox_chain_replace: "[固定处理]", toolbox_chain_llm_proofread: "[LLM 处理/校对]", toolbox_chain_llm_resegment: "[LLM 处理/重新断句]", toolbox_chain_llm_translate: "[LLM 处理/翻译]", toolbox_chain_llm_custom: "[LLM 处理/自定义]",
       toolbox_need_source: "请先选择工程或 SRT。", toolbox_need_script: "请选择文稿文件。", toolbox_need_rules: "请至少填写一条有效批量替换规则或选择简繁转换。", toolbox_need_ffconcat: "请选择 .ffconcat 文件。", toolbox_need_media: "请先选择当前媒体。", toolbox_custom_prompt_required: "自定义任务需要填写提示词。", toolbox_done: "处理完成，已切换到新产物：", toolbox_media_done: "媒体重组完成，已切换到新媒体：", toolbox_config_only_hint: "这里只配置自动后处理；生成后会自动执行。", toolbox_match_rate: "匹配率", toolbox_match_preview_stats: "根据文稿重新换行后，共有 {from} -> {to} 句字幕（{change}）", toolbox_match_preview_too_low: "偏差过多，无法匹配，请检查文稿。", toolbox_match_preview_failed: "无法生成匹配预览，请检查文稿。", toolbox_alignment: "口播对齐", toolbox_alignment_hint: "适合初版 ASR 中有口吃、重录、重复或顺序混乱的口播；需要 ASR 工程和文稿，人工选择 take 后导出新工程。", toolbox_alignment_input_project: "ASR 工程", toolbox_alignment_project_placeholder: "选择或拖入 .mosp / .json 工程", toolbox_alignment_project_hint: "默认跟随当前 Launcher 工程；口播对齐需要工程中的 ASR 时间码，不能只使用 SRT。", toolbox_alignment_input_script: "文稿", toolbox_alignment_script_placeholder: "选择或拖入 UTF-8 .txt / .md 文稿", toolbox_alignment_script_hint: "每个非空行视为一行文稿。", toolbox_alignment_input_media: "媒体覆盖（可选）", toolbox_alignment_media_placeholder: "留空以使用工程媒体，也可选择或拖入媒体文件", toolbox_alignment_media_hint: "工程没有可用媒体时无法试听，但仍可查看并导出对齐结果。", toolbox_alignment_notice: "不会覆盖输入工程；导出后会生成 source.aligned.mosp。", toolbox_run_alignment: "启动并打开口播对齐", toolbox_reopen_alignment: "重新打开口播对齐", toolbox_stop_alignment: "停止服务", toolbox_alignment_started: "口播对齐 Server 已启动。", toolbox_alignment_stopped: "口播对齐 Server 已停止。", toolbox_alignment_script_missing: "请选择文稿文件。", toolbox_alignment_project_invalid: "口播对齐需要 .mosp 或 .json 工程。", toolbox_alignment_media_invalid: "请选择支持的媒体文件。", toolbox_status_alignment_starting: "正在启动口播对齐 Server……", toolbox_status_alignment_stopping: "正在停止口播对齐 Server……", toolbox_alignment_open_failed: "口播对齐已启动，但未能自动打开浏览器。"
@@ -778,9 +892,9 @@
    Object.assign(STRINGS.en, {
      toolbox_open: "Open toolbox", toolbox_title: "Toolbox", toolbox_group_postprocess: "Post-processing", toolbox_group_utilities: "Utilities", toolbox_chain_hint: "Each run creates a new file and uses it as the next input.", toolbox_no_media: "No media selected", toolbox_input_empty: "No file selected", toolbox_chain_heading: "Artifacts (click a filename to use it as input)", toolbox_resize_width: "Resize toolbox width", toolbox_resize_height: "Resize toolbox height",
     toolbox_input: "File to process", toolbox_input_placeholder: "Follows the project file, or drop a .mosp / .json / .srt", toolbox_input_hint: "Auto-follows the project file and updates after each run; a chosen or dropped file takes priority.", toolbox_drop_reject: "Only .mosp / .json / .srt subtitle or project files can be dropped here.", toolbox_utility_media: "Media file", toolbox_utility_media_placeholder: "Uses Launcher media by default, or choose or drop a media file", toolbox_utility_media_hint: "Uses the Launcher media by default; a chosen or dropped file takes priority. Clear it to follow again.", toolbox_utility_media_reject: "Only media files can be used here.", toolbox_ffconcat_reject: "Only .ffconcat files can be used here.",
-     toolbox_waveform: "Generate waveform", toolbox_waveform_hint: "Use the media above to create a media project and a separate waveform cache; no subtitles or transcription are required. In the editor, scan silence gaps and export a gap-removed OTIO.", toolbox_generate_waveform: "Generate waveform project", toolbox_run_waveform: "Generate waveform and open editor", toolbox_match: "Script match", toolbox_script: "Script file", toolbox_script_placeholder: "UTF-8 .txt / .md script", toolbox_script_hint: "Script text replaces subtitle text; original subtitle timing stays unchanged.", toolbox_script_preview: "Script preview (first 240 chars)", toolbox_script_reject: "Scripts must be .txt, .md, or .markdown files.", toolbox_split_preview: "Split preview", toolbox_match_mode: "Line-break source", toolbox_match_mode_script: "Use manuscript line breaks (default)", toolbox_match_mode_text: "Correct text only", toolbox_match_mode_hint: "Manuscript mode uses line breaks and split symbols; text-only mode keeps the existing cue segmentation.", toolbox_extra_split_punctuation: "Extra split punctuation", toolbox_extra_split_punctuation_placeholder: "?\n!\n--\n~", toolbox_extra_split_punctuation_hint: "One symbol per line; comma, period, and newline apply by default, and also drive tail-punctuation stripping in transcription post-processing.", toolbox_preserve_punctuation: "Preserve punctuation", toolbox_preserve_punctuation_placeholder: "?\n!\n~", toolbox_preserve_punctuation_hint: "Symbols are kept at cue tails after splitting; transcription output keeps these tail symbols too, while commas and periods are stripped by default.", toolbox_preserve_punctuation_invalid: "Preserved symbols must be listed as extra split punctuation:", toolbox_match_hint: "Runs stop when the match is too low to avoid writing a bad alignment.", toolbox_run_match: "Match script", toolbox_punct_open_settings: "Configure split & punctuation marks in ⚙️ Settings",
+     toolbox_waveform: "Generate waveform", toolbox_waveform_hint: "Use the media above to create a media project and a separate waveform cache; no subtitles or transcription are required. In the editor, scan silence gaps and export a gap-removed OTIO.", toolbox_generate_waveform: "Generate waveform project", toolbox_run_waveform: "Generate waveform and open editor", toolbox_match: "Script match", toolbox_script: "Script file", toolbox_script_placeholder: "UTF-8 .txt / .md script", toolbox_script_hint: "Script text replaces subtitle text; original subtitle timing stays unchanged.", toolbox_script_preview: "Script preview (first 240 chars)", toolbox_script_reject: "Scripts must be .txt, .md, or .markdown files.", toolbox_split_preview: "Split preview", toolbox_match_mode: "Line-break source", toolbox_match_mode_script: "Use manuscript line breaks (default)", toolbox_match_mode_text: "Correct text only", toolbox_match_mode_hint: "Manuscript mode uses line breaks and split symbols; text-only mode keeps the existing cue segmentation.", toolbox_extra_split_punctuation: "Extra split punctuation", toolbox_extra_split_punctuation_placeholder: "?\n!\n--\n~", toolbox_extra_split_punctuation_hint: "One symbol per line; comma, period, and newline apply by default, and also drive tail-punctuation stripping in transcription post-processing.", toolbox_preserve_punctuation: "Preserve punctuation", toolbox_preserve_punctuation_placeholder: "?\n!\n~", toolbox_preserve_punctuation_hint: "Symbols are kept at cue tails after splitting; transcription output keeps these tail symbols too, while commas and periods are stripped by default.", toolbox_preserve_punctuation_invalid: "Preserved symbols must be listed as extra split punctuation:", toolbox_match_hint: "Runs stop when the match is too low to avoid writing a bad alignment.", toolbox_run_match: "Match script", toolbox_punct_open_settings: "Configure split & punctuation marks in More Settings",
      toolbox_llm: "LLM", toolbox_replace: "Fixed processing", toolbox_ffconcat: "Media rebuild", toolbox_provider: "Provider", toolbox_operation: "Task", toolbox_proofread: "Proofread text", toolbox_resegment: "Resegment", toolbox_translate_en: "Translate into English", toolbox_translate_zh: "Translate into Chinese", toolbox_merge_bilingual: "Merge bilingual subtitles", toolbox_custom: "Custom",
-    toolbox_open_settings: "Configure the API key in ⚙️ Settings", toolbox_preset_prompt: "Preset prompt", toolbox_preset_prompt_hint: "Determined by the current task and cannot be edited.", toolbox_prompt: "Custom prompt", toolbox_prompt_placeholder: "Example: preserve product names and use conversational language.", toolbox_prompt_hint: "Add extra requirements as needed; leave empty to use only the preset prompt.", toolbox_task_none: "(None)", toolbox_task_proofread: "Proofread subtitle typos, omissions, and obvious recognition errors without expanding facts.", toolbox_task_resegment: "Reorganize subtitle sentence breaks. You may merge or split consecutive subtitles, but do not delete content.", toolbox_task_translate_en: "Translate into natural English. Preserve the original cue count, order, and time ranges; each input cue must produce exactly one output cue. Do not merge, split, or reorder adjacent cues.", toolbox_task_translate_zh: "Translate into natural Chinese. Preserve the original cue count, order, and time ranges; each input cue must produce exactly one output cue. Do not merge, split, or reorder adjacent cues.", toolbox_time_hint: "The model edits ID-tagged text only; local time slots remain authoritative.", toolbox_output: "Output", toolbox_output_both: "Project + SRT", toolbox_output_project: "Project only", toolbox_output_srt: "SRT only", toolbox_run: "Run",
+    toolbox_open_settings: "Configure the API key in More Settings", toolbox_preset_prompt: "Preset prompt", toolbox_preset_prompt_hint: "Determined by the current task and cannot be edited.", toolbox_prompt: "Custom prompt", toolbox_prompt_placeholder: "Example: preserve product names and use conversational language.", toolbox_prompt_hint: "Add extra requirements as needed; leave empty to use only the preset prompt.", toolbox_task_none: "(None)", toolbox_task_proofread: "Proofread subtitle typos, omissions, and obvious recognition errors without expanding facts.", toolbox_task_resegment: "Reorganize subtitle sentence breaks. You may merge or split consecutive subtitles, but do not delete content.", toolbox_task_translate_en: "Translate into natural English. Preserve the original cue count, order, and time ranges; each input cue must produce exactly one output cue. Do not merge, split, or reorder adjacent cues.", toolbox_task_translate_zh: "Translate into natural Chinese. Preserve the original cue count, order, and time ranges; each input cue must produce exactly one output cue. Do not merge, split, or reorder adjacent cues.", toolbox_time_hint: "The model edits ID-tagged text only; local time slots remain authoritative.", toolbox_output: "Output", toolbox_output_both: "Project + SRT", toolbox_output_project: "Project only", toolbox_output_srt: "SRT only", toolbox_run: "Run",
       toolbox_group_fixed_replacements: "Batch replacement", toolbox_group_fixed_conversion: "Chinese conversion", toolbox_conversion: "Conversion direction", toolbox_conversion_off: "No conversion", toolbox_conversion_to_simplified: "Convert to Simplified", toolbox_conversion_to_traditional: "Convert to Traditional (General)", toolbox_conversion_to_traditional_tw: "Convert to Traditional (Taiwan)", toolbox_conversion_to_traditional_twp: "Convert to Traditional (Taiwan enhanced)", toolbox_conversion_to_traditional_hk: "Convert to Traditional (Hong Kong)", toolbox_conversion_hint: "Apply batch replacements first, then convert text locally.", toolbox_replace_rules: "Batch replacement rules", toolbox_replace_placeholder: "old text => new text", toolbox_replace_separator: "Replacement separator", toolbox_replace_separator_arrow: "=>", toolbox_replace_separator_comma: "English or Chinese comma", toolbox_replace_separator_tab: "Tab", toolbox_replace_separator_custom: "Custom", toolbox_replace_custom_separator: "Custom separator", toolbox_replace_trim: "Trim surrounding whitespace automatically", toolbox_replace_preview: "Rule preview", toolbox_replace_preview_hint: "Parsed rules will appear here.", toolbox_replace_preview_empty: "No valid rules detected.", toolbox_replace_hint: "One replacement rule per line. Stale word timings are removed when text changes.", toolbox_replace_safe: "Segment start and end times stay unchanged.", toolbox_run_replace: "Run fixed processing",
      toolbox_ffconcat_placeholder: "Choose or drop an FFconcat file; FFmpeg will rebuild the current media from its entries", toolbox_ffconcat_warning: "First use the editor to remove silence gaps, then export an FFconcat file. Only the current media may be referenced; rebuilding creates a new media file without changing subtitle timing.", toolbox_run_media: "Build media", toolbox_ready: "Choose a tool and run it; tools always write new files and never overwrite sources.", toolbox_running: "Processing…", toolbox_status_starting: "Preparing the operation…", toolbox_status_reading: "Reading subtitle files…", toolbox_status_matching: "Matching the script…", toolbox_status_fixed_processing: "Applying fixed processing…", toolbox_status_preparing_llm: "Preparing the LLM…", toolbox_status_llm_batch: "Processing subtitle batch {current}/{total}…", toolbox_status_llm_batch_done: "Completed subtitle batch {current}/{total}.", toolbox_status_reorganizing: "Organizing the model result…", toolbox_status_writing: "Writing the processed files…", toolbox_status_validating_media: "Validating the media list…", toolbox_status_rebuilding_media: "Rebuilding the media…", toolbox_stream_title: "Live model output", toolbox_thinking: "Thinking", toolbox_model_output: "Model output (JSON)", toolbox_stream_batch: "Batch {batch}", toolbox_stream_chars: "{count} chars", toolbox_saved: "LLM settings saved.", toolbox_key_empty: "No saved key for this provider", toolbox_key_loaded: "Loaded key from local environment: {key}", toolbox_chain_match: "[Script match]", toolbox_chain_replace: "[Fixed processing]", toolbox_chain_llm_proofread: "[LLM / Proofread]", toolbox_chain_llm_resegment: "[LLM / Resegment]", toolbox_chain_llm_translate: "[LLM / Translate]", toolbox_chain_llm_custom: "[LLM / Custom]",
       toolbox_need_source: "Choose a project or SRT first.", toolbox_need_script: "Choose a script file.", toolbox_need_rules: "Enter at least one valid batch replacement rule or choose a conversion.", toolbox_need_ffconcat: "Choose an .ffconcat file.", toolbox_need_media: "Choose the current media first.", toolbox_custom_prompt_required: "Enter a custom prompt before running the Custom task.", toolbox_done: "Done. Chained to the new artifact:", toolbox_media_done: "Media rebuilt. Chained to the new media:", toolbox_config_only_hint: "Configure automatic post-processing here; it will run after generation.", toolbox_match_rate: "match rate", toolbox_match_preview_stats: "After applying manuscript line breaks, subtitles: {from} -> {to} ({change})", toolbox_match_preview_too_low: "Mismatch is too large; unable to match. Please check the manuscript.", toolbox_match_preview_failed: "Unable to generate the match preview. Please check the manuscript.", toolbox_alignment: "Speech alignment", toolbox_alignment_hint: "For rough first-pass ASR with stutters, retakes, repeats, or reordered speech. Requires an ASR project and a script; choose takes manually, then export a new project.", toolbox_alignment_input_project: "ASR project", toolbox_alignment_project_placeholder: "Choose or drop an .mosp / .json project", toolbox_alignment_project_hint: "Follows the current Launcher project by default; speech alignment needs ASR timestamps and cannot use SRT alone.", toolbox_alignment_input_script: "Script", toolbox_alignment_script_placeholder: "Choose or drop a UTF-8 .txt / .md script", toolbox_alignment_script_hint: "Each non-empty line is treated as one script line.", toolbox_alignment_input_media: "Media override (optional)", toolbox_alignment_media_placeholder: "Leave empty to use project media, or choose or drop a media file", toolbox_alignment_media_hint: "Without usable project media you can still inspect and export the alignment, but cannot audition it.", toolbox_alignment_notice: "The input project is never overwritten; export creates source.aligned.mosp.", toolbox_run_alignment: "Start and open speech alignment", toolbox_reopen_alignment: "Reopen speech alignment", toolbox_stop_alignment: "Stop server", toolbox_alignment_started: "Speech-alignment server started.", toolbox_alignment_stopped: "Speech-alignment server stopped.", toolbox_alignment_script_missing: "Choose a script file.", toolbox_alignment_project_invalid: "Speech alignment requires an .mosp or .json project.", toolbox_alignment_media_invalid: "Choose a supported media file.", toolbox_status_alignment_starting: "Starting speech-alignment server…", toolbox_status_alignment_stopping: "Stopping speech-alignment server…", toolbox_alignment_open_failed: "Speech alignment started, but the browser could not be opened."
@@ -807,8 +921,8 @@
     ocr_runtime_broken: "OCR 支持需要修复",
     ocr_runtime_install_done: "OCR 支持已安装完成",
     ocr_runtime_cancelled: "OCR 支持安装已取消",
-    toolbox_ocr_open_settings: "在 ⚙️ 设置中下载安装 OCR 支持",
-    toolbox_ocr_view_settings: "在 ⚙️ 设置中查看",
+    toolbox_ocr_open_settings: "在更多设置中下载安装 OCR 支持",
+    toolbox_ocr_view_settings: "在更多设置中查看",
     toolbox_ocr_model_ready: "已安装，可直接使用",
     toolbox_ocr_model_missing: "尚未安装，请打开设置下载安装",
   });
@@ -844,8 +958,8 @@
     ocr_runtime_broken: "OCR support needs repair",
     ocr_runtime_install_done: "OCR support is installed",
     ocr_runtime_cancelled: "OCR support installation was cancelled",
-    toolbox_ocr_open_settings: "Download OCR support in ⚙️ Settings",
-    toolbox_ocr_view_settings: "View in ⚙️ Settings",
+    toolbox_ocr_open_settings: "Download OCR support in More Settings",
+    toolbox_ocr_view_settings: "View in More Settings",
     toolbox_ocr_model_ready: "Installed and ready",
     toolbox_ocr_model_missing: "Not installed; open Settings to download it",
   });
@@ -975,7 +1089,7 @@
     }
   };
   Object.assign(STRINGS.zh, {
-    start_server_editor: "🚀 启动字幕编辑器",
+    start_server_editor: "启动字幕编辑器",
     toolbox_chain_hint: "每次生成新文件，并自动作为下一步输入；选择工具后运行。",
     error_notice_title: "任务未完成",
     error_notice_close: "关闭提示",
@@ -989,7 +1103,7 @@
     error_copy_report_failed: "复制失败，请手动复制日志。",
   });
   Object.assign(STRINGS.en, {
-    start_server_editor: "🚀 Start Editor",
+    start_server_editor: "Start Editor",
     toolbox_chain_hint: "Choose a tool to run; each run creates a new file and uses it as the next input.",
     error_notice_title: "Task not completed",
     error_notice_close: "Dismiss message",
@@ -1456,35 +1570,32 @@
     if (cursor < value.length) appendMessageText(container, value.slice(cursor));
   }
   const setStatus = (message) => { if (state.detectedServerUrl) setServerStatus(state.detectedServerUrl, true, message); else renderMessage($("status"), message); };
+  function activePageScroll() {
+    return window.MSWNavigation?.scrollerFor(window.MSWNavigation.current()) || document.querySelector(".page.active .page-scroll") || null;
+  }
   function syncFixedFooterClearance() {
-    const footer = document.querySelector(".actions");
-    if (!footer) return;
-    const footerTop = footer.getBoundingClientRect().top;
-    const clearance = Math.max(116, Math.ceil(window.innerHeight - footerTop + 24));
-    document.documentElement.style.setProperty("--launcher-footer-clearance", `${clearance}px`);
-    const shellScroll = document.querySelector(".shell-scroll");
+    // 横向布局中操作栏是页面 flex 列的一部分，不再悬浮覆盖内容；
+    // 保留该函数以兼容既有调用点（缩放、错误提示等）。
+    const scroller = activePageScroll();
+    if (!scroller) return;
     const notice = $("errorNotice");
-    const status = $("status");
-    if (shellScroll && notice && !notice.classList.contains("hidden")) {
+    if (notice && !notice.classList.contains("hidden")) {
+      const footer = scroller.closest(".page")?.querySelector(".page-actions");
+      if (!footer) return;
       const noticeBottom = notice.getBoundingClientRect().bottom;
-      const statusBottom = status?.getBoundingClientRect().bottom || noticeBottom;
-      if (noticeBottom > footerTop || statusBottom > footerTop) shellScroll.scrollTop = shellScroll.scrollHeight;
+      const statusBottom = $("status")?.getBoundingClientRect().bottom || noticeBottom;
+      if (noticeBottom > footer.getBoundingClientRect().top || statusBottom > footer.getBoundingClientRect().top) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
     }
   }
   function revealErrorNotice(notice) {
-    syncFixedFooterClearance();
-    const shellScroll = document.querySelector(".shell-scroll");
-    if (shellScroll) {
-      shellScroll.scrollTop = shellScroll.scrollHeight;
+    const scroller = activePageScroll();
+    if (scroller) {
+      scroller.scrollTop = scroller.scrollHeight;
       return;
     }
     notice.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    window.requestAnimationFrame(() => {
-      const footer = document.querySelector(".actions");
-      if (!footer) return;
-      const overlap = notice.getBoundingClientRect().bottom - footer.getBoundingClientRect().top + 1;
-      if (overlap > 0) window.scrollBy({ top: overlap, behavior: "smooth" });
-    });
   }
   function redactSensitive(value) {
     // Cover common key/value forms and HTTP Authorization: Bearer <token>
@@ -1636,7 +1747,12 @@
   function readStoredTheme() { try { const savedTheme = localStorage.getItem(THEME_KEY); return isThemePreference(savedTheme) ? savedTheme : "system"; } catch (error) { return "system"; } }
   function storeTheme(pref) { try { localStorage.setItem(THEME_KEY, pref); } catch (error) { /* localStorage 不可用时交给后端持久化 */ } }
   function resolveTheme() { if (state.theme === "light" || state.theme === "dark") return state.theme; return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
-  function applyTheme() { if (resolveTheme() === "light") document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme; $("themeLight").classList.toggle("active", state.theme === "light"); $("themeDark").classList.toggle("active", state.theme === "dark"); $("themeSystem").classList.toggle("active", state.theme === "system"); }
+  function applyTheme() { if (resolveTheme() === "light") document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme; $("themeLight").classList.toggle("active", state.theme === "light"); $("themeDark").classList.toggle("active", state.theme === "dark"); $("themeSystem").classList.toggle("active", state.theme === "system"); syncNativeThemeChrome(); }
+  function syncNativeThemeChrome() {
+    // 原生标题栏与首屏背景跟随应用有效主题（不只是操作系统主题）。
+    if (window.MSWLauncher?.backend !== "real") return;
+    void bridge("sync_theme_title_bar", { dark: resolveTheme() !== "light" }).catch(() => {});
+  }
   function setTheme(pref) { if (!isThemePreference(pref)) return; state.theme = pref; storeTheme(pref); applyTheme(); void bridge("save_prefs", { theme: pref }).then((result) => { if (result.ok) { if (state.config) state.config.theme = pref; } else applyErrorResult(result); }); }
   function revealLauncher() {
     state.initializing = false;
@@ -2156,10 +2272,10 @@
   function setupScrollbarFlash() {
     const VISIBLE_MS = 900;
     const bind = (target, host) => { let timer = 0; target.addEventListener("scroll", () => { host.classList.add("scrolling"); clearTimeout(timer); timer = setTimeout(() => host.classList.remove("scrolling"), VISIBLE_MS); }, { passive: true }); };
-    const shellScroll = document.querySelector(".shell-scroll");
+    const shellScroll = document.querySelector(".page.active .page-scroll");
     if (shellScroll) bind(shellScroll, shellScroll);
     else bind(window, document.documentElement);
-    document.querySelectorAll(".batch-queue, .batch-details pre, .llm-model-options, .script-preview pre, .replace-rule-preview pre, .log, .modal-card, .settings-scroll, .toolbox-content, .toolbox-chain-list, .toolbox-result, .toolbox-stream-text, select[multiple], textarea").forEach((el) => bind(el, el));
+    document.querySelectorAll(".page-scroll:not(.page.active .page-scroll), .batch-queue, .batch-details pre, .llm-model-options, .script-preview pre, .replace-rule-preview pre, .log, .modal-card, .settings-scroll, .toolbox-content, .toolbox-chain-list, .toolbox-result, .toolbox-stream-text, select[multiple], textarea").forEach((el) => bind(el, el));
   }
   function expandServer() { $("serverCard").classList.remove("collapsed"); renderChevron("serverCard"); }
   function hasFileDrag(event) { return !event.dataTransfer || Array.from(event.dataTransfer.types || []).includes("Files"); }
@@ -2308,7 +2424,9 @@
   }
   function openSettings(sectionId = "", focusId = "") {
     selectSettingsTab(settingsTabForSection(sectionId) || activeSettingsTab);
-    $("settingsModal").classList.remove("hidden");
+    // 工具箱抽屉会覆盖页面内容；进入设置页前先收起（旧弹窗位于抽屉之上，页面版没有该层级）。
+    window.MSWLauncher?.closeToolbox?.();
+    window.MSWNavigation?.show("settings");
     refreshFfmpeg();
     void refreshOcrRuntime();
     renderStickerCurrent();
@@ -2319,8 +2437,8 @@
     $("attachModelName").checked = state.config.attachModelName !== false;
     if (sectionId) {
       requestAnimationFrame(() => {
-        // 只滚动 .settings-scroll 容器；scrollIntoView 会连带滚动 overflow:hidden 的
-        // .modal-card，把标题和标签页顶出视野，区块位于容器顶部时表现为下坠一小段。
+        // 只滚动 .settings-scroll 容器；scrollIntoView 会连带滚动外层容器，
+        // 把标题和标签页顶出视野，区块位于容器顶部时表现为下坠一小段。
         const section = $(sectionId);
         const scroll = section?.closest(".settings-scroll");
         if (section && scroll) scroll.scrollTo({ top: Math.max(0, section.offsetTop - scroll.offsetTop), behavior: "smooth" });
@@ -2328,7 +2446,10 @@
       });
     }
   }
-  function closeSettings() { $("settingsModal").classList.add("hidden"); }
+  function closeSettings() {
+    // 设置已是「更多设置」页面的一部分：返回上一个页面而不是隐藏内容。
+    if (window.MSWNavigation?.current() === "settings") window.MSWNavigation.back();
+  }
   async function openServerEditor() {
     clearErrors();
     $("htmlMenu").classList.add("hidden");
@@ -2645,7 +2766,34 @@
   $("refreshLocalModels").addEventListener("click", async () => { $("refreshLocalModels").disabled = true; try { await refreshLocalModels(); } finally { $("refreshLocalModels").disabled = false; } });
   $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
   $("ffmpegHelp").addEventListener("click", () => bridge("open_url", { url: "https://ffmpeg.org/download.html" }));
-  $("settingsButton").addEventListener("click", openSettings); $("settingsClose").addEventListener("click", closeSettings); $("settingsBackdrop").addEventListener("click", closeSettings); document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSettings(); });
+  $("settingsButton").addEventListener("click", () => openSettings()); $("settingsClose").addEventListener("click", closeSettings); document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSettings(); });
+  function bindStaticPages() {
+    document.querySelectorAll("[data-goto-page]").forEach((button) => {
+      button.addEventListener("click", () => window.MSWNavigation?.show(button.dataset.gotoPage));
+    });
+    document.querySelectorAll(".faq-q").forEach((question) => {
+      question.addEventListener("click", () => {
+        const item = question.closest(".faq-item");
+        if (!item) return;
+        const open = item.classList.toggle("open");
+        question.setAttribute("aria-expanded", String(open));
+        item.querySelector(".faq-a")?.classList.toggle("hidden", !open);
+      });
+    });
+    document.querySelectorAll("[data-tool-entry]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tab = $(button.dataset.toolEntry);
+        if (!tab) return;
+        if ($("toolboxDrawer").classList.contains("hidden")) $("toolboxFab").click();
+        (button.dataset.toolSection === "postprocess" ? $("toolboxPostprocessPrimaryTab") : $("toolboxUtilitiesPrimaryTab"))?.click();
+        tab.click();
+      });
+    });
+    $("guideRepo").addEventListener("click", () => bridge("open_url", { url: HOME_URL }));
+    $("guideDocs").addEventListener("click", () => bridge("open_url", { url: "https://xiaoyaomoyor.github.io/moyors-subtitle-workflow/docs/" }));
+    $("guideFaq").addEventListener("click", () => bridge("open_faq"));
+  }
+  bindStaticPages();
   $("batchConfirmYes").addEventListener("click", () => finishConfirm(true)); $("batchConfirmNo").addEventListener("click", () => finishConfirm(false));
   $("changeFfmpeg").addEventListener("click", () => $("ffmpegPathBox").classList.remove("hidden"));
   $("saveFfmpeg").addEventListener("click", async () => { const result = await bridge("save_ffmpeg_path", { path: $("ffmpegPath").value.trim() }); if (!result.ok) { const message = ffmpegSaveError(result); setError("ffmpegPath", message); setStatus(message); return; } setError("ffmpegPath", ""); await refreshFfmpeg(); setStatus(t("saved")); });

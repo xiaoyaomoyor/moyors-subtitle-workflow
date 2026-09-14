@@ -6,6 +6,7 @@ test('Markdown and punctuation changes refresh both previews and discard late re
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(pathToFileURL(resolve('web/launcher/index.html')).href);
   await page.waitForFunction(()=>window.MSWLauncher?.config?.postprocessProviders?.length);
+  await page.evaluate(()=>window.MSWNavigation.show('prefab'));
   await page.evaluate(()=>{
     const original=MSWLauncher.callBackend;
     window.__previews=[];

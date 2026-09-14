@@ -47,7 +47,7 @@ from maw.gui_config import (
     provider_for_model,
     save_env,
 )
-from maw.gui_platform import apply_dark_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
+from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
 from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
 from maw.output_naming import format_elapsed, maw_root
@@ -106,7 +106,11 @@ from maw.gui_config import provider_models
 OPEN_DIALOG = 10
 SAVE_DIALOG = 30
 FOLDER_DIALOG = 20
-WINDOW_TITLE = "MSW Launcher"
+WINDOW_TITLE = "我的字幕流 · Moyor's Subtitle Workflow"
+# 横向工作台窗口：初始 1200×780，普通桌面最小可用内容约 960×640（规划 §3.2）。
+WINDOW_DEFAULT_SIZE: Final = (1200, 780)
+WINDOW_MIN_SIZE: Final = (960, 640)
+WINDOW_BACKGROUND: Final = "#101010"
 MEDIA_EXTS: Final = frozenset({".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"})
 MOSE_REGISTRY_KEY = r"Software\Moy\MOSE"
 MOSE_FILE_TYPE = "Moy.MOSE.Project"
@@ -613,6 +617,16 @@ class LauncherApi:
         self._last_postprocess_progress_at = 0.0
         self.pump = EventPump(window_getter=self.window_getter)
         _sync_local_runtime_root(self.paths.env_path)
+
+    def sync_theme_title_bar(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Sync the native title bar with the app's effective theme.
+
+        前端主题可以是「应用暗色 + 系统亮色」等组合；标题栏必须跟随应用
+        有效主题而不是 prefers-color-scheme（规划 §3.3）。
+        """
+        dark = payload.get("dark") is not False
+        apply_theme_title_bar(WINDOW_TITLE, dark=dark)
+        return {"ok": True, "dark": dark}
 
     def get_emoji_font_path(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         """返回本地可用的 Noto Color Emoji 路径（file:// URI；未就绪或非 Linux 为空字符串）。
@@ -2898,6 +2912,60 @@ class LauncherApi:
                 self.pump.flush()
 
 
+def _screen_work_area() -> tuple[int, int] | None:
+    """Best effort primary-screen work area as ``(width, height)``.
+
+    高 DPI 缩放、任务栏和小屏会让名义分辨率不可用；Windows 读取工作区，
+    其他平台尝试 pywebview 的屏幕枚举，失败时返回 None（不做收敛）。
+    """
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class _Rect(ctypes.Structure):
+                _fields_ = [
+                    ("left", wintypes.LONG),
+                    ("top", wintypes.LONG),
+                    ("right", wintypes.LONG),
+                    ("bottom", wintypes.LONG),
+                ]
+
+            rect = _Rect()
+            # SPI_GETWORKAREA
+            if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):
+                if rect.right > rect.left and rect.bottom > rect.top:
+                    return (int(rect.right - rect.left), int(rect.bottom - rect.top))
+        except (AttributeError, OSError):
+            return None
+    try:
+        import webview
+
+        screens = webview.screens or []
+        screen = next((item for item in screens if getattr(item, "is_primary", False)), screens[0] if screens else None)
+        if screen is not None:
+            width = int(getattr(screen, "width", 0) or 0)
+            height = int(getattr(screen, "height", 0) or 0)
+            if width > 0 and height > 0:
+                return (width, height)
+    except Exception:
+        return None
+    return None
+
+
+def _initial_window_size() -> tuple[int, int, int, int]:
+    """Return ``(width, height, min_width, min_height)`` clamped to the work area."""
+    area = _screen_work_area()
+    width, height = WINDOW_DEFAULT_SIZE
+    if area:
+        # 预留窗口边框/圆角；可用区域小于默认值时向下收敛。
+        width = max(520, min(width, area[0] - 16))
+        height = max(480, min(height, area[1] - 24))
+    min_width = min(WINDOW_MIN_SIZE[0], width)
+    min_height = min(WINDOW_MIN_SIZE[1], height)
+    return width, height, min_width, min_height
+
+
 def run_app(*, debug: bool = False, devtools: bool = False, server_port: int | None = None) -> None:
     import webview
 
@@ -2911,14 +2979,15 @@ def run_app(*, debug: bool = False, devtools: bool = False, server_port: int | N
     api = LauncherApi(paths=paths, default_server_port=server_port, log_sink=log_sink)
     install_stdio_tee(log_sink)
     launcher_url = paths.launcher_html.resolve().as_uri()
+    initial_w, initial_h, min_w, min_h = _initial_window_size()
     window = webview.create_window(
         WINDOW_TITLE,
         url=launcher_url,
         js_api=api,
-        width=900,
-        height=880,
-        min_size=(760, 640),
-        background_color="#16181d",
+        width=initial_w,
+        height=initial_h,
+        min_size=(min_w, min_h),
+        background_color=WINDOW_BACKGROUND,
         text_select=True,
     )
     if window is not None:

@@ -6,6 +6,8 @@ const launcherUrl = pathToFileURL(path.resolve(path.dirname(fileURLToPath(import
 async function open(page) {
   await page.goto(launcherUrl);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
+  // B 阶段横向工作台：媒体与输出设置位于「预制工程」页。
+  await page.evaluate(() => window.MSWNavigation.show('prefab'));
 }
 
 test('output settings retain the inactive per-media preference and preserve an explicit path', async ({ page }) => {
@@ -105,7 +107,7 @@ for (const zoom of [80, 100, 150]) {
         for (let i = 0; i < steps; i++) document.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true, deltaY: target < 100 ? 100 : -100 }));
       }, zoom);
       await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe(`${zoom}%`);
-      const footer = await page.locator('footer.actions').boundingBox();
+      const footer = await page.locator('[data-page-id="prefab"] footer.page-actions').boundingBox();
       expect(footer.y + footer.height).toBeLessThanOrEqual(viewport.height + 2);
       expect(footer.y + footer.height).toBeGreaterThan(viewport.height - 3);
       await page.locator('#toolboxFab').click();

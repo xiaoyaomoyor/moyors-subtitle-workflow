@@ -72,8 +72,19 @@ test('Launcher loads one SVG for its mark and favicon in either app theme', asyn
   await page.goto(pathToFileURL(resolve('web/launcher/index.html')).href);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', 'logo.svg');
-  await expect(page.locator('.hero-icon')).toHaveAttribute('src', 'logo.svg');
-  await inspectLogo(page, '.hero-icon', 'launcher');
+  // B 阶段：品牌图标为内联水母轮廓，fill=currentColor 随应用有效主题反色（规划 §3.3）。
+  const logo = page.locator('.brand-logo');
+  await expect(logo).toBeVisible();
+  await expect(logo).toHaveAttribute('fill', 'currentColor');
+  await page.locator('#settingsButton').click();
+  await page.locator('#themeDark').click();
+  const darkColor = await logo.evaluate(el => getComputedStyle(el).color);
+  await page.locator('#themeLight').click();
+  await page.locator('#settingsClose').click();
+  const lightColor = await logo.evaluate(el => getComputedStyle(el).color);
+  expect(darkColor).not.toBe(lightColor);
+  const box = await logo.boundingBox();
+  expect(Math.abs(box.width - box.height)).toBeLessThan(1);
 });
 
 test('Portable editor branding survives moving its HTML away from the assets', async ({page}) => {

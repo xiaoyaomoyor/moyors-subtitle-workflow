@@ -235,6 +235,15 @@ DWMWA_USE_IMMERSIVE_DARK_MODE_LEGACY = 19  # Windows 10 1809-1909
 
 def apply_dark_title_bar(window_title: str) -> bool:
     """Best effort: switch a top-level window's native title bar to dark mode (Windows only)."""
+    return apply_theme_title_bar(window_title, dark=True)
+
+
+def apply_theme_title_bar(window_title: str, *, dark: bool) -> bool:
+    """Best effort: align the native title bar with the app's effective theme.
+
+    亮色主题需要显式关掉 immersive dark 模式，否则「应用亮色 + 曾按暗色
+    初始化」的窗口会保留暗色标题栏（规划 §3.3）。
+    """
     if sys.platform != "win32":
         return False
     import ctypes
@@ -246,7 +255,7 @@ def apply_dark_title_bar(window_title: str) -> bool:
         hwnd = find_window(None, window_title)
         if not hwnd:
             return False
-        enabled = wintypes.BOOL(True)
+        enabled = wintypes.BOOL(bool(dark))
         for attribute in (DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_USE_IMMERSIVE_DARK_MODE_LEGACY):
             result = ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 wintypes.HWND(hwnd),
