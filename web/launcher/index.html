@@ -154,13 +154,22 @@
 
     <!-- ============ 页面：预制工程 ============ -->
     <section class="page" data-page-id="prefab" aria-labelledby="prefabTitle">
+      <div class="prefab-wrap">
+      <div class="prefab-main">
       <div class="page-scroll">
         <div class="page-head">
           <h1 class="page-title" id="prefabTitle" data-i18n="nav_prefab">预制工程</h1>
           <p class="page-sub" data-i18n="prefab_sub">按处理方案生成可进入编辑器的工程；未勾选的步骤直接跳过。</p>
         </div>
+        <div class="prefab-meta-row">
+          <div class="segmented" role="group" aria-label="输入方式" data-i18n-aria-label="prefab_input_mode_label">
+            <button type="button" class="segment active" id="inputModeMedia" aria-pressed="true" data-i18n="prefab_mode_media">媒体预制</button>
+            <button type="button" class="segment" id="inputModeProject" aria-pressed="false" data-i18n="prefab_mode_project">已有工程／字幕再处理</button>
+          </div>
+          <span class="chip" id="prefabOrderChip" aria-live="polite"></span>
+        </div>
 
-        <section id="mediaCard" class="card drop-card" aria-labelledby="mediaTitle">
+        <section id="mediaCard" class="card drop-card module-card" data-module-card="media" aria-labelledby="mediaTitle">
           <h2 id="mediaTitle" data-i18n="media_output">媒体与输出</h2>
           <div class="mode-switch-row">
             <div class="segmented" role="group" aria-label="转写模式" data-i18n-aria-label="mode_label">
@@ -219,7 +228,7 @@
           </div>
         </section>
 
-        <section id="recognitionCard" class="card" aria-labelledby="settingsTitle">
+        <section id="recognitionCard" class="card module-card" data-module-card="asr" aria-labelledby="settingsTitle">
           <h2 id="settingsTitle" data-i18n="recognition">识别设置</h2>
           <div class="provider-row">
             <div class="field provider-field">
@@ -449,7 +458,7 @@
           </div>
          </section>
 
-        <section id="autoPostprocessCard" class="card" aria-labelledby="autoPostprocessTitle">
+        <section id="autoPostprocessCard" class="card module-card" data-module-card="postprocess" aria-labelledby="autoPostprocessTitle">
           <h2 id="autoPostprocessTitle" data-i18n="auto_postprocess_title">转写后自动处理（Beta）</h2>
           <p class="hint" data-i18n="auto_postprocess_hint">转写完成后按固定顺序处理字幕；首次启用某一步前，请先在工具箱中完成配置。</p>
           <p id="batchManuscriptNotice" class="toolbox-notice hidden" role="note" data-i18n="batch_manuscript_disabled">批量模式不支持逐文件文稿映射。本次批量运行会跳过文稿匹配；单文件设置保持不变。</p>
@@ -548,6 +557,10 @@
           </div>
           <button id="errorNoticeClose" class="error-notice-close" type="button" data-i18n-aria-label="error_notice_close" aria-label="关闭提示">×</button>
         </div>
+      </div>
+      </div>
+      </div>
+      <aside class="prefab-rail" id="prefabRail" aria-label="处理模块" data-i18n-aria-label="prefab_rail_label"></aside>
       </div>
       <footer class="page-actions prefab-footer">
         <button id="start" class="primary" type="button" data-i18n="start">生成字幕和工程</button>
@@ -1405,6 +1418,8 @@
   <script src="navigation.js"></script>
   <script src="launcher.js"></script>
   <script src="project-home.js"></script>
+  <script src="modules.js"></script>
+  <script src="workflow.js"></script>
   <script src="batch.js"></script>
   <script src="postprocess.js"></script>
 </body>

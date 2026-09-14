@@ -3617,7 +3617,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         ffconcat_panel = page.index('id="toolboxFfconcatPanel"')
         ffconcat_end = page.index("</section>", ffconcat_panel)
         footer = page.index('class="toolbox-footer"')
-        drawer_end = page.index("</aside>")
+        # 预制页右栏也是 aside：工具箱抽屉的结束标记从 footer 之后查找。
+        drawer_end = page.index("</aside>", footer)
 
         self.assertLess(sticky, input_drop_zone)
         self.assertLess(input_drop_zone, chain)
