@@ -75,6 +75,12 @@ async function openMultiSubtitleSettings(page) {
   await expect(page.locator('#multi-subtitle-settings-menu')).toBeVisible();
 }
 
+async function selectListContent(page, value) {
+  await toggleCueListSettings(page);
+  await page.locator('#multi-subtitle-display-mode').selectOption(value);
+  await toggleCueListSettings(page);
+}
+
 async function waitForLayoutBox(locator, message) {
   let latestBox = null;
   await expect.poll(async () => {
@@ -315,7 +321,7 @@ test('uses the same text editor box styling in single and dual-column modes', as
   expect(dualExtensionStyle).toEqual(singleStyle);
 });
 
-test('reserves space for the dirty marker beside main dual-column text', async ({ page }) => {
+test('keeps dirty card text aligned without an amber stripe', async ({ page }) => {
   const project = {
     segments: [{ id: 'dirty-main-001', start: 0, end: 2000, text: 'main dirty cue', _dirty: true }],
     waveform: generateWaveformPayload(3000),
@@ -358,7 +364,9 @@ test('reserves space for the dirty marker beside main dual-column text', async (
     };
   });
   expect(geometry.boxSizing).toBe('border-box');
-  expect(geometry.paddingLeft).toBe('8px');
+  expect(geometry.paddingLeft).toBe('12px');
+  await expect(main).toHaveCSS('box-shadow', 'none');
+  await expect(main).toHaveCSS('padding-left', await page.locator('.multi-cue-column.extension').first().evaluate(el => getComputedStyle(el).paddingLeft));
   expect(geometry.textLeft).toBeGreaterThanOrEqual(geometry.columnLeft + 3);
 });
 
@@ -380,7 +388,7 @@ test('uses the main cue-row layout when displaying only the extension track', as
   expect(settingBoxes.selectLeft).toBeGreaterThanOrEqual(settingBoxes.labelRight);
   expect(settingBoxes.selectWidth).toBe('108px');
 
-  await page.locator('#multi-subtitle-display-mode').selectOption('main');
+  await selectListContent(page, 'main');
   const mainCue = page.locator('#cues-container > .cue[data-idx="0"]');
   const readCueLayout = (element) => {
     const read = (node) => {
@@ -408,7 +416,7 @@ test('uses the main cue-row layout when displaying only the extension track', as
   };
   const mainLayout = await mainCue.evaluate(readCueLayout);
 
-  await page.locator('#multi-subtitle-display-mode').selectOption('extension');
+  await selectListContent(page, 'extension');
   const extensionCue = page.locator('#cues-container > .multi-extension-cue').first();
   await expect(extensionCue.locator('.text')).toHaveText('你好，世界。');
   await expect(extensionCue.locator('.index')).toHaveText('1');
@@ -540,13 +548,15 @@ test('keeps main and secondary language types independent and reuses them for co
   await expect(page.locator('.multi-subtitle-setting-hint')).toContainText('单词型');
   await expect(page.locator('.multi-subtitle-setting-hint')).toContainText('字符型');
 
-  await page.locator('#multi-subtitle-display-mode').selectOption('main');
+  await selectListContent(page, 'main');
   await expect(page.locator('#cues-container > .cue').first().locator('.charcount')).toHaveText('2');
+  await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-main-language-mode').selectOption('continuous');
   await expect(page.locator('#cues-container > .cue').first().locator('.charcount')).toHaveText('10');
 
-  await page.locator('#multi-subtitle-display-mode').selectOption('extension');
+  await selectListContent(page, 'extension');
   await expect(page.locator('#cues-container > .cue').first().locator('.charcount')).toHaveText('4');
+  await openMultiSubtitleSettings(page);
   await page.locator('#multi-subtitle-extension-language-mode').selectOption('word');
   await expect(page.locator('#cues-container > .cue').first().locator('.charcount')).toHaveText('1');
 });
@@ -561,14 +571,14 @@ test('switches the active subtitle track with the up and down arrows', async ({ 
 
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('#cue-panel-target')).toHaveText('副字幕');
-  await expect(page.locator('#sel-count')).toHaveText('2');
+  await expect(page.locator('#sel-count')).toHaveText('1');
 
   await page.keyboard.press('ArrowUp');
   await expect(page.locator('#cue-panel-target')).toHaveText('主字幕');
   await expect(firstRow).toHaveClass(/selected/);
 });
 
-test('keeps track badges optional and uses striped disabled styling for secondary cues', async ({ page }) => {
+test('keeps independent cards separate and disabled text feedback consistent', async ({ page }) => {
   const project = {
     segments: [{ id: 'main-badge-001', start: 1000, end: 2000, text: 'main cue' }],
     waveform: generateWaveformPayload(7000),
@@ -590,7 +600,7 @@ test('keeps track badges optional and uses striped disabled styling for secondar
     type: 'application/json',
     base64: Buffer.from(JSON.stringify(project), 'utf8').toString('base64'),
   }]);
-  const firstRow = page.locator('.multi-dual-cue').first();
+  const extension = page.locator('.multi-cue-column.extension').first();
   const firstWaveformRow = page.locator('.waveform-row.multi-subtitle-row').first();
 
   await openMultiSubtitleSettings(page);
@@ -601,11 +611,12 @@ test('keeps track badges optional and uses striped disabled styling for secondar
   await expect(main).toHaveClass(/disabled/);
   await expect(main).toHaveCSS('background-image', 'none');
 
-  await firstRow.locator('.multi-cue-column.extension').click({ modifiers: ['Alt'] });
-  await expect(firstRow.locator('.multi-cue-column.extension')).toHaveClass(/disabled/);
-  await expect(firstRow.locator('.multi-cue-column.extension')).toHaveCSS(
+  await extension.click({ modifiers: ['Alt'] });
+  await expect(extension).toHaveClass(/disabled/);
+  await expect(extension.locator('.index')).toHaveCSS('text-decoration-line', 'line-through');
+  await expect(extension).toHaveCSS(
     'background-image',
-    /repeating-linear-gradient/,
+    'none',
   );
 });
 
@@ -880,6 +891,8 @@ test('selects bound subtitle pairs without changing the current editor target', 
   await openMultiSubtitleSettings(page);
 
   const pairToggle = page.locator('#multi-subtitle-select-bound-pair');
+  await expect(pairToggle).not.toBeChecked();
+  await pairToggle.check();
   await expect(pairToggle).toBeChecked();
   await openMultiSubtitleSettings(page);
   const panelTarget = page.locator('#cue-panel-target');
@@ -926,6 +939,24 @@ test('selects bound subtitle pairs without changing the current editor target', 
   await extensionText.click();
   await expect(page.locator('#sel-count')).toHaveText('2');
   await expect(panelTarget).toHaveText('副字幕');
+});
+
+test('new pair selection defaults off and explicit preferences survive reload', async ({ page }) => {
+  await importPair(page);
+  await page.locator('#multi-subtitle-import-result-confirm').click();
+  const row = page.locator('.multi-dual-cue').first();
+  await row.locator('.main .text').click();
+  await expect(page.locator('#sel-count')).toHaveText('1');
+  await expect(row.locator('.extension')).toHaveClass(/related-selected/);
+  await openMultiSubtitleSettings(page);
+  const toggle = page.locator('#multi-subtitle-select-bound-pair');
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
+  await page.reload();
+  await expect(toggle).toBeChecked();
+  await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: false }));
+  await page.reload();
+  await expect(toggle).not.toBeChecked();
 });
 
 test('ends dual-column inline editing when clicking outside the text input', async ({ page }) => {
@@ -989,12 +1020,12 @@ test('imports an extension SRT with 300ms preview, dual columns, split dialog, a
 
   await openMultiSubtitleSettings(page);
   await expect(page.locator('#multi-subtitle-cross-track-snap')).toBeChecked();
-  await page.locator('#multi-subtitle-display-mode').selectOption('main');
+  await selectListContent(page, 'main');
   await expect(page.locator('#cues-container > .multi-dual-cue')).toHaveCount(0);
   await expect(page.locator('#cues-container > .cue[data-idx]')).toHaveCount(2);
-  await page.locator('#multi-subtitle-display-mode').selectOption('extension');
+  await selectListContent(page, 'extension');
   await expect(page.locator('#cues-container > .multi-extension-cue')).toHaveCount(3);
-  await page.locator('#multi-subtitle-display-mode').selectOption('both');
+  await selectListContent(page, 'both');
   await expect(page.locator('#cues-container > .multi-dual-cue')).toHaveCount(3);
 
   // 主轨双击进入编辑后按 Enter，绑定状态应打开联动拆分弹窗。
@@ -1445,12 +1476,12 @@ test('dual-column header degrades gradually without wrapping or hiding time earl
   // width → { labelRest, time: 'full' | 'compact' | 'hidden', charcount }
   const stages = [
     [900, { labelRest: true, time: 'full', charcount: true }],
-    [590, { labelRest: true, time: 'full', charcount: true }],
-    [570, { labelRest: false, time: 'full', charcount: true }],
-    [540, { labelRest: false, time: 'full', charcount: true }],
+    [590, { labelRest: false, time: 'compact', charcount: true }],
+    [570, { labelRest: false, time: 'compact', charcount: true }],
+    [540, { labelRest: false, time: 'compact', charcount: true }],
     [520, { labelRest: false, time: 'compact', charcount: true }],
     [450, { labelRest: false, time: 'compact', charcount: true }],
-    [330, { labelRest: false, time: 'compact', charcount: false }],
+    [330, { labelRest: false, time: 'hidden', charcount: false }],
     [310, { labelRest: false, time: 'hidden', charcount: false }],
     [150, { labelRest: false, time: 'hidden', charcount: false }],
   ];
@@ -1462,7 +1493,7 @@ test('dual-column header degrades gradually without wrapping or hiding time earl
     }, width);
     await page.waitForTimeout(60);
     const report = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll('.multi-dual-cue')];
+      const rows = [...document.querySelectorAll('.multi-dual-cue:not(.single-sided)')];
       const out = [];
       for (const row of rows) {
         for (const col of row.querySelectorAll('.multi-cue-column')) {
@@ -1791,6 +1822,7 @@ test('uses B on a waveform-selected unbound extension cue instead of an overlapp
 test('uses the linked split dialog when the main cue is active with its bound extension selected', async ({ page }) => {
   await importPair(page);
   await page.locator('#multi-subtitle-import-result-confirm').click();
+  await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: true }));
 
   await toggleEditorSettings(page);
   await page.locator('#split-use-word-timestamps').uncheck();
@@ -1944,7 +1976,7 @@ test('binds an unbound extension cue directly from its context menu', async ({ p
   await expect(unboundExtension).toHaveCount(1);
   await expect(unboundExtension).toHaveClass(/unbound/);
   await mainCue.click();
-  await expect(page.locator('#sel-count')).toHaveText('2');
+  await expect(page.locator('#sel-count')).toHaveText('1');
   await page.evaluate(() => {
     window.__mawWaveformDraws = 0;
     const contextPrototype = window.CanvasRenderingContext2D.prototype;
@@ -1957,7 +1989,7 @@ test('binds an unbound extension cue directly from its context menu', async ({ p
     }
   });
   await unboundExtension.click({ button: 'right' });
-  await expect(page.locator('#sel-count')).toHaveText('2');
+  await expect(page.locator('#sel-count')).toHaveText('1');
   await page.locator('#ctxmenu .item').filter({ hasText: '与选中的主字幕绑定' }).click();
 
   await expect(unboundExtension).not.toHaveClass(/unbound/);
@@ -2009,6 +2041,7 @@ test('normal extension clicks replace stale main selection with the clicked bind
   await importPair(page);
   await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
+  await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: true }));
 
   const mainOne = page.locator('.multi-cue-column.main .text').filter({ hasText: 'Hello world.' });
   const extensionTwo = page.locator('.multi-cue-column.extension').filter({ hasText: '第二句。' });
@@ -2087,7 +2120,7 @@ test('merges selected extension cues from the context menu and C, with undo', as
   await page.locator('.multi-cue-column.main').filter({ hasText: 'Hello world.' }).click();
   await first.click();
   await second.click({ modifiers: ['Control'] });
-  await expect(page.locator('#sel-count')).toHaveText('4');
+  await expect(page.locator('#sel-count')).toHaveText('2');
   await page.evaluate(() => {
     const player = document.getElementById('player');
     player.currentTime = 0.5;
@@ -2467,7 +2500,7 @@ test('aligns multiple selected extension cues with H and undoes the batch once',
   const second = page.locator('.multi-cue-column.extension').filter({ hasText: '第二句。' });
   await first.click();
   await second.click({ modifiers: ['Control'] });
-  await expect(page.locator('#sel-count')).toHaveText('4');
+  await expect(page.locator('#sel-count')).toHaveText('2');
 
   await page.keyboard.press('h');
   await expect(page.locator('#hint-stack')).toContainText('已批量对齐 2 条副字幕');
@@ -3365,15 +3398,16 @@ test('keeps bound extensions synced when a main shared boundary is dragged indep
     const rowStart = Number(await row.getAttribute('data-start-ms'));
     const rowEnd = Number(await row.getAttribute('data-end-ms'));
     const y = handleBox.y + handleBox.height / 2;
-    const startX = handleBox.x + handleBox.width / 2;
+    const startX = handleBox.x + (selector.endsWith('.right') ? 1 : handleBox.width - 1);
     const targetX = startX + (deltaMs / (rowEnd - rowStart)) * rowBox.width;
     await page.mouse.move(startX, y);
+    await expect(page.locator('.waveform-cue-handle.edge-hot')).toHaveCount(1);
     await page.mouse.down();
     await page.mouse.move(targetX, y, { steps: 4 });
     await page.mouse.up();
   };
 
-  // 自动吸附已显式关闭：同轨相邻主字幕保持独立，但绑定副字幕仍跟随主字幕边界。
+  // 命中单侧热区：同轨邻居保持独立，绑定副字幕仍跟随主字幕边界。
   await dragHandleBy(
     '.waveform-cue-block[data-track="main"][data-idx="0"] .waveform-cue-handle.right',
     -200,

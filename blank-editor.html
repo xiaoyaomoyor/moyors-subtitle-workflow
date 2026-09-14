@@ -26,6 +26,7 @@
   :root {
     /* 原生表单控件（包括 number 输入框的步进器）跟随当前主题绘制。 */
     color-scheme: dark;
+    --card-bg: var(--bg-input);
 
     /* 背景 —— 全部由「背景/文字」两个色键派生的亮度阶梯：任何主题/自定义配色下
        面板、抬升面、浮层、输入框、波形背板自动跟随，不再固定在灰蓝。 */
@@ -2750,22 +2751,16 @@
      工具栏 sticky 让出把手高度即可。 */
 
   .cue {
-    position: relative;
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 6px 10px; margin: 2px 0; border-radius: var(--radius-sm);
-    cursor: pointer; font-size: 14px; line-height: 1.5;
-    border-left: 3px solid transparent;
-    transition: background var(--t-fast), border-color var(--t-fast);
-    user-select: none;
+    position: relative; box-sizing: border-box;
+    display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: start; gap: 6px;
+    padding: 10px 12px; margin: 7px 4px; border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle); background: var(--card-bg);
+    cursor: pointer; font-size: 14px; line-height: 1.5; user-select: none;
+    transition: border-color var(--t-fast);
   }
-  /* 长工程仍保留列表语义和可搜索 DOM，但让浏览器跳过视口外字幕的
-     布局/绘制；滚动到该行时再按真实内容补算尺寸。占位高度必须贴近
-     真实行高（内容 21px + 上下 padding 12px + margin 4px ≈ 46px），
-     否则真实布局后 scrollHeight 收缩，已滚动的列表位置会被 clamp 走。 */
-  .cues-container > .cue {
-    content-visibility: auto;
-    contain-intrinsic-size: 0 46px;
-  }
+  /* 记住实际卡片高度，离屏首轮以两行文本卡片估算。 */
+  .cues-container > .cue { content-visibility: auto; contain-intrinsic-size: auto 86px; }
   .cue-split-flash {
     position: absolute;
     z-index: 3;
@@ -2808,19 +2803,22 @@
     text-align: center;
     white-space: nowrap;
   }
-  .cue.has-color { background: color-mix(in srgb, var(--color-bar, #777) 30%, transparent); }
-  .cue.has-color:hover { background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--bg-raised)); }
-  /* 悬停反馈与下拉/右键菜单一致：accent 淡蓝 + 中性内描边；选中（琥珀）与激活（蓝）行仍各自优先。 */
-  .cue:hover {
-    background: var(--cue-hover-bg);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    filter: brightness(1.08);
+  .cue.has-color, .multi-cue-column.has-color {
+    background: color-mix(in srgb, var(--color-bar, #777) 14%, var(--card-bg));
   }
+  .cue:hover { border-color: var(--border-strong); }
   .cue.hidden { display: none; }
   .cue .color-bar {
-    flex-shrink: 0; width: 4px; align-self: stretch;
-    border-radius: 2px; background: transparent;
+    width: 7px; height: 7px; flex: 0 0 7px; align-self: center;
+    border-radius: 50%; background: transparent;
   }
+  .cue > .color-bar { grid-column: 1; grid-row: 1; }
+  .cue > .index { grid-column: 2; grid-row: 1; }
+  .cue > .time { grid-column: 3; grid-row: 1; }
+  .cue > .charcount { grid-column: 4; grid-row: 1; }
+  .cue > .text { grid-column: 1 / -1; }
+  .cue > .sticker-slot { grid-column: 1 / -1; grid-row: 3; }
+  .cue .sticker-slot:empty { display: none; }
   .cue .color-bar.has-color { background: var(--color-bar, #777); }
   .cue .color-bar.is-ref {
     /* ref 用斜纹表示"属于上方 head"，与 head 的纯色区分 */
@@ -2832,14 +2830,10 @@
   }
   .cue .index {
     font-size: 11px; color: var(--text-faint); font-family: var(--font-mono);
-    min-width: 28px; text-align: right; user-select: none; padding-top: 2px;
+    min-width: 0; text-align: left; user-select: none; padding-top: 2px;
     font-variant-numeric: tabular-nums;
   }
-  /* 序号与时间之间的小分隔符 */
-  .cue .index::after {
-    content: "|"; margin-left: 7px; color: var(--text-faint); opacity: .55;
-    font-size: 10px; font-weight: 400;
-  }
+  .cue .index::after { content: none; }
   .cue .time {
     font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); user-select: none;
     display: grid; grid-template-columns: max-content max-content max-content;
@@ -2897,6 +2891,8 @@
   .cue .text {
     flex: 1 1 auto; word-break: break-word; min-width: 0;
     white-space: pre-wrap;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+    overflow: hidden;
   }
   /* 字数统计：弱文字色纯文本（超长仅加粗提示，不再用红色底/框）。 */
   .cue .charcount {
@@ -2906,15 +2902,13 @@
     font-variant-numeric: tabular-nums;
     transition: color var(--t-fast);
   }
-  .cue.active .charcount { color: var(--wave-playhead); }
   .cue .charcount.over { color: var(--text-muted); font-weight: 600; }
-  .cue.active .charcount.over { color: var(--wave-playhead); font-weight: 600; }
 
   /* 列表窄宽度：先压缩再退让（容器查询，随字幕列表模块实际宽度走）。
      压缩：时间省去毫秒小数（00:00.000 → 00:00，data-compact 伪元素切换，
      零额外 DOM）；退让：字数 → 时间 → 序号逐级隐藏。
      单列阶梯在此（460 压缩 → 300 字数 → 200 时间 → 120 序号）；
-     双列每列只有容器一半宽，单独一套更宽的阶梯见双列区块（580/530/320）。 */
+     双列每列只有容器一半宽，单独一套更宽的阶梯见双列区块（620/420/360）。 */
   @container cue-list (max-width: 460px) {
     .cue .time {
       display: inline; width: auto; flex: 0 0 auto;
@@ -2927,10 +2921,6 @@
   }
   .cues-container.frame-time-mode .cue .time { max-width: 195px; }
   .cues-container.frame-time-mode .cue .time::after { letter-spacing: -0.02em; }
-  /* 双列在 530px 起省毫秒（见双列区块的阶梯）：字数延后到 420px 才退场（单列 300px） */
-  @container cue-list (max-width: 420px) {
-    .multi-cue-column .charcount { display: none; }
-  }
   @container cue-list (max-width: 300px) {
     .cues-container .charcount { display: none; }
   }
@@ -2940,72 +2930,25 @@
   @container cue-list (max-width: 120px) {
     .cue .index { display: none; }
   }
-  .cue.active { background: var(--accent-tint-strong); border-left-color: var(--accent); color: var(--active-cue-fg); }
-  /* 播放中行的悬停：必须保持蓝色身份（此前缺规则，会被后面的琥珀规则染黄）。 */
-  .cue.active:hover {
-    background: color-mix(in srgb, var(--accent) 34%, transparent);
-    box-shadow: inset 0 0 0 1px var(--accent-hover);
-  }
-  /* 当前（播放中）行的序号/时间用「命中」色，与波形播放头/当前块轮廓同源 */
-  .cue.active .time { color: var(--wave-playhead); }
-  .cue.active .index { color: var(--wave-playhead); }
-  /* 琥珀色左线按需求移除：dirty/editing 不再画左侧竖线（编辑态仍保留琥珀底色） */
-  .cue.dirty { border-left-color: transparent; }
-  .cue.editing { background: var(--amber-soft); border-left-color: transparent; cursor: text; }
-  /* 选中用琥珀色系（内描边环），与 active 的蓝色系明确区分 */
-  .cue.selected { background: var(--selection-yellow-soft); box-shadow: inset 0 0 0 1px var(--selection-yellow-line); }
-  .cue.selected.active { background: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: inset 0 0 0 1px var(--selection-yellow-line); }
-  /* 选中行的悬停：.cue.selected 源序晚于 .cue:hover 会在等特异性下盖住悬停，
-     故显式补 selected:hover —— 保持琥珀身份但加深底色、把内环升到 amber-hover。 */
-  .cue.selected:hover {
-    background: color-mix(in srgb, var(--selection-yellow) 26%, transparent);
-    box-shadow: inset 0 0 0 1px var(--selection-yellow-line);
-  }
-  .cue.selected.active:hover {
-    background: color-mix(in srgb, var(--accent) 42%, transparent);
-    box-shadow: inset 0 0 0 1px var(--accent-hover);
-  }
-  .cue.selected.has-color:hover {
-    background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--accent) 30%);
-    box-shadow: inset 0 0 0 1px var(--amber-hover);
-  }
-  /* 有分组色的行播放中：保留字幕色身份，用原色加深背景、左边条换原色，
-     而不是被 .cue.active 覆盖成 accent 蓝。 */
-  .cue.has-color.active {
-    background: color-mix(in srgb, var(--color-bar, #777) 45%, var(--bg-raised));
-    border-left-color: var(--color-bar, #777);
-  }
-  .cue.has-color.active:hover {
-    background: color-mix(in srgb, var(--color-bar, #777) 52%, var(--bg-raised));
-    box-shadow: inset 0 0 0 1px var(--color-bar, #777);
-  }
-  /* 选中 + 播放中 + 有分组色：原色为主、轻混 accent 表示叠加状态，选中环保持琥珀 */
-  .cue.selected.has-color.active {
-    background: color-mix(in srgb, var(--color-bar, #777) 38%, var(--accent) 22%);
-    box-shadow: inset 0 0 0 1px var(--amber-hover);
-  }
-  .cue.selected.has-color.active:hover {
-    background: color-mix(in srgb, var(--color-bar, #777) 44%, var(--accent) 28%);
-    box-shadow: inset 0 0 0 1px var(--color-bar, #777);
-  }
-  /* 禁用项：灰色底不透明，文字变淡；active 高亮照常覆盖以便播放时定位 */
-  .cue.disabled { background: var(--disabled-cue-bg); border-left-color: var(--border-strong); }
-  .cue.disabled .text { color: var(--editor-cue-text); }
-  .cue.disabled .time, .cue.disabled .index { color: var(--text-faint); }
-  .cue.disabled.active { background: var(--accent-tint-strong); border-left: 3px dashed var(--accent); }
-  .cue.disabled.selected { background: var(--accent-tint); border-left: 3px dashed var(--accent-hover); }
-  .cue.disabled.selected:hover { background: var(--accent-tint-strong); border-left: 3px dashed var(--accent); }
-  .cue.disabled.active .text { color: var(--editor-cue-text); }
+  .cue.playhead-hit:not(.selected) { outline: 1px solid var(--wave-playhead); outline-offset: -1px; }
+  .cue.selected:not(.multi-dual-cue) { outline: 1px solid var(--selection-yellow-line); outline-offset: -1px; }
+  .cue.editing { cursor: text; }
+  .cue.disabled .text, .multi-cue-column.disabled .text { color: var(--text-muted); }
+  .cue.disabled .index, .multi-cue-column.disabled .index { text-decoration: line-through; }
   /* 隐藏禁用项开关：开启后禁用项从列表移除，不参与选择 */
   .cues-container.hide-disabled .cue.disabled { display: none; }
   .cues-container.hide-disabled .multi-cue-column.disabled { display: none; }
+  .cues-container.hide-disabled .multi-dual-cue:not(:has(> .multi-cue-column:not(.disabled))) { display: none; }
+  .cues-container.hide-disabled .multi-dual-cue:has(> .multi-cue-column.disabled) { grid-template-columns: minmax(0, 1fr); }
+  .cues-container.hide-disabled .multi-cue-column.disabled + .multi-cue-column::before { display: none; }
   .cues-container.hide-cue-index .cue .index,
   .cues-container.hide-cue-time .cue .time,
   .cues-container.hide-cue-sticker .cue .sticker-slot,
   .cues-container.hide-cue-charcount .cue .charcount { display: none; }
   .cue .text[contenteditable] {
-    outline: 1px dashed var(--amber); padding: 2px 4px;
-    background: var(--form-input-bg); min-width: 50%; white-space: pre-wrap;
+    outline: 1px dashed var(--selection-yellow-line); padding: 2px 4px;
+    display: block; -webkit-line-clamp: unset; overflow: visible;
+    background: transparent; min-width: 0; white-space: pre-wrap;
     box-sizing: border-box; cursor: text; user-select: text;
   }
   .cue mark { background: var(--amber); color: var(--mark-fg); padding: 0 2px; border-radius: 2px; }
@@ -3078,6 +3021,7 @@
   .msw-asset-library { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--module-content-bg); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); overflow: hidden; container-type: inline-size; }
   .msw-asset-library[hidden] { display: none; }
   .msw-asset-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; background: var(--panel-toolbar-bg-wave); }
+  .msw-asset-toolbar[hidden] { display: none; }
   .msw-asset-toolbar input, .msw-asset-toolbar select { min-width: 0; flex: 1 1 120px; max-width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--form-input-bg); padding: 5px 6px; font: inherit; font-size: 12px; }
   .msw-asset-library :where(.msw-asset-toolbar, .msw-asset-summary, .msw-asset-list, .msw-asset-pagination) button, .msw-tts-result button { padding: 4px 8px; font-size: 12px; border: 1px solid var(--btn-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); cursor: pointer; }
   .msw-asset-library :where(.msw-asset-toolbar, .msw-asset-summary, .msw-asset-list, .msw-asset-pagination) button:hover, .msw-tts-result button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
@@ -3087,16 +3031,16 @@
   .msw-asset-summary-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-left: auto; }
   .msw-asset-notice { margin: 0; padding: 3px 8px 6px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
   .msw-asset-density { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-  .asset-settings-menu { width: 240px; padding: 12px; }
-  .asset-settings-menu .msw-asset-density { display: flex; align-items: center; gap: 8px; padding-right: 6px; }
+  .asset-settings-menu { width: 240px; padding: 4px 0; }
+  .asset-settings-menu .settings-panel-item,
+  .asset-settings-menu .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 7px 14px; font-size: 12.5px; }
   .asset-settings-menu .msw-asset-density input { flex: 1 1 auto; width: auto; min-width: 0; }
-  .asset-settings-menu .settings-panel-hint { display: block; margin-top: 8px; white-space: normal; }
   .msw-asset-density input { width: 72px; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .msw-asset-density output { min-width: 1ch; font-variant-numeric: tabular-nums; }
   .msw-asset-import-status { padding: 6px 8px; font-size: 11px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 100px; overflow-y: auto; flex-shrink: 0; }
   .msw-asset-import-status button { margin-top: 5px; font: inherit; color: var(--text-primary); background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: var(--radius-sm); cursor: pointer; }
   .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: grid; grid-template-columns: repeat(var(--asset-columns, 3), minmax(0, 1fr)); align-content: start; gap: 6px; padding: 6px 8px; }
-  .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--form-input-bg); cursor: grab; }
+  .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--card-bg); cursor: grab; }
   .msw-asset-row:hover { border-color: var(--btn-border-hover); }
   .msw-asset-row.playing { border-color: var(--accent); }
   .msw-asset-info { min-width: 0; flex: 1; }
@@ -3381,74 +3325,46 @@
     color: var(--accent-hover); font-weight: 600;
   }
   .multi-subtitle-split-error { min-height: 20px; color: var(--red-hover); font-size: 12px; }
-  .multi-cue-column { min-width: 0; position: relative; }
-  .multi-cue-column.dirty { box-shadow: inset 3px 0 0 var(--amber); }
-  /* 主列没有像副列那样自带左侧分隔内边距；为 dirty 标记预留宽度，
-     避免黄色内描边压住主字幕的首个字符。3px 仅与描边等宽，文字仍贴边，
-     这里再加一档作为兜底。 */
-  .multi-cue-column.main.dirty { box-sizing: border-box; padding-left: 8px; }
-  .multi-cue-column.extension { color: var(--text-secondary); }
-  .multi-cue-column.unbound { opacity: .82; }
-  .multi-cue-column.disabled {
-    color: var(--text-muted);
-    border-radius: var(--radius-sm);
+  .cue.multi-dual-cue {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0; padding: 0; align-items: stretch; background: transparent;
   }
-  .multi-cue-column.extension.disabled {
-    background: repeating-linear-gradient(
-      135deg,
-      var(--wave-disabled-a) 0 5px,
-      var(--wave-disabled-b) 5px 10px
-    );
+  .cue.multi-dual-cue.single-sided,
+  .cues-container[data-pair-layout="rows"] .cue.multi-dual-cue { grid-template-columns: minmax(0, 1fr); }
+  .multi-cue-column {
+    min-width: 0; position: relative; padding: 10px 12px; box-sizing: border-box;
+    background: var(--card-bg); border-radius: inherit;
+    display: flex; flex-direction: column; gap: 6px;
   }
-  .multi-cue-column.disabled .index,
-  .multi-cue-column.disabled .time { color: var(--text-muted); }
-  .multi-cue-column.disabled .text { color: var(--editor-cue-text); }
-  .multi-cue-empty { color: var(--text-faint); font-style: italic; }
-  .cue.multi-dual-cue { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; }
-  .cue.multi-dual-cue .multi-cue-column { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* 表头保持单行：不换行（此前 flex-wrap 会把字数挤到第二行）。
-     空间不足时由时间盒收缩截断（配合下方容器查询的提前压缩）。 */
-  .cue.multi-dual-cue .multi-cue-column-header {
-    display: flex; align-items: flex-start; gap: 4px 6px; min-width: 0;
+  .multi-cue-column + .multi-cue-column::before {
+    content: ''; position: absolute; inset: 8px auto 8px 0;
+    border-left: 1px dashed var(--border-strong); pointer-events: none;
   }
-  .cue.multi-dual-cue .multi-cue-column-header .index {
-    flex: 0 0 auto; min-width: 0; width: auto; text-align: left;
+  .cues-container[data-pair-layout="rows"] .multi-cue-column + .multi-cue-column::before {
+    inset: 0 12px auto; border-left: 0; border-top: 1px dashed var(--border-strong);
   }
-  .cue.multi-dual-cue .multi-cue-column-header .time {
-    flex: 1 1 auto; min-width: 0; width: auto;
-    overflow: hidden; text-overflow: ellipsis;
+  .multi-cue-column-header { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .multi-cue-column-header .index { flex: 0 0 auto; white-space: nowrap; }
+  .multi-cue-column-header .time { display: block; flex: 1 1 auto; white-space: nowrap; text-overflow: ellipsis; }
+  .multi-cue-column-header .charcount { margin-left: auto; flex: 0 0 auto; min-width: 0; }
+  .multi-cue-column .text { flex: 0 0 auto; }
+  .multi-cue-column .sticker-slot { flex: 0 0 auto; order: 1; }
+  .multi-cue-column.related-selected { outline: 1px dashed var(--selection-yellow-line); outline-offset: -1px; }
+  .multi-cue-column.selected {
+    outline: 1px solid var(--selection-yellow-line); outline-offset: -1px;
   }
-  /* 双列字数：与时间同行、右对齐收尾；沿用 .cue .charcount 的弱文字样式与开关。 */
-  .cue.multi-dual-cue .multi-cue-column-header .charcount {
-    margin-left: auto; flex: 0 0 auto; margin-top: 0; min-width: 26px;
+  .multi-cue-column.current-target .index-label { color: var(--text-primary); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .multi-cue-column .text[contenteditable] { display: block; width: 100%; min-width: 0; }
+  @container cue-list (max-width: 620px) {
+    [data-pair-layout="columns"] .multi-dual-cue:not(.single-sided) .index-label-rest { display: none; }
+    [data-pair-layout="columns"] .multi-dual-cue:not(.single-sided) .time { font-size: 0; flex: 0 1 auto; width: auto; }
+    [data-pair-layout="columns"] .multi-dual-cue:not(.single-sided) .time::after { content: attr(data-compact); font-size: 11px; }
   }
-  /* 双列表头分级退让（表头永远单行、不重叠）：每列只有容器一半宽，
-     阈值≈单列的两倍并按副列（窄 11px 边框+内边距）实测内容宽校准。
-     先缩「主字幕/副字幕」→「主/副」，再省毫秒（00:08.520 → 00:08），
-     然后字数退场（上方 420px 规则）；时间只在放不下、即将重叠时才隐藏。 */
-  @container cue-list (max-width: 580px) {
-    .cue.multi-dual-cue .multi-cue-column-header .index-label-rest { display: none; }
+  @container cue-list (max-width: 420px) {
+    [data-pair-layout="columns"] .multi-dual-cue:not(.single-sided) .charcount { display: none; }
   }
-  @container cue-list (max-width: 530px) {
-    .cue.multi-dual-cue .multi-cue-column-header .time {
-      display: inline; width: auto; flex: 0 0 auto;
-      font-size: 0;
-    }
-    .cue.multi-dual-cue .multi-cue-column-header .time::after {
-      content: attr(data-compact);
-      font-size: 11px;
-    }
-  }
-  @container cue-list (max-width: 320px) {
-    .cue.multi-dual-cue .multi-cue-column-header .time { display: none; }
-  }
-  .cue.multi-dual-cue .multi-cue-column.extension { border-left: 1px solid var(--border-subtle); padding-left: 10px; }
-  /* 双列中的文本仍保持与单列相同的编辑框；双列文本原本是 inline，导致
-     背景、内边距和虚线只包住文字，且被列容器的省略样式影响。 */
-  .multi-cue-column .text[contenteditable] {
-    display: block;
-    width: 100%;
-    min-width: 0;
+  @container cue-list (max-width: 360px) {
+    [data-pair-layout="columns"] .multi-dual-cue:not(.single-sided) .time { display: none; }
   }
   #sticker-root-modal { z-index: 510; }
   #sticker-root-modal .modal {
@@ -5251,14 +5167,12 @@
   bottom: 0;
   width: 7px;
   z-index: 2;
-  /* 平时无白色边缘，悬浮/选中时才显示（对齐音频贴片手柄的行为） */
+  /* 显示与拖动共用真实边缘命中判定，选中整块不会点亮两端。 */
   background: transparent;
   cursor: ew-resize;
   transition: background var(--t-fast);
 }
-.waveform-cue-block:hover .waveform-cue-handle,
-.waveform-cue-block.selected .waveform-cue-handle,
-.waveform-cue-block.dragging .waveform-cue-handle { background: var(--wave-cue-handle); }
+.waveform-cue-handle.edge-hot { background: var(--wave-cue-handle); }
 .waveform-cue-handle.left { left: 0; border-radius: 3px 0 0 3px; }
 .waveform-cue-handle.right { right: 0; border-radius: 0 3px 3px 0; }
 .waveform-cue-label { pointer-events: none; color: var(--editor-cue-text); }
@@ -5285,12 +5199,10 @@
 }
 .msw-audio-lanes {
   position: absolute; left: 0; right: 0; bottom: 5px; z-index: 6;
-  overflow-y: auto; overflow-x: hidden; scrollbar-width: none;
+  overflow: clip;
   border-top: 1px dashed var(--border-subtle);
   background: color-mix(in srgb, var(--bg-wave-row) 32%, transparent);
-  overscroll-behavior: contain;
 }
-.msw-audio-lanes::-webkit-scrollbar { display: none; }
 .msw-audio-lanes-inner { position: relative; width: 100%; }
 .msw-audio-clip {
   position: absolute; box-sizing: border-box; height: 20px; min-width: 0;
@@ -5711,7 +5623,7 @@
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
-          <button type="button" class="dropdown-item" id="clear-all-subtitles" role="menuitem">清空全部字幕</button>
+          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="删除当前项目中所有没有文字内容的字幕块（含副字幕）">清除全部空字幕块</button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -5729,14 +5641,6 @@
             启用多重字幕
           </label>
           <small class="multi-subtitle-empty-hint" id="multi-subtitle-empty-hint" hidden>请拖入第二条字幕以开启多重字幕编辑</small>
-          <div class="multi-subtitle-setting-row">
-            <span>显示方式</span>
-            <select id="multi-subtitle-display-mode" title="多重字幕列表显示方式">
-              <option value="main">主轨</option>
-              <option value="extension">副轨</option>
-              <option value="both" selected>双列</option>
-            </select>
-          </div>
           <div class="multi-subtitle-setting-row">
             <span>主字幕语言类型</span>
             <select id="multi-subtitle-main-language-mode" title="主字幕语言类型">
@@ -5770,7 +5674,7 @@
             <input type="checkbox" id="multi-subtitle-cross-track-snap" checked> 跨轨道吸附
           </label>
           <label class="multi-subtitle-setting-toggle" title="普通点击以最后点击的轨道为准；点击已绑定字幕时，仅补选它实际绑定的另一条字幕">
-            <input type="checkbox" id="multi-subtitle-select-bound-pair" checked> 同时选中主副字幕
+            <input type="checkbox" id="multi-subtitle-select-bound-pair"> 同时选中主副字幕
           </label>
           <label class="multi-subtitle-setting-toggle" title="绑定字幕后自动把副字幕的起止时间同步到主字幕，相当于随后按一次 H">
             <input type="checkbox" id="multi-subtitle-auto-sync-duration" checked> 绑定时自动同步时长
@@ -5821,6 +5725,9 @@
           <label class="settings-panel-item msw-asset-density" title="调整每行卡片数量；窄窗口自动减少列数">卡片密度
             <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
             <output id="asset-density-value" for="asset-density">3</output>
+          </label>
+          <label class="toggle settings-panel-item" title="隐藏/显示素材库顶部的搜索框与批次筛选">
+            <input type="checkbox" id="asset-show-search" checked> 显示搜索与筛选
           </label>
         </div>
       </div>
@@ -6176,6 +6083,24 @@
   <div class="gap-remove-panel-body settings-modal-body cue-list-settings-body">
 <div id="cue-list-settings-panel" role="group" aria-label="字幕列表设置">
           <div class="settings-panel-section cue-list-settings-section">
+            <span class="settings-panel-title">卡片显示</span>
+            <label class="settings-panel-item subtitle-preview-setting-row">
+              <span>显示内容</span>
+              <select id="multi-subtitle-display-mode" title="仅改变字幕列表的显示内容">
+                <option value="main">主字幕</option>
+                <option value="extension">副字幕</option>
+                <option value="both" selected>多重字幕</option>
+              </select>
+            </label>
+            <label class="settings-panel-item subtitle-preview-setting-row">
+              <span>主副布局</span>
+              <select id="cue-list-pair-layout" title="双列：左主右副；双排：上主下副">
+                <option value="columns" selected>双列</option>
+                <option value="rows">双排</option>
+              </select>
+            </label>
+          </div>
+          <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">字幕过滤</span>
             <label class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row" title="只显示文本包含该内容的字幕；留空不过滤">
               <span>内容过滤</span>
@@ -6446,6 +6371,9 @@
       </label>
       <label class="toggle editor-settings-item" title="在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行">
         <input type="checkbox" id="waveform-show-track-heads" checked> 行编号
+      </label>
+      <label class="toggle editor-settings-item" title="悬浮字幕块/音频贴片时，额外显示序号与起止时间（默认只显示文字内容）">
+        <input type="checkbox" id="waveform-hover-details"> 悬浮显示序号与用时
       </label>
       <label class="editor-settings-item">配音与空隙
         <select id="audio-clips-gap-policy">
@@ -7276,6 +7204,9 @@
                 </label>
                 <label class="color-picker-cell" title="文本输入框底色">输入框
                   <input type="color" id="interface-color-input" aria-label="输入框色">
+                </label>
+                <label class="color-picker-cell" title="字幕列表和素材库的卡片底色">卡片
+                  <input type="color" id="interface-color-card" aria-label="卡片色">
                 </label>
                 <label class="color-picker-cell" title="主要文字">文字
                   <input type="color" id="interface-color-text" aria-label="文字色">
@@ -12455,6 +12386,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     overlayEnabled: true, extensionOverlayEnabled: true, multiSubtitleRowHeight: 168,
     exportStartAtZero: false, cueListShowIndex: true, cueListShowTime: true,
     cueListShowSticker: true, cueListShowCharcount: true, cueListAutoScrollOnClick: true,
+    cueListPairLayout: 'columns',
     cueListKeepSplitVisible: true, cueListHideDisabled: true, cueListCharcountThreshold: 0,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
@@ -12469,9 +12401,9 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     timelineSnapToFrame: true, timelineTimecodeSeparator: DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
     hoverSeekPreview: false, autoSnapAdjacentCues: true, ninjaMode: false,
     ninjaSound: true, ninjaSlashEffect: true, ninjaSlashLengthPercent: 80,
-    ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: true,
+    ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: false,
     multiSubtitleAutoSyncDuration: true, theme: 'dark',
-    waveShapeSource: 'reapeaks', themePreset: 'default', accent: 'blue', colors: null,
+    waveShapeSource: 'reapeaks', assetLibraryShowSearch: true, themePreset: 'default', accent: 'blue', colors: null,
   });
 
   function clampInteger(value, fallback, minimum, maximum) {
@@ -12483,7 +12415,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     if (value?.panel && !value?.menubar) value = { ...value, menubar: value.panel };
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const colors = {};
-    ['bg', 'menubar', 'raised', 'input', 'overlay', 'popup', 'text', 'textMuted', 'accent', 'wave', 'subtitle', 'waveCueText', 'toolbar', 'gap', 'cueBlock', 'hit'].forEach((key) => {
+    ['bg', 'menubar', 'raised', 'input', 'card', 'overlay', 'popup', 'text', 'textMuted', 'accent', 'wave', 'subtitle', 'waveCueText', 'toolbar', 'gap', 'cueBlock', 'hit'].forEach((key) => {
       if (typeof value[key] === 'string' && /^#[0-9a-fA-F]{6}$/.test(value[key])) {
         colors[key] = value[key].toLowerCase();
       }
@@ -12519,6 +12451,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       cueListShowSticker: savedSettings.cueListShowSticker !== false,
       cueListShowCharcount: savedSettings.cueListShowCharcount !== false,
       cueListAutoScrollOnClick: savedSettings.cueListAutoScrollOnClick !== false,
+      cueListPairLayout: savedSettings.cueListPairLayout === 'rows' ? 'rows' : 'columns',
       cueListKeepSplitVisible: savedSettings.cueListKeepSplitVisible !== false,
       cueListHideDisabled: savedSettings.cueListHideDisabled !== false,
       // 字数过滤值：0 = 不过滤。这里只做范围校验；旧默认 16 的清理由一次性迁移 flag
@@ -12533,6 +12466,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       cueEditorShowSticker: savedSettings.cueEditorShowSticker === true,
       cueEditorCancelOnEscape: savedSettings.cueEditorCancelOnEscape === true,
       toolbarKbdHints: savedSettings.toolbarKbdHints === true,
+      assetLibraryShowSearch: savedSettings.assetLibraryShowSearch !== false,
       selectGroupMembers: savedSettings.selectGroupMembers === true,
       // 合并连接符按字幕拆分类型区分：连续型默认直接拼接，单词型默认空格。
       // 旧版只有 mergeJoinText 一个值；用户自定义过则两个类型都沿用旧值。
@@ -12577,7 +12511,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       ninjaSlashLengthPercent: clampInteger(savedSettings.ninjaSlashLengthPercent, 80, 20, 400),
       ninjaSlashRotateAmplitude: clampInteger(savedSettings.ninjaSlashRotateAmplitude, 6, 0, 60),
       crossTrackSnap: savedSettings.crossTrackSnap !== false,
-      selectBoundSubtitlePair: savedSettings.selectBoundSubtitlePair !== false,
+      selectBoundSubtitlePair: savedSettings.selectBoundSubtitlePair === true,
       multiSubtitleAutoSyncDuration: savedSettings.multiSubtitleAutoSyncDuration !== false,
       theme: savedSettings.theme === 'light' ? 'light' : 'dark',
       // 主题预设（紫苑（默认）/小铃/灵梦/爱丽丝/恋/莲子）。
@@ -15261,9 +15195,28 @@ export default MawDynamicCaptions;
 // Pure sample/time math shared by timeline, playback and project validation.
 (function (global) {
   'use strict';
+  const MAX_LANES = 3;
+  const CAPACITY_MESSAGE = '音频贴片最多同时重叠三层，请先移动或裁剪现有贴片';
   const duration = (clip, asset) => (clip.source_out_sample - clip.source_in_sample) * 1000 / asset.sample_rate;
   const end = (clip, asset) => clip.start_ms + duration(clip, asset);
   const levelDb = (clip, track) => clip.gain_db + (track?.gain_db || 0);
+  function hasCapacity(clips, assets) {
+    const events = [];
+    for (const clip of clips) {
+      const asset = assets.get(clip.asset_id);
+      if (!asset) continue; // 素材引用完整性由 validate 检查。
+      events.push([clip.start_ms, 1], [end(clip, asset), -1]);
+    }
+    events.sort((a, b) => a[0] - b[0] || a[1] - b[1]); // 首尾相接不算重叠。
+    let active = 0;
+    for (const [, delta] of events) if ((active += delta) > MAX_LANES) return false;
+    return true;
+  }
+  function assertCapacity(extension) {
+    if (!hasCapacity(extension?.audio_clips || [], new Map((extension?.assets || []).map(a => [a.id, a])))) {
+      throw Error(CAPACITY_MESSAGE);
+    }
+  }
   function validTrack(track) {
     return track && global.MSWProject.validId(track.id) && typeof track.name === 'string' && [...track.name].length <= 160
       && Number.isFinite(track.gain_db) && track.gain_db >= -60 && track.gain_db <= 12 && typeof track.muted === 'boolean';
@@ -15319,15 +15272,18 @@ export default MawDynamicCaptions;
       const asset = assets.get(clip.asset_id);
       return asset ? end(clip, asset) : -Infinity;
     });
-    const overlapsAny = (index) => sorted.some((_, other) => other !== index
-      && sorted[index].start_ms < ends[other] && sorted[other].start_ms < ends[index]);
+    const previousEnd = [];
+    let furthest = -Infinity;
+    for (const finish of ends) { previousEnd.push(furthest); furthest = Math.max(furthest, finish); }
+    const overlapsAny = index => previousEnd[index] > sorted[index].start_ms
+      || (index + 1 < sorted.length && sorted[index + 1].start_ms < ends[index]);
     for (let index = 0; index < sorted.length; index += 1) {
       const clip = sorted[index];
       if (ends[index] === -Infinity) continue;
       const clipEnd = ends[index];
       const busy = (lane) => (laneEnds.get(lane) ?? -Infinity) > clip.start_ms;
       const sticky = prevLanes?.get(clip.id);
-      let lane = Number.isInteger(sticky) && sticky >= 0 && overlapsAny(index) && !busy(sticky)
+      let lane = Number.isInteger(sticky) && sticky >= 0 && sticky < MAX_LANES && overlapsAny(index) && !busy(sticky)
         ? sticky
         : null;
       if (lane == null) {
@@ -15337,6 +15293,9 @@ export default MawDynamicCaptions;
       laneEnds.set(lane, Math.max(laneEnds.get(lane) ?? -Infinity, clipEnd));
       lanes.set(clip.id, lane);
     }
+    // 删除、裁剪后消除空层，保持全部贴片在可见的连续行内。
+    const compact = new Map([...laneEnds.keys()].sort((a, b) => a - b).map((lane, index) => [lane, index]));
+    for (const [id, lane] of lanes) lanes.set(id, compact.get(lane));
     return { lanes, count: laneEnds.size };
   }
   function audible(extension) {
@@ -15378,7 +15337,8 @@ export default MawDynamicCaptions;
     const ratio = Math.max(0, Math.min(1, (db + 60) / 54));
     return `hsl(${Math.round(215 - ratio * 175)} 48% ${Math.round(18 + ratio * 28)}%)`;
   }
-  global.MSWAudio = Object.freeze({ duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
+  global.MSWAudio = Object.freeze({ MAX_LANES, CAPACITY_MESSAGE, hasCapacity, assertCapacity,
+    duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
 })(window);
 
 // Versioned render contract. Times are on the source timeline; output positions
@@ -15856,6 +15816,16 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '音频贴片最多同时重叠三层，请先移动或裁剪现有贴片': 'Audio clips can overlap on at most three layers. Move or trim existing clips first.',
+    '翻译所选字幕': 'Translate selected subtitles',
+    '卡片显示': 'Card display',
+    '主副布局': 'Paired layout',
+    '双排': 'Stacked rows',
+    '仅改变字幕列表的显示内容': 'Change subtitle list content only',
+    '双列：左主右副；双排：上主下副': 'Columns: main left, secondary right; rows: main above secondary',
+    '卡片': 'Cards',
+    '卡片色': 'Card color',
+    '字幕列表和素材库的卡片底色': 'Background of subtitle and asset library cards',
     '请先另存为工程，再创建磁盘版本': 'Save the project as a file before creating disk versions',
     '当前正在编辑或保存，请稍后创建版本': 'Editing or saving is in progress; create the version afterward',
     '版本与说话人': 'Versions and speakers',
@@ -18049,6 +18019,7 @@ export default MawDynamicCaptions;
     waveformScale: 1,
     disabledDisplay: 'dim',
     showTrackHeads: true,
+    hoverDetails: false,
     dragPlayhead: true,
     spectralColor: false,
   };
@@ -18585,6 +18556,8 @@ export default MawDynamicCaptions;
       ...(rawWaveformSettings.disabledDisplay === 'hidden' || rawWaveformSettings.disabledDisplay === 'dim'
         ? { disabledDisplay: rawWaveformSettings.disabledDisplay } : {}),
       // 旧设置键 showGroupBadges（分组标记）由「轨道头」承接，旧值迁移。
+      ...(typeof rawWaveformSettings.hoverDetails === 'boolean'
+        ? { hoverDetails: rawWaveformSettings.hoverDetails } : {}),
       ...(typeof rawWaveformSettings.showTrackHeads === 'boolean'
         ? { showTrackHeads: rawWaveformSettings.showTrackHeads }
         : (typeof rawWaveformSettings.showGroupBadges === 'boolean'
@@ -18652,6 +18625,7 @@ export default MawDynamicCaptions;
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
         showTrackHeads: parsed.showTrackHeads ?? (parsed.showGroupBadges !== false),
+        hoverDetails: parsed.hoverDetails === true,
         dragPlayhead: parsed.dragPlayhead !== false,
         spectralColor: parsed.spectralColor === true,
       };
@@ -19623,6 +19597,7 @@ export default MawDynamicCaptions;
       this.secondsPerRowSelect = document.getElementById('waveform-seconds-per-row');
       this.rowHeightSelect = document.getElementById('waveform-row-height');
       this.showTrackHeadsToggle = document.getElementById('waveform-show-track-heads');
+      this.hoverDetailsToggle = document.getElementById('waveform-hover-details');
       this.dragPlayheadToggle = document.getElementById('waveform-drag-playhead');
       this.spectralColorToggle = document.getElementById('waveform-spectral-color');
       this.sideSelect = document.getElementById('waveform-side');
@@ -19709,6 +19684,12 @@ export default MawDynamicCaptions;
         this.settings.showTrackHeads = this.showTrackHeadsToggle.checked;
         saveSettings(this.settings);
         this.applyTrackHeadsVisibility();
+        this.render();
+      });
+      this.hoverDetailsToggle?.addEventListener('change', () => {
+        this.settings.hoverDetails = this.hoverDetailsToggle.checked;
+        saveSettings(this.settings);
+        // title 在块/贴片创建时写入，轻量刷新不更新 title——全量渲染一次。
         this.render();
       });
       if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
@@ -19980,6 +19961,7 @@ export default MawDynamicCaptions;
       if (this.sideSelect) this.sideSelect.value = this.settings.side;
       if (this.disabledDisplaySelect) this.disabledDisplaySelect.value = this.settings.disabledDisplay;
       if (this.showTrackHeadsToggle) this.showTrackHeadsToggle.checked = this.settings.showTrackHeads !== false;
+      if (this.hoverDetailsToggle) this.hoverDetailsToggle.checked = this.settings.hoverDetails === true;
       if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
       if (this.layoutEditToggle) {
         this.layoutEditToggle.textContent = this.settings.layoutEditing ? '完成布局' : '编辑布局';
@@ -20024,6 +20006,7 @@ export default MawDynamicCaptions;
     setTool(tool) {
       if (!['select', 'razor', 'range'].includes(tool)) return;
       if (this.tool === tool) return;
+      this.clearCueEdgeHover();
       this.tool = tool;
       this.pane?.classList.toggle('tool-razor', tool === 'razor');
       this.pane?.classList.toggle('tool-select', tool === 'select');
@@ -20950,6 +20933,7 @@ export default MawDynamicCaptions;
           side: this.settings.side,
           disabledDisplay: this.settings.disabledDisplay,
           showTrackHeads: this.settings.showTrackHeads !== false,
+          hoverDetails: this.settings.hoverDetails === true,
           dragPlayhead: this.settings.dragPlayhead === true,
         },
         splitPercent: this.settings.splitPercent,
@@ -21599,6 +21583,8 @@ export default MawDynamicCaptions;
         this.renderedRows.forEach((row) => this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs)));
         // 贴片 mute 等状态变化会影响 A 轨道头，轻量路径也要同步轨道头列。
         this.syncTrackHeads();
+        // 播放头位置必须在轻量路径里保持刷新，否则放入贴片后指针会停一拍。
+        this.updatePlayback(false);
         return;
       }
       this.audioGeometry = geometry;
@@ -21747,23 +21733,26 @@ export default MawDynamicCaptions;
           event.stopPropagation();
           headActions.get(head.dataset.headAction)?.();
         });
+        // 没有字幕块的轨不显示行标签（此前空工程也会挂着 V1）。
         const mainMuted = this.options.subtitleTrackMuted?.('main') === true;
-        group.appendChild(makeHead('V1', 'v-main', `V1 主字幕轨——点击${mainMuted ? '启用' : '禁用'}整条轨道`,
-          () => this.options.toggleSubtitleTrackMuted?.('main'), mainMuted));
-        if (this.options.multiSubtitleVisible?.() === true) {
+        if ((this.options.getSegments('main') || []).length) {
+          group.appendChild(makeHead('V1', 'v-main', `V1 主字幕轨——点击${mainMuted ? '启用' : '禁用'}整条轨道`,
+            () => this.options.toggleSubtitleTrackMuted?.('main'), mainMuted));
+        }
+        if (this.options.multiSubtitleVisible?.() === true
+            && (this.options.getExtensionSegments?.() || []).length) {
           const extMuted = this.options.subtitleTrackMuted?.('extension') === true;
           group.appendChild(makeHead('V2', 'v-ext', `V2 副字幕轨——点击${extMuted ? '启用' : '禁用'}整条轨道`,
             () => this.options.toggleSubtitleTrackMuted?.('extension'), extMuted));
         }
-        // A 头：按全局打包 lane 数渲染，对齐 lanes 区域（区域底距 5px、
-        // lane 高 22、可视上限 3 条；所有行的轨道带高度一致——按原模式）。
+        // A 头：按打包 lane 数渲染，纵向对齐 lanes 区域（可视上限 3 行）。
         const audioCount = this.options.getAudioTrackCount?.() || 0;
         const lanesInner = row.querySelector('.msw-audio-lanes-inner');
         if (audioCount > 0 && lanesInner) {
           const ROW_H = 22;
           const innerH = Math.max(1, audioCount) * ROW_H + 6;
           const areaH = Math.min(innerH, 3 * ROW_H + 6);
-          for (let i = 0; i < audioCount; i += 1) {
+          for (let i = 0; i < audioCount && i < 3; i += 1) {
             const muted = this.options.audioTrackMuted?.(i) === true;
             const head = makeHead(`A${i + 1}`, 'a-track',
               `A${i + 1} 配音轨——点击${muted ? '启用' : '禁用'}整条轨道`,
@@ -22062,6 +22051,7 @@ export default MawDynamicCaptions;
         this.pointerLineMarker = pointerLine;
         this.showPointerLine(event, row, pointerLine);
       });
+      row.addEventListener('pointermove', event => this.updateCueEdgeHover(event, row), { capture: true });
       row.addEventListener('pointermove', (event) => {
         this.pointerLineEvent = { clientX: event.clientX };
         this.pointerLineRow = row;
@@ -22070,6 +22060,7 @@ export default MawDynamicCaptions;
         this.scheduleHoverSeekPreview(event, row);
       });
       row.addEventListener('pointerleave', () => {
+        if (!this.drag) this.clearCueEdgeHover();
         this.hidePointerLine(pointerLine);
         if (this.pointerLineMarker === pointerLine) {
           this.pointerLineEvent = null;
@@ -22218,8 +22209,15 @@ export default MawDynamicCaptions;
         label.textContent = segment.text.replace(/\s+/g, ' ');
         block.appendChild(label);
         this.setBindingMarker(block, mainBindingMarkers?.has?.(index) === true);
-        // 短块内文字会被截断，悬浮 title 给出完整字幕文本
-        block.title = label.textContent;
+        // 悬浮 title：默认只有完整文字；「悬浮显示序号与用时」开启时
+        // 附加序号与起止时间（当前时间基准格式）。
+        if (this.settings.hoverDetails === true) {
+          const clockNow = resolveTiming(this.cueTiming());
+          block.title = `#${index + 1} · ${clockNow.format(clockNow.fromMs(segment.start))} ~ ${clockNow.format(clockNow.fromMs(segment.end))}
+${label.textContent}`;
+        } else {
+          block.title = label.textContent;
+        }
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
           leftHandle.className = 'waveform-cue-handle left';
@@ -22333,6 +22331,15 @@ export default MawDynamicCaptions;
       block.style.left = `${left}%`;
       block.style.width = `${width}%`;
       block.hidden = visibleEnd <= visibleStart;
+      for (const [side, visible] of [['left', segment.start >= startMs], ['right', segment.end <= endMs]]) {
+        const handle = block.querySelector(`.waveform-cue-handle.${side}`);
+        if (!visible) handle?.remove();
+        else if (!handle) {
+          const next = document.createElement('span');
+          next.className = `waveform-cue-handle ${side}`;
+          block.appendChild(next);
+        }
+      }
       const row = ownerRow || block.closest('.waveform-row');
       // 时间上的多行模式与“多重字幕”双轨不是同一个概念；普通多行波形也
       // 必须在行边界清除相接侧圆角。基础模式的单行窗口则保留完整圆角。
@@ -22400,6 +22407,7 @@ export default MawDynamicCaptions;
           ? bindingMarkerTargets.extension?.has?.(Number(block.dataset.extIdx)) === true
           : bindingMarkerTargets.main?.has?.(Number(block.dataset.idx)) === true);
       });
+      this.paintCueEdgeHover();
       this.positionPlayheads();
     }
 
@@ -23226,26 +23234,15 @@ export default MawDynamicCaptions;
       }
       // 剃刀工具：无修饰键左键点击字幕块（非手柄）时，在指针位置安全拆分。
       // 修饰键（Alt/Ctrl(Cmd)/Shift）仍走原行为，便于拆分后立即多选/禁用。
-      const targetHandle = event.target.closest('.waveform-cue-handle');
-      const adjacentCueAdjustmentIndependent = this.isAdjacentCueAdjustmentIndependent(event.altKey);
+      const edgeHit = this.resolveCueEdgeHit(event, row);
+      const targetHandle = edgeHit?.handle;
+      this.updateCueEdgeHover(event, row);
       if (track === 'main' && this.tool === 'razor' && !targetHandle
           && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
         const timeMs = this.timeFromPointer(event, row);
         const timing = this.cueTiming();
         this.options.splitCueAtTime?.(index, timing.toMs(timing.fromMs(timeMs)));
         return;
-      }
-      // 相邻字幕独立调整：命中共享边界手柄时拆开为单侧拖动；Alt 会
-      // 根据“自动吸附调整相邻字幕”开关临时反转这一模式。
-      if (adjacentCueAdjustmentIndependent && targetHandle) {
-        const sharedLeft = targetHandle.classList.contains('left')
-          && index > 0 && this.isSharedBoundary(event, index - 1, index, row, track);
-        const sharedRight = targetHandle.classList.contains('right')
-          && index + 1 < this.options.getSegments(track).length
-          && this.isSharedBoundary(event, index, index + 1, row, track);
-        if (sharedLeft || sharedRight) {
-          return this.beginIndependentEdgeDrag(event, index, row, targetHandle, track);
-        }
       }
       // Ctrl(Cmd)+click toggles selection without starting a drag
       if (event.ctrlKey || event.metaKey) {
@@ -23266,10 +23263,10 @@ export default MawDynamicCaptions;
       }
       let boundaryIndex = index;
       const kind = targetHandle?.classList.contains('left')
-        ? (index > 0 && this.isSharedBoundary(event, index - 1, index, row, track)
+        ? (edgeHit.shared
           ? (boundaryIndex = index - 1, 'resize-boundary') : 'resize-left')
         : targetHandle?.classList.contains('right')
-          ? (index + 1 < this.options.getSegments(track).length && this.isSharedBoundary(event, index, index + 1, row, track)
+          ? (edgeHit.shared
             ? 'resize-boundary' : 'resize-right')
           : 'move';
       // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
@@ -23342,6 +23339,7 @@ export default MawDynamicCaptions;
       };
       event.currentTarget.classList.add('dragging');
       this.pane.classList.add('cue-drag-active');
+      this.paintCueEdgeHover();
       try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch (_) {}
       window.addEventListener('pointermove', this._dragMove = (moveEvent) => this.moveCueDrag(moveEvent));
       window.addEventListener('pointerup', this._dragEnd = (upEvent) => this.endCueDrag(upEvent), { once: true });
@@ -23356,18 +23354,58 @@ export default MawDynamicCaptions;
       }
     }
 
-    isSharedBoundary(event, leftIndex, rightIndex, row, track = 'main') {
-      const segments = this.options.getSegments(track);
-      const left = segments[leftIndex];
-      const right = segments[rightIndex];
-      const timing = this.cueTiming();
-      const leftEnd = timing.getEnd(left);
-      const rightStart = timing.getStart(right);
-      if (!left || !right || Math.abs(leftEnd - rightStart) > timing.snapThreshold) return false;
-      const pointerMs = this.timeFromPointer(event, row);
-      const pointerTime = timing.fromMs(pointerMs);
-      return Math.abs(pointerTime - leftEnd) <= timing.snapThreshold
-        || Math.abs(pointerTime - rightStart) <= timing.snapThreshold;
+    resolveCueEdgeHit(event, row) {
+      const block = event.target.closest?.('.waveform-cue-block');
+      if (!block || block.closest('.waveform-row') !== row) return null;
+      const track = block.dataset.track || 'main';
+      const attr = track === 'extension' ? 'ext-idx' : 'idx';
+      const index = Number(block.getAttribute(`data-${attr}`));
+      const segments = this.options.getSegments(track), segment = segments[index];
+      if (!segment) return null;
+      const rect = block.getBoundingClientRect();
+      // 短块的两端热区可能重叠，只取离指针最近的真实边缘。
+      const side = event.clientX - rect.left <= rect.right - event.clientX ? 'left' : 'right';
+      const distance = Math.abs(event.clientX - (side === 'left' ? rect.left : rect.right));
+      const handle = block.querySelector(`.waveform-cue-handle.${side}`);
+      if (!handle || distance > 7) return null;
+      const otherIndex = index + (side === 'left' ? -1 : 1);
+      const other = segments[otherIndex];
+      const otherSide = side === 'left' ? 'right' : 'left';
+      const otherBlock = [...this.content.querySelectorAll(`.waveform-cue-block[data-track="${track}"][data-${attr}="${otherIndex}"]`)]
+        .find(candidate => !candidate.hidden && candidate.querySelector(`.waveform-cue-handle.${otherSide}`));
+      const otherHandle = otherBlock?.querySelector(`.waveform-cue-handle.${otherSide}`);
+      // 只有时间精确相接、两侧真实边缘均已显示且靠近共同边界才共享。
+      // 边界恰在换行处时，另一真实手柄可以位于下一行／上一行。
+      // Alt 显示并拖动单侧；时间吸附阈值和另一个字幕轨不参与此判定。
+      const touching = other && (side === 'left' ? other.end === segment.start : segment.end === other.start);
+      const shared = Boolean(!event.altKey && touching && distance <= 4 && otherHandle && !otherBlock.hidden);
+      return { handle, shared, edges: [{ track, index, side }, ...(shared ? [{ track, index: otherIndex, side: otherSide }] : [])] };
+    }
+
+    updateCueEdgeHover(event, row) {
+      if (this.drag) return;
+      const edges = this.resolveCueEdgeHit(event, row)?.edges || [];
+      const key = edges.map(edge => `${edge.track}:${edge.index}:${edge.side}`).join('|');
+      if (key === this.cueEdgeHoverKey) return;
+      this.cueEdgeHoverKey = key;
+      this.cueEdgeHover = edges;
+      this.paintCueEdgeHover();
+    }
+
+    clearCueEdgeHover() {
+      this.cueEdgeHoverKey = null;
+      this.cueEdgeHover = [];
+      this.paintCueEdgeHover();
+    }
+
+    paintCueEdgeHover() {
+      this.content?.querySelectorAll('.waveform-cue-handle').forEach(handle => {
+        const block = handle.parentElement;
+        const track = block.dataset.track || 'main';
+        const index = Number(track === 'extension' ? block.dataset.extIdx : block.dataset.idx);
+        handle.classList.toggle('edge-hot', (this.cueEdgeHover || []).some(edge => edge.track === track
+          && edge.index === index && handle.classList.contains(edge.side)));
+      });
     }
 
     // Alt-drag 命中共享边界手柄：只拖动被命中一侧，邻居的相反边保持不动。
@@ -23643,8 +23681,7 @@ export default MawDynamicCaptions;
         const edge = drag.kind === 'resize-left' || drag.kind === 'resize-boundary-independent'
           ? 'start' : 'end';
         const options = {
-          sticky: drag.kind !== 'resize-boundary-independent'
-            && !this.isAdjacentCueAdjustmentIndependent(altKey),
+          sticky: drag.kind === 'resize-boundary',
           timing,
           minDuration: timing.minDuration,
         };
@@ -24401,9 +24438,7 @@ export default MawDynamicCaptions;
       clock.setStart(rightSegment, boundary);
       leftSegment.items = remapItems(left.items, left.start, left.end, left.start, boundary, clock);
       rightSegment.items = remapItems(right.items, right.start, right.end, boundary, right.end, clock);
-      this.setStatus(`共享边界 ${clock.format(boundary)} · ${this.adjacentSnapModeStatusHint()}`, '', { quiet: true });
-      // 吸附模式提示只挂在「共享边界」状态上：共享边界拖动正是自动吸附
-      // 默认联动/独立两种模式的直接体现，Alt 可随时临时反转。
+      this.setStatus(`共享边界 ${clock.format(boundary)}`, '', { quiet: true });
     }
 
     endCueDrag(event) {
@@ -24417,6 +24452,7 @@ export default MawDynamicCaptions;
       this.content.querySelectorAll('.waveform-cue-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.pane.classList.remove('cue-drag-active');
       this.drag = null;
+      this.clearCueEdgeHover();
       if (event.type === 'pointercancel') {
         drag.cancelOriginals.forEach((original, idx) => {
           const segment = this.options.getSegments(drag.track || 'main')[idx];
@@ -24658,7 +24694,9 @@ function validateProjectForLoad(project) {
     const message = '此工程的格式版本不受支持，请使用对应版本的编辑器打开';
     throw new Error(window.MSWE_I18N?.translateText?.(message) || message);
   }
-  return window.MSWProject.normalize(project.msw);
+  const extension = window.MSWProject.normalize(project.msw);
+  window.MSWAudio.assertCapacity(extension);
+  return extension;
 }
 validateProjectForLoad(DATA);
 DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
@@ -25333,6 +25371,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowTime: true,
   cueListShowSticker: true,
   cueListShowCharcount: true,
+  cueListPairLayout: 'columns',
   // 字幕列表普通点击是否把目标字幕滚动到列表中央。
   cueListAutoScrollOnClick: true,
   // 字数过滤期间，拆分结果是否暂时保留在列表中，直到焦点离开。
@@ -25404,7 +25443,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   // 多重字幕拖动时是否把另一条轨道的起止边界加入吸附目标。
   crossTrackSnap: true,
   // 选中主/副字幕时，是否同时选中绑定的另一条字幕。
-  selectBoundSubtitlePair: true,
+  selectBoundSubtitlePair: false,
   // G 绑定后是否自动把副字幕时间范围同步到主字幕（等同随后按 H）。
   multiSubtitleAutoSyncDuration: true,
   // 多重字幕波形是否显示主/副轨道编号徽标。
@@ -25412,6 +25451,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   theme: 'dark',
   // 波形形状来源：reapeaks（默认，有 .ReaPeaks 缓存时用其最细 wave 层，缺数据自动回退自研）/ self（自研 1000Hz 重采样缓存）。
   waveShapeSource: 'reapeaks',
+  assetLibraryShowSearch: true,
 };
 const SUBTITLE_FONT_SIZE_MIN = 12;
 const SUBTITLE_FONT_SIZE_MAX = 96;
@@ -26040,7 +26080,7 @@ function applyHistoryRecord(record) {
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
   clearSelection();
-  lastActive = -1;
+  cueListPlaybackKey = null;
   const structureChanged = previousWaveformStructure
     !== multiSubtitleWaveformStructureKey();
   renderAll({
@@ -26321,6 +26361,7 @@ const multiSubtitleSelectBoundPairToggle = document.getElementById('multi-subtit
 const multiSubtitleAutoSyncDurationToggle = document.getElementById('multi-subtitle-auto-sync-duration');
 const multiSubtitleToggle = document.getElementById('multi-subtitle-toggle');
 const multiSubtitleDisplayMode = document.getElementById('multi-subtitle-display-mode');
+const cueListPairLayout = document.getElementById('cue-list-pair-layout');
 const multiSubtitleMainLanguageMode = document.getElementById('multi-subtitle-main-language-mode');
 const multiSubtitleExtensionLanguageMode = document.getElementById('multi-subtitle-extension-language-mode');
 const multiSubtitleExtensionRowHeightSetting = document.getElementById('multi-subtitle-extension-row-height-setting');
@@ -26420,6 +26461,8 @@ const SUBTITLE_EXTEND_PANEL_POSITION_KEY = 'moy.asr.subtitle_extend.panel.v1';
 let gapPreviewRange = null;
 let gapRemovePanelDrag = null;
 let currentCuePanelIdx = -1;
+let cueListPlaybackKey = null;
+let cueListPlaybackRows = [];
 let currentCuePanelKind = 'main';
 let currentCuePanelTrackId = null;
 let cuePanelUndoPushed = false;
@@ -26821,6 +26864,8 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   cueListShowTimeToggle.checked = EDITOR_SETTINGS.cueListShowTime;
   cueListShowStickerToggle.checked = EDITOR_SETTINGS.cueListShowSticker;
   cueListShowCharcountToggle.checked = EDITOR_SETTINGS.cueListShowCharcount;
+  cueListPairLayout.value = EDITOR_SETTINGS.cueListPairLayout;
+  container.dataset.pairLayout = EDITOR_SETTINGS.cueListPairLayout;
   cueListAutoScrollOnClickToggle.checked = EDITOR_SETTINGS.cueListAutoScrollOnClick;
   cueListKeepSplitVisibleToggle.checked = EDITOR_SETTINGS.cueListKeepSplitVisible;
   syncCharCountThresholdInputs(EDITOR_SETTINGS.cueListCharcountThreshold);
@@ -26833,7 +26878,8 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   container.classList.toggle('frame-time-mode', timelineIsFrameMode());
   // 设置保留用户的显示偏好；当前工程完全没有表情包时，整列仍自动收起，
   // 分配首个表情包时由本函数根据最新数据直接恢复。
-  const projectHasStickers = DATA.segments.some(segment => segment.sticker || segment.sticker_ref);
+  const projectHasStickers = [...DATA.segments, ...(getActiveExtensionTrack()?.segments || [])]
+    .some(segment => segment.sticker || segment.sticker_ref);
   container.classList.toggle('hide-cue-sticker',
     !EDITOR_SETTINGS.cueListShowSticker || !projectHasStickers,
   );
@@ -26890,9 +26936,10 @@ function updateMultiSubtitleUi() {
       : '请先通过「字幕 → 加载字幕」导入第二条字幕，再启用多重字幕。';
   }
   if (multiSubtitleDisplayMode) {
-    multiSubtitleDisplayMode.value = getMultiSubtitleState().display_mode || 'both';
-    multiSubtitleDisplayMode.hidden = !enabled;
+    multiSubtitleDisplayMode.value = enabled ? (getMultiSubtitleState().display_mode || 'both') : 'main';
+    multiSubtitleDisplayMode.disabled = !enabled;
   }
+  cueListPairLayout.disabled = !enabled || (getMultiSubtitleState().display_mode || 'both') !== 'both';
   if (multiSubtitleMainLanguageMode) {
     multiSubtitleMainLanguageMode.value = getMainSubtitleSplitMode(DATA.segments[0]);
     multiSubtitleMainLanguageMode.hidden = !enabled;
@@ -26978,12 +27025,25 @@ function applyToolbarKbdHints() {
   document.querySelectorAll('.multi-subtitle-split-key-hints').forEach((el) => { el.hidden = !shown; });
   syncWaveHintsGeometry();
 }
+const assetShowSearchToggle = document.getElementById('asset-show-search');
+function applyAssetSearchVisibility() {
+  const show = EDITOR_SETTINGS.assetLibraryShowSearch !== false;
+  if (assetShowSearchToggle) assetShowSearchToggle.checked = show;
+  // 整行一起隐藏（该行只有搜索、筛选与刷新按钮）。
+  document.querySelector('.msw-asset-toolbar')?.toggleAttribute('hidden', !show);
+}
+assetShowSearchToggle?.addEventListener('change', () => {
+  updateEditorSettings({ assetLibraryShowSearch: assetShowSearchToggle.checked });
+  applyAssetSearchVisibility();
+});
+
 const toolbarKbdHintsToggle = document.getElementById('toolbar-kbd-hints-toggle');
 toolbarKbdHintsToggle?.addEventListener('change', () => {
   updateEditorSettings({ toolbarKbdHints: toolbarKbdHintsToggle.checked });
   applyToolbarKbdHints();
 });
 applyToolbarKbdHints();
+applyAssetSearchVisibility();
 
 function applyCueEditorDisplaySettings() {
   cueEditorShowNavigationToggle.checked = EDITOR_SETTINGS.cueEditorShowNavigation;
@@ -27194,6 +27254,11 @@ multiSubtitleDisplayMode?.addEventListener('change', () => {
   multi.display_mode = MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_DISPLAY_MODES.has(next) ? next : 'both';
   multi._dirty = true;
   renderAll({ waveform: 'none' });
+});
+cueListPairLayout.addEventListener('change', () => {
+  commitProcessingEdits();
+  updateEditorSettings({ cueListPairLayout: cueListPairLayout.value });
+  applyCueListDisplaySettings();
 });
 multiSubtitleMainLanguageMode?.addEventListener('change', () => {
   const multi = getMultiSubtitleState();
@@ -27407,29 +27472,29 @@ if (helpPanel) {
 // 预设决定明暗、强调色与基础配色（令牌在 CSS：:root/[data-theme]/[data-accent]），
 // 自定义颜色按键覆盖（含强调色整族变量内联生成），清除后回到当前预设默认。
 const THEME_PRESETS = {
-  default: { theme: 'dark', accent: 'blue', colors: null },
+  default: { theme: 'dark', accent: 'blue', colors: { card: '#252a34' } },
   // 依神紫苑：用户自定义主题「新的紫苑配色」的 15 键配色固化（独立于该自定义主题存在）。
   aster: { theme: 'dark', accent: 'azure', colors: {
     bg: '#1a1b26', menubar: '#16161e', raised: '#1a1b26', input: '#16161e',
     overlay: '#1a1b26', popup: '#1a1b26', text: '#c0caf5', textMuted: '#8388a0',
     accent: '#80d0ff', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
-    toolbar: '#16161e', gap: '#ffdc00', hit: '#f8727c',
+    toolbar: '#16161e', card: '#292a40', gap: '#ffdc00', hit: '#f8727c',
   } },
   // 本居小铃：深橘发红瞳红白格纹和服（深色，黄棕暖调：黄色+棕红+橘红）
   kosuzu: { theme: 'dark', accent: 'orange', colors: {
     bg: '#170f08', menubar: '#221510', raised: '#2a1a11', input: '#322016',
     overlay: '#3a2517', popup: '#371c15', text: '#f5e7cd', textMuted: '#c2a685',
     accent: '#c9552b', wave: '#e5a83d', subtitle: '#eee0c2', cueBlock: '#8f6a48',
-    toolbar: '#221510', gap: '#ffc04d',
+    toolbar: '#221510', card: '#35251c', gap: '#ffd166', hit: '#70d9df',
   } },
   // 宇佐见莲子：黑礼帽白衬衫（黑色系）
-  renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707' } },
+  renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707', card: '#24252d', gap: '#e6c36a', hit: '#8ecbff' } },
   // 博丽灵梦：红白巫女（浅色，米白底红强调）
-  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#ff0015', cueBlock: '#bbaaaa' } },
+  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#b52242', cueBlock: '#bbaaaa', card: '#fff8f5', gap: '#166b83' } },
   // 爱丽丝：金发蓝裙（浅色，淡蓝底金强调）
-  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261' } },
+  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261', card: '#fafbff', gap: '#2854a1', hit: '#ac3b70' } },
   // 古明地恋：黄上衣绿裙黑帽（浅色，暖黄底绿强调）
-  koishi: { theme: 'light', accent: 'green', colors: { bg: '#f5f3e4', text: '#31362a', wave: '#3f7d3a', subtitle: '#4d5442' } },
+  koishi: { theme: 'light', accent: 'green', colors: { bg: '#f5f3e4', text: '#31362a', wave: '#3f7d3a', subtitle: '#4d5442', card: '#fffdf0', gap: '#276c50', hit: '#9b4482' } },
 };
 const ACCENT_VAR_FAMILY = ['--accent', '--accent-hover', '--accent-strong', '--accent-tint', '--accent-tint-strong', '--accent-soft', '--accent-line'];
 function shiftHex(hex, amount) {
@@ -27479,6 +27544,8 @@ function activeThemePreset() {
   return THEME_PRESETS[EDITOR_SETTINGS.themePreset] || THEME_PRESETS.default;
 }
 function resolvedInterfaceColors() {
+  // 旧自定义快照缺少卡片键时沿用随背景派生的 CSS 兜底。
+  if (String(EDITOR_SETTINGS.themePreset || '').startsWith('custom:')) return { ...(EDITOR_SETTINGS.colors || {}) };
   return { ...(activeThemePreset().colors || {}), ...(EDITOR_SETTINGS.colors || {}) };
 }
 let editorBrandSvg = null;
@@ -29167,6 +29234,7 @@ function clearSelection({ silent = false, commitCuePanel = true } = {}) {
       .forEach((el) => el.classList.remove('selected'));
   });
   selectedExtensionIdxs.clear();
+  updateMultiSelectionClasses();
   selCountEl.textContent = '0';
   if (silent) {
     // 结构编辑会马上 renderAll() 并重新选中目标；此时不必先刷新旧波形
@@ -29194,6 +29262,13 @@ function updateMultiSelectionClasses() {
     const selected = (Number.isInteger(mainIndex) && selectedIdxs.has(mainIndex))
       || (Number.isInteger(extensionIndex) && selectedExtensionIdxs.has(extensionIndex));
     element.classList.toggle('selected', selected);
+    const mainSelected = mainIndex >= 0 && selectedIdxs.has(mainIndex);
+    const extensionSelected = extensionIndex >= 0 && selectedExtensionIdxs.has(extensionIndex);
+    element.querySelectorAll('.multi-cue-column').forEach((column) => {
+      const ownSelected = column.classList.contains('main') ? mainSelected : extensionSelected;
+      column.classList.toggle('selected', ownSelected);
+      column.classList.toggle('related-selected', selected && !ownSelected);
+    });
   });
 }
 
@@ -29364,6 +29439,7 @@ function addToSelection(idx) {
   if (el) el.classList.add('selected');
   selCountEl.textContent = String(selectedIdxs.size + selectedExtensionIdxs.size);
   if (waveformEditor) waveformEditor.updateSelection();
+  updateMultiSelectionClasses();
   setCurrentCuePanelIndex(idx);
 }
 function addExtensionToSelection(index, track = getActiveExtensionTrack()) {
@@ -29699,9 +29775,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true } = {}) 
   container.appendChild(cueFragment);
   applyCueListDisplaySettings({ preserveCueListScroll: false });
   refreshColorFilterUi();
-  totalCountEl.textContent = multiVisible && displayMode === 'extension'
-    ? getActiveExtensionTrack()?.segments.length || 0
-    : DATA.segments.length;
+  totalCountEl.textContent = container.querySelectorAll(':scope > .cue').length;
   // buildCueEl/buildMultiCueColumn 已经按当前搜索词生成了文本；这里仅
   // 计算隐藏状态和数量，避免长工程 renderAll() 再逐行重建一遍文本节点。
   applySearch(searchEl.value, { refreshText: false, preserveCueListScroll: false });
@@ -29729,6 +29803,8 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true } = {}) 
   refreshTimedTextEditButton();
   updateGapRemoveDisableHint();
   window.MSWE_ONBOARDING?.afterRender();
+  cueListPlaybackKey = null;
+  updateCueListPlayback(undefined, false);
   restoreCueListRenderAnchor(cueListAnchor);
 }
 
@@ -29933,6 +30009,13 @@ function commitCuePanelEdit() {
 function renderCurrentCuePanel() {
   if (!cuePanel) return;
   const target = getCurrentCuePanelTarget();
+  container.querySelectorAll('.current-target').forEach((element) => element.classList.remove('current-target'));
+  if (target) {
+    const selector = target.kind === 'extension'
+      ? `.multi-cue-column[data-ext-idx="${target.index}"]`
+      : `.multi-cue-column[data-main-idx="${target.index}"]`;
+    container.querySelector(selector)?.classList.add('current-target');
+  }
   const idx = target?.index ?? -1;
   const seg = target?.segment || null;
   const empty = !target;
@@ -30245,7 +30328,7 @@ function updateCueColorPresentation(el, colorBar, seg) {
     colorBar.addEventListener('click', (event) => {
       if (!colorBar.classList.contains('is-ref')) return;
       event.stopPropagation();
-      const row = colorBar.closest('.cue');
+      const row = colorBar.closest('.multi-cue-column, .cue');
       const headIndex = Number(colorBar.dataset.colorRefHeadIdx);
       if (!Number.isInteger(headIndex) || headIndex < 0) return;
       const isExtension = row?.dataset.extIdx != null && row?.dataset.idx == null;
@@ -30269,15 +30352,17 @@ function updateCueColorPresentation(el, colorBar, seg) {
   el.style.removeProperty('--color-bar');
 
   if (seg.color) {
-    const value = seg.color.value || colorValue(seg.color.name);
+    const value = COLOR_BY_NAME[seg.color.name]?.value || seg.color.value || '#777';
     colorBar.classList.add('has-color');
     colorBar.style.setProperty('--color-bar', value);
     el.classList.add('has-color');
     el.style.setProperty('--color-bar', value);
     colorBar.title = `颜色：${seg.color.name}`;
   } else if (seg.color_ref) {
-    const value = colorValue(seg.color_ref.name);
     const headIndex = Number(seg.color_ref.headIdx);
+    const isExtension = el.dataset.extIdx != null && el.dataset.idx == null && el.dataset.mainIdx == null;
+    const segments = isExtension ? getActiveExtensionTrack()?.segments : DATA.segments;
+    const value = COLOR_BY_NAME[seg.color_ref.name]?.value || segments?.[headIndex]?.color?.value || '#777';
     colorBar.classList.add('is-ref');
     colorBar.style.setProperty('--color-bar', value);
     colorBar.dataset.colorRefHeadIdx = String(headIndex);
@@ -30345,7 +30430,7 @@ function buildCueEl(seg, idx, { extensionTrack = null } = {}) {
   if (seg._dirty) el.classList.add('dirty');
   if (seg.disabled) el.classList.add('disabled');
 
-  // 颜色条（最左）
+  // 颜色标记保留引用跳转，卡片头部以圆点呈现。
   const colorBar = document.createElement('span');
   colorBar.className = 'color-bar';
   updateCueColorPresentation(el, colorBar, seg);
@@ -30458,6 +30543,16 @@ function buildMultiCueColumn(segment, index, track, kind) {
   }
   column.dataset.start = String(segment.start);
   column.dataset.end = String(segment.end);
+  const colorBar = document.createElement('span');
+  colorBar.className = 'color-bar';
+  updateCueColorPresentation(column, colorBar, segment);
+  header.prepend(colorBar);
+  const sticker = document.createElement('span');
+  sticker.className = 'sticker-slot';
+  updateCueStickerPresentation(column, sticker, segment, index, {
+    extensionTrack: kind === 'extension' ? track : null,
+  });
+  column.insertBefore(sticker, text);
   return column;
 }
 
@@ -30475,10 +30570,9 @@ function buildDualCueEl(mainIndex, extensionIndex, track) {
     el.dataset.idx = String(mainIndex);
   }
   if (extensionIndex != null) el.dataset.extIdx = String(extensionIndex);
-  el.append(
-    buildMultiCueColumn(main, mainIndex ?? -1, track, 'main'),
-    buildMultiCueColumn(extension, extensionIndex ?? -1, track, 'extension'),
-  );
+  if (main) el.append(buildMultiCueColumn(main, mainIndex, track, 'main'));
+  if (extension) el.append(buildMultiCueColumn(extension, extensionIndex, track, 'extension'));
+  el.classList.toggle('single-sided', !main || !extension);
   if (main) bindCueEvents(el, mainIndex);
   if (extension) {
     const extensionColumn = el.querySelector('.multi-cue-column.extension');
@@ -30837,8 +30931,8 @@ function refreshColorFilterUi() {
 
 function refreshCueColorRows() {
   const extensionTrack = getActiveExtensionTrack();
-  container.querySelectorAll(':scope > .cue').forEach((el) => {
-    const colorBar = el.querySelector(':scope > .color-bar');
+  container.querySelectorAll(':scope > .cue:not(.multi-dual-cue), .multi-cue-column').forEach((el) => {
+    const colorBar = el.querySelector('.color-bar');
     if (!colorBar) return;
     if (el.dataset.extIdx != null && el.dataset.idx == null) {
       const extensionIndex = Number(el.dataset.extIdx);
@@ -30860,7 +30954,7 @@ function refreshCueColorRows() {
 
 function refreshCueStickerRows() {
   const extensionTrack = getActiveExtensionTrack();
-  container.querySelectorAll(':scope > .cue').forEach((el) => {
+  container.querySelectorAll(':scope > .cue:not(.multi-dual-cue), .multi-cue-column').forEach((el) => {
     const slotEl = el.querySelector(':scope > .sticker-slot');
     if (!slotEl) return;
     const isExtension = el.dataset.extIdx != null && el.dataset.idx == null;
@@ -30880,7 +30974,8 @@ function refreshStickerAssignmentUi() {
   // 表情包分配只改变行内槽位和预览素材，不改变字幕行的数量、顺序或时间；
   // 原地更新可以避免 renderAll() 替换列表节点后产生滚动闪烁。
   refreshCueStickerRows();
-  const projectHasStickers = DATA.segments.some((segment) => segment.sticker || segment.sticker_ref);
+  const projectHasStickers = [...DATA.segments, ...(getActiveExtensionTrack()?.segments || [])]
+    .some((segment) => segment.sticker || segment.sticker_ref);
   container.classList.toggle('hide-cue-sticker',
     !EDITOR_SETTINGS.cueListShowSticker || !projectHasStickers,
   );
@@ -33703,7 +33798,7 @@ function deleteSegments(idxs, { recordHistory = true } = {}) {
   // splitGroups 写入的 refField.headIdx 是删除前的 idx，需要同样位移
   // 上面 shiftHeadIdx 已经覆盖（它扫所有 segments 的所有 ref）
   clearSelection({ silent: true });
-  lastActive = -1;
+  cueListPlaybackKey = null;
   renderAll();
   flashHint(`已删除 ${sorted.length} 条`, 'success');
 }
@@ -33785,7 +33880,7 @@ function clearAllSubtitles() {
   markMultiSubtitleDirty();
   projectImportDirty = true;
   clearSelection({ silent: true, commitCuePanel: false });
-  lastActive = -1;
+  cueListPlaybackKey = null;
   renderAll({ waveform: 'full' });
   refreshClipboardMenuState();
   scheduleAutoSaveFlush();
@@ -36543,7 +36638,6 @@ if (typeof ResizeObserver === 'function') {
 }
 
 // === 当前行高亮 + overlay ===
-let lastActive = -1;
 // 列表点击关闭自动滚动时，避免这次 seek 的同步 active 更新再次滚动列表；
 // 播放指针拖动期间也暂时保持列表位置，避免连续 seek 触发滚动布局。
 let suppressCueListAutoScroll = false;
@@ -36601,22 +36695,32 @@ function previewGapAt(index, timeMs) {
   flashHint('正在预览此空隙；播放头离开后恢复跳过');
 }
 
-function updateActiveCue(idx) {
-  if (idx === lastActive) return;
-  if (lastActive >= 0) {
-    const prev = container.querySelector(`.cue[data-idx="${lastActive}"]`);
-    if (prev) prev.classList.remove('active');
+function updateCueListPlayback(tMs = window.MSWE?.resolve('audio-timeline')?.currentTimeMs()
+  ?? player.currentTime * 1000, follow = false) {
+  const track = multiSubtitleVisible() ? getActiveExtensionTrack() : null;
+  const hitIndex = (segments) => {
+    const index = findActiveSegmentIndex(segments, tMs, true);
+    return isSubtitlePreviewActive(segments?.[index], tMs) ? index : -1;
+  };
+  const mainIndex = hitIndex(DATA.segments);
+  const extensionIndex = hitIndex(track?.segments);
+  const key = `${mainIndex}:${track?.id || ''}:${extensionIndex}`;
+  if (key === cueListPlaybackKey) return;
+  cueListPlaybackKey = key;
+  const rows = new Set();
+  if (mainIndex >= 0) {
+    container.querySelectorAll(`:scope > .cue[data-idx="${mainIndex}"]`).forEach(row => rows.add(row));
   }
-  if (idx >= 0) {
-    const cur = container.querySelector(`.cue[data-idx="${idx}"]`);
-    if (cur) {
-      cur.classList.add('active');
-      if (!editingState && !suppressCueListAutoScroll && !waveformPlayheadDragging) {
-        scrollCueIntoViewIfNeeded(cur, { behavior: 'auto' });
-      }
-    }
+  if (extensionIndex >= 0) {
+    container.querySelectorAll(`:scope > .cue[data-ext-idx="${extensionIndex}"]`).forEach(row => rows.add(row));
   }
-  lastActive = idx;
+  cueListPlaybackRows.forEach(row => { if (!rows.has(row)) row.classList.remove('playhead-hit'); });
+  rows.forEach(row => row.classList.add('playhead-hit'));
+  cueListPlaybackRows = [...rows];
+  if (follow && !editingState && !extensionEditingState && !suppressCueListAutoScroll && !waveformPlayheadDragging) {
+    const row = cueListPlaybackRows.find(element => element.getClientRects().length > 0);
+    if (row) scrollCueIntoViewIfNeeded(row, { behavior: 'auto' });
+  }
 }
 
 function updatePlaybackFrame() {
@@ -36641,7 +36745,7 @@ function updatePlaybackFrame() {
   const nowLabel = fmtShort(tMs);
   if (nowEl.textContent !== nowLabel) nowEl.textContent = nowLabel;
   const idx = findActive(tMs);
-  updateActiveCue(idx);
+  updateCueListPlayback(tMs, true);
   refreshSubtitlePreview(tMs, idx);
   waveformEditor?.updatePlayback();
 }
@@ -36737,13 +36841,13 @@ function update() {
   }
   nowEl.textContent = fmtShort(tMs);
   const idx = findActive(tMs);
-  updateActiveCue(idx);
+  updateCueListPlayback(tMs, true);
   refreshSubtitlePreview(tMs, idx);
 }
 
 // 列表重绘或属性批量变更后的 update() 只刷新时间码与激活态，不触发播放跟随滚动。
 // renderAll 刚重建列表时，content-visibility 让视口外的行仍处于估算占位
-// 高度，updateActiveCue 量到的瞬态几何会把「活动行不在视口」误判成真，
+// 高度，播放跟随量到的瞬态几何会把「活动行不在视口」误判成真，
 // 再用被污染的 offsetTop 算出错误目标平滑滚走（页面放大倍率越高、真实
 // 行高与估算差异越大越容易触发）。这些操作是否滚动、滚到哪里都应由
 // 调用方显式决定（例如拆分按来源保持原位或居中新右半段）。
@@ -40088,7 +40192,7 @@ function applyCanonicalProject(data, filename) {
   editorHistory.clear();
   updateUndoRedoButtons();
   clearSelection();
-  lastActive = -1;
+  cueListPlaybackKey = null;
   if (waveformEditor) {
     waveformEditor.setLayoutData(DATA.workspace, { render: false });
     applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
@@ -40303,7 +40407,7 @@ function replaceMainTrack(segments, displayName = '字幕') {
   projectImportDirty = true;
   updateUndoRedoButtons();
   clearSelection({ commitCuePanel: false });
-  lastActive = -1;
+  cueListPlaybackKey = null;
   updateGapRemoveUi();
   renderAll({ preserveCueListScroll: false });
   FILENAME_BASE = displayName.replace(/\.[^.]+$/i, '');
@@ -40949,7 +41053,7 @@ async function loadMediaFile(file, { localOnly = false, previewOnly = false, pre
     mnEl.onclick = () => copyText(file.name, `已复制媒体名：${file.name}`);
   }
 
-  lastActive = -1;
+  cueListPlaybackKey = null;
   flashHint(translatedEditorText(`已加载媒体：${file.name}`), 'success');
   if (waveformEditor && !preserveProjectWaveform) {
     try {
@@ -42253,7 +42357,7 @@ function applyTimedTextEditSegments(
   currentCuePanelTrackId = null;
   lastClickedIdx = -1;
   lastClickedExtensionIdx = -1;
-  lastActive = -1;
+  cueListPlaybackKey = null;
   targetSegments.splice(0, targetSegments.length, ...publishedSegments);
 
   if (kind !== 'extension') {
@@ -43357,6 +43461,13 @@ function setupModuleContextMenu() {
   bindModule(waveformEditor.assetLibrary, () => [
     { label: '素材库设置', expandable: true, children: [
       { label: '卡片密度', node: buildAssetDensitySlider() },
+      { label: '显示搜索与筛选', checked: () => EDITOR_SETTINGS.assetLibraryShowSearch !== false,
+        toggle: () => {
+          const toggle = document.getElementById('asset-show-search');
+          if (toggle) { toggle.checked = !toggle.checked; toggle.dispatchEvent(new Event('change', { bubbles: true })); }
+          else updateEditorSettings({ assetLibraryShowSearch: !(EDITOR_SETTINGS.assetLibraryShowSearch !== false) });
+          applyAssetSearchVisibility();
+        } },
     ] },
   ]);
 }
@@ -43366,6 +43477,10 @@ function openSelectedCueTts(side) {
   target.value = side;
   target.dispatchEvent(new Event('change', {bubbles:true}));
   document.getElementById('tts-open')?.click();
+}
+
+function openSelectedCueTranslation() {
+  document.getElementById('subtitle-translate-btn')?.click();
 }
 
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
@@ -43467,6 +43582,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       'Alt+点击',
       () => toggleDisabled([idx])
     );
+    addItem('翻译所选字幕', '', openSelectedCueTranslation);
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem('删除字幕', 'Delete', () => {
       deleteSegments([idx]);
@@ -43498,6 +43614,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       '',
       () => toggleDisabled(targetIdxs)
     );
+    addItem('翻译所选字幕', '', openSelectedCueTranslation);
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
@@ -43557,6 +43674,10 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
     false,
     'Alt+点击',
   );
+  addItem('翻译所选字幕', () => {
+    if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
+    openSelectedCueTranslation();
+  });
   addItem('配音所选字幕（TTS）', () => {
     if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
     openSelectedCueTts('secondary');
@@ -43893,6 +44014,7 @@ function initWaveformEditor() {
     toggleSubtitleTrackMuted,
     openWaveSettings: () => setWaveformSettingsPanelOpen(true),
     getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
+    clipHoverDetails: () => waveformEditor?.settings?.hoverDetails === true,
     audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
     toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
     onBeginEdit: (label) => pushUndo(label),
@@ -44928,7 +45050,36 @@ cueCutButton?.addEventListener('click', cutSelectedCues);
 cueCopyButton?.addEventListener('click', copySelectedCues);
 cuePasteButton?.addEventListener('click', pasteCuesFromClipboard);
 cueDeleteButton?.addEventListener('click', () => deleteSelectedCues());
-document.getElementById('clear-all-subtitles')?.addEventListener('click', clearAllSubtitles);
+
+// 清除全部空字幕块：删除所有没有文字内容的字幕（主轨 + 各副轨），可撤销。
+function clearEmptyCues() {
+  commitProcessingEdits();
+  const emptyMain = DATA.segments
+    .map((segment, index) => ({ segment, index }))
+    .filter(({ segment }) => !(segment.text || '').trim())
+    .map(({ index }) => index);
+  const multi = getMultiSubtitleState();
+  const emptyExtByTrack = [];
+  for (const track of multi.tracks || []) {
+    const empty = track.segments
+      .map((segment, index) => ({ segment, index }))
+      .filter(({ segment }) => !(segment.text || '').trim())
+      .map(({ index }) => index);
+    if (empty.length) emptyExtByTrack.push({ track, indices: empty });
+  }
+  if (!emptyMain.length && !emptyExtByTrack.length) {
+    flashHint('没有空字幕块', 'default');
+    return;
+  }
+  pushUndo(`清除 ${emptyMain.length + emptyExtByTrack.reduce((n, e) => n + e.indices.length, 0)} 条空字幕块`, { captureView: true });
+  // 先解除待删除空段的绑定，保留另一侧有文字的字幕；不调用成对删除。
+  removeBindingsForSegmentIds(emptyMain.map(index => DATA.segments[index].id),
+    emptyExtByTrack.flatMap(({ track, indices }) => indices.map(index => track.segments[index].id)));
+  if (emptyMain.length) deleteSegments(emptyMain, { recordHistory: false });
+  for (const { track, indices } of emptyExtByTrack) deleteExtensionSegments(indices, track, { recordHistory: false });
+  flashHint(`已清除 ${emptyMain.length + emptyExtByTrack.reduce((n, e) => n + e.indices.length, 0)} 条空字幕块`, 'success');
+}
+document.getElementById('clear-empty-cues')?.addEventListener('click', clearEmptyCues);
 
 // Ctrl/Cmd+X / C / V：与 Delete 键同一套输入保护（输入框、右键菜单内不抢占）。
 document.addEventListener('keydown', (event) => {
@@ -45389,6 +45540,7 @@ const INTERFACE_COLOR_VARS = {
   menubar: '--bg-panel',
   raised: '--bg-raised',
   input: '--form-input-bg',
+  card: '--card-bg',
   overlay: '--menu-overlay-bg',   // 选项卡：菜单栏/模块标签展开的悬浮面板
   popup: '--tab-overlay-bg',      // 弹窗：居中弹窗与工具窗
   text: '--text-primary',
@@ -45407,6 +45559,15 @@ const INTERFACE_COLOR_VARS = {
 function interfaceColorDefault(key) {
   const value = getComputedStyle(document.documentElement)
     .getPropertyValue(INTERFACE_COLOR_VARS[key]).trim();
+  if (key === 'card' && value && CSS.supports('color', value)) {
+    // The default card color is derived with color-mix; color inputs need hex.
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = value;
+    ctx.fillRect(0, 0, 1, 1);
+    return '#' + [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(n => n.toString(16).padStart(2, '0')).join('');
+  }
   return /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#888888';
 }
 function syncInterfaceColorControls() {
@@ -45619,7 +45780,7 @@ function applyAsrJob(job, media) {
   DATA.msw = plan.msw;
   normalizeMultiSubtitleState();
   projectImportDirty = true;
-  clearSelection({ silent: true }); lastActive = -1;
+  clearSelection({ silent: true }); cueListPlaybackKey = null;
   renderAll({ waveform: 'full' });
   restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
   window.dispatchEvent(new Event('msw:assets-changed'));
@@ -45834,7 +45995,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   refreshAudioPlayback: (timeMs) => {
     if (Number.isFinite(timeMs)) {
       const index = findActive(timeMs);
-      nowEl.textContent = fmtShort(timeMs); updateActiveCue(index); refreshSubtitlePreview(timeMs, index);
+      nowEl.textContent = fmtShort(timeMs); updateCueListPlayback(timeMs, true); refreshSubtitlePreview(timeMs, index);
     }
     waveformEditor?.updatePlayback();
     syncMediaControls();
@@ -45846,10 +46007,12 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   togglePlayback,
   seek: seekFromWaveform,
   commitAudio: (label, change) => {
-    commitProcessingEdits();
     const next = window.MSWProject.clone(window.MSWProject.ensure(DATA));
     change(next);
     window.MSWProject.normalize(next);
+    try { window.MSWAudio.assertCapacity(next); }
+    catch (error) { flashHint(error.message, 'warning'); return false; }
+    commitProcessingEdits();
     pushUndo(label);
     DATA.msw = next;
     projectImportDirty = true;
@@ -45857,6 +46020,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     waveformEditor?.refreshAudioTimeline();
     updateGapRemoveUi();
     scheduleAutoSaveFlush();
+    return true;
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
   audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
@@ -46140,6 +46304,8 @@ window.addEventListener('beforeunload', (e) => {
   confirmTrack.textContent = '确认使用此源音轨';
   track.after(confirmTrack);
   confirmTrack.addEventListener('click', () => void media.changeTrack(Number(track.value)));
+  // 默认开启「自动波形」：清掉历史遗留的关闭记录，每次加载都默认勾选。
+  if (localStorage.getItem('msw.waveform.auto') === 'false') localStorage.removeItem('msw.waveform.auto');
   auto.checked = localStorage.getItem('msw.waveform.auto') !== 'false';
   byId('waveform-auto-label').hidden = false;
   byId('analysis-unavailable').hidden = true;
@@ -47935,6 +48101,7 @@ window.addEventListener('beforeunload', (e) => {
   const pageId = global.MSWProject.id('tts-page');
   const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set(), missing = new Set();
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
+  let nextPollDelay = null;
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
   let settingsPromise = null, savingSettings = false;
   let draftActive = false, draftInitialized = false;
@@ -48279,6 +48446,10 @@ window.addEventListener('beforeunload', (e) => {
   }
   function schedule(delay = 800) {
     clearTimeout(timer);
+    if (polling) {
+      nextPollDelay = nextPollDelay == null ? delay : Math.min(nextPollDelay, delay);
+      return;
+    }
     if (available) timer = setTimeout(() => void poll(), delay);
   }
   async function poll() {
@@ -48317,7 +48488,10 @@ window.addEventListener('beforeunload', (e) => {
       if (pollFailures < 6) schedule(Math.min(10000, 1000 * 2 ** pollFailures));
     } finally {
       polling = false;
+      const delay = nextPollDelay;
+      nextPollDelay = null;
       if (generation !== host.generation) schedule(0);
+      else if (delay != null) schedule(delay);
     }
   }
   function stopPreview() {
@@ -48879,7 +49053,6 @@ window.addEventListener('beforeunload', (e) => {
   for (const event of ['msw:subtitles-changed', 'msw:assets-changed']) global.addEventListener(event, () => {
     sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map(); schedulePaint();
   });
-  let laneScroll = new Map();
   const extension = () => host.data.msw || EMPTY_EXTENSION;
   function sync() {
     const ext = extension(), clips = drag?.preview || ext.audio_clips || EMPTY;
@@ -48913,16 +49086,21 @@ window.addEventListener('beforeunload', (e) => {
       if (!response.ok) throw Error(response.status === 404 ? '素材缺失，请恢复工程旁的素材目录' : '音频加载失败，请检查本机服务');
       return response.arrayBuffer();
     } });
-  function commit(label, change) { closeMenu(); transport.reset(); host.commitAudio(t(label), change); }
+  function commit(label, change) {
+    closeMenu();
+    const applied = host.commitAudio(t(label), change);
+    if (applied !== false) transport.reset();
+    return applied !== false;
+  }
   function insert(assetId, at = transport.currentTime() ?? (host.player.currentTime * 1000 || 0)) {
     const asset = sync().assets.get(assetId); if (!asset) return;
     const id = global.MSWProject.id('clip');
-    commit('添加音频贴片', ext => {
+    if (!commit('添加音频贴片', ext => {
       ext.audio_tracks ||= [{ id: 'voice-1', name: '配音', gain_db: 0, muted: false }];
       if (!ext.audio_tracks.length) ext.audio_tracks.push({ id: 'voice-1', name: '配音', gain_db: 0, muted: false });
       ext.audio_clips ||= [];
       ext.audio_clips.push(core.create(asset, ext.audio_tracks[0].id, Math.round(timeline.snap(at)), id));
-    });
+    })) return false;
     host.clearSubtitleSelection(); selected.clear(); selected.add(id); timeline.refreshOverlays();
     void transport.ensure(asset);
   }
@@ -48945,6 +49123,9 @@ window.addEventListener('beforeunload', (e) => {
   }
   // 在播放头处把一条贴片一分为二：左段保留原 id 与起点，右段新 id 从拆分点
   // 起播（source 区间按采样率精确切分），标签沿用。
+  // 「悬浮显示序号与用时」开关（波形显示器设置），经宿主 options 透传。
+  function hoverDetailsActive() { return Boolean(host.options?.clipHoverDetails?.()); }
+
   function splitClipAtPlayhead(clip) {
     const state = sync();
     const asset = state.assets.get(clip.asset_id);
@@ -48953,7 +49134,7 @@ window.addEventListener('beforeunload', (e) => {
     const finish = core.end(clip, asset);
     if (!(at > clip.start_ms + 50 && at < finish - 50)) { hint('播放头不在贴片范围内，无法拆分'); return; }
     const splitSample = clip.source_in_sample + Math.round((at - clip.start_ms) * asset.sample_rate / 1000);
-    commit('拆分音频贴片', ext => {
+    if (!commit('拆分音频贴片', ext => {
       const target = ext.audio_clips.find(c => c.id === clip.id);
       if (!target) return;
       const right = JSON.parse(JSON.stringify(target));
@@ -48962,7 +49143,7 @@ window.addEventListener('beforeunload', (e) => {
       right.source_in_sample = splitSample;
       ext.audio_clips.push(right);
       target.source_out_sample = splitSample;
-    });
+    })) return;
     hint(`已在 ${(at / 1000).toFixed(3)}s 处拆分音频贴片`);
   }
 
@@ -48989,10 +49170,10 @@ window.addEventListener('beforeunload', (e) => {
     const minStart = Math.min(...copies.map(c => c.start_ms));
     const shift = Math.max(0, Math.round(timeline.snap(anchor)) - minStart);
     const idMap = new Map(copies.map(c => [c.id, global.MSWProject.id('clip')]));
-    commit('粘贴音频贴片', ext => {
+    if (!commit('粘贴音频贴片', ext => {
       ext.audio_clips.push(...copies.map(c => ({ ...JSON.parse(JSON.stringify(c)),
         id: idMap.get(c.id), start_ms: Math.max(0, c.start_ms + shift) })));
-    });
+    })) return;
     host.clearSubtitleSelection(); selected.clear();
     for (const id of idMap.values()) selected.add(id);
     timeline.refreshOverlays();
@@ -49089,8 +49270,15 @@ window.addEventListener('beforeunload', (e) => {
       const threshold = 8 * (current?.msPerPixel ?? drag.point.msPerPixel ?? 1);
       delta += magneticAdjust(delta, mode, clip, threshold);
       if (mode === 'move') delta = Math.max(delta, -Math.min(...originals.filter(c => ids.has(c.id)).map(c => c.start_ms)));
-      drag.preview = originals.map(c => ids.has(c.id) ? core.edit(c, sync().assets.get(c.asset_id), mode, delta) : c);
+      const assets = sync().assets;
+      const preview = originals.map(c => ids.has(c.id) ? core.edit(c, assets.get(c.asset_id), mode, delta) : c);
       drag.moved = true;
+      if (!core.hasCapacity(preview, assets)) {
+        timeline.hideMagnetGuide?.();
+        timeline.setStatus?.(core.CAPACITY_MESSAGE, '', { quiet: true });
+        return; // 保持最后有效位置，松手不会生成第四层。
+      }
+      drag.preview = preview;
       // 移动/裁切中的实时时间挂到右上常显数据行（与字幕块拖动一致），
       // 不弹浮动气泡。
       const previewSelf = drag.preview.find(c => c.id === clip.id);
@@ -49109,7 +49297,7 @@ window.addEventListener('beforeunload', (e) => {
       timeline.hideMagnetGuide?.();
       timeline.refreshMediaReadout?.();
       const current = drag; drag = null;
-      if (apply && current?.moved && current.generation === host.generation) {
+      if (apply && current?.moved && current.preview !== current.originals && current.generation === host.generation) {
         commit(mode === 'move' ? '移动音频贴片' : '裁剪音频贴片', ext => { ext.audio_clips = current.preview; });
       } else {
         state = null; timeline.refreshOverlays();
@@ -49142,7 +49330,7 @@ window.addEventListener('beforeunload', (e) => {
     // DOM，鼠标下的贴片会因节点被替换而闪烁（悬停/过渡态每帧丢失）。
     let area = row.querySelector('.msw-audio-lanes');
     if (!(area && area.dataset.key === key)) {
-      if (area) { laneScroll.set(key, area.scrollTop); area.remove(); }
+      if (area) area.remove();
       area = document.createElement('div'); area.className = 'msw-audio-lanes'; area.dataset.key = key;
       area.tabIndex = 0; area.setAttribute('aria-label', t('配音轨道'));
       const inner = document.createElement('div'); inner.className = 'msw-audio-lanes-inner'; area.appendChild(inner);
@@ -49153,11 +49341,7 @@ window.addEventListener('beforeunload', (e) => {
         area.addEventListener(event, (e) => { if (onClip(e)) e.stopPropagation(); });
       }
       area.addEventListener('contextmenu', (e) => { if (onClip(e)) { e.stopPropagation(); e.preventDefault(); } });
-      area.addEventListener('wheel', (e) => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
-      area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
       row.appendChild(area);
-    } else {
-      laneScroll.set(key, area.scrollTop);
     }
     row.classList.toggle('has-audio-clips', has);
     const visible = Math.min(3, Math.max(1, current.count)), height = visible * ROW + 6;
@@ -49165,17 +49349,16 @@ window.addEventListener('beforeunload', (e) => {
     if (!has) { area.remove(); return; }
     const inner = area.querySelector('.msw-audio-lanes-inner');
     area.style.height = `${height}px`;
-    area.title = t(current.count > 3 ? '重叠配音可在此区域内滚动查看' : '配音轨道：拖动移动，边缘裁剪，右键静音');
+    area.title = t('配音轨道：拖动移动，边缘裁剪，右键静音');
     inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`;
     const overlaps = current.clips.filter((c) => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
     function paint() {
-      const lo = Math.max(0, Math.floor(area.scrollTop / ROW) - 1), hi = lo + visible + 2;
       // 键控复用：按 clipId 复用已有元素、只更新几何与状态类；新出现的才
       // 建节点，消失的移除——拖动每帧刷新不再重建整棵 DOM（闪烁与性能根因）。
       const existing = new Map([...inner.children].map((el) => [el.dataset.clipId, el]));
       const seen = new Set();
       for (const clip of overlaps) {
-        const lane = current.lanes.get(clip.id); if (lane < lo || lane > hi) continue;
+        const lane = current.lanes.get(clip.id);
         const asset = current.assets.get(clip.asset_id), finish = core.end(clip, asset), from = Math.max(start, clip.start_ms), to = Math.min(end, finish);
         seen.add(clip.id);
         let block = existing.get(clip.id);
@@ -49210,9 +49393,11 @@ window.addEventListener('beforeunload', (e) => {
         block.style.top = `${lane * ROW + 3}px`;
         const background = muted ? '' : heatBackground(clip, asset, from, to);
         if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
-        block.title = `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
-          + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
-          + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '');
+        block.title = hoverDetailsActive()
+          ? `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
+            + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
+            + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '')
+          : (clip.label || t('音频贴片'));
         if (!transport.heats.has(asset.id) && !transport.failures.has(asset.id)) void transport.ensure(asset);
       }
       existing.forEach((el, id) => { if (!seen.has(id)) el.remove(); });
@@ -49333,7 +49518,7 @@ window.addEventListener('beforeunload', (e) => {
   global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
   global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
   global.addEventListener('msw:project-changed', () => {
-    drag?.cancel(); closeMenu(); selected.clear(); state = null; lastLanes = null; laneScroll.clear(); transport.clear();
+    drag?.cancel(); closeMenu(); selected.clear(); state = null; lastLanes = null; transport.clear();
     queueMicrotask(() => { refreshSettings(); timeline.refresh(); });
   });
   global.addEventListener('pagehide', () => transport.clear());

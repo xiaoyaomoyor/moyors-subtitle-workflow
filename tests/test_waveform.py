@@ -262,10 +262,10 @@ class EditorAssetTests(unittest.TestCase):
         self.assertRegex(page, r'\.waveform-cue-block\.selected\s*(?:,[^{]+)?\{')
         # 选中字幕块只用 outline + 阴影高亮（颜色走 --selection-* 变量），不再改 border-color
         self.assertIn('outline: 2px solid var(--selection-yellow);', page)
-        self.assertIn('filter: brightness(1.08);', page)
+        self.assertIn('filter: brightness(var(--wave-hover-brightness));', page)
 
         self.assertIn(
-            'background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--accent) 30%);',
+            'background: color-mix(in srgb, var(--color-bar, #777) 14%, var(--card-bg));',
             page,
         )
         # 旧的分组徽章已删除；Pr 式轨道头（V1/V2/A1…）由「轨道头」设置控制
@@ -618,7 +618,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('播放时跳过空隙', page)
         self.assertIn('const DEFAULT_LAYOUT_ROWS = [42, 16, 42];', page)
         self.assertIn("rows: [42, 16, 42], tree: DEFAULT_RIGHT_LAYOUT_TREE", page)
-        self.assertIn('const projectHasStickers = DATA.segments.some(segment => segment.sticker || segment.sticker_ref);', page)
+        self.assertIn('const projectHasStickers = [...DATA.segments, ...(getActiveExtensionTrack()?.segments || [])]', page)
         self.assertIn('!EDITOR_SETTINGS.cueListShowSticker || !projectHasStickers,', page)
         self.assertIn("DATA.segments.forEach((seg, i) => cueFragment.appendChild(buildCueEl(seg, i)));", page)
         self.assertIn("const multiVisible = multiSubtitleVisible();", page)

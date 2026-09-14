@@ -13,6 +13,7 @@
   const pageId = global.MSWProject.id('tts-page');
   const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set(), missing = new Set();
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
+  let nextPollDelay = null;
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
   let settingsPromise = null, savingSettings = false;
   let draftActive = false, draftInitialized = false;
@@ -357,6 +358,10 @@
   }
   function schedule(delay = 800) {
     clearTimeout(timer);
+    if (polling) {
+      nextPollDelay = nextPollDelay == null ? delay : Math.min(nextPollDelay, delay);
+      return;
+    }
     if (available) timer = setTimeout(() => void poll(), delay);
   }
   async function poll() {
@@ -395,7 +400,10 @@
       if (pollFailures < 6) schedule(Math.min(10000, 1000 * 2 ** pollFailures));
     } finally {
       polling = false;
+      const delay = nextPollDelay;
+      nextPollDelay = null;
       if (generation !== host.generation) schedule(0);
+      else if (delay != null) schedule(delay);
     }
   }
   function stopPreview() {

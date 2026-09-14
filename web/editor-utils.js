@@ -2823,6 +2823,7 @@
     overlayEnabled: true, extensionOverlayEnabled: true, multiSubtitleRowHeight: 168,
     exportStartAtZero: false, cueListShowIndex: true, cueListShowTime: true,
     cueListShowSticker: true, cueListShowCharcount: true, cueListAutoScrollOnClick: true,
+    cueListPairLayout: 'columns',
     cueListKeepSplitVisible: true, cueListHideDisabled: true, cueListCharcountThreshold: 0,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
@@ -2837,9 +2838,9 @@
     timelineSnapToFrame: true, timelineTimecodeSeparator: DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
     hoverSeekPreview: false, autoSnapAdjacentCues: true, ninjaMode: false,
     ninjaSound: true, ninjaSlashEffect: true, ninjaSlashLengthPercent: 80,
-    ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: true,
+    ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: false,
     multiSubtitleAutoSyncDuration: true, theme: 'dark',
-    waveShapeSource: 'reapeaks', themePreset: 'default', accent: 'blue', colors: null,
+    waveShapeSource: 'reapeaks', assetLibraryShowSearch: true, themePreset: 'default', accent: 'blue', colors: null,
   });
 
   function clampInteger(value, fallback, minimum, maximum) {
@@ -2851,7 +2852,7 @@
     if (value?.panel && !value?.menubar) value = { ...value, menubar: value.panel };
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const colors = {};
-    ['bg', 'menubar', 'raised', 'input', 'overlay', 'popup', 'text', 'textMuted', 'accent', 'wave', 'subtitle', 'waveCueText', 'toolbar', 'gap', 'cueBlock', 'hit'].forEach((key) => {
+    ['bg', 'menubar', 'raised', 'input', 'card', 'overlay', 'popup', 'text', 'textMuted', 'accent', 'wave', 'subtitle', 'waveCueText', 'toolbar', 'gap', 'cueBlock', 'hit'].forEach((key) => {
       if (typeof value[key] === 'string' && /^#[0-9a-fA-F]{6}$/.test(value[key])) {
         colors[key] = value[key].toLowerCase();
       }
@@ -2887,6 +2888,7 @@
       cueListShowSticker: savedSettings.cueListShowSticker !== false,
       cueListShowCharcount: savedSettings.cueListShowCharcount !== false,
       cueListAutoScrollOnClick: savedSettings.cueListAutoScrollOnClick !== false,
+      cueListPairLayout: savedSettings.cueListPairLayout === 'rows' ? 'rows' : 'columns',
       cueListKeepSplitVisible: savedSettings.cueListKeepSplitVisible !== false,
       cueListHideDisabled: savedSettings.cueListHideDisabled !== false,
       // 字数过滤值：0 = 不过滤。这里只做范围校验；旧默认 16 的清理由一次性迁移 flag
@@ -2901,6 +2903,7 @@
       cueEditorShowSticker: savedSettings.cueEditorShowSticker === true,
       cueEditorCancelOnEscape: savedSettings.cueEditorCancelOnEscape === true,
       toolbarKbdHints: savedSettings.toolbarKbdHints === true,
+      assetLibraryShowSearch: savedSettings.assetLibraryShowSearch !== false,
       selectGroupMembers: savedSettings.selectGroupMembers === true,
       // 合并连接符按字幕拆分类型区分：连续型默认直接拼接，单词型默认空格。
       // 旧版只有 mergeJoinText 一个值；用户自定义过则两个类型都沿用旧值。
@@ -2945,7 +2948,7 @@
       ninjaSlashLengthPercent: clampInteger(savedSettings.ninjaSlashLengthPercent, 80, 20, 400),
       ninjaSlashRotateAmplitude: clampInteger(savedSettings.ninjaSlashRotateAmplitude, 6, 0, 60),
       crossTrackSnap: savedSettings.crossTrackSnap !== false,
-      selectBoundSubtitlePair: savedSettings.selectBoundSubtitlePair !== false,
+      selectBoundSubtitlePair: savedSettings.selectBoundSubtitlePair === true,
       multiSubtitleAutoSyncDuration: savedSettings.multiSubtitleAutoSyncDuration !== false,
       theme: savedSettings.theme === 'light' ? 'light' : 'dark',
       // 主题预设（紫苑（默认）/小铃/灵梦/爱丽丝/恋/莲子）。

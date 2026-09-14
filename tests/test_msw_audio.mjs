@@ -75,6 +75,33 @@ test('timeline validation rejects unresolved references and invalid sample range
     assert.throws(() => core.validate(extension([{ ...make(), ...changes }])));
   }
 });
+test('editor capacity counts simultaneous intervals including muted clips, not clip or track totals', () => {
+  const assets = new Map([['a', asset]]);
+  const triple = [make('a', 0), make('b', 0), { ...make('c', 0), muted: true }];
+  assert.equal(core.hasCapacity(triple, assets), true);
+  assert.equal(core.hasCapacity([...triple, make('d', 1999)], assets), false);
+  assert.equal(core.hasCapacity([...triple, make('d', 2000)], assets), true);
+  assert.equal(core.hasCapacity(Array.from({ length: 100 }, (_, i) => make(`c${i}`, i * 2000)), assets), true);
+  assert.throws(() => core.assertCapacity(extension([...triple, make('d', 1000)])), /三层/);
+  // This is editor capacity, not a destructive schema conversion.
+  core.validate(extension([...triple, make('d', 1000)]));
+});
+test('lane memory compacts vacant lanes and never needs a fourth lane for valid intervals', () => {
+  const assets = new Map([['a', asset]]);
+  const clips = [make('a', 0), make('b', 500)];
+  const sparse = core.arrange(clips, assets, new Map([['a', 1], ['b', 2]]));
+  assert.equal(sparse.count, 2);
+  assert.deepEqual([...sparse.lanes.values()].sort(), [0, 1]);
+  const data = Array.from({ length: 100 }, (_, i) => make(`c${i}`, i * 1000));
+  const result = core.arrange(data, assets, new Map(data.map((c, i) => [c.id, i % 3])));
+  assert.ok(result.count <= 3);
+  for (const [id, lane] of result.lanes) {
+    const clip = data.find(c => c.id === id);
+    for (const other of data) if (other.id !== id && result.lanes.get(other.id) === lane) {
+      assert.ok(core.end(clip, asset) <= other.start_ms || core.end(other, asset) <= clip.start_ms);
+    }
+  }
+});
 test('enabled clips protect gaps, muted clips and follow mode do not', () => {
   const gaps = [{ start: 0, end: 6000, removed: true }], ext = extension([make()]);
   assert.deepEqual(json(core.protectGaps(gaps, ext)), [{ start: 0, end: 1000, removed: true }, { start: 3000, end: 6000, removed: true }]);

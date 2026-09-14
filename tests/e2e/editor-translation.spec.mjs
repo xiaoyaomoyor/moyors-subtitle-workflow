@@ -97,6 +97,37 @@ async function panel(page) {
   await openTranslationPanel(page);
 }
 const secondaryTexts = (page) => page.evaluate(() => DATA.multi_subtitle.tracks[0]?.segments.map(cue => cue.text) || []);
+
+test('subtitle context menus open translation above TTS with selected scope and no submission', async ({ page }) => {
+  await open(page, true);
+  await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: false, clickBehavior: 'select-only' }));
+  const openFromContext = async (locator) => {
+    await locator.click({ button: 'right' });
+    const labels = await page.locator('#ctxmenu > .item > span').allTextContents();
+    expect(labels.indexOf('翻译所选字幕')).toBeGreaterThanOrEqual(0);
+    expect(labels.indexOf('翻译所选字幕') + 1).toBe(labels.indexOf('配音所选字幕（TTS）'));
+    await page.locator('#ctxmenu .item').filter({ hasText: /^翻译所选字幕$/ }).click();
+    await expect(page.locator('#subtitle-translation-panel')).toBeVisible();
+  };
+  await openFromContext(page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first());
+  await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 1');
+  await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(0);
+  await page.locator('#subtitle-translation-close').click();
+  await openFromContext(page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="1"]').first());
+  await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 1');
+  expect(await page.evaluate(() => processingSelection().extensionIds)).toEqual(['y']);
+  await page.locator('#subtitle-translation-close').click();
+  await page.locator('.multi-cue-column.main').first().click();
+  await page.locator('.multi-cue-column.main').nth(1).click({ modifiers: ['Control'] });
+  await openFromContext(page.locator('.multi-cue-column.main').first());
+  await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 2');
+  await page.locator('#subtitle-translation-close').click();
+  await openFromContext(page.locator('.multi-cue-column.extension[data-ext-idx="2"]'));
+  await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 0');
+  await expect(page.locator('#translation-scope')).toContainText('已忽略未绑定副字幕 1');
+  await expect(page.locator('#translation-start')).toBeDisabled();
+  expect(requests).toHaveLength(0);
+});
 async function release() { hold = false; for (const respond of held.splice(0)) respond(); }
 
 test('LLM management stays global and unsaved edits do not change the call configuration', async ({page}) => {

@@ -61,15 +61,15 @@ test('all main cues can be cut and restored in one undo without waveform data', 
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(0);
 });
 
-test('clear all subtitles includes hidden secondary tracks and survives save/reopen', async ({ page }) => {
+test('clear empty subtitles includes hidden secondary tracks and survives save/reopen', async ({ page }) => {
   await page.goto(server.url);
   await page.evaluate(() => {
-    applyCanonicalProject({ media: '', segments: [{ id: 'main', start: 0, end: 1000, text: 'Main' }],
+    applyCanonicalProject({ media: '', segments: [{ id: 'main', start: 0, end: 1000, text: '' }],
       multi_subtitle: { schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both',
         tracks: [{ id: 'translation', name: 'Translation', role: 'translation', language: 'en',
-          segments: [{ id: 'secondary', start: 0, end: 1000, text: 'Secondary' }] }], bindings: [] } }, 'pair.mosp');
+          segments: [{ id: 'secondary', start: 0, end: 1000, text: '  ' }] }], bindings: [] } }, 'pair.mosp');
   });
-  await clickBatchOperation(page, 'clear-all-subtitles');
+  await clickBatchOperation(page, 'clear-empty-cues');
   expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.length])).toEqual([0, 0]);
   await page.keyboard.press('Control+z');
   expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.length])).toEqual([1, 1]);
@@ -78,6 +78,30 @@ test('clear all subtitles includes hidden secondary tracks and survives save/reo
   await page.evaluate(project => applyCanonicalProject(project, 'pair.mosp'), saved);
   expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.length])).toEqual([0, 0]);
   await expect(page.locator('.waveform-row').first()).toBeVisible();
+});
+
+test('clearing empty halves preserves nonempty partners and uses one undo', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => {
+    applyCanonicalProject({ media: '', segments: [
+      { id: 'empty-main', start: 1000, end: 2000, text: '' },
+      { id: 'keep-main', start: 3000, end: 4000, text: 'Keep main' }],
+      multi_subtitle: { schema: 'moy.asr.multi_subtitle.v1', enabled: true, display_mode: 'both',
+        tracks: [{ id: 'ext', role: 'extension', name: 'English', language: 'English', segments: [
+          { id: 'keep-secondary', start: 1000, end: 2000, text: 'Keep secondary' },
+          { id: 'empty-secondary', start: 3000, end: 4000, text: '' }] }],
+        bindings: [
+          { id: 'first', track_id: 'ext', main_segment_ids: ['empty-main'], extension_segment_ids: ['keep-secondary'] },
+          { id: 'second', track_id: 'ext', main_segment_ids: ['keep-main'], extension_segment_ids: ['empty-secondary'] },
+        ] } }, 'empty-halves.mosp');
+  });
+  const before = await page.evaluate(() => [JSON.stringify(DATA.segments), JSON.stringify(DATA.multi_subtitle), editorHistory.undoLength()]);
+  await clickBatchOperation(page, 'clear-empty-cues');
+  expect(await page.evaluate(() => [DATA.segments.map(c => c.id), DATA.multi_subtitle.tracks[0].segments.map(c => c.id)]))
+    .toEqual([['keep-main'], ['keep-secondary']]);
+  expect(await page.evaluate(() => editorHistory.undoLength())).toBe(before[2] + 1);
+  await page.keyboard.press('Control+z');
+  expect(await page.evaluate(() => [JSON.stringify(DATA.segments), JSON.stringify(DATA.multi_subtitle), editorHistory.undoLength()])).toEqual(before);
 });
 
 test('mixed paired and unbound subtitle cut keeps stable identities and one undo', async ({ page }) => {

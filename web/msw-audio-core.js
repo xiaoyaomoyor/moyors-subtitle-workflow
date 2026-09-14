@@ -1,9 +1,28 @@
 // Pure sample/time math shared by timeline, playback and project validation.
 (function (global) {
   'use strict';
+  const MAX_LANES = 3;
+  const CAPACITY_MESSAGE = '音频贴片最多同时重叠三层，请先移动或裁剪现有贴片';
   const duration = (clip, asset) => (clip.source_out_sample - clip.source_in_sample) * 1000 / asset.sample_rate;
   const end = (clip, asset) => clip.start_ms + duration(clip, asset);
   const levelDb = (clip, track) => clip.gain_db + (track?.gain_db || 0);
+  function hasCapacity(clips, assets) {
+    const events = [];
+    for (const clip of clips) {
+      const asset = assets.get(clip.asset_id);
+      if (!asset) continue; // 素材引用完整性由 validate 检查。
+      events.push([clip.start_ms, 1], [end(clip, asset), -1]);
+    }
+    events.sort((a, b) => a[0] - b[0] || a[1] - b[1]); // 首尾相接不算重叠。
+    let active = 0;
+    for (const [, delta] of events) if ((active += delta) > MAX_LANES) return false;
+    return true;
+  }
+  function assertCapacity(extension) {
+    if (!hasCapacity(extension?.audio_clips || [], new Map((extension?.assets || []).map(a => [a.id, a])))) {
+      throw Error(CAPACITY_MESSAGE);
+    }
+  }
   function validTrack(track) {
     return track && global.MSWProject.validId(track.id) && typeof track.name === 'string' && [...track.name].length <= 160
       && Number.isFinite(track.gain_db) && track.gain_db >= -60 && track.gain_db <= 12 && typeof track.muted === 'boolean';
@@ -59,15 +78,18 @@
       const asset = assets.get(clip.asset_id);
       return asset ? end(clip, asset) : -Infinity;
     });
-    const overlapsAny = (index) => sorted.some((_, other) => other !== index
-      && sorted[index].start_ms < ends[other] && sorted[other].start_ms < ends[index]);
+    const previousEnd = [];
+    let furthest = -Infinity;
+    for (const finish of ends) { previousEnd.push(furthest); furthest = Math.max(furthest, finish); }
+    const overlapsAny = index => previousEnd[index] > sorted[index].start_ms
+      || (index + 1 < sorted.length && sorted[index + 1].start_ms < ends[index]);
     for (let index = 0; index < sorted.length; index += 1) {
       const clip = sorted[index];
       if (ends[index] === -Infinity) continue;
       const clipEnd = ends[index];
       const busy = (lane) => (laneEnds.get(lane) ?? -Infinity) > clip.start_ms;
       const sticky = prevLanes?.get(clip.id);
-      let lane = Number.isInteger(sticky) && sticky >= 0 && overlapsAny(index) && !busy(sticky)
+      let lane = Number.isInteger(sticky) && sticky >= 0 && sticky < MAX_LANES && overlapsAny(index) && !busy(sticky)
         ? sticky
         : null;
       if (lane == null) {
@@ -77,6 +99,9 @@
       laneEnds.set(lane, Math.max(laneEnds.get(lane) ?? -Infinity, clipEnd));
       lanes.set(clip.id, lane);
     }
+    // 删除、裁剪后消除空层，保持全部贴片在可见的连续行内。
+    const compact = new Map([...laneEnds.keys()].sort((a, b) => a - b).map((lane, index) => [lane, index]));
+    for (const [id, lane] of lanes) lanes.set(id, compact.get(lane));
     return { lanes, count: laneEnds.size };
   }
   function audible(extension) {
@@ -118,5 +143,6 @@
     const ratio = Math.max(0, Math.min(1, (db + 60) / 54));
     return `hsl(${Math.round(215 - ratio * 175)} 48% ${Math.round(18 + ratio * 28)}%)`;
   }
-  global.MSWAudio = Object.freeze({ duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
+  global.MSWAudio = Object.freeze({ MAX_LANES, CAPACITY_MESSAGE, hasCapacity, assertCapacity,
+    duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
 })(window);

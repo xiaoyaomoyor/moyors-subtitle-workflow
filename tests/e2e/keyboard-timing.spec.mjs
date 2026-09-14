@@ -82,6 +82,48 @@ async function moveWaveformPointerToTime(page, blockLocator, timeMs) {
   );
 }
 
+test('true edge hover and shared drag use the same pixel target', async ({ page }, info) => {
+  await loadAttachedCues(page, false);
+  const block = page.locator('.waveform-cue-block[data-idx="0"]').first();
+  const hot = page.locator('.waveform-cue-handle.edge-hot');
+  let box = await stableVisibleBoundingBox(page, block);
+  const y = box.y + box.height / 2;
+  await page.mouse.click(box.x + box.width / 2, y);
+  await expect(hot).toHaveCount(0);
+  await page.mouse.move(box.x + 2, y);
+  await expect(hot).toHaveCount(1);
+  await expect(block.locator('.left')).toHaveClass(/edge-hot/);
+  await expect(block.locator('.right')).not.toHaveClass(/edge-hot/);
+  await page.mouse.move(box.x + box.width - 6, y);
+  await expect(hot).toHaveCount(1);
+  await expect(block.locator('.right')).toHaveClass(/edge-hot/);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 26, y, { steps: 4 });
+  await page.mouse.up();
+  expect((await readTimings(page))[0].end).toBeLessThan(10000);
+  expect((await readTimings(page))[1].start).toBe(10000);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => page.evaluate(() => DATA.segments[0].end)).toBe(10000);
+  box = await stableVisibleBoundingBox(page, block);
+  await page.mouse.move(box.x + box.width - 1, y);
+  await expect(hot).toHaveCount(2);
+  await expect(page.locator('.waveform-cue-block[data-idx="1"] .left.edge-hot')).toHaveCount(1);
+  await page.screenshot({ path: info.outputPath('shared-edge-handles.png') });
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 21, y, { steps: 4 });
+  await page.mouse.up();
+  const changed = await readTimings(page);
+  expect(changed[0].end).toBeLessThan(10000);
+  expect(changed[0].end).toBe(changed[1].start);
+  await page.keyboard.press('Control+z');
+  await page.evaluate(() => { DATA.segments[1].start = 10020; renderAll(); });
+  box = await stableVisibleBoundingBox(page, block);
+  await page.mouse.move(box.x + box.width - 1, y);
+  await expect(hot).toHaveCount(1); // 接近但没有实际相接，不能跨空隙联动。
+  await page.mouse.move(0, 0);
+  await expect(hot).toHaveCount(0);
+});
+
 test('WASD during playback follows the playhead instead of the last selected cue', async ({ page }) => {
   await loadAttachedCues(page);
   await page.evaluate(() => {
@@ -240,7 +282,7 @@ test('automatic adjacent snapping is on by default and Alt temporarily disables 
   ]);
 });
 
-test('automatic adjacent snapping links shared-boundary dragging by default and Alt reverses it', async ({ page }) => {
+test('shared handles link boundary dragging and Alt lights only the independent edge', async ({ page }) => {
   await loadAttachedCues(page);
   const dragSharedBoundary = async (altKey = false) => {
     const handle = page.locator('.waveform-cue-block[data-idx="0"] .waveform-cue-handle.right').first();
@@ -253,7 +295,7 @@ test('automatic adjacent snapping links shared-boundary dragging by default and 
     expect(rowEnd).toBeGreaterThan(rowStart);
     const deltaMs = -500;
     const deltaX = (rowBox.width * deltaMs) / (rowEnd - rowStart);
-    const startX = handleBox.x + handleBox.width / 2;
+    const startX = handleBox.x + handleBox.width - 1;
     const y = handleBox.y + handleBox.height / 2;
     if (altKey) await page.keyboard.down('Alt');
     await page.mouse.move(startX, y);
@@ -267,7 +309,7 @@ test('automatic adjacent snapping links shared-boundary dragging by default and 
   // 默认开启：共享边界拖动联动相邻字幕；拖动期间状态栏提示当前吸附模式。
   await dragSharedBoundary();
   await expect(page.locator('#waveform-status'))
-    .toContainText('当前为相邻字幕自动吸附模式，按住 Alt 可以临时解除吸附');
+    .toContainText('共享边界');
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5000, end: 9500 },
     { start: 9500, end: 18000 },
@@ -288,8 +330,7 @@ test('automatic adjacent snapping links shared-boundary dragging by default and 
   ]);
 });
 
-test('an independent shared-boundary drag can reverse before release', async ({ page }) => {
-  // 该测试验证“自动吸附关闭”时的独立拖动路径，显式关闭开关。
+test('a single lit edge can reverse before release without moving its neighbor', async ({ page }) => {
   await loadAttachedCues(page, false);
   const handle = page.locator('.waveform-cue-block[data-idx="0"] .waveform-cue-handle.right').first();
   const handleBox = await stableVisibleBoundingBox(page, handle);
@@ -300,7 +341,7 @@ test('an independent shared-boundary drag can reverse before release', async ({ 
   expect(rowBox).not.toBeNull();
   expect(rowEnd).toBeGreaterThan(rowStart);
 
-  const startX = handleBox.x + handleBox.width / 2;
+  const startX = handleBox.x + 1;
   const y = handleBox.y + handleBox.height / 2;
   const deltaX = (rowBox.width * -500) / (rowEnd - rowStart);
   await page.mouse.move(startX, y);
@@ -319,17 +360,17 @@ test('an independent shared-boundary drag can reverse before release', async ({ 
     { start: 25000, end: 30000 },
   ]);
 
-  // 关闭自动吸附时按住 Alt：共享边界临时联动拖动，状态栏在「共享边界」
-  // 文本旁提示未启用自动吸附及 Alt 临时启用方式。
+  // 吸附设置不会让单手柄变成共享拖动；Alt 同样保持独立。
   await page.keyboard.down('Alt');
   await page.mouse.move(startX, y);
   await page.mouse.down();
   await expect(page.locator('#waveform-pane')).toHaveClass(/cue-drag-active/);
   await page.mouse.move(startX + deltaX, y, { steps: 4 });
   await expect(page.locator('#waveform-status'))
-    .toContainText('当前未启用相邻字幕自动吸附，按住 Alt 可以临时启用');
+    .toContainText('调整中');
   await page.mouse.up();
   await page.keyboard.up('Alt');
+  expect((await readTimings(page))[1].start).toBe(10000);
 });
 
 test('explicit Shift snapping remains available when automatic adjacent snapping is off', async ({ page }) => {
@@ -400,7 +441,7 @@ test('A/D adjusts a held subtitle block and a held shared boundary', async ({ pa
   const boundary = page.locator('.waveform-cue-block[data-idx="0"] .waveform-cue-handle.right').first();
   await expect(boundary).toBeVisible();
   const boundaryBox = await stableVisibleBoundingBox(page, boundary);
-  await page.mouse.move(boundaryBox.x + boundaryBox.width / 2, boundaryBox.y + boundaryBox.height / 2);
+  await page.mouse.move(boundaryBox.x + boundaryBox.width - 1, boundaryBox.y + boundaryBox.height / 2);
   await page.mouse.down();
   await expect(page.locator('#waveform-pane')).toHaveClass(/cue-drag-active/);
   await page.keyboard.press('d');
@@ -444,7 +485,6 @@ test('Shift+A/D on a held subtitle snaps its outer boundaries to neighbors', asy
     DATA.segments[2].start = 20000;
     renderAll();
   });
-  await toggleEditorSettings(page);
   const block = page.locator('.waveform-cue-block[data-idx="1"]').first();
   await expect(block).toBeVisible();
   const blockBox = await stableVisibleBoundingBox(page, block);

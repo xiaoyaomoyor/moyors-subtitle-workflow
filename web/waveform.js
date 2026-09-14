@@ -192,6 +192,7 @@
     waveformScale: 1,
     disabledDisplay: 'dim',
     showTrackHeads: true,
+    hoverDetails: false,
     dragPlayhead: true,
     spectralColor: false,
   };
@@ -728,6 +729,8 @@
       ...(rawWaveformSettings.disabledDisplay === 'hidden' || rawWaveformSettings.disabledDisplay === 'dim'
         ? { disabledDisplay: rawWaveformSettings.disabledDisplay } : {}),
       // 旧设置键 showGroupBadges（分组标记）由「轨道头」承接，旧值迁移。
+      ...(typeof rawWaveformSettings.hoverDetails === 'boolean'
+        ? { hoverDetails: rawWaveformSettings.hoverDetails } : {}),
       ...(typeof rawWaveformSettings.showTrackHeads === 'boolean'
         ? { showTrackHeads: rawWaveformSettings.showTrackHeads }
         : (typeof rawWaveformSettings.showGroupBadges === 'boolean'
@@ -795,6 +798,7 @@
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
         showTrackHeads: parsed.showTrackHeads ?? (parsed.showGroupBadges !== false),
+        hoverDetails: parsed.hoverDetails === true,
         dragPlayhead: parsed.dragPlayhead !== false,
         spectralColor: parsed.spectralColor === true,
       };
@@ -1766,6 +1770,7 @@
       this.secondsPerRowSelect = document.getElementById('waveform-seconds-per-row');
       this.rowHeightSelect = document.getElementById('waveform-row-height');
       this.showTrackHeadsToggle = document.getElementById('waveform-show-track-heads');
+      this.hoverDetailsToggle = document.getElementById('waveform-hover-details');
       this.dragPlayheadToggle = document.getElementById('waveform-drag-playhead');
       this.spectralColorToggle = document.getElementById('waveform-spectral-color');
       this.sideSelect = document.getElementById('waveform-side');
@@ -1852,6 +1857,12 @@
         this.settings.showTrackHeads = this.showTrackHeadsToggle.checked;
         saveSettings(this.settings);
         this.applyTrackHeadsVisibility();
+        this.render();
+      });
+      this.hoverDetailsToggle?.addEventListener('change', () => {
+        this.settings.hoverDetails = this.hoverDetailsToggle.checked;
+        saveSettings(this.settings);
+        // title 在块/贴片创建时写入，轻量刷新不更新 title——全量渲染一次。
         this.render();
       });
       if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
@@ -2123,6 +2134,7 @@
       if (this.sideSelect) this.sideSelect.value = this.settings.side;
       if (this.disabledDisplaySelect) this.disabledDisplaySelect.value = this.settings.disabledDisplay;
       if (this.showTrackHeadsToggle) this.showTrackHeadsToggle.checked = this.settings.showTrackHeads !== false;
+      if (this.hoverDetailsToggle) this.hoverDetailsToggle.checked = this.settings.hoverDetails === true;
       if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
       if (this.layoutEditToggle) {
         this.layoutEditToggle.textContent = this.settings.layoutEditing ? '完成布局' : '编辑布局';
@@ -2167,6 +2179,7 @@
     setTool(tool) {
       if (!['select', 'razor', 'range'].includes(tool)) return;
       if (this.tool === tool) return;
+      this.clearCueEdgeHover();
       this.tool = tool;
       this.pane?.classList.toggle('tool-razor', tool === 'razor');
       this.pane?.classList.toggle('tool-select', tool === 'select');
@@ -3093,6 +3106,7 @@
           side: this.settings.side,
           disabledDisplay: this.settings.disabledDisplay,
           showTrackHeads: this.settings.showTrackHeads !== false,
+          hoverDetails: this.settings.hoverDetails === true,
           dragPlayhead: this.settings.dragPlayhead === true,
         },
         splitPercent: this.settings.splitPercent,
@@ -3742,6 +3756,8 @@
         this.renderedRows.forEach((row) => this.audioLayer?.renderRow(row, Number(row.dataset.startMs), Number(row.dataset.endMs)));
         // 贴片 mute 等状态变化会影响 A 轨道头，轻量路径也要同步轨道头列。
         this.syncTrackHeads();
+        // 播放头位置必须在轻量路径里保持刷新，否则放入贴片后指针会停一拍。
+        this.updatePlayback(false);
         return;
       }
       this.audioGeometry = geometry;
@@ -3890,23 +3906,26 @@
           event.stopPropagation();
           headActions.get(head.dataset.headAction)?.();
         });
+        // 没有字幕块的轨不显示行标签（此前空工程也会挂着 V1）。
         const mainMuted = this.options.subtitleTrackMuted?.('main') === true;
-        group.appendChild(makeHead('V1', 'v-main', `V1 主字幕轨——点击${mainMuted ? '启用' : '禁用'}整条轨道`,
-          () => this.options.toggleSubtitleTrackMuted?.('main'), mainMuted));
-        if (this.options.multiSubtitleVisible?.() === true) {
+        if ((this.options.getSegments('main') || []).length) {
+          group.appendChild(makeHead('V1', 'v-main', `V1 主字幕轨——点击${mainMuted ? '启用' : '禁用'}整条轨道`,
+            () => this.options.toggleSubtitleTrackMuted?.('main'), mainMuted));
+        }
+        if (this.options.multiSubtitleVisible?.() === true
+            && (this.options.getExtensionSegments?.() || []).length) {
           const extMuted = this.options.subtitleTrackMuted?.('extension') === true;
           group.appendChild(makeHead('V2', 'v-ext', `V2 副字幕轨——点击${extMuted ? '启用' : '禁用'}整条轨道`,
             () => this.options.toggleSubtitleTrackMuted?.('extension'), extMuted));
         }
-        // A 头：按全局打包 lane 数渲染，对齐 lanes 区域（区域底距 5px、
-        // lane 高 22、可视上限 3 条；所有行的轨道带高度一致——按原模式）。
+        // A 头：按打包 lane 数渲染，纵向对齐 lanes 区域（可视上限 3 行）。
         const audioCount = this.options.getAudioTrackCount?.() || 0;
         const lanesInner = row.querySelector('.msw-audio-lanes-inner');
         if (audioCount > 0 && lanesInner) {
           const ROW_H = 22;
           const innerH = Math.max(1, audioCount) * ROW_H + 6;
           const areaH = Math.min(innerH, 3 * ROW_H + 6);
-          for (let i = 0; i < audioCount; i += 1) {
+          for (let i = 0; i < audioCount && i < 3; i += 1) {
             const muted = this.options.audioTrackMuted?.(i) === true;
             const head = makeHead(`A${i + 1}`, 'a-track',
               `A${i + 1} 配音轨——点击${muted ? '启用' : '禁用'}整条轨道`,
@@ -4205,6 +4224,7 @@
         this.pointerLineMarker = pointerLine;
         this.showPointerLine(event, row, pointerLine);
       });
+      row.addEventListener('pointermove', event => this.updateCueEdgeHover(event, row), { capture: true });
       row.addEventListener('pointermove', (event) => {
         this.pointerLineEvent = { clientX: event.clientX };
         this.pointerLineRow = row;
@@ -4213,6 +4233,7 @@
         this.scheduleHoverSeekPreview(event, row);
       });
       row.addEventListener('pointerleave', () => {
+        if (!this.drag) this.clearCueEdgeHover();
         this.hidePointerLine(pointerLine);
         if (this.pointerLineMarker === pointerLine) {
           this.pointerLineEvent = null;
@@ -4361,8 +4382,15 @@
         label.textContent = segment.text.replace(/\s+/g, ' ');
         block.appendChild(label);
         this.setBindingMarker(block, mainBindingMarkers?.has?.(index) === true);
-        // 短块内文字会被截断，悬浮 title 给出完整字幕文本
-        block.title = label.textContent;
+        // 悬浮 title：默认只有完整文字；「悬浮显示序号与用时」开启时
+        // 附加序号与起止时间（当前时间基准格式）。
+        if (this.settings.hoverDetails === true) {
+          const clockNow = resolveTiming(this.cueTiming());
+          block.title = `#${index + 1} · ${clockNow.format(clockNow.fromMs(segment.start))} ~ ${clockNow.format(clockNow.fromMs(segment.end))}
+${label.textContent}`;
+        } else {
+          block.title = label.textContent;
+        }
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
           leftHandle.className = 'waveform-cue-handle left';
@@ -4476,6 +4504,15 @@
       block.style.left = `${left}%`;
       block.style.width = `${width}%`;
       block.hidden = visibleEnd <= visibleStart;
+      for (const [side, visible] of [['left', segment.start >= startMs], ['right', segment.end <= endMs]]) {
+        const handle = block.querySelector(`.waveform-cue-handle.${side}`);
+        if (!visible) handle?.remove();
+        else if (!handle) {
+          const next = document.createElement('span');
+          next.className = `waveform-cue-handle ${side}`;
+          block.appendChild(next);
+        }
+      }
       const row = ownerRow || block.closest('.waveform-row');
       // 时间上的多行模式与“多重字幕”双轨不是同一个概念；普通多行波形也
       // 必须在行边界清除相接侧圆角。基础模式的单行窗口则保留完整圆角。
@@ -4543,6 +4580,7 @@
           ? bindingMarkerTargets.extension?.has?.(Number(block.dataset.extIdx)) === true
           : bindingMarkerTargets.main?.has?.(Number(block.dataset.idx)) === true);
       });
+      this.paintCueEdgeHover();
       this.positionPlayheads();
     }
 
@@ -5369,26 +5407,15 @@
       }
       // 剃刀工具：无修饰键左键点击字幕块（非手柄）时，在指针位置安全拆分。
       // 修饰键（Alt/Ctrl(Cmd)/Shift）仍走原行为，便于拆分后立即多选/禁用。
-      const targetHandle = event.target.closest('.waveform-cue-handle');
-      const adjacentCueAdjustmentIndependent = this.isAdjacentCueAdjustmentIndependent(event.altKey);
+      const edgeHit = this.resolveCueEdgeHit(event, row);
+      const targetHandle = edgeHit?.handle;
+      this.updateCueEdgeHover(event, row);
       if (track === 'main' && this.tool === 'razor' && !targetHandle
           && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
         const timeMs = this.timeFromPointer(event, row);
         const timing = this.cueTiming();
         this.options.splitCueAtTime?.(index, timing.toMs(timing.fromMs(timeMs)));
         return;
-      }
-      // 相邻字幕独立调整：命中共享边界手柄时拆开为单侧拖动；Alt 会
-      // 根据“自动吸附调整相邻字幕”开关临时反转这一模式。
-      if (adjacentCueAdjustmentIndependent && targetHandle) {
-        const sharedLeft = targetHandle.classList.contains('left')
-          && index > 0 && this.isSharedBoundary(event, index - 1, index, row, track);
-        const sharedRight = targetHandle.classList.contains('right')
-          && index + 1 < this.options.getSegments(track).length
-          && this.isSharedBoundary(event, index, index + 1, row, track);
-        if (sharedLeft || sharedRight) {
-          return this.beginIndependentEdgeDrag(event, index, row, targetHandle, track);
-        }
       }
       // Ctrl(Cmd)+click toggles selection without starting a drag
       if (event.ctrlKey || event.metaKey) {
@@ -5409,10 +5436,10 @@
       }
       let boundaryIndex = index;
       const kind = targetHandle?.classList.contains('left')
-        ? (index > 0 && this.isSharedBoundary(event, index - 1, index, row, track)
+        ? (edgeHit.shared
           ? (boundaryIndex = index - 1, 'resize-boundary') : 'resize-left')
         : targetHandle?.classList.contains('right')
-          ? (index + 1 < this.options.getSegments(track).length && this.isSharedBoundary(event, index, index + 1, row, track)
+          ? (edgeHit.shared
             ? 'resize-boundary' : 'resize-right')
           : 'move';
       // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
@@ -5485,6 +5512,7 @@
       };
       event.currentTarget.classList.add('dragging');
       this.pane.classList.add('cue-drag-active');
+      this.paintCueEdgeHover();
       try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch (_) {}
       window.addEventListener('pointermove', this._dragMove = (moveEvent) => this.moveCueDrag(moveEvent));
       window.addEventListener('pointerup', this._dragEnd = (upEvent) => this.endCueDrag(upEvent), { once: true });
@@ -5499,18 +5527,58 @@
       }
     }
 
-    isSharedBoundary(event, leftIndex, rightIndex, row, track = 'main') {
-      const segments = this.options.getSegments(track);
-      const left = segments[leftIndex];
-      const right = segments[rightIndex];
-      const timing = this.cueTiming();
-      const leftEnd = timing.getEnd(left);
-      const rightStart = timing.getStart(right);
-      if (!left || !right || Math.abs(leftEnd - rightStart) > timing.snapThreshold) return false;
-      const pointerMs = this.timeFromPointer(event, row);
-      const pointerTime = timing.fromMs(pointerMs);
-      return Math.abs(pointerTime - leftEnd) <= timing.snapThreshold
-        || Math.abs(pointerTime - rightStart) <= timing.snapThreshold;
+    resolveCueEdgeHit(event, row) {
+      const block = event.target.closest?.('.waveform-cue-block');
+      if (!block || block.closest('.waveform-row') !== row) return null;
+      const track = block.dataset.track || 'main';
+      const attr = track === 'extension' ? 'ext-idx' : 'idx';
+      const index = Number(block.getAttribute(`data-${attr}`));
+      const segments = this.options.getSegments(track), segment = segments[index];
+      if (!segment) return null;
+      const rect = block.getBoundingClientRect();
+      // 短块的两端热区可能重叠，只取离指针最近的真实边缘。
+      const side = event.clientX - rect.left <= rect.right - event.clientX ? 'left' : 'right';
+      const distance = Math.abs(event.clientX - (side === 'left' ? rect.left : rect.right));
+      const handle = block.querySelector(`.waveform-cue-handle.${side}`);
+      if (!handle || distance > 7) return null;
+      const otherIndex = index + (side === 'left' ? -1 : 1);
+      const other = segments[otherIndex];
+      const otherSide = side === 'left' ? 'right' : 'left';
+      const otherBlock = [...this.content.querySelectorAll(`.waveform-cue-block[data-track="${track}"][data-${attr}="${otherIndex}"]`)]
+        .find(candidate => !candidate.hidden && candidate.querySelector(`.waveform-cue-handle.${otherSide}`));
+      const otherHandle = otherBlock?.querySelector(`.waveform-cue-handle.${otherSide}`);
+      // 只有时间精确相接、两侧真实边缘均已显示且靠近共同边界才共享。
+      // 边界恰在换行处时，另一真实手柄可以位于下一行／上一行。
+      // Alt 显示并拖动单侧；时间吸附阈值和另一个字幕轨不参与此判定。
+      const touching = other && (side === 'left' ? other.end === segment.start : segment.end === other.start);
+      const shared = Boolean(!event.altKey && touching && distance <= 4 && otherHandle && !otherBlock.hidden);
+      return { handle, shared, edges: [{ track, index, side }, ...(shared ? [{ track, index: otherIndex, side: otherSide }] : [])] };
+    }
+
+    updateCueEdgeHover(event, row) {
+      if (this.drag) return;
+      const edges = this.resolveCueEdgeHit(event, row)?.edges || [];
+      const key = edges.map(edge => `${edge.track}:${edge.index}:${edge.side}`).join('|');
+      if (key === this.cueEdgeHoverKey) return;
+      this.cueEdgeHoverKey = key;
+      this.cueEdgeHover = edges;
+      this.paintCueEdgeHover();
+    }
+
+    clearCueEdgeHover() {
+      this.cueEdgeHoverKey = null;
+      this.cueEdgeHover = [];
+      this.paintCueEdgeHover();
+    }
+
+    paintCueEdgeHover() {
+      this.content?.querySelectorAll('.waveform-cue-handle').forEach(handle => {
+        const block = handle.parentElement;
+        const track = block.dataset.track || 'main';
+        const index = Number(track === 'extension' ? block.dataset.extIdx : block.dataset.idx);
+        handle.classList.toggle('edge-hot', (this.cueEdgeHover || []).some(edge => edge.track === track
+          && edge.index === index && handle.classList.contains(edge.side)));
+      });
     }
 
     // Alt-drag 命中共享边界手柄：只拖动被命中一侧，邻居的相反边保持不动。
@@ -5786,8 +5854,7 @@
         const edge = drag.kind === 'resize-left' || drag.kind === 'resize-boundary-independent'
           ? 'start' : 'end';
         const options = {
-          sticky: drag.kind !== 'resize-boundary-independent'
-            && !this.isAdjacentCueAdjustmentIndependent(altKey),
+          sticky: drag.kind === 'resize-boundary',
           timing,
           minDuration: timing.minDuration,
         };
@@ -6544,9 +6611,7 @@
       clock.setStart(rightSegment, boundary);
       leftSegment.items = remapItems(left.items, left.start, left.end, left.start, boundary, clock);
       rightSegment.items = remapItems(right.items, right.start, right.end, boundary, right.end, clock);
-      this.setStatus(`共享边界 ${clock.format(boundary)} · ${this.adjacentSnapModeStatusHint()}`, '', { quiet: true });
-      // 吸附模式提示只挂在「共享边界」状态上：共享边界拖动正是自动吸附
-      // 默认联动/独立两种模式的直接体现，Alt 可随时临时反转。
+      this.setStatus(`共享边界 ${clock.format(boundary)}`, '', { quiet: true });
     }
 
     endCueDrag(event) {
@@ -6560,6 +6625,7 @@
       this.content.querySelectorAll('.waveform-cue-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.pane.classList.remove('cue-drag-active');
       this.drag = null;
+      this.clearCueEdgeHover();
       if (event.type === 'pointercancel') {
         drag.cancelOriginals.forEach((original, idx) => {
           const segment = this.options.getSegments(drag.track || 'main')[idx];

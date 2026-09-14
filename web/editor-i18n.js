@@ -9,6 +9,16 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '音频贴片最多同时重叠三层，请先移动或裁剪现有贴片': 'Audio clips can overlap on at most three layers. Move or trim existing clips first.',
+    '翻译所选字幕': 'Translate selected subtitles',
+    '卡片显示': 'Card display',
+    '主副布局': 'Paired layout',
+    '双排': 'Stacked rows',
+    '仅改变字幕列表的显示内容': 'Change subtitle list content only',
+    '双列：左主右副；双排：上主下副': 'Columns: main left, secondary right; rows: main above secondary',
+    '卡片': 'Cards',
+    '卡片色': 'Card color',
+    '字幕列表和素材库的卡片底色': 'Background of subtitle and asset library cards',
     '请先另存为工程，再创建磁盘版本': 'Save the project as a file before creating disk versions',
     '当前正在编辑或保存，请稍后创建版本': 'Editing or saving is in progress; create the version afterward',
     '版本与说话人': 'Versions and speakers',

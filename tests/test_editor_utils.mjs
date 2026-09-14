@@ -16,6 +16,24 @@ const source = fs.readFileSync(new URL('../web/editor-utils.js', import.meta.url
 vm.runInNewContext(source, context);
 const gapCore = context.window.AsrGapRemoveCore;
 const helpers = context.window.AsrEditorUtils;
+test('bound pair selection defaults off and preserves explicit saved preferences', () => {
+  assert.equal(helpers.normalizeEditorSettings({}).selectBoundSubtitlePair, false);
+  assert.equal(helpers.normalizeEditorSettings({ selectBoundSubtitlePair: false }).selectBoundSubtitlePair, false);
+  assert.equal(helpers.normalizeEditorSettings({ selectBoundSubtitlePair: true }).selectBoundSubtitlePair, true);
+  assert.equal(helpers.normalizeEditorSettings({ selectBoundSubtitlePair: 'true' }).selectBoundSubtitlePair, false);
+});
+test('card layout and theme colors preserve old settings and reject invalid values', () => {
+  assert.equal(helpers.normalizeEditorSettings({}).cueListPairLayout, 'columns');
+  assert.equal(helpers.normalizeEditorSettings({ cueListPairLayout: 'rows' }).cueListPairLayout, 'rows');
+  assert.equal(helpers.normalizeEditorSettings({ cueListPairLayout: 'both' }).cueListPairLayout, 'columns');
+  const old = helpers.normalizeEditorSettings({ colors: { input: '#123456' } });
+  assert.equal(old.colors.input, '#123456');
+  assert.equal(old.colors.card, undefined);
+  const saved = helpers.normalizeEditorSettings({ colors: { card: '#AABBCC', input: '#123456' } });
+  assert.equal(saved.colors.card, '#aabbcc');
+  assert.equal(saved.colors.input, '#123456');
+  assert.equal(helpers.normalizeEditorSettings({ colors: { card: 'red' } }).colors, null);
+});
 test('public source selection and disk cache stripping preserve independent MSW metadata', () => {
   const project = { media_metadata: { selected_audio_track: 2, duration_ms: 10800000, future: { keep: true } },
     msw: { source_audio_index: 0, assets: [{ id: 'synthetic' }] }, waveform: { audio_track: 0 }, spectral: {}, waveform_reapeaks: {}, segments: [] };

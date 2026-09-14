@@ -11,6 +11,8 @@
   confirmTrack.textContent = '确认使用此源音轨';
   track.after(confirmTrack);
   confirmTrack.addEventListener('click', () => void media.changeTrack(Number(track.value)));
+  // 默认开启「自动波形」：清掉历史遗留的关闭记录，每次加载都默认勾选。
+  if (localStorage.getItem('msw.waveform.auto') === 'false') localStorage.removeItem('msw.waveform.auto');
   auto.checked = localStorage.getItem('msw.waveform.auto') !== 'false';
   byId('waveform-auto-label').hidden = false;
   byId('analysis-unavailable').hidden = true;

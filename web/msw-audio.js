@@ -13,7 +13,6 @@
   for (const event of ['msw:subtitles-changed', 'msw:assets-changed']) global.addEventListener(event, () => {
     sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map(); schedulePaint();
   });
-  let laneScroll = new Map();
   const extension = () => host.data.msw || EMPTY_EXTENSION;
   function sync() {
     const ext = extension(), clips = drag?.preview || ext.audio_clips || EMPTY;
@@ -47,16 +46,21 @@
       if (!response.ok) throw Error(response.status === 404 ? '素材缺失，请恢复工程旁的素材目录' : '音频加载失败，请检查本机服务');
       return response.arrayBuffer();
     } });
-  function commit(label, change) { closeMenu(); transport.reset(); host.commitAudio(t(label), change); }
+  function commit(label, change) {
+    closeMenu();
+    const applied = host.commitAudio(t(label), change);
+    if (applied !== false) transport.reset();
+    return applied !== false;
+  }
   function insert(assetId, at = transport.currentTime() ?? (host.player.currentTime * 1000 || 0)) {
     const asset = sync().assets.get(assetId); if (!asset) return;
     const id = global.MSWProject.id('clip');
-    commit('添加音频贴片', ext => {
+    if (!commit('添加音频贴片', ext => {
       ext.audio_tracks ||= [{ id: 'voice-1', name: '配音', gain_db: 0, muted: false }];
       if (!ext.audio_tracks.length) ext.audio_tracks.push({ id: 'voice-1', name: '配音', gain_db: 0, muted: false });
       ext.audio_clips ||= [];
       ext.audio_clips.push(core.create(asset, ext.audio_tracks[0].id, Math.round(timeline.snap(at)), id));
-    });
+    })) return false;
     host.clearSubtitleSelection(); selected.clear(); selected.add(id); timeline.refreshOverlays();
     void transport.ensure(asset);
   }
@@ -79,6 +83,9 @@
   }
   // 在播放头处把一条贴片一分为二：左段保留原 id 与起点，右段新 id 从拆分点
   // 起播（source 区间按采样率精确切分），标签沿用。
+  // 「悬浮显示序号与用时」开关（波形显示器设置），经宿主 options 透传。
+  function hoverDetailsActive() { return Boolean(host.options?.clipHoverDetails?.()); }
+
   function splitClipAtPlayhead(clip) {
     const state = sync();
     const asset = state.assets.get(clip.asset_id);
@@ -87,7 +94,7 @@
     const finish = core.end(clip, asset);
     if (!(at > clip.start_ms + 50 && at < finish - 50)) { hint('播放头不在贴片范围内，无法拆分'); return; }
     const splitSample = clip.source_in_sample + Math.round((at - clip.start_ms) * asset.sample_rate / 1000);
-    commit('拆分音频贴片', ext => {
+    if (!commit('拆分音频贴片', ext => {
       const target = ext.audio_clips.find(c => c.id === clip.id);
       if (!target) return;
       const right = JSON.parse(JSON.stringify(target));
@@ -96,7 +103,7 @@
       right.source_in_sample = splitSample;
       ext.audio_clips.push(right);
       target.source_out_sample = splitSample;
-    });
+    })) return;
     hint(`已在 ${(at / 1000).toFixed(3)}s 处拆分音频贴片`);
   }
 
@@ -123,10 +130,10 @@
     const minStart = Math.min(...copies.map(c => c.start_ms));
     const shift = Math.max(0, Math.round(timeline.snap(anchor)) - minStart);
     const idMap = new Map(copies.map(c => [c.id, global.MSWProject.id('clip')]));
-    commit('粘贴音频贴片', ext => {
+    if (!commit('粘贴音频贴片', ext => {
       ext.audio_clips.push(...copies.map(c => ({ ...JSON.parse(JSON.stringify(c)),
         id: idMap.get(c.id), start_ms: Math.max(0, c.start_ms + shift) })));
-    });
+    })) return;
     host.clearSubtitleSelection(); selected.clear();
     for (const id of idMap.values()) selected.add(id);
     timeline.refreshOverlays();
@@ -223,8 +230,15 @@
       const threshold = 8 * (current?.msPerPixel ?? drag.point.msPerPixel ?? 1);
       delta += magneticAdjust(delta, mode, clip, threshold);
       if (mode === 'move') delta = Math.max(delta, -Math.min(...originals.filter(c => ids.has(c.id)).map(c => c.start_ms)));
-      drag.preview = originals.map(c => ids.has(c.id) ? core.edit(c, sync().assets.get(c.asset_id), mode, delta) : c);
+      const assets = sync().assets;
+      const preview = originals.map(c => ids.has(c.id) ? core.edit(c, assets.get(c.asset_id), mode, delta) : c);
       drag.moved = true;
+      if (!core.hasCapacity(preview, assets)) {
+        timeline.hideMagnetGuide?.();
+        timeline.setStatus?.(core.CAPACITY_MESSAGE, '', { quiet: true });
+        return; // 保持最后有效位置，松手不会生成第四层。
+      }
+      drag.preview = preview;
       // 移动/裁切中的实时时间挂到右上常显数据行（与字幕块拖动一致），
       // 不弹浮动气泡。
       const previewSelf = drag.preview.find(c => c.id === clip.id);
@@ -243,7 +257,7 @@
       timeline.hideMagnetGuide?.();
       timeline.refreshMediaReadout?.();
       const current = drag; drag = null;
-      if (apply && current?.moved && current.generation === host.generation) {
+      if (apply && current?.moved && current.preview !== current.originals && current.generation === host.generation) {
         commit(mode === 'move' ? '移动音频贴片' : '裁剪音频贴片', ext => { ext.audio_clips = current.preview; });
       } else {
         state = null; timeline.refreshOverlays();
@@ -276,7 +290,7 @@
     // DOM，鼠标下的贴片会因节点被替换而闪烁（悬停/过渡态每帧丢失）。
     let area = row.querySelector('.msw-audio-lanes');
     if (!(area && area.dataset.key === key)) {
-      if (area) { laneScroll.set(key, area.scrollTop); area.remove(); }
+      if (area) area.remove();
       area = document.createElement('div'); area.className = 'msw-audio-lanes'; area.dataset.key = key;
       area.tabIndex = 0; area.setAttribute('aria-label', t('配音轨道'));
       const inner = document.createElement('div'); inner.className = 'msw-audio-lanes-inner'; area.appendChild(inner);
@@ -287,11 +301,7 @@
         area.addEventListener(event, (e) => { if (onClip(e)) e.stopPropagation(); });
       }
       area.addEventListener('contextmenu', (e) => { if (onClip(e)) { e.stopPropagation(); e.preventDefault(); } });
-      area.addEventListener('wheel', (e) => { if (current.count > 3 && !e.ctrlKey && !e.metaKey && !e.shiftKey) e.stopPropagation(); }, { passive: true });
-      area.addEventListener('scroll', () => { laneScroll.set(key, area.scrollTop); paint(); }, { passive: true });
       row.appendChild(area);
-    } else {
-      laneScroll.set(key, area.scrollTop);
     }
     row.classList.toggle('has-audio-clips', has);
     const visible = Math.min(3, Math.max(1, current.count)), height = visible * ROW + 6;
@@ -299,17 +309,16 @@
     if (!has) { area.remove(); return; }
     const inner = area.querySelector('.msw-audio-lanes-inner');
     area.style.height = `${height}px`;
-    area.title = t(current.count > 3 ? '重叠配音可在此区域内滚动查看' : '配音轨道：拖动移动，边缘裁剪，右键静音');
+    area.title = t('配音轨道：拖动移动，边缘裁剪，右键静音');
     inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`;
     const overlaps = current.clips.filter((c) => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
     function paint() {
-      const lo = Math.max(0, Math.floor(area.scrollTop / ROW) - 1), hi = lo + visible + 2;
       // 键控复用：按 clipId 复用已有元素、只更新几何与状态类；新出现的才
       // 建节点，消失的移除——拖动每帧刷新不再重建整棵 DOM（闪烁与性能根因）。
       const existing = new Map([...inner.children].map((el) => [el.dataset.clipId, el]));
       const seen = new Set();
       for (const clip of overlaps) {
-        const lane = current.lanes.get(clip.id); if (lane < lo || lane > hi) continue;
+        const lane = current.lanes.get(clip.id);
         const asset = current.assets.get(clip.asset_id), finish = core.end(clip, asset), from = Math.max(start, clip.start_ms), to = Math.min(end, finish);
         seen.add(clip.id);
         let block = existing.get(clip.id);
@@ -344,9 +353,11 @@
         block.style.top = `${lane * ROW + 3}px`;
         const background = muted ? '' : heatBackground(clip, asset, from, to);
         if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
-        block.title = `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
-          + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
-          + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '');
+        block.title = hoverDetailsActive()
+          ? `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
+            + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
+            + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '')
+          : (clip.label || t('音频贴片'));
         if (!transport.heats.has(asset.id) && !transport.failures.has(asset.id)) void transport.ensure(asset);
       }
       existing.forEach((el, id) => { if (!seen.has(id)) el.remove(); });
@@ -467,7 +478,7 @@
   global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
   global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
   global.addEventListener('msw:project-changed', () => {
-    drag?.cancel(); closeMenu(); selected.clear(); state = null; lastLanes = null; laneScroll.clear(); transport.clear();
+    drag?.cancel(); closeMenu(); selected.clear(); state = null; lastLanes = null; transport.clear();
     queueMicrotask(() => { refreshSettings(); timeline.refresh(); });
   });
   global.addEventListener('pagehide', () => transport.clear());

@@ -235,7 +235,7 @@ __WAVEFORM_CSS__
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
-          <button type="button" class="dropdown-item" id="clear-all-subtitles" role="menuitem">清空全部字幕</button>
+          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="删除当前项目中所有没有文字内容的字幕块（含副字幕）">清除全部空字幕块</button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -253,14 +253,6 @@ __WAVEFORM_CSS__
             启用多重字幕
           </label>
           <small class="multi-subtitle-empty-hint" id="multi-subtitle-empty-hint" hidden>请拖入第二条字幕以开启多重字幕编辑</small>
-          <div class="multi-subtitle-setting-row">
-            <span>显示方式</span>
-            <select id="multi-subtitle-display-mode" title="多重字幕列表显示方式">
-              <option value="main">主轨</option>
-              <option value="extension">副轨</option>
-              <option value="both" selected>双列</option>
-            </select>
-          </div>
           <div class="multi-subtitle-setting-row">
             <span>主字幕语言类型</span>
             <select id="multi-subtitle-main-language-mode" title="主字幕语言类型">
@@ -294,7 +286,7 @@ __WAVEFORM_CSS__
             <input type="checkbox" id="multi-subtitle-cross-track-snap" checked> 跨轨道吸附
           </label>
           <label class="multi-subtitle-setting-toggle" title="普通点击以最后点击的轨道为准；点击已绑定字幕时，仅补选它实际绑定的另一条字幕">
-            <input type="checkbox" id="multi-subtitle-select-bound-pair" checked> 同时选中主副字幕
+            <input type="checkbox" id="multi-subtitle-select-bound-pair"> 同时选中主副字幕
           </label>
           <label class="multi-subtitle-setting-toggle" title="绑定字幕后自动把副字幕的起止时间同步到主字幕，相当于随后按一次 H">
             <input type="checkbox" id="multi-subtitle-auto-sync-duration" checked> 绑定时自动同步时长
@@ -345,6 +337,9 @@ __WAVEFORM_CSS__
           <label class="settings-panel-item msw-asset-density" title="调整每行卡片数量；窄窗口自动减少列数">卡片密度
             <input type="range" id="asset-density" min="1" max="5" step="1" value="3" aria-label="每行卡片数量">
             <output id="asset-density-value" for="asset-density">3</output>
+          </label>
+          <label class="toggle settings-panel-item" title="隐藏/显示素材库顶部的搜索框与批次筛选">
+            <input type="checkbox" id="asset-show-search" checked> 显示搜索与筛选
           </label>
         </div>
       </div>
@@ -700,6 +695,24 @@ __WAVEFORM_CSS__
   <div class="gap-remove-panel-body settings-modal-body cue-list-settings-body">
 <div id="cue-list-settings-panel" role="group" aria-label="字幕列表设置">
           <div class="settings-panel-section cue-list-settings-section">
+            <span class="settings-panel-title">卡片显示</span>
+            <label class="settings-panel-item subtitle-preview-setting-row">
+              <span>显示内容</span>
+              <select id="multi-subtitle-display-mode" title="仅改变字幕列表的显示内容">
+                <option value="main">主字幕</option>
+                <option value="extension">副字幕</option>
+                <option value="both" selected>多重字幕</option>
+              </select>
+            </label>
+            <label class="settings-panel-item subtitle-preview-setting-row">
+              <span>主副布局</span>
+              <select id="cue-list-pair-layout" title="双列：左主右副；双排：上主下副">
+                <option value="columns" selected>双列</option>
+                <option value="rows">双排</option>
+              </select>
+            </label>
+          </div>
+          <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">字幕过滤</span>
             <label class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row" title="只显示文本包含该内容的字幕；留空不过滤">
               <span>内容过滤</span>
@@ -970,6 +983,9 @@ __WAVEFORM_CSS__
       </label>
       <label class="toggle editor-settings-item" title="在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行">
         <input type="checkbox" id="waveform-show-track-heads" checked> 行编号
+      </label>
+      <label class="toggle editor-settings-item" title="悬浮字幕块/音频贴片时，额外显示序号与起止时间（默认只显示文字内容）">
+        <input type="checkbox" id="waveform-hover-details"> 悬浮显示序号与用时
       </label>
       <label class="editor-settings-item">配音与空隙
         <select id="audio-clips-gap-policy">
@@ -1800,6 +1816,9 @@ __WAVEFORM_CSS__
                 </label>
                 <label class="color-picker-cell" title="文本输入框底色">输入框
                   <input type="color" id="interface-color-input" aria-label="输入框色">
+                </label>
+                <label class="color-picker-cell" title="字幕列表和素材库的卡片底色">卡片
+                  <input type="color" id="interface-color-card" aria-label="卡片色">
                 </label>
                 <label class="color-picker-cell" title="主要文字">文字
                   <input type="color" id="interface-color-text" aria-label="文字色">

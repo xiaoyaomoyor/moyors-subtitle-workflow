@@ -75,13 +75,13 @@ test('library transport seeks, mutes and changes speed using the module theme', 
   await page.locator('#asset-rate').selectOption('1.5');
   expect(await page.locator('#asset-audio').evaluate(audio => audio.playbackRate)).toBe(1.5);
   await page.evaluate(() => {
-    for (const [key, value] of Object.entries({raised: '#25364a', input: '#152433', toolbar: '#30465b', accent: '#ee9944'})) {
+    for (const [key, value] of Object.entries({raised: '#25364a', input: '#152433', card: '#203040', toolbar: '#30465b', accent: '#ee9944'})) {
       const input = document.getElementById('interface-color-' + key);
       input.value = value; input.dispatchEvent(new Event('input', {bubbles: true})); input.dispatchEvent(new Event('change', {bubbles: true}));
     }
   });
   await expect(page.locator('#asset-library')).toHaveCSS('background-color', 'rgb(37, 54, 74)');
-  await expect(page.locator('.msw-asset-row').first()).toHaveCSS('background-color', 'rgb(21, 36, 51)');
+  await expect(page.locator('.msw-asset-row').first()).toHaveCSS('background-color', 'rgb(32, 48, 64)');
   await expect(page.locator('#asset-search')).toHaveCSS('background-color', 'rgb(21, 36, 51)');
   await expect(page.locator('#asset-player')).toHaveCSS('background-color', 'rgb(48, 70, 91)');
   await expect(page.locator('.msw-asset-toolbar')).toHaveCSS('background-color', 'rgb(48, 70, 91)');
@@ -467,24 +467,28 @@ test('audio clips continue after source media ends and work without original med
   expect(await page.evaluate(()=>MSWE.resolve('audio-timeline').diagnostics().active)).toBe(0);
 });
 
-test('audio clips keep dense lanes scrollable in basic and multi modes',async({page})=>{
+test('audio clips show at most three lanes without inner scrolling in basic and multi modes',async({page}, info)=>{
   await prepareClips(page);
   await page.evaluate(()=>MSWE.resolve('processing-host').commitAudio('test dense clips',ext=>{
-    const c=ext.audio_clips[0]; ext.audio_clips=Array.from({length:50},(_,i)=>({...c,id:`dense-${i}`}));
+    const c=ext.audio_clips[0]; ext.audio_clips=Array.from({length:3},(_,i)=>({...c,id:`dense-${i}`}));
   }));
   const lanes=page.locator('.msw-audio-lanes').first();
-  // Audio lanes render on the next animation frame; wait for their full extent.
-  await expect.poll(()=>lanes.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeGreaterThan(900);
-  expect(await page.locator('.msw-audio-clip').count()).toBeLessThan(10);
+  await expect(page.locator('.msw-audio-clip')).toHaveCount(3);
+  await expect.poll(()=>lanes.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeLessThanOrEqual(1);
   await lanes.evaluate(el=>el.scrollTop=el.scrollHeight);
-  await expect.poll(()=>lanes.evaluate(el=>el.scrollTop)).toBeGreaterThan(900);
-  await expect(page.locator('[data-clip-id="dense-9"]')).toBeVisible();
+  await expect.poll(()=>lanes.evaluate(el=>el.scrollTop)).toBe(0);
+  await expect(page.locator('[data-clip-id="dense-2"]')).toBeVisible();
+  const before = await page.evaluate(() => JSON.stringify(DATA.msw.audio_clips));
+  expect(await page.evaluate(() => MSWE.resolve('processing-host').commitAudio('fourth layer', ext => {
+    ext.audio_clips.push({ ...ext.audio_clips[0], id: 'fourth' });
+  }))).toBe(false);
+  expect(await page.evaluate(() => JSON.stringify(DATA.msw.audio_clips))).toBe(before);
   await page.locator('#waveform-settings-item').evaluate(el=>el.click());
   await page.locator('#waveform-display-mode').selectOption('basic');
   await page.keyboard.press('Escape');
   const ext=await page.locator('.waveform-cue-block[data-track="extension"]').first().boundingBox();
   const band=await lanes.boundingBox(); expect(ext.y+ext.height).toBeLessThanOrEqual(band.y);
-  if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'audio-clips-dense.png')});
+  await page.screenshot({path:info.outputPath('audio-three-lanes.png')});
   await page.evaluate(()=>MSWE.resolve('processing-host').commitAudio('test short clips',ext=>{
     const c=ext.audio_clips[0], samples=ext.assets[0].sample_rate/1000;
     ext.audio_clips=[{...c,id:'tiny-1',start_ms:2000,source_in_sample:0,source_out_sample:samples},
@@ -492,6 +496,72 @@ test('audio clips keep dense lanes scrollable in basic and multi modes',async({p
   }));
   const tiny=await page.locator('.msw-audio-clip').evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return {x:b.x,right:b.right};}));
   expect(tiny).toHaveLength(2); expect(tiny[0].right).toBeLessThanOrEqual(tiny[1].x+.02);
+});
+
+test('fourth-layer insert paste drag trim restore and keyboard moves are rejected atomically', async ({ page }) => {
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await prepareClips(page);
+  await page.evaluate(() => MSWE.resolve('processing-host').commitAudio('capacity fixture', ext => {
+    const c = ext.audio_clips[0];
+    ext.audio_clips = [0, 1, 2].map(i => ({ ...c, id: `triple-${i}`, start_ms: 2000 }));
+    ext.audio_clips.push({ ...c, id: 'moving', start_ms: 4000 });
+  }));
+  const snapshot = () => page.evaluate(() => [JSON.stringify(DATA.msw.audio_clips), editorHistory.undoLength()]);
+  let before = await snapshot();
+  await page.evaluate(() => MSWE.resolve('audio-timeline').insert(DATA.msw.assets[0].id, 2000));
+  expect(await snapshot()).toEqual(before);
+  const first = page.locator('[data-clip-id="triple-0"]').first();
+  await first.click(); await page.keyboard.press('Control+c');
+  await page.evaluate(() => MSWE.resolve('processing-host').seek(2));
+  await page.keyboard.press('Control+v');
+  expect(await snapshot()).toEqual(before);
+  // 批量粘贴也整体拒绝，不留下其中一部分。
+  await page.evaluate(() => MSWE.resolve('audio-timeline').selectAllClips());
+  await page.keyboard.press('Control+c'); await page.keyboard.press('Control+v');
+  expect(await snapshot()).toEqual(before);
+  await page.keyboard.press('Escape');
+  const moving = page.locator('[data-clip-id="moving"]').first();
+  let box = await moving.boundingBox();
+  const row = moving.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " waveform-row ")][1]');
+  const rowBox = await row.boundingBox();
+  const span = Number(await row.getAttribute('data-end-ms')) - Number(await row.getAttribute('data-start-ms'));
+  const deltaX = rowBox.width * -2000 / span;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + deltaX, box.y + box.height / 2);
+  await expect(page.locator('#waveform-status')).toContainText('三层');
+  await page.mouse.up();
+  expect(await snapshot()).toEqual(before);
+  // 首尾刚好相接允许；键盘往回一步则会产生第四层。
+  await page.evaluate(() => MSWE.resolve('processing-host').commitAudio('touching edge', ext => {
+    ext.audio_clips.find(c => c.id === 'moving').start_ms = 3500;
+  }));
+  await moving.click(); before = await snapshot();
+  await page.keyboard.press('ArrowLeft'); expect(await snapshot()).toEqual(before);
+  // 第四条的短尾在三条之前结束，恢复完整源或扩大终点都会超限。
+  await page.evaluate(() => MSWE.resolve('processing-host').commitAudio('trimmed fixture', ext => {
+    const c = ext.audio_clips.find(c => c.id === 'moving'), asset = ext.assets.find(a => a.id === c.asset_id);
+    c.start_ms = 1500; c.source_out_sample = asset.sample_rate * .5;
+  }));
+  await moving.click(); before = await snapshot();
+  await moving.click({ button: 'right' });
+  await page.locator('.msw-audio-menu').getByRole('button', { name: '恢复完整音频', exact: true }).click();
+  expect(await snapshot()).toEqual(before);
+  box = await moving.locator('.msw-audio-handle.end').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + rowBox.width * 500 / span, box.y + box.height / 2);
+  await expect(page.locator('#waveform-status')).toContainText('三层');
+  await page.mouse.up(); expect(await snapshot()).toEqual(before);
+  // 被拒绝的动作不占撤销步数；撤销仍恢复上一有效操作。
+  await page.keyboard.press('Control+z');
+  expect(await page.evaluate(() => DATA.msw.audio_clips.find(c => c.id === 'moving').start_ms)).toBe(3500);
+  await page.keyboard.press('Control+Shift+z');
+  expect(await page.evaluate(() => DATA.msw.audio_clips.find(c => c.id === 'moving').start_ms)).toBe(1500);
+  expect(await page.evaluate(() => {
+    const candidate = JSON.parse(JSON.stringify(DATA));
+    candidate.msw.audio_clips.push({ ...candidate.msw.audio_clips[0], id: 'bad-import' });
+    try { validateProjectForLoad(candidate); return ''; } catch (e) { return e.message; }
+  })).toContain('三层');
+  expect(errors).toEqual([]);
 });
 
 test('audio clips preserve missing references, reload restored audio and stop on project switch',async({page})=>{
@@ -678,7 +748,7 @@ test('asset settings are in the media menu and module context submenu',async({pa
   await expect(slider).toBeVisible();
   await slider.fill('4'); await slider.dispatchEvent('input');
   await expect(page.locator('#asset-density')).toHaveValue('4');
-  expect(await page.locator('#ctxmenu .ctx-subitem').count()).toBe(1);
+  expect(await page.locator('#ctxmenu .ctx-subitem').count()).toBe(2); // 密度滑条 + 显示搜索与筛选
   expect(await slider.evaluate(el=>{const r=el.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight;})).toBe(true);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-settings-context.png')});
 });

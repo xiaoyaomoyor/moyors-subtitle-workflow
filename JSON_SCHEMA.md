@@ -907,6 +907,8 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 
 贴片终点由 `start_ms + (source_out_sample − source_in_sample) × 1000 / sample_rate` 得到，可以有亚毫秒小数，不另存冗余终点。左边缘裁剪同时移动整数毫秒起点，采样范围保留整数帧；整数毫秒取整误差小于 1ms。
 
+编辑器容量限制：同一时间最多三层贴片（包含静音贴片，首尾相接不计重叠），不是工程总贴片数最多三条。编辑及工程导入在修改当前数据前检查容量，超限整体拒绝，不截断数组或删减素材。这是编辑器交互约束，不改变 `msw.editor.v1` 文件结构或后端导出格式。
+
 `audio_settings.heatmap` 为布尔，默认 true；`audio_settings.gap_policy` 为 `protect`（默认）或 `follow`。`protect` 从实际跳过区间中减去未静音贴片覆盖范围（终点向上取整到毫秒）；`follow` 使用原空隙决定。保护不改写 `gap_remove.gaps`，删除／静音贴片后原有决定重新生效。编辑器的有效跳过区间与 D1 / D2 音频导出共用此保护。
 
 轨道、贴片和这两项设置进入工程保存、备份与撤销／重做。音频字节继续独立存放，热力图和解码缓冲仅为可重建缓存，不写入工程。热力图采用约 400ms 窗口／100ms 步长的 RMS dBFS、固定 −60 至 −6 dBFS 色标，计入贴片和轨道增益；不是 LUFS 测量，也不是最终混音电平。

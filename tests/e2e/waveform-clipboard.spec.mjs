@@ -309,9 +309,10 @@ test('cut cue block then paste at an earlier playhead lands on the track', async
 });
 
 test('bound pair cut and paste keeps main and extension together', async ({ page }) => {
-  // 连锁选择（selectBoundSubtitlePair 默认开）：点主块会同时选中绑定的副字幕。
+  // 显式开启连锁选择：点主块会同时选中绑定的副字幕。
   // 剪切这对 → 粘贴到播放头：主副一起回来且配对绑定重建。
   await dropSrtPair(page);
+  await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: true }));
   await expect(page.locator('.multi-dual-cue').first()).toBeVisible();
 
   const state = () => page.evaluate(() => ({
