@@ -145,4 +145,17 @@ test('real local engine synthesizes an independent bilingual draft without modif
   const asset = await page.evaluate(() => DATA.msw.assets[0]);
   expect(asset.source_ref.kind).toBe('editor_text'); expect(asset.generation.display_text).toBe('你好 Hello');
   expect(asset.source_ref.end-asset.source_ref.start).toBe(Math.ceil(asset.sample_count*1000/asset.sample_rate));
+  await expect(page.locator('#cue-panel-tts-text')).toHaveValue('');
+  await page.locator('#tts-yukkuri-voice').selectOption('f2');
+  await page.locator('#tts-close').click();
+  await page.evaluate(id=>{MSWE.resolve('audio-timeline').insert(id,0);MSWE.resolve('audio-timeline').selectAllClips();},asset.id);
+  await openMenubarMenu(page,'媒体'); await page.locator('#audio-actions-open').click();
+  await page.locator('#audio-actions-regenerate').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('已替换 1',{timeout:15000});
+  const regenerated=await page.evaluate(()=>DATA.msw.assets.find(a=>a.id===DATA.msw.audio_clips[0].asset_id));
+  expect(regenerated.generation.voice).toBe(asset.generation.voice);
+  expect(regenerated.generation.display_text).toBe(asset.generation.display_text);
+  expect(regenerated.source_ref.spoken_text).toBe(asset.generation.spoken_text);
+  expect(regenerated.generation.spoken_text).toBe(asset.generation.spoken_text);
+
 });

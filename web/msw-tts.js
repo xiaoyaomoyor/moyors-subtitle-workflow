@@ -17,6 +17,8 @@
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
   let settingsPromise = null, savingSettings = false;
   let draftActive = false, draftInitialized = false;
+  let draftRevision = 0, pendingDraft = null, clearedDraft = null;
+  const draftJobs = new Map();
   const isText = () => el('tts-target').value === 'editor_text';
   let runtime = {state: 'idle', runtime_path: ''}, runtimeTimer, runtimeRequest = false;
   const isYukkuri = () => el('tts-engine').value === 'yukkuri';
@@ -66,6 +68,7 @@
     draftActive = next;
     el('current-cue-panel').classList.toggle('tts-draft-mode', next);
     el('cue-panel-tts-text').hidden = !next; el('cue-panel-tts-footer').hidden = !next;
+    el('cue-panel-tts-preview').hidden = !next;
     if (next) {
       el('cue-panel-tts-text').focus({preventScroll: true});
       requestAnimationFrame(() => {
@@ -78,18 +81,20 @@
     }
   }
   function updateScope() {
-    const scope = isText() ? {signature: 'editor_text', sources: el('cue-panel-tts-text').value.trim() ? [{}] : [],
-      tooLong: [...el('cue-panel-tts-text').value].length > 600 ? 1 : 0} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
+    const parts = global.MSWTts.splitDraft(el('cue-panel-tts-text').value, host.draftSettings());
+    const scope = isText() ? {signature: 'editor_text', sources: parts,
+      tooLong: parts.filter(part => [...part].length > 600).length || (parts.length > 10000 ? 1 : 0)} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
     if (scope.signature !== scopeSignature) {
       scopeSignature = scope.signature;
       el('tts-yukkuri-pronunciation').value = '';
       el('tts-index-pronunciation').value = '';
     }
-    el('tts-scope').textContent = (isText() ? t('范围：独立配音草稿 · 不修改字幕')
+    el('tts-scope').textContent = (isText() ? `${t('范围：独立配音草稿 · 不修改字幕')} · ${parts.length} ${t('条')}`
       : `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
         + (scope.linked ? ` · ${t('连锁字幕按操作对象合成，独立字幕保留原选区')}` : ''))
       + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过 600 字符，请先拆分')}` : '');
-    el('cue-panel-tts-count').textContent = `${[...el('cue-panel-tts-text').value].length} / 600`;
+    el('cue-panel-tts-count').textContent = `${parts.length} ${t('段')} · ${t('最长')} ${parts.reduce((n, part) => Math.max(n, [...part].length), 0)} / 600`;
+    if (el('cue-panel-tts-preview').open) renderDraftPreview(parts);
     el('tts-yukkuri-pronunciation-field').hidden = isText() || scope.sources.length !== 1;
     el('tts-index-pronunciation-field').hidden = el('tts-yukkuri-pronunciation-field').hidden;
     el('tts-start').disabled = !available || !configured || busy || (!pending && (
@@ -101,6 +106,27 @@
     for (const id of ['tts-save-settings', 'tts-environment-save']) el(id).disabled = !available || !configured || savingSettings || indexTts.isBusy();
     environmentNotice();
     return scope;
+  }
+  function renderDraftPreview(parts = global.MSWTts.splitDraft(el('cue-panel-tts-text').value, host.draftSettings())) {
+    const list = el('cue-panel-tts-parts'); list.replaceChildren();
+    for (const part of parts.slice(0, 100)) { const row = document.createElement('li'); row.textContent = part; list.appendChild(row); }
+    if (parts.length > 100) { const row = document.createElement('li'); row.textContent = t('仅预览前 100 段'); list.appendChild(row); }
+  }
+  function checkDraftCompletion() {
+    const ready = new Set(assets().map(asset => asset.source_ref.key));
+    for (const group of new Set(draftJobs.values())) {
+      if (group.done) continue;
+      const states = [...group.jobs].map(id => jobs.get(id)?.status);
+      if (states.some(status => ['cancelled', 'cancel_requested', 'interrupted'].includes(status))) group.cancelled = true;
+      if (states.some(status => !status || active({ status })) || !group.keys.every(key => ready.has(key))) continue;
+      group.done = true;
+      if (group.cancelled || !group.clear || group.generation !== host.generation || group.revision !== draftRevision
+          || group.text !== el('cue-panel-tts-text').value) continue;
+      clearedDraft = group.text;
+      el('cue-panel-tts-text').value = ''; draftRevision++;
+      el('cue-panel-tts-restore').hidden = false;
+      updateScope();
+    }
   }
   function recipe() {
     return recipeFor(el('tts-engine').value);
@@ -328,11 +354,12 @@
     try {
       host.commitEdits(); updateScope();
       const options = retry?.recipe || recipe();
+      const newDraft = !pending && !retry && isText();
       const input = pending || { kind: 'tts', project_id: projectId(), client_token: `${pageId}.${generation}`,
         library_size: assets().length,
         removed_asset_ids: host.data.msw?.removed_asset_ids || [],
         request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || (isText()
-          ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs())
+          ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs(), host.draftSettings())
           : global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value)),
         provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''}
           : options.provider === 'indextts' ? indexTts.connection() : {}) },
@@ -341,10 +368,14 @@
         const override = el(options.provider === 'indextts' ? 'tts-index-pronunciation' : 'tts-yukkuri-pronunciation').value.trim();
         if (override) input.snapshot.entries[0].pronunciation_override = override;
       }
+      if (newDraft) pendingDraft = { generation, revision: draftRevision, text: el('cue-panel-tts-text').value,
+        clear: host.draftSettings().ttsDraftClearOnSuccess !== false, keys: input.snapshot.entries.map(row => row.key), jobs: new Set() };
+      else if (!pending) pendingDraft = retry ? draftJobs.get(retry.retry_of) || null : null;
       pending = input; busy = true; updateScope();
       const data = await request('jobs', input);
       if (generation !== host.generation) return;
       pending = null;
+      if (pendingDraft) { pendingDraft.jobs.add(data.job.id); draftJobs.set(data.job.id, pendingDraft); pendingDraft = null; }
       jobs.set(data.job.id, data.job); watched.add(data.job.id);
       updateScope();
       message('TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务');
@@ -352,7 +383,7 @@
       renderJobs(); schedule(0);
     } catch (error) {
       if (generation !== host.generation) return;
-      if (error.status && error.status < 500) pending = null;
+      if (error.status && error.status < 500) { pending = null; pendingDraft = null; }
       message(pending ? `${error.message}；${t('再次点击将确认上次提交，不会重复创建任务')}` : error.message, true);
     } finally { if (generation === host.generation) { busy = false; updateScope(); } }
   }
@@ -392,6 +423,7 @@
         else message('本次没有生成音频，请检查未完成项', true);
       }
       if (changed) renderJobs();
+      checkDraftCompletion();
       pollFailures = 0;
       if (incoming.more || [...jobs.values()].some(active)) schedule(incoming.more ? 0 : 800);
     } catch (error) {
@@ -567,10 +599,19 @@
   el('tts-close').addEventListener('click', () => { indexTts.stopPreview(); panel.close(); syncDraft(); });
   el('tts-start').addEventListener('click', () => void submit());
   el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; el('tts-index-pronunciation').value = ''; syncDraft(); updateScope(); });
-  el('cue-panel-tts-text').addEventListener('input', updateScope);
+  el('cue-panel-tts-text').addEventListener('input', () => { draftRevision++; updateScope(); });
+  el('cue-panel-tts-preview').addEventListener('toggle', () => { if (el('cue-panel-tts-preview').open) renderDraftPreview(); });
+  global.addEventListener('msw:draft-settings', updateScope);
+  global.addEventListener('msw:tts-refresh', () => schedule(0));
+  el('cue-panel-tts-restore').addEventListener('click', () => {
+    if (clearedDraft == null) return;
+    if (el('cue-panel-tts-text').value.trim() && !global.confirm(t('用上次草稿替换当前配音草稿？'))) return;
+    el('cue-panel-tts-text').value = clearedDraft; draftRevision++; clearedDraft = null;
+    el('cue-panel-tts-restore').hidden = true; updateScope(); el('cue-panel-tts-text').focus();
+  });
   el('cue-panel-tts-copy').addEventListener('click', () => {
     if (el('cue-panel-tts-text').value.trim() && !global.confirm(t('用当前字幕替换配音草稿？字幕不会被修改。'))) return;
-    el('cue-panel-tts-text').value = host.editorText(); updateScope(); el('cue-panel-tts-text').focus();
+    el('cue-panel-tts-text').value = host.editorText(); draftRevision++; updateScope(); el('cue-panel-tts-text').focus();
   });
   // Includes Escape and window-management closure, not just the close button.
   new MutationObserver(() => { syncDraft(); updateScope(); }).observe(el('tts-panel'), {attributes: true, attributeFilter: ['class']});
@@ -736,6 +777,7 @@
     jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = ''; page = 0;
     el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = 'main';
     draftInitialized = false; el('cue-panel-tts-text').value = ''; syncDraft();
+    draftRevision++; pendingDraft = null; clearedDraft = null; draftJobs.clear(); el('cue-panel-tts-restore').hidden = true;
     el('asset-playing').textContent = t('选择音频试听');
     el('asset-player').hidden = true;
     queueMicrotask(() => { updateScope(); renderAssets(); renderJobs(); message(''); schedule(0); });

@@ -704,6 +704,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueEditorShowSticker: false,
   // 当前字幕编辑区按 Esc 时，是否放弃文本改动并恢复编辑前内容。
   cueEditorCancelOnEscape: false,
+  ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
+  ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
   selectGroupMembers: false,
   // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
   mergeJoinText: '',
@@ -1719,9 +1721,6 @@ const splitTrimSettingsPanel = document.getElementById('split-trim-settings-pane
 const subtitlePreviewSettings = document.getElementById('subtitle-preview-settings');
 const subtitlePreviewSettingsToggle = document.getElementById('subtitle-preview-settings-toggle');
 const subtitlePreviewSettingsPanel = document.getElementById('subtitle-preview-settings-panel');
-const cueEditorSettings = document.getElementById('cue-editor-settings');
-const cueEditorSettingsToggle = document.getElementById('cue-editor-settings-toggle');
-const cueEditorSettingsPanel = document.getElementById('cue-editor-settings-panel');
 const waveformSettings = document.getElementById('waveform-settings');
 const waveformSettingsToggle = document.getElementById('waveform-settings-toggle');
 const waveformSettingsPanel = document.getElementById('waveform-settings-panel');
@@ -18699,15 +18698,6 @@ function ctxToggleTemplateCheckbox(id) {
   checkbox.checked = !checkbox.checked;
   checkbox.dispatchEvent(new Event('change', { bubbles: true }));
 }
-function buildCueEditorSettingsChildren() {
-  return [
-    { label: '跳转按钮', checked: () => Boolean(document.getElementById('cue-editor-show-navigation')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-navigation') },
-    { label: '时间操作', checked: () => Boolean(document.getElementById('cue-editor-show-time-actions')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-time-actions') },
-    { label: '表情包', checked: () => Boolean(document.getElementById('cue-editor-show-sticker')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-sticker') },
-    { label: 'Esc 取消编辑', checked: () => Boolean(document.getElementById('cue-editor-cancel-on-escape')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-cancel-on-escape') },
-  ];
-}
-
 // 模块级右键面板（模块空白区/顶栏/工具栏）：只提供该模块的设置入口。
 // 行级/块级菜单各自 stopPropagation，不会落到这里。
 function setupModuleContextMenu() {
@@ -18745,7 +18735,7 @@ function setupModuleContextMenu() {
     { label: '媒体播放器设置', onClick: openMediaSettings },
   ]);
   bindModule(document.getElementById('current-cue-panel'), () => [
-    { label: '字幕编辑器设置', expandable: true, children: buildCueEditorSettingsChildren() },
+    { label: '字幕编辑器设置', onClick: () => cueEditorSettingsFloatingPanel.open() },
   ]);
   const cuesModule = document.querySelector('.cues-module');
   if (cuesModule) {
@@ -20783,6 +20773,34 @@ function computeNonSubtitleGapPieces() {
   const usable = pieces.filter((piece) => piece.end - piece.start >= 1);
   return usable.length ? usable : null;
 }
+const cueEditorSettingsFloatingPanel = createFloatingPanel({
+  panel: document.getElementById('cue-editor-settings-modal'),
+  dragHandle: document.getElementById('cue-editor-settings-drag-handle'),
+  positionKey: 'msw.cueEditorSettings.pos.v1',
+});
+document.getElementById('cue-editor-settings-open').addEventListener('click', () => cueEditorSettingsFloatingPanel.open());
+document.getElementById('cue-editor-settings-close').addEventListener('click', () => cueEditorSettingsFloatingPanel.close());
+function syncDraftSettings() {
+  const mode = EDITOR_SETTINGS.ttsDraftSplitMode;
+  document.getElementById('tts-draft-punctuation-field').hidden = !['punctuation', 'both'].includes(mode);
+  document.getElementById('tts-draft-limit-field').hidden = !['length', 'both'].includes(mode);
+  window.dispatchEvent(new Event('msw:draft-settings'));
+}
+for (const [id, key, type] of [
+  ['tts-draft-clear', 'ttsDraftClearOnSuccess', 'checkbox'], ['tts-draft-lines', 'ttsDraftSplitLines', 'checkbox'],
+  ['tts-draft-split', 'ttsDraftSplitMode', 'text'], ['tts-draft-punctuation', 'ttsDraftSplitPunctuation', 'text'],
+  ['tts-draft-limit', 'ttsDraftSplitLimit', 'number'],
+]) {
+  const input = document.getElementById(id);
+  const reflect = () => { if (type === 'checkbox') input.checked = EDITOR_SETTINGS[key]; else input.value = EDITOR_SETTINGS[key]; };
+  reflect();
+  input.addEventListener('change', () => {
+    updateEditorSettings({ [key]: type === 'checkbox' ? input.checked : type === 'number' ? Number(input.value) : input.value });
+    reflect(); syncDraftSettings();
+  });
+}
+syncDraftSettings();
+
 // 「字幕 → 字幕列表设置」详情弹窗
 const cueListSettingsModal = document.getElementById('cue-list-settings-modal');
 const cueListSettingsFloatingPanel = createFloatingPanel({
@@ -21286,6 +21304,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
   },
   editorText: () => cuePanelText.value,
+  draftSettings: () => ({ ...EDITOR_SETTINGS }),
   playheadMs: () => Math.max(0, Math.round((player.currentTime || 0) * 1000)),
   showCueEditor: () => {
     if (waveformEditor?.showModule?.('panel', {recordUndo: false})) rebuildShowModuleMenu();
@@ -21340,6 +21359,21 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     updateGapRemoveUi();
     scheduleAutoSaveFlush();
     return true;
+  },
+  fillAudioSubtitles: clips => {
+    commitProcessingEdits();
+    const plan = window.MSWAudioActions.fill(DATA, clips, cue => {
+      syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames: false}); return cue;
+    });
+    if (!plan.count) return plan;
+    const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
+    pushUndo('补齐主字幕', {captureView: true});
+    DATA.segments.splice(0, DATA.segments.length, ...plan.segments);
+    projectImportDirty = true; cueListPlaybackKey = null;
+    renderAll({waveform: 'full'});
+    restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
+    scheduleAutoSaveFlush();
+    return plan;
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
   audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),

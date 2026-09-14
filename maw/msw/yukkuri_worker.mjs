@@ -82,13 +82,13 @@ try {
   let input = '';
   for await (const chunk of process.stdin) {
     input += chunk;
-    if (input.length > 16000) throw new Error('合成输入过长');
+    if (input.length > 80000) throw new Error('合成输入过长');
   }
-  const {text, recipe} = JSON.parse(input);
-  if (typeof text !== 'string' || !text.trim() || text.length > 1200) throw new Error('合成文本须为 1–600 字符');
+  const {text, recipe, prepared = false} = JSON.parse(input);
+  if (typeof prepared !== 'boolean' || typeof text !== 'string' || !text.trim() || [...text].length > (prepared ? 12000 : 600)) throw new Error('合成文本长度无效');
   if (!['f1', 'f2', 'm1', 'm2', 'dvd', 'imd1', 'jgr', 'r1'].includes(recipe.voice)
       || !Number.isInteger(recipe.speed) || recipe.speed < 50 || recipe.speed > 300) throw new Error('音色或语速无效');
-  const spoken = convert(text, recipe.language_type);
+  const spoken = prepared ? text : convert(text, recipe.language_type);
   engine = await load(recipe.voice);
   const parts = splitKana(spoken).map(part => pcmParts(engine.run(part, recipe.speed)));
   writeFileSync(output, joinWav(parts), {flag: 'wx'});

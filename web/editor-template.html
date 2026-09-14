@@ -298,26 +298,7 @@ __WAVEFORM_CSS__
       </div>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
-      <div class="dropdown-submenu" id="cue-editor-settings-submenu">
-        <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">字幕编辑器设置</div>
-        <div class="dropdown-menu dropdown-submenu-menu cue-editor-settings-menu" id="cue-editor-settings-panel" role="group" aria-label="编辑设置">
-          <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">显示</span>
-            <div class="cue-editor-settings-display-group">
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-time-actions"> 时间操作</label>
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
-            </div>
-          </div>
-          <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">操作</span>
-            <label class="toggle settings-panel-item" title="开启后，按 Esc 会恢复当前字幕编辑前的文本；关闭后按 Esc 保留文本改动并退出编辑">
-              <input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑
-            </label>
-            <small class="settings-panel-hint">关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。</small>
-          </div>
-        </div>
-      </div>
+      <button type="button" class="dropdown-item" id="cue-editor-settings-open" role="menuitem">字幕编辑器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="cue-list-settings-open" role="menuitem" title="打开字幕列表设置窗口">字幕列表设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
     </div>
   </div>
@@ -325,8 +306,11 @@ __WAVEFORM_CSS__
   <div class="menubar-item" data-menubar-item="media">
     <button type="button" class="menubar-tab" aria-haspopup="menu" aria-expanded="false">媒体</button>
     <div class="dropdown-menu menubar-menu" role="menu" aria-label="媒体">
+      <div class="menu-group-title">处理</div>
       <button type="button" class="dropdown-item" id="msw-asr-open" role="menuitem" title="识别整个源视频或时间选区">ASR<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="audio-actions-open" role="menuitem">音频批量操作<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="audio-fill-subtitles" role="menuitem" disabled>补齐字幕</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
       <button type="button" class="dropdown-item" id="media-player-settings-item" role="menuitem" title="打开媒体播放器设置窗口">媒体播放器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -680,6 +664,35 @@ __WAVEFORM_CSS__
     <footer class="gap-remove-panel-footer">
       <span>未选中字幕时对全部生效 · Enter 确定 · Esc 关闭</span>
     </footer>
+  </div>
+</aside>
+
+<aside class="gap-remove-panel cue-editor-settings-window" id="cue-editor-settings-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="cue-editor-settings-title">
+  <header class="gap-remove-panel-header" id="cue-editor-settings-drag-handle"><h3 id="cue-editor-settings-title">字幕编辑器设置</h3><button type="button" class="gap-remove-close" id="cue-editor-settings-close" aria-label="关闭字幕编辑器设置" title="关闭（Esc）"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></header>
+  <div class="gap-remove-panel-body settings-modal-body" id="cue-editor-settings-panel">
+          <div class="settings-panel-section cue-editor-settings-section">
+            <span class="settings-panel-title">显示</span>
+            <div class="cue-editor-settings-display-group">
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-time-actions"> 时间操作</label>
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
+            </div>
+          </div>
+          <div class="settings-panel-section cue-editor-settings-section">
+            <span class="settings-panel-title">操作</span>
+            <label class="toggle settings-panel-item" title="开启后，按 Esc 会恢复当前字幕编辑前的文本；关闭后按 Esc 保留文本改动并退出编辑">
+              <input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑
+            </label>
+            <small class="settings-panel-hint">关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。</small>
+          </div>
+
+    <div class="settings-panel-section"><span class="settings-panel-title">配音草稿</span>
+      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-clear" checked> 合成成功后清空配音草稿</label>
+      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-lines" checked> 手动换行分段</label>
+      <label class="subtitle-preview-setting-row settings-panel-item"><span>自动断句</span><select id="tts-draft-split"><option value="off">关闭</option><option value="punctuation">按标点</option><option value="length">按字数</option><option value="both">标点与字数</option></select></label>
+      <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-punctuation-field" hidden><span>断句标点</span><input type="text" id="tts-draft-punctuation" value="。！？!?；;" maxlength="64"></label>
+      <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-limit-field" hidden><span>每段字数上限</span><input type="number" id="tts-draft-limit" min="1" max="600" value="100"></label>
+    </div>
   </div>
 </aside>
 
@@ -1964,7 +1977,8 @@ __WAVEFORM_CSS__
       <div class="cue-panel-text-wrap">
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
         <textarea id="cue-panel-tts-text" rows="3" placeholder="输入要合成的文字…" aria-label="独立配音草稿" hidden></textarea>
-        <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 / 600</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button></div>
+        <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 段</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button><button type="button" id="cue-panel-tts-restore" hidden>恢复上次草稿</button></div>
+        <details id="cue-panel-tts-preview" hidden><summary>分段预览</summary><ol id="cue-panel-tts-parts" data-i18n-skip></ol></details>
         <div class="cue-panel-footer">
           <div class="cue-panel-target" id="cue-panel-target">未选择</div>
           <div class="cue-panel-metrics">
@@ -2377,7 +2391,9 @@ __WAVEFORM_CSS__
 <template id="video-export-fields">
   <div class="msw-processing-fields">
     <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
-    <label>超出画面尾部<select id="video-export-tail"><option value="ask">超出时提示选择</option><option value="truncate">截断到画面结尾</option><option value="freeze">定格延长画面</option></select></label>
+    <label id="video-export-tail-field">导出范围超过原视频时<select id="video-export-tail"><option value="ask">超出时先选择处理方式</option><option value="truncate">按视频结尾截断成品</option><option value="freeze">定格最后一帧并延长</option></select></label>
+    <p id="video-export-tail-summary" class="msw-processing-hint"></p>
+    <p class="msw-processing-hint">比较的是整个导出范围，包括尾部字幕与配音。截断会舍去成品中超出的部分；定格会延长最后一帧。仅影响本次导出，不删除工程内容。</p>
   </div>
   <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
   <p class="msw-processing-hint">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。字幕使用启动器的底部居中样式，双字幕分行；表情包不烧录。</p>
@@ -2387,6 +2403,22 @@ __WAVEFORM_CSS__
   <p class="msw-processing-hint">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。</p>
   <p class="msw-processing-hint">取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
 </template>
+<aside class="gap-remove-panel msw-processing-panel" id="audio-actions-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-actions-title">
+  <header class="gap-remove-panel-header" id="audio-actions-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">媒体 · 处理</span><h3 id="audio-actions-title">音频批量操作</h3></div>
+    <button type="button" id="audio-actions-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频批量操作"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p id="audio-actions-count" class="msw-processing-hint"></p>
+    <section class="cue-editor-settings-group"><h3>静音贴片</h3><div class="msw-processing-actions"><button id="audio-actions-mute" type="button">静音</button><button id="audio-actions-unmute" type="button">取消静音</button></div></section>
+    <section class="cue-editor-settings-group"><h3>贴片音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-gain-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions"><button id="audio-actions-gain-apply" type="button">应用增益</button></div></section>
+    <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions"><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
+    <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions"><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
+    <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <details id="audio-actions-details" hidden><summary>处理详情</summary><ul id="audio-actions-results" data-i18n-skip></ul></details>
+  </div>
+</aside>
+
 <aside class="gap-remove-panel msw-processing-panel msw-media-export-panel" id="audio-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-export-title">
   <header class="gap-remove-panel-header" id="audio-export-drag">
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">文件</span><h3 id="audio-export-title">导出音频</h3></div>

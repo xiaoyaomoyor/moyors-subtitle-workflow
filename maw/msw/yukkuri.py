@@ -38,7 +38,7 @@ def resolve_settings(controller, raw):
     return YukkuriSettings(recipe, root, node)
 
 
-def synthesize(settings, text, cancel):
+def synthesize(settings, text, cancel, *, prepared=False):
     from maw.msw.jobs import JobCancelled
     if cancel.is_set():
         raise JobCancelled()
@@ -55,7 +55,7 @@ def synthesize(settings, text, cancel):
         except OSError as error:
             raise TtsServiceError("油库里运行时无法启动，请重新检测或安装资源") from error
         try:
-            payload = json.dumps({"text": text, "recipe": settings.recipe}, ensure_ascii=False).encode("utf-8")
+            payload = json.dumps({"text": text, "recipe": settings.recipe, "prepared": prepared}, ensure_ascii=False).encode("utf-8")
             deadline = time.monotonic() + 120
             while True:
                 if cancel.is_set():

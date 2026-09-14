@@ -165,6 +165,8 @@ def valid_asset(asset):
             and isinstance(source.get("text"), str) and len(source["text"]) <= 600
             and isinstance(source.get("pronunciation_override", ""), str)
             and len(source.get("pronunciation_override", "")) <= 600
+            and isinstance(source.get('spoken_text', ''), str)
+            and len(source.get('spoken_text', '')) <= 12000
             and type(source.get("start")) is int and type(source.get("end")) is int
             and 0 <= source["start"] < source["end"])
 

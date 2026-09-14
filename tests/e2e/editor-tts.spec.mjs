@@ -55,6 +55,58 @@ async function panel(page,configure=true) {
 }
 const countAssets=page=>page.evaluate(()=>DATA.msw?.assets?.length||0);
 
+test('production settings use one detail window and preserve draft options on reload', async ({ page }, info) => {
+  await open(page);
+  await openMenubarMenu(page, '字幕'); await page.locator('#cue-editor-settings-open').click();
+  await expect(page.locator('#cue-editor-settings-modal')).toBeVisible();
+  await expect(page.locator('#tts-draft-clear')).toBeChecked();
+  await expect(page.locator('#tts-draft-lines')).toBeChecked();
+  await page.locator('#tts-draft-split').selectOption('both');
+  await expect(page.locator('#tts-draft-punctuation')).toBeVisible();
+  await page.locator('#tts-draft-limit').fill('80'); await page.locator('#tts-draft-limit').press('Tab');
+  await page.locator('#tts-draft-clear').uncheck();
+  await page.screenshot({ path: info.outputPath('draft-settings.png') });
+  await page.keyboard.press('Escape'); await expect(page.locator('#cue-editor-settings-modal')).toBeHidden();
+  await page.locator('#current-cue-panel').click({ button: 'right' });
+  await page.locator('#ctxmenu').getByText('字幕编辑器设置', { exact: true }).click();
+  await expect(page.locator('#cue-editor-settings-modal')).toBeVisible();
+  await page.reload();
+  await openMenubarMenu(page, '字幕'); await page.locator('#cue-editor-settings-open').click();
+  await expect(page.locator('#tts-draft-clear')).not.toBeChecked();
+  await expect(page.locator('#tts-draft-limit')).toHaveValue('80');
+  await expect(page.locator('#tts-draft-split')).toHaveValue('both');
+});
+
+test('production draft batch clears only completed unchanged text and can be restored', async ({ page }) => {
+  await open(page); await panel(page); await page.locator('#tts-target').selectOption('editor_text');
+  const draft = page.locator('#cue-panel-tts-text');
+  const original = await page.evaluate(() => JSON.stringify(DATA.segments));
+  await draft.fill('First\nSecond\nThird');
+  await page.locator('#cue-panel-tts-preview summary').click();
+  await expect(page.locator('#cue-panel-tts-parts li')).toHaveCount(3);
+  await page.locator('#tts-start').click(); await expect.poll(() => countAssets(page)).toBe(3);
+  await expect(draft).toHaveValue('');
+  expect(calls.map(c => c.text)).toEqual(['First', 'Second', 'Third']);
+  await page.locator('#cue-panel-tts-restore').click(); await expect(draft).toHaveValue('First\nSecond\nThird');
+  holdText = 'Waiting'; await draft.fill('Waiting'); await page.locator('#tts-start').click();
+  await expect.poll(() => held.length).toBe(1); await draft.fill('New draft');
+  held.splice(0).forEach(respond => respond()); await expect.poll(() => countAssets(page)).toBe(4);
+  await expect(page.locator('#tts-jobs').first()).toContainText('成功'); await expect(draft).toHaveValue('New draft');
+  expect(await page.evaluate(() => JSON.stringify(DATA.segments))).toBe(original);
+});
+
+test('production draft keeps partial failures and clears after retrying only unfinished segments', async ({ page }) => {
+  await open(page); await panel(page); await page.locator('#tts-target').selectOption('editor_text');
+  failText = 'Fail'; await page.locator('#cue-panel-tts-text').fill('Ready\nFail');
+  await page.locator('#tts-start').click(); await expect.poll(() => countAssets(page)).toBe(1);
+  await expect(page.locator('#tts-jobs')).toContainText('失败 1');
+  await expect(page.locator('#cue-panel-tts-text')).toHaveValue('Ready\nFail');
+  await page.getByRole('button', { name: '检查未完成项', exact: true }).click(); failText = null;
+  await page.getByRole('button', { name: '重新合成未完成项', exact: true }).click();
+  await expect.poll(() => countAssets(page)).toBe(2); await expect(page.locator('#cue-panel-tts-text')).toHaveValue('');
+  expect(calls.map(c => c.text)).toEqual(['Ready', 'Fail', 'Fail']);
+});
+
 test('library transport seeks, mutes and changes speed using the module theme', async ({page}) => {
   wav = readFileSync(generateWav(join(dir, 'preview-long.wav'), 5));
   await open(page); await panel(page); await page.locator('#tts-start').click();
@@ -783,7 +835,9 @@ test('deleting a used asset confirms, removes all clips, undoes and stays remove
   await page.evaluate(()=>performUndo()); await expect.poll(()=>countAssets(page)).toBe(2);
   await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips.length)).toBe(2);
   await page.evaluate(()=>performRedo()); await expect.poll(()=>countAssets(page)).toBe(1);
-  await page.evaluate(async()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();scheduleAutoSaveFlush();await saveCurrentProject({silent:true});});
+  await page.evaluate(()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();scheduleAutoSaveFlush();});
+  await expect.poll(()=>page.evaluate(()=>!projectSaveInFlight && !projectCheckpointInFlight)).toBe(true);
+  await page.evaluate(()=>saveCurrentProject({silent:true}));
   await page.reload(); await expect.poll(()=>countAssets(page)).toBe(1);
   expect(await page.evaluate(id=>DATA.msw.removed_asset_ids.includes(id),id)).toBe(true);
   await page.locator('#asset-refresh').evaluate(el=>el.click());
@@ -883,4 +937,139 @@ test('English TTS controls and narrow panel keep user text unchanged',async({pag
   expect(await page.locator('#project-save-as-modal .modal').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.locator('#project-save-cancel').click();
   expect(await page.evaluate(()=>projectSaveInFlight)).toBe(false);
+});
+
+
+test('production batch menu preserves selected clips and changes gain and mute with one undo', async ({page}, info) => {
+  await prepareClips(page);
+  await page.evaluate(() => {
+    const host=MSWE.resolve('processing-host'), audio=MSWE.resolve('audio-timeline');
+    audio.insert(DATA.msw.assets[1].id, 6000); audio.selectAllClips();
+  });
+  await openMenubarMenu(page, '媒体'); await page.locator('#audio-actions-open').click();
+  await expect(page.locator('#audio-actions-count')).toContainText('2');
+  await page.locator('#audio-actions-mute').click();
+  expect(await page.evaluate(() => DATA.msw.audio_clips.every(c=>c.muted))).toBe(true);
+  await page.evaluate(()=>MSWE.resolve('processing-host').undo());
+  expect(await page.evaluate(() => DATA.msw.audio_clips.every(c=>!c.muted))).toBe(true);
+  await page.locator('#audio-actions-gain').fill('-8'); await page.locator('#audio-actions-gain-apply').click();
+  expect(await page.evaluate(() => DATA.msw.audio_clips.map(c=>c.gain_db))).toEqual([-8,-8]);
+  await page.locator('#audio-actions-gain-mode').selectOption('offset');
+  await page.locator('#audio-actions-gain').fill('30'); await page.locator('#audio-actions-gain-apply').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('−60 至 +12');
+  expect(await page.evaluate(() => DATA.msw.audio_clips.map(c=>c.gain_db))).toEqual([-8,-8]);
+  await page.screenshot({path:info.outputPath('audio-actions.png')});
+  await page.evaluate(()=>MSWE.resolve('audio-timeline').clearClipSelection());
+  await expect(page.locator('#audio-actions-mute')).toBeDisabled();
+});
+
+
+test('production fill creates primary cues from clip positions and external filenames with undo', async ({page}) => {
+  await prepareClips(page);
+  await page.evaluate(()=>{
+    const host=MSWE.resolve('processing-host'),audio=MSWE.resolve('audio-timeline');
+    host.commitAudio('position fixture',ext=>{ext.audio_clips[0].start_ms=6000; const asset=ext.assets.find(a=>a.id===ext.audio_clips[0].asset_id); asset.generation={...asset.generation,provider:'imported',filename:'Background.wav',text_origin:'filename'};});
+    audio.selectAllClips();
+  });
+  const bindings=await page.evaluate(()=>JSON.stringify(DATA.multi_subtitle.bindings));
+  await openMenubarMenu(page,'媒体'); await page.locator('#audio-fill-subtitles').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('已补齐 1');
+  expect(await page.evaluate(()=>DATA.segments.at(-1).text)).toBe('Background.wav');
+  expect(await page.evaluate(()=>DATA.segments.at(-1).start)).toBe(6000);
+  expect(await page.evaluate(()=>JSON.stringify(DATA.multi_subtitle.bindings))).toBe(bindings);
+  await page.locator('#audio-actions-fill').click(); await expect(page.locator('#audio-actions-message')).toContainText('跳过 1');
+  await page.evaluate(()=>MSWE.resolve('processing-host').undo());
+  expect(await page.evaluate(()=>DATA.segments.length)).toBe(2);
+});
+
+
+async function openBatchWithSavedEnvironment(page) {
+  await panel(page,false); await page.locator('#tts-save-settings').click();
+  await expect(page.locator('#tts-message')).toContainText('已保存'); await page.locator('#tts-close').click();
+  await page.evaluate(()=>MSWE.resolve('audio-timeline').selectAllClips());
+  await openMenubarMenu(page,'媒体'); await page.locator('#audio-actions-open').click();
+}
+test('production regenerate preserves original recipe and start, uses full duration and one undo', async ({page})=>{
+  await prepareClips(page); await openBatchWithSavedEnvironment(page);
+  const before=await page.evaluate(()=>JSON.parse(JSON.stringify(DATA.msw.audio_clips)));
+  const recipe=await page.evaluate(()=>DATA.msw.assets.find(a=>a.id===DATA.msw.audio_clips[0].asset_id).generation);
+  wav=readFileSync(generateWav(join(dir,'long-regenerated.wav'),2.5));
+  await page.locator('#audio-actions-regenerate').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('已替换 1');
+  const after=await page.evaluate(()=>DATA.msw.audio_clips[0]);
+  expect(after.id).toBe(before[0].id); expect(after.start_ms).toBe(before[0].start_ms);
+  expect(after.asset_id).not.toBe(before[0].asset_id);
+  expect(await page.evaluate(()=>{const c=DATA.msw.audio_clips[0];return MSWAudio.duration(c,DATA.msw.assets.find(a=>a.id===c.asset_id));})).toBe(2500);
+  expect(calls.at(-1).text).toBe(recipe.display_text); expect(calls.at(-1).recipe.voice).toBe(recipe.voice); expect(calls.at(-1).recipe.model).toBe(recipe.model);
+  await page.evaluate(()=>MSWE.resolve('processing-host').undo());
+  expect(await page.evaluate(()=>DATA.msw.audio_clips)).toEqual(before);
+  expect(await countAssets(page)).toBe(3);
+});
+test('production regenerate retains new asset when target was edited during synthesis', async ({page})=>{
+  await prepareClips(page); await openBatchWithSavedEnvironment(page);
+  const assetId=await page.evaluate(()=>DATA.msw.audio_clips[0].asset_id);
+  holdText=await page.evaluate(()=>DATA.msw.assets.find(a=>a.id===DATA.msw.audio_clips[0].asset_id).generation.display_text);
+  await page.locator('#audio-actions-regenerate').click(); await expect.poll(()=>held.length).toBe(1);
+  await page.evaluate(()=>MSWE.resolve('processing-host').commitAudio('edit during task',ext=>{ext.audio_clips[0].gain_db=-7;}));
+  held.splice(0).forEach(respond=>respond());
+  await expect(page.locator('#audio-actions-message')).toContainText('未替换 1');
+  expect(await countAssets(page)).toBe(3);
+  expect(await page.evaluate(()=>DATA.msw.audio_clips[0].asset_id)).toBe(assetId);
+  await page.locator('#audio-actions-details summary').click();
+  await expect(page.locator('#audio-actions-results')).toContainText('目标贴片已变化');
+});
+
+test('production cancel never replaces completed candidates in the same batch', async ({page})=>{
+  await prepareClips(page);
+  await page.evaluate(()=>{MSWE.resolve('processing-host').commitAudio('fixture',ext=>{ext.audio_clips[0].asset_id=ext.assets.find(a=>a.generation.display_text==='Hello').id;});MSWE.resolve('audio-timeline').insert(DATA.msw.assets.find(a=>a.generation.display_text==='World').id,6000);});
+  await openBatchWithSavedEnvironment(page);
+  const before=await page.evaluate(()=>JSON.parse(JSON.stringify(DATA.msw.audio_clips)));
+  holdText='World'; await page.locator('#audio-actions-regenerate').click();
+  await expect.poll(()=>held.length).toBeGreaterThan(0);
+  await page.locator('#audio-actions-cancel').click(); holdText=null; held.splice(0).forEach(respond=>respond());
+  await expect(page.locator('#audio-actions-message')).toContainText('已替换 0');
+  expect(await page.evaluate(()=>DATA.msw.audio_clips)).toEqual(before);
+});
+
+test('production regenerate confirms a lost submission response without duplicate synthesis', async ({page})=>{
+  await prepareClips(page); await openBatchWithSavedEnvironment(page);
+  let dropped=false;
+  await page.route('**/api/msw/jobs',async route=>{
+    if(route.request().method()==='POST' && !dropped) { dropped=true; await route.fetch(); await route.abort(); }
+    else await route.continue();
+  });
+  const before=calls.length;
+  await page.locator('#audio-actions-regenerate').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('不会重复提交');
+  await page.locator('#audio-actions-regenerate').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('已替换 1');
+  expect(calls.length-before).toBe(1);
+});
+test('production regenerated candidates exceeding three layers all remain in library',async({page})=>{
+  await prepareClips(page);
+  await page.evaluate(()=>{
+    const host=MSWE.resolve('processing-host'),audio=MSWE.resolve('audio-timeline');
+    host.commitAudio('position fixture',ext=>{ext.audio_clips[0].start_ms=0;});
+    for(const start of [2000,4000,6000]) audio.insert(DATA.msw.assets[0].id,start);
+  });
+  await openBatchWithSavedEnvironment(page);
+  const before=await page.evaluate(()=>JSON.parse(JSON.stringify(DATA.msw.audio_clips)));
+  wav=readFileSync(generateWav(join(dir,'overlap-regenerated.wav'),8));
+  await page.locator('#audio-actions-regenerate').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('未替换 4');
+  expect(await page.evaluate(()=>DATA.msw.audio_clips)).toEqual(before);
+  expect(await countAssets(page)).toBe(6);
+  await page.locator('#audio-actions-details summary').click();
+  await expect(page.locator('#audio-actions-results')).toContainText('超过三层');
+});
+
+test('production draft preview keeps user words untranslated in English',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('mawe.language','en'));
+  await open(page);
+  await page.evaluate(()=>document.getElementById('tts-open').click());
+  await page.locator('#tts-target').selectOption('editor_text');
+  await page.locator('#cue-panel-tts-text').fill('关闭');
+  await page.locator('#cue-panel-tts-preview summary').click();
+  await expect(page.locator('#cue-panel-tts-parts li')).toHaveText('关闭');
+  await expect(page.locator('#cue-panel-tts-preview summary')).toHaveText('Segment preview');
 });

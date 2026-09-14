@@ -89,6 +89,9 @@ test('longer voice requires a tail choice and the panel fits a small viewport', 
   await page.evaluate(() => window.MSWE.resolve('processing-host').commitAudio('Extend voice', ext => {ext.audio_clips[0].start_ms = 4000;}));
   await open(page);
   await expect(page.locator('#video-export-summary')).toContainText('超出画面尾部');
+  await expect(page.locator('#video-export-tail-summary')).toContainText('原画面时长 4.000 s');
+  await expect(page.locator('#video-export-tail-summary')).toContainText('源范围终点 6.000 s');
+  await expect(page.locator('#video-export-tail-summary')).toContainText('超出 2.000 s');
   await expect(page.locator('#video-export-start')).toBeDisabled();
   await page.locator('#video-export-tail').selectOption('freeze');
   await page.locator('#video-export-remove-gaps').uncheck();

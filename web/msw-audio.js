@@ -32,7 +32,7 @@
   const hint = message => host.flashHint(t(message));
   function schedulePaint() {
     if (repaint) return;
-    repaint = requestAnimationFrame(() => { repaint = 0; timeline.refreshOverlays(); });
+    repaint = requestAnimationFrame(() => { repaint = 0; timeline.refreshOverlays(); global.dispatchEvent(new Event('msw:audio-selection')); });
   }
   const transport = global.MSWAudioTransport.create({ player: host.player, getState: sync, changed: schedulePaint, hint,
     frame: () => host.refreshAudioPlayback(transport.currentTime()),
@@ -386,7 +386,7 @@
   document.addEventListener('pointerdown', event => {
     if (menu?.contains(event.target)) return;
     closeMenu();
-    if (event.target.closest('.msw-audio-lanes')) return;
+    if (event.target.closest('.msw-audio-lanes, .menubar, #audio-actions-panel')) return;
     if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
   }, true);
   document.addEventListener('keydown', event => {
@@ -437,6 +437,7 @@
     if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
   }
   const api = Object.freeze({ insert, renderRow, updatePlayhead,
+    selectedClips: () => global.MSWProject.clone(selectedClips()),
     selectedCount: () => selected.size,
     // 配音轨道头（波形轨道头列读取）：轨数与静音态；toggle 走 commit 可撤销。
     trackCount: () => (extension().audio_tracks || []).length,

@@ -17,6 +17,7 @@
       .some(key => typeof recipe[key] !== 'string' || [...recipe[key]].length > (key === 'spoken_text' ? 12000 : 2000))) return false;
     if (source.pronunciation_override !== undefined && (typeof source.pronunciation_override !== 'string'
       || [...source.pronunciation_override].length > 600)) return false;
+    if (source.spoken_text !== undefined && (typeof source.spoken_text !== 'string' || [...source.spoken_text].length > 12000)) return false;
     return validId(asset.job_id) && validId(source.key) && validCueId(source.id)
       && ['subtitle', 'editor_text'].includes(source.kind === undefined ? 'subtitle' : source.kind)
       && (source.kind !== 'editor_text' || source.track_id == null)

@@ -36,7 +36,7 @@
       }
       return result;
     }
-    function selectedOptions() {
+    function selectedOptions({applyTail = true} = {}) {
       const custom = el('audio-export-range').value === 'custom';
       const numeric = id => el(id).value.trim() ? Number(el(id).value) : NaN;
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
@@ -50,7 +50,7 @@
         settings.video_encoding = el('audio-export-encoding').value;
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
         settings.duration_ms = Math.max(settings.duration_ms, context?.duration_ms || 0);
-        if (settings.video_tail === 'truncate' && context?.video) {
+        if (applyTail && settings.video_tail === 'truncate' && context?.video) {
           settings.end_ms = Math.min(settings.end_ms ?? Infinity, context.video.duration_ms);
         }
       }
@@ -70,7 +70,14 @@
       el('audio-export-start').disabled = Boolean(busy) || !available || !context?.available;
       el('audio-export-gap-hint').textContent = t(host.data.msw?.audio_settings?.gap_policy === 'follow'
         ? '移除空隙时，配音随媒体一起裁切。' : '移除空隙时，保留未静音贴片覆盖的区间。');
+      if (video) el('audio-export-tail-summary').textContent = '';
       try {
+        if (video && context?.video) {
+          const raw = core.compile(host.audioExportPreview(), selectedOptions({applyTail:false}));
+          const extra = Math.max(0,raw.source_end_ms-context.video.duration_ms);
+          el('audio-export-tail-summary').textContent = `${t('原画面时长')} ${(context.video.duration_ms/1000).toFixed(3)} s · ${t('源范围终点')} ${(raw.source_end_ms/1000).toFixed(3)} s · ${t('超出')} ${(extra/1000).toFixed(3)} s`;
+          el('audio-export-tail-field').classList.toggle('is-overflow',extra>0);
+        }
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
         if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
         if (video && context && !context.video) throw Error('原媒体没有可导出的视频画面，请使用导出音频');

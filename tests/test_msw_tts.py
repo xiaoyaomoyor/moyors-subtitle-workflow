@@ -39,6 +39,25 @@ def snapshot():
 
 
 class TtsTests(unittest.TestCase):
+    def test_regeneration_replays_prepared_yukkuri_without_reconverting(self):
+        from types import SimpleNamespace
+        source = {**snapshot()['entries'][0], 'spoken_text': 'にーはお'}
+        clean = validate_snapshot({'project_id': 'tts-project', 'entries': [source]})
+        settings = SimpleNamespace(provider_id='yukkuri', api_key='', recipe={
+            'provider': 'yukkuri', 'model': 'aquestalk1', 'voice': 'f1', 'language_type': 'Chinese', 'speed': 100})
+        with patch('maw.msw.yukkuri.synthesize', return_value=(wav_bytes(), 'にーはお')) as synth:
+            result = TtsService(self.assets).run({'project_id': 'tts-project', 'id': 'replay-job', 'snapshot': clean},
+                settings, threading.Event(), lambda *args: None)
+        self.assertEqual(result['items'][0]['status'], 'ready')
+        self.assertEqual(synth.call_args.args[1], 'にーはお')
+        self.assertEqual(synth.call_args.kwargs, {'prepared': True})
+        asset = self.assets.list('tts-project')['assets'][0]
+        self.assertEqual(asset['generation']['display_text'], 'Hello')
+        self.assertEqual(asset['generation']['spoken_text'], 'にーはお')
+        self.assertEqual(normalize_extension({'schema':'msw.editor.v1', 'project_id':'tts-project','assets':[asset]})['assets'][0], asset)
+        with self.assertRaises(ValueError):
+            validate_snapshot({'project_id':'tts-project','entries':[{**source,'spoken_text':'x' * 12001}]})
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -81,8 +100,8 @@ class TtsTests(unittest.TestCase):
         for update in [{'kind': 'invalid'}, {'track_id': 'ext'}, {'kind': None}]:
             with self.subTest(update=update), self.assertRaises(ValueError):
                 validate_snapshot({**raw, 'entries': [{**source, **update}]})
-        with self.assertRaises(ValueError):
-            validate_snapshot({**raw, 'entries': [source, {**source, 'key': 'another'}]})
+        batch = validate_snapshot({**raw, 'entries': [source, {**source, 'key': 'another', 'id': 'second'}]})
+        self.assertEqual([entry['key'] for entry in batch['entries']], [source['key'], 'another'])
 
     def test_config_is_region_specific_and_masks_keys(self):
         env = self.root / "test.env"

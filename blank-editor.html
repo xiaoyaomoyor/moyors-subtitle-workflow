@@ -1798,6 +1798,26 @@
   .subtitle-preview-settings-panel { width: min(400px, calc(100vw - 16px)); }
   .cue-list-settings-panel { width: min(340px, calc(100vw - 16px)); }
   .cue-editor-settings-panel { width: min(300px, calc(100vw - 16px)); }
+  .cue-editor-settings-window { width: min(480px, calc(100vw - 16px)); }
+  .cue-editor-settings-window .settings-panel-section { display: grid; gap: 8px; padding: 12px 0; }
+  .cue-editor-settings-window .settings-panel-section + .settings-panel-section { border-top: 1px solid var(--border); }
+  .cue-editor-settings-window h3 { margin: 0; font-size: 15px; }
+  #cue-panel-tts-preview { margin: 0; font-size: 12px; flex: 0 0 auto; }
+  #cue-panel-tts-preview ol { max-height: 100px; overflow: auto; margin: 4px 0; }
+  .current-cue-panel.tts-draft-mode .cue-panel-text-wrap { min-height: 0; overflow-y: auto; }
+  .current-cue-panel.tts-draft-mode #cue-panel-tts-text { flex: 1 0 58px; height: 58px; resize: none; }
+  #cue-panel-tts-preview li { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0; }
+  #cue-editor-settings-panel.settings-modal-body { display: flex; flex-direction: column; gap: 0; }
+  #cue-editor-settings-panel > section { width: 100%; box-sizing: border-box; }
+  #cue-editor-settings-panel label:not(.toggle) { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(100px, 1fr); align-items: center; gap: 8px; }
+  #cue-editor-settings-panel label[hidden] { display: none; }
+  #cue-editor-settings-panel label:has(input[type="checkbox"]) { display: flex; justify-content: flex-start; }
+  #cue-editor-settings-panel h3 { text-align: left; }
+  #audio-actions-results { padding-left: 20px; max-height: 180px; overflow: auto; overflow-wrap: anywhere; }
+  #audio-actions-panel .cue-editor-settings-group { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+  #audio-actions-panel .cue-editor-settings-group h3 { font-size: 13px; margin: 0; }
+  #video-export-tail-field.is-overflow select { border-color: var(--wave-playhead); }
+  #cue-editor-settings-panel :is(input:not([type="checkbox"]), select) { width: 100%; min-width: 0; box-sizing: border-box; }
   .subtitle-preview-settings-fields {
     display: grid; gap: 8px; width: 100%; min-width: 0;
   }
@@ -5686,26 +5706,7 @@
       </div>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
-      <div class="dropdown-submenu" id="cue-editor-settings-submenu">
-        <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">字幕编辑器设置</div>
-        <div class="dropdown-menu dropdown-submenu-menu cue-editor-settings-menu" id="cue-editor-settings-panel" role="group" aria-label="编辑设置">
-          <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">显示</span>
-            <div class="cue-editor-settings-display-group">
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-time-actions"> 时间操作</label>
-              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
-            </div>
-          </div>
-          <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">操作</span>
-            <label class="toggle settings-panel-item" title="开启后，按 Esc 会恢复当前字幕编辑前的文本；关闭后按 Esc 保留文本改动并退出编辑">
-              <input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑
-            </label>
-            <small class="settings-panel-hint">关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。</small>
-          </div>
-        </div>
-      </div>
+      <button type="button" class="dropdown-item" id="cue-editor-settings-open" role="menuitem">字幕编辑器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="cue-list-settings-open" role="menuitem" title="打开字幕列表设置窗口">字幕列表设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
     </div>
   </div>
@@ -5713,8 +5714,11 @@
   <div class="menubar-item" data-menubar-item="media">
     <button type="button" class="menubar-tab" aria-haspopup="menu" aria-expanded="false">媒体</button>
     <div class="dropdown-menu menubar-menu" role="menu" aria-label="媒体">
+      <div class="menu-group-title">处理</div>
       <button type="button" class="dropdown-item" id="msw-asr-open" role="menuitem" title="识别整个源视频或时间选区">ASR<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="audio-actions-open" role="menuitem">音频批量操作<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="audio-fill-subtitles" role="menuitem" disabled>补齐字幕</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
       <button type="button" class="dropdown-item" id="media-player-settings-item" role="menuitem" title="打开媒体播放器设置窗口">媒体播放器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -6068,6 +6072,35 @@
     <footer class="gap-remove-panel-footer">
       <span>未选中字幕时对全部生效 · Enter 确定 · Esc 关闭</span>
     </footer>
+  </div>
+</aside>
+
+<aside class="gap-remove-panel cue-editor-settings-window" id="cue-editor-settings-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="cue-editor-settings-title">
+  <header class="gap-remove-panel-header" id="cue-editor-settings-drag-handle"><h3 id="cue-editor-settings-title">字幕编辑器设置</h3><button type="button" class="gap-remove-close" id="cue-editor-settings-close" aria-label="关闭字幕编辑器设置" title="关闭（Esc）"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></header>
+  <div class="gap-remove-panel-body settings-modal-body" id="cue-editor-settings-panel">
+          <div class="settings-panel-section cue-editor-settings-section">
+            <span class="settings-panel-title">显示</span>
+            <div class="cue-editor-settings-display-group">
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-time-actions"> 时间操作</label>
+              <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
+            </div>
+          </div>
+          <div class="settings-panel-section cue-editor-settings-section">
+            <span class="settings-panel-title">操作</span>
+            <label class="toggle settings-panel-item" title="开启后，按 Esc 会恢复当前字幕编辑前的文本；关闭后按 Esc 保留文本改动并退出编辑">
+              <input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑
+            </label>
+            <small class="settings-panel-hint">关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。</small>
+          </div>
+
+    <div class="settings-panel-section"><span class="settings-panel-title">配音草稿</span>
+      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-clear" checked> 合成成功后清空配音草稿</label>
+      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-lines" checked> 手动换行分段</label>
+      <label class="subtitle-preview-setting-row settings-panel-item"><span>自动断句</span><select id="tts-draft-split"><option value="off">关闭</option><option value="punctuation">按标点</option><option value="length">按字数</option><option value="both">标点与字数</option></select></label>
+      <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-punctuation-field" hidden><span>断句标点</span><input type="text" id="tts-draft-punctuation" value="。！？!?；;" maxlength="64"></label>
+      <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-limit-field" hidden><span>每段字数上限</span><input type="number" id="tts-draft-limit" min="1" max="600" value="100"></label>
+    </div>
   </div>
 </aside>
 
@@ -7352,7 +7385,8 @@
       <div class="cue-panel-text-wrap">
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
         <textarea id="cue-panel-tts-text" rows="3" placeholder="输入要合成的文字…" aria-label="独立配音草稿" hidden></textarea>
-        <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 / 600</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button></div>
+        <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 段</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button><button type="button" id="cue-panel-tts-restore" hidden>恢复上次草稿</button></div>
+        <details id="cue-panel-tts-preview" hidden><summary>分段预览</summary><ol id="cue-panel-tts-parts" data-i18n-skip></ol></details>
         <div class="cue-panel-footer">
           <div class="cue-panel-target" id="cue-panel-target">未选择</div>
           <div class="cue-panel-metrics">
@@ -7765,7 +7799,9 @@
 <template id="video-export-fields">
   <div class="msw-processing-fields">
     <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
-    <label>超出画面尾部<select id="video-export-tail"><option value="ask">超出时提示选择</option><option value="truncate">截断到画面结尾</option><option value="freeze">定格延长画面</option></select></label>
+    <label id="video-export-tail-field">导出范围超过原视频时<select id="video-export-tail"><option value="ask">超出时先选择处理方式</option><option value="truncate">按视频结尾截断成品</option><option value="freeze">定格最后一帧并延长</option></select></label>
+    <p id="video-export-tail-summary" class="msw-processing-hint"></p>
+    <p class="msw-processing-hint">比较的是整个导出范围，包括尾部字幕与配音。截断会舍去成品中超出的部分；定格会延长最后一帧。仅影响本次导出，不删除工程内容。</p>
   </div>
   <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
   <p class="msw-processing-hint">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。字幕使用启动器的底部居中样式，双字幕分行；表情包不烧录。</p>
@@ -7775,6 +7811,22 @@
   <p class="msw-processing-hint">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。</p>
   <p class="msw-processing-hint">取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
 </template>
+<aside class="gap-remove-panel msw-processing-panel" id="audio-actions-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-actions-title">
+  <header class="gap-remove-panel-header" id="audio-actions-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">媒体 · 处理</span><h3 id="audio-actions-title">音频批量操作</h3></div>
+    <button type="button" id="audio-actions-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频批量操作"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <p id="audio-actions-count" class="msw-processing-hint"></p>
+    <section class="cue-editor-settings-group"><h3>静音贴片</h3><div class="msw-processing-actions"><button id="audio-actions-mute" type="button">静音</button><button id="audio-actions-unmute" type="button">取消静音</button></div></section>
+    <section class="cue-editor-settings-group"><h3>贴片音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-gain-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions"><button id="audio-actions-gain-apply" type="button">应用增益</button></div></section>
+    <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions"><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
+    <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions"><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
+    <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <details id="audio-actions-details" hidden><summary>处理详情</summary><ul id="audio-actions-results" data-i18n-skip></ul></details>
+  </div>
+</aside>
+
 <aside class="gap-remove-panel msw-processing-panel msw-media-export-panel" id="audio-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-export-title">
   <header class="gap-remove-panel-header" id="audio-export-drag">
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">文件</span><h3 id="audio-export-title">导出音频</h3></div>
@@ -12390,6 +12442,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     cueListKeepSplitVisible: true, cueListHideDisabled: true, cueListCharcountThreshold: 0,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
+    ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
+    ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
     mergeJoinTextContinuous: '', mergeJoinTextWord: ' ',
     autoMergeGapMs: 200, autoMergeSnapDirection: 'backward', autoMergeShortCount: 3,
     autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true, exportSpeakerLabels: false, exportSpeakerNamesAsSuffix: false,
@@ -12465,6 +12519,11 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       cueEditorShowTimeActions: savedSettings.cueEditorShowTimeActions === true,
       cueEditorShowSticker: savedSettings.cueEditorShowSticker === true,
       cueEditorCancelOnEscape: savedSettings.cueEditorCancelOnEscape === true,
+      ttsDraftClearOnSuccess: savedSettings.ttsDraftClearOnSuccess !== false,
+      ttsDraftSplitLines: savedSettings.ttsDraftSplitLines !== false,
+      ttsDraftSplitMode: ['punctuation', 'length', 'both'].includes(savedSettings.ttsDraftSplitMode) ? savedSettings.ttsDraftSplitMode : 'off',
+      ttsDraftSplitPunctuation: typeof savedSettings.ttsDraftSplitPunctuation === 'string' ? [...savedSettings.ttsDraftSplitPunctuation].slice(0, 64).join('') : '。！？!?；;',
+      ttsDraftSplitLimit: clampInteger(savedSettings.ttsDraftSplitLimit, 100, 1, 600),
       toolbarKbdHints: savedSettings.toolbarKbdHints === true,
       assetLibraryShowSearch: savedSettings.assetLibraryShowSearch !== false,
       selectGroupMembers: savedSettings.selectGroupMembers === true,
@@ -15121,6 +15180,7 @@ export default MawDynamicCaptions;
       .some(key => typeof recipe[key] !== 'string' || [...recipe[key]].length > (key === 'spoken_text' ? 12000 : 2000))) return false;
     if (source.pronunciation_override !== undefined && (typeof source.pronunciation_override !== 'string'
       || [...source.pronunciation_override].length > 600)) return false;
+    if (source.spoken_text !== undefined && (typeof source.spoken_text !== 'string' || [...source.spoken_text].length > 12000)) return false;
     return validId(asset.job_id) && validId(source.key) && validCueId(source.id)
       && ['subtitle', 'editor_text'].includes(source.kind === undefined ? 'subtitle' : source.kind)
       && (source.kind !== 'editor_text' || source.track_id == null)
@@ -15340,6 +15400,111 @@ export default MawDynamicCaptions;
   global.MSWAudio = Object.freeze({ MAX_LANES, CAPACITY_MESSAGE, hasCapacity, assertCapacity,
     duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
 })(window);
+
+// Pure batch plans. UI commits each accepted plan as one history entry.
+(function (global) {
+  'use strict';
+  function gains(clips, value, mode) {
+    if (!Number.isFinite(value)) throw Error('请输入有效的增益数值');
+    const changes = clips.map(clip => ({id: clip.id, gain_db: mode === 'offset' ? clip.gain_db + value : value}));
+    const invalid = changes.filter(clip => clip.gain_db < -60 || clip.gain_db > 12);
+    if (invalid.length) throw Error(`增益须在 −60 至 +12 dB：${invalid.map(c => clips.find(x => x.id === c.id).label || c.id).join('、')}`);
+    return new Map(changes.map(c => [c.id, c.gain_db]));
+  }
+  const overlaps = (a, b) => a.start < b.end && b.start < a.end;
+  function fill(project, clips, normalize = cue => cue) {
+    const assets = new Map((project.msw?.assets || []).map(a => [a.id, a]));
+    const rows = clips.map(clip => {
+      const asset = assets.get(clip.asset_id), generation = asset?.generation || {};
+      const filename = generation.text_origin === 'filename' || generation.provider === 'imported';
+      const text = String(filename ? generation.filename || clip.label || generation.display_text || ''
+        : generation.display_text || asset?.source_ref?.text || '').trim();
+      const row = {id: clip.id, label: clip.label || text || clip.id, reason: '', placeholder: filename};
+      if (!asset || !text) { row.reason = '没有可用的文字或文件名'; return row; }
+      if ([...text].length > 600) { row.reason = '文字超过 600 字符，请先编辑文字'; return row; }
+      row.cue = normalize({id: global.MSWProject.id('cue'), start: clip.start_ms,
+        end: Math.max(clip.start_ms + 1, Math.round(global.MSWAudio.end(clip, asset))), text});
+      row.note = filename ? '已生成文件名占位字幕，请填写真实文字' : clip.source_in_sample > 0 || clip.source_out_sample < asset.sample_count
+        ? '已补齐；音频已裁剪，请核对文字' : '已补齐';
+      return row;
+    });
+    const candidates = rows.filter(row => row.cue);
+    for (const row of candidates) {
+      if ((project.segments || []).some(cue => overlaps(cue, row.cue))) row.reason = '与现有主字幕重叠';
+      if (candidates.some(other => other !== row && overlaps(other.cue, row.cue))) row.reason = '所选贴片彼此重叠';
+    }
+    const accepted = rows.filter(row => row.cue && !row.reason);
+    const segments = global.MSWProject.clone(project.segments || []);
+    const heads = new Map(segments.map((cue, index) => [index, cue.id]));
+    segments.push(...accepted.map(row => row.cue)); segments.sort((a,b) => a.start-b.start || a.end-b.end);
+    const indices = new Map(segments.map((cue,index) => [cue.id,index]));
+    for (const cue of segments) for (const field of ['color_ref', 'sticker_ref']) {
+      if (cue[field] && heads.has(cue[field].headIdx)) cue[field].headIdx = indices.get(heads.get(cue[field].headIdx));
+    }
+    return {segments, count: accepted.length, rows: rows.map(row => ({...row, reason: row.reason || row.note}))};
+  }
+  const recipeFields = {
+    qwen: ['provider','region','model','model_type','voice','language_type','instructions','optimize_instructions'],
+    yukkuri: ['provider','model','voice','language_type','speed'],
+    indextts: ['provider','model','voice','language_type','speaker_ref','emotion_ref','emotion_mode','emotion_weight','emotion_vector','emotion_text','emotion_random','duration_factor','max_text_tokens_per_segment','do_sample','top_p','top_k','temperature','length_penalty','num_beams','repetition_penalty','max_mel_tokens'],
+  };
+  function canRegenerate(g) {
+    return !!(recipeFields[g.provider] && g.model && g.language_type
+      && (g.provider !== 'qwen' || (g.region && g.voice))
+      && (g.provider !== 'yukkuri' || (g.voice && g.speed))
+      && (g.provider !== 'indextts' || g.speaker_ref));
+  }
+  function regeneration(project, clips) {
+    const assets = new Map((project.msw?.assets || []).map(a => [a.id,a])), groups = new Map(), rows = [];
+    for (const clip of clips) {
+      const asset = assets.get(clip.asset_id), g = asset?.generation || {}, fields = recipeFields[g.provider];
+      const row = {id: clip.id, label: clip.label || clip.id, original: global.MSWProject.clone(clip), reason: ''};
+      rows.push(row);
+      if (!canRegenerate(g)) {
+        row.reason = '缺少原合成配置或属于外部音频'; continue;
+      }
+      const text = g.display_text || asset.source_ref?.text;
+      if (typeof text !== 'string' || !text.trim() || [...text].length > 600) { row.reason = '原合成文字缺失或超过 600 字符'; continue; }
+      const recipe = Object.fromEntries(fields.filter(key => key in g).map(key => [key,g[key]]));
+      const signature = JSON.stringify(recipe), key = global.MSWProject.id('entry');
+      row.key = key;
+      const source = asset.source_ref || {};
+      const entry = {key, id: global.MSWProject.id('draft'), track_id: null, kind:'editor_text', text,
+        start:clip.start_ms, end:Math.max(clip.start_ms+1,Math.round(global.MSWAudio.end(clip,asset)))};
+      if (source.pronunciation_override) entry.pronunciation_override = source.pronunciation_override;
+      if (['yukkuri','indextts'].includes(g.provider) && g.spoken_text?.trim()) entry.spoken_text = g.spoken_text;
+      if (!groups.has(signature)) groups.set(signature, {recipe, entries:[], rows:[]});
+      groups.get(signature).entries.push(entry); groups.get(signature).rows.push(row);
+    }
+    return {groups:[...groups.values()],rows};
+  }
+  function replacements(extension, rows) {
+    const assets = new Map((extension.assets || []).map(a => [a.id,a])), next = new Map();
+    for (const row of rows) {
+      if (!row.assetId || row.reason) continue;
+      const clip = extension.audio_clips.find(c => c.id === row.id), asset = assets.get(row.assetId);
+      if (!clip || JSON.stringify(clip) !== JSON.stringify(row.original)) { row.reason = '目标贴片已变化，新结果保留在素材库'; continue; }
+      if (!asset) { row.reason = '新素材已移除，保留原贴片'; continue; }
+      next.set(row.id,{...clip,asset_id:asset.id,source_in_sample:0,source_out_sample:asset.sample_count});
+    }
+    // Removing one replacement restores its original duration; repeat until the
+    // complete final arrangement fits, never make acceptance depend on order.
+    while (next.size) {
+      const clips = extension.audio_clips.map(c => next.get(c.id) || c), events = [];
+      for (const c of clips) { const a=assets.get(c.asset_id); if (a) events.push([c.start_ms,1,c.id],[global.MSWAudio.end(c,a),-1,c.id]); }
+      events.sort((a,b)=>a[0]-b[0] || a[1]-b[1]);
+      const active = new Set(), reject = new Set();
+      for (const [,delta,id] of events) {
+        if (delta < 0) active.delete(id); else active.add(id);
+        if (active.size > global.MSWAudio.MAX_LANES) for (const candidate of active) if (next.has(candidate)) reject.add(candidate);
+      }
+      if (!reject.size) break;
+      for (const id of reject) { next.delete(id); rows.find(row=>row.id===id).reason='超过三层重叠，新结果保留在素材库'; }
+    }
+    return next;
+  }
+  global.MSWAudioActions = Object.freeze({gains, fill, regeneration, replacements, canRegenerate});
+})(typeof window === 'undefined' ? globalThis : window);
 
 // Versioned render contract. Times are on the source timeline; output positions
 // are integer sample frames. No DOM, HTTP, media decoding or project mutations.
@@ -15654,16 +15819,55 @@ export default MawDynamicCaptions;
       key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,
     })) };
   }
-  function textSnapshot(project, text, start = 0) {
+  function splitDraft(text, settings = {}) {
+    const mode = settings.ttsDraftSplitMode || 'off';
+    const punctuation = new Set([...(settings.ttsDraftSplitPunctuation ?? '。！？!?；;')]);
+    const limit = Math.max(1, Math.min(600, Number(settings.ttsDraftSplitLimit) || 100));
+    const paragraphs = settings.ttsDraftSplitLines !== false ? String(text).split(/\r\n|\r|\n/) : [String(text)];
+    const parts = [];
+    for (const paragraph of paragraphs) {
+      let sentences = [paragraph];
+      if (mode === 'punctuation' || mode === 'both') {
+        sentences = []; let current = '';
+        const chars = [...paragraph];
+        for (let i = 0; i < chars.length; i++) {
+          const c = chars[i]; current += c;
+          const dotInWord = c === '.' && /[\p{L}\p{N}]/u.test(chars[i - 1] || '') && /[\p{L}\p{N}]/u.test(chars[i + 1] || '');
+          const token = current.match(/\S+$/)?.[0] || '';
+          if (!punctuation.has(c) || dotInWord || /(?:https?:\/\/|www\.|@)/i.test(token)) continue;
+          while (i + 1 < chars.length && (punctuation.has(chars[i + 1]) || /[”’」』）\]"']/u.test(chars[i + 1]))) current += chars[++i];
+          sentences.push(current); current = '';
+        }
+        if (current) sentences.push(current);
+      }
+      for (const sentence of sentences) {
+        if (mode !== 'length' && mode !== 'both') { if (sentence.trim()) parts.push(sentence.trim()); continue; }
+        const chars = typeof Intl.Segmenter === 'function'
+          ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(sentence)].map(p => p.segment) : [...sentence];
+        while (chars.length) {
+          let end = Math.min(limit, chars.length);
+          if (end < chars.length && /[\p{L}\p{N}]$/u.test(chars[end - 1]) && /^[\p{L}\p{N}]/u.test(chars[end])) {
+            for (let i = end - 1; i > 0; i--) if (/\s/.test(chars[i])) { end = i + 1; break; }
+          }
+          const part = chars.splice(0, end).join('').trim(); if (part) parts.push(part);
+        }
+      }
+    }
+    return parts;
+  }
+  function textSnapshot(project, text, start = 0, settings = {}) {
     if (typeof text !== 'string' || !text.trim()) throw new Error('请输入要合成的配音草稿');
-    if ([...text].length > 600) throw new Error('配音草稿超过 600 字符，请分段合成');
+    const parts = splitDraft(text, settings);
+    if (!parts.length) throw new Error('请输入要合成的配音草稿');
+    if (parts.some(part => [...part].length > 600)) throw new Error('配音片段超过 600 字符，请调整断句设置');
+    if (parts.length > 10000 || parts.reduce((n, part) => n + [...part].length, 0) > 1000000) throw new Error('单次 TTS 文本过长，请分批选择');
     if (!Number.isSafeInteger(start) || start < 0) throw new Error('配音起始位置无效');
     const id = global.MSWProject.id('text');
     // end is provisional; AssetStore replaces it with the actual audio duration.
-    return {project_id: project.msw.project_id, entries: [{key: global.MSWProject.id('entry'), id,
-      kind: 'editor_text', track_id: null, text, start, end: start + 1}]};
+    return {project_id: project.msw.project_id, entries: parts.map((part, index) => ({key: global.MSWProject.id('entry'), id: `${id}:${index}`,
+      kind: 'editor_text', track_id: null, text: part, start, end: start + 1}))};
   }
-  global.MSWTts = Object.freeze({ scope, snapshot, textSnapshot });
+  global.MSWTts = Object.freeze({ scope, snapshot, textSnapshot, splitDraft });
   global.MSWE?.register('msw-tts-core', () => global.MSWTts);
 })(window);
 
@@ -15816,6 +16020,74 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '用上次草稿替换当前配音草稿？': 'Replace the current draft with the last cleared draft?',
+    '配音片段超过 600 字符，请调整断句设置': 'A speech segment exceeds 600 characters; adjust splitting settings',
+    "媒体 · 处理": "Media · Processing",
+    "音频批量操作": "Batch audio actions",
+    "关闭音频批量操作": "Close batch audio actions",
+    "静音贴片": "Mute clips",
+    "选中贴片": "Selected clips",
+    "可重新生成": "Regenerable",
+    "可补齐字幕": "With subtitle text",
+    "调整方式": "Adjustment",
+    "设置为": "Set to",
+    "增减": "Offset",
+    "增益（dB）": "Gain (dB)",
+    "应用增益": "Apply gain",
+    "重新生成并替换": "Regenerate and replace",
+    "取消本批": "Cancel batch",
+    "补齐字幕": "Fill subtitles",
+    "补齐主字幕": "Fill primary subtitles",
+    "处理详情": "Action details",
+    "已处理": "Processed",
+    "条贴片": "clips",
+    "已补齐": "Filled",
+    "未替换": "Not replaced",
+    "已替换": "Replaced",
+    "继续确认本批任务": "Resume batch confirmation",
+    "正在重新生成": "Regenerating",
+    "可继续确认本批任务，不会重复提交": "Resume this batch to confirm its status without duplicate submissions",
+    "没有可重新生成的贴片": "No clips have a reusable synthesis recipe",
+    "请先选择音频贴片": "Select audio clips first",
+    "没有可用的文字或文件名": "No text or filename available",
+    "文字超过 600 字符，请先编辑文字": "Text exceeds 600 characters; edit it first",
+    "已生成文件名占位字幕，请填写真实文字": "Filename placeholder created; enter the actual subtitle text",
+    "已补齐；音频已裁剪，请核对文字": "Subtitle added; verify the text for this trimmed clip",
+    "与现有主字幕重叠": "Overlaps an existing primary subtitle",
+    "所选贴片彼此重叠": "Selected clips overlap each other",
+    "缺少原合成配置或属于外部音频": "Missing original synthesis settings or imported audio",
+    "原合成文字缺失或超过 600 字符": "Original text is missing or exceeds 600 characters",
+    "目标贴片已变化，新结果保留在素材库": "Clip was edited; new audio retained in the library",
+    "新素材已移除，保留原贴片": "New asset was removed; original clip retained",
+    "超过三层重叠，新结果保留在素材库": "Would exceed three layers; new audio retained in the library",
+    "已取消替换，新结果保留在素材库": "Replacement cancelled; new audio retained in the library",
+    "未替换，新结果保留在素材库": "Not replaced; new audio retained in the library",
+    "合成失败或已取消": "Synthesis failed or cancelled",
+    "请输入有效的增益数值": "Enter a valid gain value",
+    "批量修改贴片音量增益": "Batch clip gain",
+    "重新生成并替换音频贴片": "Regenerate and replace audio clips",
+    "配音草稿": "Speech draft",
+    "合成成功后清空配音草稿": "Clear draft after successful synthesis",
+    "手动换行分段": "Split at hard line breaks",
+    "自动断句": "Automatic splitting",
+    "按标点": "By punctuation",
+    "按字数": "By length",
+    "标点与字数": "Punctuation and length",
+    "断句标点": "Split punctuation",
+    "每段字数上限": "Characters per segment",
+    "恢复上次草稿": "Restore last draft",
+    "分段预览": "Segment preview",
+    "最长": "Longest",
+    "段": "segments",
+    "仅预览前 100 段": "Only the first 100 segments are previewed",
+    "导出范围超过原视频时": "When export extends beyond the source video",
+    "超出时先选择处理方式": "Require a choice when exceeded",
+    "按视频结尾截断成品": "End output at the video end",
+    "定格最后一帧并延长": "Extend with a frozen final frame",
+    "原画面时长": "Source video duration",
+    "源范围终点": "Source range end",
+    "超出": "Exceeded by",
+    "比较的是整个导出范围，包括尾部字幕与配音。截断会舍去成品中超出的部分；定格会延长最后一帧。仅影响本次导出，不删除工程内容。": "This compares the full export range, including trailing subtitles and audio. Truncation omits the excess from the output; freezing extends the last frame. Project content is preserved.",
     '音频贴片最多同时重叠三层，请先移动或裁剪现有贴片': 'Audio clips can overlap on at most three layers. Move or trim existing clips first.',
     '翻译所选字幕': 'Translate selected subtitles',
     '卡片显示': 'Card display',
@@ -17337,10 +17609,12 @@ export default MawDynamicCaptions;
   const textOriginals = new WeakMap();
   const attributeOriginals = new WeakMap();
   const SKIP_SELECTOR = [
+    '[data-i18n-skip]',
     '#cue-list', '#cue-panel-text', '#overlay', '#sticker-overlay-layer',
     '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', '.msw-asset-content', 'script', 'style'
   ].join(',');
   const ATTRIBUTE_SKIP_SELECTOR = [
+    '[data-i18n-skip]',
     // .waveform-cue-block 的 title 是用户字幕原文，不能参与翻译
     '#cue-list', '#overlay', '#sticker-overlay-layer', '.waveform-cue-block',
     '#media-name', '#json-name', '#sticker-grid', 'script', 'style'
@@ -25385,6 +25659,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueEditorShowSticker: false,
   // 当前字幕编辑区按 Esc 时，是否放弃文本改动并恢复编辑前内容。
   cueEditorCancelOnEscape: false,
+  ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
+  ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
   selectGroupMembers: false,
   // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
   mergeJoinText: '',
@@ -26400,9 +26676,6 @@ const splitTrimSettingsPanel = document.getElementById('split-trim-settings-pane
 const subtitlePreviewSettings = document.getElementById('subtitle-preview-settings');
 const subtitlePreviewSettingsToggle = document.getElementById('subtitle-preview-settings-toggle');
 const subtitlePreviewSettingsPanel = document.getElementById('subtitle-preview-settings-panel');
-const cueEditorSettings = document.getElementById('cue-editor-settings');
-const cueEditorSettingsToggle = document.getElementById('cue-editor-settings-toggle');
-const cueEditorSettingsPanel = document.getElementById('cue-editor-settings-panel');
 const waveformSettings = document.getElementById('waveform-settings');
 const waveformSettingsToggle = document.getElementById('waveform-settings-toggle');
 const waveformSettingsPanel = document.getElementById('waveform-settings-panel');
@@ -43380,15 +43653,6 @@ function ctxToggleTemplateCheckbox(id) {
   checkbox.checked = !checkbox.checked;
   checkbox.dispatchEvent(new Event('change', { bubbles: true }));
 }
-function buildCueEditorSettingsChildren() {
-  return [
-    { label: '跳转按钮', checked: () => Boolean(document.getElementById('cue-editor-show-navigation')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-navigation') },
-    { label: '时间操作', checked: () => Boolean(document.getElementById('cue-editor-show-time-actions')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-time-actions') },
-    { label: '表情包', checked: () => Boolean(document.getElementById('cue-editor-show-sticker')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-show-sticker') },
-    { label: 'Esc 取消编辑', checked: () => Boolean(document.getElementById('cue-editor-cancel-on-escape')?.checked), toggle: () => ctxToggleTemplateCheckbox('cue-editor-cancel-on-escape') },
-  ];
-}
-
 // 模块级右键面板（模块空白区/顶栏/工具栏）：只提供该模块的设置入口。
 // 行级/块级菜单各自 stopPropagation，不会落到这里。
 function setupModuleContextMenu() {
@@ -43426,7 +43690,7 @@ function setupModuleContextMenu() {
     { label: '媒体播放器设置', onClick: openMediaSettings },
   ]);
   bindModule(document.getElementById('current-cue-panel'), () => [
-    { label: '字幕编辑器设置', expandable: true, children: buildCueEditorSettingsChildren() },
+    { label: '字幕编辑器设置', onClick: () => cueEditorSettingsFloatingPanel.open() },
   ]);
   const cuesModule = document.querySelector('.cues-module');
   if (cuesModule) {
@@ -45464,6 +45728,34 @@ function computeNonSubtitleGapPieces() {
   const usable = pieces.filter((piece) => piece.end - piece.start >= 1);
   return usable.length ? usable : null;
 }
+const cueEditorSettingsFloatingPanel = createFloatingPanel({
+  panel: document.getElementById('cue-editor-settings-modal'),
+  dragHandle: document.getElementById('cue-editor-settings-drag-handle'),
+  positionKey: 'msw.cueEditorSettings.pos.v1',
+});
+document.getElementById('cue-editor-settings-open').addEventListener('click', () => cueEditorSettingsFloatingPanel.open());
+document.getElementById('cue-editor-settings-close').addEventListener('click', () => cueEditorSettingsFloatingPanel.close());
+function syncDraftSettings() {
+  const mode = EDITOR_SETTINGS.ttsDraftSplitMode;
+  document.getElementById('tts-draft-punctuation-field').hidden = !['punctuation', 'both'].includes(mode);
+  document.getElementById('tts-draft-limit-field').hidden = !['length', 'both'].includes(mode);
+  window.dispatchEvent(new Event('msw:draft-settings'));
+}
+for (const [id, key, type] of [
+  ['tts-draft-clear', 'ttsDraftClearOnSuccess', 'checkbox'], ['tts-draft-lines', 'ttsDraftSplitLines', 'checkbox'],
+  ['tts-draft-split', 'ttsDraftSplitMode', 'text'], ['tts-draft-punctuation', 'ttsDraftSplitPunctuation', 'text'],
+  ['tts-draft-limit', 'ttsDraftSplitLimit', 'number'],
+]) {
+  const input = document.getElementById(id);
+  const reflect = () => { if (type === 'checkbox') input.checked = EDITOR_SETTINGS[key]; else input.value = EDITOR_SETTINGS[key]; };
+  reflect();
+  input.addEventListener('change', () => {
+    updateEditorSettings({ [key]: type === 'checkbox' ? input.checked : type === 'number' ? Number(input.value) : input.value });
+    reflect(); syncDraftSettings();
+  });
+}
+syncDraftSettings();
+
 // 「字幕 → 字幕列表设置」详情弹窗
 const cueListSettingsModal = document.getElementById('cue-list-settings-modal');
 const cueListSettingsFloatingPanel = createFloatingPanel({
@@ -45967,6 +46259,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
   },
   editorText: () => cuePanelText.value,
+  draftSettings: () => ({ ...EDITOR_SETTINGS }),
   playheadMs: () => Math.max(0, Math.round((player.currentTime || 0) * 1000)),
   showCueEditor: () => {
     if (waveformEditor?.showModule?.('panel', {recordUndo: false})) rebuildShowModuleMenu();
@@ -46021,6 +46314,21 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     updateGapRemoveUi();
     scheduleAutoSaveFlush();
     return true;
+  },
+  fillAudioSubtitles: clips => {
+    commitProcessingEdits();
+    const plan = window.MSWAudioActions.fill(DATA, clips, cue => {
+      syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames: false}); return cue;
+    });
+    if (!plan.count) return plan;
+    const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
+    pushUndo('补齐主字幕', {captureView: true});
+    DATA.segments.splice(0, DATA.segments.length, ...plan.segments);
+    projectImportDirty = true; cueListPlaybackKey = null;
+    renderAll({waveform: 'full'});
+    restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
+    scheduleAutoSaveFlush();
+    return plan;
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
   audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
@@ -48105,6 +48413,8 @@ window.addEventListener('beforeunload', (e) => {
   let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
   let settingsPromise = null, savingSettings = false;
   let draftActive = false, draftInitialized = false;
+  let draftRevision = 0, pendingDraft = null, clearedDraft = null;
+  const draftJobs = new Map();
   const isText = () => el('tts-target').value === 'editor_text';
   let runtime = {state: 'idle', runtime_path: ''}, runtimeTimer, runtimeRequest = false;
   const isYukkuri = () => el('tts-engine').value === 'yukkuri';
@@ -48154,6 +48464,7 @@ window.addEventListener('beforeunload', (e) => {
     draftActive = next;
     el('current-cue-panel').classList.toggle('tts-draft-mode', next);
     el('cue-panel-tts-text').hidden = !next; el('cue-panel-tts-footer').hidden = !next;
+    el('cue-panel-tts-preview').hidden = !next;
     if (next) {
       el('cue-panel-tts-text').focus({preventScroll: true});
       requestAnimationFrame(() => {
@@ -48166,18 +48477,20 @@ window.addEventListener('beforeunload', (e) => {
     }
   }
   function updateScope() {
-    const scope = isText() ? {signature: 'editor_text', sources: el('cue-panel-tts-text').value.trim() ? [{}] : [],
-      tooLong: [...el('cue-panel-tts-text').value].length > 600 ? 1 : 0} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
+    const parts = global.MSWTts.splitDraft(el('cue-panel-tts-text').value, host.draftSettings());
+    const scope = isText() ? {signature: 'editor_text', sources: parts,
+      tooLong: parts.filter(part => [...part].length > 600).length || (parts.length > 10000 ? 1 : 0)} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
     if (scope.signature !== scopeSignature) {
       scopeSignature = scope.signature;
       el('tts-yukkuri-pronunciation').value = '';
       el('tts-index-pronunciation').value = '';
     }
-    el('tts-scope').textContent = (isText() ? t('范围：独立配音草稿 · 不修改字幕')
+    el('tts-scope').textContent = (isText() ? `${t('范围：独立配音草稿 · 不修改字幕')} · ${parts.length} ${t('条')}`
       : `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
         + (scope.linked ? ` · ${t('连锁字幕按操作对象合成，独立字幕保留原选区')}` : ''))
       + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过 600 字符，请先拆分')}` : '');
-    el('cue-panel-tts-count').textContent = `${[...el('cue-panel-tts-text').value].length} / 600`;
+    el('cue-panel-tts-count').textContent = `${parts.length} ${t('段')} · ${t('最长')} ${parts.reduce((n, part) => Math.max(n, [...part].length), 0)} / 600`;
+    if (el('cue-panel-tts-preview').open) renderDraftPreview(parts);
     el('tts-yukkuri-pronunciation-field').hidden = isText() || scope.sources.length !== 1;
     el('tts-index-pronunciation-field').hidden = el('tts-yukkuri-pronunciation-field').hidden;
     el('tts-start').disabled = !available || !configured || busy || (!pending && (
@@ -48189,6 +48502,27 @@ window.addEventListener('beforeunload', (e) => {
     for (const id of ['tts-save-settings', 'tts-environment-save']) el(id).disabled = !available || !configured || savingSettings || indexTts.isBusy();
     environmentNotice();
     return scope;
+  }
+  function renderDraftPreview(parts = global.MSWTts.splitDraft(el('cue-panel-tts-text').value, host.draftSettings())) {
+    const list = el('cue-panel-tts-parts'); list.replaceChildren();
+    for (const part of parts.slice(0, 100)) { const row = document.createElement('li'); row.textContent = part; list.appendChild(row); }
+    if (parts.length > 100) { const row = document.createElement('li'); row.textContent = t('仅预览前 100 段'); list.appendChild(row); }
+  }
+  function checkDraftCompletion() {
+    const ready = new Set(assets().map(asset => asset.source_ref.key));
+    for (const group of new Set(draftJobs.values())) {
+      if (group.done) continue;
+      const states = [...group.jobs].map(id => jobs.get(id)?.status);
+      if (states.some(status => ['cancelled', 'cancel_requested', 'interrupted'].includes(status))) group.cancelled = true;
+      if (states.some(status => !status || active({ status })) || !group.keys.every(key => ready.has(key))) continue;
+      group.done = true;
+      if (group.cancelled || !group.clear || group.generation !== host.generation || group.revision !== draftRevision
+          || group.text !== el('cue-panel-tts-text').value) continue;
+      clearedDraft = group.text;
+      el('cue-panel-tts-text').value = ''; draftRevision++;
+      el('cue-panel-tts-restore').hidden = false;
+      updateScope();
+    }
   }
   function recipe() {
     return recipeFor(el('tts-engine').value);
@@ -48416,11 +48750,12 @@ window.addEventListener('beforeunload', (e) => {
     try {
       host.commitEdits(); updateScope();
       const options = retry?.recipe || recipe();
+      const newDraft = !pending && !retry && isText();
       const input = pending || { kind: 'tts', project_id: projectId(), client_token: `${pageId}.${generation}`,
         library_size: assets().length,
         removed_asset_ids: host.data.msw?.removed_asset_ids || [],
         request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || (isText()
-          ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs())
+          ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs(), host.draftSettings())
           : global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value)),
         provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''}
           : options.provider === 'indextts' ? indexTts.connection() : {}) },
@@ -48429,10 +48764,14 @@ window.addEventListener('beforeunload', (e) => {
         const override = el(options.provider === 'indextts' ? 'tts-index-pronunciation' : 'tts-yukkuri-pronunciation').value.trim();
         if (override) input.snapshot.entries[0].pronunciation_override = override;
       }
+      if (newDraft) pendingDraft = { generation, revision: draftRevision, text: el('cue-panel-tts-text').value,
+        clear: host.draftSettings().ttsDraftClearOnSuccess !== false, keys: input.snapshot.entries.map(row => row.key), jobs: new Set() };
+      else if (!pending) pendingDraft = retry ? draftJobs.get(retry.retry_of) || null : null;
       pending = input; busy = true; updateScope();
       const data = await request('jobs', input);
       if (generation !== host.generation) return;
       pending = null;
+      if (pendingDraft) { pendingDraft.jobs.add(data.job.id); draftJobs.set(data.job.id, pendingDraft); pendingDraft = null; }
       jobs.set(data.job.id, data.job); watched.add(data.job.id);
       updateScope();
       message('TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务');
@@ -48440,7 +48779,7 @@ window.addEventListener('beforeunload', (e) => {
       renderJobs(); schedule(0);
     } catch (error) {
       if (generation !== host.generation) return;
-      if (error.status && error.status < 500) pending = null;
+      if (error.status && error.status < 500) { pending = null; pendingDraft = null; }
       message(pending ? `${error.message}；${t('再次点击将确认上次提交，不会重复创建任务')}` : error.message, true);
     } finally { if (generation === host.generation) { busy = false; updateScope(); } }
   }
@@ -48480,6 +48819,7 @@ window.addEventListener('beforeunload', (e) => {
         else message('本次没有生成音频，请检查未完成项', true);
       }
       if (changed) renderJobs();
+      checkDraftCompletion();
       pollFailures = 0;
       if (incoming.more || [...jobs.values()].some(active)) schedule(incoming.more ? 0 : 800);
     } catch (error) {
@@ -48655,10 +48995,19 @@ window.addEventListener('beforeunload', (e) => {
   el('tts-close').addEventListener('click', () => { indexTts.stopPreview(); panel.close(); syncDraft(); });
   el('tts-start').addEventListener('click', () => void submit());
   el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; el('tts-index-pronunciation').value = ''; syncDraft(); updateScope(); });
-  el('cue-panel-tts-text').addEventListener('input', updateScope);
+  el('cue-panel-tts-text').addEventListener('input', () => { draftRevision++; updateScope(); });
+  el('cue-panel-tts-preview').addEventListener('toggle', () => { if (el('cue-panel-tts-preview').open) renderDraftPreview(); });
+  global.addEventListener('msw:draft-settings', updateScope);
+  global.addEventListener('msw:tts-refresh', () => schedule(0));
+  el('cue-panel-tts-restore').addEventListener('click', () => {
+    if (clearedDraft == null) return;
+    if (el('cue-panel-tts-text').value.trim() && !global.confirm(t('用上次草稿替换当前配音草稿？'))) return;
+    el('cue-panel-tts-text').value = clearedDraft; draftRevision++; clearedDraft = null;
+    el('cue-panel-tts-restore').hidden = true; updateScope(); el('cue-panel-tts-text').focus();
+  });
   el('cue-panel-tts-copy').addEventListener('click', () => {
     if (el('cue-panel-tts-text').value.trim() && !global.confirm(t('用当前字幕替换配音草稿？字幕不会被修改。'))) return;
-    el('cue-panel-tts-text').value = host.editorText(); updateScope(); el('cue-panel-tts-text').focus();
+    el('cue-panel-tts-text').value = host.editorText(); draftRevision++; updateScope(); el('cue-panel-tts-text').focus();
   });
   // Includes Escape and window-management closure, not just the close button.
   new MutationObserver(() => { syncDraft(); updateScope(); }).observe(el('tts-panel'), {attributes: true, attributeFilter: ['class']});
@@ -48824,6 +49173,7 @@ window.addEventListener('beforeunload', (e) => {
     jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = ''; page = 0;
     el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = 'main';
     draftInitialized = false; el('cue-panel-tts-text').value = ''; syncDraft();
+    draftRevision++; pendingDraft = null; clearedDraft = null; draftJobs.clear(); el('cue-panel-tts-restore').hidden = true;
     el('asset-playing').textContent = t('选择音频试听');
     el('asset-player').hidden = true;
     queueMicrotask(() => { updateScope(); renderAssets(); renderJobs(); message(''); schedule(0); });
@@ -49072,7 +49422,7 @@ window.addEventListener('beforeunload', (e) => {
   const hint = message => host.flashHint(t(message));
   function schedulePaint() {
     if (repaint) return;
-    repaint = requestAnimationFrame(() => { repaint = 0; timeline.refreshOverlays(); });
+    repaint = requestAnimationFrame(() => { repaint = 0; timeline.refreshOverlays(); global.dispatchEvent(new Event('msw:audio-selection')); });
   }
   const transport = global.MSWAudioTransport.create({ player: host.player, getState: sync, changed: schedulePaint, hint,
     frame: () => host.refreshAudioPlayback(transport.currentTime()),
@@ -49426,7 +49776,7 @@ window.addEventListener('beforeunload', (e) => {
   document.addEventListener('pointerdown', event => {
     if (menu?.contains(event.target)) return;
     closeMenu();
-    if (event.target.closest('.msw-audio-lanes')) return;
+    if (event.target.closest('.msw-audio-lanes, .menubar, #audio-actions-panel')) return;
     if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
   }, true);
   document.addEventListener('keydown', event => {
@@ -49477,6 +49827,7 @@ window.addEventListener('beforeunload', (e) => {
     if (gapSelect) gapSelect.value = extension().audio_settings?.gap_policy || 'protect';
   }
   const api = Object.freeze({ insert, renderRow, updatePlayhead,
+    selectedClips: () => global.MSWProject.clone(selectedClips()),
     selectedCount: () => selected.size,
     // 配音轨道头（波形轨道头列读取）：轨数与静音态；toggle 走 commit 可撤销。
     trackCount: () => (extension().audio_tracks || []).length,
@@ -49525,6 +49876,161 @@ window.addEventListener('beforeunload', (e) => {
   refreshSettings(); timeline.attach(api);
 })(window);
 
+(function (global) {
+  'use strict';
+  const host = global.MSWE?.resolve('processing-host'), audio = global.MSWE?.resolve('audio-timeline');
+  if (!host || !audio) return;
+  const el = id => document.getElementById(`audio-actions-${id}`);
+  const t = value => global.MSWE_I18N?.translateText?.(value) || value;
+  const core = global.MSWAudioActions;
+  let batch = null, running = false;
+  const terminal = new Set(['succeeded','failed','cancelled','interrupted']);
+  const panel = host.createFloatingPanel({panel: el('panel'), dragHandle: el('drag'),
+    anchorButton: document.querySelector('[data-menubar-item="media"] > button'), positionKey: 'msw.audio.actions.position'});
+  function report(message, rows = []) {
+    el('message').textContent = t(message);
+    el('results').replaceChildren(...rows.map(row => {
+      const li = document.createElement('li'); li.textContent = `${row.label || row.id}：${t(row.reason)}`; return li;
+    }));
+    el('details').hidden = !rows.length;
+  }
+  function refresh() {
+    const clips = audio.selectedClips();
+    const assets = new Map((host.data.msw?.assets || []).map(a=>[a.id,a]));
+    const regenerable = clips.filter(c=>core.canRegenerate(assets.get(c.asset_id)?.generation || {})).length;
+    const fillable = clips.filter(c=>{const a=assets.get(c.asset_id);return !!(a && (a.generation?.filename || a.generation?.display_text || a.source_ref?.text || c.label));}).length;
+    el('count').textContent = `${t('选中贴片')}：${clips.length} · ${t('可重新生成')}：${regenerable} · ${t('可补齐字幕')}：${fillable}`;
+    for (const id of ['mute', 'unmute', 'gain-apply']) el(id).disabled = !clips.length;
+    el('fill').disabled = !clips.length;
+    document.getElementById('audio-fill-subtitles').disabled = !clips.length;
+    el('regenerate').disabled = running || (!batch && (!regenerable || !host.config?.processingUrl));
+    el('regenerate').textContent = t(batch ? '继续确认本批任务' : '重新生成并替换');
+    el('cancel').hidden = !batch;
+    el('cancel').disabled = Boolean(batch?.cancelled);
+  }
+  function mute(value) {
+    const ids = new Set(audio.selectedClips().map(c => c.id)); if (!ids.size) return;
+    if (host.commitAudio(t(value ? '静音贴片' : '取消贴片静音'), ext => {
+      ext.audio_clips.forEach(c => { if (ids.has(c.id)) c.muted = value; });
+    })) report(`${t('已处理')} ${ids.size} ${t('条贴片')}`);
+  }
+  el('mute').onclick = () => mute(true); el('unmute').onclick = () => mute(false);
+  el('gain-apply').onclick = () => {
+    try {
+      const clips = audio.selectedClips(); if (!clips.length) return;
+      const value = el('gain').value.trim();
+      const gains = core.gains(clips, value ? Number(value) : NaN, el('gain-mode').value);
+      if (host.commitAudio(t('批量修改贴片音量增益'), ext => {
+        ext.audio_clips.forEach(c => { if (gains.has(c.id)) c.gain_db = gains.get(c.id); });
+      })) report(`${t('已处理')} ${gains.size} ${t('条贴片')}`);
+    } catch (error) { report(error.message); }
+  };
+  el('open').onclick = () => { refresh(); panel.open(); };
+  function fill() {
+    panel.open();
+    try {
+      const clips = audio.selectedClips(); if (!clips.length) { report('请先选择音频贴片'); return; }
+      const plan = host.fillAudioSubtitles(clips);
+      report(`${t('已补齐')} ${plan.count} ${t('条')}，${t('跳过')} ${clips.length - plan.count} ${t('条')}`, plan.rows);
+    } catch (error) { report(error.message); }
+  }
+  el('fill').onclick = fill; document.getElementById('audio-fill-subtitles').onclick = fill;
+  async function request(route, body) {
+    const response = await fetch(`${host.config.processingUrl}/${route}`, {method: body ? 'POST' : 'GET', cache:'no-store',
+      headers:{'X-MSW-Token':host.config.requestToken,...(body ? {'Content-Type':'application/json'} : {})},
+      ...(body ? {body:JSON.stringify(body)} : {})});
+    const result = await response.json().catch(()=>({}));
+    if (!response.ok || !result.ok) { const error=Error(result.error || `HTTP ${response.status}`); error.status=response.status; throw error; }
+    return result;
+  }
+  const current = value => batch === value && value.generation === host.generation && value.projectId === host.data.msw?.project_id;
+  async function runBatch() {
+    if (running || !batch) return;
+    const value = batch; running = true; refresh();
+    try {
+      for (const group of value.groups) {
+        if (!current(value)) return;
+        if (group.done) continue;
+        if (value.cancelled && !group.attempted) { group.done=true; continue; }
+        if (!group.job) {
+          group.attempted = true;
+          try {
+            const result = await request('jobs', group.input);
+            group.job = result.job;
+            global.dispatchEvent(new Event('msw:tts-refresh'));
+          } catch (error) {
+            if (error.status && error.status < 500 && error.status !== 408 && error.status !== 429) {
+              group.rows.forEach(row=>row.reason=error.message); group.done=true; continue;
+            }
+            throw error; // Keep the exact request key for an uncertain submission.
+          }
+        }
+        while (current(value)) {
+          if (value.cancelled && !group.cancelSent) {
+            await request(`jobs/${group.job.id}/cancel`, {project_id:value.projectId}); group.cancelSent=true;
+          }
+          const result = await request(`jobs/${group.job.id}/result?project_id=${encodeURIComponent(value.projectId)}`);
+          if (!current(value)) return;
+          group.job = result.job;
+          if (terminal.has(group.job.status)) break;
+          report(`${t(value.cancelled ? '正在取消' : '正在重新生成')} · ${value.groups.filter(g=>g.done).length + 1} / ${value.groups.length}`);
+          await new Promise(resolve=>setTimeout(resolve,600));
+        }
+        if (!current(value)) return;
+        const items = new Map((group.job.result?.items || []).map(item=>[item.key,item]));
+        for (const row of group.rows) {
+          const item=items.get(row.key);
+          if (item?.status === 'ready') row.assetId=item.asset_id;
+          else row.reason=item?.error || group.job.error || t('合成失败或已取消');
+        }
+        group.done=true;
+      }
+      // Register every completed candidate before applying. Pagination and its
+      // cursor survive a failed response so resuming never repeats synthesis.
+      let more=true;
+      while (more && current(value)) {
+        const incoming=await request(`assets?project_id=${encodeURIComponent(value.projectId)}&since=${value.cursor}`);
+        if (!current(value)) return;
+        host.addAssets(value.projectId,incoming.assets); value.cursor=incoming.cursor; more=incoming.more;
+      }
+      if (!current(value)) return;
+      let count=0;
+      if (value.cancelled) value.rows.forEach(row=>{ if (!row.reason) row.reason='已取消替换，新结果保留在素材库'; });
+      else {
+        const replacements=core.replacements(host.data.msw,value.rows);
+        if (replacements.size && host.commitAudio(t('重新生成并替换音频贴片'),ext=>{
+          ext.audio_clips=ext.audio_clips.map(c=>replacements.get(c.id) || c);
+        })) count=replacements.size;
+        for (const row of value.rows) if (!row.reason) row.reason=count && replacements.has(row.id) ? '已替换' : '未替换，新结果保留在素材库';
+      }
+      report(`${t('已替换')} ${count} ${t('条')}，${t('未替换')} ${value.rows.length-count} ${t('条')}`,value.rows);
+      batch=null; global.dispatchEvent(new Event('msw:tts-refresh'));
+    } catch (error) {
+      if (current(value)) report(`${error.message}；${t('可继续确认本批任务，不会重复提交')}`);
+    } finally { if (value.generation === host.generation) { running=false; refresh(); } }
+  }
+  el('regenerate').onclick = () => {
+    if (running) return;
+    if (!batch) {
+      host.commitEdits();
+      const plan=core.regeneration(host.data,audio.selectedClips());
+      if (!plan.groups.length) { report('没有可重新生成的贴片',plan.rows); return; }
+      const projectId=host.data.msw.project_id, generation=host.generation;
+      batch={...plan,projectId,generation,cursor:0,cancelled:false};
+      for (const group of batch.groups) group.input={kind:'tts',project_id:projectId,
+        client_token:global.MSWProject.id('audio-batch'),request_key:global.MSWProject.id('request'),
+        library_size:host.data.msw.assets.length,removed_asset_ids:host.data.msw.removed_asset_ids || [],
+        snapshot:{project_id:projectId,entries:group.entries},provider:{recipe:group.recipe}};
+    }
+    void runBatch();
+  };
+  el('cancel').onclick = () => { if (!batch) return; batch.cancelled=true; refresh(); if (!running) void runBatch(); };
+  el('close').onclick = () => panel.close();
+  for (const event of ['msw:audio-selection', 'msw:audio-changed', 'msw:assets-changed']) global.addEventListener(event, refresh);
+  global.addEventListener('msw:project-changed', () => { batch=null; running=false; report(''); refresh(); });
+  refresh();
+})(window);
+
 // Non-modal offline audio export UI; rendering owns an immutable job snapshot.
 (function (global) {
   'use strict';
@@ -49563,7 +50069,7 @@ window.addEventListener('beforeunload', (e) => {
       }
       return result;
     }
-    function selectedOptions() {
+    function selectedOptions({applyTail = true} = {}) {
       const custom = el('audio-export-range').value === 'custom';
       const numeric = id => el(id).value.trim() ? Number(el(id).value) : NaN;
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
@@ -49577,7 +50083,7 @@ window.addEventListener('beforeunload', (e) => {
         settings.video_encoding = el('audio-export-encoding').value;
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
         settings.duration_ms = Math.max(settings.duration_ms, context?.duration_ms || 0);
-        if (settings.video_tail === 'truncate' && context?.video) {
+        if (applyTail && settings.video_tail === 'truncate' && context?.video) {
           settings.end_ms = Math.min(settings.end_ms ?? Infinity, context.video.duration_ms);
         }
       }
@@ -49597,7 +50103,14 @@ window.addEventListener('beforeunload', (e) => {
       el('audio-export-start').disabled = Boolean(busy) || !available || !context?.available;
       el('audio-export-gap-hint').textContent = t(host.data.msw?.audio_settings?.gap_policy === 'follow'
         ? '移除空隙时，配音随媒体一起裁切。' : '移除空隙时，保留未静音贴片覆盖的区间。');
+      if (video) el('audio-export-tail-summary').textContent = '';
       try {
+        if (video && context?.video) {
+          const raw = core.compile(host.audioExportPreview(), selectedOptions({applyTail:false}));
+          const extra = Math.max(0,raw.source_end_ms-context.video.duration_ms);
+          el('audio-export-tail-summary').textContent = `${t('原画面时长')} ${(context.video.duration_ms/1000).toFixed(3)} s · ${t('源范围终点')} ${(raw.source_end_ms/1000).toFixed(3)} s · ${t('超出')} ${(extra/1000).toFixed(3)} s`;
+          el('audio-export-tail-field').classList.toggle('is-overflow',extra>0);
+        }
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
         if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
         if (video && context && !context.video) throw Error('原媒体没有可导出的视频画面，请使用导出音频');

@@ -287,9 +287,10 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('const SERVER_CONFIG = null;', page)
         self.assertIn('id="editor-settings-toggle"', page)
         self.assertIn('id="editor-settings-panel"', page)
-        # 字幕编辑设置迁入「字幕」菜单子菜单（面板 id 保留，齿轮按钮移除）
+        # 字幕编辑设置升级为详情窗口，菜单和模块右键共用。
         self.assertIn('id="cue-editor-settings-panel"', page)
-        self.assertIn('id="cue-editor-settings-submenu"', page)
+        self.assertIn('id="cue-editor-settings-open"', page)
+        self.assertIn('id="cue-editor-settings-modal"', page)
         # 编辑区 header 不再显示「编辑」模块标签，只保留快捷键提示
         self.assertNotIn('<span class="info layout-toolbar-label">编辑</span>', page)
         self.assertIn('<span class="settings-panel-title">显示</span>', page)

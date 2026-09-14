@@ -138,15 +138,20 @@ def validate_snapshot(raw):
         if 'kind' in entry:
             if entry['kind'] not in ('subtitle', 'editor_text'):
                 raise ValueError('TTS 文本来源类型无效')
-            if entry['kind'] == 'editor_text' and (len(entries) != 1 or track is not None):
-                raise ValueError('独立配音草稿必须是单条无字幕轨道的文本')
+            if entry['kind'] == 'editor_text' and track is not None:
+                raise ValueError('独立配音草稿不能指定字幕轨道')
             clean[-1]['kind'] = entry['kind']
         override = entry.get("pronunciation_override", "")
         if not isinstance(override, str) or len(override) > 600:
             raise ValueError("读音修正请限制在 600 字符以内")
         if override.strip():
             clean[-1]["pronunciation_override"] = override.strip()
-    if sum(len(entry["text"]) for entry in clean) > 1000000:
+        if 'spoken_text' in entry:
+            spoken = entry['spoken_text']
+            if not isinstance(spoken, str) or not spoken.strip() or len(spoken) > 12000:
+                raise ValueError('原始读音记录须为 1–12000 字符')
+            clean[-1]['spoken_text'] = spoken
+    if sum(len(entry["text"]) + len(entry.get('spoken_text', '')) for entry in clean) > 1000000:
         raise ValueError("单次 TTS 文本过长，请分批选择")
     return {"project_id": raw["project_id"], "entries": clean}
 
@@ -233,10 +238,15 @@ class TtsService:
                 spoken = entry["text"]
                 if settings.provider_id == "yukkuri":
                     from maw.msw.yukkuri import synthesize as synthesize_local
-                    audio, spoken = synthesize_local(settings, entry.get("pronunciation_override") or entry["text"], cancel)
+                    if entry.get('spoken_text'):
+                        audio, spoken = synthesize_local(settings, entry['spoken_text'], cancel, prepared=True)
+                    else:
+                        audio, spoken = synthesize_local(settings, entry.get("pronunciation_override") or entry["text"], cancel)
                 elif settings.provider_id == 'indextts':
                     from maw.msw.index_tts import synthesize as synthesize_index
-                    spoken = entry.get('pronunciation_override') or entry['text']
+                    spoken = entry.get('spoken_text') or entry.get('pronunciation_override') or entry['text']
+                    if len(spoken) > 600:
+                        raise ValueError('IndexTTS 原始读音超过 600 字符')
                     audio = synthesize_index(settings, spoken, cancel)
                 else:
                     audio = self.synthesize_one(settings, entry["text"], cancel)

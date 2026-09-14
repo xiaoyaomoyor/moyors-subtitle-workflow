@@ -12,6 +12,19 @@ const project = {segments:main,msw:{schema:'msw.editor.v1',project_id:'project'}
 const selection = (m=[], e=[], hasSelection=true) => ({mainIds:m,extensionIds:e,trackId:'ext',hasSelection});
 const texts = scope => Array.from(scope.sources, row=>row.cue.text);
 
+test('draft segmentation preserves hard lines punctuation words and unicode graphemes', () => {
+  const split = (text, settings) => Array.from(core.splitDraft(text, settings));
+  assert.deepEqual(split('First\n\n第二行\r\n第三行'), ['First', '第二行', '第三行']);
+  assert.deepEqual(split('Hello world', {}), ['Hello world']);
+  assert.deepEqual(split('你好？！“再见。”下一句', { ttsDraftSplitMode: 'punctuation' }), ['你好？！', '“再见。”', '下一句']);
+  assert.deepEqual(split('值3.14结束.下一句', { ttsDraftSplitMode: 'punctuation', ttsDraftSplitPunctuation: '.' }), ['值3.14结束.下一句']);
+  assert.deepEqual(split('hello world again', { ttsDraftSplitMode: 'length', ttsDraftSplitLimit: 11 }), ['hello world', 'again']);
+  assert.deepEqual(split('👨‍👩‍👧‍👦你好', { ttsDraftSplitMode: 'length', ttsDraftSplitLimit: 1 }), ['👨‍👩‍👧‍👦', '你', '好']);
+  assert.deepEqual(split('第一行\n第二行', { ttsDraftSplitLines: false }), ['第一行\n第二行']);
+  const batch = core.textSnapshot(project, '字'.repeat(700), 0, { ttsDraftSplitMode: 'length', ttsDraftSplitLimit: 100 });
+  assert.equal(batch.entries.length, 7); assert.equal(new Set(batch.entries.map(e => e.id)).size, 7);
+});
+
 test('free text captures immutable source without subtitle identity and honors unicode bounds', () => {
   const p = structuredClone(project), before = JSON.stringify(p);
   const snapshot = core.textSnapshot(p, '😀'.repeat(600), 1234);
