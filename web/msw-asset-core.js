@@ -26,6 +26,8 @@
       || (b.result_id !== undefined && !p().validId(b.result_id)) || (b.parent_id !== undefined && !p().validId(b.parent_id)))
       || new Set(batches.map(b => b.id)).size !== batches.length) throw Error('素材批次格式无效或重复');
     const ids = new Set(batches.map(b => b.id));
+    if(batches.some(b=>b.result_ids!==undefined && (!Array.isArray(b.result_ids)||b.result_ids.length>10000||!b.result_ids.every(p().validId)
+      ||new Set(b.result_ids).size!==b.result_ids.length)))throw Error('素材结果入库记录无效');
     if (rows.some(a => !ids.has(a.batch_id))) throw Error('字幕素材缺少批次');
     for (const b of batches) if (b.bindings !== undefined && (!Array.isArray(b.bindings) || b.bindings.length > 10000
       || b.bindings.some(binding => !object(binding) || !string(binding.track_id) || !binding.track_id
@@ -111,5 +113,29 @@
     }
     return {project:next, count:accepted.length, rows:rows.map(r => ({id:r.id,text:r.asset.text,reason:r.reason}))};
   }
-  global.MSWAssets = Object.freeze({validate, validSubtitle, batches, capture, add, insert});
+  function asrResults(ext,jobs) {
+    const next=copy(ext);let count=0;
+    next.subtitle_assets ||= [];next.asset_batches ||= [];
+    for(const job of jobs) {
+      if(job.project_id!==ext.project_id || job.status!=='succeeded')throw Error('识别结果不属于当前工程或尚未完成');
+      if(!job.result?.segments?.length)continue;
+      const id=job.snapshot.batch_id||job.id;
+      let batch=next.asset_batches.find(b=>b.id===id);
+      if(!batch){batch={id,kind:'asr',created_at:Math.round(job.created_at*1000),result_ids:[]};next.asset_batches.push(batch);}
+      if(batch.result_ids?.includes(job.id))continue;
+      const temp={segments:job.result.segments,msw:{schema:p().SCHEMA,project_id:ext.project_id}};
+      const rows=capture(temp,{mainIds:temp.segments.map(c=>c.id)}, {batchId:id,kind:'asr',sourceId:job.snapshot.mode==='clips'
+        ? ext.project_id : `media-${job.snapshot.source.revision}`}).assets;
+      next.subtitle_assets.push(...rows);batch.result_ids=[...(batch.result_ids||[]),job.id];count+=rows.length;
+    }
+    // Rebase all members when a later completed subtask starts earlier.
+    for(const batch of next.asset_batches.filter(b=>b.kind==='asr')) {
+      const rows=next.subtitle_assets.filter(a=>a.batch_id===batch.id);
+      const origin=Math.min(...rows.map(a=>a.original_start));
+      for(const a of rows){const shift=a.original_start-origin-a.start;a.start+=shift;a.end+=shift;
+        for(const item of a.items||[]){item.start+=shift;item.end+=shift;}}
+    }
+    validate(next);return {extension:next,count};
+  }
+  global.MSWAssets = Object.freeze({validate, validSubtitle, batches, capture, add, insert, asrResults});
 })(typeof window === 'undefined' ? globalThis : window);

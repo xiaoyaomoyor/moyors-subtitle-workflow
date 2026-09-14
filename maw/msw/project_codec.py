@@ -126,6 +126,10 @@ def validate_subtitle_assets(value):
     if any(a['batch_id'] not in {b['id'] for b in batches} for a in rows):
         errors.append(('$.msw.subtitle_assets', 'missing subtitle asset batch'))
     for b in batches:
+        results = b.get('result_ids', [])
+        if (not isinstance(results, list) or len(results) > 10000 or not all(valid_id(i) for i in results)
+                or len(set(results)) != len(results)):
+            errors.append(('$.msw.asset_batches', 'invalid result import records'))
         bindings = b.get('bindings', [])
         if (not isinstance(bindings, list) or len(bindings) > 10000 or any(
                 not isinstance(r, dict) or not string(r.get('track_id')) or not r['track_id']

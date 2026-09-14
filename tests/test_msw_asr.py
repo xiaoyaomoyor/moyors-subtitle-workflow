@@ -116,6 +116,28 @@ class AsrTests(unittest.TestCase):
         self.assertNotIn('synthetic-asr-key',raw)
         self.assertEqual(result['recipe']['qwen_audio_context'],'Names')
 
+    def test_clip_asr_extracts_samples_and_maps_to_timeline_without_source_media(self):
+        if not self.tools.complete: self.skipTest('FFmpeg required')
+        asset = {'id':'audio-'+'1'*32, 'sha256':'a'*64, 'sample_count':32000, 'sample_rate':16000}
+        self.api.asset_reference = lambda project, identity: (asset if identity == asset['id'] else None, None)
+        self.api.assets = SimpleNamespace(resolve=lambda *args: self.source)
+        self.snapshot = {'project_id':'temporary', 'mode':'clips', 'batch_id':'batch-clip',
+            'range':{'start':5000,'end':5500}, 'targets':[], 'source':{'kind':'clip','id':asset['id'],
+            'revision':asset['sha256'],'duration_ms':2000,'audio_index':0,'name':'clip',
+            'clip':{'id':'clip-1','asset_id':asset['id'],'start_ms':5000,'source_in_sample':16000,
+                    'source_out_sample':24000,'playback_rate':1}}}
+        self.media.records.clear()
+        snapshot, _ = self.service.prepare(self.payload())
+        manager=self.manager();job=manager.submit({**self.payload(),'snapshot':snapshot},self.settings())
+        result=self.wait(manager,job)
+        self.assertEqual(result['status'],'succeeded',result)
+        self.assertEqual(result['result']['segments'][0]['start'],5010)
+        self.assertEqual(result['snapshot']['batch_id'],'batch-clip')
+        bad=copy.deepcopy(snapshot);bad['source']['clip']['source_out_sample']=40000
+        with self.assertRaises(ValueError): self.service.source(bad)
+        bad=copy.deepcopy(snapshot);bad['source']['revision']='changed'
+        with self.assertRaises(ValueError): self.service.source(bad)
+
     def test_catalog_shares_existing_keys_without_returning_secrets_and_validates_models(self):
         catalog=asr_config.catalog(self.env_path)
         self.assertEqual({p['id'] for p in catalog['providers']},{'qwen','soniox','openai','doubao'})

@@ -17,6 +17,24 @@ function fixture(){
     result:{segments:[cue('candidate',1100,1700)]}};
   return{project,media,job};
 }
+test('whole-source replacement preserves subtitles beyond the video and rejects crossing its end',()=>{
+  const {project,media,job}=fixture();project.segments.push(cue('later',6000,7000));
+  job.snapshot=core.snapshot(project,media,'whole');
+  assert.equal(core.plan(project,media,job).segments.at(-1).id,'later');
+  project.segments[2].end=5000;job.snapshot=core.snapshot(project,media,'whole');
+  assert.throws(()=>core.plan(project,media,job),/切穿/);
+});
+test('clip snapshot uses sample duration and timeline origin, ignoring gain and mute changes',()=>{
+  const {project}=fixture();project.segments=[];
+  const asset={id:'a',sample_rate:44100,sample_count:441000,sha256:'a'.repeat(64),generation:{display_text:'audio'}};
+  const clip={id:'c',asset_id:'a',start_ms:5000,source_in_sample:44100,source_out_sample:88200,playback_rate:1,gain_db:0,muted:false};
+  project.msw.assets=[asset];project.msw.audio_clips=[clip];
+  const [snapshot]=core.clipSnapshots(project,[clip]);
+  assert.deepEqual(plain(snapshot.range),{start:5000,end:6000});
+  clip.gain_db=-8;clip.muted=true;assert.equal(core.conflict(project,null,snapshot),'');
+  clip.start_ms++;assert.match(core.conflict(project,null,snapshot),/贴片已/);
+  assert.throws(()=>core.clipSnapshots(project,[]),/请先选择音频贴片/);
+});
 test('range application preserves outside cues, hidden secondary text and records review state without mutating input',()=>{
   const {project,media,job}=fixture(),before=JSON.stringify(project),plan=core.plan(project,media,job);
   assert.equal(JSON.stringify(project),before);assert.equal(plan.applied,true);

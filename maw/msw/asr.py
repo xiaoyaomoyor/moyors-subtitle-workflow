@@ -3,6 +3,7 @@
 import copy
 from dataclasses import replace
 import json
+import math
 from pathlib import Path
 import tempfile
 import time
@@ -25,11 +26,21 @@ def validate_snapshot(raw):
         raise ValueError('源媒体时长不可用')
     if not isinstance(span, dict) or any(type(span.get(key)) is not int for key in ('start', 'end')):
         raise ValueError('ASR 范围必须使用整数毫秒')
-    if not 0 <= span['start'] < span['end'] <= duration:
-        raise ValueError('ASR 范围必须位于源媒体内')
     mode = raw.get('mode')
-    if mode not in {'whole', 'range'} or (mode == 'whole' and (span['start'] != 0 or span['end'] != duration)):
+    if not 0 <= span['start'] < span['end'] <= (7 * 86400000 if mode == 'clips' else duration):
+        raise ValueError('ASR 范围必须位于源媒体内')
+    if mode not in {'whole', 'range', 'clips'} or (mode == 'whole' and (span['start'] != 0 or span['end'] != duration)):
         raise ValueError('整个源视频与时间选区不能混用')
+    if mode == 'clips':
+        clip = source.get('clip')
+        if (source.get('kind') != 'clip' or not isinstance(clip, dict) or not valid_id(clip.get('id'))
+                or clip.get('asset_id') != source['id'] or clip.get('playback_rate') != 1
+                or any(type(clip.get(k)) is not int for k in ('start_ms', 'source_in_sample', 'source_out_sample'))
+                or clip['start_ms'] != span['start'] or not 0 <= clip['source_in_sample'] < clip['source_out_sample']):
+            raise ValueError('音频贴片快照无效')
+    batch_id = raw.get('batch_id')
+    if batch_id is not None and not valid_id(batch_id):
+        raise ValueError('ASR 批次标识无效')
     targets = raw.get('targets')
     if not isinstance(targets, list) or len(targets) > 10000:
         raise ValueError('ASR 目标字幕快照过大或无效')
@@ -39,7 +50,8 @@ def validate_snapshot(raw):
     if mode == 'range' and any(cue['start'] < span['start'] or cue['end'] > span['end'] for cue in normalized):
         raise ValueError('选区切穿已有字幕；请调整范围或先扩展到完整字幕边界')
     return {'project_id': raw['project_id'], 'source': {key: copy.deepcopy(source[key]) for key in
-            ('id', 'revision', 'reference', 'name', 'audio_index', 'duration_ms') if key in source},
+            ('id', 'revision', 'reference', 'name', 'audio_index', 'duration_ms', 'kind', 'clip') if key in source},
+            **({'batch_id': batch_id} if batch_id else {}), 'batch_overlap': raw.get('batch_overlap') is True,
             'range': {'start': span['start'], 'end': span['end']}, 'mode': mode, 'targets': copy.deepcopy(targets)}
 
 
@@ -94,6 +106,17 @@ class AsrService:
 
     def source(self, snapshot, *, require_active=False):
         source = snapshot['source']
+        if snapshot['mode'] == 'clips':
+            asset, project_path = self.api.asset_reference(snapshot['project_id'], source['id'])
+            clip = source['clip']
+            if (not asset or asset['sha256'] != source['revision'] or source.get('audio_index') != 0
+                    or clip['source_out_sample'] > asset['sample_count']
+                    or source['duration_ms'] != math.ceil(asset['sample_count'] * 1000 / asset['sample_rate'])
+                    or snapshot['range']['end'] != clip['start_ms'] + max(1, math.ceil(
+                        (clip['source_out_sample'] - clip['source_in_sample']) * 1000 / asset['sample_rate']))):
+                raise ValueError('音频素材版本或贴片裁剪范围已变化')
+            path = self.api.assets.resolve(snapshot['project_id'], asset, project_path)
+            return {'path': str(path), 'audio_index': 0}
         record = self.api.media.get(source['id'], snapshot['project_id'])
         if record.get('track_conflict'):
             raise ValueError('工程的公共音轨与旧 MSW 音轨冲突，请在媒体设置中确认源音轨后再识别')
@@ -116,9 +139,10 @@ class AsrService:
         if snapshot['project_id'] != payload['project_id']:
             raise ValueError('ASR 工程快照不一致')
         record = self.source(snapshot, require_active=True)
-        public = self.api.media.public(record)
-        snapshot['source'] = {key: public[key] for key in ('id', 'revision', 'reference', 'name', 'audio_index')}
-        snapshot['source']['duration_ms'] = record['metadata']['duration_ms']
+        if snapshot['mode'] != 'clips':
+            public = self.api.media.public(record)
+            snapshot['source'] = {key: public[key] for key in ('id', 'revision', 'reference', 'name', 'audio_index')}
+            snapshot['source']['duration_ms'] = record['metadata']['duration_ms']
         if not self.api.exports.tools().complete:
             raise ValueError('ASR 需要 FFmpeg 与 FFprobe，请先配置媒体工具')
         return snapshot, record
@@ -135,9 +159,12 @@ class AsrService:
             source = root / 'source.wav'
             span = snapshot['range']
             progress('extracting', {'message': '正在提取所选源音轨', 'start_ms': span['start'], 'end_ms': span['end']})
+            clip = snapshot['source'].get('clip') if snapshot['mode'] == 'clips' else None
+            filters = (f"atrim=start_sample={clip['source_in_sample']}:end_sample={clip['source_out_sample']},asetpts=PTS-STARTPTS,aresample=16000"
+                       if clip else f"aresample=16000:async=1:first_pts=0,atrim=start_sample={span['start'] * 16}:end_sample={span['end'] * 16},asetpts=PTS-STARTPTS")
             run(command_prefix(tools.ffmpeg) + ['-protocol_whitelist', 'file,pipe', '-copyts', '-start_at_zero',
                 '-i', record['path'], '-map', f"0:a:{record['audio_index']}", '-vn', '-af',
-                f"aresample=16000:async=1:first_pts=0,atrim=start_sample={span['start'] * 16}:end_sample={span['end'] * 16},asetpts=PTS-STARTPTS",
+                filters,
                 '-ac', '1', '-c:a', 'pcm_s16le', str(source)], cancel, timeout=6 * 3600,
                 failure_message='提取 ASR 音频失败，请检查源媒体、所选音轨和缓存空间')
             with wave.open(str(source), 'rb') as audio:

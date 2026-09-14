@@ -454,6 +454,18 @@ class ProcessingAPI:
                 elif route == "asset-bundle" and post:
                     self.send_bundle(handler, payload)
                     return True
+                elif route == "asset-export" and post:
+                    import shutil
+                    from maw.msw.asset_export import selected_audio_zip
+                    with selected_audio_zip(self, project_id, payload.get("asset_ids")) as (stream, size):
+                        handler.send_response(HTTPStatus.OK)
+                        handler.send_header("Content-Type", "application/zip")
+                        handler.send_header("Content-Disposition", 'attachment; filename="selected-audio.zip"')
+                        handler.send_header("Content-Length", str(size))
+                        handler.send_header("Cache-Control", "no-store")
+                        handler.end_headers()
+                        shutil.copyfileobj(stream, handler.wfile)
+                    return True
                 elif route in {"audio-export-context", "video-export-context", "timeline-export-context"} and not post:
                     result = self.exports.context(project_id, video=route != "audio-export-context")
                 elif route == "audio-exports" and post:

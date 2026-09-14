@@ -866,7 +866,7 @@ uv run python edit.py your_generated.mosp
 
 `created_at` 为 Unix 毫秒；`original_start` 是原时间线起点，`start/end` 是相对批次最早起点的毫秒时间。时间均为非负 JavaScript 安全整数，`end > start`。文本最多 12000 个 Unicode 字符。`items` 如存在，最多 12000 项，必须位于该素材起止范围内，使用同一批次相对时间；修改素材文字时移除原逐字时间，避免伪造文字对齐。可选 `color: {name, value}`，颜色 value 为六位十六进制；复制时把颜色引用解析为独立颜色，插入不引用原字幕下标。`style`、`split_mode` 如存在则保留。
 
-`asset_batches[*]` 必填 `id`、`kind`、`created_at`。kind 支持 `copy/asr/tts/imported/regenerated`；可选 `parent_id`、`result_id` 记录来源和入库去重。`bindings` 可选，保留完整选中配对的 `track_id`、主副字幕原 ID 数组与整数时间偏移；只有配对双方都被成功放入时才创建新绑定。批次和素材 ID 不重复，字幕素材必须有对应批次。
+`asset_batches[*]` 必填 `id`、`kind`、`created_at`。kind 支持 `copy/asr/tts/imported/regenerated`；可选 `parent_id`、`result_id` 记录来源和入库去重；`result_ids` 为至多 10000 个不重复合法任务 ID，记录同批已入库 ASR 子任务，支持部分完成后追加。`regenerated` 批次的 `parent_id` 指向原音频素材 ID。`bindings` 可选，保留完整选中配对的 `track_id`、主副字幕原 ID 数组与整数时间偏移；只有配对双方都被成功放入时才创建新绑定。批次和素材 ID 不重复，字幕素材必须有对应批次。
 
 音频可选 `batch_id`（合法 MSW ID），用于将同次多文件导入归组；缺省回退到原 `job_id`。字幕素材字段随工程内容及恢复快照保存，另存为保留其 ID、来源和时间关系。音频素材字节与原配方管理不变。
 
@@ -932,6 +932,10 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 快照中的 `gap_remove.gaps` 是编辑器 `buildJson()` 已投影的当前空隙决定；后台验证这些区间，再独立应用贴片保护和时间映射，不接受客户端提交的 FFmpeg 图或任意素材路径。共同计划夹具位于 `tests/fixtures/msw_audio_render.json`。导出格式、范围和总音量记录于本机导出任务，不成为工程设置；WAV 成品不自动添加到 TTS 素材库。
 
 ### 编辑器 ASR 应用与派生内容复核
+
+ASR 任务快照支持 `mode: whole/range/clips`，可选 `batch_id` 将同次操作的子任务归组。`clips` 的 `source.kind` 为 `clip`，`source.id/revision` 为音频素材 ID/SHA-256，`source.clip` 记录贴片 `id/asset_id/start_ms/source_in_sample/source_out_sample/playback_rate`（当前仅 1）；`source.duration_ms` 为完整素材样本时长向上取整，`range` 为裁剪后音频在时间线上的整数毫秒范围。后端仅按合法素材引用读取，以样本点裁剪，再将识别相对时间加上 `range.start`。增益／静音不属于识别内容版本。`batch_overlap` 标记同次选择的贴片范围重叠，阻止直接覆盖；该标记保留到重试。`targets` 保存当时受影响的主字幕，用于应用前比较；整个视频模式也只取视频时段内字幕。
+
+ASR 素材的 `original_start` 保留映射后的时间线位置，`start/end/items` 相对于当前批次最早结果；后续更早的子任务入库会统一重基。不同贴片引用同一工程时间线，因此可以在该批次内保留相对间隔。
 
 `msw.asr_applications` 为可选对象，最多保留 1000 个任务 ID 对应的应用记录。每条记录包含 `source_id`、64 位小写十六进制 `source_revision`、`audio_index`（0–255）、`range.start/end`（整数源毫秒，0 ≤ start < end ≤ 604800000）、`provider`、`model`（最长 256 字符）和 `removed_count/added_count`（0–10000）。已应用任务 ID 同时加入原有 `msw.applied_results`，避免重复插入。记录不包含密钥、请求头或临时音频路径。
 

@@ -80,10 +80,12 @@
     const provider=providers.find(item=>item.id===el('providerId').value);
     const caps=openaiOptions(),ready=Boolean(provider?.hasApiKey)&&caps?.timestamps!==false;
     el('scope-actions').hidden=mode!=='range';
-    el('source').textContent=current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
+    const clips=global.MSWE.resolve('audio-timeline')?.selectedClips()||[];
+    el('source').textContent=mode==='clips'?`${t('所选音频贴片')} · ${clips.length}`:current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
     el('edit-range').hidden=mode!=='range';el('edit-range').disabled=!selection.length;
     let issue='',snapshot=null;
     try {global.MSWProject.ensure(host.data);snapshot=snapshots();} catch(error){issue=error.message;}
+    if(mode==='clips'&&snapshot)el('source').textContent+=` · ${(snapshot.reduce((sum,item)=>sum+item.range.end-item.range.start,0)/1000).toFixed(3)} s`;
     const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
     el('scope').textContent=issue||(!ready?t('请先在环境配置中保存此服务的 API Key'):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
@@ -96,6 +98,7 @@
   }
   function snapshots() {
     const mode=el('mode').value,selection=mode==='range'?ranges?.ranges:[];
+    if(mode==='clips')return global.MSWAsr.clipSnapshots(host.data,global.MSWE.resolve('audio-timeline')?.selectedClips());
     return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range));
   }
   async function submit() {
@@ -106,7 +109,10 @@
       if (!submission) {
         if (!providers.find(item=>item.id===el('providerId').value)?.hasApiKey) throw Error('请先在环境配置中保存此服务的 API Key');
         const provider=providerInput();
-        submission=snapshots().map(snapshot=>({...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot,provider}));
+        const batchId=global.MSWProject.id('asr-batch');
+        const inputs=snapshots();
+        submission=inputs.map(snapshot=>({...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot:{...snapshot,batch_id:batchId,
+          batch_overlap:snapshot.mode==='clips'&&inputs.some(other=>other!==snapshot&&other.range.start<snapshot.range.end&&snapshot.range.start<other.range.end)},provider}));
         batchSubmission=submission.length>1;
       }
       busy=true;updateScope();
@@ -160,6 +166,12 @@
       if (['failed','cancelled','interrupted'].includes(job.status)) button('使用此范围重试',async()=>{
         try {
           const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
+          if(result.job.snapshot.mode==='clips') {
+            const snap=result.job.snapshot, clips=host.data.msw?.audio_clips||[], clip=clips.find(c=>c.id===snap.source.clip.id);
+            if(host.data.msw?.project_id!==job.project_id||!clip||Object.keys(snap.source.clip).some(k=>clip[k]!==snap.source.clip[k]))throw Error('贴片已改变，请重新选择识别范围');
+            submission=[{...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot:snap,provider:providerInput()}];
+            batchSubmission=false;el('mode').value='clips';await submit();return;
+          }
           if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision) throw Error('媒体已改变，请重新选择识别范围');
           el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);updateScope();message('范围已恢复；检查当前配置后点击开始识别');
         }catch(error){message(error.message);}
@@ -171,18 +183,41 @@
   function resultStatus(job) {
     const rows=job.result?.segments||[],conflict=global.MSWAsr.conflict(host.data,media.current,job.snapshot);
     const applied=host.data.msw?.applied_results?.includes(job.id);
-    let text=conflict||t(applied?'此结果已应用':rows.length?'候选字幕':'没有识别到语音；保留现有字幕');
+    let text=applied?t('此结果已应用'):conflict||t(rows.length?'候选字幕':'没有识别到语音；保留现有字幕');
+    if(stored(job))text+=' · '+t('已存入素材库');
     if(rows.length&&!applied&&!conflict)text+=' '+rows.length+' · '+t('替换主字幕')+' '+job.snapshot.targets.length+' → '+rows.length;
-    if(rows.length>300)text+=' · '+t('仅预览前 300 条，可导出全部');
+    if(rows.length>300)text+=' · '+t('仅预览前 300 条，入库保留全部');
     if(job.result?.warnings?.length)text+=' · '+job.result.warnings.join('；');
     return text;
   }
   function refreshFooter() {
     const rows=selected?.result?.segments||[];
-    el('apply').disabled=!selected||!rows.length||!host.applyASR||Boolean(global.MSWAsr.conflict(host.data,media.current,selected.snapshot))||host.data.msw?.applied_results?.includes(selected.id);
-    for(const key of ['discard','export-json','export-srt'])el(key).disabled=!selected?.result;
+    el('apply').disabled=!selected||!rows.length||!host.applyASR||Boolean(global.MSWAsr.conflict(host.data,media.current,selected.snapshot))||host.data.msw?.applied_results?.includes(selected.id)||overlappingBatch(selected);
+    el('apply').title=selected&&overlappingBatch(selected)?t('同批识别范围重叠，请先存入素材库'):'';
+    el('store').disabled=!selected||!batchResults(selected).some(j=>j.result?.segments?.length&&!stored(j));
     el('selected').textContent=selected?t('当前结果')+' · '+selected.result.model+' · '+(selected.snapshot.range.start/1000).toFixed(3)+'–'+(selected.snapshot.range.end/1000).toFixed(3)+' s':'';
     const status=el('result-status');if(status&&selected)status.textContent=resultStatus(selected);
+  }
+  const stored=job=>(host.data.msw?.asset_batches||[]).some(b=>b.result_ids?.includes(job.id));
+  const batchId=job=>job.snapshot?.batch_id||job.batch_id||job.id;
+  const batchResults=job=>[...details.values()].filter(j=>batchId(j)===batchId(job)&&j.project_id===host.data.msw?.project_id&&j.status==='succeeded');
+  function overlappingBatch(job) {
+      if(job.snapshot?.mode!=='clips')return false;
+      if(job.snapshot.batch_overlap)return true;
+    const range=job.snapshot.range;
+    return [...jobs.values()].some(j=>j.id!==job.id&&batchId(j)===batchId(job)&&j.source_range
+      &&j.source_range.start<range.end&&range.start<j.source_range.end);
+  }
+  function storeBatch() {
+    try {
+      if(!selected)return;
+      host.commitEdits();
+      const result=global.MSWAssets.asrResults(host.data.msw,batchResults(selected));
+      if(!result.count)return;
+      host.commitSubtitleAssets('ASR 结果存入素材库',ext=>Object.assign(ext,result.extension));
+      host.showAssets({automatic:true});global.MSWE.resolve('asset-library')?.showBatch(batchId(selected));
+      message(`${t('已存入素材库')} ${result.count} ${t('条字幕')} · ${t('本批完成结果已入库')}`);renderJobs();
+    }catch(error){message(error.message);}
   }
   function preview(job,reveal=true) {
     selected=job;details.set(job.id,job);renderJobs();
@@ -196,13 +231,13 @@
       details.set(id,result.job);preview(result.job);
     }catch(error){message(error.message);}
   }
-  async function apply(job,automatic=false) {
+  async function apply(job) {
     if (!host.applyASR) return;
     const generation=host.generation;
     try {
+      if(overlappingBatch(job))throw Error('同批识别范围重叠，请先存入素材库');
       await media.request('asr-validate',{...media.payload(),job_id:job.id});
       if (generation!==host.generation) return;
-      if (automatic&&(job.client_token!==token()||host.data.segments.length||host.isEditing())) return;
       const result=host.applyASR(job,media.current);
       if (!result.applied) {preview(job);return;}
       await media.request(`jobs/${job.id}/ack`,{project_id:job.project_id,application:'applied'});
@@ -215,9 +250,7 @@
     const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
     if (host.data.msw?.project_id!==job.project_id) return;
     details.set(job.id,result.job);
-    if (job.client_token===token()&&job.application==='pending'&&!host.data.segments.length
-      &&!result.job.snapshot.targets.length&&!host.isEditing()&&result.job.result?.segments?.length) await apply(result.job,true);
-    else if (panel.classList.contains('show')&&!selected) preview(result.job,false);
+    if (panel.classList.contains('show')&&!selected) preview(result.job,false);
   }
   function schedule(delay=1000) {clearTimeout(timer);timer=setTimeout(()=>void poll(),delay);}
   async function poll() {
@@ -235,16 +268,6 @@
       if (selected&&panel.classList.contains('show')) refreshFooter();
     }catch(error){if(panel.classList.contains('show'))message(error.message);}
     finally {polling=false;schedule([...jobs.values()].some(job=>!terminal.has(job.status))?750:2500);}
-  }
-  function download(kind) {
-    if (!selected?.result) return;
-    const project={schema:'moy.asr.project.v1',media:selected.snapshot.source.reference,segments:selected.result.segments,
-      language:selected.result.language,model:selected.result.model};
-    const stamp=ms=>`${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')},${String(ms%1000).padStart(3,'0')}`;
-    const content=kind==='mosp'?JSON.stringify(project,null,2):project.segments.map((cue,index)=>`${index+1}\n${stamp(cue.start)} --> ${stamp(cue.end)}\n${cue.text}\n`).join('\n');
-    const url=URL.createObjectURL(new Blob([content],{type:kind==='mosp'?'application/json':'text/plain;charset=utf-8'}));
-    const link=document.createElement('a');link.href=url;link.download=`${selected.snapshot.source.name.replace(/\.[^.]+$/,'').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_')}.asr-candidates.${kind}`;
-    link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
   const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.querySelector('[data-menubar-item="media"] > button'),positionKey:'msw.asr.panel.position'});
   async function open(mode='whole') {
@@ -282,15 +305,8 @@
     }catch(error){el('environment-message').textContent=error.message;}finally{busy=false;updateScope();}
   });
   el('apply').addEventListener('click',()=>{if(selected)void apply(selected);});
-  el('discard').addEventListener('click',async()=>{
-    if(!selected)return;
-    const job=selected,generation=host.generation;
-    try {await media.request(`jobs/${job.id}/ack`,{project_id:job.project_id,application:'discarded'});
-      if(generation===host.generation){if(el('preview'))el('preview').open=false;selected=null;renderJobs();message('候选结果已搁置，仍可在任务列表预览或导出');schedule(0);}
-    }catch(error){message(error.message);}
-  });
-  el('export-json').addEventListener('click',()=>download('mosp'));el('export-srt').addEventListener('click',()=>download('srt'));
-  for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
+  el('store').addEventListener('click',storeBatch);
+  for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
   global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
   global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
   refreshFooter();

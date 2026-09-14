@@ -1013,6 +1013,46 @@ async function openBatchWithSavedEnvironment(page) {
   await page.evaluate(()=>MSWE.resolve('audio-timeline').selectAllClips());
   await openMenubarMenu(page,'媒体'); await page.locator('#audio-actions-open').click();
 }
+test('library regeneration adds a new batch without changing clips and selected ZIP contains only selected audio',async({page})=>{
+  await prepareClips(page);await openBatchWithSavedEnvironment(page);await page.locator('#audio-actions-close').click();
+  const before=await page.evaluate(()=>JSON.parse(JSON.stringify(DATA.msw.audio_clips)));
+  const original=await page.evaluate(()=>DATA.msw.assets[0]);
+  await page.locator(`[data-asset-id="${original.id}"] [data-asset-action="regenerate"]`).click();
+  await expect(page.locator('#asset-import-message')).toContainText('新增音频素材 1');
+  expect(await countAssets(page)).toBe(3);
+  expect(await page.evaluate(()=>DATA.msw.audio_clips)).toEqual(before);
+  const batch=await page.evaluate(()=>DATA.msw.asset_batches.find(b=>b.kind==='regenerated'));
+  expect(batch.parent_id).toBe(original.id);
+  expect(await page.evaluate(id=>DATA.msw.assets.filter(a=>a.batch_id===id).length,batch.id)).toBe(1);
+  expect(calls.at(-1).recipe.voice).toBe(original.generation.voice);
+  expect(calls.at(-1).text).toBe(original.generation.display_text);
+  const cards=page.locator('#asset-list .msw-asset-row');
+  await cards.nth(0).click();await cards.nth(2).click({modifiers:['Control']});
+  const ids=await page.evaluate(()=>MSWE.resolve('asset-library').selectedIds());
+  expect(ids).toHaveLength(2);await expect(page.locator('#asset-list .selected')).toHaveCount(2);
+  const response=page.waitForResponse(r=>r.url().endsWith('/asset-export'));
+  const download=page.waitForEvent('download');await page.locator('#asset-export-selected').click();
+  const res=await response;expect(res.status()).toBe(200);
+  expect(res.request().postDataJSON().asset_ids).toEqual(ids);
+  const artifact=await download;const bytes=readFileSync(await artifact.path());
+  // Central directory entries count the complete WAV files, independent of names.
+  let entries=0;for(let i=0;i<bytes.length-4;i++)if(bytes.readUInt32LE(i)===0x02014b50)entries++;
+  expect(entries,bytes.subarray(0,150).toString()).toBe(2);expect(artifact.suggestedFilename()).toBe('selected-audio.zip');
+  await page.screenshot({path:join(dir,'library-regenerated.png'),fullPage:true});
+});
+test('library regeneration resumes an uncertain submission without duplicate synthesis or replacement',async({page})=>{
+  await prepareClips(page);await openBatchWithSavedEnvironment(page);await page.locator('#audio-actions-close').click();
+  const before=await page.evaluate(()=>JSON.parse(JSON.stringify(DATA.msw.audio_clips))),count=calls.length;
+  const id=await page.evaluate(()=>DATA.msw.assets[0].id);
+  let dropped=false;await page.route('**/api/msw/jobs',async route=>{
+    if(route.request().method()==='POST'&&!dropped){dropped=true;await route.fetch();await route.abort();}else await route.continue();
+  });
+  const button=page.locator(`[data-asset-id="${id}"] [data-asset-action="regenerate"]`);
+  await button.click();await expect(page.locator('#asset-import-message')).toContainText('不会重复提交');
+  await expect(button).toHaveAttribute('title','继续确认本批任务');await button.click();
+  await expect(page.locator('#asset-import-message')).toContainText('新增音频素材 1');
+  expect(calls.length-count).toBe(1);expect(await page.evaluate(()=>DATA.msw.audio_clips)).toEqual(before);
+});
 test('production regenerate preserves original recipe and start, uses full duration and one undo', async ({page})=>{
   await prepareClips(page); await openBatchWithSavedEnvironment(page);
   const before=await page.evaluate(()=>JSON.parse(JSON.stringify(DATA.msw.audio_clips)));

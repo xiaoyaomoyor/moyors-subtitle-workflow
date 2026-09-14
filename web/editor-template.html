@@ -1888,6 +1888,7 @@ __WAVEFORM_CSS__
       <span class="msw-asset-notice" id="asset-notice"></span>
       <div class="msw-asset-summary-actions">
         <button type="button" id="asset-insert-selected" hidden>放入所选字幕</button>
+        <button type="button" id="asset-export-selected" hidden>导出所选音频</button>
         <button type="button" id="asset-import" class="msw-asset-iconbtn" title="导入音频" aria-label="导入音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7m0 0 3-3m-3 3-3-3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与音频素材包" aria-label="导出工程与音频素材包"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <span class="msw-asset-pagenum" id="asset-page">1 / 1</span>
@@ -2232,10 +2233,10 @@ __WAVEFORM_CSS__
       <p id="msw-asr-source" class="msw-processing-hint"></p>
       <div id="msw-asr-settings">
         <div class="msw-asr-fields">
+          <label><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option><option value="clips">所选音频贴片</option></select></label>
           <label>服务 <select id="msw-asr-providerId"></select></label>
           <label>模型 <select id="msw-asr-modelId"></select></label>
           <label>语言 <input id="msw-asr-language" list="msw-asr-languages" placeholder="留空自动识别"></label><datalist id="msw-asr-languages"></datalist>
-      <label ><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option></select></label>
           <label data-asr-openai>自定义模型 <input id="msw-asr-openaiModel" spellcheck="false"></label>
           <label data-asr-speaker><input id="msw-asr-speakerColors" type="checkbox">区分说话人</label>
         </div>
@@ -2270,9 +2271,8 @@ __WAVEFORM_CSS__
       <p id="msw-asr-message" class="msw-processing-message" role="status" aria-live="polite"></p>
       <details id="msw-asr-history" class="msw-tts-section"><summary>识别记录 <span id="msw-asr-count">0</span></summary><div id="msw-asr-jobs" class="msw-job-list"></div></details>
       <p id="msw-asr-selected" class="msw-processing-hint" role="status"></p>
-        <div class="msw-processing-actions"><button type="button" id="msw-asr-apply" class="primary">应用到主字幕</button>
-        <button type="button" id="msw-asr-discard">搁置结果</button>
-        <button type="button" id="msw-asr-export-json">导出候选工程</button><button type="button" id="msw-asr-export-srt">导出候选 SRT</button></div>
+        <div class="msw-processing-actions"><button type="button" id="msw-asr-apply" class="primary">覆盖主字幕</button>
+        <button type="button" id="msw-asr-store">存入素材库</button></div>
     </div>
   </div>
 </aside>

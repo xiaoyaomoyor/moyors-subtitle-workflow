@@ -12,7 +12,7 @@
   let selectionAnchor=null, visibleRows=[], editingId=null, committing=false;
   const subtitles=()=>host.data.msw?.subtitle_assets||[];
   let page=0, previewUrl=null, previewId=null, previewSequence=0, previewOwner='';
-  let assetScrubbing=false, importing=false, stopImport=false;
+  let assetScrubbing=false, importing=false, stopImport=false, exporting=false;
   const PAGE_SIZE=90, DENSITY_KEY='msw.assets.columns';
   let density=3;
   try {const saved=Number(localStorage.getItem(DENSITY_KEY));if(Number.isInteger(saved)&&saved>=1&&saved<=5)density=saved;}catch(_){}
@@ -29,6 +29,7 @@
     return button;
   }
   const icons = {
+    regenerate: '<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M18 18A8 8 0 0 1 5 15"/>',
     edit: '<path d="m4 16-1 5 5-1L21 7l-4-4zM14 6l4 4"/>',
     play: '<path class="asset-icon-fill" d="M7 4v16l13-8z"/>',
     pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
@@ -255,6 +256,8 @@
     el('asset-count').textContent = `${rows.length} / ${all.length} ${t(type === 'audio' ? '条音频' : type === 'subtitle' ? '条字幕' : '条素材')}`
       + (selected.size ? ` · ${t('已选')} ${selected.size}` : '');
     el('asset-insert-selected').hidden = !selected.size || [...selected].some(id => !subtitles().some(a => a.id === id));
+    el('asset-export-selected').hidden = !selected.size || [...selected].some(id=>!assets().some(a=>a.id===id));
+    el('asset-export-selected').disabled = !available || exporting;
     el('asset-page').textContent = `${page + 1} / ${pages}`;
     el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
     el('asset-export-project').disabled = !available || !all.length;
@@ -314,7 +317,12 @@
         if (previewId === asset.id || !previewId) stopPreview();
         if (host.removeAsset(asset.id)) host.flashHint(t('素材已移除，可撤销；原文件保留'), 'success');
       });
-      buttons.append(play, save, insert, remove); row.append(content, buttons); fragment.append(row);
+      const regenerator=global.MSWE.resolve('asset-regenerator');
+      const can=global.MSWAudioActions.canRegenerate(asset.generation);
+      const regenerate=iconAction(!can?'缺少原合成配置或属于外部音频':regenerator?.pendingId===asset.id?'继续确认本批任务':'按原配置重新生成（将调用原服务）',
+        'regenerate',()=>regenerator?.regenerate(asset.id));
+      regenerate.disabled=!available||!can||!regenerator||regenerator.busy||Boolean(regenerator.pendingId&&regenerator.pendingId!==asset.id);
+      buttons.append(play, save, insert, regenerate, remove); row.append(content, buttons); fragment.append(row);
     }
     list.replaceChildren(fragment); updatePreviewButtons();
     if (focusedId) {
@@ -419,6 +427,21 @@
       host.flashHint(t('已导出工程与音频素材包；解压后打开 project.mosp。'), 'success');
     } catch (error) { if (generation === host.generation) host.flashHint(error.message, 'warning'); }
     finally { button.disabled = false; }
+  });
+  el('asset-export-selected').addEventListener('click',async()=>{
+    if(exporting)return;
+    const ids=[...selected],generation=host.generation;
+    if(!ids.length||ids.some(id=>!assets().some(a=>a.id===id)))return;
+    exporting=true;renderAssets();
+    try {
+      const blob=await request('asset-export',{project_id:projectId(),asset_ids:ids},true);
+      if(generation===host.generation)download(blob,'selected-audio.zip');
+    }catch(error){if(generation===host.generation)host.flashHint(error.message,'warning');}
+    finally{exporting=false;renderAssets();}
+  });
+  global.addEventListener('msw:asset-generation',event=>{
+    if(event.detail){el('asset-import-status').hidden=false;el('asset-import-message').textContent=event.detail;el('asset-import-stop').hidden=!importing;}
+    renderAssets();
   });
   document.addEventListener('play', event => {
     if (event.target === el('asset-audio')) host.pauseMedia();

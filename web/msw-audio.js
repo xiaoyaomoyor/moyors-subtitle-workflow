@@ -386,7 +386,7 @@
   document.addEventListener('pointerdown', event => {
     if (menu?.contains(event.target)) return;
     closeMenu();
-    if (event.target.closest('.msw-audio-lanes, .menubar, #audio-actions-panel')) return;
+    if (event.target.closest('.msw-audio-lanes, .menubar, #audio-actions-panel, #msw-asr-panel, #editor-settings-modal')) return;
     if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
   }, true);
   document.addEventListener('keydown', event => {

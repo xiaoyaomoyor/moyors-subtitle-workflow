@@ -254,6 +254,7 @@ class JobManager:
             elif kind == 'asr':
                 job['recipe'] = copy.deepcopy(settings.recipe)
                 job['source_range'] = copy.deepcopy(snapshot['range'])
+                job['batch_id'] = snapshot.get('batch_id', job['id'])
             self._write(job)
             cancel = threading.Event()
             self.cancel_events[job["id"]] = cancel

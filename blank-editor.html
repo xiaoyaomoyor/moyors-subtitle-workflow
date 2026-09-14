@@ -7321,6 +7321,7 @@
       <span class="msw-asset-notice" id="asset-notice"></span>
       <div class="msw-asset-summary-actions">
         <button type="button" id="asset-insert-selected" hidden>放入所选字幕</button>
+        <button type="button" id="asset-export-selected" hidden>导出所选音频</button>
         <button type="button" id="asset-import" class="msw-asset-iconbtn" title="导入音频" aria-label="导入音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7m0 0 3-3m-3 3-3-3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与音频素材包" aria-label="导出工程与音频素材包"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <span class="msw-asset-pagenum" id="asset-page">1 / 1</span>
@@ -7665,10 +7666,10 @@
       <p id="msw-asr-source" class="msw-processing-hint"></p>
       <div id="msw-asr-settings">
         <div class="msw-asr-fields">
+          <label><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option><option value="clips">所选音频贴片</option></select></label>
           <label>服务 <select id="msw-asr-providerId"></select></label>
           <label>模型 <select id="msw-asr-modelId"></select></label>
           <label>语言 <input id="msw-asr-language" list="msw-asr-languages" placeholder="留空自动识别"></label><datalist id="msw-asr-languages"></datalist>
-      <label ><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option></select></label>
           <label data-asr-openai>自定义模型 <input id="msw-asr-openaiModel" spellcheck="false"></label>
           <label data-asr-speaker><input id="msw-asr-speakerColors" type="checkbox">区分说话人</label>
         </div>
@@ -7703,9 +7704,8 @@
       <p id="msw-asr-message" class="msw-processing-message" role="status" aria-live="polite"></p>
       <details id="msw-asr-history" class="msw-tts-section"><summary>识别记录 <span id="msw-asr-count">0</span></summary><div id="msw-asr-jobs" class="msw-job-list"></div></details>
       <p id="msw-asr-selected" class="msw-processing-hint" role="status"></p>
-        <div class="msw-processing-actions"><button type="button" id="msw-asr-apply" class="primary">应用到主字幕</button>
-        <button type="button" id="msw-asr-discard">搁置结果</button>
-        <button type="button" id="msw-asr-export-json">导出候选工程</button><button type="button" id="msw-asr-export-srt">导出候选 SRT</button></div>
+        <div class="msw-processing-actions"><button type="button" id="msw-asr-apply" class="primary">覆盖主字幕</button>
+        <button type="button" id="msw-asr-store">存入素材库</button></div>
     </div>
   </div>
 </aside>
@@ -15315,6 +15315,8 @@ export default MawDynamicCaptions;
       || (b.result_id !== undefined && !p().validId(b.result_id)) || (b.parent_id !== undefined && !p().validId(b.parent_id)))
       || new Set(batches.map(b => b.id)).size !== batches.length) throw Error('素材批次格式无效或重复');
     const ids = new Set(batches.map(b => b.id));
+    if(batches.some(b=>b.result_ids!==undefined && (!Array.isArray(b.result_ids)||b.result_ids.length>10000||!b.result_ids.every(p().validId)
+      ||new Set(b.result_ids).size!==b.result_ids.length)))throw Error('素材结果入库记录无效');
     if (rows.some(a => !ids.has(a.batch_id))) throw Error('字幕素材缺少批次');
     for (const b of batches) if (b.bindings !== undefined && (!Array.isArray(b.bindings) || b.bindings.length > 10000
       || b.bindings.some(binding => !object(binding) || !string(binding.track_id) || !binding.track_id
@@ -15400,7 +15402,31 @@ export default MawDynamicCaptions;
     }
     return {project:next, count:accepted.length, rows:rows.map(r => ({id:r.id,text:r.asset.text,reason:r.reason}))};
   }
-  global.MSWAssets = Object.freeze({validate, validSubtitle, batches, capture, add, insert});
+  function asrResults(ext,jobs) {
+    const next=copy(ext);let count=0;
+    next.subtitle_assets ||= [];next.asset_batches ||= [];
+    for(const job of jobs) {
+      if(job.project_id!==ext.project_id || job.status!=='succeeded')throw Error('识别结果不属于当前工程或尚未完成');
+      if(!job.result?.segments?.length)continue;
+      const id=job.snapshot.batch_id||job.id;
+      let batch=next.asset_batches.find(b=>b.id===id);
+      if(!batch){batch={id,kind:'asr',created_at:Math.round(job.created_at*1000),result_ids:[]};next.asset_batches.push(batch);}
+      if(batch.result_ids?.includes(job.id))continue;
+      const temp={segments:job.result.segments,msw:{schema:p().SCHEMA,project_id:ext.project_id}};
+      const rows=capture(temp,{mainIds:temp.segments.map(c=>c.id)}, {batchId:id,kind:'asr',sourceId:job.snapshot.mode==='clips'
+        ? ext.project_id : `media-${job.snapshot.source.revision}`}).assets;
+      next.subtitle_assets.push(...rows);batch.result_ids=[...(batch.result_ids||[]),job.id];count+=rows.length;
+    }
+    // Rebase all members when a later completed subtask starts earlier.
+    for(const batch of next.asset_batches.filter(b=>b.kind==='asr')) {
+      const rows=next.subtitle_assets.filter(a=>a.batch_id===batch.id);
+      const origin=Math.min(...rows.map(a=>a.original_start));
+      for(const a of rows){const shift=a.original_start-origin-a.start;a.start+=shift;a.end+=shift;
+        for(const item of a.items||[]){item.start+=shift;item.end+=shift;}}
+    }
+    validate(next);return {extension:next,count};
+  }
+  global.MSWAssets = Object.freeze({validate, validSubtitle, batches, capture, add, insert, asrResults});
 })(typeof window === 'undefined' ? globalThis : window);
 
 // Pure sample/time math shared by timeline, playback and project validation.
@@ -16033,7 +16059,7 @@ export default MawDynamicCaptions;
     return Object.fromEntries(Object.keys(value).filter(key => !key.startsWith('_')).sort()
       .map(key => [key, canonical(value[key])]));
   }
-  const affected = (project,mode,range) => (project.segments || []).filter(cue => mode === 'whole' || overlaps(cue,range));
+  const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range));
   function boundaries(project,range,duration) {
     if (!range) return {crossing:[],expanded:null,canExpand:false};
     let start=range.start,end=range.end;
@@ -16059,11 +16085,28 @@ export default MawDynamicCaptions;
       source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
       targets:affected(project,mode,range).map(canonical)};
   }
+  function clipSnapshots(project,clips) {
+    if(!clips?.length)throw Error('请先选择音频贴片');
+    return clips.map(clip=>{
+      const asset=(project.msw.assets||[]).find(a=>a.id===clip.asset_id);
+      if(!asset)throw Error('所选贴片缺少音频素材');
+      const range={start:clip.start_ms,end:clip.start_ms+Math.max(1,Math.ceil((clip.source_out_sample-clip.source_in_sample)*1000/asset.sample_rate))};
+      return {project_id:project.msw.project_id,mode:'clips',range,targets:affected(project,'range',range).map(canonical),
+        source:{kind:'clip',id:asset.id,revision:asset.sha256,name:clip.label||asset.generation.display_text,reference:'',audio_index:0,
+          duration_ms:Math.ceil(asset.sample_count*1000/asset.sample_rate),
+          clip:Object.fromEntries(['id','asset_id','start_ms','source_in_sample','source_out_sample','playback_rate'].map(k=>[k,clip[k]]))}};
+    });
+  }
   function conflict(project,media,input) {
     if (project.msw?.project_id!==input.project_id) return '结果属于其他工程';
-    if (!media||media.id!==input.source.id||media.revision!==input.source.revision||media.audio_index!==input.source.audio_index) return '媒体或源音轨已改变';
+    if (input.mode==='clips') {
+      const clip=(project.msw.audio_clips||[]).find(c=>c.id===input.source.clip.id);
+      const asset=(project.msw.assets||[]).find(a=>a.id===input.source.id);
+      if(!clip||!asset||asset.sha256!==input.source.revision||Object.keys(input.source.clip).some(k=>clip[k]!==input.source.clip[k]))return '音频贴片已移动、裁剪、替换或删除';
+    } else if (!media||media.id!==input.source.id||media.revision!==input.source.revision||media.audio_index!==input.source.audio_index) return '媒体或源音轨已改变';
     const now=affected(project,input.mode,input.range).map(canonical);
     if (JSON.stringify(now)!==JSON.stringify(input.targets.map(canonical))) return '目标范围内字幕已新增、删除、拆分、移动或编辑，请重新识别';
+    if(boundaries(project,input.range,Infinity).crossing.length)return '识别范围切穿已有字幕，请调整字幕边界或存入素材库';
     return '';
   }
   function plan(project,media,job,{splitGroups=null}={}) {
@@ -16083,7 +16126,7 @@ export default MawDynamicCaptions;
       for (const item of result.items||[]) {delete item.start_frame;delete item.end_frame;}
       return result;
     });
-    if (job.snapshot.mode === 'range') {
+    if (job.snapshot.mode !== 'whole') {
       const originals = project.segments.filter(cue => job.snapshot.targets.some(target => target.id === cue.id));
       for (const cue of inserted) {
         let source = null, bestOverlap = 0;
@@ -16157,7 +16200,7 @@ export default MawDynamicCaptions;
     }
     return statuses;
   }
-  global.MSWAsr=Object.freeze({canonical,affected,boundaries,snapshot,conflict,plan,assetStatuses});
+  global.MSWAsr=Object.freeze({canonical,affected,boundaries,snapshot,clipSnapshots,conflict,plan,assetStatuses});
 })(window);
 
 (function initMaweI18n(global) {
@@ -16171,6 +16214,19 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '所选音频贴片': 'Selected audio clips',
+    '导出所选音频': 'Export selected audio',
+    '按原配置重新生成（将调用原服务）': 'Regenerate with original settings (calls the original service)',
+    '新增音频素材': 'New audio assets',
+    '新结果已存入素材库': 'New result saved to the asset library',
+    '请先完成正在确认的生成任务': 'Finish confirming the pending generation first',
+    '重新生成音频素材': 'Regenerate audio asset',
+    '覆盖主字幕': 'Replace main subtitles',
+    '存入素材库': 'Save to asset library',
+    '已存入素材库': 'Saved to asset library',
+    '本批完成结果已入库': 'Completed results in this batch are in the library',
+    '仅预览前 300 条，入库保留全部': 'Previewing the first 300; all subtitles are saved to the library',
+    '同批识别范围重叠，请先存入素材库': 'Recognition ranges in this batch overlap; save to the library first',
     '素材类型': 'Asset type',
     '字幕素材内容': 'Subtitle asset text',
     '字幕素材 · 独立编辑': 'Subtitle asset · Independent editing',
@@ -16480,7 +16536,6 @@ export default MawDynamicCaptions;
     '选择结果': 'Select result',
     '当前结果': 'Selected result',
     '候选字幕': 'Candidate subtitles',
-    '仅预览前 300 条，可导出全部': 'Showing the first 300; export includes all',
     '识别已开始': 'Transcription started',
     'ASR 环境配置已保存': 'ASR environment settings saved',
     '媒体分析': 'Media analysis',
@@ -16546,9 +16601,6 @@ export default MawDynamicCaptions;
     '识别结果预览': 'Transcription result preview',
     '预览结果': 'Preview result',
     '应用到主字幕': 'Apply to main subtitles',
-    '搁置结果': 'Set result aside',
-    '导出候选工程': 'Export candidate project',
-    '导出候选 SRT': 'Export candidate SRT',
     '受影响主字幕': 'Affected main subtitles',
     '替换主字幕': 'Replace main subtitles',
     '保留副字幕待复核': 'Secondary subtitles kept for review',
@@ -47321,10 +47373,12 @@ window.addEventListener('beforeunload', (e) => {
     const provider=providers.find(item=>item.id===el('providerId').value);
     const caps=openaiOptions(),ready=Boolean(provider?.hasApiKey)&&caps?.timestamps!==false;
     el('scope-actions').hidden=mode!=='range';
-    el('source').textContent=current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
+    const clips=global.MSWE.resolve('audio-timeline')?.selectedClips()||[];
+    el('source').textContent=mode==='clips'?`${t('所选音频贴片')} · ${clips.length}`:current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
     el('edit-range').hidden=mode!=='range';el('edit-range').disabled=!selection.length;
     let issue='',snapshot=null;
     try {global.MSWProject.ensure(host.data);snapshot=snapshots();} catch(error){issue=error.message;}
+    if(mode==='clips'&&snapshot)el('source').textContent+=` · ${(snapshot.reduce((sum,item)=>sum+item.range.end-item.range.start,0)/1000).toFixed(3)} s`;
     const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
     el('scope').textContent=issue||(!ready?t('请先在环境配置中保存此服务的 API Key'):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
@@ -47337,6 +47391,7 @@ window.addEventListener('beforeunload', (e) => {
   }
   function snapshots() {
     const mode=el('mode').value,selection=mode==='range'?ranges?.ranges:[];
+    if(mode==='clips')return global.MSWAsr.clipSnapshots(host.data,global.MSWE.resolve('audio-timeline')?.selectedClips());
     return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range));
   }
   async function submit() {
@@ -47347,7 +47402,10 @@ window.addEventListener('beforeunload', (e) => {
       if (!submission) {
         if (!providers.find(item=>item.id===el('providerId').value)?.hasApiKey) throw Error('请先在环境配置中保存此服务的 API Key');
         const provider=providerInput();
-        submission=snapshots().map(snapshot=>({...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot,provider}));
+        const batchId=global.MSWProject.id('asr-batch');
+        const inputs=snapshots();
+        submission=inputs.map(snapshot=>({...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot:{...snapshot,batch_id:batchId,
+          batch_overlap:snapshot.mode==='clips'&&inputs.some(other=>other!==snapshot&&other.range.start<snapshot.range.end&&snapshot.range.start<other.range.end)},provider}));
         batchSubmission=submission.length>1;
       }
       busy=true;updateScope();
@@ -47401,6 +47459,12 @@ window.addEventListener('beforeunload', (e) => {
       if (['failed','cancelled','interrupted'].includes(job.status)) button('使用此范围重试',async()=>{
         try {
           const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
+          if(result.job.snapshot.mode==='clips') {
+            const snap=result.job.snapshot, clips=host.data.msw?.audio_clips||[], clip=clips.find(c=>c.id===snap.source.clip.id);
+            if(host.data.msw?.project_id!==job.project_id||!clip||Object.keys(snap.source.clip).some(k=>clip[k]!==snap.source.clip[k]))throw Error('贴片已改变，请重新选择识别范围');
+            submission=[{...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot:snap,provider:providerInput()}];
+            batchSubmission=false;el('mode').value='clips';await submit();return;
+          }
           if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision) throw Error('媒体已改变，请重新选择识别范围');
           el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);updateScope();message('范围已恢复；检查当前配置后点击开始识别');
         }catch(error){message(error.message);}
@@ -47412,18 +47476,41 @@ window.addEventListener('beforeunload', (e) => {
   function resultStatus(job) {
     const rows=job.result?.segments||[],conflict=global.MSWAsr.conflict(host.data,media.current,job.snapshot);
     const applied=host.data.msw?.applied_results?.includes(job.id);
-    let text=conflict||t(applied?'此结果已应用':rows.length?'候选字幕':'没有识别到语音；保留现有字幕');
+    let text=applied?t('此结果已应用'):conflict||t(rows.length?'候选字幕':'没有识别到语音；保留现有字幕');
+    if(stored(job))text+=' · '+t('已存入素材库');
     if(rows.length&&!applied&&!conflict)text+=' '+rows.length+' · '+t('替换主字幕')+' '+job.snapshot.targets.length+' → '+rows.length;
-    if(rows.length>300)text+=' · '+t('仅预览前 300 条，可导出全部');
+    if(rows.length>300)text+=' · '+t('仅预览前 300 条，入库保留全部');
     if(job.result?.warnings?.length)text+=' · '+job.result.warnings.join('；');
     return text;
   }
   function refreshFooter() {
     const rows=selected?.result?.segments||[];
-    el('apply').disabled=!selected||!rows.length||!host.applyASR||Boolean(global.MSWAsr.conflict(host.data,media.current,selected.snapshot))||host.data.msw?.applied_results?.includes(selected.id);
-    for(const key of ['discard','export-json','export-srt'])el(key).disabled=!selected?.result;
+    el('apply').disabled=!selected||!rows.length||!host.applyASR||Boolean(global.MSWAsr.conflict(host.data,media.current,selected.snapshot))||host.data.msw?.applied_results?.includes(selected.id)||overlappingBatch(selected);
+    el('apply').title=selected&&overlappingBatch(selected)?t('同批识别范围重叠，请先存入素材库'):'';
+    el('store').disabled=!selected||!batchResults(selected).some(j=>j.result?.segments?.length&&!stored(j));
     el('selected').textContent=selected?t('当前结果')+' · '+selected.result.model+' · '+(selected.snapshot.range.start/1000).toFixed(3)+'–'+(selected.snapshot.range.end/1000).toFixed(3)+' s':'';
     const status=el('result-status');if(status&&selected)status.textContent=resultStatus(selected);
+  }
+  const stored=job=>(host.data.msw?.asset_batches||[]).some(b=>b.result_ids?.includes(job.id));
+  const batchId=job=>job.snapshot?.batch_id||job.batch_id||job.id;
+  const batchResults=job=>[...details.values()].filter(j=>batchId(j)===batchId(job)&&j.project_id===host.data.msw?.project_id&&j.status==='succeeded');
+  function overlappingBatch(job) {
+      if(job.snapshot?.mode!=='clips')return false;
+      if(job.snapshot.batch_overlap)return true;
+    const range=job.snapshot.range;
+    return [...jobs.values()].some(j=>j.id!==job.id&&batchId(j)===batchId(job)&&j.source_range
+      &&j.source_range.start<range.end&&range.start<j.source_range.end);
+  }
+  function storeBatch() {
+    try {
+      if(!selected)return;
+      host.commitEdits();
+      const result=global.MSWAssets.asrResults(host.data.msw,batchResults(selected));
+      if(!result.count)return;
+      host.commitSubtitleAssets('ASR 结果存入素材库',ext=>Object.assign(ext,result.extension));
+      host.showAssets({automatic:true});global.MSWE.resolve('asset-library')?.showBatch(batchId(selected));
+      message(`${t('已存入素材库')} ${result.count} ${t('条字幕')} · ${t('本批完成结果已入库')}`);renderJobs();
+    }catch(error){message(error.message);}
   }
   function preview(job,reveal=true) {
     selected=job;details.set(job.id,job);renderJobs();
@@ -47437,13 +47524,13 @@ window.addEventListener('beforeunload', (e) => {
       details.set(id,result.job);preview(result.job);
     }catch(error){message(error.message);}
   }
-  async function apply(job,automatic=false) {
+  async function apply(job) {
     if (!host.applyASR) return;
     const generation=host.generation;
     try {
+      if(overlappingBatch(job))throw Error('同批识别范围重叠，请先存入素材库');
       await media.request('asr-validate',{...media.payload(),job_id:job.id});
       if (generation!==host.generation) return;
-      if (automatic&&(job.client_token!==token()||host.data.segments.length||host.isEditing())) return;
       const result=host.applyASR(job,media.current);
       if (!result.applied) {preview(job);return;}
       await media.request(`jobs/${job.id}/ack`,{project_id:job.project_id,application:'applied'});
@@ -47456,9 +47543,7 @@ window.addEventListener('beforeunload', (e) => {
     const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
     if (host.data.msw?.project_id!==job.project_id) return;
     details.set(job.id,result.job);
-    if (job.client_token===token()&&job.application==='pending'&&!host.data.segments.length
-      &&!result.job.snapshot.targets.length&&!host.isEditing()&&result.job.result?.segments?.length) await apply(result.job,true);
-    else if (panel.classList.contains('show')&&!selected) preview(result.job,false);
+    if (panel.classList.contains('show')&&!selected) preview(result.job,false);
   }
   function schedule(delay=1000) {clearTimeout(timer);timer=setTimeout(()=>void poll(),delay);}
   async function poll() {
@@ -47476,16 +47561,6 @@ window.addEventListener('beforeunload', (e) => {
       if (selected&&panel.classList.contains('show')) refreshFooter();
     }catch(error){if(panel.classList.contains('show'))message(error.message);}
     finally {polling=false;schedule([...jobs.values()].some(job=>!terminal.has(job.status))?750:2500);}
-  }
-  function download(kind) {
-    if (!selected?.result) return;
-    const project={schema:'moy.asr.project.v1',media:selected.snapshot.source.reference,segments:selected.result.segments,
-      language:selected.result.language,model:selected.result.model};
-    const stamp=ms=>`${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')},${String(ms%1000).padStart(3,'0')}`;
-    const content=kind==='mosp'?JSON.stringify(project,null,2):project.segments.map((cue,index)=>`${index+1}\n${stamp(cue.start)} --> ${stamp(cue.end)}\n${cue.text}\n`).join('\n');
-    const url=URL.createObjectURL(new Blob([content],{type:kind==='mosp'?'application/json':'text/plain;charset=utf-8'}));
-    const link=document.createElement('a');link.href=url;link.download=`${selected.snapshot.source.name.replace(/\.[^.]+$/,'').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_')}.asr-candidates.${kind}`;
-    link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
   const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.querySelector('[data-menubar-item="media"] > button'),positionKey:'msw.asr.panel.position'});
   async function open(mode='whole') {
@@ -47523,15 +47598,8 @@ window.addEventListener('beforeunload', (e) => {
     }catch(error){el('environment-message').textContent=error.message;}finally{busy=false;updateScope();}
   });
   el('apply').addEventListener('click',()=>{if(selected)void apply(selected);});
-  el('discard').addEventListener('click',async()=>{
-    if(!selected)return;
-    const job=selected,generation=host.generation;
-    try {await media.request(`jobs/${job.id}/ack`,{project_id:job.project_id,application:'discarded'});
-      if(generation===host.generation){if(el('preview'))el('preview').open=false;selected=null;renderJobs();message('候选结果已搁置，仍可在任务列表预览或导出');schedule(0);}
-    }catch(error){message(error.message);}
-  });
-  el('export-json').addEventListener('click',()=>download('mosp'));el('export-srt').addEventListener('click',()=>download('srt'));
-  for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
+  el('store').addEventListener('click',storeBatch);
+  for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
   global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
   global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
   refreshFooter();
@@ -48638,7 +48706,7 @@ window.addEventListener('beforeunload', (e) => {
   let selectionAnchor=null, visibleRows=[], editingId=null, committing=false;
   const subtitles=()=>host.data.msw?.subtitle_assets||[];
   let page=0, previewUrl=null, previewId=null, previewSequence=0, previewOwner='';
-  let assetScrubbing=false, importing=false, stopImport=false;
+  let assetScrubbing=false, importing=false, stopImport=false, exporting=false;
   const PAGE_SIZE=90, DENSITY_KEY='msw.assets.columns';
   let density=3;
   try {const saved=Number(localStorage.getItem(DENSITY_KEY));if(Number.isInteger(saved)&&saved>=1&&saved<=5)density=saved;}catch(_){}
@@ -48655,6 +48723,7 @@ window.addEventListener('beforeunload', (e) => {
     return button;
   }
   const icons = {
+    regenerate: '<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M18 18A8 8 0 0 1 5 15"/>',
     edit: '<path d="m4 16-1 5 5-1L21 7l-4-4zM14 6l4 4"/>',
     play: '<path class="asset-icon-fill" d="M7 4v16l13-8z"/>',
     pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
@@ -48881,6 +48950,8 @@ window.addEventListener('beforeunload', (e) => {
     el('asset-count').textContent = `${rows.length} / ${all.length} ${t(type === 'audio' ? '条音频' : type === 'subtitle' ? '条字幕' : '条素材')}`
       + (selected.size ? ` · ${t('已选')} ${selected.size}` : '');
     el('asset-insert-selected').hidden = !selected.size || [...selected].some(id => !subtitles().some(a => a.id === id));
+    el('asset-export-selected').hidden = !selected.size || [...selected].some(id=>!assets().some(a=>a.id===id));
+    el('asset-export-selected').disabled = !available || exporting;
     el('asset-page').textContent = `${page + 1} / ${pages}`;
     el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
     el('asset-export-project').disabled = !available || !all.length;
@@ -48940,7 +49011,12 @@ window.addEventListener('beforeunload', (e) => {
         if (previewId === asset.id || !previewId) stopPreview();
         if (host.removeAsset(asset.id)) host.flashHint(t('素材已移除，可撤销；原文件保留'), 'success');
       });
-      buttons.append(play, save, insert, remove); row.append(content, buttons); fragment.append(row);
+      const regenerator=global.MSWE.resolve('asset-regenerator');
+      const can=global.MSWAudioActions.canRegenerate(asset.generation);
+      const regenerate=iconAction(!can?'缺少原合成配置或属于外部音频':regenerator?.pendingId===asset.id?'继续确认本批任务':'按原配置重新生成（将调用原服务）',
+        'regenerate',()=>regenerator?.regenerate(asset.id));
+      regenerate.disabled=!available||!can||!regenerator||regenerator.busy||Boolean(regenerator.pendingId&&regenerator.pendingId!==asset.id);
+      buttons.append(play, save, insert, regenerate, remove); row.append(content, buttons); fragment.append(row);
     }
     list.replaceChildren(fragment); updatePreviewButtons();
     if (focusedId) {
@@ -49045,6 +49121,21 @@ window.addEventListener('beforeunload', (e) => {
       host.flashHint(t('已导出工程与音频素材包；解压后打开 project.mosp。'), 'success');
     } catch (error) { if (generation === host.generation) host.flashHint(error.message, 'warning'); }
     finally { button.disabled = false; }
+  });
+  el('asset-export-selected').addEventListener('click',async()=>{
+    if(exporting)return;
+    const ids=[...selected],generation=host.generation;
+    if(!ids.length||ids.some(id=>!assets().some(a=>a.id===id)))return;
+    exporting=true;renderAssets();
+    try {
+      const blob=await request('asset-export',{project_id:projectId(),asset_ids:ids},true);
+      if(generation===host.generation)download(blob,'selected-audio.zip');
+    }catch(error){if(generation===host.generation)host.flashHint(error.message,'warning');}
+    finally{exporting=false;renderAssets();}
+  });
+  global.addEventListener('msw:asset-generation',event=>{
+    if(event.detail){el('asset-import-status').hidden=false;el('asset-import-message').textContent=event.detail;el('asset-import-stop').hidden=!importing;}
+    renderAssets();
   });
   document.addEventListener('play', event => {
     if (event.target === el('asset-audio')) host.pauseMedia();
@@ -50178,7 +50269,7 @@ window.addEventListener('beforeunload', (e) => {
   document.addEventListener('pointerdown', event => {
     if (menu?.contains(event.target)) return;
     closeMenu();
-    if (event.target.closest('.msw-audio-lanes, .menubar, #audio-actions-panel')) return;
+    if (event.target.closest('.msw-audio-lanes, .menubar, #audio-actions-panel, #msw-asr-panel, #editor-settings-modal')) return;
     if (selected.size) { selected.clear(); timeline.pane.dataset.audioFocus = ''; schedulePaint(); }
   }, true);
   document.addEventListener('keydown', event => {
@@ -50290,6 +50381,7 @@ window.addEventListener('beforeunload', (e) => {
   const panel = host.createFloatingPanel({panel: el('panel'), dragHandle: el('drag'),
     anchorButton: document.querySelector('[data-menubar-item="media"] > button'), positionKey: 'msw.audio.actions.position'});
   function report(message, rows = []) {
+    if(batch?.outputOnly)global.dispatchEvent(new CustomEvent('msw:asset-generation',{detail:[t(message),...rows.map(row=>`${row.label||row.id}：${t(row.reason)}`)].join('\n')}));
     el('message').textContent = t(message);
     el('results').replaceChildren(...rows.map(row => {
       const li = document.createElement('li'); li.textContent = `${row.label || row.id}：${t(row.reason)}`; return li;
@@ -50305,10 +50397,11 @@ window.addEventListener('beforeunload', (e) => {
     for (const id of ['mute', 'unmute', 'gain-apply']) el(id).disabled = !clips.length;
     el('fill').disabled = !clips.length;
     document.getElementById('audio-fill-subtitles').disabled = !clips.length;
-    el('regenerate').disabled = running || (!batch && (!regenerable || !host.config?.processingUrl));
+    el('regenerate').disabled = running || Boolean(batch?.outputOnly) || (!batch && (!regenerable || !host.config?.processingUrl));
     el('regenerate').textContent = t(batch ? '继续确认本批任务' : '重新生成并替换');
-    el('cancel').hidden = !batch;
+    el('cancel').hidden = !batch || Boolean(batch.outputOnly);
     el('cancel').disabled = Boolean(batch?.cancelled);
+    global.dispatchEvent(new Event('msw:asset-generation'));
   }
   function mute(value) {
     const ids = new Set(audio.selectedClips().map(c => c.id)); if (!ids.size) return;
@@ -50397,7 +50490,17 @@ window.addEventListener('beforeunload', (e) => {
       }
       if (!current(value)) return;
       let count=0;
-      if (value.cancelled) value.rows.forEach(row=>{ if (!row.reason) row.reason='已取消替换，新结果保留在素材库'; });
+      if(value.outputOnly) {
+        const ids=new Set(value.rows.filter(row=>row.assetId&&!row.reason).map(row=>row.assetId));
+        if(ids.size)host.commitSubtitleAssets(t('重新生成音频素材'),ext=>{
+          for(const asset of ext.assets)if(ids.has(asset.id))asset.batch_id=value.batchId;
+          ext.asset_batches=ext.asset_batches||[];
+          if(!ext.asset_batches.some(b=>b.id===value.batchId))ext.asset_batches.push({id:value.batchId,kind:'regenerated',created_at:Date.now(),parent_id:value.sourceAssetId});
+        });
+        count=ids.size;
+        for(const row of value.rows)if(!row.reason)row.reason='新结果已存入素材库';
+      }
+      else if (value.cancelled) value.rows.forEach(row=>{ if (!row.reason) row.reason='已取消替换，新结果保留在素材库'; });
       else {
         const replacements=core.replacements(host.data.msw,value.rows);
         if (replacements.size && host.commitAudio(t('重新生成并替换音频贴片'),ext=>{
@@ -50405,27 +50508,46 @@ window.addEventListener('beforeunload', (e) => {
         })) count=replacements.size;
         for (const row of value.rows) if (!row.reason) row.reason=count && replacements.has(row.id) ? '已替换' : '未替换，新结果保留在素材库';
       }
-      report(`${t('已替换')} ${count} ${t('条')}，${t('未替换')} ${value.rows.length-count} ${t('条')}`,value.rows);
+      report(value.outputOnly?`${t('新增音频素材')} ${count} ${t('条')}`:`${t('已替换')} ${count} ${t('条')}，${t('未替换')} ${value.rows.length-count} ${t('条')}`,value.rows);
       batch=null; global.dispatchEvent(new Event('msw:tts-refresh'));
     } catch (error) {
       if (current(value)) report(`${error.message}；${t('可继续确认本批任务，不会重复提交')}`);
     } finally { if (value.generation === host.generation) { running=false; refresh(); } }
   }
+  function prepare(plan,extras={}) {
+    const projectId=host.data.msw.project_id,generation=host.generation;
+    batch={...plan,projectId,generation,cursor:0,cancelled:false,...extras};
+    for(const group of batch.groups)group.input={kind:'tts',project_id:projectId,
+      client_token:global.MSWProject.id('audio-batch'),request_key:global.MSWProject.id('request'),
+      library_size:host.data.msw.assets.length,removed_asset_ids:host.data.msw.removed_asset_ids||[],
+      snapshot:{project_id:projectId,entries:group.entries},provider:{recipe:group.recipe}};
+  }
   el('regenerate').onclick = () => {
-    if (running) return;
+    if (running || batch?.outputOnly) return;
     if (!batch) {
       host.commitEdits();
       const plan=core.regeneration(host.data,audio.selectedClips());
       if (!plan.groups.length) { report('没有可重新生成的贴片',plan.rows); return; }
-      const projectId=host.data.msw.project_id, generation=host.generation;
-      batch={...plan,projectId,generation,cursor:0,cancelled:false};
-      for (const group of batch.groups) group.input={kind:'tts',project_id:projectId,
-        client_token:global.MSWProject.id('audio-batch'),request_key:global.MSWProject.id('request'),
-        library_size:host.data.msw.assets.length,removed_asset_ids:host.data.msw.removed_asset_ids || [],
-        snapshot:{project_id:projectId,entries:group.entries},provider:{recipe:group.recipe}};
+      prepare(plan);
     }
     void runBatch();
   };
+  global.MSWE.register('asset-regenerator',()=>({get busy(){return running||Boolean(batch&&!batch.outputOnly);},
+    get pendingId(){return batch?.outputOnly?batch.sourceAssetId:null;},
+    async regenerate(id){
+      if(running)return;
+      if(batch&&(!batch.outputOnly||batch.sourceAssetId!==id))throw Error(t('请先完成正在确认的生成任务'));
+      if(!batch){
+        host.commitEdits();
+        const asset=host.data.msw?.assets.find(a=>a.id===id);
+        if(!asset)throw Error(t('素材已移除'));
+        const plan=core.regeneration(host.data,[{id:asset.id,asset_id:asset.id,label:asset.generation.display_text,
+          start_ms:asset.source_ref?.start||0,source_in_sample:0,source_out_sample:asset.sample_count,playback_rate:1}]);
+        if(!plan.groups.length)throw Error(t(plan.rows[0]?.reason||'缺少原合成配置或属于外部音频'));
+        prepare(plan,{outputOnly:true,sourceAssetId:id,batchId:global.MSWProject.id('regenerated')});
+      }
+      await runBatch();
+    }}));
   el('cancel').onclick = () => { if (!batch) return; batch.cancelled=true; refresh(); if (!running) void runBatch(); };
   el('close').onclick = () => panel.close();
   for (const event of ['msw:audio-selection', 'msw:audio-changed', 'msw:assets-changed']) global.addEventListener(event, refresh);

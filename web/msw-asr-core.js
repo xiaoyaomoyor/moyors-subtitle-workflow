@@ -9,7 +9,7 @@
     return Object.fromEntries(Object.keys(value).filter(key => !key.startsWith('_')).sort()
       .map(key => [key, canonical(value[key])]));
   }
-  const affected = (project,mode,range) => (project.segments || []).filter(cue => mode === 'whole' || overlaps(cue,range));
+  const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range));
   function boundaries(project,range,duration) {
     if (!range) return {crossing:[],expanded:null,canExpand:false};
     let start=range.start,end=range.end;
@@ -35,11 +35,28 @@
       source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
       targets:affected(project,mode,range).map(canonical)};
   }
+  function clipSnapshots(project,clips) {
+    if(!clips?.length)throw Error('请先选择音频贴片');
+    return clips.map(clip=>{
+      const asset=(project.msw.assets||[]).find(a=>a.id===clip.asset_id);
+      if(!asset)throw Error('所选贴片缺少音频素材');
+      const range={start:clip.start_ms,end:clip.start_ms+Math.max(1,Math.ceil((clip.source_out_sample-clip.source_in_sample)*1000/asset.sample_rate))};
+      return {project_id:project.msw.project_id,mode:'clips',range,targets:affected(project,'range',range).map(canonical),
+        source:{kind:'clip',id:asset.id,revision:asset.sha256,name:clip.label||asset.generation.display_text,reference:'',audio_index:0,
+          duration_ms:Math.ceil(asset.sample_count*1000/asset.sample_rate),
+          clip:Object.fromEntries(['id','asset_id','start_ms','source_in_sample','source_out_sample','playback_rate'].map(k=>[k,clip[k]]))}};
+    });
+  }
   function conflict(project,media,input) {
     if (project.msw?.project_id!==input.project_id) return '结果属于其他工程';
-    if (!media||media.id!==input.source.id||media.revision!==input.source.revision||media.audio_index!==input.source.audio_index) return '媒体或源音轨已改变';
+    if (input.mode==='clips') {
+      const clip=(project.msw.audio_clips||[]).find(c=>c.id===input.source.clip.id);
+      const asset=(project.msw.assets||[]).find(a=>a.id===input.source.id);
+      if(!clip||!asset||asset.sha256!==input.source.revision||Object.keys(input.source.clip).some(k=>clip[k]!==input.source.clip[k]))return '音频贴片已移动、裁剪、替换或删除';
+    } else if (!media||media.id!==input.source.id||media.revision!==input.source.revision||media.audio_index!==input.source.audio_index) return '媒体或源音轨已改变';
     const now=affected(project,input.mode,input.range).map(canonical);
     if (JSON.stringify(now)!==JSON.stringify(input.targets.map(canonical))) return '目标范围内字幕已新增、删除、拆分、移动或编辑，请重新识别';
+    if(boundaries(project,input.range,Infinity).crossing.length)return '识别范围切穿已有字幕，请调整字幕边界或存入素材库';
     return '';
   }
   function plan(project,media,job,{splitGroups=null}={}) {
@@ -59,7 +76,7 @@
       for (const item of result.items||[]) {delete item.start_frame;delete item.end_frame;}
       return result;
     });
-    if (job.snapshot.mode === 'range') {
+    if (job.snapshot.mode !== 'whole') {
       const originals = project.segments.filter(cue => job.snapshot.targets.some(target => target.id === cue.id));
       for (const cue of inserted) {
         let source = null, bestOverlap = 0;
@@ -133,5 +150,5 @@
     }
     return statuses;
   }
-  global.MSWAsr=Object.freeze({canonical,affected,boundaries,snapshot,conflict,plan,assetStatuses});
+  global.MSWAsr=Object.freeze({canonical,affected,boundaries,snapshot,clipSnapshots,conflict,plan,assetStatuses});
 })(window);
