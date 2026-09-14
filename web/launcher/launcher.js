@@ -131,6 +131,9 @@
       chip_asr: "识别",
       chip_cleanup: "整理×{n}",
       chip_order: "处理顺序：{steps}",
+      waveform_project_running: "开始生成零字幕波形工程……",
+      waveform_project_done: "零字幕波形工程已生成：{path}",
+      waveform_project_done_short: "波形工程完成",
       media: "媒体文件",
       srt_output: "SRT 输出",
       choose: "选择",
@@ -339,6 +342,9 @@
       chip_asr: "ASR",
       chip_cleanup: "cleanup×{n}",
       chip_order: "Order: {steps}",
+      waveform_project_running: "Building a zero-subtitle waveform project…",
+      waveform_project_done: "Zero-subtitle waveform project created: {path}",
+      waveform_project_done_short: "Waveform project ready",
       media: "Media file",
       srt_output: "SRT output",
       choose: "Choose",
@@ -2985,7 +2991,43 @@
   $("languageReset").addEventListener("click", () => { const el = $("language"); Array.from(el.options).forEach((o) => { o.selected = false; }); savePrefsDebounced({ language: "" }); });
   for(const key of ["openaiBaseUrl","openaiModel","openaiDiarize"])$(key).addEventListener("input",()=>syncOpenaiCapabilities());
   $("saveSettings").addEventListener("click", async () => { const payload = formPayload(); const result = await bridge("save_settings", payload); if (result.ok) { const current = provider(); current.apiKey = $("apiKey").value.trim(); current.maskedApiKey = result.maskedApiKey; state.config.apiKey = current.apiKey; state.config.maskedApiKey = result.maskedApiKey; if (current.id === "openai") { state.config.openaiBaseUrl = payload.openaiBaseUrl; state.config.openaiModel = payload.openaiModel; } renderKeyStatus(); setStatus(t("saved")); } else applyErrorResult(result); });
-  $("start").addEventListener("click", async () => { if (!validateLocal()) return; hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" }); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); } });
+  async function startTranscription() {
+    if (!validateLocal()) return;
+    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" }); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); }
+  }
+  async function startWaveformProject() {
+    // E 阶段主链之一：不勾识别时按媒体生成零字幕波形工程（generate_waveform_project）。
+    clearErrors();
+    const mediaPath = $("mediaPath").value.trim();
+    if (!mediaPath) { setError("mediaPath", errText("media_not_found", "")); return; }
+    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden");
+    $("log").textContent = ""; state.lastLogMessage = "";
+    const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
+    setRunning(true);
+    $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" });
+    appendLog(t("waveform_project_running"));
+    const result = await bridge("generate_waveform_project", {
+      mediaPath,
+      audioTrack: getAudioTrackForMedia(mediaPath),
+      defaultAudioTrack: getDefaultAudioTrackForMedia(mediaPath),
+      generateSpectral: $("generateSpectral").checked,
+    });
+    setRunning(false);
+    if (result.ok) {
+      appendLog(t("waveform_project_done").replace("{path}", result.projectPath || ""));
+      if (result.projectPath) { setJsonPath(result.projectPath); window.MSWProjectHome?.refresh?.(); }
+      setStatus(t("waveform_project_done_short"));
+      if (Array.isArray(result.warnings) && result.warnings.length) result.warnings.forEach((warning) => appendLog(`[waveform] ${warning}`));
+    } else {
+      applyErrorResult(result, false);
+    }
+  }
+  $("start").addEventListener("click", () => {
+    const asrEnabled = window.MSWModules ? window.MSWModules.isEnabled("asr") !== false : true;
+    const mediaMode = !window.MSWWorkflow || window.MSWWorkflow.inputMode() === "media";
+    if (!asrEnabled && mediaMode) { void startWaveformProject(); return; }
+    void startTranscription();
+  });
   $("stop").addEventListener("click", async () => { if (!state.running) return; $("stop").disabled = true; setStatus(t("batch_stopping")); const result = await bridge("cancel_transcription"); if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); } });
   $("retryPostprocess").addEventListener("click", async () => { hideErrorNotice(); $("retryPostprocess").classList.add("hidden"); setRunning(true); const result = await bridge("retry_postprocess"); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } });
   $("openMawe").addEventListener("click", openServerEditor); $("stopServer").addEventListener("click", stopEditorServer); $("openFolder").addEventListener("click", () => bridge("open_output_folder")); $("openLogFolder").addEventListener("click", () => bridge("open_log_folder"));
