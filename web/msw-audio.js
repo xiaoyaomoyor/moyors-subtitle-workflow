@@ -83,8 +83,8 @@
   }
   // 在播放头处把一条贴片一分为二：左段保留原 id 与起点，右段新 id 从拆分点
   // 起播（source 区间按采样率精确切分），标签沿用。
-  // 「悬浮显示序号与用时」开关（波形显示器设置），经宿主 options 透传。
-  function hoverDetailsActive() { return Boolean(host.options?.clipHoverDetails?.()); }
+  // Read the current setting from the waveform timeline, including lightweight repaints.
+  function hoverDetailsActive() { return timeline.hoverDetails(); }
 
   function splitClipAtPlayhead(clip) {
     const state = sync();
@@ -354,7 +354,7 @@
         const background = muted ? '' : heatBackground(clip, asset, from, to);
         if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
         block.title = hoverDetailsActive()
-          ? `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
+          ? `${clip.label}\n${t('试听音量')}：${Number(core.levelDb(clip, current.tracks.get(clip.track_id)).toFixed(2))} dB${muted ? ` (${t('静音')})` : ''} · ${(clip.start_ms / 1000).toFixed(3)} ~ ${(finish / 1000).toFixed(3)} s (${((finish - clip.start_ms) / 1000).toFixed(3)} s)`
             + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
             + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '')
           : (clip.label || t('音频贴片'));

@@ -1533,6 +1533,13 @@
   .layout-module-slot > .current-cue-panel,
   .layout-module-slot > .cues-module,
   .layout-module-slot > .waveform-pane { margin: 0; }
+  /* All docked modules share the asset library's outer frame. Keep menus and
+     floating panels governed by their existing overflow rules. */
+  .editor-workspace :is(.player-wrap, .current-cue-panel, .cues-module, .waveform-pane, .msw-asset-library) {
+    box-sizing: border-box;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+  }
 
   /* 关键：模块元素自带 display（flex/block），会压过 [hidden] 的浏览器默认样式，
      导致标签组内未激活成员仍然渲染（表现成“分裂成两个模块、两条标签栏联动”）。
@@ -2931,7 +2938,7 @@
     .cue .index { display: none; }
   }
   .cue.playhead-hit:not(.selected) { outline: 1px solid var(--wave-playhead); outline-offset: -1px; }
-  .cue.selected:not(.multi-dual-cue) { outline: 1px solid var(--selection-yellow-line); outline-offset: -1px; }
+  .cue.selected:not(.multi-dual-cue) { outline: 2px solid var(--selection-yellow-line); outline-offset: -2px; }
   .cue.editing { cursor: text; }
   .cue.disabled .text, .multi-cue-column.disabled .text { color: var(--text-muted); }
   .cue.disabled .index, .multi-cue-column.disabled .index { text-decoration: line-through; }
@@ -3043,6 +3050,19 @@
   .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--card-bg); cursor: grab; }
   .msw-asset-row:hover { border-color: var(--btn-border-hover); }
   .msw-asset-row.playing { border-color: var(--accent); }
+  .msw-asset-row.marked { background: color-mix(in srgb, var(--asset-mark) 13%, var(--card-bg)); }
+  .msw-asset-row.selected { outline: 2px solid var(--gap-accent); outline-offset: -2px; }
+  .msw-asset-row:focus-visible { box-shadow: var(--focus-ring); }
+  .msw-asset-summary > .msw-asset-notice { padding: 0; flex: 1 1 180px; }
+  .msw-asset-toolbar #asset-type { flex: 0 1 70px; }
+  .msw-asset-toolbar #asset-search { flex: 2 1 120px; }
+  .current-cue-panel.subtitle-asset-mode .cue-panel-layout { grid-template-columns: minmax(0,1fr) !important; }
+  .current-cue-panel.subtitle-asset-mode :is(.cue-panel-navigation,.cue-panel-time-actions,.cue-panel-sticker-wrap,.cue-panel-footer,#cue-panel-text,#cue-panel-tts-text,#cue-panel-tts-footer,#cue-panel-tts-preview) { display:none !important; }
+  #cue-panel-asset-text { color:var(--editor-cue-text); }
+  #cue-panel-asset-footer { display:flex; align-items:center; justify-content:space-between; gap:6px; color:var(--accent); font-size:12px; }
+  #cue-panel-asset-footer[hidden] { display:none; }
+  .msw-asset-track-dialog { background:var(--card-bg); color:var(--text-primary); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); }
+  .msw-asset-track-dialog form, .msw-asset-track-dialog label { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
   .msw-asset-info { min-width: 0; flex: 1; }
   .msw-asset-text { font-size: 12px; line-height: 1.45; min-height: 2.9em; margin: 0 0 3px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .msw-asset-meta { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3349,11 +3369,11 @@
   .multi-cue-column-header .charcount { margin-left: auto; flex: 0 0 auto; min-width: 0; }
   .multi-cue-column .text { flex: 0 0 auto; }
   .multi-cue-column .sticker-slot { flex: 0 0 auto; order: 1; }
-  .multi-cue-column.related-selected { outline: 1px dashed var(--selection-yellow-line); outline-offset: -1px; }
+  .multi-cue-column.related-selected { outline: 2px dashed var(--selection-yellow-line); outline-offset: -2px; }
   .multi-cue-column.selected {
-    outline: 1px solid var(--selection-yellow-line); outline-offset: -1px;
+    outline: 2px solid var(--selection-yellow-line); outline-offset: -2px;
   }
-  .multi-cue-column.current-target .index-label { color: var(--text-primary); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .multi-cue-column.selected :is(.index-label, .index-label-rest) { color: var(--accent); font-weight: 700; text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
   .multi-cue-column .text[contenteditable] { display: block; width: 100%; min-width: 0; }
   @container cue-list (max-width: 620px) {
     [data-pair-layout="columns"] .multi-dual-cue:not(.single-sided) .index-label-rest { display: none; }

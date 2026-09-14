@@ -1,4 +1,4 @@
-// TTS task UI and project asset library. Audio bytes stay outside editor snapshots.
+// TTS task UI. Audio bytes stay outside editor snapshots.
 (function (global) {
   'use strict';
   const host = global.MSWE?.resolve('processing-host');
@@ -11,10 +11,10 @@
   const available = Boolean(host.config?.processingUrl);
   const projectId = () => global.MSWProject.ensure(host.data).project_id;
   const pageId = global.MSWProject.id('tts-page');
-  const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set(), missing = new Set();
+  const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set();
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
   let nextPollDelay = null;
-  let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
+  let configured = false, regions = [], busy = false, pending = null, scopeSignature = '';
   let settingsPromise = null, savingSettings = false;
   let draftActive = false, draftInitialized = false;
   let draftRevision = 0, pendingDraft = null, clearedDraft = null;
@@ -23,12 +23,7 @@
   let runtime = {state: 'idle', runtime_path: ''}, runtimeTimer, runtimeRequest = false;
   const isYukkuri = () => el('tts-engine').value === 'yukkuri';
   const isIndex = () => el('tts-engine').value === 'indextts';
-  let previewUrl = null, previewId = null, previewSequence = 0, previewOwner = '';
-  let assetScrubbing = false;
-  let importing = false, stopImport = false, yukkuriPreviewBusy = false;
-  const PAGE_SIZE = 90, DENSITY_KEY = 'msw.assets.columns';
-  let density = 3;
-  try { const saved = Number(localStorage.getItem(DENSITY_KEY)); if (Number.isInteger(saved) && saved >= 1 && saved <= 5) density = saved; } catch (_) {}
+  let yukkuriPreviewBusy = false;
   const active = job => ['queued', 'running', 'cancel_requested'].includes(job.status);
   const assets = () => host.data.msw?.assets || [];
   const panel = host.createFloatingPanel({ panel: el('tts-panel'), dragHandle: el('tts-drag'),
@@ -53,12 +48,14 @@
     }
     return data;
   }
+  const assetUI = global.MSWAssetLibrary.create({host, request, jobs, schedule});
+  const {renderAssets, playReference, stopReference} = assetUI;
   const qwenVoices = global.MSWQwenVoices.create({el, t, request, recipe: qwenRecipe, updateScope,
     playReference, stopReference, generation: () => host.generation});
   const indexTts = global.MSWIndexTts.create({el, t, request, updateScope,
     playReference, stopReference, generation: () => host.generation});
   function syncDraft() {
-    const next = available && isText() && panel.isOpen();
+    const next = available && isText() && panel.isOpen() && !assetUI.editing;
     if (next === draftActive) return;
     if (next) {
       host.commitEdits();
@@ -260,43 +257,6 @@
     });
     return button;
   }
-  const icons = {
-    play: '<path class="asset-icon-fill" d="M7 4v16l13-8z"/>',
-    pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
-    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
-    insert: '<path d="M3 17h18M6 20v1m6-1v1m6-1v1M12 2v11m-4-4 4 4 4-4"/>',
-    remove: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
-    sound: '<path d="M11 4 5 9H2v6h3l6 5zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
-    muted: '<path d="M11 4 5 9H2v6h3l6 5zm5 5 6 6m0-6-6 6"/>',
-  };
-  function setIcon(button, icon, label) {
-    if (button.dataset.icon !== icon) {
-      // Constant, local SVG paths only; subtitle text never enters HTML.
-      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[icon]}</svg>`;
-      button.dataset.icon = icon;
-    }
-    const translated = t(label);
-    if (button.getAttribute('aria-label') !== translated) button.setAttribute('aria-label', translated);
-    if (button.title !== translated) button.title = translated;
-  }
-  function iconAction(label, icon, callback) {
-    const button = action(label, callback); button.dataset.assetAction = icon;
-    setIcon(button, icon, label); return button;
-  }
-  function updatePreviewButtons() {
-    for (const card of el('asset-list').children) {
-      const playing = card.dataset.assetId === previewId && !el('asset-audio').paused && !el('asset-audio').ended;
-      card.classList.toggle('playing', playing);
-      const button = card.querySelector('[data-asset-action="play"]');
-      if (button) setIcon(button, playing ? 'pause' : 'play', playing ? '暂停试听' : '试听');
-    }
-  }
-  function updateDensity() {
-    el('asset-density-value').value = String(density);
-    const list = el('asset-list'); if (!list.clientWidth) return;
-    const columns = Math.min(density, Math.max(1, Math.floor((list.clientWidth - 10) / 118)));
-    list.style.setProperty('--asset-columns', columns);
-  }
   const statuses = { queued: '等待处理', running: '正在合成', succeeded: '合成完成', failed: '合成失败',
     cancelled: '已取消', cancel_requested: '正在取消', interrupted: '服务中断，未自动重试' };
   function renderJobs() {
@@ -317,7 +277,7 @@
         if (generation !== host.generation) return;
         jobs.set(job.id, data.job); renderJobs(); schedule(0);
       }));
-      actions.append(action('查看素材', () => { host.showAssets(); el('asset-batch').value = job.id; page = 0; renderAssets(); }));
+      actions.append(action('查看素材', () => { host.showAssets(); assetUI.showBatch(job.id); }));
       if (!active(job) && (job.progress?.ready || 0) < job.count) {
         actions.append(action('检查未完成项', () => inspectUnfinished(job, card)));
       }
@@ -438,155 +398,6 @@
       else if (delay != null) schedule(delay);
     }
   }
-  function stopPreview() {
-    assetScrubbing = false;
-    previewSequence += 1;
-    el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = null; previewId = null; previewOwner = '';
-    el('asset-player').hidden = true;
-    updatePreviewButtons();
-    updateAssetTransport();
-  }
-  function updateAssetTransport() {
-    const audio = el('asset-audio'), duration = Number.isFinite(audio.duration) ? audio.duration : 0;
-    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-    const ready = duration > 0 && !audio.error;
-    const clock = value => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
-    el('asset-seek').disabled = !ready; el('asset-seek').max = String(duration);
-    if (!assetScrubbing) el('asset-seek').value = String(current);
-    el('asset-clock').value = `${clock(current)} / ${clock(duration)}`;
-    el('asset-seek').setAttribute('aria-valuetext', `${clock(current)} / ${clock(duration)}`);
-    el('asset-play-toggle').disabled = !ready;
-    setIcon(el('asset-play-toggle'), audio.paused || audio.ended ? 'play' : 'pause', audio.paused || audio.ended ? '播放试听' : '暂停试听');
-    const muted = audio.muted || audio.volume === 0;
-    setIcon(el('asset-mute'), muted ? 'muted' : 'sound', muted ? '取消试听静音' : '静音试听');
-    el('asset-mute').setAttribute('aria-pressed', String(muted));
-    el('asset-volume').value = String(audio.muted ? 0 : audio.volume);
-    el('asset-rate').value = String(audio.playbackRate);
-  }
-  function stopReference(owner) { if (previewOwner === owner) stopPreview(); }
-  async function playAssetAudio() {
-    host.pauseMedia();
-    try { await el('asset-audio').play(); }
-    catch (error) {
-      // Pausing or changing the source during play() is a normal user action.
-      if (error.name !== 'AbortError') throw error;
-    }
-  }
-  async function playReference(owner, label, load, valid = () => true) {
-    stopPreview(); previewOwner = owner;
-    const sequence = previewSequence, generation = host.generation;
-    host.showAssets({automatic: true}); el('asset-player').hidden = false;
-    el('asset-playing').textContent = t('正在加载音频…');
-    try {
-      const source = await load();
-      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
-      previewUrl = typeof source === 'string' ? source : URL.createObjectURL(source);
-      el('asset-audio').src = previewUrl; el('asset-playing').textContent = label;
-      await playAssetAudio();
-    } catch (error) {
-      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
-      el('asset-playing').textContent = error.message; throw error;
-    }
-  }
-  async function audioBlob(asset) {
-    return request(`asset-audio?project_id=${encodeURIComponent(projectId())}&asset_id=${encodeURIComponent(asset.id)}`, null, true);
-  }
-  async function preview(asset) {
-    if (previewId === asset.id && previewUrl) {
-      if (el('asset-audio').paused) await playAssetAudio(); else el('asset-audio').pause();
-      return;
-    }
-    stopPreview();
-    const sequence = previewSequence, generation = host.generation;
-    el('asset-playing').textContent = t('正在加载音频…');
-    try {
-      const blob = await audioBlob(asset);
-      if (sequence !== previewSequence || generation !== host.generation) return;
-      previewId = asset.id; previewUrl = URL.createObjectURL(blob);
-      el('asset-player').hidden = false;
-      el('asset-audio').src = previewUrl; el('asset-playing').textContent = asset.generation.display_text;
-      await playAssetAudio();
-    } catch (error) {
-      if (sequence !== previewSequence || generation !== host.generation) return;
-      if (error.status === 404) missing.add(asset.id);
-      el('asset-playing').textContent = error.message; renderAssets(); throw error;
-    }
-  }
-  function download(blob, name) {
-    const url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
-  function renderAssets() {
-    const list = el('asset-list'), scroll = list.scrollTop;
-    const focus = list.contains(document.activeElement) ? document.activeElement : null;
-    const focusedId = focus?.closest('[data-asset-id]')?.dataset.assetId, focusedAction = focus?.dataset.assetAction;
-    const all = [...assets()].sort((a, b) => b.created_at - a.created_at || a.source_ref.start - b.source_ref.start);
-    const sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map();
-    const batch = el('asset-batch').value;
-    const batches = new Map(all.map(a => [a.job_id, a]));
-    const known = new Map([...jobs.values()].map(job => [job.id, job]));
-    for (const [id, asset] of batches) if (!known.has(id)) known.set(id, { id, recipe: asset.generation, created_at: asset.created_at });
-    const recent = [...known.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 200);
-    if (batch && known.has(batch) && !recent.some(job => job.id === batch)) recent.push(known.get(batch));
-    el('asset-batch').replaceChildren(new Option(t('全部批次'), ''), ...recent.map(job =>
-      new Option(`${new Date(job.created_at * 1000).toLocaleString()} · ${job.recipe?.provider === 'imported' ? t('外部音频') : job.recipe?.voice || 'TTS'} · ${job.id.slice(-6)}`, job.id)));
-    el('asset-batch').value = batch;
-    const term = el('asset-search').value.trim().toLocaleLowerCase();
-    const rows = all.filter(a => (!batch || a.job_id === batch) && (!term || `${a.generation.display_text} ${a.generation.voice} ${a.generation.model}`.toLocaleLowerCase().includes(term)));
-    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE)); page = Math.min(page, pages - 1);
-    el('asset-count').textContent = `${rows.length} / ${all.length} ${t('条音频')}`;
-    el('asset-page').textContent = `${page + 1} / ${pages}`;
-    el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
-    el('asset-export-project').disabled = !available || !all.length;
-    el('asset-notice').textContent = t(all.length
-      ? '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。'
-      : '生成的音频会显示在这里。通过「媒体 → TTS」开始配音。');
-    const fragment = document.createDocumentFragment();
-    for (const asset of rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)) {
-      const row = document.createElement('article'); row.className = 'msw-asset-row'; row.dataset.assetId = asset.id; row.setAttribute('role', 'listitem');
-      row.draggable = available;
-      row.addEventListener('dragstart', event => {
-        if (event.target.closest('button, input, audio')) { event.preventDefault(); return; }
-        event.dataTransfer.effectAllowed = 'copy';
-        event.dataTransfer.setData('application/x-msw-audio-asset', JSON.stringify({ project_id: projectId(), asset_id: asset.id }));
-      });
-      const content = document.createElement('div'); content.className = 'msw-asset-info';
-      const text = document.createElement('p'); text.className = 'msw-asset-text msw-asset-content'; text.textContent = asset.generation.display_text; text.title = text.textContent;
-      const meta = document.createElement('p'); meta.className = 'msw-asset-meta';
-      const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
-      meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
-      if (asset.generation.provider === 'imported') meta.textContent = `${t('外部音频')} · ${duration.toFixed(2)} s · ${asset.generation.filename || ''}`;
-      else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
-      else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
-      if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
-      if (sourceStatuses.has(asset.id)) { meta.textContent += ` · ${t(sourceStatuses.get(asset.id))}`; row.classList.add('msw-source-stale'); }
-      meta.title = meta.textContent;
-      content.append(text, meta);
-      const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
-      const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
-      const save = iconAction('下载 WAV', 'download', async () => {
-        const generation = host.generation, blob = await audioBlob(asset);
-        if (generation === host.generation) download(blob, `${asset.id}.wav`);
-      }); save.disabled = !available;
-      const insert = iconAction('放入时间轴', 'insert', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
-      insert.disabled = !available;
-      const remove = iconAction('删除素材', 'remove', () => {
-        const count = (host.data.msw?.audio_clips || []).filter(clip => clip.asset_id === asset.id).length;
-        if (count && !global.confirm(t(`此素材已被 ${count} 个音频贴片使用。删除素材并同时移除这些贴片？可撤销。`))) return;
-        if (previewId === asset.id || !previewId) stopPreview();
-        if (host.removeAsset(asset.id)) host.flashHint(t('素材已移除，可撤销；原文件保留'), 'success');
-      });
-      buttons.append(play, save, insert, remove); row.append(content, buttons); fragment.append(row);
-    }
-    list.replaceChildren(fragment); updatePreviewButtons();
-    if (focusedId && focusedAction) {
-      const card = [...list.children].find(row => row.dataset.assetId === focusedId);
-      card?.querySelector(`[data-asset-action="${focusedAction}"]`)?.focus({ preventScroll: true });
-    }
-    list.scrollTop = scroll;
-  }
   el('tts-open').addEventListener('click', () => {
     host.commitEdits(); panel.open(); syncDraft(); updateScope();
     if (available) {
@@ -601,6 +412,7 @@
   el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; el('tts-index-pronunciation').value = ''; syncDraft(); updateScope(); });
   el('cue-panel-tts-text').addEventListener('input', () => { draftRevision++; updateScope(); });
   el('cue-panel-tts-preview').addEventListener('toggle', () => { if (el('cue-panel-tts-preview').open) renderDraftPreview(); });
+  global.addEventListener('msw:asset-editing',syncDraft);
   global.addEventListener('msw:draft-settings', updateScope);
   global.addEventListener('msw:tts-refresh', () => schedule(0));
   el('cue-panel-tts-restore').addEventListener('click', () => {
@@ -671,111 +483,10 @@
   });
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
   for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
-  el('asset-search').addEventListener('input', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-batch').addEventListener('change', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-next').addEventListener('click', () => { page += 1; el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-density').value = String(density);
-  el('asset-density').addEventListener('input', () => {
-    density = Number(el('asset-density').value); updateDensity();
-    try { localStorage.setItem(DENSITY_KEY, String(density)); } catch (_) {}
-  });
-  new ResizeObserver(updateDensity).observe(el('asset-list'));
-  global.addEventListener('msw:assets-changed', () => {
-    if (previewId && !assets().some(asset => asset.id === previewId)) stopPreview();
-    renderAssets();
-  });
-  global.addEventListener('msw:subtitles-changed', () => { if (assets().length) renderAssets(); });
-  for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
-  for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
-  el('asset-play-toggle').addEventListener('click', async () => {
-    const audio = el('asset-audio');
-    if (!audio.paused && !audio.ended) { audio.pause(); return; }
-    try { await playAssetAudio(); }
-    catch (error) { el('asset-playing').textContent = error.message; }
-  });
-  el('asset-seek').addEventListener('pointerdown', () => { assetScrubbing = true; });
-  for (const event of ['pointerup', 'pointercancel']) document.addEventListener(event, () => { if (assetScrubbing) { assetScrubbing = false; updateAssetTransport(); } });
-  el('asset-seek').addEventListener('input', () => {
-    const audio = el('asset-audio');
-    if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Math.max(0, Math.min(audio.duration, Number(el('asset-seek').value)));
-    updateAssetTransport();
-  });
-  el('asset-mute').addEventListener('click', () => {
-    const audio = el('asset-audio');
-    if (audio.muted || !audio.volume) { audio.muted = false; if (!audio.volume) audio.volume = 1; }
-    else audio.muted = true;
-    updateAssetTransport();
-  });
-  el('asset-volume').addEventListener('input', () => { el('asset-audio').volume = Number(el('asset-volume').value); el('asset-audio').muted = false; });
-  el('asset-rate').addEventListener('change', () => { el('asset-audio').playbackRate = Number(el('asset-rate').value); });
-  updateAssetTransport();
-  el('asset-audio').addEventListener('error', () => {
-    if (previewOwner && el('asset-audio').getAttribute('src')) el('asset-playing').textContent = t('试听音频无法加载，请检查连接后重试');
-  });
-  el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
-  el('asset-import').disabled = !available;
-  el('asset-import').addEventListener('click', () => { if (!importing) el('asset-import-file').click(); });
-  el('asset-import-stop').addEventListener('click', () => { stopImport = true; el('asset-import-stop').disabled = true; });
-  el('asset-import-file').addEventListener('change', async event => {
-    const files = [...event.target.files]; event.target.value = '';
-    if (importing || !files.length) return;
-    if (files.length > 100) { host.flashHint(t('每次最多导入 100 个音频文件'), 'warning'); return; }
-    importing = true; stopImport = false; el('asset-import').disabled = true;
-    const generation = host.generation, id = projectId();
-    el('asset-import-status').hidden = false; el('asset-import-stop').hidden = false; el('asset-import-stop').disabled = false;
-    let success = 0;
-    const failures = [];
-    try {
-      for (const [index, file] of files.entries()) {
-        if (stopImport || generation !== host.generation) break;
-        el('asset-import-message').textContent = `${t('正在导入')} ${index + 1}/${files.length} · ${file.name}`;
-        try {
-          if (!/\.(wav|mp3|flac|m4a|aac|ogg|opus)$/i.test(file.name)) throw new Error(t('不支持的音频格式'));
-          if (!file.size || file.size > 32 * 1024 * 1024) throw new Error(t('单个导入文件须为 1 字节至 32 MiB'));
-          const encoded = await new Promise((resolve, reject) => {
-            const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]);
-            reader.onerror = () => reject(new Error(t('无法读取音频文件'))); reader.readAsDataURL(file);
-          });
-          if (generation !== host.generation || stopImport) break;
-          const result = await request('asset-import', {project_id: id, request_key: global.MSWProject.id('upload'),
-            filename: file.name, audio_base64: encoded, library_size: assets().length, removed_asset_ids: host.data.msw?.removed_asset_ids || []});
-          if (generation !== host.generation) break;
-          host.addAssets(id, [result.asset]); success++; renderAssets();
-        } catch (error) { failures.push(`${file.name}：${error.message}`); }
-      }
-    } finally {
-      importing = false; el('asset-import').disabled = !available; el('asset-import-stop').hidden = true;
-      if (generation === host.generation) {
-        el('asset-import-message').textContent = `${t('已导入')} ${success}/${files.length}`
-          + (stopImport ? ` · ${t('已停止后续导入')}` : '') + (failures.length ? `\n${failures.join('\n')}` : '');
-        if (success) { host.showAssets({automatic: true}); schedule(0); }
-      }
-    }
-  });
-  el('asset-export-project').addEventListener('click', async () => {
-    const button = el('asset-export-project'); button.disabled = true;
-    const generation = host.generation;
-    try {
-      const blob = await request('asset-bundle', { project_id: projectId(), project: host.exportProject() }, true);
-      if (generation !== host.generation) return;
-      download(blob, 'project-with-tts.zip');
-      el('asset-notice').textContent = t('已导出工程与 TTS 音频；解压后打开 project.mosp。原视频仍需原媒体文件。');
-    } catch (error) { if (generation === host.generation) el('asset-notice').textContent = error.message; }
-    finally { button.disabled = false; }
-  });
-  document.addEventListener('play', event => {
-    if (event.target === el('asset-audio')) host.pauseMedia();
-    else if (event.target.id === 'player') {
-      if (previewOwner && !previewUrl) stopPreview();
-      else el('asset-audio').pause();
-    }
-  }, true);
   global.addEventListener('msw:project-changed', () => {
-    stopImport = true; el('asset-import-status').hidden = true;
-    stopPreview(); jobs.clear(); watched.clear(); opened.clear(); firstReady.clear(); missing.clear();
-    jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = ''; page = 0;
-    el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = 'main';
+    jobs.clear(); watched.clear(); opened.clear(); firstReady.clear();
+    jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = '';
+    el('tts-target').value = 'main';
     draftInitialized = false; el('cue-panel-tts-text').value = ''; syncDraft();
     draftRevision++; pendingDraft = null; clearedDraft = null; draftJobs.clear(); el('cue-panel-tts-restore').hidden = true;
     el('asset-playing').textContent = t('选择音频试听');

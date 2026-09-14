@@ -325,6 +325,7 @@ __WAVEFORM_CSS__
           <label class="toggle settings-panel-item" title="隐藏/显示素材库顶部的搜索框与批次筛选">
             <input type="checkbox" id="asset-show-search" checked> 显示搜索与筛选
           </label>
+          <label class="toggle settings-panel-item"><input type="checkbox" id="asset-show-player" checked> 显示底部试听栏</label>
         </div>
       </div>
       <div class="dropdown-separator"></div>
@@ -997,8 +998,8 @@ __WAVEFORM_CSS__
       <label class="toggle editor-settings-item" title="在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行">
         <input type="checkbox" id="waveform-show-track-heads" checked> 行编号
       </label>
-      <label class="toggle editor-settings-item" title="悬浮字幕块/音频贴片时，额外显示序号与起止时间（默认只显示文字内容）">
-        <input type="checkbox" id="waveform-hover-details"> 悬浮显示序号与用时
+      <label class="toggle editor-settings-item" title="悬浮时显示起止时间与总用时；字幕显示序号，音频贴片显示贴片与配音轨叠加后的试听增益">
+        <input type="checkbox" id="waveform-hover-details"> 更多悬浮显示
       </label>
       <label class="editor-settings-item">配音与空隙
         <select id="audio-clips-gap-policy">
@@ -1877,15 +1878,18 @@ __WAVEFORM_CSS__
 <div class="editor-workspace waveform-basic" id="editor-workspace">
   <section class="msw-asset-library" id="asset-library" aria-label="素材库" hidden>
     <div class="msw-asset-toolbar">
-      <input type="search" id="asset-search" placeholder="搜索配音文本、音色…" aria-label="搜索素材">
+      <select id="asset-type" aria-label="素材类型"><option value="">全部</option><option value="audio">音频</option><option value="subtitle">字幕</option></select>
       <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
+      <input type="search" id="asset-search" placeholder="搜索文字、音色、文件名…" aria-label="搜索素材">
       <button type="button" id="asset-refresh" class="msw-asset-iconbtn" title="刷新素材库" aria-label="刷新素材库"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="msw-asset-summary">
       <span id="asset-count">0 条音频</span>
+      <span class="msw-asset-notice" id="asset-notice"></span>
       <div class="msw-asset-summary-actions">
+        <button type="button" id="asset-insert-selected" hidden>放入所选字幕</button>
         <button type="button" id="asset-import" class="msw-asset-iconbtn" title="导入音频" aria-label="导入音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7m0 0 3-3m-3 3-3-3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与 TTS 音频" aria-label="导出工程与 TTS 音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与音频素材包" aria-label="导出工程与音频素材包"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <span class="msw-asset-pagenum" id="asset-page">1 / 1</span>
         <button type="button" id="asset-prev" class="msw-asset-iconbtn" title="上一页" aria-label="上一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button type="button" id="asset-next" class="msw-asset-iconbtn" title="下一页" aria-label="下一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -1893,8 +1897,7 @@ __WAVEFORM_CSS__
       <input type="file" id="asset-import-file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" multiple hidden>
     </div>
     <div class="msw-asset-import-status" id="asset-import-status" hidden><span id="asset-import-message" role="status" aria-live="polite"></span><button type="button" id="asset-import-stop">停止后续导入</button></div>
-    <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
-    <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
+    <div class="msw-asset-list" id="asset-list" role="listbox" aria-multiselectable="true" aria-label="素材列表"></div>
     <footer class="msw-asset-player" id="asset-player" hidden>
       <div id="asset-playing" class="msw-asset-content">选择音频试听</div>
       <div class="msw-asset-transport">
@@ -1976,6 +1979,8 @@ __WAVEFORM_CSS__
       </div>
       <div class="cue-panel-text-wrap">
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
+        <textarea id="cue-panel-asset-text" rows="3" maxlength="12000" aria-label="字幕素材内容" hidden></textarea>
+        <div id="cue-panel-asset-footer" hidden><span>字幕素材 · 独立编辑</span><button type="button" id="cue-panel-asset-done">完成编辑</button></div>
         <textarea id="cue-panel-tts-text" rows="3" placeholder="输入要合成的文字…" aria-label="独立配音草稿" hidden></textarea>
         <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 段</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button><button type="button" id="cue-panel-tts-restore" hidden>恢复上次草稿</button></div>
         <details id="cue-panel-tts-preview" hidden><summary>分段预览</summary><ol id="cue-panel-tts-parts" data-i18n-skip></ol></details>

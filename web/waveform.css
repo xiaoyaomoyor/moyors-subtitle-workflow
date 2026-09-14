@@ -560,11 +560,11 @@
   z-index: 9;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 1.5px;
   background: var(--wave-playhead);
   box-shadow: 0 0 5px var(--wave-playhead-glow);
   pointer-events: none;
-  transform: translateX(-1px);
+  transform: translateX(-.75px);
 }
 .waveform-pointer-line {
   position: absolute;
@@ -804,6 +804,11 @@
   outline: 2px solid var(--selection-yellow);  /* 跟随「空隙」自定义颜色 */
   outline-offset: 1px;
   box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px var(--selection-yellow-glow);
+}
+.waveform-cue-block.selected {
+  outline-width: 2px;
+  outline-offset: 0;
+  box-shadow: 0 0 6px var(--selection-yellow-glow);
 }
 /* 框选拖动中的命中预览：比正式选中的实线弱一档的虚线；
    松开后由选中契约替换为 .selected。 */

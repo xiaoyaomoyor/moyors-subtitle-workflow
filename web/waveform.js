@@ -3738,6 +3738,7 @@
         },
         snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
         dual: () => this.options.multiSubtitleVisible?.() === true,
+        hoverDetails: () => this.settings.hoverDetails === true,
         magneticEdges: ({ cueExclude = null, clipExclude = null } = {}) => this.getMagneticEdges(cueExclude, clipExclude),
         showMagnetGuide: (timeMs) => this.showMagnetGuide(timeMs),
         hideMagnetGuide: () => this.hideMagnetGuide(),
@@ -4382,15 +4383,7 @@
         label.textContent = segment.text.replace(/\s+/g, ' ');
         block.appendChild(label);
         this.setBindingMarker(block, mainBindingMarkers?.has?.(index) === true);
-        // 悬浮 title：默认只有完整文字；「悬浮显示序号与用时」开启时
-        // 附加序号与起止时间（当前时间基准格式）。
-        if (this.settings.hoverDetails === true) {
-          const clockNow = resolveTiming(this.cueTiming());
-          block.title = `#${index + 1} · ${clockNow.format(clockNow.fromMs(segment.start))} ~ ${clockNow.format(clockNow.fromMs(segment.end))}
-${label.textContent}`;
-        } else {
-          block.title = label.textContent;
-        }
+        block.title = this.cueHoverTitle(segment, index, label.textContent);
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
           leftHandle.className = 'waveform-cue-handle left';
@@ -4445,7 +4438,7 @@ ${label.textContent}`;
         const label = document.createElement('span');
         label.className = 'waveform-cue-label';
         label.textContent = String(segment.text || '').replace(/\s+/g, ' ');
-        block.title = label.textContent;
+        block.title = this.cueHoverTitle(segment, index, label.textContent);
         block.appendChild(label);
         this.setBindingMarker(block, extensionBindingMarkers?.has?.(index) === true);
         const sourceStatus = this.options.getCueSourceStatus?.(segment);
@@ -5631,6 +5624,12 @@ ${label.textContent}`;
 
     cueTiming() {
       return resolveTiming(this.options.getCueTiming?.());
+    }
+
+    cueHoverTitle(segment, index, text) {
+      if (this.settings.hoverDetails !== true) return text;
+      const clock = this.cueTiming(), format = ms => clock.format(clock.fromMs(ms));
+      return `${text}\n#${index + 1} · ${format(segment.start)} ~ ${format(segment.end)} (${format(segment.end - segment.start)})`;
     }
 
     cueTimingDuration() {

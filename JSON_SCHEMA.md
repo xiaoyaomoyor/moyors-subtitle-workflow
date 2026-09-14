@@ -829,6 +829,8 @@ uv run python edit.py your_generated.mosp
 | `translation_applications` | 可选，对部分应用的任务记录已经写入的主字幕 ID；对象及每个数组最多 10000 项。任务 ID 遵循上述 ASCII 规则；字幕 ID 沿用原工程的不透明字符串规范（规范化后最多 160 字符，可含中文） |
 | `translation_target_tracks` | 可选，部分应用时新建的副轨 ID，按任务 ID 索引，最多 10000 项；轨道 ID 沿用原工程的 160 字符规则。继续应用剩余结果时复用同一轨，完成后清除 |
 | `assets` | 可选，不可变音频素材数组，最多 10000 项；字段见下表。字幕历史保留该素材库存，不随字幕撤销删除 |
+| `subtitle_assets` | 可选，独立字幕素材数组，最多 10000 项；每条一个卡片，不参与混音或原字幕播放。复制、编辑、删除随字幕历史撤销/重做 |
+| `asset_batches` | 可选，最多 10000 个批次；每条字幕素材必须引用存在的批次。旧音频按 `batch_id` 或 `job_id` 推导批次，不要求迁移旧工程 |
 | `removed_asset_ids` | 可选，已从当前工程移除的素材 ID 数组，最多 100000 项，不接受 null、重复项或与 `assets` 同时存在的 ID；ID 为 `audio-` 加 32 位小写十六进制。保存／恢复后过滤后台重复结果。删除素材及其贴片是独立可撤销操作，字幕撤销保留当前删除决定；磁盘字节保留，不因移除引用立即删除 |
 | `source_project_id` | 可选，另存为时记录直接来源工程 ID，格式与 `project_id` 相同。副本使用新 `project_id`，素材 ID 保留；字幕撤销不会回滚当前工程身份 |
 | `audio_tracks` / `audio_clips` | 可选，配音轨及源时间轴上的独立贴片；不存在等同空数组，出现时不能为 null。详见 C 阶段契约 |
@@ -857,6 +859,16 @@ uv run python edit.py your_generated.mosp
 | `source_ref` | `key` 为任务条目 ID；字幕来源的 `id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒。独立文本来源见上文 |
 
 任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
+
+### 字幕素材与批次
+
+`subtitle_assets[*]` 必填 `id`、`kind: "subtitle"`、`batch_id`、`source_id`、`source_cue_id`、`track_id`、`created_at`、`original_start`、`start`、`end`、`text`。前三个 ID 与来源 ID 使用 MSW 稳定标识规则；`source_cue_id` 为原字幕 ID（1–160 字符），`track_id` 为 null（主字幕）或原副轨 ID（1–160 字符）。
+
+`created_at` 为 Unix 毫秒；`original_start` 是原时间线起点，`start/end` 是相对批次最早起点的毫秒时间。时间均为非负 JavaScript 安全整数，`end > start`。文本最多 12000 个 Unicode 字符。`items` 如存在，最多 12000 项，必须位于该素材起止范围内，使用同一批次相对时间；修改素材文字时移除原逐字时间，避免伪造文字对齐。可选 `color: {name, value}`，颜色 value 为六位十六进制；复制时把颜色引用解析为独立颜色，插入不引用原字幕下标。`style`、`split_mode` 如存在则保留。
+
+`asset_batches[*]` 必填 `id`、`kind`、`created_at`。kind 支持 `copy/asr/tts/imported/regenerated`；可选 `parent_id`、`result_id` 记录来源和入库去重。`bindings` 可选，保留完整选中配对的 `track_id`、主副字幕原 ID 数组与整数时间偏移；只有配对双方都被成功放入时才创建新绑定。批次和素材 ID 不重复，字幕素材必须有对应批次。
+
+音频可选 `batch_id`（合法 MSW ID），用于将同次多文件导入归组；缺省回退到原 `job_id`。字幕素材字段随工程内容及恢复快照保存，另存为保留其 ID、来源和时间关系。音频素材字节与原配方管理不变。
 
 工作区布局树的模块 ID 新增 `assets`，可进入已有 `module`、`tabs` 和 `split` 结构。旧布局缺少该模块时默认为隐藏；不会为了补足五个模块重排用户布局。
 

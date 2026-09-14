@@ -1553,6 +1553,13 @@
   .layout-module-slot > .current-cue-panel,
   .layout-module-slot > .cues-module,
   .layout-module-slot > .waveform-pane { margin: 0; }
+  /* All docked modules share the asset library's outer frame. Keep menus and
+     floating panels governed by their existing overflow rules. */
+  .editor-workspace :is(.player-wrap, .current-cue-panel, .cues-module, .waveform-pane, .msw-asset-library) {
+    box-sizing: border-box;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+  }
 
   /* 关键：模块元素自带 display（flex/block），会压过 [hidden] 的浏览器默认样式，
      导致标签组内未激活成员仍然渲染（表现成“分裂成两个模块、两条标签栏联动”）。
@@ -2951,7 +2958,7 @@
     .cue .index { display: none; }
   }
   .cue.playhead-hit:not(.selected) { outline: 1px solid var(--wave-playhead); outline-offset: -1px; }
-  .cue.selected:not(.multi-dual-cue) { outline: 1px solid var(--selection-yellow-line); outline-offset: -1px; }
+  .cue.selected:not(.multi-dual-cue) { outline: 2px solid var(--selection-yellow-line); outline-offset: -2px; }
   .cue.editing { cursor: text; }
   .cue.disabled .text, .multi-cue-column.disabled .text { color: var(--text-muted); }
   .cue.disabled .index, .multi-cue-column.disabled .index { text-decoration: line-through; }
@@ -3063,6 +3070,19 @@
   .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--card-bg); cursor: grab; }
   .msw-asset-row:hover { border-color: var(--btn-border-hover); }
   .msw-asset-row.playing { border-color: var(--accent); }
+  .msw-asset-row.marked { background: color-mix(in srgb, var(--asset-mark) 13%, var(--card-bg)); }
+  .msw-asset-row.selected { outline: 2px solid var(--gap-accent); outline-offset: -2px; }
+  .msw-asset-row:focus-visible { box-shadow: var(--focus-ring); }
+  .msw-asset-summary > .msw-asset-notice { padding: 0; flex: 1 1 180px; }
+  .msw-asset-toolbar #asset-type { flex: 0 1 70px; }
+  .msw-asset-toolbar #asset-search { flex: 2 1 120px; }
+  .current-cue-panel.subtitle-asset-mode .cue-panel-layout { grid-template-columns: minmax(0,1fr) !important; }
+  .current-cue-panel.subtitle-asset-mode :is(.cue-panel-navigation,.cue-panel-time-actions,.cue-panel-sticker-wrap,.cue-panel-footer,#cue-panel-text,#cue-panel-tts-text,#cue-panel-tts-footer,#cue-panel-tts-preview) { display:none !important; }
+  #cue-panel-asset-text { color:var(--editor-cue-text); }
+  #cue-panel-asset-footer { display:flex; align-items:center; justify-content:space-between; gap:6px; color:var(--accent); font-size:12px; }
+  #cue-panel-asset-footer[hidden] { display:none; }
+  .msw-asset-track-dialog { background:var(--card-bg); color:var(--text-primary); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); }
+  .msw-asset-track-dialog form, .msw-asset-track-dialog label { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
   .msw-asset-info { min-width: 0; flex: 1; }
   .msw-asset-text { font-size: 12px; line-height: 1.45; min-height: 2.9em; margin: 0 0 3px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .msw-asset-meta { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3369,11 +3389,11 @@
   .multi-cue-column-header .charcount { margin-left: auto; flex: 0 0 auto; min-width: 0; }
   .multi-cue-column .text { flex: 0 0 auto; }
   .multi-cue-column .sticker-slot { flex: 0 0 auto; order: 1; }
-  .multi-cue-column.related-selected { outline: 1px dashed var(--selection-yellow-line); outline-offset: -1px; }
+  .multi-cue-column.related-selected { outline: 2px dashed var(--selection-yellow-line); outline-offset: -2px; }
   .multi-cue-column.selected {
-    outline: 1px solid var(--selection-yellow-line); outline-offset: -1px;
+    outline: 2px solid var(--selection-yellow-line); outline-offset: -2px;
   }
-  .multi-cue-column.current-target .index-label { color: var(--text-primary); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .multi-cue-column.selected :is(.index-label, .index-label-rest) { color: var(--accent); font-weight: 700; text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
   .multi-cue-column .text[contenteditable] { display: block; width: 100%; min-width: 0; }
   @container cue-list (max-width: 620px) {
     [data-pair-layout="columns"] .multi-dual-cue:not(.single-sided) .index-label-rest { display: none; }
@@ -4906,11 +4926,11 @@
   z-index: 9;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 1.5px;
   background: var(--wave-playhead);
   box-shadow: 0 0 5px var(--wave-playhead-glow);
   pointer-events: none;
-  transform: translateX(-1px);
+  transform: translateX(-.75px);
 }
 .waveform-pointer-line {
   position: absolute;
@@ -5150,6 +5170,11 @@
   outline: 2px solid var(--selection-yellow);  /* 跟随「空隙」自定义颜色 */
   outline-offset: 1px;
   box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px var(--selection-yellow-glow);
+}
+.waveform-cue-block.selected {
+  outline-width: 2px;
+  outline-offset: 0;
+  box-shadow: 0 0 6px var(--selection-yellow-glow);
 }
 /* 框选拖动中的命中预览：比正式选中的实线弱一档的虚线；
    松开后由选中契约替换为 .selected。 */
@@ -5733,6 +5758,7 @@
           <label class="toggle settings-panel-item" title="隐藏/显示素材库顶部的搜索框与批次筛选">
             <input type="checkbox" id="asset-show-search" checked> 显示搜索与筛选
           </label>
+          <label class="toggle settings-panel-item"><input type="checkbox" id="asset-show-player" checked> 显示底部试听栏</label>
         </div>
       </div>
       <div class="dropdown-separator"></div>
@@ -6405,8 +6431,8 @@
       <label class="toggle editor-settings-item" title="在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行">
         <input type="checkbox" id="waveform-show-track-heads" checked> 行编号
       </label>
-      <label class="toggle editor-settings-item" title="悬浮字幕块/音频贴片时，额外显示序号与起止时间（默认只显示文字内容）">
-        <input type="checkbox" id="waveform-hover-details"> 悬浮显示序号与用时
+      <label class="toggle editor-settings-item" title="悬浮时显示起止时间与总用时；字幕显示序号，音频贴片显示贴片与配音轨叠加后的试听增益">
+        <input type="checkbox" id="waveform-hover-details"> 更多悬浮显示
       </label>
       <label class="editor-settings-item">配音与空隙
         <select id="audio-clips-gap-policy">
@@ -7285,15 +7311,18 @@
 <div class="editor-workspace waveform-basic" id="editor-workspace">
   <section class="msw-asset-library" id="asset-library" aria-label="素材库" hidden>
     <div class="msw-asset-toolbar">
-      <input type="search" id="asset-search" placeholder="搜索配音文本、音色…" aria-label="搜索素材">
+      <select id="asset-type" aria-label="素材类型"><option value="">全部</option><option value="audio">音频</option><option value="subtitle">字幕</option></select>
       <select id="asset-batch" aria-label="筛选生成批次"><option value="">全部批次</option></select>
+      <input type="search" id="asset-search" placeholder="搜索文字、音色、文件名…" aria-label="搜索素材">
       <button type="button" id="asset-refresh" class="msw-asset-iconbtn" title="刷新素材库" aria-label="刷新素材库"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="msw-asset-summary">
       <span id="asset-count">0 条音频</span>
+      <span class="msw-asset-notice" id="asset-notice"></span>
       <div class="msw-asset-summary-actions">
+        <button type="button" id="asset-insert-selected" hidden>放入所选字幕</button>
         <button type="button" id="asset-import" class="msw-asset-iconbtn" title="导入音频" aria-label="导入音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7m0 0 3-3m-3 3-3-3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与 TTS 音频" aria-label="导出工程与 TTS 音频"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="asset-export-project" class="msw-asset-iconbtn" title="导出工程与音频素材包" aria-label="导出工程与音频素材包"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5v-8m0 0 3 3m-3-3-3 3M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <span class="msw-asset-pagenum" id="asset-page">1 / 1</span>
         <button type="button" id="asset-prev" class="msw-asset-iconbtn" title="上一页" aria-label="上一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button type="button" id="asset-next" class="msw-asset-iconbtn" title="下一页" aria-label="下一页"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -7301,8 +7330,7 @@
       <input type="file" id="asset-import-file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" multiple hidden>
     </div>
     <div class="msw-asset-import-status" id="asset-import-status" hidden><span id="asset-import-message" role="status" aria-live="polite"></span><button type="button" id="asset-import-stop">停止后续导入</button></div>
-    <p class="msw-asset-notice" id="asset-notice">生成的音频会显示在这里。通过「媒体 → TTS」开始配音。</p>
-    <div class="msw-asset-list" id="asset-list" role="list" aria-label="音频素材"></div>
+    <div class="msw-asset-list" id="asset-list" role="listbox" aria-multiselectable="true" aria-label="素材列表"></div>
     <footer class="msw-asset-player" id="asset-player" hidden>
       <div id="asset-playing" class="msw-asset-content">选择音频试听</div>
       <div class="msw-asset-transport">
@@ -7384,6 +7412,8 @@
       </div>
       <div class="cue-panel-text-wrap">
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
+        <textarea id="cue-panel-asset-text" rows="3" maxlength="12000" aria-label="字幕素材内容" hidden></textarea>
+        <div id="cue-panel-asset-footer" hidden><span>字幕素材 · 独立编辑</span><button type="button" id="cue-panel-asset-done">完成编辑</button></div>
         <textarea id="cue-panel-tts-text" rows="3" placeholder="输入要合成的文字…" aria-label="独立配音草稿" hidden></textarea>
         <div id="cue-panel-tts-footer" title="未提交草稿仅保留在当前页面，刷新或换工程时清除" hidden><span>独立配音草稿 · 不修改字幕</span><span id="cue-panel-tts-count">0 段</span><button type="button" id="cue-panel-tts-copy">复制当前字幕</button><button type="button" id="cue-panel-tts-restore" hidden>恢复上次草稿</button></div>
         <details id="cue-panel-tts-preview" hidden><summary>分段预览</summary><ol id="cue-panel-tts-parts" data-i18n-skip></ol></details>
@@ -15170,6 +15200,7 @@ export default MawDynamicCaptions;
   const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
   function validAsset(asset) {
     if (!asset || typeof asset !== 'object' || !/^audio-[0-9a-f]{32}$/.test(asset.id || '') || asset.kind !== 'audio') return false;
+    if (asset.batch_id !== undefined && !validId(asset.batch_id)) return false;
     if (typeof asset.path !== 'string' || !new RegExp(`^msw-[0-9a-f]{24}\\.assets/audio/${asset.id}\\.wav$`).test(asset.path)) return false;
     if (typeof asset.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(asset.sha256)) return false;
     for (const [key, low, high] of [['sample_rate', 8000, 192000], ['channels', 1, 8], ['sample_count', 1, 2 ** 32], ['byte_size', 44, 32 * 1024 * 1024]]) {
@@ -15237,6 +15268,10 @@ export default MawDynamicCaptions;
       if (!global.MSWAudio) throw new Error('音频贴片模块未加载');
       global.MSWAudio.validate(value);
     }
+    if ('subtitle_assets' in value || 'asset_batches' in value) {
+      if (!global.MSWAssets) throw Error('字幕素材模块未加载');
+      global.MSWAssets.validate(value);
+    }
     return clone(value);
   }
   function id(prefix = 'msw') {
@@ -15251,6 +15286,122 @@ export default MawDynamicCaptions;
   global.MSWProject = Object.freeze({ SCHEMA, validId, validAsset, clone, normalize, ensure, id });
   global.MSWE?.register('msw-project', () => global.MSWProject);
 })(window);
+
+// Subtitle assets are independent copies. Audio inventory retains its existing contract.
+(function (global) {
+  'use strict';
+  const p = () => global.MSWProject;
+  const copy = value => p().clone(value);
+  const object = value => value && typeof value === 'object' && !Array.isArray(value);
+  const integer = value => Number.isSafeInteger(value) && value >= 0;
+  const string = (value, max = 160) => typeof value === 'string' && [...value].length <= max;
+  function validSubtitle(a) {
+    if (!object(a) || a.kind !== 'subtitle' || !p().validId(a.id) || !p().validId(a.batch_id)
+      || !p().validId(a.source_id) || !string(a.source_cue_id) || !a.source_cue_id
+      || !(a.track_id === null || (string(a.track_id) && a.track_id))
+      || !integer(a.created_at) || !integer(a.original_start) || !integer(a.start) || !integer(a.end)
+      || a.end <= a.start || !string(a.text, 12000)) return false;
+    if (a.items !== undefined && (!Array.isArray(a.items) || a.items.length > 12000 || a.items.some(i =>
+      !object(i) || !integer(i.start) || !integer(i.end) || i.start < a.start || i.end > a.end || i.end <= i.start || !string(i.text, 12000)))) return false;
+    if (a.color !== undefined && (!object(a.color) || !string(a.color.name) || !/^#[0-9a-f]{6}$/i.test(a.color.value || ''))) return false;
+    return true;
+  }
+  function validate(ext) {
+    const rows = ext.subtitle_assets ?? [], batches = ext.asset_batches ?? [];
+    if (!Array.isArray(rows) || rows.length > 10000 || !rows.every(validSubtitle)
+      || new Set(rows.map(a => a.id)).size !== rows.length) throw Error('字幕素材格式无效或重复');
+    if (!Array.isArray(batches) || batches.length > 10000 || batches.some(b => !object(b) || !p().validId(b.id)
+      || !['copy','asr','tts','imported','regenerated'].includes(b.kind) || !integer(b.created_at)
+      || (b.result_id !== undefined && !p().validId(b.result_id)) || (b.parent_id !== undefined && !p().validId(b.parent_id)))
+      || new Set(batches.map(b => b.id)).size !== batches.length) throw Error('素材批次格式无效或重复');
+    const ids = new Set(batches.map(b => b.id));
+    if (rows.some(a => !ids.has(a.batch_id))) throw Error('字幕素材缺少批次');
+    for (const b of batches) if (b.bindings !== undefined && (!Array.isArray(b.bindings) || b.bindings.length > 10000
+      || b.bindings.some(binding => !object(binding) || !string(binding.track_id) || !binding.track_id
+        || ['main_segment_ids','extension_segment_ids'].some(k => !Array.isArray(binding[k]) || !binding[k].length
+          || binding[k].length > 10000 || binding[k].some(id => !string(id) || !id))
+        || ['start_offset_ms','end_offset_ms'].some(k => !Number.isSafeInteger(binding[k]) || Math.abs(binding[k]) > 1e12)))) throw Error('素材配对记录无效');
+  }
+  function batches(ext) {
+    const map = new Map((ext.asset_batches || []).map(b => [b.id, copy(b)]));
+    for (const a of ext.assets || []) if (!map.has(a.batch_id || a.job_id)) map.set(a.batch_id || a.job_id, {id:a.batch_id || a.job_id,
+      kind:a.generation.provider === 'imported' ? 'imported' : 'tts', created_at:Math.round((a.created_at || 0) * 1000)});
+    return [...map.values()];
+  }
+  function capture(project, selection, options = {}) {
+    const tracks = project.multi_subtitle?.tracks || [], ext = p().ensure(project);
+    const selected = [{track_id:null, segments:project.segments || [], ids:new Set(selection.mainIds || [])},
+      ...tracks.filter(t => t.id === selection.trackId).map(t => ({track_id:t.id, segments:t.segments, ids:new Set(selection.extensionIds || [])}))];
+    const rows = selected.flatMap(t => t.segments.filter(c => t.ids.has(c.id)).map(c => ({c,t})));
+    if (!rows.length) throw Error('请先选择字幕');
+    const origin = Math.min(...rows.map(r => r.c.start)), batchId = options.batchId || p().id('batch');
+    const time = Date.now();
+    const assets = rows.map(({c,t}) => {
+      const a = {id:p().id('subtitle'), kind:'subtitle', batch_id:batchId, created_at:time,
+        source_id:options.sourceId || ext.project_id, source_cue_id:c.id, track_id:t.track_id,
+        original_start:c.start, start:c.start-origin, end:c.end-origin, text:c.text || ''};
+      if (c.items) a.items = c.items.filter(i => i.start >= c.start && i.end <= c.end && i.end > i.start)
+        .map(i => ({start:i.start-origin,end:i.end-origin,text:i.text || ''}));
+      const color = c.color || t.segments[c.color_ref?.headIdx]?.color;
+      if (color) a.color = {name:color.name || '', value:color.value || '#777777'};
+      for (const key of ['style','split_mode']) if (c[key] !== undefined) a[key] = copy(c[key]);
+      return a;
+    });
+    const main = new Set(assets.filter(a => a.track_id === null).map(a => a.source_cue_id));
+    const secondary = new Set(assets.filter(a => a.track_id !== null).map(a => a.source_cue_id));
+    const bindings = (project.multi_subtitle?.bindings || []).filter(b => b.track_id === selection.trackId
+      && b.main_segment_ids.every(id => main.has(id)) && b.extension_segment_ids.every(id => secondary.has(id))).map(copy);
+    return {assets, batch:{id:batchId, kind:options.kind || 'copy', created_at:time, bindings,
+      ...(options.resultId ? {result_id:options.resultId} : {})}};
+  }
+  function add(ext, assets, batch) {
+    const next = copy(ext);
+    if (batch.result_id && (next.asset_batches || []).some(b => b.result_id === batch.result_id)) return null;
+    if ((next.asset_batches || []).some(b => b.id === batch.id)) return null;
+    next.asset_batches = [...batches(next), copy(batch)];
+    next.subtitle_assets = [...(next.subtitle_assets || []), ...copy(assets)];
+    validate(next); return next;
+  }
+  function insert(project, ids, anchor, targets = {}, normalize = c => c) {
+    const selected = new Set(ids), assets = (project.msw?.subtitle_assets || []).filter(a => selected.has(a.id));
+    if (!assets.length) throw Error('请选择字幕素材');
+    if (new Set(assets.map(a => a.source_id)).size > 1) throw Error('不同来源的字幕请分批放入时间线');
+    if (!integer(anchor)) throw Error('插入位置无效');
+    const next = copy(project), origin = Math.min(...assets.map(a => a.original_start));
+    const tracks = new Map((next.multi_subtitle?.tracks || []).map(t => [t.id,t.segments])); tracks.set(null,next.segments);
+    const rows = assets.map(a => {
+      const track = a.track_id === null ? null : targets[a.track_id] || a.track_id;
+      const row = {id:a.id, asset:a, track, reason:''};
+      if (!tracks.has(track)) { row.reason = '请选择目标副字幕轨'; return row; }
+      const start = anchor + a.original_start-origin, shift = start-a.start;
+      row.cue = normalize({id:p().id('cue'), start, end:start+a.end-a.start, text:a.text,
+        ...(a.items ? {items:a.items.map(i => ({...i,start:i.start+shift,end:i.end+shift}))} : {}),
+        ...(a.color ? {color:{...copy(a.color), start, end:start+a.end-a.start}} : {}),
+        ...(a.style ? {style:copy(a.style)} : {}), ...(a.split_mode ? {split_mode:a.split_mode} : {})});
+      return row;
+    });
+    const overlaps = (a,b) => a.start < b.end && b.start < a.end;
+    for (const row of rows.filter(r => r.cue)) {
+      if (tracks.get(row.track).some(c => overlaps(c,row.cue))) row.reason = '与现有字幕重叠';
+      if (rows.some(r => r !== row && r.track === row.track && r.cue && overlaps(r.cue,row.cue))) row.reason = '所选字幕彼此重叠';
+    }
+    const accepted = rows.filter(r => r.cue && !r.reason);
+    for (const [track,segs] of tracks) {
+      const oldIds = segs.map(c => c.id);
+      segs.push(...accepted.filter(r => r.track === track).map(r => r.cue)); segs.sort((a,b) => a.start-b.start || a.end-b.end);
+      const indices = new Map(segs.map((c,i) => [c.id,i]));
+      for (const c of segs) for (const field of ['color_ref','sticker_ref']) if (c[field]) c[field].headIdx = indices.get(oldIds[c[field].headIdx]);
+    }
+    for (const batch of project.msw?.asset_batches || []) for (const binding of batch.bindings || []) {
+      const find = (id,track) => accepted.find(r => r.asset.batch_id === batch.id && r.asset.source_cue_id === id && r.asset.track_id === track);
+      const main = binding.main_segment_ids.map(id => find(id,null)), secondary = binding.extension_segment_ids.map(id => find(id,binding.track_id));
+      if (main.every(Boolean) && secondary.every(Boolean)) next.multi_subtitle.bindings.push({...copy(binding),id:p().id('binding'),
+        track_id:secondary[0].track,main_segment_ids:main.map(r => r.cue.id),extension_segment_ids:secondary.map(r => r.cue.id)});
+    }
+    return {project:next, count:accepted.length, rows:rows.map(r => ({id:r.id,text:r.asset.text,reason:r.reason}))};
+  }
+  global.MSWAssets = Object.freeze({validate, validSubtitle, batches, capture, add, insert});
+})(typeof window === 'undefined' ? globalThis : window);
 
 // Pure sample/time math shared by timeline, playback and project validation.
 (function (global) {
@@ -16020,6 +16171,28 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '素材类型': 'Asset type',
+    '字幕素材内容': 'Subtitle asset text',
+    '字幕素材 · 独立编辑': 'Subtitle asset · Independent editing',
+    '编辑字幕素材': 'Edit subtitle asset',
+    '完成编辑': 'Finish editing',
+    '复制到素材库': 'Copy to library',
+    '显示底部试听栏': 'Show preview player',
+    '条素材': 'assets',
+    '主字幕素材': 'Primary subtitle asset',
+    '副字幕素材': 'Secondary subtitle asset',
+    '放入所选字幕': 'Insert selected subtitles',
+    '复制字幕': 'Copied subtitles',
+    '字幕素材随工程保存。': 'Subtitle assets are saved with the project.',
+    '素材列表': 'Asset list',
+    '选择目标副字幕轨': 'Choose a secondary subtitle track',
+    '搜索文字、音色、文件名…': 'Search text, voice, filename…',
+    '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与音频素材包。': 'Keep the adjacent .assets folder when moving the project; export a project and audio asset bundle for unsaved projects.',
+    '导出工程与音频素材包': 'Export project and audio asset bundle',
+    '已导出工程与音频素材包；解压后打开 project.mosp。': 'Project and audio assets exported; unzip and open project.mosp.',
+    '更多悬浮显示': 'More hover details',
+    '试听音量': 'Preview gain',
+    '悬浮时显示起止时间与总用时；字幕显示序号，音频贴片显示贴片与配音轨叠加后的试听增益': 'Show start, end and duration on hover; subtitle numbers and the combined clip and voice-track preview gain',
     '用上次草稿替换当前配音草稿？': 'Replace the current draft with the last cleared draft?',
     '配音片段超过 600 字符，请调整断句设置': 'A speech segment exceeds 600 characters; adjust splitting settings',
     "媒体 · 处理": "Media · Processing",
@@ -21839,6 +22012,7 @@ export default MawDynamicCaptions;
         },
         snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
         dual: () => this.options.multiSubtitleVisible?.() === true,
+        hoverDetails: () => this.settings.hoverDetails === true,
         magneticEdges: ({ cueExclude = null, clipExclude = null } = {}) => this.getMagneticEdges(cueExclude, clipExclude),
         showMagnetGuide: (timeMs) => this.showMagnetGuide(timeMs),
         hideMagnetGuide: () => this.hideMagnetGuide(),
@@ -22483,15 +22657,7 @@ export default MawDynamicCaptions;
         label.textContent = segment.text.replace(/\s+/g, ' ');
         block.appendChild(label);
         this.setBindingMarker(block, mainBindingMarkers?.has?.(index) === true);
-        // 悬浮 title：默认只有完整文字；「悬浮显示序号与用时」开启时
-        // 附加序号与起止时间（当前时间基准格式）。
-        if (this.settings.hoverDetails === true) {
-          const clockNow = resolveTiming(this.cueTiming());
-          block.title = `#${index + 1} · ${clockNow.format(clockNow.fromMs(segment.start))} ~ ${clockNow.format(clockNow.fromMs(segment.end))}
-${label.textContent}`;
-        } else {
-          block.title = label.textContent;
-        }
+        block.title = this.cueHoverTitle(segment, index, label.textContent);
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
           leftHandle.className = 'waveform-cue-handle left';
@@ -22546,7 +22712,7 @@ ${label.textContent}`;
         const label = document.createElement('span');
         label.className = 'waveform-cue-label';
         label.textContent = String(segment.text || '').replace(/\s+/g, ' ');
-        block.title = label.textContent;
+        block.title = this.cueHoverTitle(segment, index, label.textContent);
         block.appendChild(label);
         this.setBindingMarker(block, extensionBindingMarkers?.has?.(index) === true);
         const sourceStatus = this.options.getCueSourceStatus?.(segment);
@@ -23732,6 +23898,12 @@ ${label.textContent}`;
 
     cueTiming() {
       return resolveTiming(this.options.getCueTiming?.());
+    }
+
+    cueHoverTitle(segment, index, text) {
+      if (this.settings.hoverDetails !== true) return text;
+      const clock = this.cueTiming(), format = ms => clock.format(clock.fromMs(ms));
+      return `${text}\n#${index + 1} · ${format(segment.start)} ~ ${format(segment.end)} (${format(segment.end - segment.start)})`;
     }
 
     cueTimingDuration() {
@@ -26366,6 +26538,7 @@ function applyHistoryRecord(record) {
   return true;
 }
 function performUndo() {
+  window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekUndo();
   if (!top) { flashHint('没有可撤销的操作', 'invalid'); return; }
   if (top.kind === 'asset-removal' && top.asset && (DATA.msw?.assets?.length || 0) >= 10000) {
@@ -26384,6 +26557,7 @@ function performUndo() {
   updateUndoRedoButtons();
 }
 function performRedo() {
+  window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekRedo();
   if (!top) { flashHint('没有可重做的操作', 'invalid'); return; }
   if (top.kind === 'layout' && typeof waveformEditor?.restoreLayoutHistorySnapshot !== 'function') {
@@ -30149,6 +30323,7 @@ function getCuePanelTextElement(target) {
 }
 
 function setCuePanelTarget(kind, index, trackId = null) {
+  window.MSWE?.resolve('asset-library')?.finishEdit();
   const nextKind = kind === 'extension' ? 'extension' : 'main';
   let nextIndex = Number.isInteger(index) ? index : -1;
   let nextTrackId = nextKind === 'extension' ? trackId : null;
@@ -37549,6 +37724,7 @@ function buildGapRemovedRegionsJson() {
 }
 
 function buildJson() {
+  window.MSWE?.resolve('asset-library')?.commitEdit();
   // Validate before timing repair, and always serialize the live MSW extension.
   const msw = validateProjectForLoad(DATA);
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
@@ -43725,6 +43901,8 @@ function setupModuleContextMenu() {
   bindModule(waveformEditor.assetLibrary, () => [
     { label: '素材库设置', expandable: true, children: [
       { label: '卡片密度', node: buildAssetDensitySlider() },
+      { label: '显示底部试听栏', checked: () => document.getElementById('asset-show-player')?.checked !== false,
+        toggle: () => { const toggle=document.getElementById('asset-show-player');toggle.checked=!toggle.checked;toggle.dispatchEvent(new Event('change')); } },
       { label: '显示搜索与筛选', checked: () => EDITOR_SETTINGS.assetLibraryShowSearch !== false,
         toggle: () => {
           const toggle = document.getElementById('asset-show-search');
@@ -43745,6 +43923,12 @@ function openSelectedCueTts(side) {
 
 function openSelectedCueTranslation() {
   document.getElementById('subtitle-translate-btn')?.click();
+}
+function copySelectedSubtitlesToAssets() {
+  try {
+    const host=window.MSWE.resolve('processing-host'), count=host.copySubtitleAssets();
+    host.showAssets({automatic:true});flashHint(`已复制 ${count} 条字幕到素材库`,'success');
+  } catch(error) {flashHint(error.message,'warning');}
 }
 
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
@@ -43847,6 +44031,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       () => toggleDisabled([idx])
     );
     addItem('翻译所选字幕', '', openSelectedCueTranslation);
+    addItem('复制到素材库', '', copySelectedSubtitlesToAssets);
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem('删除字幕', 'Delete', () => {
       deleteSegments([idx]);
@@ -43879,6 +44064,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       () => toggleDisabled(targetIdxs)
     );
     addItem('翻译所选字幕', '', openSelectedCueTranslation);
+    addItem('复制到素材库', '', copySelectedSubtitlesToAssets);
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
@@ -43941,6 +44127,10 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
   addItem('翻译所选字幕', () => {
     if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
     openSelectedCueTranslation();
+  });
+  addItem('复制到素材库', () => {
+    if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
+    copySelectedSubtitlesToAssets();
   });
   addItem('配音所选字幕（TTS）', () => {
     if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
@@ -44278,7 +44468,6 @@ function initWaveformEditor() {
     toggleSubtitleTrackMuted,
     openWaveSettings: () => setWaveformSettingsPanelOpen(true),
     getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
-    clipHoverDetails: () => waveformEditor?.settings?.hoverDetails === true,
     audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
     toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
     onBeginEdit: (label) => pushUndo(label),
@@ -46039,6 +46228,7 @@ void syncAppearanceBoot();
 
 // Processing modules use commands rather than mutating editor state themselves.
 function commitProcessingEdits() {
+  window.MSWE?.resolve('asset-library')?.commitEdit();
   if (editingState) finishEdit(true);
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
@@ -46280,6 +46470,46 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return window.MSWTranslation.snapshot(DATA, processingSelection());
   },
   applyTranslation: applyTranslationJob,
+  commitSubtitleAssets: (label, change) => {
+    commitProcessingEdits();
+    const next = window.MSWProject.clone(window.MSWProject.ensure(DATA));
+    const result = change(next);
+    if (result === false) return false;
+    window.MSWProject.normalize(next);
+    pushUndo(label);
+    DATA.msw = next;
+    projectImportDirty = true;
+    scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:assets-changed'));
+    return true;
+  },
+  copySubtitleAssets: () => {
+    commitProcessingEdits();
+    const source = window.MSWE?.resolve('media')?.current;
+    const batch = window.MSWAssets.capture(DATA, processingSelection(),
+      source?.revision ? {sourceId: `media-${source.revision}`} : {});
+    const next = window.MSWAssets.add(window.MSWProject.ensure(DATA), batch.assets, batch.batch);
+    if (!next) return 0;
+    window.MSWProject.normalize(next);
+    pushUndo('复制字幕到素材库'); DATA.msw = next;
+    projectImportDirty = true; scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:assets-changed'));
+    return batch.assets.length;
+  },
+  insertSubtitleAssets: (ids, anchor, targets) => {
+    commitProcessingEdits();
+    const plan = window.MSWAssets.insert(DATA, ids, Math.round(anchor), targets, cue => {
+      syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames:false}); return cue;
+    });
+    if (!plan.count) return plan;
+    const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
+    pushUndo('放入字幕素材', {captureView:true});
+    DATA.segments.splice(0, DATA.segments.length, ...plan.project.segments);
+    if (plan.project.multi_subtitle) DATA.multi_subtitle = plan.project.multi_subtitle;
+    normalizeMultiSubtitleState(); projectImportDirty = true; cueListPlaybackKey = null;
+    renderAll({waveform:'full'}); restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
+    scheduleAutoSaveFlush(); return plan;
+  },
   applyASR: applyAsrJob,
   get assetLibrary() { return waveformEditor?.assetLibrary; },
   get player() { return player; },
@@ -48394,7 +48624,468 @@ window.addEventListener('beforeunload', (e) => {
   global.MSWIndexTts = Object.freeze({create});
 })(window);
 
-// TTS task UI and project asset library. Audio bytes stay outside editor snapshots.
+// Shared audio/subtitle library; TTS only supplies task refresh and requests.
+(function(global) {
+  'use strict';
+  global.MSWAssetLibrary = {create({host, request, jobs, schedule}) {
+  const library=host.assetLibrary, el=id=>document.getElementById(id)||library.querySelector('#'+id);
+  const t=value=>global.MSWE_I18N?.translateText?.(value)||value;
+  const available=Boolean(host.config?.processingUrl);
+  const projectId=()=>global.MSWProject.ensure(host.data).project_id;
+  const assets=()=>host.data.msw?.assets||[];
+  const missing=new Set();
+  const selected=new Set();
+  let selectionAnchor=null, visibleRows=[], editingId=null, committing=false;
+  const subtitles=()=>host.data.msw?.subtitle_assets||[];
+  let page=0, previewUrl=null, previewId=null, previewSequence=0, previewOwner='';
+  let assetScrubbing=false, importing=false, stopImport=false;
+  const PAGE_SIZE=90, DENSITY_KEY='msw.assets.columns';
+  let density=3;
+  try {const saved=Number(localStorage.getItem(DENSITY_KEY));if(Number.isInteger(saved)&&saved>=1&&saved<=5)density=saved;}catch(_){}
+  function action(label, callback) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = t(label);
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      const generation = host.generation;
+      try { await callback(); }
+      catch (error) { if (generation === host.generation) { host.flashHint(error.message, 'warning'); } }
+      finally { button.disabled = false; }
+    });
+    return button;
+  }
+  const icons = {
+    edit: '<path d="m4 16-1 5 5-1L21 7l-4-4zM14 6l4 4"/>',
+    play: '<path class="asset-icon-fill" d="M7 4v16l13-8z"/>',
+    pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
+    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+    insert: '<path d="M3 17h18M6 20v1m6-1v1m6-1v1M12 2v11m-4-4 4 4 4-4"/>',
+    remove: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
+    sound: '<path d="M11 4 5 9H2v6h3l6 5zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
+    muted: '<path d="M11 4 5 9H2v6h3l6 5zm5 5 6 6m0-6-6 6"/>',
+  };
+  function setIcon(button, icon, label) {
+    if (button.dataset.icon !== icon) {
+      // Constant, local SVG paths only; subtitle text never enters HTML.
+      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[icon]}</svg>`;
+      button.dataset.icon = icon;
+    }
+    const translated = t(label);
+    if (button.getAttribute('aria-label') !== translated) button.setAttribute('aria-label', translated);
+    if (button.title !== translated) button.title = translated;
+  }
+  function iconAction(label, icon, callback) {
+    const button = action(label, callback); button.dataset.assetAction = icon;
+    setIcon(button, icon, label); return button;
+  }
+  function updatePreviewButtons() {
+    for (const card of el('asset-list').children) {
+      const playing = card.dataset.assetId === previewId && !el('asset-audio').paused && !el('asset-audio').ended;
+      card.classList.toggle('playing', playing);
+      const button = card.querySelector('[data-asset-action="play"]');
+      if (button) setIcon(button, playing ? 'pause' : 'play', playing ? '暂停试听' : '试听');
+    }
+  }
+  function updateDensity() {
+    el('asset-density-value').value = String(density);
+    const list = el('asset-list'); if (!list.clientWidth) return;
+    const columns = Math.min(density, Math.max(1, Math.floor((list.clientWidth - 10) / 118)));
+    list.style.setProperty('--asset-columns', columns);
+  }
+  function stopPreview() {
+    assetScrubbing = false;
+    previewSequence += 1;
+    el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = null; previewId = null; previewOwner = '';
+    el('asset-player').hidden = true;
+    updatePreviewButtons();
+    updateAssetTransport();
+  }
+  function updateAssetTransport() {
+    el('asset-player').hidden = !previewUrl || el('asset-show-player')?.checked === false;
+    const audio = el('asset-audio'), duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const ready = duration > 0 && !audio.error;
+    const clock = value => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
+    el('asset-seek').disabled = !ready; el('asset-seek').max = String(duration);
+    if (!assetScrubbing) el('asset-seek').value = String(current);
+    el('asset-clock').value = `${clock(current)} / ${clock(duration)}`;
+    el('asset-seek').setAttribute('aria-valuetext', `${clock(current)} / ${clock(duration)}`);
+    el('asset-play-toggle').disabled = !ready;
+    setIcon(el('asset-play-toggle'), audio.paused || audio.ended ? 'play' : 'pause', audio.paused || audio.ended ? '播放试听' : '暂停试听');
+    const muted = audio.muted || audio.volume === 0;
+    setIcon(el('asset-mute'), muted ? 'muted' : 'sound', muted ? '取消试听静音' : '静音试听');
+    el('asset-mute').setAttribute('aria-pressed', String(muted));
+    el('asset-volume').value = String(audio.muted ? 0 : audio.volume);
+    el('asset-rate').value = String(audio.playbackRate);
+  }
+  function stopReference(owner) { if (previewOwner === owner) stopPreview(); }
+  async function playAssetAudio() {
+    host.pauseMedia();
+    try { await el('asset-audio').play(); }
+    catch (error) {
+      // Pausing or changing the source during play() is a normal user action.
+      if (error.name !== 'AbortError') throw error;
+    }
+  }
+  async function playReference(owner, label, load, valid = () => true) {
+    stopPreview(); previewOwner = owner;
+    const sequence = previewSequence, generation = host.generation;
+    host.showAssets({automatic: true}); el('asset-player').hidden = el('asset-show-player').checked === false;
+    el('asset-playing').textContent = t('正在加载音频…');
+    try {
+      const source = await load();
+      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
+      previewUrl = typeof source === 'string' ? source : URL.createObjectURL(source);
+      el('asset-audio').src = previewUrl; el('asset-playing').textContent = label;
+      await playAssetAudio();
+    } catch (error) {
+      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
+      el('asset-playing').textContent = error.message; throw error;
+    }
+  }
+  async function audioBlob(asset) {
+    return request(`asset-audio?project_id=${encodeURIComponent(projectId())}&asset_id=${encodeURIComponent(asset.id)}`, null, true);
+  }
+  async function preview(asset) {
+    if (previewId === asset.id && previewUrl) {
+      if (el('asset-audio').paused) await playAssetAudio(); else el('asset-audio').pause();
+      return;
+    }
+    stopPreview();
+    const sequence = previewSequence, generation = host.generation;
+    el('asset-playing').textContent = t('正在加载音频…');
+    try {
+      const blob = await audioBlob(asset);
+      if (sequence !== previewSequence || generation !== host.generation) return;
+      previewId = asset.id; previewUrl = URL.createObjectURL(blob);
+      el('asset-player').hidden = el('asset-show-player').checked === false;
+      el('asset-audio').src = previewUrl; el('asset-playing').textContent = asset.generation.display_text;
+      await playAssetAudio();
+    } catch (error) {
+      if (sequence !== previewSequence || generation !== host.generation) return;
+      if (error.status === 404) missing.add(asset.id);
+      el('asset-playing').textContent = error.message; renderAssets(); throw error;
+    }
+  }
+  function download(blob, name) {
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  let editTimer;
+  function commitEdit() {
+    clearTimeout(editTimer);
+    const asset=subtitles().find(a=>a.id===editingId);
+    if (committing || !asset) return;
+    const text=el('cue-panel-asset-text').value.replace(/\r\n?/g,'\n');
+    if (text===asset.text) return;
+    committing=true;
+    try { host.commitSubtitleAssets('编辑字幕素材',ext=>{
+      const target=ext.subtitle_assets.find(a=>a.id===editingId);
+      if(!target)return false; target.text=text; delete target.items;
+    }); } finally {committing=false;}
+  }
+  function syncEdit() {
+    const asset=subtitles().find(a=>a.id===editingId);
+    if (!asset) editingId=null;
+    el('current-cue-panel').classList.toggle('subtitle-asset-mode',!!asset);
+    el('cue-panel-asset-text').hidden=!asset;el('cue-panel-asset-footer').hidden=!asset;
+    if(asset && document.activeElement!==el('cue-panel-asset-text'))el('cue-panel-asset-text').value=asset.text;
+  }
+  function finishEdit({discard=false}={}) {
+    if(!discard)commitEdit(); clearTimeout(editTimer);editingId=null;syncEdit();
+    global.dispatchEvent(new Event('msw:asset-editing'));
+  }
+  function editAsset(id, focus=false) {
+    if(editingId!==id) {finishEdit();host.commitEdits();editingId=id;el('cue-panel-asset-text').value=subtitles().find(a=>a.id===id)?.text||'';}
+    syncEdit();host.showCueEditor();global.dispatchEvent(new Event('msw:asset-editing'));
+    if(focus)el('cue-panel-asset-text').focus();
+  }
+  function selectAsset(asset,event) {
+    if(event.shiftKey && selectionAnchor && visibleRows.some(a=>a.id===selectionAnchor)) {
+      const a=visibleRows.findIndex(a=>a.id===selectionAnchor),b=visibleRows.findIndex(a=>a.id===asset.id);
+      for(const item of visibleRows.slice(Math.min(a,b),Math.max(a,b)+1))selected.add(item.id);
+    } else if(event.ctrlKey || event.metaKey) {
+      if(selected.has(asset.id))selected.delete(asset.id);else selected.add(asset.id);
+      selectionAnchor=asset.id;
+    } else {selected.clear();selected.add(asset.id);selectionAnchor=asset.id;}
+    if(selected.size===1 && selected.has(asset.id) && asset.kind==='subtitle')editAsset(asset.id);
+    else if(!selected.size || asset.kind!=='subtitle')finishEdit();
+    renderAssets();
+    [...el('asset-list').children].find(r=>r.dataset.assetId===asset.id)?.focus({preventScroll:true});
+  }
+  async function insertSubtitles(ids, anchor=host.playheadMs()) {
+    finishEdit();
+    const generation=host.generation, chosen=subtitles().filter(a=>ids.includes(a.id)), tracks=host.data.multi_subtitle?.tracks||[];
+    const absent=[...new Set(chosen.map(a=>a.track_id).filter(id=>id!==null && !tracks.some(t=>t.id===id)))];
+    const targets={};
+    if(absent.length) {
+      if(!tracks.length)throw Error(t('请先创建副字幕轨，再放入副字幕素材'));
+      for(const id of absent) {
+        const target=await chooseTrack(tracks);
+        if(!target || generation!==host.generation)return;
+        targets[id]=target;
+      }
+    }
+    const result=host.insertSubtitleAssets(ids,anchor,targets);
+    const skipped=result.rows.filter(r=>r.reason);
+    el('asset-import-status').hidden=false;el('asset-import-stop').hidden=true;
+    el('asset-import-message').textContent=`${t('已放入')} ${result.count} ${t('条字幕')}`
+      + (skipped.length ? '\n'+skipped.map(r=>`${r.text.slice(0,50)}：${t(r.reason)}`).join('\n') : '');
+    host.flashHint(`${t('已放入')} ${result.count} ${t('条字幕')}`,skipped.length?'warning':'success');
+  }
+  function chooseTrack(tracks) {
+    return new Promise(resolve=>{
+      const dialog=document.createElement('dialog');dialog.className='msw-asset-track-dialog';
+      const form=document.createElement('form');form.method='dialog';
+      const label=document.createElement('label');label.textContent=t('选择目标副字幕轨');
+      const select=document.createElement('select');select.setAttribute('aria-label',t('选择目标副字幕轨'));
+      for(const track of tracks)select.add(new Option(track.name||track.id,track.id));
+      const cancel=document.createElement('button');cancel.value='cancel';cancel.textContent=t('取消');
+      const accept=document.createElement('button');accept.value='ok';accept.textContent=t('放入时间轴');
+      label.append(select);form.append(label,cancel,accept);dialog.append(form);document.body.append(dialog);
+      dialog.addEventListener('close',()=>{const value=dialog.returnValue==='ok'?select.value:null;dialog.remove();resolve(value);},{once:true});dialog.showModal();
+    });
+  }
+  el('cue-panel-asset-text').addEventListener('input',()=>{clearTimeout(editTimer);editTimer=setTimeout(commitEdit,400);});
+  el('cue-panel-asset-text').addEventListener('blur',commitEdit);
+  el('cue-panel-asset-done').addEventListener('click',()=>finishEdit());
+  el('asset-insert-selected').addEventListener('click',()=>void insertSubtitles([...selected]).catch(e=>host.flashHint(e.message,'warning')));
+  function renderAssets() {
+    const list = el('asset-list'), scroll = list.scrollTop;
+    const focus = list.contains(document.activeElement) ? document.activeElement : null;
+    const focusedId = focus?.closest('[data-asset-id]')?.dataset.assetId, focusedAction = focus?.dataset.assetAction;
+    const type = el('asset-type').value;
+    const all = [...assets(), ...subtitles()].filter(a => !type || a.kind === type);
+    const batchId = a => a.batch_id || a.job_id;
+    const batchRecords = new Map(global.MSWAssets.batches(host.data.msw || {}).map(b => [b.id,b]));
+    all.sort((a,b) => (batchRecords.get(batchId(b))?.created_at || 0)-(batchRecords.get(batchId(a))?.created_at || 0)
+      || batchId(a).localeCompare(batchId(b)) || (a.original_start ?? a.source_ref.start)-(b.original_start ?? b.source_ref.start));
+    const sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map();
+    let batch = el('asset-batch').value;
+    const batchIds = new Set(all.map(batchId));
+    if (batch && !batchIds.has(batch)) batch = '';
+    const labels = {copy:'复制字幕',asr:'ASR',tts:'TTS',imported:'外部音频',regenerated:'重新生成'};
+    el('asset-batch').replaceChildren(new Option(t('全部批次'), ''), ...[...batchIds].map(id => {
+      const record=batchRecords.get(id);
+      return new Option(`${new Date(record?.created_at || 0).toLocaleString()} · ${t(labels[record?.kind] || '素材')} · ${id.slice(-6)}`,id);
+    }));
+    el('asset-batch').value = batch;
+    const term = el('asset-search').value.trim().toLocaleLowerCase();
+    const rows = all.filter(a => (!batch || batchId(a) === batch) && (!term || (a.kind === 'subtitle' ? a.text : `${a.generation.display_text} ${a.generation.voice} ${a.generation.model} ${a.generation.filename || ''}`).toLocaleLowerCase().includes(term)));
+    visibleRows = rows;
+    const liveIds = new Set([...assets(),...subtitles()].map(a => a.id));
+    for (const id of selected) if (!liveIds.has(id)) selected.delete(id);
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE)); page = Math.min(page, pages - 1);
+    el('asset-count').textContent = `${rows.length} / ${all.length} ${t(type === 'audio' ? '条音频' : type === 'subtitle' ? '条字幕' : '条素材')}`
+      + (selected.size ? ` · ${t('已选')} ${selected.size}` : '');
+    el('asset-insert-selected').hidden = !selected.size || [...selected].some(id => !subtitles().some(a => a.id === id));
+    el('asset-page').textContent = `${page + 1} / ${pages}`;
+    el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
+    el('asset-export-project').disabled = !available || !all.length;
+    el('asset-notice').textContent = t(assets().length
+      ? '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与音频素材包。'
+      : '字幕素材随工程保存。');
+    const fragment = document.createDocumentFragment();
+    for (const asset of rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)) {
+      const row = document.createElement('article'); row.className = 'msw-asset-row'; row.dataset.assetId = asset.id; row.dataset.kind = asset.kind;
+      row.setAttribute('role', 'option'); row.setAttribute('aria-selected',String(selected.has(asset.id))); row.tabIndex=0;
+      row.classList.toggle('selected',selected.has(asset.id)); row.draggable = asset.kind === 'subtitle' || available;
+      row.addEventListener('click', event => {if(!event.target.closest('button,input,audio')) selectAsset(asset,event);});
+      row.addEventListener('keydown',event=>{if(event.target===row && [' ','Enter'].includes(event.key)){event.preventDefault();selectAsset(asset,event);}});
+      row.addEventListener('dragstart', event => {
+        if (event.target.closest('button, input, audio')) { event.preventDefault(); return; }
+        event.dataTransfer.effectAllowed = 'copy';
+        if (asset.kind === 'subtitle') event.dataTransfer.setData('application/x-msw-subtitle-assets', JSON.stringify({project_id:projectId(),ids:selected.has(asset.id) ? subtitles().filter(a=>selected.has(a.id)).map(a=>a.id) : [asset.id]}));
+        else event.dataTransfer.setData('application/x-msw-audio-asset', JSON.stringify({ project_id: projectId(), asset_id: asset.id }));
+      });
+      if (asset.kind === 'subtitle') {
+        const content=document.createElement('div');content.className='msw-asset-info';
+        const text=document.createElement('p');text.className='msw-asset-text msw-asset-content';text.textContent=asset.text;text.title=asset.text;
+        const meta=document.createElement('p');meta.className='msw-asset-meta';
+        meta.textContent=`${t(asset.track_id === null ? '主字幕素材' : '副字幕素材')} · ${((asset.end-asset.start)/1000).toFixed(2)} s`;
+        if (asset.color) {row.style.setProperty('--asset-mark',asset.color.value);row.classList.add('marked');}
+        content.append(text,meta);
+        const buttons=document.createElement('div');buttons.className='msw-asset-actions';
+        buttons.append(iconAction('编辑字幕素材','edit',()=>{selected.clear();selected.add(asset.id);editAsset(asset.id,true);renderAssets();}),
+          iconAction('放入时间轴','insert',()=>insertSubtitles([asset.id])),iconAction('删除素材','remove',()=>{
+            finishEdit();host.commitSubtitleAssets('删除字幕素材',ext=>{ext.subtitle_assets=ext.subtitle_assets.filter(a=>a.id!==asset.id);});
+          }));
+        row.append(content,buttons);fragment.append(row);continue;
+      }
+      const content = document.createElement('div'); content.className = 'msw-asset-info';
+      const text = document.createElement('p'); text.className = 'msw-asset-text msw-asset-content'; text.textContent = asset.generation.display_text; text.title = text.textContent;
+      const meta = document.createElement('p'); meta.className = 'msw-asset-meta';
+      const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
+      meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
+      if (asset.generation.provider === 'imported') meta.textContent = `${t('外部音频')} · ${duration.toFixed(2)} s · ${asset.generation.filename || ''}`;
+      else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
+      else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
+      if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
+      if (sourceStatuses.has(asset.id)) { meta.textContent += ` · ${t(sourceStatuses.get(asset.id))}`; row.classList.add('msw-source-stale'); }
+      meta.title = meta.textContent;
+      content.append(text, meta);
+      const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
+      const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
+      const save = iconAction('下载 WAV', 'download', async () => {
+        const generation = host.generation, blob = await audioBlob(asset);
+        if (generation === host.generation) download(blob, `${asset.id}.wav`);
+      }); save.disabled = !available;
+      const insert = iconAction('放入时间轴', 'insert', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
+      insert.disabled = !available;
+      const remove = iconAction('删除素材', 'remove', () => {
+        const count = (host.data.msw?.audio_clips || []).filter(clip => clip.asset_id === asset.id).length;
+        if (count && !global.confirm(t(`此素材已被 ${count} 个音频贴片使用。删除素材并同时移除这些贴片？可撤销。`))) return;
+        if (previewId === asset.id || !previewId) stopPreview();
+        if (host.removeAsset(asset.id)) host.flashHint(t('素材已移除，可撤销；原文件保留'), 'success');
+      });
+      buttons.append(play, save, insert, remove); row.append(content, buttons); fragment.append(row);
+    }
+    list.replaceChildren(fragment); updatePreviewButtons();
+    if (focusedId) {
+      const card = [...list.children].find(row => row.dataset.assetId === focusedId);
+      const target=focusedAction ? card?.querySelector(`[data-asset-action="${focusedAction}"]`) : card;
+      target?.focus({ preventScroll: true });
+    }
+    list.scrollTop = scroll;
+    syncEdit();
+  }
+  function filterChanged() { finishEdit(); selected.clear(); selectionAnchor=null; page=0;el('asset-list').scrollTop=0;renderAssets(); }
+  el('asset-search').addEventListener('input', filterChanged);
+  el('asset-batch').addEventListener('change', filterChanged);
+  el('asset-type').addEventListener('change', filterChanged);
+  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-next').addEventListener('click', () => { page += 1; el('asset-list').scrollTop = 0; renderAssets(); });
+  el('asset-density').value = String(density);
+  el('asset-density').addEventListener('input', () => {
+    density = Number(el('asset-density').value); updateDensity();
+    try { localStorage.setItem(DENSITY_KEY, String(density)); } catch (_) {}
+  });
+  new ResizeObserver(updateDensity).observe(el('asset-list'));
+  global.addEventListener('msw:assets-changed', () => {
+    if (previewId && !assets().some(asset => asset.id === previewId)) stopPreview();
+    renderAssets();
+  });
+  global.addEventListener('msw:subtitles-changed', renderAssets);
+  for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
+  for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
+  el('asset-play-toggle').addEventListener('click', async () => {
+    const audio = el('asset-audio');
+    if (!audio.paused && !audio.ended) { audio.pause(); return; }
+    try { await playAssetAudio(); }
+    catch (error) { el('asset-playing').textContent = error.message; }
+  });
+  el('asset-seek').addEventListener('pointerdown', () => { assetScrubbing = true; });
+  for (const event of ['pointerup', 'pointercancel']) document.addEventListener(event, () => { if (assetScrubbing) { assetScrubbing = false; updateAssetTransport(); } });
+  el('asset-seek').addEventListener('input', () => {
+    const audio = el('asset-audio');
+    if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Math.max(0, Math.min(audio.duration, Number(el('asset-seek').value)));
+    updateAssetTransport();
+  });
+  el('asset-mute').addEventListener('click', () => {
+    const audio = el('asset-audio');
+    if (audio.muted || !audio.volume) { audio.muted = false; if (!audio.volume) audio.volume = 1; }
+    else audio.muted = true;
+    updateAssetTransport();
+  });
+  el('asset-volume').addEventListener('input', () => { el('asset-audio').volume = Number(el('asset-volume').value); el('asset-audio').muted = false; });
+  el('asset-rate').addEventListener('change', () => { el('asset-audio').playbackRate = Number(el('asset-rate').value); });
+  updateAssetTransport();
+  el('asset-audio').addEventListener('error', () => {
+    if (previewOwner && el('asset-audio').getAttribute('src')) el('asset-playing').textContent = t('试听音频无法加载，请检查连接后重试');
+  });
+  el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
+  el('asset-import').disabled = !available;
+  el('asset-import').addEventListener('click', () => { if (!importing) el('asset-import-file').click(); });
+  el('asset-import-stop').addEventListener('click', () => { stopImport = true; el('asset-import-stop').disabled = true; });
+  el('asset-import-file').addEventListener('change', async event => {
+    const files = [...event.target.files]; event.target.value = '';
+    if (importing || !files.length) return;
+    if (files.length > 100) { host.flashHint(t('每次最多导入 100 个音频文件'), 'warning'); return; }
+    importing = true; stopImport = false; el('asset-import').disabled = true;
+    const generation = host.generation, id = projectId(), importBatch=global.MSWProject.id('import');
+    el('asset-import-status').hidden = false; el('asset-import-stop').hidden = false; el('asset-import-stop').disabled = false;
+    let success = 0;
+    const failures = [];
+    try {
+      for (const [index, file] of files.entries()) {
+        if (stopImport || generation !== host.generation) break;
+        el('asset-import-message').textContent = `${t('正在导入')} ${index + 1}/${files.length} · ${file.name}`;
+        try {
+          if (!/\.(wav|mp3|flac|m4a|aac|ogg|opus)$/i.test(file.name)) throw new Error(t('不支持的音频格式'));
+          if (!file.size || file.size > 32 * 1024 * 1024) throw new Error(t('单个导入文件须为 1 字节至 32 MiB'));
+          const encoded = await new Promise((resolve, reject) => {
+            const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]);
+            reader.onerror = () => reject(new Error(t('无法读取音频文件'))); reader.readAsDataURL(file);
+          });
+          if (generation !== host.generation || stopImport) break;
+          const result = await request('asset-import', {project_id: id, request_key: global.MSWProject.id('upload'),
+            filename: file.name, audio_base64: encoded, library_size: assets().length, removed_asset_ids: host.data.msw?.removed_asset_ids || []});
+          if (generation !== host.generation) break;
+          host.addAssets(id, [{...result.asset,batch_id:importBatch}]); success++; renderAssets();
+        } catch (error) { failures.push(`${file.name}：${error.message}`); }
+      }
+    } finally {
+      importing = false; el('asset-import').disabled = !available; el('asset-import-stop').hidden = true;
+      if (generation === host.generation) {
+        el('asset-import-message').textContent = `${t('已导入')} ${success}/${files.length}`
+          + (stopImport ? ` · ${t('已停止后续导入')}` : '') + (failures.length ? `\n${failures.join('\n')}` : '');
+        if (success) { host.showAssets({automatic: true}); schedule(0); }
+      }
+    }
+  });
+  el('asset-export-project').addEventListener('click', async () => {
+    const button = el('asset-export-project'); button.disabled = true;
+    const generation = host.generation;
+    try {
+      const blob = await request('asset-bundle', { project_id: projectId(), project: host.exportProject() }, true);
+      if (generation !== host.generation) return;
+      download(blob, 'project-with-assets.zip');
+      host.flashHint(t('已导出工程与音频素材包；解压后打开 project.mosp。'), 'success');
+    } catch (error) { if (generation === host.generation) host.flashHint(error.message, 'warning'); }
+    finally { button.disabled = false; }
+  });
+  document.addEventListener('play', event => {
+    if (event.target === el('asset-audio')) host.pauseMedia();
+    else if (event.target.id === 'player') {
+      if (previewOwner && !previewUrl) stopPreview();
+      else el('asset-audio').pause();
+    }
+  }, true);
+
+  global.addEventListener('msw:project-changed',()=>{
+    finishEdit({discard:true});selected.clear();selectionAnchor=null;el('asset-type').value='';
+    stopImport=true;el('asset-import-status').hidden=true;stopPreview();missing.clear();page=0;
+    el('asset-search').value='';el('asset-batch').value='';
+    el('asset-playing').textContent=t('选择音频试听');queueMicrotask(renderAssets);
+  });
+  el('asset-show-player').addEventListener('change',()=>{
+    try {localStorage.setItem('msw.assets.showPlayer',String(el('asset-show-player').checked));}catch(_){}
+    updateAssetTransport();
+  });
+  try {el('asset-show-player').checked=localStorage.getItem('msw.assets.showPlayer')!=='false';}catch(_){}
+  const timeline=host.timeline, MIME='application/x-msw-subtitle-assets';
+  timeline?.pane.addEventListener('dragover',event=>{
+    if(!event.dataTransfer.types.includes(MIME))return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='copy';
+  },true);
+  timeline?.pane.addEventListener('drop',event=>{
+    if(!event.dataTransfer.types.includes(MIME))return;event.preventDefault();event.stopPropagation();
+    try {const value=JSON.parse(event.dataTransfer.getData(MIME));
+      if(value.project_id!==projectId() || !Array.isArray(value.ids) || !value.ids.every(id=>subtitles().some(a=>a.id===id)))throw Error(t('只能放入当前工程的字幕素材'));
+      const point=timeline.timeAt(event.clientX,event.clientY);if(!point)return;
+      void insertSubtitles(value.ids,point.time).catch(e=>host.flashHint(e.message,'warning'));
+    }catch(e){host.flashHint(e.message,'warning');}
+  },true);
+  const api={renderAssets,playReference,stopReference,commitEdit,finishEdit,get editing(){return !!editingId;},
+    selectedIds:()=>[...selected],showBatch(id){finishEdit();selected.clear();el('asset-type').value='';renderAssets();el('asset-batch').value=id;page=0;renderAssets();}};
+  global.MSWE.register('asset-library',()=>api);
+  renderAssets();
+  return api;
+  }};
+})(window);
+
+// TTS task UI. Audio bytes stay outside editor snapshots.
 (function (global) {
   'use strict';
   const host = global.MSWE?.resolve('processing-host');
@@ -48407,10 +49098,10 @@ window.addEventListener('beforeunload', (e) => {
   const available = Boolean(host.config?.processingUrl);
   const projectId = () => global.MSWProject.ensure(host.data).project_id;
   const pageId = global.MSWProject.id('tts-page');
-  const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set(), missing = new Set();
+  const jobs = new Map(), watched = new Set(), opened = new Set(), firstReady = new Set();
   let jobCursor = 0, assetCursor = 0, timer, polling = false, pollFailures = 0;
   let nextPollDelay = null;
-  let configured = false, regions = [], busy = false, pending = null, scopeSignature = '', page = 0;
+  let configured = false, regions = [], busy = false, pending = null, scopeSignature = '';
   let settingsPromise = null, savingSettings = false;
   let draftActive = false, draftInitialized = false;
   let draftRevision = 0, pendingDraft = null, clearedDraft = null;
@@ -48419,12 +49110,7 @@ window.addEventListener('beforeunload', (e) => {
   let runtime = {state: 'idle', runtime_path: ''}, runtimeTimer, runtimeRequest = false;
   const isYukkuri = () => el('tts-engine').value === 'yukkuri';
   const isIndex = () => el('tts-engine').value === 'indextts';
-  let previewUrl = null, previewId = null, previewSequence = 0, previewOwner = '';
-  let assetScrubbing = false;
-  let importing = false, stopImport = false, yukkuriPreviewBusy = false;
-  const PAGE_SIZE = 90, DENSITY_KEY = 'msw.assets.columns';
-  let density = 3;
-  try { const saved = Number(localStorage.getItem(DENSITY_KEY)); if (Number.isInteger(saved) && saved >= 1 && saved <= 5) density = saved; } catch (_) {}
+  let yukkuriPreviewBusy = false;
   const active = job => ['queued', 'running', 'cancel_requested'].includes(job.status);
   const assets = () => host.data.msw?.assets || [];
   const panel = host.createFloatingPanel({ panel: el('tts-panel'), dragHandle: el('tts-drag'),
@@ -48449,12 +49135,14 @@ window.addEventListener('beforeunload', (e) => {
     }
     return data;
   }
+  const assetUI = global.MSWAssetLibrary.create({host, request, jobs, schedule});
+  const {renderAssets, playReference, stopReference} = assetUI;
   const qwenVoices = global.MSWQwenVoices.create({el, t, request, recipe: qwenRecipe, updateScope,
     playReference, stopReference, generation: () => host.generation});
   const indexTts = global.MSWIndexTts.create({el, t, request, updateScope,
     playReference, stopReference, generation: () => host.generation});
   function syncDraft() {
-    const next = available && isText() && panel.isOpen();
+    const next = available && isText() && panel.isOpen() && !assetUI.editing;
     if (next === draftActive) return;
     if (next) {
       host.commitEdits();
@@ -48656,43 +49344,6 @@ window.addEventListener('beforeunload', (e) => {
     });
     return button;
   }
-  const icons = {
-    play: '<path class="asset-icon-fill" d="M7 4v16l13-8z"/>',
-    pause: '<path class="asset-icon-fill" d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
-    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
-    insert: '<path d="M3 17h18M6 20v1m6-1v1m6-1v1M12 2v11m-4-4 4 4 4-4"/>',
-    remove: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
-    sound: '<path d="M11 4 5 9H2v6h3l6 5zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
-    muted: '<path d="M11 4 5 9H2v6h3l6 5zm5 5 6 6m0-6-6 6"/>',
-  };
-  function setIcon(button, icon, label) {
-    if (button.dataset.icon !== icon) {
-      // Constant, local SVG paths only; subtitle text never enters HTML.
-      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[icon]}</svg>`;
-      button.dataset.icon = icon;
-    }
-    const translated = t(label);
-    if (button.getAttribute('aria-label') !== translated) button.setAttribute('aria-label', translated);
-    if (button.title !== translated) button.title = translated;
-  }
-  function iconAction(label, icon, callback) {
-    const button = action(label, callback); button.dataset.assetAction = icon;
-    setIcon(button, icon, label); return button;
-  }
-  function updatePreviewButtons() {
-    for (const card of el('asset-list').children) {
-      const playing = card.dataset.assetId === previewId && !el('asset-audio').paused && !el('asset-audio').ended;
-      card.classList.toggle('playing', playing);
-      const button = card.querySelector('[data-asset-action="play"]');
-      if (button) setIcon(button, playing ? 'pause' : 'play', playing ? '暂停试听' : '试听');
-    }
-  }
-  function updateDensity() {
-    el('asset-density-value').value = String(density);
-    const list = el('asset-list'); if (!list.clientWidth) return;
-    const columns = Math.min(density, Math.max(1, Math.floor((list.clientWidth - 10) / 118)));
-    list.style.setProperty('--asset-columns', columns);
-  }
   const statuses = { queued: '等待处理', running: '正在合成', succeeded: '合成完成', failed: '合成失败',
     cancelled: '已取消', cancel_requested: '正在取消', interrupted: '服务中断，未自动重试' };
   function renderJobs() {
@@ -48713,7 +49364,7 @@ window.addEventListener('beforeunload', (e) => {
         if (generation !== host.generation) return;
         jobs.set(job.id, data.job); renderJobs(); schedule(0);
       }));
-      actions.append(action('查看素材', () => { host.showAssets(); el('asset-batch').value = job.id; page = 0; renderAssets(); }));
+      actions.append(action('查看素材', () => { host.showAssets(); assetUI.showBatch(job.id); }));
       if (!active(job) && (job.progress?.ready || 0) < job.count) {
         actions.append(action('检查未完成项', () => inspectUnfinished(job, card)));
       }
@@ -48834,155 +49485,6 @@ window.addEventListener('beforeunload', (e) => {
       else if (delay != null) schedule(delay);
     }
   }
-  function stopPreview() {
-    assetScrubbing = false;
-    previewSequence += 1;
-    el('asset-audio').pause(); el('asset-audio').removeAttribute('src'); el('asset-audio').load();
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = null; previewId = null; previewOwner = '';
-    el('asset-player').hidden = true;
-    updatePreviewButtons();
-    updateAssetTransport();
-  }
-  function updateAssetTransport() {
-    const audio = el('asset-audio'), duration = Number.isFinite(audio.duration) ? audio.duration : 0;
-    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-    const ready = duration > 0 && !audio.error;
-    const clock = value => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
-    el('asset-seek').disabled = !ready; el('asset-seek').max = String(duration);
-    if (!assetScrubbing) el('asset-seek').value = String(current);
-    el('asset-clock').value = `${clock(current)} / ${clock(duration)}`;
-    el('asset-seek').setAttribute('aria-valuetext', `${clock(current)} / ${clock(duration)}`);
-    el('asset-play-toggle').disabled = !ready;
-    setIcon(el('asset-play-toggle'), audio.paused || audio.ended ? 'play' : 'pause', audio.paused || audio.ended ? '播放试听' : '暂停试听');
-    const muted = audio.muted || audio.volume === 0;
-    setIcon(el('asset-mute'), muted ? 'muted' : 'sound', muted ? '取消试听静音' : '静音试听');
-    el('asset-mute').setAttribute('aria-pressed', String(muted));
-    el('asset-volume').value = String(audio.muted ? 0 : audio.volume);
-    el('asset-rate').value = String(audio.playbackRate);
-  }
-  function stopReference(owner) { if (previewOwner === owner) stopPreview(); }
-  async function playAssetAudio() {
-    host.pauseMedia();
-    try { await el('asset-audio').play(); }
-    catch (error) {
-      // Pausing or changing the source during play() is a normal user action.
-      if (error.name !== 'AbortError') throw error;
-    }
-  }
-  async function playReference(owner, label, load, valid = () => true) {
-    stopPreview(); previewOwner = owner;
-    const sequence = previewSequence, generation = host.generation;
-    host.showAssets({automatic: true}); el('asset-player').hidden = false;
-    el('asset-playing').textContent = t('正在加载音频…');
-    try {
-      const source = await load();
-      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
-      previewUrl = typeof source === 'string' ? source : URL.createObjectURL(source);
-      el('asset-audio').src = previewUrl; el('asset-playing').textContent = label;
-      await playAssetAudio();
-    } catch (error) {
-      if (sequence !== previewSequence || generation !== host.generation || !valid()) return;
-      el('asset-playing').textContent = error.message; throw error;
-    }
-  }
-  async function audioBlob(asset) {
-    return request(`asset-audio?project_id=${encodeURIComponent(projectId())}&asset_id=${encodeURIComponent(asset.id)}`, null, true);
-  }
-  async function preview(asset) {
-    if (previewId === asset.id && previewUrl) {
-      if (el('asset-audio').paused) await playAssetAudio(); else el('asset-audio').pause();
-      return;
-    }
-    stopPreview();
-    const sequence = previewSequence, generation = host.generation;
-    el('asset-playing').textContent = t('正在加载音频…');
-    try {
-      const blob = await audioBlob(asset);
-      if (sequence !== previewSequence || generation !== host.generation) return;
-      previewId = asset.id; previewUrl = URL.createObjectURL(blob);
-      el('asset-player').hidden = false;
-      el('asset-audio').src = previewUrl; el('asset-playing').textContent = asset.generation.display_text;
-      await playAssetAudio();
-    } catch (error) {
-      if (sequence !== previewSequence || generation !== host.generation) return;
-      if (error.status === 404) missing.add(asset.id);
-      el('asset-playing').textContent = error.message; renderAssets(); throw error;
-    }
-  }
-  function download(blob, name) {
-    const url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
-  function renderAssets() {
-    const list = el('asset-list'), scroll = list.scrollTop;
-    const focus = list.contains(document.activeElement) ? document.activeElement : null;
-    const focusedId = focus?.closest('[data-asset-id]')?.dataset.assetId, focusedAction = focus?.dataset.assetAction;
-    const all = [...assets()].sort((a, b) => b.created_at - a.created_at || a.source_ref.start - b.source_ref.start);
-    const sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map();
-    const batch = el('asset-batch').value;
-    const batches = new Map(all.map(a => [a.job_id, a]));
-    const known = new Map([...jobs.values()].map(job => [job.id, job]));
-    for (const [id, asset] of batches) if (!known.has(id)) known.set(id, { id, recipe: asset.generation, created_at: asset.created_at });
-    const recent = [...known.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 200);
-    if (batch && known.has(batch) && !recent.some(job => job.id === batch)) recent.push(known.get(batch));
-    el('asset-batch').replaceChildren(new Option(t('全部批次'), ''), ...recent.map(job =>
-      new Option(`${new Date(job.created_at * 1000).toLocaleString()} · ${job.recipe?.provider === 'imported' ? t('外部音频') : job.recipe?.voice || 'TTS'} · ${job.id.slice(-6)}`, job.id)));
-    el('asset-batch').value = batch;
-    const term = el('asset-search').value.trim().toLocaleLowerCase();
-    const rows = all.filter(a => (!batch || a.job_id === batch) && (!term || `${a.generation.display_text} ${a.generation.voice} ${a.generation.model}`.toLocaleLowerCase().includes(term)));
-    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE)); page = Math.min(page, pages - 1);
-    el('asset-count').textContent = `${rows.length} / ${all.length} ${t('条音频')}`;
-    el('asset-page').textContent = `${page + 1} / ${pages}`;
-    el('asset-prev').disabled = page === 0; el('asset-next').disabled = page + 1 >= pages;
-    el('asset-export-project').disabled = !available || !all.length;
-    el('asset-notice').textContent = t(all.length
-      ? '移动工程时请保留同目录的 .assets 文件夹；未保存工程可导出工程与 TTS 音频包。'
-      : '生成的音频会显示在这里。通过「媒体 → TTS」开始配音。');
-    const fragment = document.createDocumentFragment();
-    for (const asset of rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)) {
-      const row = document.createElement('article'); row.className = 'msw-asset-row'; row.dataset.assetId = asset.id; row.setAttribute('role', 'listitem');
-      row.draggable = available;
-      row.addEventListener('dragstart', event => {
-        if (event.target.closest('button, input, audio')) { event.preventDefault(); return; }
-        event.dataTransfer.effectAllowed = 'copy';
-        event.dataTransfer.setData('application/x-msw-audio-asset', JSON.stringify({ project_id: projectId(), asset_id: asset.id }));
-      });
-      const content = document.createElement('div'); content.className = 'msw-asset-info';
-      const text = document.createElement('p'); text.className = 'msw-asset-text msw-asset-content'; text.textContent = asset.generation.display_text; text.title = text.textContent;
-      const meta = document.createElement('p'); meta.className = 'msw-asset-meta';
-      const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
-      meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
-      if (asset.generation.provider === 'imported') meta.textContent = `${t('外部音频')} · ${duration.toFixed(2)} s · ${asset.generation.filename || ''}`;
-      else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
-      else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
-      if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
-      if (sourceStatuses.has(asset.id)) { meta.textContent += ` · ${t(sourceStatuses.get(asset.id))}`; row.classList.add('msw-source-stale'); }
-      meta.title = meta.textContent;
-      content.append(text, meta);
-      const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
-      const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
-      const save = iconAction('下载 WAV', 'download', async () => {
-        const generation = host.generation, blob = await audioBlob(asset);
-        if (generation === host.generation) download(blob, `${asset.id}.wav`);
-      }); save.disabled = !available;
-      const insert = iconAction('放入时间轴', 'insert', () => global.MSWE?.resolve('audio-timeline')?.insert(asset.id));
-      insert.disabled = !available;
-      const remove = iconAction('删除素材', 'remove', () => {
-        const count = (host.data.msw?.audio_clips || []).filter(clip => clip.asset_id === asset.id).length;
-        if (count && !global.confirm(t(`此素材已被 ${count} 个音频贴片使用。删除素材并同时移除这些贴片？可撤销。`))) return;
-        if (previewId === asset.id || !previewId) stopPreview();
-        if (host.removeAsset(asset.id)) host.flashHint(t('素材已移除，可撤销；原文件保留'), 'success');
-      });
-      buttons.append(play, save, insert, remove); row.append(content, buttons); fragment.append(row);
-    }
-    list.replaceChildren(fragment); updatePreviewButtons();
-    if (focusedId && focusedAction) {
-      const card = [...list.children].find(row => row.dataset.assetId === focusedId);
-      card?.querySelector(`[data-asset-action="${focusedAction}"]`)?.focus({ preventScroll: true });
-    }
-    list.scrollTop = scroll;
-  }
   el('tts-open').addEventListener('click', () => {
     host.commitEdits(); panel.open(); syncDraft(); updateScope();
     if (available) {
@@ -48997,6 +49499,7 @@ window.addEventListener('beforeunload', (e) => {
   el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; el('tts-index-pronunciation').value = ''; syncDraft(); updateScope(); });
   el('cue-panel-tts-text').addEventListener('input', () => { draftRevision++; updateScope(); });
   el('cue-panel-tts-preview').addEventListener('toggle', () => { if (el('cue-panel-tts-preview').open) renderDraftPreview(); });
+  global.addEventListener('msw:asset-editing',syncDraft);
   global.addEventListener('msw:draft-settings', updateScope);
   global.addEventListener('msw:tts-refresh', () => schedule(0));
   el('cue-panel-tts-restore').addEventListener('click', () => {
@@ -49067,111 +49570,10 @@ window.addEventListener('beforeunload', (e) => {
   });
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
   for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
-  el('asset-search').addEventListener('input', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-batch').addEventListener('change', () => { page = 0; el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-prev').addEventListener('click', () => { page = Math.max(0, page - 1); el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-next').addEventListener('click', () => { page += 1; el('asset-list').scrollTop = 0; renderAssets(); });
-  el('asset-density').value = String(density);
-  el('asset-density').addEventListener('input', () => {
-    density = Number(el('asset-density').value); updateDensity();
-    try { localStorage.setItem(DENSITY_KEY, String(density)); } catch (_) {}
-  });
-  new ResizeObserver(updateDensity).observe(el('asset-list'));
-  global.addEventListener('msw:assets-changed', () => {
-    if (previewId && !assets().some(asset => asset.id === previewId)) stopPreview();
-    renderAssets();
-  });
-  global.addEventListener('msw:subtitles-changed', () => { if (assets().length) renderAssets(); });
-  for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
-  for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
-  el('asset-play-toggle').addEventListener('click', async () => {
-    const audio = el('asset-audio');
-    if (!audio.paused && !audio.ended) { audio.pause(); return; }
-    try { await playAssetAudio(); }
-    catch (error) { el('asset-playing').textContent = error.message; }
-  });
-  el('asset-seek').addEventListener('pointerdown', () => { assetScrubbing = true; });
-  for (const event of ['pointerup', 'pointercancel']) document.addEventListener(event, () => { if (assetScrubbing) { assetScrubbing = false; updateAssetTransport(); } });
-  el('asset-seek').addEventListener('input', () => {
-    const audio = el('asset-audio');
-    if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Math.max(0, Math.min(audio.duration, Number(el('asset-seek').value)));
-    updateAssetTransport();
-  });
-  el('asset-mute').addEventListener('click', () => {
-    const audio = el('asset-audio');
-    if (audio.muted || !audio.volume) { audio.muted = false; if (!audio.volume) audio.volume = 1; }
-    else audio.muted = true;
-    updateAssetTransport();
-  });
-  el('asset-volume').addEventListener('input', () => { el('asset-audio').volume = Number(el('asset-volume').value); el('asset-audio').muted = false; });
-  el('asset-rate').addEventListener('change', () => { el('asset-audio').playbackRate = Number(el('asset-rate').value); });
-  updateAssetTransport();
-  el('asset-audio').addEventListener('error', () => {
-    if (previewOwner && el('asset-audio').getAttribute('src')) el('asset-playing').textContent = t('试听音频无法加载，请检查连接后重试');
-  });
-  el('asset-refresh').addEventListener('click', () => { missing.clear(); renderAssets(); schedule(0); });
-  el('asset-import').disabled = !available;
-  el('asset-import').addEventListener('click', () => { if (!importing) el('asset-import-file').click(); });
-  el('asset-import-stop').addEventListener('click', () => { stopImport = true; el('asset-import-stop').disabled = true; });
-  el('asset-import-file').addEventListener('change', async event => {
-    const files = [...event.target.files]; event.target.value = '';
-    if (importing || !files.length) return;
-    if (files.length > 100) { host.flashHint(t('每次最多导入 100 个音频文件'), 'warning'); return; }
-    importing = true; stopImport = false; el('asset-import').disabled = true;
-    const generation = host.generation, id = projectId();
-    el('asset-import-status').hidden = false; el('asset-import-stop').hidden = false; el('asset-import-stop').disabled = false;
-    let success = 0;
-    const failures = [];
-    try {
-      for (const [index, file] of files.entries()) {
-        if (stopImport || generation !== host.generation) break;
-        el('asset-import-message').textContent = `${t('正在导入')} ${index + 1}/${files.length} · ${file.name}`;
-        try {
-          if (!/\.(wav|mp3|flac|m4a|aac|ogg|opus)$/i.test(file.name)) throw new Error(t('不支持的音频格式'));
-          if (!file.size || file.size > 32 * 1024 * 1024) throw new Error(t('单个导入文件须为 1 字节至 32 MiB'));
-          const encoded = await new Promise((resolve, reject) => {
-            const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]);
-            reader.onerror = () => reject(new Error(t('无法读取音频文件'))); reader.readAsDataURL(file);
-          });
-          if (generation !== host.generation || stopImport) break;
-          const result = await request('asset-import', {project_id: id, request_key: global.MSWProject.id('upload'),
-            filename: file.name, audio_base64: encoded, library_size: assets().length, removed_asset_ids: host.data.msw?.removed_asset_ids || []});
-          if (generation !== host.generation) break;
-          host.addAssets(id, [result.asset]); success++; renderAssets();
-        } catch (error) { failures.push(`${file.name}：${error.message}`); }
-      }
-    } finally {
-      importing = false; el('asset-import').disabled = !available; el('asset-import-stop').hidden = true;
-      if (generation === host.generation) {
-        el('asset-import-message').textContent = `${t('已导入')} ${success}/${files.length}`
-          + (stopImport ? ` · ${t('已停止后续导入')}` : '') + (failures.length ? `\n${failures.join('\n')}` : '');
-        if (success) { host.showAssets({automatic: true}); schedule(0); }
-      }
-    }
-  });
-  el('asset-export-project').addEventListener('click', async () => {
-    const button = el('asset-export-project'); button.disabled = true;
-    const generation = host.generation;
-    try {
-      const blob = await request('asset-bundle', { project_id: projectId(), project: host.exportProject() }, true);
-      if (generation !== host.generation) return;
-      download(blob, 'project-with-tts.zip');
-      el('asset-notice').textContent = t('已导出工程与 TTS 音频；解压后打开 project.mosp。原视频仍需原媒体文件。');
-    } catch (error) { if (generation === host.generation) el('asset-notice').textContent = error.message; }
-    finally { button.disabled = false; }
-  });
-  document.addEventListener('play', event => {
-    if (event.target === el('asset-audio')) host.pauseMedia();
-    else if (event.target.id === 'player') {
-      if (previewOwner && !previewUrl) stopPreview();
-      else el('asset-audio').pause();
-    }
-  }, true);
   global.addEventListener('msw:project-changed', () => {
-    stopImport = true; el('asset-import-status').hidden = true;
-    stopPreview(); jobs.clear(); watched.clear(); opened.clear(); firstReady.clear(); missing.clear();
-    jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = ''; page = 0;
-    el('asset-search').value = ''; el('asset-batch').value = ''; el('tts-target').value = 'main';
+    jobs.clear(); watched.clear(); opened.clear(); firstReady.clear();
+    jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = '';
+    el('tts-target').value = 'main';
     draftInitialized = false; el('cue-panel-tts-text').value = ''; syncDraft();
     draftRevision++; pendingDraft = null; clearedDraft = null; draftJobs.clear(); el('cue-panel-tts-restore').hidden = true;
     el('asset-playing').textContent = t('选择音频试听');
@@ -49473,8 +49875,8 @@ window.addEventListener('beforeunload', (e) => {
   }
   // 在播放头处把一条贴片一分为二：左段保留原 id 与起点，右段新 id 从拆分点
   // 起播（source 区间按采样率精确切分），标签沿用。
-  // 「悬浮显示序号与用时」开关（波形显示器设置），经宿主 options 透传。
-  function hoverDetailsActive() { return Boolean(host.options?.clipHoverDetails?.()); }
+  // Read the current setting from the waveform timeline, including lightweight repaints.
+  function hoverDetailsActive() { return timeline.hoverDetails(); }
 
   function splitClipAtPlayhead(clip) {
     const state = sync();
@@ -49744,7 +50146,7 @@ window.addEventListener('beforeunload', (e) => {
         const background = muted ? '' : heatBackground(clip, asset, from, to);
         if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
         block.title = hoverDetailsActive()
-          ? `${clip.label}\n${(clip.start_ms / 1000).toFixed(3)}–${(finish / 1000).toFixed(3)} s · ${clip.gain_db} dB`
+          ? `${clip.label}\n${t('试听音量')}：${Number(core.levelDb(clip, current.tracks.get(clip.track_id)).toFixed(2))} dB${muted ? ` (${t('静音')})` : ''} · ${(clip.start_ms / 1000).toFixed(3)} ~ ${(finish / 1000).toFixed(3)} s (${((finish - clip.start_ms) / 1000).toFixed(3)} s)`
             + (sourceStatuses.has(asset.id) ? `\n${t(sourceStatuses.get(asset.id))}` : '')
             + (transport.failures.get(asset.id) ? `\n${t(transport.failures.get(asset.id))}` : '')
           : (clip.label || t('音频贴片'));

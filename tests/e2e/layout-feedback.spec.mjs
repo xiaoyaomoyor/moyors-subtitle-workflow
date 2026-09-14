@@ -142,7 +142,7 @@ test('shows the installed OCR settings hint and highlights video drops', async (
 
   expect(state.settingsHint).toBe('在 ⚙️ 设置中查看');
   expect(state.status).toBe('已安装，可直接使用');
-  expect(state.runtimeHint).toBe('OCR 模型已安装，可以在工具箱中使用。\nOCR 运行环境目录: D:\\Demo\\ocr-runtime');
+  expect(state.runtimeHint).toBe('OCR 支持已就绪\nOCR 运行环境目录: D:\\Demo\\ocr-runtime');
   expect(state.runtimePath).toBe('D:\\Demo\\ocr-runtime');
   expect(state.hasHighlight).toBe(true);
   expect(state.borderChanged).toBe(true);
@@ -183,7 +183,7 @@ test('keeps the menubar and waveform tools visible while content shrinks', async
     });
     expect(controls.tabCount).toBe(6);
     expect(controls.tabsInside).toBe(true);
-    expect(controls.toolCount).toBe(2);
+    expect(controls.toolCount).toBe(3);
     expect(controls.toolsVisible).toBe(true);
   }
 
@@ -212,7 +212,7 @@ test('module tabs close a module from a preset layout and restore it afterwards'
   await page.waitForSelector('#editor-workspace');
 
   const moduleIds = () => page.evaluate(() =>
-    [...document.querySelectorAll('[data-dock-module]')].map((el) => el.dataset.dockModule).sort());
+    [...document.querySelectorAll('[data-dock-module]:not([hidden])')].map((el) => el.dataset.dockModule).sort());
 
   // 初始为预设布局、四个窗口齐全，各带单标签 + 行尾「+」。
   expect(await moduleIds()).toEqual(['cues', 'panel', 'player', 'wave']);
@@ -237,7 +237,7 @@ test('module tabs close a module from a preset layout and restore it afterwards'
   await page.locator('.menubar-tab', { hasText: '窗口' }).click();
   await page.locator('#show-module-submenu .dropdown-submenu-toggle').hover();
   await page.waitForTimeout(300);
-  await page.locator('#show-module-submenu .dropdown-item', { hasText: '视频' }).first().click();
+  await page.locator('#show-module-submenu .dropdown-item', { hasText: '媒体播放器' }).first().click();
   await page.waitForTimeout(250);
   expect(await moduleIds()).toEqual(['cues', 'panel', 'player', 'wave']);
   const restoredVisible = await page.evaluate(() => {

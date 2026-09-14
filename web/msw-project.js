@@ -7,6 +7,7 @@
   const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
   function validAsset(asset) {
     if (!asset || typeof asset !== 'object' || !/^audio-[0-9a-f]{32}$/.test(asset.id || '') || asset.kind !== 'audio') return false;
+    if (asset.batch_id !== undefined && !validId(asset.batch_id)) return false;
     if (typeof asset.path !== 'string' || !new RegExp(`^msw-[0-9a-f]{24}\\.assets/audio/${asset.id}\\.wav$`).test(asset.path)) return false;
     if (typeof asset.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(asset.sha256)) return false;
     for (const [key, low, high] of [['sample_rate', 8000, 192000], ['channels', 1, 8], ['sample_count', 1, 2 ** 32], ['byte_size', 44, 32 * 1024 * 1024]]) {
@@ -73,6 +74,10 @@
     if (['audio_tracks', 'audio_clips', 'audio_settings'].some(key => key in value)) {
       if (!global.MSWAudio) throw new Error('音频贴片模块未加载');
       global.MSWAudio.validate(value);
+    }
+    if ('subtitle_assets' in value || 'asset_batches' in value) {
+      if (!global.MSWAssets) throw Error('字幕素材模块未加载');
+      global.MSWAssets.validate(value);
     }
     return clone(value);
   }

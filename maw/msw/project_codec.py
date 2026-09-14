@@ -76,7 +76,65 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
                 errors.append((f"$.msw.assets[{index}]", "invalid or duplicate audio asset"))
             else:
                 seen.add(asset["id"])
+    errors.extend(validate_subtitle_assets(value))
     errors.extend(validate_audio_timeline(value))
+    return errors
+
+
+def validate_subtitle_assets(value):
+    def integer(v):
+        return type(v) is int and 0 <= v <= 9007199254740991
+
+    def string(v, limit=160):
+        return isinstance(v, str) and len(v) <= limit
+
+    def subtitle(a):
+        if not isinstance(a, dict) or a.get('kind') != 'subtitle':
+            return False
+        if (not all(valid_id(a.get(k)) for k in ('id', 'batch_id', 'source_id'))
+                or not string(a.get('source_cue_id')) or not a['source_cue_id']
+                or not (a.get('track_id') is None or (string(a['track_id']) and a['track_id']))
+                or 'track_id' not in a
+                or not all(integer(a.get(k)) for k in ('created_at', 'original_start', 'start', 'end'))
+                or a['end'] <= a['start'] or not string(a.get('text'), 12000)):
+            return False
+        if 'items' in a and (not isinstance(a['items'], list) or len(a['items']) > 12000 or any(
+                not isinstance(i, dict) or not integer(i.get('start')) or not integer(i.get('end'))
+                or not a['start'] <= i['start'] < i['end'] <= a['end'] or not string(i.get('text'), 12000)
+                for i in a['items'])):
+            return False
+        color = a.get('color')
+        if 'color' in a and (not isinstance(color, dict) or not string(color.get('name'))
+                or not isinstance(color.get('value'), str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', color['value'])):
+            return False
+        return True
+
+    errors = []
+    rows, batches = value.get('subtitle_assets', []), value.get('asset_batches', [])
+    if (not isinstance(rows, list) or len(rows) > 10000 or not all(subtitle(a) for a in rows)
+            or len({a['id'] for a in rows}) != len(rows)):
+        errors.append(('$.msw.subtitle_assets', 'invalid or duplicate subtitle assets'))
+        rows = []
+    if (not isinstance(batches, list) or len(batches) > 10000 or any(
+            not isinstance(b, dict) or not valid_id(b.get('id'))
+            or b.get('kind') not in ('copy', 'asr', 'tts', 'imported', 'regenerated')
+            or not integer(b.get('created_at'))
+            or any(k in b and not valid_id(b[k]) for k in ('result_id', 'parent_id')) for b in batches)
+            or len({b['id'] for b in batches}) != len(batches)):
+        errors.append(('$.msw.asset_batches', 'invalid or duplicate asset batches'))
+        batches = []
+    if any(a['batch_id'] not in {b['id'] for b in batches} for a in rows):
+        errors.append(('$.msw.subtitle_assets', 'missing subtitle asset batch'))
+    for b in batches:
+        bindings = b.get('bindings', [])
+        if (not isinstance(bindings, list) or len(bindings) > 10000 or any(
+                not isinstance(r, dict) or not string(r.get('track_id')) or not r['track_id']
+                or any(not isinstance(r.get(k), list) or not 0 < len(r[k]) <= 10000
+                       or any(not string(i) or not i for i in r[k])
+                       for k in ('main_segment_ids', 'extension_segment_ids'))
+                or any(type(r.get(k)) is not int or abs(r[k]) > 10**12
+                       for k in ('start_offset_ms', 'end_offset_ms')) for r in bindings)):
+            errors.append(('$.msw.asset_batches', 'invalid subtitle asset bindings'))
     return errors
 
 
@@ -138,6 +196,8 @@ def validate_audio_timeline(value):
 
 def valid_asset(asset):
     if not isinstance(asset, dict):
+        return False
+    if 'batch_id' in asset and not valid_id(asset['batch_id']):
         return False
     asset_id = asset.get("id")
     if not isinstance(asset_id, str) or not re.fullmatch(r"audio-[0-9a-f]{32}", asset_id):

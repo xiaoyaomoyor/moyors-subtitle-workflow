@@ -146,6 +146,12 @@ test('library transport seeks, mutes and changes speed using the module theme', 
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.locator('#asset-library').screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'asset-theme-player.png')});
   await page.setViewportSize({width: 560, height: 650});
   expect(await page.locator('#asset-player').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.locator('.msw-asset-row').first().getByRole('button', {name:'试听',exact:true}).click();
+  await page.evaluate(()=>{const toggle=document.getElementById('asset-show-player');toggle.checked=false;toggle.dispatchEvent(new Event('change'));});
+  await expect(page.locator('#asset-player')).toBeHidden();
+  expect(await page.locator('#asset-audio').evaluate(audio=>audio.paused)).toBe(false);
+  await page.locator('.msw-asset-row').first().getByRole('button',{name:'暂停试听',exact:true}).click();
+  expect(await page.locator('#asset-audio').evaluate(audio=>audio.paused)).toBe(true);
 });
 async function prepareClips(page) {
   await open(page,true);
@@ -164,10 +170,11 @@ async function prepareClips(page) {
 }
 test('save as collects audio and optional media and continues saving the new project', async ({page}) => {
   await prepareClips(page);
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
     updateEditorSettings({ autoSaveProject: false }); scheduleAutoSave(); scheduleAutoSaveFlush();
-    await saveCurrentProject({ silent: true });
   });
+  await page.waitForFunction(()=>!projectSaveInFlight && !projectCheckpointInFlight);
+  await page.evaluate(async()=>{selectOnly(0);MSWE.resolve('processing-host').copySubtitleAssets();await saveCurrentProject({silent:true});});
   await expect.poll(() => JSON.parse(readFileSync(projectPath, 'utf8')).msw?.audio_clips?.length || 0).toBe(1);
   const original = readFileSync(projectPath, 'utf8');
   const originalId = await page.evaluate(() => DATA.msw.project_id);
@@ -185,16 +192,21 @@ test('save as collects audio and optional media and continues saving the new pro
   expect(saved.msw.project_id).not.toBe(originalId);
   expect(saved.msw.audio_clips).toHaveLength(1);
   expect(saved.msw.assets).toHaveLength(2);
+  expect(saved.msw.subtitle_assets).toHaveLength(1);
+  expect(saved.msw.subtitle_assets[0].text).toBe('Hello');
+  expect(saved.msw.asset_batches.some(b=>b.id===saved.msw.subtitle_assets[0].batch_id)).toBe(true);
   for (const asset of saved.msw.assets) expect(existsSync(join(dir, 'saved', asset.path))).toBe(true);
   expect(existsSync(join(dir, 'saved', saved.media))).toBe(true);
   expect(readFileSync(projectPath, 'utf8')).toBe(original);
-  await page.evaluate(() => { DATA.segments[0].text = 'Edited copy'; DATA.segments[0]._dirty = true; });
+  await page.evaluate(() => selectOnly(0));
+  await page.locator('#cue-panel-text').fill('Edited copy');
   await page.keyboard.press('Control+s');
   await expect.poll(() => JSON.parse(readFileSync(target, 'utf8')).segments[0].text).toBe('Edited copy');
   expect(readFileSync(projectPath, 'utf8')).toBe(original);
   await page.reload();
   await expect(page.locator('#json-name')).toHaveText('copy.mosp');
   await expect.poll(() => page.evaluate(() => DATA.msw.audio_clips.length)).toBe(1);
+  expect(await page.evaluate(()=>DATA.msw.subtitle_assets[0].text)).toBe('Hello');
   await expect(page.locator('.msw-audio-clip').first()).toBeVisible();
 });
 
@@ -264,6 +276,7 @@ test('recovery drafts restore subtitle and audio clip edits into an unsaved copy
     DATA.segments[0].text = 'Recovered main'; DATA.segments[0]._dirty = true;
     DATA.multi_subtitle.tracks[0].segments[0].text = 'Recovered secondary';
     DATA.msw.audio_clips[0].muted = true;
+    selectOnly(0);MSWE.resolve('processing-host').copySubtitleAssets();
   });
   await expect.poll(() => page.evaluate(() => MSWE.resolve('project-persistence').captureDraft({force:true}))).toBe(true);
   await page.reload();
@@ -277,6 +290,7 @@ test('recovery drafts restore subtitle and audio clip edits into an unsaved copy
   expect(await page.evaluate(() => [DATA.segments[0].text, DATA.multi_subtitle.tracks[0].segments[0].text, DATA.msw.audio_clips[0].muted]))
     .toEqual(['Recovered main', 'Recovered secondary', true]);
   expect(await page.evaluate(() => SERVER_CONFIG.canSave)).toBe(false);
+  expect(await page.evaluate(()=>DATA.msw.subtitle_assets[0].text)).toBe('Recovered main');
   expect(readFileSync(projectPath, 'utf8')).toBe(original);
   await openMenubarMenu(page, '文件'); await page.locator('#save-project-as').click();
   await page.locator('#project-save-choose').click();
@@ -287,6 +301,7 @@ test('recovery drafts restore subtitle and audio clip edits into an unsaved copy
   const copy = JSON.parse(readFileSync(join(dir, 'saved', 'copy.mosp'), 'utf8'));
   expect(copy.segments[0].text).toBe('Recovered main');
   expect(copy.msw.audio_clips[0].muted).toBe(true);
+  expect(copy.msw.subtitle_assets[0].text).toBe('Recovered main');
   expect(readFileSync(projectPath, 'utf8')).toBe(original);
 });
 
@@ -800,7 +815,7 @@ test('asset settings are in the media menu and module context submenu',async({pa
   await expect(slider).toBeVisible();
   await slider.fill('4'); await slider.dispatchEvent('input');
   await expect(page.locator('#asset-density')).toHaveValue('4');
-  expect(await page.locator('#ctxmenu .ctx-subitem').count()).toBe(2); // 密度滑条 + 显示搜索与筛选
+  expect(await page.locator('#ctxmenu .ctx-subitem').count()).toBe(3); // 密度、试听栏、搜索筛选
   expect(await slider.evaluate(el=>{const r=el.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight;})).toBe(true);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-settings-context.png')});
 });
@@ -869,6 +884,15 @@ test('external audio imports from file picker, reports invalid files and saves u
 test('portable editor explains TTS capability without active controls',async({page})=>{
   server=await startStaticServer('blank-editor.html',await findFreePort()); await page.goto(server.url);
   await panel(page,false); await expect(page.locator('#tts-unavailable')).toBeVisible(); await expect(page.locator('#tts-controls')).not.toBeVisible();
+  await page.locator('#tts-close').click();
+  await page.evaluate(()=>{
+    DATA.segments=[{id:'portable-cue',start:0,end:1000,text:'离线字幕'}];renderAll({waveform:'full'});selectOnly(0);
+    const host=MSWE.resolve('processing-host');host.copySubtitleAssets();host.showAssets({automatic:true});
+  });
+  await page.locator('.msw-asset-row [data-asset-action="edit"]').click();
+  await page.locator('#cue-panel-asset-text').fill('离线素材修改');await page.locator('#cue-panel-asset-done').click();
+  const inserted=await page.evaluate(()=>MSWE.resolve('processing-host').insertSubtitleAssets([DATA.msw.subtitle_assets[0].id],2000,{}).count);
+  expect(inserted).toBe(1);expect(await page.evaluate(()=>DATA.segments[1].text)).toBe('离线素材修改');
 });
 
 test('asset module dropdown keeps full module names on one line within the viewport',async({page})=>{
@@ -1072,4 +1096,22 @@ test('production draft preview keeps user words untranslated in English',async({
   await page.locator('#cue-panel-tts-preview summary').click();
   await expect(page.locator('#cue-panel-tts-parts li')).toHaveText('关闭');
   await expect(page.locator('#cue-panel-tts-preview summary')).toHaveText('Segment preview');
+});
+
+
+test('more hover details use combined clip and track gain and trimmed duration',async({page})=>{
+  await prepareClips(page);
+  await page.evaluate(()=>{
+    MSWE.resolve('processing-host').commitAudio('test gain and trim',ext=>{
+      ext.audio_tracks[0].gain_db=-3;const c=ext.audio_clips[0];c.gain_db=-5;c.start_ms=1000;
+      const a=ext.assets.find(a=>a.id===c.asset_id);c.source_in_sample=Math.round(a.sample_rate*.5);
+    });
+    const toggle=document.getElementById('waveform-hover-details');toggle.checked=true;toggle.dispatchEvent(new Event('change'));
+  });
+  const clip=page.locator('.msw-audio-clip').first();await clip.hover();
+  await expect(clip).toHaveAttribute('title',/试听音量：-8 dB · 1.000 ~ 2.000 s \(1.000 s\)/);
+  await page.evaluate(()=>MSWE.resolve('processing-host').commitAudio('mute fixture',ext=>{ext.audio_tracks[0].muted=true;}));
+  await expect(clip).toHaveAttribute('title',/试听音量：-8 dB \(静音\)/);
+  await page.evaluate(()=>{const toggle=document.getElementById('waveform-hover-details');toggle.checked=false;toggle.dispatchEvent(new Event('change'));});
+  await expect(clip).not.toHaveAttribute('title',/试听音量/);
 });

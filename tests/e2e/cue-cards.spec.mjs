@@ -301,3 +301,51 @@ test('playback clears the card at its actual end while paused selection stays sy
   await expect(main(page)).toHaveCSS('outline-style', 'dashed');
   await expect(first(page)).toHaveCSS('outline-style', 'none');
 });
+
+
+test('module frames use the asset library border in docked and compact layouts', async ({page}, info)=>{
+  await page.evaluate(()=>MSWE.resolve('processing-host').showAssets());
+  for(const width of [1280,900]) {
+    await page.setViewportSize({width,height:800});
+    const borders=await page.locator('[data-dock-module]:visible').evaluateAll(nodes=>nodes.map(n=>{const s=getComputedStyle(n);return [s.borderTopWidth,s.borderTopStyle,s.borderTopColor,s.borderRadius];}));
+    expect(borders.length).toBeGreaterThanOrEqual(4);
+    for(const border of borders) expect(border).toEqual(borders[0]);
+    await page.screenshot({path:info.outputPath('module-frames-'+width+'.png')});
+  }
+});
+
+
+test('selected full track labels use accent and match waveform selection width',async({page},info)=>{
+  await page.evaluate(()=>updateEditorSettings({clickBehavior:'select-only'}));
+  for(const side of ['extension','main']) {
+    const column=first(page).locator('.'+side);
+    await column.locator('.text').click();
+    const color=await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+    for(const label of ['.index-label','.index-label-rest']) {
+      expect(await column.locator(label).evaluate((el,c)=>{const probe=document.createElement('span');probe.style.color=c;document.body.appendChild(probe);const matches=getComputedStyle(el).color===getComputedStyle(probe).color;probe.remove();return matches;},color)).toBe(true);
+      await expect(column.locator(label)).toHaveCSS('text-decoration-line','underline');
+    }
+    const wave=page.locator('.waveform-cue-block[data-track="'+side+'"]').first();
+    expect(await wave.evaluate(el=>getComputedStyle(el).outlineWidth)).toBe(await column.evaluate(el=>getComputedStyle(el).outlineWidth));
+    const other=first(page).locator(side==='main'?'.extension':'.main');
+    await expect(other.locator('.index-label')).toHaveCSS('text-decoration-line','none');
+  }
+  await page.evaluate(()=>{updateEditorSettings({cueListPairLayout:'rows'});applyCueListDisplaySettings();});
+  await expect(main(page).locator('.index-label-rest')).toBeVisible();
+  await expect(main(page).locator('.index-label-rest')).toHaveCSS('text-decoration-line','underline');
+  await page.screenshot({path:info.outputPath('selected-track-label.png')});
+});
+
+test('more hover details show both subtitle tracks and total duration',async({page})=>{
+  await page.evaluate(()=>{const toggle=document.getElementById('waveform-hover-details');toggle.checked=true;toggle.dispatchEvent(new Event('change'));});
+  for(const track of ['main','extension']) {
+    const block=page.locator('.waveform-cue-block[data-track="'+track+'"]').first();
+    await block.hover();
+    await expect(block).toHaveAttribute('title',/^.+\n#1 · .+ ~ .+ \(.+\)$/);
+    const title=await block.getAttribute('title');
+    const expected=await page.evaluate(side=>{const cue=side==='main'?DATA.segments[0]:DATA.multi_subtitle.tracks[0].segments[0];const c=waveformEditor.cueTiming();return c.format(c.fromMs(cue.end-cue.start));},track);
+    expect(title).toContain('('+expected+')');
+  }
+  await page.evaluate(()=>{const toggle=document.getElementById('waveform-hover-details');toggle.checked=false;toggle.dispatchEvent(new Event('change'));});
+  await expect(page.locator('.waveform-cue-block[data-track="extension"]').first()).toHaveAttribute('title','Hello');
+});

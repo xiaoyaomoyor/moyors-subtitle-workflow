@@ -1411,6 +1411,7 @@ function applyHistoryRecord(record) {
   return true;
 }
 function performUndo() {
+  window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekUndo();
   if (!top) { flashHint('没有可撤销的操作', 'invalid'); return; }
   if (top.kind === 'asset-removal' && top.asset && (DATA.msw?.assets?.length || 0) >= 10000) {
@@ -1429,6 +1430,7 @@ function performUndo() {
   updateUndoRedoButtons();
 }
 function performRedo() {
+  window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekRedo();
   if (!top) { flashHint('没有可重做的操作', 'invalid'); return; }
   if (top.kind === 'layout' && typeof waveformEditor?.restoreLayoutHistorySnapshot !== 'function') {
@@ -5194,6 +5196,7 @@ function getCuePanelTextElement(target) {
 }
 
 function setCuePanelTarget(kind, index, trackId = null) {
+  window.MSWE?.resolve('asset-library')?.finishEdit();
   const nextKind = kind === 'extension' ? 'extension' : 'main';
   let nextIndex = Number.isInteger(index) ? index : -1;
   let nextTrackId = nextKind === 'extension' ? trackId : null;
@@ -12594,6 +12597,7 @@ function buildGapRemovedRegionsJson() {
 }
 
 function buildJson() {
+  window.MSWE?.resolve('asset-library')?.commitEdit();
   // Validate before timing repair, and always serialize the live MSW extension.
   const msw = validateProjectForLoad(DATA);
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
@@ -18770,6 +18774,8 @@ function setupModuleContextMenu() {
   bindModule(waveformEditor.assetLibrary, () => [
     { label: '素材库设置', expandable: true, children: [
       { label: '卡片密度', node: buildAssetDensitySlider() },
+      { label: '显示底部试听栏', checked: () => document.getElementById('asset-show-player')?.checked !== false,
+        toggle: () => { const toggle=document.getElementById('asset-show-player');toggle.checked=!toggle.checked;toggle.dispatchEvent(new Event('change')); } },
       { label: '显示搜索与筛选', checked: () => EDITOR_SETTINGS.assetLibraryShowSearch !== false,
         toggle: () => {
           const toggle = document.getElementById('asset-show-search');
@@ -18790,6 +18796,12 @@ function openSelectedCueTts(side) {
 
 function openSelectedCueTranslation() {
   document.getElementById('subtitle-translate-btn')?.click();
+}
+function copySelectedSubtitlesToAssets() {
+  try {
+    const host=window.MSWE.resolve('processing-host'), count=host.copySubtitleAssets();
+    host.showAssets({automatic:true});flashHint(`已复制 ${count} 条字幕到素材库`,'success');
+  } catch(error) {flashHint(error.message,'warning');}
 }
 
 function showContextMenu(x, y, idx, waveformTimeMs = null) {
@@ -18892,6 +18904,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       () => toggleDisabled([idx])
     );
     addItem('翻译所选字幕', '', openSelectedCueTranslation);
+    addItem('复制到素材库', '', copySelectedSubtitlesToAssets);
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem('删除字幕', 'Delete', () => {
       deleteSegments([idx]);
@@ -18924,6 +18937,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       () => toggleDisabled(targetIdxs)
     );
     addItem('翻译所选字幕', '', openSelectedCueTranslation);
+    addItem('复制到素材库', '', copySelectedSubtitlesToAssets);
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
@@ -18986,6 +19000,10 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
   addItem('翻译所选字幕', () => {
     if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
     openSelectedCueTranslation();
+  });
+  addItem('复制到素材库', () => {
+    if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
+    copySelectedSubtitlesToAssets();
   });
   addItem('配音所选字幕（TTS）', () => {
     if (!selectedExtensionIdxs.has(index)) selectOnlyExtension(index, track);
@@ -19323,7 +19341,6 @@ function initWaveformEditor() {
     toggleSubtitleTrackMuted,
     openWaveSettings: () => setWaveformSettingsPanelOpen(true),
     getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
-    clipHoverDetails: () => waveformEditor?.settings?.hoverDetails === true,
     audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
     toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
     onBeginEdit: (label) => pushUndo(label),
@@ -21084,6 +21101,7 @@ void syncAppearanceBoot();
 
 // Processing modules use commands rather than mutating editor state themselves.
 function commitProcessingEdits() {
+  window.MSWE?.resolve('asset-library')?.commitEdit();
   if (editingState) finishEdit(true);
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
@@ -21325,6 +21343,46 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return window.MSWTranslation.snapshot(DATA, processingSelection());
   },
   applyTranslation: applyTranslationJob,
+  commitSubtitleAssets: (label, change) => {
+    commitProcessingEdits();
+    const next = window.MSWProject.clone(window.MSWProject.ensure(DATA));
+    const result = change(next);
+    if (result === false) return false;
+    window.MSWProject.normalize(next);
+    pushUndo(label);
+    DATA.msw = next;
+    projectImportDirty = true;
+    scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:assets-changed'));
+    return true;
+  },
+  copySubtitleAssets: () => {
+    commitProcessingEdits();
+    const source = window.MSWE?.resolve('media')?.current;
+    const batch = window.MSWAssets.capture(DATA, processingSelection(),
+      source?.revision ? {sourceId: `media-${source.revision}`} : {});
+    const next = window.MSWAssets.add(window.MSWProject.ensure(DATA), batch.assets, batch.batch);
+    if (!next) return 0;
+    window.MSWProject.normalize(next);
+    pushUndo('复制字幕到素材库'); DATA.msw = next;
+    projectImportDirty = true; scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:assets-changed'));
+    return batch.assets.length;
+  },
+  insertSubtitleAssets: (ids, anchor, targets) => {
+    commitProcessingEdits();
+    const plan = window.MSWAssets.insert(DATA, ids, Math.round(anchor), targets, cue => {
+      syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames:false}); return cue;
+    });
+    if (!plan.count) return plan;
+    const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
+    pushUndo('放入字幕素材', {captureView:true});
+    DATA.segments.splice(0, DATA.segments.length, ...plan.project.segments);
+    if (plan.project.multi_subtitle) DATA.multi_subtitle = plan.project.multi_subtitle;
+    normalizeMultiSubtitleState(); projectImportDirty = true; cueListPlaybackKey = null;
+    renderAll({waveform:'full'}); restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
+    scheduleAutoSaveFlush(); return plan;
+  },
   applyASR: applyAsrJob,
   get assetLibrary() { return waveformEditor?.assetLibrary; },
   get player() { return player; },
