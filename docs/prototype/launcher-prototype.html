@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSW 启动器重构原型 · 我的字幕流</title>
+<!-- ============================================================
+     MSW 启动器重构 · A 阶段独立原型（2026-09-14）
+     - 仅静态演示：无真实服务、无密钥、无工程读写。
+     - 双主题：暗色（默认）/ 亮色；中/英文关键文案切换。
+     - 覆盖五页：启动编辑器 / 预制工程 / 实用工具 / 使用指南 / 更多设置。
+     - 主题令牌与交互状态表见同目录两份 Markdown。
+     ============================================================ -->
+<style>
+/* ---------- 主题令牌（暗色默认） ---------- */
+:root {
+  --bg-window: #101010;
+  --bg-panel: #171717;
+  --bg-card: #1E1E1E;
+  --bg-raised: #272727;
+  --bg-input: #141414;
+  --border: #333333;
+  --border-soft: #2A2A2A;
+  --text-primary: #F2F0F4;
+  --text-secondary: #B5B0BB;
+  --accent: #B19ACB;
+  --accent-strong: #73568F;
+  --accent-selected: rgba(177, 154, 203, 0.14);
+  --on-accent: #FFFFFF;
+  --success: #7FBF8E;
+  --warning: #D9A85F;
+  --danger: #D98A8A;
+  --focus-ring: rgba(177, 154, 203, 0.45);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --logo-ink: #F2F0F4;
+  --nav-width: 188px;
+  --header-height: 80px;
+  --footer-height: 64px;
+  --radius-card: 11px;
+  --radius-control: 7px;
+  --gap-1: 8px; --gap-2: 12px; --gap-3: 16px; --gap-4: 24px;
+}
+html[data-theme="light"] {
+  --bg-window: #F5F4F6;
+  --bg-panel: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-raised: #EEEBF1;
+  --bg-input: #FAF9FB;
+  --border: #DED9E4;
+  --border-soft: #E8E3EC;
+  --text-primary: #242027;
+  --text-secondary: #68606F;
+  --accent: #71538F;
+  --accent-strong: #71538F;
+  --accent-selected: rgba(113, 83, 143, 0.09);
+  --success: #3D8A55;
+  --warning: #9A6B1F;
+  --danger: #B04A4A;
+  --shadow-card: 0 1px 2px rgba(36, 32, 39, 0.08);
+  --logo-ink: #242027;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg-window);
+  color: var(--text-primary);
+  font: 13px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; }
+input, select, textarea { font: inherit; }
+
+/* ---------- 应用壳 ---------- */
+.app { display: flex; flex-direction: column; height: 100vh; min-width: 720px; }
+
+.app-header {
+  height: var(--header-height);
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: var(--gap-3);
+  padding: 0 var(--gap-4);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-soft);
+}
+.brand { display: flex; align-items: center; gap: var(--gap-3); min-width: 0; }
+.brand-logo { width: 38px; height: 38px; color: var(--logo-ink); flex: 0 0 auto; }
+.brand-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.brand-name-zh { font-size: 22px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.25; }
+.brand-name-en { font-size: 12px; color: var(--text-secondary); line-height: 1.3; }
+.brand-version {
+  margin-left: auto;
+  font-size: 11px; color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 2px 10px; white-space: nowrap;
+}
+.header-actions { display: flex; align-items: center; gap: var(--gap-1); }
+
+.app-body { display: flex; flex: 1; min-height: 0; }
+
+/* ---------- 左导航 ---------- */
+.app-nav {
+  width: var(--nav-width);
+  flex: 0 0 auto;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-soft);
+  padding: var(--gap-3) var(--gap-2);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none; border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left; cursor: pointer;
+}
+.nav-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+.nav-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.nav-item.active { background: var(--accent-selected); color: var(--text-primary); }
+.nav-item.active .nav-item-icon { color: var(--accent); }
+.nav-item-icon { width: 19px; height: 19px; flex: 0 0 auto; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.nav-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-nav .spacer { flex: 1; }
+.nav-footer { font-size: 11px; color: var(--text-secondary); padding: 8px 12px; }
+body.compact .app-nav { width: 64px; }
+body.compact .nav-item-label, body.compact .nav-footer { display: none; }
+body.compact .nav-item { justify-content: center; padding: 9px 0; }
+
+/* ---------- 内容页 ---------- */
+.page-host { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.page { display: none; flex: 1; min-height: 0; flex-direction: column; }
+.page.active { display: flex; }
+.page-scroll { overflow-y: auto; padding: var(--gap-4); scroll-behavior: smooth; }
+.page-head { margin-bottom: var(--gap-3); }
+.page-title { font-size: 19px; font-weight: 600; margin: 0 0 4px; }
+.page-sub { margin: 0; color: var(--text-secondary); font-size: 12.5px; }
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--gap-3) var(--gap-4);
+  margin-bottom: var(--gap-3);
+}
+.card h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.hint { color: var(--text-secondary); font-size: 12px; margin: 4px 0; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 16px;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  cursor: pointer; white-space: nowrap;
+}
+.btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.btn.primary { background: var(--accent-strong); color: var(--on-accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: var(--bg-raised); color: var(--text-primary); border-color: var(--border-soft); }
+.btn.ghost:hover { border-color: var(--border); }
+.btn.subtle { background: transparent; color: var(--text-secondary); border-color: transparent; }
+.btn.subtle:hover { background: var(--bg-raised); color: var(--text-primary); }
+.btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.btn.small { height: 27px; padding: 0 11px; font-size: 12px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- 首页：最近工程 ---------- */
+.home-toolbar { display: flex; align-items: center; gap: var(--gap-2); margin-bottom: var(--gap-3); }
+.search-input {
+  flex: 0 1 340px; height: 34px;
+  background: var(--bg-input); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-control);
+  padding: 0 12px;
+}
+.search-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; border-color: var(--accent); }
+
+.recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: var(--gap-3);
+}
+.recent-card {
+  position: relative;
+  display: flex; gap: var(--gap-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-card);
+  padding: var(--gap-3);
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.recent-card:hover { border-color: var(--border); }
+.recent-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.recent-card.selected { border-color: var(--accent); background: linear-gradient(var(--accent-selected), var(--accent-selected)), var(--bg-card); }
+.recent-card.selected::after {
+  content: "✓"; position: absolute; top: 10px; right: 10px;
+  width: 18px; height: 18px; line-height: 18px; text-align: center;
+  border-radius: 50%; background: var(--accent-strong); color: var(--on-accent); font-size: 11px;
+}
+.recent-cover {
+  width: 96px; height: 60px; flex: 0 0 auto;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary);
+}
+.recent-cover svg { width: 30px; height: 30px; color: var(--logo-ink); opacity: 0.55; }
+.recent-info { min-width: 0; flex: 1; }
+.recent-name { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-dir { color: var(--text-secondary); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-meta { color: var(--text-secondary); font-size: 11.5px; margin-top: 6px; display: flex; gap: 10px; flex-wrap: wrap; }
+.recent-meta .missing { color: var(--warning); }
+.recent-pin { position: absolute; bottom: 10px; right: 10px; color: var(--accent); font-size: 11px; }
+
+.home-launch {
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+  padding: var(--gap-3) var(--gap-4);
+  display: flex; align-items: center; gap: var(--gap-2);
+}
+.home-launch .status-line { margin-right: auto; color: var(--text-secondary); font-size: 12px; }
+
+/* ---------- 预制页 ---------- */
+.prefab { display: flex; flex: 1; min-height: 0; }
+.prefab-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.prefab-scroll { overflow-y: auto; padding: var(--gap-4); }
+.prefab-meta-row { display: flex; align-items: center; gap: var(--gap-2); margin-bottom: var(--gap-3); flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 3px 12px; font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-card); cursor: default;
+}
+
+.module-section { margin-bottom: var(--gap-3); }
+.module-head {
+  display: flex; align-items: center; gap: var(--gap-2);
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-card);
+  padding: var(--gap-2) var(--gap-3);
+  cursor: pointer; text-align: left;
+}
+.module-head:hover { border-color: var(--border); }
+.module-index {
+  font-size: 11px; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 1px 7px; flex: 0 0 auto;
+}
+.module-title { font-weight: 600; font-size: 13.5px; }
+.module-summary { color: var(--text-secondary); font-size: 12px; margin-left: auto; padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.module-state { font-size: 11px; padding: 2px 9px; border-radius: 999px; flex: 0 0 auto; }
+.module-state.ready { color: var(--success); background: rgba(127, 191, 142, 0.12); }
+.module-state.unconfigured { color: var(--text-secondary); background: var(--bg-raised); }
+.module-state.error { color: var(--danger); background: rgba(217, 138, 138, 0.12); }
+.module-state.running { color: var(--accent); background: var(--accent-selected); }
+.chevron { flex: 0 0 auto; color: var(--text-secondary); transition: transform 0.15s ease; }
+.module-section.open .chevron { transform: rotate(90deg); }
+.module-body {
+  display: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft); border-top: none;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  margin: 0 var(--gap-2);
+  padding: var(--gap-3) var(--gap-3) var(--gap-4);
+}
+.module-section.open .module-body { display: block; }
+.module-section.has-error .module-head { border-color: var(--danger); }
+.module-section.has-error .module-body { border-color: var(--danger); }
+
+.field { margin-bottom: var(--gap-3); }
+.field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
+.field input[type="text"], .field select {
+  width: 100%; height: 34px;
+  background: var(--bg-input); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-control);
+  padding: 0 10px;
+}
+.field .error-text { color: var(--danger); font-size: 12px; margin: 4px 0 0; }
+.grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-2) var(--gap-3); }
+.check-line { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.check-line input[type="checkbox"] { accent-color: var(--accent-strong); width: 15px; height: 15px; }
+
+.prefab-rail {
+  width: 252px; flex: 0 0 auto;
+  border-left: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+  overflow-y: auto;
+  padding: var(--gap-3) var(--gap-2);
+}
+.rail-group { margin-bottom: var(--gap-3); }
+.rail-group-title { font-size: 11px; color: var(--text-secondary); letter-spacing: 0.4px; padding: 0 10px 6px; }
+.rail-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 8px 10px;
+  background: transparent; border: none; border-radius: var(--radius-control);
+  color: var(--text-primary); cursor: pointer; text-align: left;
+}
+.rail-item:hover { background: var(--bg-raised); }
+.rail-item:focus-visible { outline: 2px solid var(--focus-ring); }
+.rail-item .check-line { margin: 0; }
+.rail-item.unavailable { color: var(--text-secondary); }
+.rail-item.unavailable .rail-item-title { text-decoration: line-through; text-decoration-color: var(--border); }
+.rail-item-note { margin-left: auto; font-size: 10.5px; color: var(--warning); }
+
+.prefab-footer {
+  height: var(--footer-height);
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+  display: flex; align-items: center; gap: var(--gap-2);
+  padding: 0 var(--gap-4);
+}
+.prefab-footer .run-summary { margin-right: auto; font-size: 12px; color: var(--text-secondary); }
+
+/* ---------- 工具页 ---------- */
+.tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--gap-3); }
+.tool-card { display: flex; flex-direction: column; gap: 8px; }
+.tool-card .tool-io { color: var(--text-secondary); font-size: 12px; }
+.tool-card .tool-actions { display: flex; gap: var(--gap-1); margin-top: auto; }
+.tool-icon { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; color: var(--accent); }
+
+/* ---------- 指南页 ---------- */
+.guide-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--gap-3); }
+.guide-card ol { margin: 8px 0 12px; padding-left: 20px; color: var(--text-secondary); font-size: 12.5px; }
+.guide-card ol li { margin: 4px 0; }
+.faq-item { border-bottom: 1px solid var(--border-soft); }
+.faq-item:last-child { border-bottom: none; }
+.faq-q {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; color: var(--text-primary);
+  font-size: 13px; text-align: left; padding: 12px 2px; cursor: pointer;
+}
+.faq-a { display: none; color: var(--text-secondary); font-size: 12.5px; padding: 0 2px 12px; }
+.faq-item.open .faq-a { display: block; }
+.link-row { display: flex; gap: var(--gap-2); flex-wrap: wrap; margin-top: 4px; }
+
+/* ---------- 设置页 ---------- */
+.settings-layout { display: flex; gap: var(--gap-4); align-items: flex-start; }
+.settings-cats {
+  width: 168px; flex: 0 0 auto; position: sticky; top: 0;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.settings-cat {
+  padding: 8px 12px; border: none; border-radius: var(--radius-control);
+  background: transparent; color: var(--text-secondary);
+  text-align: left; cursor: pointer;
+}
+.settings-cat:hover { background: var(--bg-raised); color: var(--text-primary); }
+.settings-cat.active { background: var(--accent-selected); color: var(--text-primary); }
+.settings-groups { flex: 1; min-width: 0; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-control); overflow: hidden; }
+.segmented .seg {
+  height: 32px; padding: 0 14px; border: none;
+  background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+}
+.segmented .seg + .seg { border-left: 1px solid var(--border); }
+.segmented .seg.active { background: var(--accent-strong); color: var(--on-accent); }
+
+/* ---------- 演示控件 ---------- */
+.demo-bar {
+  position: fixed; bottom: 12px; right: 12px; z-index: 50;
+  display: flex; gap: 6px;
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.demo-bar .btn { height: 26px; padding: 0 10px; font-size: 11.5px; }
+
+/* ---------- 状态徽标 ---------- */
+.state-badge { font-size: 11px; padding: 2px 9px; border-radius: 999px; }
+.state-badge.ok { color: var(--success); background: rgba(127,191,142,0.12); }
+.state-badge.warn { color: var(--warning); background: rgba(217,168,95,0.12); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 页头 -->
+  <header class="app-header">
+    <div class="brand">
+      <svg class="brand-logo" viewBox="169 18 600 600" fill="currentColor" aria-hidden="true">
+        <polygon points="506.36 574.64 541.55 580.66 559.54 561.88 512.87 367.4 483.58 362.51 460.06 381.68 506.36 574.64"/>
+        <polygon points="611.2 519.68 644.4 515.42 655.37 493.64 560.12 332.09 532.51 335.75 516.69 359.4 611.2 519.68"/>
+        <polygon points="650.23 425.46 668.46 418.17 671.5 404.2 593.74 326.44 578.6 332.56 573.08 348.31 650.23 425.46"/>
+        <polygon points="425.17 575.18 389.98 581.2 371.99 562.42 418.66 367.94 447.95 363.05 471.47 382.22 425.17 575.18"/>
+        <polygon points="320.33 520.23 287.13 515.96 276.16 494.18 371.41 332.64 399.02 336.29 414.84 359.94 320.33 520.23"/>
+        <polygon points="269.89 425.89 251.66 418.6 248.62 404.63 326.38 326.87 341.52 332.99 347.04 348.74 269.89 425.89"/>
+        <path d="M639.25,138.93l-170.84-84.38-169.78,82.81-50,206.25,219.78,82.81,220.84-81.25-50-206.25ZM452.85,191.88l-65.82,32.74-8.21-4.9-.74-13.1,44.53-22.15-44.29-22.03.66-10.9,8.81-6.85,65.31,32.49-.54,9.6.31,5.09ZM559.05,219.73l-8.21,4.9-65.82-32.74.31-5.09-.54-9.6,65.31-32.49,8.81,6.85.66,10.9-44.29,22.03,44.53,22.15-.74,13.1Z"/>
+      </svg>
+      <div class="brand-copy">
+        <div class="brand-name-zh" data-echo="brandZh">我的字幕流</div>
+        <div class="brand-name-en">Moyor's Subtitle Workflow</div>
+      </div>
+    </div>
+    <span class="brand-version">v1.6.0-beta.4</span>
+    <div class="header-actions">
+      <button class="btn subtle small" id="langToggle" type="button">English</button>
+      <button class="btn subtle small" id="themeToggle" type="button">亮色</button>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <!-- 左导航 -->
+    <nav class="app-nav" aria-label="主导航">
+      <button class="nav-item active" data-page="home" type="button">
+        <svg class="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5M6.5 10v9h11v-9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="nav-item-label" data-echo="navHome">启动编辑器</span>
+      </button>
+      <button class="nav-item" data-page="prefab" type="button">
+        <svg class="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13" stroke-linecap="round"/></svg>
+        <span class="nav-item-label" data-echo="navPrefab">预制工程</span>
+      </button>
+      <button class="nav-item" data-page="tools" type="button">
+        <svg class="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5a4 4 0 1 0 3 3L21 13l-2 2-3.5-3.5M4 7l6 6-4.5 4.5L8 20" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="nav-item-label" data-echo="navTools">实用工具</span>
+      </button>
+      <button class="nav-item" data-page="guide" type="button">
+        <svg class="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Z M5 17h14M9 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="nav-item-label" data-echo="navGuide">使用指南</span>
+      </button>
+      <button class="nav-item" data-page="settings" type="button">
+        <svg class="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3 18 18M18 6l-1.7 1.7M7.7 16.3 6 18" stroke-linecap="round"/></svg>
+        <span class="nav-item-label" data-echo="navSettings">更多设置</span>
+      </button>
+      <div class="spacer"></div>
+      <div class="nav-footer">MSW · beta</div>
+    </nav>
+
+    <div class="page-host">
+      <!-- ============ 页面 1：启动编辑器 ============ -->
+      <section class="page active" id="page-home" aria-labelledby="homeTitle">
+        <div class="page-scroll">
+          <div class="page-head">
+            <h2 class="page-title" id="homeTitle" data-echo="homeTitle">启动编辑器</h2>
+            <p class="page-sub" data-echo="homeSub">打开最近工程，或直接进入空白编辑器开始导入媒体。</p>
+          </div>
+          <div class="home-toolbar">
+            <input class="search-input" type="text" placeholder="搜索最近工程…" data-echo-ph="homeSearch">
+            <button class="btn ghost" type="button" data-echo="homeOpenFile">打开工程文件…</button>
+            <button class="btn subtle" type="button" data-echo="homeRecover">恢复未保存内容</button>
+          </div>
+          <div class="recent-grid" id="recentGrid">
+            <div class="recent-card" tabindex="0" role="button" aria-pressed="false">
+              <div class="recent-cover"><svg viewBox="169 18 600 600" fill="currentColor"><path d="M639.25,138.93l-170.84-84.38-169.78,82.81-50,206.25,219.78,82.81,220.84-81.25-50-206.25Z"/></svg></div>
+              <div class="recent-info">
+                <div class="recent-name">第七期翻唱合集.mosp</div>
+                <div class="recent-dir">E:\Videos\翻唱系列\</div>
+                <div class="recent-meta"><span>2 小时前</span><span>主 312 / 副 0</span><span>音频 4</span></div>
+              </div>
+            </div>
+            <div class="recent-card" tabindex="0" role="button" aria-pressed="false">
+              <div class="recent-cover"><svg viewBox="169 18 600 600" fill="currentColor"><path d="M639.25,138.93l-170.84-84.38-169.78,82.81-50,206.25,219.78,82.81,220.84-81.25-50-206.25Z"/></svg></div>
+              <div class="recent-info">
+                <div class="recent-name">游戏实况 EP12.mosp</div>
+                <div class="recent-dir">D:\Record\游戏实况\</div>
+                <div class="recent-meta"><span>昨天</span><span>主 1024 / 副 1024</span><span>音频 12</span><span class="recent-pin">已固定</span></div>
+              </div>
+            </div>
+            <div class="recent-card" tabindex="0" role="button" aria-pressed="false">
+              <div class="recent-cover"><svg viewBox="169 18 600 600" fill="currentColor"><path d="M639.25,138.93l-170.84-84.38-169.78,82.81-50,206.25,219.78,82.81,220.84-81.25-50-206.25Z"/></svg></div>
+              <div class="recent-info">
+                <div class="recent-name">访谈节目试录.mosp</div>
+                <div class="recent-dir">E:\Work\访谈\2026-09\</div>
+                <div class="recent-meta"><span class="missing">文件已移动或不存在</span><span>9 月 8 日</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="hint" style="margin-top:12px">演示数据 · 失效路径提供「重新定位」；重名工程以目录区分；移除记录不删除文件。</p>
+        </div>
+        <div class="home-launch">
+          <span class="status-line">编辑器服务未运行</span>
+          <button class="btn ghost" type="button" id="homeBlank" data-echo="homeBlank">空白启动</button>
+          <button class="btn primary" type="button" id="homeOpenSelected" disabled data-echo="homeOpen">打开所选工程</button>
+        </div>
+      </section>
+
+      <!-- ============ 页面 2：预制工程 ============ -->
+      <section class="page" id="page-prefab" aria-labelledby="prefabTitle">
+        <div class="prefab">
+          <div class="prefab-main">
+            <div class="prefab-scroll">
+              <div class="page-head">
+                <h2 class="page-title" id="prefabTitle" data-echo="prefabTitle">预制工程</h2>
+                <p class="page-sub" data-echo="prefabSub">按处理方案生成可进入编辑器的 .mosp 工程；未勾选的步骤直接跳过。</p>
+              </div>
+              <div class="prefab-meta-row">
+                <div class="segmented" role="group" aria-label="输入方式">
+                  <button class="seg active" type="button" data-echo="prefabModeMedia">媒体预制</button>
+                  <button class="seg" type="button" data-echo="prefabModeProject">已有工程／字幕再处理</button>
+                </div>
+                <span class="chip" id="orderChip">处理顺序：媒体 → 波形 → (识别) → 翻译</span>
+              </div>
+
+              <div id="moduleHost">
+                <!-- 01 选择媒体 -->
+                <div class="module-section open" data-module="media">
+                  <button class="module-head" type="button" aria-expanded="true">
+                    <span class="module-index">01</span>
+                    <span class="module-title" data-echo="modMedia">选择媒体</span>
+                    <span class="module-summary">1 个文件 · 音轨 0</span>
+                    <span class="state-badge ok">就绪</span>
+                    <svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                  </button>
+                  <div class="module-body">
+                    <div class="grid-two">
+                      <div class="field">
+                        <label data-echo="modMediaFile">媒体文件</label>
+                        <input type="text" value="E:\Videos\翻唱系列\第七期.mp4">
+                      </div>
+                      <div class="field">
+                        <label data-echo="modMediaTrack">声音轨道</label>
+                        <select><option>默认（第一可用音轨）</option><option>轨道 1 · 立体声</option><option>轨道 2 · 5.1</option></select>
+                      </div>
+                    </div>
+                    <p class="hint">媒体预制时本模块固定启用，不可取消；批量模式共用下方全部设置。</p>
+                  </div>
+                </div>
+
+                <!-- 02 波形生成 -->
+                <div class="module-section open" data-module="waveform">
+                  <button class="module-head" type="button" aria-expanded="true">
+                    <span class="module-index">02</span>
+                    <span class="module-title" data-echo="modWave">波形生成</span>
+                    <span class="module-summary">真实峰值 · 缓存可复用</span>
+                    <span class="state-badge ok">就绪</span>
+                    <svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                  </button>
+                  <div class="module-body">
+                    <label class="check-line"><input type="checkbox" checked> <span data-echo="modWaveSpectral">同时生成频谱颜色数据（耗时与体积增加）</span></label>
+                    <label class="check-line"><input type="checkbox"> <span>缓存存在时强制重建</span></label>
+                    <p class="hint">波形是可重建缓存（.quapeaks/.mopeaks）；仅波形的预制结果为合法零字幕工程。</p>
+                  </div>
+                </div>
+
+                <!-- 03 翻译（未完成配置示例） -->
+                <div class="module-section" data-module="translate">
+                  <button class="module-head" type="button" aria-expanded="false">
+                    <span class="module-index">03</span>
+                    <span class="module-title" data-echo="modTranslate">翻译</span>
+                    <span class="module-summary" data-echo="modTranslateSum">未完成配置 · 未选择目标语言</span>
+                    <span class="state-badge warn">未配置</span>
+                    <svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                  </button>
+                  <div class="module-body">
+                    <div class="grid-two">
+                      <div class="field">
+                        <label>目标语言</label>
+                        <select><option>请选择…</option><option>中文</option><option>英文</option><option>日文</option></select>
+                      </div>
+                      <div class="field">
+                        <label>写入目标</label>
+                        <select><option>保留主字幕，翻译为副字幕（默认）</option><option>覆盖所选副轨…</option></select>
+                      </div>
+                    </div>
+                    <p class="error-text" hidden id="translateError">翻译需要字幕：请启用识别，或切换为「已有工程／字幕再处理」输入。</p>
+                    <p class="hint">旧「原文与译文合并为同一字幕块」保留为高级兼容选项，会得到单轨双语内容。</p>
+                  </div>
+                </div>
+
+                <!-- 输出设置 -->
+                <div class="card">
+                  <h3 data-echo="outputTitle">输出设置</h3>
+                  <div class="grid-two">
+                    <div class="field">
+                      <label data-echo="outputDir">输出目录</label>
+                      <input type="text" value="E:\Videos\翻唱系列\_msw\">
+                    </div>
+                    <div class="field">
+                      <label data-echo="outputName">文件名预览</label>
+                      <input type="text" value="第七期.mosp（已存在 → 第七期.2.mosp）">
+                    </div>
+                  </div>
+                  <label class="check-line"><input type="checkbox"> <span>附加导出 SRT 字幕</span></label>
+                  <label class="check-line"><input type="checkbox"> <span>保留中间结果（MSW-Postprocess 子目录）</span></label>
+                  <label class="check-line"><input type="checkbox" checked> <span>新输出创建派生文件，不覆盖旧文件</span></label>
+                  <p class="hint">主产物为 .mosp 工程；同名覆盖需显式选择并进入确认与备份流程。</p>
+                </div>
+
+                <!-- 处理结果 -->
+                <div class="card">
+                  <h3 data-echo="resultTitle">处理结果</h3>
+                  <p class="hint">尚未运行。批量完成默认展示结果卡片，不会连续打开多个编辑器窗口。</p>
+                </div>
+              </div>
+            </div>
+            <div class="prefab-footer">
+              <span class="run-summary" id="runSummary">就绪 · 1 个文件 · 3 个模块</span>
+              <button class="btn ghost" type="button" data-echo="savePlan">保存方案</button>
+              <button class="btn ghost" type="button" data-echo="startPrefab">开始预制</button>
+              <button class="btn primary" type="button" data-echo="startPrefabOpen">预制并打开编辑器</button>
+            </div>
+          </div>
+
+          <!-- 右侧模块选择栏 -->
+          <aside class="prefab-rail" aria-label="处理模块">
+            <div class="rail-group">
+              <div class="rail-group-title" data-echo="railInput">输入与分析</div>
+              <label class="rail-item"><input type="checkbox" checked data-module-check="media" disabled> <span data-echo="modMedia">选择媒体</span></label>
+              <label class="rail-item"><input type="checkbox" checked data-module-check="waveform"> <span data-echo="modWave">波形生成</span></label>
+              <label class="rail-item"><input type="checkbox" data-module-check="asr"> <span data-echo="modAsr">识别设置（ASR）</span></label>
+            </div>
+            <div class="rail-group">
+              <div class="rail-group-title" data-echo="railSubtitles">字幕整理</div>
+              <label class="rail-item unavailable"><input type="checkbox" data-module-check="match"> <span class="rail-item-title">文稿匹配</span><span class="rail-item-note" data-echo="railNoAudioText">需字幕</span></label>
+              <label class="rail-item"><input type="checkbox" data-module-check="replace"> <span>固定处理</span></label>
+              <label class="rail-item"><input type="checkbox" data-module-check="proofread"> <span>LLM 校对</span></label>
+              <label class="rail-item"><input type="checkbox" data-module-check="resegment"> <span>重新断句</span></label>
+              <label class="rail-item"><input type="checkbox" data-module-check="ocr"> <span>OCR 字幕去重</span></label>
+            </div>
+            <div class="rail-group">
+              <div class="rail-group-title" data-echo="railLanguage">语言处理</div>
+              <label class="rail-item"><input type="checkbox" checked data-module-check="translate"> <span>翻译</span></label>
+            </div>
+            <div class="rail-group">
+              <div class="rail-group-title">高级</div>
+              <label class="rail-item"><input type="checkbox" data-module-check="alignment"> <span>交互式口播对齐…</span></label>
+            </div>
+            <div class="rail-group">
+              <div class="rail-group-title">运行反馈</div>
+              <button class="rail-item" type="button" id="showLogBtn"> <span>显示处理日志…</span></button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ============ 页面 3：实用工具 ============ -->
+      <section class="page" id="page-tools" aria-labelledby="toolsTitle">
+        <div class="page-scroll">
+          <div class="page-head">
+            <h2 class="page-title" id="toolsTitle" data-echo="toolsTitle">实用工具</h2>
+            <p class="page-sub" data-echo="toolsSub">独立文件工具：每次生成新文件，不修改工程。</p>
+          </div>
+          <div class="tools-grid">
+            <div class="card tool-card">
+              <h3><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Zm10-2a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z" stroke-linejoin="round"/></svg> 提取音频</h3>
+              <div class="tool-io">视频／音频 → AAC/M4A</div>
+              <p class="hint">从视频或音频中提取一个音轨，输出新文件；不修改源文件。</p>
+              <div class="tool-actions"><button class="btn ghost small" type="button">选择媒体…</button></div>
+            </div>
+            <div class="card tool-card">
+              <h3><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="13" rx="2"/><path d="m7 13 3-3 2.5 2.5L16 9.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 压制字幕</h3>
+              <div class="tool-io">SRT/ASS + 视频 → 新视频</div>
+              <p class="hint">文件级压制现有 SRT/ASS；含配音贴片的完整合成仍由编辑器导出。</p>
+              <div class="tool-actions"><button class="btn ghost small" type="button">选择字幕与视频…</button></div>
+            </div>
+            <div class="card tool-card">
+              <h3><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h6v10H4zM14 7h6v10h-6z" stroke-linejoin="round"/><path d="M10 12h4" stroke-linecap="round"/></svg> 媒体重组（FFconcat）</h3>
+              <div class="tool-io">清单 + 媒体 → 新媒体</div>
+              <p class="hint">按 FFconcat 清单重组媒体；不回写工程、不重映射时间线。</p>
+              <div class="tool-actions"><button class="btn ghost small" type="button">选择清单…</button></div>
+            </div>
+            <div class="card tool-card">
+              <h3><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h4l2-5 3 10 2-5h5" stroke-linecap="round" stroke-linejoin="round"/></svg> 口播对齐（高级）</h3>
+              <div class="tool-io">工程 + 文稿 → 新工程</div>
+              <p class="hint">交互式入口：人工选择 take 后导出 source.aligned.mosp，再接回预制流程。</p>
+              <div class="tool-actions"><button class="btn ghost small" type="button">打开口播对齐…</button></div>
+            </div>
+            <div class="card tool-card">
+              <h3><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2" stroke-linecap="round"/></svg> 媒体信息</h3>
+              <div class="tool-io">媒体 → 信息报告</div>
+              <p class="hint">读取时长、音轨、编码、帧率与尺寸；无写入副作用。</p>
+              <div class="tool-actions"><button class="btn ghost small" type="button">选择媒体…</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面 4：使用指南 ============ -->
+      <section class="page" id="page-guide" aria-labelledby="guideTitle">
+        <div class="page-scroll">
+          <div class="page-head">
+            <h2 class="page-title" id="guideTitle" data-echo="guideTitle">使用指南</h2>
+            <p class="page-sub" data-echo="guideSub">启动器是可选的预处理入口；编辑器内已能直接导入媒体、生成波形、ASR、翻译与 TTS。</p>
+          </div>
+          <div class="guide-cards">
+            <div class="card guide-card">
+              <h3 data-echo="guide1">直接进编辑器</h3>
+              <ol>
+                <li data-echo="guide1s1">首页点「启动空白编辑器」</li>
+                <li data-echo="guide1s2">编辑器内拖入媒体并生成波形</li>
+                <li data-echo="guide1s3">选区或整段发起 ASR</li>
+                <li data-echo="guide1s4">保存为 .mosp 工程</li>
+              </ol>
+              <button class="btn ghost small" type="button" data-goto="home">前往启动编辑器</button>
+            </div>
+            <div class="card guide-card">
+              <h3 data-echo="guide2">提前预制工程</h3>
+              <ol>
+                <li data-echo="guide2s1">预制页选择媒体（可批量）</li>
+                <li data-echo="guide2s2">勾选识别与字幕整理模块</li>
+                <li data-echo="guide2s3">开始预制，得到 .mosp</li>
+                <li data-echo="guide2s4">打开编辑器继续精修</li>
+              </ol>
+              <button class="btn ghost small" type="button" data-goto="prefab">前往预制工程</button>
+            </div>
+            <div class="card guide-card">
+              <h3 data-echo="guide3">纯配音与素材</h3>
+              <ol>
+                <li data-echo="guide3s1">编辑器内导入配音文本或主副字幕</li>
+                <li data-echo="guide3s2">使用 TTS 配方生成音频</li>
+                <li data-echo="guide3s3">素材入库后插入时间线</li>
+              </ol>
+              <span class="hint">音频素材导入与 TTS 预制模块属于后续扩展阶段。</span>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <h3 data-echo="faqTitle">常见问题</h3>
+            <div class="faq-item open">
+              <button class="faq-q" type="button">缺少 FFmpeg 怎么办？ <span class="chevron">▾</span></button>
+              <p class="faq-a">在「更多设置 → 环境配置」中检测并设置 FFmpeg 路径；视频转音频依赖它。</p>
+            </div>
+            <div class="faq-item">
+              <button class="faq-q" type="button">API 配置存放在哪里？ <span class="chevron">▾</span></button>
+              <p class="faq-a">密钥只保存在本机 .env / 应用数据目录；方案文件不包含密钥，页面仅显示遮罩。</p>
+            </div>
+            <div class="faq-item">
+              <button class="faq-q" type="button">工程与 .assets 目录可以搬移吗？ <span class="chevron">▾</span></button>
+              <p class="faq-a">工程文件与 .assets 目录需保持相对位置；整体搬移后仍可打开，缺失媒体由编辑器提示重新定位。</p>
+            </div>
+          </div>
+          <div class="card">
+            <h3 data-echo="linksTitle">外部链接</h3>
+            <div class="link-row">
+              <button class="btn ghost small" type="button">项目仓库</button>
+              <button class="btn ghost small" type="button">在线文档</button>
+              <button class="btn ghost small" type="button">版本记录</button>
+              <button class="btn ghost small" type="button">反馈问题</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面 5：更多设置 ============ -->
+      <section class="page" id="page-settings" aria-labelledby="settingsTitle">
+        <div class="page-scroll">
+          <div class="page-head">
+            <h2 class="page-title" id="settingsTitle" data-echo="settingsTitle">更多设置</h2>
+            <p class="page-sub" data-echo="settingsSub">连接配置与调用参数分层保存；修改默认值不覆盖正在编辑的方案。</p>
+          </div>
+          <div class="settings-layout">
+            <nav class="settings-cats" aria-label="设置分类">
+              <button class="settings-cat active" type="button" data-echo="catAppearance">外观与语言</button>
+              <button class="settings-cat" type="button" data-echo="catEnv">环境配置</button>
+              <button class="settings-cat" type="button" data-echo="catDefaults">处理默认值</button>
+              <button class="settings-cat" type="button" data-echo="catOutput">输出与文件</button>
+              <button class="settings-cat" type="button" data-echo="catEditor">编辑器启动</button>
+              <button class="settings-cat" type="button" data-echo="catResource">资源与维护</button>
+              <button class="settings-cat" type="button" data-echo="catAbout">关于</button>
+            </nav>
+            <div class="settings-groups">
+              <div class="card">
+                <h3 data-echo="catAppearance">外观与语言</h3>
+                <div class="field">
+                  <label>主题</label>
+                  <div class="segmented" role="group">
+                    <button class="seg" type="button" data-echo="themeLight">明亮</button>
+                    <button class="seg active" type="button" data-echo="themeDark">暗色</button>
+                    <button class="seg" type="button" data-echo="themeSystem">跟随系统</button>
+                  </div>
+                </div>
+                <div class="grid-two">
+                  <div class="field">
+                    <label>界面语言</label>
+                    <select><option>中文</option><option>English</option></select>
+                  </div>
+                  <div class="field">
+                    <label>界面缩放</label>
+                    <select><option>100%</option><option>125%</option><option>150%</option></select>
+                  </div>
+                </div>
+                <label class="check-line"><input type="checkbox" checked> <span>记忆窗口尺寸与位置</span></label>
+              </div>
+              <div class="card">
+                <h3 data-echo="catEnv">环境配置</h3>
+                <p class="hint">ASR 服务连接、LLM 连接、本地 ASR、OCR、FFmpeg/FFprobe；TTS 环境入口为后续扩展。密钥保存后仅显示「已配置」。</p>
+                <div class="link-row">
+                  <button class="btn ghost small" type="button">ASR 服务连接…</button>
+                  <button class="btn ghost small" type="button">LLM 连接…</button>
+                  <button class="btn ghost small" type="button">FFmpeg 检测…</button>
+                </div>
+              </div>
+              <div class="card">
+                <h3 data-echo="catAbout">关于</h3>
+                <p class="hint">我的字幕流 · Moyor's Subtitle Workflow — 本地优先的字幕与配音工作流。</p>
+                <div class="link-row">
+                  <button class="btn ghost small" type="button">许可证</button>
+                  <button class="btn ghost small" type="button">第三方声明</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- 演示控件（原型专用，不属于生产界面） -->
+<div class="demo-bar" role="toolbar" aria-label="原型演示控件">
+  <button class="btn subtle small" id="compactToggle" type="button">紧凑导航</button>
+  <button class="btn subtle small" id="errorDemo" type="button">演示错误态</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var scrollMemory = {};
+
+  function switchPage(name) {
+    var current = document.querySelector(".page.active");
+    if (current) {
+      scrollMemory[current.id] = current.querySelector(".page-scroll, .prefab-scroll")
+        ? (current.querySelector(".page-scroll") || current.querySelector(".prefab-scroll")).scrollTop
+        : 0;
+    }
+    document.querySelectorAll(".page").forEach(function (p) { p.classList.remove("active"); });
+    document.querySelectorAll(".nav-item").forEach(function (n) {
+      n.classList.toggle("active", n.dataset.page === name);
+    });
+    var next = document.getElementById("page-" + name);
+    if (!next) return;
+    next.classList.add("active");
+    var scroller = next.querySelector(".page-scroll") || next.querySelector(".prefab-scroll");
+    if (scroller) scroller.scrollTop = scrollMemory[next.id] || 0;
+  }
+  document.querySelectorAll(".nav-item").forEach(function (item) {
+    item.addEventListener("click", function () { switchPage(item.dataset.page); });
+  });
+  document.querySelectorAll("[data-goto]").forEach(function (btn) {
+    btn.addEventListener("click", function () { switchPage(btn.dataset.goto); });
+  });
+
+  // 主题：跟随应用有效主题（演示为手动切换，不跟随系统）
+  var themeToggle = document.getElementById("themeToggle");
+  themeToggle.addEventListener("click", function () {
+    var root = document.documentElement;
+    var toLight = root.dataset.theme !== "light";
+    if (toLight) root.dataset.theme = "light";
+    else delete root.dataset.theme;
+    themeToggle.textContent = toLight ? "暗色" : "亮色";
+  });
+
+  // 首页卡片：单击选择 / 再次点击取消；双击直接打开（演示仅提示）
+  var openSelected = document.getElementById("homeOpenSelected");
+  var homeBlank = document.getElementById("homeBlank");
+  document.querySelectorAll(".recent-card").forEach(function (card) {
+    card.addEventListener("click", function () {
+      var wasSelected = card.classList.contains("selected");
+      document.querySelectorAll(".recent-card").forEach(function (c) {
+        c.classList.remove("selected");
+        c.setAttribute("aria-pressed", "false");
+      });
+      if (!wasSelected) { card.classList.add("selected"); card.setAttribute("aria-pressed", "true"); }
+      openSelected.disabled = !document.querySelector(".recent-card.selected");
+      openSelected.textContent = openSelected.disabled ? "打开所选工程" : "打开所选工程";
+      homeBlank.classList.remove("primary");
+      homeBlank.classList.add("ghost");
+      openSelected.classList.toggle("primary", !openSelected.disabled);
+      openSelected.classList.toggle("ghost", openSelected.disabled);
+    });
+    card.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); card.click(); }
+    });
+  });
+  openSelected.addEventListener("click", function () {
+    if (openSelected.disabled) return;
+    document.querySelector(".home-launch .status-line").textContent = "演示原型：此处将按会话切换流程打开所选工程。";
+  });
+  homeBlank.addEventListener("click", function () {
+    document.querySelector(".home-launch .status-line").textContent = "演示原型：空白启动 = 不读取上次工程，直接进入空白编辑器。";
+  });
+
+  // 预制页：模块勾选 → 左侧插入/移除对应配置区；序号重排
+  var MODULES = {
+    asr: { title: "识别设置（ASR）", summary: "Qwen · 自动语言 · 说话人颜色", state: "unconfigured", stateLabel: "未配置",
+      body: "<div class='grid-two'><div class='field'><label>识别服务</label><select><option>Qwen（阿里云百炼）</option><option>豆包</option><option>Soniox</option><option>本地模型（实验）</option></select></div><div class='field'><label>模型</label><select><option>qwen-audio</option><option>qwen3-asr</option></select></div></div><p class='hint'>连接配置在「更多设置 → 环境配置」；此处为本次调用配方。</p>" },
+    match: { title: "文稿匹配", summary: "需要已有时间字幕", state: "unconfigured", stateLabel: "条件不满足",
+      body: "<div class='field'><label>文稿文件</label><input type='text' placeholder='UTF-8 .txt / .md'></div><p class='error-text'>批量模式暂不支持逐文件文稿映射；需逐文件指定。</p>" },
+    replace: { title: "固定处理", summary: "替换规则 · 简繁转换", state: "unconfigured", stateLabel: "未配置",
+      body: "<div class='field'><label>批量替换规则</label><input type='text' placeholder='旧词 =&gt; 新词（每行一条）'></div>" },
+    proofread: { title: "LLM 校对", summary: "默认修文任务", state: "unconfigured", stateLabel: "未配置",
+      body: "<div class='field'><label>模型</label><input type='text' placeholder='继承更多设置中的 LLM 默认模型'></div>" },
+    resegment: { title: "重新断句", summary: "与 ASR 初次断句分开", state: "unconfigured", stateLabel: "未配置", body: "<p class='hint'>按当前实现可能需要 LLM；不自动重复两套处理。</p>" },
+    ocr: { title: "OCR 字幕去重", summary: "仅处理字幕条目，不擦除画面", state: "unconfigured", stateLabel: "未配置",
+      body: "<div class='grid-two'><div class='field'><label>画面字幕区</label><select><option>底部 30%</option><option>完整画面</option><option>自定义区域</option></select></div><div class='field'><label>相似度阈值</label><input type='text' value='0.5'></div></div>" }
+  };
+  var MODULE_ORDER = ["media", "waveform", "asr", "match", "replace", "proofread", "resegment", "ocr", "translate", "alignment"];
+  function renumber() {
+    var sections = Array.from(document.querySelectorAll(".module-section"));
+    var index = 0;
+    sections.forEach(function (section) {
+      var label = section.querySelector(".module-index");
+      if (!label) return;
+      index += 1;
+      label.textContent = String(index).padStart(2, "0");
+    });
+    var count = document.querySelectorAll("[data-module-check]:checked").length;
+    var files = 1;
+    document.getElementById("runSummary").textContent = "就绪 · " + files + " 个文件 · " + count + " 个模块";
+    document.getElementById("orderChip").textContent = "处理顺序：媒体 → 波形 → 识别 → 整理 → 翻译（未勾选直接通过）";
+  }
+  document.querySelectorAll("[data-module-check]").forEach(function (checkbox) {
+    checkbox.addEventListener("change", function () {
+      var key = checkbox.dataset.moduleCheck;
+      var existing = document.querySelector('.module-section[data-module="' + key + '"]');
+      if (checkbox.checked && !existing && MODULES[key]) {
+        var spec = MODULES[key];
+        var section = document.createElement("div");
+        section.className = "module-section open";
+        section.dataset.module = key;
+        section.innerHTML =
+          "<button class='module-head' type='button' aria-expanded='true'>" +
+          "<span class='module-index'></span><span class='module-title'>" + spec.title + "</span>" +
+          "<span class='module-summary'>" + spec.summary + "</span>" +
+          "<span class='module-state " + spec.state + "'>" + spec.stateLabel + "</span>" +
+          "<svg class='chevron' viewBox='0 0 16 16' width='14' height='14' aria-hidden='true'><path d='M6 4l4 4-4 4' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round'/></svg>" +
+          "</button><div class='module-body'>" + spec.body + "</div>";
+        // 按固定依赖顺序插入：找到第一个排在它之后的已存在模块
+        var insertBefore = null;
+        var myIndex = MODULE_ORDER.indexOf(key);
+        document.querySelectorAll(".module-section[data-module]").forEach(function (s) {
+          var other = MODULE_ORDER.indexOf(s.dataset.module);
+          if (other > myIndex && !insertBefore) insertBefore = s;
+        });
+        document.getElementById("moduleHost").insertBefore(section, insertBefore);
+        bindSection(section);
+        renumber();
+        section.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (!checkbox.checked && existing) {
+        existing.remove(); // 取消勾选只移除配置区，草稿参数在真实实现中保留
+        renumber();
+      }
+    });
+  });
+  function bindSection(section) {
+    var head = section.querySelector(".module-head");
+    if (!head) return;
+    head.addEventListener("click", function (event) {
+      if (event.target.closest("input, select, textarea, button:not(.module-head)")) return;
+      var open = section.classList.toggle("open");
+      head.setAttribute("aria-expanded", String(open));
+    });
+  }
+  document.querySelectorAll(".module-section").forEach(bindSection);
+
+  document.getElementById("showLogBtn").addEventListener("click", function () {
+    this.textContent = "显示处理日志…（固定运行反馈，右侧仅控制展开）";
+  });
+
+  // FAQ 折叠
+  document.querySelectorAll(".faq-q").forEach(function (q) {
+    q.addEventListener("click", function () { q.closest(".faq-item").classList.toggle("open"); });
+  });
+
+  // 紧凑导航演示
+  document.getElementById("compactToggle").addEventListener("click", function () {
+    document.body.classList.toggle("compact");
+  });
+
+  // 错误态演示：聚焦翻译模块并显示错误
+  document.getElementById("errorDemo").addEventListener("click", function () {
+    switchPage("prefab");
+    var section = document.querySelector('.module-section[data-module="translate"]');
+    if (!section) return;
+    section.classList.add("open", "has-error");
+    section.querySelector(".module-summary").textContent = "缺少依赖：字幕";
+    var errorText = document.getElementById("translateError");
+    if (errorText) errorText.hidden = false;
+    section.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
+  // 语言演示：少量关键文案（真实实现走完整 i18n 字典）
+  var EN = {
+    brandZh: "Moyor's Subtitle Workflow", navHome: "Launch Editor", navPrefab: "Prefabricate", navTools: "Utilities",
+    navGuide: "Guide", navSettings: "More Settings", homeTitle: "Launch Editor",
+    homeSub: "Open a recent project, or start a blank editor and import media there.",
+    homeSearch: "Search recent projects…", homeOpenFile: "Open Project File…", homeRecover: "Recover unsaved work",
+    homeBlank: "Blank launch", homeOpen: "Open selected", prefabTitle: "Prefabricate",
+    prefabSub: "Build a .mosp project from a processing plan; unchecked steps are skipped.",
+    prefabModeMedia: "From media", prefabModeProject: "From project / subtitles", modMedia: "Select media",
+    modMediaFile: "Media file", modMediaTrack: "Audio track", modWave: "Waveform", modWaveSpectral: "Also build spectral colors (slower, larger)",
+    modTranslate: "Translation", modTranslateSum: "Incomplete · no target language", outputTitle: "Output",
+    outputDir: "Output directory", outputName: "Filename preview", resultTitle: "Results", savePlan: "Save plan",
+    startPrefab: "Start", startPrefabOpen: "Start & open editor", railInput: "Input & analysis",
+    railSubtitles: "Subtitle cleanup", railLanguage: "Language", modAsr: "Recognition (ASR)", railNoAudioText: "needs subtitles",
+    toolsTitle: "Utilities", toolsSub: "Standalone file tools: always new files, projects untouched.",
+    guideTitle: "Guide", guideSub: "The launcher is an optional pre-processing entry; the editor can already import media, build waveforms, run ASR, translation, and TTS.",
+    guide1: "Straight into the editor", guide1s1: "Click “Blank launch” on the home page", guide1s2: "Drop media in the editor and build the waveform",
+    guide1s3: "Run ASR on a range or the whole track", guide1s4: "Save as a .mosp project", guide2: "Prefabricate first",
+    guide2s1: "Pick media on the prefab page (batch supported)", guide2s2: "Check recognition and cleanup modules",
+    guide2s3: "Run the plan to get a .mosp", guide2s4: "Open the editor to refine", guide3: "Voiceover & assets only",
+    guide3s1: "Import voiceover text or subtitles in the editor", guide3s2: "Generate audio with TTS recipes",
+    guide3s3: "Insert from the asset library", faqTitle: "FAQ", linksTitle: "Links", settingsTitle: "More Settings",
+    settingsSub: "Connections and call parameters are layered; defaults never overwrite an editing plan.",
+    catAppearance: "Appearance & language", catEnv: "Environment", catDefaults: "Processing defaults", catOutput: "Output & files",
+    catEditor: "Editor launch", catResource: "Resources & maintenance", catAbout: "About",
+    themeLight: "Light", themeDark: "Dark", themeSystem: "System"
+  };
+  var ZH_CACHE = null;
+  var langToggle = document.getElementById("langToggle");
+  langToggle.addEventListener("click", function () {
+    var toEn = langToggle.textContent.trim() === "English";
+    document.documentElement.lang = toEn ? "en" : "zh-CN";
+    if (toEn && !ZH_CACHE) {
+      ZH_CACHE = {};
+      document.querySelectorAll("[data-echo]").forEach(function (node) {
+        ZH_CACHE[node.dataset.echo] = node.textContent;
+      });
+    }
+    document.querySelectorAll("[data-echo]").forEach(function (node) {
+      var key = node.dataset.echo;
+      node.textContent = toEn ? (EN[key] || key) : (ZH_CACHE[key] || node.textContent);
+    });
+    langToggle.textContent = toEn ? "中文" : "English";
+  });
+})();
+</script>
+</body>
+</html>
