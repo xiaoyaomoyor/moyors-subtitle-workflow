@@ -26,6 +26,25 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## R1：页面骨架与布局修复（修正案第二批）
+
+状态：已完成（2026-09-15）。对应审查 V01–V04；基线 d4b26cd。
+
+改动：
+
+1. **层级修复（V01/V02/V03）**：`web/launcher/index.html` 删除预制页收尾处多余的 `</div>`（浏览器解析会提前弹出 `.page-host`，导致 footer 掉入 `.app-body`、工具/指南/设置三页脱离内容容器），并把 `.prefab-rail` 移入 `.prefab-wrap` 内与配置列并排。修正后层级：`section.page[prefab] > div.prefab-wrap > (div.prefab-main > div.page-scroll) + aside.prefab-rail`，footer 在 section 内、wrap 外。
+2. **弹窗残留清理（V04）**：`launcher.css` 移除 `#settingsClose` 与工具箱关闭按钮共用 的 36×36/22px 旧规则（页面「返回」按钮改用 `.settings-back`）；删除 `.settings-modal-card` 的弹窗固定高度；删除 `.actions` 旧页脚死代码（含窄屏媒体查询残留）；`launcher.js` 移除 `.actions` 死引用与无效 ResizeObserver。
+3. **窄窗口模块抽屉（审查 §4.3）**：≤1100px 时模块栏改为右侧滑出抽屉（fixed + 遮罩 + 关闭按钮 + Esc/点遮罩关闭；切页自动收起；恢复宽窗口时复位），页面头部出现「处理模块」切换按钮；`renderRail` 目标改为 `#railContent`，抽屉头部常驻。1200×780 主设计尺寸保持双栏。
+4. **结构断言 e2e（`tests/e2e/launcher-structure.spec.mjs` 5 项）**：解析后 DOM 父子关系断言——五页均为 `.page-host` 直接子项；预制 footer 属于预制页且其他页激活时开始按钮不可见；rail 在 wrap 内位于配置列右侧（宽≥200）；五页正文起点一致、页脚贴底、无横向溢出；960×640 主操作可见、模块栏默认移出视口、抽屉开合可用。
+
+验证（2026-09-15）：
+
+- e2e：启动器全部 9 个 spec 共 64 项通过（新增结构 5 项）。
+- 单元/契约：全量 1554 项通过（1 处设置关闭按钮契约断言按 V04 新契约更新）。
+- 截图：五页 1200×780 暗色 + 预制页 960×640 抽屉开/合（`build/r1-*.png`，本地留档）；预制页视觉核验通过（模块栏右侧并排、操作栏贴底横跨、无重叠溢出）。
+
+未验证（顺延）：960 以下更窄宽度与 125%/150% 系统缩放的实测（R2/R6）；IAB 内嵌浏览器缓存旧 JS 导致的复验干扰与生产行为无关（打包为本地文件加载，e2e file:// 已覆盖）。
+
 ## R0：会话与执行入口修复（修正案第一批）
 
 状态：已完成（2026-09-15）。对应审查 F01–F08；基线 718afe8。

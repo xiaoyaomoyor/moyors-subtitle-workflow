@@ -167,6 +167,8 @@
             <button type="button" class="segment" id="inputModeProject" aria-pressed="false" data-i18n="prefab_mode_project">已有工程／字幕再处理</button>
           </div>
           <span class="chip" id="prefabOrderChip" aria-live="polite"></span>
+          <span class="prefab-meta-spacer"></span>
+          <button id="railToggle" class="ghost small rail-toggle" type="button" aria-expanded="false" data-i18n="rail_toggle">处理模块</button>
         </div>
 
         <section id="mediaCard" class="card drop-card module-card" data-module-card="media" aria-labelledby="mediaTitle">
@@ -559,8 +561,13 @@
         </div>
       </div>
       </div>
-      </div>
-      <aside class="prefab-rail" id="prefabRail" aria-label="处理模块" data-i18n-aria-label="prefab_rail_label"></aside>
+      <aside class="prefab-rail" id="prefabRail" aria-label="处理模块" data-i18n-aria-label="prefab_rail_label">
+        <div class="rail-drawer-head">
+          <span data-i18n="prefab_rail_label">处理模块</span>
+          <button id="railClose" class="ghost small rail-close" type="button" aria-label="close" data-i18n-aria-label="rail_close_label">×</button>
+        </div>
+        <div id="railContent" class="rail-content"></div>
+      </aside>
       </div>
       <footer class="page-actions prefab-footer">
         <button id="start" class="primary" type="button" data-i18n="start">生成字幕和工程</button>
@@ -942,6 +949,8 @@
     </div>
     </div>
   </main>
+
+  <div id="railBackdrop" class="rail-backdrop hidden"></div>
 
   <button id="toolboxFab" class="toolbox-fab" type="button" aria-controls="toolboxDrawer" aria-expanded="false" data-i18n-title="toolbox_open" title="打开工具箱">
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5a4 4 0 1 0 3 3L21 13l-2 2-3.5-3.5M4 7l6 6-4.5 4.5L8 20" stroke-linecap="round" stroke-linejoin="round"/></svg>

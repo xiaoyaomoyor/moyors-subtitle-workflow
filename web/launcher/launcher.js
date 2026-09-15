@@ -126,6 +126,8 @@
       mod_translate: "翻译",
       mod_alignment: "交互式口播对齐…",
       module_toggle_label: "折叠或展开本模块",
+      rail_toggle: "处理模块",
+      rail_close_label: "收起模块栏",
       chip_media: "媒体",
       chip_waveform: "波形",
       chip_asr: "识别",
@@ -344,6 +346,8 @@
       mod_translate: "Translation",
       mod_alignment: "Interactive speech alignment…",
       module_toggle_label: "Collapse or expand this module",
+      rail_toggle: "Modules",
+      rail_close_label: "Close module rail",
       chip_media: "media",
       chip_waveform: "waveform",
       chip_asr: "ASR",
@@ -3167,8 +3171,6 @@
   setupScrollbarFlash();
   syncFixedFooterClearance();
   window.addEventListener("resize", syncFixedFooterClearance);
-  const footer = document.querySelector(".actions");
-  if (footer && window.ResizeObserver) new ResizeObserver(syncFixedFooterClearance).observe(footer);
   document.addEventListener("DOMContentLoaded", () => {
     void init().catch((error) => {
       const message = error && error.message ? error.message : String(error);

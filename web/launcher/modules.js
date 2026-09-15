@@ -111,7 +111,7 @@
   }
 
   function renderRail() {
-    var rail = el("prefabRail");
+    var rail = el("railContent");
     if (!rail) return;
     rail.replaceChildren();
     GROUP_LABELS.forEach(function (group) {

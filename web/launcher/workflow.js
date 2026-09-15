@@ -145,6 +145,42 @@
     setInputMode(stored === "project" ? "project" : "media", { silent: false });
   }
 
+  // ---------------- 窄窗口模块抽屉（R1） ----------------
+
+  function railDrawerActive() {
+    return window.matchMedia("(max-width: 1100px)").matches;
+  }
+
+  function openRailDrawer() {
+    document.body.classList.add("rail-open");
+    document.getElementById("railBackdrop")?.classList.remove("hidden");
+    var toggle = document.getElementById("railToggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "true");
+  }
+
+  function closeRailDrawer() {
+    document.body.classList.remove("rail-open");
+    document.getElementById("railBackdrop")?.classList.add("hidden");
+    var toggle = document.getElementById("railToggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+  }
+
+  function bindRailDrawer() {
+    document.getElementById("railToggle")?.addEventListener("click", function () {
+      if (document.body.classList.contains("rail-open")) closeRailDrawer();
+      else openRailDrawer();
+    });
+    document.getElementById("railClose")?.addEventListener("click", closeRailDrawer);
+    document.getElementById("railBackdrop")?.addEventListener("click", closeRailDrawer);
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && document.body.classList.contains("rail-open")) closeRailDrawer();
+    });
+    // 宽窗口恢复双栏时收起抽屉状态。
+    window.addEventListener("resize", function () {
+      if (!railDrawerActive()) closeRailDrawer();
+    });
+  }
+
   function bindInputMode() {
     el("inputModeMedia").addEventListener("click", function () { setInputMode("media"); });
     el("inputModeProject").addEventListener("click", function () { setInputMode("project"); });
@@ -154,9 +190,13 @@
 
   function init() {
     loadCollapse();
+    bindRailDrawer();
     bindInputMode();
     loadInputMode();
     renderCards();
+    document.addEventListener("mswnavigation", function () {
+      closeRailDrawer();
+    });
     document.addEventListener("mswmodules", function (event) {
       var detail = event.detail || {};
       if (detail.rejected) {

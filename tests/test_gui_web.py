@@ -4315,8 +4315,11 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('settings-scroll', launcher_script)
         self.assertIn('.settings-scroll {', stylesheet)
         self.assertIn('overscroll-behavior: contain;', stylesheet)
-        self.assertIn('#toolboxClose,', stylesheet)
-        self.assertIn('#settingsClose {', stylesheet)
+        # R1/V04：设置返回按钮已脱离弹窗关闭按钮组；不再有 36×36 旧规则。
+        self.assertIn('#toolboxClose {', stylesheet)
+        self.assertNotIn('#toolboxClose,', stylesheet)
+        self.assertNotIn('#settingsClose {', stylesheet)
+        self.assertIn('.settings-back {', stylesheet)
 
     def test_launcher_settings_use_tabs_and_preserve_deep_links(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
