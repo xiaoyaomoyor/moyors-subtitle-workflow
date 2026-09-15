@@ -155,6 +155,7 @@ class WaveformExtractionTests(unittest.TestCase):
             peaks_per_second=waveform_module.DEFAULT_PEAKS_PER_SECOND,
             ffmpeg_bin="C:/MSW/ffmpeg.exe",
             audio_track=0,
+            cancel_event=None,
         )
 
 

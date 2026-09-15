@@ -80,6 +80,15 @@ def _persist_mopeaks_fallback(
     print(f"[mopeaks] 自研波形已回退到二进制 sidecar: {written.name}")
 
 
+class MediaCacheCancelled(RuntimeError):
+    """调用方在生成过程中请求取消（R0/F08）。"""
+
+
+def _raise_if_cancelled(cancel_event) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise MediaCacheCancelled("waveform generation cancelled")
+
+
 def embed_media_caches(
     project: dict[str, Any],
     media_path: Path | str,
@@ -90,6 +99,7 @@ def embed_media_caches(
     audio_track: int = 0,
     default_audio_track: int = 0,
     decode_audio_track: int | None = None,
+    cancel_event=None,
 ) -> MediaCacheResult:
     """嵌入波形缓存并生成 .ReaPeaks 缓存（best-effort）。
 
@@ -129,6 +139,7 @@ def embed_media_caches(
     ):
         raise ValueError("decode_audio_track must be a non-negative integer")
 
+    _raise_if_cancelled(cancel_event)
     cache_path = Path(media_path)
     source_path = (
         Path(source_media_path) if source_media_path is not None else cache_path
@@ -145,6 +156,7 @@ def embed_media_caches(
         decode_path,
         ffmpeg_bin=ffmpeg_bin,
         audio_track=decode_audio_track,
+        cancel_event=cancel_event,
     )
     if (
         waveform_result.error is not None
@@ -161,7 +173,10 @@ def embed_media_caches(
             decode_path,
             ffmpeg_bin=ffmpeg_bin,
             audio_track=0,
+            cancel_event=cancel_event,
         )
+    if waveform_result.error is not None and isinstance(waveform_result.error, MediaCacheCancelled):
+        raise MediaCacheCancelled(str(waveform_result.error))
     project = waveform_result.project
     raw_metadata = project.get("media_metadata")
     metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
@@ -188,6 +203,7 @@ def embed_media_caches(
         print("[reapeaks] 正在生成波形缓存（已跳过频谱计算）……")
     # 自研波形的落点：优先 .quapeaks 的自研层（与 wave / spectral 同容器，
     # 读取端解析一次全拿到），拿不到时回退 mopeaks。
+    _raise_if_cancelled(cancel_event)
     waveform_payload = project.get("waveform")
     self_peaks = (
         quapeaks.self_peaks_from_payload(waveform_payload)

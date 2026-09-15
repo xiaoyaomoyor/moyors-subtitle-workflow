@@ -134,6 +134,13 @@
       waveform_project_running: "开始生成零字幕波形工程……",
       waveform_project_done: "零字幕波形工程已生成：{path}",
       waveform_project_done_short: "波形工程完成",
+      waveform_project_cancelled: "已取消媒体工程生成。",
+      waveform_project_cancelling: "正在取消媒体工程生成……",
+      media_project_running: "开始生成纯媒体工程（未启用波形）……",
+      prefab_needs_subtitles: "{modules} 需要字幕来源：请启用识别设置，或切到「已有工程／字幕再处理」输入已有字幕。",
+      prefab_project_mode_pending: "「已有工程／字幕再处理」的执行管线将在下一阶段接入；当前不会调用识别服务。可先在编辑器或工具箱中处理该工程。",
+      batch_requires_asr: "当前未启用识别设置模块：批量预制暂时只支持识别管线。请先在处理模块中启用识别，或使用单文件模式。",
+      server_conflict_unsaved_warning: "当前会话有未保存内容；替换会丢失这些修改。",
       media: "媒体文件",
       srt_output: "SRT 输出",
       choose: "选择",
@@ -345,6 +352,13 @@
       waveform_project_running: "Building a zero-subtitle waveform project…",
       waveform_project_done: "Zero-subtitle waveform project created: {path}",
       waveform_project_done_short: "Waveform project ready",
+      waveform_project_cancelled: "Media project generation cancelled.",
+      waveform_project_cancelling: "Cancelling media project generation…",
+      media_project_running: "Building a media-only project (waveform disabled)…",
+      prefab_needs_subtitles: "{modules} need subtitle input: enable Recognition, or switch to the project/subtitle input mode.",
+      prefab_project_mode_pending: "The project/subtitle reprocessing pipeline arrives in the next stage; no recognition service is called. Use the editor or toolbox meanwhile.",
+      batch_requires_asr: "Recognition is disabled: batch prefabrication currently supports the ASR pipeline only. Enable Recognition in the module rail or use single-file mode.",
+      server_conflict_unsaved_warning: "The current session has unsaved work; replacing it will lose those changes.",
       media: "Media file",
       srt_output: "SRT output",
       choose: "Choose",
@@ -1104,6 +1118,9 @@
       media_not_found: "媒体文件不存在，请重新选择。",
       server_media_missing: "工程无可用媒体，请手动选择媒体文件。",
       server_stop_not_msw: "当前端口上的进程不是 MSW 字幕编辑服务器，未执行停止。",
+      waveform_task_running: "已有媒体工程任务正在运行。",
+      waveform_cancelled: "媒体工程生成已取消。",
+      batch_requires_asr: "当前未启用识别设置模块：批量预制暂时只支持识别管线。请先在处理模块中启用识别，或使用单文件模式。",
       server_stop_failed: "无法停止当前端口上的 MSW 字幕编辑服务器。",
       api_key_missing: "请填写 API Key，或先在 ⚙ 配置/密钥区保存。",
       custom_asr_base_url_missing: "请填写自定义 ASR Base URL。",
@@ -1161,6 +1178,9 @@
       server_media_missing: "The project has no usable media. Choose the media file manually.",
       server_stop_not_msw: "The current port is not used by a MSW subtitle editor server, so it was not stopped.",
       server_stop_failed: "Unable to stop the MSW subtitle editor server on the current port.",
+      waveform_task_running: "A media project task is already running.",
+      waveform_cancelled: "Media project generation cancelled.",
+      batch_requires_asr: "Recognition is disabled: batch prefabrication currently supports the ASR pipeline only. Enable Recognition in the module rail or use single-file mode.",
       api_key_missing: "Enter an API Key, or save one first in Settings / API key.",
       custom_asr_base_url_missing: "Enter a custom ASR Base URL.",
       custom_asr_model_missing: "Enter a custom ASR model name.",
@@ -1296,7 +1316,7 @@
   const MAX_SUPER_HOTWORDS = 50;
   const OPENAI_ASR_CUSTOM_MODEL_ID = "custom-asr";
   const OPENAI_ASR_OFFICIAL_MODEL_IDS = new Set(["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]);
-  const state = { lang: "zh", serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
+  const state = { activeSessionUrl: "", waveformTaskId: "", lang: "zh", serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
   const dragState = { depth: 0 };
   let api = null;
   let prefsTimer = 0;
@@ -1548,7 +1568,19 @@
       remove_recent_project: async () => ({ ok: true }),
       set_recent_project_pinned: async () => ({ ok: true }),
       relocate_recent_project: async () => ({ ok: true, path: "D:\\Demo\\clip.mosp" }),
-      sync_theme_title_bar: async () => ({ ok: true })
+      sync_theme_title_bar: async () => ({ ok: true }),
+      start_waveform_project: async (payload = {}) => {
+        const taskId = "mock-waveform";
+        const mediaPath = payload.mediaPath || "";
+        const suffix = payload.waveform === false ? ".media.mosp" : ".waveform.mosp";
+        const projectPath = (mediaPath || "clip.mp4").replace(/\.[^.]+$/, "") + suffix;
+        setTimeout(() => {
+          window.MSWLauncher.onBackendEvent({ type: "waveformTask", taskId, status: "running", mediaPath });
+          window.MSWLauncher.onBackendEvent({ type: "waveformTask", taskId, status: "completed", mediaPath, projectPath, warnings: [] });
+        }, 60);
+        return { ok: true, taskId, status: "running" };
+      },
+      cancel_waveform_project: async () => ({ ok: true, cancelled: true, taskId: "mock-waveform" })
     };
   }
 
@@ -1710,6 +1742,25 @@
     if (cursor < value.length) appendMessageText(container, value.slice(cursor));
   }
   const setStatus = (message) => { if (state.detectedServerUrl) setServerStatus(state.detectedServerUrl, true, message); else renderMessage($("status"), message); };
+  function handleWaveformTaskEvent(event) {
+    if (event.taskId && state.waveformTaskId && event.taskId !== state.waveformTaskId) return;
+    if (event.status === "running") { setStatus(t("waveform_project_running")); return; }
+    state.waveformTaskId = "";
+    setRunning(false);
+    if (event.status === "completed") {
+      appendLog(t("waveform_project_done").replace("{path}", event.projectPath || ""));
+      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); }
+      setStatus(t("waveform_project_done_short"));
+      if (Array.isArray(event.warnings) && event.warnings.length) event.warnings.forEach((warning) => appendLog(`[waveform] ${warning}`));
+      return;
+    }
+    if (event.status === "cancelled") { setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
+    if (event.status === "failed") {
+      setStatus(errText(event.code || "waveform_generation_failed", event.detail || event.error || ""));
+      appendLog(`[waveform] ${errText(event.code || "waveform_generation_failed", event.detail || event.error || "")}`);
+    }
+  }
+
   function activePageScroll() {
     return window.MSWNavigation?.scrollerFor(window.MSWNavigation.current()) || document.querySelector(".page.active .page-scroll") || null;
   }
@@ -1942,7 +1993,7 @@
     });
   }
 
-  function setRunning(running) { state.running = running; syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : t("ready")); }
+  function setRunning(running) { state.running = running; if (!running) state.waveformTask = false; syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : t("ready")); }
   function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(localizedSelectLabel(id, item), item.id))); el.value = value ?? ""; }
   function refillSelectLabels() {
     // 语言切换后，后端下发的下拉选项（供应商/模型/地域/语言）与说明行需要按新语言重建。
@@ -1979,7 +2030,7 @@
     $("stopServer").classList.toggle("hidden", !state.serverRunning && !state.detectedServerUrl);
     $("stopServer").disabled = state.serverStarting || state.serverStopping;
   }
-  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload()); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; setStatus(t("ready")); } finally { state.serverStopping = false; renderServerButton(); } }
+  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; setStatus(t("ready")); } finally { state.serverStopping = false; renderServerButton(); } }
   async function checkExistingServer(prefix = "") { const requestId = ++serverStatusRequest; const previousUrl = state.detectedServerUrl; state.detectedServerUrl = ""; const result = await bridge("get_server_status", serverPayload()); if (requestId !== serverStatusRequest) return result; if (!result.ok || !result.running || !result.url) { state.serverRunning = false; state.serverProjectPath = ""; if (prefix) setStatus(`${prefix}，${t("server_start_hint")}`); else if (previousUrl) setStatus(t("ready")); renderServerButton(); return; } const isExternalServer = !state.serverRunning; state.detectedServerUrl = isExternalServer ? result.url : ""; setServerStatus(result.url, isExternalServer, prefix); renderServerButton(); }
   function syncHtmlMenu() { const enabled = $("generateHtml").checked; $("openHtml").classList.toggle("hidden", !enabled); $("openHtml").disabled = enabled && !state.result?.htmlPath; }
   function renderChevron(id) { const arrow = $(id).querySelector(".chevron"); if (arrow) arrow.textContent = $(id).classList.contains("collapsed") ? "▸" : "▾"; }
@@ -2604,7 +2655,8 @@
     $("htmlMenu").classList.add("hidden");
     if (state.serverStarting) return;
     const projectPath = $("jsonPath").value.trim();
-    const currentUrl = state.detectedServerUrl || `http://127.0.0.1:${$("port").value || "8250"}/?lang=${state.lang}`;
+    // R0/F02：优先使用后端返回过的实际会话 URL（含独立端口），不再回退到端口输入框猜测。
+    const currentUrl = state.detectedServerUrl || state.activeSessionUrl || `http://127.0.0.1:${$("port").value || "8250"}/?lang=${state.lang}`;
     if (!options.force && ((state.serverRunning && projectPath === state.serverProjectPath) || (state.detectedServerUrl && !projectPath))) { await bridge("open_url", { url: currentUrl }); return; }
     serverStatusRequest += 1;
     state.serverStarting = true;
@@ -2618,6 +2670,7 @@
       }
       const result = await bridge("start_server", serverPayload({ intent, restart: Boolean(options.restart), independentPort: Boolean(options.independentPort) }));
       if (result.ok) {
+        state.activeSessionUrl = result.url || state.activeSessionUrl;
         state.serverRunning = !result.serverAlreadyRunning;
         state.serverProjectPath = state.serverRunning ? projectPath : "";
         state.detectedServerUrl = result.serverAlreadyRunning ? result.url || "" : "";
@@ -2645,7 +2698,8 @@
     // 端口上的编辑器会话与目标不一致：让用户决定，不盲目复用或杀进程。
     const conflict = result.conflict || {};
     const runningName = conflict.projectPath ? conflict.projectPath.split(/[\/]/).pop() : t("server_conflict_blank");
-    const back = await window.MSWLauncher.confirm(t("server_conflict_return").replace("{name}", runningName));
+    const unsavedWarning = conflict.unsaved ? `\n${t("server_conflict_unsaved_warning")}` : "";
+    const back = await window.MSWLauncher.confirm(t("server_conflict_return").replace("{name}", runningName) + unsavedWarning);
     if (back) {
       await bridge("open_url", { url: conflict.url || result.detail || "" });
       return;
@@ -2656,7 +2710,7 @@
       return;
     }
     if (conflict.owned) {
-      const restartOwned = await window.MSWLauncher.confirm(t("server_conflict_restart"));
+      const restartOwned = await window.MSWLauncher.confirm(t("server_conflict_restart") + (conflict.unsaved ? `\n${t("server_conflict_unsaved_warning")}` : ""));
       if (restartOwned) await openServerEditor(Object.assign({}, options, { force: true, restart: true }));
       return;
     }
@@ -2727,6 +2781,7 @@
 
   function handleBackendEvent(event) {
     if (["batchStarted", "batchItem", "batchItemLog", "batchDone", "batch_started", "batch_item", "batch_item_log", "batch_done"].includes(event.type)) window.MSWLauncher?.onBatchEvent?.(event);
+    if (event.type === "waveformTask") handleWaveformTaskEvent(event);
     if (event.type === "emojiFontReady" && event.path) injectEmojiFont(event.path);
     if (event.type === "log") appendLog(event.message, { quietLatest: Boolean(state.localRuntimeInstalling || state.ocrRuntimeInstalling) });
     if (event.type === "postprocess_status") window.MSWLauncher?.onPostprocessStatus?.(event);
@@ -2995,40 +3050,79 @@
     if (!validateLocal()) return;
     hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" }); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); }
   }
-  async function startWaveformProject() {
-    // E 阶段主链之一：不勾识别时按媒体生成零字幕波形工程（generate_waveform_project）。
+  function postprocessModulesEnabled() {
+    if (!window.MSWModules) return [];
+    return ["match", "replace", "proofread", "resegment", "ocr", "translate"].filter((id) => window.MSWModules.isEnabled(id));
+  }
+
+  async function startMediaProject() {
+    // R0/F04：波形模块开关决定「零字幕波形工程」还是「纯媒体工程」；
+    // 勾选了后处理但没有字幕来源时，先解释缺失条件，不静默跳过（F06）。
     clearErrors();
     const mediaPath = $("mediaPath").value.trim();
     if (!mediaPath) { setError("mediaPath", errText("media_not_found", "")); return; }
+    const enabledPostprocess = postprocessModulesEnabled();
+    if (enabledPostprocess.length) {
+      const message = t("prefab_needs_subtitles").replace("{modules}", enabledPostprocess.map((id) => t("mod_" + id)).join("、"));
+      setStatus(message);
+      appendLog(`[prefab] ${message}`);
+      showErrorNotice(message, "prefab_needs_subtitles");
+      window.MSWWorkflow?.setCollapsed?.("postprocess", false);
+      return;
+    }
+    const waveformEnabled = !window.MSWModules || window.MSWModules.isEnabled("waveform");
     hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden");
     $("log").textContent = ""; state.lastLogMessage = "";
     const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
     setRunning(true);
+    state.waveformTask = true;
     $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" });
-    appendLog(t("waveform_project_running"));
-    const result = await bridge("generate_waveform_project", {
+    appendLog(waveformEnabled ? t("waveform_project_running") : t("media_project_running"));
+    const result = await bridge("start_waveform_project", {
       mediaPath,
       audioTrack: getAudioTrackForMedia(mediaPath),
       defaultAudioTrack: getDefaultAudioTrackForMedia(mediaPath),
       generateSpectral: $("generateSpectral").checked,
+      waveform: waveformEnabled,
     });
-    setRunning(false);
     if (result.ok) {
-      appendLog(t("waveform_project_done").replace("{path}", result.projectPath || ""));
-      if (result.projectPath) { setJsonPath(result.projectPath); window.MSWProjectHome?.refresh?.(); }
-      setStatus(t("waveform_project_done_short"));
-      if (Array.isArray(result.warnings) && result.warnings.length) result.warnings.forEach((warning) => appendLog(`[waveform] ${warning}`));
+      state.waveformTaskId = result.taskId || "";
+      setStatus(t("waveform_project_running"));
     } else {
+      state.waveformTask = false;
+      setRunning(false);
       applyErrorResult(result, false);
     }
   }
+
   $("start").addEventListener("click", () => {
+    // R0/F05：输入方式决定执行类型——「已有工程／字幕再处理」不走 ASR 校验与转录 API。
+    const projectMode = window.MSWWorkflow && window.MSWWorkflow.inputMode() === "project";
+    if (projectMode) {
+      const message = t("prefab_project_mode_pending");
+      setStatus(message);
+      appendLog(`[prefab] ${message}`);
+      showErrorNotice(message, "prefab_project_mode_pending");
+      return;
+    }
     const asrEnabled = window.MSWModules ? window.MSWModules.isEnabled("asr") !== false : true;
-    const mediaMode = !window.MSWWorkflow || window.MSWWorkflow.inputMode() === "media";
-    if (!asrEnabled && mediaMode) { void startWaveformProject(); return; }
+    if (!asrEnabled) { void startMediaProject(); return; }
     void startTranscription();
   });
-  $("stop").addEventListener("click", async () => { if (!state.running) return; $("stop").disabled = true; setStatus(t("batch_stopping")); const result = await bridge("cancel_transcription"); if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); } });
+  $("stop").addEventListener("click", async () => {
+    if (!state.running) return;
+    $("stop").disabled = true;
+    // R0/F08：媒体/波形工程任务用专属取消；不再借道 cancel_transcription。
+    if (state.waveformTask) {
+      setStatus(t("waveform_project_cancelling"));
+      const result = await bridge("cancel_waveform_project");
+      if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); }
+      return;
+    }
+    setStatus(t("batch_stopping"));
+    const result = await bridge("cancel_transcription");
+    if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); }
+  });
   $("retryPostprocess").addEventListener("click", async () => { hideErrorNotice(); $("retryPostprocess").classList.add("hidden"); setRunning(true); const result = await bridge("retry_postprocess"); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } });
   $("openMawe").addEventListener("click", openServerEditor); $("stopServer").addEventListener("click", stopEditorServer); $("openFolder").addEventListener("click", () => bridge("open_output_folder")); $("openLogFolder").addEventListener("click", () => bridge("open_log_folder"));
   $("openMenu").addEventListener("click", () => $("htmlMenu").classList.toggle("hidden")); $("openHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_html"); }); $("openBlankHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_blank_html"); }); document.addEventListener("click", (event) => { if (!event.target.closest(".split-wrap")) $("htmlMenu").classList.add("hidden"); });

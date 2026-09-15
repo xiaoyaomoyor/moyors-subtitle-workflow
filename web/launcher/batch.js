@@ -227,6 +227,15 @@
 
   async function startBatch() {
     if (!state.items.length || state.running) return;
+    // R0/F07：批量目前只支持识别管线；未启用识别模块时明确报错，
+    // 不带着关闭的模块状态默默走「总是 ASR」的旧链（完整模块化批量在 R4）。
+    if (window.MSWModules && window.MSWModules.isEnabled("asr") === false) {
+      const message = window.MSWLauncher.translate("batch_requires_asr");
+      $("status").textContent = message;
+      appendBatchError(message);
+      window.MSWLauncher.onBatchError?.({ ok: false, code: "batch_requires_asr" });
+      return;
+    }
     const completed = state.items.filter((item) => item.status === "done");
     let itemsToRun = state.items;
     if (completed.length && await window.MSWLauncher.confirm(t("batch_skip_completed_confirm"))) {

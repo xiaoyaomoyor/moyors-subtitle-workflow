@@ -22,6 +22,7 @@ import struct
 import sys
 import tempfile
 import threading
+import time
 import webbrowser
 import zipfile
 from collections.abc import Callable
@@ -674,6 +675,10 @@ class EditorServer(ThreadingHTTPServer):
         self.startup_stage = "starting" if project_loader is not None else "ready"
         self.startup_progress = 0 if project_loader is not None else 100
         self.startup_error = ""
+        # 会话内容状态（R0/F03）：last_mutation 在加载/接管/保存时刷新，
+        # last_save 仅在成功写盘时刷新；unsaved = mutation > save。
+        self.last_mutation = 0.0
+        self.last_save = 0.0
         super().__init__(address, EditorRequestHandler)
         self.processing_api = ProcessingAPI(
             self, DEFAULT_ENV_PATH,
@@ -714,9 +719,13 @@ class EditorServer(ThreadingHTTPServer):
     def startup_status_payload(self) -> dict[str, object]:
         with self.startup_lock:
             with self.save_lock:
-                # 工程身份随启动状态一起暴露：启动器据此校验「选 A 打开 A」，
-                # 不因端口可访问就直接把现有会话当成目标工程。
-                project_path = self.project.json_path if self.project is not None else None
+                # 工程身份与会话内容状态一起暴露：启动器据此校验「选 A 打开 A」
+                # 并区分真空白与已加载/接管但未保存的会话（R0/F03）。
+                project = self.project
+                project_path = project.json_path if project is not None else None
+                media_path = project.media_path if project is not None else None
+                unsaved = self.last_mutation > self.last_save
+                has_content = self.last_mutation > 0.0
             return {
                 "ok": True,
                 "status": self.startup_status,
@@ -724,6 +733,9 @@ class EditorServer(ThreadingHTTPServer):
                 "progress": self.startup_progress,
                 "error": self.startup_error,
                 "projectPath": str(project_path) if project_path is not None else "",
+                "mediaPath": str(media_path) if media_path is not None else "",
+                "unsaved": unsaved,
+                "hasContent": has_content,
             }
 
     def start_project_load(self) -> bool:
@@ -761,6 +773,10 @@ class EditorServer(ThreadingHTTPServer):
                 self.startup_stage = "ready"
                 self.startup_progress = 100
                 self.startup_error = ""
+                # 刚从磁盘加载：内容与磁盘一致，视为已保存。
+                now = time.time()
+                self.last_mutation = now
+                self.last_save = now
             if project.json_path is not None:
                 print(f"已加载工程: {project.json_path}")
             self.start_deferred_reapeaks_load()
@@ -1008,6 +1024,9 @@ class EditorServer(ThreadingHTTPServer):
             self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
             self.persist_settings()
+            now = time.time()
+            self.last_mutation = now
+            self.last_save = now
         self.start_deferred_reapeaks_load()
         return project
 
@@ -1067,6 +1086,10 @@ class EditorServer(ThreadingHTTPServer):
             self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
             self.persist_settings()
+            # 接管的是与浏览器副本一致的磁盘工程：内容与磁盘一致，视为已保存。
+            now = time.time()
+            self.last_mutation = now
+            self.last_save = now
         self.start_deferred_reapeaks_load()
         return project
 
@@ -1091,6 +1114,9 @@ class EditorServer(ThreadingHTTPServer):
             persistence.recovery.put(project_data, kind="saved", name=target.name, origin=target, media=media)
         except Exception:
             persistence.recovery_warning = "工程已保存，但本机恢复记录未更新"
+        now = time.time()
+        self.last_mutation = now
+        self.last_save = now
         return backup
 
     def save_project(self, project_data: dict, filename: str | None = None, *,

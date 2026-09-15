@@ -381,6 +381,7 @@ def embed_waveform(
     peaks_per_second: int = DEFAULT_PEAKS_PER_SECOND,
     ffmpeg_bin: str | None = None,
     audio_track: int = 0,
+    cancel_event: threading.Event | None = None,
 ) -> EmbeddedWaveformResult:
     """Return a project copy with embedded peaks, or the original project on failure."""
     try:
@@ -389,6 +390,7 @@ def embed_waveform(
             peaks_per_second=peaks_per_second,
             ffmpeg_bin=ffmpeg_bin,
             audio_track=audio_track,
+            cancel_event=cancel_event,
         )
     except Exception as exc:  # noqa: BLE001
         return EmbeddedWaveformResult(project=project, error=exc)

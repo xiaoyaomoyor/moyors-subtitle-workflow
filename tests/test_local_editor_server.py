@@ -2112,6 +2112,72 @@ def _blank_project() -> "server_editor.ServerProject":
     )
 
 
+class SessionStateProtocolTests(unittest.TestCase):
+    """R0/F03：startup-status 暴露会话内容状态，区分真空白与未保存内容。"""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name).resolve()
+        self.media = self.root / "clip.mp3"
+        self.media.write_bytes(b"0123456789")
+        self.project_path = self.root / "clip.json"
+        self.project_path.write_text(
+            json.dumps({"media": str(self.media), "segments": []}), encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def _server(self, project, loader=None) -> "server_editor.EditorServer":
+        server = server_editor.EditorServer(
+            ("127.0.0.1", 0), project, no_waveform=True, project_loader=loader,
+        )
+        self.addCleanup(server.server_close)
+        return server
+
+    def test_blank_session_reports_no_content(self) -> None:
+        server = self._server(server_editor.load_blank_project(None))
+        payload = server.startup_status_payload()
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["hasContent"])
+        self.assertFalse(payload["unsaved"])
+        self.assertEqual(payload["projectPath"], "")
+        self.assertEqual(payload["mediaPath"], "")
+
+    def test_loaded_project_is_content_and_saved(self) -> None:
+        project = server_editor.load_project(
+            self.project_path, None, None,
+            no_waveform=True, load_reapeaks=False, peaks_per_second=100,
+        )
+        server = self._server(project)
+        # 模拟 _load_initial_project 的完成路径：内容与磁盘一致。
+        now = time.time()
+        server.last_mutation = now
+        server.last_save = now
+        payload = server.startup_status_payload()
+        self.assertTrue(payload["hasContent"])
+        self.assertFalse(payload["unsaved"])
+        self.assertEqual(payload["projectPath"], str(self.project_path.resolve()))
+        self.assertEqual(payload["mediaPath"], str(self.media))
+
+    def test_mutation_without_save_reports_unsaved(self) -> None:
+        project = server_editor.load_project(
+            self.project_path, None, None,
+            no_waveform=True, load_reapeaks=False, peaks_per_second=100,
+        )
+        server = self._server(project)
+        server.last_mutation = time.time() + 1  # 接管/修改晚于上次保存
+        payload = server.startup_status_payload()
+        self.assertTrue(payload["hasContent"])
+        self.assertTrue(payload["unsaved"])
+
+        # write_project 成功后恢复已保存状态。
+        target = self.root / "out.json"
+        server.write_project(target, {"media": str(self.media), "segments": []})
+        payload = server.startup_status_payload()
+        self.assertFalse(payload["unsaved"])
+
+
 class EditorPortSelectionTests(unittest.TestCase):
     def test_open_editor_server_advances_when_omitted_port_is_busy(self) -> None:
         """Given 端口省略且起始端口被占用，When 绑定服务，Then 自动顺延到之后的空闲端口并标记 advanced。"""

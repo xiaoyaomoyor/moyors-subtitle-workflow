@@ -6,7 +6,7 @@
 
 本文件是边做边落盘的真实进度账本：每完成一项立即回写，验证命令与结果分层记录（语法/单元、契约、浏览器交互、原生窗口）。不以摘要代替实际代码与测试证据。
 
-## 阶段总览
+## 阶段总览（R0–R6 见 PLAN_LAUNCHER_CORRECTIONS.md）
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
@@ -25,6 +25,29 @@
 - `maw/gui_web.py:109` `WINDOW_TITLE = "MSW Launcher"`；`run_app()` 初始窗口 900×880、min 760×640、背景 `#16181d`。B 阶段改横向 1200×780 并按屏幕工作区收敛。
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
+
+## R0：会话与执行入口修复（修正案第一批）
+
+状态：已完成（2026-09-15）。对应审查 F01–F08；基线 718afe8。
+
+改动：
+
+1. **多会话管理（F01）**：`maw/gui_web.py` 新增 `EditorSession`（port/process/log_file/project_path）与 `editor_sessions: dict[int, EditorSession]`；`start_server` 只替换目标端口的旧受管会话，独立端口启动不触碰任何既有会话；`stop_server` 支持 `url` 参数按会话定位；`get_server_status` 返回 `owned` 与 `managedSessions` 清单；`shutdown` 清理全部会话；启动失败不覆盖原会话句柄。删除单一 `server_process`/`server_log_file` 句柄。
+2. **会话 URL（F02）**：前端 `state.activeSessionUrl` 保存后端返回的实际会话 URL；快捷打开优先实际 URL；停止操作按会话 URL 定位。
+3. **未保存状态（F03）**：`server-editor/serve.py` 记录 `last_mutation`/`last_save`（加载/接管=一致、写盘=已保存），`/api/startup-status` 新增 `mediaPath`/`unsaved`/`hasContent`；启动器探测与冲突载荷携带该状态；blank 复用收紧为「真空白」（projectPath 与 hasContent 皆为空）；冲突/替换确认文案携带未保存警告。
+4. **波形开关（F04）**：`generate_waveform_project` 支持 `waveform:false` → 产出无波形纯媒体工程（`.media.mosp`），不调用波形提取；前端按波形模块开关分流「纯媒体／波形工程」。
+5. **执行分派（F05/F06）**：「已有工程／字幕再处理」输入模式不再走 ASR 校验与转录 API，给出明确的下一阶段接入说明；勾选后处理但无字幕来源时定位模块并说明缺失条件，不静默跳过。
+6. **批量拦截（F07）**：识别模块关闭时批量开始明确报错（完整模块化批量在 R4）。
+7. **可取消波形任务（F08）**：`maw/waveform.py`/`media_cache.py` 透传 `cancel_event`（各阶段检查点，取消抛 `MediaCacheCancelled`）；新增 `start_waveform_project`（后台线程 + taskId）与 `cancel_waveform_project` 桥接，事件 `waveformTask`（running/completed/failed/cancelled）经 EventPump 推送；前端停止按钮对媒体工程任务走专属取消，不再借道 `cancel_transcription`；同步版保留给工具箱。
+8. **打开时序（H06 后端）**：`note_project_opened` 移到服务器健康检查通过、成功返回之前紧邻处。
+
+验证（2026-09-15）：
+
+- 单测新增 15 项：`tests/test_launcher_r0.py`（独立端口保留旧会话、普通启动只替换同端口、按 URL 停止单会话、状态清单、打开记录仅在成功后、waveform 开关两路径、异步任务完成/取消事件）＋ `tests/test_local_editor_server.py::SessionStateProtocolTests`（空白无内容、加载即已保存、修改未保存、写盘恢复）。受影响断言更新 6 处（会话句柄、embed cancel_event 参数、stop_server 载荷）。
+- 全量 Python 1554 项通过；启动器 e2e 52 项通过（`launcher-workflow` 重写为 6 项：波形异步任务+开关载荷、纯媒体工程、后处理缺字幕说明、工程模式拒走 ASR、ASR 管线保持、批量拦截）。
+- 浏览器 mock 核验：三场景分流（waveform:false→.media.mosp、工程模式零执行调用+明确报错、waveform:true→.waveform.mosp）。
+
+未验证（顺延）：原生 pywebview 双会话实测（R6）；reapeaks 生成阶段中段的取消为尽力而为（阶段间检查点，已在代码注释与账本记录）；「已有工程再处理」执行管线（R4）。
 
 ## E：统一预制执行（首条主链）
 

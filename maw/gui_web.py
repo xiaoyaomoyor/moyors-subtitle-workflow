@@ -25,7 +25,6 @@ from typing import BinaryIO, Final, final
 from maw.app_paths import default_emoji_font_path
 from maw.env_config import aliased_values, alias_keys
 from maw.ffmpeg import FfmpegTools, media_duration_seconds, resolve_ffmpeg_tools
-from maw.media_cache import embed_media_caches
 from maw.openai_asr_capabilities import model_for_endpoint, capabilities, validate_options
 from maw.gui_config import (
     DEFAULT_ENV_PATH,
@@ -69,6 +68,7 @@ from maw.local_runtime import (
     resolve_model_cache_root,
 )
 from maw.local_models import inspect_local_model, local_model_payload, prepare_local_model as prepare_model
+from maw.media_cache import MediaCacheCancelled, embed_media_caches
 from maw.media import resolve_project_media, resolve_default_audio_track
 from maw.postprocess import FixedProcessRequest, LlmPostprocessRequest, OutputMode, PostprocessStepError, Replacement, run_fixed_process as process_fixed_process, run_llm_postprocess as process_llm_postprocess
 from maw.postprocess_io import PostprocessFileError, read_project, read_srt
@@ -487,6 +487,20 @@ class LauncherPaths:
     recent_metadata: Path | None = None
 
 
+@dataclass(slots=True)
+class EditorSession:
+    """一个受管编辑器会话：独立端口启动不得影响其他会话（R0/F01）。"""
+
+    port: int
+    process: subprocess.Popen[str] | None = None
+    log_file: BinaryIO | None = None
+    # 启动目标工程；空串表示 blank/resume 启动。
+    project_path: str = ""
+
+    def running(self) -> bool:
+        return self.process is not None and self.process.poll() is None
+
+
 def default_paths() -> LauncherPaths:
     # 冻结（PyInstaller / AppImage）时资源在 sys._MEIPASS（如 dist/MSW/_internal），
     # 源码运行时在仓库根；与 maw.gui_platform.asset_path 的取法保持一致。
@@ -609,8 +623,14 @@ class LauncherApi:
         self._emoji_font_worker: threading.Thread | None = None
         self.ocr_runtime_cancel_event: Event | None = None
         self.ocr_runtime_worker: threading.Thread | None = None
-        self.server_process: subprocess.Popen[str] | None = None
-        self.server_log_file: BinaryIO | None = None
+        # 受管编辑器会话按端口键控：普通启动只替换同端口旧会话，
+        # 独立端口会话互不影响（R0/F01，替代原单一 server_process 句柄）。
+        self.editor_sessions: dict[int, EditorSession] = {}
+        self._session_lock = threading.Lock()
+        # 媒体/波形工程后台任务（R0/F08）：任务身份与取消独立于转录任务。
+        self.waveform_task_id: str | None = None
+        self.waveform_cancel_event: Event | None = None
+        self.waveform_worker: threading.Thread | None = None
         self.alignment_process: subprocess.Popen[str] | None = None
         self.alignment_log_file: BinaryIO | None = None
         self.alignment_server_port: int | None = None
@@ -1653,13 +1673,16 @@ class LauncherApi:
         existing = _probe_existing_server(url)
         if existing is not None and not restart and not independent:
             existing_project = existing.get("projectPath") or ""
-            owned_server_running = self.server_process is not None and self.server_process.poll() is None
+            owned_server_running = self._owned_session_running(port)
             if intent == "project" and json_text and _same_existing_project(existing_project, json_text):
-                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "sameProject": True}
-            if intent == "blank" and not existing_project:
-                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "blankProject": True}
+                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "sameProject": True, "port": port, "sessionId": port}
+            # F03：无工程路径不等于空白——已加载/接管过内容的会话不能被 blank 复用；
+            # 旧服务器没有 hasContent 字段时退回 projectPath 判断。
+            truly_blank = not existing_project and not existing.get("hasContent")
+            if intent == "blank" and truly_blank:
+                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "blankProject": True, "port": port, "sessionId": port}
             if intent == "resume":
-                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True}
+                return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "port": port, "sessionId": port}
             return {
                 "ok": False,
                 "field": "port",
@@ -1668,6 +1691,8 @@ class LauncherApi:
                 "conflict": {
                     "url": launch_url,
                     "projectPath": existing_project,
+                    "mediaPath": existing.get("mediaPath") or "",
+                    "unsaved": existing.get("unsaved") is True,
                     "owned": owned_server_running,
                 },
             }
@@ -1685,17 +1710,19 @@ class LauncherApi:
             if media_path is not None and not media_path.exists():
                 media_path = None
             command = build_serve_command(json_path, media_path, port)
-            note_project_opened(json_path, metadata_path=self.paths.recent_metadata)
         else:
             # 无工程：由服务器按「自动打开上次工程」设置恢复最近工程或回落为空白编辑器
             command = build_serve_command(None, None, port)
         command.append("--no-open")
-        _ = self._stop_owned_server()
-        self.server_log_file = tempfile.TemporaryFile(mode="w+b")
+        # 只替换目标端口上的旧受管会话；独立端口（空闲端口）不触碰其他会话（R0/F01）。
+        _ = self._stop_session(port)
+        session = self._session_for(port)
+        session.project_path = json_text if intent == "project" else ""
+        session.log_file = tempfile.TemporaryFile(mode="w+b")
         try:
-            self.server_process = popen_process_tree(
+            session.process = popen_process_tree(
                 command,
-                stdout=self.server_log_file,
+                stdout=session.log_file,
                 stderr=subprocess.STDOUT,
                 text=True,
                 env=_independent_app_child_environment(),
@@ -1703,7 +1730,8 @@ class LauncherApi:
                 **process_group_kwargs(),
             )
         except OSError as error:
-            self._close_server_log()
+            self._close_session_log(session)
+            self._forget_session(port)
             detail = f"{url} | {error}"
             self._persist_start_failure("server_start_failed", detail)
             return _error_result("port", "server_start_failed", detail)
@@ -1713,22 +1741,26 @@ class LauncherApi:
             probe_path=EDITOR_HEALTH_PROBE_PATH,
             probe_timeout=EDITOR_HEALTH_PROBE_TIMEOUT,
         ):
-            exit_code = self.server_process.poll() if self.server_process else None
+            exit_code = session.process.poll() if session.process else None
             if exit_code is not None:
-                detail = self._read_server_log()
+                detail = self._read_session_log(session)
                 detail = f"{url} | 进程退出码 {exit_code}" + (f"：{detail}" if detail else "")
                 self._persist_start_failure("server_start_failed", detail)
-                _ = self._stop_owned_server()
+                _ = self._stop_session(port)
                 return _error_result("port", "server_start_failed", detail)
-            _ = self._stop_owned_server(close_log=False)
-            child_log = self._read_server_log()
-            self._close_server_log()
+            _ = self._stop_session(port, close_log=False)
+            child_log = self._read_session_log(session)
+            self._close_session_log(session)
+            self._forget_session(port)
             detail = f"{url} | 启动超时 {int(SERVER_START_TIMEOUT)} 秒"
             detail += f"：{child_log}" if child_log else "：子进程未输出日志"
             self._persist_start_failure("server_no_response", detail)
             return _error_result("port", "server_no_response", detail)
-        self._close_server_log()
-        return {"ok": True, "url": launch_url}
+        self._close_session_log(session)
+        if intent == "project":
+            # R0/H06：服务器健康检查通过、确认启动成功后才记一次「最近打开」。
+            note_project_opened(json_path, metadata_path=self.paths.recent_metadata)
+        return {"ok": True, "url": launch_url, "port": port, "sessionId": port}
 
     def start_alignment_server(self, payload: Mapping[str, object]) -> dict[str, object]:
         gap_remove = normalize_gap_remove_settings(payload.get("gapRemove"))
@@ -1871,7 +1903,7 @@ class LauncherApi:
         }
 
     def get_server_status(self, payload: Mapping[str, object]) -> dict[str, object]:
-        """Report a responding MSW server on the currently selected localhost port."""
+        """Report a responding MSW server plus the launcher's managed sessions."""
         port = _port(payload)
         url = f"http://127.0.0.1:{port}/"
         if not _wait_for_server(
@@ -1880,9 +1912,35 @@ class LauncherApi:
             probe_path=EDITOR_HEALTH_PROBE_PATH,
             probe_timeout=EDITOR_HEALTH_PROBE_TIMEOUT,
         ):
-            return {"ok": True, "running": False, "url": url}
+            return {
+                "ok": True,
+                "running": False,
+                "url": url,
+                "owned": self._owned_session_running(port),
+                "managedSessions": self._managed_sessions_payload(),
+            }
         pid = _maw_server_process_id(port)
-        return {"ok": True, "running": pid is not None, "url": url, "pid": pid}
+        return {
+            "ok": True,
+            "running": pid is not None,
+            "url": url,
+            "pid": pid,
+            "owned": self._owned_session_running(port),
+            "managedSessions": self._managed_sessions_payload(),
+        }
+
+    def _managed_sessions_payload(self) -> list[dict[str, object]]:
+        with self._session_lock:
+            sessions = list(self.editor_sessions.values())
+        return [
+            {
+                "port": session.port,
+                "url": f"http://127.0.0.1:{session.port}/",
+                "projectPath": session.project_path,
+                "running": session.running(),
+            }
+            for session in sessions
+        ]
 
     def check_server_media(self, payload: Mapping[str, object]) -> dict[str, object]:
         json_text = str(payload.get("jsonPath") or "").strip()
@@ -1908,10 +1966,30 @@ class LauncherApi:
             "detail": resolution.message,
         }
 
-    def _stop_owned_server(self, *, close_log: bool = True) -> bool:
-        process = self.server_process
-        self.server_process = None
+    def _session_for(self, port: int) -> EditorSession:
+        with self._session_lock:
+            session = self.editor_sessions.get(port)
+            if session is None:
+                session = EditorSession(port=port)
+                self.editor_sessions[port] = session
+            return session
+
+    def _forget_session(self, port: int) -> None:
+        with self._session_lock:
+            self.editor_sessions.pop(port, None)
+
+    def _owned_session_running(self, port: int) -> bool:
+        session = self.editor_sessions.get(port)
+        return session is not None and session.running()
+
+    def _stop_session(self, port: int, *, close_log: bool = True) -> bool:
+        """Stop one managed editor session; other sessions are untouched (R0/F01)."""
+        with self._session_lock:
+            session = self.editor_sessions.pop(port, None)
         stopped = False
+        if session is None:
+            return stopped
+        process = session.process
         try:
             if process and process.poll() is None:
                 terminate_process_tree(process)
@@ -1921,10 +1999,14 @@ class LauncherApi:
             if process is not None:
                 release_process_tree(process)
             if close_log:
-                self._close_server_log()
+                self._close_session_log(session)
 
-    def _read_server_log(self) -> str:
-        log_file = self.server_log_file
+    def _stop_all_sessions(self) -> None:
+        for port in list(self.editor_sessions):
+            _ = self._stop_session(port)
+
+    def _read_session_log(self, session: EditorSession) -> str:
+        log_file = session.log_file
         if log_file is None:
             return ""
         try:
@@ -1934,9 +2016,9 @@ class LauncherApi:
         except (OSError, ValueError):
             return ""
 
-    def _close_server_log(self) -> None:
-        log_file = self.server_log_file
-        self.server_log_file = None
+    def _close_session_log(self, session: EditorSession) -> None:
+        log_file = session.log_file
+        session.log_file = None
         if log_file is not None:
             try:
                 log_file.close()
@@ -1988,9 +2070,13 @@ class LauncherApi:
                 pass
 
     def stop_server(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
-        if self._stop_owned_server():
-            return {"ok": True, "stopped": True}
-        port = _port(payload or {})
+        payload = payload or {}
+        # R0/F02：优先按会话 URL 精确停止对应受管会话；否则停目标端口的会话。
+        # 独立端口的会话只有在被明确指向时才会停止。
+        url_text = str(payload.get("url") or "").strip()
+        port = _port_from_url(url_text) if url_text else _port(payload)
+        if self._stop_session(port):
+            return {"ok": True, "stopped": True, "port": port}
         url = f"http://127.0.0.1:{port}/"
         if not _wait_for_server(
             url,
@@ -2000,7 +2086,7 @@ class LauncherApi:
         ):
             return {"ok": True, "stopped": False}
         if _stop_external_maw_server(port):
-            return {"ok": True, "stopped": True}
+            return {"ok": True, "stopped": True, "port": port}
         if _maw_server_process_id(port) is None:
             return _error_result("port", "server_stop_not_maw", url)
         return _error_result("port", "server_stop_failed", url)
@@ -2182,8 +2268,8 @@ class LauncherApi:
                 self.batch_worker = None
             self.pump.flush()
 
-    def generate_waveform_project(self, payload: Mapping[str, object]) -> dict[str, object]:
-        """Create a media-only project containing embedded waveform caches."""
+    def _validate_waveform_payload(self, payload: Mapping[str, object]) -> tuple[Path, int, int, object] | dict[str, object]:
+        """Shared preflight for media-project generation; returns an error result on failure."""
         media_text = str(payload.get("mediaPath") or "").strip()
         media_path = Path(media_text).expanduser().resolve() if media_text else None
         if media_path is None or media_path.suffix.lower() not in MEDIA_EXTS or not media_path.is_file():
@@ -2197,7 +2283,7 @@ class LauncherApi:
             )
         ffmpeg_tools = _postprocess_ffmpeg_tools(self.paths.env_path)
         default_audio_track = (_payload_audio_track(payload, field="defaultAudioTrack")
-                               if payload.get('defaultAudioTrack') is not None
+                               if payload.get("defaultAudioTrack") is not None
                                else resolve_default_audio_track(media_path, None, ffprobe_path=ffmpeg_tools.ffprobe))
         if default_audio_track is None:
             return _error_result(
@@ -2205,15 +2291,45 @@ class LauncherApi:
                 "audio_track_invalid",
                 "默认音频轨道必须是非负整数。",
             )
-
-        if payload.get('audioTrack') is None:
+        if payload.get("audioTrack") is None:
             audio_track = default_audio_track
-        output_seed = unique_output_path(media_path.with_suffix(".waveform.srt"))
+        return media_path, audio_track, default_audio_track, ffmpeg_tools
+
+    def _generate_media_project_sync(
+        self,
+        payload: Mapping[str, object],
+        media_path: Path,
+        audio_track: int,
+        default_audio_track: int,
+        ffmpeg_tools: object,
+        cancel_event: Event | None,
+    ) -> dict[str, object]:
+        """Create a media project; the waveform module decides whether cache generation (R0/F04) is included."""
+        waveform_enabled = payload.get("waveform") is not False
+        suffix = ".waveform.srt" if waveform_enabled else ".media.srt"
+        output_seed = unique_output_path(media_path.with_suffix(suffix))
         project_path = output_seed.with_suffix(".mosp")
         project: dict[str, object] = {"media": str(media_path), "segments": []}
         try:
-            ffmpeg_tools = _postprocess_ffmpeg_tools(self.paths.env_path)
-            ffmpeg_path = ffmpeg_tools.ffmpeg
+            if not waveform_enabled:
+                # 纯媒体工程：不生成任何波形缓存；编辑器打开时波形显示回退为装饰线。
+                normalized = normalize_project(project)
+                write_mosp(
+                    project_path,
+                    normalized,
+                    media_path=media_path,
+                    ffprobe_path=getattr(ffmpeg_tools, "ffprobe", None),
+                    selected_audio_track=audio_track,
+                )
+                return {
+                    "ok": True,
+                    "mediaPath": str(media_path),
+                    "projectPath": str(project_path),
+                    "warnings": [],
+                    "reapeaksPath": "",
+                    "waveform": False,
+                }
+            ffmpeg_path = getattr(ffmpeg_tools, "ffmpeg", None)
             cached = embed_media_caches(
                 project,
                 media_path,
@@ -2222,6 +2338,7 @@ class LauncherApi:
                 ffmpeg_bin=str(ffmpeg_path) if ffmpeg_path is not None else None,
                 audio_track=audio_track,
                 default_audio_track=default_audio_track,
+                cancel_event=cancel_event,
             )
             normalized = normalize_project(cached.project)
             waveform = normalized.get("waveform")
@@ -2235,9 +2352,17 @@ class LauncherApi:
                 project_path,
                 normalized,
                 media_path=media_path,
-                ffprobe_path=ffmpeg_tools.ffprobe,
+                ffprobe_path=getattr(ffmpeg_tools, "ffprobe", None),
                 selected_audio_track=audio_track,
             )
+        except MediaCacheCancelled:
+            return {
+                "ok": False,
+                "code": "waveform_cancelled",
+                "field": "mediaPath",
+                "cancelled": True,
+                "error": "Waveform generation cancelled.",
+            }
         except (OSError, TypeError, ValueError) as error:
             return _error_result("mediaPath", "waveform_generation_failed", str(error))
 
@@ -2250,7 +2375,51 @@ class LauncherApi:
             "projectPath": str(project_path),
             "warnings": warnings,
             "reapeaksPath": str(cached.reapeaks_path) if cached.reapeaks_path else "",
+            "waveform": True,
         }
+
+    def generate_waveform_project(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Create a media-only project synchronously (legacy toolbox contract)."""
+        validated = self._validate_waveform_payload(payload)
+        if isinstance(validated, dict):
+            return validated
+        media_path, audio_track, default_audio_track, ffmpeg_tools = validated
+        return self._generate_media_project_sync(payload, media_path, audio_track, default_audio_track, ffmpeg_tools, None)
+
+    def start_waveform_project(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Run media-project generation as a cancellable background task (prefab page, R0/F08)."""
+        if self.waveform_worker is not None and self.waveform_worker.is_alive():
+            return _error_result("mediaPath", "waveform_task_running", "A media project task is already running.")
+        validated = self._validate_waveform_payload(payload)
+        if isinstance(validated, dict):
+            return validated
+        media_path, audio_track, default_audio_track, ffmpeg_tools = validated
+        task_id = f"waveform-{int(time.time() * 1000)}"
+        cancel_event = Event()
+        self.waveform_task_id = task_id
+        self.waveform_cancel_event = cancel_event
+        self.pump.start()
+        self._emit({"type": "waveformTask", "taskId": task_id, "status": "running", "mediaPath": str(media_path)})
+
+        def run() -> None:
+            result = self._generate_media_project_sync(payload, media_path, audio_track, default_audio_track, ffmpeg_tools, cancel_event)
+            if result.get("ok"):
+                self._emit({"type": "waveformTask", "taskId": task_id, "status": "completed", **result})
+            elif result.get("cancelled"):
+                self._emit({"type": "waveformTask", "taskId": task_id, "status": "cancelled", "mediaPath": str(media_path)})
+            else:
+                self._emit({"type": "waveformTask", "taskId": task_id, "status": "failed", **result})
+
+        self.waveform_worker = threading.Thread(target=run, daemon=True, name="maw-waveform-project")
+        self.waveform_worker.start()
+        return {"ok": True, "taskId": task_id, "status": "running"}
+
+    def cancel_waveform_project(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Cancel the running media-project task; other tasks are untouched (R0/F08)."""
+        if self.waveform_cancel_event is None or self.waveform_worker is None or not self.waveform_worker.is_alive():
+            return {"ok": True, "cancelled": False}
+        self.waveform_cancel_event.set()
+        return {"ok": True, "cancelled": True, "taskId": self.waveform_task_id or ""}
 
     def get_local_models(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         provider = provider_by_id("local")
@@ -2552,7 +2721,9 @@ class LauncherApi:
             self.local_runtime_cancel_event.set()
         if self.ocr_runtime_cancel_event:
             self.ocr_runtime_cancel_event.set()
-        _ = self.stop_server()
+        if self.waveform_cancel_event:
+            self.waveform_cancel_event.set()
+        self._stop_all_sessions()
         _ = self.stop_alignment_server()
         if self._log_sink is not None:
             for stream in (sys.stdout, sys.stderr):
@@ -3489,6 +3660,14 @@ def _port(payload: Mapping[str, object]) -> int:
     return min(65535, max(1, value))
 
 
+def _port_from_url(url: str) -> int:
+    """Extract the loopback port from a session URL; default port on mismatch."""
+    match = re.search(r"^https?://(?:127\.0\.0\.1|localhost):(\d+)", url.strip(), re.IGNORECASE)
+    if not match:
+        return 8250
+    return min(65535, max(1, int(match.group(1))))
+
+
 def _free_local_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -3773,7 +3952,12 @@ def _probe_existing_server(url: str) -> dict[str, object] | None:
         return None
     if not isinstance(payload, dict) or payload.get("ok") is not True:
         return None
-    return {"projectPath": str(payload.get("projectPath") or "")}
+    return {
+        "projectPath": str(payload.get("projectPath") or ""),
+        "mediaPath": str(payload.get("mediaPath") or ""),
+        "unsaved": payload.get("unsaved") is True,
+        "hasContent": payload.get("hasContent") is True,
+    }
 
 
 def _same_existing_project(existing: str, target: str) -> bool:

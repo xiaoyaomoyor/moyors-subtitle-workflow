@@ -228,6 +228,7 @@ class MediaCacheTests(unittest.TestCase):
             self.wav,
             ffmpeg_bin=ffmpeg,
             audio_track=2,
+            cancel_event=None,
         )
         generate.assert_called_once_with(
             self.wav,

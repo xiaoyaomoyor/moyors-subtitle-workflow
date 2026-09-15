@@ -772,6 +772,7 @@ class GuiWebBridgeTests(unittest.TestCase):
             ffmpeg_bin=str(ffmpeg),
             audio_track=2,
             default_audio_track=0,
+            cancel_event=None,
         )
 
     def test_generate_waveform_project_rejects_invalid_embedded_waveform(self) -> None:
@@ -2154,15 +2155,17 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(result["url"], "http://127.0.0.1:9876/?lang=zh")
         popen.assert_not_called()
 
-    def test_stop_owned_server_releases_completed_process_tree_handle(self) -> None:
+    def test_stop_session_releases_completed_process_tree_handle(self) -> None:
         process = mock.Mock()
         process.poll.return_value = 0
-        self.api.server_process = process
+        session = self.api._session_for(9876)
+        session.process = process
 
         with mock.patch("maw.gui_web.release_process_tree") as release:
-            self.assertFalse(self.api._stop_owned_server())
+            self.assertFalse(self.api._stop_session(9876))
 
         release.assert_called_once_with(process)
+        self.assertNotIn(9876, self.api.editor_sessions)
 
     def test_start_server_restarts_owned_server_for_a_new_project(self) -> None:
         """Given an owned server, When another project opens, Then the server is rebound to that project."""
@@ -2185,7 +2188,8 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         previous_process = RunningProcess()
         replacement_process = RunningProcess()
-        self.api.server_process = previous_process
+        # R0 多会话：普通启动只替换同端口的旧受管会话。
+        self.api._session_for(9876).process = previous_process
 
         with mock.patch("maw.gui_web.subprocess.Popen", return_value=replacement_process) as popen:
             with mock.patch("maw.gui_web._wait_for_server", return_value=True):
@@ -2197,7 +2201,9 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(previous_process.returncode, -15)
-        self.assertIs(self.api.server_process, replacement_process)
+        self.assertEqual(result["port"], 9876)
+        self.assertEqual(self.api.editor_sessions[9876].process, replacement_process)
+        self.assertEqual(self.api.editor_sessions[9876].project_path, str(project))
         self.assertEqual(popen.call_args.args[0][2], str(project))
         self.assertNotIn("serverAlreadyRunning", result)
 
@@ -3925,7 +3931,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('get_server_status', script)
         self.assertIn('id="stopServer" class="ghost server-stop hidden"', page)
         self.assertIn('$("stopServer").addEventListener("click", stopEditorServer)', script)
-        self.assertIn('bridge("stop_server", serverPayload())', script)
+        self.assertIn('bridge("stop_server", serverPayload({ url: state.activeSessionUrl }))', script)
         self.assertIn('void checkExistingServer(t("done"));', script)
         self.assertIn('id="refreshServerStatus"', page)
         self.assertNotIn('state.serverRunning ? t("server_stop")', script)
