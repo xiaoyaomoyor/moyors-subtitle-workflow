@@ -50,6 +50,25 @@ test('toggling ASR hides its card, keeps drafts, and renumbers visible cards', a
   await expect(page.locator('#prefabOrderChip')).toHaveText('处理顺序：媒体 → 波形 → 识别');
 });
 
+test('upgrading keeps explicitly saved module choices (R6)', async ({ page }) => {
+  // 旧配置升级：存储里已保存的 asr=true 保持用户选择；未存的模块按新默认补齐。
+  await page.addInitScript(() => {
+    localStorage.setItem('MSW_LAUNCHER_MODULES_V1', JSON.stringify({ version: 1, enabled: { media: true, waveform: false, asr: true } }));
+  });
+  await page.goto(`file://${launcherPath}`);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  await page.waitForFunction(() => document.querySelectorAll('#prefabRail .rail-item').length > 0);
+
+  const asr = page.locator('#prefabRail input[data-module-id="asr"]');
+  const waveform = page.locator('#prefabRail input[data-module-id="waveform"]');
+  await expect(asr).toBeChecked();
+  await expect(page.locator('[data-module-card="asr"]')).toBeVisible();
+  await expect(waveform).not.toBeChecked();
+  // 未存储的模块按新默认（后处理全关）补齐。
+  await expect(page.locator('#prefabRail input[data-module-id="translate"]')).not.toBeChecked();
+});
+
 test('collapsing a module card hides its body without disabling it', async ({ page }) => {
   await openPrefab(page);
 

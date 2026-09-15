@@ -62,26 +62,26 @@ class RecentProjectsTests(unittest.TestCase):
         project.write_text("{}", encoding="utf-8")
         _write_json(self.settings, {
             "recent_projects": [
-                {"path": str(project), "name": project.name, "openedAt": "2026-09-14T08:00:00+00:00"},
+                {"path": str(project), "name": project.name, "openedAt": "2020-01-01T00:00:00+00:00"},
             ],
         })
         result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
-        self.assertEqual(result["projects"][0]["lastOpenedAt"], "2026-09-14T08:00:00+00:00")
+        self.assertEqual(result["projects"][0]["lastOpenedAt"], "2020-01-01T00:00:00+00:00")
 
         note_project_opened(project, metadata_path=self.metadata)
         result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
         newer = result["projects"][0]["lastOpenedAt"]
-        self.assertNotEqual(newer, "2026-09-14T08:00:00+00:00")
-        self.assertGreater(newer, "2026-09-14T08:00:00+00:00")
+        self.assertNotEqual(newer, "2020-01-01T00:00:00+00:00")
+        self.assertGreater(newer, "2020-01-01T00:00:00+00:00")
 
-        # 编辑器记录更新时再次取较新者。
+        # 编辑器记录更新时再次取较新者（远未来时间与真实时钟无关）。
         _write_json(self.settings, {
             "recent_projects": [
-                {"path": str(project), "name": project.name, "openedAt": "2026-09-15T09:30:00+00:00"},
+                {"path": str(project), "name": project.name, "openedAt": "2099-01-01T00:00:00+00:00"},
             ],
         })
         result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
-        self.assertEqual(result["projects"][0]["lastOpenedAt"], "2026-09-15T09:30:00+00:00")
+        self.assertEqual(result["projects"][0]["lastOpenedAt"], "2099-01-01T00:00:00+00:00")
 
     def test_stats_payload_reports_media_file_name(self) -> None:
         # H01/H04：卡片媒体文件名来自工程实际 media 引用。
