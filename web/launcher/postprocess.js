@@ -2225,10 +2225,11 @@
   AUTO_STEP_ORDER.forEach((stepId) => {
     const checkbox = $(AUTO_STEP_CHECKBOXES[stepId]);
     checkbox.addEventListener("change", () => {
+      // R4/F11：未就绪不再打回取消勾选——保留选中并标记「待配置」，
+      // 建立方案时可以先勾选，配置在本模块补齐；开始前由预检统一校验。
       if (checkbox.checked && !autoStepReady(stepId)) {
-        checkbox.checked = false;
         renderAutoPostprocessState();
-        openAutoStep(stepId, "", { highlightConnection: true });
+        persistAutoPlanSoon();
         return;
       }
       renderAutoPostprocessState();

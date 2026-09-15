@@ -632,6 +632,9 @@ class LauncherApi:
         self.waveform_task_id: str | None = None
         self.waveform_cancel_event: Event | None = None
         self.waveform_worker: threading.Thread | None = None
+        self.prefab_worker: threading.Thread | None = None
+        self.prefab_task_id: str = ""
+        self.prefab_cancel_event: Event | None = None
         self.alignment_process: subprocess.Popen[str] | None = None
         self.alignment_log_file: BinaryIO | None = None
         self.alignment_server_port: int | None = None
@@ -2295,6 +2298,120 @@ class LauncherApi:
                 self.batch_worker = None
             self.pump.flush()
 
+    def start_batch_projects(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """R4/F07：批量执行冻结方案（识别关闭分支）——逐项生成媒体/波形工程。
+
+        与单文件执行共用方案对象（波形开关、频谱选项）；逐项输出经
+        unique_output_path 防碰撞，事件与转录批量同形（batch_started/batch_item/
+        batch_done），失败不冒充整批成功。
+        """
+        if self.batch_worker is not None and self.batch_worker.is_alive():
+            return {"ok": False, "error": "A batch task is already running."}
+        if self.worker is not None and self.worker.is_alive():
+            return {"ok": False, "error": "Transcription is already running."}
+        raw_items = payload.get("items")
+        if not isinstance(raw_items, Sequence) or isinstance(raw_items, (str, bytes)) or not raw_items:
+            return _error_result("items", "batch_items_required", "")
+        plan = payload.get("plan")
+        if not isinstance(plan, Mapping):
+            return _error_result("items", "prefab_plan_invalid", "")
+        modules = plan.get("modules") if isinstance(plan.get("modules"), Mapping) else {}
+        raw_input = plan.get("input") if isinstance(plan.get("input"), Mapping) else {}
+        waveform = modules.get("waveform") is not False
+        generate_spectral = bool(raw_input.get("generateSpectral")) if isinstance(raw_input, Mapping) else False
+        ffmpeg_error = _frozen_ffmpeg_preflight(self.paths.env_path)
+        if ffmpeg_error is not None:
+            return ffmpeg_error
+        items: list[tuple[str, Path]] = []
+        for index, raw_item in enumerate(raw_items):
+            if not isinstance(raw_item, Mapping):
+                return _error_result("items", "batch_item_invalid", f"Batch item {index + 1} is invalid.")
+            item_id = str(raw_item.get("id") or index)
+            media_text = str(raw_item.get("mediaPath") or "").strip()
+            media_path = Path(media_text).expanduser().resolve() if media_text else None
+            if media_path is None or media_path.suffix.lower() not in MEDIA_EXTS or not media_path.is_file():
+                return _error_result("items", "media_not_found", media_text)
+            items.append((item_id, media_path))
+        self.batch_cancel_event = Event()
+        self.pump.start()
+        self.batch_worker = threading.Thread(
+            target=self._batch_projects_main,
+            args=(tuple(items), waveform, generate_spectral, self.batch_cancel_event),
+            daemon=True,
+            name="maw-batch-projects",
+        )
+        self.batch_worker.start()
+        return {"ok": True, "itemCount": len(items), "waveform": waveform}
+
+    def _batch_projects_main(
+        self,
+        items: Sequence[tuple[str, Path]],
+        waveform: bool,
+        generate_spectral: bool,
+        cancel_event: Event,
+    ) -> None:
+        ffmpeg_tools = _postprocess_ffmpeg_tools(self.paths.env_path)
+        self._emit({"type": "batch_started", "total": len(items), "manifestPath": ""})
+        try:
+            for index, (item_id, media_path) in enumerate(items):
+                if cancel_event.is_set():
+                    break
+                self._emit({
+                    "type": "batch_item",
+                    "id": item_id,
+                    "index": index,
+                    "status": "running",
+                    "mediaPath": str(media_path),
+                })
+                default_track = resolve_default_audio_track(media_path, None, ffprobe_path=ffmpeg_tools.ffprobe) or 0
+                result = self._generate_media_project_sync(
+                    {"waveform": waveform, "generateSpectral": generate_spectral},
+                    media_path,
+                    default_track,
+                    default_track,
+                    ffmpeg_tools,
+                    cancel_event,
+                )
+                if result.get("ok"):
+                    self._emit({
+                        "type": "batch_item",
+                        "id": item_id,
+                        "index": index,
+                        "status": "done",
+                        "mediaPath": str(media_path),
+                        "projectPath": str(result.get("projectPath") or ""),
+                    })
+                elif result.get("cancelled"):
+                    self._emit({
+                        "type": "batch_item",
+                        "id": item_id,
+                        "index": index,
+                        "status": "cancelled",
+                        "mediaPath": str(media_path),
+                    })
+                    break
+                else:
+                    self._emit({
+                        "type": "batch_item",
+                        "id": item_id,
+                        "index": index,
+                        "status": "failed",
+                        "mediaPath": str(media_path),
+                        "detail": str(result.get("detail") or result.get("error") or ""),
+                    })
+        finally:
+            cancelled = cancel_event.is_set()
+            self._emit({
+                "type": "batch_done",
+                "status": "cancelled" if cancelled else "complete",
+                "cancelled": cancelled,
+                "outcomes": [],
+                "manifestPath": "",
+            })
+            if self.batch_worker is threading.current_thread():
+                self.batch_worker = None
+            self.pump.flush()
+
     def _validate_waveform_payload(self, payload: Mapping[str, object]) -> tuple[Path, int, int, object] | dict[str, object]:
         """Shared preflight for media-project generation; returns an error result on failure."""
         media_text = str(payload.get("mediaPath") or "").strip()
@@ -2447,6 +2564,165 @@ class LauncherApi:
             return {"ok": True, "cancelled": False}
         self.waveform_cancel_event.set()
         return {"ok": True, "cancelled": True, "taskId": self.waveform_task_id or ""}
+
+    def run_prefab_plan(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """R4/F05/F06：已有工程／SRT 输入的方案执行——后处理链，不调用 ASR。
+
+        输入按扩展名分流：.mosp/.json 走工程处理（保留其余数据，§7.3），
+        .srt/.ass 走字幕处理；需要视频的模块（OCR）在 SRT 输入下明确报缺媒体。
+        """
+        if self.prefab_worker is not None and self.prefab_worker.is_alive():
+            return _error_result("mediaPath", "prefab_task_running", "A prefab plan task is already running.")
+        raw_plan = payload.get("plan")
+        if not isinstance(raw_plan, Mapping):
+            return _error_result("mediaPath", "prefab_plan_invalid", "")
+        raw_input = raw_plan.get("input") if isinstance(raw_plan.get("input"), Mapping) else {}
+        input_path = _optional_path(raw_input.get("path") if isinstance(raw_input, Mapping) else None)
+        if input_path is None:
+            return _error_result("mediaPath", "project_input_required", "")
+        try:
+            input_path = input_path.expanduser().resolve()
+        except OSError as error:
+            return _error_result("mediaPath", "project_input_missing", str(error))
+        if not input_path.is_file():
+            return _error_result("mediaPath", "project_input_missing", str(input_path))
+        suffix = input_path.suffix.lower()
+        kind = "project" if suffix in {".mosp", ".json"} else ("srt" if suffix in {".srt", ".ass"} else "")
+        if not kind:
+            return _error_result("mediaPath", "project_input_unsupported", str(input_path))
+        postprocess_plan = raw_plan.get("postprocess")
+        if not isinstance(postprocess_plan, Mapping):
+            return _error_result("mediaPath", "prefab_no_steps", "")
+        steps = enabled_steps(postprocess_plan)
+        if not steps:
+            return _error_result("mediaPath", "prefab_no_steps", "")
+        if kind == "srt" and any(str(step.get("id")) == "ocr" for step in steps):
+            return _error_result("mediaPath", "prefab_srt_needs_media", "ocr")
+        media_text = ""
+        if kind == "project":
+            try:
+                if input_path.stat().st_size > 64 * 1024 * 1024:
+                    return _error_result("mediaPath", "project_input_too_large", str(input_path))
+                data = json.loads(input_path.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    raise ValueError("工程文件必须是 JSON 对象")
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+                return _error_result("mediaPath", "project_input_unreadable", str(error))
+            resolution = resolve_project_media(input_path, data)
+            if resolution.resolved_path is not None and resolution.loadable:
+                media_text = str(resolution.resolved_path)
+        ffmpeg_error = _frozen_ffmpeg_preflight(self.paths.env_path)
+        if ffmpeg_error is not None:
+            return ffmpeg_error
+        task_id = f"prefab-{int(time.time() * 1000)}"
+        cancel_event = Event()
+        self.prefab_task_id = task_id
+        self.prefab_cancel_event = cancel_event
+        self.pump.start()
+        self._emit({"type": "prefabTask", "taskId": task_id, "status": "running", "inputPath": str(input_path), "inputKind": kind})
+
+        def run() -> None:
+            self._prefab_plan_worker(raw_plan, kind, input_path, media_text, cancel_event, task_id)
+
+        self.prefab_worker = threading.Thread(target=run, daemon=True, name="maw-prefab-plan")
+        self.prefab_worker.start()
+        return {"ok": True, "taskId": task_id, "status": "running", "inputKind": kind}
+
+    def _prefab_plan_worker(
+        self,
+        plan: Mapping[str, object],
+        kind: str,
+        input_path: Path,
+        media_text: str,
+        cancel_event: Event,
+        task_id: str,
+    ) -> None:
+        """Worker for run_prefab_plan；复用转录链同一套后处理管线与事件通道。"""
+        postprocess_plan = plan.get("postprocess")
+        # 工程输入时 srt 路径仅作产物命名锚（发布名 clip.postprocess.srt），
+        # 步骤产物以工程实际字幕为准；不要求该文件存在。
+        if kind == "project":
+            project_path: Path | None = input_path
+            srt_path: Path | None = input_path.with_suffix(".srt")
+        else:
+            # SRT 输入：经生产 I/O 包一层零媒体工程适配器（§7.1「SRT＋字幕处理」），
+            # 使每一步（尤其翻译副轨）都有源工程可读写；包装件留在临时目录，不污染源目录。
+            try:
+                wrapper = read_srt(input_path)
+                wrapper_dir = Path(tempfile.mkdtemp(prefix="msw-prefab-srt-"))
+                wrapper_path = wrapper_dir / (input_path.stem + ".mosp")
+                project_path = write_mosp(
+                    wrapper_path,
+                    normalize_project(wrapper),
+                    media_path=None,
+                    ffprobe_path=None,
+                    selected_audio_track=None,
+                )
+                srt_path = input_path
+            except (OSError, UnicodeError, ValueError) as error:
+                self._emit({"type": "prefabTask", "taskId": task_id, "status": "failed", "code": "project_input_unreadable", "detail": str(error)})
+                if self.prefab_worker is threading.current_thread():
+                    self.prefab_worker = None
+                self.pump.flush()
+                return
+        anchor_path = Path(media_text) if media_text else input_path
+        try:
+            result = run_postprocess_pipeline(
+                postprocess_plan,
+                media_path=anchor_path,
+                project_path=project_path,
+                srt_path=srt_path,
+                env_path=self.paths.env_path,
+                ffmpeg_path=_postprocess_ffmpeg(self.paths.env_path),
+                ocr_runtime_root=self._ocr_runtime_status().path,
+                cancel_event=cancel_event,
+                on_event=self._handle_postprocess_pipeline_event,
+                llm_settings=snapshot_postprocess_llm_settings(self.paths.env_path, postprocess_plan),
+            )
+        except PostprocessCancelled as error:
+            self._emit({"type": "prefabTask", "taskId": task_id, "status": "cancelled", "detail": str(error)})
+        except PostprocessPipelineError as error:
+            # 失败快照保留给「从失败步骤重试后处理」（与转录链共用 retry_postprocess）。
+            self.postprocess_retry_context = {
+                "run_directory": str(error.run_directory),
+                "failed_index": error.failed_index,
+                "project_path": str(error.current_project),
+                "srt_path": str(error.current_srt),
+                "completed_steps": list(error.completed_steps),
+            }
+            self._emit({
+                "type": "prefabTask",
+                "taskId": task_id,
+                "status": "failed",
+                "code": "postprocess_failed",
+                "detail": str(error),
+                "failedStep": error.failed_step,
+                "postprocessRunDirectory": str(error.run_directory),
+            })
+        except Exception as error:  # noqa: BLE001 - 桥接边界必须上报一切失败
+            self._emit({"type": "prefabTask", "taskId": task_id, "status": "failed", "code": "prefab_failed", "detail": str(error)})
+        else:
+            self._emit({
+                "type": "prefabTask",
+                "taskId": task_id,
+                "status": "completed",
+                "projectPath": str(result.project_path),
+                "srtPath": str(result.srt_path),
+                "translatedSrtPath": str(result.translated_srt_path or ""),
+                "postprocessRunDirectory": str(result.run_directory),
+                "warnings": list(result.warnings),
+            })
+        finally:
+            if self.prefab_worker is threading.current_thread():
+                self.prefab_worker = None
+            self.pump.flush()
+
+    def cancel_prefab_plan(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Cancel the running prefab plan task (R4)；与转录/波形/批量任务互不影响。"""
+        if self.prefab_cancel_event is None or self.prefab_worker is None or not self.prefab_worker.is_alive():
+            return {"ok": True, "cancelled": False}
+        self.prefab_cancel_event.set()
+        return {"ok": True, "cancelled": True, "taskId": self.prefab_task_id or ""}
 
     def get_local_models(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         provider = provider_by_id("local")

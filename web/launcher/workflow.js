@@ -99,12 +99,9 @@
   function renderOrderChip(orderMap) {
     var chip = el("prefabOrderChip");
     if (!chip) return;
-    var names = [];
-    if (orderMap.media) names.push(t("chip_media"));
-    if (modules() && modules().isEnabled("waveform")) names.push(t("chip_waveform"));
-    if (orderMap.asr) names.push(t("chip_asr"));
-    var postprocess = POSTPROCESS_MODULE_IDS.filter(function (id) { return modules() && modules().isEnabled(id); });
-    if (postprocess.length) names.push(t("chip_cleanup").replace("{n}", String(postprocess.length)));
+    // R4/§7.1：执行摘要由方案对象生成，与预检/执行/批量共用同一来源。
+    var plan = window.MSWPlan ? window.MSWPlan.build() : null;
+    var names = plan && window.MSWPlan.summaryLabels ? window.MSWPlan.summaryLabels(plan) : [];
     chip.textContent = t("chip_order").replace("{steps}", names.join(" → "));
   }
 

@@ -227,13 +227,13 @@
 
   async function startBatch() {
     if (!state.items.length || state.running) return;
-    // R0/F07：批量目前只支持识别管线；未启用识别模块时明确报错，
-    // 不带着关闭的模块状态默默走「总是 ASR」的旧链（完整模块化批量在 R4）。
-    if (window.MSWModules && window.MSWModules.isEnabled("asr") === false) {
-      const message = window.MSWLauncher.translate("batch_requires_asr");
+    // R4/F07：批量复用与单文件相同的冻结方案；工程/字幕输入模式不支持批量。
+    const plan = window.MSWPlan ? window.MSWPlan.build() : null;
+    if (plan && plan.inputMode === "project") {
+      const message = t("batch_media_only");
       $("status").textContent = message;
       appendBatchError(message);
-      window.MSWLauncher.onBatchError?.({ ok: false, code: "batch_requires_asr" });
+      window.MSWLauncher.onBatchError?.({ ok: false, code: "batch_media_only" });
       return;
     }
     const completed = state.items.filter((item) => item.status === "done");
@@ -257,8 +257,14 @@
     settings.generateHtml = false;
     settings.batchSrtOnly = Boolean($("batchSrtOnly")?.checked);
     const items = itemsToRun.map((item) => ({ id: item.id, mediaPath: item.mediaPath }));
-    const payload = { items, settings };
-    const result = await window.MSWLauncher.callBackend("start_batch_transcription", payload);
+    let method = "start_batch_transcription";
+    let payload = { items, settings };
+    if (plan && plan.modules.asr === false) {
+      // 识别关闭：批量执行冻结方案——逐项生成媒体/波形工程，不发起任何转录请求。
+      method = "start_batch_projects";
+      payload = { items, plan };
+    }
+    const result = await window.MSWLauncher.callBackend(method, payload);
     if (!result.ok) {
       state.running = false;
       lockControls(false);
@@ -380,6 +386,8 @@
     $("batchClear").addEventListener("click", () => { state.items = []; renderQueue(); });
     $("startBatch").addEventListener("click", startBatch);
     $("stopBatch").addEventListener("click", stopBatch);
+  // R4：暴露只读状态视图供测试与外部观察（冻结方案的逐项执行结果）。
+  window.MSWBatch = { get state() { return state; } };
     $("mediaCard").addEventListener("drop", handleDrop, true);
     window.MSWLauncher.onBatchEvent = handleBatchEvent;
     window.MSWLauncher.onBatchDrop = (path) => {

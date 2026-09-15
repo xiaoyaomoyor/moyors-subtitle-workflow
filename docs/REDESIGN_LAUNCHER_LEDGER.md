@@ -26,6 +26,35 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## R4：方案驱动的执行流程对齐（修正案第五批）
+
+状态：已完成（2026-09-15）。对应审查 F04–F12 与 §7；基线 9cf7347。
+
+改动：
+
+1. **方案单一来源（§7.1，新 `web/launcher/plan.js`）**：`MSWPlan.build()` 从唯一真源（模块注册表 + 表单控件）构建带版本号（version:1）的冻结方案对象——输入模式与输入引用、模块开关集合、后处理方案引用、输出选项；密钥只存连接配置，方案不含密钥（LLM 设置经 `snapshot_postprocess_llm_settings` 从环境读取）。执行顺序摘要（`renderOrderChip`）、开始前预检（`preflight`）、单文件执行与批量执行全部从同一方案生成；不再另立第三份持久化（模块开关仍由 `MSW_LAUNCHER_MODULES_V1` 唯一持有）。
+2. **F09 新默认**：`modules.js` 全新方案默认「仅媒体＋波形」，识别按需开启；旧配置迁移——存储里已保存开关的用户保持原值（load 逐项保留），未存储过的旧环境按新默认呈现。依赖默认 ASR 开的 6 处 e2e 显式启用后继续验证转录管线。
+3. **F11 待配置态**：`postprocess.js` 未就绪步骤不再打回取消勾选/自动跳转——保留选中并标记「待配置」（needs-config 行状态），配置在本模块补齐，开始前由方案预检统一校验；`modules.js` 打回（rejected）语义自然消失，双来源清理（`postprocessModulesEnabled` 移除）。
+4. **三类输入执行链（F05/F06）**：后端新增 `run_prefab_plan`/`cancel_prefab_plan`——输入按扩展名分流：`.mosp/.json` 工程处理（媒体从工程实际引用解析）、`.srt/.ass` 字幕处理（经生产 I/O 包一层零媒体工程适配器，`read_srt` → `write_mosp` 临时目录，不污染源目录；使翻译副轨等每一步都有源工程可读写）；预检覆盖输入类型/路径/步骤为空/OCR 需视频（SRT 输入明确报缺媒体）；复用转录链同一条 `run_postprocess_pipeline` 与事件通道，失败保留 `postprocess_retry_context`（「从失败步骤重试后处理」可用），任务事件 `prefabTask`（running/completed/cancelled/failed），与转录/波形/批量任务互不影响。前端 `runPrefabPlan` 完成后产物成为当前目标。
+5. **F07 批量共用方案**：`batch.js` 从 `MSWPlan.build()` 取冻结方案——识别开走既有 `start_batch_transcription`（含 autoPostprocess）；识别关走新 `start_batch_projects`（逐项 `_generate_media_project_sync`，波形开关/频谱选项来自方案，逐项 `unique_output_path` 防碰撞，事件与转录批量同形，失败不冒充整批成功）；工程/字幕输入模式批量明确报错（`batch_media_only`）；移除 R0 的 `batch_requires_asr` 硬拦截。
+6. **F10 对齐独立入口**：对齐为人工交互步骤不进自动执行链——执行摘要显示「口播对齐（人工）」（`chip_alignment_manual`），配置经工具箱对齐入口。
+7. **F12 复杂工程保真（§7.3）**：`run_prefab_plan` 全链经生产读取/迁移/写入（`read_project`→`run_postprocess_pipeline`→`write_mosp`），不重建简化对象；测试夹具通过生产校验器（`msw.editor.v1` schema、合法音频资产/TTS generation/source_ref、字幕资产批次绑定、音轨增益/静音、多轨绑定 one-to-one）并额外携带未知扩展字段。
+8. **杂项**：`startBlankEditor` 等清目标路径统一经 `setJsonPath`（R3 遗留一致性）；mock 增加工程链/批量工程/多选文件三个注入点（`__prefabPlanRuns`/`__batchPlanRuns` 计数器）；`batch.js` 暴露只读 `MSWBatch.state` 供逐项结果观察。
+
+验证（2026-09-15）：
+
+- 单元：新增 `tests/test_launcher_r4.py` 11 项——预检矩阵（缺输入/不支持扩展/无步骤/SRT+OCR 缺媒体/坏工程）、复杂工程保真（素材/贴片/TTS 配方/音轨/多轨绑定/选区/未知扩展全量保留 + 主轨按方案处理且 ID/时间稳定）、翻译默认独立副轨（既有副轨与素材保留、新轨绑定主轨、主轨不被双语覆盖）、SRT 输入链、任务唯一性与取消上报、失败保留重试上下文、批量冻结方案逐项执行（波形开关传递/部分失败不冒充成功/坏条目预检）。
+- 契约：`test_gui_web` 新增 R4 契约（plan.js 加载与单一来源、F09 默认值、三类输入分派与任务事件、F11 保留勾选、批量共用方案、后端三个入口与 SRT 适配器）；1 处旧「打回跳转」契约更新为 F11 待配置契约。
+- e2e：`launcher-workflow` 重写工程输入链（无步骤预检 → 启用翻译 → `run_prefab_plan` 载荷断言（version/inputMode/模块集合/不含密钥）→ 产物成为目标）、SRT 输入（OCR 缺媒体说明 + 固定处理执行）、批量冻结方案（真实「添加文件」入口两项、`start_batch_projects` 载荷、逐项产物、工程模式批量报错）；`launcher-modules` 断言新默认与 F11（勾选保留 + needs-config + 就绪转换）；6 处依赖默认 ASR 的用例显式启用识别。启动器 8 个 spec 共 68 项全部通过。
+- 全量：Python 1586 项 OK（skipped=63）。
+- 截图：预制页视觉核验通过——ASR 默认未勾选、摘要「媒体 → 波形」、输入模式切换在位、无重叠溢出。
+
+未验证（顺延）：
+
+- 真实 LLM 服务的翻译副轨全链（单测以替身 `complete_subtitle_groups` 覆盖段数/ID/时间稳定性校验；真实连接在 R6 生产验收）。
+- 长媒体批量波形的实际耗时与取消（后端事件/取消链已就绪，真实媒体实测在 R6）。
+- 波形任务取消的 reapeaks 中段尽力而为语义（R0 已记账本，未变）。
+
 ## R3：最近工程卡片与真实视频封面（修正案第四批）
 
 状态：已完成（2026-09-15）。对应审查 H01–H06；基线 d455586。

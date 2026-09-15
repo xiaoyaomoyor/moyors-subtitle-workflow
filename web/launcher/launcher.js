@@ -150,8 +150,18 @@
       waveform_project_cancelling: "正在取消媒体工程生成……",
       media_project_running: "开始生成纯媒体工程（未启用波形）……",
       prefab_needs_subtitles: "{modules} 需要字幕来源：请启用识别设置，或切到「已有工程／字幕再处理」输入已有字幕。",
-      prefab_project_mode_pending: "「已有工程／字幕再处理」的执行管线将在下一阶段接入；当前不会调用识别服务。可先在编辑器或工具箱中处理该工程。",
-      batch_requires_asr: "当前未启用识别设置模块：批量预制暂时只支持识别管线。请先在处理模块中启用识别，或使用单文件模式。",
+      project_input_required: "请先选择要处理的工程或字幕文件。",
+      project_input_unsupported: "该输入模式只支持 .mosp 工程或 .srt/.ass 字幕文件。",
+      prefab_no_steps: "没有可执行的步骤：请至少启用一个字幕处理模块。",
+      prefab_srt_needs_media: "{modules} 需要视频画面，SRT 输入没有媒体；请改用工程输入或补充媒体。",
+      prefab_plan_running: "正在按方案处理工程／字幕…",
+      prefab_plan_done: "处理完成：{path}",
+      prefab_plan_done_short: "方案处理完成",
+      chip_input_project: "工程输入",
+      chip_input_srt: "SRT 输入",
+      chip_translate: "翻译副轨",
+      chip_alignment_manual: "口播对齐（人工）",
+      batch_media_only: "批量只支持媒体输入；请切回「媒体预制」再开始批量。",
       server_conflict_unsaved_warning: "当前会话有未保存内容；替换会丢失这些修改。",
       media: "媒体文件",
       srt_output: "SRT 输出",
@@ -380,8 +390,18 @@
       waveform_project_cancelling: "Cancelling media project generation…",
       media_project_running: "Building a media-only project (waveform disabled)…",
       prefab_needs_subtitles: "{modules} need subtitle input: enable Recognition, or switch to the project/subtitle input mode.",
-      prefab_project_mode_pending: "The project/subtitle reprocessing pipeline arrives in the next stage; no recognition service is called. Use the editor or toolbox meanwhile.",
-      batch_requires_asr: "Recognition is disabled: batch prefabrication currently supports the ASR pipeline only. Enable Recognition in the module rail or use single-file mode.",
+      project_input_required: "Choose a project or subtitle file to process first.",
+      project_input_unsupported: "This input mode accepts .mosp projects or .srt/.ass subtitle files only.",
+      prefab_no_steps: "No steps to run: enable at least one subtitle-processing module.",
+      prefab_srt_needs_media: "{modules} needs video frames; SRT input has none. Use a project input or attach media.",
+      prefab_plan_running: "Processing project/subtitles per plan…",
+      prefab_plan_done: "Done: {path}",
+      prefab_plan_done_short: "Plan processing finished",
+      chip_input_project: "Project input",
+      chip_input_srt: "SRT input",
+      chip_translate: "Translation track",
+      chip_alignment_manual: "Alignment (manual)",
+      batch_media_only: "Batch accepts media inputs only; switch back to media mode before starting a batch.",
       server_conflict_unsaved_warning: "The current session has unsaved work; replacing it will lose those changes.",
       media: "Media file",
       srt_output: "SRT output",
@@ -1144,7 +1164,7 @@
       server_stop_not_msw: "当前端口上的进程不是 MSW 字幕编辑服务器，未执行停止。",
       waveform_task_running: "已有媒体工程任务正在运行。",
       waveform_cancelled: "媒体工程生成已取消。",
-      batch_requires_asr: "当前未启用识别设置模块：批量预制暂时只支持识别管线。请先在处理模块中启用识别，或使用单文件模式。",
+      batch_media_only: "批量只支持媒体输入；请切回「媒体预制」再开始批量。",
       server_stop_failed: "无法停止当前端口上的 MSW 字幕编辑服务器。",
       api_key_missing: "请填写 API Key，或先在「更多设置 → 服务与连接」保存。",
       custom_asr_base_url_missing: "请填写自定义 ASR Base URL。",
@@ -1204,7 +1224,7 @@
       server_stop_failed: "Unable to stop the MSW subtitle editor server on the current port.",
       waveform_task_running: "A media project task is already running.",
       waveform_cancelled: "Media project generation cancelled.",
-      batch_requires_asr: "Recognition is disabled: batch prefabrication currently supports the ASR pipeline only. Enable Recognition in the module rail or use single-file mode.",
+      batch_media_only: "Batch accepts media inputs only; switch back to media mode before starting a batch.",
       api_key_missing: "Enter an API Key, or save one first in Settings / API key.",
       custom_asr_base_url_missing: "Enter a custom ASR Base URL.",
       custom_asr_model_missing: "Enter a custom ASR model name.",
@@ -1340,7 +1360,7 @@
   const MAX_SUPER_HOTWORDS = 50;
   const OPENAI_ASR_CUSTOM_MODEL_ID = "custom-asr";
   const OPENAI_ASR_OFFICIAL_MODEL_IDS = new Set(["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]);
-  const state = { activeSessionUrl: "", waveformTaskId: "", lang: "zh", serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
+  const state = { activeSessionUrl: "", waveformTaskId: "", prefabTaskId: "", lang: "zh", prefabTask: false, serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
   const dragState = { depth: 0 };
   let api = null;
   let prefsTimer = 0;
@@ -1510,7 +1530,11 @@
         { audioIndex: 1, streamIndex: 2, title: "Voice", channels: 2, sampleRate: 48000, default: false },
         { audioIndex: 2, streamIndex: 3, title: "OriginSound", channels: 2, sampleRate: 48000, default: false },
       ] }) : ({ ok: true, tracks: [] }),
-      choose_file: async ({ kind }) => ({ ok: true, path: kind === "json" ? "D:\\Demo\\project.json" : (kind === "subtitle" ? "D:\\Demo\\project.mosp" : (kind === "subtitle-burn" ? "D:\\Demo\\clip.srt" : (kind === "video" ? "D:\\Demo\\clip.mp4" : (kind === "ffconcat" ? "D:\\Demo\\clip.ffconcat" : (kind === "script" ? "D:\\Demo\\script.txt" : (kind === "hotwords" ? "D:\\Demo\\hotwords.txt" : "D:\\Demo\\clip.mp4")))))) }),
+      choose_file: async ({ kind, multiple }) => {
+        // R4：批量「添加文件」走 multiple 媒体选择，返回两个不同媒体供队列测试。
+        if (kind === "media" && multiple) return { ok: true, paths: ["D:\\Demo\\a.mp4", "D:\\Demo\\b.mp4"] };
+        return { ok: true, path: kind === "json" ? "D:\\Demo\\project.json" : (kind === "subtitle" ? "D:\\Demo\\project.mosp" : (kind === "subtitle-burn" ? "D:\\Demo\\clip.srt" : (kind === "video" ? "D:\\Demo\\clip.mp4" : (kind === "ffconcat" ? "D:\\Demo\\clip.ffconcat" : (kind === "script" ? "D:\\Demo\\script.txt" : (kind === "hotwords" ? "D:\\Demo\\hotwords.txt" : "D:\\Demo\\clip.mp4")))))) };
+      },
       read_script_preview: async () => ({ ok: true, path: "D:\\Demo\\script.txt", preview: "第一行\n第二行", truncated: false }),
       read_hotword_file: async () => ({ ok: true, path: "D:\\Demo\\hotwords.txt", text: "张三\n阿里云百炼\n专业术语\n" }),
       save_settings: async (payload) => { saved = { ...saved, ...payload }; if (Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot")) { state.config.modelCacheRoot = payload.modelCacheRoot || ""; state.config.localRuntime = { ...(state.config.localRuntime || {}), modelCachePath: payload.modelCacheRoot || "D:\\Models\\MSW" }; } return { ok: true, maskedApiKey: payload.apiKey ? "sk-…mock" : "", modelCacheRoot: Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot") ? (payload.modelCacheRoot || "") : (state.config?.modelCacheRoot || ""), message: "mock saved" }; },
@@ -1619,8 +1643,39 @@
         }, 60);
         return { ok: true, taskId, status: "running" };
       },
-      cancel_waveform_project: async () => ({ ok: true, cancelled: true, taskId: "mock-waveform" })
-    };
+      cancel_waveform_project: async () => ({ ok: true, cancelled: true, taskId: "mock-waveform" }),
+      run_prefab_plan: async ({ plan }) => {
+        (window.__prefabPlanRuns = window.__prefabPlanRuns || []).push(JSON.parse(JSON.stringify(plan)));
+        const input = String((plan && plan.input && plan.input.path) || "");
+        const taskId = "mock-prefab";
+        const projectPath = input.replace(/\.(mosp|json|srt|ass)$/i, ".processed.mosp");
+        setTimeout(() => {
+          window.MSWLauncher.onBackendEvent({ type: "prefabTask", taskId, status: "running", inputPath: input });
+          window.MSWLauncher.onBackendEvent({ type: "prefabTask", taskId, status: "completed", projectPath, srtPath: "", translatedSrtPath: "", warnings: [] });
+        }, 60);
+        return { ok: true, taskId, status: "running", inputKind: input.toLowerCase().endsWith(".srt") ? "srt" : "project" };
+      },
+      cancel_prefab_plan: async () => ({ ok: true, cancelled: true, taskId: "mock-prefab" }),
+      start_batch_projects: async ({ items, plan }) => {
+        (window.__batchPlanRuns = window.__batchPlanRuns || []).push({ items: JSON.parse(JSON.stringify(items)), plan: JSON.parse(JSON.stringify(plan)) });
+        setTimeout(() => {
+          window.MSWLauncher.onBackendEvent({ type: "batchStarted", total: items.length, manifestPath: "" });
+          items.forEach((item, index) => {
+            window.MSWLauncher.onBackendEvent({ type: "batchItem", id: item.id, index, status: "running", mediaPath: item.mediaPath });
+            window.MSWLauncher.onBackendEvent({
+              type: "batchItem",
+              id: item.id,
+              index,
+              status: "done",
+              mediaPath: item.mediaPath,
+              projectPath: item.mediaPath.replace(/\.[^.]+$/, (plan && plan.modules && plan.modules.waveform === false) ? ".media.mosp" : ".waveform.mosp"),
+              jsonPath: item.mediaPath.replace(/\.[^.]+$/, (plan && plan.modules && plan.modules.waveform === false) ? ".media.mosp" : ".waveform.mosp"),
+            });
+          });
+          window.MSWLauncher.onBackendEvent({ type: "batchDone", status: "complete", outcomes: [], manifestPath: "" });
+        }, 60);
+        return { ok: true, itemCount: items.length, waveform: !(plan && plan.modules && plan.modules.waveform === false) };
+      }    };
   }
 
   const t = (key) => STRINGS[state.lang][key] || key;
@@ -1797,6 +1852,29 @@
     if (event.status === "failed") {
       setStatus(errText(event.code || "waveform_generation_failed", event.detail || event.error || ""));
       appendLog(`[waveform] ${errText(event.code || "waveform_generation_failed", event.detail || event.error || "")}`);
+    }
+  }
+
+  function handlePrefabTaskEvent(event) {
+    // R4/F05：工程／SRT 输入的方案执行任务；与波形/转录任务状态互不干扰。
+    if (event.taskId && state.prefabTaskId && event.taskId !== state.prefabTaskId) return;
+    if (event.status === "running") { setStatus(t("prefab_plan_running")); return; }
+    state.prefabTaskId = "";
+    setRunning(false);
+    if (event.status === "completed") {
+      appendLog(t("prefab_plan_done").replace("{path}", event.projectPath || ""));
+      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); }
+      setStatus(t("prefab_plan_done_short"));
+      if (Array.isArray(event.warnings)) event.warnings.forEach((warning) => appendLog(`[prefab] ${warning}`));
+      return;
+    }
+    if (event.status === "cancelled") { setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
+    if (event.status === "failed") {
+      const message = errText(event.code || "postprocess_failed", event.detail || event.error || "");
+      setStatus(message);
+      appendLog(`[prefab] ${message}`);
+      showErrorNotice(message, event.code || "postprocess_failed", event.detail || event.error || "");
+      if (event.postprocessRunDirectory) $("retryPostprocess")?.classList.remove("hidden");
     }
   }
 
@@ -2032,7 +2110,7 @@
     });
   }
 
-  function setRunning(running) { state.running = running; if (!running) state.waveformTask = false; syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : t("ready")); }
+  function setRunning(running) { state.running = running; if (!running) { state.waveformTask = false; state.prefabTask = false; } syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : t("ready")); }
   function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(localizedSelectLabel(id, item), item.id))); el.value = value ?? ""; }
   function refillSelectLabels() {
     // 语言切换后，后端下发的下拉选项（供应商/模型/地域/语言）与说明行需要按新语言重建。
@@ -2820,6 +2898,7 @@
   function handleBackendEvent(event) {
     if (["batchStarted", "batchItem", "batchItemLog", "batchDone", "batch_started", "batch_item", "batch_item_log", "batch_done"].includes(event.type)) window.MSWLauncher?.onBatchEvent?.(event);
     if (event.type === "waveformTask") handleWaveformTaskEvent(event);
+    if (event.type === "prefabTask") handlePrefabTaskEvent(event);
     if (event.type === "emojiFontReady" && event.path) injectEmojiFont(event.path);
     if (event.type === "log") appendLog(event.message, { quietLatest: Boolean(state.localRuntimeInstalling || state.ocrRuntimeInstalling) });
     if (event.type === "postprocess_status") window.MSWLauncher?.onPostprocessStatus?.(event);
@@ -3089,27 +3168,34 @@
     if (!validateLocal()) return;
     hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" }); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); }
   }
-  function postprocessModulesEnabled() {
-    if (!window.MSWModules) return [];
-    return ["match", "replace", "proofread", "resegment", "ocr", "translate"].filter((id) => window.MSWModules.isEnabled(id));
+  async function runPrefabPlan(plan) {
+    // R4/F05：已有工程／SRT 输入——方案驱动后处理链，不调用 ASR。
+    clearErrors();
+    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden");
+    $("log").textContent = ""; state.lastLogMessage = "";
+    const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
+    setRunning(true);
+    state.prefabTask = true;
+    $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" });
+    appendLog(t("prefab_plan_running"));
+    const result = await bridge("run_prefab_plan", { plan });
+    if (result.ok) {
+      state.prefabTaskId = result.taskId || "";
+      setStatus(t("prefab_plan_running"));
+    } else {
+      state.prefabTask = false;
+      setRunning(false);
+      applyErrorResult(result, false);
+    }
   }
 
-  async function startMediaProject() {
-    // R0/F04：波形模块开关决定「零字幕波形工程」还是「纯媒体工程」；
-    // 勾选了后处理但没有字幕来源时，先解释缺失条件，不静默跳过（F06）。
+  async function startMediaProject(plan) {
+    // R4/§7.1：波形开关与频谱选项来自方案对象；缺字幕来源的预检已在开始分派完成。
+    plan = plan || (window.MSWPlan ? window.MSWPlan.build() : null);
     clearErrors();
     const mediaPath = $("mediaPath").value.trim();
     if (!mediaPath) { setError("mediaPath", errText("media_not_found", "")); return; }
-    const enabledPostprocess = postprocessModulesEnabled();
-    if (enabledPostprocess.length) {
-      const message = t("prefab_needs_subtitles").replace("{modules}", enabledPostprocess.map((id) => t("mod_" + id)).join("、"));
-      setStatus(message);
-      appendLog(`[prefab] ${message}`);
-      showErrorNotice(message, "prefab_needs_subtitles");
-      window.MSWWorkflow?.setCollapsed?.("postprocess", false);
-      return;
-    }
-    const waveformEnabled = !window.MSWModules || window.MSWModules.isEnabled("waveform");
+    const waveformEnabled = plan ? plan.modules.waveform !== false : true;
     hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden");
     $("log").textContent = ""; state.lastLogMessage = "";
     const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
@@ -3135,23 +3221,39 @@
   }
 
   $("start").addEventListener("click", () => {
-    // R0/F05：输入方式决定执行类型——「已有工程／字幕再处理」不走 ASR 校验与转录 API。
-    const projectMode = window.MSWWorkflow && window.MSWWorkflow.inputMode() === "project";
-    if (projectMode) {
-      const message = t("prefab_project_mode_pending");
+    // R4/§7.1：一份方案驱动预检与执行——输入模式决定解析与执行类型。
+    const plan = window.MSWPlan ? window.MSWPlan.build() : null;
+    if (!plan) { void startTranscription(); return; }
+    const check = window.MSWPlan.preflight(plan);
+    if (!check.ok) {
+      const moduleIds = check.modules || (check.module ? [check.module] : []);
+      const moduleNames = moduleIds.map((id) => t("mod_" + id)).join("、");
+      let message = t(check.code);
+      if (message === check.code) message = errText(check.code, "");
+      if (check.code === "prefab_needs_subtitles" || check.code === "prefab_srt_needs_media") {
+        message = t(check.code).replace("{modules}", moduleNames);
+      }
       setStatus(message);
       appendLog(`[prefab] ${message}`);
-      showErrorNotice(message, "prefab_project_mode_pending");
+      showErrorNotice(message, check.code);
+      if (check.field === "mediaPath") setError("mediaPath", message);
+      if (moduleIds.length) window.MSWWorkflow?.setCollapsed?.("postprocess", false);
       return;
     }
-    const asrEnabled = window.MSWModules ? window.MSWModules.isEnabled("asr") !== false : true;
-    if (!asrEnabled) { void startMediaProject(); return; }
+    if (plan.inputMode === "project") { void runPrefabPlan(plan); return; }
+    if (!plan.modules.asr) { void startMediaProject(plan); return; }
     void startTranscription();
   });
   $("stop").addEventListener("click", async () => {
     if (!state.running) return;
     $("stop").disabled = true;
     // R0/F08：媒体/波形工程任务用专属取消；不再借道 cancel_transcription。
+    if (state.prefabTask) {
+      setStatus(t("waveform_project_cancelling"));
+      const result = await bridge("cancel_prefab_plan");
+      if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); }
+      return;
+    }
     if (state.waveformTask) {
       setStatus(t("waveform_project_cancelling"));
       const result = await bridge("cancel_waveform_project");

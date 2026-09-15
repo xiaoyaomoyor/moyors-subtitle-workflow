@@ -11,16 +11,19 @@
   var MODULES = [
     { id: "media", group: "input", fixed: true, defaultOn: true, labelKey: "mod_media", order: 10 },
     { id: "waveform", group: "input", defaultOn: true, labelKey: "mod_waveform", order: 20 },
-    { id: "asr", group: "input", defaultOn: true, labelKey: "mod_asr", order: 30,
-      // 旧配置迁移：识别没有历史开关，保持既有行为默认参与（升级不改变习惯）；
-      // 全新方案在 workflow.js 的内置方案里才会使用「媒体＋波形」的新默认。
+    // R4/F09：全新方案默认「仅媒体＋波形」，识别按需开启；
+    // 旧配置迁移：存储里已保存 asr 开关的用户保持原值（load() 逐项保留 stored 值），
+    // 未存储过的旧环境升级后按新默认（关）呈现。
+    { id: "asr", group: "input", defaultOn: false, labelKey: "mod_asr", order: 30,
       summaryKey: "mod_asr_summary" },
+    // match 依赖字幕来源（媒体＋ASR、已有工程或 SRT 输入）；预检统一校验（F11）。
     { id: "match", group: "subtitle", defaultOn: false, labelKey: "mod_match", order: 40, control: "autoStepMatch", requires: "subtitles" },
     { id: "replace", group: "subtitle", defaultOn: false, labelKey: "mod_replace", order: 50, control: "autoStepReplace" },
     { id: "proofread", group: "subtitle", defaultOn: false, labelKey: "mod_proofread", order: 60, control: "autoStepProofread" },
     { id: "resegment", group: "subtitle", defaultOn: false, labelKey: "mod_resegment", order: 70, control: "autoStepResegment" },
     { id: "ocr", group: "subtitle", defaultOn: false, labelKey: "mod_ocr", order: 80, control: "autoStepOcr" },
     { id: "translate", group: "language", defaultOn: false, labelKey: "mod_translate", order: 90, control: "autoStepTranslate" },
+    // 对齐是人工交互步骤：不进自动执行链，作为独立入口表达（R4/F10）。
     { id: "alignment", group: "advanced", defaultOn: false, labelKey: "mod_alignment", order: 100, external: true },
   ];
 

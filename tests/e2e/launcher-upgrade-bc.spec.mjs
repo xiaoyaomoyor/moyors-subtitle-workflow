@@ -37,6 +37,8 @@ test('output settings retain the inactive per-media preference and preserve an e
 
 test('segmentation and local runtime controls live in settings; installation locks directory edits', async ({ page }) => {
   await open(page);
+  // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#provider').selectOption('local');
   await expect(page.locator('#localRuntimeCheckField')).toBeVisible();
   await expect(page.locator('#localRuntimePanel')).toBeHidden();
@@ -74,6 +76,8 @@ test('segmentation and local runtime controls live in settings; installation loc
 
 test('English runtime states retain concrete diagnostic details and model choices', async ({ page }) => {
   await open(page);
+  // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#provider').selectOption('local');
   await page.waitForTimeout(100);
   await page.evaluate(() => {
@@ -89,6 +93,8 @@ test('English runtime states retain concrete diagnostic details and model choice
 
 test('batch activity disables the runtime directory until the batch finishes', async ({ page }) => {
   await open(page);
+  // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#provider').selectOption('local');
   await page.locator('#openLocalRuntimeSettings').click();
   await page.evaluate(() => window.MSWLauncher.onBackendEvent({ type: 'batchStarted', total: 1 }));

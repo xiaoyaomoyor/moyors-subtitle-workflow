@@ -3406,6 +3406,40 @@ class OpenRuntimeFolderTests(unittest.TestCase):
 
 @final
 class LauncherAssetContractTests(unittest.TestCase):
+    def test_launcher_plan_drives_execution_contracts(self) -> None:
+        """R4/§7.1：方案单一来源、新默认与三类输入执行链契约。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        plan = (ROOT / "web" / "launcher" / "plan.js").read_text(encoding="utf-8")
+        modules = (ROOT / "web" / "launcher" / "modules.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        batch_script = (ROOT / "web" / "launcher" / "batch.js").read_text(encoding="utf-8")
+        postprocess_script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
+        gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
+
+        # 方案对象加载与单一来源（摘要/预检/执行/批量共用）。
+        self.assertIn('<script src="plan.js"></script>', page)
+        self.assertIn("PLAN_VERSION = 1", plan)
+        self.assertIn("function preflight(plan)", plan)
+        self.assertIn("getAutoPostprocessPayload", plan)
+        self.assertIn("summaryLabels", plan)
+        # F09：全新方案默认仅媒体＋波形（识别按需开启）。
+        self.assertIn('id: "asr", group: "input", defaultOn: false', modules)
+        # 三类输入执行链与任务事件。
+        self.assertIn("void runPrefabPlan(plan)", launcher_script)
+        self.assertIn('bridge("run_prefab_plan", { plan })', launcher_script)
+        self.assertIn('if (event.type === "prefabTask") handlePrefabTaskEvent(event);', launcher_script)
+        self.assertIn('bridge("cancel_prefab_plan")', launcher_script)
+        # F11：未就绪保留勾选并标记待配置。
+        self.assertIn("未就绪不再打回取消勾选", postprocess_script)
+        # F07：批量复用冻结方案（识别关闭分支走 start_batch_projects）。
+        self.assertIn('method = "start_batch_projects"', batch_script)
+        self.assertIn("payload = { items, plan }", batch_script)
+        # 后端入口与 SRT 包装适配。
+        self.assertIn("def run_prefab_plan", gui_source)
+        self.assertIn("def cancel_prefab_plan", gui_source)
+        self.assertIn("def start_batch_projects", gui_source)
+        self.assertIn("msw-prefab-srt-", gui_source)
+
     def test_launcher_home_covers_and_unified_target_contracts(self) -> None:
         """R3（H01-H05）：封面卡片、统一目标与收起的端口表单契约。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -4318,7 +4352,9 @@ class LauncherAssetContractTests(unittest.TestCase):
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
-        self.assertIn('openAutoStep(stepId, "", { highlightConnection: true });', script)
+        # R4/F11：未就绪勾选保留并标记待配置（不再自动跳转设置页/工具箱）。
+        self.assertIn("未就绪不再打回取消勾选", script)
+        self.assertIn('checkbox.addEventListener("change", () => {', script)
         self.assertIn('function setTestConnectionAttention(attention)', script)
         self.assertIn('setTestConnectionAttention(true);', script)
         self.assertIn('setTestConnectionAttention(false);', script)

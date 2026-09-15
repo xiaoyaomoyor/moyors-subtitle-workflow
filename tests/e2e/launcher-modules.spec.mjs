@@ -29,6 +29,10 @@ test('toggling ASR hides its card, keeps drafts, and renumbers visible cards', a
   await openPrefab(page);
 
   const asrCheck = page.locator('#prefabRail input[data-module-id="asr"]');
+  // R4/F09：全新方案默认仅媒体＋波形，识别按需开启。
+  await expect(asrCheck).not.toBeChecked();
+  await expect(page.locator('[data-module-card="asr"]')).toBeHidden();
+  await asrCheck.check();
   await expect(page.locator('[data-module-card="asr"]')).toBeVisible();
   const providerBefore = await page.locator('#provider').inputValue();
 
@@ -63,21 +67,25 @@ test('collapsing a module card hides its body without disabling it', async ({ pa
 
 test('postprocess module toggles sync with auto step checkboxes', async ({ page }) => {
   await openPrefab(page);
-  // 演示模式已保存过后处理计划：先以控件状态初始化模块勾选。
 
-  // 后处理步骤由 postprocess.js 在未就绪时打回（例如缺少文稿路径的文稿匹配），
-  // 打回后「转写后自动处理」卡显示并展开以承载配置引导，模块保持未启用。
-  // 未就绪的 LLM 步骤被 postprocess.js 打回：checkbox 回到未勾选并跳转
-  // 「更多设置」页的 LLM 连接配置（旧版为弹窗，横向工作台为页面导航）。
+  // R4/F11：未就绪的步骤不再打回取消——保留勾选并标记「待配置」，
+  // 配置在本模块补齐；开始前由方案预检统一校验，也不自动跳转设置页。
   const proofread = page.locator('#prefabRail input[data-module-id="proofread"]');
   await proofread.click();
-  await expect(proofread).not.toBeChecked();
-  await expect(page.locator('#llmSettingsSection')).toBeVisible();
-  // 返回预制页：打回的引导状态保留——「转写后自动处理」卡显示并展开。
-  await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  await expect(proofread).toBeChecked();
+  await expect.poll(() => page.evaluate(() => MSWModules.isEnabled('proofread'))).toBe(true);
+  await expect(page.locator('[data-auto-step-row="proofread"]')).toHaveClass(/needs-config/);
   await expect(page.locator('[data-module-card="postprocess"]')).toBeVisible();
-  await expect(page.locator('[data-module-card="postprocess"]')).not.toHaveClass(/collapsed/);
-  await expect.poll(() => page.evaluate(() => MSWModules.isEnabled('proofread'))).toBe(false);
+  await expect(page.locator('#llmSettingsSection')).toBeHidden();
+
+  // 供应商就绪后行状态转为就绪，勾选与配置保留。
+  await page.evaluate(() => {
+    const provider = window.MSWLauncher.config.postprocessProviders.find((item) => item.id === 'deepseek');
+    Object.assign(provider, { verified: true, hasApiKey: true, hasBaseUrl: true, hasModel: true });
+    document.getElementById('autoStepProofread').dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.locator('[data-auto-step-row="proofread"]')).not.toHaveClass(/needs-config/);
+  await expect(proofread).toBeChecked();
 });
 
 test('input mode switches labels between media and project/subtitle', async ({ page }) => {

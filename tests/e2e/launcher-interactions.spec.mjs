@@ -25,6 +25,9 @@ async function runReplacement(page, { outputMode = 'both' } = {}) {
 
 test('OpenAI ASR exposes official models and a conditional Custom model input', async ({ page }) => {
   await openLauncher(page);
+  // R4/F09：识别默认关闭；本用例操作识别表单，先关工具箱抽屉并启用识别模块。
+  await page.evaluate(() => window.MSWLauncher.closeToolbox());
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#provider').selectOption('openai');
 
   await expect(page.locator('#provider option[value="openai"]')).toHaveText('OpenAI（及兼容接口）');
@@ -187,11 +190,15 @@ test('does not start local transcription while model status is still checking', 
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#provider').selectOption('local');
   await expect(page.locator('#localModelPanel')).toBeVisible();
   await page.locator('#mediaPath').fill('D:\\Demo\\clip.mp4');
   await page.locator('#srtPath').fill('D:\\Demo\\clip.local.srt');
 
+  // R4/F09：识别默认关闭；本用例验证转录管线，先显式启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.evaluate(() => {
     const config = window.MSWLauncher.config;
     config.localRuntime = { status: 'ready', ready: true, path: '', pythonPath: '' };
@@ -210,6 +217,8 @@ test('keeps local runtime events working after the page learns that installation
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#provider').selectOption('local');
   await page.locator('#openLocalRuntimeSettings').click();
   await expect(page.locator('#localRuntimePanel')).toBeVisible();
@@ -555,6 +564,8 @@ test('error reports copy safe details and support file URL fallback', async ({ p
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  // R4/F09：识别默认关闭；本用例涉及识别表单，先启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#apiKey').fill('sk-secret-test-key');
   await page.evaluate(() => {
     window.MSWLauncher.appendLog('child output: duration probe failed');
@@ -956,6 +967,8 @@ test('batch start delegates output allocation and batchDone reconciles every ter
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  // R4/F09：识别默认关闭；本用例验证转录批量分配，先启用识别模块。
+  await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#batchMode').click();
   await page.evaluate(() => {
     window.__batchCalls = [];
