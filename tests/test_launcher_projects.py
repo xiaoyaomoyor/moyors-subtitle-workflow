@@ -56,6 +56,41 @@ class RecentProjectsTests(unittest.TestCase):
         self.assertTrue(result["projects"][0]["pinned"])
         self.assertTrue(result["projects"][0]["exists"])
 
+    def test_last_opened_takes_newer_of_editor_and_launcher_records(self) -> None:
+        # H06：编辑器记录时间与启动器记录时间取较新者。
+        project = self.root / "timed.mosp"
+        project.write_text("{}", encoding="utf-8")
+        _write_json(self.settings, {
+            "recent_projects": [
+                {"path": str(project), "name": project.name, "openedAt": "2026-09-14T08:00:00+00:00"},
+            ],
+        })
+        result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
+        self.assertEqual(result["projects"][0]["lastOpenedAt"], "2026-09-14T08:00:00+00:00")
+
+        note_project_opened(project, metadata_path=self.metadata)
+        result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
+        newer = result["projects"][0]["lastOpenedAt"]
+        self.assertNotEqual(newer, "2026-09-14T08:00:00+00:00")
+        self.assertGreater(newer, "2026-09-14T08:00:00+00:00")
+
+        # 编辑器记录更新时再次取较新者。
+        _write_json(self.settings, {
+            "recent_projects": [
+                {"path": str(project), "name": project.name, "openedAt": "2026-09-15T09:30:00+00:00"},
+            ],
+        })
+        result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
+        self.assertEqual(result["projects"][0]["lastOpenedAt"], "2026-09-15T09:30:00+00:00")
+
+    def test_stats_payload_reports_media_file_name(self) -> None:
+        # H01/H04：卡片媒体文件名来自工程实际 media 引用。
+        project = self.root / "withmedia.mosp"
+        _write_json(project, {"segments": [], "media": "D:/Videos/clip.mp4"})
+        result = project_stats_payload(project)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["mediaName"], "clip.mp4")
+
     def test_removed_entry_returns_when_opened_again(self) -> None:
         project = self.root / "project.mosp"
         project.write_text("{}", encoding="utf-8")

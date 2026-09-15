@@ -721,8 +721,9 @@ test('artifact rows localize type labels while preserving MOSP-first and SRT-onl
 test('server media accepts a dropped file even when batch mode is selected', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  // 工程文件/服务器媒体字段位于「启动编辑器」页。
+  // 工程文件/服务器媒体字段位于「启动编辑器」页的高级折叠区（R3/H04 默认收起）。
   await page.evaluate(() => window.MSWNavigation.show('home'));
+  await page.locator('#serverToggle').click();
   await page.locator('#jsonPath').fill('D:\\Demo\\missing-media.mosp');
   await page.locator('#serverMediaField').evaluate((element) => element.classList.remove('hidden'));
   // 批量切换位于「预制工程」页的媒体卡。

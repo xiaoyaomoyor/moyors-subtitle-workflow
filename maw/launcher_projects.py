@@ -88,8 +88,12 @@ def write_launcher_metadata(metadata: LauncherRecentMetadata, path: Path | None 
         raise
 
 
-def _read_editor_recent_paths(settings_path: Path | None = None) -> list[Path]:
-    """Read the editor-owned recent list (read-only for the launcher)."""
+def _read_editor_recent_paths(settings_path: Path | None = None) -> list[tuple[Path, str]]:
+    """Read the editor-owned recent list (read-only for the launcher).
+
+    H06：编辑器记录现在带 openedAt（仅成功打开/保存后写入）；
+    返回 (路径, 打开时间) 以便合并视图取较新的时间。
+    """
     target = settings_path or default_server_settings_path()
     try:
         payload = json.loads(target.read_text(encoding="utf-8"))
@@ -100,15 +104,19 @@ def _read_editor_recent_paths(settings_path: Path | None = None) -> list[Path]:
     values = payload.get("recent_projects")
     if not isinstance(values, list):
         return []
-    paths: list[Path] = []
+    entries: list[tuple[Path, str]] = []
     for value in values:
         if not isinstance(value, dict) or not isinstance(value.get("path"), str):
             continue
+        opened_at = value.get("openedAt")
         try:
-            paths.append(Path(value["path"]).expanduser().resolve())
+            entries.append((
+                Path(value["path"]).expanduser().resolve(),
+                opened_at if isinstance(opened_at, str) else "",
+            ))
         except OSError:
             continue
-    return paths
+    return entries
 
 
 def _now_iso() -> str:
@@ -139,11 +147,12 @@ def recent_projects_payload(
 ) -> dict[str, Any]:
     """Merge the editor index with launcher view state into card payloads."""
     metadata = read_launcher_metadata(metadata_path)
-    editor_paths = _read_editor_recent_paths(settings_path)
+    editor_entries = _read_editor_recent_paths(settings_path)
+    editor_times = {str(path): opened_at for path, opened_at in editor_entries}
 
     merged: dict[str, Path] = {}
     ordered: list[Path] = []
-    for raw in editor_paths:
+    for raw, _opened_at in editor_entries:
         resolved = _resolve_alias(metadata, raw)
         key = str(resolved)
         if key in metadata.removed and key not in metadata.pinned:
@@ -192,10 +201,19 @@ def recent_projects_payload(
             "dir": str(path.parent),
             "exists": exists,
             "pinned": key in metadata.pinned,
-            "lastOpenedAt": metadata.opened_at.get(key, ""),
+            # H06：编辑器记录时间与启动器记录时间取较新者（均为「成功打开」语义）。
+            "lastOpenedAt": _latest_iso(editor_times.get(key, ""), metadata.opened_at.get(key, "")),
             "modifiedAt": _mtime_iso(path) if exists else "",
         })
     return {"ok": True, "projects": projects}
+
+
+def _latest_iso(left: str, right: str) -> str:
+    if not left:
+        return right
+    if not right:
+        return left
+    return max(left, right)
 
 
 def _mtime_iso(path: Path) -> str:
@@ -302,10 +320,15 @@ def project_stats_payload(path: Path) -> dict[str, Any]:
     if isinstance(msw, dict):
         clips = msw.get("audio_clips")
         audio_count = len(clips) if isinstance(clips, list) else 0
+    raw_media = data.get("media")
+    media_name = ""
+    if isinstance(raw_media, str) and raw_media.strip():
+        media_name = Path(raw_media.strip().replace("/", "\\")).name
     return {
         "ok": True,
         "path": str(resolved),
         "mainSubtitles": main_count,
         "subSubtitles": sub_count,
         "audioClips": audio_count,
+        "mediaName": media_name,
     }

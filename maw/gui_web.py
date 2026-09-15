@@ -57,6 +57,7 @@ from maw.launcher_projects import (
     remove_recent_project,
     set_recent_project_pinned,
 )
+from maw.launcher_thumbnails import clear_cover_cache, thumbnail_payload
 from maw.output_naming import format_elapsed, maw_root
 from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, install_stdio_tee
 from maw.local_runtime import (
@@ -659,6 +660,32 @@ class LauncherApi:
         if path is None:
             return _error_result("path", "recent_project_invalid", "")
         return project_stats_payload(path)
+
+    def get_recent_project_thumbnail(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Cover thumbnail for one recent-project card（H01，见 launcher_thumbnails）。"""
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        return thumbnail_payload(
+            path,
+            ffmpeg_tools=_postprocess_ffmpeg_tools(self.paths.env_path),
+            force=False,
+        )
+
+    def refresh_recent_project_thumbnail(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Re-extract a cover, bypassing the on-disk cache (卡片「刷新封面」)."""
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        return thumbnail_payload(
+            path,
+            ffmpeg_tools=_postprocess_ffmpeg_tools(self.paths.env_path),
+            force=True,
+        )
+
+    def clear_thumbnail_cache(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Drop all cached cover images and short-term failure marks."""
+        return clear_cover_cache()
 
     def remove_recent_project(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Remove one entry from the launcher view; the project file itself is untouched."""

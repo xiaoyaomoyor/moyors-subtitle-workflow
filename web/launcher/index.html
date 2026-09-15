@@ -110,8 +110,12 @@
         <p id="recentEmpty" class="recent-empty hint hidden" data-i18n="recent_empty">暂无最近工程；生成或保存工程后会出现在这里。</p>
         <button id="recentMore" class="ghost hidden" type="button" data-i18n="recent_more">加载更多</button>
 
-        <section id="serverCard" class="card" aria-labelledby="serverTitle">
-          <h2 id="serverTitle" data-i18n="server">字幕编辑器</h2>
+        <section id="serverCard" class="card sub-accordion collapsed" aria-labelledby="serverTitle">
+          <button id="serverToggle" class="accordion-header" type="button" aria-expanded="false">
+            <span class="chevron">▸</span>
+            <span id="serverTitle" data-i18n="server_advanced">高级：直接指定工程与端口</span>
+          </button>
+          <div class="collapse-body">
           <div id="serverBody">
             <div class="field">
               <label for="jsonPath" data-i18n="json_project">工程文件</label>
@@ -132,22 +136,27 @@
               <p id="serverMediaPathError" class="field-error"></p>
             </div>
             <div class="field"><label for="port" data-i18n="port">端口</label><div class="port-row"><input id="port" type="number" min="1" max="65535" value="8250"><button id="refreshServerStatus" class="ghost small" type="button" data-i18n="server_refresh" title="刷新当前端口的服务器状态">刷新</button></div><p id="portError" class="field-error"></p></div>
+            <div class="link-row server-advanced-actions">
+              <div class="split-wrap">
+                <button id="openMawe" class="ghost split-main" type="button" data-i18n="start_server_editor">启动 Server 版字幕编辑器</button>
+                <button id="openMenu" class="ghost split-caret" type="button" aria-haspopup="true">▾</button>
+                <div id="htmlMenu" class="split-menu hidden">
+                  <button id="openHtml" class="hidden" type="button" data-i18n="open_html">打开该工程的 HTML 编辑器</button>
+                  <button id="openBlankHtml" type="button" data-i18n="open_blank_html">打开空的 HTML 编辑器</button>
+                </div>
+              </div>
+            </div>
+          </div>
           </div>
         </section>
       </div>
       <footer class="page-actions home-launch">
         <span id="homeServerStatus" class="status-line"></span>
+        <span id="homeTarget" class="home-target hidden" aria-live="polite"></span>
         <span class="footer-spacer"></span>
+        <button id="homeBrowse" class="ghost" type="button" data-i18n="home_browse">浏览工程…</button>
         <button id="homeBlank" class="ghost" type="button" data-i18n="home_blank_launch">启动空白编辑器</button>
         <button id="homeOpenSelected" class="primary hidden" type="button" data-i18n="home_open_selected">打开所选工程</button>
-        <div class="split-wrap">
-          <button id="openMawe" class="ghost split-main" type="button" data-i18n="start_server_editor">启动 Server 版字幕编辑器</button>
-          <button id="openMenu" class="ghost split-caret" type="button" aria-haspopup="true">▾</button>
-          <div id="htmlMenu" class="split-menu hidden">
-            <button id="openHtml" class="hidden" type="button" data-i18n="open_html">打开该工程的 HTML 编辑器</button>
-            <button id="openBlankHtml" type="button" data-i18n="open_blank_html">打开空的 HTML 编辑器</button>
-          </div>
-        </div>
         <button id="stopServer" class="ghost server-stop hidden" type="button" data-i18n="server_stop">停止服务器</button>
       </footer>
     </section>

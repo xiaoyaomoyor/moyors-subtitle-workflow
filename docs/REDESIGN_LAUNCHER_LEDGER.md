@@ -26,6 +26,36 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## R3：最近工程卡片与真实视频封面（修正案第四批）
+
+状态：已完成（2026-09-15）。对应审查 H01–H06；基线 d455586。
+
+改动：
+
+1. **封面服务（H01，`maw/launcher_thumbnails.py` 新增）**：按审查 §6 实现工程媒体解析与后台取帧——复用 `resolve_project_media` 从工程实际 `media` 引用解析（不猜同名、不用启动器输入框路径）；候选帧取时长约 10% 处并夹在 1~5 秒（时长未知回退 0.5/1/2 秒，最多三次），单遍 `ffmpeg -ss … scale=480:270:force_original_aspect_ratio=increase,crop,signalstats` 同时提取并输出 YAVG 亮度，几乎全黑（<16）/全白（>240）自动换下一候选，全不理想时用最后可用帧；缓存存应用数据目录 `cover-cache/`（键 = 媒体规范路径 + 大小 + mtime + 尺寸 + 策略版本，不写 `.mosp`/`.assets`）；同一媒体请求去重（in-flight 任务共享）、`Semaphore(2)` 限并发、失败短期缓存 10 分钟；`clear_cover_cache` 清缓存与失败标记。状态机：image/audio/no_media/media_missing/project_missing/project_broken/failed，纯音频按扩展名或 ffprobe 无视频流判定，封面失败不阻止打开工程。
+2. **桥接（H01）**：`gui_web.py` 新增 `get_recent_project_thumbnail`/`refresh_recent_project_thumbnail`（force 绕过磁盘缓存）/`clear_thumbnail_cache`；图片以 480×270 JPEG data URI 经桥接返回，不新增任意本机文件读取接口。
+3. **卡片重做（H01/H04 前端，`project-home.js` 重写）**：卡片改纵向布局，顶部 16:9 封面（居中裁切、object-fit cover），下方工程名 + **媒体文件名**（统计/封面载荷带回，不重复读工程）+ 目录 + 元信息；封面按可见区域异步加载（IntersectionObserver，rootMargin 200px，无观察器环境直接加载）；七种状态占位（音频/胶片/破损文档图标 + 状态标签）；选中角标 ✓ 字形改 SVG mask；右键菜单新增「刷新封面」。
+4. **选中恢复（H02）**：`createCard` 从唯一选中状态同时恢复 `.selected` 样式与 `aria-pressed`（此前只恢复 aria 是缺陷根源）；选择随 sessionStorage（`MSW_HOME_SELECTED_PATH`）在刷新后恢复，工程消失时清除。
+5. **搜索清选（H03）**：筛选隐藏当前目标时清除选择并连表单目标一并清空，隐藏工程不再可能成为启动目标；启动区常显「当前目标」徽标（`#homeTarget`）。
+6. **目标统一与端口收起（H04）**：卡片选择 ⇄ `jsonPath` 双向互通（`onProjectPathChanged` 链式挂接；`startBlankEditor` 改经 `setJsonPath("")` 清目标）；首页保留三个清晰操作「打开所选工程（主按钮）/启动空白编辑器/浏览工程…」+ 目标徽标；工程文件/服务器媒体/端口大表单收进默认折叠的「高级：直接指定工程与端口」（`#serverCard` + `#serverToggle`，错误路径仍自动展开）；Server 版编辑器入口（openMawe 分流 + HTML 编辑器菜单）随高级区收纳，ID 与绑定保持不变。
+7. **缓存与防抖（H05）**：统计按工程文件版本（modifiedAt）缓存 + 请求去重；封面按路径缓存 + 前端失败 60 秒不重发；搜索输入 200ms 防抖；异步响应只按路径回写当前 DOM 节点，过期响应不写回新卡片（重渲染后旧节点不存在即丢弃）。
+8. **时间语义（H06）**：`serve.py` `RecentProject` 增加 `openedAt`（`remember_project` 仅在加载/接管/另存成功路径打戳，序列化往返保留）；启动器合并视图 `lastOpenedAt` 取编辑器记录与启动器记录较新者；启动器侧 `note_project_opened` 维持 R0 语义（服务器健康检查通过后）；波形/媒体工程生成成功即设为当前目标（徽标 + 主按钮指向，尚未打开不进最近列表）。
+
+验证（2026-09-15）：
+
+- 单元：新增 `tests/test_launcher_thumbnails.py` 16 项（候选时间点/亮度判定/缓存键跟踪/七种状态/黑帧换帧/失败短期缓存与 force 重试/并发去重（阻塞式两线程确定性验证）/清缓存/工程只读）；`test_launcher_projects` +2（时间取新、统计带媒体名）；`test_local_editor_server` +1（openedAt 往返）。
+- 契约：`test_gui_web` 新增 R3 契约（收起表单/三操作/目标徽标/封面状态机/sessionStorage 恢复/缓存与防抖/三个桥接方法）；2 处设置序列化断言按 openedAt 新契约更新。
+- e2e：`launcher-home.spec.mjs` 重写为 9 项（两张不同视频不同画面 + 占位、统计/封面缓存去重（请求计数断言）、刷新后选中恢复（样式+aria）、搜索隐藏目标清选清表单、双击打开与空白启动清目标、浏览设目标 + 端口表单默认收起/可展开、缺失工程重定位、右键菜单含刷新封面、会话冲突三步确认）；`launcher-interactions` 1 处按折叠区先展开。启动器 8 个 spec 共 68 项全部通过。
+- 全量：Python 1574 项 OK（skipped=63）。
+- 截图：`build/r3-home-selected-dark.png`、`r3-home-advanced-dark.png`、`r2-home-*.png`（重拍）——视觉核验通过：两张封面颜色可区分、选中描边 + 对勾角标 + 目标徽标联动、高级区折叠一行/展开完整（工程文件/媒体/端口/Server 入口）、亮色主题同样正常、无重叠溢出无 emoji。
+- mock 环境（file:// e2e 与浏览器演示模式）的封面为注入的 SVG data URI；真实 FFmpeg 提取路径由单测的替身 runner 覆盖命令拼接（scale/crop/signalstats/-ss）与亮度回退。
+
+未验证（顺延）：
+
+- 真实视频文件的端到端取帧（含竖屏/短片/中文路径/坏工程的实际 FFmpeg 行为）——R6 生产验收用真实媒体实测（§6.2 验收清单）。
+- 「清理封面缓存」的设置页入口（后端方法已就绪，UI 入口随 R5 设置收口一并放置）。
+- 统计读取的后端缓存（当前前端版本缓存已避免重复请求；后端按文件版本缓存可再省一次 JSON 解析，收益小顺延）。
+
 ## R2：视觉组件与图标统一（修正案第三批）
 
 状态：已完成（2026-09-15）。对应审查 V05–V08；基线 23bd55d。

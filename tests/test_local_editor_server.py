@@ -560,7 +560,8 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('"autoLoadedMediaName": "clip.mp3", "recentProjectsUrl": "/api/recent-projects/open", ', page)
         self.assertIn('"attachUrl": "/api/project/attach", "settingsUrl": "/api/settings", ', page)
         self.assertIn('"settingsUrl": "/api/settings", "recentProjects": [{"path": "', page)
-        self.assertIn('"name": "clip.json"}], "autoOpenLastProject": true, "savedWorkspaces": {}, ', page)
+        # H06：最近工程记录带 openedAt（成功打开时间），位于 name 与后续字段之间。
+        self.assertRegex(page, r'"name": "clip\.json", "openedAt": "[^"]+"\}], "autoOpenLastProject": true, "savedWorkspaces": \{\}, ')
         self.assertIn('"presetWorkspaces": {}, ', page)
         self.assertIn('"activeWorkspaceName": ""};', page)
         self.assertIn('id="save-project"', page)
@@ -1474,6 +1475,23 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertTrue(saved.endswith(b"\n"))
         self.assertEqual(server_editor.read_server_settings(settings_path), settings)
 
+    def test_recent_project_records_carry_open_timestamp(self) -> None:
+        # H06：仅成功打开后（remember_project 只在成功路径调用）打时间戳，序列化往返保留。
+        project_path = self.root / "opened.json"
+        project_path.write_text("{}", encoding="utf-8")
+        settings = server_editor.remember_project(server_editor.ServerSettings(), project_path)
+        first = settings.recent_projects[0]
+        self.assertTrue(first.opened_at)
+        self.assertIn("openedAt", first.to_json())
+
+        settings_path = self.root / "server-editor-settings.json"
+        server_editor.write_server_settings(settings_path, settings)
+        restored = server_editor.read_server_settings(settings_path)
+        self.assertEqual(restored.recent_projects[0].opened_at, first.opened_at)
+
+        later = server_editor.remember_project(settings, project_path)
+        self.assertGreaterEqual(later.recent_projects[0].opened_at, first.opened_at)
+
     def test_recent_project_endpoint_reloads_media_and_updates_setting(self) -> None:
         project = server_editor.load_project(
             self.project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,
@@ -1559,7 +1577,7 @@ class LocalEditorServerTests(unittest.TestCase):
         )
         settings = server_editor.remember_project(server_editor.ServerSettings(), missing_project_path)
         page = server_editor.build_server_page(project, settings).decode("utf-8")
-        self.assertIn('"name": "missing.json", "exists": false', page)
+        self.assertRegex(page, r'"name": "missing\.json", "openedAt": "[^"]+", "exists": false')
 
     def test_saved_workspaces_are_persisted_and_reused_by_new_projects(self) -> None:
         project = server_editor.load_project(

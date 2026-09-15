@@ -3406,6 +3406,35 @@ class OpenRuntimeFolderTests(unittest.TestCase):
 
 @final
 class LauncherAssetContractTests(unittest.TestCase):
+    def test_launcher_home_covers_and_unified_target_contracts(self) -> None:
+        """R3（H01-H05）：封面卡片、统一目标与收起的端口表单契约。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        gui_web_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
+
+        # H04：端口大表单默认收起；三个清晰操作与目标徽标常驻首页。
+        self.assertIn('id="serverCard" class="card sub-accordion collapsed"', page)
+        self.assertIn('id="serverToggle"', page)
+        self.assertIn('id="homeBrowse"', page)
+        self.assertIn('id="homeTarget"', page)
+        # H01：封面状态与图片由 project-home 驱动，卡片带媒体文件名。
+        self.assertIn("cover.dataset.coverState = status;", home_script)
+        self.assertIn("recent-cover-image", home_script)
+        self.assertIn("get_recent_project_thumbnail", home_script)
+        self.assertIn("refreshCover", home_script)
+        # H02：选中随 sessionStorage 恢复，创建卡片时同时恢复样式与 aria-pressed。
+        self.assertIn("MSW_HOME_SELECTED_PATH", home_script)
+        self.assertIn('card.setAttribute("aria-pressed", String(isSelected));', home_script)
+        # H05：统计/封面缓存、请求去重与搜索防抖。
+        self.assertIn("statsCache", home_script)
+        self.assertIn("coversPending", home_script)
+        self.assertIn("SEARCH_DEBOUNCE_MS", home_script)
+        # 桥接契约：取封面/刷新封面/清缓存。
+        self.assertIn("def get_recent_project_thumbnail", gui_web_source)
+        self.assertIn("def refresh_recent_project_thumbnail", gui_web_source)
+        self.assertIn("def clear_thumbnail_cache", gui_web_source)
+        self.assertIn("get_recent_project_thumbnail", launcher_script)
     def test_launcher_exposes_chainable_postprocess_toolbox(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")

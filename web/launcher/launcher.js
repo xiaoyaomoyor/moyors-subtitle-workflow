@@ -74,6 +74,9 @@
       tool_waveform_hint: "仅为媒体生成波形缓存；预制工程页的「波形生成」模块会在建工程时统一执行。",
       home_blank_launch: "启动空白编辑器",
       home_open_selected: "打开所选工程",
+      home_browse: "浏览工程…",
+      home_target: "当前目标：{name}",
+      server_advanced: "高级：直接指定工程与端口",
       recent_search_placeholder: "搜索最近工程…",
       recent_grid_label: "最近工程",
       recent_empty: "暂无最近工程；生成或保存工程后会出现在这里。",
@@ -83,6 +86,13 @@
       recent_stats_summary: "主 {main} / 副 {sub} · 音频 {audio}",
       recent_missing: "文件已移动或不存在",
       recent_pinned: "已固定",
+      recent_refresh_cover: "刷新封面",
+      recent_media_loading: "读取媒体信息…",
+      cover_state_audio: "纯音频",
+      cover_state_no_media: "无媒体",
+      cover_state_media_missing: "媒体缺失",
+      cover_state_project_broken: "工程损坏",
+      cover_state_failed: "封面不可用",
       recent_pin: "固定到列表顶部",
       recent_unpin: "取消固定",
       recent_open_folder: "打开所在文件夹",
@@ -294,6 +304,9 @@
       tool_waveform_hint: "Build a waveform cache for the media only; the prefab “Waveform” module runs it together with project creation.",
       home_blank_launch: "Launch blank editor",
       home_open_selected: "Open selected project",
+      home_browse: "Browse project…",
+      home_target: "Target: {name}",
+      server_advanced: "Advanced: explicit project & port",
       recent_search_placeholder: "Search recent projects…",
       recent_grid_label: "Recent projects",
       recent_empty: "No recent projects yet; generated or saved projects will appear here.",
@@ -303,6 +316,13 @@
       recent_stats_summary: "main {main} / sub {sub} · audio {audio}",
       recent_missing: "File moved or missing",
       recent_pinned: "Pinned",
+      recent_refresh_cover: "Refresh cover",
+      recent_media_loading: "Reading media…",
+      cover_state_audio: "Audio only",
+      cover_state_no_media: "No media",
+      cover_state_media_missing: "Media missing",
+      cover_state_project_broken: "Project broken",
+      cover_state_failed: "Cover unavailable",
       recent_pin: "Pin to top",
       recent_unpin: "Unpin",
       recent_open_folder: "Open containing folder",
@@ -1565,10 +1585,25 @@
         ok: true,
         projects: [
           { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00" },
+          { path: "D:\\Demo\\intro.mosp", name: "intro.mosp", dir: "D:\\Demo", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2026-09-14T10:00:00+00:00" },
           { path: "E:\\Gone\\moved.mosp", name: "moved.mosp", dir: "E:\\Gone", exists: false, pinned: false, lastOpenedAt: "", modifiedAt: "" },
         ],
       }),
-      get_recent_project_stats: async ({ path }) => ({ ok: true, path, mainSubtitles: 12, subSubtitles: 0, audioClips: 2 }),
+      get_recent_project_stats: async ({ path }) => {
+        (window.__statsRequests = window.__statsRequests || []).push(path);
+        return { ok: true, path, mainSubtitles: 12, subSubtitles: 0, audioClips: 2, mediaName: path.endsWith("clip.mosp") ? "clip.mp4" : "intro.mp4" };
+      },
+      get_recent_project_thumbnail: async ({ path }) => {
+        (window.__thumbRequests = window.__thumbRequests || []).push(path);
+        if (path.endsWith("clip.mosp")) return { ok: true, state: "image", version: "cover-clip", mediaName: "clip.mp4", dataUri: "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22480%22 height=%22270%22%3E%3Crect width=%22480%22 height=%22270%22 fill=%22%2371558B%22/%3E%3C/svg%3E" };
+        if (path.endsWith("intro.mosp")) return { ok: true, state: "image", version: "cover-intro", mediaName: "intro.mp4", dataUri: "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22480%22 height=%22270%22%3E%3Crect width=%22480%22 height=%22270%22 fill=%22%23BCA2D3%22/%3E%3C/svg%3E" };
+        return { ok: true, state: "media_missing", message: "工程关联的媒体文件不存在" };
+      },
+      refresh_recent_project_thumbnail: async ({ path }) => {
+        (window.__thumbRequests = window.__thumbRequests || []).push("refresh:" + path);
+        return { ok: true, state: "image", version: "cover-refresh", mediaName: "clip.mp4", dataUri: "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22480%22 height=%22270%22%3E%3Crect width=%22480%22 height=%22270%22 fill=%22%23453F47%22/%3E%3C/svg%3E" };
+      },
+      clear_thumbnail_cache: async () => ({ ok: true, removed: 0 }),
       remove_recent_project: async () => ({ ok: true }),
       set_recent_project_pinned: async () => ({ ok: true }),
       relocate_recent_project: async () => ({ ok: true, path: "D:\\Demo\\clip.mosp" }),
@@ -2481,7 +2516,7 @@
     else bind(window, document.documentElement);
     document.querySelectorAll(".page-scroll:not(.page.active .page-scroll), .batch-queue, .batch-details pre, .llm-model-options, .script-preview pre, .replace-rule-preview pre, .log, .modal-card, .settings-scroll, .toolbox-content, .toolbox-chain-list, .toolbox-result, .toolbox-stream-text, select[multiple], textarea").forEach((el) => bind(el, el));
   }
-  function expandServer() { $("serverCard").classList.remove("collapsed"); renderChevron("serverCard"); }
+  function expandServer() { $("serverCard").classList.remove("collapsed"); renderChevron("serverCard"); $("serverToggle")?.setAttribute("aria-expanded", "true"); }
   function hasFileDrag(event) { return !event.dataTransfer || Array.from(event.dataTransfer.types || []).includes("Files"); }
   function setDropHighlight(active) { $("mediaCard").classList.toggle("drag-over", active); }
   function isInsideMediaCard(node) { return node instanceof Node && $("mediaCard").contains(node); }
@@ -2723,9 +2758,8 @@
 
   async function startBlankEditor() {
     // 显式空白启动：不读取上次工程替代目标（serve.py --blank）。
-    $("jsonPath").value = "";
-    setError("jsonPath", "");
-    $("serverMediaField").classList.add("hidden");
+    // 经 setJsonPath 清空，让首页目标徽标/主按钮同步失去目标（H04 统一目标）。
+    setJsonPath("");
     await openServerEditor({ intent: "blank", force: true });
   }
 
@@ -2972,6 +3006,7 @@
   $("pickMedia").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (!result.ok) return; if (!MEDIA_EXTS.has(ext(result.path))) { setError("mediaPath", mediaDropError()); return; } setMedia(result.path); });
   $("qwenAudioHotwordsModeText").addEventListener("click", () => { setHotwordsMode("text"); setError("qwenAudioHotwordsFile", ""); }); $("qwenAudioHotwordsModeFile").addEventListener("click", () => { setHotwordsMode("file"); setError("qwenAudioHotwordsFile", ""); }); $("pickQwenAudioHotwordsFile").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "hotwords" }); if (result.ok) await loadHotwordFile(result.path || "", false); });
   $("pickJson").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "json" }); if (result.ok) setJsonPath(result.path); });
+  $("serverToggle").addEventListener("click", () => { toggle("serverCard"); $("serverToggle").setAttribute("aria-expanded", String(!$("serverCard").classList.contains("collapsed"))); });
   $("jsonPath").addEventListener("input", () => setError("jsonPath", "")); $("jsonPath").addEventListener("change", refreshServerMedia); $("pickServerMedia").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (result.ok) setServerMedia(result.path || ""); });
   ["apiKey", "openaiBaseUrl", "openaiModel", "workspaceId", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordsFile", "qwenAudioHotwordWeight", "sonioxContextGeneral", "sonioxContextText", "sonioxContextTerms", "sonioxContextTranslationTerms", "serverMediaPath", "port", "ffmpegPath", "stickerDir"].forEach((field) => { const el = $(field); el?.addEventListener("input", () => { setError(field, ""); if (field === "qwenAudioContext") renderPromptCharacterCount(); if (field.startsWith("sonioxContext")) renderSonioxContextCharacterCount(); if (field === "qwenAudioHotwords") renderHotwordWarnings(); if (field === "qwenAudioHotwordWeight") renderHotwordWarnings(); if (field === "serverMediaPath") syncFlvHints(); if (field === "port") { state.detectedServerUrl = ""; renderServerButton(); } }); el?.addEventListener("change", () => { setError(field, ""); if (field.startsWith("sonioxContext")) renderSonioxContextCharacterCount(); if (field === "qwenAudioHotwordWeight") renderHotwordWarnings(); if (field === "serverMediaPath") syncFlvHints(); if (field === "port") void checkExistingServer(); }); });
   $("refreshServerStatus").addEventListener("click", async () => { $("refreshServerStatus").disabled = true; try { await checkExistingServer(); } finally { $("refreshServerStatus").disabled = false; } });

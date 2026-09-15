@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from datetime import datetime, timezone
 import html
 import io
 import json
@@ -120,12 +121,20 @@ class RecentProject:
 
     path: Path
     name: str
+    # H06：仅成功打开/保存后更新（remember_project 只在成功路径调用）。
+    opened_at: str = ""
 
     def to_json(self) -> dict[str, object]:
         payload: dict[str, object] = {"path": str(self.path), "name": self.name}
+        if self.opened_at:
+            payload["openedAt"] = self.opened_at
         if not self.path.is_file():
             payload["exists"] = False
         return payload
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 @dataclass(frozen=True)
@@ -230,9 +239,11 @@ def read_server_settings(path: Path) -> ServerSettings:
                 continue
             seen.add(project_path)
             name = value.get("name")
+            opened_at = value.get("openedAt")
             projects.append(RecentProject(
                 path=project_path,
                 name=name if isinstance(name, str) and name else project_path.name,
+                opened_at=opened_at if isinstance(opened_at, str) else "",
             ))
             if len(projects) == MAX_RECENT_PROJECTS:
                 break
@@ -286,7 +297,7 @@ def write_server_settings(path: Path, settings: ServerSettings) -> None:
 def remember_project(settings: ServerSettings, project_path: Path) -> ServerSettings:
     """Move one explicitly opened project to the front, retaining only ten entries."""
     resolved = project_path.expanduser().resolve()
-    recent = [RecentProject(resolved, resolved.name)]
+    recent = [RecentProject(resolved, resolved.name, _utc_now_iso())]
     recent.extend(item for item in settings.recent_projects if item.path != resolved)
     return replace(settings, recent_projects=tuple(recent[:MAX_RECENT_PROJECTS]))
 

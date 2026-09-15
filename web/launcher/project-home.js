@@ -1,18 +1,37 @@
-// MSW Launcher · 首页最近工程（C 阶段）
+// MSW Launcher · 首页最近工程（C 阶段；R3 修正案 H01–H05 重做）
 // 卡片列表来自后端合并视图（编辑器 recent_projects + 启动器固定/移除/重定位元数据）。
 // 单击选择、双击直接打开、Enter 执行当前主按钮；首次进入默认无选择——
 // 「启动空白编辑器」始终可用，不因自动选中最近工程而失去意义。
+//
+// R3 要点：
+// - 封面（H01）：16:9 卡片图，按可见区域异步加载；状态含 图片/纯音频/无媒体/
+//   媒体缺失/工程缺失/工程损坏/提取失败，失败不阻止打开工程；
+// - 选中（H02）：卡片创建时从唯一选中状态恢复样式与 aria-pressed，
+//   选择随 sessionStorage 在刷新后恢复；
+// - 搜索（H03）：筛选隐藏当前目标时清除选择，启动区显示当前将打开的目标；
+// - 目标（H04）：卡片选择与工程路径表单共用一个目标状态；
+// - 性能（H05）：统计/封面按工程文件版本缓存、请求去重、搜索防抖、
+//   响应只回写到当前 DOM 里同路径的节点（过期响应不写回新卡片）。
 (function () {
   "use strict";
 
   var DEFAULT_LIMIT = 12;
+  var SEARCH_DEBOUNCE_MS = 200;
+  var SELECTED_KEY = "MSW_HOME_SELECTED_PATH";
   var state = {
     projects: [],
     visible: DEFAULT_LIMIT,
     selectedPath: "",
     query: "",
     menuPath: "",
+    statsCache: {},   // path -> { version, text }（version = modifiedAt）
+    statsPending: {}, // path -> Promise
+    covers: {},       // path -> { state, dataUri, version, message }
+    coversPending: {},// path -> Promise
+    mediaNames: {},   // path -> 媒体文件名（统计或封面载荷带回，避免重复读工程）
   };
+  var searchTimer = 0;
+  var coverObserver = null;
 
   function el(id) { return document.getElementById(id); }
   function t(key) { return window.MSWLauncher ? window.MSWLauncher.translate(key) : key; }
@@ -45,19 +64,165 @@
     return state.projects.filter(matchesQuery);
   }
 
+  // ---------------- 封面（H01） ----------------
+
+  var COVER_ICONS = {
+    audio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V6l10-2v11"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/></svg>',
+    film: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>',
+    broken: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9.5 13h5M9.5 16.5h3"/></svg>',
+  };
+  var COVER_STATE_LABEL_KEYS = {
+    audio: "cover_state_audio",
+    no_media: "cover_state_no_media",
+    media_missing: "cover_state_media_missing",
+    project_broken: "cover_state_project_broken",
+    project_missing: "recent_missing",
+    failed: "cover_state_failed",
+  };
+
+  function coverStateFor(entry) {
+    if (!entry.exists) return "project_missing";
+    var cached = state.covers[entry.path];
+    return cached ? cached.state : "loading";
+  }
+
+  function createCover(entry) {
+    var cover = document.createElement("div");
+    cover.className = "recent-cover";
+    cover.dataset.path = entry.path;
+    cover.setAttribute("aria-hidden", "true");
+    applyCoverState(cover, entry, state.covers[entry.path]);
+    return cover;
+  }
+
+  function applyCoverState(cover, entry, cached) {
+    var status = cached ? cached.state : (entry.exists ? "loading" : "project_missing");
+    cover.dataset.coverState = status;
+    cover.replaceChildren();
+    if (status === "image" && cached && cached.dataUri) {
+      var img = document.createElement("img");
+      img.className = "recent-cover-image";
+      img.src = cached.dataUri;
+      img.alt = "";
+      img.decoding = "async";
+      cover.append(img);
+      return;
+    }
+    var icon = status === "audio" ? COVER_ICONS.audio
+      : (status === "project_broken" ? COVER_ICONS.broken : COVER_ICONS.film);
+    var holder = document.createElement("span");
+    holder.className = "recent-cover-icon";
+    holder.innerHTML = icon;
+    cover.append(holder);
+    var labelKey = COVER_STATE_LABEL_KEYS[status];
+    if (labelKey) {
+      var label = document.createElement("span");
+      label.className = "recent-cover-state";
+      label.textContent = cached && cached.message && status === "media_missing" ? cached.message : t(labelKey);
+      cover.append(label);
+    }
+  }
+
+  function coverNode(path) {
+    return grid().querySelector('.recent-cover[data-path="' + cssEscape(path) + '"]');
+  }
+
+  function requestCover(entry) {
+    if (!entry.exists) return;
+    if (state.covers[entry.path] && state.covers[entry.path].state === "image") return;
+    if (state.coversPending[entry.path]) return;
+    // 失败短期缓存在后端；前端同样避免对同一路径的重复请求。
+    var failedAt = state.covers[entry.path] && state.covers[entry.path].state !== "image"
+      ? state.covers[entry.path].at || 0 : 0;
+    if (failedAt && Date.now() - failedAt < 60000) return;
+    var pending = bridge("get_recent_project_thumbnail", { path: entry.path }).then(function (result) {
+      delete state.coversPending[entry.path];
+      if (!result || result.ok !== true) return;
+      state.covers[entry.path] = {
+        state: result.state || "failed",
+        dataUri: result.dataUri || "",
+        version: result.version || "",
+        mediaName: result.mediaName || "",
+        message: result.message || "",
+        at: Date.now(),
+      };
+      if (result.mediaName) state.mediaNames[entry.path] = result.mediaName;
+      var node = coverNode(entry.path);
+      if (node) applyCoverState(node, entry, state.covers[entry.path]);
+      syncMediaName(entry);
+    }).catch(function () {
+      delete state.coversPending[entry.path];
+    });
+    state.coversPending[entry.path] = pending;
+  }
+
+  function syncMediaName(entry) {
+    var name = state.mediaNames[entry.path];
+    if (!name) return;
+    var node = grid().querySelector('.recent-media[data-path="' + cssEscape(entry.path) + '"]');
+    if (node && node.textContent !== name) node.textContent = name;
+  }
+
+  function refreshCover(entry) {
+    // 卡片菜单「刷新封面」：绕过后端磁盘缓存重新提取。
+    return bridge("refresh_recent_project_thumbnail", { path: entry.path }).then(function (result) {
+      if (!result || result.ok !== true) return;
+      state.covers[entry.path] = {
+        state: result.state || "failed",
+        dataUri: result.dataUri || "",
+        version: result.version || "",
+        message: result.message || "",
+        at: Date.now(),
+      };
+      if (result.mediaName) state.mediaNames[entry.path] = result.mediaName;
+      var node = coverNode(entry.path);
+      if (node) applyCoverState(node, entry, state.covers[entry.path]);
+      syncMediaName(entry);
+    });
+  }
+
+  function observeCovers(shown) {
+    if (!("IntersectionObserver" in window)) {
+      // 无观察器环境（老 WebView）直接顺序加载，功能不缺失。
+      shown.forEach(function (entry) { requestCover(entry); });
+      return;
+    }
+    if (!coverObserver) {
+      coverObserver = new IntersectionObserver(function (records) {
+        records.forEach(function (record) {
+          if (!record.isIntersecting) return;
+          coverObserver.unobserve(record.target);
+          var path = record.target.dataset.path || "";
+          var entry = state.projects.find(function (item) { return item.path === path; });
+          if (entry) requestCover(entry);
+        });
+      }, { rootMargin: "200px 0px" });
+    } else {
+      coverObserver.disconnect();
+    }
+    shown.forEach(function (entry) {
+      if (!entry.exists) return;
+      var node = coverNode(entry.path);
+      if (node) coverObserver.observe(node);
+    });
+  }
+
+  // ---------------- 卡片 ----------------
+
   function createCard(entry) {
     var card = document.createElement("div");
-    card.className = "recent-card" + (entry.pinned ? " pinned" : "");
+    // H02：创建卡片时从唯一选中状态同时恢复样式与无障碍属性。
+    var isSelected = Boolean(state.selectedPath) && entry.path === state.selectedPath;
+    card.className = "recent-card"
+      + (entry.pinned ? " pinned" : "")
+      + (isSelected ? " selected" : "");
     card.dataset.path = entry.path;
     card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
-    card.setAttribute("aria-pressed", String(entry.path === state.selectedPath));
+    card.setAttribute("aria-pressed", String(isSelected));
     if (!entry.exists) card.classList.add("missing");
 
-    var cover = document.createElement("div");
-    cover.className = "recent-cover";
-    cover.setAttribute("aria-hidden", "true");
-    cover.innerHTML = '<svg viewBox="169 18 600 600" fill="currentColor"><path d="M639.25,138.93l-170.84-84.38-169.78,82.81-50,206.25,219.78,82.81,220.84-81.25-50-206.25Z"/></svg>';
+    var cover = createCover(entry);
 
     var info = document.createElement("div");
     info.className = "recent-info";
@@ -65,6 +230,11 @@
     name.className = "recent-name";
     name.textContent = entry.name;
     name.title = entry.path;
+    var media = document.createElement("div");
+    media.className = "recent-media";
+    media.dataset.path = entry.path;
+    if (state.mediaNames[entry.path]) media.textContent = state.mediaNames[entry.path];
+    else media.textContent = entry.exists ? t("recent_media_loading") : "";
     var dir = document.createElement("div");
     dir.className = "recent-dir";
     dir.textContent = entry.dir;
@@ -77,7 +247,7 @@
       var stats = document.createElement("span");
       stats.className = "recent-stats";
       stats.dataset.path = entry.path;
-      stats.textContent = t("recent_stats_loading");
+      stats.textContent = statsTextFor(entry);
       meta.append(stats);
     } else {
       var missing = document.createElement("span");
@@ -85,7 +255,7 @@
       missing.textContent = t("recent_missing");
       meta.append(missing);
     }
-    info.append(name, dir, meta);
+    info.append(name, media, dir, meta);
     if (entry.pinned) {
       var pin = document.createElement("span");
       pin.className = "recent-pin";
@@ -97,35 +267,59 @@
   }
 
   function render() {
-    var grid = el("recentGrid");
+    var gridNode = el("recentGrid");
     var empty = el("recentEmpty");
     var more = el("recentMore");
     var count = el("recentCount");
-    grid.replaceChildren();
+    gridNode.replaceChildren();
+    // H03：筛选隐藏当前目标时清除选择，避免隐藏工程仍是启动目标。
+    if (state.selectedPath && !visibleProjects().some(function (item) { return item.path === state.selectedPath; })) {
+      clearSelection({ clearTarget: true });
+    }
     var list = visibleProjects();
     var shown = list.slice(0, state.visible);
-    shown.forEach(function (entry) { grid.append(createCard(entry)); });
+    shown.forEach(function (entry) { gridNode.append(createCard(entry)); });
     empty.classList.toggle("hidden", list.length > 0);
     more.classList.toggle("hidden", list.length <= state.visible);
     count.textContent = list.length ? t("recent_count").replace("{n}", String(list.length)) : "";
-    renderLaunchButtons();
-    // 统计按需逐个拉取：卡片先显示「读取中」，不伪造数字。
+    renderLaunchArea();
+    // 统计与封面按需拉取：卡片先显示占位，不伪造数字或画面。
     shown.filter(function (entry) { return entry.exists; }).forEach(requestStats);
+    observeCovers(shown);
+  }
+
+  function statsTextFor(entry) {
+    var cached = state.statsCache[entry.path];
+    if (cached && cached.version === (entry.modifiedAt || "")) return cached.text;
+    return t("recent_stats_loading");
   }
 
   function requestStats(entry) {
-    void bridge("get_recent_project_stats", { path: entry.path }).then(function (result) {
-      var node = grid().querySelector('.recent-stats[data-path="' + cssEscape(entry.path) + '"]');
-      if (!node) return;
-      if (!result || result.ok !== true || result.skipped) {
-        node.textContent = "";
-        return;
+    var version = entry.modifiedAt || "";
+    var cached = state.statsCache[entry.path];
+    if (cached && cached.version === version && cached.text) return;
+    if (state.statsPending[entry.path]) return;
+    var pending = bridge("get_recent_project_stats", { path: entry.path }).then(function (result) {
+      delete state.statsPending[entry.path];
+      var text = "";
+      if (result && result.ok === true && !result.skipped) {
+        text = t("recent_stats_summary")
+          .replace("{main}", String(result.mainSubtitles ?? 0))
+          .replace("{sub}", String(result.subSubtitles ?? 0))
+          .replace("{audio}", String(result.audioClips ?? 0));
       }
-      node.textContent = t("recent_stats_summary")
-        .replace("{main}", String(result.mainSubtitles ?? 0))
-        .replace("{sub}", String(result.subSubtitles ?? 0))
-        .replace("{audio}", String(result.audioClips ?? 0));
+      if (result && result.mediaName) {
+        state.mediaNames[entry.path] = result.mediaName;
+        syncMediaName(entry);
+      }
+      // H05：按工程文件版本缓存；版本变化（工程被保存过）后自然失效。
+      state.statsCache[entry.path] = { version: version, text: text };
+      var node = grid().querySelector('.recent-stats[data-path="' + cssEscape(entry.path) + '"]');
+      if (node) node.textContent = text;
+    }).catch(function () {
+      delete state.statsPending[entry.path];
     });
+    state.statsPending[entry.path] = pending;
   }
 
   function grid() { return el("recentGrid"); }
@@ -135,34 +329,128 @@
     return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
   }
 
-  function renderLaunchButtons() {
-    var openSelected = el("homeOpenSelected");
-    if (!openSelected) return;
-    openSelected.classList.toggle("hidden", !state.selectedPath);
+  // ---------------- 目标状态与启动区（H03/H04） ----------------
+
+  function selectedEntry() {
+    if (!state.selectedPath) return null;
+    return state.projects.find(function (item) { return item.path === state.selectedPath; }) || null;
   }
 
-  function setSelected(path) {
-    state.selectedPath = state.selectedPath === path ? "" : path;
+  function browsedTargetPath() {
+    var json = el("jsonPath");
+    return json ? json.value.trim() : "";
+  }
+
+  function basenameOf(value) {
+    var parts = String(value).split(/[\\/]/);
+    return parts[parts.length - 1] || value;
+  }
+
+  function renderLaunchArea() {
+    var openSelected = el("homeOpenSelected");
+    var chip = el("homeTarget");
+    var entry = selectedEntry();
+    var raw = browsedTargetPath();
+    var label = entry ? entry.name : (raw ? basenameOf(raw) : "");
+    if (openSelected) openSelected.classList.toggle("hidden", !label);
+    if (chip) {
+      chip.classList.toggle("hidden", !label);
+      chip.textContent = label ? t("home_target").replace("{name}", label) : "";
+    }
+  }
+
+  function persistSelection() {
+    try {
+      if (state.selectedPath) sessionStorage.setItem(SELECTED_KEY, state.selectedPath);
+      else sessionStorage.removeItem(SELECTED_KEY);
+    } catch (error) { /* 隐私模式下不可用；仅影响刷新后恢复 */ }
+  }
+
+  function restoreSelection() {
+    var saved = "";
+    try { saved = sessionStorage.getItem(SELECTED_KEY) || ""; } catch (error) { saved = ""; }
+    if (saved && state.projects.some(function (item) { return item.path === saved && item.exists; })) {
+      state.selectedPath = saved;
+    } else if (saved) {
+      state.selectedPath = "";
+      persistSelection();
+    }
+  }
+
+  function updateCardStates() {
     grid().querySelectorAll(".recent-card").forEach(function (card) {
       var selected = Boolean(state.selectedPath) && card.dataset.path === state.selectedPath;
       card.classList.toggle("selected", selected);
       card.setAttribute("aria-pressed", String(selected));
     });
-    renderLaunchButtons();
+    renderLaunchArea();
+  }
+
+  function setSelected(path) {
+    state.selectedPath = state.selectedPath === path ? "" : path;
+    persistSelection();
+    // H04：卡片选择与工程路径共用一个目标状态；取消选择即清空目标。
+    if (window.MSWLauncher && window.MSWLauncher.setJsonPath) {
+      window.MSWLauncher.setJsonPath(state.selectedPath);
+    }
+    updateCardStates();
+  }
+
+  function clearSelection(options) {
+    var clearTarget = !options || options.clearTarget !== false;
+    if (!state.selectedPath && !(clearTarget && browsedTargetPath())) {
+      renderLaunchArea();
+      return;
+    }
+    state.selectedPath = "";
+    persistSelection();
+    if (clearTarget && browsedTargetPath() && window.MSWLauncher && window.MSWLauncher.setJsonPath) {
+      // 目标被筛选隐藏：连表单里的目标一并清空，避免隐藏工程仍是启动目标（H03）。
+      window.MSWLauncher.setJsonPath("");
+    }
+    updateCardStates();
+  }
+
+  function syncTargetFromPath(path) {
+    // 工程路径来自浏览/表单/编辑器事件：与卡片选择互通（H04）。
+    var raw = String(path || "").trim();
+    var match = raw && state.projects.find(function (item) { return item.path === raw; });
+    if (match) {
+      if (match.exists && state.selectedPath !== match.path) {
+        state.selectedPath = match.path;
+        persistSelection();
+        updateCardStates();
+      }
+    } else if (!raw) {
+      clearSelection({ clearTarget: false });
+    } else {
+      // 指向最近列表之外的工程：保留为浏览目标，卡片不伪造选中。
+      clearSelection({ clearTarget: false });
+    }
   }
 
   function openProject(path) {
     var entry = state.projects.find(function (item) { return item.path === path; });
-    if (!entry) return;
-    if (!entry.exists) {
+    if (entry && !entry.exists) {
       relocateFlow(entry);
       return;
     }
     if (window.MSWLauncher && window.MSWLauncher.setJsonPath) {
-      window.MSWLauncher.setJsonPath(entry.path);
+      window.MSWLauncher.setJsonPath(path);
       window.MSWNavigation.show("home");
       void window.MSWLauncher.openServerEditor();
     }
+  }
+
+  function openCurrentTarget() {
+    var entry = selectedEntry();
+    if (entry) {
+      openProject(entry.path);
+      return;
+    }
+    var json = el("jsonPath");
+    var raw = json ? json.value.trim() : "";
+    if (raw) void window.MSWLauncher.openServerEditor();
   }
 
   function relocateFlow(entry) {
@@ -184,10 +472,14 @@
       state.projects = Array.isArray(result.projects) ? result.projects : [];
       if (state.selectedPath && !state.projects.some(function (item) { return item.path === state.selectedPath; })) {
         state.selectedPath = "";
+        persistSelection();
       }
+      if (!state.selectedPath) restoreSelection();
       render();
     });
   }
+
+  // ---------------- 交互 ----------------
 
   function bindCardEvents() {
     var node = grid();
@@ -234,6 +526,9 @@
     actions.push({ key: "recent_open_folder", run: function () {
       void bridge("open_containing_folder", { path: entry.path });
     } });
+    if (entry.exists) {
+      actions.push({ key: "recent_refresh_cover", run: function () { void refreshCover(entry); } });
+    }
     if (!entry.exists) {
       actions.push({ key: "recent_relocate", run: function () { relocateFlow(entry); } });
     }
@@ -276,9 +571,14 @@
   function bindToolbar() {
     var search = el("recentSearch");
     search.addEventListener("input", function () {
-      state.query = search.value.trim().toLowerCase();
-      state.visible = DEFAULT_LIMIT;
-      render();
+      // H05：搜索防抖——连续输入不重复重建列表与统计请求。
+      window.clearTimeout(searchTimer);
+      var value = search.value.trim().toLowerCase();
+      searchTimer = window.setTimeout(function () {
+        state.query = value;
+        state.visible = DEFAULT_LIMIT;
+        render();
+      }, SEARCH_DEBOUNCE_MS);
     });
     el("recentMore").addEventListener("click", function () {
       state.visible += DEFAULT_LIMIT;
@@ -287,17 +587,29 @@
     el("homeBlank").addEventListener("click", function () {
       void window.MSWLauncher.startBlankEditor();
     });
+    var browse = el("homeBrowse");
+    if (browse) {
+      browse.addEventListener("click", async function () {
+        var result = await bridge("choose_file", { kind: "json" });
+        if (result && result.ok) window.MSWLauncher.setJsonPath(result.path);
+      });
+    }
     var openSelected = el("homeOpenSelected");
     if (openSelected) {
-      openSelected.addEventListener("click", function () {
-        if (state.selectedPath) openProject(state.selectedPath);
-      });
+      openSelected.addEventListener("click", openCurrentTarget);
     }
   }
 
   function init() {
     bindToolbar();
     bindCardEvents();
+    // H04：工程路径变化（浏览/表单/编辑器事件）与卡片选择互通。
+    var previous = window.MSWLauncher.onProjectPathChanged;
+    window.MSWLauncher.onProjectPathChanged = function () {
+      try { if (typeof previous === "function") previous.call(window.MSWLauncher); } catch (error) { /* 前一个钩子失败不阻断 */ }
+      var json = el("jsonPath");
+      syncTargetFromPath(json ? json.value : "");
+    };
     void refresh();
     // 编辑器保存/另存为成功都会写编辑器设置；窗口重新聚焦时刷新一次首页索引。
     window.addEventListener("focus", function () {
@@ -312,6 +624,8 @@
     refresh: refresh,
     setSelected: setSelected,
     openProject: openProject,
+    syncTargetFromPath: syncTargetFromPath,
+    requestCover: requestCover,
     state: state,
   };
 
