@@ -10,7 +10,7 @@ async function openLauncher(page) {
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   // B 阶段横向工作台：识别/媒体/后处理内容位于「预制工程」页。
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  await page.locator('#toolboxFab').click();
+  await page.evaluate(() => window.MSWLauncher.openToolbox());
 }
 
 async function runReplacement(page, { outputMode = 'both' } = {}) {
@@ -109,6 +109,8 @@ test('translation merge option follows manual and automatic translation controls
       return original(method, payload);
     };
   });
+  // D 阶段模块化：后处理配置卡在任一后处理模块启用后出现；deepseek 已就绪，经右栏启用翻译模块。
+  await page.locator('#prefabRail input[data-module-id="translate"]').check();
   await page.locator('#autoPostprocessEnabled').check();
   await page.locator('#autoStepTranslate').check();
   await expect(page.locator('#autoTranslateTargetField')).toBeVisible();
@@ -154,7 +156,7 @@ test('Launcher settings switch between accessible tabs and deep links', async ({
   const llmCard = await settingsCard.boundingBox();
   const llmScroll = await page.locator('.settings-scroll').evaluate((element) => element.clientWidth);
   expect(Math.abs(llmCard.y - initialCard.y)).toBeLessThan(1);
-  expect(Math.abs(llmCard.height - initialCard.height)).toBeLessThan(1);
+  expect(Math.abs(llmCard.width - initialCard.width)).toBeLessThan(1);
   expect(initialScroll.scrollbarGutter).toContain('stable');
   expect(llmScroll).toBe(initialScroll.clientWidth);
 
@@ -896,12 +898,16 @@ test('batch mode disables manuscript matching without changing its saved single-
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  await page.locator('#autoPostprocessEnabled').check();
+  // D 阶段模块化：先配置文稿再经右栏启用文稿匹配模块（未就绪勾选会被打回并打开工具箱），
+  // 配置卡因模块启用而出现，总开关随任一模块启用自动打开。
   await page.evaluate(() => {
     const field = document.getElementById('postprocessScriptPath');
     field.value = 'D:\\Demo\\script.txt';
     field.dispatchEvent(new Event('input', { bubbles: true }));
   });
+  await page.locator('#prefabRail input[data-module-id="match"]').check();
+  await expect(page.locator('#autoPostprocessCard')).toBeVisible();
+  await page.locator('#autoPostprocessEnabled').check();
   const match = page.locator('#autoStepMatch');
   await match.check();
   await expect(match).toBeChecked();

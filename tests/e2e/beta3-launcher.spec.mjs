@@ -20,7 +20,7 @@ test('Markdown and punctuation changes refresh both previews and discard late re
       return original(method,payload);
     };
   });
-  await page.locator('#toolboxFab').click();await page.locator('#toolboxMatchTab').click();
+  await page.evaluate(() => window.MSWLauncher.openToolbox());await page.locator('#toolboxMatchTab').click();
   await page.locator('#toolboxInputPath').fill('D:\\Demo\\clip.mosp');
   await page.locator('#postprocessScriptPath').fill('D:\\Demo\\slow.md');
   await page.locator('#postprocessScriptPath').fill('D:\\Demo\\new.md');

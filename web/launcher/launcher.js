@@ -223,10 +223,10 @@
       speaker_colors_title: "转写时按说话人自动着色（生成后仍可在编辑器修改）"
     },
     en: {
-      media_output: "1️⃣ Media & Output",
-      recognition: "2️⃣ Recognition Settings",
-      server: "5️⃣ Subtitle Editor Settings",
-      logs: "4️⃣ Logs",
+      media_output: "Media & Output",
+      recognition: "Recognition Settings",
+      server: "Subtitle Editor",
+      logs: "Logs",
       provider: "Recognition source",
       test_run: "Test run",
       test_run_title: "Trim to the first 2 minutes to test the workflow and API",
@@ -629,8 +629,8 @@
     generate_html_title: "单文件版编辑器直接在浏览器打开就能用，优势是便携，但是会缺少保存功能（只能通过导出下载）",
     open_html: "打开该工程的 HTML 编辑器",
     open_blank_html: "打开空的 HTML 编辑器",
-    server_already_running: "🌐 当前字幕编辑服务器已在运行中：",
-    server_address: "🌐 当前服务器地址：",
+    server_already_running: "当前字幕编辑服务器已在运行中：",
+    server_address: "当前服务器地址：",
     server_start_hint: "请点击「启动字幕服务器」",
     server_no_response_hint: "编辑器服务器没有响应，请检查端口或下方状态。",
     server_start_failed_hint: "编辑器服务器启动失败，请查看下方状态和日志。",
@@ -714,8 +714,8 @@
     generate_html_title: "The single-file editor works directly in a browser and is portable, but cannot save changes locally; export/download instead.",
     open_html: "Open this project's HTML editor",
     open_blank_html: "Open blank HTML editor",
-    server_already_running: "🌐 A subtitle editor server is already running: ",
-    server_address: "🌐 Current server address: ",
+    server_already_running: "A subtitle editor server is already running: ",
+    server_address: "Current server address: ",
     server_start_hint: "click \"Launch Subtitle Editor\"",
     server_no_response_hint: "The editor server did not respond. Check the port or the status below.",
     server_start_failed_hint: "The editor server failed to start. Check the status and logs below.",
@@ -1022,7 +1022,7 @@
     llm_reasoning_mode_hint: "Off is the default; Auto follows the model default."
   });
   Object.assign(STRINGS.zh, {
-    toolbox_open: "打开工具箱", toolbox_title: "工具箱", toolbox_group_postprocess: "后处理", toolbox_group_utilities: "实用工具", toolbox_chain_hint: "每次生成新文件，并自动作为下一步输入。", toolbox_no_media: "未选择媒体", toolbox_input_empty: "未选择文件", toolbox_chain_heading: "处理产物（点击文件名切换输入）", toolbox_resize_width: "调整工具箱宽度", toolbox_resize_height: "调整工具箱高度",
+    toolbox_title: "工具箱", toolbox_group_postprocess: "后处理", toolbox_group_utilities: "实用工具", toolbox_chain_hint: "每次生成新文件，并自动作为下一步输入。", toolbox_no_media: "未选择媒体", toolbox_input_empty: "未选择文件", toolbox_chain_heading: "处理产物（点击文件名切换输入）", toolbox_resize_width: "调整工具箱宽度", toolbox_resize_height: "调整工具箱高度",
     toolbox_input: "处理文件", toolbox_input_placeholder: "跟随工程文件，也可拖入 .mosp / .json / .srt", toolbox_input_hint: "默认跟随「工程文件」并随每次处理更新；手动选择或拖入后以这里为准。", toolbox_drop_reject: "这里只接受 .mosp / .json / .srt 字幕或工程文件。", toolbox_utility_media: "媒体文件", toolbox_utility_media_placeholder: "默认跟随 Launcher 媒体，也可选择或拖入媒体文件", toolbox_utility_media_hint: "默认跟随 Launcher 媒体；选择或拖入媒体后，以这里为准。清空可恢复跟随。", toolbox_utility_media_reject: "这里仅接受媒体文件。", toolbox_ffconcat_reject: "这里只接受 .ffconcat 文件。",
      toolbox_waveform: "生成波形", toolbox_waveform_hint: "仅使用上方媒体生成媒体工程和独立波形缓存，不需要字幕或转写；打开编辑器后可扫描静音空隙并导出去空隙 OTIO。", toolbox_generate_waveform: "生成波形文件", toolbox_run_waveform: "生成波形并打开编辑器", toolbox_match: "文稿匹配", toolbox_script: "文稿文件", toolbox_script_placeholder: "UTF-8 .txt / .md 文稿", toolbox_script_hint: "文稿文字会替换字幕文字；原字幕时间保持不变。", toolbox_script_preview: "文稿预览（前 240 字）", toolbox_script_reject: "文稿只支持 .txt / .md / .markdown 文件。", toolbox_split_preview: "拆分预览", toolbox_match_mode: "换行来源", toolbox_match_mode_script: "按文稿换行（默认）", toolbox_match_mode_text: "只更正文本", toolbox_match_mode_hint: "按文稿换行会使用文稿中的换行和断句符号；只更正文本保留现有字幕分段。", toolbox_extra_split_punctuation: "额外断句符号", toolbox_extra_split_punctuation_placeholder: "？\n！\n——\n~", toolbox_extra_split_punctuation_hint: "每行一个符号；逗号、句号和换行默认生效，同时对转写后处理的句尾剥除生效。", toolbox_preserve_punctuation: "保留符号", toolbox_preserve_punctuation_placeholder: "？\n！\n~", toolbox_preserve_punctuation_hint: "断句后仍将符号保留在字幕末尾；转写输出的这些尾部符号同样保留，其余默认剥除逗号和句号。", toolbox_preserve_punctuation_invalid: "保留符号必须存在于额外断句符号中：", toolbox_match_hint: "匹配度过低时会停止，不写出可能错配的结果。", toolbox_run_match: "匹配文稿", toolbox_punct_open_settings: "在更多设置中配置断句与保留符号",
      toolbox_llm: "LLM 处理", toolbox_replace: "固定处理", toolbox_ffconcat: "媒体重组", toolbox_provider: "供应商", toolbox_operation: "任务", toolbox_proofread: "校对文本", toolbox_resegment: "重新断句", toolbox_translate_en: "翻译成英文", toolbox_translate_zh: "翻译成中文", toolbox_merge_bilingual: "合并双语字幕", toolbox_custom: "自定义",
@@ -1032,7 +1032,7 @@
       toolbox_need_source: "请先选择工程或 SRT。", toolbox_need_script: "请选择文稿文件。", toolbox_need_rules: "请至少填写一条有效批量替换规则或选择简繁转换。", toolbox_need_ffconcat: "请选择 .ffconcat 文件。", toolbox_need_media: "请先选择当前媒体。", toolbox_custom_prompt_required: "自定义任务需要填写提示词。", toolbox_done: "处理完成，已切换到新产物：", toolbox_media_done: "媒体重组完成，已切换到新媒体：", toolbox_config_only_hint: "这里只配置自动后处理；生成后会自动执行。", toolbox_match_rate: "匹配率", toolbox_match_preview_stats: "根据文稿重新换行后，共有 {from} -> {to} 句字幕（{change}）", toolbox_match_preview_too_low: "偏差过多，无法匹配，请检查文稿。", toolbox_match_preview_failed: "无法生成匹配预览，请检查文稿。", toolbox_alignment: "口播对齐", toolbox_alignment_hint: "适合初版 ASR 中有口吃、重录、重复或顺序混乱的口播；需要 ASR 工程和文稿，人工选择 take 后导出新工程。", toolbox_alignment_input_project: "ASR 工程", toolbox_alignment_project_placeholder: "选择或拖入 .mosp / .json 工程", toolbox_alignment_project_hint: "默认跟随当前 Launcher 工程；口播对齐需要工程中的 ASR 时间码，不能只使用 SRT。", toolbox_alignment_input_script: "文稿", toolbox_alignment_script_placeholder: "选择或拖入 UTF-8 .txt / .md 文稿", toolbox_alignment_script_hint: "每个非空行视为一行文稿。", toolbox_alignment_input_media: "媒体覆盖（可选）", toolbox_alignment_media_placeholder: "留空以使用工程媒体，也可选择或拖入媒体文件", toolbox_alignment_media_hint: "工程没有可用媒体时无法试听，但仍可查看并导出对齐结果。", toolbox_alignment_notice: "不会覆盖输入工程；导出后会生成 source.aligned.mosp。", toolbox_run_alignment: "启动并打开口播对齐", toolbox_reopen_alignment: "重新打开口播对齐", toolbox_stop_alignment: "停止服务", toolbox_alignment_started: "口播对齐 Server 已启动。", toolbox_alignment_stopped: "口播对齐 Server 已停止。", toolbox_alignment_script_missing: "请选择文稿文件。", toolbox_alignment_project_invalid: "口播对齐需要 .mosp 或 .json 工程。", toolbox_alignment_media_invalid: "请选择支持的媒体文件。", toolbox_status_alignment_starting: "正在启动口播对齐 Server……", toolbox_status_alignment_stopping: "正在停止口播对齐 Server……", toolbox_alignment_open_failed: "口播对齐已启动，但未能自动打开浏览器。"
    });
    Object.assign(STRINGS.en, {
-     toolbox_open: "Open toolbox", toolbox_title: "Toolbox", toolbox_group_postprocess: "Post-processing", toolbox_group_utilities: "Utilities", toolbox_chain_hint: "Each run creates a new file and uses it as the next input.", toolbox_no_media: "No media selected", toolbox_input_empty: "No file selected", toolbox_chain_heading: "Artifacts (click a filename to use it as input)", toolbox_resize_width: "Resize toolbox width", toolbox_resize_height: "Resize toolbox height",
+     toolbox_title: "Toolbox", toolbox_group_postprocess: "Post-processing", toolbox_group_utilities: "Utilities", toolbox_chain_hint: "Each run creates a new file and uses it as the next input.", toolbox_no_media: "No media selected", toolbox_input_empty: "No file selected", toolbox_chain_heading: "Artifacts (click a filename to use it as input)", toolbox_resize_width: "Resize toolbox width", toolbox_resize_height: "Resize toolbox height",
     toolbox_input: "File to process", toolbox_input_placeholder: "Follows the project file, or drop a .mosp / .json / .srt", toolbox_input_hint: "Auto-follows the project file and updates after each run; a chosen or dropped file takes priority.", toolbox_drop_reject: "Only .mosp / .json / .srt subtitle or project files can be dropped here.", toolbox_utility_media: "Media file", toolbox_utility_media_placeholder: "Uses Launcher media by default, or choose or drop a media file", toolbox_utility_media_hint: "Uses the Launcher media by default; a chosen or dropped file takes priority. Clear it to follow again.", toolbox_utility_media_reject: "Only media files can be used here.", toolbox_ffconcat_reject: "Only .ffconcat files can be used here.",
      toolbox_waveform: "Generate waveform", toolbox_waveform_hint: "Use the media above to create a media project and a separate waveform cache; no subtitles or transcription are required. In the editor, scan silence gaps and export a gap-removed OTIO.", toolbox_generate_waveform: "Generate waveform project", toolbox_run_waveform: "Generate waveform and open editor", toolbox_match: "Script match", toolbox_script: "Script file", toolbox_script_placeholder: "UTF-8 .txt / .md script", toolbox_script_hint: "Script text replaces subtitle text; original subtitle timing stays unchanged.", toolbox_script_preview: "Script preview (first 240 chars)", toolbox_script_reject: "Scripts must be .txt, .md, or .markdown files.", toolbox_split_preview: "Split preview", toolbox_match_mode: "Line-break source", toolbox_match_mode_script: "Use manuscript line breaks (default)", toolbox_match_mode_text: "Correct text only", toolbox_match_mode_hint: "Manuscript mode uses line breaks and split symbols; text-only mode keeps the existing cue segmentation.", toolbox_extra_split_punctuation: "Extra split punctuation", toolbox_extra_split_punctuation_placeholder: "?\n!\n--\n~", toolbox_extra_split_punctuation_hint: "One symbol per line; comma, period, and newline apply by default, and also drive tail-punctuation stripping in transcription post-processing.", toolbox_preserve_punctuation: "Preserve punctuation", toolbox_preserve_punctuation_placeholder: "?\n!\n~", toolbox_preserve_punctuation_hint: "Symbols are kept at cue tails after splitting; transcription output keeps these tail symbols too, while commas and periods are stripped by default.", toolbox_preserve_punctuation_invalid: "Preserved symbols must be listed as extra split punctuation:", toolbox_match_hint: "Runs stop when the match is too low to avoid writing a bad alignment.", toolbox_run_match: "Match script", toolbox_punct_open_settings: "Configure split & punctuation marks in More Settings",
      toolbox_llm: "LLM", toolbox_replace: "Fixed processing", toolbox_ffconcat: "Media rebuild", toolbox_provider: "Provider", toolbox_operation: "Task", toolbox_proofread: "Proofread text", toolbox_resegment: "Resegment", toolbox_translate_en: "Translate into English", toolbox_translate_zh: "Translate into Chinese", toolbox_merge_bilingual: "Merge bilingual subtitles", toolbox_custom: "Custom",
@@ -1126,7 +1126,7 @@
       waveform_cancelled: "媒体工程生成已取消。",
       batch_requires_asr: "当前未启用识别设置模块：批量预制暂时只支持识别管线。请先在处理模块中启用识别，或使用单文件模式。",
       server_stop_failed: "无法停止当前端口上的 MSW 字幕编辑服务器。",
-      api_key_missing: "请填写 API Key，或先在 ⚙ 配置/密钥区保存。",
+      api_key_missing: "请填写 API Key，或先在「更多设置 → 服务与连接」保存。",
       custom_asr_base_url_missing: "请填写自定义 ASR Base URL。",
       custom_asr_model_missing: "请填写自定义 ASR 模型名。",
       local_runtime_missing: "本地模型运行时未安装。请先安装本地 ASR 依赖。",
@@ -1957,7 +1957,7 @@
     document.body.classList.add("launcher-ready");
   }
 
-  // keycap 表情（1️⃣ 等）依赖彩色 emoji 字体：后端把 Noto Color Emoji 缓存到本机
+  // keycap 表情（数字序号 emoji）依赖彩色 emoji 字体：后端把 Noto Color Emoji 缓存到本机
   // 后提供 file:// URI，这里注入 @font-face；注入一次即可，重复事件会被跳过。
   function injectEmojiFont(uri) {
     if (!uri || document.querySelector("style[data-emoji-font]")) return;
@@ -3026,7 +3026,7 @@
       button.addEventListener("click", () => {
         const tab = $(button.dataset.toolEntry);
         if (!tab) return;
-        if ($("toolboxDrawer").classList.contains("hidden")) $("toolboxFab").click();
+        window.MSWLauncher.openToolbox();
         (button.dataset.toolSection === "postprocess" ? $("toolboxPostprocessPrimaryTab") : $("toolboxUtilitiesPrimaryTab"))?.click();
         tab.click();
       });

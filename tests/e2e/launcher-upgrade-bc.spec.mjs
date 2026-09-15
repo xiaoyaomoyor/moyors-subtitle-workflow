@@ -110,7 +110,7 @@ for (const zoom of [80, 100, 150]) {
       const footer = await page.locator('[data-page-id="prefab"] footer.page-actions').boundingBox();
       expect(footer.y + footer.height).toBeLessThanOrEqual(viewport.height + 2);
       expect(footer.y + footer.height).toBeGreaterThan(viewport.height - 3);
-      await page.locator('#toolboxFab').click();
+      await page.evaluate(() => window.MSWLauncher.openToolbox());
       await page.locator('#toolboxUtilitiesPrimaryTab').click();
       await page.locator('#toolboxExtractAudioTab').click();
       await expect(page.locator('#toolboxExtractAudioPanel')).toBeVisible();

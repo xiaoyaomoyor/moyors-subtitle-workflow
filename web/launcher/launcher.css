@@ -1,25 +1,27 @@
 :root {
   /* MSW 横向工作台主题：中性黑层次 + 低调紫色强调（规划 §3.4）。
      卡片继续使用 --bg-panel；侧栏/页头/操作栏使用 --bg-side。 */
+  /* R2/审查 §4.2：中性黑层次 + 低调紫；选区描边独立于强调色。 */
   --bg-base: #101010;
   --bg-side: #171717;
   --bg-panel: #1E1E1E;
-  --bg-raised: #272727;
-  --bg-overlay: #232323;
+  --bg-raised: #282828;
+  --bg-overlay: #282828;
   --bg-input: #141414;
-  --text-primary: #f2f0f4;
-  --text-secondary: #b5b0bb;
+  --text-primary: #EEEAF2;
+  --text-secondary: #B7B0BF;
   --text-muted: #8f8996;
   --text-faint: #6e6878;
-  --border-subtle: #2a2a2a;
-  --border: #333333;
-  --border-strong: #404040;
-  --accent: #b19acb;
-  --accent-hover: #c3b1d9;
-  --accent-strong: #73568f;
-  --accent-tint: rgba(177, 154, 203, .12);
-  --accent-tint-strong: rgba(177, 154, 203, .22);
-  --accent-soft: rgba(177, 154, 203, .16);
+  --border-subtle: #2f2b31;
+  --border: #363238;
+  --border-strong: #453f47;
+  --accent: #BCA2D3;
+  --accent-hover: #cdb7e1;
+  --accent-strong: #71558B;
+  --accent-tint: rgba(188, 162, 211, .12);
+  --accent-tint-strong: rgba(188, 162, 211, .22);
+  --accent-soft: rgba(188, 162, 211, .16);
+  --selection-stroke: #C3AAD9;
   --amber: #d9a85f;
   --amber-hover: #e2b571;
   --amber-soft: rgba(217, 168, 95, .14);
@@ -59,25 +61,26 @@ h2[data-i18n] {
 /* 亮色主题：与 MSWE（web/editor.css）的 [data-theme="light"] 体系对齐；
    由 <html data-theme="light"> 激活，launcher.js 根据 localStorage / 系统偏好设置。 */
 [data-theme="light"] {
-  --bg-base: #f5f4f6;
+  --bg-base: #F5F4F6;
   --bg-side: #ffffff;
   --bg-panel: #ffffff;
-  --bg-raised: #eeebf1;
+  --bg-raised: #EEEAF2;
   --bg-overlay: #ffffff;
   --bg-input: #faf9fb;
-  --text-primary: #242027;
+  --text-primary: #29252D;
   --text-secondary: #68606f;
   --text-muted: #857d8f;
   --text-faint: #a39baf;
   --border-subtle: #e8e3ec;
-  --border: #ded9e4;
-  --border-strong: #cfc6d9;
-  --accent: #71538f;
-  --accent-hover: #5e4478;
-  --accent-strong: #71538f;
-  --accent-tint: rgba(113, 83, 143, .10);
-  --accent-tint-strong: rgba(113, 83, 143, .20);
-  --accent-soft: rgba(113, 83, 143, .14);
+  --border: #DCD6E2;
+  --border-strong: #cdc5d4;
+  --accent: #74528E;
+  --accent-hover: #5f4176;
+  --accent-strong: #71518D;
+  --accent-tint: rgba(116, 82, 142, .10);
+  --accent-tint-strong: rgba(116, 82, 142, .20);
+  --accent-soft: rgba(116, 82, 142, .14);
+  --selection-stroke: #82609D;
   --amber: #9a6b1f;
   --amber-hover: #8a5d18;
   --amber-soft: rgba(154, 107, 30, .14);
@@ -153,11 +156,11 @@ body:not(.launcher-ready) .shell {
 
 .app-header {
   flex: 0 0 auto;
-  min-height: 78px;
+  min-height: 64px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 24px;
+  gap: 14px;
+  padding: 10px 20px;
   background: var(--bg-side);
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -170,9 +173,9 @@ body:not(.launcher-ready) .shell {
 }
 
 .brand-logo {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   color: var(--text-primary);
 }
 
@@ -184,7 +187,7 @@ body:not(.launcher-ready) .shell {
 }
 
 .brand-name-zh {
-  font-size: 21px;
+  font-size: 19px;
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: .03em;
@@ -535,7 +538,20 @@ body.nav-compact .nav-footer {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin: 0 0 10px;
+}
+
+/* R2/V07：标题并入模块头单行展示，作为卡片主标题（主文字色）。 */
+.module-card .module-head h2 {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .module-index {
@@ -669,7 +685,8 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
 }
 
 .recent-card.selected {
-  border-color: var(--accent);
+  border-color: var(--selection-stroke);
+  border-width: 2px;
   background: linear-gradient(var(--accent-tint), var(--accent-tint)), var(--bg-panel);
 }
 
@@ -962,10 +979,10 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
 }
 
 .card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, .012), transparent), var(--bg-panel);
+  background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-1);
   padding: 14px;
   margin-bottom: 12px;
 }
@@ -994,7 +1011,7 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
 .drop-zone {
   border: 1px dashed var(--border);
   border-radius: var(--radius-md);
-  background: var(--accent-tint);
+  background: var(--bg-input);
   color: var(--text-muted);
   font-size: 13px;
   padding: 10px;
@@ -1363,7 +1380,7 @@ label {
 }
 
 .local-status.ready {
-  color: #8ecf9b;
+  color: var(--success);
 }
 
 .local-status.warn {
@@ -1461,7 +1478,7 @@ label {
 }
 
 .auto-step-status.ready {
-  color: #8ecf9b;
+  color: var(--success);
 }
 
 .auto-step-status.invalid {
@@ -1523,17 +1540,24 @@ label {
   visibility: hidden;
 }
 
+.ffmpeg-ok {
+  width: 16px;
+  height: 16px;
+  color: var(--success);
+  flex: 0 0 16px;
+}
+
 .ffmpeg-line {
   display: flex;
   align-items: center;
   gap: 7px;
   margin-top: 10px;
-  color: #8ecf9b;
+  color: var(--success);
   font-size: 13px;
 }
 
 .ffmpeg-line span:first-child {
-  color: #8ecf9b;
+  color: var(--success);
 }
 
 .ffmpeg-line small {
@@ -2220,44 +2244,6 @@ textarea::placeholder {
 
 .hidden {
   display: none!important;
-}
-
-.toolbox-fab {
-  position: fixed;
-  right: 20px;
-  bottom: 78px;
-  z-index: 38;
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  color: var(--text-secondary);
-  background: var(--bg-overlay);
-  box-shadow: var(--shadow-2);
-  transition: transform var(--t-fast), background var(--t-fast), color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
-}
-
-.toolbox-fab span {
-  display: block;
-  font-size: 22px;
-  line-height: 1;
-  transform: translateY(-1px);
-}
-
-.toolbox-fab:hover:not(:disabled) {
-  transform: translateY(-1px);
-  border-color: var(--accent);
-  color: var(--text-primary);
-  background: var(--bg-input);
-}
-
-.toolbox-fab[aria-expanded="true"] {
-  color: var(--text-primary);
-  border-color: var(--accent);
-  background: var(--bg-input);
-  box-shadow: var(--shadow-2), 0 0 0 2px var(--accent-soft);
 }
 
 .toolbox-drawer {
@@ -3284,10 +3270,10 @@ code {
     box-shadow: 0 0 0 0 var(--amber-soft);
   }
   70% {
-    box-shadow: 0 0 0 8px rgba(212, 154, 74, 0);
+    box-shadow: 0 0 0 8px rgba(217, 168, 95, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(212, 154, 74, 0);
+    box-shadow: 0 0 0 0 rgba(217, 168, 95, 0);
   }
 }
 
@@ -3328,10 +3314,6 @@ code {
   }
   .hero-links {
     justify-content: flex-start;
-  }
-  .toolbox-fab {
-    right: 12px;
-    bottom: 122px;
   }
   .toolbox-drawer {
     right: 12px;
@@ -3562,8 +3544,8 @@ select[multiple] option {
 .ghost.attention:hover:not(:disabled),
 .primary.attention:hover:not(:disabled) {
   border-color: var(--amber-hover);
-  background: rgba(212, 154, 74, .24);
-  color: #f0bc70;
+  background: rgba(217, 168, 95, .24);
+  color: var(--amber-hover);
   box-shadow: 0 0 0 2px var(--amber-soft);
 }
 

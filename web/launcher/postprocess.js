@@ -40,6 +40,7 @@
   let autoPlanSaveTimer = 0;
   let pendingAutoStep = "";
   let toolboxOpenMode = "manual";
+  let toolboxReturnFocus = null;
   let busy = false;
   let inputManual = false;
   let utilityMediaManual = false;
@@ -612,7 +613,6 @@
   function setOpen(open) {
     const wasOpen = !$("toolboxDrawer").classList.contains("hidden");
     $("toolboxDrawer").classList.toggle("hidden", !open);
-    $("toolboxFab").setAttribute("aria-expanded", String(open));
     if (!open) toolboxOpenMode = "manual";
     syncPaths();
     if (open) {
@@ -620,8 +620,15 @@
         || activeToolboxView().querySelector(".toolbox-tab");
       if (activeTab) selectTool(activeTab.dataset.tool);
     }
-    if (open) $("toolboxClose").focus();
-    if (!open && wasOpen) $("toolboxFab").focus();
+    if (open) {
+      toolboxReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      $("toolboxClose").focus();
+    }
+    if (!open && wasOpen) {
+      const target = toolboxReturnFocus?.isConnected ? toolboxReturnFocus : null;
+      toolboxReturnFocus = null;
+      target?.focus();
+    }
   }
 
   function setTestConnectionAttention(attention) {
@@ -1995,10 +2002,11 @@
     initializeAutoPostprocess();
   }
 
-  $("toolboxFab").addEventListener("click", () => {
+  // V06：全局悬浮工具箱入口已移除；工具页的 data-tool-entry 按钮经此 API 打开抽屉。
+  window.MSWLauncher.openToolbox = () => {
     toolboxOpenMode = "manual";
-    setOpen($("toolboxDrawer").classList.contains("hidden"));
-  });
+    if ($("toolboxDrawer").classList.contains("hidden")) setOpen(true);
+  };
   $("toolboxClose").addEventListener("click", () => setOpen(false));
   $("toolboxDrawer").addEventListener("wheel", (event) => {
     event.stopPropagation();

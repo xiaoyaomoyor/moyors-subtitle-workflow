@@ -58,7 +58,7 @@
         <span id="demoBadge" class="demo-badge hidden" data-i18n="demo_mode">演示模式</span>
         <button id="homeLink" class="text-link" type="button" data-i18n="project_home">项目官网</button>
         <button id="settingsButton" class="icon-button" type="button" aria-label="settings" data-i18n-title="settings_title" title="更多设置">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3 18 18M18 6l-1.7 1.7M7.7 16.3 6 18"/></svg>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.6 3.2h2.8l.42 2.1c.66.22 1.29.52 1.87.89l1.84-1.13 1.98 1.98-1.13 1.84c.37.58.67 1.21.89 1.87l2.1.42v2.8l-2.1.42c-.22.66-.52 1.29-.89 1.87l1.13 1.84-1.98 1.98-1.84-1.13c-.58.37-1.21.67-1.87.89l-.42 2.1h-2.8l-.42-2.1a6.9 6.9 0 0 1-1.87-.89l-1.84 1.13-1.98-1.98 1.13-1.84a6.9 6.9 0 0 1-.89-1.87l-2.1-.42v-2.8l2.1-.42c.22-.66.52-1.29.89-1.87L4.49 6.04l1.98-1.98 1.84 1.13c.58-.37 1.21-.67 1.87-.89l.42-2.1Z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.1"/></svg>
           <span id="settingsDot" class="settings-dot hidden"></span>
         </button>
         <button id="langToggle" class="ghost small" type="button">English</button>
@@ -85,7 +85,7 @@
         <span class="nav-item-label" data-i18n="nav_guide">使用指南</span>
       </button>
       <button class="nav-item" type="button" data-nav-page="settings">
-        <svg class="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3 18 18M18 6l-1.7 1.7M7.7 16.3 6 18" stroke-linecap="round"/></svg>
+        <svg class="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.6 3.2h2.8l.42 2.1c.66.22 1.29.52 1.87.89l1.84-1.13 1.98 1.98-1.13 1.84c.37.58.67 1.21.89 1.87l2.1.42v2.8l-2.1.42c-.22.66-.52 1.29-.89 1.87l1.13 1.84-1.98 1.98-1.84-1.13c-.58.37-1.21.67-1.87.89l-.42 2.1h-2.8l-.42-2.1a6.9 6.9 0 0 1-1.87-.89l-1.84 1.13-1.98-1.98 1.13-1.84a6.9 6.9 0 0 1-.89-1.87l-2.1-.42v-2.8l2.1-.42c.22-.66.52-1.29.89-1.87L4.49 6.04l1.98-1.98 1.84 1.13c.58-.37 1.21-.67 1.87-.89l.42-2.1Z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.1"/></svg>
         <span class="nav-item-label" data-i18n="nav_settings">更多设置</span>
       </button>
       <div class="nav-spacer"></div>
@@ -926,7 +926,7 @@
           </div>
           <div id="ffmpegSettingsSection" class="settings-section">
             <h3 data-i18n="settings_ffmpeg">FFmpeg</h3>
-            <div id="modalFfmpegFound" class="ffmpeg-line hidden" title=""><span>✓</span><span data-i18n="ffmpeg_found">成功定位到 ffmpeg</span><small id="ffmpegDir"></small><button id="changeFfmpeg" class="inline-link" type="button" data-i18n="change">更改</button></div>
+            <div id="modalFfmpegFound" class="ffmpeg-line hidden" title=""><svg class="icon ffmpeg-ok" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5 10 17.5 19 7" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="ffmpeg_found">成功定位到 ffmpeg</span><small id="ffmpegDir"></small><button id="changeFfmpeg" class="inline-link" type="button" data-i18n="change">更改</button></div>
             <div id="modalFfmpegMissing" class="ffmpeg-missing hidden">
               <p class="hint" data-i18n="ffmpeg_need">需要依赖 ffmpeg 先将视频转成音频后才能发送给服务器转录</p>
             </div>
@@ -952,9 +952,6 @@
 
   <div id="railBackdrop" class="rail-backdrop hidden"></div>
 
-  <button id="toolboxFab" class="toolbox-fab" type="button" aria-controls="toolboxDrawer" aria-expanded="false" data-i18n-title="toolbox_open" title="打开工具箱">
-    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5a4 4 0 1 0 3 3L21 13l-2 2-3.5-3.5M4 7l6 6-4.5 4.5L8 20" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
   <aside id="toolboxDrawer" class="toolbox-drawer hidden" role="dialog" aria-modal="false" aria-labelledby="toolboxTitle">
     <div class="toolbox-sticky">
       <header class="toolbox-header">

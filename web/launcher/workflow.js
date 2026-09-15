@@ -27,26 +27,24 @@
     if (card.querySelector(".module-head")) return;
     var heading = card.querySelector("h2");
     if (!heading) return;
+    // R2/V07：序号 · 标题 · 折叠箭头同一行；标题移入头部，不再两行堆叠。
     var head = document.createElement("div");
     head.className = "module-head";
     var index = document.createElement("span");
     index.className = "module-index";
-    head.append(index);
+    head.append(index, heading);
     var toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "module-collapse";
     toggle.setAttribute("aria-expanded", "true");
     toggle.setAttribute("aria-label", t("module_toggle_label"));
-    var chevron = document.createElement("span");
-    chevron.className = "chevron";
-    chevron.textContent = "▾";
-    toggle.append(chevron);
+    toggle.innerHTML = '<svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     head.append(toggle);
-    heading.before(head);
+    card.prepend(head);
     var body = document.createElement("div");
     body.className = "module-body";
-    while (heading.nextSibling) body.append(heading.nextSibling);
-    heading.after(body);
+    while (head.nextSibling) body.append(head.nextSibling);
+    head.after(body);
     card.dataset.moduleBody = "1";
     toggle.addEventListener("click", function () {
       setCollapsed(moduleId, !state.collapsed[moduleId]);

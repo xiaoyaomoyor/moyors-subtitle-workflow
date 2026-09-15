@@ -889,7 +889,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn('id="pickToolboxUtilityMedia"', utilities_html)
         self.assertIn('function selectToolboxSection(section)', script)
         self.assertIn('function moveToolFocus(event)', script)
-        self.assertIn('if (!open && wasOpen) $("toolboxFab").focus();', script)
+        self.assertIn('target?.focus();', script)
         self.assertIn('let utilityMediaManual = false;', script)
         self.assertIn('$("toolboxUtilityMediaPath").value = $("mediaPath").value.trim();', script)
         self.assertIn('bridge("choose_file", { kind: "media" })', script)
@@ -965,7 +965,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
 
         self.assertIn('const wasOpen = !$("toolboxDrawer").classList.contains("hidden");', script)
-        self.assertIn('if (!open && wasOpen) $("toolboxFab").focus();', script)
+        self.assertIn('target?.focus();', script)
         self.assertIn('id="postprocessFfconcatPath"', html)
         self.assertIn('id="postprocessFfconcatPathError"', html)
         self.assertIn('id="toolboxFfconcatDropZone"', html)
@@ -3413,7 +3413,6 @@ class LauncherAssetContractTests(unittest.TestCase):
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
         for control in (
-            "toolboxFab",
             "toolboxDrawer",
             "toolboxInputDropZone",
             "toolboxInputName",
@@ -3449,6 +3448,10 @@ class LauncherAssetContractTests(unittest.TestCase):
             "openLlmSettings",
         ):
             self.assertIn(f'id="{control}"', page)
+        # V06：全局悬浮工具箱入口移除，工具页按钮经公开 API 打开抽屉。
+        self.assertNotIn('id="toolboxFab"', page)
+        self.assertIn("window.MSWLauncher.openToolbox", script)
+        self.assertIn("window.MSWLauncher.openToolbox()", launcher_script)
         self.assertIn('id="postprocessPromptError"', page)
         self.assertNotIn('id="postprocessApiKey"', page)
         self.assertNotIn('id="postprocessBaseUrl"', page)
@@ -3494,7 +3497,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('$("jsonPath").value = result.projectPath', script)
         self.assertIn('$("srtPath").value = result.srtPath', script)
         self.assertIn('$("toolboxUtilityMediaPath").value = result.mediaPath', script)
-        self.assertIn(".toolbox-fab", stylesheet)
+        self.assertNotIn(".toolbox-fab", stylesheet)
         self.assertIn(".toolbox-drawer", stylesheet)
         self.assertIn(".toolbox-content", stylesheet)
         self.assertIn("max-height: 360px", stylesheet)
@@ -3795,7 +3798,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('class="brand-logo" viewBox="169 18 600 600" fill="currentColor"', page)
         self.assertIn('class="brand-name-zh" data-i18n="brand_name_zh"', page)
         self.assertIn('<div class="brand-name-en">Moyor\'s Subtitle Workflow</div>', page)
-        self.assertIn(".brand-logo {\n  width: 38px;\n  height: 38px;", stylesheet)
+        self.assertIn(".brand-logo {\n  width: 34px;\n  height: 34px;", stylesheet)
         self.assertIn("color: var(--text-primary);", stylesheet)
 
     def test_launcher_reports_media_drop_rejection_and_output_collision(self) -> None:
