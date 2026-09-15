@@ -306,7 +306,7 @@ test('Custom provider labels and missing-key errors follow the selected language
   await page.locator('#testLlmConnection').click();
   await expect(page.locator('#llmSettingsSaveStatus')).toHaveText('');
   await expect(page.locator('#llmSettingsSaveStatus')).toBeHidden();
-  await expect(page.locator('#llmApiKeyError')).toHaveText('Enter an API Key, or save one first in Settings / API key.');
+  await expect(page.locator('#llmApiKeyError')).toHaveText('Enter an API Key first; keys are stored only in the local connection config.');
   await expect(page.locator('#llmApiKey')).toHaveClass(/invalid/);
 
   await page.locator('#llmProvider').selectOption('zhipu');

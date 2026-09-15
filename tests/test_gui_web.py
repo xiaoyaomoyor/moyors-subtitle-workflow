@@ -370,6 +370,18 @@ class GuiWebBridgeTests(unittest.TestCase):
             "# keep\nDASHSCOPE_REGION=beijing\nSTICKER_DIR=stickers\nMAW_GUI_LAST_MODEL=stt-async-v5\nMAW_GUI_LAST_LANGUAGE=\n",
         )
 
+    def test_save_prefs_gui_lang_only_touches_language(self) -> None:
+        """R5/F13：语言切换只保存语言，不写连接配置（§5.3）。"""
+        self.env_path.write_text("# keep\nDASHSCOPE_API_KEY=sk-keep\n", encoding="utf-8")
+
+        result = self.api.save_prefs({"guiLang": "en"})
+
+        self.assertTrue(result["ok"])
+        content = self.env_path.read_text(encoding="utf-8")
+        self.assertIn("MAW_GUI_LANG=en", content)
+        self.assertIn("DASHSCOPE_API_KEY=sk-keep", content)
+        self.assertNotIn("save_settings", content)
+
     def test_save_prefs_persists_theme_and_get_config_restores_it(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("MAW_GUI_THEME", None)
@@ -3406,6 +3418,29 @@ class OpenRuntimeFolderTests(unittest.TestCase):
 
 @final
 class LauncherAssetContractTests(unittest.TestCase):
+    def test_launcher_r5_tools_settings_guide_contracts(self) -> None:
+        """R5/F13：工具收口、语言只存语言、缓存诊断入口与指南文案契约。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
+
+        # 工具页只保留四项独立文件工具；文稿/字幕处理与波形生成回归预制模块。
+        self.assertEqual(page.count('class="card tool-card"'), 4)
+        self.assertNotIn('data-tool-entry="toolboxMatchTab"', page)
+        self.assertNotIn('data-tool-entry="toolboxWaveformTab"', page)
+        for entry in ("toolboxExtractAudioTab", "toolboxBurnSubtitleTab", "toolboxFfconcatTab", "toolboxAlignmentTab"):
+            self.assertIn(f'data-tool-entry="{entry}"', page)
+        # 语言切换只保存语言（save_prefs + guiLang），不再提交整个识别表单。
+        self.assertIn('bridge("save_prefs", { guiLang: state.lang })', launcher_script)
+        self.assertIn('updates["MAW_GUI_LANG"] = _gui_lang(payload)', gui_source)
+        # 缓存与诊断：封面缓存清理入口 + 反馈。
+        self.assertIn('id="cacheSettingsSection"', page)
+        self.assertIn('bridge("clear_thumbnail_cache")', launcher_script)
+        # 指南去掉「Server 版」实现术语；api_key_missing 指向真实入口。
+        self.assertNotIn("Server 版", launcher_script.split("guide_direct_s1")[1].split(",")[0])
+        self.assertIn("打开所选工程", launcher_script.split("guide_direct_s1")[1].split(",")[0])
+        self.assertNotIn("服务与连接", launcher_script)
+
     def test_launcher_plan_drives_execution_contracts(self) -> None:
         """R4/§7.1：方案单一来源、新默认与三类输入执行链契约。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

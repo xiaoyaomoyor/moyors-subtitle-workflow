@@ -617,16 +617,6 @@
             <p class="hint" data-i18n="tool_alignment_hint">适合口播初稿顺序混乱的素材；人工选择 take 后导出新工程，再接回预制流程。</p>
             <button class="ghost tool-entry" type="button" data-tool-entry="toolboxAlignmentTab" data-tool-section="utilities" data-i18n="tool_open">打开工具</button>
           </div>
-          <div class="card tool-card">
-            <h2 class="tool-card-title"><span class="tool-card-io" data-i18n="tool_postprocess">文稿与字幕处理</span><span class="tool-io-hint">文稿匹配 / OCR / LLM / 固定处理</span></h2>
-            <p class="hint" data-i18n="tool_postprocess_hint">改变字幕内容的处理链在预制工程页编排；此处直接打开工具箱配置或单独运行。</p>
-            <button class="ghost tool-entry" type="button" data-tool-entry="toolboxMatchTab" data-tool-section="postprocess" data-i18n="tool_open">打开工具箱</button>
-          </div>
-          <div class="card tool-card">
-            <h2 class="tool-card-title"><span class="tool-card-io" data-i18n="tool_waveform">生成波形</span><span class="tool-io-hint">媒体 → 波形缓存</span></h2>
-            <p class="hint" data-i18n="tool_waveform_hint">仅为媒体生成波形缓存；预制工程页的「波形生成」模块会在建工程时统一执行。</p>
-            <button class="ghost tool-entry" type="button" data-tool-entry="toolboxWaveformTab" data-tool-section="utilities" data-i18n="tool_open">打开工具</button>
-          </div>
         </div>
       </div>
     </section>
@@ -948,6 +938,12 @@
               <p id="ffmpegPathError" class="field-error"></p>
               <p class="hint"><button id="ffmpegHelp" class="inline-link" type="button" data-i18n="ffmpeg_help">如何安装 FFmpeg ↗</button></p>
             </div>
+          </div>
+          <div id="cacheSettingsSection" class="settings-section">
+            <h3 data-i18n="settings_cache">缓存与诊断</h3>
+            <p class="hint" data-i18n="settings_cache_hint">最近工程封面缓存在本机应用数据目录；清理后下次浏览封面会重新生成，不影响工程文件。</p>
+            <button id="clearCoverCache" class="ghost" type="button" data-i18n="settings_clear_covers">清理最近工程封面缓存</button>
+            <p id="clearCoverCacheStatus" class="hint" aria-live="polite"></p>
           </div>
           </section>
           </div>

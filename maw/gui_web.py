@@ -947,6 +947,9 @@ class LauncherApi:
 
     def save_prefs(self, payload: Mapping[str, object]) -> dict[str, object]:
         updates: dict[str, str] = {}
+        # R5/F13：顶栏语言切换只保存语言，不顺带保存未确认的识别表单（§5.3）。
+        if "guiLang" in payload:
+            updates["MAW_GUI_LANG"] = _gui_lang(payload)
         if "modelId" in payload:
             updates["MAW_GUI_LAST_MODEL"] = str(payload.get("modelId") or "")
         if "language" in payload:

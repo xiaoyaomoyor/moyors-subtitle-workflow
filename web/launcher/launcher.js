@@ -25,20 +25,20 @@
       nav_settings: "更多设置",
       home_sub: "打开最近工程，或直接进入空白编辑器开始导入媒体。",
       prefab_sub: "按处理方案生成可进入编辑器的工程；未勾选的步骤直接跳过。",
-      tools_sub: "独立文件工具：每次生成新文件，不修改当前工程。",
+      tools_sub: "独立文件工具：每次生成新文件，不修改当前工程；文稿/字幕处理与波形生成在「预制工程」页编排。",
       guide_sub: "启动器是可选的预处理入口；编辑器内已能直接导入媒体、生成波形、发起 ASR、翻译与 TTS。",
       settings_sub: "连接配置与调用参数分层保存；修改默认值不覆盖正在编辑的方案。",
       settings_back: "返回",
       guide_direct_title: "直接进编辑器",
-      guide_direct_s1: "首页点「启动 Server 版字幕编辑器」（无工程时为空白编辑器）",
+      guide_direct_s1: "首页选最近工程点「打开所选工程」，或点「启动空白编辑器」直接开始",
       guide_direct_s2: "编辑器内拖入媒体并生成波形",
       guide_direct_s3: "选区或整段发起 ASR",
       guide_direct_s4: "保存为 .mosp 工程",
       guide_goto_home: "前往启动编辑器",
       guide_prefab_title: "提前预制工程",
       guide_prefab_s1: "预制页选择媒体（支持单文件与批量）",
-      guide_prefab_s2: "按需勾选识别与转写后处理",
-      guide_prefab_s3: "生成字幕和工程",
+      guide_prefab_s2: "按需开启波形、识别与后处理模块（新方案默认仅媒体＋波形）",
+      guide_prefab_s3: "点「生成字幕和工程」按当前方案执行",
       guide_prefab_s4: "打开编辑器继续精修",
       guide_goto_prefab: "前往预制工程",
       guide_voice_title: "纯配音与素材",
@@ -68,10 +68,6 @@
       tool_ffconcat_hint: "按 FFconcat 清单用 FFmpeg 重组当前媒体；不回写工程、不重映射时间线。",
       tool_alignment: "口播对齐",
       tool_alignment_hint: "适合口播初稿顺序混乱的素材；人工选择 take 后导出新工程，再接回预制流程。",
-      tool_postprocess: "文稿与字幕处理",
-      tool_postprocess_hint: "改变字幕内容的处理链在预制工程页编排；此处直接打开工具箱配置或单独运行。",
-      tool_waveform: "生成波形",
-      tool_waveform_hint: "仅为媒体生成波形缓存；预制工程页的「波形生成」模块会在建工程时统一执行。",
       home_blank_launch: "启动空白编辑器",
       home_open_selected: "打开所选工程",
       home_browse: "浏览工程…",
@@ -207,6 +203,10 @@
       demo_mode: "演示模式",
       settings_title: "更多设置",
       settings_ffmpeg: "FFmpeg",
+      settings_cache: "缓存与诊断",
+      settings_cache_hint: "最近工程封面缓存在本机应用数据目录；清理后下次浏览封面会重新生成，不影响工程文件。",
+      settings_clear_covers: "清理最近工程封面缓存",
+      cache_covers_cleared: "已清理 {n} 个封面缓存文件。",
       settings_stickers: "默认表情包路径",
       stickers_explain: "表情包根目录供 HTML 编辑器使用；支持嵌套子目录（如 大狗/、Nox/ 等）。",
       current_value: "当前",
@@ -265,20 +265,20 @@
       nav_settings: "More Settings",
       home_sub: "Open a recent project, or start a blank editor and import media there.",
       prefab_sub: "Build a project from a processing plan; unchecked steps are skipped.",
-      tools_sub: "Standalone file tools: always new files, projects untouched.",
+      tools_sub: "Standalone file tools: always new files, projects untouched; subtitle processing and waveform generation live on the prefab page.",
       guide_sub: "The launcher is an optional pre-processing entry; the editor can already import media, build waveforms, run ASR, translation, and TTS.",
       settings_sub: "Connections and call parameters are layered; defaults never overwrite an editing plan.",
       settings_back: "Back",
       guide_direct_title: "Straight into the editor",
-      guide_direct_s1: "Click “Launch Subtitle Editor” on the home page (blank editor when no project is set)",
+      guide_direct_s1: "Pick a recent project and click “Open selected project”, or click “Launch blank editor” to start fresh",
       guide_direct_s2: "Drop media in the editor and build the waveform",
       guide_direct_s3: "Run ASR on a range or the whole track",
       guide_direct_s4: "Save as a .mosp project",
       guide_goto_home: "Go to Launch Editor",
       guide_prefab_title: "Prefabricate first",
       guide_prefab_s1: "Pick media on the prefab page (single or batch)",
-      guide_prefab_s2: "Check recognition and post-processing as needed",
-      guide_prefab_s3: "Generate subtitles and the project",
+      guide_prefab_s2: "Enable waveform, recognition, and post-processing modules as needed (new plans default to media + waveform)",
+      guide_prefab_s3: "Click “Generate subtitles and project” to run the current plan",
       guide_prefab_s4: "Open the editor to refine",
       guide_goto_prefab: "Go to Prefabricate",
       guide_voice_title: "Voiceover & assets only",
@@ -308,10 +308,6 @@
       tool_ffconcat_hint: "Rebuild media from an FFconcat manifest via FFmpeg; projects are not rewritten and timelines are not remapped.",
       tool_alignment: "Speech alignment",
       tool_alignment_hint: "For messy first-pass narration; pick takes manually, export a new project, then return to the prefab flow.",
-      tool_postprocess: "Script & subtitle tools",
-      tool_postprocess_hint: "Subtitle-changing chains are orchestrated on the prefab page; this opens the toolbox to configure or run one directly.",
-      tool_waveform: "Generate waveform",
-      tool_waveform_hint: "Build a waveform cache for the media only; the prefab “Waveform” module runs it together with project creation.",
       home_blank_launch: "Launch blank editor",
       home_open_selected: "Open selected project",
       home_browse: "Browse project…",
@@ -447,6 +443,10 @@
       demo_mode: "Demo mode",
       settings_title: "Settings",
       settings_ffmpeg: "FFmpeg",
+      settings_cache: "Cache & diagnostics",
+      settings_cache_hint: "Recent-project cover caches live in the local app data folder; clearing regenerates them on next browse and never touches project files.",
+      settings_clear_covers: "Clear recent-project cover cache",
+      cache_covers_cleared: "Cleared {n} cached cover files.",
       settings_stickers: "Default sticker path",
       stickers_explain: "Sticker root directory for the HTML editor; nested folders are supported.",
       current_value: "Current",
@@ -1166,7 +1166,7 @@
       waveform_cancelled: "媒体工程生成已取消。",
       batch_media_only: "批量只支持媒体输入；请切回「媒体预制」再开始批量。",
       server_stop_failed: "无法停止当前端口上的 MSW 字幕编辑服务器。",
-      api_key_missing: "请填写 API Key，或先在「更多设置 → 服务与连接」保存。",
+      api_key_missing: "请先填写 API Key；密钥只保存在本机连接配置。",
       custom_asr_base_url_missing: "请填写自定义 ASR Base URL。",
       custom_asr_model_missing: "请填写自定义 ASR 模型名。",
       local_runtime_missing: "本地模型运行时未安装。请先安装本地 ASR 依赖。",
@@ -1225,7 +1225,7 @@
       waveform_task_running: "A media project task is already running.",
       waveform_cancelled: "Media project generation cancelled.",
       batch_media_only: "Batch accepts media inputs only; switch back to media mode before starting a batch.",
-      api_key_missing: "Enter an API Key, or save one first in Settings / API key.",
+      api_key_missing: "Enter an API Key first; keys are stored only in the local connection config.",
       custom_asr_base_url_missing: "Enter a custom ASR Base URL.",
       custom_asr_model_missing: "Enter a custom ASR model name.",
       local_runtime_missing: "The local ASR runtime is not installed. Install the local dependencies first.",
@@ -1627,7 +1627,7 @@
         (window.__thumbRequests = window.__thumbRequests || []).push("refresh:" + path);
         return { ok: true, state: "image", version: "cover-refresh", mediaName: "clip.mp4", dataUri: "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22480%22 height=%22270%22%3E%3Crect width=%22480%22 height=%22270%22 fill=%22%23453F47%22/%3E%3C/svg%3E" };
       },
-      clear_thumbnail_cache: async () => ({ ok: true, removed: 0 }),
+      clear_thumbnail_cache: async () => { (window.__coverCacheClears = window.__coverCacheClears || []).push(1); return { ok: true, removed: 3 }; },
       remove_recent_project: async () => ({ ok: true }),
       set_recent_project_pinned: async () => ({ ok: true }),
       relocate_recent_project: async () => ({ ok: true, path: "D:\\Demo\\clip.mosp" }),
@@ -3059,7 +3059,13 @@
   window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {} };
 
   window.MSWLauncher.onBatchBusyChanged = (busy) => { state.batchRunning = busy; syncLocalRuntimeControls(); renderLocalRuntime(); };
-  $("langToggle").addEventListener("click", async () => { state.lang = state.lang === "zh" ? "en" : "zh"; renderLanguage(); const result = await bridge("save_settings", formPayload()); if (!result.ok) applyErrorResult(result); });
+  $("langToggle").addEventListener("click", async () => {
+    // R5/F13：语言切换只保存语言，不携带识别表单与密钥（避免覆盖未确认的连接草稿）。
+    state.lang = state.lang === "zh" ? "en" : "zh";
+    renderLanguage();
+    const result = await bridge("save_prefs", { guiLang: state.lang });
+    if (!result.ok) applyErrorResult(result);
+  });
   $("themeLight").addEventListener("click", () => setTheme("light")); $("themeDark").addEventListener("click", () => setTheme("dark")); $("themeSystem").addEventListener("click", () => setTheme("system"));
   document.querySelectorAll("[data-settings-tab]").forEach((tab) => {
     tab.addEventListener("click", () => selectSettingsTab(tab.dataset.settingsTab));
@@ -3122,6 +3128,18 @@
   $("refreshLocalModels").addEventListener("click", async () => { $("refreshLocalModels").disabled = true; try { await refreshLocalModels(); } finally { $("refreshLocalModels").disabled = false; } });
   $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
   $("ffmpegHelp").addEventListener("click", () => bridge("open_url", { url: "https://ffmpeg.org/download.html" }));
+  $("clearCoverCache").addEventListener("click", async () => {
+    // R3 顺延项/R5：封面缓存清理入口（§5.3 缓存与诊断组）。
+    const status = $("clearCoverCacheStatus");
+    status.textContent = t("running");
+    const result = await bridge("clear_thumbnail_cache");
+    if (result.ok) {
+      status.textContent = t("cache_covers_cleared").replace("{n}", String(result.removed ?? 0));
+      window.MSWProjectHome?.refresh?.();
+    } else {
+      status.textContent = result.detail || result.error || t("failed");
+    }
+  });
   $("settingsButton").addEventListener("click", () => openSettings()); $("settingsClose").addEventListener("click", closeSettings); document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSettings(); });
   function bindStaticPages() {
     document.querySelectorAll("[data-goto-page]").forEach((button) => {
