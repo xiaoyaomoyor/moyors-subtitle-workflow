@@ -23,15 +23,6 @@
     return Array.prototype.slice.call(document.querySelectorAll("[data-nav-page]"));
   }
 
-  function compactAllowed() {
-    return window.matchMedia("(max-width: 980px)").matches;
-  }
-
-  function applyCompactState() {
-    var compact = compactAllowed();
-    document.body.classList.toggle("nav-compact", compact);
-  }
-
   function show(pageId, options) {
     options = options || {};
     if (PAGE_IDS.indexOf(pageId) < 0) pageId = "home";
@@ -73,8 +64,7 @@
     var stored = "";
     try { stored = localStorage.getItem(STORAGE_KEY) || ""; } catch (error) { stored = ""; }
     show(PAGE_IDS.indexOf(stored) >= 0 ? stored : "home", { replace: true });
-    applyCompactState();
-    window.addEventListener("resize", applyCompactState);
+
   }
 
   window.MSWNavigation = {

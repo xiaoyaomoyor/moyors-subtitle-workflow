@@ -26,6 +26,30 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## D8：启动器细节完善批（用户六项反馈）
+
+状态：已完成（2026-09-16）。R6 之后用户提出的六项细节修正；基线 82da3a6。
+
+改动：
+
+1. **版本号移位（反馈1）**：移除标题后的 `brand-version` 徽标；版本进导航底栏——折叠态只显示「MSW」，展开态显示「MSW：v1.6.0-beta.3」（`#appVersion` 移入 `nav-footer-full`，报告页版本提取改用正则从复合文本中取 `v…` 段）。
+2. **图标更换为 Lucide（反馈2）**：五个导航项与最近工程占位图标全部换为 Lucide（ISC License，https://lucide.dev）内联 SVG——home、list-checks、wrench（标准开口扳手）、book-open、settings（齿形均匀的长齿轮）＋circle；封面占位 music/clapperboard/file-warning。stroke=currentColor、宽 1.6 与全局风格统一，源码注释标注来源与许可。
+3. **更多设置底部遮挡（反馈3）**：根因是滚动渐隐 mask 的 `animation-timeline: scroll(self)` 在内容不足一屏时 progress 恒为 0，底部 18px 渐隐常驻压住末行——设置页与工具箱同款一并修复（`--settings-bottom-fade`/`--toolbox-bottom-fade` 置 0px），设置滚动区补 `padding-block-end: 22px`。
+4. **删除右上角设置按钮（反馈4）**：`settingsButton` 及其红点、绑定、样式、i18n 全量移除；红点 `settingsDot` 移入左侧导航设置项内（`refreshFfmpeg` 逻辑不变）。原「右上按钮」进入路径统一走左导航（`mswnavigation` 事件 + `enteringSettings` 防递归标志，深链 openSettings 拆出 `enterSettings` 完整例程——含偏好控件同步，避免 upgrade-bc 断言失效）。
+5. **删除设置页返回按钮（反馈5）**：`settingsClose` 移除；返回路径为左导航切换或 Esc（保留 Esc 监听）。
+6. **导航默认折叠（反馈6）**：`.app-nav` 固定 64px，`.app-nav-inner` 绝对定位覆盖层展开至 200px（不推挤正文，pageHost 恒 64px）；`:hover` 与 `:has(:focus-visible)` 展开——**特意不用 `:focus-within`**（点击聚焦会把 200px 展开层常驻钉住、覆盖左缘控件，实测拦截 `#outputSubfolder` 点击；键盘焦点才钉住是可达性要求）。标签 opacity 过渡、导航项对齐与 footer 双态随之切换。
+
+验证（2026-09-16）：
+
+- 契约：`test_gui_web` 新增 `test_launcher_detail_round_contracts`（nav-footer 双态、无 settingsButton/settingsClose/brand-version、64px/200px 折叠规则、hover+focus-visible 选择器、Lucide/ISC 标注、wrench path、渐隐 0px、padding 22px、navigation.js 无 nav-compact 残留），250 项 OK。
+- e2e：11 个 spec 共 82 项全部通过——设置入口改 `[data-nav-page="settings"]`（点击后 `mouse.move(600,400)` 移开悬停让覆盖层收起）、返回改 Esc、layout-feedback 两用例按当前 DOM 真值重写（旧断言自 R1/R2 起已过期）。
+- 探针：折叠 64px / 悬停展开 200px / 正文不回流 / footer 双态 / 标签过渡 / mask 底部 100% 不透明 / padding 22px / Esc 返回原页 / 导航进设置无 JS 错误——逐项通过。
+- 截图：`build/d1-nav-collapsed.png`、`d2-nav-expanded.png`、`d3-settings-bottom.png`——视觉核验通过（扳手呈标准开口扳手造型、齿轮齿形均匀、底行完整可见）。
+
+未验证（如实记录）：
+
+- 细节批复核时重启 `maw_gui.py` 两次，窗口均以 Edge InPrivate 浏览器壳形态呈现（a11y 树含标签页栏/新建标签页/协作者头像），无法进行元素级复核；进程 stdout 为空，未能定位（疑 WebView2 运行时环境残留或 pywebview 回退系统浏览器）。本批视觉验证以 Playwright 截图（同一 Chromium 渲染内核）+ 视觉模型覆盖；原生窗口导航/主题/语言/输入链路在 R6 已实测通过，不因本批 DOM 调整失效（改动均为前端静态资源，加载路径不变）。后续人工开窗一次即可确认。
+
 ## R6：原生窗口与生产场景验收（修正案第七批·终批）
 
 状态：已完成（2026-09-15）。对应审查 R6 全部条目；基线 08cc88c。

@@ -64,11 +64,12 @@ test('settings roundtrip preserves the prefab draft and scroll position', async 
   // R5/§5.3：进入设置再返回，草稿与滚动位置保留。
   const scroller = page.locator('[data-page-id="prefab"] .page-scroll');
   await scroller.evaluate((node) => { node.scrollTop = 180; });
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await expect(page.locator('#launcherSettingsTitle')).toBeVisible();
   await expect(page.locator('#mediaPath')).toBeHidden();
 
-  await page.locator('#settingsClose').click();
+  await page.keyboard.press('Escape');
   await expect(page.locator('#mediaPath')).toBeVisible();
   await expect(page.locator('#mediaPath')).toHaveValue('D:\\Demo\\draft-clip.mp4');
   await expect(page.locator('#apiKey')).toHaveValue('sk-draft-key');

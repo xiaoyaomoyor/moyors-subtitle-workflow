@@ -199,17 +199,6 @@ body:not(.launcher-ready) .shell {
   color: var(--text-secondary);
 }
 
-.brand-version {
-  margin-left: 4px;
-  white-space: nowrap;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 10px;
-}
-
 .header-actions {
   margin-left: auto;
   display: flex;
@@ -232,22 +221,41 @@ body:not(.launcher-ready) .shell {
 }
 
 .app-nav {
-  flex: 0 0 auto;
-  width: 188px;
+  /* 默认折叠只显示图标；展开层绝对定位覆盖内容，不引起正文回流。 */
+  position: relative;
+  flex: 0 0 64px;
+  width: 64px;
+  z-index: 30;
+}
+
+.app-nav-inner {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 64px;
   background: var(--bg-side);
   border-right: 1px solid var(--border-subtle);
-  padding: 14px 10px;
+  padding: 14px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow: hidden;
+  transition: width .18s ease, box-shadow var(--t-fast);
+}
+
+.app-nav:hover .app-nav-inner,
+.app-nav:has(:focus-visible) .app-nav-inner {
+  width: 200px;
+  box-shadow: var(--shadow-2);
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 9px 0;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -255,6 +263,12 @@ body:not(.launcher-ready) .shell {
   text-align: left;
   font-size: 13.5px;
   transition: background var(--t-fast), color var(--t-fast);
+}
+
+.app-nav:hover .nav-item,
+.app-nav:has(:focus-visible) .nav-item {
+  justify-content: flex-start;
+  padding: 9px 12px;
 }
 
 .nav-item:hover {
@@ -284,6 +298,20 @@ body:not(.launcher-ready) .shell {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+.app-nav:hover .nav-item-label,
+.app-nav:has(:focus-visible) .nav-item-label {
+  opacity: 1;
+}
+
+/* 设置注意点随齿轮常显（右上入口已移除，提醒改挂导航项）。 */
+.nav-item .settings-dot {
+  position: absolute;
+  right: 10px;
+  top: 9px;
 }
 
 .nav-spacer {
@@ -291,26 +319,34 @@ body:not(.launcher-ready) .shell {
 }
 
 .nav-footer {
-  padding: 6px 12px;
+  padding: 6px 0;
   font-size: 11.5px;
   color: var(--text-faint);
   letter-spacing: .06em;
+  white-space: nowrap;
 }
 
-/* 紧凑导航：窄窗口下仅显示图标（navigation.js 按宽度切换） */
-body.nav-compact .app-nav {
-  width: 60px;
-  padding: 14px 8px;
+.nav-footer-short {
+  display: inline;
 }
 
-body.nav-compact .nav-item {
-  justify-content: center;
-  padding: 9px 0;
-}
-
-body.nav-compact .nav-item-label,
-body.nav-compact .nav-footer {
+.nav-footer-full {
   display: none;
+}
+
+.app-nav:hover .nav-footer,
+.app-nav:has(:focus-visible) .nav-footer {
+  padding: 6px 12px;
+}
+
+.app-nav:hover .nav-footer-short,
+.app-nav:has(:focus-visible) .nav-footer-short {
+  display: none;
+}
+
+.app-nav:hover .nav-footer-full,
+.app-nav:has(:focus-visible) .nav-footer-full {
+  display: inline;
 }
 
 .page-host {
@@ -2427,7 +2463,8 @@ textarea::placeholder {
   overscroll-behavior: contain;
   padding-inline-end: 2px;
   --toolbox-top-fade: 0px;
-  --toolbox-bottom-fade: 18px;
+  /* 同 settings-scroll：底部渐隐在内容占满一屏时常驻遮挡末行，改为只保留顶部渐隐。 */
+  --toolbox-bottom-fade: 0px;
   mask-image: linear-gradient(
     to bottom,
     transparent,
@@ -3267,8 +3304,10 @@ textarea::placeholder {
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   padding-inline-end: 2px;
+  padding-block-end: 22px;
   --settings-top-fade: 0px;
-  --settings-bottom-fade: 18px;
+  /* 底部不再渐隐：滚动时间线在内容恰好占满一屏时停在 0，18px 渐隐会常驻遮挡末行。 */
+  --settings-bottom-fade: 0px;
   mask-image: linear-gradient(
     to bottom,
     transparent,

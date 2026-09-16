@@ -3418,6 +3418,37 @@ class OpenRuntimeFolderTests(unittest.TestCase):
 
 @final
 class LauncherAssetContractTests(unittest.TestCase):
+    def test_launcher_detail_round_contracts(self) -> None:
+        """细节批：版本移导航底栏、折叠导航、Lucide 图标、移除冗余入口、渐隐修复。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+
+        # 版本：不在标题栏，改为导航底栏双态（折叠 MSW / 展开 MSW：v…）。
+        self.assertNotIn('class="brand-version"', page)
+        self.assertIn('class="nav-footer-short">MSW<', page)
+        self.assertIn('class="nav-footer-full">MSW：<span id="appVersion">v', page)
+        # 右上设置按钮与设置返回按钮移除（左导航为唯一入口，Esc 可离开）。
+        self.assertNotIn('id="settingsButton"', page)
+        self.assertNotIn('id="settingsClose"', page)
+        self.assertIn('id="settingsDot"', page)
+        # 导航默认折叠 + 悬停展开覆盖层（不引起正文回流）。
+        self.assertIn("flex: 0 0 64px", stylesheet)
+        self.assertIn(".app-nav:hover .app-nav-inner", stylesheet)
+        # 键盘焦点（focus-visible）才钉住展开；点击后不常驻覆盖左缘内容。
+        self.assertIn(".app-nav:has(:focus-visible) .app-nav-inner", stylesheet)
+        # 图标采用 Lucide（ISC）资源路径。
+        self.assertIn("Lucide", page)
+        self.assertIn("ISC License", page)
+        self.assertIn("ISC License", home_script)
+        self.assertIn("M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6", page)  # wrench
+        # 渐隐修复：底部 fade 清零 + 底部留白（内容占满一屏时不再遮挡末行）。
+        self.assertIn("--settings-bottom-fade: 0px", stylesheet)
+        self.assertIn("--toolbox-bottom-fade: 0px", stylesheet)
+        self.assertIn("padding-block-end: 22px", stylesheet)
+        # 旧的宽度切换紧凑导航机制已由常折叠取代。
+        self.assertNotIn("nav-compact", (ROOT / "web" / "launcher" / "navigation.js").read_text(encoding="utf-8"))
+
     def test_launcher_r5_tools_settings_guide_contracts(self) -> None:
         """R5/F13：工具收口、语言只存语言、缓存诊断入口与指南文案契约。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -4411,7 +4442,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         self.assertIn('<div class="settings-scroll">', page)
         self.assertIn('id="toolboxClose"', page)
-        self.assertIn('id="settingsClose"', page)
+        self.assertNotIn('id="settingsClose"', page)
         self.assertIn('$("toolboxDrawer").addEventListener("wheel"', script)
         self.assertIn('event.stopPropagation();', script)
         self.assertIn('event.preventDefault();', script)

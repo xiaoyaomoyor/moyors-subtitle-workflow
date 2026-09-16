@@ -136,7 +136,8 @@ test('Launcher settings switch between accessible tabs and deep links', async ({
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
 
   const tabs = page.locator('#settingsTabList [role="tab"]');
   await expect(tabs).toHaveCount(4);
@@ -177,7 +178,8 @@ test('Launcher settings switch between accessible tabs and deep links', async ({
   await page.setViewportSize({ width: 520, height: 520 });
   await page.reload();
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   const tabLayout = await page.locator('#settingsTabList').evaluate((element) => {
     const style = getComputedStyle(element);
     return { columns: style.gridTemplateColumns.split(' ').length, overflow: element.scrollWidth > element.clientWidth };
@@ -445,7 +447,7 @@ test('runtime errors show an actionable notice outside the log', async ({ page }
   await expect(page.locator('#settingsModal')).toBeVisible();
   await expect(page.locator('#ffmpegSettingsSection')).toBeVisible();
 
-  await page.locator('#settingsClose').click();
+  await page.keyboard.press('Escape');
   await page.locator('#errorNoticeClose').click();
   await expect(notice).toBeHidden();
   await expect(page.locator('#status')).toBeVisible();
@@ -596,7 +598,7 @@ test('error reports copy safe details and support file URL fallback', async ({ p
   expect(report).not.toContain('secret-bearer-token');
   expect(report.match(/详细信息: backend detail/g)?.length).toBe(1);
   expect(report.match(/\[detail\] backend detail/g)?.length).toBe(2);
-  const expectedVersion = await page.locator('#appVersion').evaluate((element) => element.textContent.trim().replace(/^v/u, ''));
+  const expectedVersion = await page.locator('#appVersion').evaluate((element) => ((element.textContent.trim().match(/v[\w.-]+/u) || [''])[0]).replace(/^v/u, ''));
   expect(report).toContain(expectedVersion);
   expect(report).not.toContain('sk-secret-test-key');
 

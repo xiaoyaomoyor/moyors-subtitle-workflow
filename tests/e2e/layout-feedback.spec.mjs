@@ -20,8 +20,9 @@ test('keeps the Launcher action bar outside the scrolling content and highlights
   await openLauncher(page);
 
   const layout = await page.evaluate(() => {
-    const scroll = document.querySelector('.shell-scroll');
-    const actions = document.querySelector('.actions');
+    // R1 后操作栏是当前页 footer.page-actions；滚动容器是 .page-scroll。
+    const scroll = document.querySelector('.page.active .page-scroll');
+    const actions = document.querySelector('.page.active footer.page-actions');
     const style = actions ? getComputedStyle(actions) : null;
     const scrollStyle = scroll ? getComputedStyle(scroll) : null;
     const scrollRect = scroll?.getBoundingClientRect();
@@ -44,7 +45,7 @@ test('keeps the Launcher action bar outside the scrolling content and highlights
   expect(layout.actionsPosition).toBe('static');
   expect(layout.actionsBottom).toBe('auto');
   expect(layout.actionsInsideScroll).toBe(false);
-  expect(layout.scrollPaddingBottom).toBe('20px');
+  expect(layout.scrollPaddingBottom).toBe('24px');
   expect(Math.abs(layout.scrollBottom - layout.actionsTop)).toBeLessThanOrEqual(1);
   expect(layout.actionsBottomEdge).toBeLessThanOrEqual(layout.viewportHeight + 1);
 
@@ -56,7 +57,7 @@ test('keeps the Launcher action bar outside the scrolling content and highlights
       preview.textContent = 'preview line\n'.repeat(80);
     }
     const elements = [
-      document.querySelector('.shell-scroll'),
+      document.querySelector('.page.active .page-scroll'),
       preview,
       document.querySelector('#log'),
       document.querySelector('textarea'),
@@ -140,7 +141,7 @@ test('shows the installed OCR settings hint and highlights video drops', async (
     };
   });
 
-  expect(state.settingsHint).toBe('在 ⚙️ 设置中查看');
+  expect(state.settingsHint).toBe('在更多设置中查看');
   expect(state.status).toBe('已安装，可直接使用');
   expect(state.runtimeHint).toBe('OCR 支持已就绪\nOCR 运行环境目录: D:\\Demo\\ocr-runtime');
   expect(state.runtimePath).toBe('D:\\Demo\\ocr-runtime');
@@ -148,7 +149,8 @@ test('shows the installed OCR settings hint and highlights video drops', async (
   expect(state.borderChanged).toBe(true);
   expect(state.backgroundChanged).toBe(true);
 
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   // OCR 运行环境位于「运行环境」分页；设置弹窗默认打开「通用」分页。
   await page.locator('#settingsRuntimeTab').click();
   await expect(page.locator('#settingsRuntimeTab')).toHaveAttribute('aria-selected', 'true');

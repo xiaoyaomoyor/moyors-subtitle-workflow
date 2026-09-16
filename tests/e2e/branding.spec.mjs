@@ -13,9 +13,10 @@ async function inspectLogo(page, selector, name) {
     // Keep the OS on the opposite scheme: the logo must follow the app's choice.
     await page.emulateMedia({colorScheme: theme === 'dark' ? 'light' : 'dark'});
     if (name === 'launcher') {
-      await page.locator('#settingsButton').click();
+      await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
       await page.locator(theme === 'dark' ? '#themeDark' : '#themeLight').click();
-      await page.locator('#settingsClose').click();
+      await page.keyboard.press('Escape');
     } else {
       await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
     }
@@ -76,11 +77,12 @@ test('Launcher loads one SVG for its mark and favicon in either app theme', asyn
   const logo = page.locator('.brand-logo');
   await expect(logo).toBeVisible();
   await expect(logo).toHaveAttribute('fill', 'currentColor');
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await page.locator('#themeDark').click();
   const darkColor = await logo.evaluate(el => getComputedStyle(el).color);
   await page.locator('#themeLight').click();
-  await page.locator('#settingsClose').click();
+  await page.keyboard.press('Escape');
   const lightColor = await logo.evaluate(el => getComputedStyle(el).color);
   expect(darkColor).not.toBe(lightColor);
   const box = await logo.boundingBox();

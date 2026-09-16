@@ -28,7 +28,6 @@
       tools_sub: "独立文件工具：每次生成新文件，不修改当前工程；文稿/字幕处理与波形生成在「预制工程」页编排。",
       guide_sub: "启动器是可选的预处理入口；编辑器内已能直接导入媒体、生成波形、发起 ASR、翻译与 TTS。",
       settings_sub: "连接配置与调用参数分层保存；修改默认值不覆盖正在编辑的方案。",
-      settings_back: "返回",
       guide_direct_title: "直接进编辑器",
       guide_direct_s1: "首页选最近工程点「打开所选工程」，或点「启动空白编辑器」直接开始",
       guide_direct_s2: "编辑器内拖入媒体并生成波形",
@@ -268,7 +267,6 @@
       tools_sub: "Standalone file tools: always new files, projects untouched; subtitle processing and waveform generation live on the prefab page.",
       guide_sub: "The launcher is an optional pre-processing entry; the editor can already import media, build waveforms, run ASR, translation, and TTS.",
       settings_sub: "Connections and call parameters are layered; defaults never overwrite an editing plan.",
-      settings_back: "Back",
       guide_direct_title: "Straight into the editor",
       guide_direct_s1: "Pick a recent project and click “Open selected project”, or click “Launch blank editor” to start fresh",
       guide_direct_s2: "Drop media in the editor and build the waveform",
@@ -2739,11 +2737,11 @@
     selectSettingsTab(target.dataset.settingsTab);
     target.focus();
   }
-  function openSettings(sectionId = "", focusId = "") {
+  let enteringSettings = false;
+
+  function enterSettings(sectionId = "") {
+    // 进入例程（右上按钮移除后，左导航进入与深链共用）：刷新运行态并同步偏好控件。
     selectSettingsTab(settingsTabForSection(sectionId) || activeSettingsTab);
-    // 工具箱抽屉会覆盖页面内容；进入设置页前先收起（旧弹窗位于抽屉之上，页面版没有该层级）。
-    window.MSWLauncher?.closeToolbox?.();
-    window.MSWNavigation?.show("settings");
     refreshFfmpeg();
     void refreshOcrRuntime();
     renderStickerCurrent();
@@ -2752,6 +2750,18 @@
     $("perVideoSubfolder").checked = Boolean(state.config.perVideoSubfolder);
     $("perVideoSubfolder").disabled = !state.config.outputSubfolder;
     $("attachModelName").checked = state.config.attachModelName !== false;
+  }
+
+  function openSettings(sectionId = "", focusId = "") {
+    enterSettings(sectionId);
+    // 工具箱抽屉会覆盖页面内容；进入设置页前先收起（旧弹窗位于抽屉之上，页面版没有该层级）。
+    window.MSWLauncher?.closeToolbox?.();
+    enteringSettings = true;
+    try {
+      window.MSWNavigation?.show("settings");
+    } finally {
+      enteringSettings = false;
+    }
     if (sectionId) {
       requestAnimationFrame(() => {
         // 只滚动 .settings-scroll 容器；scrollIntoView 会连带滚动外层容器，
@@ -3140,7 +3150,11 @@
       status.textContent = result.detail || result.error || t("failed");
     }
   });
-  $("settingsButton").addEventListener("click", () => openSettings()); $("settingsClose").addEventListener("click", closeSettings); document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSettings(); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSettings(); });
+  // 右上设置按钮已移除：经左导航进入「更多设置」时同样执行进入例程（刷新运行态等）。
+  document.addEventListener("mswnavigation", (event) => {
+    if (event.detail && event.detail.page === "settings" && !enteringSettings) enterSettings();
+  });
   function bindStaticPages() {
     document.querySelectorAll("[data-goto-page]").forEach((button) => {
       button.addEventListener("click", () => window.MSWNavigation?.show(button.dataset.gotoPage));

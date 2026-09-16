@@ -14,7 +14,8 @@ test('output settings retain the inactive per-media preference and preserve an e
   await open(page);
   await page.locator('#mediaPath').fill('D:\\Demo\\clip.mp4');
   await page.locator('#mediaPath').dispatchEvent('change');
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await expect(page.locator('#outputSubfolder')).not.toBeChecked();
   await expect(page.locator('#perVideoSubfolder')).toBeDisabled();
   await expect(page.locator('#attachModelName')).toBeChecked();
@@ -30,7 +31,8 @@ test('output settings retain the inactive per-media preference and preserve an e
   await page.keyboard.press('Escape');
   await page.locator('#srtPath').fill('E:\\我的输出\\chosen.srt');
   await page.locator('#srtPath').dispatchEvent('input');
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await page.locator('#outputSubfolder').check();
   await expect(page.locator('#srtPath')).toHaveValue('E:\\我的输出\\chosen.srt');
 });
@@ -69,7 +71,8 @@ test('segmentation and local runtime controls live in settings; installation loc
   await expect(page.locator('#settingsProcessingPanel #maxWords')).toBeVisible();
   await page.locator('#maxLen').fill('24');
   await page.keyboard.press('Escape');
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await page.locator('#settingsProcessingTab').click();
   await expect(page.locator('#maxLen')).toHaveValue('24');
 });

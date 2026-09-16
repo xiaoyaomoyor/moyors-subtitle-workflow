@@ -8,14 +8,16 @@ test('Launcher theme choice remains selected after reload', async ({ page }) => 
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
 
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await page.locator('#themeDark').click();
   await expect(page.locator('#themeDark')).toHaveClass(/active/);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('MAW_GUI_THEME'))).toBe('dark');
 
   await page.reload();
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  await page.locator('#settingsButton').click();
+  await page.locator('[data-nav-page="settings"]').click();
+  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await expect(page.locator('#themeDark')).toHaveClass(/active/);
 });
 
