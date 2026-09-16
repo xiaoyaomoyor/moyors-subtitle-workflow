@@ -90,6 +90,7 @@
       cover_state_failed: "封面不可用",
       recent_pin: "固定到列表顶部",
       recent_unpin: "取消固定",
+      recent_open_project: "打开工程",
       recent_open_folder: "打开所在文件夹",
       recent_relocate: "重新定位…",
       recent_relocate_confirm: "「{name}」已移动或不存在。现在选择它的新位置吗？",
@@ -220,7 +221,6 @@
       ffmpeg_missing: "未找到 ffmpeg / ffprobe",
       ffmpeg_need: "需要依赖 ffmpeg 先将视频转成音频后才能发送给服务器转录",
       sticker_missing: "请选择一个存在的文件夹。",
-      ready: "就绪",
       running: "转写中…",
       saved: "设置已保存",
       failed: "失败",
@@ -329,6 +329,7 @@
       cover_state_failed: "Cover unavailable",
       recent_pin: "Pin to top",
       recent_unpin: "Unpin",
+      recent_open_project: "Open project",
       recent_open_folder: "Open containing folder",
       recent_relocate: "Relocate…",
       recent_relocate_confirm: "“{name}” moved or is missing. Choose its new location now?",
@@ -459,7 +460,6 @@
       ffmpeg_missing: "ffmpeg / ffprobe not found",
       ffmpeg_need: "ffmpeg is required to convert video to audio before sending it to the transcription server",
       sticker_missing: "Choose an existing folder.",
-      ready: "Ready",
       running: "Running…",
       saved: "Settings saved",
       failed: "Failed",
@@ -2108,7 +2108,7 @@
     });
   }
 
-  function setRunning(running) { state.running = running; if (!running) { state.waveformTask = false; state.prefabTask = false; } syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : t("ready")); }
+  function setRunning(running) { state.running = running; if (!running) { state.waveformTask = false; state.prefabTask = false; } syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : ""); }
   function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(localizedSelectLabel(id, item), item.id))); el.value = value ?? ""; }
   function refillSelectLabels() {
     // 语言切换后，后端下发的下拉选项（供应商/模型/地域/语言）与说明行需要按新语言重建。
@@ -2145,8 +2145,8 @@
     $("stopServer").classList.toggle("hidden", !state.serverRunning && !state.detectedServerUrl);
     $("stopServer").disabled = state.serverStarting || state.serverStopping;
   }
-  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; setStatus(t("ready")); } finally { state.serverStopping = false; renderServerButton(); } }
-  async function checkExistingServer(prefix = "") { const requestId = ++serverStatusRequest; const previousUrl = state.detectedServerUrl; state.detectedServerUrl = ""; const result = await bridge("get_server_status", serverPayload()); if (requestId !== serverStatusRequest) return result; if (!result.ok || !result.running || !result.url) { state.serverRunning = false; state.serverProjectPath = ""; if (prefix) setStatus(`${prefix}，${t("server_start_hint")}`); else if (previousUrl) setStatus(t("ready")); renderServerButton(); return; } const isExternalServer = !state.serverRunning; state.detectedServerUrl = isExternalServer ? result.url : ""; setServerStatus(result.url, isExternalServer, prefix); renderServerButton(); }
+  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; setStatus(""); } finally { state.serverStopping = false; renderServerButton(); } }
+  async function checkExistingServer(prefix = "") { const requestId = ++serverStatusRequest; const previousUrl = state.detectedServerUrl; state.detectedServerUrl = ""; const result = await bridge("get_server_status", serverPayload()); if (requestId !== serverStatusRequest) return result; if (!result.ok || !result.running || !result.url) { state.serverRunning = false; state.serverProjectPath = ""; if (prefix) setStatus(`${prefix}，${t("server_start_hint")}`); else if (previousUrl) setStatus(""); renderServerButton(); return; } const isExternalServer = !state.serverRunning; state.detectedServerUrl = isExternalServer ? result.url : ""; setServerStatus(result.url, isExternalServer, prefix); renderServerButton(); }
   function syncHtmlMenu() { const enabled = $("generateHtml").checked; $("openHtml").classList.toggle("hidden", !enabled); $("openHtml").disabled = enabled && !state.result?.htmlPath; }
   function renderChevron(id) { const arrow = $(id).querySelector(".chevron"); if (arrow) arrow.textContent = $(id).classList.contains("collapsed") ? "▸" : "▾"; }
   function renderStickerCurrent() { $("stickerCurrent").textContent = state.config?.stickerDir || t("unset"); $("stickerDir").value = state.config?.stickerDir || ""; }
@@ -2807,7 +2807,7 @@
           setServerStatus(result.url, Boolean(result.serverAlreadyRunning));
           await bridge("open_url", { url: result.url });
           window.MSWProjectHome?.refresh?.();
-        } else setStatus(t("ready"));
+        } else setStatus("");
       } else if (result.code === "server_conflict") {
         // 冲突处理放在 finally 之后：重试需要走出 serverStarting 守卫。
         conflict = result;
@@ -2899,7 +2899,6 @@
     $("workspaceId").value = state.config.workspaceId || "";
     syncWorkspace(); syncTestRun(); renderChevron("advancedCard"); renderChevron("serverCard"); renderLanguage();
     appendLog(window.MSWLauncher.backend === "real" ? "MSW launcher ready." : "[mock] Static browser demo mode enabled.");
-    setStatus(t("ready"));
     revealLauncher();
     window.dispatchEvent(new CustomEvent("mawlauncherready"));
     refreshStartupState();

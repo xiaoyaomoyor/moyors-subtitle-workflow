@@ -214,6 +214,11 @@ body:not(.launcher-ready) .shell {
   text-overflow: ellipsis;
 }
 
+/* S1：闲置状态不再占用顶部空间——无消息时收起，有消息时作为瞬时反馈出现。 */
+.app-status:empty {
+  display: none;
+}
+
 .app-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -252,10 +257,12 @@ body:not(.launcher-ready) .shell {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* S1/§3.2：图标固定槽位——隐藏文字不占布局，折叠/展开横坐标一致。
+     内边距 8px（栏内）+ 14.5px + 图标半宽 9.5px = 图标中心 32px（64px 栏中心）。 */
+  justify-content: flex-start;
   gap: 10px;
   width: 100%;
-  padding: 9px 0;
+  padding: 9px 0 9px 14.5px;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -263,12 +270,6 @@ body:not(.launcher-ready) .shell {
   text-align: left;
   font-size: 13.5px;
   transition: background var(--t-fast), color var(--t-fast);
-}
-
-.app-nav:hover .nav-item,
-.app-nav:has(:focus-visible) .nav-item {
-  justify-content: flex-start;
-  padding: 9px 12px;
 }
 
 .nav-item:hover {
@@ -307,11 +308,12 @@ body:not(.launcher-ready) .shell {
   opacity: 1;
 }
 
-/* 设置注意点随齿轮常显（右上入口已移除，提醒改挂导航项）。 */
+/* 设置注意点随齿轮常显（右上入口已移除，提醒改挂导航项）：
+   锚定图标槽右缘（14.5px + 19px = 33.5px），折叠/展开同一栅格。 */
 .nav-item .settings-dot {
   position: absolute;
-  right: 10px;
-  top: 9px;
+  left: 34px;
+  top: 8px;
 }
 
 .nav-spacer {
@@ -319,11 +321,14 @@ body:not(.launcher-ready) .shell {
 }
 
 .nav-footer {
-  padding: 6px 0;
+  padding: 6px 4px;
   font-size: 11.5px;
   color: var(--text-faint);
   letter-spacing: .06em;
   white-space: nowrap;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav-footer-short {
@@ -337,6 +342,7 @@ body:not(.launcher-ready) .shell {
 .app-nav:hover .nav-footer,
 .app-nav:has(:focus-visible) .nav-footer {
   padding: 6px 12px;
+  text-align: left;
 }
 
 .app-nav:hover .nav-footer-short,
@@ -347,6 +353,14 @@ body:not(.launcher-ready) .shell {
 .app-nav:hover .nav-footer-full,
 .app-nav:has(:focus-visible) .nav-footer-full {
   display: inline;
+}
+
+/* 系统偏好减少动态效果：导航展开与文字淡入改为瞬时。 */
+@media (prefers-reduced-motion: reduce) {
+  .app-nav-inner,
+  .nav-item-label {
+    transition: none;
+  }
 }
 
 .page-host {
@@ -575,9 +589,12 @@ body:not(.launcher-ready) .shell {
   align-items: center;
   gap: 10px;
   margin: 0 0 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
 }
 
-/* R2/V07：标题并入模块头单行展示，作为卡片主标题（主文字色）。 */
+/* S1/§6.1：折叠箭头左置（箭头 → 序号 → 标题）；整头可点折叠，
+   悬浮只点亮箭头不加底色，键盘焦点走全局 outline。 */
 .module-card .module-head h2 {
   margin: 0;
   flex: 1 1 auto;
@@ -601,9 +618,9 @@ body:not(.launcher-ready) .shell {
 }
 
 .module-collapse {
-  margin-left: auto;
-  width: 26px;
-  height: 26px;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -613,9 +630,9 @@ body:not(.launcher-ready) .shell {
   justify-content: center;
 }
 
-.module-collapse:hover {
+.module-head:hover .module-collapse,
+.module-collapse:focus-visible {
   color: var(--text-primary);
-  background: var(--bg-raised);
 }
 
 .module-collapse .chevron {
@@ -859,8 +876,12 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
   position: absolute;
   bottom: 10px;
   right: 10px;
+  display: inline-flex;
   color: var(--accent);
-  font-size: 11.5px;
+}
+
+.recent-pin svg {
+  display: block;
 }
 
 .recent-empty {
@@ -889,6 +910,11 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
   border-radius: var(--radius-sm);
   padding: 0 10px;
   white-space: nowrap;
+}
+
+.recent-context-menu button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .recent-context-menu button:hover {

@@ -26,6 +26,30 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## S1：交互可靠性与基础视觉（二轮修正 2026-09-16 第一批）
+
+状态：已完成（2026-09-16）。依据用户《启动器第二轮修正与完善方案》（仓库外 PLAN_LAUNCHER_REFINEMENT_20260916.md）第 10 节 S1；基线 8d0b656。对应反馈 4/5/10/11/12 与新增 Esc 问题；根因指控 §3.1/§3.2 实施前逐项复核属实（监听泄漏的 1、0、0 序列与隐藏文字占位导致图标中心 17.5px 均在源码与探针中复现）。
+
+改动：
+
+1. **右键菜单生命周期重写（project-home.js）**：单一实例（el/path/opener）；document 捕获阶段常驻监听——contextmenu 先关旧菜单、网格处理器随后按新目标开新菜单（替换语义，不再依赖 `setTimeout` 延迟注册 `{once:true}` dismiss，根除泄漏监听误杀新菜单）；click 外部/Esc/Tab/方向键/Home/End（捕获层，右键不移动焦点也能 Esc）、窗口失焦、任意滚动（capture）、切页（mswnavigation）、visibilitychange、网格重建统一关闭；Esc 归还焦点；Shift+F10/Menu 键唤起（按卡片定位）并聚焦首项、方向键循环；视口内收敛定位；菜单首项补「打开工程」；菜单自身上再次右键仅关闭不重开（系统菜单语义，解除对下层卡片的遮挡）。
+2. **图钉 SVG（反馈5）**：`recent-pin` 由「已固定」文字改为 Lucide pin 内联 SVG（ISC 标注），aria-label/title 保留「已固定」；位置维持卡片右下角（封面角落迁移随 S3）。
+3. **导航图标固定槽位（反馈11/§3.2）**：`.nav-item` 常态 `flex-start + padding-left 14.5px`（8+14.5+9.5=中心 32px），删除 hover 态 padding/justify 切换规则——折叠/展开图标横坐标一致；折叠态「MSW」底标居中；settings-dot 锚定图标槽右缘（left:34px）双态同栅格；`prefers-reduced-motion` 覆盖导航动效。
+4. **模块头（反馈12）**：`ensureCardHead` 顺序改「箭头 → 序号 → 标题」，箭头 28px 命中区左置；整头空白区可点折叠（头部内按钮/链接/表单控件排除）；悬浮只点亮箭头不加底色（删除 `:hover` 背景）。
+5. **闲置「就绪」移除（反馈10）**：`#status` 改 `role="status" aria-live="polite"` 瞬时反馈区 + `:empty` 整块收起；`setRunning(false)`/stopEditorServer/checkExistingServer/startEditorServer 回退/init 六处不再写闲置文案；`ready` i18n 键删除（中英）。有效反馈去向不变（进度条/字段错误/保存瞬时反馈/首页会话区），完整任务区独立随 S4。
+
+验证（2026-09-16）：
+
+- 探针 18/18：同卡 10 次＋跨卡 10 次连续右键菜单恒为 1（旧实现 1、0、0…）；5 项菜单动作含打开工程；Esc 归还焦点；菜单上右键关闭；点击外部/滚动（真实容器事件）/切页关闭；Shift+F10 键盘链；900×600 菜单收敛视口内；图标中心折叠/展开均 32.0px、pageHost 恒 64px（无回流）；MSW 底标居中 31.5px；图钉 SVG＋aria-label；闲置状态 `display:none`＋`role=status`；模块头顺序/28px/整头折叠；无 JS 错误。
+- e2e 86/86（launcher-home/-interactions/-structure/-modules/-shell/-zoom/-upgrade-bc/-workflow/beta3-launcher/branding/layout-feedback）：新增 S1 用例 4 项（20 次右键替换、导航固定槽位、模块头、图钉＋闲置状态），菜单动作断言更新，运行错误用例闲置态断言翻转。
+- 单元/契约：全量 discover 1598 项 OK（skipped=63）；新增 `test_launcher_s1_interaction_contracts`。
+- 像素核验（视觉 MCP 本轮对截图 URL 解析失败，改用可复现像素断言、暗色主题钉定）：折叠/展开态图标描边像素完全一致（146px、重心 32.2px）、折叠栏内文字像素 0、展开态标签可见。
+
+未验证（如实记录）：
+
+- 100%/125%/150% 系统 DPI 下的菜单定位：菜单定位基于 CSS 像素（clientX/Y 对 innerWidth），缩放语义同尺度；headless 以 900×600 窄视口覆盖收敛逻辑，真实多 DPI 显示器留待原生窗口复核。
+- 原生 WebView（pywebview/WebView2）内的菜单交互：上一批复核环境异常（Edge InPrivate 壳）未重试；本批菜单/导航改动均为标准 DOM 事件，风险低，留待下次原生窗口打开时人工确认。
+
 ## D8：启动器细节完善批（用户六项反馈）
 
 状态：已完成（2026-09-16）。R6 之后用户提出的六项细节修正；基线 82da3a6。

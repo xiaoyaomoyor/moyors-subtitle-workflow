@@ -118,3 +118,92 @@ test('960px compact layout keeps actions reachable and rail behind a drawer', as
   await page.keyboard.press('Escape');
   await expect(page.locator('#railBackdrop')).toHaveClass(/hidden/);
 });
+
+test('collapsed nav keeps icons on a fixed slot across hover expansion (S1)', async ({ page }) => {
+  await openLauncher(page);
+  await page.mouse.move(640, 400); // 移开悬停，确保折叠态
+  await page.waitForTimeout(240);
+  const collapsed = await page.evaluate(() => {
+    const icon = document.querySelector('.nav-item .nav-item-icon');
+    const rect = icon.getBoundingClientRect();
+    return {
+      iconCenter: rect.left + rect.width / 2,
+      pageLeft: document.querySelector('.page-host').getBoundingClientRect().left,
+      footerCenter: (() => {
+        const node = document.querySelector('.nav-footer-short');
+        const box = node.getBoundingClientRect();
+        return box.left + box.width / 2;
+      })(),
+    };
+  });
+  await page.mouse.move(24, 400); // 悬停展开
+  await page.waitForTimeout(240);
+  const expanded = await page.evaluate(() => {
+    const icon = document.querySelector('.nav-item .nav-item-icon');
+    const rect = icon.getBoundingClientRect();
+    return {
+      iconCenter: rect.left + rect.width / 2,
+      pageLeft: document.querySelector('.page-host').getBoundingClientRect().left,
+    };
+  });
+  await page.mouse.move(640, 400);
+
+  // 图标中心对齐 64px 栏中心（32px），折叠/展开一致；展开不推动正文。
+  expect(Math.abs(collapsed.iconCenter - 32)).toBeLessThan(1.5);
+  expect(Math.abs(expanded.iconCenter - 32)).toBeLessThan(1.5);
+  expect(Math.abs(collapsed.iconCenter - expanded.iconCenter)).toBeLessThan(1);
+  expect(Math.abs(collapsed.pageLeft - expanded.pageLeft)).toBeLessThan(0.5);
+  // 折叠态「MSW」底标与图标同一栅格（近似居中）。
+  expect(Math.abs(collapsed.footerCenter - 32)).toBeLessThan(8);
+});
+
+test('module card head uses left arrow, index, title order and collapses on head click (S1)', async ({ page }) => {
+  await openLauncher(page);
+  await page.evaluate(() => { localStorage.removeItem('MSW_LAUNCHER_MODULES_V1'); });
+  await page.reload();
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  await page.waitForFunction(() => document.querySelectorAll('[data-module-card="media"]').length > 0);
+
+  const order = await page.evaluate(() => {
+    const head = document.querySelector('[data-module-card="media"] .module-head');
+    return Array.from(head.children).map((node) => node.className.split(' ')[0]);
+  });
+  expect(order[0]).toBe('module-collapse');
+  expect(order[1]).toBe('module-index');
+
+  const button = page.locator('[data-module-card="media"] .module-collapse');
+  await expect(button).toHaveCSS('width', '28px');
+  await expect(button).toHaveCSS('height', '28px');
+
+  // 标题空白区点击同样折叠；折叠箭头按钮仍是键盘焦点控件。
+  const wasCollapsed = await page.evaluate(() => document.querySelector('[data-module-card="media"]').classList.contains('collapsed'));
+  await page.locator('[data-module-card="media"] .module-head h2').click({ position: { x: 40, y: 8 } });
+  await expect(page.locator('[data-module-card="media"]')).toHaveClass(new RegExp(wasCollapsed ? '(?!collapsed)' : 'collapsed'));
+  await page.locator('[data-module-card="media"] .module-collapse').focus();
+  await expect(page.locator('[data-module-card="media"] .module-collapse')).toBeFocused();
+});
+
+test('pinned recent card shows an SVG pin with accessible label; idle status is collapsed (S1)', async ({ page }) => {
+  await openLauncher(page);
+  await page.evaluate(() => window.MSWNavigation.show('home'));
+  await page.waitForFunction(() => document.querySelectorAll('.recent-card').length > 0);
+
+  const pin = await page.evaluate(() => {
+    const node = document.querySelector('.recent-card.pinned .recent-pin');
+    if (!node) return null;
+    return { hasSvg: Boolean(node.querySelector('svg')), label: node.getAttribute('aria-label') };
+  });
+  expect(pin).not.toBeNull();
+  expect(pin.hasSvg).toBe(true);
+  expect(pin.label).toBe('已固定');
+
+  // 闲置状态不再常驻「就绪」：空消息收起，仍保留 aria-live 语义。
+  const status = await page.evaluate(() => {
+    const node = document.getElementById('status');
+    return { text: node.textContent, display: getComputedStyle(node).display, role: node.getAttribute('role') };
+  });
+  expect(status.text).toBe('');
+  expect(status.display).toBe('none');
+  expect(status.role).toBe('status');
+});

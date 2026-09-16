@@ -146,23 +146,69 @@ test('missing project offers relocation instead of silently opening something el
   await expect(page.locator('#jsonPath')).toHaveValue('');
 });
 
-test('context menu exposes pin, folder, cover refresh, and remove actions', async ({ page }) => {
+test('context menu exposes open, pin, folder, cover refresh, and remove actions', async ({ page }) => {
   await openHome(page);
 
   await cardOf(page, 'clip.mosp').click({ button: 'right' });
   const menu = page.locator('#recentContextMenu');
   await expect(menu).toBeVisible();
   const items = menu.locator('button[role="menuitem"]');
-  await expect(items).toHaveCount(4);
-  await expect(items.nth(0)).toHaveText('取消固定');
-  await expect(items.nth(1)).toHaveText('打开所在文件夹');
-  await expect(items.nth(2)).toHaveText('刷新封面');
-  await expect(items.nth(3)).toHaveText('从最近记录移除');
+  await expect(items).toHaveCount(5);
+  await expect(items.nth(0)).toHaveText('打开工程');
+  await expect(items.nth(1)).toHaveText('取消固定');
+  await expect(items.nth(2)).toHaveText('打开所在文件夹');
+  await expect(items.nth(3)).toHaveText('刷新封面');
+  await expect(items.nth(4)).toHaveText('从最近记录移除');
 
   // H01：刷新封面绕过缓存重新提取（mock 记录 refresh: 前缀）。
-  await items.nth(2).click();
+  await items.nth(3).click();
   await expect(menu).toBeHidden();
   await page.waitForFunction(() => (window.__thumbRequests || []).some((item) => item.startsWith('refresh:')));
+});
+
+test('repeated right-clicks replace the menu without stale listeners', async ({ page }) => {
+  await openHome(page);
+  const cards = page.locator('.recent-card');
+  const total = await cards.count();
+
+  // S1/§3.1：旧实现的 once dismiss 监听会误关后续菜单（1、0、0…）；
+  // 现在同卡/跨卡连续右键 20 次每次恰好一个菜单。
+  for (let i = 0; i < 20; i++) {
+    await cards.nth(i < 10 ? 0 : (i % Math.min(3, total))).click({ button: 'right' });
+    await expect(page.locator('#recentContextMenu')).toHaveCount(1);
+  }
+
+  // Esc 关闭并把焦点还给卡片；菜单自身上再次右键只关闭不重开。
+  await cards.first().focus();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#recentContextMenu')).toHaveCount(0);
+  expect(await page.evaluate(() => document.activeElement?.classList?.contains('recent-card'))).toBe(true);
+
+  await cards.first().click({ button: 'right' });
+  const box = await page.locator('#recentContextMenu').boundingBox();
+  await page.mouse.click(box.x + 8, box.y + 6, { button: 'right' });
+  await expect(page.locator('#recentContextMenu')).toHaveCount(0);
+
+  // 键盘唤起（Shift+F10）聚焦首项，方向键可导航，Enter 执行打开。
+  await cards.first().focus();
+  await page.keyboard.press('Shift+F10');
+  await expect(page.locator('#recentContextMenu')).toHaveCount(1);
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('role'))).toBe('menuitem');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowUp');
+  await expect(page.locator('#recentContextMenu')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#recentContextMenu')).toHaveCount(0);
+
+  // 小视口（缩放/窄窗场景）下菜单元素收敛在可视区域内。
+  await page.setViewportSize({ width: 900, height: 600 });
+  await cards.first().click({ button: 'right', position: { x: 6, y: 6 } });
+  const small = await page.locator('#recentContextMenu').boundingBox();
+  expect(small.x).toBeGreaterThanOrEqual(0);
+  expect(small.y).toBeGreaterThanOrEqual(0);
+  expect(small.x + small.width).toBeLessThanOrEqual(900);
+  expect(small.y + small.height).toBeLessThanOrEqual(600);
+  await page.keyboard.press('Escape');
 });
 
 test('server conflicts surface a return-or-independent choice instead of silent reuse', async ({ page }) => {

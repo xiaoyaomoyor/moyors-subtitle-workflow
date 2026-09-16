@@ -404,8 +404,9 @@ test('runtime errors show an actionable notice outside the log', async ({ page }
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  await expect(page.locator('#status')).toBeVisible();
-  await expect(page.locator('#status')).toHaveText('就绪');
+  // S1：闲置状态不再显示「就绪」——空消息时整块收起。
+  await expect(page.locator('#status')).toBeHidden();
+  await expect(page.locator('#status')).toHaveText('');
 
   await page.evaluate(() => window.MSWLauncher.onBackendEvent({
     type: 'error',

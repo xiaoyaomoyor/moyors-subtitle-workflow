@@ -23,7 +23,6 @@
     visible: DEFAULT_LIMIT,
     selectedPath: "",
     query: "",
-    menuPath: "",
     statsCache: {},   // path -> { version, text }（version = modifiedAt）
     statsPending: {}, // path -> Promise
     covers: {},       // path -> { state, dataUri, version, message }
@@ -32,6 +31,9 @@
   };
   var searchTimer = 0;
   var coverObserver = null;
+  // S1：右键菜单单一实例——目标、DOM、关闭监听与焦点归还都挂在 menu 上，
+  // 每次打开替换整个实例，旧实例的监听不再残留到 document。
+  var menu = { el: null, path: "", opener: null };
 
   function el(id) { return document.getElementById(id); }
   function t(key) { return window.MSWLauncher ? window.MSWLauncher.translate(key) : key; }
@@ -260,7 +262,10 @@
     if (entry.pinned) {
       var pin = document.createElement("span");
       pin.className = "recent-pin";
-      pin.textContent = t("recent_pinned");
+      pin.title = t("recent_pinned");
+      pin.setAttribute("aria-label", t("recent_pinned"));
+      // 图钉取自 Lucide（ISC License，https://lucide.dev），以 currentColor 内联使用。
+      pin.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       info.append(pin);
     }
     card.append(cover, info);
@@ -273,6 +278,8 @@
     var more = el("recentMore");
     var count = el("recentCount");
     gridNode.replaceChildren();
+    // 网格重建后卡片节点已换代：菜单随之关闭，避免悬浮菜单指向已换位的列表。
+    closeMenu({});
     // H03：筛选隐藏当前目标时清除选择，避免隐藏工程仍是启动目标。
     if (state.selectedPath && !visibleProjects().some(function (item) { return item.path === state.selectedPath; })) {
       clearSelection({ clearTarget: true });
@@ -496,6 +503,13 @@
       openProject(card.dataset.path);
     });
     node.addEventListener("keydown", function (event) {
+      if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+        var menuCard = event.target.closest(".recent-card");
+        if (!menuCard || !node.contains(menuCard)) return;
+        event.preventDefault();
+        openMenu(menuCard, event, { keyboard: true });
+        return;
+      }
       if (event.key !== "Enter" && event.key !== " ") return;
       var card = event.target.closest(".recent-card");
       if (!card) return;
@@ -511,16 +525,82 @@
     });
   }
 
-  function openMenu(card, event) {
-    closeMenu();
-    state.menuPath = card.dataset.path;
-    var entry = state.projects.find(function (item) { return item.path === state.menuPath; });
+  // ---------------- 右键菜单（S1：监听常驻一次，按实例判定） ----------------
+
+  function menuItems() {
+    return menu.el ? Array.from(menu.el.querySelectorAll('button[role="menuitem"]')) : [];
+  }
+
+  function closeMenu(options) {
+    options = options || {};
+    var node = menu.el;
+    if (!node) return;
+    menu.el = null;
+    menu.path = "";
+    var opener = menu.opener;
+    menu.opener = null;
+    node.remove();
+    if (options.restoreFocus && opener && document.contains(opener)) opener.focus();
+  }
+
+  function handleMenuKey(event) {
+    if (event.key === "Escape" || event.key === "Tab") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu({ restoreFocus: event.key === "Escape" });
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    event.stopPropagation();
+    var items = menuItems();
+    if (!items.length) return;
+    var index = items.indexOf(document.activeElement);
+    if (event.key === "ArrowDown") index = index < 0 ? 0 : (index + 1) % items.length;
+    else if (event.key === "ArrowUp") index = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length;
+    else if (event.key === "Home") index = 0;
+    else index = items.length - 1;
+    items[index].focus();
+  }
+
+  function initMenuLifecycle() {
+    // 捕获阶段先于网格的 contextmenu 处理：旧菜单先关，随后网格处理器按新目标
+    // 重开（替换语义）；右键落在菜单自身上时只关闭不重开（与系统菜单一致），
+    // 替换语义不依赖定时器延迟注册（旧实现泄漏的 once 监听会误关新菜单）。
+    document.addEventListener("contextmenu", function (event) {
+      if (!menu.el) return;
+      closeMenu({});
+    }, true);
+    document.addEventListener("click", function (event) {
+      if (!menu.el || menu.el.contains(event.target)) return;
+      closeMenu({});
+    }, true);
+    document.addEventListener("keydown", function (event) {
+      if (!menu.el) return;
+      handleMenuKey(event);
+    }, true);
+    window.addEventListener("blur", function () { closeMenu({}); });
+    window.addEventListener("scroll", function () { closeMenu({}); }, true);
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) closeMenu({});
+    });
+    document.addEventListener("mswnavigation", function () { closeMenu({}); });
+  }
+
+  function openMenu(card, event, options) {
+    options = options || {};
+    closeMenu({});
+    var entry = state.projects.find(function (item) { return item.path === card.dataset.path; });
     if (!entry) return;
-    var menu = document.createElement("div");
-    menu.id = "recentContextMenu";
-    menu.className = "recent-context-menu";
-    menu.setAttribute("role", "menu");
+    menu.path = entry.path;
+    menu.opener = card;
+    var menuEl = document.createElement("div");
+    menuEl.id = "recentContextMenu";
+    menuEl.className = "recent-context-menu";
+    menuEl.setAttribute("role", "menu");
+    menuEl.setAttribute("aria-label", entry.name);
     var actions = [];
+    actions.push({ key: "recent_open_project", run: function () { openProject(entry.path); } });
     actions.push({ key: entry.pinned ? "recent_unpin" : "recent_pin", run: function () {
       void bridge("set_recent_project_pinned", { path: entry.path, pinned: !entry.pinned }).then(refresh);
     } });
@@ -541,32 +621,36 @@
       button.type = "button";
       button.setAttribute("role", "menuitem");
       button.textContent = t(action.key);
-      button.addEventListener("click", function () { closeMenu(); action.run(); });
-      menu.append(button);
+      button.addEventListener("click", function () { closeMenu({}); action.run(); });
+      menuEl.append(button);
     });
-    document.body.append(menu);
-    var box = card.getBoundingClientRect();
-    var left = Math.min(event.clientX || (box.left + box.width / 2), window.innerWidth - menu.offsetWidth - 8);
-    var top = Math.min(event.clientY || box.top, window.innerHeight - menu.offsetHeight - 8);
-    menu.style.left = Math.max(8, left) + "px";
-    menu.style.top = Math.max(8, top) + "px";
-    menu.addEventListener("keydown", function (keyEvent) {
-      if (keyEvent.key === "Escape") closeMenu();
-    });
-    var dismiss = function (clickEvent) {
-      if (!menu.contains(clickEvent.target)) closeMenu();
-    };
-    // 当前 contextmenu 事件仍在冒泡：延迟注册 dismiss，避免菜单刚创建就被自己删除。
-    setTimeout(() => {
-      document.addEventListener("click", dismiss, { once: true });
-      document.addEventListener("contextmenu", dismiss, { once: true });
-    }, 0);
+    document.body.append(menuEl);
+    menu.el = menuEl;
+    positionMenu(menuEl, card, event, options.keyboard);
+    // 鼠标唤起不抢焦点（Esc 由 document 捕获监听兜底）；键盘唤起聚焦首项。
+    if (options.keyboard) {
+      var first = menuEl.querySelector('button[role="menuitem"]');
+      if (first) first.focus();
+    }
   }
 
-  function closeMenu() {
-    var menu = el("recentContextMenu");
-    if (menu) menu.remove();
-    state.menuPath = "";
+  function positionMenu(menuEl, card, event, keyboard) {
+    var margin = 8;
+    var left;
+    var top;
+    if (keyboard || !event || (!event.clientX && !event.clientY)) {
+      var box = card.getBoundingClientRect();
+      left = box.left;
+      top = box.bottom + 4;
+    } else {
+      left = event.clientX;
+      top = event.clientY;
+    }
+    // 视口内收敛：兼容应用缩放与系统缩放（clientX/Y 与 innerWidth 同为 CSS 像素）。
+    left = Math.min(Math.max(margin, left), window.innerWidth - menuEl.offsetWidth - margin);
+    top = Math.min(Math.max(margin, top), window.innerHeight - menuEl.offsetHeight - margin);
+    menuEl.style.left = left + "px";
+    menuEl.style.top = top + "px";
   }
 
   function bindToolbar() {
@@ -604,6 +688,7 @@
   function init() {
     bindToolbar();
     bindCardEvents();
+    initMenuLifecycle();
     // H04：工程路径变化（浏览/表单/编辑器事件）与卡片选择互通。
     var previous = window.MSWLauncher.onProjectPathChanged;
     window.MSWLauncher.onProjectPathChanged = function () {

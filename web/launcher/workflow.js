@@ -27,27 +27,32 @@
     if (card.querySelector(".module-head")) return;
     var heading = card.querySelector("h2");
     if (!heading) return;
-    // R2/V07：序号 · 标题 · 折叠箭头同一行；标题移入头部，不再两行堆叠。
+    // S1/§6.1：折叠箭头 → 序号 → 标题同一行，箭头左置；整头可点折叠。
     var head = document.createElement("div");
     head.className = "module-head";
-    var index = document.createElement("span");
-    index.className = "module-index";
-    head.append(index, heading);
     var toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "module-collapse";
     toggle.setAttribute("aria-expanded", "true");
     toggle.setAttribute("aria-label", t("module_toggle_label"));
     toggle.innerHTML = '<svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    head.append(toggle);
+    var index = document.createElement("span");
+    index.className = "module-index";
+    head.append(toggle, index, heading);
     card.prepend(head);
     var body = document.createElement("div");
     body.className = "module-body";
     while (head.nextSibling) body.append(head.nextSibling);
     head.after(body);
     card.dataset.moduleBody = "1";
-    toggle.addEventListener("click", function () {
+    var toggleCard = function () {
       setCollapsed(moduleId, !state.collapsed[moduleId]);
+    };
+    toggle.addEventListener("click", toggleCard);
+    // 头部空白区同样可折叠；头部内的按钮、链接与表单控件不触发。
+    head.addEventListener("click", function (event) {
+      if (event.target.closest("button, a, input, select, textarea")) return;
+      toggleCard();
     });
   }
 

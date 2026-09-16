@@ -3449,6 +3449,65 @@ class LauncherAssetContractTests(unittest.TestCase):
         # 旧的宽度切换紧凑导航机制已由常折叠取代。
         self.assertNotIn("nav-compact", (ROOT / "web" / "launcher" / "navigation.js").read_text(encoding="utf-8"))
 
+    def test_launcher_s1_interaction_contracts(self) -> None:
+        """S1（2026-09-16 二轮修正）：菜单生命周期、图标槽位、图钉、闲置状态移除。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+        workflow_script = (ROOT / "web" / "launcher" / "workflow.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+
+        # 菜单生命周期：监听在 init 常驻注册（捕获阶段先关旧菜单、网格处理器再开新菜单）；
+        # 旧的 setTimeout 延迟注册 once dismiss 已移除（泄漏监听会误关新菜单）。
+        self.assertIn("initMenuLifecycle", home_script)
+        self.assertIn('document.addEventListener("contextmenu"', home_script)
+        self.assertIn(", true);", home_script)
+        self.assertNotIn("setTimeout(() => {", home_script)
+        # 菜单键盘：Esc/Tab/方向键在 document 捕获层处理（右键不移动焦点也能 Esc）。
+        self.assertIn('event.key === "Escape" || event.key === "Tab"', home_script)
+        self.assertIn('event.key === "ArrowDown"', home_script)
+        # Shift+F10 / Menu 键唤起，键盘唤起聚焦首项并按卡片定位（不依赖鼠标坐标）。
+        self.assertIn('event.key === "ContextMenu"', home_script)
+        self.assertIn("{ keyboard: true }", home_script)
+        # 菜单动作含「打开工程」首项；Esc 关闭可选择归还焦点；网格重建时菜单关闭。
+        self.assertIn("recent_open_project", launcher_script)
+        self.assertIn("restoreFocus", home_script)
+        self.assertIn(
+            "closeMenu({});",
+            home_script.split("function render()")[1].split("\n  function ")[0],
+        )
+
+        # 图钉：SVG 图标（Lucide pin 竖针脚）+ 无障碍名称保留「已固定」。
+        self.assertIn('pin.setAttribute("aria-label", t("recent_pinned"))', home_script)
+        self.assertIn("M12 17v5", home_script)
+        self.assertIn("recent_pinned", launcher_script)
+
+        # 导航图标固定槽位：8px（栏内边距）+ 14.5px + 图标半宽 9.5px → 中心 32px；
+        # 无 hover 切换 padding 规则（旧实现折叠/展开横坐标 8px→20px 跳动）。
+        self.assertIn("padding: 9px 0 9px 14.5px", stylesheet)
+        self.assertNotIn(".app-nav:hover .nav-item,\n", stylesheet)
+        self.assertNotIn("padding: 9px 12px", stylesheet)
+        self.assertIn("prefers-reduced-motion", stylesheet)
+        # 提示点与页脚同栅格（锚定图标槽右缘 / 折叠态居中）。
+        self.assertIn("left: 34px", stylesheet)
+        self.assertIn("text-align: center", stylesheet)
+
+        # 模块头：箭头左置（DOM 顺序 toggle → index → heading）、整头可点折叠、
+        # 悬浮只点亮箭头不加底色、28px 命中区。
+        self.assertIn("head.append(toggle, index, heading)", workflow_script)
+        self.assertIn('event.target.closest("button, a, input, select, textarea")', workflow_script)
+        self.assertIn(".module-head:hover .module-collapse", stylesheet)
+        self.assertNotIn(".module-collapse:hover", stylesheet)
+        self.assertIn("width: 28px", stylesheet)
+        self.assertIn("cursor: pointer", stylesheet)
+
+        # 闲置「就绪」移除：状态区为 aria-live 瞬时反馈，空消息整块收起。
+        self.assertIn('id="status" class="status app-status" role="status" aria-live="polite"', page)
+        self.assertNotIn(">就绪<", page)
+        self.assertIn(".app-status:empty", stylesheet)
+        self.assertNotIn('t("ready")', launcher_script)
+        self.assertNotIn('ready: "就绪"', launcher_script)
+
     def test_launcher_r5_tools_settings_guide_contracts(self) -> None:
         """R5/F13：工具收口、语言只存语言、缓存诊断入口与指南文案契约。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
