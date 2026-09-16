@@ -58,9 +58,7 @@
       guide_link_repo: "项目仓库",
       guide_link_docs: "在线文档",
       guide_link_faq: "常见问题文件",
-      tool_open: "打开工具",
       tool_extract_audio: "提取音频",
-      tool_extract_audio_hint: "从视频或音频中提取一个音轨，输出新的 AAC/M4A 文件；不会修改源文件。",
       tool_burn_subtitle: "压制字幕",
       tool_burn_subtitle_hint: "将现有 SRT/ASS 字幕压入视频，生成新视频副本；含配音贴片的完整合成仍由编辑器导出。",
       tool_ffconcat: "媒体重组",
@@ -297,9 +295,7 @@
       guide_link_repo: "Repository",
       guide_link_docs: "Online docs",
       guide_link_faq: "FAQ file",
-      tool_open: "Open tool",
       tool_extract_audio: "Extract audio",
-      tool_extract_audio_hint: "Extract one audio track into a new AAC/M4A file; the source is never modified.",
       tool_burn_subtitle: "Burn subtitles",
       tool_burn_subtitle_hint: "Burn an existing SRT/ASS into a new video copy; full mixes with voiceover patches still export from the editor.",
       tool_ffconcat: "Media rebuild",
@@ -959,10 +955,21 @@
   });
   Object.assign(STRINGS.zh, {
     settings_tablist_label: "设置分类",
-    settings_tab_general: "通用",
-    settings_tab_llm: "大语言模型（AI）",
-    settings_tab_processing: "断句与标点",
+    settings_tab_appearance: "外观与语言",
+    settings_tab_files: "文件与输出",
+    settings_tab_connection: "服务与连接",
+    settings_tab_defaults: "处理默认值",
     settings_tab_runtime: "运行环境",
+    settings_tab_cache: "缓存与诊断",
+    settings_rail_label: "设置分组",
+    settings_rail_toggle: "选择分组",
+    settings_rail_processing_group: "处理",
+    settings_rail_environment_group: "环境",
+    tools_rail_label: "工具选择",
+    tools_rail_toggle: "选择工具",
+    tools_rail_files: "文件工具",
+    tools_rail_manual: "人工步骤",
+    tools_rail_files_general: "常规",
     settings_appearance: "外观",
     theme_light: "明亮模式",
     theme_dark: "暗色模式",
@@ -1010,10 +1017,21 @@
   });
   Object.assign(STRINGS.en, {
     settings_tablist_label: "Settings categories",
-    settings_tab_general: "General",
-    settings_tab_llm: "LLM",
-    settings_tab_processing: "Split & punctuation",
+    settings_tab_appearance: "Appearance & language",
+    settings_tab_files: "Files & output",
+    settings_tab_connection: "Services & connections",
+    settings_tab_defaults: "Processing defaults",
     settings_tab_runtime: "Runtime",
+    settings_tab_cache: "Cache & diagnostics",
+    settings_rail_label: "Settings sections",
+    settings_rail_toggle: "Choose section",
+    settings_rail_processing_group: "Processing",
+    settings_rail_environment_group: "Environment",
+    tools_rail_label: "Tool selection",
+    tools_rail_toggle: "Choose tool",
+    tools_rail_files: "File tools",
+    tools_rail_manual: "Manual steps",
+    tools_rail_files_general: "General",
     settings_appearance: "Appearance",
     theme_light: "Light",
     theme_dark: "Dark",
@@ -1060,9 +1078,9 @@
     llm_reasoning_mode_hint: "Off is the default; Auto follows the model default."
   });
   Object.assign(STRINGS.zh, {
-    toolbox_title: "工具箱", toolbox_group_postprocess: "后处理", toolbox_group_utilities: "实用工具", toolbox_chain_hint: "每次生成新文件，并自动作为下一步输入。", toolbox_no_media: "未选择媒体", toolbox_input_empty: "未选择文件", toolbox_chain_heading: "处理产物（点击文件名切换输入）", toolbox_resize_width: "调整工具箱宽度", toolbox_resize_height: "调整工具箱高度",
+    toolbox_title: "工具箱", toolbox_chain_hint: "每次生成新文件，并自动作为下一步输入。", toolbox_no_media: "未选择媒体", toolbox_input_empty: "未选择文件", toolbox_chain_heading: "处理产物（点击文件名切换输入）", toolbox_resize_width: "调整工具箱宽度", toolbox_resize_height: "调整工具箱高度",
     toolbox_input: "处理文件", toolbox_input_placeholder: "跟随工程文件，也可拖入 .mosp / .json / .srt", toolbox_input_hint: "默认跟随「工程文件」并随每次处理更新；手动选择或拖入后以这里为准。", toolbox_drop_reject: "这里只接受 .mosp / .json / .srt 字幕或工程文件。", toolbox_utility_media: "媒体文件", toolbox_utility_media_placeholder: "默认跟随 Launcher 媒体，也可选择或拖入媒体文件", toolbox_utility_media_hint: "默认跟随 Launcher 媒体；选择或拖入媒体后，以这里为准。清空可恢复跟随。", toolbox_utility_media_reject: "这里仅接受媒体文件。", toolbox_ffconcat_reject: "这里只接受 .ffconcat 文件。",
-     toolbox_waveform: "生成波形", toolbox_waveform_hint: "仅使用上方媒体生成媒体工程和独立波形缓存，不需要字幕或转写；打开编辑器后可扫描静音空隙并导出去空隙 OTIO。", toolbox_generate_waveform: "生成波形文件", toolbox_run_waveform: "生成波形并打开编辑器", toolbox_match: "文稿匹配", toolbox_script: "文稿文件", toolbox_script_placeholder: "UTF-8 .txt / .md 文稿", toolbox_script_hint: "文稿文字会替换字幕文字；原字幕时间保持不变。", toolbox_script_preview: "文稿预览（前 240 字）", toolbox_script_reject: "文稿只支持 .txt / .md / .markdown 文件。", toolbox_split_preview: "拆分预览", toolbox_match_mode: "换行来源", toolbox_match_mode_script: "按文稿换行（默认）", toolbox_match_mode_text: "只更正文本", toolbox_match_mode_hint: "按文稿换行会使用文稿中的换行和断句符号；只更正文本保留现有字幕分段。", toolbox_extra_split_punctuation: "额外断句符号", toolbox_extra_split_punctuation_placeholder: "？\n！\n——\n~", toolbox_extra_split_punctuation_hint: "每行一个符号；逗号、句号和换行默认生效，同时对转写后处理的句尾剥除生效。", toolbox_preserve_punctuation: "保留符号", toolbox_preserve_punctuation_placeholder: "？\n！\n~", toolbox_preserve_punctuation_hint: "断句后仍将符号保留在字幕末尾；转写输出的这些尾部符号同样保留，其余默认剥除逗号和句号。", toolbox_preserve_punctuation_invalid: "保留符号必须存在于额外断句符号中：", toolbox_match_hint: "匹配度过低时会停止，不写出可能错配的结果。", toolbox_run_match: "匹配文稿", toolbox_punct_open_settings: "在更多设置中配置断句与保留符号",
+     toolbox_match: "文稿匹配", toolbox_script: "文稿文件", toolbox_script_placeholder: "UTF-8 .txt / .md 文稿", toolbox_script_hint: "文稿文字会替换字幕文字；原字幕时间保持不变。", toolbox_script_preview: "文稿预览（前 240 字）", toolbox_script_reject: "文稿只支持 .txt / .md / .markdown 文件。", toolbox_split_preview: "拆分预览", toolbox_match_mode: "换行来源", toolbox_match_mode_script: "按文稿换行（默认）", toolbox_match_mode_text: "只更正文本", toolbox_match_mode_hint: "按文稿换行会使用文稿中的换行和断句符号；只更正文本保留现有字幕分段。", toolbox_extra_split_punctuation: "额外断句符号", toolbox_extra_split_punctuation_placeholder: "？\n！\n——\n~", toolbox_extra_split_punctuation_hint: "每行一个符号；逗号、句号和换行默认生效，同时对转写后处理的句尾剥除生效。", toolbox_preserve_punctuation: "保留符号", toolbox_preserve_punctuation_placeholder: "？\n！\n~", toolbox_preserve_punctuation_hint: "断句后仍将符号保留在字幕末尾；转写输出的这些尾部符号同样保留，其余默认剥除逗号和句号。", toolbox_preserve_punctuation_invalid: "保留符号必须存在于额外断句符号中：", toolbox_match_hint: "匹配度过低时会停止，不写出可能错配的结果。", toolbox_run_match: "匹配文稿", toolbox_punct_open_settings: "在更多设置中配置断句与保留符号",
      toolbox_llm: "LLM 处理", toolbox_replace: "固定处理", toolbox_ffconcat: "媒体重组", toolbox_provider: "供应商", toolbox_operation: "任务", toolbox_proofread: "校对文本", toolbox_resegment: "重新断句", toolbox_translate_en: "翻译成英文", toolbox_translate_zh: "翻译成中文", toolbox_merge_bilingual: "合并双语字幕", toolbox_custom: "自定义",
     toolbox_open_settings: "在更多设置中配置 API Key", toolbox_preset_prompt: "预设提示词", toolbox_preset_prompt_hint: "由当前任务决定，不可编辑。", toolbox_prompt: "自定义提示词", toolbox_prompt_placeholder: "例如：保留专有名词，不要使用书面腔。", toolbox_prompt_hint: "可按需追加要求；留空则只使用预设提示词。", toolbox_task_none: "（无）", toolbox_task_proofread: "校对字幕中的错别字、漏字和明显识别错误，不扩写事实。", toolbox_task_resegment: "重新整理句子的字幕拆分。可以合并或拆分连续字幕，但不得删除内容。", toolbox_task_translate_en: "翻译为自然英文。必须保持原字幕的段数、顺序和每段时间范围，一条输入字幕只能对应一条输出字幕；不得合并、拆分或重排相邻字幕。", toolbox_task_translate_zh: "翻译为自然中文。必须保持原字幕的段数、顺序和每段时间范围，一条输入字幕只能对应一条输出字幕；不得合并、拆分或重排相邻字幕。", toolbox_time_hint: "模型只处理带 ID 的文字；本地时间槽始终是时间真源。", toolbox_output: "输出", toolbox_output_both: "工程 + SRT", toolbox_output_project: "仅工程", toolbox_output_srt: "仅 SRT", toolbox_run: "运行处理",
      toolbox_group_fixed_replacements: "批量替换", toolbox_group_fixed_conversion: "简繁转换", toolbox_conversion: "转换方向", toolbox_conversion_off: "不转换", toolbox_conversion_to_simplified: "转为简体", toolbox_conversion_to_traditional: "转为繁体（通用）", toolbox_conversion_to_traditional_tw: "转为繁体（台湾）", toolbox_conversion_to_traditional_twp: "转为繁体（台湾增强）", toolbox_conversion_to_traditional_hk: "转为繁体（香港）", toolbox_conversion_hint: "先执行批量替换，再转换文字；不访问网络。", toolbox_replace_rules: "批量替换规则", toolbox_replace_placeholder: "错别字 => 正确文字\n旧名称 => 新名称", toolbox_replace_separator: "替换分隔符号", toolbox_replace_separator_arrow: "=>", toolbox_replace_separator_comma: "中英文逗号", toolbox_replace_separator_tab: "Tab 制表符", toolbox_replace_separator_custom: "自定义", toolbox_replace_custom_separator: "自定义分隔符", toolbox_replace_trim: "自动去除前后空白", toolbox_replace_preview: "规则预览", toolbox_replace_preview_hint: "输入规则后显示解析结果。", toolbox_replace_preview_empty: "没有识别到有效规则。", toolbox_replace_hint: "每行一条替换规则；修改文本后会移除失真的逐词时间。", toolbox_replace_safe: "分段起止时间保持不变。", toolbox_run_replace: "执行固定处理",
@@ -1070,9 +1088,9 @@
       toolbox_need_source: "请先选择工程或 SRT。", toolbox_need_script: "请选择文稿文件。", toolbox_need_rules: "请至少填写一条有效批量替换规则或选择简繁转换。", toolbox_need_ffconcat: "请选择 .ffconcat 文件。", toolbox_need_media: "请先选择当前媒体。", toolbox_custom_prompt_required: "自定义任务需要填写提示词。", toolbox_done: "处理完成，已切换到新产物：", toolbox_media_done: "媒体重组完成，已切换到新媒体：", toolbox_config_only_hint: "这里只配置自动后处理；生成后会自动执行。", toolbox_match_rate: "匹配率", toolbox_match_preview_stats: "根据文稿重新换行后，共有 {from} -> {to} 句字幕（{change}）", toolbox_match_preview_too_low: "偏差过多，无法匹配，请检查文稿。", toolbox_match_preview_failed: "无法生成匹配预览，请检查文稿。", toolbox_alignment: "口播对齐", toolbox_alignment_hint: "适合初版 ASR 中有口吃、重录、重复或顺序混乱的口播；需要 ASR 工程和文稿，人工选择 take 后导出新工程。", toolbox_alignment_input_project: "ASR 工程", toolbox_alignment_project_placeholder: "选择或拖入 .mosp / .json 工程", toolbox_alignment_project_hint: "默认跟随当前 Launcher 工程；口播对齐需要工程中的 ASR 时间码，不能只使用 SRT。", toolbox_alignment_input_script: "文稿", toolbox_alignment_script_placeholder: "选择或拖入 UTF-8 .txt / .md 文稿", toolbox_alignment_script_hint: "每个非空行视为一行文稿。", toolbox_alignment_input_media: "媒体覆盖（可选）", toolbox_alignment_media_placeholder: "留空以使用工程媒体，也可选择或拖入媒体文件", toolbox_alignment_media_hint: "工程没有可用媒体时无法试听，但仍可查看并导出对齐结果。", toolbox_alignment_notice: "不会覆盖输入工程；导出后会生成 source.aligned.mosp。", toolbox_run_alignment: "启动并打开口播对齐", toolbox_reopen_alignment: "重新打开口播对齐", toolbox_stop_alignment: "停止服务", toolbox_alignment_started: "口播对齐 Server 已启动。", toolbox_alignment_stopped: "口播对齐 Server 已停止。", toolbox_alignment_script_missing: "请选择文稿文件。", toolbox_alignment_project_invalid: "口播对齐需要 .mosp 或 .json 工程。", toolbox_alignment_media_invalid: "请选择支持的媒体文件。", toolbox_status_alignment_starting: "正在启动口播对齐 Server……", toolbox_status_alignment_stopping: "正在停止口播对齐 Server……", toolbox_alignment_open_failed: "口播对齐已启动，但未能自动打开浏览器。"
    });
    Object.assign(STRINGS.en, {
-     toolbox_title: "Toolbox", toolbox_group_postprocess: "Post-processing", toolbox_group_utilities: "Utilities", toolbox_chain_hint: "Each run creates a new file and uses it as the next input.", toolbox_no_media: "No media selected", toolbox_input_empty: "No file selected", toolbox_chain_heading: "Artifacts (click a filename to use it as input)", toolbox_resize_width: "Resize toolbox width", toolbox_resize_height: "Resize toolbox height",
+     toolbox_title: "Toolbox", toolbox_chain_hint: "Each run creates a new file and uses it as the next input.", toolbox_no_media: "No media selected", toolbox_input_empty: "No file selected", toolbox_chain_heading: "Artifacts (click a filename to use it as input)", toolbox_resize_width: "Resize toolbox width", toolbox_resize_height: "Resize toolbox height",
     toolbox_input: "File to process", toolbox_input_placeholder: "Follows the project file, or drop a .mosp / .json / .srt", toolbox_input_hint: "Auto-follows the project file and updates after each run; a chosen or dropped file takes priority.", toolbox_drop_reject: "Only .mosp / .json / .srt subtitle or project files can be dropped here.", toolbox_utility_media: "Media file", toolbox_utility_media_placeholder: "Uses Launcher media by default, or choose or drop a media file", toolbox_utility_media_hint: "Uses the Launcher media by default; a chosen or dropped file takes priority. Clear it to follow again.", toolbox_utility_media_reject: "Only media files can be used here.", toolbox_ffconcat_reject: "Only .ffconcat files can be used here.",
-     toolbox_waveform: "Generate waveform", toolbox_waveform_hint: "Use the media above to create a media project and a separate waveform cache; no subtitles or transcription are required. In the editor, scan silence gaps and export a gap-removed OTIO.", toolbox_generate_waveform: "Generate waveform project", toolbox_run_waveform: "Generate waveform and open editor", toolbox_match: "Script match", toolbox_script: "Script file", toolbox_script_placeholder: "UTF-8 .txt / .md script", toolbox_script_hint: "Script text replaces subtitle text; original subtitle timing stays unchanged.", toolbox_script_preview: "Script preview (first 240 chars)", toolbox_script_reject: "Scripts must be .txt, .md, or .markdown files.", toolbox_split_preview: "Split preview", toolbox_match_mode: "Line-break source", toolbox_match_mode_script: "Use manuscript line breaks (default)", toolbox_match_mode_text: "Correct text only", toolbox_match_mode_hint: "Manuscript mode uses line breaks and split symbols; text-only mode keeps the existing cue segmentation.", toolbox_extra_split_punctuation: "Extra split punctuation", toolbox_extra_split_punctuation_placeholder: "?\n!\n--\n~", toolbox_extra_split_punctuation_hint: "One symbol per line; comma, period, and newline apply by default, and also drive tail-punctuation stripping in transcription post-processing.", toolbox_preserve_punctuation: "Preserve punctuation", toolbox_preserve_punctuation_placeholder: "?\n!\n~", toolbox_preserve_punctuation_hint: "Symbols are kept at cue tails after splitting; transcription output keeps these tail symbols too, while commas and periods are stripped by default.", toolbox_preserve_punctuation_invalid: "Preserved symbols must be listed as extra split punctuation:", toolbox_match_hint: "Runs stop when the match is too low to avoid writing a bad alignment.", toolbox_run_match: "Match script", toolbox_punct_open_settings: "Configure split & punctuation marks in More Settings",
+     toolbox_match: "Script match", toolbox_script: "Script file", toolbox_script_placeholder: "UTF-8 .txt / .md script", toolbox_script_hint: "Script text replaces subtitle text; original subtitle timing stays unchanged.", toolbox_script_preview: "Script preview (first 240 chars)", toolbox_script_reject: "Scripts must be .txt, .md, or .markdown files.", toolbox_split_preview: "Split preview", toolbox_match_mode: "Line-break source", toolbox_match_mode_script: "Use manuscript line breaks (default)", toolbox_match_mode_text: "Correct text only", toolbox_match_mode_hint: "Manuscript mode uses line breaks and split symbols; text-only mode keeps the existing cue segmentation.", toolbox_extra_split_punctuation: "Extra split punctuation", toolbox_extra_split_punctuation_placeholder: "?\n!\n--\n~", toolbox_extra_split_punctuation_hint: "One symbol per line; comma, period, and newline apply by default, and also drive tail-punctuation stripping in transcription post-processing.", toolbox_preserve_punctuation: "Preserve punctuation", toolbox_preserve_punctuation_placeholder: "?\n!\n~", toolbox_preserve_punctuation_hint: "Symbols are kept at cue tails after splitting; transcription output keeps these tail symbols too, while commas and periods are stripped by default.", toolbox_preserve_punctuation_invalid: "Preserved symbols must be listed as extra split punctuation:", toolbox_match_hint: "Runs stop when the match is too low to avoid writing a bad alignment.", toolbox_run_match: "Match script", toolbox_punct_open_settings: "Configure split & punctuation marks in More Settings",
      toolbox_llm: "LLM", toolbox_replace: "Fixed processing", toolbox_ffconcat: "Media rebuild", toolbox_provider: "Provider", toolbox_operation: "Task", toolbox_proofread: "Proofread text", toolbox_resegment: "Resegment", toolbox_translate_en: "Translate into English", toolbox_translate_zh: "Translate into Chinese", toolbox_merge_bilingual: "Merge bilingual subtitles", toolbox_custom: "Custom",
     toolbox_open_settings: "Configure the API key in More Settings", toolbox_preset_prompt: "Preset prompt", toolbox_preset_prompt_hint: "Determined by the current task and cannot be edited.", toolbox_prompt: "Custom prompt", toolbox_prompt_placeholder: "Example: preserve product names and use conversational language.", toolbox_prompt_hint: "Add extra requirements as needed; leave empty to use only the preset prompt.", toolbox_task_none: "(None)", toolbox_task_proofread: "Proofread subtitle typos, omissions, and obvious recognition errors without expanding facts.", toolbox_task_resegment: "Reorganize subtitle sentence breaks. You may merge or split consecutive subtitles, but do not delete content.", toolbox_task_translate_en: "Translate into natural English. Preserve the original cue count, order, and time ranges; each input cue must produce exactly one output cue. Do not merge, split, or reorder adjacent cues.", toolbox_task_translate_zh: "Translate into natural Chinese. Preserve the original cue count, order, and time ranges; each input cue must produce exactly one output cue. Do not merge, split, or reorder adjacent cues.", toolbox_time_hint: "The model edits ID-tagged text only; local time slots remain authoritative.", toolbox_output: "Output", toolbox_output_both: "Project + SRT", toolbox_output_project: "Project only", toolbox_output_srt: "SRT only", toolbox_run: "Run",
       toolbox_group_fixed_replacements: "Batch replacement", toolbox_group_fixed_conversion: "Chinese conversion", toolbox_conversion: "Conversion direction", toolbox_conversion_off: "No conversion", toolbox_conversion_to_simplified: "Convert to Simplified", toolbox_conversion_to_traditional: "Convert to Traditional (General)", toolbox_conversion_to_traditional_tw: "Convert to Traditional (Taiwan)", toolbox_conversion_to_traditional_twp: "Convert to Traditional (Taiwan enhanced)", toolbox_conversion_to_traditional_hk: "Convert to Traditional (Hong Kong)", toolbox_conversion_hint: "Apply batch replacements first, then convert text locally.", toolbox_replace_rules: "Batch replacement rules", toolbox_replace_placeholder: "old text => new text", toolbox_replace_separator: "Replacement separator", toolbox_replace_separator_arrow: "=>", toolbox_replace_separator_comma: "English or Chinese comma", toolbox_replace_separator_tab: "Tab", toolbox_replace_separator_custom: "Custom", toolbox_replace_custom_separator: "Custom separator", toolbox_replace_trim: "Trim surrounding whitespace automatically", toolbox_replace_preview: "Rule preview", toolbox_replace_preview_hint: "Parsed rules will appear here.", toolbox_replace_preview_empty: "No valid rules detected.", toolbox_replace_hint: "One replacement rule per line. Stale word timings are removed when text changes.", toolbox_replace_safe: "Segment start and end times stay unchanged.", toolbox_run_replace: "Run fixed processing",
@@ -1372,7 +1390,15 @@
   // prevents an older request of either kind from putting stale status back
   // after a newer check has already completed.
   let localStatusRequest = 0;
-  let activeSettingsTab = "general";
+  // S2：设置分组记忆——上次访问的分组在下次进入设置页时恢复。
+  const SETTINGS_TAB_KEY = "MSW_SETTINGS_TAB_V1";
+  function readStoredSettingsTab() {
+    try {
+      const saved = localStorage.getItem(SETTINGS_TAB_KEY) || "";
+      return document.querySelector(`[data-settings-tab="${saved}"]`) ? saved : "appearance";
+    } catch (error) { return "appearance"; }
+  }
+  let activeSettingsTab = readStoredSettingsTab();
 
   function mockApi() {
     let saved = { apiKey: "", region: "beijing", language: "", workspaceId: "", guiLang: "zh", customDisplayName: "", openaiBaseUrl: "https://api.openai.com/v1", openaiModel: "whisper-1", postprocessApiKeys: {}, theme: null, outputSubfolder: false, perVideoSubfolder: false, attachModelName: true };
@@ -2705,6 +2731,7 @@
     const tab = tabs.find((item) => item.dataset.settingsTab === tabName);
     if (!tab) return;
     activeSettingsTab = tabName;
+    try { localStorage.setItem(SETTINGS_TAB_KEY, tabName); } catch (error) { /* 显示记忆而已 */ }
     tabs.forEach((item) => {
       const active = item === tab;
       item.classList.toggle("active", active);
@@ -3167,15 +3194,7 @@
         item.querySelector(".faq-a")?.classList.toggle("hidden", !open);
       });
     });
-    document.querySelectorAll("[data-tool-entry]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const tab = $(button.dataset.toolEntry);
-        if (!tab) return;
-        window.MSWLauncher.openToolbox();
-        (button.dataset.toolSection === "postprocess" ? $("toolboxPostprocessPrimaryTab") : $("toolboxUtilitiesPrimaryTab"))?.click();
-        tab.click();
-      });
-    });
+    // S2：实用工具页已改为页内直接配置运行（tools.js），「打开工具」入口按钮移除。
     $("guideRepo").addEventListener("click", () => bridge("open_url", { url: HOME_URL }));
     $("guideDocs").addEventListener("click", () => bridge("open_url", { url: "https://xiaoyaomoyor.github.io/moyors-subtitle-workflow/docs/" }));
     $("guideFaq").addEventListener("click", () => bridge("open_faq"));

@@ -524,6 +524,61 @@ body:not(.launcher-ready) .shell {
   .rail-backdrop {
     display: block;
   }
+
+  .tools-wrap,
+  .settings-wrap {
+    position: relative;
+  }
+
+  .tools-rail,
+  .settings-rail {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    width: min(280px, 86vw);
+    height: 100dvh;
+    padding: 0 10px 14px;
+    box-shadow: var(--shadow-3);
+    transform: translateX(100%);
+    transition: transform 160ms ease-out;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.rail-open .tools-rail,
+  body.rail-open .settings-rail {
+    transform: translateX(0);
+  }
+
+  .tools-rail .rail-drawer-head,
+  .settings-rail .rail-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    position: sticky;
+    top: 0;
+    padding: 12px 6px 10px;
+    background: var(--bg-side);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .tools-rail .rail-close,
+  .settings-rail .rail-close {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+  }
+
+  .tools-rail .rail-content,
+  .settings-rail .rail-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 
 .rail-backdrop {
@@ -927,44 +982,99 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
 }
 
 /* ---------- 实用工具 / 使用指南 / 更多设置页面 ---------- */
-.tools-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+/* S2/§4.1：右侧单选分类 + 左侧内容，与预制页同框架（右栏 248px、同底色、
+   同分组标题与行距；单选用活动描边/背景，预制栏的多选复选样式保持差异）。 */
+.tools-wrap,
+.settings-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
 }
 
-.tool-card {
+.tools-main,
+.settings-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 0;
 }
 
-.tool-card-title {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0 0 2px;
+.tools-rail,
+.settings-rail {
+  flex: 0 0 248px;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-side);
+  overflow-y: auto;
+  padding: 14px 10px;
 }
 
-.tool-card-title .tool-card-io {
-  font-size: 14.5px;
+.tools-rail .rail-drawer-head,
+.settings-rail .rail-drawer-head {
+  display: none;
+}
+
+/* 单选导航项：整行按钮，活动态用强调描边（区别于预制栏复选）。 */
+.rail-select,
+.settings-rail .settings-tab {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  text-align: left;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.rail-select:hover,
+.settings-rail .settings-tab:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.rail-select.active,
+.settings-rail .settings-tab.active {
+  background: var(--accent-tint);
+  color: var(--accent-hover);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tool-page-card,
+.tool-page-panel {
+  margin-bottom: 12px;
+}
+
+.tool-page-title {
+  margin: 0 0 8px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.tool-io-hint {
-  font-size: 11.5px;
-  color: var(--text-secondary);
+/* 页内运行区：动作槽 + 取消 + 进度与结果（与工具箱抽屉同一批按钮元素）。 */
+.tools-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.tool-card .hint {
-  margin: 0;
+.tools-run .toolbox-result {
+  flex: 1 1 100%;
 }
 
-.tool-entry {
-  margin-top: auto;
+.tools-run #toolsPageProgress {
+  flex: 1 1 100%;
 }
 
 .guide-cards {
@@ -1024,7 +1134,7 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
   flex-wrap: wrap;
 }
 
-.settings-page .page-head {
+.settings-main .page-head {
   margin-bottom: 10px;
 }
 
@@ -1035,18 +1145,11 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
   gap: 12px;
 }
 
-.settings-back {
+/* 头部独立于滚动区：只保留 page-scroll 的内边距语义，不参与滚动。 */
+.settings-head-scroll {
   flex: 0 0 auto;
-  margin-top: 4px;
-}
-
-.settings-modal-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2);
-  padding: 14px;
-  margin-bottom: 12px;
+  overflow: visible;
+  padding-block-end: 0;
 }
 
 .icon {
@@ -2753,40 +2856,6 @@ textarea::placeholder {
   white-space: nowrap;
 }
 
-.toolbox-primary-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  margin-top: 12px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
-}
-
-.toolbox-primary-tab {
-  min-height: 32px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  background: transparent;
-  font-size: 13px;
-  font-weight: 700;
-  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast);
-}
-
-.toolbox-primary-tab:hover,
-.toolbox-primary-tab.active {
-  color: var(--text-primary);
-  background: var(--btn-bg-hover);
-}
-
-.toolbox-primary-tab.active {
-  color: var(--accent-hover);
-  background: var(--accent-tint-strong);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
 .toolbox-primary-view {
   display: grid;
   gap: 8px;
@@ -2807,65 +2876,6 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
-}
-
-.toolbox-utilities-content {
-  display: grid;
-  grid-template-columns: minmax(108px, .25fr) minmax(0, 1fr);
-  gap: 12px;
-  align-items: stretch;
-  margin-top: 12px;
-}
-
-/* 实用工具区左右两列各自独立滚动：激活时 scroller 变 flex 列，
-   utilities 网格占满剩余高度，滚动只发生在两列内部。 */
-.toolbox-drawer.toolbox-utilities-active .toolbox-content {
-  display: flex;
-  flex-direction: column;
-  --toolbox-top-fade: 0px;
-  --toolbox-bottom-fade: 0px;
-  animation: none;
-}
-
-.toolbox-drawer.toolbox-utilities-active .toolbox-utilities-content {
-  flex: 1 1 auto;
-  min-block-size: 0;
-}
-
-/* 左列极少溢出；隐去滚动条，避免经典滚动条在标签右侧长期占位。 */
-.toolbox-utility-tabs {
-  overflow-y: auto;
-  min-block-size: 0;
-  overscroll-behavior: contain;
-  margin-top: 0;
-  padding: 4px;
-  scrollbar-width: none;
-}
-
-.toolbox-utility-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.toolbox-utility-tab-list {
-  grid-template-columns: 1fr;
-}
-
-.toolbox-utility-tab-list .toolbox-tab {
-  min-height: 36px;
-  padding: 7px 9px;
-  text-align: left;
-  line-height: 1.35;
-}
-
-.toolbox-utility-panels {
-  min-width: 0;
-  min-block-size: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.toolbox-utility-panels .toolbox-panel {
-  margin-top: 0;
 }
 
 .toolbox-tab {
@@ -3239,18 +3249,6 @@ textarea::placeholder {
   font-size: 16px;
 }
 
-.settings-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  flex: 0 0 auto;
-  margin: 0 0 12px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
-}
-
 .settings-tab {
   min-width: 0;
   min-height: 34px;
@@ -3448,14 +3446,8 @@ code {
   .toolbox-grid {
     grid-template-columns: 1fr;
   }
-  .settings-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .toolbox-tab-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .toolbox-utility-tab-list {
-    grid-template-columns: 1fr;
   }
   .toolbox-footer {
     align-items: stretch;
@@ -3472,13 +3464,6 @@ code {
   }
   .toolbox-action-slot .primary {
     width: 100%;
-  }
-}
-
-@media (max-width:620px) {
-  .toolbox-utilities-content {
-    grid-template-columns: minmax(96px, 25%) minmax(0, 1fr);
-    gap: 8px;
   }
 }
 

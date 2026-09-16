@@ -16,6 +16,8 @@ test('output settings retain the inactive per-media preference and preserve an e
   await page.locator('#mediaPath').dispatchEvent('change');
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
+  // S2：输出偏好位于「文件与输出」分组（默认进入「外观与语言」）。
+  await page.locator('[data-settings-tab="files"]').click();
   await expect(page.locator('#outputSubfolder')).not.toBeChecked();
   await expect(page.locator('#perVideoSubfolder')).toBeDisabled();
   await expect(page.locator('#attachModelName')).toBeChecked();
@@ -33,6 +35,8 @@ test('output settings retain the inactive per-media preference and preserve an e
   await page.locator('#srtPath').dispatchEvent('input');
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
+  // 分组记忆：上次访问「文件与输出」，重进设置直接恢复。
+  await expect(page.locator('[data-settings-tab="files"]')).toHaveClass(/active/);
   await page.locator('#outputSubfolder').check();
   await expect(page.locator('#srtPath')).toHaveValue('E:\\我的输出\\chosen.srt');
 });
@@ -66,14 +70,15 @@ test('segmentation and local runtime controls live in settings; installation loc
   });
   await expect(page.locator('#localRuntimePath')).toBeDisabled();
   await expect(page.locator('#pickLocalRuntimePath')).toBeDisabled();
-  await page.locator('#settingsProcessingTab').click();
+  await page.locator('[data-settings-tab="processing"]').click();
   await expect(page.locator('#settingsProcessingPanel #maxLen')).toBeVisible();
   await expect(page.locator('#settingsProcessingPanel #maxWords')).toBeVisible();
   await page.locator('#maxLen').fill('24');
   await page.keyboard.press('Escape');
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
-  await page.locator('#settingsProcessingTab').click();
+  // 分组记忆：上次访问「处理默认值」，重进设置直接恢复。
+  await expect(page.locator('[data-settings-tab="processing"]')).toHaveClass(/active/);
   await expect(page.locator('#maxLen')).toHaveValue('24');
 });
 
@@ -119,20 +124,13 @@ for (const zoom of [80, 100, 150]) {
       const footer = await page.locator('[data-page-id="prefab"] footer.page-actions').boundingBox();
       expect(footer.y + footer.height).toBeLessThanOrEqual(viewport.height + 2);
       expect(footer.y + footer.height).toBeGreaterThan(viewport.height - 3);
-      await page.evaluate(() => window.MSWLauncher.openToolbox());
-      await page.locator('#toolboxUtilitiesPrimaryTab').click();
-      await page.locator('#toolboxExtractAudioTab').click();
+      // S2：实用工具页改为右栏单选 + 页内运行；抽屉不再有实用工具两列布局。
+      // 窄窗/高缩放下右栏是离屏抽屉，统一经选择 API 切换（抽屉交互另由 shell 用例覆盖）。
+      await page.evaluate(() => window.MSWNavigation.show('tools'));
+      await page.evaluate(() => window.MSWTools.select('extractAudio'));
       await expect(page.locator('#toolboxExtractAudioPanel')).toBeVisible();
-      const columns = await page.evaluate(() => {
-        const left = document.querySelector('.toolbox-utility-tabs');
-        const right = document.querySelector('.toolbox-utility-panels');
-        return { left: getComputedStyle(left).overflowY, right: getComputedStyle(right).overflowY, scrollbar: getComputedStyle(left).scrollbarWidth,
-          leftX: left.getBoundingClientRect().x, rightX: right.getBoundingClientRect().x };
-      });
-      expect(columns.left).toBe('auto');
-      expect(columns.right).toBe('auto');
-      expect(columns.scrollbar).toBe('none');
-      expect(columns.rightX).toBeGreaterThan(columns.leftX);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+      expect(overflow).toBe(false);
       await page.screenshot({ path: testInfo.outputPath('launcher-layout.png') });
     });
   }

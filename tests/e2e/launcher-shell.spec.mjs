@@ -9,22 +9,67 @@ async function openLauncher(page) {
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
 }
 
-test('tools page keeps four standalone file tools only', async ({ page }) => {
+test('tools page configures and runs file tools inline with a single-select rail', async ({ page }) => {
   await openLauncher(page);
+  await page.evaluate(() => { localStorage.removeItem('MSW_TOOLS_PAGE_TOOL_V1'); });
   await page.evaluate(() => window.MSWNavigation.show('tools'));
 
-  // R5/F13：文稿/字幕处理与波形生成回归预制模块，不再出现在实用工具页。
-  const cards = page.locator('.tools-grid .tool-card');
-  await expect(cards).toHaveCount(4);
-  const entries = page.locator('.tools-grid [data-tool-entry]');
-  const targets = await entries.evaluateAll((nodes) => nodes.map((node) => node.dataset.toolEntry));
-  expect(targets).toEqual(['toolboxExtractAudioTab', 'toolboxBurnSubtitleTab', 'toolboxFfconcatTab', 'toolboxAlignmentTab']);
+  // S2/反馈1+2：右侧单选工具、左侧直接配置运行；不再有「打开工具」中间步骤。
+  const rail = page.locator('#toolsRail [data-tools-select]');
+  await expect(rail).toHaveCount(4);
+  const ids = await rail.evaluateAll((nodes) => nodes.map((node) => node.dataset.toolsSelect));
+  expect(ids).toEqual(['extractAudio', 'burnSubtitle', 'ffconcat', 'alignment']);
   await expect(page.locator('#toolsTitle')).toHaveText('实用工具');
+  await expect(page.locator('[data-tool-entry]')).toHaveCount(0);
+  // 单选导航不带复选框（区别于预制栏多选）。
+  await expect(page.locator('#toolsRail input[type="checkbox"]')).toHaveCount(0);
 
-  // 上下文入口打开工具箱抽屉并定位到对应工具。
-  await page.locator('[data-tool-entry="toolboxExtractAudioTab"]').click();
-  await expect(page.locator('#toolboxDrawer')).toBeVisible();
+  // 默认提取音频：面板可见、动作槽对应；切换保留草稿。
   await expect(page.locator('#toolboxExtractAudioPanel')).toBeVisible();
+  await page.locator('#toolboxUtilityMediaPath').fill('D:\\Demo\\clip.mp4');
+  await page.locator('[data-tools-select="burnSubtitle"]').click();
+  await expect(page.locator('#toolboxBurnSubtitlePanel')).toBeVisible();
+  await expect(page.locator('#toolboxExtractAudioPanel')).toBeHidden();
+  await page.locator('#toolboxBurnSubtitlePath').fill('D:\\Demo\\clip.srt');
+  await page.locator('[data-tools-select="extractAudio"]').click();
+  await expect(page.locator('#toolboxUtilityMediaPath')).toHaveValue('D:\\Demo\\clip.mp4');
+  await page.locator('[data-tools-select="burnSubtitle"]').click();
+  await expect(page.locator('#toolboxBurnSubtitlePath')).toHaveValue('D:\\Demo\\clip.srt');
+
+  // 工具箱抽屉不再承载实用工具：无实用工具页签，抽屉保持关闭。
+  await expect(page.locator('#toolboxDrawer')).toBeHidden();
+  await expect(page.locator('#toolboxUtilitiesTabList')).toHaveCount(0);
+  await expect(page.locator('#toolboxWaveformPanel')).toHaveCount(0);
+});
+
+test('settings page uses a right-side single-select group rail with deep links and memory', async ({ page }) => {
+  await openLauncher(page);
+  await page.evaluate(() => { localStorage.removeItem('MSW_SETTINGS_TAB_V1'); });
+  await page.evaluate(() => window.MSWNavigation.show('settings'));
+
+  // S2/反馈2：设置改为右侧单选分组（外观与语言/文件与输出/服务与连接/处理默认值/运行环境/缓存与诊断）。
+  const tabs = page.locator('#settingsRail [data-settings-tab]');
+  await expect(tabs).toHaveCount(6);
+  const ids = await tabs.evaluateAll((nodes) => nodes.map((node) => node.dataset.settingsTab));
+  expect(ids).toEqual(['appearance', 'files', 'connection', 'processing', 'runtime', 'cache']);
+  await expect(page.locator('#settingsAppearancePanel')).toBeVisible();
+
+  // 深链：LLM 配置锚点进入「服务与连接」分组。
+  await page.evaluate(() => window.MSWLauncher.openSettings('llmSettingsSection'));
+  await expect(page.locator('[data-settings-tab="connection"]')).toHaveClass(/active/);
+  await expect(page.locator('#llmSettingsSection')).toBeVisible();
+  // 深链：FFmpeg 锚点进入「运行环境」分组。
+  await page.evaluate(() => window.MSWLauncher.openSettings('ffmpegSettingsSection'));
+  await expect(page.locator('[data-settings-tab="runtime"]')).toHaveClass(/active/);
+  await expect(page.locator('#ffmpegSettingsSection')).toBeVisible();
+
+  // 分组记忆：切到「缓存与诊断」后离开再进入仍恢复。
+  await page.locator('[data-settings-tab="cache"]').click();
+  await expect(page.locator('#cacheSettingsSection')).toBeVisible();
+  await page.evaluate(() => window.MSWNavigation.show('home'));
+  await page.evaluate(() => window.MSWNavigation.show('settings'));
+  await expect(page.locator('[data-settings-tab="cache"]')).toHaveClass(/active/);
+  await expect(page.locator('#cacheSettingsSection')).toBeVisible();
 });
 
 test('language toggle saves only the language preference', async ({ page }) => {

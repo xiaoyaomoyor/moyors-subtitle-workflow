@@ -139,53 +139,49 @@ test('Launcher settings switch between accessible tabs and deep links', async ({
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
 
-  const tabs = page.locator('#settingsTabList [role="tab"]');
-  await expect(tabs).toHaveCount(4);
-  await expect(page.locator('#settingsTabList')).toHaveAttribute('aria-label', '设置分类');
-  await expect(page.locator('#settingsGeneralPanel')).toBeVisible();
-  await expect(page.locator('#settingsLlmPanel')).toBeHidden();
-  await expect(page.locator('#settingsLlmTab')).toHaveText('大语言模型（AI）');
+  // S2：设置改为右侧单选分组栏（六组）；键盘左右/上下/Home/End 在分组间移动。
+  const tabs = page.locator('#settingsRail [role="tab"]');
+  await expect(tabs).toHaveCount(6);
+  await expect(page.locator('#settingsRail')).toHaveAttribute('aria-label', '设置分组');
+  await expect(page.locator('#settingsAppearancePanel')).toBeVisible();
+  await expect(page.locator('#settingsConnectionPanel')).toBeHidden();
+  await expect(page.locator('#settingsRailConnection')).toHaveText('服务与连接');
 
-  const settingsCard = page.locator('#settingsModal .settings-modal-card');
-  const initialCard = await settingsCard.boundingBox();
-  const initialScroll = await page.locator('.settings-scroll').evaluate((element) => ({
+  const scrollInfo = await page.locator('.settings-scroll').evaluate((element) => ({
     clientWidth: element.clientWidth,
     scrollbarGutter: getComputedStyle(element).scrollbarGutter,
   }));
 
-  await page.locator('#settingsLlmTab').click();
-  await expect(page.locator('#settingsLlmTab')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#settingsLlmPanel')).toBeVisible();
-  await expect(page.locator('#settingsGeneralPanel')).toBeHidden();
-  const llmCard = await settingsCard.boundingBox();
-  const llmScroll = await page.locator('.settings-scroll').evaluate((element) => element.clientWidth);
-  expect(Math.abs(llmCard.y - initialCard.y)).toBeLessThan(1);
-  expect(Math.abs(llmCard.width - initialCard.width)).toBeLessThan(1);
-  expect(initialScroll.scrollbarGutter).toContain('stable');
-  expect(llmScroll).toBe(initialScroll.clientWidth);
+  await page.locator('#settingsRailConnection').click();
+  await expect(page.locator('#settingsRailConnection')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#settingsConnectionPanel')).toBeVisible();
+  await expect(page.locator('#settingsAppearancePanel')).toBeHidden();
+  expect(scrollInfo.scrollbarGutter).toContain('stable');
 
-  await page.locator('#settingsLlmTab').press('ArrowRight');
-  await expect(page.locator('#settingsProcessingTab')).toBeFocused();
+  await page.locator('#settingsRailConnection').press('ArrowRight');
+  await expect(page.locator('#settingsRailProcessing')).toBeFocused();
   await expect(page.locator('#settingsProcessingPanel')).toBeVisible();
-  await page.locator('#settingsProcessingTab').press('End');
-  await expect(page.locator('#settingsRuntimeTab')).toBeFocused();
-  await expect(page.locator('#settingsRuntimePanel')).toBeVisible();
+  await page.locator('#settingsRailProcessing').press('End');
+  await expect(page.locator('#settingsRailCache')).toBeFocused();
+  await expect(page.locator('#settingsCachePanel')).toBeVisible();
 
+  // 深链：FFmpeg 锚点进入「运行环境」分组并定位锚点。
   await page.evaluate(() => window.MSWLauncher.openSettings('ffmpegSettingsSection'));
-  await expect(page.locator('#settingsRuntimeTab')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#settingsRailRuntime')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#ffmpegSettingsSection')).toBeVisible();
 
+  // 窄窗口：分组栏收为右侧抽屉，不产生页面横向溢出。
   await page.setViewportSize({ width: 520, height: 520 });
   await page.reload();
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.locator('[data-nav-page="settings"]').click();
-  await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
-  const tabLayout = await page.locator('#settingsTabList').evaluate((element) => {
+  await page.mouse.move(600, 400);
+  const railLayout = await page.locator('#settingsRail').evaluate((element) => {
     const style = getComputedStyle(element);
-    return { columns: style.gridTemplateColumns.split(' ').length, overflow: element.scrollWidth > element.clientWidth };
+    return { position: style.position, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
   });
-  expect(tabLayout.columns).toBe(2);
-  expect(tabLayout.overflow).toBe(false);
+  expect(railLayout.position).toBe('fixed');
+  expect(railLayout.overflow).toBe(false);
 });
 
 test('does not start local transcription while model status is still checking', async ({ page }) => {

@@ -151,9 +151,9 @@ test('shows the installed OCR settings hint and highlights video drops', async (
 
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
-  // OCR 运行环境位于「运行环境」分页；设置弹窗默认打开「通用」分页。
-  await page.locator('#settingsRuntimeTab').click();
-  await expect(page.locator('#settingsRuntimeTab')).toHaveAttribute('aria-selected', 'true');
+  // OCR 运行环境位于「运行环境」分组（S2：设置改为右侧单选分组栏）。
+  await page.locator('[data-settings-tab="runtime"]').click();
+  await expect(page.locator('[data-settings-tab="runtime"]')).toHaveAttribute('aria-selected', 'true');
   await page.locator('#ocrRuntimeHint .runtime-path-link').click();
   await expect.poll(() => page.evaluate(() => window.__openedRuntimeFolder)).toEqual({ kind: 'ocr-runtime' });
 });

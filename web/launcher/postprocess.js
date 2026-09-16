@@ -2,7 +2,9 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const panels = { waveform: "toolboxWaveformPanel", match: "toolboxMatchPanel", ocr: "toolboxOcrPanel", llm: "toolboxLlmPanel", replace: "toolboxReplacePanel", ffconcat: "toolboxFfconcatPanel", alignment: "toolboxAlignmentPanel", burnSubtitle: "toolboxBurnSubtitlePanel", extractAudio: "toolboxExtractAudioPanel" };
+  // S2：四项文件工具与口播对齐已迁实用工具页（面板由 tools.js 切换）；波形生成回归预制模块。
+  // 抽屉只剩后处理工具（match/ocr/llm/replace），独立配置卡随 S4 落地后抽屉整体移除。
+  const panels = { match: "toolboxMatchPanel", ocr: "toolboxOcrPanel", llm: "toolboxLlmPanel", replace: "toolboxReplacePanel" };
   const TASK_PROMPT_KEYS = { proofread: "toolbox_task_proofread", resegment: "toolbox_task_resegment", translate_en: "toolbox_task_translate_en", translate_zh: "toolbox_task_translate_zh" };
   const SUBTITLE_EXTS = new Set([".mosp", ".json", ".srt"]);
   const SUBTITLE_BURN_EXTS = new Set([".srt", ".ass", ".ssa"]);
@@ -47,7 +49,6 @@
   let subtitleBurnManual = false;
   let alignmentProjectManual = false;
   let alignmentRunning = false;
-  let activeToolboxSection = "postprocess";
   let ocrVideoManual = false;
   let saveStatusTimer = 0;
   let modelChoices = [];
@@ -616,8 +617,8 @@
     if (!open) toolboxOpenMode = "manual";
     syncPaths();
     if (open) {
-      const activeTab = activeToolboxView().querySelector(".toolbox-tab.active")
-        || activeToolboxView().querySelector(".toolbox-tab");
+      const activeTab = $("toolboxPostprocessView").querySelector(".toolbox-tab.active")
+        || $("toolboxPostprocessView").querySelector(".toolbox-tab");
       if (activeTab) selectTool(activeTab.dataset.tool);
     }
     if (open) {
@@ -635,48 +636,22 @@
     $("testLlmConnection")?.classList.toggle("attention", Boolean(attention));
   }
 
-  function toolboxSectionForTool(tool) {
-    return ["alignment", "waveform", "ffconcat", "burnSubtitle", "extractAudio"].includes(tool) ? "utilities" : "postprocess";
-  }
-
-  function activeToolboxView() {
-    return activeToolboxSection === "postprocess" ? $("toolboxPostprocessView") : $("toolboxUtilitiesContent");
-  }
-
-  function selectToolboxSection(section) {
-    activeToolboxSection = section;
-    document.querySelectorAll("[data-toolbox-section]").forEach((tab) => {
-      const active = tab.dataset.toolboxSection === section;
-      tab.classList.toggle("active", active);
-      tab.setAttribute("aria-selected", String(active));
-      tab.tabIndex = active ? 0 : -1;
-    });
-    $("toolboxPostprocessView").classList.toggle("hidden", section !== "postprocess");
-    $("toolboxUtilitiesContent").classList.toggle("hidden", section !== "utilities");
-    $("toolboxUtilitiesView").classList.toggle("hidden", section !== "utilities");
-    $("toolboxDrawer").classList.toggle("toolbox-utilities-active", section === "utilities");
-    const activeTab = activeToolboxView().querySelector(".toolbox-tab.active") || activeToolboxView().querySelector(".toolbox-tab");
-    if (activeTab) selectTool(activeTab.dataset.tool);
-  }
-
   function selectTool(tool) {
-    const section = toolboxSectionForTool(tool);
-    if (section !== activeToolboxSection) selectToolboxSection(section);
-    document.querySelectorAll(".toolbox-tab").forEach((tab) => {
+    document.querySelectorAll("#toolboxDrawer .toolbox-tab").forEach((tab) => {
       const active = tab.dataset.tool === tool;
       tab.classList.toggle("active", active);
       tab.setAttribute("aria-selected", String(active));
       tab.tabIndex = active ? 0 : -1;
     });
     Object.entries(panels).forEach(([name, id]) => $(id).classList.toggle("hidden", name !== tool));
-    document.querySelectorAll("[data-tool-action]").forEach((action) => {
+    // 只管理抽屉内的动作槽；实用工具页的槽由 tools.js 按当前工具切换。
+    document.querySelectorAll("#toolboxDrawer [data-tool-action]").forEach((action) => {
       action.classList.toggle("hidden", action.dataset.toolAction !== tool || toolboxOpenMode === "auto-config");
     });
-    $("toolboxInputDropZone").classList.toggle("hidden", section !== "postprocess");
-    $("toolboxUtilityMediaDropZone").classList.toggle("hidden", section !== "utilities");
-    $("toolboxChain").classList.toggle("hidden", section !== "postprocess" || !$("toolboxChainList").children.length);
+    $("toolboxInputDropZone").classList.remove("hidden");
+    $("toolboxChain").classList.toggle("hidden", !$("toolboxChainList").children.length);
     const configOnly = toolboxOpenMode === "auto-config";
-    $("toolboxOutputField").classList.toggle("hidden", section !== "postprocess" || configOnly);
+    $("toolboxOutputField").classList.toggle("hidden", configOnly);
     $("toolboxConfigOnlyHint")?.classList.toggle("hidden", !configOnly);
   }
 
@@ -796,11 +771,15 @@
   }
 
   function setResult(message, kind = "") {
-    const result = $("toolboxResult");
-    result.classList.remove("hidden");
-    result.textContent = message;
-    result.classList.toggle("success", kind === "success");
-    result.classList.toggle("error", kind === "error");
+    // S2：文件工具在实用工具页运行、后处理在抽屉运行——同一消息写到两处容器，
+    // 各自页面只显示本页可见的那份，避免复制两套状态。
+    [$("toolboxResult"), $("toolsPageResult")].forEach((result) => {
+      if (!result) return;
+      result.classList.remove("hidden");
+      result.textContent = message;
+      result.classList.toggle("success", kind === "success");
+      result.classList.toggle("error", kind === "error");
+    });
   }
 
   function renderPostprocessStatus(event) {
@@ -870,8 +849,9 @@
 
   function setBusy(nextBusy, statusKey = "toolbox_running") {
     busy = nextBusy;
-    $("toolboxProgress").classList.toggle("hidden", !busy);
-    ["generateWaveform", "runWaveform", "toolboxGenerateSpectral", "runScriptMatch", "runOcrDedup", "runLlmPostprocess", "runFixedProcess", "runFfconcatRebuild", "runBurnSubtitle", "runExtractAudio", "runToolboxAlignment", "stopToolboxAlignment", "saveLlmSettings", "testLlmConnection", "getLlmModels", "toolboxInputPath", "pickToolboxInput", "toolboxUtilityMediaPath", "pickToolboxUtilityMedia", "toolboxBurnSubtitlePath", "pickToolboxBurnSubtitle", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "pickToolboxAlignmentProject", "toolboxAlignmentScriptPath", "pickToolboxAlignmentScript", "toolboxAlignmentGapMinimum", "toolboxAlignmentGapThreshold", "toolboxAlignmentGapLeadIn", "toolboxAlignmentGapLeadOut", "postprocessProvider", "llmProvider", "llmApiKey", "llmBaseUrl", "llmModel", "llmModelChoicesToggle", "llmReasoningMode", "llmCustomDisplayName", "ocrModel", "openOcrSettings", "ocrVideoPath", "pickOcrVideo", "ocrRegionMode", "ocrRegionX1", "ocrRegionY1", "ocrRegionX2", "ocrRegionY2", "ocrThreshold", "ocrReport", "postprocessConversion"].forEach((id) => {
+    // 进度条与结果一样双目标：抽屉（后处理）与实用工具页（文件工具）各自可见。
+    [$("toolboxProgress"), $("toolsPageProgress")].forEach((bar) => bar?.classList.toggle("hidden", !busy));
+    ["runScriptMatch", "runOcrDedup", "runLlmPostprocess", "runFixedProcess", "saveLlmSettings", "testLlmConnection", "getLlmModels", "toolboxInputPath", "pickToolboxInput", "toolboxUtilityMediaPath", "pickToolboxUtilityMedia", "toolboxBurnSubtitlePath", "pickToolboxBurnSubtitle", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "pickToolboxAlignmentProject", "toolboxAlignmentScriptPath", "pickToolboxAlignmentScript", "toolboxAlignmentGapMinimum", "toolboxAlignmentGapThreshold", "toolboxAlignmentGapLeadIn", "toolboxAlignmentGapLeadOut", "postprocessProvider", "llmProvider", "llmApiKey", "llmBaseUrl", "llmModel", "llmModelChoicesToggle", "llmReasoningMode", "llmCustomDisplayName", "ocrModel", "openOcrSettings", "ocrVideoPath", "pickOcrVideo", "ocrRegionMode", "ocrRegionX1", "ocrRegionY1", "ocrRegionX2", "ocrRegionY2", "ocrThreshold", "ocrReport", "postprocessConversion"].forEach((id) => {
       $(id).disabled = busy;
     });
     renderOcrModel();
@@ -934,12 +914,6 @@
 
   function selectedToolboxAudioTrack() {
     const value = Number($("toolboxAudioTrack").value);
-    return Number.isInteger(value) && value >= 0 ? value : 0;
-  }
-
-  function defaultToolboxAudioTrack() {
-    const track = audioTracks.find(item => item.default) || audioTracks[0];
-    const value = Number(track?.audioIndex);
     return Number.isInteger(value) && value >= 0 ? value : 0;
   }
 
@@ -1049,34 +1023,8 @@
     }
   }
 
-  async function generateWaveformProject(openEditor) {
-    const mediaPath = $("toolboxUtilityMediaPath").value.trim();
-    if (!mediaPath) {
-      setResult(t("toolbox_need_media"), "error");
-      return;
-    }
-    setBusy(true, "toolbox_status_starting");
-    try {
-      const result = await bridge("generate_waveform_project", {
-        mediaPath,
-        audioTrack: selectedToolboxAudioTrack(),
-        defaultAudioTrack: defaultToolboxAudioTrack(),
-        generateSpectral: $("toolboxGenerateSpectral").checked,
-      });
-      if (!result.ok) {
-        setResult(postprocessErrorText(result), "error");
-        return;
-      }
-      if (openEditor) {
-        window.MSWLauncher.setJsonPath(result.projectPath);
-        await window.MSWLauncher.openServerEditor();
-      }
-      const warnings = Array.isArray(result.warnings) ? result.warnings : [];
-      setResult(`${t("toolbox_done")}\n${result.projectPath}${warnings.length ? `\n${warnings.join("\n")}` : ""}`, "success");
-    } finally {
-      setBusy(false);
-    }
-  }
+  // S2：波形生成工具已随旧工具箱实用工具页签移除——波形/频谱生成回归预制页执行链
+  //（plan.js 读预制页 generateSpectral），不再保留独立工具入口。
 
   function resolveInputPaths() {
     const paths = inputPaths();
@@ -1993,7 +1941,7 @@
     renderTaskPrompt();
     renderOcrRegion();
     renderOcrModel();
-    selectToolboxSection("postprocess");
+    selectTool(document.querySelector("#toolboxDrawer .toolbox-tab.active")?.dataset.tool || "match");
     syncPaths();
     renderAudioTracks();
     void refreshAudioTracks();
@@ -2002,7 +1950,7 @@
     initializeAutoPostprocess();
   }
 
-  // V06：全局悬浮工具箱入口已移除；工具页的 data-tool-entry 按钮经此 API 打开抽屉。
+  // V06→S2：全局悬浮入口与工具页入口均已移除；抽屉仅供预制模块的后处理配置引导（auto-config）。
   window.MSWLauncher.openToolbox = () => {
     toolboxOpenMode = "manual";
     if ($("toolboxDrawer").classList.contains("hidden")) setOpen(true);
@@ -2012,20 +1960,6 @@
     event.stopPropagation();
     if (!event.target?.closest?.(".toolbox-content")) event.preventDefault();
   }, { passive: false });
-  document.querySelectorAll("[data-toolbox-section]").forEach((tab) => {
-    tab.addEventListener("click", () => selectToolboxSection(tab.dataset.toolboxSection));
-    tab.addEventListener("keydown", (event) => {
-      if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
-      const tabs = [...$("toolboxPrimaryTabList").querySelectorAll("[data-toolbox-section]")];
-      const currentIndex = tabs.indexOf(tab);
-      const offset = event.key === "ArrowRight" ? 1 : -1;
-      const target = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs.at(-1) : tabs[(currentIndex + offset + tabs.length) % tabs.length];
-      if (!target) return;
-      event.preventDefault();
-      selectToolboxSection(target.dataset.toolboxSection);
-      target.focus();
-    });
-  });
   document.querySelectorAll(".toolbox-tab").forEach((tab) => {
     tab.addEventListener("click", () => selectTool(tab.dataset.tool));
     tab.addEventListener("keydown", (event) => {
@@ -2040,8 +1974,6 @@
   $("getLlmModels").addEventListener("click", getModels);
   $("llmModelChoicesToggle").addEventListener("mousedown", (event) => event.preventDefault());
   $("llmModelChoicesToggle").addEventListener("click", () => setModelChoicesOpen(!modelChoicesOpen));
-  $("generateWaveform").addEventListener("click", () => { void generateWaveformProject(false); });
-  $("runWaveform").addEventListener("click", () => { void generateWaveformProject(true); });
   $("runToolboxAlignment").addEventListener("click", () => { void runToolboxAlignment(); });
   $("stopToolboxAlignment").addEventListener("click", () => { void stopToolboxAlignment(); });
   $("runScriptMatch").addEventListener("click", runScriptMatch);

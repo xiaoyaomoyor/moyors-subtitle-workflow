@@ -834,74 +834,55 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["field"], "mediaPath")
 
-    def test_launcher_waveform_contract_uses_utility_media_and_no_subtitle_requirement(self) -> None:
-        """Given launcher assets, When checking waveform mode, Then it uses Utilities media and exposes both actions."""
+    def test_launcher_waveform_tool_removed_in_favor_of_prefab_chain(self) -> None:
+        """S2/§4.2：波形生成回归预制执行链——独立工具入口（页签/按钮/频谱复选框）全部移除。"""
         html = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
+        strings = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
-        self.assertIn('data-i18n="toolbox_waveform"', html)
-        self.assertIn('data-tool-action="waveform"', html)
-        waveform_action = html.index('data-tool-action="waveform"')
-        self.assertGreater(waveform_action, html.index('class="toolbox-footer"'))
-        self.assertIn("generate_waveform_project", script)
-        self.assertIn('const mediaPath = $("toolboxUtilityMediaPath").value.trim()', script)
-        self.assertIn('id="toolboxGenerateSpectral" type="checkbox"', html)
-        self.assertIn('generateSpectral: $("toolboxGenerateSpectral").checked', script)
-        self.assertNotIn('generateSpectral: $("generateSpectral").checked', script)
-        self.assertIn('id="generateWaveform"', html)
-        self.assertIn('id="runWaveform"', html)
-        self.assertIn('toolbox_run_waveform: "生成波形并打开编辑器"', (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8"))
-        self.assertIn("async function generateWaveformProject(openEditor)", script)
-        self.assertIn('setResult(postprocessErrorText(result), "error")', script)
-        self.assertNotIn("t(result.code)", script)
-        self.assertIn("if (openEditor) {", script)
-        self.assertIn("await window.MSWLauncher.openServerEditor()", script)
+        for gone in (
+            'id="toolboxWaveformTab"', 'id="toolboxWaveformPanel"', 'id="toolboxGenerateSpectral"',
+            'id="generateWaveform"', 'id="runWaveform"', 'data-tool-action="waveform"',
+        ):
+            self.assertNotIn(gone, html)
+        self.assertNotIn("generateWaveformProject", script)
+        self.assertNotIn('toolbox_run_waveform:', strings)
+        self.assertNotIn('toolbox_waveform:', strings)
+        # 预制执行链保留频谱开关与波形工程桥接（plan.js/后端契约不变）。
+        self.assertIn('id="generateSpectral" type="checkbox"', html)
+        self.assertIn("generate_waveform_project", strings)  # 演示桥接仍提供波形工程方法（预制链）
+        plan = (ROOT / "web" / "launcher" / "plan.js").read_text(encoding="utf-8")
+        self.assertIn('el("generateSpectral")', plan)
 
-    def test_launcher_toolbox_uses_primary_tabs_for_postprocessing_and_utilities(self) -> None:
-        """Given Launcher assets, When rendering Toolbox, Then primary tabs split subtitle and media workflows."""
+    def test_launcher_toolbox_is_postprocess_only_after_s2(self) -> None:
+        """S2/反馈1+2：抽屉只承载后处理配置引导；主分组页签与实用工具页签移除。"""
         html = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         strings = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
 
         header = html.index('class="toolbox-header"')
-        primary_tabs = html.index('id="toolboxPrimaryTabList"')
         postprocess_view = html.index('id="toolboxPostprocessView"')
-        utilities_view = html.index('id="toolboxUtilitiesView"')
-        postprocess_html = html[postprocess_view:utilities_view]
-        utilities_html = html[utilities_view:html.index('class="toolbox-footer"')]
+        postprocess_html = html[postprocess_view:html.index('class="toolbox-footer"')]
 
-        self.assertLess(header, primary_tabs)
-        self.assertLess(primary_tabs, postprocess_view)
-        self.assertIn('id="toolboxPostprocessPrimaryTab"', html)
-        self.assertIn('id="toolboxUtilitiesPrimaryTab"', html)
-        self.assertIn('data-i18n="toolbox_group_postprocess"', html)
-        self.assertIn('data-i18n="toolbox_group_utilities"', html)
-        self.assertIn('id="toolboxPostprocessView" class="toolbox-primary-view" role="tabpanel"', html)
-        self.assertIn('id="toolboxUtilitiesView" class="toolbox-primary-view hidden" role="tabpanel"', html)
+        self.assertLess(header, postprocess_view)
+        self.assertNotIn("toolboxPrimaryTabList", html)
+        self.assertNotIn("toolboxUtilitiesView", html)
+        self.assertNotIn("toolboxUtilitiesContent", html)
+        self.assertNotIn('toolbox_group_postprocess: "后处理"', strings)
+        self.assertNotIn('toolbox_group_utilities: "实用工具"', strings)
         for tab_id in ("toolboxMatchTab", "toolboxOcrTab", "toolboxLlmTab", "toolboxReplaceTab"):
             self.assertIn(f'id="{tab_id}"', postprocess_html)
         for tab_id in ("toolboxWaveformTab", "toolboxFfconcatTab", "toolboxAlignmentTab", "toolboxBurnSubtitleTab", "toolboxExtractAudioTab"):
-            self.assertIn(f'id="{tab_id}"', utilities_html)
-        self.assertNotIn('id="toolboxWaveformTab"', postprocess_html)
-        self.assertNotIn('id="toolboxFfconcatTab"', postprocess_html)
+            self.assertNotIn(f'id="{tab_id}"', html)
         self.assertIn('toolbox_title: "工具箱"', strings)
         self.assertIn('toolbox_title: "Toolbox"', strings)
-        self.assertIn('toolbox_group_postprocess: "后处理"', strings)
-        self.assertIn('toolbox_group_utilities: "实用工具"', strings)
         self.assertIn('toolbox_utility_media: "媒体文件"', strings)
         self.assertIn('toolbox_utility_media: "Media file"', strings)
         self.assertIn('toolbox_burn_subtitle: "压制字幕"', strings)
         self.assertIn('toolbox_extract_audio: "Extract audio"', strings)
-        self.assertEqual(html.count('role="tablist"'), 4)
         self.assertIn('id="toolboxPostprocessTabList"', html)
-        self.assertIn('id="toolboxUtilitiesTabList"', html)
         self.assertIn('id="toolboxMatchTab" class="toolbox-tab active" type="button" role="tab" tabindex="0"', html)
-        self.assertIn('id="toolboxWaveformTab" class="toolbox-tab" type="button" role="tab" tabindex="-1"', html)
-        self.assertIn('id="toolboxUtilityMediaPath"', utilities_html)
-        self.assertIn('id="pickToolboxUtilityMedia"', utilities_html)
-        self.assertIn('function selectToolboxSection(section)', script)
         self.assertIn('function moveToolFocus(event)', script)
-        self.assertIn('target?.focus();', script)
         self.assertIn('let utilityMediaManual = false;', script)
         self.assertIn('$("toolboxUtilityMediaPath").value = $("mediaPath").value.trim();', script)
         self.assertIn('bridge("choose_file", { kind: "media" })', script)
@@ -912,8 +893,8 @@ class GuiWebBridgeTests(unittest.TestCase):
         postprocess_script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
         styles = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
+        # S2：口播对齐配置卡整体迁入实用工具页（元素 ID 不变，绑定仍由 postprocess.js 持有）。
         for element_id in (
-            "toolboxAlignmentTab",
             "toolboxAlignmentPanel",
             "toolboxAlignmentInputs",
             "toolboxAlignmentProjectDropZone",
@@ -931,13 +912,12 @@ class GuiWebBridgeTests(unittest.TestCase):
             "stopToolboxAlignment",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn('id="toolboxAlignmentProjectPath"', page)
         self.assertIn('data-i18n="toolbox_alignment_input_project">MSW 工程</label>', page)
         self.assertIn('data-i18n="toolbox_alignment_input_script">校对文稿</label>', page)
         self.assertNotIn('id="toolboxAlignmentMediaDropZone"', page)
         self.assertNotIn('id="toolboxAlignmentMediaPath"', page)
         self.assertEqual(page.count('id="toolboxUtilityMediaDropZone"'), 1)
-        self.assertGreater(page.index('id="toolboxAlignmentInputs"'), page.index('class="toolbox-content"'))
+        self.assertIn('data-tools-panel="alignment"', page)
         self.assertGreater(page.index('id="toolboxAlignmentGapSettings"'), page.index('id="toolboxAlignmentInputs"'))
         self.assertIn('data-i18n="toolbox_alignment_gap_heading">自动生成空隙</h3>', page)
         self.assertIn('id="toolboxAlignmentGapMinimum" type="number" min="100" max="60000" step="50" value="400"', page)
@@ -945,11 +925,6 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn('id="toolboxAlignmentGapLeadIn" type="number" min="0" max="2000" step="10" value="120"', page)
         self.assertIn('id="toolboxAlignmentGapLeadOut" type="number" min="0" max="2000" step="10" value="80"', page)
         self.assertNotIn('id="toolboxAlignmentGapHysteresis"', page)
-        self.assertLess(page.index('id="toolboxUtilityMediaDropZone"'), page.index('id="toolboxUtilitiesTabList"'))
-        self.assertIn('data-tool="alignment"', page)
-        alignment_tab = page.index('id="toolboxAlignmentTab"')
-        self.assertLess(alignment_tab, page.index('id="toolboxWaveformTab"'))
-        self.assertLess(alignment_tab, page.index('id="toolboxFfconcatTab"'))
         self.assertIn('data-tool-action="alignment"', page)
         self.assertIn('toolbox_alignment: "口播对齐"', launcher_script)
         self.assertIn('toolbox_alignment: "Speech alignment"', launcher_script)
@@ -958,8 +933,6 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn('target === "toolboxAlignmentProject"', launcher_script)
         self.assertIn('target === "toolboxAlignmentScript"', launcher_script)
         self.assertNotIn('target === "toolboxAlignmentMedia"', launcher_script)
-        self.assertIn('return ["alignment", "waveform", "ffconcat", "burnSubtitle", "extractAudio"].includes(tool)', postprocess_script)
-        self.assertIn('$("toolboxUtilityMediaDropZone").classList.toggle("hidden", section !== "utilities")', postprocess_script)
         self.assertIn('mediaPath: $("toolboxUtilityMediaPath").value.trim()', postprocess_script)
         self.assertNotIn("toolboxAlignmentMediaPath", postprocess_script)
         self.assertIn('const ALIGNMENT_GAP_REMOVE_KEY = "maw.launcher.alignment.gap_remove";', postprocess_script)
@@ -968,7 +941,6 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn("const gapRemove = alignmentGapRemoveFromControls({ normalizeFields: true });", postprocess_script)
         self.assertIn('.toolbox-alignment-inputs {\n  display: grid;\n  gap: 10px;\n}', styles)
         self.assertIn('.toolbox-panel .toolbox-alignment-gap-settings {\n  margin-top: 12px;\n}', styles)
-        self.assertIn('.toolbox-utility-tab-list {\n  grid-template-columns: 1fr;\n}', styles)
         self.assertNotIn('"alignment"', postprocess_script[postprocess_script.index("const AUTO_STEP_ORDER"):postprocess_script.index("let autoPlanSaveTimer")])
 
     def test_toolbox_close_restores_trigger_focus_and_ffconcat_marks_its_input(self) -> None:
@@ -3508,28 +3480,79 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn('t("ready")', launcher_script)
         self.assertNotIn('ready: "就绪"', launcher_script)
 
+    def test_launcher_s2_tools_settings_rail_contracts(self) -> None:
+        """S2/反馈1+2：工具与设置共用右侧单选分类框架；页内运行、深链与记忆保留。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        tools_script = (ROOT / "web" / "launcher" / "tools.js").read_text(encoding="utf-8")
+        postprocess_script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
+
+        # 工具页：右栏单选 + 左侧面板 + 页内运行区（进度/结果在本页可见）。
+        self.assertIn('id="toolsRail"', page)
+        self.assertIn('id="toolsRunArea"', page)
+        self.assertIn('id="toolsPageProgress"', page)
+        self.assertIn('id="toolsPageResult"', page)
+        self.assertEqual(page.count("data-tools-select"), 4)
+        self.assertIn('<script src="tools.js"></script>', page)
+        # 运行按钮/输入随面板迁入页内（保留原 ID，绑定不克隆）。
+        for element_id in ("runExtractAudio", "runBurnSubtitle", "runFfconcatRebuild", "runToolboxAlignment", "toolboxUtilityMediaPath", "toolboxAudioTrack"):
+            self.assertEqual(page.count(f'id="{element_id}"'), 1)
+        # tools.js：单选切换、记忆、窄窗抽屉。
+        self.assertIn("MSW_TOOLS_PAGE_TOOL_V1", tools_script)
+        self.assertIn('slot.dataset.toolAction !== tool', tools_script)
+        self.assertIn("closeRailDrawer", tools_script)
+        # 结果/进度双目标：工具页与抽屉各自显示同一消息。
+        self.assertIn('[$("toolboxResult"), $("toolsPageResult")]', postprocess_script)
+        self.assertIn('[$("toolboxProgress"), $("toolsPageProgress")]', postprocess_script)
+
+        # 设置页：六分组右栏（通用拆为外观与语言 + 文件与输出；缓存独立）。
+        for tab in ("appearance", "files", "connection", "processing", "runtime", "cache"):
+            self.assertEqual(page.count(f'data-settings-tab="{tab}"'), 1)
+            self.assertEqual(page.count(f'data-settings-panel="{tab}"'), 1)
+        self.assertIn('id="settingsRail"', page)
+        self.assertNotIn('data-settings-panel="general"', page)
+        # 深链锚点全部保留在新分组内。
+        for anchor in ("llmSettingsSection", "segmentationSettingsSection", "punctuationSettingsSection", "ffmpegSettingsSection", "ocrSettingsSection", "cacheSettingsSection"):
+            self.assertEqual(page.count(f'id="{anchor}"'), 1)
+        # 分组记忆持久化。
+        self.assertIn("MSW_SETTINGS_TAB_V1", launcher_script)
+
+        # CSS：三页右栏同一框架（248px/同底色），窄窗（≤1100px）同款右侧抽屉。
+        self.assertIn(".tools-rail,\n.settings-rail", stylesheet)
+        self.assertIn("flex: 0 0 248px", stylesheet)
+        self.assertIn(".rail-select,\n.settings-rail .settings-tab", stylesheet)
+        self.assertIn("body.rail-open .tools-rail", stylesheet)
+        self.assertIn(".tools-wrap,\n.settings-wrap", stylesheet)
+        # 旧结构移除。
+        self.assertNotIn(".tools-grid", stylesheet)
+        self.assertNotIn(".tool-card", stylesheet)
+        self.assertNotIn(".settings-tabs", stylesheet)
+        self.assertNotIn('id="settingsGeneralTab"', page)
+
     def test_launcher_r5_tools_settings_guide_contracts(self) -> None:
-        """R5/F13：工具收口、语言只存语言、缓存诊断入口与指南文案契约。"""
+        """R5/F13：工具收口、语言只存语言、缓存诊断入口与指南文案契约（S2 更新为页内工具）。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
         gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
 
-        # 工具页只保留四项独立文件工具；文稿/字幕处理与波形生成回归预制模块。
-        self.assertEqual(page.count('class="card tool-card"'), 4)
+        # S2/反馈1：四项独立文件工具直接在实用工具页配置运行；不再有「打开工具」入口按钮。
+        self.assertEqual(page.count("data-tools-panel"), 4)
         self.assertNotIn('data-tool-entry="toolboxMatchTab"', page)
         self.assertNotIn('data-tool-entry="toolboxWaveformTab"', page)
-        for entry in ("toolboxExtractAudioTab", "toolboxBurnSubtitleTab", "toolboxFfconcatTab", "toolboxAlignmentTab"):
-            self.assertIn(f'data-tool-entry="{entry}"', page)
+        self.assertNotIn("data-tool-entry=", page)
+        for panel in ("toolboxExtractAudioPanel", "toolboxBurnSubtitlePanel", "toolboxFfconcatPanel", "toolboxAlignmentPanel"):
+            self.assertIn(f'id="{panel}"', page)
         # 语言切换只保存语言（save_prefs + guiLang），不再提交整个识别表单。
         self.assertIn('bridge("save_prefs", { guiLang: state.lang })', launcher_script)
         self.assertIn('updates["MAW_GUI_LANG"] = _gui_lang(payload)', gui_source)
         # 缓存与诊断：封面缓存清理入口 + 反馈。
         self.assertIn('id="cacheSettingsSection"', page)
         self.assertIn('bridge("clear_thumbnail_cache")', launcher_script)
-        # 指南去掉「Server 版」实现术语；api_key_missing 指向真实入口。
+        # 指南去掉「Server 版」实现术语；api_key_missing 指向真实入口（不点名不存在的分组）。
         self.assertNotIn("Server 版", launcher_script.split("guide_direct_s1")[1].split(",")[0])
         self.assertIn("打开所选工程", launcher_script.split("guide_direct_s1")[1].split(",")[0])
-        self.assertNotIn("服务与连接", launcher_script)
+        self.assertIn('api_key_missing: "请先填写 API Key；密钥只保存在本机连接配置。"', launcher_script)
 
     def test_launcher_plan_drives_execution_contracts(self) -> None:
         """R4/§7.1：方案单一来源、新默认与三类输入执行链契约。"""
@@ -3636,10 +3659,10 @@ class LauncherAssetContractTests(unittest.TestCase):
             "openLlmSettings",
         ):
             self.assertIn(f'id="{control}"', page)
-        # V06：全局悬浮工具箱入口移除，工具页按钮经公开 API 打开抽屉。
+        # V06→S2：抽屉入口只剩预制模块配置引导（postprocess.js openAutoStep 经公开 API 打开）。
         self.assertNotIn('id="toolboxFab"', page)
         self.assertIn("window.MSWLauncher.openToolbox", script)
-        self.assertIn("window.MSWLauncher.openToolbox()", launcher_script)
+        self.assertIn('setOpen(true)', script)
         self.assertIn('id="postprocessPromptError"', page)
         self.assertNotIn('id="postprocessApiKey"', page)
         self.assertNotIn('id="postprocessBaseUrl"', page)
@@ -3706,7 +3729,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn("toolbox_beta_notice_prefix", page)
         self.assertIn('class="hint toolbox-panel-hint"', page)
         self.assertIn('class="hint toolbox-full-line-hint"', page)
-        self.assertIn('document.querySelectorAll("[data-tool-action]")', script)
+        self.assertIn('document.querySelectorAll("#toolboxDrawer [data-tool-action]")', script)
         self.assertIn('event.type === "postprocess_status"', launcher_script)
         self.assertIn('event.type === "postprocess_stream"', launcher_script)
         self.assertIn("onPostprocessStatus", launcher_script)
@@ -3801,31 +3824,22 @@ class LauncherAssetContractTests(unittest.TestCase):
         input_drop_zone = page.index('id="toolboxInputDropZone"')
         chain = page.index('id="toolboxChain"')
         chain_list = page.index('id="toolboxChainList"')
-        primary_tabs = page.index('id="toolboxPrimaryTabList"')
         postprocess_view = page.index('id="toolboxPostprocessView"')
-        utilities_view = page.index('id="toolboxUtilitiesView"')
         postprocess_tabs = page.index('id="toolboxPostprocessTabList"')
-        utilities_tabs = page.index('id="toolboxUtilitiesTabList"')
         content = page.index('class="toolbox-content"')
         progress = page.index('<div id="toolboxProgress"')
         result = page.index('<div id="toolboxResult"')
         match_panel = page.index('id="toolboxMatchPanel"')
         llm_panel = page.index('id="toolboxLlmPanel"')
-        ffconcat_panel = page.index('id="toolboxFfconcatPanel"')
-        ffconcat_end = page.index("</section>", ffconcat_panel)
         footer = page.index('class="toolbox-footer"')
-        # 预制页右栏也是 aside：工具箱抽屉的结束标记从 footer 之后查找。
         drawer_end = page.index("</aside>", footer)
 
         self.assertLess(sticky, input_drop_zone)
         self.assertLess(input_drop_zone, chain)
         self.assertLess(chain, chain_list)
-        self.assertLess(sticky, primary_tabs)
-        self.assertLess(primary_tabs, postprocess_view)
-        self.assertLess(primary_tabs, utilities_view)
-        self.assertLess(postprocess_view, utilities_view)
+        self.assertLess(sticky, postprocess_view)
+        self.assertLess(postprocess_view, postprocess_tabs)
         self.assertLess(postprocess_tabs, content)
-        self.assertLess(content, utilities_tabs)
         self.assertLess(content, progress)
         self.assertLess(progress, result)
         self.assertIn('data-i18n="toolbox_chain_hint">每次生成新文件，并自动作为下一步输入；选择工具后运行。</p>', page)
@@ -3833,23 +3847,24 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('result.classList.remove("hidden")', script)
         self.assertLess(result, match_panel)
         self.assertLess(match_panel, llm_panel)
-        self.assertLess(ffconcat_end, footer)
+        self.assertLess(llm_panel, footer)
         self.assertLess(footer, drawer_end)
 
-        # 输出选择与各工具执行按钮固定在抽屉底部，不随面板滚动。
+        # 输出选择与后处理执行按钮固定在抽屉底部，不随面板滚动；
+        # S2：文件工具动作槽已随面板迁入实用工具页，抽屉页脚只剩后处理四项。
         footer_html = page[footer:drawer_end]
         self.assertIn('id="postprocessOutputMode"', footer_html)
-        for tool in ("match", "ocr", "llm", "replace", "ffconcat", "burnSubtitle", "extractAudio"):
+        for tool in ("match", "ocr", "llm", "replace"):
             self.assertIn(f'data-tool-action="{tool}"', footer_html)
-        for button in ("runScriptMatch", "runOcrDedup", "runLlmPostprocess", "runFixedProcess", "runFfconcatRebuild", "runBurnSubtitle", "runExtractAudio", "stopToolboxMedia"):
+        for button in ("runScriptMatch", "runOcrDedup", "runLlmPostprocess", "runFixedProcess"):
             self.assertIn(f'id="{button}"', footer_html)
-        self.assertIn('id="generateWaveform"', footer_html)
+        for moved in ("runFfconcatRebuild", "runBurnSubtitle", "runExtractAudio", "stopToolboxMedia", "generateWaveform"):
+            self.assertNotIn(f'id="{moved}"', footer_html)
 
         # 自定义顶边 / 左边拖拽把手替代原生 resize。
         self.assertIn('id="toolboxResizeY" class="toolbox-resize-y" role="separator" aria-orientation="horizontal"', page)
         self.assertIn('id="toolboxResizeX" class="toolbox-resize-x" role="separator" aria-orientation="vertical"', page)
         self.assertIn('id="toolboxMatchTab" class="toolbox-tab active"', page)
-        self.assertIn('id="toolboxFfconcatTab" class="toolbox-tab"', page)
         self.assertIn("overflow-y: auto", stylesheet)
         self.assertNotIn("resize: both", stylesheet)
         self.assertIn("block-size: min(640px, calc(100dvh - 226px))", stylesheet)
@@ -4508,35 +4523,38 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('settings-scroll', launcher_script)
         self.assertIn('.settings-scroll {', stylesheet)
         self.assertIn('overscroll-behavior: contain;', stylesheet)
-        # R1/V04：设置返回按钮已脱离弹窗关闭按钮组；不再有 36×36 旧规则。
+        # R1/V04：设置返回按钮已脱离弹窗关闭按钮组；不再有 36×36 旧规则
+        #（S2：settings-back 样式随返回按钮及旧设置卡容器一并移除）。
         self.assertIn('#toolboxClose {', stylesheet)
         self.assertNotIn('#toolboxClose,', stylesheet)
         self.assertNotIn('#settingsClose {', stylesheet)
-        self.assertIn('.settings-back {', stylesheet)
+        self.assertNotIn('.settings-back {', stylesheet)
 
     def test_launcher_settings_use_tabs_and_preserve_deep_links(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
-        self.assertIn('id="settingsTabList" class="settings-tabs" role="tablist"', page)
+        # S2/反馈2：设置改为右侧单选分组栏；六组面板与深链锚点一一对应。
+        self.assertIn('id="settingsRail"', page)
         for tab, panel in (
-            ("settingsGeneralTab", "settingsGeneralPanel"),
-            ("settingsLlmTab", "settingsLlmPanel"),
-            ("settingsProcessingTab", "settingsProcessingPanel"),
-            ("settingsRuntimeTab", "settingsRuntimePanel"),
+            ("settingsRailAppearance", "settingsAppearancePanel"),
+            ("settingsRailFiles", "settingsFilesPanel"),
+            ("settingsRailConnection", "settingsConnectionPanel"),
+            ("settingsRailProcessing", "settingsProcessingPanel"),
+            ("settingsRailRuntime", "settingsRuntimePanel"),
+            ("settingsRailCache", "settingsCachePanel"),
         ):
             self.assertIn(f'id="{tab}"', page)
             self.assertIn(f'aria-controls="{panel}"', page)
         self.assertIn('function selectSettingsTab(tabName)', script)
         self.assertIn('function settingsTabForSection(sectionId)', script)
         self.assertIn('selectSettingsTab(settingsTabForSection(sectionId) || activeSettingsTab);', script)
-        self.assertIn('.settings-tabs {', stylesheet)
+        self.assertIn(".settings-rail", stylesheet)
         self.assertIn('.settings-tab.active {', stylesheet)
         self.assertIn('.settings-tab.active:focus-visible {', stylesheet)
-        self.assertIn('.settings-modal-card {', stylesheet)
         self.assertIn('scrollbar-gutter: stable;', stylesheet)
-        self.assertIn('settings_tab_llm: "大语言模型（AI）"', script)
+        self.assertIn('settings_tab_connection: "服务与连接"', script)
 
 
 @final
