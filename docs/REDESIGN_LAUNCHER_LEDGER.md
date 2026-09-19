@@ -26,6 +26,32 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## S3：完整工程目录及删除（二轮修正 2026-09-16 第三批）
+
+状态：已完成（2026-09-16）。依据二轮修正方案 §10 S3 与 §5；基线 1c4c8d6。对应反馈 3、5（封面角落图钉收尾）。
+
+改动：
+
+1. **长期登记层**（launcher_projects.py）：`launcher-project-registry.json` 与最近视图分离；统一身份（resolve + Windows normcase 归一去重、保留可读路径）；来源（created/opened/editor/migration）与登记/更新时间；文件锁（O_EXCL 独占+陈旧抢占）+ 临时文件原子替换，跨进程（启动器/编辑器 Server）并发安全；首次从最近合并视图一次性迁移。
+2. **统一登记入口**：启动器制作（媒体/波形两处成功返回、预制方案完成、批量共路径）、启动器打开（健康检查通过后）成功登记；编辑器 serve.py 四个 remember_project 调用点经 `_register_launcher_project` 登记（失败仅日志不阻断）；重复登记只刷新更新时间；重定位联动迁移登记条目。
+3. **首页双折叠分组**（project-home.js 重写）：最近（约 6 条起步+更多）与全部（更新时间降序分页）两组，独立折叠+记忆+折叠底部显示将打开目标；同工程双卡：选择/图钉/封面/统计/媒体名按路径多节点回写；搜索匹配名/媒体/路径，计数区分总数与命中。
+4. **图钉封面角落**：右上角半透明底衬小图钉（aria-label「已固定」），与选中描边互不兼任。
+5. **删除工程文件**：全部组红色危险项（Lucide 垃圾桶）→ 确认框（名称/路径/范围）→ SHFileOperationW+ALLOWUNDO 入回收站（非 Windows 需 send2trash，否则明确失败不永久删除）；后缀约束、受管会话占用拒绝（project_in_use）、成功清登记+最近、缺失清失效记录不动同名媒体、失败保留记录；三种移除语义（从最近记录移除/从全部工程记录移除/删除工程文件）文案与提示严格区分。
+6. 桥接：get_all_projects（query+计数）/remove_registry_project/delete_project_file；relocate 带 registry；演示 mock 同步（含最近视图之外的登记项）。
+
+验证（2026-09-16）：
+
+- 单元：test_launcher_projects 25 项 OK（登记去重/大小写归一/排序过滤/一次性迁移/移除登记不动最近/重定位联动/12 线程并发全保留/回收成功清两组且媒体与 .assets 原样/回收失败保留/缺失清理/后缀拒绝/SHFileOperation 标志）。
+- e2e：launcher 11 spec 共 90 项全部通过（home 新增 3 项 S3 用例：全部组超最近上限可见+双卡同步+图钉角落；删除确认/取消/回收+反馈/语义分离；双组折叠+记忆+搜索计数；既有用例适配双组）。
+- 契约：test_gui_web 253 项 OK，新增 test_launcher_s3_project_directory_contracts。探针 15/15；全量 discover 1612 项 OK（skipped=63）；ruff 全绿；截图×3（危险项红色像素核验）。
+- 过程修复：Playwright scrollIntoView 平滑滚动尾波触发「滚动关菜单」（行为符合 §3.1，测试改为预滚动稳定后右键）；演示 mock 媒体名懒惰派生导致搜索误命中（改为按路径派生）；heredoc 反斜杠再次损坏 launcher_projects.py（git checkout 恢复后改用 Write 补丁脚本）。
+
+未验证（如实记录）：
+
+- 真实 Windows 回收站端到端（真调 SHFileOperationW 后从回收站还原）：单测以桩断言标志与目标，留待原生窗口人工验证。
+- 两进程同时写注册表的真机跨进程实测（同进程 12 线程并发已覆盖锁语义）。
+- 外部自启编辑器（非启动器受管）正在编辑时删除防护：启动器无法感知外部进程，回收会成功、编辑器后续保存会重建文件——已知边界，S6 评估。
+
 ## S2：工具与设置的页面内迁移（二轮修正 2026-09-16 第二批）
 
 状态：已完成（2026-09-16）。依据二轮修正方案 §10 S2 与 §4；基线 b203197。对应反馈 1、2；实施前复核属实（工具页为入口卡片弹旧抽屉、设置为上方横排标签）。

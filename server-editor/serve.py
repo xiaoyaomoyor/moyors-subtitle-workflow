@@ -897,6 +897,19 @@ class EditorServer(ThreadingHTTPServer):
         with self.settings_lock:
             self.settings = remember_project(self.settings, project_path)
             self.persist_settings()
+        self._register_launcher_project(project_path)
+
+    def _register_launcher_project(self, project_path: Path) -> None:
+        """S3/§5.2：编辑器打开/保存/另存成功也登记启动器长期工程目录。
+
+        登记走 maw.launcher_projects 的文件锁 + 原子替换，与启动器进程并发安全；
+        任何失败只写日志，不影响编辑器主流程。
+        """
+        try:
+            from maw.launcher_projects import register_project
+            register_project(project_path, source="editor")
+        except Exception as error:  # noqa: BLE001 - 登记失败不阻断编辑器
+            print(f"[settings] 登记长期工程目录失败: {error}", file=sys.stderr)
 
     def set_auto_open_last_project(self, enabled: bool) -> None:
         with self.settings_lock:
@@ -1035,6 +1048,7 @@ class EditorServer(ThreadingHTTPServer):
             self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
             self.persist_settings()
+            self._register_launcher_project(project.json_path)
             now = time.time()
             self.last_mutation = now
             self.last_save = now
@@ -1097,6 +1111,7 @@ class EditorServer(ThreadingHTTPServer):
             self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
             self.persist_settings()
+            self._register_launcher_project(project.json_path)
             # 接管的是与浏览器副本一致的磁盘工程：内容与磁盘一致，视为已保存。
             now = time.time()
             self.last_mutation = now

@@ -70,7 +70,19 @@
       home_browse: "浏览工程…",
       home_target: "当前目标：{name}",
       server_advanced: "高级：直接指定工程与端口",
-      recent_search_placeholder: "搜索最近工程…",
+      recent_search_placeholder: "搜索工程名、媒体名或路径…",
+      recent_group_title: "最近工程",
+      all_group_title: "全部工程",
+      all_count: "已登记 {n} 项",
+      all_count_matched: "命中 {matched} / {total}",
+      all_empty: "暂无登记工程；制作或打开工程后会自动登记到全部工程。",
+      all_more: "加载更多",
+      all_grid_label: "全部工程列表",
+      remove_registry: "从全部工程记录移除",
+      delete_project_file: "删除工程文件…",
+      delete_project_confirm: "「{name}」\n{path}\n\n仅把这个工程文件移入回收站；原始视频、音频与 .assets 不会被删除。",
+      delete_project_done: "已移入回收站：{name}",
+      delete_project_failed: "删除失败：{detail}",
       recent_grid_label: "最近工程",
       recent_empty: "暂无最近工程；生成或保存工程后会出现在这里。",
       recent_more: "加载更多",
@@ -307,7 +319,19 @@
       home_browse: "Browse project…",
       home_target: "Target: {name}",
       server_advanced: "Advanced: explicit project & port",
-      recent_search_placeholder: "Search recent projects…",
+      recent_search_placeholder: "Search project, media, or path…",
+      recent_group_title: "Recent projects",
+      all_group_title: "All projects",
+      all_count: "{n} registered",
+      all_count_matched: "{matched} of {total}",
+      all_empty: "No registered projects yet; created or opened projects are registered here automatically.",
+      all_more: "Load more",
+      all_grid_label: "All projects list",
+      remove_registry: "Remove from all projects",
+      delete_project_file: "Delete project file…",
+      delete_project_confirm: "\"{name}\"\n{path}\n\nOnly this project file is moved to the recycle bin; source video, audio, and .assets are kept.",
+      delete_project_done: "Moved to recycle bin: {name}",
+      delete_project_failed: "Delete failed: {detail}",
       recent_grid_label: "Recent projects",
       recent_empty: "No recent projects yet; generated or saved projects will appear here.",
       recent_more: "Load more",
@@ -1639,7 +1663,7 @@
       }),
       get_recent_project_stats: async ({ path }) => {
         (window.__statsRequests = window.__statsRequests || []).push(path);
-        return { ok: true, path, mainSubtitles: 12, subSubtitles: 0, audioClips: 2, mediaName: path.endsWith("clip.mosp") ? "clip.mp4" : "intro.mp4" };
+        return { ok: true, path, mainSubtitles: 12, subSubtitles: 0, audioClips: 2, mediaName: path.replace(/\.mosp$/u, ".mp4") };
       },
       get_recent_project_thumbnail: async ({ path }) => {
         (window.__thumbRequests = window.__thumbRequests || []).push(path);
@@ -1652,6 +1676,27 @@
         return { ok: true, state: "image", version: "cover-refresh", mediaName: "clip.mp4", dataUri: "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22480%22 height=%22270%22%3E%3Crect width=%22480%22 height=%22270%22 fill=%22%23453F47%22/%3E%3C/svg%3E" };
       },
       clear_thumbnail_cache: async () => { (window.__coverCacheClears = window.__coverCacheClears || []).push(1); return { ok: true, removed: 3 }; },
+      // S3 演示数据：全部工程 = 最近合并视图 + 一条已淘汰仍在登记层的旧工程。
+      get_all_projects: async ({ query } = {}) => {
+        const registry = window.__demoRegistry || (window.__demoRegistry = [
+          { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00", registeredAt: "2026-08-01T10:00:00+00:00", updatedAt: "2026-09-13T10:00:00+00:00", source: "migration" },
+          { path: "D:\\Demo\\intro.mosp", name: "intro.mosp", dir: "D:\\Demo", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2026-09-14T10:00:00+00:00", registeredAt: "2026-08-02T10:00:00+00:00", updatedAt: "2026-09-14T10:00:00+00:00", source: "created" },
+          { path: "E:\\Archive\\old-take.mosp", name: "old-take.mosp", dir: "E:\\Archive", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2025-12-01T10:00:00+00:00", registeredAt: "2025-12-01T10:00:00+00:00", updatedAt: "2025-12-01T10:00:00+00:00", source: "editor" },
+        ]);
+        const needle = String(query || "").trim().toLowerCase();
+        const matched = needle ? registry.filter((item) => item.path.toLowerCase().includes(needle)) : registry.slice();
+        return { ok: true, projects: matched, total: registry.length, matched: matched.length, query: String(query || "").trim() };
+      },
+      remove_registry_project: async ({ path }) => {
+        if (window.__demoRegistry) window.__demoRegistry = window.__demoRegistry.filter((item) => item.path !== path);
+        (window.__registryRemovals = window.__registryRemovals || []).push(path);
+        return { ok: true, removed: 1 };
+      },
+      delete_project_file: async ({ path }) => {
+        (window.__deleteRequests = window.__deleteRequests || []).push(path);
+        if (window.__demoRegistry) window.__demoRegistry = window.__demoRegistry.filter((item) => item.path !== path);
+        return { ok: true, path };
+      },
       remove_recent_project: async () => ({ ok: true }),
       set_recent_project_pinned: async () => ({ ok: true }),
       relocate_recent_project: async () => ({ ok: true, path: "D:\\Demo\\clip.mosp" }),

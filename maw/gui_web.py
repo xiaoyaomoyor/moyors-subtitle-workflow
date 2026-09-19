@@ -50,7 +50,10 @@ from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_
 from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
 from maw.launcher_projects import (
+    all_projects_payload as all_projects_registry_payload,
+    delete_project_file as delete_project_file_from_registry,
     note_project_opened,
+    register_project,
     project_stats_payload,
     recent_projects_payload,
     relocate_recent_project,
@@ -486,6 +489,8 @@ class LauncherPaths:
     # 启动器侧最近工程元数据（固定/移除/重定位）。None 时用用户数据目录默认路径；
     # 测试注入临时路径，避免污染真实 launcher-recent.json。
     recent_metadata: Path | None = None
+    # S3：长期工程目录登记层（全部工程）。同样支持测试注入。
+    project_registry: Path | None = None
 
 
 @dataclass(slots=True)
@@ -703,6 +708,52 @@ class LauncherApi:
             return _error_result("path", "recent_project_invalid", "")
         return set_recent_project_pinned(path, payload.get("pinned") is True, metadata_path=self.paths.recent_metadata)
 
+    def _register_project_safe(self, path: Path | str, source: str) -> None:
+        """S3：制作/打开成功后登记长期工程目录；登记失败不阻断主流程。"""
+        try:
+            register_project(Path(path), source=source, registry_path=self.paths.project_registry)
+        except Exception as error:  # noqa: BLE001 - 桥接边界必须吞掉登记层故障
+            print(f"[registry] 登记工程失败: {error}", file=sys.stderr)
+
+    def get_all_projects(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """S3/§5.1：全部工程（长期登记合集），支持搜索过滤与计数。"""
+        query = str(payload.get("query") or "") if payload else ""
+        return all_projects_registry_payload(
+            metadata_path=self.paths.recent_metadata,
+            registry_path=self.paths.project_registry,
+            query=query,
+        )
+
+    def remove_registry_project(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """S3/§5.3：「从全部工程记录移除」——只删登记，不动文件与最近视图。"""
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        from maw.launcher_projects import unregister_project
+        return unregister_project(path, registry_path=self.paths.project_registry)
+
+    def delete_project_file(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """S3/§5.3：「删除工程文件…」——仅把工程文件移入回收站，媒体与 .assets 不动。
+
+        受管编辑器会话正在编辑该工程时拒绝：删完会被后台保存写回。
+        """
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        try:
+            resolved = path.expanduser().resolve()
+        except OSError as error:
+            return _error_result("path", "recent_project_invalid", str(error))
+        for session in self.sessions.values():
+            project = (session.project_path or "").strip()
+            if project and Path(project).expanduser().resolve() == resolved and session.running():
+                return _error_result("path", "project_in_use", f"工程正在编辑器会话中编辑：{resolved}")
+        result = delete_project_file_from_registry(
+            path, registry_path=self.paths.project_registry, metadata_path=self.paths.recent_metadata)
+        if not result.get("ok"):
+            return _error_result("path", "recycle_failed", str(result.get("error") or ""))
+        return result
+
     def relocate_recent_project(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Re-locate a moved project: the user picks the new file via the native dialog."""
         path = _optional_path(payload.get("path"))
@@ -711,7 +762,7 @@ class LauncherApi:
         selected = _file_dialog(open_dialog=True, file_types=(".mosp", ".json"))
         if not selected:
             return {"ok": False, "cancelled": True}
-        return relocate_recent_project(path, Path(selected[0]), metadata_path=self.paths.recent_metadata)
+        return relocate_recent_project(path, Path(selected[0]), metadata_path=self.paths.recent_metadata, registry_path=self.paths.project_registry)
 
     def sync_theme_title_bar(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Sync the native title bar with the app's effective theme.
@@ -1793,6 +1844,8 @@ class LauncherApi:
         if intent == "project":
             # R0/H06：服务器健康检查通过、确认启动成功后才记一次「最近打开」。
             note_project_opened(json_path, metadata_path=self.paths.recent_metadata)
+            # S3/§5.2：启动器打开成功即登记全部工程（不等用户先打开编辑器）。
+            self._register_project_safe(json_path, "opened")
         return {"ok": True, "url": launch_url, "port": port, "sessionId": port}
 
     def start_alignment_server(self, payload: Mapping[str, object]) -> dict[str, object]:
@@ -2468,6 +2521,7 @@ class LauncherApi:
                     ffprobe_path=getattr(ffmpeg_tools, "ffprobe", None),
                     selected_audio_track=audio_track,
                 )
+                self._register_project_safe(project_path, "created")
                 return {
                     "ok": True,
                     "mediaPath": str(media_path),
@@ -2513,6 +2567,7 @@ class LauncherApi:
         except (OSError, TypeError, ValueError) as error:
             return _error_result("mediaPath", "waveform_generation_failed", str(error))
 
+        self._register_project_safe(project_path, "created")
         warnings: list[str] = []
         if cached.reapeaks_path is None:
             warnings.append("reapeaks cache was not generated.")
@@ -2705,6 +2760,7 @@ class LauncherApi:
         except Exception as error:  # noqa: BLE001 - 桥接边界必须上报一切失败
             self._emit({"type": "prefabTask", "taskId": task_id, "status": "failed", "code": "prefab_failed", "detail": str(error)})
         else:
+            self._register_project_safe(result.project_path, "created")
             self._emit({
                 "type": "prefabTask",
                 "taskId": task_id,

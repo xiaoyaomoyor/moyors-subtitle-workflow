@@ -255,5 +255,248 @@ class StartServerIntentTests(unittest.TestCase):
         self.assertEqual(command[command.index("--port") + 1], "9898")
 
 
+class ProjectRegistryTests(unittest.TestCase):
+    """S3/§5.2：长期工程目录登记层（全部工程）。"""
+
+    def setUp(self) -> None:
+        self.temp_dir = TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
+        self.metadata = self.root / "launcher-recent.json"
+        self.registry = self.root / "launcher-project-registry.json"
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_register_dedupes_and_keeps_first_registration(self) -> None:
+        project = self.root / "clip.mosp"
+        project.write_text("{}", encoding="utf-8")
+        launcher_projects.register_project(project, source="created", registry_path=self.registry)
+        launcher_projects.register_project(project, source="editor", registry_path=self.registry)
+        result = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(result["projects"]), 1)
+        entry = result["projects"][0]
+        self.assertEqual(entry["source"], "created")  # 首个非迁移来源保留
+        self.assertTrue(entry["exists"])
+        self.assertEqual(result["total"], 1)
+
+    def test_windows_identity_is_case_insensitive(self) -> None:
+        project = self.root / "Clip.mosp"
+        project.write_text("{}", encoding="utf-8")
+        launcher_projects.register_project(project, source="created", registry_path=self.registry)
+        # 同一文件的不同大小写写法归并为同一条。
+        launcher_projects.register_project(self.root / "CLIP.mosp", source="editor", registry_path=self.registry)
+        result = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        if launcher_projects.os.name == "nt":
+            self.assertEqual(len(result["projects"]), 1)
+        else:
+            self.assertEqual(len(result["projects"]), 2)
+
+    def test_all_projects_sorts_by_update_time_and_filters_by_query(self) -> None:
+        first = self.root / "first.mosp"
+        second = self.root / "second.mosp"
+        first.write_text("{}", encoding="utf-8")
+        second.write_text("{}", encoding="utf-8")
+        with mock.patch.object(launcher_projects, "_now_iso", side_effect=["2020-01-01T00:00:00+00:00", "2021-01-01T00:00:00+00:00"]):
+            launcher_projects.register_project(first, source="created", registry_path=self.registry)
+            launcher_projects.register_project(second, source="created", registry_path=self.registry)
+
+        result = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        self.assertEqual([item["name"] for item in result["projects"]], ["second.mosp", "first.mosp"])
+        self.assertEqual(result["matched"], 2)
+
+        filtered = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry, query="first")
+        self.assertEqual([item["name"] for item in filtered["projects"]], ["first.mosp"])
+        self.assertEqual(filtered["total"], 2)  # 计数区分总数与命中数
+        self.assertEqual(filtered["matched"], 1)
+
+    def test_seeds_registry_from_recent_view_once(self) -> None:
+        project = self.root / "seeded.mosp"
+        project.write_text("{}", encoding="utf-8")
+        self._set_editor_recent(project)
+        result = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        self.assertEqual([item["name"] for item in result["projects"]], ["seeded.mosp"])
+        self.assertEqual(result["projects"][0]["source"], "migration")
+        # 已有注册表后不再迁移：编辑器最近新增但未登记的文件不凭空进入全部工程。
+        fresh = self.root / "fresh.mosp"
+        fresh.write_text("{}", encoding="utf-8")
+        self._set_editor_recent(project, fresh)
+        again = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        self.assertEqual([item["name"] for item in again["projects"]], ["seeded.mosp"])
+
+    def _set_editor_recent(self, *paths: Path) -> None:
+        _write_json(self.settings, {
+            "recent_projects": [{"path": str(path), "name": path.name} for path in paths],
+        })
+
+    def test_unregister_removes_entry_only(self) -> None:
+        project = self.root / "clip.mosp"
+        project.write_text("{}", encoding="utf-8")
+        self._set_editor_recent(project)
+        launcher_projects.register_project(project, source="created", registry_path=self.registry)
+
+        result = launcher_projects.unregister_project(project, registry_path=self.registry)
+        listing = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["removed"], 1)
+        self.assertEqual(listing["projects"], [])
+        # 只删登记：文件与最近视图仍在。
+        self.assertTrue(project.is_file())
+        recent = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
+        self.assertEqual([item["name"] for item in recent["projects"]], ["clip.mosp"])
+
+    def test_relocate_moves_registry_entry_with_recent(self) -> None:
+        old = self.root / "old.mosp"
+        new = self.root / "new.mosp"
+        old.write_text("{}", encoding="utf-8")
+        new.write_text("{}", encoding="utf-8")
+        self._set_editor_recent(old)
+        launcher_projects.register_project(old, source="created", registry_path=self.registry)
+
+        result = relocate_recent_project(old, new, metadata_path=self.metadata, registry_path=self.registry)
+        listing = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual([item["path"] for item in listing["projects"]], [str(new)])
+        self.assertEqual(listing["projects"][0]["source"], "created")  # 登记来源不因重定位丢失
+
+    def test_concurrent_registration_keeps_all_entries(self) -> None:
+        import threading
+
+        def register(index: int) -> None:
+            launcher_projects.register_project(self.root / f"p{index}.mosp", source="created", registry_path=self.registry)
+
+        threads = [threading.Thread(target=register, args=(i,)) for i in range(12)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        listing = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        self.assertEqual(listing["total"], 12)
+
+
+class DeleteProjectFileTests(unittest.TestCase):
+    """S3/§5.3：删除工程文件——仅回收工程文件本身，失败不丢记录。"""
+
+    def setUp(self) -> None:
+        self.temp_dir = TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
+        self.metadata = self.root / "launcher-recent.json"
+        self.registry = self.root / "launcher-project-registry.json"
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def _register(self, path: Path) -> None:
+        path.write_text("{}", encoding="utf-8")
+        _write_json(self.settings, {"recent_projects": [{"path": str(path), "name": path.name}]})
+        note_project_opened(path, metadata_path=self.metadata)
+        launcher_projects.register_project(path, source="created", registry_path=self.registry)
+
+    def _listing_paths(self) -> list[str]:
+        result = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        return [item["path"] for item in result["projects"]]
+
+    def _recent_paths(self) -> list[str]:
+        result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
+        return [item["path"] for item in result["projects"]]
+
+    def test_recycles_project_file_and_clears_both_views(self) -> None:
+        project = self.root / "clip.mosp"
+        media = self.root / "clip.mp4"
+        assets = self.root / "clip.assets"
+        self._register(project)
+        media.write_bytes(b"video")
+        assets.mkdir()
+
+        with mock.patch.object(launcher_projects, "_recycle_file", return_value=(True, "")) as recycle:
+            result = launcher_projects.delete_project_file(
+                project, registry_path=self.registry, metadata_path=self.metadata)
+
+        self.assertTrue(result["ok"])
+        recycle.assert_called_once_with(project)
+        # 回收目标只有工程文件；媒体与 .assets 原样保留。
+        self.assertEqual(recycle.call_args.args[0], project)
+        self.assertTrue(media.is_file())
+        self.assertTrue(assets.is_dir())
+        self.assertNotIn(str(project), self._listing_paths())
+        self.assertNotIn(str(project), self._recent_paths())
+
+    def test_recycle_failure_keeps_records(self) -> None:
+        project = self.root / "clip.mosp"
+        self._register(project)
+        with mock.patch.object(launcher_projects, "_recycle_file", return_value=(False, "回收站不可用")):
+            result = launcher_projects.delete_project_file(
+                project, registry_path=self.registry, metadata_path=self.metadata)
+        self.assertFalse(result["ok"])
+        self.assertIn("回收站不可用", result["error"])
+        self.assertIn(str(project), self._listing_paths())  # 失败：登记保留
+        self.assertIn(str(project), self._recent_paths())
+        self.assertTrue(project.is_file())  # 绝不退化为永久删除
+
+    def test_missing_file_cleans_stale_records_without_touching_siblings(self) -> None:
+        project = self.root / "gone.mosp"
+        sibling = self.root / "gone.mp4"
+        self._register(project)
+        project.unlink()  # 登记后文件丢失
+        sibling.write_bytes(b"video")
+
+        result = launcher_projects.delete_project_file(
+            project, registry_path=self.registry, metadata_path=self.metadata)
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["alreadyGone"])
+        self.assertNotIn(str(project), self._listing_paths())
+        self.assertNotIn(str(project), self._recent_paths())
+        self.assertTrue(sibling.is_file())  # 不尝试删除其他同名文件
+
+    def test_rejects_non_project_suffix(self) -> None:
+        video = self.root / "clip.mp4"
+        video.write_bytes(b"video")
+        result = launcher_projects.delete_project_file(
+            video, registry_path=self.registry, metadata_path=self.metadata)
+        self.assertFalse(result["ok"])
+        self.assertIn("仅支持删除工程文件", result["error"])
+        self.assertTrue(video.is_file())
+
+    def test_windows_recycle_uses_allow_undo(self) -> None:
+        if launcher_projects.os.name != "nt":
+            self.skipTest("Windows 回收站路径仅在 Windows 验证")
+        import ctypes
+
+        project = self.root / "real.mosp"
+        project.write_text("{}", encoding="utf-8")
+        captured: dict[str, object] = {}
+
+        class _FakeShell:
+            def SHFileOperationW(self, struct_ref) -> int:
+                struct = getattr(struct_ref, "_obj", struct_ref)  # 解开 ctypes.byref 包装
+                captured["flags"] = struct.fFlags
+                captured["func"] = struct.wFunc
+                return 0
+
+        with mock.patch.object(ctypes, "windll", create=True) as windll:
+            windll.shell32 = _FakeShell()
+            ok, error = launcher_projects._recycle_file_windows(project)
+        self.assertTrue(ok)
+        self.assertEqual(captured["func"], 3)  # FO_DELETE
+        self.assertEqual(captured["flags"], 0x40 | 0x10 | 0x4 | 0x400)  # ALLOWUNDO 等标志
+        self.assertTrue(project.is_file())  # 假 shell：文件不应真的被移动
+
+
 if __name__ == "__main__":
     unittest.main()

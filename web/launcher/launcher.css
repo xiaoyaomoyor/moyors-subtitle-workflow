@@ -927,16 +927,105 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
   color: var(--amber);
 }
 
-.recent-pin {
+
+/* S3/§5.1：最近工程 / 全部工程两个独立折叠分组（标题样式与模块卡箭头一致）。 */
+.home-group {
+  margin-bottom: 6px;
+}
+
+.home-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-group-head:hover {
+  color: var(--accent-hover);
+}
+
+.home-group-head:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.home-group-arrow {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  transition: transform var(--t-fast);
+}
+
+.home-group-head[aria-expanded="false"] .home-group-arrow {
+  transform: rotate(-90deg);
+}
+
+.home-group-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-group-count {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.home-group-target {
+  margin: 2px 4px 6px;
+  color: var(--text-secondary);
+}
+
+/* S3/§5.1：图钉移至封面固定右上角（与选中描边互不兼任）。 */
+.recent-cover .recent-pin {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  top: 6px;
+  right: 6px;
   display: inline-flex;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: rgba(16, 16, 16, .55);
   color: var(--accent);
 }
 
-.recent-pin svg {
+html[data-theme="light"] .recent-cover .recent-pin {
+  background: rgba(245, 244, 246, .72);
+}
+
+.recent-cover .recent-pin svg {
   display: block;
+}
+
+/* S3/§5.3：「删除工程文件…」危险项：红色 + 垃圾桶图标。 */
+.recent-context-menu button.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red);
+}
+
+.recent-context-menu button.danger:hover {
+  background: var(--red-soft);
+  color: var(--red-hover);
+}
+
+.recent-context-menu button.danger svg {
+  flex: 0 0 auto;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .recent-empty {

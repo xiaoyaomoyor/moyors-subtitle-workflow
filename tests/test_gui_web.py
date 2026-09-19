@@ -3554,6 +3554,57 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("打开所选工程", launcher_script.split("guide_direct_s1")[1].split(",")[0])
         self.assertIn('api_key_missing: "请先填写 API Key；密钥只保存在本机连接配置。"', launcher_script)
 
+    def test_launcher_s3_project_directory_contracts(self) -> None:
+        """S3/§5：长期工程目录登记层、双折叠分组与删除工程文件契约。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
+        projects_source = (ROOT / "maw" / "launcher_projects.py").read_text(encoding="utf-8")
+        serve_source = (ROOT / "server-editor" / "serve.py").read_text(encoding="utf-8")
+
+        # 登记层：文件锁 + 原子替换 + 大小写归一 + 后缀约束（Windows 大小写不敏感去重）。
+        self.assertIn("REGISTRY_FILE_NAME", projects_source)
+        self.assertIn("@contextlib.contextmanager", projects_source)
+        self.assertIn("os.O_CREAT | os.O_EXCL", projects_source)
+        self.assertIn("os.replace(temp_name, registry)", projects_source)
+        self.assertIn("os.path.normcase", projects_source)
+        self.assertIn('frozenset({".mosp", ".json"})', projects_source)
+        self.assertIn("0x40 | 0x10 | 0x4 | 0x400", projects_source)  # ALLOWUNDO 等回收站标志
+        for fn in ("register_project", "unregister_project", "delete_project_file", "all_projects_payload", "move_registry_entry"):
+            self.assertIn(f"def {fn}(", projects_source)
+
+        # 桥接：全部工程 / 移除登记 / 删除工程文件（会话占用拒绝）。
+        for bridge in ("def get_all_projects", "def remove_registry_project", "def delete_project_file"):
+            self.assertIn(bridge, gui_source)
+        self.assertIn("project_in_use", gui_source)
+        self.assertIn("project_registry: Path | None = None", gui_source)
+        # 登记入口：打开/媒体工程/预制方案成功后登记（编辑器侧见 serve 契约）。
+        self.assertIn('self._register_project_safe(json_path, "opened")', gui_source)
+        self.assertEqual(gui_source.count('self._register_project_safe(project_path, "created")'), 2)
+        self.assertIn('self._register_project_safe(result.project_path, "created")', gui_source)
+
+        # 编辑器侧：打开/保存/另存成功登记（maw 导入失败不阻断编辑器主流程）。
+        self.assertIn("def _register_launcher_project", serve_source)
+        self.assertEqual(serve_source.count("_register_launcher_project("), 4)  # 定义 + 3 调用点
+        self.assertIn('register_project(project_path, source="editor")', serve_source)
+
+        # 首页双折叠分组 + 图钉入封面 + 三种移除语义。
+        for element_id in ("recentGroupTitle", "recentGroupBody", "allGroupTitle", "allGroupBody", "allGrid", "allCount", "homeNotice"):
+            self.assertIn(f'id="{element_id}"', page)
+        self.assertIn('data-home-group="recent"', page)
+        self.assertIn('data-home-group="all"', page)
+        self.assertIn('MSW_HOME_GROUPS_V1', home_script)
+        self.assertIn(".recent-cover .recent-pin", (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8"))
+        # 多节点回写：同一工程在两组的封面/统计/媒体名同步。
+        self.assertIn("bothGrids()", home_script)
+        self.assertIn('bridge("delete_project_file", { path: entry.path })', home_script)
+        self.assertIn('bridge("remove_registry_project", { path: entry.path })', home_script)
+        # 确认文案含名称/路径/范围；删除成功反馈回收站语义。
+        self.assertIn("delete_project_confirm", launcher_script)
+        self.assertIn("delete_project_done", launcher_script)
+        self.assertIn("仅把这个工程文件移入回收站", launcher_script)
+
     def test_launcher_plan_drives_execution_contracts(self) -> None:
         """R4/§7.1：方案单一来源、新默认与三类输入执行链契约。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

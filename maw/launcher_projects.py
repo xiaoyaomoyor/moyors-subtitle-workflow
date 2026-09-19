@@ -6,17 +6,24 @@
 
 启动器自己额外的视图状态（固定、从记录移除、失效路径的重新定位映射、
 启动器侧打开时间）保存在独立的 ``launcher-recent.json`` 元数据里。
+
+S3 长期工程目录：``launcher-project-registry.json`` 是「全部工程」的持久登记层
+（与最近视图分开）。启动器制作/打开与编辑器打开/保存都经 ``register_project``
+登记；统一走本模块的文件锁 + 原子替换，两个进程（启动器与编辑器 Server）
+并发写同一注册表也不会相互覆盖。
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Iterator, Final
 
 from maw.app_paths import default_app_data_root, default_server_settings_path
 
@@ -25,9 +32,22 @@ MAX_RECENT_ENTRIES: Final = 50
 # 统计解析的工程大小上限：更大的工程仍可打开，但卡片不解析统计（显示为未知）。
 STATS_SIZE_LIMIT: Final = 64 * 1024 * 1024
 
+REGISTRY_FILE_NAME: Final = "launcher-project-registry.json"
+REGISTRY_VERSION: Final = 1
+# 登记层允许的工程文件后缀（「删除工程文件」同样只接受这两类）。
+PROJECT_SUFFIXES: Final = frozenset({".mosp", ".json"})
+# 注册表写入锁的陈旧阈值：超过该时长的锁视为持有者已崩溃，可被抢占。
+REGISTRY_LOCK_STALE_SECONDS: Final = 10.0
+# 「全部工程」渲染上限：长期登记合集按需分页，不无限展开。
+MAX_ALL_PROJECTS: Final = 5000
+
 
 def launcher_recent_metadata_path() -> Path:
     return default_app_data_root() / LAUNCHER_RECENT_FILE_NAME
+
+
+def project_registry_path() -> Path:
+    return default_app_data_root() / REGISTRY_FILE_NAME
 
 
 @dataclass(slots=True)
@@ -267,7 +287,7 @@ def set_recent_project_pinned(path: Path, pinned: bool, metadata_path: Path | No
     return {"ok": True}
 
 
-def relocate_recent_project(old_path: Path, new_path: Path, metadata_path: Path | None = None) -> dict[str, Any]:
+def relocate_recent_project(old_path: Path, new_path: Path, metadata_path: Path | None = None, registry_path: Path | None = None) -> dict[str, Any]:
     """Record that a missing project moved; the launcher view now points at the new file."""
     try:
         old = str(old_path.expanduser().resolve())
@@ -280,6 +300,9 @@ def relocate_recent_project(old_path: Path, new_path: Path, metadata_path: Path 
     metadata.aliases[old] = str(new)
     metadata.removed.discard(str(new))
     write_launcher_metadata(metadata, metadata_path)
+    with contextlib.suppress(Exception):
+        # 登记条目随最近视图一起指向新路径（重定位不重复、不丢登记时间）。
+        move_registry_entry(Path(old), new, registry_path=registry_path)
     return {"ok": True, "path": str(new)}
 
 
@@ -331,4 +354,295 @@ def project_stats_payload(path: Path) -> dict[str, Any]:
         "subSubtitles": sub_count,
         "audioClips": audio_count,
         "mediaName": media_name,
+    }
+
+
+# ======================= S3：长期工程目录（全部工程登记层） =======================
+
+
+def _canonical_identity(path: Path) -> tuple[str, str]:
+    """返回 (归一化键, 可读路径)。Windows 大小写不敏感去重，但保留原样显示。"""
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path
+    display = str(resolved)
+    key = os.path.normcase(display) if os.name == "nt" else display
+    return key, display
+
+
+@contextlib.contextmanager
+def _registry_file_lock(registry: Path) -> Iterator[None]:
+    """跨进程互斥：独占创建锁文件 + 陈旧锁抢占；写本体始终走临时文件 + os.replace。
+
+    启动器与编辑器 Server 是两个进程，都会调用 register_project；锁只保护
+    「读-改-写」窗口，本体替换是原子的，读侧无锁也不会读到半截 JSON。
+    """
+    lock_path = registry.with_name(registry.name + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd: int | None = None
+    deadline = time.monotonic() + REGISTRY_LOCK_STALE_SECONDS
+    try:
+        while True:
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                break
+            except FileExistsError:
+                try:
+                    stale = time.time() - lock_path.stat().st_mtime
+                except OSError:
+                    stale = REGISTRY_LOCK_STALE_SECONDS
+                if stale >= REGISTRY_LOCK_STALE_SECONDS or time.monotonic() > deadline + REGISTRY_LOCK_STALE_SECONDS:
+                    # 持有者已崩溃：抢占陈旧锁（并设总时限上限兜底）。
+                    with contextlib.suppress(OSError):
+                        lock_path.unlink()
+                    continue
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"project registry lock busy: {lock_path}")
+                time.sleep(0.02)
+        yield
+    finally:
+        if fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            with contextlib.suppress(OSError):
+                lock_path.unlink()
+
+
+def _read_registry(registry: Path) -> dict[str, dict[str, Any]]:
+    try:
+        payload = json.loads(registry.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    entries = payload.get("entries") if isinstance(payload, dict) else None
+    if not isinstance(entries, dict):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for key, value in entries.items():
+        if isinstance(key, str) and isinstance(value, dict) and isinstance(value.get("path"), str):
+            result[key] = value
+    return result
+
+
+def _write_registry(entries: dict[str, dict[str, Any]], registry: Path) -> None:
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{registry.stem}.", suffix=".tmp", dir=registry.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
+            json.dump({"version": REGISTRY_VERSION, "entries": entries}, output, ensure_ascii=False, indent=2)
+            output.write("\n")
+        os.replace(temp_name, registry)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(temp_name)
+        raise
+
+
+def register_project(path: Path, *, source: str, registry_path: Path | None = None) -> dict[str, Any]:
+    """登记一个工程到长期目录。调用方保证此时工程已成功产出/打开（可读）。
+
+    source：``created``（启动器制作）/ ``opened``（启动器打开）/ ``editor``
+    （编辑器打开/保存/另存）/ ``migration``（从最近记录迁移）。重复登记只刷新
+    更新时间，保留首次登记时间与首个非迁移来源。
+    """
+    registry = registry_path or project_registry_path()
+    key, display = _canonical_identity(path)
+    now = _now_iso()
+    with _registry_file_lock(registry):
+        entries = _read_registry(registry)
+        existing = entries.get(key)
+        source_value = source
+        if existing and existing.get("source") not in ("", "migration"):
+            source_value = existing["source"]
+        entry = {
+            "path": display,
+            "name": Path(display).name,
+            "source": source_value,
+            "registeredAt": (existing or {}).get("registeredAt") or now,
+            "updatedAt": now,
+        }
+        entries[key] = entry
+        _write_registry(entries, registry)
+    return {"ok": True, "path": display}
+
+
+def unregister_project(path: Path, registry_path: Path | None = None) -> dict[str, Any]:
+    """「从全部工程记录移除」：只删登记，不动文件与最近视图。"""
+    registry = registry_path or project_registry_path()
+    key, _display = _canonical_identity(path)
+    with _registry_file_lock(registry):
+        entries = _read_registry(registry)
+        if key not in entries:
+            return {"ok": True, "removed": 0}
+        del entries[key]
+        _write_registry(entries, registry)
+    return {"ok": True, "removed": 1}
+
+
+def move_registry_entry(old_path: Path, new_path: Path, registry_path: Path | None = None) -> None:
+    """重新定位联动：登记条目随最近视图一起指向新路径（旧键迁移，保留登记时间）。"""
+    registry = registry_path or project_registry_path()
+    old_key, _old_display = _canonical_identity(old_path)
+    new_key, new_display = _canonical_identity(new_path)
+    if old_key == new_key:
+        return
+    with _registry_file_lock(registry):
+        entries = _read_registry(registry)
+        entry = entries.pop(old_key, None)
+        if entry is None:
+            return
+        entry["path"] = new_display
+        entry["name"] = Path(new_display).name
+        entry["updatedAt"] = _now_iso()
+        entries[new_key] = entry
+        _write_registry(entries, registry)
+
+
+def _recycle_file_windows(path: Path) -> tuple[bool, str]:
+    """Windows：SHFileOperation + FOF_ALLOWUNDO 把文件移入回收站。"""
+    import ctypes
+
+    class _ShFileOpStruct(ctypes.Structure):
+        _fields_ = [
+            ("hwnd", ctypes.c_void_p),
+            ("wFunc", ctypes.c_uint),
+            ("pFrom", ctypes.c_wchar_p),
+            ("pTo", ctypes.c_wchar_p),
+            ("fFlags", ctypes.c_ushort),
+            ("fAnyOperationsAborted", ctypes.c_int),
+            ("hNameMappings", ctypes.c_void_p),
+            ("lpszProgressTitle", ctypes.c_wchar_p),
+        ]
+
+    operation = _ShFileOpStruct()
+    operation.hwnd = None
+    operation.wFunc = 3  # FO_DELETE
+    operation.pFrom = str(path) + "\0\0"  # pFrom 要求双 NUL 结尾
+    operation.pTo = None
+    operation.fFlags = 0x40 | 0x10 | 0x4 | 0x400  # ALLOWUNDO | NOCONFIRMATION | SILENT | NOERRORUI
+    result = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(operation))
+    if result != 0:
+        return False, f"SHFileOperationW 失败（错误码 {result}）"
+    if operation.fAnyOperationsAborted:
+        return False, "操作被系统中止"
+    return True, ""
+
+
+def _recycle_file(path: Path) -> tuple[bool, str]:
+    if os.name == "nt":
+        return _recycle_file_windows(path)
+    try:
+        from send2trash import send2trash  # type: ignore[import-not-found]
+    except ImportError:
+        return False, "当前平台无回收站支持（可打开所在文件夹手动删除）"
+    try:
+        send2trash(str(path))
+    except Exception as error:  # send2trash 会抛出多种系统异常
+        return False, str(error)
+    return True, ""
+
+
+def delete_project_file(path: Path, *, registry_path: Path | None = None, metadata_path: Path | None = None) -> dict[str, Any]:
+    """「删除工程文件…」：把工程文件移入回收站，并同步清理登记与最近视图。
+
+    只处理工程文件本身——原始视频、音频、同目录文件与 ``.assets`` 一律不动；
+    回收站不可用时明确失败，绝不退化为静默永久删除。
+    """
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError as error:
+        return {"ok": False, "error": str(error)}
+    if resolved.suffix.lower() not in PROJECT_SUFFIXES:
+        return {"ok": False, "error": f"仅支持删除工程文件（.mosp/.json）：{resolved}"}
+    if not resolved.is_file():
+        # 文件已不在：登记与最近视图里的失效记录一并清理，不尝试删除其他同名文件。
+        unregister_project(resolved, registry_path=registry_path)
+        remove_recent_project(resolved, metadata_path=metadata_path)
+        return {"ok": True, "path": str(resolved), "alreadyGone": True}
+    ok, error = _recycle_file(resolved)
+    if not ok:
+        return {"ok": False, "error": error, "path": str(resolved)}
+    # 回收成功后再更新两组视图与元数据；文件已进回收站，可随时从回收站还原。
+    unregister_project(resolved, registry_path=registry_path)
+    remove_recent_project(resolved, metadata_path=metadata_path)
+    return {"ok": True, "path": str(resolved)}
+
+
+def _seed_registry_from_recent(registry: Path, *, settings_path: Path | None, metadata_path: Path | None) -> None:
+    """首次建立登记层：从当前最近合并视图迁移可知工程（一次性）。
+
+    已从最近列表淘汰且从未登记的文件不会凭空恢复——之后再次打开/保存时自然登记。
+    """
+    if registry.is_file():
+        return
+    merged = recent_projects_payload(settings_path=settings_path, metadata_path=metadata_path)
+    now = _now_iso()
+    entries: dict[str, dict[str, Any]] = {}
+    for project in merged.get("projects", []):
+        try:
+            key, display = _canonical_identity(Path(str(project.get("path", ""))))
+        except OSError:
+            continue
+        if not display:
+            continue
+        entries[key] = {
+            "path": display,
+            "name": Path(display).name,
+            "source": "migration",
+            "registeredAt": project.get("lastOpenedAt") or project.get("modifiedAt") or now,
+            "updatedAt": project.get("modifiedAt") or project.get("lastOpenedAt") or now,
+        }
+    with _registry_file_lock(registry):
+        if not registry.is_file():
+            _write_registry(entries, registry)
+
+
+def all_projects_payload(
+    *,
+    settings_path: Path | None = None,
+    metadata_path: Path | None = None,
+    registry_path: Path | None = None,
+    query: str = "",
+) -> dict[str, Any]:
+    """「全部工程」卡片载荷：长期登记合集按更新时间降序（固定不改变该区排序）。"""
+    registry = registry_path or project_registry_path()
+    with contextlib.suppress(OSError):
+        _seed_registry_from_recent(registry, settings_path=settings_path, metadata_path=metadata_path)
+
+    entries = _read_registry(registry)
+    metadata = read_launcher_metadata(metadata_path)
+    editor_entries = _read_editor_recent_paths(settings_path)
+    editor_times = {str(path): opened_at for path, opened_at in editor_entries}
+
+    needle = query.strip().lower()
+    matched: list[dict[str, Any]] = []
+    for entry in entries.values():
+        try:
+            path = Path(str(entry.get("path", "")))
+        except OSError:
+            continue
+        exists = path.is_file()
+        key = str(path)
+        if needle and needle not in key.lower():
+            continue
+        matched.append({
+            "path": key,
+            "name": entry.get("name") or path.name,
+            "dir": str(path.parent),
+            "exists": exists,
+            "pinned": key in metadata.pinned,
+            "lastOpenedAt": _latest_iso(editor_times.get(key, ""), metadata.opened_at.get(key, "")),
+            "modifiedAt": _mtime_iso(path) if exists else "",
+            "registeredAt": entry.get("registeredAt") or "",
+            "updatedAt": entry.get("updatedAt") or entry.get("registeredAt") or "",
+            "source": entry.get("source") or "",
+        })
+
+    matched.sort(key=lambda item: item["updatedAt"], reverse=True)
+    return {
+        "ok": True,
+        "projects": matched[:MAX_ALL_PROJECTS],
+        "total": len(entries),
+        "matched": len(matched),
+        "query": query.strip(),
     }

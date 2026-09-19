@@ -104,13 +104,39 @@
         </div>
 
         <div class="home-toolbar">
-          <input id="recentSearch" class="search-input" type="text" autocomplete="off" placeholder="搜索最近工程…" data-i18n-placeholder="recent_search_placeholder">
+          <input id="recentSearch" class="search-input" type="text" autocomplete="off" placeholder="搜索工程名、媒体名或路径…" data-i18n-placeholder="recent_search_placeholder">
           <span class="home-toolbar-spacer"></span>
           <span id="recentCount" class="hint" aria-live="polite"></span>
         </div>
-        <div id="recentGrid" class="recent-grid" role="list" aria-label="recent projects" data-i18n-aria-label="recent_grid_label"></div>
-        <p id="recentEmpty" class="recent-empty hint hidden" data-i18n="recent_empty">暂无最近工程；生成或保存工程后会出现在这里。</p>
-        <button id="recentMore" class="ghost hidden" type="button" data-i18n="recent_more">加载更多</button>
+        <p id="homeNotice" class="hint hidden" aria-live="polite"></p>
+
+        <!-- S3/§5.1：最近工程与全部工程两个独立折叠分组；搜索作用于两组。 -->
+        <section class="home-group" data-home-group="recent">
+          <button id="recentGroupTitle" class="home-group-head" type="button" aria-expanded="true">
+            <svg class="home-group-arrow" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="home-group-label">最近工程（0）</span>
+          </button>
+          <div id="recentGroupBody" class="home-group-body">
+            <div id="recentGrid" class="recent-grid" role="list" aria-label="recent projects" data-i18n-aria-label="recent_grid_label"></div>
+            <p id="recentEmpty" class="recent-empty hint hidden" data-i18n="recent_empty">暂无最近工程；生成或保存工程后会出现在这里。</p>
+            <button id="recentMore" class="ghost hidden" type="button" data-i18n="recent_more">加载更多</button>
+          </div>
+          <p id="recentGroupTarget" class="home-group-target hint hidden" aria-live="polite"></p>
+        </section>
+
+        <section class="home-group" data-home-group="all">
+          <button id="allGroupTitle" class="home-group-head" type="button" aria-expanded="true">
+            <svg class="home-group-arrow" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="home-group-label">全部工程（0）</span>
+            <span id="allCount" class="hint home-group-count" aria-live="polite"></span>
+          </button>
+          <div id="allGroupBody" class="home-group-body">
+            <div id="allGrid" class="recent-grid" role="list" aria-label="all projects" data-i18n-aria-label="all_grid_label"></div>
+            <p id="allEmpty" class="recent-empty hint hidden" data-i18n="all_empty">暂无登记工程；制作或打开工程后会自动登记到全部工程。</p>
+            <button id="allMore" class="ghost hidden" type="button" data-i18n="all_more">加载更多</button>
+          </div>
+          <p id="allGroupTarget" class="home-group-target hint hidden" aria-live="polite"></p>
+        </section>
 
         <section id="serverCard" class="card sub-accordion collapsed" aria-labelledby="serverTitle">
           <button id="serverToggle" class="accordion-header" type="button" aria-expanded="false">

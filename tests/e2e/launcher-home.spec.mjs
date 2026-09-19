@@ -14,7 +14,8 @@ async function openHome(page) {
 }
 
 function cardOf(page, name) {
-  return page.locator(`.recent-card[data-path$="${name}"]`);
+  // S3：同一工程可在最近/全部两组各有一张卡——按组限定避免 strict 冲突。
+  return page.locator(`#recentGrid .recent-card[data-path$="${name}"]`);
 }
 
 test('recent cards show distinct real covers, media names, and state placeholders', async ({ page }) => {
@@ -55,8 +56,9 @@ test('stats and cover requests are cached and deduplicated across searches', asy
     stats: window.__statsRequests.length,
     thumbs: window.__thumbRequests.length,
   }));
-  expect(counts.stats).toBe(2);
-  expect(counts.thumbs).toBe(2);
+  // S3：全部工程组多一条登记项 old-take（同样按需请求一次）；搜索往返仍不重复请求。
+  expect(counts.stats).toBe(3);
+  expect(counts.thumbs).toBe(3);
 });
 
 test('selection survives reload with both style and accessibility state', async ({ page }) => {
@@ -209,6 +211,118 @@ test('repeated right-clicks replace the menu without stale listeners', async ({ 
   expect(small.x + small.width).toBeLessThanOrEqual(900);
   expect(small.y + small.height).toBeLessThanOrEqual(600);
   await page.keyboard.press('Escape');
+});
+
+test('all-projects group registers beyond the recent list and stays in sync', async ({ page }) => {
+  await openHome(page);
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length > 0);
+
+  // S3/§5.1：两组独立折叠；全部工程包含最近视图之外的登记项（old-take.mosp）。
+  const names = await page.evaluate(() => ({
+    recent: Array.from(document.querySelectorAll('#recentGrid .recent-name')).map((n) => n.textContent),
+    all: Array.from(document.querySelectorAll('#allGrid .recent-name')).map((n) => n.textContent),
+  }));
+  expect(names.all).toEqual(expect.arrayContaining(['clip.mosp', 'intro.mosp', 'old-take.mosp']));
+  expect(names.recent).not.toContain('old-take.mosp');
+  expect(await page.locator('#allGroupTitle .home-group-label').textContent()).toContain('（3）');
+
+  // 同一工程两组出现：选择状态同步到两张卡（选择/图钉/封面按路径同步）。
+  await page.locator('#allGrid .recent-card').first().click();
+  expect(await page.locator('.recent-card.selected').count()).toBe(2);
+
+  // 图钉在封面固定角落（不在信息区显示文字徽标）。
+  const pin = await page.evaluate(() => {
+    const card = document.querySelector('#allGrid .recent-card.pinned');
+    const pinNode = card?.querySelector('.recent-cover .recent-pin');
+    return { inCover: Boolean(pinNode), label: pinNode?.getAttribute('aria-label') };
+  });
+  expect(pin.inCover).toBe(true);
+  expect(pin.label).toBe('已固定');
+});
+
+test('delete project file flow confirms scope, recycles, and reports; registry removal is separate', async ({ page }) => {
+  await openHome(page);
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length >= 3);
+
+  // 全部工程右键菜单区分三种移除语义；删除项为红色危险项并带垃圾桶图标。
+  const oldTake = page.locator('#allGrid .recent-card').nth(2);
+  expect(await oldTake.locator('.recent-name').textContent()).toBe('old-take.mosp');
+  await oldTake.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
+  await oldTake.click({ button: 'right' });
+  const menu = page.locator('#recentContextMenu');
+  const items = menu.locator('button[role="menuitem"]');
+  const labels = await items.evaluateAll((nodes) => nodes.map((node) => node.textContent));
+  expect(labels).toEqual(['打开工程', '固定到列表顶部', '打开所在文件夹', '刷新封面', '从全部工程记录移除', '删除工程文件…']);
+  const danger = menu.locator('button.danger');
+  await expect(danger).toHaveCount(1);
+  expect(await danger.locator('svg').count()).toBe(1);
+
+  // 确认对话框展示工程名、实际路径与删除范围；取消保留卡片。
+  await danger.click();
+  const message = await page.locator('#batchConfirmMessage').textContent();
+  expect(message).toContain('old-take.mosp');
+  expect(message).toContain('.assets');
+  await page.locator('#batchConfirmNo').click();
+  await expect(menu).toHaveCount(0);
+  expect(await page.evaluate(() => Array.from(document.querySelectorAll('#allGrid .recent-name')).some((n) => n.textContent === 'old-take.mosp'))).toBe(true);
+
+  // 确认后删除：请求指向该工程文件，卡片消失并给出回收站反馈。
+  await oldTake.click({ button: 'right' });
+  await menu.locator('button.danger').click();
+  await page.locator('#batchConfirmYes').click();
+  await page.waitForFunction(() => (window.__deleteRequests || []).length > 0);
+  const deleted = await page.evaluate(() => ({
+    gone: !Array.from(document.querySelectorAll('#allGrid .recent-name')).some((n) => n.textContent === 'old-take.mosp'),
+    notice: document.getElementById('homeNotice').textContent,
+    request: (window.__deleteRequests || [])[0],
+  }));
+  expect(deleted.gone).toBe(true);
+  expect(deleted.notice).toContain('已移入回收站');
+  expect(deleted.request).toContain('old-take.mosp');
+
+  // 「从全部工程记录移除」只移除登记：同工程保留在最近组。
+  const first = page.locator('#allGrid .recent-card').first();
+  const firstName = await first.locator('.recent-name').textContent();
+  await first.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
+  await first.click({ button: 'right' });
+  await menu.locator('button').filter({ hasText: '从全部工程记录移除' }).click();
+  await page.waitForFunction(() => (window.__registryRemovals || []).length > 0);
+  await page.waitForTimeout(400);
+  const after = await page.evaluate((name) => ({
+    allGone: !Array.from(document.querySelectorAll('#allGrid .recent-name')).some((n) => n.textContent === name),
+    recentKept: Array.from(document.querySelectorAll('#recentGrid .recent-name')).some((n) => n.textContent === name),
+  }), firstName);
+  expect(after.allGone).toBe(true);
+  expect(after.recentKept).toBe(true);
+});
+
+test('home groups collapse independently with memory and search counts both lists', async ({ page }) => {
+  await openHome(page);
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length > 0);
+
+  // 折叠全部工程：正文收起、底部显示将打开的目标、标题箭头态切换。
+  await page.locator('#allGrid .recent-card').first().click();
+  await page.locator('#allGroupTitle').click();
+  await expect(page.locator('#allGroupBody')).toBeHidden();
+  await expect(page.locator('#allGroupTitle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#allGroupTarget')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#recentGroupBody')).toBeVisible();
+
+  // 折叠状态记忆：切页返回后保持。
+  await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  await page.evaluate(() => window.MSWNavigation.show('home'));
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card, #allGroupTarget:not(.hidden)').length >= 0);
+  await expect(page.locator('#allGroupBody')).toBeHidden();
+
+  // 搜索作用于两组并显示命中/总数；最近组默认 6 条起步。
+  // （用 intro.mosp 而非 intro：演示 mock 给 old-take 的媒体名是 intro.mp4，会按媒体名命中。）
+  await page.locator('#allGroupTitle').click();
+  await page.locator('#recentSearch').fill('intro.mosp');
+  await expect(page.locator('#recentGrid .recent-card')).toHaveCount(1);
+  await expect(page.locator('#allGrid .recent-card')).toHaveCount(1);
+  await expect(page.locator('#allCount')).toContainText('/');
 });
 
 test('server conflicts surface a return-or-independent choice instead of silent reuse', async ({ page }) => {
