@@ -37,7 +37,10 @@
     toggle.innerHTML = '<svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     var index = document.createElement("span");
     index.className = "module-index";
-    head.append(toggle, index, heading);
+    // S6/§6.1：标题右侧参数摘要槽（逐模块更新，折叠不丢失）。
+    var summary = document.createElement("span");
+    summary.className = "module-summary";
+    head.append(toggle, index, heading, summary);
     card.prepend(head);
     var body = document.createElement("div");
     body.className = "module-body";
@@ -63,6 +66,58 @@
 
   function loadCollapse() {
     try { state.collapsed = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "{}") || {}; } catch (error) { state.collapsed = {}; }
+  }
+
+  // S6/§6.1：模块头参数摘要——一行只读状态，帮助折叠时辨识卡内容。
+  function basenameOf(value) {
+    var parts = String(value || "").split(/[\/]/);
+    return parts[parts.length - 1] || "";
+  }
+
+  function moduleSummary(moduleId) {
+    var el = function (id) { return document.getElementById(id); };
+    switch (moduleId) {
+      case "media": {
+        var path = (el("mediaPath")?.value || el("jsonPath")?.value || "").trim();
+        return path ? basenameOf(path) : "";
+      }
+      case "waveform":
+        return el("generateSpectral")?.checked ? t("summary_spectral_on") : t("summary_spectral_off");
+      case "asr": {
+        var provider = el("provider")?.selectedOptions?.[0]?.textContent || "";
+        var model = el("model")?.value || "";
+        return provider ? provider + (model ? " · " + model : "") : "";
+      }
+      case "match": {
+        var script = el("postprocessScriptPath")?.value.trim() || "";
+        return script ? basenameOf(script) : t("summary_not_configured");
+      }
+      case "replace": {
+        var rules = (el("postprocessReplacements")?.value || "").split("\n").filter(function (line) { return line.trim(); }).length;
+        return rules ? t("summary_rules").replace("{n}", String(rules)) : t("summary_not_configured");
+      }
+      case "proofread":
+      case "resegment": {
+        var field = el(moduleId === "proofread" ? "postprocessPromptProofread" : "postprocessPromptResegment");
+        return field?.value.trim() ? t("summary_custom_prompt") : t("summary_default_prompt");
+      }
+      case "ocr": {
+        var video = el("ocrVideoPath")?.value.trim() || "";
+        return video ? basenameOf(video) : t("summary_auto_video");
+      }
+      case "translate": {
+        var target = el("autoTranslateTarget")?.value || "zh";
+        return target === "en" ? t("summary_target_en") : t("summary_target_zh");
+      }
+      case "alignment":
+        return t("alignment_manual_badge");
+      case "output": {
+        var dir = el("outputDirectory")?.value.trim() || "";
+        return dir ? dir : t("summary_default_output");
+      }
+      default:
+        return "";
+    }
   }
 
   var POSTPROCESS_MODULE_IDS = ["match", "replace", "proofread", "resegment", "ocr", "translate"];
@@ -105,6 +160,8 @@
       card.classList.toggle("collapsed", collapsed);
       var toggle = card.querySelector(".module-collapse");
       if (toggle) toggle.setAttribute("aria-expanded", String(!collapsed));
+      var summaryEl = card.querySelector(".module-summary");
+      if (summaryEl) summaryEl.textContent = moduleSummary(moduleId);
     });
     renderOrderChip(orderMap);
   }

@@ -3465,7 +3465,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         # 模块头：箭头左置（DOM 顺序 toggle → index → heading）、整头可点折叠、
         # 悬浮只点亮箭头不加底色、28px 命中区。
-        self.assertIn("head.append(toggle, index, heading)", workflow_script)
+        self.assertIn("head.append(toggle, index, heading, summary)", workflow_script)
         self.assertIn('event.target.closest("button, a, input, select, textarea")', workflow_script)
         self.assertIn(".module-head:hover .module-collapse", stylesheet)
         self.assertNotIn(".module-collapse:hover", stylesheet)
