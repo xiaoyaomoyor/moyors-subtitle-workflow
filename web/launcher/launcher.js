@@ -71,6 +71,19 @@
       home_target: "当前目标：{name}",
       server_advanced: "高级：直接指定工程与端口",
       recent_search_placeholder: "搜索工程名、媒体名或路径…",
+      mod_output: "输出",
+      output_card_hint: "自定义本次制作的输出位置；不开启输出模块时使用「更多设置 → 文件与输出」的默认策略。",
+      output_directory: "工程输出目录",
+      output_directory_placeholder: "默认：输入文件所在目录",
+      output_project_name: "工程文件名（不含扩展名）",
+      output_project_name_placeholder: "默认：与输入同名",
+      output_export_srt: "导出原文 SRT",
+      output_srt_hint: "原文 SRT 为完成所选整理步骤、翻译前的主字幕；识别输出的 SRT 位置跟随此字段。",
+      output_export_translated_srt: "导出译文 SRT",
+      output_translated_hint: "启用字幕翻译后可导出；译文与原文相互独立，不导出也能完成工程。",
+      output_open_settings: "在更多设置中配置默认输出策略",
+      open_project_result: "打开工程",
+      output_preview_label: "将输出工程：{path}",
       auto_enable_step: "启用文稿匹配",
       auto_enable_step_replace: "启用固定处理",
       auto_enable_step_proofread: "启用 LLM 校对",
@@ -224,7 +237,7 @@
       advanced: "高级选项",
       open_mswe: "启动字幕编辑器",
       server_stop: "停止服务器",
-      start: "生成字幕和工程",
+      start: "制作工程",
       open_folder: "打开输出文件夹",
       open_log_folder: "打开日志文件夹",
       open_html: "打开 html 编辑器",
@@ -339,6 +352,19 @@
       home_target: "Target: {name}",
       server_advanced: "Advanced: explicit project & port",
       recent_search_placeholder: "Search project, media, or path…",
+      mod_output: "Output",
+      output_card_hint: "Customize where this build writes its outputs; when the Output module is off, the default policy from More Settings → Files & output applies.",
+      output_directory: "Project output directory",
+      output_directory_placeholder: "Default: input file's folder",
+      output_project_name: "Project file name (without extension)",
+      output_project_name_placeholder: "Default: same as input",
+      output_export_srt: "Export original SRT",
+      output_srt_hint: "The original SRT is the main subtitle after the selected cleanup steps, before translation; ASR output follows this path.",
+      output_export_translated_srt: "Export translated SRT",
+      output_translated_hint: "Available when subtitle translation is enabled; translation and original exports are independent.",
+      output_open_settings: "Configure default output policy in More Settings",
+      open_project_result: "Open project",
+      output_preview_label: "Project will be written to: {path}",
       auto_enable_step: "Enable script match",
       auto_enable_step_replace: "Enable fixed processing",
       auto_enable_step_proofread: "Enable LLM proofreading",
@@ -492,7 +518,7 @@
       advanced: "Advanced options",
       open_mswe: "Launch Subtitle Editor",
       server_stop: "Stop server",
-      start: "Generate subtitles & project",
+      start: "Build project",
       open_folder: "Open output folder",
       open_log_folder: "Open log folder",
       open_html: "Open HTML editor",
@@ -614,14 +640,14 @@
     batch_duplicate: "文件已在当前列表内",
     batch_outcome_missing: "批量结束时未收到该文件的结果。",
     batch_manuscript_disabled: "批量模式不支持逐文件文稿映射。本次批量运行会跳过文稿匹配；单文件设置保持不变。",
-    batch_start: "开始批量生成",
+    batch_start: "批量制作工程",
     batch_stop: "停止全部",
     batch_srt_only: "只生成 SRT 字幕",
     batch_skip_completed_confirm: "队列中有已处理完成的文件。是否跳过已处理完成的文件？",
     batch_confirm_title: "确认",
     batch_confirm_yes: "是",
     batch_confirm_no: "否",
-    stop: "停止",
+    stop: "取消",
     batch_starting: "正在启动批量转写……",
     batch_running: "批量转写中……",
     batch_progress: "正在处理第 {current}/{total} 个文件：{name}",
@@ -1950,13 +1976,14 @@
     setRunning(false);
     if (event.status === "completed") {
       appendLog(t("waveform_project_done").replace("{path}", event.projectPath || ""));
-      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); }
+      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); revealProjectResult(event.projectPath); }
       setStatus(t("waveform_project_done_short"));
       if (Array.isArray(event.warnings) && event.warnings.length) event.warnings.forEach((warning) => appendLog(`[waveform] ${warning}`));
       return;
     }
-    if (event.status === "cancelled") { setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
+    if (event.status === "cancelled") { hideProjectResult(); setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
     if (event.status === "failed") {
+      hideProjectResult();
       setStatus(errText(event.code || "waveform_generation_failed", event.detail || event.error || ""));
       appendLog(`[waveform] ${errText(event.code || "waveform_generation_failed", event.detail || event.error || "")}`);
     }
@@ -1970,13 +1997,14 @@
     setRunning(false);
     if (event.status === "completed") {
       appendLog(t("prefab_plan_done").replace("{path}", event.projectPath || ""));
-      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); }
+      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); revealProjectResult(event.projectPath); }
       setStatus(t("prefab_plan_done_short"));
       if (Array.isArray(event.warnings)) event.warnings.forEach((warning) => appendLog(`[prefab] ${warning}`));
       return;
     }
-    if (event.status === "cancelled") { setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
+    if (event.status === "cancelled") { hideProjectResult(); setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
     if (event.status === "failed") {
+      hideProjectResult();
       const message = errText(event.code || "postprocess_failed", event.detail || event.error || "");
       setStatus(message);
       appendLog(`[prefab] ${message}`);
@@ -2217,7 +2245,17 @@
     });
   }
 
-  function setRunning(running) { state.running = running; if (!running) { state.waveformTask = false; state.prefabTask = false; } syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : ""); }
+  // S5/§7.2：制作完成出现的「打开工程」——绑定该次任务返回的真实工程身份；
+  // 运行/失败/取消即隐藏，新任务完成前不显示上一轮产物。
+  function revealProjectResult(projectPath) {
+    const button = $("openProjectResult");
+    if (!button) return;
+    button.dataset.projectPath = String(projectPath || "");
+    button.classList.toggle("hidden", !projectPath);
+  }
+  function hideProjectResult() { $("openProjectResult")?.classList.add("hidden"); }
+
+  function setRunning(running) { state.running = running; if (!running) { state.waveformTask = false; state.prefabTask = false; } syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; if (running) hideProjectResult(); setStatus(running ? t("running") : ""); }
   function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(localizedSelectLabel(id, item), item.id))); el.value = value ?? ""; }
   function refillSelectLabels() {
     // 语言切换后，后端下发的下拉选项（供应商/模型/地域/语言）与说明行需要按新语言重建。
@@ -3148,6 +3186,7 @@
     }
     if (event.type === "error") {
       setRunning(false);
+      hideProjectResult();
       $("retryPostprocess")?.classList.toggle("hidden", !event.canRetry);
       if (event.originalSrtPath) $("srtPath").value = String(event.originalSrtPath);
       if (event.originalProjectPath) $("jsonPath").value = String(event.originalProjectPath);
@@ -3167,6 +3206,7 @@
       $("retryPostprocess")?.classList.add("hidden");
       if (event.result?.srtPath) $("srtPath").value = event.result.srtPath;
       setJsonPath(event.result?.jsonPath || "");
+      revealProjectResult(event.result?.jsonPath || "");
       $("openMawe").classList.add("attention");
       $("openFolder").classList.remove("hidden");
       syncHtmlMenu();
@@ -3398,6 +3438,13 @@
     if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); }
   });
   $("retryPostprocess").addEventListener("click", async () => { hideErrorNotice(); $("retryPostprocess").classList.add("hidden"); setRunning(true); const result = await bridge("retry_postprocess"); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } });
+  $("openProjectResult")?.addEventListener("click", () => {
+    const projectPath = $("openProjectResult")?.dataset.projectPath || "";
+    if (!projectPath) return;
+    setJsonPath(projectPath);
+    window.MSWNavigation?.show("home");
+    void openServerEditor();
+  });
   $("openMawe").addEventListener("click", openServerEditor); $("stopServer").addEventListener("click", stopEditorServer); $("openFolder").addEventListener("click", () => bridge("open_output_folder")); $("openLogFolder").addEventListener("click", () => bridge("open_log_folder"));
   $("openMenu").addEventListener("click", () => $("htmlMenu").classList.toggle("hidden")); $("openHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_html"); }); $("openBlankHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_blank_html"); }); document.addEventListener("click", (event) => { if (!event.target.closest(".split-wrap")) $("htmlMenu").classList.add("hidden"); });
   $("mediaCard").addEventListener("dragenter", onDragEnter); $("mediaCard").addEventListener("dragleave", onDragLeave);

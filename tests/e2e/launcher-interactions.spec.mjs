@@ -170,7 +170,12 @@ test('does not start local transcription while model status is still checking', 
   await page.locator('#provider').selectOption('local');
   await expect(page.locator('#localModelPanel')).toBeVisible();
   await page.locator('#mediaPath').fill('D:\\Demo\\clip.mp4');
-  await page.locator('#srtPath').fill('D:\\Demo\\clip.local.srt');
+  // S5：SRT 输出字段迁入输出卡——经表单状态直接设置（输出卡未启用时不阻塞用例语义）。
+  await page.evaluate(() => {
+    const field = document.getElementById('srtPath');
+    field.disabled = false;
+    field.value = 'D:\\Demo\\clip.local.srt';
+  });
 
   // R4/F09：识别默认关闭；本用例验证转录管线，先显式启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();

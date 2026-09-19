@@ -77,6 +77,7 @@
       { moduleId: "asr", visible: enabled("asr") },
     ];
     POSTPROCESS_MODULE_IDS.forEach(function (id) { cards.push({ moduleId: id, visible: enabled(id) }); });
+    cards.push({ moduleId: "output", visible: enabled("output") });
     cards.push({ moduleId: "alignment", visible: enabled("alignment") });
     var logVisible = window.MSWModules ? window.MSWModules.isLogCardEnabled() : false;
     if (logVisible) {

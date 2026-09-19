@@ -3647,6 +3647,43 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("delete_project_done", launcher_script)
         self.assertIn("仅把这个工程文件移入回收站", launcher_script)
 
+    def test_launcher_s5_output_and_result_contracts(self) -> None:
+        """S5/§7：输出卡、制作按钮靠右、打开工程绑定产物与导出开关契约。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        postprocess_script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
+        plan_script = (ROOT / "web" / "launcher" / "plan.js").read_text(encoding="utf-8")
+        modules_script = (ROOT / "web" / "launcher" / "modules.js").read_text(encoding="utf-8")
+        pipeline_source = (ROOT / "maw" / "postprocess_pipeline.py").read_text(encoding="utf-8")
+
+        # 输出模块卡：目录/主名/预览/两个导出开关；SRT 字段从媒体卡迁入。
+        for element_id in ("outputCard", "outputDirectory", "pickOutputDirectory", "outputProjectName",
+                           "outputProjectPreview", "outputExportSrt", "srtPath", "outputExportTranslatedSrt", "outputTranslatedField"):
+            self.assertIn(f'id="{element_id}"', page, element_id)
+        self.assertEqual(page.count('data-module-card="output"'), 1)
+        self.assertIn('id: "output", group: "advanced"', modules_script)
+        media_card = page[page.index('data-module-card="media"'):page.index('data-module-card="waveform"')]
+        self.assertNotIn('label for="srtPath"', media_card)  # §6.2：媒体卡不再有 SRT 输出
+        # 方案与后处理计划携带导出契约。
+        self.assertIn("exportSrt:", plan_script)
+        self.assertIn("outputStem:", postprocess_script)
+        self.assertIn('export_srt=bool(normalized.get("exportSrt", True))', pipeline_source)
+        self.assertIn('output_directory=str(normalized.get("outputDirectory") or "")', pipeline_source)
+        # 页脚：制作工程靠右（spacer 在重试/打开文件夹后、按钮组前），打开工程绑定产物。
+        self.assertIn('id="openProjectResult"', page)
+        self.assertIn("制作工程", launcher_script)
+        self.assertIn("批量制作工程", launcher_script)
+        self.assertIn("revealProjectResult", launcher_script)
+        self.assertIn("hideProjectResult", launcher_script)
+        self.assertIn("dataset.projectPath", launcher_script)
+        footer = page[page.index('footer class="page-actions prefab-footer"'):]
+        footer = footer[:footer.index("</footer>")]
+        self.assertLess(footer.index("footer-spacer"), footer.index('id="start"'))
+        # 完成事件绑定产物；运行/失败/取消隐藏。
+        self.assertIn("revealProjectResult(event.projectPath)", launcher_script)
+        self.assertIn("revealProjectResult(event.result?.jsonPath || \"\")", launcher_script)
+        self.assertIn("if (running) hideProjectResult()", launcher_script)
+
     def test_launcher_plan_drives_execution_contracts(self) -> None:
         """R4/§7.1：方案单一来源、新默认与三类输入执行链契约。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -4045,7 +4082,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         batch_script = (ROOT / "web" / "launcher" / "batch.js").read_text(encoding="utf-8")
 
         self.assertIn('id="stop" class="ghost server-stop hidden"', page)
-        self.assertIn('data-i18n="batch_start">开始批量生成', page)
+        self.assertIn('data-i18n="batch_start">批量制作工程', page)
         self.assertIn('id="batchSrtOnly" type="checkbox"', page)
         self.assertIn('bridge("cancel_transcription")', script)
         self.assertIn('batchSrtOnly', batch_script)

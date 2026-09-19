@@ -31,6 +31,9 @@ test('output settings retain the inactive per-media preference and preserve an e
   await page.locator('#attachModelName').uncheck();
   await expect(page.locator('#srtPath')).toHaveValue('D:\\Demo\\clip.srt');
   await page.keyboard.press('Escape');
+  // S5：SRT 输出字段迁入输出卡——启用输出模块后显式填写路径（显式路径不被默认策略改写）。
+  await page.locator('#prefabRail input[data-module-id="output"]').check();
+  await page.locator('#srtPath').scrollIntoViewIfNeeded();
   await page.locator('#srtPath').fill('E:\\我的输出\\chosen.srt');
   await page.locator('#srtPath').dispatchEvent('input');
   await page.locator('[data-nav-page="settings"]').click();

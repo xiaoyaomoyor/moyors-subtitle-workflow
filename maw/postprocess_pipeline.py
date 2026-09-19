@@ -97,6 +97,11 @@ def normalize_plan(raw: object) -> dict[str, object]:
         "version": POSTPROCESS_PLAN_VERSION,
         "enabled": bool(raw.get("enabled")),
         "retainIntermediate": bool(raw.get("retainIntermediate")),
+        # S5/§7.1：输出契约随方案走——工程/SRT 各自独立导出；目录与主名可选覆盖。
+        "exportSrt": bool(raw.get("exportSrt", True)),
+        "exportTranslatedSrt": bool(raw.get("exportTranslatedSrt", True)),
+        "outputDirectory": str(raw.get("outputDirectory") or "").strip(),
+        "outputStem": str(raw.get("outputStem") or "").strip(),
         "steps": [],
     }
     by_id: dict[str, Mapping[str, object]] = {}
@@ -369,7 +374,8 @@ def validate_plan(
 @dataclass(frozen=True, slots=True)
 class PipelineResult:
     project_path: Path
-    srt_path: Path
+    # S5/§7.1：原文/译文 SRT 独立导出——不导出时为 None（工程仍是合法产物）。
+    srt_path: Path | None
     run_directory: Path
     completed_steps: tuple[str, ...]
     warnings: tuple[str, ...] = ()
@@ -583,6 +589,10 @@ def run_postprocess_pipeline(
             bilingual=bilingual_output,
             ui_language=language,
             warnings=warnings,
+            export_srt=bool(normalized.get("exportSrt", True)),
+            export_translated_srt=bool(normalized.get("exportTranslatedSrt", True)),
+            output_directory=str(normalized.get("outputDirectory") or ""),
+            output_stem=str(normalized.get("outputStem") or ""),
         )
         manifest["status"] = "done"
         manifest["finalProjectPath"] = str(final_project)
@@ -598,7 +608,7 @@ def run_postprocess_pipeline(
             "total": len(steps),
             "elapsedSeconds": round(pipeline_elapsed, 3),
             "projectName": final_project.name,
-            "srtName": final_srt.name,
+            "srtName": final_srt.name if final_srt is not None else "",
             "translatedSrtName": final_translated_srt.name if final_translated_srt is not None else "",
         })
         result = PipelineResult(final_project, final_srt, run_directory, tuple(completed), tuple(warnings), final_translated_srt)
@@ -986,34 +996,47 @@ def _publish_final(
     bilingual: bool = False,
     ui_language: str | None = None,
     warnings: list[str] | None = None,
-) -> tuple[Path, Path, Path | None]:
+    export_srt: bool = True,
+    export_translated_srt: bool = True,
+    output_directory: str = "",
+    output_stem: str = "",
+) -> tuple[Path, Path | None, Path | None]:
     source_srt = source_srt.expanduser().resolve()
     source_project = source_project.expanduser().resolve()
     suffix = source_project.suffix.lower() if source_project.suffix.lower() in {".mosp", ".json"} else ".mosp"
     bilingual_suffix = (
         f".{translation_marker_name('bilingual', lang=ui_language)}" if bilingual else ""
     )
-    base = source_srt.with_name(f"{source_srt.stem}{operation_suffix('postprocess', lang=ui_language)}{bilingual_suffix}")
+    # S5/§7.1：自定义输出目录/主名覆盖默认「源 SRT 同目录+后缀」命名。
+    directory = Path(output_directory).expanduser() if output_directory else source_srt.parent
+    stem = output_stem or f"{source_srt.stem}{operation_suffix('postprocess', lang=ui_language)}{bilingual_suffix}"
+    base = directory / stem
     counter = 1
     while True:
         marker = "" if counter == 1 else f"-{counter}"
         final_srt = base.with_name(f"{base.name}{marker}.srt")
         final_project = base.with_name(f"{base.name}{marker}{suffix}")
         final_translated_srt = None
-        if translated_srt is not None:
+        if translated_srt is not None and export_translated_srt:
             target = translation_target if translation_target in TRANSLATION_TARGETS else "zh"
             final_translated_srt = base.with_name(
                 f"{base.name}{marker}{operation_suffix(f'translate-{target}', lang=ui_language)}.srt"
             )
-        destinations = (final_project, final_srt, final_translated_srt)
+        # 碰撞保护：只工程/工程+SRT/工程+译文 三种组合都不得覆盖任何已存在产物。
+        destinations = (final_project, final_srt if export_srt else None, final_translated_srt)
         if all(not path.exists() for path in destinations if path is not None):
-            _copy_atomic(srt, final_srt)
+            if export_srt:
+                _copy_atomic(srt, final_srt)
             asset_warnings = write_derived_project(read_project(project), final_project, project)
             if warnings is not None:
                 warnings.extend(asset_warnings)
             if translated_srt is not None and final_translated_srt is not None:
                 _copy_atomic(translated_srt, final_translated_srt)
-            return final_project.resolve(), final_srt.resolve(), final_translated_srt.resolve() if final_translated_srt is not None else None
+            return (
+                final_project.resolve(),
+                final_srt.resolve() if export_srt else None,
+                final_translated_srt.resolve() if final_translated_srt is not None else None,
+            )
         counter += 1
 
 

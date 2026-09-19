@@ -972,6 +972,11 @@
       version: 1,
       enabled: steps.some((step) => step.enabled),
       retainIntermediate: Boolean($("autoPostprocessRetain")?.checked),
+      // S5/§7.1：输出契约随方案走——导出开关与自定义目录/主名（输出模块关闭时为默认值）。
+      exportSrt: Boolean($("outputExportSrt")?.checked ?? true),
+      exportTranslatedSrt: Boolean($("outputExportTranslatedSrt")?.checked ?? true),
+      outputDirectory: $("outputDirectory")?.value.trim() || "",
+      outputStem: $("outputProjectName")?.value.trim() || "",
       steps,
     };
   }
@@ -1663,6 +1668,44 @@
       if (status) status.textContent = t("alignment_result_attached");
     }
   });
+
+  // S5/§7.1：输出卡联动——译文行随翻译模块显隐、SRT 框随导出开关可用、预览随输入更新。
+  function updateOutputCardState() {
+    const translateOn = Boolean($("autoStepTranslate")?.checked);
+    $("outputTranslatedField")?.classList.toggle("hidden", !translateOn);
+    const exportSrt = Boolean($("outputExportSrt")?.checked ?? true);
+    const srtField = $("srtPath");
+    if (srtField) srtField.disabled = !exportSrt;
+    updateOutputPreview();
+  }
+  function updateOutputPreview() {
+    const preview = $("outputProjectPreview");
+    if (!preview) return;
+    const input = $("mediaPath").value.trim() || $("jsonPath").value.trim();
+    const directory = $("outputDirectory")?.value.trim() || "";
+    const name = $("outputProjectName")?.value.trim() || "";
+    if (!directory && !name) { preview.textContent = ""; return; }
+    const base = directory || (input ? input.replace(/[\\/][^\\/]+$/u, "") : "");
+    const stem = name || (input ? input.replace(/^.*[\\/]/u, "").replace(/\.[^.]+$/u, "") : "");
+    preview.textContent = base && stem ? t("output_preview_label").replace("{path}", `${base}\\${stem}.mosp`) : "";
+  }
+  ["outputDirectory", "outputProjectName"].forEach((id) => {
+    $(id)?.addEventListener("input", () => { updateOutputPreview(); persistAutoPlanSoon(); });
+  });
+  $("outputExportSrt")?.addEventListener("change", () => { updateOutputCardState(); persistAutoPlanSoon(); });
+  $("outputExportTranslatedSrt")?.addEventListener("change", () => persistAutoPlanSoon());
+  $("pickOutputDirectory")?.addEventListener("click", async () => {
+    const result = await bridge("choose_folder", {});
+    if (result && result.ok && result.path) {
+      $("outputDirectory").value = result.path;
+      updateOutputPreview();
+      persistAutoPlanSoon();
+    }
+  });
+  $("openOutputSettings")?.addEventListener("click", () => window.MSWLauncher.openSettings("filesPanel"));
+  // 渲染状态时同步输出卡（函数声明可在闭包内重写以挂钩）。
+  const baseRenderAutoState = renderAutoPostprocessState;
+  renderAutoPostprocessState = function () { baseRenderAutoState(); updateOutputCardState(); };
 
   window.MSWLauncher.getAutoPostprocessPayload = autoPlanFromControls;
   window.MSWLauncher.onLanguageChanged = () => {

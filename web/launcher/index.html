@@ -233,12 +233,6 @@
             <select id="audioTrack" aria-describedby="audioTrackHint"></select>
             <p id="audioTrackHint" class="hint" data-i18n="audio_track_hint">检测到多个声音轨道，请选择用于转写和波形的轨道。</p>
           </div>
-          <div class="field">
-            <label for="srtPath" data-i18n="srt_output">SRT 输出</label>
-            <input id="srtPath" type="text" autocomplete="off">
-            <p id="srtPathError" class="field-error"></p>
-            <p id="srtPathNotice" class="hint warn hidden" aria-live="polite"></p>
-          </div>
           <!-- 当前以 Server 版编辑器为主；单文件 HTML 入口保留兼容，但暂不在 Launcher 中开放。 -->
           <label class="check-field generate-html hidden" for="generateHtml" data-i18n-title="generate_html_title" hidden>
             <input id="generateHtml" type="checkbox">
@@ -743,6 +737,44 @@
           <p class="hint llm-service-line"><span id="llmServiceSummaryTranslate"></span> <button class="inline-link open-llm-settings" type="button" data-i18n="toolbox_open_settings">在更多设置中配置 API Key</button></p>
         </section>
 
+        <!-- S5/§7.1：输出为可选自定义配置卡（默认关闭用「更多设置→文件与输出」默认策略） -->
+        <section id="outputCard" class="card module-card" data-module-card="output" aria-labelledby="outputCardTitle">
+          <h2 id="outputCardTitle" data-i18n="mod_output">输出</h2>
+          <p class="hint" data-i18n="output_card_hint">自定义本次制作的输出位置；不开启输出模块时使用「更多设置 → 文件与输出」的默认策略。</p>
+          <div class="field">
+            <label for="outputDirectory" data-i18n="output_directory">工程输出目录</label>
+            <div class="path-row">
+              <input id="outputDirectory" type="text" autocomplete="off" data-i18n-placeholder="output_directory_placeholder" placeholder="默认：输入文件所在目录">
+              <button id="pickOutputDirectory" class="ghost" type="button" data-i18n="choose_folder">选择文件夹</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="outputProjectName" data-i18n="output_project_name">工程文件名（不含扩展名）</label>
+            <input id="outputProjectName" type="text" autocomplete="off" data-i18n-placeholder="output_project_name_placeholder" placeholder="默认：与输入同名">
+            <p id="outputProjectPreview" class="hint" aria-live="polite"></p>
+          </div>
+          <div class="field">
+            <label class="check-field" for="outputExportSrt">
+              <input id="outputExportSrt" type="checkbox" checked>
+              <span data-i18n="output_export_srt">导出原文 SRT</span>
+            </label>
+            <div id="srtPathField" class="path-row">
+              <input id="srtPath" type="text" autocomplete="off">
+            </div>
+            <p id="srtPathError" class="field-error"></p>
+            <p id="srtPathNotice" class="hint warn hidden" aria-live="polite"></p>
+            <p class="hint" data-i18n="output_srt_hint">原文 SRT 为完成所选整理步骤、翻译前的主字幕；识别输出的 SRT 位置跟随此字段。</p>
+          </div>
+          <div class="field hidden" id="outputTranslatedField">
+            <label class="check-field" for="outputExportTranslatedSrt">
+              <input id="outputExportTranslatedSrt" type="checkbox">
+              <span data-i18n="output_export_translated_srt">导出译文 SRT</span>
+            </label>
+            <p class="hint" data-i18n="output_translated_hint">启用字幕翻译后可导出；译文与原文相互独立，不导出也能完成工程。</p>
+          </div>
+          <p class="hint"><button id="openOutputSettings" class="inline-link" type="button" data-i18n="output_open_settings">在更多设置中配置默认输出策略</button></p>
+        </section>
+
         <!-- S4/§6.4：口播对齐独立卡（人工步骤：入口直达实用工具页同一面板，结果可接回） -->
         <section id="alignmentCard" class="card module-card" data-module-card="alignment" aria-labelledby="alignmentCardTitle">
           <h2 id="alignmentCardTitle" data-i18n="mod_alignment">口播对齐</h2>
@@ -807,13 +839,15 @@
             <div id="progress" class="progress hidden" aria-hidden="true"><span></span></div>
             <p id="logLatest" class="log-latest hidden" aria-live="polite"></p>
           </div>
-        <button id="start" class="primary" type="button" data-i18n="start">生成字幕和工程</button>
-        <button id="stop" class="ghost server-stop hidden" type="button" data-i18n="stop">停止</button>
-        <button id="startBatch" class="primary hidden" type="button" data-i18n="batch_start">开始批量生成</button>
-        <button id="stopBatch" class="ghost server-stop hidden" type="button" data-i18n="batch_stop">停止全部</button>
-        <span class="footer-spacer"></span>
         <button id="retryPostprocess" class="ghost hidden" type="button" data-i18n="retry_postprocess">从失败步骤重试后处理</button>
         <button id="openFolder" class="ghost hidden" type="button" data-i18n="open_folder">打开输出文件夹</button>
+        <span class="footer-spacer"></span>
+        <!-- S5/§7.2：主按钮「制作工程」靠右；完成后其右侧出现绑定该次产物的「打开工程」。 -->
+        <button id="openProjectResult" class="primary hidden" type="button" data-i18n="open_project_result">打开工程</button>
+        <button id="start" class="primary" type="button" data-i18n="start">制作工程</button>
+        <button id="stop" class="ghost server-stop hidden" type="button" data-i18n="stop">取消</button>
+        <button id="startBatch" class="primary hidden" type="button" data-i18n="batch_start">批量制作工程</button>
+        <button id="stopBatch" class="ghost server-stop hidden" type="button" data-i18n="batch_stop">停止全部</button>
       </footer>
     </section>
 

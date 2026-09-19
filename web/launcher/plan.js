@@ -47,7 +47,14 @@
       },
       // 后处理方案（步骤参数、输出模式、翻译目标）来自「转写后自动处理」的既有保存链。
       postprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null,
-      output: { srtPath: (el("srtPath")?.value || "").trim() },
+      // S5/§7.1：输出契约——导出开关与自定义目录/主名（输出模块关闭时为空=默认策略）。
+      output: {
+        srtPath: (el("srtPath")?.value || "").trim(),
+        directory: (el("outputDirectory")?.value || "").trim(),
+        projectName: (el("outputProjectName")?.value || "").trim(),
+        exportSrt: el("outputExportSrt") ? el("outputExportSrt").checked : true,
+        exportTranslatedSrt: el("outputExportTranslatedSrt") ? el("outputExportTranslatedSrt").checked : true,
+      },
     };
   }
 

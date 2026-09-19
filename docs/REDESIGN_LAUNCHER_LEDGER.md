@@ -26,6 +26,25 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## S5：输出契约与制作结果（二轮修正 2026-09-16 第五批）
+
+状态：已完成（2026-09-16）。依据二轮修正方案 §10 S5 与 §7；基线 ab3293c。对应反馈 7、14。
+
+改动：
+
+1. **输出模块卡**（右栏 advanced 模块，默认关=设置·文件与输出默认策略）：工程输出目录（文件夹选择）+工程文件名+.mosp 预览+「导出原文 SRT」开关（SRT 字段自媒体卡迁入，关闭时禁用）+「导出译文 SRT」开关（仅翻译启用时显示）+默认策略深链；媒体卡不再有 SRT 输出字段（§6.2）。
+2. **后端**：normalize_plan 保留 exportSrt/exportTranslatedSrt/outputDirectory/outputStem（缺省 True/空）；_publish_final 四组合独立发布（不导出即不落盘）、自定义目录/主名、碰撞保护覆盖所有组合；PipelineResult.srt_path 放宽 Optional。
+3. **方案携带**：plan.output 与后处理方案（getAutoPostprocessPayload）同字段——转录链自动后处理同样消费。
+4. **页脚**：主按钮「制作工程」靠右（spacer 前移）；批量「批量制作工程」；停止→取消。
+5. **打开工程**：完成后主按钮右侧出现，绑定该次任务产物（waveform/prefab 的 projectPath、转录 done 的 jsonPath），点击=设目标+回首页+启动编辑器；运行中/失败/取消隐藏（不冒充上一轮）。
+
+验证（2026-09-16）：
+
+- 探针 10/10；e2e launcher 83/83（upgrade-bc/interactions 输出字段用例适配）；pipeline 30 项 OK（新增导出开关四组合+自定义目录单测）；test_gui_web 251 OK（新增 S5 契约）；全量 discover 1612 OK（skipped=63）；ruff 全绿。
+- 过程修复：全局 choose_folder mock 劫持运行时目录选择（改 bridgeOverride 拦截验证）；PipelineResult 字段顺序变动破坏位置实参（恢复原序仅放宽类型）。
+
+未验证（如实记录）：模块头参数摘要（结构预留，随 S6）；批量每输入预览 UI（防碰撞已有）；真实多步链路的翻译前原文语义（代码序保证，S6 原生验证）。
+
 ## S4：独立模块、波形、口播对齐和可选日志（二轮修正 2026-09-16 第四批）
 
 状态：已完成（2026-09-16）。依据二轮修正方案 §10 S4 与 §6/§3.3；基线 9c65c52。对应反馈 6、8、9、13 与 ASR 波形开关遗漏（实施前复核属实）。

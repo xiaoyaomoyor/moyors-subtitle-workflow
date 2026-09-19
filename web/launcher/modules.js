@@ -24,6 +24,7 @@
     { id: "ocr", group: "subtitle", defaultOn: false, labelKey: "mod_ocr", order: 80, control: "autoStepOcr" },
     { id: "translate", group: "language", defaultOn: false, labelKey: "mod_translate", order: 90, control: "autoStepTranslate" },
     // 对齐是人工交互步骤：不进自动执行链，作为独立入口表达（R4/F10）。
+    { id: "output", group: "advanced", defaultOn: false, labelKey: "mod_output", order: 95 },
     { id: "alignment", group: "advanced", defaultOn: false, labelKey: "mod_alignment", order: 100, external: true },
   ];
 

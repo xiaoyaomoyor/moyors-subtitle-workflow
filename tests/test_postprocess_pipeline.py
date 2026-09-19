@@ -512,6 +512,60 @@ class PostprocessPipelineTests(unittest.TestCase):
         self.assertEqual(errors, ())
         self.assertNotIn("apiKey", json.dumps(plan, ensure_ascii=False))
 
+    def test_publish_gates_original_and_translated_srt_independently(self) -> None:
+        """S5/§7.1：只工程/工程+原文/工程+译文/三者同时——导出开关独立生效。"""
+        from maw.postprocess_pipeline import _publish_final
+
+        with tempfile.TemporaryDirectory() as raw_dir:
+            root = Path(raw_dir)
+            source_srt = root / "clip.srt"
+            source_srt.write_text("1\n00:00:01,000 --> 00:00:02,000\n原文\n", encoding="utf-8")
+            source_project = root / "clip.mosp"
+            source_project.write_text(json.dumps({"segments": [{"id": "main-001", "start": 0, "end": 1000, "text": "原文"}]}, ensure_ascii=False), encoding="utf-8")
+            translated = root / "clip.zh.srt"
+            translated.write_text("1\n00:00:01,000 --> 00:00:02,000\n译文\n", encoding="utf-8")
+
+            def plan(**flags) -> dict[str, object]:
+                return {"enabled": True, "steps": [], **flags}
+
+            # 只工程：两个 SRT 都不导出。
+            project, srt, translated_out = _publish_final(source_project, source_srt, source_project, source_srt, translated_srt=translated, export_srt=False, export_translated_srt=False)
+            self.assertTrue(project.is_file())
+            self.assertIsNone(srt)
+            self.assertIsNone(translated_out)
+            self.assertFalse((root / "clip.postprocess.srt").exists())
+
+            # 工程+译文：原文不导出，译文导出。
+            project2, srt2, translated2 = _publish_final(source_project, source_srt, source_project, source_srt, translated_srt=translated, export_srt=False, export_translated_srt=True, output_stem="only-translated")
+            self.assertIsNone(srt2)
+            self.assertIsNotNone(translated2)
+            self.assertTrue(translated2.is_file())
+            self.assertTrue(project2.is_file())
+
+            # 自定义目录/主名：全部产物落在指定位置。
+            custom = root / "Custom"
+            project3, srt3, translated3 = _publish_final(source_project, source_srt, source_project, source_srt, translated_srt=translated, export_srt=True, export_translated_srt=True, output_directory=str(custom), output_stem="my-name")
+            self.assertEqual(project3.parent, custom)
+            self.assertEqual(srt3.parent, custom)
+            self.assertTrue(srt3.name.startswith("my-name"))
+            self.assertTrue(project3.name.startswith("my-name"))
+            self.assertTrue(translated3.name.startswith("my-name"))
+
+    def test_normalize_plan_preserves_output_contract_fields(self) -> None:
+        """S5/§7.1：输出契约字段随方案归一化保留；缺省导出开关为 True。"""
+        from maw.postprocess_pipeline import normalize_plan
+
+        defaults = normalize_plan({"enabled": False})
+        self.assertTrue(defaults["exportSrt"])
+        self.assertTrue(defaults["exportTranslatedSrt"])
+        self.assertEqual(defaults["outputDirectory"], "")
+
+        custom = normalize_plan({"enabled": True, "exportSrt": False, "exportTranslatedSrt": False, "outputDirectory": "E:\Out", "outputStem": "name"})
+        self.assertFalse(custom["exportSrt"])
+        self.assertFalse(custom["exportTranslatedSrt"])
+        self.assertEqual(custom["outputDirectory"], "E:\Out")
+        self.assertEqual(custom["outputStem"], "name")
+
     def test_pipeline_publishes_final_and_removes_successful_workspace_by_default(self) -> None:
         events: list[dict[str, object]] = []
         result = run_postprocess_pipeline(
