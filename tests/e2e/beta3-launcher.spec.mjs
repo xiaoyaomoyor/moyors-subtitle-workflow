@@ -20,8 +20,14 @@ test('Markdown and punctuation changes refresh both previews and discard late re
       return original(method,payload);
     };
   });
-  await page.evaluate(() => window.MSWLauncher.openToolbox());await page.locator('#toolboxMatchTab').click();
-  await page.locator('#toolboxInputPath').fill('D:\\Demo\\clip.mosp');
+  // S4：文稿匹配配置在预制页独立卡内。
+  await page.locator('#prefabRail input[data-module-id="match"]').check();
+  await page.locator('[data-module-card="match"]').waitFor();
+  await page.evaluate(() => {
+    const json = document.getElementById('jsonPath');
+    json.value = 'D:\\Demo\\clip.mosp';
+    json.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await page.locator('#postprocessScriptPath').fill('D:\\Demo\\slow.md');
   await page.locator('#postprocessScriptPath').fill('D:\\Demo\\new.md');
   await expect(page.locator('#postprocessScriptPreviewText')).toContainText('new.md clean');

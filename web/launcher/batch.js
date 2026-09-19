@@ -186,7 +186,7 @@
 
   function lockControls(locked) {
     window.MSWLauncher.onBatchBusyChanged?.(locked);
-    ["mediaCard", "recognitionCard", "autoPostprocessCard"].forEach((id) => {
+    ["mediaCard", "recognitionCard", "waveformCard", "matchCard", "replaceCard", "proofreadCard", "resegmentCard", "ocrCard", "translateCard", "alignmentCard"].forEach((id) => {
       $(id).querySelectorAll("button, input, select, textarea").forEach((control) => {
         control.disabled = locked;
       });

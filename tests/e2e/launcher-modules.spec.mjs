@@ -94,7 +94,9 @@ test('postprocess module toggles sync with auto step checkboxes', async ({ page 
   await expect(proofread).toBeChecked();
   await expect.poll(() => page.evaluate(() => MSWModules.isEnabled('proofread'))).toBe(true);
   await expect(page.locator('[data-auto-step-row="proofread"]')).toHaveClass(/needs-config/);
-  await expect(page.locator('[data-module-card="postprocess"]')).toBeVisible();
+  // S4：勾选即出现该模块的独立配置卡（LLM 卡内含提示词与服务摘要行）。
+  await expect(page.locator('[data-module-card="proofread"]')).toBeVisible();
+  await expect(page.locator('#postprocessPromptProofread')).toBeVisible();
   await expect(page.locator('#llmSettingsSection')).toBeHidden();
 
   // 供应商就绪后行状态转为就绪，勾选与配置保留。

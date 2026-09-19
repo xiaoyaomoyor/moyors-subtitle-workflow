@@ -10,7 +10,6 @@
   var state = {
     inputMode: "media",       // media | project
     collapsed: {},            // module card id -> true
-    forcePostprocessCard: false, // 勾选被“未就绪”打回时保留配置卡显示引导
   };
 
   function el(id) { return document.getElementById(id); }
@@ -69,13 +68,22 @@
   var POSTPROCESS_MODULE_IDS = ["match", "replace", "proofread", "resegment", "ocr", "translate"];
 
   function renderCards() {
-    // 配置卡与模块并非一一对应：波形是执行层选项（无独立卡）；
-    // 「转写后自动处理」卡承载六项后处理模块，任一启用即显示。
+    // S4/§6.1：每个模块一张独立配置卡（波形/六后处理/对齐），处理日志可选且始终最后；
+    // 序号按可见卡动态连续编排，模块 ID 持久化。
+    var enabled = function (id) { return modules() ? modules().isEnabled(id) !== false : true; };
     var cards = [
       { moduleId: "media", visible: true },
-      { moduleId: "asr", visible: modules() ? modules().isEnabled("asr") : true },
-      { moduleId: "postprocess", visible: modules() ? (state.forcePostprocessCard || POSTPROCESS_MODULE_IDS.some(function (id) { return modules().isEnabled(id); })) : false },
+      { moduleId: "waveform", visible: enabled("waveform") },
+      { moduleId: "asr", visible: enabled("asr") },
     ];
+    POSTPROCESS_MODULE_IDS.forEach(function (id) { cards.push({ moduleId: id, visible: enabled(id) }); });
+    cards.push({ moduleId: "alignment", visible: enabled("alignment") });
+    var logVisible = window.MSWModules ? window.MSWModules.isLogCardEnabled() : false;
+    if (logVisible) {
+      cards.push({ moduleId: "log", visible: true });
+      // §6.5：日志卡首次显示默认折叠（用户展开后照常持久化）。
+      if (state.collapsed.log === undefined) state.collapsed.log = true;
+    }
     var orderMap = {};
     var next = 0;
     cards.forEach(function (card) {
@@ -84,13 +92,12 @@
       orderMap[card.moduleId] = next;
     });
     var allCards = document.querySelectorAll("[data-module-card]");
-    var anyHidden = false;
     allCards.forEach(function (card) {
       var moduleId = card.dataset.moduleCard;
       ensureCardHead(card, moduleId);
       var visibleNow = Boolean(orderMap[moduleId]);
       card.classList.toggle("module-hidden", !visibleNow);
-      if (!visibleNow) { anyHidden = true; return; }
+      if (!visibleNow) return;
       var indexEl = card.querySelector(".module-index");
       if (indexEl) indexEl.textContent = String(orderMap[moduleId]).padStart(2, "0");
       var collapsed = Boolean(state.collapsed[moduleId]);
@@ -111,10 +118,15 @@
   }
 
   function showLogCard() {
-    var logCard = el("logTitle")?.closest(".card");
-    if (!logCard) return;
-    setCollapsed("postprocess", state.collapsed["postprocess"]); // 重渲染不受影响
-    logCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    // S4/§6.5：启用日志复选（同步右栏）→ 展开并定位日志卡；不再强制滚动其他执行路径。
+    if (window.MSWModules && !window.MSWModules.isLogCardEnabled()) {
+      window.MSWModules.setLogCardEnabled(true);
+      window.MSWModules.renderRail();
+    }
+    state.collapsed.log = false;
+    renderCards();
+    var logCard = document.querySelector('[data-module-card="log"]');
+    if (logCard) logCard.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // ---------------- 输入方式 ----------------
@@ -200,10 +212,14 @@
     document.addEventListener("mswmodules", function (event) {
       var detail = event.detail || {};
       if (detail.rejected) {
-        // 勾选因缺少条件被打回：显示并展开「转写后自动处理」卡承载配置引导。
-        state.forcePostprocessCard = true;
-        if (state.collapsed.postprocess) setCollapsed("postprocess", false);
-        else renderCards();
+        // S4：勾选因缺少条件打回——对应模块卡已常驻（未勾选也显示配置引导），直接展开它。
+        var moduleId = detail.id || "";
+        if (moduleId && document.querySelector('[data-module-card="' + moduleId + '"]')) {
+          if (state.collapsed[moduleId]) setCollapsed(moduleId, false);
+          else renderCards();
+          return;
+        }
+        renderCards();
         return;
       }
       refresh();

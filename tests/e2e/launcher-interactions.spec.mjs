@@ -7,26 +7,13 @@ const launcherPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 async function openLauncher(page) {
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  await page.evaluate(() => window.MSWNavigation.show('prefab'));
   // B 阶段横向工作台：识别/媒体/后处理内容位于「预制工程」页。
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  await page.evaluate(() => window.MSWLauncher.openToolbox());
-}
-
-async function runReplacement(page, { outputMode = 'both' } = {}) {
-  const previousCount = await page.locator('.toolbox-chain-item').count();
-  await page.locator('#toolboxReplaceTab').click();
-  await page.locator('#toolboxInputPath').fill('D:\\Demo\\source.mosp');
-  await page.locator('#postprocessOutputMode').selectOption(outputMode);
-  await page.locator('#postprocessReplacements').fill('old => new');
-  await page.locator('#runFixedProcess').click();
-  await expect(page.locator('.toolbox-chain-item')).toHaveCount(previousCount + 1);
 }
 
 test('OpenAI ASR exposes official models and a conditional Custom model input', async ({ page }) => {
   await openLauncher(page);
-  // R4/F09：识别默认关闭；本用例操作识别表单，先关工具箱抽屉并启用识别模块。
-  await page.evaluate(() => window.MSWLauncher.closeToolbox());
+  // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.locator('#provider').selectOption('openai');
 
@@ -55,7 +42,8 @@ test('OpenAI ASR exposes official models and a conditional Custom model input', 
 
 test('OCR video source follows a newly dropped video media', async ({ page }) => {
   await openLauncher(page);
-  await page.locator('#toolboxOcrTab').click();
+  // S4：OCR 配置在预制页独立卡内（先启用模块使卡可见）。
+  await page.locator('#prefabRail input[data-module-id="ocr"]').check();
   await page.locator('#ocrVideoPath').fill('D:\\Demo\\1.mov');
   await page.evaluate(() => {
     const jsonPath = document.getElementById('jsonPath');
@@ -89,18 +77,9 @@ test('automatic OCR video source is not persisted as a manual override', async (
 
 test('translation merge option follows manual and automatic translation controls', async ({ page }) => {
   await openLauncher(page);
-  await page.locator('#toolboxLlmTab').click();
 
-  const manualOptions = page.locator('#postprocessTranslationOptions');
-  await expect(manualOptions).toBeHidden();
-  await expect(page.locator('#postprocessMergeBilingual')).not.toBeChecked();
-
-  await page.locator('#postprocessOperation').selectOption('translate_en');
-  await expect(manualOptions).toBeVisible();
-  await expect(page.locator('#postprocessMergeBilingual')).not.toBeChecked();
-  await page.locator('#postprocessOperation').selectOption('proofread');
-  await expect(manualOptions).toBeHidden();
-  await page.locator('#toolboxClose').click();
+  // S4：合并双语是翻译卡的固定选项（不再随手动操作面板显隐）。
+  await expect(page.locator('#autoTranslateMergeBilingual')).toHaveCount(1);
 
   await page.evaluate(() => {
     const provider = window.MSWLauncher.config.postprocessProviders.find((item) => item.id === 'deepseek');
@@ -114,10 +93,8 @@ test('translation merge option follows manual and automatic translation controls
   });
   // D 阶段模块化：后处理配置卡在任一后处理模块启用后出现；deepseek 已就绪，经右栏启用翻译模块。
   await page.locator('#prefabRail input[data-module-id="translate"]').check();
-  await page.locator('#autoPostprocessEnabled').check();
-  await page.locator('#autoStepTranslate').check();
-  await expect(page.locator('#autoTranslateTargetField')).toBeVisible();
-  await expect(page.locator('#autoTranslateMergeField')).toBeVisible();
+  await expect(page.locator('[data-module-card="translate"]')).toBeVisible();
+  await expect(page.locator('#autoTranslateTarget')).toBeVisible();
   await expect(page.locator('#autoTranslateMergeBilingual')).not.toBeChecked();
 
   await page.locator('#autoTranslateMergeBilingual').check();
@@ -240,8 +217,8 @@ test('keeps local runtime events working after the page learns that installation
 
 test('LLM settings refill the saved key and save only after a successful connection test', async ({ page }) => {
   await openLauncher(page);
-  await page.locator('#toolboxLlmTab').click();
-  await page.locator('#openLlmSettings').click();
+  // S4：LLM 连接配置在更多设置·服务与连接。
+  await page.evaluate(() => window.MSWLauncher.openSettings('llmSettingsSection'));
   await page.evaluate(async () => {
     await window.MSWLauncher.callBackend('save_postprocess_settings', {
       providerId: 'deepseek',
@@ -290,8 +267,8 @@ test('Custom provider labels and missing-key errors follow the selected language
   await page.locator('#langToggle').click();
   await expect(customOption).toHaveText('Custom (OpenAI-compatible)');
   await expect(settingsCustomOption).toHaveText('Custom (OpenAI-compatible)');
-  await page.locator('#toolboxLlmTab').click();
-  await page.locator('#openLlmSettings').click();
+  // S4：LLM 连接配置在更多设置·服务与连接。
+  await page.evaluate(() => window.MSWLauncher.openSettings('llmSettingsSection'));
   await page.evaluate(() => {
     window.MSWLauncher.callBackend = async (method) => (
       method === 'test_postprocess_connection'
@@ -327,8 +304,8 @@ test('Custom provider labels and missing-key errors follow the selected language
 
 test('LLM HTTP failures give provider-aware actions without showing the key', async ({ page }) => {
   await openLauncher(page);
-  await page.locator('#toolboxLlmTab').click();
-  await page.locator('#openLlmSettings').click();
+  // S4：LLM 连接配置在更多设置·服务与连接。
+  await page.evaluate(() => window.MSWLauncher.openSettings('llmSettingsSection'));
   await page.locator('#llmApiKey').fill('test-only-key');
   await page.evaluate(() => {
     window.__llmFailureStatus = 401;
@@ -698,36 +675,6 @@ test('FAQ open failures remain visible without an unhandled rejection', async ({
   await expect(page.locator('#log')).toContainText('open_issue: Issue page unavailable');
 });
 
-test('artifact rows localize type labels while preserving MOSP-first and SRT-only selection', async ({ page }) => {
-  await openLauncher(page);
-  await runReplacement(page);
-
-  const artifacts = page.locator('.toolbox-chain-file');
-  await expect(artifacts).toHaveCount(2);
-  await expect(artifacts.nth(0)).toHaveText('MOSP 工程');
-  await expect(artifacts.nth(1)).toHaveText('SRT 字幕');
-  await expect(artifacts.nth(0)).toHaveClass(/selected/);
-  await expect(page.locator('#toolboxInputPath')).toHaveValue('D:\\Demo\\source.fixed.mosp');
-  await expect(artifacts.nth(0)).toHaveAttribute('title', 'source.fixed.mosp\nD:\\Demo\\source.fixed.mosp');
-  await expect(artifacts.nth(0)).toHaveAttribute('aria-label', /MOSP 工程.*source\.fixed\.mosp.*D:\\Demo\\source\.fixed\.mosp/);
-
-  await page.locator('#langToggle').click();
-  await expect(artifacts.nth(0)).toHaveText('MOSP project');
-  await expect(artifacts.nth(1)).toHaveText('SRT subtitles');
-
-  await artifacts.nth(1).click();
-  await expect(page.locator('#toolboxInputPath')).toHaveValue('D:\\Demo\\clip.fixed.srt');
-  await expect(page.locator('#jsonPath')).toHaveValue('D:\\Demo\\source.fixed.mosp');
-  await expect(page.locator('#srtPath')).toHaveValue('D:\\Demo\\clip.fixed.srt');
-
-  await runReplacement(page, { outputMode: 'srt' });
-  const srtOnly = page.locator('.toolbox-chain-item').nth(1).locator('.toolbox-chain-file');
-  await expect(srtOnly).toHaveCount(1);
-  await expect(srtOnly).toHaveText('SRT subtitles');
-  await expect(srtOnly).toHaveClass(/selected/);
-  await expect(page.locator('#toolboxInputPath')).toHaveValue('D:\\Demo\\clip.fixed.srt');
-});
-
 test('server media accepts a dropped file even when batch mode is selected', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
@@ -755,155 +702,6 @@ test('server media accepts a dropped file even when batch mode is selected', asy
   await expect(page.locator('.batch-row')).toHaveCount(0);
 });
 
-test('artifact context menu exposes exactly three actions and closes on every required path', async ({ page }) => {
-  await openLauncher(page);
-  await runReplacement(page);
-  await page.locator('#langToggle').click();
-  await page.evaluate(() => {
-    window.__artifactCalls = [];
-    const callBackend = window.MSWLauncher.callBackend;
-    window.MSWLauncher.callBackend = async (method, payload) => {
-      if (['open_file', 'open_containing_folder'].includes(method)) {
-        window.__artifactCalls.push({ method, payload });
-        return { ok: true };
-      }
-      return callBackend(method, payload);
-    };
-  });
-
-  const project = page.locator('.toolbox-chain-file').nth(0);
-  const srt = page.locator('.toolbox-chain-file').nth(1);
-  await srt.click({ button: 'right' });
-  const menu = page.getByRole('menu', { name: 'Artifact actions' });
-  await expect(menu).toBeVisible();
-  await expect(menu.getByRole('menuitem')).toHaveCount(3);
-  await expect(menu.getByRole('menuitem').nth(0)).toBeFocused();
-  await menu.getByRole('menuitem', { name: 'Set as processing target' }).click();
-  await expect(menu).toBeHidden();
-  await expect(page.locator('#toolboxInputPath')).toHaveValue('D:\\Demo\\clip.fixed.srt');
-
-  await srt.click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Open containing folder' }).click();
-  await srt.click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Open file', exact: true }).click();
-  expect(await page.evaluate(() => window.__artifactCalls)).toEqual([
-    { method: 'open_containing_folder', payload: { path: 'D:\\Demo\\clip.fixed.srt' } },
-    { method: 'open_file', payload: { path: 'D:\\Demo\\clip.fixed.srt' } },
-  ]);
-
-  await srt.click({ button: 'right' });
-  await page.keyboard.press('Escape');
-  await expect(menu).toBeHidden();
-  await expect(srt).toBeFocused();
-
-  await srt.click({ button: 'right' });
-  await page.locator('#toolboxTitle').click();
-  await expect(menu).toBeHidden();
-
-  await srt.click({ button: 'right' });
-  await project.click({ button: 'right' });
-  await expect(page.getByRole('menu')).toHaveCount(1);
-  await expect(menu).toBeVisible();
-
-  const nativeContext = await page.locator('#toolboxTitle').evaluate((element) => {
-    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
-    element.dispatchEvent(event);
-    return event.defaultPrevented;
-  });
-  expect(nativeContext).toBe(false);
-});
-
-test('artifact context menu remains inside the viewport and reports failed bridge actions', async ({ page }) => {
-  await openLauncher(page);
-  await runReplacement(page);
-  await page.locator('#langToggle').click();
-  await page.evaluate(() => {
-    window.MSWLauncher.callBackend = async (method) => (
-      method === 'open_file' ? { ok: false, error: 'File does not exist' } : { ok: true }
-    );
-  });
-
-  const artifact = page.locator('.toolbox-chain-file').nth(0);
-  await artifact.evaluate((element) => {
-    element.dispatchEvent(new MouseEvent('contextmenu', {
-      bubbles: true,
-      cancelable: true,
-      clientX: window.innerWidth - 1,
-      clientY: window.innerHeight - 1,
-    }));
-  });
-  const menu = page.getByRole('menu', { name: 'Artifact actions' });
-  const bounds = await menu.boundingBox();
-  const viewport = page.viewportSize();
-  expect(bounds.x).toBeGreaterThanOrEqual(0);
-  expect(bounds.y).toBeGreaterThanOrEqual(0);
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
-
-  await menu.getByRole('menuitem', { name: 'Open file', exact: true }).click();
-  await expect(menu).toBeHidden();
-  await expect(page.locator('#toolboxResult')).toContainText('File does not exist');
-  await expect(artifact).toHaveClass(/selected/);
-});
-
-test('artifact context menu restores artifact focus after each action closes it', async ({ page }) => {
-  // Given: a generated artifact with successful native artifact actions.
-  await openLauncher(page);
-  await runReplacement(page);
-  await page.evaluate(() => {
-    const callBackend = window.MSWLauncher.callBackend;
-    window.MSWLauncher.callBackend = async (method, payload) => (
-      ['open_file', 'open_containing_folder'].includes(method)
-        ? { ok: true }
-        : callBackend(method, payload)
-    );
-  });
-
-  const artifact = page.locator('.toolbox-chain-file').nth(1);
-  const menu = page.getByRole('menu');
-  for (const action of ['设为处理目标', '打开所在文件夹', '打开文件']) {
-    // When: an artifact menu action closes the menu.
-    await artifact.click({ button: 'right' });
-    await menu.getByRole('menuitem', { name: action, exact: true }).click();
-
-    // Then: focus returns to the originating artifact, never the hidden menu.
-    await expect(menu).toBeHidden();
-    await expect(artifact).toBeFocused();
-  }
-});
-
-test('Escape closes an artifact context menu while postprocess is busy', async ({ page }) => {
-  // Given: an open artifact menu while a postprocess request remains pending.
-  await openLauncher(page);
-  await runReplacement(page);
-  await page.evaluate(() => {
-    const callBackend = window.MSWLauncher.callBackend;
-    window.MSWLauncher.callBackend = (method, payload) => (
-      method === 'run_fixed_process'
-        ? new Promise(() => {})
-        : callBackend(method, payload)
-    );
-  });
-  const artifact = page.locator('.toolbox-chain-file').nth(0);
-  const menu = page.getByRole('menu');
-  await page.locator('#runFixedProcess').click();
-  await expect(page.locator('#toolboxProgress')).toBeVisible();
-  await artifact.click({ button: 'right' });
-  await expect(menu).toBeVisible();
-
-  // When: Escape is pressed while the busy guard is active.
-  const escapeConsumed = await page.evaluate(() => {
-    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-    document.dispatchEvent(event);
-    return event.defaultPrevented;
-  });
-
-  // Then: Escape is consumed, the menu closes, and focus returns to the artifact.
-  expect(escapeConsumed).toBe(true);
-  await expect(menu).toBeHidden();
-  await expect(artifact).toBeFocused();
-});
-
 test('batch mode disables manuscript matching without changing its saved single-file choice', async ({ page }) => {
   // Given: manuscript matching is configured and selected for single-file transcription.
   await page.goto(`file://${launcherPath}`);
@@ -917,12 +715,10 @@ test('batch mode disables manuscript matching without changing its saved single-
     field.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await page.locator('#prefabRail input[data-module-id="match"]').check();
-  await expect(page.locator('#autoPostprocessCard')).toBeVisible();
-  await page.locator('#autoPostprocessEnabled').check();
+  await expect(page.locator('[data-module-card="match"]')).toBeVisible();
   const match = page.locator('#autoStepMatch');
-  await match.check();
   await expect(match).toBeChecked();
-  await expect(page.locator('#toolboxDrawer')).toBeHidden();
+  await expect(page.locator('#batchManuscriptNotice')).toBeHidden();
   await page.evaluate(() => {
     window.__savedPlans = [];
     const callBackend = window.MSWLauncher.callBackend;
@@ -1048,98 +844,4 @@ test('batchDone fails rows that never reported when the batch was not cancelled'
   await expect(rows.nth(1).locator('.batch-status')).toHaveText('失败');
   await expect(rows.nth(1).locator('.batch-details')).toContainText('批量结束时未收到该文件的结果');
   await expect(page.locator('.batch-row.queued')).toHaveCount(0);
-});
-
-test('artifact context menu opens at the viewport pointer after Launcher zoom', async ({ page }) => {
-  // Given: generated artifacts and Launcher CSS zoom at 125%.
-  await openLauncher(page);
-  await runReplacement(page);
-  await page.evaluate(() => {
-    document.dispatchEvent(new WheelEvent('wheel', {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: true,
-      deltaY: -100,
-    }));
-  });
-  await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('105%');
-  for (let index = 0; index < 4; index += 1) {
-    await page.evaluate(() => {
-      document.dispatchEvent(new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        ctrlKey: true,
-        deltaY: -100,
-      }));
-    });
-  }
-  await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('125%');
-
-  // When: the artifact context menu is opened at a known viewport point.
-  const pointer = { x: 420, y: 260 };
-  await page.locator('.toolbox-chain-file').first().evaluate((element, point) => {
-    element.dispatchEvent(new MouseEvent('contextmenu', {
-      bubbles: true,
-      cancelable: true,
-      clientX: point.x,
-      clientY: point.y,
-    }));
-  }, pointer);
-
-  // Then: the rendered menu rect starts at the event client point within pixel tolerance.
-  const bounds = await page.getByRole('menu').boundingBox();
-  expect(Math.abs(bounds.x - pointer.x)).toBeLessThanOrEqual(2);
-  expect(Math.abs(bounds.y - pointer.y)).toBeLessThanOrEqual(2);
-});
-
-test('toolbox resize preserves the other axis and converts pointer deltas through CSS zoom', async ({ page }) => {
-  // Given: an open toolbox at 125% zoom with a stable explicit size.
-  await openLauncher(page);
-  await page.evaluate(() => {
-    for (let index = 0; index < 5; index += 1) {
-      document.dispatchEvent(new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        ctrlKey: true,
-        deltaY: -100,
-      }));
-    }
-    const drawer = document.getElementById('toolboxDrawer');
-    drawer.style.width = '480px';
-    drawer.style.blockSize = '320px';
-  });
-  await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe('125%');
-  const before = await page.locator('#toolboxDrawer').evaluate((element) => ({
-    cssWidth: Number.parseFloat(getComputedStyle(element).width),
-    cssHeight: Number.parseFloat(getComputedStyle(element).height),
-  }));
-
-  // When: height grows by 50 viewport pixels, then width grows by 50 viewport pixels.
-  const heightHandle = page.locator('#toolboxResizeY');
-  const heightBox = await heightHandle.boundingBox();
-  await page.mouse.move(heightBox.x + heightBox.width / 2, heightBox.y + heightBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(heightBox.x + heightBox.width / 2, heightBox.y + heightBox.height / 2 - 50);
-  await page.mouse.up();
-  const afterHeight = await page.locator('#toolboxDrawer').evaluate((element) => ({
-    cssWidth: Number.parseFloat(getComputedStyle(element).width),
-    cssHeight: Number.parseFloat(getComputedStyle(element).height),
-  }));
-
-  const widthHandle = page.locator('#toolboxResizeX');
-  const widthBox = await widthHandle.boundingBox();
-  await page.mouse.move(widthBox.x + widthBox.width / 2, widthBox.y + widthBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(widthBox.x + widthBox.width / 2 - 50, widthBox.y + widthBox.height / 2);
-  await page.mouse.up();
-  const afterWidth = await page.locator('#toolboxDrawer').evaluate((element) => ({
-    cssWidth: Number.parseFloat(getComputedStyle(element).width),
-    cssHeight: Number.parseFloat(getComputedStyle(element).height),
-  }));
-
-  // Then: 50 viewport pixels become 40 CSS pixels and each drag leaves its other axis unchanged.
-  expect(afterHeight.cssWidth).toBeCloseTo(before.cssWidth, 0);
-  expect(afterHeight.cssHeight - before.cssHeight).toBeCloseTo(40, 0);
-  expect(afterWidth.cssWidth - afterHeight.cssWidth).toBeCloseTo(40, 0);
-  expect(afterWidth.cssHeight).toBeCloseTo(afterHeight.cssHeight, 0);
 });

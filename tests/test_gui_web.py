@@ -325,6 +325,28 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(request.model, "relay-asr-model")
         self.assertEqual(request.api_key, "sk-relay")
 
+    def test_request_from_payload_parses_waveform_flag(self) -> None:
+        """S4/§3.3：ASR 载荷的波形开关——未携带默认 True（兼容），显式 False 生效。"""
+        media = self.root / "clip.wav"
+        media.write_bytes(b"audio")
+        base = {
+            "providerId": "openai",
+            "modelId": "whisper-1",
+            "mediaPath": str(media),
+            "srtPath": str(self.root / "clip.srt"),
+            "apiKey": "sk-openai",
+            "openaiBaseUrl": "https://api.openai.com/v1",
+            "generateHtml": False,
+        }
+
+        self.assertTrue(_request_from_payload(dict(base), self.env_path).generate_waveform)
+        off = _request_from_payload({**base, "generateWaveform": False}, self.env_path)
+        self.assertFalse(off.generate_waveform)
+        # 波形关闭时频谱一并关闭（前端同规则；后端容错双保险由载荷层保证）。
+        off_spectral = _request_from_payload({**base, "generateWaveform": False, "generateSpectral": True}, self.env_path)
+        self.assertFalse(off_spectral.generate_waveform)
+        self.assertTrue(off_spectral.generate_spectral)  # 后端不越权改写频谱，仅前端门控
+
     def test_official_openai_model_uses_the_selected_model(self) -> None:
         media = self.root / "clip.wav"
         media.write_bytes(b"audio")
@@ -854,39 +876,6 @@ class GuiWebBridgeTests(unittest.TestCase):
         plan = (ROOT / "web" / "launcher" / "plan.js").read_text(encoding="utf-8")
         self.assertIn('el("generateSpectral")', plan)
 
-    def test_launcher_toolbox_is_postprocess_only_after_s2(self) -> None:
-        """S2/反馈1+2：抽屉只承载后处理配置引导；主分组页签与实用工具页签移除。"""
-        html = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
-        strings = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
-        script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
-
-        header = html.index('class="toolbox-header"')
-        postprocess_view = html.index('id="toolboxPostprocessView"')
-        postprocess_html = html[postprocess_view:html.index('class="toolbox-footer"')]
-
-        self.assertLess(header, postprocess_view)
-        self.assertNotIn("toolboxPrimaryTabList", html)
-        self.assertNotIn("toolboxUtilitiesView", html)
-        self.assertNotIn("toolboxUtilitiesContent", html)
-        self.assertNotIn('toolbox_group_postprocess: "后处理"', strings)
-        self.assertNotIn('toolbox_group_utilities: "实用工具"', strings)
-        for tab_id in ("toolboxMatchTab", "toolboxOcrTab", "toolboxLlmTab", "toolboxReplaceTab"):
-            self.assertIn(f'id="{tab_id}"', postprocess_html)
-        for tab_id in ("toolboxWaveformTab", "toolboxFfconcatTab", "toolboxAlignmentTab", "toolboxBurnSubtitleTab", "toolboxExtractAudioTab"):
-            self.assertNotIn(f'id="{tab_id}"', html)
-        self.assertIn('toolbox_title: "工具箱"', strings)
-        self.assertIn('toolbox_title: "Toolbox"', strings)
-        self.assertIn('toolbox_utility_media: "媒体文件"', strings)
-        self.assertIn('toolbox_utility_media: "Media file"', strings)
-        self.assertIn('toolbox_burn_subtitle: "压制字幕"', strings)
-        self.assertIn('toolbox_extract_audio: "Extract audio"', strings)
-        self.assertIn('id="toolboxPostprocessTabList"', html)
-        self.assertIn('id="toolboxMatchTab" class="toolbox-tab active" type="button" role="tab" tabindex="0"', html)
-        self.assertIn('function moveToolFocus(event)', script)
-        self.assertIn('let utilityMediaManual = false;', script)
-        self.assertIn('$("toolboxUtilityMediaPath").value = $("mediaPath").value.trim();', script)
-        self.assertIn('bridge("choose_file", { kind: "media" })', script)
-
     def test_launcher_exposes_separate_speech_alignment_toolbox_contract(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
@@ -943,13 +932,23 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn('.toolbox-panel .toolbox-alignment-gap-settings {\n  margin-top: 12px;\n}', styles)
         self.assertNotIn('"alignment"', postprocess_script[postprocess_script.index("const AUTO_STEP_ORDER"):postprocess_script.index("let autoPlanSaveTimer")])
 
-    def test_toolbox_close_restores_trigger_focus_and_ffconcat_marks_its_input(self) -> None:
-        """Given Toolbox source, When closing or validating FFconcat, Then focus and invalid state stay accessible."""
+    def test_launcher_s4_toolbox_fully_removed(self) -> None:
+        """S4/§6：工具箱抽屉整体移除——后处理配置全部在预制页独立卡内。"""
         html = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
 
-        self.assertIn('const wasOpen = !$("toolboxDrawer").classList.contains("hidden");', script)
-        self.assertIn('target?.focus();', script)
+        for gone in ("toolboxDrawer", "toolboxMatchPanel", "toolboxOcrPanel", "toolboxLlmPanel", "toolboxReplacePanel",
+                     "toolboxInputPath", "toolboxChain", "artifactContextMenu", "postprocessOperation",
+                     "autoPostprocessEnabled", "configureAutoMatch", "toolboxOutputMode", "toolboxResult",
+                     "toolboxProgress", "toolboxResizeY", "openToolbox", "postprocessMergeBilingual"):
+            self.assertNotIn(gone, html, gone)
+            self.assertNotIn(gone, script, gone)
+
+    def test_toolbox_close_restores_trigger_focus_and_ffconcat_marks_its_input(self) -> None:
+        """S4：FFconcat 输入校验保留在实用工具页（抽屉焦点部分随抽屉移除）。"""
+        html = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
+
         self.assertIn('id="postprocessFfconcatPath"', html)
         self.assertIn('id="postprocessFfconcatPathError"', html)
         self.assertIn('id="toolboxFfconcatDropZone"', html)
@@ -3503,8 +3502,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('slot.dataset.toolAction !== tool', tools_script)
         self.assertIn("closeRailDrawer", tools_script)
         # 结果/进度双目标：工具页与抽屉各自显示同一消息。
-        self.assertIn('[$("toolboxResult"), $("toolsPageResult")]', postprocess_script)
-        self.assertIn('[$("toolboxProgress"), $("toolsPageProgress")]', postprocess_script)
+        self.assertIn('[$("toolsPageResult"), $("logLatest")]', postprocess_script)
+        self.assertIn('[$("toolsPageProgress"), $("progress")]', postprocess_script)
 
         # 设置页：六分组右栏（通用拆为外观与语言 + 文件与输出；缓存独立）。
         for tab in ("appearance", "files", "connection", "processing", "runtime", "cache"):
@@ -3553,6 +3552,49 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn("Server 版", launcher_script.split("guide_direct_s1")[1].split(",")[0])
         self.assertIn("打开所选工程", launcher_script.split("guide_direct_s1")[1].split(",")[0])
         self.assertIn('api_key_missing: "请先填写 API Key；密钥只保存在本机连接配置。"', launcher_script)
+
+    def test_launcher_s4_module_cards_contracts(self) -> None:
+        """S4/§6：模块独立卡、波形开关入载荷、日志复选框与页脚任务区契约。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        modules_script = (ROOT / "web" / "launcher" / "modules.js").read_text(encoding="utf-8")
+        workflow_script = (ROOT / "web" / "launcher" / "workflow.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        postprocess_script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
+        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
+        gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
+
+        # 十类模块卡：媒体/波形/识别/六后处理/对齐 + 可选日志（始终最后）。
+        for card in ("media", "waveform", "asr", "match", "replace", "proofread", "resegment", "ocr", "translate", "alignment", "log"):
+            self.assertEqual(page.count(f'data-module-card="{card}"'), 1, card)
+        # 波形卡承载频谱开关（ASR 卡不再有）。
+        self.assertIn('id="waveformCard"', page)
+        self.assertIn('id="generateSpectral"', page)
+        # LLM 三卡各配一个提示词框（按操作持久化）。
+        for field in ("postprocessPromptProofread", "postprocessPromptResegment", "postprocessPromptTranslate"):
+            self.assertIn(f'id="{field}"', page)
+        self.assertIn('persistLlmPrompt(operation, field.value)', postprocess_script)
+        self.assertIn('reloadTranslatePrompt()', postprocess_script)
+        # 日志复选框默认关 + 记忆；页脚任务区承载进度与最新反馈。
+        self.assertIn('logInput.id = "railLogToggle"', modules_script)
+        self.assertIn("MSW_LAUNCHER_LOG_CARD_V1", modules_script)
+        self.assertIn("isLogCardEnabled", modules_script)
+        self.assertIn('footer-task-strip', page)
+        self.assertIn('.footer-task-strip {', stylesheet)
+        # 普通执行不强制滚动日志；预检失败展开具体模块卡。
+        self.assertNotIn('$("logTitle").scrollIntoView', launcher_script)
+        self.assertIn("moduleIds.forEach((id) => window.MSWWorkflow?.setCollapsed?.(id, false))", launcher_script)
+        # 波形开关进转录载荷（单文件+批量共用 formPayload）。
+        self.assertIn("generateWaveform: waveformOn", launcher_script)
+        self.assertIn('waveformOn && $("generateSpectral").checked', launcher_script)
+        self.assertIn('generate_waveform=bool(payload.get("generateWaveform", True))', gui_source)
+        # 对齐卡入口直达实用工具页同一面板。
+        self.assertIn('id="openAlignmentWorkbench"', page)
+        self.assertIn('id="useAlignmentResult"', page)
+        self.assertIn('MSWTools?.select?.("alignment")', postprocess_script)
+        # openAutoStep 展开独立卡（不再弹抽屉）。
+        self.assertIn('window.MSWWorkflow?.setCollapsed?.(stepId, false)', postprocess_script)
+        # 模块卡渲染按启用状态（workflow.js 十卡 + 日志末尾）。
+        self.assertIn('cards.push({ moduleId: "log", visible: true })', workflow_script)
 
     def test_launcher_s3_project_directory_contracts(self) -> None:
         """S3/§5：长期工程目录登记层、双折叠分组与删除工程文件契约。"""
@@ -3668,32 +3710,22 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("def refresh_recent_project_thumbnail", gui_web_source)
         self.assertIn("def clear_thumbnail_cache", gui_web_source)
         self.assertIn("get_recent_project_thumbnail", launcher_script)
-    def test_launcher_exposes_chainable_postprocess_toolbox(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
         launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
         for control in (
-            "toolboxDrawer",
-            "toolboxInputDropZone",
-            "toolboxInputName",
-            "toolboxInputPath",
-            "pickToolboxInput",
-            "toolboxChain",
-            "toolboxChainList",
-            "toolboxMatchPanel",
-            "toolboxOcrPanel",
-            "toolboxLlmPanel",
-            "toolboxReplacePanel",
+            "matchCard",
+            "ocrCard",
+            "resegmentCard",
+            "translateCard",
+            "replaceCard",
             "postprocessConversion",
-            "postprocessMergeBilingual",
             "autoTranslateMergeBilingual",
             "toolboxFfconcatPanel",
             "postprocessScriptPath",
             "postprocessProvider",
-            "postprocessPrompt",
-            "postprocessOutputMode",
             "postprocessFfconcatPath",
             "llmProvider",
             "llmApiKey",
@@ -3701,35 +3733,24 @@ class LauncherAssetContractTests(unittest.TestCase):
             "llmModel",
             "llmModelOptions",
             "llmModelChoicesToggle",
-            "llmModelStatus",
             "llmReasoningMode",
             "llmCustomDisplayName",
             "testLlmConnection",
             "getLlmModels",
             "llmSettingsSaveStatus",
-            "openLlmSettings",
         ):
             self.assertIn(f'id="{control}"', page)
         # V06→S2：抽屉入口只剩预制模块配置引导（postprocess.js openAutoStep 经公开 API 打开）。
         self.assertNotIn('id="toolboxFab"', page)
-        self.assertIn("window.MSWLauncher.openToolbox", script)
-        self.assertIn('setOpen(true)', script)
-        self.assertIn('id="postprocessPromptError"', page)
         self.assertNotIn('id="postprocessApiKey"', page)
         self.assertNotIn('id="postprocessBaseUrl"', page)
         self.assertNotIn('id="postprocessModel"', page)
-        self.assertIn('bridge("run_script_match"', script)
-        self.assertIn('bridge("run_ocr_dedup"', script)
-        self.assertIn("fallbackVideoPath", script)
-        self.assertIn('mediaPath: $("mediaPath").value.trim()', script)
-        self.assertIn('bridge("run_llm_postprocess"', script)
-        self.assertIn('mergeBilingual: Boolean($("postprocessMergeBilingual")?.checked)', script)
+        self.assertIn('autoOcrVideoPath', script)
         self.assertIn('mergeBilingual: Boolean($("autoTranslateMergeBilingual")?.checked)', script)
-        self.assertIn('bridge("run_fixed_process"', script)
+        self.assertIn('mergeBilingual: Boolean($("autoTranslateMergeBilingual")?.checked)', script)
         self.assertIn('value="to_traditional_tw"', page)
         self.assertIn('value="to_traditional_twp"', page)
         self.assertIn('value="to_traditional_hk"', page)
-        self.assertIn('bridge("run_ffconcat_rebuild"', script)
         self.assertIn('bridge("save_postprocess_settings"', script)
         self.assertIn('bridge("test_postprocess_connection"', script)
         self.assertIn('bridge("get_postprocess_settings"', script)
@@ -3743,56 +3764,25 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn('id="llmModelQuick"', page)
         self.assertNotIn("<datalist", page)
         self.assertIn('llm_reasoning_mode_hint">默认关闭；自动表示跟随模型默认。</p>', page)
-        settings_grid = page.index('<div class="toolbox-grid settings-grid">')
-        settings_actions = page.index('<div class="field settings-grid-actions">')
-        model_status = page.index('id="llmModelStatus"')
         api_key = page.index('id="llmApiKey"')
-        self.assertLess(settings_grid, settings_actions)
-        self.assertLess(settings_actions, model_status)
-        self.assertLess(settings_actions, api_key)
-        self.assertIn('displayName: item.id === "custom" ? $("llmCustomDisplayName").value.trim() : ""', script)
         self.assertIn('bridge("choose_file", { kind: "script" })', script)
-        self.assertIn('bridge("choose_file", { kind: "subtitle" })', script)
         self.assertIn('bridge("choose_file", { kind: "video" })', script)
-        self.assertIn('setFieldError("toolboxInputPath", "");\n      syncOcrVideo();\n      syncInputName();', script)
         self.assertIn('openSettings("llmSettingsSection")', script)
-        self.assertIn('$("jsonPath").value = result.projectPath', script)
-        self.assertIn('$("srtPath").value = result.srtPath', script)
         self.assertIn('$("toolboxUtilityMediaPath").value = result.mediaPath', script)
         self.assertNotIn(".toolbox-fab", stylesheet)
-        self.assertIn(".toolbox-drawer", stylesheet)
-        self.assertIn(".toolbox-content", stylesheet)
-        self.assertIn("max-height: 360px", stylesheet)
         self.assertIn("overflow-y: auto", stylesheet)
-        self.assertIn('bindDropField("toolboxInputDropZone", "toolboxInput", "toolboxInputDropZone")', launcher_script)
-        self.assertIn("addChainResult", script)
-        self.assertIn("selectChainPath", script)
-        self.assertIn('bridge("open_file", { path })', script)
-        self.assertIn('addEventListener("dblclick"', script)
-        self.assertIn('toolbox_chain_llm_translate: "[LLM 处理/翻译]"', launcher_script)
-        self.assertNotIn("toolbox_chain_llm_translate: \"（LLM 处理/翻译）翻译产物\"", launcher_script)
-        self.assertIn('data-tool-action="match"', page)
-        self.assertIn('data-tool-action="ocr"', page)
-        self.assertIn('data-tool-action="llm"', page)
-        self.assertIn('data-tool-action="replace"', page)
-        self.assertIn('class="toolbox-footer"', page)
         self.assertNotIn("toolbox-output-hint", page)
         self.assertNotIn("toolbox_beta_notice_prefix", page)
         self.assertIn('class="hint toolbox-panel-hint"', page)
-        self.assertIn('class="hint toolbox-full-line-hint"', page)
-        self.assertIn('document.querySelectorAll("#toolboxDrawer [data-tool-action]")', script)
-        self.assertIn('event.type === "postprocess_status"', launcher_script)
+        # S4：流式输出随日志卡（预制页 data-module-card="log" 内）。
+        self.assertIn('data-module-card="log"', page)
+        self.assertIn('id="toolboxStreamOutput"', page)
+        # S4：时间真源提示随重新断句卡（toolbox-full-line-hint 样式键仍保留）。
+        self.assertIn('const TASK_PROMPT_KEYS', script)
+        self.assertIn('customPrompt: getLlmPrompt("proofread")', script)
         self.assertIn('event.type === "postprocess_stream"', launcher_script)
         self.assertIn("onPostprocessStatus", launcher_script)
         self.assertIn("onPostprocessStream", script)
-        self.assertIn('id="toolboxStreamOutput"', page)
-        self.assertIn('id="toolboxThinkingOutput"', page)
-        self.assertIn('id="toolboxModelOutput"', page)
-        self.assertIn("function renderPostprocessStatus(event)", script)
-        self.assertIn('event.kind === "reset"', script)
-        self.assertIn('taskPrompt: taskPromptText(operation)', script)
-        self.assertIn('const customPrompt = $("postprocessPrompt").value.trim()', script)
-        self.assertIn("const TASK_PROMPT_KEYS", script)
 
     def test_launcher_reveals_form_after_initialization_without_a_boot_page(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -3823,115 +3813,6 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('revealLauncher();\n    window.dispatchEvent(new CustomEvent("mawlauncherready"));\n    refreshStartupState();', script)
         self.assertIn('void init().catch((error) => {', script)
 
-    def test_custom_llm_task_requires_a_prompt(self) -> None:
-        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
-        script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
-
-        self.assertIn('id="postprocessPromptError"', page)
-        self.assertIn('operation === "custom" && !customPrompt', script)
-        self.assertIn('const message = t("toolbox_custom_prompt_required")', script)
-        self.assertIn('setFieldError("postprocessPrompt", message)', script)
-        self.assertIn('$("postprocessPrompt").addEventListener("input"', script)
-
-    def test_llm_task_prompt_order_and_switch_contract(self) -> None:
-        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
-        script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
-
-        values = ("proofread", "translate_zh", "translate_en", "resegment", "custom")
-        positions = [page.index(f'<option value="{value}"') for value in values]
-        self.assertEqual(positions, sorted(positions))
-        self.assertIn('id="postprocessTaskPrompt"', page)
-        self.assertIn('data-i18n="toolbox_preset_prompt"', page)
-        self.assertIn('data-i18n="toolbox_prompt_hint"', page)
-        self.assertIn('data-i18n="toolbox_merge_bilingual"', page)
-        self.assertIn('data-i18n="auto_merge_bilingual"', page)
-        self.assertIn('id="autoPostprocessOptions" class="auto-postprocess-options hidden"', page)
-        self.assertIn('id="autoPostprocessStepsCard" class="sub-accordion collapsed"', page)
-        self.assertIn('id="autoPostprocessStepsToggle"', page)
-        for step_id in ("Match", "Replace", "Proofread", "Resegment", "Ocr", "Translate"):
-            self.assertIn(f'id="autoStep{step_id}Hint"', page)
-        self.assertIn('$("postprocessOperation").addEventListener("change", () => switchLlmOperation($("postprocessOperation").value))', script)
-        self.assertIn("const LLM_PROMPTS_KEY", script)
-        self.assertIn("function getLlmPrompt", script)
-        self.assertIn("customPrompt: getLlmPrompt(\"resegment\")", script)
-        self.assertIn("customPrompt: getLlmPrompt(autoLlmOperation(\"translate\"))", script)
-        self.assertIn("function renderTaskPrompt(operation", script)
-
-    def test_empty_auto_postprocess_plan_guides_step_selection(self) -> None:
-        script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
-        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
-
-        self.assertIn('auto_summary_empty: "请在下方「后处理步骤」中勾选需要的工序。"', launcher_script)
-        self.assertIn('summary.textContent = t("auto_summary_empty")', script)
-        self.assertIn('if ($("autoPostprocessEnabled").checked) setAutoStepsExpanded(true);', script)
-        self.assertIn('if (plan.enabled && !AUTO_STEP_ORDER.some((stepId) => $(AUTO_STEP_CHECKBOXES[stepId]).checked)) setAutoStepsExpanded(true);', script)
-
-    def test_toolbox_tabs_stay_above_scrollable_panels(self) -> None:
-        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
-        script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
-        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
-
-        sticky = page.index('class="toolbox-sticky"')
-        input_drop_zone = page.index('id="toolboxInputDropZone"')
-        chain = page.index('id="toolboxChain"')
-        chain_list = page.index('id="toolboxChainList"')
-        postprocess_view = page.index('id="toolboxPostprocessView"')
-        postprocess_tabs = page.index('id="toolboxPostprocessTabList"')
-        content = page.index('class="toolbox-content"')
-        progress = page.index('<div id="toolboxProgress"')
-        result = page.index('<div id="toolboxResult"')
-        match_panel = page.index('id="toolboxMatchPanel"')
-        llm_panel = page.index('id="toolboxLlmPanel"')
-        footer = page.index('class="toolbox-footer"')
-        drawer_end = page.index("</aside>", footer)
-
-        self.assertLess(sticky, input_drop_zone)
-        self.assertLess(input_drop_zone, chain)
-        self.assertLess(chain, chain_list)
-        self.assertLess(sticky, postprocess_view)
-        self.assertLess(postprocess_view, postprocess_tabs)
-        self.assertLess(postprocess_tabs, content)
-        self.assertLess(content, progress)
-        self.assertLess(progress, result)
-        self.assertIn('data-i18n="toolbox_chain_hint">每次生成新文件，并自动作为下一步输入；选择工具后运行。</p>', page)
-        self.assertIn('id="toolboxResult" class="toolbox-result hidden"', page)
-        self.assertIn('result.classList.remove("hidden")', script)
-        self.assertLess(result, match_panel)
-        self.assertLess(match_panel, llm_panel)
-        self.assertLess(llm_panel, footer)
-        self.assertLess(footer, drawer_end)
-
-        # 输出选择与后处理执行按钮固定在抽屉底部，不随面板滚动；
-        # S2：文件工具动作槽已随面板迁入实用工具页，抽屉页脚只剩后处理四项。
-        footer_html = page[footer:drawer_end]
-        self.assertIn('id="postprocessOutputMode"', footer_html)
-        for tool in ("match", "ocr", "llm", "replace"):
-            self.assertIn(f'data-tool-action="{tool}"', footer_html)
-        for button in ("runScriptMatch", "runOcrDedup", "runLlmPostprocess", "runFixedProcess"):
-            self.assertIn(f'id="{button}"', footer_html)
-        for moved in ("runFfconcatRebuild", "runBurnSubtitle", "runExtractAudio", "stopToolboxMedia", "generateWaveform"):
-            self.assertNotIn(f'id="{moved}"', footer_html)
-
-        # 自定义顶边 / 左边拖拽把手替代原生 resize。
-        self.assertIn('id="toolboxResizeY" class="toolbox-resize-y" role="separator" aria-orientation="horizontal"', page)
-        self.assertIn('id="toolboxResizeX" class="toolbox-resize-x" role="separator" aria-orientation="vertical"', page)
-        self.assertIn('id="toolboxMatchTab" class="toolbox-tab active"', page)
-        self.assertIn("overflow-y: auto", stylesheet)
-        self.assertNotIn("resize: both", stylesheet)
-        self.assertIn("block-size: min(640px, calc(100dvh - 226px))", stylesheet)
-        self.assertIn("min-inline-size: min(360px, calc(100vw - 24px))", stylesheet)
-        self.assertIn(".toolbox-footer", stylesheet)
-        self.assertIn(".toolbox-resize-y", stylesheet)
-        self.assertIn(".toolbox-resize-x", stylesheet)
-        self.assertIn("cursor: n-resize", stylesheet)
-        self.assertIn("cursor: w-resize", stylesheet)
-        self.assertIn(".toolbox-grid > .field", stylesheet)
-        self.assertIn(".toolbox-input.drag-over", stylesheet)
-        self.assertIn("grid-template-columns: repeat(4", stylesheet)
-        self.assertIn("setPointerCapture", script)
-        self.assertIn("maw.launcher.toolbox.size", script)
-        self.assertIn("restoreToolboxSize", script)
-
     def test_toolbox_panels_are_grouped_into_titled_cards(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
@@ -3941,8 +3822,6 @@ class LauncherAssetContractTests(unittest.TestCase):
             "toolbox_group_ocr_video",
             "toolbox_group_ocr_region",
             "toolbox_group_ocr_output",
-            "toolbox_group_llm_model",
-            "toolbox_group_llm_prompt",
         ):
             self.assertIn(f'data-i18n="{key}"', page)
         self.assertIn('toolbox_group_ocr_video: "视频来源"', launcher_script)
@@ -3956,8 +3835,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn(".field-spacer {\n  visibility: hidden;", stylesheet)
         self.assertIn(".toolbox-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 10px;\n  align-items: start;\n}", stylesheet)
         # 文稿匹配保持单字段；固定处理按批量替换和简繁转换分组。
-        match_panel = page[page.index('id="toolboxMatchPanel"'):page.index('id="toolboxOcrPanel"')]
-        replace_start = page.index('id="toolboxReplacePanel"')
+        match_panel = page[page.index('id="matchCard"'):page.index('id="replaceCard"')]
+        replace_start = page.index('id="replaceCard"')
         replace_panel = page[replace_start:page.index('</section>', replace_start)]
         self.assertNotIn("adv-group", match_panel)
         self.assertIn('data-i18n="toolbox_group_fixed_replacements"', replace_panel)
@@ -4405,7 +4284,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         # B 阶段起段落标题不再使用 emoji 序号（规划 §3.1：改用 01/02 序号标记），
         # 五个段落标题保持统一字号与层级。
-        for expected in ("媒体与输出", "识别设置", "转写后自动处理（Beta）", "日志", "字幕编辑器"):
+        for expected in ("媒体与输出", "识别设置", "生成波形", "文稿匹配", "固定处理", "LLM 校对", "重新断句", "OCR 字幕去重", "字幕翻译", "口播对齐", "日志", "字幕编辑器"):
             self.assertIn(expected, page)
         for emoji in ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "✨", "🎬", "🧰", "⚙️"):
             self.assertNotIn(emoji, page)
@@ -4566,18 +4445,12 @@ class LauncherAssetContractTests(unittest.TestCase):
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
         self.assertIn('<div class="settings-scroll">', page)
-        self.assertIn('id="toolboxClose"', page)
         self.assertNotIn('id="settingsClose"', page)
-        self.assertIn('$("toolboxDrawer").addEventListener("wheel"', script)
-        self.assertIn('event.stopPropagation();', script)
-        self.assertIn('event.preventDefault();', script)
         self.assertIn('settings-scroll', launcher_script)
         self.assertIn('.settings-scroll {', stylesheet)
         self.assertIn('overscroll-behavior: contain;', stylesheet)
         # R1/V04：设置返回按钮已脱离弹窗关闭按钮组；不再有 36×36 旧规则
         #（S2：settings-back 样式随返回按钮及旧设置卡容器一并移除）。
-        self.assertIn('#toolboxClose {', stylesheet)
-        self.assertNotIn('#toolboxClose,', stylesheet)
         self.assertNotIn('#settingsClose {', stylesheet)
         self.assertNotIn('.settings-back {', stylesheet)
 

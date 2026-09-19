@@ -3918,6 +3918,8 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         workspace_id=workspace_id,
         provider=provider.id,
         speaker_colors=bool(payload.get("speakerColors")) and model.supports_speaker,
+        # S4/§3.3：ASR 分支同样消费方案的波形开关；未携带时保持旧默认（True）兼容。
+        generate_waveform=bool(payload.get("generateWaveform", True)),
         generate_spectral=bool(payload.get("generateSpectral")),
         ui_language=_gui_lang(payload),
         generate_html=bool(payload.get("generateHtml")) and not bool(payload.get("batchSrtOnly")),

@@ -156,15 +156,34 @@
     var feedbackTitle = document.createElement("div");
     feedbackTitle.className = "rail-group-title";
     feedbackTitle.textContent = t("rail_feedback");
-    var logButton = document.createElement("button");
-    logButton.type = "button";
-    logButton.className = "rail-item rail-log-button";
-    logButton.textContent = t("rail_show_log");
-    logButton.addEventListener("click", function () {
-      window.MSWWorkflow?.showLogCard?.();
+    // S4/§6.5：处理日志为可选显示模块——右栏复选框，默认不勾选（与预制多选一致）。
+    var logItem = document.createElement("label");
+    logItem.className = "rail-item";
+    var logInput = document.createElement("input");
+    logInput.type = "checkbox";
+    logInput.id = "railLogToggle";
+    logInput.checked = isLogCardEnabled();
+    logInput.setAttribute("aria-label", t("rail_log_toggle"));
+    logInput.addEventListener("change", function () {
+      setLogCardEnabled(logInput.checked);
+      window.MSWWorkflow?.renderCards?.();
     });
-    feedback.append(feedbackTitle, logButton);
+    var logLabel = document.createElement("span");
+    logLabel.className = "rail-item-label";
+    logLabel.textContent = t("rail_log_toggle");
+    logItem.append(logInput, logLabel);
+    feedback.append(feedbackTitle, logItem);
     rail.append(feedback);
+  }
+
+  var LOG_CARD_KEY = "MSW_LAUNCHER_LOG_CARD_V1";
+
+  function isLogCardEnabled() {
+    try { return localStorage.getItem(LOG_CARD_KEY) === "1"; } catch (error) { return false; }
+  }
+
+  function setLogCardEnabled(enabled) {
+    try { localStorage.setItem(LOG_CARD_KEY, enabled ? "1" : "0"); } catch (error) { /* 显示状态而已 */ }
   }
 
   function visibleCards() {
@@ -194,6 +213,8 @@
     visibleCards: visibleCards,
     orderedEnabled: orderedEnabled,
     renderRail: renderRail,
+    isLogCardEnabled: isLogCardEnabled,
+    setLogCardEnabled: setLogCardEnabled,
     state: state,
   };
 

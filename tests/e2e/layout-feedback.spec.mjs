@@ -101,6 +101,10 @@ test('keeps the Launcher action bar outside the scrolling content and highlights
 
 test('shows the installed OCR settings hint and highlights video drops', async ({ page }) => {
   await openLauncher(page);
+  // S4：OCR 配置卡在预制页且按模块显示——先进预制页并经模块状态 API 启用。
+  await page.evaluate(() => { window.MSWNavigation.show('prefab'); });
+  await page.evaluate(() => { window.MSWModules.setEnabled('ocr', true); });
+  await page.locator('[data-module-card="ocr"]').waitFor();
 
   const state = await page.evaluate(() => {
     const config = window.MSWLauncher.config;

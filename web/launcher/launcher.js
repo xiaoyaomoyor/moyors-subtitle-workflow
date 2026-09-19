@@ -71,6 +71,25 @@
       home_target: "当前目标：{name}",
       server_advanced: "高级：直接指定工程与端口",
       recent_search_placeholder: "搜索工程名、媒体名或路径…",
+      auto_enable_step: "启用文稿匹配",
+      auto_enable_step_replace: "启用固定处理",
+      auto_enable_step_proofread: "启用 LLM 校对",
+      auto_enable_step_resegment: "启用重新断句",
+      auto_enable_step_ocr: "启用 OCR 字幕去重",
+      auto_enable_step_translate: "启用字幕翻译",
+      mod_waveform_hint: "为媒体生成波形缓存供编辑器显示；不生成字幕。已有有效缓存会直接复用，媒体或源音轨变化后自动重新生成。",
+      alignment_manual_badge: "需人工确认",
+      alignment_card_hint: "根据文稿整理口播素材，在对齐工作台中选择需要保留的录制片段，再导出对齐后的工程。",
+      alignment_card_follows: "工程引用与校对文稿在实用工具页的口播对齐面板中配置（默认跟随当前工程）。",
+      alignment_open_workbench: "打开对齐工作台",
+      alignment_use_result: "选择对齐结果工程…",
+      alignment_waiting_manual: "已打开对齐工作台：人工选择保留片段并导出后，回到这里接入结果。",
+      alignment_result_attached: "已接入对齐结果工程。",
+      postprocess_provider_hint: "校对/断句/翻译共用的后处理 LLM 供应商（与上方保持同步）。",
+      toolbox_prompt_proofread: "校对提示词（追加）",
+      toolbox_prompt_resegment: "断句提示词（追加）",
+      toolbox_prompt_translate: "翻译提示词（追加）",
+      rail_log_toggle: "处理日志",
       recent_group_title: "最近工程",
       all_group_title: "全部工程",
       all_count: "已登记 {n} 项",
@@ -320,6 +339,25 @@
       home_target: "Target: {name}",
       server_advanced: "Advanced: explicit project & port",
       recent_search_placeholder: "Search project, media, or path…",
+      auto_enable_step: "Enable script match",
+      auto_enable_step_replace: "Enable fixed processing",
+      auto_enable_step_proofread: "Enable LLM proofreading",
+      auto_enable_step_resegment: "Enable re-segmentation",
+      auto_enable_step_ocr: "Enable OCR dedup",
+      auto_enable_step_translate: "Enable subtitle translation",
+      mod_waveform_hint: "Generate a waveform cache for the editor; no subtitles. Valid caches are reused; media or track changes regenerate automatically.",
+      alignment_manual_badge: "Manual step",
+      alignment_card_hint: "Organize narration takes from the manuscript, pick the keeps in the alignment workbench, then export the aligned project.",
+      alignment_card_follows: "Project reference and manuscript are configured in the Speech alignment panel on the Tools page (follows the current project).",
+      alignment_open_workbench: "Open alignment workbench",
+      alignment_use_result: "Attach aligned project…",
+      alignment_waiting_manual: "Alignment workbench opened: pick keeps and export there, then attach the result here.",
+      alignment_result_attached: "Aligned project attached.",
+      postprocess_provider_hint: "Shared post-processing LLM provider for proofread/resegment/translate (synced with the one above).",
+      toolbox_prompt_proofread: "Proofreading prompt (append)",
+      toolbox_prompt_resegment: "Re-segmentation prompt (append)",
+      toolbox_prompt_translate: "Translation prompt (append)",
+      rail_log_toggle: "Processing log",
       recent_group_title: "Recent projects",
       all_group_title: "All projects",
       all_count: "{n} registered",
@@ -2204,7 +2242,9 @@
   function setOutputNotice(message) { const notice = $("srtPathNotice"); if (!notice) return; renderMessage(notice, message); notice.classList.toggle("hidden", !message); }
   function mediaDropError() { const separator = state.lang === "zh" ? "、" : ", "; return t("drop_reject_media").replace("{extensions}", Array.from(MEDIA_EXTS).join(separator)); }
   function clearErrors() { ["mediaPath", "srtPath", "apiKey", "openaiBaseUrl", "openaiModel", "workspaceId", "localModelPath", "localModelCachePath", "maxLen", "minLen", "maxWords", "minWords", "gapSplit", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordsFile", "sonioxContextGeneral", "sonioxContextText", "sonioxContextTerms", "sonioxContextTranslationTerms", "jsonPath", "serverMediaPath", "port", "ffmpegPath", "stickerDir", "toolboxUtilityMediaPath", "toolboxBurnSubtitlePath", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "toolboxAlignmentScriptPath"].forEach((field) => setError(field, "")); hideErrorNotice(); }
-  function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateSpectral: $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
+  // S4/§3.3：波形开关来自模块注册表（与方案对象同源）——ASR 单文件与批量共用本载荷。
+  function waveformModuleEnabled() { return window.MSWModules ? window.MSWModules.isEnabled("waveform") !== false : true; }
+  function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; const waveformOn = waveformModuleEnabled(); return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateWaveform: waveformOn, generateSpectral: waveformOn && $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
   function serverPayload(extra = {}) { return Object.assign({ jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }, extra); }
   function renderServerButton() {
     const button = $("openMawe");
@@ -3261,7 +3301,7 @@
   $("saveSettings").addEventListener("click", async () => { const payload = formPayload(); const result = await bridge("save_settings", payload); if (result.ok) { const current = provider(); current.apiKey = $("apiKey").value.trim(); current.maskedApiKey = result.maskedApiKey; state.config.apiKey = current.apiKey; state.config.maskedApiKey = result.maskedApiKey; if (current.id === "openai") { state.config.openaiBaseUrl = payload.openaiBaseUrl; state.config.openaiModel = payload.openaiModel; } renderKeyStatus(); setStatus(t("saved")); } else applyErrorResult(result); });
   async function startTranscription() {
     if (!validateLocal()) return;
-    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" }); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); }
+    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); }
   }
   async function runPrefabPlan(plan) {
     // R4/F05：已有工程／SRT 输入——方案驱动后处理链，不调用 ASR。
@@ -3271,7 +3311,6 @@
     const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
     setRunning(true);
     state.prefabTask = true;
-    $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" });
     appendLog(t("prefab_plan_running"));
     const result = await bridge("run_prefab_plan", { plan });
     if (result.ok) {
@@ -3296,7 +3335,6 @@
     const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
     setRunning(true);
     state.waveformTask = true;
-    $("logTitle").scrollIntoView({ behavior: "smooth", block: "start" });
     appendLog(waveformEnabled ? t("waveform_project_running") : t("media_project_running"));
     const result = await bridge("start_waveform_project", {
       mediaPath,
@@ -3332,7 +3370,7 @@
       appendLog(`[prefab] ${message}`);
       showErrorNotice(message, check.code);
       if (check.field === "mediaPath") setError("mediaPath", message);
-      if (moduleIds.length) window.MSWWorkflow?.setCollapsed?.("postprocess", false);
+      if (moduleIds.length) moduleIds.forEach((id) => window.MSWWorkflow?.setCollapsed?.(id, false));
       return;
     }
     if (plan.inputMode === "project") { void runPrefabPlan(plan); return; }
@@ -3374,7 +3412,6 @@
   bindDropField("ocrRuntimePath", "ocrRuntime");
   bindDropField("ffmpegPath", "ffmpeg");
   bindDropField("stickerDir", "stickerDir");
-  bindDropField("toolboxInputDropZone", "toolboxInput", "toolboxInputDropZone");
   bindDropField("toolboxUtilityMediaDropZone", "toolboxUtilityMedia", "toolboxUtilityMediaDropZone");
   bindDropField("toolboxBurnSubtitleDropZone", "toolboxBurnSubtitle", "toolboxBurnSubtitleDropZone");
   bindDropField("toolboxFfconcatDropZone", "toolboxFfconcat", "toolboxFfconcatDropZone");
@@ -3407,6 +3444,7 @@
     void init().catch((error) => {
       const message = error && error.message ? error.message : String(error);
       appendLog(`[init] ${message}`);
+      appendLog(`[init-stack] ${String(error && error.stack).split("\n").slice(0, 4).join(" | ")}`);
       setStatus(message);
       revealLauncher();
     });

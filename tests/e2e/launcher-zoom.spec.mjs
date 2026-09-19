@@ -44,13 +44,7 @@ test('Launcher Ctrl+wheel zoom is bounded, persisted, and leaves ordinary wheel 
   });
   expect(ordinaryWheel).toEqual({ before: '150%', after: '150%', prevented: false });
 
-  await page.evaluate(() => window.MSWLauncher.openToolbox());
-  const toolboxWheel = await page.locator('.toolbox-content').first().evaluate((element) => {
-    const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 });
-    element.dispatchEvent(event);
-    return { prevented: event.defaultPrevented, zoom: document.documentElement.style.zoom };
-  });
-  expect(toolboxWheel).toEqual({ prevented: false, zoom: '150%' });
+  // S4：工具箱抽屉已移除——缩放隔离只剩普通滚轮断言。
 
   await page.waitForTimeout(400);
   await page.reload();
