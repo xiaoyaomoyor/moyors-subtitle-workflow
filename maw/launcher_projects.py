@@ -371,50 +371,77 @@ def _canonical_identity(path: Path) -> tuple[str, str]:
     return key, display
 
 
+def _try_lock_region(fd: int) -> bool:
+    """非阻塞加锁成功返回 True；被占用抛 OSError 由调用方处理。"""
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        return True
+    import fcntl
+
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return True
+
+
+def _unlock_region(fd: int) -> None:
+    with contextlib.suppress(OSError):
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_UN)
+
+
 @contextlib.contextmanager
 def _registry_file_lock(registry: Path) -> Iterator[None]:
-    """跨进程互斥：独占创建锁文件 + 陈旧锁抢占；写本体始终走临时文件 + os.replace。
+    """跨进程/跨线程互斥：OS 级字节范围锁（Windows msvcrt / POSIX fcntl）。
 
-    启动器与编辑器 Server 是两个进程，都会调用 register_project；锁只保护
-    「读-改-写」窗口，本体替换是原子的，读侧无锁也不会读到半截 JSON。
+    T0：替换原文件存在性锁——原实现的「等待者读锁内容」与「持有者删锁文件」
+    在 Windows 上互相阻塞（读句柄无 FILE_SHARE_DELETE → unlink 失败被吞 →
+    锁文件残留死锁）。字节范围锁由内核持有：持有进程死亡即自动释放，无需
+    pid 校验或陈旧抢占；同进程内不同句柄同样互斥（已实测）。锁文件本身
+    常驻磁盘（空文件），本体写入仍走临时文件 + os.replace。
     """
     lock_path = registry.with_name(registry.name + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd: int | None = None
-    deadline = time.monotonic() + REGISTRY_LOCK_STALE_SECONDS
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+    deadline = time.monotonic() + REGISTRY_LOCK_STALE_SECONDS * 6
     try:
         while True:
             try:
-                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                _try_lock_region(fd)
                 break
-            except FileExistsError:
-                try:
-                    stale = time.time() - lock_path.stat().st_mtime
-                except OSError:
-                    stale = REGISTRY_LOCK_STALE_SECONDS
-                if stale >= REGISTRY_LOCK_STALE_SECONDS or time.monotonic() > deadline + REGISTRY_LOCK_STALE_SECONDS:
-                    # 持有者已崩溃：抢占陈旧锁（并设总时限上限兜底）。
-                    with contextlib.suppress(OSError):
-                        lock_path.unlink()
-                    continue
+            except OSError:
                 if time.monotonic() > deadline:
-                    raise TimeoutError(f"project registry lock busy: {lock_path}")
+                    raise TimeoutError(f"project registry lock busy: {lock_path}") from None
                 time.sleep(0.02)
         yield
     finally:
-        if fd is not None:
-            with contextlib.suppress(OSError):
-                os.close(fd)
-            with contextlib.suppress(OSError):
-                lock_path.unlink()
+        _unlock_region(fd)
+        os.close(fd)
 
 
-def _read_registry(registry: Path) -> dict[str, dict[str, Any]]:
+def _read_registry_payload(registry: Path) -> dict[str, Any]:
+    """读注册表原始载荷；损坏文件先落备份再返回空（区分「不存在」与「坏了」）。"""
     try:
         payload = json.loads(registry.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+    except FileNotFoundError:
         return {}
-    entries = payload.get("entries") if isinstance(payload, dict) else None
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        # T0：坏索引不能当成空索引直接覆盖——保留带时间戳的损坏备份供恢复。
+        backup = registry.with_name(f"{registry.name}.corrupt-{int(time.time())}.json")
+        with contextlib.suppress(OSError):
+            backup.write_bytes(registry.read_bytes())
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _registry_entries(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    entries = payload.get("entries")
     if not isinstance(entries, dict):
         return {}
     result: dict[str, dict[str, Any]] = {}
@@ -424,12 +451,17 @@ def _read_registry(registry: Path) -> dict[str, dict[str, Any]]:
     return result
 
 
-def _write_registry(entries: dict[str, dict[str, Any]], registry: Path) -> None:
+def _read_registry(registry: Path) -> dict[str, dict[str, Any]]:
+    return _registry_entries(_read_registry_payload(registry))
+
+
+def _write_registry(entries: dict[str, dict[str, Any]], registry: Path, *, migrated: bool = True) -> None:
     registry.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{registry.stem}.", suffix=".tmp", dir=registry.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
-            json.dump({"version": REGISTRY_VERSION, "entries": entries}, output, ensure_ascii=False, indent=2)
+            payload: dict[str, Any] = {"version": REGISTRY_VERSION, "migrated": migrated, "entries": entries}
+            json.dump(payload, output, ensure_ascii=False, indent=2)
             output.write("\n")
         os.replace(temp_name, registry)
     except Exception:
@@ -569,21 +601,25 @@ def delete_project_file(path: Path, *, registry_path: Path | None = None, metada
 
 
 def _seed_registry_from_recent(registry: Path, *, settings_path: Path | None, metadata_path: Path | None) -> None:
-    """首次建立登记层：从当前最近合并视图迁移可知工程（一次性）。
+    """从最近合并视图迁移可知工程（幂等合并，以 migrated 标记判定）。
 
-    已从最近列表淘汰且从未登记的文件不会凭空恢复——之后再次打开/保存时自然登记。
+    T0：注册表可能先于迁移被制作/编辑器创建——此时旧最近记录尚未并入。
+    用独立 ``migrated`` 标记（而非「文件是否存在」）判定：未标记时合并种子，
+    已有登记优先（种子不覆盖），合并后写标记；重复调用无效果。
     """
-    if registry.is_file():
+    payload = _read_registry_payload(registry)
+    if payload.get("migrated") is True:
         return
+    existing = _registry_entries(payload)
     merged = recent_projects_payload(settings_path=settings_path, metadata_path=metadata_path)
     now = _now_iso()
-    entries: dict[str, dict[str, Any]] = {}
+    entries: dict[str, dict[str, Any]] = dict(existing)
     for project in merged.get("projects", []):
         try:
             key, display = _canonical_identity(Path(str(project.get("path", ""))))
         except OSError:
             continue
-        if not display:
+        if not display or key in entries:
             continue
         entries[key] = {
             "path": display,
@@ -593,8 +629,116 @@ def _seed_registry_from_recent(registry: Path, *, settings_path: Path | None, me
             "updatedAt": project.get("modifiedAt") or project.get("lastOpenedAt") or now,
         }
     with _registry_file_lock(registry):
-        if not registry.is_file():
-            _write_registry(entries, registry)
+        latest = _read_registry_payload(registry)
+        if latest.get("migrated") is True:
+            return
+        merged_entries = _registry_entries(latest) or entries
+        # 双检：另一进程可能刚写入新登记——保留其条目再补种子。
+        for seed_key, seed_value in entries.items():
+            merged_entries.setdefault(seed_key, seed_value)
+        _write_registry(merged_entries, registry)
+
+
+def _system_temp_roots() -> list[str]:
+    roots = [tempfile.gettempdir()]
+    for name in ("TMP", "TEMP", "TMPDIR"):
+        value = os.environ.get(name, "").strip()
+        if value:
+            roots.append(value)
+    normalized: list[str] = []
+    for root in roots:
+        try:
+            text = str(Path(root).expanduser().resolve(strict=False))
+        except OSError:
+            continue
+        key = os.path.normcase(text)
+        if key not in normalized:
+            normalized.append(key)
+    return normalized
+
+
+def registry_cleanup_preview(registry_path: Path | None = None) -> dict[str, Any]:
+    """T0/§2.3：污染候选预览（只读）——临时目录内且文件已缺失的登记。
+
+    不操作磁盘、不改索引；未知/无法判断的路径一律保留（不粗暴禁止临时工程：
+    用户主动打开的临时文件若仍存在则不在候选内）。
+    """
+    registry = registry_path or project_registry_path()
+    entries = _read_registry(registry)
+    temp_roots = _system_temp_roots()
+    candidates: list[dict[str, Any]] = []
+    missing_total = 0
+    for entry in entries.values():
+        try:
+            path = Path(str(entry.get("path", "")))
+            exists = path.is_file()
+        except OSError:
+            exists = False
+        if exists:
+            continue
+        missing_total += 1
+        try:
+            resolved = str(path.expanduser().resolve(strict=False))
+        except OSError:
+            resolved = str(path)
+        normalized = os.path.normcase(resolved)
+        in_temp = any(normalized.startswith(root) for root in temp_roots)
+        if in_temp:
+            candidates.append({
+                "path": str(entry.get("path", "")),
+                "name": entry.get("name") or path.name,
+                "source": entry.get("source") or "",
+                "registeredAt": entry.get("registeredAt") or "",
+            })
+    return {
+        "ok": True,
+        "total": len(entries),
+        "missing": missing_total,
+        "candidates": candidates,
+        "candidateCount": len(candidates),
+        "keptCount": len(entries) - len(candidates),
+    }
+
+
+def apply_registry_cleanup(registry_path: Path | None = None) -> dict[str, Any]:
+    """T0：执行清理——先备份注册表，再移除候选记录；不动任何磁盘媒体/工程文件。"""
+    registry = registry_path or project_registry_path()
+    preview = registry_cleanup_preview(registry)
+    candidate_paths = {item["path"] for item in preview["candidates"]}
+    if not candidate_paths:
+        return {"ok": True, "removed": 0, "kept": preview["total"], "backup": ""}
+    backup = registry.with_name(f"{registry.name}.backup-{int(time.time())}.json")
+    with _registry_file_lock(registry):
+        payload = _read_registry_payload(registry)
+        entries = _registry_entries(payload)
+        backup.write_bytes(registry.read_bytes()) if registry.is_file() else backup.write_text(
+            json.dumps({"version": REGISTRY_VERSION, "entries": {}}, ensure_ascii=False), encoding="utf-8"
+        )
+        kept = {key: value for key, value in entries.items() if str(value.get("path", "")) not in candidate_paths}
+        _write_registry(kept, registry, migrated=bool(payload.get("migrated", True)))
+    return {
+        "ok": True,
+        "removed": len(entries) - len(kept),
+        "kept": len(kept),
+        "backup": str(backup),
+    }
+
+
+def restore_registry_backup(backup_path: Path, registry_path: Path | None = None) -> dict[str, Any]:
+    """T0：从清理备份恢复注册表（仅接受应用数据目录内的 .backup- 文件）。"""
+    registry = registry_path or project_registry_path()
+    backup = backup_path.expanduser().resolve(strict=False)
+    if backup.parent != registry.parent.resolve(strict=False) or ".backup-" not in backup.name:
+        return {"ok": False, "error": f"拒绝恢复非本目录清理备份：{backup}"}
+    if not backup.is_file():
+        return {"ok": False, "error": f"备份不存在：{backup}"}
+    payload = _read_registry_payload(backup)
+    entries = _registry_entries(payload)
+    if not entries and not payload:
+        return {"ok": False, "error": "备份不是有效的注册表文件"}
+    with _registry_file_lock(registry):
+        _write_registry(entries, registry, migrated=bool(payload.get("migrated", True)))
+    return {"ok": True, "restored": len(entries), "backup": str(backup)}
 
 
 def all_projects_payload(

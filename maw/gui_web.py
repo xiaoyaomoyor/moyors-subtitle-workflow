@@ -51,9 +51,12 @@ from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessEr
 from maw.launcher_batch import BatchItem, run_batch
 from maw.launcher_projects import (
     all_projects_payload as all_projects_registry_payload,
+    apply_registry_cleanup,
     delete_project_file as delete_project_file_from_registry,
     note_project_opened,
+    registry_cleanup_preview,
     register_project,
+    restore_registry_backup as restore_registry_backup_from_file,
     project_stats_payload,
     recent_projects_payload,
     relocate_recent_project,
@@ -723,6 +726,27 @@ class LauncherApi:
             registry_path=self.paths.project_registry,
             query=query,
         )
+
+    def preview_registry_cleanup(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """T0/§2.3：污染候选预览（只读）——临时目录内且文件已缺失的登记记录。"""
+        return registry_cleanup_preview(registry_path=self.paths.project_registry)
+
+    def apply_registry_cleanup(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """T0：清理失效登记——先备份注册表再移除候选；不动任何磁盘媒体/工程文件。"""
+        result = apply_registry_cleanup(registry_path=self.paths.project_registry)
+        if not result.get("ok"):
+            return _error_result("path", "registry_cleanup_failed", str(result.get("error") or ""))
+        return result
+
+    def restore_registry_cleanup(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """T0：从清理备份恢复注册表（仅接受应用数据目录内的 .backup- 文件）。"""
+        backup = _optional_path(payload.get("backupPath"))
+        if backup is None:
+            return _error_result("backupPath", "registry_backup_invalid", "")
+        result = restore_registry_backup_from_file(backup, registry_path=self.paths.project_registry)
+        if not result.get("ok"):
+            return _error_result("backupPath", "registry_backup_invalid", str(result.get("error") or ""))
+        return result
 
     def remove_registry_project(self, payload: Mapping[str, object]) -> dict[str, object]:
         """S3/§5.3：「从全部工程记录移除」——只删登记，不动文件与最近视图。"""

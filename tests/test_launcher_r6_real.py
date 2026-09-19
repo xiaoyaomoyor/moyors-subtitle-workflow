@@ -98,6 +98,7 @@ class RealMediaAcceptanceTests(unittest.TestCase):
             env_path=env,
             launcher_html=root / "launcher.html",
             recent_metadata=root / "launcher-recent.json",
+                project_registry=root / "launcher-project-registry.json",
         )
         return LauncherApi(paths=paths), holder
 
@@ -276,6 +277,7 @@ class EnvironmentStateMachineTests(unittest.TestCase):
                 env_path=root / ".env",
                 launcher_html=root / "launcher.html",
                 recent_metadata=root / "launcher-recent.json",
+                project_registry=root / "launcher-project-registry.json",
             )
             api = LauncherApi(paths=paths)
             config = api.get_config()

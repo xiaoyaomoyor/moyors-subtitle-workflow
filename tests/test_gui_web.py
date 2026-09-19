@@ -51,7 +51,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.env_path = self.root / ".env"
         self.example_path = self.root / ".env.example"
         _ = self.example_path.write_text("DASHSCOPE_API_KEY=\nDASHSCOPE_REGION=beijing\n", encoding="utf-8")
-        self.paths = LauncherPaths(root=self.root, env_path=self.env_path, launcher_html=self.root / "launcher.html", recent_metadata=self.root / "launcher-recent.json")
+        self.paths = LauncherPaths(root=self.root, env_path=self.env_path, launcher_html=self.root / "launcher.html", recent_metadata=self.root / "launcher-recent.json", project_registry=self.root / "launcher-project-registry.json")
         self.window = FakeWindow()
         self.api = LauncherApi(paths=self.paths, window_getter=lambda: self.window)
 
@@ -3608,7 +3608,10 @@ class LauncherAssetContractTests(unittest.TestCase):
         # 登记层：文件锁 + 原子替换 + 大小写归一 + 后缀约束（Windows 大小写不敏感去重）。
         self.assertIn("REGISTRY_FILE_NAME", projects_source)
         self.assertIn("@contextlib.contextmanager", projects_source)
-        self.assertIn("os.O_CREAT | os.O_EXCL", projects_source)
+        # T0：锁改为 OS 级字节范围锁（msvcrt/fcntl），进程死亡自动释放。
+        self.assertIn("_try_lock_region", projects_source)
+        self.assertIn("REGISTRY_LOCK_STALE_SECONDS", projects_source)
+        self.assertIn("corrupt-", projects_source)
         self.assertIn("os.replace(temp_name, registry)", projects_source)
         self.assertIn("os.path.normcase", projects_source)
         self.assertIn('frozenset({".mosp", ".json"})', projects_source)

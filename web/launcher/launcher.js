@@ -258,6 +258,16 @@
       settings_cache: "缓存与诊断",
       settings_cache_hint: "最近工程封面缓存在本机应用数据目录；清理后下次浏览封面会重新生成，不影响工程文件。",
       settings_clear_covers: "清理最近工程封面缓存",
+      registry_cleanup_preview: "检查失效工程记录…",
+      registry_cleanup_apply: "清理失效记录",
+      registry_cleanup_restore: "恢复上次清理",
+      registry_cleanup_none: "没有可清理的失效记录（共 {total} 项登记）。",
+      registry_cleanup_found: "发现 {n} 条失效记录（临时目录内且文件已缺失，共 {total} 项）。清理会先备份，可随时恢复。",
+      registry_cleanup_confirm: "将移除 {n} 条失效登记记录（临时目录内且文件已缺失）。\\n· 只清理索引记录，不删除任何磁盘文件\\n· 自动创建备份，可一键恢复\\n\\n继续？",
+      registry_cleanup_done: "已清理 {n} 条记录；备份：{backup}",
+      registry_cleanup_empty: "当前没有可清理的记录。",
+      registry_cleanup_restored: "已从备份恢复 {n} 条记录。",
+      registry_cleanup_failed: "操作失败：{detail}",
       cache_covers_cleared: "已清理 {n} 个封面缓存文件。",
       settings_stickers: "默认表情包路径",
       stickers_explain: "表情包根目录供 HTML 编辑器使用；支持嵌套子目录（如 大狗/、Nox/ 等）。",
@@ -550,6 +560,16 @@
       settings_cache_hint: "Recent-project cover caches live in the local app data folder; clearing regenerates them on next browse and never touches project files.",
       settings_clear_covers: "Clear recent-project cover cache",
       cache_covers_cleared: "Cleared {n} cached cover files.",
+      registry_cleanup_preview: "Check for stale project records…",
+      registry_cleanup_apply: "Clean stale records",
+      registry_cleanup_restore: "Restore last cleanup",
+      registry_cleanup_none: "No stale records to clean ({total} registered).",
+      registry_cleanup_found: "Found {n} stale records (in temp dirs and missing; {total} total). Cleanup backs up first and can be restored.",
+      registry_cleanup_confirm: "This will remove {n} stale registry records (temp-dir paths whose files are gone).\\n· Only index records are removed; no disk files are touched\\n· A backup is created automatically and can be restored\\n\\nContinue?",
+      registry_cleanup_done: "Removed {n} records; backup: {backup}",
+      registry_cleanup_empty: "Nothing to clean right now.",
+      registry_cleanup_restored: "Restored {n} records from backup.",
+      registry_cleanup_failed: "Operation failed: {detail}",
       settings_stickers: "Default sticker path",
       stickers_explain: "Sticker root directory for the HTML editor; nested folders are supported.",
       current_value: "Current",
@@ -1761,6 +1781,21 @@
       },
       clear_thumbnail_cache: async () => { (window.__coverCacheClears = window.__coverCacheClears || []).push(1); return { ok: true, removed: 3 }; },
       // S3 演示数据：全部工程 = 最近合并视图 + 一条已淘汰仍在登记层的旧工程。
+      registry_cleanup_preview: async () => {
+        const registry = window.__demoRegistry || [];
+        const tmp = (window.__demoRegistryTmpPaths ||= []);
+        const candidates = registry.filter((item) => tmp.includes(item.path));
+        return { ok: true, total: registry.length, missing: candidates.length, candidates: candidates.map(({ path, name, source }) => ({ path, name, source, registeredAt: "" })), candidateCount: candidates.length, keptCount: registry.length - candidates.length };
+      },
+      apply_registry_cleanup: async () => {
+        const registry = window.__demoRegistry || [];
+        const tmp = (window.__demoRegistryTmpPaths ||= []);
+        const kept = registry.filter((item) => !tmp.includes(item.path));
+        window.__demoRegistry = kept;
+        window.__lastRegistryBackup = { entries: registry };
+        return { ok: true, removed: registry.length - kept.length, kept: kept.length, backup: "C:\Demo\backup.json" };
+      },
+      restore_registry_cleanup: async () => ({ ok: true, restored: (window.__lastRegistryBackup?.entries || []).length, backup: "" }),
       get_all_projects: async ({ query } = {}) => {
         const registry = window.__demoRegistry || (window.__demoRegistry = [
           { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00", registeredAt: "2026-08-01T10:00:00+00:00", updatedAt: "2026-09-13T10:00:00+00:00", source: "migration" },
@@ -3310,6 +3345,40 @@
   $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
   $("ffmpegHelp").addEventListener("click", () => bridge("open_url", { url: "https://ffmpeg.org/download.html" }));
   $("clearCoverCache").addEventListener("click", async () => {
+  // T0/§2.3：失效工程记录清理（预览 → 确认 → 备份执行 → 可恢复）。
+  const cleanupStatus = $("registryCleanupStatus");
+  let lastCleanupBackup = "";
+  $("previewRegistryCleanup")?.addEventListener("click", async () => {
+    const result = await bridge("registry_cleanup_preview", {});
+    if (!result.ok) { cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", result.detail || result.error || ""); return; }
+    if (!result.candidateCount) {
+      cleanupStatus.textContent = t("registry_cleanup_none").replace("{total}", String(result.total));
+      $("applyRegistryCleanup")?.classList.add("hidden");
+      $("restoreRegistryCleanup")?.classList.add("hidden");
+      return;
+    }
+    cleanupStatus.textContent = t("registry_cleanup_found").replace("{n}", String(result.candidateCount)).replace("{total}", String(result.total));
+    $("applyRegistryCleanup")?.classList.remove("hidden");
+    $("restoreRegistryCleanup")?.classList.remove("hidden");
+  });
+  $("applyRegistryCleanup")?.addEventListener("click", async () => {
+    const preview = await bridge("registry_cleanup_preview", {});
+    if (!preview.ok || !preview.candidateCount) { cleanupStatus.textContent = t("registry_cleanup_empty"); return; }
+    const yes = await window.MSWLauncher.confirm(t("registry_cleanup_confirm").replace("{n}", String(preview.candidateCount)));
+    if (!yes) return;
+    const result = await bridge("apply_registry_cleanup", {});
+    if (!result.ok) { cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", result.detail || result.error || ""); return; }
+    lastCleanupBackup = String(result.backup || "");
+    cleanupStatus.textContent = t("registry_cleanup_done").replace("{n}", String(result.removed)).replace("{backup}", lastCleanupBackup);
+    window.MSWProjectHome?.refresh?.();
+  });
+  $("restoreRegistryCleanup")?.addEventListener("click", async () => {
+    if (!lastCleanupBackup) { cleanupStatus.textContent = t("registry_cleanup_empty"); return; }
+    const result = await bridge("restore_registry_cleanup", { backupPath: lastCleanupBackup });
+    if (!result.ok) { cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", result.detail || result.error || ""); return; }
+    cleanupStatus.textContent = t("registry_cleanup_restored").replace("{n}", String(result.restored));
+    window.MSWProjectHome?.refresh?.();
+  });
     // R3 顺延项/R5：封面缓存清理入口（§5.3 缓存与诊断组）。
     const status = $("clearCoverCacheStatus");
     status.textContent = t("running");

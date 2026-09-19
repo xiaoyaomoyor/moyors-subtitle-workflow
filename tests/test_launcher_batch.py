@@ -258,7 +258,7 @@ class BatchApiTests(unittest.TestCase):
         return started, release, run_batch
 
     def test_choose_file_returns_all_paths_for_multiple(self) -> None:
-        api = LauncherApi(paths=LauncherPaths(Path("."), Path(".env"), Path("launcher.html")), window_getter=lambda: None)
+        api = LauncherApi(paths=LauncherPaths(Path("."), Path(".env"), Path("launcher.html"), project_registry=Path("launcher-project-registry.json")), window_getter=lambda: None)
         with mock.patch("maw.gui_web._file_dialog", return_value=("a.mp3", "b.mp3")):
             result = api.choose_file({"kind": "media", "multiple": True})
         self.assertEqual(result, {"ok": True, "path": "a.mp3", "paths": ["a.mp3", "b.mp3"]})
@@ -269,7 +269,7 @@ class BatchApiTests(unittest.TestCase):
             root = Path(temp)
             media = root / "clip.mp3"
             media.write_bytes(b"media")
-            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html"), window_getter=lambda: None)
+            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html", project_registry=root / "launcher-project-registry.json"), window_getter=lambda: None)
             with mock.patch("maw.gui_web._request_from_payload") as request_from_payload:
                 request_from_payload.return_value = TranscriptionRequest(media, root / "clip.srt")
                 with mock.patch("maw.gui_web.run_batch") as run_batch:
@@ -286,7 +286,7 @@ class BatchApiTests(unittest.TestCase):
             root = Path(temp)
             media = root / "clip.mp3"
             media.write_bytes(b"media")
-            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html"), window_getter=lambda: None)
+            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html", project_registry=root / "launcher-project-registry.json"), window_getter=lambda: None)
             started, release, runner = self._blocked_batch_runner()
             with mock.patch("maw.gui_web.run_batch", side_effect=runner) as run_batch:
                 result = api.start_batch_transcription({"items": [{"id": "a", "mediaPath": str(media)}], "apiKey": "secret"})
@@ -306,7 +306,7 @@ class BatchApiTests(unittest.TestCase):
             root = Path(temp)
             media = root / "clip.mp3"
             media.write_bytes(b"media")
-            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html"), window_getter=lambda: None)
+            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html", project_registry=root / "launcher-project-registry.json"), window_getter=lambda: None)
             started, release, runner = self._blocked_batch_runner()
             with mock.patch("maw.gui_web.run_batch", side_effect=runner) as run_batch:
                 result = api.start_batch_transcription({
@@ -361,7 +361,7 @@ class BatchApiTests(unittest.TestCase):
             root = Path(temp)
             media = root / "clip.mp3"
             media.write_bytes(b"media")
-            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html"), window_getter=lambda: None)
+            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html", project_registry=root / "launcher-project-registry.json"), window_getter=lambda: None)
             started, release, runner = self._blocked_batch_runner(RuntimeError("worker exploded"))
             with mock.patch.object(api, "_emit") as emit, mock.patch("maw.gui_web.run_batch", side_effect=runner):
                 result = api.start_batch_transcription({"items": [{"id": "a", "mediaPath": str(media), "srtPath": str(root / "clip.srt")}], "apiKey": "secret"})
@@ -384,7 +384,7 @@ class BatchApiTests(unittest.TestCase):
             existing = root / "_msw" / "maw-batch-manifest.json"
             existing.parent.mkdir()
             existing.write_text("existing", encoding="utf-8")
-            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html"), window_getter=lambda: None)
+            api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html", project_registry=root / "launcher-project-registry.json"), window_getter=lambda: None)
             with mock.patch("maw.gui_web._request_from_payload", return_value=TranscriptionRequest(media, root / "clip.srt")), mock.patch("maw.gui_web.run_batch"):
                 result = api.start_batch_transcription({"items": [{"id": "a", "mediaPath": str(media), "srtPath": str(root / "clip.srt")}], "apiKey": "secret"})
             self.assertTrue(result["ok"])

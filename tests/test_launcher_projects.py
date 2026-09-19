@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -166,6 +168,7 @@ class StartServerIntentTests(unittest.TestCase):
             env_path=self.root / ".env",
             launcher_html=self.root / "launcher.html",
             recent_metadata=self.root / "launcher-recent.json",
+            project_registry=self.root / "launcher-project-registry.json",
         )
         self.api = LauncherApi(paths=self.paths)
 
@@ -385,6 +388,127 @@ class ProjectRegistryTests(unittest.TestCase):
         listing = launcher_projects.all_projects_payload(
             settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
         self.assertEqual(listing["total"], 12)
+
+
+class RegistryCleanupTests(unittest.TestCase):
+    """T0/§2.3：污染清理三件套——预览只读、执行先备份、恢复可回滚。"""
+
+    def setUp(self) -> None:
+        self.temp_dir = TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        self.registry = self.root / "launcher-project-registry.json"
+        # 三类样本：临时目录已缺失（候选）/ 正常存在（保留）/ 非临时目录缺失（保留——用户数据保守不删）。
+        real = self.root / "real.mosp"
+        real.write_text("{}", encoding="utf-8")
+        import tempfile as _tf
+
+        stale_temp = Path(_tf.gettempdir()) / f"msw-t0-stale-{os.getpid()}-{int(time.time() * 1000) % 100000}.mosp"
+        # 非临时目录的缺失样本：setUp 临时根在系统 Temp 下，须放到 Temp 之外（用户主目录的不存在路径）。
+        missing_elsewhere = Path.home() / f"msw-t0-missing-{os.getpid()}-{int(time.time() * 1000) % 100000}.mosp"
+        entries = {}
+        for path, source in [(real, "created"), (stale_temp, "created"), (missing_elsewhere, "opened")]:
+            key, display = launcher_projects._canonical_identity(path)
+            entries[key] = {"path": display, "name": path.name, "source": source, "registeredAt": "2026-01-01T00:00:00+00:00", "updatedAt": "2026-01-01T00:00:00+00:00"}
+        launcher_projects._write_registry(entries, self.registry)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_preview_is_readonly_and_targets_temp_missing(self) -> None:
+        before = self.registry.read_bytes()
+        result = launcher_projects.registry_cleanup_preview(registry_path=self.registry)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["candidateCount"], 1)  # 仅临时目录+缺失
+        self.assertEqual(result["missing"], 2)  # 两条文件缺失（临时+非临时）
+        self.assertEqual(result["keptCount"], 2)
+        self.assertEqual(self.registry.read_bytes(), before)  # 预览只读
+
+    def test_apply_backs_up_then_removes_and_restore_rolls_back(self) -> None:
+        applied = launcher_projects.apply_registry_cleanup(registry_path=self.registry)
+        self.assertTrue(applied["ok"])
+        self.assertEqual(applied["removed"], 1)
+        self.assertTrue(applied["backup"])
+        kept = launcher_projects.all_projects_payload(registry_path=self.registry)
+        self.assertEqual(kept["total"], 2)
+
+        restored = launcher_projects.restore_registry_backup(Path(applied["backup"]), registry_path=self.registry)
+        self.assertTrue(restored["ok"])
+        self.assertEqual(restored["restored"], 3)
+        after = launcher_projects.all_projects_payload(registry_path=self.registry)
+        self.assertEqual(after["total"], 3)
+
+    def test_restore_rejects_foreign_backup_paths(self) -> None:
+        foreign = self.root / "evil.backup-1.json"
+        foreign.write_text("{}", encoding="utf-8")
+        result = launcher_projects.restore_registry_backup(foreign, registry_path=self.registry)
+        self.assertFalse(result["ok"])
+
+    def test_corrupt_registry_gets_timestamped_backup(self) -> None:
+        self.registry.write_text("{ not json", encoding="utf-8")
+        payload = launcher_projects._read_registry_payload(self.registry)
+        self.assertEqual(payload, {})
+        backups = list(self.registry.parent.glob(self.registry.name + ".corrupt-*.json"))
+        self.assertEqual(len(backups), 1)
+        self.assertIn("{ not json", backups[0].read_text(encoding="utf-8"))
+
+    def test_seed_merges_once_by_marker(self) -> None:
+        # 独立注册表：先于迁移被创建（无 migrated 标记）→ 种子幂等合并，已有登记优先。
+        registry = self.root / "seed-registry.json"
+        project = self.root / "handmade.mosp"
+        project.write_text("{}", encoding="utf-8")
+        launcher_projects.register_project(project, source="created", registry_path=registry)
+        raw = json.loads(registry.read_text(encoding="utf-8"))
+        raw.pop("migrated", None)
+        registry.write_text(json.dumps(raw), encoding="utf-8")
+
+        settings = _write_json(self.root / "settings.json", {"recent_projects": [{"path": str(project), "name": project.name}]})
+        meta = self.root / "meta.json"
+        listing = launcher_projects.all_projects_payload(settings_path=settings, metadata_path=meta, registry_path=registry)
+        self.assertEqual(listing["total"], 1)  # 同工程合并不重复
+        seed_again = launcher_projects.all_projects_payload(settings_path=settings, metadata_path=meta, registry_path=registry)
+        self.assertEqual(seed_again["total"], 1)  # 标记后不重复迁移
+        final_raw = json.loads(registry.read_text(encoding="utf-8"))
+        self.assertTrue(final_raw.get("migrated"))
+
+
+class RealUserDataZeroWriteGuard(unittest.TestCase):
+    """T0 验收：测试进程对真实用户应用数据目录零写入（金丝雀）。"""
+
+    def _true_user_app_data_root(self) -> Path:
+        # 子进程剥离测试环境覆写后计算真实用户目录（金丝雀对照面）。
+        import subprocess
+        import sys
+
+        env = {k: v for k, v in os.environ.items() if k not in ("MSW_APP_DATA_ROOT", "MAW_APP_DATA_ROOT")}
+        code = "from maw.app_paths import default_app_data_root; print(default_app_data_root())"
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=str(Path(__file__).resolve().parents[1]), check=True)
+        return Path(out.stdout.strip())
+
+    def test_default_registration_stays_in_isolated_root(self) -> None:
+        # 顺序无关：现场读取环境覆写并断言默认路径跟随（不比对导入期快照）。
+        from maw.app_paths import default_app_data_root
+
+        override = (os.environ.get("MSW_APP_DATA_ROOT") or os.environ.get("MAW_APP_DATA_ROOT") or "").strip()
+        self.assertTrue(override, "测试会话缺少 MSW_APP_DATA_ROOT 隔离覆写")
+        isolated = default_app_data_root()
+        self.assertTrue(str(isolated).startswith(str(Path(override).resolve(strict=False))), "默认路径未跟随隔离覆写")
+
+    def test_real_user_registry_untouched_by_test_session(self) -> None:
+        true_root = self._true_user_app_data_root()
+        real_registry = true_root / "launcher-project-registry.json"
+        snapshot = real_registry.read_bytes() if real_registry.is_file() else None
+        import tempfile as _tf
+
+        with _tf.TemporaryDirectory() as raw:
+            tmp_project = Path(raw) / "guard.mosp"
+            tmp_project.write_text("{}", encoding="utf-8")
+            launcher_projects.register_project(tmp_project, source="created")  # 默认路径 → 只能落隔离根
+        after = real_registry.read_bytes() if real_registry.is_file() else None
+        try:
+            self.assertEqual(snapshot, after, "测试写入了真实用户工程索引！")
+        finally:
+            if snapshot is not None and after != snapshot:
+                real_registry.write_bytes(snapshot)  # 回归时自愈，避免金丝雀污染
 
 
 class DeleteProjectFileTests(unittest.TestCase):

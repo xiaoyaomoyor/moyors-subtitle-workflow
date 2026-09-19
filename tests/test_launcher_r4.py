@@ -39,6 +39,7 @@ class PrefabPlanTests(unittest.TestCase):
             env_path=self.root / ".env",
             launcher_html=self.root / "launcher.html",
             recent_metadata=self.root / "launcher-recent.json",
+            project_registry=self.root / "launcher-project-registry.json",
         )
         self.api = LauncherApi(paths=self.paths)
         self.media = self.root / "clip.mp3"
@@ -258,6 +259,7 @@ class BatchProjectsTests(unittest.TestCase):
             env_path=self.root / ".env",
             launcher_html=self.root / "launcher.html",
             recent_metadata=self.root / "launcher-recent.json",
+            project_registry=self.root / "launcher-project-registry.json",
         )
         self.api = LauncherApi(paths=self.paths)
         self.events: list[dict] = []

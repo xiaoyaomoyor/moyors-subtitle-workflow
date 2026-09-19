@@ -1345,6 +1345,12 @@
             <p class="hint" data-i18n="settings_cache_hint">最近工程封面缓存在本机应用数据目录；清理后下次浏览封面会重新生成，不影响工程文件。</p>
             <button id="clearCoverCache" class="ghost" type="button" data-i18n="settings_clear_covers">清理最近工程封面缓存</button>
             <p id="clearCoverCacheStatus" class="hint" aria-live="polite"></p>
+            <div class="settings-actions" style="margin-top: 10px;">
+              <button id="previewRegistryCleanup" class="ghost" type="button" data-i18n="registry_cleanup_preview">检查失效工程记录…</button>
+              <button id="applyRegistryCleanup" class="ghost hidden" type="button" data-i18n="registry_cleanup_apply">清理失效记录</button>
+              <button id="restoreRegistryCleanup" class="ghost hidden" type="button" data-i18n="registry_cleanup_restore">恢复上次清理</button>
+            </div>
+            <p id="registryCleanupStatus" class="hint" aria-live="polite"></p>
           </div>
           </section>
           </div>
