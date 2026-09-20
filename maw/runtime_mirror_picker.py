@@ -15,6 +15,7 @@ maw/local_runtime.py / maw/ocr_runtime.py import 使用。
 可导入 API:
   pick_fastest_mirror(timeout=5.0) -> str       # 最快镜像 base URL，全失败兜底官方源
   measure_sources(timeout=5.0) -> list[dict]    # 每源: url/latency_ms/bytes_per_sec/ok/error
+  probe_index_reachable(url, timeout=10.0) -> bool  # 任意 pip 索引（如 PyTorch 源）当前是否可达
 
 候选源: 官方 + 国内常用镜像，可用环境变量 MAW_PIP_INDEX（逗号分隔 URL）
 覆盖（想"追加"就把需要的默认源一并写进去）。
@@ -100,6 +101,29 @@ def _open_probe(source: str, timeout: float, *, use_verified_context: bool):
         _probe_url(source), headers={"User-Agent": _USER_AGENT}
     )
     return opener.open(request, timeout=timeout)
+
+
+def _open_index_root(url: str, timeout: float, *, use_verified_context: bool):
+    """对索引根页面发起 GET；可达性检查保持证书校验。"""
+    context = _make_ssl_context(verify=use_verified_context)
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context))
+    request = urllib.request.Request(
+        _normalize_base(url) + "/", headers={"User-Agent": _USER_AGENT}
+    )
+    return opener.open(request, timeout=timeout)
+
+
+def probe_index_reachable(url: str, timeout: float = 10.0) -> bool:
+    """Check index reachability while retaining HTTPS certificate verification."""
+    try:
+        with _open_index_root(url, timeout, use_verified_context=True) as response:
+            response.read(_FIRST_CHUNK_BYTES)
+            return True
+    except urllib.error.HTTPError:
+        # A HTTP response establishes reachability; pip validates package paths.
+        return True
+    except Exception:
+        return False
 
 
 def _error_label(exc: BaseException) -> str:

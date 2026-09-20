@@ -213,9 +213,14 @@ class LocalAsrNormalizationTests(unittest.TestCase):
 
 
 class LocalSegmentationTuningTests(unittest.TestCase):
-    """切分设置作用于可重组的引擎分段；段级-only 输出保留原始边界。"""
+    """切分设置作用于可重组的引擎分段。
 
-    def test_segment_only_transcription_is_not_hard_split(self) -> None:
+    段级-only 输出按 split_mode 插值重切超长段：连续语言按标点，单词型
+    按空白分词（词数上限/短句合并生效），切点不落入单词中间；结果不携带
+    items（插值时间不得冒充词级精度）。
+    """
+
+    def test_segment_only_word_mode_resplits_by_word_count(self) -> None:
         text = "The editing process. Now, don't get me wrong, I really enjoy it."
         source = {
             "start": 1000,
@@ -244,7 +249,78 @@ class LocalSegmentationTuningTests(unittest.TestCase):
             gap_split_ms=1,
         )
 
-        self.assertEqual(segments, [source])
+        self.assertGreater(len(segments), 1)
+        for seg in segments:
+            self.assertLessEqual(len(seg["text"].split()), 2)
+            self.assertNotIn("items", seg)
+            self.assertEqual(seg.get("speaker"), "S01")
+        # 切点只落在单词边界：各段文本拼接必须还原原文（含空格）。
+        self.assertEqual("".join(seg["text"] for seg in segments), text)
+        self.assertEqual(segments[0]["start"], 1000)
+        self.assertEqual(segments[-1]["end"], 11_500)
+        for previous, current in zip(segments, segments[1:]):
+            self.assertLessEqual(previous["end"], current["start"])
+            self.assertLess(current["start"], current["end"])
+
+    def test_segment_only_continuous_overlong_cue_resplits_at_punctuations(self) -> None:
+        text = (
+            "好的，各位亲爱的观众朋友们，大家下午好，欢迎来到比赛现场，"
+            "感谢各位选手，我们今天的比赛正式开始，我是今天的解说"
+        )
+        source = {"start": 9340, "end": 23_650, "text": text, "speaker": "S01"}
+        result = LocalTranscription(
+            text,
+            "zh",
+            [],
+            [source],
+            "moss-test",
+            "inferred",
+            "continuous",
+            "segment",
+        )
+
+        segments = build_local_segments(
+            result,
+            duration_ms=24_000,
+            max_len=15,
+            min_len=5,
+            gap_split_ms=300,
+        )
+
+        self.assertGreater(len(segments), 1)
+        self.assertTrue(all(len(seg["text"]) <= 15 for seg in segments))
+        self.assertTrue(all(seg.get("speaker") == "S01" for seg in segments))
+        # 插值时间是近似值，不得伪装成词级精度写进工程。
+        self.assertTrue(all("items" not in seg for seg in segments))
+        self.assertEqual(segments[0]["start"], 9340)
+        self.assertEqual(segments[-1]["end"], 23_650)
+        for previous, current in zip(segments, segments[1:]):
+            self.assertLessEqual(previous["end"], current["start"])
+            self.assertLess(current["start"], current["end"])
+        # 剥尾标点只影响各条结尾，去掉标点后文本不丢字。
+        self.assertEqual(
+            "".join(seg["text"] for seg in segments).replace("，", "").replace("。", ""),
+            text.replace("，", "").replace("。", ""),
+        )
+
+    def test_segment_only_continuous_short_cues_pass_through(self) -> None:
+        source = {"start": 1000, "end": 3000, "text": "嗯，好的。", "speaker": "S02"}
+        result = LocalTranscription(
+            "嗯，好的。",
+            "zh",
+            [],
+            [source],
+            "moss-test",
+            "inferred",
+            "continuous",
+            "segment",
+        )
+
+        segments = build_local_segments(result, duration_ms=4000, max_len=15)
+
+        self.assertEqual([seg["text"] for seg in segments], ["嗯，好的"])
+        self.assertEqual([seg["start"] for seg in segments], [1000])
+        self.assertEqual([seg["end"] for seg in segments], [3000])
         self.assertNotIn("items", segments[0])
 
     def test_oversized_coarse_segment_resplits_within_max_len(self) -> None:
@@ -1234,6 +1310,77 @@ class LocalAsrFlowTests(unittest.TestCase):
 
         with mock.patch.dict("sys.modules", {"torch": FakeTorch()}):
             self.assertEqual(resolve_device("auto"), "cuda")
+
+    def test_resolve_device_auto_uses_mps_only_when_enabled(self) -> None:
+        fake_torch = SimpleNamespace(
+            cuda=SimpleNamespace(is_available=lambda: False),
+            backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
+        )
+
+        with mock.patch.dict("sys.modules", {"torch": fake_torch}):
+            self.assertEqual(resolve_device("auto", allow_mps=True), "mps")
+            self.assertEqual(resolve_device("auto"), "cpu")
+
+    def test_qwen_auto_load_uses_mps_float16_for_model_and_aligner(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        class FakeModel:
+            @classmethod
+            def from_pretrained(cls, _model: str, **kwargs: object) -> object:
+                calls.append(kwargs)
+                return object()
+
+        fake_torch = SimpleNamespace(
+            cuda=SimpleNamespace(is_available=lambda: False),
+            backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
+            mps=SimpleNamespace(empty_cache=lambda: None),
+            float16="float16",
+            float32="float32",
+        )
+        fake_qwen = SimpleNamespace(Qwen3ASRModel=FakeModel)
+
+        with (
+            mock.patch("maw.local_asr.sys.platform", "darwin"),
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch.dict("sys.modules", {"torch": fake_torch, "qwen_asr": fake_qwen}),
+        ):
+            QwenAsrEngine(model="test-model", device="auto", forced_aligner="test-aligner")._load()
+            self.assertEqual(os.environ["PYTORCH_ENABLE_MPS_FALLBACK"], "1")
+
+        self.assertEqual(calls[0]["device_map"], "mps")
+        self.assertEqual(calls[0]["dtype"], "float16")
+        self.assertEqual(calls[0]["forced_aligner_kwargs"], {
+            "dtype": "float16",
+            "device_map": "mps",
+        })
+
+    def test_qwen_auto_load_falls_back_to_cpu_when_mps_load_fails(self) -> None:
+        calls: list[str] = []
+        events: list[str] = []
+
+        class FakeModel:
+            @classmethod
+            def from_pretrained(cls, _model: str, **kwargs: object) -> object:
+                device_map = str(kwargs["device_map"])
+                calls.append(device_map)
+                if device_map == "mps":
+                    raise RuntimeError("unsupported MPS op")
+                return object()
+
+        fake_torch = SimpleNamespace(
+            cuda=SimpleNamespace(is_available=lambda: False),
+            backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
+            mps=SimpleNamespace(empty_cache=lambda: None),
+            float16="float16",
+            float32="float32",
+        )
+        fake_qwen = SimpleNamespace(Qwen3ASRModel=FakeModel)
+
+        with mock.patch.dict("sys.modules", {"torch": fake_torch, "qwen_asr": fake_qwen}):
+            QwenAsrEngine(model="test-model", device="auto")._load(events.append)
+
+        self.assertEqual(calls, ["mps", "cpu"])
+        self.assertTrue(any("回退 CPU" in event for event in events))
 
     def test_default_output_uses_engine_tag(self) -> None:
         path = default_output_path(Path("D:/media/sample.mp4"), "funasr")

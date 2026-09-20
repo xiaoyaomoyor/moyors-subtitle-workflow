@@ -232,7 +232,7 @@ def default_srt_path(
 ) -> Path:
     """媒体对应的默认 SRT 输出路径。
 
-    - ``attach_model_name``：为 None 时读取用户配置（默认附加模型/供应商段）；
+    - ``attach_model_name``：为 None 时读取用户配置（默认不附加模型/供应商段）；
       False 产出 ``<stem>.srt``。
     - ``subfolder``：为 None 时读取用户配置；True 时落入
       ``output_naming.maw_root(media)``（共享 ``_msw`` 或每视频子目录）。

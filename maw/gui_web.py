@@ -49,6 +49,7 @@ from maw.gui_config import (
 from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
 from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
+from maw.notify import send_system_notification
 from maw.launcher_projects import (
     all_projects_payload as all_projects_registry_payload,
     apply_registry_cleanup,
@@ -66,13 +67,14 @@ from maw.launcher_projects import (
 )
 from maw.launcher_thumbnails import clear_cover_cache, thumbnail_payload
 from maw.output_naming import format_elapsed, maw_root
-from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, install_stdio_tee
+from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, install_stdio_tee, redact_sensitive_text
 from maw.local_runtime import (
     LocalRuntimeCancelled,
     LocalRuntimeError,
     LocalRuntimeStatus,
     install_local_runtime,
     managed_runtime_status,
+    recover_local_runtime_install,
     resolve_model_cache_root,
 )
 from maw.local_models import inspect_local_model, local_model_payload, prepare_local_model as prepare_model
@@ -139,7 +141,7 @@ EDITOR_HEALTH_PROBE_PATH: Final = "/api/startup-status"
 # 短暂超过默认 0.25s，但仍远小于 SERVER_START_TIMEOUT 的总预算。
 EDITOR_HEALTH_PROBE_TIMEOUT: Final = 2.0
 # Keep this aligned with pyproject.toml; release workflows synchronize and verify it.
-BUNDLED_APP_VERSION = "1.6.0-beta.3"
+BUNDLED_APP_VERSION = "1.6.0-beta.4"
 MOSE_VERSION = "0.1.0"
 
 
@@ -939,6 +941,7 @@ class LauncherApi:
             "outputSubfolder": config.output_subfolder,
             "perVideoSubfolder": config.per_video_subfolder,
             "attachModelName": config.attach_model_name,
+            "notifyOnComplete": config.notify_on_complete,
             "lastModel": config.last_model,
             "lastLanguage": config.last_language,
             "theme": config.theme,
@@ -1065,6 +1068,7 @@ class LauncherApi:
             ("outputSubfolder", "MSW_GUI_OUTPUT_SUBFOLDER"),
             ("perVideoSubfolder", "MSW_GUI_PER_VIDEO_SUBFOLDER"),
             ("attachModelName", "MSW_GUI_ATTACH_MODEL_NAME"),
+            ("notifyOnComplete", "MSW_GUI_NOTIFY_ON_COMPLETE"),
         ):
             if payload_key in payload:
                 updates[env_key] = "true" if payload.get(payload_key) else "false"
@@ -1083,6 +1087,12 @@ class LauncherApi:
             except (OSError, UnicodeError, ValueError) as error:
                 return _error_result("", "config_save_failed", f"{self.paths.env_path}: {error}")
         return {"ok": True, "zoomPercent": zoom_percent}
+
+    def send_notification(self, payload: Mapping[str, object]) -> dict[str, object]:
+        if not effective_config(self.paths.env_path).notify_on_complete:
+            return {"ok": True, "sent": False}
+        return {"ok": True, "sent": send_system_notification(
+            str(payload.get("title") or "MSW"), str(payload.get("message") or ""))}
 
     def save_postprocess_settings(self, payload: Mapping[str, object]) -> dict[str, object]:
         preset = preset_by_id(str(payload.get("providerId") or "deepseek"))
@@ -1401,6 +1411,8 @@ class LauncherApi:
                     task_prompt=(str(payload.get("taskPrompt") or "") if "taskPrompt" in payload else None),
                     media_path=_optional_path(payload.get("mediaPath")),
                     merge_bilingual=bool(payload.get("mergeBilingual")),
+                    embed_translations=bool(payload.get("embedTranslations")),
+                    bilingual_line_order=str(payload.get("bilingualLineOrder") or ""),
                 ),
                 complete=complete,
                 on_status=self._emit_postprocess_status,
@@ -1886,6 +1898,12 @@ class LauncherApi:
                 self._persist_start_failure("server_start_failed", detail)
                 _ = self._stop_session(port)
                 return _error_result("port", "server_start_failed", detail)
+            diagnostics = {"processState": "running", "url": url}
+            if isinstance(getattr(session.process, "pid", None), int):
+                diagnostics["pid"] = session.process.pid
+            _, diagnostics["lastProbe"] = _probe_server(
+                url, probe_path=EDITOR_HEALTH_PROBE_PATH, probe_timeout=EDITOR_HEALTH_PROBE_TIMEOUT)
+            diagnostics["startupLogTail"] = self._read_session_log(session)
             _ = self._stop_session(port, close_log=False)
             child_log = self._read_session_log(session)
             self._close_session_log(session)
@@ -1893,7 +1911,7 @@ class LauncherApi:
             detail = f"{url} | 启动超时 {int(SERVER_START_TIMEOUT)} 秒"
             detail += f"：{child_log}" if child_log else "：子进程未输出日志"
             self._persist_start_failure("server_no_response", detail)
-            return _error_result("port", "server_no_response", detail)
+            return {**_error_result("port", "server_no_response", url), "diagnostics": diagnostics}
         self._close_session_log(session)
         if intent == "project":
             # R0/H06：服务器健康检查通过、确认启动成功后才记一次「最近打开」。
@@ -2151,8 +2169,9 @@ class LauncherApi:
             return ""
         try:
             log_file.flush()
-            log_file.seek(0)
-            return log_file.read().decode("utf-8", errors="replace").strip()
+            log_file.seek(0, 2)
+            log_file.seek(max(0, log_file.tell() - 65536))
+            return _diagnostic_tail(log_file.read().decode("utf-8", errors="replace"))
         except (OSError, ValueError):
             return ""
 
@@ -2195,8 +2214,9 @@ class LauncherApi:
             return ""
         try:
             log_file.flush()
-            log_file.seek(0)
-            return log_file.read().decode("utf-8", errors="replace").strip()
+            log_file.seek(0, 2)
+            log_file.seek(max(0, log_file.tell() - 65536))
+            return _diagnostic_tail(log_file.read().decode("utf-8", errors="replace"))
         except (OSError, ValueError):
             return ""
 
@@ -2335,9 +2355,9 @@ class LauncherApi:
                 items.append(BatchItem(str(raw_item.get("id") or index), replace(request, srt_path=selected)))
                 reserved.update(_artifact_paths(selected, request.media_path, env_path=self.paths.env_path))
             except PreflightError as error:
-                items.append(BatchItem(item_id, None, error.message))
+                items.append(BatchItem(item_id, None, error.message, error.code))
             except (OSError, ValueError) as error:
-                items.append(BatchItem(item_id, None, str(error)))
+                items.append(BatchItem(item_id, None, str(error), "batch_item_invalid"))
         manifest_text = str(payload.get("manifestPath") or "").strip()
         first_request = next((item.request for item in items if item.request is not None), None)
         if first_request is None:
@@ -2400,6 +2420,7 @@ class LauncherApi:
                     "status": "failed",
                     "error": str(error),
                     "outcomes": [],
+                    "total": len(items),
                     "manifestPath": str(manifest_path),
                 }
             )
@@ -2837,6 +2858,20 @@ class LauncherApi:
         self.prefab_cancel_event.set()
         return {"ok": True, "cancelled": True, "taskId": self.prefab_task_id or ""}
 
+    @_runtime_state_guard
+    def _local_runtime_status(self, model_cache_root: str, engine: str = "") -> LocalRuntimeStatus:
+        """Recover an interrupted install without disturbing this launcher's worker."""
+        status = managed_runtime_status(model_cache_root, engine=engine)
+        worker = self.local_runtime_worker
+        worker_engine = str(getattr(self, "local_runtime_worker_engine", "") or "").casefold()
+        worker_for_runtime = bool(worker and worker.is_alive()) and (
+            (worker_engine == "moss") == (str(engine or "").casefold() == "moss")
+        )
+        if getattr(status, "status", "") == "installing" and not worker_for_runtime:
+            recover_local_runtime_install(engine)
+            status = managed_runtime_status(model_cache_root, engine=engine)
+        return status
+
     def get_local_models(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         provider = provider_by_id("local")
         model_cache_root = effective_config(self.paths.env_path).model_cache_root
@@ -2847,7 +2882,7 @@ class LauncherApi:
         runtime_by_engine: dict[str, LocalRuntimeStatus] = {}
         for model in visible_models:
             if model.engine not in runtime_by_engine:
-                runtime_by_engine[model.engine] = managed_runtime_status(model_cache_root, engine=model.engine)
+                runtime_by_engine[model.engine] = self._local_runtime_status(model_cache_root, engine=model.engine)
         return {
             "ok": True,
             "runtime": runtime_by_engine[selected_model.engine].to_payload(),
@@ -2867,7 +2902,7 @@ class LauncherApi:
         requested_model = str((_payload or {}).get("modelId") or "")
         model = next((item for item in provider_by_id("local").models if item.id == requested_model), None)
         engine = model.engine if model else ""
-        return {"ok": True, **managed_runtime_status(model_cache_root, engine=engine).to_payload()}
+        return {"ok": True, **self._local_runtime_status(model_cache_root, engine=engine).to_payload()}
 
     def get_ocr_runtime(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         status = self._ocr_runtime_status()
@@ -2949,6 +2984,7 @@ class LauncherApi:
         model = next((item for item in provider_by_id("local").models if item.id == requested_model), None)
         engine = model.engine if model else ""
         self.local_runtime_cancel_event = Event()
+        self.local_runtime_worker_engine = engine
         self.pump.start()
         self.local_runtime_worker = threading.Thread(
             target=self._local_runtime_main,
@@ -3115,6 +3151,13 @@ class LauncherApi:
         result = _check_ffmpeg(self.paths.env_path, override=value)
         result["ok"] = bool(result["found"])
         return result
+
+    def open_sticker_folder(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        value = effective_config(self.paths.env_path).sticker_dir.strip()
+        directory = Path(value).expanduser() if value else None
+        if directory is None or not directory.is_dir():
+            return _error_result("stickerDir", "sticker_dir_invalid", value)
+        return _open_existing_path(directory.resolve())
 
     def save_sticker_dir(self, payload: Mapping[str, object]) -> dict[str, object]:
         value = str(payload.get("path") or "").strip()
@@ -3466,11 +3509,13 @@ class LauncherApi:
                 return
             self._emit({"type": "localRuntimeReady", "runtime": status.to_payload()})
         except LocalRuntimeCancelled as error:
+            recover_local_runtime_install(engine)
             if cancel_event.is_set():
                 self._emit({"type": "localRuntimeCancelled"})
             else:
                 self._emit({"type": "error", "code": "local_runtime_cancelled", "field": "model", "detail": str(error)})
         except (LocalRuntimeError, OSError) as error:
+            recover_local_runtime_install(engine)
             if not cancel_event.is_set():
                 self._emit({"type": "error", "code": "local_runtime_install_failed", "field": "model", "detail": str(error)})
         finally:
@@ -4324,6 +4369,45 @@ def _drop_paths_from_event(event: Mapping[str, object]) -> list[str]:
     return paths
 
 
+def _diagnostic_tail(value: str) -> str:
+    text = redact_sensitive_text(value).strip()
+    if not text:
+        return ""
+    lines = text.splitlines()
+    if len(lines) > 30:
+        lines = lines[-30:]
+    text = "\n".join(lines)
+    if len(text) > 12000:
+        text = text[-12000:]
+    return text
+
+
+def _probe_server(
+    url: str,
+    *,
+    probe_path: str = "/",
+    probe_timeout: float = 0.25,
+) -> tuple[bool, str]:
+    """Probe one local server URL and return readiness plus a concise reason."""
+    probe_url = f"{url.rstrip('/')}" + (probe_path if probe_path.startswith("/") else f"/{probe_path}")
+    try:
+        with urlopen(probe_url, timeout=max(0.01, probe_timeout)) as response:
+            status = getattr(response, "status", None)
+            if isinstance(status, int) and 200 <= status < 500:
+                return True, f"HTTP {status}"
+            return False, f"HTTP {status if status is not None else 'unknown'}"
+    except HTTPError as error:
+        # urllib raises HTTPError for 4xx responses even though they prove that
+        # the HTTP server is reachable and ready to serve requests.
+        if 400 <= error.code < 500:
+            return True, f"HTTP {error.code}"
+        return False, f"HTTP {error.code}: {error.reason}"
+    except (OSError, URLError) as error:
+        reason = getattr(error, "reason", None)
+        detail = str(reason or error).strip() or error.__class__.__name__
+        return False, f"{error.__class__.__name__}: {detail}"
+
+
 def _wait_for_server(
     url: str,
     *,
@@ -4331,25 +4415,19 @@ def _wait_for_server(
     probe_path: str = "/",
     probe_timeout: float = 0.25,
 ) -> bool:
-    probe_url = f"{url.rstrip('/')}{probe_path}"
     deadline = time.monotonic() + max(0.0, timeout)
     request_budget = max(0.01, probe_timeout)
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return False
-        try:
-            with urlopen(probe_url, timeout=min(request_budget, remaining)) as response:
-                if 200 <= response.status < 500:
-                    return True
-        except HTTPError as error:
-            # urlopen raises for 4xx/5xx instead of returning a response.  A
-            # 4xx still proves that the local HTTP server is alive; retain the
-            # documented 200..499 readiness range while continuing to retry 5xx.
-            if 200 <= error.code < 500:
-                return True
-        except (OSError, URLError):
-            pass
+        ready, _detail = _probe_server(
+            url,
+            probe_path=probe_path,
+            probe_timeout=min(request_budget, remaining),
+        )
+        if ready:
+            return True
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return False

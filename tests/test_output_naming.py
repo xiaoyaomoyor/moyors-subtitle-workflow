@@ -25,7 +25,7 @@ class OutputNamingTests(unittest.TestCase):
 
     def test_defaults_and_inactive_per_media_preference(self):
         cfg = gui_config.effective_config()
-        self.assertEqual((cfg.output_subfolder, cfg.per_video_subfolder, cfg.attach_model_name), (False, False, True))
+        self.assertEqual((cfg.output_subfolder, cfg.per_video_subfolder, cfg.attach_model_name), (False, False, False))
         self.config("MSW_GUI_PER_VIDEO_SUBFOLDER=true\n")
         self.assertTrue(gui_config.effective_config().per_video_subfolder)
         self.assertEqual(naming.maw_root(self.root / "视频.mp4"), self.root / "_msw")

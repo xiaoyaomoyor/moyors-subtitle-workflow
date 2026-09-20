@@ -47,6 +47,30 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertEqual(result.status, MediaStatus.SUCCESS)
         self.assertEqual(result.resolved_path, media)
 
+    def test_relative_media_path_moves_with_project_directory(self) -> None:
+        bundle = self.root / "成片"
+        bundle.mkdir()
+        project = bundle / "处理后.mosp"
+        media = bundle / "处理后.mp4"
+        media.write_bytes(b"media")
+        moved = self.root / "已移动的成片"
+        bundle.rename(moved)
+
+        result = resolve_project_media(moved / project.name, {"media": media.name})
+
+        self.assertEqual(result.status, MediaStatus.SUCCESS)
+        self.assertEqual(result.resolved_path, moved / media.name)
+
+    def test_renamed_project_and_media_use_project_name_as_last_fallback(self) -> None:
+        project = self.root / "新名字.mosp"
+        media = self.root / "新名字.mp4"
+        media.write_bytes(b"media")
+
+        result = resolve_project_media(project, {"media": r"D:\old\旧名字.mp4"})
+
+        self.assertEqual(result.status, MediaStatus.SUCCESS)
+        self.assertEqual(result.resolved_path, media)
+
     def test_reads_bwf_time_reference_from_wav(self) -> None:
         media = self.root / 'recording.wav'
         time_reference_samples = (2 << 32) + 8895762
@@ -77,7 +101,7 @@ class MediaResolutionTests(unittest.TestCase):
         completed = type(
             "Completed",
             (),
-            {"stdout": '{"streams":[{"avg_frame_rate":"30000/1001","r_frame_rate":"30/1"}]}'}
+            {"stdout": '{"streams":[{"width":3840,"height":2160,"avg_frame_rate":"30000/1001","r_frame_rate":"30/1"}]}'}
         )()
 
         with mock.patch("maw.media.find_ffprobe", return_value=ffprobe):
@@ -87,10 +111,12 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertIsNotNone(metadata)
         self.assertAlmostEqual(metadata["video_fps"], 30000 / 1001)
         self.assertEqual(metadata["video_fps_ratio"], "30000/1001")
+        self.assertEqual(metadata["video_width"], 3840)
+        self.assertEqual(metadata["video_height"], 2160)
         command = process.call_args.args[0]
         self.assertIn("-select_streams", command)
         self.assertIn("v:0", command)
-        self.assertIn("stream=avg_frame_rate,r_frame_rate", command)
+        self.assertIn("stream=width,height,avg_frame_rate,r_frame_rate", command)
         self.assertIn("-of", command)
         self.assertIn("json", command)
 
@@ -108,6 +134,23 @@ class MediaResolutionTests(unittest.TestCase):
                 self.assertEqual(
                     probe_video_fps(media),
                     {"video_fps": 24.0, "video_fps_ratio": "24/1"},
+                )
+
+    def test_probes_dimensions_even_when_frame_rate_is_unavailable(self) -> None:
+        media = self.root / "take.mp4"
+        media.write_bytes(b"video")
+        completed = type(
+            "Completed",
+            (),
+            {"stdout": '{"streams":[{"width":"1920","height":"1080",'
+                       '"avg_frame_rate":"N/A","r_frame_rate":"N/A"}]}'},
+        )()
+
+        with mock.patch("maw.media.find_ffprobe", return_value=Path("ffprobe")):
+            with mock.patch("maw.media.subprocess.run", return_value=completed):
+                self.assertEqual(
+                    probe_video_fps(media),
+                    {"video_width": 1920, "video_height": 1080},
                 )
 
     def test_probes_audio_tracks_and_keeps_container_stream_indices(self) -> None:
@@ -190,7 +233,7 @@ class MediaResolutionTests(unittest.TestCase):
     def test_missing_project_media_falls_back_to_one_same_name_candidate(self) -> None:
         media = self.root / "take.flv"
         media.write_bytes(b"media")
-        result = resolve_project_media(self.project, {"media": "D:/old/take.mp4"})
+        result = resolve_project_media(self.project, {"media": r"D:\old\take.mp4"})
         self.assertEqual(result.status, MediaStatus.CONVERSION_NEEDED)
         self.assertEqual(result.resolved_path, media)
 

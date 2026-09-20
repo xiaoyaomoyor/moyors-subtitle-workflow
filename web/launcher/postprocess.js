@@ -322,7 +322,7 @@
         { id: "proofread", enabled: false, providerId: "deepseek", customPrompt: "" },
         { id: "resegment", enabled: false, providerId: "deepseek", customPrompt: "" },
         { id: "ocr", enabled: false, videoPath: "", videoPathMode: "", regionMode: "full", regionX1: 0, regionY1: 0, regionX2: 100, regionY2: 100, threshold: 0.5, report: false },
-        { id: "translate", enabled: false, providerId: "deepseek", target: "zh", mergeBilingual: false, customPrompt: "" },
+        { id: "translate", enabled: false, providerId: "deepseek", target: "zh", mergeBilingual: false, embedTranslations: false, bilingualLineOrder: "", customPrompt: "" },
       ],
     };
   }
@@ -966,7 +966,7 @@
         { id: "proofread", enabled: Boolean($("autoStepProofread")?.checked), providerId, customPrompt: getLlmPrompt("proofread") },
         { id: "resegment", enabled: Boolean($("autoStepResegment")?.checked), providerId, customPrompt: getLlmPrompt("resegment") },
         { id: "ocr", enabled: Boolean($("autoStepOcr")?.checked), videoPath: ocrVideoManual ? $("ocrVideoPath").value.trim() : "", videoPathMode: ocrVideoManual ? "manual" : "auto", ...ocr, threshold: Number($("ocrThreshold").value), report: Boolean($("ocrReport").checked) },
-        { id: "translate", enabled: Boolean($("autoStepTranslate")?.checked), providerId, target: $("autoTranslateTarget").value || "zh", mergeBilingual: Boolean($("autoTranslateMergeBilingual")?.checked), customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
+        { id: "translate", enabled: Boolean($("autoStepTranslate")?.checked), providerId, target: $("autoTranslateTarget").value || "zh", mergeBilingual: Boolean($("autoTranslateMergeBilingual")?.checked), embedTranslations: Boolean($("autoTranslateBackfill")?.checked), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
       ];
     return {
       version: 1,
@@ -1021,6 +1021,7 @@
   }
 
   function renderAutoPostprocessState() {
+    $("autoTranslateBilingualOrder").disabled = !$("autoTranslateMergeBilingual").checked;
     const selected = [];
     const invalid = [];
     AUTO_STEP_ORDER.forEach((stepId) => {
@@ -1166,6 +1167,8 @@
     const translate = byId.get("translate") || {};
     $("autoTranslateTarget").value = String(translate.target || "zh");
     $("autoTranslateMergeBilingual").checked = Boolean(translate.mergeBilingual);
+    $("autoTranslateBackfill").checked = Boolean(translate.embedTranslations) && !translate.mergeBilingual;
+    $("autoTranslateBilingualOrder").value = ["translation_first", "original_first"].includes(translate.bilingualLineOrder) ? translate.bilingualLineOrder : "";
     const translatePrompt = byId.get("translate")?.customPrompt;
     if (typeof translatePrompt === "string") llmPrompts[autoLlmOperation("translate")] = translatePrompt;
     saveLlmPrompts();
@@ -1610,7 +1613,15 @@
     renderAutoPostprocessState();
     persistAutoPlanSoon();
   });
-  $("autoTranslateMergeBilingual").addEventListener("change", () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  $("autoTranslateMergeBilingual").addEventListener("change", () => {
+    if ($("autoTranslateMergeBilingual").checked) $("autoTranslateBackfill").checked = false;
+    renderAutoPostprocessState(); persistAutoPlanSoon();
+  });
+  $("autoTranslateBackfill").addEventListener("change", () => {
+    if ($("autoTranslateBackfill").checked) $("autoTranslateMergeBilingual").checked = false;
+    renderAutoPostprocessState(); persistAutoPlanSoon();
+  });
+  $("autoTranslateBilingualOrder").addEventListener("change", persistAutoPlanSoon);
   AUTO_STEP_ORDER.forEach((stepId) => {
     const checkbox = $(AUTO_STEP_CHECKBOXES[stepId]);
     checkbox.addEventListener("change", () => {

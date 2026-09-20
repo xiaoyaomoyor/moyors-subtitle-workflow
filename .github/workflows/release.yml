@@ -255,7 +255,7 @@ jobs:
           $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
           $env:FFMPEG_PATH = Join-Path $PWD 'dist/MSW/ffmpeg/bin/ffmpeg.exe'
           if (-not (Test-Path -LiteralPath $env:FFMPEG_PATH)) { throw 'Missing bundled FFmpeg for media/ASR browser checks' }
-          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs --project=chromium
+          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs tests/e2e/beta4-editor.spec.mjs tests/e2e/beta4-launcher.spec.mjs tests/e2e/ass-export.spec.mjs tests/e2e/cue-color-filter.spec.mjs --project=chromium
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics
@@ -267,7 +267,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Smoke beta.3 standard and lite direct editors
+      - name: Smoke MSW standard and lite direct editors
         shell: pwsh
         run: |
           uv run --frozen python scripts/smoke_beta3_bundle.py dist/MSW/MSW.exe --standard
@@ -504,7 +504,7 @@ jobs:
           dist/MSW.app/Contents/MacOS/MSW --help >/dev/null
           codesign --verify --deep --strict --verbose=2 dist/MSW.app
 
-      - name: Smoke beta.3 macOS direct editors
+      - name: Smoke MSW macOS direct editors
         if: matrix.platform == 'macos'
         run: |
           uv run --frozen python scripts/smoke_beta3_bundle.py dist/MSW.app/Contents/MacOS/MSW --standard
@@ -676,7 +676,7 @@ jobs:
             exit 1
           fi
 
-      - name: Smoke beta.3 extracted Linux direct editor
+      - name: Smoke MSW extracted Linux direct editor
         if: matrix.platform == 'linux'
         run: |
           set -euo pipefail

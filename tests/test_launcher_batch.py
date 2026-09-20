@@ -68,6 +68,7 @@ class BatchRunnerTests(unittest.TestCase):
 
         self.assertEqual(started, ["clip-0", "clip-1", "clip-2"])
         self.assertEqual([item["status"] for item in result["outcomes"]], ["done", "failed", "done"])
+        self.assertEqual(result["outcomes"][1]["code"], "transcription_failed")
         self.assertEqual(result["outcomes"][1]["error"], "provider failed")
 
     def test_cancel_marks_remaining_items_without_running_them(self) -> None:
@@ -192,7 +193,7 @@ class BatchRunnerTests(unittest.TestCase):
     def test_preflight_failure_isolated_to_one_item(self) -> None:
         valid = self._items(2)
         raw = (
-            BatchItem("bad", None, "Media file does not exist."),
+            BatchItem("bad", None, "Media file does not exist.", "media_not_found"),
             valid[1],
         )
         started: list[str] = []
@@ -205,6 +206,7 @@ class BatchRunnerTests(unittest.TestCase):
 
         self.assertEqual(started, ["clip-1"])
         self.assertEqual([item["status"] for item in result["outcomes"]], ["failed", "done"])
+        self.assertEqual(result["outcomes"][0]["code"], "media_not_found")
 
     def test_request_none_without_preflight_error_is_isolated(self) -> None:
         valid = self._items(1)[0]
@@ -218,6 +220,7 @@ class BatchRunnerTests(unittest.TestCase):
 
         self.assertEqual(started, ["clip-0"])
         self.assertEqual([item["status"] for item in result["outcomes"]], ["failed", "done"])
+        self.assertEqual(result["outcomes"][0]["code"], "batch_item_invalid")
         self.assertTrue(result["outcomes"][0]["error"])
 
     def test_batch_passes_ocr_runtime_root_and_routes_pipeline_logs(self) -> None:
@@ -298,7 +301,7 @@ class BatchApiTests(unittest.TestCase):
                 assert worker is not None
                 worker.join(timeout=5)
                 items = run_batch.call_args.args[0]
-                self.assertEqual(items[0].request.srt_path, root / "clip.qwen-audio.srt")
+            self.assertEqual(items[0].request.srt_path, root / "clip.srt")
             api.shutdown()
 
     def test_start_batch_srt_only_marks_requests_without_project_artifacts(self) -> None:
@@ -373,7 +376,10 @@ class BatchApiTests(unittest.TestCase):
                 assert worker is not None
                 worker.join(timeout=5)
                 self.assertIsNone(api.batch_worker)
-                self.assertTrue(any(call.args[0].get("type") == "batch_done" and call.args[0].get("status") == "failed" and "worker exploded" in str(call.args[0].get("error")) for call in emit.call_args_list))
+                failed_events = [call.args[0] for call in emit.call_args_list if call.args[0].get("type") == "batch_done" and call.args[0].get("status") == "failed"]
+                self.assertTrue(failed_events)
+                self.assertEqual(failed_events[-1]["total"], 1)
+                self.assertIn("worker exploded", str(failed_events[-1].get("error")))
             api.shutdown()
 
     def test_batch_default_manifest_path_avoids_existing_file(self) -> None:

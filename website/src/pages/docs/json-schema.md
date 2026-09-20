@@ -84,6 +84,10 @@ source: "JSON_SCHEMA.md"
 
 `media_metadata.video_fps` 是生成工程时从源视频读取的媒体 FPS，仅作为编辑器切入帧模式时的默认值；它不替代编辑器自己的 `timebase.fps`，用户仍可在全局设置中修改。旧工程没有 `media_metadata` 时继续使用编辑器原有默认值。`video_fps_ratio` 用于保留 `30000/1001` 这类非整数帧率的原始比例。
 
+`media_metadata.video_width` 与 `video_height` 是兼容 MAW beta.4 的可选视频尺寸，提供时必须成对出现且均为正整数；缺失时仍接受旧工程。探测只补缺失值，不覆盖工程已有 FPS 或所选音轨。
+
+顶层 `loudness` 是 `moy.asr.loudness.v1` 响度运行态缓存：由匹配源媒体和所选音轨的 `.quapeaks` 响度层生成，包含整文件 `bin_count/channels/audio_track/max/mean/rms/p95/source`，数值为线性 RMS，不能当作峰值或 dB。普通 `.mosp` 保存时与波形缓存一起剥离；缓存缺失不影响字幕编辑。
+
 `media_metadata.audio_tracks` 是从源容器读取的音轨清单。`audio_index` 是音频流内部的从 0 开始顺序，`stream_index` 是源容器中的 FFmpeg stream index；其余字段用于保留编码、声道、采样率、语言、标题和默认标记。编辑器导出 OTIO 时会为每条清单建立独立的 `Audio` 轨道，在达芬奇使用的 `Resolve_OTIO.Channels` 中写入源音轨/声道映射，并在 `moy` 元数据中保留对应的 stream index。旧工程缺少该字段时继续生成一条兼容的音频轨道。
 
 `timebase` 是字幕编辑器的时间基准，不改变媒体本身的时间单位。`unit: "milliseconds"` 保持旧行为；`unit: "frames"` 时，拖动、边界调整、方向键和 A/D 微调使用独立的帧字段，`fps` 决定帧与实际媒体时间的换算。为兼容旧工具，`start` / `end` 及字词时间码仍始终保存为整数毫秒；帧模式额外保存成对的 `start_frame` / `end_frame` 字段。帧时间码显示采用较通行的非丢帧格式 `HH:MM:SS:FF`，其中 `FF` 是当前秒内的帧号。
@@ -241,7 +245,8 @@ source: "JSON_SCHEMA.md"
 - `preset` 是**渲染器**，决定这份窗口布局如何绘制：`classic`（标准堆叠网格）、`wave-right`（右侧整列波形网格）或 `custom`（由 `tree` 渲染；「字幕列表编辑」「大荧幕布局」与用户自定义工作区都走这条路）。未知值回退到 `wave-right`。
 - `selectedPreset` 记录用户最后在**工作区下拉框**选择的项：内置工作区为 `classic` / `wave-right` / `three-fold` / `cinema`（大荧幕布局），本机命名工作区为 `saved:<名称>`。它与 `tree` 一起保存，使内部以 `custom` 渲染的工作区在重开工程后仍显示用户所见的名称。
 - `waveformMode` 可为 `multi`（多行）或 `basic`（单行）。工作区中存在该字段时随恢复一并切换；缺失时保持当前浏览器设置。
-- `waveformSettings` 保存波形区数值与显示偏好：基础模式窗口长度、多行每行长度及高度、振幅、左右侧、禁用字幕显示、分组徽章与拖动播放头。字段缺失时保持浏览器本机设置。
+- `waveformSettings` 保存波形区数值与显示偏好：基础模式窗口长度、多行每行长度及高度、振幅、左右侧、禁用字幕显示、分组徽章与拖动播放头。可选布尔值 `followSourceGain` 控制波形显示高度是否跟随源音频试听增益，新安装默认关闭；仅绘制时应用增益，不修改峰值缓存或媒体。字段缺失时保持浏览器本机设置。
+- `waveformSettings.waveformScaleAuto` 为工程级自动响度定标开关，与上游 beta.4 同名同义。显式 `false` 保留手动 `waveformScale`；显式 `true` 在有效响度缓存到达后拟合。旧 MSW 工程已有振幅数值而没有此标志时补为 `false`，新工程默认 `true`；无有效响度层时不猜测振幅。手动增减振幅会关闭自动模式，“响度适配”可重新开启；`followSourceGain` 仍独立作用于绘制。
 - `editorDisplay` 保存“字幕列表显示”和“字幕编辑显示”两组开关。它只包含工作区可见性，不包含导出、自动保存或快捷键等全局偏好。
 - `splitPercent` 是 classic 网格中多行波形与字幕列表比例，范围会被限制在 35–75；它与工作区一起导出，因此拖动后可撤销、复用。
 - `columnPercent` 是 `custom` 渲染器最外层左右分栏的比例，范围会被限制在 30–75。
@@ -535,6 +540,7 @@ source: "JSON_SCHEMA.md"
 
 - `start` / `end` / `items[*].start` / `items[*].end` 全部是**整数毫秒**（不是秒、不是字符串、不是浮点）；它们是兼容时间字段
 - `start_frame` / `end_frame` 与 `items[*].start_frame` / `items[*].end_frame` 是可选的独立帧字段，必须成对出现并为非负整数，结束帧大于起始帧
+- 密集字词可以共享同一帧；编辑与保存时保留有序且位于字幕内的字词毫秒区间，并推导辅助帧编号，避免重复帧取整令保存结果持续漂移。
 - 进入帧模式后，编辑器以帧字段为操作真源，同时更新毫秒投影；切换 FPS 会保留实际媒体时间并重新计算帧编号
 - `segments` 建议按时间升序排列，且 `segments[i].end <= segments[i+1].start`
 - 代码不强校验时间重叠，但重叠会导致播放器跳转/高亮行为异常
@@ -788,6 +794,7 @@ uv run python edit.py your_generated.mosp
 | `gap_remove` | object | ❌ | 可逆的 `moy.asr.gap_remove.v1` 空隙移除决定 |
 | `multi_subtitle` | object | ❌ | 可选的 `moy.asr.multi_subtitle.v1` 主轨/扩展轨与绑定 |
 | `preview` | object | ❌ | 预览呈现设置容器 |
+| `preview.burn_subtitles` | object | ❌ | 视频烧录与实际渲染预览共用样式；可含 `main`、`secondary`，各轨缺省字段使用默认样式 |
 | `preview.subtitle.x` | number | ❌ | 归一化 `[0,1]`，`x + width <= 1` |
 | `preview.subtitle.y` | number | ❌ | 归一化 `[0,1]`，`y + height <= 1` |
 | `preview.subtitle.width` | number | ❌ | 归一化 `[0,1]`，编辑器最小 0.20 |
@@ -838,6 +845,8 @@ uv run python edit.py your_generated.mosp
 | `translation_applications` | 可选，对部分应用的任务记录已经写入的主字幕 ID；对象及每个数组最多 10000 项。任务 ID 遵循上述 ASCII 规则；字幕 ID 沿用原工程的不透明字符串规范（规范化后最多 160 字符，可含中文） |
 | `translation_target_tracks` | 可选，部分应用时新建的副轨 ID，按任务 ID 索引，最多 10000 项；轨道 ID 沿用原工程的 160 字符规则。继续应用剩余结果时复用同一轨，完成后清除 |
 | `assets` | 可选，不可变音频素材数组，最多 10000 项；字段见下表。字幕历史保留该素材库存，不随字幕撤销删除 |
+| `subtitle_assets` | 可选，独立字幕素材数组，最多 10000 项；每条一个卡片，不参与混音或原字幕播放。复制、编辑、删除随字幕历史撤销/重做 |
+| `asset_batches` | 可选，最多 10000 个批次；每条字幕素材必须引用存在的批次。旧音频按 `batch_id` 或 `job_id` 推导批次，不要求迁移旧工程 |
 | `removed_asset_ids` | 可选，已从当前工程移除的素材 ID 数组，最多 100000 项，不接受 null、重复项或与 `assets` 同时存在的 ID；ID 为 `audio-` 加 32 位小写十六进制。保存／恢复后过滤后台重复结果。删除素材及其贴片是独立可撤销操作，字幕撤销保留当前删除决定；磁盘字节保留，不因移除引用立即删除 |
 | `source_project_id` | 可选，另存为时记录直接来源工程 ID，格式与 `project_id` 相同。副本使用新 `project_id`，素材 ID 保留；字幕撤销不会回滚当前工程身份 |
 | `audio_tracks` / `audio_clips` | 可选，配音轨及源时间轴上的独立贴片；不存在等同空数组，出现时不能为 null。详见 C 阶段契约 |
@@ -851,7 +860,7 @@ uv run python edit.py your_generated.mosp
 
 ### TTS 音频素材（B 阶段）
 
-独立文本配音是 v1 的可选扩展：`source_ref.kind = "editor_text"`，`id` 为独立草稿来源标识（不引用字幕），`track_id = null`，`text` 是提交时的正文，`start` 是提交时播放头的整数毫秒，`end` 为 start 加实际音频时长（向上取整到毫秒）。任务快照仅允许一条此类来源；其中临时 end=start+1 在入库时被实际时长替换，快照本身不变。省略 kind 的旧记录及显式 kind="subtitle" 继续按既有来源规则读取；未知 kind 拒绝。草稿可用于三种引擎，生成素材沿用同一保存／收集／导出结构；未提交草稿仅在页面内暂存，不进入浏览器持久存储或工程。
+独立文本配音是 v1 的可选扩展：`source_ref.kind = "editor_text"`，`id` 为独立草稿来源标识（不引用字幕），`track_id = null`，`text` 是提交时的正文，`start` 是提交时播放头的整数毫秒，`end` 为 start 加实际音频时长（向上取整到毫秒）。任务快照允许同一批多条此类来源，每段使用独立 key／id；其中临时 end=start+1 在入库时被实际时长替换，快照本身不变。省略 kind 的旧记录及显式 kind="subtitle" 继续按既有来源规则读取；未知 kind 拒绝。草稿可用于三种引擎，生成素材沿用同一保存／收集／导出结构；未提交草稿仅在页面内暂存，不进入浏览器持久存储或工程。
 
 音频字节存入工程旁的素材目录，本机尚未保存的结果暂存于应用数据目录。工程不保存临时下载 URL，也不保存 API Key。来源字幕后续修改不改变已有音频。
 
@@ -866,6 +875,16 @@ uv run python edit.py your_generated.mosp
 | `source_ref` | `key` 为任务条目 ID；字幕来源的 `id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒。独立文本来源见上文 |
 
 任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
+
+### 字幕素材与批次
+
+`subtitle_assets[*]` 必填 `id`、`kind: "subtitle"`、`batch_id`、`source_id`、`source_cue_id`、`track_id`、`created_at`、`original_start`、`start`、`end`、`text`。前三个 ID 与来源 ID 使用 MSW 稳定标识规则；`source_cue_id` 为原字幕 ID（1–160 字符），`track_id` 为 null（主字幕）或原副轨 ID（1–160 字符）。
+
+`created_at` 为 Unix 毫秒；`original_start` 是原时间线起点，`start/end` 是相对批次最早起点的毫秒时间。时间均为非负 JavaScript 安全整数，`end > start`。文本最多 12000 个 Unicode 字符。`items` 如存在，最多 12000 项，必须位于该素材起止范围内，使用同一批次相对时间；修改素材文字时移除原逐字时间，避免伪造文字对齐。可选 `color: {name, value}`，颜色 value 为六位十六进制；复制时把颜色引用解析为独立颜色，插入不引用原字幕下标。`style`、`split_mode` 如存在则保留。
+
+`asset_batches[*]` 必填 `id`、`kind`、`created_at`。kind 支持 `copy/asr/tts/imported/regenerated`；可选 `parent_id`、`result_id` 记录来源和入库去重；`result_ids` 为至多 10000 个不重复合法任务 ID，记录同批已入库 ASR 子任务，支持部分完成后追加。`regenerated` 批次的 `parent_id` 指向原音频素材 ID。`bindings` 可选，保留完整选中配对的 `track_id`、主副字幕原 ID 数组与整数时间偏移；只有配对双方都被成功放入时才创建新绑定。批次和素材 ID 不重复，字幕素材必须有对应批次。
+
+音频可选 `batch_id`（合法 MSW ID），用于将同次多文件导入归组；缺省回退到原 `job_id`。字幕素材字段随工程内容及恢复快照保存，另存为保留其 ID、来源和时间关系。音频素材字节与原配方管理不变。
 
 工作区布局树的模块 ID 新增 `assets`，可进入已有 `module`、`tabs` 和 `split` 结构。旧布局缺少该模块时默认为隐藏；不会为了补足五个模块重排用户布局。
 
@@ -916,7 +935,13 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 
 贴片终点由 `start_ms + (source_out_sample − source_in_sample) × 1000 / sample_rate` 得到，可以有亚毫秒小数，不另存冗余终点。左边缘裁剪同时移动整数毫秒起点，采样范围保留整数帧；整数毫秒取整误差小于 1ms。
 
+编辑器容量限制：同一时间最多三层贴片（包含静音贴片，首尾相接不计重叠），不是工程总贴片数最多三条。编辑及工程导入在修改当前数据前检查容量，超限整体拒绝，不截断数组或删减素材。这是编辑器交互约束，不改变 `msw.editor.v1` 文件结构或后端导出格式。
+
 `audio_settings.heatmap` 为布尔，默认 true；`audio_settings.gap_policy` 为 `protect`（默认）或 `follow`。`protect` 从实际跳过区间中减去未静音贴片覆盖范围（终点向上取整到毫秒）；`follow` 使用原空隙决定。保护不改写 `gap_remove.gaps`，删除／静音贴片后原有决定重新生效。编辑器的有效跳过区间与 D1 / D2 音频导出共用此保护。
+
+`preview.burn_subtitles.main/secondary` 的样式字段：`font_family`（1–128 字符，禁止控制字符、逗号及 ASS 控制符）、`font_size`（8–200，以 1080 高画面为基准）、`color`／`outline_color`／`background_color`（`#RRGGBB`）、`outline`（0–12）、`background_alpha`（0–1）、`x`／`y`（文字框底部中心，0–1）、`width`（0.1–1）。主副默认字号 48／40，垂直位置 0.86／0.94，Arial 白字、黑色描边 2、透明背景、水平居中、宽度 0.8。样式随工程保存，不修改播放器原有 `preview.subtitle`。
+
+音频／视频导出请求可含 `options.monitor` 快照：`mode=none|source|voice|both`、`volume`（播放器线性音量 0–1）、`muted`（布尔）、`source_gain_db`（−60 至 +12）。选定声部使用监听总音量；源声部另加源试听增益。贴片／轨道原有增益始终保留。同步声部替代该侧手动导出增益，不重复叠加。零音量或静音通过渲染计划 `source.muted`／`pieces[*].muted` 精确静音；快照只属于导出任务，不作为工程字段保存。
 
 轨道、贴片和这两项设置进入工程保存、备份与撤销／重做。音频字节继续独立存放，热力图和解码缓冲仅为可重建缓存，不写入工程。热力图采用约 400ms 窗口／100ms 步长的 RMS dBFS、固定 −60 至 −6 dBFS 色标，计入贴片和轨道增益；不是 LUFS 测量，也不是最终混音电平。
 
@@ -928,6 +953,10 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 
 ### 编辑器 ASR 应用与派生内容复核
 
+ASR 任务快照支持 `mode: whole/range/clips`，可选 `batch_id` 将同次操作的子任务归组。`clips` 的 `source.kind` 为 `clip`，`source.id/revision` 为音频素材 ID/SHA-256，`source.clip` 记录贴片 `id/asset_id/start_ms/source_in_sample/source_out_sample/playback_rate`（当前仅 1）；`source.duration_ms` 为完整素材样本时长向上取整，`range` 为裁剪后音频在时间线上的整数毫秒范围。后端仅按合法素材引用读取，以样本点裁剪，再将识别相对时间加上 `range.start`。增益／静音不属于识别内容版本。`batch_overlap` 标记同次选择的贴片范围重叠，阻止直接覆盖；该标记保留到重试。`targets` 保存当时受影响的主字幕，用于应用前比较；整个视频模式也只取视频时段内字幕。
+
+ASR 素材的 `original_start` 保留映射后的时间线位置，`start/end/items` 相对于当前批次最早结果；后续更早的子任务入库会统一重基。不同贴片引用同一工程时间线，因此可以在该批次内保留相对间隔。
+
 `msw.asr_applications` 为可选对象，最多保留 1000 个任务 ID 对应的应用记录。每条记录包含 `source_id`、64 位小写十六进制 `source_revision`、`audio_index`（0–255）、`range.start/end`（整数源毫秒，0 ≤ start < end ≤ 604800000）、`provider`、`model`（最长 256 字符）和 `removed_count/added_count`（0–10000）。已应用任务 ID 同时加入原有 `msw.applied_results`，避免重复插入。记录不包含密钥、请求头或临时音频路径。
 
 `msw.asr_stale_subtitles` 是可选的 `{副轨ID: {字幕ID: ASR任务ID}}` 对象（最多 1000 个轨记录，每轨最多 10000 个字幕记录），表示原主字幕已被重新识别，保留的副字幕需要复核。失效主副绑定被解除，副字幕原文和时间保持；后续重新翻译成功覆盖该副字幕时清除相应标记。历史标记不要求当前仍存在对应字幕。音频素材和贴片保持原数据，界面依据 `source_ref` 与当前字幕／复核标记计算提示；该提示不改变播放或导出。整次应用及上述记录属于一次撤销事务。没有候选字幕时不删除旧字幕。
@@ -936,7 +965,7 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 
 视频和 OTIOZ 复用 `msw.audio-render.v1`，不升级 `.mosp` 或 `msw.editor.v1`。导出任务的 `options.format` 为 `wav`（兼容默认值）、`mp4` 或 `otioz`；`video_encoding` 为 `auto` / `h264`，`video_tail` 为 `ask` / `truncate` / `freeze`，`collect_media` 为布尔。上述值仅保存在本机任务与包的导出记录中，不写入工程或试听设置。
 
-`options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕相交时合成同一段多行字幕。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
+`options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕分别按 `preview.burn_subtitles` 渲染独立 ASS 样式。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
 
 OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结构，配音按输出采样率表示时间，视频保留有理帧率对应时间。重叠片段分轨，增益与统一峰值衰减写入浮点 WAV；静音片段同时禁用并提供静音副本，原始 TTS 另行收集。`msw-export.json` 使用 `msw.otio-bundle.v1`，记录 `options`、`plan`、`assets`、`audio_clips`、`attenuation_db`，用途是追溯和重新链接，不是可替代 `.mosp` 的保存文件。具体引用与交付边界见 [视频与剪辑工程导出](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_VIDEO_TIMELINE_EXPORT.md)。
 
@@ -947,3 +976,5 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 副轨也可保存 `color` / `color_ref`；引用的 `headIdx` 必须位于同一轨 segments 内。主副轨交换整体保留稳定 ID、绑定与各段扩展字段，再按绑定映射统一的源颜色；冲突保留目标颜色。说话人来源 ID、MSW 合成记录与不可变素材元数据仍保留原值。
 
 受控版本文件以 `.mosp-bak` 结尾，结构仍为普通 MOSP，并去掉可重建内嵌缓存。相对媒体/表情包目录引用以备份文件所在目录为基准；TTS 音频按原 `msw.assets[*].path` 收集到备份目录，多个版本共用不可变文件。版本文件不包含原视频，也不替代完整素材备份；移动时保留工程目录的相对结构。恢复接口返回带新 project_id 的待另存副本，原 project_id 保存在 source_project_id。
+
+重新生成贴片时，可选 `source_ref.spoken_text`（1–12000 字符）记录需要原样重放的已保存读音；油库里绕过文本到假名的再次转换，IndexTTS 仍限制其输入为 600 字符。显示文字仍来自 `text`。任务快照的正文和重放读音总计最多 1000000 字符。重新生成从素材白名单配方读取调用参数，凭据／服务地址／本地资源位置使用当前环境配置；外部音频不伪造 TTS 配方。

@@ -4362,3 +4362,7 @@
 
 /* Blocking dialogs must cover the floating tool tier and its menus. */
 .modal-mask { z-index: 500; }
+
+.waveform-scale-fit { margin-left: 7px; font-size: 12px; }
+#cue-list-follow { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
+#cue-list-follow[aria-pressed="false"] { color: var(--accent); border-color: var(--accent); }

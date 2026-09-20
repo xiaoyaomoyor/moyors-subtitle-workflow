@@ -39,7 +39,8 @@
     return result;
   }
 
-  function snapshot(project, selection) {
+  function snapshot(project, selection, outputMode = 'secondary') {
+    if (!['secondary', 'replace_main'].includes(outputMode)) throw new Error('翻译输出方式无效');
     const selected = scope(project, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
     if (!selected.sources.length) throw new Error('没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译');
     const track = tracks(project)[0] || null;
@@ -66,7 +67,7 @@
       }
       return { source: sourceCopy(source), target: target ? sourceCopy(target) : null, binding_id: binding?.id || null };
     });
-    return { project_id: project.msw.project_id, track_id: track?.id || null, entries };
+    return { project_id: project.msw.project_id, track_id: track?.id || null, entries, output_mode: outputMode };
   }
 
   function reconcile(project, input, result, { onlyIds = null, createdTrackId = null } = {}) {
@@ -80,6 +81,31 @@
       translations.set(row.id, row.text);
     }
     if (translations.size !== expected.size) throw new Error('翻译结果缺少字幕，未应用');
+    const skipped = new Set(result.skipped_ids || []);
+    for (const id of skipped) {
+      const entry = input.entries.find(entry => entry.source.id === id);
+      if (!entry || translations.get(id) !== entry.source.text) throw new Error('跳过翻译的字幕与原文不符');
+    }
+    if (input.output_mode === 'replace_main') {
+      const segments = clone(project.segments), byId = new Map(segments.map(cue => [cue.id, cue]));
+      const allowed = onlyIds ? new Set(onlyIds) : null, appliedIds = [], conflicts = [];
+      for (const entry of input.entries) {
+        const id = entry.source.id;
+        if (allowed && !allowed.has(id)) continue;
+        if (skipped.has(id)) { appliedIds.push(id); continue; }
+        const source = byId.get(id);
+        const reason = !source ? '主字幕已删除、拆分或合并'
+          : source.text !== entry.source.text ? '主字幕文本已修改' : '';
+        if (reason) { conflicts.push({ id, source: entry.source.text, text: translations.get(id), reason }); continue; }
+        if (source.text !== translations.get(id)) {
+          source.text = translations.get(id);
+          delete source.items;
+          source._dirty = true;
+        }
+        appliedIds.push(id);
+      }
+      return { segments, appliedIds, conflicts };
+    }
     const multi = clone(project.multi_subtitle || {
       schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
     });
@@ -101,6 +127,7 @@
     track.segments.sort((a, b) => a.start - b.start || a.end - b.end);
     for (const entry of input.entries) {
       if (allowed && !allowed.has(entry.source.id)) continue;
+      if (skipped.has(entry.source.id)) { appliedIds.push(entry.source.id); continue; }
       const source = bySource.get(entry.source.id);
       const binding = byMain.get(entry.source.id);
       let reason = '';
@@ -148,7 +175,7 @@
       }
       appliedIds.push(source.id);
     }
-    if (appliedIds.length) {
+    if (appliedIds.some(id => !skipped.has(id))) {
       track.segments.sort((a, b) => a.start - b.start || a.end - b.end);
       for (let index = 1; index < track.segments.length; index += 1) {
         if (track.segments[index].start < track.segments[index - 1].end) throw new Error('副字幕存在重叠，翻译结果未应用');

@@ -41,16 +41,17 @@ function dropProject(page, name, content) {
   }, { base64, name }).then((dataTransfer) => page.dispatchEvent('body', 'drop', { dataTransfer }));
 }
 
-// 先跑掉包拒绝：此时服务器仍是空白状态，保存按钮必须保持禁用。
+// 先跑掉包拒绝：此时服务器仍是空白状态，不得获得原工程的写回绑定。
 test('a same-named project with different content is not swapped in', async ({ page }) => {
   await page.goto(server.url);
   const tampered = JSON.parse(readFileSync(projectPath, 'utf-8'));
   tampered.segments = [{ start: 0, end: 1000, text: '不是磁盘上的内容', items: [] }];
   await dropProject(page, 'project.json', JSON.stringify(tampered));
 
-  // 接管被拒绝：回退为手动选择媒体，保存保持禁用。
+  // 接管被拒绝：回退为手动选择媒体；保存入口可另选位置，但不能写回原工程。
   await expect(page.locator('#project-media-modal')).toHaveClass(/show/);
-  await expect(page.locator('#save-project')).toBeDisabled();
+  expect(await page.evaluate(() => SERVER_CONFIG.canSave)).toBe(false);
+  expect(JSON.parse(readFileSync(projectPath, 'utf8')).segments).not.toEqual(tampered.segments);
 });
 
 test('dropping a legacy project lets the blank server take over after ID normalization', async ({ page }) => {

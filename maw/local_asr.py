@@ -29,6 +29,7 @@ from generate_subtitle_qwen_api import (
     is_cjk_char,
     parse_duration,
     repair_nonpositive_duration_segments,
+    split_coarse_segments,
     split_segments_auto,
 )
 from maw.ffmpeg import resolve_ffmpeg_tool
@@ -158,7 +159,14 @@ def _extract_audio_for_local(
         )
 
 
-def resolve_device(device: str) -> str:
+def _mps_available(torch_module: object) -> bool:
+    try:
+        return bool(torch_module.backends.mps.is_available())  # type: ignore[attr-defined]
+    except (AttributeError, RuntimeError):
+        return False
+
+
+def resolve_device(device: str, *, allow_mps: bool = False) -> str:
     """Resolve ``auto`` without importing Torch for the cloud-only path."""
     normalized = device.strip().lower()
     if normalized != "auto":
@@ -170,7 +178,11 @@ def resolve_device(device: str) -> str:
         import torch  # type: ignore[import-not-found]
     except ImportError:
         return "cpu"
-    return "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        return "cuda"
+    if allow_mps and _mps_available(torch):
+        return "mps"
+    return "cpu"
 
 
 def _missing_dependency(
@@ -623,6 +635,9 @@ class QwenAsrEngine:
     def _load(self, on_event: ProgressCallback | None = None) -> Any:
         if self._runtime is not None:
             return self._runtime
+        requested_device = self.device.strip().lower()
+        if sys.platform == "darwin" and requested_device == "auto":
+            os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
         try:
             from qwen_asr import Qwen3ASRModel  # type: ignore[import-not-found]
         except ImportError as error:
@@ -632,25 +647,41 @@ class QwenAsrEngine:
         except ImportError as error:
             raise _missing_dependency("torch", cause=error) from error
 
-        resolved_device = resolve_device(self.device)
-        device_map = "cuda:0" if resolved_device == "cuda" else resolved_device
-        if on_event:
-            on_event(f"[local] loading QwenASR: {self.model_path} ({resolved_device})")
-        kwargs: dict[str, Any] = {
-            "dtype": torch.float16 if resolved_device == "cuda" else torch.float32,
-            "device_map": device_map,
-            "max_inference_batch_size": 1,
-            # Keep each request bounded by the chunk size, while leaving enough
-            # room for timestamp tokens and a dense speech segment.
-            "max_new_tokens": QWEN_MAX_NEW_TOKENS,
-        }
-        if self.forced_aligner:
-            kwargs["forced_aligner"] = self.forced_aligner
-            kwargs["forced_aligner_kwargs"] = {
-                "dtype": kwargs["dtype"],
+        resolved_device = resolve_device(self.device, allow_mps=True)
+
+        def load_runtime(target_device: str) -> Any:
+            device_map = "cuda:0" if target_device == "cuda" else target_device
+            accelerated = target_device in {"cuda", "mps"}
+            kwargs: dict[str, Any] = {
+                "dtype": torch.float16 if accelerated else torch.float32,
                 "device_map": device_map,
+                "max_inference_batch_size": 1,
+                # Keep each request bounded by the chunk size, while leaving enough
+                # room for timestamp tokens and a dense speech segment.
+                "max_new_tokens": QWEN_MAX_NEW_TOKENS,
             }
-        self._runtime = Qwen3ASRModel.from_pretrained(self.model_path, **kwargs)
+            if self.forced_aligner:
+                kwargs["forced_aligner"] = self.forced_aligner
+                kwargs["forced_aligner_kwargs"] = {
+                    "dtype": kwargs["dtype"],
+                    "device_map": device_map,
+                }
+            if on_event:
+                on_event(f"[local] loading QwenASR: {self.model_path} ({target_device})")
+            return Qwen3ASRModel.from_pretrained(self.model_path, **kwargs)
+
+        try:
+            self._runtime = load_runtime(resolved_device)
+        except Exception as error:
+            if resolved_device != "mps" or requested_device != "auto":
+                raise
+            if on_event:
+                on_event(f"[local] MPS 加载失败，正在回退 CPU：{error}")
+            try:
+                torch.mps.empty_cache()
+            except (AttributeError, RuntimeError):
+                pass
+            self._runtime = load_runtime("cpu")
         if on_event:
             on_event("[local] QwenASR loaded")
         return self._runtime
@@ -1808,12 +1839,26 @@ def build_local_segments(
     """Turn adapter output into MSW's integer-millisecond subtitle segments."""
     if transcription.segments:
         segments: list[dict[str, Any]] = []
-        for source in transcription.segments:
-            if transcription.timestamp_granularity == "segment":
-                # A segment-only engine has no trustworthy boundary to split
-                # on. Preserve its original cue instead of fabricating items.
-                segments.append(dict(source))
-            else:
+        if transcription.timestamp_granularity == "segment":
+            # Segment-only engines (MOSS, FunASR / Qwen fallbacks) still obey
+            # the cue-length settings: re-split overlong cues at punctuation
+            # for continuous languages and at word boundaries for Latin text,
+            # with interpolated in-segment times, mirroring the cloud
+            # coarse-segment path. Pieces carry no items because interpolated
+            # times must not pose as word-level precision.
+            segments.extend(
+                split_coarse_segments(
+                    [dict(source) for source in transcription.segments],
+                    max_len=max_len,
+                    min_len=min_len,
+                    gap_split_ms=gap_split_ms,
+                    max_words=max_words,
+                    min_words=min_words,
+                    split_mode=transcription.split_mode or None,
+                )
+            )
+        else:
+            for source in transcription.segments:
                 segments.extend(
                     _resplit_engine_segment(
                         source,

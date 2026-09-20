@@ -11,6 +11,7 @@ export default defineConfig({
   use: {
     browserName: 'chromium',
     headless: true,
+    locale: 'zh-CN',
     viewport: { width: 1280, height: 800 },
     actionTimeout: 10_000,
     ...(configuredChromiumPath

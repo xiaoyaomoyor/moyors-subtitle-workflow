@@ -54,7 +54,7 @@ VIDEO_EXTS = set(VIDEO_EXTENSIONS)
 AUDIO_EXTS = set(AUDIO_EXTENSIONS)
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 # Keep this aligned with pyproject.toml; release workflows synchronize it.
-BUNDLED_EDITOR_VERSION = "1.6.0-beta.3"
+BUNDLED_EDITOR_VERSION = "1.6.0-beta.4"
 
 
 class Sticker(TypedDict):
@@ -439,6 +439,12 @@ def main():
             default_audio_track=default_audio_track_from_metadata(data.get('media_metadata')))
         if reapeaks_wave is not None:
             data["waveform_reapeaks"] = reapeaks_wave
+        loudness = reapeaks.load_loudness_stats(
+            media_path, audio_track=audio_track,
+            default_audio_track=default_audio_track_from_metadata(data.get("media_metadata")),
+        )
+        if loudness is not None:
+            data["loudness"] = loudness
 
     output_path = Path(args.output).resolve() if args.output else \
         json_path.with_name(f"{json_path.stem}.edit.html")

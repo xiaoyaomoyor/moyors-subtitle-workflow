@@ -49,6 +49,10 @@ uv run python generate_subtitle_local.py "D:\Videos\example.mp4" `
 
 热词通过 faster-whisper 的 `hotwords` 参数注入 decoder prompt，与 Qwen 路径的 context 提示类似，是提示而非保证命中的硬约束。按模型 ID 加载时同样遵循 `MSW_MODEL_CACHE_ROOT` 统一缓存根目录。该引擎不提供说话人分离（多人场景请用 MOSS）；GPU 推理需要用户自行安装 CUDA 12 与 cuDNN 9 库（CTranslate2 不复用 Torch 自带的 CUDA 依赖），设备选择为“自动”时如果 CUDA 运行库不可用会自动回退到 CPU，显式选择 CUDA 则保留错误。无 GPU 时以 int8 精度运行 CPU。Whisper 的词级时间戳来自交叉注意力对齐，精度低于 Qwen 的 Forced Aligner，静音处偶发幻觉属于上游已知行为；中文等非拉丁语言的验收请先用自己的音频进行。
 
+## Qwen 自动设备与中断恢复
+
+Qwen 的自动设备顺序为 CUDA、Apple MPS、CPU；自动选择 MPS 后加载失败会回退 CPU，显式指定设备则保留错误。缺少词级时间码时仅做句段级拆分，不伪造词级对齐。安装或修复异常中断后可重新检查状态并重试。下载源可用 `MSW_PYTORCH_INDEX` 指定，兼容旧 `MAW_PYTORCH_INDEX`，网络探测保持 TLS 校验。
+
 ## 安装可选依赖
 
 源码开发环境默认 `uv sync` 不会安装本地模型依赖。开发者可以手动安装：

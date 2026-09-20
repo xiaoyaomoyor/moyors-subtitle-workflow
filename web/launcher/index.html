@@ -89,7 +89,7 @@
       <div class="nav-spacer"></div>
       <div class="nav-footer">
         <span class="nav-footer-short">MSW</span>
-        <span class="nav-footer-full">MSW：<span id="appVersion">v1.6.0-beta.3</span></span>
+        <span class="nav-footer-full">MSW：<span id="appVersion">v1.6.0-beta.4</span></span>
       </div>
       </div>
     </nav>
@@ -724,6 +724,10 @@
               </label>
             </div>
           </div>
+          <div class="row">
+            <div class="field"><label for="autoTranslateBilingualOrder" data-i18n="auto_bilingual_order">双语行序</label><select id="autoTranslateBilingualOrder"><option value="" data-i18n="auto_bilingual_default">跟随目标语言</option><option value="translation_first" data-i18n="auto_translation_first">译文在上</option><option value="original_first" data-i18n="auto_original_first">原文在上</option></select></div>
+            <div class="field"><label class="check-field" for="autoTranslateBackfill"><input id="autoTranslateBackfill" type="checkbox"><span data-i18n="auto_backfill">用译文替换主字幕</span></label><p class="hint" data-i18n="auto_backfill_hint">保留已有副轨和配音；与合并双语互斥。两者都关闭时生成副字幕。</p></div>
+          </div>
           <div class="field">
             <label for="postprocessPromptTranslate" data-i18n="toolbox_prompt_translate">翻译提示词（追加）</label>
             <textarea id="postprocessPromptTranslate" rows="3" autocomplete="off" data-i18n-placeholder="toolbox_prompt_placeholder"></textarea>
@@ -1102,6 +1106,11 @@
           <div class="settings-scroll">
           <section id="settingsAppearancePanel" class="settings-panel" role="tabpanel" aria-labelledby="settingsRailAppearance" data-settings-panel="appearance" aria-hidden="false">
           <div class="settings-section">
+            <h3 data-i18n="settings_notifications">完成通知</h3>
+            <label class="check-field" for="notifyOnComplete"><input id="notifyOnComplete" type="checkbox"><span data-i18n="notify_on_complete">任务完成或失败时发送系统通知</span></label>
+            <p class="hint" data-i18n="notify_on_complete_hint">默认关闭；批处理仅在整个队列结束时提醒，取消不提醒。</p>
+          </div>
+          <div class="settings-section">
             <h3 data-i18n="settings_appearance">外观</h3>
             <div class="segmented" role="group">
               <button type="button" class="segment" id="themeLight" data-i18n="theme_light">明亮模式</button>
@@ -1130,14 +1139,14 @@
               <span data-i18n="per_video_subfolder">每个视频单独创建子文件夹</span>
             </label>
             <label class="check-field" for="attachModelName">
-              <input id="attachModelName" type="checkbox" data-i18n-title="attach_model_name_title" title="附加模型名称（默认开启）：SRT 文件名带上供应商/模型段，如 clip.qwen-audio.srt">
+              <input id="attachModelName" type="checkbox" data-i18n-title="attach_model_name_title" title="附加模型名称（默认关闭）：SRT 文件名带上供应商/模型段，如 clip.qwen-audio.srt">
               <span data-i18n="attach_model_name">附加模型名称</span>
             </label>
           </div>
           <div class="settings-section">
             <h3 data-i18n="settings_stickers">默认表情包路径</h3>
             <p class="hint" data-i18n="stickers_explain">表情包根目录供 HTML 编辑器使用；支持嵌套子目录（如 大狗/、Nox/ 等）。</p>
-            <p class="hint"><span data-i18n="current_value">当前</span>：<code id="stickerCurrent">未设置</code></p>
+              <p class="hint"><span data-i18n="current_value">当前</span>：<button type="button" id="stickerCurrent" class="inline-link" disabled>未设置</button></p>
             <div class="field">
               <label for="stickerDir" data-i18n="sticker_dir">表情包根目录</label>
               <div class="path-row">

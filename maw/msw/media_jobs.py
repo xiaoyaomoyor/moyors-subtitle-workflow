@@ -116,7 +116,8 @@ class MediaJobs:
             source = Path(media['path'])
             options = dict(audio_track=media['audio_index'], default_audio_track=default_audio_track_from_metadata(media['metadata']))
             layers = {'waveform': cached, 'spectral': quapeaks.load_spectral_payload(source, **options),
-                      'waveform_reapeaks': quapeaks.load_waveform_payload(source, **options)}
+                      'waveform_reapeaks': quapeaks.load_waveform_payload(source, **options),
+                      'loudness': quapeaks.load_loudness_stats(source, **options)}
             with self.media.api.server.save_lock:
                 bound = self.media.api.server.project
                 active = self.media.active(project_id)

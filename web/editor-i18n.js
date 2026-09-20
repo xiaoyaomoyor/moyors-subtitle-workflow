@@ -9,6 +9,23 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "跟随播放": "Follow playback",
+    "定位当前播放头并恢复字幕跟随；手动翻看后可再次点击": "Locate the playhead and resume subtitle following; click again after browsing manually",
+    "完整 SRT 字幕": "Full SRT subtitles",
+    "按颜色拆分导出 SRT 字幕": "Export SRT subtitles split by color",
+    "SRT 字幕": "SRT subtitles",
+    "使用说话人名称替代颜色后缀": "Use speaker name instead of the color suffix",
+    "按移除静音空隙后的时间轴导出带样式的 ASS 字幕；原工程时间不变": "Export styled ASS subtitles on the gap-removed timeline; project timing stays unchanged",
+    '响度适配': 'Fit loudness',
+    '按整文件响度重新拟合振幅': 'Fit amplitude to media loudness',
+    '当前媒体没有响度缓存，无法按响度适配': 'No loudness cache is available for this media',
+    '带样式的 ASS 字幕': 'Styled ASS subtitles',
+    '从颜色组中脱离': 'Detach from color group',
+    '已从颜色组中脱离': 'Detached from color group',
+    '译文写入': 'Translation destination',
+    '生成／更新副字幕': 'Create / update secondary subtitles',
+    '替换主字幕': 'Replace main subtitles',
+    '默认写入副字幕；替换主字幕时保留已有副轨和配音。处理期间可以继续编辑，修改过的内容不会被自动覆盖，应用后可撤销。': 'Default: update secondary subtitles. Replacing main text preserves existing secondary tracks and dubbing. You can keep editing; changed text is protected and applying results can be undone.',
     '清除全部空字幕块': 'Remove all empty subtitle blocks',
     '删除当前项目中所有没有文字内容的字幕块（含副字幕）': 'Delete all empty subtitle blocks in this project, including secondary subtitles',
     '显示搜索与筛选': 'Show search and filters',

@@ -51,6 +51,21 @@ class GuiConfigTests(unittest.TestCase):
 
         self.assertEqual(resolved.theme, "system")
 
+    def test_effective_config_distinguishes_automatic_and_saved_gui_language(self) -> None:
+        """Given absent or saved language preferences, When resolved, Then preserve that distinction."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_path = Path(temp_dir) / ".env"
+
+            with mock.patch.dict(os.environ, {}, clear=True):
+                automatic = gui_config.effective_config(env_path)
+
+            _ = env_path.write_text("MAW_GUI_LANG=en\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {}, clear=True):
+                saved = gui_config.effective_config(env_path)
+
+        self.assertEqual(automatic.gui_lang, "")
+        self.assertEqual(saved.gui_lang, "en")
+
     @mock.patch.dict(os.environ, {"MAW_ENV_FILE": ""})
     def test_default_env_path_keeps_repo_root_for_source_on_macos(self) -> None:
         with mock.patch.object(app_paths.sys, "platform", "darwin"):
@@ -255,7 +270,7 @@ class GuiConfigTests(unittest.TestCase):
         provider = gui_config.PROVIDERS[0]
 
         self.assertEqual(provider.id, "qwen")
-        self.assertIn("aliyun", provider.key_url)
+        self.assertEqual(provider.key_url, "https://platform.qianwenai.com/home/")
         self.assertEqual(provider.models[0].id, "qwen-audio-3.0-asr-flash-filetrans")
         self.assertEqual(provider.regions[0][0], "beijing")
         self.assertEqual(provider.languages[0][0], "")
@@ -291,6 +306,11 @@ class GuiConfigTests(unittest.TestCase):
         self.assertEqual(provider.models[0].env_key, "TENCENT_SECRET_ID")
         self.assertEqual(provider.regions, ())
         self.assertIn("SECRET_KEY", provider.note)
+
+    def test_provider_registry_contains_doubao_api_key_url(self) -> None:
+        provider = gui_config.provider_by_id("doubao")
+
+        self.assertEqual(provider.key_url, "https://console.volcengine.com/speech/new/setting/apikeys")
 
     def test_provider_registry_contains_custom_openai_compatible_asr(self) -> None:
         provider = gui_config.provider_by_id("openai")
@@ -430,6 +450,76 @@ class GuiConfigTests(unittest.TestCase):
             _ = env_path.write_text("", encoding="utf-8")
             with mock.patch.dict(os.environ, {}, clear=True):
                 self.assertFalse(gui_config.effective_config(env_path).show_rare_langs)
+
+    def test_effective_config_file_output_flags_defaults_and_env_values(self) -> None:
+        """Given 文件输出 flags unset or set in .env, When resolved, Then defaults and values apply."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_path = Path(temp_dir) / ".env"
+            with mock.patch.dict(os.environ, {}, clear=True):
+                config = gui_config.effective_config(env_path)
+            self.assertFalse(config.output_subfolder)
+            self.assertFalse(config.per_video_subfolder)
+            self.assertFalse(config.attach_model_name)
+
+            _ = env_path.write_text(
+                "MAW_GUI_OUTPUT_SUBFOLDER=true\n"
+                "MAW_GUI_PER_VIDEO_SUBFOLDER=1\n"
+                "MAW_GUI_ATTACH_MODEL_NAME=off\n",
+                encoding="utf-8",
+            )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                config = gui_config.effective_config(env_path)
+            self.assertTrue(config.output_subfolder)
+            self.assertTrue(config.per_video_subfolder)
+            self.assertFalse(config.attach_model_name)
+
+    def test_effective_config_parses_notify_on_complete_default_off(self) -> None:
+        """Given the completion-notification toggle, When resolved, Then it defaults off and follows env."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_path = Path(temp_dir) / ".env"
+
+            with mock.patch.dict(os.environ, {}, clear=True):
+                self.assertFalse(gui_config.effective_config(env_path).notify_on_complete)
+
+            _ = env_path.write_text("MAW_GUI_NOTIFY_ON_COMPLETE=false\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {}, clear=True):
+                self.assertFalse(gui_config.effective_config(env_path).notify_on_complete)
+
+            _ = env_path.write_text("MAW_GUI_NOTIFY_ON_COMPLETE=on\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {}, clear=True):
+                self.assertTrue(gui_config.effective_config(env_path).notify_on_complete)
+
+    def test_effective_config_file_output_flags_prefer_system_environment(self) -> None:
+        """Given process env differs from .env, When resolved, Then process env wins."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_path = Path(temp_dir) / ".env"
+            _ = env_path.write_text(
+                "MAW_GUI_OUTPUT_SUBFOLDER=true\nMAW_GUI_ATTACH_MODEL_NAME=false\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch.dict(
+                os.environ,
+                {"MAW_GUI_OUTPUT_SUBFOLDER": "false", "MAW_GUI_ATTACH_MODEL_NAME": "true"},
+                clear=True,
+            ):
+                config = gui_config.effective_config(env_path)
+            self.assertFalse(config.output_subfolder)
+            self.assertTrue(config.attach_model_name)
+
+    def test_effective_config_file_output_flags_invalid_values_fall_back_to_defaults(self) -> None:
+        """Given 无法识别的布尔取值, When resolved, Then 按默认值处理。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_path = Path(temp_dir) / ".env"
+            _ = env_path.write_text(
+                "MAW_GUI_OUTPUT_SUBFOLDER=bogus\nMAW_GUI_ATTACH_MODEL_NAME=bogus\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch.dict(os.environ, {}, clear=True):
+                config = gui_config.effective_config(env_path)
+            self.assertFalse(config.output_subfolder)
+            self.assertFalse(config.attach_model_name)
 
     def test_model_by_label_searches_all_providers(self) -> None:
         """Given a Soniox model id, When resolved, Then its env key comes from the Soniox entry."""

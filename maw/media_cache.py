@@ -196,6 +196,7 @@ def embed_media_caches(
     else:
         print(f"[waveform] 警告: {waveform_result.error}；已跳过波形缓存")
 
+    project.pop("loudness", None)
     project.pop("spectral", None)
     if generate_spectral:
         print("[reapeaks] 正在生成波形和频谱缓存（可能需要一些时间）……")
@@ -235,6 +236,10 @@ def embed_media_caches(
             print("[reapeaks] 警告: 生成缓存的来源已变化，已跳过波形层与频谱缓存")
         else:
             try:
+                loudness = quapeaks.extract_loudness_stats(
+                    reapeaks_path, reapeaks_media_path, audio_track=audio_track)
+                if loudness is not None:
+                    project["loudness"] = loudness
                 if generate_spectral:
                     spectral = quapeaks.extract_spectral_payload(
                         reapeaks_path,

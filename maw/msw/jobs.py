@@ -31,6 +31,9 @@ def validate_snapshot(raw: object) -> dict:
     if not isinstance(entries, list) or not 1 <= len(entries) <= 10000:
         raise ValueError("请选择 1–10000 条可翻译主字幕")
     track_id = raw.get("track_id")
+    output_mode = raw.get("output_mode", "secondary")
+    if output_mode not in {"secondary", "replace_main"}:
+        raise ValueError("翻译输出方式无效")
     if track_id is not None and not valid_cue_id(track_id):
         raise ValueError("副字幕轨标识无效")
     clean = []
@@ -60,7 +63,10 @@ def validate_snapshot(raw: object) -> dict:
     normalize_project({"segments": [entry["source"] for entry in clean]})
     if sum(len(entry["source"]["text"]) for entry in clean) > 1000000:
         raise ValueError("单次翻译文本过长，请分批选择字幕")
-    return {"project_id": raw["project_id"], "track_id": track_id, "entries": clean}
+    result = {"project_id": raw["project_id"], "track_id": track_id, "entries": clean}
+    if "output_mode" in raw:
+        result["output_mode"] = output_mode
+    return result
 
 
 def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: LlmSettings,
@@ -86,7 +92,8 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
     )
     check()
     return {"translations": [{"id": cue["id"], "text": cue["text"]} for cue in result.project["segments"]],
-            "warnings": list(result.warnings), "language": language}
+            "warnings": list(result.warnings), "language": language,
+            "skipped_ids": list(result.skipped_source_ids)}
 
 
 class JobManager:

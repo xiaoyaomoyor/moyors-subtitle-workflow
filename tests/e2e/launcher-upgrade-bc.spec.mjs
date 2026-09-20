@@ -20,7 +20,8 @@ test('output settings retain the inactive per-media preference and preserve an e
   await page.locator('[data-settings-tab="files"]').click();
   await expect(page.locator('#outputSubfolder')).not.toBeChecked();
   await expect(page.locator('#perVideoSubfolder')).toBeDisabled();
-  await expect(page.locator('#attachModelName')).toBeChecked();
+  await expect(page.locator('#attachModelName')).not.toBeChecked();
+  await page.locator('#attachModelName').check();
   await page.locator('#outputSubfolder').check();
   await page.locator('#perVideoSubfolder').check();
   await expect(page.locator('#srtPath')).toHaveValue(/clip_msw.*\.qwen-audio\.srt$/);

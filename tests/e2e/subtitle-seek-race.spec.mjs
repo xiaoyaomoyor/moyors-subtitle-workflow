@@ -140,6 +140,7 @@ test('the default waveform subtitle target follows the pointer', async ({ page }
   await toggleEditorSettings(page);
   await expect(page.locator('#click-target')).toHaveValue('pointer');
   await expect(page.locator('#click-target-field')).toBeVisible();
+  await toggleEditorSettings(page); // The settings dialog must not cover the waveform.
   await page.evaluate(() => {
     document.getElementById('waveform-scroll').scrollTop = 5 * (120 + 10);
   });

@@ -25,6 +25,12 @@ test.afterAll(async () => {
 
 test.beforeEach(async ({ page }) => {
   await disableOnboarding(page);
+  // These interaction cases share a source fixture; autosave has dedicated coverage.
+  await page.addInitScript(() => {
+    const key = 'moy.asr.editor.settings.v1';
+    const settings = JSON.parse(localStorage.getItem(key) || '{}');
+    localStorage.setItem(key, JSON.stringify({ ...settings, autoSaveProject: false }));
+  });
 });
 
 test('jump target is shown for both jump behaviors and hidden for select-only', async ({ page }) => {
@@ -195,7 +201,7 @@ test('default list click keeps a cue already in the middle in place', async ({ p
       const start = index * 5000;
       return { start, end: start + 1000, text: `Extra ${index}`, items: [] };
     }));
-    renderAll();
+    renderAll({ preserveCueListScroll: false });
     const list = document.getElementById('cues-container');
     const cue = document.querySelector('.cue[data-idx="30"]');
     list.scrollTop = Math.max(0, cue.offsetTop - list.clientHeight / 2 + cue.offsetHeight / 2);
@@ -364,6 +370,8 @@ test('Escape exits inline cue editing without saving the text', async ({ page })
   const cue = page.locator('.cue[data-idx="0"]');
   const text = cue.locator('.text');
   const original = await text.innerText();
+  const wasDirty = await cue.evaluate(el => el.classList.contains('dirty'));
+  const undoWasDisabled = await page.locator('#undo-btn').isDisabled();
 
   await text.dblclick();
   await expect(cue).toHaveClass(/editing/);
@@ -373,8 +381,8 @@ test('Escape exits inline cue editing without saving the text', async ({ page })
   await expect(cue).not.toHaveClass(/editing/);
   await expect(text).toHaveText(original);
   await expect.poll(() => page.evaluate(() => DATA.segments[0].text)).toBe(original);
-  await expect(cue).not.toHaveClass(/dirty/);
-  await expect(page.locator('#undo-btn')).toBeDisabled();
+  expect(await cue.evaluate(el => el.classList.contains('dirty'))).toBe(wasDirty);
+  expect(await page.locator('#undo-btn').isDisabled()).toBe(undoWasDisabled);
 });
 
 test('cue-panel Enter split falls back to a waveform split marker', async ({ page }) => {

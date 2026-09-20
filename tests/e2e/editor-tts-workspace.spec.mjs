@@ -33,6 +33,8 @@ test.beforeEach(async ({page}) => {
 });
 
 test('independent editor draft supports multiline, native undo, mode switches and a complete asset', async ({page}) => {
+  // Exercise whole-draft synthesis explicitly; line-splitting defaults have separate production tests.
+  await page.evaluate(() => updateEditorSettings({ttsDraftSplitLines: false}));
   await page.locator('.cue .text').first().click();
   await openTtsEnvironment(page); await page.locator('#tts-key').fill('synthetic-workspace-key');
   await closeTtsEnvironment(page);

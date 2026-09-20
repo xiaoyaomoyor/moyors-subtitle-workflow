@@ -87,7 +87,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(config["localRuntime"]["status"], "checking")
         self.assertEqual(config["ocrRuntime"]["status"], "checking")
         self.assertEqual([model["id"] for model in config["ocrModels"]], ["pp-ocrv6-tiny", "pp-ocrv6-small"])
-        self.assertEqual(config["providers"][0]["keyUrl"], "https://help.aliyun.com/zh/model-studio/get-api-key")
+        self.assertEqual(config["providers"][0]["keyUrl"], "https://platform.qianwenai.com/home/")
         self.assertNotIn("tencent", [provider["id"] for provider in config["providers"]])
         self.assertEqual(len(config["providers"][0]["commonLanguages"]), 10)
         self.assertEqual(len(config["providers"][1]["commonLanguages"]), 8)
@@ -2042,8 +2042,10 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["field"], "port")
         self.assertEqual(result["code"], "server_no_response")
-        self.assertIn("启动超时", result["detail"])
-        self.assertIn("child stalled before binding port", result["detail"])
+        self.assertEqual(result["detail"], "http://127.0.0.1:9876/")
+        self.assertEqual(result["diagnostics"]["processState"], "running")
+        self.assertIn("child stalled before binding port", result["diagnostics"]["startupLogTail"])
+        self.assertIn("lastProbe", result["diagnostics"])
         persisted_log = next(log_directory.glob("maw-*.log")).read_text(encoding="utf-8")
         self.assertIn("server_no_response", persisted_log)
         self.assertIn("child stalled before binding port", persisted_log)
@@ -2676,13 +2678,13 @@ class GuiWebBridgeTests(unittest.TestCase):
     def test_default_output_avoids_existing_srt_and_reports_rename(self) -> None:
         media = self.root / "clip.mp4"
         media.write_bytes(b"media")
-        output = self.root / "clip.qwen-audio.srt"
+        output = self.root / "clip.srt"
         output.write_text("existing", encoding="utf-8")
 
         result = self.api.default_output({"mediaPath": str(media), "providerId": "qwen", "modelId": "qwen-audio-3.0-asr-flash-filetrans"})
 
         self.assertTrue(result["renamed"])
-        self.assertEqual(result["path"], str(self.root / "clip.qwen-audio-1.srt"))
+        self.assertEqual(result["path"], str(self.root / "clip-1.srt"))
 
     def test_start_transcription_rechecks_output_collision_before_worker(self) -> None:
         media = self.root / "clip.mp3"

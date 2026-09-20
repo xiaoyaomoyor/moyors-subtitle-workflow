@@ -471,7 +471,11 @@ test('audio clip playback stops old sources on seek and mute',async({page})=>{
   expect(await page.evaluate(()=>MSWE.resolve('audio-timeline').diagnostics().active)).toBe(0);
 });
 test('audio clips buffer before playing and a cancelled load cannot restart playback',async({page})=>{
-  await prepareClips(page); await page.keyboard.press('Control+s');
+  await page.addInitScript(() => localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({autoSaveProject:false})));
+  await prepareClips(page);
+  // Finish any automatic save before explicitly saving the playback fixture.
+  await expect.poll(() => page.evaluate(() => projectSaveInFlight)).toBe(false);
+  await page.keyboard.press('Control+s');
   await expect.poll(()=>JSON.parse(readFileSync(projectPath)).msw.audio_clips?.length||0).toBe(1);
   let release; const gate=new Promise(resolve=>release=resolve);
   await page.route('**/asset-audio?*',async route=>{await gate; await route.continue();});
@@ -761,8 +765,9 @@ test('asset cards show three columns, icon actions and responsive saved density'
   await expect.poll(columns).toBe(3);
   const geometry=await cards.evaluateAll(els=>els.slice(0,4).map(el=>{const b=el.getBoundingClientRect();return {x:b.x,y:b.y};}));
   expect(geometry[0].y).toBe(geometry[2].y);expect(geometry[3].y).toBeGreaterThan(geometry[0].y);
-  const first=cards.first(); await expect(first.locator('button svg')).toHaveCount(4);
-  expect(await first.locator('button').allTextContents()).toEqual(['','','','']);
+  const first=cards.first(); await expect(first.locator('button svg')).toHaveCount(5);
+  expect(await first.locator('button').allTextContents()).toEqual(['','','','','']);
+  await expect(first.getByRole('button',{name:'按原配置重新生成（将调用原服务）',exact:true})).toBeVisible();
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-cards-default.png')});
   await first.getByRole('button',{name:'试听',exact:true}).click();
   await first.getByRole('button',{name:'暂停试听',exact:true}).click();

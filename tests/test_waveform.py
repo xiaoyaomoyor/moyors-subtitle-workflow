@@ -556,11 +556,8 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="cue-list-auto-scroll-on-click" checked', page)
         self.assertIn('cueListAutoScrollOnClick: saved.cueListAutoScrollOnClick !== false', page)
         self.assertIn('if (EDITOR_SETTINGS.cueListAutoScrollOnClick && !state?.preserveListScroll)', page)
-        self.assertIn("const visibleHeight = Math.max(1, visibleBottom - visibleTop);", page)
-        self.assertIn(
-            "const comfortInset = Math.min(120, Math.max(48, visibleHeight * 0.2));",
-            page,
-        )
+        self.assertIn("function captureCueListRenderAnchor", page)
+        self.assertIn('id="cue-list-follow"', page)
         self.assertIn('cueListShowIndex: saved.cueListShowIndex !== false', page)
         self.assertIn('cueListShowTime: saved.cueListShowTime !== false', page)
         self.assertIn('cueListShowSticker: saved.cueListShowSticker !== false', page)
@@ -794,7 +791,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertNotIn('id="open-project-file" accept=".json,.mosp,application/json" multiple', page)
         self.assertNotIn("confirm('是否同时选择该工程关联的媒体文件？", page)
         self.assertIn("flashHint('请先加载媒体，然后才能预览', 'invalid');", page)
-        self.assertIn("flashHint('保存成功！', 'success');", page)
+        self.assertIn("function beginProjectSaveFeedback", page)
         self.assertIn("当前服务器未绑定工程；请先导出 .mosp，再重新打开该文件", page)
         self.assertIn('event.composedPath?.().includes(player)', page)
         self.assertIn('function isTextEditingTarget(event)', page)

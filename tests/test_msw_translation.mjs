@@ -24,6 +24,44 @@ function project(secondary = false) {
 const selection = (mainIds = [], extensionIds = [], hasSelection = false) => ({ mainIds, extensionIds, trackId: 'secondary', hasSelection });
 const output = (input) => ({ language: 'zh', translations: input.entries.map(({ source }) => ({ id: source.id, text: `译文 ${source.text}` })) });
 
+test('main backfill preserves current timing, IDs, secondary tracks and dubbing state', () => {
+  const data = project(true);
+  data.segments[0].items = [{text: 'a', start: 0, end: 2000}];
+  const input = core.snapshot(data, selection(), 'replace_main');
+  data.segments[0].start = 100;
+  const before = plain(data), plan = core.reconcile(data, input, output(input));
+  assert.deepEqual(plain(data), before, 'planning is pure');
+  assert.equal(plan.multi, undefined, 'existing secondary state remains untouched');
+  assert.deepEqual(plain(plan.segments.map(cue => [cue.id, cue.start, cue.end, cue.text])),
+    [['a', 100, 2000, '译文 a'], ['b', 3000, 5000, '译文 b']]);
+  assert.equal(plan.segments[0].items, undefined);
+  data.segments[1].text = 'concurrent edit';
+  const conflict = core.reconcile(data, input, output(input));
+  assert.deepEqual(plain(conflict.appliedIds), ['a']);
+  assert.equal(conflict.segments[1].text, 'concurrent edit');
+  assert.equal(conflict.conflicts[0].id, 'b');
+});
+
+test('target-language skips preserve existing secondary text and never create an empty track', () => {
+  for (const secondary of [false, true]) {
+    const data = project(secondary), input = core.snapshot(data, selection());
+    const result = {language: 'zh', skipped_ids: ['a', 'b'], translations: input.entries.map(({source}) => ({id: source.id, text: source.text}))};
+    const plan = core.reconcile(data, input, result);
+    assert.deepEqual(plain(plan.appliedIds), ['a', 'b']);
+    assert.equal(plan.multi.tracks.length, secondary ? 1 : 0);
+    if (secondary) assert.deepEqual(plain(plan.multi), plain(data.multi_subtitle));
+    assert.equal(plan.conflicts.length, 0);
+  }
+});
+
+test('unchanged backfill keeps word timestamps and rejects invalid output modes', () => {
+  const data = project(); data.segments[0].items = [{text:'a',start:0,end:2000}];
+  const input = core.snapshot(data, selection(['a'], [], true), 'replace_main');
+  const plan = core.reconcile(data, input, {translations:[{id:'a',text:'a'}]});
+  assert.deepEqual(plain(plan.segments), plain(data.segments));
+  assert.throws(() => core.snapshot(data, selection(), 'unknown'), /输出方式无效/);
+});
+
 test('save-as provenance survives normalization and rejects malformed source IDs', () => {
   const extension = {schema: codec.SCHEMA, project_id: 'new-project', source_project_id: 'old-project'};
   assert.deepEqual(plain(codec.normalize(extension)), extension);

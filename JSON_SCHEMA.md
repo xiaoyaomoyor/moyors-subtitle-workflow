@@ -75,6 +75,10 @@
 
 `media_metadata.video_fps` 是生成工程时从源视频读取的媒体 FPS，仅作为编辑器切入帧模式时的默认值；它不替代编辑器自己的 `timebase.fps`，用户仍可在全局设置中修改。旧工程没有 `media_metadata` 时继续使用编辑器原有默认值。`video_fps_ratio` 用于保留 `30000/1001` 这类非整数帧率的原始比例。
 
+`media_metadata.video_width` 与 `video_height` 是兼容 MAW beta.4 的可选视频尺寸，提供时必须成对出现且均为正整数；缺失时仍接受旧工程。探测只补缺失值，不覆盖工程已有 FPS 或所选音轨。
+
+顶层 `loudness` 是 `moy.asr.loudness.v1` 响度运行态缓存：由匹配源媒体和所选音轨的 `.quapeaks` 响度层生成，包含整文件 `bin_count/channels/audio_track/max/mean/rms/p95/source`，数值为线性 RMS，不能当作峰值或 dB。普通 `.mosp` 保存时与波形缓存一起剥离；缓存缺失不影响字幕编辑。
+
 `media_metadata.audio_tracks` 是从源容器读取的音轨清单。`audio_index` 是音频流内部的从 0 开始顺序，`stream_index` 是源容器中的 FFmpeg stream index；其余字段用于保留编码、声道、采样率、语言、标题和默认标记。编辑器导出 OTIO 时会为每条清单建立独立的 `Audio` 轨道，在达芬奇使用的 `Resolve_OTIO.Channels` 中写入源音轨/声道映射，并在 `moy` 元数据中保留对应的 stream index。旧工程缺少该字段时继续生成一条兼容的音频轨道。
 
 `timebase` 是字幕编辑器的时间基准，不改变媒体本身的时间单位。`unit: "milliseconds"` 保持旧行为；`unit: "frames"` 时，拖动、边界调整、方向键和 A/D 微调使用独立的帧字段，`fps` 决定帧与实际媒体时间的换算。为兼容旧工具，`start` / `end` 及字词时间码仍始终保存为整数毫秒；帧模式额外保存成对的 `start_frame` / `end_frame` 字段。帧时间码显示采用较通行的非丢帧格式 `HH:MM:SS:FF`，其中 `FF` 是当前秒内的帧号。
@@ -233,6 +237,7 @@
 - `selectedPreset` 记录用户最后在**工作区下拉框**选择的项：内置工作区为 `classic` / `wave-right` / `three-fold` / `cinema`（大荧幕布局），本机命名工作区为 `saved:<名称>`。它与 `tree` 一起保存，使内部以 `custom` 渲染的工作区在重开工程后仍显示用户所见的名称。
 - `waveformMode` 可为 `multi`（多行）或 `basic`（单行）。工作区中存在该字段时随恢复一并切换；缺失时保持当前浏览器设置。
 - `waveformSettings` 保存波形区数值与显示偏好：基础模式窗口长度、多行每行长度及高度、振幅、左右侧、禁用字幕显示、分组徽章与拖动播放头。可选布尔值 `followSourceGain` 控制波形显示高度是否跟随源音频试听增益，新安装默认关闭；仅绘制时应用增益，不修改峰值缓存或媒体。字段缺失时保持浏览器本机设置。
+- `waveformSettings.waveformScaleAuto` 为工程级自动响度定标开关，与上游 beta.4 同名同义。显式 `false` 保留手动 `waveformScale`；显式 `true` 在有效响度缓存到达后拟合。旧 MSW 工程已有振幅数值而没有此标志时补为 `false`，新工程默认 `true`；无有效响度层时不猜测振幅。手动增减振幅会关闭自动模式，“响度适配”可重新开启；`followSourceGain` 仍独立作用于绘制。
 - `editorDisplay` 保存“字幕列表显示”和“字幕编辑显示”两组开关。它只包含工作区可见性，不包含导出、自动保存或快捷键等全局偏好。
 - `splitPercent` 是 classic 网格中多行波形与字幕列表比例，范围会被限制在 35–75；它与工作区一起导出，因此拖动后可撤销、复用。
 - `columnPercent` 是 `custom` 渲染器最外层左右分栏的比例，范围会被限制在 30–75。

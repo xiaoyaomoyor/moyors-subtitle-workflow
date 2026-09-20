@@ -66,7 +66,7 @@ tts.TtsService = TestService
 asr.AsrService = TestAsrService
 qwen_voices.cloud_request = fake_voice_request
 if os.environ.get("MSW_TEST_SAVE_TARGET"):
-    persistence.pick_project_target = lambda _: Path(os.environ["MSW_TEST_SAVE_TARGET"])
+    persistence.pick_project_target = lambda _, **options: Path(os.environ["MSW_TEST_SAVE_TARGET"])
 if os.environ.get('MSW_TEST_MEDIA_SOURCE'):
     media_service.pick_media_source = lambda: Path(os.environ['MSW_TEST_MEDIA_SOURCE'])
 runpy.run_path(str(ROOT / "server-editor" / "serve.py"), run_name="__main__")

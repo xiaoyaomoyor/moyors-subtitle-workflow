@@ -669,5 +669,8 @@ export async function clickBatchOperation(page, itemId) {
 }
 
 export async function toggleCueEditorSettings(page) {
-  await toggleSettingsSubmenu(page, 'cue-editor-settings-submenu', 'cue-editor-settings-panel');
+  const modal = page.locator('#cue-editor-settings-modal');
+  if (await modal.isVisible()) { await page.keyboard.press('Escape'); return; }
+  await clickMenubarItem(page, '字幕', 'cue-editor-settings-open');
+  await modal.waitFor({state:'visible'});
 }

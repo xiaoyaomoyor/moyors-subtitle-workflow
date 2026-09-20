@@ -98,6 +98,28 @@ async function panel(page) {
 }
 const secondaryTexts = (page) => page.evaluate(() => DATA.multi_subtitle.tracks[0]?.segments.map(cue => cue.text) || []);
 
+test('main backfill retains secondary tracks and can be undone as one operation', async ({ page }) => {
+  await open(page, true); await panel(page);
+  await expect(page.locator('#translation-output-mode')).toHaveValue('secondary');
+  await page.evaluate(() => {
+    DATA.segments[0].items = [{text: 'Hello', start: 0, end: 2000, start_frame: 0, end_frame: 60}];
+    DATA.msw.future = {preserved: true};
+  });
+  const before = await page.evaluate(() => JSON.parse(JSON.stringify({segments: DATA.segments, multi: DATA.multi_subtitle, msw: DATA.msw})));
+  await page.locator('#translation-output-mode').selectOption('replace_main');
+  await page.locator('#translation-start').click();
+  await expect.poll(() => page.evaluate(() => DATA.segments.map(cue => cue.text))).toEqual(['Translated Hello', 'Translated World']);
+  expect(await page.evaluate(() => DATA.multi_subtitle)).toEqual(before.multi);
+  expect(await page.evaluate(() => DATA.segments[0].items)).toBeUndefined();
+  expect(await page.evaluate(() => DATA.msw.future)).toEqual({preserved: true});
+  expect(await page.evaluate(() => DATA.segments.map(cue => [cue.id, cue.start, cue.end]))).toEqual(before.segments.map(cue => [cue.id, cue.start, cue.end]));
+  await page.locator('#subtitle-translation-close').click();
+  await page.evaluate(() => performUndo());
+  expect(await page.evaluate(() => DATA.segments.map(cue => cue.text))).toEqual(['Hello', 'World']);
+  expect(await page.evaluate(() => DATA.segments[0].items)).toEqual(before.segments[0].items);
+  expect(await page.evaluate(() => DATA.multi_subtitle)).toEqual(before.multi);
+});
+
 test('subtitle context menus open translation above TTS with selected scope and no submission', async ({ page }) => {
   await open(page, true);
   await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: false, clickBehavior: 'select-only' }));
@@ -105,7 +127,7 @@ test('subtitle context menus open translation above TTS with selected scope and 
     await locator.click({ button: 'right' });
     const labels = await page.locator('#ctxmenu > .item > span').allTextContents();
     expect(labels.indexOf('翻译所选字幕')).toBeGreaterThanOrEqual(0);
-    expect(labels.indexOf('翻译所选字幕') + 1).toBe(labels.indexOf('配音所选字幕（TTS）'));
+    expect(labels.indexOf('配音所选字幕（TTS）')).toBeGreaterThan(labels.indexOf('翻译所选字幕'));
     await page.locator('#ctxmenu .item').filter({ hasText: /^翻译所选字幕$/ }).click();
     await expect(page.locator('#subtitle-translation-panel')).toBeVisible();
   };

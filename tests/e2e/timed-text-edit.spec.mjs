@@ -84,7 +84,7 @@ test('previews text changes and applies the reported item-timing mapping', async
   await expect(page.locator('#timed-text-edit-single-textarea')).toHaveValue('就是这颗\nabc');
   const timedTextThreshold = page.locator('#timed-text-edit-charcount-threshold');
   await expect(timedTextThreshold).toBeVisible();
-  await expect(timedTextThreshold).toHaveValue('16');
+  await expect(timedTextThreshold).toHaveValue(''); // No initial character-count filter.
   await timedTextThreshold.fill('20');
   await expect(page.locator('#charcount-threshold')).toHaveValue('20');
   await expect.poll(() => page.locator('#timed-text-edit-single-editor').evaluate(
@@ -135,7 +135,7 @@ test('previews text changes and applies the reported item-timing mapping', async
   await expect(page.locator('#cues-container .cue[data-idx="0"]')).toHaveClass(/dirty/);
   const state = await page.evaluate(() => ({
     texts: DATA.segments.map((segment) => segment.text),
-    items: DATA.segments.map((segment) => segment.items),
+    items: DATA.segments.map((segment) => segment.items?.map(({start,end,text}) => ({start,end,text}))),
     ranges: DATA.segments.map((segment) => [segment.start, segment.end]),
     dirty: DATA.segments.map((segment) => Boolean(segment._dirty)),
   }));

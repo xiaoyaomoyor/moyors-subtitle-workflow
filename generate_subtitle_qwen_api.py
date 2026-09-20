@@ -1065,6 +1065,46 @@ def build_interpolated_items(
     return items
 
 
+def build_interpolated_word_items(
+    text: str,
+    start_ms: int,
+    end_ms: int,
+) -> list[dict]:
+    """把无词级时间码的西文文本按空白分词，并在段范围内按字符占比插值时间。
+
+    与 ``build_interpolated_items`` 的标点切块不同，单词型文本的插值单位
+    必须是完整单词：按字符硬切会把西文单词劈开，下游按词计数的切句器
+    会把半个单词当成一个词。item 文本沿用「前导空格挂在后一个词」的
+    约定，拼接后与原文一致；时间点是线性插值的近似值，结果不得携带
+    ``items`` 冒充词级精度。
+    """
+    clean = str(text or "")
+    if not clean.strip():
+        return []
+    if end_ms <= start_ms:
+        return []
+
+    tokens = _re.findall(r"\s*\S+", clean)
+    span = end_ms - start_ms
+    if span < len(tokens):
+        # No room for positive integer-ms words; retain the original cue.
+        return []
+    total = sum(len(token) for token in tokens)
+    items: list[dict] = []
+    cursor = start_ms
+    cum = 0
+    for index, token in enumerate(tokens):
+        cum += len(token)
+        if index == len(tokens) - 1:
+            boundary = end_ms
+        else:
+            boundary = start_ms + int(round(span * cum / total))
+            boundary = min(end_ms - (len(tokens) - index - 1), max(boundary, cursor + 1))
+        items.append({"text": token, "start": cursor, "end": boundary})
+        cursor = boundary
+    return items
+
+
 def split_coarse_segment(
     segment: dict,
     *,
@@ -1079,7 +1119,8 @@ def split_coarse_segment(
 
     - 不超长的段原样返回（包括其 items）。
     - 超长且带有效 items 的段用词级时间精确拆分。
-    - 超长且无 items 的段按标点切块并插值时间拆分，结果不携带 items。
+    - 超长且无 items 的段插值时间拆分（连续语言按标点切块，单词型按
+      空白分词），结果不携带 items。
     """
     text = str(segment.get("text") or "")
     if split_mode == "word":
@@ -1102,9 +1143,12 @@ def split_coarse_segment(
             split_mode=split_mode,
         )
     else:
-        pseudo_items = build_interpolated_items(
-            text, segment["start"], segment["end"], max_piece_len=max_len
-        )
+        if split_mode == "word":
+            pseudo_items = build_interpolated_word_items(text, segment["start"], segment["end"])
+        else:
+            pseudo_items = build_interpolated_items(
+                text, segment["start"], segment["end"], max_piece_len=max_len
+            )
         if not pseudo_items:
             return [segment]
         pieces = split_segments_auto(
@@ -1934,7 +1978,7 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
         raise SystemExit(
             "[错误] 未配置 DASHSCOPE_API_KEY。请在 .env 文件填入（参考 .env.example），\n"
             "       或设置系统环境变量 DASHSCOPE_API_KEY。\n"
-            "       API Key 申请：https://help.aliyun.com/zh/model-studio/get-api-key"
+            "       获取或查看 API Key：https://platform.qianwenai.com/home/"
         )
 
     print(f"[准备] 开始云端转写（模型: {model}）")

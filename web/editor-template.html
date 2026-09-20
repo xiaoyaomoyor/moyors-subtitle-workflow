@@ -99,6 +99,7 @@ __WAVEFORM_CSS__
             <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用当前空隙移除结果的字幕、时间线或保留区域计划">去空隙版本</div>
             <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
               <div class="dropdown-item" id="download-gap-removed-srt" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出字幕；原工程时间不变">字幕 SRT</div>
+              <div class="dropdown-item" id="download-gap-removed-ass" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出带样式的 ASS 字幕；原工程时间不变">带样式的 ASS 字幕</div>
               <div class="dropdown-item" id="download-gap-removed-color-srt" role="menuitem" tabindex="0" hidden title="按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕">按颜色导出字幕</div>
               <div class="dropdown-separator" role="separator"></div>
               <div class="dropdown-submenu" role="none">
@@ -1013,6 +1014,7 @@ __WAVEFORM_CSS__
           <button type="button" id="waveform-scale-down" title="减小波形振幅">−</button>
           <b id="waveform-scale-label">×1.0</b>
           <button type="button" id="waveform-scale-up" title="增大波形振幅">＋</button>
+          <button type="button" id="waveform-scale-fit" class="waveform-scale-fit" title="按整文件响度重新拟合振幅">响度适配</button>
         </span>
       </span>
       <label class="editor-settings-item" id="waveform-seconds-per-row-setting">每行长度
@@ -2084,8 +2086,8 @@ __WAVEFORM_CSS__
         <span class="cue-editor-key-hint"><kbd>Ctrl+A</kbd> 全选</span>
         <span class="cue-editor-key-hint"><kbd>Ctrl+D</kbd> 取消选择</span>
       </div>
-      <div class="toolbar cue-list-toolbar" aria-label="字幕列表模块栏"></div>
-    <div class="cues-container" id="cues-container">
+      <div class="toolbar cue-list-toolbar" aria-label="字幕列表模块栏"><button type="button" id="cue-list-follow" aria-pressed="true" title="定位当前播放头并恢复字幕跟随；手动翻看后可再次点击">跟随播放</button></div>
+    <div class="cues-container" id="cues-container" tabindex="0" aria-label="字幕列表">
       <div class="cues-empty" id="cues-empty">拖入工程或 SRT 后显示字幕列表</div>
     </div>
   </div>
@@ -2382,11 +2384,12 @@ __WAVEFORM_CSS__
       <div class="msw-processing-fields">
         <label>翻译目标<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
         <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
+        <label>译文写入<select id="translation-output-mode"><option value="secondary">生成／更新副字幕</option><option value="replace_main">替换主字幕</option></select></label>
       </div>
       <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>
 
       <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>
-      <p class="msw-processing-hint">完成后写入副字幕；已有副字幕保留位置。处理期间可以继续编辑，修改过的内容不会被自动覆盖。</p>
+      <p class="msw-processing-hint">默认写入副字幕；替换主字幕时保留已有副轨和配音。处理期间可以继续编辑，修改过的内容不会被自动覆盖，应用后可撤销。</p>
       <div class="msw-processing-actions"><button type="button" id="translation-start" class="primary">开始翻译</button></div>
     </div>
     <p id="translation-message" class="msw-processing-message" role="status" aria-live="polite"></p>

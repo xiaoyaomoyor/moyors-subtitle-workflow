@@ -106,7 +106,7 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(helpPanel.getByRole('tab', { name: '基础操作' })).toHaveAttribute('aria-selected', 'true');
   const basicPanel = helpPanel.locator('#help-tab-panel-basic');
   await expect(basicPanel).toHaveCSS('font-size', '13px');
-  await expect(basicPanel.locator('.help-subtitle')).toHaveText(['鼠标操作', '编辑', '字幕操作']);
+  await expect(basicPanel.locator('.help-subtitle')).toHaveText(['版本与说话人', '鼠标操作', '编辑', '字幕操作']);
   await expect(basicPanel.locator('h5.help-subtitle').filter({ hasText: '选择操作' })).toHaveCount(0);
   await expect(basicPanel.locator('h5.help-subtitle').filter({ hasText: '字幕列表' })).toHaveCount(0);
   await expect(basicPanel.locator('kbd').first()).toHaveCSS('font-size', '13px');

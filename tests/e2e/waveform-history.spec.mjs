@@ -808,10 +808,10 @@ test('C merge keeps the subtitle list at its current position', async ({ page })
 
   const merged = page.locator('.cue[data-idx="30"]');
   await expect(merged).toHaveText(/Cue 31 Cue 32/);
-  await expect.poll(() => merged.evaluate((element) => element.getBoundingClientRect().top))
-    .toBe(before.top);
-  await expect.poll(() => list.evaluate((element) => element.scrollTop))
-    .toBe(before.scrollTop);
+  await expect.poll(async () => Math.abs(await merged.evaluate(element => element.getBoundingClientRect().top) - before.top))
+    .toBeLessThanOrEqual(1); // Browsers round scroll offsets to device pixels.
+  // Lazy row heights may change scrollTop; the visible subtitle must stay anchored.
+  expect(await list.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
 });
 
 test('B splits the selected subtitle under the cue-list pointer and supports undo and redo', async ({ page }) => {
@@ -1368,6 +1368,9 @@ test('B and C refresh cue overlays without redrawing cached waveform canvases', 
     waveformEditor.settings.secondsPerRow = 60;
     waveformEditor.multiRange = [-1, -1];
     waveformEditor.render();
+  });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(() => {
     window.__cueOverlayStats = { drawRows: 0, overlayRefreshes: 0 };
     window.__cachedWaveformCanvas = document.querySelector('.waveform-row canvas');
     const originalDrawRow = waveformEditor.drawRow.bind(waveformEditor);
@@ -1420,6 +1423,9 @@ test('waveform appearance wheel adjustments wait for input to settle', async ({ 
     waveformEditor.multiRange = [-1, -1];
     waveformEditor.render();
 
+  });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(() => {
     const row = document.querySelector('.waveform-row[data-row-index="0"]');
     const canvas = row?.querySelector('canvas');
     if (!row || !canvas) throw new Error('没有可测试的波形 Canvas');

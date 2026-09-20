@@ -19,6 +19,9 @@
   byId('analysis-controls').hidden = false;
   function status(kind, text) {
     const node = byId(`${kind}-status`);
+    if (kind === 'waveform' && media.current?.track_conflict && !text.includes('冲突')) {
+      text = `公共音轨与旧 MSW 音轨记录冲突，请确认源音轨后再识别${text ? ' · ' + text : ''}`;
+    }
     node.textContent = text; node.hidden = !text;
   }
   const valid = action => tasks.get(action.kind) === action && action.generation === host.generation

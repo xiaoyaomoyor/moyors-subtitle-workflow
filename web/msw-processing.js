@@ -267,7 +267,7 @@
     }
     const generation = host.generation;
     try {
-      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture() : null;
+      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture(el('translation-output-mode').value) : null;
       requestInFlight = true; updateScope();
       const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),
         request_key: global.MSWProject.id('request'), snapshot, provider: kind === 'connection_test' ? providerInput() : {providerId: el('translation-provider').value},

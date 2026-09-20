@@ -64,7 +64,8 @@ test('legacy voice project opens, edits and downloads with current metadata and 
   }
   expect(opened.multi_subtitle.bindings).toEqual(legacy.multi_subtitle.bindings);
   expect(opened.multi_subtitle.tracks[0].segments[0].id).toBe('translation-001');
-  await page.locator('.cue[data-idx="0"]').first().click();
+  await page.locator('.cue[data-idx="0"] .multi-cue-column.main .text').first().click();
+  await expect(page.locator('#cue-panel-text')).toHaveValue(legacy.segments[0].text);
   await page.locator('#cue-panel-text').fill('修改后的字幕');
   // Model an audio edit and asset removal after load: serialization must not
   // replay the MSW namespace captured when the project was opened.

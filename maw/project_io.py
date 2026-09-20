@@ -12,7 +12,7 @@ from maw.project import PROJECT_SCHEMA, ProjectValidationError, ProjectValidatio
 from maw.msw.project_codec import validate_extension
 
 
-INLINE_CACHE_KEYS = ("waveform", "spectral", "waveform_reapeaks")
+INLINE_CACHE_KEYS = ("waveform", "spectral", "waveform_reapeaks", "loudness")
 
 
 def strip_inline_caches(project: Mapping[str, Any]) -> dict[str, Any]:
@@ -122,8 +122,9 @@ def enrich_project_media_metadata(
         return enriched
     metadata = dict(existing_metadata) if isinstance(existing_metadata, Mapping) else {}
     need_video_fps = "video_fps" not in metadata
+    need_video_dimensions = "video_width" not in metadata or "video_height" not in metadata
     need_audio_tracks = "audio_tracks" not in metadata
-    if not need_video_fps and not need_audio_tracks:
+    if not need_video_fps and not need_video_dimensions and not need_audio_tracks:
         return enriched
 
     candidate = media_path
@@ -134,10 +135,11 @@ def enrich_project_media_metadata(
     if candidate is None or (isinstance(candidate, str) and not candidate.strip()):
         return enriched
 
-    if need_video_fps:
+    if need_video_fps or need_video_dimensions:
         video_metadata = probe_video_fps(candidate, ffprobe_path=ffprobe_path)
         if video_metadata is not None:
-            metadata.update(video_metadata)
+            for key, value in video_metadata.items():
+                metadata.setdefault(key, value)
     if need_audio_tracks:
         audio_tracks = probe_audio_tracks(candidate, ffprobe_path=ffprobe_path)
         if audio_tracks is not None:

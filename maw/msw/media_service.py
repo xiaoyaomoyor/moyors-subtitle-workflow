@@ -84,7 +84,7 @@ class MediaService:
                 raise ValueError('FFmpeg 路径无效')
             if os.environ.get('FFMPEG_PATH'):
                 raise ValueError('FFmpeg 路径由启动环境设置，请修改启动环境后重开编辑器')
-            tools = resolve_ffmpeg_tools(configured_path=configured.strip() or None)
+            tools = resolve_ffmpeg_tools(configured_path=configured.strip() or None, strict_config=True)
             if configured.strip() and not tools.complete:
                 raise ValueError('所选路径没有完整的 FFmpeg 和 FFprobe')
             save_env(self.api.env_path, {'FFMPEG_PATH': configured.strip()})
@@ -132,6 +132,8 @@ class MediaService:
             media_metadata['duration_ms'] = info['duration_ms']
             media_metadata['audio_tracks'] = info['audio_tracks']
             video = info.get('video')
+            if video and all(type(video.get(key)) is int and video[key] > 0 for key in ('width', 'height')):
+                media_metadata.update(video_width=video['width'], video_height=video['height'])
             if video and video.get('frame_rate'):
                 try:
                     from fractions import Fraction
@@ -227,7 +229,7 @@ class MediaService:
                 data.update(media=record['reference'], media_metadata=record['metadata'])
                 if isinstance(data.get('msw'), dict):
                     data['msw']['source_audio_index'] = record['audio_index']
-                for key in ('waveform', 'spectral', 'waveform_reapeaks'):
+                for key in ('waveform', 'spectral', 'waveform_reapeaks', 'loudness'):
                     data.pop(key, None)
                 self.api.server.project = replace(bound, data=data, media_path=Path(record['path']),
                                                   source_media_path=Path(record['path']), audio_track=record['audio_index'])
