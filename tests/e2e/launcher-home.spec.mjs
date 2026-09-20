@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 const launcherPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/launcher/index.html');
 
 async function openHome(page) {
+  // 调整2：新基线「全部工程默认折叠」——既有用例语义建立在两组展开之上，
+  // 统一种子为展开；默认折叠态由专属用例（无种子）验证。
+  await page.addInitScript(() => localStorage.setItem('MSW_HOME_GROUPS_V2', JSON.stringify({ recent: false, all: false })));
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('home'));
@@ -573,4 +576,43 @@ test('double-click shows an immediate opening spinner on both cards until the fl
   await expect(recentCard).not.toHaveClass(/opening/);
   await expect(allCard).not.toHaveClass(/opening/);
   await expect(recentCard).not.toHaveAttribute('aria-busy');
+});
+
+test('all-projects group is collapsed by default and lists projects by name (调整2)', async ({ page }) => {
+  // 无种子（不经 openHome）：验证新基线默认态。
+  await page.goto(`file://${launcherPath}`);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.evaluate(() => window.MSWNavigation.show('home'));
+  await page.waitForFunction(() => document.querySelectorAll('#recentGrid .recent-card').length > 0);
+
+  // 默认：最近组展开、全部工程折叠（正文隐藏、aria-expanded=false）。
+  await expect(page.locator('#recentGroupBody')).toBeVisible();
+  await expect(page.locator('#allGroupBody')).toBeHidden();
+  await expect(page.locator('#allGroupTitle')).toHaveAttribute('aria-expanded', 'false');
+
+  // 展开后按工程名升序：clip < intro < old-take（时间倒序会是 intro, clip, old-take，
+  // 两者可判别——名称序不是时间序）。
+  await page.locator('#allGroupTitle').click();
+  await expect(page.locator('#allGroupBody')).toBeVisible();
+  const names = await page.locator('#allGrid .recent-name').evaluateAll((nodes) => nodes.map((n) => n.textContent));
+  expect(names).toEqual(['clip.mosp', 'intro.mosp', 'old-take.mosp']);
+});
+
+test('server address line clears after the editor exits the server and the window refocuses (B3)', async ({ page }) => {
+  await openHome(page);
+
+  // 启动（mock）受管会话：状态行显示「当前服务器地址：…」，此场景 detectedServerUrl 为空
+  // （正是此前地址残留的受管路径）。
+  await page.evaluate(() => window.MSWLauncher.setJsonPath('D:\\Demo\\clip.mosp'));
+  await page.evaluate(() => window.MSWLauncher.openServerEditor());
+  await page.waitForFunction(() => document.querySelector('#status a.status-link') !== null);
+  await expect(page.locator('#status')).toContainText('当前服务器地址');
+  await expect(page.locator('#stopServer')).not.toHaveClass(/hidden/);
+
+  // 编辑器内「退出服务器」→ 回到启动器窗口聚焦：重探（mock 报未运行）→
+  // 地址行清空、链接消失、关闭服务器按钮一并隐藏。
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(() => document.querySelector('#status a.status-link') === null);
+  await expect(page.locator('#status')).not.toContainText('当前服务器地址');
+  await expect(page.locator('#stopServer')).toHaveClass(/hidden/);
 });

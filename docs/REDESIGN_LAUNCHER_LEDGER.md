@@ -26,6 +26,16 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## 调整批B：用户三项微调（2026-09-20 第二轮）
+
+状态：已完成（2026-09-20）。草图图标重绘、全部工程默认折叠+按名排序、服务器地址残留根治。
+
+1. **预制图标按草图重绘**：旧版两个正方形贴叠、对勾偏右——按用户草图改为两个 2:1 横置矩形（rx 1.2、间距 2）+ 右侧三个对勾纵向均布（中心 y=5/11/17，上下略超出矩形堆叠），描边仍继承导航图标 currentColor 1.6。合同改为断言「两个 width=10 height=5 矩形 + 三条 m15 对勾」；DOM 几何探针逐值核对（rect/路径/描边），视觉探针经图像核验。
+2. **全部工程默认折叠 + 按名称排序**：排序从「更新时间倒序」改为「工程名 casefold 升序 + 路径 tiebreak」（时间序只属于最近组），后端/mock 同规则；折叠默认翻为「最近展开、全部折叠」，折叠记忆键 V1→V2 摆脱旧「双展开」存量。旧时间排序测试改写为名称序（Zeta 时间更新不置顶）；e2e openHome 统一种子展开态保持既有用例语义，新增无种子用例验证默认折叠与名称序。
+3. **服务器地址残留根治**：上轮调整6只修了触发时机，没修清行条件——受管会话（启动器自己启动的服务器）不写 detectedServerUrl，「重探后未运行」分支里 `else if (previousUrl)` 永不命中，地址行残留。修复：新增 state.serverStatusUrl 追踪地址行当前显示的 URL（setServerStatus 记录、setStatus 纯文本路径重置）；未运行分支以 `previousUrl || serverStatusUrl` 判定清行，并同步清 activeSessionUrl；重探入口升级为 refreshShownServerStatus——优先探测「当前显示地址」的端口（独立端口会话不被配置端口探测误清），同端口/无地址退回配置端口探测。
+
+验证（2026-09-20）：契约新增 `test_launcher_adjustment_batch_b_contracts`（默认折叠字面量+V2 键、后端 casefold 排序且时间倒序消失、mock 同规则、serverStatusUrl 三处接线+重探函数）；`test_all_projects_sorts_by_name_and_filters_by_query` 改写。全量 1636 项单元/契约 OK + ruff 全绿 + e2e 60/60（launcher-home 23 含新增默认折叠/名称序与地址清除两用例、shell/interactions/structure/beta3 37）；图标经 DOM 几何探针（两矩形 10×5@y4.5/11.5 + 三对勾 m15）与图像核验双重确认。
+
 ## 调整批：用户六项微调（2026-09-20）
 
 状态：已完成（2026-09-20）。用户实测后提出六项调整，全部落地。

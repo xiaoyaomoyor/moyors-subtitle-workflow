@@ -887,7 +887,9 @@ def all_projects_payload(
             "mediaName": known_media,
         })
 
-    matched.sort(key=lambda item: item["updatedAt"], reverse=True)
+    # 调整2：全部工程按工程名排序（大小写不敏感、路径稳定 tiebreak）；
+    # 「最近时间」排序只属于最近组。
+    matched.sort(key=lambda item: (item["name"].casefold(), item["path"]))
     total = len(entries)
     matched_count = len(matched)
     safe_size = max(1, min(int(page_size) or DEFAULT_ALL_PAGE_SIZE, MAX_ALL_PAGE_SIZE))

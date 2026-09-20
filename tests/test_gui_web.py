@@ -3661,7 +3661,7 @@ class LauncherAssetContractTests(unittest.TestCase):
             self.assertIn(f'id="{element_id}"', page)
         self.assertIn('data-home-group="recent"', page)
         self.assertIn('data-home-group="all"', page)
-        self.assertIn('MSW_HOME_GROUPS_V1', home_script)
+        self.assertIn('MSW_HOME_GROUPS_V2', home_script)
         self.assertIn(".recent-cover .recent-pin", (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8"))
         # 多节点回写：同一工程在两组的封面/统计/媒体名同步。
         self.assertIn("bothGrids()", home_script)
@@ -3703,10 +3703,12 @@ class LauncherAssetContractTests(unittest.TestCase):
         home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
-        # 调整1：预制工程导航图标 = 左侧两个矩形框 + 右侧三个对勾（自绘，非 Lucide）。
+        # 调整1/B1：预制工程导航图标 = 左侧两个宽矩形框（横置、留间隙）+ 右侧
+        # 三个对勾纵向均布（自绘，非 Lucide）。
         prefab_nav = page.split('data-nav-page="prefab"')[1].split("</button>")[0]
         self.assertEqual(prefab_nav.count("<rect"), 2)
-        self.assertEqual(prefab_nav.count('d="m14 '), 3)
+        self.assertEqual(prefab_nav.count('width="10" height="5"'), 2)
+        self.assertEqual(prefab_nav.count('d="m15 '), 3)
 
         # 调整2：缓存与诊断按钮容器独立成组；预览按钮文案去省略号。
         self.assertIn('class="cache-tools"', page)
@@ -3732,9 +3734,31 @@ class LauncherAssetContractTests(unittest.TestCase):
         # 打开流程结束（成功或失败）解除转圈；期间重渲染凭 openingPath 延续。
         self.assertIn('Promise.resolve(window.MSWLauncher.openServerEditor())', home_script)
 
-        # 调整6：聚焦/回首页重探服务器状态——编辑器内退出服务器后地址不残留。
-        self.assertIn("refreshServerStatus: () => { void checkExistingServer(); }", launcher_script)
+        # 调整6/B3：聚焦/回首页重探走「当前显示地址端口」路径（受管会话地址不再残留）。
+        self.assertIn("refreshServerStatus: () => { void refreshShownServerStatus(); }", launcher_script)
         self.assertEqual(home_script.count("window.MSWLauncher.refreshServerStatus()"), 2)
+
+    def test_launcher_adjustment_batch_b_contracts(self) -> None:
+        """调整批B（用户三项）：草图图标重绘、全部工程默认折叠按名排序、服务器地址根治。"""
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        projects_source = (ROOT / "maw" / "launcher_projects.py").read_text(encoding="utf-8")
+
+        # B2：全部工程默认折叠（新基线），折叠记忆升键 V2 摆脱旧「双展开」存量。
+        self.assertIn("groupsCollapsed: { recent: false, all: true }", home_script)
+        self.assertIn('"MSW_HOME_GROUPS_V2"', home_script)
+        self.assertNotIn("MSW_HOME_GROUPS_V1", home_script)
+        # 后端按名称排序（大小写不敏感 + 路径 tiebreak），时间倒序排序必须消失。
+        self.assertIn('matched.sort(key=lambda item: (item["name"].casefold(), item["path"]))', projects_source)
+        self.assertNotIn('key=lambda item: item["updatedAt"], reverse=True', projects_source)
+        # mock 与真实后端同规则。
+        self.assertIn("matchedAll.sort((a, b) => {", launcher_script)
+
+        # B3：地址行显示内容被追踪（serverStatusUrl），受管会话退出后重探必定清行。
+        self.assertIn('serverStatusUrl: ""', launcher_script)
+        self.assertIn("state.serverStatusUrl = url;", launcher_script)
+        self.assertIn("const hadAddress = Boolean(previousUrl || state.serverStatusUrl);", launcher_script)
+        self.assertIn("async function refreshShownServerStatus()", launcher_script)
 
     def test_launcher_t4_settings_rail_and_grid_contracts(self) -> None:
         """T4（三轮审查 U6/A2/A3）：设置栅格、统一抽屉控制与样式覆盖顺序。"""

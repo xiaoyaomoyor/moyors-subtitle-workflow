@@ -1512,7 +1512,7 @@
   const MAX_SUPER_HOTWORDS = 50;
   const OPENAI_ASR_CUSTOM_MODEL_ID = "custom-asr";
   const OPENAI_ASR_OFFICIAL_MODEL_IDS = new Set(["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]);
-  const state = { activeSessionUrl: "", waveformTaskId: "", prefabTaskId: "", lang: "zh", prefabTask: false, serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
+  const state = { activeSessionUrl: "", waveformTaskId: "", prefabTaskId: "", lang: "zh", prefabTask: false, serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", serverStatusUrl: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
   const dragState = { depth: 0 };
   let api = null;
   let prefsTimer = 0;
@@ -1815,6 +1815,12 @@
         const matchedAll = needle
           ? registry.filter((item) => (item.path.toLowerCase() + "\n" + String(mediaIndex[item.path] || "").toLowerCase()).includes(needle))
           : registry.slice();
+        // 调整2：与真实后端一致——全部工程按名称排序（大小写不敏感），时间序只属于最近组。
+        matchedAll.sort((a, b) => {
+          const an = String(a.name || "").toLowerCase();
+          const bn = String(b.name || "").toLowerCase();
+          return an < bn ? -1 : an > bn ? 1 : 0;
+        });
         const size = Math.max(1, Number(pageSize) || 12);
         const pages = Math.max(1, Math.ceil(matchedAll.length / size));
         const safePage = Math.min(Math.max(1, Number(page) || 1), pages);
@@ -2039,7 +2045,7 @@
     }
     if (cursor < value.length) appendMessageText(container, value.slice(cursor));
   }
-  const setStatus = (message) => { if (state.detectedServerUrl) setServerStatus(state.detectedServerUrl, true, message); else renderMessage($("status"), message); };
+  const setStatus = (message) => { if (state.detectedServerUrl) setServerStatus(state.detectedServerUrl, true, message); else { state.serverStatusUrl = ""; renderMessage($("status"), message); } };
   function handleWaveformTaskEvent(event) {
     if (event.taskId && state.waveformTaskId && event.taskId !== state.waveformTaskId) return;
     if (event.status === "running") { setStatus(t("waveform_project_running")); return; }
@@ -2239,6 +2245,8 @@
     }
   }
   function setServerStatus(url, alreadyRunning = false, prefix = "") {
+    // B3：记录「状态行当前显示的服务器地址」——重探判定存亡、退出后清行的依据。
+    state.serverStatusUrl = url;
     const status = $("status");
     status.replaceChildren();
     if (prefix) { renderMessage(status, prefix); status.append(document.createTextNode(" ")); }
@@ -2365,8 +2373,61 @@
     $("stopServer").classList.toggle("hidden", !state.serverRunning && !state.detectedServerUrl);
     $("stopServer").disabled = state.serverStarting || state.serverStopping;
   }
-  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; setStatus(""); } finally { state.serverStopping = false; renderServerButton(); } }
-  async function checkExistingServer(prefix = "") { const requestId = ++serverStatusRequest; const previousUrl = state.detectedServerUrl; state.detectedServerUrl = ""; const result = await bridge("get_server_status", serverPayload()); if (requestId !== serverStatusRequest) return result; if (!result.ok || !result.running || !result.url) { state.serverRunning = false; state.serverProjectPath = ""; if (prefix) setStatus(`${prefix}，${t("server_start_hint")}`); else if (previousUrl) setStatus(""); renderServerButton(); return; } const isExternalServer = !state.serverRunning; state.detectedServerUrl = isExternalServer ? result.url : ""; setServerStatus(result.url, isExternalServer, prefix); renderServerButton(); }
+  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; state.serverStatusUrl = ""; setStatus(""); } finally { state.serverStopping = false; renderServerButton(); } }
+  async function checkExistingServer(prefix = "") {
+    const requestId = ++serverStatusRequest;
+    const previousUrl = state.detectedServerUrl;
+    // B3：受管会话（启动器自己启动的服务器）不设 detectedServerUrl——此前
+    // 仅凭 previousUrl 判定「要不要清地址行」，受管场景地址残留。
+    const hadAddress = Boolean(previousUrl || state.serverStatusUrl);
+    state.detectedServerUrl = "";
+    const result = await bridge("get_server_status", serverPayload());
+    if (requestId !== serverStatusRequest) return result;
+    if (!result.ok || !result.running || !result.url) {
+      state.serverRunning = false;
+      state.serverProjectPath = "";
+      state.activeSessionUrl = "";
+      state.serverStatusUrl = "";
+      if (prefix) setStatus(`${prefix}，${t("server_start_hint")}`);
+      else if (hadAddress) setStatus("");
+      renderServerButton();
+      return;
+    }
+    const isExternalServer = !state.serverRunning;
+    state.detectedServerUrl = isExternalServer ? result.url : "";
+    setServerStatus(result.url, isExternalServer, prefix);
+    renderServerButton();
+  }
+  // 调整6续/B3：重探当前显示地址的端口——独立端口会话不被配置端口探测误清；
+  // 无显示地址或地址就在配置端口上时，退回 checkExistingServer（配置端口）。
+  async function refreshShownServerStatus() {
+    const shown = state.serverStatusUrl || state.detectedServerUrl;
+    const configured = String($("port").value || "8250");
+    if (shown) {
+      try {
+        const shownPort = new URL(shown).port || "80";
+        if (shownPort !== configured) {
+          const requestId = ++serverStatusRequest;
+          const result = await bridge("get_server_status", serverPayload({ port: shownPort }));
+          if (requestId !== serverStatusRequest) return;
+          if (result.ok && result.running && result.url) {
+            state.detectedServerUrl = result.url;
+            setServerStatus(result.url, true, "");
+            renderServerButton();
+            return;
+          }
+          state.serverRunning = false;
+          state.serverProjectPath = "";
+          state.activeSessionUrl = "";
+          state.serverStatusUrl = "";
+          setStatus("");
+          renderServerButton();
+          return;
+        }
+      } catch (error) { /* 地址不合法则按配置端口探测 */ }
+    }
+    await checkExistingServer();
+  }
   function syncHtmlMenu() { const enabled = $("generateHtml").checked; $("openHtml").classList.toggle("hidden", !enabled); $("openHtml").disabled = enabled && !state.result?.htmlPath; }
   function renderChevron(id) { const arrow = $(id).querySelector(".chevron"); if (arrow) arrow.textContent = $(id).classList.contains("collapsed") ? "▸" : "▾"; }
   function renderStickerCurrent() { $("stickerCurrent").textContent = state.config?.stickerDir || t("unset"); $("stickerDir").value = state.config?.stickerDir || ""; }
@@ -3288,7 +3349,7 @@
     if (event.type === "dropReject" && !state.dropTarget && window.MSWLauncher?.onBatchDropReject?.(event.path || "")) return;
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
-  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void checkExistingServer(); } };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
 
   window.MSWLauncher.onBatchBusyChanged = (busy) => { state.batchRunning = busy; syncLocalRuntimeControls(); renderLocalRuntime(); };
   $("langToggle").addEventListener("click", async () => {

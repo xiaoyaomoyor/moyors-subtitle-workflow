@@ -299,23 +299,25 @@ class ProjectRegistryTests(unittest.TestCase):
         else:
             self.assertEqual(len(result["projects"]), 2)
 
-    def test_all_projects_sorts_by_update_time_and_filters_by_query(self) -> None:
-        first = self.root / "first.mosp"
-        second = self.root / "second.mosp"
-        first.write_text("{}", encoding="utf-8")
-        second.write_text("{}", encoding="utf-8")
+    def test_all_projects_sorts_by_name_and_filters_by_query(self) -> None:
+        # 调整2：全部工程按工程名排序（大小写不敏感、路径 tiebreak）——
+        # 时间新（2021）的 Zeta 不再置顶；时间序只属于最近组。
+        alpha = self.root / "alpha.mosp"
+        zeta = self.root / "Zeta.mosp"
+        alpha.write_text("{}", encoding="utf-8")
+        zeta.write_text("{}", encoding="utf-8")
         with mock.patch.object(launcher_projects, "_now_iso", side_effect=["2020-01-01T00:00:00+00:00", "2021-01-01T00:00:00+00:00"]):
-            launcher_projects.register_project(first, source="created", registry_path=self.registry)
-            launcher_projects.register_project(second, source="created", registry_path=self.registry)
+            launcher_projects.register_project(alpha, source="created", registry_path=self.registry)
+            launcher_projects.register_project(zeta, source="created", registry_path=self.registry)
 
         result = launcher_projects.all_projects_payload(
             settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
-        self.assertEqual([item["name"] for item in result["projects"]], ["second.mosp", "first.mosp"])
+        self.assertEqual([item["name"] for item in result["projects"]], ["alpha.mosp", "Zeta.mosp"])
         self.assertEqual(result["matched"], 2)
 
         filtered = launcher_projects.all_projects_payload(
-            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry, query="first")
-        self.assertEqual([item["name"] for item in filtered["projects"]], ["first.mosp"])
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry, query="alpha")
+        self.assertEqual([item["name"] for item in filtered["projects"]], ["alpha.mosp"])
         self.assertEqual(filtered["total"], 2)  # 计数区分总数与命中数
         self.assertEqual(filtered["matched"], 1)
 

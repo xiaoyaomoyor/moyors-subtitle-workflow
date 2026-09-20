@@ -28,7 +28,8 @@
   var ALL_PAGE = 12;
   var SEARCH_DEBOUNCE_MS = 200;
   var SELECTED_KEY = "MSW_HOME_SELECTED_PATH";
-  var GROUPS_KEY = "MSW_HOME_GROUPS_V1";
+  // 调整2：折叠记忆升键（V1 存过「全部展开」旧默认）——新基线为全部工程默认折叠。
+  var GROUPS_KEY = "MSW_HOME_GROUPS_V2";
   var state = {
     projects: [],
     allProjects: [],
@@ -42,7 +43,7 @@
     visible: DEFAULT_LIMIT,
     selectedPath: "",
     query: "",
-    groupsCollapsed: { recent: false, all: false },
+    groupsCollapsed: { recent: false, all: true }, // 调整2：全部工程默认折叠，展开后记忆用户选择
     statsCache: {},   // path -> { version, text }（version = modifiedAt）
     statsPending: {}, // path -> Promise
     covers: {},       // path -> { state, dataUri, version, message, sourceVersion }
@@ -1040,7 +1041,7 @@
         if (typeof saved.recent === "boolean") state.groupsCollapsed.recent = saved.recent;
         if (typeof saved.all === "boolean") state.groupsCollapsed.all = saved.all;
       }
-    } catch (error) { /* 默认两组展开 */ }
+    } catch (error) { /* 默认：最近展开、全部折叠 */ }
   }
 
   function init() {
