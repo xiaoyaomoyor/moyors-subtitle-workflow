@@ -353,7 +353,7 @@ def project_stats_payload(path: Path) -> dict[str, Any]:
     raw_media = data.get("media")
     media_name = ""
     if isinstance(raw_media, str) and raw_media.strip():
-        media_name = Path(raw_media.strip().replace("/", "\\")).name
+        media_name = Path(raw_media.strip().replace("\\", "/")).name
     return {
         "ok": True,
         "path": str(resolved),

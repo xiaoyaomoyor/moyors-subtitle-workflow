@@ -33,7 +33,7 @@ def _complex_project(root: Path) -> dict[str, object]:
 class PrefabPlanTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.paths = LauncherPaths(
             root=self.root,
             env_path=self.root / ".env",
@@ -253,7 +253,7 @@ class PrefabPlanTests(unittest.TestCase):
 class BatchProjectsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.paths = LauncherPaths(
             root=self.root,
             env_path=self.root / ".env",

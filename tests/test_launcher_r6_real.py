@@ -1,7 +1,7 @@
 """R6 生产验收：真实 FFmpeg 封面/波形/取消与复杂工程全链（审查案 R6 第 3 条）。
 
-需要便携 FFmpeg 位于 ``build/ffmpeg-bin``（gitignored；本仓库不提交二进制）。
-没有该目录时整组跳过并在原因中说明——不用模拟结果代替真实验收。
+使用 MSW_TEST_FFMPEG、build/ffmpeg-bin 或应用工具解析器找到的真实 FFmpeg。
+没有完整工具对时整组跳过并在原因中说明——不用模拟结果代替真实验收。
 """
 from __future__ import annotations
 
@@ -18,17 +18,19 @@ from unittest import mock
 from maw.launcher_projects import all_projects_payload, read_media_index, register_project
 
 from maw.gui_web import LauncherApi, LauncherPaths
+from maw.ffmpeg import resolve_ffmpeg_tools
 
 ROOT = Path(__file__).resolve().parents[1]
-FFMPEG_BIN = ROOT / "build" / "ffmpeg-bin"
-FFMPEG = FFMPEG_BIN / "ffmpeg.exe"
-FFPROBE = FFMPEG_BIN / "ffprobe.exe"
+TOOLS = resolve_ffmpeg_tools(os.environ.get("MSW_TEST_FFMPEG") or ROOT / "build" / "ffmpeg-bin")
+FFMPEG = TOOLS.ffmpeg
+FFPROBE = TOOLS.ffprobe
+FFMPEG_BIN = TOOLS.directory
 
-REAL_FFMPEG = FFMPEG.is_file() and FFPROBE.is_file()
+REAL_FFMPEG = TOOLS.complete
 
 _skip = unittest.skipUnless(
     REAL_FFMPEG,
-    "R6 真实媒体验收需要 build/ffmpeg-bin 下的便携 FFmpeg（下载脚本见 build/，不随仓库分发）",
+    "R6 真实媒体验收需要完整 FFmpeg/FFprobe；可设置 MSW_TEST_FFMPEG 或放入 build/ffmpeg-bin",
 )
 
 
@@ -44,7 +46,7 @@ class RealMediaAcceptanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.temp_dir = TemporaryDirectory()
-        cls.root = Path(cls.temp_dir.name)
+        cls.root = Path(cls.temp_dir.name).resolve()
         cls.media_dir = cls.root / "media"
         cls.media_dir.mkdir()
         cls._synthesize()
@@ -93,7 +95,7 @@ class RealMediaAcceptanceTests(unittest.TestCase):
 
     def _api(self) -> tuple[LauncherApi, TemporaryDirectory]:
         holder = TemporaryDirectory()
-        root = Path(holder.name)
+        root = Path(holder.name).resolve()
         env = root / ".env"
         env.write_text(f"FFMPEG_PATH={FFMPEG_BIN}\n", encoding="utf-8")
         paths = LauncherPaths(
@@ -308,16 +310,14 @@ class EnvironmentStateMachineTests(unittest.TestCase):
             self.assertIn("FFmpeg", str(result.get("message", "")))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
-
+@_skip
 class RealMediaT5ClosedLoopTests(unittest.TestCase):
     """T5：真实媒体 + 本轮前端改动路径的闭环——提帧、登记、媒体名索引。"""
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.registry = self.root / "launcher-project-registry.json"
         self.media_index = self.root / "launcher-media-index.json"
         env = tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False, encoding="utf-8")
@@ -332,7 +332,7 @@ class RealMediaT5ClosedLoopTests(unittest.TestCase):
 
     def _synth(self, name: str, seconds: float = 3.0) -> Path:
         media = self.root / name
-        run([str(FFMPEG_BIN / "ffmpeg"), "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc2=duration={seconds}:size=320x240:rate=10", "-pix_fmt", "yuv420p", "-y", str(media)], check=True, capture_output=True)
+        run([str(FFMPEG), "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc2=duration={seconds}:size=320x240:rate=10", "-pix_fmt", "yuv420p", "-y", str(media)], check=True, capture_output=True)
         return media
 
     def test_thumbnail_registers_media_name_index_and_real_frame(self) -> None:
@@ -367,3 +367,7 @@ class RealMediaT5ClosedLoopTests(unittest.TestCase):
         self.assertTrue(final_project.is_file())
         self.assertIsNone(final_srt)
         self.assertFalse((out_dir / "t5-only-project.srt").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

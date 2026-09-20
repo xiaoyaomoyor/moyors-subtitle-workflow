@@ -37,7 +37,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.env_path = self.root / ".env"
         self.media = self.root / "clip.mp3"
         self.media.write_bytes(b"audio")
@@ -662,7 +662,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         from maw.postprocess_pipeline import _publish_final
 
         with tempfile.TemporaryDirectory() as raw_dir:
-            root = Path(raw_dir)
+            root = Path(raw_dir).resolve()
             source_srt = root / "clip.srt"
             source_srt.write_text("1\n00:00:01,000 --> 00:00:02,000\n原文\n", encoding="utf-8")
             source_project = root / "clip.mosp"
@@ -954,7 +954,7 @@ class PostprocessPipelineTests(unittest.TestCase):
 class PostprocessPreflightTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.env_path = self.root / ".env"
         self.media = self.root / "clip.mp3"
         self.media.write_bytes(b"audio")

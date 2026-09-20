@@ -30,7 +30,7 @@ def _write_json(path: Path, payload: object) -> Path:
 class RecentProjectsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
         self.metadata = self.root / "launcher-recent.json"
 
@@ -172,7 +172,7 @@ class StartServerIntentTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         from maw.gui_web import LauncherApi, LauncherPaths
 
         self.paths = LauncherPaths(
@@ -275,7 +275,7 @@ class ProjectRegistryTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
         self.metadata = self.root / "launcher-recent.json"
         self.registry = self.root / "launcher-project-registry.json"
@@ -461,7 +461,7 @@ class AllProjectsPaginationTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
         self.metadata = self.root / "launcher-recent.json"
         self.registry = self.root / "launcher-project-registry.json"
@@ -556,7 +556,7 @@ class RegistryCleanupTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.registry = self.root / "launcher-project-registry.json"
         # 三类样本：临时目录已缺失（候选）/ 正常存在（保留）/ 非临时目录缺失（保留——用户数据保守不删）。
         real = self.root / "real.mosp"
@@ -677,7 +677,7 @@ class DeleteProjectFileTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
         self.metadata = self.root / "launcher-recent.json"
         self.registry = self.root / "launcher-project-registry.json"

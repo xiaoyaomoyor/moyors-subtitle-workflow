@@ -98,7 +98,7 @@ class HelperTests(unittest.TestCase):
 class ThumbnailPayloadTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.cache = self.root / "cover-cache"
         self.ffmpeg = self.root / "ffmpeg.exe"
         self.ffprobe = self.root / "ffprobe.exe"
@@ -193,7 +193,8 @@ class ThumbnailPayloadTests(unittest.TestCase):
         self.assertEqual(forced["state"], STATE_FAILED)
         self.assertGreater(len(runner.ffmpeg_calls), calls_after_first)
 
-    def test_same_media_deduplicates_parallel_requests(self) -> None:
+    @mock.patch.object(launcher_thumbnails, "media_duration_seconds", return_value=100.0)
+    def test_same_media_deduplicates_parallel_requests(self, _duration: mock.Mock) -> None:
         project = self._project()
         media = self.root / "clip.mp4"
         key = cover_cache_key(media, media.stat())
@@ -206,10 +207,9 @@ class ThumbnailPayloadTests(unittest.TestCase):
 
         def worker() -> None:
             try:
-                with mock.patch.object(launcher_thumbnails, "media_duration_seconds", return_value=100.0):
-                    results.append(thumbnail_payload(
-                        project, ffmpeg_tools=self.tools, cache_dir=self.cache, runner=runner,
-                    ))
+                results.append(thumbnail_payload(
+                    project, ffmpeg_tools=self.tools, cache_dir=self.cache, runner=runner,
+                ))
             except BaseException as error:  # noqa: BLE001 - 测试线程收集
                 errors.append(error)
 
@@ -222,10 +222,9 @@ class ThumbnailPayloadTests(unittest.TestCase):
                 threading.Event().wait(0.02)
             self.assertIsNotNone(launcher_thumbnails._INFLIGHT.get(key))
             # 同媒体并发请求：等待进行中的提取，而不是再次启动 FFmpeg。
-            with mock.patch.object(launcher_thumbnails, "media_duration_seconds", return_value=100.0):
-                follower = thumbnail_payload(
-                    project, ffmpeg_tools=self.tools, cache_dir=self.cache, runner=runner,
-                )
+            follower = thumbnail_payload(
+                project, ffmpeg_tools=self.tools, cache_dir=self.cache, runner=runner,
+            )
             self.assertEqual(follower["state"], STATE_IMAGE)
             self.assertEqual(len(runner.ffmpeg_calls), 1)
         finally:

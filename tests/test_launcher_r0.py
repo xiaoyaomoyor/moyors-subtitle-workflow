@@ -34,7 +34,7 @@ def _project(root: Path, name: str) -> Path:
 class MultiSessionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.paths = LauncherPaths(
             root=self.root,
             env_path=self.root / ".env",
@@ -140,7 +140,7 @@ class MultiSessionTests(unittest.TestCase):
 class MediaProjectSwitchTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.paths = LauncherPaths(
             root=self.root,
             env_path=self.root / ".env",

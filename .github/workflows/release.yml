@@ -280,7 +280,7 @@ jobs:
         run: |
           $env:PYTHONPATH = 'tests'
           $env:MSW_TEST_FFMPEG = Join-Path $PWD 'dist/MSW/ffmpeg/bin'
-          uv run --frozen python -m unittest test_msw_audio_render test_msw_video_render test_msw_timeline_export
+          uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real
           exit $LASTEXITCODE
 
       - name: Upload build artifacts
@@ -514,7 +514,7 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           PYTHONPATH=tests MSW_TEST_FFMPEG="$PWD/dist/MSW.app/Contents/MacOS/ffmpeg/bin" \
-            uv run --frozen python -m unittest test_msw_audio_render test_msw_video_render test_msw_timeline_export
+            uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real
 
       - name: Create release archives
         if: matrix.platform == 'macos'
@@ -655,7 +655,7 @@ jobs:
             cd "$GITHUB_WORKSPACE"
             env -u LD_LIBRARY_PATH PYTHONPATH=tests \
               MSW_TEST_FFMPEG="$GITHUB_WORKSPACE/build-appimage/$BIN" \
-              uv run --frozen python -m unittest test_msw_audio_render test_msw_video_render test_msw_timeline_export
+              uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real
           )
           rm -r squashfs-root
 
