@@ -38,8 +38,10 @@ REGISTRY_VERSION: Final = 1
 PROJECT_SUFFIXES: Final = frozenset({".mosp", ".json"})
 # 注册表写入锁的陈旧阈值：超过该时长的锁视为持有者已崩溃，可被抢占。
 REGISTRY_LOCK_STALE_SECONDS: Final = 10.0
-# 「全部工程」渲染上限：长期登记合集按需分页，不无限展开。
-MAX_ALL_PROJECTS: Final = 5000
+# T2/§5.3：全部工程按页返回——不再以单次 5000 条硬截断冒充分页。
+DEFAULT_ALL_PAGE_SIZE: Final = 12
+MAX_ALL_PAGE_SIZE: Final = 120
+MEDIA_INDEX_FILE_NAME: Final = "launcher-media-index.json"
 
 
 def launcher_recent_metadata_path() -> Path:
@@ -48,6 +50,11 @@ def launcher_recent_metadata_path() -> Path:
 
 def project_registry_path() -> Path:
     return default_app_data_root() / REGISTRY_FILE_NAME
+
+
+def media_index_path() -> Path:
+    """T2/A6：媒体名轻量索引（path -> 媒体文件名），供全目录搜索。"""
+    return default_app_data_root() / MEDIA_INDEX_FILE_NAME
 
 
 @dataclass(slots=True)
@@ -657,6 +664,50 @@ def _system_temp_roots() -> list[str]:
     return normalized
 
 
+def read_media_index(index_path: Path | None = None) -> dict[str, str]:
+    target = index_path or media_index_path()
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {str(k): str(v) for k, v in payload.items() if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip()}
+
+
+def write_media_index(index: dict[str, str], index_path: Path | None = None) -> None:
+    target = index_path or media_index_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{target.stem}.", suffix=".tmp", dir=target.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
+            json.dump(index, output, ensure_ascii=False, indent=2)
+            output.write("\n")
+        os.replace(temp_name, target)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(temp_name)
+        raise
+
+
+def note_media_name(path: Path, media_name: str, *, index_path: Path | None = None) -> None:
+    """T2/A6：统计/封面载荷带回媒体名时写入轻量索引（写失败不阻断调用方）。"""
+    text = str(media_name or "").strip()
+    if not text:
+        return
+    try:
+        resolved = str(path.expanduser().resolve())
+    except OSError:
+        resolved = str(path)
+    target = index_path or media_index_path()
+    index = read_media_index(target)
+    if index.get(resolved) == text:
+        return
+    index[resolved] = text
+    with contextlib.suppress(OSError):
+        write_media_index(index, target)
+
+
 def registry_cleanup_preview(registry_path: Path | None = None) -> dict[str, Any]:
     """T0/§2.3：污染候选预览（只读）——临时目录内且文件已缺失的登记。
 
@@ -746,9 +797,18 @@ def all_projects_payload(
     settings_path: Path | None = None,
     metadata_path: Path | None = None,
     registry_path: Path | None = None,
+    media_index: Path | None = None,
     query: str = "",
+    page: int = 1,
+    page_size: int = DEFAULT_ALL_PAGE_SIZE,
 ) -> dict[str, Any]:
-    """「全部工程」卡片载荷：长期登记合集按更新时间降序（固定不改变该区排序）。"""
+    """「全部工程」卡片载荷：长期登记合集按更新时间降序（固定不改变该区排序）。
+
+    T2/§5.3：明确分页契约——`query/page/pageSize` 进，`items(=projects)/total/
+    matched/page/pageSize/pages` 出；不再单次硬截断 5000 条。媒体名来自轻量
+    索引（渐进建立），搜索覆盖工程名/路径/已知媒体名，响应带 `mediaIndexed`
+    说明当前可按媒体名检索的范围。
+    """
     registry = registry_path or project_registry_path()
     with contextlib.suppress(OSError):
         _seed_registry_from_recent(registry, settings_path=settings_path, metadata_path=metadata_path)
@@ -757,6 +817,7 @@ def all_projects_payload(
     metadata = read_launcher_metadata(metadata_path)
     editor_entries = _read_editor_recent_paths(settings_path)
     editor_times = {str(path): opened_at for path, opened_at in editor_entries}
+    media_names = read_media_index(media_index)
 
     needle = query.strip().lower()
     matched: list[dict[str, Any]] = []
@@ -767,8 +828,11 @@ def all_projects_payload(
             continue
         exists = path.is_file()
         key = str(path)
-        if needle and needle not in key.lower():
-            continue
+        known_media = media_names.get(key, "")
+        if needle:
+            haystack = f"{key.lower()}\n{known_media.lower()}"
+            if needle not in haystack:
+                continue
         matched.append({
             "path": key,
             "name": entry.get("name") or path.name,
@@ -780,13 +844,24 @@ def all_projects_payload(
             "registeredAt": entry.get("registeredAt") or "",
             "updatedAt": entry.get("updatedAt") or entry.get("registeredAt") or "",
             "source": entry.get("source") or "",
+            "mediaName": known_media,
         })
 
     matched.sort(key=lambda item: item["updatedAt"], reverse=True)
+    total = len(entries)
+    matched_count = len(matched)
+    safe_size = max(1, min(int(page_size) or DEFAULT_ALL_PAGE_SIZE, MAX_ALL_PAGE_SIZE))
+    pages = max(1, -(-matched_count // safe_size))
+    safe_page = min(max(1, int(page) or 1), pages)
+    start = (safe_page - 1) * safe_size
     return {
         "ok": True,
-        "projects": matched[:MAX_ALL_PROJECTS],
-        "total": len(entries),
-        "matched": len(matched),
+        "projects": matched[start:start + safe_size],
+        "total": total,
+        "matched": matched_count,
+        "page": safe_page,
+        "pageSize": safe_size,
+        "pages": pages,
+        "mediaIndexed": len(media_names),
         "query": query.strip(),
     }

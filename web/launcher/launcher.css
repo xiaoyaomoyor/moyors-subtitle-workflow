@@ -928,6 +928,30 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
 }
 
 
+/* T2/U4：全部工程分页控件 */
+.all-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0 4px;
+}
+
+.all-pager .pager-page.active {
+  color: var(--accent-hover);
+  background: var(--accent-tint);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.all-pager .pager-ellipsis {
+  color: var(--text-faint);
+  padding: 0 2px;
+}
+
+.all-pager .pager-info {
+  margin-left: 6px;
+}
+
 /* S4/§6.5：页脚任务区——进度条与最新反馈独立于日志卡。 */
 .footer-task-strip {
   flex: 1 1 100%;

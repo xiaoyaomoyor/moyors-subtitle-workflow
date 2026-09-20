@@ -240,6 +240,51 @@ test('all-projects group registers beyond the recent list and stays in sync', as
   expect(pin.label).toBe('已固定');
 });
 
+test('all-projects pagination serves real pages with server-side search (T2)', async ({ page }) => {
+  await openHome(page);
+
+  // 30 个登记 → 3 页；服务端按 page/pageSize 返回当前页。
+  await page.evaluate(() => {
+    const registry = [];
+    for (let i = 1; i <= 30; i += 1) {
+      const name = `bulk-${String(i).padStart(2, '0')}.mosp`;
+      registry.push({ path: `D:\\Bulk\\${name}`, name, dir: 'D:\\Bulk', exists: true, pinned: false, lastOpenedAt: '', modifiedAt: '', registeredAt: '', updatedAt: `2026-09-${String(i % 28 + 1).padStart(2, '0')}T00:00:00+00:00`, source: 'created', mediaName: '' });
+    }
+    window.__demoRegistry = registry.reverse();
+    MSWProjectHome.refresh();
+  });
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length === 12);
+  await expect(page.locator('#allPager .pager-info')).toContainText('1/3');
+  await expect(page.locator('#allPager button').first()).toBeDisabled(); // 上一页禁用
+
+  // 翻页：DOM 只保留当前页，激活页码移动。
+  await page.locator('#allPager .pager-page', { hasText: '3' }).click();
+  await page.waitForFunction(() => MSWProjectHome.state.allPage === 3);
+  await expect(page.locator('#allGrid .recent-card')).toHaveCount(6); // 30 = 12+12+6
+  await expect(page.locator('#allPager .pager-page.active')).toHaveText('3');
+
+  // 搜索回第一页 + 命中/总数计数。
+  await page.locator('#recentSearch').fill('bulk-1');
+  await page.waitForTimeout(500);
+  await expect(page.locator('#allPager .pager-page.active')).toHaveText('1');
+  await expect(page.locator('#allCount')).toContainText('/');
+  await page.locator('#recentSearch').fill('');
+  await page.waitForTimeout(500);
+});
+
+test('unseen projects are findable by media name via the media index (T2)', async ({ page }) => {
+  await openHome(page);
+  await page.evaluate(() => {
+    window.__demoMediaIndex = { 'D:\\Demo\\intro.mosp': 'special-movie.mp4' };
+  });
+  await page.locator('#recentSearch').fill('special-movie');
+  await page.waitForTimeout(500);
+  // 未打开/未看过统计的工程经媒体名索引命中（A6）。
+  await expect(page.locator('#allGrid .recent-card')).toHaveCount(1);
+  await expect(page.locator('#allGrid .recent-name')).toHaveText('intro.mosp');
+  await page.locator('#recentSearch').fill('');
+});
+
 test('recent covers load independently when the all-projects list is empty (T1)', async ({ page }) => {
   await openHome(page);
   await page.reload();

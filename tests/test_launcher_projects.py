@@ -390,6 +390,101 @@ class ProjectRegistryTests(unittest.TestCase):
         self.assertEqual(listing["total"], 12)
 
 
+class AllProjectsPaginationTests(unittest.TestCase):
+    """T2/§5.3：全部工程分页契约与媒体名全目录搜索。"""
+
+    def setUp(self) -> None:
+        self.temp_dir = TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
+        self.metadata = self.root / "launcher-recent.json"
+        self.registry = self.root / "launcher-project-registry.json"
+        self.media_index = self.root / "launcher-media-index.json"
+        # 25 个工程（updatedAt 递增）；其中 1 个从未见过但媒体名已入索引。
+        for i in range(1, 26):
+            path = self.root / f"p{i:02d}.mosp"
+            path.write_text("{}", encoding="utf-8")
+            launcher_projects.register_project(path, source="created", registry_path=self.registry)
+        launcher_projects.write_media_index(
+            {str(self.root / "p13.mosp"): "unseen-movie.mp4"}, self.media_index)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def _payload(self, **kwargs):
+        return launcher_projects.all_projects_payload(
+            settings_path=self.settings,
+            metadata_path=self.metadata,
+            registry_path=self.registry,
+            media_index=self.media_index,
+            **kwargs,
+        )
+
+    def test_pagination_contract_and_page_bounds(self) -> None:
+        page1 = self._payload(page=1, page_size=12)
+        self.assertTrue(page1["ok"])
+        self.assertEqual(len(page1["projects"]), 12)
+        self.assertEqual(page1["total"], 25)
+        self.assertEqual(page1["matched"], 25)
+        self.assertEqual(page1["pages"], 3)
+        self.assertEqual(page1["mediaIndexed"], 1)
+        page3 = self._payload(page=3, page_size=12)
+        self.assertEqual(len(page3["projects"]), 1)
+        # 越界页钳制到最近有效页。
+        clamped = self._payload(page=99, page_size=12)
+        self.assertEqual(clamped["page"], 3)
+        self.assertEqual(len(clamped["projects"]), 1)
+        # 0 条：pages=1、空页不出现「第 1/0 页」。
+        empty_registry = self.root / "empty-registry.json"
+        launcher_projects._write_registry({}, empty_registry)
+        empty = self._payload(page=1, page_size=12) if False else launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=empty_registry, media_index=self.media_index, page=1, page_size=12)
+        self.assertEqual(empty["projects"], [])
+        self.assertEqual(empty["pages"], 1)
+        self.assertEqual(empty["total"], 0)
+
+    def test_server_side_search_includes_media_name_of_unseen_project(self) -> None:
+        result = self._payload(query="unseen-movie", page=1, page_size=12)
+        self.assertEqual(result["matched"], 1)
+        self.assertIn("p13.mosp", result["projects"][0]["path"])
+        self.assertEqual(result["projects"][0]["mediaName"], "unseen-movie.mp4")
+        self.assertEqual(result["page"], 1)
+
+    def test_registry_beyond_old_hard_cap_is_fully_pageable(self) -> None:
+        # 超过旧 5000 硬截断的夹具：任意页可达，matched=total。
+        big = self.root / "big-registry.json"
+        entries = {}
+        for i in range(5200):
+            key, display = launcher_projects._canonical_identity(Path(f"D:\Big\item-{i:05d}.mosp"))
+            entries[key] = {"path": display, "name": f"item-{i:05d}.mosp", "source": "created",
+                            "registeredAt": "2026-01-01T00:00:00+00:00", "updatedAt": f"2026-01-01T{i % 24:02d}:00:00+00:00"}
+        launcher_projects._write_registry(entries, big)
+        result = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=big, media_index=self.media_index,
+            page=434, page_size=12)
+        self.assertEqual(result["total"], 5200)
+        self.assertEqual(result["matched"], 5200)
+        self.assertEqual(result["pages"], 434)
+        # 末页余 4 条（5200 = 433*12 + 4）——可达且完整，不以截断冒充。
+        self.assertEqual(len(result["projects"]), 4)
+        self.assertEqual(result["page"], 434)
+        # 倒数第二页仍是满页 12 条。
+        prev = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=big, media_index=self.media_index,
+            page=433, page_size=12)
+        self.assertEqual(len(prev["projects"]), 12)
+
+    def test_note_media_name_persists_and_dedupes(self) -> None:
+        path = self.root / "p01.mosp"
+        launcher_projects.note_media_name(path, "clip.mp4", index_path=self.media_index)
+        launcher_projects.note_media_name(path, "clip.mp4", index_path=self.media_index)  # 幂等
+        index = launcher_projects.read_media_index(self.media_index)
+        # note_media_name 写入键为 resolve 后路径（Windows 大小写归一交由使用侧）。
+        resolved = str(path.expanduser().resolve())
+        self.assertEqual(index.get(resolved), "clip.mp4")
+        self.assertEqual(len(index), 2)  # p13 种子 + p01 新增
+
+
 class RegistryCleanupTests(unittest.TestCase):
     """T0/§2.3：污染清理三件套——预览只读、执行先备份、恢复可回滚。"""
 

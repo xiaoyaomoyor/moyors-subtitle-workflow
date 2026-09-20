@@ -33,8 +33,13 @@
     projects: [],
     allProjects: [],
     allTotal: 0,
+    allMatched: 0,
+    allPages: 1,
+    allPage: 1,
+    allPageSize: ALL_PAGE,
+    allMediaIndexed: 0,
+    allRequest: 0, // T2/§5.2：请求序号——慢响应不回退页面
     visible: DEFAULT_LIMIT,
-    allVisible: ALL_PAGE,
     selectedPath: "",
     query: "",
     groupsCollapsed: { recent: false, all: false },
@@ -354,7 +359,7 @@
     // T1/U2：两组分别渲染后统一收集可见卡并集，一次更新封面观察——
     // 最近组不再依赖全部组的观察顺带加载（全部空/仅失效时最近封面仍能显示）。
     observeCovers(visibleProjects().slice(0, state.visible)
-      .concat(visibleAllProjects().slice(0, state.allVisible)));
+      .concat(state.allProjects));
     renderLaunchArea();
   }
 
@@ -364,10 +369,21 @@
     var more = el("recentMore");
     var count = el("recentCount");
     gridNode.replaceChildren();
-    // H03：筛选隐藏当前目标时清除选择，避免隐藏工程仍是启动目标（两组共同判定）。
-    if (state.selectedPath && !visibleProjects().some(function (item) { return item.path === state.selectedPath; })
-      && !visibleAllProjects().some(function (item) { return item.path === state.selectedPath; })) {
-      clearSelection({ clearTarget: true });
+    // H03+T2/§5.2：筛选隐藏当前目标时清除选择——翻页不清（所选可在其他页），
+    // 仅搜索（query 非空）后所选既不在最近可见也不在当前页时，再经服务端
+    // 单路径查询确认彻底排除才清除。
+    if (state.selectedPath && state.query && !visibleProjects().some(function (item) { return item.path === state.selectedPath; })
+      && !state.allProjects.some(function (item) { return item.path === state.selectedPath; })) {
+      var keepPath = state.selectedPath;
+      var keepQuery = state.query;
+      var request = ++state.allRequest;
+      // 按用户的查询词取满一页（120=服务端页长上限）做成员判定；
+      // 命中超上限的极端场景保留选择（宁可不误清）。
+      bridge("get_all_projects", { query: keepQuery, page: 1, pageSize: 120 }).then(function (result) {
+        if (request !== state.allRequest) return;
+        var stillThere = (result && result.ok && (result.projects || []).some(function (item) { return item.path === keepPath; }));
+        if (!stillThere && state.selectedPath === keepPath && state.query === keepQuery) clearSelection({ clearTarget: true });
+      });
     }
     var list = visibleProjects();
     var shown = list.slice(0, state.visible);
@@ -384,21 +400,83 @@
   function renderAllGroup() {
     var gridNode = el("allGrid");
     var empty = el("allEmpty");
-    var more = el("allMore");
+    var pager = el("allPager");
     var count = el("allCount");
     gridNode.replaceChildren();
-    var list = visibleAllProjects();
-    var shown = list.slice(0, state.allVisible);
+    // T2/U4：全部组内容 = 服务端当前页（DOM 只保留当前页，不累积）。
+    var shown = state.allProjects;
     shown.forEach(function (entry) { gridNode.append(createCard(entry)); });
-    empty.classList.toggle("hidden", list.length > 0);
-    more.classList.toggle("hidden", list.length <= state.allVisible);
-    // §5.1：计数区分工程总数与当前结果数。
+    empty.classList.toggle("hidden", shown.length > 0);
+    // §5.1：计数区分工程总数与当前结果数（服务端 matched/total）。
     count.textContent = state.query
-      ? t("all_count_matched").replace("{matched}", String(list.length)).replace("{total}", String(state.allTotal))
+      ? t("all_count_matched").replace("{matched}", String(state.allMatched)).replace("{total}", String(state.allTotal))
       : t("all_count").replace("{n}", String(state.allTotal));
+    renderAllPager(pager);
     shown.filter(function (entry) { return entry.exists; }).forEach(requestStats);
     applyGroupCollapsed("all");
     renderGroupHeaders();
+  }
+
+  // T2/U4：页码控件——上一页/紧凑页码（省略号）/下一页 + 第 X/Y 页；0 条隐藏。
+  function renderAllPager(pager) {
+    if (!pager) return;
+    pager.replaceChildren();
+    if (state.allTotal === 0) return;
+    var current = state.allPage;
+    var pages = state.allPages;
+    var prev = document.createElement("button");
+    prev.type = "button";
+    prev.className = "ghost small";
+    prev.textContent = t("pager_prev");
+    prev.disabled = current <= 1;
+    prev.addEventListener("click", function () { goToAllPage(current - 1); });
+    var next = document.createElement("button");
+    next.type = "button";
+    next.className = "ghost small";
+    next.textContent = t("pager_next");
+    next.disabled = current >= pages;
+    next.addEventListener("click", function () { goToAllPage(current + 1); });
+    pager.append(prev);
+    compactPageList(current, pages).forEach(function (item) {
+      if (item === "…") {
+        var dots = document.createElement("span");
+        dots.className = "pager-ellipsis";
+        dots.textContent = "…";
+        pager.append(dots);
+        return;
+      }
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ghost small pager-page" + (item === current ? " active" : "");
+      btn.textContent = String(item);
+      if (item === current) btn.setAttribute("aria-current", "page");
+      btn.addEventListener("click", function () { goToAllPage(item); });
+      pager.append(btn);
+    });
+    pager.append(next);
+    var info = document.createElement("span");
+    info.className = "pager-info hint";
+    info.textContent = t("pager_info").replace("{page}", String(current)).replace("{pages}", String(pages)).replace("{n}", String(state.allMatched));
+    pager.append(info);
+  }
+
+  // 紧凑页码：始终含 1 与末页；当前页两侧各 1；其余折叠为省略号。
+  function compactPageList(current, pages) {
+    if (pages <= 7) {
+      var all = [];
+      for (var i = 1; i <= pages; i += 1) all.push(i);
+      return all;
+    }
+    var keep = new Set([1, pages, current - 1, current, current + 1]);
+    var out = [];
+    for (var j = 1; j <= pages; j += 1) {
+      if (keep.has(j)) {
+        if (out.length && j - out[out.length - 1] > 1) out.push("…");
+        out.push(j);
+      }
+    }
+    if (out.length && out[0] !== 1) out.unshift("…");
+    return out;
   }
 
   function renderGroupHeaders() {
@@ -655,15 +733,37 @@
         persistSelection();
       }
     });
-    var allReady = bridge("get_all_projects", { query: "" }).then(function (result) {
-      if (!result || result.ok !== true) return;
-      state.allProjects = Array.isArray(result.projects) ? result.projects : [];
-      state.allTotal = Number(result.total || state.allProjects.length) || 0;
-    });
+    var allReady = fetchAllPage();
     return Promise.all([recentReady, allReady]).then(function () {
       if (!state.selectedPath) restoreSelection();
       render();
     });
+  }
+
+  // T2/§5.3：全部组按「查询+页码」向服务端取当前页；请求带序号，
+  // 慢响应（旧序号）不得覆盖新查询或把页面回退。
+  function fetchAllPage() {
+    var request = ++state.allRequest;
+    return bridge("get_all_projects", { query: state.query, page: state.allPage, pageSize: state.allPageSize }).then(function (result) {
+      if (request !== state.allRequest) return;
+      if (!result || result.ok !== true) return;
+      state.allProjects = Array.isArray(result.projects) ? result.projects : [];
+      state.allTotal = Number(result.total || 0) || 0;
+      state.allMatched = Number(result.matched || state.allProjects.length) || 0;
+      state.allPages = Math.max(1, Number(result.pages || 1) || 1);
+      state.allPage = Math.min(Math.max(1, Number(result.page || 1) || 1), state.allPages);
+      state.allMediaIndexed = Number(result.mediaIndexed || 0) || 0;
+    });
+  }
+
+  function goToAllPage(page) {
+    var target = Math.min(Math.max(1, page), state.allPages);
+    if (target === state.allPage) return;
+    state.allPage = target;
+    void fetchAllPage().then(renderAllGroup);
+    // §5.1：翻页只替换本页，不把用户带回整个窗口顶部。
+    var group = document.querySelector('[data-home-group="all"]');
+    if (group) group.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // ---------------- 交互 ----------------
@@ -863,17 +963,14 @@
       searchTimer = window.setTimeout(function () {
         state.query = value;
         state.visible = DEFAULT_LIMIT;
-        state.allVisible = ALL_PAGE;
-        render();
+        // §5.2：搜索输入后回到第一页；全部组改由服务端按查询返回。
+        state.allPage = 1;
+        void fetchAllPage().then(render);
       }, SEARCH_DEBOUNCE_MS);
     });
     el("recentMore").addEventListener("click", function () {
       state.visible += DEFAULT_LIMIT;
       renderRecentGroup();
-    });
-    el("allMore").addEventListener("click", function () {
-      state.allVisible += ALL_PAGE;
-      renderAllGroup();
     });
     bindGroupToggle("recent", "recentGroupTitle");
     bindGroupToggle("all", "allGroupTitle");

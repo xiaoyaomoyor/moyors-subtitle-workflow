@@ -54,6 +54,7 @@ from maw.launcher_projects import (
     apply_registry_cleanup,
     delete_project_file as delete_project_file_from_registry,
     note_project_opened,
+    note_media_name,
     registry_cleanup_preview,
     register_project,
     restore_registry_backup as restore_registry_backup_from_file,
@@ -494,6 +495,8 @@ class LauncherPaths:
     recent_metadata: Path | None = None
     # S3：长期工程目录登记层（全部工程）。同样支持测试注入。
     project_registry: Path | None = None
+    # T2/A6：媒体名轻量索引（全目录搜索）。None 用默认路径；测试注入。
+    media_index: Path | None = None
 
 
 @dataclass(slots=True)
@@ -665,23 +668,39 @@ class LauncherApi:
         """List recent projects for the home page (editor index + launcher view state)."""
         return recent_projects_payload(metadata_path=self.paths.recent_metadata)
 
+    def _note_media_name(self, path: str, media_name: object) -> None:
+        """T2/A6：统计/封面带回媒体名时写入轻量索引，供全目录搜索。"""
+        text = str(media_name or "").strip()
+        if not text:
+            return
+        try:
+            note_media_name(Path(path), text, index_path=self.paths.media_index)
+        except Exception as error:  # noqa: BLE001 - 索引写失败不阻断主流程
+            print(f"[media-index] 记录媒体名失败: {error}", file=sys.stderr)
+
     def get_recent_project_stats(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Parse lightweight card statistics for one project file."""
         path = _optional_path(payload.get("path"))
         if path is None:
             return _error_result("path", "recent_project_invalid", "")
-        return project_stats_payload(path)
+        result = project_stats_payload(path)
+        if result.get("ok") and result.get("mediaName"):
+            self._note_media_name(str(path), result["mediaName"])
+        return result
 
     def get_recent_project_thumbnail(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Cover thumbnail for one recent-project card（H01，见 launcher_thumbnails）。"""
         path = _optional_path(payload.get("path"))
         if path is None:
             return _error_result("path", "recent_project_invalid", "")
-        return thumbnail_payload(
+        result = thumbnail_payload(
             path,
             ffmpeg_tools=_postprocess_ffmpeg_tools(self.paths.env_path),
             force=False,
         )
+        if result.get('ok') and result.get('mediaName'):
+            self._note_media_name(str(path), result['mediaName'])
+        return result
 
     def refresh_recent_project_thumbnail(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Re-extract a cover, bypassing the on-disk cache (卡片「刷新封面」)."""
@@ -719,12 +738,17 @@ class LauncherApi:
             print(f"[registry] 登记工程失败: {error}", file=sys.stderr)
 
     def get_all_projects(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
-        """S3/§5.1：全部工程（长期登记合集），支持搜索过滤与计数。"""
+        """S3/§5.1 + T2/§5.3：全部工程（长期登记合集）——分页契约与媒体名搜索。"""
         query = str(payload.get("query") or "") if payload else ""
+        page = int(payload.get("page") or 1) if payload else 1
+        page_size = int(payload.get("pageSize") or 12) if payload else 12
         return all_projects_registry_payload(
             metadata_path=self.paths.recent_metadata,
             registry_path=self.paths.project_registry,
+            media_index=self.paths.media_index,
             query=query,
+            page=page,
+            page_size=page_size,
         )
 
     def preview_registry_cleanup(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:

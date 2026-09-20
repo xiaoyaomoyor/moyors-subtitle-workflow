@@ -3650,6 +3650,39 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("delete_project_done", launcher_script)
         self.assertIn("仅把这个工程文件移入回收站", launcher_script)
 
+    def test_launcher_t2_pagination_and_media_search_contracts(self) -> None:
+        """T2（三轮审查 U4/A6/A7）：分页契约、服务端搜索、媒体名索引与页码控件。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+        projects_source = (ROOT / "maw" / "launcher_projects.py").read_text(encoding="utf-8")
+        gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
+
+        # U4：页码控件替换加载更多；0 条不渲染分页。
+        self.assertIn('id="allPager"', page)
+        self.assertNotIn('id="allMore"', page)
+        self.assertIn("renderAllPager", home_script)
+        self.assertIn("compactPageList", home_script)
+        self.assertIn('btn.setAttribute("aria-current", "page")', home_script)
+        self.assertIn("if (state.allTotal === 0) return;", home_script)
+        # 服务端分页契约。
+        self.assertIn('page: int = 1', projects_source)
+        self.assertIn('page_size: int = DEFAULT_ALL_PAGE_SIZE', projects_source)
+        self.assertIn('"pages": pages,', projects_source)
+        self.assertIn('"mediaIndexed": len(media_names),', projects_source)
+        self.assertNotIn("matched[:MAX_ALL_PROJECTS]", projects_source)  # A7：硬截断移除
+        # 桥接透传分页与媒体索引。
+        self.assertIn("page = int(payload.get(\"page\") or 1)", gui_source)
+        self.assertIn("media_index=self.paths.media_index", gui_source)
+        self.assertIn("media_index: Path | None = None", gui_source)
+        # A6：媒体名轻量索引（统计/封面写回）。
+        self.assertIn("def note_media_name(", projects_source)
+        self.assertIn("self._note_media_name(str(path), result[\"mediaName\"])", gui_source)
+        # §5.2：搜索回第一页 + 请求序号。
+        self.assertIn("state.allPage = 1;", home_script)
+        self.assertIn("state.allRequest", home_script)
+        # §5.2：翻页不清选择——搜索排除经服务端单路径验证。
+        self.assertIn('bridge("get_all_projects", { query: keepPath, page: 1, pageSize: 1 })', home_script)
+
     def test_launcher_t1_cover_and_pin_contracts(self) -> None:
         """T1（三轮审查）：图钉描边在 SVG 根、两组封面独立观察、版本失效与失败态。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -3660,7 +3693,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z" fill="none"', home_script)
         # U2：render 统一收集两组可见卡并集做一次 observeCovers；renderAllGroup 不再单独观察。
         self.assertIn("observeCovers(visibleProjects().slice(0, state.visible)", home_script)
-        self.assertIn(".concat(visibleAllProjects().slice(0, state.allVisible))", home_script)
+        self.assertIn(".concat(state.allProjects))", home_script)
         self.assertNotIn('    observeCovers(shown);\n    applyGroupCollapsed("all");', home_script)
         # A4：缓存按 sourceVersion（工程 modifiedAt）失效。
         self.assertIn("coverCacheValid", home_script)

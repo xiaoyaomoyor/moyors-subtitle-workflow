@@ -119,6 +119,9 @@
       all_count_matched: "命中 {matched} / {total}",
       all_empty: "暂无登记工程；制作或打开工程后会自动登记到全部工程。",
       all_more: "加载更多",
+      pager_prev: "上一页",
+      pager_next: "下一页",
+      pager_info: "第 {page}/{pages} 页 · 共 {n} 项",
       all_grid_label: "全部工程列表",
       remove_registry: "从全部工程记录移除",
       delete_project_file: "删除工程文件…",
@@ -420,6 +423,9 @@
       all_count_matched: "{matched} of {total}",
       all_empty: "No registered projects yet; created or opened projects are registered here automatically.",
       all_more: "Load more",
+      pager_prev: "Prev",
+      pager_next: "Next",
+      pager_info: "Page {page}/{pages} · {n} items",
       all_grid_label: "All projects list",
       remove_registry: "Remove from all projects",
       delete_project_file: "Delete project file…",
@@ -1796,15 +1802,21 @@
         return { ok: true, removed: registry.length - kept.length, kept: kept.length, backup: "C:\Demo\backup.json" };
       },
       restore_registry_cleanup: async () => ({ ok: true, restored: (window.__lastRegistryBackup?.entries || []).length, backup: "" }),
-      get_all_projects: async ({ query } = {}) => {
+      get_all_projects: async ({ query = "", page = 1, pageSize = 12 } = {}) => {
         const registry = window.__demoRegistry || (window.__demoRegistry = [
           { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00", registeredAt: "2026-08-01T10:00:00+00:00", updatedAt: "2026-09-13T10:00:00+00:00", source: "migration" },
           { path: "D:\\Demo\\intro.mosp", name: "intro.mosp", dir: "D:\\Demo", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2026-09-14T10:00:00+00:00", registeredAt: "2026-08-02T10:00:00+00:00", updatedAt: "2026-09-14T10:00:00+00:00", source: "created" },
           { path: "E:\\Archive\\old-take.mosp", name: "old-take.mosp", dir: "E:\\Archive", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2025-12-01T10:00:00+00:00", registeredAt: "2025-12-01T10:00:00+00:00", updatedAt: "2025-12-01T10:00:00+00:00", source: "editor" },
         ]);
+        const mediaIndex = window.__demoMediaIndex || {};
         const needle = String(query || "").trim().toLowerCase();
-        const matched = needle ? registry.filter((item) => item.path.toLowerCase().includes(needle)) : registry.slice();
-        return { ok: true, projects: matched, total: registry.length, matched: matched.length, query: String(query || "").trim() };
+        const matchedAll = needle
+          ? registry.filter((item) => (item.path.toLowerCase() + "\n" + String(mediaIndex[item.path] || "").toLowerCase()).includes(needle))
+          : registry.slice();
+        const size = Math.max(1, Number(pageSize) || 12);
+        const pages = Math.max(1, Math.ceil(matchedAll.length / size));
+        const safePage = Math.min(Math.max(1, Number(page) || 1), pages);
+        return { ok: true, projects: matchedAll.slice((safePage - 1) * size, safePage * size), total: registry.length, matched: matchedAll.length, page: safePage, pageSize: size, pages, mediaIndexed: Object.keys(mediaIndex).length, query: String(query || "").trim() };
       },
       remove_registry_project: async ({ path }) => {
         if (window.__demoRegistry) window.__demoRegistry = window.__demoRegistry.filter((item) => item.path !== path);
