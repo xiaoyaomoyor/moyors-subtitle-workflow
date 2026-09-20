@@ -240,6 +240,70 @@ test('all-projects group registers beyond the recent list and stays in sync', as
   expect(pin.label).toBe('已固定');
 });
 
+test('recent covers load independently when the all-projects list is empty (T1)', async ({ page }) => {
+  await openHome(page);
+  await page.reload();
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
+
+  // T1/U2：全部工程接口返回空——最近组的封面不依赖全部组的观察顺带加载。
+  // （override 必须在 reload 之后安装——reload 会清空页面状态。）
+  await page.evaluate(() => {
+    window.__coverRequests = [];
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'get_recent_project_thumbnail') window.__coverRequests.push(payload.path);
+      if (method === 'get_all_projects') return { ok: true, projects: [], total: 0, matched: 0, query: '' };
+      return next(method, payload);
+    };
+    // 覆写后清空已缓存的封面，强制按新拦截路径重新走观察加载。
+    const st = MSWProjectHome.state;
+    st.covers = {};
+    st.coversPending = {};
+    MSWProjectHome.refresh();
+  });
+  await page.waitForFunction(() => document.querySelectorAll('#recentGrid .recent-card').length >= 1);
+  await page.waitForFunction(() => (window.__coverRequests || []).length >= 1);
+  await expect(page.locator('#recentGrid .recent-cover[data-cover-state="image"]').first()).toBeVisible();
+  // 全部组显示空态，最近组不受影响。
+  await expect(page.locator('#allEmpty')).toBeVisible();
+  await page.evaluate(() => { MSWLauncher.bridgeOverride = null; });
+});
+
+test('cover failures enter a retryable placeholder instead of loading forever (T1)', async ({ page }) => {
+  await openHome(page);
+  await page.evaluate(() => {
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'get_recent_project_thumbnail') return { ok: false, error: 'mock failure' };
+      return next(method, payload);
+    };
+    const first = MSWProjectHome.state.projects.find((p) => p.exists);
+    delete MSWProjectHome.state.covers[first.path];
+    delete MSWProjectHome.state.coversPending[first.path];
+    MSWProjectHome.requestCover(first);
+  });
+  await expect(page.locator('#recentGrid .recent-cover[data-cover-state="failed"]').first()).toBeVisible();
+  await page.evaluate(() => { MSWLauncher.bridgeOverride = null; });
+});
+
+test('pinned badge needle renders with stroke inherited from the svg root (T1)', async ({ page }) => {
+  await openHome(page);
+  await page.waitForTimeout(400);
+  const pin = await page.evaluate(() => {
+    const svg = document.querySelector('.recent-card.pinned .recent-pin svg');
+    if (!svg) return null;
+    return Array.from(svg.querySelectorAll('path')).map((p) => {
+      const cs = getComputedStyle(p);
+      return { stroke: cs.stroke, width: parseFloat(cs.strokeWidth) };
+    });
+  });
+  expect(pin).not.toBeNull();
+  expect(pin).toHaveLength(2);
+  // U1：针杆与轮廓两条路径都有描边与宽度（此前针杆 stroke:none 不可见）。
+  for (const path of pin) {
+    expect(path.stroke).not.toBe('none');
+    expect(path.width).toBeGreaterThan(0);
+  }
+});
+
 test('delete project file flow confirms scope, recycles, and reports; registry removal is separate', async ({ page }) => {
   await openHome(page);
   await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length >= 3);

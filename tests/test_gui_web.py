@@ -3650,6 +3650,27 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("delete_project_done", launcher_script)
         self.assertIn("仅把这个工程文件移入回收站", launcher_script)
 
+    def test_launcher_t1_cover_and_pin_contracts(self) -> None:
+        """T1（三轮审查）：图钉描边在 SVG 根、两组封面独立观察、版本失效与失败态。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+
+        # U1：PIN_ICON 根元素带 fill=none/stroke=currentColor——两条路径（含针杆）继承。
+        self.assertIn('width="13" height="13" fill="none" stroke="currentColor"', home_script)
+        self.assertNotIn('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z" fill="none"', home_script)
+        # U2：render 统一收集两组可见卡并集做一次 observeCovers；renderAllGroup 不再单独观察。
+        self.assertIn("observeCovers(visibleProjects().slice(0, state.visible)", home_script)
+        self.assertIn(".concat(visibleAllProjects().slice(0, state.allVisible))", home_script)
+        self.assertNotIn('    observeCovers(shown);\n    applyGroupCollapsed("all");', home_script)
+        # A4：缓存按 sourceVersion（工程 modifiedAt）失效。
+        self.assertIn("coverCacheValid", home_script)
+        self.assertIn("cached.sourceVersion === (entry.modifiedAt || \"\")", home_script)
+        # A5：桥接失败/异常 → failed 占位；图片解码失败回退。
+        self.assertIn('state: \"failed\", dataUri: \"\", version: \"\", message: \"\", at: Date.now()', home_script)
+        self.assertIn("img.addEventListener(\"error\"", home_script)
+        # 请求代次按路径（不同卡并发互不作废；同路径换代旧响应丢弃）。
+        self.assertIn("state.coversGeneration[entry.path]", home_script)
+
     def test_launcher_s5_output_and_result_contracts(self) -> None:
         """S5/§7：输出卡、制作按钮靠右、打开工程绑定产物与导出开关契约。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

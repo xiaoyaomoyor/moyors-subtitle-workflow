@@ -9,7 +9,7 @@
 | 工程登记数量与来源 | 仅说明 | 已只读汇总真实索引，确认 547 条均指向已不存在的临时文件 |
 | 封面、图钉、顺序与布局 | 仅说明 | 已完成代码核对、浏览器点击及截图检查 |
 | 关联问题和阶段验收 | 仅说明 | 已整理下列修正项及测试边界 |
-| 业务修复及数据清理 | 进行中 | T0 已完成（2026-09-19）；T1～T5 待处理 |
+| 业务修复及数据清理 | 进行中 | T0、T1 已完成（2026-09-19）；T2～T5 待处理 |
 
 ## 1. 核心结论
 
@@ -249,16 +249,28 @@ A1 的证据是前端有效方案和处理载荷构造，未实际写文件验�
 
 ### T1：首页封面、图钉和失效状态
 
-状态：待处理。覆盖 U1/U2、A4/A5。
+状态：已完成（2026-09-19 实施批次 2，基线 52f7b60）。覆盖 U1/U2、A4/A5；实施前复核四项指控均在代码中属实。
 
-- 修复 SVG 根描边与读屏状态。
-- 两组封面观察按可见节点并集更新，去重与缓存按版本处理。
-- 补加载失败、解码失败、超时及刷新封面反馈。
-- 最近与全部不同数据集、全部失效、分组折叠、同工程双卡均覆盖。
+实施：
 
-主要位置：`project-home.js`、`launcher.css`、`maw/launcher_thumbnails.py` 及封面测试。
+1. **U1 图钉针杆**：PIN_ICON 描边定义移至 SVG 根（fill=none/stroke=currentColor/linecap/linejoin/width=1.6），针杆 `M12 17v5` 与轮廓两条路径统一继承——e2e 断言两条路径 computed stroke ≠ none 且宽度 >0（此前针杆 stroke:none 不可见）。
+2. **U2 两组独立封面**：`render()` 统一收集「最近组可见 ∪ 全部组当前页」做一次 observeCovers；`renderAllGroup` 不再单独观察——审计复现的「全部组接口为空 → 最近封面 0 请求、永久 loading」缺口消除（e2e 用全部空列表+最近有效视频验证封面正常加载）。折叠分组内的节点跳过观察（§6.1 折叠不主动解码）；同工程双卡仍共用按路径去重的请求层。
+3. **A4 缓存版本失效**：新增 `coverCacheValid`——缓存命中需 `state==="image"` 且 `sourceVersion === entry.modifiedAt`（抓取时记录）；工程保存/换媒体/重新定位使 modifiedAt 变化后不再复用旧图，重新请求验证。refreshCover（右键刷新）同样记录 sourceVersion。
+4. **A5 失败态**：桥接返回 ok:false 或异常 → 明确 `failed` 占位（可重试，60s 失败短期缓存照旧）而非永久 loading；`<img>` 增解码 error 监听——data URI 解码失败回退 failed 占位。
+5. **请求代次（按路径）**：`state.coversGeneration` 改为按路径计数 + `coversIdentity`（path@modifiedAt）——同路径换代后旧响应丢弃不回写；不同卡并发互不作废（探针首轮全局计数器在并发下互相作废的缺陷由 e2e 大面积超时暴露后修正为按路径）。
 
-验收：最近有有效视频、全部为空/仅失效时仍显示封面；跨页、换媒体和重新定位不显示旧图；图钉针杆完整。
+验证（2026-09-19）：
+
+- 探针 6/6：图钉双路径描边；全部空时最近封面照常请求+显示；版本变化重新验证；桥接失败→failed 占位；解码失败回退；无 JS 错误。
+- e2e：home spec 16/16（新增 3 项 T1 用例：空全部组独立加载/失败占位/针杆描边 computed 断言）；launcher 全套 86/86。
+- 契约：test_gui_web 252 项 OK——新增 `test_launcher_t1_cover_and_pin_contracts`。
+- 回归：全量 discover 1620 项 OK + ruff 全绿。
+
+主要位置：`project-home.js`（PIN_ICON/requestCover/observeCovers/render/applyCoverState/state 扩展）、`tests/e2e/launcher-home.spec.mjs`、`tests/test_gui_web.py`。
+
+验收对照：最近有有效视频、全部为空时仍显示封面 ✓（e2e）；换媒体/重新定位不显示旧图 ✓（sourceVersion 失效契约+探针）；图钉针杆完整 ✓（computed 断言）。全部失效目录场景由「全部空列表」用例等价覆盖（失效占位路径相同）。
+
+未验证（如实记录）：`maw/launcher_thumbnails.py` 后端本轮未改动（审计未指控其缺陷）；真实视频解码的横竖屏/中文路径/多音轨矩阵留待 T5 真实媒体回归。
 
 ### T2：真正分页、全目录搜索与计数
 

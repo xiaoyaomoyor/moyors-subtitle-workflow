@@ -40,8 +40,10 @@
     groupsCollapsed: { recent: false, all: false },
     statsCache: {},   // path -> { version, text }（version = modifiedAt）
     statsPending: {}, // path -> Promise
-    covers: {},       // path -> { state, dataUri, version, message }
+    covers: {},       // path -> { state, dataUri, version, message, sourceVersion }
     coversPending: {},// path -> Promise
+    coversGeneration: {}, // T1/A5：按路径的请求代次——同路径换代后旧响应不回写（不同路径互不影响）
+    coversIdentity: {},  // path -> 抓取时的 path@modifiedAt 身份
     mediaNames: {},   // path -> 媒体文件名（统计或封面载荷带回，避免重复读工程）
   };
   var searchTimer = 0;
@@ -102,7 +104,8 @@
     broken: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="M12 15.01v.01"/></svg>',
   };
   // 图钉取自 Lucide（ISC License，https://lucide.dev），以 currentColor 内联使用。
-  var PIN_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  // T1/U1：描边定义在 SVG 根，两条路径（含针杆 M12 17v5）统一继承。
+  var PIN_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z"/></svg>';
   var COVER_STATE_LABEL_KEYS = {
     audio: "cover_state_audio",
     no_media: "cover_state_no_media",
@@ -146,6 +149,11 @@
       img.src = cached.dataUri;
       img.alt = "";
       img.decoding = "async";
+      // T1/A5：data URI 解码失败回退失败占位，不残留空白。
+      img.addEventListener("error", function () {
+        state.covers[entry.path] = { state: "failed", dataUri: "", version: "", message: "", at: Date.now(), sourceVersion: cached.sourceVersion || "" };
+        coverNodes(entry.path).forEach(function (node) { applyCoverState(node, entry, state.covers[entry.path]); });
+      });
       cover.append(img);
     } else {
       var icon = status === "audio" ? COVER_ICONS.audio
@@ -176,17 +184,35 @@
     return nodes;
   }
 
+  // T1/A4：封面缓存按「工程文件版本」失效——modifiedAt 变化（工程保存、
+  // 换媒体、重新定位）后不再复用旧图；缓存记录抓取时的版本号用于比对。
+  function coverCacheValid(cached, entry) {
+    return Boolean(cached) && cached.state === "image"
+      && cached.sourceVersion === (entry.modifiedAt || "")
+      && (cached.version || "") !== "";
+  }
+
   function requestCover(entry) {
     if (!entry.exists) return;
-    if (state.covers[entry.path] && state.covers[entry.path].state === "image") return;
+    if (coverCacheValid(state.covers[entry.path], entry)) return;
     if (state.coversPending[entry.path]) return;
-    // 失败短期缓存在后端；前端同样避免对同一路径的重复请求。
+    // 失败短期缓存在后端；前端同样避免对同一路径的重复请求（失败/加载中态 60s 内不重试）。
     var failedAt = state.covers[entry.path] && state.covers[entry.path].state !== "image"
       ? state.covers[entry.path].at || 0 : 0;
     if (failedAt && Date.now() - failedAt < 60000) return;
+    // T1/A5：请求带代次与身份；旧响应（工程已被替换/刷新换代）不回写新卡片。
+    var generation = (state.coversGeneration[entry.path] || 0) + 1;
+    state.coversGeneration[entry.path] = generation;
+    var identity = entry.path + "@" + (entry.modifiedAt || "");
     var pending = bridge("get_recent_project_thumbnail", { path: entry.path }).then(function (result) {
       delete state.coversPending[entry.path];
-      if (!result || result.ok !== true) return;
+      if (generation !== state.coversGeneration[entry.path]) return;
+      // T1/A5：桥接失败/异常载荷 → 明确失败态（可重试），不再永久停在 loading。
+      if (!result || result.ok !== true) {
+        state.covers[entry.path] = { state: "failed", dataUri: "", version: "", message: "", at: Date.now(), sourceVersion: entry.modifiedAt || "" };
+        coverNodes(entry.path).forEach(function (node) { applyCoverState(node, entry, state.covers[entry.path]); });
+        return;
+      }
       state.covers[entry.path] = {
         state: result.state || "failed",
         dataUri: result.dataUri || "",
@@ -194,12 +220,17 @@
         mediaName: result.mediaName || "",
         message: result.message || "",
         at: Date.now(),
+        sourceVersion: entry.modifiedAt || "",
       };
+      state.coversIdentity[entry.path] = identity;
       if (result.mediaName) state.mediaNames[entry.path] = result.mediaName;
       coverNodes(entry.path).forEach(function (node) { applyCoverState(node, entry, state.covers[entry.path]); });
       syncMediaName(entry.path);
     }).catch(function () {
       delete state.coversPending[entry.path];
+      if (generation !== state.coversGeneration[entry.path]) return;
+      state.covers[entry.path] = { state: "failed", dataUri: "", version: "", message: "", at: Date.now(), sourceVersion: entry.modifiedAt || "" };
+      coverNodes(entry.path).forEach(function (node) { applyCoverState(node, entry, state.covers[entry.path]); });
     });
     state.coversPending[entry.path] = pending;
   }
@@ -225,6 +256,7 @@
         version: result.version || "",
         message: result.message || "",
         at: Date.now(),
+        sourceVersion: entry.modifiedAt || "",
       };
       if (result.mediaName) state.mediaNames[entry.path] = result.mediaName;
       coverNodes(entry.path).forEach(function (node) { applyCoverState(node, entry, state.covers[entry.path]); });
@@ -253,7 +285,11 @@
     }
     entries.forEach(function (entry) {
       if (!entry.exists) return;
-      coverNodes(entry.path).forEach(function (node) { coverObserver.observe(node); });
+      coverNodes(entry.path).forEach(function (node) {
+        // T1/§6.1：折叠分组不主动解码——隐藏 body 里的节点跳过观察。
+        if (node.closest(".home-group-body")?.classList.contains("hidden")) return;
+        coverObserver.observe(node);
+      });
     });
   }
 
@@ -315,6 +351,10 @@
     closeMenu({});
     renderRecentGroup();
     renderAllGroup();
+    // T1/U2：两组分别渲染后统一收集可见卡并集，一次更新封面观察——
+    // 最近组不再依赖全部组的观察顺带加载（全部空/仅失效时最近封面仍能显示）。
+    observeCovers(visibleProjects().slice(0, state.visible)
+      .concat(visibleAllProjects().slice(0, state.allVisible)));
     renderLaunchArea();
   }
 
@@ -357,7 +397,6 @@
       ? t("all_count_matched").replace("{matched}", String(list.length)).replace("{total}", String(state.allTotal))
       : t("all_count").replace("{n}", String(state.allTotal));
     shown.filter(function (entry) { return entry.exists; }).forEach(requestStats);
-    observeCovers(shown);
     applyGroupCollapsed("all");
     renderGroupHeaders();
   }
