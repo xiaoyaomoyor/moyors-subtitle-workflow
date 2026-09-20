@@ -3687,7 +3687,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         # 绑定位于顶层（两空格缩进，直接出现在 init 序列，而非嵌在其他回调体内）。
         for binding in ('$("previewRegistryCleanup")?.addEventListener', '$("applyRegistryCleanup")?.addEventListener', '$("restoreRegistryCleanup")?.addEventListener'):
             self.assertIn(binding, launcher_script)
-            line = next(l for l in launcher_script.split("\n") if binding in l)
+            line = next(row for row in launcher_script.split("\n") if binding in row)
             self.assertTrue(line.startswith('  $("'), f"绑定未在顶层缩进: {line[:40]}")
         # clearCoverCache 处理器保持自身独立（清理块不得嵌在其中）。
         clear_start = launcher_script.index('$("clearCoverCache").addEventListener')
@@ -3717,7 +3717,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         # 调整3：确认对话框真实换行——JS 源内是单反斜杠 n 转义（双反斜杠会渲染字面 \n），
         # 弹层文本按 pre-line 呈现。
-        zh_confirm = next(l for l in launcher_script.split("\n") if "registry_cleanup_confirm:" in l and "失效登记记录" in l)
+        zh_confirm = next(row for row in launcher_script.split("\n") if "registry_cleanup_confirm:" in row and "失效登记记录" in row)
         self.assertIn("\\n·", zh_confirm)
         self.assertNotIn("\\\\n", zh_confirm)
         self.assertIn("#batchConfirmMessage {\n  white-space: pre-line;\n}", stylesheet)
@@ -3748,8 +3748,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("groupsCollapsed: { recent: false, all: true }", home_script)
         self.assertIn('"MSW_HOME_GROUPS_V2"', home_script)
         self.assertNotIn("MSW_HOME_GROUPS_V1", home_script)
-        # 后端按名称排序（大小写不敏感 + 路径 tiebreak），时间倒序排序必须消失。
-        self.assertIn('matched.sort(key=lambda item: (item["name"].casefold(), item["path"]))', projects_source)
+        # 后端按「固定优先+名称」排序（大小写不敏感 + 路径 tiebreak），时间倒序排序必须消失。
+        self.assertIn('matched.sort(key=lambda item: (not item["pinned"], item["name"].casefold(), item["path"]))', projects_source)
         self.assertNotIn('key=lambda item: item["updatedAt"], reverse=True', projects_source)
         # mock 与真实后端同规则。
         self.assertIn("matchedAll.sort((a, b) => {", launcher_script)
@@ -3760,9 +3760,47 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("const hadAddress = Boolean(previousUrl || state.serverStatusUrl);", launcher_script)
         self.assertIn("async function refreshShownServerStatus()", launcher_script)
 
+    def test_launcher_adjustment_batch_c_contracts(self) -> None:
+        """调整批C（用户四项）：固定优先排序、图钉左上内倾、Shift/Ctrl 多选批处理、最近上限9。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        projects_source = (ROOT / "maw" / "launcher_projects.py").read_text(encoding="utf-8")
+        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
+
+        # C1：固定优先 > 名称（后端 + mock 同规则）。
+        self.assertIn('(not item["pinned"], item["name"].casefold()', projects_source)
+        self.assertIn("const ap = a.pinned ? 0 : 1;", launcher_script)
+
+        # C2：图钉在封面左上角并向内倾斜（避开右上角选中对勾）。
+        pin_block = stylesheet[stylesheet.index(".recent-cover .recent-pin {"):]
+        self.assertIn("top: 6px;", pin_block[:200])
+        self.assertIn("left: 6px;", pin_block[:200])
+        self.assertIn("transform: rotate(35deg);", pin_block[:200])
+        self.assertNotIn("right: 6px;", pin_block[:200])
+
+        # C3：多选模型（分派 + Ctrl 增减 + Shift 范围）与批量菜单/批量删除。
+        for fn in ("function selectCard(card, event)", "function ctrlToggle(path)", "function shiftSelect(card)", "function deleteProjectFlowBatch(entries)"):
+            self.assertIn(fn, home_script)
+        self.assertIn("state.selectedPaths.indexOf(card.dataset.path) >= 0", home_script)
+        self.assertIn("selectedPaths: []", home_script)
+        # 批量菜单标签带数量；批量删除确认列出全部名称（真实换行）。
+        for key in ('selected_extra: "已选 {n} 个"', 'batch_pin: "固定所选工程（{n}）"', 'batch_delete: "删除所选工程文件（{n}）…"',
+                    'batch_remove_registry: "从全部工程记录移除（{n}）"', 'batch_delete_done: "已将 {n} 个工程文件移入回收站。"'):
+            self.assertIn(key, launcher_script)
+        self.assertIn('\\n{names}\\n', next(row for row in launcher_script.split("\n") if "batch_delete_confirm:" in row))
+        # 会话存储改存多选数组（兼容旧单路径字符串）。
+        self.assertIn("JSON.stringify(state.selectedPaths)", home_script)
+
+        # C4：最近组上限 9，标题（x/9），「加载更多」入口移除。
+        self.assertIn("MAX_RECENT_ENTRIES: Final = 9", projects_source)
+        self.assertIn("var RECENT_LIMIT = 9;", home_script)
+        self.assertIn('Math.min(visibleProjects().length, RECENT_LIMIT) + "/" + RECENT_LIMIT', home_script)
+        self.assertNotIn("recentMore", page)
+        self.assertNotIn("recent_more", launcher_script)
+
     def test_launcher_t4_settings_rail_and_grid_contracts(self) -> None:
         """T4（三轮审查 U6/A2/A3）：设置栅格、统一抽屉控制与样式覆盖顺序。"""
-        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         tools_script = (ROOT / "web" / "launcher" / "tools.js").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
@@ -3844,14 +3882,14 @@ class LauncherAssetContractTests(unittest.TestCase):
 
     def test_launcher_t1_cover_and_pin_contracts(self) -> None:
         """T1（三轮审查）：图钉描边在 SVG 根、两组封面独立观察、版本失效与失败态。"""
-        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
 
         # U1：PIN_ICON 根元素带 fill=none/stroke=currentColor——两条路径（含针杆）继承。
         self.assertIn('width="13" height="13" fill="none" stroke="currentColor"', home_script)
         self.assertNotIn('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z" fill="none"', home_script)
         # U2：render 统一收集两组可见卡并集做一次 observeCovers；renderAllGroup 不再单独观察。
-        self.assertIn("observeCovers(visibleProjects().slice(0, state.visible)", home_script)
+        # C4：最近组观察上限改为常量 RECENT_LIMIT（state.visible 已移除）。
+        self.assertIn("observeCovers(visibleProjects().slice(0, RECENT_LIMIT)", home_script)
         self.assertIn(".concat(state.allProjects))", home_script)
         self.assertNotIn('    observeCovers(shown);\n    applyGroupCollapsed("all");', home_script)
         # A4：缓存按 sourceVersion（工程 modifiedAt）失效。
@@ -4017,7 +4055,6 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn('id="llmModelQuick"', page)
         self.assertNotIn("<datalist", page)
         self.assertIn('llm_reasoning_mode_hint">默认关闭；自动表示跟随模型默认。</p>', page)
-        api_key = page.index('id="llmApiKey"')
         self.assertIn('bridge("choose_file", { kind: "script" })', script)
         self.assertIn('bridge("choose_file", { kind: "video" })', script)
         self.assertIn('openSettings("llmSettingsSection")', script)
@@ -4693,7 +4730,6 @@ class LauncherAssetContractTests(unittest.TestCase):
 
     def test_launcher_keeps_settings_actions_visible_and_isolates_toolbox_wheel(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
-        script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
         launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 

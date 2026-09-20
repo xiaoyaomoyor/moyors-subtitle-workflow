@@ -24,7 +24,8 @@
 (function () {
   "use strict";
 
-  var DEFAULT_LIMIT = 6;
+  // C4/调整：最近组最多显示 9 个近期工程（后端载荷同步截断），标题显示（x/9）。
+  var RECENT_LIMIT = 9;
   var ALL_PAGE = 12;
   var SEARCH_DEBOUNCE_MS = 200;
   var SELECTED_KEY = "MSW_HOME_SELECTED_PATH";
@@ -40,8 +41,8 @@
     allPageSize: ALL_PAGE,
     allMediaIndexed: 0,
     allRequest: 0, // T2/§5.2：请求序号——慢响应不回退页面
-    visible: DEFAULT_LIMIT,
-    selectedPath: "",
+    selectedPath: "",  // C3：锚点=最近交互的工程（启动目标）
+    selectedPaths: [], // C3：多选集合（Shift 范围/Ctrl 单击累积），顺序即选择顺序
     query: "",
     groupsCollapsed: { recent: false, all: true }, // 调整2：全部工程默认折叠，展开后记忆用户选择
     statsCache: {},   // path -> { version, text }（version = modifiedAt）
@@ -304,8 +305,8 @@
 
   function createCard(entry) {
     var card = document.createElement("div");
-    // H02：创建卡片时从唯一选中状态同时恢复样式与无障碍属性。
-    var isSelected = Boolean(state.selectedPath) && entry.path === state.selectedPath;
+    // H02/C3：创建卡片时从选择集合恢复样式与无障碍属性（多选时每张选中卡都带态）。
+    var isSelected = state.selectedPaths.indexOf(entry.path) >= 0;
     // 调整5：正在打开的工程卡片保留加载反馈（渲染换代后转圈不中断）。
     var isOpening = Boolean(state.openingPath) && entry.path === state.openingPath;
     card.className = "recent-card"
@@ -364,7 +365,7 @@
     renderAllGroup();
     // T1/U2：两组分别渲染后统一收集可见卡并集，一次更新封面观察——
     // 最近组不再依赖全部组的观察顺带加载（全部空/仅失效时最近封面仍能显示）。
-    observeCovers(visibleProjects().slice(0, state.visible)
+    observeCovers(visibleProjects().slice(0, RECENT_LIMIT)
       .concat(state.allProjects));
     renderLaunchArea();
   }
@@ -372,7 +373,6 @@
   function renderRecentGroup() {
     var gridNode = el("recentGrid");
     var empty = el("recentEmpty");
-    var more = el("recentMore");
     var count = el("recentCount");
     gridNode.replaceChildren();
     // H03+T2/§5.2：筛选隐藏当前目标时清除选择——翻页不清（所选可在其他页），
@@ -392,10 +392,9 @@
       });
     }
     var list = visibleProjects();
-    var shown = list.slice(0, state.visible);
+    var shown = list.slice(0, RECENT_LIMIT);
     shown.forEach(function (entry) { gridNode.append(createCard(entry)); });
     empty.classList.toggle("hidden", list.length > 0);
-    more.classList.toggle("hidden", list.length <= state.visible);
     count.textContent = list.length ? t("recent_count").replace("{n}", String(list.length)) : "";
     // 统计与封面按需拉取：卡片先显示占位，不伪造数字或画面。
     shown.filter(function (entry) { return entry.exists; }).forEach(requestStats);
@@ -486,7 +485,9 @@
   }
 
   function renderGroupHeaders() {
-    [["recent", "recentGroupTitle", visibleProjects().length],
+    // C4：最近组计数显示（x/9）——x 为当前显示数（上限 9）；全部组仍显示总数。
+    var recentCount = Math.min(visibleProjects().length, RECENT_LIMIT) + "/" + RECENT_LIMIT;
+    [["recent", "recentGroupTitle", recentCount],
      ["all", "allGroupTitle", visibleAllProjects().length]].forEach(function (item) {
       var node = el(item[1]);
       if (node) {
@@ -584,7 +585,9 @@
     var chip = el("homeTarget");
     var entry = selectedEntry();
     var raw = browsedTargetPath();
-    var label = entry ? entry.name : (raw ? basenameOf(raw) : "");
+    // C3：多选时目标名后附已选数量（启动目标始终是锚点=最近交互的工程）。
+    var extra = state.selectedPaths.length > 1 ? "（" + t("selected_extra").replace("{n}", String(state.selectedPaths.length)) + "）" : "";
+    var label = entry ? entry.name + extra : (raw ? basenameOf(raw) : "");
     if (openSelected) openSelected.classList.toggle("hidden", !label);
     if (chip) {
       chip.classList.toggle("hidden", !label);
@@ -594,27 +597,34 @@
 
   function persistSelection() {
     try {
-      if (state.selectedPath) sessionStorage.setItem(SELECTED_KEY, state.selectedPath);
+      if (state.selectedPaths.length) sessionStorage.setItem(SELECTED_KEY, JSON.stringify(state.selectedPaths));
       else sessionStorage.removeItem(SELECTED_KEY);
     } catch (error) { /* 隐私模式下不可用；仅影响刷新后恢复 */ }
   }
 
   function restoreSelection() {
+    // C3：会话存储改为 JSON 数组；兼容旧版单路径字符串。
     var saved = "";
     try { saved = sessionStorage.getItem(SELECTED_KEY) || ""; } catch (error) { saved = ""; }
-    var entry = saved ? entryByPath(saved) : null;
-    if (entry && entry.exists) {
-      state.selectedPath = saved;
-    } else if (saved) {
-      state.selectedPath = "";
-      persistSelection();
-    }
+    if (!saved) return;
+    var paths = [];
+    try {
+      var parsed = JSON.parse(saved);
+      paths = Array.isArray(parsed) ? parsed.filter(function (item) { return typeof item === "string"; }) : [saved];
+    } catch (error) { paths = [saved]; }
+    var existing = paths.filter(function (path) {
+      var entry = entryByPath(path);
+      return entry && entry.exists;
+    });
+    state.selectedPaths = existing;
+    state.selectedPath = existing[existing.length - 1] || "";
+    if (existing.length !== paths.length) persistSelection();
   }
 
   function updateCardStates() {
     bothGrids().forEach(function (gridNode) {
       gridNode.querySelectorAll(".recent-card").forEach(function (card) {
-        var selected = Boolean(state.selectedPath) && card.dataset.path === state.selectedPath;
+        var selected = state.selectedPaths.indexOf(card.dataset.path) >= 0;
         card.classList.toggle("selected", selected);
         card.setAttribute("aria-pressed", String(selected));
       });
@@ -624,8 +634,17 @@
     applyGroupCollapsed("all");
   }
 
+  // C3：点击分派——普通点击=单选切换；Ctrl/⌘=单卡增减；Shift=同组范围选择。
+  function selectCard(card, event) {
+    var path = card.dataset.path;
+    if (event && event.shiftKey) { shiftSelect(card); return; }
+    if (event && (event.ctrlKey || event.metaKey)) { ctrlToggle(path); return; }
+    setSelected(path);
+  }
+
   function setSelected(path) {
     state.selectedPath = state.selectedPath === path ? "" : path;
+    state.selectedPaths = state.selectedPath ? [state.selectedPath] : [];
     persistSelection();
     // H04：卡片选择与工程路径共用一个目标状态；取消选择即清空目标。
     if (window.MSWLauncher && window.MSWLauncher.setJsonPath) {
@@ -634,13 +653,49 @@
     updateCardStates();
   }
 
+  // C3：Ctrl 单击——单卡加入/移出多选；锚点（启动目标）随最近交互移动。
+  function ctrlToggle(path) {
+    var index = state.selectedPaths.indexOf(path);
+    if (index >= 0) {
+      state.selectedPaths.splice(index, 1);
+      if (state.selectedPath === path) state.selectedPath = state.selectedPaths[state.selectedPaths.length - 1] || "";
+    } else {
+      state.selectedPaths.push(path);
+      state.selectedPath = path;
+    }
+    if (state.selectedPath && window.MSWLauncher && window.MSWLauncher.setJsonPath) {
+      window.MSWLauncher.setJsonPath(state.selectedPath);
+    }
+    persistSelection();
+    updateCardStates();
+  }
+
+  // C3：Shift 单击——从锚点卡到当前卡的同组范围选择（跨组/无锚点退化为单选；
+  // 锚点与启动目标不变）。范围为当前渲染顺序（全部组即当前页）。
+  function shiftSelect(card) {
+    var path = card.dataset.path;
+    var cards = Array.from(card.parentElement.querySelectorAll(".recent-card"));
+    var anchorCard = cards.filter(function (node) { return node.dataset.path === state.selectedPath; })[0];
+    if (!state.selectedPath || !anchorCard || anchorCard.parentElement !== card.parentElement) {
+      setSelected(path);
+      return;
+    }
+    var from = Math.min(cards.indexOf(anchorCard), cards.indexOf(card));
+    var to = Math.max(cards.indexOf(anchorCard), cards.indexOf(card));
+    state.selectedPaths = cards.slice(from, to + 1).map(function (node) { return node.dataset.path; });
+    if (state.selectedPaths.indexOf(state.selectedPath) < 0) state.selectedPaths.push(state.selectedPath);
+    persistSelection();
+    updateCardStates();
+  }
+
   function clearSelection(options) {
     var clearTarget = !options || options.clearTarget !== false;
-    if (!state.selectedPath && !(clearTarget && browsedTargetPath())) {
+    if (!state.selectedPaths.length && !state.selectedPath && !(clearTarget && browsedTargetPath())) {
       renderLaunchArea();
       return;
     }
     state.selectedPath = "";
+    state.selectedPaths = [];
     persistSelection();
     if (clearTarget && browsedTargetPath() && window.MSWLauncher && window.MSWLauncher.setJsonPath) {
       // 目标被筛选隐藏：连表单里的目标一并清空，避免隐藏工程仍是启动目标（H03）。
@@ -656,6 +711,7 @@
     if (match) {
       if (match.exists && state.selectedPath !== match.path) {
         state.selectedPath = match.path;
+        state.selectedPaths = [match.path]; // C3：单选不变式——锚点与选择集合同步。
         persistSelection();
         updateCardStates();
       }
@@ -750,6 +806,30 @@
     });
   }
 
+  // C3：批量删除——一次确认列出全部工程名，逐个移入回收站后汇总反馈。
+  function deleteProjectFlowBatch(entries) {
+    var names = entries.map(function (item) { return "· " + item.name; }).join("\n");
+    var message = t("batch_delete_confirm")
+      .replace("{n}", String(entries.length))
+      .replace("{names}", names);
+    void window.MSWLauncher.confirm(message).then(function (yes) {
+      if (!yes) return;
+      Promise.all(entries.map(function (item) {
+        return bridge("delete_project_file", { path: item.path }).catch(function () { return null; });
+      })).then(function (results) {
+        var moved = results.filter(function (result) { return result && result.ok; }).length;
+        var firstError = "";
+        results.forEach(function (result) {
+          if (result && !result.ok && !firstError) firstError = result.detail || result.error || "";
+        });
+        var text = t("batch_delete_done").replace("{n}", String(moved));
+        if (moved < entries.length) text += "（" + t("delete_project_failed").replace("{detail}", firstError || t("failed_key_missing")) + "）";
+        notice(text);
+        refresh();
+      });
+    });
+  }
+
   // ---------------- 刷新 ----------------
 
   function refresh() {
@@ -802,7 +882,7 @@
         var card = event.target.closest(".recent-card");
         if (!card || !node.contains(card)) return;
         if (event.target.closest("button")) return;
-        setSelected(card.dataset.path);
+        selectCard(card, event);
       });
       node.addEventListener("dblclick", function (event) {
         var card = event.target.closest(".recent-card");
@@ -910,32 +990,65 @@
     menuEl.className = "recent-context-menu";
     menuEl.setAttribute("role", "menu");
     menuEl.setAttribute("aria-label", entry.name);
+    // C3：右键的卡在多选集合内 → 菜单进入批量模式（打开/所在文件夹仍作用于
+    // 右键的卡本身，其余操作批量作用于全部所选）。
+    var batchPaths = state.selectedPaths.length > 1 && state.selectedPaths.indexOf(entry.path) >= 0
+      ? state.selectedPaths.slice() : null;
+    var batchEntries = batchPaths
+      ? batchPaths.map(function (path) { return entryByPath(path); }).filter(Boolean) : [];
+    var allPinned = Boolean(batchEntries.length) && batchEntries.every(function (item) { return item.pinned; });
+    var batchLabel = function (key) { return t(key).replace("{n}", String(batchEntries.length)); };
     var actions = [];
     actions.push({ key: "recent_open_project", run: function () { openProject(entry.path); } });
-    actions.push({ key: entry.pinned ? "recent_unpin" : "recent_pin", run: function () {
-      void bridge("set_recent_project_pinned", { path: entry.path, pinned: !entry.pinned }).then(refresh);
-    } });
+    if (batchEntries.length) {
+      actions.push({ key: allPinned ? "batch_unpin" : "batch_pin", label: batchLabel(allPinned ? "batch_unpin" : "batch_pin"), run: function () {
+        batchEntries.forEach(function (item) {
+          void bridge("set_recent_project_pinned", { path: item.path, pinned: !allPinned });
+        });
+        refresh();
+      } });
+    } else {
+      actions.push({ key: entry.pinned ? "recent_unpin" : "recent_pin", run: function () {
+        void bridge("set_recent_project_pinned", { path: entry.path, pinned: !entry.pinned }).then(refresh);
+      } });
+    }
     actions.push({ key: "recent_open_folder", run: function () {
       void bridge("open_containing_folder", { path: entry.path });
     } });
     if (entry.exists) {
-      actions.push({ key: "recent_refresh_cover", run: function () { void refreshCover(entry); } });
+      actions.push(batchEntries.length
+        ? { key: "batch_refresh_cover", label: batchLabel("batch_refresh_cover"), run: function () {
+            batchEntries.filter(function (item) { return item.exists; }).forEach(refreshCover);
+          } }
+        : { key: "recent_refresh_cover", run: function () { void refreshCover(entry); } });
     }
     if (!entry.exists) {
       actions.push({ key: "recent_relocate", run: function () { relocateFlow(entry); } });
     }
     if (group === "recent") {
       // 仅影响最近视图；工程文件与全部工程登记不动。
-      actions.push({ key: "recent_remove", run: function () {
-        void bridge("remove_recent_project", { path: entry.path }).then(refresh);
-      } });
+      actions.push(batchEntries.length
+        ? { key: "batch_remove_recent", label: batchLabel("batch_remove_recent"), run: function () {
+            batchEntries.forEach(function (item) { void bridge("remove_recent_project", { path: item.path }); });
+            refresh();
+          } }
+        : { key: "recent_remove", run: function () {
+            void bridge("remove_recent_project", { path: entry.path }).then(refresh);
+          } });
     } else {
       // §5.3+调整4：移除语义严格区分——「从全部工程移除」同步撤出最近（包含关系
       // 不变式，否则读取补齐会立即撤销移除）；删除工程文件才动磁盘。
-      actions.push({ key: "remove_registry", run: function () {
-        void bridge("remove_registry_project", { path: entry.path }).then(refresh);
-      } });
-      actions.push({ key: "delete_project_file", danger: true, run: function () { deleteProjectFlow(entry); } });
+      actions.push(batchEntries.length
+        ? { key: "batch_remove_registry", label: batchLabel("batch_remove_registry"), run: function () {
+            batchEntries.forEach(function (item) { void bridge("remove_registry_project", { path: item.path }); });
+            refresh();
+          } }
+        : { key: "remove_registry", run: function () {
+            void bridge("remove_registry_project", { path: entry.path }).then(refresh);
+          } });
+      actions.push(batchEntries.length
+        ? { key: "batch_delete", label: batchLabel("batch_delete"), danger: true, run: function () { deleteProjectFlowBatch(batchEntries); } }
+        : { key: "delete_project_file", danger: true, run: function () { deleteProjectFlow(entry); } });
     }
     actions.forEach(function (action) {
       var button = document.createElement("button");
@@ -946,10 +1059,10 @@
         // 垃圾桶取自 Lucide（ISC License，https://lucide.dev），以 currentColor 内联使用。
         button.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17" fill="none"/></svg>';
         var span = document.createElement("span");
-        span.textContent = t(action.key);
+        span.textContent = action.label || t(action.key);
         button.append(span);
       } else {
-        button.textContent = t(action.key);
+        button.textContent = action.label || t(action.key);
       }
       button.addEventListener("click", function () { closeMenu({}); action.run(); });
       menuEl.append(button);
@@ -991,15 +1104,10 @@
       var value = search.value.trim().toLowerCase();
       searchTimer = window.setTimeout(function () {
         state.query = value;
-        state.visible = DEFAULT_LIMIT;
         // §5.2：搜索输入后回到第一页；全部组改由服务端按查询返回。
         state.allPage = 1;
         void fetchAllPage().then(render);
       }, SEARCH_DEBOUNCE_MS);
-    });
-    el("recentMore").addEventListener("click", function () {
-      state.visible += DEFAULT_LIMIT;
-      renderRecentGroup();
     });
     bindGroupToggle("recent", "recentGroupTitle");
     bindGroupToggle("all", "allGroupTitle");

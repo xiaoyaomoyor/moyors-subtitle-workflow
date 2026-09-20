@@ -1090,11 +1090,12 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
   color: var(--text-secondary);
 }
 
-/* S3/§5.1：图钉移至封面固定右上角（与选中描边互不兼任）。 */
+/* C2/调整：图钉移到封面左上角（避开右上角选中对勾），针头朝封面内侧倾斜。 */
 .recent-cover .recent-pin {
   position: absolute;
   top: 6px;
-  right: 6px;
+  left: 6px;
+  transform: rotate(35deg);
   display: inline-flex;
   padding: 3px;
   border-radius: var(--radius-sm);

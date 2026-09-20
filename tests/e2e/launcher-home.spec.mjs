@@ -504,7 +504,7 @@ test('home groups collapse independently with memory and search counts both list
   await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card, #allGroupTarget:not(.hidden)').length >= 0);
   await expect(page.locator('#allGroupBody')).toBeHidden();
 
-  // 搜索作用于两组并显示命中/总数；最近组默认 6 条起步。
+  // 搜索作用于两组并显示命中/总数；最近组上限 9 条（C4）。
   // （用 intro.mosp 而非 intro：演示 mock 给 old-take 的媒体名是 intro.mp4，会按媒体名命中。）
   await page.locator('#allGroupTitle').click();
   await page.locator('#recentSearch').fill('intro.mosp');
@@ -615,4 +615,98 @@ test('server address line clears after the editor exits the server and the windo
   await page.waitForFunction(() => document.querySelector('#status a.status-link') === null);
   await expect(page.locator('#status')).not.toContainText('当前服务器地址');
   await expect(page.locator('#stopServer')).toHaveClass(/hidden/);
+});
+
+test('all-projects sorts pinned entries first then by name (C1)', async ({ page }) => {
+  await openHome(page);
+  // 名称序 alpha<beta<zeta，但 zeta 固定——必须置顶。
+  await page.evaluate(() => {
+    const entry = (name, pinned) => {
+      const path = `D:\\X\\${name}`;
+      return { path, name, dir: 'D:\\X', exists: true, pinned, lastOpenedAt: '', modifiedAt: '2026-09-01T00:00:00+00:00', registeredAt: '', updatedAt: '2026-09-01T00:00:00+00:00', source: 'created', mediaName: '' };
+    };
+    window.__demoRegistry = [entry('beta.mosp', false), entry('alpha.mosp', false), entry('zeta.mosp', true)];
+    MSWProjectHome.refresh();
+  });
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length === 3);
+  const names = await page.locator('#allGrid .recent-name').evaluateAll((nodes) => nodes.map((n) => n.textContent));
+  expect(names).toEqual(['zeta.mosp', 'alpha.mosp', 'beta.mosp']);
+});
+
+test('pin badge sits at the cover top-left and is tilted inward (C2)', async ({ page }) => {
+  await openHome(page);
+  const pin = cardOf(page, 'clip.mosp').locator('.recent-pin');
+  await expect(pin).toBeVisible();
+  const geo = await pin.evaluate((node) => {
+    const cover = node.closest('.recent-cover').getBoundingClientRect();
+    const box = node.getBoundingClientRect();
+    return { offsetLeft: box.left - cover.left, transform: getComputedStyle(node).transform };
+  });
+  expect(geo.offsetLeft).toBeLessThan(20);
+  expect(geo.transform).not.toBe('none'); // rotate(35deg) → matrix(...)
+});
+
+test('ctrl-click and shift-click build a multi-selection that drives the batch menu (C3)', async ({ page }) => {
+  await openHome(page);
+
+  // Ctrl 多选：两张卡同时带选中态，启动区显示已选数量。
+  const clip = cardOf(page, 'clip.mosp');
+  const intro = cardOf(page, 'intro.mosp');
+  await clip.click();
+  await intro.click({ modifiers: ['Control'] });
+  await expect(clip).toHaveClass(/selected/);
+  await expect(intro).toHaveClass(/selected/);
+  await expect(page.locator('#homeTarget')).toContainText('已选 2 个');
+
+  // 右键所选卡：菜单进入批量模式（固定项带数量）。
+  await clip.click({ button: 'right' });
+  const menu = page.locator('#recentContextMenu');
+  await expect(menu.locator('button').filter({ hasText: '固定所选工程（2）' })).toHaveCount(1);
+  await expect(menu.locator('button').filter({ hasText: '固定到列表顶部' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // 普通点击重置为单选；Shift 在全部组内做范围选择（名称序 clip/intro/old-take）。
+  // 锚点选 old-take（与最近组已选的 clip 不同路径——同工程二次点击是切换语义，会取消选择），
+  // 再 Shift 反向点到 clip，覆盖整组三张。
+  await clip.click();
+  await expect(page.locator('#recentGrid .recent-card.selected')).toHaveCount(1);
+  await page.locator('#allGrid .recent-card').nth(2).click();
+  await page.locator('#allGrid .recent-card').first().click({ modifiers: ['Shift'] });
+  await expect(page.locator('#allGrid .recent-card.selected')).toHaveCount(3);
+  await expect(page.locator('#homeTarget')).toContainText('已选 3 个');
+
+  // 批量删除：一次确认列出全部名称，确认后逐个入回收站并汇总反馈。
+  await page.locator('#allGrid .recent-card').first().click({ button: 'right' });
+  const danger = menu.locator('button.danger');
+  await expect(danger).toHaveText(/删除所选工程文件（3）…/);
+  await danger.click();
+  const message = await page.locator('#batchConfirmMessage').textContent();
+  expect(message).toContain('3 个工程文件');
+  expect(message).toContain('clip.mosp');
+  expect(message).toContain('old-take.mosp');
+  await page.locator('#batchConfirmYes').click();
+  await page.waitForFunction(() => (window.__deleteRequests || []).length >= 3);
+  await expect(page.locator('#homeNotice')).toContainText('已将 3 个工程文件移入回收站');
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length === 0);
+});
+
+test('recent group caps at nine with an x/9 header (C4)', async ({ page }) => {
+  await openHome(page);
+  // 默认演示 3 条 → （3/9）。
+  await expect(page.locator('#recentGroupTitle .home-group-label')).toHaveText('最近工程（3/9）');
+
+  // 注入 12 条最近：只显示 9 张，标题（9/9）。
+  await page.evaluate(() => {
+    const original = MSWLauncher.callBackend;
+    const projects = Array.from({ length: 12 }, (_, i) => {
+      const name = `r${String(i + 1).padStart(2, '0')}.mosp`;
+      return { path: `D:\\Bulk\\${name}`, name, dir: 'D:\\Bulk', exists: true, pinned: false, lastOpenedAt: '', modifiedAt: `2026-09-${String(i + 1).padStart(2, '0')}T10:00:00+00:00` };
+    });
+    MSWLauncher.callBackend = (method, payload) => (method === 'get_recent_projects'
+      ? Promise.resolve({ ok: true, projects })
+      : original(method, payload));
+    MSWProjectHome.refresh();
+  });
+  await page.waitForFunction(() => document.querySelectorAll('#recentGrid .recent-card').length === 9);
+  await expect(page.locator('#recentGroupTitle .home-group-label')).toHaveText('最近工程（9/9）');
 });

@@ -26,6 +26,17 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## 调整批C：用户四项微调（2026-09-20 第三轮）
+
+状态：已完成（2026-09-20）。固定优先排序、图钉左上内倾、Shift/Ctrl 多选与批处理、最近组上限 9。
+
+1. **C1 固定优先排序**：全部工程排序键从「名称」升级为「固定（图钉）优先 > 名称（大小写不敏感）> 路径 tiebreak」；mock 同规则。新增 `test_all_projects_sorts_pinned_first_then_name`（Zeta 固定后压过 alpha）。
+2. **C2 图钉位置与姿态**：图钉徽标从封面右上角（与选中对勾重叠）移到左上角，并 `rotate(35deg)` 向封面内侧倾斜；选中对勾仍在右上角，两者分居两侧。e2e 以包围盒偏移 + 计算样式 transform 双重断言。
+3. **C3 Shift/Ctrl 多选与批处理**：选择模型从单路径升级为「锚点（selectedPath=最近交互=启动目标）+ 选择集合（selectedPaths）」。普通点击=单选切换（原语义）；Ctrl/⌘ 单击=单卡增减；Shift 单击=同网格内从锚点卡到当前卡的范围选择（跨组/无锚点退化为单选；范围为当前渲染顺序，全部组即当前页）。会话存储改存 JSON 数组（兼容旧单路径字符串）。右键所选卡时菜单进入批量模式：固定/取消固定、刷新封面、从最近视图移除、从全部工程记录移除（均带数量标签）、批量删除（一次确认列出全部名称→逐个入回收站→汇总反馈）；打开工程/打开所在文件夹仍作用于右键的那张卡。启动区目标名后附「已选 N 个」。修复连带缺陷：syncTargetFromPath 此前只回写 selectedPath 造成集合失配。
+4. **C4 最近组上限 9**：后端 `MAX_RECENT_ENTRIES` 50→9，前端 `RECENT_LIMIT=9`（state.visible 与「加载更多」按钮/i18n 一并移除）；组标题显示「最近工程（x/9）」（x=当前显示数）。
+
+验证（2026-09-20）：契约新增 `test_launcher_adjustment_batch_c_contracts`（排序键/图钉 CSS 三行/多选四函数+集合断言/批量键含换行确认/上限 9 与 recentMore 移除）；单元新增 pinned-first 与最近上限 9 两测试；T1/U2 契约随 RECENT_LIMIT 常量改写。启动器相关 299 项单元/契约 OK；e2e 84/84（launcher-home 27 含新增 C1-C4 四用例，其余 launcher 套件 57）；视觉探针确认选中对勾（右上）与倾斜图钉（左上）分居两侧、标题「最近工程（3/9）」。全量回归仅剩 2 项打包契约失败——属并行编辑器工作新增的 `maw/msw/subtitle_export.py` 等模块尚未登记进 PyInstaller spec（见其 TEST_FEEDBACK 文档），非本批引入。ruff 对本批文件全绿（顺带清了 test_gui_web 内历史遗留的 7 处 E741/F841）。
+
 ## 调整批B：用户三项微调（2026-09-20 第二轮）
 
 状态：已完成（2026-09-20）。草图图标重绘、全部工程默认折叠+按名排序、服务器地址残留根治。

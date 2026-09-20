@@ -131,8 +131,16 @@
       delete_project_failed: "删除失败：{detail}",
       recent_grid_label: "最近工程",
       recent_empty: "暂无最近工程；生成或保存工程后会出现在这里。",
-      recent_more: "加载更多",
       recent_count: "{n} 个工程",
+      selected_extra: "已选 {n} 个",
+      batch_pin: "固定所选工程（{n}）",
+      batch_unpin: "取消固定所选（{n}）",
+      batch_refresh_cover: "刷新所选封面（{n}）",
+      batch_remove_recent: "从最近视图移除（{n}）",
+      batch_remove_registry: "从全部工程记录移除（{n}）",
+      batch_delete: "删除所选工程文件（{n}）…",
+      batch_delete_confirm: "将把 {n} 个工程文件移入回收站（媒体与 .assets 一律不动）：\n{names}\n\n此操作可从回收站还原。继续？",
+      batch_delete_done: "已将 {n} 个工程文件移入回收站。",
       recent_stats_loading: "统计读取中…",
       recent_stats_summary: "主 {main} / 副 {sub} · 音频 {audio}",
       recent_missing: "文件已移动或不存在",
@@ -436,8 +444,16 @@
       delete_project_failed: "Delete failed: {detail}",
       recent_grid_label: "Recent projects",
       recent_empty: "No recent projects yet; generated or saved projects will appear here.",
-      recent_more: "Load more",
       recent_count: "{n} projects",
+      selected_extra: "{n} selected",
+      batch_pin: "Pin selected ({n})",
+      batch_unpin: "Unpin selected ({n})",
+      batch_refresh_cover: "Refresh covers of selected ({n})",
+      batch_remove_recent: "Remove from recent ({n})",
+      batch_remove_registry: "Remove from all projects ({n})",
+      batch_delete: "Delete selected project files ({n})…",
+      batch_delete_confirm: "Move {n} project files to the recycle bin (media and .assets untouched):\n{names}\n\nYou can restore them from the recycle bin. Continue?",
+      batch_delete_done: "Moved {n} project files to the recycle bin.",
       recent_stats_loading: "Reading stats…",
       recent_stats_summary: "main {main} / sub {sub} · audio {audio}",
       recent_missing: "File moved or missing",
@@ -1815,8 +1831,11 @@
         const matchedAll = needle
           ? registry.filter((item) => (item.path.toLowerCase() + "\n" + String(mediaIndex[item.path] || "").toLowerCase()).includes(needle))
           : registry.slice();
-        // 调整2：与真实后端一致——全部工程按名称排序（大小写不敏感），时间序只属于最近组。
+        // 调整2/C1：与真实后端一致——固定（图钉）优先，其余按名称（大小写不敏感）。
         matchedAll.sort((a, b) => {
+          const ap = a.pinned ? 0 : 1;
+          const bp = b.pinned ? 0 : 1;
+          if (ap !== bp) return ap - bp;
           const an = String(a.name || "").toLowerCase();
           const bn = String(b.name || "").toLowerCase();
           return an < bn ? -1 : an > bn ? 1 : 0;

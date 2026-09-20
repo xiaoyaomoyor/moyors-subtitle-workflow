@@ -28,7 +28,7 @@ from typing import Any, Iterator, Final
 from maw.app_paths import default_app_data_root, default_server_settings_path
 
 LAUNCHER_RECENT_FILE_NAME: Final = "launcher-recent.json"
-MAX_RECENT_ENTRIES: Final = 50
+MAX_RECENT_ENTRIES: Final = 9
 # 统计解析的工程大小上限：更大的工程仍可打开，但卡片不解析统计（显示为未知）。
 STATS_SIZE_LIMIT: Final = 64 * 1024 * 1024
 
@@ -887,9 +887,9 @@ def all_projects_payload(
             "mediaName": known_media,
         })
 
-    # 调整2：全部工程按工程名排序（大小写不敏感、路径稳定 tiebreak）；
-    # 「最近时间」排序只属于最近组。
-    matched.sort(key=lambda item: (item["name"].casefold(), item["path"]))
+    # 调整2/C1：固定（图钉）优先 > 工程名（大小写不敏感）> 路径 tiebreak；
+    # 时间序只属于最近组。
+    matched.sort(key=lambda item: (not item["pinned"], item["name"].casefold(), item["path"]))
     total = len(entries)
     matched_count = len(matched)
     safe_size = max(1, min(int(page_size) or DEFAULT_ALL_PAGE_SIZE, MAX_ALL_PAGE_SIZE))

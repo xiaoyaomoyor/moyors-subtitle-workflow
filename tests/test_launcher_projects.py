@@ -42,6 +42,18 @@ class RecentProjectsTests(unittest.TestCase):
             "recent_projects": [{"path": str(path), "name": path.name} for path in paths],
         })
 
+    def test_recent_payload_caps_at_nine(self) -> None:
+        # C4：最近视图最多 9 条（首页标题按（x/9）显示，超出部分截断）。
+        projects = [self.root / f"r{i:02d}.mosp" for i in range(12)]
+        for project in projects:
+            project.write_text("{}", encoding="utf-8")
+        self._set_editor_recent(*projects)
+
+        result = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
+        self.assertEqual(len(result["projects"]), 9)
+        self.assertEqual([item["name"] for item in result["projects"]],
+                         [f"r{i:02d}.mosp" for i in range(9)])
+
     def test_merges_editor_list_with_launcher_view_state(self) -> None:
         first = self.root / "first.mosp"
         second = self.root / "second.mosp"
@@ -298,6 +310,22 @@ class ProjectRegistryTests(unittest.TestCase):
             self.assertEqual(len(result["projects"]), 1)
         else:
             self.assertEqual(len(result["projects"]), 2)
+
+    def test_all_projects_sorts_pinned_first_then_name(self) -> None:
+        # C1：固定（图钉）优先级 > 名称序；时间序只属于最近组。
+        alpha = self.root / "alpha.mosp"
+        zeta = self.root / "Zeta.mosp"
+        alpha.write_text("{}", encoding="utf-8")
+        zeta.write_text("{}", encoding="utf-8")
+        launcher_projects.register_project(alpha, source="created", registry_path=self.registry)
+        launcher_projects.register_project(zeta, source="created", registry_path=self.registry)
+        set_recent_project_pinned(zeta, True, metadata_path=self.metadata)
+
+        result = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        self.assertEqual([item["name"] for item in result["projects"]], ["Zeta.mosp", "alpha.mosp"])
+        self.assertTrue(result["projects"][0]["pinned"])
+        self.assertFalse(result["projects"][1]["pinned"])
 
     def test_all_projects_sorts_by_name_and_filters_by_query(self) -> None:
         # 调整2：全部工程按工程名排序（大小写不敏感、路径 tiebreak）——
