@@ -240,6 +240,81 @@ test('all-projects group registers beyond the recent list and stays in sync', as
   expect(pin.label).toBe('已固定');
 });
 
+test('home survives non-overlapping sets and an all-stale catalog (T5)', async ({ page }) => {
+  await openHome(page);
+
+  // T5/§10：非重叠集合——最近 {A,B}、全部 {C,D}（全失效）；封面与选择互不串扰。
+  await page.evaluate(() => {
+    window.__demoRegistry = [
+      { path: 'D:\\Stale\\gone-1.mosp', name: 'gone-1.mosp', dir: 'D:\\Stale', exists: false, pinned: false, lastOpenedAt: '', modifiedAt: '', registeredAt: '', updatedAt: '2026-09-01T00:00:00+00:00', source: 'created', mediaName: '' },
+      { path: 'D:\\Stale\\gone-2.mosp', name: 'gone-2.mosp', dir: 'D:\\Stale', exists: false, pinned: false, lastOpenedAt: '', modifiedAt: '', registeredAt: '', updatedAt: '2026-09-02T00:00:00+00:00', source: 'created', mediaName: '' },
+    ];
+    MSWProjectHome.refresh();
+  });
+  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length === 2);
+  // 最近组仍有自己的有效卡（clip/intro），全部组全失效互不影响。
+  await expect(page.locator('#recentGrid .recent-card').first()).toBeVisible();
+  await expect(page.locator('#allGrid .recent-cover[data-cover-state="project_missing"]')).toHaveCount(2);
+  // 非重叠：全部组不含最近组的工程。
+  const overlap = await page.evaluate(() => {
+    const recent = new Set(Array.from(document.querySelectorAll('#recentGrid .recent-card')).map((c) => c.dataset.path));
+    return Array.from(document.querySelectorAll('#allGrid .recent-card')).some((c) => recent.has(c.dataset.path));
+  });
+  expect(overlap).toBe(false);
+  // 失效卡的封面不进入观察请求。
+  const thumbCalls = await page.evaluate(async () => {
+    window.__t5Thumbs = [];
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'get_recent_project_thumbnail') window.__t5Thumbs.push(payload.path);
+      return next(method, payload);
+    };
+    MSWProjectHome.refresh();
+    await new Promise((r) => setTimeout(r, 500));
+    MSWLauncher.bridgeOverride = null;
+    return window.__t5Thumbs;
+  });
+  expect(thumbCalls.every((p) => !p.includes('gone-'))).toBe(true);
+});
+
+test('module cards keep real DOM order and computed styles under theme switch (T5)', async ({ page }) => {
+  await page.goto(`file://${launcherPath}`);
+  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
+  await page.evaluate(() => { MSWModules.setEnabled('asr', true); MSWModules.setEnabled('match', true); });
+  await page.evaluate(() => window.MSWNavigation.show('prefab'));
+  await page.waitForTimeout(250);
+
+  const check = () => page.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll('[data-module-card]:not(.module-hidden)'));
+    return {
+      order: cards.map((c) => c.dataset.moduleCard),
+      domMonotonic: cards.every((c, i) => i === 0
+        || Array.from(document.querySelectorAll('[data-module-card]')).indexOf(cards[i - 1])
+          < Array.from(document.querySelectorAll('[data-module-card]')).indexOf(c)),
+      indexContiguous: cards.every((c, i) => c.querySelector('.module-index')?.textContent === String(i + 1).padStart(2, '0')),
+      pinStroke: (() => {
+        const pin = document.querySelector('.recent-pin svg');
+        return pin ? Array.from(pin.querySelectorAll('path')).every((p) => getComputedStyle(p).stroke !== 'none') : null;
+      })(),
+    };
+  });
+  const dark = await check();
+  expect(dark.order.slice(0, 4)).toEqual(['media', 'waveform', 'asr', 'match']);
+  expect(dark.domMonotonic).toBe(true);
+  expect(dark.indexContiguous).toBe(true);
+  // 主题切换后 DOM 与序号保持（T5：不以字样存在代替真实结构）。
+  await page.evaluate(() => { window.MSWNavigation.show('settings'); });
+  await page.locator('#themeLight').click();
+  await page.waitForTimeout(250);
+  await page.evaluate(() => { window.MSWNavigation.show('prefab'); });
+  await page.waitForTimeout(150);
+  const light = await check();
+  expect(light.order).toEqual(dark.order);
+  expect(light.indexContiguous).toBe(true);
+  await page.evaluate(() => { window.MSWNavigation.show('settings'); });
+  await page.locator('#themeDark').click();
+  await page.evaluate(() => { window.MSWNavigation.show('prefab'); });
+});
+
 test('all-projects pagination serves real pages with server-side search (T2)', async ({ page }) => {
   await openHome(page);
 

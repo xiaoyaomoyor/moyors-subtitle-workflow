@@ -3,16 +3,19 @@
 需要便携 FFmpeg 位于 ``build/ffmpeg-bin``（gitignored；本仓库不提交二进制）。
 没有该目录时整组跳过并在原因中说明——不用模拟结果代替真实验收。
 """
-
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import subprocess
 import unittest
 from pathlib import Path
+from subprocess import run
 from tempfile import TemporaryDirectory
 from threading import Event
 from unittest import mock
+from maw.launcher_projects import all_projects_payload, read_media_index, register_project
 
 from maw.gui_web import LauncherApi, LauncherPaths
 
@@ -105,7 +108,6 @@ class RealMediaAcceptanceTests(unittest.TestCase):
     # ---------------- 封面（§6.2 验收清单） ----------------
 
     def test_real_cover_for_landscape_portrait_and_short_videos(self) -> None:
-        from maw.launcher_thumbnails import thumbnail_payload
 
         api, holder = self._api()
         try:
@@ -121,7 +123,6 @@ class RealMediaAcceptanceTests(unittest.TestCase):
             holder.cleanup()
 
     def test_real_cover_black_video_falls_back_and_pure_audio_short_circuits(self) -> None:
-        from maw.launcher_thumbnails import thumbnail_payload
 
         api, holder = self._api()
         try:
@@ -148,8 +149,6 @@ class RealMediaAcceptanceTests(unittest.TestCase):
             first = api.get_recent_project_thumbnail({"path": str(project)})
             self.assertEqual(first["state"], "image")
             version = first["version"]
-            cache_file = Path(api.get_recent_project_thumbnail.__self__.paths.root)  # 占位，下面直接找缓存目录
-            from maw.app_paths import default_app_data_root
             from maw.launcher_thumbnails import cover_cache_dir
             cached = list(cover_cache_dir().glob(f"{version}.jpg"))
             self.assertEqual(len(cached), 1)
@@ -311,3 +310,60 @@ class EnvironmentStateMachineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RealMediaT5ClosedLoopTests(unittest.TestCase):
+    """T5：真实媒体 + 本轮前端改动路径的闭环——提帧、登记、媒体名索引。"""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        self.registry = self.root / "launcher-project-registry.json"
+        self.media_index = self.root / "launcher-media-index.json"
+        env = tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False, encoding="utf-8")
+        env.write(f"FFMPEG_PATH={FFMPEG_BIN}\n")
+        env.close()
+        self.env_path = Path(env.name)
+        self.api = LauncherApi(paths=LauncherPaths(root=self.root, env_path=self.env_path, launcher_html=self.root / "launcher.html", project_registry=self.registry, media_index=self.media_index), window_getter=lambda: None)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+        os.unlink(self.env_path)
+
+    def _synth(self, name: str, seconds: float = 3.0) -> Path:
+        media = self.root / name
+        run([str(FFMPEG_BIN / "ffmpeg"), "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc2=duration={seconds}:size=320x240:rate=10", "-pix_fmt", "yuv420p", "-y", str(media)], check=True, capture_output=True)
+        return media
+
+    def test_thumbnail_registers_media_name_index_and_real_frame(self) -> None:
+        """提帧成功 → 封面 data URI + 媒体名写入轻量索引 + 登记可分页检索。"""
+        media = self._synth("t5-clip.mp4")
+        project = media.with_suffix(".mosp")
+        project.write_text(json.dumps({"media": media.name, "segments": []}), encoding="utf-8")
+        # 登记经统一服务（桥接内联调用 _register_project_safe）。
+        register_project(project, source="created", registry_path=self.registry)
+        thumb = self.api.get_recent_project_thumbnail({"path": str(project)})
+        self.assertTrue(thumb.get("ok"))
+        self.assertEqual(thumb.get("state"), "image")
+        self.assertTrue(str(thumb.get("dataUri", "")).startswith("data:image/jpeg;base64,"))
+        # A6：媒体名经桥接写回轻量索引（键=工程路径 resolve 后原样，值为媒体文件名）。
+        index = read_media_index(self.media_index)
+        self.assertEqual(index.get(str(project.expanduser().resolve())), "t5-clip.mp4")
+        # T2：按媒体名在全部工程分页检索可命中。
+        listing = all_projects_payload(registry_path=self.registry, media_index=self.media_index, query="t5-clip", page=1, page_size=12)
+        self.assertEqual(listing["matched"], 1)
+        self.assertEqual(listing["mediaIndexed"], 1)
+
+    def test_waveform_and_output_contract_end_to_end(self) -> None:
+        """波形工程 + 输出导出开关端到端：exportSrt=False 只产工程不落 SRT。"""
+        media = self._synth("t5-wave.mp4")
+        from maw.postprocess_pipeline import _publish_final
+        project = media.with_suffix(".mosp")
+        project.write_text(json.dumps({"segments": []}), encoding="utf-8")
+        srt = media.with_suffix(".srt")
+        srt.write_text("1\n00:00:01,000 --> 00:00:02,000\n原文\n", encoding="utf-8")
+        out_dir = self.root / "Out"
+        final_project, final_srt, _ = _publish_final(project, srt, project, srt, export_srt=False, output_directory=str(out_dir), output_stem="t5-only-project")
+        self.assertTrue(final_project.is_file())
+        self.assertIsNone(final_srt)
+        self.assertFalse((out_dir / "t5-only-project.srt").exists())
