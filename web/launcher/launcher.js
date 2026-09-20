@@ -1801,7 +1801,7 @@
         const kept = registry.filter((item) => !tmp.includes(item.path));
         window.__demoRegistry = kept;
         window.__lastRegistryBackup = { entries: registry };
-        return { ok: true, removed: registry.length - kept.length, kept: kept.length, backup: "C:\Demo\backup.json" };
+        return { ok: true, removed: registry.length - kept.length, kept: kept.length, backup: "C:\\Demo\\registry-backup.json" };
       },
       restore_registry_cleanup: async () => ({ ok: true, restored: (window.__lastRegistryBackup?.entries || []).length, backup: "" }),
       get_all_projects: async ({ query = "", page = 1, pageSize = 12 } = {}) => {
@@ -3358,12 +3358,17 @@
   $("refreshLocalModels").addEventListener("click", async () => { $("refreshLocalModels").disabled = true; try { await refreshLocalModels(); } finally { $("refreshLocalModels").disabled = false; } });
   $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
   $("ffmpegHelp").addEventListener("click", () => bridge("open_url", { url: "https://ffmpeg.org/download.html" }));
-  $("clearCoverCache").addEventListener("click", async () => {
   // T0/§2.3：失效工程记录清理（预览 → 确认 → 备份执行 → 可恢复）。
   const cleanupStatus = $("registryCleanupStatus");
   let lastCleanupBackup = "";
   $("previewRegistryCleanup")?.addEventListener("click", async () => {
-    const result = await bridge("registry_cleanup_preview", {});
+    let result;
+    try {
+      result = await bridge("registry_cleanup_preview", {});
+    } catch (error) {
+      cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", String(error?.message || error || ""));
+      return;
+    }
     if (!result.ok) { cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", result.detail || result.error || ""); return; }
     if (!result.candidateCount) {
       cleanupStatus.textContent = t("registry_cleanup_none").replace("{total}", String(result.total));
@@ -3376,11 +3381,23 @@
     $("restoreRegistryCleanup")?.classList.remove("hidden");
   });
   $("applyRegistryCleanup")?.addEventListener("click", async () => {
-    const preview = await bridge("registry_cleanup_preview", {});
+    let preview;
+    try {
+      preview = await bridge("registry_cleanup_preview", {});
+    } catch (error) {
+      cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", String(error?.message || error || ""));
+      return;
+    }
     if (!preview.ok || !preview.candidateCount) { cleanupStatus.textContent = t("registry_cleanup_empty"); return; }
     const yes = await window.MSWLauncher.confirm(t("registry_cleanup_confirm").replace("{n}", String(preview.candidateCount)));
     if (!yes) return;
-    const result = await bridge("apply_registry_cleanup", {});
+    let result;
+    try {
+      result = await bridge("apply_registry_cleanup", {});
+    } catch (error) {
+      cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", String(error?.message || error || ""));
+      return;
+    }
     if (!result.ok) { cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", result.detail || result.error || ""); return; }
     lastCleanupBackup = String(result.backup || "");
     cleanupStatus.textContent = t("registry_cleanup_done").replace("{n}", String(result.removed)).replace("{backup}", lastCleanupBackup);
@@ -3388,11 +3405,18 @@
   });
   $("restoreRegistryCleanup")?.addEventListener("click", async () => {
     if (!lastCleanupBackup) { cleanupStatus.textContent = t("registry_cleanup_empty"); return; }
-    const result = await bridge("restore_registry_cleanup", { backupPath: lastCleanupBackup });
+    let result;
+    try {
+      result = await bridge("restore_registry_cleanup", { backupPath: lastCleanupBackup });
+    } catch (error) {
+      cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", String(error?.message || error || ""));
+      return;
+    }
     if (!result.ok) { cleanupStatus.textContent = t("registry_cleanup_failed").replace("{detail}", result.detail || result.error || ""); return; }
     cleanupStatus.textContent = t("registry_cleanup_restored").replace("{n}", String(result.restored));
     window.MSWProjectHome?.refresh?.();
   });
+  $("clearCoverCache").addEventListener("click", async () => {
     // R3 顺延项/R5：封面缓存清理入口（§5.3 缓存与诊断组）。
     const status = $("clearCoverCacheStatus");
     status.textContent = t("running");

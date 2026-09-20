@@ -751,7 +751,7 @@ class LauncherApi:
             page_size=page_size,
         )
 
-    def preview_registry_cleanup(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+    def registry_cleanup_preview(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         """T0/§2.3：污染候选预览（只读）——临时目录内且文件已缺失的登记记录。"""
         return registry_cleanup_preview(registry_path=self.paths.project_registry)
 

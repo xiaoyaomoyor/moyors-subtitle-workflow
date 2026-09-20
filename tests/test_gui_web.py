@@ -3650,6 +3650,30 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("delete_project_done", launcher_script)
         self.assertIn("仅把这个工程文件移入回收站", launcher_script)
 
+    def test_registry_cleanup_bindings_are_toplevel_and_names_align(self) -> None:
+        """T5 修复回归：清理按钮绑定在顶层（非嵌套于其他处理器）且前后端桥接名一致。"""
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
+
+        # 桥接名集合对齐（此前 preview 方向前端 registry_cleanup_preview、后端 preview_registry_cleanup，调用静默失败）。
+        import re
+        calls = set(re.findall(r'bridge\("((?:registry_cleanup_|apply_registry_|restore_registry_)[a-z_]+)"', launcher_script))
+        methods = set(re.findall(r"def ((?:registry_cleanup_|apply_registry_|restore_registry_)[a-z_]+)\(", gui_source))
+        self.assertTrue(calls, "前端未发现清理桥接调用")
+        self.assertEqual(calls, methods, f"前后端清理桥接名不匹配: {calls ^ methods}")
+
+        # 绑定位于顶层（两空格缩进，直接出现在 init 序列，而非嵌在其他回调体内）。
+        for binding in ('$("previewRegistryCleanup")?.addEventListener', '$("applyRegistryCleanup")?.addEventListener', '$("restoreRegistryCleanup")?.addEventListener'):
+            self.assertIn(binding, launcher_script)
+            line = next(l for l in launcher_script.split("\n") if binding in l)
+            self.assertTrue(line.startswith('  $("'), f"绑定未在顶层缩进: {line[:40]}")
+        # clearCoverCache 处理器保持自身独立（清理块不得嵌在其中）。
+        clear_start = launcher_script.index('$("clearCoverCache").addEventListener')
+        block = launcher_script[clear_start:launcher_script.index("});", clear_start) + 3]
+        self.assertNotIn("previewRegistryCleanup", block)
+        # 前端失败可见：三个处理器各带 try/catch + ok:false 双反馈（键定义 2 + 3×2=6 处 + 注释 1 = 9）。
+        self.assertGreaterEqual(launcher_script.count("registry_cleanup_failed"), 8)
+
     def test_launcher_t4_settings_rail_and_grid_contracts(self) -> None:
         """T4（三轮审查 U6/A2/A3）：设置栅格、统一抽屉控制与样式覆盖顺序。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
