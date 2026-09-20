@@ -3681,7 +3681,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("state.allPage = 1;", home_script)
         self.assertIn("state.allRequest", home_script)
         # §5.2：翻页不清选择——搜索排除经服务端单路径验证。
-        self.assertIn('bridge("get_all_projects", { query: keepPath, page: 1, pageSize: 1 })', home_script)
+        self.assertIn('bridge("get_all_projects", { query: keepQuery, page: 1, pageSize: 120 })', home_script)
 
     def test_launcher_t1_cover_and_pin_contracts(self) -> None:
         """T1（三轮审查）：图钉描边在 SVG 根、两组封面独立观察、版本失效与失败态。"""
