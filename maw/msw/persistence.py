@@ -112,7 +112,8 @@ class ProjectPersistence:
         if not self.target_lock.acquire(blocking=False):
             raise ValueError("保存对话框已经打开")
         try:
-            path = self.picker(payload.get("filename", "untitled.mosp"))
+            options = {'_new_project': True} if payload.get('newProject') is True else {}
+            path = self.picker(payload.get("filename", "untitled.mosp"), **options)
             if path is None:
                 return {"cancelled": True}
             path = Path(path).resolve()

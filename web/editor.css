@@ -3647,6 +3647,18 @@
 
   /* 拼接/合并字幕 —— 复用 .gap-remove-panel 家族样式，只补充自有差异 */
   .auto-merge-panel .auto-merge-section { display: grid; gap: 8px; }
+  #auto-merge-panel { width: min(440px, calc(100vw - 24px)); }
+  #auto-merge-panel .auto-merge-section + .auto-merge-section { border-top: 1px solid var(--border-subtle); padding-top: 12px; }
+  #auto-merge-panel .auto-merge-absorb-field { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+  #auto-merge-panel .auto-merge-absorb-field input { width: auto; }
+  .msw-option-label { display: inline-flex; align-items: center; gap: 4px; }
+  #burn-style-panel { width: min(520px,calc(100vw - 24px)); }
+  #burn-style-image { width: 100%; height: auto; margin-top: 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+  .msw-help-button { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 1px !important; margin-left: 4px; border: 0 !important; background: transparent !important; color: var(--text-muted); cursor: help; vertical-align: middle; flex: 0 0 18px; }
+  .msw-help-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+  .msw-help-button:hover, .msw-help-button:focus-visible { color: var(--accent); }
+  .msw-help-button:focus-visible { outline: 2px solid var(--accent); border-radius: 50%; }
+  .msw-option-help { position: fixed; z-index: 10000; box-sizing: border-box; max-width: min(340px,calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-panel, #24272b); color: var(--text-primary); box-shadow: var(--shadow-3); font-size: 12px; line-height: 1.65; white-space: pre-line; }
   .auto-merge-panel .auto-merge-section + .auto-merge-section { margin-top: 14px; }
   .auto-merge-panel .auto-merge-section,
   .gap-remove-panel .gap-remove-fields,
@@ -3957,7 +3969,7 @@
   /* === 右上角提示卡片（flashHint）===
      最多 3 条垂直堆叠，新提示出现在下方；fade in/out 由 JS 驱动 */
   #hint-stack {
-    position: fixed; top: 16px; right: 16px; z-index: 300;
+    position: fixed; top: 16px; right: 16px; z-index: 600;
     display: flex; flex-direction: column; gap: 8px;
     max-width: 380px;
   }
@@ -3971,6 +3983,11 @@
     animation: hint-fade-in .18s ease-out;
   }
   .hint-card.hide { animation: hint-fade-out .2s ease-in forwards; }
+  .hint-card[data-save-progress] { display: flex; align-items: center; gap: 10px; animation: none; }
+  .hint-save-spinner { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: hint-save-spin .8s linear infinite; }
+  @keyframes hint-save-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .hint-save-spinner { animation-duration: 2s; } }
+  #subtitle-time-status.warning { color: var(--red); }
   /* 类型化提示卡片：3px 语义左条 + 淡色底 + 匹配色边框。默认卡片维持中性。 */
   .hint-card.hint-success {
     /* 使用不透明基底，避免提示下方的波形或字幕透出。 */

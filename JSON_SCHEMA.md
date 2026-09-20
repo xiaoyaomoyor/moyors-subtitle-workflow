@@ -232,7 +232,7 @@
 - `preset` 是**渲染器**，决定这份窗口布局如何绘制：`classic`（标准堆叠网格）、`wave-right`（右侧整列波形网格）或 `custom`（由 `tree` 渲染；「字幕列表编辑」「大荧幕布局」与用户自定义工作区都走这条路）。未知值回退到 `wave-right`。
 - `selectedPreset` 记录用户最后在**工作区下拉框**选择的项：内置工作区为 `classic` / `wave-right` / `three-fold` / `cinema`（大荧幕布局），本机命名工作区为 `saved:<名称>`。它与 `tree` 一起保存，使内部以 `custom` 渲染的工作区在重开工程后仍显示用户所见的名称。
 - `waveformMode` 可为 `multi`（多行）或 `basic`（单行）。工作区中存在该字段时随恢复一并切换；缺失时保持当前浏览器设置。
-- `waveformSettings` 保存波形区数值与显示偏好：基础模式窗口长度、多行每行长度及高度、振幅、左右侧、禁用字幕显示、分组徽章与拖动播放头。字段缺失时保持浏览器本机设置。
+- `waveformSettings` 保存波形区数值与显示偏好：基础模式窗口长度、多行每行长度及高度、振幅、左右侧、禁用字幕显示、分组徽章与拖动播放头。可选布尔值 `followSourceGain` 控制波形显示高度是否跟随源音频试听增益，新安装默认关闭；仅绘制时应用增益，不修改峰值缓存或媒体。字段缺失时保持浏览器本机设置。
 - `editorDisplay` 保存“字幕列表显示”和“字幕编辑显示”两组开关。它只包含工作区可见性，不包含导出、自动保存或快捷键等全局偏好。
 - `splitPercent` 是 classic 网格中多行波形与字幕列表比例，范围会被限制在 35–75；它与工作区一起导出，因此拖动后可撤销、复用。
 - `columnPercent` 是 `custom` 渲染器最外层左右分栏的比例，范围会被限制在 30–75。
@@ -526,6 +526,7 @@
 
 - `start` / `end` / `items[*].start` / `items[*].end` 全部是**整数毫秒**（不是秒、不是字符串、不是浮点）；它们是兼容时间字段
 - `start_frame` / `end_frame` 与 `items[*].start_frame` / `items[*].end_frame` 是可选的独立帧字段，必须成对出现并为非负整数，结束帧大于起始帧
+- 密集字词可以共享同一帧；编辑与保存时保留有序且位于字幕内的字词毫秒区间，并推导辅助帧编号，避免重复帧取整令保存结果持续漂移。
 - 进入帧模式后，编辑器以帧字段为操作真源，同时更新毫秒投影；切换 FPS 会保留实际媒体时间并重新计算帧编号
 - `segments` 建议按时间升序排列，且 `segments[i].end <= segments[i+1].start`
 - 代码不强校验时间重叠，但重叠会导致播放器跳转/高亮行为异常
@@ -779,6 +780,7 @@ uv run python edit.py your_generated.mosp
 | `gap_remove` | object | ❌ | 可逆的 `moy.asr.gap_remove.v1` 空隙移除决定 |
 | `multi_subtitle` | object | ❌ | 可选的 `moy.asr.multi_subtitle.v1` 主轨/扩展轨与绑定 |
 | `preview` | object | ❌ | 预览呈现设置容器 |
+| `preview.burn_subtitles` | object | ❌ | 视频烧录与实际渲染预览共用样式；可含 `main`、`secondary`，各轨缺省字段使用默认样式 |
 | `preview.subtitle.x` | number | ❌ | 归一化 `[0,1]`，`x + width <= 1` |
 | `preview.subtitle.y` | number | ❌ | 归一化 `[0,1]`，`y + height <= 1` |
 | `preview.subtitle.width` | number | ❌ | 归一化 `[0,1]`，编辑器最小 0.20 |
@@ -923,6 +925,10 @@ IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`�
 
 `audio_settings.heatmap` 为布尔，默认 true；`audio_settings.gap_policy` 为 `protect`（默认）或 `follow`。`protect` 从实际跳过区间中减去未静音贴片覆盖范围（终点向上取整到毫秒）；`follow` 使用原空隙决定。保护不改写 `gap_remove.gaps`，删除／静音贴片后原有决定重新生效。编辑器的有效跳过区间与 D1 / D2 音频导出共用此保护。
 
+`preview.burn_subtitles.main/secondary` 的样式字段：`font_family`（1–128 字符，禁止控制字符、逗号及 ASS 控制符）、`font_size`（8–200，以 1080 高画面为基准）、`color`／`outline_color`／`background_color`（`#RRGGBB`）、`outline`（0–12）、`background_alpha`（0–1）、`x`／`y`（文字框底部中心，0–1）、`width`（0.1–1）。主副默认字号 48／40，垂直位置 0.86／0.94，Arial 白字、黑色描边 2、透明背景、水平居中、宽度 0.8。样式随工程保存，不修改播放器原有 `preview.subtitle`。
+
+音频／视频导出请求可含 `options.monitor` 快照：`mode=none|source|voice|both`、`volume`（播放器线性音量 0–1）、`muted`（布尔）、`source_gain_db`（−60 至 +12）。选定声部使用监听总音量；源声部另加源试听增益。贴片／轨道原有增益始终保留。同步声部替代该侧手动导出增益，不重复叠加。零音量或静音通过渲染计划 `source.muted`／`pieces[*].muted` 精确静音；快照只属于导出任务，不作为工程字段保存。
+
 轨道、贴片和这两项设置进入工程保存、备份与撤销／重做。音频字节继续独立存放，热力图和解码缓冲仅为可重建缓存，不写入工程。热力图采用约 400ms 窗口／100ms 步长的 RMS dBFS、固定 −60 至 −6 dBFS 色标，计入贴片和轨道增益；不是 LUFS 测量，也不是最终混音电平。
 
 ### D1 / D2 派生渲染计划
@@ -945,7 +951,7 @@ ASR 素材的 `original_start` 保留映射后的时间线位置，`start/end/it
 
 视频和 OTIOZ 复用 `msw.audio-render.v1`，不升级 `.mosp` 或 `msw.editor.v1`。导出任务的 `options.format` 为 `wav`（兼容默认值）、`mp4` 或 `otioz`；`video_encoding` 为 `auto` / `h264`，`video_tail` 为 `ask` / `truncate` / `freeze`，`collect_media` 为布尔。上述值仅保存在本机任务与包的导出记录中，不写入工程或试听设置。
 
-`options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕相交时合成同一段多行字幕。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
+`options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕分别按 `preview.burn_subtitles` 渲染独立 ASS 样式。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
 
 OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结构，配音按输出采样率表示时间，视频保留有理帧率对应时间。重叠片段分轨，增益与统一峰值衰减写入浮点 WAV；静音片段同时禁用并提供静音副本，原始 TTS 另行收集。`msw-export.json` 使用 `msw.otio-bundle.v1`，记录 `options`、`plan`、`assets`、`audio_clips`、`attenuation_db`，用途是追溯和重新链接，不是可替代 `.mosp` 的保存文件。具体引用与交付边界见 [视频与剪辑工程导出](docs/EDITOR_VIDEO_TIMELINE_EXPORT.md)。
 

@@ -70,6 +70,15 @@ class AudioRenderTests(unittest.TestCase):
         self.assertEqual(at(1.8), at(1.8, 1))
         self.assertEqual(at(3.8), 0)
 
+    def test_monitor_snapshot_does_not_double_gain_and_zero_is_silent(self):
+        monitor = dict(mode='voice', volume=.5, muted=False, source_gain_db=9)
+        _, at = self.export(monitor=monitor, voice_gain_db=12)
+        self.assertAlmostEqual(at(1.2), 1000 * 10**(3/20) * .5, delta=2)
+        for snapshot in ({**monitor, 'volume':0}, {**monitor, 'muted':True}):
+            with self.subTest(snapshot=snapshot):
+                _, at = self.export(monitor=snapshot)
+                self.assertTrue(all(at(t)==0 for t in (.5,1.2,2.5,3.8,5)))
+
     def test_protection_preserves_audio_and_custom_range_rebases(self):
         self.project['msw']['audio_settings']['gap_policy'] = 'protect'
         result, at = self.export(remove_gaps=True, start_ms=1250, end_ms=3500)

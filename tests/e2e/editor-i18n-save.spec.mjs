@@ -105,7 +105,7 @@ test('Ctrl+S saves and Ctrl+Shift+S invokes save as', async ({ page }) => {
   await page.keyboard.press('Control+s');
   const savedResponse = await saveResponse;
   expect(await savedResponse.json()).toMatchObject({ok:true});
-  await expect(page.locator('.hint-card').last()).toContainText('Saved!');
+  await expect(page.locator('.hint-card').last()).toHaveText('Saved');
   await expect(page.locator('.hint-card').last()).toHaveClass(/hint-success/);
 
   await page.keyboard.press('Control+Shift+s');
@@ -183,7 +183,7 @@ test('small subtitle-segment overlap can be auto-repaired and saved again', asyn
   await hint.locator('.hint-project-repair-auto').click();
   expect((await retry).ok()).toBe(true);
   await expect.poll(() => page.evaluate(() => DATA.segments[1].start)).toBe(50001);
-  await expect(page.locator('.hint-card').last()).toContainText('保存成功！');
+  await expect(page.locator('.hint-card').last()).toContainText('保存成功');
   expect(saveAttempts).toBe(2);
 });
 

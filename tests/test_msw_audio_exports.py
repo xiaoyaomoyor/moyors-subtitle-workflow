@@ -97,6 +97,18 @@ class AudioExportApiTests(unittest.TestCase):
         self.assertEqual(status,202,result)
         return result['job']
 
+    def test_frame_preview_rejects_stale_binding_media_and_invalid_style(self):
+        payload={**self.payload,'at_ms':0,'burn_subtitles':'main'}
+        self.assertEqual(self.call('video-export-preview',payload,headers={'X-MSW-Token':''})[0],403)
+        for changes in [{'binding':'stale'}, {'at_ms':-1}, {'burn_subtitles':'invalid'}]:
+            with self.subTest(changes=changes):
+                self.assertEqual(self.call('video-export-preview',{**payload,**changes})[0],400)
+        for changes in [{'media':str(self.root/'other.mp4')}, {'preview':{'burn_subtitles':{'main':{'font_size':900}}}}]:
+            with self.subTest(changes=changes):
+                body={**payload,'project':{**payload['project'],**changes}}
+                self.assertEqual(self.call('video-export-preview',body)[0],400)
+        self.assertEqual(self.manager.list('p'),[])
+
     def test_export_snapshot_is_immutable_and_idempotent(self):
         self.release.clear()
         job = self.submit()

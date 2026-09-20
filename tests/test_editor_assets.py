@@ -59,6 +59,8 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-audio.js",
                 "msw-audio-actions.js",
                 "msw-audio-export.js",
+                "msw-subtitle-style.js",
+                "msw-help.js",
                 "editor-onboarding.js",
             ),
         )

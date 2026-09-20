@@ -190,6 +190,7 @@
     hiddenModules: ['assets'],
     layoutEditing: false,
     waveformScale: 1,
+    followSourceGain: false,
     disabledDisplay: 'dim',
     showTrackHeads: true,
     hoverDetails: false,
@@ -724,6 +725,7 @@
         ? { rowHeight: Number(rawWaveformSettings.rowHeight) } : {}),
       ...(Number.isFinite(Number(rawWaveformSettings.waveformScale))
         ? { waveformScale: clampWaveformScale(Number(rawWaveformSettings.waveformScale)) } : {}),
+      ...(typeof rawWaveformSettings.followSourceGain === 'boolean' ? {followSourceGain:rawWaveformSettings.followSourceGain} : {}),
       ...(rawWaveformSettings.side === 'left' || rawWaveformSettings.side === 'right'
         ? { side: rawWaveformSettings.side } : {}),
       ...(rawWaveformSettings.disabledDisplay === 'hidden' || rawWaveformSettings.disabledDisplay === 'dim'
@@ -796,6 +798,7 @@
         hiddenModules: layoutData.hiddenModules,
         layoutEditing: false,
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
+        followSourceGain: parsed.followSourceGain === true,
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
         showTrackHeads: parsed.showTrackHeads ?? (parsed.showGroupBadges !== false),
         hoverDetails: parsed.hoverDetails === true,
@@ -1770,6 +1773,7 @@
       this.waveformScaleLabel = document.getElementById('waveform-scale-label');
       this.waveformScaleDownButton = document.getElementById('waveform-scale-down');
       this.waveformScaleUpButton = document.getElementById('waveform-scale-up');
+      this.followSourceGainToggle = document.getElementById('waveform-follow-source-gain');
       this.secondsPerRowSelect = document.getElementById('waveform-seconds-per-row');
       this.rowHeightSelect = document.getElementById('waveform-row-height');
       this.showTrackHeadsToggle = document.getElementById('waveform-show-track-heads');
@@ -1841,6 +1845,12 @@
       document.getElementById('waveform-zoom-out')?.addEventListener('click', () => this.changeZoom(1));
       this.waveformScaleDownButton?.addEventListener('click', () => this.changeWaveformScale(-1));
       this.waveformScaleUpButton?.addEventListener('click', () => this.changeWaveformScale(1));
+      this.followSourceGainToggle?.addEventListener('change', () => {
+        this.settings.followSourceGain = this.followSourceGainToggle.checked;
+        saveSettings(this.settings); this.refreshSourceGainDisplay();
+      });
+      window.addEventListener('msw:source-gain', () => this.refreshSourceGainDisplay());
+      window.addEventListener('msw:project-changed', () => queueMicrotask(() => this.refreshSourceGainDisplay()));
       this.pane.addEventListener('pointerdown', () => {
         this.autoScrolling = false;
         this.autoScrollTarget = null;
@@ -2132,6 +2142,8 @@
       if (this.displayModeSelect) this.displayModeSelect.value = this.settings.mode;
       this.windowLabel.textContent = `${this.settings.visibleSeconds} 秒`;
       if (this.waveformScaleLabel) this.waveformScaleLabel.textContent = `×${parseFloat(this.settings.waveformScale.toFixed(2))}`;
+      if (this.followSourceGainToggle) this.followSourceGainToggle.checked = this.settings.followSourceGain === true;
+      this.refreshSourceGainDisplay();
       this.secondsPerRowSelect.value = String(this.settings.secondsPerRow);
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(this.settings.rowHeight);
       if (this.sideSelect) this.sideSelect.value = this.settings.side;
@@ -3106,6 +3118,7 @@
           secondsPerRow: this.settings.secondsPerRow,
           rowHeight: this.settings.rowHeight,
           waveformScale: this.settings.waveformScale,
+          followSourceGain: this.settings.followSourceGain === true,
           side: this.settings.side,
           disabledDisplay: this.settings.disabledDisplay,
           showTrackHeads: this.settings.showTrackHeads !== false,
@@ -3172,6 +3185,25 @@
 
     focusWaveform() {
       this.pane.focus({ preventScroll: true });
+    }
+
+    sourcePreviewGainDb() {
+      return window.MSWE?.resolve('audio-timeline')?.sourceGainDb() || 0;
+    }
+
+    refreshSourceGainDisplay() {
+      const db = this.sourcePreviewGainDb();
+      const label = `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
+      const setting = document.getElementById('waveform-source-gain-setting');
+      const readout = document.getElementById('waveform-source-gain-readout');
+      if (setting) setting.textContent = label;
+      if (readout) {readout.hidden = !this.settings.followSourceGain; readout.textContent = label;}
+      if (this.sourceGainPaintFrame) return;
+      this.sourceGainPaintFrame = window.requestAnimationFrame(() => {
+        this.sourceGainPaintFrame = 0;
+        // renderedRows already contains only the virtualized viewport and overscan.
+        this.renderedRows.forEach(row => this.drawRow(row, {measure:false}));
+      });
     }
 
     changeWaveformScale(direction) {
@@ -4781,7 +4813,8 @@
         useInterpolation,
       );
       const center = height * 0.46;
-      const amplitude = waveformAmplitude(height, this.settings.waveformScale);
+      const amplitude = waveformAmplitude(height, this.settings.waveformScale)
+        * (this.settings.followSourceGain ? Math.pow(10, this.sourcePreviewGainDb() / 20) : 1);
       const minWaveY = 2;
       const maxWaveY = Math.max(minWaveY, height - 2);
       const spectral = this.settings.spectralColor === true ? this.spectral : null;

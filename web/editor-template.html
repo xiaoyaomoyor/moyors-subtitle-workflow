@@ -530,10 +530,10 @@ __WAVEFORM_CSS__
 </aside>
 
 <!-- 可拖动的非模态拼接/合并字幕工具窗 -->
-<aside class="gap-remove-panel auto-merge-panel" id="auto-merge-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="auto-merge-panel-title">
+<aside class="gap-remove-panel msw-processing-panel auto-merge-panel" id="auto-merge-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="auto-merge-panel-title">
   <header class="gap-remove-panel-header" id="auto-merge-drag-handle">
     <div class="gap-remove-heading">
-      <span class="gap-remove-eyebrow">波形处理</span>
+      <span class="gap-remove-eyebrow">字幕 · 处理</span>
       <h3 id="auto-merge-panel-title">拼接/合并字幕</h3>
     </div>
     <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
@@ -585,13 +585,8 @@ __WAVEFORM_CSS__
         </label>
       </div>
     </section>
-    <button type="button" id="auto-merge-run" class="gap-remove-scan">
-      <span>拼接/合并字幕</span>
-      <small>按当前参数处理整段工程</small>
-    </button>
-    <footer class="gap-remove-panel-footer">
-      <span>滚轮可调数值 · Esc 关闭</span>
-    </footer>
+    <div class="msw-processing-actions"><small class="msw-processing-hint">范围：全部主字幕</small><button type="button" id="auto-merge-run" class="primary">拼接/合并字幕</button></div>
+    <p class="msw-processing-hint" data-help-for="auto-merge-panel-title">按当前参数处理整段工程，可撤销。滚轮可调数值，Esc 关闭。</p>
   </div>
 </aside>
 
@@ -607,8 +602,13 @@ __WAVEFORM_CSS__
   <div class="gap-remove-panel-body">
     <div class="gap-remove-parameters-heading">
       <span>缩放与偏移</span>
-      <small>输入后按 Enter 或点击其他位置生效；可撤销</small>
+      <small data-help-for="subtitle-scale-offset-title">输入后按 Enter 或点击其他位置生效，可撤销。滚轮缩放每格 1%，Shift 为 5%；时间偏移每格 10 ms，Shift 为 100 ms，Ctrl（Mac 为 Cmd）为 1 ms。方向按钮支持长按。</small>
     </div>
+    <div class="msw-processing-fields">
+      <label>作用轨道<select id="subtitle-time-track"><option value="main">主字幕</option><option value="extension">当前副字幕轨</option></select></label>
+      <label>作用范围<select id="subtitle-time-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+    </div>
+    <label class="msw-tts-check"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
     <div class="gap-remove-fields">
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">缩放字幕</span>
@@ -662,7 +662,7 @@ __WAVEFORM_CSS__
       </label>
     </div>
     <footer class="gap-remove-panel-footer">
-      <span>未选中字幕时对全部生效 · Enter 确定 · Esc 关闭</span>
+      <span id="subtitle-time-status" role="status" aria-live="polite">请选择作用范围</span>
     </footer>
   </div>
 </aside>
@@ -1007,6 +1007,7 @@ __WAVEFORM_CSS__
         </select>
       </label>
       <small class="editor-settings-hint">配音热力图：暗 → 亮对应低 → 高电平（RMS −60 至 −6 dBFS）。配音随时间轴以 1× 播放。</small>
+      <label class="editor-settings-item" title="复用峰值缓存，仅调整显示高度；不影响时间、频谱颜色或音频文件。"><input type="checkbox" id="waveform-follow-source-gain"> 波形跟随源试听增益 <output id="waveform-source-gain-setting">0.0 dB</output></label>
       <span class="editor-settings-item">振幅
         <span class="editor-settings-stepper">
           <button type="button" id="waveform-scale-down" title="减小波形振幅">−</button>
@@ -2039,6 +2040,7 @@ __WAVEFORM_CSS__
       <span class="toolbar-spacer"></span>
       <span class="waveform-status" id="waveform-status">等待波形数据</span>
       <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数" hidden></span>
+      <span class="waveform-readout" id="waveform-source-gain-readout" title="源音频试听增益；波形按此增益调整显示高度" hidden></span>
     </div>
     <div class="msw-source-toolbar" id="msw-source-toolbar" hidden>
       <span class="waveform-status" id="msw-media-progress" role="status" hidden></span>
@@ -2397,15 +2399,16 @@ __WAVEFORM_CSS__
     <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
     <label id="video-export-tail-field">导出范围超过原视频时<select id="video-export-tail"><option value="ask">超出时先选择处理方式</option><option value="truncate">按视频结尾截断成品</option><option value="freeze">定格最后一帧并延长</option></select></label>
     <p id="video-export-tail-summary" class="msw-processing-hint"></p>
-    <p class="msw-processing-hint">比较的是整个导出范围，包括尾部字幕与配音。截断会舍去成品中超出的部分；定格会延长最后一帧。仅影响本次导出，不删除工程内容。</p>
+    <p class="msw-processing-hint" data-help-for="video-export-tail">默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。</p>
   </div>
   <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
-  <p class="msw-processing-hint">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。字幕使用启动器的底部居中样式，双字幕分行；表情包不烧录。</p>
+  <div class="msw-processing-actions"><button type="button" id="video-export-style-open">字幕样式与预览</button></div>
+  <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。</p>
+  <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">按字幕样式写入视频画面，主副字幕分别设置。表情包不烧录。可生成当前帧预览或五秒样片，确认实际字体、换行与位置。</p>
 </template>
 <template id="timeline-export-fields">
   <label class="msw-tts-check"><input type="checkbox" id="timeline-export-collect-media" checked>同时打包原视频</label>
-  <p class="msw-processing-hint">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。</p>
-  <p class="msw-processing-hint">取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
+  <p class="msw-processing-hint" data-help-for="timeline-export-collect-media">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
 </template>
 <aside class="gap-remove-panel msw-processing-panel" id="audio-actions-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-actions-title">
   <header class="gap-remove-panel-header" id="audio-actions-drag">
@@ -2433,13 +2436,14 @@ __WAVEFORM_CSS__
       <label>导出内容<select id="audio-export-mode"><option value="voice">配音轨（仅音频贴片）</option><option value="mix">原声 + 配音混音</option></select></label>
       <label>采样率<select id="audio-export-rate"><option value="48000">48 kHz</option><option value="44100">44.1 kHz</option></select></label>
     </div>
-    <p class="msw-processing-hint" id="audio-export-format-hint">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
+    <p class="msw-processing-hint" id="audio-export-format-hint" data-help-for="audio-export-mode">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
+    <label class="msw-processing-field" id="audio-export-monitor-field" data-option-help="始终保留贴片和配音轨的增益、静音。同步选定声部时，再采用播放器总音量与静音；源音频还包含源试听增益。同步后对应手动增益锁定，不重复叠加。不包含系统或耳机音量，开始导出时固定快照。">同步试听音量<select id="audio-export-monitor"><option value="none">不同步</option><option value="source">仅源音频</option><option value="voice">仅贴片音频</option><option value="both">源音频与贴片</option></select></label>
     <div id="audio-export-source" hidden>
       <div class="msw-processing-fields">
         <label>原声音轨<select id="audio-export-stream" aria-label="原声音轨"></select></label>
         <label>原声音量（dB）<input id="audio-export-source-gain" type="number" value="0" min="-60" max="12" step="1"></label>
       </div>
-      <p class="msw-processing-hint">原声音量独立于播放器的试听音量；不会自动去除原有人声。</p>
+      <p class="msw-processing-hint" data-help-for="audio-export-source-gain">未同步试听时使用此增益；同步后按当前监听设置计算。不会自动去除原有人声。</p>
     </div>
     <div class="msw-processing-fields">
       <label>配音总音量（dB）<input id="audio-export-voice-gain" type="number" value="0" min="-60" max="12" step="1"></label>
@@ -2450,10 +2454,10 @@ __WAVEFORM_CSS__
       <label>源终点（秒）<input id="audio-export-end-time" type="number" value="1" min="0.001" step="0.001"></label>
     </div>
     <label class="msw-tts-check"><input type="checkbox" id="audio-export-remove-gaps">移除已标记的空隙</label>
-    <p id="audio-export-gap-hint" class="msw-processing-hint"></p>
-    <label class="msw-tts-check"><input type="checkbox" id="audio-export-peak" checked>峰值保护（超限时整体降低音量）</label>
+    <p id="audio-export-gap-hint" class="msw-processing-hint" data-help-for="audio-export-remove-gaps"></p>
+    <label class="msw-tts-check" data-option-help="超出峰值时整体衰减以避免削波，因此成品可能比当前试听略轻。"><input type="checkbox" id="audio-export-peak" checked>峰值保护</label>
     <p id="audio-export-summary" class="msw-processing-hint"></p>
-    <p class="msw-processing-hint">以点击开始时的内容导出，处理期间可继续编辑。关闭面板不会取消任务。</p>
+    <p class="msw-processing-hint" data-help-for="audio-export-history">以点击开始时的内容导出，处理期间可继续编辑。关闭面板不会取消任务。</p>
     <div class="msw-processing-actions"><button type="button" id="audio-export-start" class="primary">开始导出</button></div>
     <p id="audio-export-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details class="msw-job-history" id="audio-export-history" open><summary>导出记录 <span id="audio-export-history-count"></span></summary><div id="audio-export-jobs" class="msw-processing-jobs" aria-label="音频导出任务" tabindex="0"></div></details>

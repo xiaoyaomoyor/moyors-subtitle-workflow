@@ -21,7 +21,18 @@
     if (out.end_ms !== null) integer(out.end_ms, 1, MAX_MS, '导出终点无效');
     integer(out.source_audio_index, 0, 127, '原声音轨无效');
     gain(out.source_gain_db); gain(out.voice_gain_db);
+    if (out.monitor !== undefined) monitorGains(out);
     return out;
+  }
+  function monitorGains(o) {
+    const m=o.monitor;
+    if (m === undefined) return {source:o.source_gain_db,voice:o.voice_gain_db,sourceMuted:false,voiceMuted:false};
+    if (!m || typeof m !== 'object') throw Error('试听音量快照无效');
+    if (!['none','source','voice','both'].includes(m.mode)||typeof m.muted!=='boolean'||!Number.isFinite(m.volume)||m.volume<0||m.volume>1)throw Error('试听音量快照无效');
+    gain(m.source_gain_db);
+    const source=['source','both'].includes(m.mode),voice=['voice','both'].includes(m.mode),db=m.volume>0?20*Math.log10(m.volume):0;
+    return {source:source?m.source_gain_db+db:o.source_gain_db,voice:voice?db:o.voice_gain_db,
+      sourceMuted:source&&(m.muted||m.volume===0),voiceMuted:voice&&(m.muted||m.volume===0)};
   }
   function removedRanges(project) {
     const gaps = project.gap_remove?.gaps || [];
@@ -54,6 +65,7 @@
   }
   function compile(project, rawOptions = {}) {
     const o = options(rawOptions), ext = project.msw || {}, core = global.MSWAudio;
+    const levels = monitorGains(o);
     core.validate(ext);
     const assets = new Map((ext.assets || []).map(a => [a.id, a]));
     const tracks = new Map((ext.audio_tracks || []).map(t => [t.id, t]));
@@ -89,15 +101,16 @@
         const sourceOut = Math.min(c.source_out_sample, Math.round(c.source_in_sample + (hi - c.start_ms) * a.sample_rate / 1000));
         if (finish <= start || sourceOut <= sourceIn) continue;
         pieces.push({ clip_id: c.id, asset_id: a.id, source_in_sample: sourceIn, source_out_sample: sourceOut,
-          output_start_sample: start, output_end_sample: finish, gain_db: core.levelDb(c, tracks.get(c.track_id)) + o.voice_gain_db });
+          output_start_sample: start, output_end_sample: finish, gain_db: core.levelDb(c, tracks.get(c.track_id)) + levels.voice,
+          ...(levels.voiceMuted?{muted:true}:{}) });
         if (pieces.length > 100000) throw Error('空隙切分产生过多音频片段，请缩小导出范围');
       }
     }
     pieces.sort((a, b) => a.output_start_sample - b.output_start_sample || (a.clip_id < b.clip_id ? -1 : a.clip_id > b.clip_id ? 1 : 0));
     return { schema: VERSION, sample_rate: o.sample_rate, channels: 2, sample_count: frame(output),
       source_start_ms: o.start_ms, source_end_ms: finish, gap_policy: ext.audio_settings?.gap_policy || 'protect',
-      intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: o.source_gain_db } : null,
+      intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: levels.source,...(levels.sourceMuted?{muted:true}:{}) } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, videoOptions, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, videoOptions, removedRanges, compile });
 })(window);

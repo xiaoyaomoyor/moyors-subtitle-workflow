@@ -3667,6 +3667,18 @@
 
   /* 拼接/合并字幕 —— 复用 .gap-remove-panel 家族样式，只补充自有差异 */
   .auto-merge-panel .auto-merge-section { display: grid; gap: 8px; }
+  #auto-merge-panel { width: min(440px, calc(100vw - 24px)); }
+  #auto-merge-panel .auto-merge-section + .auto-merge-section { border-top: 1px solid var(--border-subtle); padding-top: 12px; }
+  #auto-merge-panel .auto-merge-absorb-field { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+  #auto-merge-panel .auto-merge-absorb-field input { width: auto; }
+  .msw-option-label { display: inline-flex; align-items: center; gap: 4px; }
+  #burn-style-panel { width: min(520px,calc(100vw - 24px)); }
+  #burn-style-image { width: 100%; height: auto; margin-top: 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+  .msw-help-button { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 1px !important; margin-left: 4px; border: 0 !important; background: transparent !important; color: var(--text-muted); cursor: help; vertical-align: middle; flex: 0 0 18px; }
+  .msw-help-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+  .msw-help-button:hover, .msw-help-button:focus-visible { color: var(--accent); }
+  .msw-help-button:focus-visible { outline: 2px solid var(--accent); border-radius: 50%; }
+  .msw-option-help { position: fixed; z-index: 10000; box-sizing: border-box; max-width: min(340px,calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-panel, #24272b); color: var(--text-primary); box-shadow: var(--shadow-3); font-size: 12px; line-height: 1.65; white-space: pre-line; }
   .auto-merge-panel .auto-merge-section + .auto-merge-section { margin-top: 14px; }
   .auto-merge-panel .auto-merge-section,
   .gap-remove-panel .gap-remove-fields,
@@ -3977,7 +3989,7 @@
   /* === 右上角提示卡片（flashHint）===
      最多 3 条垂直堆叠，新提示出现在下方；fade in/out 由 JS 驱动 */
   #hint-stack {
-    position: fixed; top: 16px; right: 16px; z-index: 300;
+    position: fixed; top: 16px; right: 16px; z-index: 600;
     display: flex; flex-direction: column; gap: 8px;
     max-width: 380px;
   }
@@ -3991,6 +4003,11 @@
     animation: hint-fade-in .18s ease-out;
   }
   .hint-card.hide { animation: hint-fade-out .2s ease-in forwards; }
+  .hint-card[data-save-progress] { display: flex; align-items: center; gap: 10px; animation: none; }
+  .hint-save-spinner { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: hint-save-spin .8s linear infinite; }
+  @keyframes hint-save-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .hint-save-spinner { animation-duration: 2s; } }
+  #subtitle-time-status.warning { color: var(--red); }
   /* 类型化提示卡片：3px 语义左条 + 淡色底 + 匹配色边框。默认卡片维持中性。 */
   .hint-card.hint-success {
     /* 使用不透明基底，避免提示下方的波形或字幕透出。 */
@@ -5964,10 +5981,10 @@
 </aside>
 
 <!-- 可拖动的非模态拼接/合并字幕工具窗 -->
-<aside class="gap-remove-panel auto-merge-panel" id="auto-merge-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="auto-merge-panel-title">
+<aside class="gap-remove-panel msw-processing-panel auto-merge-panel" id="auto-merge-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="auto-merge-panel-title">
   <header class="gap-remove-panel-header" id="auto-merge-drag-handle">
     <div class="gap-remove-heading">
-      <span class="gap-remove-eyebrow">波形处理</span>
+      <span class="gap-remove-eyebrow">字幕 · 处理</span>
       <h3 id="auto-merge-panel-title">拼接/合并字幕</h3>
     </div>
     <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
@@ -6019,13 +6036,8 @@
         </label>
       </div>
     </section>
-    <button type="button" id="auto-merge-run" class="gap-remove-scan">
-      <span>拼接/合并字幕</span>
-      <small>按当前参数处理整段工程</small>
-    </button>
-    <footer class="gap-remove-panel-footer">
-      <span>滚轮可调数值 · Esc 关闭</span>
-    </footer>
+    <div class="msw-processing-actions"><small class="msw-processing-hint">范围：全部主字幕</small><button type="button" id="auto-merge-run" class="primary">拼接/合并字幕</button></div>
+    <p class="msw-processing-hint" data-help-for="auto-merge-panel-title">按当前参数处理整段工程，可撤销。滚轮可调数值，Esc 关闭。</p>
   </div>
 </aside>
 
@@ -6041,8 +6053,13 @@
   <div class="gap-remove-panel-body">
     <div class="gap-remove-parameters-heading">
       <span>缩放与偏移</span>
-      <small>输入后按 Enter 或点击其他位置生效；可撤销</small>
+      <small data-help-for="subtitle-scale-offset-title">输入后按 Enter 或点击其他位置生效，可撤销。滚轮缩放每格 1%，Shift 为 5%；时间偏移每格 10 ms，Shift 为 100 ms，Ctrl（Mac 为 Cmd）为 1 ms。方向按钮支持长按。</small>
     </div>
+    <div class="msw-processing-fields">
+      <label>作用轨道<select id="subtitle-time-track"><option value="main">主字幕</option><option value="extension">当前副字幕轨</option></select></label>
+      <label>作用范围<select id="subtitle-time-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+    </div>
+    <label class="msw-tts-check"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
     <div class="gap-remove-fields">
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">缩放字幕</span>
@@ -6096,7 +6113,7 @@
       </label>
     </div>
     <footer class="gap-remove-panel-footer">
-      <span>未选中字幕时对全部生效 · Enter 确定 · Esc 关闭</span>
+      <span id="subtitle-time-status" role="status" aria-live="polite">请选择作用范围</span>
     </footer>
   </div>
 </aside>
@@ -6441,6 +6458,7 @@
         </select>
       </label>
       <small class="editor-settings-hint">配音热力图：暗 → 亮对应低 → 高电平（RMS −60 至 −6 dBFS）。配音随时间轴以 1× 播放。</small>
+      <label class="editor-settings-item" title="复用峰值缓存，仅调整显示高度；不影响时间、频谱颜色或音频文件。"><input type="checkbox" id="waveform-follow-source-gain"> 波形跟随源试听增益 <output id="waveform-source-gain-setting">0.0 dB</output></label>
       <span class="editor-settings-item">振幅
         <span class="editor-settings-stepper">
           <button type="button" id="waveform-scale-down" title="减小波形振幅">−</button>
@@ -7473,6 +7491,7 @@
       <span class="toolbar-spacer"></span>
       <span class="waveform-status" id="waveform-status">等待波形数据</span>
       <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数" hidden></span>
+      <span class="waveform-readout" id="waveform-source-gain-readout" title="源音频试听增益；波形按此增益调整显示高度" hidden></span>
     </div>
     <div class="msw-source-toolbar" id="msw-source-toolbar" hidden>
       <span class="waveform-status" id="msw-media-progress" role="status" hidden></span>
@@ -7831,15 +7850,16 @@
     <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
     <label id="video-export-tail-field">导出范围超过原视频时<select id="video-export-tail"><option value="ask">超出时先选择处理方式</option><option value="truncate">按视频结尾截断成品</option><option value="freeze">定格最后一帧并延长</option></select></label>
     <p id="video-export-tail-summary" class="msw-processing-hint"></p>
-    <p class="msw-processing-hint">比较的是整个导出范围，包括尾部字幕与配音。截断会舍去成品中超出的部分；定格会延长最后一帧。仅影响本次导出，不删除工程内容。</p>
+    <p class="msw-processing-hint" data-help-for="video-export-tail">默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。</p>
   </div>
   <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
-  <p class="msw-processing-hint">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。字幕使用启动器的底部居中样式，双字幕分行；表情包不烧录。</p>
+  <div class="msw-processing-actions"><button type="button" id="video-export-style-open">字幕样式与预览</button></div>
+  <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。</p>
+  <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">按字幕样式写入视频画面，主副字幕分别设置。表情包不烧录。可生成当前帧预览或五秒样片，确认实际字体、换行与位置。</p>
 </template>
 <template id="timeline-export-fields">
   <label class="msw-tts-check"><input type="checkbox" id="timeline-export-collect-media" checked>同时打包原视频</label>
-  <p class="msw-processing-hint">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。</p>
-  <p class="msw-processing-hint">取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
+  <p class="msw-processing-hint" data-help-for="timeline-export-collect-media">独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。</p>
 </template>
 <aside class="gap-remove-panel msw-processing-panel" id="audio-actions-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="audio-actions-title">
   <header class="gap-remove-panel-header" id="audio-actions-drag">
@@ -7867,13 +7887,14 @@
       <label>导出内容<select id="audio-export-mode"><option value="voice">配音轨（仅音频贴片）</option><option value="mix">原声 + 配音混音</option></select></label>
       <label>采样率<select id="audio-export-rate"><option value="48000">48 kHz</option><option value="44100">44.1 kHz</option></select></label>
     </div>
-    <p class="msw-processing-hint" id="audio-export-format-hint">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
+    <p class="msw-processing-hint" id="audio-export-format-hint" data-help-for="audio-export-mode">WAV · 16-bit PCM · 立体声。配音只包含时间轴上的贴片，保留其位置、裁剪、音量和静音设置。</p>
+    <label class="msw-processing-field" id="audio-export-monitor-field" data-option-help="始终保留贴片和配音轨的增益、静音。同步选定声部时，再采用播放器总音量与静音；源音频还包含源试听增益。同步后对应手动增益锁定，不重复叠加。不包含系统或耳机音量，开始导出时固定快照。">同步试听音量<select id="audio-export-monitor"><option value="none">不同步</option><option value="source">仅源音频</option><option value="voice">仅贴片音频</option><option value="both">源音频与贴片</option></select></label>
     <div id="audio-export-source" hidden>
       <div class="msw-processing-fields">
         <label>原声音轨<select id="audio-export-stream" aria-label="原声音轨"></select></label>
         <label>原声音量（dB）<input id="audio-export-source-gain" type="number" value="0" min="-60" max="12" step="1"></label>
       </div>
-      <p class="msw-processing-hint">原声音量独立于播放器的试听音量；不会自动去除原有人声。</p>
+      <p class="msw-processing-hint" data-help-for="audio-export-source-gain">未同步试听时使用此增益；同步后按当前监听设置计算。不会自动去除原有人声。</p>
     </div>
     <div class="msw-processing-fields">
       <label>配音总音量（dB）<input id="audio-export-voice-gain" type="number" value="0" min="-60" max="12" step="1"></label>
@@ -7884,10 +7905,10 @@
       <label>源终点（秒）<input id="audio-export-end-time" type="number" value="1" min="0.001" step="0.001"></label>
     </div>
     <label class="msw-tts-check"><input type="checkbox" id="audio-export-remove-gaps">移除已标记的空隙</label>
-    <p id="audio-export-gap-hint" class="msw-processing-hint"></p>
-    <label class="msw-tts-check"><input type="checkbox" id="audio-export-peak" checked>峰值保护（超限时整体降低音量）</label>
+    <p id="audio-export-gap-hint" class="msw-processing-hint" data-help-for="audio-export-remove-gaps"></p>
+    <label class="msw-tts-check" data-option-help="超出峰值时整体衰减以避免削波，因此成品可能比当前试听略轻。"><input type="checkbox" id="audio-export-peak" checked>峰值保护</label>
     <p id="audio-export-summary" class="msw-processing-hint"></p>
-    <p class="msw-processing-hint">以点击开始时的内容导出，处理期间可继续编辑。关闭面板不会取消任务。</p>
+    <p class="msw-processing-hint" data-help-for="audio-export-history">以点击开始时的内容导出，处理期间可继续编辑。关闭面板不会取消任务。</p>
     <div class="msw-processing-actions"><button type="button" id="audio-export-start" class="primary">开始导出</button></div>
     <p id="audio-export-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details class="msw-job-history" id="audio-export-history" open><summary>导出记录 <span id="audio-export-history-count"></span></summary><div id="audio-export-jobs" class="msw-processing-jobs" aria-label="音频导出任务" tabindex="0"></div></details>
@@ -15706,7 +15727,18 @@ export default MawDynamicCaptions;
     if (out.end_ms !== null) integer(out.end_ms, 1, MAX_MS, '导出终点无效');
     integer(out.source_audio_index, 0, 127, '原声音轨无效');
     gain(out.source_gain_db); gain(out.voice_gain_db);
+    if (out.monitor !== undefined) monitorGains(out);
     return out;
+  }
+  function monitorGains(o) {
+    const m=o.monitor;
+    if (m === undefined) return {source:o.source_gain_db,voice:o.voice_gain_db,sourceMuted:false,voiceMuted:false};
+    if (!m || typeof m !== 'object') throw Error('试听音量快照无效');
+    if (!['none','source','voice','both'].includes(m.mode)||typeof m.muted!=='boolean'||!Number.isFinite(m.volume)||m.volume<0||m.volume>1)throw Error('试听音量快照无效');
+    gain(m.source_gain_db);
+    const source=['source','both'].includes(m.mode),voice=['voice','both'].includes(m.mode),db=m.volume>0?20*Math.log10(m.volume):0;
+    return {source:source?m.source_gain_db+db:o.source_gain_db,voice:voice?db:o.voice_gain_db,
+      sourceMuted:source&&(m.muted||m.volume===0),voiceMuted:voice&&(m.muted||m.volume===0)};
   }
   function removedRanges(project) {
     const gaps = project.gap_remove?.gaps || [];
@@ -15739,6 +15771,7 @@ export default MawDynamicCaptions;
   }
   function compile(project, rawOptions = {}) {
     const o = options(rawOptions), ext = project.msw || {}, core = global.MSWAudio;
+    const levels = monitorGains(o);
     core.validate(ext);
     const assets = new Map((ext.assets || []).map(a => [a.id, a]));
     const tracks = new Map((ext.audio_tracks || []).map(t => [t.id, t]));
@@ -15774,17 +15807,18 @@ export default MawDynamicCaptions;
         const sourceOut = Math.min(c.source_out_sample, Math.round(c.source_in_sample + (hi - c.start_ms) * a.sample_rate / 1000));
         if (finish <= start || sourceOut <= sourceIn) continue;
         pieces.push({ clip_id: c.id, asset_id: a.id, source_in_sample: sourceIn, source_out_sample: sourceOut,
-          output_start_sample: start, output_end_sample: finish, gain_db: core.levelDb(c, tracks.get(c.track_id)) + o.voice_gain_db });
+          output_start_sample: start, output_end_sample: finish, gain_db: core.levelDb(c, tracks.get(c.track_id)) + levels.voice,
+          ...(levels.voiceMuted?{muted:true}:{}) });
         if (pieces.length > 100000) throw Error('空隙切分产生过多音频片段，请缩小导出范围');
       }
     }
     pieces.sort((a, b) => a.output_start_sample - b.output_start_sample || (a.clip_id < b.clip_id ? -1 : a.clip_id > b.clip_id ? 1 : 0));
     return { schema: VERSION, sample_rate: o.sample_rate, channels: 2, sample_count: frame(output),
       source_start_ms: o.start_ms, source_end_ms: finish, gap_policy: ext.audio_settings?.gap_policy || 'protect',
-      intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: o.source_gain_db } : null,
+      intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: levels.source,...(levels.sourceMuted?{muted:true}:{}) } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, videoOptions, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, videoOptions, removedRanges, compile });
 })(window);
 
 // Pure translation selection, placement and optimistic reconciliation.
@@ -16228,6 +16262,72 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '清除全部空字幕块': 'Remove all empty subtitle blocks',
+    '删除当前项目中所有没有文字内容的字幕块（含副字幕）': 'Delete all empty subtitle blocks in this project, including secondary subtitles',
+    '显示搜索与筛选': 'Show search and filters',
+    '隐藏/显示素材库顶部的搜索框与批次筛选': 'Show or hide library search and batch filters',
+    '所选字幕': 'Selected subtitles',
+    '音频': 'Audio',
+    '静音': 'Mute',
+    '峰值保护': 'Peak protection',
+    '视频导出': 'Video export',
+    '恢复默认': 'Restore defaults',
+    '说明': 'Help',
+    '关闭字幕编辑器设置': 'Close subtitle editor settings',
+    '新工程保存位置': 'New project save location',
+    '正在保存': 'Saving',
+    '保存成功': 'Saved',
+    '波形跟随源试听增益': 'Waveform follows source preview gain',
+    '复用峰值缓存，仅调整显示高度；不影响时间、频谱颜色或音频文件。': 'Reuse cached peaks to adjust display height only. Timing, spectral colors and audio files remain unchanged.',
+    '源音频试听增益；波形按此增益调整显示高度': 'Source preview gain; waveform height follows this gain',
+    '作用轨道': 'Target track',
+    '当前副字幕轨': 'Current secondary track',
+    '作用范围': 'Scope',
+    '整条轨道': 'Entire track',
+    '联动绑定字幕': 'Move bound subtitles together',
+    '请选择作用范围': 'Choose a scope',
+    '作用于所选字幕；可撤销': 'Applies to selected subtitles; undo is available',
+    '作用于整条轨道；可撤销': 'Applies to the entire track; undo is available',
+    '当前范围没有字幕': 'No subtitles in this scope',
+    '已到达相邻字幕或字词时间的边界': 'Reached a neighboring subtitle or word timing boundary',
+    '字幕时间没有变化': 'Subtitle timing unchanged',
+    '样式随工程保存。字号按画面高度百分比设置，位置为文字框底部中心。当前帧与样片使用和正式导出相同的字体渲染；复制播放器样式后请确认实际换行。播放器中的说话人下划线与表情包不复制。': 'Styles are saved with the project. Font sizes use picture-height percentages; positions refer to the bottom center of the text box. Frame previews and samples use the export renderer. Check wrapping after copying player styles. Speaker underlines and stickers are not copied.',
+    '从播放头生成五秒样片，保留空隙，超出视频时定格延长。使用当前导出音量和字幕样式，不改变正式导出范围。': 'Create five seconds from the playhead, keeping gaps and freezing the final frame beyond the video. Uses current export volume and subtitle styles without changing the full export range.',
+    '默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。': 'Use the picture end by default. Native audio/video tail differences are not added content. Choose a policy when subtitles, clips or a custom range extend beyond it: truncate the excess or freeze the final frame, optionally retaining the original audio tail. Applies only to this export.',
+    'MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。': 'MP4 · H.264 + AAC. Cutting, extending or burning subtitles re-encodes the picture. Compatible unmodified video is copied.',
+    '按字幕样式写入视频画面，主副字幕分别设置。表情包不烧录。可生成当前帧预览或五秒样片，确认实际字体、换行与位置。': 'Burn main and secondary subtitles using independent styles. Stickers are excluded. Preview a frame or create a five-second sample to check fonts, wrapping and position.',
+    '独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。': 'Voice clips use separate lanes; gains are rendered into 32-bit float WAV. Muted copies and original TTS are retained. Subtitles export as markers and SRT. Without bundled video, the project references the current local file. Audio after the picture ends is retained over an empty video track.',
+    '同步试听音量': 'Use preview volume',
+    '不同步': 'Do not sync',
+    '仅源音频': 'Source audio only',
+    '仅贴片音频': 'Audio clips only',
+    '源音频与贴片': 'Source audio and clips',
+    '字幕样式与预览': 'Subtitle style and preview',
+    '关闭字幕样式': 'Close subtitle style',
+    '预览内容': 'Preview content',
+    '字号（画面高度 %）': 'Font size (% of picture height)',
+    '描边颜色': 'Outline color',
+    '描边宽度（1080p 基准）': 'Outline width (1080p basis)',
+    '背景不透明度（%）': 'Background opacity (%)',
+    '水平位置（%）': 'Horizontal position (%)',
+    '垂直位置（%）': 'Vertical position (%)',
+    '文字框宽度（%）': 'Text box width (%)',
+    '从当前预览样式复制': 'Copy player preview style',
+    '预览当前帧': 'Preview current frame',
+    '生成五秒样片': 'Create five-second sample',
+    '五秒样片': 'Five-second sample',
+    '实际烧录效果预览': 'Rendered subtitle preview',
+    '正在生成实际预览…': 'Rendering preview…',
+    '实际渲染预览': 'Rendered preview',
+    '字幕字体名称无效': 'Invalid subtitle font name',
+    '请先确认当前导出请求': 'Confirm the pending export request first',
+    '范围：全部主字幕': 'Scope: all main subtitles',
+    '字幕 · 处理': 'Subtitles · Processing',
+    '按当前参数处理整段工程，可撤销。滚轮可调数值，Esc 关闭。': 'Process the whole project with these settings. Undo is available. Use the wheel to adjust values; Esc closes the panel.',
+    '输入后按 Enter 或点击其他位置生效，可撤销。滚轮缩放每格 1%，Shift 为 5%；时间偏移每格 10 ms，Shift 为 100 ms，Ctrl（Mac 为 Cmd）为 1 ms。方向按钮支持长按。': 'Press Enter or click elsewhere to apply; undo is available. Wheel: scale 1%, Shift 5%; timing 10 ms, Shift 100 ms, Ctrl (Cmd on Mac) 1 ms. Hold arrow buttons to repeat.',
+    '超出峰值时整体衰减以避免削波，因此成品可能比当前试听略轻。': 'Reduce the whole mix when peaks exceed the limit to avoid clipping. The export may be quieter than the preview.',
+    '未同步试听时使用此增益；同步后按当前监听设置计算。不会自动去除原有人声。': 'Use this gain without preview sync; otherwise use current monitoring settings. This does not remove original vocals.',
+    '始终保留贴片和配音轨的增益、静音。同步选定声部时，再采用播放器总音量与静音；源音频还包含源试听增益。同步后对应手动增益锁定，不重复叠加。不包含系统或耳机音量，开始导出时固定快照。': 'Clip and voice-track gains and mute states are always retained. Selected sources also use the player volume and mute state; source audio includes its preview gain. Synced gain controls are locked to prevent double gain. System/headphone volume is excluded. Settings are frozen when export starts.',
     '所选音频贴片': 'Selected audio clips',
     '导出所选音频': 'Export selected audio',
     '按原配置重新生成（将调用原服务）': 'Regenerate with original settings (calls the original service)',
@@ -18199,6 +18299,12 @@ export default MawDynamicCaptions;
       });
       return `${match[1] === '已拼接/合并字幕' ? 'Join / merge subtitles' : 'Snap subtitles'}: ${parts.join(', ')}`;
     }
+    match = /^当前范围：(\d+) 条字幕$/.exec(text);
+    if (match) return `Current scope: ${match[1]} subtitles`;
+    match = /^已校正 (\d+) 处字词时间；请检查调整结果$/.exec(text);
+    if (match) return `Corrected ${match[1]} word timings; check the result`;
+    match = /^已调整 (\d+) 条字幕 · (.+)$/.exec(text);
+    if (match) return `Adjusted ${match[1]} subtitles · ${match[2].replace('本次缩放', 'Scale').replace('起点偏移', 'Start offset').replace('终点偏移', 'End offset').replace('整体偏移', 'Track offset').replace(/（(\d+) 条受相邻字幕限制）/, ' ($1 constrained by neighboring subtitles)')}`;
     // flashHint：已自动修复 2 处 0 长时间码（保底 100ms）
     match = /^已自动修复\s*(\d+)\s*处\s*0\s*长时间码（保底\s*100ms）$/.exec(text);
     if (match) return `Auto-repaired ${match[1]} zero-length timings (100 ms minimum)`;
@@ -18540,6 +18646,7 @@ export default MawDynamicCaptions;
     hiddenModules: ['assets'],
     layoutEditing: false,
     waveformScale: 1,
+    followSourceGain: false,
     disabledDisplay: 'dim',
     showTrackHeads: true,
     hoverDetails: false,
@@ -19074,6 +19181,7 @@ export default MawDynamicCaptions;
         ? { rowHeight: Number(rawWaveformSettings.rowHeight) } : {}),
       ...(Number.isFinite(Number(rawWaveformSettings.waveformScale))
         ? { waveformScale: clampWaveformScale(Number(rawWaveformSettings.waveformScale)) } : {}),
+      ...(typeof rawWaveformSettings.followSourceGain === 'boolean' ? {followSourceGain:rawWaveformSettings.followSourceGain} : {}),
       ...(rawWaveformSettings.side === 'left' || rawWaveformSettings.side === 'right'
         ? { side: rawWaveformSettings.side } : {}),
       ...(rawWaveformSettings.disabledDisplay === 'hidden' || rawWaveformSettings.disabledDisplay === 'dim'
@@ -19146,6 +19254,7 @@ export default MawDynamicCaptions;
         hiddenModules: layoutData.hiddenModules,
         layoutEditing: false,
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
+        followSourceGain: parsed.followSourceGain === true,
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
         showTrackHeads: parsed.showTrackHeads ?? (parsed.showGroupBadges !== false),
         hoverDetails: parsed.hoverDetails === true,
@@ -20120,6 +20229,7 @@ export default MawDynamicCaptions;
       this.waveformScaleLabel = document.getElementById('waveform-scale-label');
       this.waveformScaleDownButton = document.getElementById('waveform-scale-down');
       this.waveformScaleUpButton = document.getElementById('waveform-scale-up');
+      this.followSourceGainToggle = document.getElementById('waveform-follow-source-gain');
       this.secondsPerRowSelect = document.getElementById('waveform-seconds-per-row');
       this.rowHeightSelect = document.getElementById('waveform-row-height');
       this.showTrackHeadsToggle = document.getElementById('waveform-show-track-heads');
@@ -20191,6 +20301,12 @@ export default MawDynamicCaptions;
       document.getElementById('waveform-zoom-out')?.addEventListener('click', () => this.changeZoom(1));
       this.waveformScaleDownButton?.addEventListener('click', () => this.changeWaveformScale(-1));
       this.waveformScaleUpButton?.addEventListener('click', () => this.changeWaveformScale(1));
+      this.followSourceGainToggle?.addEventListener('change', () => {
+        this.settings.followSourceGain = this.followSourceGainToggle.checked;
+        saveSettings(this.settings); this.refreshSourceGainDisplay();
+      });
+      window.addEventListener('msw:source-gain', () => this.refreshSourceGainDisplay());
+      window.addEventListener('msw:project-changed', () => queueMicrotask(() => this.refreshSourceGainDisplay()));
       this.pane.addEventListener('pointerdown', () => {
         this.autoScrolling = false;
         this.autoScrollTarget = null;
@@ -20482,6 +20598,8 @@ export default MawDynamicCaptions;
       if (this.displayModeSelect) this.displayModeSelect.value = this.settings.mode;
       this.windowLabel.textContent = `${this.settings.visibleSeconds} 秒`;
       if (this.waveformScaleLabel) this.waveformScaleLabel.textContent = `×${parseFloat(this.settings.waveformScale.toFixed(2))}`;
+      if (this.followSourceGainToggle) this.followSourceGainToggle.checked = this.settings.followSourceGain === true;
+      this.refreshSourceGainDisplay();
       this.secondsPerRowSelect.value = String(this.settings.secondsPerRow);
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(this.settings.rowHeight);
       if (this.sideSelect) this.sideSelect.value = this.settings.side;
@@ -21456,6 +21574,7 @@ export default MawDynamicCaptions;
           secondsPerRow: this.settings.secondsPerRow,
           rowHeight: this.settings.rowHeight,
           waveformScale: this.settings.waveformScale,
+          followSourceGain: this.settings.followSourceGain === true,
           side: this.settings.side,
           disabledDisplay: this.settings.disabledDisplay,
           showTrackHeads: this.settings.showTrackHeads !== false,
@@ -21522,6 +21641,25 @@ export default MawDynamicCaptions;
 
     focusWaveform() {
       this.pane.focus({ preventScroll: true });
+    }
+
+    sourcePreviewGainDb() {
+      return window.MSWE?.resolve('audio-timeline')?.sourceGainDb() || 0;
+    }
+
+    refreshSourceGainDisplay() {
+      const db = this.sourcePreviewGainDb();
+      const label = `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
+      const setting = document.getElementById('waveform-source-gain-setting');
+      const readout = document.getElementById('waveform-source-gain-readout');
+      if (setting) setting.textContent = label;
+      if (readout) {readout.hidden = !this.settings.followSourceGain; readout.textContent = label;}
+      if (this.sourceGainPaintFrame) return;
+      this.sourceGainPaintFrame = window.requestAnimationFrame(() => {
+        this.sourceGainPaintFrame = 0;
+        // renderedRows already contains only the virtualized viewport and overscan.
+        this.renderedRows.forEach(row => this.drawRow(row, {measure:false}));
+      });
     }
 
     changeWaveformScale(direction) {
@@ -23131,7 +23269,8 @@ export default MawDynamicCaptions;
         useInterpolation,
       );
       const center = height * 0.46;
-      const amplitude = waveformAmplitude(height, this.settings.waveformScale);
+      const amplitude = waveformAmplitude(height, this.settings.waveformScale)
+        * (this.settings.followSourceGain ? Math.pow(10, this.sourcePreviewGainDb() / 20) : 1);
       const minWaveY = 2;
       const maxWaveY = Math.max(minWaveY, height - 2);
       const spectral = this.settings.spectralColor === true ? this.spectral : null;
@@ -25596,6 +25735,10 @@ function sortExtensionTrackSegments(track) {
   const changed = entries.some((entry, index) => entry.segment !== track.segments[index]);
   if (!changed) return false;
   const snapshot = extensionTrackSelectionSnapshot(track);
+  const indexMap = new Map(entries.map((entry, index) => [entry.index, index]));
+  for (const {segment} of entries) for (const key of ['color_ref', 'sticker_ref']) {
+    if (Number.isInteger(segment[key]?.headIdx)) segment[key].headIdx = indexMap.get(segment[key].headIdx) ?? segment[key].headIdx;
+  }
   track.segments = entries.map((entry) => entry.segment);
   track._dirty = true;
   restoreExtensionTrackSelection(track, snapshot);
@@ -25804,9 +25947,10 @@ function constrainBoundExtensionPanelEdit(extension, track, oldStart, oldEnd) {
     || constrained.end !== desiredMainEnd;
   const nextStart = oldStart + (constrained.start - main.start);
   const nextEnd = oldEnd + (constrained.end - main.end);
-  extension.items = remapPanelItems(extension.items, oldStart, oldEnd, nextStart, nextEnd);
+  extension.items = remapPanelItems(extension.items, extension.start, extension.end, nextStart, nextEnd);
   extension.start = nextStart;
   extension.end = nextEnd;
+  main.items = remapPanelItems(main.items, main.start, main.end, constrained.start, constrained.end);
   main.start = constrained.start;
   main.end = constrained.end;
   main._dirty = true;
@@ -26134,8 +26278,15 @@ function syncSegmentTimebase(segment, timebase, { preferFrames = false, minimumS
   if (!Array.isArray(segment.items)) return range;
   const frameBounds = timebase.unit === 'frames'
     ? { start: segment.start_frame, end: segment.end_frame } : null;
+  if (timebase.unit === 'frames' && !preferFrames) {
+    // Dense words can share a frame. Preserve their canonical millisecond
+    // intervals instead of repeatedly quantizing and repairing on each save.
+    window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);
+  }
   segment.items.forEach((item) => {
+    const milliseconds = {start:item.start, end:item.end};
     syncTimeRangeObjectTimebase(item, timebase, { preferFrames, frameBounds });
+    if (timebase.unit === 'frames' && !preferFrames) Object.assign(item, milliseconds);
   });
   if (timebase.unit === 'frames') {
     window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);
@@ -29385,6 +29536,8 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
   }
 
   function close() {
+    // Hidden inputs must not keep swallowing editor shortcuts after Escape.
+    if (panel.contains(document.activeElement)) document.activeElement.blur();
     panel.classList.remove('show', 'dragging');
     panel.style.zIndex = '';
     panel.setAttribute('aria-hidden', 'true');
@@ -30363,7 +30516,7 @@ function remapPanelItems(items, oldStart, oldEnd, newStart, newEnd) {
   if (!Array.isArray(items) || !items.length) return items;
   const oldDuration = Math.max(1, oldEnd - oldStart);
   const newDuration = Math.max(1, newEnd - newStart);
-  return items.map((item) => {
+  const mapped = items.map((item) => {
     // 等比缩放后钳回段内，并保证 end > start（防止取整后出现 0 长词块）。
     const mappedStart = Math.round(newStart + ((item.start - oldStart) / oldDuration) * newDuration);
     const mappedEnd = Math.round(newStart + ((item.end - oldStart) / oldDuration) * newDuration);
@@ -30372,6 +30525,9 @@ function remapPanelItems(items, oldStart, oldEnd, newStart, newEnd) {
     if (end <= start) start = Math.max(newStart, end - 1);
     return { ...item, start, end };
   });
+  const holder = {start:newStart,end:newEnd,items:mapped};
+  window.AsrEditorUtils.normalizeFrameItemTimingRanges(holder);
+  return holder.items;
 }
 
 function getCurrentCuePanelTarget() {
@@ -33860,32 +34016,73 @@ function mergeExtensionSegments(idxs, track = getActiveExtensionTrack()) {
 }
 
 
-// ── 「字幕 → 缩放字幕」子菜单：输入即生效（可撤销；未选中时对全部生效） ──
-function subtitleScaleOffsetTargets() {
-  const hasSelection = selectedIdxs.size > 0;
-  return hasSelection ? [...selectedIdxs] : [];
+// ── 「字幕 → 缩放/偏移」：显式选择轨道和范围，连续手势共享撤销记录。 ──
+let subtitleTimeGesture = null;
+function subtitleTimeContext() {
+  const kind = document.getElementById('subtitle-time-track')?.value || 'main';
+  const track = kind === 'extension' ? getActiveExtensionTrack() : null;
+  const segments = kind === 'extension' ? (track?.segments || []) : DATA.segments;
+  const selection = kind === 'extension' ? selectedExtensionIdxs : selectedIdxs;
+  const indices = document.getElementById('subtitle-time-scope')?.value === 'all'
+    ? segments.map((_,index)=>index) : [...selection].filter(index=>segments[index]);
+  return {kind,track,segments,indices};
 }
-function applySubtitleTimeEdit(label, editFn) {
+function subtitleTimeStatus(message, warning = false) {
+  const status = document.getElementById('subtitle-time-status');
+  if (!status) return;
+  status.textContent = window.MSWE_I18N?.translateText(message) || message;
+  status.classList.toggle('warning', warning);
+}
+function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '', moveDelta = null} = {}) {
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
-  const selected = subtitleScaleOffsetTargets();
+  const context = subtitleTimeContext();
   // 按时间顺序逐条约束：前面的结果作为后面字幕的邻居边界，整组移动/缩放也不会互相重叠。
-  const indices = (selected.length ? selected : DATA.segments.map((_, i) => i))
-    .slice().sort((a, b) => DATA.segments[a].start - DATA.segments[b].start);
+  const indices = context.indices.slice().sort((a, b) => context.segments[a].start - context.segments[b].start);
+  if (!indices.length) {subtitleTimeStatus('当前范围没有字幕',true);return {changed:0,limited:0};}
   let changed = 0;
   let limited = 0;
   let linkedChanged = false;
   const changedSegments = [];
   const oldRanges = new Map();
-  const working = DATA.segments.map((segment) => ({ ...segment }));
+  const working = context.segments.map((segment) => ({ ...segment }));
+  const linked = document.getElementById('subtitle-time-linked').checked && multiSubtitleVisible();
+  let appliedMove = moveDelta;
+  if (moveDelta !== null) {
+    // A group translation uses one common delta; never squeeze its durations or gaps.
+    const chosen = new Set(indices);
+    let low = -Infinity, high = Infinity;
+    indices.forEach(index=>{
+      const cue = working[index];
+      const previous = index > 0 && !chosen.has(index-1) ? working[index-1].end : 0;
+      const next = index+1 < working.length && !chosen.has(index+1) ? working[index+1].start : Infinity;
+      low = Math.max(low, previous-cue.start);high = Math.min(high,next-cue.end);
+    });
+    if (linked && context.kind === 'extension') {
+      const mains = indices.map(index => {
+        const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), working[index].id, 'extension', context.track.id);
+        return binding ? mainSegmentById(binding.main_segment_ids?.[0]) : null;
+      }).filter(Boolean);
+      const moved = new Set(mains);
+      mains.forEach(main => {
+        const bounds = getTrackNeighborBounds(main, DATA.segments, moved);
+        low = Math.max(low, Math.max(0, bounds.previousEnd) - main.start);
+        high = Math.min(high, bounds.nextStart - main.end);
+      });
+    }
+    appliedMove = low <= high ? Math.min(high,Math.max(low,moveDelta)) : 0;
+    if (appliedMove !== moveDelta) limited = indices.length;
+  }
   indices.forEach((index) => {
     const current = working[index];
     if (!current) return;
-    const desired = editFn(current);
+    const desired = moveDelta === null ? editFn(current) : {start:current.start+appliedMove,end:current.end+appliedMove};
     if (!desired) return;
     // 防重叠：与波形拖动同一条约束路径——期望范围被夹到前句终点与后句起点之间，
     // 空隙放不下时保持原时间不动。保存时的「时间重叠」修复卡片从此不再被触发。
-    const constrained = constrainCueRangeToTrack(current, desired.start, desired.end, working);
+    const constrained = moveDelta === null ? constrainCueRangeToTrack(current, desired.start, desired.end, working)
+      : {start:Math.round(desired.start),end:Math.round(desired.end),blocked:false};
+    if (constrained.end-constrained.start < (current.items?.length || 0)) constrained.blocked = true;
     if (constrained.blocked) {
       limited += 1;
       return;
@@ -33893,25 +34090,55 @@ function applySubtitleTimeEdit(label, editFn) {
     if (constrained.start !== desired.start || constrained.end !== desired.end) limited += 1;
     if (constrained.start === current.start && constrained.end === current.end) return;
     oldRanges.set(current.id, { start: current.start, end: current.end });
-    working[index] = { ...current, start: constrained.start, end: constrained.end };
+    working[index] = { ...current, start: constrained.start, end: constrained.end,
+      items:remapPanelItems(current.items,current.start,current.end,constrained.start,constrained.end) };
+    syncSegmentTimebase(working[index], projectTimebase(), {preferFrames:false});
     changedSegments.push(working[index]);
     changed += 1;
   });
-  if (!changed) return { changed: 0, limited };
-  pushUndo(label);
-  DATA.segments = working;
+  if (!changed) {subtitleTimeStatus(limited?'已到达相邻字幕或字词时间的边界':'字幕时间没有变化',Boolean(limited));return {changed:0,limited};}
+  const key = `${context.kind}:${context.track?.id || ''}:${gestureKey}:${indices.map(i=>context.segments[i].id).join(',')}:${document.getElementById('subtitle-time-linked').checked}`;
+  if (!gesture || !subtitleTimeGesture || subtitleTimeGesture.key !== key || performance.now()-subtitleTimeGesture.at > 450
+      || editorHistory.peekUndo() !== subtitleTimeGesture.record) {
+    subtitleTimeGesture = {key,record:pushUndo(label),at:performance.now()};
+  } else subtitleTimeGesture.at = performance.now();
+  if (!gesture) subtitleTimeGesture = null;
+  if (context.kind === 'main') DATA.segments = working;
+  else context.track.segments = working;
   changedSegments.forEach((segment) => { segment._dirty = true; });
-  // 主字幕缩放/偏移同步带动绑定的副字幕（与延长字幕同一条绑定同步路径）。
+  // Stage every follower before resolving conflicts, so moving one cue cannot
+  // trim another selected follower which has not moved yet.
+  const followersByTrack = new Map();
   changedSegments.forEach((segment) => {
     const previous = oldRanges.get(segment.id);
     if (!previous) return;
-    linkedChanged = syncBoundExtensionForMain(segment, {
-      oldStart: previous.start,
-      oldEnd: previous.end,
-      mode: 'range',
-    }) || linkedChanged;
+    if (!linked) return;
+    if (context.kind === 'extension') {
+      if (moveDelta === null) constrainBoundExtensionPanelEdit(segment,context.track,previous.start,previous.end);
+      else {
+        const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), segment.id, 'extension', context.track.id);
+        const main = binding ? mainSegmentById(binding.main_segment_ids?.[0]) : null;
+        if (main) {
+          main.items = remapPanelItems(main.items, main.start, main.end, main.start + appliedMove, main.end + appliedMove);
+          main.start += appliedMove; main.end += appliedMove; main._dirty = true;
+          syncSegmentTimebase(main, projectTimebase(), {preferFrames:false});
+        }
+      }
+      linkedChanged = true;return;
+    }
+    const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), segment.id, 'main');
+    const track = binding ? getExtensionTrack(binding.track_id) : null;
+    const follower = binding ? extensionSegmentById(binding.extension_segment_ids?.[0], track) : null;
+    if (!follower) return;
+    setExtensionSegmentRange(follower, follower.start + segment.start - previous.start, follower.end + segment.end - previous.end);
+    syncSegmentTimebase(follower, projectTimebase(), {preferFrames:false});
+    if (!followersByTrack.has(track)) followersByTrack.set(track, []);
+    followersByTrack.get(track).push(follower);
+    linkedChanged = true;
   });
-  markMainSegmentsDirty(changedSegments);
+  followersByTrack.forEach((followers, track) => reconcileExtensionTrack(track, followers));
+  if (context.kind === 'main') markMainSegmentsDirty(changedSegments);
+  else markMultiSubtitleStateDirty();
   syncTimelineGroupRanges();
   if (linkedChanged || multiSubtitleVisible()) markMultiSubtitleDirty();
   syncBindingOffsets();
@@ -33940,9 +34167,9 @@ function initSubtitleScaleOffsetControls() {
 
   // 缩放：percent% 缩放 + 邻居约束。锚点=各自中心（默认）或整组范围
   // （选中整体的起止等比缩放，组内间隔同比）。供输入提交 / 滚轮 / 步进按钮共用。
-  const applyScalePercent = (percent) => {
+  const applyScalePercent = (percent, gesture = false) => {
     if (!Number.isFinite(percent) || percent <= 0) {
-      flashHint('缩放比例必须是大于 0 的数字', 'invalid');
+      subtitleTimeStatus('缩放比例必须是大于 0 的数字', true);
       return null;
     }
     const factor = percent / 100;
@@ -33950,9 +34177,8 @@ function initSubtitleScaleOffsetControls() {
       ? 'group' : 'center';
     let groupStart = 0;
     if (anchor === 'group') {
-      const targets = subtitleScaleOffsetTargets();
-      const indices = targets.length ? targets : DATA.segments.map((_, i) => i);
-      const starts = indices.map((i) => DATA.segments[i]?.start).filter(Number.isFinite);
+      const context = subtitleTimeContext();
+      const starts = context.indices.map((i) => context.segments[i]?.start).filter(Number.isFinite);
       groupStart = starts.length ? Math.min(...starts) : 0;
     }
     const result = applySubtitleTimeEdit(`缩放字幕 ${percent}%`, (segment) => {
@@ -33968,16 +34194,16 @@ function initSubtitleScaleOffsetControls() {
       }
       if (Math.round(start) === segment.start && Math.round(end) === segment.end) return null;
       return { start, end };
-    });
+    }, {gesture,gestureKey:`scale:${anchor}`});
     if (result.changed) {
-      flashHint(`已缩放字幕至 ${percent}%${limitedSuffix(result)}`, 'success');
+      subtitleTimeStatus(`已调整 ${result.changed} 条字幕 · 本次缩放 ${percent}%${limitedSuffix(result)}`,Boolean(result.limited));
       // 应用后回到 100：与偏移行“应用后归零”一致，避免误以为还会再次缩放。
       percentInput.value = '100';
     }
     return result;
   };
   // 偏移：mode 决定动哪条边。供输入提交 / 滚轮 / 步进按钮共用。
-  const applyOffsetDelta = (mode, delta) => {
+  const applyOffsetDelta = (mode, delta, gesture = false) => {
     if (!Number.isFinite(delta) || delta === 0) return null;
     const result = applySubtitleTimeEdit(`${mode}偏移 ${delta}ms`, (segment) => {
       let start = segment.start; let end = segment.end;
@@ -33986,13 +34212,13 @@ function initSubtitleScaleOffsetControls() {
       else { start += delta; end += delta; }
       if (start === segment.start && end === segment.end) return null;
       return { start, end };
-    });
-    if (result.changed) flashHint(`已${mode}偏移 ${delta}ms${limitedSuffix(result)}`, 'success');
+    }, {gesture,gestureKey:`offset:${mode}`,moveDelta:mode==='整体'?delta:null});
+    if (result.changed) subtitleTimeStatus(`已调整 ${result.changed} 条字幕 · ${mode}偏移 ${delta} ms${limitedSuffix(result)}`,Boolean(result.limited));
     return result;
   };
   // 暴露给滚轮多档步进（滚轮绑定在弹窗区块，位于本函数之后）。
-  applySubtitleScaleWheel = applyScalePercent;
-  applySubtitleOffsetWheel = applyOffsetDelta;
+  applySubtitleScaleWheel = percent => applyScalePercent(percent,true);
+  applySubtitleOffsetWheel = (mode,delta) => applyOffsetDelta(mode,delta,true);
 
   percentInput.addEventListener('change', () => applyScalePercent(num(percentInput)));
   // 偏移行：Enter 或 change 提交后应用并把输入框归零（便于连续多次偏移）。
@@ -34029,7 +34255,17 @@ const subtitleScaleFloatingPanel = createFloatingPanel({
 });
 document.getElementById('subtitle-scale-offset-open')?.addEventListener('click', () => {
   if (subtitleScaleModal?.classList.contains('show')) subtitleScaleFloatingPanel.close();
-  else subtitleScaleFloatingPanel.open();
+  else {
+    document.getElementById('subtitle-time-track').value = selectedExtensionIdxs.size && !selectedIdxs.size ? 'extension' : 'main';
+    const selected = selectedExtensionIdxs.size || selectedIdxs.size;
+    document.getElementById('subtitle-time-scope').value = selected ? 'selected' : 'all';
+    subtitleTimeGesture = null;
+    subtitleTimeStatus(selected ? '作用于所选字幕；可撤销' : '作用于整条轨道；可撤销');
+    subtitleScaleFloatingPanel.open();
+  }
+});
+for (const id of ['subtitle-time-track','subtitle-time-scope','subtitle-time-linked']) document.getElementById(id)?.addEventListener('change',()=>{
+  subtitleTimeGesture = null;subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);
 });
 document.getElementById('subtitle-scale-offset-close')?.addEventListener('click', () => subtitleScaleFloatingPanel.close());
 // 步进按钮：单击 ±1（缩放 1%、偏移 1ms）；长按 300ms 后每 70ms 连发。
@@ -34040,7 +34276,7 @@ subtitleScaleModal?.querySelectorAll('.gap-remove-step-btn').forEach((button) =>
   const isScale = input.id === 'subtitle-scale-percent';
   let repeatTimer = 0;
   let holdTimer = 0;
-  const stop = () => { clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer = 0; repeatTimer = 0; };
+  const stop = () => { clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer = 0; repeatTimer = 0; subtitleTimeGesture = null; };
   const stepOnce = () => {
     if (isScale) {
       const current = Number(input.value) || 100;
@@ -37811,7 +38047,9 @@ function buildJson() {
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const repairedTimingCount = repairCurrentProjectTimings();
   if (repairedTimingCount > 0) {
-    flashHint(`已自动修复 ${repairedTimingCount} 处异常时间码（保底 100ms）`, 'warning');
+    const notice = `已校正 ${repairedTimingCount} 处字词时间；请检查调整结果`;
+    if (document.getElementById('subtitle-scale-offset-modal')?.classList.contains('show')) subtitleTimeStatus(notice,true);
+    else flashHint(notice, 'warning');
   }
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const out = {
@@ -37892,6 +38130,7 @@ function buildJson() {
   if (workspace) out.workspace = workspace;
   // 预览几何：始终写入归一化后的当前几何，便于跨机/重开保持位置。
   const preview = { subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() } };
+  if (DATA.preview?.burn_subtitles) preview.burn_subtitles = JSON.parse(JSON.stringify(DATA.preview.burn_subtitles));
   if (getActiveExtensionTrack() || DATA.preview?.extension_subtitle) {
     preview.extension_subtitle = { ...getStoredExtensionSubtitleAppearance() };
   }
@@ -37930,7 +38169,9 @@ function timingRepairSignature(segment) {
 function repairTimingGroup(segments) {
   const source = Array.isArray(segments) ? segments : [];
   const before = source.map((segment) => timingRepairSignature(segment));
-  const fixed = window.AsrEditorUtils.normalizeItemTimingRanges(source);
+  // Word timing uses the available cue span, including dense/frame-rounded words.
+  // The old 100 ms fallback could expand words beyond the cue on every save.
+  const fixed = source.reduce((count,segment)=>count+window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment),0);
   const changed = source.filter((segment, index) => (
     timingRepairSignature(segment) !== before[index]
   ));
@@ -39607,7 +39848,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   }
   rememberProjectSavedAt(filename);
   renderAll();
-  if (!silent) flashHint('保存成功！', 'success');
+  if (!silent) flashHint('保存成功', 'success');
 }
 
 async function saveProjectToServer({ silent = false } = {}) {
@@ -39625,13 +39866,17 @@ async function saveProjectToServer({ silent = false } = {}) {
     return false;
   }
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
-  if (editingState) finishEdit(true);
-  if (extensionEditingState) finishExtensionEdit(true);
-  commitCuePanelEdit();
-  const projectJson = buildJson();
   const savedGeneration = mswProjectGeneration;
   projectSaveInFlight = true;
+  const feedback = beginProjectSaveFeedback({silent});
+  let projectJson;
   try {
+    await feedback.ready;
+    if (savedGeneration !== mswProjectGeneration) return false;
+    if (editingState) finishEdit(true);
+    if (extensionEditingState) finishExtensionEdit(true);
+    commitCuePanelEdit();
+    projectJson = buildJson();
     const processingContext = SERVER_CONFIG.processingContext;
     const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
@@ -39646,18 +39891,20 @@ async function saveProjectToServer({ silent = false } = {}) {
     }
     if (savedGeneration !== mswProjectGeneration) return false;
     if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
+    const unchanged = buildJson() === projectJson;
     window.MSWE?.resolve('project-persistence')?.status(result.assets,
-      buildJson() === projectJson ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
-    if (buildJson() === projectJson) markProjectSaved(result.filename, result.backup, { silent });
-    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
+      unchanged ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
+    if (unchanged) markProjectSaved(result.filename, result.backup, {silent:true});
+    feedback.finish(unchanged ? '保存成功' : '保存完成；保存期间的新修改仍未保存', unchanged?'success':'warning');
     return true;
   } catch (error) {
     const detail = error?.message || error;
+    feedback.cancel();
     showProjectSaveError(detail);
     // A stale browser tab can outlive the localhost process (the browser reports
     // ERR_CONNECTION_REFUSED). Offer a real file save so Ctrl+S never strands
     // completed edits, while making clear that the bound JSON was not overwritten.
-    if (error instanceof TypeError
+    if (projectJson && error instanceof TypeError
         && confirm('无法连接本地编辑器服务器。是否改为导出工程文件，以免丢失改动？')) {
       const saved = await downloadFile(projectJson, `${FILENAME_BASE}.mosp`, 'application/json', {
         desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
@@ -39666,6 +39913,7 @@ async function saveProjectToServer({ silent = false } = {}) {
     }
     return false;
   } finally {
+    feedback.cancel();
     projectSaveInFlight = false;
   }
 }
@@ -39674,25 +39922,31 @@ async function saveProjectToServer({ silent = false } = {}) {
 async function saveProjectToHandle({ silent = false } = {}) {
   if (!projectFileHandle) return false;
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
-  if (editingState) finishEdit(true);
-  if (extensionEditingState) finishExtensionEdit(true);
-  commitCuePanelEdit();
-  const projectJson = buildJson();
   const savedGeneration = mswProjectGeneration;
   const savedHandle = projectFileHandle;
   projectSaveInFlight = true;
+  const feedback = beginProjectSaveFeedback({silent});
   try {
+    await feedback.ready;
+    if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
+    if (editingState) finishEdit(true);
+    if (extensionEditingState) finishExtensionEdit(true);
+    commitCuePanelEdit();
+    const projectJson = buildJson();
     const writable = await savedHandle.createWritable();
     await writable.write(new Blob([projectJson], { type: 'application/json;charset=utf-8' }));
     await writable.close();
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
-    if (buildJson() === projectJson) markProjectSaved(savedHandle.name, null, { silent });
-    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
+    const unchanged = buildJson() === projectJson;
+    if (unchanged) markProjectSaved(savedHandle.name, null, {silent:true});
+    feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
     return true;
   } catch (error) {
-    flashHint(`保存失败：${error?.message || error}`, 'warning');
+    feedback.finish(`保存失败：${error?.message || error}`, 'warning');
+    if (silent) flashHint(`保存失败：${error?.message || error}`, 'warning');
     return false;
   } finally {
+    feedback.cancel();
     projectSaveInFlight = false;
   }
 }
@@ -39728,25 +39982,29 @@ async function saveProjectAsToFile() {
     return;
   }
   projectSaveInFlight = true;
+  let feedback;
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName: suggested,
       types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
+    feedback = beginProjectSaveFeedback();await feedback.ready;
     const writable = await handle.createWritable();
     await writable.write(new Blob([snapshot], { type: 'application/json;charset=utf-8' }));
     await writable.close();
     if (generation !== mswProjectGeneration) return false;
     projectFileHandle = handle;
-    if (buildJson() === snapshot) markProjectSaved(handle.name, null);
-    else { projectImportDirty = true; flashHint('保存完成；保存期间的新修改仍未保存', 'warning'); }
+    const unchanged = buildJson() === snapshot;
+    if (unchanged) markProjectSaved(handle.name, null, {silent:true});
+    else projectImportDirty = true;
+    feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
     configureServerSaveControls();
     scheduleAutoSave();
     warnReferences();
   } catch (error) {
     if (error && error.name === 'AbortError') return;  // 用户取消保存对话框
     flashHint(`保存失败：${error?.message || error}`, 'warning');
-  } finally { projectSaveInFlight = false; }
+  } finally { feedback?.cancel();projectSaveInFlight = false; }
 }
 
 const mediaNameEl = document.getElementById('media-name');
@@ -40760,6 +41018,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     return false;
   }
   projectCheckpointInFlight = true;
+  let feedback;
   try {
     if (!window.showSaveFilePicker || !navigator.userActivation?.isActive) {
       // 检查点只用于确认后续导入可以继续；无用户手势时不能弹出保存对话框，
@@ -40770,8 +41029,9 @@ async function createProjectCheckpoint(project, suggestedName) {
     }
     const handle = await window.showSaveFilePicker({
       suggestedName,
-      types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
+      types: [{ description: '新工程保存位置', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
+    feedback = beginProjectSaveFeedback();await feedback.ready;
     const writable = await handle.createWritable();
     await writable.write(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json;charset=utf-8' }));
     await writable.close();
@@ -40779,6 +41039,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     projectFileHandle = handle;
     // detachServerProjectSaving 内部会刷新保存控件并重启自动保存。
     detachServerProjectSaving();
+    feedback.finish();
     return true;
   } catch (error) {
     if (error && error.name === 'AbortError') return false;  // 用户取消保存对话框
@@ -40804,6 +41065,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     flashHint(`创建工程失败：${error.message || error}`, 'warning');
     return false;
   } finally {
+    feedback?.cancel();
     projectCheckpointInFlight = false;
   }
 }
@@ -44319,7 +44581,7 @@ function flashHint(msg, type = 'default', options = {}) {
   // 先挤掉最早的再插入新卡片：溢出项立即移除（不走退场动画），
   // 保证视觉上始终最多 3 条，不会出现第 4 条先闪现再挤出的跳动。
   while (stack.children.length >= HINT_MAX_VISIBLE) {
-    const oldest = stack.firstElementChild;
+    const oldest = [...stack.children].find(node=>node.dataset.saveProgress!=='true') || stack.firstElementChild;
     oldest.dataset.dismissed = '1';  // 让其到期定时器空转
     oldest.remove();
   }
@@ -44336,6 +44598,29 @@ function flashHint(msg, type = 'default', options = {}) {
   const durationMs = Number.isFinite(options.durationMs) ? options.durationMs : HINT_DURATION_MS;
   if (durationMs > 0) setTimeout(() => dismissHintCard(card), durationMs);
   return card;
+}
+
+function beginProjectSaveFeedback({silent = false} = {}) {
+  const translate = text => window.MSWE_I18N?.translateText(text) || text;
+  const card = silent ? null : flashHint('', 'default', {durationMs:0,contentBuilder:node=>{
+    node.dataset.saveProgress = 'true'; node.setAttribute('role','status'); node.setAttribute('aria-live','polite');
+    const spinner=document.createElement('span');spinner.className='hint-save-spinner';spinner.setAttribute('aria-hidden','true');
+    const label=document.createElement('span');label.textContent=translate('正在保存');node.append(spinner,label);
+  }});
+  let pending = true;
+  return {
+    // Paint the pending state before serializing large project snapshots.
+    ready: silent ? Promise.resolve() : new Promise(resolve=>{
+      const fallback=setTimeout(resolve,100);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(fallback);resolve();}));
+    }),
+    finish(label='保存成功',type='success') {
+      if (!pending) return;pending=false;if (!card) return;
+      delete card.dataset.saveProgress;card.className=`hint-card hint-${type}`;card.textContent=translate(label);
+      setTimeout(()=>dismissHintCard(card),HINT_DURATION_MS);
+    },
+    cancel() {if(pending){pending=false;if(card){delete card.dataset.saveProgress;dismissHintCard(card);}}},
+  };
 }
 
 // 振幅到达上下限时由波形模块派发的事件：rAF 节流后仍可能每帧触发，冷却避免提示闪烁
@@ -45400,10 +45685,13 @@ const cueCopyButton = document.getElementById('cue-copy');
 const cuePasteButton = document.getElementById('cue-paste');
 const cueDeleteButton = document.getElementById('cue-delete');
 
-function cloneCueForClipboard(segment) {
+function cloneCueForClipboard(segment, segments = DATA.segments) {
   if (!segment) return null;
   const copy = JSON.parse(JSON.stringify(segment));
   delete copy._dirty;
+  const reference = segment.color_ref;
+  const color = segment.color || segments?.[reference?.headIdx]?.color || COLOR_BY_NAME[reference?.name];
+  if (color) copy.color = {...JSON.parse(JSON.stringify(color)), start:copy.start, end:copy.end};
   // 分组引用（颜色/表情包 head-ref）指向原字幕的组关系，粘贴副本后重连会指向
   // 错误的对象；剪切时原分组关系已由 deleteSegments 的拆组逻辑处理。
   delete copy.sticker_ref;
@@ -45424,7 +45712,7 @@ function captureExtensionClipboard(mainIdxs) {
   if (!track) return;
   const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
   cueClipboardExtensionSegments = extIdxs
-    .map((index) => cloneCueForClipboard(track.segments[index]))
+    .map((index) => cloneCueForClipboard(track.segments[index], track.segments))
     .filter(Boolean);
   const copiedExtIds = new Set(extIdxs.map((index) => track.segments[index]?.id).filter(Boolean));
   mainIdxs.forEach((index) => {
@@ -45504,8 +45792,11 @@ function pasteCuesFromClipboard() {
   const earliestAfterShift = minCopyStart + shift;
   if (earliestAfterShift < 0) shift -= earliestAfterShift;
   copies.forEach((segment) => {
+    segment.items = remapPanelItems(segment.items, segment.start, segment.end, segment.start + shift, segment.end + shift);
     segment.start = (Number(segment.start) || 0) + shift;
     segment.end = (Number(segment.end) || 0) + shift;
+    if (segment.color) Object.assign(segment.color, {start:segment.start,end:segment.end});
+    syncSegmentTimebase(segment, projectTimebase(), {preferFrames:false});
   });
   // 插入位置按时间有序（首条副本的 start 落点）而非数组末尾：
   // 波形渲染与列表联动都假设 segments 按 start 升序。有选中时仍贴在选中之后。
@@ -45515,9 +45806,6 @@ function pasteCuesFromClipboard() {
     const pastedFirstStart = Number(copies[0].start) || 0;
     insertAt = DATA.segments.findIndex((segment) => Number(segment.start) > pastedFirstStart);
     if (insertAt < 0) insertAt = DATA.segments.length;
-    if (selectedIdxs.size && insertAt <= Math.max(...selectedIdxs)) {
-      insertAt = Math.max(...selectedIdxs) + 1;
-    }
   }
   pushUndo(`粘贴 ${copies.length + (cueClipboardExtensionSegments?.length || 0)} 条字幕`);
   // 原 id → 新副本 id（copies 与 cueClipboardSegments 顺序一一对应）：
@@ -45525,6 +45813,7 @@ function pasteCuesFromClipboard() {
   const mainOldToNew = new Map();
   copies.forEach((copy, offset) => mainOldToNew.set(cueClipboardSegments[offset]?.id, copy.id));
   DATA.segments.splice(insertAt, 0, ...copies);
+  window.AsrEditorUtils.shiftGroupReferenceIndices(DATA.segments, insertAt, copies.length);
 
   // 连锁对：副字幕副本同一偏移落位（时间有序插入 + 排序契约），
   // 再按原配对重建绑定；多重字幕已关闭时只贴主轨（副轨无处落位）。
@@ -45537,14 +45826,18 @@ function pasteCuesFromClipboard() {
       const copy = JSON.parse(JSON.stringify(segment));
       copy.id = `ext-pasted-${stamp}-${offset}`;
       copy._dirty = true;
+      copy.items = remapPanelItems(copy.items, copy.start, copy.end, copy.start + shift, copy.end + shift);
       copy.start = (Number(copy.start) || 0) + shift;
       copy.end = (Number(copy.end) || 0) + shift;
+      if (copy.color) Object.assign(copy.color, {start:copy.start,end:copy.end});
+      syncSegmentTimebase(copy, projectTimebase(), {preferFrames:false});
       return copy;
     });
     const extFirstStart = Number(extCopies[0].start) || 0;
     let extAt = extTrack.segments.findIndex((segment) => Number(segment.start) > extFirstStart);
     if (extAt < 0) extAt = extTrack.segments.length;
     extTrack.segments.splice(extAt, 0, ...extCopies);
+    window.AsrEditorUtils.shiftGroupReferenceIndices(extTrack.segments, extAt, extCopies.length);
     sortExtensionTrackSegments(extTrack);
     extInserted = extCopies.length;
     cueClipboardExtensionSegments.forEach((segment, offset) => {
@@ -46432,6 +46725,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
   saving: () => projectSaveInFlight || projectCheckpointInFlight,
   setSaving: value => { projectSaveInFlight = value; },
+  beginSaveFeedback: beginProjectSaveFeedback,
   adopt: (result, { source, newProject }) => {
     validateProjectForLoad(result.project);
     const unchanged = newProject || JSON.stringify(JSON.parse(buildJson())) === source;
@@ -46454,8 +46748,9 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     const title = document.getElementById('json-name');
     title.textContent = result.filename; title.classList.remove('empty');
     configureServerSaveControls(); updateLottieExportButton(); updateOgrafExportButton(); scheduleAutoSave();
-    if (unchanged) markProjectSaved(result.filename, result.backup);
-    else { projectImportDirty = true; flashHint('保存完成；保存期间的新修改仍未保存', 'warning'); }
+    if (unchanged) markProjectSaved(result.filename, result.backup, {silent:true});
+    else projectImportDirty = true;
+    return unchanged;
   },
 }));
 window.MSWE?.register('processing-host', () => Object.freeze({
@@ -46642,6 +46937,15 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
+  setBurnStyles: styles => {
+    DATA.preview ||= {};
+    DATA.preview.burn_subtitles = JSON.parse(JSON.stringify(styles));
+    previewGeometryDirty = true; scheduleAutoSaveFlush();
+  },
+  subtitlePreviewAppearance: () => ({
+    main:{...getPreviewGeometry(),...getSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayTextEl).fontSize)},
+    secondary:{...getExtensionSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayExtensionTextEl).fontSize)},
+    viewportHeight:Math.max(1,playerStage.getBoundingClientRect().height)}),
   audioExportPreview: () => ({ segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
   audioExportDuration: () => Math.round(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
@@ -47712,6 +48016,7 @@ window.addEventListener('beforeunload', (e) => {
   function saveAs({ project = null, name = host.name(), newProject = false } = {}) {
     if (!available() || active || host.saving() || recoveryModal.classList.contains('show')) return Promise.resolve(false);
     host.commitEdits(); target = null; busy(false); host.setSaving(true);
+    el('project-save-title').textContent = t(newProject ? '新工程保存位置' : '另存为工程');
     el('project-save-path').textContent = t('尚未选择保存位置');
     el('project-save-message').textContent = '';
     el('project-save-local').hidden = true;
@@ -47730,7 +48035,7 @@ window.addEventListener('beforeunload', (e) => {
     if (!active || working) return;
     const action = active; busy(true);
     try {
-      const result = await request('save-target', { filename: action.name, binding: host.config.processingContext?.binding });
+      const result = await request('save-target', { filename: action.name, newProject:action.newProject, binding: host.config.processingContext?.binding });
       if (action !== active || action.generation !== host.generation) return finish(false);
       if (!result.cancelled) {
         target = result.target;
@@ -47753,23 +48058,28 @@ window.addEventListener('beforeunload', (e) => {
     if (!active || !target || working) return;
     const action = active;
     if (action.generation !== host.generation) return finish(false);
-    host.commitEdits();
-    const project = action.project || host.snapshot();
-    const source = JSON.stringify(project);
     busy(true); host.setSaving(true);
+    const feedback = host.beginSaveFeedback();
     el('project-save-message').textContent = t('正在收集素材并保存工程…');
     try {
+      await feedback.ready;
+      if (action.generation !== host.generation) return finish(false);
+      host.commitEdits();
+      const project = action.project || host.snapshot();
+      const source = JSON.stringify(project);
       const result = await request('save-as', { target, project,
         recovery: recovering && !action.newProject,
         collectMedia: el('project-save-collect-media').checked, binding: host.config.processingContext?.binding });
       if (action.generation !== host.generation) return finish(false);
-      host.adopt(result, { source, newProject: action.newProject });
+      const unchanged = host.adopt(result, { source, newProject: action.newProject });
+      feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
       recovering = false;
       status(result.assets, '工程已保存', result.recoveryWarning); finish(true);
     } catch (error) {
+      feedback.finish(`${t('保存失败')}：${error.message}`,'warning');
       target = null; el('project-save-message').textContent = error.message;
       el('project-save-local').hidden = false;
-    } finally { if (!active) host.setSaving(false); busy(false); }
+    } finally { feedback.cancel();if (!active) host.setSaving(false); busy(false); }
   });
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && (active || recoveryModal.classList.contains('show'))) {
@@ -50691,6 +51001,22 @@ window.addEventListener('beforeunload', (e) => {
     const token = () => `${pageId}.${host.generation}`;
     let context = null, busy = null, pending = null, timer = null, polling = false, jobs = [], rendered = '', contextRequest = 0;
     const terminal = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
+    const monitorSnapshot = () => ({mode:timeline?'none':el('audio-export-monitor').value,volume:host.player.volume,muted:host.player.muted,
+      source_gain_db:global.MSWE.resolve('audio-timeline')?.sourceGainDb()||0});
+    function syncMonitorControls() {
+      el('audio-export-monitor-field').hidden=timeline;
+      const snapshot=monitorSnapshot(), levels=core.monitorGains({monitor:snapshot,source_gain_db:0,voice_gain_db:0});
+      for(const key of ['source','voice']) {
+        const input=el(`audio-export-${key}-gain`), synced=snapshot.mode===key||snapshot.mode==='both';
+        if(synced) {
+          if(!input.readOnly)input.dataset.manualValue=input.value;
+          input.type='text';input.readOnly=true;
+          input.value=levels[key+'Muted']?t('静音'):levels[key].toFixed(2);
+        } else if(input.readOnly) {
+          input.readOnly=false;input.type='number';input.value=input.dataset.manualValue??'0';
+        }
+      }
+    }
     const labels = { queued: '等待导出', running: '正在导出', cancel_requested: '正在取消', cancelled: '已取消',
       succeeded: '导出完成', failed: '导出失败', interrupted: '导出中断，请重新开始' };
     const stages = { preparing: '检查音频素材', source: '准备原声', mixing: '渲染音频', encoding: '编码 WAV', video: '编码视频', muxing: '合并音画', packaging: '打包剪辑素材' };
@@ -50712,12 +51038,13 @@ window.addEventListener('beforeunload', (e) => {
     }
     function selectedOptions({applyTail = true} = {}) {
       const custom = el('audio-export-range').value === 'custom';
-      const numeric = id => el(id).value.trim() ? Number(el(id).value) : NaN;
+      const numeric = id => {if(el(id).readOnly)return 0;const value=el(id).value;return value?.trim()?Number(value):NaN;};
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
         duration_ms: host.audioExportDuration(), start_ms: custom ? Math.round(numeric('audio-export-start-time') * 1000) : 0,
         end_ms: custom ? Math.round(numeric('audio-export-end-time') * 1000) : null,
         remove_gaps: el('audio-export-remove-gaps').checked, source_audio_index: Number(el('audio-export-stream').value || 0),
-        source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked });
+        source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked,
+        ...(!timeline?{monitor:monitorSnapshot()}:{}) });
       if (video) {
         settings.format = format;
         settings.video_tail = el('audio-export-tail').value;
@@ -50734,6 +51061,7 @@ window.addEventListener('beforeunload', (e) => {
     }
     const sourceAvailable = () => Boolean(context?.source_available && context.media_reference === host.data.media);
     function update() {
+      syncMonitorControls();
       const mix = el('audio-export-mode').value === 'mix';
       el('audio-export-source').hidden = !mix;
       el('audio-export-custom').hidden = el('audio-export-range').value !== 'custom';
@@ -50818,6 +51146,7 @@ window.addEventListener('beforeunload', (e) => {
         const title = document.createElement('strong');
         title.textContent = t(job.mode === 'mix' ? '原声 + 配音混音' : '配音轨（仅音频贴片）');
         if (video) title.textContent = `${t('导出视频')} · ${title.textContent}`;
+        if (video && job.options?.preview_sample) title.textContent = t('五秒样片');
         if (timeline) title.textContent = t('配音剪辑工程（OTIOZ）');
         const status = document.createElement('p'); status.className = 'msw-processing-hint';
         status.textContent = `${t(labels[job.status] || job.status)} · ${new Date(job.created_at * 1000).toLocaleTimeString()}`;
@@ -50875,14 +51204,16 @@ window.addEventListener('beforeunload', (e) => {
       } catch (error) { if (floating.isOpen() && generation === host.generation) message(error.message, true); }
       finally { polling = false; if (floating.isOpen() || jobs.some(j => !terminal.has(j.status))) schedule(); }
     }
-    async function start() {
+    async function start(overrides = null) {
       if (busy) return;
       const generation = host.generation, ticket = {}; busy = ticket;
       try {
         if (!pending) {
           const project = host.exportProject();
           for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete project[key];
-          const options = selectedOptions(); core.compile(project, options);
+          let options = {...selectedOptions({applyTail:!overrides}),...(overrides || {})};
+          if (video) options = core.videoOptions(project,options,context);
+          core.compile(project, options);
           pending = { project, options, plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
             request_key: global.MSWProject.id('export-request'), binding: host.config.processingContext?.binding };
         }
@@ -50910,8 +51241,19 @@ window.addEventListener('beforeunload', (e) => {
     });
     el('audio-export-close').addEventListener('click', () => floating.close());
     el('audio-export-start').addEventListener('click', () => void start());
+    if (video) global.addEventListener('msw:video-sample',async event=>{
+      if(busy||pending){message('请先确认当前导出请求',true);return;}
+      const generation=host.generation;
+      floating.open();if(!context)await loadContext();
+      if(generation!==host.generation||!context?.video)return;
+      const at=Math.max(0,Math.round(host.player.currentTime*1000)||0);
+      await start({start_ms:at,end_ms:at+5000,video_tail:'freeze',remove_gaps:false,burn_subtitles:event.detail.target,preview_sample:true});
+    });
     for (const input of panel.querySelectorAll('input, select')) input.addEventListener('input', update);
     global.addEventListener('msw:audio-changed', () => { if (floating.isOpen()) update(); });
+    global.addEventListener('msw:burn-style', () => { if (floating.isOpen()) update(); });
+    global.addEventListener('msw:source-gain', () => { if (floating.isOpen()) update(); });
+    host.player.addEventListener('volumechange',()=>{if(floating.isOpen())update();});
     global.addEventListener('msw:project-changed', () => {
       ++contextRequest; context = null; busy = null; pending = null; jobs = []; rendered = ''; clearTimeout(timer);
       renderJobs(); message('');
@@ -50925,7 +51267,7 @@ window.addEventListener('beforeunload', (e) => {
   for (const kind of ['video', 'timeline']) {
     const copy = blueprint.cloneNode(true);
     for (const node of [copy, ...copy.querySelectorAll('*')]) {
-      for (const attr of ['id', 'for', 'aria-labelledby']) {
+      for (const attr of ['id', 'for', 'aria-labelledby', 'data-help-for']) {
         if (node.hasAttribute(attr)) node.setAttribute(attr, node.getAttribute(attr).replaceAll('audio-export-', `${kind}-export-`));
       }
     }
@@ -50939,6 +51281,141 @@ window.addEventListener('beforeunload', (e) => {
   mount('audio');
   mount('video');
   mount('timeline');
+})(window);
+
+(function(global) {
+  'use strict';
+  const host=global.MSWE?.resolve('processing-host');if(!host)return;
+  const t=s=>global.MSWE_I18N?.translateText?.(s)||s;
+  const defaults={main:{font_family:'Arial',font_size:48,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y:.86,width:.8},
+    secondary:{font_family:'Arial',font_size:40,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y:.94,width:.8}};
+  const panel=document.createElement('aside');panel.id='burn-style-panel';panel.className='gap-remove-panel msw-processing-panel';
+  panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','false');panel.setAttribute('aria-hidden','true');panel.setAttribute('aria-labelledby','burn-style-title');
+  panel.innerHTML=`<header class="gap-remove-panel-header" id="burn-style-drag"><div class="gap-remove-heading"><span class="gap-remove-eyebrow">视频导出</span><h3 id="burn-style-title">字幕样式与预览</h3></div><button type="button" class="gap-remove-close" id="burn-style-close" aria-label="关闭字幕样式">${document.querySelector('#video-export-close').innerHTML}</button></header>
+    <div class="gap-remove-panel-body"><div class="msw-processing-fields">
+    <label>字幕轨道<select id="burn-style-track"><option value="main">主字幕</option><option value="secondary">副字幕</option></select></label>
+    <label>预览内容<select id="burn-style-target"><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label></div>
+    <div id="burn-style-fields" class="msw-processing-fields"></div>
+    <div class="msw-processing-actions"><button type="button" id="burn-style-copy">从当前预览样式复制</button><button type="button" id="burn-style-reset">恢复默认</button></div>
+    <p class="msw-processing-hint" data-help-for="burn-style-title">样式随工程保存。字号按画面高度百分比设置，位置为文字框底部中心。当前帧与样片使用和正式导出相同的字体渲染；复制播放器样式后请确认实际换行。播放器中的说话人下划线与表情包不复制。</p>
+    <div class="msw-processing-actions"><button type="button" id="burn-style-frame">预览当前帧</button><span id="burn-style-sample-help"><button type="button" id="burn-style-sample">生成五秒样片</button></span></div>
+    <p data-help-for="burn-style-sample-help" class="msw-processing-hint">从播放头生成五秒样片，保留空隙，超出视频时定格延长。使用当前导出音量和字幕样式，不改变正式导出范围。</p>
+    <p id="burn-style-message" class="msw-processing-message" role="status"></p><img id="burn-style-image" hidden alt="实际烧录效果预览"></div>`;
+  document.body.append(panel);
+  const el=id=>document.getElementById('burn-style-'+id);
+  const fields=[['font_family','字体','text'],['font_size','字号（画面高度 %）','number',.75,18.5,'any'],['color','文字颜色','color'],['outline_color','描边颜色','color'],
+    ['outline','描边宽度（1080p 基准）','number',0,12,.5],['background_color','背景颜色','color'],['background_alpha','背景不透明度（%）','number',0,100,1],
+    ['x','水平位置（%）','number',0,100,1],['y','垂直位置（%）','number',0,100,1],['width','文字框宽度（%）','number',10,100,1]];
+  for(const [key,label,type,min,max,step] of fields){const row=document.createElement('label');row.textContent=t(label);const input=document.createElement('input');input.id='burn-style-'+key;input.type=type;
+    if(type==='number'){input.min=min;input.max=max;input.step=step;}if(type==='text')input.maxLength=128;row.append(input);el('fields').append(row);}
+  const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.getElementById('video-export-style-open'),positionKey:'msw.burn.style.position'});
+  let styles,revision=0,controller=null,previewKey=null;
+  const subtitleKey=()=>JSON.stringify([host.data.segments,host.data.multi_subtitle?.tracks?.[0]?.segments].map(cues=>(cues||[]).map(c=>[c.start,c.end,c.text,c.disabled])));
+  const clone=value=>JSON.parse(JSON.stringify(value));
+  function read(){styles={main:{...defaults.main,...host.data.preview?.burn_subtitles?.main},secondary:{...defaults.secondary,...host.data.preview?.burn_subtitles?.secondary}};}
+  function display(){const s=styles[el('track').value];for(const [key]of fields)el(key).value=key==='font_size'?Number((s[key]/10.8).toFixed(3)):['x','y','width','background_alpha'].includes(key)?Number((s[key]*100).toFixed(3)):s[key];}
+  function stale(){revision++;controller?.abort();controller=null;el('image').hidden=true;el('message').textContent='';el('frame').disabled=false;}
+  function save(){host.setBurnStyles(styles);stale();global.dispatchEvent(new Event('msw:burn-style'));}
+  el('fields').addEventListener('change',event=>{
+    const key=event.target.id.replace('burn-style-','');if(!fields.some(f=>f[0]===key))return;
+    if(!event.target.validity.valid||!event.target.value.trim()){event.target.reportValidity();return;}
+    let value=event.target.type==='number'?Number(event.target.value):event.target.value;
+    if(key==='font_family'&&/[,{}\\\x00-\x1f]/.test(value)){el('message').textContent=t('字幕字体名称无效');return;}
+    if(key==='font_size')value*=10.8;else if(['x','y','width','background_alpha'].includes(key))value/=100;
+    styles[el('track').value][key]=value;save();
+  });
+  el('track').onchange=display;el('target').onchange=()=>{document.getElementById('video-export-burn-subtitles').value=el('target').value;document.getElementById('video-export-burn-subtitles').dispatchEvent(new Event('input',{bubbles:true}));stale();};
+  el('reset').onclick=()=>{styles[el('track').value]=clone(defaults[el('track').value]);save();display();};
+  el('copy').onclick=()=>{
+    const source=host.subtitlePreviewAppearance(),geo=source.main;
+    const family=name=>({default:'Arial',sans:'Arial',yahei:'Microsoft YaHei',hei:'SimHei',song:'SimSun'}[name]||name||'Arial').replace(/[,{}\\\x00-\x1f]/g,' ');
+    for(const key of ['main','secondary']){const appearance=source[key];styles[key]={...styles[key],font_family:family(appearance.font_family),
+      font_size:Math.max(8,Math.min(200,(appearance.font_size|| (key==='main'?24:22))*1080/source.viewportHeight)),color:appearance.color||defaults[key].color,
+      background_color:appearance.background_color||'#000000',background_alpha:appearance.background_alpha??(key==='main'?.65:0),
+      x:Math.min(1,geo.x+geo.width/2),width:Math.max(.1,geo.width),y:Math.min(.99,geo.y+geo.height-(key==='main'?.06:0))};}
+    save();display();
+  };
+  el('frame').onclick=async()=>{
+    controller?.abort();const request=new AbortController();controller=request;const ticket=++revision,generation=host.generation;
+    el('frame').disabled=true;el('image').hidden=true;el('message').textContent=t('正在生成实际预览…');
+    try{const project=host.exportProject();previewKey=subtitleKey();for(const key of ['waveform','spectral','waveform_reapeaks'])delete project[key];
+      const response=await fetch(host.config.processingUrl+'/video-export-preview',{method:'POST',signal:request.signal,headers:{'Content-Type':'application/json','X-MSW-Token':host.config.requestToken},
+        body:JSON.stringify({project_id:project.msw.project_id,project,binding:host.config.processingContext?.binding,at_ms:Math.max(0,Math.round(host.player.currentTime*1000)||0),burn_subtitles:el('target').value})});
+      const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'生成预览失败');
+      if(ticket!==revision||generation!==host.generation)return;
+      el('image').src=result.image;el('image').hidden=false;el('message').textContent=t('实际渲染预览')+` · ${(result.at_ms/1000).toFixed(3)} s`;
+    }catch(error){if(ticket===revision&&generation===host.generation&&error.name!=='AbortError')el('message').textContent=error.message;}
+    finally{if(ticket===revision){el('frame').disabled=false;controller=null;}}
+  };
+  el('sample').onclick=()=>{global.dispatchEvent(new CustomEvent('msw:video-sample',{detail:{target:el('target').value}}));floating.close();};
+  document.getElementById('video-export-style-open').onclick=()=>{stale();read();display();const target=document.getElementById('video-export-burn-subtitles').value;el('target').value=target==='none'?'main':target;floating.open();global.MSWHelp?.hydrate(panel);};
+  el('close').onclick=()=>{stale();floating.close();};
+  global.addEventListener('msw:project-changed',()=>{stale();floating.close();});
+  global.addEventListener('msw:media-changed',stale);
+  global.addEventListener('msw:subtitles-changed',()=>{if(previewKey!==null&&previewKey!==subtitleKey()){previewKey=null;stale();}});
+  global.MSWBurnStyle={defaults};
+})(window);
+
+// Shared, keyboard-accessible option help. Render outside floating panels so
+// long explanations are not clipped by their scrolling bodies.
+(function (global) {
+  'use strict';
+  const t = text => global.MSWE_I18N?.translateText?.(text) || text;
+  const popup = document.createElement('div');
+  popup.id = 'msw-option-help'; popup.className = 'msw-option-help'; popup.role = 'tooltip'; popup.hidden = true;
+  document.body.append(popup);
+  let active = null, pinned = false, timer;
+  function close() {
+    clearTimeout(timer); active?.setAttribute('aria-expanded','false'); active = null; pinned = false; popup.hidden = true;
+  }
+  function show(button, text) {
+    clearTimeout(timer);
+    if (active !== button) {close();active = button;}
+    popup.textContent = t(typeof text === 'function' ? text() : text); popup.hidden = false;
+    button.setAttribute('aria-expanded','true');
+    const rect = button.getBoundingClientRect(), box = popup.getBoundingClientRect();
+    popup.style.left = `${Math.max(8,Math.min(rect.left,innerWidth-box.width-8))}px`;
+    popup.style.top = `${Math.max(8,rect.bottom+box.height+8<innerHeight ? rect.bottom+6 : rect.top-box.height-6)}px`;
+  }
+  function delayedClose() { if (!pinned) timer = setTimeout(close,150); }
+  function attach(target, text) {
+    if (!target || target.querySelector(':scope > .msw-help-button')) return;
+    const button = document.createElement('button');button.type='button';button.className='msw-help-button';
+    button.setAttribute('aria-label',t('说明'));button.setAttribute('aria-describedby',popup.id);button.setAttribute('aria-expanded','false');
+    button.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 4.5v.5"/></svg>';
+    button.addEventListener('pointerenter',()=>show(button,text));button.addEventListener('pointerleave',delayedClose);
+    button.addEventListener('focus',()=>show(button,text));button.addEventListener('blur',delayedClose);
+    button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(active===button&&pinned)close();else{show(button,text);pinned=true;}});
+    target.append(button);
+  }
+  function caption(label) {
+    let title = label.querySelector(':scope > .msw-option-label, :scope > .gap-remove-field-label');
+    if (!title) {
+      title = document.createElement('span');title.className='msw-option-label';
+      for (const node of [...label.childNodes]) if (node.nodeType===Node.TEXT_NODE&&node.textContent.trim())title.append(node);
+      const check = label.querySelector(':scope > input[type="checkbox"]');
+      label.insertBefore(title,check ? check.nextSibling : label.firstChild);
+    }
+    return title;
+  }
+  function hydrate(root = document) {
+    for (const hint of root.querySelectorAll('[data-help-for]')) {
+      const target = document.getElementById(hint.dataset.helpFor);
+      if (!target) continue;
+      const label = target.closest('label') || (target.matches('details') ? target.querySelector('summary') : target);
+      attach(label.matches('label')?caption(label):label,()=>hint.textContent);
+      hint.hidden = true;
+    }
+    for (const hint of root.querySelectorAll('#auto-merge-panel .gap-remove-field small, #subtitle-scale-offset-modal .gap-remove-field small')) {
+      attach(caption(hint.closest('label')),hint.textContent);hint.hidden=true;
+    }
+    for (const label of root.querySelectorAll('[data-option-help]')) attach(caption(label),label.dataset.optionHelp);
+  }
+  popup.addEventListener('pointerenter',()=>clearTimeout(timer));popup.addEventListener('pointerleave',delayedClose);
+  document.addEventListener('pointerdown',e=>{if(active&&!active.contains(e.target)&&!popup.contains(e.target))close();},true);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&active){close();e.stopImmediatePropagation();e.preventDefault();}},true);
+  global.addEventListener('resize',close);document.addEventListener('scroll',()=>{if(!pinned)close();},true);
+  global.MSWHelp = {hydrate,attach,close};hydrate();
 })(window);
 
 (() => {

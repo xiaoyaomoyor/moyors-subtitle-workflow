@@ -8,8 +8,9 @@ import tempfile
 
 from maw.msw.audio_plan import compile_plan, round_sample, options
 from maw.msw.audio_render import check_cancel, command_prefix, fingerprint, probe_source, render, run
-from maw.msw.subtitle_export import burning_cues, slice_burning_cues, srt
+from maw.msw.subtitle_export import burning_cues, slice_burning_cues
 from maw.postprocess_ffmpeg import build_subtitle_filter
+from maw.msw.subtitle_style import styled_ass
 
 CHUNK_SECONDS = 30
 
@@ -114,8 +115,9 @@ def render_video(plan, output, tools, cancel, progress, resolve_asset, *, source
                                    "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p")
                         local_captions = slice_burning_cues(captions, begin * 1000 / float(rate), (begin + frames) * 1000 / float(rate))
                         if local_captions:
-                            subtitle = root / 'subtitles.srt'
-                            subtitle.write_text(srt(local_captions), encoding='utf-8-sig', newline='\n')
+                            subtitle = root / 'subtitles.ass'
+                            subtitle.write_text(styled_ass(project,plan,settings['burn_subtitles'],video,
+                                start_ms=begin*1000/float(rate),end_ms=(begin+frames)*1000/float(rate)),encoding='utf-8-sig',newline='\n')
                             filters += ',' + build_subtitle_filter(subtitle)
                         run(command_prefix(tools.ffmpeg) + ["-protocol_whitelist", "file,pipe", "-ss", f"{seek:.9f}",
                             "-threads", "2", "-i", str(source), "-map", f"0:{video['index']}", "-an", "-sn", "-dn",

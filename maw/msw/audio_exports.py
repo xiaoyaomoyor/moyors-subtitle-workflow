@@ -1,6 +1,7 @@
 """Local audio export jobs, immutable submissions and scoped downloads."""
 
 import copy
+import base64
 import hashlib
 import json
 import os
@@ -11,6 +12,7 @@ import shutil
 import sqlite3
 import threading
 import time
+import tempfile
 import uuid
 
 from maw.ffmpeg import resolve_ffmpeg_tools
@@ -41,6 +43,7 @@ class AudioExports:
         self.db.execute("CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project_id TEXT, request_key TEXT, fingerprint TEXT, payload TEXT, UNIQUE(project_id, request_key))")
         self.db.commit()
         self.events, self.downloads = {}, {}
+        self.preview_guard = threading.BoundedSemaphore(1)
         self.pending = queue.Queue()
         self.closed = False
         self.close_complete = threading.Event()
@@ -93,6 +96,50 @@ class AudioExports:
         with self.db:
             self.db.execute("INSERT INTO jobs VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
                             (job["id"], job["project_id"], job["request_key"], job["fingerprint"], json.dumps(job, ensure_ascii=False)))
+
+    def preview_frame(self, payload):
+        from maw.msw.audio_render import run, command_prefix
+        from maw.msw.subtitle_style import styled_ass
+        from maw.postprocess_ffmpeg import build_subtitle_filter
+        project_id = payload.get('project_id')
+        project = normalize_project(payload.get('project'))
+        if (project.get('msw') or {}).get('project_id') != project_id or not isinstance(payload.get('binding'), str):
+            raise ValueError('预览快照或工程绑定无效')
+        at = payload.get('at_ms')
+        target = payload.get('burn_subtitles')
+        if type(at) is not int or not 0<=at<=12*3600*1000 or target not in {'none','main','secondary','both'}:
+            raise ValueError('预览时间或字幕轨道无效')
+        source, owner, _ = self.source_scope(project_id,payload['binding'])
+        if not source or project.get('media') != owner.get('media') or not Path(source).is_file():
+            raise ValueError('原媒体尚未由本机服务接管')
+        if not self.preview_guard.acquire(blocking=False):
+            raise ValueError('正在生成预览，请稍后重试')
+        try:
+            tools = self.tools()
+            if not tools.complete:raise ValueError('生成预览需要 FFmpeg 与 FFprobe')
+            cancel = threading.Event();stamp = fingerprint(source)
+            info = probe_source(tools.ffprobe,source,cancel);video=info.get('video')
+            if not video:raise ValueError('原媒体没有可预览的视频画面')
+            if video.get('color_transfer') in {'smpte2084','arib-std-b67'}:
+                raise ValueError('当前重新编码暂不支持 HDR 色彩转换')
+            plan={'intervals':[{'start_ms':0,'end_ms':max(at+1000,info['duration_ms']),'output_start_ms':0}]}
+            with tempfile.TemporaryDirectory(prefix='frame-',dir=self.root) as folder:
+                root=Path(folder);subtitle=root/'preview.ass';output=root/'preview.png'
+                subtitle.write_text(styled_ass(project,plan,target,video,frame_at=at),encoding='utf-8-sig',newline='\n')
+                from maw.msw.video_render import frame_rate
+                # Tail previews use the last actual frame, with subtitles at
+                # the requested timeline position (the same freeze policy).
+                seek=min(at,max(0,video['duration_ms']-1000/float(frame_rate(video))))/1000
+                filters='setpts=PTS-STARTPTS,'+build_subtitle_filter(subtitle)
+                # Render subtitles at source resolution before fitting the UI.
+                filters+=",scale=w='min(1280,iw)':h=-2"
+                run(command_prefix(tools.ffmpeg)+['-ss',f'{seek:.6f}','-i',str(source),'-map',f"0:{video['index']}",
+                    '-an','-sn','-vf',filters,'-frames:v','1','-threads','1',str(output)],cancel,cwd=root,timeout=30)
+                if not output.is_file() or output.stat().st_size>8*1024*1024:raise ValueError('预览帧生成失败或过大')
+                if fingerprint(source)!=stamp:raise ValueError('原媒体已改变，请重新生成预览')
+                return {'image':'data:image/png;base64,'+base64.b64encode(output.read_bytes()).decode('ascii'),'at_ms':at}
+        finally:
+            self.preview_guard.release()
 
     @staticmethod
     def public(job):

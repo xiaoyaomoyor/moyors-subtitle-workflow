@@ -71,6 +71,73 @@ test('video follows gap cuts while retaining the shared audio clock', async ({pa
   await expect(card).toContainText('画面已重新编码');
 });
 
+test('export help is compact, pinnable and accessible without closing its panel',async({page})=>{
+  await open(page);
+  const help=page.locator('#video-export-tail-field .msw-help-button');
+  await help.click();
+  await expect(page.locator('#msw-option-help')).toContainText('原媒体音画尾差');
+  await expect(page.locator('p[data-help-for="video-export-tail"]')).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#msw-option-help')).toBeHidden();
+  await expect(page.locator('#video-export-panel')).toBeVisible();
+  await page.locator('#video-export-close').click();
+  await clickMenubarItem(page,'字幕','auto-merge-manage');
+  await expect(page.locator('#auto-merge-panel')).toBeVisible();
+  await expect(page.locator('#auto-merge-panel .gap-remove-field small:visible')).toHaveCount(0);
+  await expect(page.locator('#auto-merge-panel')).toContainText('范围：全部主字幕');
+  await page.setViewportSize({width:900,height:600});
+  expect(await page.locator('#auto-merge-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
+  if(process.env.MSW_UI_EVIDENCE_DIR)await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'merge-panel.png')});
+});
+
+test('monitor selection locks effective gain and snapshots it for export',async({page})=>{
+  await open(page);
+  await page.locator('#video-export-source-gain').fill('3');
+  await page.locator('#video-export-voice-gain').fill('-2');
+  await page.evaluate(async()=>{
+    window.MSWE.resolve('processing-host').player.volume=.5;
+    await window.MSWE.resolve('audio-timeline').setSourceGainDb(-6);
+  });
+  await page.locator('#video-export-monitor').selectOption('both');
+  await expect(page.locator('#video-export-source-gain')).toHaveValue('-12.02');
+  await expect(page.locator('#video-export-voice-gain')).toHaveValue('-6.02');
+  await expect(page.locator('#video-export-source-gain')).toHaveJSProperty('readOnly',true);
+  const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
+  await finish(page);
+  const body=(await submitted).postDataJSON();
+  expect(body.options.monitor).toEqual({mode:'both',volume:.5,muted:false,source_gain_db:-6});
+  await page.locator('#video-export-monitor').selectOption('none');
+  await expect(page.locator('#video-export-source-gain')).toHaveValue('3');
+  await expect(page.locator('#video-export-voice-gain')).toHaveValue('-2');
+});
+
+test('burn styles persist and produce real preview and five-second sample',async({page})=>{
+  await open(page);
+  await page.locator('#video-export-style-open').click();
+  await expect(page.locator('#burn-style-panel')).toBeVisible();
+  await page.locator('#burn-style-font_size').fill('8');
+  await page.locator('#burn-style-font_size').press('Tab');
+  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().preview.burn_subtitles.main.font_size)).toBeCloseTo(86.4);
+  await page.locator('#burn-style-color').fill('#e73377');
+  await page.locator('#burn-style-color').dispatchEvent('change');
+  await page.evaluate(()=>{window.MSWE.resolve('processing-host').player.currentTime=1.5;});
+  await page.locator('#burn-style-frame').click();
+  await expect(page.locator('#burn-style-image')).toBeVisible({timeout:30000});
+  await expect.poll(()=>page.locator('#burn-style-image').evaluate(i=>i.naturalWidth)).toBe(160);
+  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().preview.burn_subtitles.main.color)).toBe('#e73377');
+  if(process.env.MSW_UI_EVIDENCE_DIR)await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'burn-style.png')});
+  await page.locator('#burn-style-sample').click();
+  const card=page.locator('#video-export-jobs .msw-processing-job').first();
+  await expect(card.getByRole('button',{name:'下载 MP4',exact:true})).toBeVisible({timeout:30000});
+  await expect(card).toContainText('五秒样片');
+  const ready=page.waitForEvent('download');await card.getByRole('button',{name:'下载 MP4',exact:true}).click();
+  const output=join(dir,'sample.mp4');await (await ready).saveAs(output);
+  const info=JSON.parse(execFileSync(tool('ffprobe'),['-v','error','-show_format','-of','json',output],{encoding:'utf8',windowsHide:true}));
+  expect(Number(info.format.duration)).toBeCloseTo(5,1);
+  await expect(page.locator('#video-export-range')).toHaveValue('all');
+  await expect(page.locator('#video-export-tail')).toHaveValue('ask');
+});
+
 test('native audio tail does not block untouched video but an explicit tail range does',async({page})=>{
   await open(page);
   await expect(page.locator('#video-export-tail-summary')).toContainText('原媒体音画尾差');

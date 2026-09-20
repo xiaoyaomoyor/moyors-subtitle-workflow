@@ -389,6 +389,10 @@ function sortExtensionTrackSegments(track) {
   const changed = entries.some((entry, index) => entry.segment !== track.segments[index]);
   if (!changed) return false;
   const snapshot = extensionTrackSelectionSnapshot(track);
+  const indexMap = new Map(entries.map((entry, index) => [entry.index, index]));
+  for (const {segment} of entries) for (const key of ['color_ref', 'sticker_ref']) {
+    if (Number.isInteger(segment[key]?.headIdx)) segment[key].headIdx = indexMap.get(segment[key].headIdx) ?? segment[key].headIdx;
+  }
   track.segments = entries.map((entry) => entry.segment);
   track._dirty = true;
   restoreExtensionTrackSelection(track, snapshot);
@@ -597,9 +601,10 @@ function constrainBoundExtensionPanelEdit(extension, track, oldStart, oldEnd) {
     || constrained.end !== desiredMainEnd;
   const nextStart = oldStart + (constrained.start - main.start);
   const nextEnd = oldEnd + (constrained.end - main.end);
-  extension.items = remapPanelItems(extension.items, oldStart, oldEnd, nextStart, nextEnd);
+  extension.items = remapPanelItems(extension.items, extension.start, extension.end, nextStart, nextEnd);
   extension.start = nextStart;
   extension.end = nextEnd;
+  main.items = remapPanelItems(main.items, main.start, main.end, constrained.start, constrained.end);
   main.start = constrained.start;
   main.end = constrained.end;
   main._dirty = true;
@@ -927,8 +932,15 @@ function syncSegmentTimebase(segment, timebase, { preferFrames = false, minimumS
   if (!Array.isArray(segment.items)) return range;
   const frameBounds = timebase.unit === 'frames'
     ? { start: segment.start_frame, end: segment.end_frame } : null;
+  if (timebase.unit === 'frames' && !preferFrames) {
+    // Dense words can share a frame. Preserve their canonical millisecond
+    // intervals instead of repeatedly quantizing and repairing on each save.
+    window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);
+  }
   segment.items.forEach((item) => {
+    const milliseconds = {start:item.start, end:item.end};
     syncTimeRangeObjectTimebase(item, timebase, { preferFrames, frameBounds });
+    if (timebase.unit === 'frames' && !preferFrames) Object.assign(item, milliseconds);
   });
   if (timebase.unit === 'frames') {
     window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);
@@ -4178,6 +4190,8 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
   }
 
   function close() {
+    // Hidden inputs must not keep swallowing editor shortcuts after Escape.
+    if (panel.contains(document.activeElement)) document.activeElement.blur();
     panel.classList.remove('show', 'dragging');
     panel.style.zIndex = '';
     panel.setAttribute('aria-hidden', 'true');
@@ -5156,7 +5170,7 @@ function remapPanelItems(items, oldStart, oldEnd, newStart, newEnd) {
   if (!Array.isArray(items) || !items.length) return items;
   const oldDuration = Math.max(1, oldEnd - oldStart);
   const newDuration = Math.max(1, newEnd - newStart);
-  return items.map((item) => {
+  const mapped = items.map((item) => {
     // 等比缩放后钳回段内，并保证 end > start（防止取整后出现 0 长词块）。
     const mappedStart = Math.round(newStart + ((item.start - oldStart) / oldDuration) * newDuration);
     const mappedEnd = Math.round(newStart + ((item.end - oldStart) / oldDuration) * newDuration);
@@ -5165,6 +5179,9 @@ function remapPanelItems(items, oldStart, oldEnd, newStart, newEnd) {
     if (end <= start) start = Math.max(newStart, end - 1);
     return { ...item, start, end };
   });
+  const holder = {start:newStart,end:newEnd,items:mapped};
+  window.AsrEditorUtils.normalizeFrameItemTimingRanges(holder);
+  return holder.items;
 }
 
 function getCurrentCuePanelTarget() {
@@ -8653,32 +8670,73 @@ function mergeExtensionSegments(idxs, track = getActiveExtensionTrack()) {
 }
 
 
-// ── 「字幕 → 缩放字幕」子菜单：输入即生效（可撤销；未选中时对全部生效） ──
-function subtitleScaleOffsetTargets() {
-  const hasSelection = selectedIdxs.size > 0;
-  return hasSelection ? [...selectedIdxs] : [];
+// ── 「字幕 → 缩放/偏移」：显式选择轨道和范围，连续手势共享撤销记录。 ──
+let subtitleTimeGesture = null;
+function subtitleTimeContext() {
+  const kind = document.getElementById('subtitle-time-track')?.value || 'main';
+  const track = kind === 'extension' ? getActiveExtensionTrack() : null;
+  const segments = kind === 'extension' ? (track?.segments || []) : DATA.segments;
+  const selection = kind === 'extension' ? selectedExtensionIdxs : selectedIdxs;
+  const indices = document.getElementById('subtitle-time-scope')?.value === 'all'
+    ? segments.map((_,index)=>index) : [...selection].filter(index=>segments[index]);
+  return {kind,track,segments,indices};
 }
-function applySubtitleTimeEdit(label, editFn) {
+function subtitleTimeStatus(message, warning = false) {
+  const status = document.getElementById('subtitle-time-status');
+  if (!status) return;
+  status.textContent = window.MSWE_I18N?.translateText(message) || message;
+  status.classList.toggle('warning', warning);
+}
+function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '', moveDelta = null} = {}) {
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
-  const selected = subtitleScaleOffsetTargets();
+  const context = subtitleTimeContext();
   // 按时间顺序逐条约束：前面的结果作为后面字幕的邻居边界，整组移动/缩放也不会互相重叠。
-  const indices = (selected.length ? selected : DATA.segments.map((_, i) => i))
-    .slice().sort((a, b) => DATA.segments[a].start - DATA.segments[b].start);
+  const indices = context.indices.slice().sort((a, b) => context.segments[a].start - context.segments[b].start);
+  if (!indices.length) {subtitleTimeStatus('当前范围没有字幕',true);return {changed:0,limited:0};}
   let changed = 0;
   let limited = 0;
   let linkedChanged = false;
   const changedSegments = [];
   const oldRanges = new Map();
-  const working = DATA.segments.map((segment) => ({ ...segment }));
+  const working = context.segments.map((segment) => ({ ...segment }));
+  const linked = document.getElementById('subtitle-time-linked').checked && multiSubtitleVisible();
+  let appliedMove = moveDelta;
+  if (moveDelta !== null) {
+    // A group translation uses one common delta; never squeeze its durations or gaps.
+    const chosen = new Set(indices);
+    let low = -Infinity, high = Infinity;
+    indices.forEach(index=>{
+      const cue = working[index];
+      const previous = index > 0 && !chosen.has(index-1) ? working[index-1].end : 0;
+      const next = index+1 < working.length && !chosen.has(index+1) ? working[index+1].start : Infinity;
+      low = Math.max(low, previous-cue.start);high = Math.min(high,next-cue.end);
+    });
+    if (linked && context.kind === 'extension') {
+      const mains = indices.map(index => {
+        const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), working[index].id, 'extension', context.track.id);
+        return binding ? mainSegmentById(binding.main_segment_ids?.[0]) : null;
+      }).filter(Boolean);
+      const moved = new Set(mains);
+      mains.forEach(main => {
+        const bounds = getTrackNeighborBounds(main, DATA.segments, moved);
+        low = Math.max(low, Math.max(0, bounds.previousEnd) - main.start);
+        high = Math.min(high, bounds.nextStart - main.end);
+      });
+    }
+    appliedMove = low <= high ? Math.min(high,Math.max(low,moveDelta)) : 0;
+    if (appliedMove !== moveDelta) limited = indices.length;
+  }
   indices.forEach((index) => {
     const current = working[index];
     if (!current) return;
-    const desired = editFn(current);
+    const desired = moveDelta === null ? editFn(current) : {start:current.start+appliedMove,end:current.end+appliedMove};
     if (!desired) return;
     // 防重叠：与波形拖动同一条约束路径——期望范围被夹到前句终点与后句起点之间，
     // 空隙放不下时保持原时间不动。保存时的「时间重叠」修复卡片从此不再被触发。
-    const constrained = constrainCueRangeToTrack(current, desired.start, desired.end, working);
+    const constrained = moveDelta === null ? constrainCueRangeToTrack(current, desired.start, desired.end, working)
+      : {start:Math.round(desired.start),end:Math.round(desired.end),blocked:false};
+    if (constrained.end-constrained.start < (current.items?.length || 0)) constrained.blocked = true;
     if (constrained.blocked) {
       limited += 1;
       return;
@@ -8686,25 +8744,55 @@ function applySubtitleTimeEdit(label, editFn) {
     if (constrained.start !== desired.start || constrained.end !== desired.end) limited += 1;
     if (constrained.start === current.start && constrained.end === current.end) return;
     oldRanges.set(current.id, { start: current.start, end: current.end });
-    working[index] = { ...current, start: constrained.start, end: constrained.end };
+    working[index] = { ...current, start: constrained.start, end: constrained.end,
+      items:remapPanelItems(current.items,current.start,current.end,constrained.start,constrained.end) };
+    syncSegmentTimebase(working[index], projectTimebase(), {preferFrames:false});
     changedSegments.push(working[index]);
     changed += 1;
   });
-  if (!changed) return { changed: 0, limited };
-  pushUndo(label);
-  DATA.segments = working;
+  if (!changed) {subtitleTimeStatus(limited?'已到达相邻字幕或字词时间的边界':'字幕时间没有变化',Boolean(limited));return {changed:0,limited};}
+  const key = `${context.kind}:${context.track?.id || ''}:${gestureKey}:${indices.map(i=>context.segments[i].id).join(',')}:${document.getElementById('subtitle-time-linked').checked}`;
+  if (!gesture || !subtitleTimeGesture || subtitleTimeGesture.key !== key || performance.now()-subtitleTimeGesture.at > 450
+      || editorHistory.peekUndo() !== subtitleTimeGesture.record) {
+    subtitleTimeGesture = {key,record:pushUndo(label),at:performance.now()};
+  } else subtitleTimeGesture.at = performance.now();
+  if (!gesture) subtitleTimeGesture = null;
+  if (context.kind === 'main') DATA.segments = working;
+  else context.track.segments = working;
   changedSegments.forEach((segment) => { segment._dirty = true; });
-  // 主字幕缩放/偏移同步带动绑定的副字幕（与延长字幕同一条绑定同步路径）。
+  // Stage every follower before resolving conflicts, so moving one cue cannot
+  // trim another selected follower which has not moved yet.
+  const followersByTrack = new Map();
   changedSegments.forEach((segment) => {
     const previous = oldRanges.get(segment.id);
     if (!previous) return;
-    linkedChanged = syncBoundExtensionForMain(segment, {
-      oldStart: previous.start,
-      oldEnd: previous.end,
-      mode: 'range',
-    }) || linkedChanged;
+    if (!linked) return;
+    if (context.kind === 'extension') {
+      if (moveDelta === null) constrainBoundExtensionPanelEdit(segment,context.track,previous.start,previous.end);
+      else {
+        const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), segment.id, 'extension', context.track.id);
+        const main = binding ? mainSegmentById(binding.main_segment_ids?.[0]) : null;
+        if (main) {
+          main.items = remapPanelItems(main.items, main.start, main.end, main.start + appliedMove, main.end + appliedMove);
+          main.start += appliedMove; main.end += appliedMove; main._dirty = true;
+          syncSegmentTimebase(main, projectTimebase(), {preferFrames:false});
+        }
+      }
+      linkedChanged = true;return;
+    }
+    const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), segment.id, 'main');
+    const track = binding ? getExtensionTrack(binding.track_id) : null;
+    const follower = binding ? extensionSegmentById(binding.extension_segment_ids?.[0], track) : null;
+    if (!follower) return;
+    setExtensionSegmentRange(follower, follower.start + segment.start - previous.start, follower.end + segment.end - previous.end);
+    syncSegmentTimebase(follower, projectTimebase(), {preferFrames:false});
+    if (!followersByTrack.has(track)) followersByTrack.set(track, []);
+    followersByTrack.get(track).push(follower);
+    linkedChanged = true;
   });
-  markMainSegmentsDirty(changedSegments);
+  followersByTrack.forEach((followers, track) => reconcileExtensionTrack(track, followers));
+  if (context.kind === 'main') markMainSegmentsDirty(changedSegments);
+  else markMultiSubtitleStateDirty();
   syncTimelineGroupRanges();
   if (linkedChanged || multiSubtitleVisible()) markMultiSubtitleDirty();
   syncBindingOffsets();
@@ -8733,9 +8821,9 @@ function initSubtitleScaleOffsetControls() {
 
   // 缩放：percent% 缩放 + 邻居约束。锚点=各自中心（默认）或整组范围
   // （选中整体的起止等比缩放，组内间隔同比）。供输入提交 / 滚轮 / 步进按钮共用。
-  const applyScalePercent = (percent) => {
+  const applyScalePercent = (percent, gesture = false) => {
     if (!Number.isFinite(percent) || percent <= 0) {
-      flashHint('缩放比例必须是大于 0 的数字', 'invalid');
+      subtitleTimeStatus('缩放比例必须是大于 0 的数字', true);
       return null;
     }
     const factor = percent / 100;
@@ -8743,9 +8831,8 @@ function initSubtitleScaleOffsetControls() {
       ? 'group' : 'center';
     let groupStart = 0;
     if (anchor === 'group') {
-      const targets = subtitleScaleOffsetTargets();
-      const indices = targets.length ? targets : DATA.segments.map((_, i) => i);
-      const starts = indices.map((i) => DATA.segments[i]?.start).filter(Number.isFinite);
+      const context = subtitleTimeContext();
+      const starts = context.indices.map((i) => context.segments[i]?.start).filter(Number.isFinite);
       groupStart = starts.length ? Math.min(...starts) : 0;
     }
     const result = applySubtitleTimeEdit(`缩放字幕 ${percent}%`, (segment) => {
@@ -8761,16 +8848,16 @@ function initSubtitleScaleOffsetControls() {
       }
       if (Math.round(start) === segment.start && Math.round(end) === segment.end) return null;
       return { start, end };
-    });
+    }, {gesture,gestureKey:`scale:${anchor}`});
     if (result.changed) {
-      flashHint(`已缩放字幕至 ${percent}%${limitedSuffix(result)}`, 'success');
+      subtitleTimeStatus(`已调整 ${result.changed} 条字幕 · 本次缩放 ${percent}%${limitedSuffix(result)}`,Boolean(result.limited));
       // 应用后回到 100：与偏移行“应用后归零”一致，避免误以为还会再次缩放。
       percentInput.value = '100';
     }
     return result;
   };
   // 偏移：mode 决定动哪条边。供输入提交 / 滚轮 / 步进按钮共用。
-  const applyOffsetDelta = (mode, delta) => {
+  const applyOffsetDelta = (mode, delta, gesture = false) => {
     if (!Number.isFinite(delta) || delta === 0) return null;
     const result = applySubtitleTimeEdit(`${mode}偏移 ${delta}ms`, (segment) => {
       let start = segment.start; let end = segment.end;
@@ -8779,13 +8866,13 @@ function initSubtitleScaleOffsetControls() {
       else { start += delta; end += delta; }
       if (start === segment.start && end === segment.end) return null;
       return { start, end };
-    });
-    if (result.changed) flashHint(`已${mode}偏移 ${delta}ms${limitedSuffix(result)}`, 'success');
+    }, {gesture,gestureKey:`offset:${mode}`,moveDelta:mode==='整体'?delta:null});
+    if (result.changed) subtitleTimeStatus(`已调整 ${result.changed} 条字幕 · ${mode}偏移 ${delta} ms${limitedSuffix(result)}`,Boolean(result.limited));
     return result;
   };
   // 暴露给滚轮多档步进（滚轮绑定在弹窗区块，位于本函数之后）。
-  applySubtitleScaleWheel = applyScalePercent;
-  applySubtitleOffsetWheel = applyOffsetDelta;
+  applySubtitleScaleWheel = percent => applyScalePercent(percent,true);
+  applySubtitleOffsetWheel = (mode,delta) => applyOffsetDelta(mode,delta,true);
 
   percentInput.addEventListener('change', () => applyScalePercent(num(percentInput)));
   // 偏移行：Enter 或 change 提交后应用并把输入框归零（便于连续多次偏移）。
@@ -8822,7 +8909,17 @@ const subtitleScaleFloatingPanel = createFloatingPanel({
 });
 document.getElementById('subtitle-scale-offset-open')?.addEventListener('click', () => {
   if (subtitleScaleModal?.classList.contains('show')) subtitleScaleFloatingPanel.close();
-  else subtitleScaleFloatingPanel.open();
+  else {
+    document.getElementById('subtitle-time-track').value = selectedExtensionIdxs.size && !selectedIdxs.size ? 'extension' : 'main';
+    const selected = selectedExtensionIdxs.size || selectedIdxs.size;
+    document.getElementById('subtitle-time-scope').value = selected ? 'selected' : 'all';
+    subtitleTimeGesture = null;
+    subtitleTimeStatus(selected ? '作用于所选字幕；可撤销' : '作用于整条轨道；可撤销');
+    subtitleScaleFloatingPanel.open();
+  }
+});
+for (const id of ['subtitle-time-track','subtitle-time-scope','subtitle-time-linked']) document.getElementById(id)?.addEventListener('change',()=>{
+  subtitleTimeGesture = null;subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);
 });
 document.getElementById('subtitle-scale-offset-close')?.addEventListener('click', () => subtitleScaleFloatingPanel.close());
 // 步进按钮：单击 ±1（缩放 1%、偏移 1ms）；长按 300ms 后每 70ms 连发。
@@ -8833,7 +8930,7 @@ subtitleScaleModal?.querySelectorAll('.gap-remove-step-btn').forEach((button) =>
   const isScale = input.id === 'subtitle-scale-percent';
   let repeatTimer = 0;
   let holdTimer = 0;
-  const stop = () => { clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer = 0; repeatTimer = 0; };
+  const stop = () => { clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer = 0; repeatTimer = 0; subtitleTimeGesture = null; };
   const stepOnce = () => {
     if (isScale) {
       const current = Number(input.value) || 100;
@@ -12604,7 +12701,9 @@ function buildJson() {
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const repairedTimingCount = repairCurrentProjectTimings();
   if (repairedTimingCount > 0) {
-    flashHint(`已自动修复 ${repairedTimingCount} 处异常时间码（保底 100ms）`, 'warning');
+    const notice = `已校正 ${repairedTimingCount} 处字词时间；请检查调整结果`;
+    if (document.getElementById('subtitle-scale-offset-modal')?.classList.contains('show')) subtitleTimeStatus(notice,true);
+    else flashHint(notice, 'warning');
   }
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const out = {
@@ -12685,6 +12784,7 @@ function buildJson() {
   if (workspace) out.workspace = workspace;
   // 预览几何：始终写入归一化后的当前几何，便于跨机/重开保持位置。
   const preview = { subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() } };
+  if (DATA.preview?.burn_subtitles) preview.burn_subtitles = JSON.parse(JSON.stringify(DATA.preview.burn_subtitles));
   if (getActiveExtensionTrack() || DATA.preview?.extension_subtitle) {
     preview.extension_subtitle = { ...getStoredExtensionSubtitleAppearance() };
   }
@@ -12723,7 +12823,9 @@ function timingRepairSignature(segment) {
 function repairTimingGroup(segments) {
   const source = Array.isArray(segments) ? segments : [];
   const before = source.map((segment) => timingRepairSignature(segment));
-  const fixed = window.AsrEditorUtils.normalizeItemTimingRanges(source);
+  // Word timing uses the available cue span, including dense/frame-rounded words.
+  // The old 100 ms fallback could expand words beyond the cue on every save.
+  const fixed = source.reduce((count,segment)=>count+window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment),0);
   const changed = source.filter((segment, index) => (
     timingRepairSignature(segment) !== before[index]
   ));
@@ -14400,7 +14502,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   }
   rememberProjectSavedAt(filename);
   renderAll();
-  if (!silent) flashHint('保存成功！', 'success');
+  if (!silent) flashHint('保存成功', 'success');
 }
 
 async function saveProjectToServer({ silent = false } = {}) {
@@ -14418,13 +14520,17 @@ async function saveProjectToServer({ silent = false } = {}) {
     return false;
   }
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
-  if (editingState) finishEdit(true);
-  if (extensionEditingState) finishExtensionEdit(true);
-  commitCuePanelEdit();
-  const projectJson = buildJson();
   const savedGeneration = mswProjectGeneration;
   projectSaveInFlight = true;
+  const feedback = beginProjectSaveFeedback({silent});
+  let projectJson;
   try {
+    await feedback.ready;
+    if (savedGeneration !== mswProjectGeneration) return false;
+    if (editingState) finishEdit(true);
+    if (extensionEditingState) finishExtensionEdit(true);
+    commitCuePanelEdit();
+    projectJson = buildJson();
     const processingContext = SERVER_CONFIG.processingContext;
     const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
@@ -14439,18 +14545,20 @@ async function saveProjectToServer({ silent = false } = {}) {
     }
     if (savedGeneration !== mswProjectGeneration) return false;
     if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
+    const unchanged = buildJson() === projectJson;
     window.MSWE?.resolve('project-persistence')?.status(result.assets,
-      buildJson() === projectJson ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
-    if (buildJson() === projectJson) markProjectSaved(result.filename, result.backup, { silent });
-    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
+      unchanged ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
+    if (unchanged) markProjectSaved(result.filename, result.backup, {silent:true});
+    feedback.finish(unchanged ? '保存成功' : '保存完成；保存期间的新修改仍未保存', unchanged?'success':'warning');
     return true;
   } catch (error) {
     const detail = error?.message || error;
+    feedback.cancel();
     showProjectSaveError(detail);
     // A stale browser tab can outlive the localhost process (the browser reports
     // ERR_CONNECTION_REFUSED). Offer a real file save so Ctrl+S never strands
     // completed edits, while making clear that the bound JSON was not overwritten.
-    if (error instanceof TypeError
+    if (projectJson && error instanceof TypeError
         && confirm('无法连接本地编辑器服务器。是否改为导出工程文件，以免丢失改动？')) {
       const saved = await downloadFile(projectJson, `${FILENAME_BASE}.mosp`, 'application/json', {
         desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
@@ -14459,6 +14567,7 @@ async function saveProjectToServer({ silent = false } = {}) {
     }
     return false;
   } finally {
+    feedback.cancel();
     projectSaveInFlight = false;
   }
 }
@@ -14467,25 +14576,31 @@ async function saveProjectToServer({ silent = false } = {}) {
 async function saveProjectToHandle({ silent = false } = {}) {
   if (!projectFileHandle) return false;
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
-  if (editingState) finishEdit(true);
-  if (extensionEditingState) finishExtensionEdit(true);
-  commitCuePanelEdit();
-  const projectJson = buildJson();
   const savedGeneration = mswProjectGeneration;
   const savedHandle = projectFileHandle;
   projectSaveInFlight = true;
+  const feedback = beginProjectSaveFeedback({silent});
   try {
+    await feedback.ready;
+    if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
+    if (editingState) finishEdit(true);
+    if (extensionEditingState) finishExtensionEdit(true);
+    commitCuePanelEdit();
+    const projectJson = buildJson();
     const writable = await savedHandle.createWritable();
     await writable.write(new Blob([projectJson], { type: 'application/json;charset=utf-8' }));
     await writable.close();
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
-    if (buildJson() === projectJson) markProjectSaved(savedHandle.name, null, { silent });
-    else if (!silent) flashHint('保存完成；保存期间的新修改仍未保存', 'warning');
+    const unchanged = buildJson() === projectJson;
+    if (unchanged) markProjectSaved(savedHandle.name, null, {silent:true});
+    feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
     return true;
   } catch (error) {
-    flashHint(`保存失败：${error?.message || error}`, 'warning');
+    feedback.finish(`保存失败：${error?.message || error}`, 'warning');
+    if (silent) flashHint(`保存失败：${error?.message || error}`, 'warning');
     return false;
   } finally {
+    feedback.cancel();
     projectSaveInFlight = false;
   }
 }
@@ -14521,25 +14636,29 @@ async function saveProjectAsToFile() {
     return;
   }
   projectSaveInFlight = true;
+  let feedback;
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName: suggested,
       types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
+    feedback = beginProjectSaveFeedback();await feedback.ready;
     const writable = await handle.createWritable();
     await writable.write(new Blob([snapshot], { type: 'application/json;charset=utf-8' }));
     await writable.close();
     if (generation !== mswProjectGeneration) return false;
     projectFileHandle = handle;
-    if (buildJson() === snapshot) markProjectSaved(handle.name, null);
-    else { projectImportDirty = true; flashHint('保存完成；保存期间的新修改仍未保存', 'warning'); }
+    const unchanged = buildJson() === snapshot;
+    if (unchanged) markProjectSaved(handle.name, null, {silent:true});
+    else projectImportDirty = true;
+    feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
     configureServerSaveControls();
     scheduleAutoSave();
     warnReferences();
   } catch (error) {
     if (error && error.name === 'AbortError') return;  // 用户取消保存对话框
     flashHint(`保存失败：${error?.message || error}`, 'warning');
-  } finally { projectSaveInFlight = false; }
+  } finally { feedback?.cancel();projectSaveInFlight = false; }
 }
 
 const mediaNameEl = document.getElementById('media-name');
@@ -15553,6 +15672,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     return false;
   }
   projectCheckpointInFlight = true;
+  let feedback;
   try {
     if (!window.showSaveFilePicker || !navigator.userActivation?.isActive) {
       // 检查点只用于确认后续导入可以继续；无用户手势时不能弹出保存对话框，
@@ -15563,8 +15683,9 @@ async function createProjectCheckpoint(project, suggestedName) {
     }
     const handle = await window.showSaveFilePicker({
       suggestedName,
-      types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
+      types: [{ description: '新工程保存位置', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
+    feedback = beginProjectSaveFeedback();await feedback.ready;
     const writable = await handle.createWritable();
     await writable.write(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json;charset=utf-8' }));
     await writable.close();
@@ -15572,6 +15693,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     projectFileHandle = handle;
     // detachServerProjectSaving 内部会刷新保存控件并重启自动保存。
     detachServerProjectSaving();
+    feedback.finish();
     return true;
   } catch (error) {
     if (error && error.name === 'AbortError') return false;  // 用户取消保存对话框
@@ -15597,6 +15719,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     flashHint(`创建工程失败：${error.message || error}`, 'warning');
     return false;
   } finally {
+    feedback?.cancel();
     projectCheckpointInFlight = false;
   }
 }
@@ -19112,7 +19235,7 @@ function flashHint(msg, type = 'default', options = {}) {
   // 先挤掉最早的再插入新卡片：溢出项立即移除（不走退场动画），
   // 保证视觉上始终最多 3 条，不会出现第 4 条先闪现再挤出的跳动。
   while (stack.children.length >= HINT_MAX_VISIBLE) {
-    const oldest = stack.firstElementChild;
+    const oldest = [...stack.children].find(node=>node.dataset.saveProgress!=='true') || stack.firstElementChild;
     oldest.dataset.dismissed = '1';  // 让其到期定时器空转
     oldest.remove();
   }
@@ -19129,6 +19252,29 @@ function flashHint(msg, type = 'default', options = {}) {
   const durationMs = Number.isFinite(options.durationMs) ? options.durationMs : HINT_DURATION_MS;
   if (durationMs > 0) setTimeout(() => dismissHintCard(card), durationMs);
   return card;
+}
+
+function beginProjectSaveFeedback({silent = false} = {}) {
+  const translate = text => window.MSWE_I18N?.translateText(text) || text;
+  const card = silent ? null : flashHint('', 'default', {durationMs:0,contentBuilder:node=>{
+    node.dataset.saveProgress = 'true'; node.setAttribute('role','status'); node.setAttribute('aria-live','polite');
+    const spinner=document.createElement('span');spinner.className='hint-save-spinner';spinner.setAttribute('aria-hidden','true');
+    const label=document.createElement('span');label.textContent=translate('正在保存');node.append(spinner,label);
+  }});
+  let pending = true;
+  return {
+    // Paint the pending state before serializing large project snapshots.
+    ready: silent ? Promise.resolve() : new Promise(resolve=>{
+      const fallback=setTimeout(resolve,100);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(fallback);resolve();}));
+    }),
+    finish(label='保存成功',type='success') {
+      if (!pending) return;pending=false;if (!card) return;
+      delete card.dataset.saveProgress;card.className=`hint-card hint-${type}`;card.textContent=translate(label);
+      setTimeout(()=>dismissHintCard(card),HINT_DURATION_MS);
+    },
+    cancel() {if(pending){pending=false;if(card){delete card.dataset.saveProgress;dismissHintCard(card);}}},
+  };
 }
 
 // 振幅到达上下限时由波形模块派发的事件：rAF 节流后仍可能每帧触发，冷却避免提示闪烁
@@ -20193,10 +20339,13 @@ const cueCopyButton = document.getElementById('cue-copy');
 const cuePasteButton = document.getElementById('cue-paste');
 const cueDeleteButton = document.getElementById('cue-delete');
 
-function cloneCueForClipboard(segment) {
+function cloneCueForClipboard(segment, segments = DATA.segments) {
   if (!segment) return null;
   const copy = JSON.parse(JSON.stringify(segment));
   delete copy._dirty;
+  const reference = segment.color_ref;
+  const color = segment.color || segments?.[reference?.headIdx]?.color || COLOR_BY_NAME[reference?.name];
+  if (color) copy.color = {...JSON.parse(JSON.stringify(color)), start:copy.start, end:copy.end};
   // 分组引用（颜色/表情包 head-ref）指向原字幕的组关系，粘贴副本后重连会指向
   // 错误的对象；剪切时原分组关系已由 deleteSegments 的拆组逻辑处理。
   delete copy.sticker_ref;
@@ -20217,7 +20366,7 @@ function captureExtensionClipboard(mainIdxs) {
   if (!track) return;
   const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
   cueClipboardExtensionSegments = extIdxs
-    .map((index) => cloneCueForClipboard(track.segments[index]))
+    .map((index) => cloneCueForClipboard(track.segments[index], track.segments))
     .filter(Boolean);
   const copiedExtIds = new Set(extIdxs.map((index) => track.segments[index]?.id).filter(Boolean));
   mainIdxs.forEach((index) => {
@@ -20297,8 +20446,11 @@ function pasteCuesFromClipboard() {
   const earliestAfterShift = minCopyStart + shift;
   if (earliestAfterShift < 0) shift -= earliestAfterShift;
   copies.forEach((segment) => {
+    segment.items = remapPanelItems(segment.items, segment.start, segment.end, segment.start + shift, segment.end + shift);
     segment.start = (Number(segment.start) || 0) + shift;
     segment.end = (Number(segment.end) || 0) + shift;
+    if (segment.color) Object.assign(segment.color, {start:segment.start,end:segment.end});
+    syncSegmentTimebase(segment, projectTimebase(), {preferFrames:false});
   });
   // 插入位置按时间有序（首条副本的 start 落点）而非数组末尾：
   // 波形渲染与列表联动都假设 segments 按 start 升序。有选中时仍贴在选中之后。
@@ -20308,9 +20460,6 @@ function pasteCuesFromClipboard() {
     const pastedFirstStart = Number(copies[0].start) || 0;
     insertAt = DATA.segments.findIndex((segment) => Number(segment.start) > pastedFirstStart);
     if (insertAt < 0) insertAt = DATA.segments.length;
-    if (selectedIdxs.size && insertAt <= Math.max(...selectedIdxs)) {
-      insertAt = Math.max(...selectedIdxs) + 1;
-    }
   }
   pushUndo(`粘贴 ${copies.length + (cueClipboardExtensionSegments?.length || 0)} 条字幕`);
   // 原 id → 新副本 id（copies 与 cueClipboardSegments 顺序一一对应）：
@@ -20318,6 +20467,7 @@ function pasteCuesFromClipboard() {
   const mainOldToNew = new Map();
   copies.forEach((copy, offset) => mainOldToNew.set(cueClipboardSegments[offset]?.id, copy.id));
   DATA.segments.splice(insertAt, 0, ...copies);
+  window.AsrEditorUtils.shiftGroupReferenceIndices(DATA.segments, insertAt, copies.length);
 
   // 连锁对：副字幕副本同一偏移落位（时间有序插入 + 排序契约），
   // 再按原配对重建绑定；多重字幕已关闭时只贴主轨（副轨无处落位）。
@@ -20330,14 +20480,18 @@ function pasteCuesFromClipboard() {
       const copy = JSON.parse(JSON.stringify(segment));
       copy.id = `ext-pasted-${stamp}-${offset}`;
       copy._dirty = true;
+      copy.items = remapPanelItems(copy.items, copy.start, copy.end, copy.start + shift, copy.end + shift);
       copy.start = (Number(copy.start) || 0) + shift;
       copy.end = (Number(copy.end) || 0) + shift;
+      if (copy.color) Object.assign(copy.color, {start:copy.start,end:copy.end});
+      syncSegmentTimebase(copy, projectTimebase(), {preferFrames:false});
       return copy;
     });
     const extFirstStart = Number(extCopies[0].start) || 0;
     let extAt = extTrack.segments.findIndex((segment) => Number(segment.start) > extFirstStart);
     if (extAt < 0) extAt = extTrack.segments.length;
     extTrack.segments.splice(extAt, 0, ...extCopies);
+    window.AsrEditorUtils.shiftGroupReferenceIndices(extTrack.segments, extAt, extCopies.length);
     sortExtensionTrackSegments(extTrack);
     extInserted = extCopies.length;
     cueClipboardExtensionSegments.forEach((segment, offset) => {
@@ -21225,6 +21379,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
   saving: () => projectSaveInFlight || projectCheckpointInFlight,
   setSaving: value => { projectSaveInFlight = value; },
+  beginSaveFeedback: beginProjectSaveFeedback,
   adopt: (result, { source, newProject }) => {
     validateProjectForLoad(result.project);
     const unchanged = newProject || JSON.stringify(JSON.parse(buildJson())) === source;
@@ -21247,8 +21402,9 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     const title = document.getElementById('json-name');
     title.textContent = result.filename; title.classList.remove('empty');
     configureServerSaveControls(); updateLottieExportButton(); updateOgrafExportButton(); scheduleAutoSave();
-    if (unchanged) markProjectSaved(result.filename, result.backup);
-    else { projectImportDirty = true; flashHint('保存完成；保存期间的新修改仍未保存', 'warning'); }
+    if (unchanged) markProjectSaved(result.filename, result.backup, {silent:true});
+    else projectImportDirty = true;
+    return unchanged;
   },
 }));
 window.MSWE?.register('processing-host', () => Object.freeze({
@@ -21435,6 +21591,15 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
+  setBurnStyles: styles => {
+    DATA.preview ||= {};
+    DATA.preview.burn_subtitles = JSON.parse(JSON.stringify(styles));
+    previewGeometryDirty = true; scheduleAutoSaveFlush();
+  },
+  subtitlePreviewAppearance: () => ({
+    main:{...getPreviewGeometry(),...getSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayTextEl).fontSize)},
+    secondary:{...getExtensionSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayExtensionTextEl).fontSize)},
+    viewportHeight:Math.max(1,playerStage.getBoundingClientRect().height)}),
   audioExportPreview: () => ({ segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
   audioExportDuration: () => Math.round(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,

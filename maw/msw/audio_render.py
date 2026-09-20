@@ -229,8 +229,8 @@ def render(plan, output, ffmpeg, cancel, progress, resolve_asset, *, source=None
             return dest
 
         # Materialize original-audio pieces on the same kept-interval mapping.
-        pieces = list(plan["pieces"])
-        if source_proxy:
+        pieces = [piece for piece in plan["pieces"] if not piece.get('muted')]
+        if source_proxy and not plan['source'].get('muted'):
             for k in plan["intervals"]:
                 start = round_sample(k["output_start_ms"] * rate / 1000)
                 end = round_sample((k["output_start_ms"] + k["end_ms"] - k["start_ms"]) * rate / 1000)

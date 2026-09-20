@@ -7,6 +7,15 @@ for (const file of ['msw-project.js', 'msw-audio-core.js', 'msw-audio-render-cor
   vm.runInNewContext(fs.readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8'), context);
 }
 const core = context.window.MSWAudioRender;
+for(const c of JSON.parse(fs.readFileSync(new URL('fixtures/msw_monitor.json',import.meta.url))))test(`monitor ${c.mode} ${c.volume} ${c.muted}`,()=>{
+  const monitor={mode:c.mode,volume:c.volume,muted:c.muted,source_gain_db:c.source_gain_db};
+  const result=core.monitorGains({monitor,source_gain_db:2,voice_gain_db:-3});
+  assert.ok(Math.abs(result.source-c.source)<1e-10);assert.ok(Math.abs(result.voice-c.voice)<1e-10);
+  assert.equal(result.sourceMuted,c.silent_source);assert.equal(result.voiceMuted,c.silent_voice);
+});
+test('invalid monitor snapshots cannot bypass validation',()=>{
+  for(const monitor of [null,{}, {mode:'both',volume:2,muted:false,source_gain_db:0}])assert.throws(()=>core.options({monitor}));
+});
 const videoCases = JSON.parse(fs.readFileSync(new URL('fixtures/msw_video_tail.json', import.meta.url)));
 for (const c of videoCases) test(`video: ${c.name}`, () => {
   const project = {segments: c.cue_end ? [{start:0,end:c.cue_end,text:'main'}] : [],

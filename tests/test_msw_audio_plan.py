@@ -3,12 +3,20 @@ import json
 from pathlib import Path
 import unittest
 
-from maw.msw.audio_plan import compile_plan
+from maw.msw.audio_plan import compile_plan, monitor_gains
 
 FIXTURES = json.loads((Path(__file__).parent / 'fixtures' / 'msw_audio_render.json').read_text(encoding='utf-8'))
 
 
 class AudioPlanTests(unittest.TestCase):
+    def test_shared_monitor_levels(self):
+        for c in json.loads((Path(__file__).parent/'fixtures/msw_monitor.json').read_text()):
+            with self.subTest(c=c):
+                monitor={k:c[k] for k in ['mode','volume','muted','source_gain_db']}
+                source,voice,source_mute,voice_mute=monitor_gains(dict(monitor=monitor,source_gain_db=2,voice_gain_db=-3))
+                self.assertAlmostEqual(source,c['source']);self.assertAlmostEqual(voice,c['voice'])
+                self.assertEqual((source_mute,voice_mute),(c['silent_source'],c['silent_voice']))
+
     def test_shared_browser_server_fixtures(self):
         for fixture in FIXTURES:
             with self.subTest(fixture=fixture['name']):

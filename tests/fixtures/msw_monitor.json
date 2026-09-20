@@ -1,0 +1,8 @@
+[
+  {"mode":"none","volume":0.5,"muted":false,"source_gain_db":6,"source":2,"voice":-3,"silent_source":false,"silent_voice":false},
+  {"mode":"source","volume":0.5,"muted":false,"source_gain_db":6,"source":-0.020599913279624182,"voice":-3,"silent_source":false,"silent_voice":false},
+  {"mode":"voice","volume":0.5,"muted":false,"source_gain_db":6,"source":2,"voice":-6.020599913279624,"silent_source":false,"silent_voice":false},
+  {"mode":"both","volume":0.5,"muted":false,"source_gain_db":6,"source":-0.020599913279624182,"voice":-6.020599913279624,"silent_source":false,"silent_voice":false},
+  {"mode":"both","volume":0,"muted":false,"source_gain_db":6,"source":6,"voice":0,"silent_source":true,"silent_voice":true},
+  {"mode":"source","volume":1,"muted":true,"source_gain_db":6,"source":6,"voice":-3,"silent_source":true,"silent_voice":false}
+]

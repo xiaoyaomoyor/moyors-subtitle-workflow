@@ -87,6 +87,12 @@ class PersistenceTests(unittest.TestCase):
         # aliases must compare to the same resolved file, not their spelling.
         self.assertEqual(self.server.project.json_path, self.destination.resolve())
 
+    def test_new_project_save_target_uses_distinct_picker_title(self):
+        with patch.object(self.service, "picker", return_value=self.destination) as picker:
+            self.service.choose_target({"binding": self.api.context()["binding"],
+                                        "filename": "new.mosp", "newProject": True})
+        picker.assert_called_once_with("new.mosp", _new_project=True)
+
     def test_optional_media_collection_and_relative_reference_relocation(self):
         self.server.project.data["media"] = self.media.name
         result = self.save_as()

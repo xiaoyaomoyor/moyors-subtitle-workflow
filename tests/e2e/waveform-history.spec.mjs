@@ -1790,7 +1790,15 @@ test('offsets selected subtitle ends and undoes the batch in one step', async ({
   const after = await page.evaluate(() => structuredClone(DATA.segments));
   expect(after.slice(0, 2).map(s => s.end)).toEqual(before.slice(0, 2).map(s => s.end + 60));
   expect(after.slice(2)).toEqual(before.slice(2));
-  expect(after.slice(0, 2).map(s => s.items)).toEqual(before.slice(0, 2).map(s => s.items));
+  // Words now follow the changed cue span; leaving them at the old times was
+  // the source of repeated timing repairs during subsequent saves.
+  for (let index = 0; index < 2; index += 1) {
+    const old = before[index], current = after[index];
+    expect(current.items.map(item => [item.start, item.end])).toEqual(old.items.map(item => [
+      Math.round(old.start + (item.start - old.start) * (current.end - current.start) / (old.end - old.start)),
+      Math.round(old.start + (item.end - old.start) * (current.end - current.start) / (old.end - old.start)),
+    ]));
+  }
   await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments)).toEqual(before);
 });

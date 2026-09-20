@@ -9,6 +9,72 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '清除全部空字幕块': 'Remove all empty subtitle blocks',
+    '删除当前项目中所有没有文字内容的字幕块（含副字幕）': 'Delete all empty subtitle blocks in this project, including secondary subtitles',
+    '显示搜索与筛选': 'Show search and filters',
+    '隐藏/显示素材库顶部的搜索框与批次筛选': 'Show or hide library search and batch filters',
+    '所选字幕': 'Selected subtitles',
+    '音频': 'Audio',
+    '静音': 'Mute',
+    '峰值保护': 'Peak protection',
+    '视频导出': 'Video export',
+    '恢复默认': 'Restore defaults',
+    '说明': 'Help',
+    '关闭字幕编辑器设置': 'Close subtitle editor settings',
+    '新工程保存位置': 'New project save location',
+    '正在保存': 'Saving',
+    '保存成功': 'Saved',
+    '波形跟随源试听增益': 'Waveform follows source preview gain',
+    '复用峰值缓存，仅调整显示高度；不影响时间、频谱颜色或音频文件。': 'Reuse cached peaks to adjust display height only. Timing, spectral colors and audio files remain unchanged.',
+    '源音频试听增益；波形按此增益调整显示高度': 'Source preview gain; waveform height follows this gain',
+    '作用轨道': 'Target track',
+    '当前副字幕轨': 'Current secondary track',
+    '作用范围': 'Scope',
+    '整条轨道': 'Entire track',
+    '联动绑定字幕': 'Move bound subtitles together',
+    '请选择作用范围': 'Choose a scope',
+    '作用于所选字幕；可撤销': 'Applies to selected subtitles; undo is available',
+    '作用于整条轨道；可撤销': 'Applies to the entire track; undo is available',
+    '当前范围没有字幕': 'No subtitles in this scope',
+    '已到达相邻字幕或字词时间的边界': 'Reached a neighboring subtitle or word timing boundary',
+    '字幕时间没有变化': 'Subtitle timing unchanged',
+    '样式随工程保存。字号按画面高度百分比设置，位置为文字框底部中心。当前帧与样片使用和正式导出相同的字体渲染；复制播放器样式后请确认实际换行。播放器中的说话人下划线与表情包不复制。': 'Styles are saved with the project. Font sizes use picture-height percentages; positions refer to the bottom center of the text box. Frame previews and samples use the export renderer. Check wrapping after copying player styles. Speaker underlines and stickers are not copied.',
+    '从播放头生成五秒样片，保留空隙，超出视频时定格延长。使用当前导出音量和字幕样式，不改变正式导出范围。': 'Create five seconds from the playhead, keeping gaps and freezing the final frame beyond the video. Uses current export volume and subtitle styles without changing the full export range.',
+    '默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。': 'Use the picture end by default. Native audio/video tail differences are not added content. Choose a policy when subtitles, clips or a custom range extend beyond it: truncate the excess or freeze the final frame, optionally retaining the original audio tail. Applies only to this export.',
+    'MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。': 'MP4 · H.264 + AAC. Cutting, extending or burning subtitles re-encodes the picture. Compatible unmodified video is copied.',
+    '按字幕样式写入视频画面，主副字幕分别设置。表情包不烧录。可生成当前帧预览或五秒样片，确认实际字体、换行与位置。': 'Burn main and secondary subtitles using independent styles. Stickers are excluded. Preview a frame or create a five-second sample to check fonts, wrapping and position.',
+    '独立配音片段自动分轨；音量写入 32-bit float WAV。静音片段导出静音副本，原始 TTS 一并保留。字幕作为标记与 SRT 导出。取消打包原视频后，工程仍引用当前硬盘上的视频。画面结束后的配音保留，视频轨留空。': 'Voice clips use separate lanes; gains are rendered into 32-bit float WAV. Muted copies and original TTS are retained. Subtitles export as markers and SRT. Without bundled video, the project references the current local file. Audio after the picture ends is retained over an empty video track.',
+    '同步试听音量': 'Use preview volume',
+    '不同步': 'Do not sync',
+    '仅源音频': 'Source audio only',
+    '仅贴片音频': 'Audio clips only',
+    '源音频与贴片': 'Source audio and clips',
+    '字幕样式与预览': 'Subtitle style and preview',
+    '关闭字幕样式': 'Close subtitle style',
+    '预览内容': 'Preview content',
+    '字号（画面高度 %）': 'Font size (% of picture height)',
+    '描边颜色': 'Outline color',
+    '描边宽度（1080p 基准）': 'Outline width (1080p basis)',
+    '背景不透明度（%）': 'Background opacity (%)',
+    '水平位置（%）': 'Horizontal position (%)',
+    '垂直位置（%）': 'Vertical position (%)',
+    '文字框宽度（%）': 'Text box width (%)',
+    '从当前预览样式复制': 'Copy player preview style',
+    '预览当前帧': 'Preview current frame',
+    '生成五秒样片': 'Create five-second sample',
+    '五秒样片': 'Five-second sample',
+    '实际烧录效果预览': 'Rendered subtitle preview',
+    '正在生成实际预览…': 'Rendering preview…',
+    '实际渲染预览': 'Rendered preview',
+    '字幕字体名称无效': 'Invalid subtitle font name',
+    '请先确认当前导出请求': 'Confirm the pending export request first',
+    '范围：全部主字幕': 'Scope: all main subtitles',
+    '字幕 · 处理': 'Subtitles · Processing',
+    '按当前参数处理整段工程，可撤销。滚轮可调数值，Esc 关闭。': 'Process the whole project with these settings. Undo is available. Use the wheel to adjust values; Esc closes the panel.',
+    '输入后按 Enter 或点击其他位置生效，可撤销。滚轮缩放每格 1%，Shift 为 5%；时间偏移每格 10 ms，Shift 为 100 ms，Ctrl（Mac 为 Cmd）为 1 ms。方向按钮支持长按。': 'Press Enter or click elsewhere to apply; undo is available. Wheel: scale 1%, Shift 5%; timing 10 ms, Shift 100 ms, Ctrl (Cmd on Mac) 1 ms. Hold arrow buttons to repeat.',
+    '超出峰值时整体衰减以避免削波，因此成品可能比当前试听略轻。': 'Reduce the whole mix when peaks exceed the limit to avoid clipping. The export may be quieter than the preview.',
+    '未同步试听时使用此增益；同步后按当前监听设置计算。不会自动去除原有人声。': 'Use this gain without preview sync; otherwise use current monitoring settings. This does not remove original vocals.',
+    '始终保留贴片和配音轨的增益、静音。同步选定声部时，再采用播放器总音量与静音；源音频还包含源试听增益。同步后对应手动增益锁定，不重复叠加。不包含系统或耳机音量，开始导出时固定快照。': 'Clip and voice-track gains and mute states are always retained. Selected sources also use the player volume and mute state; source audio includes its preview gain. Synced gain controls are locked to prevent double gain. System/headphone volume is excluded. Settings are frozen when export starts.',
     '所选音频贴片': 'Selected audio clips',
     '导出所选音频': 'Export selected audio',
     '按原配置重新生成（将调用原服务）': 'Regenerate with original settings (calls the original service)',
@@ -1980,6 +2046,12 @@
       });
       return `${match[1] === '已拼接/合并字幕' ? 'Join / merge subtitles' : 'Snap subtitles'}: ${parts.join(', ')}`;
     }
+    match = /^当前范围：(\d+) 条字幕$/.exec(text);
+    if (match) return `Current scope: ${match[1]} subtitles`;
+    match = /^已校正 (\d+) 处字词时间；请检查调整结果$/.exec(text);
+    if (match) return `Corrected ${match[1]} word timings; check the result`;
+    match = /^已调整 (\d+) 条字幕 · (.+)$/.exec(text);
+    if (match) return `Adjusted ${match[1]} subtitles · ${match[2].replace('本次缩放', 'Scale').replace('起点偏移', 'Start offset').replace('终点偏移', 'End offset').replace('整体偏移', 'Track offset').replace(/（(\d+) 条受相邻字幕限制）/, ' ($1 constrained by neighboring subtitles)')}`;
     // flashHint：已自动修复 2 处 0 长时间码（保底 100ms）
     match = /^已自动修复\s*(\d+)\s*处\s*0\s*长时间码（保底\s*100ms）$/.exec(text);
     if (match) return `Auto-repaired ${match[1]} zero-length timings (100 ms minimum)`;

@@ -9,7 +9,7 @@ def pick_media_source():
     return pick_project_target('', _open_media=True)
 
 
-def pick_project_target(suggested_name, *, _open_media=False):
+def pick_project_target(suggested_name, *, _open_media=False, _new_project=False):
     name = Path(str(suggested_name)).name
     if not name.lower().endswith((".mosp", ".json")):
         name = "untitled.mosp"
@@ -42,7 +42,7 @@ def pick_project_target(suggested_name, *, _open_media=False):
             options.lpstrFilter = '音视频文件\0' + ';'.join('*' + suffix for suffix in sorted(MEDIA_EXTENSIONS)) + '\0\0'
         options.lpstrFile = ctypes.cast(buffer, w.LPWSTR)
         options.nMaxFile = len(buffer)
-        options.lpstrTitle = "另存为 MSW 工程"
+        options.lpstrTitle = "新工程保存位置" if _new_project else "另存为 MSW 工程"
         options.lpstrDefExt = "mosp"
         # Explorer dialog, overwrite confirmation, existing parent, no CWD change.
         options.Flags = 0x80000 | 0x2 | 0x800 | 0x8
@@ -61,12 +61,14 @@ def pick_project_target(suggested_name, *, _open_media=False):
         return None
     if sys.platform == "darwin":
         script = 'on run argv\nset f to choose file name with prompt "Save MSW project" default name (item 1 of argv)\nreturn POSIX path of f\nend run'
+        if _new_project: script = script.replace('Save MSW project','New project save location')
         args = ["osascript", "-e", script, name]
         if _open_media:
             args = ['osascript', '-e', 'POSIX path of (choose file with prompt "Import media")']
     else:
         args = ["zenity", "--file-selection", "--save", "--confirm-overwrite",
                 "--title=Save MSW project", f"--filename={name}", "--file-filter=*.mosp *.json"]
+        if _new_project: args[4] = '--title=New project save location'
         if _open_media:
             args = ['zenity', '--file-selection', '--title=Import media']
     try:

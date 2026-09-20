@@ -39,7 +39,23 @@ def options(raw=None):
         value = result[key]
         if type(value) not in (int, float) or not math.isfinite(value) or not -60 <= value <= 12:
             raise ValueError("导出音量无效")
+    if 'monitor' in result:
+        monitor_gains(result)
     return result
+
+
+def monitor_gains(o):
+    m=o.get('monitor')
+    if m is None and 'monitor' not in o:
+        return o['source_gain_db'],o['voice_gain_db'],False,False
+    if (not isinstance(m,dict) or m.get('mode') not in {'none','source','voice','both'} or type(m.get('muted')) is not bool
+            or type(m.get('volume')) not in (int,float) or not math.isfinite(m['volume']) or not 0<=m['volume']<=1
+            or type(m.get('source_gain_db')) not in (int,float) or not math.isfinite(m['source_gain_db']) or not -60<=m['source_gain_db']<=12):
+        raise ValueError('试听音量快照无效')
+    source=m['mode'] in {'source','both'};voice=m['mode'] in {'voice','both'}
+    db=20*math.log10(m['volume']) if m['volume']>0 else 0
+    silent=m['muted'] or m['volume']==0
+    return (m['source_gain_db']+db if source else o['source_gain_db'],db if voice else o['voice_gain_db'],source and silent,voice and silent)
 
 
 def clip_end(clip, asset):
@@ -105,6 +121,7 @@ def round_sample(value):
 def compile_plan(project, raw_options=None):
     project = normalize_project(project)
     o = options(raw_options)
+    levels = monitor_gains(o)
     ext = project.get("msw") or {}
     assets = {a["id"]: a for a in ext.get("assets", [])}
     tracks = {t["id"]: t for t in ext.get("audio_tracks", [])}
@@ -160,12 +177,13 @@ def compile_plan(project, raw_options=None):
                 continue
             pieces.append(dict(clip_id=c["id"], asset_id=a["id"], source_in_sample=source_in, source_out_sample=source_out,
                                output_start_sample=start, output_end_sample=finish_sample,
-                               gain_db=c["gain_db"] + tracks[c["track_id"]]["gain_db"] + o["voice_gain_db"]))
+                               gain_db=c["gain_db"] + tracks[c["track_id"]]["gain_db"] + levels[1],
+                               **({'muted':True} if levels[3] else {})))
             if len(pieces) > 100000:
                 raise ValueError("空隙切分产生过多音频片段，请缩小导出范围")
     pieces.sort(key=lambda p: (p["output_start_sample"], p["clip_id"]))
     return dict(schema=VERSION, sample_rate=o["sample_rate"], channels=2, sample_count=frame(output),
                 source_start_ms=o["start_ms"], source_end_ms=finish, gap_policy=policy,
                 intervals=intervals, pieces=pieces,
-                source=dict(audio_index=o["source_audio_index"], gain_db=o["source_gain_db"]) if o["mode"] == "mix" else None,
+                source=dict(audio_index=o["source_audio_index"], gain_db=levels[0],**({'muted':True} if levels[2] else {})) if o["mode"] == "mix" else None,
                 peak_protection=o["peak_protection"])

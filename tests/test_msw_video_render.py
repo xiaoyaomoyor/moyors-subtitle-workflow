@@ -105,6 +105,8 @@ class VideoRenderTests(unittest.TestCase):
              'color=black:size=320x180:rate=24:duration=4', '-c:v', 'libx264', '-threads', '1', str(self.source)], self.cancel)
         self.info = probe_source(self.tools.ffprobe, self.source, self.cancel)
         self.project['segments'] = [dict(start=1000, end=3000, text='MAIN')]
+        # Explicit sizes test the configured burn style independent of defaults.
+        self.project['preview'] = {'burn_subtitles': {'main': {'font_size': 80, 'y': .75}, 'secondary': {'font_size': 72}}}
         self.project['multi_subtitle'] = {'tracks': [{'segments': [dict(start=1000, end=3000, text='SECONDARY')]}]}
         self.project['msw']['audio_settings']['gap_policy'] = 'follow'
         self.project['gap_remove'] = {'gaps': [dict(start=1500, end=2500, removed=True)]}
@@ -126,6 +128,24 @@ class VideoRenderTests(unittest.TestCase):
             rows = [y for y in range(180) if max(painted[y*320:(y+1)*320]) > 150]
             # Two distinct caption lines, not both drawn at the same baseline.
             self.assertGreaterEqual(sum(b - a > 1 for a, b in zip(rows, rows[1:])), 1)
+
+    def test_custom_track_colors_are_present_in_actual_video(self):
+        run([str(self.tools.ffmpeg), '-v', 'error', '-y', '-f', 'lavfi', '-i',
+             'color=black:size=320x180:rate=24:duration=4', '-c:v', 'libx264', '-threads', '1', str(self.source)], self.cancel)
+        self.info = probe_source(self.tools.ffprobe, self.source, self.cancel)
+        self.project['segments'] = [dict(start=1000, end=3000, text='MAIN')]
+        self.project['multi_subtitle'] = {'tracks': [{'segments': [dict(start=1000, end=3000, text='SECONDARY')]}]}
+        self.project['preview'] = {'burn_subtitles': {'main': {'font_size':96, 'y':.6, 'color':'#ff0000'},
+                                                     'secondary': {'font_size':96, 'y':.9, 'color':'#00ff00'}}}
+        _, _, output = self.export(mode='voice', burn_subtitles='both')
+        with tempfile.TemporaryFile() as data:
+            run([str(self.tools.ffmpeg), '-v', 'error', '-ss', '1.5', '-i', str(output), '-frames:v', '1',
+                 '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], self.cancel, stdout=data)
+            data.seek(0)
+            pixels=data.read()
+        rgb=list(zip(pixels[::3],pixels[1::3],pixels[2::3]))
+        self.assertGreater(sum(r>100 and r>g*2 and r>b*2 for r,g,b in rgb), 30)
+        self.assertGreater(sum(g>100 and g>r*2 and g>b*2 for r,g,b in rgb), 30)
 
     def test_selected_empty_subtitle_track_fails_before_rendering(self):
         with self.assertRaisesRegex(ValueError, '没有所选轨道'):

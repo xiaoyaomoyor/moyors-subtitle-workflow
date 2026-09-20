@@ -48,6 +48,7 @@
   function saveAs({ project = null, name = host.name(), newProject = false } = {}) {
     if (!available() || active || host.saving() || recoveryModal.classList.contains('show')) return Promise.resolve(false);
     host.commitEdits(); target = null; busy(false); host.setSaving(true);
+    el('project-save-title').textContent = t(newProject ? '新工程保存位置' : '另存为工程');
     el('project-save-path').textContent = t('尚未选择保存位置');
     el('project-save-message').textContent = '';
     el('project-save-local').hidden = true;
@@ -66,7 +67,7 @@
     if (!active || working) return;
     const action = active; busy(true);
     try {
-      const result = await request('save-target', { filename: action.name, binding: host.config.processingContext?.binding });
+      const result = await request('save-target', { filename: action.name, newProject:action.newProject, binding: host.config.processingContext?.binding });
       if (action !== active || action.generation !== host.generation) return finish(false);
       if (!result.cancelled) {
         target = result.target;
@@ -89,23 +90,28 @@
     if (!active || !target || working) return;
     const action = active;
     if (action.generation !== host.generation) return finish(false);
-    host.commitEdits();
-    const project = action.project || host.snapshot();
-    const source = JSON.stringify(project);
     busy(true); host.setSaving(true);
+    const feedback = host.beginSaveFeedback();
     el('project-save-message').textContent = t('正在收集素材并保存工程…');
     try {
+      await feedback.ready;
+      if (action.generation !== host.generation) return finish(false);
+      host.commitEdits();
+      const project = action.project || host.snapshot();
+      const source = JSON.stringify(project);
       const result = await request('save-as', { target, project,
         recovery: recovering && !action.newProject,
         collectMedia: el('project-save-collect-media').checked, binding: host.config.processingContext?.binding });
       if (action.generation !== host.generation) return finish(false);
-      host.adopt(result, { source, newProject: action.newProject });
+      const unchanged = host.adopt(result, { source, newProject: action.newProject });
+      feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
       recovering = false;
       status(result.assets, '工程已保存', result.recoveryWarning); finish(true);
     } catch (error) {
+      feedback.finish(`${t('保存失败')}：${error.message}`,'warning');
       target = null; el('project-save-message').textContent = error.message;
       el('project-save-local').hidden = false;
-    } finally { if (!active) host.setSaving(false); busy(false); }
+    } finally { feedback.cancel();if (!active) host.setSaving(false); busy(false); }
   });
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && (active || recoveryModal.classList.contains('show'))) {

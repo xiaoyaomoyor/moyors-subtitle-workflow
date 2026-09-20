@@ -17,6 +17,22 @@
     const token = () => `${pageId}.${host.generation}`;
     let context = null, busy = null, pending = null, timer = null, polling = false, jobs = [], rendered = '', contextRequest = 0;
     const terminal = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
+    const monitorSnapshot = () => ({mode:timeline?'none':el('audio-export-monitor').value,volume:host.player.volume,muted:host.player.muted,
+      source_gain_db:global.MSWE.resolve('audio-timeline')?.sourceGainDb()||0});
+    function syncMonitorControls() {
+      el('audio-export-monitor-field').hidden=timeline;
+      const snapshot=monitorSnapshot(), levels=core.monitorGains({monitor:snapshot,source_gain_db:0,voice_gain_db:0});
+      for(const key of ['source','voice']) {
+        const input=el(`audio-export-${key}-gain`), synced=snapshot.mode===key||snapshot.mode==='both';
+        if(synced) {
+          if(!input.readOnly)input.dataset.manualValue=input.value;
+          input.type='text';input.readOnly=true;
+          input.value=levels[key+'Muted']?t('静音'):levels[key].toFixed(2);
+        } else if(input.readOnly) {
+          input.readOnly=false;input.type='number';input.value=input.dataset.manualValue??'0';
+        }
+      }
+    }
     const labels = { queued: '等待导出', running: '正在导出', cancel_requested: '正在取消', cancelled: '已取消',
       succeeded: '导出完成', failed: '导出失败', interrupted: '导出中断，请重新开始' };
     const stages = { preparing: '检查音频素材', source: '准备原声', mixing: '渲染音频', encoding: '编码 WAV', video: '编码视频', muxing: '合并音画', packaging: '打包剪辑素材' };
@@ -38,12 +54,13 @@
     }
     function selectedOptions({applyTail = true} = {}) {
       const custom = el('audio-export-range').value === 'custom';
-      const numeric = id => el(id).value.trim() ? Number(el(id).value) : NaN;
+      const numeric = id => {if(el(id).readOnly)return 0;const value=el(id).value;return value?.trim()?Number(value):NaN;};
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
         duration_ms: host.audioExportDuration(), start_ms: custom ? Math.round(numeric('audio-export-start-time') * 1000) : 0,
         end_ms: custom ? Math.round(numeric('audio-export-end-time') * 1000) : null,
         remove_gaps: el('audio-export-remove-gaps').checked, source_audio_index: Number(el('audio-export-stream').value || 0),
-        source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked });
+        source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked,
+        ...(!timeline?{monitor:monitorSnapshot()}:{}) });
       if (video) {
         settings.format = format;
         settings.video_tail = el('audio-export-tail').value;
@@ -60,6 +77,7 @@
     }
     const sourceAvailable = () => Boolean(context?.source_available && context.media_reference === host.data.media);
     function update() {
+      syncMonitorControls();
       const mix = el('audio-export-mode').value === 'mix';
       el('audio-export-source').hidden = !mix;
       el('audio-export-custom').hidden = el('audio-export-range').value !== 'custom';
@@ -144,6 +162,7 @@
         const title = document.createElement('strong');
         title.textContent = t(job.mode === 'mix' ? '原声 + 配音混音' : '配音轨（仅音频贴片）');
         if (video) title.textContent = `${t('导出视频')} · ${title.textContent}`;
+        if (video && job.options?.preview_sample) title.textContent = t('五秒样片');
         if (timeline) title.textContent = t('配音剪辑工程（OTIOZ）');
         const status = document.createElement('p'); status.className = 'msw-processing-hint';
         status.textContent = `${t(labels[job.status] || job.status)} · ${new Date(job.created_at * 1000).toLocaleTimeString()}`;
@@ -201,14 +220,16 @@
       } catch (error) { if (floating.isOpen() && generation === host.generation) message(error.message, true); }
       finally { polling = false; if (floating.isOpen() || jobs.some(j => !terminal.has(j.status))) schedule(); }
     }
-    async function start() {
+    async function start(overrides = null) {
       if (busy) return;
       const generation = host.generation, ticket = {}; busy = ticket;
       try {
         if (!pending) {
           const project = host.exportProject();
           for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete project[key];
-          const options = selectedOptions(); core.compile(project, options);
+          let options = {...selectedOptions({applyTail:!overrides}),...(overrides || {})};
+          if (video) options = core.videoOptions(project,options,context);
+          core.compile(project, options);
           pending = { project, options, plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
             request_key: global.MSWProject.id('export-request'), binding: host.config.processingContext?.binding };
         }
@@ -236,8 +257,19 @@
     });
     el('audio-export-close').addEventListener('click', () => floating.close());
     el('audio-export-start').addEventListener('click', () => void start());
+    if (video) global.addEventListener('msw:video-sample',async event=>{
+      if(busy||pending){message('请先确认当前导出请求',true);return;}
+      const generation=host.generation;
+      floating.open();if(!context)await loadContext();
+      if(generation!==host.generation||!context?.video)return;
+      const at=Math.max(0,Math.round(host.player.currentTime*1000)||0);
+      await start({start_ms:at,end_ms:at+5000,video_tail:'freeze',remove_gaps:false,burn_subtitles:event.detail.target,preview_sample:true});
+    });
     for (const input of panel.querySelectorAll('input, select')) input.addEventListener('input', update);
     global.addEventListener('msw:audio-changed', () => { if (floating.isOpen()) update(); });
+    global.addEventListener('msw:burn-style', () => { if (floating.isOpen()) update(); });
+    global.addEventListener('msw:source-gain', () => { if (floating.isOpen()) update(); });
+    host.player.addEventListener('volumechange',()=>{if(floating.isOpen())update();});
     global.addEventListener('msw:project-changed', () => {
       ++contextRequest; context = null; busy = null; pending = null; jobs = []; rendered = ''; clearTimeout(timer);
       renderJobs(); message('');
@@ -251,7 +283,7 @@
   for (const kind of ['video', 'timeline']) {
     const copy = blueprint.cloneNode(true);
     for (const node of [copy, ...copy.querySelectorAll('*')]) {
-      for (const attr of ['id', 'for', 'aria-labelledby']) {
+      for (const attr of ['id', 'for', 'aria-labelledby', 'data-help-for']) {
         if (node.hasAttribute(attr)) node.setAttribute(attr, node.getAttribute(attr).replaceAll('audio-export-', `${kind}-export-`));
       }
     }

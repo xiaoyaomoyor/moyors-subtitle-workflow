@@ -34,6 +34,12 @@ def validate_preview(project: JsonDict) -> tuple[ValidationIssue, ...]:
         return (("$.preview", "must be an object or null"),)
 
     issues: list[ValidationIssue] = []
+    if 'burn_subtitles' in preview:
+        from maw.msw.subtitle_style import normalize_styles
+        try:
+            normalize_styles(preview['burn_subtitles'])
+        except ValueError as error:
+            issues.append(('$.preview.burn_subtitles',str(error)))
     subtitle = preview.get("subtitle")
     if subtitle is not None:
         if not isinstance(subtitle, dict):

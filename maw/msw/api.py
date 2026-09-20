@@ -282,7 +282,7 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "version-create", "audio-exports", "asset-import", "qwen-voices", "index-tts"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "version-create", "audio-exports", "video-export-preview", "asset-import", "qwen-voices", "index-tts"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
@@ -466,6 +466,8 @@ class ProcessingAPI:
                         handler.end_headers()
                         shutil.copyfileobj(stream, handler.wfile)
                     return True
+                elif route == 'video-export-preview' and post:
+                    result = self.exports.preview_frame(payload)
                 elif route in {"audio-export-context", "video-export-context", "timeline-export-context"} and not post:
                     result = self.exports.context(project_id, video=route != "audio-export-context")
                 elif route == "audio-exports" and post:
