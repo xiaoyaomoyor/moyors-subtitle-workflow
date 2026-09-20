@@ -773,12 +773,18 @@ class LauncherApi:
         return result
 
     def remove_registry_project(self, payload: Mapping[str, object]) -> dict[str, object]:
-        """S3/§5.3：「从全部工程记录移除」——只删登记，不动文件与最近视图。"""
+        """S3/§5.3+调整4：「从全部工程记录移除」——撤出全部工程并同步撤出最近视图。
+
+        调整4 的包含关系不变式（全部工程 ⊇ 最近工程）下，只删登记会被读取时
+        的补齐过程立即撤销；撤出全部工程必然同时撤出最近。工程文件与磁盘不动。
+        """
         path = _optional_path(payload.get("path"))
         if path is None:
             return _error_result("path", "recent_project_invalid", "")
-        from maw.launcher_projects import unregister_project
-        return unregister_project(path, registry_path=self.paths.project_registry)
+        from maw.launcher_projects import remove_recent_project, unregister_project
+        result = unregister_project(path, registry_path=self.paths.project_registry)
+        remove_recent_project(path, metadata_path=self.paths.recent_metadata)
+        return result
 
     def delete_project_file(self, payload: Mapping[str, object]) -> dict[str, object]:
         """S3/§5.3：「删除工程文件…」——仅把工程文件移入回收站，媒体与 .assets 不动。

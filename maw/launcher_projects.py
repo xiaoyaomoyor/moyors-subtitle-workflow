@@ -462,7 +462,7 @@ def _read_registry(registry: Path) -> dict[str, dict[str, Any]]:
     return _registry_entries(_read_registry_payload(registry))
 
 
-def _write_registry(entries: dict[str, dict[str, Any]], registry: Path, *, migrated: bool = True) -> None:
+def _write_registry(entries: dict[str, dict[str, Any]], registry: Path, *, migrated: bool = False) -> None:
     registry.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{registry.stem}.", suffix=".tmp", dir=registry.parent)
     try:
@@ -488,7 +488,8 @@ def register_project(path: Path, *, source: str, registry_path: Path | None = No
     key, display = _canonical_identity(path)
     now = _now_iso()
     with _registry_file_lock(registry):
-        entries = _read_registry(registry)
+        payload = _read_registry_payload(registry)
+        entries = _registry_entries(payload)
         existing = entries.get(key)
         source_value = source
         if existing and existing.get("source") not in ("", "migration"):
@@ -501,7 +502,8 @@ def register_project(path: Path, *, source: str, registry_path: Path | None = No
             "updatedAt": now,
         }
         entries[key] = entry
-        _write_registry(entries, registry)
+        # 普通登记不宣称迁移已完成——保留文件原标志，缺最近工程时种子仍会补。
+        _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
     return {"ok": True, "path": display}
 
 
@@ -510,11 +512,12 @@ def unregister_project(path: Path, registry_path: Path | None = None) -> dict[st
     registry = registry_path or project_registry_path()
     key, _display = _canonical_identity(path)
     with _registry_file_lock(registry):
-        entries = _read_registry(registry)
+        payload = _read_registry_payload(registry)
+        entries = _registry_entries(payload)
         if key not in entries:
             return {"ok": True, "removed": 0}
         del entries[key]
-        _write_registry(entries, registry)
+        _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
     return {"ok": True, "removed": 1}
 
 
@@ -526,7 +529,8 @@ def move_registry_entry(old_path: Path, new_path: Path, registry_path: Path | No
     if old_key == new_key:
         return
     with _registry_file_lock(registry):
-        entries = _read_registry(registry)
+        payload = _read_registry_payload(registry)
+        entries = _registry_entries(payload)
         entry = entries.pop(old_key, None)
         if entry is None:
             return
@@ -534,7 +538,7 @@ def move_registry_entry(old_path: Path, new_path: Path, registry_path: Path | No
         entry["name"] = Path(new_display).name
         entry["updatedAt"] = _now_iso()
         entries[new_key] = entry
-        _write_registry(entries, registry)
+        _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
 
 
 def _recycle_file_windows(path: Path) -> tuple[bool, str]:
@@ -643,7 +647,40 @@ def _seed_registry_from_recent(registry: Path, *, settings_path: Path | None, me
         # 双检：另一进程可能刚写入新登记——保留其条目再补种子。
         for seed_key, seed_value in entries.items():
             merged_entries.setdefault(seed_key, seed_value)
-        _write_registry(merged_entries, registry)
+        _write_registry(merged_entries, registry, migrated=True)
+
+
+def _ensure_recent_in_registry(registry: Path, *, settings_path: Path | None, metadata_path: Path | None) -> None:
+    """T-调整4：把最近视图里尚未登记的工程补入注册表（幂等，写失败不影响读取）。
+
+    历史文件可能因迁移标志误置（早期登记写入默认置 migrated=true）而从未
+    执行种子合并——真实最近工程因此缺席全部工程。此处每次读取前补齐，
+    保证「全部工程 ⊇ 最近工程」这一包含关系始终成立。
+    """
+    recent = recent_projects_payload(settings_path=settings_path, metadata_path=metadata_path)
+    if not recent.get("projects"):
+        return
+    with _registry_file_lock(registry):
+        payload = _read_registry_payload(registry)
+        entries = _registry_entries(payload)
+        changed = False
+        for project in recent["projects"]:
+            try:
+                key, display = _canonical_identity(Path(str(project.get("path", ""))))
+            except OSError:
+                continue
+            if not display or key in entries:
+                continue
+            entries[key] = {
+                "path": display,
+                "name": Path(display).name,
+                "source": "migration",
+                "registeredAt": project.get("lastOpenedAt") or project.get("modifiedAt") or _now_iso(),
+                "updatedAt": project.get("modifiedAt") or project.get("lastOpenedAt") or _now_iso(),
+            }
+            changed = True
+        if changed:
+            _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
 
 
 def _system_temp_roots() -> list[str]:
@@ -766,7 +803,7 @@ def apply_registry_cleanup(registry_path: Path | None = None) -> dict[str, Any]:
             json.dumps({"version": REGISTRY_VERSION, "entries": {}}, ensure_ascii=False), encoding="utf-8"
         )
         kept = {key: value for key, value in entries.items() if str(value.get("path", "")) not in candidate_paths}
-        _write_registry(kept, registry, migrated=bool(payload.get("migrated", True)))
+        _write_registry(kept, registry, migrated=bool(payload.get("migrated")))
     return {
         "ok": True,
         "removed": len(entries) - len(kept),
@@ -788,7 +825,7 @@ def restore_registry_backup(backup_path: Path, registry_path: Path | None = None
     if not entries and not payload:
         return {"ok": False, "error": "备份不是有效的注册表文件"}
     with _registry_file_lock(registry):
-        _write_registry(entries, registry, migrated=bool(payload.get("migrated", True)))
+        _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
     return {"ok": True, "restored": len(entries), "backup": str(backup)}
 
 
@@ -812,6 +849,9 @@ def all_projects_payload(
     registry = registry_path or project_registry_path()
     with contextlib.suppress(OSError):
         _seed_registry_from_recent(registry, settings_path=settings_path, metadata_path=metadata_path)
+        # 调整4：即便注册表早已存在（migrated=true），也把最近视图新出现的工程补入注册表，
+        # 保证「全部工程」始终包含最近工程（包含关系不变式）。
+        _ensure_recent_in_registry(registry, settings_path=settings_path, metadata_path=metadata_path)
 
     entries = _read_registry(registry)
     metadata = read_launcher_metadata(metadata_path)

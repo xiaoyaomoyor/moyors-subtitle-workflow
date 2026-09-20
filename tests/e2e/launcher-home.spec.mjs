@@ -465,7 +465,8 @@ test('delete project file flow confirms scope, recycles, and reports; registry r
   expect(deleted.notice).toContain('已移入回收站');
   expect(deleted.request).toContain('old-take.mosp');
 
-  // 「从全部工程记录移除」只移除登记：同工程保留在最近组。
+  // 调整4：包含关系不变式（全部工程 ⊇ 最近工程）——「从全部工程记录移除」
+  // 同步撤出最近组；只删一侧会被读取补齐立即撤销。
   const first = page.locator('#allGrid .recent-card').first();
   const firstName = await first.locator('.recent-name').textContent();
   await first.scrollIntoViewIfNeeded();
@@ -476,10 +477,10 @@ test('delete project file flow confirms scope, recycles, and reports; registry r
   await page.waitForTimeout(400);
   const after = await page.evaluate((name) => ({
     allGone: !Array.from(document.querySelectorAll('#allGrid .recent-name')).some((n) => n.textContent === name),
-    recentKept: Array.from(document.querySelectorAll('#recentGrid .recent-name')).some((n) => n.textContent === name),
+    recentGone: !Array.from(document.querySelectorAll('#recentGrid .recent-name')).some((n) => n.textContent === name),
   }), firstName);
   expect(after.allGone).toBe(true);
-  expect(after.recentKept).toBe(true);
+  expect(after.recentGone).toBe(true);
 });
 
 test('home groups collapse independently with memory and search counts both lists', async ({ page }) => {
@@ -544,4 +545,32 @@ test('server conflicts surface a return-or-independent choice instead of silent 
   await page.locator('#batchConfirmYes').click();
   await expect.poll(() => page.evaluate(() => window.__mockServerIntents.at(-1)?.independentPort)).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__mockServerIntents.at(-1)?.intent)).toBe('project');
+});
+
+test('double-click shows an immediate opening spinner on both cards until the flow settles (调整5)', async ({ page }) => {
+  await openHome(page);
+
+  // 打开流程挂起直至放行，观察转圈的进入与解除。
+  await page.evaluate(() => {
+    window.__openGate = [];
+    window.MSWLauncher.openServerEditor = () => new Promise((resolve) => window.__openGate.push(resolve));
+  });
+
+  const recentCard = cardOf(page, 'clip.mosp');
+  const allCard = page.locator('#allGrid .recent-card[data-path$="clip.mosp"]');
+  await recentCard.dblclick();
+
+  // 双击后该工程在两组的卡片立即进入加载反馈（转圈类 + aria-busy）。
+  await expect(recentCard).toHaveClass(/opening/);
+  await expect(allCard).toHaveClass(/opening/);
+  await expect(recentCard).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('.recent-card.opening .recent-cover')).toHaveCount(2);
+  // 其他工程卡片不受牵连。
+  await expect(cardOf(page, 'intro.mosp')).not.toHaveClass(/opening/);
+
+  // 打开流程结束（无论成败）后转圈解除。
+  await page.evaluate(() => window.__openGate.forEach((resolve) => resolve()));
+  await expect(recentCard).not.toHaveClass(/opening/);
+  await expect(allCard).not.toHaveClass(/opening/);
+  await expect(recentCard).not.toHaveAttribute('aria-busy');
 });

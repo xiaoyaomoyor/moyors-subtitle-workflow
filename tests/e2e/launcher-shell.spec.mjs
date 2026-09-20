@@ -134,6 +134,40 @@ test('cover cache clearing lives in settings with feedback', async ({ page }) =>
   await expect.poll(() => page.evaluate(() => (window.__coverCacheClears || []).length)).toBe(1);
 });
 
+test('registry cleanup group renders real line breaks in the confirm dialog (调整2/3)', async ({ page }) => {
+  await openLauncher(page);
+  // 演示登记里放一条临时目录失效记录，预览才会给出候选并放出执行按钮。
+  await page.evaluate(() => {
+    window.__demoRegistry = [
+      { path: 'D:\\Tmp\\stale.mosp', name: 'stale.mosp', dir: 'D:\\Tmp', exists: false, pinned: false, lastOpenedAt: '', modifiedAt: '', registeredAt: '', updatedAt: '2026-09-01T00:00:00+00:00', source: 'created', mediaName: '' },
+      { path: 'D:\\Keep\\keep.mosp', name: 'keep.mosp', dir: 'D:\\Keep', exists: true, pinned: false, lastOpenedAt: '', modifiedAt: '2026-09-02T00:00:00+00:00', registeredAt: '', updatedAt: '2026-09-02T00:00:00+00:00', source: 'created', mediaName: '' },
+    ];
+    window.__demoRegistryTmpPaths = ['D:\\Tmp\\stale.mosp'];
+  });
+  await page.evaluate(() => window.MSWLauncher.openSettings('cacheSettingsSection'));
+
+  // 调整2：清理按钮独立成组，预览按钮文案去省略号。
+  const group = page.locator('#cacheSettingsSection .cache-tools');
+  await expect(group).toBeVisible();
+  await expect(group.locator('#previewRegistryCleanup')).toHaveText('检查失效记录');
+  await expect(group.locator('#clearCoverCache')).toHaveCount(0); // 封面清理不在同组重复出现
+
+  // 预览给出候选数后放出执行入口。
+  await page.locator('#previewRegistryCleanup').click();
+  await expect(page.locator('#registryCleanupStatus')).toContainText('1 条失效记录');
+  await page.locator('#applyRegistryCleanup').click();
+
+  // 调整3：确认文案是真实换行（pre-line 呈现），不出现字面「\n」。
+  const message = page.locator('#batchConfirmMessage');
+  await expect(message).toBeVisible();
+  await expect(message).toHaveCSS('white-space', 'pre-line');
+  const text = await message.textContent();
+  expect(text).toContain('\n·');
+  expect(text).not.toContain('\\n');
+  await page.locator('#batchConfirmNo').click();
+  await expect(message).toBeHidden();
+});
+
 test('guide paths match the current UI and avoid implementation terms', async ({ page }) => {
   await openLauncher(page);
   await page.evaluate(() => window.MSWNavigation.show('guide'));

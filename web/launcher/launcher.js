@@ -262,12 +262,12 @@
       settings_cache: "缓存与诊断",
       settings_cache_hint: "最近工程封面缓存在本机应用数据目录；清理后下次浏览封面会重新生成，不影响工程文件。",
       settings_clear_covers: "清理最近工程封面缓存",
-      registry_cleanup_preview: "检查失效工程记录…",
+      registry_cleanup_preview: "检查失效记录",
       registry_cleanup_apply: "清理失效记录",
       registry_cleanup_restore: "恢复上次清理",
       registry_cleanup_none: "没有可清理的失效记录（共 {total} 项登记）。",
       registry_cleanup_found: "发现 {n} 条失效记录（临时目录内且文件已缺失，共 {total} 项）。清理会先备份，可随时恢复。",
-      registry_cleanup_confirm: "将移除 {n} 条失效登记记录（临时目录内且文件已缺失）。\\n· 只清理索引记录，不删除任何磁盘文件\\n· 自动创建备份，可一键恢复\\n\\n继续？",
+      registry_cleanup_confirm: "将移除 {n} 条失效登记记录（临时目录内且文件已缺失）。\n· 只清理索引记录，不删除任何磁盘文件\n· 自动创建备份，可一键恢复\n\n继续？",
       registry_cleanup_done: "已清理 {n} 条记录；备份：{backup}",
       registry_cleanup_empty: "当前没有可清理的记录。",
       registry_cleanup_restored: "已从备份恢复 {n} 条记录。",
@@ -568,12 +568,12 @@
       settings_cache_hint: "Recent-project cover caches live in the local app data folder; clearing regenerates them on next browse and never touches project files.",
       settings_clear_covers: "Clear recent-project cover cache",
       cache_covers_cleared: "Cleared {n} cached cover files.",
-      registry_cleanup_preview: "Check for stale project records…",
+      registry_cleanup_preview: "Check stale records",
       registry_cleanup_apply: "Clean stale records",
       registry_cleanup_restore: "Restore last cleanup",
       registry_cleanup_none: "No stale records to clean ({total} registered).",
       registry_cleanup_found: "Found {n} stale records (in temp dirs and missing; {total} total). Cleanup backs up first and can be restored.",
-      registry_cleanup_confirm: "This will remove {n} stale registry records (temp-dir paths whose files are gone).\\n· Only index records are removed; no disk files are touched\\n· A backup is created automatically and can be restored\\n\\nContinue?",
+      registry_cleanup_confirm: "This will remove {n} stale registry records (temp-dir paths whose files are gone).\n· Only index records are removed; no disk files are touched\n· A backup is created automatically and can be restored\n\nContinue?",
       registry_cleanup_done: "Removed {n} records; backup: {backup}",
       registry_cleanup_empty: "Nothing to clean right now.",
       registry_cleanup_restored: "Restored {n} records from backup.",
@@ -1771,7 +1771,7 @@
           { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00" },
           { path: "D:\\Demo\\intro.mosp", name: "intro.mosp", dir: "D:\\Demo", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2026-09-14T10:00:00+00:00" },
           { path: "E:\\Gone\\moved.mosp", name: "moved.mosp", dir: "E:\\Gone", exists: false, pinned: false, lastOpenedAt: "", modifiedAt: "" },
-        ],
+        ].filter((item) => !(window.__demoRecentRemoved || []).includes(item.path)),
       }),
       get_recent_project_stats: async ({ path }) => {
         (window.__statsRequests = window.__statsRequests || []).push(path);
@@ -1823,6 +1823,8 @@
       remove_registry_project: async ({ path }) => {
         if (window.__demoRegistry) window.__demoRegistry = window.__demoRegistry.filter((item) => item.path !== path);
         (window.__registryRemovals = window.__registryRemovals || []).push(path);
+        // 调整4：撤出全部工程同时撤出最近视图（包含关系不变式），演示模式同步表现。
+        (window.__demoRecentRemoved = window.__demoRecentRemoved || []).push(path);
         return { ok: true, removed: 1 };
       },
       delete_project_file: async ({ path }) => {
@@ -3286,7 +3288,7 @@
     if (event.type === "dropReject" && !state.dropTarget && window.MSWLauncher?.onBatchDropReject?.(event.path || "")) return;
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
-  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {} };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void checkExistingServer(); } };
 
   window.MSWLauncher.onBatchBusyChanged = (busy) => { state.batchRunning = busy; syncLocalRuntimeControls(); renderLocalRuntime(); };
   $("langToggle").addEventListener("click", async () => {

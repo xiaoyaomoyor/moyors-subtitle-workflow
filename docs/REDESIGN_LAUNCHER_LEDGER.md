@@ -26,6 +26,21 @@
 - `start_server()`（gui_web.py:1566）：无工程路径时交给服务器按「自动打开上次工程」设置恢复——即规划指出的“空白启动可能恢复旧工程”问题；有工程但缺媒体时会拒绝启动（`server_media_missing`）。C 阶段引入显式 `intent: blank/project/resume` 并放开无媒体工程。
 - e2e：`tests/e2e/launcher-interactions.spec.mjs` 等大量用例依赖既有 ID 与类名；G 阶段更新定位与新增用例。
 
+## 调整批：用户六项微调（2026-09-20）
+
+状态：已完成（2026-09-20）。用户实测后提出六项调整，全部落地。
+
+各项内容与根因：
+
+1. **预制工程导航图标**：改为自绘「左侧两个矩形框 + 右侧三个对勾」（非 Lucide；导航注释同步注明归属）。合同断言两 rect + 三对勾路径。
+2. **缓存与诊断按钮**：清理三按钮独立成 `.cache-tools` 纵向组（与封面清理按钮分离），「检查失效工程记录…」去省略号改为「检查失效记录」（i18n 与 HTML 回退文本同步）。
+3. **确认对话框字面 `\n`**：zh/en 清理确认文案此前在 JS 源内是双反斜杠 `\\n`（渲染为字面 \n）——改为真实 `\n` 转义 + `#batchConfirmMessage` 增加 `white-space: pre-line`。视觉探针确认逐行渲染。
+4. **全部工程 ⊇ 最近工程（包含关系不变式）**：根因是早期 `_write_registry` 默认 `migrated=True`——测试污染把真实注册表预先打上迁移完成标记，种子合并永不执行，真实最近工程缺席「全部工程」。修复：默认翻为 False、普通登记/清理/恢复保留现有标记、种子完成才写 True；新增 `_ensure_recent_in_registry` 读取前补齐（幂等、只增不删、写失败不影响读取），修复历史误置状态。配套语义修正：「从全部工程记录移除」桥接同步撤出最近视图（只删一侧会被补齐立即撤销）；mock 同步表现。
+5. **双击卡片即时加载反馈**：双击/菜单打开工程时，该工程在两组的卡片立即加 `opening` 类（封面压暗 + 22px 紫色旋转环，风格与全局一致，reduced-motion 降速）+ `aria-busy`；打开流程（成功或失败）结束后解除，期间重渲染凭 `state.openingPath` 延续转圈。
+6. **服务器地址残留**：编辑器内「退出服务器」后返回启动器，右上角「当前服务器地址」此前不刷新——现在暴露 `MSWLauncher.refreshServerStatus()`（内部走 `checkExistingServer` 重探），窗口聚焦且当前在首页时、以及切回首页时自动调用，与「关闭服务器」按钮一同消失/复现。
+
+验证（2026-09-20）：契约新增 `test_launcher_adjustment_batch_contracts`（图标形状/按钮组/单反斜杠换行+pre-line/opening 接线/重探暴露×2 调用点）与调整4三处合同（补齐函数存在、桥接块内 unregister+remove_recent、默认 False）；单元新增迁移标记误置回归 `test_premature_migrated_flag_still_gains_recent_projects` 与桥接功能测试 `test_remove_registry_project_also_leaves_recent_view`，两处旧语义断言按新不变式改写。全量 1633 项单元/契约 OK（63 项真实环境跳过如常）+ ruff 全绿 + e2e 85/85（launcher-home 21、shell 8 含新增确认换行用例、其余 launcher 套件；beta3 早先一次失败为并行负载时序抖动，单独与整组重跑均过）。四张视觉探针（导航图标/按钮组/确认框/转圈卡片）经图像核验全部符合预期。零写入护栏随全量生效。
+
 ## T5a：清理入口无反应修复（用户实测反馈）
 
 状态：已完成（2026-09-19）。用户点击「更多设置 → 缓存与诊断 → 检查失效工程记录」无任何反应。

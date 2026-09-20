@@ -50,6 +50,7 @@
     coversGeneration: {}, // T1/A5：按路径的请求代次——同路径换代后旧响应不回写（不同路径互不影响）
     coversIdentity: {},  // path -> 抓取时的 path@modifiedAt 身份
     mediaNames: {},   // path -> 媒体文件名（统计或封面载荷带回，避免重复读工程）
+    openingPath: "",  // 调整5：双击打开中的工程路径——对应卡片持续转圈直到打开流程结束
   };
   var searchTimer = 0;
   var coverObserver = null;
@@ -304,13 +305,17 @@
     var card = document.createElement("div");
     // H02：创建卡片时从唯一选中状态同时恢复样式与无障碍属性。
     var isSelected = Boolean(state.selectedPath) && entry.path === state.selectedPath;
+    // 调整5：正在打开的工程卡片保留加载反馈（渲染换代后转圈不中断）。
+    var isOpening = Boolean(state.openingPath) && entry.path === state.openingPath;
     card.className = "recent-card"
       + (entry.pinned ? " pinned" : "")
-      + (isSelected ? " selected" : "");
+      + (isSelected ? " selected" : "")
+      + (isOpening ? " opening" : "");
     card.dataset.path = entry.path;
     card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
     card.setAttribute("aria-pressed", String(isSelected));
+    if (isOpening) card.setAttribute("aria-busy", "true");
     if (!entry.exists) card.classList.add("missing");
 
     var cover = createCover(entry);
@@ -666,10 +671,32 @@
       return;
     }
     if (window.MSWLauncher && window.MSWLauncher.setJsonPath) {
+      // 调整5：打开流程启动即在该工程两组卡片上显示加载反馈；流程结束（成功
+      // 或失败）后统一解除——期间的重渲染凭 state.openingPath 延续转圈状态。
+      state.openingPath = path;
+      markOpeningCards(path);
       window.MSWLauncher.setJsonPath(path);
       window.MSWNavigation.show("home");
-      void window.MSWLauncher.openServerEditor();
+      Promise.resolve(window.MSWLauncher.openServerEditor())
+        .catch(function () {})
+        .then(function () {
+          if (state.openingPath !== path) return;
+          state.openingPath = "";
+          markOpeningCards("");
+        });
     }
+  }
+
+  // 调整5：不重建网格，直接同步现有卡片的开合状态（即时反馈、封面不闪换）。
+  function markOpeningCards(path) {
+    bothGrids().forEach(function (grid) {
+      grid.querySelectorAll(".recent-card").forEach(function (card) {
+        var opening = Boolean(path) && card.dataset.path === path;
+        card.classList.toggle("opening", opening);
+        if (opening) card.setAttribute("aria-busy", "true");
+        else card.removeAttribute("aria-busy");
+      });
+    });
   }
 
   function openCurrentTarget() {
@@ -902,7 +929,8 @@
         void bridge("remove_recent_project", { path: entry.path }).then(refresh);
       } });
     } else {
-      // §5.3：三种移除语义严格区分——移除登记不删文件；删除工程文件才动磁盘。
+      // §5.3+调整4：移除语义严格区分——「从全部工程移除」同步撤出最近（包含关系
+      // 不变式，否则读取补齐会立即撤销移除）；删除工程文件才动磁盘。
       actions.push({ key: "remove_registry", run: function () {
         void bridge("remove_registry_project", { path: entry.path }).then(refresh);
       } });
@@ -1030,10 +1058,23 @@
     void refresh();
     // 编辑器保存/另存为成功都会写编辑器设置；窗口重新聚焦时刷新一次首页索引。
     window.addEventListener("focus", function () {
-      if (window.MSWNavigation && window.MSWNavigation.current() === "home") void refresh();
+      if (window.MSWNavigation && window.MSWNavigation.current() === "home") {
+        void refresh();
+        // 调整6：编辑器内「退出服务器」后返回启动器——右上角服务器地址与
+        // 「关闭服务器」按钮一样按重新探测结果刷新，不再残留失效地址。
+        if (window.MSWLauncher && typeof window.MSWLauncher.refreshServerStatus === "function") {
+          window.MSWLauncher.refreshServerStatus();
+        }
+      }
     });
     document.addEventListener("mswnavigation", function (event) {
-      if (event.detail && event.detail.page === "home") void refresh();
+      if (event.detail && event.detail.page === "home") {
+        void refresh();
+        // 调整6：回到首页同样重探服务器状态（切页期间退出服务器的场景）。
+        if (window.MSWLauncher && typeof window.MSWLauncher.refreshServerStatus === "function") {
+          window.MSWLauncher.refreshServerStatus();
+        }
+      }
     });
   }
 

@@ -102,6 +102,20 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertFalse(config["models"][2]["supportsSpeaker"])
         self.assertEqual(config["languages"][0]["id"], "")
 
+    def test_remove_registry_project_also_leaves_recent_view(self) -> None:
+        """调整4：撤出全部工程同步撤出最近视图，否则读取补齐会立即撤销移除。"""
+        from maw.launcher_projects import read_launcher_metadata, register_project
+
+        project = self.root / "synced.mosp"
+        _ = project.write_text("{}", encoding="utf-8")
+        register_project(project, source="created", registry_path=self.paths.project_registry)
+
+        result = self.api.remove_registry_project({"path": str(project)})
+
+        self.assertTrue(result["ok"])
+        metadata = read_launcher_metadata(self.paths.recent_metadata)
+        self.assertIn(str(project.expanduser().resolve()), metadata.removed)
+
     def test_get_ocr_runtime_recovers_a_stale_install_marker(self) -> None:
         runtime_root = self.root / "ocr-runtime"
         python = OCR.python_path(runtime_root)
@@ -3622,6 +3636,14 @@ class LauncherAssetContractTests(unittest.TestCase):
         # 桥接：全部工程 / 移除登记 / 删除工程文件（会话占用拒绝）。
         for bridge in ("def get_all_projects", "def remove_registry_project", "def delete_project_file"):
             self.assertIn(bridge, gui_source)
+        # 调整4：包含关系不变式（全部工程 ⊇ 最近工程）——读取补齐 + 移除登记同步
+        # 撤出最近视图（否则补齐会立即撤销移除）。
+        self.assertIn("def _ensure_recent_in_registry", projects_source)
+        self.assertIn("_ensure_recent_in_registry(registry, settings_path=settings_path, metadata_path=metadata_path)", projects_source)
+        self.assertIn("migrated: bool = False", projects_source)
+        remove_registry_block = gui_source.split("def remove_registry_project")[1].split("def delete_project_file")[0]
+        self.assertIn("unregister_project(path, registry_path=self.paths.project_registry)", remove_registry_block)
+        self.assertIn("remove_recent_project(path, metadata_path=self.paths.recent_metadata)", remove_registry_block)
         self.assertIn("project_in_use", gui_source)
         self.assertIn("project_registry: Path | None = None", gui_source)
         # 登记入口：打开/媒体工程/预制方案成功后登记（编辑器侧见 serve 契约）。
@@ -3673,6 +3695,46 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn("previewRegistryCleanup", block)
         # 前端失败可见：三个处理器各带 try/catch + ok:false 双反馈（键定义 2 + 3×2=6 处 + 注释 1 = 9）。
         self.assertGreaterEqual(launcher_script.count("registry_cleanup_failed"), 8)
+
+    def test_launcher_adjustment_batch_contracts(self) -> None:
+        """调整批（用户六项）：预制图标/缓存按钮/确认换行/双击加载/服务器状态重探。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+        home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
+        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
+
+        # 调整1：预制工程导航图标 = 左侧两个矩形框 + 右侧三个对勾（自绘，非 Lucide）。
+        prefab_nav = page.split('data-nav-page="prefab"')[1].split("</button>")[0]
+        self.assertEqual(prefab_nav.count("<rect"), 2)
+        self.assertEqual(prefab_nav.count('d="m14 '), 3)
+
+        # 调整2：缓存与诊断按钮容器独立成组；预览按钮文案去省略号。
+        self.assertIn('class="cache-tools"', page)
+        self.assertIn('registry_cleanup_preview: "检查失效记录"', launcher_script)
+        self.assertNotIn("检查失效工程记录", launcher_script)
+
+        # 调整3：确认对话框真实换行——JS 源内是单反斜杠 n 转义（双反斜杠会渲染字面 \n），
+        # 弹层文本按 pre-line 呈现。
+        zh_confirm = next(l for l in launcher_script.split("\n") if "registry_cleanup_confirm:" in l and "失效登记记录" in l)
+        self.assertIn("\\n·", zh_confirm)
+        self.assertNotIn("\\\\n", zh_confirm)
+        self.assertIn("#batchConfirmMessage {\n  white-space: pre-line;\n}", stylesheet)
+
+        # 调整5：双击打开即时反馈——打开路径记录 + 卡片 opening 类/aria-busy + 封面转圈。
+        self.assertIn("openingPath: \"\"", home_script)
+        self.assertIn('card.classList.toggle("opening", opening)', home_script)
+        self.assertIn('card.setAttribute("aria-busy", "true")', home_script)
+        self.assertIn(".recent-card.opening .recent-cover::after", stylesheet)
+        self.assertIn("@keyframes msw-open-spin", stylesheet)
+        self.assertIn("animation: msw-open-spin .8s linear infinite", stylesheet)
+        reduced = stylesheet[stylesheet.index("@media (prefers-reduced-motion: reduce)", stylesheet.index("msw-open-spin")):]
+        self.assertIn("animation-duration: 2.4s", reduced)
+        # 打开流程结束（成功或失败）解除转圈；期间重渲染凭 openingPath 延续。
+        self.assertIn('Promise.resolve(window.MSWLauncher.openServerEditor())', home_script)
+
+        # 调整6：聚焦/回首页重探服务器状态——编辑器内退出服务器后地址不残留。
+        self.assertIn("refreshServerStatus: () => { void checkExistingServer(); }", launcher_script)
+        self.assertEqual(home_script.count("window.MSWLauncher.refreshServerStatus()"), 2)
 
     def test_launcher_t4_settings_rail_and_grid_contracts(self) -> None:
         """T4（三轮审查 U6/A2/A3）：设置栅格、统一抽屉控制与样式覆盖顺序。"""

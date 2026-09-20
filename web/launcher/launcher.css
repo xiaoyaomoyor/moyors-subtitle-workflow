@@ -937,6 +937,51 @@ html[data-prefab-input-mode="project"] .batch-srt-only {
 }
 
 
+/* A2/T-调整：缓存与诊断操作组——纵向等宽排列，不再两个按钮挤一行。 */
+.cache-tools {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  justify-items: start;
+}
+
+/* A3：确认对话框文案支持真实换行（清理确认的多行说明）。 */
+#batchConfirmMessage {
+  white-space: pre-line;
+}
+
+/* A5/T-调整：双击卡片后的「正在打开」反馈——封面居中旋转环，风格与全局一致。 */
+.recent-card.opening .recent-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: msw-open-spin .8s linear infinite;
+}
+
+.recent-card.opening .recent-cover {
+  filter: brightness(.75);
+}
+
+.recent-card.opening .recent-cover-image {
+  opacity: .55;
+}
+
+@keyframes msw-open-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recent-card.opening .recent-cover::after {
+    animation-duration: 2.4s;
+  }
+}
+
 /* T2/U4：全部工程分页控件 */
 .all-pager {
   display: flex;

@@ -327,13 +327,39 @@ class ProjectRegistryTests(unittest.TestCase):
             settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
         self.assertEqual([item["name"] for item in result["projects"]], ["seeded.mosp"])
         self.assertEqual(result["projects"][0]["source"], "migration")
-        # 已有注册表后不再迁移：编辑器最近新增但未登记的文件不凭空进入全部工程。
+        # 调整4：包含关系不变式——注册表已存在后，最近视图新增的工程经读取补齐
+        # 进入全部工程（不再因迁移标记已置而缺席）。
         fresh = self.root / "fresh.mosp"
         fresh.write_text("{}", encoding="utf-8")
         self._set_editor_recent(project, fresh)
         again = launcher_projects.all_projects_payload(
             settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
-        self.assertEqual([item["name"] for item in again["projects"]], ["seeded.mosp"])
+        self.assertEqual(sorted(item["name"] for item in again["projects"]), ["fresh.mosp", "seeded.mosp"])
+        fresh_entry = next(item for item in again["projects"] if item["name"] == "fresh.mosp")
+        self.assertEqual(fresh_entry["source"], "migration")
+
+    def test_premature_migrated_flag_still_gains_recent_projects(self) -> None:
+        # 调整4根因：真实注册表曾被早期登记写入预设 migrated=true，种子合并因此
+        # 永不执行，最近工程缺席全部工程。读取补齐必须修复这一历史状态。
+        stray = self.root / "stray.mosp"
+        stray.write_text("{}", encoding="utf-8")
+        real = self.root / "real.mosp"
+        real.write_text("{}", encoding="utf-8")
+        _write_json(self.registry, {
+            "version": 1,
+            "migrated": True,
+            "entries": {str(stray).lower(): {"path": str(stray), "name": "stray.mosp", "source": "created"}},
+        })
+        self._set_editor_recent(real)
+
+        listing = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+
+        self.assertEqual(sorted(item["name"] for item in listing["projects"]), ["real.mosp", "stray.mosp"])
+        real_entry = next(item for item in listing["projects"] if item["name"] == "real.mosp")
+        self.assertEqual(real_entry["source"], "migration")
+        stray_entry = next(item for item in listing["projects"] if item["name"] == "stray.mosp")
+        self.assertEqual(stray_entry["source"], "created")
 
     def _set_editor_recent(self, *paths: Path) -> None:
         _write_json(self.settings, {
@@ -352,11 +378,21 @@ class ProjectRegistryTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["removed"], 1)
-        self.assertEqual(listing["projects"], [])
+        # 调整4：最近视图仍在 → 包含关系补齐把工程重新补入全部工程（不能只在
+        # 一侧消失）；来源回退为 migration。
+        self.assertEqual([item["name"] for item in listing["projects"]], ["clip.mosp"])
+        self.assertEqual(listing["projects"][0]["source"], "migration")
         # 只删登记：文件与最近视图仍在。
         self.assertTrue(project.is_file())
         recent = recent_projects_payload(settings_path=self.settings, metadata_path=self.metadata)
         self.assertEqual([item["name"] for item in recent["projects"]], ["clip.mosp"])
+        # 最近视图一并移除（启动器「从全部工程移除」的真实流程：两者同步执行）。
+        # 补齐过程只增不删：登记与最近都撤出后，全部工程才真正清空。
+        launcher_projects.unregister_project(project, registry_path=self.registry)
+        remove_recent_project(project, metadata_path=self.metadata)
+        final = launcher_projects.all_projects_payload(
+            settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
+        self.assertEqual(final["projects"], [])
 
     def test_relocate_moves_registry_entry_with_recent(self) -> None:
         old = self.root / "old.mosp"
