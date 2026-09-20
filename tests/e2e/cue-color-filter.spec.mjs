@@ -42,7 +42,8 @@ test.beforeEach(async ({ page }) => {
 
 async function waitEditorReady(page) {
   await page.goto(server.url);
-  await page.waitForFunction(() => document.querySelectorAll('.cue').length > 0);
+  await expect(page.locator('#editor-loading')).toBeHidden();
+  await page.waitForFunction(() => !appearanceBootPending && document.querySelectorAll('.cue').length > 0);
 }
 
 async function paintFirstSegmentRed(page) {
@@ -159,13 +160,13 @@ test('assigning and clearing a sticker keeps the subtitle row in place', async (
     const clickBehavior = document.getElementById('click-behavior');
     clickBehavior.value = 'select-only';
     clickBehavior.dispatchEvent(new Event('change', { bubbles: true }));
-    renderAll({ waveform: 'none' });
+    renderAll({ waveform: 'none', preserveCueListScroll: false });
   });
 
   const target = page.locator('.cue[data-idx="30"]');
   const list = page.locator('#cues-container');
   await target.click();
-  await page.waitForTimeout(500);
+  await page.waitForFunction(() => !cueListScroll.owner);
   const beforeTop = await target.evaluate((element) => element.getBoundingClientRect().top);
   expect(await list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await target.evaluate((element) => {

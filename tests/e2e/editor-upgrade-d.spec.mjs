@@ -243,7 +243,11 @@ test('help inherits custom colors after settings close and page reload', async (
   await clickMenubarItem(page, '编辑', 'editor-settings-toggle');
   await page.locator('.settings-nav-item[data-settings-category="appearance"]').click();
   await page.waitForFunction(() => !appearanceBootPending);
-  const persisted = page.waitForResponse(response => response.url().endsWith('/api/settings/appearance') && response.request().method() === 'POST' && response.ok());
+  const persisted = page.waitForResponse(response => {
+    if (!response.url().endsWith('/api/settings/appearance') || response.request().method() !== 'POST' || !response.ok()) return false;
+    const colors = response.request().postDataJSON()?.appearance?.settings?.colors;
+    return colors?.raised === '#203040' && colors?.popup === '#304050';
+  });
   for (const [key, color] of [['raised', '#203040'], ['popup', '#304050']]) {
     await page.locator('#interface-color-' + key).evaluate((input, value) => {
       input.value = value;
@@ -255,6 +259,7 @@ test('help inherits custom colors after settings close and page reload', async (
   await page.locator('#editor-settings-close').click();
   await page.reload();
   await expect(page.locator('#editor-loading')).toBeHidden();
+  await page.waitForFunction(() => !appearanceBootPending);
   await clickMenubarItem(page, '帮助', 'help-basic');
   await expect(page.locator('#help-panel .help-tabs')).toHaveCSS('background-color', 'rgb(32, 48, 64)');
   expect(await page.locator('#help-panel').evaluate(el => getComputedStyle(el).getPropertyValue('--tab-overlay-bg').trim())).toBe('#304050');
