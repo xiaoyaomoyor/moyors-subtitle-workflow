@@ -219,3 +219,5 @@
 - 第二轮 CI 预演 [35523133651](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/35523133651)，候选 9162be79c0e199f8e3b1b00633f1f691174fad92：macOS/Linux 均通过 1734 项 Python 运行（76 条件跳过），随包真实媒体／导出 40 项运行通过（1 平台条件跳过），冻结编辑器、localhost 模拟 ASR 子进程、QPK1 原生波形和普通工程剥离缓存通过；macOS 标准/lite 与 Linux AppImage 构建完成。Windows 与五包整体验证仍在执行。
 - 第二轮预演 Windows Python 与 Node 通过，Chromium 340 项为 336 通过／4 失败，发布自动跳过。诊断包括两处滚动夹具未关闭初始 renderAll 的异步锚点恢复、取消模拟响应先于服务端接收取消、导入后的自动保存尚未完成就触发手动保存。补齐明确的交互／请求／保存等待边界，继续复测；不降低滚动位置、取消后素材数量或磁盘持久化断言。
 - Windows 四项失败修正首轮重复测试 9 通过／3 失败（拆分夹具选项名误写为 preserveScroll，未关闭恢复）；更正为 preserveCueListScroll 后，四项各重复三轮，12/12 全部通过。候选产品代码未变化，仅修正夹具时序，重新进行完整发布预演。
+- 第三轮 CI [35524264036](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/35524264036) 的 Windows 浏览器为 339 通过／1 失败，macOS/Linux 通过；剩余关闭点击滚动用例揭示产品异步 seek 跟随缺陷。将测试拆成媒体已加载／延迟加载两种，并显式发出 seeked/timeupdate，修复前两项都稳定复现 scrollTop=2170。修复时记录同步抑制的播放目标，延迟媒体加载保留本次跳转的抑制意图，继续验证下一目标跟随。
+- 异步 seek 修复后，已加载／延迟加载媒体两种回归均通过，并在下一字幕继续跟随的断言下重复三轮，6/6 通过；完整 Node 379/379、编辑器契约 17 项运行通过（2 条件跳过）。点击、beta.4 与滚动矩阵 81 项正在执行，已通过点击及 beta.4 子集；与新的 CI 预演并行完成剩余回归，不提前发行。

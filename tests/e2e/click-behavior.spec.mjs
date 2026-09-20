@@ -163,12 +163,14 @@ test('context menu closes on pointerdown over blank waveform', async ({ page }) 
   await page.mouse.up();
 });
 
-test('list click auto-scroll can be disabled without disabling seek', async ({ page }) => {
+for (const deferred of [false, true]) test(`list click auto-scroll can be disabled without disabling seek (${deferred ? 'deferred media' : 'loaded media'})`, async ({ page }) => {
   await page.goto(server.url);
   await toggleCueListSettings(page);
   const autoScroll = page.locator('#cue-list-auto-scroll-on-click');
   await expect(autoScroll).toBeChecked();
   await autoScroll.uncheck();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => player.readyState >= 1);
 
   await page.evaluate(() => {
     DATA.segments.push(...Array.from({ length: 34 }, (_, offset) => {
@@ -181,6 +183,11 @@ test('list click auto-scroll can be disabled without disabling seek', async ({ p
   });
   const target = page.locator('.cue[data-idx="30"]');
   await expect(target).toHaveCount(1);
+  if (deferred) await page.evaluate(() => {
+    Object.defineProperty(player, 'readyState', { configurable: true, get: () => 0 });
+    Object.defineProperty(player, 'seekable', { configurable: true, get: () => ({ length: 0 }) });
+    seekWarned = false;
+  });
   await page.evaluate(() => {
     const cue = document.querySelector('.cue[data-idx="30"]');
     cue.dispatchEvent(new PointerEvent('pointerdown', {
@@ -189,8 +196,21 @@ test('list click auto-scroll can be disabled without disabling seek', async ({ p
     cue.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
   });
   await expect(target).toHaveClass(/selected/);
+  if (deferred) await page.evaluate(() => {
+    delete player.readyState;
+    delete player.seekable;
+    flushPendingMediaSeek(player);
+  });
+  await page.evaluate(async () => {
+    player.dispatchEvent(new Event('seeked'));
+    player.dispatchEvent(new Event('timeupdate'));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
   await expect.poll(() => page.evaluate(() => document.getElementById('cues-container').scrollTop)).toBe(0);
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeGreaterThan(140);
+  expect(await page.evaluate(() => cueListScroll.following)).toBe(true);
+  await page.evaluate(() => { player.currentTime = 160; player.dispatchEvent(new Event('timeupdate')); });
+  await expect.poll(() => page.evaluate(() => container.scrollTop)).toBeGreaterThan(0);
 });
 
 test('default list click keeps a cue already in the middle in place', async ({ page }) => {
