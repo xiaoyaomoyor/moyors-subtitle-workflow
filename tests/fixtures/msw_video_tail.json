@@ -1,0 +1,10 @@
+[
+  {"name":"native audio tail is not an edit", "media":10032,"picture":10000,"duration":10032,"expected":10000},
+  {"name":"browser rounding and waveform duration do not extend video", "media":10000,"picture":10000,"duration":10001,"expected":10000},
+  {"name":"freeze preserves native audio tail", "media":10032,"picture":10000,"duration":10032,"policy":"freeze","expected":10032},
+  {"name":"subtitle beyond picture needs decision even within audio tail", "media":10032,"picture":10000,"duration":10032,"cue_end":10020,"overflow":true,"expected":10020},
+  {"name":"explicit end beyond picture needs decision", "media":10032,"picture":10000,"duration":10032,"end":10015,"overflow":true,"expected":10015},
+  {"name":"secondary subtitle beyond picture needs decision", "media":10000,"picture":10000,"duration":10000,"secondary_end":12000,"overflow":true,"expected":12000},
+  {"name":"truncate retains a shorter custom range", "media":10032,"picture":10000,"duration":10032,"end":5000,"policy":"truncate","expected":5000},
+  {"name":"truncate removes authored tail", "media":10032,"picture":10000,"duration":10032,"cue_end":12000,"policy":"truncate","expected":10000}
+]

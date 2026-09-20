@@ -1183,10 +1183,13 @@
     return { low, high };
   }
 
-  function colorForSegment(segment) {
-    if (segment.color?.name && PALETTE[segment.color.name]) return PALETTE[segment.color.name];
-    if (segment.color_ref?.name && PALETTE[segment.color_ref.name]) return PALETTE[segment.color_ref.name];
-    if (segment.color?.value) return segment.color.value;
+  function colorForSegment(segment, segments = []) {
+    const reference = segment.color_ref;
+    const head = Number.isInteger(reference?.headIdx) ? segments[reference.headIdx]?.color : null;
+    const color = segment.color || head;
+    const name = color?.name || reference?.name;
+    if (name && PALETTE[name]) return PALETTE[name];
+    if (color?.value) return color.value;
     // 无语义色的字幕块用「字幕块」自定义颜色令牌（默认灰蓝）。
     const custom = getComputedStyle(document.documentElement).getPropertyValue('--wave-cue-block').trim();
     return /^#[0-9a-fA-F]{6}$/.test(custom) ? custom : '#66727d';
@@ -4372,7 +4375,7 @@
         block.dataset.idx = String(index);
         block.dataset.start = String(segment.start);
         block.dataset.end = String(segment.end);
-        block.style.setProperty('--cue-color', colorForSegment(segment));
+        block.style.setProperty('--cue-color', colorForSegment(segment, segments));
         if (selected.has(index)) block.classList.add('selected');
         if (segment.disabled) block.classList.add('disabled');
         // 空隙中沿用的当前字幕不点亮 active 轮廓（仅视觉；逻辑语义不变）。
@@ -6800,6 +6803,7 @@
     builtinWorkspaceIds: BUILTIN_WORKSPACE_IDS,
     builtinWorkspaces: BUILTIN_WORKSPACES,
     testing: {
+      colorForSegment,
       decodePayload,
       decodeReapeaksFile,
       decodeSpectralPayload,

@@ -18,6 +18,13 @@ from maw.msw.jobs import JobManager, TERMINAL
 
 
 class AsrTests(unittest.TestCase):
+    def test_candidate_color_references_keep_palette_name(self):
+        project = {'segments': [
+            {'start':0,'end':100,'text':'head','color':{'name':'yellow','value':'#c4a019','start':0,'end':400}},
+            {'start':100,'end':400,'text':'member','color_ref':{'name':'yellow','headIdx':0}}]}
+        result = map_candidates(project, {'start':1000,'end':1500}, 'job')
+        self.assertEqual(result[1]['color_ref'], {'name':'yellow','headIdx':0})
+
     def test_application_provenance_schema(self):
         from maw.msw.project_codec import normalize_extension
         value = {'schema':'msw.editor.v1','project_id':'p','asr_stale_subtitles':{'ext':{'cue':'job'}},

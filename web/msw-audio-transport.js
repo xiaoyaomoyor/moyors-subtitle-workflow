@@ -3,11 +3,35 @@
   'use strict';
   function create({ player, getState, load, changed, hint, frame, beforePlay = () => {}, skipAt = () => null }) {
     let context, epoch = 0, timer, anchor, virtual = null, busy = 0, buffering = null, internalPause = false;
+    let mediaNode = null, mediaGain = null, sourceGainDb = 0, sourceRevision = 0;
     const buffers = new Map(), heats = new Map(), pending = new Map(), failures = new Map(), nodes = new Map(), queue = [];
     const reportedErrors = new Set();
     const LIMIT = 128 * 1024 * 1024;
     const clock = () => performance.now() / 1000;
     const ctx = () => context ||= new (global.AudioContext || global.webkitAudioContext)();
+    function resetSourceGain() {
+      sourceRevision++; sourceGainDb = 0;
+      if (mediaGain) {
+        mediaGain.gain.cancelScheduledValues(ctx().currentTime);
+        mediaGain.gain.value = 1;
+      }
+    }
+    async function setSourceGainDb(value) {
+      if (!Number.isFinite(value) || value < -60 || value > 12) throw Error('源音频增益须在 −60 至 +12 dB');
+      const revision = sourceRevision, audioContext = ctx();
+      await audioContext.resume();
+      if (revision !== sourceRevision) throw Error('媒体已改变，请重新调整试听增益');
+      if (!mediaNode) {
+        mediaGain = audioContext.createGain();
+        mediaNode = audioContext.createMediaElementSource(player);
+        mediaNode.connect(mediaGain); mediaGain.connect(audioContext.destination);
+      }
+      // HTMLMediaElement volume/mute remains the shared monitor control;
+      // only native source audio goes through this additional gain node.
+      mediaGain.gain.cancelScheduledValues(audioContext.currentTime);
+      mediaGain.gain.setTargetAtTime(Math.pow(10, value / 20), audioContext.currentTime, .015);
+      sourceGainDb = value;
+    }
     const time = () => virtual ? virtual.time + (virtual.playing ? (clock() - virtual.stamp) * 1000 : 0) : player.currentTime * 1000;
     const playing = () => !buffering && (virtual ? virtual.playing : !player.paused && !player.ended && !player.seeking && player.readyState >= 3);
     const reset = () => {
@@ -142,6 +166,7 @@
     }
     function wake() {
       if (buffering) return;
+      if (mediaNode) void ctx().resume().catch(() => hint('点击播放以启用源音频试听'));
       if (!getState().audible.length) {
         if (virtual) virtual = { time: time(), stamp: clock(), playing: false };
         stop(); frame(); return;
@@ -165,6 +190,7 @@
     events.seeking = () => { cancelBuffering(); stop(); };
     for (const [event, listener] of Object.entries(events)) player.addEventListener(event, listener);
     return Object.freeze({
+      setSourceGainDb, resetSourceGain, sourceGainDb: () => sourceGainDb,
       ensure, buffers, heats, failures,
       reset: () => { const resume = !!buffering; cancelBuffering(); reset();
         if (resume) { if (virtual) { virtual.playing = true; virtual.stamp = clock(); } else void player.play().catch(() => {}); }
@@ -194,12 +220,13 @@
         virtual = { time: ms, stamp: clock(), playing: wasPlaying }; player.pause(); reset(); if (wasPlaying) wake(); frame(); return true;
       },
       clear: () => {
+        resetSourceGain();
         epoch++; cancelBuffering(); virtual = null; stop();
         for (const work of pending.values()) work.controller.abort();
         for (const work of queue.splice(0)) work.resolve(null);
         pending.clear(); buffers.clear(); heats.clear(); failures.clear(); reportedErrors.clear();
       },
-      diagnostics: () => ({ active: [...nodes.values()].filter(n => !n.done).length, decoded: buffers.size, bytes: [...buffers.values()].reduce((n, item) => n + item.bytes, 0), time: time(), virtual: !!virtual, buffering: !!buffering }),
+      diagnostics: () => ({ source_gain_db: sourceGainDb, active: [...nodes.values()].filter(n => !n.done).length, decoded: buffers.size, bytes: [...buffers.values()].reduce((n, item) => n + item.bytes, 0), time: time(), virtual: !!virtual, buffering: !!buffering }),
     });
   }
   global.MSWAudioTransport = Object.freeze({ create });

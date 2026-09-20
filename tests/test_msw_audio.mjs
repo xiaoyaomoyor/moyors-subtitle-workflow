@@ -135,7 +135,8 @@ function transportHarness(load = async () => new ArrayBuffer(0)) {
     resume() { return Promise.resolve(); }
     async decodeAudioData() { return { length: 48000, sampleRate: 24000, numberOfChannels: 1, getChannelData: () => new Float32Array(48000).fill(.25) }; }
     createBufferSource() { const node = { connect() {}, disconnect() {}, stop() {}, start(...args) { this.startArgs = args; } }; sources.push(node); return node; }
-    createGain() { const node = { gain: { value: 0 }, connect() {}, disconnect() {} }; gains.push(node); return node; }
+    createGain() { const node = { gain: { value: 0, cancelScheduledValues() {}, setTargetAtTime(value) {this.value=value;} }, connect() {}, disconnect() {} }; gains.push(node); return node; }
+    createMediaElementSource() { return {connect() {}}; }
   }
   const player = Object.assign(new EventTarget(), { currentTime: 1.5, duration: 10, paused: true, ended: false, seeking: false, readyState: 4, volume: .5, muted: false, playbackRate: 1 });
   player.pause = () => { player.paused = true; player.dispatchEvent(new Event('pause')); };
@@ -160,6 +161,22 @@ test('transport schedules the seek offset, applies monitor gain and releases end
     assert.equal(h.transport.diagnostics().active, 0);
     h.player.pause();
   } finally { h.transport.clear(); }
+});
+
+test('source preview gain is independent of clips and master monitor volume and resets', async () => {
+  const h = transportHarness();
+  try {
+    await h.transport.setSourceGainDb(6);
+    assert.equal(h.player.volume,.5);
+    assert.equal(h.transport.sourceGainDb(),6);
+    assert.ok(Math.abs(h.gains[0].gain.value-Math.pow(10,.3))<1e-8);
+    await h.transport.ensure(h.asset); await h.player.play();
+    await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(h.gains[1].gain.value,.5);
+    await assert.rejects(h.transport.setSourceGainDb(13));
+    h.transport.resetSourceGain();
+    assert.equal(h.transport.sourceGainDb(),0); assert.equal(h.gains[0].gain.value,1);
+  } finally {h.transport.clear();}
 });
 
 test('switching projects discards an in-flight decode and cannot fill the new cache', async () => {

@@ -1820,8 +1820,12 @@
   #cue-editor-settings-panel label[hidden] { display: none; }
   #cue-editor-settings-panel label:has(input[type="checkbox"]) { display: flex; justify-content: flex-start; }
   #cue-editor-settings-panel h3 { text-align: left; }
-  #audio-actions-results { padding-left: 20px; max-height: 180px; overflow: auto; overflow-wrap: anywhere; }
-  #audio-actions-panel .cue-editor-settings-group { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+  #audio-actions-results { max-height: 180px; overflow-y: auto; overflow-wrap: anywhere; overscroll-behavior: contain; }
+  #audio-actions-results ul { padding-left: 20px; margin: 6px 0 12px; }
+  #audio-actions-results h4 { font-size: 12px; margin: 10px 0 4px; }
+  #audio-actions-panel .audio-actions-footer { margin-top: 0; align-items: center; }
+  #audio-actions-panel .audio-actions-footer > small { margin: 0 auto 0 0; }
+  #audio-actions-panel .cue-editor-settings-group { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--border-subtle); }
   #audio-actions-panel .cue-editor-settings-group h3 { font-size: 13px; margin: 0; }
   #video-export-tail-field.is-overflow select { border-color: var(--wave-playhead); }
   #cue-editor-settings-panel :is(input:not([type="checkbox"]), select) { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -2848,12 +2852,9 @@
   .cue .sticker-slot:empty { display: none; }
   .cue .color-bar.has-color { background: var(--color-bar, #777); }
   .cue .color-bar.is-ref {
-    /* ref 用斜纹表示"属于上方 head"，与 head 的纯色区分 */
-    background: repeating-linear-gradient(
-      135deg,
-      var(--color-bar, #777) 0 3px,
-      transparent 3px 6px
-    );
+    /* 空心色点表示沿用组首颜色；尺寸与实心色点一致。 */
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--color-bar, #777);
   }
   .cue .index {
     font-size: 11px; color: var(--text-faint); font-family: var(--font-mono);
@@ -5509,15 +5510,15 @@
         <div class="dropdown-menu dropdown-submenu-menu" role="menu">
           <button type="button" class="dropdown-item" id="load-media" role="menuitem" title="在浏览器中直接加载视频或音频文件">加载媒体</button>
           <button type="button" class="dropdown-item" id="load-srt" role="menuitem" title="加载 SRT 字幕文件">加载字幕</button>
+          <button type="button" class="dropdown-item" id="project-recovery-open" role="menuitem" hidden>恢复记录</button>
         </div>
       </div>
+      <button type="button" class="dropdown-item" id="project-check-assets" role="menuitem" hidden>检查工程素材</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">保存</div>
       <button type="button" class="dropdown-item" id="save-project" role="menuitem" title="保存回服务器启动时指定的工程文件" hidden><span>保存工程</span> <kbd class="menu-kbd" data-mod>Ctrl+S</kbd></button>
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
       <div id="project-persistence-status" class="msw-save-status" role="status" hidden></div>
-      <button type="button" class="dropdown-item" id="project-check-assets" role="menuitem" hidden>检查工程素材</button>
-      <button type="button" class="dropdown-item" id="project-recovery-open" role="menuitem" hidden>恢复记录</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
@@ -5743,7 +5744,6 @@
       <button type="button" class="dropdown-item" id="msw-asr-open" role="menuitem" title="识别整个源视频或时间选区">ASR<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="audio-actions-open" role="menuitem">音频批量操作<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-      <button type="button" class="dropdown-item" id="audio-fill-subtitles" role="menuitem" disabled>补齐字幕</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
       <button type="button" class="dropdown-item" id="media-player-settings-item" role="menuitem" title="打开媒体播放器设置窗口">媒体播放器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -7847,13 +7847,13 @@
     <button type="button" id="audio-actions-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频批量操作"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
-    <p id="audio-actions-count" class="msw-processing-hint"></p>
-    <section class="cue-editor-settings-group"><h3>静音贴片</h3><div class="msw-processing-actions"><button id="audio-actions-mute" type="button">静音</button><button id="audio-actions-unmute" type="button">取消静音</button></div></section>
-    <section class="cue-editor-settings-group"><h3>贴片音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-gain-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions"><button id="audio-actions-gain-apply" type="button">应用增益</button></div></section>
-    <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions"><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
-    <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions"><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
+    <section class="cue-editor-settings-group"><h3>静音贴片</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-mute-count" class="msw-processing-hint"></small><button id="audio-actions-mute" type="button">静音</button><button id="audio-actions-unmute" type="button">取消静音</button></div></section>
+    <section class="cue-editor-settings-group"><h3>贴片音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-gain-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-gain-count" class="msw-processing-hint"></small><button id="audio-actions-gain-apply" type="button">应用增益</button></div></section>
+    <section class="cue-editor-settings-group"><h3>源音频音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-source-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-source-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-source-status" class="msw-processing-hint"></small><button id="audio-actions-source-apply" type="button">应用增益</button></div></section>
+    <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-regenerate-count" class="msw-processing-hint"></small><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
+    <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-fill-count" class="msw-processing-hint"></small><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
     <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-    <details id="audio-actions-details" hidden><summary>处理详情</summary><ul id="audio-actions-results" data-i18n-skip></ul></details>
+    <details id="audio-actions-details" hidden><summary>处理详情</summary><div id="audio-actions-results" data-i18n-skip></div></details>
   </div>
 </aside>
 
@@ -15724,6 +15724,19 @@ export default MawDynamicCaptions;
     }
     return merged;
   }
+  // A video's native audio/container tail is not authored timeline content.
+  // Keep this contract aligned with video_render.video_options.
+  function videoOptions(project, raw, info, applyTail = true) {
+    const out = options(raw), videoEnd = info?.video?.duration_ms;
+    if (!Number.isSafeInteger(videoEnd) || videoEnd <= 0) return out;
+    out.duration_ms = videoEnd;
+    for (const track of project.multi_subtitle?.tracks || [])
+      for (const cue of track.segments || []) out.duration_ms = Math.max(out.duration_ms, cue.end);
+    if (out.end_ms !== null) out.duration_ms = Math.max(out.duration_ms, out.end_ms);
+    if (out.video_tail === 'freeze') out.duration_ms = Math.max(out.duration_ms, info.duration_ms || 0);
+    if (applyTail && out.video_tail === 'truncate') out.end_ms = Math.min(out.end_ms ?? Infinity, videoEnd);
+    return out;
+  }
   function compile(project, rawOptions = {}) {
     const o = options(rawOptions), ext = project.msw || {}, core = global.MSWAudio;
     core.validate(ext);
@@ -15771,7 +15784,7 @@ export default MawDynamicCaptions;
       intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: o.source_gain_db } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, options, videoOptions, removedRanges, compile });
 })(window);
 
 // Pure translation selection, placement and optimistic reconciliation.
@@ -16136,7 +16149,8 @@ export default MawDynamicCaptions;
         }
         if (!source) continue;
         const color = source.color || (source.color_ref
-          ? {...(project.segments[source.color_ref.headIdx]?.color || {}), name:source.color_ref.name} : null);
+          ? {...(project.segments[source.color_ref.headIdx]?.color || {}),
+            name:source.color_ref.name || project.segments[source.color_ref.headIdx]?.color?.name} : null);
         // Each replacement owns its inherited color; never leave a reference
         // pointing at a removed group head or stretch color outside the cue.
         delete cue.color_ref;
@@ -16253,6 +16267,16 @@ export default MawDynamicCaptions;
     '配音片段超过 600 字符，请调整断句设置': 'A speech segment exceeds 600 characters; adjust splitting settings',
     "媒体 · 处理": "Media · Processing",
     "音频批量操作": "Batch audio actions",
+    "源音频音量增益": "Source audio preview gain",
+    "当前试听增益": "Current preview gain",
+    "已调整源音频试听增益": "Source audio preview gain updated",
+    "源音频增益须在 −60 至 +12 dB": "Source gain must be between -60 and +12 dB",
+    "媒体已改变，请重新调整试听增益": "Media changed; adjust preview gain again",
+    "点击播放以启用源音频试听": "Press play to enable source audio preview",
+    "补齐": "Fill",
+    "正在重试": "Retrying",
+    "原媒体音画尾差": "Native audio/video tail difference",
+    "默认按画面结尾；定格延长可保留原声尾部": "Defaults to picture end; freeze to retain the original audio tail",
     "关闭音频批量操作": "Close batch audio actions",
     "静音贴片": "Mute clips",
     "选中贴片": "Selected clips",
@@ -19509,10 +19533,13 @@ export default MawDynamicCaptions;
     return { low, high };
   }
 
-  function colorForSegment(segment) {
-    if (segment.color?.name && PALETTE[segment.color.name]) return PALETTE[segment.color.name];
-    if (segment.color_ref?.name && PALETTE[segment.color_ref.name]) return PALETTE[segment.color_ref.name];
-    if (segment.color?.value) return segment.color.value;
+  function colorForSegment(segment, segments = []) {
+    const reference = segment.color_ref;
+    const head = Number.isInteger(reference?.headIdx) ? segments[reference.headIdx]?.color : null;
+    const color = segment.color || head;
+    const name = color?.name || reference?.name;
+    if (name && PALETTE[name]) return PALETTE[name];
+    if (color?.value) return color.value;
     // 无语义色的字幕块用「字幕块」自定义颜色令牌（默认灰蓝）。
     const custom = getComputedStyle(document.documentElement).getPropertyValue('--wave-cue-block').trim();
     return /^#[0-9a-fA-F]{6}$/.test(custom) ? custom : '#66727d';
@@ -22698,7 +22725,7 @@ export default MawDynamicCaptions;
         block.dataset.idx = String(index);
         block.dataset.start = String(segment.start);
         block.dataset.end = String(segment.end);
-        block.style.setProperty('--cue-color', colorForSegment(segment));
+        block.style.setProperty('--cue-color', colorForSegment(segment, segments));
         if (selected.has(index)) block.classList.add('selected');
         if (segment.disabled) block.classList.add('disabled');
         // 空隙中沿用的当前字幕不点亮 active 轮廓（仅视觉；逻辑语义不变）。
@@ -25126,6 +25153,7 @@ export default MawDynamicCaptions;
     builtinWorkspaceIds: BUILTIN_WORKSPACE_IDS,
     builtinWorkspaces: BUILTIN_WORKSPACES,
     testing: {
+      colorForSegment,
       decodePayload,
       decodeReapeaksFile,
       decodeSpectralPayload,
@@ -30862,13 +30890,14 @@ function updateCueColorPresentation(el, colorBar, seg) {
     const headIndex = Number(seg.color_ref.headIdx);
     const isExtension = el.dataset.extIdx != null && el.dataset.idx == null && el.dataset.mainIdx == null;
     const segments = isExtension ? getActiveExtensionTrack()?.segments : DATA.segments;
-    const value = COLOR_BY_NAME[seg.color_ref.name]?.value || segments?.[headIndex]?.color?.value || '#777';
+    const colorName = segments?.[headIndex]?.color?.name || seg.color_ref.name;
+    const value = COLOR_BY_NAME[colorName]?.value || segments?.[headIndex]?.color?.value || '#777';
     colorBar.classList.add('is-ref');
     colorBar.style.setProperty('--color-bar', value);
     colorBar.dataset.colorRefHeadIdx = String(headIndex);
     el.classList.add('has-color');
     el.style.setProperty('--color-bar', value);
-    colorBar.title = `↑ 属于第 ${headIndex + 1} 条的颜色（${seg.color_ref.name}）`;
+    colorBar.title = `↑ 属于第 ${headIndex + 1} 条的颜色${colorName ? `（${colorName}）` : ''}`;
     colorBar.style.cursor = 'pointer';
   }
 }
@@ -46367,7 +46396,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   get config() { return SERVER_CONFIG; },
   get generation() { return mswProjectGeneration; },
   name: () => `${FILENAME_BASE}.mosp`,
-  hint: message => flashHint(message, 'warning'),
+  hint: (message, type = 'warning') => flashHint(message, type),
   downloadLocal: async (project, name) => {
     if (project) {
       validateProjectForLoad(project);
@@ -46613,8 +46642,8 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
-  audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
-  audioExportDuration: () => Math.ceil(Math.max(
+  audioExportPreview: () => ({ segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
+  audioExportDuration: () => Math.round(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
     Number(waveformEditor?.contentDurationMs) || 0,
   )),
@@ -47303,6 +47332,8 @@ window.addEventListener('beforeunload', (e) => {
     'openaiPrompt','openaiKeywords','sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms','doubaoHotwords'];
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
   let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,selected=null,loading=null;
+  let retrying = null, retrySource = null;
+  const retries = new Map();
   function message(value) {el('message').textContent=t(value);}
   function options(node,values,selectedValue='') {
     node.replaceChildren(...values.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=t(item.label);return option;}));
@@ -47382,7 +47413,7 @@ window.addEventListener('beforeunload', (e) => {
     const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
     el('scope').textContent=issue||(!ready?t('请先在环境配置中保存此服务的 API Key'):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
-    el('start').disabled=!available||busy||media.busy||(!submission&&(!snapshot||!ready));
+    el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
     el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
     el('save-environment').disabled=!available||busy||Boolean(loading);
@@ -47397,6 +47428,7 @@ window.addEventListener('beforeunload', (e) => {
   async function submit() {
     if (busy) return;
     if (media.busy) {message('媒体正在导入，请等待完成后再识别');return;}
+    const generation=host.generation;
     try {
       host.commitEdits();
       if (!submission) {
@@ -47408,19 +47440,21 @@ window.addEventListener('beforeunload', (e) => {
           batch_overlap:snapshot.mode==='clips'&&inputs.some(other=>other!==snapshot&&other.range.start<snapshot.range.end&&snapshot.range.start<other.range.end)},provider}));
         batchSubmission=submission.length>1;
       }
-      busy=true;updateScope();
-      const generation=host.generation;
+      busy=true;updateScope();renderJobs();
       while (submission?.length) {
         const result=await media.request('jobs',submission[0]);
         if (generation!==host.generation) return;
-        jobs.set(result.job.id,result.job);submission.shift();renderJobs();schedule(0);
+        jobs.set(result.job.id,result.job);
+        if (retrySource) { retries.set(retrySource, result.job.id); retrySource = null; }
+        submission.shift();renderJobs();schedule(0);
       }
       submission=null;
       message('识别已开始');renderJobs();schedule(0);
     } catch(error) {
-      if (error.status>=400&&error.status<500&&error.status!==429&&!batchSubmission) submission=null;
+      if (generation!==host.generation) return;
+      if (error.status>=400&&error.status<500&&error.status!==429&&!batchSubmission) {submission=null;retrySource=null;}
       message(`${error.message}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
-    } finally {busy=false;updateScope();}
+    } finally {if(generation===host.generation){busy=false;updateScope();renderJobs();}}
   }
   function renderJobs() {
     const opened=new Set([...el('jobs').querySelectorAll('details[open]')].map(node=>node.dataset.resultId));
@@ -47433,9 +47467,14 @@ window.addEventListener('beforeunload', (e) => {
       if (range) line.textContent+=` · ${(range.start/1000).toFixed(3)}–${(range.end/1000).toFixed(3)} s`;
       const status=document.createElement('small');status.textContent=t(job.progress?.message||'');
       const actions=document.createElement('div');actions.className='msw-processing-actions';card.append(line,status,actions);
-      function button(label,action) {const node=document.createElement('button');node.type='button';node.textContent=t(label);node.addEventListener('click',action);actions.append(node);}
+      function button(label,action) {const node=document.createElement('button');node.type='button';node.textContent=t(label);node.addEventListener('click',action);actions.append(node);return node;}
       if (!terminal.has(job.status)) button('取消',async()=>{
-        try {await media.request(`jobs/${job.id}/cancel`,{project_id:job.project_id});schedule(0);}catch(error){message(error.message);}
+        const generation=host.generation;
+        try {
+          await media.request(`jobs/${job.id}/cancel`,{project_id:job.project_id});
+          if (generation!==host.generation) return;
+          jobs.set(job.id,{...job,status:'cancel_requested'});renderJobs();schedule(0);
+        }catch(error){if(generation===host.generation)message(error.message);}
       });
       if (job.status==='succeeded') {
         const choose=document.createElement('label');choose.className='msw-asr-result-choice';
@@ -47456,19 +47495,36 @@ window.addEventListener('beforeunload', (e) => {
         view.addEventListener('toggle',()=>{if(view.isConnected&&view.open&&!details.has(job.id))void showResult(job.id);});
         card.append(view);
       }
-      if (['failed','cancelled','interrupted'].includes(job.status)) button('使用此范围重试',async()=>{
+      if (['failed','cancelled','interrupted'].includes(job.status)) {
+        const retried = jobs.get(retries.get(job.id)), activeRetry = retried && !terminal.has(retried.status);
+        const retryButton = button(activeRetry ? '正在重试' : '使用此范围重试',async()=>{
+        if (busy || submission || retrying || activeRetry) return;
+        const generation=host.generation;
+        retrying=job.id;updateScope();renderJobs();
         try {
           const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
+          if(generation!==host.generation) return;
+          if (!providers.find(item=>item.id===el('providerId').value)?.hasApiKey) throw Error('请先在环境配置中保存此服务的 API Key');
+          host.commitEdits();
+          let snapshot;
           if(result.job.snapshot.mode==='clips') {
             const snap=result.job.snapshot, clips=host.data.msw?.audio_clips||[], clip=clips.find(c=>c.id===snap.source.clip.id);
-            if(host.data.msw?.project_id!==job.project_id||!clip||Object.keys(snap.source.clip).some(k=>clip[k]!==snap.source.clip[k]))throw Error('贴片已改变，请重新选择识别范围');
-            submission=[{...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot:snap,provider:providerInput()}];
-            batchSubmission=false;el('mode').value='clips';await submit();return;
+            if(host.data.msw?.project_id!==job.project_id||!clip||Object.keys(snap.source.clip).some(k=>clip[k]!==snap.source.clip[k])
+              ||host.data.msw.assets.find(a=>a.id===snap.source.id)?.sha256!==snap.source.revision)throw Error('贴片已改变，请重新选择识别范围');
+            snapshot=global.MSWAsr.clipSnapshots(host.data,[clip])[0];el('mode').value='clips';
+          } else {
+            if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision
+              ||media.current?.audio_index!==result.job.snapshot.source.audio_index) throw Error('媒体已改变，请重新选择识别范围');
+            el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);
+            snapshot=global.MSWAsr.snapshot(host.data,media.current,result.job.snapshot.mode,result.job.snapshot.range);
           }
-          if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision) throw Error('媒体已改变，请重新选择识别范围');
-          el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);updateScope();message('范围已恢复；检查当前配置后点击开始识别');
-        }catch(error){message(error.message);}
-      });
+          submission=[{...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot,provider:providerInput()}];
+          batchSubmission=false;retrySource=job.id;el('history').open=true;await submit();
+        }catch(error){if(generation===host.generation)message(error.message);}
+        finally{if(generation===host.generation){retrying=null;updateScope();renderJobs();}}
+        });
+        retryButton.disabled=busy||Boolean(submission)||Boolean(retrying)||Boolean(activeRetry);
+      }
       fragment.append(card);
     }
     el('jobs').replaceChildren(fragment);el('count').textContent=String(jobs.size);refreshFooter();
@@ -47580,7 +47636,7 @@ window.addEventListener('beforeunload', (e) => {
     const reports=ranges.ranges.map(range=>global.MSWAsr.boundaries(host.data,range,media.current?.metadata.duration_ms||0));
     if(reports.every(report=>report.canExpand))ranges.setRange(reports.map(report=>report.expanded));
   });
-  el('start').addEventListener('click',()=>void submit());el('forget').addEventListener('click',()=>{submission=null;updateScope();message('已放弃未确认提交；此前请求若已到达服务，仍会显示在任务列表');});
+  el('start').addEventListener('click',()=>void submit());el('forget').addEventListener('click',()=>{submission=null;retrySource=null;updateScope();renderJobs();message('已放弃未确认提交；此前请求若已到达服务，仍会显示在任务列表');});
   el('save-settings').addEventListener('click',async()=>{
     if (busy||!available) return;
     busy=true;updateScope();
@@ -47600,7 +47656,7 @@ window.addEventListener('beforeunload', (e) => {
   el('apply').addEventListener('click',()=>{if(selected)void apply(selected);});
   el('store').addEventListener('click',storeBatch);
   for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
-  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
+  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
   global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
   refreshFooter();
   if (available) {void loadSettings();schedule(0);}
@@ -47641,7 +47697,7 @@ window.addEventListener('beforeunload', (e) => {
     if (previous) host.setSaving(false);
     previous?.resolve(value);
   }
-  function status(report, label = '工程已保存', warning = null) {
+  function status(report, label = '工程已保存', warning = null, toast = false) {
     const output = el('project-persistence-status');
     const missing = report?.missing?.length || 0;
     output.textContent = t(label);
@@ -47650,7 +47706,8 @@ window.addEventListener('beforeunload', (e) => {
     if (report?.stagedOnly?.length) output.textContent += ` · ${t('仅本机暂存')} ${report.stagedOnly.length}`;
     if (warning) output.textContent += ` · ${t(warning)}`;
     output.classList.toggle('warning', missing > 0 || Boolean(warning));
-    output.hidden = false;
+    output.hidden = toast;
+    if (toast) host.hint(output.textContent, missing || warning ? 'warning' : 'success');
   }
   function saveAs({ project = null, name = host.name(), newProject = false } = {}) {
     if (!available() || active || host.saving() || recoveryModal.classList.contains('show')) return Promise.resolve(false);
@@ -47725,7 +47782,7 @@ window.addEventListener('beforeunload', (e) => {
     const generation = host.generation;
     try {
       const result = await request('project-health');
-      if (generation === host.generation) status(result.assets, '已检查磁盘工程');
+      if (generation === host.generation) status(result.assets, '已检查磁盘工程', null, true);
     } catch (error) { host.hint(error.message); }
   });
   async function captureDraft({ force = false } = {}) {
@@ -49679,11 +49736,35 @@ window.addEventListener('beforeunload', (e) => {
   'use strict';
   function create({ player, getState, load, changed, hint, frame, beforePlay = () => {}, skipAt = () => null }) {
     let context, epoch = 0, timer, anchor, virtual = null, busy = 0, buffering = null, internalPause = false;
+    let mediaNode = null, mediaGain = null, sourceGainDb = 0, sourceRevision = 0;
     const buffers = new Map(), heats = new Map(), pending = new Map(), failures = new Map(), nodes = new Map(), queue = [];
     const reportedErrors = new Set();
     const LIMIT = 128 * 1024 * 1024;
     const clock = () => performance.now() / 1000;
     const ctx = () => context ||= new (global.AudioContext || global.webkitAudioContext)();
+    function resetSourceGain() {
+      sourceRevision++; sourceGainDb = 0;
+      if (mediaGain) {
+        mediaGain.gain.cancelScheduledValues(ctx().currentTime);
+        mediaGain.gain.value = 1;
+      }
+    }
+    async function setSourceGainDb(value) {
+      if (!Number.isFinite(value) || value < -60 || value > 12) throw Error('源音频增益须在 −60 至 +12 dB');
+      const revision = sourceRevision, audioContext = ctx();
+      await audioContext.resume();
+      if (revision !== sourceRevision) throw Error('媒体已改变，请重新调整试听增益');
+      if (!mediaNode) {
+        mediaGain = audioContext.createGain();
+        mediaNode = audioContext.createMediaElementSource(player);
+        mediaNode.connect(mediaGain); mediaGain.connect(audioContext.destination);
+      }
+      // HTMLMediaElement volume/mute remains the shared monitor control;
+      // only native source audio goes through this additional gain node.
+      mediaGain.gain.cancelScheduledValues(audioContext.currentTime);
+      mediaGain.gain.setTargetAtTime(Math.pow(10, value / 20), audioContext.currentTime, .015);
+      sourceGainDb = value;
+    }
     const time = () => virtual ? virtual.time + (virtual.playing ? (clock() - virtual.stamp) * 1000 : 0) : player.currentTime * 1000;
     const playing = () => !buffering && (virtual ? virtual.playing : !player.paused && !player.ended && !player.seeking && player.readyState >= 3);
     const reset = () => {
@@ -49818,6 +49899,7 @@ window.addEventListener('beforeunload', (e) => {
     }
     function wake() {
       if (buffering) return;
+      if (mediaNode) void ctx().resume().catch(() => hint('点击播放以启用源音频试听'));
       if (!getState().audible.length) {
         if (virtual) virtual = { time: time(), stamp: clock(), playing: false };
         stop(); frame(); return;
@@ -49841,6 +49923,7 @@ window.addEventListener('beforeunload', (e) => {
     events.seeking = () => { cancelBuffering(); stop(); };
     for (const [event, listener] of Object.entries(events)) player.addEventListener(event, listener);
     return Object.freeze({
+      setSourceGainDb, resetSourceGain, sourceGainDb: () => sourceGainDb,
       ensure, buffers, heats, failures,
       reset: () => { const resume = !!buffering; cancelBuffering(); reset();
         if (resume) { if (virtual) { virtual.playing = true; virtual.stamp = clock(); } else void player.play().catch(() => {}); }
@@ -49870,12 +49953,13 @@ window.addEventListener('beforeunload', (e) => {
         virtual = { time: ms, stamp: clock(), playing: wasPlaying }; player.pause(); reset(); if (wasPlaying) wake(); frame(); return true;
       },
       clear: () => {
+        resetSourceGain();
         epoch++; cancelBuffering(); virtual = null; stop();
         for (const work of pending.values()) work.controller.abort();
         for (const work of queue.splice(0)) work.resolve(null);
         pending.clear(); buffers.clear(); heats.clear(); failures.clear(); reportedErrors.clear();
       },
-      diagnostics: () => ({ active: [...nodes.values()].filter(n => !n.done).length, decoded: buffers.size, bytes: [...buffers.values()].reduce((n, item) => n + item.bytes, 0), time: time(), virtual: !!virtual, buffering: !!buffering }),
+      diagnostics: () => ({ source_gain_db: sourceGainDb, active: [...nodes.values()].filter(n => !n.done).length, decoded: buffers.size, bytes: [...buffers.values()].reduce((n, item) => n + item.bytes, 0), time: time(), virtual: !!virtual, buffering: !!buffering }),
     });
   }
   global.MSWAudioTransport = Object.freeze({ create });
@@ -50357,8 +50441,13 @@ window.addEventListener('beforeunload', (e) => {
     virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,
     protectGaps: gaps => { sync(); if (gapSource !== gaps) { gapSource = gaps; protectedRanges = core.protectGaps(gaps, extension()); } return protectedRanges; },
     diagnostics: transport.diagnostics,
+    sourceGainDb: transport.sourceGainDb,
+    setSourceGainDb: async value => { await transport.setSourceGainDb(value); global.dispatchEvent(new Event('msw:source-gain')); },
   });
   global.MSWE.register('audio-timeline', () => api);
+  global.addEventListener('msw:media-changed', () => {
+    transport.resetSourceGain(); global.dispatchEvent(new Event('msw:source-gain'));
+  });
   global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
   global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
   global.addEventListener('msw:project-changed', () => {
@@ -50377,26 +50466,44 @@ window.addEventListener('beforeunload', (e) => {
   const t = value => global.MSWE_I18N?.translateText?.(value) || value;
   const core = global.MSWAudioActions;
   let batch = null, running = false;
+  const latestResults = new Map();
   const terminal = new Set(['succeeded','failed','cancelled','interrupted']);
   const panel = host.createFloatingPanel({panel: el('panel'), dragHandle: el('drag'),
     anchorButton: document.querySelector('[data-menubar-item="media"] > button'), positionKey: 'msw.audio.actions.position'});
-  function report(message, rows = []) {
-    if(batch?.outputOnly)global.dispatchEvent(new CustomEvent('msw:asset-generation',{detail:[t(message),...rows.map(row=>`${row.label||row.id}：${t(row.reason)}`)].join('\n')}));
+  function report(message, rows = [], kind = null) {
+    if(batch?.outputOnly) {
+      global.dispatchEvent(new CustomEvent('msw:asset-generation',{detail:[t(message),...rows.map(row=>`${row.label||row.id}：${t(row.reason)}`)].join('\n')}));
+      return;
+    }
     el('message').textContent = t(message);
-    el('results').replaceChildren(...rows.map(row => {
-      const li = document.createElement('li'); li.textContent = `${row.label || row.id}：${t(row.reason)}`; return li;
+    // Progress updates must not reset the scroll position of completed details.
+    if (!kind && latestResults.size) return;
+    if (kind) latestResults.set(kind, {message, rows: rows.map(row => ({label:row.label||row.id,reason:row.reason}))});
+    el('results').replaceChildren(...['补齐','替换'].filter(key=>latestResults.has(key)).map(key => {
+      const result = latestResults.get(key), section = document.createElement('section');
+      section.dataset.kind = key;
+      const heading = document.createElement('h4'); heading.textContent = `${t(key)} · ${t(result.message)}`;
+      const list = document.createElement('ul');
+      list.replaceChildren(...result.rows.map(row => {
+        const li = document.createElement('li'); li.textContent = `${row.label}：${t(row.reason)}`; return li;
+      }));
+      section.append(heading,list); return section;
     }));
-    el('details').hidden = !rows.length;
+    el('details').hidden = !latestResults.size;
   }
   function refresh() {
     const clips = audio.selectedClips();
     const assets = new Map((host.data.msw?.assets || []).map(a=>[a.id,a]));
     const regenerable = clips.filter(c=>core.canRegenerate(assets.get(c.asset_id)?.generation || {})).length;
     const fillable = clips.filter(c=>{const a=assets.get(c.asset_id);return !!(a && (a.generation?.filename || a.generation?.display_text || a.source_ref?.text || c.label));}).length;
-    el('count').textContent = `${t('选中贴片')}：${clips.length} · ${t('可重新生成')}：${regenerable} · ${t('可补齐字幕')}：${fillable}`;
+    for (const id of ['mute-count','gain-count']) el(id).textContent = `${t('选中贴片')}：${clips.length}`;
+    el('regenerate-count').textContent = `${t('可重新生成')}：${regenerable}`;
+    el('fill-count').textContent = `${t('可补齐字幕')}：${fillable}`;
+    const hasSource = Boolean(host.player.currentSrc || host.player.getAttribute('src'));
+    el('source-apply').disabled = !hasSource;
+    el('source-status').textContent = hasSource ? `${t('当前试听增益')}：${audio.sourceGainDb().toFixed(1)} dB` : t('请先加载媒体');
     for (const id of ['mute', 'unmute', 'gain-apply']) el(id).disabled = !clips.length;
     el('fill').disabled = !clips.length;
-    document.getElementById('audio-fill-subtitles').disabled = !clips.length;
     el('regenerate').disabled = running || Boolean(batch?.outputOnly) || (!batch && (!regenerable || !host.config?.processingUrl));
     el('regenerate').textContent = t(batch ? '继续确认本批任务' : '重新生成并替换');
     el('cancel').hidden = !batch || Boolean(batch.outputOnly);
@@ -50421,15 +50528,23 @@ window.addEventListener('beforeunload', (e) => {
     } catch (error) { report(error.message); }
   };
   el('open').onclick = () => { refresh(); panel.open(); };
+  el('source-apply').onclick = async () => {
+    try {
+      const value = el('source-gain').value.trim();
+      const gains = core.gains([{id:'source',label:t('源音频'),gain_db:audio.sourceGainDb()}], value ? Number(value) : NaN, el('source-mode').value);
+      await audio.setSourceGainDb(gains.get('source'));
+      report('已调整源音频试听增益'); refresh();
+    } catch (error) { report(error.message); }
+  };
   function fill() {
     panel.open();
     try {
       const clips = audio.selectedClips(); if (!clips.length) { report('请先选择音频贴片'); return; }
       const plan = host.fillAudioSubtitles(clips);
-      report(`${t('已补齐')} ${plan.count} ${t('条')}，${t('跳过')} ${clips.length - plan.count} ${t('条')}`, plan.rows);
+      report(`${t('已补齐')} ${plan.count} ${t('条')}，${t('跳过')} ${clips.length - plan.count} ${t('条')}`, plan.rows, '补齐');
     } catch (error) { report(error.message); }
   }
-  el('fill').onclick = fill; document.getElementById('audio-fill-subtitles').onclick = fill;
+  el('fill').onclick = fill;
   async function request(route, body) {
     const response = await fetch(`${host.config.processingUrl}/${route}`, {method: body ? 'POST' : 'GET', cache:'no-store',
       headers:{'X-MSW-Token':host.config.requestToken,...(body ? {'Content-Type':'application/json'} : {})},
@@ -50508,7 +50623,7 @@ window.addEventListener('beforeunload', (e) => {
         })) count=replacements.size;
         for (const row of value.rows) if (!row.reason) row.reason=count && replacements.has(row.id) ? '已替换' : '未替换，新结果保留在素材库';
       }
-      report(value.outputOnly?`${t('新增音频素材')} ${count} ${t('条')}`:`${t('已替换')} ${count} ${t('条')}，${t('未替换')} ${value.rows.length-count} ${t('条')}`,value.rows);
+      report(value.outputOnly?`${t('新增音频素材')} ${count} ${t('条')}`:`${t('已替换')} ${count} ${t('条')}，${t('未替换')} ${value.rows.length-count} ${t('条')}`,value.rows,'替换');
       batch=null; global.dispatchEvent(new Event('msw:tts-refresh'));
     } catch (error) {
       if (current(value)) report(`${error.message}；${t('可继续确认本批任务，不会重复提交')}`);
@@ -50527,7 +50642,7 @@ window.addEventListener('beforeunload', (e) => {
     if (!batch) {
       host.commitEdits();
       const plan=core.regeneration(host.data,audio.selectedClips());
-      if (!plan.groups.length) { report('没有可重新生成的贴片',plan.rows); return; }
+      if (!plan.groups.length) { report('没有可重新生成的贴片',plan.rows,'替换'); return; }
       prepare(plan);
     }
     void runBatch();
@@ -50551,7 +50666,9 @@ window.addEventListener('beforeunload', (e) => {
   el('cancel').onclick = () => { if (!batch) return; batch.cancelled=true; refresh(); if (!running) void runBatch(); };
   el('close').onclick = () => panel.close();
   for (const event of ['msw:audio-selection', 'msw:audio-changed', 'msw:assets-changed']) global.addEventListener(event, refresh);
-  global.addEventListener('msw:project-changed', () => { batch=null; running=false; report(''); refresh(); });
+  for (const event of ['loadedmetadata','emptied']) host.player.addEventListener(event, refresh);
+  global.addEventListener('msw:source-gain', refresh);
+  global.addEventListener('msw:project-changed', () => { batch=null; running=false; latestResults.clear(); report(''); refresh(); });
   refresh();
 })(window);
 
@@ -50606,10 +50723,7 @@ window.addEventListener('beforeunload', (e) => {
         settings.video_tail = el('audio-export-tail').value;
         settings.video_encoding = el('audio-export-encoding').value;
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
-        settings.duration_ms = Math.max(settings.duration_ms, context?.duration_ms || 0);
-        if (applyTail && settings.video_tail === 'truncate' && context?.video) {
-          settings.end_ms = Math.min(settings.end_ms ?? Infinity, context.video.duration_ms);
-        }
+        return core.videoOptions(host.audioExportPreview(), settings, context, applyTail);
       }
       if (timeline) {
         settings.format = format;
@@ -50633,6 +50747,8 @@ window.addEventListener('beforeunload', (e) => {
           const raw = core.compile(host.audioExportPreview(), selectedOptions({applyTail:false}));
           const extra = Math.max(0,raw.source_end_ms-context.video.duration_ms);
           el('audio-export-tail-summary').textContent = `${t('原画面时长')} ${(context.video.duration_ms/1000).toFixed(3)} s · ${t('源范围终点')} ${(raw.source_end_ms/1000).toFixed(3)} s · ${t('超出')} ${(extra/1000).toFixed(3)} s`;
+          const nativeTail = Math.max(0, (context.duration_ms || 0) - context.video.duration_ms);
+          if (nativeTail) el('audio-export-tail-summary').textContent += ` · ${t('原媒体音画尾差')} ${(nativeTail/1000).toFixed(3)} s · ${t('默认按画面结尾；定格延长可保留原声尾部')}`;
           el('audio-export-tail-field').classList.toggle('is-overflow',extra>0);
         }
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);

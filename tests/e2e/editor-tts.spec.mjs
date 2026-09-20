@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, startTtsServer, startStaticServer, openTtsEnvironment, closeTtsEnvironment } from './helpers.mjs';
+import { disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, clickMenubarItem, startTtsServer, startStaticServer, openTtsEnvironment, closeTtsEnvironment } from './helpers.mjs';
 
 let mock, origin, server, dir, projectPath, mediaPath, wav, calls, held, holdText, failText;
 test.beforeAll(async () => {
@@ -281,7 +281,7 @@ test('recovery drafts restore subtitle and audio clip edits into an unsaved copy
   await expect.poll(() => page.evaluate(() => MSWE.resolve('project-persistence').captureDraft({force:true}))).toBe(true);
   await page.reload();
   await expect.poll(() => page.evaluate(() => DATA.segments[0].text)).toBe('Hello');
-  await openMenubarMenu(page, '文件'); await page.locator('#project-recovery-open').click();
+  await clickMenubarItem(page, '文件', 'project-recovery-open');
   const draft = page.locator('.msw-recovery-row').filter({hasText: '恢复草稿'}).first();
   await expect(draft).toBeVisible();
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'd0-recovery.png')});
@@ -318,7 +318,7 @@ test('an unnamed draft captures pending inline text without ending the edit', as
   await expect.poll(() => page.evaluate(() => MSWE.resolve('project-persistence').captureDraft({force:true}))).toBe(true);
   await expect(text).toBeVisible();
   await page.reload();
-  await openMenubarMenu(page, '文件'); await page.locator('#project-recovery-open').click();
+  await clickMenubarItem(page, '文件', 'project-recovery-open');
   await page.locator('.msw-recovery-row').filter({hasText:'untitled.mosp'}).first().getByRole('button').click();
   await expect.poll(() => page.evaluate(() => DATA.segments[0].text)).toBe('Pending inline draft');
   expect(await page.evaluate(() => SERVER_CONFIG.canSave)).toBe(false);
@@ -971,7 +971,10 @@ test('production batch menu preserves selected clips and changes gain and mute w
     audio.insert(DATA.msw.assets[1].id, 6000); audio.selectAllClips();
   });
   await openMenubarMenu(page, '媒体'); await page.locator('#audio-actions-open').click();
-  await expect(page.locator('#audio-actions-count')).toContainText('2');
+  await expect(page.locator('#audio-actions-count')).toHaveCount(0);
+  await expect(page.locator('#audio-actions-mute-count')).toContainText('2');
+  await expect(page.locator('#audio-actions-gain-count')).toContainText('2');
+  await expect(page.locator('#audio-fill-subtitles')).toHaveCount(0);
   await page.locator('#audio-actions-mute').click();
   expect(await page.evaluate(() => DATA.msw.audio_clips.every(c=>c.muted))).toBe(true);
   await page.evaluate(()=>MSWE.resolve('processing-host').undo());
@@ -996,7 +999,8 @@ test('production fill creates primary cues from clip positions and external file
     audio.selectAllClips();
   });
   const bindings=await page.evaluate(()=>JSON.stringify(DATA.multi_subtitle.bindings));
-  await openMenubarMenu(page,'媒体'); await page.locator('#audio-fill-subtitles').click();
+  await openMenubarMenu(page,'媒体'); await page.locator('#audio-actions-open').click();
+  await page.locator('#audio-actions-fill').click();
   await expect(page.locator('#audio-actions-message')).toContainText('已补齐 1');
   expect(await page.evaluate(()=>DATA.segments.at(-1).text)).toBe('Background.wav');
   expect(await page.evaluate(()=>DATA.segments.at(-1).start)).toBe(6000);
@@ -1068,6 +1072,55 @@ test('production regenerate preserves original recipe and start, uses full durat
   await page.evaluate(()=>MSWE.resolve('processing-host').undo());
   expect(await page.evaluate(()=>DATA.msw.audio_clips)).toEqual(before);
   expect(await countAssets(page)).toBe(3);
+});
+
+test('batch details retain only latest fill and replacement, source gain and health toast stay independent',async({page},info)=>{
+  await prepareClips(page);await openBatchWithSavedEnvironment(page);
+  await page.locator('#audio-actions-fill').click();
+  await page.locator('#audio-actions-regenerate').click();
+  await expect(page.locator('#audio-actions-message')).toContainText('已替换 1');
+  await page.locator('#audio-actions-fill').click();
+  await page.locator('#audio-actions-details summary').click();
+  await expect(page.locator('#audio-actions-results section')).toHaveCount(2);
+  await expect(page.locator('#audio-actions-results [data-kind="补齐"] li')).toHaveCount(1);
+  await expect(page.locator('#audio-actions-results [data-kind="替换"] li')).toHaveCount(1);
+  await page.locator('#audio-actions-mute').click();
+  await expect(page.locator('#audio-actions-results section')).toHaveCount(2);
+  const before=await page.evaluate(()=>({volume:player.volume,clips:JSON.stringify(DATA.msw.audio_clips)}));
+  await page.locator('#audio-actions-source-gain').fill('6');await page.locator('#audio-actions-source-apply').click();
+  await expect(page.locator('#audio-actions-source-status')).toContainText('6.0 dB');
+  expect(await page.evaluate(()=>({volume:player.volume,clips:JSON.stringify(DATA.msw.audio_clips)}))).toEqual(before);
+  await page.locator('#audio-actions-source-mode').selectOption('offset');
+  await page.locator('#audio-actions-source-gain').fill('-3');await page.locator('#audio-actions-source-apply').click();
+  await expect(page.locator('#audio-actions-source-status')).toContainText('3.0 dB');
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('msw:media-changed')));
+  await expect(page.locator('#audio-actions-source-status')).toContainText('0.0 dB');
+  await page.evaluate(()=>{
+    const host=MSWE.resolve('processing-host'),audio=MSWE.resolve('audio-timeline');
+    host.commitAudio('many clips',ext=>{
+      const clip=ext.audio_clips[0];
+      ext.audio_clips=Array.from({length:30},(_,i)=>({...clip,id:`detail-${i}`,start_ms:10000+i*3000}));
+    });audio.selectAllClips();
+  });
+  await page.locator('#audio-actions-fill').click();
+  await expect(page.locator('#audio-actions-results [data-kind="补齐"] li')).toHaveCount(30);
+  await expect(page.locator('#audio-actions-results [data-kind="替换"] li')).toHaveCount(1);
+  expect(await page.locator('#audio-actions-results').evaluate(n=>n.scrollHeight>n.clientHeight&&n.clientHeight<=180)).toBe(true);
+  await page.setViewportSize({width:900,height:600});
+  await expect.poll(()=>page.locator('#audio-actions-panel').evaluate(n=>{
+    const r=n.getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&n.scrollWidth<=n.clientWidth;
+  })).toBe(true);
+  await page.screenshot({path:info.outputPath('batch-audio-panel.png')});
+  await page.locator('#audio-actions-close').click();
+  await clickMenubarItem(page,'文件','project-check-assets');
+  await expect(page.locator('#hint-stack')).toContainText('已检查磁盘工程');
+  await expect(page.locator('#project-persistence-status')).toBeHidden();
+  expect(await page.locator('#project-check-assets').evaluate(n=>{
+    let previous=n.previousElementSibling;
+    while(previous&&!previous.classList.contains('menu-group-title'))previous=previous.previousElementSibling;
+    return previous?.textContent;
+  })).toBe('内容');
+  await expect(page.locator('#load-content-submenu #project-recovery-open')).toHaveCount(1);
 });
 test('production regenerate retains new asset when target was edited during synthesis', async ({page})=>{
   await prepareClips(page); await openBatchWithSavedEnvironment(page);

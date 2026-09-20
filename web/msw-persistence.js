@@ -33,7 +33,7 @@
     if (previous) host.setSaving(false);
     previous?.resolve(value);
   }
-  function status(report, label = '工程已保存', warning = null) {
+  function status(report, label = '工程已保存', warning = null, toast = false) {
     const output = el('project-persistence-status');
     const missing = report?.missing?.length || 0;
     output.textContent = t(label);
@@ -42,7 +42,8 @@
     if (report?.stagedOnly?.length) output.textContent += ` · ${t('仅本机暂存')} ${report.stagedOnly.length}`;
     if (warning) output.textContent += ` · ${t(warning)}`;
     output.classList.toggle('warning', missing > 0 || Boolean(warning));
-    output.hidden = false;
+    output.hidden = toast;
+    if (toast) host.hint(output.textContent, missing || warning ? 'warning' : 'success');
   }
   function saveAs({ project = null, name = host.name(), newProject = false } = {}) {
     if (!available() || active || host.saving() || recoveryModal.classList.contains('show')) return Promise.resolve(false);
@@ -117,7 +118,7 @@
     const generation = host.generation;
     try {
       const result = await request('project-health');
-      if (generation === host.generation) status(result.assets, '已检查磁盘工程');
+      if (generation === host.generation) status(result.assets, '已检查磁盘工程', null, true);
     } catch (error) { host.hint(error.message); }
   });
   async function captureDraft({ force = false } = {}) {

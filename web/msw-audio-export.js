@@ -49,10 +49,7 @@
         settings.video_tail = el('audio-export-tail').value;
         settings.video_encoding = el('audio-export-encoding').value;
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
-        settings.duration_ms = Math.max(settings.duration_ms, context?.duration_ms || 0);
-        if (applyTail && settings.video_tail === 'truncate' && context?.video) {
-          settings.end_ms = Math.min(settings.end_ms ?? Infinity, context.video.duration_ms);
-        }
+        return core.videoOptions(host.audioExportPreview(), settings, context, applyTail);
       }
       if (timeline) {
         settings.format = format;
@@ -76,6 +73,8 @@
           const raw = core.compile(host.audioExportPreview(), selectedOptions({applyTail:false}));
           const extra = Math.max(0,raw.source_end_ms-context.video.duration_ms);
           el('audio-export-tail-summary').textContent = `${t('原画面时长')} ${(context.video.duration_ms/1000).toFixed(3)} s · ${t('源范围终点')} ${(raw.source_end_ms/1000).toFixed(3)} s · ${t('超出')} ${(extra/1000).toFixed(3)} s`;
+          const nativeTail = Math.max(0, (context.duration_ms || 0) - context.video.duration_ms);
+          if (nativeTail) el('audio-export-tail-summary').textContent += ` · ${t('原媒体音画尾差')} ${(nativeTail/1000).toFixed(3)} s · ${t('默认按画面结尾；定格延长可保留原声尾部')}`;
           el('audio-export-tail-field').classList.toggle('is-overflow',extra>0);
         }
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);

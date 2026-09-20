@@ -76,15 +76,15 @@ __WAVEFORM_CSS__
         <div class="dropdown-menu dropdown-submenu-menu" role="menu">
           <button type="button" class="dropdown-item" id="load-media" role="menuitem" title="在浏览器中直接加载视频或音频文件">加载媒体</button>
           <button type="button" class="dropdown-item" id="load-srt" role="menuitem" title="加载 SRT 字幕文件">加载字幕</button>
+          <button type="button" class="dropdown-item" id="project-recovery-open" role="menuitem" hidden>恢复记录</button>
         </div>
       </div>
+      <button type="button" class="dropdown-item" id="project-check-assets" role="menuitem" hidden>检查工程素材</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">保存</div>
       <button type="button" class="dropdown-item" id="save-project" role="menuitem" title="保存回服务器启动时指定的工程文件" hidden><span>保存工程</span> <kbd class="menu-kbd" data-mod>Ctrl+S</kbd></button>
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
       <div id="project-persistence-status" class="msw-save-status" role="status" hidden></div>
-      <button type="button" class="dropdown-item" id="project-check-assets" role="menuitem" hidden>检查工程素材</button>
-      <button type="button" class="dropdown-item" id="project-recovery-open" role="menuitem" hidden>恢复记录</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
@@ -310,7 +310,6 @@ __WAVEFORM_CSS__
       <button type="button" class="dropdown-item" id="msw-asr-open" role="menuitem" title="识别整个源视频或时间选区">ASR<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="tts-open" role="menuitem" title="将所选字幕或全部字幕合成为音频">TTS<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="audio-actions-open" role="menuitem">音频批量操作<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-      <button type="button" class="dropdown-item" id="audio-fill-subtitles" role="menuitem" disabled>补齐字幕</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">设置</div>
       <button type="button" class="dropdown-item" id="media-player-settings-item" role="menuitem" title="打开媒体播放器设置窗口">媒体播放器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -2414,13 +2413,13 @@ __WAVEFORM_CSS__
     <button type="button" id="audio-actions-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频批量操作"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
-    <p id="audio-actions-count" class="msw-processing-hint"></p>
-    <section class="cue-editor-settings-group"><h3>静音贴片</h3><div class="msw-processing-actions"><button id="audio-actions-mute" type="button">静音</button><button id="audio-actions-unmute" type="button">取消静音</button></div></section>
-    <section class="cue-editor-settings-group"><h3>贴片音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-gain-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions"><button id="audio-actions-gain-apply" type="button">应用增益</button></div></section>
-    <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions"><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
-    <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions"><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
+    <section class="cue-editor-settings-group"><h3>静音贴片</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-mute-count" class="msw-processing-hint"></small><button id="audio-actions-mute" type="button">静音</button><button id="audio-actions-unmute" type="button">取消静音</button></div></section>
+    <section class="cue-editor-settings-group"><h3>贴片音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-gain-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-gain-count" class="msw-processing-hint"></small><button id="audio-actions-gain-apply" type="button">应用增益</button></div></section>
+    <section class="cue-editor-settings-group"><h3>源音频音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-source-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-source-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-source-status" class="msw-processing-hint"></small><button id="audio-actions-source-apply" type="button">应用增益</button></div></section>
+    <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-regenerate-count" class="msw-processing-hint"></small><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
+    <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-fill-count" class="msw-processing-hint"></small><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
     <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-    <details id="audio-actions-details" hidden><summary>处理详情</summary><ul id="audio-actions-results" data-i18n-skip></ul></details>
+    <details id="audio-actions-details" hidden><summary>处理详情</summary><div id="audio-actions-results" data-i18n-skip></div></details>
   </div>
 </aside>
 

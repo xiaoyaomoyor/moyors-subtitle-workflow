@@ -28,6 +28,13 @@ vm.runInNewContext('globalThis.newArrayBuffer = (size) => new ArrayBuffer(size);
 const helpers = context.window.AsrWaveform.testing;
 const builtinWorkspaces = context.window.AsrWaveform.builtinWorkspaces;
 
+test('ASR group references without names use head color including custom snapshots', () => {
+  const segments = [{color:{name:'yellow',value:'#c4a019'}},{color_ref:{headIdx:0}}];
+  assert.equal(helpers.colorForSegment(segments[1],segments), '#c4a019');
+  segments[0].color = {name:'custom',value:'#123456'};
+  assert.equal(helpers.colorForSegment(segments[1],segments), '#123456');
+});
+
 
 test('quapeaks self layers preserve following wave offsets and reject unknown versions', () => {
   const original = buildReapeaksBuffer({ sampleRate: 16000, division: 53, peaks: 3 });

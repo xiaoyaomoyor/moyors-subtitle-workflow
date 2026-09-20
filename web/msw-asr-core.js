@@ -86,7 +86,8 @@
         }
         if (!source) continue;
         const color = source.color || (source.color_ref
-          ? {...(project.segments[source.color_ref.headIdx]?.color || {}), name:source.color_ref.name} : null);
+          ? {...(project.segments[source.color_ref.headIdx]?.color || {}),
+            name:source.color_ref.name || project.segments[source.color_ref.headIdx]?.color?.name} : null);
         // Each replacement owns its inherited color; never leave a reference
         // pointing at a removed group head or stretch color outside the cue.
         delete cue.color_ref;

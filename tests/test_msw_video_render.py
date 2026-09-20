@@ -1,4 +1,5 @@
 import copy
+import json
 import hashlib
 from array import array
 import math
@@ -14,6 +15,23 @@ from maw.msw.audio_render import RenderCancelled, probe_source, run
 from maw.msw.video_render import prepare, render_video
 from test_msw_audio_plan import FIXTURES
 from test_msw_audio_render import make_wave
+
+
+class VideoTailContractTests(unittest.TestCase):
+    def test_shared_frontend_backend_tail_cases(self):
+        cases = json.loads((Path(__file__).parent / 'fixtures/msw_video_tail.json').read_text(encoding='utf-8'))
+        for case in cases:
+            with self.subTest(case['name']):
+                project = {'segments': [{'start':0,'end':case['cue_end'],'text':'main'}] if case.get('cue_end') else []}
+                if case.get('secondary_end'):
+                    project['multi_subtitle'] = {'tracks':[{'segments':[{'start':0,'end':case['secondary_end'],'text':'secondary'}]}]}
+                settings = dict(duration_ms=case['duration'], end_ms=case.get('end'), video_tail=case.get('policy','ask'))
+                info = dict(duration_ms=case['media'], video=dict(duration_ms=case['picture']))
+                if case.get('overflow'):
+                    with self.assertRaisesRegex(ValueError, '超出画面尾部'):
+                        prepare(project, settings, info)
+                else:
+                    self.assertEqual(prepare(project, settings, info)['source_end_ms'], case['expected'])
 
 
 class VideoRenderTests(unittest.TestCase):
@@ -71,8 +89,8 @@ class VideoRenderTests(unittest.TestCase):
 
     def test_tail_requires_explicit_decision_and_can_freeze(self):
         with self.assertRaisesRegex(ValueError, '超出画面尾部'):
-            self.export(duration_ms=6000)
-        result, plan, _ = self.export(duration_ms=6000, video_tail='freeze')
+            self.export(end_ms=6000)
+        result, plan, _ = self.export(end_ms=6000, video_tail='freeze')
         self.assertEqual(plan['sample_count'], 288000)
         self.assertEqual(result['video_encoding'], 'h264')
 
@@ -116,7 +134,7 @@ class VideoRenderTests(unittest.TestCase):
 
     def test_tail_only_and_silent_video_work_without_voice_or_original_audio(self):
         self.project['msw']['audio_clips'] = []
-        _, plan, _ = self.export(mode='voice', duration_ms=8000, start_ms=6000, video_tail='freeze')
+        _, plan, _ = self.export(mode='voice', end_ms=8000, start_ms=6000, video_tail='freeze')
         self.assertEqual(plan['sample_count'], 96000)
 
     def test_cancel_does_not_publish_a_video(self):

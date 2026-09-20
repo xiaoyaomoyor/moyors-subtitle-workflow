@@ -7,12 +7,12 @@ import {disableOnboarding, generateWav, generateWaveformPayload, makeTempDir, st
 
 let server, dir;
 const tool = name => join(process.env.MSW_TEST_FFMPEG, name + (process.platform === 'win32' ? '.exe' : ''));
-test.beforeEach(async ({page}) => {
+test.beforeEach(async ({page}, testInfo) => {
   test.skip(!process.env.MSW_TEST_FFMPEG, 'Synthetic video requires FFmpeg');
   dir = makeTempDir('video-export');
   process.env.MAW_ENV_FILE = join(dir, 'isolated.env'); process.env.MSW_APP_DATA_ROOT = join(dir, 'local');
   process.env.FFMPEG_PATH = process.env.MSW_TEST_FFMPEG;
-  const original = generateWav(join(dir, 'original.wav'), 4), media = join(dir, 'video.mp4');
+  const original = generateWav(join(dir, 'original.wav'), testInfo.title.includes('native audio tail') ? 4.032 : 4), media = join(dir, 'video.mp4');
   execFileSync(tool('ffmpeg'), ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=24:duration=4',
     '-i', original, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', media], {windowsHide: true});
   const id = 'audio-' + 'a'.repeat(32), path = 'msw-' + 'b'.repeat(24) + '.assets/audio/' + id + '.wav';
@@ -69,6 +69,19 @@ test('video follows gap cuts while retaining the shared audio clock', async ({pa
   const {info, card} = await finish(page);
   expect(Number(info.format.duration)).toBeCloseTo(3, 1);
   await expect(card).toContainText('画面已重新编码');
+});
+
+test('native audio tail does not block untouched video but an explicit tail range does',async({page})=>{
+  await open(page);
+  await expect(page.locator('#video-export-tail-summary')).toContainText('原媒体音画尾差');
+  await expect(page.locator('#video-export-tail-summary')).toContainText('源范围终点 4.000 s');
+  await expect(page.locator('#video-export-start')).toBeEnabled();
+  await page.locator('#video-export-range').selectOption('custom');
+  await page.locator('#video-export-end-time').fill('4.020');
+  await expect(page.locator('#video-export-start')).toBeDisabled();
+  await expect(page.locator('#video-export-summary')).toContainText('超出画面尾部');
+  await page.locator('#video-export-range').selectOption('all');
+  const {info}=await finish(page);expect(Number(info.format.duration)).toBeCloseTo(4,2);
 });
 
 test('video optionally burns the chosen subtitle track and rejects an empty track', async ({page}) => {

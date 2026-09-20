@@ -254,6 +254,41 @@ test('cancelling ASR leaves subtitles unchanged even when the provider returns l
   expect(await page.evaluate(()=>DATA.segments)).toEqual([]);
 });
 
+test('retry starts a new cancellable ASR job with the same range',async({page})=>{
+  reply=null;await open(page,'whole');await page.locator('#msw-asr-start').click();
+  await expect.poll(()=>pending.length).toBe(1);
+  await page.locator('#msw-asr-history > summary').click();
+  await page.locator('#msw-asr-jobs button').filter({hasText:/^取消$/}).click();
+  reply={segments:[]};pending.shift()();
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs[0]?.status)).toBe('cancelled');
+  reply=null;await page.getByRole('button',{name:'使用此范围重试',exact:true}).click();
+  await expect.poll(()=>pending.length).toBe(1);
+  await expect(page.getByRole('button',{name:'正在重试',exact:true})).toBeDisabled();
+  const latest=page.locator('#msw-asr-jobs [data-asr-job]').first();
+  await expect(latest.getByRole('button',{name:'取消',exact:true})).toBeVisible();
+  await latest.getByRole('button',{name:'取消',exact:true}).click();
+  reply={segments:[]};pending.shift()();
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(j=>j.status==='cancelled').length)).toBe(2);
+  expect(calls).toHaveLength(2);expect(calls[1].asr.duration_ms).toBe(calls[0].asr.duration_ms);
+});
+
+test('speaker groups color every waveform block and use hollow reference dots',async({page})=>{
+  reply={segments:[{start:100,end:400,text:'Head',color:{name:'yellow',value:'#c4a019',start:100,end:900}},
+    {start:500,end:900,text:'Member',color_ref:{name:'yellow',headIdx:0}}]};
+  await page.evaluate(()=>MSWE.resolve('time-range').setRange({start:0,end:1000}));
+  await open(page,'range');await page.locator('#msw-asr-start').click();const id=await completed(page);
+  await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);await page.locator('#msw-asr-apply').click();
+  await expect.poll(()=>page.evaluate(()=>DATA.segments.length)).toBe(2);
+  expect(await page.evaluate(()=>DATA.segments[1].color_ref.name)).toBe('yellow');
+  const colors=await page.locator('.waveform-cue-block').evaluateAll(nodes=>nodes.map(n=>n.style.getPropertyValue('--cue-color')));
+  expect(colors.length).toBeGreaterThanOrEqual(2);expect(new Set(colors)).toEqual(new Set(['#c4a019']));
+  const dot=page.locator('.cue .color-bar.is-ref').first();
+  expect(await dot.evaluate(n=>getComputedStyle(n).backgroundImage)).toBe('none');
+  expect(await dot.evaluate(n=>getComputedStyle(n).boxShadow)).toContain('inset');
+  await page.evaluate(()=>{delete DATA.segments[1].color_ref.name;renderAll();});
+  expect(await page.locator('.waveform-cue-block').last().evaluate(n=>n.style.getPropertyValue('--cue-color'))).toBe('#c4a019');
+});
+
 test('range ASR keeps the original waveform cue color and undo restores its group reference',async({page})=>{
   await page.evaluate(()=>{
     const color=ASR_EDITOR_PALETTE[0];

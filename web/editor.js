@@ -5683,13 +5683,14 @@ function updateCueColorPresentation(el, colorBar, seg) {
     const headIndex = Number(seg.color_ref.headIdx);
     const isExtension = el.dataset.extIdx != null && el.dataset.idx == null && el.dataset.mainIdx == null;
     const segments = isExtension ? getActiveExtensionTrack()?.segments : DATA.segments;
-    const value = COLOR_BY_NAME[seg.color_ref.name]?.value || segments?.[headIndex]?.color?.value || '#777';
+    const colorName = segments?.[headIndex]?.color?.name || seg.color_ref.name;
+    const value = COLOR_BY_NAME[colorName]?.value || segments?.[headIndex]?.color?.value || '#777';
     colorBar.classList.add('is-ref');
     colorBar.style.setProperty('--color-bar', value);
     colorBar.dataset.colorRefHeadIdx = String(headIndex);
     el.classList.add('has-color');
     el.style.setProperty('--color-bar', value);
-    colorBar.title = `↑ 属于第 ${headIndex + 1} 条的颜色（${seg.color_ref.name}）`;
+    colorBar.title = `↑ 属于第 ${headIndex + 1} 条的颜色${colorName ? `（${colorName}）` : ''}`;
     colorBar.style.cursor = 'pointer';
   }
 }
@@ -21188,7 +21189,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   get config() { return SERVER_CONFIG; },
   get generation() { return mswProjectGeneration; },
   name: () => `${FILENAME_BASE}.mosp`,
-  hint: message => flashHint(message, 'warning'),
+  hint: (message, type = 'warning') => flashHint(message, type),
   downloadLocal: async (project, name) => {
     if (project) {
       validateProjectForLoad(project);
@@ -21434,8 +21435,8 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => { commitProcessingEdits(); return JSON.parse(buildJson()); },
-  audioExportPreview: () => ({ segments: DATA.segments, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
-  audioExportDuration: () => Math.ceil(Math.max(
+  audioExportPreview: () => ({ segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
+  audioExportDuration: () => Math.round(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
     Number(waveformEditor?.contentDurationMs) || 0,
   )),

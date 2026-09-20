@@ -95,6 +95,8 @@ def map_candidates(project, span, job_id):
             output[first][head] = style
             for index in members[1:]:
                 output[index][ref] = {'headIdx':first}
+                if style.get('name'):
+                    output[index][ref]['name'] = style['name']
     return output
 
 

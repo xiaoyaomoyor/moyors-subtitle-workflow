@@ -1800,8 +1800,12 @@
   #cue-editor-settings-panel label[hidden] { display: none; }
   #cue-editor-settings-panel label:has(input[type="checkbox"]) { display: flex; justify-content: flex-start; }
   #cue-editor-settings-panel h3 { text-align: left; }
-  #audio-actions-results { padding-left: 20px; max-height: 180px; overflow: auto; overflow-wrap: anywhere; }
-  #audio-actions-panel .cue-editor-settings-group { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+  #audio-actions-results { max-height: 180px; overflow-y: auto; overflow-wrap: anywhere; overscroll-behavior: contain; }
+  #audio-actions-results ul { padding-left: 20px; margin: 6px 0 12px; }
+  #audio-actions-results h4 { font-size: 12px; margin: 10px 0 4px; }
+  #audio-actions-panel .audio-actions-footer { margin-top: 0; align-items: center; }
+  #audio-actions-panel .audio-actions-footer > small { margin: 0 auto 0 0; }
+  #audio-actions-panel .cue-editor-settings-group { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--border-subtle); }
   #audio-actions-panel .cue-editor-settings-group h3 { font-size: 13px; margin: 0; }
   #video-export-tail-field.is-overflow select { border-color: var(--wave-playhead); }
   #cue-editor-settings-panel :is(input:not([type="checkbox"]), select) { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -2828,12 +2832,9 @@
   .cue .sticker-slot:empty { display: none; }
   .cue .color-bar.has-color { background: var(--color-bar, #777); }
   .cue .color-bar.is-ref {
-    /* ref 用斜纹表示"属于上方 head"，与 head 的纯色区分 */
-    background: repeating-linear-gradient(
-      135deg,
-      var(--color-bar, #777) 0 3px,
-      transparent 3px 6px
-    );
+    /* 空心色点表示沿用组首颜色；尺寸与实心色点一致。 */
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--color-bar, #777);
   }
   .cue .index {
     font-size: 11px; color: var(--text-faint); font-family: var(--font-mono);

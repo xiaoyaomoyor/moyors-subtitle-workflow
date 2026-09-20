@@ -39,6 +39,19 @@
     }
     return merged;
   }
+  // A video's native audio/container tail is not authored timeline content.
+  // Keep this contract aligned with video_render.video_options.
+  function videoOptions(project, raw, info, applyTail = true) {
+    const out = options(raw), videoEnd = info?.video?.duration_ms;
+    if (!Number.isSafeInteger(videoEnd) || videoEnd <= 0) return out;
+    out.duration_ms = videoEnd;
+    for (const track of project.multi_subtitle?.tracks || [])
+      for (const cue of track.segments || []) out.duration_ms = Math.max(out.duration_ms, cue.end);
+    if (out.end_ms !== null) out.duration_ms = Math.max(out.duration_ms, out.end_ms);
+    if (out.video_tail === 'freeze') out.duration_ms = Math.max(out.duration_ms, info.duration_ms || 0);
+    if (applyTail && out.video_tail === 'truncate') out.end_ms = Math.min(out.end_ms ?? Infinity, videoEnd);
+    return out;
+  }
   function compile(project, rawOptions = {}) {
     const o = options(rawOptions), ext = project.msw || {}, core = global.MSWAudio;
     core.validate(ext);
@@ -86,5 +99,5 @@
       intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: o.source_gain_db } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, options, videoOptions, removedRanges, compile });
 })(window);

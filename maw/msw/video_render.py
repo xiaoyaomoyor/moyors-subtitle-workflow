@@ -6,7 +6,7 @@ import math
 import os
 import tempfile
 
-from maw.msw.audio_plan import compile_plan, round_sample
+from maw.msw.audio_plan import compile_plan, round_sample, options
 from maw.msw.audio_render import check_cancel, command_prefix, fingerprint, probe_source, render, run
 from maw.msw.subtitle_export import burning_cues, slice_burning_cues, srt
 from maw.postprocess_ffmpeg import build_subtitle_filter
@@ -24,11 +24,32 @@ def frame_rate(video):
     return Fraction(30)
 
 
+def video_options(project, settings, info):
+    """Use picture length as the native baseline; audio tails are not edits.
+
+    Contract: MSWAudioRender.videoOptions. Explicit ranges and authored cues /
+    clips still require a tail decision, even inside the native audio tail.
+    """
+    settings = options(settings)
+    end = info['video']['duration_ms']
+    settings['duration_ms'] = end
+    for track in (project.get('multi_subtitle') or {}).get('tracks', []):
+        for cue in track.get('segments', []):
+            settings['duration_ms'] = max(settings['duration_ms'], cue['end'])
+    if settings['end_ms'] is not None:
+        settings['duration_ms'] = max(settings['duration_ms'], settings['end_ms'])
+    if settings['video_tail'] == 'freeze':
+        settings['duration_ms'] = max(settings['duration_ms'], info['duration_ms'])
+    if settings['video_tail'] == 'truncate':
+        settings['end_ms'] = min(settings['end_ms'] if settings['end_ms'] is not None else end, end)
+    return settings
+
+
 def prepare(project, settings, info):
     video = info.get("video")
     if not video or video["duration_ms"] <= 0:
         raise ValueError("原媒体没有可导出的视频画面，请使用导出音频")
-    settings = {**settings, "duration_ms": max(settings["duration_ms"], info["duration_ms"])}
+    settings = video_options(project, settings, info)
     plan = compile_plan(project, settings)
     if plan["source_end_ms"] > video["duration_ms"]:
         if settings["video_tail"] == "ask":

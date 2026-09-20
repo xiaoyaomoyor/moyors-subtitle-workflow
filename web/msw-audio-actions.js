@@ -6,26 +6,44 @@
   const t = value => global.MSWE_I18N?.translateText?.(value) || value;
   const core = global.MSWAudioActions;
   let batch = null, running = false;
+  const latestResults = new Map();
   const terminal = new Set(['succeeded','failed','cancelled','interrupted']);
   const panel = host.createFloatingPanel({panel: el('panel'), dragHandle: el('drag'),
     anchorButton: document.querySelector('[data-menubar-item="media"] > button'), positionKey: 'msw.audio.actions.position'});
-  function report(message, rows = []) {
-    if(batch?.outputOnly)global.dispatchEvent(new CustomEvent('msw:asset-generation',{detail:[t(message),...rows.map(row=>`${row.label||row.id}：${t(row.reason)}`)].join('\n')}));
+  function report(message, rows = [], kind = null) {
+    if(batch?.outputOnly) {
+      global.dispatchEvent(new CustomEvent('msw:asset-generation',{detail:[t(message),...rows.map(row=>`${row.label||row.id}：${t(row.reason)}`)].join('\n')}));
+      return;
+    }
     el('message').textContent = t(message);
-    el('results').replaceChildren(...rows.map(row => {
-      const li = document.createElement('li'); li.textContent = `${row.label || row.id}：${t(row.reason)}`; return li;
+    // Progress updates must not reset the scroll position of completed details.
+    if (!kind && latestResults.size) return;
+    if (kind) latestResults.set(kind, {message, rows: rows.map(row => ({label:row.label||row.id,reason:row.reason}))});
+    el('results').replaceChildren(...['补齐','替换'].filter(key=>latestResults.has(key)).map(key => {
+      const result = latestResults.get(key), section = document.createElement('section');
+      section.dataset.kind = key;
+      const heading = document.createElement('h4'); heading.textContent = `${t(key)} · ${t(result.message)}`;
+      const list = document.createElement('ul');
+      list.replaceChildren(...result.rows.map(row => {
+        const li = document.createElement('li'); li.textContent = `${row.label}：${t(row.reason)}`; return li;
+      }));
+      section.append(heading,list); return section;
     }));
-    el('details').hidden = !rows.length;
+    el('details').hidden = !latestResults.size;
   }
   function refresh() {
     const clips = audio.selectedClips();
     const assets = new Map((host.data.msw?.assets || []).map(a=>[a.id,a]));
     const regenerable = clips.filter(c=>core.canRegenerate(assets.get(c.asset_id)?.generation || {})).length;
     const fillable = clips.filter(c=>{const a=assets.get(c.asset_id);return !!(a && (a.generation?.filename || a.generation?.display_text || a.source_ref?.text || c.label));}).length;
-    el('count').textContent = `${t('选中贴片')}：${clips.length} · ${t('可重新生成')}：${regenerable} · ${t('可补齐字幕')}：${fillable}`;
+    for (const id of ['mute-count','gain-count']) el(id).textContent = `${t('选中贴片')}：${clips.length}`;
+    el('regenerate-count').textContent = `${t('可重新生成')}：${regenerable}`;
+    el('fill-count').textContent = `${t('可补齐字幕')}：${fillable}`;
+    const hasSource = Boolean(host.player.currentSrc || host.player.getAttribute('src'));
+    el('source-apply').disabled = !hasSource;
+    el('source-status').textContent = hasSource ? `${t('当前试听增益')}：${audio.sourceGainDb().toFixed(1)} dB` : t('请先加载媒体');
     for (const id of ['mute', 'unmute', 'gain-apply']) el(id).disabled = !clips.length;
     el('fill').disabled = !clips.length;
-    document.getElementById('audio-fill-subtitles').disabled = !clips.length;
     el('regenerate').disabled = running || Boolean(batch?.outputOnly) || (!batch && (!regenerable || !host.config?.processingUrl));
     el('regenerate').textContent = t(batch ? '继续确认本批任务' : '重新生成并替换');
     el('cancel').hidden = !batch || Boolean(batch.outputOnly);
@@ -50,15 +68,23 @@
     } catch (error) { report(error.message); }
   };
   el('open').onclick = () => { refresh(); panel.open(); };
+  el('source-apply').onclick = async () => {
+    try {
+      const value = el('source-gain').value.trim();
+      const gains = core.gains([{id:'source',label:t('源音频'),gain_db:audio.sourceGainDb()}], value ? Number(value) : NaN, el('source-mode').value);
+      await audio.setSourceGainDb(gains.get('source'));
+      report('已调整源音频试听增益'); refresh();
+    } catch (error) { report(error.message); }
+  };
   function fill() {
     panel.open();
     try {
       const clips = audio.selectedClips(); if (!clips.length) { report('请先选择音频贴片'); return; }
       const plan = host.fillAudioSubtitles(clips);
-      report(`${t('已补齐')} ${plan.count} ${t('条')}，${t('跳过')} ${clips.length - plan.count} ${t('条')}`, plan.rows);
+      report(`${t('已补齐')} ${plan.count} ${t('条')}，${t('跳过')} ${clips.length - plan.count} ${t('条')}`, plan.rows, '补齐');
     } catch (error) { report(error.message); }
   }
-  el('fill').onclick = fill; document.getElementById('audio-fill-subtitles').onclick = fill;
+  el('fill').onclick = fill;
   async function request(route, body) {
     const response = await fetch(`${host.config.processingUrl}/${route}`, {method: body ? 'POST' : 'GET', cache:'no-store',
       headers:{'X-MSW-Token':host.config.requestToken,...(body ? {'Content-Type':'application/json'} : {})},
@@ -137,7 +163,7 @@
         })) count=replacements.size;
         for (const row of value.rows) if (!row.reason) row.reason=count && replacements.has(row.id) ? '已替换' : '未替换，新结果保留在素材库';
       }
-      report(value.outputOnly?`${t('新增音频素材')} ${count} ${t('条')}`:`${t('已替换')} ${count} ${t('条')}，${t('未替换')} ${value.rows.length-count} ${t('条')}`,value.rows);
+      report(value.outputOnly?`${t('新增音频素材')} ${count} ${t('条')}`:`${t('已替换')} ${count} ${t('条')}，${t('未替换')} ${value.rows.length-count} ${t('条')}`,value.rows,'替换');
       batch=null; global.dispatchEvent(new Event('msw:tts-refresh'));
     } catch (error) {
       if (current(value)) report(`${error.message}；${t('可继续确认本批任务，不会重复提交')}`);
@@ -156,7 +182,7 @@
     if (!batch) {
       host.commitEdits();
       const plan=core.regeneration(host.data,audio.selectedClips());
-      if (!plan.groups.length) { report('没有可重新生成的贴片',plan.rows); return; }
+      if (!plan.groups.length) { report('没有可重新生成的贴片',plan.rows,'替换'); return; }
       prepare(plan);
     }
     void runBatch();
@@ -180,6 +206,8 @@
   el('cancel').onclick = () => { if (!batch) return; batch.cancelled=true; refresh(); if (!running) void runBatch(); };
   el('close').onclick = () => panel.close();
   for (const event of ['msw:audio-selection', 'msw:audio-changed', 'msw:assets-changed']) global.addEventListener(event, refresh);
-  global.addEventListener('msw:project-changed', () => { batch=null; running=false; report(''); refresh(); });
+  for (const event of ['loadedmetadata','emptied']) host.player.addEventListener(event, refresh);
+  global.addEventListener('msw:source-gain', refresh);
+  global.addEventListener('msw:project-changed', () => { batch=null; running=false; latestResults.clear(); report(''); refresh(); });
   refresh();
 })(window);

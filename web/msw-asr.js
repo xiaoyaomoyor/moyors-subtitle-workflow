@@ -10,6 +10,8 @@
     'openaiPrompt','openaiKeywords','sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms','doubaoHotwords'];
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
   let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,selected=null,loading=null;
+  let retrying = null, retrySource = null;
+  const retries = new Map();
   function message(value) {el('message').textContent=t(value);}
   function options(node,values,selectedValue='') {
     node.replaceChildren(...values.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=t(item.label);return option;}));
@@ -89,7 +91,7 @@
     const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
     el('scope').textContent=issue||(!ready?t('请先在环境配置中保存此服务的 API Key'):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
-    el('start').disabled=!available||busy||media.busy||(!submission&&(!snapshot||!ready));
+    el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
     el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
     el('save-environment').disabled=!available||busy||Boolean(loading);
@@ -104,6 +106,7 @@
   async function submit() {
     if (busy) return;
     if (media.busy) {message('媒体正在导入，请等待完成后再识别');return;}
+    const generation=host.generation;
     try {
       host.commitEdits();
       if (!submission) {
@@ -115,19 +118,21 @@
           batch_overlap:snapshot.mode==='clips'&&inputs.some(other=>other!==snapshot&&other.range.start<snapshot.range.end&&snapshot.range.start<other.range.end)},provider}));
         batchSubmission=submission.length>1;
       }
-      busy=true;updateScope();
-      const generation=host.generation;
+      busy=true;updateScope();renderJobs();
       while (submission?.length) {
         const result=await media.request('jobs',submission[0]);
         if (generation!==host.generation) return;
-        jobs.set(result.job.id,result.job);submission.shift();renderJobs();schedule(0);
+        jobs.set(result.job.id,result.job);
+        if (retrySource) { retries.set(retrySource, result.job.id); retrySource = null; }
+        submission.shift();renderJobs();schedule(0);
       }
       submission=null;
       message('识别已开始');renderJobs();schedule(0);
     } catch(error) {
-      if (error.status>=400&&error.status<500&&error.status!==429&&!batchSubmission) submission=null;
+      if (generation!==host.generation) return;
+      if (error.status>=400&&error.status<500&&error.status!==429&&!batchSubmission) {submission=null;retrySource=null;}
       message(`${error.message}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
-    } finally {busy=false;updateScope();}
+    } finally {if(generation===host.generation){busy=false;updateScope();renderJobs();}}
   }
   function renderJobs() {
     const opened=new Set([...el('jobs').querySelectorAll('details[open]')].map(node=>node.dataset.resultId));
@@ -140,9 +145,14 @@
       if (range) line.textContent+=` · ${(range.start/1000).toFixed(3)}–${(range.end/1000).toFixed(3)} s`;
       const status=document.createElement('small');status.textContent=t(job.progress?.message||'');
       const actions=document.createElement('div');actions.className='msw-processing-actions';card.append(line,status,actions);
-      function button(label,action) {const node=document.createElement('button');node.type='button';node.textContent=t(label);node.addEventListener('click',action);actions.append(node);}
+      function button(label,action) {const node=document.createElement('button');node.type='button';node.textContent=t(label);node.addEventListener('click',action);actions.append(node);return node;}
       if (!terminal.has(job.status)) button('取消',async()=>{
-        try {await media.request(`jobs/${job.id}/cancel`,{project_id:job.project_id});schedule(0);}catch(error){message(error.message);}
+        const generation=host.generation;
+        try {
+          await media.request(`jobs/${job.id}/cancel`,{project_id:job.project_id});
+          if (generation!==host.generation) return;
+          jobs.set(job.id,{...job,status:'cancel_requested'});renderJobs();schedule(0);
+        }catch(error){if(generation===host.generation)message(error.message);}
       });
       if (job.status==='succeeded') {
         const choose=document.createElement('label');choose.className='msw-asr-result-choice';
@@ -163,19 +173,36 @@
         view.addEventListener('toggle',()=>{if(view.isConnected&&view.open&&!details.has(job.id))void showResult(job.id);});
         card.append(view);
       }
-      if (['failed','cancelled','interrupted'].includes(job.status)) button('使用此范围重试',async()=>{
+      if (['failed','cancelled','interrupted'].includes(job.status)) {
+        const retried = jobs.get(retries.get(job.id)), activeRetry = retried && !terminal.has(retried.status);
+        const retryButton = button(activeRetry ? '正在重试' : '使用此范围重试',async()=>{
+        if (busy || submission || retrying || activeRetry) return;
+        const generation=host.generation;
+        retrying=job.id;updateScope();renderJobs();
         try {
           const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
+          if(generation!==host.generation) return;
+          if (!providers.find(item=>item.id===el('providerId').value)?.hasApiKey) throw Error('请先在环境配置中保存此服务的 API Key');
+          host.commitEdits();
+          let snapshot;
           if(result.job.snapshot.mode==='clips') {
             const snap=result.job.snapshot, clips=host.data.msw?.audio_clips||[], clip=clips.find(c=>c.id===snap.source.clip.id);
-            if(host.data.msw?.project_id!==job.project_id||!clip||Object.keys(snap.source.clip).some(k=>clip[k]!==snap.source.clip[k]))throw Error('贴片已改变，请重新选择识别范围');
-            submission=[{...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot:snap,provider:providerInput()}];
-            batchSubmission=false;el('mode').value='clips';await submit();return;
+            if(host.data.msw?.project_id!==job.project_id||!clip||Object.keys(snap.source.clip).some(k=>clip[k]!==snap.source.clip[k])
+              ||host.data.msw.assets.find(a=>a.id===snap.source.id)?.sha256!==snap.source.revision)throw Error('贴片已改变，请重新选择识别范围');
+            snapshot=global.MSWAsr.clipSnapshots(host.data,[clip])[0];el('mode').value='clips';
+          } else {
+            if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision
+              ||media.current?.audio_index!==result.job.snapshot.source.audio_index) throw Error('媒体已改变，请重新选择识别范围');
+            el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);
+            snapshot=global.MSWAsr.snapshot(host.data,media.current,result.job.snapshot.mode,result.job.snapshot.range);
           }
-          if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision) throw Error('媒体已改变，请重新选择识别范围');
-          el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);updateScope();message('范围已恢复；检查当前配置后点击开始识别');
-        }catch(error){message(error.message);}
-      });
+          submission=[{...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot,provider:providerInput()}];
+          batchSubmission=false;retrySource=job.id;el('history').open=true;await submit();
+        }catch(error){if(generation===host.generation)message(error.message);}
+        finally{if(generation===host.generation){retrying=null;updateScope();renderJobs();}}
+        });
+        retryButton.disabled=busy||Boolean(submission)||Boolean(retrying)||Boolean(activeRetry);
+      }
       fragment.append(card);
     }
     el('jobs').replaceChildren(fragment);el('count').textContent=String(jobs.size);refreshFooter();
@@ -287,7 +314,7 @@
     const reports=ranges.ranges.map(range=>global.MSWAsr.boundaries(host.data,range,media.current?.metadata.duration_ms||0));
     if(reports.every(report=>report.canExpand))ranges.setRange(reports.map(report=>report.expanded));
   });
-  el('start').addEventListener('click',()=>void submit());el('forget').addEventListener('click',()=>{submission=null;updateScope();message('已放弃未确认提交；此前请求若已到达服务，仍会显示在任务列表');});
+  el('start').addEventListener('click',()=>void submit());el('forget').addEventListener('click',()=>{submission=null;retrySource=null;updateScope();renderJobs();message('已放弃未确认提交；此前请求若已到达服务，仍会显示在任务列表');});
   el('save-settings').addEventListener('click',async()=>{
     if (busy||!available) return;
     busy=true;updateScope();
@@ -307,7 +334,7 @@
   el('apply').addEventListener('click',()=>{if(selected)void apply(selected);});
   el('store').addEventListener('click',storeBatch);
   for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
-  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
+  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
   global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
   refreshFooter();
   if (available) {void loadSettings();schedule(0);}

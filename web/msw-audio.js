@@ -474,8 +474,13 @@
     virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,
     protectGaps: gaps => { sync(); if (gapSource !== gaps) { gapSource = gaps; protectedRanges = core.protectGaps(gaps, extension()); } return protectedRanges; },
     diagnostics: transport.diagnostics,
+    sourceGainDb: transport.sourceGainDb,
+    setSourceGainDb: async value => { await transport.setSourceGainDb(value); global.dispatchEvent(new Event('msw:source-gain')); },
   });
   global.MSWE.register('audio-timeline', () => api);
+  global.addEventListener('msw:media-changed', () => {
+    transport.resetSourceGain(); global.dispatchEvent(new Event('msw:source-gain'));
+  });
   global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
   global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
   global.addEventListener('msw:project-changed', () => {
