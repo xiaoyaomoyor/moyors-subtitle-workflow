@@ -176,7 +176,7 @@ test('list click auto-scroll can be disabled without disabling seek', async ({ p
       const start = index * 5000;
       return { start, end: start + 1000, text: `Extra ${index}`, items: [] };
     }));
-    renderAll();
+    renderAll({ preserveCueListScroll: false });
     document.getElementById('cues-container').scrollTop = 0;
   });
   const target = page.locator('.cue[data-idx="30"]');
@@ -581,7 +581,7 @@ test('B split keeps the source cue visually anchored while lazy rows relayout', 
         items: [],
       };
     });
-    renderAll();
+    renderAll({ preserveCueListScroll: false });
     document.querySelector('.cue[data-idx="56"]').scrollIntoView({ block: 'center' });
   });
 

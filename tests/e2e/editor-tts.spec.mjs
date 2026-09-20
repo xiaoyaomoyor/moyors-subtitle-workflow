@@ -724,7 +724,9 @@ test('blank TTS key reuses ASR settings and streaming WAV becomes a playable sec
 test('a completed item is available while later request runs; cancel discards late audio',async({page})=>{
   await open(page); await panel(page); holdText='World'; await page.locator('#tts-start').click();
   await expect.poll(()=>held.length).toBe(1); await expect.poll(()=>countAssets(page)).toBe(1);
+  const cancelled = page.waitForResponse(response => /\/api\/msw\/jobs\/[^/]+\/cancel$/.test(new URL(response.url()).pathname) && response.request().method() === 'POST');
   await page.getByRole('button',{name:'取消任务',exact:true}).click();
+  expect((await cancelled).ok()).toBe(true);
   for(const respond of held.splice(0)) respond();
   await expect(page.locator('#tts-jobs')).toContainText('已取消');
   expect(await countAssets(page)).toBe(1); expect(calls).toHaveLength(2);
@@ -879,7 +881,9 @@ test('external audio imports from file picker, reports invalid files and saves u
   await expect.poll(()=>page.locator('#asset-audio').evaluate(el=>el.currentTime)).toBeGreaterThan(0);
   await page.locator('.msw-asset-row [data-asset-action="insert"]').click();
   await expect(page.locator('.msw-audio-clip')).toHaveCount(1);
-  await page.evaluate(async()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();scheduleAutoSaveFlush();await saveCurrentProject({silent:true});});
+  await page.evaluate(()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();scheduleAutoSaveFlush();});
+  await expect.poll(()=>page.evaluate(()=>!projectSaveInFlight && !projectCheckpointInFlight)).toBe(true);
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
   const saved=JSON.parse(readFileSync(projectPath,'utf8'));
   expect(existsSync(join(dir,saved.msw.assets[0].path))).toBe(true);
   expect(readFileSync(audio).subarray(0,4).toString()).toBe('RIFF');
