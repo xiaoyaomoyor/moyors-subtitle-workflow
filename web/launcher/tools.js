@@ -60,10 +60,27 @@
     return document.body.classList.contains("rail-open");
   }
 
+  // T4/A3：关闭后隐藏栏不可被键盘继续访问——inert 一并移除焦点。
+  function syncRailsReachability() {
+    var open = railOpen();
+    document.querySelectorAll(".tools-rail, .settings-rail").forEach(function (rail) {
+      var narrow = window.matchMedia("(max-width: 1100px)").matches;
+      rail.toggleAttribute("inert", narrow && !open);
+    });
+  }
+
   function closeRailDrawer() {
     if (!railOpen()) return;
     document.body.classList.remove("rail-open");
     el("railBackdrop")?.classList.add("hidden");
+    syncRailsReachability();
+  }
+
+  function openRailDrawer(focusTarget) {
+    document.body.classList.add("rail-open");
+    el("railBackdrop")?.classList.remove("hidden");
+    syncRailsReachability();
+    if (focusTarget instanceof HTMLElement) focusTarget.focus();
   }
 
   function init() {
@@ -75,20 +92,32 @@
       button.addEventListener("keydown", moveFocus);
     });
     el("toolsRailToggle")?.addEventListener("click", function () {
-      document.body.classList.add("rail-open");
-      el("railBackdrop")?.classList.remove("hidden");
-      railButtons().find(function (button) { return button.dataset.toolsSelect === activeTool; })?.focus();
+      openRailDrawer(railButtons().find(function (button) { return button.dataset.toolsSelect === activeTool; }));
     });
     document.querySelectorAll("#toolsRail .rail-close").forEach(function (button) {
       button.addEventListener("click", closeRailDrawer);
     });
-    // 共用遮罩：预制页栏与本页栏都可能打开；点击关闭即可（各自状态互不影响）。
+    // T4/A2：设置分组栏接入同一抽屉控制（此前按钮无绑定，窄窗点击无响应）。
+    var settingsTabs = function () { return Array.from(document.querySelectorAll("#settingsRail [data-settings-tab]")); };
+    el("settingsRailToggle")?.addEventListener("click", function () {
+      openRailDrawer(settingsTabs().find(function (tab) { return tab.classList.contains("active"); }));
+    });
+    document.querySelectorAll("#settingsRail .rail-close").forEach(function (button) {
+      button.addEventListener("click", closeRailDrawer);
+    });
+    settingsTabs().forEach(function (tab) {
+      tab.addEventListener("click", function () { closeRailDrawer(); });
+    });
+    // 共用遮罩：预制/工具/设置栏都可能打开；点击关闭即可（各自状态互不影响）。
     el("railBackdrop")?.addEventListener("click", closeRailDrawer);
     document.addEventListener("keydown", function (event) {
       if (event.key !== "Escape" || !railOpen()) return;
       // 工具箱抽屉/菜单等先处理各自的 Esc；这里只收本页栏抽屉。
       closeRailDrawer();
     });
+    document.addEventListener("mswnavigation", closeRailDrawer);
+    window.addEventListener("resize", syncRailsReachability);
+    syncRailsReachability();
     restore();
   }
 

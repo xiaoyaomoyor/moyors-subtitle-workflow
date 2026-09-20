@@ -3650,6 +3650,27 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("delete_project_done", launcher_script)
         self.assertIn("仅把这个工程文件移入回收站", launcher_script)
 
+    def test_launcher_t4_settings_rail_and_grid_contracts(self) -> None:
+        """T4（三轮审查 U6/A2/A3）：设置栅格、统一抽屉控制与样式覆盖顺序。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        tools_script = (ROOT / "web" / "launcher" / "tools.js").read_text(encoding="utf-8")
+        stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
+
+        # A2：设置分组抽屉按钮接入统一控制器（打开/关闭/Esc/遮罩/切页清理/inert）。
+        self.assertIn('settingsRailToggle', tools_script)
+        self.assertIn("openRailDrawer(settingsTabs()", tools_script)
+        self.assertIn('document.addEventListener("mswnavigation", closeRailDrawer)', tools_script)
+        self.assertIn("syncRailsReachability", tools_script)
+        self.assertIn('rail.toggleAttribute("inert", narrow && !open)', tools_script)
+        # A3：基础 display:none 规则必须先于窄屏媒体查询（后置会覆盖媒体查询内的可见规则）。
+        base_head = stylesheet.index('.tools-rail .rail-drawer-head,\n.settings-rail .rail-drawer-head {\n  display: none;')
+        mq = stylesheet.index("@media (max-width: 1100px)")
+        self.assertLess(base_head, mq)
+        base_backdrop = stylesheet.index('.rail-backdrop {\n  display: none;')
+        self.assertLess(base_backdrop, mq)
+        # U6：设置正文共享内容栅格（24px 左右内边距与 .page-scroll 一致）。
+        self.assertIn("padding-inline: 24px 2px;", stylesheet)
+
     def test_launcher_t3_module_order_output_deep_link_contracts(self) -> None:
         """T3（三轮审查 U5/A1/A8/A9）：模块 DOM 顺序、输出有效配置、深链与文案收口。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

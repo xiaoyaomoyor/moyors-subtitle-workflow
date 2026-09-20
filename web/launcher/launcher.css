@@ -466,6 +466,23 @@ body:not(.launcher-ready) .shell {
   display: none;
 }
 
+.rail-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(0, 0, 0, .38);
+}
+
+
+/* T4/A3：抽屉关闭头与遮罩的基础隐藏规则必须先于窄屏媒体查询声明——
+   后置的同特异性规则会覆盖媒体查询内的 display:flex/none，抽屉头部与遮罩
+   在窄屏永远不可见。 */
+.tools-rail .rail-drawer-head,
+.settings-rail .rail-drawer-head {
+  display: none;
+}
+
 /* 窄窗口（≤1100px）：模块栏改为右侧滑出抽屉，不持续挤压内容区（R1/审查 §4.3）。 */
 @media (max-width: 1100px) {
   .prefab-wrap {
@@ -579,14 +596,6 @@ body:not(.launcher-ready) .shell {
     min-height: 0;
     overflow-y: auto;
   }
-}
-
-.rail-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 44;
-  background: rgba(0, 0, 0, .38);
 }
 
 .rail-group {
@@ -1147,11 +1156,6 @@ html[data-theme="light"] .recent-cover .recent-pin {
   background: var(--bg-side);
   overflow-y: auto;
   padding: 14px 10px;
-}
-
-.tools-rail .rail-drawer-head,
-.settings-rail .rail-drawer-head {
-  display: none;
 }
 
 /* 单选导航项：整行按钮，活动态用强调描边（区别于预制栏复选）。 */
@@ -3162,7 +3166,9 @@ textarea::placeholder {
   overflow-y: auto;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
-  padding-inline-end: 2px;
+  /* T4/U6：正文与标题共享内容栅格——左右 24px 与 .page-scroll 一致，
+     正文不再从导航边界直接开始。 */
+  padding-inline: 24px 2px;
   padding-block-end: 22px;
   --settings-top-fade: 0px;
   /* 底部不再渐隐：滚动时间线在内容恰好占满一屏时停在 0，18px 渐隐会常驻遮挡末行。 */
