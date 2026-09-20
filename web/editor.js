@@ -9617,7 +9617,7 @@ cueListFollowButton?.addEventListener('click', resumeCueListFollowing);
 
 // === seek ===
 let seekWarned = false;
-let pendingMediaSeekTimeSec = null;
+let pendingMediaSeek = null;
 let autoLoadedMediaReadyNotified = false;
 let cueListPointer = null;
 // 最后一次指针按下所在的编辑区域：cue-list / waveform。
@@ -12231,6 +12231,9 @@ function updateCueListPlayback(tMs = window.MSWE?.resolve('audio-timeline')?.cur
   rows.forEach(row => row.classList.add('playhead-hit'));
   cueListPlaybackRows = [...rows];
   }
+  // 记住本次被抑制的目标；随后异步 seeked/timeupdate 仍属于同一次跳转。
+  // 下一条字幕或新的显式导航仍可正常触发跟随。
+  if (follow && suppressCueListAutoScroll) cueListScroll.playbackKey = playbackCueListKey();
   if (follow && cueListScroll.following && !cueListScroll.owner && !editingState && !extensionEditingState && document.activeElement !== cuePanelText
       && !suppressCueListAutoScroll && !waveformPlayheadDragging) {
     const followKey = playbackCueListKey();
@@ -15731,7 +15734,7 @@ function resetLoadedMedia() {
   player = emptyPlayer;
   bindPlayerEvents(player);
   seekWarned = false;
-  pendingMediaSeekTimeSec = null;
+  pendingMediaSeek = null;
   autoLoadedMediaReadyNotified = false;
   waveformEditor?.attachPlayer(player);
   syncPlayerPlaceholder();
@@ -16624,7 +16627,7 @@ async function loadMediaFile(file, { localOnly = false, previewOnly = false, pre
     player = newPlayer;
     bindPlayerEvents(player);
     seekWarned = false;  // 新媒体重新探测 seek 能力
-    pendingMediaSeekTimeSec = null;
+    pendingMediaSeek = null;
     autoLoadedMediaReadyNotified = false;
   }
 
@@ -19578,7 +19581,7 @@ function seekFromWaveform(timeSec, { dragPreview = false } = {}) {
   const seekableEnd = player.seekable.length ? player.seekable.end(player.seekable.length - 1) : 0;
   if (seekableEnd <= 0 && !seekWarned) {
     if (player.readyState < 1 || player.networkState === HTMLMediaElement.NETWORK_LOADING) {
-      pendingMediaSeekTimeSec = timeSec;
+      pendingMediaSeek = { timeSec, suppressCueListScroll: suppressCueListAutoScroll };
       return;
     }
     seekWarned = true;
@@ -19604,10 +19607,13 @@ function notifyAutoLoadedMediaReady(mediaElement) {
 }
 
 function flushPendingMediaSeek(mediaElement) {
-  if (mediaElement !== player || pendingMediaSeekTimeSec === null) return;
-  const timeSec = pendingMediaSeekTimeSec;
-  pendingMediaSeekTimeSec = null;
-  seekFromWaveform(timeSec);
+  if (mediaElement !== player || pendingMediaSeek === null) return;
+  const pending = pendingMediaSeek;
+  pendingMediaSeek = null;
+  const previousSuppress = suppressCueListAutoScroll;
+  suppressCueListAutoScroll = pending.suppressCueListScroll;
+  try { seekFromWaveform(pending.timeSec); }
+  finally { suppressCueListAutoScroll = previousSuppress; }
 }
 
 function initWaveformEditor() {
