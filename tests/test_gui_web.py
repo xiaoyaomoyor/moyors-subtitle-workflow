@@ -3650,6 +3650,34 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("delete_project_done", launcher_script)
         self.assertIn("仅把这个工程文件移入回收站", launcher_script)
 
+    def test_launcher_t3_module_order_output_deep_link_contracts(self) -> None:
+        """T3（三轮审查 U5/A1/A8/A9）：模块 DOM 顺序、输出有效配置、深链与文案收口。"""
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        plan_script = (ROOT / "web" / "launcher" / "plan.js").read_text(encoding="utf-8")
+        postprocess_script = (ROOT / "web" / "launcher" / "postprocess.js").read_text(encoding="utf-8")
+        launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+
+        # U5：DOM 顺序=注册表顺序（媒体→波形→识别）；卡节按此序排列。
+        media_pos = page.index('data-module-card="media"')
+        waveform_pos = page.index('data-module-card="waveform"')
+        asr_pos = page.index('data-module-card="asr"')
+        self.assertLess(media_pos, waveform_pos)
+        self.assertLess(waveform_pos, asr_pos)
+        # A1：输出有效配置——输出模块关闭时草稿不进方案（目录/主名空、导出回默认 true）。
+        self.assertIn('!window.MSWModules.isEnabled("output")', postprocess_script)
+        self.assertIn('exportSrt: true, exportTranslatedSrt: true, outputDirectory: "", outputStem: ""', postprocess_script)
+        self.assertIn('var outputOn = modules() ? modules().isEnabled("output") !== false : false;', plan_script)
+        self.assertIn('directory: outputOn ? (el("outputDirectory")?.value || "").trim() : "",', plan_script)
+        # A8：深链指向真实面板 ID。
+        self.assertIn('openSettings("settingsFilesPanel")', postprocess_script)
+        self.assertNotIn('openSettings("filesPanel")', postprocess_script)
+        # A9：对齐名称无省略号；ASR 卡无持久化按钮、有设置深链。
+        self.assertIn('mod_alignment: "口播对齐",', launcher_script)
+        self.assertNotIn('交互式口播对齐…', launcher_script)
+        self.assertNotIn('id="saveSettings"', page)
+        self.assertIn('id="openConnectionSettings"', page)
+        self.assertIn('openSettings("llmSettingsSection")', launcher_script)
+
     def test_launcher_t2_pagination_and_media_search_contracts(self) -> None:
         """T2（三轮审查 U4/A6/A7）：分页契约、服务端搜索、媒体名索引与页码控件。"""
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

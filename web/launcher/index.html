@@ -261,6 +261,19 @@
           </div>
         </section>
 
+        <!-- S4/§6.3：波形独立卡——频谱开关与缓存策略从 ASR 表单迁入 -->
+        <section id="waveformCard" class="card module-card" data-module-card="waveform" aria-labelledby="waveformTitle">
+          <h2 id="waveformTitle" data-i18n="mod_waveform">生成波形</h2>
+          <p class="hint" data-i18n="mod_waveform_hint">为媒体生成波形缓存供编辑器显示；不生成字幕。已有有效缓存会直接复用，媒体或源音轨变化后自动重新生成。</p>
+          <div id="generateSpectralField" class="field">
+            <label class="check-field" for="generateSpectral" data-i18n-title="generate_spectral_title">
+              <input id="generateSpectral" type="checkbox">
+              <span data-i18n="generate_spectral">生成频谱颜色数据</span>
+            </label>
+            <p class="hint" data-i18n="generate_spectral_hint">默认只生成波形；勾选后会额外计算频谱，耗时和文件体积都会增加。</p>
+          </div>
+          <p id="waveformTrackNote" class="hint" aria-live="polite"></p>
+        </section>
         <section id="recognitionCard" class="card module-card" data-module-card="asr" aria-labelledby="settingsTitle">
           <h2 id="settingsTitle" data-i18n="recognition">识别设置</h2>
           <div class="provider-row">
@@ -302,10 +315,10 @@
             <label for="apiKey" data-i18n="key">API Key</label>
             <div class="path-row key-row">
               <input id="apiKey" type="password" autocomplete="off">
-              <button id="saveSettings" class="ghost" type="button" data-i18n="save_key">存入本地环境</button>
             </div>
             <p id="keyStatus" class="hint">未配置密钥</p>
             <p class="hint"><span data-i18n="key_hint_prefix">在</span> <button id="openKeyUrl" class="inline-link" type="button">阿里云百炼</button> <span id="keyHintSuffix" data-i18n="key_hint_suffix">获取 API Key ↗</span></p>
+            <p class="hint"><button id="openConnectionSettings" class="inline-link" type="button" data-i18n="open_connection_settings">在更多设置中保存密钥</button></p>
             <p id="apiKeyError" class="field-error"></p>
           </div>
           <div id="localRuntimeCheckField" class="field hidden"><div class="local-status-row"><p id="localRuntimeCheckStatus" class="local-status" aria-live="polite"></p><button id="openLocalRuntimeSettings" class="inline-link" type="button" data-i18n="local_runtime_view_settings">在更多设置中查看</button></div></div>
@@ -484,19 +497,6 @@
           </div>
          </section>
 
-        <!-- S4/§6.3：波形独立卡——频谱开关与缓存策略从 ASR 表单迁入 -->
-        <section id="waveformCard" class="card module-card" data-module-card="waveform" aria-labelledby="waveformTitle">
-          <h2 id="waveformTitle" data-i18n="mod_waveform">生成波形</h2>
-          <p class="hint" data-i18n="mod_waveform_hint">为媒体生成波形缓存供编辑器显示；不生成字幕。已有有效缓存会直接复用，媒体或源音轨变化后自动重新生成。</p>
-          <div id="generateSpectralField" class="field">
-            <label class="check-field" for="generateSpectral" data-i18n-title="generate_spectral_title">
-              <input id="generateSpectral" type="checkbox">
-              <span data-i18n="generate_spectral">生成频谱颜色数据</span>
-            </label>
-            <p class="hint" data-i18n="generate_spectral_hint">默认只生成波形；勾选后会额外计算频谱，耗时和文件体积都会增加。</p>
-          </div>
-          <p id="waveformTrackNote" class="hint" aria-live="polite"></p>
-        </section>
 
         <!-- S4/§6.2：后处理六模块各自独立配置卡（配置字段自旧工具箱抽屉原样迁入，ID 不变） -->
         <section id="matchCard" class="card module-card" data-module-card="match" aria-labelledby="matchCardTitle">

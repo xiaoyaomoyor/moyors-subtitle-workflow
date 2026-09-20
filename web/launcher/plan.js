@@ -47,14 +47,18 @@
       },
       // 后处理方案（步骤参数、输出模式、翻译目标）来自「转写后自动处理」的既有保存链。
       postprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null,
-      // S5/§7.1：输出契约——导出开关与自定义目录/主名（输出模块关闭时为空=默认策略）。
-      output: {
-        srtPath: (el("srtPath")?.value || "").trim(),
-        directory: (el("outputDirectory")?.value || "").trim(),
-        projectName: (el("outputProjectName")?.value || "").trim(),
-        exportSrt: el("outputExportSrt") ? el("outputExportSrt").checked : true,
-        exportTranslatedSrt: el("outputExportTranslatedSrt") ? el("outputExportTranslatedSrt").checked : true,
-      },
+      // T3/A1：有效输出配置——输出模块关闭时草稿不进方案（目录/主名清空=默认策略，
+      // 导出开关回默认 true）；srtPath 是识别输出锚点（独立于输出模块）。
+      output: (function () {
+        var outputOn = modules() ? modules().isEnabled("output") !== false : false;
+        return {
+          srtPath: (el("srtPath")?.value || "").trim(),
+          directory: outputOn ? (el("outputDirectory")?.value || "").trim() : "",
+          projectName: outputOn ? (el("outputProjectName")?.value || "").trim() : "",
+          exportSrt: outputOn ? (el("outputExportSrt") ? el("outputExportSrt").checked : true) : true,
+          exportTranslatedSrt: outputOn ? (el("outputExportTranslatedSrt") ? el("outputExportTranslatedSrt").checked : true) : true,
+        };
+      })(),
     };
   }
 

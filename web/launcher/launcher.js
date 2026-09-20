@@ -71,6 +71,7 @@
       home_target: "当前目标：{name}",
       server_advanced: "高级：直接指定工程与端口",
       recent_search_placeholder: "搜索工程名、媒体名或路径…",
+      open_connection_settings: "在更多设置中保存密钥",
       mod_output: "输出",
       output_card_hint: "自定义本次制作的输出位置；不开启输出模块时使用「更多设置 → 文件与输出」的默认策略。",
       output_directory: "工程输出目录",
@@ -185,7 +186,7 @@
       mod_resegment: "重新断句",
       mod_ocr: "OCR 字幕去重",
       mod_translate: "翻译",
-      mod_alignment: "交互式口播对齐…",
+      mod_alignment: "口播对齐",
       module_toggle_label: "折叠或展开本模块",
       rail_toggle: "处理模块",
       rail_close_label: "收起模块栏",
@@ -375,6 +376,7 @@
       home_target: "Target: {name}",
       server_advanced: "Advanced: explicit project & port",
       recent_search_placeholder: "Search project, media, or path…",
+      open_connection_settings: "Save keys in More Settings",
       mod_output: "Output",
       output_card_hint: "Customize where this build writes its outputs; when the Output module is off, the default policy from More Settings → Files & output applies.",
       output_directory: "Project output directory",
@@ -489,7 +491,7 @@
       mod_resegment: "Resegment",
       mod_ocr: "OCR dedup",
       mod_translate: "Translation",
-      mod_alignment: "Interactive speech alignment…",
+      mod_alignment: "Speech alignment",
       module_toggle_label: "Collapse or expand this module",
       rail_toggle: "Modules",
       rail_close_label: "Close module rail",
@@ -3439,7 +3441,8 @@
   $("attachModelName").addEventListener("change", async () => { await saveOutputPref("attachModelName"); syncDefaultOutputPreview(); });
   $("languageReset").addEventListener("click", () => { const el = $("language"); Array.from(el.options).forEach((o) => { o.selected = false; }); savePrefsDebounced({ language: "" }); });
   for(const key of ["openaiBaseUrl","openaiModel","openaiDiarize"])$(key).addEventListener("input",()=>syncOpenaiCapabilities());
-  $("saveSettings").addEventListener("click", async () => { const payload = formPayload(); const result = await bridge("save_settings", payload); if (result.ok) { const current = provider(); current.apiKey = $("apiKey").value.trim(); current.maskedApiKey = result.maskedApiKey; state.config.apiKey = current.apiKey; state.config.maskedApiKey = result.maskedApiKey; if (current.id === "openai") { state.config.openaiBaseUrl = payload.openaiBaseUrl; state.config.openaiModel = payload.openaiModel; } renderKeyStatus(); setStatus(t("saved")); } else applyErrorResult(result); });
+  // T3/A9：ASR 卡不再承载「存入本地环境」持久化——连接保存收口到设置·服务与连接。
+  $("openConnectionSettings")?.addEventListener("click", () => window.MSWLauncher.openSettings("llmSettingsSection"));
   async function startTranscription() {
     if (!validateLocal()) return;
     hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); }

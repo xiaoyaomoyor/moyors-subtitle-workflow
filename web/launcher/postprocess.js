@@ -972,11 +972,16 @@
       version: 1,
       enabled: steps.some((step) => step.enabled),
       retainIntermediate: Boolean($("autoPostprocessRetain")?.checked),
-      // S5/§7.1：输出契约随方案走——导出开关与自定义目录/主名（输出模块关闭时为默认值）。
-      exportSrt: Boolean($("outputExportSrt")?.checked ?? true),
-      exportTranslatedSrt: Boolean($("outputExportTranslatedSrt")?.checked ?? true),
-      outputDirectory: $("outputDirectory")?.value.trim() || "",
-      outputStem: $("outputProjectName")?.value.trim() || "",
+      // T3/A1：有效输出配置——输出模块关闭时草稿不生效：导出开关回默认（true），
+      // 自定义目录/主名清空走「更多设置→文件与输出」默认策略；开启时读草稿。
+      ...(window.MSWModules && !window.MSWModules.isEnabled("output")
+        ? { exportSrt: true, exportTranslatedSrt: true, outputDirectory: "", outputStem: "" }
+        : {
+          exportSrt: Boolean($("outputExportSrt")?.checked ?? true),
+          exportTranslatedSrt: Boolean($("outputExportTranslatedSrt")?.checked ?? true),
+          outputDirectory: $("outputDirectory")?.value.trim() || "",
+          outputStem: $("outputProjectName")?.value.trim() || "",
+        }),
       steps,
     };
   }
@@ -1702,7 +1707,8 @@
       persistAutoPlanSoon();
     }
   });
-  $("openOutputSettings")?.addEventListener("click", () => window.MSWLauncher.openSettings("filesPanel"));
+  // T3/A8：深链指向真实面板 ID settingsFilesPanel（旧 filesPanel 定位失效）。
+  $("openOutputSettings")?.addEventListener("click", () => window.MSWLauncher.openSettings("settingsFilesPanel"));
   // 渲染状态时同步输出卡（函数声明可在闭包内重写以挂钩）。
   const baseRenderAutoState = renderAutoPostprocessState;
   renderAutoPostprocessState = function () { baseRenderAutoState(); updateOutputCardState(); };
