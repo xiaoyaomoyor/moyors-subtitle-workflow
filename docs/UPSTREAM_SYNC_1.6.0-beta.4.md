@@ -27,7 +27,7 @@
 | C 后处理及 Launcher 接线 | 已修复 | 翻译回填、双语顺序、后缀、通知、语言和错误诊断已接入；50 项浏览器覆盖中的两项失败复测通过，新增 Launcher 3 项通过；完整回归归 E |
 | D 编辑器增量 | 已修复 | 颜色组、ASS、响度、阅读位置／跟随与保存已适配并验证；保留 MSW 共享边界 |
 | E 回归及候选包 | 已修复 | 本地回归及滚动矩阵通过；预演 35525678605 三平台构建、341 项 Chromium、冻结程序与五包完整性检查全部通过 |
-| F 提交推送与 beta.4 发布 | 进行中 | main 已纯镜像上游；候选通过后更新 my-feature、创建标签并发布，随后核对公开五包及实际下载启动 |
+| F 提交推送与 beta.4 发布 | 已修复 | main 保持纯镜像；my-feature／同步分支已推送，最终标签指向 83cfc9c；正式 CI 35527871901 全部通过，公开五包下载校验及 Windows 标准／lite 实际启动通过 |
 
 ## 已确认的决策
 
@@ -232,3 +232,13 @@
 - 正式发行首轮 35526597161 的 Chromium 为 339 通过／2 失败，未创建 Release（API 确认 404）：表情包用例记录位置时初始化／旧恢复尚未稳定，主题用例可误接收较早的保存响应。原用例重复 10 项为 6 通过／4 失败，两组完整重复 48 项为 47 通过／1 失败，保留全部证据。仅补齐夹具就绪与最新颜色请求匹配，产品代码未变；两项各五轮复测 10/10 通过。
 - 原未发布标签对象 c92fb4be6caa8149960d8546e0d02905d6027715 指向 2cc9225；后续对齐仅包含测试及报告修正，使用限定此标签旧对象的 force-with-lease，保留旧提交及本地备份引用，分支仍快进。
 - 两组完整用例修正后重复两轮，48/48 通过；相对发行候选仅 tests/e2e/cue-color-filter.spec.mjs、tests/e2e/editor-upgrade-d.spec.mjs 和本报告变化。
+
+## F 最终发行验收
+
+- 最终发行提交为 `83cfc9cfe570543723ceffc00153f26542bcc5d6`，`v1.6.0-beta.4` 注解标签对象为 `7b0561e18bfcd3b65c32af297ab64e74fefca942`。my-feature 与同步分支均已推送；main 仍为纯上游 `42656d849f4e2cce9cb21d718add86b692cc6028`。本节后续文档提交不移动已发布标签。
+- 正式发行 [35527871901](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/35527871901) 的三个平台构建、五包验证和发布任务全部成功。Windows Python 1734 项运行通过（74 条件跳过），Chromium 341/341 通过；标准／lite 冻结入口及随包媒体检查通过。
+- [v1.6.0-beta.4 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0-beta.4) 已公开，prerelease=true、draft=false，目标提交与标签一致。实际发布说明与 `prepare_release_notes.py` 生成并审查的正文一致，附有五包对应 SHA-256。
+- 从公开下载链接取得 Windows 标准／lite、macOS arm64 标准／lite 和 Linux x86_64 AppImage，五包大小及 SHA-256 与 GitHub 资产元数据、发布说明一致。`python scripts/check_release_assets.py --directory <公开包下载目录> --tag v1.6.0-beta.4` 通过五包 ZIP CRC／结构及 AppImage 检查；源码 ZIP／tar.gz 链接均 HTTP 200。
+- 首次 Node 流式下载中断，保留失败日志；改用 curl 断点续传后五包完整下载并校验成功。最终 Python 校验首次被沙箱阻止启动，使用获准的沙箱外只读检查后通过；均不涉及产品代码修改。
+- 对公开下载并解压的 Windows 标准和 lite 包分别执行 `python scripts/smoke_beta3_bundle.py <MSW.exe> --standard` 和不带 `--standard` 的检查，均通过。标准包实际完成随包 FFmpeg 波形、冻结 OpenAI 子进程对接 localhost 模拟 ASR、片段偏移／回填校验及原生 QPK1 生成；普通 MOSP 未内嵌运行态缓存。macOS/Linux 运行证据来自对应平台 CI，不宣称本机执行。
+- 文档站与便携编辑器公开访问已验证，见前述 Pages 部署记录。B—F 均已完成，无待处理实施项；真实付费服务、真实 MPS 模型推理、可选油库里资源及第三方剪辑软件人工导入的验证边界仍按 E 阶段说明保留。
