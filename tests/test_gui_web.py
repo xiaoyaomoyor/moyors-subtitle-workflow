@@ -3481,7 +3481,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         # 模块头：箭头左置（DOM 顺序 toggle → index → heading）、整头可点折叠、
         # 悬浮只点亮箭头不加底色、28px 命中区。
-        self.assertIn("head.append(toggle, index, heading, summary)", workflow_script)
+        self.assertIn("head.append(toggle, index, heading, summary, status)", workflow_script)
         self.assertIn('event.target.closest("button, a, input, select, textarea")', workflow_script)
         self.assertIn(".module-head:hover .module-collapse", stylesheet)
         self.assertNotIn(".module-collapse:hover", stylesheet)
@@ -3508,7 +3508,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="toolsRunArea"', page)
         self.assertIn('id="toolsPageProgress"', page)
         self.assertIn('id="toolsPageResult"', page)
-        self.assertEqual(page.count("data-tools-select"), 4)
+        self.assertEqual(page.count("data-tools-select"), 5)
         self.assertIn('<script src="tools.js"></script>', page)
         # 运行按钮/输入随面板迁入页内（保留原 ID，绑定不克隆）。
         for element_id in ("runExtractAudio", "runBurnSubtitle", "runFfconcatRebuild", "runToolboxAlignment", "toolboxUtilityMediaPath", "toolboxAudioTrack"):
@@ -3552,7 +3552,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
 
         # S2/反馈1：四项独立文件工具直接在实用工具页配置运行；不再有「打开工具」入口按钮。
-        self.assertEqual(page.count("data-tools-panel"), 4)
+        self.assertEqual(page.count("data-tools-panel"), 5)
         self.assertNotIn('data-tool-entry="toolboxMatchTab"', page)
         self.assertNotIn('data-tool-entry="toolboxWaveformTab"', page)
         self.assertNotIn("data-tool-entry=", page)
@@ -3598,7 +3598,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('.footer-task-strip {', stylesheet)
         # 普通执行不强制滚动日志；预检失败展开具体模块卡。
         self.assertNotIn('$("logTitle").scrollIntoView', launcher_script)
-        self.assertIn("moduleIds.forEach((id) => window.MSWWorkflow?.setCollapsed?.(id, false))", launcher_script)
+        self.assertIn('setCollapsed(first.module || "media", false)', (ROOT / 'web' / 'launcher' / 'batch.js').read_text(encoding='utf-8'))
         # 波形开关进转录载荷（单文件+批量共用 formPayload）。
         self.assertIn("generateWaveform: waveformOn", launcher_script)
         self.assertIn('waveformOn && $("generateSpectral").checked', launcher_script)
@@ -3837,8 +3837,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         # A1：输出有效配置——输出模块关闭时草稿不进方案（目录/主名空、导出回默认 true）。
         self.assertIn('!window.MSWModules.isEnabled("output")', postprocess_script)
         self.assertIn('exportSrt: true, exportTranslatedSrt: true, outputDirectory: "", outputStem: ""', postprocess_script)
-        self.assertIn('var outputOn = modules() ? modules().isEnabled("output") !== false : false;', plan_script)
-        self.assertIn('directory: outputOn ? (el("outputDirectory")?.value || "").trim() : "",', plan_script)
+        self.assertIn('const outputOn = enabled("output")', plan_script)
+        self.assertIn('directory: outputOn ? el("outputDirectory").value.trim() : "",', plan_script)
         # A8：深链指向真实面板 ID。
         self.assertIn('openSettings("settingsFilesPanel")', postprocess_script)
         self.assertNotIn('openSettings("filesPanel")', postprocess_script)
@@ -3952,22 +3952,22 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         # 方案对象加载与单一来源（摘要/预检/执行/批量共用）。
         self.assertIn('<script src="plan.js"></script>', page)
-        self.assertIn("PLAN_VERSION = 1", plan)
+        self.assertIn("version: 2", plan)
         self.assertIn("function preflight(plan)", plan)
         self.assertIn("getAutoPostprocessPayload", plan)
         self.assertIn("summaryLabels", plan)
         # F09：全新方案默认仅媒体＋波形（识别按需开启）。
         self.assertIn('id: "asr", group: "input", defaultOn: false', modules)
         # 三类输入执行链与任务事件。
-        self.assertIn("void runPrefabPlan(plan)", launcher_script)
-        self.assertIn('bridge("run_prefab_plan", { plan })', launcher_script)
+        self.assertIn("window.MSWQueue?.start()", launcher_script)
+        self.assertIn('bridge("start_prefab_queue", { plan })', batch_script)
         self.assertIn('if (event.type === "prefabTask") handlePrefabTaskEvent(event);', launcher_script)
-        self.assertIn('bridge("cancel_prefab_plan")', launcher_script)
+        self.assertIn('bridge("cancel_prefab_queue", { runId: state.runId })', batch_script)
         # F11：未就绪保留勾选并标记待配置。
-        self.assertIn("未就绪不再打回取消勾选", postprocess_script)
+        self.assertIn('card.dataset.configReady = String(ready)', postprocess_script)
         # F07：批量复用冻结方案（识别关闭分支走 start_batch_projects）。
-        self.assertIn('method = "start_batch_projects"', batch_script)
-        self.assertIn("payload = { items, plan }", batch_script)
+        self.assertIn('plan = JSON.parse(JSON.stringify(plan))', batch_script)
+        self.assertIn("state.activeIds = plan.tasks.map", batch_script)
         # 后端入口与 SRT 包装适配。
         self.assertIn("def run_prefab_plan", gui_source)
         self.assertIn("def cancel_prefab_plan", gui_source)
@@ -4015,7 +4015,7 @@ class LauncherAssetContractTests(unittest.TestCase):
             "translateCard",
             "replaceCard",
             "postprocessConversion",
-            "autoTranslateMergeBilingual",
+            "translationWriteMode",
             "toolboxFfconcatPanel",
             "postprocessScriptPath",
             "postprocessProvider",
@@ -4039,8 +4039,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn('id="postprocessBaseUrl"', page)
         self.assertNotIn('id="postprocessModel"', page)
         self.assertIn('autoOcrVideoPath', script)
-        self.assertIn('mergeBilingual: Boolean($("autoTranslateMergeBilingual")?.checked)', script)
-        self.assertIn('mergeBilingual: Boolean($("autoTranslateMergeBilingual")?.checked)', script)
+        self.assertIn('mergeBilingual: ($("translationWriteMode").value === "bilingual")', script)
+        self.assertIn('mergeBilingual: ($("translationWriteMode").value === "bilingual")', script)
         self.assertIn('value="to_traditional_tw"', page)
         self.assertIn('value="to_traditional_twp"', page)
         self.assertIn('value="to_traditional_hk"', page)
@@ -4236,7 +4236,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('function appendMessageText(container, text)', script)
         self.assertIn('setError("mediaPath", mediaDropError())', script)
         self.assertIn('output_collision: "检测到同名输出文件', script)
-        self.assertIn("result.outputRenamed", script)
+        self.assertIn('unique_output_path', (ROOT / 'maw' / 'launcher_queue.py').read_text(encoding='utf-8'))
 
     def test_launcher_file_path_inputs_have_drop_routes(self) -> None:
         """Given Launcher path inputs, When checking drag/drop wiring, Then every file/path target is bound."""
@@ -4279,7 +4279,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('maxWords: $("maxWords").value.trim()', script)
         self.assertIn('minWords: $("minWords").value.trim()', script)
         self.assertIn('gapSplit: $("gapSplit").value.trim()', script)
-        self.assertIn('generateSpectral: $("generateSpectral").checked', script)
+        self.assertIn('generateSpectral: waveformOn && $("generateSpectral").checked', script)
         self.assertIn('generate_spectral: "生成频谱颜色数据"', script)
         self.assertIn('generate_spectral: "Generate spectral color data"', script)
         self.assertIn('segmentation: "字幕切句"', script)
@@ -4331,23 +4331,19 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('$("openHtml").classList.toggle("hidden", !enabled)', script)
         self.assertIn('$("openHtml").disabled = enabled && !state.result?.htmlPath', script)
 
-    def test_launcher_batch_and_single_stop_controls_are_wired(self) -> None:
+    def test_launcher_unified_start_stop_and_retry_controls_are_wired(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
-        batch_script = (ROOT / "web" / "launcher" / "batch.js").read_text(encoding="utf-8")
-
+        queue = (ROOT / "web" / "launcher" / "batch.js").read_text(encoding="utf-8")
         self.assertIn('id="stop" class="ghost server-stop hidden"', page)
-        self.assertIn('data-i18n="batch_start">批量制作工程', page)
+        self.assertNotIn('id="startBatch"', page)
+        self.assertNotIn('id="singleMode"', page)
         self.assertIn('id="batchSrtOnly" type="checkbox"', page)
-        self.assertIn('bridge("cancel_transcription")', script)
-        self.assertIn('batchSrtOnly', batch_script)
-        self.assertIn('window.MSWLauncher.confirm(t("batch_skip_completed_confirm"))', batch_script)
+        self.assertIn('window.MSWQueue?.stop()', script)
+        self.assertIn('bridge("cancel_prefab_queue", { runId: state.runId })', queue)
+        self.assertIn('window.MSWLauncher.confirm(t("queue_rerun"))', queue)
         self.assertIn('data-i18n="batch_confirm_yes">是', page)
         self.assertIn('data-i18n="batch_confirm_no">否', page)
-        self.assertIn('batchDropNotice', page)
-        self.assertIn('window.MSWLauncher.appendLog?.(`[${message}]`, { inline: true })', batch_script)
-        self.assertIn('window.MSWLauncher.backend === "real"', batch_script)
-        self.assertLess(batch_script.index('if (window.MSWLauncher.backend === "real") return;'), batch_script.index('event.stopImmediatePropagation();'))
 
     def test_server_status_uses_clickable_link_and_independent_stop_control(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -4576,7 +4572,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         # B 阶段起段落标题不再使用 emoji 序号（规划 §3.1：改用 01/02 序号标记），
         # 五个段落标题保持统一字号与层级。
-        for expected in ("媒体与输出", "识别设置", "生成波形", "文稿匹配", "固定处理", "LLM 校对", "重新断句", "OCR 字幕去重", "字幕翻译", "口播对齐", "日志", "字幕编辑器"):
+        for expected in ("输入媒体/工程/字幕", "识别设置", "生成波形", "文稿匹配", "固定处理", "LLM 校对", "重新断句", "OCR 字幕去重", "字幕翻译", "口播对齐", "日志", "字幕编辑器"):
             self.assertIn(expected, page)
         for emoji in ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "✨", "🎬", "🧰", "⚙️"):
             self.assertNotIn(emoji, page)
@@ -4715,8 +4711,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
         # R4/F11：未就绪勾选保留并标记待配置（不再自动跳转设置页/工具箱）。
-        self.assertIn("未就绪不再打回取消勾选", script)
-        self.assertIn('checkbox.addEventListener("change", () => {', script)
+        self.assertIn('card.dataset.configReady = String(ready)', script)
+        self.assertIn('const stepEnabled = id => Boolean(window.MSWModules?.isEnabled(id))', script)
         self.assertIn('function setTestConnectionAttention(attention)', script)
         self.assertIn('setTestConnectionAttention(true);', script)
         self.assertIn('setTestConnectionAttention(false);', script)

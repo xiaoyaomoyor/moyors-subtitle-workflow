@@ -46,6 +46,48 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* Mixed input queue: the same compact cards serve one task or many. */
+.preset-prompt { margin: 12px 0; color: var(--text-secondary); font-size: 12px; }
+.preset-prompt summary { cursor: pointer; }
+.preset-prompt pre { white-space: pre-wrap; max-height: 180px; overflow: auto; padding: 12px; border-radius: var(--radius-md); background: var(--bg-input); font: inherit; line-height: 1.6; }
+.module-help { padding: 0 4px; border: 0; color: var(--text-muted); background: transparent; cursor: pointer; font: inherit; }
+.module-help:hover, .module-help:focus-visible { color: var(--accent); }
+.module-help-popover { position: fixed; margin: 0; width: min(360px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-panel); color: var(--text-primary); font: 13px/1.6 var(--font-sans); box-shadow: 0 6px 24px #0004; }
+.module-subtitle { margin: 16px 0 10px; color: var(--text-secondary); font-size: 13px; }
+#waveformToolPanel > .field,
+#waveformToolPanel > .toolbox-grid,
+#waveformToolPanel > .check-field,
+#waveformToolPanel > .toolbox-action-slot { margin-top: 12px; }
+#waveformToolPanel .toolbox-action-slot { display: flex; flex-wrap: wrap; gap: 8px; }
+#waveToolStatus { white-space: pre-wrap; overflow-wrap: anywhere; }
+#waveToolStatus:empty { display: none; }
+#dropZone { display: block; width: 100%; min-height: 110px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-secondary); white-space: normal; padding: 20px; }
+#dropZone.compact { min-height: 66px; padding: 14px; }
+#dropZone:hover:not(:disabled), #dropZone:focus-visible { border-color: var(--accent); background: var(--accent-tint); color: var(--text-primary); }
+.mixed-queue { display: grid; gap: 10px; max-height: 420px; overflow-y: auto; padding: 2px; }
+.queue-file { padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); min-width: 0; }
+.queue-file-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.queue-file-icon { flex: 0 0 22px; color: var(--text-muted); }
+.queue-file-icon svg { display: block; width: 22px; height: 22px; }
+.queue-file-title { display: grid; flex: 1; min-width: 0; gap: 3px; }
+.queue-file-title strong, .queue-file-title .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-file-title strong { font-size: 13px; font-weight: 500; }
+.queue-status { flex-shrink: 0; color: var(--text-muted); font-size: 12px; }
+.queue-status.error, .module-status.invalid { color: var(--amber); }
+.queue-details { margin-top: 9px; font-size: 12px; }
+.queue-details summary { cursor: pointer; color: var(--text-muted); }
+.queue-path { overflow-wrap: anywhere; color: var(--text-secondary); margin: 8px 0; user-select: text; }
+.queue-detail-field { display: grid; gap: 5px; margin: 10px 0; color: var(--text-secondary); }
+.queue-detail-field input, .queue-detail-field select { min-width: 0; width: 100%; }
+.queue-candidate { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; border: 1px solid var(--accent-strong); border-radius: var(--radius-md); background: var(--accent-tint); font-size: 12px; overflow-wrap: anywhere; }
+.queue-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.module-status { flex-shrink: 0; color: var(--text-muted); font-size: 12px; }
+@media (max-width: 720px) {
+  .queue-file-head { flex-wrap: wrap; }
+  .queue-file-title { min-width: 120px; }
+  .queue-status { margin-left: auto; }
+}
+
 /* 段落标题里的 keycap 表情（1️⃣ 等）由「数字 + U+FE0F + U+20E3」组成，需要彩色 emoji
    字体完整覆盖才可正常成型；部分 Linux 发行版（如 SteamOS 自带的 Twemoji）缺少
    U+FE0F，会把 keycap 渲染成「3x」。@font-face "MSW Emoji" 由 launcher.js 注入：
@@ -715,11 +757,6 @@ body:not(.launcher-ready) .shell {
   display: none;
 }
 
-html[data-prefab-input-mode="project"] .generate-html,
-html[data-prefab-input-mode="project"] .batch-srt-only {
-  /* 已有工程/字幕模式下单文件 HTML 与仅-SRT 批量输出不适用 */
-  display: none;
-}
 
 .page-actions {
   flex: 0 0 auto;
@@ -3596,4 +3633,18 @@ select[multiple] option {
 
 .modal-card .settings-section .field > label {
   line-height: 1.4;
+}
+
+/* Shared explanations and navigation hierarchy (E). */
+.module-help { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; vertical-align: middle; border-radius: var(--radius-sm); }
+.module-help:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.module-help-popover { overflow-wrap: anywhere; overflow-y: auto; white-space: pre-wrap; }
+.tools-rail .rail-select, .settings-rail .settings-tab { padding-left: 22px; white-space: normal; overflow-wrap: anywhere; }
+.tools-rail .rail-group, .settings-rail .rail-group { margin-bottom: 20px; }
+.interface-language-field { max-width: 420px; margin-bottom: 20px; }
+.module-card:not(.collapsed) > .module-body { animation: module-reveal var(--t-fast) ease-out; }
+@keyframes module-reveal { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .module-card > .module-body { animation: none; }
+  .module-collapse .chevron, .rail-select, .settings-rail .settings-tab { transition: none; }
 }

@@ -40,14 +40,14 @@ test('toggling ASR hides its card, keeps drafts, and renumbers visible cards', a
   await expect(page.locator('[data-module-card="asr"]')).toBeHidden();
   // 后处理默认全关，卡也应隐藏；序号只剩媒体 01。
   await expect(page.locator('[data-module-card="postprocess"]')).toBeHidden();
-  await expect(page.locator('.module-index').first()).toHaveText('01');
-  await expect(page.locator('#prefabOrderChip')).toHaveText('处理顺序：媒体 → 波形');
+  await expect(page.locator('[data-module-card="media"] .module-index')).toHaveText('01');
+  await expect(page.locator('#prefabOrderChip')).toHaveText('处理顺序：0 个任务 → 波形');
 
   // 取消勾选不清空草稿：重新勾选后服务与参数保留。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await expect(page.locator('[data-module-card="asr"]')).toBeVisible();
   await expect(page.locator('#provider')).toHaveValue(providerBefore);
-  await expect(page.locator('#prefabOrderChip')).toHaveText('处理顺序：媒体 → 波形 → 识别');
+  await expect(page.locator('#prefabOrderChip')).toHaveText('处理顺序：0 个任务 → 波形 → 识别');
 });
 
 test('upgrading keeps explicitly saved module choices (R6)', async ({ page }) => {
@@ -84,7 +84,7 @@ test('collapsing a module card hides its body without disabling it', async ({ pa
   await expect(card.locator('.module-body .drop-zone')).toBeVisible();
 });
 
-test('postprocess module toggles sync with auto step checkboxes', async ({ page }) => {
+test('postprocess modules own their enabled state and config badge', async ({ page }) => {
   await openPrefab(page);
 
   // R4/F11：未就绪的步骤不再打回取消——保留勾选并标记「待配置」，
@@ -93,9 +93,10 @@ test('postprocess module toggles sync with auto step checkboxes', async ({ page 
   await proofread.click();
   await expect(proofread).toBeChecked();
   await expect.poll(() => page.evaluate(() => MSWModules.isEnabled('proofread'))).toBe(true);
-  await expect(page.locator('[data-auto-step-row="proofread"]')).toHaveClass(/needs-config/);
+  await expect(page.locator('[data-module-card="proofread"] .module-status')).toHaveClass(/invalid/);
   // S4：勾选即出现该模块的独立配置卡（LLM 卡内含提示词与服务摘要行）。
   await expect(page.locator('[data-module-card="proofread"]')).toBeVisible();
+  await page.locator('[data-module-card="proofread"] .module-collapse').click();
   await expect(page.locator('#postprocessPromptProofread')).toBeVisible();
   await expect(page.locator('#llmSettingsSection')).toBeHidden();
 
@@ -103,28 +104,18 @@ test('postprocess module toggles sync with auto step checkboxes', async ({ page 
   await page.evaluate(() => {
     const provider = window.MSWLauncher.config.postprocessProviders.find((item) => item.id === 'deepseek');
     Object.assign(provider, { verified: true, hasApiKey: true, hasBaseUrl: true, hasModel: true });
-    document.getElementById('autoStepProofread').dispatchEvent(new Event('change', { bubbles: true }));
+    document.dispatchEvent(new CustomEvent('mswmodules'));
   });
-  await expect(page.locator('[data-auto-step-row="proofread"]')).not.toHaveClass(/needs-config/);
+  await expect(page.locator('[data-module-card="proofread"] .module-status')).not.toHaveClass(/invalid/);
   await expect(proofread).toBeChecked();
 });
 
-test('input mode switches labels between media and project/subtitle', async ({ page }) => {
+test('mixed input keeps one title and automatically counts tasks', async ({ page }) => {
   await openPrefab(page);
-
-  await expect(page.locator('#mediaTitle')).toHaveText('媒体与输出');
-  await expect(page.locator('#dropZone')).toHaveText('拖入音频/视频文件，或点击选择。');
-
-  await page.locator('#inputModeProject').click();
-  await expect(page.locator('#mediaTitle')).toHaveText('输入工程／字幕');
-  await expect(page.locator('#dropZone')).toContainText('.mosp');
-  await expect(page.locator('label[for="mediaPath"]')).toHaveText('工程或字幕文件');
-
-  // 切换保留表单草稿与模式记忆。
-  await page.locator('#mediaPath').fill('D:\\Demo\\source.mosp');
-  await page.locator('#inputModeMedia').click();
-  await expect(page.locator('#mediaTitle')).toHaveText('媒体与输出');
-  await expect(page.locator('#mediaPath')).toHaveValue('D:\\Demo\\source.mosp');
+  await page.evaluate(() => MSWQueue.addPaths(['D:/Demo/source.mosp', 'D:/Demo/audio.mp3']));
+  await expect(page.locator('#mediaTitle')).toHaveText('输入媒体/工程/字幕');
+  await expect(page.locator('#batchQueueCount')).toHaveText('2 个文件 · 2 个任务');
+  await expect(page.locator('#inputModeProject')).toHaveCount(0);
 });
 
 test('page switching keeps module drafts and collapse state', async ({ page }) => {

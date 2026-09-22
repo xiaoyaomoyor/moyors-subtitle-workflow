@@ -1,6 +1,6 @@
 // MSW Launcher · 预制模块注册表（D 阶段）
 // 模块身份用稳定 ID 持久化；序号按当前可见顺序临时编排，不写入存储。
-// 右栏勾选与既有控件双向同步：后处理六项直接对应 autoStep* 复选框，
+// 模块启用状态是方案的唯一真源；右栏直接编辑状态，卡片中不再放重复开关。
 // 取消勾选只从本次计划移除配置区显示，不清空路径、提示词与替换规则。
 (function () {
   "use strict";
@@ -17,12 +17,12 @@
     { id: "asr", group: "input", defaultOn: false, labelKey: "mod_asr", order: 30,
       summaryKey: "mod_asr_summary" },
     // match 依赖字幕来源（媒体＋ASR、已有工程或 SRT 输入）；预检统一校验（F11）。
-    { id: "match", group: "subtitle", defaultOn: false, labelKey: "mod_match", order: 40, control: "autoStepMatch", requires: "subtitles" },
-    { id: "replace", group: "subtitle", defaultOn: false, labelKey: "mod_replace", order: 50, control: "autoStepReplace" },
-    { id: "proofread", group: "subtitle", defaultOn: false, labelKey: "mod_proofread", order: 60, control: "autoStepProofread" },
-    { id: "resegment", group: "subtitle", defaultOn: false, labelKey: "mod_resegment", order: 70, control: "autoStepResegment" },
-    { id: "ocr", group: "subtitle", defaultOn: false, labelKey: "mod_ocr", order: 80, control: "autoStepOcr" },
-    { id: "translate", group: "language", defaultOn: false, labelKey: "mod_translate", order: 90, control: "autoStepTranslate" },
+    { id: "match", group: "subtitle", defaultOn: false, labelKey: "mod_match", order: 40, requires: "subtitles" },
+    { id: "replace", group: "subtitle", defaultOn: false, labelKey: "mod_replace", order: 50 },
+    { id: "proofread", group: "subtitle", defaultOn: false, labelKey: "mod_proofread", order: 60 },
+    { id: "resegment", group: "subtitle", defaultOn: false, labelKey: "mod_resegment", order: 70 },
+    { id: "ocr", group: "subtitle", defaultOn: false, labelKey: "mod_ocr", order: 80 },
+    { id: "translate", group: "language", defaultOn: false, labelKey: "mod_translate", order: 90 },
     // 对齐是人工交互步骤：不进自动执行链，作为独立入口表达（R4/F10）。
     { id: "output", group: "advanced", defaultOn: false, labelKey: "mod_output", order: 95 },
     { id: "alignment", group: "advanced", defaultOn: false, labelKey: "mod_alignment", order: 100, external: true },
@@ -57,6 +57,11 @@
         if (typeof stored.enabled[module.id] === "boolean") enabled[module.id] = stored.enabled[module.id];
       });
     }
+    if (!stored) {
+      (window.MSWLauncher?.config?.postprocessAutoPlan?.steps || []).forEach(step => {
+        if (MODULES.some(module => module.id === step.id)) enabled[step.id] = Boolean(step.enabled);
+      });
+    }
     state.enabled = enabled;
   }
 
@@ -72,46 +77,7 @@
     if (!module || module.fixed) return;
     state.enabled[id] = Boolean(on);
     persist();
-    var rejected = false;
-    if (module.control) {
-      // 后处理模块以控件实际状态为准：未就绪的步骤会被 postprocess.js
-      // 强制取消并打开配置引导（点击不可用模块显示缺少条件，不静默跳过）。
-      var control = el(module.control);
-      if (control && control.checked !== Boolean(on)) {
-        control.checked = Boolean(on);
-        control.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      if (control) {
-        state.enabled[id] = control.checked;
-        rejected = Boolean(on) && !control.checked;
-      }
-      persist();
-    }
-    if (!options.silent) document.dispatchEvent(new CustomEvent("mswmodules", { detail: { id: id, enabled: state.enabled[id] === true, rejected: rejected } }));
-  }
-
-  function syncFromControls() {
-    // 后处理六项复选框（工具箱「配置」入口等）变化时反向同步模块状态。
-    MODULES.forEach(function (module) {
-      if (!module.control) return;
-      var control = el(module.control);
-      if (!control) return;
-      var handler = function () {
-        state.enabled[module.id] = control.checked;
-        // 任一后处理模块启用时打开自动后处理总开关；全部关闭不强制关（保留用户选择）。
-        if (control.checked && module.id !== "asr") {
-          var master = el("autoPostprocessEnabled");
-          if (master && !master.checked) {
-            master.checked = true;
-            master.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-        }
-        persist();
-        renderRail();
-        document.dispatchEvent(new CustomEvent("mswmodules", { detail: { id: module.id, enabled: control.checked } }));
-      };
-      control.addEventListener("change", handler);
-    });
+    if (!options.silent) document.dispatchEvent(new CustomEvent("mswmodules", { detail: { id: id, enabled: Boolean(on) } }));
   }
 
   function renderRail() {
@@ -134,7 +100,7 @@
         input.type = "checkbox";
         input.checked = isEnabled(module.id);
         input.dataset.moduleId = module.id;
-        input.disabled = Boolean(module.fixed);
+        input.disabled = Boolean(module.fixed) || Boolean(window.MSWQueue?.state.running);
         input.setAttribute("aria-label", t(module.labelKey));
         var label = document.createElement("span");
         label.className = "rail-item-label";
@@ -164,6 +130,7 @@
     logInput.type = "checkbox";
     logInput.id = "railLogToggle";
     logInput.checked = isLogCardEnabled();
+    logInput.disabled = Boolean(window.MSWQueue?.state.running);
     logInput.setAttribute("aria-label", t("rail_log_toggle"));
     logInput.addEventListener("change", function () {
       setLogCardEnabled(logInput.checked);
@@ -199,7 +166,7 @@
   function init() {
     load();
     renderRail();
-    syncFromControls();
+
   }
 
   function start() {

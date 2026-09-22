@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import copy
+import uuid
 import os
 import queue
 import re
@@ -49,6 +51,7 @@ from maw.gui_config import (
 from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
 from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
+from maw.launcher_queue import inspect_input, prepare_queue, run_queue, run_task
 from maw.notify import send_system_notification
 from maw.launcher_projects import (
     all_projects_payload as all_projects_registry_payload,
@@ -80,7 +83,7 @@ from maw.local_runtime import (
 from maw.local_models import inspect_local_model, local_model_payload, prepare_local_model as prepare_model
 from maw.media_cache import MediaCacheCancelled, embed_media_caches
 from maw.media import resolve_project_media, resolve_default_audio_track
-from maw.postprocess import FixedProcessRequest, LlmPostprocessRequest, OutputMode, PostprocessStepError, Replacement, run_fixed_process as process_fixed_process, run_llm_postprocess as process_llm_postprocess
+from maw.postprocess import PROMPTS, FixedProcessRequest, LlmPostprocessRequest, OutputMode, PostprocessStepError, Replacement, run_fixed_process as process_fixed_process, run_llm_postprocess as process_llm_postprocess
 from maw.postprocess_io import PostprocessFileError, read_project, read_srt
 from maw.project_io import write_mosp
 from maw.project import ProjectValidationFailed, normalize_project
@@ -611,6 +614,18 @@ def _runtime_state_guard(method):
     return guarded
 
 
+def _queue_idle(method):
+    """Legacy operations cannot race publication by the unified queue."""
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        with self._runtime_state_lock:
+            if ((self.queue_worker and self.queue_worker.is_alive())
+                    or (self.waveform_worker and self.waveform_worker.is_alive())):
+                return _error_result("mediaPath", "media_tool_busy", "请等待当前工程队列完成或取消。")
+            return method(self, *args, **kwargs)
+    return guarded
+
+
 @final
 class LauncherApi:
     def __init__(
@@ -648,6 +663,9 @@ class LauncherApi:
         self.prefab_worker: threading.Thread | None = None
         self.prefab_task_id: str = ""
         self.prefab_cancel_event: Event | None = None
+        self.queue_worker: threading.Thread | None = None
+        self.queue_cancel_event: Event | None = None
+        self.queue_run_id = ""
         self.alignment_process: subprocess.Popen[str] | None = None
         self.alignment_log_file: BinaryIO | None = None
         self.alignment_server_port: int | None = None
@@ -970,6 +988,7 @@ class LauncherApi:
                 for item in visible_providers
             ],
             "postprocessProviders": _postprocess_provider_payloads(self.paths.env_path),
+            "postprocessPrompts": {key: value for key, value in PROMPTS.items() if key != "custom"},
             "postprocessAutoPlan": load_postprocess_plan(self.paths.env_path),
             "zoomPercent": config.zoom_percent,
             "serverPort": self.default_server_port,
@@ -1002,7 +1021,8 @@ class LauncherApi:
         model_id = str(payload.get("modelId") or DEFAULT_MODEL_ID)
         test_run = bool(payload.get("testRun"))
         requested = (
-            default_srt_path(Path(media_text), provider=provider_id, model=model_id, test_run=test_run, env_path=self.paths.env_path)
+            default_srt_path(Path(media_text), provider=provider_id, model=model_id, test_run=test_run, env_path=self.paths.env_path,
+                             **({"attach_model_name": False} if payload.get("recognize") is False else {}))
             if media_text else Path()
         )
         selected = unique_output_path(requested, Path(media_text), env_path=self.paths.env_path) if media_text else requested
@@ -1255,6 +1275,7 @@ class LauncherApi:
             )
         return {"ok": True, "providerId": preset.id, "models": models}
 
+    @_queue_idle
     def run_fixed_process(self, payload: Mapping[str, object]) -> dict[str, object]:
         self._emit_postprocess_status("toolbox_status_reading")
         try:
@@ -1283,6 +1304,7 @@ class LauncherApi:
 
         return self.run_fixed_process(payload)
 
+    @_queue_idle
     def run_script_match(self, payload: Mapping[str, object]) -> dict[str, object]:
         script_path = _optional_path(payload.get("scriptPath"))
         if script_path is None:
@@ -1324,6 +1346,7 @@ class LauncherApi:
             return {"ok": False, "field": "postprocessScriptPath", "code": "postprocess_failed", "detail": str(error), "error": str(error)}
         return _subtitle_artifact_result(result)
 
+    @_queue_idle
     def run_ocr_dedup(self, payload: Mapping[str, object]) -> dict[str, object]:
         runtime = self._ocr_runtime_status()
         if not runtime.ready:
@@ -1365,6 +1388,7 @@ class LauncherApi:
             return {"ok": False, "field": "ocrVideoPath", "code": "postprocess_failed", "detail": str(error), "error": str(error)}
         return {"ok": True, **result}
 
+    @_queue_idle
     def run_llm_postprocess(self, payload: Mapping[str, object]) -> dict[str, object]:
         preset = preset_by_id(str(payload.get("providerId") or "deepseek"))
         operation = str(payload.get("operation") or "proofread")
@@ -1423,6 +1447,7 @@ class LauncherApi:
             return {"ok": False, "field": "postprocessInput", "code": "postprocess_failed", "detail": str(error), "error": str(error)}
         return _subtitle_artifact_result(result)
 
+    @_queue_idle
     def run_ffconcat_rebuild(self, payload: Mapping[str, object]) -> dict[str, object]:
         ffmpeg = _postprocess_ffmpeg(self.paths.env_path)
         if ffmpeg is None:
@@ -1482,6 +1507,7 @@ class LauncherApi:
             "tracks": [_audio_track_payload(track) for track in tracks],
         }
 
+    @_queue_idle
     def run_burn_subtitles(self, payload: Mapping[str, object]) -> dict[str, object]:
         tools = _postprocess_ffmpeg_tools(self.paths.env_path)
         if tools.ffmpeg is None:
@@ -1514,6 +1540,7 @@ class LauncherApi:
             "mediaPath": str(result.media_path),
         }
 
+    @_queue_idle
     def run_extract_audio(self, payload: Mapping[str, object]) -> dict[str, object]:
         tools = _postprocess_ffmpeg_tools(self.paths.env_path)
         if tools.ffmpeg is None or tools.ffprobe is None:
@@ -1590,7 +1617,10 @@ class LauncherApi:
 
     def choose_file(self, payload: Mapping[str, object]) -> dict[str, object]:
         kind = str(payload.get("kind") or "media")
-        if kind == "json":
+        if kind in {"prefab", "waveform"}:
+            extensions = ";".join("*" + ext for ext in sorted(MEDIA_EXTS | {".mosp", ".json"} | ({".srt", ".ass"} if kind == "prefab" else set())))
+            file_types = (f"Media, projects and subtitles ({extensions})", "All files (*.*)")
+        elif kind == "json":
             file_types = ("MSW projects (*.mosp;*.json)",)
         elif kind == "subtitle":
             file_types = ("Subtitle files (*.mosp;*.json;*.srt)",)
@@ -2257,6 +2287,7 @@ class LauncherApi:
         return {"ok": True, "stopped": False}
 
     @_runtime_state_guard
+    @_queue_idle
     def start_transcription(self, payload: Mapping[str, object]) -> dict[str, object]:
         if self.batch_worker and self.batch_worker.is_alive():
             return {"ok": False, "error": "A batch transcription is already running."}
@@ -2293,6 +2324,7 @@ class LauncherApi:
         }
 
     @_runtime_state_guard
+    @_queue_idle
     def start_batch_transcription(self, payload: Mapping[str, object]) -> dict[str, object]:
         if any(worker and worker.is_alive() for worker in (self.local_runtime_worker, self.local_prepare_worker)):
             return _error_result("model", "local_runtime_busy", "请等待本地环境安装或模型准备完成。")
@@ -2429,6 +2461,7 @@ class LauncherApi:
                 self.batch_worker = None
             self.pump.flush()
 
+    @_queue_idle
     def start_batch_projects(self, payload: Mapping[str, object]) -> dict[str, object]:
         """R4/F07：批量执行冻结方案（识别关闭分支）——逐项生成媒体/波形工程。
 
@@ -2655,6 +2688,7 @@ class LauncherApi:
             "waveform": True,
         }
 
+    @_queue_idle
     def generate_waveform_project(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Create a media-only project synchronously (legacy toolbox contract)."""
         validated = self._validate_waveform_payload(payload)
@@ -2663,6 +2697,7 @@ class LauncherApi:
         media_path, audio_track, default_audio_track, ffmpeg_tools = validated
         return self._generate_media_project_sync(payload, media_path, audio_track, default_audio_track, ffmpeg_tools, None)
 
+    @_queue_idle
     def start_waveform_project(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Run media-project generation as a cancellable background task (prefab page, R0/F08)."""
         if self.waveform_worker is not None and self.waveform_worker.is_alive():
@@ -2698,6 +2733,117 @@ class LauncherApi:
         self.waveform_cancel_event.set()
         return {"ok": True, "cancelled": True, "taskId": self.waveform_task_id or ""}
 
+    @_runtime_state_guard
+    def start_waveform_tool(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Independent waveform tool, sharing the queue's lossless project adapter."""
+        workers = (self.queue_worker, self.worker, self.batch_worker, self.waveform_worker,
+                   self.prefab_worker, self.local_prepare_worker, self.local_runtime_worker, self.ocr_runtime_worker)
+        if any(worker and worker.is_alive() for worker in workers) or self._media_tool_lock.locked():
+            return {"ok": False, "error": "请等待当前处理完成或取消。"}
+        tools = _postprocess_ffmpeg_tools(self.paths.env_path)
+        task_id = str(uuid.uuid4())
+        plan = {"version": 2, "tasks": [{"id": task_id, "path": payload.get("path"),
+                 "mediaPath": payload.get("mediaPath"), "audioTrack": payload.get("audioTrack")}],
+                "modules": {"waveform": True}, "generateSpectral": bool(payload.get("spectral")),
+                "rebuildWaveform": bool(payload.get("rebuild")),
+                "output": {"directory": payload.get("directory", ""), "exportSrt": False}}
+        tasks, errors = prepare_queue(plan, env_path=self.paths.env_path, tools=tools,
+                                     request_builder=lambda value: _request_from_payload(value, self.paths.env_path))
+        if errors:
+            return {"ok": False, "error": errors[0]["message"]}
+        task = tasks[0]
+        if task.source.suffix.lower() not in MEDIA_EXTS | {".mosp", ".json"} or not task.waveform:
+            return {"ok": False, "error": "请选择媒体或工程，并关联包含可用音轨的媒体。"}
+        cancel = self.waveform_cancel_event = Event()
+        self.waveform_task_id = task_id
+        self.pump.start()
+        def emit(detail):
+            self._emit({"type": "waveformTool", "taskId": task_id, **detail})
+        def run():
+            try:
+                emit({"status": "running"})
+                result = run_task(task, env_path=self.paths.env_path, tools=tools, cancel=cancel,
+                                  emit=lambda detail: emit({"status": "progress", **detail}), require_waveform=True)
+                self._register_project_safe(result["projectPath"], "created")
+                emit({"status": "completed", **result})
+            except Exception as error:
+                emit({"status": "cancelled" if cancel.is_set() else "failed", "error": str(error)})
+            finally:
+                self.pump.flush()
+        self.waveform_worker = threading.Thread(target=run, daemon=True, name="msw-waveform-tool")
+        self.waveform_worker.start()
+        return {"ok": True, "taskId": task_id}
+
+    @_runtime_state_guard
+    def cancel_waveform_tool(self, payload: Mapping[str, object]) -> dict[str, object]:
+        active = bool(self.waveform_worker and self.waveform_worker.is_alive()
+                      and payload.get("taskId") == self.waveform_task_id)
+        if active and self.waveform_cancel_event:
+            self.waveform_cancel_event.set()
+        return {"ok": True, "cancelled": active}
+
+    def inspect_queue_inputs(self, payload: Mapping[str, object]) -> dict[str, object]:
+        paths = payload.get("paths")
+        if not isinstance(paths, list):
+            return {"ok": False, "error": "请选择输入文件。"}
+        tools = _postprocess_ffmpeg_tools(self.paths.env_path)
+        items = []
+        for path in paths:
+            try:
+                items.append({"ok": True, **inspect_input(path, ffprobe_path=tools.ffprobe)})
+            except Exception as error:
+                items.append({"ok": False, "path": str(path), "error": str(error)})
+        return {"ok": True, "items": items}
+
+    @_runtime_state_guard
+    def start_prefab_queue(self, payload: Mapping[str, object]) -> dict[str, object]:
+        workers = (self.queue_worker, self.worker, self.batch_worker, self.waveform_worker,
+                   self.prefab_worker, self.local_prepare_worker, self.local_runtime_worker, self.ocr_runtime_worker)
+        if any(worker and worker.is_alive() for worker in workers) or self._media_tool_lock.locked():
+            return _error_result("mediaPath", "media_tool_busy", "请等待当前处理完成或取消。")
+        plan = copy.deepcopy(payload.get("plan"))
+        tools = _postprocess_ffmpeg_tools(self.paths.env_path)
+        tasks, errors = prepare_queue(plan, env_path=self.paths.env_path, tools=tools,
+                                     request_builder=lambda value: _request_from_payload(value, self.paths.env_path))
+        if errors:
+            first = errors[0]
+            return {"ok": False, "code": "queue_preflight", "error": first["message"], "errors": errors}
+        if any(any(step.get("id") == "ocr" for step in enabled_steps(task.postprocess)) for task in tasks):
+            runtime = self._ocr_runtime_status()
+            if not runtime.ready:
+                return {"ok": False, "code": "queue_preflight", "errors": [{"module": "ocr", "message": "OCR 运行环境尚未就绪，请在更多设置中安装。"}]}
+        self.queue_run_id = str(uuid.uuid4())
+        run_id = self.queue_run_id
+        cancel = self.queue_cancel_event = Event()
+        self.pump.start()
+
+        def execute(task, emit):
+            result = run_task(task, env_path=self.paths.env_path, tools=tools, cancel=cancel, emit=emit,
+                              ocr_runtime_root=self._ocr_runtime_status().path if any(s.get("id") == "ocr" for s in enabled_steps(task.postprocess)) else None)
+            if result.get("projectPath"):
+                self._register_project_safe(result["projectPath"], "created")
+            return result
+
+        def run():
+            try:
+                run_queue(tasks, run_id=run_id, cancel=cancel, emit=self._emit, execute=execute)
+            finally:
+                self.pump.flush()
+
+        self.queue_worker = threading.Thread(target=run, daemon=True, name="msw-prefab-queue")
+        self.queue_worker.start()
+        return {"ok": True, "runId": run_id, "total": len(tasks)}
+
+    @_runtime_state_guard
+    def cancel_prefab_queue(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        if payload and payload.get("runId") != self.queue_run_id:
+            return {"ok": True, "cancelled": False}
+        active = bool(self.queue_worker and self.queue_worker.is_alive())
+        if active and self.queue_cancel_event:
+            self.queue_cancel_event.set()
+        return {"ok": True, "cancelled": active, "runId": self.queue_run_id}
+
+    @_queue_idle
     def run_prefab_plan(self, payload: Mapping[str, object]) -> dict[str, object]:
         """R4/F05/F06：已有工程／SRT 输入的方案执行——后处理链，不调用 ASR。
 
@@ -2912,6 +3058,7 @@ class LauncherApi:
             "models": ocr_models_payload(status),
         }
 
+    @_queue_idle
     def save_ocr_settings(self, payload: Mapping[str, object]) -> dict[str, object]:
         value = str(payload.get("runtimePath") or payload.get("path") or "").strip()
         candidate = Path(value).expanduser().resolve(strict=False) if value else None
@@ -2931,7 +3078,7 @@ class LauncherApi:
         托管 runtime 的根目录解析链是「显式配置 -> 进程级 MAW_LOCAL_RUNTIME_ROOT ->
         默认 app-data」；这里不改动任何调用方签名，只负责维护 .env 与进程环境变量。
         """
-        if any(worker and worker.is_alive() for worker in (self.worker, self.batch_worker, self.local_runtime_worker, self.local_prepare_worker)):
+        if any(worker and worker.is_alive() for worker in (self.queue_worker, self.worker, self.batch_worker, self.local_runtime_worker, self.local_prepare_worker)):
             return _error_result("localRuntimePath", "local_runtime_busy", "转写、安装或模型准备进行中，暂时不能切换本地运行环境目录。")
         value = str(payload.get("runtimePath") or payload.get("path") or "").strip()
         candidate = Path(value).expanduser().resolve(strict=False) if value else None
@@ -3077,6 +3224,7 @@ class LauncherApi:
             self.cancel_event.set()
         return {"ok": True}
 
+    @_queue_idle
     def retry_postprocess(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         context = self.postprocess_retry_context
         if not context:
@@ -3182,6 +3330,10 @@ class LauncherApi:
             self.ocr_runtime_cancel_event.set()
         if self.waveform_cancel_event:
             self.waveform_cancel_event.set()
+        if self.prefab_cancel_event:
+            self.prefab_cancel_event.set()
+        if self.queue_cancel_event:
+            self.queue_cancel_event.set()
         self._stop_all_sessions()
         _ = self.stop_alignment_server()
         if self._log_sink is not None:

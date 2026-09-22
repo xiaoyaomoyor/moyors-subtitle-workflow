@@ -31,7 +31,8 @@ from maw.postprocess import (
     run_fixed_process,
     run_llm_postprocess,
 )
-from maw.postprocess_io import SubtitleArtifact, read_project, write_artifacts, write_derived_project
+from maw.postprocess_io import SubtitleArtifact, read_project, write_artifacts, write_derived_project, render_srt, _atomic_write
+from maw.launcher_outputs import publish_outputs
 from maw.postprocess_llm import (
     DEFAULT_REASONING_MODE,
     LlmSettings,
@@ -83,7 +84,7 @@ def default_postprocess_plan() -> dict[str, object]:
             {"id": "replace", "enabled": False, "replacements": [], "replacementSeparator": "arrow", "replacementTrim": True, "replacementCustomSeparator": "", "conversion": TextConversion.OFF.value},
             {"id": "proofread", "enabled": False, "providerId": "deepseek", "customPrompt": ""},
             {"id": "resegment", "enabled": False, "providerId": "deepseek", "customPrompt": ""},
-            {"id": "ocr", "enabled": False, "videoPath": "", "videoPathMode": "", "regionMode": "full", "regionX1": 0, "regionY1": 0, "regionX2": 100, "regionY2": 100, "threshold": 0.5, "report": False},
+            {"id": "ocr", "enabled": False, "modelId": OCR_MODEL_ID, "videoPath": "", "videoPathMode": "", "regionMode": "full", "regionX1": 0, "regionY1": 0, "regionX2": 100, "regionY2": 100, "threshold": 0.5, "report": False},
             {"id": "translate", "enabled": False, "providerId": "deepseek", "target": "zh", "mergeBilingual": False, "embedTranslations": False, "bilingualLineOrder": "", "customPrompt": ""},
         ],
     }
@@ -102,6 +103,14 @@ def normalize_plan(raw: object) -> dict[str, object]:
         # S5/§7.1：输出契约随方案走——工程/SRT 各自独立导出；目录与主名可选覆盖。
         "exportSrt": bool(raw.get("exportSrt", True)),
         "exportTranslatedSrt": bool(raw.get("exportTranslatedSrt", True)),
+        "exportBilingualSrt": bool(raw.get("exportBilingualSrt", False)),
+        "outputSemantics": str(raw.get("outputSemantics") or "legacy"),
+        "outputSrtPath": str(raw.get("outputSrtPath") or "").strip(),
+        "originalSrtPath": str(raw.get("originalSrtPath") or "").strip(),
+        "waveformDraft": {key: bool(value) for key, value in raw["waveformDraft"].items() if key in {"spectral", "rebuild"}} if isinstance(raw.get("waveformDraft"), Mapping) else None,
+        "outputDraft": {key: value for key, value in raw.get("outputDraft", {}).items()
+                        if key in {"directory", "name", "srtPath", "exportSrt", "exportTranslatedSrt", "exportBilingualSrt", "srtOnly", "generateHtml"}
+                        and isinstance(value, (str, bool))} if isinstance(raw.get("outputDraft"), Mapping) else {},
         "outputDirectory": str(raw.get("outputDirectory") or "").strip(),
         "outputStem": str(raw.get("outputStem") or "").strip(),
         "steps": [],
@@ -334,11 +343,11 @@ def validate_plan(
             provider_id = str(step.get("providerId") or "deepseek")
             status = _snapshot_provider_status(llm_settings.get(provider_id)) if llm_settings and provider_id in llm_settings else postprocess_provider_status(env_path, provider_id)
             if not status["hasApiKey"]:
-                errors.append({"step": step_id, "field": "llmApiKey", "message": "LLM 供应商缺少 API Key，请在工具箱设置中填写并保存。"})
+                errors.append({"step": step_id, "field": "llmApiKey", "message": "LLM 供应商缺少 API Key，请在更多设置的供应商环境中填写并保存。"})
             elif not status["hasBaseUrl"]:
-                errors.append({"step": step_id, "field": "llmBaseUrl", "message": "LLM 供应商缺少 API URL，请在工具箱设置中填写并保存。"})
+                errors.append({"step": step_id, "field": "llmBaseUrl", "message": "LLM 供应商缺少 API URL，请在更多设置的供应商环境中填写并保存。"})
             elif not status["hasModel"]:
-                errors.append({"step": step_id, "field": "llmModel", "message": "LLM 供应商缺少模型，请在工具箱设置中填写并保存。"})
+                errors.append({"step": step_id, "field": "llmModel", "message": "LLM 供应商缺少模型，请在更多设置的供应商环境中填写并保存。"})
             elif not status["verified"]:
                 errors.append({"step": step_id, "field": "llmModel", "message": "LLM 连接尚未验证，请在设置中点击“测试连接”。"})
             if step_id == "translate" and str(step.get("target") or "zh") not in TRANSLATION_TARGETS:
@@ -349,7 +358,7 @@ def validate_plan(
             video_text = str(step.get("videoPath") or "").strip()
             video = Path(video_text).expanduser() if video_text else media_path
             if video.suffix.lower() not in VIDEO_EXTENSIONS or not video.is_file():
-                errors.append({"step": step_id, "field": "ocrVideoPath", "message": "OCR 字幕去重需要一个存在的视频文件。音频转写请在工具箱中指定视频。"})
+                errors.append({"step": step_id, "field": "ocrVideoPath", "message": "OCR 字幕去重需要一个存在的视频文件。请在 OCR 模块或任务详情中关联视频。"})
             region_mode = str(step.get("regionMode") or "full")
             if region_mode not in {"full", "bottom30", "custom"}:
                 errors.append({"step": step_id, "field": "ocrRegionMode", "message": "OCR 画面区域配置无效。"})
@@ -383,6 +392,7 @@ class PipelineResult:
     completed_steps: tuple[str, ...]
     warnings: tuple[str, ...] = ()
     translated_srt_path: Path | None = None
+    bilingual_srt_path: Path | None = None
 
 
 class PostprocessCancelled(RuntimeError):
@@ -440,6 +450,7 @@ def run_postprocess_pipeline(
     ui_language: str | None = None,
 ) -> PipelineResult:
     language = resolve_lang(ui_language)
+    output_source_srt = srt_path
     normalized, errors = validate_plan(plan, env_path=env_path, media_path=media_path, ffmpeg_path=ffmpeg_path, llm_settings=llm_settings)
     if errors:
         raise ValueError(errors[0]["message"])
@@ -453,6 +464,15 @@ def run_postprocess_pipeline(
     if resume_directory is not None:
         manifest = _load_manifest(run_directory)
     else:
+        if normalized.get("outputSemantics") == "separate-v2":
+            # Keep a stable recovery input even when the queue adapter is temporary.
+            snapshot = run_directory / "input.mosp"
+            source = read_project(project_path)
+            write_derived_project(source, snapshot, project_path)
+            project_path = snapshot
+            snapshot_srt = run_directory / "input.srt"
+            _atomic_write(snapshot_srt, render_srt(source))
+            srt_path = snapshot_srt
         manifest = {
             "version": POSTPROCESS_PLAN_VERSION,
             "mediaPath": str(media_path),
@@ -466,6 +486,8 @@ def run_postprocess_pipeline(
     current_project = resume_project_path or project_path
     current_srt = resume_srt_path or srt_path
     current_translated_srt: Path | None = None
+    original_srt = Path(str(manifest["originalSrtPath"])) if manifest.get("originalSrtPath") else None
+    separate_outputs = normalized.get("outputSemantics") == "separate-v2"
     translation_target: str | None = None
     bilingual_output = False
     embed_output = False
@@ -482,7 +504,7 @@ def run_postprocess_pipeline(
                 else None
             )
             if isinstance(previous_manifest_step, Mapping):
-                previous_path = str(previous_manifest_step.get("translatedSrtPath") or "").strip()
+                previous_path = str(previous_manifest_step.get("translatedSrtPath") or previous_manifest_step.get("translationIntermediateSrtPath") or "").strip()
                 if previous_path:
                     current_translated_srt = Path(previous_path).expanduser().resolve()
     completed: list[str] = [str(step["id"]) for step in steps[:max(0, resume_from)]]
@@ -501,6 +523,11 @@ def run_postprocess_pipeline(
             translation_intermediate_project: Path | None = None
             translation_intermediate_srt: Path | None = None
             try:
+                if step_id == "translate" and separate_outputs:
+                    original_srt = run_directory / "original-before-translation.srt"
+                    _atomic_write(original_srt, render_srt(read_project(current_project)))
+                    manifest["originalSrtPath"] = str(original_srt)
+                    _write_manifest(run_directory, manifest)
                 artifact = _run_step(
                     step,
                     project_path=current_project,
@@ -515,6 +542,8 @@ def run_postprocess_pipeline(
                     llm_settings=llm_settings,
                 )
                 if step_id == "translate":
+                    if separate_outputs:
+                        current_translated_srt = artifact.srt_path
                     translation_target = str(step.get("target") or "zh")
                     bilingual_output = bool(step.get("mergeBilingual"))
                     embed_output = bool(step.get("embedTranslations")) and not bilingual_output
@@ -599,22 +628,48 @@ def run_postprocess_pipeline(
                 "srtName": current_srt.name,
                 "translatedSrtName": current_translated_srt.name if current_translated_srt is not None else "",
             })
-        final_project, final_srt, final_translated_srt = _publish_final(
-            project_path,
-            srt_path,
-            current_project,
-            current_srt,
-            translated_srt=current_translated_srt,
-            translation_target=translation_target,
-            bilingual=bilingual_output,
-            backfill=embed_output,
-            ui_language=language,
-            warnings=warnings,
-            export_srt=bool(normalized.get("exportSrt", True)),
-            export_translated_srt=bool(normalized.get("exportTranslatedSrt", True)),
-            output_directory=str(normalized.get("outputDirectory") or ""),
-            output_stem=str(normalized.get("outputStem") or ""),
-        )
+        final_bilingual_srt = None
+        if separate_outputs:
+            if original_srt is None:
+                # Also handles restored legacy runs whose manifest predates this snapshot.
+                original_project = current_project
+                if translation_target:
+                    original_project = project_path
+                    for previous in manifest.get("steps", []):
+                        if previous.get("id") == "translate":
+                            break
+                        if previous.get("projectPath"):
+                            original_project = Path(previous["projectPath"])
+                original_srt = run_directory / "original-before-translation.srt"
+                _atomic_write(original_srt, render_srt(read_project(original_project)))
+            anchor = Path(str(normalized["outputSrtPath"])) if normalized.get("outputSrtPath") else Path(str(normalized.get("outputDirectory") or output_source_srt.parent)) / (str(normalized.get("outputStem") or output_source_srt.stem + operation_suffix('postprocess', lang=language)) + ".srt")
+            published = publish_outputs(project=current_project, anchor=anchor,
+                original=original_srt if normalized.get("exportSrt", True) else None,
+                translated=current_translated_srt if normalized.get("exportTranslatedSrt", True) else None,
+                bilingual=current_srt if bilingual_output and normalized.get("exportBilingualSrt") else None,
+                warnings=warnings,
+                original_target=Path(normalized['originalSrtPath']) if normalized.get('originalSrtPath') else None)
+            final_project = Path(published["projectPath"])
+            final_srt = Path(published["srtPath"]) if published["srtPath"] else None
+            final_translated_srt = Path(published["translatedSrtPath"]) if published["translatedSrtPath"] else None
+            final_bilingual_srt = Path(published["bilingualSrtPath"]) if published["bilingualSrtPath"] else None
+        else:
+            final_project, final_srt, final_translated_srt = _publish_final(
+                project_path,
+                srt_path,
+                current_project,
+                current_srt,
+                translated_srt=current_translated_srt,
+                translation_target=translation_target,
+                bilingual=bilingual_output,
+                backfill=embed_output,
+                ui_language=language,
+                warnings=warnings,
+                export_srt=bool(normalized.get("exportSrt", True)),
+                export_translated_srt=bool(normalized.get("exportTranslatedSrt", True)),
+                output_directory=str(normalized.get("outputDirectory") or ""),
+                output_stem=str(normalized.get("outputStem") or ""),
+            )
         manifest["status"] = "done"
         manifest["finalProjectPath"] = str(final_project)
         manifest["finalSrtPath"] = str(final_srt)
@@ -622,6 +677,8 @@ def run_postprocess_pipeline(
         manifest["elapsedSeconds"] = round(pipeline_elapsed, 3)
         if final_translated_srt is not None:
             manifest["finalTranslatedSrtPath"] = str(final_translated_srt)
+        if final_bilingual_srt is not None:
+            manifest["finalBilingualSrtPath"] = str(final_bilingual_srt)
         _write_manifest(run_directory, manifest)
         print(f"后处理总用时: {format_elapsed(pipeline_elapsed)}")
         _emit(on_event, {
@@ -632,7 +689,7 @@ def run_postprocess_pipeline(
             "srtName": final_srt.name if final_srt is not None else "",
             "translatedSrtName": final_translated_srt.name if final_translated_srt is not None else "",
         })
-        result = PipelineResult(final_project, final_srt, run_directory, tuple(completed), tuple(warnings), final_translated_srt)
+        result = PipelineResult(final_project, final_srt, run_directory, tuple(completed), tuple(warnings), final_translated_srt, final_bilingual_srt)
         if not bool(normalized.get("retainIntermediate")):
             shutil.rmtree(run_directory, ignore_errors=True)
             # 中间产物清掉后，只为这次运行而建的「后处理」根目录如果是空的也一并移除；
@@ -993,6 +1050,8 @@ def _merge_bilingual_subtitles(
         translation_target=target,
         line_order=line_order,
     )
+    if "multi_subtitle" in source_project:
+        merged["multi_subtitle"] = copy.deepcopy(source_project["multi_subtitle"])
     warnings = (
         *translated_artifact.warnings,
         "翻译前后的独立字幕已保留为中间产物，最终输出为单条双语字幕。",

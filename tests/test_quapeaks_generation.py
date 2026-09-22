@@ -275,15 +275,14 @@ class MopeaksFallbackTests(unittest.TestCase):
             )
         self.assertIsNone(generated)
         self.assertIsNone(quapeaks.find_self_wave_container(self.tone))
-        # 自检不过的文件留在盘上（不悄悄删用户媒体目录里的东西），但不被当成有效容器；
-        # 于是编排层该写 mopeaks。
-        self.assertTrue((self.root / "_msw" / "tone.wav.quapeaks").exists())
+        # 自检失败的临时产物不能发布为缓存；编排层回退到 mopeaks。
+        self.assertFalse((self.root / "_msw" / "tone.wav.quapeaks").exists())
         with mock.patch.object(
             quapeaks, "generate_reapeaks_stream_bytes", return_value=bogus
         ):
             result = media_cache.embed_media_caches(self.project, self.tone)
         self.assertTrue(mopeaks.mopeaks_path(self.tone).exists())
-        self._assert_fell_back(result, container_absent=False)
+        self._assert_fell_back(result)
 
     def test_existing_valid_mopeaks_is_not_rewritten(self) -> None:
         with mock.patch.dict(sys.modules, {"quapeaks": None}):

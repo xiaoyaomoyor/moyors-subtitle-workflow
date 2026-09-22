@@ -90,7 +90,7 @@ test('Launcher keyboard zoom supports equals, plus, minus, and reset without ste
   ]);
 
   const nativeControls = await page.evaluate(() => {
-    const input = document.getElementById('mediaPath');
+    const input = document.getElementById('srtPath');
     const editable = document.createElement('div');
     editable.contentEditable = 'true';
     document.body.append(editable);

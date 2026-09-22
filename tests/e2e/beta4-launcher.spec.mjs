@@ -1,3 +1,4 @@
+import { setLauncherLanguage } from './launcher-language.mjs';
 import {test, expect} from '@playwright/test';
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
@@ -13,20 +14,21 @@ test('translation backfill and bilingual ordering persist in the frozen prefab p
   await open(page);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   await page.locator('#prefabRail input[data-module-id="translate"]').check();
-  await page.locator('#autoTranslateMergeBilingual').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "translate");
+  await page.locator('#translationWriteMode').selectOption('bilingual');
   await page.locator('#autoTranslateBilingualOrder').selectOption('original_first');
-  await page.locator('#autoTranslateBackfill').check();
-  await expect(page.locator('#autoTranslateMergeBilingual')).not.toBeChecked();
-  await expect(page.locator('#autoTranslateBilingualOrder')).toBeDisabled();
+  await page.locator('#translationWriteMode').selectOption('backfill');
+  await expect(page.locator('#translationWriteMode')).toHaveValue('backfill');
+  await expect(page.locator('#autoTranslateBilingualOrder')).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.MSWLauncher.getAutoPostprocessPayload().steps.find(step => step.id === 'translate')))
     .toMatchObject({embedTranslations: true, mergeBilingual: false, bilingualLineOrder: 'original_first'});
   await expect.poll(() => page.evaluate(() => window.MSWLauncher.config.postprocessAutoPlan?.steps?.find(step => step.id === 'translate')?.embedTranslations)).toBe(true);
   // The file preview uses an in-memory backend; Python tests cover disk persistence.
   expect(await page.evaluate(async () => (await window.MSWLauncher.callBackend('get_config')).postprocessAutoPlan.steps.find(step => step.id === 'translate')))
     .toMatchObject({embedTranslations: true, mergeBilingual: false, bilingualLineOrder: 'original_first'});
-  await expect(page.locator('#autoTranslateBackfill')).toBeChecked();
-  await page.locator('#autoTranslateMergeBilingual').check();
-  await expect(page.locator('#autoTranslateBackfill')).not.toBeChecked();
+  await expect(page.locator('#translationWriteMode')).toHaveValue('backfill');
+  await page.locator('#translationWriteMode').selectOption('bilingual');
+  await expect(page.locator('#translationWriteMode')).toHaveValue('bilingual');
   await expect(page.locator('#autoTranslateBilingualOrder')).toHaveValue('original_first');
   expect(errors).toEqual([]);
 });
@@ -46,7 +48,7 @@ test.describe('first-launch system language', () => {
   test('uses English until the user saves a language choice', async ({page}) => {
     await open(page);
     await expect(page.locator('#notifyOnComplete').locator('..')).toContainText('Notify when a task');
-    await page.locator('#langToggle').click();
+    await setLauncherLanguage(page, 'zh');
     await expect(page.locator('#notifyOnComplete').locator('..')).toContainText('任务完成');
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
   });

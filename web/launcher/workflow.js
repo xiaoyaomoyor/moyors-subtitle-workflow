@@ -1,14 +1,11 @@
-// MSW Launcher · 预制页编排（D 阶段）
+// MSW Launcher · 预制页编排
 // 左侧模块区：折叠只改显示不改启用；序号按当前可见顺序连续编号。
-// 输入方式：媒体预制 / 已有工程·字幕再处理。切页、折叠、主题与语言切换保留草稿。
+// 混合输入统一队列。切页、折叠、主题与语言切换保留草稿。
 (function () {
   "use strict";
 
-  var COLLAPSE_KEY = "MSW_LAUNCHER_MODULE_COLLAPSE_V1";
-  var INPUT_MODE_KEY = "MSW_LAUNCHER_INPUT_MODE_V1";
 
   var state = {
-    inputMode: "media",       // media | project
     collapsed: {},            // module card id -> true
   };
 
@@ -40,7 +37,8 @@
     // S6/§6.1：标题右侧参数摘要槽（逐模块更新，折叠不丢失）。
     var summary = document.createElement("span");
     summary.className = "module-summary";
-    head.append(toggle, index, heading, summary);
+    var status = document.createElement('span'); status.className = 'module-status';
+    head.append(toggle, index, heading, summary, status);
     card.prepend(head);
     var body = document.createElement("div");
     body.className = "module-body";
@@ -60,13 +58,10 @@
 
   function setCollapsed(moduleId, collapsed) {
     state.collapsed[moduleId] = Boolean(collapsed);
-    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(state.collapsed)); } catch (error) { /* 显示状态而已 */ }
     renderCards();
   }
 
-  function loadCollapse() {
-    try { state.collapsed = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "{}") || {}; } catch (error) { state.collapsed = {}; }
-  }
+  function loadCollapse() { state.collapsed = { media: false }; }
 
   // S6/§6.1：模块头参数摘要——一行只读状态，帮助折叠时辨识卡内容。
   function basenameOf(value) {
@@ -78,8 +73,7 @@
     var el = function (id) { return document.getElementById(id); };
     switch (moduleId) {
       case "media": {
-        var path = (el("mediaPath")?.value || el("jsonPath")?.value || "").trim();
-        return path ? basenameOf(path) : "";
+        return t("queue_task_count").replace("{n}", window.MSWQueue?.tasks().length || 0);
       }
       case "waveform":
         return el("generateSpectral")?.checked ? t("summary_spectral_on") : t("summary_spectral_off");
@@ -126,14 +120,7 @@
     // S4/§6.1：每个模块一张独立配置卡（波形/六后处理/对齐），处理日志可选且始终最后；
     // 序号按可见卡动态连续编排，模块 ID 持久化。
     var enabled = function (id) { return modules() ? modules().isEnabled(id) !== false : true; };
-    var cards = [
-      { moduleId: "media", visible: true },
-      { moduleId: "waveform", visible: enabled("waveform") },
-      { moduleId: "asr", visible: enabled("asr") },
-    ];
-    POSTPROCESS_MODULE_IDS.forEach(function (id) { cards.push({ moduleId: id, visible: enabled(id) }); });
-    cards.push({ moduleId: "output", visible: enabled("output") });
-    cards.push({ moduleId: "alignment", visible: enabled("alignment") });
+    var cards = (modules()?.modules || []).slice().sort((a, b) => a.order - b.order).map(module => ({ moduleId: module.id, visible: module.fixed || enabled(module.id) }));
     var logVisible = window.MSWModules ? window.MSWModules.isLogCardEnabled() : false;
     if (logVisible) {
       cards.push({ moduleId: "log", visible: true });
@@ -147,6 +134,8 @@
       next += 1;
       orderMap[card.moduleId] = next;
     });
+    // Keep physical layout and numbering derived from the same module registry.
+    cards.forEach(entry => { var card = cardFor(entry.moduleId); if (card) card.parentNode.insertBefore(card, document.getElementById("errorNotice")); });
     var allCards = document.querySelectorAll("[data-module-card]");
     allCards.forEach(function (card) {
       var moduleId = card.dataset.moduleCard;
@@ -156,12 +145,18 @@
       if (!visibleNow) return;
       var indexEl = card.querySelector(".module-index");
       if (indexEl) indexEl.textContent = String(orderMap[moduleId]).padStart(2, "0");
+      if (state.collapsed[moduleId] === undefined) state.collapsed[moduleId] = moduleId !== "media";
       var collapsed = Boolean(state.collapsed[moduleId]);
       card.classList.toggle("collapsed", collapsed);
       var toggle = card.querySelector(".module-collapse");
       if (toggle) toggle.setAttribute("aria-expanded", String(!collapsed));
       var summaryEl = card.querySelector(".module-summary");
       if (summaryEl) summaryEl.textContent = moduleSummary(moduleId);
+      var status = card.querySelector('.module-status');
+      if (status && card.dataset.configReady) {
+        status.textContent = t(card.dataset.configReady === 'true' ? 'auto_status_ready' : 'auto_status_config');
+        status.classList.toggle('invalid', card.dataset.configReady !== 'true');
+      }
     });
     renderOrderChip(orderMap);
   }
@@ -184,35 +179,7 @@
     state.collapsed.log = false;
     renderCards();
     var logCard = document.querySelector('[data-module-card="log"]');
-    if (logCard) logCard.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  // ---------------- 输入方式 ----------------
-
-  function setInputMode(mode, options) {
-    options = options || {};
-    if (mode !== "media" && mode !== "project") mode = "media";
-    state.inputMode = mode;
-    if (!options.silent) {
-      try { localStorage.setItem(INPUT_MODE_KEY, mode); } catch (error) { /* 草稿 */ }
-    }
-    el("inputModeMedia").classList.toggle("active", mode === "media");
-    el("inputModeMedia").setAttribute("aria-pressed", String(mode === "media"));
-    el("inputModeProject").classList.toggle("active", mode === "project");
-    el("inputModeProject").setAttribute("aria-pressed", String(mode === "project"));
-    document.documentElement.dataset.prefabInputMode = mode;
-    var dropZone = el("dropZone");
-    if (dropZone) dropZone.textContent = mode === "project" ? t("project_drop_hint") : t("drop_hint");
-    var mediaLabel = document.querySelector('label[for="mediaPath"]');
-    if (mediaLabel) mediaLabel.textContent = mode === "project" ? t("project_input_label") : t("media");
-    var mediaTitle = el("mediaTitle");
-    if (mediaTitle) mediaTitle.textContent = mode === "project" ? t("project_card_title") : t("media_output");
-  }
-
-  function loadInputMode() {
-    var stored = "";
-    try { stored = localStorage.getItem(INPUT_MODE_KEY) || "media"; } catch (error) { stored = "media"; }
-    setInputMode(stored === "project" ? "project" : "media", { silent: false });
+    if (logCard) logCard.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
   }
 
   // ---------------- 窄窗口模块抽屉（R1） ----------------
@@ -251,18 +218,13 @@
     });
   }
 
-  function bindInputMode() {
-    el("inputModeMedia").addEventListener("click", function () { setInputMode("media"); });
-    el("inputModeProject").addEventListener("click", function () { setInputMode("project"); });
-  }
 
   function refresh() { renderCards(); }
 
   function init() {
+    document.addEventListener("mswlanguage", renderCards);
     loadCollapse();
     bindRailDrawer();
-    bindInputMode();
-    loadInputMode();
     renderCards();
     document.addEventListener("mswnavigation", function () {
       closeRailDrawer();
@@ -295,14 +257,11 @@
   var previousLanguageChanged = window.MSWLauncher.onLanguageChanged;
   window.MSWLauncher.onLanguageChanged = function () {
     try { if (typeof previousLanguageChanged === "function") previousLanguageChanged.call(window.MSWLauncher); } catch (error) { /* 前一个钩子失败不阻断 */ }
-    setInputMode(state.inputMode, { silent: true });
     renderCards();
   };
 
   window.MSWWorkflow = {
     state: state,
-    setInputMode: setInputMode,
-    inputMode: function () { return state.inputMode; },
     renderCards: renderCards,
     showLogCard: showLogCard,
     setCollapsed: setCollapsed,

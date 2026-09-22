@@ -28,7 +28,7 @@
       nav_settings: "更多设置",
       home_sub: "打开最近工程，或直接进入空白编辑器开始导入媒体。",
       prefab_sub: "按处理方案生成可进入编辑器的工程；未勾选的步骤直接跳过。",
-      tools_sub: "独立文件工具：每次生成新文件，不修改当前工程；文稿/字幕处理与波形生成在「预制工程」页编排。",
+      tools_sub: "独立文件与波形工具：生成新的结果文件，保留原始文件与工程。",
       guide_sub: "启动器是可选的预处理入口；编辑器内已能直接导入媒体、生成波形、发起 ASR、翻译与 TTS。",
       settings_sub: "连接配置与调用参数分层保存；修改默认值不覆盖正在编辑的方案。",
       guide_direct_title: "直接进编辑器",
@@ -38,7 +38,7 @@
       guide_direct_s4: "保存为 .mosp 工程",
       guide_goto_home: "前往启动编辑器",
       guide_prefab_title: "提前预制工程",
-      guide_prefab_s1: "预制页选择媒体（支持单文件与批量）",
+      guide_prefab_s1: "在虚线框拖入或多选媒体、工程、字幕；同名候选需确认关联",
       guide_prefab_s2: "按需开启波形、识别与后处理模块（新方案默认仅媒体＋波形）",
       guide_prefab_s3: "点「生成字幕和工程」按当前方案执行",
       guide_prefab_s4: "打开编辑器继续精修",
@@ -237,8 +237,10 @@
       language_reset: "重置（自动识别）",
       language_multi_hint: "可多选；不选即自动识别（仅偏向，不限制）。",
       language_filter_hint: "默认仅显示常用语言，其余可在「配置」中开启。",
-      settings_language: "语言",
-      show_rare_langs: "显示相对小众的语言",
+      settings_language: "识别语言列表",
+      interface_language: "界面语言",
+      explanation: "说明",
+      show_rare_langs: "显示供应商支持的全部语种",
       show_rare_langs_hint: "开启后，「语言」列表显示供应商支持的全部语种；关闭时只显示 8 种常用语言。",
       settings_file_output: "文件输出",
       output_subfolder: "将所有输出文件放入子文件夹",
@@ -344,7 +346,7 @@
       nav_settings: "More Settings",
       home_sub: "Open a recent project, or start a blank editor and import media there.",
       prefab_sub: "Build a project from a processing plan; unchecked steps are skipped.",
-      tools_sub: "Standalone file tools: always new files, projects untouched; subtitle processing and waveform generation live on the prefab page.",
+      tools_sub: "Standalone file and waveform tools: create new outputs while preserving source files.",
       guide_sub: "The launcher is an optional pre-processing entry; the editor can already import media, build waveforms, run ASR, translation, and TTS.",
       settings_sub: "Connections and call parameters are layered; defaults never overwrite an editing plan.",
       guide_direct_title: "Straight into the editor",
@@ -354,7 +356,7 @@
       guide_direct_s4: "Save as a .mosp project",
       guide_goto_home: "Go to Launch Editor",
       guide_prefab_title: "Prefabricate first",
-      guide_prefab_s1: "Pick media on the prefab page (single or batch)",
+      guide_prefab_s1: "Drop or select media, projects, or subtitles; confirm matching file pairs",
       guide_prefab_s2: "Enable waveform, recognition, and post-processing modules as needed (new plans default to media + waveform)",
       guide_prefab_s3: "Click “Generate subtitles and project” to run the current plan",
       guide_prefab_s4: "Open the editor to refine",
@@ -553,8 +555,10 @@
       language_reset: "Reset (auto-detect)",
       language_multi_hint: "Multi-select; empty = auto (bias only).",
       language_filter_hint: "Only common languages are shown by default. Enable the rest in Settings.",
-      settings_language: "Language",
-      show_rare_langs: "Show less common languages",
+      settings_language: "Recognition languages",
+      interface_language: "Interface language",
+      explanation: "Help",
+      show_rare_langs: "Show all languages supported by the provider",
       show_rare_langs_hint: "When enabled, the language list shows every supported language; otherwise it shows 8 common languages.",
       settings_file_output: "File output",
       output_subfolder: "Put all outputs in a subfolder",
@@ -1697,14 +1701,14 @@
           }
         ]
       }),
-      default_output: async ({ mediaPath, providerId, modelId, testRun }) => {
+      default_output: async ({ mediaPath, providerId, modelId, testRun, recognize }) => {
         let path = "";
         if (mediaPath) {
           const sep = mediaPath.includes("\\") ? "\\" : "/";
           const dirIndex = Math.max(mediaPath.lastIndexOf("/"), mediaPath.lastIndexOf("\\"));
           const dir = dirIndex >= 0 ? mediaPath.slice(0, dirIndex + 1) : "";
           const stem = mediaPath.slice(dirIndex + 1).replace(/\.[^.\\/]+$/, "");
-          const tag = saved.attachModelName === false ? "" : (providerId === "openai" ? ".custom-asr" : (providerId === "soniox" ? ".soniox" : (providerId === "bcut" ? ".bcut" : (providerId === "local" ? (modelId.includes("sensevoice") ? ".sensevoice-local" : ((modelId.includes("funasr") || modelId.includes("fun-asr")) ? ".funasr-local" : (modelId.includes("1.7b") ? ".qwen3-asr-1.7b-local" : ".qwen-asr-local"))) : (modelId === "fun-asr" ? ".fun-asr" : (modelId === "qwen-audio-3.0-asr-flash-filetrans" ? ".qwen-audio" : ".qwen3-asr-api"))))));
+          const tag = recognize === false || saved.attachModelName === false ? "" : (providerId === "openai" ? ".custom-asr" : (providerId === "soniox" ? ".soniox" : (providerId === "bcut" ? ".bcut" : (providerId === "local" ? (modelId.includes("sensevoice") ? ".sensevoice-local" : ((modelId.includes("funasr") || modelId.includes("fun-asr")) ? ".funasr-local" : (modelId.includes("1.7b") ? ".qwen3-asr-1.7b-local" : ".qwen-asr-local"))) : (modelId === "fun-asr" ? ".fun-asr" : (modelId === "qwen-audio-3.0-asr-flash-filetrans" ? ".qwen-audio" : ".qwen3-asr-api"))))));
           let outputDir = dir;
           if (saved.outputSubfolder) {
             const root = saved.perVideoSubfolder ? `${stem}_msw` : "_msw";
@@ -1739,7 +1743,7 @@
       prepare_local_model: async ({ modelId }) => { clearTimeout(modelPrepareTimer); modelPrepareTimer = setTimeout(() => { state.config?.providers.find((item) => item.id === "local")?.models.forEach((model) => { if (model.id === modelId) model.localStatus = { ...(model.localStatus || {}), status: "installed", installed: true, runtimeAvailable: true, canPrepare: false, detail: "已检测到本地模型。" }; }); window.MSWLauncher.onBackendEvent({ type: "modelPrepared", modelId }); }, 400); return { ok: true, preparing: true, modelId }; },
       cancel_local_model: async () => { clearTimeout(modelPrepareTimer); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "localPrepareCancelled" }), 80); return { ok: true, cancelling: true }; },
        send_notification: async () => ({ok: true, sent: false}),
-       save_prefs: async (payload) => { if (Object.prototype.hasOwnProperty.call(payload, "modelId")) localStorage.setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) localStorage.setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); for (const key of ["outputSubfolder", "perVideoSubfolder", "attachModelName", "notifyOnComplete"]) { if (Object.prototype.hasOwnProperty.call(payload, key)) saved[key] = Boolean(payload[key]); } if (Object.prototype.hasOwnProperty.call(payload, "theme")) saved.theme = payload.theme || "system"; if (Object.prototype.hasOwnProperty.call(payload, "zoomPercent")) localStorage.setItem(ZOOM_PERCENT_KEY, String(payload.zoomPercent)); return { ok: true, zoomPercent: Number(localStorage.getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT }; },
+       save_prefs: async (payload) => { if (Object.prototype.hasOwnProperty.call(payload, "guiLang")) saved.guiLang = payload.guiLang; if (Object.prototype.hasOwnProperty.call(payload, "modelId")) localStorage.setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) localStorage.setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); for (const key of ["outputSubfolder", "perVideoSubfolder", "attachModelName", "notifyOnComplete"]) { if (Object.prototype.hasOwnProperty.call(payload, key)) saved[key] = Boolean(payload[key]); } if (Object.prototype.hasOwnProperty.call(payload, "theme")) saved.theme = payload.theme || "system"; if (Object.prototype.hasOwnProperty.call(payload, "zoomPercent")) localStorage.setItem(ZOOM_PERCENT_KEY, String(payload.zoomPercent)); return { ok: true, zoomPercent: Number(localStorage.getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT }; },
       open_url: async ({ url }) => { window.open(url, "_blank"); return { ok: true }; },
       open_runtime_folder: async (payload) => { window.__openedRuntimeFolder = payload; return { ok: true }; },
       open_blank_html: async () => ({ ok: true }),
@@ -1779,6 +1783,33 @@
       stop_server: async () => ({ ok: true }),
        start_transcription: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "log", message: "[mock] 上传完成" }), 250); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "done", result: { srtPath: "D:\\Demo\\clip.srt", jsonPath: "D:\\Demo\\clip.json", htmlPath: "D:\\Demo\\clip.edit.html" } }), 900); return { ok: true }; },
        cancel_transcription: async () => { setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "error", code: "transcription_cancelled", detail: "Transcription cancelled" }), 120); return { ok: true }; },
+      inspect_queue_inputs: async ({ paths }) => ({ ok: true, items: paths.map(path => {
+        const suffix = path.split('.').pop().toLowerCase();
+        const kind = ['mosp', 'json'].includes(suffix) ? 'project' : ['srt', 'ass'].includes(suffix) ? 'subtitle' : MEDIA_EXTS.has('.' + suffix) ? 'media' : 'unsupported';
+        return { ok: kind !== 'unsupported', path, kind, error: kind === 'unsupported' ? 'Unsupported file type' : '', mediaPath: kind === 'media' ? path : '', hasSubtitles: kind !== 'media', audioTracks: kind === 'media' ? [{ audio_index: 0, language: 'eng', default: true }, { audio_index: 1, language: 'zho' }] : null, audioTrack: 0, defaultAudioTrack: 0, warnings: [] };
+      }) }),
+      start_prefab_queue: async ({ plan }) => {
+        const runId = crypto.randomUUID(), current = { runId, cancelled: false };
+        window.__demoQueueCurrent = current;
+        window.__queuePlanRuns = [...window.__queuePlanRuns || [], JSON.parse(JSON.stringify(plan))];
+        const outcomes = [];
+        plan.tasks.forEach((task, index) => {
+          setTimeout(() => {
+            if (!current.cancelled) window.MSWLauncher.onBackendEvent({ type: 'queueItem', runId, taskId: task.id, index, status: 'running' });
+          }, 50 + index * 250);
+          setTimeout(() => {
+            const outcome = { taskId: task.id, index, status: current.cancelled ? 'cancelled' : 'done', result: current.cancelled ? null : { projectPath: task.path.replace(/\.[^.\\/]+$/, '.prepared.mosp'), warnings: [] } };
+            outcomes.push(outcome);
+            window.MSWLauncher.onBackendEvent({ type: 'queueItem', runId, ...outcome });
+          }, 200 + index * 250);
+        });
+        setTimeout(() => window.MSWLauncher.onBackendEvent({ type: 'queueDone', runId, cancelled: current.cancelled, results: outcomes }), plan.tasks.length * 250 + 30);
+        return { ok: true, runId, total: plan.tasks.length };
+      },
+      cancel_prefab_queue: async ({ runId }) => {
+        if (window.__demoQueueCurrent?.runId === runId) window.__demoQueueCurrent.cancelled = true;
+        return { ok: true };
+      },
       start_batch_transcription: async ({ items }) => {
         window.MSWLauncher.onBackendEvent({ type: "batchStarted", total: items.length });
         items.forEach((item, index) => {
@@ -1875,6 +1906,13 @@
       set_recent_project_pinned: async () => ({ ok: true }),
       relocate_recent_project: async () => ({ ok: true, path: "D:\\Demo\\clip.mosp" }),
       sync_theme_title_bar: async () => ({ ok: true }),
+      start_waveform_tool: async (payload = {}) => {
+        const current = { taskId: 'demo-wave-' + Date.now(), cancelled: false };
+        window.__demoWaveformTool = current;
+        setTimeout(() => window.MSWLauncher.onBackendEvent({type:'waveformTool',taskId:current.taskId,status: current.cancelled ? 'cancelled' : 'completed',projectPath:String(payload.path || 'demo.mp4').replace(/\.[^.]+$/, '.waveform.mosp'),warnings:[]}), 600);
+        return {ok:true,taskId:current.taskId};
+      },
+      cancel_waveform_tool: async ({taskId}) => { if (window.__demoWaveformTool?.taskId === taskId) window.__demoWaveformTool.cancelled = true; return {ok:true,cancelled:true}; },
       start_waveform_project: async (payload = {}) => {
         const taskId = "mock-waveform";
         const mediaPath = payload.mediaPath || "";
@@ -1921,6 +1959,52 @@
       }    };
   }
 
+  STRINGS.zh["queue_input_title"] = "输入媒体/工程/字幕"; STRINGS.en["queue_input_title"] = "Input media / projects / subtitles";
+  STRINGS.zh["mod_media"] = "选择文件"; STRINGS.en["mod_media"] = "Select files";
+  STRINGS.zh["queue_drop"] = "拖入媒体、工程或字幕，或点击选择文件"; STRINGS.en["queue_drop"] = "Drop media, projects or subtitles, or click to choose files";
+  STRINGS.zh["queue_counts"] = "{files} 个文件 · {tasks} 个任务"; STRINGS.en["queue_counts"] = "{files} files · {tasks} tasks";
+  STRINGS.zh["queue_task_count"] = "{n} 个任务"; STRINGS.en["queue_task_count"] = "{n} tasks";
+  STRINGS.zh["queue_empty"] = "请先添加文件。"; STRINGS.en["queue_empty"] = "Add files first.";
+  STRINGS.zh["queue_confirm_pairs"] = "请先确认文件关联，或选择分别处理。"; STRINGS.en["queue_confirm_pairs"] = "Confirm file associations or choose to process separately.";
+  STRINGS.zh["queue_pair_candidate"] = "发现同名关联候选："; STRINGS.en["queue_pair_candidate"] = "Matching files:";
+  STRINGS.zh["queue_pair"] = "关联为一个任务"; STRINGS.en["queue_pair"] = "Link as one task";
+  STRINGS.zh["queue_separate"] = "分别处理"; STRINGS.en["queue_separate"] = "Process separately";
+  STRINGS.zh["queue_unpair"] = "解除关联"; STRINGS.en["queue_unpair"] = "Unlink";
+  STRINGS.zh["queue_details"] = "文件详情与任务设置"; STRINGS.en["queue_details"] = "File details and task settings";
+  STRINGS.zh["queue_optional"] = "可选"; STRINGS.en["queue_optional"] = "Optional";
+  STRINGS.zh["queue_link_media"] = "关联媒体（可选）"; STRINGS.en["queue_link_media"] = "Linked media (optional)";
+  STRINGS.zh["queue_manuscript"] = "本任务文稿"; STRINGS.en["queue_manuscript"] = "Manuscript for this task";
+  STRINGS.zh["queue_ocr_video"] = "本任务 OCR 视频（可选）"; STRINGS.en["queue_ocr_video"] = "OCR video for this task (optional)";
+  STRINGS.zh["queue_kind_media"] = "媒体"; STRINGS.en["queue_kind_media"] = "Media";
+  STRINGS.zh["queue_kind_project"] = "工程"; STRINGS.en["queue_kind_project"] = "Project";
+  STRINGS.zh["queue_kind_subtitle"] = "字幕"; STRINGS.en["queue_kind_subtitle"] = "Subtitle";
+  STRINGS.zh["queue_kind_file"] = "文件"; STRINGS.en["queue_kind_file"] = "File";
+  STRINGS.zh["queue_kind_unsupported"] = "不支持"; STRINGS.en["queue_kind_unsupported"] = "Unsupported";
+  STRINGS.zh["queue_invalid"] = "待处理问题"; STRINGS.en["queue_invalid"] = "Needs attention";
+  STRINGS.zh["queue_reading"] = "读取中"; STRINGS.en["queue_reading"] = "Reading";
+  STRINGS.zh["queue_ready"] = "已添加"; STRINGS.en["queue_ready"] = "Added";
+  STRINGS.zh["queue_status_queued"] = "等待中"; STRINGS.en["queue_status_queued"] = "Queued";
+  STRINGS.zh["queue_status_running"] = "处理中"; STRINGS.en["queue_status_running"] = "Processing";
+  STRINGS.zh["queue_status_done"] = "已完成"; STRINGS.en["queue_status_done"] = "Done";
+  STRINGS.zh["queue_status_failed"] = "失败"; STRINGS.en["queue_status_failed"] = "Failed";
+  STRINGS.zh["queue_status_cancelled"] = "已取消"; STRINGS.en["queue_status_cancelled"] = "Cancelled";
+  STRINGS.zh["queue_asr_policy"] = "已有字幕的处理"; STRINGS.en["queue_asr_policy"] = "Existing subtitles";
+  STRINGS.zh["queue_asr_missing"] = "仅识别没有字幕的任务"; STRINGS.en["queue_asr_missing"] = "Recognize only tasks without subtitles";
+  STRINGS.zh["queue_asr_replace"] = "重新识别并写入新工程"; STRINGS.en["queue_asr_replace"] = "Recognize again in a new project";
+  STRINGS.zh["queue_rerun"] = "是否重新处理已完成的任务？选择“否”只处理未完成的任务。"; STRINGS.en["queue_rerun"] = "Run completed tasks again? Choose No to process only unfinished tasks.";
+  STRINGS.zh["queue_finished"] = "处理完成：成功 {done} 个，失败 {failed} 个。"; STRINGS.en["queue_finished"] = "Complete: {done} succeeded, {failed} failed.";
+  STRINGS.zh["queue_cancelled"] = "队列已取消，已完成的结果仍然保留。"; STRINGS.en["queue_cancelled"] = "Queue cancelled; completed results are retained.";
+
+  STRINGS.zh.queue_needs_subtitles = '该任务没有字幕，请关联字幕或开启识别。'; STRINGS.en.queue_needs_subtitles = 'This task needs subtitles. Link a subtitle file or enable recognition.';
+  STRINGS.zh.queue_needs_video = 'OCR 去重需要视频，请在任务详情或 OCR 模块中关联视频。'; STRINGS.en.queue_needs_video = 'OCR requires a video. Link one in task details or the OCR module.';
+  STRINGS.zh.queue_rerun = '是否跳过已完成的任务？选择“否”将重新处理整个队列。'; STRINGS.en.queue_rerun = 'Skip completed tasks? Choose No to process the entire queue again.';
+  STRINGS.zh.queue_missing_result = '队列结束时未收到此任务的结果。'; STRINGS.en.queue_missing_result = 'No result was reported for this task.';
+  Object.assign(STRINGS.zh, {"module_preset_prompt":"预设提示词","translation_write_mode":"译文写入","translation_secondary":"生成副字幕","translation_backfill":"翻译回填","translation_bilingual":"合并双语字幕","translation_impact_secondary":"新增译文副轨，保留主字幕、已有副轨与配音素材。","translation_impact_backfill":"用译文替换主字幕文本，保留已有副轨与配音素材。","translation_impact_bilingual":"每条主字幕合并原文与译文，保留已有副轨与配音素材。","toolbox_clean_markdown_symbols":"自动清理 Markdown 符号","toolbox_clean_markdown_symbols_hint":"匹配前移除粗体、斜体、删除线、行内代码和 ==高亮== 标记；仅清理行内标记，保留可见文字。","module_model_saved":"使用该供应商已保存的模型","output_custom_srt":"自定义原文 SRT 位置（单任务）","output_export_bilingual":"导出双语 SRT","output_legacy_notice":"输出规则已调整：原文 SRT 始终是翻译前文本；原来的双语成品请另勾选“双语 SRT”。","output_files":"预计产物","waveform_cache_mode":"缓存策略","waveform_reuse":"优先复用有效缓存","waveform_rebuild":"重新生成","waveform_tool":"生成波形","waveform_tool_input":"媒体或工程","waveform_tool_media":"重新关联媒体（可选）","waveform_tool_directory":"保存目录（可选）","waveform_tool_start":"生成波形工程","waveform_tool_stop":"停止生成","waveform_tool_hint":"为媒体建立空字幕工程，或为已有工程补全波形；始终另存派生工程。","waveform_tool_group":"工程辅助","waveform_done":"波形工程已生成","waveform_cancelled":"波形生成已取消","waveform_source_hint":"来源与音轨以输入队列中每个任务的详情为准。","waveform_not_applicable":"仅输出 SRT 时不生成波形或 HTML。","generate_spectral":"生成频谱颜色数据（ReaPeaks）"});
+  Object.assign(STRINGS.en, {"module_preset_prompt":"Preset prompt","translation_write_mode":"Write translation","translation_secondary":"Secondary subtitles","translation_backfill":"Replace main text","translation_bilingual":"Merge bilingual subtitles","translation_impact_secondary":"Add a translation track; keep main subtitles, existing tracks and audio.","translation_impact_backfill":"Replace main subtitle text; keep secondary tracks and audio.","translation_impact_bilingual":"Combine original and translated text in each main cue; keep other tracks and audio.","toolbox_clean_markdown_symbols":"Clean Markdown markers","toolbox_clean_markdown_symbols_hint":"Remove inline bold, italic, strikethrough, code and ==highlight== markers before matching; keep visible text.","module_model_saved":"Uses the provider’s saved model","output_custom_srt":"Custom original SRT path (single task)","output_export_bilingual":"Export bilingual SRT","output_legacy_notice":"Output rules changed: Original SRT always contains pre-translation text. Select Bilingual SRT for the previous merged result.","output_files":"Expected outputs","waveform_cache_mode":"Cache strategy","waveform_reuse":"Reuse valid caches","waveform_rebuild":"Rebuild","waveform_tool":"Generate waveform","waveform_tool_input":"Media or project","waveform_tool_media":"Relink media (optional)","waveform_tool_directory":"Output directory (optional)","waveform_tool_start":"Create waveform project","waveform_tool_stop":"Stop generation","waveform_tool_hint":"Create a media-only project or add caches to an existing project; always save a derived copy.","waveform_tool_group":"Project tools","waveform_done":"Waveform project created","waveform_cancelled":"Waveform generation cancelled","waveform_source_hint":"Source media and audio track follow each task in the input queue.","waveform_not_applicable":"SRT-only output skips waveform and HTML generation.","generate_spectral":"Generate spectral color data (ReaPeaks)"});
+  Object.assign(STRINGS.zh, {toolbox_ocr_source:"视频来源",toolbox_ocr_region_model:"识别区域与模型",toolbox_ocr_decision_output:"判定与输出"});
+  Object.assign(STRINGS.en, {toolbox_ocr_source:"Video source",toolbox_ocr_region_model:"Region and model",toolbox_ocr_decision_output:"Decision and output"});
+  Object.assign(STRINGS.zh, {waveform_tool_running:"正在生成波形缓存…", queue_srt_needs_text:"仅输出 SRT 需要已有字幕，或开启识别。", queue_srt_choose_output:"仅输出 SRT 时，请至少选择一种可生成的字幕。"});
+  Object.assign(STRINGS.en, {waveform_tool_running:"Generating waveform caches…", queue_srt_needs_text:"SRT-only output needs existing subtitles or recognition.", queue_srt_choose_output:"Select at least one available SRT output."});
   const t = (key) => STRINGS[state.lang][key] || key;
   function compactDetail(detail) { return String(detail || "").replace(/\s+/g, " ").trim(); }
   // 后端 status detail 是中文固定文案（就绪/未安装/需修复等），界面语言下应改用本地化文案；
@@ -2148,7 +2232,7 @@
       scroller.scrollTop = scroller.scrollHeight;
       return;
     }
-    notice.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    notice.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "nearest" });
   }
   function redactSensitive(value) {
     // Cover common key/value forms and HTTP Authorization: Bearer <token>
@@ -2737,7 +2821,33 @@
     setStatus(t("saved"));
     return result;
   }
-  function renderLanguage() { document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en"; document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); }); document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => { node.placeholder = t(node.dataset.i18nPlaceholder); }); document.querySelectorAll("[data-i18n-title]").forEach((node) => { node.title = t(node.dataset.i18nTitle); }); document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => { node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel)); }); $("langToggle").textContent = t("other_language"); $("demoBadge").textContent = t("demo_mode"); renderAudioTracks(); if (state.audioTracks.length > 1) $("audioTrackHint").textContent = t("audio_track_hint"); renderKeyHint(); renderKeyStatus(); renderStickerCurrent(); renderPromptCharacterCount(); renderSonioxContextCharacterCount(); renderHotwordWarnings(); renderServerButton(); refillSelectLabels(); renderLocalRuntime(); renderOcrRuntime(); renderLocalModelStatus(); window.MSWLauncher?.onLanguageChanged?.(); }
+  function renderLanguage() {
+    document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
+    const missing = new Set();
+    const bindings = [
+      ["data-i18n", (node, value) => { node.textContent = value; }],
+      ["data-i18n-placeholder", (node, value) => { node.placeholder = value; }],
+      ["data-i18n-title", (node, value) => { node.title = value; }],
+      ["data-i18n-aria-label", (node, value) => { node.setAttribute("aria-label", value); }],
+    ];
+    for (const [attribute, apply] of bindings) {
+      document.querySelectorAll('[' + attribute + ']').forEach(node => {
+        const key = node.getAttribute(attribute), value = t(key);
+        // Preserve the readable HTML fallback; expose missing keys for dev checks.
+        if (value === key) missing.add(key); else apply(node, value);
+      });
+    }
+    if (window.MSWLauncher) window.MSWLauncher.missingTranslations = [...missing];
+    $("interfaceLanguage").value = state.lang;
+    $("demoBadge").textContent = t("demo_mode");
+    renderAudioTracks();
+    if (state.audioTracks.length > 1) $("audioTrackHint").textContent = t("audio_track_hint");
+    renderKeyHint(); renderKeyStatus(); renderStickerCurrent(); renderPromptCharacterCount();
+    renderSonioxContextCharacterCount(); renderHotwordWarnings(); renderServerButton();
+    refillSelectLabels(); renderLocalRuntime(); renderOcrRuntime(); renderLocalModelStatus();
+    window.MSWLauncher?.onLanguageChanged?.();
+    document.dispatchEvent(new CustomEvent("mswlanguage"));
+  }
   function syncOpenaiCapabilities(reset=false) {
     if(!isOpenAiProvider())return;
     let hostname='';try{hostname=new URL($("openaiBaseUrl").value).hostname.toLowerCase().replace(/\.$/,'');}catch{}
@@ -2777,7 +2887,7 @@
     event.preventDefault();
     persistZoomPercent(event.key === "0" ? ZOOM_DEFAULT : state.config.zoomPercent + direction * ZOOM_STEP);
   }
-  async function syncDefaultOutput() { const requestId = ++defaultOutputRequest; const result = await bridge("default_output", { mediaPath: $("mediaPath").value.trim(), providerId: $("provider").value, modelId: $("model").value, testRun: $("testRun").checked }); if (requestId !== defaultOutputRequest) return result; const path = result.ok ? result.path : ""; $("srtPath").placeholder = path; if (state.srtAuto) { $("srtPath").value = path; if (path) setError("srtPath", ""); setOutputNotice(result.renamed ? t("output_collision") : ""); } else setOutputNotice(""); return result; }
+  async function syncDefaultOutput() { const requestId = ++defaultOutputRequest; const result = await bridge("default_output", { mediaPath: $("mediaPath").value.trim(), providerId: $("provider").value, modelId: $("model").value, testRun: $("testRun").checked }); if (requestId !== defaultOutputRequest) return result; const path = result.ok ? result.path : ""; $("srtPath").placeholder = path; if (state.srtAuto && !$("customSrtDetails")) { $("srtPath").value = path; if (path) setError("srtPath", ""); setOutputNotice(result.renamed ? t("output_collision") : ""); } else setOutputNotice(""); return result; }
   function syncFlvHints() {
     $("mediaPathFlvHint")?.classList.toggle("hidden", ext($("mediaPath").value.trim()) !== ".flv");
     $("serverMediaFlvHint")?.classList.toggle("hidden", ext($("serverMediaPath").value.trim()) !== ".flv");
@@ -2889,16 +2999,16 @@
     return setDroppedPath("serverMediaPath", value);
   }
   function setJsonPath(path) { $("jsonPath").value = path; setError("jsonPath", ""); if (path !== state.serverProjectPath) $("openMawe").classList.add("attention"); refreshServerMedia(); window.MSWLauncher?.onProjectPathChanged?.(); }
-  function applyErrorResult(result, logDetail = true) { const detail = [result.detail || result.error || "", result.diagnostics ? JSON.stringify(result.diagnostics, null, 2) : ""].filter(Boolean).join("\n"); const message = errText(result.code, result.detail || result.error || ""); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (result.field === "port" || result.field === "serverMediaPath" || result.field === "jsonPath") expandServer(); if (result.postprocessStep) window.MSWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
+  function applyErrorResult(result, logDetail = true) { const detail = [result.detail || result.error || "", result.diagnostics ? JSON.stringify(result.diagnostics, null, 2) : ""].filter(Boolean).join("\n"); const message = errText(result.code, result.detail || result.error || ""); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (result.field === "port" || result.field === "serverMediaPath" || result.field === "jsonPath") expandServer(); if (result.postprocessStep) window.MSWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
   function validateSegmentation(data) { for (const [field, minimum] of [["maxLen", 1], ["minLen", 1], ["maxWords", 1], ["minWords", 1], ["gapSplit", 0]]) { const value = data[field]; if (!value) continue; if (!/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum) return fail(field, errText("segmentation_invalid", "")); } if (data.maxLen && data.minLen && Number(data.maxLen) < Number(data.minLen)) return fail("maxLen", errText("segmentation_invalid", "")); if (data.maxWords && data.minWords && Number(data.maxWords) < Number(data.minWords)) return fail("maxWords", errText("segmentation_invalid", "")); return true; }
-  function validateLocal() { clearErrors(); const data = formPayload(); if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!validateSegmentation(data)) return false; if (isLocalProvider()) { const runtime = state.config.localRuntime || {}; const status = localStatus(); if (state.localRuntimeInstalling || runtime.status === "installing") return fail("model", t("local_runtime_installing")); if (state.localPreparing) return fail("model", t("local_prepare_running")); if (runtime.status === "checking") return fail("model", t("local_runtime_checking")); if (!runtime.ready && runtime.status !== "ready") return fail("model", errText("local_runtime_missing", "")); if (!status.status || status.status === "checking") return fail("model", t("local_checking")); if (status.status === "runtime_missing") return fail("model", errText("local_runtime_missing", "")); if (status.status === "path_invalid") return fail("localModelPath", errText("local_model_path_invalid", "")); if (status.status === "path_mismatch") return fail("localModelPath", errText("local_model_path_mismatch", "")); if (status.status === "missing") return fail("model", errText("local_model_missing", "")); if (status.status === "partial") return fail("model", errText("local_model_incomplete", "")); return true; } if (provider().requiresApiKey !== false && !data.apiKey && !provider().apiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().id === "openai" && !data.openaiBaseUrl) return fail("openaiBaseUrl", errText("custom_asr_base_url_missing", "")); if (isCustomOpenAiModel() && !data.openaiModel) return fail("openaiModel", errText("custom_asr_model_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); if (provider().id === "qwen" && selectedModel().supportsContext && Array.from(data.qwenAudioContext).length > 400) return fail("qwenAudioContext", errText("context_too_long", "")); if (provider().id === "soniox" && selectedModel().supportsContext && Array.from([data.sonioxContextGeneral, data.sonioxContextText, data.sonioxContextTerms, data.sonioxContextTranslationTerms].join("\n")).length > 10000) return fail("sonioxContextText", errText("soniox_context_too_long", "")); if (provider().id === "qwen" && selectedModel().supportsHotwords && data.qwenAudioHotwordsMode === "file" && ext(data.qwenAudioHotwordsFile) !== ".txt") return fail("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); return true; }
+  function validateLocal(overrides = {}) { clearErrors(); const data = { ...formPayload(), ...overrides }; if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!validateSegmentation(data)) return false; if (isLocalProvider()) { const runtime = state.config.localRuntime || {}; const status = localStatus(); if (state.localRuntimeInstalling || runtime.status === "installing") return fail("model", t("local_runtime_installing")); if (state.localPreparing) return fail("model", t("local_prepare_running")); if (runtime.status === "checking") return fail("model", t("local_runtime_checking")); if (!runtime.ready && runtime.status !== "ready") return fail("model", errText("local_runtime_missing", "")); if (!status.status || status.status === "checking") return fail("model", t("local_checking")); if (status.status === "runtime_missing") return fail("model", errText("local_runtime_missing", "")); if (status.status === "path_invalid") return fail("localModelPath", errText("local_model_path_invalid", "")); if (status.status === "path_mismatch") return fail("localModelPath", errText("local_model_path_mismatch", "")); if (status.status === "missing") return fail("model", errText("local_model_missing", "")); if (status.status === "partial") return fail("model", errText("local_model_incomplete", "")); return true; } if (provider().requiresApiKey !== false && !data.apiKey && !provider().apiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().id === "openai" && !data.openaiBaseUrl) return fail("openaiBaseUrl", errText("custom_asr_base_url_missing", "")); if (isCustomOpenAiModel() && !data.openaiModel) return fail("openaiModel", errText("custom_asr_model_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); if (provider().id === "qwen" && selectedModel().supportsContext && Array.from(data.qwenAudioContext).length > 400) return fail("qwenAudioContext", errText("context_too_long", "")); if (provider().id === "soniox" && selectedModel().supportsContext && Array.from([data.sonioxContextGeneral, data.sonioxContextText, data.sonioxContextTerms, data.sonioxContextTranslationTerms].join("\n")).length > 10000) return fail("sonioxContextText", errText("soniox_context_too_long", "")); if (provider().id === "qwen" && selectedModel().supportsHotwords && data.qwenAudioHotwordsMode === "file" && ext(data.qwenAudioHotwordsFile) !== ".txt") return fail("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); return true; }
   function fail(field, message) {
     setError(field, message);
     setStatus(message);
     const input = $(field);
     const settingsSection = input?.closest?.(".settings-section");
     if (settingsSection?.id) openSettings(settingsSection.id, field);
-    if (input && input.scrollIntoView) input.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (input && input.scrollIntoView) input.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
     return false;
   }
   function toggle(id) { $(id).classList.toggle("collapsed"); renderChevron(id); }
@@ -2918,6 +3028,7 @@
   function onDragLeave(event) { if (!isInsideMediaCard(event.target)) return; if (isInsideMediaCard(event.relatedTarget)) return; dragState.depth = Math.max(0, dragState.depth - 1); if (dragState.depth === 0) setDropHighlight(false); }
   function bindDropField(id, target, controlId) { const field = $(id); const control = $(controlId || id); field.addEventListener("dragenter", (event) => { if (!hasFileDrag(event)) return; event.preventDefault(); state.dropTarget = target; control.classList.add("drag-over"); }); field.addEventListener("dragover", (event) => { if (!hasFileDrag(event)) return; event.preventDefault(); state.dropTarget = target; control.classList.add("drag-over"); }); field.addEventListener("dragleave", (event) => { if (!field.contains(event.relatedTarget)) { control.classList.remove("drag-over"); if (state.dropTarget === target) state.dropTarget = ""; } }); }
   function handleRoutedDrop(path) {
+    if (window.MSWWaveformTool?.acceptDrop(path)) { clearDropState(); return; }
     const target = state.dropTarget;
     clearDropState();
     const value = String(path || "").trim();
@@ -3088,7 +3199,7 @@
         // 把标题和标签页顶出视野，区块位于容器顶部时表现为下坠一小段。
         const section = $(sectionId);
         const scroll = section?.closest(".settings-scroll");
-        if (section && scroll) scroll.scrollTo({ top: Math.max(0, section.offsetTop - scroll.offsetTop), behavior: "smooth" });
+        if (section && scroll) scroll.scrollTo({ top: Math.max(0, section.offsetTop - scroll.offsetTop), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
         if (focusId) requestAnimationFrame(() => $(focusId)?.focus());
       });
     }
@@ -3236,8 +3347,10 @@
   }
 
   function handleBackendEvent(event) {
+    if (event.type.startsWith("queue")) { window.MSWLauncher?.onQueueEvent?.(event); return; }
     notifyCompletedTask(event);
     if (["batchStarted", "batchItem", "batchItemLog", "batchDone", "batch_started", "batch_item", "batch_item_log", "batch_done"].includes(event.type)) window.MSWLauncher?.onBatchEvent?.(event);
+    if (event.type === "waveformTool") { window.MSWWaveformTool?.onEvent(event); return; }
     if (event.type === "waveformTask") handleWaveformTaskEvent(event);
     if (event.type === "prefabTask") handlePrefabTaskEvent(event);
     if (event.type === "emojiFontReady" && event.path) injectEmojiFont(event.path);
@@ -3340,7 +3453,7 @@
       state.localProgressMessage = "";
       state.localProgress = null;
       // 与本地运行环境安装失败保持一致：失败时自动滚到日志区看 [detail]。
-      $("logTitle")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      $("logTitle")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
     }
     if (event.type === "error" && ["local_runtime_install_failed", "local_runtime_cancelled"].includes(event.code)) {
       const runtime = state.config?.localRuntime || {};
@@ -3349,7 +3462,7 @@
         state.localRuntimeProgressMessage = "";
         void refreshLocalModels();
         renderLocalRuntime();
-        if (event.code === "local_runtime_install_failed") $("logTitle")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (event.code === "local_runtime_install_failed") $("logTitle")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
       } else {
         return;
       }
@@ -3361,7 +3474,7 @@
         state.ocrRuntimeProgressMessage = "";
         void refreshOcrRuntime();
         renderOcrRuntime();
-        if (event.code === "ocr_runtime_install_failed") $("logTitle")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (event.code === "ocr_runtime_install_failed") $("logTitle")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
       } else {
         return;
       }
@@ -3395,16 +3508,32 @@
       appendLog(t("done"));
       void checkExistingServer(t("done"));
     }
-    if (event.type === "dropMedia" && !state.dropTarget && window.MSWLauncher?.onBatchDrop?.(event.path || "")) return;
-    if (event.type === "dropReject" && !state.dropTarget && window.MSWLauncher?.onBatchDropReject?.(event.path || "")) return;
+    if (["dropMedia", "dropJson", "dropReject"].includes(event.type) && window.MSWWaveformTool?.acceptDrop(event.path || "")) { clearDropState(); return; }
+    if (["dropMedia", "dropJson", "dropSubtitle", "dropReject"].includes(event.type) && !state.dropTarget && window.MSWLauncher?.onBatchDrop?.(event.path || "")) { clearDropState(); return; }
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
   window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
 
+  window.MSWLauncher.validateQueueRecognition = mediaPath => validateLocal({ mediaPath, srtPath: 'queue.srt' });
+  window.MSWLauncher.setQueueProgress = message => setStatus(message);
+  window.MSWLauncher.setQueueRunning = busy => {
+    state.batchRunning = busy; setRunning(busy);
+    if (busy) { hideErrorNotice(); $("log").textContent = ""; $("retryPostprocess").classList.add("hidden"); }
+  };
+  window.MSWLauncher.finishQueue = (event, path) => {
+    revealProjectResult(path);
+    if (path) setJsonPath(path);
+    const results = event.results || [];
+    const message = event.cancelled ? t('queue_cancelled') : t('queue_finished').replace('{done}', results.filter(r => r.status === 'done').length).replace('{failed}', results.filter(r => r.status === 'failed').length);
+    setStatus(message); appendLog(message);
+    document.dispatchEvent(new CustomEvent('mswqueuecomplete'));
+    notifyCompletedTask({ type: 'batchDone' });
+  };
   window.MSWLauncher.onBatchBusyChanged = (busy) => { state.batchRunning = busy; syncLocalRuntimeControls(); renderLocalRuntime(); };
-  $("langToggle").addEventListener("click", async () => {
+  $("interfaceLanguage").addEventListener("change", async () => {
     // R5/F13：语言切换只保存语言，不携带识别表单与密钥（避免覆盖未确认的连接草稿）。
-    state.lang = state.lang === "zh" ? "en" : "zh";
+    state.lang = $("interfaceLanguage").value === "en" ? "en" : "zh";
+    state.config.guiLang = state.lang;
     renderLanguage();
     const result = await bridge("save_prefs", { guiLang: state.lang });
     if (!result.ok) applyErrorResult(result);
@@ -3431,7 +3560,7 @@
   $("openaiModel").addEventListener("input", () => { if (isCustomOpenAiModel()) state.config.openaiCustomModel = $("openaiModel").value.trim(); });
   $("generateHtml").addEventListener("change", syncHtmlMenu);
   $("mediaPath").addEventListener("input", () => { setError("mediaPath", ""); setOutputNotice(""); syncFlvHints(); syncDefaultOutput(); scheduleAudioTrackProbe($("mediaPath").value); }); $("srtPath").addEventListener("input", () => { state.srtAuto = false; state.testSuffixAdded = false; setError("srtPath", ""); setOutputNotice(""); });
-  $("pickMedia").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (!result.ok) return; if (!MEDIA_EXTS.has(ext(result.path))) { setError("mediaPath", mediaDropError()); return; } setMedia(result.path); });
+  $("pickMedia")?.addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (!result.ok) return; if (!MEDIA_EXTS.has(ext(result.path))) { setError("mediaPath", mediaDropError()); return; } setMedia(result.path); });
   $("qwenAudioHotwordsModeText").addEventListener("click", () => { setHotwordsMode("text"); setError("qwenAudioHotwordsFile", ""); }); $("qwenAudioHotwordsModeFile").addEventListener("click", () => { setHotwordsMode("file"); setError("qwenAudioHotwordsFile", ""); }); $("pickQwenAudioHotwordsFile").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "hotwords" }); if (result.ok) await loadHotwordFile(result.path || "", false); });
   $("pickJson").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "json" }); if (result.ok) setJsonPath(result.path); });
   $("serverToggle").addEventListener("click", () => { toggle("serverCard"); $("serverToggle").setAttribute("aria-expanded", String(!$("serverCard").classList.contains("collapsed"))); });
@@ -3586,104 +3715,8 @@
   for(const key of ["openaiBaseUrl","openaiModel","openaiDiarize"])$(key).addEventListener("input",()=>syncOpenaiCapabilities());
   // T3/A9：ASR 卡不再承载「存入本地环境」持久化——连接保存收口到设置·服务与连接。
   $("openConnectionSettings")?.addEventListener("click", () => window.MSWLauncher.openSettings("llmSettingsSection"));
-  async function startTranscription() {
-    if (!validateLocal()) return;
-    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden"); $("log").textContent = ""; state.lastLogMessage = ""; const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden"); setRunning(true); const result = await bridge("start_transcription", formPayload()); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } else if (result.outputPath) { $("srtPath").value = result.outputPath; if (result.outputRenamed) setOutputNotice(t("output_collision")); }
-  }
-  async function runPrefabPlan(plan) {
-    // R4/F05：已有工程／SRT 输入——方案驱动后处理链，不调用 ASR。
-    clearErrors();
-    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden");
-    $("log").textContent = ""; state.lastLogMessage = "";
-    const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
-    setRunning(true);
-    state.prefabTask = true;
-    appendLog(t("prefab_plan_running"));
-    const result = await bridge("run_prefab_plan", { plan });
-    if (result.ok) {
-      state.prefabTaskId = result.taskId || "";
-      setStatus(t("prefab_plan_running"));
-    } else {
-      state.prefabTask = false;
-      setRunning(false);
-      applyErrorResult(result, false);
-    }
-  }
-
-  async function startMediaProject(plan) {
-    // R4/§7.1：波形开关与频谱选项来自方案对象；缺字幕来源的预检已在开始分派完成。
-    plan = plan || (window.MSWPlan ? window.MSWPlan.build() : null);
-    clearErrors();
-    const mediaPath = $("mediaPath").value.trim();
-    if (!mediaPath) { setError("mediaPath", errText("media_not_found", "")); return; }
-    const waveformEnabled = plan ? plan.modules.waveform !== false : true;
-    hideErrorNotice(); $("retryPostprocess")?.classList.add("hidden");
-    $("log").textContent = ""; state.lastLogMessage = "";
-    const latest = $("logLatest"); latest.textContent = ""; latest.classList.add("hidden");
-    setRunning(true);
-    state.waveformTask = true;
-    appendLog(waveformEnabled ? t("waveform_project_running") : t("media_project_running"));
-    const result = await bridge("start_waveform_project", {
-      mediaPath,
-      audioTrack: getAudioTrackForMedia(mediaPath),
-      defaultAudioTrack: getDefaultAudioTrackForMedia(mediaPath),
-      generateSpectral: $("generateSpectral").checked,
-      waveform: waveformEnabled,
-    });
-    if (result.ok) {
-      state.waveformTaskId = result.taskId || "";
-      setStatus(t("waveform_project_running"));
-    } else {
-      state.waveformTask = false;
-      setRunning(false);
-      applyErrorResult(result, false);
-    }
-  }
-
-  $("start").addEventListener("click", () => {
-    // R4/§7.1：一份方案驱动预检与执行——输入模式决定解析与执行类型。
-    const plan = window.MSWPlan ? window.MSWPlan.build() : null;
-    if (!plan) { void startTranscription(); return; }
-    const check = window.MSWPlan.preflight(plan);
-    if (!check.ok) {
-      const moduleIds = check.modules || (check.module ? [check.module] : []);
-      const moduleNames = moduleIds.map((id) => t("mod_" + id)).join("、");
-      let message = t(check.code);
-      if (message === check.code) message = errText(check.code, "");
-      if (check.code === "prefab_needs_subtitles" || check.code === "prefab_srt_needs_media") {
-        message = t(check.code).replace("{modules}", moduleNames);
-      }
-      setStatus(message);
-      appendLog(`[prefab] ${message}`);
-      showErrorNotice(message, check.code);
-      if (check.field === "mediaPath") setError("mediaPath", message);
-      if (moduleIds.length) moduleIds.forEach((id) => window.MSWWorkflow?.setCollapsed?.(id, false));
-      return;
-    }
-    if (plan.inputMode === "project") { void runPrefabPlan(plan); return; }
-    if (!plan.modules.asr) { void startMediaProject(plan); return; }
-    void startTranscription();
-  });
-  $("stop").addEventListener("click", async () => {
-    if (!state.running) return;
-    $("stop").disabled = true;
-    // R0/F08：媒体/波形工程任务用专属取消；不再借道 cancel_transcription。
-    if (state.prefabTask) {
-      setStatus(t("waveform_project_cancelling"));
-      const result = await bridge("cancel_prefab_plan");
-      if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); }
-      return;
-    }
-    if (state.waveformTask) {
-      setStatus(t("waveform_project_cancelling"));
-      const result = await bridge("cancel_waveform_project");
-      if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); }
-      return;
-    }
-    setStatus(t("batch_stopping"));
-    const result = await bridge("cancel_transcription");
-    if (!result.ok) { $("stop").disabled = false; setStatus(result.detail || result.error || t("failed")); }
-  });
+  $("start").addEventListener("click", () => { void window.MSWQueue?.start(); });
+  $("stop").addEventListener("click", () => { void window.MSWQueue?.stop(); });
   $("retryPostprocess").addEventListener("click", async () => { hideErrorNotice(); $("retryPostprocess").classList.add("hidden"); setRunning(true); const result = await bridge("retry_postprocess"); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } });
   $("openProjectResult")?.addEventListener("click", () => {
     const projectPath = $("openProjectResult")?.dataset.projectPath || "";

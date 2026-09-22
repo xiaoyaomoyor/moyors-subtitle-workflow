@@ -5,8 +5,9 @@
   "use strict";
 
   var STORAGE_KEY = "MSW_TOOLS_PAGE_TOOL_V1";
-  var TOOL_IDS = ["extractAudio", "burnSubtitle", "ffconcat", "alignment"];
+  var TOOL_IDS = ["extractAudio", "burnSubtitle", "ffconcat", "alignment", "waveform"];
   var activeTool = "extractAudio";
+  var drawerTrigger = null;
 
   function el(id) { return document.getElementById(id); }
 
@@ -17,6 +18,8 @@
   function select(tool) {
     if (!TOOL_IDS.includes(tool)) tool = "extractAudio";
     activeTool = tool;
+    el("toolsSharedMediaCard")?.classList.toggle("hidden", tool === "waveform");
+    el("toolsRunArea")?.classList.toggle("hidden", tool === "waveform");
     railButtons().forEach(function (button) {
       var active = button.dataset.toolsSelect === tool;
       button.classList.toggle("active", active);
@@ -63,20 +66,27 @@
   // T4/A3：关闭后隐藏栏不可被键盘继续访问——inert 一并移除焦点。
   function syncRailsReachability() {
     var open = railOpen();
+    ["toolsRailToggle", "settingsRailToggle"].forEach(function (id) {
+      el(id)?.setAttribute("aria-expanded", String(open && drawerTrigger === el(id)));
+      el(id)?.setAttribute("aria-controls", id === "toolsRailToggle" ? "toolsRail" : "settingsRail");
+    });
     document.querySelectorAll(".tools-rail, .settings-rail").forEach(function (rail) {
       var narrow = window.matchMedia("(max-width: 1100px)").matches;
       rail.toggleAttribute("inert", narrow && !open);
     });
   }
 
-  function closeRailDrawer() {
+  function closeRailDrawer(event) {
     if (!railOpen()) return;
     document.body.classList.remove("rail-open");
     el("railBackdrop")?.classList.add("hidden");
     syncRailsReachability();
+    if (event?.type !== "mswnavigation" && drawerTrigger?.checkVisibility()) drawerTrigger.focus();
+    drawerTrigger = null;
   }
 
-  function openRailDrawer(focusTarget) {
+  function openRailDrawer(focusTarget, trigger) {
+    drawerTrigger = trigger;
     document.body.classList.add("rail-open");
     el("railBackdrop")?.classList.remove("hidden");
     syncRailsReachability();
@@ -92,7 +102,7 @@
       button.addEventListener("keydown", moveFocus);
     });
     el("toolsRailToggle")?.addEventListener("click", function () {
-      openRailDrawer(railButtons().find(function (button) { return button.dataset.toolsSelect === activeTool; }));
+      openRailDrawer(railButtons().find(function (button) { return button.dataset.toolsSelect === activeTool; }), el("toolsRailToggle"));
     });
     document.querySelectorAll("#toolsRail .rail-close").forEach(function (button) {
       button.addEventListener("click", closeRailDrawer);
@@ -100,7 +110,7 @@
     // T4/A2：设置分组栏接入同一抽屉控制（此前按钮无绑定，窄窗点击无响应）。
     var settingsTabs = function () { return Array.from(document.querySelectorAll("#settingsRail [data-settings-tab]")); };
     el("settingsRailToggle")?.addEventListener("click", function () {
-      openRailDrawer(settingsTabs().find(function (tab) { return tab.classList.contains("active"); }));
+      openRailDrawer(settingsTabs().find(function (tab) { return tab.classList.contains("active"); }), el("settingsRailToggle"));
     });
     document.querySelectorAll("#settingsRail .rail-close").forEach(function (button) {
       button.addEventListener("click", closeRailDrawer);
@@ -111,10 +121,12 @@
     // 共用遮罩：预制/工具/设置栏都可能打开；点击关闭即可（各自状态互不影响）。
     el("railBackdrop")?.addEventListener("click", closeRailDrawer);
     document.addEventListener("keydown", function (event) {
-      if (event.key !== "Escape" || !railOpen()) return;
+      if (event.key !== "Escape" || !railOpen() || !drawerTrigger) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
       // 工具箱抽屉/菜单等先处理各自的 Esc；这里只收本页栏抽屉。
       closeRailDrawer();
-    });
+    }, true);
     document.addEventListener("mswnavigation", closeRailDrawer);
     window.addEventListener("resize", syncRailsReachability);
     syncRailsReachability();

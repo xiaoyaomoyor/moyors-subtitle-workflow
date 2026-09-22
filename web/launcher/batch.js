@@ -1,431 +1,260 @@
+// Mixed file queue. Pairing is always an explicit user decision.
 (function () {
   "use strict";
-
-  const $ = (id) => document.getElementById(id);
-  const MEDIA_EXTENSIONS = new Set([".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"]);
-  const state = { mode: "single", running: false, cancelling: false, items: [], nextId: 1, progress: { total: 0, finished: 0, done: 0, failed: 0 } };
-
-  function t(key) {
-    return window.MSWLauncher.translate(key);
+  const KEY = "MSW_LAUNCHER_INPUT_QUEUE_V2";
+  const state = { files: [], pairs: [], separate: [], running: false, inspecting: false, runId: "", results: {}, opened: new Set() };
+  const $ = id => document.getElementById(id);
+  const t = key => window.MSWLauncher.translate(key);
+  const bridge = (name, payload) => window.MSWLauncher.callBackend(name, payload);
+  const pathKey = path => String(path || "").replace(/\\/g, "/").toLowerCase();
+  const basename = path => String(path || "").split(/[\\/]/).pop();
+  const pairKey = (a, b) => [a, b].sort().join("|");
+  const stem = path => pathKey(path).replace(/\.[^/.]+$/, "");
+  const id = () => crypto.randomUUID();
+  function persist() {
+    // Only file identities and local choices. Never serialize the live ASR payload.
+    const files = state.files.map(({ id, path, audioTrack, mediaPath, scriptPath, ocrVideoPath }) => ({ id, path, audioTrack, mediaPath, scriptPath, ocrVideoPath }));
+    const results = Object.fromEntries(Object.entries(state.results).map(([id, value]) => [id, { status: value.status === 'done' ? 'done' : 'cancelled', result: value.status === 'done' ? { projectPath: value.result?.projectPath || '', srtPath: value.result?.srtPath || '', translatedSrtPath: value.result?.translatedSrtPath || '', bilingualSrtPath: value.result?.bilingualSrtPath || '' } : null }]));
+    try { localStorage.setItem(KEY, JSON.stringify({ version: 2, files, pairs: state.pairs, separate: state.separate, results, asrPolicy: $('queueAsrPolicy').value })); } catch (_) { /* optional draft */ }
   }
-
-  function extension(path) {
-    return (String(path || "").match(/\.[^.\\/]+$/u)?.[0] || "").toLowerCase();
-  }
-
-  function fileName(path) {
-    const value = String(path || "");
-    return value.split(/[\\/]/u).pop() || value;
-  }
-
-  function findItem(event) {
-    const nested = event.item && typeof event.item === "object" ? event.item : {};
-    const id = String(event.itemId ?? event.id ?? nested.itemId ?? nested.id ?? "");
-    const index = Number(event.index ?? nested.index);
-    const mediaPath = String(event.mediaPath || event.path || nested.mediaPath || nested.path || "");
-    return state.items.find((item) => id && item.id === id)
-      || state.items.find((item) => Number.isInteger(index) && item.index === index)
-      || state.items.find((item) => mediaPath && item.mediaPath === mediaPath)
-      || null;
-  }
-
-  function normalizeEvent(event) {
-    const type = {
-      batch_started: "batchStarted",
-      batch_item: "batchItem",
-      batch_item_log: "batchItemLog",
-      batch_done: "batchDone",
-    }[event.type] || event.type;
-    return { ...event, type };
-  }
-
-  function itemErrorText(code, detail) {
-    const raw = String(detail || "");
-    const translate = window.MAWLauncher?.errorText;
-    if (!code || typeof translate !== "function") return raw;
-    return translate(code, raw) || raw;
-  }
-
-  function setItemDetail(item, detail = "", code = "") {
-    const raw = String(detail || "");
-    const effectiveCode = String(code || item.errorCode || "");
-    if (effectiveCode) item.errorCode = effectiveCode;
-    if (!effectiveCode && !raw) return;
-    const friendly = itemErrorText(effectiveCode, raw) || raw;
-    item.detail = friendly;
-    item.rawDetail = friendly !== raw && !friendly.includes(raw) ? raw : "";
-  }
-
-  function setItemStatus(item, status, detail = "", code = "") {
-    const previousStatus = item.status;
-    item.status = status || item.status;
-    setItemDetail(item, detail, code);
-    if ((previousStatus === "running" || previousStatus === "queued") && ["done", "failed", "cancelled", "skipped"].includes(item.status)) {
-      state.progress.finished += 1;
-      if (item.status === "done") state.progress.done += 1;
-      if (item.status === "failed") state.progress.failed += 1;
-      const index = item.index + 1;
-      const name = fileName(item.mediaPath);
-      const key = item.status === "done" ? "batch_item_done" : item.status === "failed" ? "batch_item_failed" : "batch_item_cancelled";
-      const message = t(key).replace("{index}", String(index)).replace("{name}", name);
-      window.MSWLauncher.appendLog?.(message);
+  function candidates() {
+    const paired = new Set(state.pairs.flat());
+    const list = [];
+    for (const media of state.files.filter(f => f.meta?.kind === "media" && !paired.has(f.id))) {
+      for (const subtitle of state.files.filter(f => f.meta?.kind === "subtitle" && !paired.has(f.id))) {
+        if (stem(media.path) === stem(subtitle.path) && !state.separate.includes(pairKey(media.id, subtitle.id))) list.push([media.id, subtitle.id]);
+      }
     }
-    renderQueue();
+    return list;
   }
-
-  function statusLabel(item) {
-    const key = {
-      queued: "batch_status_queued",
-      running: "batch_status_running",
-      done: "batch_status_done",
-      failed: "batch_status_failed",
-      cancelled: "batch_status_cancelled",
-      skipped: "batch_status_skipped",
-    }[item.status] || "batch_status_queued";
-    return t(key);
-  }
-
-  function actionButton(labelKey, action, disabled = false) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "inline-link";
-    button.textContent = t(labelKey);
-    button.disabled = disabled;
-    button.addEventListener("click", action);
-    return button;
-  }
-
-  function renderQueue() {
-    const queue = $("batchQueue");
-    const expandedDetails = new Set(
-      [...queue.querySelectorAll(".batch-details[open]")]
-        .map((details) => details.closest(".batch-row")?.dataset.itemId)
-        .filter(Boolean),
-    );
-    queue.replaceChildren();
-    state.items.forEach((item, index) => {
-      item.index = index;
-      const row = document.createElement("article");
-      row.className = `batch-row ${item.status}`;
-      row.dataset.itemId = item.id;
-      row.setAttribute("role", "listitem");
-
-      const number = document.createElement("span");
-      number.className = "batch-index";
-      number.textContent = String(index + 1);
-
-      const body = document.createElement("div");
-      body.className = "batch-row-body";
-      const heading = document.createElement("div");
-      heading.className = "batch-row-heading";
-      const name = document.createElement("strong");
-      name.className = "batch-file-name";
-      name.textContent = fileName(item.mediaPath);
-      name.title = item.mediaPath;
-      const status = document.createElement("span");
-      status.className = `batch-status ${item.status}`;
-      status.textContent = statusLabel(item);
-      heading.append(name, status);
-
-      const path = document.createElement("span");
-      path.className = "batch-path";
-      path.textContent = item.mediaPath;
-      path.title = item.mediaPath;
-      body.append(heading, path);
-
-      if (item.detail || item.logs.length) {
-        const details = document.createElement("details");
-        details.className = "batch-details";
-        const summary = document.createElement("summary");
-        summary.textContent = item.status === "failed" ? t("batch_error_details") : t("batch_log_details");
-        const log = document.createElement("pre");
-        log.textContent = [item.detail, item.rawDetail ? `[detail] ${item.rawDetail}` : "", ...item.logs].filter(Boolean).join("\n");
-        details.append(summary, log);
-        details.open = expandedDetails.has(item.id);
-        body.append(details);
-      }
-
-      const actions = document.createElement("div");
-      actions.className = "batch-row-actions";
-      if (item.result?.jsonPath) actions.append(actionButton("batch_open_project", () => window.MSWLauncher.callBackend("open_file", { path: item.result.jsonPath })));
-      if (item.result?.srtPath || item.result?.jsonPath) {
-        const resultPath = item.result.jsonPath || item.result.srtPath;
-        actions.append(actionButton("batch_open_folder", () => window.MSWLauncher.callBackend("open_containing_folder", { path: resultPath })));
-      }
-      if (!state.running) {
-        actions.append(actionButton("batch_remove", () => {
-          state.items = state.items.filter((candidate) => candidate.id !== item.id);
-          renderQueue();
-        }));
-      }
-      row.append(number, body, actions);
-      queue.append(row);
+  function tasks() {
+    const attached = new Set(state.pairs.map(p => p[1]));
+    return state.files.filter(f => !attached.has(f.id)).map(f => {
+      const pair = state.pairs.find(p => p[0] === f.id);
+      const subtitle = pair && state.files.find(s => s.id === pair[1]);
+      return { id: f.id, path: f.path, mediaPath: f.mediaPath || f.meta?.mediaPath || "", subtitlePath: subtitle?.path || "", audioTrack: f.audioTrack ?? f.meta?.audioTrack ?? null, scriptPath: f.scriptPath || "", ocrVideoPath: f.ocrVideoPath || "" };
     });
-    $("batchEmpty").classList.toggle("hidden", state.items.length > 0);
-    $("batchQueueCount").textContent = String(state.items.length);
-    $("batchClear").disabled = state.running || state.items.length === 0;
-    $("startBatch").disabled = state.running || state.items.length === 0;
   }
-
+  function node(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function button(label, action, cls = "ghost small") { const b = node("button", cls, label); b.type = "button"; b.disabled = state.running || state.inspecting; b.addEventListener("click", action); return b; }
+  function changed() { persist(); render(); document.dispatchEvent(new CustomEvent("mswqueuechange")); window.MSWWorkflow?.renderCards(); }
+  async function inspect(files) {
+    state.inspecting = true; render();
+    try {
+      const result = await bridge("inspect_queue_inputs", { paths: files.map(f => f.path) });
+      if (!result.ok) throw Error(result.error || t("failed"));
+      result.items.forEach((meta, i) => {
+        const f = files[i]; if (!state.files.includes(f)) return;
+        f.meta = meta; f.error = meta.ok ? "" : meta.error; f.path = meta.path || f.path;
+      });
+      for (const file of files.filter(f => f.mediaPath)) await inspectLinkedMedia(file);
+      const seen = new Set();
+      state.files = state.files.filter(f => { const key = pathKey(f.path); if (seen.has(key)) return false; seen.add(key); return true; });
+      state.pairs = state.pairs.filter(p => p.every(id => state.files.some(f => f.id === id)));
+    } catch (error) { files.forEach(f => { f.error = error.message; }); }
+    finally { state.inspecting = false; changed(); }
+  }
+  let additions = Promise.resolve();
   function addPaths(paths) {
-    const existing = new Set(state.items.map((item) => item.mediaPath.toLocaleLowerCase()));
-    let rejected = 0;
-    let duplicate = 0;
-    paths.forEach((rawPath) => {
-      const mediaPath = String(rawPath || "").trim();
-      const key = mediaPath.toLocaleLowerCase();
-      if (!mediaPath || !MEDIA_EXTENSIONS.has(extension(mediaPath))) {
-        rejected += 1;
-        return;
+    if (state.running) return Promise.resolve();
+    additions = additions.then(async () => {
+      if (state.running) return;
+      const added = [];
+      for (const path of paths) {
+        if (!path || state.files.some(f => pathKey(f.path) === pathKey(path))) continue;
+        const file = { id: id(), path }; state.files.push(file); added.push(file);
       }
-      if (existing.has(key)) {
-        duplicate += 1;
-        return;
-      }
-      existing.add(key);
-      state.items.push({ id: `batch-${state.nextId}`, index: state.items.length, mediaPath, status: "queued", detail: "", rawDetail: "", errorCode: "", logs: [], result: null });
-      state.nextId += 1;
+      if (added.length) await inspect(added);
     });
-    renderQueue();
-    const notices = [];
-    if (rejected) notices.push(t("batch_rejected").replace("{count}", String(rejected)));
-    if (duplicate) notices.push(`${t("batch_duplicate")}${duplicate > 1 ? ` ×${duplicate}` : ""}`);
-    const notice = $("batchDropNotice");
-    notice.textContent = notices.join(" ");
-    notice.classList.toggle("hidden", notices.length === 0);
+    return additions;
   }
-
-  function showDropNotice(message) {
-    const notice = $("batchDropNotice");
-    notice.textContent = message;
-    notice.classList.remove("hidden");
+  async function chooseFiles() { if (state.running) return; const r = await bridge("choose_file", { kind: "prefab", multiple: true }); if (r.ok) await addPaths(r.paths || [r.path]); }
+  function remove(fileId) {
+    state.files = state.files.filter(f => f.id !== fileId);
+    state.pairs = state.pairs.filter(p => !p.includes(fileId));
+    state.separate = state.separate.filter(key => !key.split("|").includes(fileId));
+    delete state.results[fileId]; changed();
   }
-
-  function lockControls(locked) {
-    window.MSWLauncher.onBatchBusyChanged?.(locked);
-    ["mediaCard", "recognitionCard", "waveformCard", "matchCard", "replaceCard", "proofreadCard", "resegmentCard", "ocrCard", "translateCard", "alignmentCard"].forEach((id) => {
-      $(id).querySelectorAll("button, input, select, textarea").forEach((control) => {
-        control.disabled = locked;
-      });
-    });
-    $("startBatch").classList.toggle("hidden", state.mode !== "batch" || locked);
-    $("stopBatch").classList.toggle("hidden", state.mode !== "batch" || !locked);
-    $("stopBatch").disabled = state.cancelling;
-    $("progress").classList.toggle("hidden", !locked);
-    renderQueue();
-    // 解锁后恢复模式相关禁用态（如批量模式下的文稿匹配），上面的批量解锁不能覆盖它们。
-    if (!locked) window.MSWLauncher.onBatchModeChanged?.(state.mode === "batch");
+  async function inspectLinkedMedia(file) {
+    file.linkedMeta = null; file.linkedError = '';
+    if (!file.mediaPath) { file.audioTrack = file.meta?.audioTrack; return; }
+    try {
+      const inspected = await bridge('inspect_queue_inputs', { paths: [file.mediaPath] });
+      const meta = inspected.items?.[0];
+      if (!meta?.ok || meta.kind !== 'media') throw Error(meta?.error || t('media_not_found'));
+      file.linkedMeta = meta;
+      if (!meta.audioTracks?.some(track => track.audio_index === file.audioTrack)) file.audioTrack = meta.audioTrack;
+    } catch (error) { file.linkedError = error.message; }
   }
-
-  function setMode(mode) {
-    if (state.running) return;
-    state.mode = mode;
-    const batch = mode === "batch";
-    $("singleMode").classList.toggle("active", !batch);
-    $("singleMode").setAttribute("aria-pressed", String(!batch));
-    $("batchMode").classList.toggle("active", batch);
-    $("batchMode").setAttribute("aria-pressed", String(batch));
-    $("singleMediaFields").classList.toggle("hidden", batch);
-    $("batchMediaFields").classList.toggle("hidden", !batch);
-    $("start").classList.toggle("hidden", batch);
-    $("startBatch").classList.toggle("hidden", !batch);
-    $("modeHint").textContent = t(batch ? "mode_batch_hint" : "mode_single_hint");
-    $("dropZone").textContent = t(batch ? "batch_drop_zone" : "drop_hint");
-    $("batchManuscriptNotice").classList.toggle("hidden", !batch);
-    window.MSWLauncher.onBatchModeChanged?.(batch);
-    renderQueue();
-  }
-
-  async function chooseFiles() {
-    const result = await window.MSWLauncher.callBackend("choose_file", { kind: "media", multiple: true });
-    if (!result.ok) return;
-    addPaths(Array.isArray(result.paths) ? result.paths : [result.path]);
-  }
-
-  async function startBatch() {
-    if (!state.items.length || state.running) return;
-    // R4/F07：批量复用与单文件相同的冻结方案；工程/字幕输入模式不支持批量。
-    const plan = window.MSWPlan ? window.MSWPlan.build() : null;
-    if (plan && plan.inputMode === "project") {
-      const message = t("batch_media_only");
-      $("status").textContent = message;
-      appendBatchError(message);
-      window.MSWLauncher.onBatchError?.({ ok: false, code: "batch_media_only" });
-      return;
+  async function updateDetail(file, field, value) {
+    file[field] = value;
+    delete state.results[file.id];
+    if (field === 'mediaPath') {
+      state.inspecting = true; render();
+      try { await inspectLinkedMedia(file); } finally { state.inspecting = false; }
     }
-    const completed = state.items.filter((item) => item.status === "done");
-    let itemsToRun = state.items;
-    if (completed.length && await window.MSWLauncher.confirm(t("batch_skip_completed_confirm"))) {
-      itemsToRun = state.items.filter((item) => item.status !== "done");
-    }
-    if (!itemsToRun.length) {
-      $("status").textContent = t("batch_complete");
-      return;
-    }
-    itemsToRun.forEach((item) => { item.status = "queued"; item.detail = ""; item.rawDetail = ""; item.errorCode = ""; item.logs = []; item.result = null; });
-    state.progress = { total: itemsToRun.length, finished: 0, done: 0, failed: 0 };
-    state.running = true;
-    state.cancelling = false;
-    window.MSWLauncher.onBatchStart?.();
-    lockControls(true);
-    $("status").textContent = t("batch_starting");
-    // 单文件的媒体/输出路径不进批量载荷：每个条目的输出由后端按媒体权威分配。
-    const { mediaPath: _singleMediaPath, srtPath: _singleSrtPath, audioTrack: _singleAudioTrack, defaultAudioTrack: _singleDefaultAudioTrack, ...settings } = window.MSWLauncher.getTranscriptionPayload();
-    settings.generateHtml = false;
-    settings.batchSrtOnly = Boolean($("batchSrtOnly")?.checked);
-    const items = itemsToRun.map((item) => ({ id: item.id, mediaPath: item.mediaPath }));
-    let method = "start_batch_transcription";
-    let payload = { items, settings };
-    if (plan && plan.modules.asr === false) {
-      // 识别关闭：批量执行冻结方案——逐项生成媒体/波形工程，不发起任何转录请求。
-      method = "start_batch_projects";
-      payload = { items, plan };
-    }
-    const result = await window.MSWLauncher.callBackend(method, payload);
-    if (!result.ok) {
-      state.running = false;
-      lockControls(false);
-      const detail = result.detail ? `${result.error || t("failed")} ${result.detail}` : (result.error || t("failed"));
-      $("status").textContent = detail;
-      appendBatchError(detail);
-      window.MSWLauncher.onBatchError?.(result);
-    }
+    changed();
   }
-
-  function appendBatchError(message) {
-    const log = $("log");
-    if (log) log.textContent += `[error] ${message}\n`;
+  async function chooseDetail(file, field, kind) {
+    const r = await bridge("choose_file", { kind }); if (!r.ok) return;
+    await updateDetail(file, field, r.path);
   }
-
-  async function stopBatch() {
-    if (!state.running || state.cancelling) return;
-    state.cancelling = true;
-    lockControls(true);
-    $("status").textContent = t("batch_stopping");
-    const result = await window.MSWLauncher.callBackend("cancel_batch_transcription");
-    if (!result.ok) {
-      state.cancelling = false;
-      lockControls(true);
-      $("status").textContent = result.detail || result.error || t("failed");
-    }
+  function detailPath(box, file, field, label, kind) {
+    const row = node("div", "queue-detail-field");
+    const input = node("input"); input.type = "text"; input.value = file[field] || ""; input.placeholder = t("queue_optional"); input.disabled = state.running || state.inspecting; input.setAttribute("aria-label", label);
+    input.addEventListener("change", () => { void updateDetail(file, field, input.value.trim()); });
+    const name = node("label", "", label); input.id = `queue-${file.id}-${field}`; name.htmlFor = input.id;
+    const controls = node("div", "path-row"); controls.append(input, button(t("choose"), () => chooseDetail(file, field, kind)));
+    row.append(name, controls); box.append(row);
   }
-
-  function handleBatchEvent(event) {
-    event = normalizeEvent(event);
-    if (event.type === "batchStarted") {
-      state.running = true;
-      state.progress.total = Number(event.total) || state.progress.total || state.items.length;
-      lockControls(true);
-      $("status").textContent = t("batch_progress").replace("{current}", "1").replace("{total}", String(state.progress.total)).replace("{name}", fileName(state.items[0]?.mediaPath));
-      window.MSWLauncher.appendLog?.($("status").textContent);
-      return;
+  function render() {
+    const root = $("batchQueue"); if (!root) return;
+    root.replaceChildren();
+    $("batchQueueCount").textContent = t("queue_counts").replace("{files}", state.files.length).replace("{tasks}", tasks().length);
+    $("dropZone").classList.toggle("compact", state.files.length > 0);
+    $("dropZone").disabled = state.running || state.inspecting;
+    $("batchClear").disabled = state.running || state.inspecting || !state.files.length;
+    $("start").disabled = state.running || state.inspecting || !state.files.length;
+    for (const [a, b] of candidates()) {
+      const media = state.files.find(f => f.id === a), subtitle = state.files.find(f => f.id === b);
+      const candidate = node("div", "queue-candidate");
+      candidate.append(node("span", "", t("queue_pair_candidate") + " " + basename(media.path) + " + " + basename(subtitle.path)));
+      const actions = node("div", "queue-inline-actions");
+      actions.append(button(t("queue_pair"), () => { state.pairs.push([a, b]); delete state.results[a]; delete state.results[b]; changed(); }), button(t("queue_separate"), () => { state.separate.push(pairKey(a, b)); changed(); }));
+      candidate.append(actions); root.append(candidate);
     }
-    if (event.type === "batchItemLog") {
-      if (!state.running) return;
-      const item = findItem(event);
-      if (!item) return;
-      const message = String(event.message || event.log || event.item?.message || "");
-      if (message) {
-        item.logs.push(message);
-        window.MSWLauncher.appendLog?.(`[${message}]`, { inline: true });
+    for (const task of tasks()) {
+      const file = state.files.find(f => f.id === task.id), outcome = state.results[task.id];
+      const item = node("article", "queue-file"); item.dataset.taskId = task.id; item.setAttribute("role", "listitem");
+      const head = node("div", "queue-file-head");
+      const icon = node("span", "queue-file-icon"); icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6"/></svg>';
+      const title = node("div", "queue-file-title"); title.append(node("strong", "", basename(file.path)), node("span", "hint", t("queue_kind_" + (file.meta?.kind || "file")) + (task.subtitlePath ? " + " + basename(task.subtitlePath) : "")));
+      const status = file.error || file.linkedError ? t("queue_invalid") : outcome ? t("queue_status_" + outcome.status) : state.inspecting && !file.meta ? t("queue_reading") : t("queue_ready");
+      const badge = node("span", "queue-status" + (file.error || file.linkedError || outcome?.status === "failed" ? " error" : ""), status);
+      head.append(icon, title, badge, button(t("batch_remove"), () => remove(file.id))); item.append(head);
+      if (file.error || file.linkedError || outcome?.message) item.append(node("p", "field-error visible", file.error || file.linkedError || outcome.message));
+      const warnings = [...file.meta?.warnings || [], ...outcome?.result?.warnings || []];
+      if (warnings.length) item.append(node("p", "hint", warnings.join(" · ")));
+      const details = node("details", "queue-details"); details.open = state.opened.has(file.id);
+      details.addEventListener("toggle", () => { if (details.open) state.opened.add(file.id); else state.opened.delete(file.id); });
+      details.append(node("summary", "", t("queue_details")), node("p", "queue-path", file.path));
+      if (task.subtitlePath) {
+        details.append(node("p", "queue-path", task.subtitlePath), button(t("queue_unpair"), () => { const pair = state.pairs.find(p => p[0] === file.id); state.separate.push(pairKey(...pair)); delete state.results[file.id]; state.pairs = state.pairs.filter(p => p !== pair); changed(); }));
       }
-      renderQueue();
-      return;
-    }
-    if (event.type === "batchItem") {
-      if (!state.running) return;
-      const item = findItem(event);
-      if (!item) return;
-      const nested = event.item && typeof event.item === "object" ? event.item : {};
-      item.result = event.result || nested.result || ((event.srtPath || event.jsonPath || event.htmlPath) ? { srtPath: event.srtPath || "", jsonPath: event.jsonPath || "", htmlPath: event.htmlPath || "" } : item.result);
-      const detail = event.error || event.detail || nested.error || nested.detail || "";
-      const code = event.code || nested.code || "";
-      const nextStatus = event.status || nested.status || (item.result ? "done" : item.status);
-      if (nextStatus === "running") {
-        $("status").textContent = t("batch_progress").replace("{current}", String(item.index + 1)).replace("{total}", String(state.progress.total)).replace("{name}", fileName(item.mediaPath));
-        window.MSWLauncher.appendLog?.($("status").textContent);
+      if (file.meta?.kind !== "media") detailPath(details, file, "mediaPath", t("queue_link_media"), "media");
+      const tracks = file.linkedMeta?.audioTracks || file.meta?.audioTracks || [];
+      if (tracks.length > 1) {
+        const label = node("label", "queue-detail-field", t("audio_track")); const select = node("select");
+        select.setAttribute("aria-label", t("audio_track")); select.disabled = state.running || state.inspecting;
+        tracks.forEach(track => select.add(new Option(`${track.audio_index + 1} · ${track.language || track.title || track.codec_name || t("audio_track")}`, track.audio_index)));
+        select.value = String(task.audioTrack ?? 0); select.addEventListener("change", () => { file.audioTrack = Number(select.value); delete state.results[file.id]; persist(); }); label.append(select); details.append(label);
       }
-      setItemStatus(item, nextStatus, detail, code);
-      return;
+      if (window.MSWModules?.isEnabled("match")) detailPath(details, file, "scriptPath", t("queue_manuscript"), "script");
+      if (window.MSWModules?.isEnabled("ocr")) detailPath(details, file, "ocrVideoPath", t("queue_ocr_video"), "video");
+      item.append(details);
+      if (outcome?.result?.projectPath) item.append(button(t("open_project_result"), () => { window.MSWLauncher.setJsonPath(outcome.result.projectPath); window.MSWLauncher.openServerEditor(); }));
+      const artifact = outcome?.result?.projectPath || outcome?.result?.srtPath || outcome?.result?.translatedSrtPath || outcome?.result?.bilingualSrtPath;
+      if (artifact) item.append(button(t('artifact_open_folder'), async () => { const result = await bridge('open_containing_folder', { path: artifact }); if (!result.ok) window.MSWLauncher.onBatchError(result); }));
+      root.append(item);
     }
-    if (event.type === "batchDone") {
-      if (!state.running) return;
-      const cancelled = Boolean(event.cancelled) || event.status === "cancelled";
-      const outcomes = Array.isArray(event.outcomes) ? event.outcomes : [];
-      outcomes.forEach((rawOutcome, index) => {
-        const outcome = rawOutcome && typeof rawOutcome === "object" ? rawOutcome : {};
-        const item = findItem({ ...outcome, index: outcome.index ?? index });
-        if (!item) return;
-        const result = outcome.result && typeof outcome.result === "object" ? outcome.result : {};
-        const srtPath = outcome.srtPath || outcome.srt_path || result.srtPath || result.srt_path || "";
-        const jsonPath = outcome.jsonPath || outcome.json_path || outcome.projectPath || outcome.project_path || result.jsonPath || result.json_path || result.projectPath || result.project_path || "";
-        const htmlPath = outcome.htmlPath || outcome.html_path || result.htmlPath || result.html_path || "";
-        if (srtPath || jsonPath || htmlPath) item.result = { srtPath, jsonPath, htmlPath };
-        item.status = outcome.status || item.status;
-        setItemDetail(item, outcome.error || outcome.detail || "", outcome.code || "");
-      });
-      // batchDone 是终态真源：未被 outcomes 覆盖、仍停在 queued/running 的行必须落到终态。
-      state.items.forEach((item) => {
-        if (item.status !== "queued" && item.status !== "running") return;
-        item.status = cancelled ? "cancelled" : "failed";
-        if (!cancelled && !item.detail) setItemDetail(item, t("batch_outcome_missing"));
-      });
-      state.running = false;
-      state.cancelling = false;
-      lockControls(false);
-      if (!cancelled) {
-        state.progress.done = state.items.filter((item) => item.status === "done").length;
-        state.progress.failed = state.items.filter((item) => item.status === "failed").length;
-        $("status").textContent = t("batch_progress_done").replace("{done}", String(state.progress.done)).replace("{failed}", String(state.progress.failed));
-        window.MSWLauncher.appendLog?.($("status").textContent);
-      } else {
-        $("status").textContent = t("batch_cancelled");
+  }
+  const locked = new Map();
+  function setBusy(busy) {
+    state.running = busy;
+    window.MSWLauncher.setQueueRunning(busy);
+    if (busy) document.querySelectorAll('[data-page-id="prefab"] input, [data-page-id="prefab"] select, [data-page-id="prefab"] textarea, #prefabRail button, [data-page-id="prefab"] .module-body button').forEach(el => { locked.set(el, el.disabled); el.disabled = true; });
+    else { locked.forEach((disabled, el) => { el.disabled = disabled; }); locked.clear(); }
+    render();
+  }
+  function showErrors(errors) {
+    for (const error of errors) { if (error.taskId) state.results[error.taskId] = { status: "failed", message: error.message }; }
+    const first = errors[0]; if (!first) return;
+    window.MSWWorkflow?.setCollapsed(first.module || "media", false);
+    document.querySelector(`[data-module-card="${first.module || "media"}"]`)?.scrollIntoView({ block: "nearest" });
+    window.MSWLauncher.onBatchError({ code: "queue_preflight", detail: first.message, error: first.message });
+    render();
+  }
+  async function start() {
+    if (state.running || state.inspecting) return;
+    let plan = window.MSWPlan.build();
+    const check = window.MSWPlan.preflight(plan);
+    if (!check.ok) { showErrors([{ taskId: check.taskId, module: check.module, message: t(check.code) }]); return; }
+    const failed = state.files.filter(f => f.error || f.linkedError);
+    if (failed.length) { showErrors(failed.map(f => ({ taskId: f.id, module: "media", message: f.error || f.linkedError }))); return; }
+    const asrTask = plan.modules.asr && plan.tasks.find(task => plan.asrPolicy === 'replace' || (!task.subtitlePath && !state.files.find(f => f.id === task.id)?.meta?.hasSubtitles));
+    if (asrTask && !window.MSWLauncher.validateQueueRecognition(asrTask.mediaPath)) { window.MSWWorkflow?.setCollapsed('asr', false); return; }
+    const allCount = plan.tasks.length;
+    // Shared manuscript applies only to an original one-task queue, including retries.
+    if (allCount === 1 && !plan.tasks[0].scriptPath) plan.tasks[0].scriptPath = plan.postprocess.steps?.find(s => s.id === "match")?.scriptPath || "";
+    if (allCount > 1) plan.postprocess.steps?.forEach(step => { if (step.id === "match") step.scriptPath = ""; });
+    if (plan.tasks.some(task => state.results[task.id]?.status === "done")) {
+      const skip = await window.MSWLauncher.confirm(t("queue_rerun"));
+      if (skip) plan.tasks = plan.tasks.filter(task => state.results[task.id]?.status !== "done");
+    }
+    if (!plan.tasks.length) return;
+    plan = JSON.parse(JSON.stringify(plan));
+    state.runId = ""; state.pendingEvents = []; state.cancelRequested = false;
+    state.activeIds = plan.tasks.map(task => task.id);
+    plan.tasks.forEach(task => { state.results[task.id] = { status: "queued" }; });
+    setBusy(true);
+    try {
+      const r = await bridge("start_prefab_queue", { plan });
+      if (!r.ok) { state.activeIds.forEach(id => delete state.results[id]); setBusy(false); showErrors(r.errors || [{ message: r.detail || r.error || t("failed") }]); return; }
+      state.runId = r.runId;
+      if (state.cancelRequested) await bridge("cancel_prefab_queue", { runId: r.runId });
+      const pending = state.pendingEvents; state.pendingEvents = [];
+      pending.forEach(handleEvent);
+    } catch (error) { state.activeIds.forEach(id => delete state.results[id]); setBusy(false); showErrors([{ message: error.message }]); }
+  }
+  async function stop() {
+    if (!state.running) return;
+    state.cancelRequested = true;
+    $("stop").disabled = true;
+    if (!state.runId) return;
+    try { const r = await bridge("cancel_prefab_queue", { runId: state.runId }); if (!r.ok) throw Error(r.error); }
+    catch (error) { $("stop").disabled = false; window.MSWLauncher.appendLog(error.message); }
+  }
+  function handleEvent(event) {
+    if (!state.running) return;
+    if (!state.runId) { state.pendingEvents.push(event); return; }
+    if (event.runId !== state.runId) return;
+    if (event.type === "queueItem") { state.results[event.taskId] = event; render(); }
+    if (event.type === "queueProgress") {
+      const module = event.step || ({ asr: 'asr', waveform: 'waveform', postprocess: 'replace' })[event.stage];
+      const message = event.message || (module ? t('mod_' + module) : '');
+      if (message) window.MSWLauncher.appendLog(String(message));
+    }
+    if (event.type === 'queueItem' && event.status === 'running') window.MSWLauncher.setQueueProgress(`${event.index + 1}/${state.activeIds.length} · ${basename(state.files.find(f => f.id === event.taskId)?.path)}`);
+    if (event.type === "queueDone") {
+      event.results?.forEach(item => { state.results[item.taskId] = item; });
+      for (const id of state.activeIds) {
+        if (!['done', 'failed', 'cancelled'].includes(state.results[id]?.status)) state.results[id] = { taskId: id, status: event.cancelled ? 'cancelled' : 'failed', message: event.cancelled ? '' : t('queue_missing_result') };
       }
+      event = { ...event, results: state.activeIds.map(id => state.results[id]) };
+      setBusy(false);
+      persist();
+      const done = event.results?.filter(r => r.status === "done") || [];
+      window.MSWLauncher.finishQueue(event, done.at(-1)?.result?.projectPath || "");
     }
   }
-
-  function handleDrop(event) {
-    if (state.mode !== "batch" || state.running) return;
-    // pywebview sends the authoritative absolute paths asynchronously through
-    // the Python bridge. Do not enqueue browser-only file.name values first,
-    // or the later full-path event will be treated as a duplicate.
-    if (window.MSWLauncher.backend === "real") return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const files = Array.from(event.dataTransfer?.files || []);
-    if (!files.length) return;
-    addPaths(files.map((file) => file.path || file.name));
+  async function initialize() {
+    $("dropZone").addEventListener("click", chooseFiles);
+    $('queueAsrPolicy').addEventListener('change', persist);
+    $("batchClear").addEventListener("click", () => { state.files = []; state.pairs = []; state.separate = []; state.results = {}; changed(); });
+    document.addEventListener("mswmodules", render);
+    document.addEventListener("mswlanguage", render);
+    window.MSWLauncher.onQueueEvent = handleEvent;
+    window.MSWLauncher.onBatchDrop = path => { if (document.querySelector('.page.active')?.dataset.pageId !== "prefab") return false; if (path && !state.running) void addPaths([path]); return true; };
+    window.MSWLauncher.onBatchDropReject = window.MSWLauncher.onBatchDrop;
+    try {
+      const draft = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (draft?.version === 2 && Array.isArray(draft.files)) { state.files = draft.files.filter(f => f.id && typeof f.path === "string"); state.pairs = Array.isArray(draft.pairs) ? draft.pairs.filter(p => Array.isArray(p) && p.length === 2) : []; state.separate = Array.isArray(draft.separate) ? draft.separate : []; state.results = draft.results && typeof draft.results === 'object' ? draft.results : {}; }
+      if (draft?.asrPolicy === 'replace') $('queueAsrPolicy').value = 'replace';
+    } catch (_) { /* ignore invalid drafts */ }
+    if (state.files.length) await inspect(state.files.slice()); else render();
+    window.MSWWorkflow?.renderCards();
   }
-
-  function initialize() {
-    $("singleMode").addEventListener("click", () => setMode("single"));
-    $("batchMode").addEventListener("click", () => setMode("batch"));
-    $("batchAddFiles").addEventListener("click", chooseFiles);
-    $("batchClear").addEventListener("click", () => { state.items = []; renderQueue(); });
-    $("startBatch").addEventListener("click", startBatch);
-    $("stopBatch").addEventListener("click", stopBatch);
-  // R4：暴露只读状态视图供测试与外部观察（冻结方案的逐项执行结果）。
-  window.MSWBatch = { get state() { return state; } };
-    $("mediaCard").addEventListener("drop", handleDrop, true);
-    window.MSWLauncher.onBatchEvent = handleBatchEvent;
-    window.MSWLauncher.onBatchDrop = (path) => {
-      if (state.mode !== "batch" || state.running || !path) return false;
-      addPaths([path]);
-      return true;
-    };
-    window.MSWLauncher.onBatchDropReject = (path) => {
-      if (state.mode !== "batch" || state.running) return false;
-      showDropNotice(t("batch_rejected").replace("{count}", "1"));
-      return true;
-    };
-    const previousLanguageChanged = window.MSWLauncher.onLanguageChanged;
-    window.MSWLauncher.onLanguageChanged = () => {
-      previousLanguageChanged?.();
-      setMode(state.mode);
-      renderQueue();
-    };
-    setMode("single");
-  }
-
+  window.MSWQueue = { state, tasks, candidates, addPaths, start, stop, render };
+  window.MSWBatch = { get state() { return { ...state, items: tasks(), mode: tasks().length > 1 ? "batch" : "single" }; } };
   window.addEventListener("mawlauncherready", initialize, { once: true });
-}());
+})();

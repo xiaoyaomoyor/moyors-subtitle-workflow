@@ -1003,6 +1003,7 @@ def generate_reapeaks_stream_bytes(
     audio_track: int = 0,
     flavor: str = "quapeaks",
     self_peaks: tuple[int, int, bytes] | None = None,
+    cancel_event=None,
 ) -> bytes | None:
     """Stream .ReaPeaks bytes straight from ffmpeg's WAV pipe.
 
@@ -1049,6 +1050,18 @@ def generate_reapeaks_stream_bytes(
         print(f"[reapeaks] 启动 ffmpeg 失败: {exc}")
         return None
     assert proc.stdout is not None
+    import threading
+    finished = threading.Event()
+    def cancel_decode():
+        while not finished.wait(0.1):
+            if cancel_event.is_set():
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                return
+    if cancel_event is not None:
+        threading.Thread(target=cancel_decode, daemon=True, name="msw-cache-cancel").start()
     try:
         header = proc.stdout.read(4096)
         parsed = _parse_wav_header(header)
@@ -1111,6 +1124,7 @@ def generate_reapeaks_stream_bytes(
         print(f"[reapeaks] .ReaPeaks 生成失败: {exc}")
         return None
     finally:
+        finished.set()
         proc.stdout.close()
         stderr_file.close()
         if proc.poll() is None:
@@ -1155,6 +1169,8 @@ def generate_for_media(
     default_audio_track: int | None = None,
     self_peaks: tuple[int, int, bytes] | None = None,
     self_peaks_media_path: Path | str | None = None,
+    force: bool = False,
+    cancel_event=None,
 ) -> Path | None:
     """Best-effort peaks-container generation for a media file, or the existing path.
 
@@ -1214,7 +1230,7 @@ def generate_for_media(
         default_audio_track=default_audio_track,
     )
     existing = existing_hit.path if existing_hit is not None else None
-    if existing is not None and _reapeaks_matches_media(existing, signature_path):
+    if not force and existing is not None and _reapeaks_matches_media(existing, signature_path):
         if (
             existing_hit is not None
             and existing_hit.kind == "exact"
@@ -1233,6 +1249,8 @@ def generate_for_media(
     )
     missing = True
     for decode_path in candidates:
+        if cancel_event is not None and cancel_event.is_set():
+            return None
         if not decode_path.is_file():
             continue
         missing = False
@@ -1251,12 +1269,15 @@ def generate_for_media(
                 include_spectral=include_spectral,
                 audio_track=audio_track if decode_path == signature_path else 0,
                 self_peaks=candidate_self_peaks,
+                **({"cancel_event": cancel_event} if cancel_event is not None else {}),
             )
         except Exception as exc:  # noqa: BLE001
             # 生成是兜底：任何失败都不阻断转写/启动流程。具体原因（缺 ffmpeg /
             # 解码失败 / Rust 内核故障）由 generate_reapeaks_stream_bytes 打日志，
             # 这里的异常仅剩写文件或取 stat 等罕见兜底路径。
             print(f"[reapeaks] {QUAPEAKS_SUFFIX} 生成失败: {exc}")
+            return None
+        if cancel_event is not None and cancel_event.is_set():
             return None
         if data is None:
             if decode_path is candidates[0] and len(candidates) > 1:
@@ -1280,6 +1301,10 @@ def generate_for_media(
             with output:
                 temporary = Path(output.name)
                 output.write(data)
+            if not _self_check(temporary, want_self_wave=candidate_self_peaks is not None):
+                return None
+            if cancel_event is not None and cancel_event.is_set():
+                return None
             temporary.replace(target)
         except OSError as exc:
             print(f"[reapeaks] {QUAPEAKS_SUFFIX} 写入失败: {exc}")
@@ -1287,8 +1312,6 @@ def generate_for_media(
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
-        if not _self_check(target, want_self_wave=candidate_self_peaks is not None):
-            return None
         return target
     if missing:
         print(f"[reapeaks] 警告: 缓存媒体不存在，已跳过生成: {candidates[0]}")

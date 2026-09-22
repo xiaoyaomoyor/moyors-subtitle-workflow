@@ -97,4 +97,11 @@ class CacheBoundaryTests(unittest.TestCase):
                 self.assertIsNotNone(result)
                 for call in generate.call_args_list:
                     self.assertEqual(call.kwargs['self_peaks'], peaks if call.args[0] == self_source else None)
-                check.assert_called_once_with(result, want_self_wave=self_source == derived)
+                # Self-check the temporary container before publishing it atomically.
+                check.assert_called_once()
+                self.assertEqual(check.call_args.kwargs, {'want_self_wave': self_source == derived})
+                checked_path = check.call_args.args[0]
+                self.assertEqual(checked_path.parent, result.parent)
+                self.assertNotEqual(checked_path, result)
+                self.assertFalse(checked_path.exists())
+                self.assertEqual(result.read_bytes(), b'container')

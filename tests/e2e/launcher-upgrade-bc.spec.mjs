@@ -1,3 +1,4 @@
+import { setLauncherLanguage } from './launcher-language.mjs';
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -12,8 +13,7 @@ async function open(page) {
 
 test('output settings retain the inactive per-media preference and preserve an explicit path', async ({ page }) => {
   await open(page);
-  await page.locator('#mediaPath').fill('D:\\Demo\\clip.mp4');
-  await page.locator('#mediaPath').dispatchEvent('change');
+  await page.evaluate(path => MSWQueue.addPaths([path]), 'D:\\Demo\\clip.mp4');
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   // S2：输出偏好位于「文件与输出」分组（默认进入「外观与语言」）。
@@ -24,16 +24,18 @@ test('output settings retain the inactive per-media preference and preserve an e
   await page.locator('#attachModelName').check();
   await page.locator('#outputSubfolder').check();
   await page.locator('#perVideoSubfolder').check();
-  await expect(page.locator('#srtPath')).toHaveValue(/clip_msw.*\.qwen-audio\.srt$/);
+  expect(await page.evaluate(() => MSWPlan.build().output.srtPath)).toBe('');
   await page.locator('#outputSubfolder').uncheck();
   await expect(page.locator('#perVideoSubfolder')).toBeChecked();
   await expect(page.locator('#perVideoSubfolder')).toBeDisabled();
-  await expect(page.locator('#srtPath')).toHaveValue('D:\\Demo\\clip.qwen-audio.srt');
+  expect(await page.evaluate(() => MSWPlan.build().output.srtPath)).toBe('');
   await page.locator('#attachModelName').uncheck();
-  await expect(page.locator('#srtPath')).toHaveValue('D:\\Demo\\clip.srt');
+  expect(await page.evaluate(() => MSWPlan.build().output.srtPath)).toBe('');
   await page.keyboard.press('Escape');
   // S5：SRT 输出字段迁入输出卡——启用输出模块后显式填写路径（显式路径不被默认策略改写）。
   await page.locator('#prefabRail input[data-module-id="output"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "output");
+  await page.locator('#customSrtDetails summary').click();
   await page.locator('#srtPath').scrollIntoViewIfNeeded();
   await page.locator('#srtPath').fill('E:\\我的输出\\chosen.srt');
   await page.locator('#srtPath').dispatchEvent('input');
@@ -49,6 +51,7 @@ test('segmentation and local runtime controls live in settings; installation loc
   await open(page);
   // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.locator('#provider').selectOption('local');
   await expect(page.locator('#localRuntimeCheckField')).toBeVisible();
   await expect(page.locator('#localRuntimePanel')).toBeHidden();
@@ -90,12 +93,13 @@ test('English runtime states retain concrete diagnostic details and model choice
   await open(page);
   // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.locator('#provider').selectOption('local');
   await page.waitForTimeout(100);
   await page.evaluate(() => {
     window.MSWLauncher.config.localRuntime = { status: 'broken', ready: false, detail: 'DLL load failed: example.dll', path: 'D:\\Runtime' };
   });
-  await page.locator('#langToggle').click();
+  await setLauncherLanguage(page, 'en');
   await expect(page.locator('#provider option:checked')).toHaveText('Local models (Beta)');
   await expect(page.locator('#model')).toHaveValue('qwen3-asr-local');
   await page.locator('#openLocalRuntimeSettings').click();
@@ -107,11 +111,12 @@ test('batch activity disables the runtime directory until the batch finishes', a
   await open(page);
   // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.locator('#provider').selectOption('local');
   await page.locator('#openLocalRuntimeSettings').click();
-  await page.evaluate(() => window.MSWLauncher.onBackendEvent({ type: 'batchStarted', total: 1 }));
+  await page.evaluate(() => window.MSWLauncher.setQueueRunning(true));
   await expect(page.locator('#localRuntimePath')).toBeDisabled();
-  await page.evaluate(() => window.MSWLauncher.onBackendEvent({ type: 'batchDone', items: [], cancelled: true }));
+  await page.evaluate(() => window.MSWLauncher.setQueueRunning(false));
   await expect(page.locator('#localRuntimePath')).toBeEnabled();
 });
 

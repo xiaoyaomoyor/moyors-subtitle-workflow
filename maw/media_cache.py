@@ -14,7 +14,8 @@ from typing import Any
 
 from maw import mopeaks, quapeaks
 from maw.project_io import INLINE_CACHE_KEYS as CACHE_KEYS
-from maw.waveform import embed_waveform, media_signature
+from maw.waveform import embed_waveform, media_signature, load_or_extract_waveform, EmbeddedWaveformResult, waveform_matches_media
+from maw.project_io import discard_stale_inline_caches
 
 
 @dataclass
@@ -58,6 +59,7 @@ def _persist_mopeaks_fallback(
     *,
     audio_track: int = 0,
     default_audio_track: int = 0,
+    force: bool = False,
 ) -> None:
     """内核那一档没成，就把自研波形写进 mopeaks（纯 Python，不需要内核）。"""
     hit = mopeaks.load_mopeaks_hit(
@@ -65,7 +67,7 @@ def _persist_mopeaks_fallback(
         audio_track=audio_track,
         default_audio_track=default_audio_track,
     )
-    if hit is not None and hit.kind == "exact":
+    if not force and hit is not None and hit.kind == "exact":
         return  # 已有有效回退档，不必白写一遍
     try:
         written = mopeaks.save_mopeaks(
@@ -100,6 +102,8 @@ def embed_media_caches(
     default_audio_track: int = 0,
     decode_audio_track: int | None = None,
     cancel_event=None,
+    reuse_existing: bool = False,
+    force_rebuild: bool = False,
 ) -> MediaCacheResult:
     """嵌入波形缓存并生成 .ReaPeaks 缓存（best-effort）。
 
@@ -151,13 +155,29 @@ def embed_media_caches(
         decode_path = source_path
     # Explicit decode indices describe a derived file, never the original source.
     decode_audio_track = audio_track if decode_path == source_path else (decode_audio_track or 0)
-    waveform_result = embed_waveform(
-        project,
-        decode_path,
-        ffmpeg_bin=ffmpeg_bin,
-        audio_track=decode_audio_track,
-        cancel_event=cancel_event,
-    )
+    if reuse_existing:
+        project = {**project, "media_metadata": {**project.get("media_metadata", {}), "selected_audio_track": audio_track}}
+        project = discard_stale_inline_caches(project, decode_path)
+        for key in ("waveform", "waveform_reapeaks"):
+            if not waveform_matches_media(project.get(key), decode_path, audio_track=audio_track):
+                project.pop(key, None)
+        for key, schema in (("spectral", quapeaks.SPECTRAL_SCHEMA),):
+            if project.get(key, {}).get("schema") != schema:
+                project.pop(key, None)
+    retained = {key: project[key] for key in CACHE_KEYS if key in project} if reuse_existing else {}
+    if reuse_existing and not force_rebuild:
+        try:
+            payload, _ = load_or_extract_waveform(project.get("waveform"), decode_path,
+                ffmpeg_bin=ffmpeg_bin, audio_track=decode_audio_track,
+                default_audio_track=default_audio_track, cancel_event=cancel_event)
+            waveform_result = EmbeddedWaveformResult({**project, "waveform": payload})
+        except Exception as error:
+            waveform_result = EmbeddedWaveformResult(dict(project), error)
+    else:
+        waveform_result = embed_waveform(
+            project, decode_path, ffmpeg_bin=ffmpeg_bin,
+            audio_track=decode_audio_track, cancel_event=cancel_event)
+    _raise_if_cancelled(cancel_event)
     if (
         waveform_result.error is not None
         and decode_path != cache_path
@@ -196,8 +216,9 @@ def embed_media_caches(
     else:
         print(f"[waveform] 警告: {waveform_result.error}；已跳过波形缓存")
 
-    project.pop("loudness", None)
-    project.pop("spectral", None)
+    if not reuse_existing:
+        project.pop("loudness", None)
+        project.pop("spectral", None)
     if generate_spectral:
         print("[reapeaks] 正在生成波形和频谱缓存（可能需要一些时间）……")
     else:
@@ -221,7 +242,9 @@ def embed_media_caches(
         default_audio_track=default_audio_track,
         self_peaks=self_peaks,
         self_peaks_media_path=decode_path,
+        **({"force": force_rebuild, "cancel_event": cancel_event} if reuse_existing or force_rebuild else {}),
     )
+    _raise_if_cancelled(cancel_event)
     if reapeaks_path is not None:
         cache_kind = "波形和频谱缓存" if generate_spectral else "波形缓存"
         print(f"[reapeaks] 已生成{cache_kind}: {reapeaks_path.name}")
@@ -284,7 +307,11 @@ def embed_media_caches(
                 decode_path,
                 audio_track=audio_track,
                 default_audio_track=default_audio_track,
+                **({"force": True} if force_rebuild else {}),
             )
+    if reuse_existing:
+        for key, payload in retained.items():
+            project.setdefault(key, payload)
     return MediaCacheResult(
         project=project,
         waveform_error=waveform_result.error,

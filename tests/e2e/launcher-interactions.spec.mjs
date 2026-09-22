@@ -1,3 +1,4 @@
+import { setLauncherLanguage } from './launcher-language.mjs';
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,7 @@ test('OpenAI ASR exposes official models and a conditional Custom model input', 
   await openLauncher(page);
   // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.locator('#provider').selectOption('openai');
 
   await expect(page.locator('#provider option[value="openai"]')).toHaveText('OpenAI（及兼容接口）');
@@ -40,10 +42,11 @@ test('OpenAI ASR exposes official models and a conditional Custom model input', 
   await expect(page.locator('#openaiModel')).toHaveValue('my-custom-model');
 });
 
-test('OCR video source follows a newly dropped video media', async ({ page }) => {
+test('explicit OCR video source is not overwritten when another media is queued', async ({ page }) => {
   await openLauncher(page);
   // S4：OCR 配置在预制页独立卡内（先启用模块使卡可见）。
   await page.locator('#prefabRail input[data-module-id="ocr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "ocr");
   await page.locator('#ocrVideoPath').fill('D:\\Demo\\1.mov');
   await page.evaluate(() => {
     const jsonPath = document.getElementById('jsonPath');
@@ -52,17 +55,17 @@ test('OCR video source follows a newly dropped video media', async ({ page }) =>
     window.MSWLauncher.onBackendEvent({ type: 'dropMedia', path: 'D:\\Demo\\new-video.mp4' });
   });
 
-  await expect(page.locator('#mediaPath')).toHaveValue('D:\\Demo\\new-video.mp4');
-  await expect(page.locator('#ocrVideoPath')).toHaveValue('D:\\Demo\\new-video.mp4');
+  await expect.poll(() => page.evaluate(() => MSWQueue.tasks()[0]?.mediaPath)).toBe('D:\\Demo\\new-video.mp4');
+  await expect(page.locator('#ocrVideoPath')).toHaveValue('D:\\Demo\\1.mov');
   await expect.poll(async () => page.evaluate(() => {
     const step = window.MSWLauncher.config?.postprocessAutoPlan?.steps?.find((item) => item.id === 'ocr');
     return [step?.videoPath || '', step?.videoPathMode || ''];
-  })).toEqual(['', 'auto']);
+  })).toEqual(['D:\\Demo\\1.mov', 'manual']);
 });
 
 test('automatic OCR video source is not persisted as a manual override', async ({ page }) => {
   await openLauncher(page);
-  await page.locator('#mediaPath').fill('D:\\Demo\\1.mov');
+  await page.evaluate(path => MSWQueue.addPaths([path]), 'D:\\Demo\\1.mov');
 
   const ocrStep = await page.evaluate(() => window.MSWLauncher.getAutoPostprocessPayload()
     .steps.find((step) => step.id === 'ocr'));
@@ -72,14 +75,15 @@ test('automatic OCR video source is not persisted as a manual override', async (
   await page.evaluate(() => {
     window.MSWLauncher.onBackendEvent({ type: 'dropMedia', path: 'D:\\Demo\\2.mov' });
   });
-  await expect(page.locator('#ocrVideoPath')).toHaveValue('D:\\Demo\\2.mov');
+  await expect.poll(() => page.evaluate(() => MSWQueue.tasks().length)).toBe(2);
+  expect(await page.evaluate(() => MSWLauncher.getAutoPostprocessPayload().steps.find(s => s.id === 'ocr').videoPathMode)).toBe('auto');
 });
 
 test('translation merge option follows manual and automatic translation controls', async ({ page }) => {
   await openLauncher(page);
 
   // S4：合并双语是翻译卡的固定选项（不再随手动操作面板显隐）。
-  await expect(page.locator('#autoTranslateMergeBilingual')).toHaveCount(1);
+  await expect(page.locator('#translationWriteMode')).toHaveCount(1);
 
   await page.evaluate(() => {
     const provider = window.MSWLauncher.config.postprocessProviders.find((item) => item.id === 'deepseek');
@@ -93,20 +97,21 @@ test('translation merge option follows manual and automatic translation controls
   });
   // D 阶段模块化：后处理配置卡在任一后处理模块启用后出现；deepseek 已就绪，经右栏启用翻译模块。
   await page.locator('#prefabRail input[data-module-id="translate"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "translate");
   await expect(page.locator('[data-module-card="translate"]')).toBeVisible();
   await expect(page.locator('#autoTranslateTarget')).toBeVisible();
-  await expect(page.locator('#autoTranslateMergeBilingual')).not.toBeChecked();
+  await expect(page.locator('#translationWriteMode')).toHaveValue('secondary');
 
-  await page.locator('#autoTranslateMergeBilingual').check();
+  await page.locator('#translationWriteMode').selectOption('bilingual');
   await expect.poll(() => page.evaluate(() => {
     const plans = window.__savedPlans || [];
     const latest = plans[plans.length - 1];
     return latest?.steps?.find((step) => step.id === 'translate')?.mergeBilingual;
   })).toBe(true);
 
-  await page.locator('#autoStepTranslate').uncheck();
+  await page.locator('#prefabRail input[data-module-id="translate"]').uncheck();
   await expect(page.locator('#autoTranslateTargetField')).toBeHidden();
-  await expect(page.locator('#autoTranslateMergeField')).toBeHidden();
+  await expect(page.locator('#translationWriteMode')).toBeHidden();
 });
 
 test('Launcher settings switch between accessible tabs and deep links', async ({ page }) => {
@@ -167,9 +172,10 @@ test('does not start local transcription while model status is still checking', 
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.locator('#provider').selectOption('local');
   await expect(page.locator('#localModelPanel')).toBeVisible();
-  await page.locator('#mediaPath').fill('D:\\Demo\\clip.mp4');
+  await page.evaluate(path => MSWQueue.addPaths([path]), 'D:\\Demo\\clip.mp4');
   // S5：SRT 输出字段迁入输出卡——经表单状态直接设置（输出卡未启用时不阻塞用例语义）。
   await page.evaluate(() => {
     const field = document.getElementById('srtPath');
@@ -179,6 +185,7 @@ test('does not start local transcription while model status is still checking', 
 
   // R4/F09：识别默认关闭；本用例验证转录管线，先显式启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.evaluate(() => {
     const config = window.MSWLauncher.config;
     config.localRuntime = { status: 'ready', ready: true, path: '', pythonPath: '' };
@@ -199,6 +206,7 @@ test('keeps local runtime events working after the page learns that installation
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   // R4/F09：识别默认关闭；本用例操作识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.locator('#provider').selectOption('local');
   await page.locator('#openLocalRuntimeSettings').click();
   await expect(page.locator('#localRuntimePanel')).toBeVisible();
@@ -269,7 +277,7 @@ test('Custom provider labels and missing-key errors follow the selected language
   await expect(customOption).toHaveText('自定义（兼容 OpenAI）');
   await expect(settingsCustomOption).toHaveText('自定义（兼容 OpenAI）');
 
-  await page.locator('#langToggle').click();
+  await setLauncherLanguage(page, 'en');
   await expect(customOption).toHaveText('Custom (OpenAI-compatible)');
   await expect(settingsCustomOption).toHaveText('Custom (OpenAI-compatible)');
   // S4：LLM 连接配置在更多设置·服务与连接。
@@ -547,6 +555,7 @@ test('error reports copy safe details and support file URL fallback', async ({ p
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   // R4/F09：识别默认关闭；本用例涉及识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
+  await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
   await page.locator('#apiKey').fill('sk-secret-test-key');
   await page.evaluate(() => {
     window.MSWLauncher.appendLog('child output: duration probe failed');
@@ -690,7 +699,7 @@ test('server media accepts a dropped file even when batch mode is selected', asy
   await page.locator('#serverMediaField').evaluate((element) => element.classList.remove('hidden'));
   // 批量切换位于「预制工程」页的媒体卡。
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  await page.locator('#batchMode').click();
+  await page.evaluate(() => MSWQueue.addPaths(['D:/Demo/queued-a.mp4', 'D:/Demo/queued-b.mp4']));
 
   await page.locator('#serverMediaPath').evaluate((input) => {
     const dataTransfer = { types: ['Files'], files: [{ path: 'D:\\Demo\\clip.mp4' }] };
@@ -704,149 +713,34 @@ test('server media accepts a dropped file even when batch mode is selected', asy
 
   await expect(page.locator('#serverMediaPath')).toHaveValue('D:\\Demo\\clip.mp4');
   await expect(page.locator('#serverMediaPath')).not.toHaveClass(/drag-over/);
-  await expect(page.locator('.batch-row')).toHaveCount(0);
+  await expect(page.locator('.queue-file')).toHaveCount(2);
 });
 
-test('batch mode disables manuscript matching without changing its saved single-file choice', async ({ page }) => {
-  // Given: manuscript matching is configured and selected for single-file transcription.
-  await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  // D 阶段模块化：先配置文稿再经右栏启用文稿匹配模块（未就绪勾选会被打回并打开工具箱），
-  // 配置卡因模块启用而出现，总开关随任一模块启用自动打开。
-  await page.evaluate(() => {
-    const field = document.getElementById('postprocessScriptPath');
-    field.value = 'D:\\Demo\\script.txt';
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+test('adding tasks keeps manuscript matching enabled and requires per-task mappings', async ({ page }) => {
+  await openLauncher(page);
   await page.locator('#prefabRail input[data-module-id="match"]').check();
-  await expect(page.locator('[data-module-card="match"]')).toBeVisible();
-  const match = page.locator('#autoStepMatch');
-  await expect(match).toBeChecked();
-  await expect(page.locator('#batchManuscriptNotice')).toBeHidden();
-  await page.evaluate(() => {
-    window.__savedPlans = [];
-    const callBackend = window.MSWLauncher.callBackend;
-    window.MSWLauncher.callBackend = async (method, payload) => {
-      if (method === 'save_postprocess_plan') window.__savedPlans.push(JSON.parse(JSON.stringify(payload.plan)));
-      return callBackend(method, payload);
-    };
-  });
-
-  // When: batch mode is selected and another setting is edited (which persists the plan).
-  await page.locator('#batchMode').click();
-
-  // Then: matching is visibly unavailable but the user's selection is preserved.
-  await expect(match).toBeChecked();
-  await expect(match).toBeDisabled();
-  await expect(page.locator('[data-auto-step-row="match"]')).toHaveClass(/batch-unavailable/);
-  await expect(page.locator('#batchManuscriptNotice')).toBeVisible();
-  await expect(page.locator('#batchManuscriptNotice')).toHaveAttribute('role', 'note');
-  await page.evaluate(() => {
-    const field = document.getElementById('postprocessReplacements');
-    field.value = 'old => new';
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  await page.waitForFunction(() => (window.__savedPlans || []).length > 0);
-  const plans = await page.evaluate(() => window.__savedPlans);
-  expect(plans.length).toBeGreaterThan(0);
-  for (const plan of plans) {
-    expect(plan.steps.find((step) => step.id === 'match').enabled).toBe(true);
-  }
-
-  // When: single-file mode is restored.
-  await page.locator('#singleMode').click();
-
-  // Then: the saved single-file choice is untouched.
-  await expect(match).toBeChecked();
-  await expect(match).toBeEnabled();
+  await page.evaluate(() => MSWQueue.addPaths(['D:/Demo/a.srt', 'D:/Demo/b.srt']));
+  await expect(page.locator('#prefabRail input[data-module-id="match"]')).toBeChecked();
+  await expect(page.locator('#prefabRail input[data-module-id="match"]')).toBeEnabled();
+  expect(await page.evaluate(() => MSWPlan.build().postprocess.steps.find(s => s.id === 'match').enabled)).toBe(true);
+  await page.locator('.queue-details summary').first().click();
+  await expect(page.locator('.queue-file').first().getByLabel('本任务文稿', { exact: true })).toBeVisible();
 });
 
-test('batch start delegates output allocation and batchDone reconciles every terminal outcome', async ({ page }) => {
-  // Given: three queued files and a bridge spy that leaves allocation to the batch backend.
-  await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  // R4/F09：识别默认关闭；本用例验证转录批量分配，先启用识别模块。
-  await page.locator('#prefabRail input[data-module-id="asr"]').check();
-  await page.locator('#batchMode').click();
-  await page.evaluate(() => {
-    window.__batchCalls = [];
-    window.MSWLauncher.callBackend = async (method, payload) => {
-      window.__batchCalls.push({ method, payload });
-      return { ok: true };
-    };
-    const drop = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(drop, 'dataTransfer', {
-      value: { files: [{ path: 'D:\\Demo\\first.mp3' }, { path: 'D:\\Demo\\second.mp3' }, { path: 'D:\\Demo\\third.mp3' }] },
+for (const cancelled of [true, false]) {
+  test('queueDone reconciles missing terminal outcomes: cancelled=' + cancelled, async ({ page }) => {
+    await openLauncher(page);
+    await page.evaluate(() => MSWQueue.addPaths(['D:/Demo/one.mp3', 'D:/Demo/two.mp3']));
+    await page.evaluate(() => {
+      const original = MSWLauncher.callBackend;
+      MSWLauncher.callBackend = (method, payload) => method === 'start_prefab_queue' ? Promise.resolve({ ok: true, runId: 'test-run' }) : original(method, payload);
     });
-    document.getElementById('mediaCard').dispatchEvent(drop);
+    await page.locator('#start').click();
+    await page.waitForFunction(() => MSWQueue.state.runId === 'test-run');
+    await page.evaluate(cancelled => MSWLauncher.onBackendEvent({ type: 'queueDone', runId: 'test-run', cancelled, results: [{ taskId: MSWQueue.tasks()[0].id, status: 'done', result: { projectPath: 'D:/Demo/result.mosp' } }] }), cancelled);
+    await expect(page.locator('.queue-status').first()).toHaveText('已完成');
+    await expect(page.locator('.queue-status').last()).toHaveText(cancelled ? '已取消' : '失败');
+    if (!cancelled) await expect(page.locator('.queue-file').last()).toContainText('未收到此任务的结果');
+    await expect(page.locator('#start')).toBeEnabled();
   });
-
-  // When: the run starts and the backend reports one completed and one cancelled item.
-  await page.locator('#startBatch').click();
-  await page.evaluate(() => window.MSWLauncher.onBackendEvent({
-    type: 'batch_done',
-    status: 'cancelled',
-    outcomes: [
-      { id: 'batch-1', status: 'done', result: { srt_path: 'D:\\Demo\\first.srt', json_path: 'D:\\Demo\\first.mosp' } },
-      { id: 'batch-2', status: 'cancelled', error: 'Cancelled before start' },
-    ],
-  }));
-
-  // Then: no preallocation call occurred and the single-file paths stay out of the shared settings.
-  const calls = await page.evaluate(() => window.__batchCalls);
-  expect(calls.map(({ method }) => method)).toEqual(['start_batch_transcription']);
-  expect(calls[0].payload.items).toEqual([
-    { id: 'batch-1', mediaPath: 'D:\\Demo\\first.mp3' },
-    { id: 'batch-2', mediaPath: 'D:\\Demo\\second.mp3' },
-    { id: 'batch-3', mediaPath: 'D:\\Demo\\third.mp3' },
-  ]);
-  expect(calls[0].payload.settings.mediaPath).toBeUndefined();
-  expect(calls[0].payload.settings.srtPath).toBeUndefined();
-  expect(calls[0].payload.settings.providerId).toBeTruthy();
-
-  // Then: every row reaches a terminal state, including the unreported cancelled leftover.
-  const rows = page.locator('.batch-row');
-  await expect(rows).toHaveCount(3);
-  await expect(rows.nth(0)).toHaveClass(/done/);
-  await expect(rows.nth(1)).toHaveClass(/cancelled/);
-  await expect(rows.nth(2)).toHaveClass(/cancelled/);
-  await expect(rows.nth(2).locator('.batch-status')).toHaveText('已取消');
-  await expect(page.locator('.batch-row.queued')).toHaveCount(0);
-  await expect(rows.nth(0).getByRole('button', { name: '打开工程' })).toBeVisible();
-  await expect(rows.nth(0).getByRole('button', { name: '打开文件夹' })).toBeVisible();
-});
-
-test('batchDone fails rows that never reported when the batch was not cancelled', async ({ page }) => {
-  // Given: two queued files started in batch mode.
-  await page.goto(`file://${launcherPath}`);
-  await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  await page.evaluate(() => window.MSWNavigation.show('prefab'));
-  await page.locator('#batchMode').click();
-  await page.evaluate(() => {
-    window.MSWLauncher.callBackend = async () => ({ ok: true });
-    const drop = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(drop, 'dataTransfer', {
-      value: { files: [{ path: 'D:\\Demo\\first.mp3' }, { path: 'D:\\Demo\\second.mp3' }] },
-    });
-    document.getElementById('mediaCard').dispatchEvent(drop);
-  });
-
-  // When: the batch finishes normally but only one item ever reported an outcome.
-  await page.locator('#startBatch').click();
-  await page.evaluate(() => window.MSWLauncher.onBackendEvent({
-    type: 'batchDone',
-    status: 'done',
-    outcomes: [{ id: 'batch-1', status: 'done', srtPath: 'D:\\Demo\\first.srt', jsonPath: 'D:\\Demo\\first.mosp' }],
-  }));
-
-  // Then: the unreported row cannot remain queued and explains its failure.
-  const rows = page.locator('.batch-row');
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0)).toHaveClass(/done/);
-  await expect(rows.nth(1)).toHaveClass(/failed/);
-  await expect(rows.nth(1).locator('.batch-status')).toHaveText('失败');
-  await expect(rows.nth(1).locator('.batch-details')).toContainText('批量结束时未收到该文件的结果');
-  await expect(page.locator('.batch-row.queued')).toHaveCount(0);
-});
+}

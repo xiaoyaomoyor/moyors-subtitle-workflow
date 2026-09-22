@@ -20,14 +20,7 @@
   });
   const CUSTOM_DEFAULT_LABEL = "Custom (OpenAI-compatible)";
   const AUTO_STEP_ORDER = ["match", "replace", "proofread", "resegment", "ocr", "translate"];
-  const AUTO_STEP_CHECKBOXES = {
-    match: "autoStepMatch",
-    replace: "autoStepReplace",
-    proofread: "autoStepProofread",
-    resegment: "autoStepResegment",
-    ocr: "autoStepOcr",
-    translate: "autoStepTranslate",
-  };
+  const stepEnabled = id => Boolean(window.MSWModules?.isEnabled(id));
   const AUTO_LLM_OPERATIONS = { proofread: "proofread", resegment: "resegment" };
   let autoPlanSaveTimer = 0;
   let pendingAutoStep = "";
@@ -41,7 +34,6 @@
   let modelChoices = [];
   let modelChoicesOpen = false;
   let llmPrompts = {};
-  let batchMode = false;
   let postprocessApiKeyRequest = 0;
   let scriptPreviewRequest = 0;
   let splitPreviewRequest = 0;
@@ -57,7 +49,7 @@
 
   function taskPromptText(operation = "proofread") {
     const key = TASK_PROMPT_KEYS[operation];
-    return key ? t(key) : "";
+    return window.MSWLauncher.config?.postprocessPrompts?.[operation] || (key ? t(key) : "");
   }
 
   function loadLlmPrompts() {
@@ -368,7 +360,7 @@
 
   function syncProviderOptionLabels() {
     const providers = window.MSWLauncher.config?.postprocessProviders || [];
-    [$("postprocessProvider"), $("llmProvider")].forEach((select) => {
+    [$("postprocessProvider"), $("llmProvider"), $("proofreadProvider"), $("resegmentProvider"), $("translateProvider")].forEach((select) => {
       providers.forEach((item) => {
         const option = Array.from(select.options).find((candidate) => candidate.value === item.id);
         if (option) option.textContent = providerLabel(item);
@@ -850,8 +842,7 @@
     }
   }
 
-  // S2：波形生成工具已随旧工具箱实用工具页签移除——波形/频谱生成回归预制页执行链
-  //（plan.js 读预制页 generateSpectral），不再保留独立工具入口。
+  // 独立波形工具由 waveform-tool.js 管理，与预制队列共用缓存执行链。
 
   function setFieldError(field, message) {
     const input = $(field);
@@ -934,7 +925,6 @@
 
   function autoStepHint(stepId) {
     if (stepId === "match") {
-      if (batchMode) return t("batch_manuscript_disabled");
       const path = $("postprocessScriptPath").value.trim();
       return path ? fileName(path) : t("auto_step_hint_no_file");
     }
@@ -956,20 +946,19 @@
   }
 
   function autoPlanFromControls() {
-    const providerId = $("postprocessProvider").value || "deepseek";
     const ocr = ocrRegionPayload();
     // S4：总开关移除——任一步骤勾选即视为启用（与模块卡一一对应）。
     const steps = [
-        // 始终上报用户的单文件勾选；批量运行由后端统一跳过文稿匹配，前端不改写、不持久化批量态。
-        { id: "match", enabled: Boolean($("autoStepMatch")?.checked), scriptPath: $("postprocessScriptPath").value.trim(), matchMode: $("postprocessMatchMode").value, extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), preservePunctuation: punctuationLines("postprocessPreservePunctuation"), cleanMarkdownSymbols: Boolean($("postprocessCleanMarkdownSymbols")?.checked) },
-        { id: "replace", enabled: Boolean($("autoStepReplace")?.checked), replacements: parseReplacements(), replacementSeparator: $("postprocessReplacementSeparator").value, replacementTrim: $("postprocessReplacementTrim").checked, replacementCustomSeparator: $("postprocessReplacementCustomSeparator").value, conversion: $("postprocessConversion").value },
-        { id: "proofread", enabled: Boolean($("autoStepProofread")?.checked), providerId, customPrompt: getLlmPrompt("proofread") },
-        { id: "resegment", enabled: Boolean($("autoStepResegment")?.checked), providerId, customPrompt: getLlmPrompt("resegment") },
-        { id: "ocr", enabled: Boolean($("autoStepOcr")?.checked), videoPath: ocrVideoManual ? $("ocrVideoPath").value.trim() : "", videoPathMode: ocrVideoManual ? "manual" : "auto", ...ocr, threshold: Number($("ocrThreshold").value), report: Boolean($("ocrReport").checked) },
-        { id: "translate", enabled: Boolean($("autoStepTranslate")?.checked), providerId, target: $("autoTranslateTarget").value || "zh", mergeBilingual: Boolean($("autoTranslateMergeBilingual")?.checked), embedTranslations: Boolean($("autoTranslateBackfill")?.checked), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
+        // 模块启用只来自 MSWModules；队列执行器为每项补充文稿和媒体。
+        { id: "match", enabled: stepEnabled("match"), scriptPath: $("postprocessScriptPath").value.trim(), matchMode: $("postprocessMatchMode").value, extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), preservePunctuation: punctuationLines("postprocessPreservePunctuation"), cleanMarkdownSymbols: Boolean($("postprocessCleanMarkdownSymbols")?.checked) },
+        { id: "replace", enabled: stepEnabled("replace"), replacements: parseReplacements(), replacementSeparator: $("postprocessReplacementSeparator").value, replacementTrim: $("postprocessReplacementTrim").checked, replacementCustomSeparator: $("postprocessReplacementCustomSeparator").value, conversion: $("postprocessConversion").value },
+        { id: "proofread", enabled: stepEnabled("proofread"), providerId: $("proofreadProvider").value, customPrompt: getLlmPrompt("proofread") },
+        { id: "resegment", enabled: stepEnabled("resegment"), providerId: $("resegmentProvider").value, customPrompt: getLlmPrompt("resegment") },
+        { id: "ocr", enabled: stepEnabled("ocr"), modelId: $("ocrModel").value, videoPath: ocrVideoManual ? $("ocrVideoPath").value.trim() : "", videoPathMode: ocrVideoManual ? "manual" : "auto", ...ocr, threshold: Number($("ocrThreshold").value), report: Boolean($("ocrReport").checked) },
+        { id: "translate", enabled: stepEnabled("translate"), providerId: $("translateProvider").value, target: $("autoTranslateTarget").value || "zh", mergeBilingual: ($("translationWriteMode").value === "bilingual"), embedTranslations: ($("translationWriteMode").value === "backfill"), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
       ];
     return {
-      version: 1,
+      version: 1, outputSemantics: 'separate-v2',
       enabled: steps.some((step) => step.enabled),
       retainIntermediate: Boolean($("autoPostprocessRetain")?.checked),
       // T3/A1：有效输出配置——输出模块关闭时草稿不生效：导出开关回默认（true），
@@ -979,6 +968,7 @@
         : {
           exportSrt: Boolean($("outputExportSrt")?.checked ?? true),
           exportTranslatedSrt: Boolean($("outputExportTranslatedSrt")?.checked ?? true),
+          exportBilingualSrt: $('outputExportBilingualSrt').checked,
           outputDirectory: $("outputDirectory")?.value.trim() || "",
           outputStem: $("outputProjectName")?.value.trim() || "",
         }),
@@ -993,19 +983,23 @@
 
   function autoStepReady(stepId) {
     if (stepId === "match") {
-      const path = $("postprocessScriptPath").value.trim();
+      const tasks = window.MSWQueue?.tasks() || [];
+      if (tasks.length > 1) return tasks.every(task => task.scriptPath && SCRIPT_EXTS.has(extension(task.scriptPath)));
+      const path = tasks[0]?.scriptPath || $("postprocessScriptPath").value.trim();
       return Boolean(path && SCRIPT_EXTS.has(extension(path)));
     }
     if (stepId === "replace") return parseReplacements().length > 0 || $("postprocessConversion").value !== "off";
-    if (["proofread", "resegment", "translate"].includes(stepId)) return autoLlmReady($("postprocessProvider").value);
+    if (["proofread", "resegment", "translate"].includes(stepId)) return autoLlmReady($(stepId + "Provider").value);
     if (stepId === "ocr") {
       const config = window.MSWLauncher.config || {};
       const ocrModel = (Array.isArray(config.ocrModels) ? config.ocrModels : [])
         .find((item) => item.id === $("ocrModel").value);
       if (!config.ocrRuntime?.ready || !ocrModel?.installed) return false;
       const threshold = Number($("ocrThreshold").value);
-      const video = $("ocrVideoPath").value.trim() || autoOcrVideoPath();
-      if (!video || !VIDEO_EXTS.has(extension(video)) || !Number.isFinite(threshold) || threshold < 0 || threshold > 1) return false;
+      const sharedVideo = $("ocrVideoPath").value.trim() || autoOcrVideoPath();
+      const tasks = window.MSWQueue?.tasks() || [];
+      const videos = tasks.length ? tasks.map(task => task.ocrVideoPath || sharedVideo || task.mediaPath) : [sharedVideo];
+      if (videos.some(video => !video || !VIDEO_EXTS.has(extension(video))) || !Number.isFinite(threshold) || threshold < 0 || threshold > 1) return false;
       if ($("ocrRegionMode").value === "custom_region") {
         const x1 = Number($("ocrRegionX1").value); const y1 = Number($("ocrRegionY1").value);
         const x2 = Number($("ocrRegionX2").value); const y2 = Number($("ocrRegionY2").value);
@@ -1021,37 +1015,17 @@
   }
 
   function renderAutoPostprocessState() {
-    $("autoTranslateBilingualOrder").disabled = !$("autoTranslateMergeBilingual").checked;
-    const selected = [];
-    const invalid = [];
-    AUTO_STEP_ORDER.forEach((stepId) => {
-      const checkbox = $(AUTO_STEP_CHECKBOXES[stepId]);
-      const status = $(`autoStep${stepId[0].toUpperCase()}${stepId.slice(1)}Status`);
-      const row = document.querySelector(`[data-auto-step-row="${stepId}"]`);
-      const enabled = Boolean(checkbox?.checked);
-      const available = stepId !== "match" || !batchMode;
-      if (stepId === "match" && batchMode && checkbox) {
-        checkbox.disabled = true;
-      } else if (stepId === "match" && checkbox) {
-        checkbox.disabled = false;
-      }
+    updateOutputCardState();
+    $("translationOrderField").classList.toggle('hidden', $("translationWriteMode").value !== 'bilingual');
+    renderLlmServiceSummaries();
+    AUTO_STEP_ORDER.forEach(stepId => {
+      const card = document.querySelector('[data-module-card="' + stepId + '"]');
+      if (!card) return;
       const ready = autoStepReady(stepId);
-      if (enabled && available) selected.push(stepId);
-      if (enabled && available && !ready) invalid.push(stepId);
-      if (status) {
-        status.textContent = available && enabled ? t(ready ? "auto_status_ready" : "auto_status_config") : t("auto_status_disabled");
-        status.classList.toggle("ready", available && enabled && ready);
-        status.classList.toggle("invalid", available && enabled && !ready);
-      }
-      const hint = $(`autoStep${stepId[0].toUpperCase()}${stepId.slice(1)}Hint`);
-      if (hint) {
-        hint.textContent = autoStepHint(stepId);
-        hint.title = hint.textContent;
-      }
-      row?.classList.toggle("needs-config", available && enabled && !ready);
-      row?.classList.toggle("batch-unavailable", !available);
+      card.dataset.configReady = String(ready);
+      const status = card.querySelector('.module-status');
+      if (status) { status.textContent = t(ready ? 'auto_status_ready' : 'auto_status_config'); status.classList.toggle('invalid', !ready); }
     });
-    const translateEnabled = Boolean($("autoStepTranslate")?.checked);
   }
   function stateLangSeparator() {
     return window.MSWLauncher?.translate("nav_prefab")?.includes("Prefab") ? ", " : "、";
@@ -1060,7 +1034,10 @@
   function persistAutoPlanSoon() {
     window.clearTimeout(autoPlanSaveTimer);
     autoPlanSaveTimer = window.setTimeout(async () => {
-      const result = await bridge("save_postprocess_plan", { plan: autoPlanFromControls() });
+      const plan = autoPlanFromControls();
+      plan.waveformDraft = { spectral: $('generateSpectral').checked, rebuild: $('waveformCacheMode').value === 'rebuild' };
+      plan.outputDraft = { directory: $('outputDirectory').value, name: $('outputProjectName').value, srtPath: $('srtPath').value, exportSrt: $('outputExportSrt').checked, exportTranslatedSrt: $('outputExportTranslatedSrt').checked, exportBilingualSrt: $('outputExportBilingualSrt').checked, srtOnly: $('batchSrtOnly').checked, generateHtml: $('generateHtml').checked };
+      const result = await bridge("save_postprocess_plan", { plan });
       if (result.ok && window.MSWLauncher.config) window.MSWLauncher.config.postprocessAutoPlan = result.plan;
     }, 180);
   }
@@ -1096,8 +1073,9 @@
   function openAutoStep(stepId, invalidField = "", { highlightConnection = false } = {}) {
     pendingAutoStep = stepId;
     const llmStep = ["proofread", "resegment", "translate"].includes(stepId);
-    if (llmStep && !autoLlmReady($("postprocessProvider").value)) {
-      const item = provider();
+    if (llmStep && !autoLlmReady($(stepId + "Provider").value)) {
+      renderProvider($(stepId + "Provider").value);
+      const item = provider($(stepId + "Provider").value);
       const focusId = ["llmApiKey", "llmBaseUrl", "llmModel"].includes(invalidField)
         ? invalidField
         : (item?.hasApiKey === false ? "llmApiKey" : (item?.hasBaseUrl === false ? "llmBaseUrl" : "llmModel"));
@@ -1115,9 +1093,7 @@
   function maybeEnablePendingAutoStep() {
     const stepId = pendingAutoStep;
     if (!stepId || !autoStepReady(stepId)) return false;
-    const checkbox = $(AUTO_STEP_CHECKBOXES[stepId]);
-    if (!checkbox) return false;
-    checkbox.checked = true;
+    window.MSWModules?.setEnabled(stepId, true);
     pendingAutoStep = "";
     renderAutoPostprocessState();
     persistAutoPlanSoon();
@@ -1127,8 +1103,19 @@
   function applyAutoPostprocessPlan(rawPlan) {
     const plan = rawPlan && typeof rawPlan === "object" ? rawPlan : defaultAutoPlan();
     $("autoPostprocessRetain").checked = Boolean(plan.retainIntermediate);
+    if (plan.waveformDraft) { $("generateSpectral").checked = Boolean(plan.waveformDraft.spectral); $("waveformCacheMode").value = plan.waveformDraft.rebuild ? "rebuild" : "reuse"; }
+    const draft = plan.outputDraft && Object.keys(plan.outputDraft).length ? plan.outputDraft : { directory: plan.outputDirectory || '', name: plan.outputStem || '', exportSrt: plan.exportSrt !== false, exportTranslatedSrt: plan.exportTranslatedSrt !== false };
+    for (const [field, key] of Object.entries({outputDirectory:'directory',outputProjectName:'name',srtPath:'srtPath'})) $(field).value = draft[key] || '';
+    for (const [field,key] of Object.entries({outputExportSrt:'exportSrt',outputExportTranslatedSrt:'exportTranslatedSrt',outputExportBilingualSrt:'exportBilingualSrt',batchSrtOnly:'srtOnly',generateHtml:'generateHtml'})) $(field).checked = Boolean(draft[key]);
+    $('customSrtDetails').open = Boolean(draft.srtPath);
+    $('outputLegacyNotice').classList.toggle('hidden', plan.outputSemantics === 'separate-v2' || !plan.steps?.some(step => step.id === 'translate' && step.mergeBilingual));
     const byId = new Map(Array.isArray(plan.steps) ? plan.steps.map((step) => [step.id, step]) : []);
-    AUTO_STEP_ORDER.forEach((stepId) => { $(AUTO_STEP_CHECKBOXES[stepId]).checked = Boolean(byId.get(stepId)?.enabled); });
+    for (const id of ['proofread', 'resegment', 'translate']) {
+      const select = $(id + 'Provider'); const fallback = plan.steps?.find(step => step.providerId)?.providerId || 'deepseek';
+      const selected = byId.get(id)?.providerId || fallback;
+      select.replaceChildren(...(window.MSWLauncher.config.postprocessProviders || []).map(item => new Option(providerLabel(item), item.id)));
+      select.value = [...select.options].some(option => option.value === selected) ? selected : select.options[0]?.value || '';
+    }
     const match = byId.get("match") || {};
     $("postprocessMatchMode").value = match.matchMode === "text" ? "text" : "script";
     $("postprocessScriptPath").value = String(match.scriptPath || "");
@@ -1150,6 +1137,7 @@
       if (typeof prompt === "string") llmPrompts[autoLlmOperation(stepId)] = prompt;
     });
     const ocr = byId.get("ocr") || {};
+    if (ocr.modelId) { config.ocrModelId = ocr.modelId; $("ocrModel").value = ocr.modelId; renderOcrModel(); }
     const configuredVideoPath = String(ocr.videoPath || "").trim();
     const videoPathMode = String(ocr.videoPathMode || "").trim();
     // Older plans persisted the auto-filled path as if it were a manual override.
@@ -1166,8 +1154,7 @@
     $("ocrReport").checked = Boolean(ocr.report);
     const translate = byId.get("translate") || {};
     $("autoTranslateTarget").value = String(translate.target || "zh");
-    $("autoTranslateMergeBilingual").checked = Boolean(translate.mergeBilingual);
-    $("autoTranslateBackfill").checked = Boolean(translate.embedTranslations) && !translate.mergeBilingual;
+    $("translationWriteMode").value = translate.mergeBilingual ? 'bilingual' : translate.embedTranslations ? 'backfill' : 'secondary';
     $("autoTranslateBilingualOrder").value = ["translation_first", "original_first"].includes(translate.bilingualLineOrder) ? translate.bilingualLineOrder : "";
     const translatePrompt = byId.get("translate")?.customPrompt;
     if (typeof translatePrompt === "string") llmPrompts[autoLlmOperation("translate")] = translatePrompt;
@@ -1480,7 +1467,7 @@
   $("postprocessPreservePunctuation").addEventListener("input", () => { validateMatchPunctuation(); void refreshScriptPreview(); persistAutoPlanSoon(); });
   $("postprocessCleanMarkdownSymbols").addEventListener("input", () => { void refreshScriptPreview(); persistAutoPlanSoon(); });
   $("postprocessMatchMode").addEventListener("change", () => { validateMatchPunctuation(); void refreshScriptPreview(); persistAutoPlanSoon(); });
-  $("ocrModel").addEventListener("change", renderOcrModel);
+  $("ocrModel").addEventListener("change", () => { renderOcrModel(); persistAutoPlanSoon(); });
   $("openOcrSettings").addEventListener("click", () => window.MSWLauncher.openSettings("ocrSettingsSection"));
   $("openPunctSettings").addEventListener("click", () => window.MSWLauncher.openSettings("punctuationSettingsSection"));
   $("runFfconcatRebuild").addEventListener("click", runFfconcat);
@@ -1606,6 +1593,7 @@
     $(id).addEventListener("input", () => { renderAutoPostprocessState(); maybeEnablePendingAutoStep(); persistAutoPlanSoon(); });
     $(id).addEventListener("change", () => { renderAutoPostprocessState(); maybeEnablePendingAutoStep(); persistAutoPlanSoon(); });
   });
+  for (const id of ["generateSpectral", "waveformCacheMode"]) $(id).addEventListener("change", persistAutoPlanSoon);
   $("autoPostprocessRetain").addEventListener("change", () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
   // S4：目标语言切换 → 翻译卡提示词换键（proofread/resegment 各自独立，不受影响）。
   $("autoTranslateTarget").addEventListener("change", () => {
@@ -1613,29 +1601,11 @@
     renderAutoPostprocessState();
     persistAutoPlanSoon();
   });
-  $("autoTranslateMergeBilingual").addEventListener("change", () => {
-    if ($("autoTranslateMergeBilingual").checked) $("autoTranslateBackfill").checked = false;
-    renderAutoPostprocessState(); persistAutoPlanSoon();
-  });
-  $("autoTranslateBackfill").addEventListener("change", () => {
-    if ($("autoTranslateBackfill").checked) $("autoTranslateMergeBilingual").checked = false;
-    renderAutoPostprocessState(); persistAutoPlanSoon();
-  });
+  $("translationWriteMode").addEventListener('change', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  for (const id of ['proofread', 'resegment', 'translate']) $(id + 'Provider').addEventListener('change', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
   $("autoTranslateBilingualOrder").addEventListener("change", persistAutoPlanSoon);
-  AUTO_STEP_ORDER.forEach((stepId) => {
-    const checkbox = $(AUTO_STEP_CHECKBOXES[stepId]);
-    checkbox.addEventListener("change", () => {
-      // R4/F11：未就绪不再打回取消勾选——保留选中并标记「待配置」，
-      // 建立方案时可以先勾选，配置在本模块补齐；开始前由预检统一校验。
-      if (checkbox.checked && !autoStepReady(stepId)) {
-        renderAutoPostprocessState();
-        persistAutoPlanSoon();
-        return;
-      }
-      renderAutoPostprocessState();
-      persistAutoPlanSoon();
-    });
-  });
+  document.addEventListener('mswmodules', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  document.addEventListener('mswqueuechange', renderAutoPostprocessState);
   ["jsonPath", "srtPath", "mediaPath"].forEach((id) => $(id).addEventListener("input", () => {
     syncPaths();
     if (id === "mediaPath") void refreshAudioTracks();
@@ -1656,18 +1626,20 @@
     if (event.stage === "step_done") setResult(`${autoStepLabel(event.step)}：${t("toolbox_done")}`, "success");
   };
   function renderLlmServiceSummaries() {
-    // S4：三张 LLM 卡共用的服务摘要（连接配置在更多设置·服务与连接）。
-    const item = provider();
-    const model = $("llmModel")?.value?.trim() || "—";
-    const text = `${t("toolbox_provider")}: ${providerLabel(item)} · ${t("llm_model")}: ${model}`;
-    ["Proofread", "Resegment", "Translate"].forEach((suffix) => {
-      const node = $(`llmServiceSummary${suffix}`);
-      if (node) node.textContent = text;
-    });
+    for (const id of ['proofread', 'resegment', 'translate']) {
+      const item = provider($(id + 'Provider').value || 'deepseek');
+      if (!item) continue;
+      $(id + 'Model').value = item.model || '—';
+      $(id + 'PresetName').textContent = autoStepLabel(id) + (id === 'translate' ? ' · ' + $('autoTranslateTarget').selectedOptions[0].textContent : '');
+      $(id + 'PresetText').textContent = taskPromptText(autoLlmOperation(id));
+      const node = $('llmServiceSummary' + id[0].toUpperCase() + id.slice(1));
+      if (node) node.textContent = ''; // Readiness is shown once in the module header.
+    }
+    $('translationImpact').textContent = t('translation_impact_' + $('translationWriteMode').value);
   }
 
   document.querySelectorAll(".open-llm-settings").forEach((button) => {
-    button.addEventListener("click", () => window.MSWLauncher.openSettings("llmSettingsSection"));
+    button.addEventListener("click", () => { const id = button.closest('[data-module-card]')?.dataset.moduleCard; if (id && $(id + 'Provider')) renderProvider($(id + 'Provider').value); window.MSWLauncher.openSettings("llmSettingsSection"); });
   });
   // S4/§6.4：对齐卡入口直达实用工具页的同一面板（§4.2：不再维护第二份表单）。
   $("openAlignmentWorkbench").addEventListener("click", () => {
@@ -1687,29 +1659,50 @@
 
   // S5/§7.1：输出卡联动——译文行随翻译模块显隐、SRT 框随导出开关可用、预览随输入更新。
   function updateOutputCardState() {
-    const translateOn = Boolean($("autoStepTranslate")?.checked);
+    const translateOn = stepEnabled("translate");
     $("outputTranslatedField")?.classList.toggle("hidden", !translateOn);
     const exportSrt = Boolean($("outputExportSrt")?.checked ?? true);
     const srtField = $("srtPath");
     if (srtField) srtField.disabled = !exportSrt;
+    $('outputBilingualField').classList.toggle('hidden', !translateOn || $('translationWriteMode').value !== 'bilingual');
+    $('customSrtDetails').classList.toggle('hidden', (window.MSWQueue?.tasks().length || 0) > 1);
+    const onlySrt = Boolean(window.MSWModules?.isEnabled('output') && $('batchSrtOnly').checked);
+    $('generateHtml').disabled = onlySrt || Boolean(window.MSWQueue?.state.running);
+    $('waveformApplicability').classList.toggle('hidden', !onlySrt);
+    for (const id of ['waveformCacheMode', 'generateSpectral']) $(id).disabled = onlySrt || Boolean(window.MSWQueue?.state.running);
     updateOutputPreview();
   }
-  function updateOutputPreview() {
+  let outputPreviewSequence = 0;
+  async function updateOutputPreview() {
+    const sequence = ++outputPreviewSequence;
     const preview = $("outputProjectPreview");
     if (!preview) return;
-    const input = $("mediaPath").value.trim() || $("jsonPath").value.trim();
-    const directory = $("outputDirectory")?.value.trim() || "";
-    const name = $("outputProjectName")?.value.trim() || "";
-    if (!directory && !name) { preview.textContent = ""; return; }
-    const base = directory || (input ? input.replace(/[\\/][^\\/]+$/u, "") : "");
-    const stem = name || (input ? input.replace(/^.*[\\/]/u, "").replace(/\.[^.]+$/u, "") : "");
-    preview.textContent = base && stem ? t("output_preview_label").replace("{path}", `${base}\\${stem}.mosp`) : "";
+    if (!window.MSWLauncher.config) return;
+    const plan = window.MSWPlan?.build(); if (!plan) return;
+    const output = plan.output, first = plan.tasks[0];
+    const hasText = plan.modules.asr || plan.tasks.some(task => task.subtitlePath || window.MSWQueue?.state.files.find(file => file.id === task.id)?.meta?.hasSubtitles);
+    const files = [!output.srtOnly && '.mosp', hasText && output.exportSrt && '.srt', hasText && output.exportTranslatedSrt && '.translated.srt', hasText && output.exportBilingualSrt && '.bilingual.srt', output.generateHtml && '.edit.html'].filter(Boolean);
+    if ($('outputSummary')) $('outputSummary').textContent = t('output_files') + ': ' + files.join(' · ');
+    const input = first?.path || '';
+    if (!input) { preview.textContent = ''; return; }
+    const meta = window.MSWQueue?.state.files.find(file => file.id === first.id)?.meta;
+    const recognize = plan.modules.asr && (!(first.subtitlePath || meta?.hasSubtitles) || plan.asrPolicy === 'replace');
+    try {
+      const result = await bridge('default_output', {mediaPath: input, providerId: plan.recognition.providerId, modelId: plan.recognition.modelId, testRun: recognize && plan.recognition.testRun, recognize});
+      if (sequence !== outputPreviewSequence) return;
+      const path = result.path || input;
+      const directory = output.directory || path.replace(/[\\/][^\\/]+$/u, '');
+      const stem = output.projectName || fileName(path).replace(/\.[^.]+$/, '');
+      preview.textContent = directory + ' / ' + stem + ' → ' + files.join(' · ')
+        + (output.srtPath && output.exportSrt ? ' · ' + t('output_export_srt') + ': ' + output.srtPath : '');
+    } catch (_) { if (sequence === outputPreviewSequence) preview.textContent = t('summary_default_output'); }
   }
+
   ["outputDirectory", "outputProjectName"].forEach((id) => {
     $(id)?.addEventListener("input", () => { updateOutputPreview(); persistAutoPlanSoon(); });
   });
   $("outputExportSrt")?.addEventListener("change", () => { updateOutputCardState(); persistAutoPlanSoon(); });
-  $("outputExportTranslatedSrt")?.addEventListener("change", () => persistAutoPlanSoon());
+  for (const id of ['outputExportTranslatedSrt','outputExportBilingualSrt','batchSrtOnly','generateHtml','srtPath']) $(id).addEventListener('change', () => { updateOutputCardState(); persistAutoPlanSoon(); });
   $("pickOutputDirectory")?.addEventListener("click", async () => {
     const result = await bridge("choose_folder", {});
     if (result && result.ok && result.path) {
@@ -1730,7 +1723,7 @@
     if (window.MSWLauncher.config?.postprocessProviders?.length) renderProviderKeyStatus(provider());
     renderOcrModel();
     renderLlmServiceSummaries();
-    initModuleCardPrompts();
+    reloadTranslatePrompt();
     syncBurnSubtitleName();
     renderAudioTracks();
     syncAlignmentNames();
@@ -1753,15 +1746,6 @@
       persistAutoPlanSoon();
     }
     void refreshAudioTracks();
-  };
-  function applyBatchModeLocks() {
-    // S4：批量模式只锁文稿匹配步骤（自动链由后端跳过；卡内 batchManuscriptNotice 说明）。
-    $("autoStepMatch").disabled = batchMode;
-  }
-  window.MSWLauncher.onBatchModeChanged = (active) => {
-    batchMode = Boolean(active);
-    applyBatchModeLocks();
-    renderAutoPostprocessState();
   };
   window.MSWLauncher.openAutoPostprocessStep = openAutoStep;
   window.MSWLauncher.onOcrRuntimeChanged = () => {

@@ -1,3 +1,4 @@
+import { setLauncherLanguage } from './launcher-language.mjs';
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,9 +17,9 @@ test('tools page configures and runs file tools inline with a single-select rail
 
   // S2/反馈1+2：右侧单选工具、左侧直接配置运行；不再有「打开工具」中间步骤。
   const rail = page.locator('#toolsRail [data-tools-select]');
-  await expect(rail).toHaveCount(4);
+  await expect(rail).toHaveCount(5);
   const ids = await rail.evaluateAll((nodes) => nodes.map((node) => node.dataset.toolsSelect));
-  expect(ids).toEqual(['extractAudio', 'burnSubtitle', 'ffconcat', 'alignment']);
+  expect(ids).toEqual(['extractAudio', 'burnSubtitle', 'ffconcat', 'waveform', 'alignment']);
   await expect(page.locator('#toolsTitle')).toHaveText('实用工具');
   await expect(page.locator('[data-tool-entry]')).toHaveCount(0);
   // 单选导航不带复选框（区别于预制栏多选）。
@@ -84,15 +85,15 @@ test('language toggle saves only the language preference', async ({ page }) => {
   });
 
   // R5/F13：语言切换只保存语言，不携带识别表单/密钥（避免覆盖未确认草稿）。
-  await page.locator('#langToggle').click();
+  await setLauncherLanguage(page, 'en');
   await expect.poll(() => page.evaluate(() => window.__saveCalls.length)).toBe(1);
   const saves = await page.evaluate(() => window.__saveCalls);
   expect(saves[0].method).toBe('save_prefs');
   expect(saves[0].payload).toEqual({ guiLang: 'en' });
-  await expect(page.locator('#langToggle')).toHaveText('中文');
+  await expect(page.locator('#interfaceLanguage')).toHaveValue('en');
 
   // 切回中文同样只保存语言。
-  await page.locator('#langToggle').click();
+  await setLauncherLanguage(page, 'zh');
   await expect.poll(() => page.evaluate(() => window.__saveCalls.length)).toBe(2);
   const second = await page.evaluate(() => window.__saveCalls[1]);
   expect(second.method).toBe('save_prefs');
@@ -103,7 +104,8 @@ test('settings roundtrip preserves the prefab draft and scroll position', async 
   await openLauncher(page);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
-  await page.locator('#mediaPath').fill('D:\\Demo\\draft-clip.mp4');
+  await page.evaluate(() => MSWWorkflow.setCollapsed('asr', false));
+  await page.evaluate(path => MSWQueue.addPaths([path]), 'D:\\Demo\\draft-clip.mp4');
   await page.evaluate(() => { document.getElementById('apiKey').value = 'sk-draft-key'; });
 
   // R5/§5.3：进入设置再返回，草稿与滚动位置保留。
@@ -112,11 +114,11 @@ test('settings roundtrip preserves the prefab draft and scroll position', async 
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   await expect(page.locator('#launcherSettingsTitle')).toBeVisible();
-  await expect(page.locator('#mediaPath')).toBeHidden();
+  await expect(page.locator('#batchQueue')).toBeHidden();
 
   await page.keyboard.press('Escape');
-  await expect(page.locator('#mediaPath')).toBeVisible();
-  await expect(page.locator('#mediaPath')).toHaveValue('D:\\Demo\\draft-clip.mp4');
+  await expect(page.locator('#batchQueue')).toBeVisible();
+  await expect(page.locator('#batchQueue')).toContainText('draft-clip.mp4');
   await expect(page.locator('#apiKey')).toHaveValue('sk-draft-key');
   await expect(scroller).toBeDefined();
   const scrollTop = await scroller.evaluate((node) => node.scrollTop);

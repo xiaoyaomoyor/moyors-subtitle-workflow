@@ -23,6 +23,7 @@ test('Markdown and punctuation changes refresh both previews and discard late re
   // S4：文稿匹配配置在预制页独立卡内。
   await page.locator('#prefabRail input[data-module-id="match"]').check();
   await page.locator('[data-module-card="match"]').waitFor();
+  await page.evaluate(() => MSWWorkflow.setCollapsed('match', false));
   await page.evaluate(() => {
     const json = document.getElementById('jsonPath');
     json.value = 'D:\\Demo\\clip.mosp';
