@@ -9,7 +9,7 @@
 | E3 导航与响应布局 | 已修复 | 统一层级缩进、收展动画、窄窗栏焦点与状态；亮暗主题/英文/缩放检查 |
 | F1 自动化回归 | 已修复 | Python 全量、JS 契约与语法、启动器浏览器矩阵；如有失败记录真实原因 |
 | F2 产物与文档 | 已修复 | 重新生成编辑器、更新计划/工作流/CHANGELOG、UTF-8 LF 与差异审查 |
-| F3 提交与推送 | 进行中 | 检查暂存范围后提交并推送独立分支，不修改上游/main |
+| F3 提交与推送 | 已修复 | 功能提交 fc9acb1 已成功推送 origin/my-feature；main/upstream 未修改，本文随文档收尾提交同步 |
 | 原生宿主/外部服务 | 仅说明 | 浏览器不能代替原生多选、拖入、窗口重开；不调用收费云端服务，不读取个人凭证 |
 
 ## 验证过程
@@ -39,3 +39,7 @@
 - 浏览器：Playwright test launcher --project=chromium；最终定向复验 beta3-launcher、beta4-launcher、launcher-finish-ef、launcher-shell，26 通过，合计 127 项唯一启动器用例通过。
 - 产物：uv run --active --no-sync python edit.py --blank 已成功生成；launcher-only 修改未造成 blank-editor.html 差异。
 - 提交前 41 个任务文件 UTF-8、无 BOM、LF 检查及 git diff --check 通过；未纳入凭证、媒体、个人工程与截图。暗色语言选择框过渡完成后使用既有 #141414 背景与主题文字色。
+
+## 交付
+
+功能提交 `fc9acb1` 已由 `git push origin my-feature` 成功推送，远端从 `de20723` 前进到该提交。无关的 `.test-appdata/`、`docs/PLAN_TTS_ENGINES_20260921.md` 保持未跟踪；本记录与计划的完成状态作为文档收尾提交。
