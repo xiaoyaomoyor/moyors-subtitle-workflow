@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import http.client
 import io
 import json
 import os
@@ -664,16 +665,26 @@ class LocalEditorServerTests(unittest.TestCase):
                     with urllib.request.urlopen(request) as response:
                         return response.status, json.loads(response.read())
                 except urllib.error.HTTPError as error:
-                    # Oversized bodies are rejected before they are consumed.
-                    # Windows may reset that connection after the status header;
-                    # this test needs the rejection status, not its JSON body.
-                    return error.code, None
+                    return error.code, json.loads(error.read())
             try:
                 with urllib.request.urlopen(url) as response:
                     self.assertEqual(json.loads(response.read())['schema'], 'moy.asr.ass_styles.v1')
                 self.assertEqual(post({'requestToken': 'wrong'})[0], 403)
                 self.assertFalse(library_path.exists())
-                self.assertEqual(post({'requestToken': server.request_token, 'padding': 'a' * (512 * 1024)})[0], 400)
+                # The size limit must reject from headers without waiting for
+                # body bytes. Sending a large body concurrently with that early
+                # rejection makes the client race a TCP reset on some systems.
+                connection = http.client.HTTPConnection(*server.server_address, timeout=3)
+                try:
+                    connection.putrequest('POST', '/api/ass-styles')
+                    connection.putheader('Content-Type', 'application/json')
+                    connection.putheader('Content-Length', str(512 * 1024 + 1))
+                    connection.endheaders()
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, 400)
+                    self.assertFalse(json.loads(response.read())['ok'])
+                finally:
+                    connection.close()
                 self.assertFalse(library_path.exists())
                 status, result = post({'requestToken': server.request_token, 'styles': [{'id': 'custom', 'fontName': 'Arial'}]})
                 self.assertEqual(status, 200)
