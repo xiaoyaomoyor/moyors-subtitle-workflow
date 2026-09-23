@@ -70,6 +70,8 @@
 | `waveform` | `object` | 否 | 可丢弃的紧凑波形缓存。由 `edit.py` 或浏览器自动生成；不影响字幕语义 |
 | `gap_remove` | `object` | 否 | 可逆的空隙移除决定。保留原始媒体/字幕时间，仅描述导出与跳过播放时使用的派生时间轴 |
 | `script_alignment` | `object` | 否 | 录制对齐工具写入的选择记录；不改变 MSWE 的字幕与时间码语义 |
+| `overlay_track` | `object` | 否 | 与上游兼容的独立叠加字幕轨 `{enabled, segments}`；关闭时保留数据，与副字幕及配音贴片不同 |
+| `transcription_warnings` | `array<string>` | 否 | 识别结果的可读警告，如部分句子缺少可靠时间范围；不包含密钥，不改变字幕或时间码语义 |
 | `workspace` | `object` | 否 | 编辑器工作区：四个功能区的窗口布局与显示状态；不影响字幕和波形缓存。服务器版也可使用独立的本机命名工作区库跨工程复用 |
 | `preview` | `object` | 否 | 预览呈现设置。含 `preview.subtitle`（主字幕预览框与样式）、可选的 `preview.extension_subtitle`（拓展字幕样式）和 `preview.sticker`（表情包预览层）。不影响字幕时间与文本 |
 
@@ -411,6 +413,17 @@
 - `preview` 缺失或 `preview.subtitle` 缺失时按**旧工程**处理，编辑器使用默认几何 `{ x: 0.1, y: 0.76, width: 0.8, height: 0.16 }`——字幕带占 76%→92%（底部留 8%），宽度 80% 居中。
 - `preview.sticker` 缺失时同样按旧工程处理，使用默认几何 `{ x: 0.73, y: 0.04, width: 0.24, height: 0.3 }`（右上角）。两个几何共用同一套归一化与钳制规则。
 - 该几何只移动/缩放预览框容器；内部文字 `<span>` 仍保持居中与药丸样式，`segments[*].start/end/items[*].start/end` 永不被此几何改动。
+
+### 1.4a overlay_track 叠加字幕
+
+`overlay_track` 与上游 beta.5 使用相同公共结构：`{"enabled": false, "segments": []}`。字段缺失兼容旧工程；关闭轨道只影响显示与导出，不删除其字幕。
+
+- 叠加段与主轨采用相同的整数毫秒、字词、帧字段、禁用、颜色及表情包契约。它们可以与主字幕重叠，叠加轨内部须按时间排序且不重叠。
+- 缺失稳定 ID 按 `overlay-001` 等确定性规则补齐，原有 ID 保持。颜色／表情包 `headIdx` 只引用叠加轨自身，不引用主轨。
+- SRT 和启动器文本模式 ASS 导入共享两层分配规则，超过主轨＋叠加轨容量明确报错；文稿匹配的严格 SRT 读取仍拒绝任何重叠。ASS 导入仅保留时间与文本，不等于样式文档往返。
+- 合并 SRT 导出按起点排序，同起点主轨在前；跳过禁用、空文本以及关闭的叠加轨，输出序号连续。空主轨也可导出启用的叠加轨。
+- `multi_subtitle` 继续表示副字幕，`msw.audio_clips` 继续表示配音贴片；二者不能用作叠加轨替代结构。MSW 未知可选字段和素材引用继续保留。
+- `preview.subtitle.ass_color_style` 为独立 ASS 颜色映射：`text`／`stroke`／`none`；原 CSS `color_style` 的历史 `shadow` 值仍兼容读取。
 
 ### 1.5 multi_subtitle 多重字幕
 
@@ -863,7 +876,7 @@ uv run python edit.py your_generated.mosp
 | `sample_rate` / `channels` / `sample_count` | 实测整数，采样率 8000–192000，通道 1–8，样本帧数 1–2^32。时长由 `sample_count / sample_rate` 得到 |
 | `job_id` / `created_at` | 生成任务 ID；生成时间为 Unix 秒 |
 | `generation` | 不含密钥的生成配置：`provider`、`region`、`model`、`voice`、`language_type`、`instructions`、`optimize_instructions`、`display_text`、`spoken_text`；百炼新增可选 `model_type`（`CustomVoice`／`VoiceDesign`／`VoiceClone`）。旧素材可缺少模式；模型稳定别名按实际请求名记录，不伪造解析后的快照版本，不保证云端音色永久有效 |
-| `source_ref` | `key` 为任务条目 ID；字幕来源的 `id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒。独立文本来源见上文 |
+| `source_ref` | `key` 为任务条目 ID；字幕来源的 `id` 为字幕稳定 ID；`track_id` 为副轨 ID，主轨为 null；主字幕转入叠加轨时保留 null 并增加 `track_kind: "overlay"`，返回主轨时移除此标记，稳定 ID 与音频文件不变；`text`、`start`、`end` 为提交时快照，时间单位整数毫秒。独立文本来源见上文 |
 
 任务输入单独保存，逐条结果单独登记，更新进度时不反复重写整份字幕快照。字幕的 `msw` 结果应用记录仍随历史往返；`assets` 属于独立素材库存，字幕撤销／重做保留该库存。
 

@@ -180,8 +180,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(local["models"][3]["id"], "moss-transcribe-diarize-local")
         whisper = local["models"][-1]
         self.assertEqual(whisper["id"], "whisper-large-v3-local")
-        self.assertIn("用户自行安装 CUDA 12 和 cuDNN 9", whisper["note"])
-        self.assertIn("自动回退到 CPU", whisper["note"])
+        self.assertIn("CPU/GPU", whisper["note"])
         self.assertEqual(local["models"][0]["localStatus"]["status"], "checking")
         self.assertEqual(config["modelCacheRoot"], "")
 
@@ -215,7 +214,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         ):
             result = self.api.get_local_models({"modelId": "qwen3-asr-local"})
 
-        self.assertEqual(calls, ["qwen-asr", "funasr", "moss", "whisper"])
+        self.assertEqual(calls, ["qwen-asr", "funasr", "moss", "firered", "whisper"])
         self.assertEqual(
             [model["id"] for model in result["models"]],
             [
@@ -223,6 +222,7 @@ class GuiWebBridgeTests(unittest.TestCase):
                 "qwen3-asr-1.7b-local",
                 "sensevoice-small-local",
                 "moss-transcribe-diarize-local",
+                "firered-asr2-ctc-local",
                 "whisper-large-v3-local",
             ],
         )
@@ -3508,7 +3508,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="toolsRunArea"', page)
         self.assertIn('id="toolsPageProgress"', page)
         self.assertIn('id="toolsPageResult"', page)
-        self.assertEqual(page.count("data-tools-select"), 5)
+        self.assertEqual(page.count("data-tools-select"), 7)
         self.assertIn('<script src="tools.js"></script>', page)
         # 运行按钮/输入随面板迁入页内（保留原 ID，绑定不克隆）。
         for element_id in ("runExtractAudio", "runBurnSubtitle", "runFfconcatRebuild", "runToolboxAlignment", "toolboxUtilityMediaPath", "toolboxAudioTrack"):
@@ -3552,7 +3552,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         gui_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
 
         # S2/反馈1：四项独立文件工具直接在实用工具页配置运行；不再有「打开工具」入口按钮。
-        self.assertEqual(page.count("data-tools-panel"), 5)
+        self.assertEqual(page.count("data-tools-panel"), 7)
         self.assertNotIn('data-tool-entry="toolboxMatchTab"', page)
         self.assertNotIn('data-tool-entry="toolboxWaveformTab"', page)
         self.assertNotIn("data-tool-entry=", page)

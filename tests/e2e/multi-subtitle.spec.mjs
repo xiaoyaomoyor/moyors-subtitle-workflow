@@ -2424,10 +2424,13 @@ test('refreshes local font options for both main and extension subtitles', async
   const scanButton = page.locator('#subtitle-font-family-scan');
   await expect(scanButton).toBeEnabled();
   await scanButton.click();
-  await expect(page.locator('#subtitle-font-family option[value="MSW Test Sans"]')).toHaveCount(1);
+  await page.locator('#subtitle-font-family-toggle').click();
+  await expect(page.locator('#subtitle-font-family-options').getByRole('option',{name:'MSW Test Sans',exact:true})).toHaveCount(1);
+  await page.keyboard.press('Escape');
   await expect(page.locator('#extension-subtitle-font-family option[value="MSW Test Sans"]')).toHaveCount(1);
 
-  await page.locator('#subtitle-font-family').selectOption('MSW Test Sans');
+  await page.locator('#subtitle-font-family').fill('MSW Test Sans');
+  await page.locator('#subtitle-font-family').press('Tab');
   await page.locator('#extension-subtitle-font-family').selectOption('MSW Test Serif');
   const fontFamilies = await page.evaluate(() => ({
     main: document.getElementById('overlay-main-text').style.fontFamily,
@@ -2451,22 +2454,23 @@ test('localizes approved scanned font labels in both selectors', async ({ page }
   await page.locator('#multi-subtitle-import-result-confirm').click();
   await toggleMediaSettings(page);
   await page.locator('#subtitle-font-family-scan').click();
-  const options = await page.evaluate(() => ['subtitle-font-family', 'extension-subtitle-font-family']
+  const options = await page.evaluate(() => ['extension-subtitle-font-family']
     .map((id) => Array.from(document.getElementById(id).options, (option) => ({
       label: option.textContent,
       value: option.value,
     }))));
-  expect(options[0]).toEqual(options[1]);
+
   expect(options[0]).toEqual(expect.arrayContaining([
     { label: '微软雅黑', value: 'Microsoft YaHei' },
     { label: '宋体', value: 'SimSun' },
     { label: '思源黑体', value: 'Source Han Sans SC' },
     { label: 'MSW Test Sans', value: 'MSW Test Sans' },
   ]));
-  await page.locator('#subtitle-font-family').selectOption('Source Han Sans SC');
+  await page.locator('#subtitle-font-family').fill('思源黑体');
+  await page.locator('#subtitle-font-family').press('Tab');
   await page.locator('#extension-subtitle-font-family').selectOption('SimSun');
   await clickLanguageToggleViaSettings(page);
-  await expect(page.locator('#subtitle-font-family option:checked')).toHaveText('Source Han Sans SC');
+  await expect(page.locator('#subtitle-font-family')).toHaveValue('Source Han Sans SC');
   await expect(page.locator('#extension-subtitle-font-family option:checked')).toHaveText('SimSun');
   expect(await page.evaluate(() => ({
     main: document.getElementById('subtitle-font-family').value,
@@ -3052,8 +3056,8 @@ test('offers extension cue creation on the empty extension lane and makes it und
   const box = await row.boundingBox();
   if (!box) throw new Error('双 lane 波形行没有布局');
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height - 2, { button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^创建字幕/ })).toBeVisible();
-  await page.locator('#ctxmenu .item').filter({ hasText: /^创建字幕/ }).click();
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^创建副字幕/ })).toBeVisible();
+  await page.locator('#ctxmenu .item').filter({ hasText: /^创建副字幕/ }).click();
   await expect(page.locator('.waveform-cue-block[data-track="extension"]')).toHaveCount(2);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+z');
@@ -3103,7 +3107,7 @@ test('uses the waveform lane to choose blank-area context-menu semantics', async
 
   // 空白菜单仅保留五项，创建仍按鼠标所在 lane 选择主轨或副轨。
   await page.mouse.click(x, extensionY, { button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^创建字幕/ })).toBeVisible();
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^创建副字幕/ })).toBeVisible();
   await expect(page.locator('#ctxmenu')).not.toContainText('拆分');
   await page.keyboard.press('Escape');
 

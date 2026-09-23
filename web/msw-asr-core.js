@@ -144,7 +144,7 @@
     for(const asset of project.msw?.assets||[]) {
       const source=asset.source_ref;
       if(!source||source.kind==='editor_text'||asset.generation?.provider==='imported')continue;
-      const cue=cues.get(JSON.stringify([source.track_id??null,source.id]));
+      const cue=source.track_kind==='overlay' ? (project.overlay_track?.segments||[]).find(cue=>cue.id===source.id) : cues.get(JSON.stringify([source.track_id??null,source.id]));
       const reason=!cue?'来源字幕已删除或被 ASR 替换':project.msw?.asr_stale_subtitles?.[source.track_id]?.[source.id]
         ?'配音来源副字幕需复核':cue.text!==source.text||cue.start!==source.start||cue.end!==source.end?'来源字幕已修改，配音需复核':'';
       if(reason)statuses.set(asset.id,reason);

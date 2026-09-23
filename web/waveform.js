@@ -158,7 +158,7 @@
   const ROOT_EDGE_DROP_MAX_PX = 48;
   const ZOOM_PRESETS = [2, 5, 10, 20, 30, 60];
   const ROW_PRESETS = [2, 5, 10, 20, 30];
-  const ROW_HEIGHT_PRESETS = [64, 80, 96, 120, 144, 168];
+  const ROW_HEIGHT_PRESETS = [64, 80, 96, 120, 144, 168, 192, 240, 300, 360];
   const ROW_GAP = 10;
   const SPLIT_FLASH_DURATION_MS = 720;
   // 多行波形保留视口前后少量行，字幕快捷键跨行时可以直接复用已绘制的行。
@@ -251,9 +251,16 @@
   };
   // 调色板数值唯一来源于 maw/speaker.py，渲染时注入 window.ASR_EDITOR_PALETTE；
   // Node 测试等无注入环境回退为空表（colorForSegment 走存储值兜底）。
-  const PALETTE = Object.fromEntries(
+  let PALETTE = Object.fromEntries(
     ((typeof window !== 'undefined' && window.ASR_EDITOR_PALETTE) || []).map((c) => [c.name, c.value]),
   );
+
+  function setColorPalette(value) {
+    const entries = Array.isArray(value) ? value : [];
+    PALETTE = Object.fromEntries(entries
+      .filter((entry) => entry && typeof entry.name === 'string' && typeof entry.value === 'string')
+      .map((entry) => [entry.name, entry.value]));
+  }
 
   function clamp(value, low, high) {
     return Math.max(low, Math.min(high, value));
@@ -2298,11 +2305,9 @@
         this.setLoudnessStats(this.loudnessStats, { render: false });
       }
       saveSettings(this.settings);
-      if (this.isMultiMode()) {
-        this.updateMultiRowLayout();
-      } else {
-        this.render();
-      }
+      if (this.isMultiMode()) this.updateMultiRowLayout();
+      // New overlay lane geometry depends on row height.
+      if (this.options?.getSegments?.('overlay')?.length || !this.isMultiMode()) this.render();
       return true;
     }
 
@@ -4035,6 +4040,15 @@
           group.appendChild(makeHead('V2', 'v-ext', `V2 副字幕轨——点击${extMuted ? '启用' : '禁用'}整条轨道`,
             () => this.options.toggleSubtitleTrackMuted?.('extension'), extMuted));
         }
+        const overlayBlock = row.querySelector('.waveform-overlay-block');
+        if (overlayBlock) {
+          const head = makeHead('V叠', 'v-overlay', '叠加字幕轨', () => this.options.selectOverlay?.(0), false);
+          const rect = overlayBlock.getBoundingClientRect();
+          head.style.top = String(rect.top - row.getBoundingClientRect().top) + 'px';
+          head.style.bottom = 'auto';
+          head.style.height = String(rect.height) + 'px';
+          group.appendChild(head);
+        }
         // A 头：按打包 lane 数渲染，纵向对齐 lanes 区域（可视上限 3 行）。
         const audioCount = this.options.getAudioTrackCount?.() || 0;
         const lanesInner = row.querySelector('.msw-audio-lanes-inner');
@@ -4290,6 +4304,8 @@
         }
         // Ctrl(Cmd)+左键拖动空白处：按拖动范围创建一条指定时长字幕。
         // 命中字幕块或静音空隙时保留各自已有的选择/边界操作。
+        // 叠加轨启用时，主轨被占用的位置不再直接拒绝：改为把创建拖动转入
+        // 叠加轨（叠加字幕允许与主字幕时间重叠）；叠加轨同轨仍不重叠。
         if (
           event.button === 0 &&
           (event.ctrlKey || event.metaKey) &&
@@ -4297,12 +4313,21 @@
           !event.altKey &&
           !event.target.closest('.waveform-cue-block, .waveform-gap-block')
         ) {
-          const track = this.trackAtPoint(event.clientX, event.clientY, row);
-          if (this.isCueTimeOccupied(this.pointerTimeMs(event, row), track)) {
-            event.preventDefault();
-            event.stopPropagation();
-            this.options.onCueCreateRejected?.('occupied');
-            return;
+          let track = this.trackAtPoint(event.clientX, event.clientY, row);
+          const pointerMs = this.pointerTimeMs(event, row);
+          if (this.isCueTimeOccupied(pointerMs, track)) {
+            if (
+              track === 'main' &&
+              this.options.getOverlayCreateEnabled?.() === true &&
+              !this.isCueTimeOccupied(pointerMs, 'overlay')
+            ) {
+              track = 'overlay';
+            } else {
+              event.preventDefault();
+              event.stopPropagation();
+              this.options.onCueCreateRejected?.('occupied');
+              return;
+            }
           }
           event.preventDefault();
           event.stopPropagation();
@@ -4469,7 +4494,14 @@
       }
     }
 
-    appendCueBlocks(row, startMs, endMs) {
+    appendCueBlocks(row, startMs, endMs, groupBadges = null) {
+      // 传统模式沿用旧版系统光标（ew-resize）；原创边界光标只在
+      // dual（中缝联动）模式生效。渲染路径必经这里，模式切换后
+      // refreshCueOverlay 也会同步该类。
+      this.pane?.classList.toggle(
+        'boundary-mode-classic',
+        this.options.getAdjacentBoundaryMode?.() !== 'dual',
+      );
       const multiLane = this.options.multiSubtitleVisible?.() === true;
       const segments = this.options.getSegments('main');
       const selected = this.options.getSelection('main');
@@ -4527,6 +4559,70 @@
           else this.options.activateCue?.(index);
         });
         row.appendChild(block);
+      }
+
+      // 独立叠加轨：与主/副字幕互不绑定，绘制在主字幕块上方（bottom 50% 独立一层）。
+      // 交互为点击选中、双击编辑、拖动移动、右键菜单；badge 与主块同款，挂在叠加块上方。
+      const overlaySegments = this.options.getSegments('overlay') || [];
+      if (overlaySegments.length) {
+        const overlaySelected = this.options.getOverlaySelection?.() || new Set();
+        // 行高不足（50% 线放不下 35px 叠加块 + 7px 底边距）时叠加块直接盖在
+        // 主字幕块上方，此时不渲染叠加徽章，避免与下半区徽章混叠。
+        // 多行模式的行高真源是 settings.rowHeight：createMultiRow 在
+        // createRow 返回后才写 row.style.height，这里读内联样式恒为空，
+        // cover-mode 会永远不生效。
+        const rowHeightPx = this.settings.mode === 'multi'
+          ? Number(this.settings.rowHeight) || 0
+          : Number.parseFloat(row.style.height) || 0;
+        const overlayCoverMode = rowHeightPx > 0 && rowHeightPx < 84;
+        const activeOverlayIndex = findActiveCueIndex(overlaySegments, now);
+        const firstOverlayIndex = firstCueIndexOverlapping(overlaySegments, startMs);
+        for (let index = firstOverlayIndex; index < overlaySegments.length; index += 1) {
+          const segment = overlaySegments[index];
+          if (segment.start >= endMs) break;
+          if (segment.end <= startMs) continue;
+          if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden')) continue;
+          const block = document.createElement('div');
+          block.className = 'waveform-cue-block waveform-overlay-block';
+          block.dataset.track = 'overlay';
+          block.dataset.overlayIdx = String(index);
+          block.dataset.start = String(segment.start);
+          block.dataset.end = String(segment.end);
+          // 外观与主字幕块一致：沿用字幕自身的颜色快照，不做轨道特殊配色。
+          block.style.setProperty('--cue-color', colorForSegment(segment));
+          if (overlayCoverMode) block.classList.add('overlay-cover-mode');
+          if (overlaySelected.has(index)) block.classList.add('selected');
+          if (segment.disabled) block.classList.add('disabled');
+          if (index === activeOverlayIndex && isActiveCueVisualHit(overlaySegments, index, now)) block.classList.add('active');
+          const label = document.createElement('span');
+          label.className = 'waveform-cue-label';
+          label.textContent = String(segment.text || '').replace(/\s+/g, ' ');
+          block.title = label.textContent;
+          block.appendChild(label);
+          if (segment.start >= startMs) {
+            const leftHandle = document.createElement('span');
+            leftHandle.className = 'waveform-cue-handle left';
+            block.appendChild(leftHandle);
+          }
+          if (segment.end <= endMs) {
+            const rightHandle = document.createElement('span');
+            rightHandle.className = 'waveform-cue-handle right';
+            block.appendChild(rightHandle);
+          }
+          this.layoutBlock(block, segment, startMs, endMs, row);
+          block.addEventListener('pointerdown', (event) => this.beginCueDrag(event, index, row, 'overlay'));
+          block.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.options.showOverlayContextMenu?.(event.clientX, event.clientY, index);
+          });
+          block.addEventListener('dblclick', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (this.options.enterOverlayCueEditor) this.options.enterOverlayCueEditor(index);
+          });
+          row.appendChild(block);
+        }
       }
 
       if (!multiLane) return;
@@ -4673,21 +4769,45 @@
     refreshCueBlocks() {
       const segments = this.options.getSegments('main');
       const extensionSegments = this.options.getExtensionSegments?.() || [];
+      const overlaySegments = this.options.getSegments('overlay') || [];
+      const overlaySelected = this.options.getOverlaySelection?.() || new Set();
+      // 共享边界拖动会同时修改两侧字幕：中缝拖动的真实选区已包含前后
+      // 两句；传统模式的手柄联动只选中点击侧，拖动期间两侧块也按选中态
+      // 显示，松开后由真实选区恢复原状。
+      const boundaryDrag = this.drag?.kind === 'resize-boundary' ? this.drag : null;
+      const boundaryDragTrack = boundaryDrag?.track || 'main';
       this.content.querySelectorAll('.waveform-cue-block').forEach((block) => {
-        const isExtension = block.dataset.track === 'extension';
+        const trackKind = block.dataset.track;
+        const isExtension = trackKind === 'extension';
+        const isOverlay = trackKind === 'overlay';
+        const index = isExtension
+          ? Number(block.dataset.extIdx)
+          : isOverlay
+            ? Number(block.dataset.overlayIdx)
+            : Number(block.dataset.idx);
         const segment = isExtension
-          ? extensionSegments[Number(block.dataset.extIdx)]
-          : segments[Number(block.dataset.idx)];
+          ? extensionSegments[index]
+          : isOverlay
+            ? overlaySegments[index]
+            : segments[index];
         const row = block.closest('.waveform-row');
         if (!segment || !row) return;
         this.layoutBlock(block, segment, Number(row.dataset.startMs), Number(row.dataset.endMs));
-        block.classList.toggle('selected', isExtension
-          ? this.options.getExtensionSelection?.().has(Number(block.dataset.extIdx))
-          : this.options.getSelection('main').has(Number(block.dataset.idx)));
+        const linkedToBoundaryDrag = Boolean(
+          boundaryDrag
+          && (isExtension ? 'extension' : isOverlay ? 'overlay' : 'main') === boundaryDragTrack
+          && (index === boundaryDrag.index || index === boundaryDrag.index + 1),
+        );
+        block.classList.toggle('selected', linkedToBoundaryDrag || (isExtension
+          ? this.options.getExtensionSelection?.().has(index)
+          : isOverlay
+            ? overlaySelected.has(index)
+            : this.options.getSelection('main').has(index)));
+        if (isOverlay) return;
         const bindingMarkerTargets = this.options.getBindingMarkerTargets?.() || {};
         this.setBindingMarker(block, isExtension
-          ? bindingMarkerTargets.extension?.has?.(Number(block.dataset.extIdx)) === true
-          : bindingMarkerTargets.main?.has?.(Number(block.dataset.idx)) === true);
+          ? bindingMarkerTargets.extension?.has?.(index) === true
+          : bindingMarkerTargets.main?.has?.(index) === true);
       });
       this.paintCueEdgeHover();
       this.positionPlayheads();
@@ -4710,14 +4830,19 @@
     updateSelection() {
       const selected = this.options.getSelection('main');
       const extensionSelected = this.options.getExtensionSelection?.() || new Set();
+      const overlaySelected = this.options.getOverlaySelection?.() || new Set();
       const bindingMarkerTargets = this.options.getBindingMarkerTargets?.() || {};
       this.content.querySelectorAll('.waveform-cue-block').forEach((block) => {
-        const isExtension = block.dataset.track === 'extension';
-        const index = Number(isExtension ? block.dataset.extIdx : block.dataset.idx);
-        block.classList.toggle('selected', isExtension
+        const trackKind = block.dataset.track;
+        const index = Number(trackKind === 'extension' ? block.dataset.extIdx
+          : trackKind === 'overlay' ? block.dataset.overlayIdx : block.dataset.idx);
+        block.classList.toggle('selected', trackKind === 'extension'
           ? extensionSelected.has(index)
-          : selected.has(index));
-        this.setBindingMarker(block, isExtension
+          : trackKind === 'overlay'
+            ? overlaySelected.has(index)
+            : selected.has(index));
+        if (trackKind === 'overlay') return;
+        this.setBindingMarker(block, trackKind === 'extension'
           ? bindingMarkerTargets.extension?.has?.(index) === true
           : bindingMarkerTargets.main?.has?.(index) === true);
       });
@@ -5018,6 +5143,15 @@
           drag.preview.className = 'waveform-cue-block waveform-create-preview';
           drag.preview.dataset.track = track;
           if (track === 'extension') drag.preview.style.setProperty('--cue-color', '#7a9fc5');
+          if (track === 'overlay') {
+            // 叠加字幕创建虚影落在叠加轨 lane（上半区），与正式叠加块同位；
+            // 行高不足 84px 时同样切 cover 模式，直接盖在主字幕块上方。
+            drag.preview.classList.add('waveform-overlay-block');
+            const rowHeightPx = Number.parseFloat(row.style.height) || 0;
+            if (rowHeightPx > 0 && rowHeightPx < 84) {
+              drag.preview.classList.add('overlay-cover-mode');
+            }
+          }
           const label = document.createElement('span');
           label.className = 'waveform-cue-label';
           drag.preview.appendChild(label);
@@ -5103,7 +5237,7 @@
         ? 7 + parsePx(rowStyle.getPropertyValue('--audio-lane-space'), 0)
         : parsePx(rowStyle.getPropertyValue('--multi-subtitle-bottom-inset'), 7);
       const visibleCue = hitRow.querySelector(
-        '.waveform-cue-block[data-track="main"], .waveform-cue-block[data-track="extension"]',
+        '.waveform-cue-block[data-track]',
       );
       const visibleCueHeight = visibleCue?.getBoundingClientRect().height || 0;
       const markerStyle = getComputedStyle(hitRow, '::after');
@@ -5160,7 +5294,7 @@
       return Number.isFinite(boundary) ? boundary : requestedMs;
     }
 
-    beginBlockedCueCreateDrag(event, index, track = 'main') {
+    beginBlockedCueCreateDrag(event, index, track = 'main', row = null) {
       const target = event.currentTarget;
       const pointerId = event.pointerId;
       const startX = event.clientX;
@@ -5182,6 +5316,12 @@
         if (dx * dx + dy * dy < 16) return;
         moved = true;
         cleanup();
+        // 叠加轨启用时，在主轨字幕上按住拖动 = 从按下位置在叠加轨创建字幕：
+        // 复用空白处的创建拖动（锚点为按下时间），叠加轨同轨占用仍拒绝。
+        if (track === 'main' && row && this.options.getOverlayCreateEnabled?.() === true) {
+          this.beginCreateCueDrag(event, row, 'overlay');
+          return;
+        }
         this.options.onCueCreateRejected?.('occupied');
       };
       const onUp = () => {
@@ -5189,6 +5329,7 @@
         cleanup();
         if (!moved) {
           if (track === 'extension') this.options.toggleExtensionSelection?.(index);
+          else if (track === 'overlay') this.options.toggleOverlaySelection?.(index);
           else this.options.toggleCueSelection?.(index);
         }
       };
@@ -5262,7 +5403,7 @@
       const rowEnd = Number(row.dataset.endMs);
       const rowRect = row.getBoundingClientRect();
       const ratio = clamp((timeMs - rowStart) / Math.max(1, rowEnd - rowStart), 0, 1);
-      const selector = `.waveform-cue-block[data-track="${track === 'extension' ? 'extension' : 'main'}"]`;
+      const selector = `.waveform-cue-block[data-track="${track === 'extension' ? 'extension' : track === 'overlay' ? 'overlay' : 'main'}"]`;
       const block = [...row.querySelectorAll(selector)].find((candidate) => {
         const startMs = Number(candidate.dataset.start);
         const endMs = Number(candidate.dataset.end);
@@ -5365,7 +5506,7 @@
       let overlay = null;
       let frame = 0;
       let drawing = false;
-      let hits = { main: new Set(), extension: new Set() };
+      let hits = { main: new Set(), extension: new Set(), overlay: new Set() };
 
       const clearPreview = () => {
         content.querySelectorAll('.waveform-cue-block.marquee-preview').forEach((block) => {
@@ -5396,7 +5537,7 @@
         overlay.style.width = `${Math.abs(current.x - start.x)}px`;
         overlay.style.height = `${Math.abs(current.y - start.y)}px`;
         const marqueeRect = overlay.getBoundingClientRect();
-        const next = { main: new Set(), extension: new Set() };
+        const next = { main: new Set(), extension: new Set(), overlay: new Set() };
         content.querySelectorAll('.waveform-cue-block[data-track="main"], .waveform-cue-block[data-track="extension"]').forEach((block) => {
           const blockRect = block.getBoundingClientRect();
           const hit =
@@ -5407,8 +5548,8 @@
             blockRect.top < marqueeRect.bottom;
           block.classList.toggle('marquee-preview', hit);
           if (!hit) return;
-          const track = block.dataset.track === 'extension' ? 'extension' : 'main';
-          const rawIndex = track === 'extension' ? block.dataset.extIdx : block.dataset.idx;
+          const track = ['extension','overlay'].includes(block.dataset.track) ? block.dataset.track : 'main';
+          const rawIndex = track === 'extension' ? block.dataset.extIdx : track === 'overlay' ? block.dataset.overlayIdx : block.dataset.idx;
           const index = Number(rawIndex);
           if (Number.isInteger(index)) next[track].add(index);
         });
@@ -5430,6 +5571,7 @@
           if (hits.main.size > 0) {
             this.options.addCueSelection?.([...hits.main].sort((a, b) => a - b));
           }
+          if (hits.overlay.size > 0) this.options.addOverlaySelection?.([...hits.overlay].sort((a,b)=>a-b));
           if (hits.extension.size > 0) {
             this.options.addExtensionSelection?.([...hits.extension].sort((a, b) => a - b));
           }
@@ -5510,26 +5652,32 @@
       // 字幕块会阻止 pointerdown 冒泡到 pane；主动接管焦点，确保按住
       // 字幕块/边界后，左手 A/D 不会仍被设置输入框等控件拦截。
       this.focusWaveform();
-      // Ctrl(Cmd)+点击字幕仍保留多选；只有真正移动形成拖动时才视为
-      // “在已有字幕上创建”，并直接拒绝，不启动普通字幕拖动或创建预览。
+      // Ctrl(Cmd)+点击字幕仍保留多选；真正移动形成拖动时视为
+      // “在已有字幕上创建”：叠加轨启用时主轨字幕改为转入叠加轨创建，
+      // 其余情况直接拒绝，不启动普通字幕拖动或创建预览。
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
-        return this.beginBlockedCueCreateDrag(event, index, track);
+        return this.beginBlockedCueCreateDrag(event, index, track, row);
       }
       // 剃刀工具：无修饰键左键点击字幕块（非手柄）时，在指针位置安全拆分。
+      // 主轨与叠加轨均可拆分；叠加轨走编辑器的叠加拆分弹窗。
       // 修饰键（Alt/Ctrl(Cmd)/Shift）仍走原行为，便于拆分后立即多选/禁用。
       const edgeHit = this.resolveCueEdgeHit(event, row);
       const targetHandle = edgeHit?.handle;
       this.updateCueEdgeHover(event, row);
-      if (track === 'main' && this.tool === 'razor' && !targetHandle
+      const adjacentCueAdjustmentIndependent = this.isAdjacentCueAdjustmentIndependent(event.altKey);
+      if ((track === 'main' || track === 'overlay') && this.tool === 'razor' && !targetHandle
           && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
         const timeMs = this.timeFromPointer(event, row);
         const timing = this.cueTiming();
-        this.options.splitCueAtTime?.(index, timing.toMs(timing.fromMs(timeMs)));
+        const cutMs = timing.toMs(timing.fromMs(timeMs));
+        if (track === 'overlay') this.options.splitOverlayCueAtTime?.(index, cutMs);
+        else this.options.splitCueAtTime?.(index, cutMs);
         return;
       }
       // Ctrl(Cmd)+click toggles selection without starting a drag
       if (event.ctrlKey || event.metaKey) {
         if (track === 'extension') this.options.toggleExtensionSelection?.(index);
+        else if (track === 'overlay') this.options.toggleOverlaySelection?.(index);
         else this.options.toggleCueSelection?.(index);
         return;
       }
@@ -5539,8 +5687,10 @@
         const alreadySelected = this.options.getSelection(track)?.has(index) === true;
         if (alreadySelected) {
           if (track === 'extension') this.options.toggleExtensionSelection?.(index);
+          else if (track === 'overlay') this.options.toggleOverlaySelection?.(index);
           else this.options.toggleCueSelection?.(index);
         } else if (track === 'extension') this.options.selectExtensionRange?.(index);
+        else if (track === 'overlay') this.options.selectOverlayRange?.(index);
         else this.options.selectCueRange?.(index);
         return;
       }
@@ -5552,6 +5702,22 @@
           ? (edgeHit.shared
             ? 'resize-boundary' : 'resize-right')
           : 'move';
+      // Shift+click selects a range from lastClickedIdx to index
+      if (event.shiftKey) {
+        if (track === 'extension') {
+          this.options.selectExtensionRange?.(index);
+          return;
+        }
+        if (kind !== 'move') {
+          if (track === 'main') this.options.selectCueRange?.(index);
+          else if (track === 'overlay') this.options.selectOverlayRange?.(index);
+          return;
+        }
+        // 主轨/叠加轨的 Shift+拖动：拖动期间不改动选择状态（避免把后面的
+        // 主字幕一起选进来），邻居挡路时由 applyMoveDrag 动态换轨；
+        // 叠加轨字幕拖到与主轨无重叠的位置会自动放回主轨。
+        // 主轨无位移松开时 endCueDrag 补做范围选择，保持 Shift+click 语义。
+      }
       // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
       // 虚拟行重建。先保存按下瞬间的几何数据，避免 pointerup 使用已脱离
       // DOM 的旧行并把比例钳到该行末尾（也就是下一行开头）。
@@ -5559,17 +5725,23 @@
       const beginRect = row.getBoundingClientRect();
       const msPerPixel = beginRect.width > 0
         ? (Number(row.dataset.endMs) - Number(row.dataset.startMs)) / beginRect.width : 0;
+      const shiftOverlayMove = false; // MSW Shift remains range/multi-selection.
       const selected = this.options.getSelection(track);
-      if (!selected.has(index)) {
-        if (track === 'extension') this.options.selectExtensionCue?.(index);
-        else this.options.selectCue(index);
-      } else if (track === 'extension') {
-        this.options.activateExtensionCue?.(index);
-      } else {
-        this.options.activateCue?.(index);
+      if (!shiftOverlayMove) {
+        if (!selected.has(index)) {
+          if (track === 'extension') this.options.selectExtensionCue?.(index);
+          else if (track === 'overlay') this.options.selectOverlayCue?.(index);
+          else this.options.selectCue(index);
+        } else if (track === 'extension') {
+          this.options.activateExtensionCue?.(index);
+        } else if (track === 'overlay') {
+          this.options.activateOverlayCue?.(index);
+        } else {
+          this.options.activateCue?.(index);
+        }
       }
       const liveSelection = this.options.getSelection(track);
-      const indices = kind === 'move' && liveSelection.has(index)
+      const indices = kind === 'move' && !shiftOverlayMove && liveSelection.has(index)
         ? [...liveSelection].sort((a, b) => a - b) : [index];
       const segments = this.options.getSegments(track);
       const timing = this.cueTiming();
@@ -5614,6 +5786,10 @@
         independent: Boolean(event.altKey && track === 'extension'),
         allowSqueeze: false,
         squeezeOriginals: allOriginals,
+        // Shift+拖动：只拖被抓住的一条；邻居挡路时转入叠加轨继续移动。
+        shiftOverlay: shiftOverlayMove,
+        shiftRangeSelect: (track === 'main' || track === 'overlay') && Boolean(event.shiftKey),
+        convertedToOverlay: false,
         altToggleDisabledOnClick: Boolean(
           event.altKey && !targetHandle
             && !event.shiftKey && !event.ctrlKey && !event.metaKey,
@@ -5631,7 +5807,7 @@
       // 普通字幕块点击的跳转与波形空白区保持一致：在按下时立即移动播放头。
       // 只有普通 move 点击进入此路径；修饰键和边界手柄仍只执行选择/拖动操作。
       const clickBehavior = this.options.getClickBehavior?.();
-      if (kind === 'move' && clickBehavior !== 'select-only' && !event.altKey) {
+      if (kind === 'move' && clickBehavior !== 'select-only' && !event.altKey && !shiftOverlayMove) {
         this.seekFromCue(event, row, index, clickBehavior === 'select-and-play', geometry, track);
         this.drag.seekedOnPointerDown = true;
       }
@@ -5641,7 +5817,7 @@
       const block = event.target.closest?.('.waveform-cue-block');
       if (!block || block.closest('.waveform-row') !== row) return null;
       const track = block.dataset.track || 'main';
-      const attr = track === 'extension' ? 'ext-idx' : 'idx';
+      const attr = track === 'extension' ? 'ext-idx' : track === 'overlay' ? 'overlay-idx' : 'idx';
       const index = Number(block.getAttribute(`data-${attr}`));
       const segments = this.options.getSegments(track), segment = segments[index];
       if (!segment) return null;
@@ -5685,7 +5861,7 @@
       this.content?.querySelectorAll('.waveform-cue-handle').forEach(handle => {
         const block = handle.parentElement;
         const track = block.dataset.track || 'main';
-        const index = Number(track === 'extension' ? block.dataset.extIdx : block.dataset.idx);
+        const index = Number(track === 'extension' ? block.dataset.extIdx : track === 'overlay' ? block.dataset.overlayIdx : block.dataset.idx);
         handle.classList.toggle('edge-hot', (this.cueEdgeHover || []).some(edge => edge.track === track
           && edge.index === index && handle.classList.contains(edge.side)));
       });
@@ -5776,6 +5952,27 @@
         idx,
         snapshotTiming(segments[idx], drag.timing || this.cueTiming()),
       ]));
+    }
+
+    // Shift+拖动换轨后重建拖动状态：快照取段的当前实际位置为新基准，
+    // 并把指针基准平移 rawDelta，使后续帧 position = 基准 +（指针 - 新基准）
+    // 连续无跳变；整层重建字幕块并让新块继承拖动视觉（旧元素被移除，
+    // 指针监听挂在 window 上，不受元素替换影响）。
+    rebaseCueDragToTrack(drag, track, index, clock, deltaShift = 0) {
+      drag.track = track;
+      drag.index = index;
+      drag.indices = [index];
+      drag.commitIndices = new Set([index]);
+      drag.squeezeOriginals = null;
+      drag.allowSqueeze = false;
+      drag.convertedToOverlay = track === 'overlay';
+      const original = snapshotTiming(this.options.getSegments(track)[index], clock);
+      drag.originals = new Map([[index, original]]);
+      drag.cancelOriginals = new Map([[index, original]]);
+      if (Number.isFinite(deltaShift) && deltaShift) drag.startPointerTime += deltaShift;
+      this.refreshCueOverlay();
+      this.content.querySelectorAll(`.waveform-cue-block[data-track="${track}"][${track === 'overlay' ? 'data-overlay-idx' : 'data-idx'}="${index}"]`)
+        .forEach((block) => block.classList.add('dragging'));
     }
 
     adjustSelectedByKeyboard(deltaMs, altKey = false, track = 'main') {
@@ -6496,10 +6693,13 @@
       // 一旦在本次拖动中进入相邻字幕独立模式，松开 Alt 也不要把已经
       // 调整过的字幕重新吸回邻居；下一次拖动再按设置决定默认模式。
       const adjacentCueAdjustmentIndependent = this.isAdjacentCueAdjustmentIndependent(event.altKey);
-      if (drag.kind === 'move' && adjacentCueAdjustmentIndependent) drag.allowSqueeze = true;
+      // Shift+拖动的逃生口是转入叠加轨，不做同轨挤压。
+      if (drag.kind === 'move' && adjacentCueAdjustmentIndependent && !drag.shiftOverlay) drag.allowSqueeze = true;
       // 主字幕/副字幕绑定的独立调整仍只由 Alt 临时触发，不受同轨自动吸附开关影响。
       if (drag.track === 'extension' && event.altKey) drag.independent = true;
-      const disableSnap = drag.independent === true;
+      // Shift+拖动是精确自由放置（邻居挡路时换轨而不是吸附），全程禁用吸附，
+      // 否则刚拖出重叠区就会被吸回邻居边界。
+      const disableSnap = drag.independent === true || drag.shiftOverlay === true;
       if (drag.kind === 'move') this.applyMoveDrag(drag, deltaTime, disableSnap, drag.allowSqueeze);
       else if (drag.kind === 'resize-boundary') this.applyBoundaryDrag(drag, deltaTime, drag.independent);
       else if (drag.kind === 'resize-boundary-independent') this.applyIndependentBoundaryDrag(drag, deltaTime);
@@ -6513,6 +6713,70 @@
       // PR 式边缘磁吸：8px 阈值内自动对齐其他字幕块 / 音频贴片边缘。
       rawDelta = this.magneticSnapDelta(drag, rawDelta, (drag.msPerPixel || 0) * 8);
       const clock = resolveTiming(drag.timing || this.cueTiming());
+      // Shift+拖动的动态换轨（只作用于单条拖动）：
+      // 1) 主轨上请求位移被邻居挡住 → 先把段移到指针对应位置，再转入叠加轨；
+      // 2) 叠加轨上段的实际位置不再与主轨任何字幕重叠 → 转回主轨。
+      // 两次换轨都以“当前实际位置”为新基准，并同步平移 startPointerTime，
+      // 保证 position = 换轨位置 +（指针 - 换轨指针）逐帧连续无跳变。
+      if (drag.shiftOverlay && drag.indices.length === 1) {
+        const mainSegments = this.options.getSegments('main');
+        if (drag.track === 'main' && !drag.convertedToOverlay
+            && typeof this.options.convertCueToOverlay === 'function') {
+          const segment = mainSegments[drag.index];
+          const mainOriginal = drag.originals.get(drag.index);
+          if (segment && mainOriginal) {
+            let neighborMinDelta = -Infinity;
+            let neighborMaxDelta = Infinity;
+            if (drag.index > 0) {
+              neighborMinDelta = clock.getEnd(mainSegments[drag.index - 1]) - mainOriginal.start;
+            }
+            if (drag.index + 1 < mainSegments.length) {
+              neighborMaxDelta = clock.getStart(mainSegments[drag.index + 1]) - mainOriginal.end;
+            }
+            const requestedDelta = clock.round(rawDelta);
+            if (requestedDelta > neighborMaxDelta || requestedDelta < neighborMinDelta) {
+              const mediaDuration = Number(this.durationMs) > 0 ? clock.fromMs(this.durationMs) : Infinity;
+              const appliedDelta = clamp(requestedDelta, -mainOriginal.start, mediaDuration - mainOriginal.end);
+              // 先把段移到指针对应位置（可越过邻居），迁移后快照才与实际一致。
+              clock.setStart(segment, mainOriginal.start + appliedDelta);
+              clock.setEnd(segment, mainOriginal.end + appliedDelta);
+              if (Array.isArray(mainOriginal.items)) {
+                segment.items = mainOriginal.items.map((item) => {
+                  const copy = { ...item };
+                  clock.setItemStart(copy, clock.getItemStart(item) + appliedDelta);
+                  clock.setItemEnd(copy, clock.getItemEnd(item) + appliedDelta);
+                  return copy;
+                });
+              }
+              const overlayIndex = this.options.convertCueToOverlay(drag.index);
+              if (Number.isInteger(overlayIndex) && overlayIndex >= 0) {
+                this.rebaseCueDragToTrack(drag, 'overlay', overlayIndex, clock, rawDelta);
+                return;
+              }
+              restoreTiming(segment, mainOriginal, clock);
+            }
+          }
+        } else if (drag.track === 'overlay'
+            && typeof this.options.convertOverlayCueToMainDrag === 'function') {
+          const segment = this.options.getSegments('overlay')[drag.index];
+          if (segment) {
+            const currentStart = clock.getStart(segment);
+            const currentEnd = clock.getEnd(segment);
+            // 用实际位置判定：叠加轨允许压在主轨上，只有真的拖出重叠才回主轨。
+            // 起点就在叠加轨的 Shift+拖动同样适用（放回主字幕）。
+            const fitsMain = mainSegments.every((other) => (
+              currentEnd <= clock.getStart(other) || currentStart >= clock.getEnd(other)
+            ));
+            if (fitsMain) {
+              const mainIndex = this.options.convertOverlayCueToMainDrag(drag.index);
+              if (Number.isInteger(mainIndex) && mainIndex >= 0) {
+                this.rebaseCueDragToTrack(drag, 'main', mainIndex, clock, rawDelta);
+                return;
+              }
+            }
+          }
+        }
+      }
       const segments = this.options.getSegments(drag.track);
       const moved = new Set(drag.indices);
       const originalFor = (idx) => drag.squeezeOriginals?.get(idx)
@@ -6752,6 +7016,13 @@
         return;
       }
       if (!drag.changed) {
+        // Shift+点击（无拖动位移）：按下时未做范围选择，这里补上，
+        // 保持既有 Shift+click 范围选语义；不进入跳转/启停逻辑。
+        if (drag.shiftRangeSelect) {
+          if (drag.track === 'overlay') this.options.selectOverlayRange?.(drag.index);
+          else this.options.selectCueRange?.(drag.index);
+          return;
+        }
         if (drag.altToggleDisabledOnClick) {
           this.options.toggleDisabled?.([drag.index], drag.track || 'main');
           return;
@@ -6794,6 +7065,19 @@
         this.content.querySelectorAll('.waveform-cue-block[data-track="extension"]')
           .forEach((block) => {
             block.classList.toggle('active', Number(block.dataset.extIdx) === activeExtensionIndex && activeExtensionVisualHit);
+          });
+      }
+      const overlaySegments = this.options.getSegments('overlay') || [];
+      const activeOverlayIndex = findActiveCueIndex(overlaySegments, now);
+      const activeOverlayVisualHit = activeOverlayIndex >= 0
+        && isActiveCueVisualHit(overlaySegments, activeOverlayIndex, now);
+      if (activeOverlayIndex !== this.activeOverlayIndex
+          || activeOverlayVisualHit !== this.activeOverlayVisualHit) {
+        this.activeOverlayIndex = activeOverlayIndex;
+        this.activeOverlayVisualHit = activeOverlayVisualHit;
+        this.content.querySelectorAll('.waveform-cue-block[data-track="overlay"]')
+          .forEach((block) => {
+            block.classList.toggle('active', Number(block.dataset.overlayIdx) === activeOverlayIndex && activeOverlayVisualHit);
           });
       }
 
@@ -6914,6 +7198,7 @@
     create(options) {
       return new WaveformEditor(options);
     },
+    setColorPalette,
     builtinWorkspaceIds: BUILTIN_WORKSPACE_IDS,
     builtinWorkspaces: BUILTIN_WORKSPACES,
     testing: {

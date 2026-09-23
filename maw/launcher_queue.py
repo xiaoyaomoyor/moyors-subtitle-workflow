@@ -15,7 +15,7 @@ from maw.gui_workflow import (
 from maw.gui_config import DEFAULT_MODEL_ID
 from maw.media import MEDIA_EXTENSIONS, probe_audio_tracks, resolve_project_media
 from maw.media_cache import MediaCacheCancelled, embed_media_caches
-from maw.postprocess_io import read_project, read_srt, render_srt, write_derived_project, _atomic_write
+from maw.postprocess_io import read_project, read_srt, render_srt, write_derived_project, _atomic_write, project_from_subtitle_segments
 from maw.postprocess_pipeline import (
     PostprocessCancelled, enabled_steps, run_postprocess_pipeline,
     snapshot_postprocess_llm_settings, validate_plan,
@@ -80,7 +80,7 @@ def _read_ass(path: Path) -> dict:
             segments.append({"start": timestamp(row["start"]), "end": timestamp(row["end"]), "text": content})
     if not fields:
         raise ValueError("未找到有效的 ASS Events。")
-    return normalize_project({"segments": sorted(segments, key=lambda s: (s["start"], s["end"]))})
+    return project_from_subtitle_segments(sorted(segments, key=lambda s: (s["start"], s["end"])), source=path)
 
 
 def read_input(path: Path) -> dict:
@@ -95,6 +95,15 @@ def read_input(path: Path) -> dict:
     if kind == "media":
         return normalize_project({"media": str(path), "segments": []})
     raise ValueError("不支持该文件类型；请选择媒体、工程或 SRT/ASS 字幕。")
+
+
+def subtitle_count(project):
+    count = len(project.get('segments', []))
+    if (project.get('overlay_track') or {}).get('enabled') is True:
+        count += len(project['overlay_track'].get('segments', []))
+    if (project.get('multi_subtitle') or {}).get('enabled') is True:
+        count += sum(len(track.get('segments', [])) for track in project['multi_subtitle'].get('tracks', []))
+    return count
 
 
 def inspect_input(value, *, ffprobe_path=None) -> dict:
@@ -114,7 +123,7 @@ def inspect_input(value, *, ffprobe_path=None) -> dict:
         warnings.append("工程媒体失联；仍可处理字幕，音频处理需重新关联媒体。")
     return {
         "path": str(path), "kind": kind, "mediaPath": str(media or ""),
-        "hasSubtitles": bool(project.get("segments")), "subtitleCount": len(project.get("segments", [])),
+        "hasSubtitles": bool(subtitle_count(project)), "subtitleCount": subtitle_count(project),
         "audioTracks": tracks, "audioTrack": selected, "defaultAudioTrack": default_track,
         "warnings": warnings,
     }
@@ -178,7 +187,10 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                 subtitle = _existing(raw["subtitlePath"])
                 if input_kind(subtitle) != "subtitle" or info["kind"] != "media":
                     raise ValueError("只允许将字幕关联到媒体任务；已有工程的字幕不能被隐式覆盖。")
-                project["segments"] = read_input(subtitle)["segments"]
+                imported = read_input(subtitle)
+                project['segments'] = imported['segments']
+                if 'overlay_track' in imported:
+                    project['overlay_track'] = copy.deepcopy(imported['overlay_track'])
                 if subtitle.suffix.lower() == ".ass":
                     info["warnings"].append("ASS 仅导入时间与文本，不导入样式。")
             tracks = probe_audio_tracks(media, ffprobe_path=tools.ffprobe) if media else None
@@ -188,7 +200,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                 track = default_track
             if type(track) is not int or track < 0 or (tracks and track not in {t["audio_index"] for t in tracks}):
                 raise ValueError("所选音轨无效，请重新选择。")
-            has_subtitles = bool(project.get("segments"))
+            has_subtitles = bool(subtitle_count(project))
             recognize = bool(modules.get("asr")) and (not has_subtitles or plan.get("asrPolicy") == "replace")
             if recognize and (not media or tracks == []):
                 module = "asr"

@@ -107,7 +107,7 @@ class VideoRenderTests(unittest.TestCase):
         self.project['segments'] = [dict(start=1000, end=3000, text='MAIN')]
         # Explicit sizes test the configured burn style independent of defaults.
         self.project['preview'] = {'burn_subtitles': {'main': {'font_size': 80, 'y': .75}, 'secondary': {'font_size': 72}}}
-        self.project['multi_subtitle'] = {'tracks': [{'segments': [dict(start=1000, end=3000, text='SECONDARY')]}]}
+        self.project['multi_subtitle'] = {'enabled': True, 'tracks': [{'segments': [dict(start=1000, end=3000, text='SECONDARY')]}]}
         self.project['msw']['audio_settings']['gap_policy'] = 'follow'
         self.project['gap_remove'] = {'gaps': [dict(start=1500, end=2500, removed=True)]}
         with patch('maw.msw.video_render.CHUNK_SECONDS', .5):
@@ -134,7 +134,7 @@ class VideoRenderTests(unittest.TestCase):
              'color=black:size=320x180:rate=24:duration=4', '-c:v', 'libx264', '-threads', '1', str(self.source)], self.cancel)
         self.info = probe_source(self.tools.ffprobe, self.source, self.cancel)
         self.project['segments'] = [dict(start=1000, end=3000, text='MAIN')]
-        self.project['multi_subtitle'] = {'tracks': [{'segments': [dict(start=1000, end=3000, text='SECONDARY')]}]}
+        self.project['multi_subtitle'] = {'enabled': True, 'tracks': [{'segments': [dict(start=1000, end=3000, text='SECONDARY')]}]}
         self.project['preview'] = {'burn_subtitles': {'main': {'font_size':96, 'y':.6, 'color':'#ff0000'},
                                                      'secondary': {'font_size':96, 'y':.9, 'color':'#00ff00'}}}
         _, _, output = self.export(mode='voice', burn_subtitles='both')

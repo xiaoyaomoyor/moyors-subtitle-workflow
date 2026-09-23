@@ -9,6 +9,14 @@ FIXTURES = json.loads((Path(__file__).parent / 'fixtures' / 'msw_audio_render.js
 
 
 class AudioPlanTests(unittest.TestCase):
+    def test_overlay_only_export_duration_and_disabled_track(self):
+        project = {'segments': [], 'overlay_track': {'enabled': True, 'segments': [
+            {'start': 100, 'end': 2500, 'text': 'overlay'}]}}
+        self.assertEqual(compile_plan(project)['source_end_ms'], 2500)
+        project['overlay_track']['enabled'] = False
+        with self.assertRaises(ValueError):
+            compile_plan(project)
+
     def test_shared_monitor_levels(self):
         for c in json.loads((Path(__file__).parent/'fixtures/msw_monitor.json').read_text()):
             with self.subTest(c=c):

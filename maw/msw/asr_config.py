@@ -8,14 +8,15 @@ from urllib.parse import urlsplit
 
 from maw.openai_asr_capabilities import capabilities
 from maw.env_config import aliased_values
-from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_URL, api_key_for_provider, load_env, save_env, provider_models
+from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_URL, api_key_for_provider, load_env, save_env, provider_models, effective_config
 
 FIELDS = {'providerId', 'modelId', 'language', 'region', 'workspaceId', 'openaiModel', 'openaiBaseUrl',
+          'device', 'localModelPath', 'fireredPunc', 'alignmentModel', 'alignmentModelPath',
           'maxLen', 'minLen', 'maxWords', 'minWords', 'gapSplit', 'speakerColors', 'qwenAudioContext',
           'qwenAudioHotwords', 'qwenAudioVocabularyId', 'qwenAudioHotwordWeight',
           'openaiPrompt', 'openaiKeywords', 'openaiDiarize', 'sonioxContextGeneral', 'sonioxContextText', 'sonioxContextTerms', 'sonioxContextTranslationTerms', 'doubaoHotwords'}
 PROVIDERS_BY_ID = {provider.id: provider for provider in PROVIDERS
-                   if provider.kind == 'cloud' and provider.requires_api_key and not provider.hidden}
+                   if (provider.kind == 'local' or provider.requires_api_key) and not provider.hidden}
 CONNECTION_FIELDS = {'region', 'workspaceId', 'openaiBaseUrl'}
 
 
@@ -40,10 +41,12 @@ def catalog(env_path):
                 'openaiBaseUrl': stored.get('MAW_OPENAI_ASR_BASE_URL', OPENAI_ASR_DEFAULT_BASE_URL),
                 'qwenAudioVocabularyId': stored.get('DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID', ''),
                 'qwenAudioHotwordWeight': stored.get('DASHSCOPE_QWEN_AUDIO_HOTWORD_WEIGHT', '5')}
+    defaults.update(device='auto', localModelPath='', fireredPunc='none', alignmentModel='', alignmentModelPath='')
     defaults.update({k: v for k, v in options.items() if k in FIELDS - CONNECTION_FIELDS})
     providers = []
     for provider in PROVIDERS_BY_ID.values():
-        providers.append({'id': provider.id, 'label': provider.label, 'note': provider.note,
+        providers.append({'id': provider.id, 'label': provider.label, 'note': provider.note, 'kind': provider.kind,
+            'requiresApiKey': provider.requires_api_key,
             'hasApiKey': bool(api_key_for_provider(provider.id, env_path)),
             'models': [{'id': model.id, 'label': model.label, 'supportsContext': model.supports_context,
                         'supportsHotwords': model.supports_hotwords, 'supportsVocabulary': model.supports_vocabulary,
@@ -53,6 +56,14 @@ def catalog(env_path):
                         'languages': [{'id': k, 'label': v} for k, v in (model.languages or provider.languages)]}
                        for model in provider_models(provider, env_path) if not model.hidden],
             'regions': [{'id': k, 'label': v} for k, v in provider.regions], 'multiLanguage': provider.multi_language})
+        if provider.kind == 'local':
+            from maw.local_models import local_model_payload
+            root = effective_config(env_path).model_cache_root
+            for model in providers[-1]['models']:
+                config = next(item for item in provider.models if item.id == model['id'])
+                path = defaults.get('localModelPath', '') if defaults.get('modelId') == model['id'] else ''
+                model['localStatus'] = local_model_payload(config, path, model_cache_root=root)
+                model['engine'] = config.engine
     return {'providers': providers, 'options': defaults}
 
 
@@ -72,7 +83,7 @@ class AsrSettings:
     reasoning_mode = ''
 
 
-def resolve_settings(env_path, raw, media_path=None):
+def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
     if not isinstance(raw, dict):
         raise ValueError('ASR 配置无效')
     options = {k: v for k, v in raw.items() if k in FIELDS}
@@ -90,8 +101,10 @@ def resolve_settings(env_path, raw, media_path=None):
         raise ValueError('ASR 模型不属于所选服务')
     options.update(providerId=provider.id, modelId=model_id)
     key = raw.get('apiKey') or api_key_for_provider(provider.id, env_path)
-    if not isinstance(key, str) or not key.strip() or len(key) > 4096 or any(c in key for c in '\r\n\0'):
+    if provider.requires_api_key and (not isinstance(key, str) or not key.strip() or len(key) > 4096 or any(c in key for c in '\r\n\0')):
         raise ValueError('请填写 ASR API Key，或使用启动器已保存的同一服务配置')
+    if not provider.requires_api_key:
+        key = ''
     stored = catalog(env_path)['options']
     # Configuration-only validation never probes media or writes output. The
     # placeholder satisfies the request shape; actual jobs always supply their
@@ -110,7 +123,7 @@ def resolve_settings(env_path, raw, media_path=None):
     # this existing validator; no local model, hotword-file or postprocess path.
     from maw.gui_web import _request_from_payload, PreflightError
     try:
-        request = _request_from_payload(merged, env_path, validate_media=media_path is not None)
+        request = _request_from_payload(merged, env_path, validate_media=media_path is not None, validate_local=validate_runtime)
     except PreflightError as error:
         raise ValueError(str(error)) from error
     request = replace(request, generate_waveform=False, generate_html=False, generate_spectral=False,
@@ -129,6 +142,8 @@ def resolve_settings(env_path, raw, media_path=None):
               'qwen_audio_context', 'qwen_audio_hotwords', 'qwen_audio_vocabulary_id', 'qwen_audio_hotword_weight',
               'soniox_context', 'doubao_hotwords', 'openai_prompt', 'openai_keywords', 'openai_diarize', 'base_url')}
     recipe['environment'] = {key: value for key, value in overrides.items() if key != 'FFMPEG_PATH'}
+    recipe.update({key: getattr(request, key) for key in ('engine', 'device', 'model_path', 'model_cache_root',
+                  'firered_punc', 'alignment_model', 'alignment_model_path')})
     return AsrSettings(request, recipe)
 
 
@@ -141,10 +156,15 @@ def save_settings(env_path, raw, media_path=None, *, section=None):
         raw = {key: value for key, value in raw.items() if key in CONNECTION_FIELDS | {'providerId', 'apiKey'}}
     elif section == 'call':
         raw = {key: value for key, value in raw.items() if key in FIELDS - CONNECTION_FIELDS}
-    settings = resolve_settings(env_path, raw, media_path)
+    settings = resolve_settings(env_path, raw, media_path, validate_runtime=False)
     request = settings.request
     provider = PROVIDERS_BY_ID[request.provider]
     options = {key: value for key, value in raw.items() if key in FIELDS}
+    if provider.kind == 'local':
+        if section != 'environment':
+            save_env(env_path, {'MSW_EDITOR_ASR_OPTIONS': json.dumps(options, ensure_ascii=False),
+                               'MAW_GUI_LAST_MODEL': options.get('modelId', provider.models[0].id)})
+        return catalog(env_path)
     if section == 'environment':
         updates = {provider.models[0].env_key: request.api_key}
         if request.provider == 'qwen':

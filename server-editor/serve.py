@@ -52,6 +52,7 @@ from maw.console import configure_utf8_stdio  # noqa: E402
 from maw.gui_platform import startupinfo  # noqa: E402
 from maw import reapeaks  # noqa: E402
 from maw import stickers as _stickers  # noqa: E402
+from maw.ass_styles import load_ass_style_library, save_ass_style_library  # noqa: E402
 from maw.app_paths import default_server_settings_path, legacy_server_settings_path  # noqa: E402
 from maw.ffmpeg import resolve_ffmpeg_tools  # noqa: E402
 from maw.gui_config import DEFAULT_ENV_PATH, load_env  # noqa: E402
@@ -178,6 +179,33 @@ def _drop_derived_frame_fields(value):
 
 class AttachProjectError(ValueError):
     """A browser-opened project could not be bound to its on-disk file."""
+
+
+def _attach_subtitles_match(server_project, browser_project):
+    """Compare all subtitle tracks, preserving authoritative frame-mode ranges."""
+    server_timebase = server_project.get("timebase") or {}
+    browser_timebase = browser_project.get("timebase") or {}
+    frame_mode = any(value.get("unit") == "frames" for value in (server_timebase, browser_timebase))
+    if frame_mode and server_timebase != browser_timebase:
+        return False
+    for key in ("segments", "overlay_track", "multi_subtitle"):
+        left, right = server_project.get(key), browser_project.get(key)
+        if key == "overlay_track":
+            left = left or {"enabled": False, "segments": []}
+            right = right or {"enabled": False, "segments": []}
+        elif key == "multi_subtitle":
+            # Opening legacy projects creates this empty optional track in the
+            # browser. Only that exact default is equivalent to an absent track;
+            # disabled tracks with data or unknown fields must still match.
+            empty = {"schema": "moy.asr.multi_subtitle.v1", "enabled": False,
+                     "display_mode": "both", "tracks": [], "bindings": []}
+            left = empty if left is None else left
+            right = empty if right is None else right
+        if not frame_mode:
+            left, right = _drop_derived_frame_fields(left), _drop_derived_frame_fields(right)
+        if left != right:
+            return False
+    return True
 
 
 class ProjectMutationInProgressError(RuntimeError):
@@ -673,6 +701,7 @@ def build_server_page(
             "recentProjectsUrl": "/api/recent-projects/open",
             "attachUrl": "/api/project/attach",
             "settingsUrl": "/api/settings",
+            "assStylesUrl": "/api/ass-styles",
             "recentProjects": [item.to_json() for item in settings.recent_projects],
             "autoOpenLastProject": settings.auto_open_last_project,
             "savedWorkspaces": settings.saved_workspaces,
@@ -1169,7 +1198,7 @@ class EditorServer(ThreadingHTTPServer):
         )
         if self.defer_reapeaks:
             project = without_deferred_reapeaks(project)
-        if _drop_derived_frame_fields(project.data.get("segments")) != _drop_derived_frame_fields(normalized_browser.get("segments")):
+        if not _attach_subtitles_match(project.data, normalized_browser):
             raise AttachProjectError("媒体同目录的同名工程与打开的副本内容不一致，未接管")
         with self.save_lock, self.settings_lock:
             self.project = project
@@ -1743,6 +1772,8 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self.open_project_folder()
         elif path == "/api/recent-projects/open":
             self.open_recent_project()
+        elif path == "/api/ass-styles":
+            self.update_ass_styles()
         elif path == "/api/settings":
             self.update_settings()
         elif path == "/api/settings/appearance":
@@ -2019,10 +2050,10 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(ograf_bytes)
 
-    def read_json_request(self) -> dict:
+    def read_json_request(self, *, max_bytes: int = 64 * 1024 * 1024) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
-        if length <= 0 or length > 64 * 1024 * 1024:
-            raise ValueError("请求内容为空或超过 64 MB")
+        if length <= 0 or length > max_bytes:
+            raise ValueError(f"请求内容为空或超过 {max_bytes} 字节")
         request = json.loads(self.rfile.read(length).decode("utf-8"))
         if not isinstance(request, dict):
             raise ValueError("请求内容必须是对象")
@@ -2128,6 +2159,22 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             "activeWorkspaceName": settings.active_workspace_name,
         })
 
+    def update_ass_styles(self) -> None:
+        """Persist the shared user-level style library used by Editor and Launcher."""
+        try:
+            request = self.read_json_request(max_bytes=512 * 1024)
+            # 共享样式库会覆盖用户级配置；与其它状态变更接口一样要求页面请求令牌，
+            # 防止任意网页用 CORS-safelisted POST 直接改写本机 ass-styles.json。
+            self._check_request_token(request)
+            library = save_ass_style_library(request)
+        except PermissionError as error:
+            self.send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": str(error)})
+            return
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, OSError) as error:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(error)})
+            return
+        self.send_json(HTTPStatus.OK, library)
+
     def _apply_settings_request(self, request: dict[str, object]) -> bool:
         """Apply at most one settings action; returns False when nothing was requested."""
         enabled = request.get("autoOpenLastProject")
@@ -2213,6 +2260,9 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         if self.editor_server.processing_api.handle(self):
             return
         path = urlsplit(self.path).path
+        if path == "/api/ass-styles":
+            self.send_json(HTTPStatus.OK, load_ass_style_library())
+            return
         if path == "/api/prproj-capability":
             self.send_json(HTTPStatus.OK, PRPROJ_CAPABILITY)
             return

@@ -74,7 +74,8 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
 
   await toggleMediaSettings(page);
   await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
-  await page.locator('#subtitle-font-family').selectOption('hei');
+  await page.locator('#subtitle-font-family').fill('hei');
+  await page.locator('#subtitle-font-family').dispatchEvent('change');
   await page.locator('#subtitle-font-size').selectOption('40');
   await page.locator('#subtitle-color').evaluate((input) => {
     input.value = '#12abef';
@@ -193,4 +194,53 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
   expect(save.content).toContain(
     'Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,after gap',
   );
+});
+
+test('keeps legacy export until explicit library selection and freezes each video job', async ({ page }, testInfo) => {
+  await disableOnboarding(page);
+  await page.goto(server.url);
+  const result = await page.evaluate(() => {
+    const host = window.MSWE.resolve('processing-host');
+    const library = window.AsrEditorUtils.normalizeAssStyleLibrary({
+      styles: [{ id: 'test-style', fontName: 'Snapshot Font', fontSize: 42 }],
+      assProfiles: [{ id: 'test-profile', styleId: 'test-style' }],
+      assignments: { assExportProfileId: 'test-profile' },
+    });
+    ASS_STYLE_LIBRARY = library;
+    DATA.overlay_track = { enabled: true, segments: [{ id: 'overlay', start: 1000, end: 2000, text: 'overlay' }] };
+    DATA.multi_subtitle = { enabled: true, tracks: [{ id: 'secondary', segments: [{ id: 'second', start: 1000, end: 2000, text: 'second' }] }] };
+    const legacy = buildAss();
+    host.setAssLibraryExports(true);
+    const explicit = buildAss();
+    const job = host.exportProject();
+    const persisted = JSON.parse(buildJson());
+    ASS_STYLE_LIBRARY.styles.find(style => style.id === 'test-style').fontName = 'Changed Later';
+    host.openAssStyles();
+    return { legacy, explicit, job, persisted };
+  });
+  expect(result.legacy).not.toContain('Snapshot Font');
+  expect(result.legacy).toContain('Extension,,0,0,0,,second');
+  expect(result.explicit).toContain('Style: Default,Snapshot Font,');
+  expect(result.explicit).toContain('Overlay,,0,0,0,,overlay');
+  expect(result.job.preview.burn_ass_library.styles.find(s => s.id === 'test-style').fontName).toBe('Snapshot Font');
+  expect(result.persisted.preview.ass_library_exports).toBe(true);
+  expect(result.persisted.preview.burn_ass_library).toBeUndefined();
+  await expect(page.locator('#ass-style-window')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('ass-library.png'), fullPage: true });
+});
+
+test('dynamic exports use source canvas size and reject invalid custom sizes', async ({ page }) => {
+  await disableOnboarding(page);
+  await page.goto(server.url);
+  const result = await page.evaluate(() => {
+    DATA.media_metadata = { video_width: 1440, video_height: 1080 };
+    openLottieExportModal();
+    const source = lottieExportCanvasSize();
+    lottieExportCustomWidth.value = '15';
+    let message = '';
+    try { lottieExportCanvasSize(); } catch (error) { message = error.message; }
+    return { source, message };
+  });
+  expect(result.source).toEqual({ width: 1440, height: 1080 });
+  expect(result.message).toContain('16–7680');
 });

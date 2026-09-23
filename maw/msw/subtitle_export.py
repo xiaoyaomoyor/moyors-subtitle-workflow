@@ -5,9 +5,17 @@ import html
 import math
 
 
-def mapped_subtitles(project, plan):
+def mapped_subtitles(project, plan, *, include_styles=False):
+    multi = project.get('multi_subtitle') or {}
+    tracks = multi.get('tracks', []) if multi.get('enabled') is True else []
+    # Keep the secondary slot stable for callers selecting main/secondary.
     groups = [('主字幕', project.get('segments', [])), *[(t.get('name') or '副字幕', t.get('segments', []))
-               for t in (project.get('multi_subtitle') or {}).get('tracks', [])]]
+               for t in tracks]]
+    overlay = project.get('overlay_track') or {}
+    if overlay.get('enabled') is True:
+        if not tracks:
+            groups.append(('副字幕', []))
+        groups.append(('叠加字幕', overlay.get('segments', [])))
     result = []
     ends = [k['end_ms'] for k in plan['intervals']]
     for name, segments in groups:
@@ -21,8 +29,14 @@ def mapped_subtitles(project, plan):
                     break
                 lo, hi = max(s['start'], k['start_ms']), min(s['end'], k['end_ms'])
                 if hi > lo:
-                    cues.append(dict(start=k['output_start_ms'] + lo - k['start_ms'],
-                                     end=k['output_start_ms'] + hi - k['start_ms'], text=s.get('text', '')))
+                    cue = dict(start=k['output_start_ms'] + lo - k['start_ms'],
+                               end=k['output_start_ms'] + hi - k['start_ms'], text=s.get('text', ''))
+                    if include_styles:
+                        head = (s.get('color_ref') or {}).get('headIdx')
+                        color = s.get('color') or ((segments[head].get('color') or {})
+                            if type(head) is int and 0 <= head < len(segments) else {})
+                        cue['color'] = color
+                    cues.append(cue)
         result.append((name, sorted(cues, key=lambda c: c['start'])))
     return result
 
@@ -41,6 +55,8 @@ def burning_cues(project, plan, target):
         return []
     groups = mapped_subtitles(project, plan)
     selected = groups[:1] if target == 'main' else groups[1:2] if target == 'secondary' else groups[:2]
+    if (project.get('overlay_track') or {}).get('enabled') is True:
+        selected = [groups[-1], *selected]
     events, texts = {}, {}
     for _, cues in selected:
         for c in cues:

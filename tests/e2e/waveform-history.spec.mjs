@@ -1654,7 +1654,7 @@ test('help reflects the selected subtitle-edit split key', async ({ page }) => {
 
   const multiSubtitleHelp = helpPanel.locator('.help-subgroup').filter({ hasText: '绑定到主副字幕（自动匹配）' });
   await expect(multiSubtitleHelp).toHaveCount(1);
-  await expect(helpPanel.locator('#help-tab-panel-waveform .help-title').filter({ hasText: '多重字幕' })).toHaveCount(1);
+  await expect(helpPanel.locator('#help-tab-panel-waveform .help-title').filter({ hasText: '双语字幕' })).toHaveCount(1);
 
   await splitKey.selectOption('enter');
   await expect(helpSplitKey).toHaveText('Enter');
@@ -1731,16 +1731,15 @@ test('Help settings actions open the related waveform and media settings', async
   await expect(helpPanel).toHaveClass(/show/);
 
   await helpPanel.getByRole('tab', { name: '微调字幕', exact: true }).click();
-  await helpPanel.locator('#help-open-waveform-keyboard-settings').click();
-  await expect(helpPanel).toHaveClass(/show/);
-  await expect(page.locator('#waveform-settings-panel')).toBeVisible();
-  await toggleWaveSettings(page);
+  await helpPanel.locator('#help-open-keyboard-settings').click();
+  await expect(page.locator('#editor-settings-panel')).toBeVisible();
+  await page.locator('#editor-settings-close').click();
 
   await helpPanel.getByRole('tab', { name: '空隙操作', exact: true }).click();
   await helpPanel.locator('#help-open-gap-settings').click();
   await expect(helpPanel).toHaveClass(/show/);
-  await expect(page.locator('#waveform-settings-panel')).toBeVisible();
-  await toggleWaveSettings(page);
+  await expect(page.locator('#editor-settings-panel')).toBeVisible();
+  await page.locator('#editor-settings-close').click();
 
   await helpPanel.getByRole('tab', { name: '播放与导航', exact: true }).click();
   await helpPanel.locator('#help-open-media-settings').click();
@@ -1818,7 +1817,7 @@ test('C merges a common group and Shift+A/D extends the subtitle selection', asy
   await expect(cues.nth(0)).toHaveClass(/selected/);
   await page.keyboard.press('c');
   await expect(cues).toHaveCount(6);
-  await expect(page.locator('.hint-card', { hasText: '请选择至少两个字幕块！' })).toHaveCount(1);
+  await expect(page.locator('.hint-card', { hasText: '请选择至少两个同轨道字幕块！' })).toHaveCount(1);
 
   await cues.nth(2).click();
   await expect(cues.nth(2)).toHaveClass(/selected/);

@@ -70,8 +70,11 @@
     const assets = new Map((ext.assets || []).map(a => [a.id, a]));
     const tracks = new Map((ext.audio_tracks || []).map(t => [t.id, t]));
     const clips = ext.audio_clips || [];
+    const subtitleSegments = [...(project.segments || []),
+      ...(project.overlay_track?.enabled === true ? project.overlay_track.segments || [] : []),
+      ...(project.multi_subtitle?.enabled === true ? (project.multi_subtitle.tracks || []).flatMap(track => track.segments || []) : [])];
     const duration = clips.reduce((n, c) => Math.max(n, Math.ceil(core.end(c, assets.get(c.asset_id)))),
-      (project.segments || []).reduce((n, s) => Math.max(n, s.end), o.duration_ms));
+      subtitleSegments.reduce((n, s) => Math.max(n, s.end), o.duration_ms));
     integer(duration, 1, MAX_MS, '没有有效的音频导出范围，或工程超过 12 小时');
     const finish = o.end_ms === null ? duration : Math.min(o.end_ms, duration);
     if (o.start_ms >= finish) throw Error('导出终点必须晚于起点');

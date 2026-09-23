@@ -7,7 +7,8 @@
   const panel=document.createElement('aside');panel.id='burn-style-panel';panel.className='gap-remove-panel msw-processing-panel';
   panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','false');panel.setAttribute('aria-hidden','true');panel.setAttribute('aria-labelledby','burn-style-title');
   panel.innerHTML=`<header class="gap-remove-panel-header" id="burn-style-drag"><div class="gap-remove-heading"><span class="gap-remove-eyebrow">视频导出</span><h3 id="burn-style-title">字幕样式与预览</h3></div><button type="button" class="gap-remove-close" id="burn-style-close" aria-label="关闭字幕样式">${document.querySelector('#video-export-close').innerHTML}</button></header>
-    <div class="gap-remove-panel-body"><div class="msw-processing-fields">
+    <div class="gap-remove-panel-body"><label><input type="checkbox" id="burn-style-library">本工程使用 ASS 样式库导出和烧录</label><button type="button" id="burn-style-library-open">编辑 ASS 样式库</button>
+    <p class="msw-processing-hint">默认保留工程原有样式。启用后使用样式库中的主／副字幕方案，叠加字幕显示在其上方；开始导出时固定本次样式。</p><div class="msw-processing-fields">
     <label>字幕轨道<select id="burn-style-track"><option value="main">主字幕</option><option value="secondary">副字幕</option></select></label>
     <label>预览内容<select id="burn-style-target"><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label></div>
     <div id="burn-style-fields" class="msw-processing-fields"></div>
@@ -25,10 +26,14 @@
     if(type==='number'){input.min=min;input.max=max;input.step=step;}if(type==='text')input.maxLength=128;row.append(input);el('fields').append(row);}
   const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.getElementById('video-export-style-open'),positionKey:'msw.burn.style.position'});
   let styles,revision=0,controller=null,previewKey=null;
-  const subtitleKey=()=>JSON.stringify([host.data.segments,host.data.multi_subtitle?.tracks?.[0]?.segments].map(cues=>(cues||[]).map(c=>[c.start,c.end,c.text,c.disabled])));
+  const subtitleKey=()=>JSON.stringify([host.data.segments,host.data.multi_subtitle?.tracks?.[0]?.segments,host.data.overlay_track].map(cues=>Array.isArray(cues)?cues.map(c=>[c.start,c.end,c.text,c.disabled]):cues));
   const clone=value=>JSON.parse(JSON.stringify(value));
   function read(){styles={main:{...defaults.main,...host.data.preview?.burn_subtitles?.main},secondary:{...defaults.secondary,...host.data.preview?.burn_subtitles?.secondary}};}
-  function display(){const s=styles[el('track').value];for(const [key]of fields)el(key).value=key==='font_size'?Number((s[key]/10.8).toFixed(3)):['x','y','width','background_alpha'].includes(key)?Number((s[key]*100).toFixed(3)):s[key];}
+  function display(){const library=host.data.preview?.ass_library_exports===true;el('library').checked=library;
+    el('fields').hidden=library;el('copy').disabled=library;el('reset').disabled=library;el('track').disabled=library;
+    const s=styles[el('track').value];for(const [key]of fields)el(key).value=key==='font_size'?Number((s[key]/10.8).toFixed(3)):['x','y','width','background_alpha'].includes(key)?Number((s[key]*100).toFixed(3)):s[key];}
+  el('library').onchange=()=>{host.setAssLibraryExports(el('library').checked);display();stale();};
+  el('library-open').onclick=()=>host.openAssStyles();
   function stale(){revision++;controller?.abort();controller=null;el('image').hidden=true;el('message').textContent='';el('frame').disabled=false;}
   function save(){host.setBurnStyles(styles);stale();global.dispatchEvent(new Event('msw:burn-style'));}
   el('fields').addEventListener('change',event=>{
@@ -67,6 +72,7 @@
   el('close').onclick=()=>{stale();floating.close();};
   global.addEventListener('msw:project-changed',()=>{stale();floating.close();});
   global.addEventListener('msw:media-changed',stale);
+  global.addEventListener('msw:burn-style',()=>{if(styles)display();stale();});
   global.addEventListener('msw:subtitles-changed',()=>{if(previewKey!==null&&previewKey!==subtitleKey()){previewKey=null;stale();}});
   global.MSWBurnStyle={defaults};
 })(window);

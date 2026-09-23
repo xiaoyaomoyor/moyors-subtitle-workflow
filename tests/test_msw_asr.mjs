@@ -110,3 +110,10 @@ test('whole-source ASR keeps provider colors',()=>{
   job.result.segments[0].color={name:'blue',start:1100,end:1700};
   assert.equal(core.plan(project,media,job).segments[0].color.name,'blue');
 });
+
+test('audio provenance follows a moved overlay cue even while its track is hidden',()=>{
+  const project={segments:[],overlay_track:{enabled:false,segments:[cue('a',0,500,'spoken')]},msw:{assets:[{id:'voice',source_ref:{id:'a',track_id:null,track_kind:'overlay',start:0,end:500,text:'spoken'}}]}};
+  assert.equal(core.assetStatuses(project).size,0);
+  project.overlay_track.segments[0].text='changed';
+  assert.match(core.assetStatuses(project).get('voice'),/已修改/);
+});

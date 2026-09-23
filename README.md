@@ -12,9 +12,9 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-beta.4 新增波形响度适配、阅读位置与保存稳定性、可选翻译回填、分辨率自适应 ASS 和完成通知；旧 MSW 手动振幅、上游工程兼容与现有配音工作流保留。
+beta.5 新增独立叠加字幕轨、可选 ASS 样式库、FireRed CPU 识别、字词时间码与离线对比工具；保留 MSW 现有手势、旧工程样式和配音工作流。见 [升级与新增功能](docs/BETA5_UPGRADE.md)。
 
-当前版本为 **1.6.0-beta.4**，基于 MAW 同版本发展；这是 MSW 自己的预发布版本，两个项目的版本号相同不代表功能和兼容性完全一致。
+当前版本为 **1.6.0-beta.5**，基于 MAW 同版本发展；这是 MSW 自己的预发布版本，两个项目的版本号相同不代表功能和兼容性完全一致。
 
 ![MSWE：双语字幕、配音贴片与素材库](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 

@@ -35,7 +35,8 @@ def check_zip(path: Path) -> None:
         executable = 'MSW.exe' if 'Windows' in path.name else 'Contents/MacOS/MSW'
         required = (executable, 'README-开始使用.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
                     'FAQ-常见问题.txt', 'web/launcher/logo.svg', 'web/favicon.svg',
-                    'maw/msw/yukkuri_worker.mjs', 'maw/msw/yukkuri_resources.json')
+                    'maw/msw/yukkuri_worker.mjs', 'maw/msw/yukkuri_resources.json',
+                    'tools/compare.html', 'tools/timestamp-compare.html')
         for suffix in required:
             if not any(name == suffix or name.endswith('/' + suffix) for name in names):
                 raise ValueError(f'{path.name}: missing {suffix}')

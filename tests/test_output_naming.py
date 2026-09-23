@@ -11,6 +11,16 @@ from maw.env_config import apply_msw_env_aliases
 
 
 class OutputNamingTests(unittest.TestCase):
+    def test_debug_layout_uses_msw_root_and_honors_explicit_output_when_disabled(self):
+        media, output = self.root / 'video.mp4', self.root / 'chosen' / 'subtitle.srt'
+        self.config('MSW_GUI_OUTPUT_SUBFOLDER=true\nMSW_GUI_PER_VIDEO_SUBFOLDER=true\n')
+        self.assertEqual(naming.debug_artifact_path(media, output, '.raw.json', explicit_output=True, lang='en'),
+                         self.root / 'video_msw' / 'debug' / 'subtitle.raw.json')
+        self.config('MSW_GUI_OUTPUT_SUBFOLDER=false\n')
+        self.assertEqual(naming.debug_artifact_path(media, output, '.raw.json', explicit_output=True),
+                         output.with_suffix('.raw.json'))
+        self.assertFalse((self.root / '_maw').exists())
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

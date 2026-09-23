@@ -1,5 +1,7 @@
 # 从零完成一次字幕工程
 
+beta.5 的叠加字幕、ASS 样式迁移、字词对齐及保留手势见[升级指南](BETA5_UPGRADE.md)。Shift 多选与 Ctrl/Cmd+Shift 波形范围选择保持不变。
+
 也可以全程从编辑器开始：使用发行包的 `Start-Editor` 脚本或 `uv run python maw_gui.py --editor --blank`，加载视频，按需生成波形、整段／片段 ASR，再翻译、TTS、保存与导出。无需先生成工程，详见 [编辑器直接导入与 ASR](EDITOR_ASR.md)。下文的 Launcher 流程继续适用于批处理。
 
 输出目录、旧缓存兼容和 Launcher 新设置见[输出布局与环境设置](OUTPUT_LAYOUT.md)。

@@ -14,8 +14,8 @@
       test_run: "测试运行",
       test_run_title: "仅截取前2分钟内容，用于测试功能和 API",
       test_run_override: "测试运行已限定前 2 分钟",
-      debug_raw: "调试运行（保存完整返回数据）",
-      debug_raw_title: "额外保存 ASR 服务端返回的原始 JSON，便于排查断句、标点和时间码问题",
+      debug_raw: "调试运行（保存原始／中间数据）",
+      debug_raw_title: "保存云端原始 JSON 或本地模型中间数据，用于排查断句、标点和时间码问题",
       hero_desc: "我的字幕流 · AI 转写、字幕精修与配音",
       project_home: "项目官网",
       brand_name_zh: "我的字幕流",
@@ -332,8 +332,8 @@
       test_run: "Test run",
       test_run_title: "Trim to the first 2 minutes to test the workflow and API",
       test_run_override: "Test run is limited to the first 2 minutes",
-      debug_raw: "Debug run (save full response)",
-      debug_raw_title: "Also save the raw ASR service response as JSON for investigating segmentation, punctuation, and timestamps.",
+      debug_raw: "Debug run (save raw / intermediate data)",
+      debug_raw_title: "Save cloud responses or local model intermediate data for investigating segmentation, punctuation, and timestamps.",
       hero_desc: "AI transcription, subtitle editing and voiceover",
       project_home: "Project",
       brand_name_zh: "我的字幕流",
@@ -1595,7 +1595,7 @@
         perVideoSubfolder: saved.perVideoSubfolder,
         attachModelName: saved.attachModelName,
         notifyOnComplete: saved.notifyOnComplete === true,
-        appVersion: "1.6.0-beta.4",
+        appVersion: "1.6.0-beta.5",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [
           { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: true },
@@ -1675,6 +1675,7 @@
             commonLanguages: ["", "zh", "en", "ja", "ko", "fr", "de", "es", "ru"],
             models: [
               { id: "qwen3-asr-local", label: "Qwen3-ASR 0.6B（推荐）", envKey: "", note: "本地运行；首次准备会加载 Qwen3-ASR 与 Forced Aligner", supportsSpeaker: false, kind: "local", engine: "qwen-asr", modelRef: "Qwen/Qwen3-ASR-0.6B", languages: [{ id: "", label: "自动识别" }, { id: "zh", label: "中文 / Mandarin" }, { id: "en", label: "英语 / English" }], localStatus: { status: "missing", runtimeAvailable: true, installed: false, path: "", detail: "", canPrepare: true } },
+              { id: "firered-asr2-ctc-local", label: "FireRedASR2", kind: "local", engine: "firered", modelRef: "firered-asr2-ctc", envKey: "", supportsSpeaker: false, languages: [{id:"",label:"自动识别"},{id:"zh",label:"中文"},{id:"en",label:"English"}], localStatus:{status:"missing",runtimeAvailable:true,installed:false,canPrepare:true} },
               { id: "qwen3-asr-1.7b-local", label: "Qwen3-ASR 1.7B", envKey: "", note: "更高识别质量；与 0.6B 共用 Qwen3 Forced Aligner", supportsSpeaker: false, kind: "local", engine: "qwen-asr", modelRef: "Qwen/Qwen3-ASR-1.7B", languages: [{ id: "", label: "自动识别" }, { id: "zh", label: "中文 / Mandarin" }, { id: "en", label: "英语 / English" }], localStatus: { status: "missing", runtimeAvailable: true, installed: false, path: "", detail: "", canPrepare: true } },
               { id: "fun-asr-nano-local", label: "Fun-ASR-Nano 2512（GPU）", envKey: "", note: "LLM-ASR 路线；中英日及中文方言，建议使用 CUDA", supportsSpeaker: false, kind: "local", engine: "funasr", modelRef: "FunAudioLLM/Fun-ASR-Nano-2512", languages: [{ id: "", label: "自动识别" }, { id: "zh", label: "中文 / Chinese" }, { id: "yue", label: "粤语 / Cantonese" }, { id: "en", label: "英语 / English" }, { id: "ja", label: "日语 / Japanese" }], localStatus: { status: "missing", runtimeAvailable: true, installed: false, path: "", detail: "", canPrepare: true } },
               { id: "funasr-local", label: "FunASR paraformer-zh", envKey: "", note: "中文向 FunASR 路线；保留作为兼容选项", supportsSpeaker: false, kind: "local", engine: "funasr", modelRef: "paraformer-zh", languages: [{ id: "", label: "自动识别" }, { id: "zh", label: "中文 / Chinese" }, { id: "en", label: "英语 / English" }], localStatus: { status: "missing", runtimeAvailable: true, installed: false, path: "", detail: "", canPrepare: true } },
@@ -2478,7 +2479,7 @@
   function clearErrors() { ["mediaPath", "srtPath", "apiKey", "openaiBaseUrl", "openaiModel", "workspaceId", "localModelPath", "localModelCachePath", "maxLen", "minLen", "maxWords", "minWords", "gapSplit", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordsFile", "sonioxContextGeneral", "sonioxContextText", "sonioxContextTerms", "sonioxContextTranslationTerms", "jsonPath", "serverMediaPath", "port", "ffmpegPath", "stickerDir", "toolboxUtilityMediaPath", "toolboxBurnSubtitlePath", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "toolboxAlignmentScriptPath"].forEach((field) => setError(field, "")); hideErrorNotice(); }
   // S4/§3.3：波形开关来自模块注册表（与方案对象同源）——ASR 单文件与批量共用本载荷。
   function waveformModuleEnabled() { return window.MSWModules ? window.MSWModules.isEnabled("waveform") !== false : true; }
-  function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; const waveformOn = waveformModuleEnabled(); return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateWaveform: waveformOn, generateSpectral: waveformOn && $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
+  function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; const waveformOn = waveformModuleEnabled(); return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, fireredPunc: $("fireredPunc").value, alignmentModel: $("alignmentModel").value, alignmentModelPath: $("alignmentModelPath").value.trim(), language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateWaveform: waveformOn, generateSpectral: waveformOn && $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
   function serverPayload(extra = {}) { return Object.assign({ jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }, extra); }
   function renderServerButton() {
     const button = $("openMawe");
@@ -2490,7 +2491,17 @@
     $("stopServer").classList.toggle("hidden", !state.serverRunning && !state.detectedServerUrl);
     $("stopServer").disabled = state.serverStarting || state.serverStopping;
   }
-  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; state.serverStatusUrl = ""; setStatus(""); } finally { state.serverStopping = false; renderServerButton(); } }
+  let disconnectedSession = null;
+  function rememberDisconnectedSession() {
+    if (state.activeSessionUrl) disconnectedSession = { projectPath: state.serverProjectPath || $('jsonPath').value.trim(), url: state.activeSessionUrl };
+  }
+  let checkingShownSession = false;
+  setInterval(async () => {
+    if (!state.activeSessionUrl || state.serverStarting || state.serverStopping || checkingShownSession || document.hidden) return;
+    checkingShownSession = true;
+    try { await refreshShownServerStatus(); } finally { checkingShownSession = false; }
+  }, 6000);
+  async function stopEditorServer() { disconnectedSession = null; if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; state.serverStatusUrl = ""; setStatus(""); } finally { state.serverStopping = false; renderServerButton(); } }
   async function checkExistingServer(prefix = "") {
     const requestId = ++serverStatusRequest;
     const previousUrl = state.detectedServerUrl;
@@ -2501,6 +2512,7 @@
     const result = await bridge("get_server_status", serverPayload());
     if (requestId !== serverStatusRequest) return result;
     if (!result.ok || !result.running || !result.url) {
+      rememberDisconnectedSession();
       state.serverRunning = false;
       state.serverProjectPath = "";
       state.activeSessionUrl = "";
@@ -2518,7 +2530,7 @@
   // 调整6续/B3：重探当前显示地址的端口——独立端口会话不被配置端口探测误清；
   // 无显示地址或地址就在配置端口上时，退回 checkExistingServer（配置端口）。
   async function refreshShownServerStatus() {
-    const shown = state.serverStatusUrl || state.detectedServerUrl;
+    const shown = state.serverStatusUrl || state.detectedServerUrl || state.activeSessionUrl;
     const configured = String($("port").value || "8250");
     if (shown) {
       try {
@@ -2533,6 +2545,7 @@
             renderServerButton();
             return;
           }
+          rememberDisconnectedSession();
           state.serverRunning = false;
           state.serverProjectPath = "";
           state.activeSessionUrl = "";
@@ -3228,6 +3241,8 @@
       }
       const result = await bridge("start_server", serverPayload({ intent, restart: Boolean(options.restart), independentPort: Boolean(options.independentPort) }));
       if (result.ok) {
+        const restored = disconnectedSession?.projectPath === projectPath && disconnectedSession?.url === result.url;
+        disconnectedSession = null;
         state.activeSessionUrl = result.url || state.activeSessionUrl;
         state.serverRunning = !result.serverAlreadyRunning;
         state.serverProjectPath = state.serverRunning ? projectPath : "";
@@ -3236,7 +3251,7 @@
         renderServerButton();
         if (result.url) {
           setServerStatus(result.url, Boolean(result.serverAlreadyRunning));
-          await bridge("open_url", { url: result.url });
+          if (!restored) await bridge("open_url", { url: result.url });
           window.MSWProjectHome?.refresh?.();
         } else setStatus("");
       } else if (result.code === "server_conflict") {
@@ -3347,6 +3362,7 @@
   }
 
   function handleBackendEvent(event) {
+    document.dispatchEvent(new CustomEvent('mswlauncherbackend', { detail: event }));
     if (event.type.startsWith("queue")) { window.MSWLauncher?.onQueueEvent?.(event); return; }
     notifyCompletedTask(event);
     if (["batchStarted", "batchItem", "batchItemLog", "batchDone", "batch_started", "batch_item", "batch_item_log", "batch_done"].includes(event.type)) window.MSWLauncher?.onBatchEvent?.(event);
@@ -3598,7 +3614,7 @@
   $("openLocalRuntimeSettings").addEventListener("click", () => { openSettings("localRuntimePanel"); void refreshLocalRuntime(); });
   $("installLocalRuntime").addEventListener("click", async () => { if (!isLocalProvider()) return; const runtime = state.config?.localRuntime || {}; if (state.localRuntimeInstalling || runtime.status === "installing") { await bridge("cancel_local_runtime"); return; } state.localRuntimeInstalling = true; state.localRuntimeProgress = 0; state.localRuntimeProgressMessage = t("local_runtime_installing"); renderLocalRuntime(); appendLog(t("local_runtime_installing")); const runtimeStatus = state.config.localRuntime?.status || ""; const result = await bridge("install_local_runtime", { modelId: $("model").value, repair: Boolean(runtimeStatus && runtimeStatus !== "missing") }); if (!result.ok) { state.localRuntimeInstalling = false; state.localRuntimeProgressMessage = ""; applyErrorResult(result); renderLocalRuntime(); } });
   $("refreshLocalModels").addEventListener("click", async () => { $("refreshLocalModels").disabled = true; try { await refreshLocalModels(); } finally { $("refreshLocalModels").disabled = false; } });
-  $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
+  $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value, fireredPunc: $("fireredPunc").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
   $("ffmpegHelp").addEventListener("click", () => bridge("open_url", { url: "https://ffmpeg.org/download.html" }));
   // T0/§2.3：失效工程记录清理（预览 → 确认 → 备份执行 → 可恢复）。
   const cleanupStatus = $("registryCleanupStatus");

@@ -559,7 +559,7 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('"canOtozTimelineExport": true, "initialStickerCount": 1, ', page)
         self.assertIn('"autoLoadedMediaName": "clip.mp3", "recentProjectsUrl": "/api/recent-projects/open", ', page)
         self.assertIn('"attachUrl": "/api/project/attach", "settingsUrl": "/api/settings", ', page)
-        self.assertIn('"settingsUrl": "/api/settings", "recentProjects": [{"path": "', page)
+        self.assertIn('"assStylesUrl": "/api/ass-styles", "recentProjects": [{"path": "', page)
         # H06：最近工程记录带 openedAt（成功打开时间），位于 name 与后续字段之间。
         self.assertRegex(page, r'"name": "clip\.json", "openedAt": "[^"]+"\}], "autoOpenLastProject": true, "savedWorkspaces": \{\}, ')
         self.assertIn('"presetWorkspaces": {}, ', page)
@@ -644,6 +644,41 @@ class LocalEditorServerTests(unittest.TestCase):
                 self.assertEqual(result["root"], alternate.as_posix())
                 self.assertEqual(result["count"], 1)
                 self.assertEqual(result["stickers"][0]["rel"], "new.png")
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
+
+    def test_ass_style_endpoint_bounds_authentication_and_persistence(self) -> None:
+        library_path = self.root / 'styles.json'
+        from maw.ass_styles import load_ass_style_library, save_ass_style_library
+        project = server_editor.load_blank_project(str(self.stickers))
+        with mock.patch.object(server_editor, 'load_ass_style_library', side_effect=lambda: load_ass_style_library(library_path)), mock.patch.object(
+            server_editor, 'save_ass_style_library', side_effect=lambda value: save_ass_style_library(value, library_path)
+        ), server_editor.EditorServer(('127.0.0.1', 0), project) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            url = f'http://127.0.0.1:{server.server_address[1]}/api/ass-styles'
+            def post(payload):
+                request = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json'})
+                try:
+                    with urllib.request.urlopen(request) as response:
+                        return response.status, json.loads(response.read())
+                except urllib.error.HTTPError as error:
+                    # Oversized bodies are rejected before they are consumed.
+                    # Windows may reset that connection after the status header;
+                    # this test needs the rejection status, not its JSON body.
+                    return error.code, None
+            try:
+                with urllib.request.urlopen(url) as response:
+                    self.assertEqual(json.loads(response.read())['schema'], 'moy.asr.ass_styles.v1')
+                self.assertEqual(post({'requestToken': 'wrong'})[0], 403)
+                self.assertFalse(library_path.exists())
+                self.assertEqual(post({'requestToken': server.request_token, 'padding': 'a' * (512 * 1024)})[0], 400)
+                self.assertFalse(library_path.exists())
+                status, result = post({'requestToken': server.request_token, 'styles': [{'id': 'custom', 'fontName': 'Arial'}]})
+                self.assertEqual(status, 200)
+                self.assertEqual(load_ass_style_library(library_path), result)
+                self.assertNotIn('requestToken', library_path.read_text(encoding='utf-8'))
             finally:
                 server.shutdown()
                 thread.join(timeout=2)

@@ -6,7 +6,7 @@ from maw.msw.subtitle_export import burning_cues, slice_burning_cues, srt
 class SubtitleExportTests(unittest.TestCase):
     def test_tracks_share_cut_and_range_mapping_with_audio(self):
         project = {'segments': [dict(start=500, end=3500, text='Main'), dict(start=0, end=4000, text='Off', disabled=True)],
-                   'multi_subtitle': {'tracks': [{'segments': [dict(start=2500, end=4000, text='Second')]}]}}
+                   'multi_subtitle': {'enabled': True, 'tracks': [{'segments': [dict(start=2500, end=4000, text='Second')]}]}}
         plan = {'intervals': [dict(start_ms=1000, end_ms=2000, output_start_ms=0),
                               dict(start_ms=3000, end_ms=4000, output_start_ms=1000)]}
         self.assertEqual(burning_cues(project, plan, 'both'), [
@@ -14,6 +14,8 @@ class SubtitleExportTests(unittest.TestCase):
             dict(start=1500, end=2000, text='Second')])
         self.assertEqual(burning_cues(project, plan, 'secondary'), [dict(start=1000, end=2000, text='Second')])
         self.assertEqual(burning_cues(project, plan, 'none'), [])
+        project['multi_subtitle']['enabled'] = False
+        self.assertFalse(any('Second' in cue['text'] for cue in burning_cues(project, plan, 'both')))
 
     def test_encoder_chunk_rebases_and_escapes_caption_text(self):
         cues = [dict(start=100, end=2500, text='<b>literal</b> & text')]

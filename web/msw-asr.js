@@ -6,6 +6,7 @@
   const available=media.available(),panel=el('panel'),settingsRoot=el('settings'),jobs=new Map(),details=new Map();
   const pageId=global.MSWProject.id('asr-page'),token=()=>`${pageId}.${host.generation}`;
   const fields=['providerId','modelId','language','region','workspaceId','openaiModel','openaiBaseUrl','maxLen','minLen',
+    'device','localModelPath','fireredPunc','alignmentModel','alignmentModelPath',
     'maxWords','minWords','gapSplit','qwenAudioContext','qwenAudioHotwords','qwenAudioVocabularyId','qwenAudioHotwordWeight',
     'openaiPrompt','openaiKeywords','sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms','doubaoHotwords'];
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
@@ -18,6 +19,12 @@
     if (values.some(item=>item.id===selectedValue)) node.value=selectedValue;
   }
   const connectionFields=['region','workspaceId','openaiBaseUrl'];
+  function providerReady() {
+    const provider=providers.find(item=>item.id===el('providerId').value);
+    return provider?.kind==='local' ? provider.models.find(item=>item.id===el('modelId').value)?.localStatus?.installed===true : Boolean(provider?.hasApiKey);
+  }
+  const readinessMessage=()=>providers.find(item=>item.id===el('providerId').value)?.kind==='local'
+    ? '请先准备所选本地模型和运行环境，然后刷新状态' : '请先在环境配置中保存此服务的 API Key';
   function providerInput() {
     const caps=openaiOptions(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&el('openaiDiarize').checked));
     return {...Object.fromEntries(fields.map(key=>[key,connectionFields.includes(key)?savedConnection[key]:el(key).value])),
@@ -30,6 +37,7 @@
     if (!provider) return;
     options(el('modelId'),provider.models,modelId||provider.models[0].id);
     for (const kind of ['qwen','soniox','openai','doubao']) settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=provider.id!==kind);
+    settingsRoot.querySelectorAll('[data-asr-local]').forEach(node=>node.hidden=provider.kind!=='local');
     selectModel();
   }
   function selectEnvironment() {
@@ -38,6 +46,8 @@
     options(el('region'),provider.regions,savedConnection.region||'beijing');
     for (const key of connectionFields) if(key!=='region')el(key).value=savedConnection[key]||'';
     el('apiKey').value='';el('key-state').textContent=t(provider.hasApiKey?'已配置本机密钥，留空继续使用':'尚未配置此服务密钥');
+    el('apiKey').closest('label').hidden=provider.kind==='local';
+    if(provider.kind==='local')el('key-state').textContent=t('本地识别不需要 API Key，请在 ASR 面板准备模型');
     for(const kind of ['qwen','openai'])el('environment-fields').querySelectorAll('[data-asr-'+kind+']').forEach(node=>node.hidden=provider.id!==kind);
   }
   function openaiOptions() {
@@ -57,6 +67,8 @@
   function selectModel() {
     const provider=providers.find(item=>item.id===el('providerId').value),model=provider?.models.find(item=>item.id===el('modelId').value);
     if (!model) return;
+    settingsRoot.querySelectorAll('[data-asr-firered]').forEach(node=>node.hidden=model.engine!=='firered');
+    el('local-status').textContent=model.localStatus?.detail||'';
     options(el('languages'),model.languages);
     el('openaiModel').closest('label').hidden=provider.id!=='openai'||model.id!=='custom-asr';
     for (const [kind,key] of [['context','supportsContext'],['hotwords','supportsHotwords'],['vocabulary','supportsVocabulary'],['speaker','supportsSpeaker']])
@@ -80,7 +92,7 @@
   function updateScope() {
     const current=media.current,mode=el('mode').value,selection=ranges?.ranges||[];
     const provider=providers.find(item=>item.id===el('providerId').value);
-    const caps=openaiOptions(),ready=Boolean(provider?.hasApiKey)&&caps?.timestamps!==false;
+    const caps=openaiOptions(),ready=providerReady()&&caps?.timestamps!==false;
     el('scope-actions').hidden=mode!=='range';
     const clips=global.MSWE.resolve('audio-timeline')?.selectedClips()||[];
     el('source').textContent=mode==='clips'?`${t('所选音频贴片')} · ${clips.length}`:current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
@@ -90,7 +102,7 @@
     if(mode==='clips'&&snapshot)el('source').textContent+=` · ${(snapshot.reduce((sum,item)=>sum+item.range.end-item.range.start,0)/1000).toFixed(3)} s`;
     const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
-    el('scope').textContent=issue||(!ready?t('请先在环境配置中保存此服务的 API Key'):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
+    el('scope').textContent=issue||(!ready?t(readinessMessage()):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
     el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
     el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
@@ -110,7 +122,7 @@
     try {
       host.commitEdits();
       if (!submission) {
-        if (!providers.find(item=>item.id===el('providerId').value)?.hasApiKey) throw Error('请先在环境配置中保存此服务的 API Key');
+        if (!providerReady()) throw Error(readinessMessage());
         const provider=providerInput();
         const batchId=global.MSWProject.id('asr-batch');
         const inputs=snapshots();
@@ -182,7 +194,7 @@
         try {
           const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
           if(generation!==host.generation) return;
-          if (!providers.find(item=>item.id===el('providerId').value)?.hasApiKey) throw Error('请先在环境配置中保存此服务的 API Key');
+          if (!providerReady()) throw Error(readinessMessage());
           host.commitEdits();
           let snapshot;
           if(result.job.snapshot.mode==='clips') {
@@ -307,6 +319,30 @@
   el('environment-return').addEventListener('click',()=>{host.closeProcessingEnvironment();void open(el('mode').value);});
   el('openaiDiarize').addEventListener('change',()=>{if(el('openaiDiarize').checked){el('openaiPrompt').value='';el('openaiKeywords').value='';}updateScope();});
   el('environment-provider').addEventListener('change',selectEnvironment);
+  let localTimer=null;
+  async function pollLocal() {
+    clearTimeout(localTimer);
+    try {
+      const result=await media.request('asr-local-models');
+      el('local-progress').textContent=result.message||'';
+      if(result.status==='running')localTimer=setTimeout(()=>void pollLocal(),1000);
+      else await refreshLocal();
+    } catch(error) {el('local-progress').textContent=error.message;}
+  }
+  async function refreshLocal() {
+    await media.request('asr-settings',{section:'call',provider:providerInput()});
+    await loadSettings();
+  }
+  el('local-refresh').onclick=()=>void refreshLocal().catch(error=>message(error.message));
+  settingsRoot.querySelectorAll('[data-asr-prepare]').forEach(button=>button.onclick=async()=>{
+    try {
+      const action=button.dataset.asrPrepare;
+      const modelId=action==='aligner'?el('alignmentModel').value:el('modelId').value;
+      if(action==='aligner'&&!modelId)throw Error('请先选择对齐模型');
+      const result=await media.request('asr-local-models',{action,modelId});
+      el('local-progress').textContent=result.message||'';void pollLocal();
+    }catch(error){el('local-progress').textContent=error.message;}
+  });
   settingsRoot.addEventListener('input',updateScope);
   el('providerId').addEventListener('change',()=>selectProvider());el('modelId').addEventListener('change',selectModel);
   el('mode').addEventListener('change',updateScope);el('edit-range').addEventListener('click',()=>ranges.openEditor());

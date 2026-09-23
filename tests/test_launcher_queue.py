@@ -13,6 +13,18 @@ from maw.gui_web import LauncherApi, LauncherPaths
 
 
 class QueueTests(unittest.TestCase):
+    def test_overlay_only_project_is_already_subtitled(self):
+        self.project.write_text(json.dumps({'segments': [], 'overlay_track': {'enabled': True, 'segments': [
+            {'id': 'overlay', 'start': 0, 'end': 1000, 'text': 'annotation'}]}}), encoding='utf-8')
+        info = queue.inspect_input(str(self.project))
+        self.assertTrue(info['hasSubtitles'])
+        self.assertEqual(info['subtitleCount'], 1)
+        plan = self.plan([self.project], asr=True)
+        tasks, errors = self.prepare(plan)
+        self.assertFalse(errors)
+        self.assertEqual(len(tasks), 1)
+        self.builder.assert_not_called()
+
     def setUp(self):
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

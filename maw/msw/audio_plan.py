@@ -127,7 +127,13 @@ def compile_plan(project, raw_options=None):
     tracks = {t["id"]: t for t in ext.get("audio_tracks", [])}
     clips = ext.get("audio_clips", [])
     audible = [c for c in clips if not c["muted"] and not tracks[c["track_id"]]["muted"]]
-    duration = max([o["duration_ms"], *[s["end"] for s in project["segments"]],
+    subtitle_segments = list(project['segments'])
+    if (project.get('overlay_track') or {}).get('enabled') is True:
+        subtitle_segments.extend(project['overlay_track'].get('segments', []))
+    if (project.get('multi_subtitle') or {}).get('enabled') is True:
+        for track in project['multi_subtitle'].get('tracks', []):
+            subtitle_segments.extend(track.get('segments', []))
+    duration = max([o["duration_ms"], *[s["end"] for s in subtitle_segments],
                     *[math.ceil(clip_end(c, assets[c["asset_id"]])) for c in clips]])
     integer(duration, 1, MAX_MS, "没有有效的音频导出范围，或工程超过 12 小时")
     finish = duration if o["end_ms"] is None else min(o["end_ms"], duration)

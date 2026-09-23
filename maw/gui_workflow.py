@@ -21,9 +21,10 @@ from maw.ffmpeg import MACOS_FFMPEG_CANDIDATE_DIRECTORIES, bundled_ffmpeg_direct
 from maw.gui_config import QWEN_AUDIO_MODEL_ID, DEFAULT_MODEL_ID, DEFAULT_ENV_PATH, effective_config, load_env
 from maw.gui_platform import asset_path, popen_process_tree, process_group_kwargs, release_process_tree, terminate_process_tree
 from maw.media import read_bwf_time_reference
-from maw.output_naming import maw_root
+from maw.output_naming import debug_artifact_path, maw_root
 from maw.qwen_audio import split_qwen_audio_hotwords
 from maw.local_runtime import default_runtime_root, model_cache_environment
+from maw.local_debug import local_debug_manifest_path
 from maw.runtimes import LOCAL
 
 
@@ -69,10 +70,13 @@ class TranscriptionRequest:
     srt_only: bool = False
     debug_raw: bool = False
     engine: str = ""
+    firered_punc: str = "ct-punc"
     model_path: str = ""
     model_cache_root: str = ""
     device: str = "auto"
     forced_aligner: str = ""
+    alignment_model: str = ""
+    alignment_model_path: str = ""
     runtime_python: str = ""
     postprocess_plan: dict[str, object] | None = None
     postprocess_llm_settings: dict[str, dict[str, str]] | None = None
@@ -116,9 +120,31 @@ class TranscriptionProcessError(Exception):
         self.output = tuple(output)
         detail = _tail_output(self.output)
         message = f"Transcription failed with exit code {exit_code}"
+        hint = _native_crash_hint(exit_code)
+        if hint:
+            message += f" {hint}"
         if detail:
             message += f": {detail}"
         super().__init__(message)
+
+
+_WINDOWS_ACCESS_VIOLATION = 0xC0000005
+
+
+def _native_crash_hint(exit_code: int) -> str:
+    """识别 Windows 原生崩溃退出码，给出可操作的排查提示。
+
+    子进程被 OS 直接终止（而非 Python 异常退出）时，returncode 是
+    NTSTATUS 码；0xC0000005（访问冲突）最常见于本地 GPU 引擎在显卡驱动
+    CUDA 初始化阶段原生崩溃。机器无恙时表现为偶发，驱动状态损坏时逐次
+    复现，重启或更新驱动后恢复。
+    """
+    if (exit_code & 0xFFFFFFFF) != _WINDOWS_ACCESS_VIOLATION:
+        return ""
+    return (
+        "（0xC0000005：子进程原生访问冲突，常见于显卡驱动 CUDA 初始化失败。"
+        "请重启电脑后重试；仍崩溃时更新 NVIDIA 驱动，或把设备改为 CPU 再试一次。）"
+    )
 
 
 def _tail_output(output: Sequence[str], limit: int = 1) -> str:
@@ -156,8 +182,16 @@ def build_output_paths(srt_path: Path, media_path: Path | None = None, *, env_pa
     return OutputPaths(srt=srt, json=srt.with_suffix(".mosp"), html=html)
 
 
-def raw_response_path(srt_path: Path) -> Path:
-    return Path(srt_path).expanduser().resolve().with_suffix(".asr-response.json")
+def raw_response_path(srt_path: Path, media_path: Path | None = None) -> Path:
+    output = Path(srt_path).expanduser().resolve()
+    if media_path is None:
+        return output.with_suffix(".asr-response.json")
+    return debug_artifact_path(
+        media_path,
+        output,
+        ".asr-response.json",
+        explicit_output=True,
+    )
 
 
 def unique_output_path(srt_path: Path, media_path: Path | None = None, *, env_path: Path | None = None) -> Path:
@@ -214,6 +248,8 @@ def _srt_model_tag(provider: str, model: str) -> str:
             return ".qwen3-asr-1.7b-local"
         if "moss" in local_model:
             return ".moss-local"
+        if "firered" in local_model or "fire-red" in local_model:
+            return ".firered-local"
         if "whisper" in local_model:
             return ".whisper-local"
         return ".qwen-asr-local"
@@ -305,7 +341,7 @@ def build_transcribe_command(
         command.extend(["--default-audio-track", str(request.default_audio_track)])
     if request.generate_spectral:
         command.append("--with-spectral")
-    if request.debug_raw and not is_local:
+    if request.debug_raw:
         command.append("--debug-raw")
     if is_local:
         _append_option(command, "--engine", request.engine or "qwen-asr")
@@ -313,7 +349,18 @@ def build_transcribe_command(
         _append_option(command, "--model-path", request.model_path)
         _append_option(command, "--device", request.device)
         _append_option(command, "--forced-aligner", request.forced_aligner)
-        if request.speaker_colors and request.engine == "moss":
+        # MOSS runs in its own Transformers 5.x environment.  The shared
+        # Qwen/FireRed aligner belongs to the normal local runtime, so MOSS is
+        # aligned by the Launcher after its coarse project has been written.
+        # Keeping the flags out of the MOSS child prevents it from importing a
+        # conflicting qwen-asr installation before the hand-off.
+        local_engine = str(request.engine or "").strip().casefold()
+        if local_engine == "firered":
+            _append_option(command, "--firered-punc", request.firered_punc)
+        if local_engine != "moss":
+            _append_option(command, "--alignment-model", request.alignment_model)
+            _append_option(command, "--alignment-model-path", request.alignment_model_path)
+        if request.speaker_colors and local_engine == "moss":
             command.append("--speaker-colors")
     elif is_soniox:
         _append_option(command, "--model", request.model if request.model != DEFAULT_MODEL_ID else "")
@@ -491,9 +538,21 @@ def run_transcription(
         raise TranscriptionProcessError(process.returncode, output=collected)
     _require_output(paths.srt, "SRT")
     _require_output(paths.json, "JSON")
-    raw_path = raw_response_path(paths.srt) if request.debug_raw and request.provider != "local" else None
+    raw_path = (
+        local_debug_manifest_path(
+            paths.srt,
+            media_path=request.media_path,
+            explicit_output=True,
+        )
+        if request.debug_raw and request.provider == "local"
+        else (
+            raw_response_path(paths.srt, request.media_path)
+            if request.debug_raw
+            else None
+        )
+    )
     if raw_path is not None:
-        _require_output(raw_path, "raw ASR response")
+        _require_output(raw_path, "debug response/artifact manifest")
     html_path = None
     if request.generate_html:
         try:
@@ -502,12 +561,51 @@ def run_transcription(
             html_path = render_editor_html(paths.json, request.media_path, paths.html, request.ui_language)
         except Exception as error:  # HTML is optional; preserve successful SRT/JSON outputs.
             (on_event or _ignore)(f"[warning] 编辑器 HTML 生成失败，SRT/JSON 已保留：{error}")
-    return TranscriptionResult(
+    result = TranscriptionResult(
         srt_path=paths.srt,
         json_path=paths.json,
         html_path=html_path,
         raw_path=raw_path,
     )
+    if request.alignment_model and request.engine == 'moss':
+        result = align_transcription_result(request, result, cancel_event=cancel_event, on_event=on_event, environment=env)
+    return result
+
+
+def align_transcription_result(request, result, *, cancel_event=None, on_event=None, environment=None):
+    """Shared by the mixed-input Launcher queue and the editor ASR worker."""
+    from dataclasses import replace
+    from maw.local_runtime import managed_runtime_status, run_timestamp_alignment_in_runtime
+    from maw.timestamp_alignment import TimestampAlignmentRequest, run_timestamp_alignment
+    if cancel_event and cancel_event.is_set():
+        raise TranscriptionCancelledError
+    tools = resolve_ffmpeg_tools(environment=environment)
+    if managed_runtime_status(request.model_cache_root).ready or not getattr(sys, 'frozen', False):
+        output = run_timestamp_alignment_in_runtime(
+            project_path=result.json_path, srt_path=result.srt_path, media_path=request.media_path,
+            model_id=request.alignment_model, model_path=request.alignment_model_path or None,
+            model_cache_root=request.model_cache_root, device=request.device,
+            output_mode='both', alignment_mode='fill', audio_index=request.audio_track,
+            ffmpeg_path=tools.ffmpeg, ffprobe_path=tools.ffprobe,
+            cancel_event=cancel_event, on_event=on_event)
+        artifact = output.get('artifact') or {}
+        project_path, srt_path = Path(artifact.get('projectPath', '')), Path(artifact.get('srtPath', ''))
+    else:
+        artifact, report = run_timestamp_alignment(TimestampAlignmentRequest(
+            project_path=result.json_path, srt_path=result.srt_path, media_path=request.media_path,
+            model_id=request.alignment_model, model_path=Path(request.alignment_model_path) if request.alignment_model_path else None,
+            model_cache_root=Path(request.model_cache_root) if request.model_cache_root else None,
+            device=request.device, output_mode='both', mode='fill', audio_index=request.audio_track,
+            ffmpeg_path=tools.ffmpeg, ffprobe_path=tools.ffprobe,
+            cancel_event=cancel_event))
+        project_path, srt_path = artifact.project_path, artifact.srt_path
+    if cancel_event and cancel_event.is_set():
+        raise TranscriptionCancelledError
+    if not project_path or not srt_path or not project_path.is_file() or not srt_path.is_file():
+        raise RuntimeError('对齐产物不完整，原始识别工程仍保留')
+    if result.html_path:
+        render_editor_html(project_path, request.media_path, result.html_path, request.ui_language)
+    return replace(result, json_path=project_path, srt_path=srt_path)
 
 
 def render_editor_html(json_path: Path, media_path: Path, html_path: Path, ui_language: str = "zh") -> Path | None:

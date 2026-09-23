@@ -9,6 +9,8 @@ source: "docs/CLI.md"
 
 # MSW 命令行 CLI
 
+beta.5 本地入口增加 `--engine firered`、`--firered-punc none|ct-punc`、`--alignment-model`、`--alignment-model-path` 与 `--alignment-mode fill|generate`，详见[本地 ASR](../local-asr/)。这些是 `generate_subtitle_local.py` 参数，不表示主程序 CLI 自动暴露全部参数。
+
 默认输出路径遵循[输出布局设置](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/OUTPUT_LAYOUT.md)，显式 `--output` 优先。六个底层 `generate_subtitle_*` 脚本支持 `--no-model-tag`；公开 `MSW.exe` 参数没有新增该开关，请通过配置文件控制默认模型后缀。
 
 MSW 的 Release 包除了图形 Launcher，也支持直接用命令行完成转写和本机编辑器 Server 管理。本文以 Windows PowerShell 和 Release 包中的 `MSW.exe` 为例；源码运行时，把示例中的 `MSW.exe` 替换为 `uv run python maw_gui.py` 即可。

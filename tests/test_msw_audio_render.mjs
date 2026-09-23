@@ -7,6 +7,12 @@ for (const file of ['msw-project.js', 'msw-audio-core.js', 'msw-audio-render-cor
   vm.runInNewContext(fs.readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8'), context);
 }
 const core = context.window.MSWAudioRender;
+test('overlay-only duration is exported and disabled overlay does not extend it', () => {
+  const project = { segments: [], overlay_track: { enabled: true, segments: [{ start: 100, end: 2500, text: 'overlay' }] } };
+  assert.equal(core.compile(project).source_end_ms, 2500);
+  project.overlay_track.enabled = false;
+  assert.throws(() => core.compile(project));
+});
 for(const c of JSON.parse(fs.readFileSync(new URL('fixtures/msw_monitor.json',import.meta.url))))test(`monitor ${c.mode} ${c.volume} ${c.muted}`,()=>{
   const monitor={mode:c.mode,volume:c.volume,muted:c.muted,source_gain_db:c.source_gain_db};
   const result=core.monitorGains({monitor,source_gain_db:2,voice_gain_db:-3});

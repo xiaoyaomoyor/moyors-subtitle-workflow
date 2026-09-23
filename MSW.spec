@@ -47,6 +47,28 @@ if sys.platform == "linux":
         print(f"Warning: libxcb-cursor collection failed: {exc}", file=sys.stderr)
 
 datas = [
+    (str(ROOT / "maw" / "colors.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "speaker.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "ass_styles.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "msw" / "assets.py"), "local-runtime/maw/msw"),
+    (str(ROOT / "tools" / "compare.html"), "tools"),
+    (str(ROOT / "tools" / "timestamp-compare.html"), "tools"),
+    (str(ROOT / "maw" / "ass_styles.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "postprocess_io.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "timestamp_alignment.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "alignment_models.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "runtimes" / "ocr_spec.py"), "local-runtime/maw/runtimes"),
+    (str(ROOT / "maw" / "runtimes" / "moss_spec.py"), "local-runtime/maw/runtimes"),
+    (str(ROOT / "maw" / "runtimes" / "local_spec.py"), "local-runtime/maw/runtimes"),
+    (str(ROOT / "maw" / "runtimes" / "base.py"), "local-runtime/maw/runtimes"),
+    (str(ROOT / "maw" / "runtimes" / "__init__.py"), "local-runtime/maw/runtimes"),
+    (str(ROOT / "maw" / "punctuation_runtime.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "punctuation.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "runtime_mirror_picker.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "runtime_manifest.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "local_debug.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "local_runtime.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "local_models.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "msw" / "yukkuri_resources.json"), "maw/msw"),
     (str(ROOT / "maw" / "msw" / "yukkuri_worker.mjs"), "maw/msw"),
     (str(ROOT / "web"), "web"),
@@ -144,6 +166,8 @@ opencc_hiddenimports = collect_submodules("opencc")
 # worker only bootstraps the optional runtime when the user installs it.
 
 excluded_local_modules = [
+    "sherpa_onnx",
+    "soundfile",
     "accelerate",
     "funasr",
     "hf_xet",
@@ -166,6 +190,11 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=[
+        "maw.timestamp_alignment",
+        "maw.alignment_models",
+        "maw.punctuation_runtime",
+        "maw.punctuation",
+        "maw.local_debug",
         "edit",
         "maw.console",
         "maw.media_cache",

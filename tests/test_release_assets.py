@@ -18,7 +18,8 @@ class ReleaseAssetTests(unittest.TestCase):
             with ZipFile(self.root / name, 'w') as archive:
                 files = ['MSW.exe', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'FAQ-常见问题.txt',
                          'README-开始使用.txt', '_internal/web/launcher/logo.svg', '_internal/web/favicon.svg',
-                         '_internal/maw/msw/yukkuri_worker.mjs', '_internal/maw/msw/yukkuri_resources.json']
+                         '_internal/maw/msw/yukkuri_worker.mjs', '_internal/maw/msw/yukkuri_resources.json',
+                         '_internal/tools/compare.html', '_internal/tools/timestamp-compare.html']
                 if '-lite-' not in name:
                     files += ['ffmpeg/bin/ffmpeg.exe', 'ffmpeg/bin/ffprobe.exe']
                 for file in files:

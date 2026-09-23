@@ -143,14 +143,14 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(fineTuningPanel.locator('.help-title')).toHaveText(['微调字幕']);
   await expect(fineTuningPanel.locator('.help-subtitle')).toHaveText(['选中字幕', '按住字幕']);
   await expect(fineTuningPanel).toContainText('无选中时作用于鼠标所在字幕');
-  await expect(fineTuningPanel.locator('#help-open-waveform-keyboard-settings')).toHaveText('⚙️设置');
+  await expect(fineTuningPanel.locator('#help-open-keyboard-settings')).toHaveText('⚙️全局设置');
   await helpPanel.getByRole('tab', { name: '空隙操作', exact: true }).click();
   const gapPanel = helpPanel.locator('#help-tab-panel-gap');
   await expect(gapPanel).toBeVisible();
   await expect(gapPanel.locator('.help-title')).toHaveText(['空隙操作']);
   await expect(gapPanel.locator('.help-subgroup')).toHaveCount(4);
   await expect(gapPanel.locator('.help-subtitle')).toHaveText(['空隙状态', '移动与调整', '清理空隙', '批量操作']);
-  await expect(helpPanel.locator('.help-title')).toHaveText(['基础操作', '快捷操作', '波形区操作', '多重字幕', '波形外观调整', '微调字幕', '空隙操作', '批量操作', '播放与导航']);
+  await expect(helpPanel.locator('.help-title')).toHaveText(['基础操作', '快捷操作', '波形区操作', '双语字幕', '波形外观调整', '微调字幕', '空隙操作', '批量操作', '播放与导航']);
   await expect(helpPanel).toContainText('波形区字幕操作');
   await expect(helpPanel).toContainText('波形外观调整');
   await expect(helpPanel).toContainText('空隙操作');
@@ -166,8 +166,8 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(helpPanel).toContainText('中点击「全部清理」');
   await expect(gapPanel).toContainText('仅在拖动边界模式生效');
   await expect(gapPanel).toContainText('仅在中键拖动模式生效');
-  await expect(gapPanel).toContainText('具体操作取决于波形区的');
-  await expect(gapPanel.locator('#help-open-gap-settings')).toHaveText('⚙️设置');
+  await expect(gapPanel).toContainText('具体操作取决于');
+  await expect(gapPanel.locator('#help-open-gap-settings')).toHaveText('⚙️全局设置');
   await expect(gapPanel).toContainText('中的「空隙区段操作方式」，其中「边界与中键」可同时使用两套操作。');
   await expect(gapPanel.locator('.help-important').filter({ hasText: 'Alt+左键拖动' })).toHaveCount(1);
   await helpPanel.getByRole('tab', { name: '批量操作', exact: true }).click();

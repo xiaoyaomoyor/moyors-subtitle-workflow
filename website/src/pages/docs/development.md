@@ -13,6 +13,8 @@ source: "docs/DEVELOPMENT.md"
 
 安装与功能环境见[环境清单](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/ENVIRONMENT.md)，跨平台构建和发行门禁见[构建与发布](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/RELEASING.md)。
 
+beta.5 的兼容决策和验证证据见[升级账本](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/UPSTREAM_SYNC_1.6.0-beta.5.md)，用户操作见[升级指南](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/BETA5_UPGRADE.md)。`overlay_track` 保持上游公共契约；ASS 库由 `maw/ass_styles.py` 管理，导出使用工程显式选择与任务快照；本地准备入口在 `maw/msw/local_models.py`，识别仍复用 `gui_workflow`。两个 `tools/*.html` 必须随冻结包分发。
+
 ## 产品与运行形态
 
 MSW（Moyor's Subtitle Workflow / 我的字幕流）是以本机 Web 编辑器为中心的 ASR、翻译与 TTS 工作流，按需引入上游 MAW 更新。Launcher 负责识别和启动服务，编辑器可在编辑期间提交翻译、配音与导出任务。工程文件内容是 UTF-8 JSON，`.mosp` 是当前默认扩展名；`.json` 作为旧工程和兼容扩展名继续支持。完整字段契约见 [JSON_SCHEMA.md](../json-schema/)。

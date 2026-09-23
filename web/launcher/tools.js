@@ -5,7 +5,7 @@
   "use strict";
 
   var STORAGE_KEY = "MSW_TOOLS_PAGE_TOOL_V1";
-  var TOOL_IDS = ["extractAudio", "burnSubtitle", "ffconcat", "alignment", "waveform"];
+  var TOOL_IDS = ["extractAudio", "burnSubtitle", "ffconcat", "alignment", "waveform", "timestamps", "compare"];
   var activeTool = "extractAudio";
   var drawerTrigger = null;
 
@@ -18,8 +18,8 @@
   function select(tool) {
     if (!TOOL_IDS.includes(tool)) tool = "extractAudio";
     activeTool = tool;
-    el("toolsSharedMediaCard")?.classList.toggle("hidden", tool === "waveform");
-    el("toolsRunArea")?.classList.toggle("hidden", tool === "waveform");
+    el("toolsSharedMediaCard")?.classList.toggle("hidden", ["waveform", "timestamps", "compare"].includes(tool));
+    el("toolsRunArea")?.classList.toggle("hidden", ["waveform", "timestamps", "compare"].includes(tool));
     railButtons().forEach(function (button) {
       var active = button.dataset.toolsSelect === tool;
       button.classList.toggle("active", active);

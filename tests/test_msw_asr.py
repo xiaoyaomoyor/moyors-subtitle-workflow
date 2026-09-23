@@ -18,6 +18,34 @@ from maw.msw.jobs import JobManager, TERMINAL
 
 
 class AsrTests(unittest.TestCase):
+    def test_local_asr_needs_no_key_and_uses_existing_range_job(self):
+        from maw.local_models import LocalModelStatus
+        ready = LocalModelStatus('firered-asr2-ctc-local', 'firered', 'firered-asr2-ctc',
+                                 'installed', True, True, str(self.root), 'ready')
+        with patch('maw.gui_web.inspect_local_model', return_value=ready):
+            settings = asr_config.resolve_settings(self.env_path, {
+                'providerId': 'local', 'modelId': 'firered-asr2-ctc-local',
+                'fireredPunc': 'none', 'device': 'cpu'}, self.source)
+        self.assertEqual(settings.api_key, '')
+        self.assertEqual(settings.request.engine, 'firered')
+        self.assertEqual(settings.recipe['firered_punc'], 'none')
+        command = build_transcribe_command(settings.request)
+        self.assertIn('--firered-punc', command)
+        if not self.tools.complete: self.skipTest('FFmpeg required')
+        snapshot, _ = self.service.prepare(self.payload())
+        manager = self.manager()
+        job = manager.submit({**self.payload(), 'snapshot': snapshot}, settings)
+        result = self.wait(manager, job)
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertEqual(result['result']['segments'][0]['start'], 1010)
+        self.assertEqual(self.calls[0].audio_track, 0)
+
+    def test_local_preferences_can_be_saved_before_model_download(self):
+        result = asr_config.save_settings(self.env_path, {'providerId': 'local',
+            'modelId': 'firered-asr2-ctc-local', 'fireredPunc': 'none'}, section='call')
+        self.assertEqual(result['options']['providerId'], 'local')
+        self.assertEqual(result['options']['fireredPunc'], 'none')
+
     def test_candidate_color_references_keep_palette_name(self):
         project = {'segments': [
             {'start':0,'end':100,'text':'head','color':{'name':'yellow','value':'#c4a019','start':0,'end':400}},
@@ -78,7 +106,8 @@ class AsrTests(unittest.TestCase):
             self.assertEqual(source.getnframes(),8000)
             self.assertEqual(source.getframerate(),16000)
         output = request.srt_path.with_suffix('.mosp')
-        output.write_text(json.dumps({'segments':[{'start':10,'end':200,'text':'hello',
+        output.write_text(json.dumps({'transcription_warnings': getattr(self, 'transcription_warnings', []),
+            'segments':[{'start':10,'end':200,'text':'hello',
             'items':[{'start':10,'end':100,'text':'he'},{'start':100,'end':200,'text':'llo'}]}]}),encoding='utf-8')
         request.srt_path.write_bytes(b'')
         return SimpleNamespace(json_path=output)
@@ -108,11 +137,13 @@ class AsrTests(unittest.TestCase):
 
     def test_qwen_range_uses_real_ffmpeg_and_offsets_words_once_without_postprocessing(self):
         if not self.tools.complete:self.skipTest('FFmpeg required')
+        self.transcription_warnings = ['部分句子缺少有效时间范围，其余字幕已保留']
         snapshot,_=self.service.prepare(self.payload())
         manager=self.manager(); settings=self.settings(language='zh',qwenAudioContext='Names',qwenAudioHotwords='MSW')
         payload={**self.payload(),'snapshot':snapshot}
         job=manager.submit(payload,settings);self.assertEqual(manager.submit(payload,settings)['id'],job['id'])
         result=self.wait(manager,job);self.assertEqual(result['status'],'succeeded',result)
+        self.assertEqual(result['result']['warnings'], self.transcription_warnings)
         cue=result['result']['segments'][0];self.assertEqual((cue['start'],cue['end']),(1010,1200))
         self.assertEqual([(x['start'],x['end']) for x in cue['items']],[(1010,1100),(1100,1200)])
         request=self.calls[0];self.assertFalse(request.generate_html);self.assertFalse(request.generate_waveform)
@@ -147,7 +178,7 @@ class AsrTests(unittest.TestCase):
 
     def test_catalog_shares_existing_keys_without_returning_secrets_and_validates_models(self):
         catalog=asr_config.catalog(self.env_path)
-        self.assertEqual({p['id'] for p in catalog['providers']},{'qwen','soniox','openai','doubao'})
+        self.assertEqual({p['id'] for p in catalog['providers']},{'qwen','soniox','openai','doubao','local'})
         self.assertNotIn('synthetic-',json.dumps(catalog))
         for provider,model in [('qwen','fun-asr'),('soniox','stt-async-v5'),('openai','whisper-1')]:
             settings=self.settings(providerId=provider,modelId=model,openaiBaseUrl='http://127.0.0.1:1/v1')

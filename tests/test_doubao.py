@@ -537,7 +537,7 @@ class DoubaoCliOutputTests(unittest.TestCase):
                 self.assertEqual(main(), 0)
 
             self.assertTrue((root / "out.srt").is_file())
-            raw_files = sorted(root.glob("out.asr-response.json"))
+            raw_files = sorted(root.rglob("out.asr-response.json"))
             self.assertEqual(len(raw_files), 1)
 
 

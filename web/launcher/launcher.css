@@ -3648,3 +3648,7 @@ select[multiple] option {
   .module-card > .module-body { animation: none; }
   .module-collapse .chevron, .rail-select, .settings-rail .settings-tab { transition: none; }
 }
+
+/* Local ASR and standalone timestamp tools share Launcher button spacing. */
+#localModelPanel .button-row, #timestampToolPanel .button-row, #comparisonToolPanel .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
+#timestampToolPanel .field { margin-top: 12px; }

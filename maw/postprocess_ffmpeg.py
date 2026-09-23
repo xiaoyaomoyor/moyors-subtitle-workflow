@@ -68,6 +68,7 @@ class AudioTrack:
 class BurnSubtitleRequest:
     media_path: Path
     subtitle_path: Path
+    srt_style: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -273,7 +274,7 @@ def run_burn_subtitles(
         "-i",
         str(media),
         "-vf",
-        build_subtitle_filter(subtitle),
+        build_subtitle_filter(subtitle, request.srt_style),
         "-map",
         "0:v:0",
         "-map",
@@ -429,12 +430,15 @@ def _escape_filter_value(value: str) -> str:
     return escaped
 
 
-def build_subtitle_filter(subtitle: Path) -> str:
+def build_subtitle_filter(subtitle: Path, srt_style: Mapping[str, object] | None = None) -> str:
     """Shared libass filter; run FFmpeg with the subtitle directory as cwd."""
     filename = _escape_filter_value(subtitle.name)
     if subtitle.suffix.lower() in {".ass", ".ssa"}:
         return f"ass=filename='{filename}'"
     force_style = "Fontname=Arial,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=40"
+    if srt_style is not None:
+        from maw.ass_styles import ass_style_force_style
+        force_style = _escape_filter_value(ass_style_force_style(srt_style))
     return f"subtitles=filename='{filename}':force_style='{force_style}'"
 
 

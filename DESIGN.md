@@ -1,5 +1,7 @@
 # MSWE Design System
 
+Beta.5 retains MSW theme tokens, settings search and timeline gestures. Overlay subtitles use their own track header; ASS settings are opt-in floating panels. Do not replace Shift multiselection or Ctrl/Cmd+Shift range selection with upstream auto-transfer gestures. See [the upgrade guide](docs/BETA5_UPGRADE.md).
+
 This file is the minimal design contract for the MSW editor UI. It extracts the
 implicit patterns already present in `web/editor.css` and `web/editor-template.html`
 so new components stay consistent without inventing new tokens. It is intentionally

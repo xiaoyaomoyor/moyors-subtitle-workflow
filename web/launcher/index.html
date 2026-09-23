@@ -88,7 +88,7 @@
       <div class="nav-spacer"></div>
       <div class="nav-footer">
         <span class="nav-footer-short">MSW</span>
-        <span class="nav-footer-full">MSW：<span id="appVersion">v1.6.0-beta.4</span></span>
+        <span class="nav-footer-full">MSW：<span id="appVersion">v1.6.0-beta.5</span></span>
       </div>
       </div>
     </nav>
@@ -285,6 +285,9 @@
           </div>
           <div id="localRuntimeCheckField" class="field hidden"><div class="local-status-row"><p id="localRuntimeCheckStatus" class="local-status" aria-live="polite"></p><button id="openLocalRuntimeSettings" class="inline-link" type="button" data-i18n="local_runtime_view_settings">在更多设置中查看</button></div></div>
           <div id="localModelPanel" class="local-model-panel hidden">
+            <div class="field"><label for="fireredPunc" data-msw5="0">FireRed 标点</label><select id="fireredPunc"><option value="none" data-msw5="1">不使用</option><option value="ct-punc" data-msw5="2">使用 ct-punc（需下载）</option></select></div>
+            <div class="field"><label for="alignmentModel" data-msw5="3">识别后补齐字词时间码</label><select id="alignmentModel"><option value="" data-msw5="4">不额外对齐</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option><option value="firered-asr2-ctc">FireRed CPU</option></select><input id="alignmentModelPath" placeholder="对齐模型目录（可选）"><p class="hint" data-msw5="5">只为本次识别的原声字幕补齐时间码，不修改已有译文副轨。</p></div>
+            <div class="button-row"><button type="button" id="refreshAlignmentModels" data-msw5="6" class="ghost">扫描对齐模型</button><button type="button" id="prepareAlignmentModel" data-msw5="7" class="ghost">下载所选对齐模型</button><button type="button" id="cancelAlignmentModel" data-msw5="8" class="ghost">取消下载</button></div><p id="alignmentModelsStatus" class="hint" role="status"></p>
             <div class="local-status-row">
               <p id="localModelStatus" class="local-status" aria-live="polite"></p>
               <button id="refreshLocalModels" class="ghost small" type="button" data-i18n="local_refresh">重新扫描</button>
@@ -843,6 +846,7 @@
                 </div>
                 <p id="toolboxBurnSubtitleHint" class="hint" data-i18n="toolbox_burn_subtitle_input_hint" data-help>默认跟随当前的 SRT 输出，也支持手动选择 ASS / SSA。</p>
                 <p id="toolboxBurnSubtitlePathError" class="field-error"></p>
+                <label><input type="checkbox" id="toolboxBurnUseAssLibrary">SRT 烧录使用共享 ASS 样式库</label><p class="hint">默认保留 MSW 原有样式；启用后使用样式库的 SRT 默认槽位。ASS／SSA 文件仍使用文件内样式。</p>
               </div>
             </section>
 
@@ -917,6 +921,19 @@
               <p class="toolbox-notice" data-i18n="toolbox_alignment_notice">不会覆盖输入工程；导出后会生成 source.aligned.mosp。</p>
             </section>
 
+            <section id="timestampToolPanel" class="card tool-page-panel hidden" data-tools-panel="timestamps" role="tabpanel" aria-labelledby="toolsRailTimestamps">
+              <h2 data-msw5="9">字词时间码对齐</h2><p class="hint" data-msw5="29">默认只补齐主字幕的缺失字词时间码，输出新工程。副字幕／叠加字幕必须明确选择与文本匹配的音频；覆盖已有时间码需选择“重新生成”。</p>
+              <div class="field"><label for="timestampInput" data-msw5="10">字幕工程或 SRT</label><div class="path-row"><input id="timestampInput"><button type="button" id="pickTimestampInput" class="ghost" data-i18n="choose">选择</button></div></div>
+              <div class="field"><label for="timestampTrack" data-msw5="11">目标字幕轨</label><select id="timestampTrack"><option value="main" data-msw5="12">主字幕（原声）</option></select></div>
+              <div class="field"><label for="timestampMedia" data-msw5="13">对应媒体（主字幕可留空使用工程媒体）</label><div class="path-row"><input id="timestampMedia"><button type="button" id="pickTimestampMedia" class="ghost" data-i18n="choose">选择</button></div></div>
+              <div class="field"><label for="timestampAudio" data-msw5="14">音频轨序号（从 0 起；留空沿用工程）</label><input id="timestampAudio" type="number" min="0" max="127"></div>
+              <div class="field"><label for="timestampModel" data-msw5="15">对齐模型</label><select id="timestampModel"><option value="firered-asr2-ctc">FireRed CPU</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option></select></div>
+              <div class="field"><label for="timestampMode" data-msw5="16">处理方式</label><select id="timestampMode"><option value="fill" data-msw5="17">仅补齐缺失时间码</option><option value="generate" data-msw5="18">重新生成并覆盖已有时间码</option></select></div>
+              <div class="button-row"><button type="button" id="runTimestampTool" class="primary" data-msw5="19">开始对齐</button><button type="button" id="cancelTimestampTool" data-msw5="20" class="ghost">取消对齐</button></div><p id="timestampResult" role="status" class="hint"></p>
+            </section>
+            <section id="comparisonToolPanel" class="card tool-page-panel hidden" data-tools-panel="compare" role="tabpanel" aria-labelledby="toolsRailCompare">
+              <h2 data-msw5="21">字幕对比工具</h2><p class="hint" data-msw5="22">在浏览器本地读取文件，不上传字幕。对比不会修改原文件。</p><div class="button-row"><button type="button" class="ghost" data-comparison-tool="compare" data-msw5="23">转写文本对比</button><button type="button" class="ghost" data-comparison-tool="timestamp-compare" data-msw5="24">字词时间码查看与对比</button></div><p id="comparisonResult" role="status"></p>
+            </section>
             <section id="waveformToolPanel" class="card tool-page-panel hidden" data-tools-panel="waveform" role="tabpanel" aria-labelledby="toolsRailWaveform">
               <h2 class="tool-page-title" data-i18n="waveform_tool">生成波形</h2>
               <p class="hint" data-i18n="waveform_tool_hint">为媒体建立空字幕工程，或为已有工程补全波形；始终另存派生工程。</p>
@@ -972,6 +989,8 @@
               <div class="rail-group">
                 <div class="rail-group-title" data-i18n="waveform_tool_group">工程辅助</div>
                 <button id="toolsRailWaveform" class="rail-select" type="button" role="tab" aria-selected="false" tabindex="-1" data-tools-select="waveform" data-i18n="waveform_tool">生成波形</button>
+                <button id="toolsRailTimestamps" class="rail-select" type="button" role="tab" aria-selected="false" tabindex="-1" data-tools-select="timestamps" data-msw5="25">字词时间码</button>
+                <button id="toolsRailCompare" class="rail-select" type="button" role="tab" aria-selected="false" tabindex="-1" data-tools-select="compare" data-msw5="26">字幕对比</button>
               </div>
               <div class="rail-group">
                 <div class="rail-group-title" data-i18n="tools_rail_manual">人工步骤</div>
@@ -1257,6 +1276,7 @@
               <p class="hint" data-i18n="local_runtime_path_hint">默认安装到用户目录；可改到空间更充足的磁盘。更改后会按新目录重新扫描安装状态。</p>
             </div>
             <div id="localRuntimePaths" class="runtime-paths hidden"></div>
+            <details><summary data-msw5="27">运行环境版本与组件</summary><button id="refreshRuntimeInventory" class="ghost small" type="button" data-msw5="28">刷新组件清单</button><pre id="runtimeInventory" class="hint" style="white-space:pre-wrap" aria-live="polite"></pre></details>
             <div class="local-status-row">
               <p id="localRuntimeStatus" class="local-status" aria-live="polite"></p>
               <button id="refreshLocalRuntime" class="ghost small" type="button" data-i18n="local_refresh">重新扫描</button>
@@ -1392,5 +1412,6 @@
   <script src="postprocess.js"></script>
   <script src="tools.js"></script>
   <script src="waveform-tool.js"></script>
+  <script src="local-asr-tools.js"></script>
 </body>
 </html>

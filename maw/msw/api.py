@@ -33,6 +33,7 @@ class ProcessingAPI:
         self._index_tts = None
         self._media = None
         self._asr = None
+        self._local_models = None
         self._project_path = object()
         self.binding = ""
         self._preview_lock = threading.Lock()
@@ -302,6 +303,12 @@ class ProcessingAPI:
                         result = asr_config.save_settings(self.env_path, payload.get('provider', {}), section=payload.get('section'))
                 else:
                     result = asr_config.catalog(self.env_path)
+            elif route == 'asr-local-models':
+                with self.lock:
+                    if self._local_models is None:
+                        from maw.msw.local_models import LocalModels
+                        self._local_models = LocalModels(self.env_path)
+                    result = self._local_models.operate(payload) if post else self._local_models.snapshot()
             elif route == 'onboarding-status':
                 from maw.gui_config import load_env, save_env
                 with self.lock:
@@ -569,6 +576,8 @@ class ProcessingAPI:
 
     def close(self):
         self._preview_cancel.set()
+        if self._local_models:
+            self._local_models.close()
         if self._media:
             self._media.close()
         if self._index_tts:

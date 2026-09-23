@@ -17,9 +17,9 @@ test('tools page configures and runs file tools inline with a single-select rail
 
   // S2/反馈1+2：右侧单选工具、左侧直接配置运行；不再有「打开工具」中间步骤。
   const rail = page.locator('#toolsRail [data-tools-select]');
-  await expect(rail).toHaveCount(5);
+  await expect(rail).toHaveCount(7);
   const ids = await rail.evaluateAll((nodes) => nodes.map((node) => node.dataset.toolsSelect));
-  expect(ids).toEqual(['extractAudio', 'burnSubtitle', 'ffconcat', 'waveform', 'alignment']);
+  expect(ids).toEqual(['extractAudio', 'burnSubtitle', 'ffconcat', 'waveform', 'timestamps', 'compare', 'alignment']);
   await expect(page.locator('#toolsTitle')).toHaveText('实用工具');
   await expect(page.locator('[data-tool-entry]')).toHaveCount(0);
   // 单选导航不带复选框（区别于预制栏多选）。

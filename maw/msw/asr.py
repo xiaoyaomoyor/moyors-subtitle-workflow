@@ -201,7 +201,11 @@ class AsrService:
             if len(candidates) > 10000:
                 raise ValueError('识别结果超过 10000 条，请分段处理')
             progress('ready', {'message': '识别完成，等待结果应用'})
+            raw_warnings = project.get('transcription_warnings', [])
+            warnings = [value[:500] for value in raw_warnings[:20] if isinstance(value, str)] if isinstance(raw_warnings, list) else []
+            if actual_ms + 100 < span['end'] - span['start']:
+                warnings.append('所选音轨在范围终点前结束')
             return {'segments': candidates, 'source': snapshot['source'], 'range': span,
                     'extraction_start_ms': span['start'], 'extracted_duration_ms': actual_ms,
                     'language': project.get('language', ''), 'model': settings.model,
-                    'warnings': ['所选音轨在范围终点前结束'] if actual_ms + 100 < span['end'] - span['start'] else []}
+                    'warnings': warnings}

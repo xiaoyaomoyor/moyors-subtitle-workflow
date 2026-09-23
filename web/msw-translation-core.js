@@ -40,6 +40,7 @@
   }
 
   function snapshot(project, selection, outputMode = 'secondary') {
+    if (selection.overlayIds?.length) throw new Error('叠加字幕暂不支持翻译或配音，请选择主字幕或副字幕');
     if (!['secondary', 'replace_main'].includes(outputMode)) throw new Error('翻译输出方式无效');
     const selected = scope(project, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
     if (!selected.sources.length) throw new Error('没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译');

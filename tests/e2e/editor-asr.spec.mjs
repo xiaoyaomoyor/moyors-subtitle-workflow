@@ -404,3 +404,26 @@ test('ASR saves call defaults without media and uses current call drafts with sa
   await page.locator('#msw-asr-start').click();await completed(page);
   expect(submitted.provider).toMatchObject({language:'zh',workspaceId:'saved-workspace',apiKey:''});
 });
+
+test('local ASR uses keyless settings and downloads only after an explicit click',async({page})=>{
+  const preparation=[];
+  await page.route('**/asr-local-models',async route=>{
+    if(route.request().method()==='POST')preparation.push(route.request().postDataJSON());
+    await route.fulfill({json:{ok:true,status:'idle',message:'Synthetic model operation'}});
+  });
+  await open(page);
+  await page.locator('#msw-asr-providerId').selectOption('local');
+  await page.locator('#msw-asr-modelId').selectOption('firered-asr2-ctc-local');
+  await expect(page.locator('#msw-asr-fireredPunc')).toHaveValue('none');
+  await expect(page.locator('#msw-asr-local-status')).toBeVisible();
+  await page.locator('#msw-asr-save-settings').click();
+  await expect(page.locator('#msw-asr-message')).toContainText('已保存');
+  expect(preparation).toHaveLength(0);
+  await page.locator('[data-asr-prepare="model"]').click();
+  await expect.poll(()=>preparation.length).toBe(1);
+  expect(preparation[0]).toEqual({action:'model',modelId:'firered-asr2-ctc-local'});
+  await page.reload();await open(page);
+  await expect(page.locator('#msw-asr-providerId')).toHaveValue('local');
+  await expect(page.locator('#msw-asr-modelId')).toHaveValue('firered-asr2-ctc-local');
+  expect(calls).toHaveLength(0);
+});

@@ -432,6 +432,8 @@ class EditorAssetTests(unittest.TestCase):
             '          <span class="help-break" aria-hidden="true"></span>\n'
             '          <span><kbd data-mod-key>Ctrl+拖拽空白处</kbd> 拖动创建指定时长字幕</span>\n'
             '          <span class="help-break" aria-hidden="true"></span>\n'
+            '          <span><kbd data-mod-key>Ctrl+拖拽已有字幕</kbd> 启用「叠加字幕」后在叠加轨创建</span>\n'
+            '          <span class="help-break" aria-hidden="true"></span>\n'
             '          <span class="help-important"><kbd>Shift+拖拽空白处</kbd> 框选字幕</span>',
             page,
         )
@@ -448,7 +450,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('⚙️设置按钮', page)
         self.assertIn('在波形区的', page)
         self.assertIn('中，可调整音频波形外观的具体参数。', page)
-        self.assertIn('id="help-open-waveform-keyboard-settings"', page)
+        self.assertIn('id="help-open-keyboard-settings"', page)
         self.assertIn('<button type="button" class="help-inline-action" id="help-open-media-settings"', page)
         self.assertIn('data-help-open-media-settings', page)
         self.assertIn('⚙️设置', page)
@@ -599,8 +601,8 @@ class EditorAssetTests(unittest.TestCase):
         self.assertNotIn('id="player" controls', page)
         self.assertIn('id="overlay-toggle" checked> 预览字幕', page)
         self.assertIn('id="sticker-overlay-toggle"> 预览表情包', page)
-        self.assertIn('.player-wrap.fullscreen-preview .subtitle-overlay span', page)
-        self.assertIn("playerWrap?.classList.toggle('fullscreen-preview', document.fullscreenElement === playerWrap);", page)
+        self.assertIn('.player-wrap.fullscreen-preview .subtitle-overlay:not([data-ass-mode="true"]) > #overlay-main-text', page)
+        self.assertIn("playerWrap?.classList.toggle('fullscreen-preview', fullscreenPreview);", page)
         self.assertIn("overlayTextEl.style.setProperty(", page)
         self.assertIn('appearance.font_size || SUBTITLE_DEFAULT_FONT_SIZE', page)
         self.assertIn('appearance.font_size || EXTENSION_SUBTITLE_DEFAULT_FONT_SIZE', page)
@@ -617,9 +619,9 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('播放时跳过空隙', page)
         self.assertIn('const DEFAULT_LAYOUT_ROWS = [42, 16, 42];', page)
         self.assertIn("rows: [42, 16, 42], tree: DEFAULT_RIGHT_LAYOUT_TREE", page)
-        self.assertIn('const projectHasStickers = [...DATA.segments, ...(getActiveExtensionTrack()?.segments || [])]', page)
+        self.assertIn('const projectHasStickers = [...DATA.segments, ...(getActiveExtensionTrack()?.segments || []), ...(getOverlayTrack()?.segments || [])]', page)
         self.assertIn('!EDITOR_SETTINGS.cueListShowSticker || !projectHasStickers,', page)
-        self.assertIn("DATA.segments.forEach((seg, i) => cueFragment.appendChild(buildCueEl(seg, i)));", page)
+        self.assertIn('rows.forEach((row) => cueFragment.appendChild(row.el));', page)
         self.assertIn("const multiVisible = multiSubtitleVisible();", page)
         self.assertIn('id="multi-subtitle-toggle"', page)
         self.assertIn("cuePanelText?.addEventListener('keydown'", page)
@@ -710,7 +712,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="fcp7-export-fps"', page)
         self.assertIn('id="fcp7-export-subtitle-tracks"', page)
         self.assertIn('id="fcp7-export-native-text"', page)
-        self.assertNotIn('id="fcp7-export-native-text" checked', page)
+        self.assertIn('id="fcp7-export-native-text" checked', page)
         self.assertIn('id="fcp7-export-confirm"', page)
         self.assertIn('exportFcp7Xml(', page)
         self.assertNotIn('gap-remove-subtitle-warning', page)

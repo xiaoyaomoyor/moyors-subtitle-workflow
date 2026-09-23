@@ -1351,7 +1351,7 @@
     mediaToolCancelling = false;
     setBusy(true, "toolbox_status_burning");
     try {
-      const result = await bridge("run_burn_subtitles", { mediaPath, subtitlePath });
+      const result = await bridge("run_burn_subtitles", { mediaPath, subtitlePath, useAssStyleLibrary: $('toolboxBurnUseAssLibrary').checked });
       if (result.ok) {
         utilityMediaManual = true;
         $("toolboxUtilityMediaPath").value = result.mediaPath;

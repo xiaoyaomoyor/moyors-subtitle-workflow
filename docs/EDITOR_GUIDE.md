@@ -1,5 +1,7 @@
 # MSWE — Moyor's Subtitle Workflow Editor
 
+beta.5 的叠加字幕、ASS 样式迁移、字词对齐及保留手势见[升级指南](BETA5_UPGRADE.md)。Shift 多选与 Ctrl/Cmd+Shift 波形范围选择保持不变。
+
 编辑器可直接加载原视频，后台解析波形并从「媒体 → ASR」发起整段／片段识别，无需先在 Launcher 生成工程。发行包使用独立启动脚本，源码使用 `uv run python maw_gui.py --editor --blank`；空工程也可手动编辑和纯 TTS。详见 [直接导入与 ASR](EDITOR_ASR.md)。
 
 MSWE（Moyor's Subtitle Workflow Editor）是 MSW 自带的字幕编辑器，提供 Server 版和单文件 HTML 两种入口，并共享同一份工程格式与前端代码。当前以 Server 版为主；单文件 HTML 暂时只作为兼容备用入口，不作为新功能的主要更新对象。工程文件内容是 UTF-8 JSON，主扩展名为 `.mosp`；`.json` 作为旧工程和兼容扩展名继续支持。
