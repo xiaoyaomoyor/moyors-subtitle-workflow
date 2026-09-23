@@ -192,13 +192,15 @@ F 阶段技术流程仍沿用此前方式：产品用固定 beta.5 引用，建�
 
 ## 本地验收与发行交接（2026-09-23）
 
+- 标签发布首轮 Windows Chromium 为 343 通过、1 失败，涉及双击光标最终状态；此前两次 CI 的 344 项均通过，原用例本地再跑 10/10。原断言未等待编辑器已有的异步光标恢复。重试又出现另一条翻译拖动用例在波形块显示前读取位置的失败，343 项通过。两处测试分别等待最终选区和块可见，不改产品行为或原断言目标；两项各重复十次通过。核对 beta.5 尚无 Release／资产后，将测试修复提交纳入尚未发行的版本标签，以原远端标签值作保护更新，再运行完整发布门禁。
+
 - 第三次预演 `35826899652` 三平台 Python 通过，Linux AppImage 构建、媒体与直接入口通过。macOS 构建／签名／启动通过，新增冒烟断言错误使用 Windows `_internal` 资源目录；已按 `.app/Contents/Resources` 修正检查。Windows Chromium 仍在运行，待修复后的最终预演验收。
 
 - 第二次预演 `35826513279` 暴露 CI 测试发现入口缺少本地一直设置的 `PYTHONPATH=tests`，导致旧测试夹具导入失败；已仅在测试步骤补齐该环境变量。此前波形／路径定向 75 项通过。
 
 - 维护者授权后提交 `9468d41` 并推送集成分支；main 纯镜像快进至 `73691c2`。首次跨平台预演 `35825908310` 在 Python 门禁失败：三个新启动器真实波形测试未声明 FFmpeg 前提，Windows 短路径与 macOS 符号链接使两组路径断言失败。修正测试路径解析，缺 FFmpeg 时按前提跳过，并在三平台随包 FFmpeg 就绪后的强制媒体门禁补跑这些测试及时间码对齐；统一 unittest 的包发现入口与本地隔离方式。未发布。
 
-A—E 已实现；F 的源码回归、Windows 构建及发行材料已落实，跨平台 CI 与公开发行仍待执行，所以阶段总表的 F 保持「进行中」。本节以最终产物和日志为准，前面的失败记录保留用于追溯。
+A—E 已实现，三平台预演与五包门禁均已通过。维护者已授权本次发行，my-feature 与标签已同步到验收提交；正式发布工作流运行中，F 暂保持「进行中」。前面的失败记录保留用于追溯。
 
 | 验证层 | 命令／入口 | 结果与证据 |
 | --- | --- | --- |
@@ -207,18 +209,19 @@ A—E 已实现；F 的源码回归、Windows 构建及发行材料已落实，�
 | Chromium 全量与失败复测 | `node node_modules/@playwright/test/cli.js test --reporter=line` | 全量 756 项：731 通过、14 跳过、11 失败；11 项已逐一复测通过，未把它写成重新跑过整套 756 项。全量日志 `f-e2e-all.log`，最终帮助／快捷键 `f-final-fixes2.log`，接管／保存 `f-attach-final.log`；其他定点结果见前述施工记录 |
 | 本地模型与运行时 | v7 冻结；`uv lock --check --offline`；源码／受管模型准备回归 | 184 包锁定一致；关闭标点不准备 ct-punc；MOSS 后置对齐与普通运行时隔离。不下载真实模型 |
 | Windows 最终冻结包 | 独立 PyInstaller 环境；`scripts/smoke_beta3_bundle.py` 分别验证 standard / lite | 两版通过；标准版实际 FFmpeg、QPK1 原生峰值、冻结 ASR 子进程及 MOSP 保存通过。外部 ASR 使用 localhost 模拟，不能等同真实供应商或大模型验收 |
+| 三平台最终预演 | GitHub Actions `35827936392` | 每平台 Python 1865 项成功（Windows 跳过 80，macOS／Linux 跳过 82）；随包 FFmpeg 门禁各 68 项成功、1 跳过；Windows Chromium 344/344；macOS 签名／标准与 lite、Linux AppImage 启动、各平台冻结识别子进程均通过 |
 | 文档站 | 同步 13 篇文档；`astro build` | 15 页构建通过；英文窄窗截图已检查 |
 | 发行资产 | `scripts/create_release_zip.py`；`scripts/check_release_assets.py --platform windows --tag v1.6.0-beta.5` | 两份 ZIP 的路径、必需文件、CRC、标准／lite 媒体工具区分及 SHA-256 通过 |
 | 源码卫生 | `git diff --check`；仅扫描本任务文本文件 | 无冲突标记、BOM、CRLF 或个人绝对路径；便携编辑器已由源码重新生成。未读取实际 .env 或既存测试数据，既有 TTS 规划保持原样；本次浏览器输出已移到仓库外 |
 
 Windows 本地候选包：标准版 129805089 字节，lite 55611440 字节。发布说明已由 `scripts/prepare_release_notes.py --tag v1.6.0-beta.5` 生成并检查，包含两份候选包校验值。包、截图、完整日志及发布说明保存在仓库外的本次 beta.5 验证目录，不加入产品源码。
 
-尚未完成的边界：
+跨平台结果与发行状态：
 
-- macOS arm64 标准／lite 与 Linux AppImage 尚无本轮原生构建证据；待推送获准后运行既有跨平台工作流，再执行完整五包检查。当前只有 Windows 两包，不能视为五包发行验收通过。
+- 最终三平台预演 [35827936392](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/35827936392) 全部通过；Windows、macOS arm64 标准／lite 与 Linux AppImage 五包完整性检查成功，实际发布说明和五项 SHA-256 已下载核对。验收提交为 `da9f3aea7d2c414b1d1bdd5e84fda07bd228b0f0`。
 - 真实 FireRed／Qwen／ct-punc 下载与推理、GPU／MPS、真实服务调用及 Premiere 导入未实测；自动化覆盖的是参数、隔离、选轨、取消、导出结构与模拟结果。
-- 尚未提交、推送、打标签或发布 beta.5；本轮未移动 main。发行时 main 的上游镜像快进与产品固定 beta.5 引用分别执行，不把上游后续主线混入产品。
-- 维护者已明确授权本次提交、推送、标签和 beta.5 发布。正在提交集成分支并运行跨平台预演；五包验证通过后再发行，失败先修复并复验。
+- 集成分支和 my-feature 已推送至验收提交；main 保持纯上游镜像，已快进并推送到 `73691c29be8816968b4cd6f1fb6b91e08802cf5b`。`v1.6.0-beta.5` 标签指向验收提交；上游之后的主线内容未混入产品。
+- 标签正式发布工作流 [35829704738](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/35829704738) 正在运行；由既有五包门禁核验后创建预发行版。本地产物下载因速度低已停止，不用不完整的本地下载替代 CI 产物。
 
 ## 附录：118 个上游变更路径的处置索引
 

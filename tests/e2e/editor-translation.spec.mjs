@@ -298,6 +298,7 @@ test('a completed translation waits for an active subtitle drag to finish', asyn
   await expect.poll(() => requests.length).toBe(1);
   await page.locator('#subtitle-translation-close').click();
   const block = page.locator('.waveform-cue-block').filter({ hasText: /^Hello$/ }).first();
+  await expect(block).toBeVisible();
   const box = await block.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
