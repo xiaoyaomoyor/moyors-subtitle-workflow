@@ -47,6 +47,8 @@ jobs:
         run: uv run python -m unittest tests/test_packaging_contract.py
 
       - name: Run Python tests
+        env:
+          PYTHONPATH: tests
         run: uv run python -m unittest discover -s tests -t . -p "test_*.py"
 
       - name: Download embedded Python bootstrap assets
