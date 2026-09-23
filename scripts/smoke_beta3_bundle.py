@@ -123,8 +123,10 @@ with tempfile.TemporaryDirectory(prefix="msw-direct-frozen-") as directory:
         library = requests.get(origin + '/api/ass-styles', headers=headers, timeout=10)
         library.raise_for_status()
         assert library.json()['schema'] == 'moy.asr.ass_styles.v1'
+        resources = (exe.parent.parent / 'Resources'
+                     if exe.parent.name == 'MacOS' else exe.parent / '_internal')
         for name in ('compare.html', 'timestamp-compare.html'):
-            assert (exe.parent / '_internal' / 'tools' / name).is_file()
+            assert (resources / 'tools' / name).is_file()
         print(
             "Frozen direct editor, imports and ASR catalog passed; media tools ready:",
             caps["mediaToolsReady"],
