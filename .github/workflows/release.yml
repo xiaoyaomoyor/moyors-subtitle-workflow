@@ -76,7 +76,7 @@ jobs:
         run: uv run python -m unittest tests/test_packaging_contract.py
 
       - name: Run Python tests
-        run: uv run python -m unittest discover -s tests -p "test_*.py"
+        run: uv run python -m unittest discover -s tests -t . -p "test_*.py"
 
       - name: Set up Node for editor checks
         uses: actions/setup-node@v6
@@ -280,7 +280,8 @@ jobs:
         run: |
           $env:PYTHONPATH = 'tests'
           $env:MSW_TEST_FFMPEG = Join-Path $PWD 'dist/MSW/ffmpeg/bin'
-          uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real
+          $env:PATH = $env:MSW_TEST_FFMPEG + ';' + $env:PATH
+          uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment
           exit $LASTEXITCODE
 
       - name: Upload build artifacts
@@ -376,7 +377,7 @@ jobs:
           sudo apt-get install -y fonts-noto-cjk
 
       - name: Run Python tests
-        run: uv run python -m unittest discover -s tests -p "test_*.py"
+        run: uv run python -m unittest discover -s tests -t . -p "test_*.py"
 
       # ---------- macOS 专属 ----------
 
@@ -513,8 +514,8 @@ jobs:
       - name: Verify macOS exports with bundled FFmpeg
         if: matrix.platform == 'macos'
         run: |
-          PYTHONPATH=tests MSW_TEST_FFMPEG="$PWD/dist/MSW.app/Contents/MacOS/ffmpeg/bin" \
-            uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real
+          PATH="$PWD/dist/MSW.app/Contents/MacOS/ffmpeg/bin:$PATH" PYTHONPATH=tests MSW_TEST_FFMPEG="$PWD/dist/MSW.app/Contents/MacOS/ffmpeg/bin" \
+            uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment
 
       - name: Create release archives
         if: matrix.platform == 'macos'
@@ -653,9 +654,9 @@ jobs:
           # 用实际随包二进制验证混音、视频与配音时间线；Python 自身不继承污染库路径。
           (
             cd "$GITHUB_WORKSPACE"
-            env -u LD_LIBRARY_PATH PYTHONPATH=tests \
+            env -u LD_LIBRARY_PATH PATH="$GITHUB_WORKSPACE/build-appimage/$BIN:$PATH" PYTHONPATH=tests \
               MSW_TEST_FFMPEG="$GITHUB_WORKSPACE/build-appimage/$BIN" \
-              uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real
+              uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment
           )
           rm -r squashfs-root
 

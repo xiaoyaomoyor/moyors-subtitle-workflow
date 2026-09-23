@@ -3,6 +3,7 @@ import copy
 import base64
 import hashlib
 import json
+import shutil
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -25,7 +26,7 @@ class LauncherCDTests(unittest.TestCase):
     def setUp(self):
         self.temp = TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.env = self.root / 'isolated.env'
         self.env.write_text('', encoding='utf-8')
         self.media = self.root / 'tone.wav'
@@ -127,6 +128,7 @@ class LauncherCDTests(unittest.TestCase):
         self.assertTrue(Path(result['bilingualSrtPath']).is_file())
         self.assertFalse(list((self.root/'only').rglob('*.mosp')))
 
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is required')
     def test_real_waveform_cache_reuse_track_identity_and_failed_rebuild(self):
         payload = extract_waveform(self.media)
         data = {**self.data, 'waveform':payload, 'spectral':{'schema':quapeaks.SPECTRAL_SCHEMA, 'source':media_signature(self.media),'audio_track':0,'peak_count':1}}
@@ -149,6 +151,7 @@ class LauncherCDTests(unittest.TestCase):
             media_cache.embed_media_caches(self.data, self.media, reuse_existing=True, cancel_event=cancel)
         decode.assert_not_called()
 
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is required')
     def test_force_rebuild_replaces_a_valid_but_unwanted_fallback_cache(self):
         payload = extract_waveform(self.media)
         silent = {**payload, 'data': base64.b64encode(bytes(len(base64.b64decode(payload['data'])))).decode('ascii')}
@@ -172,6 +175,7 @@ class LauncherCDTests(unittest.TestCase):
             result = api.start_waveform_tool({'path':str(self.srt)})
         self.assertFalse(result['ok'])
 
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is required')
     def test_waveform_tool_real_media_preserves_complex_project_and_asset_bytes(self):
         data = _complex_project(self.root)
         data['media'] = str(self.media)

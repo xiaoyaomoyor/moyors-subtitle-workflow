@@ -28,7 +28,7 @@ class QueueTests(unittest.TestCase):
     def setUp(self):
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         self.env = self.root / "test.env"
         self.env.write_text("", encoding="utf-8")
         self.tools = SimpleNamespace(ffmpeg=None, ffprobe=None)
