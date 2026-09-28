@@ -54,6 +54,7 @@ from maw import reapeaks  # noqa: E402
 from maw import stickers as _stickers  # noqa: E402
 from maw.ass_styles import load_ass_style_library, save_ass_style_library  # noqa: E402
 from maw.app_paths import default_server_settings_path, legacy_server_settings_path  # noqa: E402
+from maw.launcher_projects import recent_projects_payload, _registry_file_lock  # noqa: E402
 from maw.ffmpeg import resolve_ffmpeg_tools  # noqa: E402
 from maw.gui_config import DEFAULT_ENV_PATH, load_env  # noqa: E402
 from maw.msw.api import ProcessingAPI  # noqa: E402
@@ -136,7 +137,7 @@ class RecentProject:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 @dataclass(frozen=True)
@@ -300,8 +301,27 @@ def read_server_settings(path: Path) -> ServerSettings:
     )
 
 
-def write_server_settings(path: Path, settings: ServerSettings) -> None:
-    """Atomically persist the local list with LF line endings."""
+def write_server_settings(path: Path, settings: ServerSettings) -> ServerSettings:
+    """Merge recent records under a cross-process lock before atomic replacement.
+
+    A window saving appearance/workspace settings may hold a stale recent list.
+    Keep the latest opening per path, with disk order winning timestamp ties.
+    """
+    with _registry_file_lock(path):
+        latest = read_server_settings(path)
+        by_path: dict[Path, RecentProject] = {}
+        for item in (*latest.recent_projects, *settings.recent_projects):
+            previous = by_path.get(item.path)
+            if previous is None or item.opened_at > previous.opened_at:
+                by_path[item.path] = item
+        recent = sorted(by_path.values(), key=lambda item: item.opened_at, reverse=True)
+        settings = replace(settings, recent_projects=tuple(recent[:MAX_RECENT_PROJECTS]))
+        _write_server_settings(path, settings)
+        return settings
+
+
+def _write_server_settings(path: Path, settings: ServerSettings) -> None:
+    """Caller holds the settings file lock."""
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "version": 1,
@@ -571,7 +591,9 @@ def load_blank_project(stickers_dir: str | None) -> ServerProject:
     sticker_root = Path(source).resolve() if source else None
     root_text, stickers = edit.scan_stickers(sticker_root) if sticker_root else ("", [])
     return ServerProject(
-        {"segments": [], "media": "", "language": "", "model": ""},
+        {"segments": [], "media": "", "language": "", "model": "",
+         "preview": {"subtitle": {"x": .1, "y": .76, "width": .8, "height": .16,
+           "speaker_labels": {"mapping_enabled": False, "enabled": True}}}},
         None,
         None,
         Path(root_text) if root_text else None,
@@ -602,6 +624,7 @@ def build_server_page(
     *,
     defer_reapeaks: bool = True,
     processing_context: dict | None = None,
+    recent_projects: list[dict] | None = None,
 ) -> bytes:
     """Render with current web/ assets on every page request to prevent UI drift.
 
@@ -699,10 +722,11 @@ def build_server_page(
             "canOgrafExport": project.json_path is not None,
             "autoLoadedMediaName": (project.source_media_path or project.media_path).name if project.media_path else None,
             "recentProjectsUrl": "/api/recent-projects/open",
+            "recentProjectsListUrl": "/api/recent-projects",
             "attachUrl": "/api/project/attach",
             "settingsUrl": "/api/settings",
             "assStylesUrl": "/api/ass-styles",
-            "recentProjects": [item.to_json() for item in settings.recent_projects],
+            "recentProjects": recent_projects if recent_projects is not None else [item.to_json() for item in settings.recent_projects],
             "autoOpenLastProject": settings.auto_open_last_project,
             "savedWorkspaces": settings.saved_workspaces,
             "presetWorkspaces": settings.preset_workspaces,
@@ -781,7 +805,12 @@ class EditorServer(ThreadingHTTPServer):
 
     def persist_settings(self) -> None:
         if self.settings_path:
-            write_server_settings(self.settings_path, self.settings)
+            self.settings = write_server_settings(self.settings_path, self.settings)
+
+    def recent_projects_payload(self) -> dict:
+        with self.settings_lock:
+            fallback = [(item.path, item.opened_at) for item in self.settings.recent_projects]
+        return recent_projects_payload(settings_path=self.settings_path, fallback_entries=fallback)
 
     def persist_settings_async(self) -> None:
         """Persist startup settings without delaying the listening server."""
@@ -1123,12 +1152,11 @@ class EditorServer(ThreadingHTTPServer):
 
     def open_recent_project(self, project_path: str) -> ServerProject:
         candidate = Path(project_path).expanduser().resolve()
-        with self.settings_lock:
-            known = next((item for item in self.settings.recent_projects if item.path == candidate), None)
-            if not known:
-                raise RecentProjectError("该工程不在本机最近打开记录中")
+        known = next((item for item in self.recent_projects_payload()["projects"] if Path(item["path"]) == candidate), None)
+        if not known:
+            raise RecentProjectError("该工程不在本机最近打开记录中")
         project = load_project(
-            known.path,
+            candidate,
             None,
             self.stickers_dir,
             no_waveform=self.no_waveform,
@@ -2062,10 +2090,14 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
     def open_recent_project(self) -> None:
         try:
             request = self.read_json_request()
+            self._check_request_token({"requestToken": self.headers.get("X-MSW-Token")})
             project_path = request.get("path")
             if not isinstance(project_path, str) or not project_path:
                 raise RecentProjectError("工程路径格式不正确")
             project = self.editor_server.open_recent_project(project_path)
+        except PermissionError as error:
+            self.send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": str(error)})
+            return
         except FileNotFoundError as error:
             self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(error), "missing": True})
             return
@@ -2260,6 +2292,14 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         if self.editor_server.processing_api.handle(self):
             return
         path = urlsplit(self.path).path
+        if path == "/api/recent-projects":
+            try:
+                self._check_request_token({"requestToken": self.headers.get("X-MSW-Token")})
+            except PermissionError as error:
+                self.send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": str(error)})
+                return
+            self.send_json(HTTPStatus.OK, self.editor_server.recent_projects_payload())
+            return
         if path == "/api/ass-styles":
             self.send_json(HTTPStatus.OK, load_ass_style_library())
             return
@@ -2289,6 +2329,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
                 self.editor_server.startup_status_payload(),
                 defer_reapeaks=self.editor_server.defer_reapeaks,
                 processing_context=processing_context,
+                recent_projects=self.editor_server.recent_projects_payload()["projects"],
             )
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")

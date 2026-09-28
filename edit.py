@@ -279,7 +279,9 @@ def build_blank_html(ninja_sfx_base_url_json: str | None = None) -> str:
     为保证仓库内发布的 blank-editor.html 可复现且不携带生成者的本机路径，
     空壳不预载 STICKER_DIR；用户可在页面里用 🦊 按钮选择表情包目录。
     """
-    blank_data = {"segments": [], "media": "", "language": "", "model": ""}
+    blank_data = {"segments": [], "media": "", "language": "", "model": "",
+                  "preview": {"subtitle": {"x": .1, "y": .76, "width": .8, "height": .16,
+                    "speaker_labels": {"mapping_enabled": False, "enabled": True}}}}
     # 空占位播放器：无 source，用户通过「加载媒体」加载
     media_html = (
         '<audio id="player" preload="metadata" '

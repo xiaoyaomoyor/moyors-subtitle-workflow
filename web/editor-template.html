@@ -84,7 +84,6 @@ __WAVEFORM_CSS__
       <div class="menu-group-title">保存</div>
       <button type="button" class="dropdown-item" id="save-project" role="menuitem" title="保存回服务器启动时指定的工程文件" hidden><span>保存工程</span> <kbd class="menu-kbd" data-mod>Ctrl+S</kbd></button>
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
-      <div id="project-persistence-status" class="msw-save-status" role="status" hidden></div>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
@@ -1469,9 +1468,8 @@ __WAVEFORM_CSS__
           <label data-asr-qwen>地域 <select id="msw-asr-region"></select></label>
           <label data-asr-qwen>Workspace ID <input id="msw-asr-workspaceId" spellcheck="false"></label>
           <label data-asr-openai>API 地址 <input id="msw-asr-openaiBaseUrl" spellcheck="false"></label>
-          <label>API Key <input id="msw-asr-apiKey" type="password" autocomplete="off" placeholder="留空使用本机已保存密钥"></label>
+          <label>API Key <input id="msw-asr-apiKey" type="password" autocomplete="off" placeholder="请输入 API Key"></label>
       </div>
-      <p id="msw-asr-key-state" class="msw-processing-hint"></p>
       <div class="msw-processing-actions"><button type="button" id="msw-asr-save-environment">保存环境配置</button></div>
               </div>
               <p id="msw-asr-environment-message" class="msw-processing-message" role="status" aria-live="polite"></p>
@@ -1488,10 +1486,9 @@ __WAVEFORM_CSS__
         <div class="msw-processing-fields msw-processing-single">
           <label>API 地址<input type="text" id="translation-base-url" autocomplete="off" spellcheck="false"></label>
           <label>模型<input type="text" id="translation-model" autocomplete="off" spellcheck="false"></label>
-          <label>API Key<input type="password" id="translation-api-key" autocomplete="off" placeholder="已在启动器配置时可留空"></label>
+          <label>API Key<input type="password" id="translation-api-key" autocomplete="off" placeholder="请输入 API Key"></label>
           <label>思考强度<select id="translation-reasoning"><option value="auto">自动</option><option value="off">关闭</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
         </div>
-        <p id="translation-key-state" class="msw-processing-hint"></p>
         <div class="msw-processing-actions"><button type="button" id="translation-save-settings">保存配置</button><button type="button" id="translation-test">测试连接</button></div>
       </details>
               <p class="msw-processing-hint">LLM 连接配置与启动器共用，保存后可在字幕翻译中调用。密钥仅保存在本机。</p></div>
@@ -1503,12 +1500,11 @@ __WAVEFORM_CSS__
             <span class="settings-subsection-title">TTS</span>
             <div class="editor-settings-sub-group msw-tts-environment">
               <p id="tts-environment-unavailable" class="msw-processing-hint" hidden>环境配置需要本机 Server 编辑器。</p>
-              <label class="msw-processing-field"><span>TTS 环境</span><select id="tts-environment-engine"><option value="qwen">百炼 Qwen TTS</option><option value="yukkuri">油库里</option><option value="indextts">IndexTTS 本机服务</option></select></label>
+              <label class="msw-processing-field"><span>TTS 环境</span><select id="tts-environment-engine"><option value="qwen">百炼 Qwen TTS</option><option value="yukkuri">油库里</option><option value="indextts">IndexTTS 本机服务</option><option value="gpt-sovits">GPT-SoVITS 本机服务</option><option value="edge">Edge TTS 在线服务</option><option value="minimax">MiniMax 云端</option><option value="mossland">Mossland 云端</option></select></label>
               <div id="tts-environment-qwen">
                 <details id="tts-settings"><summary>连接设置</summary>
         <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
-        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="留空复用本机已保存的密钥"></label>
-        <p id="tts-key-state" class="msw-processing-hint"></p>
+        <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="请输入 API Key"></label>
       </details>
                 <details id="tts-qwen-management" open><summary>音色管理</summary>
                   <div class="msw-processing-grid"><label class="msw-processing-field"><span>管理模式</span><select id="tts-manage-model-type"><option value="VoiceDesign">声音设计</option><option value="VoiceClone">声音复刻</option><option value="CustomVoice">预设／外部音色</option></select></label><label class="msw-processing-field"><span>目标模型</span><select id="tts-manage-model"></select></label></div>
@@ -1544,11 +1540,12 @@ __WAVEFORM_CSS__
           <p class="msw-processing-hint">资源来源：<a href="https://github.com/y52en/aquestalk.js" target="_blank" rel="noopener noreferrer">aquestalk.js</a>、<a href="https://nodejs.org/dist/v24.19.0/" target="_blank" rel="noopener noreferrer">Node.js</a>、<a href="https://github.com/Love-Kogasa/bakak2k" target="_blank" rel="noopener noreferrer">英文规则</a>。使用 AquesTalk，版权归株式会社アクエスト；保留随包许可，参阅 <a href="https://www.a-quest.com/licence.html" target="_blank" rel="noopener noreferrer">官方许可说明</a>。</p>
         </details></div>
               <div id="tts-environment-indextts" hidden>
+                <details open><summary>本机启动设置</summary><div id="tts-local-indextts"></div></details>
                 <details id="tts-index-connection" open><summary>IndexTTS 连接设置</summary>
           <label class="msw-processing-field"><span>本机服务地址</span><input id="tts-index-url" type="url" value="http://127.0.0.1:7860" spellcheck="false" autocomplete="off"></label>
           <label class="msw-processing-field"><span>单次等待上限（秒）</span><input id="tts-index-timeout" type="number" min="60" max="3600" step="1" value="600"></label>
           <div class="msw-processing-actions"><button type="button" id="tts-index-check">连接／检测</button></div>
-          <p class="msw-processing-hint">使用已启动的官方 IndexTTS 2.5 WebUI，无需 API Key。计算设备和模型由该服务管理。</p>
+          <p class="msw-processing-hint">连接官方 IndexTTS 2.5 WebUI；已配置安装位置时可由 MSW 按需启动，无需 API Key。</p>
         </details><p id="tts-index-status" class="msw-processing-message" role="status" aria-live="polite"></p><p id="tts-index-emotion-capability" class="msw-processing-hint"></p>
                 <details id="tts-index-references" open><summary>参考音频</summary><div class="msw-processing-actions"><button type="button" id="tts-index-speaker-upload">上传参考</button><button type="button" id="tts-index-emotion-upload">上传情感参考</button></div><input id="tts-index-reference-file" type="file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" hidden><p class="msw-processing-hint">参考音频用于克隆音色。推荐清晰单人说话；音色和情感参考均取前 15 秒，最大 32 MiB。文件保存在本机参考库。</p><p class="msw-processing-hint">上传后选作当前音色或情感参考，可在合成设置中切换。</p></details>
                 <details id="tts-index-advanced"><summary>高级生成参数</summary><div id="tts-index-advanced-fields" class="msw-processing-grid"></div><p class="msw-processing-hint">较低的最大音频 Token 数可能截断长句；情感向量由 IndexTTS 归一化。时长系数影响语速，不保证精确匹配字幕时长。</p></details><details id="tts-index-presets"><summary>配音预设</summary>
@@ -1562,6 +1559,10 @@ __WAVEFORM_CSS__
             <p class="msw-processing-hint">载入预设会应用音色和生成参数。服务的旧预设不包含语言与时长系数，载入时保留这两项；MSWE 本机预设保存完整参数。</p>
           </details>
               </div>
+              <div id="tts-environment-gpt-sovits" hidden><details open><summary>本机启动设置</summary><div id="tts-local-gpt-sovits"></div></details><div id="tts-gpt-management"></div></div>
+              <div id="tts-environment-edge" hidden><div id="tts-edge-management"></div></div>
+              <div id="tts-environment-minimax" hidden><div id="tts-minimax-management"></div></div>
+              <div id="tts-environment-mossland" hidden><div id="tts-mossland-management"></div></div>
               <div class="msw-processing-actions"><button type="button" id="tts-environment-save">保存环境配置</button></div>
               <p id="tts-environment-message" class="msw-processing-message" role="status" aria-live="polite"></p>
             </div>
@@ -1649,6 +1650,9 @@ __WAVEFORM_CSS__
                 </label>
                 <small class="editor-settings-hint" id="click-behavior-hint">暂停时只跳转，不自动播放；播放中跳转后继续播放。</small>
               </div>
+              <label class="toggle editor-settings-item" title="播放时点击字幕、波形或空隙跳转后暂停；暂停时的点击行为不变。">
+                <input type="checkbox" id="pause-on-mouse-click"> 播放过程中点击鼠标自动暂停
+              </label>
               <label class="editor-settings-item" id="click-target-field" title="字幕列表点击始终跳转到字幕开头；此设置只影响波形区点击字幕块">
                 跳转目标
                 <select id="click-target">
@@ -1764,10 +1768,12 @@ __WAVEFORM_CSS__
           <span>颜色字幕样式</span>
           <select id="ass-color-style" aria-label="ASS 颜色字幕样式">
             <option value="text" selected>作为字幕颜色</option>
+            <option value="speaker">仅说话人名称着色</option>
             <option value="stroke">作为描边颜色</option>
             <option value="none">无影响</option>
           </select>
         </label>
+<p class="editor-settings-hint" id="ass-color-speaker-hint" hidden>仅映射生成的名称着色，正文保留基础色。<a href="#speaker-label-settings" id="ass-color-speaker-export-link">配置说话人与名称导出</a></p>
 <div class="editor-settings-sub-group" id="speaker-label-settings">
             <span class="editor-settings-title">字幕颜色与说话人</span>
             <label class="toggle editor-settings-item"><input id="speaker-mapping-enabled" type="checkbox">启用五色说话人映射</label>
@@ -1779,8 +1785,8 @@ __WAVEFORM_CSS__
             <label class="editor-settings-item">紫色<input data-speaker-name="purple" maxlength="64" value="SP4"></label>
             <label class="editor-settings-item">蓝色<input data-speaker-name="blue" maxlength="64" value="SP5"></label>
             <label class="editor-settings-item">预览字幕颜色样式<select id="subtitle-color-style"><option value="underline">下划线</option><option value="text">文字</option><option value="shadow">阴影</option><option value="stroke">描边</option></select></label>
-            <small class="editor-settings-hint">名称仅用于显示和明确启用的 SRT 导出，不修改正文、原始 speaker 或 TTS 音色。</small>
-            <label class="toggle editor-settings-item"><input id="export-speaker-labels" type="checkbox">SRT 导出说话人</label>
+            <small class="editor-settings-hint">名称用于预览、启用名称的字幕导出和显式选择的 ASS 样式库烧录，不修改正文或 TTS 发音。</small>
+            <label class="toggle editor-settings-item"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
             <label class="toggle editor-settings-item"><input id="export-speaker-names-suffix" type="checkbox">以说话人名称作为分色 SRT 后缀</label>
           </div>
         </div>
@@ -2291,8 +2297,7 @@ __WAVEFORM_CSS__
       <span class="info" title="当前选中的字幕数量">已选 <b id="sel-count">0</b></span>
       <span class="toolbar-spacer"></span>
       <span class="waveform-status" id="waveform-status">等待波形数据</span>
-      <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数" hidden></span>
-      <span class="waveform-readout" id="waveform-source-gain-readout" title="源音频试听增益；波形按此增益调整显示高度" hidden></span>
+      <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数 · 源音频试听增益" hidden></span>
     </div>
     <div class="msw-source-toolbar" id="msw-source-toolbar" hidden>
       <span class="waveform-status" id="msw-media-progress" role="status" hidden></span>
@@ -2548,9 +2553,7 @@ __WAVEFORM_CSS__
       <button type="button" id="msw-asr-forget" hidden>放弃未确认提交</button></div>
       <p id="msw-asr-message" class="msw-processing-message" role="status" aria-live="polite"></p>
       <details id="msw-asr-history" class="msw-tts-section"><summary>识别记录 <span id="msw-asr-count">0</span></summary><div id="msw-asr-jobs" class="msw-job-list"></div></details>
-      <p id="msw-asr-selected" class="msw-processing-hint" role="status"></p>
-        <div class="msw-processing-actions"><button type="button" id="msw-asr-apply" class="primary">覆盖主字幕</button>
-        <button type="button" id="msw-asr-store">存入素材库</button></div>
+      <div id="msw-asr-result-footer"></div>
     </div>
   </div>
 </aside>
@@ -2563,7 +2566,7 @@ __WAVEFORM_CSS__
   <div class="gap-remove-panel-body">
     <p class="msw-processing-hint" id="tts-unavailable" hidden>TTS 需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
     <div id="tts-controls">
-      <div class="msw-tts-top-row"><label class="msw-processing-field" id="tts-target-field"><span>操作对象</span><select id="tts-target"><option value="editor_text">字幕编辑器内容</option><option value="main" selected>主字幕</option><option value="secondary">副字幕</option></select></label><label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option><option value="indextts">IndexTTS 2.5（本机服务）</option></select></label></div>
+      <div class="msw-tts-top-row"><label class="msw-processing-field" id="tts-target-field"><span>操作对象</span><select id="tts-target"><option value="editor_text">字幕编辑器内容</option><option value="main" selected>主字幕</option><option value="secondary">副字幕</option></select></label><label class="msw-processing-field"><span>引擎</span><select id="tts-engine"><option value="qwen">百炼 Qwen TTS（云端）</option><option value="yukkuri">油库里（本地）</option><option value="indextts">IndexTTS 2.5（本机服务）</option><option value="gpt-sovits">GPT-SoVITS（本机服务）</option><option value="edge">Edge TTS（在线）</option><option value="minimax">MiniMax（云端）</option><option value="mossland">Mossland（云端）</option></select></label></div>
       <p id="tts-scope" class="msw-processing-hint" aria-live="polite"></p>
       <p id="tts-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="tts-environment-reminder" hidden><button type="button" id="tts-environment-open">前往环境配置</button></div>
       <details id="tts-synthesis-settings" class="msw-tts-section" open><summary>合成设置</summary>
@@ -2604,7 +2607,9 @@ __WAVEFORM_CSS__
         <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-preview" disabled>试听音色</button></div>
         <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
       </div>
+      <div id="tts-gpt-fields" hidden></div><div id="tts-edge-fields" hidden></div><div id="tts-minimax-fields" hidden></div><div id="tts-mossland-fields" hidden></div>
       <div id="tts-index-fields" hidden>
+        <div class="msw-processing-actions"><span id="tts-local-call-status" class="msw-processing-hint"></span><button type="button" id="tts-local-call-start">启动服务</button></div>
         <p id="tts-index-call-status" class="msw-processing-message is-error" role="status" hidden></p>
         <fieldset id="tts-index-controls" class="msw-index-controls">
           <div class="msw-processing-grid">
@@ -2659,16 +2664,15 @@ __WAVEFORM_CSS__
       <div class="msw-processing-fields">
         <label>翻译目标<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
         <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
-        <label>译文写入<select id="translation-output-mode"><option value="secondary">生成／更新副字幕</option><option value="replace_main">替换主字幕</option></select></label>
       </div>
       <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>
 
       <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>
-      <p class="msw-processing-hint">默认写入副字幕；替换主字幕时保留已有副轨和配音。处理期间可以继续编辑，修改过的内容不会被自动覆盖，应用后可撤销。</p>
-      <div class="msw-processing-actions"><button type="button" id="translation-start" class="primary">开始翻译</button></div>
+      <div class="msw-processing-actions"><button type="button" id="translation-save-call">保存翻译设置</button><button type="button" id="translation-start" class="primary">开始翻译</button></div>
     </div>
     <p id="translation-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details class="msw-job-history" id="translation-history" open><summary>翻译记录 <span id="translation-history-count"></span></summary><div id="translation-jobs" class="msw-processing-jobs" tabindex="0" aria-label="翻译记录"></div></details>
+    <div id="translation-result-footer"></div>
   </div>
 </aside>
 
@@ -2695,8 +2699,16 @@ __WAVEFORM_CSS__
   </header>
   <div class="gap-remove-panel-body">
     <section class="cue-editor-settings-group"><h3>静音贴片</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-mute-count" class="msw-processing-hint"></small><button id="audio-actions-mute" type="button">静音</button><button id="audio-actions-unmute" type="button">取消静音</button></div></section>
-    <section class="cue-editor-settings-group"><h3>贴片音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-gain-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-gain-count" class="msw-processing-hint"></small><button id="audio-actions-gain-apply" type="button">应用增益</button></div></section>
-    <section class="cue-editor-settings-group"><h3>源音频音量增益</h3><div class="msw-processing-fields"><label>调整方式<select id="audio-actions-source-mode"><option value="set">设置为</option><option value="offset">增减</option></select></label><label>增益（dB）<input id="audio-actions-source-gain" type="number" value="0" step="0.5"></label></div><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-source-status" class="msw-processing-hint"></small><button id="audio-actions-source-apply" type="button">应用增益</button></div></section>
+    <section class="cue-editor-settings-group"><h3 id="audio-actions-gain-title">所选贴片音量</h3>
+      <p data-help-for="audio-actions-gain-title">只调整选中贴片，写入工程并参与导出。多个音量时，拖动后统一设为所选值。0 dB 为原始音量；静音单独控制。松手提交一次，Esc 取消。</p>
+      <div class="audio-volume-control"><input id="audio-actions-gain" type="range" min="-60" max="12" step="0.5" value="0" aria-label="所选贴片音量"><output id="audio-actions-gain-output"></output><label><input id="audio-actions-gain-value" type="number" min="-60" max="12" step="0.5" value="0" aria-label="所选贴片增益（dB）"><span>dB</span></label><button id="audio-actions-gain-reset" type="button">复位</button></div>
+      <div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-gain-count" class="msw-processing-hint"></small><small id="audio-actions-gain-mixed" class="msw-processing-hint" hidden>调整后统一音量</small></div>
+    </section>
+    <section class="cue-editor-settings-group"><h3 id="audio-actions-source-gain-title">源音频试听音量</h3>
+      <p data-help-for="audio-actions-source-gain-title">调整媒体播放器与波形时间线中的原声音量。仅在导出时选择使用源试听音量，才影响成品。0 dB 为原始音量；复位不解除静音。</p>
+      <div class="audio-volume-control"><input id="audio-actions-source-gain" type="range" min="-60" max="12" step="0.5" value="0" aria-label="源音频试听音量"><output id="audio-actions-source-gain-output"></output><label><input id="audio-actions-source-gain-value" type="number" min="-60" max="12" step="0.5" value="0" aria-label="源音频试听增益（dB）"><span>dB</span></label><button id="audio-actions-source-gain-reset" type="button">复位</button></div>
+      <small id="audio-actions-source-status" class="msw-processing-hint"></small>
+    </section>
     <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-regenerate-count" class="msw-processing-hint"></small><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
     <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-fill-count" class="msw-processing-hint"></small><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
     <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
@@ -2986,6 +2998,7 @@ __WAVEFORM_CSS__
       </label>
       <div class="actions">
         <button type="button" id="multi-subtitle-split-cancel">取消（Esc）</button>
+        <button type="button" id="multi-subtitle-split-duplicate" title="拆分后两边保留相同的字幕文本">拆分并保留原文</button>
         <button type="button" id="multi-subtitle-split-confirm" class="primary">拆分（Enter / B）</button>
       </div>
     </div>

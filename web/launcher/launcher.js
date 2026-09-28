@@ -84,12 +84,15 @@
       output_export_srt: "导出原文 SRT",
       output_srt_hint: "原文 SRT 为完成所选整理步骤、翻译前的主字幕；识别输出的 SRT 位置跟随此字段。",
       output_export_translated_srt: "导出译文 SRT",
-      output_translated_hint: "启用字幕翻译后可导出；译文与原文相互独立，不导出也能完成工程。",
+      output_translated_hint: "请先勾选右侧的「翻译」模块。译文与原文 SRT 独立导出；关闭翻译会保留此选项的勾选，但本次不导出译文。",
       output_open_settings: "在更多设置中配置默认输出策略",
       open_project_result: "打开工程",
       summary_spectral_on: "频谱 开",
       summary_spectral_off: "频谱 关",
       summary_not_configured: "待配置",
+      summary_scripts_ready: "已选择文稿",
+      file_dialog_failed: "无法打开文件选择窗口，请重试；详细原因见处理日志。",
+      backend_request_failed: "操作失败，请重试；详细原因见处理日志。",
       summary_rules: "{n} 条规则",
       summary_custom_prompt: "自定义提示词",
       summary_default_prompt: "默认提示词",
@@ -244,7 +247,7 @@
       show_rare_langs_hint: "开启后，「语言」列表显示供应商支持的全部语种；关闭时只显示 8 种常用语言。",
       settings_file_output: "文件输出",
       output_subfolder: "将所有输出文件放入子文件夹",
-      output_subfolder_title: "将所有输出文件放入子文件夹（默认关闭）：SRT、工程与编辑器页面写入媒体旁的 _msw 子目录",
+      output_subfolder_title: "将所有输出文件放入子文件夹（默认开启）：SRT、工程与编辑器页面写入媒体旁的 _msw 子目录",
       per_video_subfolder: "每个视频单独创建子文件夹",
       per_video_subfolder_title: "每个视频单独创建子文件夹（默认关闭）：需要先开启「将所有输出文件放入子文件夹」，每个媒体各自使用「视频名_msw」目录",
       attach_model_name: "附加模型名称",
@@ -305,6 +308,7 @@
       failed: "失败",
       done: "完成",
       key_empty: "未配置密钥",
+      key_local_available: "已持有本地密钥", key_enter: "请输入 API Key",
       key_loaded: "已加载密钥 {key}",
       workspace_hint: "北京地域选填（推荐），新加坡地域必填。",
       other_language: "English",
@@ -402,12 +406,15 @@
       output_export_srt: "Export original SRT",
       output_srt_hint: "The original SRT is the main subtitle after the selected cleanup steps, before translation; ASR output follows this path.",
       output_export_translated_srt: "Export translated SRT",
-      output_translated_hint: "Available when subtitle translation is enabled; translation and original exports are independent.",
+      output_translated_hint: "Enable Translation in the module list first. Translated and original SRT exports are independent. Turning off Translation preserves this choice but skips translated output for this run.",
       output_open_settings: "Configure default output policy in More Settings",
       open_project_result: "Open project",
       summary_spectral_on: "Spectral on",
       summary_spectral_off: "Spectral off",
       summary_not_configured: "Not configured",
+      summary_scripts_ready: "Manuscripts selected",
+      file_dialog_failed: "Could not open the file picker. Retry or check the processing log.",
+      backend_request_failed: "The operation failed. Retry or check the processing log.",
       summary_rules: "{n} rules",
       summary_custom_prompt: "Custom prompt",
       summary_default_prompt: "Default prompt",
@@ -562,7 +569,7 @@
       show_rare_langs_hint: "When enabled, the language list shows every supported language; otherwise it shows 8 common languages.",
       settings_file_output: "File output",
       output_subfolder: "Put all outputs in a subfolder",
-      output_subfolder_title: "Put all outputs in a subfolder (off by default): SRT, project, and editor page go to the _msw subfolder next to the media.",
+      output_subfolder_title: "Put all outputs in a subfolder (on by default): SRT, project, and editor page go to the _msw subfolder next to the media.",
       per_video_subfolder: "Create a separate subfolder per video",
       per_video_subfolder_title: "Create a separate subfolder per video (off by default): requires “Put all outputs in a subfolder”; each media uses its own “video-name_msw” folder.",
       attach_model_name: "Append model name",
@@ -623,6 +630,7 @@
       failed: "Failed",
       done: "Done",
       key_empty: "No key configured",
+      key_local_available: "Local API key available", key_enter: "Enter API key",
       key_loaded: "Loaded key {key}",
       workspace_hint: "Optional (recommended) for Beijing; required for Singapore.",
       other_language: "中文",
@@ -814,7 +822,7 @@
     auto_translation_first: "译文在上", auto_original_first: "原文在上",
     auto_backfill: "用译文替换主字幕", auto_backfill_hint: "保留已有副轨和配音；与合并双语互斥。两者都关闭时生成副字幕。",
     auto_retain_intermediate: "保留中间产物",
-    auto_retain_hint: "默认不保留；中间文件统一放在媒体目录的 MSW-Postprocess 子文件夹中。失败或取消时会保留以便排查。",
+    auto_retain_hint: "默认保留；原始快照与各阶段编号产物放在 _msw（或视频名_msw）的后处理目录。失败或取消时也会保留以便排查。",
     auto_summary_disabled: "自动处理未启用。",
     auto_summary_empty: "请在下方「后处理步骤」中勾选需要的工序。",
     auto_summary_steps: "已选择 {count} 步：{steps}",
@@ -902,7 +910,7 @@
     auto_translation_first: "Translation first", auto_original_first: "Original first",
     auto_backfill: "Replace main subtitles with translations", auto_backfill_hint: "Preserve existing secondary tracks and dubbing. Cannot be combined with bilingual merging. Leave both off to create secondary subtitles.",
     auto_retain_intermediate: "Keep intermediate artifacts",
-    auto_retain_hint: "Off by default. Intermediate files stay in a MSW-Postprocess subfolder beside the media; failures and cancellations keep them for diagnosis.",
+    auto_retain_hint: "On by default. Original snapshots and numbered artifacts stay in the postprocess directory under _msw (or media-name_msw); failures and cancellations also keep them for diagnosis.",
     auto_summary_disabled: "Automatic processing is disabled.",
     auto_summary_empty: "Select the processing steps you need in the “Post-processing steps” section below.",
     auto_summary_steps: "{count} selected step(s): {steps}",
@@ -1569,7 +1577,7 @@
   let activeSettingsTab = readStoredSettingsTab();
 
   function mockApi() {
-    let saved = { apiKey: "", region: "beijing", language: "", workspaceId: "", guiLang: "", customDisplayName: "", openaiBaseUrl: "https://api.openai.com/v1", openaiModel: "whisper-1", postprocessApiKeys: {}, theme: null, outputSubfolder: false, perVideoSubfolder: false, attachModelName: false, notifyOnComplete: false };
+    let saved = { apiKey: "", region: "beijing", language: "", workspaceId: "", guiLang: "", customDisplayName: "", openaiBaseUrl: "https://api.openai.com/v1", openaiModel: "whisper-1", postprocessApiKeys: {}, theme: null, outputSubfolder: true, perVideoSubfolder: false, attachModelName: false, notifyOnComplete: false };
     const chainedPath = (path, operation, fallback) => path
       ? path.replace(/(\.[^.\\/]+)$/u, `.${operation}$1`)
       : fallback;
@@ -1603,7 +1611,7 @@
           { id: "qwen", label: "阿里云 Qwen", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: false },
           { id: "custom", label: saved.customDisplayName || "Custom (OpenAI-compatible)", defaultLabel: "Custom (OpenAI-compatible)", displayName: saved.customDisplayName || "", baseUrl: "", model: "", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: false, hasModel: false, selected: false }
         ],
-        postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: false, steps: [] },
+        postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: true, steps: [] },
         modelCacheRoot: saved.modelCacheRoot || "D:\\Models\\MSW",
         localRuntime: { status: "missing", ready: false, path: "", pythonPath: "", modelCachePath: saved.modelCacheRoot || "D:\\Models\\MSW", detail: "" },
         ocrRuntime: { status: "missing", ready: false, path: "D:\\Users\\Demo\\AppData\\Local\\MSW\\ocr-runtime", pythonPath: "", modelId: "pp-ocrv6-tiny", modelLabel: "PP-OCRv6 tiny（CPU）", detail: "" },
@@ -2426,9 +2434,12 @@
       return await api[method](payload);
     } catch (error) {
       const message = `${method}: ${error && error.message ? error.message : error}`;
-      appendLog(`[bridge] ${message}`);
-      setStatus(message);
-      return { ok: false, error: message };
+      appendLog(`[bridge] ${message}`, { quietLatest: true });
+      const code = ["choose_file", "choose_folder"].includes(method) ? "file_dialog_failed" : "backend_request_failed";
+      const feedback = t(code);
+      appendLog(feedback);
+      setStatus(feedback);
+      return { ok: false, code, error: feedback };
     }
   }
 
@@ -2567,7 +2578,7 @@
   });
   async function saveStickerDirectory(path) { $("stickerDir").value = path; const result = await bridge("save_sticker_dir", { path }); setError("stickerDir", result.ok ? "" : errText(result.code, result.detail || result.error)); if (result.ok) { state.config.stickerDir = result.stickerDir; renderStickerCurrent(); setStatus(t("saved")); } else setStatus(errText(result.code, result.detail || result.error)); return result; }
   function renderKeyHint() { const current = provider(); $("openKeyUrl").textContent = current?.id === "openai" ? t("openai_official") : (current?.label || ""); const suffix = $("keyHintSuffix"); if (suffix) suffix.textContent = t(current?.id === "openai" ? "openai_key_hint_suffix" : "key_hint_suffix"); }
-  function renderKeyStatus() { const masked = state.config && !isLocalProvider() ? provider().maskedApiKey : ""; $("keyStatus").textContent = masked ? t("key_loaded").replace("{key}", masked) : t("key_empty"); }
+  function renderKeyStatus() { const item = state.config && !isLocalProvider() ? provider() : {}; $("apiKey").placeholder = t(item.hasApiKey || item.maskedApiKey || item.apiKey ? "key_local_available" : "key_enter"); }
   function syncQwenAudioOptions(model) { const enabled = provider().id === "qwen" && Boolean(model?.supportsContext || model?.supportsHotwords); $("qwenAudioOptions").classList.toggle("hidden", !enabled); $("qwenAudioContextField").classList.toggle("hidden", !(provider().id === "qwen" && model?.supportsContext)); $("qwenAudioHotwordsSection").classList.toggle("hidden", !(provider().id === "qwen" && model?.supportsHotwords)); syncQwenAudioHotwordsMode(); }
   function syncSonioxContextOptions(model) { const enabled = provider().id === "soniox" && Boolean(model?.supportsContext); $("sonioxContextOptions").classList.toggle("hidden", !enabled); }
   function renderPromptCharacterCount() { const count = Array.from($("qwenAudioContext").value).length; const counter = $("qwenAudioContextCount"); counter.textContent = t("qwen_audio_context_count").replace("{count}", String(count)); counter.classList.toggle("over-limit", count > 400); }
@@ -2878,7 +2889,7 @@
     $("openaiCapabilityHint").textContent=caps.timestamps?t('openai_timestamps_required'):t('openai_timestamps_missing');
     return caps;
   }
-  function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); fillSelect("region", current.regions, state.config.region || "beijing"); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); if (openai) $("openaiBaseUrl").value = state.config.openaiBaseUrl || "https://api.openai.com/v1"; $("apiKeyField").classList.toggle("hidden", local || current.requiresApiKey === false); $("localRuntimePanel").classList.toggle("hidden", !local); $("localModelPanel").classList.toggle("hidden", !local); $("localRuntimeCheckField").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); $("openKeyUrl").classList.toggle("hidden", local || current.requiresApiKey === false); $("apiKey").value = current.apiKey || ""; renderKeyHint(); $("providerNote").textContent = providerNoteText(current); $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); $("regionField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || current.regions.length === 0); renderKeyStatus(); syncWorkspace(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
+  function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); fillSelect("region", current.regions, state.config.region || "beijing"); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); if (openai) $("openaiBaseUrl").value = state.config.openaiBaseUrl || "https://api.openai.com/v1"; $("apiKeyField").classList.toggle("hidden", local || current.requiresApiKey === false); $("localRuntimePanel").classList.toggle("hidden", !local); $("localModelPanel").classList.toggle("hidden", !local); $("localRuntimeCheckField").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); $("openKeyUrl").classList.toggle("hidden", local || current.requiresApiKey === false); $("apiKey").value = ""; renderKeyHint(); $("providerNote").textContent = providerNoteText(current); $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); $("regionField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || current.regions.length === 0); renderKeyStatus(); syncWorkspace(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
   function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); syncOpenAiFields(); syncLocalModelPath(model); $("modelNote").textContent = modelNoteText(model); applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncSonioxContextOptions(model); syncOpenaiCapabilities(true); $("doubaoOptions").classList.toggle("hidden", current.id !== "doubao"); renderLocalModelStatus(); if (!state.initializing) void syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
   function applyProviderLanguages(current, model, persistReset = false) { const el = $("language"); $("languageGroup").classList.toggle("hidden", current.supportsLanguage === false); const previous = el.multiple ? Array.from(el.selectedOptions).map((o) => o.value) : (el.value ? [el.value] : []); const remembered = state.config.lastLanguage; const wanted = previous.length && persistReset ? previous : (remembered !== null && remembered !== undefined ? (remembered ? remembered.split(",") : []) : [state.config.language].filter(Boolean)); el.multiple = Boolean(current.multiLanguage); $("advancedOptionsGrid").classList.toggle("single-language", !current.multiLanguage); if (current.multiLanguage) el.size = 6; else el.removeAttribute("size"); const showRare = Boolean(state.config.showRareLangs); const commons = current.commonLanguages || []; const available = model.languages?.length ? model.languages : current.languages; const visible = !showRare && commons.length ? available.filter((item) => commons.includes(item.id)) : available; fillSelect("language", visible, ""); const codes = new Set(visible.map((item) => item.id)); const restored = wanted.filter((code) => code && codes.has(code)); if (current.multiLanguage) { Array.from(el.options).forEach((o) => { o.selected = restored.includes(o.value); }); } else { el.value = restored[0] || ""; } $("languageHint").classList.toggle("hidden", !current.multiLanguage); $("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0); $("languageReset").classList.toggle("hidden", !current.multiLanguage); }
   function languageValue() { const el = $("language"); if (el.multiple) return Array.from(el.selectedOptions).map((o) => o.value).filter(Boolean).join(","); return el.value; }

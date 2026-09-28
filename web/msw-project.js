@@ -38,6 +38,10 @@
     if (!Array.isArray(applied) || applied.length > 10000 || !applied.every(validId)) {
       throw new Error('MSW 结果记录格式无效');
     }
+    if ('processing_results' in value) {
+      if (!global.MSWResults) throw Error('候选结果模块未加载');
+      global.MSWResults.validate(value.processing_results);
+    }
     const partial = value.translation_applications ?? {};
     const object = item => item !== null && typeof item === 'object' && !Array.isArray(item);
     const stale = value.asr_stale_subtitles === undefined ? {} : value.asr_stale_subtitles;

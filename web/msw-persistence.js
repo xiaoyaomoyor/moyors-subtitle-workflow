@@ -33,17 +33,21 @@
     if (previous) host.setSaving(false);
     previous?.resolve(value);
   }
+  let lastWarning = '';
   function status(report, label = '工程已保存', warning = null, toast = false) {
-    const output = el('project-persistence-status');
     const missing = report?.missing?.length || 0;
-    output.textContent = t(label);
-    if (report) output.textContent += ` · ${t('音频素材')} ${report.available}/${report.total}`;
-    if (missing) output.textContent += ` · ${t('素材缺失')} ${missing}`;
-    if (report?.stagedOnly?.length) output.textContent += ` · ${t('仅本机暂存')} ${report.stagedOnly.length}`;
-    if (warning) output.textContent += ` · ${t(warning)}`;
-    output.classList.toggle('warning', missing > 0 || Boolean(warning));
-    output.hidden = toast;
-    if (toast) host.hint(output.textContent, missing || warning ? 'warning' : 'success');
+    const staged = report?.stagedOnly?.length || 0;
+    const problem = missing > 0 || staged > 0 || Boolean(warning);
+    // Successful saves already own a progress toast. Only explicit diagnostics
+    // or real problems need a second message; never revive menu status text.
+    if (!toast && !problem) { lastWarning = ''; return; }
+    let message = t(label);
+    if (toast && report) message += ` · ${t('音频素材')} ${report.available}/${report.total}`;
+    if (missing) message += ` · ${t('素材缺失')} ${missing}`;
+    if (staged) message += ` · ${t('仅本机暂存')} ${staged}`;
+    if (warning) message += ` · ${t(warning)}`;
+    if (toast || message !== lastWarning) host.hint(message, problem ? 'warning' : 'success');
+    lastWarning = problem ? message : '';
   }
   function saveAs({ project = null, name = host.name(), newProject = false } = {}) {
     if (!available() || active || host.saving() || recoveryModal.classList.contains('show')) return Promise.resolve(false);
@@ -106,6 +110,7 @@
       const unchanged = host.adopt(result, { source, newProject: action.newProject });
       feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
       recovering = false;
+      void host.refreshRecentProjects();
       status(result.assets, '工程已保存', result.recoveryWarning); finish(true);
     } catch (error) {
       feedback.finish(`${t('保存失败')}：${error.message}`,'warning');
@@ -176,7 +181,7 @@
             host.restore(result); recovering = true; lastDraft = null;
             session = global.MSWProject.id('session');
             recoveryModal.classList.remove('show');
-            status(null, '恢复内容尚未另存为工程');
+            status(null, '恢复内容尚未另存为工程', null, true);
           } catch (error) { el('project-recovery-message').textContent = error.message; }
           finally { working = false; el('project-recovery-close').disabled = false; }
         });

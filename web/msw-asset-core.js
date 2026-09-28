@@ -22,7 +22,7 @@
     if (!Array.isArray(rows) || rows.length > 10000 || !rows.every(validSubtitle)
       || new Set(rows.map(a => a.id)).size !== rows.length) throw Error('字幕素材格式无效或重复');
     if (!Array.isArray(batches) || batches.length > 10000 || batches.some(b => !object(b) || !p().validId(b.id)
-      || !['copy','asr','tts','imported','regenerated'].includes(b.kind) || !integer(b.created_at)
+      || !['copy','asr','translation','tts','imported','regenerated'].includes(b.kind) || !integer(b.created_at)
       || (b.result_id !== undefined && !p().validId(b.result_id)) || (b.parent_id !== undefined && !p().validId(b.parent_id)))
       || new Set(batches.map(b => b.id)).size !== batches.length) throw Error('素材批次格式无效或重复');
     const ids = new Set(batches.map(b => b.id));

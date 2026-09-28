@@ -12,8 +12,7 @@
   const clientToken = () => `${pageId}.${host.generation}`;
   const projectId = () => global.MSWProject.ensure(host.data).project_id;
   const jobs = new Map();
-  const handled = new Set();
-  const applying = new Set();
+  const details = new Map();
   let providers = [];
   let cursor = 0;
   let timer = null;
@@ -67,6 +66,7 @@
     const emptyScopeMessage = '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
     if (selection.hasSelection && !scope.sources.length) message(emptyScopeMessage, true);
     else if (el('translation-message').textContent === t(emptyScopeMessage)) message('');
+    resultView.refresh();
     return scope;
   }
   function providerInput() {
@@ -81,8 +81,7 @@
     el('translation-model').value = provider.model;
     el('translation-reasoning').value = provider.reasoningMode || 'auto';
     el('translation-api-key').value = '';
-    el('translation-key-state').textContent = t(provider.hasApiKey
-      ? '已配置本机密钥；留空即可复用启动器设置' : '尚未配置密钥；可填写后使用或保存');
+    el('translation-api-key').placeholder = t(provider.hasApiKey ? '已持有本地密钥' : '请输入 API Key');
   }
   async function loadProviders() {
     if (loadingProviders) return loadingProviders;
@@ -92,7 +91,7 @@
       const data = await request('providers');
       providers = data.providers;
       el('translation-provider').replaceChildren(...providers.map((provider) => new Option(provider.label, provider.id)));
-      el('translation-provider').value = selected || data.selectedProvider || providers[0]?.id;
+      el('translation-provider').value = selected || savedCall.provider || data.selectedProvider || providers[0]?.id;
       el('llm-provider').replaceChildren(...providers.map((provider) => new Option(provider.label, provider.id)));
       el('llm-provider').value = managed || el('translation-provider').value;
       providerError = '';
@@ -114,14 +113,20 @@
   }
   const statusText = { queued: '等待处理', running: '正在处理', succeeded: '处理完成', failed: '处理失败',
     cancel_requested: '正在取消', cancelled: '已取消', interrupted: '服务中断，未自动重试' };
+  const resultView=global.MSWResultView.create({host,kind:'translation',container:el('translation-jobs'),footer:el('translation-result-footer'),count:el('translation-history-count'),onMessage:message,
+    onCancel:async job=>{const generation=host.generation,result=await request(`jobs/${job.id}/cancel`,{project_id:job.project_id});if(generation!==host.generation)return;jobs.set(job.id,result.job);renderJobs();schedulePoll(0);},
+    onRetry:async()=>{message('请重新选择字幕并开始翻译');},
+    onApply:async(jobs,target)=>{const result=host.applyProcessing(jobs,target,null,null);message(result.duplicate?'此修订已应用到当前目标':'翻译结果已应用，可一次撤销');renderJobs();},
+    onStore:async jobs=>{
+      const result=global.MSWResults.store(host.data,jobs);if(!result){message('此修订已存入素材库');return;}
+      host.commitSubtitleAssets('翻译结果存入素材库',ext=>Object.assign(ext,result.extension));host.showAssets({automatic:true});global.MSWE.resolve('asset-library')?.showBatch(result.batchId);
+      message(`已存入素材库 ${result.count}`);renderJobs();
+    }});
   function renderJobs() {
-    const target = el('translation-jobs'), scroll = target.scrollTop;
     const tests = el('llm-test-jobs'), testScroll = tests.scrollTop, testFragment = document.createDocumentFragment();
-    const previews = new Map([...target.children].map(card => [card.dataset.jobId, card.querySelector('.msw-translation-results')]));
-    const fragment = document.createDocumentFragment();
     const sorted = [...jobs.values()].sort((a, b) => b.created_at - a.created_at);
-    const translations = sorted.filter(job => job.kind === 'translation').slice(0, 20), connections = sorted.filter(job => job.kind === 'connection_test').slice(0, 20);
-    for (const job of [...translations, ...connections]) {
+    const connections = sorted.filter(job => job.kind === 'connection_test').slice(0, 20);
+    for (const job of connections) {
       const card = document.createElement('article');
       card.className = 'msw-processing-job';
       card.dataset.jobId = job.id;
@@ -149,78 +154,14 @@
           jobs.set(job.id, result.job); renderJobs(); schedulePoll(0);
         }));
       }
-      if (job.status === 'succeeded' && job.kind === 'translation') {
-        actions.append(action('查看译文', () => showResult(job, card)));
-        if (!['applied', 'discarded'].includes(job.application)) {
-          actions.append(action('检查并应用', () => applyResult(job, true)));
-          actions.append(action('忽略结果', async () => {
-            const result = await request(`jobs/${job.id}/ack`, { project_id: job.project_id, application: 'discarded' });
-            handled.add(job.id); jobs.set(job.id, result.job); renderJobs();
-          }));
-        }
-      }
       card.append(actions);
-      if (previews.get(job.id)) card.append(previews.get(job.id));
-      (job.kind === 'connection_test' ? testFragment : fragment).append(card);
+      testFragment.append(card);
     }
-    target.replaceChildren(fragment); target.scrollTop = scroll;
+    resultView.render([...jobs.values()].filter(j=>j.kind==='translation').map(j=>details.get(j.id)||j));
     tests.replaceChildren(testFragment); tests.scrollTop = testScroll;
-    el('translation-history-count').textContent = `(${translations.length})`;
+
     el('llm-test-count').textContent = `(${connections.length})`;
     updateEnvironment();
-  }
-  async function showResult(job, card) {
-    const generation = host.generation;
-    const data = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
-    if (generation !== host.generation || job.project_id !== projectId()) return;
-    card = [...el('translation-jobs').children].find(item => item.dataset.jobId === job.id);
-    if (!card) return;
-    card.querySelector('.msw-translation-results')?.remove();
-    const preview = document.createElement('div');
-    preview.className = 'msw-translation-results';
-    const sources = new Map(data.job.snapshot.entries.map((entry) => [entry.source.id, entry.source.text]));
-    const rows = data.job.result.translations;
-    let shown = 0;
-    const more = action('查看更多译文', () => appendPage());
-    function appendPage() {
-      more.remove();
-      const end = Math.min(shown + 50, rows.length);
-      for (; shown < end; shown += 1) {
-        const row = rows[shown];
-        const item = document.createElement('div');
-        const source = document.createElement('p'); source.textContent = sources.get(row.id) || '';
-        const text = document.createElement('textarea'); text.readOnly = true; text.rows = 2; text.value = row.text;
-        text.setAttribute('aria-label', t('翻译结果'));
-        item.append(source, text); preview.append(item);
-      }
-      if (shown < rows.length) preview.append(more);
-    }
-    appendPage();
-    card.append(preview);
-  }
-  async function applyResult(job, manual = false) {
-    if (applying.has(job.id) || (!manual && (handled.has(job.id) || host.isEditing()))) return;
-    if (!manual && job.client_token !== clientToken()) return;
-    const generation = host.generation;
-    applying.add(job.id);
-    try {
-      const data = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
-      if (generation !== host.generation || job.project_id !== projectId() || (!manual && host.isEditing())) return;
-      const result = host.applyTranslation(data.job);
-      handled.add(job.id);
-      const text = `${t('已更新副字幕')} ${result.appliedIds.length}`
-        + (result.conflicts.length ? `；${t('未应用')} ${result.conflicts.length}：${[...new Set(result.conflicts.map((item) => t(item.reason)))].join('；')}` : '');
-      message(text, result.conflicts.length > 0);
-      host.flashHint(text, result.conflicts.length ? 'warning' : 'success');
-      // The edit above is synchronous and atomic. Failure to acknowledge never
-      // rolls it back; persistent per-result IDs prevent a duplicate application.
-      const application = result.complete ? 'applied' : 'stale';
-      jobs.set(job.id, { ...job, application }); renderJobs();
-      await request(`jobs/${job.id}/ack`, { project_id: job.project_id, application });
-    } catch (error) {
-      handled.add(job.id);
-      message(error.message, true);
-    } finally { applying.delete(job.id); }
   }
   function schedulePoll(delay = 800) {
     if (!available) return;
@@ -244,10 +185,12 @@
       }
       if (data.jobs.length) renderJobs();
       for (const job of jobs.values()) {
-        if (job.status === 'succeeded' && job.application === 'pending' && job.kind === 'translation') await applyResult(job);
+        if(job.status==='succeeded' && job.kind==='translation' && !details.has(job.id)) {
+          const response=await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(id)}`);
+          if(generation!==host.generation)return;details.set(job.id,response.job);renderJobs();
+        }
       }
-      const pending = [...jobs.values()].some((job) => ['queued', 'running', 'cancel_requested'].includes(job.status)
-        || (job.status === 'succeeded' && job.application === 'pending' && job.client_token === clientToken() && !handled.has(job.id)));
+      const pending = [...jobs.values()].some((job) => ['queued', 'running', 'cancel_requested'].includes(job.status));
       if (pending) schedulePoll();
     } catch (error) {
       failures += 1;
@@ -267,8 +210,9 @@
     }
     const generation = host.generation;
     try {
-      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture(el('translation-output-mode').value) : null;
+      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture() : null;
       requestInFlight = true; updateScope();
+      if(kind === 'connection_test') report('正在验证连接…');
       const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),
         request_key: global.MSWProject.id('request'), snapshot, provider: kind === 'connection_test' ? providerInput() : {providerId: el('translation-provider').value},
         language: el('translation-language').value, prompt: el('translation-prompt').value };
@@ -306,6 +250,14 @@
     if (providers.length) { el('llm-provider').value = el('translation-provider').value; selectProvider(); }
     floating.close(); host.openLlmEnvironment();
   });
+  const callKey='msw.translation.call.v1';
+  let savedCall={};try {savedCall=JSON.parse(localStorage.getItem(callKey)||'{}');}catch {}
+  if(['en','zh'].includes(savedCall.language))el('translation-language').value=savedCall.language;
+  if(typeof savedCall.prompt==='string')el('translation-prompt').value=savedCall.prompt;
+  el('translation-save-call').onclick=()=>{
+    try {localStorage.setItem(callKey,JSON.stringify({provider:el('translation-provider').value,language:el('translation-language').value,prompt:el('translation-prompt').value}));message('翻译设置已保存');}
+    catch {message('无法保存翻译设置',true);}
+  };
   el('translation-start').addEventListener('click', () => void submit('translation'));
   el('translation-test').addEventListener('click', () => void submit('connection_test'));
   el('translation-save-settings').addEventListener('click', async () => {
@@ -319,7 +271,7 @@
     if (floating.isOpen()) queueMicrotask(updateScope);
   });
   global.addEventListener('msw:project-changed', () => {
-    clearTimeout(timer); cursor = 0; jobs.clear(); handled.clear(); pendingSubmission = null;
+    clearTimeout(timer); cursor = 0; jobs.clear(); details.clear(); resultView.reset(); pendingSubmission = null;
     queueMicrotask(() => { updateScope(); renderJobs(); message(''); schedulePoll(0); });
   });
   updateScope();

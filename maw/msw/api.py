@@ -14,7 +14,7 @@ from maw.msw.config import provider_payloads, resolve_settings, save_settings
 from maw.msw.jobs import JobManager
 from maw.msw.project_codec import valid_id
 from maw.msw.assets import AssetStore
-from maw.msw import tts
+from maw.msw import tts, tts_engines
 
 
 class ProcessingAPI:
@@ -31,6 +31,10 @@ class ProcessingAPI:
         self._importer = None
         self._qwen_voices = None
         self._index_tts = None
+        self._gpt_sovits = None
+        self._edge_tts = None
+        self._cloud_tts = {}
+        self._tts_services = None
         self._media = None
         self._asr = None
         self._local_models = None
@@ -89,25 +93,60 @@ class ProcessingAPI:
             return self._qwen_voices
 
     @property
+    def tts_services(self):
+        from maw.msw.tts_local_services import LocalTtsServices
+        with self.lock:
+            if self._tts_services is None:
+                self._tts_services = LocalTtsServices(self.data_root)
+            return self._tts_services
+
+    @property
     def index_tts(self):
         from maw.msw.index_tts import IndexTts
         with self.lock:
             if self._index_tts is None:
                 self._index_tts = IndexTts(self.data_root, self.importer.convert)
+                self._index_tts.services = self.tts_services
             return self._index_tts
+
+    @property
+    def gpt_sovits(self):
+        from maw.msw.gpt_sovits import GptSovits
+        with self.lock:
+            if self._gpt_sovits is None:
+                self._gpt_sovits = GptSovits(self.data_root, self.importer.convert)
+                self._gpt_sovits.services = self.tts_services
+            return self._gpt_sovits
+
+    @property
+    def edge_tts(self):
+        from maw.msw.edge_tts import EdgeTts
+        with self.lock:
+            if self._edge_tts is None:
+                self._edge_tts = EdgeTts(self.data_root, self.importer.convert)
+            return self._edge_tts
+
+    def cloud_tts(self, engine):
+        from maw.msw.minimax_tts import MiniMaxTts
+        from maw.msw.mossland_tts import MosslandTts
+        classes = {'minimax': MiniMaxTts, 'mossland': MosslandTts}
+        with self.lock:
+            if engine not in self._cloud_tts:
+                self._cloud_tts[engine] = classes[engine](self.data_root, self.env_path, self.importer.convert)
+            return self._cloud_tts[engine]
 
     def tts_engine(self, engine=None):
         import json
         from maw.msw.assets import atomic_bytes
         path = self.data_root / 'tts-engine.json'
         if engine is not None:
-            if engine not in {'qwen', 'yukkuri', 'indextts'}:
+            if engine not in tts_engines.ENGINES:
                 raise ValueError('不支持的 TTS 引擎')
             atomic_bytes(path, (json.dumps({'engine': engine}) + '\n').encode())
             return engine
         try:
             value = json.loads(path.read_text(encoding='utf-8')).get('engine')
-            if value in {'qwen', 'yukkuri', 'indextts'}:
+            if value in tts_engines.ENGINES:
                 return value
         except (OSError, ValueError, AttributeError):
             pass
@@ -283,7 +322,7 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "version-create", "audio-exports", "video-export-preview", "asset-import", "qwen-voices", "index-tts"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "version-create", "audio-exports", "video-export-preview", "asset-import", "qwen-voices", "index-tts", "gpt-sovits", "mossland-tts"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
@@ -344,19 +383,51 @@ class ProcessingAPI:
             elif route in {'tts-settings', 'tts-environment'}:
                 with self.lock:
                     if post:
-                        engine = (payload.get('recipe') or {}).get('provider', 'qwen')
-                        if engine == 'indextts':
-                            self.index_tts.save(payload)
-                        elif engine == 'yukkuri':
-                            self.yukkuri.save(engine='yukkuri' if route == 'tts-settings' else self.yukkuri.payload()['engine'], recipe=payload["recipe"])
-                        else:
-                            tts.save_settings(self.env_path, payload)
-                            if route == 'tts-settings':
-                                self.yukkuri.save(engine="qwen")
-                        if route == 'tts-settings':
-                            self.tts_engine(engine)
+                        tts_engines.save(self, payload, select=route == 'tts-settings')
                     result = {**tts.config_payload(self.env_path), "yukkuri": self.yukkuri.payload(),
-                              "engine": self.tts_engine(), 'index_tts': self.index_tts.payload(), 'workspace_version': 2}
+                              "engine": self.tts_engine(), 'index_tts': self.index_tts.payload(),
+                              'gpt_sovits': self.gpt_sovits.payload(), 'edge_tts': self.edge_tts.payload(),
+                              'minimax': self.cloud_tts('minimax').payload(), 'mossland': self.cloud_tts('mossland').payload(),
+                              'workspace_version': 2, 'engines': tts_engines.capabilities()}
+            elif route == 'tts-local-service':
+                from maw.msw.tts_local_services import identity
+                engine = identity(payload.get('engine'))
+                action = payload.get('action') if post else 'status'
+                if action == 'pick':
+                    from maw.msw.dialogs import pick_tts_directory
+                    directory = pick_tts_directory()
+                    result = {'directory': str(directory) if directory else ''}
+                elif action == 'save':
+                    result = {'service': self.tts_services.configure(engine, payload.get('settings', {}))}
+                elif action in {'start', 'check'}:
+                    result = {'service': self.tts_services.start(engine, check_only=action == 'check')}
+                elif action == 'stop':
+                    if payload.get('confirm') is not True:
+                        raise ValueError('停止服务会取消此引擎的进行中任务，请先确认')
+                    state = self.tts_services.snapshot(engine)
+                    if not state['owned'] and state['state'] not in {'checking', 'loading'}:
+                        raise ValueError('只能停止由此 MSW 启动的服务，外部服务请在原工具中停止')
+                    if self._manager:
+                        self._manager.cancel_tts_engine(engine)
+                    result = {'service': self.tts_services.stop(engine)}
+                    if engine == 'indextts':
+                        self.index_tts.capability = None
+                elif action == 'status':
+                    result = {'service': self.tts_services.snapshot(engine)}
+                else:
+                    raise ValueError('未知本机 TTS 服务操作')
+            elif route in {'minimax-tts', 'mossland-tts'}:
+                controller = self.cloud_tts(route.removesuffix('-tts'))
+                result = controller.action(payload) if post else controller.payload()
+            elif route == 'edge-tts':
+                result = self.edge_tts.action(payload) if post else self.edge_tts.payload()
+            elif route == 'gpt-sovits':
+                result = self.gpt_sovits.action(payload) if post else self.gpt_sovits.payload()
+            elif route == 'gpt-reference' and not post:
+                identity = payload.get('id')
+                self.gpt_sovits.reference(identity)
+                handler.send_file(self.gpt_sovits.root / 'references' / (identity + '.wav'), handler.command != 'HEAD')
+                return True
             elif route == 'index-tts':
                 result = self.index_tts.action(payload) if post else self.index_tts.payload()
             elif route == 'index-reference' and not post:
@@ -512,15 +583,10 @@ class ProcessingAPI:
                         snapshot, source = self.asr.prepare(payload)
                         payload = {**payload, 'snapshot': snapshot}
                         settings = asr_config.resolve_settings(self.env_path, provider, source['path'])
-                    elif payload.get("kind") == "tts" and isinstance(provider.get("recipe"), dict) and provider["recipe"].get("provider") == "yukkuri":
-                        from maw.msw.yukkuri import resolve_settings as resolve_local_tts
-                        settings = resolve_local_tts(self.yukkuri, provider)
-                    elif payload.get('kind') == 'tts' and isinstance(provider.get('recipe'), dict) and provider['recipe'].get('provider') == 'indextts':
-                        settings = self.index_tts.resolve(provider)
+                    elif payload.get('kind') == 'tts':
+                        settings = tts_engines.resolve(self, provider)
                     else:
-                        settings = tts.resolve_settings(self.env_path, provider) if payload.get("kind") == "tts" else resolve_settings(self.env_path, provider)
-                        if payload.get('kind') == 'tts' and settings.recipe.get('model_type') != 'CustomVoice':
-                            self.qwen_voices.validate_voice(settings)
+                        settings = resolve_settings(self.env_path, provider)
                     result = {"job": self.jobs.submit(payload, settings)}
                     status = HTTPStatus.ACCEPTED
                 elif route == "jobs" and not post:
@@ -576,12 +642,22 @@ class ProcessingAPI:
 
     def close(self):
         self._preview_cancel.set()
+        if self._manager:
+            self._manager.close()
+        if self._tts_services:
+            self._tts_services.close()
         if self._local_models:
             self._local_models.close()
         if self._media:
             self._media.close()
         if self._index_tts:
             self._index_tts.close()
+        if self._gpt_sovits:
+            self._gpt_sovits.close()
+        if self._edge_tts:
+            self._edge_tts.close()
+        for controller in self._cloud_tts.values():
+            controller.close()
         if self._qwen_voices:
             self._qwen_voices.close()
         if self._importer:
@@ -590,5 +666,3 @@ class ProcessingAPI:
             self._yukkuri.close()
         if self._exports:
             self._exports.close()
-        if self._manager:
-            self._manager.close()

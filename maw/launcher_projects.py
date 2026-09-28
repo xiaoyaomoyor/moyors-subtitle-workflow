@@ -171,11 +171,17 @@ def recent_projects_payload(
     *,
     settings_path: Path | None = None,
     metadata_path: Path | None = None,
+    fallback_entries: list[tuple[Path, str]] | None = None,
 ) -> dict[str, Any]:
     """Merge the editor index with launcher view state into card payloads."""
     metadata = read_launcher_metadata(metadata_path)
     editor_entries = _read_editor_recent_paths(settings_path)
-    editor_times = {str(path): opened_at for path, opened_at in editor_entries}
+    if fallback_entries is not None and not (settings_path or default_server_settings_path()).is_file():
+        editor_entries = fallback_entries
+    editor_times: dict[str, str] = {}
+    for path, opened_at in editor_entries:
+        key = str(_resolve_alias(metadata, path))
+        editor_times[key] = _latest_iso(editor_times.get(key, ""), opened_at)
 
     merged: dict[str, Path] = {}
     ordered: list[Path] = []
@@ -200,14 +206,28 @@ def recent_projects_payload(
             merged[key] = resolved
             ordered.append(resolved)
 
-    pinned_paths = [Path(p).expanduser().resolve() for p in metadata.pinned if p not in metadata.removed]
+    pinned_paths = [_resolve_alias(metadata, Path(p).expanduser().resolve()) for p in metadata.pinned if p not in metadata.removed]
+    pinned_keys = {str(p) for p in pinned_paths if str(p) not in metadata.removed}
     for pinned in pinned_paths:
         key = str(pinned)
+        if key in metadata.removed:
+            continue
         if key not in merged:
             merged[key] = pinned
             ordered.append(pinned)
 
-    pinned_first = sorted(ordered, key=lambda p: (0 if str(p) in metadata.pinned else 1,))
+    # Launcher successful opens can precede the editor process's index write.
+    for raw, opened_at in metadata.opened_at.items():
+        path = _resolve_alias(metadata, Path(raw).expanduser().resolve())
+        key = str(path)
+        if key in metadata.removed:
+            continue
+        editor_times[key] = _latest_iso(editor_times.get(key, ""), opened_at)
+        if key not in merged:
+            merged[key] = path
+            ordered.append(path)
+    ordered.sort(key=lambda p: editor_times.get(str(p), ""), reverse=True)
+    pinned_first = sorted(ordered, key=lambda p: (0 if str(p) in pinned_keys else 1,))
     # 固定项在前；其余保持编辑器「最近优先」顺序。
     final_order: list[Path] = []
     seen: set[str] = set()
@@ -227,7 +247,7 @@ def recent_projects_payload(
             "name": path.name,
             "dir": str(path.parent),
             "exists": exists,
-            "pinned": key in metadata.pinned,
+            "pinned": key in pinned_keys,
             # H06：编辑器记录时间与启动器记录时间取较新者（均为「成功打开」语义）。
             "lastOpenedAt": _latest_iso(editor_times.get(key, ""), metadata.opened_at.get(key, "")),
             "modifiedAt": _mtime_iso(path) if exists else "",
@@ -270,11 +290,12 @@ def remove_recent_project(path: Path, metadata_path: Path | None = None) -> dict
     except OSError:
         resolved = str(path)
     metadata.removed.add(resolved)
-    metadata.pinned.pop(resolved, None)
+    for key in list(metadata.pinned):
+        if str(_resolve_alias(metadata, Path(key))) == resolved:
+            metadata.pinned.pop(key, None)
     metadata.opened_at.pop(resolved, None)
-    # 已重新定位的旧路径记录一并清理，避免幽灵条目。
-    for alias in [k for k, v in metadata.aliases.items() if v == resolved]:
-        del metadata.aliases[alias]
+    # Preserve alias tombstones: deleting the alias resurrects the old path
+    # still held by a running editor's settings snapshot.
     write_launcher_metadata(metadata, metadata_path)
     return {"ok": True}
 
@@ -289,7 +310,9 @@ def set_recent_project_pinned(path: Path, pinned: bool, metadata_path: Path | No
         metadata.pinned[resolved] = metadata.opened_at.get(resolved) or _now_iso()
         metadata.removed.discard(resolved)
     else:
-        metadata.pinned.pop(resolved, None)
+        for key in list(metadata.pinned):
+            if str(_resolve_alias(metadata, Path(key))) == resolved:
+                metadata.pinned.pop(key, None)
     write_launcher_metadata(metadata, metadata_path)
     return {"ok": True}
 
@@ -305,6 +328,10 @@ def relocate_recent_project(old_path: Path, new_path: Path, metadata_path: Path 
         return {"ok": False, "error": f"文件不存在：{new}"}
     metadata = read_launcher_metadata(metadata_path)
     metadata.aliases[old] = str(new)
+    if old in metadata.pinned:
+        metadata.pinned[str(new)] = metadata.pinned.pop(old)
+    if old in metadata.opened_at:
+        metadata.opened_at[str(new)] = _latest_iso(metadata.opened_at.get(str(new), ""), metadata.opened_at.pop(old))
     metadata.removed.discard(str(new))
     write_launcher_metadata(metadata, metadata_path)
     with contextlib.suppress(Exception):

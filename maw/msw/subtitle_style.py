@@ -131,6 +131,11 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
         if isinstance(entry, dict) and entry.get('name') in palette and re.fullmatch(r'#[0-9a-fA-F]{6}', str(entry.get('value', ''))):
             palette[entry['name']] = entry['value']
     mode = (preview.get('subtitle') or {}).get('ass_color_style', 'text')
+    labels = preview.get('burn_speaker_labels') or {}
+    # This is a request snapshot, independent of browser/library changes.
+    from maw.project_preview import _validate_speaker_label_settings
+    if _validate_speaker_label_settings(labels, '$.preview.burn_speaker_labels'):
+        raise ValueError('说话人导出快照无效')
     for name, style in styles.items():
         lines.append(ass_style_line(style, name=name))
         if name != 'secondary' and mode in {'text', 'stroke'}:
@@ -163,5 +168,16 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
             color_name = color.get('name')
             style_name = f'{name}-{color_name}' if name != 'secondary' and mode in {'text', 'stroke'} and color_name in palette else name
             layer = {'main': 0, 'secondary': 1, 'overlay': 2}[name]
-            lines.append(f'Dialogue: {layer},{ass_time(start)},{ass_time(end)},{style_name},,0,0,0,,{prefix}{ass_text(cue["text"])}')
+            text = ass_text(cue['text'])
+            label = (labels.get('names') or {}).get(color_name, '') if labels.get('enabled') is True else ''
+            if name != 'secondary' and label and color_name in palette:
+                label_text = ass_text(label + labels.get('separator', '：'))
+                if name != 'secondary' and mode in {'speaker', 'text'}:
+                    label_color = ass_color(palette[color_name])[4:].upper()  # BBGGRR without alpha
+                    body_color = palette[color_name] if mode == 'text' else styles[name]['primaryColor']
+                    body_color = ass_color(body_color)[4:].upper()
+                    text = '{\\c&H' + label_color + '&}' + label_text + '{\\c&H' + body_color + '&}' + text
+                else:
+                    text = label_text + text
+            lines.append(f'Dialogue: {layer},{ass_time(start)},{ass_time(end)},{style_name},,0,0,0,,{prefix}{text}')
     return '\n'.join(lines) + '\n'

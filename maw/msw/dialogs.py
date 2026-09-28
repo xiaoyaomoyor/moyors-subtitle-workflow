@@ -3,6 +3,106 @@
 from pathlib import Path
 import subprocess
 import sys
+import threading
+
+
+_folder_lock = threading.Lock()
+
+
+def _windows_folder(owner):
+    """Modern IFileOpenDialog; only real filesystem folders are accepted."""
+    import ctypes as c
+    from ctypes import wintypes as w
+    import uuid
+
+    class Guid(c.Structure):
+        _fields_ = [('bytes', c.c_ubyte * 16)]
+
+    def guid(value):
+        return Guid((c.c_ubyte * 16).from_buffer_copy(uuid.UUID(value).bytes_le))
+
+    ole = c.WinDLL('ole32')
+    ole.CoInitializeEx.argtypes = [c.c_void_p, w.DWORD]
+    ole.CoInitializeEx.restype = c.c_long
+    ole.CoCreateInstance.argtypes = [c.POINTER(Guid), c.c_void_p, w.DWORD, c.POINTER(Guid), c.POINTER(c.c_void_p)]
+    ole.CoCreateInstance.restype = c.c_long
+    ole.CoTaskMemFree.argtypes = [c.c_void_p]
+    ole.CoTaskMemFree.restype = None
+    ole.CoUninitialize.argtypes = []
+    ole.CoUninitialize.restype = None
+
+    def check(hr):
+        if hr < 0:
+            raise OSError(f'Folder dialog HRESULT 0x{hr & 0xffffffff:08X}')
+
+    def invoke(pointer, index, *types):
+        table = c.cast(pointer, c.POINTER(c.POINTER(c.c_void_p))).contents
+        return c.WINFUNCTYPE(c.c_long, c.c_void_p, *types)(table[index])
+
+    check(ole.CoInitializeEx(None, 2))  # COINIT_APARTMENTTHREADED
+    dialog, item, text = c.c_void_p(), c.c_void_p(), c.c_void_p()
+    try:
+        clsid = guid('DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7')
+        iid = guid('D57C7288-D4AD-4768-BE02-9D969532D960')
+        check(ole.CoCreateInstance(c.byref(clsid), None, 1, c.byref(iid), c.byref(dialog)))
+        flags = w.DWORD()
+        check(invoke(dialog, 10, c.POINTER(w.DWORD))(dialog, c.byref(flags)))
+        # Pick folders, real filesystem, existing path, do not alter process CWD.
+        check(invoke(dialog, 9, w.DWORD)(dialog, flags.value | 0x20 | 0x40 | 0x800 | 0x8))
+        check(invoke(dialog, 17, w.LPCWSTR)(dialog, '选择 TTS 安装目录'))
+        hr = invoke(dialog, 3, w.HWND)(dialog, owner)
+        if hr & 0xffffffff == 0x800704C7:  # Explicit user cancellation.
+            return None
+        check(hr)
+        check(invoke(dialog, 20, c.POINTER(c.c_void_p))(dialog, c.byref(item)))
+        check(invoke(item, 5, w.DWORD, c.POINTER(c.c_void_p))(item, 0x80058000, c.byref(text)))
+        return Path(c.wstring_at(text))
+    finally:
+        if text:
+            ole.CoTaskMemFree(text)
+        if item:
+            invoke(item, 2)(item)
+        if dialog:
+            invoke(dialog, 2)(dialog)
+        ole.CoUninitialize()
+
+
+def pick_tts_directory():
+    """User-initiated native folder chooser, also available without a launcher."""
+    if sys.platform == 'win32':
+        if not _folder_lock.acquire(blocking=False):
+            raise ValueError('目录选择窗口已打开，请先完成或取消选择')
+        try:
+            import ctypes
+            from ctypes import wintypes as w
+            user = ctypes.WinDLL('user32')
+            user.GetForegroundWindow.restype = w.HWND
+            owner = user.GetForegroundWindow()
+            result = {}
+
+            def select():
+                try:
+                    result['path'] = _windows_folder(owner)
+                except Exception as error:
+                    result['error'] = error
+
+            # HTTP/Qt worker apartments are not guaranteed to be STA. Shell
+            # dialogs own their COM lifetime on a fresh thread.
+            thread = threading.Thread(target=select, name='msw-folder-picker', daemon=True)
+            thread.start()
+            thread.join()
+            if 'error' in result:
+                raise ValueError('无法打开系统目录选择窗口，请重试或填写安装位置') from result['error']
+            return result.get('path')
+        finally:
+            _folder_lock.release()
+    args = (['osascript', '-e', 'POSIX path of (choose folder with prompt "TTS installation")']
+            if sys.platform == 'darwin' else ['zenity', '--file-selection', '--directory', '--title=TTS installation'])
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=300, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError('目录选择器不可用，请填写安装位置') from error
+    return Path(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
 
 
 def pick_media_source():
@@ -61,14 +161,16 @@ def pick_project_target(suggested_name, *, _open_media=False, _new_project=False
         return None
     if sys.platform == "darwin":
         script = 'on run argv\nset f to choose file name with prompt "Save MSW project" default name (item 1 of argv)\nreturn POSIX path of f\nend run'
-        if _new_project: script = script.replace('Save MSW project','New project save location')
+        if _new_project:
+            script = script.replace('Save MSW project','New project save location')
         args = ["osascript", "-e", script, name]
         if _open_media:
             args = ['osascript', '-e', 'POSIX path of (choose file with prompt "Import media")']
     else:
         args = ["zenity", "--file-selection", "--save", "--confirm-overwrite",
                 "--title=Save MSW project", f"--filename={name}", "--file-filter=*.mosp *.json"]
-        if _new_project: args[4] = '--title=New project save location'
+        if _new_project:
+            args[4] = '--title=New project save location'
         if _open_media:
             args = ['zenity', '--file-selection', '--title=Import media']
     try:

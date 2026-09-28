@@ -85,9 +85,9 @@
       void refresh();
     }
     async function refresh() {
-      if (!hasKey()) { records = []; renderPicker(); return; }
+      if (!hasKey()) { loadSequence++; records = []; el('tts-voice-refresh').disabled = false; el('tts-voice-refresh').textContent = t('刷新音色'); renderPicker(); return; }
       const key = context(), sequence = ++loadSequence;
-      el('tts-voice-refresh').disabled = true;
+      el('tts-voice-refresh').disabled = true;el('tts-voice-refresh').textContent=t('正在加载…');el('tts-voice-catalog-hint').textContent=t('正在加载音色…');
       try {
         const data = await request('qwen-voices', {action: 'list', provider: {recipe: {...recipe(), voice: ''}, apiKey: el('tts-key').value}});
         if (sequence !== loadSequence || context() !== key) return;
@@ -95,7 +95,7 @@
         for (const operation of data.operations) operations.set(operation.id, {...operation, context: key});
         renderPicker(); renderOperations(); failures = 0; schedule();
       } catch (error) { if (sequence === loadSequence) { message(error.message, true); el('tts-voice-catalog-hint').textContent = error.message; } }
-      finally { if (sequence === loadSequence) el('tts-voice-refresh').disabled = false; }
+      finally { if (sequence === loadSequence) {el('tts-voice-refresh').disabled = false;el('tts-voice-refresh').textContent=t('刷新音色');} }
     }
     function managementView({fill = false} = {}) {
       if (fill) {
@@ -115,8 +115,8 @@
         el('tts-manage-voice').replaceChildren(new Option(t('选择已登记音色'), ''));
         el('tts-manage-name').value = ''; renderOperations();
       }
-      if (!hasKey()) { el('tts-manage-refresh').disabled = false; message('请先在连接设置填写或保存百炼密钥。'); return; }
-      el('tts-manage-refresh').disabled = true;
+      if (!hasKey()) { el('tts-manage-refresh').disabled = false; el('tts-manage-refresh').textContent = t('刷新音色'); message('请先在连接设置填写或保存百炼密钥。'); return; }
+      el('tts-manage-refresh').disabled = true;el('tts-manage-refresh').textContent=t('正在加载…');message('正在加载音色…');
       try {
         const data = await request('qwen-voices', {action: 'list', provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}});
         if (sequence !== manageSequence || key !== manageContext()) return;
@@ -125,9 +125,9 @@
         el('tts-manage-voice').replaceChildren(new Option(t('选择已登记音色'), ''), ...managed.map(row => new Option(`${row.name} · ${row.voice}`, row.voice)));
         el('tts-manage-voice').value = selected;
         for (const op of data.operations) operations.set(op.id, {...op, context: key});
-        renderOperations(); schedule();
+        renderOperations(); schedule(); message('音色列表已更新');
       } catch (error) { if (sequence === manageSequence) message(error.message, true); }
-      finally { if (sequence === manageSequence) el('tts-manage-refresh').disabled = false; }
+      finally { if (sequence === manageSequence) {el('tts-manage-refresh').disabled = false;el('tts-manage-refresh').textContent=t('刷新音色');} }
     }
     async function manageVoice(action) {
       const key = manageContext(), version = generation();

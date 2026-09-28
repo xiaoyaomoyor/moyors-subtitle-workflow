@@ -16,6 +16,8 @@ test('file menu separates subtitle, video and audio exports and keeps nested exp
   await page.goto(server.url);
   await openMenubarMenu(page, '文件');
   await expect(page.locator('#download-json')).toHaveCount(0);
+  await expect(page.locator('#recent-projects-toggle')).toHaveAttribute('aria-disabled','true');
+  await expect(page.locator('#recent-projects-toggle')).toHaveAttribute('title','同步最近工程需要本机编辑器服务');
   await expect(page.locator('#video-export-btn')).toBeVisible();
   await expect(page.locator('#video-export-btn')).toBeDisabled();
   await expect(page.locator('#audio-export-btn')).toBeVisible();

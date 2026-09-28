@@ -94,6 +94,32 @@ class ProcessingTests(unittest.TestCase):
             normalize_extension({**extension, 'translation_target_tracks': {'job-1': 42}})
         self.assertEqual(normalize_extension({**extension, 'translation_target_tracks': {'job-1': 'track-1'}})['translation_target_tracks'], {'job-1': 'track-1'})
 
+    def test_translation_preserved_ids_are_project_ids_even_when_they_look_internal(self):
+        data = snapshot()
+        data['entries'][0]['source'].update(id='c0002', text='你好，今天真好。')
+        data['entries'][1]['source'].update(id='c0001', text='Hello, how are you?')
+        def complete(settings, prompt, cues):
+            self.assertEqual([cue['id'] for cue in cues], ['c0002'])
+            return {'groups': [{'source_ids': ['c0002'], 'text': '你好，你好吗？'}]}
+        with patch('maw.msw.jobs.complete_subtitle_groups', side_effect=complete):
+            result = translate_snapshot(data, 'zh', '', SETTINGS, threading.Event(), lambda *_: None)
+        self.assertEqual(result['skipped_ids'], ['c0002'])
+        self.assertEqual(result['skipped_id_namespace'], 'project')
+        self.assertEqual(result['translations'][1], {'id': 'c0001', 'text': '你好，你好吗？'})
+
+    def test_translation_all_target_language_returns_preserved_results_without_calling_model(self):
+        # Latin script alone cannot distinguish English from French/Spanish;
+        # preserve the existing conservative detector rather than skip those.
+        for language, text in [('zh', '你好，今天真好。'), ('en', '12345')]:
+            data = snapshot()
+            for entry in data['entries']:
+                entry['source']['text'] = text
+            with patch('maw.msw.jobs.complete_subtitle_groups') as complete:
+                result = translate_snapshot(data, language, '', SETTINGS, threading.Event(), lambda *_: None)
+            complete.assert_not_called()
+            self.assertEqual(result['skipped_ids'], ['main-a', 'main-b'])
+            self.assertTrue(all(row['text'] == text for row in result['translations']))
+
     def test_snapshot_rejects_duplicate_ids_invalid_times_and_extra_credentials(self):
         data = snapshot()
         data['apiKey'] = SETTINGS.api_key

@@ -584,7 +584,7 @@ class EditorAssetTests(unittest.TestCase):
         # V/R 工具与时间/已选并入波形标题栏；顶部不再有独立工具行
         self.assertNotIn('menubar-sub-toolbar', page)
         self.assertIn('class="toolbar waveform-toolbar"', page)
-        self.assertIn('title="媒体总时长 · 波形峰值点数"', page)
+        self.assertIn('title="媒体总时长 · 波形峰值点数 · 源音频试听增益"', page)
         # 每个模块都有顶部栏承载手柄；播放器栏的预览开关已收进媒体播放器设置
         self.assertIn('class="toolbar player-toolbar"', page)
         self.assertIn('class="toolbar cue-list-toolbar"', page)

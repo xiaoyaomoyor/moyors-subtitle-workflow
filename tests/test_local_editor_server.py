@@ -1565,7 +1565,7 @@ class LocalEditorServerTests(unittest.TestCase):
                     request = urllib.request.Request(
                         f"{base_url}{endpoint}",
                         data=json.dumps(payload).encode("utf-8"),
-                        headers={"Content-Type": "application/json"},
+                        headers={"Content-Type": "application/json", "X-MSW-Token": server.request_token},
                         method="POST",
                     )
                     try:

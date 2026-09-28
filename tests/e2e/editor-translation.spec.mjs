@@ -98,16 +98,23 @@ async function panel(page) {
 }
 const secondaryTexts = (page) => page.evaluate(() => DATA.multi_subtitle.tracks[0]?.segments.map(cue => cue.text) || []);
 
+async function applyLatest(page,target='secondary') {
+  if(!await page.locator('#subtitle-translation-panel').isVisible())await openTranslationPanel(page);
+  const radio=page.locator('#translation-jobs input[type=radio]').last();await expect(radio).toBeEnabled();await radio.check();
+  const toggle=page.locator('#translation-jobs .msw-result-toggle').last();if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();
+  const button=page.locator(target==='main'?'#translation-apply':'#translation-secondary');
+  if(await button.isEnabled())await button.click();
+}
 test('main backfill retains secondary tracks and can be undone as one operation', async ({ page }) => {
   await open(page, true); await panel(page);
-  await expect(page.locator('#translation-output-mode')).toHaveValue('secondary');
+  await expect(page.locator('#translation-output-mode')).toHaveCount(0);
   await page.evaluate(() => {
     DATA.segments[0].items = [{text: 'Hello', start: 0, end: 2000, start_frame: 0, end_frame: 60}];
     DATA.msw.future = {preserved: true};
   });
   const before = await page.evaluate(() => JSON.parse(JSON.stringify({segments: DATA.segments, multi: DATA.multi_subtitle, msw: DATA.msw})));
-  await page.locator('#translation-output-mode').selectOption('replace_main');
   await page.locator('#translation-start').click();
+  await applyLatest(page,'main');
   await expect.poll(() => page.evaluate(() => DATA.segments.map(cue => cue.text))).toEqual(['Translated Hello', 'Translated World']);
   expect(await page.evaluate(() => DATA.multi_subtitle)).toEqual(before.multi);
   expect(await page.evaluate(() => DATA.segments[0].items)).toBeUndefined();
@@ -133,7 +140,7 @@ test('subtitle context menus open translation above TTS with selected scope and 
   };
   await openFromContext(page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first());
   await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 1');
-  await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(0);
+  await expect(page.locator('#translation-jobs .msw-result-batch')).toHaveCount(0);
   await page.locator('#subtitle-translation-close').click();
   await openFromContext(page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="1"]').first());
   await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 1');
@@ -165,7 +172,7 @@ test('LLM management stays global and unsaved edits do not change the call confi
   const width = await page.locator('#translation-base-url').evaluate(input => input.clientWidth / input.parentElement.clientWidth);
   expect(width).toBeGreaterThan(.95);
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'llm-environment-settings.png')});
-  await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(0);
+  await expect(page.locator('#translation-jobs .msw-result-batch')).toHaveCount(0);
   await page.locator('#translation-model').fill('unsaved-model');
   await page.locator('#translation-base-url').fill('https://unconfigured.example.invalid/v1');
   await page.locator('#llm-provider').selectOption('deepseek');
@@ -174,28 +181,20 @@ test('LLM management stays global and unsaved edits do not change the call confi
   const submitted = page.waitForRequest(request => request.url().endsWith('/api/msw/jobs') && request.method() === 'POST');
   await page.locator('#translation-start').click();
   expect((await submitted).postDataJSON().provider).toEqual({providerId: 'custom'});
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
 });
 
-test('translation history collapses, scrolls and retains opened results after an update', async ({page}) => {
-  await open(page); await panel(page);
-  for (let count = 1; count <= 3; count++) {
-    await page.locator('#translation-start').click();
-    await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(count);
-    await expect(page.locator('#translation-jobs .msw-processing-job').first()).toContainText('结果已应用');
-  }
-  const history = page.locator('#translation-jobs');
-  await history.getByRole('button', {name: '查看译文', exact: true}).first().click();
-  await expect(history.locator('.msw-translation-results')).toHaveCount(1);
-  await page.locator('#translation-history > summary').click(); await expect(history).toBeHidden();
+test('translation history folds without discarding candidate editors',async({page})=>{
+  await open(page);await panel(page);await page.locator('#translation-start').click();
+  await expect(page.locator('#translation-jobs input[type=radio]')).toBeEnabled();
+  const toggle=page.locator('#translation-jobs .msw-result-toggle').first();if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();
+  await page.locator('#translation-jobs textarea').first().fill('Edited candidate');
+  await page.locator('#translation-history > summary').click();await expect(page.locator('#translation-jobs')).toBeHidden();
   await page.locator('#translation-history > summary').click();
-  await expect(history.locator('.msw-translation-results')).toHaveCount(1);
-  expect(await history.evaluate(el => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === 'auto')).toBe(true);
-  await history.evaluate(el => el.scrollTop = 60);
-  await page.locator('#translation-start').click();
-  await expect(page.locator('#translation-history-count')).toHaveText('(4)');
-  await expect(history.locator('.msw-translation-results')).toHaveCount(1);
-  expect(await history.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  await page.locator('#translation-start').click();await expect(page.locator('#translation-history-count')).toHaveText('2');
+  await expect(page.locator('#translation-jobs textarea').first()).toHaveValue('Edited candidate');
+  expect(await secondaryTexts(page)).toEqual([]);
 });
 
 test('an uncertain submission locks connection edits until its existing job is confirmed', async ({page}) => {
@@ -213,6 +212,7 @@ test('an uncertain submission locks connection edits until its existing job is c
   await expect(page.locator('#translation-message')).toContainText('翻译已开始');
   await expect(page.locator('#translation-save-settings')).toBeEnabled();
   await release();
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
   expect(requests).toHaveLength(1);
 });
@@ -223,6 +223,7 @@ test('blank server imports, translates all, creates aligned secondary and undoes
   await panel(page);
   await expect(page.locator('#translation-scope')).toContainText('全部主字幕 · 2');
   await page.locator('#translation-start').click();
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
   expect(requests).toHaveLength(1);
   expect(requests[0]).toHaveLength(2);
@@ -233,6 +234,7 @@ test('blank server imports, translates all, creates aligned secondary and undoes
   await page.keyboard.press('Control+z');
   await expect.poll(() => secondaryTexts(page)).toEqual([]);
   await page.keyboard.press('Control+Shift+z');
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
   expect(errors).toEqual([]);
 });
@@ -243,6 +245,7 @@ test('selected secondary translates its main only, preserves timing and saves ex
   await panel(page);
   await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 1');
   await page.locator('#translation-start').click();
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Old World', 'Unbound']);
   expect(requests[0].map(cue => cue.text)).toEqual(['Hello']);
   await page.locator('#subtitle-translation-close').click();
@@ -251,8 +254,9 @@ test('selected secondary translates its main only, preserves timing and saves ex
   const saved = JSON.parse(readFileSync(projectPath, 'utf8'));
   expect(saved.multi_subtitle.tracks[0].segments.map(cue => [cue.id, cue.start, cue.end])).toEqual([['x', 100, 1900], ['y', 3100, 4900], ['z', 8000, 9000]]);
   expect(saved.msw.future).toEqual({ preserved: true });
-  expect(saved.msw.applied_results).toHaveLength(1);
+  expect(saved.msw.processing_results.filter(b=>b.applications.secondary)).toHaveLength(1);
   await page.reload();
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Old World', 'Unbound']);
 });
 
@@ -265,21 +269,13 @@ test('selecting only an unbound secondary does not send any translation', async 
   expect(requests).toHaveLength(0);
 });
 
-test('editing during translation keeps changed text and applies other results', async ({ page }) => {
-  await open(page, true); await panel(page);
-  hold = true;
-  await page.locator('#translation-start').click();
-  await expect.poll(() => requests.length).toBe(1);
-  await page.locator('#subtitle-translation-close').click();
-  await page.locator('.multi-dual-cue').first().locator('.multi-cue-column.main .text').click();
-  await page.locator('#cue-panel-text').fill('User edited Hello');
-  await page.locator('#cue-panel-target').click();
-  await release();
-  await expect.poll(() => secondaryTexts(page)).toEqual(['Old Hello', 'Translated World', 'Unbound']);
-  await openTranslationPanel(page);
-  await expect(page.locator('#translation-message')).toContainText('主字幕文本已修改');
-  await page.getByRole('button', { name: '查看译文', exact: true }).click();
-  await expect(page.locator('.msw-translation-results textarea').first()).toHaveValue('Translated Hello');
+test('editing during translation prevents conflicting batch application but retains candidates',async({page})=>{
+  await open(page,true);await panel(page);hold=true;await page.locator('#translation-start').click();await expect.poll(()=>requests.length).toBe(1);
+  await page.evaluate(()=>{DATA.segments[0].text='User edit';renderAll();});await release();
+  await applyLatest(page);await expect(page.locator('#translation-secondary')).toBeDisabled();
+  await expect(page.locator('#translation-secondary')).toHaveAttribute('title',/主字幕文本已修改/);
+  expect(await secondaryTexts(page)).toEqual(['Old Hello','Old World','Unbound']);
+  await expect(page.locator('#translation-jobs textarea').first()).toHaveValue('Translated Hello');
 });
 
 test('cancel discards a late provider response and leaves subtitles unchanged', async ({ page }) => {
@@ -312,27 +308,17 @@ test('a completed translation waits for an active subtitle drag to finish', asyn
   } finally {
     await page.mouse.up();
   }
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World', 'Unbound']);
 });
 
-test('partial results can finish on the track they created without duplicating earlier results', async ({ page }) => {
-  await open(page); await panel(page); hold = true;
-  await page.locator('#translation-start').click();
-  await expect.poll(() => requests.length).toBe(1);
-  await page.locator('#subtitle-translation-close').click();
-  await page.locator('#cues-container > .cue').first().click();
-  await page.locator('#cue-panel-text').fill('Changed Hello');
-  await page.locator('#cue-panel-target').click();
-  await release();
-  await expect.poll(() => secondaryTexts(page)).toEqual(['Translated World']);
-  const createdTrack = await page.evaluate(() => DATA.multi_subtitle.tracks[0].id);
-  await page.locator('#cue-panel-text').fill('Hello');
-  await page.locator('#cue-panel-target').click();
-  await openTranslationPanel(page);
-  await page.getByRole('button', { name: '检查并应用', exact: true }).click();
-  await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
-  expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].id)).toBe(createdTrack);
-  expect(requests).toHaveLength(1);
+test('a restored source allows manual application and repeated selection never duplicates results',async({page})=>{
+  await open(page);await panel(page);hold=true;await page.locator('#translation-start').click();await expect.poll(()=>requests.length).toBe(1);
+  await page.evaluate(()=>{DATA.segments[0].text='Changed';renderAll();});await release();await applyLatest(page);
+  await expect(page.locator('#translation-secondary')).toBeDisabled();expect(await secondaryTexts(page)).toEqual([]);
+  await page.evaluate(()=>{DATA.segments[0].text='Hello';renderAll();});
+  await applyLatest(page);await expect.poll(()=>secondaryTexts(page)).toEqual(['Translated Hello','Translated World']);
+  await applyLatest(page);expect(await secondaryTexts(page)).toHaveLength(2);expect(requests).toHaveLength(1);
 });
 
 test('English translation panel uses translated labels and shared saved provider settings', async ({ page }) => {
@@ -343,13 +329,14 @@ test('English translation panel uses translated labels and shared saved provider
   await page.locator('#translation-save-settings').click();
   await expect(page.locator('#llm-message')).toContainText('配置已保存');
   await expect(page.locator('#translation-api-key')).toHaveValue('');
-  await expect(page.locator('#translation-key-state')).toContainText('已配置本机密钥');
+  await expect(page.locator('#translation-api-key')).toHaveAttribute('placeholder','已持有本地密钥');
   await page.locator('#editor-settings-close').click(); await openTranslationPanel(page);
   await page.evaluate(() => MSWE_I18N.applyLanguage('en'));
   await expect(page.locator('#subtitle-translation-title')).toHaveText('Translate subtitles');
   await expect(page.locator('#translation-scope')).toContainText('Scope: all main subtitles');
   expect(await page.locator('#subtitle-translation-panel').innerText()).not.toMatch(/[\u3400-\u9fff]/u);
   await page.locator('#translation-start').click();
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
 });
 
@@ -360,9 +347,9 @@ test('reload recovers completed results for explicit review without repeating re
   await page.reload();
   await release();
   await openTranslationPanel(page);
-  await expect(page.getByRole('button', { name: '检查并应用', exact: true })).toBeVisible();
+  await expect(page.locator('#translation-jobs input[type=radio]')).toBeEnabled();
   expect(await secondaryTexts(page)).toEqual([]);
-  await page.getByRole('button', { name: '检查并应用', exact: true }).click();
+  await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
   expect(requests).toHaveLength(1);
 });
@@ -373,7 +360,7 @@ test('old project results never apply after switching projects and panel fits na
   await expect.poll(() => requests.length).toBe(1);
   await page.evaluate(data => applyCanonicalProject(data, 'other.mosp'), fixture());
   await release();
-  await expect(page.locator('#translation-jobs .msw-processing-job')).toHaveCount(0);
+  await expect(page.locator('#translation-jobs .msw-result-batch')).toHaveCount(0);
   expect(await secondaryTexts(page)).toEqual([]);
   await page.setViewportSize({ width: 560, height: 650 });
   const box = await page.locator('#subtitle-translation-panel').boundingBox();

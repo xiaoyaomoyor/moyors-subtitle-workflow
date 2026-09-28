@@ -89,11 +89,15 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
     result = process_llm_snapshot(
         {"segments": [entry["source"] for entry in snapshot["entries"]]}, request,
         complete=complete, on_status=on_status,
+        allow_translation_noop=True,
     )
     check()
+    source_ids = dict(result.source_id_map)
+    skipped_ids = [source_ids[internal_id] for internal_id in result.skipped_source_ids]
     return {"translations": [{"id": cue["id"], "text": cue["text"]} for cue in result.project["segments"]],
             "warnings": list(result.warnings), "language": language,
-            "skipped_ids": list(result.skipped_source_ids)}
+            "skipped_ids": skipped_ids, "skipped_id_namespace": "project",
+            "preserved": [{"id": cue_id, "reason": "already_target_language"} for cue_id in skipped_ids]}
 
 
 class JobManager:
@@ -191,7 +195,7 @@ class JobManager:
             from maw.msw.tts import validate_snapshot as validate_tts_snapshot
             if self.tts is None:
                 raise ValueError("TTS 服务尚未启用")
-            snapshot = validate_tts_snapshot(payload.get("snapshot"))
+            snapshot = validate_tts_snapshot(payload.get("snapshot"), settings.provider_id)
         if snapshot and snapshot["project_id"] != project_id:
             raise ValueError("任务工程标识与快照不一致")
         language = payload.get("language", "en")
@@ -375,6 +379,14 @@ class JobManager:
                 with self.lock:
                     self.cancel_events.pop(job_id, None)
                 self.pending.task_done()
+
+    def cancel_tts_engine(self, provider):
+        with self.lock:
+            for job_id in list(self.cancel_events):
+                row = self.db.execute('SELECT project_id FROM jobs WHERE id=?', (job_id,)).fetchone()
+                job = self._get(job_id, row[0])
+                if job['kind'] == 'tts' and job['provider'] == provider:
+                    self.cancel(job_id, row[0])
 
     def close(self):
         with self.lock:

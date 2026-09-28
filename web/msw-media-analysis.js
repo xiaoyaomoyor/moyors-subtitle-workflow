@@ -25,7 +25,7 @@
     node.textContent = text; node.hidden = !text;
   }
   const valid = action => tasks.get(action.kind) === action && action.generation === host.generation
-    && media.current?.id === action.media.id;
+    && media.current?.id === action.media.id && (!action.loading || action.loading.current());
   function controls(kind, running) {
     byId(`${kind}-cancel`).hidden = !running;
     byId(`${kind}-generate`).hidden = !media.current;
@@ -36,6 +36,7 @@
     const action = tasks.get(kind);
     if (!action) return;
     tasks.delete(kind); clearTimeout(action.timer);
+    action.loading?.finish(quiet ? '' : 'cancelled');
     if (action.job) void media.request('media-analysis-cancel', {...action.scope, job_id: action.job.id}).catch(() => {});
     controls(kind, false);
     if (!quiet) status(kind, kind === 'waveform' ? '波形已取消；可继续编辑' : '代理已取消；可继续处理源媒体');
@@ -62,15 +63,19 @@
           status(action.kind, playable ? '播放代理已就绪' : '播放代理无法预览，可继续处理源媒体');
         }
       } else status(action.kind, result.job.error || '媒体分析已取消');
+      action.loading?.finish(result.job.status === 'succeeded' ? '' : result.job.status === 'cancelled' ? 'cancelled' : 'failed');
       tasks.delete(action.kind); controls(action.kind, false);
     } catch (error) {
-      if (valid(action)) { tasks.delete(action.kind); controls(action.kind, false); status(action.kind, error.message); }
+      if (valid(action)) { action.loading?.finish('failed'); tasks.delete(action.kind); controls(action.kind, false); status(action.kind, error.message); }
     }
   }
   async function start(kind, force = false) {
     if (!media.current) return;
+    const source = media.current, generation = host.generation;
     await cancel(kind, true);
+    if (source !== media.current || generation !== host.generation) return;
     const action = {kind, generation: host.generation, media: media.current, scope: media.payload(), job: null};
+    if (kind === 'waveform') action.loading = host.timeline.beginWaveformLoading();
     tasks.set(kind, action); controls(kind, true); status(kind, '正在准备媒体分析…');
     try {
       const result = await media.request('media-analysis', {...action.scope, media_id: action.media.id, kind, force});
@@ -80,7 +85,7 @@
       }
       void poll(action);
     } catch (error) {
-      if (valid(action)) { tasks.delete(kind); controls(kind, false); status(kind, error.message); }
+      if (valid(action)) { action.loading?.finish('failed'); tasks.delete(kind); controls(kind, false); status(kind, error.message); }
     }
   }
   function ready(event) {

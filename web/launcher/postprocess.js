@@ -307,7 +307,7 @@
     return {
       version: 1,
       enabled: false,
-      retainIntermediate: false,
+      retainIntermediate: true,
       steps: [
         { id: "match", enabled: false, scriptPath: "", matchMode: "script", extraSplitPunctuation: ["？", "！", ","], preservePunctuation: ["？", "！"], cleanMarkdownSymbols: true },
         { id: "replace", enabled: false, replacements: [], conversion: "off" },
@@ -319,7 +319,7 @@
     };
   }
 
-  function provider(providerId = $("postprocessProvider").value) {
+  function provider(providerId = $("llmProvider").value) {
     const providers = window.MSWLauncher.config.postprocessProviders;
     return providers.find((item) => item.id === providerId) || providers[0];
   }
@@ -360,7 +360,7 @@
 
   function syncProviderOptionLabels() {
     const providers = window.MSWLauncher.config?.postprocessProviders || [];
-    [$("postprocessProvider"), $("llmProvider"), $("proofreadProvider"), $("resegmentProvider"), $("translateProvider")].forEach((select) => {
+    [$("llmProvider"), $("proofreadProvider"), $("resegmentProvider"), $("translateProvider")].forEach((select) => {
       providers.forEach((item) => {
         const option = Array.from(select.options).find((candidate) => candidate.value === item.id);
         if (option) option.textContent = providerLabel(item);
@@ -369,32 +369,27 @@
   }
 
   function renderProviderKeyStatus(item) {
-    const keyStatus = item.maskedApiKey
-      ? t("toolbox_key_loaded").replace("{key}", item.maskedApiKey)
-      : t("toolbox_key_empty");
-    $("llmKeyStatus").textContent = keyStatus;
+    $("llmApiKey").placeholder = t(item.hasApiKey || item.maskedApiKey ? "key_local_available" : "key_enter");
   }
 
   async function loadPostprocessApiKey(providerId, fallbackMask = "") {
     const requestId = ++postprocessApiKeyRequest;
     try {
       const result = await bridge("get_postprocess_settings", { providerId });
-      if (requestId !== postprocessApiKeyRequest || $("postprocessProvider").value !== providerId) return;
+      if (requestId !== postprocessApiKeyRequest || $("llmProvider").value !== providerId) return;
       const field = $("llmApiKey");
       if (!result?.ok) {
-        if (!field.value.trim()) field.placeholder = fallbackMask;
+        if (!field.value.trim()) field.placeholder = t(fallbackMask ? "key_local_available" : "key_enter");
         return;
       }
       const item = provider(providerId);
       item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
       item.hasApiKey = Boolean(result.apiKey || item.hasApiKey);
       renderProviderKeyStatus(item);
-      if (field.value.trim()) return;
-      field.value = result.apiKey || "";
-      field.placeholder = "";
+
     } catch (error) {
-      if (requestId === postprocessApiKeyRequest && $("postprocessProvider").value === providerId && !$("llmApiKey").value.trim()) {
-        $("llmApiKey").placeholder = fallbackMask;
+      if (requestId === postprocessApiKeyRequest && $("llmProvider").value === providerId && !$("llmApiKey").value.trim()) {
+        $("llmApiKey").placeholder = t(fallbackMask ? "key_local_available" : "key_enter");
       }
     }
   }
@@ -563,10 +558,9 @@
     settingsButton.textContent = t(settingsButton.dataset.i18n);
   }
 
-  function renderProvider(providerId = $("postprocessProvider").value) {
+  function renderProvider(providerId = $("llmProvider").value) {
     const item = provider(providerId);
     syncProviderOptionLabels();
-    $("postprocessProvider").value = item.id;
     $("llmProvider").value = item.id;
     $("llmBaseUrl").value = item.baseUrl || "";
     $("llmModel").value = item.model || "";
@@ -670,7 +664,7 @@
     busy = nextBusy;
     // 进度条与结果一样双目标：抽屉（后处理）与实用工具页（文件工具）各自可见。
     [$("toolsPageProgress"), $("progress")].forEach((bar) => bar?.classList.toggle("hidden", !busy));
-    ["saveLlmSettings", "testLlmConnection", "getLlmModels", "toolboxUtilityMediaPath", "pickToolboxUtilityMedia", "toolboxBurnSubtitlePath", "pickToolboxBurnSubtitle", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "pickToolboxAlignmentProject", "toolboxAlignmentScriptPath", "pickToolboxAlignmentScript", "toolboxAlignmentGapMinimum", "toolboxAlignmentGapThreshold", "toolboxAlignmentGapLeadIn", "toolboxAlignmentGapLeadOut", "postprocessProvider", "llmProvider", "llmApiKey", "llmBaseUrl", "llmModel", "llmModelChoicesToggle", "llmReasoningMode", "llmCustomDisplayName", "ocrModel", "openOcrSettings", "ocrVideoPath", "pickOcrVideo", "ocrRegionMode", "ocrRegionX1", "ocrRegionY1", "ocrRegionX2", "ocrRegionY2", "ocrThreshold", "ocrReport", "postprocessConversion"].forEach((id) => {
+    ["saveLlmSettings", "testLlmConnection", "getLlmModels", "toolboxUtilityMediaPath", "pickToolboxUtilityMedia", "toolboxBurnSubtitlePath", "pickToolboxBurnSubtitle", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "pickToolboxAlignmentProject", "toolboxAlignmentScriptPath", "pickToolboxAlignmentScript", "toolboxAlignmentGapMinimum", "toolboxAlignmentGapThreshold", "toolboxAlignmentGapLeadIn", "toolboxAlignmentGapLeadOut", "llmProvider", "llmApiKey", "llmBaseUrl", "llmModel", "llmModelChoicesToggle", "llmReasoningMode", "llmCustomDisplayName", "ocrModel", "openOcrSettings", "ocrVideoPath", "pickOcrVideo", "ocrRegionMode", "ocrRegionX1", "ocrRegionY1", "ocrRegionX2", "ocrRegionY2", "ocrThreshold", "ocrReport", "postprocessConversion"].forEach((id) => {
       $(id).disabled = busy;
     });
     renderOcrModel();
@@ -1023,9 +1017,8 @@
       if (!card) return;
       const ready = autoStepReady(stepId);
       card.dataset.configReady = String(ready);
-      const status = card.querySelector('.module-status');
-      if (status) { status.textContent = t(ready ? 'auto_status_ready' : 'auto_status_config'); status.classList.toggle('invalid', !ready); }
     });
+    window.MSWWorkflow?.renderSummaries();
   }
   function stateLangSeparator() {
     return window.MSWLauncher?.translate("nav_prefab")?.includes("Prefab") ? ", " : "、";
@@ -1102,7 +1095,7 @@
 
   function applyAutoPostprocessPlan(rawPlan) {
     const plan = rawPlan && typeof rawPlan === "object" ? rawPlan : defaultAutoPlan();
-    $("autoPostprocessRetain").checked = Boolean(plan.retainIntermediate);
+    $("autoPostprocessRetain").checked = plan.retainIntermediate !== false;
     if (plan.waveformDraft) { $("generateSpectral").checked = Boolean(plan.waveformDraft.spectral); $("waveformCacheMode").value = plan.waveformDraft.rebuild ? "rebuild" : "reuse"; }
     const draft = plan.outputDraft && Object.keys(plan.outputDraft).length ? plan.outputDraft : { directory: plan.outputDirectory || '', name: plan.outputStem || '', exportSrt: plan.exportSrt !== false, exportTranslatedSrt: plan.exportTranslatedSrt !== false };
     for (const [field, key] of Object.entries({outputDirectory:'directory',outputProjectName:'name',srtPath:'srtPath'})) $(field).value = draft[key] || '';
@@ -1169,7 +1162,7 @@
     applyAutoPostprocessPlan(plan);
     const providerId = (plan.steps || []).find((step) => step.enabled && step.providerId)?.providerId;
     if (providerId && provider(providerId)) {
-      $("postprocessProvider").value = providerId;
+      $("llmProvider").value = providerId;
       renderProvider(providerId);
     }
     renderAutoPostprocessState();
@@ -1211,6 +1204,7 @@
     item.label = result.label || providerLabel(item);
     item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
     item.verified = Boolean(result.verified);
+    $("llmApiKey").value = "";
     syncProviderOptionLabels();
     renderProviderKeyStatus(item);
     renderAutoPostprocessState();
@@ -1238,6 +1232,7 @@
         item.verified = Boolean(result.verified);
         item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
         item.hasApiKey = Boolean(result.maskedApiKey || $("llmApiKey").value.trim() || item.hasApiKey);
+        if (result.saved) $("llmApiKey").value = "";
         syncProviderOptionLabels();
         renderProviderKeyStatus(item);
         setSettingsSaveStatus(result.saved ? t("llm_connection_saved") : t("llm_connection_success"), "success");
@@ -1434,10 +1429,9 @@
     const config = window.MSWLauncher.config;
     if (!config?.postprocessProviders?.length) return;
     const selectedProvider = config.postprocessProviders.find((item) => item.selected)?.id || config.postprocessProviders[0].id;
-    [$("postprocessProvider"), $("llmProvider")].forEach((select) => {
-      config.postprocessProviders.forEach((item) => select.add(new Option(providerLabel(item), item.id)));
-      select.value = selectedProvider;
-    });
+    const select = $("llmProvider");
+    select.replaceChildren(...config.postprocessProviders.map(item => new Option(providerLabel(item), item.id)));
+    select.value = selectedProvider;
     syncProviderOptionLabels();
     renderProvider();
     initializeLlmPrompts();
@@ -1453,8 +1447,7 @@
     initializeAutoPostprocess();
   }
 
-  $("postprocessProvider").addEventListener("change", () => { renderProvider(); renderAutoPostprocessState(); persistAutoPlanSoon(); });
-  $("llmProvider").addEventListener("change", () => { $("postprocessProvider").value = $("llmProvider").value; renderProvider(); renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  $("llmProvider").addEventListener("change", () => { renderProvider(); renderAutoPostprocessState(); persistAutoPlanSoon(); });
   $("saveLlmSettings").addEventListener("click", () => { void saveSettings(); });
   $("testLlmConnection").addEventListener("click", testConnection);
   $("getLlmModels").addEventListener("click", getModels);
@@ -1571,7 +1564,7 @@
     setFieldError("llmCustomDisplayName", "");
   });
   $("llmModel").addEventListener("focus", () => setModelChoicesOpen(true));
-  ["llmModel", "llmProvider", "postprocessProvider"].forEach((id) => $(id).addEventListener("change", () => renderLlmServiceSummaries()));
+  ["llmModel", "llmProvider"].forEach((id) => $(id).addEventListener("change", () => renderLlmServiceSummaries()));
   $("llmModel").addEventListener("input", () => {
     setFieldError("llmModel", "");
     if (modelChoices.length) setModelChoicesOpen(true, $("llmModel").value);
@@ -1657,19 +1650,20 @@
     }
   });
 
-  // S5/§7.1：输出卡联动——译文行随翻译模块显隐、SRT 框随导出开关可用、预览随输入更新。
+  // Keep translated output discoverable; module availability only disables its control.
   function updateOutputCardState() {
     const translateOn = stepEnabled("translate");
-    $("outputTranslatedField")?.classList.toggle("hidden", !translateOn);
+    const running = Boolean(window.MSWQueue?.state.running);
+    $("outputExportTranslatedSrt").disabled = !translateOn || running;
     const exportSrt = Boolean($("outputExportSrt")?.checked ?? true);
     const srtField = $("srtPath");
-    if (srtField) srtField.disabled = !exportSrt;
+    if (srtField) srtField.disabled = !exportSrt || running;
     $('outputBilingualField').classList.toggle('hidden', !translateOn || $('translationWriteMode').value !== 'bilingual');
     $('customSrtDetails').classList.toggle('hidden', (window.MSWQueue?.tasks().length || 0) > 1);
     const onlySrt = Boolean(window.MSWModules?.isEnabled('output') && $('batchSrtOnly').checked);
-    $('generateHtml').disabled = onlySrt || Boolean(window.MSWQueue?.state.running);
+    $('generateHtml').disabled = onlySrt || running;
     $('waveformApplicability').classList.toggle('hidden', !onlySrt);
-    for (const id of ['waveformCacheMode', 'generateSpectral']) $(id).disabled = onlySrt || Boolean(window.MSWQueue?.state.running);
+    for (const id of ['waveformCacheMode', 'generateSpectral']) $(id).disabled = onlySrt || running;
     updateOutputPreview();
   }
   let outputPreviewSequence = 0;
@@ -1713,10 +1707,6 @@
   });
   // T3/A8：深链指向真实面板 ID settingsFilesPanel（旧 filesPanel 定位失效）。
   $("openOutputSettings")?.addEventListener("click", () => window.MSWLauncher.openSettings("settingsFilesPanel"));
-  // 渲染状态时同步输出卡（函数声明可在闭包内重写以挂钩）。
-  const baseRenderAutoState = renderAutoPostprocessState;
-  renderAutoPostprocessState = function () { baseRenderAutoState(); updateOutputCardState(); };
-
   window.MSWLauncher.getAutoPostprocessPayload = autoPlanFromControls;
   window.MSWLauncher.onLanguageChanged = () => {
     syncProviderOptionLabels();

@@ -12,6 +12,17 @@ const project = {segments:main,msw:{schema:'msw.editor.v1',project_id:'project'}
 const selection = (m=[], e=[], hasSelection=true) => ({mainIds:m,extensionIds:e,trackId:'ext',hasSelection});
 const texts = scope => Array.from(scope.sources, row=>row.cue.text);
 
+test('registered engine limits apply to snapshots and unknown engines never fall back', () => {
+  assert.throws(() => core.textLimit('unknown'), /不支持/);
+  core.configureEngines([{id:'indextts', text_limit:4}, {id:'unknown', text_limit:999}]);
+  try {
+    assert.equal(core.scope(project, selection(), 'main', 'indextts').tooLong, 0);
+    assert.throws(() => core.textSnapshot(project, '12345', 0, {}, 'indextts'), /4/);
+    assert.equal(core.textSnapshot(project, '12345', 0, {}, 'qwen').entries.length, 1);
+    assert.throws(() => core.textLimit('unknown'), /不支持/);
+  } finally { core.configureEngines([{id:'indextts', text_limit:600}]); }
+});
+
 test('draft segmentation preserves hard lines punctuation words and unicode graphemes', () => {
   const split = (text, settings) => Array.from(core.splitDraft(text, settings));
   assert.deepEqual(split('First\n\n第二行\r\n第三行'), ['First', '第二行', '第三行']);
@@ -100,4 +111,16 @@ test('single track full batch and immutable unicode snapshot, limits checked bef
   assert.equal(result.entries[0].text,'😀'.repeat(600));
   p.segments[0].text='字'.repeat(601);
   assert.throws(()=>core.snapshot(p,selection([],[],false)),/600/);
+});
+
+test('seven engines preserve secondary selection and immutable draft splitting',()=>{
+ for(const engine of ['qwen','yukkuri','indextts','gpt-sovits','edge','minimax','mossland']){
+  const p=structuredClone(project);
+  const snap=core.snapshot(p,selection([],['y']),'secondary',engine);
+  assert.equal(snap.entries[0].text,'Independent secondary');
+  assert.equal(core.textLimit(engine),600);
+  const draft=core.textSnapshot(p,'One\nTwo',1000,{ttsDraftSplitMode:'lines'},engine);
+  assert.ok(draft.entries.length>0);
+  assert.ok(draft.entries.every(row=>row.track_id===null&&row.kind==='editor_text'));
+ }
 });

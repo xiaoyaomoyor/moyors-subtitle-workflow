@@ -70,3 +70,14 @@ Redistribution and use in source and binary forms, with or without modification,
     * Neither the name of Hardcoded Software Inc. nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+## Edge TTS
+
+[edge-tts 7.2.8](https://github.com/rany2/edge-tts/tree/7.2.8) is used without modifications for online speech synthesis. The package is LGPL-3.0; its `srt_composer.py` is MIT (not used by MSW). Copyright rany and contributors; see the upstream [LICENSE](https://github.com/rany2/edge-tts/blob/7.2.8/LICENSE). Release packaging retains the package metadata and license files. `uv.lock` pins its network dependencies, including aiohttp; their upstream licenses remain applicable. The Microsoft online service is external to this project and is not an offline engine.
+
+GPT-SoVITS is an externally installed service. MSW does not redistribute its model weights or runtime; model and runtime licenses remain those of their upstream providers.
+
+
+## MiniMax and Moss API
+
+MSW implements HTTP clients for the external [MiniMax API](https://platform.minimax.io/docs/api-reference/speech-t2a-http) and [Moss API](https://platform.mosi.cn/docs/reference/speech/) using its existing requests dependency. No vendor SDK, voice library or model weights are redistributed. Account access and generated audio use remain subject to the respective provider terms.

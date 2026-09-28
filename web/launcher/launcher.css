@@ -73,7 +73,7 @@
 .queue-file-title strong, .queue-file-title .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .queue-file-title strong { font-size: 13px; font-weight: 500; }
 .queue-status { flex-shrink: 0; color: var(--text-muted); font-size: 12px; }
-.queue-status.error, .module-status.invalid { color: var(--amber); }
+.queue-status.error, .module-status.needs-config { color: var(--amber); }
 .queue-details { margin-top: 9px; font-size: 12px; }
 .queue-details summary { cursor: pointer; color: var(--text-muted); }
 .queue-path { overflow-wrap: anywhere; color: var(--text-secondary); margin: 8px 0; user-select: text; }
@@ -81,7 +81,17 @@
 .queue-detail-field input, .queue-detail-field select { min-width: 0; width: 100%; }
 .queue-candidate { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; border: 1px solid var(--accent-strong); border-radius: var(--radius-md); background: var(--accent-tint); font-size: 12px; overflow-wrap: anywhere; }
 .queue-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
-.module-status { flex-shrink: 0; color: var(--text-muted); font-size: 12px; }
+.module-summary, .module-status {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  color: var(--text-muted);
+  font: inherit;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 @media (max-width: 720px) {
   .queue-file-head { flex-wrap: wrap; }
   .queue-file-title { min-width: 120px; }
@@ -1132,7 +1142,7 @@ body:not(.launcher-ready) .shell {
   position: absolute;
   top: 6px;
   left: 6px;
-  transform: rotate(35deg);
+  transform: rotate(-35deg);
   display: inline-flex;
   padding: 3px;
   border-radius: var(--radius-sm);
@@ -3652,3 +3662,24 @@ select[multiple] option {
 /* Local ASR and standalone timestamp tools share Launcher button spacing. */
 #localModelPanel .button-row, #timestampToolPanel .button-row, #comparisonToolPanel .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 #timestampToolPanel .field { margin-top: 12px; }
+
+/* Keep semantic hiding stronger than grid/flex layout declarations. */
+[hidden] { display: none !important; }
+.check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.check-grid > .field { margin: 0; min-width: 0; }
+.check-grid .check-field { height: auto; min-height: 34px; padding-block: 6px; white-space: normal; line-height: 20px; }
+.check-grid .check-field input { flex: 0 0 auto; }
+.output-kind-options, .output-srt-options { margin-top: 12px; }
+.output-srt-options .check-field:has(input:disabled) { cursor: default; }
+.output-srt-options .check-field input:disabled + span { color: var(--text-muted); }
+.settings-section > .check-field + .check-field { margin-top: 12px; }
+.module-card .module-head h2 { display: flex; align-items: center; gap: 4px; min-height: 28px; line-height: 20px; }
+.module-head h2 > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.module-head h2 > .module-help { flex: 0 0 24px; line-height: 20px; }
+.module-index { display: inline-flex; align-items: center; justify-content: center; line-height: 20px; }
+.faq-q { justify-content: flex-start; gap: 10px; }
+.faq-q .chevron { flex: 0 0 14px; transform: rotate(-90deg); transition: transform var(--t-fast); }
+.faq-q[aria-expanded="true"] .chevron { transform: rotate(0); }
+.faq-a { padding-left: 26px; }
+@media (max-width: 900px) { .check-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .faq-q .chevron { transition: none; } }

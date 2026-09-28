@@ -112,7 +112,9 @@ def save_settings(env_path, raw):
     return config_payload(env_path)
 
 
-def validate_snapshot(raw):
+def validate_snapshot(raw, provider_id="qwen"):
+    from maw.msw.tts_engines import engine
+    limit = engine(provider_id).text_limit
     if not isinstance(raw, dict) or not valid_id(raw.get("project_id")):
         raise ValueError("TTS 任务缺少工程标识")
     entries = raw.get("entries")
@@ -128,8 +130,8 @@ def validate_snapshot(raw):
         if track is not None and not valid_cue_id(track):
             raise ValueError("TTS 来源轨道无效")
         text = entry.get("text")
-        if not isinstance(text, str) or not text.strip() or len(text) > 600:
-            raise ValueError("每条 TTS 字幕须为 1–600 字符；请先拆分过长字幕")
+        if not isinstance(text, str) or not text.strip() or len(text) > limit:
+            raise ValueError(f"每条 TTS 字幕须为 1–{limit} 字符；请先拆分过长字幕")
         start, end = entry.get("start"), entry.get("end")
         if type(start) is not int or type(end) is not int or not 0 <= start < end:
             raise ValueError("TTS 字幕时间须为有效整数毫秒")
@@ -228,6 +230,11 @@ class TtsService:
 
     def run(self, job, settings, cancel, progress):
         from maw.msw.jobs import JobCancelled
+        from maw.msw.tts_engines import engine
+        engine(settings.provider_id)
+        if settings.provider_id in {'indextts', 'gpt-sovits'} and getattr(settings, 'start_service', False):
+            progress('starting_service', {'current': 0, 'total': len(job['snapshot']['entries'])})
+            settings.controller.prepare(settings, cancel)
         result = {"items": []}
         ready, failed = 0, 0
         entries = job["snapshot"]["entries"]
@@ -235,21 +242,8 @@ class TtsService:
             if cancel.is_set():
                 raise JobCancelled()
             try:
-                spoken = entry["text"]
-                if settings.provider_id == "yukkuri":
-                    from maw.msw.yukkuri import synthesize as synthesize_local
-                    if entry.get('spoken_text'):
-                        audio, spoken = synthesize_local(settings, entry['spoken_text'], cancel, prepared=True)
-                    else:
-                        audio, spoken = synthesize_local(settings, entry.get("pronunciation_override") or entry["text"], cancel)
-                elif settings.provider_id == 'indextts':
-                    from maw.msw.index_tts import synthesize as synthesize_index
-                    spoken = entry.get('spoken_text') or entry.get('pronunciation_override') or entry['text']
-                    if len(spoken) > 600:
-                        raise ValueError('IndexTTS 原始读音超过 600 字符')
-                    audio = synthesize_index(settings, spoken, cancel)
-                else:
-                    audio = self.synthesize_one(settings, entry["text"], cancel)
+                from maw.msw.tts_engines import synthesize as dispatch
+                audio, spoken = dispatch(settings, entry, cancel, self.synthesize_one)
                 if cancel.is_set():
                     raise JobCancelled()
                 asset = self.assets.add(job["project_id"], job["id"], entry, settings.recipe, audio, spoken_text=spoken)

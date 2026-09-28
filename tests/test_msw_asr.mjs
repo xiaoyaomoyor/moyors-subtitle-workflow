@@ -60,7 +60,7 @@ test('empty candidates preserve existing cues; wrong source, overlap and out-of-
   assert.throws(()=>core.plan(project,{...media,revision:'b'.repeat(64)},job),/媒体/);
 });
 test('boundary expansion closes over overlapping cues and never silently changes a range',()=>{
-  const {project,media}=fixture();assert.throws(()=>core.snapshot(project,media,'range',{start:1500,end:2100}),/切穿/);
+  const {project,media}=fixture();assert.deepEqual(plain(core.snapshot(project,media,'range',{start:1500,end:2100}).range),{start:1500,end:2100});
   assert.deepEqual(plain(core.boundaries(project,{start:1500,end:2100},4000).expanded),{start:1000,end:2100});
   assert.throws(()=>core.snapshot(project,media,'range',null),/未改为整段/);
 });

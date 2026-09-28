@@ -75,7 +75,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         plan = default_postprocess_plan()
 
         self.assertFalse(plan["enabled"])
-        self.assertFalse(plan["retainIntermediate"])
+        self.assertTrue(plan["retainIntermediate"])
         self.assertEqual([step["id"] for step in plan["steps"]], ["match", "replace", "proofread", "resegment", "ocr", "translate"])
         self.assertEqual(plan["steps"][1]["conversion"], "off")
         self.assertFalse(plan["steps"][-1]["mergeBilingual"])
@@ -385,16 +385,16 @@ class PostprocessPipelineTests(unittest.TestCase):
         self.assertEqual(result.project_path.name, "clip.postprocess.bilingual.mosp")
         self.assertEqual(result.srt_path.name, "clip.postprocess.bilingual.srt")
         self.assertTrue(result.run_directory.is_dir())
-        self.assertTrue((result.run_directory / translated_project.name).is_file())
-        self.assertTrue((result.run_directory / translated_srt.name).is_file())
-        self.assertIn("Translation one", (result.run_directory / translated_srt.name).read_text(encoding="utf-8"))
+        self.assertTrue((result.run_directory / "clip.postprocess.1.translate-en.mosp").is_file())
+        self.assertTrue((result.run_directory / "clip.postprocess.1.translate-en.srt").is_file())
+        self.assertIn("Translation one", (result.run_directory / "clip.postprocess.1.translate-en.srt").read_text(encoding="utf-8"))
         self.assertNotIn("multi_subtitle", json.loads(result.project_path.read_text(encoding="utf-8")))
         self.assertFalse((self.root / "clip.postprocess.translate-en.srt").exists())
         manifest = json.loads((result.run_directory / "manifest.json").read_text(encoding="utf-8"))
         self.assertNotIn("finalTranslatedSrtPath", manifest)
         step_manifest = manifest["steps"][0]
-        self.assertEqual(step_manifest["translationIntermediateProjectPath"], str((result.run_directory / translated_project.name).resolve()))
-        self.assertEqual(step_manifest["translationIntermediateSrtPath"], str((result.run_directory / translated_srt.name).resolve()))
+        self.assertEqual(step_manifest["translationIntermediateProjectPath"], str((result.run_directory / "clip.postprocess.1.translate-en.mosp").resolve()))
+        self.assertEqual(step_manifest["translationIntermediateSrtPath"], str((result.run_directory / "clip.postprocess.1.translate-en.srt").resolve()))
 
     def test_translation_embed_publishes_single_track_and_keeps_translation_intermediate(self) -> None:
         # 回填单语：译文替换对应原文（与主字幕相同的句子逐字节保留），最终只
@@ -467,12 +467,12 @@ class PostprocessPipelineTests(unittest.TestCase):
         self.assertEqual(zh_project.name, "clip.后处理.回填.mosp")
         self.assertEqual(zh_srt.name, "clip.后处理.回填.srt")
         self.assertIsNone(zh_translated)
-        self.assertTrue((result.run_directory / translated_srt.name).is_file())
+        self.assertTrue((result.run_directory / "clip.postprocess.1.translate-en.srt").is_file())
         manifest = json.loads((result.run_directory / "manifest.json").read_text(encoding="utf-8"))
         self.assertNotIn("finalTranslatedSrtPath", manifest)
         step_manifest = manifest["steps"][0]
-        self.assertEqual(step_manifest["translationIntermediateProjectPath"], str((result.run_directory / translated_project.name).resolve()))
-        self.assertEqual(step_manifest["translationIntermediateSrtPath"], str((result.run_directory / translated_srt.name).resolve()))
+        self.assertEqual(step_manifest["translationIntermediateProjectPath"], str((result.run_directory / "clip.postprocess.1.translate-en.mosp").resolve()))
+        self.assertEqual(step_manifest["translationIntermediateSrtPath"], str((result.run_directory / "clip.postprocess.1.translate-en.srt").resolve()))
 
     def test_attach_translation_track_skips_extension_segments_identical_to_main(self) -> None:
         # 副轨去重：译文与主字幕相同的句子不再重复进入副轨与绑定。

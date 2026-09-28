@@ -3,12 +3,27 @@
   'use strict';
   function create({ player, getState, load, changed, hint, frame, beforePlay = () => {}, skipAt = () => null }) {
     let context, epoch = 0, timer, anchor, virtual = null, busy = 0, buffering = null, internalPause = false;
-    let mediaNode = null, mediaGain = null, sourceGainDb = 0, sourceRevision = 0;
+    let mediaNode = null, mediaGain = null, sourceGainDb = 0, sourceRevision = 0, gainRequest = 0;
+    let playbackRevision = 0;
+    const mediaGraphs = new WeakMap();
     const buffers = new Map(), heats = new Map(), pending = new Map(), failures = new Map(), nodes = new Map(), queue = [];
     const reportedErrors = new Set();
     const LIMIT = 128 * 1024 * 1024;
     const clock = () => performance.now() / 1000;
     const ctx = () => context ||= new (global.AudioContext || global.webkitAudioContext)();
+    function connectMedia() {
+      if (mediaNode) return;
+      const audioContext = ctx();
+      let graph = mediaGraphs.get(player);
+      if (!graph) {
+        graph = { node: audioContext.createMediaElementSource(player), gain: audioContext.createGain() };
+        mediaGraphs.set(player, graph);
+      }
+      mediaNode = graph.node; mediaGain = graph.gain;
+      mediaGain.gain.cancelScheduledValues(audioContext.currentTime);
+      mediaGain.gain.value = Math.pow(10, sourceGainDb / 20);
+      mediaNode.connect(mediaGain); mediaGain.connect(audioContext.destination);
+    }
     function resetSourceGain() {
       sourceRevision++; sourceGainDb = 0;
       if (mediaGain) {
@@ -18,14 +33,11 @@
     }
     async function setSourceGainDb(value) {
       if (!Number.isFinite(value) || value < -60 || value > 12) throw Error('源音频增益须在 −60 至 +12 dB');
-      const revision = sourceRevision, audioContext = ctx();
+      const revision = sourceRevision, request = ++gainRequest, audioContext = ctx();
       await audioContext.resume();
       if (revision !== sourceRevision) throw Error('媒体已改变，请重新调整试听增益');
-      if (!mediaNode) {
-        mediaGain = audioContext.createGain();
-        mediaNode = audioContext.createMediaElementSource(player);
-        mediaNode.connect(mediaGain); mediaGain.connect(audioContext.destination);
-      }
+      if (request !== gainRequest) return;
+      connectMedia();
       // HTMLMediaElement volume/mute remains the shared monitor control;
       // only native source audio goes through this additional gain node.
       mediaGain.gain.cancelScheduledValues(audioContext.currentTime);
@@ -176,6 +188,15 @@
       void audioContext.resume().then(tick).catch(() => hint('点击播放以启用配音试听'));
     }
     function stop() { clearTimeout(timer); reset(); }
+    function refreshGains() {
+      const state = getState(), clips = new Map(state.clips.map(clip => [clip.id, clip]));
+      for (const [id, node] of nodes) {
+        const clip = clips.get(id);
+        if (!clip || !node.gain) continue;
+        node.level = Math.pow(10, global.MSWAudio.levelDb(clip, state.tracks.get(clip.track_id)) / 20);
+        node.gain.gain.setTargetAtTime(node.level * (player.muted ? 0 : player.volume), ctx().currentTime, .015);
+      }
+    }
     function onPause() {
       if (internalPause) { internalPause = false; return; }
       if (!virtual) { cancelBuffering(); stop(); }
@@ -188,16 +209,27 @@
         if (state.audible.length && state.end > end) { virtual = { time: end, stamp: clock(), playing: true }; wake(); }
       }, emptied: () => { cancelBuffering(); virtual = null; stop(); } };
     events.seeking = () => { cancelBuffering(); stop(); };
+    function attachPlayer(next) {
+      if (!next || next === player) return;
+      sourceRevision++; playbackRevision++; cancelBuffering(); virtual = null; internalPause = false; stop();
+      for (const [event, listener] of Object.entries(events)) player.removeEventListener(event, listener);
+      mediaNode?.disconnect(); mediaGain?.disconnect(); mediaNode = mediaGain = null;
+      player = next;
+      for (const [event, listener] of Object.entries(events)) player.addEventListener(event, listener);
+      // Reuse a node when a failed import rolls back to an earlier element.
+      if (sourceGainDb !== 0 || mediaGraphs.has(player)) connectMedia();
+      if (playing()) wake();
+    }
     for (const [event, listener] of Object.entries(events)) player.addEventListener(event, listener);
     return Object.freeze({
-      setSourceGainDb, resetSourceGain, sourceGainDb: () => sourceGainDb,
+      attachPlayer, refreshGains, setSourceGainDb, resetSourceGain, sourceGainDb: () => sourceGainDb,
       ensure, buffers, heats, failures,
       reset: () => { const resume = !!buffering; cancelBuffering(); reset();
         if (resume) { if (virtual) { virtual.playing = true; virtual.stamp = clock(); } else void player.play().catch(() => {}); }
         if (playing()) wake(); },
       currentTime: () => virtual ? time() : null,
       virtualPlaying: () => buffering ? true : virtual?.playing ?? null,
-      pause: () => { cancelBuffering(); if (virtual) virtual = { time: time(), stamp: clock(), playing: false }; player.pause(); stop(); frame(); },
+      pause: () => { playbackRevision++; cancelBuffering(); if (virtual) virtual = { time: time(), stamp: clock(), playing: false }; player.pause(); stop(); frame(); },
       toggle: () => {
         if (buffering) { cancelBuffering(); stop(); frame(); return true; }
         if (!virtual && Number.isFinite(player.duration) && player.duration > 0) return false;
@@ -213,7 +245,11 @@
         const mediaEnd = Number.isFinite(player.duration) ? player.duration * 1000 : 0;
         const wasBuffering = !!buffering, wasPlaying = playing() || wasBuffering; cancelBuffering();
         if (ms <= mediaEnd && mediaEnd > 0) {
-          if (virtual || wasBuffering) { virtual = null; reset(); if (wasPlaying) queueMicrotask(() => void player.play().catch(() => {})); }
+          if (virtual || wasBuffering) {
+            virtual = null; reset();
+            const revision = playbackRevision;
+            if (wasPlaying) queueMicrotask(() => { if (revision === playbackRevision) void player.play().catch(() => {}); });
+          }
           return false;
         }
         if (!getState().end) return false;
@@ -221,7 +257,7 @@
       },
       clear: () => {
         resetSourceGain();
-        epoch++; cancelBuffering(); virtual = null; stop();
+        epoch++; playbackRevision++; cancelBuffering(); virtual = null; stop();
         for (const work of pending.values()) work.controller.abort();
         for (const work of queue.splice(0)) work.resolve(null);
         pending.clear(); buffers.clear(); heats.clear(); failures.clear(); reportedErrors.clear();

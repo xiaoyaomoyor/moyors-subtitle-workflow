@@ -3102,6 +3102,7 @@
     autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true, exportSpeakerLabels: false, exportSpeakerNamesAsSuffix: false,
     autoSaveProject: true, autoSaveIntervalSeconds: 30, stickerOverlayEnabled: false,
     stickerOtioExportMode: 'original', clickBehavior: 'select-and-seek', clickTarget: 'pointer',
+    pauseOnMouseClick: false,
     otioExportIncludeSrt: true, otioExportIncludeStickers: true, otioExportIncludeMarkers: true,
     keyboardOperationReference: 'pointer', jklPlaybackMode: 'direction', mediaSeekStepMs: 1000,
     mediaSeekStepFrames: 1, cueMoveStepMs: 50, cueMoveStepFrames: 1,
@@ -3200,6 +3201,8 @@
       autoMergeAbsorbDirection: savedSettings.autoMergeAbsorbDirection === 'next' ? 'next' : 'previous',
       exportColorUnified: savedSettings.exportColorUnified !== false,
       exportSpeakerLabels: savedSettings.exportSpeakerLabels === true,
+      exportSpeakerLabelsExplicit: typeof savedSettings.exportSpeakerLabelsExplicit === 'boolean'
+        ? savedSettings.exportSpeakerLabelsExplicit : typeof savedSettings.exportSpeakerLabels === 'boolean',
       exportSpeakerNamesAsSuffix: savedSettings.exportSpeakerNamesAsSuffix === true,
       autoSaveProject: savedSettings.autoSaveProject !== false,
       autoSaveIntervalSeconds: clampInteger(savedSettings.autoSaveIntervalSeconds, 30, 5, 3600),
@@ -3211,6 +3214,7 @@
       clickBehavior: ['select-only', 'select-and-seek', 'select-and-play'].includes(savedSettings.clickBehavior)
         ? savedSettings.clickBehavior : 'select-and-seek',
       clickTarget: ['cue-start', 'pointer'].includes(savedSettings.clickTarget) ? savedSettings.clickTarget : 'pointer',
+      pauseOnMouseClick: savedSettings.pauseOnMouseClick === true,
       keyboardOperationReference: savedSettings.keyboardOperationReference === 'playhead' ? 'playhead' : 'pointer',
       jklPlaybackMode: ['speed', 'direction'].includes(savedSettings.jklPlaybackMode)
         ? savedSettings.jklPlaybackMode : 'direction',
@@ -4189,7 +4193,7 @@
   const ASS_STYLE_LIBRARY_MAX_NAME_LENGTH = 80;
   const ASS_STYLE_LIBRARY_MAX_FONT_LENGTH = 128;
   const ASS_STYLE_LIBRARY_MAX_TRANSFORM_LENGTH = 512;
-  const ASS_COLOR_STYLE_VALUES = Object.freeze(['text', 'stroke', 'none']);
+  const ASS_COLOR_STYLE_VALUES = Object.freeze(['text', 'speaker', 'stroke', 'none']);
 
   function normalizeAssColorStyle(value) {
     if (value === 'underline') return 'text';
@@ -4850,7 +4854,7 @@
     // mapping, but a coloured underline is not representable without also
     // changing the glyph colour.  In stroke mode keep the speaker label in
     // the effective base colour so only the outline follows the palette.
-    const speakerColor = colorStyle === 'text'
+    const speakerColor = colorStyle === 'text' || colorStyle === 'speaker'
       ? paletteSpeakerColor : style.primaryColor;
     // The event style already carries the effective ASS text colour.  Reusing
     // the speaker palette here would also colour the whole cue when the old
@@ -4895,7 +4899,7 @@
       : normalizeAssFontSize(baseStyle.fontSize);
     const title = normalizeAssHeaderValue(options.title ?? options.projectName);
     const colorStyles = normalizeAssColorStyles(options.colorStyles);
-    // ASS 的颜色映射只由 ass_color_style 驱动（text / stroke / none），与 CSS
+    // ASS 的颜色映射只由 ass_color_style 驱动（text / speaker / stroke / none），与 CSS
     // 预览的 color_style（underline / text / stroke）和 color_underline 开关
     // 是两套语义；color_underline 只控制 CSS 预览，不参与 ASS 导出。
     const colorStyle = normalizeAssColorStyle(appearance.ass_color_style) || 'text';
@@ -4917,8 +4921,8 @@
       ? normalizeSpeakerLabelSeparator(options.speakerLabelSeparator)
       : DEFAULT_SPEAKER_LABEL_SEPARATOR;
     const events = [];
-    // 颜色样式只有在 ASS 能表达（text / stroke）时才生成调色板样式；
-    // none 模式下主轨与叠加轨一起回落 Default。
+    // 颜色样式只有在 ASS 能表达为整句样式（text / stroke）时才生成
+    // 调色板样式；speaker 只给说话人前缀加局部颜色，none 回落 Default。
     const assColorGroupsSupported = colorStyle === 'text' || colorStyle === 'stroke';
 
     // 主轨事件：Layer 0，底部居中（Default 样式自带对齐）。
@@ -5058,8 +5062,12 @@
       const startCentiseconds = Math.max(0, Math.round(rawStart / 10));
       const endCentiseconds = Math.max(startCentiseconds + 1, Math.round(rawEnd / 10));
       const overlayColorName = effectiveColorName(segment, overlaySource);
+      const overlaySpeakerName = speakerLabels ? speakerLabelForSegment(segment, overlaySource, speakerLabels) : '';
+      const overlayEventText = assEventText({segment, text: segment.text, speakerName: overlaySpeakerName,
+        speakerLabelSeparator, colorName: overlayColorName, colorStyles, style: overlayStyleFor(overlayColorName),
+        colorStyle, speakerLabels, assMode});
       const overlayText = overlayAnimationTags
-        ? `{${overlayAnimationTags}}${escapeAssText(segment.text)}` : escapeAssText(segment.text);
+        ? `{${overlayAnimationTags}}${overlayEventText}` : overlayEventText;
       events.push(
         `Dialogue: 2,${formatAssTime(startCentiseconds * 10)},${formatAssTime(endCentiseconds * 10)},${overlayStyleNameFor(overlayColorName)},,0,0,0,,${overlayText}`,
       );

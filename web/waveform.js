@@ -1887,7 +1887,8 @@
         saveSettings(this.settings); this.refreshSourceGainDisplay();
       });
       window.addEventListener('msw:source-gain', () => this.refreshSourceGainDisplay());
-      window.addEventListener('msw:project-changed', () => queueMicrotask(() => this.refreshSourceGainDisplay()));
+      document.addEventListener('mawe:languagechange', () => this.refreshMediaReadout());
+      window.addEventListener('msw:project-changed', () => { this.resetWaveformLoading(); queueMicrotask(() => this.refreshSourceGainDisplay()); });
       this.pane.addEventListener('pointerdown', () => {
         this.autoScrolling = false;
         this.autoScrollTarget = null;
@@ -3239,9 +3240,8 @@
       const db = this.sourcePreviewGainDb();
       const label = `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
       const setting = document.getElementById('waveform-source-gain-setting');
-      const readout = document.getElementById('waveform-source-gain-readout');
       if (setting) setting.textContent = label;
-      if (readout) {readout.hidden = !this.settings.followSourceGain; readout.textContent = label;}
+      this.refreshMediaReadout();
       if (this.sourceGainPaintFrame) return;
       this.sourceGainPaintFrame = window.requestAnimationFrame(() => {
         this.sourceGainPaintFrame = 0;
@@ -3418,6 +3418,7 @@
       this.status.textContent = message;
       this.status.classList.toggle('error', kind === 'error');
       this.status.classList.toggle('busy', kind === 'busy');
+      if (kind === 'busy' && this.waveformLoads?.size) return;
       if (quiet) {
         this.updateReadout(message);
         return;
@@ -3430,16 +3431,41 @@
     // 常显数据行（时长 · 峰值数）：与瞬态操作消息分离，不再被工具/dock 消息覆盖。
     updateReadout(text) {
       if (!this.readout) return;
+      const loading = Boolean(this.waveformLoads?.size);
+      if (loading) text = localizedWaveformMessage('正在加载波形', 'Loading waveform');
+      this.readout.classList.toggle('is-loading', loading);
+      this.readout.setAttribute('aria-busy', String(loading));
       this.readout.hidden = !text;
       this.readout.textContent = text || '';
+    }
+
+    beginWaveformLoading() {
+      this.waveformLoads ||= new Set();
+      const token = {
+        current: () => this.waveformLoads.has(token),
+        finish: (state = '') => {
+          if (!this.waveformLoads.delete(token)) return;
+          if (state) this.waveformLoadState = state;
+          this.refreshMediaReadout();
+        },
+      };
+      this.waveformLoadState = '';
+      this.waveformLoads.add(token); this.refreshMediaReadout();
+      return token;
+    }
+
+    resetWaveformLoading() {
+      this.waveformLoads?.clear(); this.waveformLoadState = ''; this.refreshMediaReadout();
     }
 
     // 恢复常显数据行：拖动过程会把实时增量暂挂到该行（quiet 状态），
     // 拖动结束后由此还原为「媒体总时长 · 波形峰值点数」。
     refreshMediaReadout() {
-      this.updateReadout(this.payload
-        ? `${formatCompact(this.payload.duration_ms)} · ${this.payload.peak_count.toLocaleString()} peaks`
-        : localizedWaveformMessage('占位波形', 'Placeholder waveform'));
+      const shape = this.activeWaveShape(), db = this.sourcePreviewGainDb();
+      this.updateReadout(this.waveformLoadState === 'failed' ? localizedWaveformMessage('波形加载失败', 'Waveform loading failed')
+        : this.waveformLoadState === 'cancelled' ? localizedWaveformMessage('波形加载已取消', 'Waveform loading cancelled')
+        : `${shape ? `${formatCompact(shape.payload.duration_ms)} · ${shape.peakCount.toLocaleString()} peaks`
+          : localizedWaveformMessage('占位波形', 'Placeholder waveform')} · ${db > 0 ? '+' : ''}${db.toFixed(1)} dB`);
     }
 
     setSpectralColorStatus(message = '') {
@@ -3537,10 +3563,9 @@
       }
       this.payload = payload;
       this.peaks = decoded;
+      this.waveformLoadState = '';
       this.empty.classList.add('hidden');
-      this.updateReadout(this.mediaAvailable
-        ? `${formatCompact(payload.duration_ms)} · ${payload.peak_count.toLocaleString()} peaks`
-        : null);
+      this.refreshMediaReadout();
       if (!preserveView) this.centerBasicOnCurrentTime();
       if (render && preserveView) {
         this.refreshTimelineDuration();
@@ -3583,9 +3608,11 @@
     setReapeaksWaveform(payload, { render = true } = {}) {
       this.reapeaksPeaks = decodePayload(payload);
       this.reapeaksPayload = this.reapeaksPeaks ? payload : null;
+      if (this.reapeaksPayload) this.waveformLoadState = '';
       if (this.reapeaksPayload && !this.payload) {
         this.setPayload(this.reapeaksPayload, { render: false });
       }
+      this.refreshMediaReadout();
       if (render) this.render();
       return this.reapeaksPayload != null;
     }
@@ -3625,6 +3652,15 @@
     }
 
     async processFile(file) {
+      const loading = this.beginWaveformLoading();
+      try {
+        return await this.decodeWaveformFile(file, loading);
+      } catch (error) {
+        loading.finish('failed'); throw error;
+      } finally { loading.finish(); }
+    }
+
+    async decodeWaveformFile(file, loading) {
       const signature = sourceForFile(file);
       if (this.payload && sameSource(this.payload.source, signature)) {
         this.setStatus(`使用缓存 · ${this.payload.peak_count.toLocaleString()} peaks`);
@@ -3641,6 +3677,7 @@
         throw new Error(message);
       }
       const durationSeconds = await this.waitForPlayerDuration();
+      if (!loading.current()) return null;
       const estimatedPcmBytes = durationSeconds * 48000 * 2 * 4;
       if (durationSeconds > 0 && estimatedPcmBytes > BROWSER_PCM_ESTIMATE_LIMIT) {
         const message = localizedWaveformMessage(
@@ -3665,7 +3702,9 @@
       try {
         context = new AudioContextClass();
         const bytes = await file.arrayBuffer();
+        if (!loading.current()) return null;
         const buffer = await context.decodeAudioData(bytes);
+        if (!loading.current()) return null;
         const peaksPerSecond = 100;
         const channels = Array.from(
           { length: buffer.numberOfChannels },
@@ -3694,6 +3733,7 @@
           if (peakIndex > 0 && peakIndex % 20000 === 0) {
             this.setStatus(`正在分析波形：${Math.round((peakIndex / peakCount) * 100)}%`, 'busy');
             await new Promise((resolve) => requestAnimationFrame(resolve));
+            if (!loading.current()) return null;
           }
         }
         const payload = {
@@ -3713,6 +3753,7 @@
         this.setPayload(payload);
         return payload;
       } catch (error) {
+        if (!loading.current()) return null;
         const detail = error.message || error;
         const message = localizedWaveformMessage(
           `浏览器无法解析音轨：${detail}；请使用 MSW GUI 预生成波形`,
@@ -3865,6 +3906,8 @@
         hideMagnetGuide: () => this.hideMagnetGuide(),
         setStatus: (message, kind = '', options = {}) => this.setStatus(message, kind, options),
         refreshMediaReadout: () => this.refreshMediaReadout(),
+        beginWaveformLoading: () => this.beginWaveformLoading(),
+        resetWaveformLoading: () => this.resetWaveformLoading(),
         openWaveSettings: () => this.options.openWaveSettings?.(),
       });
     }
@@ -4478,7 +4521,7 @@
           }
           const timeMs = this.timeFromPointer(event, row);
           this.options.previewGapAt?.(index, timeMs);
-          this.options.seek(timeMs / 1000);
+          this.options.seek(timeMs / 1000, { mouseClick: true });
           this.updatePlayback();
         });
         block.addEventListener('dblclick', (event) => {
@@ -5069,14 +5112,16 @@
       geometry = null,
       allowCrossRow = false,
       dragPreview = false,
+      mouseClick = !dragPreview,
     ) {
       const requestedMs = this.pointerTimeMs(event, row, geometry, allowCrossRow);
       const timeMs = allowCrossRow
         ? clamp(requestedMs, 0, Math.max(0, this.durationMs))
         : requestedMs;
-      this.options.seek(timeMs / 1000, { dragPreview });
+      const wasPlaying = this.options.isPlaybackActive?.() ?? !this.player?.paused;
+      this.options.seek(timeMs / 1000, { dragPreview, mouseClick });
       this.updatePlayback();
-      if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
+      if (playAfterSeek && this.player?.paused && !wasPlaying) this.options.togglePlayback?.();
     }
 
     seekFromCue(event, row, index, playAfterSeek = false, geometry = null, track = 'main') {
@@ -5085,9 +5130,10 @@
         ? this.pointerTimeMs(event, row, geometry)
         : Number(segment?.start);
       if (!Number.isFinite(timeMs)) return;
-      this.options.seek(timeMs / 1000);
+      const wasPlaying = this.options.isPlaybackActive?.() ?? !this.player?.paused;
+      this.options.seek(timeMs / 1000, { mouseClick: true });
       this.updatePlayback();
-      if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
+      if (playAfterSeek && this.player?.paused && !wasPlaying) this.options.togglePlayback?.();
     }
 
     // Ctrl(Cmd)+左键拖动空白波形：显示字幕块虚影，松开后交给编辑器
@@ -5485,7 +5531,7 @@
       };
       const onUp = (upEvent) => {
         cleanup();
-        if (moved) this.seekFromPointer(upEvent, row, false, geometry, true, false);
+        if (moved) this.seekFromPointer(upEvent, row, false, geometry, true, false, false);
       };
       const onCancel = () => cleanup();
       window.addEventListener('pointermove', onMove);

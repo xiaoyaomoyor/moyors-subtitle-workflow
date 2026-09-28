@@ -36,6 +36,7 @@ def check_zip(path: Path) -> None:
         required = (executable, 'README-开始使用.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
                     'FAQ-常见问题.txt', 'web/launcher/logo.svg', 'web/favicon.svg',
                     'maw/msw/yukkuri_worker.mjs', 'maw/msw/yukkuri_resources.json',
+                    'maw/msw/tts_service_runner.py',
                     'tools/compare.html', 'tools/timestamp-compare.html')
         for suffix in required:
             if not any(name == suffix or name.endswith('/' + suffix) for name in names):

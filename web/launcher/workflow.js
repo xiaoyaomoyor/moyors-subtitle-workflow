@@ -65,7 +65,7 @@
 
   // S6/§6.1：模块头参数摘要——一行只读状态，帮助折叠时辨识卡内容。
   function basenameOf(value) {
-    var parts = String(value || "").split(/[\/]/);
+    var parts = String(value || "").split(/[\\/]/);
     return parts[parts.length - 1] || "";
   }
 
@@ -84,11 +84,11 @@
       }
       case "match": {
         var script = el("postprocessScriptPath")?.value.trim() || "";
-        return script ? basenameOf(script) : t("summary_not_configured");
+        return script ? basenameOf(script) : t("summary_scripts_ready");
       }
       case "replace": {
         var rules = (el("postprocessReplacements")?.value || "").split("\n").filter(function (line) { return line.trim(); }).length;
-        return rules ? t("summary_rules").replace("{n}", String(rules)) : t("summary_not_configured");
+        return rules ? t("summary_rules").replace("{n}", String(rules)) : el("postprocessConversion")?.selectedOptions?.[0]?.textContent || "";
       }
       case "proofread":
       case "resegment": {
@@ -150,15 +150,20 @@
       card.classList.toggle("collapsed", collapsed);
       var toggle = card.querySelector(".module-collapse");
       if (toggle) toggle.setAttribute("aria-expanded", String(!collapsed));
-      var summaryEl = card.querySelector(".module-summary");
-      if (summaryEl) summaryEl.textContent = moduleSummary(moduleId);
-      var status = card.querySelector('.module-status');
-      if (status && card.dataset.configReady) {
-        status.textContent = t(card.dataset.configReady === 'true' ? 'auto_status_ready' : 'auto_status_config');
-        status.classList.toggle('invalid', card.dataset.configReady !== 'true');
-      }
+      renderCardSummary(card);
     });
     renderOrderChip(orderMap);
+  }
+
+  function renderCardSummary(card) {
+    var invalid = card.dataset.configReady === 'false';
+    var summary = card.querySelector('.module-summary');
+    var status = card.querySelector('.module-status');
+    if (summary) { summary.textContent = invalid ? '' : moduleSummary(card.dataset.moduleCard); summary.title = summary.textContent; summary.hidden = invalid; }
+    if (status) { status.textContent = invalid ? t('summary_not_configured') : ''; status.hidden = !invalid; status.classList.toggle('needs-config', invalid); }
+  }
+  function renderSummaries() {
+    document.querySelectorAll('[data-module-card]').forEach(renderCardSummary);
   }
 
   function renderOrderChip(orderMap) {
@@ -223,6 +228,9 @@
 
   function init() {
     document.addEventListener("mswlanguage", renderCards);
+    for (var eventName of ['input', 'change']) document.addEventListener(eventName, function (event) {
+      if (event.target.closest('[data-module-card]')) renderSummaries();
+    });
     loadCollapse();
     bindRailDrawer();
     renderCards();
@@ -263,6 +271,7 @@
   window.MSWWorkflow = {
     state: state,
     renderCards: renderCards,
+    renderSummaries: renderSummaries,
     showLogCard: showLogCard,
     setCollapsed: setCollapsed,
   };

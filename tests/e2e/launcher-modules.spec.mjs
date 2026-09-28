@@ -93,7 +93,7 @@ test('postprocess modules own their enabled state and config badge', async ({ pa
   await proofread.click();
   await expect(proofread).toBeChecked();
   await expect.poll(() => page.evaluate(() => MSWModules.isEnabled('proofread'))).toBe(true);
-  await expect(page.locator('[data-module-card="proofread"] .module-status')).toHaveClass(/invalid/);
+  await expect(page.locator('[data-module-card="proofread"] .module-status')).toHaveClass(/needs-config/);
   // S4：勾选即出现该模块的独立配置卡（LLM 卡内含提示词与服务摘要行）。
   await expect(page.locator('[data-module-card="proofread"]')).toBeVisible();
   await page.locator('[data-module-card="proofread"] .module-collapse').click();
@@ -106,7 +106,7 @@ test('postprocess modules own their enabled state and config badge', async ({ pa
     Object.assign(provider, { verified: true, hasApiKey: true, hasBaseUrl: true, hasModel: true });
     document.dispatchEvent(new CustomEvent('mswmodules'));
   });
-  await expect(page.locator('[data-module-card="proofread"] .module-status')).not.toHaveClass(/invalid/);
+  await expect(page.locator('[data-module-card="proofread"] .module-status')).not.toHaveClass(/needs-config/);
   await expect(proofread).toBeChecked();
 });
 

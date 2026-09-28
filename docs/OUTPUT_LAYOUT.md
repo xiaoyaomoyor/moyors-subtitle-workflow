@@ -8,7 +8,7 @@
 
 | 配置键 | 默认 | 行为 |
 |---|---|---|
-| `MSW_GUI_OUTPUT_SUBFOLDER` | `false` | 最终 SRT／MOSP 默认留在媒体旁；开启后放入媒体的 MSW 子目录 |
+| `MSW_GUI_OUTPUT_SUBFOLDER` | `true` | 未配置时将最终 SRT／MOSP 放入媒体的 MSW 子目录；显式关闭后留在媒体旁，自定义目标路径保持 |
 | `MSW_GUI_PER_VIDEO_SUBFOLDER` | `false` | 总开关开启时改用 `视频名_msw`；否则共享 `_msw` |
 | `MSW_GUI_ATTACH_MODEL_NAME` | `true` | 默认字幕名附加模型／供应商段，例如 `clip.qwen-audio.srt` |
 

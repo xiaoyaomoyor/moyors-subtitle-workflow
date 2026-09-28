@@ -20,7 +20,7 @@ def wav_bytes():
 
 
 class IndexFixture:
-    def __init__(self, *, text_emotion=True):
+    def __init__(self, *, text_emotion=True, port=0):
         self.modes = ['Follow reference', 'Emotion audio', 'Emotion vector', 'Emotion text'][:4 if text_emotion else 3]
         self.audio = wav_bytes()
         self.calls, self.uploads, self.cancels = [], [], []
@@ -102,7 +102,7 @@ class IndexFixture:
                 else:
                     self.send_error(404)
 
-        self.server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        self.server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
         self.url = f'http://127.0.0.1:{self.server.server_port}'
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()

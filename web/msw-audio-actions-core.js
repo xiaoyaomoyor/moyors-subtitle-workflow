@@ -41,6 +41,10 @@
     return {segments, count: accepted.length, rows: rows.map(row => ({...row, reason: row.reason || row.note}))};
   }
   const recipeFields = {
+    minimax: ['provider','region','model','voice','language_type','speed','volume','pitch','emotion'],
+    mossland: ['provider','model','voice','language_type'],
+    edge: ['provider','model','voice','language_type','rate','volume','pitch'],
+    'gpt-sovits': ['provider', 'model', 'voice', 'language_type', 'gpt_model', 'sovits_model', 'speaker_ref', 'aux_refs', 'prompt_text', 'prompt_lang', 'no_prompt', 'speed_factor', 'text_split_method', 'top_k', 'top_p', 'temperature', 'seed', 'repetition_penalty', 'sample_steps', 'super_sampling'],
     qwen: ['provider','region','model','model_type','voice','language_type','instructions','optimize_instructions'],
     yukkuri: ['provider','model','voice','language_type','speed'],
     indextts: ['provider','model','voice','language_type','speaker_ref','emotion_ref','emotion_mode','emotion_weight','emotion_vector','emotion_text','emotion_random','duration_factor','max_text_tokens_per_segment','do_sample','top_p','top_k','temperature','length_penalty','num_beams','repetition_penalty','max_mel_tokens'],
@@ -49,7 +53,10 @@
     return !!(recipeFields[g.provider] && g.model && g.language_type
       && (g.provider !== 'qwen' || (g.region && g.voice))
       && (g.provider !== 'yukkuri' || (g.voice && g.speed))
-      && (g.provider !== 'indextts' || g.speaker_ref));
+      && (!['edge','minimax','mossland'].includes(g.provider) || g.voice)
+      && (g.provider !== 'minimax' || g.region)
+      && (g.provider !== 'indextts' || g.speaker_ref)
+      && (g.provider !== 'gpt-sovits' || (g.speaker_ref && g.gpt_model && g.sovits_model)));
   }
   function regeneration(project, clips) {
     const assets = new Map((project.msw?.assets || []).map(a => [a.id,a])), groups = new Map(), rows = [];
@@ -61,7 +68,8 @@
         row.reason = '缺少原合成配置或属于外部音频'; continue;
       }
       const text = g.display_text || asset.source_ref?.text;
-      if (typeof text !== 'string' || !text.trim() || [...text].length > 600) { row.reason = '原合成文字缺失或超过 600 字符'; continue; }
+      const limit = global.MSWTts?.textLimit(g.provider) || 600;
+      if (typeof text !== 'string' || !text.trim() || [...text].length > limit) { row.reason = `原合成文字缺失或超过 ${limit} 字符`; continue; }
       const recipe = Object.fromEntries(fields.filter(key => key in g).map(key => [key,g[key]]));
       const signature = JSON.stringify(recipe), key = global.MSWProject.id('entry');
       row.key = key;
@@ -69,7 +77,7 @@
       const entry = {key, id: global.MSWProject.id('draft'), track_id: null, kind:'editor_text', text,
         start:clip.start_ms, end:Math.max(clip.start_ms+1,Math.round(global.MSWAudio.end(clip,asset)))};
       if (source.pronunciation_override) entry.pronunciation_override = source.pronunciation_override;
-      if (['yukkuri','indextts'].includes(g.provider) && g.spoken_text?.trim()) entry.spoken_text = g.spoken_text;
+      if (['yukkuri','indextts','minimax'].includes(g.provider) && g.spoken_text?.trim()) entry.spoken_text = g.spoken_text;
       if (!groups.has(signature)) groups.set(signature, {recipe, entries:[], rows:[]});
       groups.get(signature).entries.push(entry); groups.get(signature).rows.push(row);
     }

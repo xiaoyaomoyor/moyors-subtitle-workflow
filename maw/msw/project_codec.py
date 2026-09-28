@@ -19,6 +19,32 @@ def valid_cue_id(value: object) -> bool:
     return isinstance(value, str) and 0 < len(value) <= 160 and value == value.strip()
 
 
+def valid_processing_results(value):
+    import json
+    if not isinstance(value, list) or len(value) > 10000:
+        return False
+    seen = set()
+    for batch in value:
+        if (not isinstance(batch, dict) or not valid_id(batch.get('id')) or batch['id'] in seen
+                or batch.get('kind') not in {'asr', 'translation'} or type(batch.get('number')) is not int
+                or not 1 <= batch['number'] <= 9007199254740991
+                or ('edited_at' in batch and (type(batch['edited_at']) is not int or not 0 <= batch['edited_at'] <= 9007199254740991))
+                or not isinstance(batch.get('edits'), list) or len(batch['edits']) > 10000
+                or not isinstance(batch.get('applications'), dict)):
+            return False
+        seen.add(batch['id'])
+        for edit in batch['edits']:
+            if (not isinstance(edit, dict) or not valid_id(edit.get('job_id')) or type(edit.get('index')) is not int
+                    or not 0 <= edit['index'] < 10000 or not isinstance(edit.get('text'), str) or len(edit['text']) > 12000):
+                return False
+        for target, record in batch['applications'].items():
+            if (target not in {'main', 'secondary', 'library'} or not isinstance(record, dict)
+                    or not isinstance(record.get('revision'), str) or len(record['revision']) > 4000000
+                    or ('state' in record and not isinstance(record['state'], dict))):
+                return False
+    return len(json.dumps(value, ensure_ascii=False, separators=(',', ':'))) <= 16000000
+
+
 def valid_removed_assets(value):
     return (isinstance(value, list) and len(value) <= 100000
             and all(isinstance(item, str) and re.fullmatch(r"audio-[0-9a-f]{32}", item) for item in value)
@@ -42,6 +68,8 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
     applied = value.get("applied_results", [])
     if not isinstance(applied, list) or len(applied) > 10000 or not all(valid_id(item) for item in applied):
         errors.append(("$.msw.applied_results", "must contain at most 10000 result IDs"))
+    if "processing_results" in value and not valid_processing_results(value["processing_results"]):
+        errors.append(("$.msw.processing_results", "invalid candidate revisions"))
     partial = value.get("translation_applications", {})
     stale = value.get("asr_stale_subtitles", {})
     if (not isinstance(stale, dict) or len(stale) > 1000 or any(
@@ -117,7 +145,7 @@ def validate_subtitle_assets(value):
         rows = []
     if (not isinstance(batches, list) or len(batches) > 10000 or any(
             not isinstance(b, dict) or not valid_id(b.get('id'))
-            or b.get('kind') not in ('copy', 'asr', 'tts', 'imported', 'regenerated')
+            or b.get('kind') not in ('copy', 'asr', 'translation', 'tts', 'imported', 'regenerated')
             or not integer(b.get('created_at'))
             or any(k in b and not valid_id(b[k]) for k in ('result_id', 'parent_id')) for b in batches)
             or len({b['id'] for b in batches}) != len(batches)):

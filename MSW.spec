@@ -4,10 +4,11 @@ import sys
 from pathlib import Path
 
 try:
-    from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+    from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 except ImportError:  # pragma: no cover - only reached outside a PyInstaller build
     collect_data_files = lambda _package: []
     collect_submodules = lambda _package: []
+    copy_metadata = lambda _package: []
 
 ROOT = Path(SPECPATH).resolve()
 
@@ -71,6 +72,7 @@ datas = [
     (str(ROOT / "maw" / "local_models.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "msw" / "yukkuri_resources.json"), "maw/msw"),
     (str(ROOT / "maw" / "msw" / "yukkuri_worker.mjs"), "maw/msw"),
+    (str(ROOT / "maw" / "msw" / "tts_service_runner.py"), "maw/msw"),
     (str(ROOT / "web"), "web"),
     (str(ROOT / "server-editor" / "serve.py"), "server-editor"),
     (str(ROOT / "server-align" / "serve.py"), "server-align"),
@@ -161,6 +163,7 @@ if _runtime_req_local_cpu.is_file():
 if _runtime_req_moss_cpu.is_file():
     datas.append((str(_runtime_req_moss_cpu), "moss-runtime"))
 opencc_hiddenimports = collect_submodules("opencc")
+datas += copy_metadata("edge-tts")
 
 # OCR dependencies and model files stay outside the frozen bundle. The bundled
 # worker only bootstraps the optional runtime when the user installs it.
@@ -238,6 +241,15 @@ a = Analysis(
         "maw.postprocess_ocr",
         "maw.project",
         "maw.msw.api",
+        "maw.msw.tts",
+        "maw.msw.yukkuri",
+        "maw.msw.index_tts",
+        "maw.msw.gpt_sovits",
+        "maw.msw.edge_tts",
+        "maw.msw.cloud_tts",
+        "maw.msw.minimax_tts",
+        "maw.msw.mossland_tts",
+        "edge_tts",
         "maw.soniox",
         "maw.tencent",
         "maw.bcut",

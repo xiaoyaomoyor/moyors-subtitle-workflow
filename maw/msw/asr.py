@@ -11,7 +11,7 @@ import wave
 
 from maw.gui_workflow import run_transcription, TranscriptionProcessError
 from maw.msw.audio_render import check_cancel, command_prefix, run
-from maw.msw.project_codec import valid_id
+from maw.msw.project_codec import valid_id, valid_cue_id
 from maw.project import normalize_project
 
 
@@ -47,11 +47,18 @@ def validate_snapshot(raw):
     normalized = normalize_project({'segments': [{key: copy.deepcopy(cue[key]) for key in
         ('id', 'start', 'end', 'text', 'items', 'disabled', 'start_frame', 'end_frame') if key in cue}
         for cue in targets]})['segments']
-    if mode == 'range' and any(cue['start'] < span['start'] or cue['end'] > span['end'] for cue in normalized):
-        raise ValueError('选区切穿已有字幕；请调整范围或先扩展到完整字幕边界')
+    secondary = raw.get('secondary')
+    if secondary is not None:
+        if (not isinstance(secondary, dict) or (secondary.get('track_id') is not None
+                and not valid_cue_id(secondary['track_id'])) or not isinstance(secondary.get('targets'), list)
+                or len(secondary['targets']) > 10000):
+            raise ValueError('ASR 副字幕快照无效')
+        normalize_project({'segments': [{key: copy.deepcopy(cue[key]) for key in
+            ('id', 'start', 'end', 'text', 'items', 'disabled', 'start_frame', 'end_frame') if key in cue}
+            for cue in secondary['targets']]})
     return {'project_id': raw['project_id'], 'source': {key: copy.deepcopy(source[key]) for key in
             ('id', 'revision', 'reference', 'name', 'audio_index', 'duration_ms', 'kind', 'clip') if key in source},
-            **({'batch_id': batch_id} if batch_id else {}), 'batch_overlap': raw.get('batch_overlap') is True,
+            **({'batch_id': batch_id} if batch_id else {}), **({'secondary': copy.deepcopy(secondary)} if secondary is not None else {}), 'batch_overlap': raw.get('batch_overlap') is True,
             'range': {'start': span['start'], 'end': span['end']}, 'mode': mode, 'targets': copy.deepcopy(targets)}
 
 

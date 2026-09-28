@@ -71,6 +71,8 @@ class IndexSettings:
     base_url: str
     timeout: int
     controller: object
+    start_service: bool = False
+    service_config: dict | None = None
     api_key = ''
     provider_id = 'indextts'
     reasoning_mode = 'off'
@@ -85,6 +87,7 @@ class IndexTts:
         self.cancel = threading.Event()
         self.capability = None
         self.capability_url = None
+        self.services = None
 
     def read(self, name, default):
         path = self.root / name
@@ -208,14 +211,30 @@ class IndexTts:
         self.reference(recipe['speaker_ref'])
         if recipe['emotion_mode'] == 'audio':
             self.reference(recipe['emotion_ref'])
-        if self.capability_url != url or not self.capability:
+        managed = self.services.snapshot('indextts') if self.services else None
+        start_service = bool(managed and managed['configured'] and managed['service_url'] == url)
+        if (self.capability_url != url or not self.capability) and not start_service:
             raise ValueError('请先连接并检测 IndexTTS 服务')
-        if recipe['emotion_mode'] == 'text' and not self.capability['text_emotion']:
+        if self.capability_url == url and self.capability and not start_service:
+            self.validate_capability(recipe, self.capability)
+        return IndexSettings(recipe, url, timeout, self, start_service, copy.deepcopy(managed['settings']) if start_service else None)
+
+    @staticmethod
+    def validate_capability(recipe, capability):
+        if recipe['emotion_mode'] == 'text' and not capability['text_emotion']:
             raise ValueError('当前 IndexTTS 未加载 QwenEmotion；启用 --qwen_emo 并重启该服务后重新检测')
         for key in ('max_mel_tokens', 'max_text_tokens_per_segment'):
-            if recipe[key] > self.capability[key]:
-                raise ValueError(f'{key} 超过当前 IndexTTS 服务上限 {self.capability[key]}')
-        return IndexSettings(recipe, url, timeout, self)
+            if recipe[key] > capability[key]:
+                raise ValueError(f'{key} 超过当前 IndexTTS 服务上限 {capability[key]}')
+
+    def prepare(self, settings, cancel):
+        if settings.start_service:
+            self.services.ensure('indextts', settings.base_url, cancel, settings.service_config)
+            # Fail the batch once if the loaded model cannot execute its frozen
+            # recipe, instead of repeating capability failures for every cue.
+            with IndexClient(settings.base_url, cancel, min(settings.timeout, 60)) as client:
+                capability = client.capabilities()
+            self.validate_capability(settings.recipe, {**capability, 'text_emotion': len(capability['modes']) >= 4})
 
     def action(self, raw):
         action = raw.get('action')
@@ -307,6 +326,7 @@ def synthesize(settings, text, cancel):
     recipe = settings.recipe
     with IndexClient(settings.base_url, cancel, settings.timeout) as client:
         cap = client.capabilities()
+        settings.controller.validate_capability(recipe, {**cap, 'text_emotion': len(cap['modes']) >= 4})
         mode = MODES.index(recipe['emotion_mode'])
         if mode >= len(cap['modes']):
             raise TtsServiceError('IndexTTS 当前未加载文本情感模型，请启用 --qwen_emo 后重新检测')

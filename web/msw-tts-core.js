@@ -1,7 +1,16 @@
 // Immutable subtitle selection for per-cue speech synthesis.
 (function (global) {
   'use strict';
-  function scope(project, selection, side = null) {
+  const engines = new Map(['qwen', 'yukkuri', 'indextts', 'gpt-sovits', 'edge', 'minimax', 'mossland'].map(id => [id, {id, text_limit: 600}]));
+  function textLimit(id = 'qwen') {
+    const engine = engines.get(id);
+    if (!engine) throw new Error('不支持的 TTS 引擎');
+    return engine.text_limit;
+  }
+  function configureEngines(rows) {
+    for (const row of rows || []) if (engines.has(row.id) && Number.isInteger(row.text_limit) && row.text_limit > 0) engines.set(row.id, row);
+  }
+  function scope(project, selection, side = null, engine = 'qwen') {
     const track = (project.multi_subtitle?.tracks || []).find(t => t.id === selection.trackId)
       || project.multi_subtitle?.tracks?.[0] || null;
     const mains = project.segments || [], secondary = track?.segments || [];
@@ -32,15 +41,15 @@
     }
     const sources = [...rows.values()].sort((a, b) => a.cue.start - b.cue.start || a.cue.end - b.cue.end);
     return { sources, needsChoice, all: !hasSelection, linked: linked.length,
-      tooLong: sources.filter(row => [...row.cue.text].length > 600).length,
+      tooLong: sources.filter(row => [...row.cue.text].length > textLimit(engine)).length,
       signature: JSON.stringify([hasSelection, [...selectedMain].sort(), [...selectedExt].sort(), track?.id, linked.map(b => b.id)]) };
   }
-  function snapshot(project, selection, side) {
+  function snapshot(project, selection, side, engine = 'qwen') {
     if (selection.overlayIds?.length) throw new Error('叠加字幕暂不支持翻译或配音，请选择主字幕或副字幕');
-    const selected = scope(project, selection, side);
+    const selected = scope(project, selection, side, engine);
     if (selected.needsChoice && !['main', 'secondary'].includes(side)) throw new Error('请先选择主字幕或副字幕');
     if (!selected.sources.length) throw new Error('没有可合成的字幕');
-    if (selected.tooLong) throw new Error('存在超过 600 字符的字幕，请先拆分');
+    if (selected.tooLong) throw new Error(`存在超过 ${textLimit(engine)} 字符的字幕，请先拆分`);
     return { project_id: project.msw.project_id, entries: selected.sources.map(({cue, trackId}) => ({
       key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,
     })) };
@@ -81,11 +90,11 @@
     }
     return parts;
   }
-  function textSnapshot(project, text, start = 0, settings = {}) {
+  function textSnapshot(project, text, start = 0, settings = {}, engine = 'qwen') {
     if (typeof text !== 'string' || !text.trim()) throw new Error('请输入要合成的配音草稿');
     const parts = splitDraft(text, settings);
     if (!parts.length) throw new Error('请输入要合成的配音草稿');
-    if (parts.some(part => [...part].length > 600)) throw new Error('配音片段超过 600 字符，请调整断句设置');
+    if (parts.some(part => [...part].length > textLimit(engine))) throw new Error(`配音片段超过 ${textLimit(engine)} 字符，请调整断句设置`);
     if (parts.length > 10000 || parts.reduce((n, part) => n + [...part].length, 0) > 1000000) throw new Error('单次 TTS 文本过长，请分批选择');
     if (!Number.isSafeInteger(start) || start < 0) throw new Error('配音起始位置无效');
     const id = global.MSWProject.id('text');
@@ -93,6 +102,6 @@
     return {project_id: project.msw.project_id, entries: parts.map((part, index) => ({key: global.MSWProject.id('entry'), id: `${id}:${index}`,
       kind: 'editor_text', track_id: null, text: part, start, end: start + 1}))};
   }
-  global.MSWTts = Object.freeze({ scope, snapshot, textSnapshot, splitDraft });
+  global.MSWTts = Object.freeze({ scope, snapshot, textSnapshot, splitDraft, textLimit, configureEngines });
   global.MSWE?.register('msw-tts-core', () => global.MSWTts);
 })(window);

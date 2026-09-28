@@ -38,11 +38,16 @@
     if (action.upload) void request('media-upload-cancel', { ...action.scope, upload_id: action.upload }).catch(() => {});
     if (restore && action.generation === host.generation && action.preview) await host.restoreMedia(action.previous);
     cancelButton.hidden = true; message('媒体导入已取消');
+    action.loading?.finish('cancelled');
   }
   async function begin() {
     const previous = operation?.previous || host.mediaSnapshot();
     await cancel({ restore: false });
+    const analysis = global.MSWE.resolve('media-analysis');
+    await analysis?.cancel('waveform', true); await analysis?.cancel('proxy', true);
+    host.timeline.resetWaveformLoading();
     const action = { previous, generation: host.generation, scope: payload(), controller: new AbortController(), preview: false };
+    action.loading = host.timeline.beginWaveformLoading();
     operation = action; cancelButton.hidden = false;
     return action;
   }
@@ -58,6 +63,7 @@
     current = media; operation = null; cancelButton.hidden = true;
     message(action.preview ? '媒体已就绪' : '媒体已导入；当前浏览器无法预览，可继续处理');
     global.dispatchEvent(new CustomEvent('msw:media-changed', { detail: media }));
+    action.loading.finish();
     return true;
   }
   async function failure(action, error) {
@@ -108,14 +114,16 @@
     if (!available() || operation) return current;
     const generation = host.generation, id = projectId(), reference = host.data.media;
     if (!reference) { current = null; return null; }
+    const loading = host.timeline.beginWaveformLoading();
     try {
       const result = await request(`media-context?${new URLSearchParams({ project_id: id, reference })}`);
-      if (generation !== host.generation || operation || host.data.media !== reference) return null;
+      if (generation !== host.generation || operation || host.data.media !== reference || !loading.current()) return null;
       current = result.media;
       if (current) current.needs_proxy = (current.metadata.audio_tracks?.length || 0) > 1;
       if (current) global.dispatchEvent(new CustomEvent('msw:media-ready', { detail: current }));
       return current;
-    } catch (error) { if (generation === host.generation) message(error.message); return null; }
+    } catch (error) { if (generation === host.generation) message(error.message); loading.finish('failed'); return null; }
+    finally { loading.finish(); }
   }
   cancelButton.addEventListener('click', () => void cancel());
   async function changeTrack(audio_index) {

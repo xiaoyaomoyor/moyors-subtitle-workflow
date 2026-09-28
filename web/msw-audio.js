@@ -10,12 +10,15 @@
   // 分离的贴片由 arrange 的重叠规则自动折叠回单轨（不会阻碍收纳）。
   let lastLanes = null;
   let sourceStatuses = new Map();
+  let gainPreview = null;
   for (const event of ['msw:subtitles-changed', 'msw:assets-changed']) global.addEventListener(event, () => {
     sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map(); schedulePaint();
   });
   const extension = () => host.data.msw || EMPTY_EXTENSION;
   function sync() {
-    const ext = extension(), clips = drag?.preview || ext.audio_clips || EMPTY;
+    const ext = extension();
+    if (gainPreview && gainPreview.extension !== ext) gainPreview = null;
+    const clips = drag?.preview || gainPreview?.clips || ext.audio_clips || EMPTY;
     if (state && dataRef === ext && clipsRef === clips && assetsRef === ext.assets && tracksRef === ext.audio_tracks) return state;
     const timelineChanged = !!state && (dataRef !== ext || clipsRef !== clips || tracksRef !== ext.audio_tracks);
     dataRef = ext; clipsRef = clips; assetsRef = ext.assets; tracksRef = ext.audio_tracks;
@@ -26,7 +29,7 @@
     lastLanes = arranged.lanes;
     gapSource = null;
     for (const id of selected) if (!clips.some(c => c.id === id)) selected.delete(id);
-    if (timelineChanged && !drag) { refreshSettings(); transport.reset(); }
+    if (timelineChanged && !drag && !gainPreview) { refreshSettings(); transport.reset(); }
     return state;
   }
   const hint = message => host.flashHint(t(message));
@@ -475,15 +478,26 @@
     protectGaps: gaps => { sync(); if (gapSource !== gaps) { gapSource = gaps; protectedRanges = core.protectGaps(gaps, extension()); } return protectedRanges; },
     diagnostics: transport.diagnostics,
     sourceGainDb: transport.sourceGainDb,
+    previewClipGains: gains => {
+      const ext = extension();
+      gainPreview = gains ? {extension: ext, clips: (ext.audio_clips || []).map(c => gains.has(c.id) ? {...c, gain_db: gains.get(c.id)} : c)} : null;
+      state = null; transport.refreshGains(); schedulePaint();
+    },
     setSourceGainDb: async value => { await transport.setSourceGainDb(value); global.dispatchEvent(new Event('msw:source-gain')); },
   });
   global.MSWE.register('audio-timeline', () => api);
+  global.addEventListener('msw:player-changed', event => {
+    if (event.detail?.reset) transport.resetSourceGain();
+    transport.attachPlayer(host.player);
+    global.dispatchEvent(new Event('msw:source-gain'));
+  });
   global.addEventListener('msw:media-changed', () => {
     transport.resetSourceGain(); global.dispatchEvent(new Event('msw:source-gain'));
   });
   global.addEventListener('msw:audio-changed', () => { state = null; refreshSettings(); transport.reset(); });
   global.addEventListener('msw:assets-changed', () => { state = null; timeline.refresh(); });
   global.addEventListener('msw:project-changed', () => {
+    gainPreview = null;
     drag?.cancel(); closeMenu(); selected.clear(); state = null; lastLanes = null; transport.clear();
     queueMicrotask(() => { refreshSettings(); timeline.refresh(); });
   });

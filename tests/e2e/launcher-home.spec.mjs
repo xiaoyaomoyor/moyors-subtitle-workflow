@@ -643,7 +643,9 @@ test('pin badge sits at the cover top-left and is tilted inward (C2)', async ({ 
     return { offsetLeft: box.left - cover.left, transform: getComputedStyle(node).transform };
   });
   expect(geo.offsetLeft).toBeLessThan(20);
-  expect(geo.transform).not.toBe('none'); // rotate(35deg) → matrix(...)
+  const matrix = geo.transform.match(/matrix\(([^)]+)\)/)[1].split(',').map(Number);
+  // Downward needle (0, 1) must point toward the lower right after rotation.
+  expect(matrix[2]).toBeGreaterThan(0); expect(matrix[3]).toBeGreaterThan(0);
 });
 
 test('ctrl-click and shift-click build a multi-selection that drives the batch menu (C3)', async ({ page }) => {
@@ -709,4 +711,27 @@ test('recent group caps at nine with an x/9 header (C4)', async ({ page }) => {
   });
   await page.waitForFunction(() => document.querySelectorAll('#recentGrid .recent-card').length === 9);
   await expect(page.locator('#recentGroupTitle .home-group-label')).toHaveText('最近工程（9/9）');
+});
+
+test('batch recent mutations finish sequentially before refreshing the shared list',async({page})=>{
+  await openHome(page);
+  await page.evaluate(()=>{
+    const original=MSWLauncher.callBackend;
+    window.__recentWrites=[];window.__recentReads=0;
+    MSWLauncher.callBackend=(method,payload)=>{
+      if(method==='set_recent_project_pinned')return new Promise(resolve=>window.__recentWrites.push(()=>resolve({ok:true})));
+      if(method==='get_recent_projects')window.__recentReads++;
+      return original(method,payload);
+    };
+  });
+  await cardOf(page,'clip.mosp').click();await cardOf(page,'intro.mosp').click({modifiers:['Control']});
+  await cardOf(page,'clip.mosp').click({button:'right'});
+  await page.locator('#recentContextMenu button').filter({hasText:'固定所选工程（2）'}).click();
+  await expect.poll(()=>page.evaluate(()=>window.__recentWrites.length)).toBe(1);
+  expect(await page.evaluate(()=>window.__recentReads)).toBe(0);
+  await page.evaluate(()=>window.__recentWrites[0]());
+  await expect.poll(()=>page.evaluate(()=>window.__recentWrites.length)).toBe(2);
+  expect(await page.evaluate(()=>window.__recentReads)).toBe(0);
+  await page.evaluate(()=>window.__recentWrites[1]());
+  await expect.poll(()=>page.evaluate(()=>window.__recentReads)).toBe(1);
 });

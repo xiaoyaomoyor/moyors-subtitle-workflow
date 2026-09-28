@@ -65,7 +65,7 @@ class IndexClient:
     def request(self, method, path, *, limit=4 * 1024 * 1024, **kwargs):
         self.check()
         try:
-            with self.session.request(method, self.url + path, timeout=(5, 30),
+            with self.session.request(method, self.url + path, timeout=(min(5, self.timeout), min(30, self.timeout)),
                                       allow_redirects=False, stream=True, **kwargs) as response:
                 if response.status_code != 200:
                     raise TtsServiceError(f'IndexTTS 请求失败（HTTP {response.status_code}），请检查服务是否可用')

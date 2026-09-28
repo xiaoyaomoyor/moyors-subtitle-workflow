@@ -399,7 +399,7 @@
 | `color` | `string` | 否 | 六位十六进制颜色，如 `#ffffff`；主字幕默认白色，拓展字幕默认黄色 `#ffd34d` |
 | `color_underline` | `boolean` | 否 | 播放预览按字幕颜色快照给文字加下划线以区分不同颜色的字幕；缺失时视为 `true`（默认开启），设为 `false` 时关闭下划线。编辑器仅在关闭时写入该字段 |
 | `color_style` | `string` | 否 | 主字幕的颜色显示样式：`underline`（默认）、`text`、`shadow`、`stroke`。`color_underline: false` 关闭按分组颜色显示；不更改 segment 颜色或文字 |
-| `speaker_labels` | `object` | 否 | 颜色说话人映射。`mapping_enabled` 控制映射（默认 false），`enabled` 控制播放器名称显示（默认 false），`names` 为五种颜色到姓名的映射（每名最多 64 字符），`separator` 最多 16 字符；名称与分隔符不允许控制字符。兼容旧 `enabled: true` 且缺少 `mapping_enabled` 的工程 |
+| `speaker_labels` | `object` | 否 | 颜色说话人映射。`mapping_enabled` 控制映射（默认 false），`enabled` 控制播放器名称显示（旧工程缺省 false，新建工程显式 true），`names` 为五种颜色到姓名的映射（每名最多 64 字符），`separator` 最多 16 字符；名称与分隔符不允许控制字符。兼容旧 `enabled: true` 且缺少 `mapping_enabled` 的工程 |
 | `preview.extension_subtitle` | `object` | 否 | 拓展字幕样式；同样支持 `font_size`、`font_family`、`color`，没有字号时默认比主字幕小 2px |
 
 ### 约束
@@ -423,7 +423,7 @@
 - SRT 和启动器文本模式 ASS 导入共享两层分配规则，超过主轨＋叠加轨容量明确报错；文稿匹配的严格 SRT 读取仍拒绝任何重叠。ASS 导入仅保留时间与文本，不等于样式文档往返。
 - 合并 SRT 导出按起点排序，同起点主轨在前；跳过禁用、空文本以及关闭的叠加轨，输出序号连续。空主轨也可导出启用的叠加轨。
 - `multi_subtitle` 继续表示副字幕，`msw.audio_clips` 继续表示配音贴片；二者不能用作叠加轨替代结构。MSW 未知可选字段和素材引用继续保留。
-- `preview.subtitle.ass_color_style` 为独立 ASS 颜色映射：`text`／`stroke`／`none`；原 CSS `color_style` 的历史 `shadow` 值仍兼容读取。
+- `preview.subtitle.ass_color_style` 为独立 ASS 颜色映射：`text`／`speaker`／`stroke`／`none`；`speaker` 仅着色映射生成的名称及分隔符，正文恢复有效基础色。原 CSS `color_style` 的历史 `shadow` 值仍兼容读取。
 
 ### 1.5 multi_subtitle 多重字幕
 
@@ -847,6 +847,7 @@ uv run python edit.py your_generated.mosp
 | `project_id` | 工程稳定标识，1–128 位 ASCII 字母、数字、`_ . : -`；普通保存与恢复保留身份，另存为和新建工程生成新身份 |
 | `applied_results` | 可选，完全应用过的任务 ID 数组，最多 10000 项；用于避免重复应用 |
 | `translation_applications` | 可选，对部分应用的任务记录已经写入的主字幕 ID；对象及每个数组最多 10000 项。任务 ID 遵循上述 ASCII 规则；字幕 ID 沿用原工程的不透明字符串规范（规范化后最多 160 字符，可含中文） |
+| `processing_results` | 可选，最多 10000 个候选批次。每条含 ASCII `id`、`kind`（`asr`／`translation`）、正整数 `number`、`edits` 和 `applications`。同工程同类型编号递增，不随排序变化 |
 | `translation_target_tracks` | 可选，部分应用时新建的副轨 ID，按任务 ID 索引，最多 10000 项；轨道 ID 沿用原工程的 160 字符规则。继续应用剩余结果时复用同一轨，完成后清除 |
 | `assets` | 可选，不可变音频素材数组，最多 10000 项；字段见下表。字幕历史保留该素材库存，不随字幕撤销删除 |
 | `subtitle_assets` | 可选，独立字幕素材数组，最多 10000 项；每条一个卡片，不参与混音或原字幕播放。复制、编辑、删除随字幕历史撤销/重做 |
@@ -898,7 +899,12 @@ uv run python edit.py your_generated.mosp
 
 油库里使用 `generation.provider = "yukkuri"`、`model = "aquestalk1"`，音色为 `f1/f2/m1/m2/dvd/imd1/jgr/r1`，另记 `speed`（50–300 的整数）、`engine_version`、`resource_version`、`text_version`。`language_type` 为 `Auto/Chinese/English`。`display_text` 保留原文，`spoken_text` 是实际传给引擎的假名，允许最长 12000 字符；其他必需配方字符串仍最多 2000 字符。可选 `source_ref.pronunciation_override` 为最长 600 字符的单条读音修正，批量快照中逐条独立保存；来源 `text` 不被替换。素材为普通 8 kHz、16-bit、单声道 WAV。以上为 v1 的兼容扩展，不改变时间或采样单位。引擎路径与当前 TTS 引擎偏好仅保存本机，不进入工程。
 
-IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`，`voice` 为音色参考名称，`language_type` 为 `ZH/EN/JA/AR/ES`。配方包含 `speaker_ref`、`emotion_ref`（`ref-<WAV SHA256>` 或未使用时为空）、对应可用的 `_name`／`_sha256`，以及 `emotion_mode`（`follow/audio/vector/text`）、`emotion_weight`、八项 `emotion_vector`、`emotion_text`、`emotion_random`、`duration_factor`、`max_text_tokens_per_segment`、`do_sample`、`top_p`、`top_k`、`temperature`、`length_penalty`、`num_beams`、`repetition_penalty`、`max_mel_tokens`。`source_ref.pronunciation_override` 可覆盖单条配音输入，`display_text` 保留字幕，`spoken_text` 保存实际输入。参考字节和服务地址只在本机 `index-tts/` 下保存，不嵌入工程；生成 WAV 继续自动收集。全局引擎偏好迁入本机 `tts-engine.json`，兼容读取旧油库里设置。以上为 v1 兼容扩展，采样与时间单位不变，详见 [IndexTTS 配音](docs/EDITOR_INDEXTTS.md)。
+IndexTTS 使用 `generation.provider = "indextts"`、`model = "index-tts-2.5"`，`voice` 为音色参考名称，`language_type` 为 `ZH/EN/JA/AR/ES`。配方包含 `speaker_ref`、`emotion_ref`（`ref-<WAV SHA256>` 或未使用时为空）、对应可用的 `_name`／`_sha256`，以及 `emotion_mode`（`follow/audio/vector/text`）、`emotion_weight`、八项 `emotion_vector`、`emotion_text`、`emotion_random`、`duration_factor`、`max_text_tokens_per_segment`、`do_sample`、`top_p`、`top_k`、`temperature`、`length_penalty`、`num_beams`、`repetition_penalty`、`max_mel_tokens`。`source_ref.pronunciation_override` 可覆盖单条配音输入，`display_text` 保留字幕，`spoken_text` 保存实际输入。参考字节和服务地址只在本机 `index-tts/` 下保存，不嵌入工程；生成 WAV 继续自动收集。全局引擎偏好迁入本机 `tts-engine.json`，兼容读取旧油库里设置。 本机服务启动配置另存应用数据目录 `tts-services/`（安装目录、自动检测的 Python、端口、启动等待上限与 QwenEmotion 开关），不进入工程／素材配方。A+B 不新增 generation 版本，也不改变已有三引擎每段 600 Unicode 字符的兼容限制；未知引擎禁止合成，不回退到百炼。以上为 v1 兼容扩展，采样与时间单位不变，详见 [IndexTTS 配音](docs/EDITOR_INDEXTTS.md)。
+
+GPT-SoVITS 使用 `generation.provider = "gpt-sovits"`、`model = "api-v2"`；`language_type` 为实际输出语言，`voice` 为参考名称。`gpt_model`／`sovits_model` 是本机登记的 `model-<64 hex>` 标识（相对名称、文件头和 stat 指纹），`speaker_ref`／`aux_refs` 为 `ref-<WAV SHA256>`。配方保存 `prompt_text`、独立的 `prompt_lang`、`no_prompt`、`speed_factor`、`text_split_method`、`top_k`、`top_p`、`temperature`、`seed`、`repetition_penalty`、`sample_steps`、`super_sampling`。本机路径、服务地址、Python 路径与参考字节不进入工程；重生成必须能在本机解析同一模型与参考，不自动替换缺失资源。
+
+Edge 使用 `generation.provider = "edge"`、`model = "edge-online"`，`voice` 为完整 ShortName，`language_type` 由音色派生。`rate`（−50～100）、`volume`（−100～100）为整数百分比变化，`pitch`（−100～100）为整数 Hz 变化，默认均为 0。缓存音色和网络等待配置只保存到本机。两引擎均沿用现有 WAV／素材与 source_ref 契约、每段 600 字符限制，不提升工程 schema 版本；`display_text`／`spoken_text` 保存实际提交文本。
+
 
 另存为自动收集 TTS 音频；可选原媒体写入新工程旁 `msw-<新身份摘要>.assets/media/<内容摘要><扩展名>`，顶层 `media` 保存相对路径。未收集的原媒体继续使用原引用（搬出原目录时已知相对引用转换为绝对引用）。缺失音频不删除元数据或贴片，保存响应单独报告缺失清单。
 
@@ -963,6 +969,18 @@ ASR 素材的 `original_start` 保留映射后的时间线位置，`start/end/it
 
 `msw.asr_applications` 为可选对象，最多保留 1000 个任务 ID 对应的应用记录。每条记录包含 `source_id`、64 位小写十六进制 `source_revision`、`audio_index`（0–255）、`range.start/end`（整数源毫秒，0 ≤ start < end ≤ 604800000）、`provider`、`model`（最长 256 字符）和 `removed_count/added_count`（0–10000）。已应用任务 ID 同时加入原有 `msw.applied_results`，避免重复插入。记录不包含密钥、请求头或临时音频路径。
 
+### 可编辑处理候选（2026-09 C+D）
+
+新 ASR／翻译面板使用 `msw.processing_results`；上述 `applied_results`、`asr_applications` 和 `translation_applications` 仍兼容旧记录，不再把新任务整体锁为“已应用”。服务原始结果与输入快照留在本机任务数据库，工程只保存修订覆盖层和应用基线，不保存服务密钥。
+
+- `edits`：最多 10000 项，每项 `{job_id, index, text}`。`index` 是该任务原始结果的稳定行序号（0–9999），`text` 最多 12000 个字符；允许暂存空文本，但禁止将空候选直接应用或入库。ASR 文本发生变化时不再使用原词级时间码。
+- `edited_at`：可选非负整数毫秒时间戳。浏览器候选暂存仅在比工程记录更新时恢复，避免旧缓存覆盖已保存的新修订。
+- `applications`：可包含 `main`、`secondary`、`library` 三个目标。每项含 `revision`（按任务 ID 排序后的候选文本序列签名，最长 4000000 字符）及可选 `state`。ASR 的 `state` 保留目标轨 ID 和所影响字幕快照；翻译保存应用后的源字幕与副字幕／绑定快照。与时间线修改一起进入撤销事务。
+- 整个候选记录序列的紧凑 JSON 限制为 16000000 字符。首次加载旧任务时按创建时间登记编号；后续不重排已登记编号。本机浏览器另保存无应用状态的候选暂存，用于未保存工程的刷新恢复。
+- ASR 输入快照新增可选 `secondary: {track_id, targets}`，时间继续使用整数毫秒。识别范围允许切穿已有字幕；应用时才要求选整条替换或截断保留。旧任务缺副轨快照时拒绝直接覆盖副轨，可存入素材库或重新识别。
+- 截断保留片段缺少可靠词时间码时，字幕条目保存 `review_required: true`，保留原文、移除无效字词映射。列表显示“待校对”，检查后点击可清除标记；清除支持撤销。可靠拆分按现有词级毫秒时间进行。
+- 素材批次 `kind` 新增 `translation`，可选 `parent_id` 指向处理批次。入库使用候选修订文字；同一修订重复入库不复制。用户再次编辑后入库创建新的素材批次，保留此前素材。
+
 `msw.asr_stale_subtitles` 是可选的 `{副轨ID: {字幕ID: ASR任务ID}}` 对象（最多 1000 个轨记录，每轨最多 10000 个字幕记录），表示原主字幕已被重新识别，保留的副字幕需要复核。失效主副绑定被解除，副字幕原文和时间保持；后续重新翻译成功覆盖该副字幕时清除相应标记。历史标记不要求当前仍存在对应字幕。音频素材和贴片保持原数据，界面依据 `source_ref` 与当前字幕／复核标记计算提示；该提示不改变播放或导出。整次应用及上述记录属于一次撤销事务。没有候选字幕时不删除旧字幕。
 
 ### D3 / D4 媒体与剪辑工程派生输出
@@ -982,3 +1000,19 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 受控版本文件以 `.mosp-bak` 结尾，结构仍为普通 MOSP，并去掉可重建内嵌缓存。相对媒体/表情包目录引用以备份文件所在目录为基准；TTS 音频按原 `msw.assets[*].path` 收集到备份目录，多个版本共用不可变文件。版本文件不包含原视频，也不替代完整素材备份；移动时保留工程目录的相对结构。恢复接口返回带新 project_id 的待另存副本，原 project_id 保存在 source_project_id。
 
 重新生成贴片时，可选 `source_ref.spoken_text`（1–12000 字符）记录需要原样重放的已保存读音；油库里绕过文本到假名的再次转换，IndexTTS 仍限制其输入为 600 字符。显示文字仍来自 `text`。任务快照的正文和重放读音总计最多 1000000 字符。重新生成从素材白名单配方读取调用参数，凭据／服务地址／本地资源位置使用当前环境配置；外部音频不伪造 TTS 配方。
+
+### beta.6 说话人导出兼容
+
+新建空工程显式设置 `preview.subtitle.speaker_labels.enabled: true`，映射仍默认关闭。缺字段的旧工程保持预览关闭；显式 true/false 原样读取。名称导出偏好保留用户明确关闭的值，`exportSpeakerLabelsExplicit` 只保存于本机编辑器偏好。
+
+显式启用 `ass_library_exports` 时，导出请求快照另携带 `preview.burn_speaker_labels`（`enabled`、五色 `names`、`separator`，沿用名称长度及字符校验）与 `burn_ass_library`。后台只读取快照，普通保存剥离这两个临时字段。未启用新方案的工程继续原压制样式。主／叠加支持名称局部着色，副字幕保留自己的基础色；所有前缀均不改写字幕正文。
+
+
+### TTS E–G：MiniMax 与 Mossland 配方
+
+继续使用 `msw.editor.v1` 的音频素材 `generation`，不升级工程 schema。`provider` 新增 `minimax`、`mossland`，共同保存 `model`、`voice`、`language_type`、`display_text`、`spoken_text`。模型必须为当前适配器支持的 ID，音色 ID 最长 255 字符，允许供应商 ID 中的空格与括号。
+
+- MiniMax 另存 `region`（`cn`／`global`）、`speed`（0.5–2）、`volume`（0.01–10，倍率）、`pitch`（−12～12 整数半音）、`emotion`（空串为自动；其他值按模型校验）。`language_type` 使用供应商英文语言名，自动为 `auto`。单字幕朗读修正与重新生成的已冻结读音沿用已有快照字段。
+- Mossland 存单人音色 ID 和模型／快照 ID；Flash 可指定语言，Pro 为 `auto`。不伪造字词时间码、音高或合成音量字段。
+- 连接地址由受控地域决定；API Key、超时、参考上传数据、创建请求记录和账号音色缓存均留在本机，不进入工程。完整结果转换成现有素材 WAV；不保存临时下载 URL。
+- 重新生成使用上述白名单参数，显示文本与实际朗读分开；现有七引擎旧配方及已保存的低频 Index／GPT 参数继续保留。播放增益与导出增益不写回供应商合成倍率。

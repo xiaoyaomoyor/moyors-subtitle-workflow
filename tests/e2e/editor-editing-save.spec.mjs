@@ -40,7 +40,7 @@ test('source gain changes only painted amplitude and reuses peak envelopes',asyn
   await toggleWaveSettings(page);await page.locator('#waveform-follow-source-gain').check();await toggleWaveSettings(page);
   await page.evaluate(()=>{const w=waveformEditor;w.redrawWaveformCanvases();window.__row=w.renderedRows[0];window.__envelope=window.__row._waveformEnvelope;window.__peaks=w.activeWaveShape().peaks;window.__picture=window.__row.querySelector('canvas').toDataURL();});
   await page.evaluate(async()=>{await window.MSWE.resolve('audio-timeline').setSourceGainDb(-12);});
-  await expect(page.locator('#waveform-source-gain-readout')).toHaveText('-12.0 dB');
+  await expect(page.locator('#waveform-readout')).toContainText('-12.0 dB');
   await expect.poll(()=>page.evaluate(()=>window.__row.querySelector('canvas').toDataURL()!==window.__picture)).toBe(true);
   expect(await page.evaluate(()=>window.__envelope===window.__row._waveformEnvelope && window.__peaks===waveformEditor.activeWaveShape().peaks)).toBe(true);
   await page.evaluate(()=>{waveformEditor.settings.followSourceGain=false;waveformEditor.refreshSourceGainDisplay();});
@@ -141,21 +141,38 @@ for(const outcome of ['success','edit','failure'])test(`save toast starts before
     expect(await page.evaluate(()=>hasUnsavedProjectChanges())).toBe(true);
   }else await expect(page.locator('.hint-warning').last()).toContainText('synthetic write failure');
   await expect(page.locator('.hint-save-spinner')).toHaveCount(0);
+  await expect(page.locator('#project-persistence-status')).toHaveCount(0);
 });
 
-test('save-as uses the same immediate progress toast above its modal',async({page})=>{
+for(const firstSave of [false,true])test(`${firstSave?'new project first save':'save-as'} uses the same immediate progress toast above its modal`,async({page})=>{
   let release,arrival;const arrived=new Promise(resolve=>arrival=resolve),gate=new Promise(resolve=>release=resolve);
   await page.route('**/api/msw/save-target',route=>route.fulfill({json:{ok:true,target:'test-target',directory:'projects',filename:'copy.mosp'}}));
   await page.route('**/api/msw/save-as',async route=>{
     arrival();await gate;
     const project=route.request().postDataJSON().project;
+    project.msw ||= {schema:'msw.editor.v1',project_id:'synthetic-new-project'};
     await route.fulfill({json:{ok:true,project,projectId:project.msw.project_id,filename:'copy.mosp',binding:'test-binding',saveRevision:1,assets:{available:0,total:0}}});
   });
-  await clickMenubarItem(page,'文件','save-project-as');await page.locator('#project-save-choose').click();
+  await clickMenubarItem(page,'文件',firstSave?'new-project':'save-project-as');
+  if(firstSave)await expect(page.locator('#project-save-title')).toHaveText('新工程保存位置');
+  await page.locator('#project-save-choose').click();
   await page.locator('#project-save-confirm').click();await arrived;
   const toast=page.locator('[data-save-progress="true"]');await expect(toast).toContainText('正在保存');
   await toast.evaluate(node=>node.dataset.testSave='save-as');
   expect(await page.evaluate(()=>Number(getComputedStyle(document.querySelector('#hint-stack')).zIndex)>Number(getComputedStyle(document.querySelector('#project-save-as-modal')).zIndex))).toBe(true);
   release();await expect(page.locator('[data-test-save="save-as"]')).toHaveText('保存成功');
   await expect(page.locator('#project-save-as-modal')).toBeHidden();
+  await expect(page.locator('#project-persistence-status')).toHaveCount(0);
+});
+
+test('save diagnostics retain asset and recovery warnings without a menu status',async({page})=>{
+  await page.evaluate(()=>{
+    const persistence=window.MSWE.resolve('project-persistence');
+    persistence.status({available:0,total:1,missing:['missing.wav']},'工程已保存','synthetic recovery warning');
+    persistence.status(null,'本机恢复草稿暂不可用','synthetic draft warning');
+    persistence.status(null,'本机恢复草稿暂不可用','synthetic draft warning');
+  });
+  await expect(page.locator('.hint-warning').filter({hasText:'素材缺失 1'})).toContainText('synthetic recovery warning');
+  await expect(page.locator('.hint-warning').filter({hasText:'synthetic draft warning'})).toHaveCount(1);
+  await expect(page.locator('#project-persistence-status')).toHaveCount(0);
 });

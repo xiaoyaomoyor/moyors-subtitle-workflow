@@ -83,7 +83,7 @@ class AudioImporter:
         finally:
             self.lock.release()
 
-    def convert(self, audio, suffix):
+    def convert(self, audio, suffix, *, cancel=None):
         if suffix == ".wav":
             try:
                 audio_info(audio)
@@ -108,7 +108,7 @@ class AudioImporter:
                        "-f", FORMATS[suffix], "-i", str(source), "-map", "0:a:0", "-vn", "-sn", "-dn",
                        "-map_metadata", "-1", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2",
                        "-fs", str(MAX_AUDIO_BYTES), str(output)]
-            run(command, self.cancel, timeout=120, cwd=root, failure_message="音频无法完整解码，请检查文件格式与内容")
+            run(command, cancel if cancel is not None else self.cancel, timeout=120, cwd=root, failure_message="音频无法完整解码，请检查文件格式与内容")
             if not output.is_file() or output.stat().st_size >= MAX_AUDIO_BYTES:
                 raise ValueError("解码后的 WAV 达到 32 MiB 限制，请先裁短音频；未导入截断内容")
             result = output.read_bytes()

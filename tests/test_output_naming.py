@@ -35,8 +35,8 @@ class OutputNamingTests(unittest.TestCase):
 
     def test_defaults_and_inactive_per_media_preference(self):
         cfg = gui_config.effective_config()
-        self.assertEqual((cfg.output_subfolder, cfg.per_video_subfolder, cfg.attach_model_name), (False, False, False))
-        self.config("MSW_GUI_PER_VIDEO_SUBFOLDER=true\n")
+        self.assertEqual((cfg.output_subfolder, cfg.per_video_subfolder, cfg.attach_model_name), (True, False, False))
+        self.config("MSW_GUI_OUTPUT_SUBFOLDER=false\nMSW_GUI_PER_VIDEO_SUBFOLDER=true\n")
         self.assertTrue(gui_config.effective_config().per_video_subfolder)
         self.assertEqual(naming.maw_root(self.root / "视频.mp4"), self.root / "_msw")
         self.config("MSW_GUI_OUTPUT_SUBFOLDER=true\nMSW_GUI_PER_VIDEO_SUBFOLDER=true\n")
@@ -46,7 +46,7 @@ class OutputNamingTests(unittest.TestCase):
         self.config("MAW_GUI_OUTPUT_SUBFOLDER=false\nMSW_GUI_OUTPUT_SUBFOLDER=true\n")
         self.assertTrue(gui_config.effective_config(environ={}).output_subfolder)
         self.assertFalse(gui_config.effective_config(environ={"MAW_GUI_OUTPUT_SUBFOLDER": "false"}).output_subfolder)
-        self.assertFalse(gui_config.effective_config(environ={"MAW_GUI_OUTPUT_SUBFOLDER": "true", "MSW_GUI_OUTPUT_SUBFOLDER": ""}).output_subfolder)
+        self.assertTrue(gui_config.effective_config(environ={"MAW_GUI_OUTPUT_SUBFOLDER": "false", "MSW_GUI_OUTPUT_SUBFOLDER": ""}).output_subfolder)
         scope = {"MSW_GUI_LANG": "en", "MAW_GUI_LANG": "zh"}
         apply_msw_env_aliases(scope)
         self.assertEqual(scope["MAW_GUI_LANG"], "en")

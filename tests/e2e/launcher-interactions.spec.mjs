@@ -228,7 +228,7 @@ test('keeps local runtime events working after the page learns that installation
   await expect(page.locator('#status')).toHaveText('本地模型支持已安装完成');
 });
 
-test('LLM settings refill the saved key and save only after a successful connection test', async ({ page }) => {
+test('LLM settings indicate a saved key without refilling it and save after connection test', async ({ page }) => {
   await openLauncher(page);
   // S4：LLM 连接配置在更多设置·服务与连接。
   await page.evaluate(() => window.MSWLauncher.openSettings('llmSettingsSection'));
@@ -239,15 +239,15 @@ test('LLM settings refill the saved key and save only after a successful connect
       baseUrl: 'https://api.deepseek.com',
       model: 'deepseek-v4-flash',
     });
-    const select = document.querySelector('#postprocessProvider');
+    const select = document.querySelector('#llmProvider');
     select.value = 'zhipu';
     select.dispatchEvent(new Event('change', { bubbles: true }));
     select.value = 'deepseek';
     select.dispatchEvent(new Event('change', { bubbles: true }));
   });
 
-  await expect(page.locator('#llmApiKey')).toHaveValue('sk-saved-for-test');
-  await expect(page.locator('#llmKeyStatus')).toHaveText('已从本地环境读取密钥 sk-…mock');
+  await expect(page.locator('#llmApiKey')).toHaveValue('');
+  await expect(page.locator('#llmApiKey')).toHaveAttribute('placeholder','已持有本地密钥');
   await page.locator('#llmApiKey').fill('sk-entered-for-test');
   await page.evaluate(() => {
     const callBackend = window.MSWLauncher.callBackend;
@@ -266,13 +266,13 @@ test('LLM settings refill the saved key and save only after a successful connect
     'test_postprocess_connection',
   ]);
   expect(await page.evaluate(() => window.__llmCalls[0].payload.save)).toBe(true);
-  await expect(page.locator('#llmApiKey')).toHaveValue('sk-entered-for-test');
+  await expect(page.locator('#llmApiKey')).toHaveValue('');
 });
 
 test('Custom provider labels and missing-key errors follow the selected language', async ({ page }) => {
   await openLauncher(page);
 
-  const customOption = page.locator('#postprocessProvider option[value="custom"]');
+  const customOption = page.locator('#translateProvider option[value="custom"]');
   const settingsCustomOption = page.locator('#llmProvider option[value="custom"]');
   await expect(customOption).toHaveText('自定义（兼容 OpenAI）');
   await expect(settingsCustomOption).toHaveText('自定义（兼容 OpenAI）');

@@ -266,10 +266,11 @@ test('new project binds the new file and a failed save picker allows a data-only
 
 test('recovery drafts restore subtitle and audio clip edits into an unsaved copy', async ({page}) => {
   await prepareClips(page);
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
     updateEditorSettings({ autoSaveProject: false }); scheduleAutoSave(); scheduleAutoSaveFlush();
-    await saveCurrentProject({silent:true});
   });
+  await page.waitForFunction(()=>!projectSaveInFlight && !projectCheckpointInFlight);
+  await page.evaluate(()=>saveCurrentProject({silent:true}));
   await expect.poll(() => JSON.parse(readFileSync(projectPath, 'utf8')).msw?.audio_clips?.length || 0).toBe(1);
   const original = readFileSync(projectPath, 'utf8');
   await page.evaluate(async () => {
@@ -512,6 +513,21 @@ test('audio clips overlap audibly, protect skipped gaps and can follow gap remov
   expect(await page.evaluate(()=>MSWE.resolve('audio-timeline').diagnostics().active)).toBe(0);
 });
 
+test('beta6 mouse pause stops virtual clips and prevents a late return to source playback', async ({page}) => {
+  await prepareClips(page);
+  await page.evaluate(() => {
+    updateEditorSettings({pauseOnMouseClick:true});
+    const h=MSWE.resolve('processing-host');
+    h.commitAudio('test virtual tail', ext=>ext.audio_clips[0].start_ms=11000);
+    h.seek(11.01);h.togglePlayback();
+    seekFromWaveform(1,{mouseClick:true});
+  });
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('audio-timeline').diagnostics().active)).toBe(0);
+  expect(await page.evaluate(()=>isPlaybackActive())).toBe(false);
+  expect(await page.evaluate(()=>player.paused)).toBe(true);
+  expect(await page.evaluate(()=>MSWE.resolve('audio-timeline').diagnostics().virtual)).toBe(false);
+});
+
 test('audio clips continue after source media ends and work without original media',async({page})=>{
   const clip=await prepareClips(page); await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toContain('linear-gradient');
   await page.evaluate(()=>{
@@ -704,7 +720,7 @@ test('blank TTS key reuses ASR settings and streaming WAV becomes a playable sec
   wav.writeUInt32LE(0x7ffffff7,4); wav.writeUInt32LE(2147483547,dataOffset+4);
   await page.locator('.multi-cue-column.extension .text').filter({hasText:/^Secondary Hello$/}).click();
   await panel(page,false);
-  await expect(page.locator('#tts-key-state')).toContainText('已有本机密钥');
+  await expect(page.locator('#tts-key')).toHaveAttribute('placeholder','已持有本地密钥');
   await expect(page.locator('#tts-key')).toHaveValue('');
   await expect(page.locator('#tts-voice')).toHaveValue('Cherry');
   await page.locator('#tts-target').selectOption('secondary'); await page.locator('#tts-start').click();
@@ -988,11 +1004,11 @@ test('production batch menu preserves selected clips and changes gain and mute w
   expect(await page.evaluate(() => DATA.msw.audio_clips.every(c=>c.muted))).toBe(true);
   await page.evaluate(()=>MSWE.resolve('processing-host').undo());
   expect(await page.evaluate(() => DATA.msw.audio_clips.every(c=>!c.muted))).toBe(true);
-  await page.locator('#audio-actions-gain').fill('-8'); await page.locator('#audio-actions-gain-apply').click();
+  await page.locator('#audio-actions-gain-value').fill('-8'); await page.locator('#audio-actions-gain-value').press('Enter');
   expect(await page.evaluate(() => DATA.msw.audio_clips.map(c=>c.gain_db))).toEqual([-8,-8]);
-  await page.locator('#audio-actions-gain-mode').selectOption('offset');
-  await page.locator('#audio-actions-gain').fill('30'); await page.locator('#audio-actions-gain-apply').click();
-  await expect(page.locator('#audio-actions-message')).toContainText('−60 至 +12');
+  await page.locator('#audio-actions-gain-value').fill('30');
+  expect(await page.locator('#audio-actions-gain-value').evaluate(n=>n.validity.valid)).toBe(false);
+  await page.locator('#audio-actions-gain-value').press('Escape');
   expect(await page.evaluate(() => DATA.msw.audio_clips.map(c=>c.gain_db))).toEqual([-8,-8]);
   await page.screenshot({path:info.outputPath('audio-actions.png')});
   await page.evaluate(()=>MSWE.resolve('audio-timeline').clearClipSelection());
@@ -1096,14 +1112,13 @@ test('batch details retain only latest fill and replacement, source gain and hea
   await page.locator('#audio-actions-mute').click();
   await expect(page.locator('#audio-actions-results section')).toHaveCount(2);
   const before=await page.evaluate(()=>({volume:player.volume,clips:JSON.stringify(DATA.msw.audio_clips)}));
-  await page.locator('#audio-actions-source-gain').fill('6');await page.locator('#audio-actions-source-apply').click();
-  await expect(page.locator('#audio-actions-source-status')).toContainText('6.0 dB');
+  await page.locator('#audio-actions-source-gain-value').fill('6');await page.locator('#audio-actions-source-gain-value').press('Enter');
+  await expect(page.locator('#waveform-readout')).toContainText('+6.0 dB');
   expect(await page.evaluate(()=>({volume:player.volume,clips:JSON.stringify(DATA.msw.audio_clips)}))).toEqual(before);
-  await page.locator('#audio-actions-source-mode').selectOption('offset');
-  await page.locator('#audio-actions-source-gain').fill('-3');await page.locator('#audio-actions-source-apply').click();
-  await expect(page.locator('#audio-actions-source-status')).toContainText('3.0 dB');
+  await page.locator('#audio-actions-source-gain-value').fill('3');await page.locator('#audio-actions-source-gain-value').press('Enter');
+  await expect(page.locator('#waveform-readout')).toContainText('+3.0 dB');
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('msw:media-changed')));
-  await expect(page.locator('#audio-actions-source-status')).toContainText('0.0 dB');
+  await expect(page.locator('#waveform-readout')).toContainText('0.0 dB');
   await page.evaluate(()=>{
     const host=MSWE.resolve('processing-host'),audio=MSWE.resolve('audio-timeline');
     host.commitAudio('many clips',ext=>{

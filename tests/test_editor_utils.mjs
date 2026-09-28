@@ -5615,3 +5615,18 @@ test('rejects export plans whose overlay stickers fall outside the output durati
     ...plan, overlayStickers: [{ startMs: 0, endMs: 800 }],
   }, { subtitleTracks: 'main' }));
 });
+
+
+test('beta6 speaker color preserves body color and legacy settings', () => {
+  assert.equal(helpers.normalizeSpeakerLabelSettings({}).enabled, false);
+  assert.equal(helpers.normalizeEditorSettings({exportSpeakerLabels:false}).exportSpeakerLabelsExplicit, true);
+  assert.equal(helpers.normalizeEditorSettings({}).exportSpeakerLabelsExplicit, false);
+  const cue={id:'one',start:0,end:1000,text:'Body: text',color:{name:'red'}};
+  const ass=helpers.buildAssPayload([cue],{assProfile:{},appearance:{ass_color_style:'speaker'},
+    speakerLabelsEnabled:true,speakerLabels:{red:'Alice'},speakerLabelSeparator:': ',
+    overlaySegments:[cue]});
+  const events=ass.split('\n').filter(line=>line.startsWith('Dialogue:'));
+  assert.equal(events.length,2);
+  assert.ok(events.every(line=>line.includes('Alice: ') && line.includes('}Body: text')));
+  assert.ok(!ass.includes('Style: ColorRed'));
+});

@@ -22,7 +22,7 @@ SUBTITLE_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 # CSS 预览的颜色样式（历史值 shadow 仅保留读取兼容）；
 # ASS 的颜色映射是独立字段 ass_color_style（text / stroke / none）。
 SUBTITLE_COLOR_STYLES = frozenset({"underline", "text", "shadow", "stroke"})
-SUBTITLE_ASS_COLOR_STYLES = frozenset({"text", "stroke", "none"})
+SUBTITLE_ASS_COLOR_STYLES = frozenset({"text", "speaker", "stroke", "none"})
 SPEAKER_LABEL_COLORS = ("yellow", "green", "red", "purple", "blue")
 SPEAKER_LABEL_MAX_LENGTH = 64
 SPEAKER_LABEL_SEPARATOR_MAX_LENGTH = 16
@@ -37,6 +37,8 @@ def validate_preview(project: JsonDict) -> tuple[ValidationIssue, ...]:
         return (("$.preview", "must be an object or null"),)
 
     issues: list[ValidationIssue] = []
+    if "burn_speaker_labels" in preview:
+        issues.extend(_validate_speaker_label_settings(preview["burn_speaker_labels"], "$.preview.burn_speaker_labels"))
     if 'burn_subtitles' in preview:
         from maw.msw.subtitle_style import normalize_styles
         try:

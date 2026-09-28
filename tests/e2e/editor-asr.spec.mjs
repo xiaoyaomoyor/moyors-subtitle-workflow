@@ -53,7 +53,7 @@ test('selected trimmed audio clip ASR maps time once and can be stored after the
   await page.locator('.msw-audio-clip').first().click();await open(page,'clips');
   expect(await page.locator('#msw-asr-settings .msw-asr-fields').first().locator('select').first().getAttribute('id')).toBe('msw-asr-mode');
   await page.locator('#msw-asr-start').click();const id=await completed(page);await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);
-  expect(calls[0].asr.duration_ms).toBe(1000);await expect(page.locator('#msw-asr-candidates')).toContainText('5.100–5.600');
+  expect(calls[0].asr.duration_ms).toBe(1000);await expect(page.locator('#msw-asr-jobs .msw-result-rows')).toContainText('5.100–5.600');
   await page.evaluate(()=>MSWE.resolve('processing-host').commitAudio('移动贴片',ext=>ext.audio_clips[0].start_ms=6000));
   await expect(page.locator('#msw-asr-apply')).toBeDisabled();await page.locator('#msw-asr-store').click();
   expect(await page.evaluate(()=>DATA.msw.subtitle_assets[0].original_start)).toBe(5100);
@@ -71,7 +71,7 @@ test('overlapping clips without source media are recognized separately and store
   await open(page,'clips');await page.locator('#msw-asr-start').click();
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(j=>j.status==='succeeded').length)).toBe(2);
   const id=await completed(page);await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);
-  await expect(page.locator('#msw-asr-apply')).toBeDisabled();await expect(page.locator('#msw-asr-apply')).toHaveAttribute('title',/重叠/);
+  await expect(page.locator('#msw-asr-apply')).toBeEnabled();
   await page.locator('#msw-asr-store').click();
   expect(await page.evaluate(()=>DATA.msw.subtitle_assets.map(a=>a.original_start).sort((a,b)=>a-b))).toEqual([2100,3100]);
   expect(await page.evaluate(()=>DATA.msw.asset_batches.filter(b=>b.kind==='asr').length)).toBe(1);
@@ -83,7 +83,7 @@ test('Qwen full-media task previews and stores source-time subtitles without pas
   await page.evaluate(()=>{DATA.segments.push({id:'old',start:100,end:800,text:'Existing'});renderAll();});
   await open(page);await page.locator('#msw-asr-start').click();const id=await completed(page);
   await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);
-  await expect(page.locator('#msw-asr-candidates')).toContainText('Recognized speech');
+  await expect(page.locator('#msw-asr-jobs textarea').first()).toHaveValue('Recognized speech');
   expect(calls).toHaveLength(1);expect(calls[0].asr.duration_ms).toBe(4000);expect(JSON.stringify(calls)).not.toContain('synthetic-asr-key');
   expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Existing');
   await page.locator('#msw-asr-store').click();
@@ -95,15 +95,15 @@ test('Qwen full-media task previews and stores source-time subtitles without pas
   await page.keyboard.press('Control+y');expect(await page.evaluate(()=>DATA.segments.map(c=>c.text))).toEqual(['Recognized speech']);
 });
 
-test('range boundaries require explicit expansion and then use a precisely extracted source range',async({page})=>{
+test('range boundaries allow optional expansion and then use a precisely extracted source range',async({page})=>{
   await page.evaluate(()=>{
     DATA.segments.push({id:'old',start:1000,end:2000,text:'Crossed'});renderAll();MSWE.resolve('time-range').setRange({start:1500,end:2300});
   });
-  await open(page,'range');await expect(page.locator('#msw-asr-start')).toBeDisabled();
-  await expect(page.locator('#msw-asr-scope')).toContainText('切穿');await page.locator('#msw-asr-expand').click();
+  await open(page,'range');await expect(page.locator('#msw-asr-start')).toBeEnabled();
+  await page.locator('#msw-asr-expand').click();
   expect(await page.evaluate(()=>MSWE.resolve('time-range').range)).toEqual({start:1000,end:2300});
   await page.locator('#msw-asr-start').click();const id=await completed(page);await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);
-  expect(calls[0].asr.duration_ms).toBe(1300);await expect(page.locator('#msw-asr-candidates')).toContainText('1.100–1.600');
+  expect(calls[0].asr.duration_ms).toBe(1300);await expect(page.locator('#msw-asr-jobs .msw-result-rows')).toContainText('1.100–1.600');
   expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Crossed');
 });
 
@@ -112,7 +112,7 @@ test('empty main track requires explicit application, preserves media and suppor
   expect(await page.evaluate(()=>DATA.segments.length)).toBe(0);
   await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);await page.locator('#msw-asr-apply').click();
   await expect.poll(()=>page.evaluate(()=>DATA.segments[0]?.text)).toBe('Recognized speech');
-  expect(await page.evaluate(()=>DATA.msw.applied_results.length)).toBe(1);
+  expect(await page.evaluate(()=>DATA.msw.processing_results.filter(b=>b.applications.main).length)).toBe(1);
   await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);await expect(page.locator('#msw-asr-apply')).toBeDisabled();
   await page.screenshot({path:join(root,'asr-applied.png'),fullPage:true});
   await page.locator('#msw-asr-close').click();await page.locator('body').click({position:{x:4,y:4}});await page.keyboard.press('Control+z');
@@ -128,10 +128,8 @@ test('disjoint selections submit separate source intervals and preserve subtitle
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(job=>job.status==='succeeded').length)).toBe(2);
   expect(calls.map(call=>call.asr.duration_ms)).toEqual([1000,1000]);
   const ids=await page.evaluate(()=>MSWE.resolve('asr').jobs.map(job=>job.id));
-  for (const id of ids) {
-    await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);await page.locator('#msw-asr-apply').click();
-    await expect.poll(()=>page.evaluate(id=>DATA.msw.applied_results?.includes(id),id)).toBe(true);
-  }
+  await page.evaluate(id=>MSWE.resolve('asr').showResult(id),ids[0]);await page.locator('#msw-asr-apply').click();
+  await expect.poll(()=>page.evaluate(()=>DATA.msw.processing_results.filter(b=>b.applications.main).length)).toBe(1);
   expect(await page.evaluate(()=>DATA.segments.map(cue=>[cue.start,cue.text])))
     .toEqual([[100,'Recognized speech'],[1500,'Unselected gap'],[2100,'Recognized speech']]);
 });
@@ -142,8 +140,8 @@ test('ASR controls and replacement preview follow the English editor language',a
   await expect(page.locator('#msw-asr-start')).toHaveText('Start transcription');
   await page.locator('#msw-asr-start').click();const id=await completed(page);await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);
   await expect(page.locator('#msw-asr-apply')).toHaveText('Replace main subtitles');
-  await expect(page.locator('#msw-asr-result-status')).toContainText('Replace main subtitles');
-  await expect(page.locator('#msw-asr-result-status')).not.toContainText(/[\u3400-\u9fff]/);
+  await expect(page.locator('#msw-asr-selected')).toContainText('ASR batch');
+  await expect(page.locator('#msw-asr-jobs .msw-result-status')).not.toContainText(/[\u3400-\u9fff]/);
   await expect(page.locator('#msw-asr-jobs')).not.toContainText(/[\u3400-\u9fff]/);
   await page.screenshot({path:join(root,'asr-english.png'),fullPage:true});
 });
@@ -172,14 +170,14 @@ test('editing the target while ASR runs blocks application but retains library i
   await page.evaluate(()=>{DATA.segments[0].text='User edit';renderAll();});
   reply={segments:[{start:100,end:600,text:'Late candidate'}]};pending.shift()();const id=await completed(page);
   await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);await expect(page.locator('#msw-asr-apply')).toBeDisabled();
-  await expect(page.locator('#msw-asr-result-status')).toContainText('编辑');expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('User edit');
+  await expect(page.locator('#msw-asr-apply')).toHaveAttribute('title',/字幕已变化/);expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('User edit');
   await page.locator('#msw-asr-store').click();expect(await page.evaluate(()=>DATA.msw.subtitle_assets[0].text)).toBe('Late candidate');
 });
 
 test('empty recognition never clears existing subtitles or creates empty assets',async({page})=>{
   await page.evaluate(()=>{DATA.segments.push({id:'old',start:0,end:1000,text:'Keep'});renderAll();});reply={segments:[]};
   await open(page);await page.locator('#msw-asr-start').click();const id=await completed(page);await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);
-  await expect(page.locator('#msw-asr-apply')).toBeDisabled();await expect(page.locator('#msw-asr-result-status')).toContainText('没有识别到语音');
+  await expect(page.locator('#msw-asr-apply')).toBeDisabled();await expect(page.locator('#msw-asr-jobs .msw-result-status')).toContainText('没有识别到语音');
   await expect(page.locator('#msw-asr-store')).toBeDisabled();await expect(page.locator('#msw-asr-discard')).toHaveCount(0);
   expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Keep');
 });
@@ -219,8 +217,8 @@ test('a partly submitted range batch resumes only its remaining requests',async(
   await page.locator('#msw-asr-start').click();
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(job=>job.status==='succeeded').length)).toBe(2);
   expect(calls).toHaveLength(2);expect(submitted).toBe(3);
-  await expect(page.locator('#msw-asr-jobs')).toContainText('0.000–1.000 s');
-  await expect(page.locator('#msw-asr-jobs')).toContainText('2.000–3.000 s');
+  await expect(page.locator('#msw-asr-jobs')).toContainText('0.100–0.600 s');
+  await expect(page.locator('#msw-asr-jobs')).toContainText('2.100–2.600 s');
 });
 
 test('changing the underlying source after recognition rejects apply without losing candidates',async({page})=>{
@@ -229,7 +227,7 @@ test('changing the underlying source after recognition rejects apply without los
   writeFileSync(mediaPath,Buffer.concat([readFileSync(mediaPath),Buffer.from([0,0])]));
   await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);await page.locator('#msw-asr-apply').click();
   await expect(page.locator('#msw-asr-message')).toContainText(/改变|变化/);
-  expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Keep');await expect(page.locator('#msw-asr-candidates')).toContainText('Recognized speech');
+  expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Keep');await expect(page.locator('#msw-asr-jobs textarea').first()).toHaveValue('Recognized speech');
 });
 
 test('replacing a group head promotes the outside survivor and keeps its original timing',async({page})=>{
@@ -248,7 +246,7 @@ test('replacing a group head promotes the outside survivor and keeps its origina
 test('cancelling ASR leaves subtitles unchanged even when the provider returns late',async({page})=>{
   reply=null;await open(page);await page.locator('#msw-asr-start').click();await expect.poll(()=>pending.length).toBe(1);
   await page.locator('#msw-asr-history > summary').click();
-  await page.locator('#msw-asr-jobs button').filter({hasText:/^取消$/}).click();
+  await page.locator('#msw-asr-jobs button').filter({hasText:/^取消任务$/}).click();
   reply={segments:[{start:100,end:600,text:'Late result'}]};pending.shift()();
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs[0]?.status)).toBe('cancelled');
   expect(await page.evaluate(()=>DATA.segments)).toEqual([]);
@@ -258,15 +256,15 @@ test('retry starts a new cancellable ASR job with the same range',async({page})=
   reply=null;await open(page,'whole');await page.locator('#msw-asr-start').click();
   await expect.poll(()=>pending.length).toBe(1);
   await page.locator('#msw-asr-history > summary').click();
-  await page.locator('#msw-asr-jobs button').filter({hasText:/^取消$/}).click();
+  await page.locator('#msw-asr-jobs button').filter({hasText:/^取消任务$/}).click();
   reply={segments:[]};pending.shift()();
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs[0]?.status)).toBe('cancelled');
   reply=null;await page.getByRole('button',{name:'使用此范围重试',exact:true}).click();
   await expect.poll(()=>pending.length).toBe(1);
   await expect(page.getByRole('button',{name:'正在重试',exact:true})).toBeDisabled();
-  const latest=page.locator('#msw-asr-jobs [data-asr-job]').first();
-  await expect(latest.getByRole('button',{name:'取消',exact:true})).toBeVisible();
-  await latest.getByRole('button',{name:'取消',exact:true}).click();
+  const latest=page.locator('#msw-asr-jobs .msw-result-batch').last();
+  await expect(latest.getByRole('button',{name:'取消任务',exact:true})).toBeVisible();
+  await latest.getByRole('button',{name:'取消任务',exact:true}).click();
   reply={segments:[]};pending.shift()();
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(j=>j.status==='cancelled').length)).toBe(2);
   expect(calls).toHaveLength(2);expect(calls[1].asr.duration_ms).toBe(calls[0].asr.duration_ms);
@@ -349,28 +347,20 @@ test('ASR uses TTS panel geometry with two call columns and separate environment
   await expect(page.locator('#msw-asr-close')).toBeInViewport();
 });
 
-test('each history record owns its preview and folded history retains batch library import',async({page})=>{
-  await page.evaluate(()=>{
-    DATA.segments.push({id:'keep',start:1500,end:1800,text:'Keep'});renderAll();
-    MSWE.resolve('time-range').setRange([{start:0,end:1000},{start:2000,end:3000}]);
-  });
+test('one ASR action groups ranges into one selectable batch and folding survives polling',async({page})=>{
+  await page.evaluate(()=>MSWE.resolve('time-range').setRange([{start:0,end:1000},{start:2000,end:3000}]));
   await open(page,'range');await page.locator('#msw-asr-start').click();
-  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(job=>job.status==='succeeded').length)).toBe(2);
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(j=>j.status==='succeeded').length)).toBe(2);
   await page.locator('#msw-asr-history > summary').click();
-  const cards=page.locator('[data-asr-job]');await expect(cards).toHaveCount(2);
-  await expect(page.locator('[data-asr-job] details')).toHaveCount(2);
-  const id=await cards.first().getAttribute('data-asr-job');
-  await cards.first().getByRole('radio').check();
-  await expect(page.locator('#msw-asr-preview')).toHaveAttribute('open','');
-  await page.locator('#msw-asr-preview > summary').click();
-  // A real server event forces a list refresh; folding must survive it.
-  await page.evaluate(async id=>{const media=MSWE.resolve('media');await media.request(`jobs/${id}/ack`,{project_id:DATA.msw.project_id,application:'discarded'});},id);
-  await expect.poll(()=>page.evaluate(id=>MSWE.resolve('asr').jobs.find(job=>job.id===id).application,id)).toBe('discarded');
-  await expect(page.locator('#msw-asr-preview')).not.toHaveAttribute('open','');
-  await page.screenshot({path:join(root,'asr-records.png'),fullPage:true});
-  await page.locator('#msw-asr-history > summary').click();
-  for(const action of ['apply','store'])await expect(page.locator('#msw-asr-'+action)).toBeVisible();
-  await page.locator('#msw-asr-store').click();
+  const cards=page.locator('#msw-asr-jobs .msw-result-batch');await expect(cards).toHaveCount(1);
+  await cards.getByRole('radio').check();const toggle=cards.locator('.msw-result-toggle');
+  if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();
+  await expect(cards.locator('textarea')).toHaveCount(2);await toggle.click();
+  const id=await page.evaluate(()=>MSWE.resolve('asr').jobs[0].id);
+  await page.evaluate(async id=>{await MSWE.resolve('media').request(`jobs/${id}/ack`,{project_id:DATA.msw.project_id,application:'discarded'});},id);
+  await expect.poll(()=>page.evaluate(id=>MSWE.resolve('asr').jobs.find(j=>j.id===id).application,id)).toBe('discarded');
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await page.locator('#msw-asr-history > summary').click();await page.locator('#msw-asr-store').click();
   expect(await page.evaluate(()=>DATA.msw.subtitle_assets.map(a=>a.original_start).sort((a,b)=>a-b))).toEqual([100,2100]);
   expect(await page.evaluate(()=>new Set(DATA.msw.subtitle_assets.map(a=>a.batch_id)).size)).toBe(1);
 });

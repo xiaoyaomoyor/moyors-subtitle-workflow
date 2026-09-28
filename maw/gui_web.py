@@ -1769,7 +1769,7 @@ class LauncherApi:
         kind = str(payload.get("kind") or "media")
         if kind in {"prefab", "waveform"}:
             extensions = ";".join("*" + ext for ext in sorted(MEDIA_EXTS | {".mosp", ".json"} | ({".srt", ".ass"} if kind == "prefab" else set())))
-            file_types = (f"Media, projects and subtitles ({extensions})", "All files (*.*)")
+            file_types = (f"Media projects and subtitles ({extensions})", "All files (*.*)")
         elif kind == "json":
             file_types = ("MSW projects (*.mosp;*.json)",)
         elif kind == "subtitle":

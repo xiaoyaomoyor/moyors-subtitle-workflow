@@ -23,7 +23,15 @@
   let runtime = {state: 'idle', runtime_path: ''}, runtimeTimer, runtimeRequest = false;
   const isYukkuri = () => el('tts-engine').value === 'yukkuri';
   const isIndex = () => el('tts-engine').value === 'indextts';
+  const isGpt = () => el('tts-engine').value === 'gpt-sovits';
+  const isQwen = () => el('tts-engine').value === 'qwen';
+  const isEdge = () => el('tts-engine').value === 'edge';
+  let gptTts = null, edgeTts = null;
+  const clouds = {};
+  const cloud = () => clouds[el('tts-engine').value];
+  const textLimit = () => global.MSWTts.textLimit(el('tts-engine').value || 'qwen');
   let yukkuriPreviewBusy = false;
+  let localServices = null;
   const active = job => ['queued', 'running', 'cancel_requested'].includes(job.status);
   const assets = () => host.data.msw?.assets || [];
   const panel = host.createFloatingPanel({ panel: el('tts-panel'), dragHandle: el('tts-drag'),
@@ -54,6 +62,11 @@
     playReference, stopReference, generation: () => host.generation});
   const indexTts = global.MSWIndexTts.create({el, t, request, updateScope,
     playReference, stopReference, generation: () => host.generation});
+  localServices = global.MSWTtsServices.create({el, t, request, updateScope, connected: () => { if (isIndex()) void indexTts.check(); }});
+  gptTts = global.MSWGptSovits.create({el, t, request, updateScope, playReference, stopReference,
+    startService: () => localServices.start('gpt-sovits')});
+  edgeTts = global.MSWEdgeTts.create({el,t,request,updateScope});
+  for (const engine of ['minimax','mossland']) clouds[engine] = global.MSWCloudTts.create({engine,el,t,request,updateScope});
   function syncDraft() {
     const next = available && isText() && panel.isOpen() && !assetUI.editing;
     if (next === draftActive) return;
@@ -80,7 +93,8 @@
   function updateScope() {
     const parts = global.MSWTts.splitDraft(el('cue-panel-tts-text').value, host.draftSettings());
     const scope = isText() ? {signature: 'editor_text', sources: parts,
-      tooLong: parts.filter(part => [...part].length > 600).length || (parts.length > 10000 ? 1 : 0)} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value);
+      tooLong: parts.filter(part => [...part].length > textLimit()).length || (parts.length > 10000 ? 1 : 0)} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value, el('tts-engine').value);
+    clouds.minimax?.scope(!isText() && scope.sources.length === 1, scope.signature !== scopeSignature);
     if (scope.signature !== scopeSignature) {
       scopeSignature = scope.signature;
       el('tts-yukkuri-pronunciation').value = '';
@@ -89,17 +103,20 @@
     el('tts-scope').textContent = (isText() ? `${t('范围：独立配音草稿 · 不修改字幕')} · ${parts.length} ${t('条')}`
       : `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
         + (scope.linked ? ` · ${t('连锁字幕按操作对象合成，独立字幕保留原选区')}` : ''))
-      + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过 600 字符，请先拆分')}` : '');
-    el('cue-panel-tts-count').textContent = `${parts.length} ${t('段')} · ${t('最长')} ${parts.reduce((n, part) => Math.max(n, [...part].length), 0)} / 600`;
+      + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过')} ${textLimit()} ${t('字符，请先拆分')}` : '');
+    el('cue-panel-tts-count').textContent = `${parts.length} ${t('段')} · ${t('最长')} ${parts.reduce((n, part) => Math.max(n, [...part].length), 0)} / ${textLimit()}`;
     if (el('cue-panel-tts-preview').open) renderDraftPreview(parts);
     el('tts-yukkuri-pronunciation-field').hidden = isText() || scope.sources.length !== 1;
     el('tts-index-pronunciation-field').hidden = el('tts-yukkuri-pronunciation-field').hidden;
     el('tts-start').disabled = !available || !configured || busy || (!pending && (
       (isYukkuri() && (!runtime.runtime_path || runtime.state === 'working' || runtimeRequest))
-      || (isIndex() && !indexTts.ready())
-      || (!isYukkuri() && !isIndex() && (!el('tts-voice').value.trim() || (!keyState() && !el('tts-key').value.trim())))
+      || (isIndex() && !indexTts.ready() && !(localServices?.canStart() && indexTts.referencesReady()))
+      || (isGpt() && !gptTts?.ready())
+      || (isEdge() && !edgeTts?.ready())
+      || (cloud() && !cloud().ready())
+      || (isQwen() && (!el('tts-voice').value.trim() || (!keyState() && !el('tts-key').value.trim())))
       || !scope.sources.length || scope.tooLong || (scope.needsChoice && !el('tts-target').value)));
-    el('tts-start').textContent = t(pending ? '确认上次提交' : '开始合成');
+    el('tts-start').textContent = t(pending ? '确认上次提交' : (isIndex() || isGpt()) && localServices?.canStart(isGpt() ? 'gpt-sovits' : 'indextts') && localServices.needsStart(isGpt() ? 'gpt-sovits' : 'indextts') ? '启动并合成' : '开始合成');
     for (const id of ['tts-save-settings', 'tts-environment-save']) el(id).disabled = !available || !configured || savingSettings || indexTts.isBusy();
     environmentNotice();
     return scope;
@@ -129,9 +146,13 @@
     return recipeFor(el('tts-engine').value);
   }
   function recipeFor(engine) {
+    if (clouds[engine]) return clouds[engine].recipe();
     if (engine === 'indextts') return indexTts.recipe();
+    if (engine === 'gpt-sovits') return gptTts.recipe();
+    if (engine === 'edge') return edgeTts.recipe();
     if (engine === 'yukkuri') return {provider: 'yukkuri', model: 'aquestalk1', voice: el('tts-yukkuri-voice').value,
       language_type: el('tts-yukkuri-language').value, speed: Number(el('tts-yukkuri-speed').value)};
+    if (engine !== 'qwen') throw new Error(t('不支持的 TTS 引擎'));
     return qwenRecipe();
   }
   function qwenRecipe() {
@@ -143,13 +164,18 @@
   }
   function updateEngine() {
     stopReference('yukkuri');
-    el('tts-qwen-fields').hidden = isYukkuri() || isIndex();
+    el('tts-qwen-fields').hidden = !isQwen();
+    el('tts-gpt-fields').hidden = !isGpt();
+    el('tts-edge-fields').hidden = !isEdge();
+    for (const engine of ['minimax','mossland']) el('tts-'+engine+'-fields').hidden = el('tts-engine').value !== engine;
+    gptTts?.stopPreview();
     el('tts-yukkuri-fields').hidden = !isYukkuri();
     el('tts-index-fields').hidden = !isIndex();
     if (!isIndex() && !el('editor-settings-modal').classList.contains('show')) indexTts.invalidate();
     else indexTts.stopPreview();
     updateScope();
     if (isYukkuri() && runtime.state === 'idle' && runtime.runtime_path) void runtimeAction('check');
+    if (configured && isEdge()) edgeTts.ensureVoices();
     if (configured && isIndex() && !indexTts.connected()) void indexTts.check();
   }
   function renderRuntime(value) {
@@ -191,17 +217,18 @@
   }
   function keyState() {
     const configured = regions.find(region => region.id === el('tts-region').value)?.hasApiKey;
-    el('tts-key-state').textContent = t(configured ? '此地域已有本机密钥，留空即可复用' : '请填写此地域的百炼密钥；北京和新加坡密钥不同');
+    el('tts-key').placeholder = t(configured ? '已持有本地密钥' : '请输入 API Key');
     return configured;
   }
   async function loadSettings(preserve = false) {
     const previous = preserve && configured ? {engine: el('tts-engine').value, qwen: qwenRecipe(),
-      yukkuri: recipeFor('yukkuri'), index: indexTts.recipe(), key: el('tts-key').value} : null;
+      yukkuri: recipeFor('yukkuri'), index: indexTts.recipe(), gpt: gptTts.recipe(), edge: edgeTts.recipe(), key: el('tts-key').value} : null;
     const data = await request('tts-settings');
     if (!data.modelTypes || !data.systemVoices || data.workspace_version !== 2) {
       configured = false; updateScope();
       throw new Error(t('本机 TTS 服务仍是旧版本，请重启编辑器服务后刷新页面'));
     }
+    global.MSWTts.configureEngines(data.engines);
     regions = data.regions;
     el('tts-language').replaceChildren(...data.languages.map(language => new Option(t(language), language)));
     const value = previous?.qwen || data.recipe;
@@ -218,7 +245,11 @@
       renderRuntime(data.yukkuri);
     }
     configured = true; qwenVoices.configure({...data, recipe: value});
-    indexTts.configure({...data.index_tts, ...(previous ? {recipe: previous.index} : {})}); updateEngine();
+    indexTts.configure({...data.index_tts, ...(previous ? {recipe: previous.index} : {})});
+    gptTts.configure({...data.gpt_sovits, ...(previous ? {recipe: previous.gpt} : {})});
+    edgeTts.configure({...data.edge_tts, ...(previous ? {recipe: previous.edge} : {})});
+    for (const engine of ['minimax','mossland']) clouds[engine].configure(data[engine], {preserve: Boolean(previous)});
+    await localServices.refresh(true); updateEngine();
   }
   function ensureSettings() {
     if (configured) return Promise.resolve();
@@ -228,21 +259,26 @@
   function environmentNotice() {
     let text = '';
     if (!configured) text = '正在读取本机 TTS 配置…';
-    else if (isIndex()) text = indexTts.problem();
+    else if (isGpt() && !gptTts?.hasResources()) text = 'GPT-SoVITS 尚未配置模型与参考，请前往环境配置。';
+    else if (isEdge()) text = edgeTts?.problem() || '';
+    else if (cloud()) text = cloud().problem();
+    else if (isIndex()) text = localServices?.canStart() ? '' : indexTts.problem();
     else if (isYukkuri() && (!runtime.runtime_path || runtime.state === 'failed')) text = '油库里资源未就绪，请前往环境配置安装或检测。';
-    else if (!isYukkuri() && !isIndex() && !keyState() && !el('tts-key').value.trim()) text = '百炼密钥尚未配置，请前往环境配置填写。';
+    else if (isQwen() && !keyState() && !el('tts-key').value.trim()) text = '百炼密钥尚未配置，请前往环境配置填写。';
     el('tts-environment-notice').textContent = t(text); el('tts-environment-notice').hidden = !text;
     el('tts-environment-reminder').hidden = !text || !configured;
   }
   async function environmentView() {
     const engine = el('tts-environment-engine').value;
-    for (const id of ['qwen', 'yukkuri', 'indextts']) el('tts-environment-' + id).hidden = engine !== id;
+    for (const id of ['qwen', 'yukkuri', 'indextts', 'gpt-sovits', 'edge', 'minimax', 'mossland']) el('tts-environment-' + id).hidden = engine !== id;
     if (!available) return;
     try {
       await ensureSettings();
       if (el('tts-environment-engine').value !== engine) return;
       if (engine === 'qwen') qwenVoices.management();
       else if (engine === 'yukkuri') await pollRuntime();
+      else if (engine === 'edge') edgeTts.ensureVoices();
+      else if (['indextts','gpt-sovits'].includes(engine)) await localServices.refresh();
     } catch (error) { el('tts-environment-message').textContent = error.message; }
   }
   function action(label, callback) {
@@ -266,7 +302,7 @@
       const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
       const heading = document.createElement('strong'); heading.textContent = `TTS · ${job.count} · ${job.recipe?.voice || ''}`;
       const status = document.createElement('p'); status.className = 'msw-processing-hint';
-      status.textContent = `${t(statuses[job.status] || job.status)} · ${t('成功')} ${job.progress?.ready || 0} / ${job.count}`
+      status.textContent = `${t(job.stage === 'starting_service' && active(job) ? '正在等待本机服务' : statuses[job.status] || job.status)} · ${t('成功')} ${job.progress?.ready || 0} / ${job.count}`
         + (job.progress?.failed ? ` · ${t('失败')} ${job.progress.failed}` : '');
       card.append(heading, status);
       if (job.error) { const error = document.createElement('p'); error.textContent = job.error; card.append(error); }
@@ -300,8 +336,9 @@
       const text = document.createElement('p'); text.className = 'msw-asset-content';
       text.textContent = `${row.text}\n${items.get(row.key)?.error || t('尚未完成')}`; view.append(text);
     }
-    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t(['yukkuri', 'indextts'].includes(job.recipe?.provider)
-      ? '条未完成；使用本机资源重试，已成功的音频不会重发。' : '条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
+    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t(['yukkuri', 'indextts', 'gpt-sovits'].includes(job.recipe?.provider)
+      ? '条未完成；使用本机资源重试，已成功的音频不会重发。' : job.recipe?.provider === 'edge'
+        ? '条未完成；重试需要联网，已成功的音频不会重发。' : '条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
     view.append(notice);
     if (entries.length) view.append(action('重新合成未完成项', () => submit({
       snapshot: { project_id: job.project_id, entries }, retry_of: job.id, recipe: job.recipe,
@@ -319,13 +356,13 @@
         library_size: assets().length,
         removed_asset_ids: host.data.msw?.removed_asset_ids || [],
         request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || (isText()
-          ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs(), host.draftSettings())
-          : global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value)),
+          ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs(), host.draftSettings(), options.provider)
+          : global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value, options.provider)),
         provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''}
-          : options.provider === 'indextts' ? indexTts.connection() : {}) },
+          : options.provider === 'indextts' ? indexTts.connection() : options.provider === 'gpt-sovits' ? gptTts.connection() : options.provider === 'edge' ? edgeTts.connection() : clouds[options.provider] ? clouds[options.provider].connection(options) : {}) },
         ...(retry ? { retry_of: retry.retry_of } : {}) };
-      if (!pending && !retry && !isText() && ['yukkuri', 'indextts'].includes(options.provider) && input.snapshot.entries.length === 1) {
-        const override = el(options.provider === 'indextts' ? 'tts-index-pronunciation' : 'tts-yukkuri-pronunciation').value.trim();
+      if (!pending && !retry && !isText() && ['yukkuri', 'indextts', 'minimax'].includes(options.provider) && input.snapshot.entries.length === 1) {
+        const override = options.provider === 'minimax' ? clouds.minimax.pronunciation() : el(options.provider === 'indextts' ? 'tts-index-pronunciation' : 'tts-yukkuri-pronunciation').value.trim();
         if (override) input.snapshot.entries[0].pronunciation_override = override;
       }
       if (newDraft) pendingDraft = { generation, revision: draftRevision, text: el('cue-panel-tts-text').value,
@@ -333,10 +370,14 @@
       else if (!pending) pendingDraft = retry ? draftJobs.get(retry.retry_of) || null : null;
       pending = input; busy = true; updateScope();
       const data = await request('jobs', input);
-      if (generation !== host.generation) return;
+      if (generation !== host.generation) {
+        if (['indextts', 'gpt-sovits'].includes(options.provider)) await request(`jobs/${data.job.id}/cancel`, {project_id: input.project_id});
+        return;
+      }
       pending = null;
       if (pendingDraft) { pendingDraft.jobs.add(data.job.id); draftJobs.set(data.job.id, pendingDraft); pendingDraft = null; }
       jobs.set(data.job.id, data.job); watched.add(data.job.id);
+      if (['indextts', 'gpt-sovits'].includes(options.provider)) void localServices.refresh();
       updateScope();
       message('TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务');
       el('tts-settings').open = false;
@@ -363,6 +404,7 @@
       const data = await request(`jobs?project_id=${encodeURIComponent(id)}&since=${jobCursor}`);
       if (generation !== host.generation) return;
       jobCursor = data.revision;
+      if (data.jobs.some(job => job.kind === 'tts' && ['indextts', 'gpt-sovits'].includes(job.recipe?.provider) && active(job))) void localServices.refresh();
       let changed = false;
       for (const job of data.jobs.filter(job => job.kind === 'tts')) {
         if (active(job)) watched.add(job.id);
@@ -407,7 +449,7 @@
       schedule(0);
     }
   });
-  el('tts-close').addEventListener('click', () => { indexTts.stopPreview(); panel.close(); syncDraft(); });
+  el('tts-close').addEventListener('click', () => { indexTts.stopPreview(); gptTts.stopPreview(); panel.close(); syncDraft(); });
   el('tts-start').addEventListener('click', () => void submit());
   el('tts-target').addEventListener('change', () => { el('tts-yukkuri-pronunciation').value = ''; el('tts-index-pronunciation').value = ''; syncDraft(); updateScope(); });
   el('cue-panel-tts-text').addEventListener('input', () => { draftRevision++; updateScope(); });
@@ -426,7 +468,7 @@
     el('cue-panel-tts-text').value = host.editorText(); draftRevision++; updateScope(); el('cue-panel-tts-text').focus();
   });
   // Includes Escape and window-management closure, not just the close button.
-  new MutationObserver(() => { syncDraft(); updateScope(); }).observe(el('tts-panel'), {attributes: true, attributeFilter: ['class']});
+  new MutationObserver(() => { if (!panel.isOpen()) gptTts.stopPreview(); syncDraft(); updateScope(); }).observe(el('tts-panel'), {attributes: true, attributeFilter: ['class']});
   el('tts-engine').addEventListener('change', updateEngine);
   el('tts-yukkuri-speed').addEventListener('input', () => { el('tts-yukkuri-speed-value').value = el('tts-yukkuri-speed').value; });
   for (const id of ['voice', 'language', 'speed']) el(`tts-yukkuri-${id}`).addEventListener('input', () => stopReference('yukkuri'));
@@ -450,7 +492,7 @@
     panel.close(); host.openTtsEnvironment();
   });
   el('tts-environment-engine').addEventListener('change', () => {
-    qwenVoices.stopPreview(); indexTts.stopPreview(); void environmentView();
+    qwenVoices.stopPreview(); indexTts.stopPreview(); gptTts.stopPreview(); void environmentView();
   });
   global.addEventListener('msw:settings-opened', () => void environmentView());
   el('tts-environment-unavailable').hidden = available;
@@ -463,9 +505,11 @@
     savingSettings = true; button.disabled = true; updateScope();
     try {
       await ensureSettings();
-      await request('tts-environment', {recipe: recipeFor(engine), ...(engine === 'indextts' ? indexTts.connection()
+      if (['indextts', 'gpt-sovits'].includes(engine)) await localServices.save(engine);
+      await request('tts-environment', {recipe: recipeFor(engine), ...(engine === 'indextts' ? indexTts.connection() : engine === 'gpt-sovits' ? gptTts.connection() : engine === 'edge' ? edgeTts.connection() : clouds[engine] ? clouds[engine].connection()
         : engine === 'qwen' ? {apiKey: el('tts-key').value} : {})});
       if (engine === 'qwen') el('tts-key').value = '';
+      clouds[engine]?.saved();
       await loadSettings(true);
       el('tts-environment-message').textContent = t('环境配置已保存到本机');
       if (engine === 'qwen') qwenVoices.management();
@@ -475,8 +519,9 @@
   el('tts-save-settings').addEventListener('click', async () => {
     if (savingSettings || indexTts.isBusy()) return;
     savingSettings = true; updateScope();
-    try { await request('tts-settings', { recipe: recipe(), ...(isIndex() ? indexTts.connection() : isYukkuri() ? {} : {apiKey: el('tts-key').value}) });
-      if (!isIndex() && !isYukkuri()) el('tts-key').value = '';
+    try { await request('tts-settings', { recipe: recipe(), ...(isIndex() ? indexTts.connection() : isGpt() ? gptTts.connection() : isEdge() ? edgeTts.connection() : cloud() ? cloud().connection() : isQwen() ? {apiKey: el('tts-key').value} : {}) });
+      if (isQwen()) el('tts-key').value = '';
+      cloud()?.saved();
       await loadSettings(true); message('合成设置已保存到本机'); }
     catch (error) { message(error.message, true); }
     finally { savingSettings = false; updateScope(); }
@@ -484,6 +529,11 @@
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
   for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
   global.addEventListener('msw:project-changed', () => {
+    for (const job of jobs.values()) {
+      if (['indextts', 'gpt-sovits'].includes(job.recipe?.provider) && active(job)) {
+        void request(`jobs/${job.id}/cancel`, {project_id: job.project_id}).catch(() => {});
+      }
+    }
     jobs.clear(); watched.clear(); opened.clear(); firstReady.clear();
     jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = '';
     el('tts-target').value = 'main';

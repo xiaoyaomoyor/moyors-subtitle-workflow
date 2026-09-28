@@ -24,16 +24,19 @@
     }
     return {crossing,expanded:{start,end},canExpand:start>=0&&end<=duration};
   }
+  function secondarySnapshot(project,range) {
+    const track=project.multi_subtitle?.tracks?.[0];
+    return {track_id:track?.id || null,targets:(track?.segments || []).filter(c => overlaps(c,range)).map(canonical)};
+  }
   function snapshot(project,media,mode,range) {
     if (!media || !media.revision || !media.metadata?.duration_ms || !media.metadata.audio_tracks?.length) throw Error('请先导入包含音轨的媒体');
     const duration=media.metadata.duration_ms;
     if (mode==='whole') range={start:0,end:duration};
     if (!['whole','range'].includes(mode)||!range||![range.start,range.end].every(Number.isSafeInteger)
       ||range.start<0||range.end>duration||range.end<=range.start) throw Error('请选择源媒体内的有效时间范围；未改为整段识别');
-    if (mode==='range'&&boundaries(project,range,duration).crossing.length) throw Error('选区切穿已有字幕；请调整范围或先扩展到完整字幕边界');
     return {project_id:project.msw.project_id,mode,range:clone(range),
       source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
-      targets:affected(project,mode,range).map(canonical)};
+      secondary:secondarySnapshot(project,range),targets:affected(project,mode,range).map(canonical)};
   }
   function clipSnapshots(project,clips) {
     if(!clips?.length)throw Error('请先选择音频贴片');
@@ -41,7 +44,7 @@
       const asset=(project.msw.assets||[]).find(a=>a.id===clip.asset_id);
       if(!asset)throw Error('所选贴片缺少音频素材');
       const range={start:clip.start_ms,end:clip.start_ms+Math.max(1,Math.ceil((clip.source_out_sample-clip.source_in_sample)*1000/asset.sample_rate))};
-      return {project_id:project.msw.project_id,mode:'clips',range,targets:affected(project,'range',range).map(canonical),
+      return {project_id:project.msw.project_id,mode:'clips',range,secondary:secondarySnapshot(project,range),targets:affected(project,'range',range).map(canonical),
         source:{kind:'clip',id:asset.id,revision:asset.sha256,name:clip.label||asset.generation.display_text,reference:'',audio_index:0,
           duration_ms:Math.ceil(asset.sample_count*1000/asset.sample_rate),
           clip:Object.fromEntries(['id','asset_id','start_ms','source_in_sample','source_out_sample','playback_rate'].map(k=>[k,clip[k]]))}};

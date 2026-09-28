@@ -278,7 +278,6 @@
             <div class="path-row key-row">
               <input id="apiKey" type="password" autocomplete="off">
             </div>
-            <p id="keyStatus" class="hint">未配置密钥</p>
             <p class="hint"><span data-i18n="key_hint_prefix">在</span> <button id="openKeyUrl" class="inline-link" type="button">阿里云百炼</button> <span id="keyHintSuffix" data-i18n="key_hint_suffix">获取 API Key ↗</span></p>
             <p class="hint"><button id="openConnectionSettings" class="inline-link" type="button" data-i18n="open_connection_settings">在更多设置中保存密钥</button></p>
             <p id="apiKeyError" class="field-error"></p>
@@ -680,8 +679,10 @@
         <!-- S5/§7.1：输出为可选自定义配置卡（默认关闭用「更多设置→文件与输出」默认策略） -->
         <section id="outputCard" class="card module-card" data-module-card="output" aria-labelledby="outputCardTitle">
           <h2 id="outputCardTitle" data-i18n="mod_output">输出</h2>
+          <div class="check-grid output-kind-options">
           <label class="check-field" for="batchSrtOnly"><input id="batchSrtOnly" type="checkbox"><span data-i18n="batch_srt_only">只生成 SRT 字幕</span></label>
           <label class="check-field" for="generateHtml" data-i18n-title="generate_html_title"><input id="generateHtml" type="checkbox"><span data-i18n="generate_html">同时生成单文件版网页编辑器（html）</span></label>
+          </div>
           <p class="hint" data-i18n="output_card_hint" data-help>自定义本次制作的输出位置；不开启输出模块时使用「更多设置 → 文件与输出」的默认策略。</p>
           <div class="field">
             <label for="outputDirectory" data-i18n="output_directory">工程输出目录</label>
@@ -695,11 +696,24 @@
             <input id="outputProjectName" type="text" autocomplete="off" data-i18n-placeholder="output_project_name_placeholder" placeholder="默认：与输入同名">
             <p id="outputProjectPreview" class="hint" aria-live="polite"></p>
           </div>
+          <div class="check-grid output-srt-options">
           <div class="field">
             <label class="check-field" for="outputExportSrt">
               <input id="outputExportSrt" type="checkbox" checked>
               <span data-i18n="output_export_srt">导出原文 SRT</span>
             </label>
+            <p class="hint" data-i18n="output_srt_hint" data-help>原文 SRT 为完成所选整理步骤、翻译前的主字幕；识别输出的 SRT 位置跟随此字段。</p>
+          </div>
+          <div class="field" id="outputTranslatedField">
+            <label class="check-field" for="outputExportTranslatedSrt">
+              <input id="outputExportTranslatedSrt" type="checkbox" disabled aria-describedby="outputTranslatedHint">
+              <span data-i18n="output_export_translated_srt">导出译文 SRT</span>
+            </label>
+            <p id="outputTranslatedHint" class="hint" data-i18n="output_translated_hint" data-help>请先勾选右侧的「翻译」模块。译文与原文 SRT 独立导出；关闭翻译会保留此选项的勾选，但本次不导出译文。</p>
+          </div>
+          <div class="field hidden" id="outputBilingualField"><label class="check-field"><input id="outputExportBilingualSrt" type="checkbox"><span data-i18n="output_export_bilingual">导出双语 SRT</span></label></div>
+          </div>
+          <div class="field output-srt-path">
             <details id="customSrtDetails"><summary data-i18n="output_custom_srt">自定义原文 SRT 位置（单任务）</summary><label for="srtPath" data-i18n="output_custom_srt">自定义原文 SRT 位置（单任务）</label>
             <div id="srtPathField" class="path-row">
               <input id="srtPath" type="text" autocomplete="off">
@@ -707,16 +721,7 @@
             </details>
             <p id="srtPathError" class="field-error"></p>
             <p id="srtPathNotice" class="hint warn hidden" aria-live="polite"></p>
-            <p class="hint" data-i18n="output_srt_hint" data-help>原文 SRT 为完成所选整理步骤、翻译前的主字幕；识别输出的 SRT 位置跟随此字段。</p>
           </div>
-          <div class="field hidden" id="outputTranslatedField">
-            <label class="check-field" for="outputExportTranslatedSrt">
-              <input id="outputExportTranslatedSrt" type="checkbox">
-              <span data-i18n="output_export_translated_srt">导出译文 SRT</span>
-            </label>
-            <p class="hint" data-i18n="output_translated_hint" data-help>启用字幕翻译后可导出；译文与原文相互独立，不导出也能完成工程。</p>
-          </div>
-          <div class="field hidden" id="outputBilingualField"><label class="check-field"><input id="outputExportBilingualSrt" type="checkbox"><span data-i18n="output_export_bilingual">导出双语 SRT</span></label></div>
           <p id="outputLegacyNotice" class="hint warn hidden" data-i18n="output_legacy_notice"></p>
           <p class="hint"><button id="openOutputSettings" class="inline-link" type="button" data-i18n="output_open_settings">在更多设置中配置默认输出策略</button></p>
         </section>
@@ -1042,19 +1047,19 @@
         <div class="card">
           <h2 data-i18n="guide_faq_title">常见问题</h2>
           <div class="faq-item">
-            <button class="faq-q" type="button" aria-expanded="false"><span data-i18n="guide_faq_ffmpeg_q">缺少 FFmpeg 怎么办？</span><span class="chevron" aria-hidden="true">▸</span></button>
+            <button class="faq-q" type="button" aria-expanded="false"><svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="guide_faq_ffmpeg_q">缺少 FFmpeg 怎么办？</span></button>
             <div class="faq-a hidden"><p class="hint" data-i18n="guide_faq_ffmpeg_a">在「更多设置 → 运行环境」中检测并设置 FFmpeg 路径；视频转音频依赖它。</p></div>
           </div>
           <div class="faq-item">
-            <button class="faq-q" type="button" aria-expanded="false"><span data-i18n="guide_faq_key_q">API 配置存放在哪里？</span><span class="chevron" aria-hidden="true">▸</span></button>
+            <button class="faq-q" type="button" aria-expanded="false"><svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="guide_faq_key_q">API 配置存放在哪里？</span></button>
             <div class="faq-a hidden"><p class="hint" data-i18n="guide_faq_key_a">密钥只保存在本机环境文件；方案与页面不包含密钥，界面仅显示遮罩与「已配置」。</p></div>
           </div>
           <div class="faq-item">
-            <button class="faq-q" type="button" aria-expanded="false"><span data-i18n="guide_faq_media_q">媒体丢失或工程搬移后打不开？</span><span class="chevron" aria-hidden="true">▸</span></button>
+            <button class="faq-q" type="button" aria-expanded="false"><svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="guide_faq_media_q">媒体丢失或工程搬移后打不开？</span></button>
             <div class="faq-a hidden"><p class="hint" data-i18n="guide_faq_media_a">工程与 .assets 目录保持相对位置整体搬移；缺失媒体由编辑器打开时提示重新定位。</p></div>
           </div>
           <div class="faq-item">
-            <button class="faq-q" type="button" aria-expanded="false"><span data-i18n="guide_faq_cancel_q">任务取消或状态未知？</span><span class="chevron" aria-hidden="true">▸</span></button>
+            <button class="faq-q" type="button" aria-expanded="false"><svg class="chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="guide_faq_cancel_q">任务取消或状态未知？</span></button>
             <div class="faq-a hidden"><p class="hint" data-i18n="guide_faq_cancel_a">使用停止按钮取消本次任务；云端响应未知时界面提供确认／检查入口，不会自动重新付费执行。</p></div>
           </div>
         </div>
@@ -1111,8 +1116,9 @@
           <section id="settingsFilesPanel" class="settings-panel hidden" role="tabpanel" aria-labelledby="settingsRailFiles" data-settings-panel="files" aria-hidden="true">
           <div class="settings-section">
             <h3 data-i18n="settings_file_output">文件输出</h3>
+            <div class="check-grid file-output-options">
             <label class="check-field" for="outputSubfolder">
-              <input id="outputSubfolder" type="checkbox" data-i18n-title="output_subfolder_title" title="将所有输出文件放入子文件夹（默认关闭）：SRT、工程与编辑器页面写入媒体旁的 _msw 子目录">
+              <input id="outputSubfolder" type="checkbox" data-i18n-title="output_subfolder_title" title="将所有输出文件放入子文件夹（默认开启）：SRT、工程与编辑器页面写入媒体旁的 _msw 子目录">
               <span data-i18n="output_subfolder">将所有输出文件放入子文件夹</span>
             </label>
             <label class="check-field" for="perVideoSubfolder">
@@ -1123,6 +1129,7 @@
               <input id="attachModelName" type="checkbox" data-i18n-title="attach_model_name_title" title="附加模型名称（默认关闭）：SRT 文件名带上供应商/模型段，如 clip.qwen-audio.srt">
               <span data-i18n="attach_model_name">附加模型名称</span>
             </label>
+            </div>
           </div>
           <div class="settings-section">
             <h3 data-i18n="settings_stickers">默认表情包路径</h3>
@@ -1146,11 +1153,6 @@
               <div class="field">
                 <label for="llmProvider" data-i18n="toolbox_provider">供应商</label>
                 <select id="llmProvider"></select>
-              </div>
-              <div class="field" hidden>
-                <label for="postprocessProvider" hidden>Legacy environment selection</label>
-                <select id="postprocessProvider" aria-hidden="true" tabindex="-1"></select>
-                <p class="hint" data-i18n="postprocess_provider_hint">校对/断句/翻译共用的后处理 LLM 供应商（与上方保持同步）。</p>
               </div>
               <div class="field">
                 <label for="llmModel" data-i18n="llm_model">模型</label>
@@ -1196,7 +1198,6 @@
                 </div>
               </div>
               <p id="llmSettingsSaveStatus" class="settings-save-status hint" aria-live="polite"></p>
-              <p id="llmKeyStatus" class="hint"></p>
               <p id="llmApiKeyError" class="field-error"></p>
             </div>
             <div class="field">
@@ -1337,7 +1338,7 @@
             <input id="autoPostprocessRetain" type="checkbox">
             <span data-i18n="auto_retain_intermediate">保留中间产物</span>
           </label>
-          <p class="hint hint-top-spaced" data-i18n="auto_retain_hint" data-help data-help-for="label[for=autoPostprocessRetain]">默认不保留；中间文件统一放在媒体目录的 MSW-Postprocess 子文件夹中。失败或取消时会保留以便排查。</p>
+          <p class="hint hint-top-spaced" data-i18n="auto_retain_hint" data-help data-help-for="label[for=autoPostprocessRetain]">默认保留；原始快照与各阶段编号产物放在 _msw（或视频名_msw）的后处理目录。失败或取消时也会保留以便排查。</p>
 
             <p class="hint" data-i18n="settings_cache_hint" data-help>最近工程封面缓存在本机应用数据目录；清理后下次浏览封面会重新生成，不影响工程文件。</p>
             <button id="clearCoverCache" class="ghost" type="button" data-i18n="settings_clear_covers">清理最近工程封面缓存</button>

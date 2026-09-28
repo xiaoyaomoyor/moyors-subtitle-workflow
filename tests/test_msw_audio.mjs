@@ -129,14 +129,14 @@ test('heat colors use one fixed scale across assets', () => {
 });
 
 function transportHarness(load = async () => new ArrayBuffer(0)) {
-  const sources = [], gains = [];
+  const sources = [], gains = [], mediaSources = [];
   class AudioContext {
     currentTime = 0; sampleRate = 24000; state = 'running'; destination = {};
     resume() { return Promise.resolve(); }
     async decodeAudioData() { return { length: 48000, sampleRate: 24000, numberOfChannels: 1, getChannelData: () => new Float32Array(48000).fill(.25) }; }
     createBufferSource() { const node = { connect() {}, disconnect() {}, stop() {}, start(...args) { this.startArgs = args; } }; sources.push(node); return node; }
     createGain() { const node = { gain: { value: 0, cancelScheduledValues() {}, setTargetAtTime(value) {this.value=value;} }, connect() {}, disconnect() {} }; gains.push(node); return node; }
-    createMediaElementSource() { return {connect() {}}; }
+    createMediaElementSource(player) { const node = {player,connect() {this.connected=true;},disconnect() {this.connected=false;}}; mediaSources.push(node); return node; }
   }
   const player = Object.assign(new EventTarget(), { currentTime: 1.5, duration: 10, paused: true, ended: false, seeking: false, readyState: 4, volume: .5, muted: false, playbackRate: 1 });
   player.pause = () => { player.paused = true; player.dispatchEvent(new Event('pause')); };
@@ -146,7 +146,7 @@ function transportHarness(load = async () => new ArrayBuffer(0)) {
   const window = { MSWAudio: core, AudioContext };
   vm.runInNewContext(fs.readFileSync(new URL('../web/msw-audio-transport.js', import.meta.url), 'utf8'), { window, performance, AbortController, setTimeout, clearTimeout, queueMicrotask });
   const transport = window.MSWAudioTransport.create({ player, getState: () => state, load, changed() {}, hint() {}, frame() {} });
-  return { transport, player, sources, gains, asset: ext.assets[0] };
+  return { transport, player, sources, gains, mediaSources, asset: ext.assets[0] };
 }
 
 test('transport schedules the seek offset, applies monitor gain and releases ended node references', async () => {
@@ -185,4 +185,41 @@ test('switching projects discards an in-flight decode and cannot fill the new ca
   const result = h.transport.ensure(h.asset); h.transport.clear(); finish(new ArrayBuffer(0));
   assert.equal(await result, null); assert.equal(h.transport.diagnostics().decoded, 0);
   assert.equal(h.transport.failures.size, 0);
+});
+
+test('player replacement and rollback rebind gain and listeners without duplicate media nodes', async () => {
+  const h = transportHarness(), next = new EventTarget();
+  Object.assign(next, { currentTime: 2, duration: 10, paused: true, readyState: 4, volume: .25, muted: false, playbackRate: 1 });
+  try {
+    await h.transport.setSourceGainDb(6);
+    h.transport.attachPlayer(next);
+    assert.equal(h.mediaSources.length, 2);
+    assert.equal(h.mediaSources[0].connected, false);
+    assert.equal(h.mediaSources[1].player, next);
+    assert.equal(h.transport.diagnostics().time, 2000);
+    h.player.dispatchEvent(new Event('ended'));
+    assert.equal(h.transport.diagnostics().virtual, false);
+    h.transport.attachPlayer(h.player);
+    assert.equal(h.mediaSources.length, 2);
+    assert.equal(h.mediaSources[1].connected, false);
+    assert.equal(h.mediaSources[0].connected, true);
+    h.transport.resetSourceGain();
+    assert.equal(h.gains[0].gain.value, 1);
+  } finally { h.transport.clear(); }
+});
+
+
+test('pause cancels a queued virtual-to-source playback restoration', async () => {
+  const h = transportHarness();
+  try {
+    h.player.duration = .5;
+    h.transport.seek(1500);
+    h.transport.toggle();
+    assert.equal(h.transport.virtualPlaying(), true);
+    h.transport.seek(100);
+    h.transport.pause();
+    await Promise.resolve();
+    assert.equal(h.player.paused, true);
+    assert.equal(h.transport.virtualPlaying(), null);
+  } finally { h.transport.clear(); }
 });

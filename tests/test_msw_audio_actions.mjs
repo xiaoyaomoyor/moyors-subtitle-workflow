@@ -8,6 +8,16 @@ const core=context.window.MSWAudioActions, audio=context.window.MSWAudio;
 const asset={id:'a',sample_rate:1000,sample_count:1000,generation:{display_text:'Display',spoken_text:'Reading'}};
 const clip=(id,start)=>audio.create(asset,'voice',start,id);
 const project={msw:{assets:[asset]},segments:[]};
+
+test('GPT and Edge regeneration freeze common and advanced controls without local paths',()=>{
+ const g={...asset,generation:{provider:'gpt-sovits',model:'api-v2',voice:'reference',language_type:'zh',gpt_model:'model-a',sovits_model:'model-b',speaker_ref:'ref-a',aux_refs:['ref-b'],prompt_lang:'ja',prompt_text:'reference words',no_prompt:false,speed_factor:1.1,text_split_method:'cut5',top_k:15,top_p:.9,temperature:.8,seed:123,repetition_penalty:1.35,sample_steps:32,super_sampling:false,display_text:'你好',service_url:'http://127.0.0.1:9880',directory:'private'}};
+ const e={...asset,id:'edge',generation:{provider:'edge',model:'edge-online',voice:'ja-JP-NanamiNeural',language_type:'ja-JP',rate:-20,volume:10,pitch:5,display_text:'こんにちは'}};
+ const plan=core.regeneration({msw:{assets:[g,e]}},[clip('g',0),{...clip('e',2000),asset_id:'edge'}]);
+ assert.equal(plan.groups.length,2);const [gpt,edge]=plan.groups;
+ assert.equal(gpt.recipe.prompt_lang,'ja');assert.equal(gpt.recipe.seed,123);assert.equal(gpt.recipe.aux_refs[0],'ref-b');
+ assert.equal(gpt.recipe.directory,undefined);assert.equal(gpt.recipe.service_url,undefined);
+ assert.equal(edge.recipe.rate,-20);assert.equal(edge.recipe.volume,10);assert.equal(edge.recipe.pitch,5);
+});
 test('fill rejects both overlap candidates and existing empty cues, preserves touching endpoints',()=>{
  const p={...project,segments:[{id:'old',start:4000,end:5000,text:''}]};
  const result=core.fill(p,[clip('a',0),clip('b',500),clip('c',1500),clip('d',4100)]);
@@ -57,4 +67,22 @@ test('mixed providers and voices form separate original-recipe groups',()=>{
  assert.equal(plan.groups[1].recipe.voice,'Serena');
  assert.equal(plan.groups[2].recipe.emotion_text,'快乐');
  assert.equal(plan.groups[2].recipe.temperature,.7);
+});
+
+test('all seven engines retain original regeneration fields without exporting connection secrets',()=>{
+ const recipes=[
+  {provider:'qwen',region:'beijing',model:'qwen3-tts-flash',voice:'Cherry',language_type:'Auto'},
+  {provider:'yukkuri',model:'aquestalk1',voice:'f1',language_type:'Chinese',speed:100},
+  {provider:'indextts',model:'index-tts-2.5',voice:'ref',speaker_ref:'r',language_type:'ZH',max_mel_tokens:2000,temperature:.8},
+  {provider:'gpt-sovits',model:'v2Pro',voice:'ref',speaker_ref:'r',gpt_model:'g',sovits_model:'s',language_type:'zh',top_k:12,sample_steps:32},
+  {provider:'edge',model:'edge-online',voice:'ja-JP-NanamiNeural',language_type:'ja-JP',rate:10,volume:-5,pitch:2},
+  {provider:'minimax',region:'cn',model:'speech-2.6-hd',voice:'account-voice',language_type:'Chinese',speed:1.2,volume:2,pitch:3,emotion:'whisper'},
+  {provider:'mossland',model:'moss-tts-1.5-flash-2026-06-26',voice:'account-voice',language_type:'Japanese'},
+ ];
+ const assets=recipes.map((recipe,i)=>({...asset,id:'a'+i,generation:{...recipe,display_text:'显示',spoken_text:'朗读',apiKey:'secret',base_url:'private'}}));
+ const clips=assets.map((a,i)=>({...clip('c'+i,i*1000),asset_id:a.id}));
+ const result=core.regeneration({msw:{assets}},clips);
+ assert.equal(result.groups.length,7);
+ result.groups.forEach((group,i)=>assert.deepEqual(JSON.parse(JSON.stringify(group.recipe)),recipes[i]));
+ assert.equal(result.groups[5].entries[0].spoken_text,'朗读');
 });

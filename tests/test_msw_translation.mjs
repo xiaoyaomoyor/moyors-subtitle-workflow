@@ -188,3 +188,23 @@ test('MSW namespace round trip preserves unknown fields and validates schema', (
   data.msw.translation_target_tracks = { job1: '已有副字幕轨' };
   assert.deepEqual(plain(codec.normalize(data.msw)), plain(data.msw));
 });
+
+test('old skipped model IDs recover only against unchanged snapshot text', () => {
+  const data = project(), input = core.snapshot(data, selection()), result = output(input);
+  result.translations[0].text = input.entries[0].source.text;
+  result.skipped_ids = ['c0001'];
+  const plan = core.reconcile(data, input, result);
+  assert.equal(plan.multi.tracks[0].segments.length, 1);
+  result.translations[0].text = 'changed';
+  assert.throws(() => core.reconcile(data, input, result), /原文不符/);
+});
+
+test('versioned project IDs are never reinterpreted and ambiguous legacy IDs are rejected', () => {
+  const data = project();data.segments[0].id='c0002';data.segments[1].id='c0001';
+  for (const cue of data.segments) cue.text='same';
+  const input=core.snapshot(data,selection()),result=output(input);
+  result.translations.forEach(row=>row.text='same');result.skipped_ids=['c0001'];
+  assert.throws(()=>core.reconcile(data,input,result), /歧义/);
+  result.skipped_id_namespace='project';
+  assert.equal(core.reconcile(data,input,result).multi.tracks[0].segments.length,1);
+});

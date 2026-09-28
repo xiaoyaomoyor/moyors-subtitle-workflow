@@ -8,11 +8,12 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from threading import Event
@@ -27,6 +28,7 @@ from maw.postprocess import (
     OutputMode,
     Replacement,
     embed_translated_project,
+    fixed_process_operation,
     merge_bilingual_project,
     run_fixed_process,
     run_llm_postprocess,
@@ -70,7 +72,7 @@ def default_postprocess_plan() -> dict[str, object]:
     return {
         "version": POSTPROCESS_PLAN_VERSION,
         "enabled": False,
-        "retainIntermediate": False,
+        "retainIntermediate": True,
         "steps": [
             {
                 "id": "match",
@@ -99,7 +101,7 @@ def normalize_plan(raw: object) -> dict[str, object]:
     plan: dict[str, object] = {
         "version": POSTPROCESS_PLAN_VERSION,
         "enabled": bool(raw.get("enabled")),
-        "retainIntermediate": bool(raw.get("retainIntermediate")),
+        "retainIntermediate": raw.get("retainIntermediate") if type(raw.get("retainIntermediate")) is bool else True,
         # S5/§7.1：输出契约随方案走——工程/SRT 各自独立导出；目录与主名可选覆盖。
         "exportSrt": bool(raw.get("exportSrt", True)),
         "exportTranslatedSrt": bool(raw.get("exportTranslatedSrt", True)),
@@ -430,6 +432,128 @@ class PostprocessPipelineError(RuntimeError):
 PipelineEvent = Callable[[Mapping[str, object]], None]
 
 
+def _pipeline_artifact_label(operation: str, *, lang: str) -> str:
+    marker = operation.rsplit("-", 1)[-1] if operation.startswith("translate-") else ""
+    if marker in {"bilingual", "combined", "backfill"}:
+        return translation_marker_name(marker, lang=lang)
+    return operation_suffix(operation, lang=lang).lstrip(".")
+
+
+def _pipeline_artifact_base(source_stem: str, index: int, operation: str, *, lang: str) -> str:
+    stem = sanitize_component(source_stem, "字幕")
+    postprocess = operation_suffix("postprocess", lang=lang).lstrip(".")
+    label = sanitize_component(_pipeline_artifact_label(operation, lang=lang), "产物")
+    return f"{stem}.{postprocess}.{index}.{label}"
+
+
+def _pipeline_artifact_path(
+    run_directory: Path,
+    source_stem: str,
+    index: int,
+    operation: str,
+    suffix: str,
+    *,
+    lang: str,
+) -> Path:
+    return run_directory / f"{_pipeline_artifact_base(source_stem, index, operation, lang=lang)}{suffix}"
+
+
+def _pipeline_step_operation(step: Mapping[str, object]) -> str:
+    step_id = str(step.get("id") or "")
+    if step_id == "translate":
+        target = str(step.get("target") or "zh")
+        return f"translate-{target}"
+    if step_id == "replace":
+        replacements = tuple(
+            Replacement(source=str(item.get("source") or ""), target=str(item.get("target") or ""))
+            for item in _normalize_replacements(step.get("replacements"))
+            if isinstance(item, Mapping) and str(item.get("source") or "")
+        )
+        return fixed_process_operation(replacements, normalize_text_conversion_mode(step.get("conversion")))
+    if step_id == "ocr":
+        return "ocr-dedup"
+    return step_id
+
+
+def _available_pipeline_destinations(
+    run_directory: Path,
+    source_stem: str,
+    index: int,
+    operation: str,
+    paths: Sequence[Path],
+    *,
+    lang: str,
+) -> tuple[Path, ...]:
+    base = _pipeline_artifact_base(source_stem, index, operation, lang=lang)
+    counter = 1
+    while True:
+        marker = "" if counter == 1 else f"-{counter}"
+        destinations = tuple(run_directory / f"{base}{marker}{path.suffix}" for path in paths)
+        if all(
+            not destination.exists()
+            or destination.resolve() == path.expanduser().resolve()
+            for destination, path in zip(destinations, paths, strict=True)
+        ):
+            return destinations
+        counter += 1
+
+
+def _relocate_pipeline_artifact(path: Path, destination: Path) -> Path:
+    source = path.expanduser().resolve()
+    target = destination.expanduser().resolve()
+    if source == target:
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if source.parent == target.parent:
+        source.replace(target)
+    elif source.suffix.lower() in {".mosp", ".json"}:
+        write_derived_project(read_project(source), target, source)
+    else:
+        _copy_atomic(source, target)
+    return target
+
+
+def _number_pipeline_artifact(
+    artifact: SubtitleArtifact | OcrDedupArtifact,
+    *,
+    run_directory: Path,
+    source_stem: str,
+    index: int,
+    operation: str,
+    lang: str,
+) -> tuple[SubtitleArtifact | OcrDedupArtifact, int]:
+    paths = tuple(path for path in (artifact.project_path, artifact.srt_path) if isinstance(path, Path))
+    if not paths:
+        return artifact, index
+    destinations = _available_pipeline_destinations(
+        run_directory,
+        source_stem,
+        index,
+        operation,
+        paths,
+        lang=lang,
+    )
+    renamed = iter(destinations)
+    project_path = _relocate_pipeline_artifact(artifact.project_path, next(renamed)) if artifact.project_path is not None else None
+    srt_path = _relocate_pipeline_artifact(artifact.srt_path, next(renamed)) if artifact.srt_path is not None else None
+    translated = getattr(artifact, "translated_srt_path", None)
+    if translated == artifact.srt_path and translated is not None:
+        translated = srt_path
+    if is_dataclass(artifact):
+        renamed = replace(artifact, project_path=project_path, srt_path=srt_path, translated_srt_path=translated)
+    else:
+        # 保持对旧版 OCR 适配器（只提供最小属性对象）的兼容。
+        renamed = SubtitleArtifact(
+            source_project_path=getattr(artifact, "source_project_path", None),
+            source_srt_path=getattr(artifact, "source_srt_path", None),
+            project_path=project_path,
+            srt_path=srt_path,
+            warnings=tuple(getattr(artifact, "warnings", ()) or ()),
+            translated_srt_path=translated,
+        )
+    return renamed, index + 1
+
+
 @with_output_config
 def run_postprocess_pipeline(
     plan: Mapping[str, object],
@@ -450,6 +574,8 @@ def run_postprocess_pipeline(
     ui_language: str | None = None,
 ) -> PipelineResult:
     language = resolve_lang(ui_language)
+    publish_source_project = project_path
+    publish_source_srt = srt_path
     output_source_srt = srt_path
     normalized, errors = validate_plan(plan, env_path=env_path, media_path=media_path, ffmpeg_path=ffmpeg_path, llm_settings=llm_settings)
     if errors:
@@ -463,24 +589,51 @@ def run_postprocess_pipeline(
     manifest: dict[str, object]
     if resume_directory is not None:
         manifest = _load_manifest(run_directory)
+        # Old runs retain input.* and every existing manifest path.
+        if manifest.get("sourceProjectPath"):
+            project_path = Path(str(manifest["sourceProjectPath"]))
+        if manifest.get("sourceSrtPath"):
+            srt_path = Path(str(manifest["sourceSrtPath"]))
+        publish_source_project = Path(str(manifest.get("publishSourceProjectPath") or publish_source_project))
+        publish_source_srt = Path(str(manifest.get("publishSourceSrtPath") or publish_source_srt))
     else:
-        if normalized.get("outputSemantics") == "separate-v2":
-            # Keep a stable recovery input even when the queue adapter is temporary.
-            snapshot = run_directory / "input.mosp"
-            source = read_project(project_path)
-            write_derived_project(source, snapshot, project_path)
-            project_path = snapshot
-            snapshot_srt = run_directory / "input.srt"
-            _atomic_write(snapshot_srt, render_srt(source))
-            srt_path = snapshot_srt
+        # The queue may pass a future SRT target. Generate the 0 snapshot from
+        # the actual project and persist media/assets before its temp input exits.
+        snapshot = _pipeline_artifact_path(run_directory, media_path.stem, 0, "original", ".mosp", lang=language)
+        snapshot_srt = snapshot.with_suffix(".srt")
+        source = read_project(project_path)
+        initial_warnings = write_derived_project(source, snapshot, project_path)
+        _atomic_write(snapshot_srt, render_srt(source))
+        project_path, srt_path = snapshot, snapshot_srt
         manifest = {
             "version": POSTPROCESS_PLAN_VERSION,
             "mediaPath": str(media_path),
             "sourceProjectPath": str(project_path),
             "sourceSrtPath": str(srt_path),
+            "initialProjectPath": str(snapshot),
+            "initialSrtPath": str(snapshot_srt),
+            "publishSourceProjectPath": str(publish_source_project),
+            "publishSourceSrtPath": str(publish_source_srt),
+            "sourceStem": media_path.stem,
+            "artifactLanguage": language,
+            "warnings": list(initial_warnings),
             "retainIntermediate": bool(normalized.get("retainIntermediate")),
             "steps": [{"id": str(step["id"]), "status": "pending"} for step in steps],
         }
+    source_stem = str(manifest.get("sourceStem") or media_path.stem)
+    artifact_language = str(manifest.get("artifactLanguage") or language)
+    try:
+        artifact_index = max(1, int(manifest.get("nextArtifactIndex") or 1))
+    except (TypeError, ValueError):
+        artifact_index = 1
+    # A crash can leave completed files before the manifest write. Never reuse
+    # their index or overwrite an earlier retry's diagnostic output.
+    numbered_prefix = re.escape(f"{sanitize_component(source_stem, 'media')}{operation_suffix('postprocess', lang=artifact_language)}.")
+    for existing in run_directory.iterdir():
+        match = re.match(numbered_prefix + r"(\d+)\.", existing.name)
+        if match:
+            artifact_index = max(artifact_index, int(match.group(1)) + 1)
+    manifest["nextArtifactIndex"] = artifact_index
     _write_manifest(run_directory, manifest)
     _emit(on_event, {"stage": "start", "total": len(steps), "resumed": resume_directory is not None, "runDirectory": str(run_directory)})
     current_project = resume_project_path or project_path
@@ -508,7 +661,7 @@ def run_postprocess_pipeline(
                 if previous_path:
                     current_translated_srt = Path(previous_path).expanduser().resolve()
     completed: list[str] = [str(step["id"]) for step in steps[:max(0, resume_from)]]
-    warnings: list[str] = []
+    warnings: list[str] = list(manifest.get("warnings") or [])
     pipeline_t0 = time.perf_counter()
     try:
         for index, step in enumerate(steps[max(0, resume_from):], max(0, resume_from) + 1):
@@ -524,8 +677,7 @@ def run_postprocess_pipeline(
             translation_intermediate_srt: Path | None = None
             try:
                 if step_id == "translate" and separate_outputs:
-                    original_srt = run_directory / "original-before-translation.srt"
-                    _atomic_write(original_srt, render_srt(read_project(current_project)))
+                    original_srt = current_srt
                     manifest["originalSrtPath"] = str(original_srt)
                     _write_manifest(run_directory, manifest)
                 artifact = _run_step(
@@ -542,6 +694,16 @@ def run_postprocess_pipeline(
                     llm_settings=llm_settings,
                 )
                 if step_id == "translate":
+                    artifact, artifact_index = _number_pipeline_artifact(
+                        artifact, run_directory=run_directory, source_stem=source_stem,
+                        index=artifact_index, operation=_pipeline_step_operation(step), lang=artifact_language,
+                    )
+                    translation_intermediate_project = artifact.project_path
+                    translation_intermediate_srt = artifact.srt_path
+                    manifest["nextArtifactIndex"] = artifact_index
+                    manifest_steps[index - 1]["translationIntermediateProjectPath"] = str(artifact.project_path or "")
+                    manifest_steps[index - 1]["translationIntermediateSrtPath"] = str(artifact.srt_path or "")
+                    _write_manifest(run_directory, manifest)
                     if separate_outputs:
                         current_translated_srt = artifact.srt_path
                     translation_target = str(step.get("target") or "zh")
@@ -584,6 +746,14 @@ def run_postprocess_pipeline(
                             output_directory=run_directory,
                             media_path=media_path,
                         )
+                operation = _pipeline_step_operation(step)
+                if step_id == "translate":
+                    marker = "bilingual" if bilingual_output else "backfill" if embed_output else "combined"
+                    operation = f"{operation}-{marker}"
+                artifact, artifact_index = _number_pipeline_artifact(
+                    artifact, run_directory=run_directory, source_stem=source_stem,
+                    index=artifact_index, operation=operation, lang=artifact_language,
+                )
             except PostprocessCancelled:
                 raise
             except Exception as error:
@@ -616,6 +786,7 @@ def run_postprocess_pipeline(
                 manifest_steps[index - 1]["translationIntermediateProjectPath"] = str(translation_intermediate_project)
             if translation_intermediate_srt is not None:
                 manifest_steps[index - 1]["translationIntermediateSrtPath"] = str(translation_intermediate_srt)
+            manifest["nextArtifactIndex"] = artifact_index
             _write_manifest(run_directory, manifest)
             print(f"后处理步骤 {step_id} 耗时 {format_elapsed(step_elapsed)}")
             _emit(on_event, {
@@ -630,6 +801,8 @@ def run_postprocess_pipeline(
             })
         final_bilingual_srt = None
         if separate_outputs:
+            if original_srt is None and not translation_target:
+                original_srt = current_srt
             if original_srt is None:
                 # Also handles restored legacy runs whose manifest predates this snapshot.
                 original_project = current_project
@@ -655,8 +828,8 @@ def run_postprocess_pipeline(
             final_bilingual_srt = Path(published["bilingualSrtPath"]) if published["bilingualSrtPath"] else None
         else:
             final_project, final_srt, final_translated_srt = _publish_final(
-                project_path,
-                srt_path,
+                publish_source_project,
+                publish_source_srt,
                 current_project,
                 current_srt,
                 translated_srt=current_translated_srt,

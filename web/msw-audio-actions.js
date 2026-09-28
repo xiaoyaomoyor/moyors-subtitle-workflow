@@ -40,9 +40,10 @@
     el('regenerate-count').textContent = `${t('可重新生成')}：${regenerable}`;
     el('fill-count').textContent = `${t('可补齐字幕')}：${fillable}`;
     const hasSource = Boolean(host.player.currentSrc || host.player.getAttribute('src'));
-    el('source-apply').disabled = !hasSource;
-    el('source-status').textContent = hasSource ? `${t('当前试听增益')}：${audio.sourceGainDb().toFixed(1)} dB` : t('请先加载媒体');
-    for (const id of ['mute', 'unmute', 'gain-apply']) el(id).disabled = !clips.length;
+    el('source-status').textContent = hasSource ? '' : t('请先加载媒体');
+    el('source-status').hidden = hasSource;
+    clipVolume.refresh(clips.length > 0); sourceVolume.refresh(hasSource);
+    for (const id of ['mute', 'unmute']) el(id).disabled = !clips.length;
     el('fill').disabled = !clips.length;
     el('regenerate').disabled = running || Boolean(batch?.outputOnly) || (!batch && (!regenerable || !host.config?.processingUrl));
     el('regenerate').textContent = t(batch ? '继续确认本批任务' : '重新生成并替换');
@@ -57,25 +58,84 @@
     })) report(`${t('已处理')} ${ids.size} ${t('条贴片')}`);
   }
   el('mute').onclick = () => mute(true); el('unmute').onclick = () => mute(false);
-  el('gain-apply').onclick = () => {
-    try {
-      const clips = audio.selectedClips(); if (!clips.length) return;
-      const value = el('gain').value.trim();
-      const gains = core.gains(clips, value ? Number(value) : NaN, el('gain-mode').value);
-      if (host.commitAudio(t('批量修改贴片音量增益'), ext => {
-        ext.audio_clips.forEach(c => { if (gains.has(c.id)) c.gain_db = gains.get(c.id); });
-      })) report(`${t('已处理')} ${gains.size} ${t('条贴片')}`);
-    } catch (error) { report(error.message); }
-  };
+  function volumeControl(id, source = false) {
+    const range=el(id), number=el(`${id}-value`), output=el(`${id}-output`), reset=el(`${id}-reset`);
+    let gesture=null, cancelledPointer=false, pending=Promise.resolve();
+    const identity=()=>source ? JSON.stringify([host.generation,host.data.media,global.MSWE.resolve('media')?.current?.audio_index])
+      : JSON.stringify(audio.selectedClips().map(c=>c.id).sort());
+    const read=()=>source ? [{id:'source',gain_db:audio.sourceGainDb()}] : audio.selectedClips();
+    const valid=g=>g.generation===host.generation && g.identity===identity() && (source || g.extension===host.data.msw);
+    function show(value, mixed=false) {
+      range.value=String(value);number.value=mixed?'':String(value);number.placeholder=mixed?'—':'';
+      const percent=100*Math.pow(10,value/20);
+      output.textContent=mixed?t('多个音量'):`${percent < 1 ? percent.toFixed(1) : Math.round(percent)}%`;
+      range.classList.toggle('is-mixed',mixed);
+      range.setAttribute('aria-valuetext',mixed?t('多个音量'):`${value.toFixed(1)} dB`);
+      if(!source)el('gain-mixed').hidden=!mixed;
+    }
+    function refreshControl(enabled) {
+      if(gesture && !valid(gesture)) cancel();
+      for(const node of [range,number,reset])node.disabled=!enabled;
+      if(gesture)return;
+      const rows=read(),value=rows[0]?.gain_db??0,mixed=rows.some(c=>c.gain_db!==value);
+      show(value,mixed);
+    }
+    function begin() {
+      if(gesture)return;
+      const rows=read();if(!rows.length || range.disabled)return;
+      gesture={rows,identity:identity(),extension:host.data.msw,generation:host.generation,value:null};
+    }
+    function preview(value) {
+      begin();const g=gesture;if(!g || !valid(g))return cancel();
+      if(!Number.isFinite(value) || value < -60 || value > 12) { number.setCustomValidity(t('增益须在 −60 至 +12 dB'));return; }
+      number.setCustomValidity('');g.value=value;show(value);
+      if(source) {
+        pending=audio.setSourceGainDb(value).catch(error=>{if(gesture===g){report(error.message);cancel();}});
+      } else audio.previewClipGains(core.gains(g.rows,value,'set'));
+    }
+    async function finish() {
+      const g=gesture;if(!g || g.finishing)return;
+      if(g.value===null || !number.checkValidity())return cancel();
+      g.finishing=true;
+      if(source)await pending;
+      if(gesture!==g)return;
+      if(!valid(g))return cancel();
+      gesture=null;
+      if(source) {
+        if(g.rows[0].gain_db!==g.value)host.commitSourceGain(g.rows[0].gain_db);
+      } else {
+        audio.previewClipGains(null);
+        const gains=core.gains(g.rows,g.value,'set');
+        if(g.rows.some(c=>c.gain_db!==g.value))host.commitAudio(t('调整所选贴片音量'),ext=>{
+          ext.audio_clips.forEach(c=>{if(gains.has(c.id))c.gain_db=gains.get(c.id);});
+        });
+      }
+      refresh();
+    }
+    function cancel() {
+      const g=gesture;gesture=null;number.setCustomValidity('');
+      if(source) {if(g && valid(g))void audio.setSourceGainDb(g.rows[0].gain_db).catch(()=>{});}
+      else audio.previewClipGains(null);
+      if(g)show(g.rows[0]?.gain_db??0,g.rows.some(c=>c.gain_db!==g.rows[0]?.gain_db));
+    }
+    range.addEventListener('pointerdown',()=>{cancelledPointer=false;begin();});
+    range.addEventListener('keydown',event=>{if(event.key!=='Escape')cancelledPointer=false;});
+    range.addEventListener('input',()=>{if(!cancelledPointer)preview(Number(range.value));});
+    range.addEventListener('change',()=>{if(!cancelledPointer)void finish();});
+    range.addEventListener('pointercancel',()=>{cancelledPointer=true;cancel();refresh();});
+    number.addEventListener('input',()=>preview(number.value.trim()?Number(number.value):NaN));
+    number.addEventListener('change',()=>void finish());
+    number.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();void finish();}});
+    number.addEventListener('blur',()=>{if(gesture && !gesture.finishing)void finish();});
+    reset.onclick=()=>{cancel();preview(0);void finish();};
+    return {refresh:refreshControl,cancel,escape(){if(!gesture)return false;cancelledPointer=true;cancel();refresh();return true;}};
+  }
+  const clipVolume=volumeControl('gain'),sourceVolume=volumeControl('source-gain',true);
+  global.addEventListener('keydown',event=>{
+    if(event.key==='Escape' && (clipVolume.escape() || sourceVolume.escape())){event.preventDefault();event.stopImmediatePropagation();}
+  },true);
+  global.addEventListener('blur',()=>{clipVolume.cancel();sourceVolume.cancel();refresh();});
   el('open').onclick = () => { refresh(); panel.open(); };
-  el('source-apply').onclick = async () => {
-    try {
-      const value = el('source-gain').value.trim();
-      const gains = core.gains([{id:'source',label:t('源音频'),gain_db:audio.sourceGainDb()}], value ? Number(value) : NaN, el('source-mode').value);
-      await audio.setSourceGainDb(gains.get('source'));
-      report('已调整源音频试听增益'); refresh();
-    } catch (error) { report(error.message); }
-  };
   function fill() {
     panel.open();
     try {
@@ -204,10 +264,19 @@
       await runBatch();
     }}));
   el('cancel').onclick = () => { if (!batch) return; batch.cancelled=true; refresh(); if (!running) void runBatch(); };
-  el('close').onclick = () => panel.close();
+  el('close').onclick = () => {clipVolume.cancel();sourceVolume.cancel();panel.close();};
   for (const event of ['msw:audio-selection', 'msw:audio-changed', 'msw:assets-changed']) global.addEventListener(event, refresh);
-  for (const event of ['loadedmetadata','emptied']) host.player.addEventListener(event, refresh);
+  let observedPlayer=null;
+  function observePlayer(){
+    for(const event of ['loadedmetadata','emptied'])observedPlayer?.removeEventListener(event,refresh);
+    observedPlayer=host.player;
+    for(const event of ['loadedmetadata','emptied'])observedPlayer.addEventListener(event,refresh);
+    refresh();
+  }
+  global.addEventListener('msw:player-changed',observePlayer);
+  global.addEventListener('msw:media-changed',refresh);
   global.addEventListener('msw:source-gain', refresh);
+  document.addEventListener('mawe:languagechange',refresh);
   global.addEventListener('msw:project-changed', () => { batch=null; running=false; latestResults.clear(); report(''); refresh(); });
-  refresh();
+  observePlayer();
 })(window);

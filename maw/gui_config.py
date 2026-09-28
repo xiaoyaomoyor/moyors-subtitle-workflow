@@ -89,7 +89,7 @@ class EffectiveConfig:
     gui_lang: str
     sticker_dir: str
     show_rare_langs: bool = False
-    output_subfolder: bool = False
+    output_subfolder: bool = True
     per_video_subfolder: bool = False
     attach_model_name: bool = False
     last_model: str | None = None
@@ -636,7 +636,11 @@ def normalize_zoom_percent(value: object) -> int:
 
 def _env_bool(value: str, default: bool = False) -> bool:
     value = value.strip().lower()
-    return value in ("1", "true", "yes", "on") if value else default
+    if value in ("1", "true", "yes", "on"):
+        return True
+    if value in ("0", "false", "no", "off"):
+        return False
+    return default
 
 
 def save_env(path: Path, updates: Mapping[str, str]) -> None:
@@ -690,7 +694,7 @@ def effective_config(path: Path | None = None, environ: Mapping[str, str] | None
         gui_lang=_gui_language(pick("MAW_GUI_LANG", "")),
         sticker_dir=pick("STICKER_DIR"),
         show_rare_langs=pick("MAW_GUI_SHOW_RARE_LANGS").strip().lower() in ("1", "true", "yes", "on"),
-        output_subfolder=_env_bool(pick("MAW_GUI_OUTPUT_SUBFOLDER")),
+        output_subfolder=_env_bool(pick("MAW_GUI_OUTPUT_SUBFOLDER"), default=True),
         per_video_subfolder=_env_bool(pick("MAW_GUI_PER_VIDEO_SUBFOLDER")),
         attach_model_name=_env_bool(pick("MAW_GUI_ATTACH_MODEL_NAME"), default=False),
         last_model=pick_optional("MAW_GUI_LAST_MODEL"),

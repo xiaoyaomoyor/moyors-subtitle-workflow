@@ -2,7 +2,7 @@
 
 所有自动生成的文件 / 目录路径都应经由本模块函数拼出：
 
-- 最终产物（srt / mosp / ass）默认留在媒体旁，可选统一放入 ``_msw``；
+- 最终产物（srt / mosp / ass）缺省放入 ``_msw``，显式关闭时留在媒体旁；
 - HTML、原生波形、asr-response、后处理中间产物进入 ``_msw``；ReaPeaks 保持旧位置；
 - 子目录名与操作后缀按 UI 语言（zh / en）本地化，读取时兼容两套命名；
 - 旧版媒体同目录的缓存保持兼容读取，不做自动迁移。
@@ -55,6 +55,7 @@ BACKUP_DIR_NAMES: Final[dict[str, str]] = {"zh": "备份", "en": "backups"}
 # 两者同时启用时以点连接（"replace.traditional"）。
 OPERATION_NAMES: Final[dict[str, dict[str, str]]] = {
     "postprocess": {"zh": "后处理", "en": "postprocess"},
+    "original": {"zh": "原始", "en": "original"},
     "ocr-dedup": {"zh": "OCR去重", "en": "ocr-dedup"},
     "match": {"zh": "文稿匹配", "en": "match"},
     "replace": {"zh": "批量替换", "en": "replace"},
@@ -132,7 +133,7 @@ def subfolder_prefs(env_path: Path | None = None) -> tuple[bool, bool]:
         config = effective_config(env_path or _CONFIG_CONTEXT.get())
         return (bool(config.output_subfolder), bool(config.output_subfolder and config.per_video_subfolder))
     except Exception:
-        return (False, False)
+        return (True, False)
 
 
 def sanitize_component(value: object, fallback: str = "视频") -> str:

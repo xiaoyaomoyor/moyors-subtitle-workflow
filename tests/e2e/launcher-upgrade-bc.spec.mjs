@@ -18,7 +18,8 @@ test('output settings retain the inactive per-media preference and preserve an e
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
   // S2：输出偏好位于「文件与输出」分组（默认进入「外观与语言」）。
   await page.locator('[data-settings-tab="files"]').click();
-  await expect(page.locator('#outputSubfolder')).not.toBeChecked();
+  await expect(page.locator('#outputSubfolder')).toBeChecked();
+  await page.locator('#outputSubfolder').uncheck();
   await expect(page.locator('#perVideoSubfolder')).toBeDisabled();
   await expect(page.locator('#attachModelName')).not.toBeChecked();
   await page.locator('#attachModelName').check();

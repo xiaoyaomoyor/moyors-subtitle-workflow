@@ -301,7 +301,7 @@ class BatchApiTests(unittest.TestCase):
                 assert worker is not None
                 worker.join(timeout=5)
                 items = run_batch.call_args.args[0]
-            self.assertEqual(items[0].request.srt_path, root / "clip.srt")
+            self.assertEqual(items[0].request.srt_path, root / "_msw" / "clip.srt")
             api.shutdown()
 
     def test_start_batch_srt_only_marks_requests_without_project_artifacts(self) -> None:

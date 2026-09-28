@@ -2678,13 +2678,14 @@ class GuiWebBridgeTests(unittest.TestCase):
     def test_default_output_avoids_existing_srt_and_reports_rename(self) -> None:
         media = self.root / "clip.mp4"
         media.write_bytes(b"media")
-        output = self.root / "clip.srt"
+        output = self.root / "_msw" / "clip.srt"
+        output.parent.mkdir()
         output.write_text("existing", encoding="utf-8")
 
         result = self.api.default_output({"mediaPath": str(media), "providerId": "qwen", "modelId": "qwen-audio-3.0-asr-flash-filetrans"})
 
         self.assertTrue(result["renamed"])
-        self.assertEqual(result["path"], str(self.root / "clip-1.srt"))
+        self.assertEqual(result["path"], str(self.root / "_msw" / "clip-1.srt"))
 
     def test_start_transcription_rechecks_output_collision_before_worker(self) -> None:
         media = self.root / "clip.mp3"
@@ -3778,7 +3779,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         pin_block = stylesheet[stylesheet.index(".recent-cover .recent-pin {"):]
         self.assertIn("top: 6px;", pin_block[:200])
         self.assertIn("left: 6px;", pin_block[:200])
-        self.assertIn("transform: rotate(35deg);", pin_block[:200])
+        self.assertIn("transform: rotate(-35deg);", pin_block[:200])
         self.assertNotIn("right: 6px;", pin_block[:200])
 
         # C3：多选模型（分派 + Ctrl 增减 + Shift 范围）与批量菜单/批量删除。
@@ -4018,7 +4019,6 @@ class LauncherAssetContractTests(unittest.TestCase):
             "translationWriteMode",
             "toolboxFfconcatPanel",
             "postprocessScriptPath",
-            "postprocessProvider",
             "postprocessFfconcatPath",
             "llmProvider",
             "llmApiKey",
@@ -4166,7 +4166,9 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('toolbox_key_loaded: "已从本地环境读取密钥 {key}"', launcher_script)
         self.assertIn('toolbox_key_loaded: "Loaded key from local environment: {key}"', launcher_script)
         self.assertIn('errorText: errText', launcher_script)
-        self.assertIn('field.value = result.apiKey || "";', script)
+        self.assertNotIn('field.value = result.apiKey || "";', script)
+        self.assertIn('key_local_available', script)
+        self.assertNotIn('id="llmKeyStatus"', page)
         self.assertIn('void loadPostprocessApiKey(item.id, item.maskedApiKey || "");', script)
         self.assertIn('function postprocessErrorText(result)', script)
         self.assertIn('window.MSWLauncher.errorText(result?.code || "", detail, result)', script)

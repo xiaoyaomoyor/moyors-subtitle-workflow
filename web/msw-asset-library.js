@@ -241,7 +241,7 @@
     let batch = el('asset-batch').value;
     const batchIds = new Set(all.map(batchId));
     if (batch && !batchIds.has(batch)) batch = '';
-    const labels = {copy:'复制字幕',asr:'ASR',tts:'TTS',imported:'外部音频',regenerated:'重新生成'};
+    const labels = {copy:'复制字幕',asr:'ASR',translation:'字幕翻译',tts:'TTS',imported:'外部音频',regenerated:'重新生成'};
     el('asset-batch').replaceChildren(new Option(t('全部批次'), ''), ...[...batchIds].map(id => {
       const record=batchRecords.get(id);
       return new Option(`${new Date(record?.created_at || 0).toLocaleString()} · ${t(labels[record?.kind] || '素材')} · ${id.slice(-6)}`,id);

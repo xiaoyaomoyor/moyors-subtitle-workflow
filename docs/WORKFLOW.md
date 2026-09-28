@@ -10,6 +10,8 @@ beta.5 的叠加字幕、ASS 样式迁移、字词对齐及保留手势见[升�
 
 这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MSW 是 Moyor's Subtitle Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
 
+编辑器配音支持百炼、油库里、IndexTTS、GPT-SoVITS、Edge、MiniMax、Mossland 七种引擎；入口、草稿与素材流程见 [TTS 与素材库](EDITOR_TTS.md)，新增云端配置见 [MiniMax／Mossland](EDITOR_CLOUD_TTS.md)。
+
 ## 在编辑器中翻译字幕
 
 工程的保存、TTS 素材收集、可选原媒体收集及恢复记录，见[工程保存与恢复](EDITOR_PERSISTENCE.md)。
@@ -282,7 +284,9 @@ uv run python generate_subtitle_bcut_api.py "D:\Videos\example.mp4" -ll 2m --jso
 
 Launcher 可以在转写成功后自动串接文稿匹配、固定处理、LLM 校对、重新断句、OCR 字幕去重和翻译。功能默认关闭；配置、LLM 连接验证、中间产物目录、失败恢复和安全边界见[转写后自动处理](POSTPROCESS_PIPELINE.md)。
 
-自动处理会保留原始转写结果，最终结果另写为带 `.postprocess` 后缀的 `.mosp` 和 `.srt`。失败或取消不会影响原始结果，并会保留中间目录供恢复。
+未配置时，「输出到子目录」和「保留中间产物」默认开启；已保存的关闭值及自定义输出路径继续有效。新目录仍使用 `_msw`／`视频名_msw`，兼容读取旧 `_maw`，不自动移动旧文件。
+
+自动处理先保存 0 号原始工程／SRT 快照，随后按产物编号；临时队列输入退出后，快照和配音素材仍可恢复。自动处理会保留原始转写结果，最终结果另写为带 `.postprocess` 后缀的 `.mosp` 和 `.srt`。失败或取消不会影响原始结果，并会保留中间目录供恢复。
 
 ## 2.6 Launcher 混合输入与批量制作
 

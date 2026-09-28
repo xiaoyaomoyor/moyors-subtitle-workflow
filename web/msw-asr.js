@@ -10,7 +10,7 @@
     'maxWords','minWords','gapSplit','qwenAudioContext','qwenAudioHotwords','qwenAudioVocabularyId','qwenAudioHotwordWeight',
     'openaiPrompt','openaiKeywords','sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms','doubaoHotwords'];
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
-  let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,selected=null,loading=null;
+  let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,loading=null;
   let retrying = null, retrySource = null;
   const retries = new Map();
   function message(value) {el('message').textContent=t(value);}
@@ -45,9 +45,8 @@
     if (!provider) return;
     options(el('region'),provider.regions,savedConnection.region||'beijing');
     for (const key of connectionFields) if(key!=='region')el(key).value=savedConnection[key]||'';
-    el('apiKey').value='';el('key-state').textContent=t(provider.hasApiKey?'已配置本机密钥，留空继续使用':'尚未配置此服务密钥');
+    el('apiKey').value='';el('apiKey').placeholder=t(provider.hasApiKey?'已持有本地密钥':'请输入 API Key');
     el('apiKey').closest('label').hidden=provider.kind==='local';
-    if(provider.kind==='local')el('key-state').textContent=t('本地识别不需要 API Key，请在 ASR 面板准备模型');
     for(const kind of ['qwen','openai'])el('environment-fields').querySelectorAll('[data-asr-'+kind+']').forEach(node=>node.hidden=provider.id!==kind);
   }
   function openaiOptions() {
@@ -146,48 +145,14 @@
       message(`${error.message}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
     } finally {if(generation===host.generation){busy=false;updateScope();renderJobs();}}
   }
-  function renderJobs() {
-    const opened=new Set([...el('jobs').querySelectorAll('details[open]')].map(node=>node.dataset.resultId));
-    const fragment=document.createDocumentFragment();
-    const labels={queued:'等待识别',running:'正在识别',cancel_requested:'正在取消',succeeded:'识别完成',failed:'识别失败',cancelled:'已取消',interrupted:'服务中断'};
-    for (const job of [...jobs.values()].sort((a,b)=>b.created_at-a.created_at).slice(0,30)) {
-      const card=document.createElement('div');card.className='msw-processing-job';card.dataset.asrJob=job.id;
-      const line=document.createElement('p');line.textContent=`${job.model} · ${t(labels[job.status]||job.status)}${job.error?` · ${job.error}`:''}`;
-      const range=job.source_range||details.get(job.id)?.snapshot?.range;
-      if (range) line.textContent+=` · ${(range.start/1000).toFixed(3)}–${(range.end/1000).toFixed(3)} s`;
-      const status=document.createElement('small');status.textContent=t(job.progress?.message||'');
-      const actions=document.createElement('div');actions.className='msw-processing-actions';card.append(line,status,actions);
-      function button(label,action) {const node=document.createElement('button');node.type='button';node.textContent=t(label);node.addEventListener('click',action);actions.append(node);return node;}
-      if (!terminal.has(job.status)) button('取消',async()=>{
-        const generation=host.generation;
-        try {
-          await media.request(`jobs/${job.id}/cancel`,{project_id:job.project_id});
-          if (generation!==host.generation) return;
-          jobs.set(job.id,{...job,status:'cancel_requested'});renderJobs();schedule(0);
-        }catch(error){if(generation===host.generation)message(error.message);}
-      });
-      if (job.status==='succeeded') {
-        const choose=document.createElement('label');choose.className='msw-asr-result-choice';
-        const radio=document.createElement('input');radio.type='radio';radio.name='msw-asr-result';radio.checked=selected?.id===job.id;
-        radio.addEventListener('change',()=>void showResult(job.id));choose.append(radio,t('选择结果'));actions.append(choose);
-        const result=details.get(job.id),view=document.createElement('details');view.dataset.resultId=job.id;view.className='msw-asr-result-preview';
-        const summary=document.createElement('summary');summary.textContent=t('预览结果');view.append(summary);
-        if (result) {
-          const status=document.createElement('p');status.className='msw-processing-hint';status.textContent=resultStatus(result);
-          const candidates=document.createElement('div');candidates.className='msw-asr-candidates';
-          for(const cue of (result.result?.segments||[]).slice(0,300)) {
-            const line=document.createElement('p');line.textContent=[(cue.start/1000).toFixed(3),(cue.end/1000).toFixed(3)].join('–')+'  '+cue.text;candidates.append(line);
-          }
-          if(selected?.id===job.id){view.id='msw-asr-preview';status.id='msw-asr-result-status';candidates.id='msw-asr-candidates';card.classList.add('is-selected');}
-          view.append(status,candidates);
-        }
-        view.open=opened.has(job.id);
-        view.addEventListener('toggle',()=>{if(view.isConnected&&view.open&&!details.has(job.id))void showResult(job.id);});
-        card.append(view);
-      }
-      if (['failed','cancelled','interrupted'].includes(job.status)) {
-        const retried = jobs.get(retries.get(job.id)), activeRetry = retried && !terminal.has(retried.status);
-        const retryButton = button(activeRetry ? '正在重试' : '使用此范围重试',async()=>{
+  const resultView=global.MSWResultView.create({host,kind:'asr',container:el('jobs'),footer:el('result-footer'),count:el('count'),onMessage:message,
+    onCancel:async job=>{const generation=host.generation,result=await media.request(`jobs/${job.id}/cancel`,{project_id:job.project_id});if(generation!==host.generation)return;jobs.set(job.id,result.job);renderJobs();schedule(0);},
+    onRetry:retryJob,onApply:applyBatch,onStore:storeBatch});
+  function renderJobs() {resultView.render([...jobs.values()].map(j=>({...details.get(j.id)||j,
+    retry_active:Boolean(jobs.get(retries.get(j.id))&&!terminal.has(jobs.get(retries.get(j.id)).status))})));}
+  function refreshFooter() {resultView.refresh();}
+  async function retryJob(job) {
+    const retried=jobs.get(retries.get(job.id)),activeRetry=retried&&!terminal.has(retried.status);
         if (busy || submission || retrying || activeRetry) return;
         const generation=host.generation;
         retrying=job.id;updateScope();renderJobs();
@@ -212,84 +177,35 @@
           batchSubmission=false;retrySource=job.id;el('history').open=true;await submit();
         }catch(error){if(generation===host.generation)message(error.message);}
         finally{if(generation===host.generation){retrying=null;updateScope();renderJobs();}}
-        });
-        retryButton.disabled=busy||Boolean(submission)||Boolean(retrying)||Boolean(activeRetry);
-      }
-      fragment.append(card);
-    }
-    el('jobs').replaceChildren(fragment);el('count').textContent=String(jobs.size);refreshFooter();
+
   }
-  function resultStatus(job) {
-    const rows=job.result?.segments||[],conflict=global.MSWAsr.conflict(host.data,media.current,job.snapshot);
-    const applied=host.data.msw?.applied_results?.includes(job.id);
-    let text=applied?t('此结果已应用'):conflict||t(rows.length?'候选字幕':'没有识别到语音；保留现有字幕');
-    if(stored(job))text+=' · '+t('已存入素材库');
-    if(rows.length&&!applied&&!conflict)text+=' '+rows.length+' · '+t('替换主字幕')+' '+job.snapshot.targets.length+' → '+rows.length;
-    if(rows.length>300)text+=' · '+t('仅预览前 300 条，入库保留全部');
-    if(job.result?.warnings?.length)text+=' · '+job.result.warnings.join('；');
-    return text;
-  }
-  function refreshFooter() {
-    const rows=selected?.result?.segments||[];
-    el('apply').disabled=!selected||!rows.length||!host.applyASR||Boolean(global.MSWAsr.conflict(host.data,media.current,selected.snapshot))||host.data.msw?.applied_results?.includes(selected.id)||overlappingBatch(selected);
-    el('apply').title=selected&&overlappingBatch(selected)?t('同批识别范围重叠，请先存入素材库'):'';
-    el('store').disabled=!selected||!batchResults(selected).some(j=>j.result?.segments?.length&&!stored(j));
-    el('selected').textContent=selected?t('当前结果')+' · '+selected.result.model+' · '+(selected.snapshot.range.start/1000).toFixed(3)+'–'+(selected.snapshot.range.end/1000).toFixed(3)+' s':'';
-    const status=el('result-status');if(status&&selected)status.textContent=resultStatus(selected);
-  }
-  const stored=job=>(host.data.msw?.asset_batches||[]).some(b=>b.result_ids?.includes(job.id));
-  const batchId=job=>job.snapshot?.batch_id||job.batch_id||job.id;
-  const batchResults=job=>[...details.values()].filter(j=>batchId(j)===batchId(job)&&j.project_id===host.data.msw?.project_id&&j.status==='succeeded');
-  function overlappingBatch(job) {
-      if(job.snapshot?.mode!=='clips')return false;
-      if(job.snapshot.batch_overlap)return true;
-    const range=job.snapshot.range;
-    return [...jobs.values()].some(j=>j.id!==job.id&&batchId(j)===batchId(job)&&j.source_range
-      &&j.source_range.start<range.end&&range.start<j.source_range.end);
-  }
-  function storeBatch() {
-    try {
-      if(!selected)return;
-      host.commitEdits();
-      const result=global.MSWAssets.asrResults(host.data.msw,batchResults(selected));
-      if(!result.count)return;
-      host.commitSubtitleAssets('ASR 结果存入素材库',ext=>Object.assign(ext,result.extension));
-      host.showAssets({automatic:true});global.MSWE.resolve('asset-library')?.showBatch(batchId(selected));
-      message(`${t('已存入素材库')} ${result.count} ${t('条字幕')} · ${t('本批完成结果已入库')}`);renderJobs();
-    }catch(error){message(error.message);}
-  }
-  function preview(job,reveal=true) {
-    selected=job;details.set(job.id,job);renderJobs();
-    if(reveal){el('history').open=true;if(el('preview'))el('preview').open=true;}
+  function storeBatch(candidates) {
+    const result=global.MSWResults.store(host.data,candidates);if(!result){message('此修订已存入素材库');return;}
+    host.commitSubtitleAssets('识别结果存入素材库',ext=>Object.assign(ext,result.extension));
+    host.showAssets({automatic:true});global.MSWE.resolve('asset-library')?.showBatch(result.batchId);
+    message(`${t('已存入素材库')} ${result.count}`);renderJobs();
   }
   async function showResult(id) {
-    const projectId=host.data.msw?.project_id,generation=host.generation;
+    const generation=host.generation,projectId=host.data.msw?.project_id;
     try {
       const result=await media.request(`jobs/${id}/result?${new URLSearchParams({project_id:projectId})}`);
-      if (generation!==host.generation) return;
-      details.set(id,result.job);preview(result.job);
+      if(generation!==host.generation)return;details.set(id,result.job);renderJobs();resultView.choose(result.job);el('history').open=true;
     }catch(error){message(error.message);}
   }
-  async function apply(job) {
-    if (!host.applyASR) return;
+  async function applyBatch(candidates,target,strategy) {
     const generation=host.generation;
-    try {
-      if(overlappingBatch(job))throw Error('同批识别范围重叠，请先存入素材库');
-      await media.request('asr-validate',{...media.payload(),job_id:job.id});
-      if (generation!==host.generation) return;
-      const result=host.applyASR(job,media.current);
-      if (!result.applied) {preview(job);return;}
-      await media.request(`jobs/${job.id}/ack`,{project_id:job.project_id,application:'applied'});
-      if (generation!==host.generation) return;
-      preview(job);message('ASR 结果已应用，可一次撤销');
-    }catch(error){message(error.message);}
+    for(const job of candidates) await media.request('asr-validate',{...media.payload(),job_id:job.id});
+    if(generation!==host.generation)return;
+    const result=host.applyProcessing(candidates,target,strategy,media.current);
+    message(result.duplicate?'此修订已应用到当前目标':'ASR 结果已应用，可一次撤销');renderJobs();
   }
   async function handleReady(job) {
     if (details.has(job.id)) return;
+    const generation=host.generation;
     const result=await media.request(`jobs/${job.id}/result?${new URLSearchParams({project_id:job.project_id})}`);
-    if (host.data.msw?.project_id!==job.project_id) return;
+    if (host.data.msw?.project_id!==job.project_id||generation!==host.generation) return;
     details.set(job.id,result.job);
-    if (panel.classList.contains('show')&&!selected) preview(result.job,false);
+
   }
   function schedule(delay=1000) {clearTimeout(timer);timer=setTimeout(()=>void poll(),delay);}
   async function poll() {
@@ -304,7 +220,7 @@
       }
       for (const job of jobs.values()) if (job.status==='succeeded'&&!details.has(job.id)) await handleReady(job);
       if (result.jobs.some(job=>job.kind==='asr')) renderJobs();
-      if (selected&&panel.classList.contains('show')) refreshFooter();
+      if (panel.classList.contains('show')) refreshFooter();
     }catch(error){if(panel.classList.contains('show'))message(error.message);}
     finally {polling=false;schedule([...jobs.values()].some(job=>!terminal.has(job.status))?750:2500);}
   }
@@ -333,7 +249,7 @@
     await media.request('asr-settings',{section:'call',provider:providerInput()});
     await loadSettings();
   }
-  el('local-refresh').onclick=()=>void refreshLocal().catch(error=>message(error.message));
+  el('local-refresh').onclick=async()=>{const button=el('local-refresh');if(button.disabled)return;button.disabled=true;const label=button.textContent;button.textContent=t('正在验证…');message('正在验证本机模型…');try{await refreshLocal();message('本机模型状态已更新');}catch(error){message(error.message);}finally{button.disabled=false;button.textContent=label;}};
   settingsRoot.querySelectorAll('[data-asr-prepare]').forEach(button=>button.onclick=async()=>{
     try {
       const action=button.dataset.asrPrepare;
@@ -367,10 +283,8 @@
       selectEnvironment();el('environment-message').textContent=t('ASR 环境配置已保存');
     }catch(error){el('environment-message').textContent=error.message;}finally{busy=false;updateScope();}
   });
-  el('apply').addEventListener('click',()=>{if(selected)void apply(selected);});
-  el('store').addEventListener('click',storeBatch);
-  for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show'))updateScope();});
-  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;selected=null;submission=null;renderJobs();updateScope();if(available)schedule(0);});
+  for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show')){updateScope();refreshFooter();}});
+  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;submission=null;resultView.reset();renderJobs();updateScope();if(available)schedule(0);});
   global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
   refreshFooter();
   if (available) {void loadSettings();schedule(0);}

@@ -70,7 +70,9 @@
       el('tts-index-controls').disabled = busy;
       el('tts-index-check').disabled = busy;
       el('tts-index-url').disabled = busy; el('tts-index-timeout').disabled = busy;
-      for (const input of el('tts-environment-indextts').querySelectorAll('input, select, button')) input.disabled = busy;
+      for (const input of el('tts-environment-indextts').querySelectorAll('input, select, button')) {
+        if (!input.closest('#tts-local-indextts')) input.disabled = busy;
+      }
       for (const kind of ['audio', 'vector']) el('tts-index-emotion-' + kind).hidden = mode !== kind;
       el('tts-index-emotion-text-field').hidden = mode !== 'text';
       el('tts-index-emotion-weight-field').hidden = mode === 'follow';
@@ -244,6 +246,7 @@
     });
     global.addEventListener('msw:project-changed', invalidate);
     return {configure, recipe, connection, ready, stopPreview, invalidate, check,
+      referencesReady: () => !busy && Boolean(value('speaker')) && (value('emotion-mode') !== 'audio' || Boolean(value('emotion-ref'))),
       isBusy: () => busy,
       connected: () => Boolean(cap && capUrl === connection().service_url),
       problem: () => connectionFailure ? statusText : cap ? '' : busy ? '正在检测 IndexTTS 连接…' : 'IndexTTS 尚未连接，请在环境配置中检测服务。'};

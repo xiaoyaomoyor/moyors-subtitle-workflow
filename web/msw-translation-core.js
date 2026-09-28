@@ -71,6 +71,31 @@
     return { project_id: project.msw.project_id, track_id: track?.id || null, entries, output_mode: outputMode };
   }
 
+  function skippedRows(input,result) {
+    const translations = new Map((result.translations || []).map(row => [row.id,row.text]));
+    const rawSkipped = result.skipped_ids || [];
+    const sources = new Map(input.entries.map(entry => [entry.source.id, entry.source]));
+    const validSkipped = ids => ids.every(id => sources.has(id) && translations.get(id) === sources.get(id).text);
+    let skippedIds = rawSkipped;
+    if (!result.skipped_id_namespace && rawSkipped.length) {
+      // Older jobs leaked the model's sequential IDs. Recover only when the
+      // saved snapshot and unchanged returned text prove an unambiguous mapping.
+      const legacyMap = new Map(input.entries.map((entry, index) => [`c${String(index + 1).padStart(4, '0')}`, entry.source.id]));
+      const legacyIds = rawSkipped.map(id => legacyMap.get(id));
+      const directValid = validSkipped(rawSkipped), legacyValid = validSkipped(legacyIds);
+      if (directValid && legacyValid && rawSkipped.some((id, i) => id !== legacyIds[i])) {
+        throw new Error('旧翻译结果的跳过编号存在歧义，未应用');
+      }
+      if (!directValid && legacyValid) skippedIds = legacyIds;
+    }
+    const skipped = new Set(skippedIds);
+    for (const id of skipped) {
+      const entry = input.entries.find(entry => entry.source.id === id);
+      if (!entry || translations.get(id) !== entry.source.text) throw new Error('跳过翻译的字幕与原文不符');
+    }
+    return skipped;
+  }
+
   function reconcile(project, input, result, { onlyIds = null, createdTrackId = null } = {}) {
     if (project.msw?.project_id !== input.project_id) throw new Error('翻译结果属于其他工程');
     const translations = new Map();
@@ -82,11 +107,7 @@
       translations.set(row.id, row.text);
     }
     if (translations.size !== expected.size) throw new Error('翻译结果缺少字幕，未应用');
-    const skipped = new Set(result.skipped_ids || []);
-    for (const id of skipped) {
-      const entry = input.entries.find(entry => entry.source.id === id);
-      if (!entry || translations.get(id) !== entry.source.text) throw new Error('跳过翻译的字幕与原文不符');
-    }
+    const skipped = skippedRows(input,result);
     if (input.output_mode === 'replace_main') {
       const segments = clone(project.segments), byId = new Map(segments.map(cue => [cue.id, cue]));
       const allowed = onlyIds ? new Set(onlyIds) : null, appliedIds = [], conflicts = [];
@@ -198,6 +219,6 @@
     }
     return { multi, appliedIds, conflicts };
   }
-  global.MSWTranslation = Object.freeze({ scope, snapshot, reconcile });
+  global.MSWTranslation = Object.freeze({ scope, snapshot, reconcile, skipped:skippedRows });
   global.MSWE?.register('msw-translation', () => global.MSWTranslation);
 })(window);

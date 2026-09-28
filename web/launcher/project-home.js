@@ -41,6 +41,7 @@
     allPageSize: ALL_PAGE,
     allMediaIndexed: 0,
     allRequest: 0, // T2/§5.2：请求序号——慢响应不回退页面
+    recentRequest: 0,
     selectedPath: "",  // C3：锚点=最近交互的工程（启动目标）
     selectedPaths: [], // C3：多选集合（Shift 范围/Ctrl 单击累积），顺序即选择顺序
     query: "",
@@ -833,7 +834,9 @@
   // ---------------- 刷新 ----------------
 
   function refresh() {
+    var request = ++state.recentRequest;
     var recentReady = bridge("get_recent_projects").then(function (result) {
+      if (request !== state.recentRequest) return;
       if (!result || result.ok !== true) return;
       state.projects = Array.isArray(result.projects) ? result.projects : [];
       if (state.selectedPath && !entryByPath(state.selectedPath)) {
@@ -843,6 +846,7 @@
     });
     var allReady = fetchAllPage();
     return Promise.all([recentReady, allReady]).then(function () {
+      if (request !== state.recentRequest) return;
       if (!state.selectedPath) restoreSelection();
       render();
     });
@@ -1001,11 +1005,9 @@
     var actions = [];
     actions.push({ key: "recent_open_project", run: function () { openProject(entry.path); } });
     if (batchEntries.length) {
-      actions.push({ key: allPinned ? "batch_unpin" : "batch_pin", label: batchLabel(allPinned ? "batch_unpin" : "batch_pin"), run: function () {
-        batchEntries.forEach(function (item) {
-          void bridge("set_recent_project_pinned", { path: item.path, pinned: !allPinned });
-        });
-        refresh();
+      actions.push({ key: allPinned ? "batch_unpin" : "batch_pin", label: batchLabel(allPinned ? "batch_unpin" : "batch_pin"), run: async function () {
+        for (var item of batchEntries) await bridge("set_recent_project_pinned", { path: item.path, pinned: !allPinned });
+        await refresh();
       } });
     } else {
       actions.push({ key: entry.pinned ? "recent_unpin" : "recent_pin", run: function () {
@@ -1028,9 +1030,9 @@
     if (group === "recent") {
       // 仅影响最近视图；工程文件与全部工程登记不动。
       actions.push(batchEntries.length
-        ? { key: "batch_remove_recent", label: batchLabel("batch_remove_recent"), run: function () {
-            batchEntries.forEach(function (item) { void bridge("remove_recent_project", { path: item.path }); });
-            refresh();
+        ? { key: "batch_remove_recent", label: batchLabel("batch_remove_recent"), run: async function () {
+            for (var item of batchEntries) await bridge("remove_recent_project", { path: item.path });
+            await refresh();
           } }
         : { key: "recent_remove", run: function () {
             void bridge("remove_recent_project", { path: entry.path }).then(refresh);

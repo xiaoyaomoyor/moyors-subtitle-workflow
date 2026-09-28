@@ -54,7 +54,7 @@ test('path deduplication and separate processing do not erase parameters', async
   await page.locator('#postprocessPromptProofread').fill('保留术语');
   await rail(page, 'proofread').uncheck(); await rail(page, 'proofread').check();
   await expect(page.locator('#postprocessPromptProofread')).toHaveValue('保留术语');
-  await expect(card(page, 'proofread').locator('.module-status')).toContainText('需要配置');
+  await expect(card(page, 'proofread').locator('.module-status')).toContainText('待配置');
   expect(await page.evaluate(() => MSWPlan.build().postprocess.steps.find(s => s.id === 'proofread').enabled)).toBe(true);
 });
 

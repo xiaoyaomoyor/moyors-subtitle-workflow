@@ -268,6 +268,7 @@ class LlmSnapshotResult:
     warnings: tuple[str, ...]
     operation: str
     skipped_source_ids: tuple[str, ...] = ()
+    source_id_map: tuple[tuple[str, str], ...] = ()
 
 
 def process_llm_snapshot(
@@ -276,6 +277,7 @@ def process_llm_snapshot(
     *,
     complete: LlmComplete,
     on_status: LlmStatus | None = None,
+    allow_translation_noop: bool = False,
 ) -> LlmSnapshotResult:
     """Process an immutable in-memory project without reading/writing artifacts.
 
@@ -298,6 +300,8 @@ def process_llm_snapshot(
         item_aware_resegment=item_aware_resegment,
     )
     cues = _llm_cues(project, include_items=item_aware_resegment)
+    source_id_map = tuple((str(cue['id']), str(segment['id']))
+                          for cue, segment in zip(cues, _segments(project)))
     preserved_blank_source_ids: set[str] = set()
     preserved_target_source_ids: set[str] = set()
     if strict_translation:
@@ -319,6 +323,10 @@ def process_llm_snapshot(
         if not cues:
             if preserved_target_source_ids:
                 target_name = TRANSLATION_TARGET_NAMES["zh"]["zh" if request.operation == "translate_zh" else "en"]
+                if allow_translation_noop:
+                    return LlmSnapshotResult(project,
+                        (f"全部字幕已是{target_name}，已保留原文，无须调用翻译服务。",), request.operation,
+                        tuple(sorted(preserved_blank_source_ids | preserved_target_source_ids)), source_id_map)
                 raise ValueError(
                     f"所有非空字幕已经是{target_name}，没有需要翻译的内容，未写出输出产物。"
                 )
@@ -445,7 +453,7 @@ def process_llm_snapshot(
         output_operation = f"{request.operation}-{BACKFILL_ARTIFACT_MARKER}"
         warnings = ("已将翻译结果回填进原字幕，输出为单条字幕。", *warnings)
     return LlmSnapshotResult(processed, tuple(warnings), output_operation,
-                             tuple(sorted(preserved_blank_source_ids | preserved_target_source_ids)))
+                             tuple(sorted(preserved_blank_source_ids | preserved_target_source_ids)), source_id_map)
 
 
 BILINGUAL_LINE_ORDERS: Final[frozenset[str]] = frozenset({"", "translation_first", "original_first"})

@@ -12,6 +12,7 @@ dependencies = [
     "pywebview>=6.2.1; sys_platform != 'linux'",
     "pywebview[qt]>=6.2.1; sys_platform == 'linux'",
     "requests>=2.28",
+    "edge-tts==7.2.8",
     # Rust quapeaks 内核（MIT/Apache-2.0，原 reapeaks-rs）；支持 QPK1 自研层。
     # 缺内核时保留纯 Python MPK1 回退和旧 ReaPeaks 读取。
     "quapeaks>=2026.0.0",
