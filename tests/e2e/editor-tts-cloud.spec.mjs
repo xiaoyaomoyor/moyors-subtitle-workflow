@@ -25,7 +25,7 @@ test.beforeEach(async({page})=>{
   process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'appdata');process.env.MSW_TEST_CLOUD_TTS='1';
   const project=join(dir,'test.mosp');writeFileSync(project,JSON.stringify({media:'',msw:{schema:'msw.editor.v1',project_id:randomUUID()},segments:[{id:'main',start:0,end:2000,text:'你好，测试配音。'}],waveform:generateWaveformPayload(6000)}));
   server=await startTtsServer(project,generateWav(join(dir,'media.wav'),6),await findFreePort(),`http://127.0.0.1:${mock.address().port}`);
-  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).not.toBeVisible();
+  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).not.toBeVisible();await page.evaluate(()=>selectOnly(0));
 });
 test.afterEach(async()=>{await server?.stop();await new Promise(r=>mock?.close(r));delete process.env.MSW_TEST_CLOUD_TTS;expect(errors).toEqual([]);});
 async function setup(page,engine){
@@ -100,4 +100,18 @@ test('cloud connection refresh provides immediate progress and restores buttons 
   await expect(page.locator('#tts-minimax-management [role="status"]')).toContainText('正在验证');
   await expect(button).toBeEnabled();await expect(button).toHaveText('检测连接／刷新音色');
   await expect(page.locator('#tts-minimax-management [role="status"]')).toHaveText('offline');
+});
+
+
+test('no selected subtitles blocks TTS without a request; draft synthesis remains independent',async({page})=>{
+  await setup(page,'mossland');await page.evaluate(()=>{clearSelection();document.dispatchEvent(new Event('pointerup'));});
+  await expect(page.locator('#tts-start')).toBeDisabled();await expect(page.locator('#tts-scope')).toContainText('未选择字幕');
+  const before=calls.length;await page.locator('#tts-start').evaluate(b=>b.click());expect(calls.length).toBe(before);
+  await page.locator('#tts-target').selectOption('editor_text');await page.locator('#cue-panel-tts-text').fill('但说实话');
+  await page.locator('#tts-mossland-language').selectOption('Chinese');await page.locator('#tts-mossland-expected_duration_sec').fill('2');
+  await page.locator('#tts-start').click();await expect.poll(()=>count(page)).toBe(1);
+  const body=calls.find(c=>c.path==='/v1/audio/speech').body;expect(body.input).toBe('但说实话');expect(body.expected_duration_sec).toBe(2);
+  expect(await page.evaluate(()=>DATA.msw.assets[0].generation.expected_duration_sec)).toBe(2);
+  await page.locator('#tts-close').click();await page.locator('[data-asset-action="regenerate"]').first().click();await expect.poll(()=>count(page)).toBe(2);
+  expect(calls.filter(c=>c.path==='/v1/audio/speech').map(c=>c.body.expected_duration_sec)).toEqual([2,2]);
 });

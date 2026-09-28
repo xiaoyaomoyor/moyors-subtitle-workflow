@@ -45,7 +45,7 @@ async function voice(page) {
   const current=await api(page,'tts-settings');
   await api(page,'tts-settings',{service_url:`http://127.0.0.1:${indexPort}`,timeout:600,
     recipe:{...current.index_tts.recipe,speaker_ref:uploaded.reference.id}});
-  await page.reload();await expect(page.locator('#editor-loading')).not.toBeVisible();
+  await page.reload();await expect(page.locator('#editor-loading')).not.toBeVisible();await page.evaluate(()=>selectOnly(0));
   await openTtsEnvironment(page,'indextts');await closeTtsEnvironment(page);
   await expect(page.locator('#tts-start')).toBeEnabled();
   await expect(page.locator('#tts-start')).toHaveText('启动并合成');

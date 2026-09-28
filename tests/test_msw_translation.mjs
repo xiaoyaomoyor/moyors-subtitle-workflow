@@ -21,7 +21,7 @@ function project(secondary = false) {
     bindings: [{ id: 'bind-a', track_id: 'secondary', main_segment_ids: ['a'], extension_segment_ids: ['x'], start_offset_ms: 100, end_offset_ms: -100 }] };
   return data;
 }
-const selection = (mainIds = [], extensionIds = [], hasSelection = false) => ({ mainIds, extensionIds, trackId: 'secondary', hasSelection });
+const selection = (mainIds = ['a','b'], extensionIds = [], hasSelection = true) => ({ mainIds, extensionIds, trackId: 'secondary', hasSelection });
 const output = (input) => ({ language: 'zh', translations: input.entries.map(({ source }) => ({ id: source.id, text: `译文 ${source.text}` })) });
 
 test('main backfill preserves current timing, IDs, secondary tracks and dubbing state', () => {
@@ -44,7 +44,7 @@ test('main backfill preserves current timing, IDs, secondary tracks and dubbing 
 
 test('target-language skips preserve existing secondary text and never create an empty track', () => {
   for (const secondary of [false, true]) {
-    const data = project(secondary), input = core.snapshot(data, selection());
+    const data = project(secondary), input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
     const result = {language: 'zh', skipped_ids: ['a', 'b'], translations: input.entries.map(({source}) => ({id: source.id, text: source.text}))};
     const plan = core.reconcile(data, input, result);
     assert.deepEqual(plain(plan.appliedIds), ['a', 'b']);
@@ -74,12 +74,12 @@ test('selection maps bound secondary to main, deduplicates and ignores unbound',
   assert.equal(core.scope(data, [], ['z'], 'secondary', true).ignored, 1);
   assert.throws(() => core.snapshot(data, selection([], ['z'], true)), /没有可翻译/);
   data.segments.push(cue('blank', 10000, 11000, '  '));
-  assert.equal(core.snapshot(data, selection()).entries.length, 2);
+  assert.equal(core.snapshot(data, selection(data.segments.map(c=>c.id))).entries.length, 2);
 });
 
 test('new secondary aligns with current main times and binds every translated cue', () => {
   const data = project();
-  const input = core.snapshot(data, selection());
+  const input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
   data.segments[0].start = 200;
   const plan = core.reconcile(data, input, output(input));
   assert.deepEqual(plain(plan.multi.tracks[0].segments.map(({ start, end, text }) => [start, end, text])),
@@ -90,7 +90,7 @@ test('new secondary aligns with current main times and binds every translated cu
 
 test('bound and nearby unbound targets preserve their positions, IDs and other cues', () => {
   const data = project(true);
-  const input = core.snapshot(data, selection());
+  const input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
   data.multi_subtitle.tracks[0].segments[0].start = 150;
   const plan = core.reconcile(data, input, output(input));
   const targets = plan.multi.tracks[0].segments;
@@ -101,7 +101,7 @@ test('bound and nearby unbound targets preserve their positions, IDs and other c
 });
 
 test('concurrent source edits only conflict with affected results', () => {
-  const data = project(true), input = core.snapshot(data, selection());
+  const data = project(true), input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
   data.segments[0].text = 'user edit';
   const plan = core.reconcile(data, input, output(input));
   assert.deepEqual(plain(plan.appliedIds), ['b']);
@@ -135,7 +135,7 @@ test('unmatched overlapping cues are not moved or overwritten', () => {
 });
 
 test('partial retry applies remaining IDs only and rejects changed project or track', () => {
-  const data = project(true), input = core.snapshot(data, selection());
+  const data = project(true), input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
   assert.deepEqual(plain(core.reconcile(data, input, output(input), { onlyIds: ['b'] }).appliedIds), ['b']);
   data.multi_subtitle.tracks[0].id = 'other-track';
   assert.equal(core.reconcile(data, input, output(input)).conflicts.length, 2);
@@ -144,7 +144,7 @@ test('partial retry applies remaining IDs only and rejects changed project or tr
 });
 
 test('invalid result IDs, missing results and blank translations are rejected atomically', () => {
-  const data = project(), input = core.snapshot(data, selection());
+  const data = project(), input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
   for (const translations of [[], [{ id: 'missing', text: 'text' }], [{ id: 'a', text: ' ' }],
     [{ id: 'a', text: 'text' }, { id: 'a', text: 'duplicate' }]]) {
     assert.throws(() => core.reconcile(data, input, { translations }), /无效|缺少/);
@@ -153,7 +153,7 @@ test('invalid result IDs, missing results and blank translations are rejected at
 });
 
 test('a partial application can reuse its created track but cannot accept a replacement track', () => {
-  const data = project(), input = core.snapshot(data, selection());
+  const data = project(), input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
   data.segments[0].text = 'Changed';
   const first = core.reconcile(data, input, output(input));
   data.multi_subtitle = first.multi;
@@ -169,7 +169,7 @@ test('a partial application can reuse its created track but cannot accept a repl
 test('large projects create nonoverlapping translations without quadratic ID scans', () => {
   const data = project();
   data.segments = Array.from({ length: 10000 }, (_, i) => cue(`main-${i}`, i * 2000, i * 2000 + 1000));
-  const input = core.snapshot(data, selection());
+  const input = core.snapshot(data, selection(data.segments.map(c=>c.id)));
   const plan = core.reconcile(data, input, output(input));
   assert.equal(plan.appliedIds.length, 10000);
   assert.equal(plan.multi.bindings.length, 10000);
@@ -190,7 +190,7 @@ test('MSW namespace round trip preserves unknown fields and validates schema', (
 });
 
 test('old skipped model IDs recover only against unchanged snapshot text', () => {
-  const data = project(), input = core.snapshot(data, selection()), result = output(input);
+  const data = project(), input = core.snapshot(data, selection(data.segments.map(c=>c.id))), result = output(input);
   result.translations[0].text = input.entries[0].source.text;
   result.skipped_ids = ['c0001'];
   const plan = core.reconcile(data, input, result);
@@ -202,9 +202,17 @@ test('old skipped model IDs recover only against unchanged snapshot text', () =>
 test('versioned project IDs are never reinterpreted and ambiguous legacy IDs are rejected', () => {
   const data = project();data.segments[0].id='c0002';data.segments[1].id='c0001';
   for (const cue of data.segments) cue.text='same';
-  const input=core.snapshot(data,selection()),result=output(input);
+  const input=core.snapshot(data,selection(data.segments.map(c=>c.id))),result=output(input);
   result.translations.forEach(row=>row.text='same');result.skipped_ids=['c0001'];
   assert.throws(()=>core.reconcile(data,input,result), /歧义/);
   result.skipped_id_namespace='project';
   assert.equal(core.reconcile(data,input,result).multi.tracks[0].segments.length,1);
+});
+
+
+test('empty selection never falls back to translating the project',()=>{
+ const data=project(true);
+ assert.equal(core.scope(data).sources.length,0);
+ assert.throws(()=>core.snapshot(data,selection([],[],false)),/没有可翻译/);
+ assert.equal(core.scope(data,['a','b'],[],'secondary',true).sources.length,2);
 });

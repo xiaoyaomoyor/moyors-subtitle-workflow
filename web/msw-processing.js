@@ -59,10 +59,10 @@
   function updateScope() {
     const selection = host.selection();
     const scope = global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
-    el('translation-scope').textContent = `${t(scope.all ? '范围：全部主字幕' : '范围：选中的主字幕')} · ${scope.sources.length}`
+    el('translation-scope').textContent = `${t(scope.sources.length ? '范围：选中的主字幕' : '范围：未选择字幕')} · ${scope.sources.length}`
       + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
     const ready = updateEnvironment();
-    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || !scope.sources.length;
+    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || (!pendingSubmission && !scope.sources.length);
     const emptyScopeMessage = '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
     if (selection.hasSelection && !scope.sources.length) message(emptyScopeMessage, true);
     else if (el('translation-message').textContent === t(emptyScopeMessage)) message('');
@@ -267,7 +267,8 @@
     catch (error) { environmentMessage(error.message, true); }
     finally { savingSettings = false; updateScope(); }
   });
-  for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => {
+  for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
+    if (event === 'click' && panel.contains(input.target)) return;
     if (floating.isOpen()) queueMicrotask(updateScope);
   });
   global.addEventListener('msw:project-changed', () => {

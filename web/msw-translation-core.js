@@ -28,9 +28,9 @@
       if (binding?.main_segment_ids?.length === 1) selected.add(binding.main_segment_ids[0]);
       else ignored += 1;
     }
-    const sources = (project.segments || []).filter((source) => (!hasSelection || selected.has(source.id))
+    const sources = (project.segments || []).filter((source) => selected.has(source.id)
       && typeof source.text === 'string' && source.text.trim());
-    return { sources, ignored, all: !hasSelection };
+    return { sources, ignored, all: false };
   }
 
   function sourceCopy(source) {

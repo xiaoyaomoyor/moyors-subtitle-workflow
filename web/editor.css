@@ -3548,8 +3548,8 @@
   #tts-gpt-fields details, #tts-gpt-management details { margin-block: 10px; }
   #tts-gpt-fields input, #tts-gpt-management input, #tts-edge-management input { min-width: 0; max-width: 100%; }
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
-  .msw-qwen-voice-picker { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; margin-block: 8px; background: var(--bg-panel); }
-  .msw-qwen-voice-picker .msw-processing-field { margin-block: 4px; }
+  :is(.msw-qwen-voice-picker, .msw-voice-picker) { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; margin-block: 8px; background: var(--bg-panel); }
+  :is(.msw-qwen-voice-picker, .msw-voice-picker) .msw-processing-field { margin-block: 4px; }
   .msw-voice-picker-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .msw-voice-picker-footer .msw-processing-hint { flex: 1; min-width: 0; overflow-wrap: anywhere; margin: 0; }
   .msw-voice-picker-footer button { flex: none; white-space: nowrap; }

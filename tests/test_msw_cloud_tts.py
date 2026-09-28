@@ -78,6 +78,19 @@ class CloudTests(unittest.TestCase):
         self.assertIn('1008', str(caught.exception))
         self.assertNotIn('secret', str(caught.exception))
 
+    def test_moss_optional_duration_is_validated_and_forwarded_without_padding_text(self):
+        for invalid in [0, -1, 601, True, '2', float('nan'), float('inf')]:
+            with self.assertRaises(ValueError):
+                moss.validate_recipe({**moss.DEFAULT_RECIPE, 'voice': 'test', 'expected_duration_sec': invalid})
+        for seconds in [None, 2.0]:
+            recipe = {} if seconds is None else {'expected_duration_sec': seconds}
+            with patch.object(self.moss, 'request', return_value=(wav(.2), 'audio/wav')) as request:
+                audio = moss.synthesize(self.settings(self.moss, **recipe), '但说实话', threading.Event())
+            body = request.call_args.kwargs['json']
+            self.assertEqual(body['input'], '但说实话')
+            self.assertEqual(body.get('expected_duration_sec'), seconds)
+            self.assertTrue(audio.startswith(b'RIFF'))
+
     def test_moss_sync_wav_and_no_fabricated_controls(self):
         with patch.object(self.moss, 'request', return_value=(wav(.2), 'audio/wav')) as request:
             moss.synthesize(self.settings(self.moss, language_type='Japanese'), 'hello', threading.Event())

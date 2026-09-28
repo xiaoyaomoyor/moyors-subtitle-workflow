@@ -105,7 +105,8 @@ test('real local voices synthesize selected secondary, preserve pronunciation, s
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'e-yukkuri-export.png')});
 });
 
-test('all subtitles require a track and engine settings survive reopen without a cloud key', async ({page}) => {
+test('explicitly selected main subtitles synthesize and engine settings survive reopen without a cloud key', async ({page}) => {
+  await page.evaluate(() => selectRange(0,1));
   await configure(page);
   await expect(page.locator('#tts-target')).toHaveValue('main');
   await page.locator('#tts-target').selectOption('main');

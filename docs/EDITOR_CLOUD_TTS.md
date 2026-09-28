@@ -2,7 +2,7 @@
 
 先重启本机编辑器服务并刷新页面。在「全局设置 → 环境配置 → TTS」选择引擎，填写 API Key，保存环境配置；在「媒体 → TTS」选择相同引擎，刷新音色或手动填写音色 ID，选择模型后开始合成。选择音色本身不会生成付费试听。
 
-两个引擎都支持主／副字幕、整轨／选区和独立草稿，沿用草稿分段与成功后安全清空。每条限制 600 个 Unicode 字符，生成完整 WAV 后进入素材库。素材库重新生成只增加素材；贴片重新生成保留起点，使用新音频完整时长，超出三层重叠时保留原贴片。
+两个引擎都支持所选主／副字幕和独立草稿（处理全文请先全选），沿用草稿分段与成功后安全清空。每条限制 600 个 Unicode 字符，生成完整 WAV 后进入素材库。素材库重新生成只增加素材；贴片重新生成保留起点，使用新音频完整时长，超出三层重叠时保留原贴片。
 
 ## MiniMax
 
@@ -20,6 +20,7 @@
 - 从账号音色列表选择，或填写 Mossland 音色库的 ID。Flash 可指定目标发音语言；Pro 由模型自动判断。这里是语音生成，不是 MOSS ASR，也不是本地模型管理器。
 - 「从参考创建音色」默认折叠。选择参考、填写名称后点击「上传并创建音色」才会上传；支持 WAV／MP3／M4A／FLAC，最多 10 MB／30 秒。成功后登记并选中音色 ID，不自动提交合成。参考过长请先裁剪。
 - 创建请求在本机持久登记；相同请求不会重复上传。创建结果未知时先刷新音色列表或去供应商控制台核对；若确定需要新建，再重新选择文件提交。不要把超时当成未计费。
+- 可选「期望时长（秒）」：留空由模型决定；填写后将 `expected_duration_sec` 传给供应商，每条使用相同设置，随素材配方保留。它是生成引导，不是硬性上限，也不会裁切音频。短句出现过长或无关续说时，可明确选择目标语言并尝试合理时长；不能保证消除模型幻觉，不自动重试付费请求。
 - 使用同步、完整 WAV 返回，不暴露流式／异步任务协议。当前已核验的非流式接口没有 MiniMax 同样的数值音高／音量选项，因此不显示无效控制。
 
 接口依据：[单人语音](https://platform.mosi.cn/docs/reference/speech/)、[音色列表](https://platform.mosi.cn/docs/reference/voices-list/)、[参考创建音色](https://platform.mosi.cn/docs/reference/voices-create/)。
@@ -36,8 +37,8 @@
 
 ## API 额度与网页积分
 
-MSW 使用开放平台 API，不使用网页配音工具的登录会话。MiniMax 中国大陆普通 API Key 对应按量账户余额，也提供适用于 T2A v2 的语音资源包；不要把网页工具的“声贝”与 API 资源包、订阅积分视作同一账户额度。目前未找到网页声贝直接抵扣该接口的官方说明。遇到 1008 时，检查 MSW 服务地域、密钥所属开放平台账户和适用的资源包；该错误表示余额不足，不代表密钥无效。MSW 不代购额度，也不自动重复提交。
+MSW 使用开放平台 API，不使用网页配音工具的登录会话。MiniMax 中国大陆普通 API Key 对应按量账户余额，也提供适用于 T2A v2 的语音资源包；不要把网页工具的“声贝”与 API 资源包、订阅积分视作同一账户额度。MiniMax 语音的官方付费协议将「声贝」定义为该语音产品内兑换服务的积分；MSW 调用开放平台接口，不会读取或抵扣网页声贝。遇到 1008 时，检查 MSW 服务地域、密钥所属开放平台账户和适用的资源包；该错误表示余额不足，不代表密钥无效。MSW 不代购额度，也不自动重复提交。
 
-依据：[按量计费](https://platform.minimax.cn/docs/guides/pricing-paygo)、[语音资源包](https://platform.minimax.cn/docs/guides/pricing-speech)、[错误码](https://platform.minimax.cn/docs/api-reference/errorcode)。计费方案可能调整，以对应地域控制台为准。
+依据：[MiniMax 语音付费协议](https://www.minimax.cn/audio/doc/payment-policy.html)、[按量计费](https://platform.minimax.cn/docs/guides/pricing-paygo)、[语音资源包](https://platform.minimax.cn/docs/guides/pricing-speech)、[错误码](https://platform.minimax.cn/docs/api-reference/errorcode)。计费方案可能调整，以对应地域控制台为准。
 
 用户提供的火山方舟体验链接指向 `doubao-seed-audio-1-0`。本轮未取得该体验页额度与 API 抵扣互通的官方规则，因此不把网页剩余额度当作可调用 API 的凭据，也不将它与 Seed-TTS 2.0 混淆；当前七引擎中未接入此服务。

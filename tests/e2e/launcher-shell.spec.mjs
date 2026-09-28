@@ -138,13 +138,13 @@ test('cover cache clearing lives in settings with feedback', async ({ page }) =>
 
 test('registry cleanup group renders real line breaks in the confirm dialog (调整2/3)', async ({ page }) => {
   await openLauncher(page);
-  // 演示登记里放一条临时目录失效记录，预览才会给出候选并放出执行按钮。
+  // 演示登记里放一条非临时目录失效记录，预览才会给出候选并放出执行按钮。
   await page.evaluate(() => {
     window.__demoRegistry = [
-      { path: 'D:\\Tmp\\stale.mosp', name: 'stale.mosp', dir: 'D:\\Tmp', exists: false, pinned: false, lastOpenedAt: '', modifiedAt: '', registeredAt: '', updatedAt: '2026-09-01T00:00:00+00:00', source: 'created', mediaName: '' },
+      { path: 'D:\\Archive\\stale.mosp', name: 'stale.mosp', dir: 'D:\\Archive', exists: false, pinned: false, lastOpenedAt: '', modifiedAt: '', registeredAt: '', updatedAt: '2026-09-01T00:00:00+00:00', source: 'created', mediaName: '' },
       { path: 'D:\\Keep\\keep.mosp', name: 'keep.mosp', dir: 'D:\\Keep', exists: true, pinned: false, lastOpenedAt: '', modifiedAt: '2026-09-02T00:00:00+00:00', registeredAt: '', updatedAt: '2026-09-02T00:00:00+00:00', source: 'created', mediaName: '' },
     ];
-    window.__demoRegistryTmpPaths = ['D:\\Tmp\\stale.mosp'];
+    window.__demoRegistryTmpPaths = [];
   });
   await page.evaluate(() => window.MSWLauncher.openSettings('cacheSettingsSection'));
 
@@ -166,8 +166,13 @@ test('registry cleanup group renders real line breaks in the confirm dialog (调
   const text = await message.textContent();
   expect(text).toContain('\n·');
   expect(text).not.toContain('\\n');
-  await page.locator('#batchConfirmNo').click();
+  await page.locator('#batchConfirmYes').click();
   await expect(message).toBeHidden();
+  await expect(page.locator('#registryCleanupStatus')).toContainText('已清理 1 条记录');
+  expect(await page.evaluate(() => window.__demoRegistry.map(row => row.name))).toEqual(['keep.mosp']);
+  await page.locator('#restoreRegistryCleanup').click();
+  await expect(page.locator('#registryCleanupStatus')).toContainText('恢复 2 条记录');
+  expect(await page.evaluate(() => window.__demoRegistry.length)).toBe(2);
 });
 
 test('guide paths match the current UI and avoid implementation terms', async ({ page }) => {

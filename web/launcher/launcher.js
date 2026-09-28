@@ -282,8 +282,8 @@
       registry_cleanup_apply: "清理失效记录",
       registry_cleanup_restore: "恢复上次清理",
       registry_cleanup_none: "没有可清理的失效记录（共 {total} 项登记）。",
-      registry_cleanup_found: "发现 {n} 条失效记录（临时目录内且文件已缺失，共 {total} 项）。清理会先备份，可随时恢复。",
-      registry_cleanup_confirm: "将移除 {n} 条失效登记记录（临时目录内且文件已缺失）。\n· 只清理索引记录，不删除任何磁盘文件\n· 自动创建备份，可一键恢复\n\n继续？",
+      registry_cleanup_found: "发现 {n} 条失效记录（文件已缺失或路径不再是文件，共 {total} 项）。清理会先备份，可随时恢复。",
+      registry_cleanup_confirm: "将移除 {n} 条失效登记记录（文件已缺失或路径不再是文件）。\n· 只清理索引记录，不删除任何磁盘文件\n· 自动创建备份，可一键恢复\n\n继续？",
       registry_cleanup_done: "已清理 {n} 条记录；备份：{backup}",
       registry_cleanup_empty: "当前没有可清理的记录。",
       registry_cleanup_restored: "已从备份恢复 {n} 条记录。",
@@ -605,8 +605,8 @@
       registry_cleanup_apply: "Clean stale records",
       registry_cleanup_restore: "Restore last cleanup",
       registry_cleanup_none: "No stale records to clean ({total} registered).",
-      registry_cleanup_found: "Found {n} stale records (in temp dirs and missing; {total} total). Cleanup backs up first and can be restored.",
-      registry_cleanup_confirm: "This will remove {n} stale registry records (temp-dir paths whose files are gone).\n· Only index records are removed; no disk files are touched\n· A backup is created automatically and can be restored\n\nContinue?",
+      registry_cleanup_found: "Found {n} stale records (missing files or non-file paths; {total} total). Cleanup backs up first and can be restored.",
+      registry_cleanup_confirm: "This will remove {n} stale registry records (missing files or non-file paths).\n· Only index records are removed; no disk files are touched\n· A backup is created automatically and can be restored\n\nContinue?",
       registry_cleanup_done: "Removed {n} records; backup: {backup}",
       registry_cleanup_empty: "Nothing to clean right now.",
       registry_cleanup_restored: "Restored {n} records from backup.",
@@ -1862,18 +1862,22 @@
       registry_cleanup_preview: async () => {
         const registry = window.__demoRegistry || [];
         const tmp = (window.__demoRegistryTmpPaths ||= []);
-        const candidates = registry.filter((item) => tmp.includes(item.path));
+        const candidates = registry.filter((item) => item.exists === false || tmp.includes(item.path));
         return { ok: true, total: registry.length, missing: candidates.length, candidates: candidates.map(({ path, name, source }) => ({ path, name, source, registeredAt: "" })), candidateCount: candidates.length, keptCount: registry.length - candidates.length };
       },
       apply_registry_cleanup: async () => {
         const registry = window.__demoRegistry || [];
         const tmp = (window.__demoRegistryTmpPaths ||= []);
-        const kept = registry.filter((item) => !tmp.includes(item.path));
+        const kept = registry.filter((item) => item.exists !== false && !tmp.includes(item.path));
         window.__demoRegistry = kept;
         window.__lastRegistryBackup = { entries: registry };
         return { ok: true, removed: registry.length - kept.length, kept: kept.length, backup: "C:\\Demo\\registry-backup.json" };
       },
-      restore_registry_cleanup: async () => ({ ok: true, restored: (window.__lastRegistryBackup?.entries || []).length, backup: "" }),
+      restore_registry_cleanup: async () => {
+        const restored = window.__lastRegistryBackup?.entries || [];
+        window.__demoRegistry = [...new Map([...restored, ...(window.__demoRegistry || [])].map(item => [item.path, item])).values()];
+        return { ok: true, restored: restored.length, backup: "" };
+      },
       get_all_projects: async ({ query = "", page = 1, pageSize = 12 } = {}) => {
         const registry = window.__demoRegistry || (window.__demoRegistry = [
           { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00", registeredAt: "2026-08-01T10:00:00+00:00", updatedAt: "2026-09-13T10:00:00+00:00", source: "migration" },

@@ -37,6 +37,7 @@ test.beforeEach(async ({page}) => {
   await disableOnboarding(page);
   page.on('dialog', dialog => dialog.type() === 'beforeunload' ? dialog.accept() : dialog.dismiss());
   await page.goto(server.url); await expect(page.locator('#editor-loading')).not.toBeVisible();
+  await page.evaluate(() => selectOnly(0));
   await openPanel(page);
   await openTtsEnvironment(page);
   await page.locator('#tts-key').fill('synthetic-browser-key');

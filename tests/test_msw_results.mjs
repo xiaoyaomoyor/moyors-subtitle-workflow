@@ -64,7 +64,7 @@ test('secondary snapshots protect concurrent editing and source changes never ge
   assert.throws(()=>A.plan(project,{...media,revision:'b'.repeat(64)},[job],'main','whole'),/媒体/);
 });
 test('translation has explicit destinations, candidate edits of preserved rows, and revision guards',()=>{
-  const {project}=fixture();const job={id:'t1',kind:'translation',project_id:'p',created_at:1,status:'succeeded',snapshot:T.snapshot(project,{hasSelection:false}),result:{translations:[{id:'original',text:'hello world'}],skipped_ids:['original'],skipped_id_namespace:'project',language:'en'}};
+  const {project}=fixture();const job={id:'t1',kind:'translation',project_id:'p',created_at:1,status:'succeeded',snapshot:T.snapshot(project,{mainIds:['original'],hasSelection:true}),result:{translations:[{id:'original',text:'hello world'}],skipped_ids:['original'],skipped_id_namespace:'project',language:'en'}};
   R.register(project.msw,[job]);R.edit(project.msw,job,0,'translated');const edited=R.candidate(project.msw,job);
   assert.deepEqual(plain(edited.result.skipped_ids),[]);
   let p=A.plan(project,null,[edited],'main').project;assert.equal(p.segments[0].text,'translated');

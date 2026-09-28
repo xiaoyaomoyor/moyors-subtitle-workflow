@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import stat
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -172,9 +173,12 @@ def recent_projects_payload(
     settings_path: Path | None = None,
     metadata_path: Path | None = None,
     fallback_entries: list[tuple[Path, str]] | None = None,
+    registry_path: Path | None = None,
+    limit: int | None = MAX_RECENT_ENTRIES,
 ) -> dict[str, Any]:
     """Merge the editor index with launcher view state into card payloads."""
     metadata = read_launcher_metadata(metadata_path)
+    dismissed = _registry_dismissed(_read_registry_payload(registry_path or project_registry_path()))
     editor_entries = _read_editor_recent_paths(settings_path)
     if fallback_entries is not None and not (settings_path or default_server_settings_path()).is_file():
         editor_entries = fallback_entries
@@ -233,13 +237,15 @@ def recent_projects_payload(
     seen: set[str] = set()
     for path in pinned_first:
         key = str(path)
+        if _canonical_identity(path)[0] in dismissed:
+            continue
         if key in seen:
             continue
         seen.add(key)
         final_order.append(path)
 
     projects: list[dict[str, Any]] = []
-    for path in final_order[:MAX_RECENT_ENTRIES]:
+    for path in final_order[:limit]:
         key = str(path)
         exists = path.is_file()
         projects.append({
@@ -398,7 +404,7 @@ def _canonical_identity(path: Path) -> tuple[str, str]:
     """返回 (归一化键, 可读路径)。Windows 大小写不敏感去重，但保留原样显示。"""
     try:
         resolved = path.expanduser().resolve()
-    except OSError:
+    except (OSError, ValueError):
         resolved = path
     display = str(resolved)
     key = os.path.normcase(display) if os.name == "nt" else display
@@ -489,12 +495,20 @@ def _read_registry(registry: Path) -> dict[str, dict[str, Any]]:
     return _registry_entries(_read_registry_payload(registry))
 
 
-def _write_registry(entries: dict[str, dict[str, Any]], registry: Path, *, migrated: bool = False) -> None:
+def _registry_dismissed(payload: dict[str, Any]) -> dict[str, str]:
+    values = payload.get("dismissed", {})
+    return {key: value for key, value in values.items() if isinstance(key, str) and isinstance(value, str)} if isinstance(values, dict) else {}
+
+
+def _write_registry(entries: dict[str, dict[str, Any]], registry: Path, *, migrated: bool = False,
+                    dismissed: dict[str, str] | None = None) -> None:
     registry.parent.mkdir(parents=True, exist_ok=True)
+    if dismissed is None:
+        dismissed = _registry_dismissed(_read_registry_payload(registry))
     fd, temp_name = tempfile.mkstemp(prefix=f".{registry.stem}.", suffix=".tmp", dir=registry.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
-            payload: dict[str, Any] = {"version": REGISTRY_VERSION, "migrated": migrated, "entries": entries}
+            payload: dict[str, Any] = {"version": REGISTRY_VERSION, "migrated": migrated, "entries": entries, "dismissed": dismissed}
             json.dump(payload, output, ensure_ascii=False, indent=2)
             output.write("\n")
         os.replace(temp_name, registry)
@@ -529,8 +543,10 @@ def register_project(path: Path, *, source: str, registry_path: Path | None = No
             "updatedAt": now,
         }
         entries[key] = entry
+        dismissed = _registry_dismissed(payload)
+        dismissed.pop(key, None)  # An explicit successful open/save may register it again.
         # 普通登记不宣称迁移已完成——保留文件原标志，缺最近工程时种子仍会补。
-        _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
+        _write_registry(entries, registry, migrated=bool(payload.get("migrated")), dismissed=dismissed)
     return {"ok": True, "path": display}
 
 
@@ -649,7 +665,7 @@ def _seed_registry_from_recent(registry: Path, *, settings_path: Path | None, me
     if payload.get("migrated") is True:
         return
     existing = _registry_entries(payload)
-    merged = recent_projects_payload(settings_path=settings_path, metadata_path=metadata_path)
+    merged = recent_projects_payload(settings_path=settings_path, metadata_path=metadata_path, registry_path=registry)
     now = _now_iso()
     entries: dict[str, dict[str, Any]] = dict(existing)
     for project in merged.get("projects", []):
@@ -670,10 +686,12 @@ def _seed_registry_from_recent(registry: Path, *, settings_path: Path | None, me
         latest = _read_registry_payload(registry)
         if latest.get("migrated") is True:
             return
-        merged_entries = _registry_entries(latest) or entries
+        merged_entries = _registry_entries(latest)
+        dismissed = _registry_dismissed(latest)
         # 双检：另一进程可能刚写入新登记——保留其条目再补种子。
         for seed_key, seed_value in entries.items():
-            merged_entries.setdefault(seed_key, seed_value)
+            if seed_key not in dismissed:
+                merged_entries.setdefault(seed_key, seed_value)
         _write_registry(merged_entries, registry, migrated=True)
 
 
@@ -684,19 +702,20 @@ def _ensure_recent_in_registry(registry: Path, *, settings_path: Path | None, me
     执行种子合并——真实最近工程因此缺席全部工程。此处每次读取前补齐，
     保证「全部工程 ⊇ 最近工程」这一包含关系始终成立。
     """
-    recent = recent_projects_payload(settings_path=settings_path, metadata_path=metadata_path)
+    recent = recent_projects_payload(settings_path=settings_path, metadata_path=metadata_path, registry_path=registry)
     if not recent.get("projects"):
         return
     with _registry_file_lock(registry):
         payload = _read_registry_payload(registry)
         entries = _registry_entries(payload)
         changed = False
+        dismissed = _registry_dismissed(payload)
         for project in recent["projects"]:
             try:
                 key, display = _canonical_identity(Path(str(project.get("path", ""))))
             except OSError:
                 continue
-            if not display or key in entries:
+            if not display or key in entries or key in dismissed:
                 continue
             entries[key] = {
                 "path": display,
@@ -708,24 +727,6 @@ def _ensure_recent_in_registry(registry: Path, *, settings_path: Path | None, me
             changed = True
         if changed:
             _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
-
-
-def _system_temp_roots() -> list[str]:
-    roots = [tempfile.gettempdir()]
-    for name in ("TMP", "TEMP", "TMPDIR"):
-        value = os.environ.get(name, "").strip()
-        if value:
-            roots.append(value)
-    normalized: list[str] = []
-    for root in roots:
-        try:
-            text = str(Path(root).expanduser().resolve(strict=False))
-        except OSError:
-            continue
-        key = os.path.normcase(text)
-        if key not in normalized:
-            normalized.append(key)
-    return normalized
 
 
 def read_media_index(index_path: Path | None = None) -> dict[str, str]:
@@ -772,71 +773,69 @@ def note_media_name(path: Path, media_name: str, *, index_path: Path | None = No
         write_media_index(index, target)
 
 
-def registry_cleanup_preview(registry_path: Path | None = None) -> dict[str, Any]:
-    """T0/§2.3：污染候选预览（只读）——临时目录内且文件已缺失的登记。
+def _invalid_registry_reason(entry: dict[str, Any]) -> str:
+    """Clean missing/non-file records, but preserve inaccessible/offline I/O errors."""
+    try:
+        path = Path(str(entry.get("path", ""))).expanduser()
+        return "" if stat.S_ISREG(path.stat().st_mode) else "not_file"
+    except (FileNotFoundError, NotADirectoryError):
+        return "missing"
+    except ValueError:
+        return "invalid_path"
+    except OSError:
+        return ""  # Permission/network errors are not evidence of a deleted file.
 
-    不操作磁盘、不改索引；未知/无法判断的路径一律保留（不粗暴禁止临时工程：
-    用户主动打开的临时文件若仍存在则不在候选内）。
-    """
+
+def _cleanup_entries(registry: Path, entries: dict[str, dict[str, Any]], *,
+                     settings_path: Path | None, metadata_path: Path | None) -> dict[str, dict[str, Any]]:
+    # Include older recent entries beyond the visible nine, otherwise cleaning
+    # the first page simply reveals another page of missing historical records.
+    combined = dict(entries)
+    recent = recent_projects_payload(registry_path=registry, settings_path=settings_path,
+                                     metadata_path=metadata_path, limit=None)
+    for row in recent["projects"]:
+        key, display = _canonical_identity(Path(row["path"]))
+        combined.setdefault(key, {"path": display, "name": row["name"], "source": "migration"})
+    return combined
+
+
+def registry_cleanup_preview(registry_path: Path | None = None, *, settings_path: Path | None = None,
+                             metadata_path: Path | None = None) -> dict[str, Any]:
+    """Preview stale records at any location; never delete project/media files."""
     registry = registry_path or project_registry_path()
-    entries = _read_registry(registry)
-    temp_roots = _system_temp_roots()
-    candidates: list[dict[str, Any]] = []
-    missing_total = 0
+    entries = _cleanup_entries(registry, _read_registry(registry), settings_path=settings_path, metadata_path=metadata_path)
+    candidates = []
     for entry in entries.values():
-        try:
-            path = Path(str(entry.get("path", "")))
-            exists = path.is_file()
-        except OSError:
-            exists = False
-        if exists:
-            continue
-        missing_total += 1
-        try:
-            resolved = str(path.expanduser().resolve(strict=False))
-        except OSError:
-            resolved = str(path)
-        normalized = os.path.normcase(resolved)
-        in_temp = any(normalized.startswith(root) for root in temp_roots)
-        if in_temp:
-            candidates.append({
-                "path": str(entry.get("path", "")),
-                "name": entry.get("name") or path.name,
-                "source": entry.get("source") or "",
-                "registeredAt": entry.get("registeredAt") or "",
-            })
-    return {
-        "ok": True,
-        "total": len(entries),
-        "missing": missing_total,
-        "candidates": candidates,
-        "candidateCount": len(candidates),
-        "keptCount": len(entries) - len(candidates),
-    }
+        reason = _invalid_registry_reason(entry)
+        if reason:
+            candidates.append({"path": entry["path"], "name": entry.get("name") or Path(entry["path"]).name,
+                               "source": entry.get("source") or "", "registeredAt": entry.get("registeredAt") or "",
+                               "reason": reason})
+    return {"ok": True, "total": len(entries), "missing": sum(c["reason"] == "missing" for c in candidates),
+            "candidates": candidates, "candidateCount": len(candidates), "keptCount": len(entries)-len(candidates)}
 
 
-def apply_registry_cleanup(registry_path: Path | None = None) -> dict[str, Any]:
-    """T0：执行清理——先备份注册表，再移除候选记录；不动任何磁盘媒体/工程文件。"""
+def apply_registry_cleanup(registry_path: Path | None = None, *, settings_path: Path | None = None,
+                           metadata_path: Path | None = None) -> dict[str, Any]:
+    """Back up and remove stale records under lock; suppress legacy recent reseeding."""
     registry = registry_path or project_registry_path()
-    preview = registry_cleanup_preview(registry)
-    candidate_paths = {item["path"] for item in preview["candidates"]}
-    if not candidate_paths:
-        return {"ok": True, "removed": 0, "kept": preview["total"], "backup": ""}
-    backup = registry.with_name(f"{registry.name}.backup-{int(time.time())}.json")
     with _registry_file_lock(registry):
         payload = _read_registry_payload(registry)
         entries = _registry_entries(payload)
-        backup.write_bytes(registry.read_bytes()) if registry.is_file() else backup.write_text(
-            json.dumps({"version": REGISTRY_VERSION, "entries": {}}, ensure_ascii=False), encoding="utf-8"
-        )
-        kept = {key: value for key, value in entries.items() if str(value.get("path", "")) not in candidate_paths}
-        _write_registry(kept, registry, migrated=bool(payload.get("migrated")))
-    return {
-        "ok": True,
-        "removed": len(entries) - len(kept),
-        "kept": len(kept),
-        "backup": str(backup),
-    }
+        combined = _cleanup_entries(registry, entries, settings_path=settings_path, metadata_path=metadata_path)
+        candidates = {key: entry for key, entry in combined.items() if _invalid_registry_reason(entry)}
+        if not candidates:
+            return {"ok": True, "removed": 0, "kept": len(entries), "backup": ""}
+        backup = registry.with_name(f"{registry.name}.backup-{time.time_ns()}.json")
+        backup_payload = {**payload, "version": REGISTRY_VERSION, "entries": combined}
+        backup.write_text(json.dumps(backup_payload, ensure_ascii=False, indent=2)+"\n", encoding="utf-8", newline="\n")
+        dismissed = _registry_dismissed(payload)
+        now = _now_iso()
+        for entry in candidates.values():
+            dismissed[_canonical_identity(Path(entry["path"]))[0]] = now
+        kept = {key: value for key, value in entries.items() if key not in candidates}
+        _write_registry(kept, registry, migrated=bool(payload.get("migrated")), dismissed=dismissed)
+    return {"ok": True, "removed": len(candidates), "kept": len(kept), "backup": str(backup)}
 
 
 def restore_registry_backup(backup_path: Path, registry_path: Path | None = None) -> dict[str, Any]:
@@ -852,7 +851,13 @@ def restore_registry_backup(backup_path: Path, registry_path: Path | None = None
     if not entries and not payload:
         return {"ok": False, "error": "备份不是有效的注册表文件"}
     with _registry_file_lock(registry):
-        _write_registry(entries, registry, migrated=bool(payload.get("migrated")))
+        latest = _read_registry_payload(registry)
+        current = _registry_entries(latest)
+        dismissed = _registry_dismissed(latest)
+        for key, entry in entries.items():
+            current.setdefault(key, entry)
+            dismissed.pop(_canonical_identity(Path(entry["path"]))[0], None)
+        _write_registry(current, registry, migrated=bool(latest.get("migrated") or payload.get("migrated")), dismissed=dismissed)
     return {"ok": True, "restored": len(entries), "backup": str(backup)}
 
 

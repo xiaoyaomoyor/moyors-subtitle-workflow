@@ -21,7 +21,7 @@ test.beforeEach(async({page})=>{
   process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'appdata');process.env.MSW_TEST_LOCAL_TTS_INSTALL=bundle;process.env.MSW_TEST_EDGE_AUDIO=mp3;
   const project=join(dir,'test.mosp');writeFileSync(project,JSON.stringify({media:'',msw:{schema:'msw.editor.v1',project_id:randomUUID()},segments:[{id:'main',start:0,end:2000,text:'你好，测试配音。'}],waveform:generateWaveformPayload(6000)}));
   server=await startTtsServer(project,generateWav(join(dir,'media.wav'),6),await findFreePort(),`http://127.0.0.1:${mock.address().port}`);
-  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).not.toBeVisible();
+  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).not.toBeVisible();await page.evaluate(()=>selectOnly(0));
 });
 test.afterEach(async()=>{await server?.stop();await new Promise(r=>mock?.close(r));delete process.env.MSW_TEST_EDGE_AUDIO;delete process.env.MSW_TEST_LOCAL_TTS_INSTALL;expect(errors).toEqual([]);});
 async function api(page,route,body){return page.evaluate(async({route,body})=>MSWE.resolve('audio-timeline').request(route,body),{route,body});}

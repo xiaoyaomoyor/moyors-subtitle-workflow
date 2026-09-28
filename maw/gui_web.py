@@ -711,7 +711,7 @@ class LauncherApi:
 
     def get_recent_projects(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         """List recent projects for the home page (editor index + launcher view state)."""
-        return recent_projects_payload(metadata_path=self.paths.recent_metadata)
+        return recent_projects_payload(metadata_path=self.paths.recent_metadata, registry_path=self.paths.project_registry)
 
     def _note_media_name(self, path: str, media_name: object) -> None:
         """T2/A6：统计/封面带回媒体名时写入轻量索引，供全目录搜索。"""
@@ -797,12 +797,12 @@ class LauncherApi:
         )
 
     def registry_cleanup_preview(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
-        """T0/§2.3：污染候选预览（只读）——临时目录内且文件已缺失的登记记录。"""
-        return registry_cleanup_preview(registry_path=self.paths.project_registry)
+        """T0/§2.3：失效候选预览（只读）——文件缺失或路径不再是文件的登记记录。"""
+        return registry_cleanup_preview(registry_path=self.paths.project_registry, metadata_path=self.paths.recent_metadata)
 
     def apply_registry_cleanup(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         """T0：清理失效登记——先备份注册表再移除候选；不动任何磁盘媒体/工程文件。"""
-        result = apply_registry_cleanup(registry_path=self.paths.project_registry)
+        result = apply_registry_cleanup(registry_path=self.paths.project_registry, metadata_path=self.paths.recent_metadata)
         if not result.get("ok"):
             return _error_result("path", "registry_cleanup_failed", str(result.get("error") or ""))
         return result

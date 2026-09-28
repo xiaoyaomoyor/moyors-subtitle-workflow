@@ -83,11 +83,11 @@ test('local generated pronunciation and optional override survive project valida
   asset.generation.spoken_text = 'カ'.repeat(12001);
   assert.throws(() => codec.normalize(extension));
 });
-test('no selection with two tracks requires explicit target',()=>{
-  assert.equal(core.scope(project,selection([],[],false)).needsChoice,true);
-  assert.throws(()=>core.snapshot(project,selection([],[],false)),/选择/);
-  assert.deepEqual(texts(core.scope(project,selection([],[],false),'main')),main.map(c=>c.text));
-  assert.deepEqual(texts(core.scope(project,selection([],[],false),'secondary')),secondary.map(c=>c.text));
+test('no selection never synthesizes either track, even after choosing a target',()=>{
+  for(const side of [null,'main','secondary']) {
+    assert.equal(core.scope(project,selection([],[],false),side).sources.length,0);
+    assert.throws(()=>core.snapshot(project,selection([],[],false),side),/请先选择字幕/);
+  }
 });
 test('both sides of linked selection synthesize one side once',()=>{
   assert.equal(core.scope(project,selection(['a'],['x'])).needsChoice,true);
@@ -106,11 +106,11 @@ test('unbound secondary stays secondary, stale selection never falls back to all
 test('single track full batch and immutable unicode snapshot, limits checked before submit',()=>{
   const p=structuredClone(project); delete p.multi_subtitle;
   p.segments[0].text='😀'.repeat(600);
-  const result=core.snapshot(p,selection([],[],false));
+  const result=core.snapshot(p,selection(['a','b']));
   p.segments[0].text='changed';
   assert.equal(result.entries[0].text,'😀'.repeat(600));
   p.segments[0].text='字'.repeat(601);
-  assert.throws(()=>core.snapshot(p,selection([],[],false)),/600/);
+  assert.throws(()=>core.snapshot(p,selection(['a','b'])),/600/);
 });
 
 test('seven engines preserve secondary selection and immutable draft splitting',()=>{

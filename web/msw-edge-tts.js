@@ -6,9 +6,13 @@
     function field(parent,key,title,type){const l=document.createElement('label');l.className='msw-processing-field';
       const s=document.createElement('span');s.textContent=t(title);const f=document.createElement(type==='select'?'select':'input');if(type!=='select')f.type=type;
       f.id='tts-edge-'+key;l.append(s,f);parent.append(l);fields[key]=f;return f;}
-    const grid=document.createElement('div');grid.className='msw-processing-grid';panel.append(grid);
-    const lang=field(grid,'language','筛选语言','select'),search=field(grid,'search','搜索音色','search');
-    const voice=field(panel,'voice','音色','select');
+    const lang=field(panel,'language','筛选语言','select');
+    const picker=document.createElement('div');picker.className='msw-voice-picker';panel.append(picker);
+    const search=field(picker,'search','系统音色','search');search.placeholder=t('搜索名称、音色 ID、方言或性别');
+    const voice=field(picker,'voice','选择音色','select');voice.dataset.i18nSkip='';
+    const footer=document.createElement('div');footer.className='msw-voice-picker-footer';picker.append(footer);
+    const current=document.createElement('p');current.id='tts-edge-current';current.className='msw-processing-hint';current.dataset.i18nSkip='';current.setAttribute('aria-live','polite');footer.append(current);
+    function currentVoice(){const row=data.voices.find(v=>v.id===voice.value);current.textContent=`${t('当前音色')}：${row?row.name+' · '+row.id:voice.value||t('未选择')}`;}
     const adjustments=document.createElement('div');adjustments.className='msw-processing-grid';panel.append(adjustments);
     for(const [key,title,min,max,unit] of [['rate','语速变化',-50,100,'%'],['volume','合成音量变化',-100,100,'%'],['pitch','音高变化',-100,100,'Hz']]){
       const f=field(adjustments,key,title,'range');Object.assign(f,{min:String(min),max:String(max),step:'1',value:'0'});
@@ -32,9 +36,9 @@
     refresh.onclick=quick.onclick=reload;
     function renderVoices(current=voice.value){const query=search.value.trim().toLowerCase();const rows=data.voices.filter(v=>(!lang.value||v.language===lang.value)&&`${v.name} ${v.id} ${v.gender}`.toLowerCase().includes(query));
       voice.replaceChildren(...rows.map(v=>new Option(`${v.id} · ${v.gender}`,v.id)));
-      if(current&&!rows.some(v=>v.id===current))voice.add(new Option(current,current),0);voice.value=current;
+      if(current&&!rows.some(v=>v.id===current))voice.add(new Option(current,current),0);voice.value=current;currentVoice();
       hint.textContent=data.dependency.ready?(data.voices.length?'':t('在线服务，无需 API Key；可刷新音色列表')):t(data.dependency.message||'尚未检测 Edge 依赖');updateScope();}
-    lang.onchange=search.oninput=()=>renderVoices();voice.onchange=updateScope;
+    lang.onchange=search.oninput=()=>renderVoices();voice.onchange=()=>{currentVoice();updateScope();};
     function recipe(){return {provider:'edge',model:'edge-online',voice:voice.value||'zh-CN-XiaoxiaoNeural',language_type:(voice.value||'zh-CN-XiaoxiaoNeural').split('-').slice(0,-1).join('-'),rate:Number(fields.rate.value),volume:Number(fields.volume.value),pitch:Number(fields.pitch.value)};}
     function configure(value){data={...data,...value};const r=data.recipe||recipe();const previous=lang.value;
       lang.replaceChildren(new Option(t('全部语言'),''),...[...new Set(data.voices.map(v=>v.language))].sort().map(v=>new Option(v,v)));lang.value=previous;

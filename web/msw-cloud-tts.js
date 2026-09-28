@@ -16,9 +16,14 @@
     const key=field(environment,'key','API Key','password');key.autocomplete='off';
     const timeout=field(environment,'timeout','单次等待上限（秒）','number');Object.assign(timeout,{min:'30',max:'600',value:'180'});
     const controls=grid(panel),model=field(controls,'model','模型','select'),language=field(controls,'language','语言','select');
-    const picker=grid(panel),search=field(picker,'search','搜索音色','search'),catalog=field(picker,'catalog','已有音色','select');
+    const picker=document.createElement('div');picker.className='msw-voice-picker';panel.append(picker);
+    const search=field(picker,'search','音色库','search'),catalog=field(picker,'catalog','选择音色','select');
+    search.placeholder=t('搜索名称或音色 ID');
     catalog.setAttribute('data-i18n-skip','');
-    const voice=field(panel,'voice','音色 ID','text');voice.maxLength=255;voice.setAttribute('data-i18n-skip','');
+    const voice=field(picker,'voice','音色 ID','text');voice.maxLength=255;voice.setAttribute('data-i18n-skip','');
+    const footer=document.createElement('div');footer.className='msw-voice-picker-footer';picker.append(footer);
+    const current=document.createElement('p');current.id=prefix+'current';current.className='msw-processing-hint';current.dataset.i18nSkip='';current.setAttribute('aria-live','polite');footer.append(current);
+    function currentVoice(){const row=data.voices.find(v=>v.id===voice.value);current.textContent=`${t('当前音色')}：${row?row.name+' · '+row.id:voice.value||t('未选择')}`;}
     if(mini){
       const adjustments=grid(panel);
       for(const [name,title,min,max,step,value] of [['speed','语速倍率',.5,2,.05,1],['volume','合成音量倍率',.01,10,.01,1],['pitch','音高（半音）',-12,12,1,0]]){
@@ -28,6 +33,7 @@
       const pronunciation=field(panel,'pronunciation','朗读修正','text');pronunciation.maxLength=600;
       pronunciation.parentElement.dataset.optionHelp='只改变这条字幕的实际朗读文本，字幕原文保持不变。可使用 MiniMax 支持的读音标记；重新生成时沿用此文本。';
     }
+    if(!mini){const duration=field(panel,'expected_duration_sec','期望时长（秒，可选）','number');Object.assign(duration,{min:'0.1',max:'600',step:'0.1'});duration.placeholder=t('自动');duration.oninput=updateScope;duration.parentElement.dataset.optionHelp='留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。短句异常续说时可尝试合理时长，并明确选择目标语言；批量合成时每条使用同一设置。';}
     const status=document.createElement('p');status.id=prefix+'status';status.className='msw-processing-message';status.setAttribute('role','status');panel.append(status);
     const actions=document.createElement('div');actions.className='msw-processing-actions';panel.append(actions);
     const envActions=document.createElement('div');envActions.className='msw-processing-actions';env.append(envActions);
@@ -35,10 +41,11 @@
     function notify(text){status.textContent=envStatus.textContent=t(text);}
     function connection(target=null){return {apiKey:target?.region&&target.region!==region.value?'':key.value,timeout:Number(timeout.value)};}
     function recipe(){const value={provider:engine,model:model.value,voice:voice.value.trim(),language_type:language.value||'auto'};
-      if(mini)Object.assign(value,{region:region.value,speed:Number(fields.speed.value),volume:Number(fields.volume.value),pitch:Number(fields.pitch.value),emotion:fields.emotion.value});return value;}
+      if(mini)Object.assign(value,{region:region.value,speed:Number(fields.speed.value),volume:Number(fields.volume.value),pitch:Number(fields.pitch.value),emotion:fields.emotion.value});
+      if(!mini&&fields.expected_duration_sec.value!=='')value.expected_duration_sec=Number(fields.expected_duration_sec.value);return value;}
     function renderVoices(){const query=search.value.trim().toLowerCase();catalog.replaceChildren(new Option(t('选择已有音色或填写 ID'),''),
       ...data.voices.filter(v=>`${v.name} ${v.id} ${v.group}`.toLowerCase().includes(query)).map(v=>new Option(v.name===v.id?v.id:`${v.name} · ${v.id}`,v.id)));
-      catalog.value=voice.value;}
+      catalog.value=voice.value;currentVoice();}
     function support(){
       const current=language.value;
       const languages=!mini&&model.value.includes('1.0-pro')?['auto']:(data.languages||['auto']).filter(v=>!mini||!/^speech-0[12]/.test(model.value)||!['Persian','Filipino','Tamil'].includes(v));
@@ -78,15 +85,15 @@
     }
     region.onchange=()=>{version++;key.value=keys.get(region.value)||'';data.voices=[];voice.value='';renderVoices();showKey();};
     key.oninput=()=>{version++;keys.set(region.value,key.value);data.voices=[];renderVoices();showKey();};
-    model.onchange=support;language.onchange=updateScope;voice.oninput=()=>{catalog.value=voice.value;updateScope();};
-    catalog.onchange=()=>{if(catalog.value)voice.value=catalog.value;updateScope();};search.oninput=renderVoices;
+    model.onchange=support;language.onchange=updateScope;voice.oninput=()=>{catalog.value=voice.value;currentVoice();updateScope();};
+    catalog.onchange=()=>{if(catalog.value)voice.value=catalog.value;currentVoice();updateScope();};search.oninput=renderVoices;
     function configure(value,{preserve=false}={}){const previous=preserve?recipe():null,oldKey=key.value,oldRegion=region.value;
       data={...data,...value};const r=previous||data.recipe;if(!r)return;
       model.replaceChildren(...(data.models||[]).map(v=>new Option(v,v)));model.value=r.model;
       if(mini){region.value=r.region;for(const k of ['speed','volume','pitch'])fields[k].value=String(r[k]);}
       key.value=preserve&&oldRegion===region.value?oldKey:keys.get(region.value)||'';
       timeout.value=String(preserve?timeout.value:data.timeout||180);voice.value=r.voice||'';
-      support();language.value=r.language_type||'auto';if(mini)fields.emotion.value=r.emotion||'';
+      support();language.value=r.language_type||'auto';if(mini)fields.emotion.value=r.emotion||'';else fields.expected_duration_sec.value=r.expected_duration_sec==null?'':String(r.expected_duration_sec);
       // A saved catalog must never replace an unsaved account/region's catalog.
       if(key.value||r.region!==value?.recipe?.region)data.voices=[];
       renderVoices();showKey();

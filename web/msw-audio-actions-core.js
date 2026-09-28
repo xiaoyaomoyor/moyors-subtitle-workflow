@@ -42,7 +42,7 @@
   }
   const recipeFields = {
     minimax: ['provider','region','model','voice','language_type','speed','volume','pitch','emotion'],
-    mossland: ['provider','model','voice','language_type'],
+    mossland: ['provider','model','voice','language_type','expected_duration_sec'],
     edge: ['provider','model','voice','language_type','rate','volume','pitch'],
     'gpt-sovits': ['provider', 'model', 'voice', 'language_type', 'gpt_model', 'sovits_model', 'speaker_ref', 'aux_refs', 'prompt_text', 'prompt_lang', 'no_prompt', 'speed_factor', 'text_split_method', 'top_k', 'top_p', 'temperature', 'seed', 'repetition_penalty', 'sample_steps', 'super_sampling'],
     qwen: ['provider','region','model','model_type','voice','language_type','instructions','optimize_instructions'],

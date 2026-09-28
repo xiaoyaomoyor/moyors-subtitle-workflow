@@ -1013,6 +1013,6 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 继续使用 `msw.editor.v1` 的音频素材 `generation`，不升级工程 schema。`provider` 新增 `minimax`、`mossland`，共同保存 `model`、`voice`、`language_type`、`display_text`、`spoken_text`。模型必须为当前适配器支持的 ID，音色 ID 最长 255 字符，允许供应商 ID 中的空格与括号。
 
 - MiniMax 另存 `region`（`cn`／`global`）、`speed`（0.5–2）、`volume`（0.01–10，倍率）、`pitch`（−12～12 整数半音）、`emotion`（空串为自动；其他值按模型校验）。`language_type` 使用供应商英文语言名，自动为 `auto`。单字幕朗读修正与重新生成的已冻结读音沿用已有快照字段。
-- Mossland 存单人音色 ID 和模型／快照 ID；Flash 可指定语言，Pro 为 `auto`。不伪造字词时间码、音高或合成音量字段。
+- Mossland 存单人音色 ID 和模型／快照 ID；Flash 可指定语言，Pro 为 `auto`。可选 `expected_duration_sec` 为 0.1–600 秒的期望时长，省略时由模型决定；这是生成引导，不是裁切上限，素材及贴片重新生成沿用该值。不伪造字词时间码、音高或合成音量字段。
 - 连接地址由受控地域决定；API Key、超时、参考上传数据、创建请求记录和账号音色缓存均留在本机，不进入工程。完整结果转换成现有素材 WAV；不保存临时下载 URL。
 - 重新生成使用上述白名单参数，显示文本与实际朗读分开；现有七引擎旧配方及已保存的低频 Index／GPT 参数继续保留。播放增益与导出增益不写回供应商合成倍率。

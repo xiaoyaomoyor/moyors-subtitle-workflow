@@ -4,7 +4,7 @@ import hashlib
 import json
 import threading
 
-from maw.msw.cloud_tts import CloudTts, identifier, object_json
+from maw.msw.cloud_tts import CloudTts, identifier, number, object_json
 from maw.msw.assets import atomic_bytes, audio_info
 from maw.msw.tts import TtsServiceError
 
@@ -26,6 +26,8 @@ def validate_recipe(raw, *, require_voice=True):
     r['voice'] = identifier(r['voice'], empty=not require_voice)
     if r['language_type'] not in LANGUAGES or ('1.0-pro' in r['model'] and r['language_type'] != 'auto'):
         raise ValueError('此 Mossland 模型仅支持自动判断语言')
+    if raw.get('expected_duration_sec') is not None:
+        r['expected_duration_sec'] = number(raw['expected_duration_sec'], 0.1, 600, '期望时长')
     return r
 
 
@@ -103,6 +105,8 @@ def synthesize(settings, text, cancel):
     r, controller = settings.recipe, settings.controller
     body = {'model': r['model'], 'input': text, 'voice_id': r['voice'], 'stream': False,
             'async': False, 'response_format': 'wav', 'delivery_method': 'audio'}
+    if 'expected_duration_sec' in r:
+        body['expected_duration_sec'] = r['expected_duration_sec']
     if r['language_type'] != 'auto':
         body['language'] = r['language_type']
     content, mime = controller.request(settings, 'POST', '/v1/audio/speech', cancel, json=body)

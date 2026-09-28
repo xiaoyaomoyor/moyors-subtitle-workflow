@@ -131,6 +131,7 @@ test('empty project can synthesize independent text and delete its last audio cl
 test.afterEach(async () => { await server?.stop(); expect(errors).toEqual([]); });
 
 test('environment navigation saves a key independently and the call panel stays compact', async ({page}) => {
+  await page.evaluate(() => selectOnly(0));
   await openTtsEnvironment(page);
   await page.locator('#tts-settings > summary').click();
   // Connection details may already be expanded because no key is configured.

@@ -1,5 +1,6 @@
 """Native project save picker. Only an explicit editor action invokes a dialog."""
 
+from contextlib import contextmanager
 from pathlib import Path
 import subprocess
 import sys
@@ -7,6 +8,89 @@ import threading
 
 
 _folder_lock = threading.Lock()
+
+
+@contextmanager
+def _folder_owner(browser):
+    """Own the modal on its STA thread; keep only that dialog above the browser."""
+    import ctypes as c
+    from ctypes import wintypes as w
+
+    user, kernel = c.WinDLL('user32', use_last_error=True), c.WinDLL('kernel32')
+    user.CreateWindowExW.argtypes = [w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD,
+                                   c.c_int, c.c_int, c.c_int, c.c_int,
+                                   w.HWND, w.HMENU, w.HINSTANCE, c.c_void_p]
+    user.CreateWindowExW.restype = w.HWND
+    user.DestroyWindow.argtypes = [w.HWND]
+    user.DestroyWindow.restype = w.BOOL
+    user.GetWindowRect.argtypes = [w.HWND, c.POINTER(w.RECT)]
+    user.GetWindowRect.restype = w.BOOL
+    user.GetWindow.argtypes = [w.HWND, w.UINT]
+    user.GetWindow.restype = w.HWND
+    user.GetClassNameW.argtypes = [w.HWND, w.LPWSTR, c.c_int]
+    user.IsWindowVisible.argtypes = [w.HWND]
+    user.IsWindowVisible.restype = w.BOOL
+    user.SetWindowPos.argtypes = [w.HWND, w.HWND, c.c_int, c.c_int, c.c_int, c.c_int, w.UINT]
+    user.SetWindowPos.restype = w.BOOL
+    user.GetWindowLongW.argtypes = [w.HWND, c.c_int]
+    user.GetWindowLongW.restype = w.LONG
+    user.SetForegroundWindow.argtypes = [w.HWND]
+    user.SetForegroundWindow.restype = w.BOOL
+    kernel.GetCurrentThreadId.restype = w.DWORD
+    enum_type = c.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+    timer_type = c.WINFUNCTYPE(None, w.HWND, w.UINT, c.c_size_t, w.DWORD)
+    user.EnumThreadWindows.argtypes = [w.DWORD, enum_type, w.LPARAM]
+    user.SetTimer.argtypes = [w.HWND, c.c_size_t, w.UINT, timer_type]
+    user.SetTimer.restype = c.c_size_t
+    user.KillTimer.argtypes = [w.HWND, c.c_size_t]
+    user.KillTimer.restype = w.BOOL
+    rect = w.RECT(0, 0, 800, 600)
+    if browser:
+        user.GetWindowRect(browser, c.byref(rect))
+    # An invisible TOOLWINDOW has no taskbar entry or flashing placeholder.
+    # Its owned modal inherits TOPMOST without modifying the browser's styles.
+    owner = user.CreateWindowExW(0x80 | 0x8, 'STATIC', 'MSW folder owner', 0x80000000,
+                                rect.left, rect.top, max(1, rect.right-rect.left),
+                                max(1, rect.bottom-rect.top), None, None, None, None)
+    if not owner:
+        raise c.WinError(c.get_last_error())
+    activated = set()
+    thread_id = kernel.GetCurrentThreadId()
+
+    @enum_type
+    def ensure_front(hwnd, _data):
+        if user.GetWindow(hwnd, 4) != owner or not user.IsWindowVisible(hwnd):  # GW_OWNER
+            return True
+        name = c.create_unicode_buffer(64)
+        user.GetClassNameW(hwnd, name, len(name))
+        if name.value != '#32770':
+            return True
+        first = hwnd not in activated
+        if first or not user.GetWindowLongW(hwnd, -20) & 0x8:  # GWL_EXSTYLE / TOPMOST
+            flags = 0x1 | 0x2 | 0x200 | (0 if first else 0x10)
+            if user.SetWindowPos(hwnd, w.HWND(-1), 0, 0, 0, 0, flags):
+                if first:
+                    user.SetForegroundWindow(hwnd)
+                    activated.add(hwnd)
+        return True
+
+    @timer_type
+    def tick(_hwnd, _message, _timer, _time):
+        user.EnumThreadWindows(thread_id, ensure_front, 0)
+
+    timer = 0
+    try:
+        # IFileDialog pumps this thread's messages. A timer also catches late
+        # shell initialization/reset, which a one-shot EVENT_OBJECT_SHOW misses.
+        timer = user.SetTimer(None, 0, 100, tick)
+        if not timer:
+            raise c.WinError(c.get_last_error())
+        yield owner
+    finally:
+        if timer:
+            user.KillTimer(None, timer)
+        user.DestroyWindow(owner)
+        # ctypes callbacks stay alive through timer removal and window teardown.
 
 
 def _windows_folder(owner):
@@ -50,7 +134,8 @@ def _windows_folder(owner):
         # Pick folders, real filesystem, existing path, do not alter process CWD.
         check(invoke(dialog, 9, w.DWORD)(dialog, flags.value | 0x20 | 0x40 | 0x800 | 0x8))
         check(invoke(dialog, 17, w.LPCWSTR)(dialog, '选择 TTS 安装目录'))
-        hr = invoke(dialog, 3, w.HWND)(dialog, owner)
+        with _folder_owner(owner) as modal_owner:
+            hr = invoke(dialog, 3, w.HWND)(dialog, modal_owner)
         if hr & 0xffffffff == 0x800704C7:  # Explicit user cancellation.
             return None
         check(hr)

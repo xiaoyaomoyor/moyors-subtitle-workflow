@@ -3568,8 +3568,8 @@
   #tts-gpt-fields details, #tts-gpt-management details { margin-block: 10px; }
   #tts-gpt-fields input, #tts-gpt-management input, #tts-edge-management input { min-width: 0; max-width: 100%; }
   .msw-tts-check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
-  .msw-qwen-voice-picker { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; margin-block: 8px; background: var(--bg-panel); }
-  .msw-qwen-voice-picker .msw-processing-field { margin-block: 4px; }
+  :is(.msw-qwen-voice-picker, .msw-voice-picker) { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; margin-block: 8px; background: var(--bg-panel); }
+  :is(.msw-qwen-voice-picker, .msw-voice-picker) .msw-processing-field { margin-block: 4px; }
   .msw-voice-picker-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .msw-voice-picker-footer .msw-processing-hint { flex: 1; min-width: 0; overflow-wrap: anywhere; margin: 0; }
   .msw-voice-picker-footer button { flex: none; white-space: nowrap; }
@@ -17970,7 +17970,7 @@ export default MawDynamicCaptions;
   }
   const recipeFields = {
     minimax: ['provider','region','model','voice','language_type','speed','volume','pitch','emotion'],
-    mossland: ['provider','model','voice','language_type'],
+    mossland: ['provider','model','voice','language_type','expected_duration_sec'],
     edge: ['provider','model','voice','language_type','rate','volume','pitch'],
     'gpt-sovits': ['provider', 'model', 'voice', 'language_type', 'gpt_model', 'sovits_model', 'speaker_ref', 'aux_refs', 'prompt_text', 'prompt_lang', 'no_prompt', 'speed_factor', 'text_split_method', 'top_k', 'top_p', 'temperature', 'seed', 'repetition_penalty', 'sample_steps', 'super_sampling'],
     qwen: ['provider','region','model','model_type','voice','language_type','instructions','optimize_instructions'],
@@ -18189,9 +18189,9 @@ export default MawDynamicCaptions;
       if (binding?.main_segment_ids?.length === 1) selected.add(binding.main_segment_ids[0]);
       else ignored += 1;
     }
-    const sources = (project.segments || []).filter((source) => (!hasSelection || selected.has(source.id))
+    const sources = (project.segments || []).filter((source) => selected.has(source.id)
       && typeof source.text === 'string' && source.text.trim());
-    return { sources, ignored, all: !hasSelection };
+    return { sources, ignored, all: false };
   }
 
   function sourceCopy(source) {
@@ -18408,16 +18408,12 @@ export default MawDynamicCaptions;
     const byMain = new Map(links.map(b => [b.main_segment_ids[0], b]));
     const byExt = new Map(links.map(b => [b.extension_segment_ids[0], b]));
     const selectedMain = new Set(selection.mainIds || []), selectedExt = new Set(selection.extensionIds || []);
-    const hasSelection = Boolean(selection.hasSelection);
+    const hasSelection = Boolean(selection.hasSelection || selectedMain.size || selectedExt.size);
     const linked = links.filter(b => selectedMain.has(b.main_segment_ids[0]) || selectedExt.has(b.extension_segment_ids[0]));
-    const needsChoice = hasSelection ? linked.length > 0 : mains.length > 0 && secondary.length > 0;
+    const needsChoice = linked.length > 0;
     const rows = new Map();
     const add = (cue, trackId) => { if (cue && typeof cue.text === 'string' && cue.text.trim()) rows.set(JSON.stringify([trackId, cue.id]), { cue, trackId }); };
-    if (!hasSelection) {
-      const chosen = side || (needsChoice ? null : (mains.length ? 'main' : 'secondary'));
-      if (chosen === 'main') mains.forEach(cue => add(cue, null));
-      if (chosen === 'secondary') secondary.forEach(cue => add(cue, track?.id));
-    } else {
+    if (hasSelection) {
       selectedMain.forEach(id => { if (!byMain.has(id)) add(mainById.get(id), null); });
       selectedExt.forEach(id => { if (!byExt.has(id)) add(extById.get(id), track?.id); });
       linked.forEach(b => {
@@ -18426,7 +18422,7 @@ export default MawDynamicCaptions;
       });
     }
     const sources = [...rows.values()].sort((a, b) => a.cue.start - b.cue.start || a.cue.end - b.cue.end);
-    return { sources, needsChoice, all: !hasSelection, linked: linked.length,
+    return { sources, needsChoice, all: false, linked: linked.length,
       tooLong: sources.filter(row => [...row.cue.text].length > textLimit(engine)).length,
       signature: JSON.stringify([hasSelection, [...selectedMain].sort(), [...selectedExt].sort(), track?.id, linked.map(b => b.id)]) };
   }
@@ -18434,7 +18430,7 @@ export default MawDynamicCaptions;
     if (selection.overlayIds?.length) throw new Error('叠加字幕暂不支持翻译或配音，请选择主字幕或副字幕');
     const selected = scope(project, selection, side, engine);
     if (selected.needsChoice && !['main', 'secondary'].includes(side)) throw new Error('请先选择主字幕或副字幕');
-    if (!selected.sources.length) throw new Error('没有可合成的字幕');
+    if (!selected.sources.length) throw new Error('没有可合成的字幕；请先选择字幕');
     if (selected.tooLong) throw new Error(`存在超过 ${textLimit(engine)} 字符的字幕，请先拆分`);
     return { project_id: project.msw.project_id, entries: selected.sources.map(({cue, trackId}) => ({
       key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,
@@ -18963,6 +18959,13 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。短句异常续说时可尝试合理时长，并明确选择目标语言；批量合成时每条使用同一设置。": "Leave blank for automatic duration. This guides each output; it is not a hard limit and never trims audio. For short phrases with unwanted continuation, try a reasonable duration and an explicit language. The same duration applies to each item in a batch.",
+    "期望时长（秒，可选）": "Expected duration (seconds, optional)",
+    "范围：未选择字幕": "Scope: no subtitles selected",
+    "搜索名称或音色 ID": "Search name or voice ID",
+    "搜索参考名称": "Search reference names",
+    "参考音色": "Reference voices",
+    "音色库": "Voice library",
     "正在停止服务…": "Stopping service\u2026",
     "正在启动服务…": "Starting service\u2026",
     "正在上传并创建音色…": "Uploading and creating voice\u2026",
@@ -56089,10 +56092,10 @@ window.addEventListener('beforeunload', (e) => {
   function updateScope() {
     const selection = host.selection();
     const scope = global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
-    el('translation-scope').textContent = `${t(scope.all ? '范围：全部主字幕' : '范围：选中的主字幕')} · ${scope.sources.length}`
+    el('translation-scope').textContent = `${t(scope.sources.length ? '范围：选中的主字幕' : '范围：未选择字幕')} · ${scope.sources.length}`
       + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
     const ready = updateEnvironment();
-    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || !scope.sources.length;
+    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || (!pendingSubmission && !scope.sources.length);
     const emptyScopeMessage = '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
     if (selection.hasSelection && !scope.sources.length) message(emptyScopeMessage, true);
     else if (el('translation-message').textContent === t(emptyScopeMessage)) message('');
@@ -56297,7 +56300,8 @@ window.addEventListener('beforeunload', (e) => {
     catch (error) { environmentMessage(error.message, true); }
     finally { savingSettings = false; updateScope(); }
   });
-  for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => {
+  for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
+    if (event === 'click' && panel.contains(input.target)) return;
     if (floating.isOpen()) queueMicrotask(updateScope);
   });
   global.addEventListener('msw:project-changed', () => {
@@ -57028,24 +57032,30 @@ window.addEventListener('beforeunload', (e) => {
     function button(parent, id, title, task) {
       const b=document.createElement('button');b.type='button';b.id='tts-gpt-'+id;b.textContent=t(title);
       b.onclick=async()=>{if(busy)return;busy=true;b.disabled=true;b.setAttribute('aria-busy','true');if(['check','scan'].includes(id)){b.textContent=t('正在验证…');status.textContent=t(id==='check'?'正在验证连接…':'正在扫描本机模型…');status.setAttribute('aria-busy','true');}updateScope();try{await task();}catch(e){status.textContent=e.message;}finally{busy=false;b.disabled=false;b.textContent=t(title);b.setAttribute('aria-busy','false');status.setAttribute('aria-busy','false');updateScope();}};
-      if(parent.classList.contains('msw-processing-actions'))parent.append(b);
+      if(parent.classList.contains('msw-processing-actions')||parent.classList.contains('msw-voice-picker-footer'))parent.append(b);
       else {const row=document.createElement('div');row.className='msw-processing-actions';row.append(b);parent.append(row);}return b;
     }
     function details(parent,title) {const d=document.createElement('details'),s=document.createElement('summary');s.textContent=t(title);d.append(s);parent.append(d);return d;}
     const serviceRow=document.createElement('div');serviceRow.className='msw-processing-actions';
     const serviceStatus=document.createElement('span');serviceStatus.id='tts-gpt-local-call-status';serviceStatus.className='msw-processing-hint';serviceRow.append(serviceStatus);panel.append(serviceRow);
     button(serviceRow,'local-call-start','启动服务',()=>startService());
+    field(panel,'preset','配音预设','select',[['','选择已保存预设']]);
     const common=grid(panel);
-    field(common,'preset','配音预设','select',[['','选择已保存预设']]);
-    field(common,'speaker_ref','音色参考','select',[['','请选择或上传参考音频']]);
     field(common,'gpt_model','GPT 模型','select');field(common,'sovits_model','SoVITS 模型','select');
     const languages=[['zh','中文（中英混合）'],['all_zh','中文'],['en','English'],['ja','日本語（日英混合）'],['all_ja','日本語'],['yue','粤语'],['ko','한국어'],['auto','多语种自动'],['auto_yue','多语种自动（含粤语）']];
     field(common,'language_type','生成语言','select',languages);field(common,'prompt_lang','参考语言','select',languages);
+    const picker=document.createElement('div');picker.className='msw-voice-picker';panel.append(picker);
+    const search=field(picker,'voice_search','参考音色','search');search.placeholder=t('搜索参考名称');
+    field(picker,'speaker_ref','选择音色','select',[['','请选择或上传参考音频']]);
+    const preview=document.createElement('div');preview.className='msw-voice-picker-footer';picker.append(preview);
+    const current=document.createElement('p');current.id='tts-gpt-current';current.className='msw-processing-hint';current.dataset.i18nSkip='';current.setAttribute('aria-live','polite');preview.append(current);
+    function currentVoice(){const row=data.references.find(v=>v.id===fields.get('speaker_ref').value);current.textContent=`${t('当前音色')}：${row?.name||t('未选择')}`;el('tts-gpt-preview').disabled=!row;}
+    search.oninput=()=>{const id=fields.get('speaker_ref').value,query=search.value.trim().toLowerCase();choices('speaker_ref',data.references.filter(v=>v.id===id||v.name.toLowerCase().includes(query)),id);currentVoice();};
+    fields.get('speaker_ref').addEventListener('change',currentVoice);
     field(panel,'prompt_text','参考音频文字','textarea');
     const secondary=grid(panel);
     const speed=field(secondary,'speed_factor','语速（倍）','number');speed.min='.5';speed.max='2';speed.step='.05';speed.value='1';
     field(secondary,'text_split_method','断句方式','select',[['cut0','不切分'],['cut1','每四句'],['cut2','约 50 字'],['cut3','中文句号'],['cut4','英文句号'],['cut5','按标点切分']]);
-    const preview=document.createElement('div');preview.className='msw-processing-actions';panel.append(preview);
     button(preview,'preview','试听参考',async()=>{const id=fields.get('speaker_ref').value;if(!id)throw Error(t('请选择或上传参考音频'));
       await playReference('gpt-sovits',t('试听参考'),()=>request('gpt-reference?id='+encodeURIComponent(id),null,true),()=>fields.get('speaker_ref').value===id);});
     const advanced=details(panel,'高级生成参数'), ag=grid(advanced);
@@ -57101,7 +57111,7 @@ window.addEventListener('beforeunload', (e) => {
       aux.replaceChildren(...data.references.map(row=>new Option(row.name,row.id,false,(r.aux_refs||[]).includes(row.id))));
       for(const id of r.aux_refs||[])if(!data.references.some(v=>v.id===id))aux.add(new Option(t('不可用')+' · '+id.slice(0,18),id,true,true));
       for(const [key,value] of Object.entries(r)){if(!fields.has(key)||['gpt_model','sovits_model','speaker_ref','aux_refs'].includes(key))continue;const f=fields.get(key);if(f.type==='checkbox')f.checked=!!value;else f.value=String(value);}
-      referenceInfo();capability();}
+      referenceInfo();currentVoice();capability();}
     function recipe(){const r={provider:'gpt-sovits',model:'api-v2',voice:''};for(const key of ['gpt_model','sovits_model','speaker_ref','language_type','prompt_lang','prompt_text','text_split_method','speed_factor','top_k','top_p','temperature','seed','repetition_penalty','sample_steps','super_sampling','no_prompt']){const f=fields.get(key);r[key]=f.type==='checkbox'?f.checked:f.type==='number'?Number(f.value):f.value;}
       r.aux_refs=[...aux.selectedOptions].map(o=>o.value);return r;}
     function connection(){return {service_url:fields.get('url').value.trim(),timeout:Number(timeout.value)};}
@@ -57121,9 +57131,13 @@ window.addEventListener('beforeunload', (e) => {
     function field(parent,key,title,type){const l=document.createElement('label');l.className='msw-processing-field';
       const s=document.createElement('span');s.textContent=t(title);const f=document.createElement(type==='select'?'select':'input');if(type!=='select')f.type=type;
       f.id='tts-edge-'+key;l.append(s,f);parent.append(l);fields[key]=f;return f;}
-    const grid=document.createElement('div');grid.className='msw-processing-grid';panel.append(grid);
-    const lang=field(grid,'language','筛选语言','select'),search=field(grid,'search','搜索音色','search');
-    const voice=field(panel,'voice','音色','select');
+    const lang=field(panel,'language','筛选语言','select');
+    const picker=document.createElement('div');picker.className='msw-voice-picker';panel.append(picker);
+    const search=field(picker,'search','系统音色','search');search.placeholder=t('搜索名称、音色 ID、方言或性别');
+    const voice=field(picker,'voice','选择音色','select');voice.dataset.i18nSkip='';
+    const footer=document.createElement('div');footer.className='msw-voice-picker-footer';picker.append(footer);
+    const current=document.createElement('p');current.id='tts-edge-current';current.className='msw-processing-hint';current.dataset.i18nSkip='';current.setAttribute('aria-live','polite');footer.append(current);
+    function currentVoice(){const row=data.voices.find(v=>v.id===voice.value);current.textContent=`${t('当前音色')}：${row?row.name+' · '+row.id:voice.value||t('未选择')}`;}
     const adjustments=document.createElement('div');adjustments.className='msw-processing-grid';panel.append(adjustments);
     for(const [key,title,min,max,unit] of [['rate','语速变化',-50,100,'%'],['volume','合成音量变化',-100,100,'%'],['pitch','音高变化',-100,100,'Hz']]){
       const f=field(adjustments,key,title,'range');Object.assign(f,{min:String(min),max:String(max),step:'1',value:'0'});
@@ -57147,9 +57161,9 @@ window.addEventListener('beforeunload', (e) => {
     refresh.onclick=quick.onclick=reload;
     function renderVoices(current=voice.value){const query=search.value.trim().toLowerCase();const rows=data.voices.filter(v=>(!lang.value||v.language===lang.value)&&`${v.name} ${v.id} ${v.gender}`.toLowerCase().includes(query));
       voice.replaceChildren(...rows.map(v=>new Option(`${v.id} · ${v.gender}`,v.id)));
-      if(current&&!rows.some(v=>v.id===current))voice.add(new Option(current,current),0);voice.value=current;
+      if(current&&!rows.some(v=>v.id===current))voice.add(new Option(current,current),0);voice.value=current;currentVoice();
       hint.textContent=data.dependency.ready?(data.voices.length?'':t('在线服务，无需 API Key；可刷新音色列表')):t(data.dependency.message||'尚未检测 Edge 依赖');updateScope();}
-    lang.onchange=search.oninput=()=>renderVoices();voice.onchange=updateScope;
+    lang.onchange=search.oninput=()=>renderVoices();voice.onchange=()=>{currentVoice();updateScope();};
     function recipe(){return {provider:'edge',model:'edge-online',voice:voice.value||'zh-CN-XiaoxiaoNeural',language_type:(voice.value||'zh-CN-XiaoxiaoNeural').split('-').slice(0,-1).join('-'),rate:Number(fields.rate.value),volume:Number(fields.volume.value),pitch:Number(fields.pitch.value)};}
     function configure(value){data={...data,...value};const r=data.recipe||recipe();const previous=lang.value;
       lang.replaceChildren(new Option(t('全部语言'),''),...[...new Set(data.voices.map(v=>v.language))].sort().map(v=>new Option(v,v)));lang.value=previous;
@@ -57180,9 +57194,14 @@ window.addEventListener('beforeunload', (e) => {
     const key=field(environment,'key','API Key','password');key.autocomplete='off';
     const timeout=field(environment,'timeout','单次等待上限（秒）','number');Object.assign(timeout,{min:'30',max:'600',value:'180'});
     const controls=grid(panel),model=field(controls,'model','模型','select'),language=field(controls,'language','语言','select');
-    const picker=grid(panel),search=field(picker,'search','搜索音色','search'),catalog=field(picker,'catalog','已有音色','select');
+    const picker=document.createElement('div');picker.className='msw-voice-picker';panel.append(picker);
+    const search=field(picker,'search','音色库','search'),catalog=field(picker,'catalog','选择音色','select');
+    search.placeholder=t('搜索名称或音色 ID');
     catalog.setAttribute('data-i18n-skip','');
-    const voice=field(panel,'voice','音色 ID','text');voice.maxLength=255;voice.setAttribute('data-i18n-skip','');
+    const voice=field(picker,'voice','音色 ID','text');voice.maxLength=255;voice.setAttribute('data-i18n-skip','');
+    const footer=document.createElement('div');footer.className='msw-voice-picker-footer';picker.append(footer);
+    const current=document.createElement('p');current.id=prefix+'current';current.className='msw-processing-hint';current.dataset.i18nSkip='';current.setAttribute('aria-live','polite');footer.append(current);
+    function currentVoice(){const row=data.voices.find(v=>v.id===voice.value);current.textContent=`${t('当前音色')}：${row?row.name+' · '+row.id:voice.value||t('未选择')}`;}
     if(mini){
       const adjustments=grid(panel);
       for(const [name,title,min,max,step,value] of [['speed','语速倍率',.5,2,.05,1],['volume','合成音量倍率',.01,10,.01,1],['pitch','音高（半音）',-12,12,1,0]]){
@@ -57192,6 +57211,7 @@ window.addEventListener('beforeunload', (e) => {
       const pronunciation=field(panel,'pronunciation','朗读修正','text');pronunciation.maxLength=600;
       pronunciation.parentElement.dataset.optionHelp='只改变这条字幕的实际朗读文本，字幕原文保持不变。可使用 MiniMax 支持的读音标记；重新生成时沿用此文本。';
     }
+    if(!mini){const duration=field(panel,'expected_duration_sec','期望时长（秒，可选）','number');Object.assign(duration,{min:'0.1',max:'600',step:'0.1'});duration.placeholder=t('自动');duration.oninput=updateScope;duration.parentElement.dataset.optionHelp='留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。短句异常续说时可尝试合理时长，并明确选择目标语言；批量合成时每条使用同一设置。';}
     const status=document.createElement('p');status.id=prefix+'status';status.className='msw-processing-message';status.setAttribute('role','status');panel.append(status);
     const actions=document.createElement('div');actions.className='msw-processing-actions';panel.append(actions);
     const envActions=document.createElement('div');envActions.className='msw-processing-actions';env.append(envActions);
@@ -57199,10 +57219,11 @@ window.addEventListener('beforeunload', (e) => {
     function notify(text){status.textContent=envStatus.textContent=t(text);}
     function connection(target=null){return {apiKey:target?.region&&target.region!==region.value?'':key.value,timeout:Number(timeout.value)};}
     function recipe(){const value={provider:engine,model:model.value,voice:voice.value.trim(),language_type:language.value||'auto'};
-      if(mini)Object.assign(value,{region:region.value,speed:Number(fields.speed.value),volume:Number(fields.volume.value),pitch:Number(fields.pitch.value),emotion:fields.emotion.value});return value;}
+      if(mini)Object.assign(value,{region:region.value,speed:Number(fields.speed.value),volume:Number(fields.volume.value),pitch:Number(fields.pitch.value),emotion:fields.emotion.value});
+      if(!mini&&fields.expected_duration_sec.value!=='')value.expected_duration_sec=Number(fields.expected_duration_sec.value);return value;}
     function renderVoices(){const query=search.value.trim().toLowerCase();catalog.replaceChildren(new Option(t('选择已有音色或填写 ID'),''),
       ...data.voices.filter(v=>`${v.name} ${v.id} ${v.group}`.toLowerCase().includes(query)).map(v=>new Option(v.name===v.id?v.id:`${v.name} · ${v.id}`,v.id)));
-      catalog.value=voice.value;}
+      catalog.value=voice.value;currentVoice();}
     function support(){
       const current=language.value;
       const languages=!mini&&model.value.includes('1.0-pro')?['auto']:(data.languages||['auto']).filter(v=>!mini||!/^speech-0[12]/.test(model.value)||!['Persian','Filipino','Tamil'].includes(v));
@@ -57242,15 +57263,15 @@ window.addEventListener('beforeunload', (e) => {
     }
     region.onchange=()=>{version++;key.value=keys.get(region.value)||'';data.voices=[];voice.value='';renderVoices();showKey();};
     key.oninput=()=>{version++;keys.set(region.value,key.value);data.voices=[];renderVoices();showKey();};
-    model.onchange=support;language.onchange=updateScope;voice.oninput=()=>{catalog.value=voice.value;updateScope();};
-    catalog.onchange=()=>{if(catalog.value)voice.value=catalog.value;updateScope();};search.oninput=renderVoices;
+    model.onchange=support;language.onchange=updateScope;voice.oninput=()=>{catalog.value=voice.value;currentVoice();updateScope();};
+    catalog.onchange=()=>{if(catalog.value)voice.value=catalog.value;currentVoice();updateScope();};search.oninput=renderVoices;
     function configure(value,{preserve=false}={}){const previous=preserve?recipe():null,oldKey=key.value,oldRegion=region.value;
       data={...data,...value};const r=previous||data.recipe;if(!r)return;
       model.replaceChildren(...(data.models||[]).map(v=>new Option(v,v)));model.value=r.model;
       if(mini){region.value=r.region;for(const k of ['speed','volume','pitch'])fields[k].value=String(r[k]);}
       key.value=preserve&&oldRegion===region.value?oldKey:keys.get(region.value)||'';
       timeout.value=String(preserve?timeout.value:data.timeout||180);voice.value=r.voice||'';
-      support();language.value=r.language_type||'auto';if(mini)fields.emotion.value=r.emotion||'';
+      support();language.value=r.language_type||'auto';if(mini)fields.emotion.value=r.emotion||'';else fields.expected_duration_sec.value=r.expected_duration_sec==null?'':String(r.expected_duration_sec);
       // A saved catalog must never replace an unsaved account/region's catalog.
       if(key.value||r.region!==value?.recipe?.region)data.voices=[];
       renderVoices();showKey();
@@ -57851,7 +57872,7 @@ window.addEventListener('beforeunload', (e) => {
       el('tts-index-pronunciation').value = '';
     }
     el('tts-scope').textContent = (isText() ? `${t('范围：独立配音草稿 · 不修改字幕')} · ${parts.length} ${t('条')}`
-      : `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
+      : `${t(scope.sources.length ? '范围：所选字幕' : '范围：未选择字幕')} · ${scope.sources.length} ${t('条')}`
         + (scope.linked ? ` · ${t('连锁字幕按操作对象合成，独立字幕保留原选区')}` : ''))
       + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过')} ${textLimit()} ${t('字符，请先拆分')}` : '');
     el('cue-panel-tts-count').textContent = `${parts.length} ${t('段')} · ${t('最长')} ${parts.reduce((n, part) => Math.max(n, [...part].length), 0)} / ${textLimit()}`;
@@ -58277,7 +58298,10 @@ window.addEventListener('beforeunload', (e) => {
     finally { savingSettings = false; updateScope(); }
   });
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
-  for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
+  for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
+    if (event === 'click' && el('tts-panel').contains(input.target)) return;
+    if (panel.isOpen()) queueMicrotask(updateScope);
+  });
   global.addEventListener('msw:project-changed', () => {
     for (const job of jobs.values()) {
       if (['indextts', 'gpt-sovits'].includes(job.recipe?.provider) && active(job)) {

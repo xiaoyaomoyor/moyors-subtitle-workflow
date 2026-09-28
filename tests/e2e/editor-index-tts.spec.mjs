@@ -62,6 +62,7 @@ test.beforeEach(async ({page}, testInfo) => {
   page.on('pageerror', error => errors.push(error.message));
   page.on('dialog', dialog => dialog.type() === 'beforeunload' ? dialog.accept() : dialog.dismiss());
   await disableOnboarding(page); await page.goto(server.url); await expect(page.locator('#editor-loading')).not.toBeVisible();
+  await page.evaluate(() => selectOnly(0));
   await openTtsEnvironment(page, 'indextts'); await page.locator('#tts-index-url').fill(origin);
   await closeTtsEnvironment(page); await page.locator('#tts-engine').selectOption('indextts');
 });
@@ -218,6 +219,7 @@ test('narrow layout keeps controls inside the scrolling panel', async ({page}) =
 });
 
 test('dual selection keeps the existing main secondary and unbound rules', async ({page}) => {
+  await page.evaluate(() => {clearSelection();selectExtensionRange(0,1);});
   await connect(page); await page.locator('#tts-index-example').selectOption('0'); await expect(page.locator('#tts-index-speaker')).toHaveValue(/^ref-/);
   await expect(page.locator('#tts-target')).toHaveValue('main'); await page.locator('#tts-target').selectOption('secondary');
   await page.locator('#tts-start').click(); await expect.poll(() => generations().length).toBe(2);

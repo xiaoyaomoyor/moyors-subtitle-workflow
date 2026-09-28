@@ -28,7 +28,7 @@ test.beforeEach(async({page})=>{
   server=await startServer(path,media,await findFreePort());await page.goto(server.url);await expect(page.locator('#editor-loading')).toBeHidden();
 });
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();});
-async function translation(page){await page.evaluate(()=>document.querySelector('#subtitle-translate-btn').click());await expect(page.locator('#translation-start')).toBeEnabled();await page.locator('#translation-start').click();await expect(page.locator('#translation-jobs input[type=radio]')).toBeEnabled();}
+async function translation(page){await page.evaluate(()=>{selectRange(0,DATA.segments.length-1);document.querySelector('#subtitle-translate-btn').click();});await expect(page.locator('#translation-start')).toBeEnabled();await page.locator('#translation-start').click();await expect(page.locator('#translation-jobs input[type=radio]')).toBeEnabled();}
 async function selectBatch(page,kind='translation'){
   const root=page.locator(kind==='asr'?'#msw-asr-jobs':'#translation-jobs');
   await root.locator('.msw-result-toggle').first().click();await root.locator('input[type=radio]').first().check();return root;

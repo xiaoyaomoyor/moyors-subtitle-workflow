@@ -77,7 +77,7 @@ test('all seven engines retain original regeneration fields without exporting co
   {provider:'gpt-sovits',model:'v2Pro',voice:'ref',speaker_ref:'r',gpt_model:'g',sovits_model:'s',language_type:'zh',top_k:12,sample_steps:32},
   {provider:'edge',model:'edge-online',voice:'ja-JP-NanamiNeural',language_type:'ja-JP',rate:10,volume:-5,pitch:2},
   {provider:'minimax',region:'cn',model:'speech-2.6-hd',voice:'account-voice',language_type:'Chinese',speed:1.2,volume:2,pitch:3,emotion:'whisper'},
-  {provider:'mossland',model:'moss-tts-1.5-flash-2026-06-26',voice:'account-voice',language_type:'Japanese'},
+  {provider:'mossland',model:'moss-tts-1.5-flash-2026-06-26',voice:'account-voice',language_type:'Japanese',expected_duration_sec:2},
  ];
  const assets=recipes.map((recipe,i)=>({...asset,id:'a'+i,generation:{...recipe,display_text:'显示',spoken_text:'朗读',apiKey:'secret',base_url:'private'}}));
  const clips=assets.map((a,i)=>({...clip('c'+i,i*1000),asset_id:a.id}));

@@ -73,6 +73,7 @@ async function open(page, secondary = false, blank = false) {
   }
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(2);
   await expect(page.locator('#editor-loading')).not.toBeVisible();
+  await page.evaluate(()=>selectRange(0,DATA.segments.length-1));
 }
 async function openTranslationPanel(page) {
   await openMenubarMenu(page, '字幕');
@@ -129,6 +130,7 @@ test('main backfill retains secondary tracks and can be undone as one operation'
 
 test('subtitle context menus open translation above TTS with selected scope and no submission', async ({ page }) => {
   await open(page, true);
+  await page.evaluate(() => clearSelection());
   await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: false, clickBehavior: 'select-only' }));
   const openFromContext = async (locator) => {
     await locator.click({ button: 'right' });
@@ -152,7 +154,7 @@ test('subtitle context menus open translation above TTS with selected scope and 
   await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 2');
   await page.locator('#subtitle-translation-close').click();
   await openFromContext(page.locator('.multi-cue-column.extension[data-ext-idx="2"]'));
-  await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 0');
+  await expect(page.locator('#translation-scope')).toContainText('未选择字幕 · 0');
   await expect(page.locator('#translation-scope')).toContainText('已忽略未绑定副字幕 1');
   await expect(page.locator('#translation-start')).toBeDisabled();
   expect(requests).toHaveLength(0);
@@ -221,7 +223,7 @@ test('blank server imports, translates all, creates aligned secondary and undoes
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await open(page, false, true);
   await panel(page);
-  await expect(page.locator('#translation-scope')).toContainText('全部主字幕 · 2');
+  await expect(page.locator('#translation-scope')).toContainText('选中的主字幕 · 2');
   await page.locator('#translation-start').click();
   await applyLatest(page);
   await expect.poll(() => secondaryTexts(page)).toEqual(['Translated Hello', 'Translated World']);
@@ -293,7 +295,7 @@ test('a completed translation waits for an active subtitle drag to finish', asyn
   await page.locator('#translation-start').click();
   await expect.poll(() => requests.length).toBe(1);
   await page.locator('#subtitle-translation-close').click();
-  const block = page.locator('.waveform-cue-block').filter({ hasText: /^Hello$/ }).first();
+  const block = page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first();
   await expect(block).toBeVisible();
   const box = await block.boundingBox();
   expect(box).not.toBeNull();
@@ -333,7 +335,7 @@ test('English translation panel uses translated labels and shared saved provider
   await page.locator('#editor-settings-close').click(); await openTranslationPanel(page);
   await page.evaluate(() => MSWE_I18N.applyLanguage('en'));
   await expect(page.locator('#subtitle-translation-title')).toHaveText('Translate subtitles');
-  await expect(page.locator('#translation-scope')).toContainText('Scope: all main subtitles');
+  await expect(page.locator('#translation-scope')).toContainText('Scope: selected main subtitles');
   expect(await page.locator('#subtitle-translation-panel').innerText()).not.toMatch(/[\u3400-\u9fff]/u);
   await page.locator('#translation-start').click();
   await applyLatest(page);
@@ -378,4 +380,13 @@ test('generated portable editor explains the server requirement without sending 
   await expect(page.locator('#translation-unavailable')).toBeVisible();
   await expect(page.locator('#translation-controls')).not.toBeVisible();
   expect(requests).toHaveLength(0);
+});
+
+
+test('no selected subtitles blocks translation; selecting all explicitly restores a full batch',async({page})=>{
+  await open(page);await panel(page);await page.evaluate(()=>{clearSelection();document.dispatchEvent(new Event('pointerup'));});
+  await expect(page.locator('#translation-start')).toBeDisabled();await expect(page.locator('#translation-scope')).toContainText('未选择字幕');
+  await page.locator('#translation-start').evaluate(b=>b.click());expect(requests).toHaveLength(0);
+  await page.evaluate(()=>{selectAll();document.dispatchEvent(new Event('pointerup'));});await expect(page.locator('#translation-start')).toBeEnabled();await page.locator('#translation-start').click();
+  await expect.poll(()=>requests.length).toBe(1);expect(requests[0]).toHaveLength(2);
 });

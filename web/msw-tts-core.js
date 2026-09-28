@@ -22,16 +22,12 @@
     const byMain = new Map(links.map(b => [b.main_segment_ids[0], b]));
     const byExt = new Map(links.map(b => [b.extension_segment_ids[0], b]));
     const selectedMain = new Set(selection.mainIds || []), selectedExt = new Set(selection.extensionIds || []);
-    const hasSelection = Boolean(selection.hasSelection);
+    const hasSelection = Boolean(selection.hasSelection || selectedMain.size || selectedExt.size);
     const linked = links.filter(b => selectedMain.has(b.main_segment_ids[0]) || selectedExt.has(b.extension_segment_ids[0]));
-    const needsChoice = hasSelection ? linked.length > 0 : mains.length > 0 && secondary.length > 0;
+    const needsChoice = linked.length > 0;
     const rows = new Map();
     const add = (cue, trackId) => { if (cue && typeof cue.text === 'string' && cue.text.trim()) rows.set(JSON.stringify([trackId, cue.id]), { cue, trackId }); };
-    if (!hasSelection) {
-      const chosen = side || (needsChoice ? null : (mains.length ? 'main' : 'secondary'));
-      if (chosen === 'main') mains.forEach(cue => add(cue, null));
-      if (chosen === 'secondary') secondary.forEach(cue => add(cue, track?.id));
-    } else {
+    if (hasSelection) {
       selectedMain.forEach(id => { if (!byMain.has(id)) add(mainById.get(id), null); });
       selectedExt.forEach(id => { if (!byExt.has(id)) add(extById.get(id), track?.id); });
       linked.forEach(b => {
@@ -40,7 +36,7 @@
       });
     }
     const sources = [...rows.values()].sort((a, b) => a.cue.start - b.cue.start || a.cue.end - b.cue.end);
-    return { sources, needsChoice, all: !hasSelection, linked: linked.length,
+    return { sources, needsChoice, all: false, linked: linked.length,
       tooLong: sources.filter(row => [...row.cue.text].length > textLimit(engine)).length,
       signature: JSON.stringify([hasSelection, [...selectedMain].sort(), [...selectedExt].sort(), track?.id, linked.map(b => b.id)]) };
   }
@@ -48,7 +44,7 @@
     if (selection.overlayIds?.length) throw new Error('叠加字幕暂不支持翻译或配音，请选择主字幕或副字幕');
     const selected = scope(project, selection, side, engine);
     if (selected.needsChoice && !['main', 'secondary'].includes(side)) throw new Error('请先选择主字幕或副字幕');
-    if (!selected.sources.length) throw new Error('没有可合成的字幕');
+    if (!selected.sources.length) throw new Error('没有可合成的字幕；请先选择字幕');
     if (selected.tooLong) throw new Error(`存在超过 ${textLimit(engine)} 字符的字幕，请先拆分`);
     return { project_id: project.msw.project_id, entries: selected.sources.map(({cue, trackId}) => ({
       key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,

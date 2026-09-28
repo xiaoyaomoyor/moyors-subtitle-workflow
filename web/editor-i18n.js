@@ -9,6 +9,13 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。短句异常续说时可尝试合理时长，并明确选择目标语言；批量合成时每条使用同一设置。": "Leave blank for automatic duration. This guides each output; it is not a hard limit and never trims audio. For short phrases with unwanted continuation, try a reasonable duration and an explicit language. The same duration applies to each item in a batch.",
+    "期望时长（秒，可选）": "Expected duration (seconds, optional)",
+    "范围：未选择字幕": "Scope: no subtitles selected",
+    "搜索名称或音色 ID": "Search name or voice ID",
+    "搜索参考名称": "Search reference names",
+    "参考音色": "Reference voices",
+    "音色库": "Voice library",
     "正在停止服务…": "Stopping service\u2026",
     "正在启动服务…": "Starting service\u2026",
     "正在上传并创建音色…": "Uploading and creating voice\u2026",

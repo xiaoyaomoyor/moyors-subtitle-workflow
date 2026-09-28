@@ -41,6 +41,7 @@ async function open(page,dual=false,count=2) {
   server=await startTtsServer(projectPath,mediaPath,await findFreePort(),origin);
   await page.goto(server.url); await expect(page.locator('#editor-loading')).not.toBeVisible();
   await expect.poll(()=>page.evaluate(()=>DATA.segments.length)).toBe(count);
+  await page.evaluate(()=>{if(DATA.segments.length)selectRange(0,DATA.segments.length-1);});
 }
 async function panel(page,configure=true) {
   await openMenubarMenu(page,'媒体'); await page.locator('#tts-open').click();
@@ -696,8 +697,8 @@ test('TTS creates durable assets, opens lower-right, previews, exports and survi
   expect(errors).toEqual([]);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'tts-assets.png')});
 });
-test('all dual subtitles require a side and bound selection maps to secondary only',async({page})=>{
-  await open(page,true); await panel(page);
+test('selected dual subtitles require a side and bound selection maps to secondary only',async({page})=>{
+  await open(page,true); await page.evaluate(()=>{clearSelection();selectExtensionRange(0,1);}); await panel(page);
   await expect(page.locator('#tts-target')).toBeVisible(); await expect(page.locator('#tts-target')).toHaveValue('main');
   await page.locator('#tts-target').selectOption('secondary'); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page)).toBe(2); expect(calls.map(c=>c.text)).toEqual(['Secondary Hello','Independent']);

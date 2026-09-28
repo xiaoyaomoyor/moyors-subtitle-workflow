@@ -21,24 +21,30 @@
     function button(parent, id, title, task) {
       const b=document.createElement('button');b.type='button';b.id='tts-gpt-'+id;b.textContent=t(title);
       b.onclick=async()=>{if(busy)return;busy=true;b.disabled=true;b.setAttribute('aria-busy','true');if(['check','scan'].includes(id)){b.textContent=t('正在验证…');status.textContent=t(id==='check'?'正在验证连接…':'正在扫描本机模型…');status.setAttribute('aria-busy','true');}updateScope();try{await task();}catch(e){status.textContent=e.message;}finally{busy=false;b.disabled=false;b.textContent=t(title);b.setAttribute('aria-busy','false');status.setAttribute('aria-busy','false');updateScope();}};
-      if(parent.classList.contains('msw-processing-actions'))parent.append(b);
+      if(parent.classList.contains('msw-processing-actions')||parent.classList.contains('msw-voice-picker-footer'))parent.append(b);
       else {const row=document.createElement('div');row.className='msw-processing-actions';row.append(b);parent.append(row);}return b;
     }
     function details(parent,title) {const d=document.createElement('details'),s=document.createElement('summary');s.textContent=t(title);d.append(s);parent.append(d);return d;}
     const serviceRow=document.createElement('div');serviceRow.className='msw-processing-actions';
     const serviceStatus=document.createElement('span');serviceStatus.id='tts-gpt-local-call-status';serviceStatus.className='msw-processing-hint';serviceRow.append(serviceStatus);panel.append(serviceRow);
     button(serviceRow,'local-call-start','启动服务',()=>startService());
+    field(panel,'preset','配音预设','select',[['','选择已保存预设']]);
     const common=grid(panel);
-    field(common,'preset','配音预设','select',[['','选择已保存预设']]);
-    field(common,'speaker_ref','音色参考','select',[['','请选择或上传参考音频']]);
     field(common,'gpt_model','GPT 模型','select');field(common,'sovits_model','SoVITS 模型','select');
     const languages=[['zh','中文（中英混合）'],['all_zh','中文'],['en','English'],['ja','日本語（日英混合）'],['all_ja','日本語'],['yue','粤语'],['ko','한국어'],['auto','多语种自动'],['auto_yue','多语种自动（含粤语）']];
     field(common,'language_type','生成语言','select',languages);field(common,'prompt_lang','参考语言','select',languages);
+    const picker=document.createElement('div');picker.className='msw-voice-picker';panel.append(picker);
+    const search=field(picker,'voice_search','参考音色','search');search.placeholder=t('搜索参考名称');
+    field(picker,'speaker_ref','选择音色','select',[['','请选择或上传参考音频']]);
+    const preview=document.createElement('div');preview.className='msw-voice-picker-footer';picker.append(preview);
+    const current=document.createElement('p');current.id='tts-gpt-current';current.className='msw-processing-hint';current.dataset.i18nSkip='';current.setAttribute('aria-live','polite');preview.append(current);
+    function currentVoice(){const row=data.references.find(v=>v.id===fields.get('speaker_ref').value);current.textContent=`${t('当前音色')}：${row?.name||t('未选择')}`;el('tts-gpt-preview').disabled=!row;}
+    search.oninput=()=>{const id=fields.get('speaker_ref').value,query=search.value.trim().toLowerCase();choices('speaker_ref',data.references.filter(v=>v.id===id||v.name.toLowerCase().includes(query)),id);currentVoice();};
+    fields.get('speaker_ref').addEventListener('change',currentVoice);
     field(panel,'prompt_text','参考音频文字','textarea');
     const secondary=grid(panel);
     const speed=field(secondary,'speed_factor','语速（倍）','number');speed.min='.5';speed.max='2';speed.step='.05';speed.value='1';
     field(secondary,'text_split_method','断句方式','select',[['cut0','不切分'],['cut1','每四句'],['cut2','约 50 字'],['cut3','中文句号'],['cut4','英文句号'],['cut5','按标点切分']]);
-    const preview=document.createElement('div');preview.className='msw-processing-actions';panel.append(preview);
     button(preview,'preview','试听参考',async()=>{const id=fields.get('speaker_ref').value;if(!id)throw Error(t('请选择或上传参考音频'));
       await playReference('gpt-sovits',t('试听参考'),()=>request('gpt-reference?id='+encodeURIComponent(id),null,true),()=>fields.get('speaker_ref').value===id);});
     const advanced=details(panel,'高级生成参数'), ag=grid(advanced);
@@ -94,7 +100,7 @@
       aux.replaceChildren(...data.references.map(row=>new Option(row.name,row.id,false,(r.aux_refs||[]).includes(row.id))));
       for(const id of r.aux_refs||[])if(!data.references.some(v=>v.id===id))aux.add(new Option(t('不可用')+' · '+id.slice(0,18),id,true,true));
       for(const [key,value] of Object.entries(r)){if(!fields.has(key)||['gpt_model','sovits_model','speaker_ref','aux_refs'].includes(key))continue;const f=fields.get(key);if(f.type==='checkbox')f.checked=!!value;else f.value=String(value);}
-      referenceInfo();capability();}
+      referenceInfo();currentVoice();capability();}
     function recipe(){const r={provider:'gpt-sovits',model:'api-v2',voice:''};for(const key of ['gpt_model','sovits_model','speaker_ref','language_type','prompt_lang','prompt_text','text_split_method','speed_factor','top_k','top_p','temperature','seed','repetition_penalty','sample_steps','super_sampling','no_prompt']){const f=fields.get(key);r[key]=f.type==='checkbox'?f.checked:f.type==='number'?Number(f.value):f.value;}
       r.aux_refs=[...aux.selectedOptions].map(o=>o.value);return r;}
     function connection(){return {service_url:fields.get('url').value.trim(),timeout:Number(timeout.value)};}

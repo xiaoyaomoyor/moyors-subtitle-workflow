@@ -101,7 +101,7 @@
       el('tts-index-pronunciation').value = '';
     }
     el('tts-scope').textContent = (isText() ? `${t('范围：独立配音草稿 · 不修改字幕')} · ${parts.length} ${t('条')}`
-      : `${t(scope.all ? '范围：全部字幕' : '范围：所选字幕')} · ${scope.sources.length} ${t('条')}`
+      : `${t(scope.sources.length ? '范围：所选字幕' : '范围：未选择字幕')} · ${scope.sources.length} ${t('条')}`
         + (scope.linked ? ` · ${t('连锁字幕按操作对象合成，独立字幕保留原选区')}` : ''))
       + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过')} ${textLimit()} ${t('字符，请先拆分')}` : '');
     el('cue-panel-tts-count').textContent = `${parts.length} ${t('段')} · ${t('最长')} ${parts.reduce((n, part) => Math.max(n, [...part].length), 0)} / ${textLimit()}`;
@@ -527,7 +527,10 @@
     finally { savingSettings = false; updateScope(); }
   });
   el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
-  for (const event of ['pointerup', 'keyup']) document.addEventListener(event, () => { if (panel.isOpen()) queueMicrotask(updateScope); });
+  for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
+    if (event === 'click' && el('tts-panel').contains(input.target)) return;
+    if (panel.isOpen()) queueMicrotask(updateScope);
+  });
   global.addEventListener('msw:project-changed', () => {
     for (const job of jobs.values()) {
       if (['indextts', 'gpt-sovits'].includes(job.recipe?.provider) && active(job)) {
