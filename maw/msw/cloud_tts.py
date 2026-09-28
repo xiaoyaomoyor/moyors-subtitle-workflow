@@ -113,10 +113,20 @@ class CloudTts:
         except (OSError, ValueError):
             return []
 
+    def alias_path(self, settings):
+        return self.cache_path(settings).with_name(self.cache_path(settings).name.replace('voices-', 'aliases-', 1))
+
+    def aliases(self, settings):
+        try:
+            value = json.loads(self.alias_path(settings).read_text(encoding='utf-8'))
+            return {key: name for key, name in value.items() if isinstance(key, str) and isinstance(name, str)} if isinstance(value, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
     def payload(self, raw=None):
         settings = self.resolve(raw or {}, require_voice=False, require_key=False)
         return {'recipe': settings.recipe, 'timeout': settings.timeout, 'models': self.models,
-                'languages': self.languages, 'voices': self.cached(settings),
+                'languages': self.languages, 'voices': self.cached(settings), 'aliases': self.aliases(settings),
                 'regions': [{'id': region, 'hasApiKey': bool(self.key(region))} for region in self.endpoints]}
 
     def check_cancel(self, cancel):
@@ -170,6 +180,20 @@ class CloudTts:
         return result['value']
 
     def action(self, raw):
+        if raw.get('action') == 'alias':
+            settings = self.resolve(raw, require_voice=False, require_key=False)
+            identity = identifier(raw.get('voice_id'))
+            name = identifier(raw.get('name', ''), empty=True)
+            if len(name) > 80:
+                raise ValueError('音色别名最多 80 个字符')
+            with self.lock:
+                aliases = self.aliases(settings)
+                if name:
+                    aliases[identity] = name
+                else:
+                    aliases.pop(identity, None)
+                atomic_bytes(self.alias_path(settings), (json.dumps(aliases, ensure_ascii=False)+'\n').encode())
+            return self.payload(raw)
         if raw.get('action') != 'refresh':
             raise ValueError('未知云端 TTS 操作')
         settings = self.resolve(raw, require_voice=False)

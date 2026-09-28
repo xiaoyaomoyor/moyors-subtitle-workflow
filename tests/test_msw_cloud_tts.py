@@ -164,6 +164,50 @@ class CloudTests(unittest.TestCase):
             self.assertEqual(asset['generation']['spoken_text'], '实际朗读')
             self.assertNotIn('synthetic-secret', json.dumps(asset))
 
+    def test_follow_duration_freezes_each_entry_and_rejects_draft_before_submission(self):
+        assets = AssetStore(self.root/'duration-assets')
+        manager = JobManager(self.root/'duration-jobs.sqlite3', tts=TtsService(assets))
+        self.addCleanup(manager.close)
+        settings = self.settings(self.moss, follow_subtitle_duration=True)
+        entries = [{'key': f'entry-{i}', 'id': f'cue-{i}', 'track_id': None, 'text': '短句',
+                    'start': 1000, 'end': end} for i, end in enumerate([2350, 4750])]
+        payload = {'kind': 'tts', 'project_id': 'project', 'request_key': 'duration',
+                   'snapshot': {'project_id': 'project', 'entries': entries}}
+        with patch.object(moss, 'synthesize', return_value=wav(.2)) as synth:
+            job = manager.submit(payload, settings)
+            deadline = time.monotonic()+5
+            while manager.get(job['id'], 'project')['status'] not in TERMINAL and time.monotonic()<deadline:
+                time.sleep(.01)
+            self.assertEqual(manager.get(job['id'], 'project')['status'], 'succeeded')
+            self.assertEqual([call.args[0].recipe['expected_duration_sec'] for call in synth.call_args_list], [1.35, 3.75])
+        generations = [a['generation'] for a in assets.list('project')['assets']]
+        self.assertEqual(sorted(r['expected_duration_sec'] for r in generations), [1.35, 3.75])
+        self.assertTrue(all('follow_subtitle_duration' not in r for r in generations))
+        for change in [{'kind': 'editor_text'}, {'end': 1001}, {'end': 602000}]:
+            bad = {**payload, 'request_key': 'invalid', 'snapshot': {'project_id': 'project', 'entries': [{**entries[0], **change}]}}
+            with self.assertRaises(ValueError):
+                manager.submit(bad, settings)
+        self.assertTrue(settings.recipe['follow_subtitle_duration'])
+        with self.assertRaises(ValueError):
+            moss.validate_recipe({**settings.recipe, 'follow_subtitle_duration': 'yes'})
+        manager.close()
+        self.assertTrue(manager.close_complete.wait(5))
+
+    def test_local_alias_is_account_scoped_survives_refresh_and_never_calls_provider(self):
+        raw = {'action': 'alias', 'apiKey': 'synthetic-secret', 'recipe': dict(moss.DEFAULT_RECIPE, voice='manual-id'),
+               'voice_id': 'manual-id', 'name': '旁白音色'}
+        with patch.object(self.moss, 'request') as request:
+            result = self.moss.action(raw)
+            request.assert_not_called()
+        self.assertEqual(result['aliases']['manual-id'], '旁白音色')
+        with patch.object(self.moss, 'fetch_voices', return_value=[{'id': 'manual-id', 'name': '', 'group': 'account'}]):
+            self.assertEqual(self.moss.action({**raw, 'action': 'refresh'})['aliases']['manual-id'], '旁白音色')
+        self.assertEqual(self.moss.payload({**raw, 'apiKey': 'another-key'})['aliases'], {})
+        self.assertEqual(self.moss.action({**raw, 'name': ''})['aliases'], {})
+        for name in ['x'*81, 'bad\nname']:
+            with self.assertRaises(ValueError):
+                self.moss.action({**raw, 'name': name})
+
     def response(self, *, status=200, chunks=(b'complete',), delay=0):
         value = Mock(status_code=status, headers={'Content-Type': 'audio/wav'})
         value.__enter__ = Mock(return_value=value)

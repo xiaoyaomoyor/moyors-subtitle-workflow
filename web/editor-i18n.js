@@ -9,6 +9,21 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "批次": "Batch ",
+    "百炼 Qwen TTS": "Bailian Qwen TTS",
+    "部分完成": "Partially complete",
+    "留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。勾选跟随字幕时长后，每条使用提交时对应字幕的时长；独立草稿使用手动值。短句异常续说时可尝试合理时长，并明确选择目标语言。": "Leave blank for automatic duration. This is guidance, not a hard limit or audio trimming. Follow subtitle duration uses each subtitle duration at submission; drafts use the manual value. For unwanted continuation, try a reasonable duration and an explicit language.",
+    "错误详情": "Error details",
+    "收起未完成项": "Collapse unfinished items",
+    "无法复制，请选中音色 ID 手动复制": "Copy failed. Select and copy the voice ID manually.",
+    "音色 ID 已复制": "Voice ID copied",
+    "音色别名已保存": "Voice alias saved",
+    "复制音色 ID": "Copy voice ID",
+    "保存别名": "Save alias",
+    "留空使用平台名称": "Leave blank to use the provider name",
+    "本机别名": "Local alias",
+    "音色详情与别名": "Voice details and alias",
+    "跟随字幕时长": "Follow subtitle duration",
     "留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。短句异常续说时可尝试合理时长，并明确选择目标语言；批量合成时每条使用同一设置。": "Leave blank for automatic duration. This guides each output; it is not a hard limit and never trims audio. For short phrases with unwanted continuation, try a reasonable duration and an explicit language. The same duration applies to each item in a batch.",
     "期望时长（秒，可选）": "Expected duration (seconds, optional)",
     "范围：未选择字幕": "Scope: no subtitles selected",

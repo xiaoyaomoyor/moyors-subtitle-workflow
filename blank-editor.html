@@ -4965,6 +4965,24 @@
 .msw-processing-message[aria-busy="true"]::before { content: ""; display: inline-block; width: .85em; height: .85em; margin-inline-end: .5em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -.1em; animation: msw-config-spin .8s linear infinite; }
 @keyframes msw-config-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .msw-processing-message[aria-busy="true"]::before { animation: none; } }
+
+/* Compact TTS controls and stable, collapsible history cards. */
+.msw-processing-field.msw-follow-duration { display:flex; flex-direction:row; align-items:center; gap:8px; align-self:end; min-height:36px; }
+.msw-follow-duration input[type="checkbox"] { width:auto; flex:0 0 auto; }
+.msw-tts-job { background:var(--card-bg); border:1px solid var(--border-subtle); border-radius:8px; padding:10px 12px; margin:8px 0; }
+.msw-tts-job > summary { display:flex; align-items:center; gap:8px; cursor:pointer; list-style:none; }
+.msw-tts-job > summary::-webkit-details-marker { display:none; }
+.msw-tts-job > summary::before { content:'▸'; flex:none; color:var(--text-secondary); }
+.msw-tts-job[open] > summary::before { content:'▾'; }
+.msw-tts-job > summary strong { min-width:0; overflow-wrap:anywhere; font-weight:600; }
+.msw-tts-job .msw-job-status { margin-left:auto; color:var(--text-secondary); text-align:right; font-size:11px; }
+.msw-tts-job .msw-job-status.is-error { color:var(--danger, #e87878); }
+.msw-tts-job > details { overflow-wrap:anywhere; margin-block:8px; }
+.msw-tts-job .msw-tts-result { margin-top:8px; }
+.msw-voice-picker > details { margin-block:8px; }
+.msw-voice-picker > details > summary { cursor:pointer; color:var(--text-secondary); font-size:12px; margin-bottom:8px; }
+
+.msw-tts-job > .msw-processing-hint { overflow-wrap:anywhere; }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -18959,6 +18977,21 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "批次": "Batch ",
+    "百炼 Qwen TTS": "Bailian Qwen TTS",
+    "部分完成": "Partially complete",
+    "留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。勾选跟随字幕时长后，每条使用提交时对应字幕的时长；独立草稿使用手动值。短句异常续说时可尝试合理时长，并明确选择目标语言。": "Leave blank for automatic duration. This is guidance, not a hard limit or audio trimming. Follow subtitle duration uses each subtitle duration at submission; drafts use the manual value. For unwanted continuation, try a reasonable duration and an explicit language.",
+    "错误详情": "Error details",
+    "收起未完成项": "Collapse unfinished items",
+    "无法复制，请选中音色 ID 手动复制": "Copy failed. Select and copy the voice ID manually.",
+    "音色 ID 已复制": "Voice ID copied",
+    "音色别名已保存": "Voice alias saved",
+    "复制音色 ID": "Copy voice ID",
+    "保存别名": "Save alias",
+    "留空使用平台名称": "Leave blank to use the provider name",
+    "本机别名": "Local alias",
+    "音色详情与别名": "Voice details and alias",
+    "跟随字幕时长": "Follow subtitle duration",
     "留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。短句异常续说时可尝试合理时长，并明确选择目标语言；批量合成时每条使用同一设置。": "Leave blank for automatic duration. This guides each output; it is not a hard limit and never trims audio. For short phrases with unwanted continuation, try a reasonable duration and an explicit language. The same duration applies to each item in a batch.",
     "期望时长（秒，可选）": "Expected duration (seconds, optional)",
     "范围：未选择字幕": "Scope: no subtitles selected",
@@ -57181,7 +57214,7 @@ window.addEventListener('beforeunload', (e) => {
   'use strict';
   function create({engine,el,t,request,updateScope}){
     const mini=engine==='minimax',prefix='tts-'+engine+'-',panel=el(prefix+'fields'),env=el(prefix+'management');
-    let data={voices:[],regions:[]},busy=false,version=0,creationToken='';
+    let data={voices:[],regions:[],aliases:{}},busy=false,version=0,creationToken='';
     const keys=new Map(), fields={};
     function field(parent,key,title,type){const label=document.createElement('label');label.className='msw-processing-field';
       const span=document.createElement('span');span.className='msw-option-label';span.textContent=t(title);const input=document.createElement(type==='select'?'select':'input');
@@ -57198,10 +57231,21 @@ window.addEventListener('beforeunload', (e) => {
     const search=field(picker,'search','音色库','search'),catalog=field(picker,'catalog','选择音色','select');
     search.placeholder=t('搜索名称或音色 ID');
     catalog.setAttribute('data-i18n-skip','');
-    const voice=field(picker,'voice','音色 ID','text');voice.maxLength=255;voice.setAttribute('data-i18n-skip','');
+    const voiceDetails=document.createElement('details'),voiceSummary=document.createElement('summary');voiceSummary.textContent=t('音色详情与别名');voiceDetails.append(voiceSummary);picker.append(voiceDetails);
+    const voice=field(voiceDetails,'voice','音色 ID','text');voice.maxLength=255;voice.setAttribute('data-i18n-skip','');
     const footer=document.createElement('div');footer.className='msw-voice-picker-footer';picker.append(footer);
     const current=document.createElement('p');current.id=prefix+'current';current.className='msw-processing-hint';current.dataset.i18nSkip='';current.setAttribute('aria-live','polite');footer.append(current);
-    function currentVoice(){const row=data.voices.find(v=>v.id===voice.value);current.textContent=`${t('当前音色')}：${row?row.name+' · '+row.id:voice.value||t('未选择')}`;}
+    const alias=field(voiceDetails,'alias','本机别名','text');alias.maxLength=80;alias.placeholder=t('留空使用平台名称');alias.dataset.i18nSkip='';
+    const aliasActions=document.createElement('div');aliasActions.className='msw-processing-actions';voiceDetails.append(aliasActions);
+    let aliasVoice='';
+    const shortId=id=>id.length>22?id.slice(0,10)+'…'+id.slice(-6):id;
+    function voiceLabel(id){const row=data.voices.find(v=>v.id===id);return data.aliases?.[id]||(row?.name&&row.name!==id?row.name:shortId(id));}
+    function currentVoice(){const id=voice.value.trim();current.textContent=`${t('当前音色')}：${id?voiceLabel(id):t('未选择')}`;current.title=id;
+      if(aliasVoice!==id){aliasVoice=id;alias.value=data.aliases?.[id]||'';}aliasSave.disabled=busy||!id;}
+    const aliasSave=button(aliasActions,'alias-save','保存别名',async()=>{if(busy||!voice.value.trim())return;const epoch=version,id=voice.value.trim();busy=true;setBusy();aliasSave.disabled=true;
+      try{const out=await request(engine+'-tts',{action:'alias',recipe:recipe(),...connection(),voice_id:id,name:alias.value});if(epoch!==version)return;data.aliases=out.aliases||{};aliasVoice=null;renderVoices();notify('音色别名已保存');global.dispatchEvent(new Event('msw:voice-alias-changed'));}
+      catch(e){notify(e.message);}finally{busy=false;setBusy();currentVoice();}});
+    button(aliasActions,'voice-copy','复制音色 ID',async()=>{try{await navigator.clipboard.writeText(voice.value.trim());notify('音色 ID 已复制');}catch{notify('无法复制，请选中音色 ID 手动复制');}});
     if(mini){
       const adjustments=grid(panel);
       for(const [name,title,min,max,step,value] of [['speed','语速倍率',.5,2,.05,1],['volume','合成音量倍率',.01,10,.01,1],['pitch','音高（半音）',-12,12,1,0]]){
@@ -57211,7 +57255,7 @@ window.addEventListener('beforeunload', (e) => {
       const pronunciation=field(panel,'pronunciation','朗读修正','text');pronunciation.maxLength=600;
       pronunciation.parentElement.dataset.optionHelp='只改变这条字幕的实际朗读文本，字幕原文保持不变。可使用 MiniMax 支持的读音标记；重新生成时沿用此文本。';
     }
-    if(!mini){const duration=field(panel,'expected_duration_sec','期望时长（秒，可选）','number');Object.assign(duration,{min:'0.1',max:'600',step:'0.1'});duration.placeholder=t('自动');duration.oninput=updateScope;duration.parentElement.dataset.optionHelp='留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。短句异常续说时可尝试合理时长，并明确选择目标语言；批量合成时每条使用同一设置。';}
+    if(!mini){const row=grid(panel);const duration=field(row,'expected_duration_sec','期望时长（秒，可选）','number');Object.assign(duration,{min:'0.1',max:'600',step:'0.1'});duration.placeholder=t('自动');duration.oninput=updateScope;const follow=field(row,'follow_subtitle_duration','跟随字幕时长','checkbox');follow.parentElement.classList.add('msw-follow-duration');follow.parentElement.prepend(follow);follow.onchange=updateScope;duration.parentElement.dataset.optionHelp='留空由模型决定。填写后引导每条语音的生成时长，不是硬性上限，也不会裁切音频。勾选跟随字幕时长后，每条使用提交时对应字幕的时长；独立草稿使用手动值。短句异常续说时可尝试合理时长，并明确选择目标语言。';}
     const status=document.createElement('p');status.id=prefix+'status';status.className='msw-processing-message';status.setAttribute('role','status');panel.append(status);
     const actions=document.createElement('div');actions.className='msw-processing-actions';panel.append(actions);
     const envActions=document.createElement('div');envActions.className='msw-processing-actions';env.append(envActions);
@@ -57220,9 +57264,10 @@ window.addEventListener('beforeunload', (e) => {
     function connection(target=null){return {apiKey:target?.region&&target.region!==region.value?'':key.value,timeout:Number(timeout.value)};}
     function recipe(){const value={provider:engine,model:model.value,voice:voice.value.trim(),language_type:language.value||'auto'};
       if(mini)Object.assign(value,{region:region.value,speed:Number(fields.speed.value),volume:Number(fields.volume.value),pitch:Number(fields.pitch.value),emotion:fields.emotion.value});
-      if(!mini&&fields.expected_duration_sec.value!=='')value.expected_duration_sec=Number(fields.expected_duration_sec.value);return value;}
-    function renderVoices(){const query=search.value.trim().toLowerCase();catalog.replaceChildren(new Option(t('选择已有音色或填写 ID'),''),
-      ...data.voices.filter(v=>`${v.name} ${v.id} ${v.group}`.toLowerCase().includes(query)).map(v=>new Option(v.name===v.id?v.id:`${v.name} · ${v.id}`,v.id)));
+      if(!mini){if(fields.follow_subtitle_duration.checked&&!fields.follow_subtitle_duration.disabled)value.follow_subtitle_duration=true;else if(fields.expected_duration_sec.value!=='')value.expected_duration_sec=Number(fields.expected_duration_sec.value);}return value;}
+    function renderVoices(){const query=search.value.trim().toLowerCase();const rows=new Map(data.voices.map(v=>[v.id,v]));
+      for(const id of Object.keys(data.aliases||{}))if(!rows.has(id))rows.set(id,{id,name:id});
+      catalog.replaceChildren(new Option(t('选择已有音色或填写 ID'),''),...[...rows.values()].filter(v=>v.id===voice.value||`${voiceLabel(v.id)} ${v.name} ${v.id}`.toLowerCase().includes(query)).map(v=>new Option(voiceLabel(v.id),v.id)));
       catalog.value=voice.value;currentVoice();}
     function support(){
       const current=language.value;
@@ -57239,10 +57284,10 @@ window.addEventListener('beforeunload', (e) => {
     function showKey(){key.placeholder=t(data.regions.find(v=>v.id===region.value)?.hasApiKey?'已持有本地密钥':'请输入 API Key');updateScope();}
     async function refresh(){if(busy)return;busy=true;setBusy();notify('正在验证连接并加载音色…');const epoch=version;try{
       const out=await request(engine+'-tts',{action:'refresh',recipe:recipe(),...connection()});
-      if(epoch!==version)return;data.voices=out.voices;renderVoices();notify('音色列表已更新');
+      if(epoch!==version)return;data.voices=out.voices;data.aliases=out.aliases||{};renderVoices();notify('音色列表已更新');
     }catch(e){if(epoch===version)notify(e.message);}finally{busy=false;setBusy();}}
     const refreshButton=button(actions,'refresh','刷新音色',refresh),envRefresh=button(envActions,'refresh-environment','检测连接／刷新音色',refresh);
-    function setBusy(){refreshButton.disabled=envRefresh.disabled=busy;status.setAttribute('aria-busy',String(busy));envStatus.setAttribute('aria-busy',String(busy));refreshButton.textContent=t(busy?'正在验证…':'刷新音色');envRefresh.textContent=t(busy?'正在验证…':'检测连接／刷新音色');if(createButton)createButton.disabled=busy;updateScope();}
+    function setBusy(){aliasSave.disabled=busy||!voice.value.trim();refreshButton.disabled=envRefresh.disabled=busy;status.setAttribute('aria-busy',String(busy));envStatus.setAttribute('aria-busy',String(busy));refreshButton.textContent=t(busy?'正在验证…':'刷新音色');envRefresh.textContent=t(busy?'正在验证…':'检测连接／刷新音色');if(createButton)createButton.disabled=busy;updateScope();}
     let createButton=null;
     if(!mini){
       const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent=t('从参考创建音色');details.append(summary);panel.append(details);
@@ -57261,25 +57306,25 @@ window.addEventListener('beforeunload', (e) => {
         }catch(e){if(epoch===version)notify(e.message);}finally{busy=false;setBusy();}
       });
     }
-    region.onchange=()=>{version++;key.value=keys.get(region.value)||'';data.voices=[];voice.value='';renderVoices();showKey();};
-    key.oninput=()=>{version++;keys.set(region.value,key.value);data.voices=[];renderVoices();showKey();};
+    region.onchange=()=>{version++;key.value=keys.get(region.value)||'';data.voices=[];data.aliases={};voice.value='';renderVoices();showKey();};
+    key.oninput=()=>{version++;keys.set(region.value,key.value);data.voices=[];data.aliases={};aliasVoice=null;renderVoices();showKey();};
     model.onchange=support;language.onchange=updateScope;voice.oninput=()=>{catalog.value=voice.value;currentVoice();updateScope();};
-    catalog.onchange=()=>{if(catalog.value)voice.value=catalog.value;currentVoice();updateScope();};search.oninput=renderVoices;
+    catalog.onchange=()=>{if(catalog.value)voice.value=catalog.value;else voiceDetails.open=true;currentVoice();updateScope();};search.oninput=renderVoices;
     function configure(value,{preserve=false}={}){const previous=preserve?recipe():null,oldKey=key.value,oldRegion=region.value;
       data={...data,...value};const r=previous||data.recipe;if(!r)return;
       model.replaceChildren(...(data.models||[]).map(v=>new Option(v,v)));model.value=r.model;
       if(mini){region.value=r.region;for(const k of ['speed','volume','pitch'])fields[k].value=String(r[k]);}
       key.value=preserve&&oldRegion===region.value?oldKey:keys.get(region.value)||'';
       timeout.value=String(preserve?timeout.value:data.timeout||180);voice.value=r.voice||'';
-      support();language.value=r.language_type||'auto';if(mini)fields.emotion.value=r.emotion||'';else fields.expected_duration_sec.value=r.expected_duration_sec==null?'':String(r.expected_duration_sec);
+      support();language.value=r.language_type||'auto';if(mini)fields.emotion.value=r.emotion||'';else {fields.expected_duration_sec.value=r.expected_duration_sec==null?'':String(r.expected_duration_sec);fields.follow_subtitle_duration.checked=!!r.follow_subtitle_duration;}
       // A saved catalog must never replace an unsaved account/region's catalog.
-      if(key.value||r.region!==value?.recipe?.region)data.voices=[];
-      renderVoices();showKey();
+      if(key.value||r.region!==value?.recipe?.region){data.voices=[];data.aliases={};}
+      aliasVoice=null;renderVoices();showKey();
     }
-    return {configure,recipe,connection,ready:()=>!busy&&hasKey()&&!!voice.value.trim(),
+    return {configure,recipe,connection,voiceLabel:(r)=>r.region&&r.region!==region.value?shortId(r.voice||''):voiceLabel(r.voice||''),ready:()=>!busy&&hasKey()&&!!voice.value.trim()&&(mini||fields.expected_duration_sec.disabled||fields.expected_duration_sec.checkValidity()),
       problem:()=>hasKey()?'':'请在环境配置填写当前服务地域的 API Key',
       saved:()=>{keys.delete(region.value);key.value='';},
-      scope:(single,changed)=>{if(mini){fields.pronunciation.parentElement.hidden=!single;if(changed)fields.pronunciation.value='';}},
+      scope:(single,changed,text=false)=>{if(mini){fields.pronunciation.parentElement.hidden=!single;if(changed)fields.pronunciation.value='';}else{fields.follow_subtitle_duration.disabled=text;fields.expected_duration_sec.disabled=!text&&fields.follow_subtitle_duration.checked;}},
       pronunciation:()=>mini?fields.pronunciation.value.trim():''};
   }
   global.MSWCloudTts=Object.freeze({create});
@@ -57865,7 +57910,7 @@ window.addEventListener('beforeunload', (e) => {
     const parts = global.MSWTts.splitDraft(el('cue-panel-tts-text').value, host.draftSettings());
     const scope = isText() ? {signature: 'editor_text', sources: parts,
       tooLong: parts.filter(part => [...part].length > textLimit()).length || (parts.length > 10000 ? 1 : 0)} : global.MSWTts.scope(host.data, host.selection(), el('tts-target').value, el('tts-engine').value);
-    clouds.minimax?.scope(!isText() && scope.sources.length === 1, scope.signature !== scopeSignature);
+    for(const adapter of Object.values(clouds))adapter.scope(!isText() && scope.sources.length === 1, scope.signature !== scopeSignature, isText());
     if (scope.signature !== scopeSignature) {
       scopeSignature = scope.signature;
       el('tts-yukkuri-pronunciation').value = '';
@@ -58066,55 +58111,89 @@ window.addEventListener('beforeunload', (e) => {
   }
   const statuses = { queued: '等待处理', running: '正在合成', succeeded: '合成完成', failed: '合成失败',
     cancelled: '已取消', cancel_requested: '正在取消', interrupted: '服务中断，未自动重试' };
+  const jobCards = new Map();
+  const engineNames = {qwen: '百炼 Qwen TTS', yukkuri: '油库里', indextts: 'IndexTTS',
+    'gpt-sovits': 'GPT-SoVITS', edge: 'Edge TTS', minimax: 'MiniMax TTS', mossland: 'Mossland TTS'};
   function renderJobs() {
-    const scroll = el('tts-jobs').scrollTop;
-    const fragment = document.createDocumentFragment();
-    for (const job of [...jobs.values()].sort((a, b) => b.created_at - a.created_at)) {
-      const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
-      const heading = document.createElement('strong'); heading.textContent = `TTS · ${job.count} · ${job.recipe?.voice || ''}`;
-      const status = document.createElement('p'); status.className = 'msw-processing-hint';
-      status.textContent = `${t(job.stage === 'starting_service' && active(job) ? '正在等待本机服务' : statuses[job.status] || job.status)} · ${t('成功')} ${job.progress?.ready || 0} / ${job.count}`
-        + (job.progress?.failed ? ` · ${t('失败')} ${job.progress.failed}` : '');
-      card.append(heading, status);
-      if (job.error) { const error = document.createElement('p'); error.textContent = job.error; card.append(error); }
-      const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
-      if (active(job)) actions.append(action('取消任务', async () => {
-        const generation = host.generation;
-        const data = await request(`jobs/${job.id}/cancel`, { project_id: job.project_id });
-        if (generation !== host.generation) return;
-        jobs.set(job.id, data.job); renderJobs(); schedule(0);
-      }));
-      actions.append(action('查看素材', () => { host.showAssets(); assetUI.showBatch(job.id); }));
-      if (!active(job) && (job.progress?.ready || 0) < job.count) {
-        actions.append(action('检查未完成项', () => inspectUnfinished(job, card)));
+    const container = el('tts-jobs'), scroll = container.scrollTop;
+    const ordered = [...jobs.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+    const cards = [];
+    for (let i = ordered.length - 1; i >= 0; i--) {
+      const job = ordered[i];
+      let ui = jobCards.get(job.id);
+      if (!ui) {
+        const card = document.createElement('details'); card.className = 'msw-processing-job msw-tts-job'; card.dataset.jobId = job.id;
+        card.open = active(job);
+        const summary = document.createElement('summary'), heading = document.createElement('strong'), status = document.createElement('span');
+        summary.append(heading, status); card.append(summary);
+        const meta = document.createElement('p'); meta.className = 'msw-processing-hint'; meta.dataset.i18nSkip = '';
+        const error = document.createElement('details'), errorTitle = document.createElement('summary'), errorText = document.createElement('p');
+        errorTitle.textContent = t('错误详情'); error.append(errorTitle, errorText);
+        const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
+        const unfinished = document.createElement('div'); unfinished.hidden = true;
+        card.append(meta, error, actions, unfinished);
+        ui = {card, heading, status, meta, error, errorText, actions, unfinished, state: ''}; jobCards.set(job.id, ui);
       }
-      card.append(actions); fragment.append(card);
+      const provider = job.recipe?.provider || 'qwen';
+      ui.heading.textContent = `${t(engineNames[provider] || provider)} · ${t('批次')}${String(i + 1).padStart(2, '0')}`;
+      const statusText = job.stage === 'starting_service' && active(job) ? '正在等待本机服务'
+        : job.status === 'succeeded' && job.progress?.failed ? (job.progress?.ready ? '部分完成' : '合成失败') : statuses[job.status] || job.status;
+      ui.status.textContent = `${t(statusText)} · ${t('成功')} ${job.progress?.ready || 0}/${job.count}` + (job.progress?.failed ? ` · ${t('失败')} ${job.progress.failed}` : '');
+      ui.status.className = job.progress?.failed || job.status === 'failed' ? 'msw-job-status is-error' : 'msw-job-status';
+      ui.meta.textContent = [job.recipe?.model, clouds[provider]?.voiceLabel(job.recipe) || job.recipe?.voice].filter(Boolean).join(' · ');
+      ui.error.hidden = !job.error; ui.errorText.textContent = job.error || '';
+      const state = `${active(job)}:${(job.progress?.ready || 0) < job.count}`;
+      if (ui.state !== state) {
+        ui.state = state; ui.actions.replaceChildren();
+        if (active(job)) ui.actions.append(action('取消任务', async () => {
+          const generation = host.generation;
+          const data = await request(`jobs/${job.id}/cancel`, { project_id: job.project_id });
+          if (generation !== host.generation) return;
+          jobs.set(job.id, data.job); renderJobs(); schedule(0);
+        }));
+        ui.actions.append(action('查看素材', () => { host.showAssets(); assetUI.showBatch(job.id); }));
+        if (!active(job) && (job.progress?.ready || 0) < job.count) {
+          const toggle = action('检查未完成项', async () => {
+            ui.unfinished.hidden = !ui.unfinished.hidden;
+            toggle.setAttribute('aria-expanded', String(!ui.unfinished.hidden));
+            toggle.textContent = t(ui.unfinished.hidden ? '检查未完成项' : '收起未完成项');
+            if (!ui.unfinished.hidden && !ui.loaded) {
+              try { await inspectUnfinished(job, ui.unfinished); ui.loaded = true; }
+              catch (error) { ui.unfinished.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.textContent = t('检查未完成项'); throw error; }
+            }
+          });
+          toggle.setAttribute('aria-expanded', String(!ui.unfinished.hidden)); ui.actions.append(toggle);
+        }
+      }
+      cards.push(ui.card);
     }
-    el('tts-jobs').replaceChildren(fragment);
-    el('tts-jobs').scrollTop = scroll;
+    cards.forEach((card, index) => { if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null); });
+    while (container.children.length > cards.length) container.lastElementChild.remove();
+    container.scrollTop = scroll;
     el('tts-history-count').textContent = `(${jobs.size})`;
   }
-  async function inspectUnfinished(job, card) {
+  global.addEventListener('msw:voice-alias-changed', renderJobs);
+  async function inspectUnfinished(job, container) {
     const generation = host.generation;
+    container.textContent = t('正在加载…');
     const { job: detail } = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
     if (generation !== host.generation) return;
-    card.querySelector('.msw-tts-result')?.remove();
     const saved = new Set(assets().map(a => a.source_ref.key));
     const items = new Map((detail.result?.items || []).map(row => [row.key, row]));
     const entries = detail.snapshot.entries.filter(row => !saved.has(row.key) && items.get(row.key)?.status !== 'ready');
     const view = document.createElement('div'); view.className = 'msw-tts-result';
-    for (const row of entries.slice(0, 50)) {
+    for (const row of entries) {
       const text = document.createElement('p'); text.className = 'msw-asset-content';
       text.textContent = `${row.text}\n${items.get(row.key)?.error || t('尚未完成')}`; view.append(text);
     }
-    const notice = document.createElement('p'); notice.textContent = `${entries.length} ${t(['yukkuri', 'indextts', 'gpt-sovits'].includes(job.recipe?.provider)
+    const notice = document.createElement('p'); notice.className = 'msw-processing-hint';
+    notice.textContent = `${entries.length} ${t(['yukkuri', 'indextts', 'gpt-sovits'].includes(job.recipe?.provider)
       ? '条未完成；使用本机资源重试，已成功的音频不会重发。' : job.recipe?.provider === 'edge'
         ? '条未完成；重试需要联网，已成功的音频不会重发。' : '条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
-    view.append(notice);
-    if (entries.length) view.append(action('重新合成未完成项', () => submit({
+    container.replaceChildren(view, notice);
+    if (entries.length) container.append(action('重新合成未完成项', () => submit({
       snapshot: { project_id: job.project_id, entries }, retry_of: job.id, recipe: job.recipe,
     })));
-    card.append(view);
   }
   async function submit(retry = null) {
     if (busy) return;
@@ -58308,7 +58387,7 @@ window.addEventListener('beforeunload', (e) => {
         void request(`jobs/${job.id}/cancel`, {project_id: job.project_id}).catch(() => {});
       }
     }
-    jobs.clear(); watched.clear(); opened.clear(); firstReady.clear();
+    jobs.clear(); jobCards.clear(); watched.clear(); opened.clear(); firstReady.clear();
     jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = '';
     el('tts-target').value = 'main';
     draftInitialized = false; el('cue-panel-tts-text').value = ''; syncDraft();

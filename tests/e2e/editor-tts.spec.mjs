@@ -102,6 +102,10 @@ test('production draft keeps partial failures and clears after retrying only unf
   await page.locator('#tts-start').click(); await expect.poll(() => countAssets(page)).toBe(1);
   await expect(page.locator('#tts-jobs')).toContainText('失败 1');
   await expect(page.locator('#cue-panel-tts-text')).toHaveValue('Ready\nFail');
+  await page.getByRole('button', { name: '检查未完成项', exact: true }).click();
+  await expect(page.locator('.msw-tts-result')).toBeVisible();
+  await page.getByRole('button', { name: '收起未完成项', exact: true }).click();
+  await expect(page.locator('.msw-tts-result')).toBeHidden();
   await page.getByRole('button', { name: '检查未完成项', exact: true }).click(); failText = null;
   await page.getByRole('button', { name: '重新合成未完成项', exact: true }).click();
   await expect.poll(() => countAssets(page)).toBe(2); await expect(page.locator('#cue-panel-tts-text')).toHaveValue('');
@@ -851,11 +855,11 @@ test('synthesis history collapses without hiding controls and scrolls older jobs
   await page.locator('#asset-refresh').evaluate(el=>el.click());
   await expect(page.locator('#tts-jobs .msw-processing-job')).toHaveCount(24);
   const history=page.locator('#tts-history'), jobs=page.locator('#tts-jobs');
-  await expect(history.locator('summary')).toContainText('合成记录');
+  await expect(history.locator(':scope > summary')).toContainText('合成记录');
   expect(await jobs.evaluate(el=>el.scrollHeight>el.clientHeight&&el.clientHeight<=280)).toBe(true);
-  await history.locator('summary').click(); await expect(jobs).toBeHidden(); await expect(page.locator('#tts-start')).toBeVisible();
+  await history.locator(':scope > summary').click(); await expect(jobs).toBeHidden(); await expect(page.locator('#tts-start')).toBeVisible();
   await page.locator('#asset-refresh').evaluate(el=>el.click()); await expect(jobs).toBeHidden();
-  await history.locator('summary').click(); await jobs.evaluate(el=>el.scrollTop=el.scrollHeight);
+  await history.locator(':scope > summary').click(); await jobs.evaluate(el=>el.scrollTop=el.scrollHeight);
   await expect(page.locator('[data-job-id="history-0"]')).toBeVisible();
 });
 
@@ -1232,4 +1236,25 @@ test('more hover details use combined clip and track gain and trimmed duration',
   await expect(clip).toHaveAttribute('title',/试听音量：-8 dB \(静音\)/);
   await page.evaluate(()=>{const toggle=document.getElementById('waveform-hover-details');toggle.checked=false;toggle.dispatchEvent(new Event('change'));});
   await expect(clip).not.toHaveAttribute('title',/试听音量/);
+});
+
+
+test('history keeps batch and unfinished states while another job polls',async({page},info)=>{
+  await open(page);await panel(page);await page.locator('#tts-target').selectOption('editor_text');
+  failText='Fail';await page.locator('#cue-panel-tts-text').fill('Fail');await page.locator('#tts-start').click();
+  const first=page.locator('.msw-tts-job').first();await expect(first).toContainText('失败 1');
+  await first.getByRole('button',{name:'检查未完成项',exact:true}).click();await expect(first.locator('.msw-tts-result')).toBeVisible();
+  const firstId=await first.getAttribute('data-job-id');
+  holdText='Waiting';await page.locator('#cue-panel-tts-text').fill('Waiting');await page.locator('#tts-start').click();
+  await expect.poll(()=>held.length).toBe(1);
+  const old=page.locator(`[data-job-id="${firstId}"]`),current=page.locator('.msw-tts-job').first();
+  await expect(current.locator(':scope > summary')).toContainText('批次02');
+  await expect(current.locator(':scope > summary')).toContainText('Qwen');
+  await current.locator(':scope > summary').click();await expect(current).not.toHaveAttribute('open','');
+  await page.waitForTimeout(1200);
+  await expect(current).not.toHaveAttribute('open','');await expect(old.locator('.msw-tts-result')).toBeVisible();
+  await old.getByRole('button',{name:'收起未完成项',exact:true}).click();await expect(old.locator('.msw-tts-result')).toBeHidden();
+  held.splice(0).forEach(respond=>respond());await expect.poll(()=>countAssets(page)).toBe(1);
+  await expect(current).not.toHaveAttribute('open','');
+  await page.screenshot({path:info.outputPath('tts-history-cards.png')});
 });

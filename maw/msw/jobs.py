@@ -196,6 +196,10 @@ class JobManager:
             if self.tts is None:
                 raise ValueError("TTS 服务尚未启用")
             snapshot = validate_tts_snapshot(payload.get("snapshot"), settings.provider_id)
+            if settings.provider_id == "mossland":
+                from maw.msw.mossland_tts import entry_recipe
+                for entry in snapshot["entries"]:
+                    entry_recipe(settings.recipe, entry)
         if snapshot and snapshot["project_id"] != project_id:
             raise ValueError("任务工程标识与快照不一致")
         language = payload.get("language", "en")

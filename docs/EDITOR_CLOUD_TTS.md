@@ -20,7 +20,7 @@
 - 从账号音色列表选择，或填写 Mossland 音色库的 ID。Flash 可指定目标发音语言；Pro 由模型自动判断。这里是语音生成，不是 MOSS ASR，也不是本地模型管理器。
 - 「从参考创建音色」默认折叠。选择参考、填写名称后点击「上传并创建音色」才会上传；支持 WAV／MP3／M4A／FLAC，最多 10 MB／30 秒。成功后登记并选中音色 ID，不自动提交合成。参考过长请先裁剪。
 - 创建请求在本机持久登记；相同请求不会重复上传。创建结果未知时先刷新音色列表或去供应商控制台核对；若确定需要新建，再重新选择文件提交。不要把超时当成未计费。
-- 可选「期望时长（秒）」：留空由模型决定；填写后将 `expected_duration_sec` 传给供应商，每条使用相同设置，随素材配方保留。它是生成引导，不是硬性上限，也不会裁切音频。短句出现过长或无关续说时，可明确选择目标语言并尝试合理时长；不能保证消除模型幻觉，不自动重试付费请求。
+- 可选「期望时长（秒）」：留空由模型决定；填写后将 `expected_duration_sec` 传给供应商，手动填写时每条使用相同设置。勾选同排「跟随字幕时长」后，按每条字幕提交时的起止时间分别计算秒数；独立配音草稿禁用跟随，改用手动值。素材配方只保存实际秒数，重生成沿用冻结值。它是生成引导，不是硬性上限，也不会裁切音频。短句出现过长或无关续说时，可明确选择目标语言并尝试合理时长；不能保证消除模型幻觉，不自动重试付费请求。
 - 使用同步、完整 WAV 返回，不暴露流式／异步任务协议。当前已核验的非流式接口没有 MiniMax 同样的数值音高／音量选项，因此不显示无效控制。
 
 接口依据：[单人语音](https://platform.mosi.cn/docs/reference/speech/)、[音色列表](https://platform.mosi.cn/docs/reference/voices-list/)、[参考创建音色](https://platform.mosi.cn/docs/reference/voices-create/)。
@@ -42,3 +42,7 @@ MSW 使用开放平台 API，不使用网页配音工具的登录会话。MiniMa
 依据：[MiniMax 语音付费协议](https://www.minimax.cn/audio/doc/payment-policy.html)、[按量计费](https://platform.minimax.cn/docs/guides/pricing-paygo)、[语音资源包](https://platform.minimax.cn/docs/guides/pricing-speech)、[错误码](https://platform.minimax.cn/docs/api-reference/errorcode)。计费方案可能调整，以对应地域控制台为准。
 
 用户提供的火山方舟体验链接指向 `doubao-seed-audio-1-0`。本轮未取得该体验页额度与 API 抵扣互通的官方规则，因此不把网页剩余额度当作可调用 API 的凭据，也不将它与 Seed-TTS 2.0 混淆；当前七引擎中未接入此服务。
+
+### 本机音色别名
+
+MiniMax／Mossland 音色卡片内展开「音色详情与别名」可保存本机名称，留空保存恢复平台名称；无名称时缩短显示 ID，完整 ID 可查看和复制。别名按服务端点、地域和账号隔离，保存在本机，不改供应商音色，不发起合成、不计费，也不随工程传播。刷新音色保留别名，可搜索别名、平台名或 ID。

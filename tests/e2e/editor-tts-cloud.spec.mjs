@@ -56,7 +56,7 @@ for(const engine of ['minimax','mossland'])test(`${engine} complete audio, libra
 test('MiniMax model controls, manual voice, cache failure and account isolation',async({page})=>{
   await setup(page,'minimax');await page.locator('#tts-minimax-model').selectOption('speech-2.6-hd');await page.locator('#tts-minimax-emotion').selectOption('whisper');
   await page.locator('#tts-minimax-model').selectOption('speech-2.8-hd');await expect(page.locator('#tts-minimax-emotion')).toHaveValue('');
-  await page.locator('#tts-minimax-voice').fill('manual-voice');
+  await page.locator('#tts-minimax-fields').getByText('音色详情与别名',{exact:true}).click();await page.locator('#tts-minimax-voice').fill('manual-voice');
   await page.route('**/api/msw/minimax-tts',r=>r.fulfill({status:503,contentType:'application/json',body:'{"error":"offline"}'}));
   await page.locator('#tts-minimax-refresh').click();await expect(page.locator('#tts-minimax-status')).toContainText('offline');await expect(page.locator('#tts-minimax-voice')).toHaveValue('manual-voice');
   await openTtsEnvironment(page,'minimax');await page.locator('#tts-minimax-region').selectOption('global');await expect(page.locator('#tts-minimax-key')).toHaveValue('');await expect(page.locator('#tts-minimax-key')).toHaveAttribute('placeholder','请输入 API Key');
@@ -114,4 +114,44 @@ test('no selected subtitles blocks TTS without a request; draft synthesis remain
   expect(await page.evaluate(()=>DATA.msw.assets[0].generation.expected_duration_sec)).toBe(2);
   await page.locator('#tts-close').click();await page.locator('[data-asset-action="regenerate"]').first().click();await expect.poll(()=>count(page)).toBe(2);
   expect(calls.filter(c=>c.path==='/v1/audio/speech').map(c=>c.body.expected_duration_sec)).toEqual([2,2]);
+});
+
+
+test('Mossland follows each frozen subtitle duration and disables follow for drafts',async({page},info)=>{
+  await setup(page,'mossland');
+  await page.evaluate(()=>{clearSelection();DATA.segments[0].end=1350;DATA.segments.push({id:'second',start:2000,end:5750,text:'第二条测试'});selectRange(0,1);});
+  await page.locator('#tts-mossland-follow_subtitle_duration').check();
+  await expect(page.locator('#tts-mossland-expected_duration_sec')).toBeDisabled();
+  await page.locator('#tts-save-settings').click();await expect(page.locator('#tts-message')).toContainText('已保存');
+  await page.screenshot({path:info.outputPath('follow-duration.png')});
+  await page.locator('#tts-start').click();await expect.poll(()=>count(page)).toBe(2);
+  expect(calls.filter(c=>c.path==='/v1/audio/speech').map(c=>c.body.expected_duration_sec)).toEqual([1.35,3.75]);
+  const generations=await page.evaluate(()=>DATA.msw.assets.map(a=>a.generation));
+  expect(generations.map(r=>r.expected_duration_sec)).toEqual([1.35,3.75]);
+  expect(generations.every(r=>!('follow_subtitle_duration' in r))).toBe(true);
+  await page.locator('#tts-target').selectOption('editor_text');await expect(page.locator('#tts-mossland-follow_subtitle_duration')).toBeDisabled();
+  await expect(page.locator('#tts-mossland-expected_duration_sec')).toBeEnabled();
+  await page.locator('#tts-mossland-expected_duration_sec').fill('2');await page.locator('#cue-panel-tts-text').fill('独立草稿');
+  await page.locator('#tts-start').click();await expect.poll(()=>count(page)).toBe(3);
+  expect(calls.filter(c=>c.path==='/v1/audio/speech').at(-1).body.expected_duration_sec).toBe(2);
+  await page.locator('#tts-target').selectOption('main');await expect(page.locator('#tts-mossland-follow_subtitle_duration')).toBeChecked();
+});
+
+test('local voice aliases survive refresh and reload without cloud mutation',async({page},info)=>{
+  await setup(page,'mossland');const fields=page.locator('#tts-mossland-fields');
+  await fields.getByText('音色详情与别名',{exact:true}).click();const before=calls.length;
+  await page.locator('#tts-mossland-alias').fill('我的叙述音色');await page.locator('#tts-mossland-alias-save').click();
+  await expect(page.locator('#tts-mossland-current')).toContainText('我的叙述音色');expect(calls.length).toBe(before);
+  await page.locator('#tts-mossland-refresh').click();await expect(page.locator('#tts-mossland-status')).toContainText('已更新');
+  await expect(page.locator('#tts-mossland-catalog option:checked')).toHaveText('我的叙述音色');
+  await page.reload();await expect(page.locator('#editor-loading')).not.toBeVisible();
+  await openTtsEnvironment(page,'mossland');await closeTtsEnvironment(page);await page.locator('#tts-engine').selectOption('mossland');
+  await expect(page.locator('#tts-mossland-current')).toContainText('我的叙述音色');
+  await fields.getByText('音色详情与别名',{exact:true}).click();await expect(page.locator('#tts-mossland-alias')).toHaveValue('我的叙述音色');
+  await page.screenshot({path:info.outputPath('voice-alias.png')});
+  await page.locator('#tts-mossland-alias').fill('');await page.locator('#tts-mossland-alias-save').click();
+  await expect(page.locator('#tts-mossland-current')).toContainText('测试音色');
+  await page.locator('#tts-mossland-voice').fill('20d45aa7-63bd-496e-a08a-9e3472a16a34');
+  await expect(page.locator('#tts-mossland-current')).toContainText('20d45aa7-6…a16a34');
+  await expect(page.locator('#tts-mossland-current')).toHaveAttribute('title','20d45aa7-63bd-496e-a08a-9e3472a16a34');
 });

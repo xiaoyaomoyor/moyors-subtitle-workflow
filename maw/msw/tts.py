@@ -243,10 +243,15 @@ class TtsService:
                 raise JobCancelled()
             try:
                 from maw.msw.tts_engines import synthesize as dispatch
-                audio, spoken = dispatch(settings, entry, cancel, self.synthesize_one)
+                item_settings = settings
+                if settings.provider_id == 'mossland':
+                    from dataclasses import replace
+                    from maw.msw.mossland_tts import entry_recipe
+                    item_settings = replace(settings, recipe=entry_recipe(settings.recipe, entry))
+                audio, spoken = dispatch(item_settings, entry, cancel, self.synthesize_one)
                 if cancel.is_set():
                     raise JobCancelled()
-                asset = self.assets.add(job["project_id"], job["id"], entry, settings.recipe, audio, spoken_text=spoken)
+                asset = self.assets.add(job["project_id"], job["id"], entry, item_settings.recipe, audio, spoken_text=spoken)
                 item = {"key": entry["key"], "status": "ready", "asset_id": asset["id"]}
             except JobCancelled:
                 raise

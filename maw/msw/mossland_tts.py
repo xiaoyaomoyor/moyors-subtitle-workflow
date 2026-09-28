@@ -28,7 +28,21 @@ def validate_recipe(raw, *, require_voice=True):
         raise ValueError('此 Mossland 模型仅支持自动判断语言')
     if raw.get('expected_duration_sec') is not None:
         r['expected_duration_sec'] = number(raw['expected_duration_sec'], 0.1, 600, '期望时长')
+    follow = raw.get('follow_subtitle_duration', False)
+    if type(follow) is not bool:
+        raise ValueError('跟随字幕时长设置无效')
+    if follow:
+        r['follow_subtitle_duration'] = True
     return r
+
+
+def entry_recipe(recipe, entry):
+    result = dict(recipe)
+    if result.pop('follow_subtitle_duration', False):
+        if entry.get('kind') == 'editor_text':
+            raise ValueError('独立配音草稿没有字幕时长，请使用手动期望时长')
+        result['expected_duration_sec'] = number((entry['end']-entry['start'])/1000, 0.1, 600, '字幕时长（秒）')
+    return result
 
 
 class MosslandTts(CloudTts):
