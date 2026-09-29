@@ -9,6 +9,8 @@ source: "docs/WORKFLOW.md"
 
 # 从零完成一次字幕工程
 
+beta.6 的设置迁移、原始快照、拆分／说话人名称和七引擎 TTS 见[本次升级说明](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/BETA6_UPGRADE.md)。旧工程和已有输出位置继续兼容。
+
 beta.5 的叠加字幕、ASS 样式迁移、字词对齐及保留手势见[升级指南](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/BETA5_UPGRADE.md)。Shift 多选与 Ctrl/Cmd+Shift 波形范围选择保持不变。
 
 也可以全程从编辑器开始：使用发行包的 `Start-Editor` 脚本或 `uv run python maw_gui.py --editor --blank`，加载视频，按需生成波形、整段／片段 ASR，再翻译、TTS、保存与导出。无需先生成工程，详见 [编辑器直接导入与 ASR](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_ASR.md)。下文的 Launcher 流程继续适用于批处理。
@@ -18,6 +20,8 @@ beta.5 的叠加字幕、ASS 样式迁移、字词对齐及保留手势见[升�
 首次使用请先看[安装与升级](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/INSTALLATION.md)和[可选环境清单](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/ENVIRONMENT.md)。项目官网：[MSW GitHub 仓库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow)。
 
 这份指南按 Windows PowerShell 写；路径带空格时始终加双引号。MSW 是 Moyor's Subtitle Workflow 的简称。工程文件的主扩展名是 `.mosp`；它是 UTF-8 JSON 内容，`.json` 作为旧工程和兼容导入/导出的扩展名继续支持。
+
+编辑器配音支持百炼、油库里、IndexTTS、GPT-SoVITS、Edge、MiniMax、Mossland 七种引擎；入口、草稿与素材流程见 [TTS 与素材库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_TTS.md)，新增云端配置见 [MiniMax／Mossland](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_CLOUD_TTS.md)。
 
 ## 在编辑器中翻译字幕
 
@@ -291,7 +295,9 @@ uv run python generate_subtitle_bcut_api.py "D:\Videos\example.mp4" -ll 2m --jso
 
 Launcher 可以在转写成功后自动串接文稿匹配、固定处理、LLM 校对、重新断句、OCR 字幕去重和翻译。功能默认关闭；配置、LLM 连接验证、中间产物目录、失败恢复和安全边界见[转写后自动处理](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/POSTPROCESS_PIPELINE.md)。
 
-自动处理会保留原始转写结果，最终结果另写为带 `.postprocess` 后缀的 `.mosp` 和 `.srt`。失败或取消不会影响原始结果，并会保留中间目录供恢复。
+未配置时，「输出到子目录」和「保留中间产物」默认开启；已保存的关闭值及自定义输出路径继续有效。新目录仍使用 `_msw`／`视频名_msw`，兼容读取旧 `_maw`，不自动移动旧文件。
+
+自动处理先保存 0 号原始工程／SRT 快照，随后按产物编号；临时队列输入退出后，快照和配音素材仍可恢复。自动处理会保留原始转写结果，最终结果另写为带 `.postprocess` 后缀的 `.mosp` 和 `.srt`。失败或取消不会影响原始结果，并会保留中间目录供恢复。
 
 ## 2.6 Launcher 混合输入与批量制作
 

@@ -1,6 +1,6 @@
 [project]
 name = "moyors-subtitle-workflow"
-version = "1.6.0-beta.5"
+version = "1.6.0-beta.6"
 description = "Moyor's Subtitle Workflow (MSW) - local subtitle editing, ASR, translation and TTS voiceover."
 readme = "README.md"
 requires-python = ">=3.11"

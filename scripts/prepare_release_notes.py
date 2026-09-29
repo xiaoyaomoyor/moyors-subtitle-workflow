@@ -39,7 +39,7 @@ def build_release_notes(changelog: str, tag: str) -> str:
 | Linux x86_64 | `MSW-Linux-x86_64-{tag}.AppImage` | — |
 
 GitHub 自动附带的 Source code ZIP / tar.gz 是源码，普通用户请选择上面的安装包。
-标准版内置媒体工具，不包含 API Key、云端额度或大型模型；油库里资源与 IndexTTS 服务另行配置。
+标准版内置媒体工具，不包含 API Key、云端额度或大型模型；油库里资源、IndexTTS 与 GPT-SoVITS 服务另行配置，Edge TTS 需要联网，其他云端引擎需要对应账号和额度。
 
 ## 如何使用
 

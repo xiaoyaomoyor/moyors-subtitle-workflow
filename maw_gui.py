@@ -143,6 +143,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         for module_name in (
             'webview', 'edit', 'maw.gui_web', 'maw.msw.api',
             'maw.msw.tts', 'maw.msw.qwen_voices', 'maw.msw.index_tts',
+            'maw.msw.gpt_sovits', 'maw.msw.edge_tts', 'edge_tts',
+            'maw.msw.minimax_tts', 'maw.msw.mossland_tts',
             'maw.msw.yukkuri_runtime',
             'maw.msw.media_service', 'maw.msw.media_jobs', 'maw.msw.asr', 'maw.msw.asr_config',
             'maw.quapeaks', 'maw.mopeaks',
