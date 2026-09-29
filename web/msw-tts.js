@@ -244,14 +244,15 @@
       el('tts-yukkuri-directory').value = data.yukkuri.runtime_path;
       renderRuntime(data.yukkuri);
     }
-    configured = true; qwenVoices.configure({...data, recipe: value});
+    qwenVoices.configure({...data, recipe: value});
     indexTts.configure({...data.index_tts, ...(previous ? {recipe: previous.index} : {})});
     gptTts.configure({...data.gpt_sovits, ...(previous ? {recipe: previous.gpt} : {})});
     edgeTts.configure({...data.edge_tts, ...(previous ? {recipe: previous.edge} : {})});
     for (const engine of ['minimax','mossland']) clouds[engine].configure(data[engine], {preserve: Boolean(previous)});
-    await localServices.refresh(true); updateEngine();
+    await localServices.refresh(true); configured = true; updateEngine();
   }
   function ensureSettings() {
+    if (settingsPromise) return settingsPromise;
     if (configured) return Promise.resolve();
     if (!settingsPromise) settingsPromise = loadSettings().finally(() => { settingsPromise = null; });
     return settingsPromise;

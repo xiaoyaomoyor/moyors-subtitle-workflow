@@ -105,7 +105,8 @@ test('edited batch and independent destination receipts survive disk save and re
   for(const id of ['translation-apply','translation-secondary','translation-store'])await page.locator('#'+id).click();
   const saved=page.waitForResponse(r=>r.url().endsWith('/api/msw/project')&&r.request().method()==='POST');
   await page.keyboard.press('Escape');await page.keyboard.press('Control+s');
-  expect((await (await saved).json()).ok).toBe(true);
+  const savedBody=await (await saved).json();
+  expect(savedBody.ok,JSON.stringify(savedBody)).toBe(true);
   const disk=JSON.parse(readFileSync(join(root,'project.mosp'),'utf8'));
   expect(disk.segments[0].text).toBe('Saved candidate');
   expect(disk.multi_subtitle.tracks[0].segments[0].text).toBe('Saved candidate');

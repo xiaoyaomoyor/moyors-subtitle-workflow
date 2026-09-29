@@ -149,3 +149,23 @@ test('local connection failure clears progress even when subsequent status refre
   await expect(status).toHaveText('offline');await expect(status).toHaveAttribute('aria-busy','false');
   await expect(button).toBeEnabled();
 });
+
+
+test('initial local settings keep directory controls locked until the delayed response is applied',async({page})=>{
+  let release,waiting=false,held=false;
+  const gate=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/msw/tts-local-service?engine=gpt-sovits',async route=>{
+    if(held)return route.continue();
+    held=true;const response=await route.fetch();waiting=true;await gate;await route.fulfill({response});
+  });
+  await openTtsEnvironment(page,'gpt-sovits');
+  try {
+    await expect.poll(()=>waiting).toBe(true);
+    await expect(page.locator('#tts-local-gpt-sovits-directory')).toBeDisabled();
+    await expect(page.locator('#tts-local-gpt-sovits-port')).toBeDisabled();
+  } finally { release(); }
+  await expect(page.locator('#tts-local-gpt-sovits-directory')).toBeEnabled();
+  await configure(page,'gpt-sovits');
+  const result=await api(page,'tts-local-service?engine=gpt-sovits');
+  expect(directoryIdentity(result.service.settings.directory)).toEqual(directoryIdentity(bundle));
+});

@@ -9,7 +9,7 @@
     const ready = s => ['ready', 'external'].includes(s?.state);
     function render(kind, state) {
       const previous = states.get(kind); states.set(kind, state);
-      const ui = controls.get(kind), wait = pending.has(kind) || loading(state);
+      const ui = controls.get(kind), wait = !ui.initialized || pending.has(kind) || loading(state);
       const operation = operations.get(kind);
       ui.status.textContent = t(operation ? operation === 'pick' ? '正在打开目录选择窗口…' : operation === 'check' ? '正在验证连接…' : operation === 'start' ? '正在启动服务…' : '正在停止服务…' : state.message || '尚未检测服务');
       ui.status.setAttribute('aria-busy', String(wait));
@@ -56,9 +56,14 @@
             ui.directory.value = cfg.directory; ui.python.value = cfg.python || t('选择目录后自动检测');
             ui.port.value = String(cfg.port); ui.timeout.value = String(cfg.startup_timeout);
             if (ui.qwen) ui.qwen.checked = cfg.qwen_emo;
+            ui.initialized = true;
           }
           render(kind, service);
-        } catch (error) { controls.get(kind).status.textContent = error.message; }
+        } catch (error) {
+          const ui = controls.get(kind);
+          if (fill) { ui.initialized = true; render(kind, states.get(kind) || {}); }
+          ui.status.textContent = error.message;
+        }
       }
     }
     async function save(kind) {
@@ -95,7 +100,7 @@
     }
     for (const kind of Object.keys(names)) {
       const box = el(`tts-local-${kind}`), fields = document.createElement('div'); fields.className = 'msw-processing-grid';
-      const ui = {fields}; controls.set(kind, ui);
+      const ui = {fields, initialized: false}; controls.set(kind, ui);
       for (const [key, label, type] of [['directory','安装位置','text'], ['python','内置 Python','text'],
         ['port','服务端口','number'], ['timeout','启动等待上限（秒）','number']]) {
         const {wrapper, input} = field(label, type, `tts-local-${kind}-${key}`); ui[key] = input;
@@ -144,6 +149,9 @@
       const summary = document.createElement('summary'); summary.textContent = t('启动日志');
       ui.log = document.createElement('pre'); ui.log.className = 'msw-tts-service-log';
       ui.details.append(summary, ui.log); ui.details.hidden = true; box.append(ui.details);
+      // Initial settings can arrive after the user opens this section. Do not overwrite early edits.
+      for (const control of box.querySelectorAll('input, button')) control.disabled = true;
+      ui.status.textContent = t('正在读取本机 TTS 配置…');
     }
     el('tts-local-call-start').onclick = () => void action('indextts', 'start');
     return {refresh, save, render, start: kind => action(kind, 'start'),
