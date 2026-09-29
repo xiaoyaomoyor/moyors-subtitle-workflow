@@ -1,7 +1,9 @@
 import {test, expect} from '@playwright/test';
-import {mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync} from 'node:fs';
+import {mkdirSync, writeFileSync, readFileSync, existsSync, statSync} from 'node:fs';
 import {join, resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
+// Long and 8.3 paths can name the same Windows directory; compare its actual file identity.
+function directoryIdentity(path){const {dev,ino}=statSync(path,{bigint:true});return {dev,ino};}
 import {disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir,
   startTtsServer, openTtsEnvironment, closeTtsEnvironment} from './helpers.mjs';
 
@@ -130,10 +132,10 @@ test('directory picker shows progress, accepts a folder and distinguishes cancel
   });
   const button=page.locator('#tts-local-gpt-sovits').getByRole('button',{name:'选择文件夹',exact:true});
   await button.click();await expect(page.locator('#tts-local-gpt-sovits-status')).toContainText('正在打开');
-  await expect.poll(async()=>{const value=await page.locator('#tts-local-gpt-sovits-directory').inputValue();return value&&existsSync(value)?realpathSync(value):value;}).toBe(realpathSync(bundle));
+  await expect.poll(async()=>{const value=await page.locator('#tts-local-gpt-sovits-directory').inputValue();return value&&existsSync(value)?directoryIdentity(value):null;}).toEqual(directoryIdentity(bundle));
   await expect(button).toBeEnabled();cancel=true;await button.click();
   await expect(page.locator('#tts-local-gpt-sovits-status')).toHaveText('已取消目录选择');
-  await expect.poll(async()=>{const value=await page.locator('#tts-local-gpt-sovits-directory').inputValue();return value&&existsSync(value)?realpathSync(value):value;}).toBe(realpathSync(bundle));await expect(button).toBeEnabled();
+  await expect.poll(async()=>{const value=await page.locator('#tts-local-gpt-sovits-directory').inputValue();return value&&existsSync(value)?directoryIdentity(value):null;}).toEqual(directoryIdentity(bundle));await expect(button).toBeEnabled();
 });
 
 
