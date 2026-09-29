@@ -262,6 +262,14 @@ jobs:
           "MSW_TEST_FFMPEG=$env:MSW_TEST_FFMPEG" >> $env:GITHUB_ENV
           $env:MSW_TEST_FFMPEG >> $env:GITHUB_PATH
 
+      - name: Check English UI and real video exports in Chromium
+        id: export-browser
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          npx playwright test tests/e2e/editor-i18n-save.spec.mjs tests/e2e/editor-video-export.spec.mjs --project=chromium
+          exit $LASTEXITCODE
+
       - name: Check beta.6 processing and new TTS in Chromium
         id: upgrade-browser
         timeout-minutes: 20
@@ -276,14 +284,6 @@ jobs:
         shell: pwsh
         run: |
           npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs tests/e2e/beta4-editor.spec.mjs tests/e2e/beta4-launcher.spec.mjs tests/e2e/ass-export.spec.mjs tests/e2e/cue-color-filter.spec.mjs --project=chromium
-          exit $LASTEXITCODE
-
-      - name: Check English UI and real video exports in Chromium
-        id: export-browser
-        timeout-minutes: 15
-        shell: pwsh
-        run: |
-          npx playwright test tests/e2e/editor-i18n-save.spec.mjs tests/e2e/editor-video-export.spec.mjs --project=chromium
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics

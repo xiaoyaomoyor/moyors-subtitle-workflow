@@ -43,6 +43,8 @@ test('English locale covers the editor shell and recent-project setting stays fi
   await clickMenubarItem(page, '文件', 'recent-projects-toggle');
 
   await toggleEditorSettings(page);
+  // Settings load asynchronously; include the populated model placeholders in the locale audit.
+  await expect(page.locator('#tts-gpt-gpt_model option').first()).toHaveText('Select…');
   const shellText = await page.locator('body').innerText();
   const untranslatedShellLines = shellText.split('\n')
     .map((line) => line.trim())
