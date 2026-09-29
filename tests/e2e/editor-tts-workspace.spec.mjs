@@ -28,7 +28,7 @@ test.beforeEach(async ({page}) => {
   writeFileSync(path, JSON.stringify({media: '', language: 'Chinese', msw: {schema: 'msw.editor.v1', project_id: randomUUID()},
     segments: [{id: 'main-1', start: 0, end: 2000, text: '字幕原文'}], waveform: generateWaveformPayload(6000)}));
   server = await startTtsServer(path, generateWav(join(dir, 'media.wav'), 6), await findFreePort(), origin);
-  await disableOnboarding(page); page.on('dialog', dialog => dialog.dismiss());
+  await disableOnboarding(page); page.on('dialog', dialog => dialog.type()==='beforeunload'?dialog.accept():dialog.dismiss());
   await page.goto(server.url); await expect(page.locator('#editor-loading')).not.toBeVisible();
 });
 

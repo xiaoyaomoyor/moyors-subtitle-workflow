@@ -7,6 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {disableOnboarding,findFreePort,generateWav,generateWaveformPayload,makeTempDir,startTtsServer,openTtsEnvironment,closeTtsEnvironment,openMenubarMenu} from './helpers.mjs';
 let server,mock,dir,bundle,calls,errors,audio;
 test.beforeEach(async({page})=>{
+  server=null;mock=null;
   dir=makeTempDir('tts-cd');bundle=join(dir,'bundle');calls=[];errors=[];
   for(const p of ['runtime','GPT_weights','SoVITS_weights_v2Pro'])mkdirSync(join(bundle,p),{recursive:true});
   writeFileSync(join(bundle,'runtime','python.exe'),'fixture');writeFileSync(join(bundle,'api_v2.py'),'# synthetic API');
@@ -23,7 +24,7 @@ test.beforeEach(async({page})=>{
   server=await startTtsServer(project,generateWav(join(dir,'media.wav'),6),await findFreePort(),`http://127.0.0.1:${mock.address().port}`);
   page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).not.toBeVisible();await page.evaluate(()=>selectOnly(0));
 });
-test.afterEach(async()=>{await server?.stop();await new Promise(r=>mock?.close(r));delete process.env.MSW_TEST_EDGE_AUDIO;delete process.env.MSW_TEST_LOCAL_TTS_INSTALL;expect(errors).toEqual([]);});
+test.afterEach(async()=>{await server?.stop();if(mock)await new Promise(r=>mock.close(r));delete process.env.MSW_TEST_EDGE_AUDIO;delete process.env.MSW_TEST_LOCAL_TTS_INSTALL;expect(errors).toEqual([]);});
 async function api(page,route,body){return page.evaluate(async({route,body})=>MSWE.resolve('audio-timeline').request(route,body),{route,body});}
 async function gpt(page){
   await openTtsEnvironment(page,'gpt-sovits');await page.locator('#tts-local-gpt-sovits-directory').fill(bundle);await page.locator('#tts-local-gpt-sovits-port').fill(String(mock.address().port));

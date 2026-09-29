@@ -7,6 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {disableOnboarding,findFreePort,generateWav,generateWaveformPayload,makeTempDir,startTtsServer,openTtsEnvironment,closeTtsEnvironment,openMenubarMenu} from './helpers.mjs';
 let server,mock,dir,calls,errors,audio,mp3;
 test.beforeEach(async({page})=>{
+  server=null;mock=null;
   dir=makeTempDir('tts-cloud');calls=[];errors=[];
   audio=readFileSync(generateWav(join(dir,'result.wav'),.5));generateWav(join(dir,'reference.wav'),4);
   execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-i',join(dir,'result.wav'),join(dir,'result.mp3')]);mp3=readFileSync(join(dir,'result.mp3'));
@@ -27,7 +28,7 @@ test.beforeEach(async({page})=>{
   server=await startTtsServer(project,generateWav(join(dir,'media.wav'),6),await findFreePort(),`http://127.0.0.1:${mock.address().port}`);
   page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).not.toBeVisible();await page.evaluate(()=>selectOnly(0));
 });
-test.afterEach(async()=>{await server?.stop();await new Promise(r=>mock?.close(r));delete process.env.MSW_TEST_CLOUD_TTS;expect(errors).toEqual([]);});
+test.afterEach(async()=>{await server?.stop();if(mock)await new Promise(r=>mock.close(r));delete process.env.MSW_TEST_CLOUD_TTS;expect(errors).toEqual([]);});
 async function setup(page,engine){
   await openTtsEnvironment(page,engine);await page.locator(`#tts-${engine}-key`).fill('synthetic-secret');
   await page.locator('#tts-environment-save').click();await expect(page.locator('#tts-environment-message')).toContainText('已保存');
