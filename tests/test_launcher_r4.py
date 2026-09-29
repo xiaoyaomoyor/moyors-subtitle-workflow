@@ -71,7 +71,10 @@ class PrefabPlanTests(unittest.TestCase):
     def _run(self, payload: dict[str, object]) -> None:
         started = self.api.run_prefab_plan(payload)
         self.assertTrue(started["ok"], started)
-        self.api.prefab_worker.join(timeout=10)
+        worker = self.api.prefab_worker
+        if worker is not None:
+            worker.join(timeout=10)
+            self.assertFalse(worker.is_alive(), "Task did not finish")
         self.assertIsNone(self.api.prefab_worker)
 
     def _terminal(self) -> dict:
@@ -219,7 +222,10 @@ class PrefabPlanTests(unittest.TestCase):
                 cancelled = self.api.cancel_prefab_plan()
                 self.assertTrue(cancelled["cancelled"])
                 release.set()
-                self.api.prefab_worker.join(timeout=5)
+                worker = self.api.prefab_worker
+                if worker is not None:
+                    worker.join(timeout=5)
+                    self.assertFalse(worker.is_alive(), "Task did not finish")
 
         self.assertEqual(self._terminal()["status"], "cancelled")
 
@@ -297,7 +303,10 @@ class BatchProjectsTests(unittest.TestCase):
                     })
                     self.assertTrue(started["ok"])
                     self.assertTrue(started["waveform"])
-                    self.api.batch_worker.join(timeout=5)
+                    worker = self.api.batch_worker
+                    if worker is not None:
+                        worker.join(timeout=5)
+                        self.assertFalse(worker.is_alive(), "Task did not finish")
 
         self.assertEqual([call["media"] for call in self.calls], [str(self.root / "a.mp4"), str(self.root / "b.mp4")])
         self.assertTrue(all(call["waveform"] is True and call["spectral"] is True for call in self.calls))
@@ -324,7 +333,10 @@ class BatchProjectsTests(unittest.TestCase):
                     })
                     self.assertTrue(started["ok"])
                     self.assertFalse(started["waveform"])
-                    self.api.batch_worker.join(timeout=5)
+                    worker = self.api.batch_worker
+                    if worker is not None:
+                        worker.join(timeout=5)
+                        self.assertFalse(worker.is_alive(), "Task did not finish")
 
         item_events = [e for e in self.events if e.get("type") == "batch_item"]
         self.assertEqual([e.get("status") for e in item_events], ["running", "failed", "running", "done"])
