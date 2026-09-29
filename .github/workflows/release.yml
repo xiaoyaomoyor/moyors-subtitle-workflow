@@ -256,10 +256,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:MSW_E2E_PYTHON = Join-Path $PWD '.venv/Scripts/python.exe'
           $env:FFMPEG_PATH = Join-Path $PWD 'dist/MSW/ffmpeg/bin/ffmpeg.exe'
+          $env:MSW_TEST_FFMPEG = Split-Path -Parent $env:FFMPEG_PATH
           if (-not (Test-Path -LiteralPath $env:FFMPEG_PATH)) { throw 'Missing bundled FFmpeg for media/ASR browser checks' }
           npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs tests/e2e/beta4-editor.spec.mjs tests/e2e/beta4-launcher.spec.mjs tests/e2e/ass-export.spec.mjs tests/e2e/cue-color-filter.spec.mjs --project=chromium
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx playwright test tests/e2e/beta6-editor.spec.mjs tests/e2e/beta6-launcher.spec.mjs tests/e2e/editor-processing-ab.spec.mjs tests/e2e/editor-processing-cd.spec.mjs tests/e2e/editor-processing-ef.spec.mjs tests/e2e/editor-persistence.spec.mjs tests/e2e/launcher-feedback-sep23.spec.mjs tests/e2e/editor-tts-services.spec.mjs tests/e2e/editor-tts-cd.spec.mjs tests/e2e/editor-tts-cloud.spec.mjs tests/e2e/editor-tts-workspace.spec.mjs --project=chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright test tests/e2e/editor-i18n-save.spec.mjs tests/e2e/editor-video-export.spec.mjs --project=chromium
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics

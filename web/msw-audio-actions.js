@@ -61,7 +61,7 @@
   function volumeControl(id, source = false) {
     const range=el(id), number=el(`${id}-value`), output=el(`${id}-output`), reset=el(`${id}-reset`);
     let gesture=null, cancelledPointer=false, pending=Promise.resolve();
-    const identity=()=>source ? JSON.stringify([host.generation,host.data.media,global.MSWE.resolve('media')?.current?.audio_index])
+    const identity=()=>source ? JSON.stringify([host.generation,host.data.media,global.MSWE.resolve('media')?.current?.audio_index ?? 0])
       : JSON.stringify(audio.selectedClips().map(c=>c.id).sort());
     const read=()=>source ? [{id:'source',gain_db:audio.sourceGainDb()}] : audio.selectedClips();
     const valid=g=>g.generation===host.generation && g.identity===identity() && (source || g.extension===host.data.msw);

@@ -92,6 +92,33 @@ test('source slider supports precise values, undo, reset without unmuting and re
 });
 test.afterEach(async()=>{await server?.stop();server=null;});
 
+test('initial default audio registration cannot cancel a pending gain edit',async({page})=>{
+  let releaseContext,markRequested;
+  const gate=new Promise(resolve=>releaseContext=resolve),requested=new Promise(resolve=>markRequested=resolve);
+  await page.route('**/media-context?*',async route=>{markRequested();await gate;await route.continue();});
+  await page.reload();await requested;
+  await expect(page.locator('#editor-loading')).toBeHidden();
+  expect(await page.evaluate(()=>MSWE.resolve('media').current)).toBeNull();
+  await page.evaluate(()=>{
+    const resume=AudioContext.prototype.resume;
+    const gate=new Promise(resolve=>window.__releaseGainResume=resolve);
+    AudioContext.prototype.resume=function(){return gate.then(()=>resume.call(this));};
+  });
+  await clickMenubarItem(page,'媒体','audio-actions-open');
+  const before=await page.evaluate(()=>editorHistory.undoLength());
+  const number=page.locator('#audio-actions-source-gain-value');
+  await number.fill('6');await number.press('Enter');
+  releaseContext();
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('media').current?.audio_index)).toBe(0);
+  await page.evaluate(()=>window.__releaseGainResume());
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('audio-timeline').sourceGainDb())).toBe(6);
+  await expect.poll(()=>page.evaluate(()=>editorHistory.undoLength())).toBe(before+1);
+  await expect(page.locator('#audio-actions-source-gain-output')).toHaveText('200%');
+  await page.evaluate(()=>MSWE.resolve('processing-host').undo());
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('audio-timeline').sourceGainDb())).toBe(0);
+  await expect(page.locator('#audio-actions-source-gain-output')).toHaveText('100%');
+});
+
 test('source gain amplifies the current player after replacement and rollback',async({page})=>{
   const result=await page.evaluate(async()=>{
     const api=MSWE.resolve('audio-timeline'),url=player.currentSrc;

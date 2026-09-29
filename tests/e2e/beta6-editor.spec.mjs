@@ -160,3 +160,48 @@ test('speaker-only ASS uses frozen export options and does not alter cue text', 
   expect(result.text).toBe('Body: text');
   expect(JSON.stringify(result.ass)).toContain('Name: ');
 });
+
+for (const [mode, seconds] of [['multi', 5], ['multi', 10], ['multi', 20], ['basic', 10]]) {
+  test(`shared boundary preserves three audio layers and linked subtitles: ${mode} ${seconds}`, async ({page}) => {
+    const before = await page.evaluate(({mode, seconds}) => {
+      DATA.segments = [{id:'m1',start:1000,end:2000,text:'One'}, {id:'m2',start:2000,end:3000,text:'Two'}];
+      DATA.multi_subtitle = {schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',
+        tracks:[{id:'ext',role:'extension',name:'Secondary',language:'English',split_mode:'word',
+          segments:DATA.segments.map((cue,i)=>({...cue,id:'s'+(i+1)}))}],
+        bindings:[1,2].map(i=>({id:'b'+i,track_id:'ext',main_segment_ids:['m'+i],extension_segment_ids:['s'+i]}))};
+      normalizeMultiSubtitleState();
+      DATA.msw.assets = [{id:'audio-'+'1'.repeat(32),kind:'audio',job_id:'job',
+        path:'msw-'+'2'.repeat(24)+'.assets/audio/audio-'+'1'.repeat(32)+'.wav',sha256:'3'.repeat(64),
+        sample_rate:24000,sample_count:48000,channels:1,byte_size:96044,
+        generation:{provider:'test',model:'test',voice:'test',language_type:'Auto',display_text:'test',spoken_text:'test'}}];
+      DATA.msw.audio_tracks = [1,2,3].map(i=>({id:'voice'+i,name:'Voice '+i,gain_db:0,muted:false}));
+      DATA.msw.audio_clips = [1,2,3].map(i=>MSWAudio.create(DATA.msw.assets[0],'voice'+i,1100+i*100,'clip'+i));
+      updateEditorSettings({autoSnapAdjacentCues:true});
+      waveformEditor.settings.mode=mode;waveformEditor.settings.secondsPerRow=seconds;
+      renderAll();
+      return JSON.stringify(DATA.msw.audio_clips);
+    }, {mode,seconds});
+    const handle=page.locator('.waveform-cue-block[data-track="main"][data-idx="0"] .waveform-cue-handle.right').first();
+    await handle.scrollIntoViewIfNeeded();
+    const box=await handle.boundingBox();
+    const row=handle.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " waveform-row ")][1]');
+    const rowBox=await row.boundingBox();
+    const duration=Number(await row.getAttribute('data-end-ms'))-Number(await row.getAttribute('data-start-ms'));
+    expect(box).not.toBeNull();expect(rowBox).not.toBeNull();expect(duration).toBeGreaterThan(0);
+    const x=box.x+box.width-1,y=box.y+box.height/2;
+    await page.mouse.move(x,y);await page.mouse.down();
+    await page.mouse.move(x-rowBox.width*400/duration,y,{steps:5});await page.mouse.up();
+    // Basic mode includes a sidebar; its drawable width differs from the row.
+    // The contract here is shared boundaries, linked followers and intact clips.
+    await expect.poll(()=>page.evaluate(()=>DATA.segments[0].end)).toBeLessThan(1900);
+    const boundary=await page.evaluate(()=>DATA.segments[0].end);
+    expect(boundary).toBeGreaterThan(1400);
+    if(mode==='multi')expect(boundary).toBe(1600);
+    expect(await page.evaluate(()=>DATA.segments[1].start)).toBe(boundary);
+    expect(await page.evaluate(()=>DATA.multi_subtitle.tracks[0].segments.map(c=>[c.start,c.end]))).toEqual([[1000,boundary],[boundary,3000]]);
+    expect(await page.evaluate(()=>JSON.stringify(DATA.msw.audio_clips))).toBe(before);
+    await page.keyboard.press('Control+z');
+    expect(await page.evaluate(()=>DATA.segments.map(c=>[c.start,c.end]))).toEqual([[1000,2000],[2000,3000]]);
+    expect(await page.evaluate(()=>JSON.stringify(DATA.msw.audio_clips))).toBe(before);
+  });
+}

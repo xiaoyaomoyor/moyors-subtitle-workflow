@@ -9,6 +9,12 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "选择文件夹": "Choose folder",
+    "连接官方 IndexTTS 2.5 WebUI；已配置安装位置时可由 MSW 按需启动，无需 API Key。": "Connect to the official IndexTTS 2.5 WebUI. MSW can start a configured local installation on demand; no API key is needed.",
+    "当前服务没有已保存预设": "No saved presets in the current service",
+    "粤语": "Cantonese",
+    "朗读修正": "Pronunciation corrections",
+    "连接后选择官方示例": "Connect to choose an official example",
     "批次": "Batch ",
     "百炼 Qwen TTS": "Bailian Qwen TTS",
     "部分完成": "Partially complete",

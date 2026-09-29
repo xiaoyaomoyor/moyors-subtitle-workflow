@@ -59,7 +59,10 @@ test('legacy voice project opens, edits and downloads with current metadata and 
   await open(page, legacy);
   const opened = await snapshot(page);
   expect(opened.schema).toBe(schema);
-  for (const key of ['msw', 'fixture_metadata', 'fixture_optional_null', 'language_source', 'split_mode', 'timestamp_granularity']) {
+  // Candidate panels may initialize the optional empty revision list after load.
+  // All legacy audio fields and unknown extensions must still match exactly.
+  expect({processing_results: [], ...opened.msw}).toEqual({processing_results: [], ...legacy.msw});
+  for (const key of ['fixture_metadata', 'fixture_optional_null', 'language_source', 'split_mode', 'timestamp_granularity']) {
     expect(opened[key]).toEqual(legacy[key]);
   }
   expect(opened.multi_subtitle.bindings).toEqual(legacy.multi_subtitle.bindings);
