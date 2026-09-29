@@ -87,6 +87,46 @@ class VideoRenderTests(unittest.TestCase):
                 return data.read()
         self.assertEqual(packets(self.source), packets(output))
 
+    def test_speaker_only_color_survives_real_mp4_encoding_and_explicit_opt_out(self):
+        from maw.ass_styles import normalize_ass_style_library
+
+        run([str(self.tools.ffmpeg), '-v', 'error', '-y', '-f', 'lavfi', '-i',
+             'color=black:size=640x360:rate=24:duration=4', '-c:v', 'libx264',
+             '-threads', '1', str(self.source)], self.cancel)
+        self.info = probe_source(self.tools.ffprobe, self.source, self.cancel)
+        self.project['segments'] = [dict(id='main', start=0, end=4000, text='BODY', color={'name': 'red'})]
+        self.project['overlay_track'] = {'enabled': True, 'segments': [
+            dict(id='overlay', start=0, end=4000, text='OVERLAY', color={'name': 'red'})]}
+        self.project['color_palette'] = [{'name': 'red', 'value': '#FF0000'}]
+        self.project['preview'] = {
+            'ass_library_exports': True,
+            'burn_ass_library': normalize_ass_style_library({}),
+            'subtitle': {'x': .1, 'y': .76, 'width': .8, 'height': .16, 'ass_color_style': 'speaker'},
+            'burn_speaker_labels': {'enabled': True, 'names': {'red': 'NAME'}, 'separator': ': '},
+        }
+
+        def color_counts():
+            _, _, output = self.export(mode='voice', burn_subtitles='main')
+            with tempfile.TemporaryFile() as data:
+                run([str(self.tools.ffmpeg), '-v', 'error', '-ss', '1', '-i', str(output),
+                     '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'],
+                    self.cancel, stdout=data)
+                data.seek(0)
+                pixels = data.read()
+            red = white = 0
+            for r, g, b in zip(pixels[::3], pixels[1::3], pixels[2::3]):
+                red += r > 100 and r > g * 2 and r > b * 2
+                white += min(r, g, b) > 160 and max(r, g, b) - min(r, g, b) < 40
+            return red, white
+
+        red, white = color_counts()
+        self.assertGreater(red, 20, 'Speaker prefixes must survive H.264 as red pixels')
+        self.assertGreater(white, 20, 'Body text must retain white pixels')
+        self.project['preview']['burn_speaker_labels']['enabled'] = False
+        red, white = color_counts()
+        self.assertEqual(red, 0, 'Explicit opt-out must remove colored speaker prefixes')
+        self.assertGreater(white, 20, 'Opt-out must preserve the subtitle bodies')
+
     def test_tail_requires_explicit_decision_and_can_freeze(self):
         with self.assertRaisesRegex(ValueError, '超出画面尾部'):
             self.export(end_ms=6000)

@@ -57,7 +57,8 @@ class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        # macOS exposes its temporary directory through /var -> /private/var.
+        self.root = Path(self.temp.name).resolve()
         self.install = self.root / 'bundle with spaces' / 'nested'
         self.install.mkdir(parents=True)
         (self.install / 'webui.py').write_text('# fixture', encoding='utf-8')

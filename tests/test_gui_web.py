@@ -2685,7 +2685,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         result = self.api.default_output({"mediaPath": str(media), "providerId": "qwen", "modelId": "qwen-audio-3.0-asr-flash-filetrans"})
 
         self.assertTrue(result["renamed"])
-        self.assertEqual(result["path"], str(self.root / "_msw" / "clip-1.srt"))
+        self.assertEqual(Path(result["path"]).resolve(), (self.root / "_msw" / "clip-1.srt").resolve())
 
     def test_start_transcription_rechecks_output_collision_before_worker(self) -> None:
         media = self.root / "clip.mp3"

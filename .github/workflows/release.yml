@@ -78,7 +78,7 @@ jobs:
       - name: Run Python tests
         env:
           PYTHONPATH: tests
-        run: uv run python -m unittest discover -s tests -t . -p "test_*.py"
+        run: uv run python -m unittest discover -v -s tests -t . -p "test_*.py"
 
       - name: Set up Node for editor checks
         uses: actions/setup-node@v6
@@ -383,7 +383,7 @@ jobs:
       - name: Run Python tests
         env:
           PYTHONPATH: tests
-        run: uv run python -m unittest discover -s tests -t . -p "test_*.py"
+        run: uv run python -m unittest discover -v -s tests -t . -p "test_*.py"
 
       # ---------- macOS 专属 ----------
 
