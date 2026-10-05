@@ -165,6 +165,8 @@ def serialize_mosp(
     validation and normalization remain the responsibility of the caller.
     """
 
+    from maw.msw.subtitle_layers import require_production_schema
+    require_production_schema(project)
     errors = project_schema_errors(project) + tuple(
         ProjectValidationError(path, message) for path, message in validate_extension(project.get("msw"))
     )

@@ -1016,3 +1016,55 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 - Mossland 存单人音色 ID 和模型／快照 ID；Flash 可指定语言，Pro 为 `auto`。可选 `expected_duration_sec` 为 0.1–600 秒的期望时长，省略时由模型决定；这是生成引导，不是裁切上限，素材及贴片重新生成沿用该值。设置和任务配方可带布尔 `follow_subtitle_duration`，仅用于字幕批次提交时按整数毫秒起止差转换为秒；草稿或超出 0.1–600 秒拒绝提交。每条素材配方移除此策略字段，仅保存计算后的 `expected_duration_sec`，重生成不跟随后续字幕修改。不伪造字词时间码、音高或合成音量字段。
 - 连接地址由受控地域决定；API Key、超时、参考上传数据、创建请求记录和账号音色缓存均留在本机，不进入工程。完整结果转换成现有素材 WAV；不保存临时下载 URL。
 - 重新生成使用上述白名单参数，显示文本与实际朗读分开；现有七引擎旧配方及已保存的低频 Index／GPT 参数继续保留。播放增益与导出增益不写回供应商合成倍率。
+
+
+## 开发中：统一多层字幕 v2（A–C）
+
+生产默认读写仍使用上文的 `moy.asr.project.v1`。用户授权的 A–C 实现提供 `?subtitle-layers=1` 开发入口；接收 `msw.project.v2` 的读取器不等于已经开放正式写出。D–G 完成前，保存／自动保存／恢复草稿写入、处理回填与字幕／视频导出均受保护，不将 v2 冒充 v1 保存。
+
+### 身份与时间
+
+- 顶层版本定为 `msw.project.v2`；`msw.schema`、`multi_subtitle.schema` 不随之升级。
+- 主字幕继续使用 `segments`，副字幕继续使用 `multi_subtitle.tracks[*].segments`。不复制正文到另一个“层”数组。
+- 唯一定位为 `{role: "main" | "extension", track_id: null | string, cue_id: string}`。不同角色可使用同一个 ID，同一角色／副轨内不得重号。
+- `start`／`end` 是整数毫秒，`0 <= start < end`，半开区间 `[start,end)`。端点相接不算重叠；合法相交、嵌套和同起点不会被时间修复推开。
+- 字词时间仍在所属字幕范围内；帧时间只是投影，不用前条字幕的结尾约束下一条。列表按开始时间稳定排序，绑定仍按 ID。
+- 显示层由区间索引和稳定分层计算，缓存不落盘。层号不是说话人、内容角色或来源 ID；音频贴片的三层限制保持独立。
+
+```json
+{
+  "schema": "msw.project.v2",
+  "segments": [
+    {"id": "speaker-a", "start": 0, "end": 5000, "text": "对话 A", "items": []},
+    {"id": "speaker-b", "start": 2000, "end": 4000, "text": "对话 B", "items": []}
+  ],
+  "subtitle_layers": {
+    "schema": "msw.subtitle_layers.v1",
+    "allow_overlap": true,
+    "legacy_overlay": {"visible": false, "cue_ids": []}
+  }
+}
+```
+
+`allow_overlap` 控制新编辑产生交叠的许可，不隐藏或删除已有重叠。`legacy_overlay` 专门保留旧叠加组的显示状态，其 `cue_ids` 只能引用主字幕、不得重复；删除成员会同步清理，撤销可恢复。首版保留单个历史组，不引入任意轨道管理。
+
+### 确定性迁移
+
+JS `MSWSubtitleLayers.migrate` 与 Python `migrate_project` 均返回独立副本、不写原文件。无版本／v1 输入执行迁移，显式未知或畸形版本拒绝。v2 输入保持幂等。
+
+1. 对旧主／副／叠加字幕补齐缺失 ID；同一旧角色内部显式重号属于歧义，拒绝迁移。
+2. 在排序和合并角色前，把 `color_ref`／`sticker_ref` 指向的值物化到每条字幕。保留颜色、说话人和表情包内容，时间范围使用所属字幕范围。
+3. 旧 `overlay_track.segments` 归入主角色。主／叠加 ID 碰撞使用 `legacy-overlay-<原序号>`，必要时增加数字后缀；迁移不猜测过去转换时已经丢失的绑定。
+4. 明确标明 `track_kind: "overlay"` 或 `role: "overlay"` 的来源引用转为主角色并同步 ID。候选与配方中的任意文本／不透明修订串不进行字符串替换；处理目标重订阅在 D 完成。
+5. 保存原叠加组 ID 集合及 `visible`。原隐藏组保持隐藏，可在字幕列表设置重新显示。旧重叠偏好取原 `enabled`；没有旧叠加字段的新工程默认允许。
+6. v2 不再接受有内容的 `overlay_track`。当前旧辅助函数可能生成空叠加结构；读取器允许这个空占位，不把它当作第三种字幕角色。
+
+### 写出、备份与旧格式出口决策
+
+A–C 的 `buildJson()` 仅提供内存快照，保持 v2 及呈现元数据；正式保存入口和 Python `serialize_mosp` 明确拒绝 v2。不要绕过保护直接调用旧后处理或旧导出函数。
+
+F 的首次升级写出策略已定：同目录先保留 `<原文件名去扩展名>.v1-backup.mosp`，存在时使用 `.v1-backup.<UTC年月日时分秒毫秒>.<递增序号>.mosp`，永不覆盖旧备份。备份成功后再原子替换新工程；任一步失败保留原文件和内存改动。自动保存、另存为、恢复与启动器必须复用同一事务。此处描述的是后续实施契约，A–C 不创建这些备份或升级原文件。
+
+旧版兼容输出只在可无损表达时开放；存在多层容量、绑定或隐藏组等表达限制时须列出限制并拒绝静默降级。SRT／ASS 或临时文本合并属于 E/F 的显式导出选项，不改变工程正文。
+
+实现范围、逐文件迁移盘点和验证证据见 `docs/TEST_FEEDBACK_SUBTITLE_LAYERS_ABC_20261005.md`。

@@ -6,7 +6,7 @@
   const PROJECT_SCHEMA = 'moy.asr.project.v1';
   function supportsProjectSchema(project) {
     return Boolean(project && typeof project === 'object' && !Array.isArray(project)
-      && (!Object.prototype.hasOwnProperty.call(project, 'schema') || project.schema === PROJECT_SCHEMA));
+      && (!Object.prototype.hasOwnProperty.call(project, 'schema') || [PROJECT_SCHEMA, 'msw.project.v2'].includes(project.schema)));
   }
 
   const SUBTITLE_FONT_FAMILY_DISPLAY_NAMES_ZH = Object.freeze({

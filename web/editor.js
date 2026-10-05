@@ -1,4 +1,4 @@
-const DATA = __DATA_JSON__;
+const DATA = prepareLayerProject(__DATA_JSON__);
 const CANONICAL_PROJECT_FIELDS = new Set([
   'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
   'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'overlay_track', 'waveform',
@@ -19,7 +19,7 @@ function validateProjectForLoad(project) {
 }
 validateProjectForLoad(DATA);
 DATA.workspace = waveformWorkspaceForProject(DATA);
-DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
+DATA.schema = DATA.schema || window.AsrEditorUtils.PROJECT_SCHEMA;
 let projectExtensionFields = getProjectExtensionFields(DATA);
 let FILENAME_BASE = __FILENAME_BASE_JSON__;
 let PROJECT_NAME = FILENAME_BASE;
@@ -671,6 +671,7 @@ function getSubtitleTimelineDuration() {
 }
 
 function getTrackNeighborBounds(segment, segments, movedSegments = new Set()) {
+  if (layerMode()) return { previousEnd: 0, nextStart: getSubtitleTimelineDuration() };
   const index = Array.isArray(segments) ? segments.indexOf(segment) : -1;
   if (index < 0) return null;
   let previousIndex = index - 1;
@@ -777,6 +778,7 @@ function sortExtensionTrackSegments(track) {
 }
 
 function reconcileExtensionTrack(track, preferredSegments = [], { sortSegments = true } = {}) {
+  if (layerMode()) return { changed: false, squeezedCount: 0, removedCount: 0, unboundCount: 0 };
   const empty = { changed: false, squeezedCount: 0, removedCount: 0, unboundCount: 0 };
   if (!track?.segments?.length) return empty;
 
@@ -1543,13 +1545,13 @@ function syncSegmentTimebase(segment, timebase, { preferFrames = false, minimumS
   return range;
 }
 
-function syncTrackTimebase(segments, timebase, { preferFrames = false } = {}) {
+function syncTrackTimebase(segments, timebase, { preferFrames = false, allowOverlap = false } = {}) {
   if (!Array.isArray(segments)) return;
   let previousEndFrame = 0;
   segments.forEach((segment) => {
     syncSegmentTimebase(segment, timebase, {
       preferFrames,
-      minimumStartFrame: timebase.unit === 'frames' ? previousEndFrame : 0,
+      minimumStartFrame: timebase.unit === 'frames' && !allowOverlap ? previousEndFrame : 0,
     });
     if (timebase.unit === 'frames' && Number.isInteger(segment?.end_frame)) {
       previousEndFrame = segment.end_frame;
@@ -1606,12 +1608,13 @@ function syncProjectTimebase(project = DATA, { preferFrames = false } = {}) {
   if (!project || typeof project !== 'object') return normalizeTimelineTimebase();
   const timebase = projectTimebase(project);
   project.timebase = { ...timebase };
-  syncTrackTimebase(project.segments, timebase, { preferFrames });
+  const trackOptions = { preferFrames, allowOverlap: layerCore.enabled(project) };
+  syncTrackTimebase(project.segments, timebase, trackOptions);
   const tracks = project.multi_subtitle?.tracks;
   if (Array.isArray(tracks)) {
-    tracks.forEach((track) => syncTrackTimebase(track?.segments, timebase, { preferFrames }));
+    tracks.forEach((track) => syncTrackTimebase(track?.segments, timebase, trackOptions));
   }
-  syncTrackTimebase(project.overlay_track?.segments, timebase, { preferFrames });
+  syncTrackTimebase(project.overlay_track?.segments, timebase, trackOptions);
   return timebase;
 }
 
@@ -1884,6 +1887,7 @@ function snapshotSegments() {
   // 必须处于同一条记录中，绑定/成对删除/联动拆分才能原子撤销。
   const snapshot = EDITOR_SETTINGS_UTILS.buildSegmentsHistorySnapshot(DATA.segments, getMultiSubtitleState(), getOverlayTrack());
   snapshot.msw = window.MSWProject.clone(DATA.msw ?? null);
+  if (layerMode()) snapshot.subtitle_layers = structuredClone(DATA.subtitle_layers);
   return snapshot;
 }
 function snapshotEditorSelection() {
@@ -2111,6 +2115,7 @@ function applyHistoryRecord(record) {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
   DATA.overlay_track = MULTI_SUBTITLE_UTILS.normalizeOverlayTrack(snapshot.overlay_track);
+  if (snapshot.subtitle_layers) DATA.subtitle_layers = structuredClone(snapshot.subtitle_layers);
   const retainedAssets = DATA.msw?.assets;
   const retainedRemoved = DATA.msw?.removed_asset_ids || [];
   const retainedProjectId = DATA.msw?.project_id;
@@ -3758,7 +3763,7 @@ function updateMultiSubtitleUi() {
   // 「允许字幕重叠」开关常驻工具栏；勾选状态跟随用户意图（overlay.enabled），
   // 不要求叠加轨已有字幕，否则空轨道时勾选会被立即弹回。
   if (overlayTrackSeparator) overlayTrackSeparator.hidden = DATA.segments.length === 0;
-  if (overlayTrackToggle) overlayTrackToggle.checked = getOverlayTrack()?.enabled === true;
+  if (overlayTrackToggle) overlayTrackToggle.checked = layerMode() ? layerAllowOverlap() : getOverlayTrack()?.enabled === true;
   const track = getActiveExtensionTrack();
   const hasTrack = Boolean(track && Array.isArray(track.segments));
   const enabled = hasTrack && getMultiSubtitleState().enabled === true;
@@ -3845,6 +3850,10 @@ function updateMultiSubtitleUi() {
 }
 
 overlayTrackToggle?.addEventListener('change', () => {
+  if (layerMode()) {
+    pushUndo('允许字幕重叠'); DATA.subtitle_layers.allow_overlap = overlayTrackToggle.checked;
+    renderAll(); return;
+  }
   const overlay = getOverlayTrack();
   if (!overlay) return;
   overlay.enabled = overlayTrackToggle.checked;
@@ -6674,6 +6683,7 @@ function alignSelectedExtensionSubtitleRanges() {
 
 // === 渲染 ===
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor } = {}) {
+  layerPrepareRender();
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
   (getMultiSubtitleState().tracks || []).forEach(track => MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(track.segments, track.id + '-segment'));
   // 其它编辑入口仍以毫秒修改工程对象；在重绘前把它们投影回当前时间基准，
@@ -6704,7 +6714,9 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const overlaySegments = overlayVisible ? getOverlayTrack().segments : [];
   const rows = [];
   if (!multiVisible || displayMode === 'main') {
-    DATA.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: buildCueEl(seg, i) }));
+    DATA.segments.forEach((seg, i) => {
+      if (!layerMode() || layerCore.visible(DATA, seg)) rows.push({ start: seg.start, order: 0, el: buildCueEl(seg, i) });
+    });
   } else if (displayMode === 'extension') {
     const track = getActiveExtensionTrack();
     track.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: buildExtensionCueEl(seg, i, track) }));
@@ -6713,6 +6725,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
     const displayRows = MULTI_SUBTITLE_UTILS.buildMultiDisplayRows(DATA.segments, track.segments, getMultiSubtitleState().bindings);
     displayRows.forEach((row) => {
       const mainSeg = row.mainIndex == null ? null : DATA.segments[row.mainIndex];
+      if (layerMode() && mainSeg && !layerCore.visible(DATA, mainSeg)) return;
       const extensionSeg = row.extensionIndex == null ? null : track.segments[row.extensionIndex];
       rows.push({
         start: mainSeg ? mainSeg.start : (extensionSeg ? extensionSeg.start : 0),
@@ -6909,8 +6922,8 @@ function commitCuePanelEdit() {
     minimumDurationMs,
     parsePanelTime(cuePanelDuration.value, oldEnd - oldStart),
   );
-  const previousEnd = idx > 0 ? segments[idx - 1].end : 0;
-  const nextStart = idx + 1 < segments.length ? segments[idx + 1].start : (waveformEditor?.durationMs || oldEnd);
+  const previousEnd = layerMode() ? 0 : idx > 0 ? segments[idx - 1].end : 0;
+  const nextStart = layerMode() ? Infinity : idx + 1 < segments.length ? segments[idx + 1].start : (waveformEditor?.durationMs || oldEnd);
   if (nextStart - previousEnd < minimumDurationMs) {
     flashHint('相邻字幕之间不足 100ms，无法调整当前字幕', 'warning');
     renderCurrentCuePanel();
@@ -6924,6 +6937,9 @@ function commitCuePanelEdit() {
     renderCurrentCuePanel();
     resetCuePanelEditState();
     return false;
+  }
+  if (layerMode() && !layerCanApplyRanges(target.kind, [{ index: idx, start: newStart, end: newEnd }], target.kind === 'main')) {
+    flashHint('此操作会新增重叠，请先启用“允许字幕重叠”', 'warning'); renderCurrentCuePanel(); return false;
   }
   const changed = nextText !== seg.text || newStart !== oldStart || newEnd !== oldEnd;
   if (!changed) {
@@ -7713,9 +7729,7 @@ function fmtShortCompact(ms) {
   // 帧模式省去为零的小时位（00:00:03:12 → 00:03:12）。
   if (timelineIsFrameMode()) {
     const text = fmtShort(ms);
-    const [start, arrow, end] = text.split(' ');
-    const trimHours = (code) => (code.startsWith('00:') ? code.slice(3) : code);
-    return `${trimHours(start)} ${arrow} ${trimHours(end)}`;
+    return text.startsWith('00:') ? text.slice(3) : text;
   }
   const s = Math.max(0, Math.round(ms / 1000));
   const m = Math.floor(s / 60);
@@ -10733,6 +10747,7 @@ function mergeContiguousIndices(sorted) {
 }
 
 function mergeSegments(idxs) {
+  if (layerMode()) return layerMergeSelected(idxs);
   if (idxs.length < 2) { flashHint('请选择至少两个同轨道字幕块！', 'invalid'); return; }
   const sorted = [...new Set(idxs)].sort((a, b) => a - b);
   if (sorted.length < 2) { flashHint('请选择至少两个同轨道字幕块！', 'invalid'); return; }
@@ -10760,6 +10775,7 @@ function mergeSegments(idxs) {
 // 因此这里保留独立轨的文本/时间合并语义；如果被合并段存在一对一绑定，
 // 合并后无法同时指向多个主字幕，旧绑定会被移除并提示用户重新绑定。
 function mergeExtensionSegments(idxs, track = getActiveExtensionTrack()) {
+  if (layerMode()) return layerMergeSelected(idxs, 'extension', track);
   if (!track || !idxs?.length) return false;
   const sorted = [...new Set(idxs)].sort((a, b) => a - b);
   if (sorted.length < 2) {
@@ -10923,8 +10939,8 @@ function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '',
     let low = -Infinity, high = Infinity;
     indices.forEach(index=>{
       const cue = working[index];
-      const previous = index > 0 && !chosen.has(index-1) ? working[index-1].end : 0;
-      const next = index+1 < working.length && !chosen.has(index+1) ? working[index+1].start : Infinity;
+      const previous = !layerMode() && index > 0 && !chosen.has(index-1) ? working[index-1].end : 0;
+      const next = !layerMode() && index+1 < working.length && !chosen.has(index+1) ? working[index+1].start : Infinity;
       low = Math.max(low, previous-cue.start);high = Math.min(high,next-cue.end);
     });
     if (linked && context.kind === 'extension') {
@@ -10965,6 +10981,9 @@ function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '',
     changedSegments.push(working[index]);
     changed += 1;
   });
+  if (layerMode() && !layerCanApplyRanges(context.kind, changedSegments.map(cue => ({ index: context.segments.findIndex(item => item.id === cue.id), start: cue.start, end: cue.end })), linked)) {
+    subtitleTimeStatus('此操作会新增重叠，请先启用“允许字幕重叠”', true); return { changed: 0, limited: indices.length };
+  }
   if (!changed) {subtitleTimeStatus(limited?'已到达相邻字幕或字词时间的边界':'字幕时间没有变化',Boolean(limited));return {changed:0,limited};}
   const key = `${context.kind}:${context.track?.id || ''}:${gestureKey}:${indices.map(i=>context.segments[i].id).join(',')}:${document.getElementById('subtitle-time-linked').checked}`;
   if (!gesture || !subtitleTimeGesture || subtitleTimeGesture.key !== key || performance.now()-subtitleTimeGesture.at > 450
@@ -11214,6 +11233,11 @@ function syncAutoMergeAbsorbFields() {
 // 一键处理整段工程：相邻间隔不超过 autoMergeGapMs 时按吸附方向拼接；
 // 过短的字幕（中文 < N 字 / 英文 < N 词）按吸收方向并入相邻字幕。
 function autoMergeSegments() {
+  if (layerMode()) {
+    if (selectedIdxs.size < 2 && selectedExtensionIdxs.size < 2) { flashHint('多层字幕请先选择同一角色的两条或更多字幕，再预览合并', 'warning'); return; }
+    if (selectedIdxs.size) return layerMergeSelected([...selectedIdxs]);
+    return layerMergeSelected([...selectedExtensionIdxs], 'extension', getActiveExtensionTrack());
+  }
   const plan = window.AsrEditorUtils.planAutoMerge(DATA.segments, {
     gapMs: EDITOR_SETTINGS.autoMergeGapMs,
     snapDirection: EDITOR_SETTINGS.autoMergeSnapDirection,
@@ -11361,6 +11385,10 @@ function splitGroupsAtCutPoints(cutSet, headField, refField, segments = DATA.seg
 //   当被删的是 ref：head 仍是 head，但 group 被切成两块——这是用户原话
 //     "删除中间的 3 → 4 变 head，5 改 ref→4"
 function deleteSegments(idxs, { recordHistory = true } = {}) {
+  if (layerMode()) {
+    const ids = idxs.map(index => DATA.segments[index]?.id); commitCuePanelEdit();
+    idxs = ids.map(id => DATA.segments.findIndex(cue => cue.id === id));
+  }
   if (!idxs.length) return;
   const sorted = [...new Set(idxs)].filter(index => Number.isInteger(index)
     && index >= 0 && index < DATA.segments.length).sort((a, b) => a - b);
@@ -11439,6 +11467,10 @@ function deleteSegments(idxs, { recordHistory = true } = {}) {
 }
 
 function deleteExtensionSegments(indices, track = getActiveExtensionTrack(), { recordHistory = true } = {}) {
+  if (layerMode()) {
+    const ids = (indices || []).map(index => track?.segments[index]?.id); commitCuePanelEdit();
+    indices = ids.map(id => track?.segments.findIndex(cue => cue.id === id));
+  }
   if (!track || !indices?.length) return;
   const sorted = [...new Set(indices)].filter((index) => Number.isInteger(index)
     && index >= 0 && index < track.segments.length).sort((a, b) => a - b);
@@ -11766,6 +11798,7 @@ function scrollCueIntoViewIfNeeded(cueEl, options) {
 
 function playbackCueListElement() {
   const timeMs = window.MSWE?.resolve('audio-timeline')?.currentTimeMs() ?? player.currentTime * 1000;
+  if (layerMode()) return layerPlaybackElement(timeMs);
   if (multiSubtitleVisible() && getMultiSubtitleState().display_mode === 'extension') {
     const segment = extensionSegmentAtTime(timeMs);
     return segment ? findCueListRenderAnchor({ kind: 'extension', segmentId: segment.id,
@@ -14768,6 +14801,7 @@ if (typeof ResizeObserver === 'function') {
 let suppressCueListAutoScroll = false;
 let waveformPlayheadDragging = false;
 function findActiveSegmentIndex(segments, tMs, skipDisabled = false) {
+  if (layerMode()) return layerPreferredActive(segments, tMs, !skipDisabled);
   if (!Array.isArray(segments) || !segments.length || !Number.isFinite(Number(tMs))) return -1;
   let lo = 0;
   let hi = segments.length;
@@ -14827,16 +14861,16 @@ function updateCueListPlayback(tMs = window.MSWE?.resolve('audio-timeline')?.cur
     const index = findActiveSegmentIndex(segments, tMs, true);
     return isSubtitlePreviewActive(segments?.[index], tMs) ? index : -1;
   };
-  const mainIndex = hitIndex(DATA.segments);
-  const extensionIndex = hitIndex(track?.segments);
-  const key = `${mainIndex}:${track?.id || ''}:${extensionIndex}`;
+  const mainHits = layerMode() ? layerActive(DATA.segments, tMs) : [hitIndex(DATA.segments)];
+  const extensionHits = layerMode() ? layerActive(track?.segments, tMs) : [hitIndex(track?.segments)];
+  const key = `${mainHits.join(',')}:${track?.id || ''}:${extensionHits.join(',')}`;
   if (key !== cueListPlaybackKey) {
   cueListPlaybackKey = key;
   const rows = new Set();
-  if (mainIndex >= 0) {
+  for (const mainIndex of mainHits.filter(index => index >= 0)) {
     container.querySelectorAll(`:scope > .cue[data-idx="${mainIndex}"]`).forEach(row => rows.add(row));
   }
-  if (extensionIndex >= 0) {
+  for (const extensionIndex of extensionHits.filter(index => index >= 0)) {
     container.querySelectorAll(`:scope > .cue[data-ext-idx="${extensionIndex}"]`).forEach(row => rows.add(row));
   }
   cueListPlaybackRows.forEach(row => { if (!rows.has(row)) row.classList.remove('playhead-hit'); });
@@ -16058,8 +16092,9 @@ function buildJson() {
   }
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const out = {
-    schema: window.AsrEditorUtils.PROJECT_SCHEMA,
+    schema: DATA.schema,
     ...projectExtensionFields,
+    ...(layerMode() ? { subtitle_layers: structuredClone(DATA.subtitle_layers) } : {}),
     media: DATA.media || '',
     language: DATA.language || '',
     model: DATA.model || '',
@@ -16182,11 +16217,13 @@ function normalizeProjectTimings(project, { repairSegmentRanges = true } = {}) {
   const normalize = repairSegmentRanges
     ? window.AsrEditorUtils.normalizeSegmentTimings
     : window.AsrEditorUtils.normalizeItemTimingRanges;
-  let fixed = normalize(project.segments);
+  const normalizeTrack = cues => layerCore.enabled(project) && repairSegmentRanges
+    ? (cues || []).reduce((sum, cue) => sum + normalize([cue]), 0) : normalize(cues);
+  let fixed = normalizeTrack(project.segments);
   const tracks = project.multi_subtitle?.tracks;
   if (Array.isArray(tracks)) {
     tracks.forEach((track) => {
-      fixed += normalize(track?.segments);
+      fixed += normalizeTrack(track?.segments);
     });
   }
   fixed += normalize(project.overlay_track?.segments);
@@ -17054,6 +17091,9 @@ function stickerExportBlocked(id) {
 }
 
 async function downloadFile(content, filename, mime, accept, { usePicker = true, detailed = false } = {}) {
+  if (layerMode() && /\.(mosp|json|html|srt|ass|otio|otioz|xml)$/i.test(filename)) {
+    layerBlockProduction(); return detailed ? { status: 'cancelled' } : false;
+  }
   const isSrt = filename.toLowerCase().endsWith('.srt');
   const fileContent = isSrt
     ? new Uint8Array([0xEF, 0xBB, 0xBF, ...new TextEncoder().encode(String(content))])
@@ -17387,6 +17427,7 @@ let projectSaveInFlight = false;
 const EDIT_SAVE_DEBOUNCE_MS = 400;
 
 function scheduleAutoSave() {
+  if (layerMode()) return;
   if (autoSaveTimer !== null) {
     window.clearInterval(autoSaveTimer);
     autoSaveTimer = null;
@@ -17439,6 +17480,7 @@ function hasUnsavedProjectChanges() {
 // 文字编辑先写入页面内存，避免每个按键都请求服务器；失焦后短暂防抖保存，
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
 function scheduleAutoSaveFlush() {
+  if (layerMode()) return;
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
     autoSaveFlushTimer = null;
@@ -18050,6 +18092,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
 }
 
 async function saveProjectToServer({ silent = false } = {}) {
+  if (layerBlockProduction(silent)) return false;
   if (!serverProjectSavingEnabled()) {
     // 服务器在跑但本会话尚未绑定工程文件（如拖入 SRT / 浏览器打开的 .mosp）：
     // Ctrl+S 自动转入「绑定保存」流程（选择保存位置 + 可选收集媒体），
@@ -18117,6 +18160,7 @@ async function saveProjectToServer({ silent = false } = {}) {
 
 // 把当前工程写回页面持有的浏览器文件句柄（新建工程 / 另存为选定的目标）。
 async function saveProjectToHandle({ silent = false } = {}) {
+  if (layerBlockProduction(silent)) return false;
   if (!projectFileHandle) return false;
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
   const savedGeneration = mswProjectGeneration;
@@ -18156,6 +18200,7 @@ async function saveCurrentProject({ silent = false } = {}) {
 // 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新），
 // 且后续 Ctrl(Cmd)+S / 自动保存都写回这个新选定的文件。
 async function saveProjectAsToFile() {
+  if (layerBlockProduction()) return false;
   const persistence = window.MSWE?.resolve('project-persistence');
   if (persistence?.available()) return persistence.saveAs();
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
@@ -19221,10 +19266,13 @@ function waveformWorkspaceForProject(project) {
 }
 
 function applyCanonicalProject(data, filename) {
+  data = prepareLayerProject(data);
+  if (data.subtitle_layers) DATA.subtitle_layers = structuredClone(data.subtitle_layers);
+  else delete DATA.subtitle_layers;
   deferredReapeaksEpoch += 1;
   const msw = validateProjectForLoad(data);
   projectExtensionFields = getProjectExtensionFields(data);
-  DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
+  DATA.schema = data.schema || window.AsrEditorUtils.PROJECT_SCHEMA;
   DATA.msw = msw;
   mswProjectGeneration += 1;
   currentCuePanelIdx = -1;
@@ -19303,6 +19351,9 @@ function applyCanonicalProject(data, filename) {
 
 // 本机服务负责新工程绑定与素材收集；便携页保留浏览器句柄后备路径。
 async function createProjectCheckpoint(project, suggestedName) {
+  if (layerDevelopmentRequested || layerCore.enabled(project)) {
+    applyCanonicalProject(project, suggestedName); detachServerProjectSaving(); return true;
+  }
   validateProjectForLoad(project);
   project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
   const persistence = window.MSWE?.resolve('project-persistence');
@@ -19417,7 +19468,8 @@ function isMawProject(data) {
   return data.segments.every((segment) => {
     if (!segment || typeof segment !== 'object'
         || !Number.isInteger(segment.start) || !Number.isInteger(segment.end)
-        || segment.start < 0 || segment.end <= segment.start || segment.start < previousEnd
+        || segment.start < 0 || segment.end <= segment.start
+        || (!layerCore.enabled(data) && segment.start < previousEnd)
         || typeof segment.text !== 'string' || !hasOptionalFramePair(segment)) return false;
     previousEnd = segment.end;
     if (!Array.isArray(segment.items)) return segment.items === undefined;
@@ -19815,7 +19867,7 @@ async function openProjectFile(file, options = {}) {
   try {
     const text = await readFileTextWithProgress(file);
     updateEditorLoading(60, `正在解析工程 ${file.name}…`);
-    const data = JSON.parse(text);
+    const data = prepareLayerProject(JSON.parse(text));
     try {
       validateProjectForLoad(data);
     } catch (error) {
@@ -19827,7 +19879,7 @@ async function openProjectFile(file, options = {}) {
       data.timebase = normalizeTimelineTimebase(data.timebase);
       MULTI_SUBTITLE_UTILS.normalizeMultiSubtitleProject(data);
       syncProjectTimebaseAndBindingOffsets(data, { preferFrames: data.timebase.unit === 'frames' });
-      window.AsrEditorUtils.normalizeSegmentTimings(data.segments);
+      if (!layerCore.enabled(data)) window.AsrEditorUtils.normalizeSegmentTimings(data.segments);
       window.AsrEditorUtils.repairGroupReferenceIndices(data.segments);
       normalizeProjectTimings(data);
       syncProjectTimebaseAndBindingOffsets(data, { preferFrames: false });
@@ -19844,7 +19896,7 @@ async function openProjectFile(file, options = {}) {
     // 服务器版：浏览器拿不到工程真实路径，但工程记录的媒体是绝对路径。
     // 先让服务器按它定位同目录同名工程并接管（自动加载媒体、允许 Ctrl(Cmd)+S 保存）；
     // 接管失败（媒体已移动 / 同名工程缺失 / 内容不一致）再回退为手动选择媒体。
-    if (expectedName && SERVER_CONFIG?.attachUrl) {
+    if (expectedName && SERVER_CONFIG?.attachUrl && !layerCore.enabled(data)) {
       updateEditorLoading(85, '正在连接本地编辑器服务器…');
       // Compare the imported file itself. Browser-only defaults (split modes,
       // optional track metadata and preview state) are not disk content changes.
@@ -22192,6 +22244,7 @@ function addExtensionRangeFromWaveform(
 }
 
 function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, track = 'main') {
+  if (layerMode()) return layerCreateCue(Math.min(requestedStart, requestedEnd), Math.max(requestedStart, requestedEnd), track);
   if (track === 'extension') {
     addExtensionRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY);
     return;
@@ -22328,6 +22381,7 @@ function addOverlayAtWaveformTime(timeMs, clickX, clickY) {
 }
 
 function addCueAtWaveformTime(timeMs, clickX, clickY) {
+  if (layerMode()) return layerCreateCue(timeMs, timeMs + 2000);
   const duration = waveformEditor?.durationMs || (Number.isFinite(player.duration) ? player.duration * 1000 : 0);
   if (!duration) { flashHint('媒体时长尚未加载', 'invalid'); return; }
   timeMs = timelineFrameAlignedMilliseconds(timeMs);
@@ -22355,6 +22409,7 @@ function addCueAtWaveformTime(timeMs, clickX, clickY) {
 }
 
 function addExtensionAtWaveformTime(timeMs, clickX, clickY, track = getActiveExtensionTrack()) {
+  if (layerMode()) return layerCreateCue(timeMs, timeMs + 2000, 'extension');
   const duration = waveformEditor?.durationMs || (Number.isFinite(player.duration) ? player.duration * 1000 : 0);
   if (!duration) { flashHint('媒体时长尚未加载', 'invalid'); return; }
   timeMs = timelineFrameAlignedMilliseconds(timeMs);
@@ -22514,7 +22569,7 @@ function syncBoundCueDrag(drag) {
   const boundEntries = drag.indices.map((index) => ({
     index,
     bound: getBoundDragTarget(index, sourceSegments),
-    sourceOriginal: drag.originals.get(index),
+    sourceOriginal: (layerMode() ? drag.cancelOriginals || drag.originals : drag.originals).get(index),
   })).filter((entry) => entry.bound && entry.sourceOriginal);
   const movedFollowerSegments = new Set(boundEntries.map((entry) => entry.bound.target));
   boundEntries.forEach(({ index, bound, sourceOriginal }) => {
@@ -22525,7 +22580,12 @@ function syncBoundCueDrag(drag) {
     const sourceOriginalEnd = Number(sourceOriginal.endMs ?? sourceOriginal.end);
     let nextStart = targetOriginal.start;
     let nextEnd = targetOriginal.end;
-    if (drag.kind === 'move') {
+    if (layerMode()) {
+      // Keyboard nudges can rebase a held pointer drag. Bound cues keep the
+      // same immutable start-of-gesture baseline as cancellation and undo.
+      nextStart = targetOriginal.start + source.start - sourceOriginalStart;
+      nextEnd = targetOriginal.end + source.end - sourceOriginalEnd;
+    } else if (drag.kind === 'move') {
       const delta = source.start - sourceOriginalStart;
       nextStart = targetOriginal.start + delta;
       nextEnd = targetOriginal.end + delta;
@@ -22614,14 +22674,14 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
       '创建副字幕',
       'N',
       () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack),
-      extensionIdx >= 0,
+      extensionIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
   } else {
     addItem(
       '创建字幕',
       'N',
       () => addCueAtWaveformTime(timeMs, clickX, clickY),
-      mainIdx >= 0,
+      mainIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
     // 叠加轨启用时提供「创建叠加字幕」：主字幕占用的时间点也能创建
     // （落叠加轨），与主字幕共存；同时间点已有叠加字幕时置灰。
@@ -22985,7 +23045,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     }
     addSep();
     // 组 4：叠加字幕轨迁移。叠加轨与多重字幕互相独立，转换随时可用。
-    addItem('转为叠加字幕', '', () => convertMainCuesToOverlay([idx]));
+    if (!layerMode()) addItem('转为叠加字幕', '', () => convertMainCuesToOverlay([idx]));
   } else {
     // 组 1：合并与批量文本操作
     addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
@@ -23009,7 +23069,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     );
     addItem('翻译所选字幕', '', openSelectedCueTranslation);
     addItem('复制到素材库', '', copySelectedSubtitlesToAssets);
-    addItem(`转为叠加字幕 ${targetIdxs.length} 条`, '', () => convertMainCuesToOverlay(targetIdxs));
+    if (!layerMode()) addItem(`转为叠加字幕 ${targetIdxs.length} 条`, '', () => convertMainCuesToOverlay(targetIdxs));
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
@@ -23437,6 +23497,13 @@ function initWaveformEditor() {
     return;
   }
   waveformEditor = window.AsrWaveform.create({
+    getSubtitleLayersEnabled: layerMode,
+    onSubtitleLayersChanged: layerInvalidate,
+    canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
+    onCancelCueDrag: drag => { if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); layerInvalidate(); } },
+    onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
+    getAllowSubtitleOverlap: layerAllowOverlap,
+    isSubtitleVisible: (cue, role) => !layerMode() || layerCore.visible(DATA, cue, role),
     getMediaDurationMs: () => Number(DATA.media_metadata?.duration_ms) || 0,
     getCueSourceStatus: segment => DATA.msw?.asr_stale_subtitles?.[getActiveExtensionTrack()?.id]?.[segment.id]
       ? (window.MSWE_I18N?.translateText?.('需复核') || '需复核') : '',
@@ -23605,10 +23672,17 @@ function initWaveformEditor() {
     getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
     audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
     toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
-    onBeginEdit: (label) => pushUndo(label),
+    onBeginEdit: (label) => {
+      if (layerMode() && waveformEditor?.drag) {
+        layerPendingDragHistory ||= EDITOR_SETTINGS_UTILS.buildHistoryRecord('segments', label, snapshotSegments(), snapshotEditorSelection());
+      } else pushUndo(label, { captureView: layerMode() });
+    },
     syncBoundCueDrag,
     onLayoutUndo: (label, snapshot) => pushLayoutUndo(label, snapshot),
     onCommitEdit: (idxs, kind, track = 'main', independent = false, details = null) => {
+      if (layerMode() && layerPendingDragHistory) {
+        editorHistory.push(layerPendingDragHistory); layerPendingDragHistory = null; updateUndoRedoButtons();
+      }
       let linkedChanged = false;
       if (kind === 'resize-boundary-pointer' && track === 'main' && !independent) {
         const targetIndex = Number.isInteger(details?.targetIndex) ? details.targetIndex : idxs[0];
@@ -24575,7 +24649,9 @@ function pasteCuesFromClipboard() {
   // 字幕在波形中完全重叠，看起来就像"粘贴没生效"。
   const minCopyStart = Math.min(...[...copies, ...(cueClipboardExtensionSegments || []), ...cueClipboardOverlaySegments].map(segment=>Number(segment.start)||0));
   let pasteAnchor;
-  if (hasLoadedMedia() && Number.isFinite(player.currentTime) && player.currentTime > 0) {
+  if (layerMode()) {
+    pasteAnchor = Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs() ?? player.currentTime * 1000) || 0;
+  } else if (hasLoadedMedia() && Number.isFinite(player.currentTime) && player.currentTime > 0) {
     pasteAnchor = Math.round(player.currentTime * 1000);
   } else if (selectedOverlayIdxs.size) {
     pasteAnchor = Math.max(...[...selectedOverlayIdxs].map(idx=>Number(getOverlayTrack()?.segments[idx]?.end)||0));
@@ -24616,6 +24692,14 @@ function pasteCuesFromClipboard() {
   });
   if (overlayCopies.some(copy=>(getOverlayTrack()?.segments||[]).some(cue=>cue.start<copy.end&&cue.end>copy.start))) {
     flashHint('粘贴位置与叠加轨已有字幕重叠，请移动播放头后重试','invalid'); return;
+  }
+  if (layerMode() && !layerAllowOverlap()) {
+    const ext = getActiveExtensionTrack()?.segments || [];
+    const extCopies = (cueClipboardExtensionSegments || []).map(cue => ({ start: cue.start + shift, end: cue.end + shift }));
+    if (copies.some(cue => !layerRangeAllowed(DATA.segments, null, cue.start, cue.end))
+        || extCopies.some(cue => !layerRangeAllowed(ext, null, cue.start, cue.end))) {
+      flashHint('粘贴位置有字幕，请先启用“允许字幕重叠”', 'warning'); return;
+    }
   }
   pushUndo('粘贴字幕');
   for (const copy of overlayCopies) {
@@ -25434,6 +25518,7 @@ function processingSelection() {
   };
 }
 function applyAsrJob(job, media) {
+  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
   commitProcessingEdits();
   const plan = window.MSWAsr.plan(DATA, media, job, { splitGroups: splitGroupsAtCutPoints });
   if (!plan.applied) return plan;
@@ -25462,6 +25547,7 @@ function applyAsrJob(job, media) {
 }
 
 function applyTranslationJob(job) {
+  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
   commitProcessingEdits();
   const extension = window.MSWProject.ensure(DATA);
   if (extension.project_id !== job.project_id || job.status !== 'succeeded' || !job.snapshot || !job.result) {
@@ -25503,6 +25589,7 @@ function applyTranslationJob(job) {
   return { ...plan, complete: plan.conflicts.length === 0 };
 }
 function applyProcessingResults(jobs, target, strategy, media) {
+  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
   commitProcessingEdits();
   const plan = window.MSWResultApply.plan(DATA, media, jobs, target, strategy);
   if (plan.duplicate) return {duplicate:true};
@@ -25719,6 +25806,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return batch.assets.length;
   },
   insertSubtitleAssets: (ids, anchor, targets) => {
+    if (layerMode()) throw Error('多层字幕的素材回插将在 D 阶段开放');
     commitProcessingEdits();
     const plan = window.MSWAssets.insert(DATA, ids, Math.round(anchor), targets, cue => {
       syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames:false}); return cue;
@@ -25787,6 +25875,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => {
+    if (layerMode()) throw Error('多层字幕的正式导出将在 E–G 阶段开放');
     commitProcessingEdits(); const project = JSON.parse(buildJson());
     if (project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));

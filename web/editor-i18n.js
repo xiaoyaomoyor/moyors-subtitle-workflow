@@ -9,6 +9,15 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '多层字幕 · 开发预览 ⓘ': 'Subtitle layers · Development preview ⓘ',
+    '显示旧叠加组': 'Show legacy overlay group',
+    'A–C 开发预览：请用工程副本体验；保存、处理与导出将在后续阶段开放。': 'A–C development preview: use a project copy. Saving, processing and export will be enabled in later stages.',
+    '多层字幕为 A–C 开发预览；保存、处理回填与导出将在后续阶段开放。请用工程副本体验。': 'A–C development preview: saving, result application and export are not available yet. Use a project copy.',
+    '此操作会新增字幕重叠，请先启用“允许字幕重叠”': 'Enable Allow overlapping subtitles before creating a new overlap.',
+    '此操作会新增重叠，请先启用“允许字幕重叠”': 'Enable Allow overlapping subtitles before creating a new overlap.',
+    '字幕已变化，请重新选择合并内容': 'Subtitles changed. Select the merge targets again.',
+    '按开始时间拼接，只合并所选条目。新字幕保留首条颜色和样式；旧绑定解除，原配音来源保留并待复核。': 'Merge only the selected entries in start-time order. Keep the first entry’s color and style; remove old bindings and retain voice sources for review.',
+
     '播放时自动跟随': 'Follow subtitles during playback',
     '恢复跟随': 'Resume following',
     '手动浏览已暂停跟随；点击定位当前字幕并恢复': 'Following paused for manual browsing; locate the current subtitle and resume',

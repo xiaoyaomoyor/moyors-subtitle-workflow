@@ -1,0 +1,253 @@
+[
+  {
+    "name": "empty",
+    "project": {
+      "segments": []
+    }
+  },
+  {
+    "name": "single-main",
+    "project": {
+      "segments": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 1000,
+          "text": "one",
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "legacy-no-id",
+    "project": {
+      "segments": [
+        {
+          "start": 0,
+          "end": 1000,
+          "text": "old"
+        }
+      ]
+    }
+  },
+  {
+    "name": "bound-bilingual",
+    "project": {
+      "segments": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 5000,
+          "text": "A",
+          "items": []
+        },
+        {
+          "id": "b",
+          "start": 2000,
+          "end": 4000,
+          "text": "B",
+          "items": []
+        }
+      ],
+      "multi_subtitle": {
+        "schema": "moy.asr.multi_subtitle.v1",
+        "enabled": true,
+        "display_mode": "both",
+        "tracks": [
+          {
+            "id": "sub",
+            "role": "extension",
+            "segments": [
+              {
+                "id": "a",
+                "start": 0,
+                "end": 5000,
+                "text": "A translation",
+                "items": []
+              },
+              {
+                "id": "b",
+                "start": 2000,
+                "end": 4000,
+                "text": "B translation",
+                "items": []
+              }
+            ]
+          }
+        ],
+        "bindings": [
+          {
+            "id": "pair-a",
+            "track_id": "sub",
+            "main_segment_ids": [
+              "a"
+            ],
+            "extension_segment_ids": [
+              "a"
+            ]
+          },
+          {
+            "id": "pair-b",
+            "track_id": "sub",
+            "main_segment_ids": [
+              "b"
+            ],
+            "extension_segment_ids": [
+              "b"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "overlay-visible",
+    "project": {
+      "segments": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 10000,
+          "text": "main",
+          "items": []
+        }
+      ],
+      "overlay_track": {
+        "enabled": true,
+        "segments": [
+          {
+            "id": "other",
+            "start": 1000,
+            "end": 2000,
+            "text": "overlay",
+            "items": []
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "overlay-hidden",
+    "project": {
+      "segments": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 10000,
+          "text": "main",
+          "items": []
+        }
+      ],
+      "overlay_track": {
+        "enabled": false,
+        "segments": [
+          {
+            "id": "other",
+            "start": 1000,
+            "end": 2000,
+            "text": "overlay",
+            "items": []
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "collision-hidden-references",
+    "project": {
+      "segments": [
+        {
+          "id": "same",
+          "start": 0,
+          "end": 10000,
+          "text": "main",
+          "items": []
+        }
+      ],
+      "overlay_track": {
+        "enabled": false,
+        "segments": [
+          {
+            "id": "same",
+            "start": 500,
+            "end": 5000,
+            "text": "overlay head",
+            "items": [],
+            "color": {
+              "name": "purple",
+              "value": "#aa44cc",
+              "start": 500,
+              "end": 9000
+            },
+            "sticker": {
+              "file": "synthetic.png",
+              "start": 500,
+              "end": 9000
+            }
+          },
+          {
+            "id": "tail",
+            "start": 5000,
+            "end": 9000,
+            "text": "overlay tail",
+            "items": [],
+            "color_ref": {
+              "headIdx": 0,
+              "name": "purple"
+            },
+            "sticker_ref": {
+              "headIdx": 0
+            }
+          }
+        ]
+      },
+      "msw": {
+        "schema": "msw.editor.v1",
+        "project_id": "synthetic",
+        "assets": [
+          {
+            "source_ref": {
+              "id": "same",
+              "track_kind": "overlay",
+              "start": 500,
+              "end": 5000,
+              "text": "overlay source remains text"
+            }
+          }
+        ],
+        "processing_results": [
+          {
+            "edits": [
+              {
+                "text": "overlay source remains text"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "disabled-cues",
+    "project": {
+      "segments": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 1000,
+          "text": "disabled",
+          "items": [],
+          "disabled": true
+        },
+        {
+          "id": "b",
+          "start": 0,
+          "end": 500,
+          "text": "active",
+          "items": []
+        }
+      ]
+    }
+  }
+]

@@ -4991,7 +4991,7 @@
 
 .msw-asset-row.has-review .msw-asset-text { padding-right:18px; }
 .msw-asset-review { position:absolute; top:7px; right:7px; display:flex; color:var(--accent); cursor:help; }
-.msw-asset-review::before { content:""; width:12px; height:12px; border-radius:50%; background:linear-gradient(135deg, currentColor calc(50% - 0.8px), transparent calc(50% - 0.8px) calc(50% + 0.8px), currentColor calc(50% + 0.8px)); }
+.msw-asset-review::before { content:""; width:9px; height:9px; border-radius:50%; background:linear-gradient(135deg, currentColor calc(50% - 0.6px), transparent calc(50% - 0.6px) calc(50% + 0.6px), currentColor calc(50% + 0.6px)); }
 .msw-asset-review:focus-visible { outline:1px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 /* TTS call UI: one surface for peer sections, no nested voice-card surfaces. */
@@ -5034,6 +5034,21 @@
 #tts-panel .msw-tts-icon-button[data-icon="start"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 4 12 8-12 8Z' fill='none' stroke='black' stroke-width='1.7' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 #tts-panel .msw-tts-icon-button[data-icon="stop"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='5' width='14' height='14' rx='2' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E"); }
 #tts-panel .msw-tts-icon-button[data-icon="settings"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.13,5.07 10.26,2.15 13.74,2.15 14.87,5.07 17.74,3.81 20.19,6.26 18.93,9.13 21.85,10.26 21.85,13.74 18.93,14.87 20.19,17.74 17.74,20.19 14.87,18.93 13.74,21.85 10.26,21.85 9.13,18.93 6.26,20.19 3.81,17.74 5.07,14.87 2.15,13.74 2.15,10.26 5.07,9.13 3.81,6.26 6.26,3.81Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/g%3E%3C/svg%3E"); }
+
+.msw-layer-merge {
+  width: min(520px, calc(100vw - 48px));
+  color: var(--text-primary); background: var(--bg-panel);
+  border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+}
+.msw-layer-merge::backdrop { background: #0008; }
+.msw-layer-merge h3 { margin: 0 0 12px; }
+.msw-layer-merge p { font-size: 13px; line-height: 1.6; }
+.msw-layer-merge pre {
+  max-height: 200px; overflow: auto; white-space: pre-wrap; font: inherit;
+  background: var(--card-bg); border-radius: 8px; padding: 12px;
+}
+.msw-layer-actions { display: flex; justify-content: flex-end; gap: 8px; }
+#subtitle-layer-development { color: var(--accent); font-size: 12px; }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -6141,6 +6156,10 @@
 .waveform-cue-block.waveform-overlay-block.overlay-cover-mode {
   bottom: 7px;
 }
+
+/* Main/sub roles are bands; each overlapping cue owns a derived layer. */
+.unified-subtitle-layers .waveform-row.multi-subtitle-row::before,
+.unified-subtitle-layers .waveform-row.multi-subtitle-row::after { display: none; }
 </style>
 </head>
 <body>
@@ -6835,6 +6854,7 @@
   </header>
   <div class="gap-remove-panel-body settings-modal-body cue-list-settings-body">
 <div id="cue-list-settings-panel" role="group" aria-label="字幕列表设置">
+          <label class="settings-panel-item" hidden><input type="checkbox" id="subtitle-legacy-visible">显示旧叠加组</label>
           <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">卡片显示</span>
             <label class="settings-panel-item subtitle-preview-setting-row">
@@ -8414,6 +8434,7 @@
       <span class="info" title="当前播放头时间">当前 <b id="now">00:00.000</b></span>
       <span class="info" title="当前选中的字幕数量">已选 <b id="sel-count">0</b></span>
       <span class="toolbar-spacer"></span>
+      <span id="subtitle-layer-development" hidden title="A–C 开发预览：请用工程副本体验；保存、处理与导出将在后续阶段开放。">多层字幕 · 开发预览 ⓘ</span>
       <span class="waveform-status" id="waveform-status">等待波形数据</span>
       <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数 · 源音频试听增益" hidden></span>
     </div>
@@ -10631,7 +10652,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   const PROJECT_SCHEMA = 'moy.asr.project.v1';
   function supportsProjectSchema(project) {
     return Boolean(project && typeof project === 'object' && !Array.isArray(project)
-      && (!Object.prototype.hasOwnProperty.call(project, 'schema') || project.schema === PROJECT_SCHEMA));
+      && (!Object.prototype.hasOwnProperty.call(project, 'schema') || [PROJECT_SCHEMA, 'msw.project.v2'].includes(project.schema)));
   }
 
   const SUBTITLE_FONT_FAMILY_DISPLAY_NAMES_ZH = Object.freeze({
@@ -17601,6 +17622,208 @@ export default MawDynamicCaptions;
   }
 })();
 
+// Unified subtitle identities and derived layout. No DOM, media or persistence.
+(function (global) {
+  'use strict';
+  const SCHEMA = 'msw.project.v2';
+  const LAYOUT_SCHEMA = 'msw.subtitle_layers.v1';
+  const LEGACY_SCHEMA = 'moy.asr.project.v1';
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const key = ref => JSON.stringify([ref.role, ref.track_id || '', ref.cue_id]);
+  const enabled = project => project?.schema === SCHEMA;
+  const validRange = cue => Number.isSafeInteger(cue?.start) && Number.isSafeInteger(cue?.end)
+    && cue.start >= 0 && cue.end > cue.start;
+  const intersects = (a, b) => a.start < b.end && b.start < a.end;
+  function ensureIds(cues, prefix) {
+    const used = new Set();
+    for (const cue of cues) {
+      if (!cue || typeof cue !== 'object') throw Error('Invalid subtitle');
+      if (cue.id) {
+        if (used.has(cue.id)) throw Error('Duplicate subtitle ID: ' + cue.id);
+        used.add(cue.id);
+      }
+    }
+    cues.forEach((cue, index) => {
+      if (cue.id) return;
+      let id = `${prefix}-${String(index + 1).padStart(3, '0')}`, suffix = 2;
+      while (used.has(id)) id = `${prefix}-${String(index + 1).padStart(3, '0')}-${suffix++}`;
+      cue.id = id; used.add(id);
+    });
+  }
+  function materializeReferences(cues) {
+    const snapshots = cues.map(cue => {
+      const result = {};
+      for (const type of ['color', 'sticker']) {
+        const ref = cue[type + '_ref'];
+        const value = cue[type] || (ref && cues[ref.headIdx]?.[type]);
+        if (ref && !value) throw Error('Dangling ' + type + ' reference');
+        if (value) result[type] = { ...clone(value), start: cue.start, end: cue.end };
+      }
+      return result;
+    });
+    cues.forEach((cue, i) => {
+      for (const type of ['color', 'sticker']) {
+        if (snapshots[i][type]) cue[type] = snapshots[i][type];
+        delete cue[type + '_ref'];
+      }
+    });
+  }
+  function migrate(input) {
+    if (!input || !Array.isArray(input.segments)) throw Error('Invalid subtitle project');
+    if (Object.hasOwn(input, 'schema') && ![SCHEMA, LEGACY_SCHEMA].includes(input.schema)) throw Error('Unsupported project schema');
+    const project = clone(input);
+    if (enabled(project)) { validate(project); return project; }
+    const main = project.segments, overlay = project.overlay_track || {};
+    const extra = overlay.segments || [];
+    ensureIds(main, 'main'); ensureIds(extra, 'overlay');
+    materializeReferences(main); materializeReferences(extra);
+    const used = new Set(main.map(cue => cue.id)), remap = new Map();
+    extra.forEach((cue, i) => {
+      const old = cue.id;
+      let next = old, suffix = 2;
+      const base = `legacy-overlay-${i + 1}`;
+      if (used.has(next)) next = base;
+      while (used.has(next)) next = `${base}-${suffix++}`;
+      used.add(next); remap.set(old, next); cue.id = next;
+    });
+    // Only identity-bearing references are rewritten. Text, recipe snapshots
+    // and opaque result revisions must never undergo arbitrary replacement.
+    function rewrite(value) {
+      if (!value || typeof value !== 'object') return;
+      if (value.track_kind === 'overlay' || value.role === 'overlay') {
+        for (const field of ['id', 'cue_id', 'segment_id']) if (remap.has(value[field])) value[field] = remap.get(value[field]);
+        if (value.track_kind === 'overlay') delete value.track_kind;
+        if (value.role === 'overlay') value.role = 'main';
+      }
+      for (const child of Object.values(value)) rewrite(child);
+    }
+    rewrite(project.msw);
+    main.push(...extra);
+    main.sort((a, b) => a.start - b.start);
+    for (const track of project.multi_subtitle?.tracks || []) {
+      ensureIds(track.segments || [], `${track.id}-segment`);
+      materializeReferences(track.segments || []);
+      track.segments?.sort((a, b) => a.start - b.start);
+    }
+    project.subtitle_layers = {
+      schema: LAYOUT_SCHEMA,
+      allow_overlap: input.overlay_track ? overlay.enabled === true : true,
+      legacy_overlay: { visible: overlay.enabled === true, cue_ids: extra.map(cue => cue.id) },
+    };
+    delete project.overlay_track;
+    project.schema = SCHEMA;
+    validate(project);
+    return project;
+  }
+  function validate(project) {
+    const metadata = project?.subtitle_layers, legacy = metadata?.legacy_overlay;
+    if (!enabled(project) || metadata?.schema !== LAYOUT_SCHEMA || typeof metadata.allow_overlap !== 'boolean'
+        || !legacy || typeof legacy.visible !== 'boolean' || !Array.isArray(legacy.cue_ids)) throw Error('Invalid subtitle layer metadata');
+    if (project.overlay_track && (!Array.isArray(project.overlay_track.segments) || project.overlay_track.segments.length)) throw Error('v2 subtitles must use main or extension roles');
+    for (const track of tracks(project)) {
+      const used = new Set();
+      for (const cue of track.segments) {
+        if (!validRange(cue) || typeof cue.id !== 'string' || !cue.id.trim() || cue.id.length > 160 || used.has(cue.id)) throw Error('Invalid subtitle identity or time range');
+        used.add(cue.id);
+      }
+    }
+    const ids = new Set(project.segments.map(cue => cue.id));
+    if (new Set(legacy.cue_ids).size !== legacy.cue_ids.length || legacy.cue_ids.some(id => !ids.has(id))) throw Error('Invalid legacy visibility references');
+    return true;
+  }
+  function tracks(project) {
+    return [{ role: 'main', track_id: null, segments: project.segments || [] },
+      ...(project.multi_subtitle?.tracks || []).map(track => ({ role: 'extension', track_id: track.id, segments: track.segments || [] }))];
+  }
+  function visible(project, cue, role = 'main') {
+    const legacy = project.subtitle_layers?.legacy_overlay;
+    return !(role === 'main' && legacy?.visible === false && legacy.cue_ids?.includes(cue.id));
+  }
+  function records(project, { includeHidden = false, includeDisabled = true } = {}) {
+    return tracks(project).flatMap(track => track.segments.flatMap((cue, index) =>
+      (!includeHidden && !visible(project, cue, track.role)) || (!includeDisabled && cue.disabled) ? []
+        : [{ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index }]));
+  }
+  function resolve(project, ref) {
+    const track = tracks(project).find(t => t.role === ref.role && (t.track_id || null) === (ref.track_id || null));
+    const index = track?.segments.findIndex(cue => cue.id === ref.cue_id) ?? -1;
+    return index < 0 ? null : { ...track, cue_id: ref.cue_id, cue: track.segments[index], index };
+  }
+  class IntervalIndex {
+    constructor(cues, predicate = () => true) {
+      this.entries = cues.map((cue, index) => ({ cue, index })).filter(row => validRange(row.cue) && predicate(row.cue))
+        .sort((a, b) => a.cue.start - b.cue.start || a.index - b.index);
+      this.maxEnd = [];
+      const build = (node, lo, hi) => {
+        if (lo >= hi) return -Infinity;
+        if (hi - lo === 1) return this.maxEnd[node] = this.entries[lo].cue.end;
+        const mid = (lo + hi) >> 1;
+        return this.maxEnd[node] = Math.max(build(node * 2, lo, mid), build(node * 2 + 1, mid, hi));
+      };
+      build(1, 0, this.entries.length);
+    }
+    range(start, end, { includeDisabled = true } = {}) {
+      const found = [];
+      const visit = (node, lo, hi) => {
+        if (lo >= hi || this.maxEnd[node] <= start || this.entries[lo].cue.start >= end) return;
+        if (hi - lo === 1) { if (includeDisabled || !this.entries[lo].cue.disabled) found.push(this.entries[lo].index); return; }
+        const mid = (lo + hi) >> 1;
+        visit(node * 2, lo, mid); visit(node * 2 + 1, mid, hi);
+      };
+      if (Number.isFinite(start) && end > start) visit(1, 0, this.entries.length);
+      return found;
+    }
+    at(time, options = {}) { return this.range(time, Math.floor(time) + 1, options); }
+  }
+  function pack(cues, previous = new Map(), predicate = () => true) {
+    const index = new IntervalIndex(cues, predicate), ends = [], lanes = new Map();
+    for (const { cue } of index.entries) {
+      let lane = previous.get(cue.id);
+      if (!Number.isInteger(lane) || lane < 0 || lane > ends.length || (ends[lane] ?? -Infinity) > cue.start) {
+        lane = ends.findIndex(end => end <= cue.start);
+        if (lane < 0) lane = ends.length;
+      }
+      ends[lane] = cue.end; lanes.set(cue.id, lane);
+    }
+    return { index, lanes, count: Math.max(1, ends.length) };
+  }
+  function applyRanges(project, changes, { allowOverlap = project.subtitle_layers?.allow_overlap !== false, dryRun = false } = {}) {
+    const pending = changes.map(change => ({ ...change, target: resolve(project, change.ref) }));
+    if (pending.some(change => !change.target || !validRange(change))) return { ok: false, reason: 'invalid-target' };
+    if (new Set(pending.map(change => key(change.ref))).size !== pending.length) return { ok: false, reason: 'duplicate-target' };
+    if (!allowOverlap) {
+      const next = new Map(pending.map(change => [key(change.ref), change]));
+      for (const change of pending) for (const row of records(project)) {
+        if (row.role !== change.ref.role || row.track_id !== (change.ref.track_id || null) || row.cue_id === change.ref.cue_id) continue;
+        const other = next.get(key(row)) || row.cue;
+        if (intersects(change, other) && !intersects(change.target.cue, row.cue)) return { ok: false, reason: 'overlap-disabled' };
+      }
+    }
+    if (dryRun) return { ok: true };
+    for (const change of pending) {
+      const cue = change.target.cue, delta = change.start - cue.start;
+      const moved = change.end - cue.end === delta;
+      if (moved) for (const item of cue.items || []) { item.start += delta; item.end += delta; }
+      else if (cue.items?.some(item => item.start < change.start || item.end > change.end)) cue.items = [];
+      cue.start = change.start; cue.end = change.end; cue._dirty = true;
+      delete cue.start_frame; delete cue.end_frame;
+    }
+    return { ok: true };
+  }
+  function sortTrack(cues) {
+    const old = [...cues];
+    cues.sort((a, b) => a.start - b.start);
+    const indexes = new Map(cues.map((cue, index) => [cue, index]));
+    for (const cue of cues) for (const field of ['color_ref', 'sticker_ref']) {
+      if (cue[field] && Number.isInteger(cue[field].headIdx)) cue[field].headIdx = indexes.get(old[cue[field].headIdx]);
+    }
+  }
+  const api = Object.freeze({ SCHEMA, LAYOUT_SCHEMA, LEGACY_SCHEMA, key, enabled, validRange, intersects,
+    migrate, validate, tracks, records, visible, resolve, IntervalIndex, pack, applyRanges, sortTrack, materializeReferences });
+  global.MSWSubtitleLayers = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 // MSW project namespace: preserve extensions through every editor entry point.
 (function (global) {
   'use strict';
@@ -19025,6 +19248,15 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '多层字幕 · 开发预览 ⓘ': 'Subtitle layers · Development preview ⓘ',
+    '显示旧叠加组': 'Show legacy overlay group',
+    'A–C 开发预览：请用工程副本体验；保存、处理与导出将在后续阶段开放。': 'A–C development preview: use a project copy. Saving, processing and export will be enabled in later stages.',
+    '多层字幕为 A–C 开发预览；保存、处理回填与导出将在后续阶段开放。请用工程副本体验。': 'A–C development preview: saving, result application and export are not available yet. Use a project copy.',
+    '此操作会新增字幕重叠，请先启用“允许字幕重叠”': 'Enable Allow overlapping subtitles before creating a new overlap.',
+    '此操作会新增重叠，请先启用“允许字幕重叠”': 'Enable Allow overlapping subtitles before creating a new overlap.',
+    '字幕已变化，请重新选择合并内容': 'Subtitles changed. Select the merge targets again.',
+    '按开始时间拼接，只合并所选条目。新字幕保留首条颜色和样式；旧绑定解除，原配音来源保留并待复核。': 'Merge only the selected entries in start-time order. Keep the first entry’s color and style; remove old bindings and retain voice sources for review.',
+
     '播放时自动跟随': 'Follow subtitles during playback',
     '恢复跟随': 'Resume following',
     '手动浏览已暂停跟随；点击定位当前字幕并恢复': 'Following paused for manual browsing; locate the current subtitle and resume',
@@ -25460,7 +25692,122 @@ export default MawDynamicCaptions;
       return Math.max(this.contentDurationMs, this.sourceDurationMs ? 0 : 20000, this.currentTimeMs());
     }
 
+    subtitleLayersEnabled() { return this.options.getSubtitleLayersEnabled?.() === true; }
+
+    invalidateSubtitleLayouts() {
+      this.subtitleLayouts = null;
+    }
+
+    subtitleLayout(role = 'main') {
+      if (!this.subtitleLayouts) this.subtitleLayouts = new Map();
+      if (!this.subtitleLayouts.has(role)) {
+        this.previousSubtitleLanes ||= new Map();
+        const segments = this.options.getSegments(role) || [];
+        const layout = window.MSWSubtitleLayers.pack(segments, this.previousSubtitleLanes.get(role),
+          cue => this.options.isSubtitleVisible?.(cue, role) !== false);
+        this.subtitleLayouts.set(role, layout);
+        this.previousSubtitleLanes.set(role, layout.lanes);
+      }
+      return this.subtitleLayouts.get(role);
+    }
+
+    subtitleLaneCount() {
+      return this.subtitleLayout('main').count + (this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0);
+    }
+
+    cueIndices(segments, start, end, role) {
+      if (this.subtitleLayersEnabled()) return this.subtitleLayout(role).index.range(start, end);
+      const indexes = [];
+      for (let i = firstCueIndexOverlapping(segments, start); i < segments.length && segments[i].start < end; i++) indexes.push(i);
+      return indexes;
+    }
+
+    applyLayerCueLayout(block, segment) {
+      const role = block.dataset.track || 'main';
+      const layout = this.subtitleLayout(role);
+      const lane = layout.lanes.get(segment.id) || 0;
+      const extra = role === 'main' && this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0;
+      const pitch = 38;
+      block.dataset.cueId = segment.id;
+      block.dataset.subtitleLayer = String(lane);
+      block.style.height = '32px';
+      block.style.top = 'auto';
+      block.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(extra + lane) * pitch}px)`;
+      if (this.settings.hoverDetails) {
+        const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
+        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '))
+          + ` · ${role === 'main' ? '主字幕' : '副字幕'} · 第 ${lane + 1} 层`;
+      }
+    }
+
+    updateLayerPlayback(now) {
+      const active = new Map(['main', 'extension'].map(role => [role,
+        new Set(this.subtitleLayout(role).index.at(now, { includeDisabled: false }))]));
+      const key = [...active].map(([role, hits]) => role + ':' + [...hits].join(',')).join('|');
+      if (key === this.layerPlaybackKey) return;
+      this.layerPlaybackKey = key;
+      this.content.querySelectorAll('.waveform-cue-block').forEach(block => {
+        const role = block.dataset.track || 'main';
+        const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
+        block.classList.toggle('active', active.get(role)?.has(index) === true);
+      });
+    }
+
+    applyLayerDrag(drag, rawDelta, beforeApply = null) {
+      const clock = resolveTiming(drag.timing);
+      const segments = this.options.getSegments(drag.track);
+      // Capture identities once; array order is normalized only after commit.
+      drag.cueIds ||= new Map(drag.indices.map(index => [index, segments[index]?.id]));
+      if (drag.indices.some(index => segments[index]?.id !== drag.cueIds.get(index))) return false;
+      const delta = clock.round(rawDelta);
+      const ranges = drag.indices.map(index => {
+        const original = drag.originals.get(index);
+        let start = original.start, end = original.end;
+        if (drag.kind === 'move') { start += delta; end += delta; }
+        else if (drag.kind === 'resize-boundary') {
+          if (index === drag.indices[0]) end += delta; else start += delta;
+        } else if (drag.kind === 'resize-left' || drag.edge === 'start') start += delta;
+        else end += delta;
+        return { index, start, end, original };
+      });
+      if (drag.kind === 'move') {
+        const correction = Math.max(0, -Math.min(...ranges.map(range => range.start)));
+        ranges.forEach(range => { range.start += correction; range.end += correction; });
+      } else if (drag.kind === 'resize-boundary') {
+        const left = ranges[0], right = ranges[1];
+        const boundary = clamp(left.end, left.start + clock.minDuration, right.end - clock.minDuration);
+        left.end = boundary; right.start = boundary;
+      } else ranges.forEach(range => {
+        range.start = Math.max(0, Math.min(range.start, range.end - clock.minDuration));
+        range.end = Math.max(range.start + clock.minDuration, range.end);
+      });
+      if (!this.options.getAllowSubtitleOverlap?.()) {
+        const selected = new Set(drag.indices);
+        for (const range of ranges) for (let i = 0; i < segments.length; i++) {
+          if (selected.has(i)) continue;
+          const other = segments[i];
+          const next = { start: clock.toMs(range.start), end: clock.toMs(range.end) };
+          const original = { start: range.original.startMs, end: range.original.endMs };
+          if (window.MSWSubtitleLayers.intersects(next, other) && !window.MSWSubtitleLayers.intersects(original, other)) return false;
+        }
+      }
+      if (ranges.every(range => clock.getStart(segments[range.index]) === range.start && clock.getEnd(segments[range.index]) === range.end)) return false;
+      if (this.options.canApplySubtitleRanges?.(drag.track, ranges.map(range => ({ index: range.index, start: clock.toMs(range.start), end: clock.toMs(range.end) }))) === false) return false;
+      beforeApply?.();
+      for (const range of ranges) {
+        const cue = segments[range.index];
+        clock.setStart(cue, range.start); clock.setEnd(cue, range.end);
+        cue.items = remapItems(range.original.items, range.original.start, range.original.end, range.start, range.end, clock);
+      }
+      this.invalidateSubtitleLayouts();
+      return true;
+    }
+
     get effectiveRowHeight() {
+      if (this.subtitleLayersEnabled()) {
+        const audioSpace = (this.options.getAudioTrackCount?.() || 0) > 0 ? 78 : 0;
+        return Math.max(this.settings.rowHeight, this.subtitleLaneCount() * 38 + 54 + audioSpace);
+      }
       return Math.max(this.settings.rowHeight, this.audioLayer?.minimumRowHeight() || 0);
     }
 
@@ -25757,12 +26104,21 @@ export default MawDynamicCaptions;
             group.appendChild(head);
           }
         }
+        if (this.subtitleLayersEnabled()) {
+          for (const [role, selector] of [['main', '.v-main'], ['extension', '.v-ext']]) {
+            const head = group.querySelector(selector), block = row.querySelector(`.waveform-cue-block[data-track="${role}"]`);
+            if (head && block) { head.style.top = `${block.offsetTop}px`; head.style.bottom = 'auto'; head.style.height = '32px'; }
+            else head?.remove();
+          }
+        }
         fragment.appendChild(group);
       }
       column.replaceChildren(fragment);
     }
 
     render() {
+      this.invalidateSubtitleLayouts();
+      this.pane?.classList.toggle('unified-subtitle-layers', this.subtitleLayersEnabled());
       this.refreshTimelineDuration();
       // 布局拖动中（分隔线/尺寸柄）：宽度逐帧变化，头部这两步都是强制样式/
       // 布局读取（getComputedStyle + 每行 offsetTop），会把每帧布局翻倍造成
@@ -25835,6 +26191,7 @@ export default MawDynamicCaptions;
     }
 
     renderSegments() {
+      if (this.subtitleLayersEnabled()) { this.layerPlaybackKey = null; this.render(); return; }
       this.refreshTimelineDuration();
       if (this.settings.mode === 'basic') this.renderBasic();
       else this.renderMultiVisible(true);
@@ -25846,7 +26203,7 @@ export default MawDynamicCaptions;
       this.basicWindowStartMs = clamp(this.basicWindowStartMs, 0, maxStart);
       const endMs = Math.min(this.durationMs, this.basicWindowStartMs + windowMs);
       this.content.replaceChildren();
-      this.content.style.height = '100%';
+      this.content.style.height = this.subtitleLayersEnabled() ? `${Math.max(this.scroll.clientHeight, this.effectiveRowHeight)}px` : '100%';
       const row = this.createRow(this.basicWindowStartMs, endMs, -1, true);
       this.content.appendChild(row);
       this.renderedRows = [row];
@@ -26202,7 +26559,7 @@ export default MawDynamicCaptions;
       const now = this.currentTimeMs();
       const activeMainIndex = findActiveCueIndex(segments, now);
       const firstMainIndex = firstCueIndexOverlapping(segments, startMs);
-      for (let index = firstMainIndex; index < segments.length; index += 1) {
+      for (const index of this.cueIndices(segments, startMs, endMs, 'main')) {
         const segment = segments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
@@ -26216,7 +26573,7 @@ export default MawDynamicCaptions;
         if (selected.has(index)) block.classList.add('selected');
         if (segment.disabled) block.classList.add('disabled');
         // 空隙中沿用的当前字幕不点亮 active 轮廓（仅视觉；逻辑语义不变）。
-        if (index === activeMainIndex && isActiveCueVisualHit(segments, index, now)) block.classList.add('active');
+        if ((this.subtitleLayersEnabled() ? !segment.disabled && segment.start <= now && now < segment.end : index === activeMainIndex && isActiveCueVisualHit(segments, index, now))) block.classList.add('active');
 
         const label = document.createElement('span');
         label.className = 'waveform-cue-label';
@@ -26323,7 +26680,7 @@ export default MawDynamicCaptions;
       const extensionBindingMarkers = bindingMarkerTargets.extension;
       const activeExtensionIndex = findActiveCueIndex(extensionSegments, now);
       const firstExtensionIndex = firstCueIndexOverlapping(extensionSegments, startMs);
-      for (let index = firstExtensionIndex; index < extensionSegments.length; index += 1) {
+      for (const index of this.cueIndices(extensionSegments, startMs, endMs, 'extension')) {
         const segment = extensionSegments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
@@ -26334,11 +26691,11 @@ export default MawDynamicCaptions;
           block.dataset.extIdx = String(index);
           block.dataset.start = String(segment.start);
           block.dataset.end = String(segment.end);
-          block.style.setProperty('--cue-color', '#7a9fc5');
+          block.style.setProperty('--cue-color', this.subtitleLayersEnabled() ? colorForSegment(segment, extensionSegments) : '#7a9fc5');
         if (extensionSelected.has(index)) block.classList.add('selected');
         if (segment.disabled) block.classList.add('disabled');
         // 空隙中沿用的当前字幕不点亮 active 轮廓（仅视觉；逻辑语义不变）。
-        if (index === activeExtensionIndex && isActiveCueVisualHit(extensionSegments, index, now)) block.classList.add('active');
+        if ((this.subtitleLayersEnabled() ? !segment.disabled && segment.start <= now && now < segment.end : index === activeExtensionIndex && isActiveCueVisualHit(extensionSegments, index, now))) block.classList.add('active');
         const label = document.createElement('span');
         label.className = 'waveform-cue-label';
         label.textContent = String(segment.text || '').replace(/\s+/g, ' ');
@@ -26393,6 +26750,7 @@ export default MawDynamicCaptions;
     }
 
     layoutBlock(block, segment, startMs, endMs, ownerRow = null) {
+      if (this.subtitleLayersEnabled()) this.applyLayerCueLayout(block, segment);
       const duration = Math.max(1, endMs - startMs);
       const visibleStart = Math.max(startMs, segment.start);
       const visibleEnd = Math.min(endMs, segment.end);
@@ -26439,6 +26797,11 @@ export default MawDynamicCaptions;
     }
 
     refreshCueOverlay() {
+      this.invalidateSubtitleLayouts(); this.layerPlaybackKey = null;
+      if (this.subtitleLayersEnabled()) {
+        const row = this.content.querySelector('.waveform-row');
+        if (row && Math.abs(row.offsetHeight - this.effectiveRowHeight) > 2) { this.render(); return; }
+      }
       this.refreshTimelineDuration();
       if (this.audioLayer && this.audioGeometry !== `${this.audioLayer.minimumRowHeight()}:${this.durationMs}`) {
         this.refreshAudioTimeline(); return;
@@ -26459,6 +26822,14 @@ export default MawDynamicCaptions;
     }
 
     refreshCueBlocks() {
+      if (this.subtitleLayersEnabled()) {
+        this.invalidateSubtitleLayouts(); this.layerPlaybackKey = null;
+        this.content.querySelectorAll('.waveform-row').forEach(row => {
+          row.querySelectorAll('.waveform-cue-block').forEach(block => block.remove());
+          this.appendCueBlocks(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
+        });
+        this.paintCueEdgeHover(); this.positionPlayheads(); return;
+      }
       const segments = this.options.getSegments('main');
       const extensionSegments = this.options.getExtensionSegments?.() || [];
       const overlaySegments = this.options.getSegments('overlay') || [];
@@ -26922,6 +27293,11 @@ export default MawDynamicCaptions;
       const block = hit?.closest?.('.waveform-cue-block');
       if (block?.dataset.track === 'extension') return 'extension';
       if (!hitRow.classList.contains('multi-subtitle-row')) return 'main';
+      if (this.subtitleLayersEnabled()) {
+        const audio = parseFloat(hitRow.style.getPropertyValue('--audio-lane-space')) || 0;
+        const fromBottom = hitRow.getBoundingClientRect().bottom - clientY - audio - 7;
+        return fromBottom >= 0 && fromBottom < this.subtitleLayout('extension').count * 38 ? 'extension' : 'main';
+      }
       const rowRect = hitRow.getBoundingClientRect();
       const rowStyle = getComputedStyle(hitRow);
       const parsePx = (value, fallback) => {
@@ -26950,6 +27326,7 @@ export default MawDynamicCaptions;
     }
 
     isCueTimeOccupied(timeMs, track = 'main') {
+      if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return false;
       const time = Number(timeMs);
       if (!Number.isFinite(time)) return false;
       const segments = this.options.getSegments?.(track) || [];
@@ -26964,6 +27341,7 @@ export default MawDynamicCaptions;
     // 创建字幕的拖动不能跨过已有字幕；沿拖动方向把当前端点夹到遇到的
     // 第一个字幕边界。这样预览和最终提交使用同一组无重叠时间范围。
     clampCreateCueTime(anchorMs, requestedMs, track = 'main') {
+      if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return requestedMs;
       if (!Number.isFinite(anchorMs) || !Number.isFinite(requestedMs) || anchorMs === requestedMs) {
         return requestedMs;
       }
@@ -27013,6 +27391,9 @@ export default MawDynamicCaptions;
         cleanup();
         // 叠加轨启用时，在主轨字幕上按住拖动 = 从按下位置在叠加轨创建字幕：
         // 复用空白处的创建拖动（锚点为按下时间），叠加轨同轨占用仍拒绝。
+        if (row && this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) {
+          this.beginCreateCueDrag(event, row, track); return;
+        }
         if (track === 'main' && row && this.options.getOverlayCreateEnabled?.() === true) {
           this.beginCreateCueDrag(event, row, 'overlay');
           return;
@@ -27440,7 +27821,10 @@ export default MawDynamicCaptions;
         ? [...liveSelection].sort((a, b) => a - b) : [index];
       const segments = this.options.getSegments(track);
       const timing = this.cueTiming();
-      const dragIndices = kind === 'resize-boundary' ? [boundaryIndex, boundaryIndex + 1] : indices;
+      const dragIndices = kind === 'resize-boundary'
+        ? this.subtitleLayersEnabled() ? edgeHit.edges.slice().sort((a, b) => (a.side === 'right' ? -1 : 1)).map(edge => edge.index)
+          : [boundaryIndex, boundaryIndex + 1] : indices;
+      if (this.subtitleLayersEnabled() && kind === 'resize-boundary') boundaryIndex = dragIndices[0];
       const originals = new Map(dragIndices.map((idx) => [idx, snapshotTiming(segments[idx], timing)]));
       const cancelIndices = new Set(dragIndices);
       if (kind === 'move') {
@@ -27460,6 +27844,7 @@ export default MawDynamicCaptions;
         pointerId: event.pointerId,
         startClientX: event.clientX,
         currentClientX: event.clientX,
+        currentClientY: event.clientY,
         rangeMs: geometry.endMs - geometry.startMs,
         rowWidth: geometry.width,
         msPerPixel,
@@ -27522,7 +27907,11 @@ export default MawDynamicCaptions;
       const distance = Math.abs(event.clientX - (side === 'left' ? rect.left : rect.right));
       const handle = block.querySelector(`.waveform-cue-handle.${side}`);
       if (!handle || distance > 7) return null;
-      const otherIndex = index + (side === 'left' ? -1 : 1);
+      const otherIndex = this.subtitleLayersEnabled()
+        ? segments.findIndex((cue, candidate) => candidate !== index
+          && this.subtitleLayout(track).lanes.get(cue.id) === this.subtitleLayout(track).lanes.get(segment.id)
+          && (side === 'left' ? cue.end === segment.start : cue.start === segment.end))
+        : index + (side === 'left' ? -1 : 1);
       const other = segments[otherIndex];
       const otherSide = side === 'left' ? 'right' : 'left';
       const otherBlock = [...this.content.querySelectorAll(`.waveform-cue-block[data-track="${track}"][data-${attr}="${otherIndex}"]`)]
@@ -27579,6 +27968,7 @@ export default MawDynamicCaptions;
         pointerId: event.pointerId,
         startClientX: event.clientX,
         currentClientX: event.clientX,
+        currentClientY: event.clientY,
         rangeMs: geometry.endMs - geometry.startMs,
         rowWidth: geometry.width,
         geometry,
@@ -27670,7 +28060,17 @@ export default MawDynamicCaptions;
         .forEach((block) => block.classList.add('dragging'));
     }
 
+    applyLayerKeyboardStep(indices, track, kind, deltaMs) {
+      const segments = this.options.getSegments(track), timing = this.cueTiming();
+      if (!indices.length) return false;
+      const drag = { indices, index: indices[0], track, kind, timing, originals: new Map(indices.map(i => [i, snapshotTiming(segments[i], timing)])) };
+      if (!this.applyLayerDrag(drag, timing.fromMs(deltaMs), () => this.options.onBeginEdit?.('调整字幕时间'))) return false;
+      this.options.syncBoundCueDrag?.(drag);
+      this.options.onCommitEdit?.(indices, kind, track); this.refreshCueOverlay(); return true;
+    }
+
     adjustSelectedByKeyboard(deltaMs, altKey = false, track = 'main') {
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep(normalizedIndices(this.options.getSegments(track), this.options.getSelection?.(track)), track, 'move', deltaMs);
       const segments = this.options.getSegments(track);
       const indices = normalizedIndices(segments, this.options.getSelection?.(track));
       if (!indices.length) return false;
@@ -27707,6 +28107,7 @@ export default MawDynamicCaptions;
       const indices = normalizedIndices(segments, this.options.getSelection?.(track));
       if (!indices.length || (edge !== 'start' && edge !== 'end')) return false;
       const index = edge === 'start' ? indices[0] : indices[indices.length - 1];
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep([index], track, edge === 'start' ? 'resize-left' : 'resize-right', deltaMs);
       const timing = this.cueTiming();
       const options = {
         sticky: !this.isAdjacentCueAdjustmentIndependent(altKey),
@@ -27752,6 +28153,7 @@ export default MawDynamicCaptions;
       const current = edge === 'start' ? timing.getStart(segment) : timing.getEnd(segment);
       const requested = timing.fromMs(timeMs);
       if (!Number.isFinite(current) || !Number.isFinite(requested)) return false;
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep([index], track, edge === 'start' ? 'resize-left' : 'resize-right', timing.toMs(requested - current));
 
       const previous = segments[index - 1];
       const next = segments[index + 1];
@@ -27802,13 +28204,20 @@ export default MawDynamicCaptions;
       return true;
     }
 
+    layerNeighborIndex(index, direction, track) {
+      const segments = this.options.getSegments(track), layout = this.subtitleLayout(track);
+      const lane = layout.lanes.get(segments[index]?.id);
+      for (let i = index + direction; i >= 0 && i < segments.length; i += direction) if (layout.lanes.get(segments[i].id) === lane) return i;
+      return -1;
+    }
+
     snapSelectedCueBoundaryByKeyboard(direction, track = 'main') {
       const segments = this.options.getSegments(track);
       const indices = normalizedIndices(segments, this.options.getSelection?.(track));
       if (!indices.length || (direction !== -1 && direction !== 1)) return false;
 
       const index = direction < 0 ? indices[0] : indices[indices.length - 1];
-      const neighborIndex = direction < 0 ? index - 1 : index + 1;
+      const neighborIndex = this.subtitleLayersEnabled() ? this.layerNeighborIndex(index, direction, track) : direction < 0 ? index - 1 : index + 1;
       const segment = segments[index];
       const neighbor = segments[neighborIndex];
       // 与按住字幕块时的 Shift+A/D 一样，边界不存在或无法贴合时也消费按键，
@@ -27826,6 +28235,7 @@ export default MawDynamicCaptions;
       if (!Number.isFinite(current) || !Number.isFinite(target)
           || target < lower || target > upper || target === current) return true;
 
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep([index], track, edge === 'start' ? 'resize-left' : 'resize-right', timing.toMs(target - current));
       const result = applyBoundaryStep(
         segments,
         index,
@@ -27848,6 +28258,18 @@ export default MawDynamicCaptions;
       const segments = this.options.getSegments(drag.track || 'main');
       const timing = drag.timing || this.cueTiming();
       const durationMs = Number(this.durationMs) > 0 ? timing.fromMs(this.durationMs) : Infinity;
+      if (this.subtitleLayersEnabled()) {
+        const currentOriginals = drag.originals;
+        this.captureCueDragOriginals(drag);
+        if (this.applyLayerDrag(drag, timing.fromMs(deltaMs), () => { if (!drag.started) { this.options.onBeginEdit?.('调整字幕时间'); drag.started = true; } })) {
+          this.options.syncBoundCueDrag?.(drag); drag.changed = true;
+          this.captureCueDragOriginals(drag);
+          drag.startPointerTime = timing.fromMs(this.timeMsAtPoint(drag.currentClientX, drag.currentClientY)
+            ?? this.timeFromPointerUnbounded({ clientX: drag.currentClientX }, drag.row, drag.geometry));
+          this.scheduleRefreshCueBlocks();
+        } else drag.originals = currentOriginals;
+        return true;
+      }
       let plan;
       let apply;
       if (drag.kind === 'move') {
@@ -27912,7 +28334,7 @@ export default MawDynamicCaptions;
       if (!indices.length) return true;
 
       const index = direction < 0 ? indices[0] : indices[indices.length - 1];
-      const neighborIndex = direction < 0 ? index - 1 : index + 1;
+      const neighborIndex = this.subtitleLayersEnabled() ? this.layerNeighborIndex(index, direction, drag.track || 'main') : direction < 0 ? index - 1 : index + 1;
       const segment = segments[index];
       const neighbor = segments[neighborIndex];
       // 与普通 A/D 一样，按住字幕块时即使已经到达边界也要消费按键，
@@ -27930,6 +28352,10 @@ export default MawDynamicCaptions;
       if (!Number.isFinite(current) || !Number.isFinite(target)
           || target < lower || target > upper || target === current) return true;
 
+      if (this.subtitleLayersEnabled() && this.options.canApplySubtitleRanges?.(drag.track, [{
+        index, start: edge === 'start' ? timing.toMs(target) : segment.start,
+        end: edge === 'end' ? timing.toMs(target) : segment.end,
+      }]) === false) return true;
       if (!drag.started) {
         drag.started = true;
         this.options.onBeginEdit?.('贴近字幕边界');
@@ -27947,10 +28373,17 @@ export default MawDynamicCaptions;
       );
       drag.commitIndices.add(index);
       drag.changed = true;
+      if (this.subtitleLayersEnabled()) {
+        this.options.syncBoundCueDrag?.(drag);
+        this.invalidateSubtitleLayouts();
+      }
       this.captureCueDragOriginals(drag);
       drag.startClientX = drag.currentClientX;
       drag.startPointerTime = timing.fromMs(
-        this.timeFromPointer({ clientX: drag.currentClientX }, drag.row, drag.geometry),
+        this.subtitleLayersEnabled()
+          ? this.timeMsAtPoint(drag.currentClientX, drag.currentClientY)
+            ?? this.timeFromPointerUnbounded({ clientX: drag.currentClientX }, drag.row, drag.geometry)
+          : this.timeFromPointer({ clientX: drag.currentClientX }, drag.row, drag.geometry),
       );
       this.scheduleRefreshCueBlocks();
       return true;
@@ -27977,6 +28410,7 @@ export default MawDynamicCaptions;
         .forEach((block) => block.classList.remove('dragging'));
       this.pane.classList.remove('cue-drag-active');
       this.drag = null;
+      this.options.onCancelCueDrag?.(drag);
       this.refreshCueOverlay();
       this.setStatus('已取消字幕调整');
       return true;
@@ -28371,8 +28805,11 @@ export default MawDynamicCaptions;
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.preventDefault();
       drag.currentClientX = event.clientX;
+      drag.currentClientY = event.clientY;
       const timing = drag.timing || this.cueTiming();
-      const pointerMs = this.timeFromPointer(event, drag.row, drag.geometry);
+      const pointerMs = this.subtitleLayersEnabled()
+        ? this.timeMsAtPoint(event.clientX, event.clientY) ?? this.timeFromPointerUnbounded(event, drag.row, drag.geometry)
+        : this.timeFromPointer(event, drag.row, drag.geometry);
       const currentPointerTime = timing.fromMs(pointerMs);
       const deltaTime = currentPointerTime - drag.startPointerTime;
       const hasMeaningfulMovement = timing.unit === 'frames'
@@ -28395,11 +28832,14 @@ export default MawDynamicCaptions;
       // Shift+拖动是精确自由放置（邻居挡路时换轨而不是吸附），全程禁用吸附，
       // 否则刚拖出重叠区就会被吸回邻居边界。
       const disableSnap = drag.independent === true || drag.shiftOverlay === true;
-      if (drag.kind === 'move') this.applyMoveDrag(drag, deltaTime, disableSnap, drag.allowSqueeze);
+      if (this.subtitleLayersEnabled()) {
+        if (!this.applyLayerDrag(drag, deltaTime)) return;
+      } else if (drag.kind === 'move') this.applyMoveDrag(drag, deltaTime, disableSnap, drag.allowSqueeze);
       else if (drag.kind === 'resize-boundary') this.applyBoundaryDrag(drag, deltaTime, drag.independent);
       else if (drag.kind === 'resize-boundary-independent') this.applyIndependentBoundaryDrag(drag, deltaTime);
       else this.applyResizeDrag(drag, deltaTime, drag.independent);
       this.options.syncBoundCueDrag?.(drag);
+      if (this.subtitleLayersEnabled()) { this.invalidateSubtitleLayouts(); this.options.onSubtitleLayersChanged?.(); }
       drag.changed = true;
       this.scheduleRefreshCueBlocks();
     }
@@ -28707,10 +29147,12 @@ export default MawDynamicCaptions;
           if (!segment) return;
           restoreTiming(segment, original, drag.timing || this.cueTiming());
         });
+        this.options.onCancelCueDrag?.(drag);
         this.refreshCueOverlay();
         return;
       }
       if (!drag.changed) {
+        this.options.onDiscardCueEdit?.();
         // Shift+点击（无拖动位移）：按下时未做范围选择，这里补上，
         // 保持既有 Shift+click 范围选语义；不进入跳转/启停逻辑。
         if (drag.shiftRangeSelect) {
@@ -28740,6 +29182,8 @@ export default MawDynamicCaptions;
       const now = this.currentTimeMs();
       this.audioLayer?.updatePlayhead(now);
       const segments = this.options.getSegments('main');
+      if (this.subtitleLayersEnabled()) this.updateLayerPlayback(now);
+      else {
       const activeIndex = findActiveCueIndex(segments, now);
       const activeVisualHit = activeIndex >= 0 && isActiveCueVisualHit(segments, activeIndex, now);
       if (activeIndex !== this.activeIndex || activeVisualHit !== this.activeVisualHit) {
@@ -28774,6 +29218,8 @@ export default MawDynamicCaptions;
           .forEach((block) => {
             block.classList.toggle('active', Number(block.dataset.overlayIdx) === activeOverlayIndex && activeOverlayVisualHit);
           });
+      }
+
       }
 
       if (allowFollow && this.settings.mode === 'basic' && !this.navigationRestoring) {
@@ -28955,7 +29401,205 @@ export default MawDynamicCaptions;
   }
 })();
 
-const DATA = {"segments": [], "media": "", "language": "", "model": "", "preview": {"subtitle": {"x": 0.1, "y": 0.76, "width": 0.8, "height": 0.16, "speaker_labels": {"mapping_enabled": false, "enabled": true}}}};
+// A–C development adapter. Production writing/processing is enabled in D–G.
+// Keep legacy numeric UI handles at the boundary; identity survives all sorting.
+const layerCore = window.MSWSubtitleLayers;
+const layerDevelopmentRequested = new URLSearchParams(location.search).get('subtitle-layers') === '1';
+let layerIndexes = new WeakMap();
+let layerPendingDragHistory = null;
+function prepareLayerProject(project) {
+  return layerDevelopmentRequested || layerCore.enabled(project) ? layerCore.migrate(project) : project;
+}
+function layerMode() { return layerCore.enabled(DATA); }
+function layerAllowOverlap() { return DATA.subtitle_layers?.allow_overlap !== false; }
+function layerInvalidate() { layerIndexes = new WeakMap(); }
+function layerIndex(segments) {
+  if (!Array.isArray(segments)) return new layerCore.IntervalIndex([]);
+  if (!layerIndexes.has(segments)) layerIndexes.set(segments, new layerCore.IntervalIndex(segments,
+    cue => segments !== DATA.segments || layerCore.visible(DATA, cue)));
+  return layerIndexes.get(segments);
+}
+function layerActive(segments, time, includeDisabled = false) {
+  return layerIndex(segments).at(Number(time), { includeDisabled });
+}
+function layerPreferredActive(segments, time, includeDisabled = false) {
+  const active = layerActive(segments, time, includeDisabled);
+  const target = getCurrentCuePanelTarget();
+  const own = target && (target.kind === 'main' ? DATA.segments : target.track?.segments);
+  return own === segments && active.includes(target.index) ? target.index : active[0] ?? -1;
+}
+function layerPrepareRender() {
+  if (!layerMode()) return;
+  const liveIds = new Set(DATA.segments.map(cue => cue.id));
+  DATA.subtitle_layers.legacy_overlay.cue_ids = DATA.subtitle_layers.legacy_overlay.cue_ids.filter(id => liveIds.has(id));
+  const snapshot = snapshotEditorSelection();
+  layerCore.tracks(DATA).forEach(track => layerCore.sortTrack(track.segments));
+  const restore = (set, cues, ids) => {
+    set.clear(); const wanted = new Set(ids);
+    cues.forEach((cue, index) => { if (wanted.has(cue.id)) set.add(index); });
+  };
+  restore(selectedIdxs, DATA.segments, snapshot.mainIds);
+  restore(selectedExtensionIdxs, getActiveExtensionTrack()?.segments || [], snapshot.extensionIds);
+  lastClickedIdx = DATA.segments.findIndex(cue => cue.id === snapshot.lastMainId);
+  lastClickedExtensionIdx = (getActiveExtensionTrack()?.segments || []).findIndex(cue => cue.id === snapshot.lastExtensionId);
+  const panel = snapshot.panelKind === 'extension' ? getExtensionTrack(snapshot.panelTrackId)?.segments : DATA.segments;
+  currentCuePanelIdx = panel?.findIndex(cue => cue.id === snapshot.panelId) ?? -1;
+  layerInvalidate();
+  layerSyncControls();
+}
+function layerSyncControls() {
+  document.documentElement.classList.toggle('msw-layer-development', layerMode());
+  document.querySelectorAll('option[value="overlay"]').forEach(option => {
+    option.hidden = layerMode();
+    if (layerMode() && option.selected) option.parentElement.value = 'main';
+  });
+  const badge = document.getElementById('subtitle-layer-development');
+  if (badge) badge.hidden = !layerMode();
+  const control = document.getElementById('subtitle-legacy-visible');
+  if (control) {
+    control.closest('label').hidden = !layerMode() || !DATA.subtitle_layers.legacy_overlay.cue_ids.length;
+    control.checked = DATA.subtitle_layers?.legacy_overlay?.visible === true;
+  }
+}
+function layerBlockProduction(silent = false) {
+  if (!layerMode()) return false;
+  if (!silent) flashHint('多层字幕为 A–C 开发预览；保存、处理回填与导出将在后续阶段开放。请用工程副本体验。', 'warning');
+  return true;
+}
+function layerRangeAllowed(segments, cue, start, end) {
+  return layerAllowOverlap() || !segments.some(other => other !== cue
+    && layerCore.intersects({ start, end }, other) && (!cue || !layerCore.intersects(cue, other)));
+}
+function layerCanApplyRanges(role, ranges, linked = true) {
+  if (!layerMode() || layerAllowOverlap()) return true;
+  const track = role === 'extension' ? getActiveExtensionTrack() : null;
+  const cues = track?.segments || DATA.segments;
+  const changes = ranges.map(range => ({ start: Math.round(range.start), end: Math.round(range.end),
+    ref: { role, track_id: track?.id || null, cue_id: cues[range.index]?.id } }));
+  if (linked && multiSubtitleVisible()) for (const range of ranges) {
+    const source = cues[range.index];
+    const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), source?.id, role, track?.id);
+    if (!source || !binding) continue;
+    const followerRole = role === 'main' ? 'extension' : 'main';
+    const followerTrack = role === 'main' ? getExtensionTrack(binding.track_id) : null;
+    const id = role === 'main' ? binding.extension_segment_ids?.[0] : binding.main_segment_ids?.[0];
+    const follower = (followerTrack?.segments || DATA.segments).find(cue => cue.id === id);
+    if (follower) changes.push({ ref: { role: followerRole, track_id: followerTrack?.id || null, cue_id: id },
+      start: Math.max(0, Math.round(follower.start + range.start - source.start)),
+      end: Math.round(follower.end + range.end - source.end) });
+  }
+  return layerCore.applyRanges(DATA, changes, { dryRun: true }).ok;
+}
+function layerCreateCue(start, end, role = 'main') {
+  const track = role === 'extension' ? getActiveExtensionTrack() : null;
+  const cues = role === 'extension' ? track?.segments : DATA.segments;
+  if (!cues) return false;
+  const lo = Math.min(start, end), hi = Math.max(start, end);
+  start = Math.max(0, timelineFrameAlignedMilliseconds(lo));
+  end = timelineFrameAlignedMilliseconds(Math.max(start + timelineMinimumDurationMs(), hi));
+  if (!Number.isFinite(end) || !layerRangeAllowed(cues, null, start, end)) {
+    flashHint('此操作会新增字幕重叠，请先启用“允许字幕重叠”', 'warning'); return false;
+  }
+  commitProcessingEdits(); pushUndo('创建字幕', { captureView: true });
+  const cue = { id: window.MSWProject.id('cue'), start, end, text: '', items: [], _dirty: true };
+  cues.push(cue);
+  clearSelection({ silent: true, commitCuePanel: false });
+  (role === 'extension' ? selectedExtensionIdxs : selectedIdxs).add(cues.length - 1);
+  projectImportDirty = true; renderAll();
+  const index = cues.indexOf(cue);
+  if (track) setCurrentCuePanelExtensionIndex(index, track); else setCurrentCuePanelIndex(index);
+  cuePanelText.focus(); return true;
+}
+function layerPlaybackElement(time) {
+  const target = getCurrentCuePanelTarget();
+  if (target && isSubtitlePreviewActive(target.segment, time)) {
+    const attr = target.kind === 'extension' ? 'ext-idx' : 'idx';
+    const row = container.querySelector(`.cue[data-${attr}="${target.index}"]`);
+    if (row && !row.hidden && !row.classList.contains('hidden')) return row;
+  }
+  const mode = multiSubtitleVisible() ? getMultiSubtitleState().display_mode : 'main';
+  const candidates = [];
+  if (mode !== 'extension') for (const index of layerActive(DATA.segments, time)) candidates.push({ index, role: 'main', start: DATA.segments[index].start });
+  const extensions = getActiveExtensionTrack()?.segments || [];
+  if (multiSubtitleVisible() && mode !== 'main') for (const index of layerActive(extensions, time)) candidates.push({ index, role: 'extension', start: extensions[index].start });
+  candidates.sort((a, b) => a.start - b.start || (a.role === b.role ? a.index - b.index : a.role === 'main' ? -1 : 1));
+  for (const hit of candidates) {
+    const attr = hit.role === 'extension' ? 'ext-idx' : 'idx';
+    const row = container.querySelector(`.cue[data-${attr}="${hit.index}"]`);
+    if (row && !row.hidden && !row.classList.contains('hidden')) return row;
+  }
+  return null;
+}
+function layerMergeSelected(indices, role = 'main', track = null) {
+  const initial = role === 'main' ? DATA.segments : track?.segments;
+  const wanted = new Set(indices.map(index => initial?.[index]?.id));
+  commitProcessingEdits();
+  const cues = role === 'main' ? DATA.segments : getExtensionTrack(track?.id)?.segments;
+  const chosen = (cues || []).filter(cue => wanted.has(cue.id))
+    .sort((a, b) => a.start - b.start || cues.indexOf(a) - cues.indexOf(b));
+  if (chosen.length < 2) return false;
+  const start = Math.min(...chosen.map(cue => cue.start)), end = Math.max(...chosen.map(cue => cue.end));
+  const ids = new Set(chosen.map(cue => cue.id));
+  if (!layerAllowOverlap() && cues.some(cue => !ids.has(cue.id) && layerCore.intersects(cue, { start, end })
+      && !chosen.some(item => layerCore.intersects(item, cue)))) {
+    flashHint('合并范围会新增重叠，请先启用“允许字幕重叠”', 'warning'); return false;
+  }
+  const generation = mswProjectGeneration;
+  const signature = JSON.stringify(chosen);
+  const dialog = document.createElement('dialog');
+  dialog.className = 'msw-layer-merge';
+  const heading = document.createElement('h3'); heading.textContent = '合并所选字幕';
+  const summary = document.createElement('p');
+  summary.textContent = `${role === 'main' ? '主字幕' : '副字幕'} · ${chosen.length} 条 · ${formatTimelineMilliseconds(start)} → ${formatTimelineMilliseconds(end)}`;
+  const preview = document.createElement('pre'); preview.textContent = chosen.map(cue => cue.text).join('\n');
+  const explanation = document.createElement('p');
+  explanation.textContent = '按开始时间拼接，只合并所选条目。新字幕保留首条颜色和样式；旧绑定解除，原配音来源保留并待复核。';
+  const actions = document.createElement('div'); actions.className = 'msw-layer-actions';
+  const cancel = document.createElement('button'); cancel.textContent = '取消'; cancel.onclick = () => dialog.close();
+  const confirm = document.createElement('button'); confirm.textContent = '合并'; confirm.className = 'primary';
+  confirm.onclick = () => {
+    if (generation !== mswProjectGeneration || signature !== JSON.stringify(chosen)
+        || !chosen.every(cue => cues.includes(cue))) {
+      dialog.close(); flashHint('字幕已变化，请重新选择合并内容', 'warning'); return;
+    }
+    pushUndo('合并所选字幕', { captureView: true });
+    // Resolve colors/group references before removing heads or sorting.
+    layerCore.materializeReferences(cues);
+    const merged = { ...structuredClone(chosen[0]), id: window.MSWProject.id('merged'), start, end,
+      text: chosen.map(cue => cue.text).join(mergeJoinSeparatorForMode(DATA.split_mode)), items: [], _dirty: true };
+    for (const field of ['color', 'sticker']) if (merged[field]) Object.assign(merged[field], { start, end });
+    removeBindingsForSegmentIds(role === 'main' ? [...ids] : [], role === 'extension' ? [...ids] : []);
+    for (let i = cues.length - 1; i >= 0; i--) if (ids.has(cues[i].id)) cues.splice(i, 1);
+    cues.push(merged); currentCuePanelIdx = -1; resetCuePanelEditState();
+    clearSelection({ silent: true, commitCuePanel: false });
+    (role === 'main' ? selectedIdxs : selectedExtensionIdxs).add(cues.length - 1);
+    projectImportDirty = true; renderAll();
+    if (track) setCurrentCuePanelExtensionIndex(cues.indexOf(merged), track); else setCurrentCuePanelIndex(cues.indexOf(merged));
+    dialog.close();
+  };
+  actions.append(cancel, confirm); dialog.append(heading, summary, preview, explanation, actions);
+  dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); dialog.showModal();
+  return true;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  layerSyncControls();
+  document.getElementById('subtitle-legacy-visible')?.addEventListener('change', event => {
+    if (!layerMode()) return;
+    pushUndo('显示旧叠加组'); DATA.subtitle_layers.legacy_overlay.visible = event.target.checked;
+    renderAll({ waveform: 'full' });
+  });
+  // Reject unadapted export routes before their handlers run. Backend serialization
+  // has the same guard; opening TTS/translation for selection inspection still works.
+  document.addEventListener('click', event => {
+    if (!layerMode()) return;
+    const item = event.target.closest('[id]');
+    if (item && /^(download-|msw-(asr|tts|translation)-start)/.test(item.id)) {
+      event.preventDefault(); event.stopImmediatePropagation(); layerBlockProduction();
+    }
+  }, true);
+});
+
+const DATA = prepareLayerProject({"segments": [], "media": "", "language": "", "model": "", "preview": {"subtitle": {"x": 0.1, "y": 0.76, "width": 0.8, "height": 0.16, "speaker_labels": {"mapping_enabled": false, "enabled": true}}}});
 const CANONICAL_PROJECT_FIELDS = new Set([
   'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
   'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'overlay_track', 'waveform',
@@ -28976,7 +29620,7 @@ function validateProjectForLoad(project) {
 }
 validateProjectForLoad(DATA);
 DATA.workspace = waveformWorkspaceForProject(DATA);
-DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
+DATA.schema = DATA.schema || window.AsrEditorUtils.PROJECT_SCHEMA;
 let projectExtensionFields = getProjectExtensionFields(DATA);
 let FILENAME_BASE = "untitled";
 let PROJECT_NAME = FILENAME_BASE;
@@ -29628,6 +30272,7 @@ function getSubtitleTimelineDuration() {
 }
 
 function getTrackNeighborBounds(segment, segments, movedSegments = new Set()) {
+  if (layerMode()) return { previousEnd: 0, nextStart: getSubtitleTimelineDuration() };
   const index = Array.isArray(segments) ? segments.indexOf(segment) : -1;
   if (index < 0) return null;
   let previousIndex = index - 1;
@@ -29734,6 +30379,7 @@ function sortExtensionTrackSegments(track) {
 }
 
 function reconcileExtensionTrack(track, preferredSegments = [], { sortSegments = true } = {}) {
+  if (layerMode()) return { changed: false, squeezedCount: 0, removedCount: 0, unboundCount: 0 };
   const empty = { changed: false, squeezedCount: 0, removedCount: 0, unboundCount: 0 };
   if (!track?.segments?.length) return empty;
 
@@ -30500,13 +31146,13 @@ function syncSegmentTimebase(segment, timebase, { preferFrames = false, minimumS
   return range;
 }
 
-function syncTrackTimebase(segments, timebase, { preferFrames = false } = {}) {
+function syncTrackTimebase(segments, timebase, { preferFrames = false, allowOverlap = false } = {}) {
   if (!Array.isArray(segments)) return;
   let previousEndFrame = 0;
   segments.forEach((segment) => {
     syncSegmentTimebase(segment, timebase, {
       preferFrames,
-      minimumStartFrame: timebase.unit === 'frames' ? previousEndFrame : 0,
+      minimumStartFrame: timebase.unit === 'frames' && !allowOverlap ? previousEndFrame : 0,
     });
     if (timebase.unit === 'frames' && Number.isInteger(segment?.end_frame)) {
       previousEndFrame = segment.end_frame;
@@ -30563,12 +31209,13 @@ function syncProjectTimebase(project = DATA, { preferFrames = false } = {}) {
   if (!project || typeof project !== 'object') return normalizeTimelineTimebase();
   const timebase = projectTimebase(project);
   project.timebase = { ...timebase };
-  syncTrackTimebase(project.segments, timebase, { preferFrames });
+  const trackOptions = { preferFrames, allowOverlap: layerCore.enabled(project) };
+  syncTrackTimebase(project.segments, timebase, trackOptions);
   const tracks = project.multi_subtitle?.tracks;
   if (Array.isArray(tracks)) {
-    tracks.forEach((track) => syncTrackTimebase(track?.segments, timebase, { preferFrames }));
+    tracks.forEach((track) => syncTrackTimebase(track?.segments, timebase, trackOptions));
   }
-  syncTrackTimebase(project.overlay_track?.segments, timebase, { preferFrames });
+  syncTrackTimebase(project.overlay_track?.segments, timebase, trackOptions);
   return timebase;
 }
 
@@ -30841,6 +31488,7 @@ function snapshotSegments() {
   // 必须处于同一条记录中，绑定/成对删除/联动拆分才能原子撤销。
   const snapshot = EDITOR_SETTINGS_UTILS.buildSegmentsHistorySnapshot(DATA.segments, getMultiSubtitleState(), getOverlayTrack());
   snapshot.msw = window.MSWProject.clone(DATA.msw ?? null);
+  if (layerMode()) snapshot.subtitle_layers = structuredClone(DATA.subtitle_layers);
   return snapshot;
 }
 function snapshotEditorSelection() {
@@ -31068,6 +31716,7 @@ function applyHistoryRecord(record) {
     schema: 'moy.asr.multi_subtitle.v1', enabled: false, display_mode: 'both', tracks: [], bindings: [],
   };
   DATA.overlay_track = MULTI_SUBTITLE_UTILS.normalizeOverlayTrack(snapshot.overlay_track);
+  if (snapshot.subtitle_layers) DATA.subtitle_layers = structuredClone(snapshot.subtitle_layers);
   const retainedAssets = DATA.msw?.assets;
   const retainedRemoved = DATA.msw?.removed_asset_ids || [];
   const retainedProjectId = DATA.msw?.project_id;
@@ -32715,7 +33364,7 @@ function updateMultiSubtitleUi() {
   // 「允许字幕重叠」开关常驻工具栏；勾选状态跟随用户意图（overlay.enabled），
   // 不要求叠加轨已有字幕，否则空轨道时勾选会被立即弹回。
   if (overlayTrackSeparator) overlayTrackSeparator.hidden = DATA.segments.length === 0;
-  if (overlayTrackToggle) overlayTrackToggle.checked = getOverlayTrack()?.enabled === true;
+  if (overlayTrackToggle) overlayTrackToggle.checked = layerMode() ? layerAllowOverlap() : getOverlayTrack()?.enabled === true;
   const track = getActiveExtensionTrack();
   const hasTrack = Boolean(track && Array.isArray(track.segments));
   const enabled = hasTrack && getMultiSubtitleState().enabled === true;
@@ -32802,6 +33451,10 @@ function updateMultiSubtitleUi() {
 }
 
 overlayTrackToggle?.addEventListener('change', () => {
+  if (layerMode()) {
+    pushUndo('允许字幕重叠'); DATA.subtitle_layers.allow_overlap = overlayTrackToggle.checked;
+    renderAll(); return;
+  }
   const overlay = getOverlayTrack();
   if (!overlay) return;
   overlay.enabled = overlayTrackToggle.checked;
@@ -35631,6 +36284,7 @@ function alignSelectedExtensionSubtitleRanges() {
 
 // === 渲染 ===
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor } = {}) {
+  layerPrepareRender();
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
   (getMultiSubtitleState().tracks || []).forEach(track => MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(track.segments, track.id + '-segment'));
   // 其它编辑入口仍以毫秒修改工程对象；在重绘前把它们投影回当前时间基准，
@@ -35661,7 +36315,9 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const overlaySegments = overlayVisible ? getOverlayTrack().segments : [];
   const rows = [];
   if (!multiVisible || displayMode === 'main') {
-    DATA.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: buildCueEl(seg, i) }));
+    DATA.segments.forEach((seg, i) => {
+      if (!layerMode() || layerCore.visible(DATA, seg)) rows.push({ start: seg.start, order: 0, el: buildCueEl(seg, i) });
+    });
   } else if (displayMode === 'extension') {
     const track = getActiveExtensionTrack();
     track.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: buildExtensionCueEl(seg, i, track) }));
@@ -35670,6 +36326,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
     const displayRows = MULTI_SUBTITLE_UTILS.buildMultiDisplayRows(DATA.segments, track.segments, getMultiSubtitleState().bindings);
     displayRows.forEach((row) => {
       const mainSeg = row.mainIndex == null ? null : DATA.segments[row.mainIndex];
+      if (layerMode() && mainSeg && !layerCore.visible(DATA, mainSeg)) return;
       const extensionSeg = row.extensionIndex == null ? null : track.segments[row.extensionIndex];
       rows.push({
         start: mainSeg ? mainSeg.start : (extensionSeg ? extensionSeg.start : 0),
@@ -35866,8 +36523,8 @@ function commitCuePanelEdit() {
     minimumDurationMs,
     parsePanelTime(cuePanelDuration.value, oldEnd - oldStart),
   );
-  const previousEnd = idx > 0 ? segments[idx - 1].end : 0;
-  const nextStart = idx + 1 < segments.length ? segments[idx + 1].start : (waveformEditor?.durationMs || oldEnd);
+  const previousEnd = layerMode() ? 0 : idx > 0 ? segments[idx - 1].end : 0;
+  const nextStart = layerMode() ? Infinity : idx + 1 < segments.length ? segments[idx + 1].start : (waveformEditor?.durationMs || oldEnd);
   if (nextStart - previousEnd < minimumDurationMs) {
     flashHint('相邻字幕之间不足 100ms，无法调整当前字幕', 'warning');
     renderCurrentCuePanel();
@@ -35881,6 +36538,9 @@ function commitCuePanelEdit() {
     renderCurrentCuePanel();
     resetCuePanelEditState();
     return false;
+  }
+  if (layerMode() && !layerCanApplyRanges(target.kind, [{ index: idx, start: newStart, end: newEnd }], target.kind === 'main')) {
+    flashHint('此操作会新增重叠，请先启用“允许字幕重叠”', 'warning'); renderCurrentCuePanel(); return false;
   }
   const changed = nextText !== seg.text || newStart !== oldStart || newEnd !== oldEnd;
   if (!changed) {
@@ -36670,9 +37330,7 @@ function fmtShortCompact(ms) {
   // 帧模式省去为零的小时位（00:00:03:12 → 00:03:12）。
   if (timelineIsFrameMode()) {
     const text = fmtShort(ms);
-    const [start, arrow, end] = text.split(' ');
-    const trimHours = (code) => (code.startsWith('00:') ? code.slice(3) : code);
-    return `${trimHours(start)} ${arrow} ${trimHours(end)}`;
+    return text.startsWith('00:') ? text.slice(3) : text;
   }
   const s = Math.max(0, Math.round(ms / 1000));
   const m = Math.floor(s / 60);
@@ -39690,6 +40348,7 @@ function mergeContiguousIndices(sorted) {
 }
 
 function mergeSegments(idxs) {
+  if (layerMode()) return layerMergeSelected(idxs);
   if (idxs.length < 2) { flashHint('请选择至少两个同轨道字幕块！', 'invalid'); return; }
   const sorted = [...new Set(idxs)].sort((a, b) => a - b);
   if (sorted.length < 2) { flashHint('请选择至少两个同轨道字幕块！', 'invalid'); return; }
@@ -39717,6 +40376,7 @@ function mergeSegments(idxs) {
 // 因此这里保留独立轨的文本/时间合并语义；如果被合并段存在一对一绑定，
 // 合并后无法同时指向多个主字幕，旧绑定会被移除并提示用户重新绑定。
 function mergeExtensionSegments(idxs, track = getActiveExtensionTrack()) {
+  if (layerMode()) return layerMergeSelected(idxs, 'extension', track);
   if (!track || !idxs?.length) return false;
   const sorted = [...new Set(idxs)].sort((a, b) => a - b);
   if (sorted.length < 2) {
@@ -39880,8 +40540,8 @@ function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '',
     let low = -Infinity, high = Infinity;
     indices.forEach(index=>{
       const cue = working[index];
-      const previous = index > 0 && !chosen.has(index-1) ? working[index-1].end : 0;
-      const next = index+1 < working.length && !chosen.has(index+1) ? working[index+1].start : Infinity;
+      const previous = !layerMode() && index > 0 && !chosen.has(index-1) ? working[index-1].end : 0;
+      const next = !layerMode() && index+1 < working.length && !chosen.has(index+1) ? working[index+1].start : Infinity;
       low = Math.max(low, previous-cue.start);high = Math.min(high,next-cue.end);
     });
     if (linked && context.kind === 'extension') {
@@ -39922,6 +40582,9 @@ function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '',
     changedSegments.push(working[index]);
     changed += 1;
   });
+  if (layerMode() && !layerCanApplyRanges(context.kind, changedSegments.map(cue => ({ index: context.segments.findIndex(item => item.id === cue.id), start: cue.start, end: cue.end })), linked)) {
+    subtitleTimeStatus('此操作会新增重叠，请先启用“允许字幕重叠”', true); return { changed: 0, limited: indices.length };
+  }
   if (!changed) {subtitleTimeStatus(limited?'已到达相邻字幕或字词时间的边界':'字幕时间没有变化',Boolean(limited));return {changed:0,limited};}
   const key = `${context.kind}:${context.track?.id || ''}:${gestureKey}:${indices.map(i=>context.segments[i].id).join(',')}:${document.getElementById('subtitle-time-linked').checked}`;
   if (!gesture || !subtitleTimeGesture || subtitleTimeGesture.key !== key || performance.now()-subtitleTimeGesture.at > 450
@@ -40171,6 +40834,11 @@ function syncAutoMergeAbsorbFields() {
 // 一键处理整段工程：相邻间隔不超过 autoMergeGapMs 时按吸附方向拼接；
 // 过短的字幕（中文 < N 字 / 英文 < N 词）按吸收方向并入相邻字幕。
 function autoMergeSegments() {
+  if (layerMode()) {
+    if (selectedIdxs.size < 2 && selectedExtensionIdxs.size < 2) { flashHint('多层字幕请先选择同一角色的两条或更多字幕，再预览合并', 'warning'); return; }
+    if (selectedIdxs.size) return layerMergeSelected([...selectedIdxs]);
+    return layerMergeSelected([...selectedExtensionIdxs], 'extension', getActiveExtensionTrack());
+  }
   const plan = window.AsrEditorUtils.planAutoMerge(DATA.segments, {
     gapMs: EDITOR_SETTINGS.autoMergeGapMs,
     snapDirection: EDITOR_SETTINGS.autoMergeSnapDirection,
@@ -40318,6 +40986,10 @@ function splitGroupsAtCutPoints(cutSet, headField, refField, segments = DATA.seg
 //   当被删的是 ref：head 仍是 head，但 group 被切成两块——这是用户原话
 //     "删除中间的 3 → 4 变 head，5 改 ref→4"
 function deleteSegments(idxs, { recordHistory = true } = {}) {
+  if (layerMode()) {
+    const ids = idxs.map(index => DATA.segments[index]?.id); commitCuePanelEdit();
+    idxs = ids.map(id => DATA.segments.findIndex(cue => cue.id === id));
+  }
   if (!idxs.length) return;
   const sorted = [...new Set(idxs)].filter(index => Number.isInteger(index)
     && index >= 0 && index < DATA.segments.length).sort((a, b) => a - b);
@@ -40396,6 +41068,10 @@ function deleteSegments(idxs, { recordHistory = true } = {}) {
 }
 
 function deleteExtensionSegments(indices, track = getActiveExtensionTrack(), { recordHistory = true } = {}) {
+  if (layerMode()) {
+    const ids = (indices || []).map(index => track?.segments[index]?.id); commitCuePanelEdit();
+    indices = ids.map(id => track?.segments.findIndex(cue => cue.id === id));
+  }
   if (!track || !indices?.length) return;
   const sorted = [...new Set(indices)].filter((index) => Number.isInteger(index)
     && index >= 0 && index < track.segments.length).sort((a, b) => a - b);
@@ -40723,6 +41399,7 @@ function scrollCueIntoViewIfNeeded(cueEl, options) {
 
 function playbackCueListElement() {
   const timeMs = window.MSWE?.resolve('audio-timeline')?.currentTimeMs() ?? player.currentTime * 1000;
+  if (layerMode()) return layerPlaybackElement(timeMs);
   if (multiSubtitleVisible() && getMultiSubtitleState().display_mode === 'extension') {
     const segment = extensionSegmentAtTime(timeMs);
     return segment ? findCueListRenderAnchor({ kind: 'extension', segmentId: segment.id,
@@ -43725,6 +44402,7 @@ if (typeof ResizeObserver === 'function') {
 let suppressCueListAutoScroll = false;
 let waveformPlayheadDragging = false;
 function findActiveSegmentIndex(segments, tMs, skipDisabled = false) {
+  if (layerMode()) return layerPreferredActive(segments, tMs, !skipDisabled);
   if (!Array.isArray(segments) || !segments.length || !Number.isFinite(Number(tMs))) return -1;
   let lo = 0;
   let hi = segments.length;
@@ -43784,16 +44462,16 @@ function updateCueListPlayback(tMs = window.MSWE?.resolve('audio-timeline')?.cur
     const index = findActiveSegmentIndex(segments, tMs, true);
     return isSubtitlePreviewActive(segments?.[index], tMs) ? index : -1;
   };
-  const mainIndex = hitIndex(DATA.segments);
-  const extensionIndex = hitIndex(track?.segments);
-  const key = `${mainIndex}:${track?.id || ''}:${extensionIndex}`;
+  const mainHits = layerMode() ? layerActive(DATA.segments, tMs) : [hitIndex(DATA.segments)];
+  const extensionHits = layerMode() ? layerActive(track?.segments, tMs) : [hitIndex(track?.segments)];
+  const key = `${mainHits.join(',')}:${track?.id || ''}:${extensionHits.join(',')}`;
   if (key !== cueListPlaybackKey) {
   cueListPlaybackKey = key;
   const rows = new Set();
-  if (mainIndex >= 0) {
+  for (const mainIndex of mainHits.filter(index => index >= 0)) {
     container.querySelectorAll(`:scope > .cue[data-idx="${mainIndex}"]`).forEach(row => rows.add(row));
   }
-  if (extensionIndex >= 0) {
+  for (const extensionIndex of extensionHits.filter(index => index >= 0)) {
     container.querySelectorAll(`:scope > .cue[data-ext-idx="${extensionIndex}"]`).forEach(row => rows.add(row));
   }
   cueListPlaybackRows.forEach(row => { if (!rows.has(row)) row.classList.remove('playhead-hit'); });
@@ -45015,8 +45693,9 @@ function buildJson() {
   }
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   const out = {
-    schema: window.AsrEditorUtils.PROJECT_SCHEMA,
+    schema: DATA.schema,
     ...projectExtensionFields,
+    ...(layerMode() ? { subtitle_layers: structuredClone(DATA.subtitle_layers) } : {}),
     media: DATA.media || '',
     language: DATA.language || '',
     model: DATA.model || '',
@@ -45139,11 +45818,13 @@ function normalizeProjectTimings(project, { repairSegmentRanges = true } = {}) {
   const normalize = repairSegmentRanges
     ? window.AsrEditorUtils.normalizeSegmentTimings
     : window.AsrEditorUtils.normalizeItemTimingRanges;
-  let fixed = normalize(project.segments);
+  const normalizeTrack = cues => layerCore.enabled(project) && repairSegmentRanges
+    ? (cues || []).reduce((sum, cue) => sum + normalize([cue]), 0) : normalize(cues);
+  let fixed = normalizeTrack(project.segments);
   const tracks = project.multi_subtitle?.tracks;
   if (Array.isArray(tracks)) {
     tracks.forEach((track) => {
-      fixed += normalize(track?.segments);
+      fixed += normalizeTrack(track?.segments);
     });
   }
   fixed += normalize(project.overlay_track?.segments);
@@ -46011,6 +46692,9 @@ function stickerExportBlocked(id) {
 }
 
 async function downloadFile(content, filename, mime, accept, { usePicker = true, detailed = false } = {}) {
+  if (layerMode() && /\.(mosp|json|html|srt|ass|otio|otioz|xml)$/i.test(filename)) {
+    layerBlockProduction(); return detailed ? { status: 'cancelled' } : false;
+  }
   const isSrt = filename.toLowerCase().endsWith('.srt');
   const fileContent = isSrt
     ? new Uint8Array([0xEF, 0xBB, 0xBF, ...new TextEncoder().encode(String(content))])
@@ -46344,6 +47028,7 @@ let projectSaveInFlight = false;
 const EDIT_SAVE_DEBOUNCE_MS = 400;
 
 function scheduleAutoSave() {
+  if (layerMode()) return;
   if (autoSaveTimer !== null) {
     window.clearInterval(autoSaveTimer);
     autoSaveTimer = null;
@@ -46396,6 +47081,7 @@ function hasUnsavedProjectChanges() {
 // 文字编辑先写入页面内存，避免每个按键都请求服务器；失焦后短暂防抖保存，
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
 function scheduleAutoSaveFlush() {
+  if (layerMode()) return;
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
     autoSaveFlushTimer = null;
@@ -47007,6 +47693,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
 }
 
 async function saveProjectToServer({ silent = false } = {}) {
+  if (layerBlockProduction(silent)) return false;
   if (!serverProjectSavingEnabled()) {
     // 服务器在跑但本会话尚未绑定工程文件（如拖入 SRT / 浏览器打开的 .mosp）：
     // Ctrl+S 自动转入「绑定保存」流程（选择保存位置 + 可选收集媒体），
@@ -47074,6 +47761,7 @@ async function saveProjectToServer({ silent = false } = {}) {
 
 // 把当前工程写回页面持有的浏览器文件句柄（新建工程 / 另存为选定的目标）。
 async function saveProjectToHandle({ silent = false } = {}) {
+  if (layerBlockProduction(silent)) return false;
   if (!projectFileHandle) return false;
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
   const savedGeneration = mswProjectGeneration;
@@ -47113,6 +47801,7 @@ async function saveCurrentProject({ silent = false } = {}) {
 // 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新），
 // 且后续 Ctrl(Cmd)+S / 自动保存都写回这个新选定的文件。
 async function saveProjectAsToFile() {
+  if (layerBlockProduction()) return false;
   const persistence = window.MSWE?.resolve('project-persistence');
   if (persistence?.available()) return persistence.saveAs();
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
@@ -48178,10 +48867,13 @@ function waveformWorkspaceForProject(project) {
 }
 
 function applyCanonicalProject(data, filename) {
+  data = prepareLayerProject(data);
+  if (data.subtitle_layers) DATA.subtitle_layers = structuredClone(data.subtitle_layers);
+  else delete DATA.subtitle_layers;
   deferredReapeaksEpoch += 1;
   const msw = validateProjectForLoad(data);
   projectExtensionFields = getProjectExtensionFields(data);
-  DATA.schema = window.AsrEditorUtils.PROJECT_SCHEMA;
+  DATA.schema = data.schema || window.AsrEditorUtils.PROJECT_SCHEMA;
   DATA.msw = msw;
   mswProjectGeneration += 1;
   currentCuePanelIdx = -1;
@@ -48260,6 +48952,9 @@ function applyCanonicalProject(data, filename) {
 
 // 本机服务负责新工程绑定与素材收集；便携页保留浏览器句柄后备路径。
 async function createProjectCheckpoint(project, suggestedName) {
+  if (layerDevelopmentRequested || layerCore.enabled(project)) {
+    applyCanonicalProject(project, suggestedName); detachServerProjectSaving(); return true;
+  }
   validateProjectForLoad(project);
   project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
   const persistence = window.MSWE?.resolve('project-persistence');
@@ -48374,7 +49069,8 @@ function isMawProject(data) {
   return data.segments.every((segment) => {
     if (!segment || typeof segment !== 'object'
         || !Number.isInteger(segment.start) || !Number.isInteger(segment.end)
-        || segment.start < 0 || segment.end <= segment.start || segment.start < previousEnd
+        || segment.start < 0 || segment.end <= segment.start
+        || (!layerCore.enabled(data) && segment.start < previousEnd)
         || typeof segment.text !== 'string' || !hasOptionalFramePair(segment)) return false;
     previousEnd = segment.end;
     if (!Array.isArray(segment.items)) return segment.items === undefined;
@@ -48772,7 +49468,7 @@ async function openProjectFile(file, options = {}) {
   try {
     const text = await readFileTextWithProgress(file);
     updateEditorLoading(60, `正在解析工程 ${file.name}…`);
-    const data = JSON.parse(text);
+    const data = prepareLayerProject(JSON.parse(text));
     try {
       validateProjectForLoad(data);
     } catch (error) {
@@ -48784,7 +49480,7 @@ async function openProjectFile(file, options = {}) {
       data.timebase = normalizeTimelineTimebase(data.timebase);
       MULTI_SUBTITLE_UTILS.normalizeMultiSubtitleProject(data);
       syncProjectTimebaseAndBindingOffsets(data, { preferFrames: data.timebase.unit === 'frames' });
-      window.AsrEditorUtils.normalizeSegmentTimings(data.segments);
+      if (!layerCore.enabled(data)) window.AsrEditorUtils.normalizeSegmentTimings(data.segments);
       window.AsrEditorUtils.repairGroupReferenceIndices(data.segments);
       normalizeProjectTimings(data);
       syncProjectTimebaseAndBindingOffsets(data, { preferFrames: false });
@@ -48801,7 +49497,7 @@ async function openProjectFile(file, options = {}) {
     // 服务器版：浏览器拿不到工程真实路径，但工程记录的媒体是绝对路径。
     // 先让服务器按它定位同目录同名工程并接管（自动加载媒体、允许 Ctrl(Cmd)+S 保存）；
     // 接管失败（媒体已移动 / 同名工程缺失 / 内容不一致）再回退为手动选择媒体。
-    if (expectedName && SERVER_CONFIG?.attachUrl) {
+    if (expectedName && SERVER_CONFIG?.attachUrl && !layerCore.enabled(data)) {
       updateEditorLoading(85, '正在连接本地编辑器服务器…');
       // Compare the imported file itself. Browser-only defaults (split modes,
       // optional track metadata and preview state) are not disk content changes.
@@ -51149,6 +51845,7 @@ function addExtensionRangeFromWaveform(
 }
 
 function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, track = 'main') {
+  if (layerMode()) return layerCreateCue(Math.min(requestedStart, requestedEnd), Math.max(requestedStart, requestedEnd), track);
   if (track === 'extension') {
     addExtensionRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY);
     return;
@@ -51285,6 +51982,7 @@ function addOverlayAtWaveformTime(timeMs, clickX, clickY) {
 }
 
 function addCueAtWaveformTime(timeMs, clickX, clickY) {
+  if (layerMode()) return layerCreateCue(timeMs, timeMs + 2000);
   const duration = waveformEditor?.durationMs || (Number.isFinite(player.duration) ? player.duration * 1000 : 0);
   if (!duration) { flashHint('媒体时长尚未加载', 'invalid'); return; }
   timeMs = timelineFrameAlignedMilliseconds(timeMs);
@@ -51312,6 +52010,7 @@ function addCueAtWaveformTime(timeMs, clickX, clickY) {
 }
 
 function addExtensionAtWaveformTime(timeMs, clickX, clickY, track = getActiveExtensionTrack()) {
+  if (layerMode()) return layerCreateCue(timeMs, timeMs + 2000, 'extension');
   const duration = waveformEditor?.durationMs || (Number.isFinite(player.duration) ? player.duration * 1000 : 0);
   if (!duration) { flashHint('媒体时长尚未加载', 'invalid'); return; }
   timeMs = timelineFrameAlignedMilliseconds(timeMs);
@@ -51471,7 +52170,7 @@ function syncBoundCueDrag(drag) {
   const boundEntries = drag.indices.map((index) => ({
     index,
     bound: getBoundDragTarget(index, sourceSegments),
-    sourceOriginal: drag.originals.get(index),
+    sourceOriginal: (layerMode() ? drag.cancelOriginals || drag.originals : drag.originals).get(index),
   })).filter((entry) => entry.bound && entry.sourceOriginal);
   const movedFollowerSegments = new Set(boundEntries.map((entry) => entry.bound.target));
   boundEntries.forEach(({ index, bound, sourceOriginal }) => {
@@ -51482,7 +52181,12 @@ function syncBoundCueDrag(drag) {
     const sourceOriginalEnd = Number(sourceOriginal.endMs ?? sourceOriginal.end);
     let nextStart = targetOriginal.start;
     let nextEnd = targetOriginal.end;
-    if (drag.kind === 'move') {
+    if (layerMode()) {
+      // Keyboard nudges can rebase a held pointer drag. Bound cues keep the
+      // same immutable start-of-gesture baseline as cancellation and undo.
+      nextStart = targetOriginal.start + source.start - sourceOriginalStart;
+      nextEnd = targetOriginal.end + source.end - sourceOriginalEnd;
+    } else if (drag.kind === 'move') {
       const delta = source.start - sourceOriginalStart;
       nextStart = targetOriginal.start + delta;
       nextEnd = targetOriginal.end + delta;
@@ -51571,14 +52275,14 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
       '创建副字幕',
       'N',
       () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack),
-      extensionIdx >= 0,
+      extensionIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
   } else {
     addItem(
       '创建字幕',
       'N',
       () => addCueAtWaveformTime(timeMs, clickX, clickY),
-      mainIdx >= 0,
+      mainIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
     // 叠加轨启用时提供「创建叠加字幕」：主字幕占用的时间点也能创建
     // （落叠加轨），与主字幕共存；同时间点已有叠加字幕时置灰。
@@ -51942,7 +52646,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     }
     addSep();
     // 组 4：叠加字幕轨迁移。叠加轨与多重字幕互相独立，转换随时可用。
-    addItem('转为叠加字幕', '', () => convertMainCuesToOverlay([idx]));
+    if (!layerMode()) addItem('转为叠加字幕', '', () => convertMainCuesToOverlay([idx]));
   } else {
     // 组 1：合并与批量文本操作
     addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
@@ -51966,7 +52670,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     );
     addItem('翻译所选字幕', '', openSelectedCueTranslation);
     addItem('复制到素材库', '', copySelectedSubtitlesToAssets);
-    addItem(`转为叠加字幕 ${targetIdxs.length} 条`, '', () => convertMainCuesToOverlay(targetIdxs));
+    if (!layerMode()) addItem(`转为叠加字幕 ${targetIdxs.length} 条`, '', () => convertMainCuesToOverlay(targetIdxs));
     addItem('配音所选字幕（TTS）', '', () => openSelectedCueTts('main'));
     addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
@@ -52394,6 +53098,13 @@ function initWaveformEditor() {
     return;
   }
   waveformEditor = window.AsrWaveform.create({
+    getSubtitleLayersEnabled: layerMode,
+    onSubtitleLayersChanged: layerInvalidate,
+    canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
+    onCancelCueDrag: drag => { if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); layerInvalidate(); } },
+    onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
+    getAllowSubtitleOverlap: layerAllowOverlap,
+    isSubtitleVisible: (cue, role) => !layerMode() || layerCore.visible(DATA, cue, role),
     getMediaDurationMs: () => Number(DATA.media_metadata?.duration_ms) || 0,
     getCueSourceStatus: segment => DATA.msw?.asr_stale_subtitles?.[getActiveExtensionTrack()?.id]?.[segment.id]
       ? (window.MSWE_I18N?.translateText?.('需复核') || '需复核') : '',
@@ -52562,10 +53273,17 @@ function initWaveformEditor() {
     getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
     audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
     toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
-    onBeginEdit: (label) => pushUndo(label),
+    onBeginEdit: (label) => {
+      if (layerMode() && waveformEditor?.drag) {
+        layerPendingDragHistory ||= EDITOR_SETTINGS_UTILS.buildHistoryRecord('segments', label, snapshotSegments(), snapshotEditorSelection());
+      } else pushUndo(label, { captureView: layerMode() });
+    },
     syncBoundCueDrag,
     onLayoutUndo: (label, snapshot) => pushLayoutUndo(label, snapshot),
     onCommitEdit: (idxs, kind, track = 'main', independent = false, details = null) => {
+      if (layerMode() && layerPendingDragHistory) {
+        editorHistory.push(layerPendingDragHistory); layerPendingDragHistory = null; updateUndoRedoButtons();
+      }
       let linkedChanged = false;
       if (kind === 'resize-boundary-pointer' && track === 'main' && !independent) {
         const targetIndex = Number.isInteger(details?.targetIndex) ? details.targetIndex : idxs[0];
@@ -53532,7 +54250,9 @@ function pasteCuesFromClipboard() {
   // 字幕在波形中完全重叠，看起来就像"粘贴没生效"。
   const minCopyStart = Math.min(...[...copies, ...(cueClipboardExtensionSegments || []), ...cueClipboardOverlaySegments].map(segment=>Number(segment.start)||0));
   let pasteAnchor;
-  if (hasLoadedMedia() && Number.isFinite(player.currentTime) && player.currentTime > 0) {
+  if (layerMode()) {
+    pasteAnchor = Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs() ?? player.currentTime * 1000) || 0;
+  } else if (hasLoadedMedia() && Number.isFinite(player.currentTime) && player.currentTime > 0) {
     pasteAnchor = Math.round(player.currentTime * 1000);
   } else if (selectedOverlayIdxs.size) {
     pasteAnchor = Math.max(...[...selectedOverlayIdxs].map(idx=>Number(getOverlayTrack()?.segments[idx]?.end)||0));
@@ -53573,6 +54293,14 @@ function pasteCuesFromClipboard() {
   });
   if (overlayCopies.some(copy=>(getOverlayTrack()?.segments||[]).some(cue=>cue.start<copy.end&&cue.end>copy.start))) {
     flashHint('粘贴位置与叠加轨已有字幕重叠，请移动播放头后重试','invalid'); return;
+  }
+  if (layerMode() && !layerAllowOverlap()) {
+    const ext = getActiveExtensionTrack()?.segments || [];
+    const extCopies = (cueClipboardExtensionSegments || []).map(cue => ({ start: cue.start + shift, end: cue.end + shift }));
+    if (copies.some(cue => !layerRangeAllowed(DATA.segments, null, cue.start, cue.end))
+        || extCopies.some(cue => !layerRangeAllowed(ext, null, cue.start, cue.end))) {
+      flashHint('粘贴位置有字幕，请先启用“允许字幕重叠”', 'warning'); return;
+    }
   }
   pushUndo('粘贴字幕');
   for (const copy of overlayCopies) {
@@ -54391,6 +55119,7 @@ function processingSelection() {
   };
 }
 function applyAsrJob(job, media) {
+  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
   commitProcessingEdits();
   const plan = window.MSWAsr.plan(DATA, media, job, { splitGroups: splitGroupsAtCutPoints });
   if (!plan.applied) return plan;
@@ -54419,6 +55148,7 @@ function applyAsrJob(job, media) {
 }
 
 function applyTranslationJob(job) {
+  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
   commitProcessingEdits();
   const extension = window.MSWProject.ensure(DATA);
   if (extension.project_id !== job.project_id || job.status !== 'succeeded' || !job.snapshot || !job.result) {
@@ -54460,6 +55190,7 @@ function applyTranslationJob(job) {
   return { ...plan, complete: plan.conflicts.length === 0 };
 }
 function applyProcessingResults(jobs, target, strategy, media) {
+  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
   commitProcessingEdits();
   const plan = window.MSWResultApply.plan(DATA, media, jobs, target, strategy);
   if (plan.duplicate) return {duplicate:true};
@@ -54676,6 +55407,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return batch.assets.length;
   },
   insertSubtitleAssets: (ids, anchor, targets) => {
+    if (layerMode()) throw Error('多层字幕的素材回插将在 D 阶段开放');
     commitProcessingEdits();
     const plan = window.MSWAssets.insert(DATA, ids, Math.round(anchor), targets, cue => {
       syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames:false}); return cue;
@@ -54744,6 +55476,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => {
+    if (layerMode()) throw Error('多层字幕的正式导出将在 E–G 阶段开放');
     commitProcessingEdits(); const project = JSON.parse(buildJson());
     if (project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));
@@ -55728,6 +56461,7 @@ window.addEventListener('beforeunload', (e) => {
     return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range));
   }
   async function submit() {
+    if (layerBlockProduction()) return;
     if (busy) return;
     if (media.busy) {message('媒体正在导入，请等待完成后再识别');return;}
     const generation=host.generation;
@@ -55955,6 +56689,7 @@ window.addEventListener('beforeunload', (e) => {
     lastWarning = problem ? message : '';
   }
   function saveAs({ project = null, name = host.name(), newProject = false } = {}) {
+    if (layerBlockProduction()) return Promise.resolve(false);
     if (!available() || active || host.saving() || recoveryModal.classList.contains('show')) return Promise.resolve(false);
     host.commitEdits(); target = null; busy(false); host.setSaving(true);
     el('project-save-title').textContent = t(newProject ? '新工程保存位置' : '另存为工程');
@@ -56038,6 +56773,7 @@ window.addEventListener('beforeunload', (e) => {
     } catch (error) { host.hint(error.message); }
   });
   async function captureDraft({ force = false } = {}) {
+    if (layerMode()) return false;
     if (!available() || (host.saving() && !(active && !working)) || draftBusy) return false;
     draftBusy = true;
     const generation = host.generation;
@@ -56097,6 +56833,7 @@ window.addEventListener('beforeunload', (e) => {
   el('project-recovery-open').addEventListener('click',()=>void showRecovery());
   el('project-version-list').addEventListener('click',()=>void showRecovery(true));
   async function createVersion(manual=false) {
+    if (layerBlockProduction(!manual)) return;
     if(!available())return;
     if(recovering||!host.config.canSave){if(manual)el('project-version-status').textContent=t('请先另存为工程，再创建磁盘版本');return;}
     if(versionBusy||working||host.saving()||global.MSWE.resolve('processing-host')?.isEditing?.()){if(manual)el('project-version-status').textContent=t('当前正在编辑或保存，请稍后创建版本');return;}
@@ -56338,6 +57075,7 @@ window.addEventListener('beforeunload', (e) => {
     }
   }
   async function submit(kind) {
+    if (layerBlockProduction()) return;
     if (requestInFlight || savingSettings || (kind === 'translation' && !pendingSubmission && !updateEnvironment())) return;
     const report = kind === 'connection_test' ? environmentMessage : message;
     if (pendingSubmission && pendingSubmission.kind !== kind) {
@@ -58449,6 +59187,7 @@ window.addEventListener('beforeunload', (e) => {
     })));
   }
   async function submit(retry = null) {
+    if (layerBlockProduction()) return;
     if (busy) return;
     const generation = host.generation;
     try {

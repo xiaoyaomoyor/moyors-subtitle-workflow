@@ -3809,7 +3809,122 @@
       return Math.max(this.contentDurationMs, this.sourceDurationMs ? 0 : 20000, this.currentTimeMs());
     }
 
+    subtitleLayersEnabled() { return this.options.getSubtitleLayersEnabled?.() === true; }
+
+    invalidateSubtitleLayouts() {
+      this.subtitleLayouts = null;
+    }
+
+    subtitleLayout(role = 'main') {
+      if (!this.subtitleLayouts) this.subtitleLayouts = new Map();
+      if (!this.subtitleLayouts.has(role)) {
+        this.previousSubtitleLanes ||= new Map();
+        const segments = this.options.getSegments(role) || [];
+        const layout = window.MSWSubtitleLayers.pack(segments, this.previousSubtitleLanes.get(role),
+          cue => this.options.isSubtitleVisible?.(cue, role) !== false);
+        this.subtitleLayouts.set(role, layout);
+        this.previousSubtitleLanes.set(role, layout.lanes);
+      }
+      return this.subtitleLayouts.get(role);
+    }
+
+    subtitleLaneCount() {
+      return this.subtitleLayout('main').count + (this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0);
+    }
+
+    cueIndices(segments, start, end, role) {
+      if (this.subtitleLayersEnabled()) return this.subtitleLayout(role).index.range(start, end);
+      const indexes = [];
+      for (let i = firstCueIndexOverlapping(segments, start); i < segments.length && segments[i].start < end; i++) indexes.push(i);
+      return indexes;
+    }
+
+    applyLayerCueLayout(block, segment) {
+      const role = block.dataset.track || 'main';
+      const layout = this.subtitleLayout(role);
+      const lane = layout.lanes.get(segment.id) || 0;
+      const extra = role === 'main' && this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0;
+      const pitch = 38;
+      block.dataset.cueId = segment.id;
+      block.dataset.subtitleLayer = String(lane);
+      block.style.height = '32px';
+      block.style.top = 'auto';
+      block.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(extra + lane) * pitch}px)`;
+      if (this.settings.hoverDetails) {
+        const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
+        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '))
+          + ` · ${role === 'main' ? '主字幕' : '副字幕'} · 第 ${lane + 1} 层`;
+      }
+    }
+
+    updateLayerPlayback(now) {
+      const active = new Map(['main', 'extension'].map(role => [role,
+        new Set(this.subtitleLayout(role).index.at(now, { includeDisabled: false }))]));
+      const key = [...active].map(([role, hits]) => role + ':' + [...hits].join(',')).join('|');
+      if (key === this.layerPlaybackKey) return;
+      this.layerPlaybackKey = key;
+      this.content.querySelectorAll('.waveform-cue-block').forEach(block => {
+        const role = block.dataset.track || 'main';
+        const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
+        block.classList.toggle('active', active.get(role)?.has(index) === true);
+      });
+    }
+
+    applyLayerDrag(drag, rawDelta, beforeApply = null) {
+      const clock = resolveTiming(drag.timing);
+      const segments = this.options.getSegments(drag.track);
+      // Capture identities once; array order is normalized only after commit.
+      drag.cueIds ||= new Map(drag.indices.map(index => [index, segments[index]?.id]));
+      if (drag.indices.some(index => segments[index]?.id !== drag.cueIds.get(index))) return false;
+      const delta = clock.round(rawDelta);
+      const ranges = drag.indices.map(index => {
+        const original = drag.originals.get(index);
+        let start = original.start, end = original.end;
+        if (drag.kind === 'move') { start += delta; end += delta; }
+        else if (drag.kind === 'resize-boundary') {
+          if (index === drag.indices[0]) end += delta; else start += delta;
+        } else if (drag.kind === 'resize-left' || drag.edge === 'start') start += delta;
+        else end += delta;
+        return { index, start, end, original };
+      });
+      if (drag.kind === 'move') {
+        const correction = Math.max(0, -Math.min(...ranges.map(range => range.start)));
+        ranges.forEach(range => { range.start += correction; range.end += correction; });
+      } else if (drag.kind === 'resize-boundary') {
+        const left = ranges[0], right = ranges[1];
+        const boundary = clamp(left.end, left.start + clock.minDuration, right.end - clock.minDuration);
+        left.end = boundary; right.start = boundary;
+      } else ranges.forEach(range => {
+        range.start = Math.max(0, Math.min(range.start, range.end - clock.minDuration));
+        range.end = Math.max(range.start + clock.minDuration, range.end);
+      });
+      if (!this.options.getAllowSubtitleOverlap?.()) {
+        const selected = new Set(drag.indices);
+        for (const range of ranges) for (let i = 0; i < segments.length; i++) {
+          if (selected.has(i)) continue;
+          const other = segments[i];
+          const next = { start: clock.toMs(range.start), end: clock.toMs(range.end) };
+          const original = { start: range.original.startMs, end: range.original.endMs };
+          if (window.MSWSubtitleLayers.intersects(next, other) && !window.MSWSubtitleLayers.intersects(original, other)) return false;
+        }
+      }
+      if (ranges.every(range => clock.getStart(segments[range.index]) === range.start && clock.getEnd(segments[range.index]) === range.end)) return false;
+      if (this.options.canApplySubtitleRanges?.(drag.track, ranges.map(range => ({ index: range.index, start: clock.toMs(range.start), end: clock.toMs(range.end) }))) === false) return false;
+      beforeApply?.();
+      for (const range of ranges) {
+        const cue = segments[range.index];
+        clock.setStart(cue, range.start); clock.setEnd(cue, range.end);
+        cue.items = remapItems(range.original.items, range.original.start, range.original.end, range.start, range.end, clock);
+      }
+      this.invalidateSubtitleLayouts();
+      return true;
+    }
+
     get effectiveRowHeight() {
+      if (this.subtitleLayersEnabled()) {
+        const audioSpace = (this.options.getAudioTrackCount?.() || 0) > 0 ? 78 : 0;
+        return Math.max(this.settings.rowHeight, this.subtitleLaneCount() * 38 + 54 + audioSpace);
+      }
       return Math.max(this.settings.rowHeight, this.audioLayer?.minimumRowHeight() || 0);
     }
 
@@ -4106,12 +4221,21 @@
             group.appendChild(head);
           }
         }
+        if (this.subtitleLayersEnabled()) {
+          for (const [role, selector] of [['main', '.v-main'], ['extension', '.v-ext']]) {
+            const head = group.querySelector(selector), block = row.querySelector(`.waveform-cue-block[data-track="${role}"]`);
+            if (head && block) { head.style.top = `${block.offsetTop}px`; head.style.bottom = 'auto'; head.style.height = '32px'; }
+            else head?.remove();
+          }
+        }
         fragment.appendChild(group);
       }
       column.replaceChildren(fragment);
     }
 
     render() {
+      this.invalidateSubtitleLayouts();
+      this.pane?.classList.toggle('unified-subtitle-layers', this.subtitleLayersEnabled());
       this.refreshTimelineDuration();
       // 布局拖动中（分隔线/尺寸柄）：宽度逐帧变化，头部这两步都是强制样式/
       // 布局读取（getComputedStyle + 每行 offsetTop），会把每帧布局翻倍造成
@@ -4184,6 +4308,7 @@
     }
 
     renderSegments() {
+      if (this.subtitleLayersEnabled()) { this.layerPlaybackKey = null; this.render(); return; }
       this.refreshTimelineDuration();
       if (this.settings.mode === 'basic') this.renderBasic();
       else this.renderMultiVisible(true);
@@ -4195,7 +4320,7 @@
       this.basicWindowStartMs = clamp(this.basicWindowStartMs, 0, maxStart);
       const endMs = Math.min(this.durationMs, this.basicWindowStartMs + windowMs);
       this.content.replaceChildren();
-      this.content.style.height = '100%';
+      this.content.style.height = this.subtitleLayersEnabled() ? `${Math.max(this.scroll.clientHeight, this.effectiveRowHeight)}px` : '100%';
       const row = this.createRow(this.basicWindowStartMs, endMs, -1, true);
       this.content.appendChild(row);
       this.renderedRows = [row];
@@ -4551,7 +4676,7 @@
       const now = this.currentTimeMs();
       const activeMainIndex = findActiveCueIndex(segments, now);
       const firstMainIndex = firstCueIndexOverlapping(segments, startMs);
-      for (let index = firstMainIndex; index < segments.length; index += 1) {
+      for (const index of this.cueIndices(segments, startMs, endMs, 'main')) {
         const segment = segments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
@@ -4565,7 +4690,7 @@
         if (selected.has(index)) block.classList.add('selected');
         if (segment.disabled) block.classList.add('disabled');
         // 空隙中沿用的当前字幕不点亮 active 轮廓（仅视觉；逻辑语义不变）。
-        if (index === activeMainIndex && isActiveCueVisualHit(segments, index, now)) block.classList.add('active');
+        if ((this.subtitleLayersEnabled() ? !segment.disabled && segment.start <= now && now < segment.end : index === activeMainIndex && isActiveCueVisualHit(segments, index, now))) block.classList.add('active');
 
         const label = document.createElement('span');
         label.className = 'waveform-cue-label';
@@ -4672,7 +4797,7 @@
       const extensionBindingMarkers = bindingMarkerTargets.extension;
       const activeExtensionIndex = findActiveCueIndex(extensionSegments, now);
       const firstExtensionIndex = firstCueIndexOverlapping(extensionSegments, startMs);
-      for (let index = firstExtensionIndex; index < extensionSegments.length; index += 1) {
+      for (const index of this.cueIndices(extensionSegments, startMs, endMs, 'extension')) {
         const segment = extensionSegments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
@@ -4683,11 +4808,11 @@
           block.dataset.extIdx = String(index);
           block.dataset.start = String(segment.start);
           block.dataset.end = String(segment.end);
-          block.style.setProperty('--cue-color', '#7a9fc5');
+          block.style.setProperty('--cue-color', this.subtitleLayersEnabled() ? colorForSegment(segment, extensionSegments) : '#7a9fc5');
         if (extensionSelected.has(index)) block.classList.add('selected');
         if (segment.disabled) block.classList.add('disabled');
         // 空隙中沿用的当前字幕不点亮 active 轮廓（仅视觉；逻辑语义不变）。
-        if (index === activeExtensionIndex && isActiveCueVisualHit(extensionSegments, index, now)) block.classList.add('active');
+        if ((this.subtitleLayersEnabled() ? !segment.disabled && segment.start <= now && now < segment.end : index === activeExtensionIndex && isActiveCueVisualHit(extensionSegments, index, now))) block.classList.add('active');
         const label = document.createElement('span');
         label.className = 'waveform-cue-label';
         label.textContent = String(segment.text || '').replace(/\s+/g, ' ');
@@ -4742,6 +4867,7 @@
     }
 
     layoutBlock(block, segment, startMs, endMs, ownerRow = null) {
+      if (this.subtitleLayersEnabled()) this.applyLayerCueLayout(block, segment);
       const duration = Math.max(1, endMs - startMs);
       const visibleStart = Math.max(startMs, segment.start);
       const visibleEnd = Math.min(endMs, segment.end);
@@ -4788,6 +4914,11 @@
     }
 
     refreshCueOverlay() {
+      this.invalidateSubtitleLayouts(); this.layerPlaybackKey = null;
+      if (this.subtitleLayersEnabled()) {
+        const row = this.content.querySelector('.waveform-row');
+        if (row && Math.abs(row.offsetHeight - this.effectiveRowHeight) > 2) { this.render(); return; }
+      }
       this.refreshTimelineDuration();
       if (this.audioLayer && this.audioGeometry !== `${this.audioLayer.minimumRowHeight()}:${this.durationMs}`) {
         this.refreshAudioTimeline(); return;
@@ -4808,6 +4939,14 @@
     }
 
     refreshCueBlocks() {
+      if (this.subtitleLayersEnabled()) {
+        this.invalidateSubtitleLayouts(); this.layerPlaybackKey = null;
+        this.content.querySelectorAll('.waveform-row').forEach(row => {
+          row.querySelectorAll('.waveform-cue-block').forEach(block => block.remove());
+          this.appendCueBlocks(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
+        });
+        this.paintCueEdgeHover(); this.positionPlayheads(); return;
+      }
       const segments = this.options.getSegments('main');
       const extensionSegments = this.options.getExtensionSegments?.() || [];
       const overlaySegments = this.options.getSegments('overlay') || [];
@@ -5271,6 +5410,11 @@
       const block = hit?.closest?.('.waveform-cue-block');
       if (block?.dataset.track === 'extension') return 'extension';
       if (!hitRow.classList.contains('multi-subtitle-row')) return 'main';
+      if (this.subtitleLayersEnabled()) {
+        const audio = parseFloat(hitRow.style.getPropertyValue('--audio-lane-space')) || 0;
+        const fromBottom = hitRow.getBoundingClientRect().bottom - clientY - audio - 7;
+        return fromBottom >= 0 && fromBottom < this.subtitleLayout('extension').count * 38 ? 'extension' : 'main';
+      }
       const rowRect = hitRow.getBoundingClientRect();
       const rowStyle = getComputedStyle(hitRow);
       const parsePx = (value, fallback) => {
@@ -5299,6 +5443,7 @@
     }
 
     isCueTimeOccupied(timeMs, track = 'main') {
+      if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return false;
       const time = Number(timeMs);
       if (!Number.isFinite(time)) return false;
       const segments = this.options.getSegments?.(track) || [];
@@ -5313,6 +5458,7 @@
     // 创建字幕的拖动不能跨过已有字幕；沿拖动方向把当前端点夹到遇到的
     // 第一个字幕边界。这样预览和最终提交使用同一组无重叠时间范围。
     clampCreateCueTime(anchorMs, requestedMs, track = 'main') {
+      if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return requestedMs;
       if (!Number.isFinite(anchorMs) || !Number.isFinite(requestedMs) || anchorMs === requestedMs) {
         return requestedMs;
       }
@@ -5362,6 +5508,9 @@
         cleanup();
         // 叠加轨启用时，在主轨字幕上按住拖动 = 从按下位置在叠加轨创建字幕：
         // 复用空白处的创建拖动（锚点为按下时间），叠加轨同轨占用仍拒绝。
+        if (row && this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) {
+          this.beginCreateCueDrag(event, row, track); return;
+        }
         if (track === 'main' && row && this.options.getOverlayCreateEnabled?.() === true) {
           this.beginCreateCueDrag(event, row, 'overlay');
           return;
@@ -5789,7 +5938,10 @@
         ? [...liveSelection].sort((a, b) => a - b) : [index];
       const segments = this.options.getSegments(track);
       const timing = this.cueTiming();
-      const dragIndices = kind === 'resize-boundary' ? [boundaryIndex, boundaryIndex + 1] : indices;
+      const dragIndices = kind === 'resize-boundary'
+        ? this.subtitleLayersEnabled() ? edgeHit.edges.slice().sort((a, b) => (a.side === 'right' ? -1 : 1)).map(edge => edge.index)
+          : [boundaryIndex, boundaryIndex + 1] : indices;
+      if (this.subtitleLayersEnabled() && kind === 'resize-boundary') boundaryIndex = dragIndices[0];
       const originals = new Map(dragIndices.map((idx) => [idx, snapshotTiming(segments[idx], timing)]));
       const cancelIndices = new Set(dragIndices);
       if (kind === 'move') {
@@ -5809,6 +5961,7 @@
         pointerId: event.pointerId,
         startClientX: event.clientX,
         currentClientX: event.clientX,
+        currentClientY: event.clientY,
         rangeMs: geometry.endMs - geometry.startMs,
         rowWidth: geometry.width,
         msPerPixel,
@@ -5871,7 +6024,11 @@
       const distance = Math.abs(event.clientX - (side === 'left' ? rect.left : rect.right));
       const handle = block.querySelector(`.waveform-cue-handle.${side}`);
       if (!handle || distance > 7) return null;
-      const otherIndex = index + (side === 'left' ? -1 : 1);
+      const otherIndex = this.subtitleLayersEnabled()
+        ? segments.findIndex((cue, candidate) => candidate !== index
+          && this.subtitleLayout(track).lanes.get(cue.id) === this.subtitleLayout(track).lanes.get(segment.id)
+          && (side === 'left' ? cue.end === segment.start : cue.start === segment.end))
+        : index + (side === 'left' ? -1 : 1);
       const other = segments[otherIndex];
       const otherSide = side === 'left' ? 'right' : 'left';
       const otherBlock = [...this.content.querySelectorAll(`.waveform-cue-block[data-track="${track}"][data-${attr}="${otherIndex}"]`)]
@@ -5928,6 +6085,7 @@
         pointerId: event.pointerId,
         startClientX: event.clientX,
         currentClientX: event.clientX,
+        currentClientY: event.clientY,
         rangeMs: geometry.endMs - geometry.startMs,
         rowWidth: geometry.width,
         geometry,
@@ -6019,7 +6177,17 @@
         .forEach((block) => block.classList.add('dragging'));
     }
 
+    applyLayerKeyboardStep(indices, track, kind, deltaMs) {
+      const segments = this.options.getSegments(track), timing = this.cueTiming();
+      if (!indices.length) return false;
+      const drag = { indices, index: indices[0], track, kind, timing, originals: new Map(indices.map(i => [i, snapshotTiming(segments[i], timing)])) };
+      if (!this.applyLayerDrag(drag, timing.fromMs(deltaMs), () => this.options.onBeginEdit?.('调整字幕时间'))) return false;
+      this.options.syncBoundCueDrag?.(drag);
+      this.options.onCommitEdit?.(indices, kind, track); this.refreshCueOverlay(); return true;
+    }
+
     adjustSelectedByKeyboard(deltaMs, altKey = false, track = 'main') {
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep(normalizedIndices(this.options.getSegments(track), this.options.getSelection?.(track)), track, 'move', deltaMs);
       const segments = this.options.getSegments(track);
       const indices = normalizedIndices(segments, this.options.getSelection?.(track));
       if (!indices.length) return false;
@@ -6056,6 +6224,7 @@
       const indices = normalizedIndices(segments, this.options.getSelection?.(track));
       if (!indices.length || (edge !== 'start' && edge !== 'end')) return false;
       const index = edge === 'start' ? indices[0] : indices[indices.length - 1];
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep([index], track, edge === 'start' ? 'resize-left' : 'resize-right', deltaMs);
       const timing = this.cueTiming();
       const options = {
         sticky: !this.isAdjacentCueAdjustmentIndependent(altKey),
@@ -6101,6 +6270,7 @@
       const current = edge === 'start' ? timing.getStart(segment) : timing.getEnd(segment);
       const requested = timing.fromMs(timeMs);
       if (!Number.isFinite(current) || !Number.isFinite(requested)) return false;
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep([index], track, edge === 'start' ? 'resize-left' : 'resize-right', timing.toMs(requested - current));
 
       const previous = segments[index - 1];
       const next = segments[index + 1];
@@ -6151,13 +6321,20 @@
       return true;
     }
 
+    layerNeighborIndex(index, direction, track) {
+      const segments = this.options.getSegments(track), layout = this.subtitleLayout(track);
+      const lane = layout.lanes.get(segments[index]?.id);
+      for (let i = index + direction; i >= 0 && i < segments.length; i += direction) if (layout.lanes.get(segments[i].id) === lane) return i;
+      return -1;
+    }
+
     snapSelectedCueBoundaryByKeyboard(direction, track = 'main') {
       const segments = this.options.getSegments(track);
       const indices = normalizedIndices(segments, this.options.getSelection?.(track));
       if (!indices.length || (direction !== -1 && direction !== 1)) return false;
 
       const index = direction < 0 ? indices[0] : indices[indices.length - 1];
-      const neighborIndex = direction < 0 ? index - 1 : index + 1;
+      const neighborIndex = this.subtitleLayersEnabled() ? this.layerNeighborIndex(index, direction, track) : direction < 0 ? index - 1 : index + 1;
       const segment = segments[index];
       const neighbor = segments[neighborIndex];
       // 与按住字幕块时的 Shift+A/D 一样，边界不存在或无法贴合时也消费按键，
@@ -6175,6 +6352,7 @@
       if (!Number.isFinite(current) || !Number.isFinite(target)
           || target < lower || target > upper || target === current) return true;
 
+      if (this.subtitleLayersEnabled()) return this.applyLayerKeyboardStep([index], track, edge === 'start' ? 'resize-left' : 'resize-right', timing.toMs(target - current));
       const result = applyBoundaryStep(
         segments,
         index,
@@ -6197,6 +6375,18 @@
       const segments = this.options.getSegments(drag.track || 'main');
       const timing = drag.timing || this.cueTiming();
       const durationMs = Number(this.durationMs) > 0 ? timing.fromMs(this.durationMs) : Infinity;
+      if (this.subtitleLayersEnabled()) {
+        const currentOriginals = drag.originals;
+        this.captureCueDragOriginals(drag);
+        if (this.applyLayerDrag(drag, timing.fromMs(deltaMs), () => { if (!drag.started) { this.options.onBeginEdit?.('调整字幕时间'); drag.started = true; } })) {
+          this.options.syncBoundCueDrag?.(drag); drag.changed = true;
+          this.captureCueDragOriginals(drag);
+          drag.startPointerTime = timing.fromMs(this.timeMsAtPoint(drag.currentClientX, drag.currentClientY)
+            ?? this.timeFromPointerUnbounded({ clientX: drag.currentClientX }, drag.row, drag.geometry));
+          this.scheduleRefreshCueBlocks();
+        } else drag.originals = currentOriginals;
+        return true;
+      }
       let plan;
       let apply;
       if (drag.kind === 'move') {
@@ -6261,7 +6451,7 @@
       if (!indices.length) return true;
 
       const index = direction < 0 ? indices[0] : indices[indices.length - 1];
-      const neighborIndex = direction < 0 ? index - 1 : index + 1;
+      const neighborIndex = this.subtitleLayersEnabled() ? this.layerNeighborIndex(index, direction, drag.track || 'main') : direction < 0 ? index - 1 : index + 1;
       const segment = segments[index];
       const neighbor = segments[neighborIndex];
       // 与普通 A/D 一样，按住字幕块时即使已经到达边界也要消费按键，
@@ -6279,6 +6469,10 @@
       if (!Number.isFinite(current) || !Number.isFinite(target)
           || target < lower || target > upper || target === current) return true;
 
+      if (this.subtitleLayersEnabled() && this.options.canApplySubtitleRanges?.(drag.track, [{
+        index, start: edge === 'start' ? timing.toMs(target) : segment.start,
+        end: edge === 'end' ? timing.toMs(target) : segment.end,
+      }]) === false) return true;
       if (!drag.started) {
         drag.started = true;
         this.options.onBeginEdit?.('贴近字幕边界');
@@ -6296,10 +6490,17 @@
       );
       drag.commitIndices.add(index);
       drag.changed = true;
+      if (this.subtitleLayersEnabled()) {
+        this.options.syncBoundCueDrag?.(drag);
+        this.invalidateSubtitleLayouts();
+      }
       this.captureCueDragOriginals(drag);
       drag.startClientX = drag.currentClientX;
       drag.startPointerTime = timing.fromMs(
-        this.timeFromPointer({ clientX: drag.currentClientX }, drag.row, drag.geometry),
+        this.subtitleLayersEnabled()
+          ? this.timeMsAtPoint(drag.currentClientX, drag.currentClientY)
+            ?? this.timeFromPointerUnbounded({ clientX: drag.currentClientX }, drag.row, drag.geometry)
+          : this.timeFromPointer({ clientX: drag.currentClientX }, drag.row, drag.geometry),
       );
       this.scheduleRefreshCueBlocks();
       return true;
@@ -6326,6 +6527,7 @@
         .forEach((block) => block.classList.remove('dragging'));
       this.pane.classList.remove('cue-drag-active');
       this.drag = null;
+      this.options.onCancelCueDrag?.(drag);
       this.refreshCueOverlay();
       this.setStatus('已取消字幕调整');
       return true;
@@ -6720,8 +6922,11 @@
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.preventDefault();
       drag.currentClientX = event.clientX;
+      drag.currentClientY = event.clientY;
       const timing = drag.timing || this.cueTiming();
-      const pointerMs = this.timeFromPointer(event, drag.row, drag.geometry);
+      const pointerMs = this.subtitleLayersEnabled()
+        ? this.timeMsAtPoint(event.clientX, event.clientY) ?? this.timeFromPointerUnbounded(event, drag.row, drag.geometry)
+        : this.timeFromPointer(event, drag.row, drag.geometry);
       const currentPointerTime = timing.fromMs(pointerMs);
       const deltaTime = currentPointerTime - drag.startPointerTime;
       const hasMeaningfulMovement = timing.unit === 'frames'
@@ -6744,11 +6949,14 @@
       // Shift+拖动是精确自由放置（邻居挡路时换轨而不是吸附），全程禁用吸附，
       // 否则刚拖出重叠区就会被吸回邻居边界。
       const disableSnap = drag.independent === true || drag.shiftOverlay === true;
-      if (drag.kind === 'move') this.applyMoveDrag(drag, deltaTime, disableSnap, drag.allowSqueeze);
+      if (this.subtitleLayersEnabled()) {
+        if (!this.applyLayerDrag(drag, deltaTime)) return;
+      } else if (drag.kind === 'move') this.applyMoveDrag(drag, deltaTime, disableSnap, drag.allowSqueeze);
       else if (drag.kind === 'resize-boundary') this.applyBoundaryDrag(drag, deltaTime, drag.independent);
       else if (drag.kind === 'resize-boundary-independent') this.applyIndependentBoundaryDrag(drag, deltaTime);
       else this.applyResizeDrag(drag, deltaTime, drag.independent);
       this.options.syncBoundCueDrag?.(drag);
+      if (this.subtitleLayersEnabled()) { this.invalidateSubtitleLayouts(); this.options.onSubtitleLayersChanged?.(); }
       drag.changed = true;
       this.scheduleRefreshCueBlocks();
     }
@@ -7056,10 +7264,12 @@
           if (!segment) return;
           restoreTiming(segment, original, drag.timing || this.cueTiming());
         });
+        this.options.onCancelCueDrag?.(drag);
         this.refreshCueOverlay();
         return;
       }
       if (!drag.changed) {
+        this.options.onDiscardCueEdit?.();
         // Shift+点击（无拖动位移）：按下时未做范围选择，这里补上，
         // 保持既有 Shift+click 范围选语义；不进入跳转/启停逻辑。
         if (drag.shiftRangeSelect) {
@@ -7089,6 +7299,8 @@
       const now = this.currentTimeMs();
       this.audioLayer?.updatePlayhead(now);
       const segments = this.options.getSegments('main');
+      if (this.subtitleLayersEnabled()) this.updateLayerPlayback(now);
+      else {
       const activeIndex = findActiveCueIndex(segments, now);
       const activeVisualHit = activeIndex >= 0 && isActiveCueVisualHit(segments, activeIndex, now);
       if (activeIndex !== this.activeIndex || activeVisualHit !== this.activeVisualHit) {
@@ -7123,6 +7335,8 @@
           .forEach((block) => {
             block.classList.toggle('active', Number(block.dataset.overlayIdx) === activeOverlayIndex && activeOverlayVisualHit);
           });
+      }
+
       }
 
       if (allowFollow && this.settings.mode === 'basic' && !this.navigationRestoring) {

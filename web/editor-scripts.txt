@@ -3,6 +3,7 @@
 editor-runtime.js
 gap-remove-core.js
 editor-utils.js
+msw-subtitle-layers.js
 msw-project.js
 msw-asset-core.js
 msw-audio-core.js
@@ -15,6 +16,7 @@ msw-result-core.js
 msw-result-apply.js
 editor-i18n.js
 waveform.js
+msw-subtitle-layers-editor.js
 editor.js
 msw-media.js
 msw-media-analysis.js

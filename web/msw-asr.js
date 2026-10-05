@@ -115,6 +115,7 @@
     return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range));
   }
   async function submit() {
+    if (layerBlockProduction()) return;
     if (busy) return;
     if (media.busy) {message('媒体正在导入，请等待完成后再识别');return;}
     const generation=host.generation;

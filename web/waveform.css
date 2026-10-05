@@ -1105,3 +1105,7 @@
 .waveform-cue-block.waveform-overlay-block.overlay-cover-mode {
   bottom: 7px;
 }
+
+/* Main/sub roles are bands; each overlapping cue owns a derived layer. */
+.unified-subtitle-layers .waveform-row.multi-subtitle-row::before,
+.unified-subtitle-layers .waveform-row.multi-subtitle-row::after { display: none; }
