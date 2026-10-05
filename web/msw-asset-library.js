@@ -1,7 +1,7 @@
 // Shared audio/subtitle library; TTS only supplies task refresh and requests.
 (function(global) {
   'use strict';
-  global.MSWAssetLibrary = {create({host, request, jobs, schedule}) {
+  global.MSWAssetLibrary = {create({host, request, jobs, schedule, voiceLabel = recipe => recipe.voice}) {
   const library=host.assetLibrary, el=id=>document.getElementById(id)||library.querySelector('#'+id);
   const t=value=>global.MSWE_I18N?.translateText?.(value)||value;
   const available=Boolean(host.config?.processingUrl);
@@ -14,6 +14,15 @@
   let page=0, previewUrl=null, previewId=null, previewSequence=0, previewOwner='';
   let assetScrubbing=false, importing=false, stopImport=false, exporting=false;
   const PAGE_SIZE=90, DENSITY_KEY='msw.assets.columns';
+  const engineNames = {qwen:'百炼 Qwen',yukkuri:'油库里',indextts:'IndexTTS','gpt-sovits':'GPT-SoVITS',edge:'Edge TTS',minimax:'MiniMax',mossland:'Mossland',imported:'外部音频'};
+  function audioCaption(asset) {
+    const recipe = asset.generation;
+    const duration = `${(asset.sample_count / asset.sample_rate).toFixed(2)} s`;
+    const name = String((recipe.provider === 'imported' ? recipe.filename : voiceLabel(recipe)) || recipe.voice || '—');
+    const chars = [...name], short = chars.length > 24 ? chars.slice(0,16).join('') + '…' + chars.slice(-5).join('') : name;
+    const engine = t(engineNames[recipe.provider] || recipe.provider || 'TTS');
+    return {short:`${duration} · ${engine} · ${short}`, full:`${duration} · ${engine} · ${name}`};
+  }
   let density=3;
   try {const saved=Number(localStorage.getItem(DENSITY_KEY));if(Number.isInteger(saved)&&saved>=1&&saved<=5)density=saved;}catch(_){}
   function action(label, callback) {
@@ -205,6 +214,25 @@
     }
     clearSelection();
   }, true);
+  function selectAllAssets() {
+    finishEdit(); selected.clear();
+    for (const asset of visibleRows) selected.add(asset.id);
+    selectionAnchor = visibleRows[0]?.id || null;
+    renderAssets();
+  }
+  // Keep keyboard selection inside this module, including its blank space.
+  library.tabIndex = -1;
+  library.addEventListener('click', event => {
+    if (!event.target.closest('button, input, select, textarea, a, audio, .msw-asset-row')) library.focus({preventScroll:true});
+  });
+  library.addEventListener('keydown', event => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (!['a','d'].includes(event.key.toLowerCase())) return;
+    event.preventDefault(); event.stopPropagation();
+    if (event.key.toLowerCase() === 'a') selectAllAssets();
+    else { clearSelection(); library.focus({preventScroll:true}); }
+  });
   function selectAsset(asset,event) {
     if(event.shiftKey && selectionAnchor && visibleRows.some(a=>a.id===selectionAnchor)) {
       const a=visibleRows.findIndex(a=>a.id===selectionAnchor),b=visibleRows.findIndex(a=>a.id===asset.id);
@@ -213,8 +241,7 @@
       if(selected.has(asset.id))selected.delete(asset.id);else selected.add(asset.id);
       selectionAnchor=asset.id;
     } else {selected.clear();selected.add(asset.id);selectionAnchor=asset.id;}
-    if(selected.size===1 && selected.has(asset.id) && asset.kind==='subtitle')editAsset(asset.id);
-    else if(!selected.size || asset.kind!=='subtitle')finishEdit();
+    finishEdit();
     renderAssets();
     [...el('asset-list').children].find(r=>r.dataset.assetId===asset.id)?.focus({preventScroll:true});
   }
@@ -265,7 +292,7 @@
     const batchRecords = new Map(global.MSWAssets.batches(host.data.msw || {}).map(b => [b.id,b]));
     all.sort((a,b) => (batchRecords.get(batchId(b))?.created_at || 0)-(batchRecords.get(batchId(a))?.created_at || 0)
       || batchId(a).localeCompare(batchId(b)) || (a.original_start ?? a.source_ref.start)-(b.original_start ?? b.source_ref.start));
-    const sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map();
+    const sourceStatuses = el('asset-show-changes').checked ? global.MSWAsr?.assetStatuses(host.data) || new Map() : new Map();
     let batch = el('asset-batch').value;
     const batchIds = new Set(all.map(batchId));
     if (batch && !batchIds.has(batch)) batch = '';
@@ -309,7 +336,7 @@
         const content=document.createElement('div');content.className='msw-asset-info';
         const text=document.createElement('p');text.className='msw-asset-text msw-asset-content';text.textContent=asset.text;text.title=asset.text;
         const meta=document.createElement('p');meta.className='msw-asset-meta';
-        meta.textContent=`${t(asset.track_id === null ? '主字幕素材' : '副字幕素材')} · ${((asset.end-asset.start)/1000).toFixed(2)} s`;
+        meta.textContent=`${((asset.end-asset.start)/1000).toFixed(2)} s · ${t(asset.track_id === null ? '主字幕素材' : '副字幕素材')}`;
         if (asset.color) {row.style.setProperty('--asset-mark',asset.color.value);row.classList.add('marked');}
         content.append(text,meta);
         const buttons=document.createElement('div');buttons.className='msw-asset-actions';
@@ -322,22 +349,26 @@
       const content = document.createElement('div'); content.className = 'msw-asset-info';
       const text = document.createElement('p'); text.className = 'msw-asset-text msw-asset-content'; text.textContent = asset.generation.display_text; text.title = text.textContent;
       const meta = document.createElement('p'); meta.className = 'msw-asset-meta';
-      const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
-      meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
-      if (asset.generation.provider === 'imported') meta.textContent = `${t('外部音频')} · ${duration.toFixed(2)} s · ${asset.generation.filename || ''}`;
-      else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
-      else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
+      const caption = audioCaption(asset), source = asset.source_ref;
+      meta.textContent = caption.short;
       if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
-      const reason = sourceStatuses.get(asset.id);
-      const metaLine = document.createElement('div'); metaLine.className = 'msw-asset-meta-line';
+      const reason = el('asset-show-changes').checked ? sourceStatuses.get(asset.id) : null;
       if (reason) {
-        meta.textContent += ` · ${t(reason)}`;
         const review = document.createElement('span'); review.className = 'msw-asset-review'; review.tabIndex = 0;
-        review.title = t(reason); review.setAttribute('aria-label',t(reason));
-        review.textContent = t('待复核'); metaLine.append(review);
+        review.title = t(reason); review.setAttribute('aria-label',t(reason)); review.setAttribute('role','img');
+        review.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5v4M8 11v.5"/></svg>';
+        row.classList.add('has-review'); row.append(review);
       }
-      meta.title = meta.textContent; metaLine.append(meta);
-      content.append(text, metaLine);
+      const details = [text.textContent, caption.full];
+      if (asset.generation.voice && !caption.full.includes(asset.generation.voice)) details.push(asset.generation.voice);
+      if (asset.generation.provider !== 'imported') {
+        details.push(`${t(source.kind === 'editor_text' ? '文本配音' : source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)}–${(source.end / 1000).toFixed(2)} s`);
+        if (source.kind !== 'editor_text' && asset.sample_count / asset.sample_rate > (source.end - source.start) / 1000 + .1) details.push(t('长于字幕'));
+      }
+      if (missing.has(asset.id)) details.push(t('素材缺失'));
+      if (reason) details.push(t(reason));
+      row.title = text.title = meta.title = details.join('\n');
+      content.append(text, meta);
       const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
       const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
       const save = iconAction('下载 WAV', 'download', async () => {
@@ -385,6 +416,7 @@
     renderAssets();
   });
   global.addEventListener('msw:subtitles-changed', renderAssets);
+  global.addEventListener('msw:voice-alias-changed', renderAssets);
   for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
   for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
   el('asset-play-toggle').addEventListener('click', async () => {
@@ -497,6 +529,11 @@
     updateAssetTransport();
   });
   try {el('asset-show-player').checked=localStorage.getItem('msw.assets.showPlayer')!=='false';}catch(_){}
+  el('asset-show-changes').addEventListener('change',()=>{
+    try {localStorage.setItem('msw.assets.showChanges',String(el('asset-show-changes').checked));}catch(_){}
+    renderAssets();
+  });
+  try {el('asset-show-changes').checked=localStorage.getItem('msw.assets.showChanges')==='true';}catch(_){}
   const timeline=host.timeline, MIME='application/x-msw-subtitle-assets';
   timeline?.pane.addEventListener('dragover',event=>{
     if(!event.dataTransfer.types.includes(MIME))return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='copy';
@@ -509,7 +546,8 @@
       void insertSubtitles(value.ids,point.time).catch(e=>host.flashHint(e.message,'warning'));
     }catch(e){host.flashHint(e.message,'warning');}
   },true);
-  const api={renderAssets,playReference,stopReference,commitEdit,finishEdit,get editing(){return !!editingId;},clearSelection,
+  const api={renderAssets,playReference,stopReference,commitEdit,finishEdit,get editing(){return !!editingId;},clearSelection,selectAll:selectAllAssets,
+    isActive:()=>library.matches(':hover')||library.contains(document.activeElement),
     selectedIds:()=>[...selected],showBatch(id){finishEdit();selected.clear();el('asset-type').value='';renderAssets();el('asset-batch').value=id;page=0;renderAssets();}};
   global.MSWE.register('asset-library',()=>api);
   renderAssets();

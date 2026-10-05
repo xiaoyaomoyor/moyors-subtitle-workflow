@@ -93,6 +93,7 @@
       if(value&&!rows.some(r=>r.id===value))input.add(new Option(`${t('不可用')} · ${value.slice(0,18)}`,value));input.value=value||'';}
     function fill(r){for(const key of ['gpt_model','sovits_model'])choices(key,data.models.filter(m=>m.kind===(key==='gpt_model'?'gpt':'sovits')),r[key]);
       choices('speaker_ref',data.references,r.speaker_ref);choices('manage_ref',data.references,r.speaker_ref);
+      fields.get('preset').closest('label').hidden=!Object.keys(data.presets).length;
       for(const key of ['preset','preset_manage'])choices(key,Object.keys(data.presets).map(name=>({name,id:name})),fields.get(key).value,'选择已保存预设');
       aux.replaceChildren(...data.references.map(row=>new Option(row.name,row.id,false,(r.aux_refs||[]).includes(row.id))));
       for(const id of r.aux_refs||[])if(!data.references.some(v=>v.id===id))aux.add(new Option(t('不可用')+' · '+id.slice(0,18),id,true,true));

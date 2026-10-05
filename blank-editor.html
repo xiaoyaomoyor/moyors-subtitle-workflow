@@ -3376,16 +3376,10 @@
   .cue .time-arrow { grid-area: arrow; }
   .cue .time-end { grid-area: end; }
   .cue .time-start, .cue .time-arrow, .cue .time-end { white-space: nowrap; }
-  /* 列表变窄时，所有行同时切到同一个两行时间码列，避免逐行 flex 收缩造成错位。 */
+  /* 卡片头部已独占一行，不再沿用旧列表的 700px 两行时间码规则。
+     窄面板统一使用下方的紧凑时间码，避免起止时间无故换行。 */
   @container cue-list (max-width: 700px) {
     .cue-list-count { display: none; }
-    .cue .time {
-      grid-template-columns: max-content max-content;
-      grid-template-areas:
-        "start arrow"
-        "end end";
-      width: 11ch; flex-basis: 11ch;
-    }
   }
   .cue .sticker-slot {
     flex: 0 1 80px; min-width: 40px; max-width: 100px;
@@ -3600,7 +3594,7 @@
   .msw-asset-import-status { padding: 6px 8px; font-size: 11px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 100px; overflow-y: auto; flex-shrink: 0; }
   .msw-asset-import-status button { margin-top: 5px; font: inherit; color: var(--text-primary); background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: var(--radius-sm); cursor: pointer; }
   .msw-asset-list { flex: 1 1 100px; min-height: 40px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: grid; grid-template-columns: repeat(var(--asset-columns, 3), minmax(0, 1fr)); align-content: start; gap: 6px; padding: 6px 8px; }
-  .msw-asset-row { display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--card-bg); cursor: grab; }
+  .msw-asset-row { position: relative; display: flex; flex-direction: column; min-width: 0; gap: 5px; padding: 7px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--card-bg); cursor: grab; }
   .msw-asset-row:hover { border-color: var(--btn-border-hover); }
   .msw-asset-row.playing { border-color: var(--accent); }
   .msw-asset-row.marked { background: color-mix(in srgb, var(--asset-mark) 13%, var(--card-bg)); }
@@ -4947,7 +4941,9 @@
 .modal-mask { z-index: 500; }
 
 .waveform-scale-fit { margin-left: 7px; font-size: 12px; }
-#cue-list-follow { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
+#cue-list-follow { padding: 5px 9px; font-size: 12px; white-space: nowrap; border: 1px solid var(--btn-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); cursor: pointer; }
+#cue-list-follow:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+#cue-list-follow:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 #cue-list-follow[aria-pressed="false"] { color: var(--accent); border-color: var(--accent); }
 /* Model startup logs stay bounded inside environment settings. */
 .msw-tts-service-log { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
@@ -4993,11 +4989,43 @@
 .msw-local-directory { grid-column:1 / -1; }
 .msw-local-advanced > .msw-processing-grid { margin-top:10px; }
 
-.msw-asset-meta-line { display:flex; align-items:center; gap:5px; min-width:0; }
-.msw-asset-meta-line .msw-asset-meta { flex:1; min-width:0; }
-.msw-asset-review { flex:none; font-size:10px; line-height:1.4; color:var(--amber); cursor:help; }
-.msw-asset-review::before { content:'○'; margin-right:3px; }
+.msw-asset-row.has-review .msw-asset-text { padding-right:18px; }
+.msw-asset-review { position:absolute; top:7px; right:7px; display:flex; color:var(--accent); cursor:help; }
+.msw-asset-review svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; }
 .msw-asset-review:focus-visible { outline:1px solid var(--accent); outline-offset:2px; border-radius:2px; }
+
+/* TTS call UI: one surface for peer sections, no nested voice-card surfaces. */
+#tts-panel.show { display:flex; flex-direction:column; max-height:calc(100dvh - 24px); }
+#tts-panel > .gap-remove-panel-body { flex:1; min-height:0; max-height:none; overflow-y:auto; }
+#tts-panel :is(.msw-tts-section, .msw-local-service-card, #tts-history) { margin:0 0 10px; padding:10px; background:var(--card-bg); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); }
+#tts-panel :is(.msw-tts-section, #tts-history) > summary { cursor:pointer; color:var(--text-primary); font-size:12px; }
+#tts-panel .msw-tts-section[open] > summary { margin-bottom:8px; }
+#tts-panel :is(.msw-qwen-voice-picker, .msw-voice-picker) { padding:8px 0; margin:6px 0; background:transparent; border:0; border-block:1px solid var(--border-subtle); border-radius:0; }
+#tts-panel .msw-processing-field { margin-block:4px; }
+#tts-panel .msw-processing-grid { gap:6px 10px; }
+#tts-panel .msw-processing-grid > .msw-processing-field:only-child { grid-column:1 / -1; }
+#tts-panel :is(.msw-tts-voice-row, .msw-tts-search-row) { display:flex; align-items:flex-end; gap:8px; margin:0; min-width:0; }
+#tts-panel :is(.msw-tts-voice-row, .msw-tts-search-row) > label { flex:1; min-width:0; }
+#tts-panel :is(.msw-tts-voice-row, .msw-tts-search-row) > button { flex:none; margin-bottom:4px; min-height:30px; }
+#tts-panel .msw-processing-actions:empty, #tts-panel .msw-voice-picker-footer:empty, #tts-panel .msw-processing-hint:empty, #tts-panel .msw-processing-message:empty { display:none; }
+#tts-panel .msw-voice-picker-footer > [hidden], #tts-panel [hidden] { display:none !important; }
+#tts-panel .msw-local-service-card { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+#tts-panel .msw-local-service-heading { flex:1 1 180px; justify-content:flex-start; gap:8px; }
+#tts-panel .msw-local-service-heading [role="status"] { text-align:left; }
+#tts-panel .msw-local-service-card .msw-processing-actions { margin:0; flex-wrap:nowrap; }
+#tts-panel .msw-tts-icon-button { display:inline-grid; place-items:center; width:30px; height:30px; min-width:30px; padding:5px; font-size:0; border:1px solid var(--btn-border); border-radius:var(--radius-sm); background:var(--btn-bg); color:var(--text-primary); cursor:pointer; }
+#tts-panel .msw-tts-icon-button::before { content:''; width:16px; height:16px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M18 18A8 8 0 0 1 5 15' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+#tts-panel .msw-tts-icon-button:hover { background:var(--btn-bg-hover); }
+#tts-panel .msw-tts-icon-button:disabled { opacity:.5; cursor:default; }
+#tts-panel .msw-tts-icon-button:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+#tts-panel .msw-tts-footer { flex:none; padding:8px 12px 12px; border-top:1px solid var(--border-subtle); background:var(--module-content-bg); border-radius:0 0 var(--radius-sm) var(--radius-sm); }
+#tts-panel .msw-tts-footer .msw-processing-actions { margin:0; }
+#tts-panel .msw-tts-footer .msw-processing-message:not(:empty) { margin:0 0 8px; max-height:72px; overflow:auto; }
+#tts-panel details details { padding-block:6px; border-block:1px solid var(--border-subtle); }
+#tts-panel details details > summary { cursor:pointer; font-size:12px; color:var(--text-secondary); }
+
+#tts-panel .msw-voice-picker-footer:not(:has(> :not([hidden]))) { display:none; }
+#tts-index-controls > .msw-processing-grid:has(> label[hidden]) > label:not([hidden]) { grid-column:1 / -1; }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -6416,6 +6444,7 @@
             <input type="checkbox" id="asset-show-search" checked> 显示搜索与筛选
           </label>
           <label class="toggle settings-panel-item"><input type="checkbox" id="asset-show-player" checked> 显示底部试听栏</label>
+          <label class="toggle settings-panel-item" title="来源字幕改变或被删除时，在音频卡片右上角显示图标；悬浮查看原因"><input type="checkbox" id="asset-show-changes"> 显示变动标记</label>
         </div>
       </div>
       <div class="dropdown-separator"></div>
@@ -6847,6 +6876,10 @@
           </div>
           <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">列表</span>
+            <div class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row">
+              <span data-option-help="播放时自动滚动到当前字幕；手动翻看列表会暂停跟随。点击“跟随播放”可定位当前字幕并恢复跟随。">播放定位</span>
+              <button type="button" id="cue-list-follow" aria-pressed="true" title="定位当前播放头并恢复字幕跟随；手动翻看后可再次点击">跟随播放</button>
+            </div>
             <label class="toggle settings-panel-item cue-list-setting-toggle" title="开启后，字数过滤期间拆分出的字幕会暂时保留，直到点击其他字幕、波形或空白处">
               <input type="checkbox" id="cue-list-keep-split-visible" checked> 拆分后临时保留显示
             </label>
@@ -8424,7 +8457,6 @@
         <span class="cue-editor-key-hint"><kbd>Ctrl+A</kbd> 全选</span>
         <span class="cue-editor-key-hint"><kbd>Ctrl+D</kbd> 取消选择</span>
       </div>
-      <div class="toolbar cue-list-toolbar" aria-label="字幕列表模块栏"><button type="button" id="cue-list-follow" aria-pressed="true" title="定位当前播放头并恢复字幕跟随；手动翻看后可再次点击">跟随播放</button></div>
     <div class="cues-container" id="cues-container" tabindex="0" aria-label="字幕列表">
       <div class="cues-empty" id="cues-empty">拖入工程或 SRT 后显示字幕列表</div>
     </div>
@@ -8654,7 +8686,7 @@
       <p id="tts-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="tts-environment-reminder" hidden><button type="button" id="tts-environment-open">前往环境配置</button></div>
       <details id="tts-synthesis-settings" class="msw-tts-section" open><summary>合成设置</summary>
       <div id="tts-qwen-fields">
-      <label class="msw-processing-field"><span>配音模式 · ModelType</span><select id="tts-model-type"><option value="CustomVoice">CustomVoice · 预设音色</option><option value="VoiceDesign">VoiceDesign · 声音设计</option><option value="VoiceClone">VoiceClone · 声音复刻</option></select></label>
+      <label class="msw-processing-field"><span>配音模式</span><select id="tts-model-type"><option value="CustomVoice">预设音色</option><option value="VoiceDesign">声音设计</option><option value="VoiceClone">声音复刻</option></select></label>
       <div class="msw-processing-grid">
         <label class="msw-processing-field"><span>模型</span><select id="tts-model"></select></label>
         <label class="msw-processing-field"><span>语言</span><select id="tts-language"></select></label>
@@ -8672,20 +8704,20 @@
       </div>
 
       <div id="tts-instruct" hidden>
-        <label class="msw-processing-field"><span>声音描述（可选）</span><textarea id="tts-instructions" rows="2" maxlength="1600" placeholder="例如：语速舒缓、吐字清晰、语气温柔"></textarea></label>
+        <label class="msw-processing-field"><span class="msw-option-label">声音描述（可选）</span><textarea id="tts-instructions" rows="2" maxlength="1600" placeholder="例如：语速舒缓、吐字清晰、语气温柔"></textarea></label>
         <label class="msw-tts-check"><input type="checkbox" id="tts-optimize">优化声音描述</label>
-        <small class="msw-processing-hint">描述使用中文或英文，最多 1600 字符，且不超过百炼 1600 Token 限制。</small>
+        <small class="msw-processing-hint" data-help-for="tts-instructions">描述使用中文或英文，最多 1600 字符，且不超过百炼 1600 Token 限制。</small>
       </div>
 
       </div>
       <div id="tts-yukkuri-fields" hidden>
         <div class="msw-processing-grid">
           <label class="msw-processing-field"><span>音色</span><select id="tts-yukkuri-voice"><option value="f1">F1</option><option value="f2">F2</option><option value="m1">M1</option><option value="m2">M2</option><option value="dvd">DVD</option><option value="imd1">IMD1</option><option value="jgr">JGR</option><option value="r1">R1</option></select></label>
-          <label class="msw-processing-field"><span>语言读法</span><select id="tts-yukkuri-language"><option value="Auto">自动</option><option value="Chinese">中文</option><option value="English">英文</option></select></label>
+          <label class="msw-processing-field"><span class="msw-option-label">语言读法</span><select id="tts-yukkuri-language"><option value="Auto">自动</option><option value="Chinese">中文</option><option value="English">英文</option></select></label>
         </div>
 
         <label class="msw-processing-field" id="tts-yukkuri-pronunciation-field" hidden><span>读音修正（可选，仅此次配音）</span><input id="tts-yukkuri-pronunciation" maxlength="600" placeholder="可填同音字、英文或假名，不改字幕原文"></label>
-        <p class="msw-processing-hint">支持中英文混合，保留油库里的假名近似读法。英文数字逐位读；自动模式在含汉字时使用中文数字读法。无需 API Key。</p>
+        <p class="msw-processing-hint" data-help-for="tts-yukkuri-language">支持中英文混合，保留油库里的假名近似读法。英文数字逐位读；自动模式在含汉字时使用中文数字读法。无需 API Key。</p>
 
         <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-preview" disabled>试听音色</button></div>
         <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
@@ -8727,12 +8759,14 @@
         </fieldset>
       </div>
       </details>
-      <div class="msw-processing-actions"><button type="button" id="tts-save-settings" title="记住当前引擎和合成参数，下次打开时使用；不保存工程或生成音频">保存合成设置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
-      <p class="msw-processing-hint">每条字幕或一份草稿生成一个完整 WAV，最多 600 字符；生成期间可继续编辑。</p>
+
     </div>
-    <p id="tts-message" class="msw-processing-message" role="status" aria-live="polite"></p>
-    <details class="msw-job-history" id="tts-history" open><summary>合成记录 <span id="tts-history-count"></span></summary><div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务" tabindex="0"></div></details>
+    <details class="msw-job-history" id="tts-history" open hidden><summary>合成记录 <span id="tts-history-count"></span></summary><div class="msw-processing-jobs" id="tts-jobs" aria-label="TTS 任务" tabindex="0"></div></details>
   </div>
+  <footer class="msw-tts-footer" id="tts-call-footer">
+    <p id="tts-message" class="msw-processing-message" role="status" aria-live="polite"></p>
+    <div class="msw-processing-actions"><button type="button" id="tts-save-settings" title="记住当前引擎和合成参数，下次打开时使用；不保存工程或生成音频">保存合成设置</button><button type="button" id="tts-start" class="primary">开始合成</button></div>
+  </footer>
 </aside>
 
 <aside class="gap-remove-panel msw-processing-panel" id="subtitle-translation-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-translation-title">
@@ -18990,6 +19024,17 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '每条字幕或每个草稿分段生成一份完整 WAV。': 'Each subtitle or draft segment generates a complete WAV file.',
+    '当前引擎每段最多': 'Maximum characters per segment for this engine:',
+    '草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。': 'Drafts use the subtitle editor sentence splitting settings. Synthesis uses the submitted text; you can continue editing.',
+
+    '显示变动标记': 'Show change indicators',
+    '来源字幕改变或被删除时，在音频卡片右上角显示图标；悬浮查看原因': 'Show an icon on audio cards when source subtitles change or are removed; hover for the reason',
+    '播放定位': 'Playback position',
+    '播放时自动滚动到当前字幕；手动翻看列表会暂停跟随。点击“跟随播放”可定位当前字幕并恢复跟随。': 'Scroll to the current subtitle during playback. Browsing the list manually pauses following. Click Follow playback to locate the current subtitle and resume following.',
+    '百炼 Qwen': 'Bailian Qwen',
+    '油库里': 'Yukkuri',
+
     "本机服务": "Local service",
     "高级启动设置": "Advanced startup settings",
     "启动等待上限用于等待模型加载；单次等待上限用于一次语音合成，两者独立。": "Startup timeout waits for model loading. Request timeout limits one synthesis call; these are independent.",
@@ -23391,7 +23436,6 @@ export default MawDynamicCaptions;
       // 字幕列表模块 = 工具栏 wrapper（data-dock-module 在 wrapper 上）；
       // this.cues 仍指滚动容器，供滚动/渲染逻辑使用。
       this.cuesModule = document.getElementById('cues-module') || this.cues;
-      this.cueListFollowButton = document.getElementById('cue-list-follow');
       this.pane = document.getElementById('waveform-pane');
       this.assetLibrary = document.getElementById('asset-library');
       this.scroll = document.getElementById('waveform-scroll');
@@ -24141,7 +24185,6 @@ export default MawDynamicCaptions;
         addBtn.dataset.basePath = JSON.stringify(basePath || []);
         addBtn.dataset.moduleId = id;
         strip.appendChild(addBtn);
-        if (id === 'cues' && this.cueListFollowButton) strip.appendChild(this.cueListFollowButton);
       });
     }
 
@@ -42103,6 +42146,8 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
+  const assetSelection = window.MSWE?.resolve('asset-library');
+  if (assetSelection?.isActive()) { assetSelection.selectAll(); return; }
   // 波形显示器模块内的分场景全选：已有选区决定对象——选中过贴片则全选贴片、
   // 选中过字幕则全选字幕；没有任何选区时字幕块与音频贴片一起全选。
   // 波形模块之外维持旧行为（只全选字幕）。
@@ -42149,6 +42194,8 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
+  const assetSelection = window.MSWE?.resolve('asset-library');
+  if (assetSelection?.isActive()) { e.preventDefault(); assetSelection.clearSelection(); return; }
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0) return;
   e.preventDefault();
   clearSelection();
@@ -56423,13 +56470,15 @@ window.addEventListener('beforeunload', (e) => {
         groups.get(row.group).append(new Option(`${t(row.name)} · ${row.id}${row.gender ? ' · ' + t(row.gender) : ''}`, row.id));
       }
       const id = el('tts-voice').value.trim(), selected = all.find(row => row.id === id);
-      select.value = filtered.some(row => row.id === id) ? id : '';
+      if (id && !filtered.some(row => row.id === id)) select.add(new Option(selected ? t(selected.name) + ' · ' + id : id, id),0);
+      select.value = id;
       el('tts-voice-current').textContent = id ? `${t('当前音色')}：${selected ? t(selected.name) + ' · ' : ''}${id}` : t('请选择音色；可在环境配置中创建或登记');
       const audition = el('tts-voice-audition');
       audition.disabled = !previewSource();
       audition.title = t(previewSource() ? '在素材库播放已有试听音频，不发起云端合成' : '此音色暂无已有试听音频');
       el('tts-voice-list-label').textContent = t(custom() ? '本机创建音色' : '系统音色');
-      el('tts-voice-catalog-hint').textContent = custom()
+      el('tts-voice-catalog-hint').textContent = '';
+      el('tts-voice-catalog-hint').dataset.catalogHelp = custom()
         ? t('当前模型的本机音色；创建和管理请前往环境配置。')
         : `${t('当前模型支持')} ${all.length} ${t('个系统音色')} · ${t('可搜索中文名称、音色 ID 和方言')}`;
       updateScope();
@@ -56703,6 +56752,7 @@ window.addEventListener('beforeunload', (e) => {
       options('local-voice', refs.map(ref => ({id: ref.id, label: ref.name})).filter(matches), '请选择或上传参考音频', value('speaker'));
     }
     function renderPresets() {
+      el('tts-index-preset').closest('label').hidden = !Object.keys(presets).length;
       options('preset', Object.keys(presets).map(name => ({id: name, label: name})), '选择已保存预设');
       options('preset-manage', Object.keys(presets).map(name => ({id: name, label: name})), '选择已保存预设');
       options('server-preset', (cap?.presets || []).map(name => ({id: name, label: name})), '选择服务预设');
@@ -56931,7 +56981,9 @@ window.addEventListener('beforeunload', (e) => {
       status.setAttribute('aria-busy', ui.status.getAttribute('aria-busy') || 'false');
       for (const key of ['check', 'start', 'stop']) {
         const button = el('tts-local-call-' + key), source = ui[key];
-        button.textContent = source.textContent; button.disabled = source.disabled; button.hidden = source.hidden;
+        button.textContent = source.textContent; button.disabled = source.disabled;
+        button.hidden = source.hidden || (key === 'start' && !ui.stop.hidden);
+        button.setAttribute('aria-busy', String(!key.includes('stop') && pending.has(kind)));
       }
     }
     function render(kind, state) {
@@ -56951,8 +57003,13 @@ window.addEventListener('beforeunload', (e) => {
       ui.start.disabled = wait || ready(state) || state.owned || !state.configured;
       ui.start.hidden = ready(state);
       ui.check.disabled = wait; ui.check.dataset.serviceLocked = String(wait);
+      if (kind === 'gpt-sovits') {
+        const scan = el('tts-gpt-scan');
+        scan.dataset.serviceLocked = String(wait);
+        scan.disabled = wait || scan.getAttribute('aria-busy') === 'true';
+      }
       ui.stop.hidden = !state.owned && !loading(state);
-      ui.stop.textContent = t(state.owned ? '停止服务' : '取消启动');
+      ui.stop.textContent = t(loading(state) ? '取消启动' : '停止服务');
       ui.stop.disabled = pending.has(kind);
       for (const input of [...ui.fields.querySelectorAll('input, button'), ...ui.advanced.querySelectorAll('input')]) {
         input.disabled = wait || state.owned;
@@ -57197,6 +57254,7 @@ window.addEventListener('beforeunload', (e) => {
       if(value&&!rows.some(r=>r.id===value))input.add(new Option(`${t('不可用')} · ${value.slice(0,18)}`,value));input.value=value||'';}
     function fill(r){for(const key of ['gpt_model','sovits_model'])choices(key,data.models.filter(m=>m.kind===(key==='gpt_model'?'gpt':'sovits')),r[key]);
       choices('speaker_ref',data.references,r.speaker_ref);choices('manage_ref',data.references,r.speaker_ref);
+      fields.get('preset').closest('label').hidden=!Object.keys(data.presets).length;
       for(const key of ['preset','preset_manage'])choices(key,Object.keys(data.presets).map(name=>({name,id:name})),fields.get(key).value,'选择已保存预设');
       aux.replaceChildren(...data.references.map(row=>new Option(row.name,row.id,false,(r.aux_refs||[]).includes(row.id))));
       for(const id of r.aux_refs||[])if(!data.references.some(v=>v.id===id))aux.add(new Option(t('不可用')+' · '+id.slice(0,18),id,true,true));
@@ -57325,6 +57383,7 @@ window.addEventListener('beforeunload', (e) => {
     function renderVoices(){const query=search.value.trim().toLowerCase();const rows=new Map(data.voices.map(v=>[v.id,v]));
       for(const id of Object.keys(data.aliases||{}))if(!rows.has(id))rows.set(id,{id,name:id});
       catalog.replaceChildren(new Option(t('选择已有音色或填写 ID'),''),...[...rows.values()].filter(v=>v.id===voice.value||`${voiceLabel(v.id)} ${v.name} ${v.id}`.toLowerCase().includes(query)).map(v=>new Option(voiceLabel(v.id),v.id)));
+      if(voice.value && ![...catalog.options].some(o=>o.value===voice.value))catalog.add(new Option(voiceLabel(voice.value),voice.value));
       catalog.value=voice.value;currentVoice();}
     function support(){
       const current=language.value;
@@ -57390,7 +57449,7 @@ window.addEventListener('beforeunload', (e) => {
 // Shared audio/subtitle library; TTS only supplies task refresh and requests.
 (function(global) {
   'use strict';
-  global.MSWAssetLibrary = {create({host, request, jobs, schedule}) {
+  global.MSWAssetLibrary = {create({host, request, jobs, schedule, voiceLabel = recipe => recipe.voice}) {
   const library=host.assetLibrary, el=id=>document.getElementById(id)||library.querySelector('#'+id);
   const t=value=>global.MSWE_I18N?.translateText?.(value)||value;
   const available=Boolean(host.config?.processingUrl);
@@ -57403,6 +57462,15 @@ window.addEventListener('beforeunload', (e) => {
   let page=0, previewUrl=null, previewId=null, previewSequence=0, previewOwner='';
   let assetScrubbing=false, importing=false, stopImport=false, exporting=false;
   const PAGE_SIZE=90, DENSITY_KEY='msw.assets.columns';
+  const engineNames = {qwen:'百炼 Qwen',yukkuri:'油库里',indextts:'IndexTTS','gpt-sovits':'GPT-SoVITS',edge:'Edge TTS',minimax:'MiniMax',mossland:'Mossland',imported:'外部音频'};
+  function audioCaption(asset) {
+    const recipe = asset.generation;
+    const duration = `${(asset.sample_count / asset.sample_rate).toFixed(2)} s`;
+    const name = String((recipe.provider === 'imported' ? recipe.filename : voiceLabel(recipe)) || recipe.voice || '—');
+    const chars = [...name], short = chars.length > 24 ? chars.slice(0,16).join('') + '…' + chars.slice(-5).join('') : name;
+    const engine = t(engineNames[recipe.provider] || recipe.provider || 'TTS');
+    return {short:`${duration} · ${engine} · ${short}`, full:`${duration} · ${engine} · ${name}`};
+  }
   let density=3;
   try {const saved=Number(localStorage.getItem(DENSITY_KEY));if(Number.isInteger(saved)&&saved>=1&&saved<=5)density=saved;}catch(_){}
   function action(label, callback) {
@@ -57594,6 +57662,25 @@ window.addEventListener('beforeunload', (e) => {
     }
     clearSelection();
   }, true);
+  function selectAllAssets() {
+    finishEdit(); selected.clear();
+    for (const asset of visibleRows) selected.add(asset.id);
+    selectionAnchor = visibleRows[0]?.id || null;
+    renderAssets();
+  }
+  // Keep keyboard selection inside this module, including its blank space.
+  library.tabIndex = -1;
+  library.addEventListener('click', event => {
+    if (!event.target.closest('button, input, select, textarea, a, audio, .msw-asset-row')) library.focus({preventScroll:true});
+  });
+  library.addEventListener('keydown', event => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (!['a','d'].includes(event.key.toLowerCase())) return;
+    event.preventDefault(); event.stopPropagation();
+    if (event.key.toLowerCase() === 'a') selectAllAssets();
+    else { clearSelection(); library.focus({preventScroll:true}); }
+  });
   function selectAsset(asset,event) {
     if(event.shiftKey && selectionAnchor && visibleRows.some(a=>a.id===selectionAnchor)) {
       const a=visibleRows.findIndex(a=>a.id===selectionAnchor),b=visibleRows.findIndex(a=>a.id===asset.id);
@@ -57602,8 +57689,7 @@ window.addEventListener('beforeunload', (e) => {
       if(selected.has(asset.id))selected.delete(asset.id);else selected.add(asset.id);
       selectionAnchor=asset.id;
     } else {selected.clear();selected.add(asset.id);selectionAnchor=asset.id;}
-    if(selected.size===1 && selected.has(asset.id) && asset.kind==='subtitle')editAsset(asset.id);
-    else if(!selected.size || asset.kind!=='subtitle')finishEdit();
+    finishEdit();
     renderAssets();
     [...el('asset-list').children].find(r=>r.dataset.assetId===asset.id)?.focus({preventScroll:true});
   }
@@ -57654,7 +57740,7 @@ window.addEventListener('beforeunload', (e) => {
     const batchRecords = new Map(global.MSWAssets.batches(host.data.msw || {}).map(b => [b.id,b]));
     all.sort((a,b) => (batchRecords.get(batchId(b))?.created_at || 0)-(batchRecords.get(batchId(a))?.created_at || 0)
       || batchId(a).localeCompare(batchId(b)) || (a.original_start ?? a.source_ref.start)-(b.original_start ?? b.source_ref.start));
-    const sourceStatuses = global.MSWAsr?.assetStatuses(host.data) || new Map();
+    const sourceStatuses = el('asset-show-changes').checked ? global.MSWAsr?.assetStatuses(host.data) || new Map() : new Map();
     let batch = el('asset-batch').value;
     const batchIds = new Set(all.map(batchId));
     if (batch && !batchIds.has(batch)) batch = '';
@@ -57698,7 +57784,7 @@ window.addEventListener('beforeunload', (e) => {
         const content=document.createElement('div');content.className='msw-asset-info';
         const text=document.createElement('p');text.className='msw-asset-text msw-asset-content';text.textContent=asset.text;text.title=asset.text;
         const meta=document.createElement('p');meta.className='msw-asset-meta';
-        meta.textContent=`${t(asset.track_id === null ? '主字幕素材' : '副字幕素材')} · ${((asset.end-asset.start)/1000).toFixed(2)} s`;
+        meta.textContent=`${((asset.end-asset.start)/1000).toFixed(2)} s · ${t(asset.track_id === null ? '主字幕素材' : '副字幕素材')}`;
         if (asset.color) {row.style.setProperty('--asset-mark',asset.color.value);row.classList.add('marked');}
         content.append(text,meta);
         const buttons=document.createElement('div');buttons.className='msw-asset-actions';
@@ -57711,22 +57797,26 @@ window.addEventListener('beforeunload', (e) => {
       const content = document.createElement('div'); content.className = 'msw-asset-info';
       const text = document.createElement('p'); text.className = 'msw-asset-text msw-asset-content'; text.textContent = asset.generation.display_text; text.title = text.textContent;
       const meta = document.createElement('p'); meta.className = 'msw-asset-meta';
-      const duration = asset.sample_count / asset.sample_rate, source = asset.source_ref;
-      meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t(source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)} s`;
-      if (asset.generation.provider === 'imported') meta.textContent = `${t('外部音频')} · ${duration.toFixed(2)} s · ${asset.generation.filename || ''}`;
-      else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
-      else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
+      const caption = audioCaption(asset), source = asset.source_ref;
+      meta.textContent = caption.short;
       if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
-      const reason = sourceStatuses.get(asset.id);
-      const metaLine = document.createElement('div'); metaLine.className = 'msw-asset-meta-line';
+      const reason = el('asset-show-changes').checked ? sourceStatuses.get(asset.id) : null;
       if (reason) {
-        meta.textContent += ` · ${t(reason)}`;
         const review = document.createElement('span'); review.className = 'msw-asset-review'; review.tabIndex = 0;
-        review.title = t(reason); review.setAttribute('aria-label',t(reason));
-        review.textContent = t('待复核'); metaLine.append(review);
+        review.title = t(reason); review.setAttribute('aria-label',t(reason)); review.setAttribute('role','img');
+        review.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5v4M8 11v.5"/></svg>';
+        row.classList.add('has-review'); row.append(review);
       }
-      meta.title = meta.textContent; metaLine.append(meta);
-      content.append(text, metaLine);
+      const details = [text.textContent, caption.full];
+      if (asset.generation.voice && !caption.full.includes(asset.generation.voice)) details.push(asset.generation.voice);
+      if (asset.generation.provider !== 'imported') {
+        details.push(`${t(source.kind === 'editor_text' ? '文本配音' : source.track_id == null ? '主字幕' : '副字幕')} · ${(source.start / 1000).toFixed(2)}–${(source.end / 1000).toFixed(2)} s`);
+        if (source.kind !== 'editor_text' && asset.sample_count / asset.sample_rate > (source.end - source.start) / 1000 + .1) details.push(t('长于字幕'));
+      }
+      if (missing.has(asset.id)) details.push(t('素材缺失'));
+      if (reason) details.push(t(reason));
+      row.title = text.title = meta.title = details.join('\n');
+      content.append(text, meta);
       const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
       const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
       const save = iconAction('下载 WAV', 'download', async () => {
@@ -57774,6 +57864,7 @@ window.addEventListener('beforeunload', (e) => {
     renderAssets();
   });
   global.addEventListener('msw:subtitles-changed', renderAssets);
+  global.addEventListener('msw:voice-alias-changed', renderAssets);
   for (const event of ['play', 'pause', 'ended']) el('asset-audio').addEventListener(event, updatePreviewButtons);
   for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'emptied', 'volumechange', 'ratechange', 'error']) el('asset-audio').addEventListener(event, updateAssetTransport);
   el('asset-play-toggle').addEventListener('click', async () => {
@@ -57886,6 +57977,11 @@ window.addEventListener('beforeunload', (e) => {
     updateAssetTransport();
   });
   try {el('asset-show-player').checked=localStorage.getItem('msw.assets.showPlayer')!=='false';}catch(_){}
+  el('asset-show-changes').addEventListener('change',()=>{
+    try {localStorage.setItem('msw.assets.showChanges',String(el('asset-show-changes').checked));}catch(_){}
+    renderAssets();
+  });
+  try {el('asset-show-changes').checked=localStorage.getItem('msw.assets.showChanges')==='true';}catch(_){}
   const timeline=host.timeline, MIME='application/x-msw-subtitle-assets';
   timeline?.pane.addEventListener('dragover',event=>{
     if(!event.dataTransfer.types.includes(MIME))return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='copy';
@@ -57898,7 +57994,8 @@ window.addEventListener('beforeunload', (e) => {
       void insertSubtitles(value.ids,point.time).catch(e=>host.flashHint(e.message,'warning'));
     }catch(e){host.flashHint(e.message,'warning');}
   },true);
-  const api={renderAssets,playReference,stopReference,commitEdit,finishEdit,get editing(){return !!editingId;},clearSelection,
+  const api={renderAssets,playReference,stopReference,commitEdit,finishEdit,get editing(){return !!editingId;},clearSelection,selectAll:selectAllAssets,
+    isActive:()=>library.matches(':hover')||library.contains(document.activeElement),
     selectedIds:()=>[...selected],showBatch(id){finishEdit();selected.clear();el('asset-type').value='';renderAssets();el('asset-batch').value=id;page=0;renderAssets();}};
   global.MSWE.register('asset-library',()=>api);
   renderAssets();
@@ -57964,7 +58061,8 @@ window.addEventListener('beforeunload', (e) => {
     }
     return data;
   }
-  const assetUI = global.MSWAssetLibrary.create({host, request, jobs, schedule});
+  const assetUI = global.MSWAssetLibrary.create({host, request, jobs, schedule,
+    voiceLabel: recipe => clouds[recipe.provider]?.voiceLabel(recipe) || recipe.voice});
   const {renderAssets, playReference, stopReference} = assetUI;
   const qwenVoices = global.MSWQwenVoices.create({el, t, request, recipe: qwenRecipe, updateScope,
     playReference, stopReference, generation: () => host.generation});
@@ -57978,6 +58076,48 @@ window.addEventListener('beforeunload', (e) => {
     }});
   edgeTts = global.MSWEdgeTts.create({el,t,request,updateScope});
   for (const engine of ['minimax','mossland']) clouds[engine] = global.MSWCloudTts.create({engine,el,t,request,updateScope});
+  function prepareCallLayout() {
+    const settings = el('tts-synthesis-settings');
+    settings.before(el('tts-local-call'));
+    const help = global.MSWHelp;
+    help?.attach(settings.querySelector(':scope > summary'), () =>
+      t('每条字幕或每个草稿分段生成一份完整 WAV。') + '\n'
+      + t('当前引擎每段最多') + ' ' + textLimit() + ' ' + t('字符') + '。'
+      + t('草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。'));
+    const refreshIcon = button => {
+      if (!button) return;
+      button.classList.add('msw-tts-icon-button');
+      button.title = t('刷新音色'); button.setAttribute('aria-label',t('刷新音色'));
+    };
+    const pickers = [
+      ['tts-voice-search', ['tts-voice-select'], 'tts-voice-audition', 'tts-voice-refresh', 'tts-voice-current'],
+      ['tts-index-voice-search', ['tts-index-example','tts-index-local-voice'], 'tts-index-speaker-preview', null, 'tts-index-speaker-info'],
+      ['tts-gpt-voice_search', ['tts-gpt-speaker_ref'], 'tts-gpt-preview', null, 'tts-gpt-current'],
+      ['tts-edge-search', ['tts-edge-voice'], null, 'tts-edge-refresh-panel', 'tts-edge-current'],
+      ['tts-minimax-search', ['tts-minimax-catalog'], null, 'tts-minimax-refresh', 'tts-minimax-current'],
+      ['tts-mossland-search', ['tts-mossland-catalog'], null, 'tts-mossland-refresh', 'tts-mossland-current'],
+    ];
+    for (const [searchId, selects, previewId, refreshId, currentId] of pickers) {
+      const first = el(selects[0])?.closest('label'); if (!first) continue;
+      const row = document.createElement('div'); row.className='msw-tts-voice-row msw-voice-picker-footer'; first.before(row);
+      for (const id of selects) row.append(el(id).closest('label'));
+      if (previewId) row.append(el(previewId));
+      if (currentId) el(currentId).hidden=true;
+      if (refreshId) {
+        const label=el(searchId).closest('label'), searchRow=document.createElement('div');searchRow.className='msw-tts-search-row';
+        label.before(searchRow);searchRow.append(label,el(refreshId));refreshIcon(el(refreshId));
+      }
+    }
+    // Qwen's catalog information is help; loading and failures stay visible.
+    const label=el('tts-voice-search').closest('label'), caption=label.firstElementChild;
+    const heading=document.createElement('span');caption.before(heading);heading.append(caption);
+    help?.attach(heading,()=>el('tts-voice-catalog-hint').dataset.catalogHelp || t('可搜索中文名称、音色 ID 和方言'));
+    const yukkuri=el('tts-yukkuri-voice').closest('label'), yukkuriRow=document.createElement('div');
+    yukkuriRow.className='msw-tts-voice-row msw-voice-picker-footer';yukkuri.before(yukkuriRow);yukkuriRow.append(yukkuri,el('tts-yukkuri-preview'));
+    const check=el('tts-local-call-check');refreshIcon(check);check.title=t('检测连接');check.setAttribute('aria-label',t('检测连接'));
+    help?.hydrate(el('tts-panel'));
+  }
+  queueMicrotask(prepareCallLayout);
   function syncDraft() {
     const next = available && isText() && panel.isOpen() && !assetUI.editing;
     if (next === draftActive) return;
@@ -58161,6 +58301,7 @@ window.addEventListener('beforeunload', (e) => {
     gptTts.configure({...data.gpt_sovits, ...(previous ? {recipe: previous.gpt} : {})});
     edgeTts.configure({...data.edge_tts, ...(previous ? {recipe: previous.edge} : {})});
     for (const engine of ['minimax','mossland']) clouds[engine].configure(data[engine], {preserve: Boolean(previous)});
+    renderAssets();
     await localServices.refresh(true); configured = true; updateEngine();
   }
   function ensureSettings() {
@@ -58175,7 +58316,7 @@ window.addEventListener('beforeunload', (e) => {
     else if (isGpt() && !gptTts?.hasResources()) text = 'GPT-SoVITS 尚未配置模型与参考，请前往环境配置。';
     else if (isEdge()) text = edgeTts?.problem() || '';
     else if (cloud()) text = cloud().problem();
-    else if (isIndex()) text = localServices?.canStart() ? '' : indexTts.problem();
+    else if (isIndex()) text = indexTts.isBusy() || localServices?.canStart() ? '' : indexTts.problem();
     else if (isYukkuri() && (!runtime.runtime_path || runtime.state === 'failed')) text = '油库里资源未就绪，请前往环境配置安装或检测。';
     else if (isQwen() && !keyState() && !el('tts-key').value.trim()) text = '百炼密钥尚未配置，请前往环境配置填写。';
     el('tts-environment-notice').textContent = t(text); el('tts-environment-notice').hidden = !text;
@@ -58268,6 +58409,7 @@ window.addEventListener('beforeunload', (e) => {
     while (container.children.length > cards.length) container.lastElementChild.remove();
     container.scrollTop = scroll;
     el('tts-history-count').textContent = `(${jobs.size})`;
+    el('tts-history').hidden = !jobs.size;
   }
   global.addEventListener('msw:voice-alias-changed', renderJobs);
   async function inspectUnfinished(job, container) {
@@ -58473,7 +58615,7 @@ window.addEventListener('beforeunload', (e) => {
     catch (error) { message(error.message, true); }
     finally { savingSettings = false; updateScope(); }
   });
-  el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
+  el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available; el('tts-call-footer').hidden = !available;
   for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
     if (event === 'click' && el('tts-panel').contains(input.target)) return;
     if (panel.isOpen()) queueMicrotask(updateScope);

@@ -44,7 +44,7 @@ test('checked sticker column stays collapsed until the project contains a sticke
   await expect(cueList).toHaveClass(/hide-cue-sticker/);
 });
 
-test('all timecodes switch together between wide one-line and narrow two-line layouts', async ({ page }) => {
+test('single subtitle cards keep start and end on one line at normal module widths', async ({ page }) => {
   await page.goto(server.url);
 
   const measureTimecodes = (width) => page.evaluate((cueListWidth) => {
@@ -78,9 +78,9 @@ test('all timecodes switch together between wide one-line and narrow two-line la
 
   const narrow = await measureTimecodes(620);
   expect(new Set(narrow.map(({ width }) => width)).size).toBe(1);
-  expect(narrow[0].width).toBeLessThan(wide[0].width);
+  expect(narrow[0].width).toBe(wide[0].width);
   for (const row of narrow) {
     expect(Math.abs(row.startTop - row.arrowTop)).toBeLessThan(1);
-    expect(row.endTop).toBeGreaterThan(row.startTop);
+    expect(Math.abs(row.startTop - row.endTop)).toBeLessThan(1);
   }
 });

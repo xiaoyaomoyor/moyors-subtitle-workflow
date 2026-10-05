@@ -54,17 +54,19 @@ test('multi-select inserts primary and secondary copies with bindings at the pla
 });
 test('filters clear selection, player preference persists and timeline selection exits asset editor',async({page})=>{
   await copy(page);
-  await page.locator('.msw-asset-row').click();await expect(page.locator('#cue-panel-asset-text')).toBeVisible();
+  await page.locator('.msw-asset-row [data-asset-action="edit"]').click();await expect(page.locator('#cue-panel-asset-text')).toBeVisible();
   await page.locator('#asset-search').fill('不存在');await expect(page.locator('.msw-asset-row')).toHaveCount(0);
   await expect(page.locator('#cue-panel-asset-text')).toBeHidden();
-  await page.locator('#asset-search').fill('');await page.locator('.msw-asset-row').click();
+  await page.locator('#asset-search').fill('');await page.locator('.msw-asset-row [data-asset-action="edit"]').click();
   await page.evaluate(()=>selectOnly(1));await expect(page.locator('#cue-panel-asset-text')).toBeHidden();
   await expect(page.locator('#cue-panel-text')).toHaveValue('第二条字幕');
   await page.selectOption('#asset-type','audio');await expect(page.locator('.msw-asset-row')).toHaveCount(0);
   await page.selectOption('#asset-type','subtitle');await expect(page.locator('.msw-asset-row')).toHaveCount(1);
   await page.evaluate(()=>{const toggle=document.getElementById('asset-show-player');toggle.checked=false;toggle.dispatchEvent(new Event('change'));});
+  await page.evaluate(()=>{const toggle=document.getElementById('asset-show-changes');toggle.checked=true;toggle.dispatchEvent(new Event('change'));});
   await page.reload();await expect(page.locator('#editor-loading')).toBeHidden();
   await expect(page.locator('#asset-show-player')).not.toBeChecked();
+  await expect(page.locator('#asset-show-changes')).toBeChecked();
 });
 test('subtitle drag inserts a copy at the drop position and conflicts never overwrite existing cues',async({page})=>{
   await copy(page);
@@ -101,7 +103,21 @@ test('cross-page selection persists, filtering clears it, and narrow layout stay
   await page.locator('.msw-asset-row').last().click({modifiers:['Control']});
   await expect(page.locator('#asset-count')).toContainText('已选 2');
   await page.locator('#asset-prev').click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(1);
+  await page.keyboard.press('Control+a');
+  expect(await page.evaluate(()=>MSWE.resolve('asset-library').selectedIds().length)).toBe(92);
+  await expect(page.locator('.msw-asset-row.selected')).toHaveCount(90);
+  await expect(page.locator('#cue-panel-asset-text')).toBeHidden();
+  await page.locator('#asset-next').click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(2);
+  await page.keyboard.press('Control+d');
+  expect(await page.evaluate(()=>MSWE.resolve('asset-library').selectedIds().length)).toBe(0);
   await page.locator('#asset-search').fill('素材 1');await expect(page.locator('#asset-count')).not.toContainText('已选');
+  await page.keyboard.press('Control+a');
+  expect(await page.locator('#asset-search').evaluate(el=>el.selectionEnd-el.selectionStart)).toBe(4);
+  expect(await page.evaluate(()=>MSWE.resolve('asset-library').selectedIds().length)).toBe(0);
+  await page.locator('#asset-count').click();
+  await page.keyboard.press('Control+a');
+  expect(await page.evaluate(()=>MSWE.resolve('asset-library').selectedIds().length)).toBe(11);
+  await expect(page.locator('.msw-asset-row.selected')).toHaveCount(11);
   await page.setViewportSize({width:900,height:760});
   expect(await page.locator('#asset-library').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.screenshot({path:info.outputPath('narrow-library.png')});
@@ -127,6 +143,8 @@ test('clicking other content clears cards but keeps subtitle asset editing and b
   await copy(page,true);const cards=page.locator('.msw-asset-row');
   await cards.first().click();
   await expect(page.locator('.msw-asset-row.selected')).toHaveCount(1);
+  await expect(page.locator('#cue-panel-asset-text')).toBeHidden();
+  await cards.first().locator('[data-asset-action="edit"]').click();
   await page.locator('#cue-panel-asset-text').fill('编辑素材不丢选择');
   await expect(page.locator('.msw-asset-row.selected')).toHaveCount(1);
   await page.locator('#asset-count').click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);

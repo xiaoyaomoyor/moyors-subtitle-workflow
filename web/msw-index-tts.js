@@ -44,6 +44,7 @@
       options('local-voice', refs.map(ref => ({id: ref.id, label: ref.name})).filter(matches), '请选择或上传参考音频', value('speaker'));
     }
     function renderPresets() {
+      el('tts-index-preset').closest('label').hidden = !Object.keys(presets).length;
       options('preset', Object.keys(presets).map(name => ({id: name, label: name})), '选择已保存预设');
       options('preset-manage', Object.keys(presets).map(name => ({id: name, label: name})), '选择已保存预设');
       options('server-preset', (cap?.presets || []).map(name => ({id: name, label: name})), '选择服务预设');

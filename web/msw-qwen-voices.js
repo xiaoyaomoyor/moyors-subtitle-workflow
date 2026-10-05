@@ -50,13 +50,15 @@
         groups.get(row.group).append(new Option(`${t(row.name)} · ${row.id}${row.gender ? ' · ' + t(row.gender) : ''}`, row.id));
       }
       const id = el('tts-voice').value.trim(), selected = all.find(row => row.id === id);
-      select.value = filtered.some(row => row.id === id) ? id : '';
+      if (id && !filtered.some(row => row.id === id)) select.add(new Option(selected ? t(selected.name) + ' · ' + id : id, id),0);
+      select.value = id;
       el('tts-voice-current').textContent = id ? `${t('当前音色')}：${selected ? t(selected.name) + ' · ' : ''}${id}` : t('请选择音色；可在环境配置中创建或登记');
       const audition = el('tts-voice-audition');
       audition.disabled = !previewSource();
       audition.title = t(previewSource() ? '在素材库播放已有试听音频，不发起云端合成' : '此音色暂无已有试听音频');
       el('tts-voice-list-label').textContent = t(custom() ? '本机创建音色' : '系统音色');
-      el('tts-voice-catalog-hint').textContent = custom()
+      el('tts-voice-catalog-hint').textContent = '';
+      el('tts-voice-catalog-hint').dataset.catalogHelp = custom()
         ? t('当前模型的本机音色；创建和管理请前往环境配置。')
         : `${t('当前模型支持')} ${all.length} ${t('个系统音色')} · ${t('可搜索中文名称、音色 ID 和方言')}`;
       updateScope();

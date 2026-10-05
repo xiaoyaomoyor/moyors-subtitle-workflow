@@ -9,6 +9,17 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '每条字幕或每个草稿分段生成一份完整 WAV。': 'Each subtitle or draft segment generates a complete WAV file.',
+    '当前引擎每段最多': 'Maximum characters per segment for this engine:',
+    '草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。': 'Drafts use the subtitle editor sentence splitting settings. Synthesis uses the submitted text; you can continue editing.',
+
+    '显示变动标记': 'Show change indicators',
+    '来源字幕改变或被删除时，在音频卡片右上角显示图标；悬浮查看原因': 'Show an icon on audio cards when source subtitles change or are removed; hover for the reason',
+    '播放定位': 'Playback position',
+    '播放时自动滚动到当前字幕；手动翻看列表会暂停跟随。点击“跟随播放”可定位当前字幕并恢复跟随。': 'Scroll to the current subtitle during playback. Browsing the list manually pauses following. Click Follow playback to locate the current subtitle and resume following.',
+    '百炼 Qwen': 'Bailian Qwen',
+    '油库里': 'Yukkuri',
+
     "本机服务": "Local service",
     "高级启动设置": "Advanced startup settings",
     "启动等待上限用于等待模型加载；单次等待上限用于一次语音合成，两者独立。": "Startup timeout waits for model loading. Request timeout limits one synthesis call; these are independent.",

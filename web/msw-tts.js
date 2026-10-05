@@ -56,7 +56,8 @@
     }
     return data;
   }
-  const assetUI = global.MSWAssetLibrary.create({host, request, jobs, schedule});
+  const assetUI = global.MSWAssetLibrary.create({host, request, jobs, schedule,
+    voiceLabel: recipe => clouds[recipe.provider]?.voiceLabel(recipe) || recipe.voice});
   const {renderAssets, playReference, stopReference} = assetUI;
   const qwenVoices = global.MSWQwenVoices.create({el, t, request, recipe: qwenRecipe, updateScope,
     playReference, stopReference, generation: () => host.generation});
@@ -70,6 +71,48 @@
     }});
   edgeTts = global.MSWEdgeTts.create({el,t,request,updateScope});
   for (const engine of ['minimax','mossland']) clouds[engine] = global.MSWCloudTts.create({engine,el,t,request,updateScope});
+  function prepareCallLayout() {
+    const settings = el('tts-synthesis-settings');
+    settings.before(el('tts-local-call'));
+    const help = global.MSWHelp;
+    help?.attach(settings.querySelector(':scope > summary'), () =>
+      t('每条字幕或每个草稿分段生成一份完整 WAV。') + '\n'
+      + t('当前引擎每段最多') + ' ' + textLimit() + ' ' + t('字符') + '。'
+      + t('草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。'));
+    const refreshIcon = button => {
+      if (!button) return;
+      button.classList.add('msw-tts-icon-button');
+      button.title = t('刷新音色'); button.setAttribute('aria-label',t('刷新音色'));
+    };
+    const pickers = [
+      ['tts-voice-search', ['tts-voice-select'], 'tts-voice-audition', 'tts-voice-refresh', 'tts-voice-current'],
+      ['tts-index-voice-search', ['tts-index-example','tts-index-local-voice'], 'tts-index-speaker-preview', null, 'tts-index-speaker-info'],
+      ['tts-gpt-voice_search', ['tts-gpt-speaker_ref'], 'tts-gpt-preview', null, 'tts-gpt-current'],
+      ['tts-edge-search', ['tts-edge-voice'], null, 'tts-edge-refresh-panel', 'tts-edge-current'],
+      ['tts-minimax-search', ['tts-minimax-catalog'], null, 'tts-minimax-refresh', 'tts-minimax-current'],
+      ['tts-mossland-search', ['tts-mossland-catalog'], null, 'tts-mossland-refresh', 'tts-mossland-current'],
+    ];
+    for (const [searchId, selects, previewId, refreshId, currentId] of pickers) {
+      const first = el(selects[0])?.closest('label'); if (!first) continue;
+      const row = document.createElement('div'); row.className='msw-tts-voice-row msw-voice-picker-footer'; first.before(row);
+      for (const id of selects) row.append(el(id).closest('label'));
+      if (previewId) row.append(el(previewId));
+      if (currentId) el(currentId).hidden=true;
+      if (refreshId) {
+        const label=el(searchId).closest('label'), searchRow=document.createElement('div');searchRow.className='msw-tts-search-row';
+        label.before(searchRow);searchRow.append(label,el(refreshId));refreshIcon(el(refreshId));
+      }
+    }
+    // Qwen's catalog information is help; loading and failures stay visible.
+    const label=el('tts-voice-search').closest('label'), caption=label.firstElementChild;
+    const heading=document.createElement('span');caption.before(heading);heading.append(caption);
+    help?.attach(heading,()=>el('tts-voice-catalog-hint').dataset.catalogHelp || t('可搜索中文名称、音色 ID 和方言'));
+    const yukkuri=el('tts-yukkuri-voice').closest('label'), yukkuriRow=document.createElement('div');
+    yukkuriRow.className='msw-tts-voice-row msw-voice-picker-footer';yukkuri.before(yukkuriRow);yukkuriRow.append(yukkuri,el('tts-yukkuri-preview'));
+    const check=el('tts-local-call-check');refreshIcon(check);check.title=t('检测连接');check.setAttribute('aria-label',t('检测连接'));
+    help?.hydrate(el('tts-panel'));
+  }
+  queueMicrotask(prepareCallLayout);
   function syncDraft() {
     const next = available && isText() && panel.isOpen() && !assetUI.editing;
     if (next === draftActive) return;
@@ -253,6 +296,7 @@
     gptTts.configure({...data.gpt_sovits, ...(previous ? {recipe: previous.gpt} : {})});
     edgeTts.configure({...data.edge_tts, ...(previous ? {recipe: previous.edge} : {})});
     for (const engine of ['minimax','mossland']) clouds[engine].configure(data[engine], {preserve: Boolean(previous)});
+    renderAssets();
     await localServices.refresh(true); configured = true; updateEngine();
   }
   function ensureSettings() {
@@ -267,7 +311,7 @@
     else if (isGpt() && !gptTts?.hasResources()) text = 'GPT-SoVITS 尚未配置模型与参考，请前往环境配置。';
     else if (isEdge()) text = edgeTts?.problem() || '';
     else if (cloud()) text = cloud().problem();
-    else if (isIndex()) text = localServices?.canStart() ? '' : indexTts.problem();
+    else if (isIndex()) text = indexTts.isBusy() || localServices?.canStart() ? '' : indexTts.problem();
     else if (isYukkuri() && (!runtime.runtime_path || runtime.state === 'failed')) text = '油库里资源未就绪，请前往环境配置安装或检测。';
     else if (isQwen() && !keyState() && !el('tts-key').value.trim()) text = '百炼密钥尚未配置，请前往环境配置填写。';
     el('tts-environment-notice').textContent = t(text); el('tts-environment-notice').hidden = !text;
@@ -360,6 +404,7 @@
     while (container.children.length > cards.length) container.lastElementChild.remove();
     container.scrollTop = scroll;
     el('tts-history-count').textContent = `(${jobs.size})`;
+    el('tts-history').hidden = !jobs.size;
   }
   global.addEventListener('msw:voice-alias-changed', renderJobs);
   async function inspectUnfinished(job, container) {
@@ -565,7 +610,7 @@
     catch (error) { message(error.message, true); }
     finally { savingSettings = false; updateScope(); }
   });
-  el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available;
+  el('tts-unavailable').hidden = available; el('tts-controls').hidden = !available; el('tts-call-footer').hidden = !available;
   for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
     if (event === 'click' && el('tts-panel').contains(input.target)) return;
     if (panel.isOpen()) queueMicrotask(updateScope);

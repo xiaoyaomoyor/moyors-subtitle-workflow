@@ -1793,7 +1793,6 @@
       // 字幕列表模块 = 工具栏 wrapper（data-dock-module 在 wrapper 上）；
       // this.cues 仍指滚动容器，供滚动/渲染逻辑使用。
       this.cuesModule = document.getElementById('cues-module') || this.cues;
-      this.cueListFollowButton = document.getElementById('cue-list-follow');
       this.pane = document.getElementById('waveform-pane');
       this.assetLibrary = document.getElementById('asset-library');
       this.scroll = document.getElementById('waveform-scroll');
@@ -2543,7 +2542,6 @@
         addBtn.dataset.basePath = JSON.stringify(basePath || []);
         addBtn.dataset.moduleId = id;
         strip.appendChild(addBtn);
-        if (id === 'cues' && this.cueListFollowButton) strip.appendChild(this.cueListFollowButton);
       });
     }
 

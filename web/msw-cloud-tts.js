@@ -57,6 +57,7 @@
     function renderVoices(){const query=search.value.trim().toLowerCase();const rows=new Map(data.voices.map(v=>[v.id,v]));
       for(const id of Object.keys(data.aliases||{}))if(!rows.has(id))rows.set(id,{id,name:id});
       catalog.replaceChildren(new Option(t('选择已有音色或填写 ID'),''),...[...rows.values()].filter(v=>v.id===voice.value||`${voiceLabel(v.id)} ${v.name} ${v.id}`.toLowerCase().includes(query)).map(v=>new Option(voiceLabel(v.id),v.id)));
+      if(voice.value && ![...catalog.options].some(o=>o.value===voice.value))catalog.add(new Option(voiceLabel(voice.value),voice.value));
       catalog.value=voice.value;currentVoice();}
     function support(){
       const current=language.value;

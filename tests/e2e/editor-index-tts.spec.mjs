@@ -93,7 +93,8 @@ test('voice search preserves selection and synthesis layout uses paired rows', a
   await page.locator('#tts-index-voice-source').selectOption('local');
   await expect(page.locator('#tts-index-voice-search')).toHaveValue('');
   await expect(page.locator('#tts-index-local-voice')).toHaveValue(identity);
-  for (const [left, right] of [['voice-source', 'preset'], ['emotion-mode', 'language']]) {
+  await expect(page.locator('#tts-index-preset')).toBeHidden();
+  for (const [left, right] of [['emotion-mode', 'language']]) {
     const a = await page.locator(`#tts-index-${left}`).boundingBox(), b = await page.locator(`#tts-index-${right}`).boundingBox();
     expect(Math.abs(a.y - b.y)).toBeLessThan(2); expect(b.x).toBeGreaterThan(a.x + a.width);
   }

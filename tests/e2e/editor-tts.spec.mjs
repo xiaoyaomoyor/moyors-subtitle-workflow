@@ -1264,13 +1264,84 @@ test('audio cards use review badges instead of dashed outlines and clear selecti
   await open(page);await panel(page);await page.locator('#tts-start').click();await expect.poll(()=>countAssets(page)).toBe(2);
   await page.locator('#tts-close').click();
   await page.evaluate(()=>{clearSelection();DATA.segments[0].text='修改后的字幕';DATA.segments.pop();MSWE.resolve('asset-library').renderAssets();});
-  const cards=page.locator('.msw-asset-row');await expect(page.locator('.msw-asset-review')).toHaveCount(2);
+  const cards=page.locator('.msw-asset-row');await expect(page.locator('.msw-asset-review')).toHaveCount(0);
+  await expect(page.locator('#asset-show-changes')).not.toBeChecked();
+  await openMenubarMenu(page,'媒体');
+  await page.locator('#asset-settings-submenu > .dropdown-submenu-toggle').hover();
+  await page.locator('#asset-show-changes').check();
+  await page.keyboard.press('Escape');
+  await page.locator('#asset-count').click();
+  await expect(page.locator('.msw-asset-review')).toHaveCount(2);
+  expect(await page.evaluate(()=>localStorage.getItem('msw.assets.showChanges'))).toBe('true');
+  const icon=cards.first().locator('.msw-asset-review');
+  await expect(icon).toHaveText('');await expect(icon.locator('svg')).toHaveCount(1);
+  await expect(cards.first()).toHaveAttribute('title',/需复核|删除|替换/);
+  const bounds=await cards.first().evaluate(el=>{
+    const icon=el.querySelector('.msw-asset-review'), r=el.getBoundingClientRect(), i=icon.getBoundingClientRect();
+    return {right:r.right-i.right,top:i.top-r.top,color:getComputedStyle(icon).color,accent:getComputedStyle(el).getPropertyValue('--accent').trim()};
+  });
+  expect(bounds.right).toBeLessThan(12);expect(bounds.top).toBeLessThan(12);
+  expect(await icon.evaluate(el=>{const probe=document.createElement('span');probe.style.color='var(--accent)';el.append(probe);const same=getComputedStyle(el).color===getComputedStyle(probe).color;probe.remove();return same;})).toBe(true);
+  await expect(cards.first().locator('.msw-asset-meta')).toHaveText(/^\d+\.\d{2} s · 百炼 Qwen · .+$/);
+  await expect(cards.first().locator('.msw-asset-meta')).not.toContainText('字幕');
+  const longVoiceId=await page.evaluate(()=>{const asset=DATA.msw.assets[0];asset.generation.voice='a-very-long-local-voice-name-for-library-display';MSWE.resolve('asset-library').renderAssets();return asset.id;});
+  const longVoice=page.locator(`.msw-asset-row[data-asset-id="${longVoiceId}"]`);
+  await expect(longVoice.locator('.msw-asset-meta')).toContainText('…');
+  await expect(longVoice).toHaveAttribute('title',/a-very-long-local-voice-name-for-library-display/);
   await expect(page.locator('.msw-asset-row.msw-source-stale')).toHaveCount(0);
   expect(await cards.first().evaluate(n=>getComputedStyle(n).outlineStyle)).not.toBe('dashed');
   await cards.first().click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(1);
   await expect(page.locator('#asset-export-selected')).toBeVisible();
+  await page.keyboard.press('Control+a');await expect(page.locator('.msw-asset-row.selected')).toHaveCount(2);
+  await expect(page.locator('#asset-export-selected')).toBeVisible();
   await page.screenshot({path:info.outputPath('audio-review-badges.png')});
+  await page.evaluate(()=>{const toggle=document.getElementById('asset-show-changes');toggle.checked=false;toggle.dispatchEvent(new Event('change'));});
+  await expect(page.locator('.msw-asset-review')).toHaveCount(0);
+  await expect(cards.first()).not.toHaveAttribute('title',/需复核|删除|替换/);
   await page.locator('#asset-count').click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
   await cards.first().click();await page.locator('.waveform-cue-block').first().click();
   await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
+});
+
+
+test('compact TTS has unified surfaces, inline voice actions, dynamic help and a persistent footer',async({page},info)=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('**/edge-tts',async route=>{
+    const data=route.request().postDataJSON();
+    if(data?.action==='refresh')return route.fulfill({json:{ok:true,voices:[{id:'zh-CN-XiaoxiaoNeural',name:'晓晓',language:'zh-CN',gender:'Female'}],dependency:{ready:true},recipe:{provider:'edge',voice:'zh-CN-XiaoxiaoNeural'}}});
+    return route.continue();
+  });
+  await open(page);await panel(page);
+  const card=page.locator('#tts-panel'),help=page.locator('#tts-synthesis-settings > summary .msw-help-button');
+  await expect(help).toHaveCount(1);
+  await expect(page.locator('#tts-history')).toBeHidden();
+  for(const engine of ['qwen','yukkuri','indextts','gpt-sovits','edge','minimax','mossland']){
+    await page.locator('#tts-engine').selectOption(engine);
+    await help.click();
+    await expect(page.locator('#msw-option-help')).toContainText('每个草稿分段');
+    const limit=await page.evaluate(engine=>MSWTts.textLimit(engine),engine);
+    await expect(page.locator('#msw-option-help')).toContainText(String(limit));
+    await page.keyboard.press('Escape');
+    if(['indextts','gpt-sovits'].includes(engine)){
+      await expect(page.locator('#tts-local-call')).toBeVisible();
+      expect(await page.evaluate(()=>getComputedStyle(document.getElementById('tts-local-call')).backgroundColor===getComputedStyle(document.getElementById('tts-synthesis-settings')).backgroundColor)).toBe(true);
+    }
+    await expect(page.locator('#tts-panel .msw-tts-voice-row:visible')).toHaveCount(1);
+    const row=page.locator('#tts-panel .msw-tts-voice-row:visible');
+    if(await row.locator('button').count()){
+      const select=await row.locator('select:visible').boundingBox(),button=await row.locator('button').boundingBox();
+      expect(button.x).toBeGreaterThanOrEqual(select.x+select.width);
+      expect(Math.abs(button.y+button.height-select.y-select.height)).toBeLessThan(5);
+    }
+    await page.locator('#tts-panel > .gap-remove-panel-body').evaluate(el=>el.scrollTop=el.scrollHeight);
+    await expect(page.locator('#tts-start')).toBeInViewport();
+    await expect(page.locator('#tts-save-settings')).toBeInViewport();
+    expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+    if(engine==='indextts')await page.screenshot({path:info.outputPath('index-compact.png')});
+  }
+  await page.setViewportSize({width:390,height:780});
+  expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await expect(page.locator('#tts-start')).toBeInViewport();
+  await page.screenshot({path:info.outputPath('tts-compact-narrow.png')});
+  expect(errors).toEqual([]);
 });

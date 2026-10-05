@@ -62,7 +62,8 @@ test('independent editor draft supports multiline, native undo, mode switches an
   expect(asset.generation.display_text).toBe('独立配音 Hello\n第二行');
   expect(await page.evaluate(() => DATA.segments[0].text)).toBe('字幕原文');
   await page.locator('#tts-close').click(); await expect(draft).not.toBeVisible();
-  await expect(page.locator('.msw-asset-meta').first()).toContainText('文本配音');
+  await expect(page.locator('.msw-asset-meta').first()).toContainText('Qwen');
+  await expect(page.locator('.msw-asset-row').first()).toHaveAttribute('title',/文本配音/);
   await page.locator('.msw-asset-row').first().getByRole('button', {name: '放入时间轴', exact: true}).click();
   await expect.poll(() => page.evaluate(() => DATA.msw.audio_clips?.length || 0)).toBe(1);
   await page.keyboard.press('Control+s');

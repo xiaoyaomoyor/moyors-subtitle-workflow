@@ -13197,6 +13197,8 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
+  const assetSelection = window.MSWE?.resolve('asset-library');
+  if (assetSelection?.isActive()) { assetSelection.selectAll(); return; }
   // 波形显示器模块内的分场景全选：已有选区决定对象——选中过贴片则全选贴片、
   // 选中过字幕则全选字幕；没有任何选区时字幕块与音频贴片一起全选。
   // 波形模块之外维持旧行为（只全选字幕）。
@@ -13243,6 +13245,8 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
+  const assetSelection = window.MSWE?.resolve('asset-library');
+  if (assetSelection?.isActive()) { e.preventDefault(); assetSelection.clearSelection(); return; }
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0) return;
   e.preventDefault();
   clearSelection();

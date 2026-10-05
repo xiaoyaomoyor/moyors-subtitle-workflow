@@ -19,7 +19,9 @@
       status.setAttribute('aria-busy', ui.status.getAttribute('aria-busy') || 'false');
       for (const key of ['check', 'start', 'stop']) {
         const button = el('tts-local-call-' + key), source = ui[key];
-        button.textContent = source.textContent; button.disabled = source.disabled; button.hidden = source.hidden;
+        button.textContent = source.textContent; button.disabled = source.disabled;
+        button.hidden = source.hidden || (key === 'start' && !ui.stop.hidden);
+        button.setAttribute('aria-busy', String(!key.includes('stop') && pending.has(kind)));
       }
     }
     function render(kind, state) {
@@ -39,8 +41,13 @@
       ui.start.disabled = wait || ready(state) || state.owned || !state.configured;
       ui.start.hidden = ready(state);
       ui.check.disabled = wait; ui.check.dataset.serviceLocked = String(wait);
+      if (kind === 'gpt-sovits') {
+        const scan = el('tts-gpt-scan');
+        scan.dataset.serviceLocked = String(wait);
+        scan.disabled = wait || scan.getAttribute('aria-busy') === 'true';
+      }
       ui.stop.hidden = !state.owned && !loading(state);
-      ui.stop.textContent = t(state.owned ? '停止服务' : '取消启动');
+      ui.stop.textContent = t(loading(state) ? '取消启动' : '停止服务');
       ui.stop.disabled = pending.has(kind);
       for (const input of [...ui.fields.querySelectorAll('input, button'), ...ui.advanced.querySelectorAll('input')]) {
         input.disabled = wait || state.owned;

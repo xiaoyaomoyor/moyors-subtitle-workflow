@@ -29,6 +29,13 @@ async function open(page, options = {}) {
   await page.locator('#editor-loading').waitFor({ state: 'hidden' }).catch(() => {});
 }
 
+async function resumeFollowing(page) {
+  await openMenubarMenu(page, '字幕');
+  await page.locator('#cue-list-settings-open').click();
+  await page.locator('#cue-list-settings-modal #cue-list-follow').click();
+  await page.locator('#cue-list-settings-close').click();
+}
+
 const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z';
 const redoKey = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+Shift+z';
 
@@ -281,13 +288,16 @@ for (const mode of ['main', 'extension', 'both']) {
     expect(Math.abs(await page.evaluate(() => container.scrollTop) - manual)).toBeLessThan(1.5);
     await page.evaluate(async () => { await player.play(); player.pause(); });
     await expect(page.locator('#cue-list-follow')).toHaveAttribute('aria-pressed', 'false');
-    await page.locator('#cue-list-follow').click();
+    await resumeFollowing(page);
     await page.waitForTimeout(350);
     await expect(page.locator('#cue-list-follow')).toHaveAttribute('aria-pressed', 'true');
-    expect(await page.evaluate(() => {
+    // Following uses a bounded animation-frame layout correction; wait for its
+    // observable result rather than assuming every machine finishes in 350 ms.
+    await expect.poll(() => page.evaluate(() => {
       const rect = playbackCueListElement().getBoundingClientRect();
-      const bounds = cueListVisibleBounds(); return rect.top >= bounds.top && rect.bottom <= bounds.bottom;
-    })).toBe(true);
+      const bounds = cueListVisibleBounds();
+      return rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+    }), {timeout:3000}).toBe(true);
     // Both click settings run through real clicks; paused seeked/timeupdate cannot override them.
     await position(page, 75, kind);
     await page.evaluate(() => updateEditorSettings({ cueListAutoScrollOnClick: false, clickBehavior: 'select-and-seek' }));
@@ -449,7 +459,7 @@ for (const mode of ['main', 'extension', 'both']) {
       expect(Math.abs(browsedLate.top - browsed.top)).toBeLessThan(1.5);
       expect(browsedLate.following).toBe(false);
 
-      await page.locator('#cue-list-follow').click();
+      await resumeFollowing(page);
       await expect.poll(async () => (await playbackState(page)).activeVisible).toBe(true);
       await page.waitForTimeout(300);
       await spacePlayback(page, true, true, info, 'follow button restored: pause');
@@ -560,7 +570,7 @@ test('list scrolling keys still interrupt following and pending compensation', a
     await position(page, 75);
     await page.locator('.cue[data-idx="75"] .text').click();
     await page.evaluate(() => { player.currentTime = 150.05; });
-    await page.locator('#cue-list-follow').click();
+    await resumeFollowing(page);
     await page.waitForTimeout(350);
     await page.locator('#cues-container').focus();
     const before = await page.evaluate(() => {
