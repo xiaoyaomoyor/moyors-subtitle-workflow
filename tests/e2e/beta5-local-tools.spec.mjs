@@ -14,7 +14,7 @@ test('new tools preserve English navigation and narrow layout', async ({page}, t
   await page.screenshot({path:testInfo.outputPath('timestamp-tool-en.png'),fullPage:true});
 });
 
-test('restoring the same disconnected session does not open another tab', async ({page}) => {
+test('explicitly reopening a disconnected session opens the editor at the verified address', async ({page}) => {
   await open(page);
   await page.evaluate(() => {
     window.__opened = []; window.__running = true; window.__port = 8250;
@@ -31,11 +31,11 @@ test('restoring the same disconnected session does not open another tab', async 
   await page.evaluate(() => { __running=false; MSWLauncher.refreshServerStatus(); });
   await expect(page.locator('#stopServer')).toBeHidden();
   await page.evaluate(() => MSWLauncher.openServerEditor());
-  expect(await page.evaluate(() => __opened)).toHaveLength(1);
+  expect(await page.evaluate(() => __opened)).toHaveLength(2);
   await page.evaluate(() => { __running=false; MSWLauncher.refreshServerStatus(); });
   await expect(page.locator('#stopServer')).toBeHidden();
   await page.evaluate(() => { __port=8251; return MSWLauncher.openServerEditor(); });
-  expect(await page.evaluate(() => __opened)).toEqual(['http://127.0.0.1:8250/','http://127.0.0.1:8251/']);
+  expect(await page.evaluate(() => __opened)).toEqual(['http://127.0.0.1:8250/','http://127.0.0.1:8250/','http://127.0.0.1:8251/']);
 });
 
 test('offline text comparison treats subtitle markup as data and supports search', async ({page}) => {

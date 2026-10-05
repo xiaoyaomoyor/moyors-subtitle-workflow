@@ -64,7 +64,10 @@
   const indexTts = global.MSWIndexTts.create({el, t, request, updateScope,
     playReference, stopReference, generation: () => host.generation});
   gptTts = global.MSWGptSovits.create({el, t, request, updateScope, playReference, stopReference});
-  localServices = global.MSWTtsServices.create({el, t, request, updateScope, connected: () => { if (!indexTts.connected()) void indexTts.check(); },
+  localServices = global.MSWTtsServices.create({el, t, request, updateScope,
+    configurationIssue: kind => !configured ? '' : kind === 'gpt-sovits' && !gptTts.hasResources() ? '尚未配置模型与参考'
+      : kind === 'indextts' && indexTts.connected() && !indexTts.referencesReady() ? '尚未配置参考音色' : '',
+    connected: () => { if (!indexTts.connected()) void indexTts.check(); },
     checkConnection: async kind => {
       if (kind === 'indextts') { await indexTts.check(); if (!indexTts.connected()) throw Error(indexTts.problem()); }
       else await request('gpt-sovits', {action:'check', ...gptTts.connection()});
@@ -109,7 +112,11 @@
     help?.attach(heading,()=>el('tts-voice-catalog-hint').dataset.catalogHelp || t('可搜索中文名称、音色 ID 和方言'));
     const yukkuri=el('tts-yukkuri-voice').closest('label'), yukkuriRow=document.createElement('div');
     yukkuriRow.className='msw-tts-voice-row msw-voice-picker-footer';yukkuri.before(yukkuriRow);yukkuriRow.append(yukkuri,el('tts-yukkuri-preview'));
-    const check=el('tts-local-call-check');refreshIcon(check);check.title=t('检测连接');check.setAttribute('aria-label',t('检测连接'));
+    for (const [key, icon, title] of [['check','refresh','检测连接'],['start','start','启动服务'],['stop','stop','停止服务'],['configure','settings','前往环境配置']]) {
+      const button=el('tts-local-call-'+key);button.classList.add('msw-tts-icon-button');button.dataset.icon=icon;
+      button.title=t(title);button.setAttribute('aria-label',t(title));
+    }
+    el('tts-local-call-configure').onclick=()=>el('tts-environment-open').click();
     help?.hydrate(el('tts-panel'));
   }
   queueMicrotask(prepareCallLayout);
@@ -306,12 +313,14 @@
     return settingsPromise;
   }
   function environmentNotice() {
+    if (isIndex() || isGpt()) {
+      el('tts-environment-notice').hidden = true; el('tts-environment-reminder').hidden = true;
+      localServices?.renderCall(); return;
+    }
     let text = '';
     if (!configured) text = '正在读取本机 TTS 配置…';
-    else if (isGpt() && !gptTts?.hasResources()) text = 'GPT-SoVITS 尚未配置模型与参考，请前往环境配置。';
     else if (isEdge()) text = edgeTts?.problem() || '';
     else if (cloud()) text = cloud().problem();
-    else if (isIndex()) text = indexTts.isBusy() || localServices?.canStart() ? '' : indexTts.problem();
     else if (isYukkuri() && (!runtime.runtime_path || runtime.state === 'failed')) text = '油库里资源未就绪，请前往环境配置安装或检测。';
     else if (isQwen() && !keyState() && !el('tts-key').value.trim()) text = '百炼密钥尚未配置，请前往环境配置填写。';
     el('tts-environment-notice').textContent = t(text); el('tts-environment-notice').hidden = !text;

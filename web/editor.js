@@ -1075,10 +1075,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowSticker: true,
   cueListShowCharcount: true,
   cueListPairLayout: 'columns',
-  // 字幕列表普通点击是否把目标字幕滚动到列表中央。
-  cueListAutoScrollOnClick: true,
-  // 字数过滤期间，拆分结果是否暂时保留在列表中，直到焦点离开。
-  cueListKeepSplitVisible: true,
+  // 播放跟随偏好；手动浏览的临时暂停单独保存在 cueListScroll。
+  cueListFollowPlayback: true,
   // 字幕列表是否隐藏禁用字幕。
   cueListHideDisabled: true,
   // 字数过滤与字数标记使用的字符阈值（0 = 不过滤）。
@@ -1197,7 +1195,7 @@ function readEditorSettings() {
   try { saved = JSON.parse(localStorage.getItem(EDITOR_SETTINGS_KEY) || '{}'); } catch (_) { /* invalid storage */ }
   return EDITOR_SETTINGS_UTILS.normalizeEditorSettings({
     ...saved,
-    cueListAutoScrollOnClick: saved.cueListAutoScrollOnClick !== false,
+    cueListFollowPlayback: saved.cueListFollowPlayback !== false,
     cueListShowIndex: saved.cueListShowIndex !== false,
     cueListShowTime: saved.cueListShowTime !== false,
     cueListShowSticker: saved.cueListShowSticker !== false,
@@ -2332,8 +2330,7 @@ const cueListShowIndexToggle = document.getElementById('cue-list-show-index');
 const cueListShowTimeToggle = document.getElementById('cue-list-show-time');
 const cueListShowStickerToggle = document.getElementById('cue-list-show-sticker');
 const cueListShowCharcountToggle = document.getElementById('cue-list-show-charcount');
-const cueListAutoScrollOnClickToggle = document.getElementById('cue-list-auto-scroll-on-click');
-const cueListKeepSplitVisibleToggle = document.getElementById('cue-list-keep-split-visible');
+const cueListFollowPlaybackToggle = document.getElementById('cue-list-follow-playback');
 const cueListCharcountThresholdInput = document.getElementById('charcount-threshold');
 const cueListSettings = document.getElementById('cue-list-settings');
 const cueListSettingsToggle = document.getElementById('cue-list-settings-toggle');
@@ -2682,7 +2679,12 @@ function resetCuePanelEditState() {
 }
 
 function updateEditorSettings(patch) {
+  const previousFollow = EDITOR_SETTINGS.cueListFollowPlayback;
   Object.assign(EDITOR_SETTINGS, patch);
+  if (previousFollow !== EDITOR_SETTINGS.cueListFollowPlayback) queueMicrotask(() => {
+    if (EDITOR_SETTINGS.cueListFollowPlayback) resumeCueListFollowing();
+    else interruptCueListFollowing();
+  });
   saveEditorSettings(EDITOR_SETTINGS);
   // 外观相关键变化时写穿到服务器（仅服务器版；见下方「外观偏好跟服务器走」）。
   if (APPEARANCE_SETTINGS_KEYS.some((key) => key in patch)) scheduleAppearanceSync();
@@ -3714,8 +3716,7 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   cueListShowCharcountToggle.checked = EDITOR_SETTINGS.cueListShowCharcount;
   cueListPairLayout.value = EDITOR_SETTINGS.cueListPairLayout;
   container.dataset.pairLayout = EDITOR_SETTINGS.cueListPairLayout;
-  cueListAutoScrollOnClickToggle.checked = EDITOR_SETTINGS.cueListAutoScrollOnClick;
-  cueListKeepSplitVisibleToggle.checked = EDITOR_SETTINGS.cueListKeepSplitVisible;
+  cueListFollowPlaybackToggle.checked = EDITOR_SETTINGS.cueListFollowPlayback;
   syncCharCountThresholdInputs(EDITOR_SETTINGS.cueListCharcountThreshold);
   hideDisabled = EDITOR_SETTINGS.cueListHideDisabled;
   hideDisabledToggle.checked = !hideDisabled;  // 勾选 = 显示禁用字幕
@@ -4661,11 +4662,8 @@ bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
 bindCueListDisplayToggle(cueListShowStickerToggle, 'cueListShowSticker');
 bindCueListDisplayToggle(cueListShowCharcountToggle, 'cueListShowCharcount');
-bindCueListDisplayToggle(cueListAutoScrollOnClickToggle, 'cueListAutoScrollOnClick');
-cueListKeepSplitVisibleToggle?.addEventListener('change', () => {
-  updateEditorSettings({ cueListKeepSplitVisible: cueListKeepSplitVisibleToggle.checked });
-  if (!cueListKeepSplitVisibleToggle.checked) clearTemporaryVisibleSplitCues();
-  applySearch(searchEl.value);
+cueListFollowPlaybackToggle.addEventListener('change', () => {
+  updateEditorSettings({ cueListFollowPlayback: cueListFollowPlaybackToggle.checked });
 });
 cueListCharcountThresholdInput?.addEventListener('input', () => {
   handleCharCountThresholdInput(cueListCharcountThresholdInput);
@@ -7673,10 +7671,6 @@ function buildOverlayCueEl(seg, index) {
       suppressCueListAutoScroll = previousSuppress;
     }
     if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused && !wasPlaying) togglePlayback();
-    if (EDITOR_SETTINGS.cueListAutoScrollOnClick) {
-      const row = container.querySelector(`.cue[data-overlay-idx="${index}"]`);
-      if (row) scrollCueToCenter(row);
-    }
   });
   el.addEventListener('dblclick', (event) => {
     event.preventDefault();
@@ -7897,7 +7891,6 @@ function rememberTemporaryVisibleSplitCues({
   extensionSegments = [],
   extensionTrackId = null,
 } = {}) {
-  if (!EDITOR_SETTINGS.cueListKeepSplitVisible) return;
   if (!charCountFilterActive()) return;
   mainSegments.forEach((segment) => {
     const key = splitCueVisibilityKey('main', segment);
@@ -8190,7 +8183,6 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
       }
       const keepTemporaryVisible = filterOver
-        && EDITOR_SETTINGS.cueListKeepSplitVisible
         && cueElementHasTemporarySplitVisibility(el);
       if (matched && filterOver && !keepTemporaryVisible) {
         matched = window.AsrEditorUtils.matchesTrackCharCount(
@@ -8362,12 +8354,6 @@ function bindExtensionCueEvents(el, index, track = getActiveExtensionTrack(), du
       suppressCueListAutoScroll = previousSuppress;
     }
     if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused && !wasPlaying) togglePlayback();
-    if (EDITOR_SETTINGS.cueListAutoScrollOnClick) {
-      const currentRow = container.querySelector(
-        `.multi-dual-cue[data-ext-idx="${index}"], .multi-extension-cue[data-ext-idx="${index}"]`,
-      );
-      scrollCueToCenter(currentRow || dualRow || el);
-    }
   });
   el.addEventListener('pointermove', (event) => {
     event.stopPropagation();
@@ -11553,7 +11539,7 @@ function cueListVisibleBounds() {
 
 // 三种滚动共用一个可取消的操作：布局恢复、主动导航、播放跟随。
 // scroll 事件本身不表示用户输入，懒布局和浏览器边界限制也会触发它。
-const cueListScroll = { generation: 0, frame: 0, owner: null, following: true, playbackKey: null, mutationAnchor: null, layoutAnchor: null };
+const cueListScroll = { generation: 0, frame: 0, owner: null, following: EDITOR_SETTINGS.cueListFollowPlayback, playbackKey: null, mutationAnchor: null, layoutAnchor: null };
 const cueListFollowButton = document.getElementById('cue-list-follow');
 
 function invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor = false } = {}) {
@@ -11574,8 +11560,10 @@ function invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor = false } =
 }
 
 function setCueListFollowing(enabled) {
-  cueListScroll.following = enabled;
-  cueListFollowButton?.setAttribute('aria-pressed', String(enabled));
+  cueListScroll.following = EDITOR_SETTINGS.cueListFollowPlayback && enabled;
+  cueListFollowPlaybackToggle.checked = EDITOR_SETTINGS.cueListFollowPlayback;
+  cueListFollowButton.hidden = !EDITOR_SETTINGS.cueListFollowPlayback || cueListScroll.following;
+  cueListFollowButton.setAttribute('aria-pressed', String(cueListScroll.following));
 }
 
 function interruptCueListFollowing() {
@@ -11584,6 +11572,10 @@ function interruptCueListFollowing() {
 }
 
 document.addEventListener('pointerdown', (event) => {
+  // Closing settings is not a request to browse elsewhere. Let a just-resumed
+  // navigation finish measuring lazy subtitle cards after its first frame.
+  if (event.target.closest?.('#cue-list-settings-close') && cueListScroll.following
+      && cueListScroll.owner === 'navigate') return;
   invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor: true });
   // 直接按在容器空白/滚动条上可能开始拖动；普通行点击仍沿用点击设置。
   const rect = container.getBoundingClientRect();
@@ -11596,6 +11588,8 @@ document.addEventListener('pointerdown', (event) => {
 container.addEventListener('wheel', interruptCueListFollowing, { passive: true });
 container.addEventListener('touchstart', interruptCueListFollowing, { passive: true });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && document.getElementById('cue-list-settings-modal').classList.contains('show')
+      && cueListScroll.following && cueListScroll.owner === 'navigate') return;
   invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor: true });
 }, true);
 // 等播放、弹窗及目标控件先处理输入；被消费的空格不再误归为列表滚动。
@@ -11790,11 +11784,13 @@ function playbackCueListKey() {
 }
 
 function resumeCueListFollowing() {
+  if (!EDITOR_SETTINGS.cueListFollowPlayback) return;
   invalidateCueListVisualAnchorRestore();
   setCueListFollowing(true);
   scrollCueIntoViewIfNeeded(playbackCueListElement(), { owner: 'navigate' });
 }
 cueListFollowButton?.addEventListener('click', resumeCueListFollowing);
+setCueListFollowing(EDITOR_SETTINGS.cueListFollowPlayback);
 
 // === seek ===
 let seekWarned = false;
@@ -12133,16 +12129,12 @@ function bindCueEvents(el, idx) {
     if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
 
     // 选择已经在 pointerdown 完成；这里仅处理列表滚动、波形定位和媒体 Seek。
-    if (EDITOR_SETTINGS.cueListAutoScrollOnClick && !state?.preserveListScroll) {
-      scrollCueToCenter(el);
-    }
     waveformEditor?.revealTime(DATA.segments[idx].start, true);
     const wasPlaying = isPlaybackActive();
     if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
       // 默认只跳转不改动播放状态；“选中并跳转（自动播放）”会在暂停时启动播放。
       const previousSuppress = suppressCueListAutoScroll;
-      suppressCueListAutoScroll = state?.preserveListScroll
-        ? true : !EDITOR_SETTINGS.cueListAutoScrollOnClick;
+      suppressCueListAutoScroll = true;
       try {
         seekFromWaveform(DATA.segments[idx].start / 1000, { mouseClick: true });
       } finally {
@@ -22835,7 +22827,7 @@ function setupModuleContextMenu() {
     const text = document.createElement('span');
     text.textContent = '卡片密度';
     const input = document.createElement('input');
-    input.type = 'range'; input.min = '1'; input.max = '5'; input.step = '1';
+    input.type = 'range'; input.min = source.min; input.max = source.max; input.step = source.step;
     input.value = source?.value || '3';
     input.setAttribute('aria-label', '每行卡片数量');
     const value = document.createElement('output');
@@ -22850,15 +22842,12 @@ function setupModuleContextMenu() {
   bindModule(waveformEditor.assetLibrary, () => [
     { label: '素材库设置', expandable: true, children: [
       { label: '卡片密度', node: buildAssetDensitySlider() },
-      { label: '显示底部试听栏', checked: () => document.getElementById('asset-show-player')?.checked !== false,
-        toggle: () => { const toggle=document.getElementById('asset-show-player');toggle.checked=!toggle.checked;toggle.dispatchEvent(new Event('change')); } },
-      { label: '显示搜索与筛选', checked: () => EDITOR_SETTINGS.assetLibraryShowSearch !== false,
-        toggle: () => {
-          const toggle = document.getElementById('asset-show-search');
-          if (toggle) { toggle.checked = !toggle.checked; toggle.dispatchEvent(new Event('change', { bubbles: true })); }
-          else updateEditorSettings({ assetLibraryShowSearch: !(EDITOR_SETTINGS.assetLibraryShowSearch !== false) });
-          applyAssetSearchVisibility();
-        } },
+      // Read the same controls as Media > Asset library settings, including their order.
+      ...[...document.querySelectorAll('.asset-settings-menu input[type="checkbox"]')].map(input => ({
+        label: input.closest('label').textContent.trim(),
+        checked: () => input.checked,
+        toggle: () => ctxToggleTemplateCheckbox(input.id),
+      })),
     ] },
   ]);
 }

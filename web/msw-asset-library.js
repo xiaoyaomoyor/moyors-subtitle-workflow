@@ -356,7 +356,6 @@
       if (reason) {
         const review = document.createElement('span'); review.className = 'msw-asset-review'; review.tabIndex = 0;
         review.title = t(reason); review.setAttribute('aria-label',t(reason)); review.setAttribute('role','img');
-        review.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5v4M8 11v.5"/></svg>';
         row.classList.add('has-review'); row.append(review);
       }
       const details = [text.textContent, caption.full];

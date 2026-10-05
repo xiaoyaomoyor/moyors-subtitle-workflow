@@ -115,6 +115,50 @@ test('double-click opens the selected project and blank launch clears the target
   await expect(page.locator('#homeOpenSelected')).toBeHidden();
 });
 
+test('open selected waits for readiness and opens again after the same project server exits', async ({ page }) => {
+  await openHome(page);
+  await page.evaluate(() => {
+    window.__launches = []; window.__openedEditor = []; window.__editorRunning = false;
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'start_server') {
+        __launches.push(payload);
+        return new Promise(resolve => { window.__finishLaunch = result => {
+          __editorRunning = Boolean(result.ok); resolve(result);
+        }; });
+      }
+      if (method === 'open_url') { __openedEditor.push(payload.url); return { ok: true }; }
+      if (method === 'get_server_status') return { ok: true, running: __editorRunning, url: 'http://127.0.0.1:8250/?lang=zh' };
+      return next(method, payload);
+    };
+  });
+  await cardOf(page, 'clip.mosp').click();
+  const openSelected = page.locator('#homeOpenSelected');
+  await openSelected.click();
+  await openSelected.click(); // 启动中重复点击不重复创建进程或提前打开空页面。
+  expect(await page.evaluate(() => __launches)).toHaveLength(1);
+  expect(await page.evaluate(() => __launches[0])).toMatchObject({ intent: 'project', jsonPath: 'D:\\Demo\\clip.mosp' });
+  expect(await page.evaluate(() => __openedEditor)).toHaveLength(0);
+  const ready = { ok: true, url: 'http://127.0.0.1:8250/?lang=zh' };
+  await page.evaluate(result => __finishLaunch(result), ready);
+  await expect.poll(() => page.evaluate(() => __openedEditor)).toEqual([ready.url]);
+  await expect(page.locator('#openMawe')).toBeEnabled();
+  await openSelected.click(); // 服务仍在时复用会话，但仍打开编辑器。
+  await expect.poll(() => page.evaluate(() => __openedEditor)).toEqual([ready.url, ready.url]);
+  expect(await page.evaluate(() => __launches)).toHaveLength(1);
+
+  await page.evaluate(() => { __editorRunning = false; window.dispatchEvent(new Event('focus')); });
+  await expect(page.locator('#stopServer')).toBeHidden();
+  expect(await page.evaluate(() => __openedEditor)).toHaveLength(2); // 后台探测自身不打开页面。
+  await openSelected.click();
+  await page.evaluate(() => __finishLaunch({ ok: false, field: 'port', code: 'server_no_response' }));
+  await expect(page.locator('#openMawe')).toBeEnabled();
+  expect(await page.evaluate(() => __openedEditor)).toHaveLength(2); // 未就绪不得打开。
+  await openSelected.click();
+  await page.evaluate(result => __finishLaunch(result), ready);
+  await expect.poll(() => page.evaluate(() => __openedEditor)).toEqual([ready.url, ready.url, ready.url]);
+  expect(await page.evaluate(() => __launches)).toHaveLength(3);
+});
+
 test('browse sets the unified target; the port form stays collapsed until expanded', async ({ page }) => {
   await openHome(page);
 

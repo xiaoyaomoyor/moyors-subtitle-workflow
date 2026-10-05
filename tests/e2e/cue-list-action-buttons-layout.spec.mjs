@@ -18,9 +18,19 @@ test('cue-list filter and action controls live in the subtitle-list settings men
   await expect(page.locator('#cue-list-follow')).toBeHidden();
 
   await toggleCueListSettings(page);
-  await expect(page.locator('#cue-list-settings-modal #cue-list-follow')).toBeVisible();
+  await expect(page.locator('#cue-list-follow-playback')).toBeChecked();
+  await expect(page.locator('#cue-list-follow')).toBeHidden();
+  await expect(page.locator('#cue-list-keep-split-visible, #cue-list-auto-scroll-on-click')).toHaveCount(0);
+  await page.locator('#cues-container').dispatchEvent('wheel',{deltaY:100});
+  await expect(page.locator('#cue-list-follow')).toBeVisible();
   await page.locator('#cue-list-follow').click();
-  await expect(page.locator('#cue-list-follow')).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#cue-list-follow')).toBeHidden();
+  await expect(page.locator('#cue-list-follow-playback')).toBeChecked();
+  await page.locator('#cue-list-follow-playback').uncheck();
+  await expect(page.locator('#cue-list-follow')).toBeHidden();
+  await page.reload();await toggleCueListSettings(page);
+  await expect(page.locator('#cue-list-follow-playback')).not.toBeChecked();
+  await page.locator('#cue-list-follow-playback').check();
   // 「字幕过滤」子类：内容过滤（输入框）、字数过滤（比较符 + 数值）、颜色过滤（五色圈）。
   for (const selector of ['#search', '#charcount-filter-op', '#charcount-threshold', '#color-filter-swatches', '#visible-count']) {
     await expect(page.locator(selector)).toBeAttached();

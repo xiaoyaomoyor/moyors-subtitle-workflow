@@ -9,6 +9,13 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '播放时自动跟随': 'Follow subtitles during playback',
+    '恢复跟随': 'Resume following',
+    '手动浏览已暂停跟随；点击定位当前字幕并恢复': 'Following paused for manual browsing; locate the current subtitle and resume',
+    '播放时定位当前字幕；手动滚动列表会暂时暂停，点击“恢复跟随”继续。关闭后不再随播放滚动。': 'Follow the current subtitle during playback. Browsing pauses following until you resume it. Disable to stop automatic scrolling.',
+    '尚未配置本机服务': 'Local service not configured',
+    '尚未配置模型与参考': 'Models and reference not configured',
+    '尚未配置参考音色': 'Reference voice not configured',
     '每条字幕或每个草稿分段生成一份完整 WAV。': 'Each subtitle or draft segment generates a complete WAV file.',
     '当前引擎每段最多': 'Maximum characters per segment for this engine:',
     '草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。': 'Drafts use the subtitle editor sentence splitting settings. Synthesis uses the submitted text; you can continue editing.',

@@ -1,7 +1,7 @@
 // Shared local service controls. Only explicit Start or synthesis starts models.
 (function (global) {
   'use strict';
-  function create({el, t, request, updateScope, connected, checkConnection}) {
+  function create({el, t, request, updateScope, connected, checkConnection, configurationIssue = () => ''}) {
     const states = new Map(), controls = new Map(), pending = new Set(), operations = new Map();
     let timer;
     const externalChecks = new Map();
@@ -14,12 +14,21 @@
       box.hidden = !ui;
       if (!ui) return;
       el('tts-local-call-name').textContent = names[kind];
-      const status = el('tts-local-call-status'); status.textContent = ui.status.textContent;
+      const state = states.get(kind);
+      const issue = ui.initialized ? configurationIssue(kind) || (!state?.configured && !ready(state) ? '尚未配置本机服务' : '') : '';
+      const status = el('tts-local-call-status');
+      const busy = ui.status.getAttribute('aria-busy') === 'true';
+      status.textContent = issue && !busy && !ui.status.classList.contains('is-error') ? t(issue) : ui.status.textContent;
+      el('tts-local-call-configure').hidden = !issue;
       status.classList.toggle('is-error', ui.status.classList.contains('is-error'));
       status.setAttribute('aria-busy', ui.status.getAttribute('aria-busy') || 'false');
       for (const key of ['check', 'start', 'stop']) {
         const button = el('tts-local-call-' + key), source = ui[key];
-        button.textContent = source.textContent; button.disabled = source.disabled;
+        // A scope refresh can run between pointerup and click. Keep the icon's
+        // generated content intact when its label has not changed.
+        if (button.textContent !== source.textContent) button.textContent = source.textContent;
+        button.disabled = source.disabled;
+        button.title = source.textContent; button.setAttribute('aria-label', source.textContent);
         button.hidden = source.hidden || (key === 'start' && !ui.stop.hidden);
         button.setAttribute('aria-busy', String(!key.includes('stop') && pending.has(kind)));
       }

@@ -4971,7 +4971,7 @@
 
 .msw-asset-row.has-review .msw-asset-text { padding-right:18px; }
 .msw-asset-review { position:absolute; top:7px; right:7px; display:flex; color:var(--accent); cursor:help; }
-.msw-asset-review svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; }
+.msw-asset-review::before { content:""; width:12px; height:12px; border-radius:50%; background:linear-gradient(135deg, currentColor calc(50% - 0.8px), transparent calc(50% - 0.8px) calc(50% + 0.8px), currentColor calc(50% + 0.8px)); }
 .msw-asset-review:focus-visible { outline:1px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 /* TTS call UI: one surface for peer sections, no nested voice-card surfaces. */
@@ -5006,3 +5006,11 @@
 
 #tts-panel .msw-voice-picker-footer:not(:has(> :not([hidden]))) { display:none; }
 #tts-index-controls > .msw-processing-grid:has(> label[hidden]) > label:not([hidden]) { grid-column:1 / -1; }
+
+#tts-panel .msw-local-service-card { flex-wrap:nowrap; }
+#tts-panel .msw-local-service-heading { flex:1; min-width:0; }
+#tts-panel .msw-local-service-heading strong { flex:none; }
+#tts-panel .msw-local-service-card .msw-processing-actions { flex:none; gap:6px; }
+#tts-panel .msw-tts-icon-button[data-icon="start"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 4 12 8-12 8Z' fill='none' stroke='black' stroke-width='1.7' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+#tts-panel .msw-tts-icon-button[data-icon="stop"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='5' width='14' height='14' rx='2' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E"); }
+#tts-panel .msw-tts-icon-button[data-icon="settings"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.13,5.07 10.26,2.15 13.74,2.15 14.87,5.07 17.74,3.81 20.19,6.26 18.93,9.13 21.85,10.26 21.85,13.74 18.93,14.87 20.19,17.74 17.74,20.19 14.87,18.93 13.74,21.85 10.26,21.85 9.13,18.93 6.26,20.19 3.81,17.74 5.07,14.87 2.15,13.74 2.15,10.26 5.07,9.13 3.81,6.26 6.26,3.81Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/g%3E%3C/svg%3E"); }

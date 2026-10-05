@@ -5630,3 +5630,12 @@ test('beta6 speaker color preserves body color and legacy settings', () => {
   assert.ok(events.every(line=>line.includes('Alice: ') && line.includes('}Body: text')));
   assert.ok(!ass.includes('Style: ColorRed'));
 });
+
+
+test('list follow preference persists independently of retired click and split settings',()=>{
+  const migrated=helpers.normalizeEditorSettings({cueListAutoScrollOnClick:true,cueListKeepSplitVisible:false});
+  assert.equal(migrated.cueListFollowPlayback,true);
+  assert.equal(Object.hasOwn(migrated,'cueListAutoScrollOnClick'),false);
+  assert.equal(Object.hasOwn(migrated,'cueListKeepSplitVisible'),false);
+  assert.equal(helpers.normalizeEditorSettings({cueListFollowPlayback:false}).cueListFollowPlayback,false);
+});

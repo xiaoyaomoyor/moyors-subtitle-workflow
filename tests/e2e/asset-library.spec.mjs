@@ -156,3 +156,23 @@ test('clicking other content clears cards but keeps subtitle asset editing and b
   await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
   await expect(page.locator('#asset-insert-selected')).toBeHidden();
 });
+
+
+test('context settings share media menu controls, order and persisted values',async({page},info)=>{
+  await copy(page);
+  const labels=await page.locator('.asset-settings-menu input[type="checkbox"]').evaluateAll(nodes=>nodes.map(n=>n.closest('label').textContent.trim()));
+  await page.locator('#asset-count').click({button:'right'});
+  await page.locator('#ctxmenu .ctx-submenu-toggle').hover();
+  const items=page.locator('#ctxmenu .ctx-subitem.ctx-check');
+  await expect(items).toHaveCount(labels.length);
+  expect(await items.allTextContents()).toEqual(labels);
+  await items.filter({hasText:'显示变动标记'}).click();
+  await expect(page.locator('#asset-show-changes')).toBeChecked();
+  await page.keyboard.press('Escape');
+  await page.reload();await expect(page.locator('#editor-loading')).toBeHidden();
+  await expect(page.locator('#asset-show-changes')).toBeChecked();
+  await copy(page); // Unsaved fixture assets are gone after reload; reopen the library through a real action.
+  await page.locator('#asset-count').click({button:'right'});await page.locator('#ctxmenu .ctx-submenu-toggle').hover();
+  await expect(items.filter({hasText:'显示变动标记'}).locator('input')).toBeChecked();
+  await page.screenshot({path:info.outputPath('library-context-settings.png')});
+});

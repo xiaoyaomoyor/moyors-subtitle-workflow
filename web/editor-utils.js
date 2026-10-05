@@ -3090,9 +3090,9 @@
     overlayEnabled: true, extensionOverlayEnabled: true, assMode: false, multiSubtitleRowHeight: 168,
     subtitleColorPaletteEnabled: false,
     exportStartAtZero: false, cueListShowIndex: true, cueListShowTime: true,
-    cueListShowSticker: true, cueListShowCharcount: true, cueListAutoScrollOnClick: true,
+    cueListShowSticker: true, cueListShowCharcount: true, cueListFollowPlayback: true,
     cueListPairLayout: 'columns',
-    cueListKeepSplitVisible: true, cueListHideDisabled: true, cueListCharcountThreshold: 0,
+    cueListHideDisabled: true, cueListCharcountThreshold: 0,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
     ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
@@ -3163,9 +3163,8 @@
       cueListShowTime: savedSettings.cueListShowTime !== false,
       cueListShowSticker: savedSettings.cueListShowSticker !== false,
       cueListShowCharcount: savedSettings.cueListShowCharcount !== false,
-      cueListAutoScrollOnClick: savedSettings.cueListAutoScrollOnClick !== false,
+      cueListFollowPlayback: savedSettings.cueListFollowPlayback !== false,
       cueListPairLayout: savedSettings.cueListPairLayout === 'rows' ? 'rows' : 'columns',
-      cueListKeepSplitVisible: savedSettings.cueListKeepSplitVisible !== false,
       cueListHideDisabled: savedSettings.cueListHideDisabled !== false,
       // 字数过滤值：0 = 不过滤。这里只做范围校验；旧默认 16 的清理由一次性迁移 flag
       // （migrateCharcountDefault）处理，不能无条件吞掉用户显式输入的 16。

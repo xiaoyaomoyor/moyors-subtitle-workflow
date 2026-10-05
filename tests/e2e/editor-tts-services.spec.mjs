@@ -203,3 +203,26 @@ test('external IPv6 services stay connectable without enabling stop or managed s
   await expect(page.locator('#tts-local-call-stop')).toBeHidden();await expect(page.locator('#tts-local-call-start')).toBeHidden();
   expect((await api(page,'tts-local-service?engine=gpt-sovits')).service.owned).toBe(false);
 });
+
+
+test('missing GPT configuration stays in the service row with three accessible icon actions',async({page},info)=>{
+  await openTtsEnvironment(page,'gpt-sovits');await closeTtsEnvironment(page);
+  await page.locator('#tts-engine').selectOption('gpt-sovits');
+  const card=page.locator('#tts-local-call');
+  await expect(page.locator('#tts-environment-notice')).toBeHidden();
+  await expect(page.locator('#tts-environment-reminder')).toBeHidden();
+  await expect(page.locator('#tts-local-call-status')).toHaveText('尚未配置模型与参考');
+  await expect(card.locator('button:visible')).toHaveCount(3);
+  for(const [key,label] of [['check','检测连接'],['start','启动服务'],['configure','前往环境配置']]){
+    await expect(page.locator('#tts-local-call-'+key)).toHaveAccessibleName(label);
+  }
+  await page.setViewportSize({width:390,height:780});
+  const bounds=await card.locator('button:visible').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {y:r.y,w:r.width};}));
+  expect(Math.max(...bounds.map(b=>b.y))-Math.min(...bounds.map(b=>b.y))).toBeLessThan(2);
+  expect(bounds.every(b=>b.w<=34)).toBe(true);
+  expect(await card.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+  await page.screenshot({path:info.outputPath('local-service-unconfigured.png')});
+  await page.locator('#tts-local-call-configure').click();
+  await expect(page.locator('#editor-settings-modal')).toBeVisible();
+  await expect(page.locator('#tts-environment-engine')).toHaveValue('gpt-sovits');
+});

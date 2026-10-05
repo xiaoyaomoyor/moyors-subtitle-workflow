@@ -764,15 +764,9 @@ __WAVEFORM_CSS__
           <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">列表</span>
             <div class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row">
-              <span data-option-help="播放时自动滚动到当前字幕；手动翻看列表会暂停跟随。点击“跟随播放”可定位当前字幕并恢复跟随。">播放定位</span>
-              <button type="button" id="cue-list-follow" aria-pressed="true" title="定位当前播放头并恢复字幕跟随；手动翻看后可再次点击">跟随播放</button>
+              <label class="toggle cue-list-setting-toggle"><input type="checkbox" id="cue-list-follow-playback" checked><span data-option-help="播放时定位当前字幕；手动滚动列表会暂时暂停，点击“恢复跟随”继续。关闭后不再随播放滚动。">播放时自动跟随</span></label>
+              <button type="button" id="cue-list-follow" aria-pressed="true" title="手动浏览已暂停跟随；点击定位当前字幕并恢复" hidden>恢复跟随</button>
             </div>
-            <label class="toggle settings-panel-item cue-list-setting-toggle" title="开启后，字数过滤期间拆分出的字幕会暂时保留，直到点击其他字幕、波形或空白处">
-              <input type="checkbox" id="cue-list-keep-split-visible" checked> 拆分后临时保留显示
-            </label>
-            <label class="toggle settings-panel-item cue-list-setting-toggle" title="关闭后，通过字幕列表点击字幕时不会自动滚动列表">
-              <input type="checkbox" id="cue-list-auto-scroll-on-click" checked> 点击字幕后自动滚动
-            </label>
           </div>
           <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">显示</span>
@@ -2609,7 +2603,7 @@ __WAVEFORM_CSS__
         <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-preview" disabled>试听音色</button></div>
         <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
       </div>
-      <div id="tts-local-call" class="msw-local-service-card" hidden><div class="msw-local-service-heading"><strong id="tts-local-call-name"></strong><span id="tts-local-call-status" role="status"></span></div><div class="msw-processing-actions"><button type="button" id="tts-local-call-check">检测连接</button><button type="button" id="tts-local-call-start">启动服务</button><button type="button" id="tts-local-call-stop">停止服务</button></div></div>
+      <div id="tts-local-call" class="msw-local-service-card" hidden><div class="msw-local-service-heading"><strong id="tts-local-call-name"></strong><span id="tts-local-call-status" role="status"></span></div><div class="msw-processing-actions"><button type="button" id="tts-local-call-check">检测连接</button><button type="button" id="tts-local-call-start">启动服务</button><button type="button" id="tts-local-call-stop">停止服务</button><button type="button" id="tts-local-call-configure" hidden>前往环境配置</button></div></div>
       <div id="tts-gpt-fields" hidden></div><div id="tts-edge-fields" hidden></div><div id="tts-minimax-fields" hidden></div><div id="tts-mossland-fields" hidden></div>
       <div id="tts-index-fields" hidden>
 

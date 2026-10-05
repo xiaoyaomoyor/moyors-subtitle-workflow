@@ -32,7 +32,8 @@ async function open(page, options = {}) {
 async function resumeFollowing(page) {
   await openMenubarMenu(page, '字幕');
   await page.locator('#cue-list-settings-open').click();
-  await page.locator('#cue-list-settings-modal #cue-list-follow').click();
+  await page.locator('#cue-list-follow-playback').check();
+  if(await page.locator('#cue-list-follow').isVisible())await page.locator('#cue-list-follow').click();
   await page.locator('#cue-list-settings-close').click();
 }
 
@@ -501,10 +502,10 @@ test('space input native controls retain activation without changing follow or p
   await page.keyboard.press('Space');
   await expect(page.locator('#cue-list-settings-panel')).toBeVisible();
   expect((await playbackState(page)).following).toBe(true);
-  const checkbox = page.locator('#cue-list-auto-scroll-on-click');
+  const checkbox = page.locator('#cue-list-show-index');
   await checkbox.focus();
   await page.keyboard.press('Space');
-  await expect(checkbox).toBeChecked();
+  await expect(checkbox).not.toBeChecked();
   const state = await playbackState(page);
   expect(state.following).toBe(true);
   expect(state.paused).toBe(true);
@@ -730,4 +731,46 @@ test('paired dual tracks keep their source during split merge and history', asyn
   await page.keyboard.press(undoKey);
   await stable(page, mergeBefore, 75, 'paired undo C', info);
   expect(await page.evaluate(() => getMultiSubtitleState().bindings.length)).toBe(107);
+});
+
+
+test('persistent follow preference stays off during playback; manual browsing only pauses it',async({page},info)=>{
+  await open(page);await page.waitForFunction(()=>player.readyState>=1);
+  await page.evaluate(()=>{player.muted=true;player.playbackRate=8;});
+  await page.locator('.cue[data-idx="0"] .text').click();
+  await openMenubarMenu(page,'字幕');await page.locator('#cue-list-settings-open').click();
+  await page.locator('#cue-list-follow-playback').uncheck();
+  await expect(page.locator('#cue-list-follow')).toBeHidden();
+  await page.locator('#cue-list-settings-close').click();
+  await page.locator('#cues-container').focus();
+  await spacePlayback(page,false,false,info,'follow preference disabled');
+  await spacePlayback(page,false,true,info,'pause while preference disabled');
+  await openMenubarMenu(page,'字幕');await page.locator('#cue-list-settings-open').click();
+  await page.locator('#cue-list-follow-playback').check();
+  await page.locator('#cue-list-settings-close').click();
+  await page.locator('#cues-container').dispatchEvent('wheel',{deltaY:100});
+  expect(await page.evaluate(()=>EDITOR_SETTINGS.cueListFollowPlayback)).toBe(true);
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1')).cueListFollowPlayback)).toBe(true);
+  await resumeFollowing(page);
+  expect(await page.evaluate(()=>cueListScroll.following)).toBe(true);
+});
+
+
+for(const close of ['pointer','escape'])test(`closing settings immediately after resuming keeps dual-card navigation ${close}`,async({page})=>{
+  await open(page,{mode:'both'});await page.waitForFunction(()=>player.readyState>=1);
+  await page.evaluate(()=>{interruptCueListFollowing();player.currentTime=190;});
+  await expect.poll(()=>page.evaluate(()=>player.currentTime)).toBeGreaterThanOrEqual(190);
+  await openMenubarMenu(page,'字幕');await page.locator('#cue-list-settings-open').click();
+  await page.evaluate(close=>{
+    document.getElementById('cue-list-follow').click();
+    if(close==='pointer'){
+      const button=document.getElementById('cue-list-settings-close');
+      button.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));button.click();
+    }else document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  },close);
+  await expect(page.locator('#cue-list-settings-modal')).toBeHidden();
+  await expect.poll(()=>page.evaluate(()=>{
+    const r=playbackCueListElement().getBoundingClientRect(),bounds=cueListVisibleBounds();
+    return r.top>=bounds.top-1&&r.bottom<=bounds.bottom+1;
+  })).toBe(true);
 });

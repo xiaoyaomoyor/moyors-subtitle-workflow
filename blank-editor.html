@@ -4991,7 +4991,7 @@
 
 .msw-asset-row.has-review .msw-asset-text { padding-right:18px; }
 .msw-asset-review { position:absolute; top:7px; right:7px; display:flex; color:var(--accent); cursor:help; }
-.msw-asset-review svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; }
+.msw-asset-review::before { content:""; width:12px; height:12px; border-radius:50%; background:linear-gradient(135deg, currentColor calc(50% - 0.8px), transparent calc(50% - 0.8px) calc(50% + 0.8px), currentColor calc(50% + 0.8px)); }
 .msw-asset-review:focus-visible { outline:1px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 /* TTS call UI: one surface for peer sections, no nested voice-card surfaces. */
@@ -5026,6 +5026,14 @@
 
 #tts-panel .msw-voice-picker-footer:not(:has(> :not([hidden]))) { display:none; }
 #tts-index-controls > .msw-processing-grid:has(> label[hidden]) > label:not([hidden]) { grid-column:1 / -1; }
+
+#tts-panel .msw-local-service-card { flex-wrap:nowrap; }
+#tts-panel .msw-local-service-heading { flex:1; min-width:0; }
+#tts-panel .msw-local-service-heading strong { flex:none; }
+#tts-panel .msw-local-service-card .msw-processing-actions { flex:none; gap:6px; }
+#tts-panel .msw-tts-icon-button[data-icon="start"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 4 12 8-12 8Z' fill='none' stroke='black' stroke-width='1.7' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+#tts-panel .msw-tts-icon-button[data-icon="stop"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='5' width='14' height='14' rx='2' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E"); }
+#tts-panel .msw-tts-icon-button[data-icon="settings"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.13,5.07 10.26,2.15 13.74,2.15 14.87,5.07 17.74,3.81 20.19,6.26 18.93,9.13 21.85,10.26 21.85,13.74 18.93,14.87 20.19,17.74 17.74,20.19 14.87,18.93 13.74,21.85 10.26,21.85 9.13,18.93 6.26,20.19 3.81,17.74 5.07,14.87 2.15,13.74 2.15,10.26 5.07,9.13 3.81,6.26 6.26,3.81Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/g%3E%3C/svg%3E"); }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -6877,15 +6885,9 @@
           <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">列表</span>
             <div class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row">
-              <span data-option-help="播放时自动滚动到当前字幕；手动翻看列表会暂停跟随。点击“跟随播放”可定位当前字幕并恢复跟随。">播放定位</span>
-              <button type="button" id="cue-list-follow" aria-pressed="true" title="定位当前播放头并恢复字幕跟随；手动翻看后可再次点击">跟随播放</button>
+              <label class="toggle cue-list-setting-toggle"><input type="checkbox" id="cue-list-follow-playback" checked><span data-option-help="播放时定位当前字幕；手动滚动列表会暂时暂停，点击“恢复跟随”继续。关闭后不再随播放滚动。">播放时自动跟随</span></label>
+              <button type="button" id="cue-list-follow" aria-pressed="true" title="手动浏览已暂停跟随；点击定位当前字幕并恢复" hidden>恢复跟随</button>
             </div>
-            <label class="toggle settings-panel-item cue-list-setting-toggle" title="开启后，字数过滤期间拆分出的字幕会暂时保留，直到点击其他字幕、波形或空白处">
-              <input type="checkbox" id="cue-list-keep-split-visible" checked> 拆分后临时保留显示
-            </label>
-            <label class="toggle settings-panel-item cue-list-setting-toggle" title="关闭后，通过字幕列表点击字幕时不会自动滚动列表">
-              <input type="checkbox" id="cue-list-auto-scroll-on-click" checked> 点击字幕后自动滚动
-            </label>
           </div>
           <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">显示</span>
@@ -8722,7 +8724,7 @@
         <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-preview" disabled>试听音色</button></div>
         <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
       </div>
-      <div id="tts-local-call" class="msw-local-service-card" hidden><div class="msw-local-service-heading"><strong id="tts-local-call-name"></strong><span id="tts-local-call-status" role="status"></span></div><div class="msw-processing-actions"><button type="button" id="tts-local-call-check">检测连接</button><button type="button" id="tts-local-call-start">启动服务</button><button type="button" id="tts-local-call-stop">停止服务</button></div></div>
+      <div id="tts-local-call" class="msw-local-service-card" hidden><div class="msw-local-service-heading"><strong id="tts-local-call-name"></strong><span id="tts-local-call-status" role="status"></span></div><div class="msw-processing-actions"><button type="button" id="tts-local-call-check">检测连接</button><button type="button" id="tts-local-call-start">启动服务</button><button type="button" id="tts-local-call-stop">停止服务</button><button type="button" id="tts-local-call-configure" hidden>前往环境配置</button></div></div>
       <div id="tts-gpt-fields" hidden></div><div id="tts-edge-fields" hidden></div><div id="tts-minimax-fields" hidden></div><div id="tts-mossland-fields" hidden></div>
       <div id="tts-index-fields" hidden>
 
@@ -13713,9 +13715,9 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     overlayEnabled: true, extensionOverlayEnabled: true, assMode: false, multiSubtitleRowHeight: 168,
     subtitleColorPaletteEnabled: false,
     exportStartAtZero: false, cueListShowIndex: true, cueListShowTime: true,
-    cueListShowSticker: true, cueListShowCharcount: true, cueListAutoScrollOnClick: true,
+    cueListShowSticker: true, cueListShowCharcount: true, cueListFollowPlayback: true,
     cueListPairLayout: 'columns',
-    cueListKeepSplitVisible: true, cueListHideDisabled: true, cueListCharcountThreshold: 0,
+    cueListHideDisabled: true, cueListCharcountThreshold: 0,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
     ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
@@ -13786,9 +13788,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       cueListShowTime: savedSettings.cueListShowTime !== false,
       cueListShowSticker: savedSettings.cueListShowSticker !== false,
       cueListShowCharcount: savedSettings.cueListShowCharcount !== false,
-      cueListAutoScrollOnClick: savedSettings.cueListAutoScrollOnClick !== false,
+      cueListFollowPlayback: savedSettings.cueListFollowPlayback !== false,
       cueListPairLayout: savedSettings.cueListPairLayout === 'rows' ? 'rows' : 'columns',
-      cueListKeepSplitVisible: savedSettings.cueListKeepSplitVisible !== false,
       cueListHideDisabled: savedSettings.cueListHideDisabled !== false,
       // 字数过滤值：0 = 不过滤。这里只做范围校验；旧默认 16 的清理由一次性迁移 flag
       // （migrateCharcountDefault）处理，不能无条件吞掉用户显式输入的 16。
@@ -19024,6 +19025,13 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '播放时自动跟随': 'Follow subtitles during playback',
+    '恢复跟随': 'Resume following',
+    '手动浏览已暂停跟随；点击定位当前字幕并恢复': 'Following paused for manual browsing; locate the current subtitle and resume',
+    '播放时定位当前字幕；手动滚动列表会暂时暂停，点击“恢复跟随”继续。关闭后不再随播放滚动。': 'Follow the current subtitle during playback. Browsing pauses following until you resume it. Disable to stop automatic scrolling.',
+    '尚未配置本机服务': 'Local service not configured',
+    '尚未配置模型与参考': 'Models and reference not configured',
+    '尚未配置参考音色': 'Reference voice not configured',
     '每条字幕或每个草稿分段生成一份完整 WAV。': 'Each subtitle or draft segment generates a complete WAV file.',
     '当前引擎每段最多': 'Maximum characters per segment for this engine:',
     '草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。': 'Drafts use the subtitle editor sentence splitting settings. Synthesis uses the submitted text; you can continue editing.',
@@ -30024,10 +30032,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowSticker: true,
   cueListShowCharcount: true,
   cueListPairLayout: 'columns',
-  // 字幕列表普通点击是否把目标字幕滚动到列表中央。
-  cueListAutoScrollOnClick: true,
-  // 字数过滤期间，拆分结果是否暂时保留在列表中，直到焦点离开。
-  cueListKeepSplitVisible: true,
+  // 播放跟随偏好；手动浏览的临时暂停单独保存在 cueListScroll。
+  cueListFollowPlayback: true,
   // 字幕列表是否隐藏禁用字幕。
   cueListHideDisabled: true,
   // 字数过滤与字数标记使用的字符阈值（0 = 不过滤）。
@@ -30146,7 +30152,7 @@ function readEditorSettings() {
   try { saved = JSON.parse(localStorage.getItem(EDITOR_SETTINGS_KEY) || '{}'); } catch (_) { /* invalid storage */ }
   return EDITOR_SETTINGS_UTILS.normalizeEditorSettings({
     ...saved,
-    cueListAutoScrollOnClick: saved.cueListAutoScrollOnClick !== false,
+    cueListFollowPlayback: saved.cueListFollowPlayback !== false,
     cueListShowIndex: saved.cueListShowIndex !== false,
     cueListShowTime: saved.cueListShowTime !== false,
     cueListShowSticker: saved.cueListShowSticker !== false,
@@ -31281,8 +31287,7 @@ const cueListShowIndexToggle = document.getElementById('cue-list-show-index');
 const cueListShowTimeToggle = document.getElementById('cue-list-show-time');
 const cueListShowStickerToggle = document.getElementById('cue-list-show-sticker');
 const cueListShowCharcountToggle = document.getElementById('cue-list-show-charcount');
-const cueListAutoScrollOnClickToggle = document.getElementById('cue-list-auto-scroll-on-click');
-const cueListKeepSplitVisibleToggle = document.getElementById('cue-list-keep-split-visible');
+const cueListFollowPlaybackToggle = document.getElementById('cue-list-follow-playback');
 const cueListCharcountThresholdInput = document.getElementById('charcount-threshold');
 const cueListSettings = document.getElementById('cue-list-settings');
 const cueListSettingsToggle = document.getElementById('cue-list-settings-toggle');
@@ -31631,7 +31636,12 @@ function resetCuePanelEditState() {
 }
 
 function updateEditorSettings(patch) {
+  const previousFollow = EDITOR_SETTINGS.cueListFollowPlayback;
   Object.assign(EDITOR_SETTINGS, patch);
+  if (previousFollow !== EDITOR_SETTINGS.cueListFollowPlayback) queueMicrotask(() => {
+    if (EDITOR_SETTINGS.cueListFollowPlayback) resumeCueListFollowing();
+    else interruptCueListFollowing();
+  });
   saveEditorSettings(EDITOR_SETTINGS);
   // 外观相关键变化时写穿到服务器（仅服务器版；见下方「外观偏好跟服务器走」）。
   if (APPEARANCE_SETTINGS_KEYS.some((key) => key in patch)) scheduleAppearanceSync();
@@ -32663,8 +32673,7 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   cueListShowCharcountToggle.checked = EDITOR_SETTINGS.cueListShowCharcount;
   cueListPairLayout.value = EDITOR_SETTINGS.cueListPairLayout;
   container.dataset.pairLayout = EDITOR_SETTINGS.cueListPairLayout;
-  cueListAutoScrollOnClickToggle.checked = EDITOR_SETTINGS.cueListAutoScrollOnClick;
-  cueListKeepSplitVisibleToggle.checked = EDITOR_SETTINGS.cueListKeepSplitVisible;
+  cueListFollowPlaybackToggle.checked = EDITOR_SETTINGS.cueListFollowPlayback;
   syncCharCountThresholdInputs(EDITOR_SETTINGS.cueListCharcountThreshold);
   hideDisabled = EDITOR_SETTINGS.cueListHideDisabled;
   hideDisabledToggle.checked = !hideDisabled;  // 勾选 = 显示禁用字幕
@@ -33610,11 +33619,8 @@ bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
 bindCueListDisplayToggle(cueListShowStickerToggle, 'cueListShowSticker');
 bindCueListDisplayToggle(cueListShowCharcountToggle, 'cueListShowCharcount');
-bindCueListDisplayToggle(cueListAutoScrollOnClickToggle, 'cueListAutoScrollOnClick');
-cueListKeepSplitVisibleToggle?.addEventListener('change', () => {
-  updateEditorSettings({ cueListKeepSplitVisible: cueListKeepSplitVisibleToggle.checked });
-  if (!cueListKeepSplitVisibleToggle.checked) clearTemporaryVisibleSplitCues();
-  applySearch(searchEl.value);
+cueListFollowPlaybackToggle.addEventListener('change', () => {
+  updateEditorSettings({ cueListFollowPlayback: cueListFollowPlaybackToggle.checked });
 });
 cueListCharcountThresholdInput?.addEventListener('input', () => {
   handleCharCountThresholdInput(cueListCharcountThresholdInput);
@@ -36622,10 +36628,6 @@ function buildOverlayCueEl(seg, index) {
       suppressCueListAutoScroll = previousSuppress;
     }
     if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused && !wasPlaying) togglePlayback();
-    if (EDITOR_SETTINGS.cueListAutoScrollOnClick) {
-      const row = container.querySelector(`.cue[data-overlay-idx="${index}"]`);
-      if (row) scrollCueToCenter(row);
-    }
   });
   el.addEventListener('dblclick', (event) => {
     event.preventDefault();
@@ -36846,7 +36848,6 @@ function rememberTemporaryVisibleSplitCues({
   extensionSegments = [],
   extensionTrackId = null,
 } = {}) {
-  if (!EDITOR_SETTINGS.cueListKeepSplitVisible) return;
   if (!charCountFilterActive()) return;
   mainSegments.forEach((segment) => {
     const key = splitCueVisibilityKey('main', segment);
@@ -37139,7 +37140,6 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
       }
       const keepTemporaryVisible = filterOver
-        && EDITOR_SETTINGS.cueListKeepSplitVisible
         && cueElementHasTemporarySplitVisibility(el);
       if (matched && filterOver && !keepTemporaryVisible) {
         matched = window.AsrEditorUtils.matchesTrackCharCount(
@@ -37311,12 +37311,6 @@ function bindExtensionCueEvents(el, index, track = getActiveExtensionTrack(), du
       suppressCueListAutoScroll = previousSuppress;
     }
     if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused && !wasPlaying) togglePlayback();
-    if (EDITOR_SETTINGS.cueListAutoScrollOnClick) {
-      const currentRow = container.querySelector(
-        `.multi-dual-cue[data-ext-idx="${index}"], .multi-extension-cue[data-ext-idx="${index}"]`,
-      );
-      scrollCueToCenter(currentRow || dualRow || el);
-    }
   });
   el.addEventListener('pointermove', (event) => {
     event.stopPropagation();
@@ -40502,7 +40496,7 @@ function cueListVisibleBounds() {
 
 // 三种滚动共用一个可取消的操作：布局恢复、主动导航、播放跟随。
 // scroll 事件本身不表示用户输入，懒布局和浏览器边界限制也会触发它。
-const cueListScroll = { generation: 0, frame: 0, owner: null, following: true, playbackKey: null, mutationAnchor: null, layoutAnchor: null };
+const cueListScroll = { generation: 0, frame: 0, owner: null, following: EDITOR_SETTINGS.cueListFollowPlayback, playbackKey: null, mutationAnchor: null, layoutAnchor: null };
 const cueListFollowButton = document.getElementById('cue-list-follow');
 
 function invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor = false } = {}) {
@@ -40523,8 +40517,10 @@ function invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor = false } =
 }
 
 function setCueListFollowing(enabled) {
-  cueListScroll.following = enabled;
-  cueListFollowButton?.setAttribute('aria-pressed', String(enabled));
+  cueListScroll.following = EDITOR_SETTINGS.cueListFollowPlayback && enabled;
+  cueListFollowPlaybackToggle.checked = EDITOR_SETTINGS.cueListFollowPlayback;
+  cueListFollowButton.hidden = !EDITOR_SETTINGS.cueListFollowPlayback || cueListScroll.following;
+  cueListFollowButton.setAttribute('aria-pressed', String(cueListScroll.following));
 }
 
 function interruptCueListFollowing() {
@@ -40533,6 +40529,10 @@ function interruptCueListFollowing() {
 }
 
 document.addEventListener('pointerdown', (event) => {
+  // Closing settings is not a request to browse elsewhere. Let a just-resumed
+  // navigation finish measuring lazy subtitle cards after its first frame.
+  if (event.target.closest?.('#cue-list-settings-close') && cueListScroll.following
+      && cueListScroll.owner === 'navigate') return;
   invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor: true });
   // 直接按在容器空白/滚动条上可能开始拖动；普通行点击仍沿用点击设置。
   const rect = container.getBoundingClientRect();
@@ -40545,6 +40545,8 @@ document.addEventListener('pointerdown', (event) => {
 container.addEventListener('wheel', interruptCueListFollowing, { passive: true });
 container.addEventListener('touchstart', interruptCueListFollowing, { passive: true });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && document.getElementById('cue-list-settings-modal').classList.contains('show')
+      && cueListScroll.following && cueListScroll.owner === 'navigate') return;
   invalidateCueListVisualAnchorRestore({ preserveLayoutAnchor: true });
 }, true);
 // 等播放、弹窗及目标控件先处理输入；被消费的空格不再误归为列表滚动。
@@ -40739,11 +40741,13 @@ function playbackCueListKey() {
 }
 
 function resumeCueListFollowing() {
+  if (!EDITOR_SETTINGS.cueListFollowPlayback) return;
   invalidateCueListVisualAnchorRestore();
   setCueListFollowing(true);
   scrollCueIntoViewIfNeeded(playbackCueListElement(), { owner: 'navigate' });
 }
 cueListFollowButton?.addEventListener('click', resumeCueListFollowing);
+setCueListFollowing(EDITOR_SETTINGS.cueListFollowPlayback);
 
 // === seek ===
 let seekWarned = false;
@@ -41082,16 +41086,12 @@ function bindCueEvents(el, idx) {
     if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
 
     // 选择已经在 pointerdown 完成；这里仅处理列表滚动、波形定位和媒体 Seek。
-    if (EDITOR_SETTINGS.cueListAutoScrollOnClick && !state?.preserveListScroll) {
-      scrollCueToCenter(el);
-    }
     waveformEditor?.revealTime(DATA.segments[idx].start, true);
     const wasPlaying = isPlaybackActive();
     if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
       // 默认只跳转不改动播放状态；“选中并跳转（自动播放）”会在暂停时启动播放。
       const previousSuppress = suppressCueListAutoScroll;
-      suppressCueListAutoScroll = state?.preserveListScroll
-        ? true : !EDITOR_SETTINGS.cueListAutoScrollOnClick;
+      suppressCueListAutoScroll = true;
       try {
         seekFromWaveform(DATA.segments[idx].start / 1000, { mouseClick: true });
       } finally {
@@ -51784,7 +51784,7 @@ function setupModuleContextMenu() {
     const text = document.createElement('span');
     text.textContent = '卡片密度';
     const input = document.createElement('input');
-    input.type = 'range'; input.min = '1'; input.max = '5'; input.step = '1';
+    input.type = 'range'; input.min = source.min; input.max = source.max; input.step = source.step;
     input.value = source?.value || '3';
     input.setAttribute('aria-label', '每行卡片数量');
     const value = document.createElement('output');
@@ -51799,15 +51799,12 @@ function setupModuleContextMenu() {
   bindModule(waveformEditor.assetLibrary, () => [
     { label: '素材库设置', expandable: true, children: [
       { label: '卡片密度', node: buildAssetDensitySlider() },
-      { label: '显示底部试听栏', checked: () => document.getElementById('asset-show-player')?.checked !== false,
-        toggle: () => { const toggle=document.getElementById('asset-show-player');toggle.checked=!toggle.checked;toggle.dispatchEvent(new Event('change')); } },
-      { label: '显示搜索与筛选', checked: () => EDITOR_SETTINGS.assetLibraryShowSearch !== false,
-        toggle: () => {
-          const toggle = document.getElementById('asset-show-search');
-          if (toggle) { toggle.checked = !toggle.checked; toggle.dispatchEvent(new Event('change', { bubbles: true })); }
-          else updateEditorSettings({ assetLibraryShowSearch: !(EDITOR_SETTINGS.assetLibraryShowSearch !== false) });
-          applyAssetSearchVisibility();
-        } },
+      // Read the same controls as Media > Asset library settings, including their order.
+      ...[...document.querySelectorAll('.asset-settings-menu input[type="checkbox"]')].map(input => ({
+        label: input.closest('label').textContent.trim(),
+        checked: () => input.checked,
+        toggle: () => ctxToggleTemplateCheckbox(input.id),
+      })),
     ] },
   ]);
 }
@@ -56963,7 +56960,7 @@ window.addEventListener('beforeunload', (e) => {
 // Shared local service controls. Only explicit Start or synthesis starts models.
 (function (global) {
   'use strict';
-  function create({el, t, request, updateScope, connected, checkConnection}) {
+  function create({el, t, request, updateScope, connected, checkConnection, configurationIssue = () => ''}) {
     const states = new Map(), controls = new Map(), pending = new Set(), operations = new Map();
     let timer;
     const externalChecks = new Map();
@@ -56976,12 +56973,21 @@ window.addEventListener('beforeunload', (e) => {
       box.hidden = !ui;
       if (!ui) return;
       el('tts-local-call-name').textContent = names[kind];
-      const status = el('tts-local-call-status'); status.textContent = ui.status.textContent;
+      const state = states.get(kind);
+      const issue = ui.initialized ? configurationIssue(kind) || (!state?.configured && !ready(state) ? '尚未配置本机服务' : '') : '';
+      const status = el('tts-local-call-status');
+      const busy = ui.status.getAttribute('aria-busy') === 'true';
+      status.textContent = issue && !busy && !ui.status.classList.contains('is-error') ? t(issue) : ui.status.textContent;
+      el('tts-local-call-configure').hidden = !issue;
       status.classList.toggle('is-error', ui.status.classList.contains('is-error'));
       status.setAttribute('aria-busy', ui.status.getAttribute('aria-busy') || 'false');
       for (const key of ['check', 'start', 'stop']) {
         const button = el('tts-local-call-' + key), source = ui[key];
-        button.textContent = source.textContent; button.disabled = source.disabled;
+        // A scope refresh can run between pointerup and click. Keep the icon's
+        // generated content intact when its label has not changed.
+        if (button.textContent !== source.textContent) button.textContent = source.textContent;
+        button.disabled = source.disabled;
+        button.title = source.textContent; button.setAttribute('aria-label', source.textContent);
         button.hidden = source.hidden || (key === 'start' && !ui.stop.hidden);
         button.setAttribute('aria-busy', String(!key.includes('stop') && pending.has(kind)));
       }
@@ -57804,7 +57810,6 @@ window.addEventListener('beforeunload', (e) => {
       if (reason) {
         const review = document.createElement('span'); review.className = 'msw-asset-review'; review.tabIndex = 0;
         review.title = t(reason); review.setAttribute('aria-label',t(reason)); review.setAttribute('role','img');
-        review.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5v4M8 11v.5"/></svg>';
         row.classList.add('has-review'); row.append(review);
       }
       const details = [text.textContent, caption.full];
@@ -58069,7 +58074,10 @@ window.addEventListener('beforeunload', (e) => {
   const indexTts = global.MSWIndexTts.create({el, t, request, updateScope,
     playReference, stopReference, generation: () => host.generation});
   gptTts = global.MSWGptSovits.create({el, t, request, updateScope, playReference, stopReference});
-  localServices = global.MSWTtsServices.create({el, t, request, updateScope, connected: () => { if (!indexTts.connected()) void indexTts.check(); },
+  localServices = global.MSWTtsServices.create({el, t, request, updateScope,
+    configurationIssue: kind => !configured ? '' : kind === 'gpt-sovits' && !gptTts.hasResources() ? '尚未配置模型与参考'
+      : kind === 'indextts' && indexTts.connected() && !indexTts.referencesReady() ? '尚未配置参考音色' : '',
+    connected: () => { if (!indexTts.connected()) void indexTts.check(); },
     checkConnection: async kind => {
       if (kind === 'indextts') { await indexTts.check(); if (!indexTts.connected()) throw Error(indexTts.problem()); }
       else await request('gpt-sovits', {action:'check', ...gptTts.connection()});
@@ -58114,7 +58122,11 @@ window.addEventListener('beforeunload', (e) => {
     help?.attach(heading,()=>el('tts-voice-catalog-hint').dataset.catalogHelp || t('可搜索中文名称、音色 ID 和方言'));
     const yukkuri=el('tts-yukkuri-voice').closest('label'), yukkuriRow=document.createElement('div');
     yukkuriRow.className='msw-tts-voice-row msw-voice-picker-footer';yukkuri.before(yukkuriRow);yukkuriRow.append(yukkuri,el('tts-yukkuri-preview'));
-    const check=el('tts-local-call-check');refreshIcon(check);check.title=t('检测连接');check.setAttribute('aria-label',t('检测连接'));
+    for (const [key, icon, title] of [['check','refresh','检测连接'],['start','start','启动服务'],['stop','stop','停止服务'],['configure','settings','前往环境配置']]) {
+      const button=el('tts-local-call-'+key);button.classList.add('msw-tts-icon-button');button.dataset.icon=icon;
+      button.title=t(title);button.setAttribute('aria-label',t(title));
+    }
+    el('tts-local-call-configure').onclick=()=>el('tts-environment-open').click();
     help?.hydrate(el('tts-panel'));
   }
   queueMicrotask(prepareCallLayout);
@@ -58311,12 +58323,14 @@ window.addEventListener('beforeunload', (e) => {
     return settingsPromise;
   }
   function environmentNotice() {
+    if (isIndex() || isGpt()) {
+      el('tts-environment-notice').hidden = true; el('tts-environment-reminder').hidden = true;
+      localServices?.renderCall(); return;
+    }
     let text = '';
     if (!configured) text = '正在读取本机 TTS 配置…';
-    else if (isGpt() && !gptTts?.hasResources()) text = 'GPT-SoVITS 尚未配置模型与参考，请前往环境配置。';
     else if (isEdge()) text = edgeTts?.problem() || '';
     else if (cloud()) text = cloud().problem();
-    else if (isIndex()) text = indexTts.isBusy() || localServices?.canStart() ? '' : indexTts.problem();
     else if (isYukkuri() && (!runtime.runtime_path || runtime.state === 'failed')) text = '油库里资源未就绪，请前往环境配置安装或检测。';
     else if (isQwen() && !keyState() && !el('tts-key').value.trim()) text = '百炼密钥尚未配置，请前往环境配置填写。';
     el('tts-environment-notice').textContent = t(text); el('tts-environment-notice').hidden = !text;

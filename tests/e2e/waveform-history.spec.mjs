@@ -918,7 +918,8 @@ test('long-only filtering temporarily keeps split results visible until focus le
   await makeFirstCueWordSplittable(page);
 
   await toggleCueListSettings(page);
-  await expect(page.locator('#cue-list-keep-split-visible')).toBeChecked();
+  await expect(page.locator('#cue-list-keep-split-visible')).toHaveCount(0);
+  await page.evaluate(()=>{EDITOR_SETTINGS.cueListKeepSplitVisible=false;}); // Old settings cannot disable the protection.
   // 字数过滤：输入 >= 1 的数值即生效（原「仅看超长」按钮已并入）。
   await page.locator('#charcount-threshold').fill('2');
   await expect(page.locator('.cue:not(.hidden)')).toHaveCount(1);

@@ -2506,17 +2506,13 @@
     $("stopServer").classList.toggle("hidden", !state.serverRunning && !state.detectedServerUrl);
     $("stopServer").disabled = state.serverStarting || state.serverStopping;
   }
-  let disconnectedSession = null;
-  function rememberDisconnectedSession() {
-    if (state.activeSessionUrl) disconnectedSession = { projectPath: state.serverProjectPath || $('jsonPath').value.trim(), url: state.activeSessionUrl };
-  }
   let checkingShownSession = false;
   setInterval(async () => {
     if (!state.activeSessionUrl || state.serverStarting || state.serverStopping || checkingShownSession || document.hidden) return;
     checkingShownSession = true;
     try { await refreshShownServerStatus(); } finally { checkingShownSession = false; }
   }, 6000);
-  async function stopEditorServer() { disconnectedSession = null; if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; state.serverStatusUrl = ""; setStatus(""); } finally { state.serverStopping = false; renderServerButton(); } }
+  async function stopEditorServer() { if (state.serverStopping) return; state.serverStopping = true; renderServerButton(); try { const result = await bridge("stop_server", serverPayload({ url: state.activeSessionUrl })); if (!result.ok) { applyErrorResult(result); return; } state.serverRunning = false; state.serverProjectPath = ""; state.detectedServerUrl = ""; state.activeSessionUrl = ""; state.serverStatusUrl = ""; setStatus(""); } finally { state.serverStopping = false; renderServerButton(); } }
   async function checkExistingServer(prefix = "") {
     const requestId = ++serverStatusRequest;
     const previousUrl = state.detectedServerUrl;
@@ -2527,7 +2523,6 @@
     const result = await bridge("get_server_status", serverPayload());
     if (requestId !== serverStatusRequest) return result;
     if (!result.ok || !result.running || !result.url) {
-      rememberDisconnectedSession();
       state.serverRunning = false;
       state.serverProjectPath = "";
       state.activeSessionUrl = "";
@@ -2560,7 +2555,6 @@
             renderServerButton();
             return;
           }
-          rememberDisconnectedSession();
           state.serverRunning = false;
           state.serverProjectPath = "";
           state.activeSessionUrl = "";
@@ -3256,8 +3250,6 @@
       }
       const result = await bridge("start_server", serverPayload({ intent, restart: Boolean(options.restart), independentPort: Boolean(options.independentPort) }));
       if (result.ok) {
-        const restored = disconnectedSession?.projectPath === projectPath && disconnectedSession?.url === result.url;
-        disconnectedSession = null;
         state.activeSessionUrl = result.url || state.activeSessionUrl;
         state.serverRunning = !result.serverAlreadyRunning;
         state.serverProjectPath = state.serverRunning ? projectPath : "";
@@ -3266,7 +3258,9 @@
         renderServerButton();
         if (result.url) {
           setServerStatus(result.url, Boolean(result.serverAlreadyRunning));
-          if (!restored) await bridge("open_url", { url: result.url });
+          // 这是用户明确的打开操作。相同工程/地址不能证明浏览器页仍在，
+          // 服务就绪后始终打开；后台状态轮询不经过这里，不会自行重复开页。
+          await bridge("open_url", { url: result.url });
           window.MSWProjectHome?.refresh?.();
         } else setStatus("");
       } else if (result.code === "server_conflict") {

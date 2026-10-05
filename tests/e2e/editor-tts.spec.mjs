@@ -1274,7 +1274,7 @@ test('audio cards use review badges instead of dashed outlines and clear selecti
   await expect(page.locator('.msw-asset-review')).toHaveCount(2);
   expect(await page.evaluate(()=>localStorage.getItem('msw.assets.showChanges'))).toBe('true');
   const icon=cards.first().locator('.msw-asset-review');
-  await expect(icon).toHaveText('');await expect(icon.locator('svg')).toHaveCount(1);
+  await expect(icon).toHaveText('');expect(await icon.evaluate(node=>getComputedStyle(node,'::before').backgroundImage)).toContain('linear-gradient(135deg');
   await expect(cards.first()).toHaveAttribute('title',/需复核|删除|替换/);
   const bounds=await cards.first().evaluate(el=>{
     const icon=el.querySelector('.msw-asset-review'), r=el.getBoundingClientRect(), i=icon.getBoundingClientRect();
