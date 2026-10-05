@@ -6841,7 +6841,7 @@ function getCuePanelTextElement(target) {
 }
 
 function setCuePanelTarget(kind, index, trackId = null) {
-  window.MSWE?.resolve('asset-library')?.finishEdit();
+  window.MSWE?.resolve('asset-library')?.clearSelection();
   const nextKind = kind === 'extension' || kind === 'overlay' ? kind : 'main';
   let nextIndex = Number.isInteger(index) ? index : -1;
   let nextTrackId = nextKind === 'extension' ? trackId : null;

@@ -1258,3 +1258,19 @@ test('history keeps batch and unfinished states while another job polls',async({
   await expect(current).not.toHaveAttribute('open','');
   await page.screenshot({path:info.outputPath('tts-history-cards.png')});
 });
+
+
+test('audio cards use review badges instead of dashed outlines and clear selection outside',async({page},info)=>{
+  await open(page);await panel(page);await page.locator('#tts-start').click();await expect.poll(()=>countAssets(page)).toBe(2);
+  await page.locator('#tts-close').click();
+  await page.evaluate(()=>{clearSelection();DATA.segments[0].text='修改后的字幕';DATA.segments.pop();MSWE.resolve('asset-library').renderAssets();});
+  const cards=page.locator('.msw-asset-row');await expect(page.locator('.msw-asset-review')).toHaveCount(2);
+  await expect(page.locator('.msw-asset-row.msw-source-stale')).toHaveCount(0);
+  expect(await cards.first().evaluate(n=>getComputedStyle(n).outlineStyle)).not.toBe('dashed');
+  await cards.first().click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(1);
+  await expect(page.locator('#asset-export-selected')).toBeVisible();
+  await page.screenshot({path:info.outputPath('audio-review-badges.png')});
+  await page.locator('#asset-count').click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
+  await cards.first().click();await page.locator('.waveform-cue-block').first().click();
+  await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
+});

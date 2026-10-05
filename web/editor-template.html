@@ -1540,13 +1540,11 @@ __WAVEFORM_CSS__
           <p class="msw-processing-hint">资源来源：<a href="https://github.com/y52en/aquestalk.js" target="_blank" rel="noopener noreferrer">aquestalk.js</a>、<a href="https://nodejs.org/dist/v24.19.0/" target="_blank" rel="noopener noreferrer">Node.js</a>、<a href="https://github.com/Love-Kogasa/bakak2k" target="_blank" rel="noopener noreferrer">英文规则</a>。使用 AquesTalk，版权归株式会社アクエスト；保留随包许可，参阅 <a href="https://www.a-quest.com/licence.html" target="_blank" rel="noopener noreferrer">官方许可说明</a>。</p>
         </details></div>
               <div id="tts-environment-indextts" hidden>
-                <details open><summary>本机启动设置</summary><div id="tts-local-indextts"></div></details>
-                <details id="tts-index-connection" open><summary>IndexTTS 连接设置</summary>
+                <details id="tts-index-connection" open><summary>本机服务</summary><div id="tts-local-indextts"></div><div id="tts-index-connection-fields">
           <label class="msw-processing-field"><span>本机服务地址</span><input id="tts-index-url" type="url" value="http://127.0.0.1:7860" spellcheck="false" autocomplete="off"></label>
           <label class="msw-processing-field"><span>单次等待上限（秒）</span><input id="tts-index-timeout" type="number" min="60" max="3600" step="1" value="600"></label>
-          <div class="msw-processing-actions"><button type="button" id="tts-index-check">连接／检测</button></div>
-          <p class="msw-processing-hint">连接官方 IndexTTS 2.5 WebUI；已配置安装位置时可由 MSW 按需启动，无需 API Key。</p>
-        </details><p id="tts-index-status" class="msw-processing-message" role="status" aria-live="polite"></p><p id="tts-index-emotion-capability" class="msw-processing-hint"></p>
+          <button type="button" id="tts-index-check">检测连接</button>
+          </div></details><p id="tts-index-status" class="msw-processing-message" role="status" aria-live="polite"></p><p id="tts-index-emotion-capability" class="msw-processing-hint"></p>
                 <details id="tts-index-references" open><summary>参考音频</summary><div class="msw-processing-actions"><button type="button" id="tts-index-speaker-upload">上传参考</button><button type="button" id="tts-index-emotion-upload">上传情感参考</button></div><input id="tts-index-reference-file" type="file" accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,.opus" hidden><p class="msw-processing-hint">参考音频用于克隆音色。推荐清晰单人说话；音色和情感参考均取前 15 秒，最大 32 MiB。文件保存在本机参考库。</p><p class="msw-processing-hint">上传后选作当前音色或情感参考，可在合成设置中切换。</p></details>
                 <details id="tts-index-advanced"><summary>高级生成参数</summary><div id="tts-index-advanced-fields" class="msw-processing-grid"></div><p class="msw-processing-hint">较低的最大音频 Token 数可能截断长句；情感向量由 IndexTTS 归一化。时长系数影响语速，不保证精确匹配字幕时长。</p></details><details id="tts-index-presets"><summary>配音预设</summary>
             <label class="msw-processing-field"><span>MSWE 本机预设</span><select id="tts-index-preset-manage"><option value="">选择已保存预设</option></select></label>
@@ -1559,7 +1557,7 @@ __WAVEFORM_CSS__
             <p class="msw-processing-hint">载入预设会应用音色和生成参数。服务的旧预设不包含语言与时长系数，载入时保留这两项；MSWE 本机预设保存完整参数。</p>
           </details>
               </div>
-              <div id="tts-environment-gpt-sovits" hidden><details open><summary>本机启动设置</summary><div id="tts-local-gpt-sovits"></div></details><div id="tts-gpt-management"></div></div>
+              <div id="tts-environment-gpt-sovits" hidden><details open><summary>本机服务</summary><div id="tts-local-gpt-sovits"></div></details><div id="tts-gpt-management"></div></div>
               <div id="tts-environment-edge" hidden><div id="tts-edge-management"></div></div>
               <div id="tts-environment-minimax" hidden><div id="tts-minimax-management"></div></div>
               <div id="tts-environment-mossland" hidden><div id="tts-mossland-management"></div></div>
@@ -2607,10 +2605,10 @@ __WAVEFORM_CSS__
         <div class="msw-processing-actions"><button type="button" id="tts-yukkuri-preview" disabled>试听音色</button></div>
         <label class="msw-processing-field"><span>语速 · <output id="tts-yukkuri-speed-value" for="tts-yukkuri-speed">100</output></span><input id="tts-yukkuri-speed" type="range" min="50" max="300" value="100" step="1"></label>
       </div>
+      <div id="tts-local-call" class="msw-local-service-card" hidden><div class="msw-local-service-heading"><strong id="tts-local-call-name"></strong><span id="tts-local-call-status" role="status"></span></div><div class="msw-processing-actions"><button type="button" id="tts-local-call-check">检测连接</button><button type="button" id="tts-local-call-start">启动服务</button><button type="button" id="tts-local-call-stop">停止服务</button></div></div>
       <div id="tts-gpt-fields" hidden></div><div id="tts-edge-fields" hidden></div><div id="tts-minimax-fields" hidden></div><div id="tts-mossland-fields" hidden></div>
       <div id="tts-index-fields" hidden>
-        <div class="msw-processing-actions"><span id="tts-local-call-status" class="msw-processing-hint"></span><button type="button" id="tts-local-call-start">启动服务</button></div>
-        <p id="tts-index-call-status" class="msw-processing-message is-error" role="status" hidden></p>
+
         <fieldset id="tts-index-controls" class="msw-index-controls">
           <div class="msw-processing-grid">
             <label class="msw-processing-field"><span>音色参考来源</span><select id="tts-index-voice-source"><option value="official">官方示例</option><option value="local">本机音频</option></select></label>

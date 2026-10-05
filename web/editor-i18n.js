@@ -9,6 +9,12 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "本机服务": "Local service",
+    "高级启动设置": "Advanced startup settings",
+    "启动等待上限用于等待模型加载；单次等待上限用于一次语音合成，两者独立。": "Startup timeout waits for model loading. Request timeout limits one synthesis call; these are independent.",
+    "请填写有效的本机 HTTP 服务地址": "Enter a valid local HTTP service URL",
+    "由 MSW 启动时请使用 IPv4 本机地址和 1024–65535 端口": "MSW-managed startup needs a local IPv4 URL and a port from 1024 to 65535",
+    "待复核": "Review needed",
     "请选择": "Select…",
     "选择文件夹": "Choose folder",
     "连接官方 IndexTTS 2.5 WebUI；已配置安装位置时可由 MSW 按需启动，无需 API Key。": "Connect to the official IndexTTS 2.5 WebUI. MSW can start a configured local installation on demand; no API key is needed.",

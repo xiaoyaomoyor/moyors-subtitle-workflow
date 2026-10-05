@@ -22,8 +22,6 @@
       el('tts-index-status').textContent = t(text);
       el('tts-index-status').classList.toggle('is-error', error);
       statusText = text;
-      el('tts-index-call-status').textContent = error ? text : '';
-      el('tts-index-call-status').hidden = !error;
     }
     function options(id, rows, placeholder, current = value(id)) {
       el('tts-index-' + id).replaceChildren(new Option(t(placeholder), ''), ...rows.map(row => new Option(row.label, row.id)));
@@ -68,8 +66,8 @@
     function render() {
       const mode = value('emotion-mode');
       el('tts-index-controls').disabled = busy;
-      el('tts-index-check').disabled = busy;
-      el('tts-index-url').disabled = busy; el('tts-index-timeout').disabled = busy;
+      el('tts-index-check').disabled = busy || el('tts-index-check').dataset.serviceLocked === 'true';
+      el('tts-index-url').disabled = busy || el('tts-index-url').dataset.serviceLocked === 'true'; el('tts-index-timeout').disabled = busy || el('tts-index-timeout').dataset.serviceLocked === 'true';
       for (const input of el('tts-environment-indextts').querySelectorAll('input, select, button')) {
         if (!input.closest('#tts-local-indextts')) input.disabled = busy;
       }
@@ -179,11 +177,10 @@
       connectionFailure = false;
       return operation({action: 'check'}, data => {
         cap = data.capability; capUrl = data.service_url; el('tts-index-url').value = capUrl;
-        renderCapability(); el('tts-index-connection').open = false;
+        renderCapability();
         message(`IndexTTS 已连接 · ${cap.voices.length} 个官方示例音色`);
       });
     }
-    el('tts-index-check').addEventListener('click', () => void check());
     for (const [id, kind] of [['example', 'speaker'], ['emotion-example', 'emotion']]) {
       el('tts-index-' + id).addEventListener('change', () => {
         if (!value(id)) return;

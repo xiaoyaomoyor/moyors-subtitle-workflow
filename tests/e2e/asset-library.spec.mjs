@@ -12,7 +12,7 @@ test.beforeEach(async()=>{
   const path=join(directory,'project.mosp');writeFileSync(path,JSON.stringify(project));
   server=await startServer(path,generateWav(join(directory,'synthetic.wav'),8),await findFreePort());
 });
-test.afterEach(async()=>{await server?.stop();cleanupTempDir(directory);});
+test.afterEach(async({page})=>{await page.close();await server?.stop();cleanupTempDir(directory);});
 test.beforeEach(async({page})=>{
   await disableOnboarding(page);await page.goto(server.url);
   await expect(page.locator('#editor-loading')).toBeHidden();
@@ -120,4 +120,21 @@ test('subtitle-only library survives server save and reload after clearing the t
   expect(await page.evaluate(()=>DATA.msw.subtitle_assets[0].text)).toBe('保存独立素材');
   await page.evaluate(()=>MSWE.resolve('processing-host').showAssets({automatic:true}));
   await expect(page.locator('.msw-asset-row')).toContainText('保存独立素材');
+});
+
+
+test('clicking other content clears cards but keeps subtitle asset editing and batch actions usable',async({page})=>{
+  await copy(page,true);const cards=page.locator('.msw-asset-row');
+  await cards.first().click();
+  await expect(page.locator('.msw-asset-row.selected')).toHaveCount(1);
+  await page.locator('#cue-panel-asset-text').fill('编辑素材不丢选择');
+  await expect(page.locator('.msw-asset-row.selected')).toHaveCount(1);
+  await page.locator('#asset-count').click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
+  await expect(page.locator('#cue-panel-asset-text')).toBeHidden();
+  await cards.first().click();await page.locator('#asset-search').click();await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
+  await cards.first().click();await cards.last().click({modifiers:['Control']});
+  await expect(page.locator('#asset-insert-selected')).toBeVisible();
+  await page.locator('[data-menubar-item="media"] > button').click();
+  await expect(page.locator('.msw-asset-row.selected')).toHaveCount(0);
+  await expect(page.locator('#asset-insert-selected')).toBeHidden();
 });

@@ -36,7 +36,7 @@ async function api(page, route, body) {
 async function configure(page, kind='indextts') {
   await openTtsEnvironment(page,kind);
   await page.locator(`#tts-local-${kind}-directory`).fill(bundle);
-  await page.locator(`#tts-local-${kind}-port`).fill(String(kind==='indextts'?indexPort:gptPort));
+  await page.locator(kind==='indextts'?'#tts-index-url':'#tts-gpt-url').fill(`http://127.0.0.1:${kind==='indextts'?indexPort:gptPort}`);
   await page.locator('#tts-environment-save').click();
   await expect(page.locator('#tts-environment-message')).toHaveText('环境配置已保存到本机');
   const result=await api(page,`tts-local-service?engine=${kind}`);expect(result.service.configured).toBe(true);
@@ -59,7 +59,7 @@ test('GPT service management is separate from synthesis, compact and never start
   await configure(page,'gpt-sovits');
   expect((await api(page,'tts-local-service?engine=gpt-sovits')).service.owned).toBe(false);
   expect(await page.locator('#tts-engine option[value="gpt-sovits"]').count()).toBe(1);
-  const port=await page.locator('#tts-local-gpt-sovits-port').boundingBox(), timeout=await page.locator('#tts-local-gpt-sovits-timeout').boundingBox();
+  const port=await page.locator('#tts-gpt-url').boundingBox(), timeout=await page.locator('#tts-gpt-timeout').boundingBox();
   expect(Math.abs(port.y-timeout.y)).toBeLessThan(2);expect(timeout.x).toBeGreaterThan(port.x);
   await page.locator('#tts-local-gpt-sovits-start').click();
   await expect.poll(async()=>(await api(page,'tts-local-service?engine=gpt-sovits')).service.state).toBe('loading');
@@ -68,7 +68,7 @@ test('GPT service management is separate from synthesis, compact and never start
     if(s.state==='failed') throw new Error(JSON.stringify(s.logs));
     return s.state;
   }).toBe('ready');
-  await expect(page.locator('#tts-local-gpt-sovits-status')).toHaveText('服务已就绪');
+  await expect(page.locator('#tts-gpt-status')).toHaveText('服务已就绪');
   await page.screenshot({path:info.outputPath('gpt-service.png')});
   await page.locator('#tts-local-gpt-sovits-stop').click();
   await expect.poll(async()=>(await api(page,'tts-local-service?engine=gpt-sovits')).service.owned).toBe(false);
@@ -114,7 +114,8 @@ test('English narrow settings keep directory controls contained',async({page},in
   await page.evaluate(()=>localStorage.setItem('mawe.language','en'));await page.reload();
   await openTtsEnvironment(page,'gpt-sovits');
   await expect(page.locator('#tts-local-gpt-sovits-start')).toHaveText('Start service');
-  for(const id of ['directory','python','port','timeout']) {
+  await page.locator('#tts-local-gpt-sovits .msw-local-advanced > summary').click();
+  for(const id of ['directory','python','timeout']) {
     const input=page.locator(`#tts-local-gpt-sovits-${id}`);
     expect(await input.evaluate(node=>{const parent=node.closest('label').getBoundingClientRect(), box=node.getBoundingClientRect();return box.width>120&&box.left>=parent.left-1&&box.right<=parent.right+1;})).toBe(true);
   }
@@ -131,10 +132,10 @@ test('directory picker shows progress, accepts a folder and distinguishes cancel
     await route.fulfill({json:{ok:true,directory:cancel?'':bundle}});
   });
   const button=page.locator('#tts-local-gpt-sovits').getByRole('button',{name:'选择文件夹',exact:true});
-  await button.click();await expect(page.locator('#tts-local-gpt-sovits-status')).toContainText('正在打开');
+  await button.click();await expect(button).toBeDisabled();await expect(page.locator('#tts-gpt-status')).not.toContainText('正在打开目录');
   await expect.poll(async()=>{const value=await page.locator('#tts-local-gpt-sovits-directory').inputValue();return value&&existsSync(value)?directoryIdentity(value):null;}).toEqual(directoryIdentity(bundle));
   await expect(button).toBeEnabled();cancel=true;await button.click();
-  await expect(page.locator('#tts-local-gpt-sovits-status')).toHaveText('已取消目录选择');
+  await expect(page.locator('#tts-gpt-status')).toHaveText('已取消目录选择');
   await expect.poll(async()=>{const value=await page.locator('#tts-local-gpt-sovits-directory').inputValue();return value&&existsSync(value)?directoryIdentity(value):null;}).toEqual(directoryIdentity(bundle));await expect(button).toBeEnabled();
 });
 
@@ -144,7 +145,7 @@ test('local connection failure clears progress even when subsequent status refre
   await page.route('**/api/msw/tts-local-service*',async route=>{
     await new Promise(r=>setTimeout(r,200));await route.fulfill({status:503,json:{error:'offline'}});
   });
-  const button=page.locator('#tts-local-gpt-sovits-check'),status=page.locator('#tts-local-gpt-sovits-status');
+  const button=page.locator('#tts-gpt-check'),status=page.locator('#tts-gpt-status');
   await button.click();await expect(status).toContainText('正在验证');await expect(button).toBeDisabled();
   await expect(status).toHaveText('offline');await expect(status).toHaveAttribute('aria-busy','false');
   await expect(button).toBeEnabled();
@@ -162,10 +163,43 @@ test('initial local settings keep directory controls locked until the delayed re
   try {
     await expect.poll(()=>waiting).toBe(true);
     await expect(page.locator('#tts-local-gpt-sovits-directory')).toBeDisabled();
-    await expect(page.locator('#tts-local-gpt-sovits-port')).toBeDisabled();
+    await expect(page.locator('#tts-gpt-url')).toBeDisabled();
   } finally { release(); }
   await expect(page.locator('#tts-local-gpt-sovits-directory')).toBeEnabled();
   await configure(page,'gpt-sovits');
   const result=await api(page,'tts-local-service?engine=gpt-sovits');
   expect(directoryIdentity(result.service.settings.directory)).toEqual(directoryIdentity(bundle));
+});
+
+
+for (const kind of ['indextts','gpt-sovits']) test(`${kind} starts and stops in the shared TTS card`,async({page},info)=>{
+  await configure(page,kind);await closeTtsEnvironment(page);await page.locator('#tts-engine').selectOption(kind);
+  const card=page.locator('#tts-local-call');await expect(card).toBeVisible();
+  await expect(page.locator('#tts-local-call-name')).toHaveText(kind==='indextts'?'IndexTTS':'GPT-SoVITS');
+  await page.locator('#tts-local-call-start').click();
+  await expect.poll(async()=>(await api(page,`tts-local-service?engine=${kind}`)).service.state).toBe('loading');
+  await expect(page.locator('#tts-local-call-stop')).toBeVisible();
+  release();await expect.poll(async()=>(await api(page,`tts-local-service?engine=${kind}`)).service.state).toBe('ready');
+  await expect(page.locator('#tts-local-call-start')).toBeHidden();
+  await page.screenshot({path:info.outputPath(kind+'-service-card.png')});
+  await page.locator('#tts-local-call-stop').click();
+  await expect.poll(async()=>(await api(page,`tts-local-service?engine=${kind}`)).service.owned).toBe(false);
+  await expect(page.locator('#tts-local-call-start')).toBeEnabled();
+  await page.locator('#tts-engine').selectOption('qwen');await expect(card).toBeHidden();
+});
+
+
+test('external IPv6 services stay connectable without enabling stop or managed startup',async({page})=>{
+  await openTtsEnvironment(page,'gpt-sovits');
+  await page.locator('#tts-gpt-url').fill('http://[::1]:9880');
+  let checked=false;
+  await page.route('**/api/msw/gpt-sovits',async route=>{
+    const body=route.request().postDataJSON();expect(body.action).toBe('check');expect(body.service_url).toBe('http://[::1]:9880');checked=true;
+    await route.fulfill({json:{ok:true,message:'GPT-SoVITS API v2 已连接'}});
+  });
+  await page.locator('#tts-gpt-check').click();await expect.poll(()=>checked).toBe(true);
+  await expect(page.locator('#tts-gpt-status')).toContainText('外部服务');
+  await closeTtsEnvironment(page);await page.locator('#tts-engine').selectOption('gpt-sovits');
+  await expect(page.locator('#tts-local-call-stop')).toBeHidden();await expect(page.locator('#tts-local-call-start')).toBeHidden();
+  expect((await api(page,'tts-local-service?engine=gpt-sovits')).service.owned).toBe(false);
 });

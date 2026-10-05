@@ -177,6 +177,34 @@
     syncEdit();host.showCueEditor();global.dispatchEvent(new Event('msw:asset-editing'));
     if(focus)el('cue-panel-asset-text').focus();
   }
+  function clearSelection() {
+    if (!selected.size && !editingId) return;
+    selected.clear(); selectionAnchor = null;
+    finishEdit();
+    // Clear decoration without rebuilding the library controls.
+    for (const row of el('asset-list').querySelectorAll('.selected')) {
+      row.classList.remove('selected'); row.setAttribute('aria-selected','false');
+    }
+    if (document.activeElement?.matches('.msw-asset-row')) document.activeElement.blur();
+    el('asset-count').textContent = el('asset-count').textContent.split(' · ')[0];
+    el('asset-insert-selected').hidden = true; el('asset-export-selected').hidden = true;
+  }
+  document.addEventListener('click', event => {
+    if (event.button !== 0 || !selected.size) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('.msw-asset-track-dialog')) return;
+    if (editingId && target.closest('#cue-panel-asset-text, #cue-panel-asset-footer')) return;
+    if (library.contains(target)) {
+      const row = target.closest('.msw-asset-row');
+      if (row) {
+        if (target.closest('button') && !selected.has(row.dataset.assetId)) clearSelection();
+        return;
+      }
+      if (target.closest('.msw-asset-summary-actions')) return;
+    }
+    clearSelection();
+  }, true);
   function selectAsset(asset,event) {
     if(event.shiftKey && selectionAnchor && visibleRows.some(a=>a.id===selectionAnchor)) {
       const a=visibleRows.findIndex(a=>a.id===selectionAnchor),b=visibleRows.findIndex(a=>a.id===asset.id);
@@ -300,9 +328,16 @@
       else if (source.kind === 'editor_text') meta.textContent = `${asset.generation.voice} · ${duration.toFixed(2)} s · ${t('文本配音')} · ${(source.start / 1000).toFixed(2)} s`;
       else if (duration > (source.end - source.start) / 1000 + .1) meta.textContent += ` · ${t('长于字幕')}`;
       if (missing.has(asset.id)) { meta.textContent = `${t('素材缺失')} · ${meta.textContent}`; row.classList.add('missing'); }
-      if (sourceStatuses.has(asset.id)) { meta.textContent += ` · ${t(sourceStatuses.get(asset.id))}`; row.classList.add('msw-source-stale'); }
-      meta.title = meta.textContent;
-      content.append(text, meta);
+      const reason = sourceStatuses.get(asset.id);
+      const metaLine = document.createElement('div'); metaLine.className = 'msw-asset-meta-line';
+      if (reason) {
+        meta.textContent += ` · ${t(reason)}`;
+        const review = document.createElement('span'); review.className = 'msw-asset-review'; review.tabIndex = 0;
+        review.title = t(reason); review.setAttribute('aria-label',t(reason));
+        review.textContent = t('待复核'); metaLine.append(review);
+      }
+      meta.title = meta.textContent; metaLine.append(meta);
+      content.append(text, metaLine);
       const buttons = document.createElement('div'); buttons.className = 'msw-asset-actions';
       const play = iconAction('试听', 'play', () => preview(asset)); play.disabled = !available;
       const save = iconAction('下载 WAV', 'download', async () => {
@@ -474,7 +509,7 @@
       void insertSubtitles(value.ids,point.time).catch(e=>host.flashHint(e.message,'warning'));
     }catch(e){host.flashHint(e.message,'warning');}
   },true);
-  const api={renderAssets,playReference,stopReference,commitEdit,finishEdit,get editing(){return !!editingId;},
+  const api={renderAssets,playReference,stopReference,commitEdit,finishEdit,get editing(){return !!editingId;},clearSelection,
     selectedIds:()=>[...selected],showBatch(id){finishEdit();selected.clear();el('asset-type').value='';renderAssets();el('asset-batch').value=id;page=0;renderAssets();}};
   global.MSWE.register('asset-library',()=>api);
   renderAssets();

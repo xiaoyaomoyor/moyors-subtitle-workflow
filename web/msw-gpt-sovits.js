@@ -1,7 +1,7 @@
 // API v2's everyday controls; model paths and credentials stay on the server.
 (function (global) {
   'use strict';
-  function create({el, t, request, updateScope, playReference, stopReference, startService}) {
+  function create({el, t, request, updateScope, playReference, stopReference}) {
     let data = {models:[], references:[], presets:{}}, busy = false;
     const fields = new Map();
     const panel = el('tts-gpt-fields'), env = el('tts-gpt-management');
@@ -25,9 +25,6 @@
       else {const row=document.createElement('div');row.className='msw-processing-actions';row.append(b);parent.append(row);}return b;
     }
     function details(parent,title) {const d=document.createElement('details'),s=document.createElement('summary');s.textContent=t(title);d.append(s);parent.append(d);return d;}
-    const serviceRow=document.createElement('div');serviceRow.className='msw-processing-actions';
-    const serviceStatus=document.createElement('span');serviceStatus.id='tts-gpt-local-call-status';serviceStatus.className='msw-processing-hint';serviceRow.append(serviceStatus);panel.append(serviceRow);
-    button(serviceRow,'local-call-start','启动服务',()=>startService());
     field(panel,'preset','配音预设','select',[['','选择已保存预设']]);
     const common=grid(panel);
     field(common,'gpt_model','GPT 模型','select');field(common,'sovits_model','SoVITS 模型','select');

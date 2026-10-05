@@ -27,7 +27,7 @@ test.beforeEach(async({page})=>{
 test.afterEach(async()=>{await server?.stop();if(mock)await new Promise(r=>mock.close(r));delete process.env.MSW_TEST_EDGE_AUDIO;delete process.env.MSW_TEST_LOCAL_TTS_INSTALL;expect(errors).toEqual([]);});
 async function api(page,route,body){return page.evaluate(async({route,body})=>MSWE.resolve('audio-timeline').request(route,body),{route,body});}
 async function gpt(page){
-  await openTtsEnvironment(page,'gpt-sovits');await page.locator('#tts-local-gpt-sovits-directory').fill(bundle);await page.locator('#tts-local-gpt-sovits-port').fill(String(mock.address().port));
+  await openTtsEnvironment(page,'gpt-sovits');await page.locator('#tts-local-gpt-sovits-directory').fill(bundle);await page.locator('#tts-gpt-url').fill(`http://127.0.0.1:${mock.address().port}`);
   await page.locator('#tts-environment-save').click();await expect(page.locator('#tts-environment-message')).toContainText('已保存');
   await page.locator('#tts-gpt-scan').click();await expect(page.locator('#tts-gpt-status')).toContainText('2');
   await page.locator('#tts-gpt-upload-file').setInputFiles(join(dir,'reference.wav'));await expect(page.locator('#tts-gpt-status')).toContainText('参考已保存');

@@ -62,9 +62,12 @@
     playReference, stopReference, generation: () => host.generation});
   const indexTts = global.MSWIndexTts.create({el, t, request, updateScope,
     playReference, stopReference, generation: () => host.generation});
-  localServices = global.MSWTtsServices.create({el, t, request, updateScope, connected: () => { if (isIndex()) void indexTts.check(); }});
-  gptTts = global.MSWGptSovits.create({el, t, request, updateScope, playReference, stopReference,
-    startService: () => localServices.start('gpt-sovits')});
+  gptTts = global.MSWGptSovits.create({el, t, request, updateScope, playReference, stopReference});
+  localServices = global.MSWTtsServices.create({el, t, request, updateScope, connected: () => { if (!indexTts.connected()) void indexTts.check(); },
+    checkConnection: async kind => {
+      if (kind === 'indextts') { await indexTts.check(); if (!indexTts.connected()) throw Error(indexTts.problem()); }
+      else await request('gpt-sovits', {action:'check', ...gptTts.connection()});
+    }});
   edgeTts = global.MSWEdgeTts.create({el,t,request,updateScope});
   for (const engine of ['minimax','mossland']) clouds[engine] = global.MSWCloudTts.create({engine,el,t,request,updateScope});
   function syncDraft() {
@@ -173,6 +176,7 @@
     el('tts-index-fields').hidden = !isIndex();
     if (!isIndex() && !el('editor-settings-modal').classList.contains('show')) indexTts.invalidate();
     else indexTts.stopPreview();
+    localServices?.renderCall();
     updateScope();
     if (isYukkuri() && runtime.state === 'idle' && runtime.runtime_path) void runtimeAction('check');
     if (configured && isEdge()) edgeTts.ensureVoices();

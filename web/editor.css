@@ -4963,3 +4963,18 @@
 .msw-voice-picker > details > summary { cursor:pointer; color:var(--text-secondary); font-size:12px; margin-bottom:8px; }
 
 .msw-tts-job > .msw-processing-hint { overflow-wrap:anywhere; }
+
+/* One compact local service surface shared by IndexTTS and GPT-SoVITS. */
+.msw-local-service-card { padding:10px; margin-bottom:12px; background:var(--card-bg); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); }
+.msw-local-service-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; }
+.msw-local-service-heading [role="status"] { min-width:0; color:var(--text-secondary); overflow-wrap:anywhere; text-align:right; }
+.msw-local-service-heading .is-error { color:var(--red-hover); }
+.msw-local-service-card .msw-processing-actions { margin-top:8px; }
+.msw-local-directory { grid-column:1 / -1; }
+.msw-local-advanced > .msw-processing-grid { margin-top:10px; }
+
+.msw-asset-meta-line { display:flex; align-items:center; gap:5px; min-width:0; }
+.msw-asset-meta-line .msw-asset-meta { flex:1; min-width:0; }
+.msw-asset-review { flex:none; font-size:10px; line-height:1.4; color:var(--amber); cursor:help; }
+.msw-asset-review::before { content:'○'; margin-right:3px; }
+.msw-asset-review:focus-visible { outline:1px solid var(--accent); outline-offset:2px; border-radius:2px; }
