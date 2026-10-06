@@ -20,6 +20,7 @@
     '主字幕在上': 'Main above',
     '副字幕在上': 'Secondary above',
     '主副字幕间距': 'Main/secondary spacing',
+    '以 1080p 为基准。负值缩小主副字幕间距，过小时可能重叠；压缩到极限后仍保留主副上下顺序。': 'Values use a 1080p reference. Negative values bring the subtitles closer and may cause overlap. Further compression stops before reversing their order.',
     '交换主副样式（保留位置）': 'Swap main and secondary styling (keep positions)',
     '调整主副字幕排列': 'Arrange main and secondary subtitles',
     '交换主副字幕样式': 'Swap main and secondary styling',

@@ -23,6 +23,28 @@ def bilingual():
     return migrate_project(source)
 
 class ProductionLayersTests(unittest.TestCase):
+    def test_unbound_sequences_and_signed_pair_gap_match_browser(self):
+        script="require('./web/msw-subtitle-presentation.js');const p=JSON.parse(process.argv[1]);const s=JSON.parse(process.argv[2]);process.stdout.write(JSON.stringify([...MSWSubtitlePresentation.layout(p,s,process.argv[3]).offsets]));"
+        styles=normalize_styles()
+        for mode in ('auto','manual'):
+            for order in ('main-above','secondary-above'):
+                for gap in (-240,-12,24):
+                    project=bilingual();project['multi_subtitle']['bindings']=[]
+                    project['segments']=[dict(id='a',start=0,end=1000,text='First'),dict(id='b',start=1000,end=2000,text='Next')]
+                    project['multi_subtitle']['tracks'][0]['segments']=[dict(id='s',start=100,end=1900,text='Translation')]
+                    project['preview']={'project_style':{'pairLayout':{'order':order,'gap':gap}}}
+                    project['subtitle_layers']['presentation']={'mode':mode,'gap':12}
+                    before=copy.deepcopy(project);full=presentation(project,styles)
+                    self.assertEqual(full['main','a'],full['main','b'])
+                    for target in ('both','main','secondary'):
+                        with self.subTest(mode=mode,order=order,gap=gap,target=target):
+                            actual=json.loads(subprocess.check_output(['node','-e',script,json.dumps(project),json.dumps(styles),target],cwd=ROOT,text=True,encoding='utf-8'))
+                            expected={key:value for key,value in full.items() if target=='both' or key[0]==target}
+                            self.assertEqual(len(actual),len(expected))
+                            for key,value in actual:self.assertAlmostEqual(value['offset'],expected[tuple(json.loads(key))])
+                            self.assertEqual(presentation(project,styles,target),expected)
+                    self.assertEqual(project,before)
+
     def test_pair_order_spacing_and_single_track_positions_match_browser(self):
         script="require('./web/msw-subtitle-presentation.js');const p=JSON.parse(process.argv[1]);const s=JSON.parse(process.argv[2]);process.stdout.write(JSON.stringify([...MSWSubtitlePresentation.layout(p,s,process.argv[3]).offsets]));"
         styles=normalize_styles()

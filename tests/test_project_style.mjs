@@ -33,7 +33,11 @@ test('pair controls preserve the group anchor and derive integer spacing',()=>{
   const next=S.arrangePair(base,{order:'secondary-above',gap:30});
   assert.equal(next.main.marginV,Math.min(base.main.marginV,base.secondary.marginV));
   assert.equal(next.secondary.marginV,Math.round(next.main.marginV+next.main.fontSize*1.2+30));
-  for(const gap of [-1,241,1.5])assert.throws(()=>S.arrangePair(base,{order:'main-above',gap}));
+  for(const gap of [-241,241,1.5])assert.throws(()=>S.arrangePair(base,{order:'main-above',gap}));
+  const close=S.arrangePair(base,{order:'secondary-above',gap:-12});
+  assert.equal(close.pairLayout.gap,-12);assert.ok(close.secondary.marginV<next.secondary.marginV);
+  const extreme=S.arrangePair(close,{order:'secondary-above',gap:-240});
+  assert.equal(extreme.main.marginV,close.main.marginV);assert.ok(extreme.secondary.marginV>extreme.main.marginV);
 });
 test('preset copies isolate projects and proofreading',()=>{
   const preset=S.presets()[1],a={preview:{}},b={preview:{}};

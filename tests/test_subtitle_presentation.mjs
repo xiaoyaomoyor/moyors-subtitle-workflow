@@ -24,6 +24,23 @@ test('co-timed unbound main/secondary cues can be arranged without creating bind
  const before=JSON.stringify(project),result=P.layout(project,styles);
  assert.equal(result.groups.length,1);assert.equal(result.groups[0].paired,true);assert.equal(JSON.stringify(project),before);
 });
+test('unbound overlapping translations follow pair order and reuse lanes for consecutive cues',()=>{
+ for(const order of ['main-above','secondary-above'])for(const mode of ['auto','manual']){
+  const p=fixture();p.multi_subtitle.bindings=[];
+  p.segments=[{id:'a',start:0,end:1000,text:'main'},{id:'b',start:1000,end:2000,text:'next'}];
+  p.multi_subtitle.tracks[0].segments=[{id:'s',start:100,end:1900,text:'translation'}];
+  p.preview={project_style:{pairLayout:{order,gap:-12}}};p.subtitle_layers.presentation={mode,gap:12,order:'earlier-bottom'};
+  const before=JSON.stringify(p),layout=P.layout(p,styles);
+  const y=(role,id)=>styles[role].y*1080-layout.offsets.get(P.key(role,id)).offset;
+  assert.equal(layout.groups.length,1);assert.equal(y('main','a'),y('main','b'));
+  assert.equal(y('main','a')<y('secondary','s'),order==='main-above');
+  const distance=Math.abs(y('main','a')-y('secondary','s'));
+  assert.ok(Math.abs(distance-(order==='main-above'?40:48)*1.2+12)<.00001);
+  assert.equal(JSON.stringify(p),before);
+  p.multi_subtitle.tracks[0].segments[0].start=2000;p.multi_subtitle.tracks[0].segments[0].end=3000;
+  assert.equal(P.layout(p,styles).groups.length,3,'touching endpoints are not overlapping');
+ }
+});
 test('bound groups retain line order; half-open merged SRT does not mutate the source',()=>{
  const project=fixture(),before=JSON.stringify(project),layout=P.layout(project,styles);
  assert.equal(layout.groups.length,2);assert.equal(layout.entries.length,4);

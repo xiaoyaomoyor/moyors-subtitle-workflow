@@ -109,8 +109,8 @@ test('removed custom preview is migrated once into an ordinary preset',async({pa
 test('paired arrangement and appearance-only swap survive undo and project serialization',async({page})=>{
   await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');h.data.multi_subtitle={enabled:true,tracks:[{id:'secondary',segments:[]}]};dispatchEvent(new Event('msw:subtitles-changed'));});
   await page.locator('#style-project-preset').selectOption('default');
-  await page.locator('#style-pair-order').selectOption('secondary-above');await edit(page,'#style-pair-gap','26');
-  const before=await project(page);expect(before.pairLayout).toEqual({order:'secondary-above',gap:26});
+  await page.locator('#style-pair-order').selectOption('secondary-above');await edit(page,'#style-pair-gap','-12');
+  const before=await project(page);expect(before.pairLayout).toEqual({order:'secondary-above',gap:-12});
   await page.locator('#style-swap').click();const swapped=await project(page);
   expect(swapped.main.fontSize).toBe(before.secondary.fontSize);expect(swapped.secondary.primaryColor).toBe(before.main.primaryColor);
   for(const role of ['main','secondary'])for(const key of ['alignment','marginL','marginR','marginV'])expect(swapped[role][key]).toBe(before[role][key]);
@@ -120,7 +120,7 @@ test('paired arrangement and appearance-only swap survive undo and project seria
   const saved=await page.evaluate(()=>JSON.parse(buildJson()));
   await page.evaluate(p=>applyCanonicalProject(p,'arranged.mosp'),saved);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
-  await expect(page.locator('#style-pair-order')).toHaveValue('secondary-above');await expect(page.locator('#style-pair-gap')).toHaveValue('26');
+  await expect(page.locator('#style-pair-order')).toHaveValue('secondary-above');await expect(page.locator('#style-pair-gap')).toHaveValue('-12');
 });
 
 test('animation groups show only enabled parameters and preserve edits across track and fold changes',async({page},info)=>{

@@ -37,15 +37,19 @@ class ProjectSubtitleStyleTests(unittest.TestCase):
             'preview':{'project_style':dict(builtin_presets()[0],legacyBurn={
                 'main':{'background_alpha':.4,'x':.3,'width':.5}})}}))
         plan={'intervals':[{'start_ms':0,'end_ms':12000,'output_start_ms':0}]}
-        expected=styled_ass(project,plan,'both',{'width':1920,'height':1080})
         script="""const fs=require('node:fs'),vm=require('node:vm');const c={window:{},TextEncoder,TextDecoder,Uint8Array};
 for(const f of ['gap-remove-core','editor-utils','msw-project-style','msw-subtitle-presentation'])vm.runInNewContext(fs.readFileSync('web/'+f+'.js','utf8'),c);
 process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readFileSync(0,'utf8'))));"""
-        actual=subprocess.run(['node','-e',script],input=json.dumps(project),encoding='utf-8',capture_output=True,
-            check=True,cwd=Path(__file__).resolve().parents[1]).stdout
         def rows(text):
             return [line.lower() for line in text.splitlines() if line.startswith(('Style:', 'Dialogue:'))]
-        self.assertEqual(rows(actual),rows(expected))
+        for paired in (False,True):
+            if paired:
+                project['preview']['project_style']['pairLayout']={'order':'secondary-above','gap':-12}
+                project['multi_subtitle']={'enabled':True,'tracks':[{'id':'sub','segments':[{'id':'s','start':100,'end':1800,'text':'Translation'}]}]}
+            expected=styled_ass(project,plan,'both',{'width':1920,'height':1080})
+            actual=subprocess.run(['node','-e',script],input=json.dumps(project),encoding='utf-8',capture_output=True,
+                check=True,cwd=Path(__file__).resolve().parents[1]).stdout
+            self.assertEqual(rows(actual),rows(expected))
 
     def test_preview_and_burn_share_exact_ass(self):
         style=builtin_presets()[1]
@@ -75,11 +79,11 @@ process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readF
             self.assertEqual(project['preview']['project_style']['main']['fontSize'],48)
 
     def test_custom_style_and_pair_layout_roundtrip_and_validation(self):
-        style=copy.deepcopy(builtin_presets()[0]);style['pairLayout']={'order':'secondary-above','gap':24}
+        style=copy.deepcopy(builtin_presets()[0]);style['pairLayout']={'order':'secondary-above','gap':-12}
         project=normalize_project({'segments':[],'preview':{'project_style':builtin_presets()[1], 'project_style_custom':style,'project_style_selection':'large'}})
         self.assertEqual(project['preview']['project_style_custom']['pairLayout'],style['pairLayout'])
         self.assertEqual(project['preview']['project_style_selection'],'large')
-        for bad in ({'order':'sideways','gap':12},{'order':'main-above','gap':241},{'order':'main-above','gap':True}):
+        for bad in ({'order':'sideways','gap':12},{'order':'main-above','gap':241},{'order':'main-above','gap':-241},{'order':'main-above','gap':True}):
             with self.subTest(bad=bad),self.assertRaises(ValueError):normalize_project_style(dict(style,pairLayout=bad))
 
     def test_pair_layout_is_used_by_preview_and_burn_in_manual_overlap_mode(self):

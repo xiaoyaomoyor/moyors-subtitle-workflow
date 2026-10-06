@@ -81,6 +81,7 @@ def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fra
     offsets=presentation(project,styles,target,width) if project.get('schema')=='msw.project.v2' else {}
     selected = [(i, name) for i, name in enumerate(('main', 'secondary')) if target in {name, 'both'}]
     if 'overlay' in styles and target != 'none': selected.append((len(groups)-1, 'overlay'))
+    explicit_pair = bool((project.get('preview') or {}).get('subtitle_pair_layout'))
     for index,name in selected:
         if index>=len(groups):continue
         style=styles[name]
@@ -96,9 +97,13 @@ def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fra
             # configured box; main and secondary retain independent styles.
             text=ass_text(cue['text'])
             margin=round((1-style['y'])*1080+offsets.get((name,cue.get('id')),0)) if offsets else 0
+            # Distinct role layers prevent libass from re-stacking the explicit
+            # pair spacing, especially negative gaps. Keep backgrounds below text.
+            background_layer = {'main':0,'secondary':1,'overlay':2}[name] if explicit_pair else 0
+            text_layer = background_layer + 3 if explicit_pair else 1
             if style['background_alpha']>0:
-                lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{name}-bg,,0,0,{margin},,{text}')
-            lines.append(f'Dialogue: 1,{ass_time(start)},{ass_time(end)},{name},,0,0,{margin},,{text}')
+                lines.append(f'Dialogue: {background_layer},{ass_time(start)},{ass_time(end)},{name}-bg,,0,0,{margin},,{text}')
+            lines.append(f'Dialogue: {text_layer},{ass_time(start)},{ass_time(end)},{name},,0,0,{margin},,{text}')
     return '\n'.join(lines)+'\n'
 
 

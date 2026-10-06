@@ -72,32 +72,53 @@ test('portable editor keeps settings usable and labels approximate preview',asyn
   expect(errors).toEqual([]);
 });
 
-test('paired subtitle order renders above and below consistently in libass and FFmpeg',async({page})=>{
+test('preview style badge follows main and secondary visibility, including delayed renderer updates',async({page})=>{
   await disableOnboarding(page);await page.goto(server.url);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
-  await page.evaluate(()=>{
-    const h=window.MSWE.resolve('processing-host'),p=h.data,style=window.MSWProjectStyle.defaults();
+  const badge=page.locator('#subtitle-render-status');
+  await expect(badge).toBeVisible();
+  for(const [main,secondary] of [[false,false],[false,true],[true,false],[true,true],[false,false]]){
+    await page.evaluate(({main,secondary})=>{
+      const h=window.MSWE.resolve('processing-host');
+      h.data.multi_subtitle={enabled:true,tracks:[{id:'sub',segments:[]}]};
+      for(const [id,checked] of [['overlay-toggle',main],['extension-overlay-toggle',secondary]]){const el=document.getElementById(id);el.checked=checked;el.dispatchEvent(new Event('change'));}
+    },{main,secondary});
+    if(main||secondary)await expect(badge).toBeVisible();else await expect(badge).toBeHidden();
+  }
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.pending)).toBe(false);
+  await expect(badge).toBeHidden();
+});
+
+for(const legacy of [false,true])for(const bound of [true,false])test(`paired subtitle order renders above and below consistently in libass and FFmpeg (${legacy?'legacy':'modern'}, ${bound?'bound':'unbound'})`,async({page})=>{
+  await disableOnboarding(page);await page.goto(server.url);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await page.evaluate(({legacy,bound})=>{
+    const h=window.MSWE.resolve('processing-host'),p=h.data,S=window.MSWProjectStyle;
+    const style=legacy?S.fromBurn({main:{color:'#ff0000'},secondary:{color:'#00ff00'}}):S.defaults();
     style.main.primaryColor='#ff0000';style.secondary.primaryColor='#00ff00';
     p.segments=[{id:'main-cue',start:0,end:3000,text:'Main subtitle',items:[]}];
     p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'sub',role:'extension',segments:[{id:'sub-cue',start:0,end:3000,text:'Secondary subtitle',items:[]}]}],bindings:[{id:'pair',track_id:'sub',main_segment_ids:['main-cue'],extension_segment_ids:['sub-cue']}]};
+    if(!bound){p.multi_subtitle.bindings=[];p.multi_subtitle.tracks[0].segments[0].start=100;}
     h.commitProjectStyle(style);dispatchEvent(new Event('msw:subtitles-changed'));
-  });
+  },{legacy,bound});
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
   await page.evaluate(()=>{for(const id of ['overlay-toggle','extension-overlay-toggle']){const el=document.getElementById(id);el.checked=true;el.dispatchEvent(new Event('change'));}});
   await page.evaluate(()=>{const p=window.MSWE.resolve('processing-host').player;p.currentTime=1;p.pause();});
-  for(const [order,gap] of [['main-above',12],['secondary-above',36]]){
+  const distances=new Map();
+  for(const [order,gap] of [['main-above',12],['secondary-above',36],['secondary-above',-12],['main-above',-12]]){
     await page.locator('#style-pair-order').selectOption(order);
     const rendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
     await page.locator('#style-pair-gap').fill(String(gap));await page.locator('#style-pair-gap').dispatchEvent('change');
     await rendered;
     await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);
     await page.locator('#media-settings-close').click();await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
-    const png=join(folder,order+'.png');await page.locator('.JASSUB').screenshot({path:png});
+    const name=`${legacy?'legacy':'modern'}-${bound?'bound':'unbound'}-${order}-${gap}`;
+    const png=join(folder,name+'.png');await page.locator('.JASSUB').screenshot({path:png});
     const payload=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');return window.MSWSubtitleStyle.request('subtitle-preview',{project:h.exportProject(),target:'both',video:{width:640,height:360}});});
-    writeFileSync(join(folder,order+'.ass'),payload.ass);
-    const box=await page.locator('.JASSUB').boundingBox(),ref=join(folder,order+'-reference.png');
-    execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=1','-vf',`ass=${order}.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',ref],{cwd:folder,windowsHide:true});
+    writeFileSync(join(folder,name+'.ass'),payload.ass);
+    const box=await page.locator('.JASSUB').boundingBox(),ref=join(folder,name+'-reference.png');
+    execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=2','-ss','1','-vf',`ass=${name}.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',ref],{cwd:folder,windowsHide:true});
     const rows=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON||'python',['-c',`from PIL import Image
 import json,sys
 def rows(path):
@@ -109,6 +130,8 @@ def rows(path):
 print(json.dumps([rows(path) for path in sys.argv[1:]]))`,png,ref],{encoding:'utf8',windowsHide:true}));
     for(const result of rows){for(const row of result)expect(row.count).toBeGreaterThan(30);expect(result[0].y<result[1].y).toBe(order==='main-above');}
     for(let i=0;i<2;i++)expect(Math.abs(rows[0][i].y-rows[1][i].y)).toBeLessThan(3);
+    const distance=Math.abs(rows[0][0].y-rows[0][1].y);
+    if(gap<0)expect(distance).toBeLessThan(distances.get(order)-1);else distances.set(order,distance);
     await toggleMediaSettings(page);
   }
 });

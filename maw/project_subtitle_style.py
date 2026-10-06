@@ -39,7 +39,7 @@ def normalize_project_style(raw):
     if 'pairLayout' in raw:
         pair = raw['pairLayout']
         if (not isinstance(pair, dict) or pair.get('order') not in ('main-above', 'secondary-above')
-                or type(pair.get('gap')) is not int or not 0 <= pair['gap'] <= 240):
+                or type(pair.get('gap')) is not int or not -240 <= pair['gap'] <= 240):
             raise ValueError('主副字幕排列设置无效')
         result['pairLayout'] = dict(order=pair['order'], gap=pair['gap'])
     return result

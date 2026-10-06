@@ -27,7 +27,7 @@
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
-    <label class="media-settings-field"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="0" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
+    <label class="media-settings-field" data-option-help="以 1080p 为基准。负值缩小主副字幕间距，过小时可能重叠；压缩到极限后仍保留主副上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}

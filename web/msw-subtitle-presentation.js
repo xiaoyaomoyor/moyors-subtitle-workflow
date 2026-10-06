@@ -21,11 +21,17 @@
       for(const id of b.main_segment_ids||[])byMain.set(id,group);
       for(const id of b.extension_segment_ids||[])bySecondary.set(id,group);
     }
-    const groups=new Map(), offsets=new Map(),unboundTimes=new Map();
-    if(pair)for(const e of entries){if((e.role==='main'?byMain:bySecondary).has(e.cue.id))continue;const time=key(e.cue.start,e.cue.end);unboundTimes.set(time,(unboundTimes.get(time)||0)|(e.role==='main'?1:2));}
+    const groups=new Map(), offsets=new Map(),unboundGroups=new Map();
+    if(pair){
+      // Unbound translations need not have identical timestamps. Connected
+      // overlapping intervals form a presentation group without creating bindings.
+      const unbound=entries.filter(e=>!(e.role==='main'?byMain:bySecondary).has(e.cue.id)).sort((a,b)=>a.cue.start-b.cue.start);
+      let component=[],end=-Infinity;
+      const flush=()=>{if(component.some(e=>e.role==='main')&&component.some(e=>e.role==='secondary'))for(const e of component)unboundGroups.set(e.key,key('paired-overlap',component[0].key));};
+      for(const e of unbound){if(e.cue.start>=end){flush();component=[];end=-Infinity;}component.push(e);end=Math.max(end,e.cue.end);}flush();
+    }
     for(const entry of entries) {
-      const time=key(entry.cue.start,entry.cue.end);
-      const id=(entry.role==='main'?byMain:bySecondary).get(entry.cue.id)||(unboundTimes.get(time)===3?key('paired-time',time):entry.key);
+      const id=(entry.role==='main'?byMain:bySecondary).get(entry.cue.id)||unboundGroups.get(entry.key)||entry.key;
       if(!groups.has(id))groups.set(id,{id,start:entry.cue.start,end:entry.cue.end,rows:[]});
       const group=groups.get(id);group.start=Math.min(group.start,entry.cue.start);group.end=Math.max(group.end,entry.cue.end);group.rows.push(entry);
     }
@@ -37,14 +43,33 @@
       group.paired=!!pair&&group.rows.some(e=>e.role==='main')&&group.rows.some(e=>e.role==='secondary');
       const upper=group.paired&&pair.order==='secondary-above'?'secondary':'main';
       group.rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1)||a.cue.start-b.cue.start);
-      let top=Infinity, bottom=-Infinity, nextBottom=Infinity,previousRole=null;
-      const pairBottom=group.paired?Math.max(...group.rows.map(e=>styles[e.role].y*1080)):0;
-      for(const entry of [...group.rows].reverse()) {
-        const s=styles[entry.role], size=s.font_size, capacity=Math.max(1,Math.floor(width*s.width/(size*.55)));
+      const height=entry=>{
+        const s=styles[entry.role],capacity=Math.max(1,Math.floor(width*s.width/(s.font_size*.55)));
         const lines=String(entry.cue.text||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?2:1),0)/capacity)),0);
-        const anchor=s.y*1080, edge=group.paired?(previousRole===null?pairBottom:nextBottom-(previousRole!==entry.role?pair.gap:0)):Math.min(anchor,nextBottom);
-        entry.localOffset=anchor-edge;nextBottom=edge-size*1.2*lines;
-        previousRole=entry.role;
+        return s.font_size*1.2*lines;
+      };
+      if(group.paired){
+        // Consecutive cues reuse a lane; a long translation spanning several
+        // source cues must not stack the entire sequence vertically.
+        const bands={};
+        for(const role of ['main','secondary']){
+          const ends=[],sizes=[],rows=group.rows.filter(e=>e.role===role);
+          for(const e of rows){let lane=ends.findIndex(end=>end<=e.cue.start);if(lane<0)lane=ends.length;ends[lane]=e.cue.end;e.pairLane=lane;sizes[lane]=Math.max(sizes[lane]||0,height(e));}
+          bands[role]={rows,sizes,height:sizes.reduce((a,b)=>a+b,0)};
+        }
+        const lower=upper==='main'?'secondary':'main',base=styles[lower].y*1080;
+        const distance=Math.max(1,(bands[lower].height-bands[upper].height)/2+1,bands[lower].height+pair.gap);
+        for(const role of [lower,upper])for(const e of bands[role].rows){
+          const edge=base-(role===upper?distance:0)-bands[role].sizes.slice(e.pairLane+1).reduce((a,b)=>a+b,0);
+          e.localOffset=styles[role].y*1080-edge;
+        }
+        group.height=Math.max(bands[lower].height,distance+bands[upper].height)+(settings.gap??12);
+        heights[lane]=Math.max(heights[lane]||0,group.height);continue;
+      }
+      let top=Infinity, bottom=-Infinity, nextBottom=Infinity;
+      for(const entry of [...group.rows].reverse()) {
+        const anchor=styles[entry.role].y*1080,edge=Math.min(anchor,nextBottom);
+        entry.localOffset=anchor-edge;nextBottom=edge-height(entry);
         top=Math.min(top,nextBottom);bottom=Math.max(bottom,edge);
       }
       group.height=bottom-top+(settings.gap??12);heights[lane]=Math.max(heights[lane]||0,group.height);

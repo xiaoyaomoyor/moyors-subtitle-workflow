@@ -17733,7 +17733,7 @@ export default MawDynamicCaptions;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
   function normalizePair(raw) {
-    if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap<0||raw.gap>240)throw Error('主副字幕排列设置无效');
+    if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
   }
   function normalize(raw = {}) {
@@ -17823,14 +17823,16 @@ export default MawDynamicCaptions;
     const order=bottom(s.main)<=bottom(s.secondary)?'main-above':'secondary-above';
     const lower=order==='main-above'?'secondary':'main';
     const distance=Math.abs(bottom(s.main)-bottom(s.secondary))-s[lower].fontSize*1.2;
-    return {order,gap:Math.min(240,Math.max(0,Math.round(distance)))};
+    return {order,gap:Math.min(240,Math.max(-240,Math.round(distance)))};
   }
   function arrangePair(raw, settings) {
     const style=normalize(raw),pair=normalizePair(settings),lower=pair.order==='main-above'?'secondary':'main',upper=lower==='main'?'secondary':'main';
-    const base=Math.round(1080-Math.max(bottom(style.main),bottom(style.secondary)));
+    const oldLower=style.pairLayout?.order==='main-above'?'secondary':'main';
+    const base=Math.round(1080-(style.pairLayout?bottom(style[oldLower]):Math.max(bottom(style.main),bottom(style.secondary))));
     for(const role of ['main','secondary'])style[role].alignment=(style[role].alignment-1)%3+1;
     style[lower].marginV=Math.max(0,base);
-    style[upper].marginV=Math.round(style[lower].marginV+style[lower].fontSize*1.2+pair.gap);
+    const distance=Math.max(1,(style[lower].fontSize-style[upper].fontSize)*.6+1,style[lower].fontSize*1.2+pair.gap);
+    style[upper].marginV=Math.round(style[lower].marginV+distance);
     style.pairLayout=pair;
     if(style.legacyBurn)for(const role of ['main','secondary']){style.legacyBurn[role] ||= {};style.legacyBurn[role].y=1-style[role].marginV/1080;}
     return normalize(style);
@@ -17877,8 +17879,9 @@ export default MawDynamicCaptions;
         const start=index===first?0:map(cue.start),end=map(cue.end);if(end<=start)return;
         const offset=layout?.offsets.get(global.MSWSubtitlePresentation.key(name,cue.id))?.offset||0;
         const margin=layout?Math.round((1-s.y)*1080+offset):0,text=escape(cue.text);
-        if(s.background_alpha>0)lines.push(`Dialogue: 0,${time(start)},${time(end)},${name}-bg,,0,0,${margin},,${text}`);
-        lines.push(`Dialogue: 1,${time(start)},${time(end)},${name},,0,0,${margin},,${text}`);
+        const paired=!!project.preview?.project_style?.pairLayout,backgroundLayer=paired?{main:0,secondary:1,overlay:2}[name]:0,textLayer=paired?backgroundLayer+3:1;
+        if(s.background_alpha>0)lines.push(`Dialogue: ${backgroundLayer},${time(start)},${time(end)},${name}-bg,,0,0,${margin},,${text}`);
+        lines.push(`Dialogue: ${textLayer},${time(start)},${time(end)},${name},,0,0,${margin},,${text}`);
       });
     }
     return lines.join('\n')+'\n';
@@ -18159,11 +18162,17 @@ export default MawDynamicCaptions;
       for(const id of b.main_segment_ids||[])byMain.set(id,group);
       for(const id of b.extension_segment_ids||[])bySecondary.set(id,group);
     }
-    const groups=new Map(), offsets=new Map(),unboundTimes=new Map();
-    if(pair)for(const e of entries){if((e.role==='main'?byMain:bySecondary).has(e.cue.id))continue;const time=key(e.cue.start,e.cue.end);unboundTimes.set(time,(unboundTimes.get(time)||0)|(e.role==='main'?1:2));}
+    const groups=new Map(), offsets=new Map(),unboundGroups=new Map();
+    if(pair){
+      // Unbound translations need not have identical timestamps. Connected
+      // overlapping intervals form a presentation group without creating bindings.
+      const unbound=entries.filter(e=>!(e.role==='main'?byMain:bySecondary).has(e.cue.id)).sort((a,b)=>a.cue.start-b.cue.start);
+      let component=[],end=-Infinity;
+      const flush=()=>{if(component.some(e=>e.role==='main')&&component.some(e=>e.role==='secondary'))for(const e of component)unboundGroups.set(e.key,key('paired-overlap',component[0].key));};
+      for(const e of unbound){if(e.cue.start>=end){flush();component=[];end=-Infinity;}component.push(e);end=Math.max(end,e.cue.end);}flush();
+    }
     for(const entry of entries) {
-      const time=key(entry.cue.start,entry.cue.end);
-      const id=(entry.role==='main'?byMain:bySecondary).get(entry.cue.id)||(unboundTimes.get(time)===3?key('paired-time',time):entry.key);
+      const id=(entry.role==='main'?byMain:bySecondary).get(entry.cue.id)||unboundGroups.get(entry.key)||entry.key;
       if(!groups.has(id))groups.set(id,{id,start:entry.cue.start,end:entry.cue.end,rows:[]});
       const group=groups.get(id);group.start=Math.min(group.start,entry.cue.start);group.end=Math.max(group.end,entry.cue.end);group.rows.push(entry);
     }
@@ -18175,14 +18184,33 @@ export default MawDynamicCaptions;
       group.paired=!!pair&&group.rows.some(e=>e.role==='main')&&group.rows.some(e=>e.role==='secondary');
       const upper=group.paired&&pair.order==='secondary-above'?'secondary':'main';
       group.rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1)||a.cue.start-b.cue.start);
-      let top=Infinity, bottom=-Infinity, nextBottom=Infinity,previousRole=null;
-      const pairBottom=group.paired?Math.max(...group.rows.map(e=>styles[e.role].y*1080)):0;
-      for(const entry of [...group.rows].reverse()) {
-        const s=styles[entry.role], size=s.font_size, capacity=Math.max(1,Math.floor(width*s.width/(size*.55)));
+      const height=entry=>{
+        const s=styles[entry.role],capacity=Math.max(1,Math.floor(width*s.width/(s.font_size*.55)));
         const lines=String(entry.cue.text||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?2:1),0)/capacity)),0);
-        const anchor=s.y*1080, edge=group.paired?(previousRole===null?pairBottom:nextBottom-(previousRole!==entry.role?pair.gap:0)):Math.min(anchor,nextBottom);
-        entry.localOffset=anchor-edge;nextBottom=edge-size*1.2*lines;
-        previousRole=entry.role;
+        return s.font_size*1.2*lines;
+      };
+      if(group.paired){
+        // Consecutive cues reuse a lane; a long translation spanning several
+        // source cues must not stack the entire sequence vertically.
+        const bands={};
+        for(const role of ['main','secondary']){
+          const ends=[],sizes=[],rows=group.rows.filter(e=>e.role===role);
+          for(const e of rows){let lane=ends.findIndex(end=>end<=e.cue.start);if(lane<0)lane=ends.length;ends[lane]=e.cue.end;e.pairLane=lane;sizes[lane]=Math.max(sizes[lane]||0,height(e));}
+          bands[role]={rows,sizes,height:sizes.reduce((a,b)=>a+b,0)};
+        }
+        const lower=upper==='main'?'secondary':'main',base=styles[lower].y*1080;
+        const distance=Math.max(1,(bands[lower].height-bands[upper].height)/2+1,bands[lower].height+pair.gap);
+        for(const role of [lower,upper])for(const e of bands[role].rows){
+          const edge=base-(role===upper?distance:0)-bands[role].sizes.slice(e.pairLane+1).reduce((a,b)=>a+b,0);
+          e.localOffset=styles[role].y*1080-edge;
+        }
+        group.height=Math.max(bands[lower].height,distance+bands[upper].height)+(settings.gap??12);
+        heights[lane]=Math.max(heights[lane]||0,group.height);continue;
+      }
+      let top=Infinity, bottom=-Infinity, nextBottom=Infinity;
+      for(const entry of [...group.rows].reverse()) {
+        const anchor=styles[entry.role].y*1080,edge=Math.min(anchor,nextBottom);
+        entry.localOffset=anchor-edge;nextBottom=edge-height(entry);
         top=Math.min(top,nextBottom);bottom=Math.max(bottom,edge);
       }
       group.height=bottom-top+(settings.gap??12);heights[lane]=Math.max(heights[lane]||0,group.height);
@@ -19672,6 +19700,7 @@ export default MawDynamicCaptions;
     '主字幕在上': 'Main above',
     '副字幕在上': 'Secondary above',
     '主副字幕间距': 'Main/secondary spacing',
+    '以 1080p 为基准。负值缩小主副字幕间距，过小时可能重叠；压缩到极限后仍保留主副上下顺序。': 'Values use a 1080p reference. Negative values bring the subtitles closer and may cause overlap. Further compression stops before reversing their order.',
     '交换主副样式（保留位置）': 'Swap main and secondary styling (keep positions)',
     '调整主副字幕排列': 'Arrange main and secondary subtitles',
     '交换主副字幕样式': 'Swap main and secondary styling',
@@ -61534,7 +61563,7 @@ window.addEventListener('beforeunload', (e) => {
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
-    <label class="media-settings-field"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="0" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
+    <label class="media-settings-field" data-option-help="以 1080p 为基准。负值缩小主副字幕间距，过小时可能重叠；压缩到极限后仍保留主副上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
@@ -61797,6 +61826,8 @@ window.addEventListener('beforeunload', (e) => {
   const fontManifests=new Map();let loadedFontIds=new Set();
   const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
   const stage=document.querySelector('.player-stage');stage.append(badge);
+  function syncBadge(){badge.hidden=host.subtitlePreviewTarget()==='none';}
+  syncBadge();
   function fallback(text) {stage.dataset.subtitleRenderer='approximate';badge.textContent=text;}
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
@@ -61849,6 +61880,7 @@ window.addEventListener('beforeunload', (e) => {
       host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.subtitleRenderSettings()]);
   }
   async function update() {
+    syncBadge();
     observePlayer();
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
     if(pending){again=true;return;}
@@ -61898,7 +61930,7 @@ window.addEventListener('beforeunload', (e) => {
     } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
-  function invalidate(){key='';clearTimeout(timer);timer=setTimeout(update,100);}
+  function invalidate(){syncBadge();key='';clearTimeout(timer);timer=setTimeout(update,100);}
   global.addEventListener('msw:player-changed',observePlayer);
   global.addEventListener('msw:project-changed',resetMedia);
   for(const name of ['msw:media-changed','msw:subtitles-changed','msw:burn-style'])global.addEventListener(name,invalidate);

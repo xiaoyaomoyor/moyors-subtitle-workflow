@@ -5,7 +5,7 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
   function normalizePair(raw) {
-    if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap<0||raw.gap>240)throw Error('主副字幕排列设置无效');
+    if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
   }
   function normalize(raw = {}) {
@@ -95,14 +95,16 @@
     const order=bottom(s.main)<=bottom(s.secondary)?'main-above':'secondary-above';
     const lower=order==='main-above'?'secondary':'main';
     const distance=Math.abs(bottom(s.main)-bottom(s.secondary))-s[lower].fontSize*1.2;
-    return {order,gap:Math.min(240,Math.max(0,Math.round(distance)))};
+    return {order,gap:Math.min(240,Math.max(-240,Math.round(distance)))};
   }
   function arrangePair(raw, settings) {
     const style=normalize(raw),pair=normalizePair(settings),lower=pair.order==='main-above'?'secondary':'main',upper=lower==='main'?'secondary':'main';
-    const base=Math.round(1080-Math.max(bottom(style.main),bottom(style.secondary)));
+    const oldLower=style.pairLayout?.order==='main-above'?'secondary':'main';
+    const base=Math.round(1080-(style.pairLayout?bottom(style[oldLower]):Math.max(bottom(style.main),bottom(style.secondary))));
     for(const role of ['main','secondary'])style[role].alignment=(style[role].alignment-1)%3+1;
     style[lower].marginV=Math.max(0,base);
-    style[upper].marginV=Math.round(style[lower].marginV+style[lower].fontSize*1.2+pair.gap);
+    const distance=Math.max(1,(style[lower].fontSize-style[upper].fontSize)*.6+1,style[lower].fontSize*1.2+pair.gap);
+    style[upper].marginV=Math.round(style[lower].marginV+distance);
     style.pairLayout=pair;
     if(style.legacyBurn)for(const role of ['main','secondary']){style.legacyBurn[role] ||= {};style.legacyBurn[role].y=1-style[role].marginV/1080;}
     return normalize(style);
@@ -149,8 +151,9 @@
         const start=index===first?0:map(cue.start),end=map(cue.end);if(end<=start)return;
         const offset=layout?.offsets.get(global.MSWSubtitlePresentation.key(name,cue.id))?.offset||0;
         const margin=layout?Math.round((1-s.y)*1080+offset):0,text=escape(cue.text);
-        if(s.background_alpha>0)lines.push(`Dialogue: 0,${time(start)},${time(end)},${name}-bg,,0,0,${margin},,${text}`);
-        lines.push(`Dialogue: 1,${time(start)},${time(end)},${name},,0,0,${margin},,${text}`);
+        const paired=!!project.preview?.project_style?.pairLayout,backgroundLayer=paired?{main:0,secondary:1,overlay:2}[name]:0,textLayer=paired?backgroundLayer+3:1;
+        if(s.background_alpha>0)lines.push(`Dialogue: ${backgroundLayer},${time(start)},${time(end)},${name}-bg,,0,0,${margin},,${text}`);
+        lines.push(`Dialogue: ${textLayer},${time(start)},${time(end)},${name},,0,0,${margin},,${text}`);
       });
     }
     return lines.join('\n')+'\n';

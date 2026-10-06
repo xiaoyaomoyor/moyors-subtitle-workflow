@@ -8,6 +8,8 @@
   const fontManifests=new Map();let loadedFontIds=new Set();
   const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
   const stage=document.querySelector('.player-stage');stage.append(badge);
+  function syncBadge(){badge.hidden=host.subtitlePreviewTarget()==='none';}
+  syncBadge();
   function fallback(text) {stage.dataset.subtitleRenderer='approximate';badge.textContent=text;}
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
@@ -60,6 +62,7 @@
       host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.subtitleRenderSettings()]);
   }
   async function update() {
+    syncBadge();
     observePlayer();
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
     if(pending){again=true;return;}
@@ -109,7 +112,7 @@
     } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
-  function invalidate(){key='';clearTimeout(timer);timer=setTimeout(update,100);}
+  function invalidate(){syncBadge();key='';clearTimeout(timer);timer=setTimeout(update,100);}
   global.addEventListener('msw:player-changed',observePlayer);
   global.addEventListener('msw:project-changed',resetMedia);
   for(const name of ['msw:media-changed','msw:subtitles-changed','msw:burn-style'])global.addEventListener(name,invalidate);
