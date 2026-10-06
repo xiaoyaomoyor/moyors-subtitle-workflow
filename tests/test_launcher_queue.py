@@ -13,6 +13,36 @@ from maw.gui_web import LauncherApi, LauncherPaths
 
 
 class QueueTests(unittest.TestCase):
+    def test_layered_project_copies_without_loss_and_rejects_unadapted_postprocess(self):
+        from maw.msw.subtitle_layers import migrate_project
+        project = migrate_project({'segments': [
+            {'id':'a','start':0,'end':2000,'text':'A'},
+            {'id':'b','start':500,'end':1500,'text':'B'}]})
+        self.project.write_text(json.dumps(project), encoding='utf-8')
+        tasks, errors = self.prepare(self.plan([self.project]))
+        self.assertFalse(errors)
+        result = self.execute(tasks[0])
+        saved = queue.read_project(Path(result['projectPath']))
+        self.assertEqual(saved['schema'], 'msw.project.v2')
+        self.assertEqual([(c['id'],c['start'],c['end']) for c in saved['segments']], [('a',0,2000),('b',500,1500)])
+        plan = self.plan([self.project], postprocess=['replace'])
+        plan['postprocess'] = {'enabled':True,'steps':[{'id':'replace','enabled':True,'replacements':[{'source':'A','target':'X'}],'conversion':'off'}]}
+        tasks, errors = self.prepare(plan)
+        self.assertFalse(tasks)
+        self.assertIn('多层字幕工程', errors[0]['message'])
+        self.assertEqual(json.loads(self.project.read_text(encoding='utf-8')), project)
+
+    def test_layered_project_re_asr_is_rejected_before_request_builder(self):
+        from maw.msw.subtitle_layers import migrate_project
+        project = migrate_project({'media':str(self.media),'segments':[{'id':'a','start':0,'end':1000,'text':'A'}]})
+        self.project.write_text(json.dumps(project), encoding='utf-8')
+        plan=self.plan([self.project], asr=True)
+        plan['asrPolicy']='replace'
+        tasks, errors=self.prepare(plan)
+        self.assertFalse(tasks)
+        self.assertIn('多层字幕工程',errors[0]['message'])
+        self.builder.assert_not_called()
+
     def test_overlay_only_project_is_already_subtitled(self):
         self.project.write_text(json.dumps({'segments': [], 'overlay_track': {'enabled': True, 'segments': [
             {'id': 'overlay', 'start': 0, 'end': 1000, 'text': 'annotation'}]}}), encoding='utf-8')

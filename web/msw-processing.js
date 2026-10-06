@@ -202,7 +202,6 @@
     }
   }
   async function submit(kind) {
-    if (layerBlockProduction()) return;
     if (requestInFlight || savingSettings || (kind === 'translation' && !pendingSubmission && !updateEnvironment())) return;
     const report = kind === 'connection_test' ? environmentMessage : message;
     if (pendingSubmission && pendingSubmission.kind !== kind) {

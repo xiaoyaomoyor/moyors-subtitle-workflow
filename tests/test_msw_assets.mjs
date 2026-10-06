@@ -59,3 +59,14 @@ test('strict validation, cross-source rejection and result deduplication',()=>{
   project.msw.subtitle_assets[1].source_id='other';
   assert.throws(()=>MSWAssets.insert(project,batch.assets.map(a=>a.id),5000),/不同来源/);
 });
+
+
+test('layered subtitle assets keep overlap, relative timing and bilingual binding on reinsert',()=>{
+  const project=fixture();project.schema='msw.project.v2';project.subtitle_layers={allow_overlap:true};
+  const captured=MSWAssets.capture(project,selection);project.msw=MSWAssets.add(project.msw,captured.assets,captured.batch);
+  const plan=MSWAssets.insert(project,captured.assets.map(a=>a.id),project.segments[0].start);
+  assert.equal(plan.count,2);assert.equal(plan.project.multi_subtitle.bindings.length,2);
+  assert.equal(plan.project.segments[0].start,plan.project.segments[1].start);
+  project.subtitle_layers.allow_overlap=false;
+  assert.equal(MSWAssets.insert(project,captured.assets.map(a=>a.id),project.segments[0].start).count,0);
+});

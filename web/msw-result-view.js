@@ -60,7 +60,7 @@
         if(!invalid) try {
           const plan=global.MSWResultApply.plan(host.data,global.MSWE.resolve('media')?.current,jobs,target,crossing?'trim':null);
           if(plan.duplicate)issue=t('此修订已应用到当前目标');
-        }catch(error){issue=error.message;}
+        }catch(error){if(error.code!=='choose-targets')issue=error.message;}
         button.hidden=Boolean(crossing);select.hidden=!crossing;
         button.disabled=select.disabled=invalid||Boolean(issue);button.title=select.title=issue;
       }

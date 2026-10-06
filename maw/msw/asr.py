@@ -44,19 +44,26 @@ def validate_snapshot(raw):
     targets = raw.get('targets')
     if not isinstance(targets, list) or len(targets) > 10000:
         raise ValueError('ASR 目标字幕快照过大或无效')
-    normalized = normalize_project({'segments': [{key: copy.deepcopy(cue[key]) for key in
+    from maw.msw.subtitle_layers import SCHEMA, migrate_project
+    schema = raw.get('project_schema')
+    if schema not in (None, 'moy.asr.project.v1', SCHEMA):
+        raise ValueError('ASR 工程快照版本无效')
+    def validate_targets(cues):
+        body = {'segments': cues}
+        return normalize_project(migrate_project(body) if schema == SCHEMA else body)
+    normalized = validate_targets([{key: copy.deepcopy(cue[key]) for key in
         ('id', 'start', 'end', 'text', 'items', 'disabled', 'start_frame', 'end_frame') if key in cue}
-        for cue in targets]})['segments']
+        for cue in targets])['segments']
     secondary = raw.get('secondary')
     if secondary is not None:
         if (not isinstance(secondary, dict) or (secondary.get('track_id') is not None
                 and not valid_cue_id(secondary['track_id'])) or not isinstance(secondary.get('targets'), list)
                 or len(secondary['targets']) > 10000):
             raise ValueError('ASR 副字幕快照无效')
-        normalize_project({'segments': [{key: copy.deepcopy(cue[key]) for key in
+        validate_targets([{key: copy.deepcopy(cue[key]) for key in
             ('id', 'start', 'end', 'text', 'items', 'disabled', 'start_frame', 'end_frame') if key in cue}
-            for cue in secondary['targets']]})
-    return {'project_id': raw['project_id'], 'source': {key: copy.deepcopy(source[key]) for key in
+            for cue in secondary['targets']])
+    return {'project_id': raw['project_id'], **({'project_schema': schema} if schema else {}), 'source': {key: copy.deepcopy(source[key]) for key in
             ('id', 'revision', 'reference', 'name', 'audio_index', 'duration_ms', 'kind', 'clip') if key in source},
             **({'batch_id': batch_id} if batch_id else {}), **({'secondary': copy.deepcopy(secondary)} if secondary is not None else {}), 'batch_overlap': raw.get('batch_overlap') is True,
             'range': {'start': span['start'], 'end': span['end']}, 'mode': mode, 'targets': copy.deepcopy(targets)}

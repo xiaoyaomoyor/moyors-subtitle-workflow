@@ -84,12 +84,14 @@ __WAVEFORM_CSS__
       <div class="menu-group-title">保存</div>
       <button type="button" class="dropdown-item" id="save-project" role="menuitem" title="保存回服务器启动时指定的工程文件" hidden><span>保存工程</span> <kbd class="menu-kbd" data-mod>Ctrl+S</kbd></button>
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
+      <button type="button" class="dropdown-item" id="download-legacy-project" role="menuitem" hidden title="只在旧版结构能无损表达时导出；不能表达的重叠、绑定会明确提示。">旧版工程（v1 兼容）</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
         <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
           <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0" title="导出主字幕轨（SRT）">主字幕（SRT）</div>
+          <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">SRT（合并同时显示文本）</div>
           <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0" title="导出主字幕轨（ASS）">主字幕（ASS）</div>
           <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
           <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
@@ -796,6 +798,11 @@ __WAVEFORM_CSS__
   <div class="settings-modal-body media-settings-body subtitle-preview-settings-panel gap-remove-panel-body" id="subtitle-preview-settings-panel">
     <div class="settings-panel-section media-preview-settings-section">
       <span class="settings-panel-title">播放预览</span>
+      <div id="subtitle-layer-presentation-settings" hidden>
+        <label class="toggle settings-panel-item" title="主副绑定成组避让；关闭后保留原位置。字号和主副样式沿用当前方案。"><input type="checkbox" id="subtitle-layer-auto" checked> 同时出现的字幕自动避让</label>
+        <label class="subtitle-preview-setting-row settings-panel-item"><span>先出现的字幕组</span><select id="subtitle-layer-order"><option value="earlier-bottom">靠下显示</option><option value="earlier-top">靠上显示</option></select></label>
+        <label class="subtitle-preview-setting-row settings-panel-item"><span>组间距（1080p 基准）</span><input type="number" id="subtitle-layer-gap" min="0" max="120" value="12" step="1"></label>
+      </div>
       <label class="toggle settings-panel-item"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
       <label class="toggle settings-panel-item" id="extension-overlay-toggle-wrap" hidden><input type="checkbox" id="extension-overlay-toggle" checked> 预览副字幕</label>
       <label class="toggle settings-panel-item" title="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
@@ -2294,7 +2301,6 @@ __WAVEFORM_CSS__
       <span class="info" title="当前播放头时间">当前 <b id="now">00:00.000</b></span>
       <span class="info" title="当前选中的字幕数量">已选 <b id="sel-count">0</b></span>
       <span class="toolbar-spacer"></span>
-      <span id="subtitle-layer-development" hidden title="A–C 开发预览：请用工程副本体验；保存、处理与导出将在后续阶段开放。">多层字幕 · 开发预览 ⓘ</span>
       <span class="waveform-status" id="waveform-status">等待波形数据</span>
       <span class="waveform-readout" id="waveform-readout" title="媒体总时长 · 波形峰值点数 · 源音频试听增益" hidden></span>
     </div>

@@ -18,10 +18,11 @@ def mapped_subtitles(project, plan, *, include_styles=False):
         groups.append(('叠加字幕', overlay.get('segments', [])))
     result = []
     ends = [k['end_ms'] for k in plan['intervals']]
-    for name, segments in groups:
+    from maw.msw.subtitle_presentation import visible
+    for group_index, (name, segments) in enumerate(groups):
         cues = []
         for s in segments:
-            if s.get('disabled'):
+            if s.get('disabled') or (group_index == 0 and project.get('schema') == 'msw.project.v2' and not visible(project, s)):
                 continue
             for index in range(bisect_right(ends, s['start']), len(ends)):
                 k = plan['intervals'][index]
@@ -31,6 +32,8 @@ def mapped_subtitles(project, plan, *, include_styles=False):
                 if hi > lo:
                     cue = dict(start=k['output_start_ms'] + lo - k['start_ms'],
                                end=k['output_start_ms'] + hi - k['start_ms'], text=s.get('text', ''))
+                    if project.get('schema') == 'msw.project.v2':
+                        cue['id'] = s['id']
                     if include_styles:
                         head = (s.get('color_ref') or {}).get('headIdx')
                         color = s.get('color') or ((segments[head].get('color') or {})
@@ -57,6 +60,12 @@ def burning_cues(project, plan, target):
     selected = groups[:1] if target == 'main' else groups[1:2] if target == 'secondary' else groups[:2]
     if (project.get('overlay_track') or {}).get('enabled') is True:
         selected = [groups[-1], *selected]
+    if project.get('schema') == 'msw.project.v2':
+        order = {c['id']: i for i, c in enumerate(project.get('segments', []))}
+        bound = {ext: b['main_segment_ids'][0] for b in (project.get('multi_subtitle') or {}).get('bindings', []) for ext in b.get('extension_segment_ids', []) if b.get('main_segment_ids')}
+        rows = [(role, c) for role, group in enumerate(groups[:2]) for c in group[1] if target == 'both' or (target == 'main' and role == 0) or (target == 'secondary' and role == 1)]
+        rows.sort(key=lambda row: (order.get(row[1]['id'] if row[0] == 0 else bound.get(row[1]['id']), 10**9), row[0], row[1]['start']))
+        selected = [('', [c for _, c in rows])]
     events, texts = {}, {}
     for _, cues in selected:
         for c in cues:

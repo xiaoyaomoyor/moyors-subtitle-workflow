@@ -8,6 +8,7 @@ import math
 import re
 
 from maw.msw.subtitle_export import mapped_subtitles
+from maw.msw.subtitle_presentation import presentation
 
 DEFAULTS = {
     'main': dict(font_family='Arial',font_size=48,color='#ffffff',outline_color='#000000',outline=2,
@@ -75,6 +76,7 @@ def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fra
             lines.append(f"Style: {name}{'-bg' if background else ''},{s['font_family']},{s['font_size']},{primary},{primary},{border},{border},0,0,0,0,100,100,0,0,{3 if background else 1},{6 if background else s['outline']},0,2,{left},{right},{round((1-s['y'])*1080)},1")
     lines += ['', '[Events]','Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
     groups=mapped_subtitles(project,plan)
+    offsets=presentation(project,styles,target,width) if project.get('schema')=='msw.project.v2' else {}
     selected = [(i, name) for i, name in enumerate(('main', 'secondary')) if target in {name, 'both'}]
     if 'overlay' in styles and target != 'none': selected.append((len(groups)-1, 'overlay'))
     for index,name in selected:
@@ -91,9 +93,10 @@ def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fra
             # Margin-based positioning keeps libass line wrapping within the
             # configured box; main and secondary retain independent styles.
             text=ass_text(cue['text'])
+            margin=round((1-style['y'])*1080+offsets.get((name,cue.get('id')),0)) if offsets else 0
             if style['background_alpha']>0:
-                lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{name}-bg,,0,0,0,,{text}')
-            lines.append(f'Dialogue: 1,{ass_time(start)},{ass_time(end)},{name},,0,0,0,,{text}')
+                lines.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},{name}-bg,,0,0,{margin},,{text}')
+            lines.append(f'Dialogue: 1,{ass_time(start)},{ass_time(end)},{name},,0,0,{margin},,{text}')
     return '\n'.join(lines)+'\n'
 
 
@@ -145,6 +148,8 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
                 else: variant.update(primaryColor=value, secondaryColor=value)
                 lines.append(ass_style_line(variant, name=f'{name}-{color_name}'))
     lines += ['', '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
+    layout_styles={name:{'font_size':s['fontSize'],'width':max(.1,1-(s['marginL']+s['marginR'])/width), 'y':1-s['marginV']/1080} for name,s in styles.items()}
+    offsets=presentation(project,layout_styles,target,width) if project.get('schema')=='msw.project.v2' else {}
     animations = profile['animations']
     for index, name in selected:
         if index >= len(groups): continue
@@ -179,5 +184,17 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
                     text = '{\\c&H' + label_color + '&}' + label_text + '{\\c&H' + body_color + '&}' + text
                 else:
                     text = label_text + text
-            lines.append(f'Dialogue: {layer},{ass_time(start)},{ass_time(end)},{style_name},,0,0,0,,{prefix}{text}')
+            margin=round(styles[name]['marginV']+offsets.get((name,cue.get('id')),0)) if offsets else 0
+            event_prefix = prefix
+            offset = offsets.get((name, cue.get('id')), 0)
+            if offsets and name == 'main' and animations['move']['enabled']:
+                movement = animations['move']
+                values = [movement['x1'], movement['y1']-offset, movement['x2'], movement['y2']-offset, movement['t1'], movement['t2']]
+                move_tag = r'\move(' + ','.join(str(round(v, 4)) for v in values) + ')'
+                event_prefix = re.sub(r'\\move\([^)]*\)', lambda _: move_tag, event_prefix)
+            elif offsets and 4 <= styles[name]['alignment'] <= 6:
+                align = styles[name]['alignment'] % 3
+                x = styles[name]['marginL'] if align == 1 else width/2 if align == 2 else width-styles[name]['marginR']
+                event_prefix += r'{\pos(' + f'{x},{540-offset}' + ')}'
+            lines.append(f'Dialogue: {layer},{ass_time(start)},{ass_time(end)},{style_name},,0,0,{margin},,{event_prefix}{text}')
     return '\n'.join(lines) + '\n'

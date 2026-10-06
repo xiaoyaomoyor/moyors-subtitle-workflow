@@ -36,6 +36,8 @@ def video_options(project, settings, info):
     settings['duration_ms'] = end
     for track in (project.get('multi_subtitle') or {}).get('tracks', []):
         for cue in track.get('segments', []):
+            if project.get('schema') == 'msw.project.v2' and (cue.get('disabled') or not project['multi_subtitle'].get('enabled')):
+                continue
             settings['duration_ms'] = max(settings['duration_ms'], cue['end'])
     if settings['end_ms'] is not None:
         settings['duration_ms'] = max(settings['duration_ms'], settings['end_ms'])

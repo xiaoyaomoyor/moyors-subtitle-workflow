@@ -57,7 +57,7 @@
     if (!Number.isSafeInteger(videoEnd) || videoEnd <= 0) return out;
     out.duration_ms = videoEnd;
     for (const track of project.multi_subtitle?.tracks || [])
-      for (const cue of track.segments || []) out.duration_ms = Math.max(out.duration_ms, cue.end);
+      for (const cue of track.segments || []) if(project.schema!=='msw.project.v2'||(!cue.disabled&&project.multi_subtitle.enabled))out.duration_ms = Math.max(out.duration_ms, cue.end);
     if (out.end_ms !== null) out.duration_ms = Math.max(out.duration_ms, out.end_ms);
     if (out.video_tail === 'freeze') out.duration_ms = Math.max(out.duration_ms, info.duration_ms || 0);
     if (applyTail && out.video_tail === 'truncate') out.end_ms = Math.min(out.end_ms ?? Infinity, videoEnd);
@@ -70,9 +70,10 @@
     const assets = new Map((ext.assets || []).map(a => [a.id, a]));
     const tracks = new Map((ext.audio_tracks || []).map(t => [t.id, t]));
     const clips = ext.audio_clips || [];
-    const subtitleSegments = [...(project.segments || []),
+    const layered=project.schema==='msw.project.v2',legacy=project.subtitle_layers?.legacy_overlay;
+    const subtitleSegments = [...(project.segments || []).filter(c=>!layered||(!c.disabled&&!(legacy?.visible===false&&legacy.cue_ids.includes(c.id)))),
       ...(project.overlay_track?.enabled === true ? project.overlay_track.segments || [] : []),
-      ...(project.multi_subtitle?.enabled === true ? (project.multi_subtitle.tracks || []).flatMap(track => track.segments || []) : [])];
+      ...(project.multi_subtitle?.enabled === true ? (project.multi_subtitle.tracks || []).flatMap(track => (track.segments || []).filter(c=>!layered||!c.disabled)) : [])];
     const duration = clips.reduce((n, c) => Math.max(n, Math.ceil(core.end(c, assets.get(c.asset_id)))),
       subtitleSegments.reduce((n, s) => Math.max(n, s.end), o.duration_ms));
     integer(duration, 1, MAX_MS, '没有有效的音频导出范围，或工程超过 12 小时');

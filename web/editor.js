@@ -15323,6 +15323,9 @@ function toggleSubtitleTrackMuted(kind) {
 }
 
 function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActive(tMs)) {
+  if (layerMode()) return layerRefreshSubtitlePreview(tMs);
+  const layers = document.getElementById('msw-layer-preview'); if (layers) layers.hidden = true;
+  overlayEl.classList.remove('msw-layer-geometry');
   // 编辑字幕文本时只刷新播放器预览，避免每输入一个字都触发字幕列表的自动滚动。
   const seg = idx >= 0 ? DATA.segments[idx] : null;
   // V1/V2 轨道头禁用的轨不再进入预览（Pr 的轨输出开关语义）。
@@ -15598,7 +15601,7 @@ function rebuildStickerIntervals() {
   // track 标记归属（主轨/叠加轨），供叠加表情包显示时的预览层加高判断使用。
   const collect = (segments, track) => {
     segments.forEach((seg) => {
-      if (seg.disabled) return;
+      if (seg.disabled || (layerMode() && track === 'main' && !layerCore.visible(DATA,seg))) return;
       const head = segments[seg.sticker_ref?.headIdx] || seg;
       // ref 成员的 head 被禁用时同样不收集，保持 enabled=false 的显示契约。
       if (head !== seg && head.disabled) return;
@@ -15635,13 +15638,13 @@ function activeStickersAt(tMs) {
 
   const found = new Map();  // 同组 head/ref 去重，按文件名键
   stickerIntervals.forEach((interval) => {
-    if (time >= interval.start && time <= interval.end) found.set(interval.key, interval.source);
+    if (time >= interval.start && time < interval.end) found.set(interval.key, interval.source);
   });
   // 当前时刻是否有叠加轨表情包在显示（同名素材在主轨同时显示时也算——
   // 预览层展示的就是这张图，叠加归属用于决定预览内容区是否加高）。
   activeStickerHasOverlay = stickerIntervals.some((interval) => (
     interval.track === 'overlay'
-    && time >= interval.start && time <= interval.end
+    && time >= interval.start && time < interval.end
     && found.has(interval.key)
   ));
   // 播放时间单调前进时，缓存只需保留到下一个边界；二分定位避免每次
@@ -15775,6 +15778,7 @@ function speakerLabelExportOptions() {
 // 由 colorContextResolver 提供每条段的颜色/说话人解析上下文。
 function mergedExportSegments() {
   const overlaySegments = overlayTrackVisible() ? (getOverlayTrack()?.segments || []) : [];
+  if (layerMode()) return { segments: DATA.segments.filter(cue => layerCore.visible(DATA,cue)), overlaySet: new Set(), overlaySegments: [] };
   if (!overlaySegments.length) {
     return { segments: DATA.segments, overlaySet: new Set(), overlaySegments };
   }
@@ -15808,14 +15812,17 @@ function buildSrt() {
 
 function buildAss() {
   const { overlaySegments } = mergedExportSegments();
+  const mainSegments=layerMode()?layerExportMainSegments():DATA.segments;
   // 副字幕轨随 ASS 导出（多重字幕开启时才存在）；叠加轨与副字幕分层输出。
   const extensionSegments = activeExtensionSegments();
   const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
-    DATA.segments,
+    mainSegments,
     EDITOR_SETTINGS.exportStartAtZero,
   );
-  return window.AsrEditorUtils.buildAssPayload(DATA.segments, {
-    ...assExportOptions(),
+  const layerOptions = assExportOptions();
+  if (layerMode()) layerOptions.layerMargins = layerAssMargins(layerOptions);
+  return window.AsrEditorUtils.buildAssPayload(mainSegments, {
+    ...layerOptions,
     alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
     firstEnabledIndex,
     appearance: getSubtitleAppearance(),
@@ -15860,16 +15867,19 @@ function buildGapRemovedAss() {
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
     return null;
   }
+  const mainSegments=layerMode()?layerExportMainSegments():DATA.segments;
   const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
-    DATA.segments,
+    mainSegments,
     EDITOR_SETTINGS.exportStartAtZero,
   );
   // 去空隙 ASS 与常规 ASS 同一三轨契约：叠加轨与副字幕也随导出，
   // 时间统一经 mapGapRemovedTime 压缩。
   const { overlaySegments } = mergedExportSegments();
   const extensionSegments = activeExtensionSegments();
-  return window.AsrEditorUtils.buildAssPayload(DATA.segments, {
-    ...assExportOptions(),
+  const layerOptions = assExportOptions();
+  if (layerMode()) layerOptions.layerMargins = layerAssMargins(layerOptions);
+  return window.AsrEditorUtils.buildAssPayload(mainSegments, {
+    ...layerOptions,
     alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
     firstEnabledIndex,
     overlaySegments,
@@ -16102,6 +16112,7 @@ function buildJson() {
     timebase: { ...projectTimebase() },
     segments: DATA.segments.map(s => {
       const o = {
+        ...(layerMode() ? Object.fromEntries(Object.entries(s).filter(([key])=>!key.startsWith('_'))) : {}),
         id: s.id,
         start: s.start, end: s.end, text: s.text,
         start_frame: s.start_frame, end_frame: s.end_frame,
@@ -16138,6 +16149,7 @@ function buildJson() {
       source_name: track.source_name || '',
       segments: (track.segments || []).map((segment) => {
         const outSegment = {
+          ...(layerMode() ? Object.fromEntries(Object.entries(segment).filter(([key])=>!key.startsWith('_'))) : {}),
           id: segment.id,
           start: segment.start,
           end: segment.end,
@@ -16384,7 +16396,7 @@ function buildGapRemovedSubtitleMarkers(interval, sourceStartFrame = 0, segments
   if (clipEndFrame <= clipStartFrame) return [];
 
   return segments.flatMap((segment) => {
-    if (!segment || segment.disabled) return [];
+    if (!segment || segment.disabled || (layerMode() && segments===DATA.segments && !layerCore.visible(DATA,segment))) return [];
     const segmentStartMs = Number(segment.start);
     const segmentEndMs = Number(segment.end);
     if (!Number.isFinite(segmentStartMs) || !Number.isFinite(segmentEndMs)
@@ -16402,7 +16414,7 @@ function buildGapRemovedSubtitleMarkers(interval, sourceStartFrame = 0, segments
     const colorName = window.AsrEditorUtils.effectiveColorName(segment, colorContext);
     return [{
       OTIO_SCHEMA: 'Marker.2',
-      metadata: {},
+      metadata: layerMode()?{msw:{cue_id:segment.id,role:segments===DATA.segments?'main':'secondary'}}:{},
       name: String(segment.text || ''),
       color: OTIO_MARKER_COLORS[colorName] || OTIO_DEFAULT_MARKER_COLOR,
       marked_range: otioTimeRange(
@@ -16550,7 +16562,7 @@ function buildTimelineMediaClip(
     source_range: otioTimeRange(sourceStartFrame + startFrame, durationFrames),
     effects: [],
     markers: includeSubtitleMarkers
-      ? buildGapRemovedSubtitleMarkers(interval, sourceStartFrame)
+      ? [...buildGapRemovedSubtitleMarkers(interval, sourceStartFrame),...(layerMode()&&multiSubtitleVisible()?buildGapRemovedSubtitleMarkers(interval,sourceStartFrame,activeExtensionSegments()):[])]
       : [],
     enabled: true,
     color: null,
@@ -16796,7 +16808,7 @@ function collectStickerOtioEntries(removed, segments = DATA.segments) {
   const entries = [];
   for (let idx = 0; idx < segments.length; idx++) {
     const seg = segments[idx];
-    if (seg.disabled) continue;
+    if (seg.disabled || (layerMode() && segments===DATA.segments && !layerCore.visible(DATA,seg))) continue;
     const headIdx = seg.sticker_ref?.headIdx;
     const head = Number.isInteger(headIdx) ? segments[headIdx] : null;
     if (seg.sticker_ref && (!head || head.disabled || headIdx >= idx)) continue;
@@ -17091,9 +17103,6 @@ function stickerExportBlocked(id) {
 }
 
 async function downloadFile(content, filename, mime, accept, { usePicker = true, detailed = false } = {}) {
-  if (layerMode() && /\.(mosp|json|html|srt|ass|otio|otioz|xml)$/i.test(filename)) {
-    layerBlockProduction(); return detailed ? { status: 'cancelled' } : false;
-  }
   const isSrt = filename.toLowerCase().endsWith('.srt');
   const fileContent = isSrt
     ? new Uint8Array([0xEF, 0xBB, 0xBF, ...new TextEncoder().encode(String(content))])
@@ -17105,6 +17114,7 @@ async function downloadFile(content, filename, mime, accept, { usePicker = true,
         suggestedName: filename,
         types: accept ? [{ description: accept.desc, accept: accept.types }] : undefined,
       });
+      if (/\.(mosp|json)$/i.test(filename)) await layerProtectHandle(handle, content);
       const w = await handle.createWritable();
       await w.write(new Blob([fileContent], { type: mime + ';charset=utf-8' }));
       await w.close();
@@ -17427,7 +17437,6 @@ let projectSaveInFlight = false;
 const EDIT_SAVE_DEBOUNCE_MS = 400;
 
 function scheduleAutoSave() {
-  if (layerMode()) return;
   if (autoSaveTimer !== null) {
     window.clearInterval(autoSaveTimer);
     autoSaveTimer = null;
@@ -17480,7 +17489,6 @@ function hasUnsavedProjectChanges() {
 // 文字编辑先写入页面内存，避免每个按键都请求服务器；失焦后短暂防抖保存，
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
 function scheduleAutoSaveFlush() {
-  if (layerMode()) return;
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
     autoSaveFlushTimer = null;
@@ -18092,7 +18100,6 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
 }
 
 async function saveProjectToServer({ silent = false } = {}) {
-  if (layerBlockProduction(silent)) return false;
   if (!serverProjectSavingEnabled()) {
     // 服务器在跑但本会话尚未绑定工程文件（如拖入 SRT / 浏览器打开的 .mosp）：
     // Ctrl+S 自动转入「绑定保存」流程（选择保存位置 + 可选收集媒体），
@@ -18160,7 +18167,6 @@ async function saveProjectToServer({ silent = false } = {}) {
 
 // 把当前工程写回页面持有的浏览器文件句柄（新建工程 / 另存为选定的目标）。
 async function saveProjectToHandle({ silent = false } = {}) {
-  if (layerBlockProduction(silent)) return false;
   if (!projectFileHandle) return false;
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
   const savedGeneration = mswProjectGeneration;
@@ -18172,6 +18178,8 @@ async function saveProjectToHandle({ silent = false } = {}) {
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
     flushInlineEditsForSave();
     const projectJson = buildJson();
+    await layerProtectHandle(savedHandle, projectJson, silent);
+    if (savedGeneration !== mswProjectGeneration) return false;
     const writable = await savedHandle.createWritable();
     await writable.write(new Blob([projectJson], { type: 'application/json;charset=utf-8' }));
     await writable.close();
@@ -18200,7 +18208,6 @@ async function saveCurrentProject({ silent = false } = {}) {
 // 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新），
 // 且后续 Ctrl(Cmd)+S / 自动保存都写回这个新选定的文件。
 async function saveProjectAsToFile() {
-  if (layerBlockProduction()) return false;
   const persistence = window.MSWE?.resolve('project-persistence');
   if (persistence?.available()) return persistence.saveAs();
   if (projectSaveInFlight || projectCheckpointInFlight) return false;
@@ -18229,6 +18236,8 @@ async function saveProjectAsToFile() {
       types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
     feedback = beginProjectSaveFeedback();await feedback.ready;
+    await layerProtectHandle(handle, snapshot);
+    if (generation !== mswProjectGeneration) return false;
     const writable = await handle.createWritable();
     await writable.write(new Blob([snapshot], { type: 'application/json;charset=utf-8' }));
     await writable.close();
@@ -18697,10 +18706,16 @@ document.getElementById('download-ext-ass')?.addEventListener('click', async () 
   const firstIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
     track.segments, EDITOR_SETTINGS.exportStartAtZero,
   );
+  const options=assExportOptions(getStoredExtensionSubtitleAppearance());
+  if(layerMode()) {
+    options.assStyle=options.assExtensionStyle;
+    const single={...DATA,segments:track.segments,multi_subtitle:{enabled:false},subtitle_layers:{...DATA.subtitle_layers,legacy_overlay:{visible:true,cue_ids:[]}}};
+    options.layerMargins=layerAssMargins(options,single,'main');
+  }
   await downloadFile(window.AsrEditorUtils.buildAssPayload(track.segments, {
     alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
     firstEnabledIndex: firstIndex,
-    ...assExportOptions(getStoredExtensionSubtitleAppearance()),
+    ...options,
   }), `${FILENAME_BASE}.extension.ass`, 'text/plain', {
     desc: '副字幕 ASS 文件', types: { 'text/plain': ['.ass'] },
   });
@@ -18708,7 +18723,7 @@ document.getElementById('download-ext-ass')?.addEventListener('click', async () 
 document.getElementById('download-color-srt')?.addEventListener('click', () => downloadColorSrts(false));
 document.getElementById('download-plain-text')?.addEventListener('click', async () => {
   if (editingState) finishEdit(true);
-  await downloadFile(window.AsrEditorUtils.buildPlainTextPayload(DATA.segments), `${FILENAME_BASE}.txt`, 'text/plain', {
+  await downloadFile(window.AsrEditorUtils.buildPlainTextPayload(layerMode() ? DATA.segments.filter(cue => layerCore.visible(DATA,cue)) : DATA.segments), `${FILENAME_BASE}.txt`, 'text/plain', {
     desc: '纯文本字幕文件', types: { 'text/plain': ['.txt'] }
   });
 });
@@ -19351,11 +19366,8 @@ function applyCanonicalProject(data, filename) {
 
 // 本机服务负责新工程绑定与素材收集；便携页保留浏览器句柄后备路径。
 async function createProjectCheckpoint(project, suggestedName) {
-  if (layerDevelopmentRequested || layerCore.enabled(project)) {
-    applyCanonicalProject(project, suggestedName); detachServerProjectSaving(); return true;
-  }
   validateProjectForLoad(project);
-  project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
+  project = prepareLayerProject(project);
   const persistence = window.MSWE?.resolve('project-persistence');
   if (persistence?.available()) return persistence.saveAs({ project, name: suggestedName, newProject: true });
   if (projectCheckpointInFlight || projectSaveInFlight) {
@@ -19377,6 +19389,7 @@ async function createProjectCheckpoint(project, suggestedName) {
       types: [{ description: '新工程保存位置', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
     feedback = beginProjectSaveFeedback();await feedback.ready;
+    await layerProtectHandle(handle, project);
     const writable = await handle.createWritable();
     await writable.write(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json;charset=utf-8' }));
     await writable.close();
@@ -19514,11 +19527,11 @@ function parseSrtSegments(text) {
     const end = parseSrtTimestamp(timing[2]);
     const cueText = lines.join('\n').trim();
     if (start === null || end === null || end <= start || !cueText) throw new Error('包含无效字幕段');
-    if (start < previousStart) throw new Error('字幕时间码未按时间顺序排列');
+    if (!layerMode() && start < previousStart) throw new Error('字幕时间码未按时间顺序排列');
     previousStart = start;
     const fitsTrack = (list) => list.every((segment) => end <= segment.start || start >= segment.end);
     const cue = { start, end, text: cueText };
-    if (fitsTrack(segments)) {
+    if (layerMode() || fitsTrack(segments)) {
       segments.push(cue);
     } else if (fitsTrack(overlaySegments)) {
       overlaySegments.push(cue);
@@ -19527,6 +19540,7 @@ function parseSrtSegments(text) {
     }
   }
   if (!segments.length) throw new Error('没有可导入的字幕');
+  if (layerMode()) segments.sort((a, b) => a.start - b.start);
   Object.defineProperty(segments, 'overlaySegments', { value: overlaySegments });
   return segments;
 }
@@ -19554,6 +19568,13 @@ function replaceMainTrack(segments, displayName = '字幕', { overlaySegments = 
     segments: overlayLayer,
   });
   DATA.overlay_track._dirty = true;
+  if (layerMode()) {
+    layerCore.materializeReferences(DATA.segments);
+    layerCore.materializeReferences(DATA.overlay_track.segments);
+    DATA.segments.push(...DATA.overlay_track.segments);
+    delete DATA.overlay_track;
+    DATA.subtitle_layers.legacy_overlay.cue_ids = [];
+  }
   DATA.multi_subtitle = {
     schema: MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SCHEMA,
     enabled: false,
@@ -19736,7 +19757,7 @@ function prepareMultiSubtitleImport() {
   const pending = pendingMultiImport;
   if (!pending) return;
   pending.choice = pending.existingTrackId ? 'replace-extension' : 'extension';
-  const match = MULTI_SUBTITLE_UTILS.matchSubtitleSegments(
+  const match = layerMatchImportedSubtitles(
     DATA.segments,
     pending.segments,
     MULTI_SUBTITLE_TOLERANCE_MS,
@@ -19755,7 +19776,7 @@ function prepareMultiSubtitleImport() {
 function commitMultiSubtitleImport() {
   const pending = pendingMultiImport;
   if (!pending) return false;
-  const match = pending.match || MULTI_SUBTITLE_UTILS.matchSubtitleSegments(
+  const match = pending.match || layerMatchImportedSubtitles(
     DATA.segments, pending.segments, MULTI_SUBTITLE_TOLERANCE_MS,
   );
   const multi = getMultiSubtitleState();
@@ -19896,7 +19917,7 @@ async function openProjectFile(file, options = {}) {
     // 服务器版：浏览器拿不到工程真实路径，但工程记录的媒体是绝对路径。
     // 先让服务器按它定位同目录同名工程并接管（自动加载媒体、允许 Ctrl(Cmd)+S 保存）；
     // 接管失败（媒体已移动 / 同名工程缺失 / 内容不一致）再回退为手动选择媒体。
-    if (expectedName && SERVER_CONFIG?.attachUrl && !layerCore.enabled(data)) {
+    if (expectedName && SERVER_CONFIG?.attachUrl) {
       updateEditorLoading(85, '正在连接本地编辑器服务器…');
       // Compare the imported file itself. Browser-only defaults (split modes,
       // optional track metadata and preview state) are not disk content changes.
@@ -22562,7 +22583,7 @@ function syncBoundCueDrag(drag) {
   // resize-boundary-independent，也仍需带着绑定副字幕一起调整。
   if (!drag || drag.track !== 'main' || !multiSubtitleVisible()) return;
   ensureBoundDragTimelineOriginals(drag);
-  if (drag.allowSqueeze) restoreBoundDragTimelineOriginals(drag);
+  if (!layerMode() && drag.allowSqueeze) restoreBoundDragTimelineOriginals(drag);
   const sourceSegments = DATA.segments;
   if (!drag.boundOriginals) drag.boundOriginals = new Map();
 
@@ -23498,7 +23519,7 @@ function initWaveformEditor() {
   }
   waveformEditor = window.AsrWaveform.create({
     getSubtitleLayersEnabled: layerMode,
-    onSubtitleLayersChanged: layerInvalidate,
+    onSubtitleLayersChanged: layerUpdateDrag,
     canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
     onCancelCueDrag: drag => { if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); layerInvalidate(); } },
     onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
@@ -25518,7 +25539,7 @@ function processingSelection() {
   };
 }
 function applyAsrJob(job, media) {
-  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
+  if (layerMode()) { window.MSWResults.register(DATA.msw, [job]); return applyProcessingResults([job], 'main', null, media); }
   commitProcessingEdits();
   const plan = window.MSWAsr.plan(DATA, media, job, { splitGroups: splitGroupsAtCutPoints });
   if (!plan.applied) return plan;
@@ -25547,7 +25568,6 @@ function applyAsrJob(job, media) {
 }
 
 function applyTranslationJob(job) {
-  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
   commitProcessingEdits();
   const extension = window.MSWProject.ensure(DATA);
   if (extension.project_id !== job.project_id || job.status !== 'succeeded' || !job.snapshot || !job.result) {
@@ -25588,10 +25608,9 @@ function applyTranslationJob(job) {
   }
   return { ...plan, complete: plan.conflicts.length === 0 };
 }
-function applyProcessingResults(jobs, target, strategy, media) {
-  if (layerMode()) throw Error('多层字幕的处理回填将在 D 阶段开放');
+function applyProcessingResults(jobs, target, strategy, media, options = {}) {
   commitProcessingEdits();
-  const plan = window.MSWResultApply.plan(DATA, media, jobs, target, strategy);
+  const plan = window.MSWResultApply.plan(DATA, media, jobs, target, strategy, options);
   if (plan.duplicate) return {duplicate:true};
   window.MSWProject.normalize(plan.project.msw);
   const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
@@ -25615,7 +25634,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   downloadLocal: async (project, name) => {
     if (project) {
       validateProjectForLoad(project);
-      project = { ...project, schema: window.AsrEditorUtils.PROJECT_SCHEMA };
+      project = prepareLayerProject(project);
     }
     commitProcessingEdits();
     const content = project ? JSON.stringify(window.AsrEditorUtils.stripInlineCaches(project), null, 2) : buildJson();
@@ -25778,6 +25797,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   },
   applyTranslation: applyTranslationJob,
   applyProcessing: applyProcessingResults,
+  chooseAsrTargets: (jobs, target) => layerChooseAsrTargets(jobs, target),
   touchProcessing: () => { projectImportDirty = true; scheduleAutoSaveFlush(); },
   commitSubtitleAssets: (label, change) => {
     commitProcessingEdits();
@@ -25806,7 +25826,6 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return batch.assets.length;
   },
   insertSubtitleAssets: (ids, anchor, targets) => {
-    if (layerMode()) throw Error('多层字幕的素材回插将在 D 阶段开放');
     commitProcessingEdits();
     const plan = window.MSWAssets.insert(DATA, ids, Math.round(anchor), targets, cue => {
       syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames:false}); return cue;
@@ -25875,7 +25894,6 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => {
-    if (layerMode()) throw Error('多层字幕的正式导出将在 E–G 阶段开放');
     commitProcessingEdits(); const project = JSON.parse(buildJson());
     if (project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));
@@ -25896,10 +25914,10 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     main:{...getPreviewGeometry(),...getSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayTextEl).fontSize)},
     secondary:{...getExtensionSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayExtensionTextEl).fontSize)},
     viewportHeight:Math.max(1,playerStage.getBoundingClientRect().height)}),
-  audioExportPreview: () => ({ overlay_track: DATA.overlay_track, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
+  audioExportPreview: () => ({ schema: DATA.schema, subtitle_layers: DATA.subtitle_layers, overlay_track: DATA.overlay_track, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
   audioExportDuration: () => Math.round(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
-    Number(waveformEditor?.contentDurationMs) || 0,
+    Number(layerMode() ? waveformEditor?.sourceDurationMs : waveformEditor?.contentDurationMs) || 0,
   )),
   showAssets: ({ automatic = false } = {}) => {
     if (waveformEditor?.showModule?.('assets', { recordUndo: !automatic })) rebuildShowModuleMenu();

@@ -213,6 +213,9 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                     step["scriptPath"] = str(raw.get("scriptPath") or "")
                 if step.get("id") == "ocr" and raw.get("ocrVideoPath"):
                     step["videoPath"] = str(raw["ocrVideoPath"])
+            if project.get('schema') == 'msw.project.v2' and (recognize or active):
+                module = 'asr' if recognize else next(iter(active))
+                raise ValueError('多层字幕工程请在编辑器内识别、整理或翻译；启动器可打开、生成波形和导出，暂不支持此后处理。')
             post["enabled"] = bool(active)
             post.update(outputSemantics="separate-v2", exportSrt=output.get("exportSrt", True),
                         exportTranslatedSrt=output.get("exportTranslatedSrt", True),
@@ -314,6 +317,8 @@ def _run_task(task, *, env_path, tools, cancel, emit, ocr_runtime_root=None, req
             raise PostprocessCancelled("处理已取消。")
     check_cancel()
     project = copy.deepcopy(task.project)
+    if project.get('schema') == 'msw.project.v2' and (task.request or enabled_steps(task.postprocess)):
+        raise ValueError('多层字幕工程请在编辑器内处理；启动器暂不支持此后处理。')
     warnings = list(task.warnings or [])
     if task.request:
         emit({"stage": "asr"})

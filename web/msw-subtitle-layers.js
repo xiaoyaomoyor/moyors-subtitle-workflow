@@ -87,6 +87,10 @@
       legacy_overlay: { visible: overlay.enabled === true, cue_ids: extra.map(cue => cue.id) },
     };
     delete project.overlay_track;
+    const preview=input.preview;
+    if ((main.length || extra.length) && preview && (preview.ass_library_exports || preview.burn_subtitles || ['x','y','width','height'].some(k=>Object.hasOwn(preview.subtitle||{},k)))) {
+      project.subtitle_layers.presentation={mode:'manual',gap:12};
+    }
     project.schema = SCHEMA;
     validate(project);
     return project;
@@ -103,6 +107,8 @@
         used.add(cue.id);
       }
     }
+    const presentation=metadata.presentation;
+    if(presentation!==undefined&&(!presentation||!['auto','manual'].includes(presentation.mode)||!Number.isInteger(presentation.gap)||presentation.gap<0||presentation.gap>120||(presentation.order!==undefined&&!['earlier-bottom','earlier-top'].includes(presentation.order))))throw Error('Invalid subtitle presentation');
     const ids = new Set(project.segments.map(cue => cue.id));
     if (new Set(legacy.cue_ids).size !== legacy.cue_ids.length || legacy.cue_ids.some(id => !ids.has(id))) throw Error('Invalid legacy visibility references');
     return true;
@@ -127,12 +133,13 @@
   }
   class IntervalIndex {
     constructor(cues, predicate = () => true) {
-      this.entries = cues.map((cue, index) => ({ cue, index })).filter(row => validRange(row.cue) && predicate(row.cue))
-        .sort((a, b) => a.cue.start - b.cue.start || a.index - b.index);
+      this.cues = cues; this.changed = new Set();
+      this.entries = cues.map((cue, index) => ({ cue, index, start: cue.start, end: cue.end })).filter(row => validRange(row.cue) && predicate(row.cue))
+        .sort((a, b) => a.start - b.start || a.index - b.index);
       this.maxEnd = [];
       const build = (node, lo, hi) => {
         if (lo >= hi) return -Infinity;
-        if (hi - lo === 1) return this.maxEnd[node] = this.entries[lo].cue.end;
+        if (hi - lo === 1) return this.maxEnd[node] = this.entries[lo].end;
         const mid = (lo + hi) >> 1;
         return this.maxEnd[node] = Math.max(build(node * 2, lo, mid), build(node * 2 + 1, mid, hi));
       };
@@ -141,14 +148,19 @@
     range(start, end, { includeDisabled = true } = {}) {
       const found = [];
       const visit = (node, lo, hi) => {
-        if (lo >= hi || this.maxEnd[node] <= start || this.entries[lo].cue.start >= end) return;
-        if (hi - lo === 1) { if (includeDisabled || !this.entries[lo].cue.disabled) found.push(this.entries[lo].index); return; }
+        if (lo >= hi || this.maxEnd[node] <= start || this.entries[lo].start >= end) return;
+        if (hi - lo === 1) { if (!this.changed.has(this.entries[lo].index) && (includeDisabled || !this.entries[lo].cue.disabled)) found.push(this.entries[lo].index); return; }
         const mid = (lo + hi) >> 1;
         visit(node * 2, lo, mid); visit(node * 2 + 1, mid, hi);
       };
       if (Number.isFinite(start) && end > start) visit(1, 0, this.entries.length);
-      return found;
+      for (const index of this.changed) {
+        const cue=this.cues[index];
+        if (validRange(cue) && cue.start < end && cue.end > start && (includeDisabled || !cue.disabled)) found.push(index);
+      }
+      return found.sort((a,b)=>this.cues[a].start-this.cues[b].start||a-b);
     }
+    update(indices) { for (const index of indices) this.changed.add(index); }
     at(time, options = {}) { return this.range(time, Math.floor(time) + 1, options); }
   }
   function pack(cues, previous = new Map(), predicate = () => true) {
@@ -162,6 +174,18 @@
       ends[lane] = cue.end; lanes.set(cue.id, lane);
     }
     return { index, lanes, count: Math.max(1, ends.length) };
+  }
+  function updatePack(layout, cues, indices) {
+    const changed=[...new Set(indices)].filter(index=>validRange(cues[index]));
+    layout.index.update(changed);
+    for(const index of changed) {
+      const cue=cues[index], blocked=new Set(layout.index.range(cue.start,cue.end)
+        .filter(other=>other!==index).map(other=>layout.lanes.get(cues[other].id)));
+      let lane=layout.lanes.get(cue.id)||0;
+      if(blocked.has(lane)) {lane=0;while(blocked.has(lane))lane++;}
+      layout.lanes.set(cue.id,lane);layout.count=Math.max(layout.count,lane+1);
+    }
+    return layout;
   }
   function applyRanges(project, changes, { allowOverlap = project.subtitle_layers?.allow_overlap !== false, dryRun = false } = {}) {
     const pending = changes.map(change => ({ ...change, target: resolve(project, change.ref) }));
@@ -186,6 +210,30 @@
     }
     return { ok: true };
   }
+  function legacyExport(source) {
+    const project=clone(source);
+    if(!enabled(project))return project;
+    validate(project);
+    for (const track of tracks(project)) materializeReferences(track.segments);
+    const legacy=project.subtitle_layers.legacy_overlay, oldIds=new Set(legacy.cue_ids);
+    const overlays=project.segments.filter(c=>oldIds.has(c.id));
+    project.segments=project.segments.filter(c=>!oldIds.has(c.id));
+    for(const track of [{role:'main',segments:project.segments},{role:'overlay',segments:overlays},...(project.multi_subtitle?.tracks||[])]) {
+      if(pack(track.segments).count>1) throw Error('旧版工程不能表达当前角色中的多层重叠，请保存新版工程，或导出 ASS／合并显示 SRT');
+    }
+    if(overlays.length && ((project.multi_subtitle?.bindings||[]).some(b=>b.main_segment_ids.some(id=>oldIds.has(id))) || project.msw?.processing_results?.length)) {
+      throw Error('旧叠加组已参与绑定或处理记录，无法无损回到旧版；请保存新版工程');
+    }
+    function restore(value) {
+      if(!value||typeof value!=='object')return;
+      if(value.source_ref && value.source_ref.track_id==null && oldIds.has(value.source_ref.id)) value.source_ref.track_kind='overlay';
+      for(const child of Object.values(value))restore(child);
+    }
+    restore(project.msw);
+    if(overlays.length) project.overlay_track={enabled:legacy.visible,segments:overlays};
+    delete project.subtitle_layers;project.schema=LEGACY_SCHEMA;
+    return project;
+  }
   function sortTrack(cues) {
     const old = [...cues];
     cues.sort((a, b) => a.start - b.start);
@@ -195,7 +243,7 @@
     }
   }
   const api = Object.freeze({ SCHEMA, LAYOUT_SCHEMA, LEGACY_SCHEMA, key, enabled, validRange, intersects,
-    migrate, validate, tracks, records, visible, resolve, IntervalIndex, pack, applyRanges, sortTrack, materializeReferences });
+    migrate, validate, legacyExport, tracks, records, visible, resolve, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
   global.MSWSubtitleLayers = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

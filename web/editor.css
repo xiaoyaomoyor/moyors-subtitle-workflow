@@ -5028,4 +5028,16 @@
   background: var(--card-bg); border-radius: 8px; padding: 12px;
 }
 .msw-layer-actions { display: flex; justify-content: flex-end; gap: 8px; }
-#subtitle-layer-development { color: var(--accent); font-size: 12px; }
+
+.msw-layer-targets { max-height: 45vh; overflow-y: auto; display: grid; gap: 8px; }
+.msw-layer-targets label { display: flex; gap: 8px; align-items: baseline; padding: 8px; background: var(--card-bg); border-radius: 6px; }
+
+.msw-layer-preview { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
+.msw-layer-preview-text { position: absolute; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.2; box-sizing: border-box; }
+.player-stage:hover .msw-layer-preview,
+.player-stage.media-controls-pinned .msw-layer-preview,
+.player-stage:focus-within .msw-layer-preview { transform: translateY(-38px); }
+.player-stage:has(.subtitle-overlay.geometry-enabled) .msw-layer-preview { transform: none; }
+
+.msw-layer-geometry > :not(.overlay-handle) { visibility: hidden; }
+.msw-layer-geometry { background: transparent !important; }

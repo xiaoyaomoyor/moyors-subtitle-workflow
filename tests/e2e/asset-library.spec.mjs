@@ -77,8 +77,8 @@ test('subtitle drag inserts a copy at the drop position and conflicts never over
   expect(await page.evaluate(()=>DATA.msw.subtitle_assets.length)).toBe(1);
   await page.evaluate(()=>seekFromWaveform(0));
   await page.locator('.msw-asset-row [data-asset-action="insert"]').click();
-  await expect(page.locator('#asset-import-message')).toContainText('与现有字幕重叠');
-  expect(await page.evaluate(()=>DATA.segments.length)).toBe(3);
+  await expect.poll(()=>page.evaluate(()=>DATA.segments.length)).toBe(4);
+  expect(await page.evaluate(()=>MSWSubtitleLayers.pack(DATA.segments).count)).toBeGreaterThan(1);
 });
 test('missing secondary track asks for destination and preserves the secondary role',async({page})=>{
   await copy(page,true);

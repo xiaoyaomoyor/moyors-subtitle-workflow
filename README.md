@@ -54,6 +54,7 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 - [常见问题](docs/FAQ.md) ：Windows 下载解压、启动故障与问题反馈。
 - [ASR 服务与配置](docs/PROVIDERS.md) ：服务商选择、Key、费用和隐私边界。
 - [编辑器指南](docs/EDITOR_GUIDE.md) ：MSWE 的编辑、保存和导出。
+- [统一多层字幕](docs/EDITOR_SUBTITLE_LAYERS.md) ：重叠编辑、主副排布、处理结果及旧工程升级备份。
 - [字幕按键调整](docs/KEYBOARD_ADJUSTMENT.md) ：快捷键和时间微调规则。
 - [命令行与自动化](docs/CLI.md) ：完整参数、范例、Server 管理和退出码。
 - [LLM 字幕后处理协议](docs/LLM_POSTPROCESS_PROTOCOL.md) ：后处理的输入输出与安全边界。

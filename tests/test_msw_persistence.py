@@ -87,6 +87,29 @@ class PersistenceTests(unittest.TestCase):
         # aliases must compare to the same resolved file, not their spelling.
         self.assertEqual(self.server.project.json_path, self.destination.resolve())
 
+    def test_multilayer_upgrade_draft_recovery_save_as_keep_ids_bindings_and_audio(self):
+        from tests.test_subtitle_layers_dg import bilingual
+        asset = self.asset()
+        project = bilingual()
+        project['media'] = str(self.media)
+        project['msw'] = copy.deepcopy(self.server.project.data['msw'])
+        original_bytes = self.path.read_bytes()
+        context = self.api.context()
+        self.server.save_project(project, expected_binding=context['binding'], expected_revision=context['saveRevision'])
+        saved = json.loads(self.path.read_text(encoding='utf-8'))
+        self.assertEqual(self.path.with_name('original.v1-backup.mosp').read_bytes(), original_bytes)
+        self.assertEqual(saved['schema'], 'msw.project.v2')
+        record = self.service.draft({'session':'layers', 'binding':self.api.context()['binding'], 'project':saved})
+        restored = self.service.restore(record['id'])['project']
+        self.assertEqual(restored, saved)
+        result = self.service.save_as({**self.target(),'project':restored,'collectMedia':True}, self.server.write_project)
+        copied = json.loads(self.destination.read_text(encoding='utf-8'))
+        for key in ['schema','segments','subtitle_layers','multi_subtitle']:
+            self.assertEqual(copied[key], saved[key])
+        self.assertEqual(copied['msw']['assets'][0]['sha256'], asset['sha256'])
+        self.assertEqual((self.destination.parent/asset['path']).read_bytes(), wav_data())
+        self.assertNotEqual(result['projectId'], 'original')
+
     def test_new_project_save_target_uses_distinct_picker_title(self):
         with patch.object(self.service, "picker", return_value=self.destination) as picker:
             self.service.choose_target({"binding": self.api.context()["binding"],

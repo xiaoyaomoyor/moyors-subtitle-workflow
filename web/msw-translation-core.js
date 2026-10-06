@@ -54,7 +54,7 @@
       const binding = byMain.get(source.id);
       let target = binding?.track_id === track?.id
         ? byTarget.get(binding?.extension_segment_ids?.[0]) : null;
-      if (!target && !binding && track) {
+      if (!target && !binding && track && project.schema !== 'msw.project.v2') {
         const nearby = ordered.slice(lowerBound(ordered, source.start - 300, 'start'), lowerBound(ordered, source.start + 301, 'start'));
         const candidates = nearby.filter((cue) => !used.has(cue.id)
           && Math.abs(cue.start - source.start) <= 300 && Math.abs(cue.end - source.end) <= 300 && overlaps(cue, source))
@@ -68,7 +68,7 @@
       }
       return { source: sourceCopy(source), target: target ? sourceCopy(target) : null, binding_id: binding?.id || null };
     });
-    return { project_id: project.msw.project_id, track_id: track?.id || null, entries, output_mode: outputMode };
+    return { project_id: project.msw.project_id, project_schema: project.schema, track_id: track?.id || null, entries, output_mode: outputMode };
   }
 
   function skippedRows(input,result) {
@@ -170,8 +170,8 @@
       }
       if (!reason && !target) {
         const slot = lowerBound(track.segments, source.start, 'start');
-        if ((slot > 0 && overlaps(track.segments[slot - 1], source))
-          || (slot < track.segments.length && overlaps(track.segments[slot], source))) reason = '没有可用副字幕位置，新建会与已有字幕重叠';
+        if (project.schema !== 'msw.project.v2' && ((slot > 0 && overlaps(track.segments[slot - 1], source))
+          || (slot < track.segments.length && overlaps(track.segments[slot], source)))) reason = '没有可用副字幕位置，新建会与已有字幕重叠';
         else {
           target = { id: uid('translation'), start: source.start, end: source.end, text: '' };
           if (Number.isInteger(source.start_frame) && Number.isInteger(source.end_frame)) {
@@ -199,7 +199,7 @@
     }
     if (appliedIds.some(id => !skipped.has(id))) {
       track.segments.sort((a, b) => a.start - b.start || a.end - b.end);
-      for (let index = 1; index < track.segments.length; index += 1) {
+      for (let index = 1; project.schema !== 'msw.project.v2' && index < track.segments.length; index += 1) {
         if (track.segments[index].start < track.segments[index - 1].end) throw new Error('副字幕存在重叠，翻译结果未应用');
       }
       if (!currentTrack) multi.tracks.push(track);

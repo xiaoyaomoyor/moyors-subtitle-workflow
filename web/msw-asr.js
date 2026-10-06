@@ -115,7 +115,6 @@
     return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range));
   }
   async function submit() {
-    if (layerBlockProduction()) return;
     if (busy) return;
     if (media.busy) {message('媒体正在导入，请等待完成后再识别');return;}
     const generation=host.generation;
@@ -195,9 +194,11 @@
   }
   async function applyBatch(candidates,target,strategy) {
     const generation=host.generation;
+    const options=await host.chooseAsrTargets?.(candidates,target);
+    if(options===null||generation!==host.generation)return;
     for(const job of candidates) await media.request('asr-validate',{...media.payload(),job_id:job.id});
     if(generation!==host.generation)return;
-    const result=host.applyProcessing(candidates,target,strategy,media.current);
+    const result=host.applyProcessing(candidates,target,strategy,media.current,options);
     message(result.duplicate?'此修订已应用到当前目标':'ASR 结果已应用，可一次撤销');renderJobs();
   }
   async function handleReady(job) {

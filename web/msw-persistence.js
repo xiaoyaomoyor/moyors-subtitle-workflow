@@ -50,7 +50,6 @@
     lastWarning = problem ? message : '';
   }
   function saveAs({ project = null, name = host.name(), newProject = false } = {}) {
-    if (layerBlockProduction()) return Promise.resolve(false);
     if (!available() || active || host.saving() || recoveryModal.classList.contains('show')) return Promise.resolve(false);
     host.commitEdits(); target = null; busy(false); host.setSaving(true);
     el('project-save-title').textContent = t(newProject ? '新工程保存位置' : '另存为工程');
@@ -134,7 +133,6 @@
     } catch (error) { host.hint(error.message); }
   });
   async function captureDraft({ force = false } = {}) {
-    if (layerMode()) return false;
     if (!available() || (host.saving() && !(active && !working)) || draftBusy) return false;
     draftBusy = true;
     const generation = host.generation;
@@ -194,7 +192,6 @@
   el('project-recovery-open').addEventListener('click',()=>void showRecovery());
   el('project-version-list').addEventListener('click',()=>void showRecovery(true));
   async function createVersion(manual=false) {
-    if (layerBlockProduction(!manual)) return;
     if(!available())return;
     if(recovering||!host.config.canSave){if(manual)el('project-version-status').textContent=t('请先另存为工程，再创建磁盘版本');return;}
     if(versionBusy||working||host.saving()||global.MSWE.resolve('processing-host')?.isEditing?.()){if(manual)el('project-version-status').textContent=t('当前正在编辑或保存，请稍后创建版本');return;}

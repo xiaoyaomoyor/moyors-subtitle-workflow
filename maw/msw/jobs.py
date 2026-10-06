@@ -60,10 +60,18 @@ def validate_snapshot(raw: object) -> dict:
             "target": target, "binding_id": binding_id,
         })
     # Validate source times without allowing user-supplied fields into the task.
-    normalize_project({"segments": [entry["source"] for entry in clean]})
+    schema = raw.get('project_schema')
+    if schema not in (None, 'moy.asr.project.v1', 'msw.project.v2'):
+        raise ValueError('翻译快照版本无效')
+    body = {'segments': [entry['source'] for entry in clean]}
+    if schema == 'msw.project.v2':
+        from maw.msw.subtitle_layers import migrate_project
+        body = migrate_project(body)
+    normalize_project(body)
     if sum(len(entry["source"]["text"]) for entry in clean) > 1000000:
         raise ValueError("单次翻译文本过长，请分批选择字幕")
     result = {"project_id": raw["project_id"], "track_id": track_id, "entries": clean}
+    if schema: result["project_schema"] = schema
     if "output_mode" in raw:
         result["output_mode"] = output_mode
     return result
@@ -86,8 +94,12 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
         progress(stage, dict(details))
 
     request = LlmPostprocessRequest(None, None, OutputMode.JSON, f"translate_{language}", prompt)
+    project = {"segments": [entry["source"] for entry in snapshot["entries"]]}
+    if snapshot.get('project_schema') == 'msw.project.v2':
+        from maw.msw.subtitle_layers import migrate_project
+        project = migrate_project(project)
     result = process_llm_snapshot(
-        {"segments": [entry["source"] for entry in snapshot["entries"]]}, request,
+        project, request,
         complete=complete, on_status=on_status,
         allow_translation_noop=True,
     )

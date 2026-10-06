@@ -4,6 +4,7 @@ editor-runtime.js
 gap-remove-core.js
 editor-utils.js
 msw-subtitle-layers.js
+msw-subtitle-presentation.js
 msw-project.js
 msw-asset-core.js
 msw-audio-core.js

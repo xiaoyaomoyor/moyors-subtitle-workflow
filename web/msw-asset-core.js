@@ -94,7 +94,7 @@
       return row;
     });
     const overlaps = (a,b) => a.start < b.end && b.start < a.end;
-    for (const row of rows.filter(r => r.cue)) {
+    for (const row of rows.filter(r => r.cue && !(project.schema === 'msw.project.v2' && project.subtitle_layers?.allow_overlap !== false))) {
       if (tracks.get(row.track).some(c => overlaps(c,row.cue))) row.reason = '与现有字幕重叠';
       if (rows.some(r => r !== row && r.track === row.track && r.cue && overlaps(r.cue,row.cue))) row.reason = '所选字幕彼此重叠';
     }

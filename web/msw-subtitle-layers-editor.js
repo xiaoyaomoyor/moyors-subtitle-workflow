@@ -1,15 +1,32 @@
-// A–C development adapter. Production writing/processing is enabled in D–G.
+// Unified production adapter. Old arrays remain storage; role and cue IDs are identity.
 // Keep legacy numeric UI handles at the boundary; identity survives all sorting.
 const layerCore = window.MSWSubtitleLayers;
-const layerDevelopmentRequested = new URLSearchParams(location.search).get('subtitle-layers') === '1';
+const layerUpgradeRequested = new URLSearchParams(location.search).get('subtitle-layers') !== '0';
 let layerIndexes = new WeakMap();
 let layerPendingDragHistory = null;
+let layerPresentationCache = null;
 function prepareLayerProject(project) {
-  return layerDevelopmentRequested || layerCore.enabled(project) ? layerCore.migrate(project) : project;
+  if (project?.schema && !['moy.asr.project.v1', 'msw.project.v2'].includes(project.schema)) {
+    throw new Error('工程版本不受支持，请使用兼容的编辑器打开');
+  }
+  return layerUpgradeRequested || layerCore.enabled(project) ? layerCore.migrate(project) : project;
 }
 function layerMode() { return layerCore.enabled(DATA); }
 function layerAllowOverlap() { return DATA.subtitle_layers?.allow_overlap !== false; }
-function layerInvalidate() { layerIndexes = new WeakMap(); }
+function layerInvalidate() { layerIndexes = new WeakMap(); layerPresentationCache = null; }
+function layerUpdateDrag(drag) {
+  const cues=drag.track==='extension'?getActiveExtensionTrack()?.segments:DATA.segments;
+  if(cues)layerIndexes.get(cues)?.update(drag.indices);
+  if(drag.track==='main'&&drag.boundOriginals?.size) {
+    const followers=getActiveExtensionTrack()?.segments;
+    if(followers) {
+      drag.layerFollowerIndexes ||= new Map(followers.map((cue,index)=>[cue,index]));
+      layerIndexes.get(followers)?.update([...drag.boundOriginals.values()].map(entry=>drag.layerFollowerIndexes.get(entry.target)).filter(Number.isInteger));
+    }
+  }
+  // Keep screen groups stable during the gesture. Commit/cancel invalidates
+  // their complete presentation; live hit testing uses the updated cue ranges.
+}
 function layerIndex(segments) {
   if (!Array.isArray(segments)) return new layerCore.IntervalIndex([]);
   if (!layerIndexes.has(segments)) layerIndexes.set(segments, new layerCore.IntervalIndex(segments,
@@ -45,23 +62,20 @@ function layerPrepareRender() {
   layerSyncControls();
 }
 function layerSyncControls() {
-  document.documentElement.classList.toggle('msw-layer-development', layerMode());
+  document.documentElement.classList.toggle('msw-unified-subtitles', layerMode());
   document.querySelectorAll('option[value="overlay"]').forEach(option => {
     option.hidden = layerMode();
     if (layerMode() && option.selected) option.parentElement.value = 'main';
   });
-  const badge = document.getElementById('subtitle-layer-development');
-  if (badge) badge.hidden = !layerMode();
+  for (const id of ['subtitle-layer-presentation-settings','download-merged-srt','download-legacy-project']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
+  const order=document.getElementById('subtitle-layer-order');if(order)order.value=DATA.subtitle_layers?.presentation?.order||'earlier-bottom';
+  const auto=document.getElementById('subtitle-layer-auto'),gap=document.getElementById('subtitle-layer-gap');
+  if(auto)auto.checked=DATA.subtitle_layers?.presentation?.mode!=='manual';if(gap)gap.value=DATA.subtitle_layers?.presentation?.gap??12;
   const control = document.getElementById('subtitle-legacy-visible');
   if (control) {
     control.closest('label').hidden = !layerMode() || !DATA.subtitle_layers.legacy_overlay.cue_ids.length;
     control.checked = DATA.subtitle_layers?.legacy_overlay?.visible === true;
   }
-}
-function layerBlockProduction(silent = false) {
-  if (!layerMode()) return false;
-  if (!silent) flashHint('多层字幕为 A–C 开发预览；保存、处理回填与导出将在后续阶段开放。请用工程副本体验。', 'warning');
-  return true;
 }
 function layerRangeAllowed(segments, cue, start, end) {
   return layerAllowOverlap() || !segments.some(other => other !== cue
@@ -180,18 +194,177 @@ function layerMergeSelected(indices, role = 'main', track = null) {
 }
 document.addEventListener('DOMContentLoaded', () => {
   layerSyncControls();
+  for(const id of ['subtitle-layer-auto','subtitle-layer-gap','subtitle-layer-order']) document.getElementById(id)?.addEventListener('change',()=>{
+    if(!layerMode())return;const gap=document.getElementById('subtitle-layer-gap');if(!gap.validity.valid)return;
+    pushUndo('多层字幕排布');DATA.subtitle_layers.presentation={mode:document.getElementById('subtitle-layer-auto').checked?'auto':'manual',gap:Number(gap.value),order:document.getElementById('subtitle-layer-order').value};layerInvalidate();projectImportDirty=true;refreshSubtitlePreview();scheduleAutoSaveFlush();
+  });
+  document.getElementById('download-legacy-project')?.addEventListener('click',async()=>{
+    try {commitProcessingEdits();const project=layerCore.legacyExport(JSON.parse(buildJson()));await downloadFile(JSON.stringify(project,null,2),`${FILENAME_BASE}.v1.mosp`,'application/json');}
+    catch(error){flashHint(error.message,'warning');}
+  });
+  document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
+    commitProcessingEdits();const cues=window.MSWSubtitlePresentation.mergedSrtRows(DATA);
+    await downloadFile(window.AsrEditorUtils.buildSrtPayload(cues,{formatTime:fmtSrtTime}),`${FILENAME_BASE}.merged.srt`,'text/plain',{desc:'合并显示 SRT',types:{'text/plain':['.srt']}});
+  });
   document.getElementById('subtitle-legacy-visible')?.addEventListener('change', event => {
     if (!layerMode()) return;
     pushUndo('显示旧叠加组'); DATA.subtitle_layers.legacy_overlay.visible = event.target.checked;
     renderAll({ waveform: 'full' });
   });
-  // Reject unadapted export routes before their handlers run. Backend serialization
-  // has the same guard; opening TTS/translation for selection inspection still works.
-  document.addEventListener('click', event => {
-    if (!layerMode()) return;
-    const item = event.target.closest('[id]');
-    if (item && /^(download-|msw-(asr|tts|translation)-start)/.test(item.id)) {
-      event.preventDefault(); event.stopImmediatePropagation(); layerBlockProduction();
-    }
-  }, true);
+
 });
+
+
+async function layerChooseAsrTargets(jobs, target) {
+  if (!layerMode()) return {};
+  const choices = window.MSWResultApply.targetChoices(DATA, jobs, target);
+  if (!choices.required) return {};
+  const generation = mswProjectGeneration;
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog'); dialog.className = 'msw-layer-merge';
+    const title = document.createElement('h3'); title.textContent = '选择本次 ASR 替换目标';
+    const tip = document.createElement('p'); tip.textContent = '只替换勾选的字幕，其他层保持原样。不勾选则作为新字幕插入。';
+    const list = document.createElement('div'); list.className = 'msw-layer-targets';
+    const selected = new Set(target === 'main' ? processingSelection().mainIds : processingSelection().extensionIds);
+    const inputs = choices.rows.map(cue => {
+      const label = document.createElement('label'), input = document.createElement('input'), text = document.createElement('span');
+      input.type = 'checkbox'; input.value = cue.id; input.checked = selected.has(cue.id);
+      text.textContent = `${fmtShort(cue.start)} → ${fmtShort(cue.end)} · ${cue.text}`;
+      text.dataset.i18nSkip = '';
+      label.append(input, text); list.append(label); return input;
+    });
+    const actions = document.createElement('div'); actions.className = 'msw-layer-actions';
+    const cancel = document.createElement('button'); cancel.textContent = '取消'; cancel.onclick = () => dialog.close();
+    const apply = document.createElement('button'); apply.className = 'primary'; apply.textContent = '确认目标';
+    let result = null;
+    apply.onclick = () => { if (generation === mswProjectGeneration) result = {targetIds: inputs.filter(i => i.checked).map(i => i.value)}; dialog.close(); };
+    actions.append(cancel, apply); dialog.append(title, tip, list, actions); document.body.append(dialog);
+    dialog.addEventListener('close', () => {dialog.remove(); resolve(result);}, {once:true}); dialog.showModal();
+  });
+}
+
+
+function layerExportMainSegments() {
+  const cues=DATA.segments.map(cue=>({...cue}));
+  layerCore.materializeReferences(cues);
+  return cues.filter(cue=>layerCore.visible(DATA,cue));
+}
+
+function layerAssMargins(options, project = DATA, target = 'both') {
+  if(project.subtitle_layers?.presentation?.mode==='manual')return {main:{},secondary:{}};
+  const resolution=window.AsrEditorUtils.normalizeAssPlayResolution(options.playResX,options.playResY);
+  const styles={}, bases={};
+  for (const role of ['main','secondary']) {
+    const raw=role==='main'?options.assStyle:options.assExtensionStyle;
+    const font=options.assProfile && raw ? raw.fontSize : window.AsrEditorUtils.resolveAssFontSize(options.appearance?.font_size,resolution.height)*1080/resolution.height;
+    const margin=raw?.marginV ?? (role==='main'?80:20);
+    bases[role]=margin;
+    styles[role]={font_size:font,width:Math.max(.1,1-((raw?.marginL??10)+(raw?.marginR??10))/resolution.width),y:1-margin/resolution.height};
+  }
+  const layout=window.MSWSubtitlePresentation.layout(project,styles,target,1080*resolution.width/resolution.height);
+  const result={main:{},secondary:{}};
+  for(const entry of layout.entries) result[entry.role][entry.cue.id]=Math.round(bases[entry.role]+layout.offsets.get(entry.key).offset*resolution.height/1080);
+  return result;
+}
+
+function layerRefreshSubtitlePreview(tMs) {
+  const lib=window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
+  const profile=window.AsrEditorUtils.assProfileForId(lib,lib.assignments.assExportProfileId);
+  const assStyles={main:window.AsrEditorUtils.assStyleForId(lib,profile.styleId),secondary:window.AsrEditorUtils.assStyleForId(lib,lib.assignments.assExtensionStyleId)};
+  const geo=getPreviewGeometry(), metrics=assPreviewMetrics(), scale=metrics.stageHeight/1080;
+  const ass=EDITOR_SETTINGS.assMode===true;
+  const appearances={main:getSubtitleAppearance(),secondary:getExtensionSubtitleAppearance()};
+  const styles={};
+  for(const role of ['main','secondary']) {
+    const a=appearances[role], s=assStyles[role];
+    styles[role]=ass?{font_size:s.fontSize,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
+      : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
+  }
+  const cacheKey=JSON.stringify([styles,DATA.subtitle_layers.presentation,metrics.stageWidth,metrics.stageHeight]);
+  if(!layerPresentationCache||layerPresentationCache.key!==cacheKey) layerPresentationCache={key:cacheKey,layout:window.MSWSubtitlePresentation.layout(DATA,styles,'both',1080*metrics.stageWidth/metrics.stageHeight)};
+  const layout=layerPresentationCache.layout;
+  layout.byKey ||= new Map(layout.entries.map(entry=>[entry.key,entry]));
+  let root=document.getElementById('msw-layer-preview');
+  if(!root){root=document.createElement('div');root.id='msw-layer-preview';root.className='msw-layer-preview';playerStage.append(root);}
+  root.hidden=false;overlayEl.classList.remove('hidden');
+  overlayEl.classList.add('msw-layer-geometry');
+  const allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),secondary:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
+  const mainHits=new Set(layerActive(DATA.segments,tMs).map(i=>DATA.segments[i].id));
+  const ext=getActiveExtensionTrack()?.segments||[],extHits=new Set(layerActive(ext,tMs).map(i=>ext[i].id));
+  const active=[...[...mainHits].map(id=>layout.byKey.get(window.MSWSubtitlePresentation.key('main',id))),...[...extHits].map(id=>layout.byKey.get(window.MSWSubtitlePresentation.key('secondary',id)))].filter(e=>e&&allowed[e.role]);
+  const keys=new Set(active.map(e=>e.key));for(const element of [...root.children])if(!keys.has(element.dataset.key))element.remove();
+  const labels=getSpeakerLabelSettings();
+  for(const entry of active) {
+    let element=[...root.children].find(e=>e.dataset.key===entry.key);
+    if(!element){element=document.createElement('div');element.className='msw-layer-preview-text';element.dataset.key=entry.key;element.dataset.cueId=entry.cue.id;element.dataset.role=entry.role;root.append(element);}
+    const segments=entry.role==='main'?DATA.segments:ext, appearance=appearances[entry.role];
+    const speaker=labels.mapping_enabled&&labels.enabled?window.AsrEditorUtils.speakerLabelForSegment(entry.cue,segments,labels.names):'';
+    const prefix=speaker?`${speaker}${labels.separator}`:'';
+    if(!element.firstElementChild){const label=document.createElement('span');label.className='msw-layer-speaker';element.replaceChildren(label,document.createTextNode(''));}
+    const speakerNode=element.firstElementChild;
+    if(speakerNode.textContent!==prefix)speakerNode.textContent=prefix;
+    if(element.lastChild.nodeValue!==entry.cue.text)element.lastChild.nodeValue=entry.cue.text;
+    speakerNode.removeAttribute('style');
+    const paletteColor=COLOR_BY_NAME[MULTI_SUBTITLE_UTILS.effectiveColorName(entry.cue,segments)]?.value;
+    const offset=layout.offsets.get(entry.key).offset;
+    element.dataset.layerOffset=String(offset);
+    element.removeAttribute('style');
+    if(ass) {
+      const base=assPreviewStyleVariant(assStyles[entry.role],entry.cue,segments,getSubtitleAppearance());
+      const animation=window.AsrEditorUtils.assPreviewAnimationState(profile,tMs-entry.cue.start,entry.cue.end-entry.cue.start,{playResX:metrics.resolution.width,playResY:metrics.resolution.height,stageWidth:metrics.stageWidth,stageHeight:metrics.stageHeight});
+      const style=assPreviewAnimatedStyle(base,profile,animation), alignment=assPreviewAlignment(style.alignment);
+      const colorMode=getSubtitleAppearance().ass_color_style||DEFAULT_ASS_COLOR_STYLE;
+      if(prefix&&['text','speaker'].includes(colorMode)&&paletteColor)speakerNode.style.color=paletteColor;
+      const margins={left:style.marginL*metrics.scaleX,right:style.marginR*metrics.scaleX,vertical:style.marginV*metrics.scaleY};
+      if(entry.role==='main'&&profile.animations.move?.enabled) {
+        applyAssPreviewElement(element,{...style,__assMove:{x:animation.moveX,y:animation.moveY-offset*scale}},animation,metrics,alignment,margins);
+      } else {
+        applyAssAnchoredPreviewElement(element,style,animation,metrics,alignment,margins,margins.vertical+offset*scale);
+        if(alignment.y===.5)element.style.top=`calc(50% - ${offset*scale}px)`;
+      }
+      element.style.whiteSpace='pre-wrap';
+    } else {
+      const colorName=MULTI_SUBTITLE_UTILS.effectiveColorName(entry.cue,segments),color=appearance.color_underline!==false?COLOR_BY_NAME[colorName]?.value:null;
+      const colorStyle=appearance.color_style||DEFAULT_SUBTITLE_COLOR_STYLE;
+      if(prefix&&paletteColor&&colorStyle!=='stroke')speakerNode.style.color=paletteColor;
+      Object.assign(element.style,{left:`${(geo.x+geo.width/2)*100}%`,bottom:`${(1-styles[entry.role].y)*100+offset/10.8}%`,width:'max-content',maxWidth:`${geo.width*100}%`,
+        transform:'translateX(-50%)',fontSize:`${styles[entry.role].font_size*scale}px`,fontFamily:getComputedStyle(entry.role==='main'?overlayTextEl:overlayExtensionTextEl).fontFamily,
+        color:colorStyle==='text'&&color?color:appearance.color||'#ffffff',backgroundColor:subtitleBackgroundCss(appearance),
+        opacity:'1',padding:'0 .35em',borderRadius:'var(--radius-sm)',textDecorationLine:appearance.color_underline!==false&&colorStyle==='underline'&&color?'underline':'none',textDecorationColor:color||'',textUnderlineOffset:'.25em',webkitTextStroke:colorStyle==='stroke'&&color?`.1em ${color}`:'',textShadow:colorStyle==='shadow'&&color?`0 .08em .1em ${color}`:'0 1px 2px rgba(0,0,0,.8)',paintOrder:'stroke fill'});
+    }
+  }
+  renderStickerOverlay(tMs);
+}
+
+document.addEventListener('input',event=>{if(event.target.matches('textarea,[contenteditable="true"]'))layerPresentationCache=null;},true);
+
+
+async function layerProtectHandle(handle, content, silent = false) {
+  let next;
+  try { next = typeof content === 'string' ? JSON.parse(content) : content; } catch { return; }
+  if (!handle.getFile) return;
+  const original = await handle.getFile(); if (!original.size) return;
+  const text = await original.text(); const previous = JSON.parse(text);
+  if (previous.schema === 'msw.project.v2') {
+    if(next?.schema!=='msw.project.v2')throw Error('不能用旧版结构覆盖多层字幕工程，请另存为新文件');
+    return;
+  }
+  if(next?.schema!=='msw.project.v2')return;
+  if (previous.schema && previous.schema !== 'moy.asr.project.v1') throw Error('目标工程版本不兼容，未覆盖');
+  if (silent) throw Error('首次升级需先保留旧工程，请手动保存一次');
+  const backup = await window.showSaveFilePicker({suggestedName:handle.name.replace(/\.[^.]+$/,'')+`.v1-backup.${Date.now()}.mosp`,
+    types:[{description:'旧工程升级备份',accept:{'application/json':['.mosp']}}]});
+  if (await backup.isSameEntry?.(handle) || (await backup.getFile()).size) throw Error('请选择空白备份文件；未覆盖原工程或已有备份');
+  const output=await backup.createWritable(); await output.write(original); await output.close();
+  if ((await (await handle.getFile()).text())!==text) throw Error('备份期间原工程已变化，未覆盖');
+}
+
+function layerMatchImportedSubtitles(main, secondary, tolerance) {
+  const match=MULTI_SUBTITLE_UTILS.matchSubtitleSegments(main,secondary,tolerance);
+  if(!layerMode())return match;
+  match.matches=match.matches.filter(candidate=>match.candidates.filter(c=>c.mainIndex===candidate.mainIndex).length===1 && match.candidates.filter(c=>c.extensionIndex===candidate.extensionIndex).length===1);
+  const mains=new Set(match.matches.map(c=>c.mainIndex)), extensions=new Set(match.matches.map(c=>c.extensionIndex));
+  match.unmatchedMain=main.map((_,i)=>i).filter(i=>!mains.has(i));
+  match.unmatchedExtension=secondary.map((_,i)=>i).filter(i=>!extensions.has(i));
+  return match;
+}

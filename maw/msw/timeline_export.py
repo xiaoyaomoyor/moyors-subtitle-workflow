@@ -123,7 +123,7 @@ def build_timeline(project, plan, pieces, references, source_url, info, source_a
     for name, cues in mapped_subtitles(project, plan):
         for c in cues:
             markers.append(dict(OTIO_SCHEMA='Marker.2', name=c['text'], color='BLUE',
-                metadata=dict(msw=dict(subtitle_track=name)), marked_range=time_range(c['start'], c['end'] - c['start'], 1000)))
+                metadata=dict(msw=dict(subtitle_track=name, **({'cue_id':c['id']} if 'id' in c else {}))), marked_range=time_range(c['start'], c['end'] - c['start'], 1000)))
     return dict(OTIO_SCHEMA='Timeline.1', name='MSW 配音剪辑工程', global_start_time=time(0, rate),
                 metadata=dict(msw=dict(schema='msw.otio-bundle.v1', gap_policy=plan['gap_policy'])),
                 tracks=dict(OTIO_SCHEMA='Stack.1', name='tracks', source_range=None, metadata={},

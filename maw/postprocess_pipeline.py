@@ -577,6 +577,8 @@ def run_postprocess_pipeline(
     publish_source_project = project_path
     publish_source_srt = srt_path
     output_source_srt = srt_path
+    if read_project(project_path).get('schema') == 'msw.project.v2':
+        raise ValueError('多层字幕工程请在编辑器内处理；启动器暂不支持此后处理。')
     normalized, errors = validate_plan(plan, env_path=env_path, media_path=media_path, ffmpeg_path=ffmpeg_path, llm_settings=llm_settings)
     if errors:
         raise ValueError(errors[0]["message"])

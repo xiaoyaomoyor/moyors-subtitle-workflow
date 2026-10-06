@@ -3812,6 +3812,14 @@
     subtitleLayersEnabled() { return this.options.getSubtitleLayersEnabled?.() === true; }
 
     invalidateSubtitleLayouts() {
+      if (this.subtitleLayersEnabled() && this.drag && this.subtitleLayouts?.size) {
+        for (const [role, layout] of this.subtitleLayouts) {
+          const changed = role === this.drag.track ? this.drag.indices :
+            [...(this.drag.boundOriginals?.values() || [])].map(entry => layout.indices.get(entry.target)).filter(Number.isInteger);
+          window.MSWSubtitleLayers.updatePack(layout, this.options.getSegments(role) || [], changed);
+        }
+        return;
+      }
       this.subtitleLayouts = null;
     }
 
@@ -3822,6 +3830,7 @@
         const segments = this.options.getSegments(role) || [];
         const layout = window.MSWSubtitleLayers.pack(segments, this.previousSubtitleLanes.get(role),
           cue => this.options.isSubtitleVisible?.(cue, role) !== false);
+        layout.indices = new Map(segments.map((cue,index)=>[cue,index]));
         this.subtitleLayouts.set(role, layout);
         this.previousSubtitleLanes.set(role, layout.lanes);
       }
@@ -6956,7 +6965,7 @@
       else if (drag.kind === 'resize-boundary-independent') this.applyIndependentBoundaryDrag(drag, deltaTime);
       else this.applyResizeDrag(drag, deltaTime, drag.independent);
       this.options.syncBoundCueDrag?.(drag);
-      if (this.subtitleLayersEnabled()) { this.invalidateSubtitleLayouts(); this.options.onSubtitleLayersChanged?.(); }
+      if (this.subtitleLayersEnabled()) { this.invalidateSubtitleLayouts(); this.options.onSubtitleLayersChanged?.(drag); }
       drag.changed = true;
       this.scheduleRefreshCueBlocks();
     }

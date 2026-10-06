@@ -48,7 +48,7 @@ class SubtitleLayersTests(unittest.TestCase):
         project = migrate_project(source)
         self.assertTrue(validate_project(project).ok, validate_project(project).errors)
 
-    def test_development_reader_never_writes_original_and_old_writer_rejects_v2(self):
+    def test_reader_never_writes_original_and_writer_preserves_v2(self):
         with TemporaryDirectory() as raw:
             path = Path(raw)/"legacy.mosp"
             text = '{"segments":[{"id":"a","start":0,"end":1000,"text":"legacy"}]}'
@@ -56,8 +56,7 @@ class SubtitleLayersTests(unittest.TestCase):
             project = migrate_project(json.loads(path.read_text(encoding="utf-8")))
             normalize_project(project)
             self.assertEqual(path.read_text(encoding="utf-8"), text)
-            with self.assertRaisesRegex(ValueError, "开发预览"):
-                serialize_mosp(project)
+            self.assertEqual(json.loads(serialize_mosp(project))["schema"], SCHEMA)
 
 
 if __name__ == "__main__":

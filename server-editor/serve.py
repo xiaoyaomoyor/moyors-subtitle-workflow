@@ -1742,6 +1742,8 @@ def export_ograf(project: ServerProject, graphic: dict) -> tuple[bytes, str]:
 def write_project_json(target: Path, project_data: dict) -> Path | None:
     """Atomically write LF JSON and retain the immediately previous file as .bak."""
     target.parent.mkdir(parents=True, exist_ok=True)
+    from maw.msw.subtitle_layers import preserve_upgrade_source
+    upgrade_backup = preserve_upgrade_source(target, project_data)
     backup = target.with_suffix(f"{target.suffix}.bak") if target.exists() else None
     if backup:
         backup.write_bytes(target.read_bytes())
@@ -1756,7 +1758,7 @@ def write_project_json(target: Path, project_data: dict) -> Path | None:
     except Exception:
         # 保留未完成的临时文件以便排障；不要静默删除用户可恢复的文件。
         raise
-    return backup
+    return upgrade_backup or backup
 
 
 class EditorRequestHandler(BaseHTTPRequestHandler):

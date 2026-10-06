@@ -85,3 +85,20 @@ test('migration refuses unknown schema and ambiguous within-role identities', ()
   assert.throws(()=>core.migrate({schema:'future',segments:[]}));
   assert.throws(()=>core.migrate({segments:[{id:'a'},{id:'a'}]}));
 });
+
+
+test('legacy compatibility export refuses unrepresentable overlap and never changes the source',()=>{
+ const c=globalThis.MSWSubtitleLayers;
+ const project=c.migrate({segments:[{id:'a',start:0,end:3000,text:'A'},{id:'b',start:1000,end:2000,text:'B'}]});
+ const original=JSON.stringify(project);assert.throws(()=>c.legacyExport(project),/多层重叠/);assert.equal(JSON.stringify(project),original);
+ project.segments[1].start=3000;project.segments[1].end=4000;
+ const exported=c.legacyExport(project);assert.equal(exported.schema,'moy.asr.project.v1');assert.ok(!exported.subtitle_layers);assert.equal(project.schema,'msw.project.v2');
+});
+
+test('legacy compatibility export materializes cross-group color references before partitioning',()=>{
+ const project=core.migrate({segments:[{id:'main',start:0,end:1000,text:'M'}],overlay_track:{enabled:false,segments:[{id:'old',start:1000,end:2000,text:'O'}]}});
+ project.segments[0].color={name:'purple'};project.segments[1].color_ref={headIdx:0,name:'purple'};
+ const exported=core.legacyExport(project);
+ assert.equal(exported.overlay_track.segments[0].color.name,'purple');assert.equal(exported.overlay_track.segments[0].color_ref,undefined);
+ assert.equal(project.segments[1].color_ref.headIdx,0);
+});

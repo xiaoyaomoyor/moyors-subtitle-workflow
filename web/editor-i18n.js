@@ -9,10 +9,27 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
-    '多层字幕 · 开发预览 ⓘ': 'Subtitle layers · Development preview ⓘ',
+    '旧版工程（v1 兼容）': 'Legacy project (v1 compatible)',
+    '只在旧版结构能无损表达时导出；不能表达的重叠、绑定会明确提示。': 'Export only if the legacy structure can preserve the content. Unsupported overlaps or bindings are reported.',
+    '按同时显示的主副字幕合并文本，仅改变导出，不修改工程': 'Merge simultaneous primary and secondary text in the export without changing the project.',
+    '工程版本不受支持，请使用兼容的编辑器打开': 'Unsupported project version. Open it in a compatible editor.',
+    '同时出现的字幕自动避让': 'Avoid simultaneous subtitle collisions',
+    '主副绑定成组避让；关闭后保留原位置。字号和主副样式沿用当前方案。': 'Arrange bound originals and translations as groups. Disable to retain manual placement. Existing fonts and styles remain in use.',
+    '组间距（1080p 基准）': 'Group spacing (1080p reference)',
+    '先出现的字幕组': 'Earlier subtitle groups',
+    '靠下显示': 'Place below', '靠上显示': 'Place above',
+    'SRT（合并同时显示文本）': 'SRT (merge simultaneous text)',
+    '仅合并导出文本，不修改工程；外部播放器不一定保留字幕层位置。': 'Merge exported text only. External players may not preserve layer positions.',
+    '选择本次 ASR 替换目标': 'Choose ASR replacement targets',
+    '只替换勾选的字幕，其他层保持原样。不勾选则作为新字幕插入。': 'Replace checked subtitles only. Leave all unchecked to insert a new layer.',
+    '确认目标': 'Confirm targets',
+    '此范围包含重叠字幕，请选择本次替换的目标': 'This range contains overlapping subtitles. Choose the replacement targets.',
+    '替换目标不属于识别时的字幕快照': 'The target is not part of the recognition snapshot.',
+    '所选目标字幕已变化，请重新识别或存入素材库': 'Selected subtitles changed. Recognize again or save the result to the library.',
+    '首次升级需先保留旧工程，请手动保存一次': 'Save manually once to create a backup before upgrading.',
+    '不能用旧版结构覆盖多层字幕工程，请另存为新文件': 'A legacy project cannot overwrite a multilayer project. Save to another file.',
+
     '显示旧叠加组': 'Show legacy overlay group',
-    'A–C 开发预览：请用工程副本体验；保存、处理与导出将在后续阶段开放。': 'A–C development preview: use a project copy. Saving, processing and export will be enabled in later stages.',
-    '多层字幕为 A–C 开发预览；保存、处理回填与导出将在后续阶段开放。请用工程副本体验。': 'A–C development preview: saving, result application and export are not available yet. Use a project copy.',
     '此操作会新增字幕重叠，请先启用“允许字幕重叠”': 'Enable Allow overlapping subtitles before creating a new overlap.',
     '此操作会新增重叠，请先启用“允许字幕重叠”': 'Enable Allow overlapping subtitles before creating a new overlap.',
     '字幕已变化，请重新选择合并内容': 'Subtitles changed. Select the merge targets again.',
@@ -2131,13 +2148,13 @@
   const attributeOriginals = new WeakMap();
   const SKIP_SELECTOR = [
     '[data-i18n-skip]',
-    '#cue-list', '#cue-panel-text', '#overlay', '#sticker-overlay-layer',
+    '#cue-list', '#cue-panel-text', '#overlay', '#msw-layer-preview', '#sticker-overlay-layer',
     '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', '.msw-result-row-detail', '.msw-asset-content', 'script', 'style'
   ].join(',');
   const ATTRIBUTE_SKIP_SELECTOR = [
     '[data-i18n-skip]',
     // .waveform-cue-block 的 title 是用户字幕原文，不能参与翻译
-    '#cue-list', '#overlay', '#sticker-overlay-layer', '.waveform-cue-block',
+    '#cue-list', '#overlay', '#msw-layer-preview', '#sticker-overlay-layer', '.waveform-cue-block',
     '#media-name', '#json-name', '#sticker-grid', 'script', 'style'
   ].join(',');
 

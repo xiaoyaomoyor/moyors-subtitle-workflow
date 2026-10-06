@@ -439,7 +439,6 @@
     })));
   }
   async function submit(retry = null) {
-    if (layerBlockProduction()) return;
     if (busy) return;
     const generation = host.generation;
     try {

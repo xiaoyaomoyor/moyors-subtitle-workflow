@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
 import { readFileSync, mkdirSync } from 'node:fs';
-import { cleanupTempDir, generateBlankEditor, findFreePort, generateWaveformPayload, makeTempDir, startStaticServer } from './helpers.mjs';
+import { cleanupTempDir, generateBlankEditor, findFreePort, generateWaveformPayload, generateWav, makeTempDir, startStaticServer } from './helpers.mjs';
 
 let tempDir, server;
 test.beforeAll(async () => {
@@ -128,16 +128,30 @@ test('creating inside another cue preserves neighbours and is one undo', async (
   await expect(page.locator('#cues-container > .cue')).toHaveCount(3);
 });
 
-test('old hidden overlay stays hidden and all formal save paths stay blocked', async ({ page }) => {
+test('old hidden overlay stays hidden in production export and survives roundtrip', async ({ page }) => {
   await open(page, [cue('main', 0, 3000)], { overlay_track: { enabled: false, segments: [cue('hidden', 500, 2500)] } });
   expect(await page.evaluate(() => DATA.segments.length)).toBe(2);
   await expect(page.locator('#cues-container > .cue')).toHaveCount(1);
-  expect(await page.evaluate(() => saveCurrentProject())).toBe(false);
+  expect(await page.evaluate(() => buildSrt())).not.toContain('hidden');
   const snapshot = await page.evaluate(() => JSON.parse(buildJson()));
   expect(snapshot.schema).toBe('msw.project.v2');
   expect(snapshot.subtitle_layers.legacy_overlay).toEqual({ visible: false, cue_ids: ['hidden'] });
   await page.evaluate(() => { DATA.subtitle_layers.legacy_overlay.visible = true; renderAll(); });
   await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
+});
+
+test('ASS filtering resolves original color heads and aligns the first visible enabled cue',async({page})=>{
+ await open(page,[{...cue('disabled',0,500),disabled:true},cue('head',2000,3000),cue('child',3000,4000)],
+  {overlay_track:{enabled:false,segments:[{...cue('hidden',800,1500),disabled:true}]}});
+ const result=await page.evaluate(()=>{
+  const head=DATA.segments.findIndex(c=>c.id==='head'),child=DATA.segments.find(c=>c.id==='child');
+  DATA.segments[head].color={name:'red',start:2000,end:3000};child.color_ref={headIdx:head};
+  updateEditorSettings({assMode:true,exportStartAtZero:true});setSubtitleAppearance({ass_color_style:'text'});
+  const before=JSON.stringify(DATA.segments),ass=buildAss();return {ass,before,after:JSON.stringify(DATA.segments)};
+ });
+ const events=result.ass.split('\n').filter(l=>l.startsWith('Dialogue:')).map(l=>l.split(','));
+ expect(events).toHaveLength(2);expect(events[0][1]).toBe('0:00:00.00');expect(events.every(e=>e[3]==='RED')).toBe(true);
+ expect(result.after).toBe(result.before);
 });
 
 test('splitting and deleting a nested cue preserve other layers and undo atomically', async ({ page }) => {
@@ -293,4 +307,117 @@ test('held keyboard nudges followed by pointer movement preserve the bound subti
   await page.evaluate(() => performUndo());
   expect(await times(page)).toEqual({ a: [0, 5000], b: [2000, 4000] });
   expect(await page.evaluate(() => getActiveExtensionTrack().segments.find(c => c.id === 'b').start)).toBe(2000);
+});
+
+
+test('CSS and ASS previews show every bilingual layer with separate positions and half-open endpoints',async({page})=>{
+ const fixture=JSON.parse(readFileSync(new URL('../fixtures/subtitle-layers.json',import.meta.url))).find(f=>f.name==='bound-bilingual').project;
+ const errors=await open(page,fixture.segments,fixture);
+ const wav=readFileSync(generateWav(join(tempDir,'preview.wav'),12));
+ await page.evaluate(bytes=>{player.src=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:'audio/wav'}));player.load();syncPlayerPlaceholder();},[...wav]);
+ await expect.poll(()=>page.evaluate(()=>player.readyState)).toBeGreaterThan(0);
+ await page.evaluate(()=>{player.currentTime=2.5;});
+ await expect.poll(()=>page.evaluate(()=>player.seeking)).toBe(false);
+ await page.evaluate(()=>{overlayToggle.checked=true;extensionOverlayToggle.checked=true;refreshSubtitlePreview(2500);});
+ await expect(page.locator('#player-empty')).toBeHidden();
+ const previews=page.locator('#msw-layer-preview > div');await expect(previews).toHaveCount(4);
+ const css=await previews.evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.cueId,role:n.dataset.role,top:n.getBoundingClientRect().top})));
+ expect(new Set(css.map(c=>c.top)).size).toBe(4);
+ await page.screenshot({path:join(process.env.MSW_LAYER_EVIDENCE||tempDir,'bilingual-css-preview.png')});
+ await page.evaluate(()=>{EDITOR_SETTINGS.assMode=true;refreshSubtitlePreview(2500);});
+ await expect(previews).toHaveCount(4);
+ const ass=await previews.evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));expect(new Set(ass).size).toBe(4);
+ await page.screenshot({path:join(process.env.MSW_LAYER_EVIDENCE||tempDir,'bilingual-ass-preview.png')});
+ const labelStyle=await page.evaluate(()=>{
+  DATA.segments[0].color={name:'red',start:DATA.segments[0].start,end:DATA.segments[0].end};
+  setSubtitleAppearance({ass_color_style:'speaker',speaker_labels:{mapping_enabled:true,enabled:true,names:{red:'Alice'},separator:': '}});
+  refreshSubtitlePreview(2500);
+  const element=[...document.querySelectorAll('#msw-layer-preview > div')].find(n=>n.dataset.cueId===DATA.segments[0].id);
+  return {label:element.firstElementChild.textContent,labelColor:getComputedStyle(element.firstElementChild).color,bodyColor:getComputedStyle(element).color,raw:DATA.segments[0].text};
+ });
+ expect(labelStyle.label).toBe('Alice: ');expect(labelStyle.labelColor).not.toBe(labelStyle.bodyColor);expect(labelStyle.raw).toBe('A');
+ await page.evaluate(()=>refreshSubtitlePreview(10000));await expect(previews).toHaveCount(0);
+ expect(errors).toEqual([]);
+});
+
+test('production browser performance keeps drag indexes for 1k and 10k cues at 2, 4 and 8 layers',async({page})=>{
+ test.setTimeout(180000);
+ const measurements=[];
+ for(const count of [1000,10000])for(const depth of [1,2,4,8]){
+  const start=Date.now();
+  await open(page,Array.from({length:count},(_,i)=>cue('p'+i,Math.floor(i/depth)*1000,Math.floor(i/depth)*1000+900,'示例 '+i)));
+  const load=Date.now()-start;
+  await page.evaluate(()=>{
+   const w=waveformEditor,move=w.moveCueDrag.bind(w);window.__dragTimes=[];
+   w.moveCueDrag=event=>{const t=performance.now();move(event);window.__dragTimes.push(performance.now()-t);};
+   window.__dragTree=w.subtitleLayout('main').index.entries;
+   window.__playbackTree=layerIndex(DATA.segments).entries;
+  });
+  const block=await page.locator('.waveform-cue-block[data-cue-id="p0"]').first().boundingBox();
+  await page.mouse.move(block.x+block.width/2,block.y+block.height/2);await page.mouse.down();
+  await page.mouse.move(block.x+block.width/2+28,block.y+block.height/2,{steps:20});
+  const result=await page.evaluate(()=>({same:window.__dragTree===waveformEditor.subtitleLayout('main').index.entries&&window.__playbackTree===layerIndex(DATA.segments).entries,hit:layerActive(DATA.segments,DATA.segments[0].start+1).includes(0),times:window.__dragTimes}));
+  expect(result.same).toBe(true);expect(result.times.length).toBeGreaterThan(10);
+  expect(result.hit).toBe(true);
+  await page.mouse.up();
+  const first=result.times[0],sorted=result.times.slice(1).sort((a,b)=>a-b);
+  measurements.push({count,depth,load_ms:load,drag_start_ms:first,drag_handler_p95_ms:sorted[Math.floor(sorted.length*.95)]});
+ }
+ console.log('browser-layer-performance',JSON.stringify(measurements));
+});
+
+test('overlapping ASR chooses explicit targets; cancel leaves all original layers intact',async({page})=>{
+ await open(page,[cue('a',1000,7000,'Original A'),cue('b',2000,6000,'Original B')]);
+ await page.evaluate(()=>{
+  selectOnly(0);window.__media={id:'media',revision:'a'.repeat(64),audio_index:0,metadata:{duration_ms:10000,audio_tracks:[{}]}};
+  window.__job={kind:'asr',id:'job-test',project_id:DATA.msw.project_id,status:'succeeded',created_at:1,snapshot:MSWAsr.snapshot(DATA,__media,'range',{start:3000,end:5000}),result:{segments:[{id:'raw',start:3000,end:5000,text:'Recognized'}]}};
+  MSWResults.register(DATA.msw,[__job]);window.__choice=layerChooseAsrTargets([__job],'main');
+ });
+ await expect(page.locator('.msw-layer-targets input')).toHaveCount(2);
+ await page.locator('.msw-layer-merge button').filter({hasText:'取消'}).click();expect(await page.evaluate(()=>__choice)).toBeNull();
+ expect((await times(page)).a).toEqual([1000,7000]);
+ await page.evaluate(()=>{window.__choice=layerChooseAsrTargets([__job],'main');});
+ await page.locator('.msw-layer-merge button').filter({hasText:'确认目标'}).click();
+ const result=await page.evaluate(async()=>{
+  const options=await __choice,plan=MSWResultApply.plan(DATA,__media,[__job],'main','trim',options);
+  applyCanonicalProject(plan.project,'asr.mosp');return DATA.segments.map(c=>({id:c.id,text:c.text,review:!!c.review_required}));
+ });
+ expect(result.find(c=>c.id==='b').text).toBe('Original B');expect(result.filter(c=>c.review)).toHaveLength(2);
+ expect(result.filter(c=>c.text==='Recognized')).toHaveLength(1);
+});
+
+test('three-plus overlapping SRT imports and unbound ambiguous translations survive serialization',async({page})=>{
+ await open(page,[]);
+ const value=await page.evaluate(()=>{
+  const srt=Array.from({length:4},(_,i)=>`${i+1}\n00:00:01,000 --> 00:00:04,000\nText ${i}`).join('\n\n');
+  const segments=parseSrtSegments(srt);replaceMainTrack(segments,'four.srt');
+  const match=layerMatchImportedSubtitles(DATA.segments,[{start:1000,end:4000,text:'Ambiguous'}],100);
+  const saved=JSON.parse(buildJson());applyCanonicalProject(saved,'roundtrip.mosp');return {count:DATA.segments.length,schema:DATA.schema,bound:match.matches.length,ass:buildAss()};
+ });
+ expect(value.count).toBe(4);expect(value.schema).toBe('msw.project.v2');expect(value.bound).toBe(0);
+ expect(value.ass.split('\n').filter(r=>r.startsWith('Dialogue:'))).toHaveLength(4);
+});
+
+test('file handle upgrades back up first, cancellation never writes the original',async({page})=>{
+ await open(page,[]);
+ const result=await page.evaluate(async()=>{
+  const original=new File(['{"segments":[]}'],'old.mosp'),writes=[];
+  const handle={name:'old.mosp',getFile:async()=>original};
+  window.showSaveFilePicker=async()=>({getFile:async()=>new File([],'backup.mosp'),createWritable:async()=>({write:async value=>writes.push(await value.text()),close:async()=>{}})});
+  await layerProtectHandle(handle,DATA);
+  window.showSaveFilePicker=async()=>{throw new DOMException('cancel','AbortError');};
+  let cancelled=false;try{await layerProtectHandle(handle,DATA);}catch(e){cancelled=e.name==='AbortError';}
+  return {writes,cancelled};
+ });expect(result).toEqual({writes:['{"segments":[]}'],cancelled:true});
+});
+
+
+test('cue colors, review flags and opaque provenance survive main and secondary disk snapshots',async({page})=>{
+ const fixture=JSON.parse(readFileSync(new URL('../fixtures/subtitle-layers.json',import.meta.url))).find(f=>f.name==='bound-bilingual').project;
+ await open(page,fixture.segments,fixture);
+ const value=await page.evaluate(()=>{
+  for(const cue of [DATA.segments[0],getActiveExtensionTrack().segments[0]]){cue.color={name:'purple',value:'#a855f7',start:cue.start,end:cue.end};cue.review_required=true;cue.source_ref={id:'original-cue'};}
+  const saved=JSON.parse(buildJson());applyCanonicalProject(saved,'saved.mosp');
+  return [DATA.segments[0],getActiveExtensionTrack().segments[0]].map(c=>({color:c.color.name,review:c.review_required,source:c.source_ref.id}));
+ });expect(value).toEqual([{color:'purple',review:true,source:'original-cue'},{color:'purple',review:true,source:'original-cue'}]);
 });

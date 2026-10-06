@@ -169,6 +169,29 @@ class VideoRenderTests(unittest.TestCase):
             # Two distinct caption lines, not both drawn at the same baseline.
             self.assertGreaterEqual(sum(b - a > 1 for a, b in zip(rows, rows[1:])), 1)
 
+    def test_multilayer_bound_groups_burn_four_lines_and_halfopen_final_frame(self):
+        from tests.test_subtitle_layers_dg import bilingual
+        run([str(self.tools.ffmpeg), '-v', 'error', '-y', '-f', 'lavfi', '-i',
+             'color=black:size=640x360:rate=25:duration=4', '-c:v', 'libx264', '-threads', '1', str(self.source)], self.cancel)
+        self.info = probe_source(self.tools.ffprobe, self.source, self.cancel)
+        previous = self.project
+        self.project = bilingual()
+        self.project['msw'] = previous['msw']
+        for role, cues in [('main',self.project['segments']),('secondary',self.project['multi_subtitle']['tracks'][0]['segments'])]:
+            for i,cue in enumerate(cues):
+                cue.update(start=1000, end=3000, text=f'{role.upper()} {i+1}',items=[])
+        _,_,output = self.export(mode='voice',burn_subtitles='both',remove_gaps=False)
+        def frame(at):
+            with tempfile.TemporaryFile() as data:
+                run([str(self.tools.ffmpeg),'-v','error','-ss',str(at),'-i',str(output),'-frames:v','1','-f','rawvideo','-pix_fmt','gray','pipe:1'],self.cancel,stdout=data)
+                data.seek(0)
+                return data.read()
+        pixels = frame(1.5)
+        rows = [y for y in range(360) if max(pixels[y*640:(y+1)*640])>150]
+        self.assertEqual(1+sum(b-a>1 for a,b in zip(rows,rows[1:])),4)
+        self.assertLess(max(frame(3)),8)
+        self.assertEqual(len(self.project['multi_subtitle']['bindings']),2)
+
     def test_custom_track_colors_are_present_in_actual_video(self):
         run([str(self.tools.ffmpeg), '-v', 'error', '-y', '-f', 'lavfi', '-i',
              'color=black:size=320x180:rate=24:duration=4', '-c:v', 'libx264', '-threads', '1', str(self.source)], self.cancel)

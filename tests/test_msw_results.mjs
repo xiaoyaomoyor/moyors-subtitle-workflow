@@ -91,3 +91,42 @@ test('primary replacement also marks a bound secondary moved outside the range f
   const p=A.plan(project,media,[job],'main','whole').project;
   assert.equal(p.msw.asr_stale_subtitles.track.linked,'j1');assert.equal(p.multi_subtitle.bindings.length,0);
 });
+
+
+test('layered ASR explicitly selects an identity and leaves other overlapping text and bindings intact',()=>{
+  const {project,media,job}=fixture(); project.schema='msw.project.v2';
+  project.segments.push(cue('other',2000,7000,'other speaker'));
+  project.multi_subtitle={tracks:[{id:'sub',segments:[cue('translated',2000,7000,'other translation')]}],bindings:[{id:'b',track_id:'sub',main_segment_ids:['other'],extension_segment_ids:['translated']}]};
+  job.snapshot=ASR.snapshot(project,media,'range',{start:3000,end:5000});
+  assert.throws(()=>A.plan(project,media,[job],'main','trim'),/请选择本次替换|请选择|选择本次替换/);
+  const next=A.plan(project,media,[job],'main','trim',{targetIds:['original']}).project;
+  assert.equal(next.segments.find(c=>c.id==='other').text,'other speaker');
+  assert.equal(next.multi_subtitle.bindings[0].id,'b');
+  assert.equal(next.msw.asr_stale_subtitles.sub.translated,undefined);
+  assert.equal(next.segments.filter(c=>c.review_required).length,2);
+  R.edit(next.msw,job,0,'second take');
+  const changed=R.candidate(next.msw,job);
+  next.segments.find(c=>c.id==='other').text='edited unrelated speaker';
+  const reapplied=A.plan(next,media,[changed],'main','trim').project;
+  assert.equal(reapplied.segments.find(c=>c.id==='other').text,'edited unrelated speaker');
+  assert.equal(reapplied.segments.find(c=>c.id.startsWith('asr-')).text,'second take');
+  assert.equal(reapplied.segments.filter(c=>c.review_required).length,2);
+});
+
+test('layered ASR refuses stale selected identity but permits explicitly adding a new layer',()=>{
+  const {project,media,job}=fixture();project.schema='msw.project.v2';project.segments.push(cue('other',2000,7000));
+  job.snapshot=ASR.snapshot(project,media,'range',{start:3000,end:5000});
+  project.segments[0].text='edited';
+  assert.throws(()=>A.plan(project,media,[job],'main','trim',{targetIds:['original']}),/字幕已变化/);
+  const next=A.plan(project,media,[job],'main','whole',{targetIds:[]}).project;
+  assert.equal(next.segments.length,3);assert.equal(next.segments[0].text,'edited');
+});
+
+test('layered translation binds by ID and never guesses a nearby unrelated subtitle',()=>{
+  const project={schema:'msw.project.v2',segments:[cue('a',0,5000),cue('b',1000,4000)],msw:{schema:'msw.editor.v1',project_id:'p'},
+    multi_subtitle:{schema:'moy.asr.multi_subtitle.v1',enabled:true,tracks:[{id:'sub',role:'extension',segments:[cue('unrelated',0,5000)]}],bindings:[]}};
+  const snapshot=T.snapshot(project,{mainIds:['a','b']});assert.ok(snapshot.entries.every(e=>e.target===null));
+  const result=T.reconcile(project,snapshot,{translations:[{id:'a',text:'译文 A'},{id:'b',text:'译文 B'}]});
+  assert.equal(result.conflicts.length,0);assert.equal(result.multi.tracks[0].segments.length,3);
+  assert.equal(result.multi.bindings.length,2);assert.equal(result.multi.tracks[0].segments.find(c=>c.id==='unrelated').text,'unrelated');
+});

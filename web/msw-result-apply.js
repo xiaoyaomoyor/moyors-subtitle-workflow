@@ -7,6 +7,14 @@
   const overlap = (a,b) => a.start < b.end && b.start < a.end;
   const affected = (cues,ranges) => cues.filter(c => ranges.some(r => overlap(c,r)));
   const unique = cues => [...new Map(cues.map(c => [c.id,c])).values()].sort((a,b) => a.start-b.start || a.end-b.end);
+  const layered = project => project.schema === 'msw.project.v2';
+  function targetChoices(project,jobs,target) {
+    const cues = target === 'main' ? project.segments : project.multi_subtitle?.tracks?.[0]?.segments || [];
+    const rows = unique(affected(cues,jobs.map(j=>j.snapshot.range))).filter(c=>!(target==='main'&&layered(project)&&project.subtitle_layers?.legacy_overlay?.visible===false&&project.subtitle_layers.legacy_overlay.cue_ids.includes(c.id)));
+    let end = -1, ambiguous = false;
+    for (const cue of rows) { if (cue.start < end) ambiguous = true; end = Math.max(end,cue.end); }
+    return {rows,required:layered(project)&&ambiguous};
+  }
   function crossing(project,jobs,target) {
     const cues = target === 'main' ? project.segments : project.multi_subtitle?.tracks?.[0]?.segments || [];
     const ranges = union(jobs.map(j => j.snapshot.range));
@@ -54,7 +62,7 @@
     for(const field of ['color','sticker']) if(result[field]) Object.assign(result[field],span);
     return result;
   }
-  function asr(project,media,jobs,target,strategy,previous) {
+  function asr(project,media,jobs,target,strategy,previous,{targetIds}={}) {
     jobs.forEach(j => sourceGuard(project,media,j));
     const ranges=union(jobs.map(j => j.snapshot.range));
     const multi=project.multi_subtitle ||= {schema:'moy.asr.multi_subtitle.v1',enabled:false,display_mode:'both',tracks:[],bindings:[]};
@@ -67,8 +75,17 @@
     const guardRanges=union([...ranges,...priorRanges,...originals.map(c=>({start:c.start,end:c.end}))]);
     const expected={track_id:previous?.state.track_id ?? (target==='main' ? null : jobs[0].snapshot.secondary.track_id),
       targets:unique([...(previous?.state.targets||[]),...originals.filter(c=>!priorRanges.some(r=>overlap(c,r)))])};
-    if(trackId !== expected.track_id || !same(unique(affected(old,guardRanges)),unique(expected.targets))) throw Error('目标范围内字幕已变化，请重新识别或存入素材库');
-    if(crossing(project,jobs,target) && !['whole','trim'].includes(strategy)) throw Error('请选择整条替换或截断保留');
+    if (layered(project)) {
+      if (!previous && targetIds === undefined && targetChoices(project,jobs,target).required) {
+        const error=Error('此范围包含重叠字幕，请选择本次替换的目标');error.code='choose-targets';throw error;
+      }
+      const ids=previous?.state.target_ids ? [...new Set([...previous.state.target_ids,...originals.filter(c=>!priorRanges.some(r=>overlap(c,r))).map(c=>c.id)])] : targetIds || originals.map(c=>c.id);
+      if (!Array.isArray(ids)||new Set(ids).size!==ids.length||ids.some(id=>!expected.targets.some(c=>c.id===id))) throw Error('替换目标不属于识别时的字幕快照');
+      expected.targets=expected.targets.filter(c=>ids.includes(c.id));
+      if(trackId!==expected.track_id || !same(unique(old.filter(c=>ids.includes(c.id))),unique(expected.targets))) throw Error('所选目标字幕已变化，请重新识别或存入素材库');
+    } else if(trackId !== expected.track_id || !same(unique(affected(old,guardRanges)),unique(expected.targets))) throw Error('目标范围内字幕已变化，请重新识别或存入素材库');
+    const targetSet=new Set(expected.targets.map(c=>c.id));
+    if(expected.targets.some(c=>ranges.some(r=>overlap(c,r))&&!ranges.some(r=>c.start>=r.start&&c.end<=r.end)) && !['whole','trim'].includes(strategy)) throw Error('请选择整条替换或截断保留');
     const groups=new Map();
     function remember(cue, original, all, origin) {
       const refs={};
@@ -81,12 +98,12 @@
     const inserted=jobs.flatMap(job => {
       let end=job.snapshot.range.start;
       return job.result.segments.map((c,i,all) => {
-        if(!Number.isSafeInteger(c.start)||!Number.isSafeInteger(c.end)||c.start<end||c.end<=c.start||c.end>job.snapshot.range.end||!c.text?.trim()) throw Error('候选字幕为空、时间无效或重叠');
+        if(!Number.isSafeInteger(c.start)||!Number.isSafeInteger(c.end)||c.start<job.snapshot.range.start||(!layered(project)&&c.start<end)||c.end<=c.start||c.end>job.snapshot.range.end||!c.text?.trim()) throw Error('候选字幕为空、时间无效或重叠');
         end=c.end;
         const cue=ownStyles(c,all);cue.id=`asr-${job.id}-${target}-${i}`;cue._dirty=true;
         remember(cue,c,all,job.id);
         delete cue.start_frame;delete cue.end_frame;
-        const originals=affected(old,[cue]);
+        const originals=affected(old.filter(c=>!layered(project)||targetSet.has(c.id)),[cue]);
         const original=originals.sort((a,b) => (Math.min(cue.end,b.end)-Math.max(cue.start,b.start))-(Math.min(cue.end,a.end)-Math.max(cue.start,a.start)))[0];
         if(original && job.snapshot.mode!=='whole') {
           const color=ownStyles(original,old).color;
@@ -98,8 +115,8 @@
       });
     }).sort((a,b) => a.start-b.start || a.end-b.end);
     if(!inserted.length) throw Error('没有识别到语音；保留现有字幕');
-    for(let i=1;i<inserted.length;i++) if(inserted[i].start<inserted[i-1].end) throw Error('同批候选字幕彼此重叠，请先存入素材库整理');
-    const removed=new Set(affected(old,ranges).map(c => c.id)), survivors=[];
+    for(let i=1;!layered(project)&&i<inserted.length;i++) if(inserted[i].start<inserted[i-1].end) throw Error('同批候选字幕彼此重叠，请先存入素材库整理');
+    const removed=new Set(affected(old,ranges).filter(c=>!layered(project)||targetSet.has(c.id)).map(c => c.id)), survivors=[];
     old.forEach((c,index) => {
       const cue=ownStyles(c,old);
       remember(cue,c,old,'original');
@@ -112,7 +129,15 @@
     });
     const result=[...survivors,...inserted].sort((a,b) => a.start-b.start || a.end-b.end);
     const newIds=new Set(inserted.map(c => c.id));
-    for(let i=1;i<result.length;i++) if((newIds.has(result[i].id)||newIds.has(result[i-1].id)) && result[i].start<result[i-1].end) throw Error('结果与范围外字幕重叠');
+    for(let i=1;!layered(project)&&i<result.length;i++) if((newIds.has(result[i].id)||newIds.has(result[i-1].id)) && result[i].start<result[i-1].end) throw Error('结果与范围外字幕重叠');
+    if(layered(project)&&project.subtitle_layers?.allow_overlap===false) {
+      for(const cue of inserted) {
+        if(inserted.some(other=>other!==cue&&overlap(cue,other)) || survivors.some(other=>overlap(cue,other)
+            && !old.some(source=>targetSet.has(source.id)&&overlap(source,other)))) {
+          throw Error('此操作会新增字幕重叠，请先启用“允许字幕重叠”');
+        }
+      }
+    }
     const heads=new Map();
     result.forEach((cue,index)=>{
       for(const field of ['color','sticker']) {
@@ -133,7 +158,7 @@
         if(!Object.hasOwn(stale,t.id))Object.defineProperty(stale,t.id,{value:{},enumerable:true,writable:true,configurable:true});
         const marks=stale[t.id];
         const linked=new Set(invalidBindings.filter(b=>b.track_id===t.id).flatMap(b=>b.extension_segment_ids));
-        for(const cue of t.segments.filter(c=>linked.has(c.id)||ranges.some(r=>overlap(c,r))))Object.defineProperty(marks,cue.id,{value:jobs[0].id,enumerable:true,writable:true,configurable:true});
+        for(const cue of t.segments.filter(c=>linked.has(c.id)||(!layered(project)&&ranges.some(r=>overlap(c,r)))))Object.defineProperty(marks,cue.id,{value:jobs[0].id,enumerable:true,writable:true,configurable:true});
       }
       multi.bindings=multi.bindings.filter(b => !b.main_segment_ids.some(id => removed.has(id)));
     } else {
@@ -149,7 +174,9 @@
       }
     }
     multi._dirty=true;
-    return {track_id:target==='main'?null:multi.tracks[0].id,targets:copy(affected(result,guardRanges)),ranges:guardRanges};
+    const target_ids=result.filter(c=>newIds.has(c.id)||targetSet.has(c.id)||!old.some(o=>o.id===c.id)).map(c=>c.id);
+    return {track_id:target==='main'?null:multi.tracks[0].id,targets:copy(layered(project)?result.filter(c=>target_ids.includes(c.id)):affected(result,guardRanges)),ranges:guardRanges,
+      ...(layered(project)?{target_ids}: {})};
   }
   function translation(project,jobs,target,batch) {
     const job=jobs[0], input=copy(job.snapshot), result=job.result;
@@ -191,7 +218,7 @@
     const selection={mainIds:input.entries.map(e => e.source.id),hasSelection:true};
     return {sources:input.entries.map(e => copy(project.segments.find(c => c.id===e.source.id))),snapshot:global.MSWTranslation.snapshot(project,selection)};
   }
-  function plan(source,media,jobs,target,strategy) {
+  function plan(source,media,jobs,target,strategy,options={}) {
     if(!['main','secondary'].includes(target)||!jobs.length||jobs.some(j => j.status!=='succeeded'||j.project_id!==source.msw.project_id)) throw Error('候选结果不属于当前工程或尚未完成');
     // Waveform/spectral caches can be very large and are not part of this transaction.
     const project={...source,segments:copy(source.segments),multi_subtitle:copy(source.multi_subtitle),msw:copy(source.msw)},batch=global.MSWResults.record(project.msw,jobs[0]);
@@ -199,7 +226,7 @@
     if(previous?.revision===revision) return {duplicate:true};
     if(!previous && !batch.edits.length && jobs.every(j=>project.msw.applied_results?.includes(j.id)
       && (j.kind==='asr' ? target==='main' : target===(j.snapshot.output_mode==='replace_main'?'main':'secondary'))))return {duplicate:true};
-    const state=jobs[0].kind==='asr' ? asr(project,media,jobs,target,strategy,previous) : translation(project,jobs,target,batch);
+    const state=jobs[0].kind==='asr' ? asr(project,media,jobs,target,strategy,previous,options) : translation(project,jobs,target,batch);
     batch.applications[target]={revision,state};
     return {project,count:jobs.reduce((n,j) => n+global.MSWResults.rows(j).length,0)};
   }
@@ -207,12 +234,12 @@
     const application=global.MSWResults.record(project.msw,jobs[0]).applications[target];
     if(jobs[0].kind==='asr') {
       const cues=target==='main'?project.segments:project.multi_subtitle.tracks[0].segments;
-      application.state.targets=copy(affected(cues,application.state.ranges));
+      application.state.targets=copy(layered(project)?cues.filter(c=>application.state.target_ids.includes(c.id)):affected(cues,application.state.ranges));
     } else {
       const ids=jobs[0].snapshot.entries.map(e=>e.source.id);
       application.state.sources=copy(project.segments.filter(c=>ids.includes(c.id)));
       application.state.snapshot=global.MSWTranslation.snapshot(project,{mainIds:ids,hasSelection:true});
     }
   }
-  global.MSWResultApply=Object.freeze({plan,crossing,union,captureState});
+  global.MSWResultApply=Object.freeze({plan,crossing,union,captureState,targetChoices});
 })(window);

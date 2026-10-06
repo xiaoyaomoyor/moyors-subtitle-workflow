@@ -150,7 +150,7 @@ test('keeps MSW main and secondary export organization with color splitting', as
 
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#subtitle-export-menu > .dropdown-item:visible').allTextContents())
-    .resolves.toEqual(['主字幕（SRT）', '主字幕（ASS）', '按颜色导出字幕']);
+    .resolves.toEqual(['主字幕（SRT）', 'SRT（合并同时显示文本）', '主字幕（ASS）', '按颜色导出字幕']);
 });
 
 test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ page }) => {
@@ -198,7 +198,7 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
 
 test('keeps legacy export until explicit library selection and freezes each video job', async ({ page }, testInfo) => {
   await disableOnboarding(page);
-  await page.goto(server.url);
+  await page.goto(server.url+'?subtitle-layers=0');
   const result = await page.evaluate(() => {
     const host = window.MSWE.resolve('processing-host');
     const library = window.AsrEditorUtils.normalizeAssStyleLibrary({

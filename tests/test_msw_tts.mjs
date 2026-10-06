@@ -124,3 +124,13 @@ test('seven engines preserve secondary selection and immutable draft splitting',
   assert.ok(draft.entries.every(row=>row.track_id===null&&row.kind==='editor_text'));
  }
 });
+
+
+test('overlapping layers use each selected cue identity and duration across all engines',()=>{
+ const p=structuredClone(project);p.schema='msw.project.v2';p.segments[1].start=500;p.segments[1].end=2600;
+ for(const engine of ['qwen','yukkuri','indextts','gpt-sovits','edge','minimax','mossland']){
+  const snap=core.snapshot(p,selection(['a','b']),'main',engine);
+  assert.deepEqual(Array.from(snap.entries,e=>[e.id,e.start,e.end]),[['a',0,1000],['b',500,2600]]);
+  assert.deepEqual(Array.from(core.snapshot(p,selection([],['x','y']),'secondary',engine).entries,e=>e.track_id),['ext','ext']);
+ }
+});

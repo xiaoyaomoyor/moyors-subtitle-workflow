@@ -108,6 +108,9 @@ def migrate_project(source: dict) -> dict:
         "legacy_overlay": {"visible": overlay.get("enabled") is True, "cue_ids": [cue["id"] for cue in extra]},
     }
     project.pop("overlay_track", None)
+    preview = source.get('preview') or {}
+    if (main or extra) and (preview.get('ass_library_exports') or preview.get('burn_subtitles') or any(k in (preview.get('subtitle') or {}) for k in ('x','y','width','height'))):
+        project['subtitle_layers']['presentation'] = {'mode':'manual','gap':12}
     project["schema"] = SCHEMA
     return project
 
@@ -120,12 +123,23 @@ def validate_layout(project):
     if type(value.get("allow_overlap")) is not bool:
         errors.append(("$.subtitle_layers.allow_overlap", "must be a boolean"))
     legacy = value.get("legacy_overlay", {})
-    ids = {cue.get("id") for cue in project.get("segments", []) if isinstance(cue, dict)}
+    ids = set()
+    for index, cue in enumerate(project.get("segments", [])):
+        cue_id = cue.get("id") if isinstance(cue, dict) else None
+        if not isinstance(cue_id, str) or not cue_id.strip() or len(cue_id) > 160 or cue_id in ids:
+            errors.append((f"$.segments[{index}].id", "must be a unique nonempty cue ID"))
+        else:
+            ids.add(cue_id)
     if (not isinstance(legacy, dict) or type(legacy.get("visible")) is not bool
             or not isinstance(legacy.get("cue_ids"), list)
             or any(not isinstance(cue_id, str) or cue_id not in ids for cue_id in legacy.get("cue_ids", []))
             or len(set(legacy["cue_ids"])) != len(legacy["cue_ids"])):
         errors.append(("$.subtitle_layers.legacy_overlay", "must preserve valid legacy visibility and main cue IDs"))
+    presentation = value.get('presentation')
+    if presentation is not None and (not isinstance(presentation, dict) or presentation.get('mode') not in ('auto', 'manual')
+            or type(presentation.get('gap')) is not int or not 0 <= presentation['gap'] <= 120
+            or presentation.get('order', 'earlier-bottom') not in ('earlier-bottom', 'earlier-top')):
+        errors.append(('$.subtitle_layers.presentation', 'invalid layout mode or gap'))
     overlay = project.get("overlay_track")
     if overlay is not None and (not isinstance(overlay, dict) or overlay.get("segments")):
         errors.append(("$.overlay_track", "v2 subtitles belong to main or extension roles"))
@@ -134,4 +148,39 @@ def validate_layout(project):
 
 def require_production_schema(project):
     if project.get("schema") == SCHEMA:
-        raise ValueError("统一多层字幕 A–C 为开发预览；保存与处理输出须待 D–G 适配完成，不能写成旧格式。")
+        from maw.project import normalize_project
+        normalize_project(project)
+
+
+def preserve_upgrade_source(target, project):
+    """Durable, exclusive v1 backup before any v2 replacement; never overwrite."""
+    import json
+    import os
+    from datetime import datetime, timezone
+    from pathlib import Path
+    target = Path(target)
+    if not target.is_file():
+        return None
+    original = target.read_bytes()
+    previous = json.loads(original.decode('utf-8-sig'))
+    if previous.get('schema') == SCHEMA:
+        if project.get('schema') != SCHEMA:
+            raise ValueError('不能用旧版结构覆盖多层字幕工程，请另存为新文件')
+        return None
+    if project.get('schema') != SCHEMA:
+        return None
+    if previous.get('schema', LEGACY_SCHEMA) != LEGACY_SCHEMA:
+        raise ValueError('目标工程版本不兼容，未覆盖')
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')[:-3]
+    for count in range(10000):
+        suffix = '' if count == 0 else f'.{stamp}.{count}'
+        backup = target.with_name(f'{target.stem}.v1-backup{suffix}.mosp')
+        try:
+            with backup.open('xb') as output:
+                output.write(original)
+                output.flush()
+                os.fsync(output.fileno())
+            return backup
+        except FileExistsError:
+            continue
+    raise ValueError('无法创建不重名的升级备份，未覆盖工程')

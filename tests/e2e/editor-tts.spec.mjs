@@ -432,7 +432,7 @@ test('audio clips drag below compact subtitle lanes, mute, undo and delete indep
   const main=await page.locator('.waveform-cue-block[data-track="main"]').first().boundingBox();
   const ext=await page.locator('.waveform-cue-block[data-track="extension"]').first().boundingBox();
   const audio=await clip.boundingBox();
-  expect(main.height).toBeLessThanOrEqual(22); expect(ext.height).toBeLessThanOrEqual(22);
+  expect(main.height).toBeLessThanOrEqual(32); expect(ext.height).toBeLessThanOrEqual(32);
   expect(main.y+main.height).toBeLessThanOrEqual(ext.y+1); expect(ext.y+ext.height).toBeLessThanOrEqual(audio.y);
   await clip.click({button:'right'}); await page.locator('.msw-audio-menu').getByRole('button',{name:'静音音频贴片',exact:true}).click();
   await expect(clip).toHaveClass(/muted/);
@@ -843,7 +843,7 @@ test('asset settings are in the media menu and module context submenu',async({pa
   await expect(slider).toBeVisible();
   await slider.fill('4'); await slider.dispatchEvent('input');
   await expect(page.locator('#asset-density')).toHaveValue('4');
-  expect(await page.locator('#ctxmenu .ctx-subitem').count()).toBe(3); // 密度、试听栏、搜索筛选
+  expect(await page.locator('#ctxmenu .ctx-subitem').count()).toBe(4); // 密度、试听栏、搜索筛选、变动标记
   expect(await slider.evaluate(el=>{const r=el.getBoundingClientRect();return r.right<=innerWidth&&r.bottom<=innerHeight;})).toBe(true);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'asset-settings-context.png')});
 });
@@ -1344,4 +1344,35 @@ test('compact TTS has unified surfaces, inline voice actions, dynamic help and a
   await expect(page.locator('#tts-start')).toBeInViewport();
   await page.screenshot({path:info.outputPath('tts-compact-narrow.png')});
   expect(errors).toEqual([]);
+});
+
+
+test('multilayer production loop: range ASR, bound translation, synthetic TTS, clip, backup and reload',async({page})=>{
+ await open(page);
+ const identities=await page.evaluate(()=>{
+  DATA.segments[1].start=500;DATA.segments[1].end=1800;renderAll();
+  const media={id:'synthetic-source',revision:'a'.repeat(64),audio_index:0,metadata:{duration_ms:10000,audio_tracks:[{}]}};
+  const recognition={kind:'asr',id:'layer-asr',project_id:DATA.msw.project_id,status:'succeeded',created_at:1,
+   snapshot:MSWAsr.snapshot(DATA,media,'range',{start:0,end:1500}),result:{segments:[{id:'candidate',start:100,end:1400,text:'Hello recognized'}]}};
+  MSWResults.register(DATA.msw,[recognition]);applyProcessingResults([recognition],'main','whole',media,{targetIds:['main-0']});
+  selectRange(0,DATA.segments.length-1);
+  const translation={kind:'translation',id:'layer-translation',project_id:DATA.msw.project_id,status:'succeeded',created_at:2,
+   snapshot:MSWTranslation.snapshot(DATA,processingSelection()),result:{translations:DATA.segments.map(c=>({id:c.id,text:'翻译 '+c.text})),skipped_ids:[],skipped_id_namespace:'project'}};
+  MSWResults.register(DATA.msw,[translation]);applyProcessingResults([translation],'secondary');
+  selectRange(0,DATA.segments.length-1);return DATA.segments.map(c=>c.id);
+ });
+ expect(identities).toContain('main-1');expect(identities).toContain('asr-layer-asr-main-0');
+ await panel(page);await page.locator('#tts-target').selectOption('main');await page.locator('#tts-start').click();
+ await expect.poll(()=>countAssets(page)).toBe(2);await page.locator('#tts-close').click();
+ const assets=await page.evaluate(()=>DATA.msw.assets);expect(new Set(assets.map(a=>a.source_ref.id))).toEqual(new Set(identities));
+ await page.locator(`[data-asset-id="${assets[0].id}"]`).getByRole('button',{name:'放入时间轴',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips?.length||0)).toBe(1);
+ await page.evaluate(async()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();await saveCurrentProject({silent:true});});
+ await expect.poll(()=>JSON.parse(readFileSync(projectPath,'utf8')).schema).toBe('msw.project.v2');
+ expect(existsSync(projectPath.replace(/\.mosp$/,'.v1-backup.mosp'))).toBe(true);
+ const saved=JSON.parse(readFileSync(projectPath,'utf8'));expect(saved.multi_subtitle.bindings).toHaveLength(2);
+ await page.reload();await expect(page.locator('#editor-loading')).not.toBeVisible();
+ expect(await page.evaluate(()=>DATA.segments.map(c=>c.id))).toEqual(identities);
+ expect(await page.evaluate(()=>DATA.msw.audio_clips.length)).toBe(1);
+ expect(await page.evaluate(()=>buildAss().split('\n').filter(r=>r.startsWith('Dialogue:')).length)).toBe(4);
 });

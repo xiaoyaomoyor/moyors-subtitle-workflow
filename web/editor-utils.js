@@ -4959,10 +4959,17 @@
         speakerLabels,
         assMode,
       });
-      const animationTags = assMode ? assAnimationOverrideTags(profile) : '';
+      const layerOffset=(options.layerMargins?.main?.[segment.id]??baseStyle.marginV)-baseStyle.marginV;
+      const eventProfile=options.layerMargins && profile?.animations?.move?.enabled
+        ? {...profile,animations:{...profile.animations,move:{...profile.animations.move,y1:profile.animations.move.y1-layerOffset,y2:profile.animations.move.y2-layerOffset}}} : profile;
+      let animationTags = assMode ? assAnimationOverrideTags(eventProfile) : '';
+      if(options.layerMargins && !(profile?.animations?.move?.enabled) && baseStyle.alignment>=4 && baseStyle.alignment<=6) {
+        const x=baseStyle.alignment%3===1?baseStyle.marginL:baseStyle.alignment%3===2?resolution.width/2:resolution.width-baseStyle.marginR;
+        animationTags+=`\\pos(${x},${resolution.height/2-layerOffset})`;
+      }
       const decoratedText = animationTags ? `{${animationTags}}${eventText}` : eventText;
       events.push(
-        `Dialogue: 0,${formatAssTime(startCentiseconds * 10)},${formatAssTime(endCentiseconds * 10)},${styleName},${normalizeAssEventField(speakerName)},0,0,0,,${decoratedText}`,
+        `Dialogue: 0,${formatAssTime(startCentiseconds * 10)},${formatAssTime(endCentiseconds * 10)},${styleName},${normalizeAssEventField(speakerName)},0,0,${options.layerMargins?.main?.[segment.id] ?? 0},,${decoratedText}`,
       );
     });
 
@@ -4994,10 +5001,16 @@
         if (rawEnd <= rawStart) return;
         const startCentiseconds = Math.max(0, Math.round(rawStart / 10));
         const endCentiseconds = Math.max(startCentiseconds + 1, Math.round(rawEnd / 10));
-        const extensionText = extensionAnimationTags
-          ? `{${extensionAnimationTags}}${escapeAssText(segment.text)}` : escapeAssText(segment.text);
+        let tags=extensionAnimationTags;
+        if(options.layerMargins?.secondary?.[segment.id]!==undefined && extensionStyle.alignment>=4 && extensionStyle.alignment<=6) {
+          const offset=options.layerMargins.secondary[segment.id]-extensionStyle.marginV;
+          const x=extensionStyle.alignment%3===1?extensionStyle.marginL:extensionStyle.alignment%3===2?resolution.width/2:resolution.width-extensionStyle.marginR;
+          tags+=`\\pos(${x},${resolution.height/2-offset})`;
+        }
+        const extensionText = tags
+          ? `{${tags}}${escapeAssText(segment.text)}` : escapeAssText(segment.text);
         events.push(
-          `Dialogue: 1,${formatAssTime(startCentiseconds * 10)},${formatAssTime(endCentiseconds * 10)},Extension,,0,0,0,,${extensionText}`,
+          `Dialogue: 1,${formatAssTime(startCentiseconds * 10)},${formatAssTime(endCentiseconds * 10)},Extension,,0,0,${options.layerMargins?.secondary?.[segment.id] ?? 0},,${extensionText}`,
         );
       });
     }

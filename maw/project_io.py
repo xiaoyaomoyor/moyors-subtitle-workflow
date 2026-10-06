@@ -178,8 +178,8 @@ def serialize_mosp(
         ffprobe_path=ffprobe_path,
     )
     enriched = strip_inline_caches(persist_audio_track(enriched, selected_audio_track))
-    enriched.pop("schema", None)
-    return json.dumps({"schema": PROJECT_SCHEMA, **enriched}, ensure_ascii=False, indent=2) + "\n"
+    schema = enriched.pop("schema", PROJECT_SCHEMA)
+    return json.dumps({"schema": schema, **enriched}, ensure_ascii=False, indent=2) + "\n"
 
 
 def write_mosp(
@@ -194,14 +194,23 @@ def write_mosp(
 
     target = Path(path).expanduser()
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        serialize_mosp(
+    content = serialize_mosp(
             project,
             media_path=media_path,
             ffprobe_path=ffprobe_path,
             selected_audio_track=selected_audio_track,
-        ),
-        encoding="utf-8",
-        newline="\n",
-    )
+        )
+    from maw.msw.subtitle_layers import preserve_upgrade_source
+    preserve_upgrade_source(target, project)
+    if project.get('schema') == 'msw.project.v2':
+        import os
+        import tempfile
+        fd, pending = tempfile.mkstemp(prefix=f'.{target.stem}.', suffix='.pending', dir=target.parent)
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as output:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(pending, target)
+    else:
+        target.write_text(content, encoding='utf-8', newline='\n')
     return target

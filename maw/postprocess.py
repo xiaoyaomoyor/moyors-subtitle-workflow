@@ -1763,7 +1763,10 @@ def _llm_cues(project: JsonDict, *, include_items: bool = False) -> list[dict[st
 def _load_input(project_path: Path | None, srt_path: Path | None) -> tuple[JsonDict, Path | None, Path | None]:
     if project_path is not None:
         resolved = project_path.expanduser().resolve()
-        return read_project(resolved), resolved, srt_path.expanduser().resolve() if srt_path else None
+        project = read_project(resolved)
+        if project.get('schema') == 'msw.project.v2':
+            raise ValueError('此多层工程请在编辑器中选择字幕处理；启动器后处理尚不能指定重叠层，原工程未修改')
+        return project, resolved, srt_path.expanduser().resolve() if srt_path else None
     if srt_path is not None:
         resolved = srt_path.expanduser().resolve()
         return read_srt(resolved), None, resolved

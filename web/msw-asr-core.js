@@ -9,7 +9,7 @@
     return Object.fromEntries(Object.keys(value).filter(key => !key.startsWith('_')).sort()
       .map(key => [key, canonical(value[key])]));
   }
-  const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range));
+  const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range) && !(project.schema==='msw.project.v2' && project.subtitle_layers?.legacy_overlay?.visible===false && project.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)));
   function boundaries(project,range,duration) {
     if (!range) return {crossing:[],expanded:null,canExpand:false};
     let start=range.start,end=range.end;
@@ -34,7 +34,7 @@
     if (mode==='whole') range={start:0,end:duration};
     if (!['whole','range'].includes(mode)||!range||![range.start,range.end].every(Number.isSafeInteger)
       ||range.start<0||range.end>duration||range.end<=range.start) throw Error('请选择源媒体内的有效时间范围；未改为整段识别');
-    return {project_id:project.msw.project_id,mode,range:clone(range),
+    return {project_id:project.msw.project_id,project_schema:project.schema,mode,range:clone(range),
       source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
       secondary:secondarySnapshot(project,range),targets:affected(project,mode,range).map(canonical)};
   }
@@ -44,7 +44,7 @@
       const asset=(project.msw.assets||[]).find(a=>a.id===clip.asset_id);
       if(!asset)throw Error('所选贴片缺少音频素材');
       const range={start:clip.start_ms,end:clip.start_ms+Math.max(1,Math.ceil((clip.source_out_sample-clip.source_in_sample)*1000/asset.sample_rate))};
-      return {project_id:project.msw.project_id,mode:'clips',range,secondary:secondarySnapshot(project,range),targets:affected(project,'range',range).map(canonical),
+      return {project_id:project.msw.project_id,project_schema:project.schema,mode:'clips',range,secondary:secondarySnapshot(project,range),targets:affected(project,'range',range).map(canonical),
         source:{kind:'clip',id:asset.id,revision:asset.sha256,name:clip.label||asset.generation.display_text,reference:'',audio_index:0,
           duration_ms:Math.ceil(asset.sample_count*1000/asset.sample_rate),
           clip:Object.fromEntries(['id','asset_id','start_ms','source_in_sample','source_out_sample','playback_rate'].map(k=>[k,clip[k]]))}};

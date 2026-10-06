@@ -83,7 +83,7 @@ test('New Project binds a browser handle and later saves write the same file', a
   expect(await page.evaluate(() => DATA.segments)).toEqual([]);
   expect(await page.evaluate(() => window.__handleWrites)).toHaveLength(1);
   expect((await page.evaluate(() => window.__handleWrites[0])).segments).toEqual([]);
-  expect((await page.evaluate(() => window.__handleWrites[0])).schema).toBe('moy.asr.project.v1');
+  expect((await page.evaluate(() => window.__handleWrites[0])).schema).toBe('msw.project.v2');
 
   // 编辑后 Ctrl+S 必须写回同一个句柄文件（方案 A 的核心承诺）。
   await page.evaluate(() => DATA.segments.push({ start: 0, end: 500, text: 'after', _dirty: true }));
