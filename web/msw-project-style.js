@@ -4,7 +4,7 @@
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 1;
+  const layoutVersion = 2;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -90,12 +90,13 @@
     apply(project,style);project.preview.project_style_selection=selection;
     if(selection==='current')project.preview.project_style_custom=normalize(style);
   }
-  const bottom=s=>s.alignment>=7?s.marginV+s.fontSize*1.2:s.alignment>=4?540+s.fontSize*.6:1080-s.marginV;
+  const lineHeight=s=>s.fontSize*1.2*s.scaleY/100;
+  const bottom=s=>s.alignment>=7?s.marginV+lineHeight(s):s.alignment>=4?540+lineHeight(s)/2:1080-s.marginV;
   function pairSettings(raw) {
     const s=normalize(raw);if(s.pairLayout)return clone(s.pairLayout);
     const order=bottom(s.main)<=bottom(s.secondary)?'main-above':'secondary-above';
     const lower=order==='main-above'?'secondary':'main';
-    const distance=Math.abs(bottom(s.main)-bottom(s.secondary))-s[lower].fontSize*1.2;
+    const distance=Math.abs(bottom(s.main)-bottom(s.secondary))-lineHeight(s[lower]);
     return {order,gap:Math.min(240,Math.max(-240,Math.round(distance)))};
   }
   function arrangePair(raw, settings) {
@@ -104,7 +105,7 @@
     const base=Math.round(1080-(style.pairLayout?bottom(style[oldLower]):Math.max(bottom(style.main),bottom(style.secondary))));
     for(const role of ['main','secondary'])style[role].alignment=(style[role].alignment-1)%3+1;
     style[lower].marginV=Math.max(0,base);
-    const distance=Math.max(1,(style[lower].fontSize-style[upper].fontSize)*.6+1,style[lower].fontSize*1.2+pair.gap);
+    const distance=Math.max(1,(lineHeight(style[lower])-lineHeight(style[upper]))/2+1,lineHeight(style[lower])+pair.gap);
     style[upper].marginV=Math.round(style[lower].marginV+distance);
     style.pairLayout=pair;
     if(style.legacyBurn)for(const role of ['main','secondary']){style.legacyBurn[role] ||= {};style.legacyBurn[role].y=1-style[role].marginV/1080;}

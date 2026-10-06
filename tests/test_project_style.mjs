@@ -85,3 +85,14 @@ test('future project style versions are not silently migrated',()=>{
   assert.equal(JSON.stringify(project),before);
   for(const selection of [123,true,[],{},''])assert.throws(()=>S.migrate({preview:{project_style:S.defaults(),project_style_selection:selection}},{}),/选择无效/);
 });
+
+test('pair spacing includes vertical scale rather than treating scaled text as its unscaled size',()=>{
+  const a=S.defaults(),b=S.defaults();
+  a.main.fontSize=40;a.main.scaleY=200;b.main.fontSize=80;b.main.scaleY=100;
+  for(const gap of [-46,0,24]){
+    const x=S.arrangePair(a,{order:'secondary-above',gap}),y=S.arrangePair(b,{order:'secondary-above',gap});
+    assert.equal(x.secondary.marginV,y.secondary.marginV);
+    delete x.pairLayout;delete y.pairLayout;
+    assert.deepEqual(S.pairSettings(x),S.pairSettings(y));
+  }
+});

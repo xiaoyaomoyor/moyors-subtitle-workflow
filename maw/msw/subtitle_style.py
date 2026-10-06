@@ -155,7 +155,7 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
                 else: variant.update(primaryColor=value, secondaryColor=value)
                 lines.append(ass_style_line(variant, name=f'{name}-{color_name}'))
     lines += ['', '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
-    layout_styles={name:{'font_size':s['fontSize'],'width':max(.1,1-(s['marginL']+s['marginR'])/width), 'y':1-s['marginV']/1080} for name,s in styles.items()}
+    layout_styles={name:{'font_size':s['fontSize'],'scale_y':s['scaleY'],'width':max(.1,1-(s['marginL']+s['marginR'])/width), 'y':1-s['marginV']/1080} for name,s in styles.items()}
     offsets=presentation(project,layout_styles,target,width) if project.get('schema')=='msw.project.v2' else {}
     animations = profile['animations']
     for index, name in selected:

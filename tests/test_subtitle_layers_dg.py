@@ -45,6 +45,25 @@ class ProductionLayersTests(unittest.TestCase):
                             self.assertEqual(presentation(project,styles,target),expected)
                     self.assertEqual(project,before)
 
+    def test_scaled_multiline_pair_layout_matches_browser(self):
+        script="require('./web/msw-subtitle-presentation.js');process.stdout.write(JSON.stringify([...MSWSubtitlePresentation.layout(JSON.parse(process.argv[1]),JSON.parse(process.argv[2])).offsets]));"
+        for order in ('main-above','secondary-above'):
+            project=bilingual()
+            project['preview']={'project_style':{'pairLayout':{'order':order,'gap':-46}}}
+            project['multi_subtitle']['tracks'][0]['segments'][0]['text']='two\nlines'
+            styles=normalize_styles()
+            styles['main']['scale_y']=200
+            styles['secondary']['scale_y']=50
+            expected=presentation(project,styles)
+            actual=json.loads(subprocess.check_output(['node','-e',script,json.dumps(project),json.dumps(styles)],cwd=ROOT,text=True,encoding='utf-8'))
+            for key,value in actual:self.assertAlmostEqual(value['offset'],expected[tuple(json.loads(key))])
+            equivalent=copy.deepcopy(styles)
+            for style in equivalent.values():
+                factor=style.pop('scale_y')/100
+                style['font_size']*=factor
+                style['width']*=factor
+            for key,value in presentation(project,equivalent).items():self.assertAlmostEqual(value,expected[key])
+
     def test_pair_order_spacing_and_single_track_positions_match_browser(self):
         script="require('./web/msw-subtitle-presentation.js');const p=JSON.parse(process.argv[1]);const s=JSON.parse(process.argv[2]);process.stdout.write(JSON.stringify([...MSWSubtitlePresentation.layout(p,s,process.argv[3]).offsets]));"
         styles=normalize_styles()

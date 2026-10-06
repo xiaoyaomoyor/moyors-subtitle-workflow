@@ -17732,7 +17732,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 1;
+  const layoutVersion = 2;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -17818,12 +17818,13 @@ export default MawDynamicCaptions;
     apply(project,style);project.preview.project_style_selection=selection;
     if(selection==='current')project.preview.project_style_custom=normalize(style);
   }
-  const bottom=s=>s.alignment>=7?s.marginV+s.fontSize*1.2:s.alignment>=4?540+s.fontSize*.6:1080-s.marginV;
+  const lineHeight=s=>s.fontSize*1.2*s.scaleY/100;
+  const bottom=s=>s.alignment>=7?s.marginV+lineHeight(s):s.alignment>=4?540+lineHeight(s)/2:1080-s.marginV;
   function pairSettings(raw) {
     const s=normalize(raw);if(s.pairLayout)return clone(s.pairLayout);
     const order=bottom(s.main)<=bottom(s.secondary)?'main-above':'secondary-above';
     const lower=order==='main-above'?'secondary':'main';
-    const distance=Math.abs(bottom(s.main)-bottom(s.secondary))-s[lower].fontSize*1.2;
+    const distance=Math.abs(bottom(s.main)-bottom(s.secondary))-lineHeight(s[lower]);
     return {order,gap:Math.min(240,Math.max(-240,Math.round(distance)))};
   }
   function arrangePair(raw, settings) {
@@ -17832,7 +17833,7 @@ export default MawDynamicCaptions;
     const base=Math.round(1080-(style.pairLayout?bottom(style[oldLower]):Math.max(bottom(style.main),bottom(style.secondary))));
     for(const role of ['main','secondary'])style[role].alignment=(style[role].alignment-1)%3+1;
     style[lower].marginV=Math.max(0,base);
-    const distance=Math.max(1,(style[lower].fontSize-style[upper].fontSize)*.6+1,style[lower].fontSize*1.2+pair.gap);
+    const distance=Math.max(1,(lineHeight(style[lower])-lineHeight(style[upper]))/2+1,lineHeight(style[lower])+pair.gap);
     style[upper].marginV=Math.round(style[lower].marginV+distance);
     style.pairLayout=pair;
     if(style.legacyBurn)for(const role of ['main','secondary']){style.legacyBurn[role] ||= {};style.legacyBurn[role].y=1-style[role].marginV/1080;}
@@ -18188,7 +18189,7 @@ export default MawDynamicCaptions;
       const height=entry=>{
         const s=styles[entry.role],capacity=Math.max(1,Math.floor(width*s.width/(s.font_size*.55)));
         const lines=String(entry.cue.text||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?2:1),0)/capacity)),0);
-        return s.font_size*1.2*lines;
+        return s.font_size*1.2*(s.scale_y??100)/100*lines;
       };
       if(group.paired){
         // Consecutive cues reuse a lane; a long translation spanning several
@@ -19701,7 +19702,7 @@ export default MawDynamicCaptions;
     '主字幕在上': 'Main above',
     '副字幕在上': 'Secondary above',
     '主副字幕间距': 'Main/secondary spacing',
-    '以 1080p 为基准。负值缩小主副字幕间距，过小时可能重叠；压缩到极限后仍保留主副上下顺序。': 'Values use a 1080p reference. Negative values bring the subtitles closer and may cause overlap. Further compression stops before reversing their order.',
+    '以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。': 'Values use a 1080p reference and scale with the video. This is extra spacing between text line boxes: 0 adds no space; negative values compress the boxes and may cause overlap. Font size, typeface, outline and vertical scale affect visible spacing, so equal values need not leave equal gaps between glyph edges across styles. Further compression stops before reversing their order.',
     '交换主副样式（保留位置）': 'Swap main and secondary styling (keep positions)',
     '调整主副字幕排列': 'Arrange main and secondary subtitles',
     '交换主副字幕样式': 'Swap main and secondary styling',
@@ -30216,7 +30217,7 @@ function layerAssMargins(options, project = DATA, target = 'both') {
     const font=options.assProfile && raw ? raw.fontSize : window.AsrEditorUtils.resolveAssFontSize(options.appearance?.font_size,resolution.height)*1080/resolution.height;
     const margin=raw?.marginV ?? (role==='main'?80:20);
     bases[role]=margin;
-    styles[role]={font_size:font,width:Math.max(.1,1-((raw?.marginL??10)+(raw?.marginR??10))/resolution.width),y:1-margin/resolution.height};
+    styles[role]={font_size:font,scale_y:raw?.scaleY??100,width:Math.max(.1,1-((raw?.marginL??10)+(raw?.marginR??10))/resolution.width),y:1-margin/resolution.height};
   }
   const layout=window.MSWSubtitlePresentation.layout(project,styles,target,1080*resolution.width/resolution.height);
   const result={main:{},secondary:{}};
@@ -30234,7 +30235,7 @@ function layerRefreshSubtitlePreview(tMs) {
   const styles={};
   for(const role of ['main','secondary']) {
     const a=appearances[role], s=assStyles[role];
-    styles[role]=ass?{font_size:s.fontSize,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
+    styles[role]=ass?{font_size:s.fontSize,scale_y:s.scaleY,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
       : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
   }
   const previewStyle=window.MSWSubtitleStyle?.currentPreview().style||DATA.preview?.project_style;
@@ -61564,7 +61565,7 @@ window.addEventListener('beforeunload', (e) => {
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
-    <label class="media-settings-field" data-option-help="以 1080p 为基准。负值缩小主副字幕间距，过小时可能重叠；压缩到极限后仍保留主副上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
+    <label class="media-settings-field" data-option-help="以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}

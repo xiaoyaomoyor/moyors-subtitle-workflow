@@ -20,7 +20,7 @@
     '主字幕在上': 'Main above',
     '副字幕在上': 'Secondary above',
     '主副字幕间距': 'Main/secondary spacing',
-    '以 1080p 为基准。负值缩小主副字幕间距，过小时可能重叠；压缩到极限后仍保留主副上下顺序。': 'Values use a 1080p reference. Negative values bring the subtitles closer and may cause overlap. Further compression stops before reversing their order.',
+    '以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。': 'Values use a 1080p reference and scale with the video. This is extra spacing between text line boxes: 0 adds no space; negative values compress the boxes and may cause overlap. Font size, typeface, outline and vertical scale affect visible spacing, so equal values need not leave equal gaps between glyph edges across styles. Further compression stops before reversing their order.',
     '交换主副样式（保留位置）': 'Swap main and secondary styling (keep positions)',
     '调整主副字幕排列': 'Arrange main and secondary subtitles',
     '交换主副字幕样式': 'Swap main and secondary styling',

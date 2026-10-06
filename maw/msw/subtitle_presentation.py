@@ -64,7 +64,7 @@ def presentation(project, styles, target='both', width=1920):
             style = styles[role]
             capacity = max(1, math.floor(width * style['width'] / (style['font_size'] * .55)))
             lines = sum(max(1, math.ceil(sum(2 if ord(c) > 255 else 1 for c in line) / capacity)) for line in cue.get('text', '').split('\n'))
-            return style['font_size'] * 1.2 * lines
+            return style['font_size'] * 1.2 * style.get('scale_y', 100) / 100 * lines
         if group['paired']:
             bands = {}
             for role in ('main', 'secondary'):

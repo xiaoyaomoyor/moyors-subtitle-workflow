@@ -26,6 +26,28 @@ class ProjectSubtitleStyleTests(unittest.TestCase):
             self.assertEqual([a[r]['marginV'] for r in ('main','secondary')],[b[r]['marginV'] for r in ('main','secondary')])
         self.assertEqual(backend[1]['main']['marginV'],108)
 
+    def test_pair_gap_uses_scaled_line_height_in_preview_and_burn(self):
+        from tests.test_subtitle_layers_dg import bilingual
+        plan={'intervals':[{'start_ms':0,'end_ms':12000,'output_start_ms':0}]}
+        margins=[]
+        for size,scale in ((40,200),(80,100)):
+            style=builtin_presets()[0]
+            style['main'].update(fontSize=size,scaleY=scale)
+            style['pairLayout']={'order':'secondary-above','gap':-46}
+            project=bilingual()
+            project['segments']=[dict(id='m',start=0,end=1000,text='MAIN')]
+            project['multi_subtitle']['tracks'][0]['segments']=[dict(id='s',start=0,end=1000,text='SUB')]
+            project['multi_subtitle']['bindings']=[]
+            project['preview']={'project_style':style}
+            video={'width':1920,'height':1080}
+            output=styled_ass(project,plan,'both',video)
+            self.assertEqual(output,preview_ass({'project':project,'target':'both','video':video})['ass'])
+            events=[line.split(',') for line in output.splitlines() if line.startswith('Dialogue:')]
+            values={e[3]:int(e[7]) for e in events}
+            margins.append(values)
+        self.assertEqual(margins[0],margins[1])
+        self.assertEqual(margins[0]['secondary']-margins[0]['main'],50)
+
     def test_old_srt_slot_is_imported_without_modifying_its_library(self):
         from maw.ass_styles import default_ass_style_library
         old=default_ass_style_library()
@@ -71,7 +93,7 @@ process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readF
         before=copy.deepcopy(project)
         video={'width':1280,'height':720}
         result=preview_ass({'project':project,'target':'both','video':video})
-        self.assertEqual(result['layoutVersion'],1)
+        self.assertEqual(result['layoutVersion'],2)
         plan={'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
         self.assertEqual(result['ass'],styled_ass(normalize_project(project),plan,'both',video))
         self.assertIn(r'\fad(120,200)',result['ass'])

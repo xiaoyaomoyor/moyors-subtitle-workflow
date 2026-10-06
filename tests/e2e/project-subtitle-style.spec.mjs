@@ -210,3 +210,42 @@ test('export selects a preset snapshot and restores proofreading on close',async
   expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
   expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().style.name)).toBe('高对比底框');
 });
+
+test('negative pair spacing uses scaled text height consistently in preview and portable ASS',async({page})=>{
+  await disableOnboarding(page);await page.goto(server.url);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
+  await page.evaluate(()=>{for(const id of ['overlay-toggle','extension-overlay-toggle']){const e=document.getElementById(id);e.checked=true;e.dispatchEvent(new Event('change'));}});
+  await page.locator('#media-settings-close').click();
+  const positions=[];
+  for(const [size,scale] of [[80,100],[40,200]]){
+    const rendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
+    const portable=await page.evaluate(({size,scale})=>{
+      const h=window.MSWE.resolve('processing-host'),p=h.data,S=window.MSWProjectStyle,style=S.defaults();
+      style.main={...style.main,fontName:'Arial',fontSize:size,scaleX:scale,scaleY:scale,primaryColor:'#ff0000'};
+      style.secondary={...style.secondary,fontName:'Arial',fontSize:60,primaryColor:'#00ff00'};
+      const paired=S.arrangePair(style,{order:'secondary-above',gap:-46});
+      p.segments=[{id:'m',start:0,end:3000,text:'MMMM',items:[]}];
+      p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,tracks:[{id:'sub',role:'extension',segments:[{id:'s',start:0,end:3000,text:'MMMM',items:[]}]}],bindings:[]};
+      h.commitProjectStyle(paired);dispatchEvent(new Event('msw:subtitles-changed'));
+      h.player.currentTime=1;h.player.pause();
+      return layerAssMargins({assProfile:true,assStyle:paired.main,assExtensionStyle:paired.secondary,playResX:1920,playResY:1080},p);
+    },{size,scale});
+    const payload=await (await rendered).json();
+    await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);
+    await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
+    const png=join(folder,`scaled-pair-${size}.png`);await page.locator('.JASSUB').screenshot({path:png});
+    const rows=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON||'python',['-c',`from PIL import Image
+import json,sys
+im=Image.open(sys.argv[1]).convert('RGB'); result=[]
+for channel in (0,1):
+ points=[y for y in range(im.height) for x in range(im.width) if (lambda c:c[channel]>80 and c[channel]>2*c[1-channel] and c[channel]>2*c[2])(im.getpixel((x,y)))]
+ result.append(sum(points)/max(1,len(points)))
+print(json.dumps(result))`,png],{encoding:'utf8',windowsHide:true}));
+    const margins=Object.fromEntries(payload.ass.split('\n').filter(l=>l.startsWith('Dialogue:')).map(l=>{const v=l.split(',');return [v[3],Number(v[7])];}));
+    expect(portable.main.m).toBe(margins.main);expect(portable.secondary.s).toBe(margins.secondary);
+    expect(margins.secondary-margins.main).toBe(50);expect(rows[0]).toBeGreaterThan(rows[1]);
+    positions.push(rows);
+  }
+  for(let role=0;role<2;role++)expect(Math.abs(positions[0][role]-positions[1][role])).toBeLessThan(2);
+});

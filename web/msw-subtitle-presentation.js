@@ -46,7 +46,7 @@
       const height=entry=>{
         const s=styles[entry.role],capacity=Math.max(1,Math.floor(width*s.width/(s.font_size*.55)));
         const lines=String(entry.cue.text||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?2:1),0)/capacity)),0);
-        return s.font_size*1.2*lines;
+        return s.font_size*1.2*(s.scale_y??100)/100*lines;
       };
       if(group.paired){
         // Consecutive cues reuse a lane; a long translation spanning several

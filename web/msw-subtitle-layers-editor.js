@@ -259,7 +259,7 @@ function layerAssMargins(options, project = DATA, target = 'both') {
     const font=options.assProfile && raw ? raw.fontSize : window.AsrEditorUtils.resolveAssFontSize(options.appearance?.font_size,resolution.height)*1080/resolution.height;
     const margin=raw?.marginV ?? (role==='main'?80:20);
     bases[role]=margin;
-    styles[role]={font_size:font,width:Math.max(.1,1-((raw?.marginL??10)+(raw?.marginR??10))/resolution.width),y:1-margin/resolution.height};
+    styles[role]={font_size:font,scale_y:raw?.scaleY??100,width:Math.max(.1,1-((raw?.marginL??10)+(raw?.marginR??10))/resolution.width),y:1-margin/resolution.height};
   }
   const layout=window.MSWSubtitlePresentation.layout(project,styles,target,1080*resolution.width/resolution.height);
   const result={main:{},secondary:{}};
@@ -277,7 +277,7 @@ function layerRefreshSubtitlePreview(tMs) {
   const styles={};
   for(const role of ['main','secondary']) {
     const a=appearances[role], s=assStyles[role];
-    styles[role]=ass?{font_size:s.fontSize,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
+    styles[role]=ass?{font_size:s.fontSize,scale_y:s.scaleY,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
       : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
   }
   const previewStyle=window.MSWSubtitleStyle?.currentPreview().style||DATA.preview?.project_style;
