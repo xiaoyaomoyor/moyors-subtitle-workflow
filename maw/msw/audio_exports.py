@@ -130,7 +130,8 @@ class AudioExports:
                 # Tail previews use the last actual frame, with subtitles at
                 # the requested timeline position (the same freeze policy).
                 seek=min(at,max(0,video['duration_ms']-1000/float(frame_rate(video))))/1000
-                ass_clock = f'+{at}/1000/TB' if (project.get('preview') or {}).get('ass_library_exports') is True else ''
+                from maw.project_subtitle_style import apply_project_style
+                ass_clock = f'+{at}/1000/TB' if (apply_project_style(project).get('preview') or {}).get('ass_library_exports') is True else ''
                 filters=f'setpts=PTS-STARTPTS{ass_clock},'+build_subtitle_filter(subtitle)
                 # Render subtitles at source resolution before fitting the UI.
                 filters+=",scale=w='min(1280,iw)':h=-2"

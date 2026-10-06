@@ -268,7 +268,7 @@ function layerAssMargins(options, project = DATA, target = 'both') {
 }
 
 function layerRefreshSubtitlePreview(tMs) {
-  const lib=window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
+  const lib=window.AsrEditorUtils.normalizeAssStyleLibrary(window.MSWSubtitleStyle?.previewLibrary() || ASS_STYLE_LIBRARY);
   const profile=window.AsrEditorUtils.assProfileForId(lib,lib.assignments.assExportProfileId);
   const assStyles={main:window.AsrEditorUtils.assStyleForId(lib,profile.styleId),secondary:window.AsrEditorUtils.assStyleForId(lib,lib.assignments.assExtensionStyleId)};
   const geo=getPreviewGeometry(), metrics=assPreviewMetrics(), scale=metrics.stageHeight/1080;

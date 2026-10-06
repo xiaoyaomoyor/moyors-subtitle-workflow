@@ -5061,6 +5061,30 @@
 
 .msw-layer-geometry > :not(.overlay-handle) { visibility: hidden; }
 .msw-layer-geometry { background: transparent !important; }
+/* Unified subtitle styles share the existing media settings theme. */
+.msw-project-style { display:flex; flex-direction:column; gap:12px; }
+.msw-style-heading,.msw-style-tabs { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.msw-style-heading > :first-child { flex:1; }
+.msw-style-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 14px; padding:10px 0; }
+.msw-style-fields label { display:flex; flex-direction:column; gap:6px; min-width:0; color:var(--muted); font-size:13px; }
+.msw-style-fields input,.msw-style-fields select { width:100%; min-width:0; box-sizing:border-box; }
+.msw-style-fields input[type=checkbox] { width:18px; height:18px; }
+.msw-style-fields input[type=color] { height:32px; }
+.msw-style-tabs button[aria-selected=true] { color:var(--accent); border-color:var(--accent); }
+.msw-style-badge { font-size:12px; color:var(--muted); }
+.msw-project-style .settings-panel-item { display:grid; grid-template-columns:110px minmax(0,1fr); gap:10px; align-items:center; }
+.msw-project-style .msw-option-label { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.msw-project-style .settings-panel-item select,.msw-project-style .settings-panel-item input { width:100%; min-width:0; }
+.msw-project-style .msw-processing-hint { margin:0; line-height:1.5; }
+.msw-project-style > .msw-style-heading { min-height:28px; }
+#style-migration-dismiss { align-self:flex-end; padding:2px 8px; font-size:12px; }
+.msw-style-render-status { position:absolute; left:8px; top:8px; z-index:8; max-width:calc(100% - 16px); padding:3px 7px; border-radius:5px; background:#0009; color:white; font-size:11px; pointer-events:none; }
+.player-stage[data-subtitle-renderer=libass] #overlay,
+.player-stage[data-subtitle-renderer=libass] #msw-layer-preview { visibility:hidden !important; }
+.JASSUB { z-index:5; pointer-events:none; }
+.player-stage[data-subtitle-renderer=approximate] .JASSUB { visibility:hidden; }
+.msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
+@media (max-width:520px) { .msw-style-fields { grid-template-columns:1fr; } }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -7942,7 +7966,7 @@
             <label class="editor-settings-item">紫色<input data-speaker-name="purple" maxlength="64" value="SP4"></label>
             <label class="editor-settings-item">蓝色<input data-speaker-name="blue" maxlength="64" value="SP5"></label>
             <label class="editor-settings-item">预览字幕颜色样式<select id="subtitle-color-style"><option value="underline">下划线</option><option value="text">文字</option><option value="shadow">阴影</option><option value="stroke">描边</option></select></label>
-            <small class="editor-settings-hint">名称用于预览、启用名称的字幕导出和显式选择的 ASS 样式库烧录，不修改正文或 TTS 发音。</small>
+            <small class="editor-settings-hint">名称用于预览、启用名称的字幕导出和工程字幕样式烧录，不修改正文或 TTS 发音。</small>
             <label class="toggle editor-settings-item"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
             <label class="toggle editor-settings-item"><input id="export-speaker-names-suffix" type="checkbox">以说话人名称作为分色 SRT 后缀</label>
           </div>
@@ -8841,10 +8865,13 @@
     <p id="video-export-tail-summary" class="msw-processing-hint"></p>
     <p class="msw-processing-hint" data-help-for="video-export-tail">默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。</p>
   </div>
-  <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
-  <div class="msw-processing-actions"><button type="button" id="video-export-style-open">字幕样式与预览</button></div>
+  <label class="msw-processing-field">烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
+  <div id="video-export-style-choice" hidden>
+    <label class="msw-processing-field">样式来源<select id="video-export-style-source"><option value="project">跟随工程样式</option><option value="preset">使用其他样式预设</option></select></label>
+    <label class="msw-processing-field" id="video-export-preset-field" hidden>样式预设<select id="video-export-style-preset"></select></label>
+  </div>
   <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。</p>
-  <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">按字幕样式写入视频画面，主副字幕分别设置。表情包不烧录。可生成当前帧预览或五秒样片，确认实际字体、换行与位置。</p>
+  <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">开启烧录后在播放器查看本次字幕样式。选择其他预设只影响本次视频，不改变工程样式；调整样式请前往媒体播放器设置。表情包不烧录。</p>
 </template>
 <template id="timeline-export-fields">
   <label class="msw-tts-check"><input type="checkbox" id="timeline-export-collect-media" checked>同时打包原视频</label>
@@ -17653,6 +17680,112 @@ export default MawDynamicCaptions;
   }
 })();
 
+// Project styles are snapshots. Library presets and proofreading never mutate them.
+(function(global) {
+  'use strict';
+  const U = global.AsrEditorUtils;
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const schema = 'msw.subtitle-style.v1';
+  function normalize(raw = {}) {
+    return {schema, name: String(raw.name || '默认白字').slice(0, 80),
+      main: U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),
+      secondary: U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),
+      animations: U.normalizeAssAnimations(raw.animations),
+      ...(raw.legacyBurn ? {legacyBurn: clone(raw.legacyBurn)} : {})};
+  }
+  function defaults() {
+    return normalize({main:{fontSize:48,marginV:108,marginL:96,marginR:96},
+      secondary:{fontSize:40,marginV:48,marginL:96,marginR:96}});
+  }
+  function fromLibrary(raw, profileId) {
+    const library = U.normalizeAssStyleLibrary(raw);
+    const profile = U.assProfileForId(library, profileId || library.assignments.assExportProfileId);
+    return normalize({name:profile.name,main:U.assStyleForId(library,profile.styleId),
+      secondary:U.assStyleForId(library,library.assignments.assExtensionStyleId),animations:profile.animations});
+  }
+  function toLibrary(style) {
+    const s=normalize(style);
+    return U.normalizeAssStyleLibrary({styles:[{...s.main,id:'project-main'},{...s.secondary,id:'project-secondary'}],
+      assProfiles:[{id:'project',name:s.name,styleId:'project-main',animations:s.animations}],
+      assignments:{assExportProfileId:'project',assExtensionStyleId:'project-secondary'}});
+  }
+  const family = value => ({default:U.ASS_DEFAULT_ASS_STYLE.fontName, sans:'Arial', yahei:'Microsoft YaHei',hei:'SimHei',song:'SimSun'}[value] || value || U.ASS_DEFAULT_ASS_STYLE.fontName);
+  function fromBurn(raw = {}) {
+    const s = defaults(); s.name='旧工程烧录样式'; s.legacyBurn=clone(raw);
+    for(const [role,size,y] of [['main',48,.86],['secondary',40,.94]]) {
+      const b={font_family:'Arial',font_size:size,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y,width:.8,...raw[role]};
+      s[role]={...s[role],fontName:b.font_family,fontSize:b.font_size,primaryColor:b.color,outlineColor:b.outline_color,outline:b.outline,
+        backColor:b.background_color,borderStyle:b.background_alpha>0?3:1,marginL:Math.round(Math.max(0,b.x-b.width/2)*1920),
+        marginR:Math.round(Math.max(0,1-b.x-b.width/2)*1920),marginV:Math.round((1-b.y)*1080),alignment:2};
+    }
+    return normalize(s);
+  }
+  function fromPreview(preview={}) {
+    const s=defaults(); s.name='旧工程预览样式';
+    for(const [role,key] of [['main','subtitle'],['secondary','extension_subtitle']]) {
+      const p=preview[key] || {};
+      s[role]={...s[role],fontName:family(p.font_family),fontSize:(p.font_size || (role==='main'?18:16))*4,primaryColor:p.color||s[role].primaryColor};
+    }
+    return normalize(s);
+  }
+  function migrate(project, library, originalPreview=project.preview||{}) {
+    project.preview ||= {};
+    if(project.preview.project_style?.schema===schema) return false;
+    if(project.preview.project_style!=null)throw Error('工程字幕样式版本不受支持，请使用兼容的编辑器');
+    const p=project.preview;
+    const old=Object.keys(originalPreview).some(k=>['subtitle','extension_subtitle','burn_subtitles','ass_library_exports'].includes(k));
+    p.project_style=originalPreview.ass_library_exports===true?fromLibrary(originalPreview.burn_ass_library || library):old?fromBurn(originalPreview.burn_subtitles):defaults();
+    if(old) p.style_migration={version:1,presets:[fromPreview(originalPreview),fromLibrary(library)],
+      source:originalPreview.ass_library_exports===true?'ass':'burn',notice:true};
+    return true;
+  }
+  function presets() {
+    const normal=defaults();
+    return [{id:'default',...normal},
+      {id:'large',...normalize({...normal,name:'大字清晰',main:{...normal.main,fontSize:72,outline:3},secondary:{...normal.secondary,fontSize:56}})},
+      {id:'contrast',...normalize({...normal,name:'高对比底框',main:{...normal.main,borderStyle:3,outline:5,backColor:'#000000'},secondary:{...normal.secondary,borderStyle:3,outline:4}})},
+      {id:'bilingual',...normalize({...normal,name:'双语紧凑',main:{...normal.main,fontSize:44,marginV:100},secondary:{...normal.secondary,fontSize:36,marginV:48}})}];
+  }
+  function apply(project, style) { project.preview ||= {}; project.preview.project_style=normalize(style); }
+  // Preserve the old two-pass translucent background even in portable exports.
+  // This mirrors subtitle_style.styled_ass's legacy branch, using the shared layout.
+  function buildLegacyAss(project, options={}) {
+    const raw=project.preview?.project_style?.legacyBurn;if(!raw)return null;
+    const styles={};
+    for(const [role,size,y] of [['main',48,.86],['secondary',40,.94]])styles[role]={font_family:'Arial',font_size:size,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y,width:.8,...raw[role]};
+    if(project.overlay_track?.enabled){const anchor=project.multi_subtitle?.enabled?styles.secondary:styles.main;styles.overlay={...styles.main,y:Math.max(.05,anchor.y-1.2*anchor.font_size/1080)};}
+    const width=Math.round(options.playResX||1920),target=options.target||'both';
+    const color=(hex,alpha=0)=>`&H${Math.round(alpha).toString(16).padStart(2,'0')}${hex.slice(5,7)}${hex.slice(3,5)}${hex.slice(1,3)}`.toUpperCase();
+    const time=ms=>{const cs=Math.max(0,Math.round(ms/10));return `${Math.floor(cs/360000)}:${String(Math.floor(cs/6000)%60).padStart(2,'0')}:${String(Math.floor(cs/100)%60).padStart(2,'0')}.${String(cs%100).padStart(2,'0')}`;};
+    const escape=text=>String(text||'').replaceAll('\\','\\\\').replaceAll('{','\\{').replaceAll('}','\\}').replace(/\r\n|\r|\n/g,'\\N');
+    const lines=['[Script Info]',`Title: ${String(options.title||'MSW').replace(/[\r\n]/g,' ')}`,'ScriptType: v4.00+',`PlayResX: ${width}`,'PlayResY: 1080','ScaledBorderAndShadow: yes','WrapStyle: 0','','[V4+ Styles]',
+      'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding'];
+    for(const [name,s] of Object.entries(styles))for(const background of [false,true]){
+      const primary=color(s.color,background?255:0),border=background?color(s.background_color,(1-s.background_alpha)*255):color(s.outline_color);
+      lines.push(`Style: ${name}${background?'-bg':''},${s.font_family},${s.font_size},${primary},${primary},${border},${border},0,0,0,0,100,100,0,0,${background?3:1},${background?6:s.outline},0,2,${Math.round(Math.max(0,s.x-s.width/2)*width)},${Math.round(Math.max(0,1-s.x-s.width/2)*width)},${Math.round((1-s.y)*1080)},1`);
+    }
+    lines.push('','[Events]','Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text');
+    const layout=project.schema==='msw.project.v2'?global.MSWSubtitlePresentation.layout(project,styles,target,width):null;
+    const groups={main:project.segments||[],secondary:project.multi_subtitle?.enabled?project.multi_subtitle.tracks?.[0]?.segments||[]:[],overlay:project.overlay_track?.enabled?project.overlay_track.segments||[]:[]};
+    const map=options.mapTime||((v)=>v);
+    for(const [name,cues] of Object.entries(groups)){
+      if(target!=='both'&&target!==name&&name!=='overlay')continue;
+      const s=styles[name];if(!s)continue;
+      const first=options.alignFirstStart&&name=== (target==='secondary'?'secondary':'main')?U.getSrtExportFirstIndex(cues,true):-1;
+      cues.forEach((cue,index)=>{
+        if(cue.disabled||!String(cue.text||'').trim()||(layout&&name==='main'&&!global.MSWSubtitlePresentation.visible(project,cue)))return;
+        const start=index===first?0:map(cue.start),end=map(cue.end);if(end<=start)return;
+        const offset=layout?.offsets.get(global.MSWSubtitlePresentation.key(name,cue.id))?.offset||0;
+        const margin=layout?Math.round((1-s.y)*1080+offset):0,text=escape(cue.text);
+        if(s.background_alpha>0)lines.push(`Dialogue: 0,${time(start)},${time(end)},${name}-bg,,0,0,${margin},,${text}`);
+        lines.push(`Dialogue: 1,${time(start)},${time(end)},${name},,0,0,${margin},,${text}`);
+      });
+    }
+    return lines.join('\n')+'\n';
+  }
+  global.MSWProjectStyle=Object.freeze({schema,clone,normalize,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,buildLegacyAss});
+})(typeof window==='undefined'?globalThis:window);
+
 // Unified subtitle identities and derived layout. No DOM, media or persistence.
 (function (global) {
   'use strict';
@@ -19421,6 +19554,31 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '工程字幕样式': 'Project subtitle style',
+    '跟随工程样式': 'Follow project style',
+    '跟随工程': 'Follow project',
+    '仅影响预览': 'Preview only',
+    '预览样式': 'Preview style',
+    '默认字幕样式': 'Default subtitle style',
+    '自定义预览样式': 'Custom proofreading style',
+    '调整自定义预览': 'Edit proofreading style',
+    '自定义预览 · 仅影响预览': 'Custom style · Preview only',
+    '字幕样式预设': 'Subtitle style presets',
+    '样式预设': 'Style preset',
+    '管理预设': 'Manage presets',
+    '返回工程': 'Back to project',
+    '另存为预设': 'Save as preset',
+    '保存为新预设': 'Save as new preset',
+    '默认白字': 'Default white',
+    '大字清晰': 'Large text',
+    '高对比底框': 'High contrast box',
+    '双语紧凑': 'Compact bilingual',
+    '样式来源': 'Style source',
+    '使用其他样式预设': 'Use another style preset',
+    '烧录字幕': 'Burn subtitles',
+    '不烧录': 'Do not burn',
+    '字号（1080p 基准）': 'Font size (1080p reference)',
+    '更多设置': 'More settings',
     '旧版工程（v1 兼容）': 'Legacy project (v1 compatible)',
     '只在旧版结构能无损表达时导出；不能表达的重叠、绑定会明确提示。': 'Export only if the legacy structure can preserve the content. Unsupported overlaps or bindings are reported.',
     '按同时显示的主副字幕合并文本，仅改变导出，不修改工程': 'Merge simultaneous primary and secondary text in the export without changing the project.',
@@ -29870,7 +30028,7 @@ function layerAssMargins(options, project = DATA, target = 'both') {
 }
 
 function layerRefreshSubtitlePreview(tMs) {
-  const lib=window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
+  const lib=window.AsrEditorUtils.normalizeAssStyleLibrary(window.MSWSubtitleStyle?.previewLibrary() || ASS_STYLE_LIBRARY);
   const profile=window.AsrEditorUtils.assProfileForId(lib,lib.assignments.assExportProfileId);
   const assStyles={main:window.AsrEditorUtils.assStyleForId(lib,profile.styleId),secondary:window.AsrEditorUtils.assStyleForId(lib,lib.assignments.assExtensionStyleId)};
   const geo=getPreviewGeometry(), metrics=assPreviewMetrics(), scale=metrics.stageHeight/1080;
@@ -29972,6 +30130,7 @@ function layerMatchImportedSubtitles(main, secondary, tolerance) {
 }
 
 const DATA = prepareLayerProject({"segments": [], "media": "", "language": "", "model": "", "preview": {"subtitle": {"x": 0.1, "y": 0.76, "width": 0.8, "height": 0.16, "speaker_labels": {"mapping_enabled": false, "enabled": true}}}});
+let originalSubtitlePreview = structuredClone(DATA.preview || {});
 const CANONICAL_PROJECT_FIELDS = new Set([
   'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
   'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'overlay_track', 'waveform',
@@ -31736,7 +31895,9 @@ const ASS_PREVIEW_REFERENCE_HEIGHT = Number(window.AsrEditorUtils.ASS_REFERENCE_
 
 function assExportOptions(appearance = getSubtitleAppearance()) {
   const resolution = currentAssVideoResolution();
-  const library = window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
+  const library = DATA.preview?.project_style
+    ? window.MSWProjectStyle.toLibrary(DATA.preview.project_style)
+    : window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
   const profileId = library.assignments?.assExportProfileId || 'ass';
   const assProfile = window.AsrEditorUtils.assProfileForId(library, profileId);
   const assStyle = window.AsrEditorUtils.assStyleForId(library, assProfile.styleId);
@@ -31746,12 +31907,12 @@ function assExportOptions(appearance = getSubtitleAppearance()) {
   return {
     title: PROJECT_NAME || FILENAME_BASE || 'MSW',
     mediaMetadata: normalizeMediaMetadata(DATA.media_metadata),
-    playResX: resolution?.width,
-    playResY: resolution?.height,
+    playResX: DATA.preview?.project_style ? Math.round(1080*(resolution?.width||1920)/(resolution?.height||1080)) : resolution?.width,
+    playResY: DATA.preview?.project_style ? 1080 : resolution?.height,
     colorStyles: COLOR_PALETTE,
     appearance,
     extensionAppearance: getStoredExtensionSubtitleAppearance(),
-    ...(DATA.preview?.ass_library_exports === true ? { assProfile, assStyle, assExtensionStyle } : {}),
+    ...(DATA.preview?.project_style || DATA.preview?.ass_library_exports === true ? { assProfile, assStyle, assExtensionStyle } : {}),
   };
 }
 
@@ -31949,6 +32110,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if (kind === 'project-style') return {kind,label,style:structuredClone(DATA.preview?.project_style || window.MSWProjectStyle.defaults())};
   if (kind === 'source-gain') return {kind, label, gainDb: window.MSWE.resolve('audio-timeline').sourceGainDb(), mediaKey: sourceGainMediaKey()};
   if (kind === 'asset-removal') return snapshotAssetRemoval(sourceRecord.assetId, label);
   if (kind === 'layout') {
@@ -32035,6 +32197,13 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if (record.kind === 'project-style') {
+    window.MSWProjectStyle.apply(DATA,record.style);
+    previewGeometryDirty = true; projectImportDirty = true;
+    refreshSubtitlePreview(); scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:burn-style'));
+    return true;
+  }
   if (record.kind === 'source-gain') {
     if (record.mediaKey !== sourceGainMediaKey()) { flashHint('媒体已改变，未恢复旧媒体的试听音量', 'warning'); return false; }
     void window.MSWE.resolve('audio-timeline').setSourceGainDb(record.gainDb).catch(error => flashHint(error.message, 'warning'));
@@ -45081,7 +45250,7 @@ function restoreCssSubtitlePreview() {
 }
 
 function applyAssSubtitlePreview({ tMs, segment, extension, overlay, overlaySegments, mainColorName, speakerLabelVisible }) {
-  const library = window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
+  const library = window.AsrEditorUtils.normalizeAssStyleLibrary(window.MSWSubtitleStyle?.previewLibrary() || ASS_STYLE_LIBRARY);
   const profile = window.AsrEditorUtils.assProfileForId(
     library,
     library.assignments?.assExportProfileId || 'ass',
@@ -45784,6 +45953,7 @@ function buildSrt() {
 }
 
 function buildAss() {
+  if(DATA.preview?.project_style?.legacyBurn)return window.MSWProjectStyle.buildLegacyAss(DATA,{...assExportOptions(),alignFirstStart:EDITOR_SETTINGS.exportStartAtZero});
   const { overlaySegments } = mergedExportSegments();
   const mainSegments=layerMode()?layerExportMainSegments():DATA.segments;
   // 副字幕轨随 ASS 导出（多重字幕开启时才存在）；叠加轨与副字幕分层输出。
@@ -45840,6 +46010,7 @@ function buildGapRemovedAss() {
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
     return null;
   }
+  if(DATA.preview?.project_style?.legacyBurn)return window.MSWProjectStyle.buildLegacyAss(DATA,{...assExportOptions(),alignFirstStart:EDITOR_SETTINGS.exportStartAtZero,mapTime:time=>window.AsrEditorUtils.mapGapRemovedTime(time,removed)});
   const mainSegments=layerMode()?layerExportMainSegments():DATA.segments;
   const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
     mainSegments,
@@ -48676,6 +48847,11 @@ document.getElementById('download-ext-ass')?.addEventListener('click', async () 
     return;
   }
   if (editingState) finishEdit(true);
+  if(DATA.preview?.project_style?.legacyBurn){
+    const single={...DATA,segments:[],overlay_track:{enabled:false},multi_subtitle:{...DATA.multi_subtitle,enabled:true,tracks:[track]}};
+    await downloadFile(window.MSWProjectStyle.buildLegacyAss(single,{...assExportOptions(),target:'secondary',alignFirstStart:EDITOR_SETTINGS.exportStartAtZero}),`${FILENAME_BASE}.extension.ass`,'text/plain',{desc:'副字幕 ASS 文件',types:{'text/plain':['.ass']}});
+    return;
+  }
   const firstIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
     track.segments, EDITOR_SETTINGS.exportStartAtZero,
   );
@@ -49288,6 +49464,7 @@ function applyCanonicalProject(data, filename) {
   DATA.gap_remove = data.gap_remove || null;
   DATA.script_alignment = data.script_alignment || null;
   DATA.preview = (data.preview && typeof data.preview === 'object') ? data.preview : null;
+  originalSubtitlePreview = structuredClone(DATA.preview || {});
   gapRemoveDirty = false;
   previewGeometryDirty = false;
   projectImportDirty = false;
@@ -55868,7 +56045,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   },
   exportProject: () => {
     commitProcessingEdits(); const project = JSON.parse(buildJson());
-    if (project.preview?.ass_library_exports === true) {
+    if (project.preview?.project_style || project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));
       const options = speakerExportOptions();
       project.preview.burn_speaker_labels = {enabled:options.speakerLabelsEnabled,
@@ -55877,6 +56054,26 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return project;
   },
   setAssLibraryExports,
+  legacyAssLibrary: () => JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY)),
+  originalSubtitlePreview: () => originalSubtitlePreview,
+  useProjectStylePreview: () => { EDITOR_SETTINGS.assMode = true; refreshSubtitlePreview(); },
+  commitProjectStyle: (style, label = '修改工程字幕样式') => {
+    if(JSON.stringify(window.MSWProjectStyle.normalize(style))===JSON.stringify(window.MSWProjectStyle.normalize(DATA.preview?.project_style)))return;
+    editorHistory.push(snapshotCurrentForKind('project-style',label));updateUndoRedoButtons();
+    window.MSWProjectStyle.apply(DATA, style);
+    previewGeometryDirty = true; projectImportDirty = true;
+    refreshSubtitlePreview(); scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:burn-style'));
+  },
+  persistStyleMigration: () => { previewGeometryDirty = true; projectImportDirty = true; scheduleAutoSaveFlush(); },
+  refreshStylePreview: () => refreshSubtitlePreview(),
+  subtitleRenderSettings: () => ({...speakerExportOptions(),colorStyles:COLOR_PALETTE,assColorStyle:getSubtitleAppearance().ass_color_style}),
+  subtitlePreviewTarget: () => {
+    const main=overlayToggle.checked&&!subtitleTrackMuted('main');
+    const secondary=extensionOverlayToggle?.checked&&DATA.multi_subtitle?.enabled&&!subtitleTrackMuted('extension');
+    return main?(secondary?'both':'main'):(secondary?'secondary':'none');
+  },
+  openMediaSettings: () => setSubtitlePreviewSettingsPanelOpen(true),
   openAssStyles: () => assStyleFloatingPanel.open(),
   setBurnStyles: styles => {
     DATA.preview ||= {};
@@ -61065,6 +61262,7 @@ window.addEventListener('beforeunload', (e) => {
       try {
         if (!pending) {
           const project = host.exportProject();
+          if (video) global.MSWSubtitleStyle?.applyExport(project);
           for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete project[key];
           let options = {...selectedOptions({applyTail:!overrides}),...(overrides || {})};
           if (video) options = core.videoOptions(project,options,context);
@@ -61140,81 +61338,261 @@ window.addEventListener('beforeunload', (e) => {
 
 (function(global) {
   'use strict';
-  const host=global.MSWE?.resolve('processing-host');if(!host)return;
-  const t=s=>global.MSWE_I18N?.translateText?.(s)||s;
-  const defaults={main:{font_family:'Arial',font_size:48,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y:.86,width:.8},
-    secondary:{font_family:'Arial',font_size:40,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y:.94,width:.8}};
-  const panel=document.createElement('aside');panel.id='burn-style-panel';panel.className='gap-remove-panel msw-processing-panel';
-  panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','false');panel.setAttribute('aria-hidden','true');panel.setAttribute('aria-labelledby','burn-style-title');
-  panel.innerHTML=`<header class="gap-remove-panel-header" id="burn-style-drag"><div class="gap-remove-heading"><span class="gap-remove-eyebrow">视频导出</span><h3 id="burn-style-title">字幕样式与预览</h3></div><button type="button" class="gap-remove-close" id="burn-style-close" aria-label="关闭字幕样式">${document.querySelector('#video-export-close').innerHTML}</button></header>
-    <div class="gap-remove-panel-body"><label><input type="checkbox" id="burn-style-library">本工程使用 ASS 样式库导出和烧录</label><button type="button" id="burn-style-library-open">编辑 ASS 样式库</button>
-    <p class="msw-processing-hint">默认保留工程原有样式。启用后使用样式库中的主／副字幕方案，叠加字幕显示在其上方；开始导出时固定本次样式。</p><div class="msw-processing-fields">
-    <label>字幕轨道<select id="burn-style-track"><option value="main">主字幕</option><option value="secondary">副字幕</option></select></label>
-    <label>预览内容<select id="burn-style-target"><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label></div>
-    <div id="burn-style-fields" class="msw-processing-fields"></div>
-    <div class="msw-processing-actions"><button type="button" id="burn-style-copy">从当前预览样式复制</button><button type="button" id="burn-style-reset">恢复默认</button></div>
-    <p class="msw-processing-hint" data-help-for="burn-style-title">样式随工程保存。字号按画面高度百分比设置，位置为文字框底部中心。当前帧与样片使用和正式导出相同的字体渲染；复制播放器样式后请确认实际换行。播放器中的说话人下划线与表情包不复制。</p>
-    <div class="msw-processing-actions"><button type="button" id="burn-style-frame">预览当前帧</button><span id="burn-style-sample-help"><button type="button" id="burn-style-sample">生成五秒样片</button></span></div>
-    <p data-help-for="burn-style-sample-help" class="msw-processing-hint">从播放头生成五秒样片，保留空隙，超出视频时定格延长。使用当前导出音量和字幕样式，不改变正式导出范围。</p>
-    <p id="burn-style-message" class="msw-processing-message" role="status"></p><img id="burn-style-image" hidden alt="实际烧录效果预览"></div>`;
-  document.body.append(panel);
-  const el=id=>document.getElementById('burn-style-'+id);
-  const fields=[['font_family','字体','text'],['font_size','字号（画面高度 %）','number',.75,18.5,'any'],['color','文字颜色','color'],['outline_color','描边颜色','color'],
-    ['outline','描边宽度（1080p 基准）','number',0,12,.5],['background_color','背景颜色','color'],['background_alpha','背景不透明度（%）','number',0,100,1],
-    ['x','水平位置（%）','number',0,100,1],['y','垂直位置（%）','number',0,100,1],['width','文字框宽度（%）','number',10,100,1]];
-  for(const [key,label,type,min,max,step] of fields){const row=document.createElement('label');row.textContent=t(label);const input=document.createElement('input');input.id='burn-style-'+key;input.type=type;
-    if(type==='number'){input.min=min;input.max=max;input.step=step;}if(type==='text')input.maxLength=128;row.append(input);el('fields').append(row);}
-  const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.getElementById('video-export-style-open'),positionKey:'msw.burn.style.position'});
-  let styles,revision=0,controller=null,previewKey=null;
-  const subtitleKey=()=>JSON.stringify([host.data.segments,host.data.multi_subtitle?.tracks?.[0]?.segments,host.data.overlay_track].map(cues=>Array.isArray(cues)?cues.map(c=>[c.start,c.end,c.text,c.disabled]):cues));
-  const clone=value=>JSON.parse(JSON.stringify(value));
-  function read(){styles={main:{...defaults.main,...host.data.preview?.burn_subtitles?.main},secondary:{...defaults.secondary,...host.data.preview?.burn_subtitles?.secondary}};}
-  function display(){const library=host.data.preview?.ass_library_exports===true;el('library').checked=library;
-    el('fields').hidden=library;el('copy').disabled=library;el('reset').disabled=library;el('track').disabled=library;
-    const s=styles[el('track').value];for(const [key]of fields)el(key).value=key==='font_size'?Number((s[key]/10.8).toFixed(3)):['x','y','width','background_alpha'].includes(key)?Number((s[key]*100).toFixed(3)):s[key];}
-  el('library').onchange=()=>{host.setAssLibraryExports(el('library').checked);display();stale();};
-  el('library-open').onclick=()=>host.openAssStyles();
-  function stale(){revision++;controller?.abort();controller=null;el('image').hidden=true;el('message').textContent='';el('frame').disabled=false;}
-  function save(){host.setBurnStyles(styles);stale();global.dispatchEvent(new Event('msw:burn-style'));}
-  el('fields').addEventListener('change',event=>{
-    const key=event.target.id.replace('burn-style-','');if(!fields.some(f=>f[0]===key))return;
-    if(!event.target.validity.valid||!event.target.value.trim()){event.target.reportValidity();return;}
-    let value=event.target.type==='number'?Number(event.target.value):event.target.value;
-    if(key==='font_family'&&/[,{}\\\x00-\x1f]/.test(value)){el('message').textContent=t('字幕字体名称无效');return;}
-    if(key==='font_size')value*=10.8;else if(['x','y','width','background_alpha'].includes(key))value/=100;
-    styles[el('track').value][key]=value;save();
+  const host=global.MSWE?.resolve('processing-host'), S=global.MSWProjectStyle;
+  if(!host || !S) return;
+  const t=s=>global.MSWE_I18N?.translateText?.(s)||s, $=id=>document.getElementById(id);
+  const old=document.querySelector('.subtitle-preview-settings-section');
+  old.hidden=true;
+  const panel=document.createElement('section');panel.className='settings-panel-section msw-project-style';
+  panel.id='project-subtitle-style';old.before(panel);
+  panel.innerHTML=`<div class="msw-style-heading"><span class="settings-panel-title">字幕样式</span><span id="style-scope" class="msw-style-badge"></span></div>
+    <label class="settings-panel-item" data-option-help="默认跟随工程样式。默认、大字、高对比及自定义校对样式只影响播放器，不改变 ASS 或视频输出。">预览样式<select id="style-preview-mode"></select></label>
+    <div id="style-custom-preview" hidden><button type="button" id="style-edit-proof">调整自定义预览</button></div>
+    <p id="style-migration-note" class="msw-processing-hint" hidden></p>
+    <div class="msw-style-heading"><strong id="style-editor-title">工程字幕样式</strong><button type="button" id="style-manage">管理预设</button><button type="button" id="style-back" hidden>返回工程</button></div>
+    <label class="settings-panel-item" id="style-preset-label" data-option-help="工程样式随工程保存，用于 ASS 导出和默认视频烧录；SRT 仅保存文字和时间。应用预设后调整只影响本工程。">样式预设<select id="style-project-preset"></select></label>
+    <div id="style-library-actions" hidden><label class="settings-panel-item">预设名称<input id="style-preset-name" maxlength="80"></label><div class="msw-processing-actions"><button id="style-new-preset" type="button">新建</button><button id="style-save-preset" type="button">保存预设</button><button id="style-delete-preset" type="button">删除预设</button></div></div>
+    <div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false">副字幕</button></div>
+    <div id="style-basic-fields" class="msw-style-fields"></div>
+    <details id="style-more"><summary>更多设置</summary><div id="style-advanced-fields" class="msw-style-fields"></div><details><summary>字幕动画</summary><div id="style-animation-fields" class="msw-style-fields"></div></details></details>
+    <div class="msw-processing-actions" id="style-project-actions"><button type="button" id="style-reset">恢复默认</button><button type="button" id="style-save-as">另存为预设</button></div>
+    <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
+  const basic=[['fontName','字体','text'],['fontSize','字号（1080p 基准）','number',1,512],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100,.5],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
+  const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,30,.5],['marginL','左边距','number',0,4000],['marginR','右边距','number',0,4000],['marginV','垂直边距','number',0,4000],['spacing','字距','number',-100,100,.5],['scaleX','横向缩放 %','number',1,1000],['scaleY','纵向缩放 %','number',1,1000],['angle','旋转角度','number',-360,360]];
+  function fields(rows,target,animation=false) {
+    for(const [key,caption,type,min,max,step] of rows) {
+      const label=document.createElement('label');label.textContent=t(caption);
+      const input=document.createElement(type==='select'?'select':'input'); input.id=`style-field-${key.replaceAll('.','-')}`;
+      input.dataset[animation?'animation':'styleField']=key;
+      if(type==='select') for(const [value,name] of min) input.add(new Option(t(name),String(value)));
+      else { input.type=type;if(type==='number'){input.min=min;input.max=max;input.step=step||1;}if(type==='text')input.maxLength=128; }
+      label.append(input);$(target).append(label);
+    }
+  }
+  fields(basic,'style-basic-fields');fields(advanced,'style-advanced-fields');
+  const fontList=document.createElement('datalist');fontList.id='style-local-fonts';panel.append(fontList);
+  $('style-field-fontName').setAttribute('list',fontList.id);
+  const scanFonts=document.createElement('button');scanFonts.type='button';scanFonts.textContent=t('读取本机字体');
+  $('style-field-fontName').after(scanFonts);
+  scanFonts.onclick=async()=>{try{if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');const fonts=await global.queryLocalFonts();fontList.replaceChildren(...[...new Set(fonts.map(f=>f.family))].sort().map(name=>new Option(name,name)));message('本机字体已载入，可输入名称筛选。');}catch(e){message(e.message,true);}};
+  const A=global.AsrEditorUtils.ASS_DEFAULT_ANIMATIONS;
+  const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'渐变标签',inMs:'淡入毫秒',outMs:'淡出毫秒',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'起始毫秒',t2:'第二时间',t3:'第三时间',t4:'结束毫秒',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'起始毫秒',endMs:'结束毫秒',accel:'加速度',tags:'ASS 渐变标签'};
+  for(const [group,values] of Object.entries(A)) {
+    const rows=Object.entries(values).map(([key,value])=>[`${group}.${key}`,key==='enabled'?captions[group]:captions[key]||key,typeof value==='boolean'?'checkbox':typeof value==='string'?'text':'number',key.startsWith('alpha')?0:key==='accel'?.1:-100000, key.startsWith('alpha')?255:100000,key==='accel'?.1:1]);
+    fields(rows,'style-animation-fields',true);
+  }
+  let role='main',context='project',library=[],legacyLibrary=host.legacyAssLibrary(),draft=null,selectedPreset='default',override=null,ready=false,loadError='';
+  let proof={mode:'project',style:S.defaults()};
+  try { proof={...proof,...JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}')};proof.style=S.normalize(proof.style); } catch(_) {}
+  const projectStyle=()=>host.data.preview?.project_style || S.defaults();
+  const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
+  const find=id=>all().find(s=>s.id===id);
+  const value=()=>context==='library'?draft:context==='proof'?proof.style:projectStyle();
+  const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
+  const persistProof=()=>{try{localStorage.setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
+  async function request(route,payload) {
+    const response=await fetch(`${host.config.processingUrl}/${route}`,{method:payload?'POST':'GET',headers:{'X-MSW-Token':host.config.requestToken,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{})});
+    const result=await response.json();if(!response.ok || !result.ok)throw Error(result.error||'样式请求失败');return result;
+  }
+  function rebuild() {
+    const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
+    fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name]),['custom','自定义预览样式']],proof.mode);
+    if(!$('style-preview-mode').value){proof.mode='custom';$('style-preview-mode').value='custom';persistProof();}
+    fill($('style-project-preset'),[['current',context==='project'?projectStyle().name:'当前自定义'],...all().map(s=>[s.id,s.name])],context==='library'?selectedPreset:'current');
+    if(!$('style-project-preset').value)$('style-project-preset').value='current';
+    const selected=$('video-export-style-preset').value;
+    fill($('video-export-style-preset'),all().map(s=>[s.id,s.name]),selected || 'default');
+    if(!$('video-export-style-preset').value)$('video-export-style-preset').value='default';
+  }
+  function sync() {
+    const style=value()||S.defaults();
+    $('style-editor-title').textContent=t(context==='library'?'字幕样式预设':context==='proof'?'自定义预览 · 仅影响预览':'工程字幕样式');
+    $('style-back').hidden=context==='project';$('style-manage').hidden=context!=='project';
+    $('style-library-actions').hidden=context!=='library';$('style-project-actions').hidden=context==='library';
+    $('style-preset-name').value=style.name;$('style-preset-label').hidden=context==='proof';
+    $('style-delete-preset').disabled=!library.some(s=>s.id===selectedPreset);
+    $('style-save-preset').textContent=t(library.some(s=>s.id===selectedPreset)?'保存预设':'保存为新预设');
+    $('style-custom-preview').hidden=proof.mode!=='custom';
+    const secondary=host.data.multi_subtitle?.enabled===true || context==='library';
+    $('style-secondary').hidden=!secondary;if(!secondary)role='main';
+    for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-selected',String(role===r));
+    for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
+    for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
+    $('style-preview-mode').value=proof.mode;
+    $('style-scope').textContent=t(proof.mode==='project'?'跟随工程':'仅影响预览');
+    const note=host.data.preview?.style_migration;
+    $('style-migration-note').hidden=!note?.notice;
+    $('style-migration-note').textContent=t('已保留旧输出样式；原预览和 ASS 配置可在预设中找回。');
+    if(note?.notice && !$('style-migration-dismiss')) {const b=document.createElement('button');b.id='style-migration-dismiss';b.type='button';b.textContent=t('知道了');b.onclick=()=>{const current=host.data.preview?.style_migration;if(current)current.notice=false;host.persistStyleMigration();sync();};$('style-migration-note').after(b);}
+    if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
+  }
+  function refresh() {
+    host.useProjectStylePreview();host.refreshStylePreview();global.MSWSubtitleRenderer?.invalidate();
+  }
+  function change(style) {
+    if(context==='library')draft=S.normalize(style);
+    else if(context==='proof'){proof.style=S.normalize(style);persistProof();}
+    else {proof.mode='project';persistProof();host.commitProjectStyle(style);}
+    rebuild();sync();refresh();
+  }
+  panel.addEventListener('change',event=>{
+    const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
+    if(!input.checkValidity()){input.reportValidity();sync();return;}
+    const style=S.clone(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'?Number(input.value):input.value;
+    // Exact legacy burn parameters survive until the user deliberately edits them.
+    if(style.legacyBurn){
+      const mapped={fontName:'font_family',fontSize:'font_size',primaryColor:'color',outlineColor:'outline_color',outline:'outline',backColor:'background_color'}[field];
+      if(mapped && !(field==='fontSize'&&(v<8||v>200)) && !(field==='outline'&&v>12)) {style.legacyBurn[role] ||= {};style.legacyBurn[role][mapped]=v;}
+      else {delete style.legacyBurn;message('已转换为工程 ASS 样式，请在播放器确认背景与位置。');}
+    }
+    if(field)style[role][field]=v;else{const [g,k]=animation.split('.');style.animations[g][k]=v;}
+    if(context==='project'&&!style.name.endsWith(' · 已修改'))style.name+=' · 已修改';change(style);
   });
-  el('track').onchange=display;el('target').onchange=()=>{document.getElementById('video-export-burn-subtitles').value=el('target').value;document.getElementById('video-export-burn-subtitles').dispatchEvent(new Event('input',{bubbles:true}));stale();};
-  el('reset').onclick=()=>{styles[el('track').value]=clone(defaults[el('track').value]);save();display();};
-  el('copy').onclick=()=>{
-    const source=host.subtitlePreviewAppearance(),geo=source.main;
-    const family=name=>({default:'Arial',sans:'Arial',yahei:'Microsoft YaHei',hei:'SimHei',song:'SimSun'}[name]||name||'Arial').replace(/[,{}\\\x00-\x1f]/g,' ');
-    for(const key of ['main','secondary']){const appearance=source[key];styles[key]={...styles[key],font_family:family(appearance.font_family),
-      font_size:Math.max(8,Math.min(200,(appearance.font_size|| (key==='main'?24:22))*1080/source.viewportHeight)),color:appearance.color||defaults[key].color,
-      background_color:appearance.background_color||'#000000',background_alpha:appearance.background_alpha??(key==='main'?.65:0),
-      x:Math.min(1,geo.x+geo.width/2),width:Math.max(.1,geo.width),y:Math.min(.99,geo.y+geo.height-(key==='main'?.06:0))};}
-    save();display();
-  };
-  el('frame').onclick=async()=>{
-    controller?.abort();const request=new AbortController();controller=request;const ticket=++revision,generation=host.generation;
-    el('frame').disabled=true;el('image').hidden=true;el('message').textContent=t('正在生成实际预览…');
-    try{const project=host.exportProject();previewKey=subtitleKey();for(const key of ['waveform','spectral','waveform_reapeaks'])delete project[key];
-      const response=await fetch(host.config.processingUrl+'/video-export-preview',{method:'POST',signal:request.signal,headers:{'Content-Type':'application/json','X-MSW-Token':host.config.requestToken},
-        body:JSON.stringify({project_id:project.msw.project_id,project,binding:host.config.processingContext?.binding,at_ms:Math.max(0,Math.round(host.player.currentTime*1000)||0),burn_subtitles:el('target').value})});
-      const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'生成预览失败');
-      if(ticket!==revision||generation!==host.generation)return;
-      el('image').src=result.image;el('image').hidden=false;el('message').textContent=t('实际渲染预览')+` · ${(result.at_ms/1000).toFixed(3)} s`;
-    }catch(error){if(ticket===revision&&generation===host.generation&&error.name!=='AbortError')el('message').textContent=error.message;}
-    finally{if(ticket===revision){el('frame').disabled=false;controller=null;}}
-  };
-  el('sample').onclick=()=>{global.dispatchEvent(new CustomEvent('msw:video-sample',{detail:{target:el('target').value}}));floating.close();};
-  document.getElementById('video-export-style-open').onclick=()=>{stale();read();display();const target=document.getElementById('video-export-burn-subtitles').value;el('target').value=target==='none'?'main':target;floating.open();global.MSWHelp?.hydrate(panel);};
-  el('close').onclick=()=>{stale();floating.close();};
-  global.addEventListener('msw:project-changed',()=>{stale();floating.close();});
-  global.addEventListener('msw:media-changed',stale);
-  global.addEventListener('msw:burn-style',()=>{if(styles)display();stale();});
-  global.addEventListener('msw:subtitles-changed',()=>{if(previewKey!==null&&previewKey!==subtitleKey()){previewKey=null;stale();}});
-  global.MSWBurnStyle={defaults};
+  $('style-preview-mode').onchange=()=>{proof.mode=$('style-preview-mode').value;if(proof.mode!=='project'&&proof.mode!=='custom')proof.style=S.normalize(find(proof.mode)||S.defaults());context=proof.mode==='custom'?'proof':'project';persistProof();rebuild();sync();refresh();};
+  $('style-edit-proof').onclick=()=>{context='proof';sync();};
+  for(const r of ['main','secondary'])$('style-'+r).onclick=()=>{role=r;sync();};
+  $('style-project-preset').onchange=()=>{const preset=find($('style-project-preset').value);if(!preset)return;if(context==='library'){selectedPreset=preset.id;draft=S.normalize(preset);sync();refresh();}else{change(preset);rebuild();}};
+  $('style-manage').onclick=()=>{context='library';selectedPreset='default';draft=S.defaults();rebuild();sync();refresh();$('style-editor-title').scrollIntoView({block:'start'});};
+  $('style-back').onclick=()=>{context='project';draft=null;rebuild();sync();refresh();};
+  $('style-reset').onclick=()=>change(S.defaults());
+  async function saveLibrary(next) {
+    if(host.config?.processingUrl)await request('subtitle-presets',{version:1,presets:next});
+    else localStorage.setItem('msw.subtitle-presets.v1',JSON.stringify(next));
+    library=next;rebuild();sync();message('预设已保存；已应用到工程的样式不受影响。');
+  }
+  $('style-save-as').onclick=()=>{draft=S.normalize(value());context='library';selectedPreset='new';rebuild();sync();$('style-preset-name').focus();};
+  $('style-new-preset').onclick=()=>{draft=S.defaults();draft.name='新预设';selectedPreset='new';rebuild();sync();refresh();};
+  $('style-save-preset').onclick=async()=>{try{const existing=library.find(s=>s.id===selectedPreset),id=existing?.id||global.MSWProject.id('style');const preset={...S.normalize({...draft,name:$('style-preset-name').value}),id};await saveLibrary([...library.filter(s=>s.id!==id),preset]);selectedPreset=id;draft=S.normalize(preset);rebuild();sync();refresh();}catch(e){message(e.message,true);}};
+  $('style-delete-preset').onclick=async()=>{try{await saveLibrary(library.filter(s=>s.id!==selectedPreset));selectedPreset='default';draft=S.defaults();rebuild();sync();}catch(e){message(e.message,true);}};
+  const exportPanel=$('video-export-panel');
+  function syncExport() {
+    const opened=exportPanel.getAttribute('aria-hidden')==='false',target=$('video-export-burn-subtitles').value;
+    const enabled=opened&&target!=='none',other=$('video-export-style-source').value==='preset';
+    $('video-export-style-choice').hidden=target==='none';$('video-export-preset-field').hidden=!other;
+    override=enabled?{style:S.normalize(other?(find($('video-export-style-preset').value)||S.defaults()):projectStyle()),target,label:other?(find($('video-export-style-preset').value)?.name||'默认白字'):'工程样式'}:null;
+    refresh();
+  }
+  for(const id of ['video-export-burn-subtitles','video-export-style-source','video-export-style-preset'])$(id).addEventListener('change',syncExport);
+  new MutationObserver(syncExport).observe(exportPanel,{attributes:true,attributeFilter:['aria-hidden']});
+  const settingsPanel=$('media-settings-modal');
+  new MutationObserver(()=>{
+    if(settingsPanel.getAttribute('aria-hidden')==='true' && context==='library') {
+      context='project';draft=null;rebuild();sync();refresh();
+    }
+  }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
+  function currentPreview() {
+    if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
+    const target=host.subtitlePreviewTarget();
+    if(context==='library')return {style:draft||S.defaults(),target,scope:'preset',label:'预设预览：'+(draft?.name||'')};
+    return {style:proof.mode==='project'?projectStyle():proof.style,target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
+  }
+  global.MSWSubtitleStyle={currentPreview,previewLibrary:()=>S.toLibrary(currentPreview().style),
+    applyExport:project=>{
+      if($('video-export-burn-subtitles').value==='none')return;
+      if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
+      const other=$('video-export-style-source').value==='preset';
+      S.apply(project,(other?find($('video-export-style-preset').value):projectStyle())||S.defaults());
+    },
+    get ready(){return ready;},get error(){return loadError;},request};
+  async function initialize() {
+    ready=false;loadError='';panel.inert=true;$('style-retry').hidden=true;
+    const generation=host.generation;
+    try {
+      if(host.config?.processingUrl) {
+        const response=await fetch(host.config.assStylesUrl);if(!response.ok)throw Error('无法读取旧 ASS 样式库');legacyLibrary=await response.json();
+        library=(await request('subtitle-presets')).presets;
+      } else library=JSON.parse(localStorage.getItem('msw.subtitle-presets.v1')||'[]');
+      if(!Array.isArray(library))library=[];
+      if(generation!==host.generation)return;
+      if(S.migrate(host.data,legacyLibrary,host.originalSubtitlePreview()))host.persistStyleMigration();
+      ready=true;message('');rebuild();sync();syncExport();
+    } catch(error) {if(generation===host.generation){loadError=error.message;message('字幕样式加载失败：'+error.message,true);$('style-retry').hidden=false;}}
+    finally {if(generation===host.generation)panel.inert=false;}
+  }
+  $('style-retry').onclick=()=>void initialize();
+  global.addEventListener('msw:project-changed',()=>{override=null;context='project';role='main';void initialize();});
+  global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
+  global.addEventListener('msw:subtitles-changed',()=>{if(ready)sync();});
+  global.addEventListener('msw:media-changed',()=>{if(ready){sync();refresh();}});
+  void initialize();
+})(window);
+
+// One ASS document feeds libass in the browser and the FFmpeg burn compiler.
+(function(global) {
+  'use strict';
+  const host=global.MSWE?.resolve('processing-host'),styles=global.MSWSubtitleStyle;
+  if(!host||!styles)return;
+  let renderer=null,video=null,key='',pending=false,again=false,timer,serial=0,modulePromise=null;
+  const fontBytes=new Map();
+  const fontManifests=new Map();let loadedFontIds=new Set();
+  const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
+  const stage=document.querySelector('.player-stage');stage.append(badge);
+  function fallback(text) {stage.dataset.subtitleRenderer='approximate';badge.textContent=text;}
+  async function repaint() {
+    if(!renderer||!video?.videoWidth)return;
+    await renderer.manualRender({mediaTime:video.currentTime,width:video.videoWidth,height:video.videoHeight,expectedDisplayTime:performance.now()},true);
+  }
+  async function fonts(style) {
+    const families=[style.main.fontName,style.secondary.fontName],fontKey=JSON.stringify(families);
+    if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
+    const manifest=await fontManifests.get(fontKey);
+    const bytes=await Promise.all(manifest.fonts.map(async item=>{
+      if(!fontBytes.has(item.id)) {const response=await fetch(`${host.config.processingUrl}/subtitle-font?id=${encodeURIComponent(item.id)}`,{headers:{'X-MSW-Token':host.config.requestToken}});if(!response.ok)throw Error('无法加载字幕字体');fontBytes.set(item.id,new Uint8Array(await response.arrayBuffer()));}
+      return fontBytes.get(item.id);
+    }));
+    return {bytes,manifest};
+  }
+  function signature(preview) {
+    return JSON.stringify([host.generation,preview,host.player.videoWidth,host.player.videoHeight,
+      host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.subtitleRenderSettings()]);
+  }
+  async function update() {
+    if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
+    if(pending){again=true;return;}
+    const preview=styles.currentPreview(),current=signature(preview);
+    if(key===current&&video===host.player)return;
+    key=current;
+    if(!host.config?.processingUrl || host.player.tagName!=='VIDEO') {fallback(preview.label+' · 近似预览'+(!host.config?.processingUrl?'（便携模式）':''));return;}
+    if(!host.player.videoWidth){key='';fallback(preview.label+' · 等待视频画面');return;}
+    pending=true;const ticket=++serial,generation=host.generation;
+    try {
+      const project=host.exportProject();global.MSWProjectStyle.apply(project,preview.style);
+      for(const field of ['waveform','spectral','waveform_reapeaks','workspace'])delete project[field];
+      const [payload,loaded,mod]=await Promise.all([
+        styles.request('subtitle-preview',{project,target:preview.target,video:{width:host.player.videoWidth,height:host.player.videoHeight}}),
+        fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
+      if(ticket!==serial||generation!==host.generation)return;
+      if(!renderer || video!==host.player) {
+        video?.removeEventListener('seeked',repaint);video?.removeEventListener('pause',repaint);
+        if(renderer) {await renderer.destroy();renderer=null;}
+        video=host.player;
+        renderer=new mod.default({video,subContent:payload.ass,fonts:loaded.bytes,queryFonts:false,defaultFont:loaded.manifest.fallback,
+          workerUrl:'/subtitle-renderer/worker.js',wasmUrl:'/subtitle-renderer/libass.wasm',modernWasmUrl:'/subtitle-renderer/libass.wasm',prescaleHeightLimit:0});
+        await Promise.race([renderer.ready,new Promise((_,reject)=>setTimeout(()=>reject(Error('字幕渲染器加载超时')),20000))]);
+        loadedFontIds=new Set(loaded.manifest.fonts.map(f=>f.id));
+        video.addEventListener('seeked',repaint);video.addEventListener('pause',repaint);
+      } else {
+        const extra=loaded.bytes.filter((_,i)=>!loadedFontIds.has(loaded.manifest.fonts[i].id));
+        if(extra.length){await renderer.renderer.addFonts(extra);for(const f of loaded.manifest.fonts)loadedFontIds.add(f.id);}
+        await renderer.renderer.setTrack(payload.ass);
+      }
+      await renderer.resize(true);
+      await repaint();
+      if(ticket!==serial||generation!==host.generation)return;
+      stage.dataset.subtitleRenderer='libass';
+      badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'');
+      badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。';
+    } catch(error) {if(ticket===serial){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;if(renderer){try{await renderer.destroy();}catch(_){}renderer=null;}host.refreshStylePreview();}}
+    finally {pending=false;if(again){again=false;invalidate();}}
+  }
+  function invalidate(){key='';clearTimeout(timer);timer=setTimeout(update,100);}
+  for(const name of ['msw:project-changed','msw:media-changed','msw:subtitles-changed','msw:burn-style'])global.addEventListener(name,invalidate);
+  for(const id of ['overlay-toggle','extension-overlay-toggle'])document.getElementById(id)?.addEventListener('change',invalidate);
+  // Existing editing paths do not all dispatch an event; compare state without
+  // rebuilding an ASS document or starting a network request unless it changed.
+  setInterval(()=>{if(!document.hidden)void update();},750);
+  global.MSWSubtitleRenderer={invalidate,repaint,get renderer(){return renderer;},get pending(){return pending||again;},get status(){return stage.dataset.subtitleRenderer;}};
+  invalidate();
 })(window);
 
 // Shared, keyboard-accessible option help. Render outside floating panels so

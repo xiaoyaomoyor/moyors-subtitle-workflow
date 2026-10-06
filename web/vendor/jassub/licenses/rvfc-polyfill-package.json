@@ -1,0 +1,23 @@
+{
+  "name": "rvfc-polyfill",
+  "version": "1.0.8",
+  "description": "requestVideoFrameCallback polyfill",
+  "main": "index.js",
+  "author": "ThaUnknown",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThaUnknown/rvfc-polyfill.git"
+  },
+  "keywords": [
+    "rvfc-polyfill",
+    "requestVideoFrameCallback",
+    "video",
+    "polyfill",
+    "animationFrame"
+  ],
+  "bugs": {
+    "url": "https://github.com/ThaUnknown/rvfc-polyfill/issues"
+  },
+  "homepage": "https://github.com/ThaUnknown/rvfc-polyfill#readme"
+}

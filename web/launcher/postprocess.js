@@ -503,12 +503,27 @@
     syncAlignmentName("toolboxAlignmentScriptPath", "toolboxAlignmentScriptName");
   }
 
+  let presetLoadTime=0;
+  async function refreshBurnPresets() {
+    const select=$('toolboxBurnPreset');if(!select)return;
+    const ass=['.ass','.ssa'].includes(extension($('toolboxBurnSubtitlePath').value.trim()));
+    $('toolboxBurnPresetField').hidden=ass;
+    if(Date.now()-presetLoadTime<3000)return;presetLoadTime=Date.now();
+    try {
+      const result=await bridge('get_subtitle_presets',{});
+      if(!result.ok)throw Error(result.error||'读取字幕预设失败');
+      const before=select.value;select.replaceChildren(...result.presets.map(s=>new Option(s.name,s.id)));
+      select.value=before;if(!select.value)select.value='default';
+    } catch(error) {setFieldError('toolboxBurnSubtitlePath',error.message);}
+  }
+  $('toolboxBurnPreset')?.addEventListener('focus',()=>void refreshBurnPresets());
   function syncPaths() {
     if (!utilityMediaManual) $("toolboxUtilityMediaPath").value = $("mediaPath").value.trim();
     if (!subtitleBurnManual) {
       const source = $("srtPath").value.trim();
       $("toolboxBurnSubtitlePath").value = SUBTITLE_BURN_EXTS.has(extension(source)) ? source : "";
     }
+    void refreshBurnPresets();
     if (!alignmentProjectManual) $("toolboxAlignmentProjectPath").value = $("jsonPath").value.trim();
     syncOcrVideo();
     syncUtilityMediaName();
@@ -1346,7 +1361,7 @@
     mediaToolCancelling = false;
     setBusy(true, "toolbox_status_burning");
     try {
-      const result = await bridge("run_burn_subtitles", { mediaPath, subtitlePath, useAssStyleLibrary: $('toolboxBurnUseAssLibrary').checked });
+      const result = await bridge("run_burn_subtitles", { mediaPath, subtitlePath, stylePresetId: $('toolboxBurnPreset').value });
       if (result.ok) {
         utilityMediaManual = true;
         $("toolboxUtilityMediaPath").value = result.mediaPath;

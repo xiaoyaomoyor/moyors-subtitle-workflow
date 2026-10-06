@@ -376,6 +376,20 @@
 
 ### 1.4 preview 预览呈现
 
+`preview.project_style`（可选）是工程正式字幕样式快照，结构为
+`{schema: "msw.subtitle-style.v1", name, main, secondary, animations}`。
+`main`／`secondary` 使用 ASS 样式库的样式字段，字号、描边和边距以
+1080 高画布为基准；`animations` 使用原 ASS 方案的 `fad`／`fade`／`move`／`t`。
+ASS 导出、播放器工程预览和视频烧录默认读取这个快照，不实时引用用户预设库。
+`legacyBurn` 仅用于迁移，保存原 `preview.burn_subtitles`，直到用户明确转换高级样式。
+
+`preview.style_migration` 记录 `{version: 1, source: "ass"|"burn", presets, notice}`；
+`presets` 保留原 ASS 和预览外观。首次加入工程样式并覆盖旧文件前，在同目录
+创建短文件名 `.msw-style-backup-<hash>.mosp`，不覆盖已有备份。
+旧字段继续保留供兼容读取；有 `project_style` 时正式输出优先使用它。
+校对模式与自定义校对样式保存在本机偏好中，不覆盖 `project_style`；
+本次导出选择其他预设时仅写入任务快照，工程原样式不变。
+
 `preview` 记录预览呈现层的设置，与字幕时间/文本完全解耦。目前定义两个子几何：`preview.subtitle`（字幕预览框，编辑器里 `#overlay`）与 `preview.sticker`（表情包预览层，编辑器里 `#sticker-overlay-layer`），都是在播放器区域内的几何，以 player-wrap 矩形的**归一化分数**存储，因此在播放器缩放和跨机传输后仍然一致。
 
 ```json
@@ -1075,6 +1089,6 @@ JS `MSWSubtitleLayers.migrate` 与 Python `migrate_project` 均返回独立副�
 - v2 ASR／翻译任务快照带 `project_schema`。ASR 目标按角色和 ID 保存，应用重叠范围需要明确 `target_ids`；仅检查所选目标修订，保留其他层。截断且无可靠字词码的区外片段沿用原文并标记复核。
 - 翻译仅处理明确选择的条目，副字幕按绑定 ID 回填；没有绑定时新增独立副字幕，不按时间接近程度猜配。导入副字幕只有双方唯一匹配时才建立绑定。
 - TTS 冻结每条自身的来源 ID、角色、文字与时长参数；仅显示层变化不会触发素材来源变动。音频贴片仍最多三层，补齐字幕仍跳过有冲突的范围。
-- CSS／ASS／视频使用共同的自动避让排布规则；ASS／视频使用各自选定的字幕样式。禁用与历史隐藏组在输出中排除。OTIO 标记附带字幕身份，不能表达任意画面层次、字体和双语样式，不承诺无损往返。
+- CSS／ASS／视频使用共同的自动避让排布规则；默认预览、ASS 和视频烧录跟随工程字幕样式，校对预览和单次视频预设独立覆盖。禁用与历史隐藏组在输出中排除。OTIO 标记附带字幕身份，不能表达任意画面层次、字体和双语样式，不承诺无损往返。
 
 实现与验证见 `docs/TEST_FEEDBACK_SUBTITLE_LAYERS_ABC_20261005.md`、`docs/TEST_FEEDBACK_SUBTITLE_LAYERS_DG_20261005.md`；用户入口见 `docs/EDITOR_SUBTITLE_LAYERS.md`。

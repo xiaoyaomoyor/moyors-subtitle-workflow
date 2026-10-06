@@ -204,6 +204,8 @@ def write_mosp(
     from maw.msw.subtitle_layers import preserve_upgrade_source
     try:
         preserve_upgrade_source(target, project)
+        from maw.project_subtitle_style import preserve_style_source
+        preserve_style_source(target, project)
     except OSError as error:
         raise FileSaveError(Path(error.filename or target), error, operation="保存工程前检查／备份") from error
     atomic_write_text(target, content, sync=project.get('schema') == 'msw.project.v2')

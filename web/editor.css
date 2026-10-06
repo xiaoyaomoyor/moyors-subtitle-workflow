@@ -5041,3 +5041,27 @@
 
 .msw-layer-geometry > :not(.overlay-handle) { visibility: hidden; }
 .msw-layer-geometry { background: transparent !important; }
+/* Unified subtitle styles share the existing media settings theme. */
+.msw-project-style { display:flex; flex-direction:column; gap:12px; }
+.msw-style-heading,.msw-style-tabs { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.msw-style-heading > :first-child { flex:1; }
+.msw-style-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 14px; padding:10px 0; }
+.msw-style-fields label { display:flex; flex-direction:column; gap:6px; min-width:0; color:var(--muted); font-size:13px; }
+.msw-style-fields input,.msw-style-fields select { width:100%; min-width:0; box-sizing:border-box; }
+.msw-style-fields input[type=checkbox] { width:18px; height:18px; }
+.msw-style-fields input[type=color] { height:32px; }
+.msw-style-tabs button[aria-selected=true] { color:var(--accent); border-color:var(--accent); }
+.msw-style-badge { font-size:12px; color:var(--muted); }
+.msw-project-style .settings-panel-item { display:grid; grid-template-columns:110px minmax(0,1fr); gap:10px; align-items:center; }
+.msw-project-style .msw-option-label { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.msw-project-style .settings-panel-item select,.msw-project-style .settings-panel-item input { width:100%; min-width:0; }
+.msw-project-style .msw-processing-hint { margin:0; line-height:1.5; }
+.msw-project-style > .msw-style-heading { min-height:28px; }
+#style-migration-dismiss { align-self:flex-end; padding:2px 8px; font-size:12px; }
+.msw-style-render-status { position:absolute; left:8px; top:8px; z-index:8; max-width:calc(100% - 16px); padding:3px 7px; border-radius:5px; background:#0009; color:white; font-size:11px; pointer-events:none; }
+.player-stage[data-subtitle-renderer=libass] #overlay,
+.player-stage[data-subtitle-renderer=libass] #msw-layer-preview { visibility:hidden !important; }
+.JASSUB { z-index:5; pointer-events:none; }
+.player-stage[data-subtitle-renderer=approximate] .JASSUB { visibility:hidden; }
+.msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
+@media (max-width:520px) { .msw-style-fields { grid-template-columns:1fr; } }

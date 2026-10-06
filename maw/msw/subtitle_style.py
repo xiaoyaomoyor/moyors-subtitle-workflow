@@ -58,6 +58,8 @@ def ass_text(text):
 
 
 def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, frame_at=None):
+    from maw.project_subtitle_style import apply_project_style
+    project = apply_project_style(project)
     if (project.get('preview') or {}).get('ass_library_exports') is True:
         return library_ass(project, plan, target, video, start_ms=start_ms, end_ms=end_ms, frame_at=frame_at)
     styles=normalize_styles((project.get('preview') or {}).get('burn_subtitles'))

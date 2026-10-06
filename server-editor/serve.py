@@ -1744,6 +1744,8 @@ def write_project_json(target: Path, project_data: dict) -> Path | None:
     target.parent.mkdir(parents=True, exist_ok=True)
     from maw.msw.subtitle_layers import preserve_upgrade_source
     upgrade_backup = preserve_upgrade_source(target, project_data)
+    from maw.project_subtitle_style import preserve_style_source
+    style_backup = preserve_style_source(target, project_data)
     backup = target.with_suffix(f"{target.suffix}.bak") if target.exists() else None
     if backup:
         backup.write_bytes(target.read_bytes())
@@ -1758,7 +1760,7 @@ def write_project_json(target: Path, project_data: dict) -> Path | None:
     except Exception:
         # 保留未完成的临时文件以便排障；不要静默删除用户可恢复的文件。
         raise
-    return upgrade_backup or backup
+    return upgrade_backup or style_backup or backup
 
 
 class EditorRequestHandler(BaseHTTPRequestHandler):
@@ -2294,6 +2296,13 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         if self.editor_server.processing_api.handle(self):
             return
         path = urlsplit(self.path).path
+        if path.startswith('/subtitle-renderer/'):
+            name = path[len('/subtitle-renderer/'):]
+            if name not in {'jassub.js', 'worker.js', 'libass.wasm'}:
+                self.send_localized_error(HTTPStatus.NOT_FOUND, '字幕渲染资源不存在')
+                return
+            self.send_file(edit.WEB_DIR / 'vendor' / 'jassub' / name, include_body)
+            return
         if path == "/api/recent-projects":
             try:
                 self._check_request_token({"requestToken": self.headers.get("X-MSW-Token")})

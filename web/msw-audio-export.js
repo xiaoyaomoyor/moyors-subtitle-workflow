@@ -226,6 +226,7 @@
       try {
         if (!pending) {
           const project = host.exportProject();
+          if (video) global.MSWSubtitleStyle?.applyExport(project);
           for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete project[key];
           let options = {...selectedOptions({applyTail:!overrides}),...(overrides || {})};
           if (video) options = core.videoOptions(project,options,context);

@@ -1,0 +1,46 @@
+{
+  "name": "abslink",
+  "type": "module",
+  "version": "1.3.0",
+  "description": "IPC for abstract message channels, comlink style.",
+  "sideEffects": false,
+  "files": [
+    "src",
+    "adapters",
+    "tsconfig.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ThaUnknown/abslink.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/abslink.d.ts",
+      "import": "./src/abslink.js",
+      "default": "./src/abslink.js"
+    },
+    "./node": {
+      "types": "./adapters/node.d.ts",
+      "import": "./adapters/node.js",
+      "default": "./adapters/node.js"
+    },
+    "./w3c": {
+      "types": "./adapters/w3c.d.ts",
+      "import": "./adapters/w3c.js",
+      "default": "./adapters/w3c.js"
+    },
+    "./electron": {
+      "types": "./adapters/electron.d.ts",
+      "import": "./adapters/electron.js",
+      "default": "./adapters/electron.js"
+    }
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "eslint-config-standard-universal": "1.0.6",
+    "typescript": "5.7.2"
+  },
+  "scripts": {
+    "build": "tsc"
+  }
+}

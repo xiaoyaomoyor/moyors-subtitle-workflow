@@ -116,6 +116,9 @@ datas = [
     (str(ROOT / "maw" / "msw" / "subtitle_style.py"), "local-runtime/maw/msw"),
     (str(ROOT / "maw" / "language.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "project_preview.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "project_subtitle_style.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "msw" / "subtitle_layers.py"), "local-runtime/maw/msw"),
+    (str(ROOT / "maw" / "msw" / "subtitle_presentation.py"), "local-runtime/maw/msw"),
     (str(ROOT / "maw" / "qwen_audio.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "colors.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "speaker.py"), "local-runtime/maw"),
@@ -141,6 +144,9 @@ datas = [
     (str(ROOT / "maw" / "msw" / "subtitle_style.py"), "ocr-runtime/maw/msw"),
     (str(ROOT / "maw" / "language.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "project_preview.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "project_subtitle_style.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "msw" / "subtitle_layers.py"), "ocr-runtime/maw/msw"),
+    (str(ROOT / "maw" / "msw" / "subtitle_presentation.py"), "ocr-runtime/maw/msw"),
     (str(ROOT / "maw" / "ocr_runtime_worker.py"), "ocr-runtime/maw"),
 ]
 opencc_datas = collect_data_files("opencc")

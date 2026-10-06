@@ -3,6 +3,7 @@
 editor-runtime.js
 gap-remove-core.js
 editor-utils.js
+msw-project-style.js
 msw-subtitle-layers.js
 msw-subtitle-presentation.js
 msw-project.js
@@ -38,6 +39,7 @@ msw-audio-transport.js
 msw-audio.js
 msw-audio-actions.js
 msw-audio-export.js
-msw-subtitle-style.js
+msw-project-style-ui.js
+msw-subtitle-renderer.js
 msw-help.js
 editor-onboarding.js

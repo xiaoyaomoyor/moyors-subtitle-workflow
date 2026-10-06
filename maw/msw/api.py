@@ -322,13 +322,27 @@ class ProcessingAPI:
                 if handler.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("需要 JSON 请求")
                 length = int(handler.headers.get("Content-Length", "0"))
-                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "version-create", "audio-exports", "video-export-preview", "asset-import", "qwen-voices", "index-tts", "gpt-sovits", "mossland-tts"} else 4 * 1024 * 1024
+                limit = 64 * 1024 * 1024 if route in {"project", "save-as", "asset-bundle", "recovery-draft", "version-create", "audio-exports", "video-export-preview", "subtitle-preview", "asset-import", "qwen-voices", "index-tts", "gpt-sovits", "mossland-tts"} else 4 * 1024 * 1024
                 if not 0 < length <= limit:
                     raise ValueError("请求为空或超过大小限制")
                 payload = handler.read_json_request()
             else:
                 payload = {key: values[0] for key, values in parse_qs(url.query).items()}
-            if route == "capabilities" and not post:
+            if route == 'subtitle-presets':
+                from maw.project_subtitle_style import load_presets, save_presets
+                with self.lock:
+                    result = save_presets(payload) if post else load_presets()
+            elif route == 'subtitle-preview' and post:
+                from maw.msw.subtitle_preview import preview_ass
+                result = preview_ass(payload)
+            elif route == 'subtitle-fonts' and post:
+                from maw.msw.subtitle_preview import font_manifest
+                result = font_manifest(payload.get('families'))
+            elif route == 'subtitle-font' and not post:
+                from maw.msw.subtitle_preview import font_file
+                handler.send_file(font_file(payload.get('id')), handler.command != 'HEAD')
+                return True
+            elif route == "capabilities" and not post:
                 result = {"translation": True, "tts": True, "asr": True, "assets": True, "mediaImport": True, "audioExport": True, "videoExport": True, "timelineExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
                 from maw.msw.audio_exports import configured_tools
                 result.update(mediaAnalysis=True, waveform=True, mediaToolsReady=configured_tools(self.env_path).complete)

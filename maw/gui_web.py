@@ -1660,13 +1660,21 @@ class LauncherApi:
             assignments = style_library.get("assignments")
             style_id = assignments.get("srtBurnStyleId") if isinstance(assignments, Mapping) else "default"
             srt_style = find_ass_style(style_library, style_id) if payload.get('useAssStyleLibrary') is True else None
+            preset=None
+            if payload.get('stylePresetId') and Path(str(payload.get('subtitlePath') or '')).suffix.lower()=='.srt':
+                from maw.project_subtitle_style import builtin_presets, load_presets
+                preset=next((s for s in builtin_presets()+load_presets()['presets'] if s['id']==payload['stylePresetId']),None)
+                if preset is None:
+                    raise ValueError('所选字幕预设已不存在，请重新选择')
             result = process_burn_subtitles(
                 BurnSubtitleRequest(
                     media_path=Path(str(payload.get("mediaPath") or "")),
                     subtitle_path=Path(str(payload.get("subtitlePath") or "")),
                     srt_style=srt_style,
+                    project_style=preset,
                 ),
                 ffmpeg_path=tools.ffmpeg,
+                ffprobe_path=tools.ffprobe,
                 cancel_event=cancel_event,
                 on_process=self._set_media_tool_process,
                 on_progress=lambda details: self._emit_media_tool_progress("toolbox_status_burning", details),
@@ -1682,13 +1690,20 @@ class LauncherApi:
             "sourceMediaPath": str(result.source_media_path),
             "subtitlePath": str(result.subtitle_path),
             "mediaPath": str(result.media_path),
-            "srtStyleName": str((srt_style or {}).get("name") or "MSW 原有样式"),
+            "srtStyleName": str((preset or srt_style or {}).get("name") or "文件内样式"),
         }
 
     def get_ass_style_library(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         """Expose the shared style library to Launcher UI integrations."""
 
         return {"ok": True, **load_ass_style_library()}
+
+    def get_subtitle_presets(self, _payload=None):
+        from maw.project_subtitle_style import builtin_presets, load_presets
+        try:
+            return {'ok':True,'presets':builtin_presets()+load_presets()['presets']}
+        except (ValueError,OSError) as error:
+            return {'ok':False,'error':str(error)}
 
     @_queue_idle
     def run_extract_audio(self, payload: Mapping[str, object]) -> dict[str, object]:

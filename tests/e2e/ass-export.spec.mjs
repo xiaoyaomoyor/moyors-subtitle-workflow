@@ -53,7 +53,7 @@ async function stubSavePicker(page) {
 let tempDir;
 let server;
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   tempDir = makeTempDir('ass-export');
   const mediaPath = join(tempDir, 'synthetic.wav');
   const projectPath = join(tempDir, 'project.json');
@@ -62,7 +62,7 @@ test.beforeAll(async () => {
   server = await startServer(projectPath, mediaPath, await findFreePort());
 });
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await server?.stop();
   cleanupTempDir(tempDir);
 });
@@ -71,13 +71,15 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
   await disableOnboarding(page);
   await stubSavePicker(page);
   await page.goto(server.url);
+  await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
 
   await toggleMediaSettings(page);
   await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
-  await page.locator('#subtitle-font-family').fill('hei');
-  await page.locator('#subtitle-font-family').dispatchEvent('change');
-  await page.locator('#subtitle-font-size').selectOption('40');
-  await page.locator('#subtitle-color').evaluate((input) => {
+  await page.locator('#style-field-fontName').fill('SimHei');
+  await page.locator('#style-field-fontName').dispatchEvent('change');
+  await page.locator('#style-field-fontSize').fill('40');
+  await page.locator('#style-field-fontSize').dispatchEvent('change');
+  await page.locator('#style-field-primaryColor').evaluate((input) => {
     input.value = '#12abef';
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
@@ -90,10 +92,10 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
   const save = await page.evaluate(() => window.__exportSaves[0]);
   expect(save.suggestedName).toMatch(/\.ass$/);
   expect(save.content).toContain(
-    'Style: Default,SimHei,160,&H00EFAB12,&H00EFAB12,',
+    'Style: main,SimHei,40,&H00EFAB12,',
   );
   expect(save.content).toContain(
-    'Dialogue: 0,0:00:01.00,0:00:02.50,Default,,0,0,0,,第一行\\NSecond, \\{literal\\}\\\\path',
+    'Dialogue: 1,0:00:01.00,0:00:02.50,main,,0,0,151,,第一行\\NSecond, \\{literal\\}\\\\path',
   );
   expect(save.content).not.toContain('不应导出');
 });
@@ -102,8 +104,10 @@ test('writes the project title, source resolution, palette styles and speaker na
   await disableOnboarding(page);
   await stubSavePicker(page);
   await page.goto(server.url);
+  await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
   await page.evaluate(() => {
     DATA.media_metadata = { video_width: 3840, video_height: 2160 };
+    window.MSWProjectStyle.apply(DATA, {...window.MSWProjectStyle.defaults(), main:{...window.MSWProjectStyle.defaults().main,fontName:'Arial',fontSize:128}});
     DATA.segments = [
       { start: 0, end: 1000, text: 'red line', items: [], color: { name: 'red', value: '#f07f6f' } },
       { start: 1200, end: 2200, text: 'plain line', items: [] },
@@ -129,20 +133,21 @@ test('writes the project title, source resolution, palette styles and speaker na
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);
   expect(save.content).toContain('Title: project');
-  expect(save.content).toContain('PlayResX: 3840');
-  expect(save.content).toContain('PlayResY: 2160');
-  expect(save.content).toContain('Style: Default,Arial,256,');
-  expect(save.content).toContain('Style: YELLOW,Arial,256,&H0019A0C4,&H0019A0C4,');
-  expect(save.content).toContain('Style: GREEN,Arial,256,&H006ABB66,&H006ABB66,');
-  expect(save.content).toContain('Style: RED,Arial,256,&H006F7FF0,&H006F7FF0,');
-  expect(save.content).toContain('Style: PURPLE,Arial,256,&H00E689BF,&H00E689BF,');
-  expect(save.content).toContain('Style: BLUE,Arial,256,&H00FAA761,&H00FAA761,');
-  expect(save.content).toContain('Dialogue: 0,0:00:00.00,0:00:01.00,RED,旁白,0,0,0,,旁白：red line');
+  expect(save.content).toContain('PlayResX: 1920');
+  expect(save.content).toContain('PlayResY: 1080');
+  expect(save.content).toContain('Style: Default,Arial,128,');
+  expect(save.content).toContain('Style: YELLOW,Arial,128,&H0019A0C4,&H0019A0C4,');
+  expect(save.content).toContain('Style: GREEN,Arial,128,&H006ABB66,&H006ABB66,');
+  expect(save.content).toContain('Style: RED,Arial,128,&H006F7FF0,&H006F7FF0,');
+  expect(save.content).toContain('Style: PURPLE,Arial,128,&H00E689BF,&H00E689BF,');
+  expect(save.content).toContain('Style: BLUE,Arial,128,&H00FAA761,&H00FAA761,');
+  expect(save.content.replace(/\{\\[^}]*\}/g, '')).toContain('Dialogue: 0,0:00:00.00,0:00:01.00,RED,旁白,0,0,0,,旁白：red line');
 });
 
 test('keeps MSW main and secondary export organization with color splitting', async ({ page }) => {
   await disableOnboarding(page);
   await page.goto(server.url);
+  await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
   await page.evaluate(() => {
     DATA.segments[0].color = { name: 'red', value: '#e74c3c', start: 1000, end: 2500 };
     renderAll();
@@ -157,7 +162,9 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
   await disableOnboarding(page);
   await stubSavePicker(page);
   await page.goto(server.url);
+  await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
   await page.evaluate(() => {
+    window.MSWProjectStyle.apply(DATA, window.MSWProjectStyle.defaults());
     DATA.segments.length = 0;
     DATA.segments.push(
       { id: 'before-gap', start: 1000, end: 2000, text: 'before gap', items: [], color: { name: 'red', value: '#e74c3c', start: 1000, end: 2000 } },
@@ -196,9 +203,10 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
   );
 });
 
-test('keeps legacy export until explicit library selection and freezes each video job', async ({ page }, testInfo) => {
+test('project style snapshots survive library edits and freeze each video job', async ({ page }, testInfo) => {
   await disableOnboarding(page);
   await page.goto(server.url+'?subtitle-layers=0');
+  await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
   const result = await page.evaluate(() => {
     const host = window.MSWE.resolve('processing-host');
     const library = window.AsrEditorUtils.normalizeAssStyleLibrary({
@@ -207,31 +215,36 @@ test('keeps legacy export until explicit library selection and freezes each vide
       assignments: { assExportProfileId: 'test-profile' },
     });
     ASS_STYLE_LIBRARY = library;
+    DATA.schema = 'moy.asr.project.v1';
+    delete DATA.subtitle_layers;
+    window.MSWProjectStyle.apply(DATA, window.MSWProjectStyle.defaults());
     DATA.overlay_track = { enabled: true, segments: [{ id: 'overlay', start: 1000, end: 2000, text: 'overlay' }] };
     DATA.multi_subtitle = { enabled: true, tracks: [{ id: 'secondary', segments: [{ id: 'second', start: 1000, end: 2000, text: 'second' }] }] };
     const legacy = buildAss();
-    host.setAssLibraryExports(true);
+    window.MSWProjectStyle.apply(DATA, window.MSWProjectStyle.fromLibrary(library));
     const explicit = buildAss();
     const job = host.exportProject();
     const persisted = JSON.parse(buildJson());
     ASS_STYLE_LIBRARY.styles.find(style => style.id === 'test-style').fontName = 'Changed Later';
-    host.openAssStyles();
+    host.openMediaSettings();
     return { legacy, explicit, job, persisted };
   });
   expect(result.legacy).not.toContain('Snapshot Font');
   expect(result.legacy).toContain('Extension,,0,0,0,,second');
   expect(result.explicit).toContain('Style: Default,Snapshot Font,');
   expect(result.explicit).toContain('Overlay,,0,0,0,,overlay');
-  expect(result.job.preview.burn_ass_library.styles.find(s => s.id === 'test-style').fontName).toBe('Snapshot Font');
-  expect(result.persisted.preview.ass_library_exports).toBe(true);
+  expect(result.job.preview.project_style.main.fontName).toBe('Snapshot Font');
+  expect(result.persisted.preview.project_style.main.fontName).toBe('Snapshot Font');
   expect(result.persisted.preview.burn_ass_library).toBeUndefined();
-  await expect(page.locator('#ass-style-window')).toBeVisible();
+  await page.locator('#style-manage').click();
+  await expect(page.locator('#style-library-actions')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('ass-library.png'), fullPage: true });
 });
 
 test('dynamic exports use source canvas size and reject invalid custom sizes', async ({ page }) => {
   await disableOnboarding(page);
   await page.goto(server.url);
+  await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
   const result = await page.evaluate(() => {
     DATA.media_metadata = { video_width: 1440, video_height: 1080 };
     openLottieExportModal();

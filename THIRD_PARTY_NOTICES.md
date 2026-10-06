@@ -31,6 +31,27 @@
 
 The `web/` editor, Python scripts, and documentation in this repository are distributed under the repository's `AGPL-3.0-only` license unless a file states otherwise.
 
+## Offline subtitle renderer
+
+The editor ships JASSUB 2.5.18 and its unmodified non-SIMD libass WASM from the
+pinned npm archive. Browser modules are bundled with esbuild; no renderer or
+font is fetched from a CDN at runtime. Installed fonts are loaded from the
+user's local machine and are not redistributed in this repository.
+
+Package versions, archive URLs and shipped file SHA-256 values are recorded in
+`web/vendor/jassub/SOURCES.json`. Dependency notices and the upstream WASM
+license collection are in `web/vendor/jassub/licenses/`. Rebuild with
+`npm ci --ignore-scripts` and `node scripts/build_subtitle_renderer.mjs`.
+JASSUB's wrapper is MIT; its compiled libraries retain their own licenses,
+including LGPL-2.1-or-later for FriBidi. See the upstream build and source at
+https://github.com/ThaUnknown/jassub and the recorded source reference.
+
+The browser bundle also includes abslink 1.3.0 (Apache-2.0; based on Comlink),
+throughput 1.0.2 and lfa-ponyfill 1.1.1 (MIT, author ThaUnknown), and
+rvfc-polyfill 1.0.8 (GPL-3.0). Original package metadata, README attribution,
+Apache/MIT/GPL terms, and the libass/Harfbuzz copyright notices are retained
+beside the renderer. MSW does not enable lfa-ponyfill's remote font discovery.
+
 ## Optional Yukkuri resources
 
 MSW's optional Yukkuri installer fetches pinned releases listed in

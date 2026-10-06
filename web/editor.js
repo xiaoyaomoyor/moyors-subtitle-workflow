@@ -1,4 +1,5 @@
 const DATA = prepareLayerProject(__DATA_JSON__);
+let originalSubtitlePreview = structuredClone(DATA.preview || {});
 const CANONICAL_PROJECT_FIELDS = new Set([
   'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
   'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'overlay_track', 'waveform',
@@ -1763,7 +1764,9 @@ const ASS_PREVIEW_REFERENCE_HEIGHT = Number(window.AsrEditorUtils.ASS_REFERENCE_
 
 function assExportOptions(appearance = getSubtitleAppearance()) {
   const resolution = currentAssVideoResolution();
-  const library = window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
+  const library = DATA.preview?.project_style
+    ? window.MSWProjectStyle.toLibrary(DATA.preview.project_style)
+    : window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
   const profileId = library.assignments?.assExportProfileId || 'ass';
   const assProfile = window.AsrEditorUtils.assProfileForId(library, profileId);
   const assStyle = window.AsrEditorUtils.assStyleForId(library, assProfile.styleId);
@@ -1773,12 +1776,12 @@ function assExportOptions(appearance = getSubtitleAppearance()) {
   return {
     title: PROJECT_NAME || FILENAME_BASE || 'MSW',
     mediaMetadata: normalizeMediaMetadata(DATA.media_metadata),
-    playResX: resolution?.width,
-    playResY: resolution?.height,
+    playResX: DATA.preview?.project_style ? Math.round(1080*(resolution?.width||1920)/(resolution?.height||1080)) : resolution?.width,
+    playResY: DATA.preview?.project_style ? 1080 : resolution?.height,
     colorStyles: COLOR_PALETTE,
     appearance,
     extensionAppearance: getStoredExtensionSubtitleAppearance(),
-    ...(DATA.preview?.ass_library_exports === true ? { assProfile, assStyle, assExtensionStyle } : {}),
+    ...(DATA.preview?.project_style || DATA.preview?.ass_library_exports === true ? { assProfile, assStyle, assExtensionStyle } : {}),
   };
 }
 
@@ -1976,6 +1979,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if (kind === 'project-style') return {kind,label,style:structuredClone(DATA.preview?.project_style || window.MSWProjectStyle.defaults())};
   if (kind === 'source-gain') return {kind, label, gainDb: window.MSWE.resolve('audio-timeline').sourceGainDb(), mediaKey: sourceGainMediaKey()};
   if (kind === 'asset-removal') return snapshotAssetRemoval(sourceRecord.assetId, label);
   if (kind === 'layout') {
@@ -2062,6 +2066,13 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if (record.kind === 'project-style') {
+    window.MSWProjectStyle.apply(DATA,record.style);
+    previewGeometryDirty = true; projectImportDirty = true;
+    refreshSubtitlePreview(); scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:burn-style'));
+    return true;
+  }
   if (record.kind === 'source-gain') {
     if (record.mediaKey !== sourceGainMediaKey()) { flashHint('媒体已改变，未恢复旧媒体的试听音量', 'warning'); return false; }
     void window.MSWE.resolve('audio-timeline').setSourceGainDb(record.gainDb).catch(error => flashHint(error.message, 'warning'));
@@ -15108,7 +15119,7 @@ function restoreCssSubtitlePreview() {
 }
 
 function applyAssSubtitlePreview({ tMs, segment, extension, overlay, overlaySegments, mainColorName, speakerLabelVisible }) {
-  const library = window.AsrEditorUtils.normalizeAssStyleLibrary(ASS_STYLE_LIBRARY);
+  const library = window.AsrEditorUtils.normalizeAssStyleLibrary(window.MSWSubtitleStyle?.previewLibrary() || ASS_STYLE_LIBRARY);
   const profile = window.AsrEditorUtils.assProfileForId(
     library,
     library.assignments?.assExportProfileId || 'ass',
@@ -15811,6 +15822,7 @@ function buildSrt() {
 }
 
 function buildAss() {
+  if(DATA.preview?.project_style?.legacyBurn)return window.MSWProjectStyle.buildLegacyAss(DATA,{...assExportOptions(),alignFirstStart:EDITOR_SETTINGS.exportStartAtZero});
   const { overlaySegments } = mergedExportSegments();
   const mainSegments=layerMode()?layerExportMainSegments():DATA.segments;
   // 副字幕轨随 ASS 导出（多重字幕开启时才存在）；叠加轨与副字幕分层输出。
@@ -15867,6 +15879,7 @@ function buildGapRemovedAss() {
     flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
     return null;
   }
+  if(DATA.preview?.project_style?.legacyBurn)return window.MSWProjectStyle.buildLegacyAss(DATA,{...assExportOptions(),alignFirstStart:EDITOR_SETTINGS.exportStartAtZero,mapTime:time=>window.AsrEditorUtils.mapGapRemovedTime(time,removed)});
   const mainSegments=layerMode()?layerExportMainSegments():DATA.segments;
   const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
     mainSegments,
@@ -18703,6 +18716,11 @@ document.getElementById('download-ext-ass')?.addEventListener('click', async () 
     return;
   }
   if (editingState) finishEdit(true);
+  if(DATA.preview?.project_style?.legacyBurn){
+    const single={...DATA,segments:[],overlay_track:{enabled:false},multi_subtitle:{...DATA.multi_subtitle,enabled:true,tracks:[track]}};
+    await downloadFile(window.MSWProjectStyle.buildLegacyAss(single,{...assExportOptions(),target:'secondary',alignFirstStart:EDITOR_SETTINGS.exportStartAtZero}),`${FILENAME_BASE}.extension.ass`,'text/plain',{desc:'副字幕 ASS 文件',types:{'text/plain':['.ass']}});
+    return;
+  }
   const firstIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
     track.segments, EDITOR_SETTINGS.exportStartAtZero,
   );
@@ -19315,6 +19333,7 @@ function applyCanonicalProject(data, filename) {
   DATA.gap_remove = data.gap_remove || null;
   DATA.script_alignment = data.script_alignment || null;
   DATA.preview = (data.preview && typeof data.preview === 'object') ? data.preview : null;
+  originalSubtitlePreview = structuredClone(DATA.preview || {});
   gapRemoveDirty = false;
   previewGeometryDirty = false;
   projectImportDirty = false;
@@ -25895,7 +25914,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   },
   exportProject: () => {
     commitProcessingEdits(); const project = JSON.parse(buildJson());
-    if (project.preview?.ass_library_exports === true) {
+    if (project.preview?.project_style || project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));
       const options = speakerExportOptions();
       project.preview.burn_speaker_labels = {enabled:options.speakerLabelsEnabled,
@@ -25904,6 +25923,26 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return project;
   },
   setAssLibraryExports,
+  legacyAssLibrary: () => JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY)),
+  originalSubtitlePreview: () => originalSubtitlePreview,
+  useProjectStylePreview: () => { EDITOR_SETTINGS.assMode = true; refreshSubtitlePreview(); },
+  commitProjectStyle: (style, label = '修改工程字幕样式') => {
+    if(JSON.stringify(window.MSWProjectStyle.normalize(style))===JSON.stringify(window.MSWProjectStyle.normalize(DATA.preview?.project_style)))return;
+    editorHistory.push(snapshotCurrentForKind('project-style',label));updateUndoRedoButtons();
+    window.MSWProjectStyle.apply(DATA, style);
+    previewGeometryDirty = true; projectImportDirty = true;
+    refreshSubtitlePreview(); scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:burn-style'));
+  },
+  persistStyleMigration: () => { previewGeometryDirty = true; projectImportDirty = true; scheduleAutoSaveFlush(); },
+  refreshStylePreview: () => refreshSubtitlePreview(),
+  subtitleRenderSettings: () => ({...speakerExportOptions(),colorStyles:COLOR_PALETTE,assColorStyle:getSubtitleAppearance().ass_color_style}),
+  subtitlePreviewTarget: () => {
+    const main=overlayToggle.checked&&!subtitleTrackMuted('main');
+    const secondary=extensionOverlayToggle?.checked&&DATA.multi_subtitle?.enabled&&!subtitleTrackMuted('extension');
+    return main?(secondary?'both':'main'):(secondary?'secondary':'none');
+  },
+  openMediaSettings: () => setSubtitlePreviewSettingsPanelOpen(true),
   openAssStyles: () => assStyleFloatingPanel.open(),
   setBurnStyles: styles => {
     DATA.preview ||= {};

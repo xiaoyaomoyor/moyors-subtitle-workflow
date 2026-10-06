@@ -1790,7 +1790,7 @@ __WAVEFORM_CSS__
             <label class="editor-settings-item">紫色<input data-speaker-name="purple" maxlength="64" value="SP4"></label>
             <label class="editor-settings-item">蓝色<input data-speaker-name="blue" maxlength="64" value="SP5"></label>
             <label class="editor-settings-item">预览字幕颜色样式<select id="subtitle-color-style"><option value="underline">下划线</option><option value="text">文字</option><option value="shadow">阴影</option><option value="stroke">描边</option></select></label>
-            <small class="editor-settings-hint">名称用于预览、启用名称的字幕导出和显式选择的 ASS 样式库烧录，不修改正文或 TTS 发音。</small>
+            <small class="editor-settings-hint">名称用于预览、启用名称的字幕导出和工程字幕样式烧录，不修改正文或 TTS 发音。</small>
             <label class="toggle editor-settings-item"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
             <label class="toggle editor-settings-item"><input id="export-speaker-names-suffix" type="checkbox">以说话人名称作为分色 SRT 后缀</label>
           </div>
@@ -2689,10 +2689,13 @@ __WAVEFORM_CSS__
     <p id="video-export-tail-summary" class="msw-processing-hint"></p>
     <p class="msw-processing-hint" data-help-for="video-export-tail">默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。</p>
   </div>
-  <label class="msw-processing-field">压制字幕<select id="video-export-burn-subtitles"><option value="none">不压制字幕</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
-  <div class="msw-processing-actions"><button type="button" id="video-export-style-open">字幕样式与预览</button></div>
+  <label class="msw-processing-field">烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
+  <div id="video-export-style-choice" hidden>
+    <label class="msw-processing-field">样式来源<select id="video-export-style-source"><option value="project">跟随工程样式</option><option value="preset">使用其他样式预设</option></select></label>
+    <label class="msw-processing-field" id="video-export-preset-field" hidden>样式预设<select id="video-export-style-preset"></select></label>
+  </div>
   <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。</p>
-  <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">按字幕样式写入视频画面，主副字幕分别设置。表情包不烧录。可生成当前帧预览或五秒样片，确认实际字体、换行与位置。</p>
+  <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">开启烧录后在播放器查看本次字幕样式。选择其他预设只影响本次视频，不改变工程样式；调整样式请前往媒体播放器设置。表情包不烧录。</p>
 </template>
 <template id="timeline-export-fields">
   <label class="msw-tts-check"><input type="checkbox" id="timeline-export-collect-media" checked>同时打包原视频</label>

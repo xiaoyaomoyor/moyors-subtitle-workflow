@@ -69,6 +69,7 @@ class BurnSubtitleRequest:
     media_path: Path
     subtitle_path: Path
     srt_style: Mapping[str, object] | None = None
+    project_style: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,6 +254,7 @@ def run_burn_subtitles(
     request: BurnSubtitleRequest,
     *,
     ffmpeg_path: Path,
+    ffprobe_path: Path | None = None,
     cancel_event: Event | None = None,
     on_process: Callable[[subprocess.Popen[str]], None] | None = None,
     on_progress: Callable[[Mapping[str, str]], None] | None = None,
@@ -260,6 +262,25 @@ def run_burn_subtitles(
     """Render SRT/ASS subtitles into a new H.264 MP4."""
     media = _validated_media_path(request.media_path, extensions=VIDEO_EXTENSIONS, label="video")
     subtitle = _validated_media_path(request.subtitle_path, extensions=SUBTITLE_EXTENSIONS, label="subtitle")
+    if request.project_style is not None and subtitle.suffix.lower() == '.srt':
+        import tempfile
+        from maw.postprocess_io import read_srt
+        from maw.msw.audio_render import probe_source
+        from maw.msw.subtitle_style import styled_ass
+        if ffprobe_path is None:
+            raise MediaToolError('使用字幕预设烧录 SRT 需要 FFprobe，请配置媒体工具')
+        video=probe_source(ffprobe_path,media,cancel_event or Event()).get('video')
+        if not video:
+            raise MediaToolError('所选媒体没有可烧录的视频画面')
+        project=read_srt(subtitle)
+        project['preview']={'project_style':dict(request.project_style)}
+        plan={'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
+        with tempfile.TemporaryDirectory(prefix='msw-subtitle-') as directory:
+            converted=Path(directory)/'subtitles.ass'
+            converted.write_text(styled_ass(project,plan,'main',video),encoding='utf-8-sig',newline='\n')
+            rendered=run_burn_subtitles(BurnSubtitleRequest(media,converted),ffmpeg_path=ffmpeg_path,
+                cancel_event=cancel_event,on_process=on_process,on_progress=on_progress)
+        return BurnSubtitleResult(source_media_path=media,media_path=rendered.media_path,subtitle_path=subtitle)
     output = _available_media_output(media, suffix="subtitled", extension=".mp4")
     temporary = output.with_name(f"{output.stem}.part{output.suffix}")
     command = [
