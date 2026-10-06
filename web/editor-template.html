@@ -801,13 +801,9 @@ __WAVEFORM_CSS__
       <div class="media-preview-checks">
         <label class="toggle settings-panel-item"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
         <label class="toggle settings-panel-item" id="extension-overlay-toggle-wrap" hidden><input type="checkbox" id="extension-overlay-toggle" checked> 预览副字幕</label>
-        <label class="toggle settings-panel-item" data-option-help="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
+        <label class="toggle settings-panel-item"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
         <label class="toggle settings-panel-item" data-option-help="鼠标在波形上移动时，预览对应时间的视频画面。"><input type="checkbox" id="hover-seek-preview"> 悬停预览画面</label>
         <label class="toggle settings-panel-item" id="subtitle-layer-auto-wrap" hidden data-option-help="主副绑定成组避让；关闭后保留原位置。字号和主副样式沿用当前方案。"><input type="checkbox" id="subtitle-layer-auto" checked> 字幕自动避让</label>
-      </div>
-      <div class="media-settings-grid" id="subtitle-layer-presentation-settings" hidden>
-        <label class="media-settings-field"><span class="msw-option-label">先出现的字幕</span><select id="subtitle-layer-order"><option value="earlier-bottom">靠下显示</option><option value="earlier-top">靠上显示</option></select></label>
-        <label class="media-settings-field" data-option-help="以 1080p 为基准设置字幕组间距，预览和输出会随画面尺寸缩放。"><span class="msw-option-label">字幕组间距</span><input type="number" id="subtitle-layer-gap" min="0" max="120" value="12" step="1"></label>
       </div>
       <div class="media-settings-grid">
         <label class="media-settings-field">
@@ -825,8 +821,14 @@ __WAVEFORM_CSS__
             <span class="gap-remove-unit" id="media-seek-step-unit">ms</span>
           </span>
         </label>
-        <small id="media-seek-step-hint" data-help-for="media-seek-step" hidden>控制按钮和左右方向键的每次跳转时长。</small>
       </div>
+      <fieldset class="media-settings-subgroup" id="subtitle-layer-presentation-settings" hidden>
+        <legend>重叠字幕</legend>
+        <div class="media-settings-grid">
+          <label class="media-settings-field"><span class="msw-option-label">先出现的字幕</span><select id="subtitle-layer-order"><option value="earlier-bottom">靠下显示</option><option value="earlier-top">靠上显示</option></select></label>
+          <label class="media-settings-field" data-option-help="自动避让时，同时出现的不同字幕组之间保留的间距。绑定的主字幕和副字幕视为一组；此项不调整组内主副字幕的间距。数值以 1080p 为基准，随画面尺寸缩放。"><span class="msw-option-label">重叠字幕组间距</span><input type="number" id="subtitle-layer-gap" min="0" max="120" value="12" step="1"></label>
+        </div>
+      </fieldset>
     </div>
     <div class="settings-panel-section subtitle-preview-settings-section">
       <span class="settings-panel-title">预览字幕样式</span>

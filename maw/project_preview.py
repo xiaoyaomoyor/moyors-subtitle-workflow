@@ -37,12 +37,17 @@ def validate_preview(project: JsonDict) -> tuple[ValidationIssue, ...]:
         return (("$.preview", "must be an object or null"),)
 
     issues: list[ValidationIssue] = []
-    if 'project_style' in preview:
-        from maw.project_subtitle_style import normalize_project_style
-        try:
-            preview['project_style'] = normalize_project_style(preview['project_style'])
-        except ValueError as error:
-            issues.append(('$.preview.project_style', str(error)))
+    for field in ('project_style', 'project_style_custom'):
+        if field in preview:
+            from maw.project_subtitle_style import normalize_project_style
+            try:
+                preview[field] = normalize_project_style(preview[field])
+            except ValueError as error:
+                issues.append(('$.preview.' + field, str(error)))
+    if 'project_style_selection' in preview:
+        selection = preview['project_style_selection']
+        if not isinstance(selection, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,160}', selection):
+            issues.append(('$.preview.project_style_selection', 'invalid style selection'))
     if "burn_speaker_labels" in preview:
         issues.extend(_validate_speaker_label_settings(preview["burn_speaker_labels"], "$.preview.burn_speaker_labels"))
     if 'burn_subtitles' in preview:

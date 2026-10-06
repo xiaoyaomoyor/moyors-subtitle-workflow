@@ -74,6 +74,26 @@ process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readF
             self.assertEqual(load_presets(path)['presets'][0]['main']['fontSize'],100)
             self.assertEqual(project['preview']['project_style']['main']['fontSize'],48)
 
+    def test_custom_style_and_pair_layout_roundtrip_and_validation(self):
+        style=copy.deepcopy(builtin_presets()[0]);style['pairLayout']={'order':'secondary-above','gap':24}
+        project=normalize_project({'segments':[],'preview':{'project_style':builtin_presets()[1], 'project_style_custom':style,'project_style_selection':'large'}})
+        self.assertEqual(project['preview']['project_style_custom']['pairLayout'],style['pairLayout'])
+        self.assertEqual(project['preview']['project_style_selection'],'large')
+        for bad in ({'order':'sideways','gap':12},{'order':'main-above','gap':241},{'order':'main-above','gap':True}):
+            with self.subTest(bad=bad),self.assertRaises(ValueError):normalize_project_style(dict(style,pairLayout=bad))
+
+    def test_pair_layout_is_used_by_preview_and_burn_in_manual_overlap_mode(self):
+        from tests.test_subtitle_layers_dg import bilingual
+        style=copy.deepcopy(builtin_presets()[0]);style['pairLayout']={'order':'secondary-above','gap':24}
+        project=bilingual();project['preview']={'project_style':style};project['subtitle_layers']['presentation']={'mode':'manual','gap':12}
+        project=normalize_project(project)
+        video={'width':1920,'height':1080};plan={'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
+        output=styled_ass(project,plan,'both',video)
+        self.assertEqual(preview_ass({'project':project,'target':'both','video':video})['ass'],output)
+        events=[line.split(',') for line in output.splitlines() if line.startswith('Dialogue:')]
+        main=next(e for e in events if e[3].startswith('main'));secondary=next(e for e in events if e[3]=='secondary')
+        self.assertGreater(int(secondary[7]),int(main[7]))
+
     def test_legacy_burn_preserves_background_and_position(self):
         project={'segments':[{'start':0,'end':1000,'text':'old'}],
             'preview':{'burn_subtitles':{'main':{'x':.25,'width':.4,'background_alpha':.4}}}}

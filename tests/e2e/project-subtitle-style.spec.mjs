@@ -72,6 +72,47 @@ test('portable editor keeps settings usable and labels approximate preview',asyn
   expect(errors).toEqual([]);
 });
 
+test('paired subtitle order renders above and below consistently in libass and FFmpeg',async({page})=>{
+  await disableOnboarding(page);await page.goto(server.url);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await page.evaluate(()=>{
+    const h=window.MSWE.resolve('processing-host'),p=h.data,style=window.MSWProjectStyle.defaults();
+    style.main.primaryColor='#ff0000';style.secondary.primaryColor='#00ff00';
+    p.segments=[{id:'main-cue',start:0,end:3000,text:'Main subtitle',items:[]}];
+    p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'sub',role:'extension',segments:[{id:'sub-cue',start:0,end:3000,text:'Secondary subtitle',items:[]}]}],bindings:[{id:'pair',track_id:'sub',main_segment_ids:['main-cue'],extension_segment_ids:['sub-cue']}]};
+    h.commitProjectStyle(style);dispatchEvent(new Event('msw:subtitles-changed'));
+  });
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
+  await page.evaluate(()=>{for(const id of ['overlay-toggle','extension-overlay-toggle']){const el=document.getElementById(id);el.checked=true;el.dispatchEvent(new Event('change'));}});
+  await page.evaluate(()=>{const p=window.MSWE.resolve('processing-host').player;p.currentTime=1;p.pause();});
+  for(const [order,gap] of [['main-above',12],['secondary-above',36]]){
+    await page.locator('#style-pair-order').selectOption(order);
+    const rendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
+    await page.locator('#style-pair-gap').fill(String(gap));await page.locator('#style-pair-gap').dispatchEvent('change');
+    await rendered;
+    await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);
+    await page.locator('#media-settings-close').click();await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
+    const png=join(folder,order+'.png');await page.locator('.JASSUB').screenshot({path:png});
+    const payload=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');return window.MSWSubtitleStyle.request('subtitle-preview',{project:h.exportProject(),target:'both',video:{width:640,height:360}});});
+    writeFileSync(join(folder,order+'.ass'),payload.ass);
+    const box=await page.locator('.JASSUB').boundingBox(),ref=join(folder,order+'-reference.png');
+    execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=1','-vf',`ass=${order}.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',ref],{cwd:folder,windowsHide:true});
+    const rows=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON||'python',['-c',`from PIL import Image
+import json,sys
+def rows(path):
+ im=Image.open(path).convert('RGB'); result=[]
+ for channel in (0,1):
+  points=[y for y in range(im.height) for x in range(im.width) if (lambda c:c[channel]>80 and c[channel]>2*c[1-channel] and c[channel]>2*c[2])(im.getpixel((x,y)))]
+  result.append({'count':len(points),'y':sum(points)/max(1,len(points))})
+ return result
+print(json.dumps([rows(path) for path in sys.argv[1:]]))`,png,ref],{encoding:'utf8',windowsHide:true}));
+    for(const result of rows){for(const row of result)expect(row.count).toBeGreaterThan(30);expect(result[0].y<result[1].y).toBe(order==='main-above');}
+    for(let i=0;i<2;i++)expect(Math.abs(rows[0][i].y-rows[1][i].y)).toBeLessThan(3);
+    await toggleMediaSettings(page);
+  }
+});
+
 test('saved presets do not mutate project styles and the project survives reload',async({page})=>{
   await disableOnboarding(page);await page.goto(server.url);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
@@ -98,6 +139,8 @@ test('saved presets do not mutate project styles and the project survives reload
   await toggleMediaSettings(page);
   await expect(page.locator('#style-delete-preset')).toBeDisabled();
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('project');
+  await page.locator('#style-project-preset').selectOption('current');
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('96');
 });
 
 test('preview endpoints require authentication and reject arbitrary font paths',async({page})=>{

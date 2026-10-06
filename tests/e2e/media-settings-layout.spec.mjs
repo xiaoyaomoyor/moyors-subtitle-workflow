@@ -22,6 +22,12 @@ test('compact layout keeps labels and controls separate in narrow panels and bot
   await expect(page.locator('#style-secondary')).toBeVisible();
   await expect(page.locator('#style-manage,#style-scope,#style-editor-title')).toHaveCount(0);
   await expect(page.locator('#style-animation summary .msw-help-button')).toHaveCount(1);
+  await expect(page.locator('#subtitle-layer-presentation-settings legend')).toHaveText('重叠字幕');
+  await expect(page.locator('#sticker-overlay-toggle').locator('..').locator('.msw-help-button')).toHaveCount(0);
+  await expect(page.locator('#media-seek-step').locator('xpath=ancestor::label').locator('.msw-help-button')).toHaveCount(0);
+  await expect(page.locator('#style-pair-order').locator('..').locator('.msw-help-button')).toHaveCount(0);
+  await page.locator('#subtitle-layer-gap').locator('..').locator('.msw-help-button').click();
+  await expect(page.locator('#msw-option-help')).toContainText('此项不调整组内主副字幕的间距');await page.keyboard.press('Escape');
   await expect(page.locator('#jkl-playback-mode-hint')).toBeHidden();
   await page.locator('#jkl-playback-mode').locator('..').locator('.msw-help-button').click();
   await expect(page.locator('#msw-option-help')).toContainText('K 播放／停止');
@@ -62,25 +68,59 @@ test('compact layout keeps labels and controls separate in narrow panels and bot
   expect(errors).toEqual([]);
 });
 
-test('custom preview and project edits stay independent and survive preview switching',async({page})=>{
-  await page.locator('#style-project-preset').selectOption('large');
-  const saved=await project(page);
-  await page.locator('#style-preview-mode').selectOption('custom');
-  await expect(page.locator('#style-edit-proof')).toHaveAttribute('aria-pressed','true');
-  await edit(page,'#style-field-fontSize','90');
-  expect(await project(page)).toEqual(saved);
-  expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().style.main.fontSize)).toBe(90);
-  await page.locator('#style-edit-project').click();await edit(page,'#style-field-fontSize','64');
-  expect((await project(page)).main.fontSize).toBe(64);
-  expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().style.main.fontSize)).toBe(90);
+test('preset preview remains independent and current custom restores the project draft',async({page})=>{
+  await expect(page.locator('#style-preview-mode option[value="custom"]')).toHaveCount(0);
+  await expect(page.locator('#style-edit-proof,#style-edit-project')).toHaveCount(0);
+  await page.locator('#style-project-preset').selectOption('current');
+  await expect(page.locator('#style-project-preset')).toHaveValue('current');
   await page.locator('#style-preview-mode').selectOption('contrast');
-  await page.locator('#style-preview-mode').selectOption('custom');
-  await expect(page.locator('#style-field-fontSize')).toHaveValue('90');
+  await page.locator('#style-project-preset').selectOption('large');
+  await expect(page.locator('#style-preview-mode')).toHaveValue('contrast');
+  await edit(page,'#style-field-fontSize','64');
+  expect((await project(page)).main.fontSize).toBe(64);
+  expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().style.main.borderStyle)).toBe(3);
+  await page.locator('#style-project-preset').selectOption('bilingual');
+  await page.locator('#style-project-preset').selectOption('current');
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('64');
+  await page.evaluate(()=>performUndo());await expect(page.locator('#style-project-preset')).toHaveValue('bilingual');
+  await page.evaluate(()=>performRedo());await expect(page.locator('#style-project-preset')).toHaveValue('current');
+  const saved=await page.evaluate(()=>JSON.parse(buildJson()));expect(saved.preview.project_style_custom.main.fontSize).toBe(64);
+  await page.evaluate(()=>applyCanonicalProject({segments:[],preview:{project_style:window.MSWProjectStyle.presets()[1]}},'other.mosp'));
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await page.locator('#style-project-preset').selectOption('current');await expect(page.locator('#style-field-fontSize')).toHaveValue('72');
+  await page.evaluate(p=>applyCanonicalProject(p,'restored.mosp'),saved);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('64');
+  await expect(page.locator('#style-preview-mode')).toHaveValue('contrast');
+});
+
+test('removed custom preview is migrated once into an ordinary preset',async({page})=>{
+  await page.evaluate(()=>{const style=window.MSWProjectStyle.defaults();style.main.fontSize=91;localStorage.setItem('msw.subtitle-proof.v1',JSON.stringify({mode:'custom',style,customStyle:style}));});
   await page.reload();await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
-  await toggleMediaSettings(page);await expect(page.locator('#style-edit-proof')).toHaveAttribute('aria-pressed','true');
-  await expect(page.locator('#style-field-fontSize')).toHaveValue('90');
-  const before=await project(page);await page.locator('#style-reset').click();
-  await expect(page.locator('#style-field-fontSize')).toHaveValue('48');expect(await project(page)).toEqual(before);
+  await toggleMediaSettings(page);const id=await page.locator('#style-preview-mode').inputValue();
+  expect(id).not.toBe('custom');expect(id).not.toBe('project');
+  expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().style.main.fontSize)).toBe(91);
+  expect((await project(page)).main.fontSize).not.toBe(91);
+  await page.reload();await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await toggleMediaSettings(page);await expect(page.locator('#style-preview-mode')).toHaveValue(id);
+  const saved=await page.evaluate(()=>window.MSWSubtitleStyle.request('subtitle-presets'));expect(saved.presets.filter(s=>s.main.fontSize===91)).toHaveLength(1);
+});
+
+test('paired arrangement and appearance-only swap survive undo and project serialization',async({page})=>{
+  await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');h.data.multi_subtitle={enabled:true,tracks:[{id:'secondary',segments:[]}]};dispatchEvent(new Event('msw:subtitles-changed'));});
+  await page.locator('#style-project-preset').selectOption('default');
+  await page.locator('#style-pair-order').selectOption('secondary-above');await edit(page,'#style-pair-gap','26');
+  const before=await project(page);expect(before.pairLayout).toEqual({order:'secondary-above',gap:26});
+  await page.locator('#style-swap').click();const swapped=await project(page);
+  expect(swapped.main.fontSize).toBe(before.secondary.fontSize);expect(swapped.secondary.primaryColor).toBe(before.main.primaryColor);
+  for(const role of ['main','secondary'])for(const key of ['alignment','marginL','marginR','marginV'])expect(swapped[role][key]).toBe(before[role][key]);
+  expect(swapped.pairLayout).toEqual(before.pairLayout);
+  await page.evaluate(()=>performUndo());expect(await project(page)).toEqual(before);
+  await page.evaluate(()=>performRedo());expect(await project(page)).toEqual(swapped);
+  const saved=await page.evaluate(()=>JSON.parse(buildJson()));
+  await page.evaluate(p=>applyCanonicalProject(p,'arranged.mosp'),saved);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await expect(page.locator('#style-pair-order')).toHaveValue('secondary-above');await expect(page.locator('#style-pair-gap')).toHaveValue('26');
 });
 
 test('animation groups show only enabled parameters and preserve edits across track and fold changes',async({page},info)=>{

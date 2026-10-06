@@ -36,6 +36,12 @@ def normalize_project_style(raw):
     if 'legacyBurn' in raw:
         from maw.msw.subtitle_style import normalize_styles
         result['legacyBurn'] = normalize_styles(raw['legacyBurn'])
+    if 'pairLayout' in raw:
+        pair = raw['pairLayout']
+        if (not isinstance(pair, dict) or pair.get('order') not in ('main-above', 'secondary-above')
+                or type(pair.get('gap')) is not int or not 0 <= pair['gap'] <= 240):
+            raise ValueError('主副字幕排列设置无效')
+        result['pairLayout'] = dict(order=pair['order'], gap=pair['gap'])
     return result
 
 
@@ -54,6 +60,9 @@ def apply_project_style(project):
     style = normalize_project_style(raw)
     result = dict(project, preview=dict(project.get('preview') or {}))
     result['preview'].pop('project_style', None)
+    result['preview'].pop('subtitle_pair_layout', None)
+    if 'pairLayout' in style:
+        result['preview']['subtitle_pair_layout'] = style['pairLayout']
     if 'legacyBurn' in style:
         result['preview'].update(ass_library_exports=False, burn_subtitles=style['legacyBurn'])
     else:

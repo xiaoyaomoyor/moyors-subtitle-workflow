@@ -6,6 +6,24 @@ import '../web/msw-subtitle-presentation.js';
 const P=globalThis.MSWSubtitlePresentation;
 const fixture=()=>core.migrate(JSON.parse(readFileSync(new URL('fixtures/subtitle-layers.json',import.meta.url))).find(f=>f.name==='bound-bilingual').project);
 const styles={main:{font_size:48,width:.8,y:.86},secondary:{font_size:40,width:.8,y:.94}};
+test('explicit main/secondary order and gap work with manual or automatic overlap layout',()=>{
+ for(const mode of ['auto','manual'])for(const order of ['main-above','secondary-above']){
+  const project=fixture();project.preview={project_style:{pairLayout:{order,gap:24}}};project.subtitle_layers.presentation={mode,gap:12};
+  const main=project.segments[0],secondary=project.multi_subtitle.tracks[0].segments[0];main.text='main';secondary.text='two\nlines';
+  const result=P.layout(project,styles),position=(role,cue)=>styles[role].y*1080-result.offsets.get(P.key(role,cue.id)).offset;
+  const a=position('main',main),b=position('secondary',secondary);
+  const difference=order==='main-above'?b-a:a-b,lowerHeight=order==='main-above'?40*1.2*2:48*1.2;
+  assert.ok(Math.abs(difference-lowerHeight-24)<.00001);
+  for(const role of ['main','secondary'])assert.equal(P.layout(project,styles,role).offsets.get(P.key(role,(role==='main'?main:secondary).id)).offset,result.offsets.get(P.key(role,(role==='main'?main:secondary).id)).offset);
+ }
+});
+test('co-timed unbound main/secondary cues can be arranged without creating bindings',()=>{
+ const project=fixture();project.multi_subtitle.bindings=[];
+ project.segments=[{id:'main',start:0,end:1000,text:'main'}];project.multi_subtitle.tracks[0].segments=[{id:'sub',start:0,end:1000,text:'secondary'}];
+ project.preview={project_style:{pairLayout:{order:'secondary-above',gap:18}}};
+ const before=JSON.stringify(project),result=P.layout(project,styles);
+ assert.equal(result.groups.length,1);assert.equal(result.groups[0].paired,true);assert.equal(JSON.stringify(project),before);
+});
 test('bound groups retain line order; half-open merged SRT does not mutate the source',()=>{
  const project=fixture(),before=JSON.stringify(project),layout=P.layout(project,styles);
  assert.equal(layout.groups.length,2);assert.equal(layout.entries.length,4);

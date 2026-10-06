@@ -383,11 +383,15 @@
 ASS 导出、播放器工程预览和视频烧录默认读取这个快照，不实时引用用户预设库。
 `legacyBurn` 仅用于迁移，保存原 `preview.burn_subtitles`，直到用户明确转换高级样式。
 
+可选 `pairLayout: {order: "main-above"|"secondary-above", gap: 0..240}` 指定主副排列和组内间距（整数，1080p 基准）。缺省保留已有位置及排布；用户调整时更新上下位置，以整组底部为锚点。绑定主副字幕在预览和导出中使用相同的行高估算及组内间距；未绑定但时间完全相同的主副字幕可仅在呈现时成组，不写入绑定。主副组内排列独立于重叠组的自动避让开关，单轨输出保留该轨在双语组中的位置。直接编辑对齐／垂直边距会退出明确主副排列，沿用手动设置。
+
+`preview.project_style_custom`（可选）保存同格式的最近手动编辑快照；`preview.project_style_selection`（可选）为 `current` 或预设 ID（1–160 位字母、数字、下划线、连字符）。切换预设不覆盖自定义快照，选择“当前自定义”恢复它；尚无快照时以当前外观建立。选择与快照随工程保存、撤销、恢复，输出仅使用 `project_style`。
+
 `preview.style_migration` 记录 `{version: 1, source: "ass"|"burn", presets, notice}`；
 `presets` 保留原 ASS 和预览外观。首次加入工程样式并覆盖旧文件前，在同目录
 创建短文件名 `.msw-style-backup-<hash>.mosp`，不覆盖已有备份。
 旧字段继续保留供兼容读取；有 `project_style` 时正式输出优先使用它。
-校对模式与自定义校对样式保存在本机偏好中，不覆盖 `project_style`；
+校对预览仅选择跟随工程或已有预设，选择保存在本机偏好中，不覆盖 `project_style`；旧独立自定义预览配置自动转存为用户预设，不丢弃已调参数。
 本次导出选择其他预设时仅写入任务快照，工程原样式不变。
 
 `preview` 记录预览呈现层的设置，与字幕时间/文本完全解耦。目前定义两个子几何：`preview.subtitle`（字幕预览框，编辑器里 `#overlay`）与 `preview.sticker`（表情包预览层，编辑器里 `#sticker-overlay-layer`），都是在播放器区域内的几何，以 player-wrap 矩形的**归一化分数**存储，因此在播放器缩放和跨机传输后仍然一致。

@@ -251,7 +251,7 @@ function layerExportMainSegments() {
 }
 
 function layerAssMargins(options, project = DATA, target = 'both') {
-  if(project.subtitle_layers?.presentation?.mode==='manual')return {main:{},secondary:{}};
+  if(project.subtitle_layers?.presentation?.mode==='manual'&&!project.preview?.project_style?.pairLayout)return {main:{},secondary:{}};
   const resolution=window.AsrEditorUtils.normalizeAssPlayResolution(options.playResX,options.playResY);
   const styles={}, bases={};
   for (const role of ['main','secondary']) {
@@ -280,8 +280,9 @@ function layerRefreshSubtitlePreview(tMs) {
     styles[role]=ass?{font_size:s.fontSize,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
       : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
   }
-  const cacheKey=JSON.stringify([styles,DATA.subtitle_layers.presentation,metrics.stageWidth,metrics.stageHeight]);
-  if(!layerPresentationCache||layerPresentationCache.key!==cacheKey) layerPresentationCache={key:cacheKey,layout:window.MSWSubtitlePresentation.layout(DATA,styles,'both',1080*metrics.stageWidth/metrics.stageHeight)};
+  const previewStyle=window.MSWSubtitleStyle?.currentPreview().style||DATA.preview?.project_style;
+  const cacheKey=JSON.stringify([styles,previewStyle?.pairLayout,DATA.subtitle_layers.presentation,metrics.stageWidth,metrics.stageHeight]);
+  if(!layerPresentationCache||layerPresentationCache.key!==cacheKey) layerPresentationCache={key:cacheKey,layout:window.MSWSubtitlePresentation.layout({...DATA,preview:{...DATA.preview,project_style:previewStyle}},styles,'both',1080*metrics.stageWidth/metrics.stageHeight)};
   const layout=layerPresentationCache.layout;
   layout.byKey ||= new Map(layout.entries.map(entry=>[entry.key,entry]));
   let root=document.getElementById('msw-layer-preview');

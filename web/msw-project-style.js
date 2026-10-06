@@ -4,11 +4,16 @@
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
+  function normalizePair(raw) {
+    if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap<0||raw.gap>240)throw Error('主副字幕排列设置无效');
+    return {order:raw.order,gap:raw.gap};
+  }
   function normalize(raw = {}) {
     return {schema, name: String(raw.name || '默认白字').slice(0, 80),
       main: U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),
       secondary: U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),
       animations: U.normalizeAssAnimations(raw.animations),
+      ...(raw.pairLayout!==undefined?{pairLayout:normalizePair(raw.pairLayout)}:{}),
       ...(raw.legacyBurn ? {legacyBurn: clone(raw.legacyBurn)} : {})};
   }
   function defaults() {
@@ -48,6 +53,12 @@
   }
   function migrate(project, library, originalPreview=project.preview||{}) {
     project.preview ||= {};
+    for(const field of ['project_style','project_style_custom'])if(project.preview[field]!=null){
+      if(project.preview[field].schema!==schema)throw Error('工程字幕样式版本不受支持，请使用兼容的编辑器');
+      normalize(project.preview[field]);
+    }
+    const selection=project.preview.project_style_selection;
+    if(selection!==undefined&&(typeof selection!=='string'||!/^[a-zA-Z0-9_-]{1,160}$/.test(selection)))throw Error('工程样式选择无效');
     if(project.preview.project_style?.schema===schema) return false;
     if(project.preview.project_style!=null)throw Error('工程字幕样式版本不受支持，请使用兼容的编辑器');
     const p=project.preview;
@@ -65,6 +76,49 @@
       {id:'bilingual',...normalize({...normal,name:'双语紧凑',main:{...normal.main,fontSize:44,marginV:100},secondary:{...normal.secondary,fontSize:36,marginV:48}})}];
   }
   function apply(project, style) { project.preview ||= {}; project.preview.project_style=normalize(style); }
+  function capture(project) {
+    const p=project.preview||{};
+    return {style:normalize(p.project_style||defaults()),customStyle:p.project_style_custom?normalize(p.project_style_custom):null,selection:p.project_style_selection||null};
+  }
+  function restore(project, state) {
+    apply(project,state.style);
+    if(state.customStyle)project.preview.project_style_custom=normalize(state.customStyle);else delete project.preview.project_style_custom;
+    if(state.selection)project.preview.project_style_selection=state.selection;else delete project.preview.project_style_selection;
+  }
+  function edit(project, style, selection='current') {
+    apply(project,style);project.preview.project_style_selection=selection;
+    if(selection==='current')project.preview.project_style_custom=normalize(style);
+  }
+  const bottom=s=>s.alignment>=7?s.marginV+s.fontSize*1.2:s.alignment>=4?540+s.fontSize*.6:1080-s.marginV;
+  function pairSettings(raw) {
+    const s=normalize(raw);if(s.pairLayout)return clone(s.pairLayout);
+    const order=bottom(s.main)<=bottom(s.secondary)?'main-above':'secondary-above';
+    const lower=order==='main-above'?'secondary':'main';
+    const distance=Math.abs(bottom(s.main)-bottom(s.secondary))-s[lower].fontSize*1.2;
+    return {order,gap:Math.min(240,Math.max(0,Math.round(distance)))};
+  }
+  function arrangePair(raw, settings) {
+    const style=normalize(raw),pair=normalizePair(settings),lower=pair.order==='main-above'?'secondary':'main',upper=lower==='main'?'secondary':'main';
+    const base=Math.round(1080-Math.max(bottom(style.main),bottom(style.secondary)));
+    for(const role of ['main','secondary'])style[role].alignment=(style[role].alignment-1)%3+1;
+    style[lower].marginV=Math.max(0,base);
+    style[upper].marginV=Math.round(style[lower].marginV+style[lower].fontSize*1.2+pair.gap);
+    style.pairLayout=pair;
+    if(style.legacyBurn)for(const role of ['main','secondary']){style.legacyBurn[role] ||= {};style.legacyBurn[role].y=1-style[role].marginV/1080;}
+    return normalize(style);
+  }
+  function swapAppearance(raw) {
+    const style=normalize(raw),position=['id','name','alignment','marginL','marginR','marginV','encoding'];
+    const before=clone(style);
+    for(const [role,other] of [['main','secondary'],['secondary','main']]) {
+      style[role]={...before[other]};for(const key of position)style[role][key]=before[role][key];
+    }
+    if(before.legacyBurn){
+      const burn={};for(const [r,size,y] of [['main',48,.86],['secondary',40,.94]])burn[r]={font_family:'Arial',font_size:size,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y,width:.8,...before.legacyBurn[r]};
+      for(const [role,other] of [['main','secondary'],['secondary','main']])style.legacyBurn[role]={...burn[other],x:burn[role].x,y:burn[role].y,width:burn[role].width};
+    }
+    return normalize(style);
+  }
   // Preserve the old two-pass translucent background even in portable exports.
   // This mirrors subtitle_style.styled_ass's legacy branch, using the shared layout.
   function buildLegacyAss(project, options={}) {
@@ -101,5 +155,5 @@
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,clone,normalize,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,clone,normalize,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);

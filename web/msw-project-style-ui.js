@@ -9,13 +9,12 @@
   panel.id='project-subtitle-style';old.before(panel);
   const icons={save:'<path d="M14 21H3V3h14l4 4v6M7 3v6h10V3M7 21v-7h7m4 2v6m-3-3h6"/>',reset:'<path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/>',delete:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',fonts:'<path d="M3 6V3h18v3M12 3v18m-4 0h8"/>'};
   const iconButton=(id,name,icon)=>`<button type="button" id="${id}" class="msw-style-icon" title="${t(name)}" aria-label="${t(name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${icons[icon]}</svg></button>`;
+  icons.swap='<path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/>';
   panel.innerHTML=`<span class="settings-panel-title">字幕样式</span>
     <div class="media-settings-grid msw-style-selectors">
-      <label class="media-settings-field" data-option-help="默认跟随工程样式。默认、大字、高对比及自定义校对样式只影响播放器，不改变 ASS 或视频输出。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
+      <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
       <label class="media-settings-field" data-option-help="工程样式随工程保存，用于 ASS 导出和默认视频烧录；SRT 仅保存文字和时间。应用预设后调整只影响本工程。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
-    <div id="style-custom-preview" class="msw-style-edit-target" hidden><span>编辑</span><div role="group" aria-label="样式编辑对象"><button type="button" id="style-edit-project" aria-pressed="false">工程</button><button type="button" id="style-edit-proof" aria-pressed="true">自定义预览</button></div></div>
-    <small data-help-for="style-custom-preview" hidden>选择下方参数的编辑对象。自定义预览仅用于校对；要查看工程输出效果，请将预览样式切回跟随工程。</small>
     <div id="style-migration-row" class="msw-style-notice" hidden><p id="style-migration-note" class="msw-processing-hint" hidden></p></div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
     <form id="style-save-form" class="msw-style-save-form" hidden><label class="media-settings-field"><span>预设名称</span><input id="style-preset-name" maxlength="80" required></label><button type="submit" id="style-save-preset">保存</button><button type="button" id="style-save-cancel">取消</button></form>
@@ -25,6 +24,13 @@
     <details id="style-animation" class="msw-style-section"><summary><span class="msw-option-label">动画</span></summary><div id="style-animation-fields"></div></details>
     <small data-help-for="style-animation" hidden>动画同时作用于主、副字幕。时间从每条字幕开始计算，单位为毫秒。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
+  $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
+  panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
+    <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
+    <label class="media-settings-field"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="0" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
+  </div>`);
+  panel.querySelector('.msw-style-tabs').setAttribute('role','group');
+  for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
   const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
   const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
   function fields(rows,target,animation=false) {
@@ -65,16 +71,18 @@
   $('style-field-t-tags').closest('label').classList.add('msw-style-wide');$('style-field-t-tags').maxLength=512;
   $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
   global.MSWHelp?.hydrate(panel);
-  let role='main',context='project',library=[],legacyLibrary=host.legacyAssLibrary(),selectedPreset='default',proofPreset=null,override=null,ready=false,loadError='',pendingAction=null,saving=false;
-  let proof={mode:'project',style:S.defaults()};
-  try { proof={...proof,...JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}')};proof.style=S.normalize(proof.style); } catch(_) {}
-  if(proof.mode==='custom'){context='proof';proof.customStyle=S.normalize(proof.customStyle||proof.style);}
+  let role='main',library=[],legacyLibrary=host.legacyAssLibrary(),selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
+  let proof={mode:'project'},legacyProof=null;
+  try {
+    const saved=JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}');proof.mode=saved.mode||'project';
+    const old=saved.customStyle||(saved.mode==='custom'?saved.style:null);if(old)legacyProof=S.normalize(old);
+  } catch(_) {}
   const projectStyle=()=>host.data.preview?.project_style || S.defaults();
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
-  const value=()=>context==='proof'?proof.style:projectStyle();
+  const value=projectStyle;
   const same=(a,b)=>JSON.stringify({...S.normalize(a),name:''})===JSON.stringify({...S.normalize(b),name:''});
-  const activePreset=()=>context==='proof'?proofPreset:selectedPreset;
+  const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
   const persistProof=()=>{try{localStorage.setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
   async function request(route,payload) {
@@ -83,9 +91,10 @@
   }
   function rebuild() {
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
-    fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name]),['custom','自定义预览样式']],proof.mode);
-    if(!$('style-preview-mode').value){proof.mode='custom';$('style-preview-mode').value='custom';persistProof();}
-    if(!find(selectedPreset)||!same(find(selectedPreset),projectStyle()))selectedPreset=all().find(s=>same(s,projectStyle()))?.id||'current';
+    fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
+    if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
+    const chosen=host.data.preview?.project_style_selection;
+    selectedPreset=chosen==='current'?'current':find(chosen)&&same(find(chosen),projectStyle())?chosen:all().find(s=>same(s,projectStyle()))?.id||'current';
     fill($('style-project-preset'),[['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
     const selected=$('video-export-style-preset').value;
     fill($('video-export-style-preset'),all().map(s=>[s.id,s.name]),selected || 'default');
@@ -98,12 +107,11 @@
     $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
     for(const id of ['style-save-as','style-reset','style-save-preset','style-save-cancel','style-delete-confirm-button','style-delete-cancel'])$(id).disabled=saving;
     $('style-preset-name').disabled=saving;
-    $('style-reset').title=t(context==='proof'?'恢复自定义预览的主、副字幕和动画默认值':'恢复工程的主、副字幕和动画默认值');
-    $('style-custom-preview').hidden=proof.mode!=='custom';
-    $('style-edit-project').setAttribute('aria-pressed',String(context==='project'));$('style-edit-proof').setAttribute('aria-pressed',String(context==='proof'));
+    $('style-reset').title=t('恢复工程的主、副字幕和动画默认值');
     const secondary=host.data.multi_subtitle?.enabled===true;
-    $('style-secondary').hidden=!secondary;if(!secondary)role='main';
-    for(const r of ['main','secondary']){$('style-'+r).setAttribute('aria-selected',String(role===r));$('style-'+r).tabIndex=role===r?0:-1;}
+    $('style-secondary').hidden=!secondary;$('style-swap').hidden=!secondary;if(!secondary)role='main';
+    $('style-pair-controls').hidden=!secondary;const pair=S.pairSettings(style);$('style-pair-order').value=pair.order;$('style-pair-gap').value=pair.gap;
+    for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-pressed',String(role===r));
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-preview-mode').value=proof.mode;
@@ -120,13 +128,16 @@
   function refresh() {
     host.useProjectStylePreview();host.refreshStylePreview();global.MSWSubtitleRenderer?.invalidate();
   }
-  function change(style) {
-    if(context==='proof'){proof.style=S.normalize(style);proof.customStyle=S.clone(proof.style);persistProof();}
-    else host.commitProjectStyle(style);
+  function change(style,selection='current',label='修改工程字幕样式') {
+    if(!ready||styleGeneration!==host.generation)return;
+    host.commitProjectStyle(style,label,selection);
     rebuild();sync();refresh();
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   panel.addEventListener('change',event=>{
+    // Becoming inert on project switch can flush a native change event from
+    // the previously focused input. Never commit it into the new project.
+    if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
     const style=S.clone(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'?Number(input.value):input.value;
@@ -144,22 +155,28 @@
         if(g==='t'&&!style.animations.t.tags)style.animations.t.tags=transformTags[0][0];
       }
     }
-    if(context==='project'&&!style.name.endsWith(' · 已修改'))style.name+=' · 已修改';change(style);
+    // Direct position edits take precedence over the paired arrangement.
+    if(['alignment','marginV'].includes(field))delete style.pairLayout;
+    if(!style.name.endsWith(' · 已修改'))style.name+=' · 已修改';change(style);
   });
   $('style-preview-mode').onchange=()=>{
-    cancelAction();const previous=proof.mode;proof.mode=$('style-preview-mode').value;
-    if(proof.mode==='custom'&&previous!=='custom'){proof.style=S.normalize(proof.customStyle||(previous==='project'?projectStyle():proof.style));proofPreset=previous==='project'?selectedPreset:previous;proof.customStyle=S.clone(proof.style);}
-    else if(proof.mode!=='project'&&proof.mode!=='custom'){proof.style=S.normalize(find(proof.mode)||S.defaults());proofPreset=proof.mode;}
-    context=proof.mode==='custom'?'proof':'project';persistProof();rebuild();sync();refresh();
+    cancelAction();proof.mode=$('style-preview-mode').value;persistProof();rebuild();sync();refresh();
   };
-  $('style-edit-proof').onclick=()=>{cancelAction();context='proof';sync();};
-  $('style-edit-project').onclick=()=>{cancelAction();context='project';sync();};
   for(const r of ['main','secondary'])$('style-'+r).onclick=()=>{role=r;sync();};
+  $('style-swap').onclick=()=>{cancelAction();change(S.swapAppearance(value()),'current','交换主副字幕样式');};
+  for(const id of ['style-pair-order','style-pair-gap'])$(id).onchange=()=>{
+    if(!$('style-pair-gap').checkValidity()){$('style-pair-gap').reportValidity();sync();return;}
+    cancelAction();change(S.arrangePair(value(),{order:$('style-pair-order').value,gap:Number($('style-pair-gap').value)}),'current','调整主副字幕排列');
+  };
   panel.querySelector('.msw-style-tabs').addEventListener('keydown',event=>{
-    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||$('style-secondary').hidden)return;
+    if(!['style-main','style-secondary'].includes(event.target.id)||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||$('style-secondary').hidden)return;
     event.preventDefault();role=event.key==='Home'?'main':event.key==='End'?'secondary':role==='main'?'secondary':'main';sync();$('style-'+role).focus();
   });
-  $('style-project-preset').onchange=()=>{const preset=find($('style-project-preset').value);if(!preset){rebuild();return;}cancelAction();context='project';selectedPreset=preset.id;proof.mode='project';persistProof();change(preset);};
+  $('style-project-preset').onchange=()=>{
+    const selection=$('style-project-preset').value;
+    const preset=selection==='current'?(host.data.preview?.project_style_custom||projectStyle()):find(selection);
+    if(!preset){rebuild();return;}cancelAction();change(preset,selection);
+  };
   $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
   $('style-transform-preset').onchange=()=>{
     const tags=$('style-transform-preset').value;
@@ -172,7 +189,7 @@
     library=next;
   }
   $('style-save-as').onclick=()=>{
-    cancelAction();pendingAction={kind:'save',context,generation:host.generation};
+    cancelAction();pendingAction={kind:'save',generation:host.generation};
     $('style-preset-name').value=value().name;$('style-save-form').hidden=false;$('style-preset-name').focus();$('style-preset-name').select();
   };
   $('style-save-cancel').onclick=()=>{cancelAction();$('style-save-as').focus();};
@@ -192,7 +209,8 @@
     const name=$('style-preset-name').value.trim();if(!name){$('style-preset-name').focus();message('请输入预设名称',true);return;}
     if(all().some(s=>s.name===name)){message('已有同名预设，请使用新名称',true);return;}
     const preset={...S.normalize(value()),name,id:global.MSWProject.id('style')};
-    void runLibraryAction(action,[...library,preset],()=>{if(action.context==='project')selectedPreset=preset.id;else proofPreset=preset.id;message('预设已保存；已应用到工程的样式不受影响。');$('style-save-as').focus();});
+    const savedStyle=S.normalize(value());
+    void runLibraryAction(action,[...library,preset],()=>{if(same(projectStyle(),savedStyle))change(projectStyle(),preset.id,'另存为字幕预设');message('预设已保存；已应用到工程的样式不受影响。');$('style-save-as').focus();});
   };
   $('style-delete-preset').onclick=()=>{
     const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};
@@ -219,7 +237,7 @@
   function currentPreview() {
     if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
     const target=host.subtitlePreviewTarget();
-    return {style:proof.mode==='project'?projectStyle():proof.style,target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
+    return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
   global.MSWSubtitleStyle={currentPreview,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
@@ -239,13 +257,23 @@
       } else library=JSON.parse(localStorage.getItem('msw.subtitle-presets.v1')||'[]');
       if(!Array.isArray(library))library=[];
       if(generation!==host.generation)return;
+      // Preserve the removed custom-preview preference as an ordinary preset.
+      if(legacyProof){
+        let preset=all().find(s=>same(s,legacyProof));
+        if(!preset){
+          let name='已保存的预览样式',suffix=2;while(all().some(s=>s.name===name))name='已保存的预览样式 '+suffix++;
+          preset={...legacyProof,name,id:global.MSWProject.id('style')};await saveLibrary([...library,preset]);
+        }
+        if(generation!==host.generation)return;
+        if(proof.mode==='custom')proof.mode=preset.id;legacyProof=null;persistProof();
+      }
       if(S.migrate(host.data,legacyLibrary,host.originalSubtitlePreview()))host.persistStyleMigration();
-      ready=true;message('');rebuild();sync();syncExport();
+      styleGeneration=generation;ready=true;message('');rebuild();sync();syncExport();
     } catch(error) {if(generation===host.generation){loadError=error.message;message('字幕样式加载失败：'+error.message,true);$('style-retry').hidden=false;}}
     finally {if(generation===host.generation)panel.inert=false;}
   }
   $('style-retry').onclick=()=>void initialize();
-  global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;context=proof.mode==='custom'?'proof':'project';role='main';void initialize();});
+  global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';void initialize();});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
   global.addEventListener('msw:subtitles-changed',()=>{if(ready)sync();});
   global.addEventListener('msw:media-changed',()=>{if(ready){sync();refresh();}});

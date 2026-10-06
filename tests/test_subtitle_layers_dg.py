@@ -23,6 +23,22 @@ def bilingual():
     return migrate_project(source)
 
 class ProductionLayersTests(unittest.TestCase):
+    def test_pair_order_spacing_and_single_track_positions_match_browser(self):
+        script="require('./web/msw-subtitle-presentation.js');const p=JSON.parse(process.argv[1]);const s=JSON.parse(process.argv[2]);process.stdout.write(JSON.stringify([...MSWSubtitlePresentation.layout(p,s,process.argv[3]).offsets]));"
+        styles=normalize_styles()
+        for mode in ('auto', 'manual'):
+            for order in ('main-above', 'secondary-above'):
+                project=bilingual();project['preview']={'project_style':{'pairLayout':{'order':order,'gap':24}}}
+                project['subtitle_layers']['presentation']={'mode':mode,'gap':12}
+                project['multi_subtitle']['tracks'][0]['segments'][0]['text']='two\nlines'
+                full=presentation(project,styles)
+                for target in ('both', 'main', 'secondary'):
+                    with self.subTest(mode=mode,order=order,target=target):
+                        actual=json.loads(subprocess.check_output(['node','-e',script,json.dumps(project),json.dumps(styles),target],cwd=ROOT,text=True,encoding='utf-8'))
+                        expected=presentation(project,styles,target)
+                        for key,value in actual:self.assertAlmostEqual(value['offset'],expected[tuple(json.loads(key))])
+                        self.assertEqual(expected,{key:value for key,value in full.items() if target=='both' or key[0]==target})
+
     def test_first_upgrade_backup_exact_bytes_and_no_silent_downgrade(self):
         with tempfile.TemporaryDirectory() as raw:
             target=Path(raw)/'lesson.mosp'

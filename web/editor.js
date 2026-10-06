@@ -1979,7 +1979,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
-  if (kind === 'project-style') return {kind,label,style:structuredClone(DATA.preview?.project_style || window.MSWProjectStyle.defaults())};
+  if (kind === 'project-style') return {kind,label,...window.MSWProjectStyle.capture(DATA)};
   if (kind === 'source-gain') return {kind, label, gainDb: window.MSWE.resolve('audio-timeline').sourceGainDb(), mediaKey: sourceGainMediaKey()};
   if (kind === 'asset-removal') return snapshotAssetRemoval(sourceRecord.assetId, label);
   if (kind === 'layout') {
@@ -2067,7 +2067,7 @@ function restoreEditorSelection(snapshot) {
 }
 function applyHistoryRecord(record) {
   if (record.kind === 'project-style') {
-    window.MSWProjectStyle.apply(DATA,record.style);
+    window.MSWProjectStyle.restore(DATA,record);
     previewGeometryDirty = true; projectImportDirty = true;
     refreshSubtitlePreview(); scheduleAutoSaveFlush();
     window.dispatchEvent(new Event('msw:burn-style'));
@@ -25926,10 +25926,11 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   legacyAssLibrary: () => JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY)),
   originalSubtitlePreview: () => originalSubtitlePreview,
   useProjectStylePreview: () => { EDITOR_SETTINGS.assMode = true; refreshSubtitlePreview(); },
-  commitProjectStyle: (style, label = '修改工程字幕样式') => {
-    if(JSON.stringify(window.MSWProjectStyle.normalize(style))===JSON.stringify(window.MSWProjectStyle.normalize(DATA.preview?.project_style)))return;
+  commitProjectStyle: (style, label = '修改工程字幕样式', selection = 'current') => {
+    const S=window.MSWProjectStyle,next={preview:structuredClone(DATA.preview||{})};S.edit(next,style,selection);
+    if(JSON.stringify(S.capture(next))===JSON.stringify(S.capture(DATA)))return;
     editorHistory.push(snapshotCurrentForKind('project-style',label));updateUndoRedoButtons();
-    window.MSWProjectStyle.apply(DATA, style);
+    window.MSWProjectStyle.restore(DATA, S.capture(next));
     previewGeometryDirty = true; projectImportDirty = true;
     refreshSubtitlePreview(); scheduleAutoSaveFlush();
     window.dispatchEvent(new Event('msw:burn-style'));
