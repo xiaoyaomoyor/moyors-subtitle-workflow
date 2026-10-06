@@ -122,3 +122,28 @@ test('video remains visible after a hidden player is shown and resized',async({p
   expect(centerPixel(await page.locator('.player-stage').screenshot())[2]).toBeGreaterThan(150);
   await expect(page.locator('#media-settings-modal')).not.toBeVisible();
 });
+
+test('video is composited below subtitles without changing colors or blocking clicks',async({page})=>{
+  await disableOnboarding(page);await page.goto(server.url);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer?.status),{timeout:30000}).toBe('libass');
+  // A screenshot may itself suppress Windows hardware video overlays. Verify
+  // nontrivial video blending is active before capture, then compare with the
+  // browser's normal video output in both themes. Canvas drawImage may use a
+  // different color conversion, so it is not the reference for screen colors.
+  await expect.poll(()=>page.locator('#player').evaluate(video=>getComputedStyle(video).mixBlendMode)).not.toBe('normal');
+  await expect(page.locator('#media-settings-modal')).not.toBeVisible();
+  await expect(page.locator('#wave-settings-modal')).not.toBeVisible();
+  for(const theme of ['default','koishi']) {
+    await page.evaluate(themePreset=>updateEditorSettings({themePreset}),theme);
+    const displayed=centerPixel(await page.locator('.player-stage').screenshot());
+    await page.locator('#player').evaluate(video=>{video.style.mixBlendMode='normal';});
+    const original=centerPixel(await page.locator('.player-stage').screenshot());
+    await page.locator('#player').evaluate(video=>video.style.removeProperty('mix-blend-mode'));
+    expect(displayed[2]).toBeGreaterThan(150);
+    for(let i=0;i<3;i++)expect(Math.abs(original[i]-displayed[i])).toBeLessThanOrEqual(1);
+  }
+  await page.locator('#player').click();
+  await expect(page.locator('#player')).toHaveJSProperty('paused',false);
+  await page.locator('#player').click();
+  await expect(page.locator('#player')).toHaveJSProperty('paused',true);
+});

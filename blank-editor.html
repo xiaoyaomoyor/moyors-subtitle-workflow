@@ -5081,10 +5081,16 @@
 .msw-style-render-status { position:absolute; left:8px; top:8px; z-index:8; max-width:calc(100% - 16px); padding:3px 7px; border-radius:5px; background:#0009; color:white; font-size:11px; pointer-events:none; }
 .player-stage[data-subtitle-renderer=libass] #overlay,
 .player-stage[data-subtitle-renderer=libass] #msw-layer-preview { visibility:hidden !important; }
-/* Keep video and the offscreen subtitle canvas in stable, separate compositing
-   layers, including the first frame and dock/layout changes in Chromium. */
+/* Keep video below the offscreen subtitle canvas and the player controls. */
 .player-stage { isolation:isolate; }
-.player-stage video { position:relative; z-index:0; transform:translateZ(0); }
+.player-stage video { position:relative; z-index:0; }
+/* Screen blending over opaque black is pixel-identical to the source video,
+   but requires page compositing instead of a Windows hardware video overlay.
+   This prevents black video below the offscreen subtitle canvas. Unlike a 3D
+   transform or an identity filter, the blend operation cannot use that overlay.
+   Keep the black backdrop and isolation together, including light themes. */
+.player-stage[data-subtitle-renderer=libass] { background:#000; }
+.player-stage[data-subtitle-renderer=libass] video { mix-blend-mode:screen; }
 .JASSUB { z-index:5; pointer-events:none; background:transparent; }
 .player-stage:not([data-subtitle-renderer=libass]) .JASSUB { visibility:hidden; }
 .msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
