@@ -1,5 +1,6 @@
 """Mixed queue contracts, using isolated files and no real ASR/LLM service."""
 import copy
+import errno
 import json
 import unittest
 from pathlib import Path
@@ -10,9 +11,27 @@ from unittest.mock import Mock, patch
 
 from maw import launcher_queue as queue
 from maw.gui_web import LauncherApi, LauncherPaths
+from maw.file_io import atomic_write_text
 
 
 class QueueTests(unittest.TestCase):
+    def test_save_error_reaches_failed_queue_card(self):
+        tasks, errors = self.prepare(self.plan([self.srt]))
+        self.assertFalse(errors)
+        target = self.root / "output.mosp"
+        events = []
+
+        def execute(task, emit):
+            with patch("maw.file_io.tempfile.mkstemp", side_effect=OSError(errno.ENOSPC, "disk full")):
+                atomic_write_text(target, "{}")
+
+        results = queue.run_queue(tasks, run_id="save-error", cancel=Event(), emit=events.append, execute=execute)
+        self.assertEqual(results[0]["status"], "failed")
+        self.assertIn("磁盘可用空间不足", results[0]["message"])
+        self.assertIn(str(target), results[0]["message"])
+        card = next(event for event in events if event["type"] == "queueItem" and event["status"] == "failed")
+        self.assertEqual(card["message"], results[0]["message"])
+
     def test_layered_project_copies_without_loss_and_rejects_unadapted_postprocess(self):
         from maw.msw.subtitle_layers import migrate_project
         project = migrate_project({'segments': [

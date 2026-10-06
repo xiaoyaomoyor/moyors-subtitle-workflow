@@ -10,7 +10,6 @@ import json
 import os
 import re
 import shutil
-import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, is_dataclass, replace
@@ -19,6 +18,7 @@ from pathlib import Path
 from threading import Event
 from typing import Final
 
+from maw.file_io import FileSaveError, atomic_copy, atomic_write_text, ensure_output_directory
 from maw.gui_config import load_env
 from maw.output_naming import format_elapsed, operation_suffix, postprocess_workspace, resolve_lang, sanitize_component, translation_marker_name, with_output_config
 from maw.postprocess import (
@@ -503,9 +503,12 @@ def _relocate_pipeline_artifact(path: Path, destination: Path) -> Path:
     target = destination.expanduser().resolve()
     if source == target:
         return target
-    target.parent.mkdir(parents=True, exist_ok=True)
+    ensure_output_directory(target.parent)
     if source.parent == target.parent:
-        source.replace(target)
+        try:
+            source.replace(target)
+        except OSError as error:
+            raise FileSaveError(target, error) from error
     elif source.suffix.lower() in {".mosp", ".json"}:
         write_derived_project(read_project(source), target, source)
     else:
@@ -874,14 +877,12 @@ def run_postprocess_pipeline(
             except OSError:
                 pass
         return result
-    except PostprocessCancelled:
-        manifest["status"] = "cancelled"
-        _write_manifest(run_directory, manifest)
+    except PostprocessCancelled as error:
+        _record_interrupted_run(run_directory, manifest, "cancelled", error)
         _emit(on_event, {"stage": "cancelled", "completed": len(completed), "total": len(steps), "runDirectory": str(run_directory)})
         raise
     except PostprocessPipelineError as error:
-        manifest["status"] = "failed"
-        _write_manifest(run_directory, manifest)
+        _record_interrupted_run(run_directory, manifest, "failed", error)
         _emit(on_event, {
             "stage": "failed",
             "completed": len(completed),
@@ -891,9 +892,8 @@ def run_postprocess_pipeline(
             "failedIndex": error.failed_index,
         })
         raise
-    except Exception:
-        manifest["status"] = "failed"
-        _write_manifest(run_directory, manifest)
+    except Exception as error:
+        _record_interrupted_run(run_directory, manifest, "failed", error)
         _emit(on_event, {"stage": "failed", "completed": len(completed), "total": len(steps), "runDirectory": str(run_directory)})
         raise
 
@@ -1297,7 +1297,7 @@ def _embed_translated_subtitles(
 
 def _create_run_directory(media_path: Path, *, lang: str | None = None) -> Path:
     root = postprocess_workspace(media_path, lang=lang)
-    root.mkdir(parents=True, exist_ok=True)
+    ensure_output_directory(root)
     stem = sanitize_component(media_path.stem, "media")
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     base = root / f"{stem}-{timestamp}"
@@ -1310,6 +1310,8 @@ def _create_run_directory(media_path: Path, *, lang: str | None = None) -> Path:
         except FileExistsError:
             candidate = root / f"{base.name}-{counter}"
             counter += 1
+        except OSError as error:
+            raise FileSaveError(candidate, error, operation="创建后处理目录") from error
 
 
 def _publish_final(
@@ -1370,28 +1372,25 @@ def _publish_final(
 
 
 def _copy_atomic(source: Path, destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent)
-    os.close(descriptor)
-    try:
-        shutil.copyfile(source, temporary_name)
-        os.replace(temporary_name, destination)
-    except OSError:
-        Path(temporary_name).unlink(missing_ok=True)
-        raise
+    atomic_copy(source, destination)
 
 
 def _write_manifest(directory: Path, payload: Mapping[str, object]) -> None:
     target = directory / "manifest.json"
     text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
-    descriptor, temporary_name = tempfile.mkstemp(prefix=".manifest.", suffix=".tmp", dir=directory)
+    atomic_write_text(target, text)
+
+
+def _record_interrupted_run(
+    directory: Path, manifest: dict[str, object], status: str, error: BaseException,
+) -> None:
+    manifest["status"] = status
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-        os.replace(temporary_name, target)
-    except (OSError, UnicodeError):
-        Path(temporary_name).unlink(missing_ok=True)
-        raise
+        _write_manifest(directory, manifest)
+    except (OSError, UnicodeError) as save_error:
+        # A full/disconnected disk can also prevent saving the failure state.
+        # Preserve the original step and retry metadata instead of masking it.
+        error.add_note(f"后处理恢复清单未能更新：{save_error}")
 
 
 def _load_manifest(directory: Path) -> dict[str, object]:
@@ -1405,16 +1404,8 @@ def _load_manifest(directory: Path) -> dict[str, object]:
 
 
 def _save_config(path: Path, payload: Mapping[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-        os.replace(temporary_name, path)
-    except (OSError, UnicodeError):
-        Path(temporary_name).unlink(missing_ok=True)
-        raise
+    atomic_write_text(path, text)
 
 
 def _normalize_replacements(value: object, *, trim: bool = True) -> list[dict[str, str]]:

@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from maw.file_io import FileSaveError, atomic_write_text, ensure_output_directory
 from maw.media import probe_audio_tracks, probe_video_fps
 from maw.project import PROJECT_SCHEMA, ProjectValidationError, ProjectValidationFailed, project_schema_errors
 from maw.msw.project_codec import validate_extension
@@ -193,24 +194,17 @@ def write_mosp(
     """Write a UTF-8 LF-terminated ``.mosp`` project and return its path."""
 
     target = Path(path).expanduser()
-    target.parent.mkdir(parents=True, exist_ok=True)
+    ensure_output_directory(target.parent)
     content = serialize_mosp(
-            project,
-            media_path=media_path,
-            ffprobe_path=ffprobe_path,
-            selected_audio_track=selected_audio_track,
-        )
+        project,
+        media_path=media_path,
+        ffprobe_path=ffprobe_path,
+        selected_audio_track=selected_audio_track,
+    )
     from maw.msw.subtitle_layers import preserve_upgrade_source
-    preserve_upgrade_source(target, project)
-    if project.get('schema') == 'msw.project.v2':
-        import os
-        import tempfile
-        fd, pending = tempfile.mkstemp(prefix=f'.{target.stem}.', suffix='.pending', dir=target.parent)
-        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as output:
-            output.write(content)
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(pending, target)
-    else:
-        target.write_text(content, encoding='utf-8', newline='\n')
+    try:
+        preserve_upgrade_source(target, project)
+    except OSError as error:
+        raise FileSaveError(Path(error.filename or target), error, operation="保存工程前检查／备份") from error
+    atomic_write_text(target, content, sync=project.get('schema') == 'msw.project.v2')
     return target

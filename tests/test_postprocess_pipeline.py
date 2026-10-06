@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import tempfile
@@ -32,6 +33,72 @@ from maw.postprocess_pipeline import (
 
 
 class PostprocessPipelineTests(unittest.TestCase):
+    def test_disk_full_keeps_original_step_error_when_failure_manifest_also_fails(self) -> None:
+        step = {"id": "translate", "enabled": True, "providerId": "deepseek", "target": "en"}
+        disk_full = False
+        create_temp = tempfile.mkstemp
+
+        def complete(_settings, _prompt, cues):
+            nonlocal disk_full
+            disk_full = True
+            return {"groups": [{"id": cue["id"], "text": "Translation " + cue["id"]} for cue in cues]}
+
+        def create(*args, **kwargs):
+            if disk_full:
+                raise OSError(errno.ENOSPC, "disk full")
+            return create_temp(*args, **kwargs)
+
+        with mock.patch("maw.file_io.tempfile.mkstemp", side_effect=create), mock.patch(
+            "maw.postprocess_pipeline.complete_subtitle_groups", side_effect=complete,
+        ):
+            with self.assertRaises(PostprocessPipelineError) as raised:
+                run_postprocess_pipeline(
+                    self.plan(step, retain=True), media_path=self.media, project_path=self.project,
+                    srt_path=self.srt, env_path=self.env_path, ffmpeg_path=None, cancel_event=Event(),
+                    llm_settings={"deepseek": {"apiKey": "test", "baseUrl": "https://example.test", "model": "test", "verified": "1"}},
+                )
+        error = raised.exception
+        self.assertEqual(error.failed_step, "translate")
+        self.assertEqual(error.category, "file_write")
+        self.assertIn("磁盘可用空间不足", str(error))
+        self.assertIn("translate-en.mosp", str(error))
+        self.assertIn("恢复清单未能更新", "\n".join(error.__notes__))
+        self.assertTrue(error.current_project.is_file())
+        self.assertTrue(error.current_srt.is_file())
+        self.assertTrue((error.run_directory / "manifest.json").is_file())
+
+    def test_translation_with_248_character_intermediate_path(self) -> None:
+        self.media = self.root / ("lesson-" + "x" * 47 + ".mp3")
+        self.media.write_bytes(b"audio")
+        padding = 102 - len(str(self.root)) - 1
+        if padding < 1:
+            self.skipTest("temporary root too long for the fixed-length regression fixture")
+        workspace = self.root / ("d" * padding)
+        step = {"id": "translate", "enabled": True, "providerId": "deepseek", "target": "en"}
+
+        def complete(_settings, _prompt, cues):
+            return {"groups": [{"id": cue["id"], "text": "Translation " + cue["id"]} for cue in cues]}
+
+        with mock.patch.dict(os.environ, {"MSW_GUI_LANG": "zh"}), mock.patch(
+            "maw.postprocess_pipeline.postprocess_workspace", return_value=workspace,
+        ), mock.patch("maw.postprocess_pipeline.complete_subtitle_groups", side_effect=complete) as llm:
+            result = run_postprocess_pipeline(
+                self.plan(step, retain=True), media_path=self.media, project_path=self.project,
+                srt_path=self.srt, env_path=self.env_path, ffmpeg_path=None, cancel_event=Event(),
+                llm_settings={"deepseek": {"apiKey": "test", "baseUrl": "https://example.test", "model": "test", "verified": "1"}},
+                ui_language="zh",
+            )
+        self.assertEqual(len(str(result.run_directory)), 173)
+        intermediate = result.run_directory / f"{self.media.stem}.后处理.0.原始.翻译为英文.mosp"
+        self.assertEqual(len(str(intermediate)), 248)
+        self.assertEqual(llm.call_count, 1)
+        self.assertEqual(result.completed_steps, ("translate",))
+        saved = json.loads(result.project_path.read_text(encoding="utf-8"))
+        self.assertIn("Translation", saved["multi_subtitle"]["tracks"][0]["segments"][0]["text"])
+        self.assertTrue(result.srt_path.is_file())
+        self.assertEqual(json.loads((result.run_directory / "manifest.json").read_text(encoding="utf-8"))["status"], "done")
+        self.assertFalse(list(result.run_directory.glob("*.tmp")))
+
     def setUp(self) -> None:
         environment = mock.patch.dict(os.environ, {"MSW_GUI_LANG": "en"})
         environment.start()
