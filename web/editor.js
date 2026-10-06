@@ -5209,11 +5209,11 @@ document.addEventListener('mawe:languagechange', refreshKeyboardOperationReferen
 const JKL_MODE_UI_TEXT = {
   zh: {
     speed: { help: '倍速 ×0.5/重置/×2', hint: 'J 慢放，K 重置 1×，L 加速。' },
-    direction: { help: '倒放/停止/1×播放', hint: 'J 倒放，K 停止（重置播放速度），K 播放。多次按 J/K 可以倍增速度。' },
+    direction: { help: '倒放/停止/1×播放', hint: 'J 倒放，L 正放；K 播放／停止并重置为 1×。多次按 J/L 调整速度。' },
   },
   en: {
     speed: { help: 'Speed ×0.5/reset/×2', hint: 'J slows down, K resets to 1×, and L speeds up.' },
-    direction: { help: 'Reverse/stop/1× play', hint: 'J reverses; K stops (resetting playback speed), and K plays. Press J/K repeatedly to multiply the speed.' },
+    direction: { help: 'Reverse/stop/1× play', hint: 'J reverses and L plays forward. K toggles playback and resets to 1×. Press J/L repeatedly to adjust the speed.' },
   },
 };
 function refreshJklPlaybackModeUi() {

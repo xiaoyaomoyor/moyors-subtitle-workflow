@@ -236,8 +236,8 @@ test('project style snapshots survive library edits and freeze each video job', 
   expect(result.job.preview.project_style.main.fontName).toBe('Snapshot Font');
   expect(result.persisted.preview.project_style.main.fontName).toBe('Snapshot Font');
   expect(result.persisted.preview.burn_ass_library).toBeUndefined();
-  await page.locator('#style-manage').click();
-  await expect(page.locator('#style-library-actions')).toBeVisible();
+  await page.locator('#style-save-as').click();
+  await expect(page.locator('#style-save-form')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('ass-library.png'), fullPage: true });
 });
 

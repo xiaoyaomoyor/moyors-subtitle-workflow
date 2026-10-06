@@ -5061,23 +5061,59 @@
 
 .msw-layer-geometry > :not(.overlay-handle) { visibility: hidden; }
 .msw-layer-geometry { background: transparent !important; }
-/* Unified subtitle styles share the existing media settings theme. */
-.msw-project-style { display:flex; flex-direction:column; gap:12px; }
-.msw-style-heading,.msw-style-tabs { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.msw-style-heading > :first-child { flex:1; }
-.msw-style-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 14px; padding:10px 0; }
-.msw-style-fields label { display:flex; flex-direction:column; gap:6px; min-width:0; color:var(--muted); font-size:13px; }
-.msw-style-fields input,.msw-style-fields select { width:100%; min-width:0; box-sizing:border-box; }
-.msw-style-fields input[type=checkbox] { width:18px; height:18px; }
-.msw-style-fields input[type=color] { height:32px; }
-.msw-style-tabs button[aria-selected=true] { color:var(--accent); border-color:var(--accent); }
-.msw-style-badge { font-size:12px; color:var(--muted); }
-.msw-project-style .settings-panel-item { display:grid; grid-template-columns:110px minmax(0,1fr); gap:10px; align-items:center; }
-.msw-project-style .msw-option-label { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
-.msw-project-style .settings-panel-item select,.msw-project-style .settings-panel-item input { width:100%; min-width:0; }
-.msw-project-style .msw-processing-hint { margin:0; line-height:1.5; }
-.msw-project-style > .msw-style-heading { min-height:28px; }
-#style-migration-dismiss { align-self:flex-end; padding:2px 8px; font-size:12px; }
+/* Compact media settings: controls own their space, including long labels. */
+.media-settings-body { container-type:inline-size; }
+.media-settings-body > .settings-panel-section { flex:0 0 auto; min-width:0; gap:10px; }
+.media-settings-body .settings-panel-title { flex:none; margin:0; text-align:center; }
+.media-preview-checks,.msw-style-checks { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; }
+.media-preview-checks .settings-panel-item { margin:0; min-width:0; }
+.media-settings-grid,.msw-style-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px; min-width:0; }
+.media-settings-field,.msw-style-field { display:flex; flex-direction:column; gap:5px; min-width:0; color:var(--text-secondary); font-size:12px; }
+.media-settings-field input,.media-settings-field select,.msw-style-fields input,.msw-style-fields select { width:100%; min-width:0; box-sizing:border-box; }
+.media-settings-field select,.msw-style-fields select { text-overflow:ellipsis; }
+.media-settings-field .gap-remove-number-control { width:100%; min-width:0; }
+.media-settings-field .gap-remove-number-control input { flex:1; width:0; }
+.media-settings-body .msw-option-label { display:inline-flex; align-items:center; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.media-settings-body [hidden] { display:none !important; }
+.msw-project-style { display:flex; flex-direction:column; gap:10px; }
+.msw-style-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.msw-style-tabs,.msw-style-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.msw-style-tabs { flex-shrink:1; min-width:0; }
+.msw-style-tabs button { padding:5px 12px; min-width:0; white-space:normal; }
+.msw-style-tabs button[aria-selected=true],.msw-style-edit-target button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); background:var(--accent-tint); }
+.msw-project-style .msw-style-icon { display:inline-flex; flex:0 0 30px; align-items:center; justify-content:center; width:30px; height:30px; min-width:30px; padding:5px; }
+.msw-style-icon svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.msw-style-icon:disabled { opacity:.4; cursor:default; }
+.msw-style-font-control { display:flex; align-items:center; gap:4px; min-width:0; }
+.msw-style-font-control input { flex:1; width:0; }
+.msw-style-fields input[type=color] { height:30px; padding:3px; cursor:pointer; }
+.msw-style-section { border-top:1px solid var(--border); padding-top:2px; }
+.msw-style-section > summary { padding:8px 0; font-size:12px; font-weight:600; cursor:pointer; }
+.msw-style-section > summary::marker { color:var(--text-secondary); }
+.msw-style-fields { padding:2px 0 8px; }
+.msw-style-checks { padding:3px 0 12px; gap:8px 14px; }
+.msw-style-field.msw-style-check { display:inline-flex; flex-direction:row; align-items:center; gap:5px; }
+.msw-style-check input { width:14px; height:14px; margin:0; flex:0 0 auto; }
+.msw-style-effect { border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px; margin:0 0 6px; }
+.msw-style-effect > .msw-style-fields { margin-top:10px; padding-bottom:0; }
+.msw-style-wide { grid-column:1 / -1; }
+.msw-style-opacity-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); grid-column:1 / -1; gap:8px; }
+.msw-style-edit-target { display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:12px; }
+.msw-style-edit-target > div { display:flex; gap:4px; }
+.msw-style-edit-target button { padding:3px 8px; font-size:12px; }
+.msw-style-save-form { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:end; gap:6px; }
+.msw-style-delete-confirm { padding:8px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; }
+.msw-style-delete-confirm p { margin:0 0 8px; overflow-wrap:anywhere; }
+.msw-project-style .msw-processing-message:empty { display:none; }
+.msw-project-style .msw-processing-message,.msw-project-style .msw-processing-hint { margin:0; line-height:1.5; overflow-wrap:anywhere; }
+.msw-style-notice { display:flex; align-items:center; gap:8px; }
+.msw-style-notice p { flex:1; min-width:0; }
+@container (max-width:340px) {
+  .media-settings-grid,.msw-style-fields { column-gap:8px; }
+  .msw-style-tabs button { padding:5px 8px; }
+  .media-preview-checks,.msw-style-checks { gap:8px 12px; }
+}
+#style-migration-dismiss { flex-shrink:0; padding:2px 8px; font-size:12px; }
 .msw-style-render-status { position:absolute; left:8px; top:8px; z-index:8; max-width:calc(100% - 16px); padding:3px 7px; border-radius:5px; background:#0009; color:white; font-size:11px; pointer-events:none; }
 .player-stage[data-subtitle-renderer=libass] #overlay,
 .player-stage[data-subtitle-renderer=libass] #msw-layer-preview { visibility:hidden !important; }
@@ -5094,7 +5130,6 @@
 .JASSUB { z-index:5; pointer-events:none; background:transparent; }
 .player-stage:not([data-subtitle-renderer=libass]) .JASSUB { visibility:hidden; }
 .msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
-@media (max-width:520px) { .msw-style-fields { grid-template-columns:1fr; } }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -6984,34 +7019,34 @@
   <div class="settings-modal-body media-settings-body subtitle-preview-settings-panel gap-remove-panel-body" id="subtitle-preview-settings-panel">
     <div class="settings-panel-section media-preview-settings-section">
       <span class="settings-panel-title">播放预览</span>
-      <div id="subtitle-layer-presentation-settings" hidden>
-        <label class="toggle settings-panel-item" title="主副绑定成组避让；关闭后保留原位置。字号和主副样式沿用当前方案。"><input type="checkbox" id="subtitle-layer-auto" checked> 同时出现的字幕自动避让</label>
-        <label class="subtitle-preview-setting-row settings-panel-item"><span>先出现的字幕组</span><select id="subtitle-layer-order"><option value="earlier-bottom">靠下显示</option><option value="earlier-top">靠上显示</option></select></label>
-        <label class="subtitle-preview-setting-row settings-panel-item"><span>组间距（1080p 基准）</span><input type="number" id="subtitle-layer-gap" min="0" max="120" value="12" step="1"></label>
+      <div class="media-preview-checks">
+        <label class="toggle settings-panel-item"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
+        <label class="toggle settings-panel-item" id="extension-overlay-toggle-wrap" hidden><input type="checkbox" id="extension-overlay-toggle" checked> 预览副字幕</label>
+        <label class="toggle settings-panel-item" data-option-help="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
+        <label class="toggle settings-panel-item" data-option-help="鼠标在波形上移动时，预览对应时间的视频画面。"><input type="checkbox" id="hover-seek-preview"> 悬停预览画面</label>
+        <label class="toggle settings-panel-item" id="subtitle-layer-auto-wrap" hidden data-option-help="主副绑定成组避让；关闭后保留原位置。字号和主副样式沿用当前方案。"><input type="checkbox" id="subtitle-layer-auto" checked> 字幕自动避让</label>
       </div>
-      <label class="toggle settings-panel-item"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
-      <label class="toggle settings-panel-item" id="extension-overlay-toggle-wrap" hidden><input type="checkbox" id="extension-overlay-toggle" checked> 预览副字幕</label>
-      <label class="toggle settings-panel-item" title="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
-      <label class="toggle settings-panel-item"><input type="checkbox" id="hover-seek-preview"> 自动预览鼠标位置画面</label>
-      <div class="settings-panel-field">
-        <label class="settings-panel-item" title="选择 J/K/L 的播放控制方式">
-          <span>JKL 按键播放控制</span>
+      <div class="media-settings-grid" id="subtitle-layer-presentation-settings" hidden>
+        <label class="media-settings-field"><span class="msw-option-label">先出现的字幕</span><select id="subtitle-layer-order"><option value="earlier-bottom">靠下显示</option><option value="earlier-top">靠上显示</option></select></label>
+        <label class="media-settings-field" data-option-help="以 1080p 为基准设置字幕组间距，预览和输出会随画面尺寸缩放。"><span class="msw-option-label">字幕组间距</span><input type="number" id="subtitle-layer-gap" min="0" max="120" value="12" step="1"></label>
+      </div>
+      <div class="media-settings-grid">
+        <label class="media-settings-field">
+          <span class="msw-option-label">JKL 播放控制</span>
           <select id="jkl-playback-mode">
             <option value="speed">慢速和倍速</option>
             <option value="direction" selected>倒放和正放</option>
           </select>
         </label>
-        <small class="settings-panel-hint" id="jkl-playback-mode-hint">J 倒放，K 停止（重置播放速度），K 播放。多次按 J/K 可以倍增速度。</small>
-      </div>
-      <div class="settings-panel-field">
-        <label class="settings-panel-item" title="媒体控制按钮和左右方向键每次跳转的时间幅度">
-          <span>每次跳转时长</span>
+        <small id="jkl-playback-mode-hint" data-help-for="jkl-playback-mode" hidden>J 倒放，L 正放；K 播放／停止并重置为 1×。多次按 J/L 调整速度。</small>
+        <label class="media-settings-field">
+          <span class="msw-option-label">每次跳转时长</span>
           <span class="gap-remove-number-control">
             <input type="number" id="media-seek-step" min="10" max="60000" step="100" value="1000" inputmode="numeric" aria-label="每次跳转时长">
             <span class="gap-remove-unit" id="media-seek-step-unit">ms</span>
           </span>
         </label>
-        <small class="settings-panel-hint" id="media-seek-step-hint">控制按钮和左右方向键的每次跳转时长。</small>
+        <small id="media-seek-step-hint" data-help-for="media-seek-step" hidden>控制按钮和左右方向键的每次跳转时长。</small>
       </div>
     </div>
     <div class="settings-panel-section subtitle-preview-settings-section">
@@ -19564,6 +19599,48 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '工程样式': 'Project style',
+    '当前自定义': 'Custom',
+    '自定义预览': 'Custom preview',
+    '样式编辑对象': 'Style editing target',
+    '样式预设操作': 'Style preset actions',
+    '另存为新预设': 'Save as new preset',
+    '只能删除当前选用的用户预设': 'Only the selected user preset can be deleted',
+    '恢复自定义预览的主、副字幕和动画默认值': 'Reset both custom preview styles and their animations',
+    '恢复工程的主、副字幕和动画默认值': 'Reset both project styles and their animations',
+    '请输入预设名称': 'Enter a preset name',
+    '已有同名预设，请使用新名称': 'A preset with this name already exists. Choose a new name.',
+    '已应用到工程的样式会保留。': 'Styles already applied to projects are retained.',
+    '预设已删除；工程样式保持不变。': 'Preset deleted. Project styles are unchanged.',
+    '悬停预览画面': 'Preview on hover',
+    '鼠标在波形上移动时，预览对应时间的视频画面。': 'Preview the video frame at the pointer position on the waveform.',
+    '字幕自动避让': 'Avoid subtitle collisions',
+    '先出现的字幕': 'Earlier subtitles',
+    '字幕组间距': 'Group spacing',
+    '以 1080p 为基准设置字幕组间距，预览和输出会随画面尺寸缩放。': 'Set group spacing at 1080p. Preview and output scale with the video size.',
+    'JKL 播放控制': 'JKL playback',
+    'J 倒放，L 正放；K 播放／停止并重置为 1×。多次按 J/L 调整速度。': 'J reverses and L plays forward. K toggles playback and resets to 1×. Press J/L repeatedly to adjust the speed.',
+    '选择下方参数的编辑对象。自定义预览仅用于校对；要查看工程输出效果，请将预览样式切回跟随工程。': 'Choose which style to edit below. Custom preview is for proofreading only. Follow project style to preview the output.',
+    '字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。': 'Font size, margins and animation coordinates use a 1080p reference and scale with the video size.',
+    '动画同时作用于主、副字幕。时间从每条字幕开始计算，单位为毫秒。': 'Animations apply to both subtitle tracks. Times are in milliseconds from the start of each subtitle.',
+    '字幕出现和结束时的淡入淡出时长。与分段透明度二选一。': 'Fade durations at the start and end of each subtitle. Choose this or staged opacity.',
+    '按字幕开始后的时间，从起点移动到终点；坐标以画面左上角为原点。': 'Move between positions at times relative to the subtitle start. Coordinates originate at the top left.',
+    '按四个时间点在三种透明度间过渡：0 为不透明，255 为完全透明。与淡入淡出二选一。': 'Transition through three opacity levels at four time points: 0 is opaque, 255 is transparent. Choose this or fade in/out.',
+    '在指定时间段逐渐改变样式。变化速率为 1 时匀速；自定义可填写 ASS 标签。': 'Gradually change the style over the selected interval. A rate of 1 is linear. Custom effects accept ASS tags.',
+    '样式渐变': 'Style transition',
+    '淡入 (ms)': 'Fade in (ms)',
+    '淡出 (ms)': 'Fade out (ms)',
+    '开始 (ms)': 'Start (ms)',
+    '结束 (ms)': 'End (ms)',
+    '时间点': 'Time point',
+    '变化速率': 'Transition rate',
+    '变化效果': 'Effect',
+    '放大至 120%': 'Scale up to 120%',
+    '缩小至 80%': 'Scale down to 80%',
+    '逐渐模糊': 'Blur gradually',
+    '自定义标签': 'Custom tags',
+    '已保留旧输出样式；原预览和 ASS 配置可在预设中找回。': 'Previous output styling is retained. Original preview and ASS settings are available as presets.',
+    '知道了': 'Got it',
     '工程字幕样式': 'Project subtitle style',
     '跟随工程样式': 'Follow project style',
     '跟随工程': 'Follow project',
@@ -29837,7 +29914,7 @@ function layerSyncControls() {
     option.hidden = layerMode();
     if (layerMode() && option.selected) option.parentElement.value = 'main';
   });
-  for (const id of ['subtitle-layer-presentation-settings','download-merged-srt','download-legacy-project']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
+  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap','download-merged-srt','download-legacy-project']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
   const order=document.getElementById('subtitle-layer-order');if(order)order.value=DATA.subtitle_layers?.presentation?.order||'earlier-bottom';
   const auto=document.getElementById('subtitle-layer-auto'),gap=document.getElementById('subtitle-layer-gap');
   if(auto)auto.checked=DATA.subtitle_layers?.presentation?.mode!=='manual';if(gap)gap.value=DATA.subtitle_layers?.presentation?.gap??12;
@@ -35350,11 +35427,11 @@ document.addEventListener('mawe:languagechange', refreshKeyboardOperationReferen
 const JKL_MODE_UI_TEXT = {
   zh: {
     speed: { help: '倍速 ×0.5/重置/×2', hint: 'J 慢放，K 重置 1×，L 加速。' },
-    direction: { help: '倒放/停止/1×播放', hint: 'J 倒放，K 停止（重置播放速度），K 播放。多次按 J/K 可以倍增速度。' },
+    direction: { help: '倒放/停止/1×播放', hint: 'J 倒放，L 正放；K 播放／停止并重置为 1×。多次按 J/L 调整速度。' },
   },
   en: {
     speed: { help: 'Speed ×0.5/reset/×2', hint: 'J slows down, K resets to 1×, and L speeds up.' },
-    direction: { help: 'Reverse/stop/1× play', hint: 'J reverses; K stops (resetting playback speed), and K plays. Press J/K repeatedly to multiply the speed.' },
+    direction: { help: 'Reverse/stop/1× play', hint: 'J reverses and L plays forward. K toggles playback and resets to 1×. Press J/L repeatedly to adjust the speed.' },
   },
 };
 function refreshJklPlaybackModeUi() {
@@ -61355,49 +61432,74 @@ window.addEventListener('beforeunload', (e) => {
   old.hidden=true;
   const panel=document.createElement('section');panel.className='settings-panel-section msw-project-style';
   panel.id='project-subtitle-style';old.before(panel);
-  panel.innerHTML=`<div class="msw-style-heading"><span class="settings-panel-title">字幕样式</span><span id="style-scope" class="msw-style-badge"></span></div>
-    <label class="settings-panel-item" data-option-help="默认跟随工程样式。默认、大字、高对比及自定义校对样式只影响播放器，不改变 ASS 或视频输出。">预览样式<select id="style-preview-mode"></select></label>
-    <div id="style-custom-preview" hidden><button type="button" id="style-edit-proof">调整自定义预览</button></div>
-    <p id="style-migration-note" class="msw-processing-hint" hidden></p>
-    <div class="msw-style-heading"><strong id="style-editor-title">工程字幕样式</strong><button type="button" id="style-manage">管理预设</button><button type="button" id="style-back" hidden>返回工程</button></div>
-    <label class="settings-panel-item" id="style-preset-label" data-option-help="工程样式随工程保存，用于 ASS 导出和默认视频烧录；SRT 仅保存文字和时间。应用预设后调整只影响本工程。">样式预设<select id="style-project-preset"></select></label>
-    <div id="style-library-actions" hidden><label class="settings-panel-item">预设名称<input id="style-preset-name" maxlength="80"></label><div class="msw-processing-actions"><button id="style-new-preset" type="button">新建</button><button id="style-save-preset" type="button">保存预设</button><button id="style-delete-preset" type="button">删除预设</button></div></div>
-    <div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false">副字幕</button></div>
-    <div id="style-basic-fields" class="msw-style-fields"></div>
-    <details id="style-more"><summary>更多设置</summary><div id="style-advanced-fields" class="msw-style-fields"></div><details><summary>字幕动画</summary><div id="style-animation-fields" class="msw-style-fields"></div></details></details>
-    <div class="msw-processing-actions" id="style-project-actions"><button type="button" id="style-reset">恢复默认</button><button type="button" id="style-save-as">另存为预设</button></div>
+  const icons={save:'<path d="M14 21H3V3h14l4 4v6M7 3v6h10V3M7 21v-7h7m4 2v6m-3-3h6"/>',reset:'<path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/>',delete:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',fonts:'<path d="M3 6V3h18v3M12 3v18m-4 0h8"/>'};
+  const iconButton=(id,name,icon)=>`<button type="button" id="${id}" class="msw-style-icon" title="${t(name)}" aria-label="${t(name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${icons[icon]}</svg></button>`;
+  panel.innerHTML=`<span class="settings-panel-title">字幕样式</span>
+    <div class="media-settings-grid msw-style-selectors">
+      <label class="media-settings-field" data-option-help="默认跟随工程样式。默认、大字、高对比及自定义校对样式只影响播放器，不改变 ASS 或视频输出。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
+      <label class="media-settings-field" data-option-help="工程样式随工程保存，用于 ASS 导出和默认视频烧录；SRT 仅保存文字和时间。应用预设后调整只影响本工程。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
+    </div>
+    <div id="style-custom-preview" class="msw-style-edit-target" hidden><span>编辑</span><div role="group" aria-label="样式编辑对象"><button type="button" id="style-edit-project" aria-pressed="false">工程</button><button type="button" id="style-edit-proof" aria-pressed="true">自定义预览</button></div></div>
+    <small data-help-for="style-custom-preview" hidden>选择下方参数的编辑对象。自定义预览仅用于校对；要查看工程输出效果，请将预览样式切回跟随工程。</small>
+    <div id="style-migration-row" class="msw-style-notice" hidden><p id="style-migration-note" class="msw-processing-hint" hidden></p></div>
+    <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
+    <form id="style-save-form" class="msw-style-save-form" hidden><label class="media-settings-field"><span>预设名称</span><input id="style-preset-name" maxlength="80" required></label><button type="submit" id="style-save-preset">保存</button><button type="button" id="style-save-cancel">取消</button></form>
+    <div id="style-delete-confirm" class="msw-style-delete-confirm" hidden><p id="style-delete-question"></p><div class="msw-processing-actions"><button type="button" id="style-delete-confirm-button">删除预设</button><button type="button" id="style-delete-cancel">取消</button></div></div>
+    <details id="style-general" class="msw-style-section" open><summary>通用</summary><div id="style-basic-fields" class="msw-style-fields"></div></details>
+    <details id="style-more" class="msw-style-section"><summary>进阶</summary><div id="style-emphasis-fields" class="msw-style-checks"></div><div id="style-advanced-fields" class="msw-style-fields"></div></details>
+    <details id="style-animation" class="msw-style-section"><summary><span class="msw-option-label">动画</span></summary><div id="style-animation-fields"></div></details>
+    <small data-help-for="style-animation" hidden>动画同时作用于主、副字幕。时间从每条字幕开始计算，单位为毫秒。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
-  const basic=[['fontName','字体','text'],['fontSize','字号（1080p 基准）','number',1,512],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100,.5],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
-  const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,30,.5],['marginL','左边距','number',0,4000],['marginR','右边距','number',0,4000],['marginV','垂直边距','number',0,4000],['spacing','字距','number',-100,100,.5],['scaleX','横向缩放 %','number',1,1000],['scaleY','纵向缩放 %','number',1,1000],['angle','旋转角度','number',-360,360]];
+  const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
+  const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
   function fields(rows,target,animation=false) {
     for(const [key,caption,type,min,max,step] of rows) {
-      const label=document.createElement('label');label.textContent=t(caption);
+      const label=document.createElement('label');label.className='msw-style-field';
+      const title=document.createElement('span');title.className='msw-option-label';title.textContent=t(caption);
       const input=document.createElement(type==='select'?'select':'input'); input.id=`style-field-${key.replaceAll('.','-')}`;
       input.dataset[animation?'animation':'styleField']=key;
       if(type==='select') for(const [value,name] of min) input.add(new Option(t(name),String(value)));
       else { input.type=type;if(type==='number'){input.min=min;input.max=max;input.step=step||1;}if(type==='text')input.maxLength=128; }
-      label.append(input);$(target).append(label);
+      if(type==='checkbox'){label.classList.add('msw-style-check');label.append(input,title);}else label.append(title,input);
+      $(target).append(label);
     }
   }
-  fields(basic,'style-basic-fields');fields(advanced,'style-advanced-fields');
+  fields(basic,'style-basic-fields');fields(advanced.filter(r=>r[2]==='checkbox'),'style-emphasis-fields');fields(advanced.filter(r=>r[2]!=='checkbox'),'style-advanced-fields');
+  $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
   const fontList=document.createElement('datalist');fontList.id='style-local-fonts';panel.append(fontList);
   $('style-field-fontName').setAttribute('list',fontList.id);
-  const scanFonts=document.createElement('button');scanFonts.type='button';scanFonts.textContent=t('读取本机字体');
-  $('style-field-fontName').after(scanFonts);
+  const fontInput=$('style-field-fontName'),fontControl=document.createElement('span');fontControl.className='msw-style-font-control';fontInput.before(fontControl);fontControl.append(fontInput);
+  fontControl.insertAdjacentHTML('beforeend',iconButton('style-scan-fonts','读取本机字体','fonts'));const scanFonts=$('style-scan-fonts');
   scanFonts.onclick=async()=>{try{if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');const fonts=await global.queryLocalFonts();fontList.replaceChildren(...[...new Set(fonts.map(f=>f.family))].sort().map(name=>new Option(name,name)));message('本机字体已载入，可输入名称筛选。');}catch(e){message(e.message,true);}};
   const A=global.AsrEditorUtils.ASS_DEFAULT_ANIMATIONS;
-  const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'渐变标签',inMs:'淡入毫秒',outMs:'淡出毫秒',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'起始毫秒',t2:'第二时间',t3:'第三时间',t4:'结束毫秒',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'起始毫秒',endMs:'结束毫秒',accel:'加速度',tags:'ASS 渐变标签'};
-  for(const [group,values] of Object.entries(A)) {
-    const rows=Object.entries(values).map(([key,value])=>[`${group}.${key}`,key==='enabled'?captions[group]:captions[key]||key,typeof value==='boolean'?'checkbox':typeof value==='string'?'text':'number',key.startsWith('alpha')?0:key==='accel'?.1:-100000, key.startsWith('alpha')?255:100000,key==='accel'?.1:1]);
-    fields(rows,'style-animation-fields',true);
+  const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'样式渐变',inMs:'淡入 (ms)',outMs:'淡出 (ms)',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'开始 (ms)',t2:'结束 (ms)',t3:'第三时间 (ms)',t4:'第四时间 (ms)',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'开始 (ms)',endMs:'结束 (ms)',accel:'变化速率',tags:'ASS 渐变标签'};
+  const animationHelp={fad:'字幕出现和结束时的淡入淡出时长。与分段透明度二选一。',move:'按字幕开始后的时间，从起点移动到终点；坐标以画面左上角为原点。',fade:'按四个时间点在三种透明度间过渡：0 为不透明，255 为完全透明。与淡入淡出二选一。',t:'在指定时间段逐渐改变样式。变化速率为 1 时匀速；自定义可填写 ASS 标签。'};
+  for(const group of ['fad','move','fade','t']) {
+    const card=document.createElement('div');card.className='msw-style-effect';card.id=`style-effect-${group}`;card.innerHTML=`<div id="style-effect-${group}-toggle"></div><div id="style-effect-${group}-fields" class="msw-style-fields" hidden></div>`;$('style-animation-fields').append(card);
+    fields([[`${group}.enabled`,captions[group],'checkbox']],`style-effect-${group}-toggle`,true);
+    $(`style-field-${group}-enabled`).closest('label').dataset.optionHelp=animationHelp[group];
+    const rows=Object.entries(A[group]).filter(([key])=>key!=='enabled').map(([key,v])=>[`${group}.${key}`,group==='fade'&&/^t[1-4]$/.test(key)?t('时间点')+' '+key.slice(1)+' (ms)':captions[key],typeof v==='string'?'text':'number',/^[xy]/.test(key)?-65535:key==='accel'?.01:0,key.startsWith('alpha')?255:/^[xy]/.test(key)?65535:key==='accel'?100:60000,key==='accel'?.01:1]);
+    fields(rows,`style-effect-${group}-fields`,true);
   }
-  let role='main',context='project',library=[],legacyLibrary=host.legacyAssLibrary(),draft=null,selectedPreset='default',override=null,ready=false,loadError='';
+  const opacityRow=document.createElement('div');opacityRow.className='msw-style-opacity-row';$('style-effect-fade-fields').prepend(opacityRow);
+  for(const key of ['alpha1','alpha2','alpha3'])opacityRow.append($('style-field-fade-'+key).closest('label'));
+  const transformTags=[['\\fscx120\\fscy120','放大至 120%'],['\\fscx80\\fscy80','缩小至 80%'],['\\blur3','逐渐模糊']];
+  const transformChoice=document.createElement('label');transformChoice.className='msw-style-field msw-style-wide';transformChoice.innerHTML='<span class="msw-option-label">变化效果</span><select id="style-transform-preset"></select>';
+  $('style-effect-t-fields').prepend(transformChoice);
+  $('style-transform-preset').replaceChildren(...[...transformTags,['custom','自定义标签']].map(([id,name])=>new Option(t(name),id)));
+  $('style-field-t-tags').closest('label').classList.add('msw-style-wide');$('style-field-t-tags').maxLength=512;
+  $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
+  global.MSWHelp?.hydrate(panel);
+  let role='main',context='project',library=[],legacyLibrary=host.legacyAssLibrary(),selectedPreset='default',proofPreset=null,override=null,ready=false,loadError='',pendingAction=null,saving=false;
   let proof={mode:'project',style:S.defaults()};
   try { proof={...proof,...JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}')};proof.style=S.normalize(proof.style); } catch(_) {}
+  if(proof.mode==='custom'){context='proof';proof.customStyle=S.normalize(proof.customStyle||proof.style);}
   const projectStyle=()=>host.data.preview?.project_style || S.defaults();
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
-  const value=()=>context==='library'?draft:context==='proof'?proof.style:projectStyle();
+  const value=()=>context==='proof'?proof.style:projectStyle();
+  const same=(a,b)=>JSON.stringify({...S.normalize(a),name:''})===JSON.stringify({...S.normalize(b),name:''});
+  const activePreset=()=>context==='proof'?proofPreset:selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
   const persistProof=()=>{try{localStorage.setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
   async function request(route,payload) {
@@ -61408,29 +61510,33 @@ window.addEventListener('beforeunload', (e) => {
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name]),['custom','自定义预览样式']],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='custom';$('style-preview-mode').value='custom';persistProof();}
-    fill($('style-project-preset'),[['current',context==='project'?projectStyle().name:'当前自定义'],...all().map(s=>[s.id,s.name])],context==='library'?selectedPreset:'current');
-    if(!$('style-project-preset').value)$('style-project-preset').value='current';
+    if(!find(selectedPreset)||!same(find(selectedPreset),projectStyle()))selectedPreset=all().find(s=>same(s,projectStyle()))?.id||'current';
+    fill($('style-project-preset'),[['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
     const selected=$('video-export-style-preset').value;
     fill($('video-export-style-preset'),all().map(s=>[s.id,s.name]),selected || 'default');
     if(!$('video-export-style-preset').value)$('video-export-style-preset').value='default';
   }
   function sync() {
     const style=value()||S.defaults();
-    $('style-editor-title').textContent=t(context==='library'?'字幕样式预设':context==='proof'?'自定义预览 · 仅影响预览':'工程字幕样式');
-    $('style-back').hidden=context==='project';$('style-manage').hidden=context!=='project';
-    $('style-library-actions').hidden=context!=='library';$('style-project-actions').hidden=context==='library';
-    $('style-preset-name').value=style.name;$('style-preset-label').hidden=context==='proof';
-    $('style-delete-preset').disabled=!library.some(s=>s.id===selectedPreset);
-    $('style-save-preset').textContent=t(library.some(s=>s.id===selectedPreset)?'保存预设':'保存为新预设');
+    const removable=library.find(s=>s.id===activePreset()&&same(s,style));
+    $('style-delete-preset').disabled=saving||!removable;
+    $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
+    for(const id of ['style-save-as','style-reset','style-save-preset','style-save-cancel','style-delete-confirm-button','style-delete-cancel'])$(id).disabled=saving;
+    $('style-preset-name').disabled=saving;
+    $('style-reset').title=t(context==='proof'?'恢复自定义预览的主、副字幕和动画默认值':'恢复工程的主、副字幕和动画默认值');
     $('style-custom-preview').hidden=proof.mode!=='custom';
-    const secondary=host.data.multi_subtitle?.enabled===true || context==='library';
+    $('style-edit-project').setAttribute('aria-pressed',String(context==='project'));$('style-edit-proof').setAttribute('aria-pressed',String(context==='proof'));
+    const secondary=host.data.multi_subtitle?.enabled===true;
     $('style-secondary').hidden=!secondary;if(!secondary)role='main';
-    for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-selected',String(role===r));
+    for(const r of ['main','secondary']){$('style-'+r).setAttribute('aria-selected',String(role===r));$('style-'+r).tabIndex=role===r?0:-1;}
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
-    for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
+    for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-preview-mode').value=proof.mode;
-    $('style-scope').textContent=t(proof.mode==='project'?'跟随工程':'仅影响预览');
+    for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
+    $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
+    $('style-field-t-tags').closest('label').hidden=$('style-transform-preset').value!=='custom';
     const note=host.data.preview?.style_migration;
+    $('style-migration-row').hidden=!note?.notice;
     $('style-migration-note').hidden=!note?.notice;
     $('style-migration-note').textContent=t('已保留旧输出样式；原预览和 ASS 配置可在预设中找回。');
     if(note?.notice && !$('style-migration-dismiss')) {const b=document.createElement('button');b.id='style-migration-dismiss';b.type='button';b.textContent=t('知道了');b.onclick=()=>{const current=host.data.preview?.style_migration;if(current)current.notice=false;host.persistStyleMigration();sync();};$('style-migration-note').after(b);}
@@ -61440,11 +61546,11 @@ window.addEventListener('beforeunload', (e) => {
     host.useProjectStylePreview();host.refreshStylePreview();global.MSWSubtitleRenderer?.invalidate();
   }
   function change(style) {
-    if(context==='library')draft=S.normalize(style);
-    else if(context==='proof'){proof.style=S.normalize(style);persistProof();}
-    else {proof.mode='project';persistProof();host.commitProjectStyle(style);}
+    if(context==='proof'){proof.style=S.normalize(style);proof.customStyle=S.clone(proof.style);persistProof();}
+    else host.commitProjectStyle(style);
     rebuild();sync();refresh();
   }
+  function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   panel.addEventListener('change',event=>{
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
@@ -61455,25 +61561,72 @@ window.addEventListener('beforeunload', (e) => {
       if(mapped && !(field==='fontSize'&&(v<8||v>200)) && !(field==='outline'&&v>12)) {style.legacyBurn[role] ||= {};style.legacyBurn[role][mapped]=v;}
       else {delete style.legacyBurn;message('已转换为工程 ASS 样式，请在播放器确认背景与位置。');}
     }
-    if(field)style[role][field]=v;else{const [g,k]=animation.split('.');style.animations[g][k]=v;}
+    if(field)style[role][field]=v;else{
+      const [g,k]=animation.split('.');style.animations[g][k]=v;
+      if(k==='enabled'&&v){
+        if(g==='fad')style.animations.fade.enabled=false;
+        if(g==='fade')style.animations.fad.enabled=false;
+        if(g==='t'&&!style.animations.t.tags)style.animations.t.tags=transformTags[0][0];
+      }
+    }
     if(context==='project'&&!style.name.endsWith(' · 已修改'))style.name+=' · 已修改';change(style);
   });
-  $('style-preview-mode').onchange=()=>{proof.mode=$('style-preview-mode').value;if(proof.mode!=='project'&&proof.mode!=='custom')proof.style=S.normalize(find(proof.mode)||S.defaults());context=proof.mode==='custom'?'proof':'project';persistProof();rebuild();sync();refresh();};
-  $('style-edit-proof').onclick=()=>{context='proof';sync();};
+  $('style-preview-mode').onchange=()=>{
+    cancelAction();const previous=proof.mode;proof.mode=$('style-preview-mode').value;
+    if(proof.mode==='custom'&&previous!=='custom'){proof.style=S.normalize(proof.customStyle||(previous==='project'?projectStyle():proof.style));proofPreset=previous==='project'?selectedPreset:previous;proof.customStyle=S.clone(proof.style);}
+    else if(proof.mode!=='project'&&proof.mode!=='custom'){proof.style=S.normalize(find(proof.mode)||S.defaults());proofPreset=proof.mode;}
+    context=proof.mode==='custom'?'proof':'project';persistProof();rebuild();sync();refresh();
+  };
+  $('style-edit-proof').onclick=()=>{cancelAction();context='proof';sync();};
+  $('style-edit-project').onclick=()=>{cancelAction();context='project';sync();};
   for(const r of ['main','secondary'])$('style-'+r).onclick=()=>{role=r;sync();};
-  $('style-project-preset').onchange=()=>{const preset=find($('style-project-preset').value);if(!preset)return;if(context==='library'){selectedPreset=preset.id;draft=S.normalize(preset);sync();refresh();}else{change(preset);rebuild();}};
-  $('style-manage').onclick=()=>{context='library';selectedPreset='default';draft=S.defaults();rebuild();sync();refresh();$('style-editor-title').scrollIntoView({block:'start'});};
-  $('style-back').onclick=()=>{context='project';draft=null;rebuild();sync();refresh();};
-  $('style-reset').onclick=()=>change(S.defaults());
+  panel.querySelector('.msw-style-tabs').addEventListener('keydown',event=>{
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||$('style-secondary').hidden)return;
+    event.preventDefault();role=event.key==='Home'?'main':event.key==='End'?'secondary':role==='main'?'secondary':'main';sync();$('style-'+role).focus();
+  });
+  $('style-project-preset').onchange=()=>{const preset=find($('style-project-preset').value);if(!preset){rebuild();return;}cancelAction();context='project';selectedPreset=preset.id;proof.mode='project';persistProof();change(preset);};
+  $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
+  $('style-transform-preset').onchange=()=>{
+    const tags=$('style-transform-preset').value;
+    if(tags==='custom'){$('style-field-t-tags').closest('label').hidden=false;$('style-field-t-tags').focus();return;}
+    $('style-field-t-tags').value=tags;$('style-field-t-tags').dispatchEvent(new Event('change',{bubbles:true}));
+  };
   async function saveLibrary(next) {
     if(host.config?.processingUrl)await request('subtitle-presets',{version:1,presets:next});
     else localStorage.setItem('msw.subtitle-presets.v1',JSON.stringify(next));
-    library=next;rebuild();sync();message('预设已保存；已应用到工程的样式不受影响。');
+    library=next;
   }
-  $('style-save-as').onclick=()=>{draft=S.normalize(value());context='library';selectedPreset='new';rebuild();sync();$('style-preset-name').focus();};
-  $('style-new-preset').onclick=()=>{draft=S.defaults();draft.name='新预设';selectedPreset='new';rebuild();sync();refresh();};
-  $('style-save-preset').onclick=async()=>{try{const existing=library.find(s=>s.id===selectedPreset),id=existing?.id||global.MSWProject.id('style');const preset={...S.normalize({...draft,name:$('style-preset-name').value}),id};await saveLibrary([...library.filter(s=>s.id!==id),preset]);selectedPreset=id;draft=S.normalize(preset);rebuild();sync();refresh();}catch(e){message(e.message,true);}};
-  $('style-delete-preset').onclick=async()=>{try{await saveLibrary(library.filter(s=>s.id!==selectedPreset));selectedPreset='default';draft=S.defaults();rebuild();sync();}catch(e){message(e.message,true);}};
+  $('style-save-as').onclick=()=>{
+    cancelAction();pendingAction={kind:'save',context,generation:host.generation};
+    $('style-preset-name').value=value().name;$('style-save-form').hidden=false;$('style-preset-name').focus();$('style-preset-name').select();
+  };
+  $('style-save-cancel').onclick=()=>{cancelAction();$('style-save-as').focus();};
+  $('style-delete-cancel').onclick=()=>{cancelAction();$('style-delete-preset').focus();};
+  async function runLibraryAction(action,next,success){
+    if(saving)return;saving=true;sync();
+    try{
+      await saveLibrary(next);
+      if(action.generation!==host.generation)return;
+      if(action===pendingAction){success();cancelAction();}
+      rebuild();sync();syncExport();
+    }catch(error){if(action.generation===host.generation)message(error.message,true);}
+    finally{saving=false;sync();}
+  }
+  $('style-save-form').onsubmit=event=>{
+    event.preventDefault();const action=pendingAction;if(action?.kind!=='save'||saving)return;
+    const name=$('style-preset-name').value.trim();if(!name){$('style-preset-name').focus();message('请输入预设名称',true);return;}
+    if(all().some(s=>s.name===name)){message('已有同名预设，请使用新名称',true);return;}
+    const preset={...S.normalize(value()),name,id:global.MSWProject.id('style')};
+    void runLibraryAction(action,[...library,preset],()=>{if(action.context==='project')selectedPreset=preset.id;else proofPreset=preset.id;message('预设已保存；已应用到工程的样式不受影响。');$('style-save-as').focus();});
+  };
+  $('style-delete-preset').onclick=()=>{
+    const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};
+    $('style-delete-question').textContent=t('删除预设')+'「'+preset.name+'」？'+t('已应用到工程的样式会保留。');$('style-delete-confirm').hidden=false;$('style-delete-cancel').focus();
+  };
+  $('style-delete-confirm-button').onclick=()=>{
+    const action=pendingAction;if(action?.kind!=='delete')return;
+    void runLibraryAction(action,library.filter(s=>s.id!==action.id),()=>{message('预设已删除；工程样式保持不变。');$('style-save-as').focus();});
+  };
   const exportPanel=$('video-export-panel');
   function syncExport() {
     const opened=exportPanel.getAttribute('aria-hidden')==='false',target=$('video-export-burn-subtitles').value;
@@ -61486,14 +61639,11 @@ window.addEventListener('beforeunload', (e) => {
   new MutationObserver(syncExport).observe(exportPanel,{attributes:true,attributeFilter:['aria-hidden']});
   const settingsPanel=$('media-settings-modal');
   new MutationObserver(()=>{
-    if(settingsPanel.getAttribute('aria-hidden')==='true' && context==='library') {
-      context='project';draft=null;rebuild();sync();refresh();
-    }
+    if(settingsPanel.getAttribute('aria-hidden')==='true')cancelAction();
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
   function currentPreview() {
     if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
     const target=host.subtitlePreviewTarget();
-    if(context==='library')return {style:draft||S.defaults(),target,scope:'preset',label:'预设预览：'+(draft?.name||'')};
     return {style:proof.mode==='project'?projectStyle():proof.style,target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
   global.MSWSubtitleStyle={currentPreview,previewLibrary:()=>S.toLibrary(currentPreview().style),
@@ -61520,7 +61670,7 @@ window.addEventListener('beforeunload', (e) => {
     finally {if(generation===host.generation)panel.inert=false;}
   }
   $('style-retry').onclick=()=>void initialize();
-  global.addEventListener('msw:project-changed',()=>{override=null;context='project';role='main';void initialize();});
+  global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;context=proof.mode==='custom'?'proof':'project';role='main';void initialize();});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
   global.addEventListener('msw:subtitles-changed',()=>{if(ready)sync();});
   global.addEventListener('msw:media-changed',()=>{if(ready){sync();refresh();}});

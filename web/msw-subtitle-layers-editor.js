@@ -67,7 +67,7 @@ function layerSyncControls() {
     option.hidden = layerMode();
     if (layerMode() && option.selected) option.parentElement.value = 'main';
   });
-  for (const id of ['subtitle-layer-presentation-settings','download-merged-srt','download-legacy-project']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
+  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap','download-merged-srt','download-legacy-project']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
   const order=document.getElementById('subtitle-layer-order');if(order)order.value=DATA.subtitle_layers?.presentation?.order||'earlier-bottom';
   const auto=document.getElementById('subtitle-layer-auto'),gap=document.getElementById('subtitle-layer-gap');
   if(auto)auto.checked=DATA.subtitle_layers?.presentation?.mode!=='manual';if(gap)gap.value=DATA.subtitle_layers?.presentation?.gap??12;

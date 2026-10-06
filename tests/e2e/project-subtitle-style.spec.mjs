@@ -33,7 +33,8 @@ test('project style renders in the player and proofreading does not alter output
   await page.evaluate(()=>performRedo());
   await expect(page.locator('#style-field-primaryColor')).toHaveValue('#ff0000');
   await page.locator('#style-preview-mode').selectOption('large');
-  await expect(page.locator('#style-scope')).toHaveText('仅影响预览');
+  await expect(page.locator('#style-scope')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
   expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().preview.project_style)).toEqual(saved);
   await page.locator('#style-preview-mode').selectOption('project');
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer?.status)).toBe('libass');
@@ -81,17 +82,21 @@ test('saved presets do not mutate project styles and the project survives reload
   await page.locator('#style-save-preset').click();
   await expect(page.locator('#style-message')).toContainText('预设已保存');
   await page.locator('#style-field-fontSize').fill('96');await page.locator('#style-field-fontSize').dispatchEvent('change');
-  await page.locator('#style-save-preset').click();
-  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(44);
-  await page.locator('#style-back').click();
+  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(96);
+  await page.locator('#style-project-preset').selectOption({label:'测试双语预设'});
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('44');
+  await page.locator('#style-delete-preset').click();
+  await expect(page.locator('#style-delete-question')).toContainText('测试双语预设');
+  await page.locator('#style-delete-confirm-button').click();
+  await expect(page.locator('#style-message')).toContainText('预设已删除');
+  await expect(page.locator('#style-project-preset option')).not.toContainText(['测试双语预设']);
   await page.locator('#media-settings-close').click();
   await page.keyboard.press('Control+s');
   await expect.poll(()=>page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(44);
   await page.reload();await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(44);
-  await toggleMediaSettings(page);await page.locator('#style-manage').click();
-  expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('preset');
-  await page.locator('#media-settings-close').click();
+  await toggleMediaSettings(page);
+  await expect(page.locator('#style-delete-preset')).toBeDisabled();
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('project');
 });
 
