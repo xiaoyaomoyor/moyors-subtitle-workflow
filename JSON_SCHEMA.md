@@ -387,6 +387,8 @@ ASS 导出、播放器工程预览和视频烧录默认读取这个快照，不�
 
 `preview.project_style_custom`（可选）保存同格式的最近手动编辑快照；`preview.project_style_selection`（可选）为 `current` 或预设 ID（1–160 位字母、数字、下划线、连字符）。切换预设不覆盖自定义快照，选择“当前自定义”恢复它；尚无快照时以当前外观建立。选择与快照随工程保存、撤销、恢复，输出仅使用 `project_style`。
 
+新工程及默认样式的 `pairLayout` 为 `{order: "main-above", gap: 0}`；主／副垂直边距分别为 96／48。已有快照及旧样式迁移不自动套用这组新默认值。
+
 `preview.style_migration` 记录 `{version: 1, source: "ass"|"burn", presets, notice}`；
 `presets` 保留原 ASS 和预览外观。首次加入工程样式并覆盖旧文件前，在同目录
 创建短文件名 `.msw-style-backup-<hash>.mosp`，不覆盖已有备份。

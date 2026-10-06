@@ -4,6 +4,7 @@
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
+  const layoutVersion = 1;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -17,7 +18,7 @@
       ...(raw.legacyBurn ? {legacyBurn: clone(raw.legacyBurn)} : {})};
   }
   function defaults() {
-    return normalize({main:{fontSize:48,marginV:108,marginL:96,marginR:96},
+    return normalize({pairLayout:{order:'main-above',gap:0},main:{fontSize:48,marginV:96,marginL:96,marginR:96},
       secondary:{fontSize:40,marginV:48,marginL:96,marginR:96}});
   }
   function fromLibrary(raw, profileId) {
@@ -34,7 +35,7 @@
   }
   const family = value => ({default:U.ASS_DEFAULT_ASS_STYLE.fontName, sans:'Arial', yahei:'Microsoft YaHei',hei:'SimHei',song:'SimSun'}[value] || value || U.ASS_DEFAULT_ASS_STYLE.fontName);
   function fromBurn(raw = {}) {
-    const s = defaults(); s.name='旧工程烧录样式'; s.legacyBurn=clone(raw);
+    const s = defaults(); delete s.pairLayout; s.name='旧工程烧录样式'; s.legacyBurn=clone(raw);
     for(const [role,size,y] of [['main',48,.86],['secondary',40,.94]]) {
       const b={font_family:'Arial',font_size:size,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y,width:.8,...raw[role]};
       s[role]={...s[role],fontName:b.font_family,fontSize:b.font_size,primaryColor:b.color,outlineColor:b.outline_color,outline:b.outline,
@@ -44,7 +45,7 @@
     return normalize(s);
   }
   function fromPreview(preview={}) {
-    const s=defaults(); s.name='旧工程预览样式';
+    const s=defaults(); delete s.pairLayout; s.main.marginV=108; s.name='旧工程预览样式';
     for(const [role,key] of [['main','subtitle'],['secondary','extension_subtitle']]) {
       const p=preview[key] || {};
       s[role]={...s[role],fontName:family(p.font_family),fontSize:(p.font_size || (role==='main'?18:16))*4,primaryColor:p.color||s[role].primaryColor};
@@ -69,8 +70,8 @@
     return true;
   }
   function presets() {
-    const normal=defaults();
-    return [{id:'default',...normal},
+    const standard=defaults(),normal={...standard,pairLayout:undefined,main:{...standard.main,marginV:108}};
+    return [{id:'default',...standard},
       {id:'large',...normalize({...normal,name:'大字清晰',main:{...normal.main,fontSize:72,outline:3},secondary:{...normal.secondary,fontSize:56}})},
       {id:'contrast',...normalize({...normal,name:'高对比底框',main:{...normal.main,borderStyle:3,outline:5,backColor:'#000000'},secondary:{...normal.secondary,borderStyle:3,outline:4}})},
       {id:'bilingual',...normalize({...normal,name:'双语紧凑',main:{...normal.main,fontSize:44,marginV:100},secondary:{...normal.secondary,fontSize:36,marginV:48}})}];
@@ -158,5 +159,5 @@
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,clone,normalize,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);

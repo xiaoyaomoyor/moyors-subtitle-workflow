@@ -16,6 +16,16 @@ from maw.msw.subtitle_layers import migrate_project
 
 
 class ProjectSubtitleStyleTests(unittest.TestCase):
+    def test_default_spacing_matches_frontend_and_other_presets_keep_geometry(self):
+        script="const fs=require('fs'),vm=require('vm');const c={window:{}};for(const f of ['gap-remove-core','editor-utils','msw-project-style'])vm.runInNewContext(fs.readFileSync('web/'+f+'.js','utf8'),c);process.stdout.write(JSON.stringify(c.window.MSWProjectStyle.presets()));"
+        browser=json.loads(subprocess.check_output(['node','-e',script],cwd=Path(__file__).resolve().parents[1],text=True,encoding='utf-8'))
+        backend=builtin_presets()
+        self.assertEqual(backend[0]['pairLayout'],{'order':'main-above','gap':0})
+        for a,b in zip(browser,backend):
+            self.assertEqual(a.get('pairLayout'),b.get('pairLayout'))
+            self.assertEqual([a[r]['marginV'] for r in ('main','secondary')],[b[r]['marginV'] for r in ('main','secondary')])
+        self.assertEqual(backend[1]['main']['marginV'],108)
+
     def test_old_srt_slot_is_imported_without_modifying_its_library(self):
         from maw.ass_styles import default_ass_style_library
         old=default_ass_style_library()
@@ -36,6 +46,7 @@ class ProjectSubtitleStyleTests(unittest.TestCase):
             {'id':'b','start':500,'end':1500,'text':'overlap'}],
             'preview':{'project_style':dict(builtin_presets()[0],legacyBurn={
                 'main':{'background_alpha':.4,'x':.3,'width':.5}})}}))
+        project['preview']['project_style'].pop('pairLayout',None)
         plan={'intervals':[{'start_ms':0,'end_ms':12000,'output_start_ms':0}]}
         script="""const fs=require('node:fs'),vm=require('node:vm');const c={window:{},TextEncoder,TextDecoder,Uint8Array};
 for(const f of ['gap-remove-core','editor-utils','msw-project-style','msw-subtitle-presentation'])vm.runInNewContext(fs.readFileSync('web/'+f+'.js','utf8'),c);
@@ -60,6 +71,7 @@ process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readF
         before=copy.deepcopy(project)
         video={'width':1280,'height':720}
         result=preview_ass({'project':project,'target':'both','video':video})
+        self.assertEqual(result['layoutVersion'],1)
         plan={'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
         self.assertEqual(result['ass'],styled_ass(normalize_project(project),plan,'both',video))
         self.assertIn(r'\fad(120,200)',result['ass'])
@@ -104,6 +116,8 @@ process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readF
         plan={'intervals':[{'start_ms':0,'end_ms':2000,'output_start_ms':0}]}
         old=styled_ass(project,plan,'main',{'width':640,'height':360})
         project['preview']['project_style']=dict(builtin_presets()[0],legacyBurn=project['preview']['burn_subtitles'])
+        # Old snapshots have no explicit pairing; migration must retain that.
+        project['preview']['project_style'].pop('pairLayout',None)
         self.assertEqual(old,styled_ass(project,plan,'main',{'width':640,'height':360}))
 
     def test_first_migration_keeps_original_backup(self):

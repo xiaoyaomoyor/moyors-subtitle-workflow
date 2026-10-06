@@ -5,6 +5,18 @@ import vm from 'node:vm';
 const context={window:{},TextEncoder,TextDecoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const S=context.window.MSWProjectStyle,U=context.window.AsrEditorUtils;
+
+test('new projects use zero pair spacing without rewriting existing or legacy geometry',()=>{
+  const fresh={};S.migrate(fresh,{},{});
+  assert.equal(fresh.preview.project_style.pairLayout.gap,0);
+  assert.equal(fresh.preview.project_style.main.marginV,96);
+  assert.equal(S.presets()[0].pairLayout.gap,0);
+  assert.equal(S.presets()[1].main.marginV,108);
+  assert.equal(S.presets()[1].pairLayout,undefined);
+  const previous={preview:{project_style:{...S.defaults(),pairLayout:undefined,main:{...S.defaults().main,marginV:108}}}};
+  const before=JSON.stringify(previous);S.migrate(previous,{});assert.equal(JSON.stringify(previous),before);
+  assert.equal(S.fromBurn({}).pairLayout,undefined);assert.equal(S.fromPreview({}).main.marginV,108);
+});
 test('custom project snapshots survive preset selection, capture and restore',()=>{
   const project={preview:{}},custom=S.defaults();custom.main.primaryColor='#123456';
   S.edit(project,custom);const checkpoint=S.capture(project);

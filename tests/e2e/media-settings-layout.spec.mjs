@@ -109,6 +109,7 @@ test('removed custom preview is migrated once into an ordinary preset',async({pa
 test('paired arrangement and appearance-only swap survive undo and project serialization',async({page})=>{
   await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');h.data.multi_subtitle={enabled:true,tracks:[{id:'secondary',segments:[]}]};dispatchEvent(new Event('msw:subtitles-changed'));});
   await page.locator('#style-project-preset').selectOption('default');
+  await expect(page.locator('#style-pair-gap')).toHaveValue('0');
   await page.locator('#style-pair-order').selectOption('secondary-above');await edit(page,'#style-pair-gap','-12');
   const before=await project(page);expect(before.pairLayout).toEqual({order:'secondary-above',gap:-12});
   await page.locator('#style-swap').click();const swapped=await project(page);

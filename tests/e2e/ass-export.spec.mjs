@@ -141,7 +141,7 @@ test('writes the project title, source resolution, palette styles and speaker na
   expect(save.content).toContain('Style: RED,Arial,128,&H006F7FF0,&H006F7FF0,');
   expect(save.content).toContain('Style: PURPLE,Arial,128,&H00E689BF,&H00E689BF,');
   expect(save.content).toContain('Style: BLUE,Arial,128,&H00FAA761,&H00FAA761,');
-  expect(save.content.replace(/\{\\[^}]*\}/g, '')).toContain('Dialogue: 0,0:00:00.00,0:00:01.00,RED,旁白,0,0,0,,旁白：red line');
+  expect(save.content.replace(/\{\\[^}]*\}/g, '')).toContain('Dialogue: 0,0:00:00.00,0:00:01.00,RED,旁白,0,0,96,,旁白：red line');
 });
 
 test('keeps MSW main and secondary export organization with color splitting', async ({ page }) => {
@@ -196,10 +196,10 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
   const save = await page.evaluate(() => window.__exportSaves[0]);
   expect(save.suggestedName).toBe('project_去空隙.ass');
   expect(save.content).toContain(
-    'Dialogue: 0,0:00:01.00,0:00:02.00,RED,,0,0,0,,before gap',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,RED,,0,0,96,,before gap',
   );
   expect(save.content).toContain(
-    'Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,after gap',
+    'Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,96,,after gap',
   );
 });
 

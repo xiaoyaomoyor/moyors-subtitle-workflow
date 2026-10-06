@@ -82,6 +82,7 @@
         styles.request('subtitle-preview',{project,target:preview.target,video:{width:host.player.videoWidth,height:host.player.videoHeight}}),
         fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
       if(!current())return;
+      if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
       if(!renderer || video!==target || source!==targetSource) {
         disposeRenderer();fallback(preview.label+' · 正在加载字幕渲染…');
         video=target;source=targetSource;

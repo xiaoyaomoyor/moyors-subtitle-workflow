@@ -18,7 +18,8 @@ def builtin_presets():
         'secondary':dict(DEFAULT_ASS_EXTENSION_STYLE,fontSize=40,marginV=48,marginL=96,marginR=96)})
     def variant(key,name,main,secondary):
         return dict(normalize_project_style(dict(base,name=name,main=dict(base['main'],**main),secondary=dict(base['secondary'],**secondary))),id=key)
-    return [dict(base,id='default'),variant('large','大字清晰',dict(fontSize=72,outline=3),dict(fontSize=56)),
+    default=normalize_project_style(dict(base,main=dict(base['main'],marginV=96),pairLayout={'order':'main-above','gap':0}))
+    return [dict(default,id='default'),variant('large','大字清晰',dict(fontSize=72,outline=3),dict(fontSize=56)),
         variant('contrast','高对比底框',dict(borderStyle=3,outline=5,backColor='#000000'),dict(borderStyle=3,outline=4)),
         variant('bilingual','双语紧凑',dict(fontSize=44,marginV=100),dict(fontSize=36,marginV=48))]
 

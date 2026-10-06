@@ -11,6 +11,9 @@ from maw.msw.subtitle_style import styled_ass
 
 _lock = threading.RLock()
 _files = {}
+# Bump together with MSWProjectStyle.layoutVersion when the shared layout
+# contract changes. A page refresh cannot reload an already running Python VM.
+LAYOUT_VERSION = 1
 
 
 def preview_ass(payload):
@@ -23,7 +26,7 @@ def preview_ass(payload):
         if type(video.get(key)) is not int or not 16 <= video[key] <= 7680:
             raise ValueError('字幕预览画面尺寸无效')
     plan = {'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
-    return {'ass':styled_ass(project,plan,target,video)}
+    return {'ass':styled_ass(project,plan,target,video), 'layoutVersion':LAYOUT_VERSION}
 
 
 @lru_cache(maxsize=1)
