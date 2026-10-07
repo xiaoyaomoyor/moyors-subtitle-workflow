@@ -8582,7 +8582,7 @@ function requestSubtitleSplit(kind, index, initial = {}) {
     textOffset = splitOffsetNearTextPositionForModal(segment.text, textOffset, mode);
   }
   const timeMs = Number.isFinite(initial.timeMs)
-    ? timelineFrameAlignedMilliseconds(initial.timeMs) : null;
+    ? initial.preserveCutTime ? Math.round(initial.timeMs) : timelineFrameAlignedMilliseconds(initial.timeMs) : null;
   const binding = kind === 'main' ? bindingForMainIndex(index)
     : kind === 'extension' ? bindingForExtensionIndex(index, track) : null;
   let state;
@@ -8633,9 +8633,6 @@ function requestSubtitleSplit(kind, index, initial = {}) {
   if (direct && state.valid && !initial.requireConfirm) {
     confirmLinkedSplit();
     if (!pendingLinkedSplit) return true;
-  }
-  if (state.kind === 'linked' && knownText('main') && !knownText('extension')) {
-    state.initialLane = 'extension';
   }
   if (waveformEditor?.showModule?.('panel', { recordUndo: false })) rebuildShowModuleMenu();
   else waveformEditor?.activateModuleTab?.('panel');
@@ -9289,8 +9286,18 @@ function focusSplitLane(state, lane) {
   const { textEl } = splitLaneElements(lane);
   if (!textEl || !splitLaneVisible(lane)) return false;
   textEl.focus({ preventScroll: true });
-  if (state) state.keyboardLane = lane;
+  setSplitActiveLane(state, lane);
   return true;
+}
+
+function setSplitActiveLane(state, lane) {
+  if (!state || !splitLaneVisible(lane)) return;
+  state.keyboardLane = lane;
+  for (const name of ['main', 'extension']) {
+    const { laneEl, textEl } = splitLaneElements(name);
+    laneEl?.classList.toggle('is-active-lane', name === lane);
+    textEl?.setAttribute('aria-current', String(name === lane));
+  }
 }
 
 function syncLinkedSplitTime(state) {
@@ -9337,6 +9344,9 @@ function renderSplitLane(state, lane) {
     : state?.kind !== 'main');
   laneEl.hidden = !visible;
   if (!visible) return;
+  laneEl.onpointerdown = () => {
+    if (pendingLinkedSplit === state) focusSplitLane(state, lane);
+  };
   textEl.replaceChildren();
   const legalOffsets = new Set(MULTI_SUBTITLE_UTILS.subtitleSplitOffsets(displaySegment.text, displayMode));
   const characters = Array.from(displaySegment.text || '');
@@ -9420,7 +9430,6 @@ function renderSplitLane(state, lane) {
   }
   textEl.setAttribute('tabindex', '0');
   textEl.setAttribute('aria-label', isMain ? '主字幕文字分界' : '副字幕文字分界');
-  textEl.title = '点击文字间隙或用方向键调整分界；Enter 确认，Esc 取消';
   textEl.onmousemove = null;
   textEl.onclick = (event) => {
     if (pendingLinkedSplit !== state) return;
@@ -9452,9 +9461,6 @@ function renderSplitMeta(state) {
   if (!multiSubtitleSplitMeta) return;
   const estimated = state.cutSource === 'text-estimate';
   multiSubtitleSplitMeta.textContent = `切分位置 ${fmtShort(state.cutMs)}${estimated ? ' · 估算时间' : ''}`;
-  multiSubtitleSplitMeta.title = Number.isFinite(state.origin?.timeMs)
-    ? '时间固定为波形或播放头位置；这里只调整两侧文字'
-    : '根据文字光标和可用的词时间戳推定时间；没有时间戳时按文字比例估算';
 }
 
 // 切分状态对应的轨；旧叠加轨复用副轨的文字分界控件。
@@ -9471,6 +9477,53 @@ function splitTimingIsValid(segment, cutMs) {
     && end - start >= SUBTITLE_MIN_DURATION_MS * 2
     && cut - start >= SUBTITLE_MIN_DURATION_MS
     && end - cut >= SUBTITLE_MIN_DURATION_MS;
+}
+
+function splitPreviewDragBounds(state) {
+  if (state?.kind !== 'linked') return null;
+  const main = splitLaneSegment(state, 'main');
+  const extension = splitLaneSegment(state, 'extension');
+  if (!main || !extension) return null;
+  const min = Math.ceil(Math.max(main.start, extension.start) + SUBTITLE_MIN_DURATION_MS);
+  const max = Math.floor(Math.min(main.end, extension.end) - SUBTITLE_MIN_DURATION_MS);
+  return Number.isFinite(min) && Number.isFinite(max) && min <= max ? { min, max } : null;
+}
+
+function beginSubtitleSplitPreviewDrag() {
+  const state = pendingLinkedSplit;
+  const bounds = splitPreviewDragBounds(state);
+  if (!bounds) return null;
+  const main = splitLaneSegment(state, 'main'), extension = splitLaneSegment(state, 'extension');
+  const original = Object.fromEntries(['fixedCutMs', 'cutMs', 'mainCutMs', 'extensionCutMs',
+    'mainOffset', 'offset', 'cutSource', 'exactCut'].map(key => [key, state[key]]));
+  return {
+    move(timeMs, point) {
+      if (point) lastPointerPos = { x: point.clientX, y: point.clientY };
+      if (pendingLinkedSplit !== state) return false;
+      if (state.sourceSnapshot !== splitSourceSnapshot(state)) {
+        closeLinkedSplitModal();
+        flashHint('字幕已发生变化，请重新选择切分位置', 'warning');
+        return false;
+      }
+      const cutMs = Math.max(bounds.min, Math.min(bounds.max, Math.round(timeMs)));
+      if (!Number.isFinite(cutMs) || cutMs === state.cutMs) return true;
+      state.fixedCutMs = cutMs;
+      state.exactCut = true;
+      state.cutSource = 'pointer';
+      state.mainOffset = splitOffsetNearTimeForModal(main, cutMs, state.mainMode);
+      state.offset = splitOffsetNearTimeForModal(extension, cutMs, state.extensionMode);
+      updateLinkedSplitPreview(state.mainOffset, 'main');
+      return true;
+    },
+    finish(cancelled) {
+      if (pendingLinkedSplit !== state) return;
+      if (cancelled) {
+        Object.assign(state, original);
+        updateLinkedSplitPreview(state.mainOffset, 'main');
+      }
+      focusSplitLane(state, state.keyboardLane || state.initialLane || 'main');
+    },
+  };
 }
 
 function duplicateSplitTimingIsValid(state) {
@@ -9556,14 +9609,14 @@ function updateLinkedSplitPreview(offset, lane = 'extension') {
   state.mainTimingValid = Boolean(mainTimingValid);
   state.duplicateTimingValid = duplicateSplitTimingIsValid(state);
   state.valid = valid;
-  waveformEditor?.setSplitPreview?.(state.cutMs);
+  waveformEditor?.setSplitPreview?.(state.cutMs, { draggable: Boolean(splitPreviewDragBounds(state)) });
   updateSplitLaneVisual(state, 'main');
   updateSplitLaneVisual(state, 'extension');
   renderSplitMeta(state);
   if (multiSubtitleSplitError) {
     const error = valid ? '' : !textValid
       ? '文字无法分成两段。可调整分界，或在“更多”中选择保留两侧原文。'
-      : '切点两侧需各保留至少 100ms。请取消后重新选择时间位置。';
+      : '切点两侧需各保留至少 100ms，请调整切分时间。';
     const translate = text => window.MSWE_I18N?.translateText?.(text) || text;
     multiSubtitleSplitError.textContent = translate(error);
     if (!valid && state.kind === 'linked') {
@@ -9580,6 +9633,7 @@ function updateLinkedSplitPreview(offset, lane = 'extension') {
 function closeLinkedSplitModal() {
   const hadFocus = multiSubtitleSplitModal?.contains(document.activeElement);
   const origin = pendingLinkedSplit?.origin;
+  if (pendingLinkedSplit) window.MSWHelp?.close();
   multiSubtitleSplitModal?.classList.remove('show');
   document.getElementById('current-cue-panel')?.classList.remove('splitting');
   pendingLinkedSplit = null;
@@ -9678,7 +9732,7 @@ function commitMainWaveformSplit(
   return true;
 }
 
-// Unlinking is only available through an explicitly named action.
+// The explicit independent action always applies to the highlighted lane.
 function splitCurrentOnly() {
   const state = pendingLinkedSplit;
   if (!state?.origin) return;
@@ -9687,8 +9741,9 @@ function splitCurrentOnly() {
     flashHint('字幕已发生变化，请重新选择切分位置', 'warning');
     return;
   }
-  const { kind, id, trackId } = state.origin;
-  const track = getExtensionTrack(trackId);
+  const kind = state.kind === 'linked' ? splitKeyboardActiveLane(state) || state.origin.kind : state.origin.kind;
+  const id = kind === 'main' ? state.mainId : state.extensionId;
+  const track = splitStateTrack(state);
   const segments = kind === 'main' ? DATA.segments : track?.segments;
   const index = segments?.findIndex(segment => segment.id === id) ?? -1;
   if (index < 0) return closeLinkedSplitModal();
@@ -9696,6 +9751,7 @@ function splitCurrentOnly() {
     track, timeMs: state.cutMs,
     textOffset: kind === 'main' ? state.mainOffset : state.offset,
     independent: true,
+    preserveCutTime: true,
   });
 }
 
@@ -11301,6 +11357,7 @@ let lastPointerPos = null;
 let cueSplitPreviewEl = null;
 let cueSplitPreviewFrame = 0;
 let cueSplitPreviewRequest = null;
+let cueSplitPreviewContext = null;
 
 // 等待绑定时，点击主/副字幕本身交给各自的选择事件处理；其它空白或
 // 非字幕区域视为取消，避免用户进入等待状态后无从退出。
@@ -11341,7 +11398,9 @@ function hideCueSplitPreview() {
   cueSplitPreviewRequest = null;
   cueSplitPreviewEl?.remove();
   cueSplitPreviewEl = null;
-  waveformEditor?.setSplitPreview?.(pendingLinkedSplit?.cutMs ?? null);
+  cueSplitPreviewContext = null;
+  waveformEditor?.setSplitPreview?.(pendingLinkedSplit?.cutMs ?? null,
+    { draggable: Boolean(splitPreviewDragBounds(pendingLinkedSplit)) });
 }
 
 function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId = null) {
@@ -11400,6 +11459,12 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       cue.appendChild(cueSplitPreviewEl);
     }
     cueSplitPreviewEl.style.left = `${left}px`;
+    cueSplitPreviewContext = {
+      kind: isExtension ? 'extension' : 'main', index: request.idx, track,
+      timeMs: cutMs, textOffset: offset, segment,
+      sourceSnapshot: JSON.stringify(segment),
+      feedbackPoint: ninjaSplitPointFromRect(caretRect),
+    };
     waveformEditor?.setSplitPreview?.(cutMs);
   });
 }
@@ -11536,21 +11601,39 @@ function hoveredSelectedCueContext() {
   return { ...cueListPointer, el, track, offset: caret?.offset ?? null, caretRect: caret?.rect ?? null };
 }
 
-function quickSplitAtCurrentTime(event) {
+function splitAtShortcutTarget(event, { independent = false } = {}) {
   if (event.repeat || event.isComposing || editingState || extensionEditingState
       || isTextEditingTarget(event) || document.activeElement?.matches('input, select, textarea')
       || document.querySelector('.modal-mask.show, #ctxmenu.show')) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   if (pendingLinkedSplit) {
+    if (independent) {
+      splitCurrentOnly();
+      return;
+    }
     flashHint('请先确认或取消当前切分', 'warning');
     return;
   }
-  // Quick cutting always uses waveform pointer time, or the playhead outside it.
-  // A block under the pointer takes priority over overlapping cues and selection.
+  // Read the displayed card boundary, not a fresh caret lookup or the playhead.
+  const element = lastPointerPos && document.elementFromPoint(lastPointerPos.x, lastPointerPos.y);
+  if (element?.closest('#cues-container .cue, #cues-container .multi-extension-cue')) {
+    const preview = cueSplitPreviewContext;
+    if (!preview || !cueSplitPreviewEl?.isConnected || !cueSplitPreviewEl.parentElement.matches(':hover')
+        || JSON.stringify(preview.segment) !== preview.sourceSnapshot) {
+      flashHint('请先选中字幕，并将鼠标移到文字之间的切分虚线处', 'warning');
+      return;
+    }
+    requestSubtitleSplit(preview.kind, preview.index, {
+      track: preview.track, timeMs: preview.timeMs, textOffset: preview.textOffset,
+      feedbackPoint: preview.feedbackPoint, preserveCutTime: true, ninjaFromList: true,
+      quick: true, independent,
+    });
+    return;
+  }
+  // Waveform cuts use pointer time. Outside both surfaces, use the playhead.
   const pointer = waveformPointerContext();
-  const hovered = pointer ? null : hoveredSelectedCueContext();
-  const source = pointer || hovered || getCurrentCuePanelTarget();
+  const source = pointer || getCurrentCuePanelTarget();
   const kind = pointer?.track || source?.kind || 'main';
   const track = kind === 'extension' ? getExtensionTrack(source?.trackId) : null;
   const segments = kind === 'main' ? DATA.segments
@@ -11566,7 +11649,7 @@ function quickSplitAtCurrentTime(event) {
     flashHint('当前时间不在目标字幕内，请移动播放头或将鼠标移到波形字幕块上', 'warning');
     return;
   }
-  requestSubtitleSplit(kind, index, { track, timeMs, quick: true });
+  requestSubtitleSplit(kind, index, { track, timeMs, quick: true, independent });
 }
 
 // === 单击/双击/Shift/Ctrl ===
@@ -13195,8 +13278,12 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'b' && e.key !== 'B') return;
   if (e.repeat) return;
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    splitAtShortcutTarget(e, { independent: true });
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
-    quickSplitAtCurrentTime(e);
+    splitAtShortcutTarget(e);
     return;
   }
   if (extensionEditingState) {
@@ -19588,10 +19675,10 @@ multiSubtitleSplitIndependent?.addEventListener('click', splitCurrentOnly);
 
 // 鼠标点击 lane 会自然聚焦；这里同步 keyboardLane，用于方向键操作。
 multiSubtitleSplitMainText?.addEventListener('focus', () => {
-  if (pendingLinkedSplit) pendingLinkedSplit.keyboardLane = 'main';
+  setSplitActiveLane(pendingLinkedSplit, 'main');
 });
 multiSubtitleSplitText?.addEventListener('focus', () => {
-  if (pendingLinkedSplit) pendingLinkedSplit.keyboardLane = 'extension';
+  setSplitActiveLane(pendingLinkedSplit, 'extension');
 });
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || !multiSubtitleImportModal?.classList.contains('show')) return;
@@ -19618,6 +19705,10 @@ multiSubtitleSplitModal?.addEventListener('keydown', (event) => {
   const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
   if (!vertical && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
   event.preventDefault(); event.stopPropagation();
+  if (vertical && state.kind === 'linked') {
+    focusSplitLane(state, direction < 0 ? 'main' : 'extension');
+    return;
+  }
   const offset = vertical ? verticalSplitLaneOffset(state, lane, direction) : stepSplitLaneOffset(state, lane, direction);
   if (Number.isFinite(offset)) updateLinkedSplitPreview(offset, lane);
 });
@@ -23173,6 +23264,7 @@ function initWaveformEditor() {
     // 剃刀工具：在波形指针位置安全拆分字幕。复用右键菜单的波形时间拆分路径；
     // 所有轨道保留指针时间；文字分界不确定时在字幕编辑器中确认。
     splitCueAtTime: (idx, timeMs) => splitFromContextMenu(idx, 0, 0, timeMs),
+    beginSplitPreviewDrag: beginSubtitleSplitPreviewDrag,
     splitExtensionCueAtTime: (idx, timeMs) => openExtensionSplitModal(idx, timeMs),
     splitOverlayCueAtTime: (idx, timeMs) => openOverlaySplitModal(
       idx, Number.isFinite(timeMs) ? timelineFrameAlignedMilliseconds(timeMs) : timeMs,

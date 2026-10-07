@@ -38,6 +38,21 @@ async function fixture(page, options = {}) {
 const panel = page => page.locator('#multi-subtitle-split-modal');
 const data = page => page.evaluate(() => ({ main: structuredClone(DATA.segments), sub: structuredClone(getActiveExtensionTrack().segments), bindings: structuredClone(DATA.multi_subtitle.bindings), style: structuredClone(DATA.preview.project_style) }));
 
+async function hoverCardBoundary(page, kind, offset = 3) {
+  const text = page.locator(`#cues-container .cue .${kind === 'main' ? 'main' : 'extension'} .text`).first();
+  await text.click();
+  const point = await text.evaluate((el, offset) => {
+    const range = document.createRange();
+    const node = document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode();
+    range.setStart(node, offset); range.setEnd(node, offset + 1);
+    const rect = range.getBoundingClientRect();
+    return { x: rect.left + 1, y: rect.top + rect.height / 2 };
+  }, offset);
+  await page.mouse.move(point.x, point.y);
+  await expect(page.locator('.cue-split-preview')).toHaveCount(1);
+  return page.evaluate(() => ({ time: cueSplitPreviewContext.timeMs, offset: cueSplitPreviewContext.textOffset }));
+}
+
 test('uncertain linked split is inline, click-only, fixed in time, undoable and preserves styles', async ({ page }) => {
   await fixture(page);
   const before = await data(page);
@@ -290,6 +305,10 @@ test('quick cut outside waveform uses playhead and protects text input', async (
   await page.locator('#cue-panel-text').focus();
   await page.keyboard.press('Control+b');
   expect(await data(page)).toEqual(before);
+  await page.keyboard.press('Shift+b');
+  expect((await data(page)).main).toHaveLength(1);
+  expect((await data(page)).bindings).toEqual(before.bindings);
+  await expect(page.locator('#cue-panel-text')).toHaveValue(/fourb$/i);
   await page.locator('#cue-panel-text').evaluate(el => el.blur());
   await page.mouse.move(5, 5);
   await page.keyboard.press('Control+b');
@@ -365,6 +384,8 @@ test('waveform cut preview survives row rebuild and resize, then clears on commi
 test('operation help documents ordinary and quick cutting in both languages', async ({ page }) => {
   await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('Ctrl+B');
   await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('绑定字幕先确认');
+  await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('Shift+B');
+  await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('卡片快速切分使用已显示的文字虚线');
   await page.evaluate(() => MSWE_I18N.applyLanguage('en'));
   await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('Quick split');
 });
@@ -401,4 +422,192 @@ test('cut indicators and edit focus follow theme accent and selection colors in 
     });
     expect(flashColor).toBe('rgb(49, 136, 117)');
   }
+});
+
+for (const kind of ['main', 'extension']) {
+  test(`Ctrl+B on a ${kind} card cuts at its displayed boundary rather than the playhead`, async ({ page }) => {
+    await fixture(page, { mainTimed: true });
+    const before = await data(page);
+    const preview = await hoverCardBoundary(page, kind);
+    await page.evaluate(() => { player.currentTime = 7; });
+    await page.keyboard.press('Control+b');
+    await expect(panel(page)).toBeHidden();
+    const result = await data(page);
+    expect(result.main[0].end).toBe(preview.time);
+    expect(result.sub[0].end).toBe(preview.time);
+    const source = kind === 'main' ? 'main' : 'sub';
+    expect(result[source][0].text).toBe(before[source][0].text.slice(0, preview.offset).trim());
+    expect(result.bindings).toHaveLength(2);
+    await page.evaluate(() => performUndo());
+    expect(await data(page)).toEqual(before);
+  });
+
+  test(`Shift+B on a ${kind} waveform block only splits that track and unlinks with one undo`, async ({ page }) => {
+    await fixture(page);
+    const before = await data(page);
+    await page.locator(`.waveform-cue-block[data-track="${kind}"]`).first().hover();
+    const time = await page.evaluate(() => Math.round(timelineFrameAlignedMilliseconds(waveformPointerContext().timeMs)));
+    await page.keyboard.press('Shift+b');
+    await expect(panel(page)).toBeHidden();
+    const result = await data(page);
+    const source = kind === 'main' ? 'main' : 'sub', partner = kind === 'main' ? 'sub' : 'main';
+    expect(result[source].map(s => [s.start, s.end])).toEqual([[0, time], [time, 8000]]);
+    expect(result[partner]).toEqual(before[partner]);
+    expect(result.bindings).toHaveLength(0);
+    await page.evaluate(() => performUndo());
+    expect(await data(page)).toEqual(before);
+  });
+
+  test(`Shift+B on a ${kind} card uses the visible text boundary and preserves its partner`, async ({ page }) => {
+    await fixture(page);
+    const before = await data(page);
+    const preview = await hoverCardBoundary(page, kind);
+    await page.evaluate(() => { player.currentTime = 7; });
+    await page.keyboard.press('Shift+b');
+    const result = await data(page);
+    const source = kind === 'main' ? 'main' : 'sub', partner = kind === 'main' ? 'sub' : 'main';
+    expect(result[source][0].end).toBe(preview.time);
+    expect(result[source]).toHaveLength(2);
+    expect(result[partner]).toEqual(before[partner]);
+    expect(result.bindings).toHaveLength(0);
+    await page.evaluate(() => performUndo());
+    expect(await data(page)).toEqual(before);
+  });
+}
+
+test('confirmation keeps one highlighted lane, arrows switch tracks, Shift+B uses the highlighted track', async ({ page }) => {
+  await fixture(page);
+  const before = await data(page);
+  await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 3000 }));
+  const active = page.locator('.multi-subtitle-split-lane.is-active-lane');
+  await expect(active).toHaveAttribute('id', 'multi-subtitle-split-main-lane');
+  const offsets = await page.evaluate(() => [pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset]);
+  await page.keyboard.press('ArrowDown');
+  await expect(active).toHaveAttribute('id', 'multi-subtitle-split-extension-lane');
+  await page.keyboard.press('ArrowUp');
+  await expect(active).toHaveAttribute('id', 'multi-subtitle-split-main-lane');
+  expect(await page.evaluate(() => [pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset])).toEqual(offsets);
+  await page.locator('#multi-subtitle-split-extension-lane h4').click();
+  await page.locator('#multi-subtitle-split-cancel').focus();
+  await expect(active).toHaveAttribute('id', 'multi-subtitle-split-extension-lane');
+  await page.keyboard.press('Shift+b');
+  await expect(panel(page)).toBeHidden();
+  const result = await data(page);
+  expect(result.main).toEqual(before.main);
+  expect(result.sub).toHaveLength(2);
+  expect(result.bindings).toHaveLength(0);
+  await page.evaluate(() => performUndo());
+  expect(await data(page)).toEqual(before);
+});
+
+test('quick cutting a card without a visible boundary does not fall back to the playhead', async ({ page }) => {
+  await fixture(page);
+  const before = await data(page);
+  await page.evaluate(() => { selectOnly(0); player.currentTime = 3; });
+  await page.locator('#cues-container .cue .main').first().hover({ position: { x: 5, y: 5 } });
+  await expect(page.locator('.cue-split-preview')).toHaveCount(0);
+  await page.keyboard.press('Control+b');
+  expect(await data(page)).toEqual(before);
+});
+
+async function dragWaveCutTo(page, timeMs, { release = true } = {}) {
+  const marker = waveCut(page);
+  // Opening the confirmation can rebuild virtual rows while the layout settles.
+  await marker.hover({ position: { x: 1, y: 20 } });
+  const point = await page.evaluate(time => {
+    const row = [...document.querySelectorAll('.waveform-row')].find(el => time >= +el.dataset.startMs && time < +el.dataset.endMs);
+    const rect = row.getBoundingClientRect();
+    return { x: rect.left + (time - +row.dataset.startMs) / (+row.dataset.endMs - +row.dataset.startMs) * rect.width, y: rect.top + 20 };
+  }, timeMs);
+  await page.mouse.down();
+  await page.mouse.move(point.x, point.y, { steps: 6 });
+  if (release) await page.mouse.up();
+}
+
+test('dragging the confirmation waveform line changes both draft boundaries and commits once', async ({ page }) => {
+  await fixture(page, { mainTimed: true, subTimed: true });
+  const before = await data(page);
+  await page.evaluate(() => { player.currentTime = 1; requestSubtitleSplit('main', 0, { timeMs: 2000 }); });
+  const oldOffsets = await page.evaluate(() => [pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset]);
+  const canvas = await page.locator('.waveform-row canvas').first().elementHandle();
+  await expect(waveCut(page)).toHaveClass(/is-draggable/);
+  await dragWaveCutTo(page, 6000);
+  const cut = await page.evaluate(() => pendingLinkedSplit.cutMs);
+  expect(cut).toBeCloseTo(6000, -1);
+  expect(await page.evaluate(() => [pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset])).not.toEqual(oldOffsets);
+  expect(await data(page)).toEqual(before);
+  expect(await page.evaluate(() => player.currentTime)).toBe(1);
+  expect(await canvas.evaluate(el => el.isConnected)).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect(panel(page)).toBeHidden();
+  const result = await data(page);
+  expect(result.main.map(s => [s.start, s.end])).toEqual([[0, cut], [cut, 8000]]);
+  expect(result.sub.map(s => [s.start, s.end])).toEqual([[0, cut], [cut, 8000]]);
+  expect(result.bindings).toHaveLength(2);
+  await page.evaluate(() => performUndo());
+  expect(await data(page)).toEqual(before);
+  await page.evaluate(() => performRedo());
+  expect(await data(page)).toEqual(result);
+});
+
+test('drag cancellation restores the draft and closing the panel leaves no drag state', async ({ page }) => {
+  await fixture(page);
+  const before = await data(page);
+  await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 2000 }));
+  await dragWaveCutTo(page, 6000, { release: false });
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect(panel(page)).toBeVisible();
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(2000);
+  expect(await page.evaluate(() => waveformEditor.splitPreviewDrag)).toBeNull();
+  await dragWaveCutTo(page, 6000);
+  await page.locator('#multi-subtitle-split-cancel').click();
+  await expect(waveCut(page)).toHaveCount(0);
+  expect(await data(page)).toEqual(before);
+  await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 2000 }));
+  await dragWaveCutTo(page, 6000, { release: false });
+  await fixture(page);
+  await page.mouse.up();
+  expect(await page.evaluate(() => waveformEditor.splitPreviewDrag)).toBeNull();
+  await expect(waveCut(page)).toHaveCount(0);
+});
+
+test('dragging preserves minimum duration on both tracks and can move between waveform rows', async ({ page }) => {
+  await fixture(page);
+  await page.evaluate(() => {
+    Object.assign(getActiveExtensionTrack().segments[0], { start: 1000, end: 7000 });
+    waveformEditor.settings.mode = 'multi'; waveformEditor.settings.secondsPerRow = 2;
+    waveformEditor.render(); requestSubtitleSplit('main', 0, { timeMs: 2000 });
+  });
+  await dragWaveCutTo(page, 5000);
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBeCloseTo(5000, -1);
+  expect(await waveCut(page).evaluate(el => +el.parentElement.dataset.startMs)).toBe(4000);
+  await dragWaveCutTo(page, 0);
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(1100);
+  await expect(page.locator('#multi-subtitle-split-confirm')).toBeEnabled();
+});
+
+test('split help uses the shared export tooltip interaction and keeps the active border', async ({ page }, info) => {
+  await fixture(page);
+  await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 3000 }));
+  const button = page.locator('#subtitle-split-help .msw-help-button');
+  const popup = page.locator('#msw-option-help');
+  await expect(button.locator('svg')).toHaveCount(1);
+  await button.hover();
+  await expect(popup).toBeVisible();
+  await expect(popup).toContainText('拖动波形虚线');
+  await expect(popup).toContainText('Shift+B');
+  await button.click();
+  await page.mouse.move(5, 5);
+  await expect(popup).toBeVisible();
+  await expect(page.locator('.multi-subtitle-split-lane.is-active-lane')).toHaveAttribute('id', 'multi-subtitle-split-main-lane');
+  await page.screenshot({ path: info.outputPath('split-help-highlight.png') });
+  await page.keyboard.press('Escape');
+  await expect(popup).toBeHidden();
+  await expect(panel(page)).toBeVisible();
+  await page.locator('#multi-subtitle-split-text').focus();
+  await page.evaluate(() => MSWE_I18N.applyLanguage('en'));
+  await button.focus();
+  await expect(popup).toContainText('Drag the waveform dashed line');
+  await expect(page.locator('.multi-subtitle-split-lane.is-active-lane')).toHaveAttribute('id', 'multi-subtitle-split-extension-lane');
 });

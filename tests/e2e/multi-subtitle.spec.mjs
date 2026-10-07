@@ -1161,7 +1161,8 @@ test('moves the split point with arrows, switches lanes with native Tab and conf
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const mainLane = page.locator('#multi-subtitle-split-main-text');
   const extensionLane = page.locator('#multi-subtitle-split-text');
-  await expect(page.locator('.subtitle-split-help')).toHaveAttribute('title', /方向键/);
+  await page.locator('.subtitle-split-help .msw-help-button').hover();
+  await expect(page.locator('#msw-option-help')).toContainText('上下键切换主、副字幕');
   await mainLane.focus();
   const active = mainLane.locator('.multi-subtitle-split-gap.active');
   await expect(active).toHaveAttribute('data-offset', '4');
@@ -1171,6 +1172,10 @@ test('moves the split point with arrows, switches lanes with native Tab and conf
   await page.keyboard.press('ArrowLeft');
   await expect(active).toHaveAttribute('data-offset', '4');
   expect(await page.evaluate(selectedSnapshot)).toEqual(selectedBefore);
+  await page.keyboard.press('ArrowDown');
+  await expect(extensionLane).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(mainLane).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(extensionLane).toBeFocused();
   const before = await page.evaluate(() => pendingLinkedSplit.offset);
@@ -3634,8 +3639,8 @@ test('keeps the waveform pointer as the absolute cut in a linked split dialog', 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   await expect(page.locator('#multi-subtitle-split-main-lane')).toBeVisible();
   await expect(page.locator('#multi-subtitle-split-extension-lane')).toBeVisible();
-  await expect(page.locator('#multi-subtitle-split-meta'))
-    .toHaveAttribute('title', /时间固定为波形/);
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(expectedCut);
+  await expect(page.locator('.waveform-split-preview:not([hidden])')).toHaveClass(/is-draggable/);
   await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('.multi-dual-cue')).toHaveCount(2);
   expect(await page.evaluate(() => DATA.segments[0].end)).toBe(expectedCut);

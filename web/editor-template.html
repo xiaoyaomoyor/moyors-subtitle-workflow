@@ -1207,7 +1207,8 @@ __WAVEFORM_CSS__
         <div class="help-category">
           <span class="help-important"><kbd>B</kbd> 普通切分（绑定字幕先确认）</span>
           <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分（绑定字幕同步切开）</span>
-          <span class="help-note">快速切分使用波形鼠标位置；鼠标不在波形区时使用播放头。文字优先按逐词时间码分界，无可靠时间码时按时间比例估算，可撤销后用普通切分调整。</span>
+          <span class="help-important"><kbd>Shift+B</kbd> 仅切当前字幕并解绑</span>
+          <span class="help-note">卡片快速切分使用已显示的文字虚线；波形中使用鼠标时间；鼠标在其他区域时使用播放头。时间切分优先参考可靠词时间码，否则按时间比例估算文字分界。可撤销后用普通切分调整。</span>
           <span class="help-important"><kbd>C</kbd> 合并所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
@@ -1262,6 +1263,7 @@ __WAVEFORM_CSS__
           <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
           <span class="help-important"><kbd id="help-waveform-split-key">B</kbd> 按当前时间基准拆分字幕</span>
           <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分波形字幕块（主、副字幕均可）</span>
+          <span><kbd>Shift+B</kbd> 仅切当前字幕并解绑</span>
         </div>
       </section>
       <h4 class="help-title">双语字幕</h4>
@@ -2234,7 +2236,8 @@ __WAVEFORM_CSS__
       <header class="subtitle-split-header">
         <strong id="multi-subtitle-split-title">切分字幕</strong>
         <span id="multi-subtitle-split-meta" class="multi-subtitle-split-meta"></span>
-        <button type="button" class="subtitle-split-help" aria-label="切分帮助" title="点击文字间隙或用方向键调整分界，Enter 确认、Esc 取消。波形切分固定时间位置；文字切分优先参考词时间戳，没有时间戳时估算时间。绑定字幕默认一起切分，并分别保留前后两组绑定。">ⓘ</button>
+        <span class="subtitle-split-help" id="subtitle-split-help"></span>
+        <small data-help-for="subtitle-split-help" hidden>点击文字或用左右键调整分界；上下键切换主、副字幕，高亮边框表示当前操作对象。拖动波形虚线可调整两轨的共同切分时间，并重新估算文字分界。Enter 确认，Esc 取消；拖动中按 Esc 撤回本次拖动。Shift+B 仅切高亮字幕并解绑，可一次撤销。</small>
       </header>
       <div class="subtitle-split-body">
         <section class="multi-subtitle-split-lane" id="multi-subtitle-split-main-lane" hidden>
@@ -2252,7 +2255,7 @@ __WAVEFORM_CSS__
           <summary>更多</summary>
           <div class="subtitle-split-more-actions">
             <button type="button" id="multi-subtitle-split-duplicate" title="只切开时间，两侧保留相同文字">保留两侧原文</button>
-            <button type="button" id="multi-subtitle-split-independent" hidden>仅切当前字幕并解绑</button>
+            <button type="button" id="multi-subtitle-split-independent" aria-keyshortcuts="Shift+B" hidden>仅切当前字幕并解绑 <kbd>Shift+B</kbd></button>
           </div>
         </details>
         <div class="actions">

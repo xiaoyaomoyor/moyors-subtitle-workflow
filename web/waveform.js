@@ -1783,6 +1783,8 @@
       this.rowHeightDebounceTimer = 0;
       this.renderedRows = [];
       this.splitPreviewTimeMs = null;
+      this.splitPreviewDraggable = false;
+      this.splitPreviewDrag = null;
       // 波形交互工具：'select'（默认，保留 Ctrl/Shift/分组多选与拖动）或
       // 'razor'（左键点击字幕块即在指针位置安全拆分）。Alt 行为不随工具变化。
       this.tool = 'select';
@@ -4451,6 +4453,8 @@
       row.appendChild(splitPreview);
       row._waveformSplitPreview = splitPreview;
       this.positionSplitPreview(row);
+      splitPreview.addEventListener('pointerdown', event => this.beginSplitPreviewDrag(event, row));
+      splitPreview.addEventListener('dblclick', event => event.stopPropagation());
 
       const splitFlash = document.createElement('div');
       splitFlash.className = 'waveform-split-flash';
@@ -5569,8 +5573,10 @@
     }
 
     // Keep this DOM-only overlay separate from canvas rendering and playback.
-    setSplitPreview(timeMs) {
+    setSplitPreview(timeMs, { draggable = false } = {}) {
+      if (!draggable) this.splitPreviewDrag?.finish(true);
       this.splitPreviewTimeMs = Number.isFinite(timeMs) ? timeMs : null;
+      this.splitPreviewDraggable = draggable && Number.isFinite(timeMs);
       this.renderedRows.forEach(row => this.positionSplitPreview(row));
     }
 
@@ -5582,7 +5588,63 @@
       const endMs = Number(row.dataset.endMs);
       const visible = Number.isFinite(timeMs) && timeMs >= startMs && timeMs < endMs;
       marker.hidden = !visible;
+      marker.classList.toggle('is-draggable', this.splitPreviewDraggable);
       if (visible) marker.style.left = `${((timeMs - startMs) / Math.max(1, endMs - startMs)) * 100}%`;
+    }
+
+    beginSplitPreviewDrag(event, row) {
+      if (event.button !== 0 || !this.splitPreviewDraggable) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.splitPreviewDrag?.finish(true);
+      const session = this.options.beginSplitPreviewDrag?.();
+      if (!session) return;
+      this.cancelHoverSeekPreview();
+      const pointerId = event.pointerId;
+      let currentRow = row;
+      let finished = false;
+      const onMove = moveEvent => {
+        if (moveEvent.pointerId !== pointerId) return;
+        moveEvent.preventDefault();
+        moveEvent.stopImmediatePropagation();
+        const hit = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest('.waveform-row');
+        if (hit && this.pane.contains(hit)) currentRow = hit;
+        if (currentRow.isConnected) session.move(this.pointerTimeMs(moveEvent, currentRow), moveEvent);
+      };
+      const finish = cancelled => {
+        if (finished) return;
+        finished = true;
+        window.removeEventListener('pointermove', onMove, true);
+        window.removeEventListener('pointerup', onUp, true);
+        window.removeEventListener('pointercancel', onCancel, true);
+        window.removeEventListener('keydown', onKey, true);
+        window.removeEventListener('blur', onBlur);
+        this.pane.removeEventListener('lostpointercapture', onCancel);
+        this.splitPreviewDrag = null;
+        this.pane.classList.remove('is-dragging-split');
+        if (this.pane.hasPointerCapture?.(pointerId)) this.pane.releasePointerCapture(pointerId);
+        session.finish(cancelled);
+      };
+      const onUp = upEvent => {
+        if (upEvent.pointerId !== pointerId) return;
+        onMove(upEvent);
+        finish(false);
+      };
+      const onCancel = cancelEvent => { if (cancelEvent.pointerId === pointerId) finish(true); };
+      const onBlur = () => finish(true);
+      const onKey = keyEvent => {
+        if (keyEvent.key !== 'Escape') return;
+        keyEvent.preventDefault(); keyEvent.stopImmediatePropagation(); finish(true);
+      };
+      this.splitPreviewDrag = { finish };
+      this.pane.classList.add('is-dragging-split');
+      window.addEventListener('pointermove', onMove, { capture: true, passive: false });
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
+      window.addEventListener('keydown', onKey, true);
+      window.addEventListener('blur', onBlur);
+      this.pane.addEventListener('lostpointercapture', onCancel);
+      try { this.pane.setPointerCapture(pointerId); } catch (_) { /* Window listeners keep dragging usable. */ }
     }
 
     // 切分成功后短暂显示主题强调色光条，不参与命中，也不改变播放头。

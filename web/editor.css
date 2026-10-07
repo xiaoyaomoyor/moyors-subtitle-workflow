@@ -3787,13 +3787,15 @@
   .subtitle-split-header { display: flex; flex: 0 0 auto; align-items: center; gap: 6px 12px; flex-wrap: wrap; }
   .subtitle-split-header strong { color: var(--text-primary); font-size: 13px; }
   .multi-subtitle-split-meta { color: var(--text-muted); font: 11px/1.5 var(--font-mono); }
-  .current-cue-panel .subtitle-split-help { margin-left: auto; padding: 2px 6px; border-color: transparent; background: transparent; }
+  .subtitle-split-help { display: inline-flex; margin-left: auto; }
   .subtitle-split-body { flex: 0 0 auto; display: grid; align-content: start; gap: 8px; }
   .multi-subtitle-split-lane { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; align-items: start; }
   .multi-subtitle-split-lane[hidden], .multi-subtitle-split-error[hidden], .subtitle-split-editor button[hidden] { display: none; }
   .multi-subtitle-split-lane h4 { margin: 8px 0 0; color: var(--text-muted); font-size: 11px; font-weight: 600; }
   .multi-subtitle-split-text { min-width: 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--form-input-bg); color: var(--text-primary); font-size: 15px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; user-select: none; cursor: text; }
-  .multi-subtitle-split-text:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -1px; border-color: var(--accent); }
+  .multi-subtitle-split-text:focus { outline: none; }
+  .multi-subtitle-split-lane.is-active-lane .multi-subtitle-split-text { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .multi-subtitle-split-lane.is-active-lane h4 { color: var(--accent); }
   .multi-subtitle-split-char.split-left { color: var(--text-primary); }
   .multi-subtitle-split-char.split-right { color: var(--accent-hover); }
   .multi-subtitle-split-gap { display: inline-block; position: relative; white-space: pre; cursor: pointer; }

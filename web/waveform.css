@@ -588,6 +588,10 @@
   transform: translateX(-1px);
 }
 .waveform-split-preview[hidden] { display: none; }
+.waveform-split-preview.is-draggable { pointer-events: auto; cursor: ew-resize; touch-action: none; }
+.waveform-split-preview.is-draggable::before { content: ''; position: absolute; inset: 0 -7px; }
+.waveform-split-preview.is-draggable:hover { filter: drop-shadow(0 0 2px var(--accent)); }
+.waveform-pane.is-dragging-split, #waveform-pane.is-dragging-split * { cursor: ew-resize !important; }
 .waveform-split-flash {
   position: absolute;
   z-index: 10;
