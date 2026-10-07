@@ -171,8 +171,10 @@ test('saved presets do not mutate project styles and the project survives reload
   await expect(page.locator('#style-message')).toContainText('预设已删除');
   await expect(page.locator('#style-project-preset option')).not.toContainText(['测试双语预设']);
   await page.locator('#media-settings-close').click();
+  const saved=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/api/msw/project'));
   await page.keyboard.press('Control+s');
-  await expect.poll(()=>page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(44);
+  expect((await (await saved).json()).ok).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>projectSaveInFlight)).toBe(false);
   await page.reload();await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(44);
   await toggleMediaSettings(page);
@@ -248,4 +250,44 @@ print(json.dumps(result))`,png],{encoding:'utf8',windowsHide:true}));
     positions.push(rows);
   }
   for(let role=0;role<2;role++)expect(Math.abs(positions[0][role]-positions[1][role])).toBeLessThan(2);
+});
+
+test('character wrapping produces matching visible lines in libass preview and burned video',async({page})=>{
+  await disableOnboarding(page);await page.goto(server.url);await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.ready)).toBe(true);
+  await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
+  await page.evaluate(()=>{
+    const h=window.MSWE.resolve('processing-host'),p=h.data,S=window.MSWProjectStyle,style=S.defaults();
+    Object.assign(style.main,{fontName:'Arial',primaryColor:'#ff0000',wrapMode:'characters',charsPerLine:3});
+    Object.assign(style.secondary,{fontName:'Arial',primaryColor:'#00ff00',wrapMode:'characters',charsPerLine:4});
+    p.segments=[{id:'m',start:0,end:3000,text:'MMMMMMMMM',items:[]}];p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,tracks:[{id:'s',role:'extension',segments:[{id:'s1',start:0,end:3000,text:'WWWWWWWW',items:[]}]}],bindings:[]};
+    h.commitProjectStyle(style);dispatchEvent(new Event('msw:subtitles-changed'));
+    for(const id of ['overlay-toggle','extension-overlay-toggle']){const e=document.getElementById(id);e.checked=true;e.dispatchEvent(new Event('change'));}
+    h.player.currentTime=1;h.player.pause();
+  });
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);
+  await page.locator('#media-settings-close').click();await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
+  const png=join(folder,'wrapped-preview.png');await page.locator('.JASSUB').screenshot({path:png});
+  const payload=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');return window.MSWSubtitleStyle.request('subtitle-preview',{project:h.exportProject(),target:'both',video:{width:640,height:360}});});
+  expect(payload.ass).toContain('MMM\\NMMM\\NMMM');expect(payload.ass).toContain('WWWW\\NWWWW');
+  writeFileSync(join(folder,'wrapped.ass'),payload.ass);
+  const box=await page.locator('.JASSUB').boundingBox(),ref=join(folder,'wrapped-reference.png');
+  execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=2','-ss','1','-vf',`ass=wrapped.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',ref],{cwd:folder,windowsHide:true});
+  const bands=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON||'python',['-c',`from PIL import Image
+import json,sys
+def bands(path):
+ im=Image.open(path).convert('RGB'); result=[]
+ for channel in (0,1):
+  rows=[y for y in range(im.height) if any((lambda c:c[channel]>80 and c[channel]>2*c[1-channel] and c[channel]>2*c[2])(im.getpixel((x,y))) for x in range(im.width))]
+  starts=[y for i,y in enumerate(rows) if i==0 or y>rows[i-1]+1]
+  result.append(starts)
+ return result
+print(json.dumps([bands(p) for p in sys.argv[1:]]))`,png,ref],{encoding:'utf8',windowsHide:true}));
+  for(const result of bands){expect(result[0]).toHaveLength(3);expect(result[1]).toHaveLength(2);}
+  for(let role=0;role<2;role++)for(let row=0;row<bands[0][role].length;row++)expect(Math.abs(bands[0][role][row]-bands[1][role][row])).toBeLessThan(3);
+  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.segments[0].text)).toBe('MMMMMMMMM');
+  // The portable/renderer-failure path must use exactly the same text breaks.
+  await page.route('**/subtitle-preview',r=>r.fulfill({status:500,contentType:'application/json',body:JSON.stringify({ok:false,error:'synthetic fallback'})}));
+  await page.evaluate(()=>window.MSWSubtitleRenderer.invalidate());await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('approximate');
+  await expect(page.locator('.msw-layer-preview-text[data-role="main"]')).toHaveText('MMM\nMMM\nMMM');
+  await expect(page.locator('.msw-layer-preview-text[data-role="secondary"]')).toHaveText('WWWW\nWWWW');
 });

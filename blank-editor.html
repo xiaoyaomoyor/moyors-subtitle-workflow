@@ -15603,7 +15603,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   }
 
   function buildAssPayload(segments, options = {}) {
-    const source = Array.isArray(segments) ? segments : [];
+    const wrap=(cues,role)=>window.MSWProjectStyle?.wrapCues(cues,options.projectStyle?.[role])||cues;
+    const source = wrap(Array.isArray(segments) ? segments : [],'main');
     const appearance = options.appearance && typeof options.appearance === 'object'
       ? options.appearance : {};
     const fontFamily = normalizeAssFontFamily(
@@ -15713,8 +15714,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     // 副字幕轨（多重字幕）：所有副字幕共用一个样式（不支持颜色分组），
     // 事件引用独立 Extension 样式，边距/对齐完全由该样式决定。
     // \fad/\fade/\t 逐句应用；\move 的绝对坐标只属于主字幕。
-    const extensionSource = Array.isArray(options.extensionSegments)
-      ? options.extensionSegments : [];
+    const extensionSource = wrap(Array.isArray(options.extensionSegments)
+      ? options.extensionSegments : [],'secondary');
     const hasExtensionCues = extensionSource.some((segment) => segment && segment.disabled !== true);
     const extensionAppearance = options.extensionAppearance || appearance;
     const extensionStyle = assMode && options.assExtensionStyle && typeof options.assExtensionStyle === 'object'
@@ -17732,15 +17733,51 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 2;
+  const layoutVersion = 3;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
   }
+  function normalizeWrapping(raw={}) {
+    const wrapMode=raw.wrapMode===undefined?'auto':raw.wrapMode,charsPerLine=raw.charsPerLine===undefined?20:raw.charsPerLine;
+    if(!['auto','characters'].includes(wrapMode))throw Error('字幕换行方式无效');
+    if(!Number.isInteger(charsPerLine)||charsPerLine<1||charsPerLine>200)throw Error('每行字数必须是 1–200 的整数');
+    return {wrapMode,charsPerLine};
+  }
+  function characters(text) {
+    const units=[];let regional=0;
+    for(const char of text){
+      const code=char.codePointAt(0),flag=code>=0x1f1e6&&code<=0x1f1ff;
+      const attached=/\p{Mark}/u.test(char)||char==='\u200d'||code>=0x1f3fb&&code<=0x1f3ff||code>=0xe0020&&code<=0xe007f;
+      if(units.length&&(attached||units.at(-1).endsWith('\u200d')||flag&&regional%2))units[units.length-1]+=char;
+      else units.push(char);
+      regional=flag?regional+1:0;
+    }
+    return units;
+  }
+  function wrapText(text,style={}) {
+    text=String(text??'');if(style.wrapMode!=='characters')return text;
+    const count=normalizeWrapping(style).charsPerLine,lines=[];
+    for(const line of text.replace(/\r\n?/g,'\n').split('\n')){
+      const units=characters(line);
+      for(let i=0;i<units.length;i+=count)lines.push(units.slice(i,i+count).join(''));
+      if(!units.length)lines.push('');
+    }
+    return lines.join('\n');
+  }
+  function wrapCues(cues=[],style={}) {
+    return style?.wrapMode==='characters'?cues.map(c=>({...c,text:wrapText(c.text,style)})):cues;
+  }
+  function renderProject(project,style=project.preview?.project_style) {
+    if(!style)return project;
+    const result={...project,segments:wrapCues(project.segments,style.main)};
+    if(project.multi_subtitle?.tracks)result.multi_subtitle={...project.multi_subtitle,tracks:project.multi_subtitle.tracks.map(t=>({...t,segments:wrapCues(t.segments,style.secondary)}))};
+    return result;
+  }
   function normalize(raw = {}) {
     return {schema, name: String(raw.name || '默认白字').slice(0, 80),
-      main: U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),
-      secondary: U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),
+      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{})},
+      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{})},
       animations: U.normalizeAssAnimations(raw.animations),
       ...(raw.pairLayout!==undefined?{pairLayout:normalizePair(raw.pairLayout)}:{}),
       ...(raw.legacyBurn ? {legacyBurn: clone(raw.legacyBurn)} : {})};
@@ -17854,6 +17891,7 @@ export default MawDynamicCaptions;
   // Preserve the old two-pass translucent background even in portable exports.
   // This mirrors subtitle_style.styled_ass's legacy branch, using the shared layout.
   function buildLegacyAss(project, options={}) {
+    project=renderProject(project);
     const raw=project.preview?.project_style?.legacyBurn;if(!raw)return null;
     const styles={};
     for(const [role,size,y] of [['main',48,.86],['secondary',40,.94]])styles[role]={font_family:'Arial',font_size:size,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y,width:.8,...raw[role]};
@@ -17888,7 +17926,7 @@ export default MawDynamicCaptions;
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);
 
 // Unified subtitle identities and derived layout. No DOM, media or persistence.
@@ -18156,6 +18194,7 @@ export default MawDynamicCaptions;
     return result;
   }
   function layout(project,styles,target='both',width=1920) {
+    project=global.MSWProjectStyle?.renderProject(project)||project;
     const pair=project.preview?.project_style?.pairLayout||project.preview?.subtitle_pair_layout;
     const entries=rows(project,pair?'both':target), byMain=new Map(), bySecondary=new Map();
     for(const b of project.multi_subtitle?.bindings||[]) {
@@ -19701,6 +19740,12 @@ export default MawDynamicCaptions;
     '动画': 'Animation',
     '主字幕在上': 'Main above',
     '副字幕在上': 'Secondary above',
+    '换行方式': 'Line wrapping',
+    '按字数': 'By character count',
+    '每行字数': 'Characters per line',
+    '字幕换行方式无效': 'Invalid subtitle wrapping mode',
+    '每行字数必须是 1–200 的整数': 'Characters per line must be an integer from 1 to 200',
+    '自动按画面宽度换行；按字数为每行字幕正文设置上限（1–200）。汉字、英文字母、标点、空格各计 1，常见组合表情不拆开；保留手动换行。画面过窄时仍可能提前换行。仅影响预览、ASS 和烧录，不改写正文或 SRT。': 'Automatic wraps to the video width. Character count limits each body-text line to 1–200 characters. Each Chinese character, Latin letter, punctuation mark and space counts as one; common combined emoji stay intact. Existing line breaks are preserved. Narrow frames may wrap earlier. Affects preview, ASS and burned subtitles without editing the source text or SRT.',
     '主副字幕间距': 'Main/secondary spacing',
     '以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。': 'Values use a 1080p reference and scale with the video. This is extra spacing between text line boxes: 0 adds no space; negative values compress the boxes and may cause overlap. Font size, typeface, outline and vertical scale affect visible spacing, so equal values need not leave equal gaps between glyph edges across styles. Further compression stops before reversing their order.',
     '交换主副样式（保留位置）': 'Swap main and secondary styling (keep positions)',
@@ -30209,6 +30254,7 @@ function layerExportMainSegments() {
 }
 
 function layerAssMargins(options, project = DATA, target = 'both') {
+  if(options.projectStyle)project={...project,preview:{...project.preview,project_style:options.projectStyle}};
   if(project.subtitle_layers?.presentation?.mode==='manual'&&!project.preview?.project_style?.pairLayout)return {main:{},secondary:{}};
   const resolution=window.AsrEditorUtils.normalizeAssPlayResolution(options.playResX,options.playResY);
   const styles={}, bases={};
@@ -30239,7 +30285,7 @@ function layerRefreshSubtitlePreview(tMs) {
       : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
   }
   const previewStyle=window.MSWSubtitleStyle?.currentPreview().style||DATA.preview?.project_style;
-  const cacheKey=JSON.stringify([styles,previewStyle?.pairLayout,DATA.subtitle_layers.presentation,metrics.stageWidth,metrics.stageHeight]);
+  const cacheKey=JSON.stringify([styles,previewStyle?.pairLayout,previewStyle?.main.wrapMode,previewStyle?.main.charsPerLine,previewStyle?.secondary.wrapMode,previewStyle?.secondary.charsPerLine,DATA.subtitle_layers.presentation,metrics.stageWidth,metrics.stageHeight]);
   if(!layerPresentationCache||layerPresentationCache.key!==cacheKey) layerPresentationCache={key:cacheKey,layout:window.MSWSubtitlePresentation.layout({...DATA,preview:{...DATA.preview,project_style:previewStyle}},styles,'both',1080*metrics.stageWidth/metrics.stageHeight)};
   const layout=layerPresentationCache.layout;
   layout.byKey ||= new Map(layout.entries.map(entry=>[entry.key,entry]));
@@ -32105,6 +32151,7 @@ function assExportOptions(appearance = getSubtitleAppearance()) {
   );
   return {
     title: PROJECT_NAME || FILENAME_BASE || 'MSW',
+    projectStyle: DATA.preview?.project_style,
     mediaMetadata: normalizeMediaMetadata(DATA.media_metadata),
     playResX: DATA.preview?.project_style ? Math.round(1080*(resolution?.width||1920)/(resolution?.height||1080)) : resolution?.width,
     playResY: DATA.preview?.project_style ? 1080 : resolution?.height,
@@ -45713,8 +45760,10 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const speakerLabelText = speakerLabelVisible
     ? `${speakerLabel}${speakerLabels.separator}`
     : '';
-  const mainText = mainVisible ? String(seg.text || '') : '';
-  const extensionText = extensionVisible ? (speakerLabels.mapping_enabled && speakerLabels.enabled ? window.AsrEditorUtils.formatSpeakerLabelledText(extension.text || '', extension, getActiveExtensionTrack()?.segments || [], speakerLabels.names, speakerLabels.separator) : extension.text || '') : '';
+  const previewStyle=window.MSWSubtitleStyle?.currentPreview().style;
+  const mainText = mainVisible ? window.MSWProjectStyle.wrapText(seg.text,previewStyle?.main) : '';
+  const wrappedExtension=extensionVisible?window.MSWProjectStyle.wrapText(extension.text,previewStyle?.secondary):'';
+  const extensionText = extensionVisible ? (speakerLabels.mapping_enabled && speakerLabels.enabled ? window.AsrEditorUtils.formatSpeakerLabelledText(wrappedExtension, extension, getActiveExtensionTrack()?.segments || [], speakerLabels.names, speakerLabels.separator) : wrappedExtension) : '';
   if (overlayMainSpeakerLabelEl.classList.contains('hidden') === speakerLabelVisible) {
     overlayMainSpeakerLabelEl.classList.toggle('hidden', !speakerLabelVisible);
   }
@@ -49055,6 +49104,7 @@ document.getElementById('download-ext-ass')?.addEventListener('click', async () 
     track.segments, EDITOR_SETTINGS.exportStartAtZero,
   );
   const options=assExportOptions(getStoredExtensionSubtitleAppearance());
+  if(options.projectStyle)options.projectStyle={...options.projectStyle,main:options.projectStyle.secondary};
   if(layerMode()) {
     options.assStyle=options.assExtensionStyle;
     const single={...DATA,segments:track.segments,multi_subtitle:{enabled:false},subtitle_layers:{...DATA.subtitle_layers,legacy_overlay:{visible:true,cue_ids:[]}}};
@@ -61569,7 +61619,7 @@ window.addEventListener('beforeunload', (e) => {
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
-  const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
+  const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
   const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
   function fields(rows,target,animation=false) {
     for(const [key,caption,type,min,max,step] of rows) {
@@ -61608,6 +61658,7 @@ window.addEventListener('beforeunload', (e) => {
   $('style-transform-preset').replaceChildren(...[...transformTags,['custom','自定义标签']].map(([id,name])=>new Option(t(name),id)));
   $('style-field-t-tags').closest('label').classList.add('msw-style-wide');$('style-field-t-tags').maxLength=512;
   $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
+  $('style-field-wrapMode').closest('label').dataset.optionHelp='自动按画面宽度换行；按字数为每行字幕正文设置上限（1–200）。汉字、英文字母、标点、空格各计 1，常见组合表情不拆开；保留手动换行。画面过窄时仍可能提前换行。仅影响预览、ASS 和烧录，不改写正文或 SRT。';
   global.MSWHelp?.hydrate(panel);
   let role='main',library=[],legacyLibrary=host.legacyAssLibrary(),selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
   let proof={mode:'project'},legacyProof=null;
@@ -61639,7 +61690,7 @@ window.addEventListener('beforeunload', (e) => {
     if(!$('video-export-style-preset').value)$('video-export-style-preset').value='default';
   }
   function sync() {
-    const style=value()||S.defaults();
+    const style=S.normalize(value()||S.defaults());
     const removable=library.find(s=>s.id===activePreset()&&same(s,style));
     $('style-delete-preset').disabled=saving||!removable;
     $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
@@ -61652,6 +61703,7 @@ window.addEventListener('beforeunload', (e) => {
     for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-pressed',String(role===r));
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
+    $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
     $('style-preview-mode').value=proof.mode;
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
     $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
@@ -61678,9 +61730,9 @@ window.addEventListener('beforeunload', (e) => {
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.clone(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&field!=='wrapMode'?Number(input.value):input.value;
     // Exact legacy burn parameters survive until the user deliberately edits them.
-    if(style.legacyBurn){
+    if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){
       const mapped={fontName:'font_family',fontSize:'font_size',primaryColor:'color',outlineColor:'outline_color',outline:'outline',backColor:'background_color'}[field];
       if(mapped && !(field==='fontSize'&&(v<8||v>200)) && !(field==='outline'&&v>12)) {style.legacyBurn[role] ||= {};style.legacyBurn[role][mapped]=v;}
       else {delete style.legacyBurn;message('已转换为工程 ASS 样式，请在播放器确认背景与位置。');}

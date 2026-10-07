@@ -1775,6 +1775,7 @@ function assExportOptions(appearance = getSubtitleAppearance()) {
   );
   return {
     title: PROJECT_NAME || FILENAME_BASE || 'MSW',
+    projectStyle: DATA.preview?.project_style,
     mediaMetadata: normalizeMediaMetadata(DATA.media_metadata),
     playResX: DATA.preview?.project_style ? Math.round(1080*(resolution?.width||1920)/(resolution?.height||1080)) : resolution?.width,
     playResY: DATA.preview?.project_style ? 1080 : resolution?.height,
@@ -15383,8 +15384,10 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const speakerLabelText = speakerLabelVisible
     ? `${speakerLabel}${speakerLabels.separator}`
     : '';
-  const mainText = mainVisible ? String(seg.text || '') : '';
-  const extensionText = extensionVisible ? (speakerLabels.mapping_enabled && speakerLabels.enabled ? window.AsrEditorUtils.formatSpeakerLabelledText(extension.text || '', extension, getActiveExtensionTrack()?.segments || [], speakerLabels.names, speakerLabels.separator) : extension.text || '') : '';
+  const previewStyle=window.MSWSubtitleStyle?.currentPreview().style;
+  const mainText = mainVisible ? window.MSWProjectStyle.wrapText(seg.text,previewStyle?.main) : '';
+  const wrappedExtension=extensionVisible?window.MSWProjectStyle.wrapText(extension.text,previewStyle?.secondary):'';
+  const extensionText = extensionVisible ? (speakerLabels.mapping_enabled && speakerLabels.enabled ? window.AsrEditorUtils.formatSpeakerLabelledText(wrappedExtension, extension, getActiveExtensionTrack()?.segments || [], speakerLabels.names, speakerLabels.separator) : wrappedExtension) : '';
   if (overlayMainSpeakerLabelEl.classList.contains('hidden') === speakerLabelVisible) {
     overlayMainSpeakerLabelEl.classList.toggle('hidden', !speakerLabelVisible);
   }
@@ -18725,6 +18728,7 @@ document.getElementById('download-ext-ass')?.addEventListener('click', async () 
     track.segments, EDITOR_SETTINGS.exportStartAtZero,
   );
   const options=assExportOptions(getStoredExtensionSubtitleAppearance());
+  if(options.projectStyle)options.projectStyle={...options.projectStyle,main:options.projectStyle.secondary};
   if(layerMode()) {
     options.assStyle=options.assExtensionStyle;
     const single={...DATA,segments:track.segments,multi_subtitle:{enabled:false},subtitle_layers:{...DATA.subtitle_layers,legacy_overlay:{visible:true,cue_ids:[]}}};

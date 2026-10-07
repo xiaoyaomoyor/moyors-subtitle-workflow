@@ -4,15 +4,51 @@
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 2;
+  const layoutVersion = 3;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
   }
+  function normalizeWrapping(raw={}) {
+    const wrapMode=raw.wrapMode===undefined?'auto':raw.wrapMode,charsPerLine=raw.charsPerLine===undefined?20:raw.charsPerLine;
+    if(!['auto','characters'].includes(wrapMode))throw Error('字幕换行方式无效');
+    if(!Number.isInteger(charsPerLine)||charsPerLine<1||charsPerLine>200)throw Error('每行字数必须是 1–200 的整数');
+    return {wrapMode,charsPerLine};
+  }
+  function characters(text) {
+    const units=[];let regional=0;
+    for(const char of text){
+      const code=char.codePointAt(0),flag=code>=0x1f1e6&&code<=0x1f1ff;
+      const attached=/\p{Mark}/u.test(char)||char==='\u200d'||code>=0x1f3fb&&code<=0x1f3ff||code>=0xe0020&&code<=0xe007f;
+      if(units.length&&(attached||units.at(-1).endsWith('\u200d')||flag&&regional%2))units[units.length-1]+=char;
+      else units.push(char);
+      regional=flag?regional+1:0;
+    }
+    return units;
+  }
+  function wrapText(text,style={}) {
+    text=String(text??'');if(style.wrapMode!=='characters')return text;
+    const count=normalizeWrapping(style).charsPerLine,lines=[];
+    for(const line of text.replace(/\r\n?/g,'\n').split('\n')){
+      const units=characters(line);
+      for(let i=0;i<units.length;i+=count)lines.push(units.slice(i,i+count).join(''));
+      if(!units.length)lines.push('');
+    }
+    return lines.join('\n');
+  }
+  function wrapCues(cues=[],style={}) {
+    return style?.wrapMode==='characters'?cues.map(c=>({...c,text:wrapText(c.text,style)})):cues;
+  }
+  function renderProject(project,style=project.preview?.project_style) {
+    if(!style)return project;
+    const result={...project,segments:wrapCues(project.segments,style.main)};
+    if(project.multi_subtitle?.tracks)result.multi_subtitle={...project.multi_subtitle,tracks:project.multi_subtitle.tracks.map(t=>({...t,segments:wrapCues(t.segments,style.secondary)}))};
+    return result;
+  }
   function normalize(raw = {}) {
     return {schema, name: String(raw.name || '默认白字').slice(0, 80),
-      main: U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),
-      secondary: U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),
+      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{})},
+      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{})},
       animations: U.normalizeAssAnimations(raw.animations),
       ...(raw.pairLayout!==undefined?{pairLayout:normalizePair(raw.pairLayout)}:{}),
       ...(raw.legacyBurn ? {legacyBurn: clone(raw.legacyBurn)} : {})};
@@ -126,6 +162,7 @@
   // Preserve the old two-pass translucent background even in portable exports.
   // This mirrors subtitle_style.styled_ass's legacy branch, using the shared layout.
   function buildLegacyAss(project, options={}) {
+    project=renderProject(project);
     const raw=project.preview?.project_style?.legacyBurn;if(!raw)return null;
     const styles={};
     for(const [role,size,y] of [['main',48,.86],['secondary',40,.94]])styles[role]={font_family:'Arial',font_size:size,color:'#ffffff',outline_color:'#000000',outline:2,background_color:'#000000',background_alpha:0,x:.5,y,width:.8,...raw[role]};
@@ -160,5 +197,5 @@
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);

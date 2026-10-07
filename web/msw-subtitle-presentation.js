@@ -13,6 +13,7 @@
     return result;
   }
   function layout(project,styles,target='both',width=1920) {
+    project=global.MSWProjectStyle?.renderProject(project)||project;
     const pair=project.preview?.project_style?.pairLayout||project.preview?.subtitle_pair_layout;
     const entries=rows(project,pair?'both':target), byMain=new Map(), bySecondary=new Map();
     for(const b of project.multi_subtitle?.bindings||[]) {

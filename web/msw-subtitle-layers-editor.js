@@ -251,6 +251,7 @@ function layerExportMainSegments() {
 }
 
 function layerAssMargins(options, project = DATA, target = 'both') {
+  if(options.projectStyle)project={...project,preview:{...project.preview,project_style:options.projectStyle}};
   if(project.subtitle_layers?.presentation?.mode==='manual'&&!project.preview?.project_style?.pairLayout)return {main:{},secondary:{}};
   const resolution=window.AsrEditorUtils.normalizeAssPlayResolution(options.playResX,options.playResY);
   const styles={}, bases={};
@@ -281,7 +282,7 @@ function layerRefreshSubtitlePreview(tMs) {
       : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
   }
   const previewStyle=window.MSWSubtitleStyle?.currentPreview().style||DATA.preview?.project_style;
-  const cacheKey=JSON.stringify([styles,previewStyle?.pairLayout,DATA.subtitle_layers.presentation,metrics.stageWidth,metrics.stageHeight]);
+  const cacheKey=JSON.stringify([styles,previewStyle?.pairLayout,previewStyle?.main.wrapMode,previewStyle?.main.charsPerLine,previewStyle?.secondary.wrapMode,previewStyle?.secondary.charsPerLine,DATA.subtitle_layers.presentation,metrics.stageWidth,metrics.stageHeight]);
   if(!layerPresentationCache||layerPresentationCache.key!==cacheKey) layerPresentationCache={key:cacheKey,layout:window.MSWSubtitlePresentation.layout({...DATA,preview:{...DATA.preview,project_style:previewStyle}},styles,'both',1080*metrics.stageWidth/metrics.stageHeight)};
   const layout=layerPresentationCache.layout;
   layout.byKey ||= new Map(layout.entries.map(entry=>[entry.key,entry]));

@@ -9,6 +9,7 @@ from pathlib import Path
 from maw.ass_styles import (DEFAULT_ASS_STYLE, DEFAULT_ASS_EXTENSION_STYLE,
     _normalize_style, _normalize_animation, default_ass_styles_path)
 from maw.file_io import atomic_write_text
+from maw.subtitle_wrapping import normalize_wrapping, render_project
 
 SCHEMA = 'msw.subtitle-style.v1'
 
@@ -34,6 +35,8 @@ def normalize_project_style(raw):
         main=_normalize_style(raw['main'], DEFAULT_ASS_STYLE, style_id='main'),
         secondary=_normalize_style(raw['secondary'], DEFAULT_ASS_EXTENSION_STYLE, style_id='secondary'),
         animations=_normalize_animation(raw.get('animations')))
+    for role in ('main', 'secondary'):
+        result[role].update(normalize_wrapping(raw[role]))
     if 'legacyBurn' in raw:
         from maw.msw.subtitle_style import normalize_styles
         result['legacyBurn'] = normalize_styles(raw['legacyBurn'])
@@ -59,7 +62,7 @@ def apply_project_style(project):
     if raw is None:
         return project
     style = normalize_project_style(raw)
-    result = dict(project, preview=dict(project.get('preview') or {}))
+    result = dict(render_project(project, style), preview=dict(project.get('preview') or {}))
     result['preview'].pop('project_style', None)
     result['preview'].pop('subtitle_pair_layout', None)
     if 'pairLayout' in style:

@@ -171,3 +171,32 @@ test('failed preset save can be retried without mutating the project or duplicat
   expect(saved.presets.filter(s=>s.name==='可重试预设')).toHaveLength(1);
   expect(saved.presets.find(s=>s.name==='可重试预设').main.fontSize).toBe(53);
 });
+
+test('wrapping controls are independent, persist with presets and leave proofreading independent',async({page},info)=>{
+  await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');h.data.multi_subtitle={enabled:true,tracks:[{id:'s',segments:[]}]};dispatchEvent(new Event('msw:subtitles-changed'));});
+  await page.locator('#style-project-preset').selectOption('default');
+  await expect(page.locator('#style-field-wrapMode')).toHaveValue('auto');await expect(page.locator('#style-field-charsPerLine')).toBeHidden();
+  await page.locator('#style-preview-mode').selectOption('contrast');
+  await page.locator('#style-field-wrapMode').selectOption('characters');await edit(page,'#style-field-charsPerLine','7');
+  await page.locator('#style-secondary').click();await expect(page.locator('#style-field-wrapMode')).toHaveValue('auto');
+  await page.locator('#style-field-wrapMode').selectOption('characters');await edit(page,'#style-field-charsPerLine','11');
+  await expect(page.locator('#style-preview-mode')).toHaveValue('contrast');
+  expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().style.main.wrapMode)).toBe('auto');
+  await page.evaluate(()=>performUndo());await expect(page.locator('#style-field-charsPerLine')).toHaveValue('20');
+  await page.evaluate(()=>performRedo());await expect(page.locator('#style-field-charsPerLine')).toHaveValue('11');
+  await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('换行预设回归');await page.locator('#style-save-preset').click();await expect(page.locator('#style-message')).toContainText('预设已保存');
+  await page.locator('#style-project-preset').selectOption('default');await expect(page.locator('#style-field-charsPerLine')).toBeHidden();
+  await page.locator('#style-project-preset').selectOption({label:'换行预设回归'});await expect(page.locator('#style-field-charsPerLine')).toHaveValue('11');
+  await page.locator('#style-main').click();await expect(page.locator('#style-field-charsPerLine')).toHaveValue('7');
+  await page.locator('#style-preview-mode').selectOption('project');
+  const saved=await page.evaluate(()=>JSON.parse(buildJson()));
+  await page.evaluate(p=>applyCanonicalProject(p,'wrapped.mosp'),saved);await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.ready)).toBe(true);
+  await expect(page.locator('#style-field-wrapMode')).toHaveValue('characters');await expect(page.locator('#style-field-charsPerLine')).toHaveValue('7');
+  await page.locator('#style-field-charsPerLine').fill('0');await page.locator('#style-field-charsPerLine').dispatchEvent('change');
+  expect((await project(page)).main.charsPerLine).toBe(7);
+  await page.locator('#style-field-charsPerLine').fill('7');await page.locator('#style-main').click();
+  await page.locator('#media-settings-modal').evaluate(el=>el.style.width='360px');
+  expect(await page.locator('.media-settings-body').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await page.locator('#style-field-charsPerLine').scrollIntoViewIfNeeded();
+  await page.locator('#media-settings-modal').screenshot({path:info.outputPath('wrapping-narrow.png')});
+});

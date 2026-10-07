@@ -31,7 +31,7 @@
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
-  const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
+  const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
   const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
   function fields(rows,target,animation=false) {
     for(const [key,caption,type,min,max,step] of rows) {
@@ -70,6 +70,7 @@
   $('style-transform-preset').replaceChildren(...[...transformTags,['custom','自定义标签']].map(([id,name])=>new Option(t(name),id)));
   $('style-field-t-tags').closest('label').classList.add('msw-style-wide');$('style-field-t-tags').maxLength=512;
   $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
+  $('style-field-wrapMode').closest('label').dataset.optionHelp='自动按画面宽度换行；按字数为每行字幕正文设置上限（1–200）。汉字、英文字母、标点、空格各计 1，常见组合表情不拆开；保留手动换行。画面过窄时仍可能提前换行。仅影响预览、ASS 和烧录，不改写正文或 SRT。';
   global.MSWHelp?.hydrate(panel);
   let role='main',library=[],legacyLibrary=host.legacyAssLibrary(),selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
   let proof={mode:'project'},legacyProof=null;
@@ -101,7 +102,7 @@
     if(!$('video-export-style-preset').value)$('video-export-style-preset').value='default';
   }
   function sync() {
-    const style=value()||S.defaults();
+    const style=S.normalize(value()||S.defaults());
     const removable=library.find(s=>s.id===activePreset()&&same(s,style));
     $('style-delete-preset').disabled=saving||!removable;
     $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
@@ -114,6 +115,7 @@
     for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-pressed',String(role===r));
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
+    $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
     $('style-preview-mode').value=proof.mode;
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
     $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
@@ -140,9 +142,9 @@
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.clone(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&field!=='wrapMode'?Number(input.value):input.value;
     // Exact legacy burn parameters survive until the user deliberately edits them.
-    if(style.legacyBurn){
+    if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){
       const mapped={fontName:'font_family',fontSize:'font_size',primaryColor:'color',outlineColor:'outline_color',outline:'outline',backColor:'background_color'}[field];
       if(mapped && !(field==='fontSize'&&(v<8||v>200)) && !(field==='outline'&&v>12)) {style.legacyBurn[role] ||= {};style.legacyBurn[role][mapped]=v;}
       else {delete style.legacyBurn;message('已转换为工程 ASS 样式，请在播放器确认背景与位置。');}

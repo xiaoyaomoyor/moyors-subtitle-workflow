@@ -257,3 +257,19 @@ test('dynamic exports use source canvas size and reject invalid custom sizes', a
   expect(result.source).toEqual({ width: 1440, height: 1080 });
   expect(result.message).toContain('16–7680');
 });
+
+for(const legacy of [false,true])test(`character wrapping reaches full, gap-removed and secondary ASS without changing SRT (${legacy?'legacy':'modern'})`,async({page})=>{
+  await disableOnboarding(page);await stubSavePicker(page);await page.goto(server.url);await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.ready)).toBe(true);
+  const data=await page.evaluate(legacy=>{
+    const S=window.MSWProjectStyle,h=window.MSWE.resolve('processing-host'),p=h.data,style=legacy?S.fromBurn({}):S.defaults();
+    style.main.wrapMode='characters';style.main.charsPerLine=3;style.secondary.wrapMode='characters';style.secondary.charsPerLine=2;
+    p.segments=[{id:'m',start:0,end:1000,text:'ABCDEF',items:[]}];p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,tracks:[{id:'s',role:'extension',segments:[{id:'s1',start:0,end:1000,text:'甲乙丙丁',items:[]}]}],bindings:[]};
+    p.gap_remove={schema:'moy.asr.gap_remove.v1',gaps:[{start:2000,end:3000,removed:true}],skip_playback:true};
+    h.commitProjectStyle(style);dispatchEvent(new Event('msw:subtitles-changed'));updateGapRemoveUi();renderAll();
+    return {ass:buildAss(),gapAss:buildGapRemovedAss(),srt:buildExtensionSrt(),source:JSON.parse(buildJson()).segments};
+  },legacy);
+  for(const ass of [data.ass,data.gapAss]){expect(ass).toContain('ABC\\NDEF');expect(ass).toContain('甲乙\\N丙丁');}
+  expect(data.srt).toContain('甲乙丙丁');expect(data.source[0].text).toBe('ABCDEF');
+  await clickMenubarItem(page,'文件','download-ext-ass');await expect.poll(()=>page.evaluate(()=>window.__exportSaves.length)).toBe(1);
+  const saved=await page.evaluate(()=>window.__exportSaves[0]);expect(saved.content).toContain('甲乙\\N丙丁');expect(saved.content).not.toContain('ABC');
+});

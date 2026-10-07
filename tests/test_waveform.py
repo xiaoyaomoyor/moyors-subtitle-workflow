@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import json
 import os
 import shutil
 import struct
@@ -282,7 +283,12 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('this.cues = document.getElementById(\'cues-container\')', page)
         self.assertIn('flex-direction: column;', page)
         self.assertIn("class WaveformEditor", page)
-        self.assertIn('const DATA = {"segments": []', page)
+        # Validate the injected payload through the current migration entrypoint.
+        marker = 'const DATA = prepareLayerProject('
+        self.assertIn(marker, page)
+        payload, end = json.JSONDecoder().raw_decode(page.split(marker, 1)[1])
+        self.assertEqual(payload['segments'], [])
+        self.assertTrue(page.split(marker, 1)[1][end:].startswith(');'))
         self.assertIn('id="save-project"', page)
         self.assertIn('id="save-project-as"', page)
         self.assertIn('const SERVER_CONFIG = null;', page)
@@ -555,9 +561,9 @@ class EditorAssetTests(unittest.TestCase):
             self.assertIn(f"container.classList.toggle('hide-cue-{field}'", page)
         self.assertIn('id="cue-list-show-sticker" checked> 表情包', page)
         self.assertIn("container.classList.toggle('hide-cue-sticker'", page)
-        self.assertIn('id="cue-list-auto-scroll-on-click" checked', page)
-        self.assertIn('cueListAutoScrollOnClick: saved.cueListAutoScrollOnClick !== false', page)
-        self.assertIn('if (EDITOR_SETTINGS.cueListAutoScrollOnClick && !state?.preserveListScroll)', page)
+        self.assertIn('id="cue-list-follow-playback" checked', page)
+        self.assertIn('cueListFollowPlayback: saved.cueListFollowPlayback !== false', page)
+        self.assertIn("restoreCueListVisualAnchor(null, { scrollTop: state.listScrollBeforeClick }, 'navigate');", page)
         self.assertIn("function captureCueListRenderAnchor", page)
         self.assertIn('id="cue-list-follow"', page)
         self.assertIn('cueListShowIndex: saved.cueListShowIndex !== false', page)
@@ -587,7 +593,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('title="媒体总时长 · 波形峰值点数 · 源音频试听增益"', page)
         # 每个模块都有顶部栏承载手柄；播放器栏的预览开关已收进媒体播放器设置
         self.assertIn('class="toolbar player-toolbar"', page)
-        self.assertIn('class="toolbar cue-list-toolbar"', page)
+        self.assertIn('class="cues-container" id="cues-container"', page)
         self.assertIn('class="toolbar waveform-toolbar"', page)
         self.assertNotIn('class="toolbar row-subtitle"', page)
         self.assertNotIn('class="toolbar row-waveform"', page)
@@ -630,14 +636,15 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('if (e.target === cuePanelText) return;', page)
         self.assertIn('.cue .sticker-slot {\n    flex: 0 1 80px; min-width: 40px;', page)
         self.assertIn('.cue .time {\n    font-size: 11px;', page)
-        # 时间码列由字幕列表容器统一切换：宽时单行，窄于 700px 时所有行一起变成两行。
+        # 时间码随列表容器压缩：窄于 460px 使用紧凑码，继续变窄时逐级隐藏。
         self.assertIn('container: cue-list / inline-size;', page)
         self.assertIn('grid-template-areas: "start arrow end";', page)
         # 时间盒为弹性（帧模式长码可收缩裁切，不再溢出压到字数）；
         # 上限必须 px——ch 会随压缩态 font-size:0 坍缩成 0 把时间裁没（回归修复）
         self.assertIn('width: auto; max-width: 158px; min-width: 0; overflow: hidden;', page)
         self.assertIn('@container cue-list (max-width: 700px)', page)
-        self.assertIn('"start arrow"\n        "end end";', page)
+        self.assertIn('@container cue-list (max-width: 460px)', page)
+        self.assertIn('content: attr(data-compact);', page)
         self.assertIn("timeStartEl.className = 'time-start';", page)
         self.assertIn("timeArrowEl.className = 'time-arrow';", page)
         self.assertIn("timeEndEl.className = 'time-end';", page)

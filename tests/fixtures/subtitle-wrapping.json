@@ -1,0 +1,37 @@
+[
+  {
+    "text": "春眠不觉晓处处闻啼鸟",
+    "count": 5,
+    "expected": "春眠不觉晓\n处处闻啼鸟"
+  },
+  {
+    "text": "abcdefghij",
+    "count": 4,
+    "expected": "abcd\nefgh\nij"
+  },
+  {
+    "text": "甲A 乙!丙",
+    "count": 3,
+    "expected": "甲A \n乙!丙"
+  },
+  {
+    "text": "ab\r\ncdef\n\nX",
+    "count": 2,
+    "expected": "ab\ncd\nef\n\nX"
+  },
+  {
+    "text": "A👩🏽‍💻🇨🇳éB",
+    "count": 2,
+    "expected": "A👩🏽‍💻\n🇨🇳é\nB"
+  },
+  {
+    "text": "",
+    "count": 1,
+    "expected": ""
+  },
+  {
+    "text": "{x}\\N",
+    "count": 3,
+    "expected": "{x}\n\\N"
+  }
+]

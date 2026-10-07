@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from maw import mopeaks, quapeaks, waveform
-from maw.output_naming import waveform_local_root
+from maw.output_naming import waveform_local_root, maw_root
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,18 +27,21 @@ class CacheBoundaryTests(unittest.TestCase):
 
     def test_read_only_directory_falls_back_to_source_scoped_local_binary_cache(self):
         original = tempfile.mkstemp
-        def create(*args, **kwargs):
-            if Path(kwargs['dir']).name == '_msw':
-                raise PermissionError('synthetic read-only media folder')
-            return original(*args, **kwargs)
-        with patch('maw.mopeaks.tempfile.mkstemp', side_effect=create):
-            cached = mopeaks.save_mopeaks(self.payload, self.media)
-        self.assertEqual(cached.parent, waveform_local_root(self.media))
-        self.assertEqual(mopeaks.load_mopeaks(self.media)['data'], self.payload['data'])
-        other = self.root / 'other' / self.media.name
-        other.parent.mkdir(); other.write_bytes(self.media.read_bytes())
-        self.assertNotEqual(waveform_local_root(other), waveform_local_root(self.media))
-        self.assertIsNone(mopeaks.load_mopeaks(other))
+        for per_video in (False, True):
+            with self.subTest(per_video=per_video), patch('maw.output_naming.subfolder_prefs', return_value=(True, per_video)):
+                sidecar_root = maw_root(self.media)
+                def create(*args, **kwargs):
+                    if Path(kwargs['dir']) == sidecar_root:
+                        raise PermissionError('synthetic read-only media folder')
+                    return original(*args, **kwargs)
+                with patch('maw.mopeaks.tempfile.mkstemp', side_effect=create):
+                    cached = mopeaks.save_mopeaks(self.payload, self.media)
+                self.assertEqual(cached.parent, waveform_local_root(self.media))
+                self.assertEqual(mopeaks.load_mopeaks(self.media)['data'], self.payload['data'])
+                other = self.root / 'other' / self.media.name
+                other.parent.mkdir(exist_ok=True); other.write_bytes(self.media.read_bytes())
+                self.assertNotEqual(waveform_local_root(other), waveform_local_root(self.media))
+                self.assertIsNone(mopeaks.load_mopeaks(other))
 
     def test_legacy_json_is_read_without_rewriting_or_deleting_it(self):
         legacy = self.root / '_maw' / 'source.waveform.json'

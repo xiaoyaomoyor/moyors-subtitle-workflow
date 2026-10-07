@@ -33,6 +33,23 @@ from maw.postprocess_pipeline import (
 
 
 class PostprocessPipelineTests(unittest.TestCase):
+    def test_resume_checks_actual_input_schema_before_mutating_manifest(self) -> None:
+        run = self.root / 'resume-v2'
+        run.mkdir()
+        resumed = run / 'step.mosp'
+        from maw.msw.subtitle_layers import migrate_project
+        resumed.write_text(json.dumps(migrate_project({'segments':[]})), encoding='utf-8')
+        manifest = run / 'manifest.json'
+        original = json.dumps({'version':1,'sourceProjectPath':str(resumed),'steps':[]}).encode()
+        manifest.write_bytes(original)
+        for explicit in (None, resumed):
+            with self.subTest(explicit=explicit), self.assertRaisesRegex(ValueError, '多层字幕工程'):
+                run_postprocess_pipeline(self.plan({'id':'replace','enabled':True,'replacements':[], 'conversion':'off'}),
+                    media_path=self.media, project_path=self.root/'missing.mosp', srt_path=self.srt,
+                    env_path=self.env_path, ffmpeg_path=None, cancel_event=Event(), resume_directory=run,
+                    resume_project_path=explicit)
+            self.assertEqual(manifest.read_bytes(), original)
+
     def test_disk_full_keeps_original_step_error_when_failure_manifest_also_fails(self) -> None:
         step = {"id": "translate", "enabled": True, "providerId": "deepseek", "target": "en"}
         disk_full = False

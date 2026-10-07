@@ -4866,7 +4866,8 @@
   }
 
   function buildAssPayload(segments, options = {}) {
-    const source = Array.isArray(segments) ? segments : [];
+    const wrap=(cues,role)=>window.MSWProjectStyle?.wrapCues(cues,options.projectStyle?.[role])||cues;
+    const source = wrap(Array.isArray(segments) ? segments : [],'main');
     const appearance = options.appearance && typeof options.appearance === 'object'
       ? options.appearance : {};
     const fontFamily = normalizeAssFontFamily(
@@ -4976,8 +4977,8 @@
     // 副字幕轨（多重字幕）：所有副字幕共用一个样式（不支持颜色分组），
     // 事件引用独立 Extension 样式，边距/对齐完全由该样式决定。
     // \fad/\fade/\t 逐句应用；\move 的绝对坐标只属于主字幕。
-    const extensionSource = Array.isArray(options.extensionSegments)
-      ? options.extensionSegments : [];
+    const extensionSource = wrap(Array.isArray(options.extensionSegments)
+      ? options.extensionSegments : [],'secondary');
     const hasExtensionCues = extensionSource.some((segment) => segment && segment.disabled !== true);
     const extensionAppearance = options.extensionAppearance || appearance;
     const extensionStyle = assMode && options.assExtensionStyle && typeof options.assExtensionStyle === 'object'

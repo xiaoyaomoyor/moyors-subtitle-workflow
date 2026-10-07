@@ -290,7 +290,8 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertEqual(result.read_bytes(), b"mp4")
         process.assert_called_once()
 
-    def test_flv_conversion_defaults_to_msw_cache(self) -> None:
+    @mock.patch("maw.output_naming.subfolder_prefs", return_value=(True, False))
+    def test_flv_conversion_defaults_to_msw_cache(self, _prefs) -> None:
         source = self.root / "take.flv"
         source.write_bytes(b"flv")
         ffmpeg = self.root / "ffmpeg.exe"
