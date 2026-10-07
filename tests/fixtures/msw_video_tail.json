@@ -1,10 +1,138 @@
 [
-  {"name":"native audio tail is not an edit", "media":10032,"picture":10000,"duration":10032,"expected":10000},
-  {"name":"browser rounding and waveform duration do not extend video", "media":10000,"picture":10000,"duration":10001,"expected":10000},
-  {"name":"freeze preserves native audio tail", "media":10032,"picture":10000,"duration":10032,"policy":"freeze","expected":10032},
-  {"name":"subtitle beyond picture needs decision even within audio tail", "media":10032,"picture":10000,"duration":10032,"cue_end":10020,"overflow":true,"expected":10020},
-  {"name":"explicit end beyond picture needs decision", "media":10032,"picture":10000,"duration":10032,"end":10015,"overflow":true,"expected":10015},
-  {"name":"secondary subtitle beyond picture needs decision", "media":10000,"picture":10000,"duration":10000,"secondary_end":12000,"overflow":true,"expected":12000},
-  {"name":"truncate retains a shorter custom range", "media":10032,"picture":10000,"duration":10032,"end":5000,"policy":"truncate","expected":5000},
-  {"name":"truncate removes authored tail", "media":10032,"picture":10000,"duration":10032,"cue_end":12000,"policy":"truncate","expected":10000}
+  {
+    "name": "native audio tail is not an edit",
+    "media": 10032,
+    "picture": 10000,
+    "duration": 10032,
+    "expected": 10000
+  },
+  {
+    "name": "browser rounding and waveform duration do not extend video",
+    "media": 10000,
+    "picture": 10000,
+    "duration": 10001,
+    "expected": 10000
+  },
+  {
+    "name": "freeze preserves native audio tail",
+    "media": 10032,
+    "picture": 10000,
+    "duration": 10032,
+    "policy": "freeze",
+    "expected": 10032,
+    "audio": 10032
+  },
+  {
+    "name": "subtitle beyond picture needs decision even within audio tail",
+    "media": 10032,
+    "picture": 10000,
+    "duration": 10032,
+    "cue_end": 10020,
+    "overflow": true,
+    "expected": 10020
+  },
+  {
+    "name": "explicit end beyond picture needs decision",
+    "media": 10032,
+    "picture": 10000,
+    "duration": 10032,
+    "end": 10015,
+    "overflow": true,
+    "expected": 10015
+  },
+  {
+    "name": "secondary subtitle beyond picture needs decision",
+    "media": 10000,
+    "picture": 10000,
+    "duration": 10000,
+    "secondary_end": 12000,
+    "overflow": true,
+    "expected": 12000
+  },
+  {
+    "name": "truncate retains a shorter custom range",
+    "media": 10032,
+    "picture": 10000,
+    "duration": 10032,
+    "end": 5000,
+    "policy": "truncate",
+    "expected": 5000
+  },
+  {
+    "name": "truncate removes authored tail",
+    "media": 10032,
+    "picture": 10000,
+    "duration": 10032,
+    "cue_end": 12000,
+    "policy": "truncate",
+    "expected": 10000
+  },
+  {
+    "name": "default video alignment trims authored tail",
+    "picture": 10000,
+    "media": 12000,
+    "duration": 12000,
+    "cue_end": 14000,
+    "expected": 10000,
+    "policy": "truncate"
+  },
+  {
+    "name": "audio shorter than picture trims picture",
+    "picture": 10000,
+    "media": 10000,
+    "audio": 8000,
+    "duration": 10000,
+    "policy": "freeze",
+    "expected": 8000
+  },
+  {
+    "name": "black holds longer audio",
+    "picture": 10000,
+    "media": 12000,
+    "audio": 12000,
+    "duration": 12000,
+    "policy": "black",
+    "expected": 12000
+  },
+  {
+    "name": "audio alignment respects a shorter range",
+    "picture": 10000,
+    "media": 12000,
+    "audio": 12000,
+    "duration": 12000,
+    "end": 6000,
+    "policy": "black",
+    "expected": 6000
+  },
+  {
+    "name": "range cannot manufacture audio beyond its end",
+    "picture": 10000,
+    "media": 12000,
+    "audio": 12000,
+    "duration": 12000,
+    "end": 18000,
+    "policy": "freeze",
+    "expected": 12000
+  },
+  {
+    "name": "subtitle-only tail does not extend audio alignment",
+    "picture": 10000,
+    "media": 10000,
+    "audio": 8000,
+    "duration": 18000,
+    "cue_end": 18000,
+    "policy": "black",
+    "expected": 8000
+  },
+  {
+    "name": "selected source track determines audio alignment",
+    "picture": 10000,
+    "media": 15000,
+    "audio": 8000,
+    "other_audio": 15000,
+    "source_audio_index": 1,
+    "duration": 15000,
+    "policy": "freeze",
+    "expected": 15000
+  }
 ]

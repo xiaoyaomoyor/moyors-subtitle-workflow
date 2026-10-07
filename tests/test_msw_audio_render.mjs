@@ -26,8 +26,8 @@ const videoCases = JSON.parse(fs.readFileSync(new URL('fixtures/msw_video_tail.j
 for (const c of videoCases) test(`video: ${c.name}`, () => {
   const project = {segments: c.cue_end ? [{start:0,end:c.cue_end,text:'main'}] : [],
     multi_subtitle:{tracks:[{segments:c.secondary_end ? [{start:0,end:c.secondary_end,text:'secondary'}] : []}]}};
-  const options = core.videoOptions(project, {duration_ms:c.duration,end_ms:c.end??null,video_tail:c.policy||'ask'},
-    {duration_ms:c.media,video:{duration_ms:c.picture}});
+  const options = core.videoOptions(project, {mode:'mix',source_audio_index:c.source_audio_index||0,duration_ms:c.duration,end_ms:c.end??null,video_tail:c.policy||'ask'},
+    {duration_ms:c.media,video:{duration_ms:c.picture},audio_tracks:[{audio_index:0,duration_ms:c.audio??c.media},{audio_index:1,duration_ms:c.other_audio??c.media}]});
   const plan = core.compile(project, options);
   assert.equal(plan.source_end_ms, c.expected);
   assert.equal(options.video_tail === 'ask' && plan.source_end_ms > c.picture, !!c.overflow);
@@ -43,4 +43,19 @@ test('invalid range, gain and empty export fail before rendering', () => {
     assert.throws(() => core.compile(fixtures[0].project, {...fixtures[0].options, ...options}));
   }
   assert.throws(() => core.compile({segments:[]}));
+});
+
+test('video audio alignment follows audible clips, selected content and requested boundaries',()=>{
+  const project=structuredClone(fixtures[0].project),info={video:{duration_ms:10000},audio_tracks:[{audio_index:0,duration_ms:6000}]};
+  const output=raw=>core.compile(project,core.videoOptions(project,{video_tail:'black',...raw},info));
+  assert.equal(output({mode:'voice'}).source_end_ms,4000);
+  assert.equal(output({mode:'mix'}).source_end_ms,6000);
+  assert.equal(output({mode:'mix',end_ms:3000}).source_end_ms,3000);
+  assert.equal(output({mode:'voice',remove_gaps:true}).sample_count,144000);
+  project.msw.audio_clips[0].muted=true;
+  assert.throws(()=>output({mode:'voice'}),/没有音频内容/);
+  assert.equal(output({mode:'mix'}).source_end_ms,6000);
+  project.msw.audio_clips[0].muted=false;project.msw.audio_tracks[0].muted=true;
+  assert.throws(()=>output({mode:'voice'}),/没有音频内容/);
+  assert.equal(core.compile(project,core.videoOptions(project,{},info)).source_end_ms,10000);
 });

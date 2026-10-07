@@ -88,7 +88,7 @@ class AudioExports:
         info = probe_source(tools.ffprobe, source, threading.Event()) if video and tools.complete and source and Path(source).is_file() else {}
         return dict(available=bool(tools.ffmpeg and tools.ffprobe), plan_schema=VERSION, source_available=bool(source and Path(source).is_file()),
                     media_reference=project.get("media"), audio_index=selected,
-                    video=info.get("video"), duration_ms=info.get("duration_ms"),
+                    video=info.get("video"), duration_ms=info.get("duration_ms"), video_alignment_version=2,
                     audio_tracks=info.get("audio_tracks", (project.get("media_metadata") or {}).get("audio_tracks", [])))
 
     def write(self, job):
@@ -171,11 +171,11 @@ class AudioExports:
             project.pop(cache, None)
         settings = options(payload.get("options"))
         settings.setdefault("format", "wav")
-        settings.setdefault("video_tail", "ask")
+        settings.setdefault("video_tail", "truncate")
         settings.setdefault("video_encoding", "auto")
         settings.setdefault("collect_media", True)
         settings.setdefault('burn_subtitles', 'none')
-        if (settings["format"] not in {"wav", "mp4", "otioz"} or settings["video_tail"] not in {"ask", "truncate", "freeze"}
+        if (settings["format"] not in {"wav", "mp4", "otioz"} or settings["video_tail"] not in {"ask", "truncate", "freeze", "black"}
                 or settings["video_encoding"] not in {"auto", "h264"} or type(settings["collect_media"]) is not bool):
             raise ValueError("导出格式或视频选项无效")
         if settings['burn_subtitles'] not in {'none', 'main', 'secondary', 'both'}:

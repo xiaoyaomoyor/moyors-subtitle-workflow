@@ -1855,7 +1855,7 @@
   .audio-volume-control input[type="number"] { width: 70px; min-width: 0; padding: 5px; background: var(--btn-bg); color: var(--text-primary); border: 1px solid var(--btn-border); border-radius: var(--radius-sm); }
   .audio-volume-control input.is-mixed { opacity: .55; }
   @media (max-width: 480px) { .audio-volume-control { grid-template-columns: minmax(50px, 1fr) 55px 86px auto; gap: 5px; } }
-  #video-export-tail-field.is-overflow select { border-color: var(--wave-playhead); }
+  #video-export-subtitle-fields { margin-block: 10px; }
   #cue-editor-settings-panel :is(input:not([type="checkbox"]), select) { width: 100%; min-width: 0; box-sizing: border-box; }
   .subtitle-preview-settings-fields {
     display: grid; gap: 8px; width: 100%; min-width: 0;

@@ -52,7 +52,7 @@
       }
       return result;
     }
-    function selectedOptions({applyTail = true} = {}) {
+    function selectedOptions() {
       const custom = el('audio-export-range').value === 'custom';
       const numeric = id => {if(el(id).readOnly)return 0;const value=el(id).value;return value?.trim()?Number(value):NaN;};
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
@@ -66,7 +66,7 @@
         settings.video_tail = el('audio-export-tail').value;
         settings.video_encoding = el('audio-export-encoding').value;
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
-        return core.videoOptions(host.audioExportPreview(), settings, context, applyTail);
+        return core.videoOptions(host.audioExportPreview(), settings, context);
       }
       if (timeline) {
         settings.format = format;
@@ -85,22 +85,28 @@
       el('audio-export-start').disabled = Boolean(busy) || !available || !context?.available;
       el('audio-export-gap-hint').textContent = t(host.data.msw?.audio_settings?.gap_policy === 'follow'
         ? '移除空隙时，配音随媒体一起裁切。' : '移除空隙时，保留未静音贴片覆盖的区间。');
-      if (video) el('audio-export-tail-summary').textContent = '';
-      try {
-        if (video && context?.video) {
-          const raw = core.compile(host.audioExportPreview(), selectedOptions({applyTail:false}));
-          const extra = Math.max(0,raw.source_end_ms-context.video.duration_ms);
-          el('audio-export-tail-summary').textContent = `${t('原画面时长')} ${(context.video.duration_ms/1000).toFixed(3)} s · ${t('源范围终点')} ${(raw.source_end_ms/1000).toFixed(3)} s · ${t('超出')} ${(extra/1000).toFixed(3)} s`;
-          const nativeTail = Math.max(0, (context.duration_ms || 0) - context.video.duration_ms);
-          if (nativeTail) el('audio-export-tail-summary').textContent += ` · ${t('原媒体音画尾差')} ${(nativeTail/1000).toFixed(3)} s · ${t('默认按画面结尾；定格延长可保留原声尾部')}`;
-          el('audio-export-tail-field').classList.toggle('is-overflow',extra>0);
+      if(video) {
+        let status=t('正在读取音画时长');
+        if(context?.video) {
+          try {
+            const custom=el('audio-export-range').value==='custom',start=custom?Number(el('audio-export-start-time').value)*1000:0;
+            const end=custom?Number(el('audio-export-end-time').value)*1000:Infinity;
+            const audioEnd=core.audioEnd(host.audioExportPreview(),{mode:el('audio-export-mode').value,source_audio_index:Number(el('audio-export-stream').value||0)},context);
+            const delta=Math.round(Math.max(start,Math.min(end,audioEnd))-Math.max(start,Math.min(end,context.video.duration_ms)));
+            status=delta===0?t('音视频一致'):`${t(delta>0?'音频领先视频':'视频领先音频')} ${(Math.abs(delta)/1000).toFixed(3)} ${t('秒')}`;
+          } catch(_) {status=t('请先填写有效的导出范围');}
         }
+        el('audio-export-tail-help').textContent=[status,
+          t('对齐至视频：以画面结尾为准，裁去超出的音频；不足处补静音。'),
+          t('对齐至音频（定格）：以所选音频结尾为准，画面不足时定格末帧，过长时裁切。'),
+          t('对齐至音频（黑屏）：以所选音频结尾为准，画面不足时补黑屏，过长时裁切。')].join('\n');
+        global.MSWHelp?.refresh(el('audio-export-tail-field'));
+      }
+      try {
+        if(video&&context?.video&&context.video_alignment_version!==2)throw Error('视频对齐功能已更新，请重启本机编辑器服务并刷新页面');
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
         if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
         if (video && context && !context.video) throw Error('原媒体没有可导出的视频画面，请使用导出音频');
-        if (video && context?.video && plan.source_end_ms > context.video.duration_ms && o.video_tail === 'ask') {
-          throw Error('导出范围超出画面尾部，请选择截断到画面结尾或定格延长画面');
-        }
         if (video && o.burn_subtitles !== 'none') {
           const groups = [host.data.segments || [], host.data.multi_subtitle?.tracks?.[0]?.segments || []];
           const candidates = o.burn_subtitles === 'main' ? groups[0] : o.burn_subtitles === 'secondary' ? groups[1] : groups.flat();
@@ -293,6 +299,11 @@
     copy.querySelector(`#${kind}-export-jobs`).setAttribute('aria-label', kind === 'video' ? '视频导出任务' : '剪辑工程导出任务');
     copy.querySelector(`#${kind}-export-mode`).value = 'mix';
     copy.querySelector(`#${kind}-export-format-hint`).replaceWith(document.getElementById(`${kind}-export-fields`).content.cloneNode(true));
+    if(kind==='video') {
+      const monitor=copy.querySelector('#video-export-monitor-field');
+      monitor.classList.remove('msw-processing-field');
+      copy.querySelector('#video-export-subtitle-fields').append(monitor);
+    }
     blueprint.after(copy);
   }
   mount('audio');

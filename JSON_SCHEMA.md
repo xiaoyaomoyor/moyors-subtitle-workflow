@@ -983,6 +983,12 @@ Edge 使用 `generation.provider = "edge"`、`model = "edge-online"`，`voice` �
 
 快照中的 `gap_remove.gaps` 是编辑器 `buildJson()` 已投影的当前空隙决定；后台验证这些区间，再独立应用贴片保护和时间映射，不接受客户端提交的 FFmpeg 图或任意素材路径。共同计划夹具位于 `tests/fixtures/msw_audio_render.json`。导出格式、范围和总音量记录于本机导出任务，不成为工程设置；WAV 成品不自动添加到 TTS 素材库。
 
+### 视频导出范围对齐
+
+视频导出请求 `options.video_tail` 默认为 `truncate`（对齐至视频），另支持 `freeze`（对齐至音频，末帧延长）与 `black`（对齐至音频，黑屏填充）。旧 API 的 `ask` 仅保留兼容，新界面不提供。音频对齐以所选原声音轨与未静音配音末尾为准，`mode=voice` 不计原声；音频短于画面时裁切画面，空音频范围报错。监听音量、字幕末尾不参与音频长度计算。`start_ms/end_ms` 仍限定源范围，空隙移除在对齐后按共享计划执行。
+
+视频上下文增加 `video_alignment_version: 2`，`audio_tracks[*].duration_ms` 为音轨在源时间线上的结束位置（包含起点偏移）；以流时长或容器的音轨时长标签探测，缺少时长信息时回退到媒体总时长。前后端使用同一范围规则，后台重新探测实际媒体，不信任前端时长。此配置仅属于导出任务，不写入工程。
+
 ### 编辑器 ASR 应用与派生内容复核
 
 ASR 任务快照支持 `mode: whole/range/clips`，可选 `batch_id` 将同次操作的子任务归组。`clips` 的 `source.kind` 为 `clip`，`source.id/revision` 为音频素材 ID/SHA-256，`source.clip` 记录贴片 `id/asset_id/start_ms/source_in_sample/source_out_sample/playback_rate`（当前仅 1）；`source.duration_ms` 为完整素材样本时长向上取整，`range` 为裁剪后音频在时间线上的整数毫秒范围。后端仅按合法素材引用读取，以样本点裁剪，再将识别相对时间加上 `range.start`。增益／静音不属于识别内容版本。`batch_overlap` 标记同次选择的贴片范围重叠，阻止直接覆盖；该标记保留到重试。`targets` 保存当时受影响的主字幕，用于应用前比较；整个视频模式也只取视频时段内字幕。

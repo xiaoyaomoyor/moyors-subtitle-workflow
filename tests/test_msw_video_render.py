@@ -25,13 +25,30 @@ class VideoTailContractTests(unittest.TestCase):
                 project = {'segments': [{'start':0,'end':case['cue_end'],'text':'main'}] if case.get('cue_end') else []}
                 if case.get('secondary_end'):
                     project['multi_subtitle'] = {'tracks':[{'segments':[{'start':0,'end':case['secondary_end'],'text':'secondary'}]}]}
-                settings = dict(duration_ms=case['duration'], end_ms=case.get('end'), video_tail=case.get('policy','ask'))
-                info = dict(duration_ms=case['media'], video=dict(duration_ms=case['picture']))
+                settings = dict(mode='mix', source_audio_index=case.get('source_audio_index',0), duration_ms=case['duration'], end_ms=case.get('end'), video_tail=case.get('policy','ask'))
+                info = dict(duration_ms=case['media'], video=dict(duration_ms=case['picture']), audio_tracks=[dict(audio_index=0,duration_ms=case.get('audio',case['media'])),dict(audio_index=1,duration_ms=case.get('other_audio',case['media']))])
                 if case.get('overflow'):
                     with self.assertRaisesRegex(ValueError, '超出画面尾部'):
                         prepare(project, settings, info)
                 else:
                     self.assertEqual(prepare(project, settings, info)['source_end_ms'], case['expected'])
+
+    def test_alignment_follows_audible_content_and_requested_boundaries(self):
+        project=copy.deepcopy(FIXTURES[0]['project'])
+        info=dict(video=dict(duration_ms=10000),audio_tracks=[dict(audio_index=0,duration_ms=6000)])
+        def output(**options):
+            return prepare(project,dict(video_tail='black',**options),info)
+        self.assertEqual(output(mode='voice')['source_end_ms'],4000)
+        self.assertEqual(output(mode='mix')['source_end_ms'],6000)
+        self.assertEqual(output(mode='mix',end_ms=3000)['source_end_ms'],3000)
+        self.assertEqual(output(mode='voice',remove_gaps=True)['sample_count'],144000)
+        project['msw']['audio_clips'][0]['muted']=True
+        with self.assertRaisesRegex(ValueError,'没有音频内容'):output(mode='voice')
+        self.assertEqual(output(mode='mix')['source_end_ms'],6000)
+        project['msw']['audio_clips'][0]['muted']=False
+        project['msw']['audio_tracks'][0]['muted']=True
+        with self.assertRaisesRegex(ValueError,'没有音频内容'):output(mode='voice')
+        self.assertEqual(prepare(project,{},info)['source_end_ms'],10000)
 
 
 class VideoRenderTests(unittest.TestCase):
@@ -130,6 +147,7 @@ class VideoRenderTests(unittest.TestCase):
     def test_tail_requires_explicit_decision_and_can_freeze(self):
         with self.assertRaisesRegex(ValueError, '超出画面尾部'):
             self.export(end_ms=6000)
+        self.project['msw']['audio_clips'][0]['start_ms']=3000
         result, plan, _ = self.export(end_ms=6000, video_tail='freeze')
         self.assertEqual(plan['sample_count'], 288000)
         self.assertEqual(result['video_encoding'], 'h264')
@@ -215,10 +233,12 @@ class VideoRenderTests(unittest.TestCase):
             self.export(burn_subtitles='secondary')
         self.assertFalse((self.root / 'result.mp4').exists())
 
-    def test_tail_only_and_silent_video_work_without_voice_or_original_audio(self):
+    def test_no_audio_can_align_to_video_but_not_to_audio(self):
         self.project['msw']['audio_clips'] = []
-        _, plan, _ = self.export(mode='voice', end_ms=8000, start_ms=6000, video_tail='freeze')
-        self.assertEqual(plan['sample_count'], 96000)
+        with self.assertRaisesRegex(ValueError,'没有音频内容'):
+            self.export(mode='voice', video_tail='freeze')
+        _, plan, _ = self.export(mode='voice', video_tail='truncate')
+        self.assertEqual(plan['sample_count'], 192000)
 
     def test_cancel_does_not_publish_a_video(self):
         self.cancel.set()
@@ -274,3 +294,30 @@ class VideoRenderTests(unittest.TestCase):
                 return data.read()
         self.assertLess(max(pixel(.2)), 8)
         self.assertGreater(pixel(.8)[0], 200)
+
+    def test_freeze_and_black_tails_across_chunks_and_tail_only_ranges(self):
+        self.project['msw']['audio_clips'][0]['start_ms']=5000
+        for policy in ('freeze','black'):
+            for start in (0,6000):
+                with self.subTest(policy=policy,start=start), patch('maw.msw.video_render.CHUNK_SECONDS',.5):
+                    _,plan,output=self.export(mode='voice',start_ms=start,video_tail=policy)
+                    self.assertEqual(plan['source_end_ms'],8000)
+                    with tempfile.TemporaryFile() as data:
+                        run([str(self.tools.ffmpeg),'-v','error','-ss',str((7000-start)/1000),'-i',str(output),'-frames:v','1',
+                             '-f','rawvideo','-pix_fmt','rgb24','pipe:1'],self.cancel,stdout=data)
+                        data.seek(0);pixels=data.read()
+                    self.assertTrue(pixels)
+                    if policy=='black':self.assertLess(max(pixels),8)
+                    else:self.assertGreater(max(pixels),150)
+
+    def test_probe_uses_selected_audio_duration_instead_of_container(self):
+        short=self.root/'short.wav';short.write_bytes(make_wave([2000]*48000))
+        run([str(self.tools.ffmpeg),'-v','error','-y','-f','lavfi','-i','testsrc2=size=96x64:rate=24:duration=4',
+             '-i',str(short),'-i',str(self.audio),'-map','0:v','-map','1:a','-map','2:a','-c:v','libx264',
+             '-threads','1','-c:a','aac',str(self.source)],self.cancel)
+        self.info=probe_source(self.tools.ffprobe,self.source,self.cancel)
+        self.assertAlmostEqual(self.info['audio_tracks'][0]['duration_ms'],2000,delta=30)
+        self.assertAlmostEqual(self.info['audio_tracks'][1]['duration_ms'],4000,delta=30)
+        self.project['msw']['audio_clips']=[]
+        _,plan,_=self.export(video_tail='black',source_audio_index=0)
+        self.assertAlmostEqual(plan['source_end_ms'],2000,delta=30)

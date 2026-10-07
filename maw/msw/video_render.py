@@ -25,26 +25,45 @@ def frame_rate(video):
     return Fraction(30)
 
 
-def video_options(project, settings, info):
-    """Use picture length as the native baseline; audio tails are not edits.
+def audio_end(project, settings, info):
+    """End of the selected audio content on the source timeline, before gap cuts."""
+    from maw.msw.audio_plan import clip_end
+    ext = project.get('msw') or {}
+    assets = {a['id']: a for a in ext.get('assets', [])}
+    tracks = {t['id']: t for t in ext.get('audio_tracks', [])}
+    end = 0
+    if settings['mode'] == 'mix':
+        selected = next((t for t in info.get('audio_tracks', [])
+                         if t['audio_index'] == settings['source_audio_index']), None)
+        if selected:
+            end = selected.get('duration_ms', info.get('duration_ms', 0))
+    for clip in ext.get('audio_clips', []):
+        if not clip['muted'] and not tracks[clip['track_id']]['muted']:
+            end = max(end, math.ceil(clip_end(clip, assets[clip['asset_id']])))
+    return end
 
-    Contract: MSWAudioRender.videoOptions. Explicit ranges and authored cues /
-    clips still require a tail decision, even inside the native audio tail.
-    """
+
+def video_options(project, settings, info):
+    """Contract: MSWAudioRender.videoOptions; user range caps either alignment."""
     settings = options(settings)
+    policy = settings.setdefault('video_tail', 'truncate')
     end = info['video']['duration_ms']
+    if policy in {'freeze', 'black'}:
+        end = audio_end(project, settings, info)
+        if end <= settings['start_ms']:
+            raise ValueError('所选范围内没有音频内容，请选择对齐至视频或调整范围')
     settings['duration_ms'] = end
-    for track in (project.get('multi_subtitle') or {}).get('tracks', []):
-        for cue in track.get('segments', []):
-            if project.get('schema') == 'msw.project.v2' and (cue.get('disabled') or not project['multi_subtitle'].get('enabled')):
-                continue
-            settings['duration_ms'] = max(settings['duration_ms'], cue['end'])
-    if settings['end_ms'] is not None:
-        settings['duration_ms'] = max(settings['duration_ms'], settings['end_ms'])
-    if settings['video_tail'] == 'freeze':
-        settings['duration_ms'] = max(settings['duration_ms'], info['duration_ms'])
-    if settings['video_tail'] == 'truncate':
+    if policy != 'ask':
         settings['end_ms'] = min(settings['end_ms'] if settings['end_ms'] is not None else end, end)
+    else:
+        # Keep old clients' explicit overflow confirmation, absent from the new UI.
+        for track in (project.get('multi_subtitle') or {}).get('tracks', []):
+            for cue in track.get('segments', []):
+                if project.get('schema') == 'msw.project.v2' and (cue.get('disabled') or not project['multi_subtitle'].get('enabled')):
+                    continue
+                settings['duration_ms'] = max(settings['duration_ms'], cue['end'])
+        if settings['end_ms'] is not None:
+            settings['duration_ms'] = max(settings['duration_ms'], settings['end_ms'])
     return settings
 
 
@@ -108,11 +127,12 @@ def render_video(plan, output, tools, cancel, progress, resolve_asset, *, source
                         # Seek near the source point. For tail-only pieces read
                         # the last source second and clone its final frame.
                         seek = max(0, min(at, video["duration_ms"] / 1000 - 1))
-                        offset = max(0, min(at, video["duration_ms"] / 1000) - seek)
+                        offset = max(0, at - seek)
                         piece = root / f"part-{count}.mp4"
                         filters = (f"setpts=PTS-STARTPTS,fps={rate},"
                                    f"tpad=start_duration={max(0, video.get('start_ms', 0) / 1000 - seek):.9f}:"
-                                   f"stop_mode=clone:stop_duration={offset + frames / float(rate) + 1:.9f},"
+                                   f"stop_mode={'add' if settings.get('video_tail') == 'black' else 'clone'}:"
+                                   f"color=black:stop_duration={offset + frames / float(rate) + 1:.9f},"
                                    f"trim=start={offset:.9f},setpts=PTS-STARTPTS,"
                                    "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p")
                         local_captions = slice_burning_cues(captions, begin * 1000 / float(rate), (begin + frames) * 1000 / float(rate))

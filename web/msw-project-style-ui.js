@@ -97,9 +97,9 @@
     const chosen=host.data.preview?.project_style_selection;
     selectedPreset=chosen==='current'?'current':find(chosen)&&same(find(chosen),projectStyle())?chosen:all().find(s=>same(s,projectStyle()))?.id||'current';
     fill($('style-project-preset'),[['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
-    const selected=$('video-export-style-preset').value;
-    fill($('video-export-style-preset'),all().map(s=>[s.id,s.name]),selected || 'default');
-    if(!$('video-export-style-preset').value)$('video-export-style-preset').value='default';
+    const selected=$('video-export-style-source').value;
+    fill($('video-export-style-source'),[['project','跟随工程样式'],...all().map(s=>['preset:'+s.id,s.name])],selected || 'project');
+    if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
   }
   function sync() {
     const style=S.normalize(value()||S.defaults());
@@ -223,14 +223,15 @@
     void runLibraryAction(action,library.filter(s=>s.id!==action.id),()=>{message('预设已删除；工程样式保持不变。');$('style-save-as').focus();});
   };
   const exportPanel=$('video-export-panel');
+  const exportPreset=()=>find($('video-export-style-source').value.replace(/^preset:/,''));
   function syncExport() {
     const opened=exportPanel.getAttribute('aria-hidden')==='false',target=$('video-export-burn-subtitles').value;
-    const enabled=opened&&target!=='none',other=$('video-export-style-source').value==='preset';
-    $('video-export-style-choice').hidden=target==='none';$('video-export-preset-field').hidden=!other;
-    override=enabled?{style:S.normalize(other?(find($('video-export-style-preset').value)||S.defaults()):projectStyle()),target,label:other?(find($('video-export-style-preset').value)?.name||'默认白字'):'工程样式'}:null;
+    const enabled=opened&&target!=='none',other=$('video-export-style-source').value!=='project';
+    $('video-export-style-choice').hidden=target==='none';
+    override=enabled?{style:S.normalize(other?(exportPreset()||S.defaults()):projectStyle()),target,label:other?(exportPreset()?.name||'默认白字'):'工程样式'}:null;
     refresh();
   }
-  for(const id of ['video-export-burn-subtitles','video-export-style-source','video-export-style-preset'])$(id).addEventListener('change',syncExport);
+  for(const id of ['video-export-burn-subtitles','video-export-style-source'])$(id).addEventListener('change',syncExport);
   new MutationObserver(syncExport).observe(exportPanel,{attributes:true,attributeFilter:['aria-hidden']});
   const settingsPanel=$('media-settings-modal');
   new MutationObserver(()=>{
@@ -245,8 +246,8 @@
     applyExport:project=>{
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
-      const other=$('video-export-style-source').value==='preset';
-      S.apply(project,(other?find($('video-export-style-preset').value):projectStyle())||S.defaults());
+      const other=$('video-export-style-source').value!=='project';
+      S.apply(project,(other?exportPreset():projectStyle())||S.defaults());
     },
     get ready(){return ready;},get error(){return loadError;},request};
   async function initialize() {

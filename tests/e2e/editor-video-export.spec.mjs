@@ -75,7 +75,7 @@ test('export help is compact, pinnable and accessible without closing its panel'
   await open(page);
   const help=page.locator('#video-export-tail-field .msw-help-button');
   await help.click();
-  await expect(page.locator('#msw-option-help')).toContainText('原媒体音画尾差');
+  await expect(page.locator('#msw-option-help')).toContainText('音视频一致');
   await expect(page.locator('p[data-help-for="video-export-tail"]')).toBeHidden();
   await page.keyboard.press('Escape');
   await expect(page.locator('#msw-option-help')).toBeHidden();
@@ -111,43 +111,40 @@ test('monitor selection locks effective gain and snapshots it for export',async(
   await expect(page.locator('#video-export-voice-gain')).toHaveValue('-2');
 });
 
-test('burn styles persist and produce real preview and five-second sample',async({page})=>{
+test('subtitle preset selection is direct and keeps export fields in two columns',async({page},info)=>{
   await open(page);
-  await page.locator('#video-export-style-open').click();
-  await expect(page.locator('#burn-style-panel')).toBeVisible();
-  await page.locator('#burn-style-font_size').fill('8');
-  await page.locator('#burn-style-font_size').press('Tab');
-  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().preview.burn_subtitles.main.font_size)).toBeCloseTo(86.4);
-  await page.locator('#burn-style-color').fill('#e73377');
-  await page.locator('#burn-style-color').dispatchEvent('change');
-  await page.evaluate(()=>{window.MSWE.resolve('processing-host').player.currentTime=1.5;});
-  await page.locator('#burn-style-frame').click();
-  await expect(page.locator('#burn-style-image')).toBeVisible({timeout:30000});
-  await expect.poll(()=>page.locator('#burn-style-image').evaluate(i=>i.naturalWidth)).toBe(160);
-  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().preview.burn_subtitles.main.color)).toBe('#e73377');
-  if(process.env.MSW_UI_EVIDENCE_DIR)await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'burn-style.png')});
-  await page.locator('#burn-style-sample').click();
-  const card=page.locator('#video-export-jobs .msw-processing-job').first();
-  await expect(card.getByRole('button',{name:'下载 MP4',exact:true})).toBeVisible({timeout:30000});
-  await expect(card).toContainText('五秒样片');
-  const ready=page.waitForEvent('download');await card.getByRole('button',{name:'下载 MP4',exact:true}).click();
-  const output=join(dir,'sample.mp4');await (await ready).saveAs(output);
-  const info=JSON.parse(execFileSync(tool('ffprobe'),['-v','error','-show_format','-of','json',output],{encoding:'utf8',windowsHide:true}));
-  expect(Number(info.format.duration)).toBeCloseTo(5,1);
-  await expect(page.locator('#video-export-range')).toHaveValue('all');
-  await expect(page.locator('#video-export-tail')).toHaveValue('ask');
+  await expect(page.locator('#video-export-style-choice')).toBeHidden();
+  await page.locator('#video-export-burn-subtitles').selectOption('main');
+  const choice=page.locator('#video-export-style-source');
+  await expect(choice).toHaveValue('project');
+  await expect(choice.locator('option')).toHaveText(['跟随工程样式','默认白字','大字清晰','高对比底框','双语紧凑']);
+  await choice.selectOption('preset:large');
+  const result=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host'),p=h.exportProject();window.MSWSubtitleStyle.applyExport(p);return {size:p.preview.project_style.main.fontSize,original:h.data.preview.project_style.main.fontSize,preview:window.MSWSubtitleStyle.currentPreview().scope};});
+  expect(result.size).toBe(72);expect(result.original).not.toBe(72);expect(result.preview).toBe('export');
+  await page.setViewportSize({width:540,height:750});
+  const boxes=await page.locator('#video-export-subtitle-fields').evaluate(p=>[...p.querySelectorAll('label')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width};}));
+  expect(boxes[0].y).toBe(boxes[1].y);expect(boxes[0].w).toBeCloseTo(boxes[1].w,0);expect(boxes[2].w).toBeCloseTo(boxes[0].w,0);
+  expect(await page.locator('#video-export-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
+  await page.locator('#video-export-panel').screenshot({path:info.outputPath('video-export-compact.png')});
+  const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
+  await finish(page);expect((await submitted).postDataJSON().project.preview.project_style.main.fontSize).toBe(72);
+  await page.locator('#video-export-burn-subtitles').selectOption('none');await expect(page.locator('#video-export-style-choice')).toBeHidden();
 });
 
-test('native audio tail does not block untouched video but an explicit tail range does',async({page})=>{
+test('native audio tail is explained only in help and default export aligns to video',async({page})=>{
   await open(page);
-  await expect(page.locator('#video-export-tail-summary')).toContainText('原媒体音画尾差');
-  await expect(page.locator('#video-export-tail-summary')).toContainText('源范围终点 4.000 s');
-  await expect(page.locator('#video-export-start')).toBeEnabled();
+  await expect(page.locator('#video-export-tail')).toHaveValue('truncate');
+  await expect(page.locator('#video-export-tail option')).toHaveText(['对齐至视频','对齐至音频（定格）','对齐至音频（黑屏）']);
+  await expect(page.locator('#video-export-tail-summary')).toHaveCount(0);
+  await page.locator('#video-export-tail-field .msw-help-button').click();
+  await expect(page.locator('#msw-option-help')).toContainText('音频领先视频 0.032 秒');
+  await expect(page.locator('#msw-option-help')).toContainText('对齐至音频（黑屏）');
+  await expect(page.locator('#msw-option-help')).not.toContainText('原画面时长');
+  await page.keyboard.press('Escape');
   await page.locator('#video-export-range').selectOption('custom');
   await page.locator('#video-export-end-time').fill('4.020');
-  await expect(page.locator('#video-export-start')).toBeDisabled();
-  await expect(page.locator('#video-export-summary')).toContainText('超出画面尾部');
-  await page.locator('#video-export-range').selectOption('all');
+  await expect(page.locator('#video-export-start')).toBeEnabled();
+  await expect(page.locator('#video-export-summary')).toContainText('4.000 s');
   const {info}=await finish(page);expect(Number(info.format.duration)).toBeCloseTo(4,2);
 });
 
@@ -164,23 +161,42 @@ test('video optionally burns the chosen subtitle track and rejects an empty trac
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'video-burn-subtitles.png')});
 });
 
-test('longer voice requires a tail choice and the panel fits a small viewport', async ({page}) => {
-  await page.setViewportSize({width: 900, height: 600});
-  await page.evaluate(() => window.MSWE.resolve('processing-host').commitAudio('Extend voice', ext => {ext.audio_clips[0].start_ms = 4000;}));
+for(const policy of ['freeze','black'])test(`longer voice aligns to audio with ${policy} video padding`,async({page})=>{
+  await page.setViewportSize({width:900,height:600});
+  await page.evaluate(()=>window.MSWE.resolve('processing-host').commitAudio('Extend voice',ext=>{ext.audio_clips[0].start_ms=4000;}));
   await open(page);
-  await expect(page.locator('#video-export-summary')).toContainText('超出画面尾部');
-  await expect(page.locator('#video-export-tail-summary')).toContainText('原画面时长 4.000 s');
-  await expect(page.locator('#video-export-tail-summary')).toContainText('源范围终点 6.000 s');
-  await expect(page.locator('#video-export-tail-summary')).toContainText('超出 2.000 s');
-  await expect(page.locator('#video-export-start')).toBeDisabled();
-  await page.locator('#video-export-tail').selectOption('freeze');
   await page.locator('#video-export-remove-gaps').uncheck();
+  await expect(page.locator('#video-export-summary')).toContainText('4.000 s');
   await expect(page.locator('#video-export-start')).toBeEnabled();
-  await expect.poll(() => page.locator('#video-export-panel').evaluate(p => {
-    const r = p.getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
-  })).toBe(true);
-  const {info} = await finish(page);
-  expect(Number(info.format.duration)).toBeCloseTo(6, 1);
+  await page.locator('#video-export-tail-field .msw-help-button').click();
+  await expect(page.locator('#msw-option-help')).toContainText('音频领先视频 2.000 秒');
+  await page.keyboard.press('Escape');
+  await page.locator('#video-export-tail').selectOption(policy);
+  await page.locator('#video-export-remove-gaps').uncheck();
+  await expect(page.locator('#video-export-summary')).toContainText('6.000 s');
+  const {info}=await finish(page);expect(Number(info.format.duration)).toBeCloseTo(6,1);
+  const pixels=execFileSync(tool('ffmpeg'),['-v','error','-ss','5','-i',join(dir,'result.mp4'),'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{windowsHide:true});
+  expect(pixels.length).toBeGreaterThan(0);
+  if(policy==='black')expect(Math.max(...pixels)).toBeLessThan(8);else expect(Math.max(...pixels)).toBeGreaterThan(150);
+});
+
+test('voice-only audio alignment trims longer video and rejects empty audio',async({page})=>{
+  await open(page);await page.locator('#video-export-mode').selectOption('voice');
+  await page.locator('#video-export-tail').selectOption('black');
+  await page.locator('#video-export-remove-gaps').uncheck();
+  await page.locator('#video-export-tail-field .msw-help-button').click();
+  await expect(page.locator('#msw-option-help')).toContainText('视频领先音频 1.000 秒');
+  await page.keyboard.press('Escape');
+  const {info}=await finish(page);expect(Number(info.format.duration)).toBeCloseTo(3,1);
+  await page.evaluate(()=>window.MSWE.resolve('processing-host').commitAudio('Mute voice',ext=>{ext.audio_clips[0].muted=true;}));
+  await expect(page.locator('#video-export-start')).toBeDisabled();await expect(page.locator('#video-export-summary')).toContainText('没有音频内容');
+  await page.locator('#video-export-tail').selectOption('truncate');await expect(page.locator('#video-export-start')).toBeEnabled();
+});
+
+test('merged subtitle menu is named and ordered next to the secondary exports',async({page})=>{
+  const entries=await page.locator('#subtitle-export-menu > .dropdown-item').allTextContents();
+  const merged=entries.indexOf('合并主副字幕（SRT）');
+  expect(merged).toBeGreaterThan(0);expect(entries[merged+1]).toBe('副字幕（ASS）');
 });
 
 test('editable OTIOZ exports independent overlapping voice lanes and portable media', async ({page}) => {
@@ -207,4 +223,34 @@ test('editable OTIOZ exports independent overlapping voice lanes and portable me
     if (clip.OTIO_SCHEMA === 'Clip.2') expect(data.files).toContain(clip.media_references.DEFAULT_MEDIA.target_url);
   }
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'd4-timeline-export.png')});
+});
+
+test('all user presets are selectable and English export stays compact',async({page},info)=>{
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await page.evaluate(async()=>{
+    const preset={...window.MSWProjectStyle.defaults(),id:'custom-export',name:'Custom export preset'};
+    await window.MSWSubtitleStyle.request('subtitle-presets',{version:1,presets:[preset]});
+    localStorage.setItem('mawe.language','en');
+  });
+  await page.reload();await expect(page.locator('#editor-loading')).not.toBeVisible();
+  await open(page);await page.locator('#video-export-burn-subtitles').selectOption('both');
+  await expect(page.locator('#video-export-style-source option').last()).toHaveText('Custom export preset');
+  await page.locator('#video-export-style-source').selectOption('preset:custom-export');
+  await expect(page.locator('#video-export-style-choice')).toContainText('Subtitle style');
+  await page.locator('#video-export-tail-field .msw-help-button').click();
+  await expect(page.locator('#msw-option-help')).toContainText('Audio and video match');
+  await expect(page.locator('#msw-option-help')).toContainText('Audio (black)');
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({width:360,height:700});
+  expect(await page.locator('#video-export-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
+  await page.locator('#video-export-panel').screenshot({path:info.outputPath('video-export-english.png')});
+});
+
+test('old video backend is explicitly rejected until restart',async({page})=>{
+  await page.route('**/video-export-context?*',async route=>{
+    const response=await route.fetch(),body=await response.json();delete body.video_alignment_version;
+    await route.fulfill({response,json:body});
+  });
+  await open(page);await expect(page.locator('#video-export-summary')).toContainText('请重启本机编辑器服务');
+  await expect(page.locator('#video-export-start')).toBeDisabled();
 });

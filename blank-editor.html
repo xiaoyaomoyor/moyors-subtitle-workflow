@@ -1875,7 +1875,7 @@
   .audio-volume-control input[type="number"] { width: 70px; min-width: 0; padding: 5px; background: var(--btn-bg); color: var(--text-primary); border: 1px solid var(--btn-border); border-radius: var(--radius-sm); }
   .audio-volume-control input.is-mixed { opacity: .55; }
   @media (max-width: 480px) { .audio-volume-control { grid-template-columns: minmax(50px, 1fr) 55px 86px auto; gap: 5px; } }
-  #video-export-tail-field.is-overflow select { border-color: var(--wave-playhead); }
+  #video-export-subtitle-fields { margin-block: 10px; }
   #cue-editor-settings-panel :is(input:not([type="checkbox"]), select) { width: 100%; min-width: 0; box-sizing: border-box; }
   .subtitle-preview-settings-fields {
     display: grid; gap: 8px; width: 100%; min-width: 0;
@@ -6311,9 +6311,9 @@
         <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
           <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0" title="导出主字幕轨（SRT）">主字幕（SRT）</div>
-          <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">SRT（合并同时显示文本）</div>
           <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0" title="导出主字幕轨（ASS）">主字幕（ASS）</div>
           <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
+          <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">合并主副字幕（SRT）</div>
           <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
           <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按颜色导出字幕</div>
           <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
@@ -8907,15 +8907,13 @@
 <template id="video-export-fields">
   <div class="msw-processing-fields">
     <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
-    <label id="video-export-tail-field">导出范围超过原视频时<select id="video-export-tail"><option value="ask">超出时先选择处理方式</option><option value="truncate">按视频结尾截断成品</option><option value="freeze">定格最后一帧并延长</option></select></label>
-    <p id="video-export-tail-summary" class="msw-processing-hint"></p>
-    <p class="msw-processing-hint" data-help-for="video-export-tail">默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。</p>
+    <label id="video-export-tail-field">导出范围对齐<select id="video-export-tail"><option value="truncate">对齐至视频</option><option value="freeze">对齐至音频（定格）</option><option value="black">对齐至音频（黑屏）</option></select></label>
   </div>
-  <label class="msw-processing-field">烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
-  <div id="video-export-style-choice" hidden>
-    <label class="msw-processing-field">样式来源<select id="video-export-style-source"><option value="project">跟随工程样式</option><option value="preset">使用其他样式预设</option></select></label>
-    <label class="msw-processing-field" id="video-export-preset-field" hidden>样式预设<select id="video-export-style-preset"></select></label>
+  <div class="msw-processing-fields" id="video-export-subtitle-fields">
+    <label>烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
+    <label id="video-export-style-choice" hidden>字幕样式<select id="video-export-style-source"><option value="project">跟随工程样式</option></select></label>
   </div>
+  <p class="msw-processing-hint" id="video-export-tail-help" data-help-for="video-export-tail" hidden></p>
   <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。</p>
   <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">开启烧录后在播放器查看本次字幕样式。选择其他预设只影响本次视频，不改变工程样式；调整样式请前往媒体播放器设置。表情包不烧录。</p>
 </template>
@@ -18834,17 +18832,31 @@ export default MawDynamicCaptions;
     }
     return merged;
   }
-  // A video's native audio/container tail is not authored timeline content.
-  // Keep this contract aligned with video_render.video_options.
-  function videoOptions(project, raw, info, applyTail = true) {
+  function audioEnd(project, raw, info) {
+    const o=options(raw),ext=project.msw||{},core=global.MSWAudio;
+    const selected=(info?.audio_tracks||[]).find(t=>t.audio_index===o.source_audio_index);
+    let end=o.mode==='mix'&&selected?(selected.duration_ms??info.duration_ms??0):0;
+    const assets=new Map((ext.assets||[]).map(a=>[a.id,a]));
+    for(const clip of core.audible(ext))end=Math.max(end,Math.ceil(core.end(clip,assets.get(clip.asset_id))));
+    return end;
+  }
+  // Keep the source-range boundary shared with video_render.video_options.
+  function videoOptions(project, raw, info) {
     const out = options(raw), videoEnd = info?.video?.duration_ms;
+    out.video_tail??='truncate';
     if (!Number.isSafeInteger(videoEnd) || videoEnd <= 0) return out;
-    out.duration_ms = videoEnd;
-    for (const track of project.multi_subtitle?.tracks || [])
-      for (const cue of track.segments || []) if(project.schema!=='msw.project.v2'||(!cue.disabled&&project.multi_subtitle.enabled))out.duration_ms = Math.max(out.duration_ms, cue.end);
-    if (out.end_ms !== null) out.duration_ms = Math.max(out.duration_ms, out.end_ms);
-    if (out.video_tail === 'freeze') out.duration_ms = Math.max(out.duration_ms, info.duration_ms || 0);
-    if (applyTail && out.video_tail === 'truncate') out.end_ms = Math.min(out.end_ms ?? Infinity, videoEnd);
+    let end=videoEnd;
+    if(['freeze','black'].includes(out.video_tail)) {
+      end=audioEnd(project,out,info);
+      if(end<=out.start_ms)throw Error('所选范围内没有音频内容，请选择对齐至视频或调整范围');
+    }
+    out.duration_ms=end;
+    if(out.video_tail!=='ask')out.end_ms=Math.min(out.end_ms??end,end);
+    else {
+      for(const track of project.multi_subtitle?.tracks||[])for(const cue of track.segments||[])
+        if(project.schema!=='msw.project.v2'||(!cue.disabled&&project.multi_subtitle.enabled))out.duration_ms=Math.max(out.duration_ms,cue.end);
+      if(out.end_ms!==null)out.duration_ms=Math.max(out.duration_ms,out.end_ms);
+    }
     return out;
   }
   function compile(project, rawOptions = {}) {
@@ -18900,7 +18912,7 @@ export default MawDynamicCaptions;
       intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: levels.source,...(levels.sourceMuted?{muted:true}:{}) } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, videoOptions, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, audioEnd, videoOptions, removedRanges, compile });
 })(window);
 
 // Pure translation selection, placement and optimistic reconciliation.
@@ -19831,7 +19843,7 @@ export default MawDynamicCaptions;
     '组间距（1080p 基准）': 'Group spacing (1080p reference)',
     '先出现的字幕组': 'Earlier subtitle groups',
     '靠下显示': 'Place below', '靠上显示': 'Place above',
-    'SRT（合并同时显示文本）': 'SRT (merge simultaneous text)',
+    '合并主副字幕（SRT）': 'Merged main and secondary (SRT)',
     '仅合并导出文本，不修改工程；外部播放器不一定保留字幕层位置。': 'Merge exported text only. External players may not preserve layer positions.',
     '选择本次 ASR 替换目标': 'Choose ASR replacement targets',
     '只替换勾选的字幕，其他层保持原样。不勾选则作为新字幕插入。': 'Replace checked subtitles only. Leave all unchecked to insert a new layer.',
@@ -20310,14 +20322,20 @@ export default MawDynamicCaptions;
     "最长": "Longest",
     "段": "segments",
     "仅预览前 100 段": "Only the first 100 segments are previewed",
-    "导出范围超过原视频时": "When export extends beyond the source video",
-    "超出时先选择处理方式": "Require a choice when exceeded",
-    "按视频结尾截断成品": "End output at the video end",
-    "定格最后一帧并延长": "Extend with a frozen final frame",
-    "原画面时长": "Source video duration",
-    "源范围终点": "Source range end",
-    "超出": "Exceeded by",
-    "比较的是整个导出范围，包括尾部字幕与配音。截断会舍去成品中超出的部分；定格会延长最后一帧。仅影响本次导出，不删除工程内容。": "This compares the full export range, including trailing subtitles and audio. Truncation omits the excess from the output; freezing extends the last frame. Project content is preserved.",
+    '导出范围对齐': 'Export alignment',
+    '对齐至视频': 'Align to video',
+    '对齐至音频（定格）': 'Align to audio (freeze)',
+    '对齐至音频（黑屏）': 'Align to audio (black)',
+    '音视频一致': 'Audio and video match',
+    '音频领先视频': 'Audio extends beyond video by',
+    '视频领先音频': 'Video extends beyond audio by',
+    '正在读取音画时长': 'Reading audio and video durations',
+    '请先填写有效的导出范围': 'Enter a valid export range first',
+    '所选范围内没有音频内容，请选择对齐至视频或调整范围': 'No audio content in this range; align to video or adjust the range',
+    '视频对齐功能已更新，请重启本机编辑器服务并刷新页面': 'Video alignment was updated; restart the local editor service and refresh the page',
+    '对齐至视频：以画面结尾为准，裁去超出的音频；不足处补静音。': 'Video: end at the picture boundary; trim excess audio or pad it with silence.',
+    '对齐至音频（定格）：以所选音频结尾为准，画面不足时定格末帧，过长时裁切。': 'Audio (freeze): end at the selected audio boundary; freeze the final frame if needed, or trim longer video.',
+    '对齐至音频（黑屏）：以所选音频结尾为准，画面不足时补黑屏，过长时裁切。': 'Audio (black): end at the selected audio boundary; pad with black if needed, or trim longer video.',
     '音频贴片最多同时重叠三层，请先移动或裁剪现有贴片': 'Audio clips can overlap on at most three layers. Move or trim existing clips first.',
     '翻译所选字幕': 'Translate selected subtitles',
     '卡片显示': 'Card display',
@@ -61338,7 +61356,7 @@ window.addEventListener('beforeunload', (e) => {
       }
       return result;
     }
-    function selectedOptions({applyTail = true} = {}) {
+    function selectedOptions() {
       const custom = el('audio-export-range').value === 'custom';
       const numeric = id => {if(el(id).readOnly)return 0;const value=el(id).value;return value?.trim()?Number(value):NaN;};
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
@@ -61352,7 +61370,7 @@ window.addEventListener('beforeunload', (e) => {
         settings.video_tail = el('audio-export-tail').value;
         settings.video_encoding = el('audio-export-encoding').value;
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
-        return core.videoOptions(host.audioExportPreview(), settings, context, applyTail);
+        return core.videoOptions(host.audioExportPreview(), settings, context);
       }
       if (timeline) {
         settings.format = format;
@@ -61371,22 +61389,28 @@ window.addEventListener('beforeunload', (e) => {
       el('audio-export-start').disabled = Boolean(busy) || !available || !context?.available;
       el('audio-export-gap-hint').textContent = t(host.data.msw?.audio_settings?.gap_policy === 'follow'
         ? '移除空隙时，配音随媒体一起裁切。' : '移除空隙时，保留未静音贴片覆盖的区间。');
-      if (video) el('audio-export-tail-summary').textContent = '';
-      try {
-        if (video && context?.video) {
-          const raw = core.compile(host.audioExportPreview(), selectedOptions({applyTail:false}));
-          const extra = Math.max(0,raw.source_end_ms-context.video.duration_ms);
-          el('audio-export-tail-summary').textContent = `${t('原画面时长')} ${(context.video.duration_ms/1000).toFixed(3)} s · ${t('源范围终点')} ${(raw.source_end_ms/1000).toFixed(3)} s · ${t('超出')} ${(extra/1000).toFixed(3)} s`;
-          const nativeTail = Math.max(0, (context.duration_ms || 0) - context.video.duration_ms);
-          if (nativeTail) el('audio-export-tail-summary').textContent += ` · ${t('原媒体音画尾差')} ${(nativeTail/1000).toFixed(3)} s · ${t('默认按画面结尾；定格延长可保留原声尾部')}`;
-          el('audio-export-tail-field').classList.toggle('is-overflow',extra>0);
+      if(video) {
+        let status=t('正在读取音画时长');
+        if(context?.video) {
+          try {
+            const custom=el('audio-export-range').value==='custom',start=custom?Number(el('audio-export-start-time').value)*1000:0;
+            const end=custom?Number(el('audio-export-end-time').value)*1000:Infinity;
+            const audioEnd=core.audioEnd(host.audioExportPreview(),{mode:el('audio-export-mode').value,source_audio_index:Number(el('audio-export-stream').value||0)},context);
+            const delta=Math.round(Math.max(start,Math.min(end,audioEnd))-Math.max(start,Math.min(end,context.video.duration_ms)));
+            status=delta===0?t('音视频一致'):`${t(delta>0?'音频领先视频':'视频领先音频')} ${(Math.abs(delta)/1000).toFixed(3)} ${t('秒')}`;
+          } catch(_) {status=t('请先填写有效的导出范围');}
         }
+        el('audio-export-tail-help').textContent=[status,
+          t('对齐至视频：以画面结尾为准，裁去超出的音频；不足处补静音。'),
+          t('对齐至音频（定格）：以所选音频结尾为准，画面不足时定格末帧，过长时裁切。'),
+          t('对齐至音频（黑屏）：以所选音频结尾为准，画面不足时补黑屏，过长时裁切。')].join('\n');
+        global.MSWHelp?.refresh(el('audio-export-tail-field'));
+      }
+      try {
+        if(video&&context?.video&&context.video_alignment_version!==2)throw Error('视频对齐功能已更新，请重启本机编辑器服务并刷新页面');
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
         if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
         if (video && context && !context.video) throw Error('原媒体没有可导出的视频画面，请使用导出音频');
-        if (video && context?.video && plan.source_end_ms > context.video.duration_ms && o.video_tail === 'ask') {
-          throw Error('导出范围超出画面尾部，请选择截断到画面结尾或定格延长画面');
-        }
         if (video && o.burn_subtitles !== 'none') {
           const groups = [host.data.segments || [], host.data.multi_subtitle?.tracks?.[0]?.segments || []];
           const candidates = o.burn_subtitles === 'main' ? groups[0] : o.burn_subtitles === 'secondary' ? groups[1] : groups.flat();
@@ -61579,6 +61603,11 @@ window.addEventListener('beforeunload', (e) => {
     copy.querySelector(`#${kind}-export-jobs`).setAttribute('aria-label', kind === 'video' ? '视频导出任务' : '剪辑工程导出任务');
     copy.querySelector(`#${kind}-export-mode`).value = 'mix';
     copy.querySelector(`#${kind}-export-format-hint`).replaceWith(document.getElementById(`${kind}-export-fields`).content.cloneNode(true));
+    if(kind==='video') {
+      const monitor=copy.querySelector('#video-export-monitor-field');
+      monitor.classList.remove('msw-processing-field');
+      copy.querySelector('#video-export-subtitle-fields').append(monitor);
+    }
     blueprint.after(copy);
   }
   mount('audio');
@@ -61685,9 +61714,9 @@ window.addEventListener('beforeunload', (e) => {
     const chosen=host.data.preview?.project_style_selection;
     selectedPreset=chosen==='current'?'current':find(chosen)&&same(find(chosen),projectStyle())?chosen:all().find(s=>same(s,projectStyle()))?.id||'current';
     fill($('style-project-preset'),[['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
-    const selected=$('video-export-style-preset').value;
-    fill($('video-export-style-preset'),all().map(s=>[s.id,s.name]),selected || 'default');
-    if(!$('video-export-style-preset').value)$('video-export-style-preset').value='default';
+    const selected=$('video-export-style-source').value;
+    fill($('video-export-style-source'),[['project','跟随工程样式'],...all().map(s=>['preset:'+s.id,s.name])],selected || 'project');
+    if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
   }
   function sync() {
     const style=S.normalize(value()||S.defaults());
@@ -61811,14 +61840,15 @@ window.addEventListener('beforeunload', (e) => {
     void runLibraryAction(action,library.filter(s=>s.id!==action.id),()=>{message('预设已删除；工程样式保持不变。');$('style-save-as').focus();});
   };
   const exportPanel=$('video-export-panel');
+  const exportPreset=()=>find($('video-export-style-source').value.replace(/^preset:/,''));
   function syncExport() {
     const opened=exportPanel.getAttribute('aria-hidden')==='false',target=$('video-export-burn-subtitles').value;
-    const enabled=opened&&target!=='none',other=$('video-export-style-source').value==='preset';
-    $('video-export-style-choice').hidden=target==='none';$('video-export-preset-field').hidden=!other;
-    override=enabled?{style:S.normalize(other?(find($('video-export-style-preset').value)||S.defaults()):projectStyle()),target,label:other?(find($('video-export-style-preset').value)?.name||'默认白字'):'工程样式'}:null;
+    const enabled=opened&&target!=='none',other=$('video-export-style-source').value!=='project';
+    $('video-export-style-choice').hidden=target==='none';
+    override=enabled?{style:S.normalize(other?(exportPreset()||S.defaults()):projectStyle()),target,label:other?(exportPreset()?.name||'默认白字'):'工程样式'}:null;
     refresh();
   }
-  for(const id of ['video-export-burn-subtitles','video-export-style-source','video-export-style-preset'])$(id).addEventListener('change',syncExport);
+  for(const id of ['video-export-burn-subtitles','video-export-style-source'])$(id).addEventListener('change',syncExport);
   new MutationObserver(syncExport).observe(exportPanel,{attributes:true,attributeFilter:['aria-hidden']});
   const settingsPanel=$('media-settings-modal');
   new MutationObserver(()=>{
@@ -61833,8 +61863,8 @@ window.addEventListener('beforeunload', (e) => {
     applyExport:project=>{
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
-      const other=$('video-export-style-source').value==='preset';
-      S.apply(project,(other?find($('video-export-style-preset').value):projectStyle())||S.defaults());
+      const other=$('video-export-style-source').value!=='project';
+      S.apply(project,(other?exportPreset():projectStyle())||S.defaults());
     },
     get ready(){return ready;},get error(){return loadError;},request};
   async function initialize() {
@@ -62005,13 +62035,14 @@ window.addEventListener('beforeunload', (e) => {
   const popup = document.createElement('div');
   popup.id = 'msw-option-help'; popup.className = 'msw-option-help'; popup.role = 'tooltip'; popup.hidden = true;
   document.body.append(popup);
-  let active = null, pinned = false, timer;
+  let active = null, activeText = null, pinned = false, timer;
   function close() {
     clearTimeout(timer); active?.setAttribute('aria-expanded','false'); active = null; pinned = false; popup.hidden = true;
   }
   function show(button, text) {
     clearTimeout(timer);
     if (active !== button) {close();active = button;}
+    activeText = text;
     popup.textContent = t(typeof text === 'function' ? text() : text); popup.hidden = false;
     button.setAttribute('aria-expanded','true');
     const rect = button.getBoundingClientRect(), box = popup.getBoundingClientRect();
@@ -62056,7 +62087,7 @@ window.addEventListener('beforeunload', (e) => {
   document.addEventListener('pointerdown',e=>{if(active&&!active.contains(e.target)&&!popup.contains(e.target))close();},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&active){close();e.stopImmediatePropagation();e.preventDefault();}},true);
   global.addEventListener('resize',close);document.addEventListener('scroll',()=>{if(!pinned)close();},true);
-  global.MSWHelp = {hydrate,attach,close};hydrate();
+  global.MSWHelp = {hydrate,attach,close,refresh(root){if(active&&root.contains(active))show(active,activeText);}};hydrate();
 })(window);
 
 (() => {

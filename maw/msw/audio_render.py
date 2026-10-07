@@ -117,8 +117,24 @@ def probe_source(ffprobe, source, cancel):
                      width=s.get("width", 0), height=s.get("height", 0), pixel_format=s.get("pix_fmt"),
                      frame_rate=s.get("avg_frame_rate") or s.get("r_frame_rate"),
                      color_transfer=s.get("color_transfer"))
+    def audio_end_ms(stream):
+        # Stream duration is a length; Matroska's DURATION tag is an end timestamp.
+        try:
+            seconds = float(stream.get('duration', 0))
+            if math.isfinite(seconds) and seconds > 0:
+                offset = float(stream.get('start_time', 0)) - float(info.get('format', {}).get('start_time', 0))
+                return round_sample((seconds + max(0, offset if math.isfinite(offset) else 0)) * 1000)
+            parts = stream.get('tags', {}).get('DURATION', '').split(':')
+            if len(parts) == 3:
+                seconds = float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+                if math.isfinite(seconds) and seconds > 0:
+                    return round_sample(seconds * 1000)
+        except (TypeError, ValueError, OverflowError):
+            pass
+        return duration_ms
+
     return dict(duration_ms=duration_ms, video=video, audio_tracks=[
-        dict(audio_index=i, stream_index=s['index'], codec=s.get('codec_name', ''),
+        dict(audio_index=i, stream_index=s['index'], codec=s.get('codec_name', ''), duration_ms=audio_end_ms(s),
              sample_rate=int(s['sample_rate']) if s.get('sample_rate') else None,
              default=bool(s.get('disposition', {}).get('default')),
              channels=s.get("channels") or None, title=str(s.get("tags", {}).get("title", ""))[:160],

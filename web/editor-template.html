@@ -91,9 +91,9 @@ __WAVEFORM_CSS__
         <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
           <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0" title="导出主字幕轨（SRT）">主字幕（SRT）</div>
-          <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">SRT（合并同时显示文本）</div>
           <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0" title="导出主字幕轨（ASS）">主字幕（ASS）</div>
           <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
+          <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">合并主副字幕（SRT）</div>
           <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
           <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按颜色导出字幕</div>
           <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
@@ -2687,15 +2687,13 @@ __WAVEFORM_CSS__
 <template id="video-export-fields">
   <div class="msw-processing-fields">
     <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
-    <label id="video-export-tail-field">导出范围超过原视频时<select id="video-export-tail"><option value="ask">超出时先选择处理方式</option><option value="truncate">按视频结尾截断成品</option><option value="freeze">定格最后一帧并延长</option></select></label>
-    <p id="video-export-tail-summary" class="msw-processing-hint"></p>
-    <p class="msw-processing-hint" data-help-for="video-export-tail">默认以画面结尾为基准，原媒体音画尾差不视为新增内容。字幕、贴片或手动范围超出时才要求选择。截断舍去超出部分；定格延长最后一帧，也可保留原声尾部。仅影响本次导出。</p>
+    <label id="video-export-tail-field">导出范围对齐<select id="video-export-tail"><option value="truncate">对齐至视频</option><option value="freeze">对齐至音频（定格）</option><option value="black">对齐至音频（黑屏）</option></select></label>
   </div>
-  <label class="msw-processing-field">烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
-  <div id="video-export-style-choice" hidden>
-    <label class="msw-processing-field">样式来源<select id="video-export-style-source"><option value="project">跟随工程样式</option><option value="preset">使用其他样式预设</option></select></label>
-    <label class="msw-processing-field" id="video-export-preset-field" hidden>样式预设<select id="video-export-style-preset"></select></label>
+  <div class="msw-processing-fields" id="video-export-subtitle-fields">
+    <label>烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
+    <label id="video-export-style-choice" hidden>字幕样式<select id="video-export-style-source"><option value="project">跟随工程样式</option></select></label>
   </div>
+  <p class="msw-processing-hint" id="video-export-tail-help" data-help-for="video-export-tail" hidden></p>
   <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。</p>
   <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">开启烧录后在播放器查看本次字幕样式。选择其他预设只影响本次视频，不改变工程样式；调整样式请前往媒体播放器设置。表情包不烧录。</p>
 </template>

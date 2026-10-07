@@ -203,8 +203,7 @@ test('export selects a preset snapshot and restores proofreading on close',async
   await page.locator('#media-settings-close').click();
   await clickMenubarItem(page,'文件','video-export-btn');
   await page.locator('#video-export-burn-subtitles').selectOption('main');
-  await page.locator('#video-export-style-source').selectOption('preset');
-  await page.locator('#video-export-style-preset').selectOption('large');
+  await page.locator('#video-export-style-source').selectOption('preset:large');
   const result=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host'),p=h.exportProject();window.MSWSubtitleStyle.applyExport(p);return {output:p.preview.project_style,project:h.data.preview.project_style,preview:window.MSWSubtitleStyle.currentPreview()};});
   expect(result.output.main.fontSize).toBe(72);expect(result.project.main.fontSize).not.toBe(72);
   expect(result.preview.scope).toBe('export');expect(result.preview.target).toBe('main');

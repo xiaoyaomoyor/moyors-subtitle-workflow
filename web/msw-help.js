@@ -6,13 +6,14 @@
   const popup = document.createElement('div');
   popup.id = 'msw-option-help'; popup.className = 'msw-option-help'; popup.role = 'tooltip'; popup.hidden = true;
   document.body.append(popup);
-  let active = null, pinned = false, timer;
+  let active = null, activeText = null, pinned = false, timer;
   function close() {
     clearTimeout(timer); active?.setAttribute('aria-expanded','false'); active = null; pinned = false; popup.hidden = true;
   }
   function show(button, text) {
     clearTimeout(timer);
     if (active !== button) {close();active = button;}
+    activeText = text;
     popup.textContent = t(typeof text === 'function' ? text() : text); popup.hidden = false;
     button.setAttribute('aria-expanded','true');
     const rect = button.getBoundingClientRect(), box = popup.getBoundingClientRect();
@@ -57,5 +58,5 @@
   document.addEventListener('pointerdown',e=>{if(active&&!active.contains(e.target)&&!popup.contains(e.target))close();},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&active){close();e.stopImmediatePropagation();e.preventDefault();}},true);
   global.addEventListener('resize',close);document.addEventListener('scroll',()=>{if(!pinned)close();},true);
-  global.MSWHelp = {hydrate,attach,close};hydrate();
+  global.MSWHelp = {hydrate,attach,close,refresh(root){if(active&&root.contains(active))show(active,activeText);}};hydrate();
 })(window);

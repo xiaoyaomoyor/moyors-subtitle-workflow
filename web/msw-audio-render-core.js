@@ -50,17 +50,31 @@
     }
     return merged;
   }
-  // A video's native audio/container tail is not authored timeline content.
-  // Keep this contract aligned with video_render.video_options.
-  function videoOptions(project, raw, info, applyTail = true) {
+  function audioEnd(project, raw, info) {
+    const o=options(raw),ext=project.msw||{},core=global.MSWAudio;
+    const selected=(info?.audio_tracks||[]).find(t=>t.audio_index===o.source_audio_index);
+    let end=o.mode==='mix'&&selected?(selected.duration_ms??info.duration_ms??0):0;
+    const assets=new Map((ext.assets||[]).map(a=>[a.id,a]));
+    for(const clip of core.audible(ext))end=Math.max(end,Math.ceil(core.end(clip,assets.get(clip.asset_id))));
+    return end;
+  }
+  // Keep the source-range boundary shared with video_render.video_options.
+  function videoOptions(project, raw, info) {
     const out = options(raw), videoEnd = info?.video?.duration_ms;
+    out.video_tail??='truncate';
     if (!Number.isSafeInteger(videoEnd) || videoEnd <= 0) return out;
-    out.duration_ms = videoEnd;
-    for (const track of project.multi_subtitle?.tracks || [])
-      for (const cue of track.segments || []) if(project.schema!=='msw.project.v2'||(!cue.disabled&&project.multi_subtitle.enabled))out.duration_ms = Math.max(out.duration_ms, cue.end);
-    if (out.end_ms !== null) out.duration_ms = Math.max(out.duration_ms, out.end_ms);
-    if (out.video_tail === 'freeze') out.duration_ms = Math.max(out.duration_ms, info.duration_ms || 0);
-    if (applyTail && out.video_tail === 'truncate') out.end_ms = Math.min(out.end_ms ?? Infinity, videoEnd);
+    let end=videoEnd;
+    if(['freeze','black'].includes(out.video_tail)) {
+      end=audioEnd(project,out,info);
+      if(end<=out.start_ms)throw Error('所选范围内没有音频内容，请选择对齐至视频或调整范围');
+    }
+    out.duration_ms=end;
+    if(out.video_tail!=='ask')out.end_ms=Math.min(out.end_ms??end,end);
+    else {
+      for(const track of project.multi_subtitle?.tracks||[])for(const cue of track.segments||[])
+        if(project.schema!=='msw.project.v2'||(!cue.disabled&&project.multi_subtitle.enabled))out.duration_ms=Math.max(out.duration_ms,cue.end);
+      if(out.end_ms!==null)out.duration_ms=Math.max(out.duration_ms,out.end_ms);
+    }
     return out;
   }
   function compile(project, rawOptions = {}) {
@@ -116,5 +130,5 @@
       intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: levels.source,...(levels.sourceMuted?{muted:true}:{}) } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, videoOptions, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, audioEnd, videoOptions, removedRanges, compile });
 })(window);
