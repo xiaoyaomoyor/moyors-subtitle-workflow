@@ -9,6 +9,15 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '普通切分（绑定字幕先确认）': 'Split (confirm linked subtitles first)',
+    '快速切分（绑定字幕同步切开）': 'Quick split (cut linked subtitles together)',
+    '快速切分波形字幕块（主、副字幕均可）': 'Quick split waveform blocks (main or secondary)',
+    '快速切分使用波形鼠标位置；鼠标不在波形区时使用播放头。文字优先按逐词时间码分界，无可靠时间码时按时间比例估算，可撤销后用普通切分调整。': 'Quick split uses the waveform pointer, or the playhead outside the waveform. Text boundaries use reliable word timestamps when available and otherwise estimate by time ratio. Undo and use ordinary split to adjust.',
+    '未绑定字幕有可靠时间码时直接切分': 'Split unbound subtitles directly with reliable timestamps',
+    '仅用于未绑定字幕的普通切分；绑定字幕始终先确认文字分界': 'Applies to ordinary unbound cuts only. Linked subtitles always require confirmation.',
+    '普通切分时，绑定字幕或不确定的文字分界需在字幕编辑器中确认。快速切分可按时间直接切开；波形切分始终保留所选时间。': 'Ordinary cuts require confirmation for linked subtitles or uncertain text boundaries. Quick split cuts directly by time; waveform cuts always keep the chosen time.',
+    '请先确认或取消当前切分': 'Confirm or cancel the current split first',
+    '当前时间不在目标字幕内，请移动播放头或将鼠标移到波形字幕块上': 'The current time is outside the target subtitle. Move the playhead or point at a waveform subtitle block.',
     '联动切分': 'Split linked subtitles',
     '切分帮助': 'Split help',
     '主字幕文字分界': 'Main text split point',

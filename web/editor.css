@@ -138,11 +138,11 @@
     --wave-playhead:        #ff5d67;
     --wave-playhead-glow:   rgba(255, 70, 82, 0.72);
     --wave-pointer-line:    color-mix(in srgb, var(--text-secondary) 78%, transparent);
-    --wave-split-flash:     #ffd43b;
-    --wave-split-flash-glow: rgba(255, 212, 59, 0.85);
-    --wave-split-preview-bg:     #8d6a02;
-    --wave-split-preview-border: #ffd43b;
-    --wave-split-preview-fg:     #ffffff;
+    --wave-split-flash:     var(--accent);
+    --wave-split-flash-glow: color-mix(in srgb, var(--accent) 42%, transparent);
+    --wave-split-preview-bg:     var(--bg-overlay);
+    --wave-split-preview-border: var(--accent);
+    --wave-split-preview-fg:     var(--text-primary);
     --wave-disabled-text:   color-mix(in srgb, var(--text-secondary) 70%, var(--bg-base));
     --wave-disabled-border: color-mix(in srgb, var(--text-secondary) 50%, var(--bg-base));
     --wave-disabled-a:      color-mix(in srgb, var(--text-secondary) 68%, transparent);
@@ -346,11 +346,6 @@
     --wave-playhead:        #e63946;
     --wave-playhead-glow:   rgba(230, 57, 70, 0.55);
     --wave-pointer-line:    color-mix(in srgb, var(--text-secondary) 72%, transparent);
-    --wave-split-flash:     #c48700;
-    --wave-split-flash-glow: rgba(213, 154, 0, 0.72);
-    --wave-split-preview-bg:     #fff0b8;
-    --wave-split-preview-border: #9a6a1e;
-    --wave-split-preview-fg:     #5a4100;
     --wave-disabled-text:   color-mix(in srgb, var(--text-secondary) 70%, var(--bg-base));
     --wave-disabled-border: var(--border);
     --wave-disabled-a:      color-mix(in srgb, var(--text-secondary) 55%, transparent);
@@ -3081,8 +3076,8 @@
   .onboarding-mini-cue .mini-check { margin-left: auto; color: var(--green); font-family: var(--font-mono); }
   .onboarding-split-demo { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; color: var(--text-primary); font-size: 12px; }
   .onboarding-split-piece { padding: 8px 9px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 4px; }
-  .onboarding-split-piece.right { border-color: var(--amber); }
-  .onboarding-split-caret { width: 2px; height: 28px; background: var(--amber); box-shadow: 0 0 8px var(--amber-glow, var(--amber)); animation: onboarding-caret 900ms steps(1) infinite; }
+  .onboarding-split-piece.right { border-color: var(--accent); }
+  .onboarding-split-caret { width: 2px; height: 28px; background: var(--accent); box-shadow: 0 0 8px var(--wave-split-flash-glow); animation: onboarding-caret 900ms steps(1) infinite; }
   .onboarding-undo-demo { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 52px; color: var(--text-secondary); font-size: 12px; }
   .onboarding-undo-demo kbd, .onboarding-split-demo kbd, .onboarding-description kbd {
     padding: 3px 7px; color: var(--text-primary); background: var(--bg-raised); border: 1px solid var(--border);
@@ -3160,7 +3155,7 @@
     transition: border-color var(--t-fast), box-shadow var(--t-fast);
   }
   .cue-panel-time-fields input:focus,
-  #cue-panel-text:focus { outline: none; border-color: var(--amber); box-shadow: var(--focus-ring-amber); }
+  #cue-panel-text:focus { outline: none; border-color: var(--selection-yellow); box-shadow: 0 0 0 2px var(--selection-yellow-soft); }
   .cue-panel-text-wrap { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .cue-panel-text-wrap > textarea { flex: 1 1 auto; min-height: 3em; height: auto; }
   .cue-panel-target {
@@ -3192,8 +3187,8 @@
   #cue-panel-add-sticker { padding: 4px 7px; font-size: 11px; }
   .current-cue-panel.tts-draft-mode .cue-panel-layout { grid-template-columns: minmax(0, 1fr) !important; }
   .current-cue-panel.tts-draft-mode :is(.cue-panel-navigation, .cue-panel-time-actions, .cue-panel-sticker-wrap, .cue-panel-footer, #cue-panel-text) { display: none !important; }
-  #cue-panel-tts-text { box-sizing: border-box; width: 100%; min-height: 58px; resize: vertical; padding: 7px 9px; background: var(--form-input-bg); color: var(--editor-cue-text); border: 1px solid var(--wave-playhead); border-radius: var(--radius-sm); font: 16px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; }
-  #cue-panel-tts-text:focus { outline: none; border-color: var(--wave-playhead); box-shadow: 0 0 0 2px color-mix(in srgb, var(--wave-playhead) 20%, transparent); }
+  #cue-panel-tts-text { box-sizing: border-box; width: 100%; min-height: 58px; resize: vertical; padding: 7px 9px; background: var(--form-input-bg); color: var(--editor-cue-text); border: 1px solid var(--border); border-radius: var(--radius-sm); font: 16px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  #cue-panel-tts-text:focus { outline: none; border-color: var(--selection-yellow); box-shadow: 0 0 0 2px var(--selection-yellow-soft); }
   #cue-panel-tts-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: 11px; }
   #cue-panel-tts-footer[hidden], #cue-panel-tts-text[hidden] { display: none; }
   #cue-panel-tts-count { margin-left: auto; font-variant-numeric: tabular-nums; }
@@ -3276,8 +3271,8 @@
     top: 0;
     bottom: 0;
     width: 3px;
-    background: var(--wave-split-flash, #ffd43b);
-    box-shadow: 0 0 8px var(--wave-split-flash-glow, rgba(255, 212, 59, 0.85));
+    background: var(--wave-split-flash);
+    box-shadow: 0 0 8px var(--wave-split-flash-glow);
     pointer-events: none;
     transform: translateX(-1.5px);
     opacity: 0;
@@ -3291,8 +3286,7 @@
     top: 0;
     bottom: 0;
     width: 2px;
-    border-left: 2px dashed var(--wave-split-flash, #ffd43b);
-    opacity: .72;
+    border-left: 2px dashed var(--accent);
     pointer-events: none;
     transform: translateX(-1px);
   }
@@ -4348,9 +4342,9 @@
   }
   .gap-remove-panel-footer button:hover:not(:disabled) { color: var(--text-primary); background: var(--btn-bg-hover); }
   .gap-remove-panel-footer button.danger {
-    color: #ffe4e4; background: #8f3035; border-color: #c44a50;
+    color: var(--red); background: var(--red-soft); border-color: var(--red);
   }
-  .gap-remove-panel-footer button.danger:hover:not(:disabled) { color: #fff; background: #ad3b42; border-color: #e35a62; }
+  .gap-remove-panel-footer button.danger:hover:not(:disabled) { color: var(--red-hover); background: color-mix(in srgb, var(--red) 22%, var(--bg-overlay)); border-color: var(--red-hover); }
   .gap-remove-panel-footer button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
   .gap-remove-panel-footer button:disabled { opacity: .38; cursor: not-allowed; }
   @media (max-width: 560px) {
@@ -4509,17 +4503,17 @@
     --slash-y: 50%;
     --slash-height: 80%;
   }
-  /* 锋利刃芯：参考横向渐变线改为纵向，边缘淡出，中段保持纯白。 */
+  /* 主题强调色刃芯，边缘淡出。 */
   #ninja-slash-flash::before,
   #ninja-slash-flash::after {
     content: ""; position: absolute;
     top: var(--slash-y); left: var(--slash-x);
     width: 3px; height: var(--slash-height);
     background: linear-gradient(to bottom,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 1) 15%,
-      rgba(255, 255, 255, 1) 80%,
-      rgba(255, 255, 255, 0) 100%);
+      transparent 0%,
+      var(--wave-split-flash) 15%,
+      var(--wave-split-flash) 80%,
+      transparent 100%);
     transform: translate(-50%, -50%) rotate(var(--slash-angle));
     transform-origin: center;
     opacity: 0;
@@ -4527,8 +4521,8 @@
   }
   #ninja-slash-flash::before {
     box-shadow:
-      0 0 7px 1px rgba(255, 255, 255, 0.58),
-      0 0 20px 3px rgba(255, 255, 255, 0.24);
+      0 0 7px 1px var(--wave-split-flash-glow),
+      0 0 20px 3px var(--accent-soft);
   }
   #ninja-slash-flash::after {
     width: 12px;
@@ -4825,9 +4819,9 @@
 #tts-index-fields .msw-processing-field { min-width: 0; }
 #tts-index-fields select, #tts-index-fields input:not([type="checkbox"]) { max-width: 100%; }
 #tts-index-fields output { font-variant-numeric: tabular-nums; }
-.msw-source-stale { outline: 1px dashed #c4913d; outline-offset: -1px; }
+.msw-source-stale { outline: 1px dashed var(--amber); outline-offset: -1px; }
 .msw-source-stale[data-review-status]::after {
-  content: attr(data-review-status); color: #c4913d; font-size: 10px; padding: 0 4px; white-space: nowrap;
+  content: attr(data-review-status); color: var(--amber); font-size: 10px; padding: 0 4px; white-space: nowrap;
 }
 
 /* Speaker controls share the MSW settings layout and stay usable in narrow panels. */

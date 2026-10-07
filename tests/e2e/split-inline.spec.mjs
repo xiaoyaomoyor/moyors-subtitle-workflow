@@ -84,9 +84,9 @@ test('secondary entry also splits a bound pair and hiding secondary does not unl
   }
 });
 
-test('timed waveform cutting is direct and retains the exact clicked time on both lanes', async ({ page }) => {
+test('quick timed cutting retains the exact clicked time on both lanes', async ({ page }) => {
   await fixture(page, { mainTimed: true, subTimed: true });
-  await page.evaluate(() => splitFromContextMenu(0, 0, 0, 3000));
+  await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 3000, quick: true }));
   await expect(panel(page)).toBeHidden();
   const result = await data(page);
   expect(result.main.map(s => [s.start, s.end])).toEqual([[0, 3000], [3000, 8000]]);
@@ -248,4 +248,157 @@ test('razor cuts a secondary waveform block through the same linked flow', async
   await expect(page.locator('#multi-subtitle-split-title')).toHaveText('联动切分');
   await page.locator('#multi-subtitle-split-confirm').click();
   expect((await data(page)).bindings).toHaveLength(2);
+});
+
+for (const kind of ['main', 'extension']) {
+  test(`ordinary ${kind} cut always confirms a bound pair even with reliable timing`, async ({ page }) => {
+    await fixture(page, { mainTimed: true, subTimed: true });
+    const before = await data(page);
+    await page.locator(`.waveform-cue-block[data-track="${kind}"]`).first().hover();
+    await page.keyboard.press('b');
+    await expect(panel(page)).toBeVisible();
+    expect(await data(page)).toEqual(before);
+    await page.locator('#multi-subtitle-split-confirm').click();
+    expect((await data(page)).bindings).toHaveLength(2);
+  });
+
+  test(`Ctrl+B on a ${kind} waveform block cuts both tracks at pointer time with one undo`, async ({ page }) => {
+    await fixture(page);
+    const before = await data(page);
+    await page.evaluate(() => { player.currentTime = 1; EDITOR_SETTINGS.keyboardOperationReference = 'playhead'; });
+    const block = page.locator(`.waveform-cue-block[data-track="${kind}"]`).first();
+    await block.hover();
+    const time = await page.evaluate(() => Math.round(timelineFrameAlignedMilliseconds(waveformPointerContext().timeMs)));
+    expect(time).toBeGreaterThan(2000);
+    await page.keyboard.press('Control+b');
+    await expect(panel(page)).toBeHidden();
+    const result = await data(page);
+    expect(result.main.map(s => [s.start, s.end])).toEqual([[0, time], [time, 8000]]);
+    expect(result.sub.map(s => [s.start, s.end])).toEqual([[0, time], [time, 8000]]);
+    expect(result.bindings).toHaveLength(2);
+    await page.evaluate(() => performUndo());
+    expect(await data(page)).toEqual(before);
+    await page.evaluate(() => performRedo());
+    expect(await data(page)).toEqual(result);
+  });
+}
+
+test('quick cut outside waveform uses playhead and protects text input', async ({ page }) => {
+  await fixture(page);
+  const before = await data(page);
+  await page.evaluate(() => { setCuePanelTarget('main', 0); player.currentTime = 3; });
+  await page.locator('#cue-panel-text').focus();
+  await page.keyboard.press('Control+b');
+  expect(await data(page)).toEqual(before);
+  await page.locator('#cue-panel-text').evaluate(el => el.blur());
+  await page.mouse.move(5, 5);
+  await page.keyboard.press('Control+b');
+  await expect(panel(page)).toBeHidden();
+  expect((await data(page)).main[0].end).toBe(3000);
+  expect((await data(page)).sub[0].end).toBe(3000);
+});
+
+test('invalid quick split opens confirmation without changing data or releasing bindings', async ({ page }) => {
+  await fixture(page, { shortSub: true });
+  const before = await data(page);
+  await page.locator('.waveform-cue-block[data-track="main"]').first().hover();
+  await page.keyboard.press('Control+b');
+  await expect(panel(page)).toBeVisible();
+  await expect(page.locator('#multi-subtitle-split-confirm')).toBeDisabled();
+  expect(await data(page)).toEqual(before);
+});
+
+const waveCut = page => page.locator('.waveform-split-preview:not([hidden])');
+
+for (const kind of ['main', 'extension']) test(`${kind} card hover previews its real cut in the waveform without changing data or playback`, async ({ page }) => {
+  await fixture(page, { mainTimed: true });
+  await page.evaluate(() => updateEditorSettings({ cueListAutoScrollOnClick: false }));
+  const text = page.locator(kind === 'main' ? '#cues-container .cue .main .text' : '#cues-container .cue .extension .text').first();
+  await text.click();
+  const before = await data(page);
+  const playback = await page.evaluate(() => { window.splitTestCanvas = document.querySelector('.waveform-row canvas'); return player.currentTime; });
+  const point = await text.evaluate(el => {
+    const range = document.createRange();
+    const node = document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode();
+    range.setStart(node, 3); range.setEnd(node, 4);
+    const rect = range.getBoundingClientRect();
+    return { x: rect.left + 1, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.move(point.x, point.y);
+  await expect(page.locator('.cue-split-preview')).toHaveCount(1);
+  await expect(waveCut(page)).toHaveCount(1);
+  const cutMs = await page.evaluate(() => waveformEditor.splitPreviewTimeMs);
+  expect(await page.evaluate(() => document.querySelector('.waveform-row canvas') === window.splitTestCanvas)).toBe(true);
+  expect(await page.evaluate(() => player.currentTime)).toBe(playback);
+  expect(await data(page)).toEqual(before);
+  await page.keyboard.press('b');
+  await expect(panel(page)).toBeVisible();
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(cutMs);
+  await page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap').last().click();
+  expect(await page.evaluate(() => waveformEditor.splitPreviewTimeMs)).toBe(cutMs);
+  await expect(waveCut(page)).toHaveCount(1);
+  await page.locator('#multi-subtitle-split-cancel').click();
+  await expect(waveCut(page)).toHaveCount(0);
+  expect(await data(page)).toEqual(before);
+});
+
+test('waveform cut preview survives row rebuild and resize, then clears on commit, undo and project switch', async ({ page }) => {
+  await fixture(page);
+  await page.evaluate(() => {
+    waveformEditor.settings.mode = 'multi'; waveformEditor.settings.secondsPerRow = 2;
+    waveformEditor.render(); requestSubtitleSplit('main', 0, { timeMs: 4000 });
+  });
+  await expect(waveCut(page)).toHaveCount(1);
+  expect(await waveCut(page).evaluate(el => el.parentElement.dataset.startMs)).toBe('4000');
+  await page.evaluate(() => waveformEditor.render());
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await expect(waveCut(page)).toHaveCount(1);
+  expect(await waveCut(page).evaluate(el => parseFloat(el.style.left))).toBe(0);
+  await page.locator('#multi-subtitle-split-confirm').click();
+  await expect(waveCut(page)).toHaveCount(0);
+  await page.evaluate(() => { performUndo(); requestSubtitleSplit('main', 0, { timeMs: 4000 }); });
+  await expect(waveCut(page)).toHaveCount(1);
+  await fixture(page);
+  await expect(waveCut(page)).toHaveCount(0);
+});
+
+test('operation help documents ordinary and quick cutting in both languages', async ({ page }) => {
+  await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('Ctrl+B');
+  await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('绑定字幕先确认');
+  await page.evaluate(() => MSWE_I18N.applyLanguage('en'));
+  await expect(page.locator('#help-tab-panel-shortcuts')).toContainText('Quick split');
+});
+
+test('cut indicators and edit focus follow theme accent and selection colors in light and dark themes', async ({ page }, info) => {
+  await fixture(page);
+  for (const theme of ['aster', 'reimu']) {
+    await page.evaluate(theme => {
+      updateEditorSettings({ themePreset: theme, colors: { accent: '#318875', gap: '#bb6825' } });
+      applyThemeAndColors();
+      setCuePanelTarget('main', 0);
+    }, theme);
+    const input = page.locator('#cue-panel-text');
+    await input.focus();
+    await expect(input).toHaveCSS('border-top-color', 'rgb(187, 104, 37)');
+    await input.evaluate(el => el.blur());
+    const text = page.locator('#cues-container .cue .main .text').first();
+    await text.click();
+    const point = await text.evaluate(el => {
+      const range = document.createRange(); const node = document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode();
+      range.setStart(node, 7); range.setEnd(node, 8); const rect = range.getBoundingClientRect();
+      return { x: rect.left + 1, y: rect.top + rect.height / 2 };
+    });
+    await page.mouse.move(point.x, point.y);
+    await expect(page.locator('.cue-split-preview')).toHaveCSS('border-left-color', 'rgb(49, 136, 117)');
+    await expect(waveCut(page)).toHaveCSS('border-left-color', 'rgb(49, 136, 117)');
+    expect(await page.locator('.cue-split-preview').evaluate(el => getComputedStyle(el, '::after').borderTopColor)).toBe('rgb(49, 136, 117)');
+    await page.screenshot({ path: info.outputPath(`cut-preview-${theme}.png`) });
+    await page.mouse.move(5, 5);
+    await expect(waveCut(page)).toHaveCount(0);
+    const flashColor = await page.evaluate(() => {
+      waveformEditor.flashSplitAtTime(3000);
+      return getComputedStyle(document.querySelector('.waveform-split-flash.is-active')).backgroundColor;
+    });
+    expect(flashColor).toBe('rgb(49, 136, 117)');
+  }
 });

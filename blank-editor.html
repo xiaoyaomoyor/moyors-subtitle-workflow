@@ -158,11 +158,11 @@
     --wave-playhead:        #ff5d67;
     --wave-playhead-glow:   rgba(255, 70, 82, 0.72);
     --wave-pointer-line:    color-mix(in srgb, var(--text-secondary) 78%, transparent);
-    --wave-split-flash:     #ffd43b;
-    --wave-split-flash-glow: rgba(255, 212, 59, 0.85);
-    --wave-split-preview-bg:     #8d6a02;
-    --wave-split-preview-border: #ffd43b;
-    --wave-split-preview-fg:     #ffffff;
+    --wave-split-flash:     var(--accent);
+    --wave-split-flash-glow: color-mix(in srgb, var(--accent) 42%, transparent);
+    --wave-split-preview-bg:     var(--bg-overlay);
+    --wave-split-preview-border: var(--accent);
+    --wave-split-preview-fg:     var(--text-primary);
     --wave-disabled-text:   color-mix(in srgb, var(--text-secondary) 70%, var(--bg-base));
     --wave-disabled-border: color-mix(in srgb, var(--text-secondary) 50%, var(--bg-base));
     --wave-disabled-a:      color-mix(in srgb, var(--text-secondary) 68%, transparent);
@@ -366,11 +366,6 @@
     --wave-playhead:        #e63946;
     --wave-playhead-glow:   rgba(230, 57, 70, 0.55);
     --wave-pointer-line:    color-mix(in srgb, var(--text-secondary) 72%, transparent);
-    --wave-split-flash:     #c48700;
-    --wave-split-flash-glow: rgba(213, 154, 0, 0.72);
-    --wave-split-preview-bg:     #fff0b8;
-    --wave-split-preview-border: #9a6a1e;
-    --wave-split-preview-fg:     #5a4100;
     --wave-disabled-text:   color-mix(in srgb, var(--text-secondary) 70%, var(--bg-base));
     --wave-disabled-border: var(--border);
     --wave-disabled-a:      color-mix(in srgb, var(--text-secondary) 55%, transparent);
@@ -3101,8 +3096,8 @@
   .onboarding-mini-cue .mini-check { margin-left: auto; color: var(--green); font-family: var(--font-mono); }
   .onboarding-split-demo { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; color: var(--text-primary); font-size: 12px; }
   .onboarding-split-piece { padding: 8px 9px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 4px; }
-  .onboarding-split-piece.right { border-color: var(--amber); }
-  .onboarding-split-caret { width: 2px; height: 28px; background: var(--amber); box-shadow: 0 0 8px var(--amber-glow, var(--amber)); animation: onboarding-caret 900ms steps(1) infinite; }
+  .onboarding-split-piece.right { border-color: var(--accent); }
+  .onboarding-split-caret { width: 2px; height: 28px; background: var(--accent); box-shadow: 0 0 8px var(--wave-split-flash-glow); animation: onboarding-caret 900ms steps(1) infinite; }
   .onboarding-undo-demo { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 52px; color: var(--text-secondary); font-size: 12px; }
   .onboarding-undo-demo kbd, .onboarding-split-demo kbd, .onboarding-description kbd {
     padding: 3px 7px; color: var(--text-primary); background: var(--bg-raised); border: 1px solid var(--border);
@@ -3180,7 +3175,7 @@
     transition: border-color var(--t-fast), box-shadow var(--t-fast);
   }
   .cue-panel-time-fields input:focus,
-  #cue-panel-text:focus { outline: none; border-color: var(--amber); box-shadow: var(--focus-ring-amber); }
+  #cue-panel-text:focus { outline: none; border-color: var(--selection-yellow); box-shadow: 0 0 0 2px var(--selection-yellow-soft); }
   .cue-panel-text-wrap { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .cue-panel-text-wrap > textarea { flex: 1 1 auto; min-height: 3em; height: auto; }
   .cue-panel-target {
@@ -3212,8 +3207,8 @@
   #cue-panel-add-sticker { padding: 4px 7px; font-size: 11px; }
   .current-cue-panel.tts-draft-mode .cue-panel-layout { grid-template-columns: minmax(0, 1fr) !important; }
   .current-cue-panel.tts-draft-mode :is(.cue-panel-navigation, .cue-panel-time-actions, .cue-panel-sticker-wrap, .cue-panel-footer, #cue-panel-text) { display: none !important; }
-  #cue-panel-tts-text { box-sizing: border-box; width: 100%; min-height: 58px; resize: vertical; padding: 7px 9px; background: var(--form-input-bg); color: var(--editor-cue-text); border: 1px solid var(--wave-playhead); border-radius: var(--radius-sm); font: 16px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; }
-  #cue-panel-tts-text:focus { outline: none; border-color: var(--wave-playhead); box-shadow: 0 0 0 2px color-mix(in srgb, var(--wave-playhead) 20%, transparent); }
+  #cue-panel-tts-text { box-sizing: border-box; width: 100%; min-height: 58px; resize: vertical; padding: 7px 9px; background: var(--form-input-bg); color: var(--editor-cue-text); border: 1px solid var(--border); border-radius: var(--radius-sm); font: 16px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  #cue-panel-tts-text:focus { outline: none; border-color: var(--selection-yellow); box-shadow: 0 0 0 2px var(--selection-yellow-soft); }
   #cue-panel-tts-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: 11px; }
   #cue-panel-tts-footer[hidden], #cue-panel-tts-text[hidden] { display: none; }
   #cue-panel-tts-count { margin-left: auto; font-variant-numeric: tabular-nums; }
@@ -3296,8 +3291,8 @@
     top: 0;
     bottom: 0;
     width: 3px;
-    background: var(--wave-split-flash, #ffd43b);
-    box-shadow: 0 0 8px var(--wave-split-flash-glow, rgba(255, 212, 59, 0.85));
+    background: var(--wave-split-flash);
+    box-shadow: 0 0 8px var(--wave-split-flash-glow);
     pointer-events: none;
     transform: translateX(-1.5px);
     opacity: 0;
@@ -3311,8 +3306,7 @@
     top: 0;
     bottom: 0;
     width: 2px;
-    border-left: 2px dashed var(--wave-split-flash, #ffd43b);
-    opacity: .72;
+    border-left: 2px dashed var(--accent);
     pointer-events: none;
     transform: translateX(-1px);
   }
@@ -4368,9 +4362,9 @@
   }
   .gap-remove-panel-footer button:hover:not(:disabled) { color: var(--text-primary); background: var(--btn-bg-hover); }
   .gap-remove-panel-footer button.danger {
-    color: #ffe4e4; background: #8f3035; border-color: #c44a50;
+    color: var(--red); background: var(--red-soft); border-color: var(--red);
   }
-  .gap-remove-panel-footer button.danger:hover:not(:disabled) { color: #fff; background: #ad3b42; border-color: #e35a62; }
+  .gap-remove-panel-footer button.danger:hover:not(:disabled) { color: var(--red-hover); background: color-mix(in srgb, var(--red) 22%, var(--bg-overlay)); border-color: var(--red-hover); }
   .gap-remove-panel-footer button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
   .gap-remove-panel-footer button:disabled { opacity: .38; cursor: not-allowed; }
   @media (max-width: 560px) {
@@ -4529,17 +4523,17 @@
     --slash-y: 50%;
     --slash-height: 80%;
   }
-  /* 锋利刃芯：参考横向渐变线改为纵向，边缘淡出，中段保持纯白。 */
+  /* 主题强调色刃芯，边缘淡出。 */
   #ninja-slash-flash::before,
   #ninja-slash-flash::after {
     content: ""; position: absolute;
     top: var(--slash-y); left: var(--slash-x);
     width: 3px; height: var(--slash-height);
     background: linear-gradient(to bottom,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 1) 15%,
-      rgba(255, 255, 255, 1) 80%,
-      rgba(255, 255, 255, 0) 100%);
+      transparent 0%,
+      var(--wave-split-flash) 15%,
+      var(--wave-split-flash) 80%,
+      transparent 100%);
     transform: translate(-50%, -50%) rotate(var(--slash-angle));
     transform-origin: center;
     opacity: 0;
@@ -4547,8 +4541,8 @@
   }
   #ninja-slash-flash::before {
     box-shadow:
-      0 0 7px 1px rgba(255, 255, 255, 0.58),
-      0 0 20px 3px rgba(255, 255, 255, 0.24);
+      0 0 7px 1px var(--wave-split-flash-glow),
+      0 0 20px 3px var(--accent-soft);
   }
   #ninja-slash-flash::after {
     width: 12px;
@@ -4845,9 +4839,9 @@
 #tts-index-fields .msw-processing-field { min-width: 0; }
 #tts-index-fields select, #tts-index-fields input:not([type="checkbox"]) { max-width: 100%; }
 #tts-index-fields output { font-variant-numeric: tabular-nums; }
-.msw-source-stale { outline: 1px dashed #c4913d; outline-offset: -1px; }
+.msw-source-stale { outline: 1px dashed var(--amber); outline-offset: -1px; }
 .msw-source-stale[data-review-status]::after {
-  content: attr(data-review-status); color: #c4913d; font-size: 10px; padding: 0 4px; white-space: nowrap;
+  content: attr(data-review-status); color: var(--amber); font-size: 10px; padding: 0 4px; white-space: nowrap;
 }
 
 /* Speaker controls share the MSW settings layout and stay usable in narrow panels. */
@@ -5632,14 +5626,25 @@
   transform: translateX(-0.5px);
 }
 .waveform-pointer-line[hidden] { display: none; }
+.waveform-split-preview {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-left: 2px dashed var(--accent);
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+.waveform-split-preview[hidden] { display: none; }
 .waveform-split-flash {
   position: absolute;
   z-index: 10;
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--wave-split-flash, #ffd43b);
-  box-shadow: 0 0 8px var(--wave-split-flash-glow, rgba(255, 212, 59, 0.85));
+  background: var(--wave-split-flash);
+  box-shadow: 0 0 8px var(--wave-split-flash-glow);
   pointer-events: none;
   transform: translateX(-1.5px);
   opacity: 0;
@@ -5654,11 +5659,11 @@
   }
   12% {
     opacity: 1;
-    box-shadow: 0 0 11px var(--wave-split-flash-glow, rgba(255, 212, 59, 0.85));
+    box-shadow: 0 0 11px var(--wave-split-flash-glow);
   }
   30% {
     opacity: 0.3;
-    box-shadow: 0 0 4px var(--wave-split-flash-glow, rgba(255, 212, 59, 0.85));
+    box-shadow: 0 0 4px var(--wave-split-flash-glow);
   }
   100% {
     opacity: 0;
@@ -7349,7 +7354,9 @@
       <section class="help-subgroup">
         <h5 class="help-subtitle">编辑操作</h5>
         <div class="help-category">
-          <span class="help-important"><kbd>B</kbd> 拆分字幕（取决于鼠标位置）</span>
+          <span class="help-important"><kbd>B</kbd> 普通切分（绑定字幕先确认）</span>
+          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分（绑定字幕同步切开）</span>
+          <span class="help-note">快速切分使用波形鼠标位置；鼠标不在波形区时使用播放头。文字优先按逐词时间码分界，无可靠时间码时按时间比例估算，可撤销后用普通切分调整。</span>
           <span class="help-important"><kbd>C</kbd> 合并所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
@@ -7403,6 +7410,7 @@
           <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
           <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
           <span class="help-important"><kbd id="help-waveform-split-key">B</kbd> 按当前时间基准拆分字幕</span>
+          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分波形字幕块（主、副字幕均可）</span>
         </div>
       </section>
       <h4 class="help-title">双语字幕</h4>
@@ -7734,10 +7742,10 @@
                   <option value="ctrl-enter">Ctrl+Enter</option>
                 </select>
               </label>
-              <label class="toggle editor-settings-item" title="可靠时间码可直接切分；关闭后在字幕编辑器中确认文字分界">
-                <input type="checkbox" id="split-use-word-timestamps" checked> 有可靠时间码时直接切分
+              <label class="toggle editor-settings-item" title="仅用于未绑定字幕的普通切分；绑定字幕始终先确认文字分界">
+                <input type="checkbox" id="split-use-word-timestamps" checked> 未绑定字幕有可靠时间码时直接切分
               </label>
-              <small class="editor-settings-hint" id="split-use-word-timestamps-hint">开启时直接切分已对齐的文字；分界不确定时，在字幕编辑器中确认。波形切分始终保留所选时间。</small>
+              <small class="editor-settings-hint" id="split-use-word-timestamps-hint">普通切分时，绑定字幕或不确定的文字分界需在字幕编辑器中确认。快速切分可按时间直接切开；波形切分始终保留所选时间。</small>
               <div class="editor-settings-field split-language-type-field" role="group" aria-labelledby="split-language-type-title">
                 <span class="editor-settings-item split-language-type-title" id="split-language-type-title">字幕语言类型</span>
                 <div class="split-language-type-row">
@@ -19655,6 +19663,15 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '普通切分（绑定字幕先确认）': 'Split (confirm linked subtitles first)',
+    '快速切分（绑定字幕同步切开）': 'Quick split (cut linked subtitles together)',
+    '快速切分波形字幕块（主、副字幕均可）': 'Quick split waveform blocks (main or secondary)',
+    '快速切分使用波形鼠标位置；鼠标不在波形区时使用播放头。文字优先按逐词时间码分界，无可靠时间码时按时间比例估算，可撤销后用普通切分调整。': 'Quick split uses the waveform pointer, or the playhead outside the waveform. Text boundaries use reliable word timestamps when available and otherwise estimate by time ratio. Undo and use ordinary split to adjust.',
+    '未绑定字幕有可靠时间码时直接切分': 'Split unbound subtitles directly with reliable timestamps',
+    '仅用于未绑定字幕的普通切分；绑定字幕始终先确认文字分界': 'Applies to ordinary unbound cuts only. Linked subtitles always require confirmation.',
+    '普通切分时，绑定字幕或不确定的文字分界需在字幕编辑器中确认。快速切分可按时间直接切开；波形切分始终保留所选时间。': 'Ordinary cuts require confirmation for linked subtitles or uncertain text boundaries. Quick split cuts directly by time; waveform cuts always keep the chosen time.',
+    '请先确认或取消当前切分': 'Confirm or cancel the current split first',
+    '当前时间不在目标字幕内，请移动播放头或将鼠标移到波形字幕块上': 'The current time is outside the target subtitle. Move the playhead or point at a waveform subtitle block.',
     '联动切分': 'Split linked subtitles',
     '切分帮助': 'Split help',
     '主字幕文字分界': 'Main text split point',
@@ -24217,6 +24234,7 @@ export default MawDynamicCaptions;
       this.pendingRowHeightDirection = 0;
       this.rowHeightDebounceTimer = 0;
       this.renderedRows = [];
+      this.splitPreviewTimeMs = null;
       // 波形交互工具：'select'（默认，保留 Ctrl/Shift/分组多选与拖动）或
       // 'razor'（左键点击字幕块即在指针位置安全拆分）。Alt 行为不随工具变化。
       this.tool = 'select';
@@ -26879,6 +26897,13 @@ export default MawDynamicCaptions;
       pointerLine.setAttribute('aria-hidden', 'true');
       row.appendChild(pointerLine);
 
+      const splitPreview = document.createElement('div');
+      splitPreview.className = 'waveform-split-preview';
+      splitPreview.setAttribute('aria-hidden', 'true');
+      row.appendChild(splitPreview);
+      row._waveformSplitPreview = splitPreview;
+      this.positionSplitPreview(row);
+
       const splitFlash = document.createElement('div');
       splitFlash.className = 'waveform-split-flash';
       splitFlash.hidden = true;
@@ -27995,8 +28020,24 @@ export default MawDynamicCaptions;
       return startMs + ratio * (endMs - startMs);
     }
 
-    // 在波形指针拆分成功后短暂显示黄色定位光条，帮助用户确认实际操作位置。
-    // 光条只覆盖波形行，不参与鼠标命中，也不影响红色播放头。
+    // Keep this DOM-only overlay separate from canvas rendering and playback.
+    setSplitPreview(timeMs) {
+      this.splitPreviewTimeMs = Number.isFinite(timeMs) ? timeMs : null;
+      this.renderedRows.forEach(row => this.positionSplitPreview(row));
+    }
+
+    positionSplitPreview(row) {
+      const marker = row._waveformSplitPreview;
+      if (!marker) return;
+      const timeMs = this.splitPreviewTimeMs;
+      const startMs = Number(row.dataset.startMs);
+      const endMs = Number(row.dataset.endMs);
+      const visible = Number.isFinite(timeMs) && timeMs >= startMs && timeMs < endMs;
+      marker.hidden = !visible;
+      if (visible) marker.style.left = `${((timeMs - startMs) / Math.max(1, endMs - startMs)) * 100}%`;
+    }
+
+    // 切分成功后短暂显示主题强调色光条，不参与命中，也不改变播放头。
     flashSplitAtTime(timeMs) {
       if (!Number.isFinite(timeMs)) return false;
       const rows = [...this.content.querySelectorAll('.waveform-row')];
@@ -34719,21 +34760,21 @@ const THEME_PRESETS = {
     bg: '#1a1b26', menubar: '#16161e', raised: '#1a1b26', input: '#16161e',
     overlay: '#1a1b26', popup: '#1a1b26', text: '#c0caf5', textMuted: '#8388a0',
     accent: '#80d0ff', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
-    toolbar: '#16161e', card: '#292a40', gap: '#ffdc00', hit: '#f8727c',
+    toolbar: '#16161e', card: '#292a40', gap: '#ac8a2a', hit: '#f8727c',
   } },
   // 本居小铃：深橘发红瞳红白格纹和服（深色，黄棕暖调：黄色+棕红+橘红）
   kosuzu: { theme: 'dark', accent: 'orange', colors: {
     bg: '#170f08', menubar: '#221510', raised: '#2a1a11', input: '#322016',
     overlay: '#3a2517', popup: '#371c15', text: '#f5e7cd', textMuted: '#c2a685',
     accent: '#c9552b', wave: '#e5a83d', subtitle: '#eee0c2', cueBlock: '#8f6a48',
-    toolbar: '#221510', card: '#35251c', gap: '#ffd166', hit: '#70d9df',
+    toolbar: '#221510', card: '#35251c', gap: '#db4614', hit: '#47904f',
   } },
   // 宇佐见莲子：黑礼帽白衬衫（黑色系）
-  renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707', card: '#24252d', gap: '#e6c36a', hit: '#8ecbff' } },
+  renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707', card: '#24252d', gap: '#8d2f07', hit: '#703e3e' } },
   // 博丽灵梦：红白巫女（浅色，米白底红强调）
-  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#b52242', cueBlock: '#bbaaaa', card: '#fff8f5', gap: '#166b83' } },
+  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#b52242', cueBlock: '#bbaaaa', card: '#fff8f5', gap: '#ebbf2d' } },
   // 爱丽丝：金发蓝裙（浅色，淡蓝底金强调）
-  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261', card: '#fafbff', gap: '#2854a1', hit: '#ac3b70' } },
+  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261', card: '#fafbff', gap: '#2854a1', hit: '#f83030' } },
   // 古明地恋：黄上衣绿裙黑帽（浅色，暖黄底绿强调）
   koishi: { theme: 'light', accent: 'green', colors: { bg: '#f5f3e4', text: '#31362a', wave: '#3f7d3a', subtitle: '#4d5442', card: '#fffdf0', gap: '#276c50', hit: '#9b4482' } },
 };
@@ -38799,6 +38840,21 @@ function caretCharFromPoint(root, x, y) {
   return caretInfoFromPoint(root, x, y)?.offset ?? null;
 }
 
+function caretRectAtTextOffset(root, offset) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let remaining = offset;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (remaining <= node.length) {
+      const range = document.createRange();
+      range.setStart(node, remaining);
+      range.collapse(true);
+      return range.getBoundingClientRect();
+    }
+    remaining -= node.length;
+  }
+  return null;
+}
+
 function finishEdit(save) {
   if (!editingState) return;
   const { el, idx, textEl, original } = editingState;
@@ -38842,8 +38898,8 @@ function shouldUseMainSplitTimestamps(segment) {
     && MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment);
 }
 
-// Automatic cutting requires usable timestamps that still match all of the text.
-// A translated or manually rewritten subtitle must not be split by a guessed ratio.
+// Ordinary unbound cuts can skip confirmation when timings still match the text.
+// Quick cuts explicitly allow an estimated text boundary at a fixed time.
 function hasReliableSplitTextTiming(segment) {
   if (!MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment)) return false;
   const items = (segment.items || []).filter(item => String(item?.text || ''));
@@ -38899,6 +38955,11 @@ function requestSubtitleSplit(kind, index, initial = {}) {
     flashHint('字幕不足 200ms，切分后两侧需各保留至少 100ms', 'warning');
     return false;
   }
+  if (Number.isFinite(textOffset)) {
+    const mode = kind === 'main' ? getMainSubtitleSplitMode(segment)
+      : getExtensionSubtitleSplitMode(kind === 'overlay' ? getOverlayTrack() : track, segment);
+    textOffset = splitOffsetNearTextPositionForModal(segment.text, textOffset, mode);
+  }
   const timeMs = Number.isFinite(initial.timeMs)
     ? timelineFrameAlignedMilliseconds(initial.timeMs) : null;
   const binding = kind === 'main' ? bindingForMainIndex(index)
@@ -38946,7 +39007,9 @@ function requestSubtitleSplit(kind, index, initial = {}) {
   const knownText = lane => (kind === lane && Number.isFinite(textOffset))
     || (EDITOR_SETTINGS.splitUseWordTimestamps && hasReliableSplitTextTiming(lane === 'main' ? main : extension));
   const reliable = (!main || knownText('main')) && (!extension || knownText(kind === 'overlay' ? 'overlay' : 'extension'));
-  if (reliable && state.valid && !initial.requireConfirm) {
+  const direct = initial.quick === true && Number.isFinite(timeMs)
+    || (state.kind !== 'linked' && reliable);
+  if (direct && state.valid && !initial.requireConfirm) {
     confirmLinkedSplit();
     if (!pendingLinkedSplit) return true;
   }
@@ -38995,7 +39058,7 @@ function splitOffsetNearTextPositionForModal(text, offset, splitMode) {
 function splitOffsetNearTime(segment, timeMs, splitMode) {
   const legalOffsets = MULTI_SUBTITLE_UTILS.subtitleSplitOffsets(segment?.text || '', splitMode);
   if (!legalOffsets.length) return null;
-  const timestampOffset = MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment)
+  const timestampOffset = hasReliableSplitTextTiming(segment)
     ? window.AsrEditorUtils.splitCharOffsetAtTime(segment, timeMs)
     : null;
   if (Number.isInteger(timestampOffset)) {
@@ -39872,6 +39935,7 @@ function updateLinkedSplitPreview(offset, lane = 'extension') {
   state.mainTimingValid = Boolean(mainTimingValid);
   state.duplicateTimingValid = duplicateSplitTimingIsValid(state);
   state.valid = valid;
+  waveformEditor?.setSplitPreview?.(state.cutMs);
   updateSplitLaneVisual(state, 'main');
   updateSplitLaneVisual(state, 'extension');
   renderSplitMeta(state);
@@ -39898,6 +39962,7 @@ function closeLinkedSplitModal() {
   multiSubtitleSplitModal?.classList.remove('show');
   document.getElementById('current-cue-panel')?.classList.remove('splitting');
   pendingLinkedSplit = null;
+  hideCueSplitPreview();
   if (hadFocus) {
     if (origin?.fromText) cuePanelText?.focus({ preventScroll: true });
     else if (origin?.ninjaFromList) {
@@ -41655,6 +41720,7 @@ function hideCueSplitPreview() {
   cueSplitPreviewRequest = null;
   cueSplitPreviewEl?.remove();
   cueSplitPreviewEl = null;
+  waveformEditor?.setSplitPreview?.(pendingLinkedSplit?.cutMs ?? null);
 }
 
 function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId = null) {
@@ -41666,7 +41732,7 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
     cueSplitPreviewRequest = null;
     const isExtension = request?.kind === 'extension';
     const selected = isExtension ? selectedExtensionIdxs : selectedIdxs;
-    if (!request || selected.size !== 1 || !selected.has(request.idx)) {
+    if (pendingLinkedSplit || !request || selected.size !== 1 || !selected.has(request.idx)) {
       hideCueSplitPreview();
       return;
     }
@@ -41689,10 +41755,22 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       hideCueSplitPreview();
       return;
     }
+    const mode = isExtension ? getExtensionSubtitleSplitMode(track, segment) : getMainSubtitleSplitMode(segment);
+    const offset = splitOffsetNearTextPosition(segment.text, info.offset, mode);
+    if (!Number.isInteger(offset)) {
+      hideCueSplitPreview();
+      return;
+    }
+    const cutMs = Math.round(splitTimeForTextOffset(segment, offset));
+    if (!splitTimingIsValid(segment, cutMs)) {
+      hideCueSplitPreview();
+      return;
+    }
+    const caretRect = caretRectAtTextOffset(textEl, offset) || info.rect;
     const cueRect = cue.getBoundingClientRect();
     // 光条挂在 .cue 上，而 caret 的坐标是 viewport 坐标；扣除 .cue 的左边框，
     // 才能把 marker 的中心放回真正的字符边界。
-    const left = Math.max(0, Math.min(cueRect.width, info.rect.left - cueRect.left - cue.clientLeft));
+    const left = Math.max(0, Math.min(cueRect.width, caretRect.left - cueRect.left - cue.clientLeft));
     if (!cueSplitPreviewEl || cueSplitPreviewEl.parentElement !== cue) {
       cueSplitPreviewEl?.remove();
       cueSplitPreviewEl = document.createElement('span');
@@ -41701,6 +41779,7 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       cue.appendChild(cueSplitPreviewEl);
     }
     cueSplitPreviewEl.style.left = `${left}px`;
+    waveformEditor?.setSplitPreview?.(cutMs);
   });
 }
 
@@ -41834,6 +41913,39 @@ function hoveredSelectedCueContext() {
   if (!el || !el.matches(':hover')) return null;
   const caret = caretInfoFromPoint(el.querySelector('.text'), cueListPointer.x, cueListPointer.y);
   return { ...cueListPointer, el, track, offset: caret?.offset ?? null, caretRect: caret?.rect ?? null };
+}
+
+function quickSplitAtCurrentTime(event) {
+  if (event.repeat || event.isComposing || editingState || extensionEditingState
+      || isTextEditingTarget(event) || document.activeElement?.matches('input, select, textarea')
+      || document.querySelector('.modal-mask.show, #ctxmenu.show')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (pendingLinkedSplit) {
+    flashHint('请先确认或取消当前切分', 'warning');
+    return;
+  }
+  // Quick cutting always uses waveform pointer time, or the playhead outside it.
+  // A block under the pointer takes priority over overlapping cues and selection.
+  const pointer = waveformPointerContext();
+  const hovered = pointer ? null : hoveredSelectedCueContext();
+  const source = pointer || hovered || getCurrentCuePanelTarget();
+  const kind = pointer?.track || source?.kind || 'main';
+  const track = kind === 'extension' ? getExtensionTrack(source?.trackId) : null;
+  const segments = kind === 'main' ? DATA.segments
+    : kind === 'overlay' ? getOverlayTrack()?.segments : track?.segments;
+  const timeMs = pointer?.timeMs ?? Math.round(Number(player.currentTime) * 1000);
+  const block = pointer && document.elementFromPoint(pointer.x, pointer.y)?.closest('.waveform-cue-block');
+  const blockIndex = block?.dataset[kind === 'main' ? 'idx' : kind === 'overlay' ? 'overlayIdx' : 'extIdx'];
+  const index = blockIndex != null ? Number(blockIndex)
+    : !pointer && source ? source.idx ?? source.index
+      : findWaveformCueAtTime(timeMs, segments);
+  const segment = segments?.[index];
+  if (!segment || !Number.isFinite(timeMs) || timeMs <= segment.start || timeMs >= segment.end) {
+    flashHint('当前时间不在目标字幕内，请移动播放头或将鼠标移到波形字幕块上', 'warning');
+    return;
+  }
+  requestSubtitleSplit(kind, index, { track, timeMs, quick: true });
 }
 
 // === 单击/双击/Shift/Ctrl ===
@@ -43462,6 +43574,10 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'b' && e.key !== 'B') return;
   if (e.repeat) return;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+    quickSplitAtCurrentTime(e);
+    return;
+  }
   if (extensionEditingState) {
     if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
     const state = extensionEditingState;
@@ -43507,6 +43623,17 @@ document.addEventListener('keydown', (e) => {
   // 判断当前轨道，否则主字幕 active 时会被误判成副字幕单独拆分。
   const activeCuePanel = getCurrentCuePanelTarget();
   const operationReference = keyboardOperationReference();
+  if (operationReference?.source === 'pointer' && lastPointerPos) {
+    const block = document.elementFromPoint(lastPointerPos.x, lastPointerPos.y)?.closest('.waveform-cue-block');
+    if (block) {
+      const kind = block.dataset.track || 'main';
+      const index = Number(block.dataset[kind === 'main' ? 'idx' : kind === 'overlay' ? 'overlayIdx' : 'extIdx']);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      requestSubtitleSplit(kind, index, { timeMs: operationReference.timeMs });
+      return;
+    }
+  }
   const pointerMainIndex = operationReference
     ? findWaveformCueAtTime(operationReference.timeMs, DATA.segments) : -1;
   const activeExtensionTrack = getActiveExtensionTrack();

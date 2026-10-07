@@ -117,7 +117,8 @@ test('explains where to configure automatic timecode splitting', async ({ page }
   await page.goto(server.url);
   await toggleEditorSettings(page);
   const hint = page.locator('#split-use-word-timestamps-hint');
-  await expect(hint).toContainText('开启时直接切分已对齐的文字');
+  await expect(hint).toContainText('绑定字幕或不确定的文字分界');
+  await expect(hint).toContainText('快速切分可按时间直接切开');
   await expect(hint).toContainText('在字幕编辑器中确认');
   await expect(hint).not.toContainText('右上角「🔧 设置 → 拆分与合并」');
 });
@@ -1804,6 +1805,8 @@ test('rejects a short linked split until a valid time is explicitly chosen', asy
   expect(await page.evaluate(() => JSON.stringify([DATA.segments, DATA.multi_subtitle]))).toBe(before);
   await page.keyboard.press('Escape');
   await page.evaluate(() => requestSubtitleSplit('main', DATA.segments.findIndex(s => s.text === 'Alpha Bravo'), { timeMs: 1200 }));
+  await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   expect(await page.evaluate(() => DATA.multi_subtitle.bindings.length)).toBe(3);
 });

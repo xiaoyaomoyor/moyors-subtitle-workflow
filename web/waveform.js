@@ -1782,6 +1782,7 @@
       this.pendingRowHeightDirection = 0;
       this.rowHeightDebounceTimer = 0;
       this.renderedRows = [];
+      this.splitPreviewTimeMs = null;
       // 波形交互工具：'select'（默认，保留 Ctrl/Shift/分组多选与拖动）或
       // 'razor'（左键点击字幕块即在指针位置安全拆分）。Alt 行为不随工具变化。
       this.tool = 'select';
@@ -4444,6 +4445,13 @@
       pointerLine.setAttribute('aria-hidden', 'true');
       row.appendChild(pointerLine);
 
+      const splitPreview = document.createElement('div');
+      splitPreview.className = 'waveform-split-preview';
+      splitPreview.setAttribute('aria-hidden', 'true');
+      row.appendChild(splitPreview);
+      row._waveformSplitPreview = splitPreview;
+      this.positionSplitPreview(row);
+
       const splitFlash = document.createElement('div');
       splitFlash.className = 'waveform-split-flash';
       splitFlash.hidden = true;
@@ -5560,8 +5568,24 @@
       return startMs + ratio * (endMs - startMs);
     }
 
-    // 在波形指针拆分成功后短暂显示黄色定位光条，帮助用户确认实际操作位置。
-    // 光条只覆盖波形行，不参与鼠标命中，也不影响红色播放头。
+    // Keep this DOM-only overlay separate from canvas rendering and playback.
+    setSplitPreview(timeMs) {
+      this.splitPreviewTimeMs = Number.isFinite(timeMs) ? timeMs : null;
+      this.renderedRows.forEach(row => this.positionSplitPreview(row));
+    }
+
+    positionSplitPreview(row) {
+      const marker = row._waveformSplitPreview;
+      if (!marker) return;
+      const timeMs = this.splitPreviewTimeMs;
+      const startMs = Number(row.dataset.startMs);
+      const endMs = Number(row.dataset.endMs);
+      const visible = Number.isFinite(timeMs) && timeMs >= startMs && timeMs < endMs;
+      marker.hidden = !visible;
+      if (visible) marker.style.left = `${((timeMs - startMs) / Math.max(1, endMs - startMs)) * 100}%`;
+    }
+
+    // 切分成功后短暂显示主题强调色光条，不参与命中，也不改变播放头。
     flashSplitAtTime(timeMs) {
       if (!Number.isFinite(timeMs)) return false;
       const rows = [...this.content.querySelectorAll('.waveform-row')];

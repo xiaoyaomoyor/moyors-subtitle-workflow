@@ -4381,21 +4381,21 @@ const THEME_PRESETS = {
     bg: '#1a1b26', menubar: '#16161e', raised: '#1a1b26', input: '#16161e',
     overlay: '#1a1b26', popup: '#1a1b26', text: '#c0caf5', textMuted: '#8388a0',
     accent: '#80d0ff', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
-    toolbar: '#16161e', card: '#292a40', gap: '#ffdc00', hit: '#f8727c',
+    toolbar: '#16161e', card: '#292a40', gap: '#ac8a2a', hit: '#f8727c',
   } },
   // 本居小铃：深橘发红瞳红白格纹和服（深色，黄棕暖调：黄色+棕红+橘红）
   kosuzu: { theme: 'dark', accent: 'orange', colors: {
     bg: '#170f08', menubar: '#221510', raised: '#2a1a11', input: '#322016',
     overlay: '#3a2517', popup: '#371c15', text: '#f5e7cd', textMuted: '#c2a685',
     accent: '#c9552b', wave: '#e5a83d', subtitle: '#eee0c2', cueBlock: '#8f6a48',
-    toolbar: '#221510', card: '#35251c', gap: '#ffd166', hit: '#70d9df',
+    toolbar: '#221510', card: '#35251c', gap: '#db4614', hit: '#47904f',
   } },
   // 宇佐见莲子：黑礼帽白衬衫（黑色系）
-  renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707', card: '#24252d', gap: '#e6c36a', hit: '#8ecbff' } },
+  renko: { theme: 'dark', accent: 'silver', colors: { bg: '#0b0b0e', text: '#c9cdd4', wave: '#8f98a8', subtitle: '#b9bec7', popup: '#080707', card: '#24252d', gap: '#8d2f07', hit: '#703e3e' } },
   // 博丽灵梦：红白巫女（浅色，米白底红强调）
-  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#b52242', cueBlock: '#bbaaaa', card: '#fff8f5', gap: '#166b83' } },
+  reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#b52242', cueBlock: '#bbaaaa', card: '#fff8f5', gap: '#ebbf2d' } },
   // 爱丽丝：金发蓝裙（浅色，淡蓝底金强调）
-  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261', card: '#fafbff', gap: '#2854a1', hit: '#ac3b70' } },
+  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261', card: '#fafbff', gap: '#2854a1', hit: '#f83030' } },
   // 古明地恋：黄上衣绿裙黑帽（浅色，暖黄底绿强调）
   koishi: { theme: 'light', accent: 'green', colors: { bg: '#f5f3e4', text: '#31362a', wave: '#3f7d3a', subtitle: '#4d5442', card: '#fffdf0', gap: '#276c50', hit: '#9b4482' } },
 };
@@ -8461,6 +8461,21 @@ function caretCharFromPoint(root, x, y) {
   return caretInfoFromPoint(root, x, y)?.offset ?? null;
 }
 
+function caretRectAtTextOffset(root, offset) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let remaining = offset;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (remaining <= node.length) {
+      const range = document.createRange();
+      range.setStart(node, remaining);
+      range.collapse(true);
+      return range.getBoundingClientRect();
+    }
+    remaining -= node.length;
+  }
+  return null;
+}
+
 function finishEdit(save) {
   if (!editingState) return;
   const { el, idx, textEl, original } = editingState;
@@ -8504,8 +8519,8 @@ function shouldUseMainSplitTimestamps(segment) {
     && MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment);
 }
 
-// Automatic cutting requires usable timestamps that still match all of the text.
-// A translated or manually rewritten subtitle must not be split by a guessed ratio.
+// Ordinary unbound cuts can skip confirmation when timings still match the text.
+// Quick cuts explicitly allow an estimated text boundary at a fixed time.
 function hasReliableSplitTextTiming(segment) {
   if (!MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment)) return false;
   const items = (segment.items || []).filter(item => String(item?.text || ''));
@@ -8561,6 +8576,11 @@ function requestSubtitleSplit(kind, index, initial = {}) {
     flashHint('字幕不足 200ms，切分后两侧需各保留至少 100ms', 'warning');
     return false;
   }
+  if (Number.isFinite(textOffset)) {
+    const mode = kind === 'main' ? getMainSubtitleSplitMode(segment)
+      : getExtensionSubtitleSplitMode(kind === 'overlay' ? getOverlayTrack() : track, segment);
+    textOffset = splitOffsetNearTextPositionForModal(segment.text, textOffset, mode);
+  }
   const timeMs = Number.isFinite(initial.timeMs)
     ? timelineFrameAlignedMilliseconds(initial.timeMs) : null;
   const binding = kind === 'main' ? bindingForMainIndex(index)
@@ -8608,7 +8628,9 @@ function requestSubtitleSplit(kind, index, initial = {}) {
   const knownText = lane => (kind === lane && Number.isFinite(textOffset))
     || (EDITOR_SETTINGS.splitUseWordTimestamps && hasReliableSplitTextTiming(lane === 'main' ? main : extension));
   const reliable = (!main || knownText('main')) && (!extension || knownText(kind === 'overlay' ? 'overlay' : 'extension'));
-  if (reliable && state.valid && !initial.requireConfirm) {
+  const direct = initial.quick === true && Number.isFinite(timeMs)
+    || (state.kind !== 'linked' && reliable);
+  if (direct && state.valid && !initial.requireConfirm) {
     confirmLinkedSplit();
     if (!pendingLinkedSplit) return true;
   }
@@ -8657,7 +8679,7 @@ function splitOffsetNearTextPositionForModal(text, offset, splitMode) {
 function splitOffsetNearTime(segment, timeMs, splitMode) {
   const legalOffsets = MULTI_SUBTITLE_UTILS.subtitleSplitOffsets(segment?.text || '', splitMode);
   if (!legalOffsets.length) return null;
-  const timestampOffset = MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment)
+  const timestampOffset = hasReliableSplitTextTiming(segment)
     ? window.AsrEditorUtils.splitCharOffsetAtTime(segment, timeMs)
     : null;
   if (Number.isInteger(timestampOffset)) {
@@ -9534,6 +9556,7 @@ function updateLinkedSplitPreview(offset, lane = 'extension') {
   state.mainTimingValid = Boolean(mainTimingValid);
   state.duplicateTimingValid = duplicateSplitTimingIsValid(state);
   state.valid = valid;
+  waveformEditor?.setSplitPreview?.(state.cutMs);
   updateSplitLaneVisual(state, 'main');
   updateSplitLaneVisual(state, 'extension');
   renderSplitMeta(state);
@@ -9560,6 +9583,7 @@ function closeLinkedSplitModal() {
   multiSubtitleSplitModal?.classList.remove('show');
   document.getElementById('current-cue-panel')?.classList.remove('splitting');
   pendingLinkedSplit = null;
+  hideCueSplitPreview();
   if (hadFocus) {
     if (origin?.fromText) cuePanelText?.focus({ preventScroll: true });
     else if (origin?.ninjaFromList) {
@@ -11317,6 +11341,7 @@ function hideCueSplitPreview() {
   cueSplitPreviewRequest = null;
   cueSplitPreviewEl?.remove();
   cueSplitPreviewEl = null;
+  waveformEditor?.setSplitPreview?.(pendingLinkedSplit?.cutMs ?? null);
 }
 
 function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId = null) {
@@ -11328,7 +11353,7 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
     cueSplitPreviewRequest = null;
     const isExtension = request?.kind === 'extension';
     const selected = isExtension ? selectedExtensionIdxs : selectedIdxs;
-    if (!request || selected.size !== 1 || !selected.has(request.idx)) {
+    if (pendingLinkedSplit || !request || selected.size !== 1 || !selected.has(request.idx)) {
       hideCueSplitPreview();
       return;
     }
@@ -11351,10 +11376,22 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       hideCueSplitPreview();
       return;
     }
+    const mode = isExtension ? getExtensionSubtitleSplitMode(track, segment) : getMainSubtitleSplitMode(segment);
+    const offset = splitOffsetNearTextPosition(segment.text, info.offset, mode);
+    if (!Number.isInteger(offset)) {
+      hideCueSplitPreview();
+      return;
+    }
+    const cutMs = Math.round(splitTimeForTextOffset(segment, offset));
+    if (!splitTimingIsValid(segment, cutMs)) {
+      hideCueSplitPreview();
+      return;
+    }
+    const caretRect = caretRectAtTextOffset(textEl, offset) || info.rect;
     const cueRect = cue.getBoundingClientRect();
     // 光条挂在 .cue 上，而 caret 的坐标是 viewport 坐标；扣除 .cue 的左边框，
     // 才能把 marker 的中心放回真正的字符边界。
-    const left = Math.max(0, Math.min(cueRect.width, info.rect.left - cueRect.left - cue.clientLeft));
+    const left = Math.max(0, Math.min(cueRect.width, caretRect.left - cueRect.left - cue.clientLeft));
     if (!cueSplitPreviewEl || cueSplitPreviewEl.parentElement !== cue) {
       cueSplitPreviewEl?.remove();
       cueSplitPreviewEl = document.createElement('span');
@@ -11363,6 +11400,7 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       cue.appendChild(cueSplitPreviewEl);
     }
     cueSplitPreviewEl.style.left = `${left}px`;
+    waveformEditor?.setSplitPreview?.(cutMs);
   });
 }
 
@@ -11496,6 +11534,39 @@ function hoveredSelectedCueContext() {
   if (!el || !el.matches(':hover')) return null;
   const caret = caretInfoFromPoint(el.querySelector('.text'), cueListPointer.x, cueListPointer.y);
   return { ...cueListPointer, el, track, offset: caret?.offset ?? null, caretRect: caret?.rect ?? null };
+}
+
+function quickSplitAtCurrentTime(event) {
+  if (event.repeat || event.isComposing || editingState || extensionEditingState
+      || isTextEditingTarget(event) || document.activeElement?.matches('input, select, textarea')
+      || document.querySelector('.modal-mask.show, #ctxmenu.show')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (pendingLinkedSplit) {
+    flashHint('请先确认或取消当前切分', 'warning');
+    return;
+  }
+  // Quick cutting always uses waveform pointer time, or the playhead outside it.
+  // A block under the pointer takes priority over overlapping cues and selection.
+  const pointer = waveformPointerContext();
+  const hovered = pointer ? null : hoveredSelectedCueContext();
+  const source = pointer || hovered || getCurrentCuePanelTarget();
+  const kind = pointer?.track || source?.kind || 'main';
+  const track = kind === 'extension' ? getExtensionTrack(source?.trackId) : null;
+  const segments = kind === 'main' ? DATA.segments
+    : kind === 'overlay' ? getOverlayTrack()?.segments : track?.segments;
+  const timeMs = pointer?.timeMs ?? Math.round(Number(player.currentTime) * 1000);
+  const block = pointer && document.elementFromPoint(pointer.x, pointer.y)?.closest('.waveform-cue-block');
+  const blockIndex = block?.dataset[kind === 'main' ? 'idx' : kind === 'overlay' ? 'overlayIdx' : 'extIdx'];
+  const index = blockIndex != null ? Number(blockIndex)
+    : !pointer && source ? source.idx ?? source.index
+      : findWaveformCueAtTime(timeMs, segments);
+  const segment = segments?.[index];
+  if (!segment || !Number.isFinite(timeMs) || timeMs <= segment.start || timeMs >= segment.end) {
+    flashHint('当前时间不在目标字幕内，请移动播放头或将鼠标移到波形字幕块上', 'warning');
+    return;
+  }
+  requestSubtitleSplit(kind, index, { track, timeMs, quick: true });
 }
 
 // === 单击/双击/Shift/Ctrl ===
@@ -13124,6 +13195,10 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'b' && e.key !== 'B') return;
   if (e.repeat) return;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+    quickSplitAtCurrentTime(e);
+    return;
+  }
   if (extensionEditingState) {
     if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
     const state = extensionEditingState;
@@ -13169,6 +13244,17 @@ document.addEventListener('keydown', (e) => {
   // 判断当前轨道，否则主字幕 active 时会被误判成副字幕单独拆分。
   const activeCuePanel = getCurrentCuePanelTarget();
   const operationReference = keyboardOperationReference();
+  if (operationReference?.source === 'pointer' && lastPointerPos) {
+    const block = document.elementFromPoint(lastPointerPos.x, lastPointerPos.y)?.closest('.waveform-cue-block');
+    if (block) {
+      const kind = block.dataset.track || 'main';
+      const index = Number(block.dataset[kind === 'main' ? 'idx' : kind === 'overlay' ? 'overlayIdx' : 'extIdx']);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      requestSubtitleSplit(kind, index, { timeMs: operationReference.timeMs });
+      return;
+    }
+  }
   const pointerMainIndex = operationReference
     ? findWaveformCueAtTime(operationReference.timeMs, DATA.segments) : -1;
   const activeExtensionTrack = getActiveExtensionTrack();

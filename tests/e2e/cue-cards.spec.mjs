@@ -49,7 +49,14 @@ test('preset cards and feedback colors stay distinct and retain custom overrides
     }, name);
     expect(new Set(colors).size).toBe(3);
     if (name === 'default') expect(colors.slice(1)).toEqual(['rgb(212, 154, 74)', 'rgb(255, 93, 103)']);
-    if (name === 'aster') expect(colors.slice(1)).toEqual(['rgb(255, 220, 0)', 'rgb(248, 114, 124)']);
+    const expected = {
+      aster: ['rgb(172, 138, 42)', 'rgb(248, 114, 124)'],
+      kosuzu: ['rgb(219, 70, 20)', 'rgb(71, 144, 79)'],
+      renko: ['rgb(141, 47, 7)', 'rgb(112, 62, 62)'],
+      reimu: ['rgb(235, 191, 45)', 'rgb(181, 34, 66)'],
+      alice: ['rgb(40, 84, 161)', 'rgb(248, 48, 48)'],
+    };
+    if (expected[name]) expect(colors.slice(1)).toEqual(expected[name]);
     await secondary(page).locator('.text').click();
     await page.screenshot({ path: info.outputPath(`theme-${name}.png`) });
   }

@@ -1269,6 +1269,8 @@ test('Home and End help explains cue-list and media routing in Chinese and Engli
 
 test('hovering a selected subtitle shows the B split hint', async ({ page }) => {
   await page.goto(server.url);
+  // A word-mode preview must point to a legal boundary, not the middle of Alpha.
+  await makeFirstCueWordSplittable(page);
   const cue = page.locator('.cue[data-idx="0"]');
   await cue.click();
   const text = cue.locator('.text');

@@ -1205,7 +1205,9 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">编辑操作</h5>
         <div class="help-category">
-          <span class="help-important"><kbd>B</kbd> 拆分字幕（取决于鼠标位置）</span>
+          <span class="help-important"><kbd>B</kbd> 普通切分（绑定字幕先确认）</span>
+          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分（绑定字幕同步切开）</span>
+          <span class="help-note">快速切分使用波形鼠标位置；鼠标不在波形区时使用播放头。文字优先按逐词时间码分界，无可靠时间码时按时间比例估算，可撤销后用普通切分调整。</span>
           <span class="help-important"><kbd>C</kbd> 合并所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
@@ -1259,6 +1261,7 @@ __WAVEFORM_CSS__
           <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
           <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
           <span class="help-important"><kbd id="help-waveform-split-key">B</kbd> 按当前时间基准拆分字幕</span>
+          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分波形字幕块（主、副字幕均可）</span>
         </div>
       </section>
       <h4 class="help-title">双语字幕</h4>
@@ -1590,10 +1593,10 @@ __WAVEFORM_CSS__
                   <option value="ctrl-enter">Ctrl+Enter</option>
                 </select>
               </label>
-              <label class="toggle editor-settings-item" title="可靠时间码可直接切分；关闭后在字幕编辑器中确认文字分界">
-                <input type="checkbox" id="split-use-word-timestamps" checked> 有可靠时间码时直接切分
+              <label class="toggle editor-settings-item" title="仅用于未绑定字幕的普通切分；绑定字幕始终先确认文字分界">
+                <input type="checkbox" id="split-use-word-timestamps" checked> 未绑定字幕有可靠时间码时直接切分
               </label>
-              <small class="editor-settings-hint" id="split-use-word-timestamps-hint">开启时直接切分已对齐的文字；分界不确定时，在字幕编辑器中确认。波形切分始终保留所选时间。</small>
+              <small class="editor-settings-hint" id="split-use-word-timestamps-hint">普通切分时，绑定字幕或不确定的文字分界需在字幕编辑器中确认。快速切分可按时间直接切开；波形切分始终保留所选时间。</small>
               <div class="editor-settings-field split-language-type-field" role="group" aria-labelledby="split-language-type-title">
                 <span class="editor-settings-item split-language-type-title" id="split-language-type-title">字幕语言类型</span>
                 <div class="split-language-type-row">
