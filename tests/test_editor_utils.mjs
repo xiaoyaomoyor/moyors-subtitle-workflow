@@ -5639,3 +5639,16 @@ test('list follow preference persists independently of retired click and split s
   assert.equal(Object.hasOwn(migrated,'cueListKeepSplitVisible'),false);
   assert.equal(helpers.normalizeEditorSettings({cueListFollowPlayback:false}).cueListFollowPlayback,false);
 });
+
+
+test('split confirmation settings migrate old preferences and preserve explicit choices', () => {
+  const old = helpers.normalizeEditorSettings({ cueEditorCancelOnEscape: true });
+  assert.equal(old.cueEditorSplitMoreActions, false);
+  assert.equal(old.cueEditorSplitAutoClose, true);
+  const chosen = helpers.normalizeEditorSettings(JSON.parse(JSON.stringify({
+    ...old, cueEditorSplitMoreActions: true, cueEditorSplitAutoClose: false,
+  })));
+  assert.equal(chosen.cueEditorSplitMoreActions, true);
+  assert.equal(chosen.cueEditorSplitAutoClose, false);
+  assert.equal(chosen.cueEditorCancelOnEscape, true);
+});

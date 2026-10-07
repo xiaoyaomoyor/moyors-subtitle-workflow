@@ -680,27 +680,29 @@ __WAVEFORM_CSS__
   <header class="gap-remove-panel-header" id="cue-editor-settings-drag-handle"><h3 id="cue-editor-settings-title">字幕编辑器设置</h3><button type="button" class="gap-remove-close" id="cue-editor-settings-close" aria-label="关闭字幕编辑器设置" title="关闭（Esc）"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></header>
   <div class="gap-remove-panel-body settings-modal-body" id="cue-editor-settings-panel">
           <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">显示</span>
+            <span class="settings-panel-title">显示与操作</span>
             <div class="cue-editor-settings-display-group">
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-time-actions"> 时间操作</label>
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
+              <label class="toggle settings-panel-item" data-option-help="关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。"><input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑</label>
             </div>
           </div>
-          <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">操作</span>
-            <label class="toggle settings-panel-item" title="开启后，按 Esc 会恢复当前字幕编辑前的文本；关闭后按 Esc 保留文本改动并退出编辑">
-              <input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑
-            </label>
-            <small class="settings-panel-hint">关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。</small>
-          </div>
 
-    <div class="settings-panel-section"><span class="settings-panel-title">配音草稿</span>
-      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-clear" checked> 合成成功后清空配音草稿</label>
-      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-lines" checked> 手动换行分段</label>
+    <div class="settings-panel-section cue-editor-settings-section"><span class="settings-panel-title">配音草稿</span>
+      <div class="cue-editor-settings-display-group">
+        <label class="toggle settings-panel-item"><input type="checkbox" id="tts-draft-clear" checked> 合成成功后清空配音草稿</label>
+        <label class="toggle settings-panel-item"><input type="checkbox" id="tts-draft-lines" checked> 手动换行分段</label>
+      </div>
       <label class="subtitle-preview-setting-row settings-panel-item"><span>自动断句</span><select id="tts-draft-split"><option value="off">关闭</option><option value="punctuation">按标点</option><option value="length">按字数</option><option value="both">标点与字数</option></select></label>
       <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-punctuation-field" hidden><span>断句标点</span><input type="text" id="tts-draft-punctuation" value="。！？!?；;" maxlength="64"></label>
       <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-limit-field" hidden><span>每段字数上限</span><input type="number" id="tts-draft-limit" min="1" max="600" value="100"></label>
+    </div>
+    <div class="settings-panel-section cue-editor-settings-section"><span class="settings-panel-title">联动切分</span>
+      <div class="cue-editor-settings-display-group">
+        <label class="toggle settings-panel-item" data-option-help="在取消与确认切分之间显示保留两侧原文和仅切当前字幕并解绑。独立切分作用于确认区中高亮的字幕。"><input type="checkbox" id="cue-editor-split-more-actions"> 更多操作</label>
+        <label class="toggle settings-panel-item" data-option-help="鼠标选择本次切分以外的字幕卡片或波形字幕块时，取消尚未确认的切分。"><input type="checkbox" id="cue-editor-split-auto-close" checked> 自动关闭</label>
+      </div>
     </div>
   </div>
 </aside>
@@ -1233,6 +1235,8 @@ __WAVEFORM_CSS__
         <div class="help-category">
           <span><kbd>V</kbd> 选择工具</span>
           <span><kbd>R</kbd> 分割工具</span>
+          <span><kbd data-mod-key>Ctrl+点击</kbd> 切割工具：快速联动切分</span>
+          <span><kbd>Shift+点击</kbd> 切割工具：仅切所点字幕并解绑</span>
           <span><kbd>Esc</kbd> 切回选择工具</span>
         </div>
       </section>
@@ -2251,15 +2255,10 @@ __WAVEFORM_CSS__
         <div class="multi-subtitle-split-error" id="multi-subtitle-split-error" role="status" hidden></div>
       </div>
       <footer class="multi-subtitle-split-footer">
-        <details class="subtitle-split-more">
-          <summary>更多</summary>
-          <div class="subtitle-split-more-actions">
-            <button type="button" id="multi-subtitle-split-duplicate" title="只切开时间，两侧保留相同文字">保留两侧原文</button>
-            <button type="button" id="multi-subtitle-split-independent" aria-keyshortcuts="Shift+B" hidden>仅切当前字幕并解绑 <kbd>Shift+B</kbd></button>
-          </div>
-        </details>
         <div class="actions">
           <button type="button" id="multi-subtitle-split-cancel">取消</button>
+          <button type="button" id="multi-subtitle-split-duplicate" title="只切开时间，两侧保留相同文字" hidden>保留两侧原文</button>
+          <button type="button" id="multi-subtitle-split-independent" aria-keyshortcuts="Shift+B" hidden><span>仅切当前字幕并解绑</span> <kbd>Shift+B</kbd></button>
           <button type="button" id="multi-subtitle-split-confirm" class="primary">确认切分</button>
         </div>
       </footer>
@@ -2326,7 +2325,7 @@ __WAVEFORM_CSS__
           <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.75 12.25 8 8 9.25 6.25 13.5 3 1.75Z"/><path d="m8.3 9.2 3.2 3.05"/></svg>
           <span>选择</span>
         </button>
-        <button type="button" data-waveform-tool="razor" title="分割工具（R）：点击字幕块在指针位置安全拆分（默认按字词时间码对齐；没有可用字词时间码或关闭设置后打开拆分点弹窗，拒绝 100ms 以内的边缘拆分）；Esc 切回选择">
+        <button type="button" data-waveform-tool="razor" title="分割工具（R）：点击字幕块在指针位置切分；Ctrl/Cmd 点击快速联动切分，Shift 点击仅切所点字幕并解绑；Esc 切回选择">
           <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="2.25"/><circle cx="4" cy="12" r="2.25"/><path d="m5.8 5.35 7.2 5.4M5.8 10.65 13 5.25"/></svg>
           <span class="ninja-razor-icon" aria-hidden="true" hidden>🔪</span>
           <span>分割</span>

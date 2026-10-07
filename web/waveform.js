@@ -2242,7 +2242,7 @@
       document.querySelectorAll('[data-waveform-tool]').forEach((button) => {
         button.classList.toggle('active', button.dataset.waveformTool === tool);
       });
-      this.setStatus(tool === 'range' ? '选区编辑：拖动选择，Shift 加选，Ctrl/Cmd 减选，拖动边界调整' : tool === 'razor' ? '分割工具：点击字幕块在指针位置拆分' : '选择工具');
+      this.setStatus(tool === 'range' ? '选区编辑：拖动选择，Shift 加选，Ctrl/Cmd 减选，拖动边界调整' : tool === 'razor' ? '分割工具：点击切分，Ctrl/Cmd 点击快速联动，Shift 点击仅切当前字幕并解绑' : '选择工具');
     }
 
     getTool() {
@@ -5940,28 +5940,26 @@
       // 字幕块会阻止 pointerdown 冒泡到 pane；主动接管焦点，确保按住
       // 字幕块/边界后，左手 A/D 不会仍被设置输入框等控件拦截。
       this.focusWaveform();
-      // Ctrl(Cmd)+点击字幕仍保留多选；真正移动形成拖动时视为
-      // “在已有字幕上创建”：叠加轨启用时主轨字幕改为转入叠加轨创建，
-      // 其余情况直接拒绝，不启动普通字幕拖动或创建预览。
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
-        return this.beginBlockedCueCreateDrag(event, index, track, row);
-      }
-      // 剃刀工具：无修饰键左键点击字幕块（非手柄）时，在指针位置安全拆分。
-      // 所有字幕轨遵循编辑器的统一切分规则。
-      // 修饰键（Alt/Ctrl(Cmd)/Shift）仍走原行为，便于拆分后立即多选/禁用。
+      // 切割工具优先处理修饰键：Ctrl/Cmd 快速联动，Shift 独立切分。
+      // 边界手柄与 Alt 操作仍沿用原行为。
       const edgeHit = this.resolveCueEdgeHit(event, row);
       const targetHandle = edgeHit?.handle;
       this.updateCueEdgeHover(event, row);
       const adjacentCueAdjustmentIndependent = this.isAdjacentCueAdjustmentIndependent(event.altKey);
       if ((track === 'main' || track === 'overlay' || track === 'extension') && this.tool === 'razor' && !targetHandle
-          && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+          && !event.altKey) {
         const timeMs = this.timeFromPointer(event, row);
         const timing = this.cueTiming();
         const cutMs = timing.toMs(timing.fromMs(timeMs));
-        if (track === 'overlay') this.options.splitOverlayCueAtTime?.(index, cutMs);
-        else if (track === 'extension') this.options.splitExtensionCueAtTime?.(index, cutMs);
-        else this.options.splitCueAtTime?.(index, cutMs);
+        const splitOptions = { quick: event.ctrlKey || event.metaKey || event.shiftKey, independent: event.shiftKey };
+        if (track === 'overlay') this.options.splitOverlayCueAtTime?.(index, cutMs, splitOptions);
+        else if (track === 'extension') this.options.splitExtensionCueAtTime?.(index, cutMs, splitOptions);
+        else this.options.splitCueAtTime?.(index, cutMs, splitOptions);
         return;
+      }
+      // 选择工具中的 Ctrl(Cmd)+点击仍多选；拖动仍走原叠加字幕创建逻辑。
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+        return this.beginBlockedCueCreateDrag(event, index, track, row);
       }
       // Ctrl(Cmd)+click toggles selection without starting a drag
       if (event.ctrlKey || event.metaKey) {

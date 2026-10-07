@@ -1089,6 +1089,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueEditorShowSticker: false,
   // 当前字幕编辑区按 Esc 时，是否放弃文本改动并恢复编辑前内容。
   cueEditorCancelOnEscape: false,
+  cueEditorSplitMoreActions: false,
+  cueEditorSplitAutoClose: true,
   ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
   ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
   selectGroupMembers: false,
@@ -1207,6 +1209,8 @@ function readEditorSettings() {
     cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
     cueEditorShowSticker: saved.cueEditorShowSticker === true,
     cueEditorCancelOnEscape: saved.cueEditorCancelOnEscape === true,
+    cueEditorSplitMoreActions: saved.cueEditorSplitMoreActions === true,
+    cueEditorSplitAutoClose: saved.cueEditorSplitAutoClose !== false,
     autoSnapAdjacentCues: saved.autoSnapAdjacentCues !== false,
     stickerOtioExportMode: saved.stickerOtioExportMode === 'portable' ? 'portable' : 'original',
     otioExportIncludeSrt: saved.otioExportIncludeSrt !== false,
@@ -5011,6 +5015,17 @@ autoSnapAdjacentCuesToggle?.addEventListener('change', () => {
 cueEditorCancelOnEscapeToggle?.addEventListener('change', () => {
   updateEditorSettings({ cueEditorCancelOnEscape: cueEditorCancelOnEscapeToggle.checked });
 });
+for (const [id, key] of [
+  ['cue-editor-split-more-actions', 'cueEditorSplitMoreActions'],
+  ['cue-editor-split-auto-close', 'cueEditorSplitAutoClose'],
+]) {
+  const toggle = document.getElementById(id);
+  toggle.checked = EDITOR_SETTINGS[key];
+  toggle.addEventListener('change', () => {
+    updateEditorSettings({ [key]: toggle.checked });
+    updateSplitActionVisibility();
+  });
+}
 ninjaModeToggle?.addEventListener('change', () => {
   updateEditorSettings({ ninjaMode: ninjaModeToggle.checked });
   applyNinjaSettings();
@@ -9298,6 +9313,9 @@ function setSplitActiveLane(state, lane) {
     laneEl?.classList.toggle('is-active-lane', name === lane);
     textEl?.setAttribute('aria-current', String(name === lane));
   }
+  const label = lane === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑';
+  const text = multiSubtitleSplitIndependent?.querySelector('span');
+  if (text) text.textContent = window.MSWE_I18N?.translateText?.(label) || label;
 }
 
 function syncLinkedSplitTime(state) {
@@ -9444,6 +9462,11 @@ function renderSplitLane(state, lane) {
   updateSplitLaneVisual(state, lane);
 }
 
+function updateSplitActionVisibility() {
+  multiSubtitleSplitDuplicate.hidden = !EDITOR_SETTINGS.cueEditorSplitMoreActions;
+  multiSubtitleSplitIndependent.hidden = !EDITOR_SETTINGS.cueEditorSplitMoreActions || pendingLinkedSplit?.kind !== 'linked';
+}
+
 function renderLinkedSplitText(state) {
   if (!state) return;
   multiSubtitleSplitTitle.textContent = state.kind === 'linked' ? '联动切分' : '切分字幕';
@@ -9451,9 +9474,7 @@ function renderLinkedSplitText(state) {
   renderSplitLane(state, 'extension');
   updateLinkedSplitPreview(state.mainOffset ?? state.offset,
     state.kind === 'main' || state.kind === 'linked' ? 'main' : 'extension');
-  multiSubtitleSplitIndependent.hidden = state.kind !== 'linked';
-  const more = multiSubtitleSplitModal.querySelector('details');
-  if (more) more.open = false;
+  updateSplitActionVisibility();
   focusSplitLane(state, state.initialLane || (state.kind === 'main' ? 'main' : 'extension'));
 }
 
@@ -9646,6 +9667,26 @@ function closeLinkedSplitModal() {
     } else waveformEditor?.focusWaveform?.();
   }
 }
+
+// Only a user selecting a different cue dismisses the draft; background selection
+// updates, preview-line dragging and clicks on the current pair must not cancel it.
+document.addEventListener('pointerdown', (event) => {
+  const state = pendingLinkedSplit;
+  if (!state || !EDITOR_SETTINGS.cueEditorSplitAutoClose || event.button !== 0 || event.altKey) return;
+  const target = event.target;
+  if (target.closest('button, input, select, textarea, .waveform-split-preview')) return;
+  const node = target.closest('.waveform-cue-block, #cues-container .multi-cue-column, #cues-container .cue, #cues-container .multi-extension-cue, #cues-container .overlay-track-cue');
+  if (!node) return;
+  const kind = node.dataset.track || (node.dataset.overlayIdx != null ? 'overlay'
+    : node.classList.contains('extension') || node.classList.contains('multi-extension-cue') ? 'extension' : 'main');
+  const track = kind === 'extension' ? getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
+  const index = Number(kind === 'extension' ? node.dataset.extIdx : kind === 'overlay' ? node.dataset.overlayIdx : node.dataset.mainIdx ?? node.dataset.idx);
+  const segment = (kind === 'main' ? DATA.segments : track?.segments)?.[index];
+  if (!segment) return;
+  const belongsToDraft = kind === 'main' ? segment.id === state.mainId
+    : track?.id === splitStateTrack(state)?.id && segment.id === state.extensionId;
+  if (!belongsToDraft) closeLinkedSplitModal();
+}, true);
 
 function openMainWaveformSplitModal(mainIndex, timeMs) {
   return requestSubtitleSplit('main', mainIndex, { timeMs });
@@ -23263,12 +23304,10 @@ function initWaveformEditor() {
     },
     // 剃刀工具：在波形指针位置安全拆分字幕。复用右键菜单的波形时间拆分路径；
     // 所有轨道保留指针时间；文字分界不确定时在字幕编辑器中确认。
-    splitCueAtTime: (idx, timeMs) => splitFromContextMenu(idx, 0, 0, timeMs),
+    splitCueAtTime: (idx, timeMs, options) => requestSubtitleSplit('main', idx, { ...options, timeMs }),
     beginSplitPreviewDrag: beginSubtitleSplitPreviewDrag,
-    splitExtensionCueAtTime: (idx, timeMs) => openExtensionSplitModal(idx, timeMs),
-    splitOverlayCueAtTime: (idx, timeMs) => openOverlaySplitModal(
-      idx, Number.isFinite(timeMs) ? timelineFrameAlignedMilliseconds(timeMs) : timeMs,
-    ),
+    splitExtensionCueAtTime: (idx, timeMs, options) => requestSubtitleSplit('extension', idx, { ...options, timeMs }),
+    splitOverlayCueAtTime: (idx, timeMs, options) => requestSubtitleSplit('overlay', idx, { ...options, timeMs }),
     getClickBehavior: () => EDITOR_SETTINGS.clickBehavior,
     getClickTarget: () => EDITOR_SETTINGS.clickTarget,
     getAutoSnapAdjacentCues: () => EDITOR_SETTINGS.autoSnapAdjacentCues,

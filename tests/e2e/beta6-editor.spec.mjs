@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { join } from 'node:path';
-import { disableOnboarding, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer } from './helpers.mjs';
+import { enableSplitMoreActions, disableOnboarding, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer } from './helpers.mjs';
 
 let dir, server;
 test.beforeAll(async () => {
@@ -47,7 +47,7 @@ for (const kind of ['main', 'extension', 'overlay', 'linked']) {
       return before;
     }, kind);
     await expect(page.locator('#multi-subtitle-split-duplicate')).toBeEnabled();
-    await page.locator('#multi-subtitle-split-modal summary').click();
+    await enableSplitMoreActions(page);
     await page.locator('#multi-subtitle-split-duplicate').click();
     const after = await page.evaluate(kind => {
       const cues = kind === 'extension' ? DATA.multi_subtitle.tracks[0].segments : kind === 'overlay' ? DATA.overlay_track.segments : DATA.segments;
@@ -135,7 +135,7 @@ test('secondary duplicate split keeps same-track color references at nonzero ind
       tracks:[{id:'sub',role:'extension',name:'Sub',split_mode:'word',segments:cues}],bindings:[]};
     normalizeMultiSubtitleState();renderAll();openExtensionSplitModal(1,2900);
   });
-  await page.locator('#multi-subtitle-split-modal summary').click();
+  await enableSplitMoreActions(page);
   await page.locator('#multi-subtitle-split-duplicate').click();
   const cues=await page.evaluate(()=>DATA.multi_subtitle.tracks[0].segments);
   expect(cues[2].color_ref.headIdx).toBe(1);

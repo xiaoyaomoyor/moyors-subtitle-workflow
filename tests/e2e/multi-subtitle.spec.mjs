@@ -2,7 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTempDir, clickBatchOperation, clickLanguageToggleViaSettings, clickMenubarItem, clickMultiSubtitleToggle, findFreePort, generateBlankEditor, generateWaveformPayload, makeTempDir, openMultiSubtitleSettings as openMultiSubtitleMenu, setMultiSubtitleToggle, startStaticServer, toggleCueListSettings, toggleEditorSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
+import { enableSplitMoreActions, cleanupTempDir, clickBatchOperation, clickLanguageToggleViaSettings, clickMenubarItem, clickMultiSubtitleToggle, findFreePort, generateBlankEditor, generateWaveformPayload, makeTempDir, openMultiSubtitleSettings as openMultiSubtitleMenu, setMultiSubtitleToggle, startStaticServer, toggleCueListSettings, toggleEditorSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -1325,7 +1325,7 @@ test('requires an explicit independent action when the extension cannot be split
   await expect(page.locator('#multi-subtitle-split-confirm')).toBeDisabled();
   await page.keyboard.press('Enter');
   expect(await page.evaluate(() => DATA.multi_subtitle.bindings.length)).toBe(1);
-  await page.locator('#multi-subtitle-split-modal summary').click();
+  await enableSplitMoreActions(page);
   await page.locator('#multi-subtitle-split-independent').click();
 
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);

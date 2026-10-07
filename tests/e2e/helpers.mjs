@@ -538,6 +538,13 @@ export async function closeMenubarMenus(page) {
   await page.keyboard.press('Escape');
 }
 
+export async function enableSplitMoreActions(page) {
+  await openMenubarMenu(page, '字幕');
+  await page.locator('#cue-editor-settings-open').click();
+  await page.locator('#cue-editor-split-more-actions').check();
+  await page.locator('#cue-editor-settings-close').click();
+}
+
 export async function clickMenubarItem(page, tabLabel, itemId) {
   await openMenubarMenu(page, tabLabel);
   const item = page.locator(`.menubar-menu #${itemId}`);

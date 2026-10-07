@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, startServer, openMenubarMenu } from './helpers.mjs';
+import { disableOnboarding, enableSplitMoreActions, findFreePort, generateWav, generateWaveformPayload, makeTempDir, startServer, openMenubarMenu } from './helpers.mjs';
 
 let server;
 test.beforeAll(async () => {
@@ -14,7 +14,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => { await server?.stop(); });
 test.beforeEach(async ({ page }) => {
   await disableOnboarding(page);
-  await page.addInitScript(() => localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({ autoSaveProject: false })));
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('moy.asr.editor.settings.v1')) localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({ autoSaveProject: false }));
+  });
   await page.goto(server.url);
   await expect.poll(() => page.evaluate(() => Boolean(window.MSWProjectStyle))).toBe(true);
 });
@@ -135,7 +137,7 @@ test('independent action splits only its source and explicitly releases the bind
     await fixture(page);
     const before = await data(page);
     await page.evaluate(kind => requestSubtitleSplit(kind, 0, { timeMs: 4000 }), kind);
-    await panel(page).locator('summary').click();
+    await enableSplitMoreActions(page);
     await page.locator('#multi-subtitle-split-independent').click();
     await expect(panel(page)).toBeHidden();
     const result = await data(page);
@@ -155,7 +157,7 @@ test('an impossible bound split never silently falls back to unbinding', async (
   await page.keyboard.press('Enter');
   expect(await data(page)).toEqual(before);
   await expect(page.locator('#multi-subtitle-split-error')).toContainText('仅切当前字幕并解绑');
-  await panel(page).locator('summary').click();
+  await enableSplitMoreActions(page);
   await page.locator('#multi-subtitle-split-independent').click();
   expect((await data(page)).main).toHaveLength(2);
   expect((await data(page)).bindings).toHaveLength(0);
@@ -167,7 +169,7 @@ test('an impossible bound split never silently falls back to unbinding', async (
   });
   await expect(panel(page)).toBeVisible();
   await expect(page.locator('#multi-subtitle-split-confirm')).toBeDisabled();
-  await panel(page).locator('summary').click();
+  await enableSplitMoreActions(page);
   await page.locator('#multi-subtitle-split-independent').click();
   expect((await data(page)).main).toHaveLength(1);
   expect((await data(page)).sub).toHaveLength(2);
@@ -200,7 +202,7 @@ test('pending split refuses changed source data and closes on project switch', a
   for (const independent of [false, true]) {
     await fixture(page);
     await page.evaluate(() => { splitFromContextMenu(0, 0, 0, 4000); DATA.segments[0].text = 'changed text'; });
-    if (independent) await panel(page).locator('summary').click();
+    if (independent) await enableSplitMoreActions(page);
     await page.locator(independent ? '#multi-subtitle-split-independent' : '#multi-subtitle-split-confirm').click();
     await expect(panel(page)).toBeHidden();
     expect((await data(page)).main).toHaveLength(1);
@@ -253,6 +255,58 @@ for (const width of [1280, 740]) test(`inline split layout remains usable at ${w
   await page.screenshot({ path: testInfo.outputPath('inline-split.png') });
   await page.locator('#multi-subtitle-split-confirm').click();
   expect((await data(page)).bindings).toHaveLength(2);
+});
+
+for (const kind of ['main', 'extension']) {
+  for (const modifier of ['Control', 'Shift']) {
+    test(`razor ${modifier} click on ${kind} uses pointer time and one undo`, async ({ page }) => {
+      await fixture(page);
+      const before = await data(page);
+      await page.locator('[data-waveform-tool="razor"]').click();
+      await page.evaluate(() => { player.currentTime = .5; });
+      const block = page.locator(`.waveform-cue-block[data-track="${kind}"]`).first();
+      await block.hover();
+      const pointerTime = await page.evaluate(() => Math.round(waveformPointerContext().timeMs));
+      await block.click({ modifiers: [modifier] });
+      await expect(panel(page)).toBeHidden();
+      const after = await data(page);
+      const split = kind === 'main' ? after.main : after.sub;
+      expect(split.map(s => [s.start, s.end])).toEqual([[0, pointerTime], [pointerTime, 8000]]);
+      const other = kind === 'main' ? 'sub' : 'main';
+      if (modifier === 'Control') {
+        expect(after[other].map(s => [s.start, s.end])).toEqual([[0, pointerTime], [pointerTime, 8000]]);
+        expect(after.bindings).toHaveLength(2);
+      } else {
+        expect(after[other]).toEqual(before[other]);
+        expect(after.bindings).toHaveLength(0);
+      }
+      await page.evaluate(() => performUndo());
+      expect(await data(page)).toEqual(before);
+      await page.evaluate(() => performRedo());
+      expect(await data(page)).toEqual(after);
+    });
+  }
+}
+
+test('independent footer button follows the active lane rather than entry lane', async ({ page }) => {
+  await enableSplitMoreActions(page);
+  for (const origin of ['main', 'extension']) {
+    await fixture(page);
+    const before = await data(page);
+    await page.evaluate(kind => requestSubtitleSplit(kind, 0, { timeMs: 3000 }), origin);
+    const target = origin === 'main' ? 'extension' : 'main';
+    await page.keyboard.press(target === 'extension' ? 'ArrowDown' : 'ArrowUp');
+    const button = page.locator('#multi-subtitle-split-independent');
+    await expect(button).toContainText(target === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑');
+    await button.click();
+    await expect(panel(page)).toBeHidden();
+    const after = await data(page);
+    expect(after.bindings).toHaveLength(0);
+    expect(after[target === 'main' ? 'main' : 'sub']).toHaveLength(2);
+    expect(after[origin === 'main' ? 'main' : 'sub']).toEqual(before[origin === 'main' ? 'main' : 'sub']);
+    await page.evaluate(() => performUndo());
+    expect(await data(page)).toEqual(before);
+  }
 });
 
 test('razor cuts a secondary waveform block through the same linked flow', async ({ page }) => {
@@ -611,3 +665,119 @@ test('split help uses the shared export tooltip interaction and keeps the active
   await expect(popup).toContainText('Drag the waveform dashed line');
   await expect(page.locator('.multi-subtitle-split-lane.is-active-lane')).toHaveAttribute('id', 'multi-subtitle-split-extension-lane');
 });
+
+
+async function openCueEditorSettings(page) {
+  await openMenubarMenu(page, '字幕');
+  await page.locator('#cue-editor-settings-open').click();
+}
+
+test('split settings default safely, update the open footer and persist after reload', async ({ page }) => {
+  await fixture(page);
+  await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 3000 }));
+  await expect(panel(page).locator('details, summary')).toHaveCount(0);
+  await expect(page.locator('#multi-subtitle-split-duplicate')).toBeHidden();
+  await expect(page.locator('#multi-subtitle-split-independent')).toBeHidden();
+  const offsets = await page.evaluate(() => [pendingLinkedSplit.cutMs, pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset]);
+  await openCueEditorSettings(page);
+  await expect(page.locator('#cue-editor-split-more-actions')).not.toBeChecked();
+  await expect(page.locator('#cue-editor-split-auto-close')).toBeChecked();
+  await page.locator('#cue-editor-split-more-actions').check();
+  await page.locator('#cue-editor-split-auto-close').uncheck();
+  await page.locator('#cue-editor-settings-close').click();
+  await expect(panel(page)).toBeVisible();
+  expect(await page.evaluate(() => [pendingLinkedSplit.cutMs, pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset])).toEqual(offsets);
+  await expect(panel(page).locator('.actions button:visible')).toHaveText(['取消', '保留两侧原文', '仅切主字幕并解绑 Shift+B', '确认切分']);
+  await page.reload();
+  await openCueEditorSettings(page);
+  await expect(page.locator('#cue-editor-split-more-actions')).toBeChecked();
+  await expect(page.locator('#cue-editor-split-auto-close')).not.toBeChecked();
+  await page.locator('#cue-editor-settings-close').click();
+  await fixture(page);
+  await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 3000 }));
+  await expect(page.locator('#multi-subtitle-split-duplicate')).toBeVisible();
+  await openCueEditorSettings(page);
+  await page.locator('#cue-editor-split-more-actions').uncheck();
+  await page.locator('#cue-editor-settings-close').click();
+  await expect(page.locator('#multi-subtitle-split-duplicate')).toBeHidden();
+  await expect(page.locator('#multi-subtitle-split-independent')).toBeHidden();
+  await page.locator('#multi-subtitle-split-text').click();
+  await page.keyboard.press('Shift+b');
+  expect((await data(page)).main).toHaveLength(1);
+  expect((await data(page)).sub).toHaveLength(2);
+});
+
+for (const surface of ['card', 'waveform']) for (const kind of ['main', 'extension']) {
+  test(`auto-close on another ${kind} ${surface} cancels only the draft and can be disabled`, async ({ page }) => {
+    for (const enabled of [true, false]) {
+      await fixture(page);
+      await page.evaluate(() => {
+        DATA.segments[0].end = 4000;
+        getActiveExtensionTrack().segments[0].end = 4000;
+        DATA.segments.push({ id: 'main-b', start: 4000, end: 8000, text: 'another subtitle', items: [] });
+        getActiveExtensionTrack().segments.push({ id: 'sub-b', start: 4000, end: 8000, text: '另一条字幕', items: [] });
+        renderAll();
+      });
+      await openCueEditorSettings(page);
+      await page.locator('#cue-editor-split-auto-close').setChecked(enabled);
+      await page.locator('#cue-editor-settings-close').click();
+      const before = await data(page);
+      await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 2000 }));
+      const cue = index => surface === 'waveform'
+        ? page.locator(`.waveform-cue-block[data-track="${kind}"][${kind === 'main' ? 'data-idx' : 'data-ext-idx'}="${index}"]`).first()
+        : page.locator(`#cues-container ${kind === 'main' ? `.cue[data-idx="${index}"] .main .text` : `[data-ext-idx="${index}"] .text`}`).first();
+      // Click away from the draggable cut marker at the block's center.
+      await cue(0).click(surface === 'waveform' ? { position: { x: 24, y: 14 } } : {});
+      await expect(panel(page)).toBeVisible();
+      await cue(1).click();
+      if (enabled) {
+        await expect(panel(page)).toBeHidden();
+        await expect(page.locator('.waveform-split-preview:visible')).toHaveCount(0);
+        expect(await page.evaluate(() => pendingLinkedSplit)).toBeNull();
+        expect(await page.evaluate(() => getCurrentCuePanelTarget()?.index)).toBe(1);
+      } else {
+        await expect(panel(page)).toBeVisible();
+        expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(2000);
+        await page.locator('#multi-subtitle-split-cancel').click();
+      }
+      expect(await data(page)).toEqual(before);
+    }
+  });
+}
+
+for (const width of [1280, 740, 420]) {
+  test(`cue editor settings have separated padded groups and usable footer at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page);
+    await openCueEditorSettings(page);
+    const settings = page.locator('#cue-editor-settings-panel');
+    await expect(settings.locator('.settings-panel-title')).toHaveText(['显示与操作', '配音草稿', '联动切分']);
+    await page.locator('#tts-draft-split').selectOption('both');
+    await expect(page.locator('#tts-draft-limit')).toBeVisible();
+    await expect(page.locator('#tts-draft-punctuation')).toBeVisible();
+    await page.locator('#cue-editor-split-more-actions').check();
+    const geometry = await settings.evaluate(el => {
+      const groups = [...el.querySelectorAll('.settings-panel-section')];
+      return {
+        overflow: el.scrollWidth > el.clientWidth + 1,
+        gaps: groups.slice(1).map((group, i) => group.getBoundingClientRect().top - groups[i].getBoundingClientRect().bottom),
+        padding: groups.map(group => parseFloat(getComputedStyle(group).paddingLeft)),
+        controlsFit: [...el.querySelectorAll('input:not([type="checkbox"]), select')].filter(input => input.getClientRects().length)
+          .every(input => { const row = input.closest('label').getBoundingClientRect(); const r = input.getBoundingClientRect(); return r.left >= row.left && r.right <= row.right + 1; }),
+      };
+    });
+    expect(geometry.overflow).toBe(false);
+    expect(geometry.gaps.every(gap => gap >= 10)).toBe(true);
+    expect(geometry.padding.every(padding => padding >= 10)).toBe(true);
+    expect(geometry.controlsFit).toBe(true);
+    await page.screenshot({ path: info.outputPath(`cue-settings-${width}.png`) });
+    await page.locator('#cue-editor-settings-close').click();
+    await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 3000 }));
+    await expect(page.locator('#multi-subtitle-split-independent')).toBeVisible();
+    expect(await panel(page).evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    await page.locator('#multi-subtitle-split-confirm').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`split-footer-${width}.png`) });
+    await page.locator('#multi-subtitle-split-confirm').click();
+    expect((await data(page)).bindings).toHaveLength(2);
+  });
+}

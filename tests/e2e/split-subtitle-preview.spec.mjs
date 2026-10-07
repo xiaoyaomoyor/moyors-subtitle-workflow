@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {execFileSync} from 'node:child_process';
 import {writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,startServer} from './helpers.mjs';
+import { enableSplitMoreActions, disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,startServer} from './helpers.mjs';
 
 let server,folder;
 test.beforeEach(async({page})=>{
@@ -41,7 +41,7 @@ async function preview(page){return page.evaluate(()=>{const h=window.MSWE.resol
 async function cut(page,kind,duplicate){
   await page.evaluate(kind=>kind==='linked'?splitFromContextMenu(0,0,0,2000):openExtensionSplitModal(0,2000, getActiveExtensionTrack(), { independent: true }),kind);
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  if(duplicate) await page.locator('#multi-subtitle-split-modal summary').click();
+  if(duplicate) await enableSplitMoreActions(page);
   await page.locator(duplicate?'#multi-subtitle-split-duplicate':'#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
 }

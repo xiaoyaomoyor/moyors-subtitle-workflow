@@ -1842,15 +1842,15 @@
   .cue-list-settings-panel { width: min(340px, calc(100vw - 16px)); }
   .cue-editor-settings-panel { width: min(300px, calc(100vw - 16px)); }
   .cue-editor-settings-window { width: min(480px, calc(100vw - 16px)); }
-  .cue-editor-settings-window .settings-panel-section { display: grid; gap: 8px; padding: 12px 0; }
-  .cue-editor-settings-window .settings-panel-section + .settings-panel-section { border-top: 1px solid var(--border); }
+  .cue-editor-settings-window .settings-panel-section { display: grid; flex: 0 0 auto; gap: 10px; padding: 12px; }
+  .cue-editor-settings-window .settings-panel-title { margin: 0; }
   .cue-editor-settings-window h3 { margin: 0; font-size: 15px; }
   #cue-panel-tts-preview { margin: 0; font-size: 12px; flex: 0 0 auto; }
   #cue-panel-tts-preview ol { max-height: 100px; overflow: auto; margin: 4px 0; }
   .current-cue-panel.tts-draft-mode .cue-panel-text-wrap { min-height: 0; overflow-y: auto; }
   .current-cue-panel.tts-draft-mode #cue-panel-tts-text { flex: 1 0 58px; height: 58px; resize: none; }
   #cue-panel-tts-preview li { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0; }
-  #cue-editor-settings-panel.settings-modal-body { display: flex; flex-direction: column; gap: 0; }
+  #cue-editor-settings-panel.settings-modal-body { display: flex; flex-direction: column; gap: 12px; max-height: min(70vh, 640px); }
   #cue-editor-settings-panel > section { width: 100%; box-sizing: border-box; }
   #cue-editor-settings-panel label:not(.toggle) { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(100px, 1fr); align-items: center; gap: 8px; }
   #cue-editor-settings-panel label[hidden] { display: none; }
@@ -1917,10 +1917,10 @@
     white-space: nowrap;
   }
   .cue-editor-settings-display-group {
-    display: flex; flex-wrap: wrap; gap: 8px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0;
   }
   .cue-editor-settings-display-group .settings-panel-item {
-    white-space: nowrap;
+    min-width: 0; margin: 0; flex-wrap: wrap;
   }
   .waveform-settings-section { width: 100%; }
   .waveform-settings-title { text-transform: none; }
@@ -3824,11 +3824,8 @@
   .multi-subtitle-split-gap.active::after { content: ''; position: absolute; top: -.1em; bottom: -.15em; left: 50%; width: 2px; border-radius: 1px; background: var(--accent); }
   .multi-subtitle-split-error { color: var(--red-hover); font-size: 12px; line-height: 1.5; }
   .multi-subtitle-split-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-  .multi-subtitle-split-footer .actions { display: flex; gap: 6px; margin: 0 0 0 auto; }
+  .multi-subtitle-split-footer .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin: 0 0 0 auto; min-width: 0; }
   .current-cue-panel .multi-subtitle-split-footer .primary { background: var(--accent); color: var(--accent-text, #fff); border-color: var(--accent); }
-  .subtitle-split-more { position: relative; font-size: 12px; color: var(--text-muted); }
-  .subtitle-split-more summary { cursor: pointer; padding: 4px 0; }
-  .subtitle-split-more-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 0; }
   @container cue-panel (max-width: 380px) {
     .subtitle-split-header { gap: 4px 8px; }
     .multi-subtitle-split-lane { grid-template-columns: minmax(0, 1fr); gap: 2px; }
@@ -6835,27 +6832,29 @@
   <header class="gap-remove-panel-header" id="cue-editor-settings-drag-handle"><h3 id="cue-editor-settings-title">字幕编辑器设置</h3><button type="button" class="gap-remove-close" id="cue-editor-settings-close" aria-label="关闭字幕编辑器设置" title="关闭（Esc）"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></header>
   <div class="gap-remove-panel-body settings-modal-body" id="cue-editor-settings-panel">
           <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">显示</span>
+            <span class="settings-panel-title">显示与操作</span>
             <div class="cue-editor-settings-display-group">
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-time-actions"> 时间操作</label>
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
+              <label class="toggle settings-panel-item" data-option-help="关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。"><input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑</label>
             </div>
           </div>
-          <div class="settings-panel-section cue-editor-settings-section">
-            <span class="settings-panel-title">操作</span>
-            <label class="toggle settings-panel-item" title="开启后，按 Esc 会恢复当前字幕编辑前的文本；关闭后按 Esc 保留文本改动并退出编辑">
-              <input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑
-            </label>
-            <small class="settings-panel-hint">关闭后按 Esc 保留文本改动；开启后恢复编辑前的文本。</small>
-          </div>
 
-    <div class="settings-panel-section"><span class="settings-panel-title">配音草稿</span>
-      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-clear" checked> 合成成功后清空配音草稿</label>
-      <label class="settings-panel-item"><input type="checkbox" id="tts-draft-lines" checked> 手动换行分段</label>
+    <div class="settings-panel-section cue-editor-settings-section"><span class="settings-panel-title">配音草稿</span>
+      <div class="cue-editor-settings-display-group">
+        <label class="toggle settings-panel-item"><input type="checkbox" id="tts-draft-clear" checked> 合成成功后清空配音草稿</label>
+        <label class="toggle settings-panel-item"><input type="checkbox" id="tts-draft-lines" checked> 手动换行分段</label>
+      </div>
       <label class="subtitle-preview-setting-row settings-panel-item"><span>自动断句</span><select id="tts-draft-split"><option value="off">关闭</option><option value="punctuation">按标点</option><option value="length">按字数</option><option value="both">标点与字数</option></select></label>
       <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-punctuation-field" hidden><span>断句标点</span><input type="text" id="tts-draft-punctuation" value="。！？!?；;" maxlength="64"></label>
       <label class="subtitle-preview-setting-row settings-panel-item" id="tts-draft-limit-field" hidden><span>每段字数上限</span><input type="number" id="tts-draft-limit" min="1" max="600" value="100"></label>
+    </div>
+    <div class="settings-panel-section cue-editor-settings-section"><span class="settings-panel-title">联动切分</span>
+      <div class="cue-editor-settings-display-group">
+        <label class="toggle settings-panel-item" data-option-help="在取消与确认切分之间显示保留两侧原文和仅切当前字幕并解绑。独立切分作用于确认区中高亮的字幕。"><input type="checkbox" id="cue-editor-split-more-actions"> 更多操作</label>
+        <label class="toggle settings-panel-item" data-option-help="鼠标选择本次切分以外的字幕卡片或波形字幕块时，取消尚未确认的切分。"><input type="checkbox" id="cue-editor-split-auto-close" checked> 自动关闭</label>
+      </div>
     </div>
   </div>
 </aside>
@@ -7388,6 +7387,8 @@
         <div class="help-category">
           <span><kbd>V</kbd> 选择工具</span>
           <span><kbd>R</kbd> 分割工具</span>
+          <span><kbd data-mod-key>Ctrl+点击</kbd> 切割工具：快速联动切分</span>
+          <span><kbd>Shift+点击</kbd> 切割工具：仅切所点字幕并解绑</span>
           <span><kbd>Esc</kbd> 切回选择工具</span>
         </div>
       </section>
@@ -8406,15 +8407,10 @@
         <div class="multi-subtitle-split-error" id="multi-subtitle-split-error" role="status" hidden></div>
       </div>
       <footer class="multi-subtitle-split-footer">
-        <details class="subtitle-split-more">
-          <summary>更多</summary>
-          <div class="subtitle-split-more-actions">
-            <button type="button" id="multi-subtitle-split-duplicate" title="只切开时间，两侧保留相同文字">保留两侧原文</button>
-            <button type="button" id="multi-subtitle-split-independent" aria-keyshortcuts="Shift+B" hidden>仅切当前字幕并解绑 <kbd>Shift+B</kbd></button>
-          </div>
-        </details>
         <div class="actions">
           <button type="button" id="multi-subtitle-split-cancel">取消</button>
+          <button type="button" id="multi-subtitle-split-duplicate" title="只切开时间，两侧保留相同文字" hidden>保留两侧原文</button>
+          <button type="button" id="multi-subtitle-split-independent" aria-keyshortcuts="Shift+B" hidden><span>仅切当前字幕并解绑</span> <kbd>Shift+B</kbd></button>
           <button type="button" id="multi-subtitle-split-confirm" class="primary">确认切分</button>
         </div>
       </footer>
@@ -8481,7 +8477,7 @@
           <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.75 12.25 8 8 9.25 6.25 13.5 3 1.75Z"/><path d="m8.3 9.2 3.2 3.05"/></svg>
           <span>选择</span>
         </button>
-        <button type="button" data-waveform-tool="razor" title="分割工具（R）：点击字幕块在指针位置安全拆分（默认按字词时间码对齐；没有可用字词时间码或关闭设置后打开拆分点弹窗，拒绝 100ms 以内的边缘拆分）；Esc 切回选择">
+        <button type="button" data-waveform-tool="razor" title="分割工具（R）：点击字幕块在指针位置切分；Ctrl/Cmd 点击快速联动切分，Shift 点击仅切所点字幕并解绑；Esc 切回选择">
           <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="2.25"/><circle cx="4" cy="12" r="2.25"/><path d="m5.8 5.35 7.2 5.4M5.8 10.65 13 5.25"/></svg>
           <span class="ninja-razor-icon" aria-hidden="true" hidden>🔪</span>
           <span>分割</span>
@@ -13760,6 +13756,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     cueListHideDisabled: true, cueListCharcountThreshold: 0,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
     cueEditorCancelOnEscape: false, selectGroupMembers: false, toolbarKbdHints: false,
+    cueEditorSplitMoreActions: false, cueEditorSplitAutoClose: true,
     ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
     ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
     mergeJoinTextContinuous: '', mergeJoinTextWord: ' ',
@@ -13842,6 +13839,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       cueEditorShowTimeActions: savedSettings.cueEditorShowTimeActions === true,
       cueEditorShowSticker: savedSettings.cueEditorShowSticker === true,
       cueEditorCancelOnEscape: savedSettings.cueEditorCancelOnEscape === true,
+      cueEditorSplitMoreActions: savedSettings.cueEditorSplitMoreActions === true,
+      cueEditorSplitAutoClose: savedSettings.cueEditorSplitAutoClose !== false,
       ttsDraftClearOnSuccess: savedSettings.ttsDraftClearOnSuccess !== false,
       ttsDraftSplitLines: savedSettings.ttsDraftSplitLines !== false,
       ttsDraftSplitMode: ['punctuation', 'length', 'both'].includes(savedSettings.ttsDraftSplitMode) ? savedSettings.ttsDraftSplitMode : 'off',
@@ -19691,6 +19690,17 @@ export default MawDynamicCaptions;
     '保留两侧原文': 'Keep text on both sides',
     '只切开时间，两侧保留相同文字': 'Split the time range and keep the same text on both sides',
     '仅切当前字幕并解绑': 'Split only this subtitle and unlink',
+    '仅切主字幕并解绑': 'Split only main and unlink',
+    '仅切副字幕并解绑': 'Split only secondary and unlink',
+    '显示与操作': 'Display and interaction',
+    '更多操作': 'More actions',
+    '自动关闭': 'Auto-close',
+    '在取消与确认切分之间显示保留两侧原文和仅切当前字幕并解绑。独立切分作用于确认区中高亮的字幕。': 'Show Keep text on both sides and Split only this subtitle and unlink between Cancel and Confirm split. Independent splitting applies to the highlighted subtitle.',
+    '鼠标选择本次切分以外的字幕卡片或波形字幕块时，取消尚未确认的切分。': 'Cancel the pending split when you select a subtitle card or waveform block outside the current split.',
+    '切割工具：快速联动切分': 'Razor tool: quick linked split',
+    '分割工具：点击切分，Ctrl/Cmd 点击快速联动，Shift 点击仅切当前字幕并解绑': 'Razor tool: click to split, Ctrl/Cmd-click for a quick linked split, Shift-click to split only this subtitle and unlink',
+    '切割工具：仅切所点字幕并解绑': 'Razor tool: split only the clicked subtitle and unlink',
+    '分割工具（R）：点击字幕块在指针位置切分；Ctrl/Cmd 点击快速联动切分，Shift 点击仅切所点字幕并解绑；Esc 切回选择': 'Razor tool (R): click to split at the pointer; Ctrl/Cmd-click quickly splits linked subtitles, Shift-click splits only the clicked subtitle and unlinks it; Esc returns to Select',
     '确认切分': 'Confirm split',
     '有可靠时间码时直接切分': 'Split directly with reliable timestamps',
     '可靠时间码可直接切分；关闭后在字幕编辑器中确认文字分界': 'Split directly with reliable timestamps; turn off to confirm text boundaries in the subtitle editor',
@@ -24706,7 +24716,7 @@ export default MawDynamicCaptions;
       document.querySelectorAll('[data-waveform-tool]').forEach((button) => {
         button.classList.toggle('active', button.dataset.waveformTool === tool);
       });
-      this.setStatus(tool === 'range' ? '选区编辑：拖动选择，Shift 加选，Ctrl/Cmd 减选，拖动边界调整' : tool === 'razor' ? '分割工具：点击字幕块在指针位置拆分' : '选择工具');
+      this.setStatus(tool === 'range' ? '选区编辑：拖动选择，Shift 加选，Ctrl/Cmd 减选，拖动边界调整' : tool === 'razor' ? '分割工具：点击切分，Ctrl/Cmd 点击快速联动，Shift 点击仅切当前字幕并解绑' : '选择工具');
     }
 
     getTool() {
@@ -28404,28 +28414,26 @@ export default MawDynamicCaptions;
       // 字幕块会阻止 pointerdown 冒泡到 pane；主动接管焦点，确保按住
       // 字幕块/边界后，左手 A/D 不会仍被设置输入框等控件拦截。
       this.focusWaveform();
-      // Ctrl(Cmd)+点击字幕仍保留多选；真正移动形成拖动时视为
-      // “在已有字幕上创建”：叠加轨启用时主轨字幕改为转入叠加轨创建，
-      // 其余情况直接拒绝，不启动普通字幕拖动或创建预览。
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
-        return this.beginBlockedCueCreateDrag(event, index, track, row);
-      }
-      // 剃刀工具：无修饰键左键点击字幕块（非手柄）时，在指针位置安全拆分。
-      // 所有字幕轨遵循编辑器的统一切分规则。
-      // 修饰键（Alt/Ctrl(Cmd)/Shift）仍走原行为，便于拆分后立即多选/禁用。
+      // 切割工具优先处理修饰键：Ctrl/Cmd 快速联动，Shift 独立切分。
+      // 边界手柄与 Alt 操作仍沿用原行为。
       const edgeHit = this.resolveCueEdgeHit(event, row);
       const targetHandle = edgeHit?.handle;
       this.updateCueEdgeHover(event, row);
       const adjacentCueAdjustmentIndependent = this.isAdjacentCueAdjustmentIndependent(event.altKey);
       if ((track === 'main' || track === 'overlay' || track === 'extension') && this.tool === 'razor' && !targetHandle
-          && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+          && !event.altKey) {
         const timeMs = this.timeFromPointer(event, row);
         const timing = this.cueTiming();
         const cutMs = timing.toMs(timing.fromMs(timeMs));
-        if (track === 'overlay') this.options.splitOverlayCueAtTime?.(index, cutMs);
-        else if (track === 'extension') this.options.splitExtensionCueAtTime?.(index, cutMs);
-        else this.options.splitCueAtTime?.(index, cutMs);
+        const splitOptions = { quick: event.ctrlKey || event.metaKey || event.shiftKey, independent: event.shiftKey };
+        if (track === 'overlay') this.options.splitOverlayCueAtTime?.(index, cutMs, splitOptions);
+        else if (track === 'extension') this.options.splitExtensionCueAtTime?.(index, cutMs, splitOptions);
+        else this.options.splitCueAtTime?.(index, cutMs, splitOptions);
         return;
+      }
+      // 选择工具中的 Ctrl(Cmd)+点击仍多选；拖动仍走原叠加字幕创建逻辑。
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+        return this.beginBlockedCueCreateDrag(event, index, track, row);
       }
       // Ctrl(Cmd)+click toggles selection without starting a drag
       if (event.ctrlKey || event.metaKey) {
@@ -31542,6 +31550,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueEditorShowSticker: false,
   // 当前字幕编辑区按 Esc 时，是否放弃文本改动并恢复编辑前内容。
   cueEditorCancelOnEscape: false,
+  cueEditorSplitMoreActions: false,
+  cueEditorSplitAutoClose: true,
   ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
   ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
   selectGroupMembers: false,
@@ -31660,6 +31670,8 @@ function readEditorSettings() {
     cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
     cueEditorShowSticker: saved.cueEditorShowSticker === true,
     cueEditorCancelOnEscape: saved.cueEditorCancelOnEscape === true,
+    cueEditorSplitMoreActions: saved.cueEditorSplitMoreActions === true,
+    cueEditorSplitAutoClose: saved.cueEditorSplitAutoClose !== false,
     autoSnapAdjacentCues: saved.autoSnapAdjacentCues !== false,
     stickerOtioExportMode: saved.stickerOtioExportMode === 'portable' ? 'portable' : 'original',
     otioExportIncludeSrt: saved.otioExportIncludeSrt !== false,
@@ -35464,6 +35476,17 @@ autoSnapAdjacentCuesToggle?.addEventListener('change', () => {
 cueEditorCancelOnEscapeToggle?.addEventListener('change', () => {
   updateEditorSettings({ cueEditorCancelOnEscape: cueEditorCancelOnEscapeToggle.checked });
 });
+for (const [id, key] of [
+  ['cue-editor-split-more-actions', 'cueEditorSplitMoreActions'],
+  ['cue-editor-split-auto-close', 'cueEditorSplitAutoClose'],
+]) {
+  const toggle = document.getElementById(id);
+  toggle.checked = EDITOR_SETTINGS[key];
+  toggle.addEventListener('change', () => {
+    updateEditorSettings({ [key]: toggle.checked });
+    updateSplitActionVisibility();
+  });
+}
 ninjaModeToggle?.addEventListener('change', () => {
   updateEditorSettings({ ninjaMode: ninjaModeToggle.checked });
   applyNinjaSettings();
@@ -39751,6 +39774,9 @@ function setSplitActiveLane(state, lane) {
     laneEl?.classList.toggle('is-active-lane', name === lane);
     textEl?.setAttribute('aria-current', String(name === lane));
   }
+  const label = lane === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑';
+  const text = multiSubtitleSplitIndependent?.querySelector('span');
+  if (text) text.textContent = window.MSWE_I18N?.translateText?.(label) || label;
 }
 
 function syncLinkedSplitTime(state) {
@@ -39897,6 +39923,11 @@ function renderSplitLane(state, lane) {
   updateSplitLaneVisual(state, lane);
 }
 
+function updateSplitActionVisibility() {
+  multiSubtitleSplitDuplicate.hidden = !EDITOR_SETTINGS.cueEditorSplitMoreActions;
+  multiSubtitleSplitIndependent.hidden = !EDITOR_SETTINGS.cueEditorSplitMoreActions || pendingLinkedSplit?.kind !== 'linked';
+}
+
 function renderLinkedSplitText(state) {
   if (!state) return;
   multiSubtitleSplitTitle.textContent = state.kind === 'linked' ? '联动切分' : '切分字幕';
@@ -39904,9 +39935,7 @@ function renderLinkedSplitText(state) {
   renderSplitLane(state, 'extension');
   updateLinkedSplitPreview(state.mainOffset ?? state.offset,
     state.kind === 'main' || state.kind === 'linked' ? 'main' : 'extension');
-  multiSubtitleSplitIndependent.hidden = state.kind !== 'linked';
-  const more = multiSubtitleSplitModal.querySelector('details');
-  if (more) more.open = false;
+  updateSplitActionVisibility();
   focusSplitLane(state, state.initialLane || (state.kind === 'main' ? 'main' : 'extension'));
 }
 
@@ -40099,6 +40128,26 @@ function closeLinkedSplitModal() {
     } else waveformEditor?.focusWaveform?.();
   }
 }
+
+// Only a user selecting a different cue dismisses the draft; background selection
+// updates, preview-line dragging and clicks on the current pair must not cancel it.
+document.addEventListener('pointerdown', (event) => {
+  const state = pendingLinkedSplit;
+  if (!state || !EDITOR_SETTINGS.cueEditorSplitAutoClose || event.button !== 0 || event.altKey) return;
+  const target = event.target;
+  if (target.closest('button, input, select, textarea, .waveform-split-preview')) return;
+  const node = target.closest('.waveform-cue-block, #cues-container .multi-cue-column, #cues-container .cue, #cues-container .multi-extension-cue, #cues-container .overlay-track-cue');
+  if (!node) return;
+  const kind = node.dataset.track || (node.dataset.overlayIdx != null ? 'overlay'
+    : node.classList.contains('extension') || node.classList.contains('multi-extension-cue') ? 'extension' : 'main');
+  const track = kind === 'extension' ? getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
+  const index = Number(kind === 'extension' ? node.dataset.extIdx : kind === 'overlay' ? node.dataset.overlayIdx : node.dataset.mainIdx ?? node.dataset.idx);
+  const segment = (kind === 'main' ? DATA.segments : track?.segments)?.[index];
+  if (!segment) return;
+  const belongsToDraft = kind === 'main' ? segment.id === state.mainId
+    : track?.id === splitStateTrack(state)?.id && segment.id === state.extensionId;
+  if (!belongsToDraft) closeLinkedSplitModal();
+}, true);
 
 function openMainWaveformSplitModal(mainIndex, timeMs) {
   return requestSubtitleSplit('main', mainIndex, { timeMs });
@@ -53716,12 +53765,10 @@ function initWaveformEditor() {
     },
     // 剃刀工具：在波形指针位置安全拆分字幕。复用右键菜单的波形时间拆分路径；
     // 所有轨道保留指针时间；文字分界不确定时在字幕编辑器中确认。
-    splitCueAtTime: (idx, timeMs) => splitFromContextMenu(idx, 0, 0, timeMs),
+    splitCueAtTime: (idx, timeMs, options) => requestSubtitleSplit('main', idx, { ...options, timeMs }),
     beginSplitPreviewDrag: beginSubtitleSplitPreviewDrag,
-    splitExtensionCueAtTime: (idx, timeMs) => openExtensionSplitModal(idx, timeMs),
-    splitOverlayCueAtTime: (idx, timeMs) => openOverlaySplitModal(
-      idx, Number.isFinite(timeMs) ? timelineFrameAlignedMilliseconds(timeMs) : timeMs,
-    ),
+    splitExtensionCueAtTime: (idx, timeMs, options) => requestSubtitleSplit('extension', idx, { ...options, timeMs }),
+    splitOverlayCueAtTime: (idx, timeMs, options) => requestSubtitleSplit('overlay', idx, { ...options, timeMs }),
     getClickBehavior: () => EDITOR_SETTINGS.clickBehavior,
     getClickTarget: () => EDITOR_SETTINGS.clickTarget,
     getAutoSnapAdjacentCues: () => EDITOR_SETTINGS.autoSnapAdjacentCues,
