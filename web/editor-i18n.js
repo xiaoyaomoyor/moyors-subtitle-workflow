@@ -9,6 +9,31 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '联动切分': 'Split linked subtitles',
+    '切分帮助': 'Split help',
+    '主字幕文字分界': 'Main text split point',
+    '副字幕文字分界': 'Secondary text split point',
+    '保留两侧原文': 'Keep text on both sides',
+    '只切开时间，两侧保留相同文字': 'Split the time range and keep the same text on both sides',
+    '仅切当前字幕并解绑': 'Split only this subtitle and unlink',
+    '确认切分': 'Confirm split',
+    '有可靠时间码时直接切分': 'Split directly with reliable timestamps',
+    '可靠时间码可直接切分；关闭后在字幕编辑器中确认文字分界': 'Split directly with reliable timestamps; turn off to confirm text boundaries in the subtitle editor',
+    '开启时直接切分已对齐的文字；分界不确定时，在字幕编辑器中确认。波形切分始终保留所选时间。': 'Split aligned text directly. Confirm uncertain text boundaries in the subtitle editor. Waveform cuts always keep the chosen time.',
+    '点击文字间隙或用方向键调整分界，Enter 确认、Esc 取消。波形切分固定时间位置；文字切分优先参考词时间戳，没有时间戳时估算时间。绑定字幕默认一起切分，并分别保留前后两组绑定。': 'Click between characters or use arrow keys to adjust the boundary. Enter confirms; Esc cancels. Waveform cuts keep the chosen time. Text cuts use word timestamps, or estimate time when unavailable. Linked subtitles split together, keeping each pair linked.',
+    '点击文字间隙或用方向键调整分界；Enter 确认，Esc 取消': 'Click between characters or use arrow keys to adjust; Enter confirms, Esc cancels',
+    '时间固定为波形或播放头位置；这里只调整两侧文字': 'Time stays at the waveform or playhead position; adjust only the text on each side',
+    '根据文字光标和可用的词时间戳推定时间；没有时间戳时按文字比例估算': 'Time follows the text cursor and available word timestamps; otherwise it is estimated from the text position',
+    '请把光标放在需要切开的文字之间': 'Place the cursor between the words or characters to split',
+    '字幕不足 200ms，切分后两侧需各保留至少 100ms': 'This subtitle is shorter than 200 ms; each side needs at least 100 ms',
+    '当前字幕无法切分，请检查文字和时间范围': 'Cannot split this subtitle; check its text and time range',
+    '字幕已发生变化，请重新选择切分位置': 'The subtitle has changed; choose the split point again',
+    '文字无法分成两段。可调整分界，或在“更多”中选择保留两侧原文。': 'The text cannot be split into two parts. Adjust the boundary or choose “Keep text on both sides” under More.',
+    '切点两侧需各保留至少 100ms。请取消后重新选择时间位置。': 'Each side needs at least 100 ms. Cancel and choose a different time.',
+    '也可在“更多”中仅切当前字幕并解绑。': 'You can also split only this subtitle and unlink it under More.',
+    '切点两侧需各保留至少 100ms，请重新选择时间位置': 'Each side needs at least 100 ms; choose a different time',
+    '文字无法分成两段，请调整分界或选择保留两侧原文': 'Adjust the text boundary or choose to keep the text on both sides',
+    '已仅切分当前主字幕，并解除原绑定': 'Split only the main subtitle and removed its previous link',
     '重叠字幕': 'Overlapping subtitles',
     '重叠字幕组间距': 'Group spacing',
     '自动避让时，同时出现的不同字幕组之间保留的间距。绑定的主字幕和副字幕视为一组；此项不调整组内主副字幕的间距。数值以 1080p 为基准，随画面尺寸缩放。': 'Spacing between simultaneous subtitle groups during automatic collision avoidance. Bound main and secondary subtitles form one group; this does not change their internal spacing. Values use a 1080p reference and scale with the video.',
@@ -2246,6 +2271,7 @@
   const attributeOriginals = new WeakMap();
   const SKIP_SELECTOR = [
     '[data-i18n-skip]',
+    '.multi-subtitle-split-char, .multi-subtitle-split-gap',
     '#cue-list', '#cue-panel-text', '#overlay', '#msw-layer-preview', '#sticker-overlay-layer',
     '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', '.msw-result-row-detail', '.msw-asset-content', 'script', 'style'
   ].join(',');
@@ -2313,6 +2339,10 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const splitPosition = text.match(/^切分位置 (.+?)( · 估算时间)?$/);
+    if (splitPosition) return `Split at ${splitPosition[1]}${splitPosition[2] ? ' · Estimated time' : ''}`;
+    const splitCharacter = text.match(/^在第 (\d+) 个字符后拆分$/);
+    if (splitCharacter) return `Split after character ${splitCharacter[1]}`;
     const resultLabel = /^(识别|翻译)(批次)?(\d+)$/.exec(text);
     if (resultLabel) return `${resultLabel[1] === '识别' ? 'ASR' : 'Translation'}${resultLabel[2] ? ' batch' : ''} ${resultLabel[3]}`;
     if (text.startsWith('当前批次：')) return 'Current batch: '+translateText(text.slice(5),EN);

@@ -117,8 +117,8 @@ test('explains where to configure automatic timecode splitting', async ({ page }
   await page.goto(server.url);
   await toggleEditorSettings(page);
   const hint = page.locator('#split-use-word-timestamps-hint');
-  await expect(hint).toContainText('开启时，自动按可用时间码拆分');
-  await expect(hint).toContainText('关闭后将打开拆分弹窗');
+  await expect(hint).toContainText('开启时直接切分已对齐的文字');
+  await expect(hint).toContainText('在字幕编辑器中确认');
   await expect(hint).not.toContainText('右上角「🔧 设置 → 拆分与合并」');
 });
 
@@ -774,11 +774,13 @@ test('uses the secondary language split mode and caret position for list B split
   await page.keyboard.press('b');
 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择副字幕拆分点');
-  await expect(page.locator('#multi-subtitle-split-main-lane')).toBeHidden();
-  await expect(page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap.active'))
-    .toHaveAttribute('data-offset', '3');
-  await page.keyboard.press('Escape');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('联动切分');
+  await expect(page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap.active')).toHaveAttribute('data-offset', '3');
+  await page.locator('#multi-subtitle-split-confirm').click();
+  // The configured punctuation trimming removes the comma at the cut.
+  expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments.slice(0, 2).map(s => s.text))).toEqual(['你好', '世界。']);
+  await page.keyboard.press('Control+z');
+  expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments.length)).toBe(3);
 });
 
 test('marquee selection includes secondary waveform cues', async ({ page }) => {
@@ -1045,31 +1047,11 @@ test('imports an extension SRT with 300ms preview, dual columns, split dialog, a
   await expect(page.locator('#multi-subtitle-split-text span')).not.toHaveCount(0);
   await expect(page.locator('#multi-subtitle-split-confirm')).toBeEnabled();
   const splitText = page.locator('#multi-subtitle-split-text');
-  const splitBox = await splitText.boundingBox();
-  if (!splitBox) throw new Error('拆分弹窗文本区域没有布局');
-  const charBoxes = await splitText.locator('.multi-subtitle-split-char').evaluateAll((elements) => (
-    elements.map((element) => {
-      const rect = element.getBoundingClientRect();
-      return { left: rect.left, right: rect.right, y: rect.top + rect.height / 2 };
-    })
-  ));
-  const leftX = charBoxes[1].right - 1;
-  const rightX = charBoxes[4].right - 1;
-  const splitY = charBoxes[1].y;
-  await page.mouse.move(leftX, splitY);
-  const leftSplitMeta = await page.locator('#multi-subtitle-split-meta').textContent();
-  await page.mouse.move(rightX, splitY);
-  const rightSplitMeta = await page.locator('#multi-subtitle-split-meta').textContent();
-  expect(rightSplitMeta).not.toBe(leftSplitMeta);
-  await page.mouse.click(rightX, splitY);
-  await expect(splitText).toHaveClass(/locked/);
-  await expect(splitText).toHaveAttribute('title', '拆分点已锁定，点击或按空格解锁');
-  await expect(page.locator('#multi-subtitle-split-preview')).toHaveClass(/locked/);
-  await page.mouse.move(leftX, splitY);
-  await expect(page.locator('#multi-subtitle-split-meta')).toHaveText(rightSplitMeta);
-  await page.mouse.click(leftX, splitY);
-  await expect(splitText).not.toHaveClass(/locked/);
-  await page.mouse.move(charBoxes[2].right - 1, splitY);
+  const oldCut = await page.evaluate(() => pendingLinkedSplit.cutMs);
+  await splitText.locator('.multi-subtitle-split-gap[data-offset="3"]').click();
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(oldCut);
+  await splitText.locator('.multi-subtitle-split-gap').last().hover();
+  expect(await page.evaluate(() => pendingLinkedSplit.offset)).toBe(3);
   await expect(page.locator('#multi-subtitle-split-confirm')).toBeEnabled();
   await page.keyboard.press('Enter');
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
@@ -1100,7 +1082,7 @@ test('imports an extension SRT with 300ms preview, dual columns, split dialog, a
   await expect(page.locator('#cues-container > .multi-dual-cue')).toHaveCount(4);
 });
 
-test('auto-submits a linked split after both subtitle lanes are confirmed', async ({ page }) => {
+test('confirms a linked split once after adjusting both text boundaries', async ({ page }) => {
   await importPair(page);
   await page.locator('#multi-subtitle-import-result-confirm').click();
 
@@ -1117,13 +1099,15 @@ test('auto-submits a linked split after both subtitle lanes are confirmed', asyn
   });
   await page.keyboard.press('Enter');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-auto-submit')).toBeChecked();
+
 
   await page.locator('#multi-subtitle-split-main-text .multi-subtitle-split-gap').first()
     .evaluate((element) => element.click());
-  await expect(page.locator('#multi-subtitle-split-main-text')).toHaveClass(/locked/);
+
   await page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap').first()
     .evaluate((element) => element.click());
+  await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
+  await page.keyboard.press('Enter');
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   await expect(page.locator('.multi-cue-column.main .text')).toHaveCount(3);
   await expect(page.locator('.multi-cue-column.extension .text')).toHaveCount(4);
@@ -1145,7 +1129,7 @@ function selectedSnapshot() {
     .map((element) => element.textContent.trim().slice(0, 40));
 }
 
-test('moves the split point with WASD, switches lanes with Tab and confirms with Space', async ({ page }) => {
+test('moves the split point with arrows, switches lanes with native Tab and confirms with Enter', async ({ page }) => {
   // 拆分弹窗底部的按键提示词随「快捷键提示」开关显隐（默认关）；
   // 本用例要读这些提示，先以开启状态启动。
   await page.addInitScript(() => {
@@ -1174,67 +1158,29 @@ test('moves the split point with WASD, switches lanes with Tab and confirms with
   await page.keyboard.press('Enter');
 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  // 弹窗底部展示结构化按键提示行。
-  const keyHints = page.locator('.multi-subtitle-split-key-hints');
-  await expect(keyHints).toBeVisible();
-  await expect(keyHints).toContainText('W/A/S/D');
-  await expect(keyHints).toContainText('方向键');
-  await expect(keyHints).toContainText('锁定 / 解锁断点');
-  await expect(keyHints).toContainText('切换主/副字幕');
-  // 弹窗打开即聚焦主 lane，带虚线边框标识。
   const mainLane = page.locator('#multi-subtitle-split-main-text');
-  await expect(mainLane).toBeFocused();
-  expect(await mainLane.evaluate((element) => getComputedStyle(element).borderTopStyle)).toBe('dashed');
-  const mainActiveGap = mainLane.locator('.multi-subtitle-split-gap.active');
-  await expect(mainActiveGap).toHaveAttribute('data-offset', '4');
-
-  // D/→ 按字词边界步进，A/← 回退；期间不得触发全局的字幕选择跳转。
-  const selectedBefore = await page.evaluate(selectedSnapshot);
-  await page.keyboard.press('d');
-  await expect(mainActiveGap).toHaveAttribute('data-offset', '8');
-  await page.keyboard.press('ArrowRight');
-  await expect(mainActiveGap).toHaveAttribute('data-offset', '14');
-  await page.keyboard.press('a');
-  await expect(mainActiveGap).toHaveAttribute('data-offset', '8');
-  await page.keyboard.press('ArrowLeft');
-  await expect(mainActiveGap).toHaveAttribute('data-offset', '4');
-  expect(await page.evaluate(selectedSnapshot)).toEqual(selectedBefore);
-
-  // Tab 切到副 lane；多行文本支持上下移动，单行边界外不动作。
-  await page.keyboard.press('Tab');
   const extensionLane = page.locator('#multi-subtitle-split-text');
-  await expect(extensionLane).toBeFocused();
-  const extensionActiveGap = extensionLane.locator('.multi-subtitle-split-gap.active');
-  const firstRowOffset = Number(await extensionActiveGap.getAttribute('data-offset'));
-  await page.keyboard.press('ArrowDown');
-  const secondRowOffset = Number(await extensionActiveGap.getAttribute('data-offset'));
-  expect(secondRowOffset - firstRowOffset).toBeGreaterThan(5);
-  await page.keyboard.press('ArrowUp');
-  const backRowOffset = Number(await extensionActiveGap.getAttribute('data-offset'));
-  expect(Math.abs(backRowOffset - firstRowOffset)).toBeLessThanOrEqual(2);
-
-  // Space 锁定当前断点；锁定后焦点自动落到下一条未锁定的 lane。
-  await page.keyboard.press('Space');
-  await expect(extensionLane).toHaveClass(/locked/);
-  await expect(mainLane).toBeFocused();
-
-  // Tab 回到已锁定的 lane，再按 Space 解锁以便继续移动。
+  await expect(page.locator('.subtitle-split-help')).toHaveAttribute('title', /方向键/);
+  await mainLane.focus();
+  const active = mainLane.locator('.multi-subtitle-split-gap.active');
+  await expect(active).toHaveAttribute('data-offset', '4');
+  const selectedBefore = await page.evaluate(selectedSnapshot);
+  await page.keyboard.press('ArrowRight');
+  await expect(active).toHaveAttribute('data-offset', '8');
+  await page.keyboard.press('ArrowLeft');
+  await expect(active).toHaveAttribute('data-offset', '4');
+  expect(await page.evaluate(selectedSnapshot)).toEqual(selectedBefore);
   await page.keyboard.press('Tab');
   await expect(extensionLane).toBeFocused();
-  await page.keyboard.press('Space');
-  await expect(extensionLane).not.toHaveClass(/locked/);
-
-  // 两个 lane 都用 Space 确认后按默认设置自动提交；锁定一条后焦点已自动就位，无需 Tab。
-  await page.keyboard.press('Space');
-  await expect(extensionLane).toHaveClass(/locked/);
-  await expect(mainLane).toBeFocused();
-  // 最后一按锁定主 lane 并触发自动提交；弹窗关闭时会清理 locked 标记。
-  await page.keyboard.press('Space');
+  const before = await page.evaluate(() => pendingLinkedSplit.offset);
+  await page.keyboard.press('ArrowRight');
+  expect(await page.evaluate(() => pendingLinkedSplit.offset)).toBe(before + 1);
+  await page.keyboard.press('Enter');
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   await expect(page.locator('#cues-container > .multi-dual-cue')).toHaveCount(2);
 });
 
-test('keeps the timecode-anchored main lane out of Tab lane switching', async ({ page }) => {
+test('lets both lanes adjust text while keeping the timecode-anchored cut', async ({ page }) => {
   const projectPath = join(tempDir, 'kbd-timecode-locked-project.json');
   const project = {
     media: '', language: 'English', model: '',
@@ -1274,19 +1220,14 @@ test('keeps the timecode-anchored main lane out of Tab lane switching', async ({
   await page.keyboard.press('Enter');
 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  // 主轨被 ⌚️ 时间码锚定：不可交互，初始焦点落到副 lane。
   const mainLane = page.locator('#multi-subtitle-split-main-text');
-  await expect(mainLane).toHaveClass(/timestamp-locked/);
   const extensionLane = page.locator('#multi-subtitle-split-text');
-  await expect(extensionLane).toBeFocused();
-
-  // Tab 不把焦点切到主 lane；副 lane 仍可用 D 步进断点。
+  const cut = await page.evaluate(() => pendingLinkedSplit.cutMs);
+  await mainLane.focus();
+  await page.keyboard.press('ArrowRight');
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(cut);
   await page.keyboard.press('Tab');
-  await expect(mainLane).not.toBeFocused();
-  const extensionActiveGap = extensionLane.locator('.multi-subtitle-split-gap.active');
-  const startOffset = Number(await extensionActiveGap.getAttribute('data-offset'));
-  await page.keyboard.press('d');
-  expect(Number(await extensionActiveGap.getAttribute('data-offset'))).toBe(startOffset + 1);
+  await expect(extensionLane).toBeFocused();
   await page.keyboard.press('Escape');
 });
 
@@ -1294,7 +1235,7 @@ function kbdProjectFileName(name) {
   return join(tempDir, name);
 }
 
-test('flashes the border and hints when moving a locked split lane', async ({ page }) => {
+test('moves the split boundary by click and arrows without a locking step', async ({ page }) => {
   const projectPath = kbdProjectFileName('kbd-locked-move-project.json');
   const project = {
     media: '', language: '', model: '',
@@ -1328,33 +1269,16 @@ test('flashes the border and hints when moving a locked split lane', async ({ pa
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
 
   const mainLane = page.locator('#multi-subtitle-split-main-text');
-  await expect(mainLane).toBeFocused();
-  await page.keyboard.press('Space');
-  await expect(mainLane).toHaveClass(/locked/);
-  // 锁定后焦点自动落到未锁定的副 lane；Tab 回到已锁定的主 lane 再测移动拦截。
-  const extensionLane = page.locator('#multi-subtitle-split-text');
-  await expect(extensionLane).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(mainLane).toBeFocused();
-
-  // 锁定后按移动键：断点不动、边缘闪烁并出现解锁提示。
-  const mainActiveGap = mainLane.locator('.multi-subtitle-split-gap.active');
-  const lockedOffset = await mainActiveGap.getAttribute('data-offset');
-  await page.keyboard.press('d');
-  await expect(mainActiveGap).toHaveAttribute('data-offset', lockedOffset);
-  await expect(mainLane).toHaveClass(/lane-move-blocked/);
-  await expect(page.locator('#hint-stack')).toContainText('请先按空格解除锁定，然后再进行移动');
-  await expect(mainLane).not.toHaveClass(/lane-move-blocked/);
-
-  // 解锁后同一按键恢复移动。
-  await page.keyboard.press('Space');
-  await expect(mainLane).not.toHaveClass(/locked/);
-  await page.keyboard.press('d');
-  await expect(mainActiveGap).not.toHaveAttribute('data-offset', lockedOffset);
+  await mainLane.locator('.multi-subtitle-split-gap').first().click();
+  const before = await page.evaluate(() => pendingLinkedSplit.mainOffset);
+  await mainLane.locator('.multi-subtitle-split-gap').last().hover();
+  expect(await page.evaluate(() => pendingLinkedSplit.mainOffset)).toBe(before);
+  await page.keyboard.press('ArrowRight');
+  expect(await page.evaluate(() => pendingLinkedSplit.mainOffset)).toBeGreaterThan(before);
   await page.keyboard.press('Escape');
 });
 
-test('splits only the main subtitle and unbinds when the extension cannot be split', async ({ page }) => {
+test('requires an explicit independent action when the extension cannot be split', async ({ page }) => {
   const projectPath = kbdProjectFileName('kbd-main-only-fallback-project.json');
   const project = {
     media: '', language: '', model: '',
@@ -1391,9 +1315,12 @@ test('splits only the main subtitle and unbinds when the extension cannot be spl
 
   // 副字幕救不回来时不再阻塞：错误文案说明降级，拆分按钮保持可用。
   await expect(page.locator('#multi-subtitle-split-error'))
-    .toContainText('确认后只拆分主字幕，并解除与副字幕的绑定');
-  await expect(page.locator('#multi-subtitle-split-confirm')).toBeEnabled();
+    .toContainText('仅切当前字幕并解绑');
+  await expect(page.locator('#multi-subtitle-split-confirm')).toBeDisabled();
   await page.keyboard.press('Enter');
+  expect(await page.evaluate(() => DATA.multi_subtitle.bindings.length)).toBe(1);
+  await page.locator('#multi-subtitle-split-modal summary').click();
+  await page.locator('#multi-subtitle-split-independent').click();
 
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   expect(await page.evaluate(() => DATA.segments.map((segment) => segment.text)))
@@ -1404,7 +1331,7 @@ test('splits only the main subtitle and unbinds when the extension cannot be spl
     extensionCount: DATA.multi_subtitle.tracks[0].segments.length,
   }))).toEqual({ bindings: 0, extensionCount: 1 });
   await expect(page.locator('.multi-cue-column.extension.unbound')).toHaveCount(1);
-  await expect(page.locator('#hint-stack')).toContainText('为了拆分主字幕，已解除绑定');
+  await expect(page.locator('#hint-stack')).toContainText('解除原绑定');
 });
 
 test('focuses the main lane first when both lanes are interactive', async ({ page }) => {
@@ -1717,16 +1644,10 @@ test('uses B on a single selected extension cue to open the extension split dial
 
   await page.locator('.multi-dual-cue').first().locator('.multi-cue-column.extension').click();
   await page.keyboard.press('b');
+  // Imported cues are bound: the secondary entry uses the same linked confirmation.
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择副字幕拆分点');
-  await expect(page.locator('#multi-subtitle-split-confirm')).toHaveText('拆分（Enter / B）');
-  await expect(page.locator('#multi-subtitle-split-main-lane')).toBeHidden();
-  await expect(page.locator('.multi-cue-column.extension:not(.multi-cue-empty)')).toHaveCount(3);
-  await page.locator('#multi-subtitle-split-auto-submit').uncheck();
-  await page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap').first()
-    .evaluate((element) => element.click());
-  await page.keyboard.press('b');
-  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('联动切分');
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('.multi-cue-column.extension:not(.multi-cue-empty)')).toHaveCount(4);
 });
 
@@ -1770,8 +1691,8 @@ test('uses B on a waveform-selected extension cue instead of its overlapping mai
   await page.keyboard.press('b');
 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择副字幕拆分点');
-  await expect(page.locator('#multi-subtitle-split-main-lane')).toBeHidden();
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('联动切分');
+  await expect(page.locator('#multi-subtitle-split-main-lane')).toBeVisible();
   expect(await page.evaluate(() => DATA.segments.map((segment) => [segment.start, segment.end])))
     .toEqual(mainBefore);
   await page.keyboard.press('Escape');
@@ -1812,7 +1733,7 @@ test('uses B on a waveform-selected unbound extension cue instead of an overlapp
   await page.keyboard.press('b');
 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择副字幕拆分点');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('切分字幕');
   await expect(page.locator('#multi-subtitle-split-main-lane')).toBeHidden();
   expect(await page.evaluate(() => DATA.segments.map((segment) => [segment.start, segment.end])))
     .toEqual(mainBefore);
@@ -1834,13 +1755,13 @@ test('uses the linked split dialog when the main cue is active with its bound ex
   await page.keyboard.press('b');
 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('分别选择主字幕和副字幕拆分点');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('联动切分');
   await expect(page.locator('#multi-subtitle-split-main-lane')).toBeVisible();
   await expect(page.locator('#multi-subtitle-split-extension-lane')).toBeVisible();
   await page.keyboard.press('Escape');
 });
 
-test('retries a short linked split with B before forcing both tracks to 100ms', async ({ page }) => {
+test('rejects a short linked split until a valid time is explicitly chosen', async ({ page }) => {
   await importPair(page);
   await page.locator('#multi-subtitle-import-result-confirm').click();
   await page.evaluate(() => {
@@ -1877,20 +1798,14 @@ test('retries a short linked split with B before forcing both tracks to 100ms', 
   await page.keyboard.press('Enter');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
 
-  await page.keyboard.press('b');
-  await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(2);
-  await expect(page.locator('.hint-card.hint-warning', {
-    hasText: '请再次按 B 或 Enter 强制拆分',
-  })).toBeVisible();
-
-  await page.keyboard.press('b');
-  await expect.poll(() => page.locator('.multi-dual-cue').count()).toBe(4);
-  expect(await page.evaluate(() => ({
-    main: DATA.segments.slice(0, 2).map((segment) => segment.end - segment.start),
-    extension: DATA.multi_subtitle.tracks[0].segments.slice(0, 2)
-      .map((segment) => segment.end - segment.start),
-  }))).toEqual({ main: [100, 3900], extension: [100, 3900] });
+  const before = await page.evaluate(() => JSON.stringify([DATA.segments, DATA.multi_subtitle]));
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#multi-subtitle-split-confirm')).toBeDisabled();
+  expect(await page.evaluate(() => JSON.stringify([DATA.segments, DATA.multi_subtitle]))).toBe(before);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => requestSubtitleSplit('main', DATA.segments.findIndex(s => s.text === 'Alpha Bravo'), { timeMs: 1200 }));
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+  expect(await page.evaluate(() => DATA.multi_subtitle.bindings.length)).toBe(3);
 });
 
 test('shows unbind in a bound main subtitle context menu', async ({ page }) => {
@@ -1916,7 +1831,7 @@ test('applies Subtitle Ninja feedback after a linked split-modal split', async (
   await page.locator('.multi-dual-cue').first().locator('.multi-cue-column.main').click();
   await page.keyboard.press('b');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await page.locator('#multi-subtitle-split-auto-submit').uncheck();
+
   await page.locator('#multi-subtitle-split-main-text .multi-subtitle-split-gap').first()
     .evaluate((element) => element.click());
   await page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap').first()
@@ -1961,7 +1876,7 @@ test('keeps the subtitle-list caret position as the linked main split point', as
   const activeGap = page.locator('#multi-subtitle-split-main-text .multi-subtitle-split-gap.active');
   await expect(activeGap).toHaveAttribute('data-offset', '8');
   await expect(activeGap).toHaveCSS('opacity', '1');
-  expect(await activeGap.evaluate((gap) => getComputedStyle(gap, '::before').content)).toBe('"✂️"');
+  expect(await activeGap.evaluate((gap) => getComputedStyle(gap, '::after').width)).toBe('2px');
   await expect(page.locator('#multi-subtitle-split-main-text')).not.toHaveClass(/timestamp-locked/);
   await page.keyboard.press('Escape');
 });
@@ -2009,7 +1924,7 @@ test('uses G to bind a single extension cue and labels extension context shortcu
   const mainCue = page.locator('.multi-cue-column.main .text').filter({ hasText: 'Hello world.' });
   const unboundExtension = page.locator('.multi-cue-column.extension').filter({ hasText: 'unmatched' });
   await unboundExtension.click({ button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '在鼠标位置拆分' }).locator('kbd'))
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).locator('kbd'))
     .toHaveText('B');
   await expect(page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' }).locator('kbd'))
     .toHaveText('G');
@@ -2765,16 +2680,17 @@ test('opens the extension-only split dialog from the waveform context menu and u
   // 会把切点推到字幕末尾附近，右侧不足 100ms 时弹窗无法自动提交。
   const blockBox = await waitForLayoutBox(extensionBlock, '副字幕块没有布局');
   await extensionBlock.click({ button: 'right', position: { x: Math.round(blockBox.width / 2), y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '在鼠标位置拆分' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '仅切当前字幕并解绑' }).click();
 
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择副字幕拆分点');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('切分字幕');
   await expect(page.locator('#multi-subtitle-split-main-lane')).toBeHidden();
-  await expect(page.locator('#multi-subtitle-split-preview')).toContainText(' / ');
-  await expect(page.locator('#multi-subtitle-split-preview')).toContainText('副：');
-  await expect(page.locator('#multi-subtitle-split-preview')).not.toContainText('✂️');
-  await expect(page.locator('#multi-subtitle-split-auto-submit')).toBeChecked();
+
+
+
+
   await page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap').first().evaluate((element) => element.click());
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   await expect(page.locator('.waveform-cue-block[data-track="extension"]')).toHaveCount(2);
   await expect(page.locator('.multi-cue-column.extension.unbound')).toHaveCount(2);
@@ -2813,7 +2729,7 @@ test('renders one scissors marker per word-space split and trims the split text'
   // 固定像素在波形面板变窄后会使初始断点偏向第二个空格。
   const blockBox = await waitForLayoutBox(extensionBlock, '副字幕块没有布局');
   await extensionBlock.click({ button: 'right', position: { x: Math.round(blockBox.width * 0.25), y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '在鼠标位置拆分' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   await expect(splitText.locator('.multi-subtitle-split-gap')).toHaveCount(2);
@@ -2826,11 +2742,11 @@ test('renders one scissors marker per word-space split and trims the split text'
     { text: ' ', active: false },
   ]);
   expect(await splitText.locator('.multi-subtitle-split-gap').first().evaluate((gap) => {
-    const style = getComputedStyle(gap, '::before');
-    return { content: style.content, color: style.color, opacity: style.opacity };
-  })).toMatchObject({ content: '"✂️"', opacity: '1' });
+    return getComputedStyle(gap, '::after').width;
+  })).toBe('2px');
 
   await splitText.locator('.multi-subtitle-split-gap').first().evaluate((element) => element.click());
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments.map((segment) => segment.text)))
     .toEqual(['A', 'B C']);
@@ -2865,7 +2781,7 @@ test('renders a scissors marker for a symbol-connected word split', async ({ pag
   // 变窄后可能把初始断点推到 offset 10，导致下面的「未激活」断言抖动。
   const blockBox = await waitForLayoutBox(extensionBlock, '副字幕块没有布局');
   await extensionBlock.click({ button: 'right', position: { x: Math.round(blockBox.width * 0.25), y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '在鼠标位置拆分' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   const gaps = splitText.locator('.multi-subtitle-split-gap');
@@ -2881,17 +2797,15 @@ test('renders a scissors marker for a symbol-connected word split', async ({ pag
   const symbolGap = splitText.locator('.multi-subtitle-split-gap[data-offset="10"]');
   await expect(symbolGap).not.toHaveClass(/active/);
   const inactiveBox = await symbolGap.boundingBox();
-  await symbolGap.hover();
+  await symbolGap.click();
   await expect(symbolGap).toHaveClass(/active/);
   const activeBox = await symbolGap.boundingBox();
   if (!inactiveBox || !activeBox) throw new Error('连接符断点没有可测量的布局盒子');
   expect(activeBox.width).toBeGreaterThan(inactiveBox.width * 2);
-  expect(await symbolGap.evaluate((gap) => {
-    const style = getComputedStyle(gap, '::before');
-    return { content: style.content, opacity: style.opacity };
-  })).toEqual({ content: '"✂️"', opacity: '1' });
+
 
   await symbolGap.evaluate((element) => element.click());
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments.map((segment) => segment.text)))
     .toEqual(['the story—', 'you']);
@@ -2926,7 +2840,7 @@ test('renders a post-period word split without dropping the period', async ({ pa
   // 使切点不再满足两侧各 100ms，弹窗无法自动提交。
   const blockBox = await waitForLayoutBox(extensionBlock, '副字幕块没有布局');
   await extensionBlock.click({ button: 'right', position: { x: Math.round(blockBox.width * 0.25), y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '在鼠标位置拆分' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   const gaps = splitText.locator('.multi-subtitle-split-gap');
@@ -2936,6 +2850,7 @@ test('renders a post-period word split without dropping the period', async ({ pa
   expect(await splitText.evaluate((element) => element.textContent)).toBe('quickly.And');
 
   await gaps.first().click();
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments.map((segment) => segment.text)))
     .toEqual(['quickly.', 'And']);
@@ -2966,19 +2881,17 @@ test('renders one scissors marker for a continuous split across repeated spaces'
 
   const extensionBlock = page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="0"]');
   await extensionBlock.click({ button: 'right', position: { x: 120, y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '在鼠标位置拆分' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   await expect(splitText.locator('.multi-subtitle-split-gap')).toHaveCount(1);
   expect(await splitText.evaluate((element) => element.textContent)).toBe('甲  乙');
   expect(await splitText.locator('.multi-subtitle-split-gap').textContent()).toBe('  ');
   await expect(splitText.locator('.multi-subtitle-split-gap').first()).toHaveClass(/active/);
-  expect(await splitText.locator('.multi-subtitle-split-gap').first().evaluate((gap) => {
-    const style = getComputedStyle(gap, '::before');
-    return { content: style.content, opacity: style.opacity };
-  })).toEqual({ content: '"✂️"', opacity: '1' });
+
 
   await splitText.locator('.multi-subtitle-split-gap').first().evaluate((element) => element.click());
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments.map((segment) => segment.text)))
     .toEqual(['甲', '乙']);
@@ -3016,7 +2929,7 @@ test('keeps only the left text in the first main cue after a linked word split',
   await mainBlock.click({ button: 'right', position: { x: 150, y: 10 } });
   await page.locator('#ctxmenu .item').filter({ hasText: '按音频位置拆分' }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await page.locator('#multi-subtitle-split-auto-submit').uncheck();
+
   await page.locator('#multi-subtitle-split-main-text .multi-subtitle-split-gap').first().click();
   await page.locator('#multi-subtitle-split-text .multi-subtitle-split-gap').first().click();
   await page.locator('#multi-subtitle-split-confirm').click();
@@ -3589,9 +3502,9 @@ test('uses the split dialog for waveform main splitting when word timestamps are
   const expectedCut = Math.round(rowStart + ((clickX - rowBox.x) / rowBox.width) * (rowEnd - rowStart));
   await page.mouse.click(clickX, clickY);
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择主字幕拆分点');
-  await expect(page.locator('#multi-subtitle-split-preview')).toContainText('主：');
-  await expect(page.locator('#multi-subtitle-split-preview')).toContainText(' / ');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('切分字幕');
+
+
   await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
   expect(await page.evaluate(() => DATA.segments[0].end)).toBe(expectedCut);
@@ -3625,10 +3538,11 @@ test('splits a timestamped main subtitle directly when automatic timecode splitt
   const block = page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]');
   await expect(block).toBeVisible();
   const box = await waitForLayoutBox(block, '带时间码的主字幕波形块没有布局');
+  const expected = await page.evaluate(({x,y}) => timelineFrameAlignedMilliseconds(waveformEditor.timeMsAtPoint(x,y)), {x:box.x+box.width*0.62,y:box.y+box.height/2});
   await page.mouse.click(box.x + box.width * 0.62, box.y + box.height / 2);
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
-  expect(await page.evaluate(() => DATA.segments[0].end)).toBe(2500);
+  expect(await page.evaluate(() => DATA.segments[0].end)).toBe(Math.round(expected));
 });
 
 test('uses the split dialog for SRT-style main subtitles without word timestamps', async ({ page }) => {
@@ -3657,12 +3571,10 @@ test('uses the split dialog for SRT-style main subtitles without word timestamps
   await expect(block).toBeVisible();
   const box = await waitForLayoutBox(block, 'SRT 主字幕波形块没有布局');
   await page.mouse.click(box.x + box.width * 0.62, box.y + box.height / 2);
-  await expect(page.locator('#hint-stack'))
-    .toContainText('没有可用的字词时间码，本次设置不生效');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择主字幕拆分点');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('切分字幕');
   await expect(page.locator('#multi-subtitle-split-main-lane')).toBeVisible();
-  await expect(page.locator('#multi-subtitle-split-preview')).toContainText(' / ');
+
   await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
   await page.keyboard.press('Control+z');
@@ -3720,7 +3632,7 @@ test('keeps the waveform pointer as the absolute cut in a linked split dialog', 
   await expect(page.locator('#multi-subtitle-split-main-lane')).toBeVisible();
   await expect(page.locator('#multi-subtitle-split-extension-lane')).toBeVisible();
   await expect(page.locator('#multi-subtitle-split-meta'))
-    .toContainText('当前切分位置固定为波形指针位置');
+    .toHaveAttribute('title', /时间固定为波形/);
   await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('.multi-dual-cue')).toHaveCount(2);
   expect(await page.evaluate(() => DATA.segments[0].end)).toBe(expectedCut);
@@ -3773,39 +3685,12 @@ test('labels a linked split time inferred from main word timestamps', async ({ p
   });
   await page.keyboard.press('Enter');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-meta'))
-    .toContainText('当前切分位置由字词时间码推定');
-  await expect(page.locator('#multi-subtitle-split-title'))
-    .toHaveText('主字幕按时间码定位，选择副字幕拆分点');
+  await expect(page.locator('#multi-subtitle-split-meta')).toContainText('00:02.800');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('联动切分');
   await expect(page.locator('#multi-subtitle-split-main-lane')).toBeVisible();
-  await expect(page.locator('#multi-subtitle-split-main-lane'))
-    .toHaveClass(/timestamp-locked-lane/);
-  await expect(page.locator('#multi-subtitle-split-main-text'))
-    .toHaveClass(/timestamp-locked/);
-  await expect(page.locator('#multi-subtitle-split-main-text'))
-    .toHaveAttribute('aria-readonly', 'true');
-  await expect(page.locator('#multi-subtitle-split-main-lane h4'))
-    .toHaveText('⌚️ 主字幕按时间码会拆在这里');
-  await expect(page.locator('#multi-subtitle-split-timestamp-hint'))
-    .toBeVisible();
-  await expect(page.locator('#multi-subtitle-split-timestamp-hint'))
-    .toContainText('右上角「🔧 设置 → 拆分与合并」');
-  await page.keyboard.press('Escape');
-
-  await toggleEditorSettings(page);
-  await page.locator('#split-use-word-timestamps').uncheck();
-  await toggleEditorSettings(page);
-  await mainText.click();
-  await page.keyboard.press('b');
-  await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await expect(page.locator('#multi-subtitle-split-meta'))
-    .toContainText('默认位置参考主字幕字词时间码，可继续调整');
-  await expect(page.locator('#multi-subtitle-split-meta'))
-    // 光标在 main 后的空格处：默认参考左词真实终点 2800ms。
-    .toContainText('共用绝对切点 00:02.800');
-  await expect(page.locator('#multi-subtitle-split-main-lane'))
-    .not.toHaveClass(/timestamp-locked-lane/);
-  await expect(page.locator('#multi-subtitle-split-timestamp-hint')).toBeHidden();
+  await page.locator('#multi-subtitle-split-main-text').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#multi-subtitle-split-meta')).toContainText('00:02.800');
   await page.keyboard.press('Escape');
 });
 

@@ -39,8 +39,9 @@ async function refresh(page){
 }
 async function preview(page){return page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');return window.MSWSubtitleStyle.request('subtitle-preview',{project:h.exportProject(),target:'both',video:{width:640,height:360}});});}
 async function cut(page,kind,duplicate){
-  await page.evaluate(kind=>kind==='linked'?splitFromContextMenu(0,0,0,2000):openExtensionSplitModal(0,2000),kind);
+  await page.evaluate(kind=>kind==='linked'?splitFromContextMenu(0,0,0,2000):openExtensionSplitModal(0,2000, getActiveExtensionTrack(), { independent: true }),kind);
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
+  if(duplicate) await page.locator('#multi-subtitle-split-modal summary').click();
   await page.locator(duplicate?'#multi-subtitle-split-duplicate':'#multi-subtitle-split-confirm').click();
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
 }

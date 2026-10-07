@@ -5861,18 +5861,19 @@
         return this.beginBlockedCueCreateDrag(event, index, track, row);
       }
       // 剃刀工具：无修饰键左键点击字幕块（非手柄）时，在指针位置安全拆分。
-      // 主轨与叠加轨均可拆分；叠加轨走编辑器的叠加拆分弹窗。
+      // 所有字幕轨遵循编辑器的统一切分规则。
       // 修饰键（Alt/Ctrl(Cmd)/Shift）仍走原行为，便于拆分后立即多选/禁用。
       const edgeHit = this.resolveCueEdgeHit(event, row);
       const targetHandle = edgeHit?.handle;
       this.updateCueEdgeHover(event, row);
       const adjacentCueAdjustmentIndependent = this.isAdjacentCueAdjustmentIndependent(event.altKey);
-      if ((track === 'main' || track === 'overlay') && this.tool === 'razor' && !targetHandle
+      if ((track === 'main' || track === 'overlay' || track === 'extension') && this.tool === 'razor' && !targetHandle
           && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
         const timeMs = this.timeFromPointer(event, row);
         const timing = this.cueTiming();
         const cutMs = timing.toMs(timing.fromMs(timeMs));
         if (track === 'overlay') this.options.splitOverlayCueAtTime?.(index, cutMs);
+        else if (track === 'extension') this.options.splitExtensionCueAtTime?.(index, cutMs);
         else this.options.splitCueAtTime?.(index, cutMs);
         return;
       }

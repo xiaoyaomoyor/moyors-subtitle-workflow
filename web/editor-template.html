@@ -1590,10 +1590,10 @@ __WAVEFORM_CSS__
                   <option value="ctrl-enter">Ctrl+Enter</option>
                 </select>
               </label>
-              <label class="toggle editor-settings-item" title="开启时，自动按可用时间码拆分；关闭后将打开拆分弹窗，手动拆分">
-                <input type="checkbox" id="split-use-word-timestamps" checked> 主字幕自动使用时间码拆分
+              <label class="toggle editor-settings-item" title="可靠时间码可直接切分；关闭后在字幕编辑器中确认文字分界">
+                <input type="checkbox" id="split-use-word-timestamps" checked> 有可靠时间码时直接切分
               </label>
-              <small class="editor-settings-hint" id="split-use-word-timestamps-hint">开启时，自动按可用时间码拆分；关闭后将打开拆分弹窗，手动拆分。</small>
+              <small class="editor-settings-hint" id="split-use-word-timestamps-hint">开启时直接切分已对齐的文字；分界不确定时，在字幕编辑器中确认。波形切分始终保留所选时间。</small>
               <div class="editor-settings-field split-language-type-field" role="group" aria-labelledby="split-language-type-title">
                 <span class="editor-settings-item split-language-type-title" id="split-language-type-title">字幕语言类型</span>
                 <div class="split-language-type-row">
@@ -2227,6 +2227,37 @@ __WAVEFORM_CSS__
         <span class="cue-editor-key-hint"><kbd>Shift+Enter</kbd> 换行</span>
       </span>
     </div>
+    <section id="multi-subtitle-split-modal" class="subtitle-split-editor" aria-labelledby="multi-subtitle-split-title">
+      <header class="subtitle-split-header">
+        <strong id="multi-subtitle-split-title">切分字幕</strong>
+        <span id="multi-subtitle-split-meta" class="multi-subtitle-split-meta"></span>
+        <button type="button" class="subtitle-split-help" aria-label="切分帮助" title="点击文字间隙或用方向键调整分界，Enter 确认、Esc 取消。波形切分固定时间位置；文字切分优先参考词时间戳，没有时间戳时估算时间。绑定字幕默认一起切分，并分别保留前后两组绑定。">ⓘ</button>
+      </header>
+      <div class="subtitle-split-body">
+        <section class="multi-subtitle-split-lane" id="multi-subtitle-split-main-lane" hidden>
+          <h4>主字幕</h4>
+          <div class="multi-subtitle-split-text" id="multi-subtitle-split-main-text" tabindex="0" aria-label="主字幕文字分界"></div>
+        </section>
+        <section class="multi-subtitle-split-lane" id="multi-subtitle-split-extension-lane" hidden>
+          <h4>副字幕</h4>
+          <div class="multi-subtitle-split-text" id="multi-subtitle-split-text" tabindex="0" aria-label="副字幕文字分界"></div>
+        </section>
+        <div class="multi-subtitle-split-error" id="multi-subtitle-split-error" role="status" hidden></div>
+      </div>
+      <footer class="multi-subtitle-split-footer">
+        <details class="subtitle-split-more">
+          <summary>更多</summary>
+          <div class="subtitle-split-more-actions">
+            <button type="button" id="multi-subtitle-split-duplicate" title="只切开时间，两侧保留相同文字">保留两侧原文</button>
+            <button type="button" id="multi-subtitle-split-independent" hidden>仅切当前字幕并解绑</button>
+          </div>
+        </details>
+        <div class="actions">
+          <button type="button" id="multi-subtitle-split-cancel">取消</button>
+          <button type="button" id="multi-subtitle-split-confirm" class="primary">确认切分</button>
+        </div>
+      </footer>
+    </section>
     <div class="cue-panel-layout">
       <div class="cue-panel-navigation">
         <button type="button" id="cue-panel-prev">‹ 前一条</button>
@@ -2968,48 +2999,6 @@ __WAVEFORM_CSS__
     <div class="actions multi-subtitle-import-result-actions" id="multi-subtitle-import-result-actions">
       <button type="button" id="multi-subtitle-import-result-cancel">取消</button>
       <button type="button" id="multi-subtitle-import-result-confirm" class="primary" disabled>导入</button>
-    </div>
-  </div>
-</div>
-
-<!-- 绑定字幕的近似联动拆分弹窗 -->
-<div class="modal-mask" id="multi-subtitle-split-modal">
-  <div class="modal multi-subtitle-split-modal" role="dialog" aria-modal="true" aria-labelledby="multi-subtitle-split-title">
-    <h3 id="multi-subtitle-split-title">联动拆分副字幕</h3>
-    <p class="modal-desc">移动鼠标点击，或用键盘选择拆分断点。</p>
-    <div class="multi-subtitle-split-language-hint" role="note" aria-label="语言类型提示">
-      <div>字符型语言（中文等）按字符拆分。</div>
-      <div>单词型语言（英语等）只在空格处切分，确保不会拆碎单词；可在双语字幕 ⚙️ 设置中切换语言类型。</div>
-    </div>
-    <div class="multi-subtitle-split-timestamp-hint" id="multi-subtitle-split-timestamp-hint" role="note" hidden>
-      启用后，可在右上角「🔧 设置 → 拆分与合并」中配置是否使用时间码拆分。
-    </div>
-    <div class="multi-subtitle-split-meta" id="multi-subtitle-split-meta"></div>
-    <section class="multi-subtitle-split-lane" id="multi-subtitle-split-main-lane" hidden>
-      <h4>主字幕拆分</h4>
-      <div class="multi-subtitle-split-text" id="multi-subtitle-split-main-text" tabindex="0" aria-label="选择主字幕拆分点"></div>
-    </section>
-    <section class="multi-subtitle-split-lane" id="multi-subtitle-split-extension-lane">
-      <h4>副字幕拆分</h4>
-      <div class="multi-subtitle-split-text" id="multi-subtitle-split-text" tabindex="0" aria-label="选择副字幕断点"></div>
-    </section>
-    <div class="multi-subtitle-split-preview" id="multi-subtitle-split-preview"></div>
-    <div class="multi-subtitle-split-error" id="multi-subtitle-split-error" role="status"></div>
-    <div class="multi-subtitle-split-key-hints" aria-label="拆分弹窗按键提示">
-      <span class="multi-subtitle-split-key-hint"><kbd>W/A/S/D</kbd> 或 <kbd>方向键</kbd> 移动 ✂️</span>
-      <span class="multi-subtitle-split-key-hint"><kbd>空格</kbd> 锁定 / 解锁断点</span>
-      <span class="multi-subtitle-split-key-hint"><kbd>Tab</kbd> 切换主/副字幕</span>
-    </div>
-    <div class="multi-subtitle-split-footer">
-      <label class="multi-subtitle-split-auto-submit" for="multi-subtitle-split-auto-submit">
-        <input type="checkbox" id="multi-subtitle-split-auto-submit" checked>
-        全部拆分后自动提交
-      </label>
-      <div class="actions">
-        <button type="button" id="multi-subtitle-split-cancel">取消（Esc）</button>
-        <button type="button" id="multi-subtitle-split-duplicate" title="拆分后两边保留相同的字幕文本">拆分并保留原文</button>
-        <button type="button" id="multi-subtitle-split-confirm" class="primary">拆分（Enter / B）</button>
-      </div>
     </div>
   </div>
 </div>

@@ -43,10 +43,11 @@ for (const kind of ['main', 'extension', 'overlay', 'linked']) {
       if (kind === 'main') openMainWaveformSplitModal(0, 2000);
       else if (kind === 'extension') openExtensionSplitModal(0, 2000);
       else if (kind === 'overlay') openOverlaySplitModal(0, 2000);
-      else { pendingLinkedSplit = linkedSplitState(0, { timeMs: 2000 }); multiSubtitleSplitModal.classList.add('show'); renderLinkedSplitText(pendingLinkedSplit); }
+      else requestSubtitleSplit('main', 0, { timeMs: 2000, requireConfirm: true });
       return before;
     }, kind);
     await expect(page.locator('#multi-subtitle-split-duplicate')).toBeEnabled();
+    await page.locator('#multi-subtitle-split-modal summary').click();
     await page.locator('#multi-subtitle-split-duplicate').click();
     const after = await page.evaluate(kind => {
       const cues = kind === 'extension' ? DATA.multi_subtitle.tracks[0].segments : kind === 'overlay' ? DATA.overlay_track.segments : DATA.segments;
@@ -134,6 +135,7 @@ test('secondary duplicate split keeps same-track color references at nonzero ind
       tracks:[{id:'sub',role:'extension',name:'Sub',split_mode:'word',segments:cues}],bindings:[]};
     normalizeMultiSubtitleState();renderAll();openExtensionSplitModal(1,2900);
   });
+  await page.locator('#multi-subtitle-split-modal summary').click();
   await page.locator('#multi-subtitle-split-duplicate').click();
   const cues=await page.evaluate(()=>DATA.multi_subtitle.tracks[0].segments);
   expect(cues[2].color_ref.headIdx).toBe(1);

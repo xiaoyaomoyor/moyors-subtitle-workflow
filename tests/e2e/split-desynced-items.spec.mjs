@@ -271,19 +271,23 @@ const DRIFT_WARNING_SEGMENT = {
   ],
 };
 
-test('waveform split modal warns when desynced replacement drifts from the cut', async ({ page }) => {
+test('waveform split confirmation keeps the chosen time even with desynced replacement text', async ({ page }) => {
   await injectSegment(page, DRIFT_WARNING_SEGMENT);
-  const opened = await page.evaluate(() => openMainWaveformSplitModal(0, 250));
-  expect(opened).toBe(true);
+  const cut = await page.evaluate(() => {
+    openMainWaveformSplitModal(0, 250);
+    return pendingLinkedSplit.cutMs;
+  });
   await expect(page.locator('#multi-subtitle-split-modal.show')).toBeVisible();
   await page.evaluate(() => confirmLinkedSplit());
 
-  await expect(page.locator('#hint-stack .hint-card').filter({ hasText: '字幕文本与词时间戳' })).toHaveCount(1);
   const [left, right] = await readSplitState(page);
   expect(left.text).toBe('甲X');
   expect(right.text).toBe('乙丙丁');
-  expect(left.end).toBe(1500);
-  expect(right.start).toBe(1500);
-  expect(left.items.at(-1)).toEqual({ text: '傲', start: 500, end: 1500 });
+  expect(left.end).toBe(cut);
+  expect(right.start).toBe(cut);
+  for (const segment of [left, right]) for (const item of segment.items) {
+    expect(item.start).toBeGreaterThanOrEqual(segment.start);
+    expect(item.end).toBeLessThanOrEqual(segment.end);
+  }
   expect(right.items[0]).toEqual({ text: '乙', start: 1500, end: 1900 });
 });

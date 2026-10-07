@@ -829,7 +829,7 @@ test('B splits the selected subtitle under the cue-list pointer and supports und
     player.currentTime = 1;
     player.dispatchEvent(new Event('timeupdate'));
   });
-  await expect(page.locator('#overlay-main-text')).toHaveText('Alpha Bravo');
+  await expect(page.locator('#msw-layer-preview .msw-layer-preview-text[data-role="main"]')).toHaveText('Alpha Bravo');
   await page.locator('.cue[data-idx="0"]').click();
   const splitPoint = await text.evaluate((element) => {
     const node = element.firstChild;
@@ -845,7 +845,7 @@ test('B splits the selected subtitle under the cue-list pointer and supports und
   await expect.poll(() => page.locator('.cue').count()).toBe(7);
   await expect(page.locator('.cue .text').nth(0)).toHaveText('Alpha');
   await expect(page.locator('.cue .text').nth(1)).toHaveText('Bravo');
-  await expect(page.locator('#overlay-main-text')).toHaveText('Alpha');
+  await expect(page.locator('#msw-layer-preview .msw-layer-preview-text[data-role="main"]')).toHaveText('Alpha');
 
   await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.locator('.cue').count()).toBe(6);
@@ -857,7 +857,7 @@ test('B splits the selected subtitle under the cue-list pointer and supports und
   await expect(page.locator('.cue .text').nth(1)).toHaveText('Bravo');
 });
 
-test('retries an inline split with B or Enter and clamps both halves to 100ms', async ({ page }) => {
+test('requires a valid time for an inline split and preserves its undo snapshot', async ({ page }) => {
   await page.goto(server.url);
   await page.evaluate(() => {
     const segment = DATA.segments[0];
@@ -883,16 +883,13 @@ test('retries an inline split with B or Enter and clamps both halves to 100ms', 
     selection.addRange(range);
   });
 
-  // The first attempt leaves the editor open and only arms the forced retry.
   await page.keyboard.press('Enter');
   await expect(page.locator('.cue')).toHaveCount(6);
-  await expect(text).toHaveAttribute('contenteditable', 'plaintext-only');
-  await expect(page.locator('.hint-card.hint-warning', {
-    hasText: '请再次按 B 或 Enter 强制拆分',
-  })).toBeVisible();
-
-  // B/Enter is accepted only for this armed retry while the inline editor is open.
+  await expect(page.locator('#multi-subtitle-split-confirm')).toBeDisabled();
   await page.keyboard.press('Enter');
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => splitFromContextMenu(0, 0, 0, 100));
   await expect.poll(() => page.locator('.cue').count()).toBe(7);
   const splitTiming = await page.evaluate(() => DATA.segments.slice(0, 2).map((segment) => ({
     text: segment.text,
@@ -1309,7 +1306,7 @@ test('the last multi-row waveform uses the media remainder width', async ({ page
   await expect(lastRow).toHaveAttribute('data-end-ms', '300000');
 });
 
-test('requires a second B in the split dialog before forcing a short-side cut', async ({ page }) => {
+test('requires an explicit valid split time instead of forcing a short-side cut', async ({ page }) => {
   await page.addInitScript(() => {
     const key = 'moy.asr.editor.settings.v1';
     const settings = JSON.parse(localStorage.getItem(key) || '{}');
@@ -1343,23 +1340,16 @@ test('requires a second B in the split dialog before forcing a short-side cut', 
   await page.keyboard.press('b');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
 
-  // The first confirmation only arms the retry and keeps the dialog open.
-  await page.keyboard.press('b');
-  await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#multi-subtitle-split-confirm')).toBeDisabled();
   await expect(page.locator('.cue')).toHaveCount(6);
-  await expect(page.locator('.hint-card.hint-warning', {
-    hasText: '请再次按 B 或 Enter 强制拆分',
-  })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => splitFromContextMenu(0, 0, 0, 100));
+  await page.locator('#multi-subtitle-split-confirm').click();
+  await expect(page.locator('.cue')).toHaveCount(7);
+  expect(await page.evaluate(() => DATA.segments.slice(0, 2).map(s => [s.text, s.end - s.start])))
+    .toEqual([['Alpha', 100], ['Bravo', 7900]]);
 
-  await page.keyboard.press('b');
-  await expect.poll(() => page.locator('.cue').count()).toBe(7);
-  expect(await page.evaluate(() => DATA.segments.slice(0, 2).map((segment) => [
-    segment.text,
-    segment.end - segment.start,
-  ]))).toEqual([
-    ['Alpha', 100],
-    ['Bravo', 7900],
-  ]);
 });
 
 test('B and C refresh cue overlays without redrawing cached waveform canvases', async ({ page }) => {

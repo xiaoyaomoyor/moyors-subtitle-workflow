@@ -81,7 +81,7 @@ for (const mode of ['main', 'extension', 'both']) {
         const beforeSplit = await visual(page, index, kind);
         await page.keyboard.press('b');
         if (await page.locator('#multi-subtitle-split-modal').evaluate(el => el.classList.contains('show'))) {
-          await page.locator('#multi-subtitle-split-auto-submit').uncheck();
+
           const lane = kind === 'main' ? '#multi-subtitle-split-main-text' : '#multi-subtitle-split-text';
           const gaps = page.locator(`${lane} .multi-subtitle-split-gap`);
           if (await gaps.count()) await gaps.nth(Math.floor((await gaps.count()) / 2)).click();
@@ -513,7 +513,7 @@ test('space input native controls retain activation without changing follow or p
   await info.attach('native button and checkbox', { body: JSON.stringify(state), contentType: 'application/json' });
 });
 
-test('space input split modal keeps lane shortcuts and list ownership', async ({ page }, info) => {
+test('inline split arrows keep lane shortcuts and list ownership', async ({ page }, info) => {
   await open(page, { mode: 'both', paired: true });
   const row = page.locator(textSelector(1, 'main', 'both'));
   await row.click();
@@ -522,15 +522,11 @@ test('space input split modal keeps lane shortcuts and list ownership', async ({
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const lane = page.locator('#multi-subtitle-split-main-text');
   await lane.focus();
-  const locked = () => page.evaluate(() => splitLaneLocked(pendingLinkedSplit, 'main'));
-  const before = await locked();
-  await page.keyboard.press('Space');
-  expect(await locked()).toBe(!before);
-  // Locking a lane focuses its unconfirmed partner; return to the same lane
-  // before checking that a second Space unlocks it.
-  await lane.focus();
-  await page.keyboard.press('Space');
-  expect(await locked()).toBe(before);
+  const before = await page.evaluate(() => pendingLinkedSplit.mainOffset);
+  await page.keyboard.press('ArrowRight');
+  expect(await page.evaluate(() => pendingLinkedSplit.mainOffset)).toBeGreaterThan(before);
+  await page.keyboard.press('ArrowLeft');
+  expect(await page.evaluate(() => pendingLinkedSplit.mainOffset)).toBe(before);
   const state = await playbackState(page);
   expect(state.following).toBe(true);
   expect(state.paused).toBe(true);
@@ -708,14 +704,12 @@ test('paired dual tracks keep their source during split merge and history', asyn
   const before = await visual(page, 75);
   await page.keyboard.press('b');
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  await page.locator('#multi-subtitle-split-auto-submit').uncheck();
+
   for (const lane of ['#multi-subtitle-split-main-text', '#multi-subtitle-split-text']) {
-    // Character gaps can have zero width. Use the supported keyboard flow,
-    // skipping a lane if the B cursor already fixed its split position.
+    // Adjust both boundaries through the inline keyboard flow.
     if (!await page.locator(lane).isVisible()) continue;
     await page.locator(lane).focus();
     await page.keyboard.press('ArrowRight');
-    await page.keyboard.press('Space');
   }
   await page.locator('#multi-subtitle-split-confirm').click();
   await stable(page, before, 75, 'paired B', info);
@@ -726,8 +720,10 @@ test('paired dual tracks keep their source during split merge and history', asyn
   await page.locator('.cue[data-idx="76"] .multi-cue-column.main .text').click({ modifiers: ['Shift'] });
   const mergeBefore = await visual(page, 75);
   await page.keyboard.press('c');
+  // The current multi-layer merge confirms and merges only the selected track.
+  await page.getByRole('dialog').getByRole('button', { name: '合并', exact: true }).click();
   await stable(page, mergeBefore, 75, 'paired C', info);
-  expect(await page.evaluate(() => [DATA.segments.length, getActiveExtensionTrack().segments.length])).toEqual([106, 106]);
+  expect(await page.evaluate(() => [DATA.segments.length, getActiveExtensionTrack().segments.length])).toEqual([106, 107]);
   await page.keyboard.press(undoKey);
   await stable(page, mergeBefore, 75, 'paired undo C', info);
   expect(await page.evaluate(() => getMultiSubtitleState().bindings.length)).toBe(107);

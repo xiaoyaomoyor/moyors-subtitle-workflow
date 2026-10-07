@@ -17,6 +17,8 @@ test.beforeAll(async () => {
   tempDir = makeTempDir('overlay-track');
   const blankPath = buildPortableBlankEditor(join(tempDir, 'blank-editor.html'));
   server = await startStaticServer(blankPath, await findFreePort());
+  // These fixtures exercise the legacy overlay adapter, not automatic v2 migration.
+  server.url += '?subtitle-layers=0';
 });
 
 test.afterAll(async () => {
@@ -326,9 +328,9 @@ test('splits and merges overlay cues with group marks following', async ({ page 
     setCuePanelTarget('overlay', 0);
     return openOverlaySplitModal(0, 1000);
   });
-  expect(opened).toBe(true);
+  expect(opened).toBe(false);
   await expect(page.locator('#multi-subtitle-split-modal.show')).toBeVisible();
-  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('选择叠加字幕拆分点');
+  await expect(page.locator('#multi-subtitle-split-title')).toHaveText('切分字幕');
   await page.evaluate(() => confirmLinkedSplit());
 
   const afterSplit = await page.evaluate(() => JSON.parse(buildJson()));
