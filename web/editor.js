@@ -8949,7 +8949,7 @@ function buildSplitPair(
     start: segment.start,
     end: leftEnd,
     text: parts.left,
-    items: leftItems.length ? leftItems : null,
+    items: leftItems,
     _dirty: true,
   };
   const right = {
@@ -8958,7 +8958,7 @@ function buildSplitPair(
     start: rightStart,
     end: segment.end,
     text: parts.right,
-    items: rightItems.length ? rightItems : null,
+    items: rightItems,
     _dirty: true,
   };
   if (segment.sticker) {
@@ -10427,7 +10427,7 @@ function splitAtCursor(
   const leftSeg = {
     id: MULTI_SUBTITLE_UTILS.uniqueStableSegmentId([seg], `${seg.id || `main-${idx}`}-a`, 'main'),
     start: seg.start, end: leftEnd, text: leftText,
-    items: leftItemsClean.length ? leftItemsClean : null,
+    items: leftItemsClean,
     sticker: seg.sticker || null,
     sticker_ref: seg.sticker_ref || null,
     color: seg.color || null,
@@ -10438,7 +10438,7 @@ function splitAtCursor(
   const rightSeg = {
     id: MULTI_SUBTITLE_UTILS.uniqueStableSegmentId([seg], `${seg.id || `main-${idx}`}-b`, 'main'),
     start: rightStart, end: seg.end, text: rightText,
-    items: rightItemsClean.length ? rightItemsClean : null,
+    items: rightItemsClean,
     sticker: null,
     // 如果原 seg 是被引用的 head，右段也成为同一表情包的延续 → 给 ref
     // 如果原 seg 自己是 ref，右段也保持 ref
@@ -16173,7 +16173,10 @@ function buildJson() {
           end_frame: segment.end_frame,
           text: segment.text || '',
         };
-        if (Array.isArray(segment.items)) outSegment.items = segment.items;
+        // Older edits used null for absent word timing. The v2 spread above
+        // must not leak that placeholder into preview/save/export requests.
+        if (segment.items == null) delete outSegment.items;
+        else if (Array.isArray(segment.items)) outSegment.items = segment.items;
         if (segment._dirty) outSegment._dirty = true;
         if (segment.disabled) outSegment.disabled = true;
         return outSegment;

@@ -193,10 +193,10 @@ test('voice-only audio alignment trims longer video and rejects empty audio',asy
   await page.locator('#video-export-tail').selectOption('truncate');await expect(page.locator('#video-export-start')).toBeEnabled();
 });
 
-test('merged subtitle menu is named and ordered next to the secondary exports',async({page})=>{
+test('merged subtitle menu precedes the main SRT export',async({page})=>{
   const entries=await page.locator('#subtitle-export-menu > .dropdown-item').allTextContents();
   const merged=entries.indexOf('合并主副字幕（SRT）');
-  expect(merged).toBeGreaterThan(0);expect(entries[merged+1]).toBe('副字幕（ASS）');
+  expect(merged).toBe(0);expect(entries[merged+1]).toBe('主字幕（SRT）');
 });
 
 test('editable OTIOZ exports independent overlapping voice lanes and portable media', async ({page}) => {

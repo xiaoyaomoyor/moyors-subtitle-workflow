@@ -120,7 +120,9 @@ async function injectSegment(page, segment) {
   await page.goto(server.url);
   await expect(page.locator('.cue[data-idx="0"] .text')).toBeVisible();
   await page.evaluate((value) => {
-    DATA.segments[0] = value;
+    // v2 sorts by time: replacing index 0 among unrelated generated cues
+    // would move this fixture elsewhere and edit the wrong subtitle.
+    DATA.segments = [value];
     renderAll({ waveform: 'full' });
   }, segment);
 }
