@@ -195,7 +195,7 @@
           actions.append(action('下载 WAV', job, async () => {
             const data = await request(`audio-exports/${job.id}/download`, { project_id: job.project_id });
             const link = document.createElement('a'); link.href = data.url;
-            link.download = video ? 'msw-video.mp4' : timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav';
+            link.download = job.download_name || (video ? 'msw-video.mp4' : timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav');
             document.body.append(link); link.click(); link.remove();
           }));
         } else if (!terminal.has(job.status)) {
@@ -237,7 +237,7 @@
           let options = {...selectedOptions({applyTail:!overrides}),...(overrides || {})};
           if (video) options = core.videoOptions(project,options,context);
           core.compile(project, options);
-          pending = { project, options, plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
+          pending = { project, options, project_name: host.projectName(), plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
             request_key: global.MSWProject.id('export-request'), binding: host.config.processingContext?.binding };
         }
         update();
@@ -258,7 +258,7 @@
     if (!available) button.title = t('音频导出需要通过本机编辑器服务打开工程');
     button.addEventListener('click', () => {
       host.commitEdits(); message('');
-      el('audio-export-remove-gaps').checked = host.audioExportPreview().gap_remove?.skip_playback === true;
+      el('audio-export-remove-gaps').checked = false;
       el('audio-export-end-time').value = String(Math.max(.001, host.audioExportDuration() / 1000));
       floating.open(); update(); void loadContext(); schedule(0);
     });

@@ -42,7 +42,7 @@ async function finish(page) {
 }
 async function download(page,card,name) {
   const ready=page.waitForEvent('download'); await card.getByRole('button',{name:'下载 WAV',exact:true}).click();
-  const file=await ready, path=join(dir,name); await file.saveAs(path);
+  const file=await ready, path=join(dir,name); expect(file.suggestedFilename()).toBe('project_MSW.wav'); await file.saveAs(path);
   const data=readFileSync(path); let format, samples;
   for(let pos=12;pos+8<=data.length;) {
     const size=data.readUInt32LE(pos+4), kind=data.toString('ascii',pos,pos+4);
@@ -90,7 +90,7 @@ test('mixed WAV includes original audio independently from muted monitoring',asy
 
 test('follow gaps and custom source range match the downloaded output length',async({page})=>{
   await page.evaluate(()=>window.MSWE.resolve('processing-host').commitAudio('Follow gaps',ext=>{ext.audio_settings.gap_policy='follow';}));
-  await open(page); await page.locator('#audio-export-rate').selectOption('44100');
+  await open(page); await page.locator('#audio-export-remove-gaps').check(); await page.locator('#audio-export-rate').selectOption('44100');
   await page.locator('#audio-export-range').selectOption('custom');
   await page.locator('#audio-export-start-time').fill('0.5'); await page.locator('#audio-export-end-time').fill('3.5');
   await expect(page.locator('#audio-export-summary')).toContainText('2.000 s');

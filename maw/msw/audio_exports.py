@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import secrets
 import shutil
 import sqlite3
@@ -25,6 +26,13 @@ from maw.msw.timeline_export import editable_plan, render_bundle
 from maw.project import normalize_project
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
+
+
+def export_download_name(project_name, extension):
+    """A display filename only; artifact storage continues to use the job ID."""
+    name = project_name if isinstance(project_name, str) else ""
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', '_', name).strip(' .')[:120].rstrip(' .')
+    return f"{name or '未命名工程'}_MSW.{extension}"
 
 
 def configured_tools(env_path):
@@ -183,7 +191,8 @@ class AudioExports:
         plan = compile_plan(project, settings)
         if settings["format"] == "otioz":
             plan = editable_plan(project, plan)
-        signature = hashlib.sha256(json.dumps(dict(project=project, options=settings), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        download_name = export_download_name(payload.get('project_name'), settings['format'])
+        signature = hashlib.sha256(json.dumps(dict(project=project, options=settings, download_name=download_name), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         with self.lock:
             row = self.db.execute("SELECT payload FROM jobs WHERE project_id=? AND request_key=?", (project_id, request_key)).fetchone()
             if row:
@@ -229,7 +238,7 @@ class AudioExports:
             job = dict(id=uuid.uuid4().hex, project_id=project_id, request_key=request_key, fingerprint=signature,
                        client_token=payload["client_token"], plan_schema=VERSION, mode=settings["mode"], format=settings["format"],
                        status="queued", stage="queued", progress=0, created_at=time.time(), error="", result=None,
-                       options=settings, clip_count=len({p["clip_id"] for p in plan["pieces"]}))
+                       options=settings, download_name=download_name, clip_count=len({p["clip_id"] for p in plan["pieces"]}))
             event = threading.Event()
             self.events[job["id"]] = event
             self.write(job)
@@ -295,6 +304,7 @@ class AudioExports:
             name = "msw-video.mp4" if job.get("format") == "mp4" else "msw-voice.wav" if job["mode"] == "voice" else "msw-mix.wav"
             if job.get("format") == "otioz":
                 name = "msw-timeline.otioz"
+            name = job.get('download_name') or name
             return self.artifact(job).open("rb"), name
 
     def work(self):

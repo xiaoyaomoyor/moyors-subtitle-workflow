@@ -59,7 +59,7 @@ class AudioExportApiTests(unittest.TestCase):
             {'id':'clip','asset_id':asset['id'],'track_id':'voice','start_ms':1000,'source_in_sample':0,'source_out_sample':24000,
              'playback_rate':1,'muted':False,'gain_db':0,'label':'Hello'}])
         self.payload = dict(project_id='p',client_token='page-1',request_key='request',plan_schema=VERSION,
-                            binding=self.api.context()['binding'],project=copy.deepcopy(project),options={'duration_ms':3000})
+                            binding=self.api.context()['binding'],project_name='字幕工程.最终版',project=copy.deepcopy(project),options={'duration_ms':3000})
 
     def tearDown(self):
         self.release.set()
@@ -218,6 +218,9 @@ class AudioExportApiTests(unittest.TestCase):
                 with urlopen(self.url.split('/api/msw/')[0] + grant['url']) as response:
                     self.assertEqual(response.headers['Content-Type'], mime)
                     self.assertIn('.' + fmt, response.headers['Content-Disposition'])
+                    from urllib.parse import unquote
+                    self.assertEqual(unquote(response.headers['Content-Disposition'].split("filename*=UTF-8''")[1]), '字幕工程.最终版_MSW.' + fmt)
+                    self.assertEqual(job['download_name'], '字幕工程.最终版_MSW.' + fmt)
                     self.assertEqual(response.read(), b'fixture-output')
 
     def test_video_cannot_reference_an_unbound_file_even_without_original_audio(self):

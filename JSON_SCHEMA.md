@@ -1087,3 +1087,7 @@ JS `MSWSubtitleLayers.migrate` 与 Python `migrate_project` 均返回独立副�
 - CSS／ASS／视频使用共同的自动避让排布规则；默认预览、ASS 和视频烧录跟随工程字幕样式，校对预览和单次视频预设独立覆盖。禁用与历史隐藏组在输出中排除。OTIO 标记附带字幕身份，不能表达任意画面层次、字体和双语样式，不承诺无损往返。
 
 实现与验证见 `docs/TEST_FEEDBACK_SUBTITLE_LAYERS_ABC_20261005.md`、`docs/TEST_FEEDBACK_SUBTITLE_LAYERS_DG_20261005.md`；用户入口见 `docs/EDITOR_SUBTITLE_LAYERS.md`。
+
+### 导出任务下载名称
+
+`POST audio-exports` 可携带 `project_name`（工程显示名，不含工程扩展名）。服务端生成并在任务中持久化 `download_name`，格式为 `工程名_MSW.mp4/wav/otioz`，空名称使用“未命名工程”，非法文件名字符和控制字符替换为下划线、工程名最多 120 字符；不接受该名称作为磁盘路径。名称参与新任务幂等快照，后续工程改名不影响已有结果。下载响应通过 ASCII 回退与 UTF-8 `filename*` 同时传递名称；没有此字段的旧任务继续使用原下载名。工程 JSON 不新增字段。

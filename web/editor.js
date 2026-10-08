@@ -25314,6 +25314,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   get data() { return DATA; },
   get config() { return SERVER_CONFIG; },
   get generation() { return mswProjectGeneration; },
+  projectName: () => PROJECT_NAME || FILENAME_BASE || '未命名工程',
   selection: processingSelection,
   commitEdits: commitProcessingEdits,
   isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()

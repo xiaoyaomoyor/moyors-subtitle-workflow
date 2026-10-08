@@ -8,7 +8,7 @@ import threading
 import uuid
 from hmac import compare_digest
 from http import HTTPStatus
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from maw.msw.config import provider_payloads, resolve_settings, save_settings
 from maw.msw.jobs import JobManager
@@ -293,7 +293,8 @@ class ProcessingAPI:
                 with stream:
                     handler.send_response(HTTPStatus.OK)
                     handler.send_header("Content-Type", "application/zip" if name.endswith(".otioz") else "video/mp4" if name.endswith(".mp4") else "audio/wav")
-                    handler.send_header("Content-Disposition", f'attachment; filename="{name}"')
+                    ascii_name = ''.join(char if 32 <= ord(char) < 127 and char not in '\\"' else '_' for char in name)
+                    handler.send_header("Content-Disposition", f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(name, safe="")}')
                     handler.send_header("Content-Length", str(os.fstat(stream.fileno()).st_size))
                     handler.send_header("Cache-Control", "no-store")
                     handler.send_header("Referrer-Policy", "no-referrer")

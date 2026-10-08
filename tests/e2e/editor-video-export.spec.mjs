@@ -38,11 +38,13 @@ async function open(page) {
   await expect(page.locator('#video-export-panel')).toBeVisible();
 }
 async function finish(page) {
+  const projectName = await page.evaluate(()=>PROJECT_NAME);
   await page.locator('#video-export-start').click();
   const card = page.locator('#video-export-jobs .msw-processing-job').first();
   await expect(card.getByRole('button', {name: '下载 MP4', exact: true})).toBeVisible({timeout: 30000});
   const ready = page.waitForEvent('download'); await card.getByRole('button', {name: '下载 MP4', exact: true}).click();
-  const file = await ready, output = join(dir, 'result.mp4'); await file.saveAs(output);
+  const file = await ready, output = join(dir, 'result.mp4');
+  expect(file.suggestedFilename()).toBe(`${projectName}_MSW.mp4`); await file.saveAs(output);
   const info = JSON.parse(execFileSync(tool('ffprobe'), ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', output], {encoding: 'utf8', windowsHide: true}));
   expect(info.streams.filter(s => s.codec_type === 'audio')).toHaveLength(1);
   expect(info.streams.find(s => s.codec_type === 'video').codec_name).toBe('h264');
@@ -50,7 +52,13 @@ async function finish(page) {
 }
 
 test('video and audio menu entries show window icons and video downloads the protected mix', async ({page}) => {
+  await page.evaluate(()=>{PROJECT_NAME='字幕工程.最终版';});
   await open(page);
+  await expect(page.locator('#video-export-panel').getByLabel('跳过空隙',{exact:true})).not.toBeChecked();
+  await page.locator('#video-export-remove-gaps').check();
+  await page.locator('#video-export-close').click();
+  await open(page);
+  await expect(page.locator('#video-export-remove-gaps')).not.toBeChecked();
   await expect(page.locator('#audio-export-btn .menu-window-icon')).toHaveCount(1);
   await expect(page.locator('#video-export-btn .menu-window-icon')).toHaveCount(1);
   await expect(page.locator('#video-export-start')).toBeEnabled();
@@ -65,7 +73,8 @@ test('video and audio menu entries show window icons and video downloads the pro
 
 test('video follows gap cuts while retaining the shared audio clock', async ({page}) => {
   await page.evaluate(() => window.MSWE.resolve('processing-host').commitAudio('Follow gaps', ext => {ext.audio_settings.gap_policy = 'follow';}));
-  await open(page); await expect(page.locator('#video-export-summary')).toContainText('3.000 s');
+  await open(page); await page.locator('#video-export-remove-gaps').check();
+  await expect(page.locator('#video-export-summary')).toContainText('3.000 s');
   const {info, card} = await finish(page);
   expect(Number(info.format.duration)).toBeCloseTo(3, 1);
   await expect(card).toContainText('画面已重新编码');

@@ -8912,7 +8912,7 @@
       <label>源起点（秒）<input id="audio-export-start-time" type="number" value="0" min="0" step="0.001"></label>
       <label>源终点（秒）<input id="audio-export-end-time" type="number" value="1" min="0.001" step="0.001"></label>
     </div>
-    <label class="msw-tts-check"><input type="checkbox" id="audio-export-remove-gaps">移除已标记的空隙</label>
+    <label class="msw-tts-check"><input type="checkbox" id="audio-export-remove-gaps">跳过空隙</label>
     <p id="audio-export-gap-hint" class="msw-processing-hint" data-help-for="audio-export-remove-gaps"></p>
     <label class="msw-tts-check" data-option-help="超出峰值时整体衰减以避免削波，因此成品可能比当前试听略轻。"><input type="checkbox" id="audio-export-peak" checked>峰值保护</label>
     <p id="audio-export-summary" class="msw-processing-hint"></p>
@@ -21130,7 +21130,7 @@ export default MawDynamicCaptions;
     "指定源时间范围": "Custom source range",
     "源起点（秒）": "Source start (s)",
     "源终点（秒）": "Source end (s)",
-    "移除已标记的空隙": "Remove marked gaps",
+    "跳过空隙": "Skip gaps",
     "移除空隙时，配音随媒体一起裁切。": "When removing gaps, voice is cut together with the media.",
     "移除空隙时，保留未静音贴片覆盖的区间。": "When removing gaps, preserve intervals covered by unmuted clips.",
     "峰值保护（超限时整体降低音量）": "Peak protection (reduce overall gain if needed)",
@@ -56175,6 +56175,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   get data() { return DATA; },
   get config() { return SERVER_CONFIG; },
   get generation() { return mswProjectGeneration; },
+  projectName: () => PROJECT_NAME || FILENAME_BASE || '未命名工程',
   selection: processingSelection,
   commitEdits: commitProcessingEdits,
   isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()
@@ -61473,7 +61474,7 @@ window.addEventListener('beforeunload', (e) => {
           actions.append(action('下载 WAV', job, async () => {
             const data = await request(`audio-exports/${job.id}/download`, { project_id: job.project_id });
             const link = document.createElement('a'); link.href = data.url;
-            link.download = video ? 'msw-video.mp4' : timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav';
+            link.download = job.download_name || (video ? 'msw-video.mp4' : timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav');
             document.body.append(link); link.click(); link.remove();
           }));
         } else if (!terminal.has(job.status)) {
@@ -61515,7 +61516,7 @@ window.addEventListener('beforeunload', (e) => {
           let options = {...selectedOptions({applyTail:!overrides}),...(overrides || {})};
           if (video) options = core.videoOptions(project,options,context);
           core.compile(project, options);
-          pending = { project, options, plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
+          pending = { project, options, project_name: host.projectName(), plan_schema: core.VERSION, project_id: projectId(), client_token: token(),
             request_key: global.MSWProject.id('export-request'), binding: host.config.processingContext?.binding };
         }
         update();
@@ -61536,7 +61537,7 @@ window.addEventListener('beforeunload', (e) => {
     if (!available) button.title = t('音频导出需要通过本机编辑器服务打开工程');
     button.addEventListener('click', () => {
       host.commitEdits(); message('');
-      el('audio-export-remove-gaps').checked = host.audioExportPreview().gap_remove?.skip_playback === true;
+      el('audio-export-remove-gaps').checked = false;
       el('audio-export-end-time').value = String(Math.max(.001, host.audioExportDuration() / 1000));
       floating.open(); update(); void loadContext(); schedule(0);
     });

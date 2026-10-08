@@ -1266,7 +1266,7 @@
     "指定源时间范围": "Custom source range",
     "源起点（秒）": "Source start (s)",
     "源终点（秒）": "Source end (s)",
-    "移除已标记的空隙": "Remove marked gaps",
+    "跳过空隙": "Skip gaps",
     "移除空隙时，配音随媒体一起裁切。": "When removing gaps, voice is cut together with the media.",
     "移除空隙时，保留未静音贴片覆盖的区间。": "When removing gaps, preserve intervals covered by unmuted clips.",
     "峰值保护（超限时整体降低音量）": "Peak protection (reduce overall gain if needed)",
