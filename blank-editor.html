@@ -905,11 +905,11 @@
     width: 16px; height: 16px; border-radius: 4px;
     border: 1px solid rgba(127,127,127,.45);
   }
-  .theme-preset[data-theme-preset="default"] .theme-swatch { background: linear-gradient(135deg, #16181d 50%, #6ca5e8 50%); }
-  .theme-preset[data-theme-preset="aster"] .theme-swatch { background: linear-gradient(135deg, #1a1b26 50%, #80d0ff 50%); }
+  .theme-preset[data-theme-preset="default"] .theme-swatch,
+  .theme-preset[data-theme-preset="aster"] .theme-swatch { background: linear-gradient(135deg, #1a1b26 50%, #6f60e2 50%); }
   .theme-preset[data-theme-preset="kosuzu"] .theme-swatch { background: linear-gradient(135deg, #170f08 50%, #c9552b 50%); }
   .theme-preset[data-theme-preset="reimu"] .theme-swatch { background: linear-gradient(135deg, #f7efee 50%, #c2334a 50%); }
-  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #f0f2f6 50%, #a87c24 50%); }
+  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #499cd0 50%, #d1b70a 50%); }
   .theme-preset[data-theme-preset="koishi"] .theme-swatch { background: linear-gradient(135deg, #f5f3e4 50%, #3f7d3a 50%); }
   .theme-preset[data-theme-preset="renko"] .theme-swatch { background: linear-gradient(135deg, #0b0b0e 50%, #aab2c0 50%); }
   :root[data-accent="teal"] {
@@ -3797,13 +3797,8 @@
   .subtitle-split-editor { display: none; min-height: 0; min-width: 0; flex: 1 1 auto; }
   .subtitle-split-editor.show { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
   .current-cue-panel.splitting > .cue-panel-layout { display: none; }
-  /* Expand only while confirming, without changing the saved workspace layout. */
-  .editor-workspace.layout-wave-right:has(> .current-cue-panel.splitting) {
-    grid-template-rows: minmax(56px, 1fr) 7px min(250px, 45vh) 7px minmax(56px, 1fr);
-  }
-  .layout-split-column > .layout-child:has(> .layout-module-slot > .current-cue-panel.splitting) {
-    min-height: min(250px, 45vh);
-  }
+  /* Size comes from the normal workspace dividers; no fixed confirmation row. */
+  .current-cue-panel.splitting { gap: 6px; padding-bottom: 8px; }
   .subtitle-split-header { display: flex; flex: 0 0 auto; align-items: center; gap: 6px 12px; flex-wrap: wrap; }
   .subtitle-split-header strong { color: var(--text-primary); font-size: 13px; }
   .multi-subtitle-split-meta { color: var(--text-muted); font: 11px/1.5 var(--font-mono); }
@@ -5912,17 +5907,6 @@
 .waveform-row .msw-audio-clip.active:not(.selected) {
   outline: solid 1px var(--wave-playhead);
 }
-.waveform-cue-block.disabled {
-  opacity: 0.48;
-  color: var(--wave-disabled-text);
-  outline-color: var(--wave-disabled-border);
-  background: repeating-linear-gradient(
-    135deg,
-    var(--wave-disabled-a) 0 5px,
-    var(--wave-disabled-b) 5px 10px
-  );
-}
-.waveform-cue-block.disabled:hover { opacity: 0.7; }
 .waveform-cue-block.dragging { cursor: grabbing; filter: brightness(var(--wave-drag-brightness)); }
 .waveform-cue-handle {
   position: absolute;
@@ -6045,21 +6029,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 多字幕轨道的主/副背景选择器与通用 disabled 选择器同样具体；
-   disabled 放在这里确保条纹背景和禁用文字不会被轨道底色盖掉。 */
-.waveform-row.multi-subtitle-row .waveform-cue-block.disabled {
-  opacity: 0.48;
-  color: var(--wave-disabled-text);
-  outline-style: dashed;
-  outline-color: var(--wave-disabled-border);
-  background: repeating-linear-gradient(
-    135deg,
-    var(--wave-disabled-a) 0 5px,
-    var(--wave-disabled-b) 5px 10px
-  );
-}
-.waveform-row.multi-subtitle-row .waveform-cue-block.disabled:hover { opacity: 0.7; }
-
 /* Ctrl(Cmd)+左键拖动空白处：使用和正式字幕块一致的几何形状，
    以半透明虚影预览将要创建的时间范围。 */
 .waveform-cue-block.waveform-create-preview {
@@ -6160,7 +6129,8 @@
 .waveform-track-heads.multi .v-ext {
   bottom: calc(7px + var(--head-audio-space, 0px) + ((var(--head-lane-h) - 17px) / 2));
 }
-/* 被禁用字幕轨的块降透明度（非破坏性：数据不动，预览也跳过该轨） */
+/* 单条禁用和整轨禁用使用相同淡化；保留块及其颜色，方便重新启用。 */
+.waveform-row .waveform-cue-block.disabled,
 .waveform-row.v-track-muted-main .waveform-cue-block[data-track="main"],
 .waveform-row.v-track-muted-ext .waveform-cue-block[data-track="extension"] {
   opacity: .38;
@@ -8069,7 +8039,7 @@
               <span class="editor-settings-item">主题</span>
               <div class="theme-group-title">预设主题</div>
               <div class="theme-preset-row" role="group" aria-label="预设主题">
-                <button type="button" class="theme-preset" data-theme-preset="default" title="默认：MSW 标准深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>默认</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="default" title="默认：紫苑配色深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>默认</span></button>
                 <button type="button" class="theme-preset" data-theme-preset="aster" title="紫苑：深蓝紫夜色深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>紫苑</span></button>
                 <button type="button" class="theme-preset" data-theme-preset="kosuzu" title="小铃：黄棕橘暖调深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>小铃</span></button>
                 <button type="button" class="theme-preset" data-theme-preset="renko" title="莲子：黑色系主题"><span class="theme-swatch" aria-hidden="true"></span><span>莲子</span></button>
@@ -8435,7 +8405,7 @@
         <div class="actions">
           <button type="button" id="multi-subtitle-split-cancel">取消</button>
           <button type="button" id="multi-subtitle-split-duplicate" title="只切开时间，两侧保留相同文字" hidden>保留两侧原文</button>
-          <button type="button" id="multi-subtitle-split-independent" aria-keyshortcuts="Shift+B" hidden><span>仅切当前字幕并解绑</span> <kbd>Shift+B</kbd></button>
+          <button type="button" id="multi-subtitle-split-independent" aria-keyshortcuts="Shift+B" hidden><span>仅切当前字幕并解绑</span></button>
           <button type="button" id="multi-subtitle-split-confirm" class="primary">确认切分</button>
         </div>
       </footer>
@@ -17688,7 +17658,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 3;
+  const layoutVersion = 4;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -18238,6 +18208,30 @@ export default MawDynamicCaptions;
 (function(global) {
   'use strict';
   const key=(role,id)=>JSON.stringify([role,id]);
+  let measureContext;
+  function wrappedLineCount(text,style,width) {
+    const family=style.font_family;
+    if(family&&measureContext===undefined)measureContext=global.document?.createElement('canvas').getContext('2d')||null;
+    const ctx=family?measureContext:null,size=style.font_size,scale=(style.scale_x??100)/100,spacing=style.spacing||0;
+    let unit=1000;
+    if(ctx){
+      ctx.font=`${style.italic?'italic ':''}${style.bold?'bold ':''}1000px "${family.replace(/["\\]/g,'')}"`;
+      // Match ASS font-size units instead of using the CSS em square.
+      const m=ctx.measureText('Mg');unit=(m.fontBoundingBoxAscent+m.fontBoundingBoxDescent)||1000;
+    }
+    const measure=token=>((ctx?ctx.measureText(token).width/unit:[...token].reduce((n,c)=>n+(c.codePointAt(0)>255?1.1:.55),0))*size+[...token].length*spacing)*scale;
+    let count=0;
+    for(const line of String(text||'').replace(/\r\n?/g,'\n').split('\n')){
+      let used=0,space=0;count++;
+      // ASS soft wrapping is at spaces, never an assumed character capacity.
+      for(const token of line.replace(/^[ \t]+|[ \t]+$/g,'').match(/[ \t]+|[^ \t]+/g)||[]){
+        const length=measure(token);
+        if(/^[ \t]/.test(token))space+=length;
+        else{if(used&&used+space+length>Math.max(1,width*style.width)){count++;used=0;}used+=(used?space:0)+length;space=0;}
+      }
+    }
+    return count;
+  }
   function visible(project,cue) {
     const legacy=project.subtitle_layers?.legacy_overlay;
     return !cue.disabled && !(legacy?.visible===false && legacy.cue_ids.includes(cue.id));
@@ -18281,8 +18275,7 @@ export default MawDynamicCaptions;
       const upper=group.paired&&pair.order==='secondary-above'?'secondary':'main';
       group.rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1)||a.cue.start-b.cue.start);
       const height=entry=>{
-        const s=styles[entry.role],capacity=Math.max(1,Math.floor(width*s.width/(s.font_size*.55)));
-        const lines=String(entry.cue.text||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?2:1),0)/capacity)),0);
+        const s=styles[entry.role],lines=wrappedLineCount(entry.cue.text,s,width);
         return s.font_size*1.2*(s.scale_y??100)/100*lines;
       };
       if(group.paired){
@@ -18330,7 +18323,7 @@ export default MawDynamicCaptions;
     }
     return result;
   }
-  global.MSWSubtitlePresentation=Object.freeze({key,visible,rows,layout,mergedSrtRows});
+  global.MSWSubtitlePresentation=Object.freeze({key,visible,rows,layout,mergedSrtRows,wrappedLineCount});
 })(typeof window==='undefined'?globalThis:window);
 
 // MSW project namespace: preserve extensions through every editor entry point.
@@ -19799,6 +19792,7 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '单切并解绑': 'Split only this cue and unlink',
     '累加状态合并完成': 'Merged with combined states',
     '共有状态合并完成': 'Merged with shared states',
     '，主副字幕已联动并保留绑定': '; main and secondary subtitles merged with their link preserved',
@@ -21876,7 +21870,7 @@ export default MawDynamicCaptions;
     '关闭窗口菜单': 'Close window menu',
     '当前播放头时间': 'Current playhead time', '当前选中的字幕数量': 'Number of selected subtitles',
     '媒体总时长 · 波形峰值点数': 'Total media duration · waveform peak count',
-    '石墨（默认）': 'Graphite (default)', '午夜蓝调': 'Midnight blue', '苔原绿调': 'Tundra green', '主题预设': 'Theme preset', '自定义颜色': 'Custom colors', '恢复主题默认颜色': 'Reset theme colors', '已恢复当前主题的默认颜色': 'Restored the current theme defaults', 'MSW 深色（默认）': 'MSW Dark (default)', 'MSW 浅色': 'MSW Light',  '灵梦：红白配色深色主题': 'Reimu: red-and-white dark theme', '爱丽丝：金蓝浅色主题': 'Alice: gold-blue light theme', '恋：粉色系深色主题': 'Koishi: pink dark theme', '莲子：黑色系主题': 'Renko: black theme', '外面板色': 'Outer panel', '内面板色': 'Inner panel', '模块顶部栏等深色面板区域': 'Dark panel areas such as module tab bars', '模块内部的浅色背景面板区域': 'Light content panels inside modules', '默认': 'Default', '紫苑': 'Shion', '小铃': 'Kosuzu', '默认：MSW 标准深色主题': 'Default: standard MSW dark theme', '紫苑：深蓝紫夜色深色主题': 'Shion: deep blue-violet night dark theme', '小铃：黄棕橘暖调深色主题': 'Kosuzu: warm yellow-brown-orange dark theme', '灵梦': 'Reimu', '爱丽丝': 'Alice', '恋': 'Koishi', '莲子': 'Renko', '清除全部空隙': 'Clear all gaps', '当前没有空隙区段记录': 'No gap records to clear', '已清理全部空隙区段': 'Cleared all gap records', '没有可处理的空隙；请先加载媒体': 'No spans to process; load media first','午夜蓝调深色主题': 'Midnight-blue dark theme', '苔原绿调深色主题': 'Tundra-green dark theme', '暖砂棕调深色主题': 'Warm-sand dark theme', '主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。': 'A theme preset decides light/dark, accent and base palette; switching restores that theme defaults.', '任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。': 'Any color can override the current theme; custom colors apply instantly, persist locally and export/import with Window → Interface config. Subtitle color does not affect the in-player preview (see Media player settings).', '清除全部自定义颜色，恢复当前主题预设的默认': 'Clear all custom colors and restore the current theme preset', '按钮、选中与高亮等界面强调色': 'Accent color for buttons, selection and highlights',
+    '石墨（默认）': 'Graphite (default)', '午夜蓝调': 'Midnight blue', '苔原绿调': 'Tundra green', '主题预设': 'Theme preset', '自定义颜色': 'Custom colors', '恢复主题默认颜色': 'Reset theme colors', '已恢复当前主题的默认颜色': 'Restored the current theme defaults', 'MSW 深色（默认）': 'MSW Dark (default)', 'MSW 浅色': 'MSW Light',  '灵梦：红白配色深色主题': 'Reimu: red-and-white dark theme', '爱丽丝：金蓝浅色主题': 'Alice: gold-blue light theme', '恋：粉色系深色主题': 'Koishi: pink dark theme', '莲子：黑色系主题': 'Renko: black theme', '外面板色': 'Outer panel', '内面板色': 'Inner panel', '模块顶部栏等深色面板区域': 'Dark panel areas such as module tab bars', '模块内部的浅色背景面板区域': 'Light content panels inside modules', '默认': 'Default', '紫苑': 'Shion', '小铃': 'Kosuzu', '默认：紫苑配色深色主题': 'Default: Shion dark theme', '紫苑：深蓝紫夜色深色主题': 'Shion: deep blue-violet night dark theme', '小铃：黄棕橘暖调深色主题': 'Kosuzu: warm yellow-brown-orange dark theme', '灵梦': 'Reimu', '爱丽丝': 'Alice', '恋': 'Koishi', '莲子': 'Renko', '清除全部空隙': 'Clear all gaps', '当前没有空隙区段记录': 'No gap records to clear', '已清理全部空隙区段': 'Cleared all gap records', '没有可处理的空隙；请先加载媒体': 'No spans to process; load media first','午夜蓝调深色主题': 'Midnight-blue dark theme', '苔原绿调深色主题': 'Tundra-green dark theme', '暖砂棕调深色主题': 'Warm-sand dark theme', '主题预设决定整体明暗、强调色与基础配色；切换预设会恢复该主题的默认颜色。': 'A theme preset decides light/dark, accent and base palette; switching restores that theme defaults.', '任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。': 'Any color can override the current theme; custom colors apply instantly, persist locally and export/import with Window → Interface config. Subtitle color does not affect the in-player preview (see Media player settings).', '清除全部自定义颜色，恢复当前主题预设的默认': 'Clear all custom colors and restore the current theme preset', '按钮、选中与高亮等界面强调色': 'Accent color for buttons, selection and highlights',
     '暖砂棕调': 'Warm sand brown', '界面主背景色': 'Main interface background color',
     '界面主要文字色': 'Main interface text color', '波形峰值的颜色': 'Waveform peak color',
     '字幕列表与编辑区的文字颜色（不含播放器画面内的预览字幕）': 'Text color of the subtitle list and editor (preview subtitles in the player excluded)',
@@ -24711,6 +24705,7 @@ export default MawDynamicCaptions;
         let drag = null;
         resizer.addEventListener('pointerdown', (event) => {
           if (!this.isPresetResizableLayout()) return;
+          this.panelContentFit = null;
           event.preventDefault();
           drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false,
             rect: this.workspace.getBoundingClientRect() };
@@ -24777,6 +24772,46 @@ export default MawDynamicCaptions;
       this.workspace.style.setProperty('--layout-row-top', `${top}%`);
       this.workspace.style.setProperty('--layout-row-middle', `${middle}%`);
       this.workspace.style.setProperty('--layout-row-bottom', `${bottom}%`);
+    }
+
+    // Expand a short confirmation panel once, using the same dimensions as the
+    // dividers. Restore on cancel/confirm unless the user deliberately resizes.
+    fitPanelToContent(height) {
+      this.restorePanelContentFit();
+      const current = this.panel?.getBoundingClientRect().height || 0;
+      const desired = Math.min(Number(height) || 0, innerHeight * .45);
+      if (current >= desired - 1) return;
+      if (this.settings.layout === 'wave-right') {
+        const before = [...this.settings.layoutRows];
+        const target = (desired+9.333)/Math.max(1,this.workspace.clientHeight)*100;
+        const delta = Math.min(target-before[1], before[2]-8);
+        if (delta <= 0) return;
+        this.settings.layoutRows = normalizeLayoutRows([before[0],before[1]+delta,before[2]-delta]);
+        this.applyLayoutVariables();
+        this.panelContentFit = {before, after:[...this.settings.layoutRows]};
+      } else if (this.settings.layout === 'custom') {
+        const split = this.panel.closest('.layout-split-column');
+        const node = split?.layoutNode;
+        if (!node) return;
+        const first = split.firstElementChild, isFirst = first.contains(this.panel);
+        const before = node.ratio;
+        const delta = (desired-current)/Math.max(1,split.clientHeight)*100;
+        node.ratio = clamp(before+(isFirst?delta:-delta),20,80);
+        this.applyCustomSplitRatio(first,node.ratio);
+        this.panelContentFit = {node, first, before, after:node.ratio};
+      }
+    }
+
+    restorePanelContentFit() {
+      const fit = this.panelContentFit; this.panelContentFit = null;
+      if (!fit) return;
+      if (fit.node) {
+        if (fit.first.isConnected && fit.node.ratio === fit.after) {
+          fit.node.ratio = fit.before; this.applyCustomSplitRatio(fit.first,fit.before);
+        }
+      } else if (this.settings.layout === 'wave-right' && this.settings.layoutRows.every((n,i)=>n===fit.after[i])) {
+        this.settings.layoutRows = fit.before; this.applyLayoutVariables();
+      }
     }
 
     applyLayout() {
@@ -25678,6 +25713,7 @@ export default MawDynamicCaptions;
       }
       const split = document.createElement('div');
       split.className = `layout-split layout-split-${node.direction}`;
+      split.layoutNode = node;
       split.dataset.layoutDirection = node.direction;
       void path;
       const first = document.createElement('div');
@@ -25703,6 +25739,7 @@ export default MawDynamicCaptions;
       let drag = null;
       divider.addEventListener('pointerdown', (event) => {
         if (this.settings.layout !== 'custom') return;
+        this.panelContentFit = null;
         event.preventDefault();
         drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
         divider.classList.add('dragging');
@@ -27318,7 +27355,7 @@ export default MawDynamicCaptions;
         const segment = segments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
-        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'main')) continue;
+        if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'main')) continue;
         const block = document.createElement('div');
         block.className = 'waveform-cue-block';
         block.dataset.idx = String(index);
@@ -27385,7 +27422,7 @@ export default MawDynamicCaptions;
           const segment = overlaySegments[index];
           if (segment.start >= endMs) break;
           if (segment.end <= startMs) continue;
-          if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'overlay')) continue;
+          if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'overlay')) continue;
           const block = document.createElement('div');
           block.className = 'waveform-cue-block waveform-overlay-block';
           block.dataset.track = 'overlay';
@@ -27439,7 +27476,7 @@ export default MawDynamicCaptions;
         const segment = extensionSegments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
-        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'extension')) continue;
+        if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'extension')) continue;
         const block = document.createElement('div');
           block.className = 'waveform-cue-block';
           block.dataset.track = 'extension';
@@ -30516,7 +30553,7 @@ function layerRefreshSubtitlePreview(tMs) {
   const styles={};
   for(const role of ['main','secondary']) {
     const a=appearances[role], s=assStyles[role];
-    styles[role]=ass?{font_size:s.fontSize,scale_y:s.scaleY,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
+    styles[role]=ass?{font_family:s.fontName,bold:s.bold,italic:s.italic,font_size:s.fontSize,scale_x:s.scaleX,scale_y:s.scaleY,spacing:s.spacing,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
       : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
   }
   const previewStyle=window.MSWSubtitleStyle?.currentPreview().style||DATA.preview?.project_style;
@@ -34993,15 +35030,15 @@ if (helpPanel) {
 // 主题预设 + 自定义颜色（VSCode 式统一系统）：
 // 预设决定明暗、强调色与基础配色（令牌在 CSS：:root/[data-theme]/[data-accent]），
 // 自定义颜色按键覆盖（含强调色整族变量内联生成），清除后回到当前预设默认。
-const THEME_PRESETS = {
-  default: { theme: 'dark', accent: 'blue', colors: { card: '#252a34' } },
-  // 依神紫苑：用户自定义主题「新的紫苑配色」的 15 键配色固化（独立于该自定义主题存在）。
-  aster: { theme: 'dark', accent: 'azure', colors: {
+const SHION_THEME_COLORS = {
     bg: '#1a1b26', menubar: '#16161e', raised: '#1a1b26', input: '#16161e',
     overlay: '#1a1b26', popup: '#1a1b26', text: '#c0caf5', textMuted: '#8388a0',
-    accent: '#80d0ff', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
-    toolbar: '#16161e', card: '#292a40', gap: '#ac8a2a', hit: '#f8727c',
-  } },
+    accent: '#6f60e2', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
+    toolbar: '#16161e', card: '#292a40', gap: '#3043cf', hit: '#d49a4a',
+};
+const THEME_PRESETS = {
+  default: { theme: 'dark', accent: 'blue', colors: { ...SHION_THEME_COLORS } },
+  aster: { theme: 'dark', accent: 'azure', colors: { ...SHION_THEME_COLORS } },
   // 本居小铃：深橘发红瞳红白格纹和服（深色，黄棕暖调：黄色+棕红+橘红）
   kosuzu: { theme: 'dark', accent: 'orange', colors: {
     bg: '#170f08', menubar: '#221510', raised: '#2a1a11', input: '#322016',
@@ -35014,7 +35051,7 @@ const THEME_PRESETS = {
   // 博丽灵梦：红白巫女（浅色，米白底红强调）
   reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#b52242', cueBlock: '#bbaaaa', card: '#fff8f5', gap: '#ebbf2d' } },
   // 爱丽丝：金发蓝裙（浅色，淡蓝底金强调）
-  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261', card: '#fafbff', gap: '#2854a1', hit: '#f83030' } },
+  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', accent: '#d1b70a', wave: '#499cd0', subtitle: '#4a5261', card: '#fafbff', gap: '#499cd0', hit: '#f83030' } },
   // 古明地恋：黄上衣绿裙黑帽（浅色，暖黄底绿强调）
   koishi: { theme: 'light', accent: 'green', colors: { bg: '#f5f3e4', text: '#31362a', wave: '#3f7d3a', subtitle: '#4d5442', card: '#fffdf0', gap: '#276c50', hit: '#9b4482' } },
 };
@@ -39281,6 +39318,12 @@ function requestSubtitleSplit(kind, index, initial = {}) {
   document.getElementById('current-cue-panel')?.classList.add('splitting');
   multiSubtitleSplitModal?.classList.add('show');
   renderLinkedSplitText(state);
+  const splitPanel = document.getElementById('current-cue-panel');
+  const contentHeight = [...splitPanel.children].reduce((sum, child) => {
+    if (getComputedStyle(child).display === 'none') return sum;
+    return sum + (child === multiSubtitleSplitModal ? child.scrollHeight : child.getBoundingClientRect().height) + 6;
+  }, 8);
+  waveformEditor?.fitPanelToContent?.(contentHeight);
   return false;
 }
 
@@ -40284,6 +40327,7 @@ function closeLinkedSplitModal() {
   if (pendingLinkedSplit) window.MSWHelp?.close();
   multiSubtitleSplitModal?.classList.remove('show');
   document.getElementById('current-cue-panel')?.classList.remove('splitting');
+  waveformEditor?.restorePanelContentFit?.();
   pendingLinkedSplit = null;
   hideCueSplitPreview();
   if (hadFocus) {
@@ -53169,7 +53213,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     const splitKbd = 'B';
     addItem(splitLabel, splitKbd, () => splitFromContextMenu(idx, x, y, waveformTimeMs));
     if (bindingForMainIndex(idx)) {
-      addItem('仅切当前字幕并解绑', '', () => splitFromContextMenu(idx, x, y, waveformTimeMs, { independent: true }));
+      addItem('单切并解绑', 'Shift+B', () => splitFromContextMenu(idx, x, y, waveformTimeMs, { independent: true }));
     }
     // 仅「仅选中」模式提供「跳转并播放」——其它两种单击行为本身就会跳转。
     if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
@@ -53388,7 +53432,7 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
     ninjaFromList: !Number.isFinite(timeMs),
   });
   addItem('切分字幕', () => split(false), false, false, 'B');
-  if (binding) addItem('仅切当前字幕并解绑', () => split(true));
+  if (binding) addItem('单切并解绑', () => split(true), false, false, 'Shift+B');
   const extensionSelectionOnly = selectedExtensionIdxs.size > 1
     && selectedExtensionIdxs.has(index);
   addItem('累加状态合并', () => mergeExtensionSegments([...selectedExtensionIdxs], track), false, !extensionSelectionOnly, 'C');
@@ -53804,7 +53848,6 @@ function initWaveformEditor() {
     },
     togglePlayback,
     toggleDisabled: (idxs, track = 'main') => toggleDisabled(idxs, track),
-    getHideDisabled: () => hideDisabled,
     keepCueVisible: (index, role) => {
       const track = role === 'extension' ? getActiveExtensionTrack() : role === 'overlay' ? getOverlayTrack() : null;
       return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,(track?.segments || DATA.segments)[index],track?.id));

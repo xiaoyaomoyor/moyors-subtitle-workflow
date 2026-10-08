@@ -4382,15 +4382,15 @@ if (helpPanel) {
 // 主题预设 + 自定义颜色（VSCode 式统一系统）：
 // 预设决定明暗、强调色与基础配色（令牌在 CSS：:root/[data-theme]/[data-accent]），
 // 自定义颜色按键覆盖（含强调色整族变量内联生成），清除后回到当前预设默认。
-const THEME_PRESETS = {
-  default: { theme: 'dark', accent: 'blue', colors: { card: '#252a34' } },
-  // 依神紫苑：用户自定义主题「新的紫苑配色」的 15 键配色固化（独立于该自定义主题存在）。
-  aster: { theme: 'dark', accent: 'azure', colors: {
+const SHION_THEME_COLORS = {
     bg: '#1a1b26', menubar: '#16161e', raised: '#1a1b26', input: '#16161e',
     overlay: '#1a1b26', popup: '#1a1b26', text: '#c0caf5', textMuted: '#8388a0',
-    accent: '#80d0ff', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
-    toolbar: '#16161e', card: '#292a40', gap: '#ac8a2a', hit: '#f8727c',
-  } },
+    accent: '#6f60e2', wave: '#6f60e2', subtitle: '#c0caf5', cueBlock: '#84809d',
+    toolbar: '#16161e', card: '#292a40', gap: '#3043cf', hit: '#d49a4a',
+};
+const THEME_PRESETS = {
+  default: { theme: 'dark', accent: 'blue', colors: { ...SHION_THEME_COLORS } },
+  aster: { theme: 'dark', accent: 'azure', colors: { ...SHION_THEME_COLORS } },
   // 本居小铃：深橘发红瞳红白格纹和服（深色，黄棕暖调：黄色+棕红+橘红）
   kosuzu: { theme: 'dark', accent: 'orange', colors: {
     bg: '#170f08', menubar: '#221510', raised: '#2a1a11', input: '#322016',
@@ -4403,7 +4403,7 @@ const THEME_PRESETS = {
   // 博丽灵梦：红白巫女（浅色，米白底红强调）
   reimu: { theme: 'light', accent: 'red', colors: { bg: '#f7efee', text: '#3c2729', wave: '#c2334a', subtitle: '#5c3d40', hit: '#b52242', cueBlock: '#bbaaaa', card: '#fff8f5', gap: '#ebbf2d' } },
   // 爱丽丝：金发蓝裙（浅色，淡蓝底金强调）
-  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', wave: '#3357a8', subtitle: '#4a5261', card: '#fafbff', gap: '#2854a1', hit: '#f83030' } },
+  alice: { theme: 'light', accent: 'gold', colors: { bg: '#f0f2f6', text: '#2e3440', accent: '#d1b70a', wave: '#499cd0', subtitle: '#4a5261', card: '#fafbff', gap: '#499cd0', hit: '#f83030' } },
   // 古明地恋：黄上衣绿裙黑帽（浅色，暖黄底绿强调）
   koishi: { theme: 'light', accent: 'green', colors: { bg: '#f5f3e4', text: '#31362a', wave: '#3f7d3a', subtitle: '#4d5442', card: '#fffdf0', gap: '#276c50', hit: '#9b4482' } },
 };
@@ -8670,6 +8670,12 @@ function requestSubtitleSplit(kind, index, initial = {}) {
   document.getElementById('current-cue-panel')?.classList.add('splitting');
   multiSubtitleSplitModal?.classList.add('show');
   renderLinkedSplitText(state);
+  const splitPanel = document.getElementById('current-cue-panel');
+  const contentHeight = [...splitPanel.children].reduce((sum, child) => {
+    if (getComputedStyle(child).display === 'none') return sum;
+    return sum + (child === multiSubtitleSplitModal ? child.scrollHeight : child.getBoundingClientRect().height) + 6;
+  }, 8);
+  waveformEditor?.fitPanelToContent?.(contentHeight);
   return false;
 }
 
@@ -9673,6 +9679,7 @@ function closeLinkedSplitModal() {
   if (pendingLinkedSplit) window.MSWHelp?.close();
   multiSubtitleSplitModal?.classList.remove('show');
   document.getElementById('current-cue-panel')?.classList.remove('splitting');
+  waveformEditor?.restorePanelContentFit?.();
   pendingLinkedSplit = null;
   hideCueSplitPreview();
   if (hadFocus) {
@@ -22558,7 +22565,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     const splitKbd = 'B';
     addItem(splitLabel, splitKbd, () => splitFromContextMenu(idx, x, y, waveformTimeMs));
     if (bindingForMainIndex(idx)) {
-      addItem('仅切当前字幕并解绑', '', () => splitFromContextMenu(idx, x, y, waveformTimeMs, { independent: true }));
+      addItem('单切并解绑', 'Shift+B', () => splitFromContextMenu(idx, x, y, waveformTimeMs, { independent: true }));
     }
     // 仅「仅选中」模式提供「跳转并播放」——其它两种单击行为本身就会跳转。
     if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
@@ -22777,7 +22784,7 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
     ninjaFromList: !Number.isFinite(timeMs),
   });
   addItem('切分字幕', () => split(false), false, false, 'B');
-  if (binding) addItem('仅切当前字幕并解绑', () => split(true));
+  if (binding) addItem('单切并解绑', () => split(true), false, false, 'Shift+B');
   const extensionSelectionOnly = selectedExtensionIdxs.size > 1
     && selectedExtensionIdxs.has(index);
   addItem('累加状态合并', () => mergeExtensionSegments([...selectedExtensionIdxs], track), false, !extensionSelectionOnly, 'C');
@@ -23193,7 +23200,6 @@ function initWaveformEditor() {
     },
     togglePlayback,
     toggleDisabled: (idxs, track = 'main') => toggleDisabled(idxs, track),
-    getHideDisabled: () => hideDisabled,
     keepCueVisible: (index, role) => {
       const track = role === 'extension' ? getActiveExtensionTrack() : role === 'overlay' ? getOverlayTrack() : null;
       return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,(track?.segments || DATA.segments)[index],track?.id));

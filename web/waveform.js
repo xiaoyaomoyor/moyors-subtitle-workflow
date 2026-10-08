@@ -2094,6 +2094,7 @@
         let drag = null;
         resizer.addEventListener('pointerdown', (event) => {
           if (!this.isPresetResizableLayout()) return;
+          this.panelContentFit = null;
           event.preventDefault();
           drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false,
             rect: this.workspace.getBoundingClientRect() };
@@ -2160,6 +2161,46 @@
       this.workspace.style.setProperty('--layout-row-top', `${top}%`);
       this.workspace.style.setProperty('--layout-row-middle', `${middle}%`);
       this.workspace.style.setProperty('--layout-row-bottom', `${bottom}%`);
+    }
+
+    // Expand a short confirmation panel once, using the same dimensions as the
+    // dividers. Restore on cancel/confirm unless the user deliberately resizes.
+    fitPanelToContent(height) {
+      this.restorePanelContentFit();
+      const current = this.panel?.getBoundingClientRect().height || 0;
+      const desired = Math.min(Number(height) || 0, innerHeight * .45);
+      if (current >= desired - 1) return;
+      if (this.settings.layout === 'wave-right') {
+        const before = [...this.settings.layoutRows];
+        const target = (desired+9.333)/Math.max(1,this.workspace.clientHeight)*100;
+        const delta = Math.min(target-before[1], before[2]-8);
+        if (delta <= 0) return;
+        this.settings.layoutRows = normalizeLayoutRows([before[0],before[1]+delta,before[2]-delta]);
+        this.applyLayoutVariables();
+        this.panelContentFit = {before, after:[...this.settings.layoutRows]};
+      } else if (this.settings.layout === 'custom') {
+        const split = this.panel.closest('.layout-split-column');
+        const node = split?.layoutNode;
+        if (!node) return;
+        const first = split.firstElementChild, isFirst = first.contains(this.panel);
+        const before = node.ratio;
+        const delta = (desired-current)/Math.max(1,split.clientHeight)*100;
+        node.ratio = clamp(before+(isFirst?delta:-delta),20,80);
+        this.applyCustomSplitRatio(first,node.ratio);
+        this.panelContentFit = {node, first, before, after:node.ratio};
+      }
+    }
+
+    restorePanelContentFit() {
+      const fit = this.panelContentFit; this.panelContentFit = null;
+      if (!fit) return;
+      if (fit.node) {
+        if (fit.first.isConnected && fit.node.ratio === fit.after) {
+          fit.node.ratio = fit.before; this.applyCustomSplitRatio(fit.first,fit.before);
+        }
+      } else if (this.settings.layout === 'wave-right' && this.settings.layoutRows.every((n,i)=>n===fit.after[i])) {
+        this.settings.layoutRows = fit.before; this.applyLayoutVariables();
+      }
     }
 
     applyLayout() {
@@ -3061,6 +3102,7 @@
       }
       const split = document.createElement('div');
       split.className = `layout-split layout-split-${node.direction}`;
+      split.layoutNode = node;
       split.dataset.layoutDirection = node.direction;
       void path;
       const first = document.createElement('div');
@@ -3086,6 +3128,7 @@
       let drag = null;
       divider.addEventListener('pointerdown', (event) => {
         if (this.settings.layout !== 'custom') return;
+        this.panelContentFit = null;
         event.preventDefault();
         drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
         divider.classList.add('dragging');
@@ -4701,7 +4744,7 @@
         const segment = segments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
-        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'main')) continue;
+        if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'main')) continue;
         const block = document.createElement('div');
         block.className = 'waveform-cue-block';
         block.dataset.idx = String(index);
@@ -4768,7 +4811,7 @@
           const segment = overlaySegments[index];
           if (segment.start >= endMs) break;
           if (segment.end <= startMs) continue;
-          if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'overlay')) continue;
+          if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'overlay')) continue;
           const block = document.createElement('div');
           block.className = 'waveform-cue-block waveform-overlay-block';
           block.dataset.track = 'overlay';
@@ -4822,7 +4865,7 @@
         const segment = extensionSegments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
-        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'extension')) continue;
+        if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'extension')) continue;
         const block = document.createElement('div');
           block.className = 'waveform-cue-block';
           block.dataset.track = 'extension';

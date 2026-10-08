@@ -46,6 +46,37 @@ async function cut(page,kind,duplicate){
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
 }
 
+for(const paired of [false,true])test(`long single-line preview captions do not reserve a phantom second line (paired=${paired})`,async({page})=>{
+ await setup(page);
+ const render=async(text,name)=>{
+  await page.evaluate(({text,paired})=>{
+   const h=window.MSWE.resolve('processing-host'),s=window.MSWProjectStyle.defaults();
+   if(!paired)delete s.pairLayout;
+   Object.assign(s.main,{fontName:'Microsoft YaHei',fontSize:70,bold:true,primaryColor:'#ff0000',marginV:108});
+   Object.assign(s.secondary,{fontName:'Microsoft YaHei',fontSize:88,bold:true,primaryColor:'#00ff00',marginV:48});
+   h.data.segments[0].text='MAIN';h.data.multi_subtitle.tracks[0].segments[0].text=text;
+   h.commitProjectStyle(s);renderAll();
+  },{text,paired});
+  await refresh(page);await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
+  const path=join(folder,name+'.png');await page.locator('.JASSUB').screenshot({path});return path;
+ };
+ const short=await render('字幕','short'),long=await render('这是一条仍可放在同一行内显示的较长字幕','long'),wrapped=await render('字幕内容 '.repeat(16),'wrapped');
+ const bounds=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON,['-c',`from PIL import Image
+import json,sys
+def bounds(path):
+ im=Image.open(path).convert('RGB');out=[]
+ for channel in (0,1):
+  ys=[y for y in range(im.height) for x in range(im.width) if (lambda c:c[channel]>80 and c[channel]>2*c[1-channel] and c[channel]>2*c[2])(im.getpixel((x,y)))]
+  out.append([min(ys),max(ys)])
+ return out
+print(json.dumps([bounds(p) for p in sys.argv[1:]]))`,short,long,wrapped],{encoding:'utf8',windowsHide:true}));
+ expect(Math.abs(bounds[0][1][0]-bounds[1][1][0])).toBeLessThanOrEqual(2);
+ expect(bounds[1][0]).toEqual(bounds[0][0]);
+ expect(bounds[2][1][1]-bounds[2][1][0]).toBeGreaterThan(1.5*(bounds[0][1][1]-bounds[0][1][0]));
+ expect(bounds[2][0][1]).toBeLessThan(bounds[2][1][0]);
+ expect(bounds[2][1][0]-bounds[2][0][1]).toBeLessThan(bounds[0][1][0]-bounds[0][0][1]+12);
+});
+
 test('linked merge after a split retains exact preview and ASS styling',async({page})=>{
  const style=await setup(page),before=await preview(page);
  await cut(page,'linked',false);

@@ -82,6 +82,7 @@ test('merge preserves audio, provenance and project style even with hidden partn
 });
 test('partner collision rejects atomically and disabled result remains visible until another selection',async({page})=>{
  await setup(page);
+ await page.evaluate(()=>{waveformEditor.settings.disabledDisplay='hidden';waveformEditor.render();});
  await page.evaluate(()=>{DATA.subtitle_layers.allow_overlap=false;getActiveExtensionTrack().segments.push({id:'gap',start:1950,end:2050,text:'unrelated',items:[]});renderAll();});
  const before=await snapshot(page);const history=await page.evaluate(()=>editorHistory.undoLength());
  expect(await page.evaluate(()=>mergeSegments([0,1]))).toBe(false);expect(await snapshot(page)).toEqual(before);

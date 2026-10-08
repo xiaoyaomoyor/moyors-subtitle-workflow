@@ -843,17 +843,6 @@
 .waveform-row .msw-audio-clip.active:not(.selected) {
   outline: solid 1px var(--wave-playhead);
 }
-.waveform-cue-block.disabled {
-  opacity: 0.48;
-  color: var(--wave-disabled-text);
-  outline-color: var(--wave-disabled-border);
-  background: repeating-linear-gradient(
-    135deg,
-    var(--wave-disabled-a) 0 5px,
-    var(--wave-disabled-b) 5px 10px
-  );
-}
-.waveform-cue-block.disabled:hover { opacity: 0.7; }
 .waveform-cue-block.dragging { cursor: grabbing; filter: brightness(var(--wave-drag-brightness)); }
 .waveform-cue-handle {
   position: absolute;
@@ -976,21 +965,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 多字幕轨道的主/副背景选择器与通用 disabled 选择器同样具体；
-   disabled 放在这里确保条纹背景和禁用文字不会被轨道底色盖掉。 */
-.waveform-row.multi-subtitle-row .waveform-cue-block.disabled {
-  opacity: 0.48;
-  color: var(--wave-disabled-text);
-  outline-style: dashed;
-  outline-color: var(--wave-disabled-border);
-  background: repeating-linear-gradient(
-    135deg,
-    var(--wave-disabled-a) 0 5px,
-    var(--wave-disabled-b) 5px 10px
-  );
-}
-.waveform-row.multi-subtitle-row .waveform-cue-block.disabled:hover { opacity: 0.7; }
-
 /* Ctrl(Cmd)+左键拖动空白处：使用和正式字幕块一致的几何形状，
    以半透明虚影预览将要创建的时间范围。 */
 .waveform-cue-block.waveform-create-preview {
@@ -1091,7 +1065,8 @@
 .waveform-track-heads.multi .v-ext {
   bottom: calc(7px + var(--head-audio-space, 0px) + ((var(--head-lane-h) - 17px) / 2));
 }
-/* 被禁用字幕轨的块降透明度（非破坏性：数据不动，预览也跳过该轨） */
+/* 单条禁用和整轨禁用使用相同淡化；保留块及其颜色，方便重新启用。 */
+.waveform-row .waveform-cue-block.disabled,
 .waveform-row.v-track-muted-main .waveform-cue-block[data-track="main"],
 .waveform-row.v-track-muted-ext .waveform-cue-block[data-track="extension"] {
   opacity: .38;

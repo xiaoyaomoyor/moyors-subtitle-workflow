@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import hashlib
-from functools import lru_cache
-from pathlib import Path
 import threading
 
+from maw.msw.subtitle_fonts import installed_fonts
 from maw.project import normalize_project
 from maw.msw.subtitle_style import styled_ass
 
@@ -13,7 +12,7 @@ _lock = threading.RLock()
 _files = {}
 # Bump together with MSWProjectStyle.layoutVersion when the shared layout
 # contract changes. A page refresh cannot reload an already running Python VM.
-LAYOUT_VERSION = 3
+LAYOUT_VERSION = 4
 
 
 def preview_ass(payload):
@@ -28,34 +27,6 @@ def preview_ass(payload):
     plan = {'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
     return {'ass':styled_ass(project,plan,target,video), 'layoutVersion':LAYOUT_VERSION}
 
-
-@lru_cache(maxsize=1)
-def installed_fonts():
-    from maw.lottie_glyphs import _font_roots
-    from fontTools.ttLib import TTFont, TTCollection
-    result = {}
-    for root in _font_roots():
-        for path in root.rglob('*'):
-            if path.suffix.lower() not in {'.ttf','.otf','.ttc','.otc'} or not path.is_file():
-                continue
-            # Follow only files physically inside known font roots.
-            if not path.resolve().is_relative_to(root.resolve()):
-                continue
-            try:
-                owner = TTCollection(str(path),lazy=True) if path.suffix.lower() in {'.ttc','.otc'} else TTFont(str(path),lazy=True)
-                faces = owner.fonts if hasattr(owner,'fonts') else [owner]
-                for font in faces:
-                    for record in font['name'].names:
-                        if record.nameID not in {1,16}:
-                            continue
-                        name=record.toUnicode().strip()
-                        if name:
-                            result.setdefault(name.casefold(),set()).add(path.resolve())
-                owner.close()
-            except Exception:
-                # A damaged third-party font must not prevent other families loading.
-                continue
-    return result
 
 
 def font_manifest(families):

@@ -6,6 +6,14 @@ import '../web/msw-subtitle-presentation.js';
 const P=globalThis.MSWSubtitlePresentation;
 const fixture=()=>core.migrate(JSON.parse(readFileSync(new URL('fixtures/subtitle-layers.json',import.meta.url))).find(f=>f.name==='bound-bilingual').project);
 const styles={main:{font_size:48,width:.8,y:.86},secondary:{font_size:40,width:.8,y:.94}};
+
+test('ASS soft breaks respect words; explicit line breaks and horizontal scaling are measured',()=>{
+ const s={font_size:100,width:1};
+ assert.equal(P.wrappedLineCount('汉字'.repeat(30),s,500),1);
+ assert.equal(P.wrappedLineCount('abc abc',s,500),1);
+ assert.equal(P.wrappedLineCount('abc abc',{...s,scale_x:200},500),2);
+ assert.equal(P.wrappedLineCount('a\n\nb',s,500),3);
+});
 test('explicit main/secondary order and gap work with manual or automatic overlap layout',()=>{
  for(const mode of ['auto','manual'])for(const order of ['main-above','secondary-above']){
   const project=fixture();project.preview={project_style:{pairLayout:{order,gap:24}}};project.subtitle_layers.presentation={mode,gap:12};

@@ -37,6 +37,31 @@ const first = page => page.locator('#cues-container > .cue').first();
 const main = page => first(page).locator('.main');
 const secondary = page => first(page).locator('.extension');
 
+for(const role of ['main','extension'])test(`Alt disable keeps ${role} waveform blocks dimmed independently of list filtering`,async({page})=>{
+ await page.evaluate(()=>{
+  updateEditorSettings({cueListHideDisabled:true});
+  for(const cue of [...DATA.segments,...getActiveExtensionTrack().segments])cue.disabled=false;
+  waveformEditor.settings.disabledDisplay='dim';renderAll();
+ });
+ const block=page.locator(`.waveform-cue-block[data-track="${role}"]`).first();
+ const disabled=()=>page.evaluate(role=>(role==='main'?DATA.segments:getActiveExtensionTrack().segments)[0].disabled,role);
+ await page.evaluate(role=>toggleSubtitleTrackMuted(role),role);
+ const mutedOpacity=await block.evaluate(el=>getComputedStyle(el).opacity);
+ await page.evaluate(role=>toggleSubtitleTrackMuted(role),role);
+ await block.click({modifiers:['Alt']});
+ expect(await disabled()).toBe(true);await expect(block).toBeVisible();await expect(block).toHaveCSS('opacity',mutedOpacity);
+ await page.mouse.move(0,0);await expect(block).toHaveCSS('opacity',mutedOpacity);
+ await page.evaluate(()=>{clearSelection();renderAll();});await expect(block).toBeVisible();
+ await block.click({modifiers:['Alt']});expect(await disabled()).toBe(false);await expect(block).toHaveCSS('opacity','1');
+ await page.evaluate(()=>performUndo());expect(await disabled()).toBe(true);await expect(block).toBeVisible();
+ await page.evaluate(()=>performRedo());expect(await disabled()).toBe(false);
+ await block.click({modifiers:['Alt']});
+ await page.evaluate(()=>{waveformEditor.settings.disabledDisplay='hidden';waveformEditor.render();});
+ await expect(page.locator(`.waveform-cue-block[data-track="${role}"].disabled`)).toHaveCount(0);
+ await page.evaluate(()=>{updateEditorSettings({cueListHideDisabled:false});renderAll();});
+ await expect(page.locator(`.waveform-cue-block[data-track="${role}"].disabled`)).toHaveCount(0);
+});
+
 test('preset cards and feedback colors stay distinct and retain custom overrides', async ({ page }, info) => {
   for (const name of ['default', 'aster', 'kosuzu', 'renko', 'reimu', 'alice', 'koishi']) {
     const colors = await page.evaluate(name => {
@@ -48,15 +73,20 @@ test('preset cards and feedback colors stay distinct and retain custom overrides
       pixel.remove(); return values;
     }, name);
     expect(new Set(colors).size).toBe(3);
-    if (name === 'default') expect(colors.slice(1)).toEqual(['rgb(212, 154, 74)', 'rgb(255, 93, 103)']);
     const expected = {
-      aster: ['rgb(172, 138, 42)', 'rgb(248, 114, 124)'],
+      default: ['rgb(48, 67, 207)', 'rgb(212, 154, 74)'],
+      aster: ['rgb(48, 67, 207)', 'rgb(212, 154, 74)'],
       kosuzu: ['rgb(219, 70, 20)', 'rgb(71, 144, 79)'],
       renko: ['rgb(141, 47, 7)', 'rgb(112, 62, 62)'],
       reimu: ['rgb(235, 191, 45)', 'rgb(181, 34, 66)'],
-      alice: ['rgb(40, 84, 161)', 'rgb(248, 48, 48)'],
+      alice: ['rgb(73, 156, 208)', 'rgb(248, 48, 48)'],
     };
     if (expected[name]) expect(colors.slice(1)).toEqual(expected[name]);
+    if (['default','aster','alice'].includes(name)) {
+      const actual=await page.evaluate(()=>({accent:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),wave:resolvedInterfaceColors().wave}));
+      expect(actual).toEqual(name==='alice'?{accent:'#d1b70a',wave:'#499cd0'}:{accent:'#6f60e2',wave:'#6f60e2'});
+      await expect(page.locator(`[data-theme-preset="${name}"] .theme-swatch`)).toHaveCSS('background-image',new RegExp(name==='alice'?'209, 183, 10':'111, 96, 226'));
+    }
     await secondary(page).locator('.text').click();
     await page.screenshot({ path: info.outputPath(`theme-${name}.png`) });
   }
@@ -348,7 +378,7 @@ test('more hover details show both subtitle tracks and total duration',async({pa
   for(const track of ['main','extension']) {
     const block=page.locator('.waveform-cue-block[data-track="'+track+'"]').first();
     await block.hover();
-    await expect(block).toHaveAttribute('title',/^.+\n#1 · .+ ~ .+ \(.+\)$/);
+    await expect(block).toHaveAttribute('title',/^.+\n#1 · .+ ~ .+ \(.+\) · (主|副)字幕 · 第 1 层$/);
     const title=await block.getAttribute('title');
     const expected=await page.evaluate(side=>{const cue=side==='main'?DATA.segments[0]:DATA.multi_subtitle.tracks[0].segments[0];const c=waveformEditor.cueTiming();return c.format(c.fromMs(cue.end-cue.start));},track);
     expect(title).toContain('('+expected+')');

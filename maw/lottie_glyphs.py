@@ -9,14 +9,14 @@ outlines into the .lottie archive.
 from __future__ import annotations
 
 import copy
-import os
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from maw.msw.subtitle_fonts import font_roots as _font_roots
 
 
 class LottieGlyphError(ValueError):
@@ -66,21 +66,6 @@ class _Contour:
     outgoing: list[list[float]]
     closed: bool = False
 
-
-def _font_roots() -> tuple[Path, ...]:
-    roots: list[Path] = []
-    if sys.platform == "win32":
-        windows = os.environ.get("WINDIR")
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if windows:
-            roots.append(Path(windows) / "Fonts")
-        if local_app_data:
-            roots.append(Path(local_app_data) / "Microsoft" / "Windows" / "Fonts")
-    elif sys.platform == "darwin":
-        roots.extend((Path("/System/Library/Fonts"), Path("/Library/Fonts"), Path.home() / "Library" / "Fonts"))
-    else:
-        roots.extend((Path("/usr/share/fonts"), Path("/usr/local/share/fonts"), Path.home() / ".fonts"))
-    return tuple(dict.fromkeys(root for root in roots if root.exists()))
 
 
 def _font_candidates(family: str) -> tuple[Path, ...]:

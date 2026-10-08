@@ -285,7 +285,7 @@ function layerRefreshSubtitlePreview(tMs) {
   const styles={};
   for(const role of ['main','secondary']) {
     const a=appearances[role], s=assStyles[role];
-    styles[role]=ass?{font_size:s.fontSize,scale_y:s.scaleY,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
+    styles[role]=ass?{font_family:s.fontName,bold:s.bold,italic:s.italic,font_size:s.fontSize,scale_x:s.scaleX,scale_y:s.scaleY,spacing:s.spacing,width:Math.max(.1,1-(s.marginL+s.marginR)/metrics.resolution.width),y:1-s.marginV/1080}
       : {font_size:(parseFloat(getComputedStyle(role==='main'?overlayTextEl:overlayExtensionTextEl).fontSize)||24)/Math.max(.01,scale),width:geo.width,y:geo.y+geo.height-(role==='main'&&multiSubtitleVisible()?.06:0)};
   }
   const previewStyle=window.MSWSubtitleStyle?.currentPreview().style||DATA.preview?.project_style;

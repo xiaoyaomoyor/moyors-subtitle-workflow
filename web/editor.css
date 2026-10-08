@@ -885,11 +885,11 @@
     width: 16px; height: 16px; border-radius: 4px;
     border: 1px solid rgba(127,127,127,.45);
   }
-  .theme-preset[data-theme-preset="default"] .theme-swatch { background: linear-gradient(135deg, #16181d 50%, #6ca5e8 50%); }
-  .theme-preset[data-theme-preset="aster"] .theme-swatch { background: linear-gradient(135deg, #1a1b26 50%, #80d0ff 50%); }
+  .theme-preset[data-theme-preset="default"] .theme-swatch,
+  .theme-preset[data-theme-preset="aster"] .theme-swatch { background: linear-gradient(135deg, #1a1b26 50%, #6f60e2 50%); }
   .theme-preset[data-theme-preset="kosuzu"] .theme-swatch { background: linear-gradient(135deg, #170f08 50%, #c9552b 50%); }
   .theme-preset[data-theme-preset="reimu"] .theme-swatch { background: linear-gradient(135deg, #f7efee 50%, #c2334a 50%); }
-  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #f0f2f6 50%, #a87c24 50%); }
+  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #499cd0 50%, #d1b70a 50%); }
   .theme-preset[data-theme-preset="koishi"] .theme-swatch { background: linear-gradient(135deg, #f5f3e4 50%, #3f7d3a 50%); }
   .theme-preset[data-theme-preset="renko"] .theme-swatch { background: linear-gradient(135deg, #0b0b0e 50%, #aab2c0 50%); }
   :root[data-accent="teal"] {
@@ -3777,13 +3777,8 @@
   .subtitle-split-editor { display: none; min-height: 0; min-width: 0; flex: 1 1 auto; }
   .subtitle-split-editor.show { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
   .current-cue-panel.splitting > .cue-panel-layout { display: none; }
-  /* Expand only while confirming, without changing the saved workspace layout. */
-  .editor-workspace.layout-wave-right:has(> .current-cue-panel.splitting) {
-    grid-template-rows: minmax(56px, 1fr) 7px min(250px, 45vh) 7px minmax(56px, 1fr);
-  }
-  .layout-split-column > .layout-child:has(> .layout-module-slot > .current-cue-panel.splitting) {
-    min-height: min(250px, 45vh);
-  }
+  /* Size comes from the normal workspace dividers; no fixed confirmation row. */
+  .current-cue-panel.splitting { gap: 6px; padding-bottom: 8px; }
   .subtitle-split-header { display: flex; flex: 0 0 auto; align-items: center; gap: 6px 12px; flex-wrap: wrap; }
   .subtitle-split-header strong { color: var(--text-primary); font-size: 13px; }
   .multi-subtitle-split-meta { color: var(--text-muted); font: 11px/1.5 var(--font-mono); }

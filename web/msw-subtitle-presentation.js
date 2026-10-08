@@ -2,6 +2,30 @@
 (function(global) {
   'use strict';
   const key=(role,id)=>JSON.stringify([role,id]);
+  let measureContext;
+  function wrappedLineCount(text,style,width) {
+    const family=style.font_family;
+    if(family&&measureContext===undefined)measureContext=global.document?.createElement('canvas').getContext('2d')||null;
+    const ctx=family?measureContext:null,size=style.font_size,scale=(style.scale_x??100)/100,spacing=style.spacing||0;
+    let unit=1000;
+    if(ctx){
+      ctx.font=`${style.italic?'italic ':''}${style.bold?'bold ':''}1000px "${family.replace(/["\\]/g,'')}"`;
+      // Match ASS font-size units instead of using the CSS em square.
+      const m=ctx.measureText('Mg');unit=(m.fontBoundingBoxAscent+m.fontBoundingBoxDescent)||1000;
+    }
+    const measure=token=>((ctx?ctx.measureText(token).width/unit:[...token].reduce((n,c)=>n+(c.codePointAt(0)>255?1.1:.55),0))*size+[...token].length*spacing)*scale;
+    let count=0;
+    for(const line of String(text||'').replace(/\r\n?/g,'\n').split('\n')){
+      let used=0,space=0;count++;
+      // ASS soft wrapping is at spaces, never an assumed character capacity.
+      for(const token of line.replace(/^[ \t]+|[ \t]+$/g,'').match(/[ \t]+|[^ \t]+/g)||[]){
+        const length=measure(token);
+        if(/^[ \t]/.test(token))space+=length;
+        else{if(used&&used+space+length>Math.max(1,width*style.width)){count++;used=0;}used+=(used?space:0)+length;space=0;}
+      }
+    }
+    return count;
+  }
   function visible(project,cue) {
     const legacy=project.subtitle_layers?.legacy_overlay;
     return !cue.disabled && !(legacy?.visible===false && legacy.cue_ids.includes(cue.id));
@@ -45,8 +69,7 @@
       const upper=group.paired&&pair.order==='secondary-above'?'secondary':'main';
       group.rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1)||a.cue.start-b.cue.start);
       const height=entry=>{
-        const s=styles[entry.role],capacity=Math.max(1,Math.floor(width*s.width/(s.font_size*.55)));
-        const lines=String(entry.cue.text||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?2:1),0)/capacity)),0);
+        const s=styles[entry.role],lines=wrappedLineCount(entry.cue.text,s,width);
         return s.font_size*1.2*(s.scale_y??100)/100*lines;
       };
       if(group.paired){
@@ -94,5 +117,5 @@
     }
     return result;
   }
-  global.MSWSubtitlePresentation=Object.freeze({key,visible,rows,layout,mergedSrtRows});
+  global.MSWSubtitlePresentation=Object.freeze({key,visible,rows,layout,mergedSrtRows,wrappedLineCount});
 })(typeof window==='undefined'?globalThis:window);

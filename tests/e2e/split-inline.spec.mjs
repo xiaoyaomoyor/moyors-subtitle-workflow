@@ -40,6 +40,40 @@ async function fixture(page, options = {}) {
 const panel = page => page.locator('#multi-subtitle-split-modal');
 const data = page => page.evaluate(() => ({ main: structuredClone(DATA.segments), sub: structuredClone(getActiveExtensionTrack().segments), bindings: structuredClone(DATA.multi_subtitle.bindings), style: structuredClone(DATA.preview.project_style) }));
 
+test('context menu labels independent split briefly with its shortcut',async({page})=>{
+ await fixture(page);
+ for(const kind of ['main','extension']) {
+  await page.locator(`#cues-container .multi-cue-column.${kind}`).first().click({button:'right'});
+  const item=page.locator('#ctxmenu .item').filter({hasText:'单切并解绑'});
+  await expect(item).toBeVisible();await expect(item.locator('kbd')).toHaveText('Shift+B');
+  await page.keyboard.press('Escape');
+ }
+});
+
+for(const layout of ['wave-right','cinema']) test(`split confirmation fits content and remains resizable in ${layout}`,async({page})=>{
+ await fixture(page);await enableSplitMoreActions(page);
+ await page.evaluate(layout=>{
+  waveformEditor.setLayout(layout);
+  if(layout==='wave-right'){waveformEditor.settings.layoutRows=[45,6,49];waveformEditor.applyLayoutVariables();}
+ },layout);
+ const module=page.locator('#current-cue-panel'),original=(await module.boundingBox()).height;
+ const open=()=>page.evaluate(()=>requestSubtitleSplit('main',0,{timeMs:3000,requireConfirm:true}));
+ await open();await expect(page.locator('#multi-subtitle-split-independent kbd')).toHaveCount(0);
+ const fitted=await module.boundingBox(),footer=await page.locator('.multi-subtitle-split-footer').boundingBox();
+ expect(footer.y+footer.height).toBeLessThanOrEqual(fitted.y+fitted.height);
+ if(layout==='wave-right') expect(fitted.y+fitted.height-footer.y-footer.height).toBeLessThan(20);
+ await page.locator('#multi-subtitle-split-cancel').click();
+ expect(Math.abs((await module.boundingBox()).height-original)).toBeLessThan(2);
+ await open();
+ const handle=layout==='wave-right'?page.locator('#layout-resizer-h2'):page.locator('#current-cue-panel').locator('xpath=ancestor::div[contains(@class,"layout-split-column")][1]').locator(':scope > .layout-split-divider');
+ const rect=await handle.boundingBox(),before=(await module.boundingBox()).height;
+ await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();
+ await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2+45,{steps:8});await page.mouse.up();
+ const after=(await module.boundingBox()).height;expect(Math.abs(after-before)).toBeGreaterThan(20);
+ await expect(panel(page)).toBeVisible();
+ await page.locator('#multi-subtitle-split-cancel').click();expect(Math.abs((await module.boundingBox()).height-after)).toBeLessThan(2);
+});
+
 async function hoverCardBoundary(page, kind, offset = 3) {
   const text = page.locator(`#cues-container .cue .${kind === 'main' ? 'main' : 'extension'} .text`).first();
   await text.click();
@@ -687,7 +721,7 @@ test('split settings default safely, update the open footer and persist after re
   await page.locator('#cue-editor-settings-close').click();
   await expect(panel(page)).toBeVisible();
   expect(await page.evaluate(() => [pendingLinkedSplit.cutMs, pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset])).toEqual(offsets);
-  await expect(panel(page).locator('.actions button:visible')).toHaveText(['取消', '保留两侧原文', '仅切主字幕并解绑 Shift+B', '确认切分']);
+  await expect(panel(page).locator('.actions button:visible')).toHaveText(['取消', '保留两侧原文', '仅切主字幕并解绑', '确认切分']);
   await page.reload();
   await openCueEditorSettings(page);
   await expect(page.locator('#cue-editor-split-more-actions')).toBeChecked();

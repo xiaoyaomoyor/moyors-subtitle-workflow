@@ -6,7 +6,7 @@
 |---|---|---|
 | [requests](https://requests.readthedocs.io/) | HTTP requests to the ASR API | Apache-2.0 |
 | [jieba](https://github.com/fxsjy/jieba) | Chinese subtitle segmentation | MIT |
-| [fontTools](https://github.com/fonttools/fonttools) | Convert installed font outlines into font-independent Lottie vector glyphs | MIT |
+| [fontTools](https://github.com/fonttools/fonttools) | Measure installed subtitle font advances and convert font outlines into font-independent Lottie vector glyphs | MIT |
 | [opencc-python-reimplemented](https://github.com/yichen0831/opencc-python) / [OpenCC](https://github.com/BYVoid/OpenCC) | Local Simplified/Traditional Chinese conversion in the post-processing toolbox | Apache-2.0 |
 | [quapeaks](https://pypi.org/project/quapeaks/) (formerly reapeaks-rs) | Rust kernel generating QPK1 waveform/spectral caches; existing REAPER files remain readable | MIT OR Apache-2.0 |
 | [RapidOCR](https://github.com/RapidAI/RapidOCR) / PP-OCRv6 | Local CPU OCR for the 「OCR 字幕去重」 toolbox; the optional managed OCR runtime downloads its own model files; the main GUI bundle excludes them | Apache-2.0; bundled model files remain subject to upstream model terms |

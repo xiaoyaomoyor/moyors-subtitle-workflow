@@ -1,5 +1,6 @@
 """Deterministic subtitle grouping and offsets shared with the browser."""
 import math
+from maw.msw.subtitle_fonts import wrapped_line_count
 
 
 def visible(project, cue):
@@ -62,8 +63,7 @@ def presentation(project, styles, target='both', width=1920):
         group['rows'].sort(key=lambda entry: (0 if entry[0] == upper else 1, entry[1]['start']))
         def height(role, cue):
             style = styles[role]
-            capacity = max(1, math.floor(width * style['width'] / (style['font_size'] * .55)))
-            lines = sum(max(1, math.ceil(sum(2 if ord(c) > 255 else 1 for c in line) / capacity)) for line in cue.get('text', '').split('\n'))
+            lines = wrapped_line_count(cue.get('text', ''), style, width)
             return style['font_size'] * 1.2 * style.get('scale_y', 100) / 100 * lines
         if group['paired']:
             bands = {}

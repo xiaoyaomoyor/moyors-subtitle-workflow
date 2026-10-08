@@ -93,7 +93,7 @@ process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readF
         before=copy.deepcopy(project)
         video={'width':1280,'height':720}
         result=preview_ass({'project':project,'target':'both','video':video})
-        self.assertEqual(result['layoutVersion'],3)
+        self.assertEqual(result['layoutVersion'],4)
         plan={'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
         self.assertEqual(result['ass'],styled_ass(normalize_project(project),plan,'both',video))
         self.assertIn(r'\fad(120,200)',result['ass'])
