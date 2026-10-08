@@ -667,7 +667,8 @@
   background: color-mix(in srgb, var(--accent) 22%, var(--bg-base));
   border-radius: 2px;
   padding: 1px 3px;
-  font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
   pointer-events: none;
 }
 .waveform-gap-block.restored .waveform-gap-label { color: var(--text-secondary); background: color-mix(in srgb, var(--bg-base) 76%, transparent); }
@@ -761,11 +762,12 @@
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-base) 86%, transparent);
   white-space: nowrap;
-  font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
 }
 .waveform-gap-range-preview.remove > span {
-  color: color-mix(in srgb, var(--amber) 40%, #fff);
-  background: color-mix(in srgb, var(--amber) 26%, var(--bg-base));
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--gap-accent) 18%, var(--bg-base));
 }
 /* Shift+左键框选：选框覆盖层。挂在 #waveform-content 内随行滚动，
    z-index 与空隙范围预览同级（高于字幕块 5/6 与播放头 9），不接收指针事件。 */

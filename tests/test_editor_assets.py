@@ -115,7 +115,7 @@ class EditorAssetContractTests(unittest.TestCase):
         label = "gap.removed === false ? '空隙（未激活）' : '空隙'"
         self.assertNotIn(label, waveform)
         self.assertIn("gapRemoveDisplayLabel(gap)", waveform)
-        self.assertIn("Retained gap (locked)", waveform)
+        self.assertIn("Fixed gap", waveform)
         self.assertIn(label, align_page)
 
     def test_gap_manual_drag_uses_theme_color_in_editor_and_blue_in_align(self) -> None:

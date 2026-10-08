@@ -19,6 +19,8 @@
     zh: Object.freeze({
       audio_gate: '静音空隙（自动生成）',
       audio_gate_manual: '静音空隙（自动生成+手动调整）',
+      content_outside: '字幕块与音频贴片外',
+      content_outside_manual: '字幕块与音频贴片外（手动调整）',
       subtitle_outside: '主字幕外区段',
       subtitle_outside_manual: '主字幕外区段（手动调整）',
       manual: '跳过空隙（手动创建）',
@@ -31,6 +33,8 @@
     en: Object.freeze({
       audio_gate: 'Silence gap (auto-generated)',
       audio_gate_manual: 'Silence gap (auto-generated + manually adjusted)',
+      content_outside: 'Outside subtitle blocks and audio clips',
+      content_outside_manual: 'Outside subtitle blocks and audio clips (manually adjusted)',
       subtitle_outside: 'Outside main subtitles',
       subtitle_outside_manual: 'Outside main subtitles (manually adjusted)',
       manual: 'Skip gap (manually created)',
@@ -48,7 +52,7 @@
     const source = GAP_REMOVE_DISPLAY_LABELS[language][type] || GAP_REMOVE_DISPLAY_LABELS[language].unknown;
     const retainedMode = typeof gap.retained === 'boolean';
     const status = retainedMode
-      ? (gap.retained ? localizedWaveformMessage('保留空隙（已锁定）', 'Retained gap (locked)') : localizedWaveformMessage('非保留空隙', 'Unretained gap'))
+      ? (gap.retained ? localizedWaveformMessage('固定空隙', 'Fixed gap') : localizedWaveformMessage('未固定空隙', 'Unfixed gap'))
       : (gap.removed === false ? localizedWaveformMessage('已保留', 'Kept') : localizedWaveformMessage('空隙', 'Gap'));
     const seconds = ms => (Number(ms) / 1000).toFixed(3);
     return `${status}${retainedMode ? '' : ` · ${source}`}\n${seconds(gap.start)}–${seconds(gap.end)} s · ${seconds(gap.end - gap.start)} s`;
@@ -7042,7 +7046,8 @@
         if (previews.length === 0) {
           const label = document.createElement('span');
           label.textContent = this.options.gapRetentionEnabled?.()
-            ? (drag.removed ? '添加空隙' : '保留空隙') : (drag.removed ? '增加静音' : '恢复声音');
+            ? (drag.removed ? localizedWaveformMessage('添加空隙', 'Add gap') : localizedWaveformMessage('固定空隙', 'Fix gap'))
+            : (drag.removed ? '增加静音' : '恢复声音');
           preview.appendChild(label);
         }
         const duration = Math.max(1, rowEnd - rowStart);

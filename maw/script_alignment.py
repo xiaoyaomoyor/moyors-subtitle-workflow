@@ -64,6 +64,7 @@ GAP_PROVENANCE_SOURCES: Final[tuple[str, ...]] = (
     "script_alignment",
     "audio_gate",
     "subtitle_outside",
+    "content_outside",
     "manual",
     "legacy",
 )
@@ -800,6 +801,9 @@ def _normalize_gap_provenance(
             "subtitle_outside": _normalize_provenance_ranges(
                 raw_sources.get("subtitle_outside"), "subtitle_outside", sort=True,
             ),
+            "content_outside": _normalize_provenance_ranges(
+                raw_sources.get("content_outside"), "content_outside", sort=True,
+            ),
         },
         "manual_overrides": _normalize_provenance_ranges(
             [
@@ -815,7 +819,7 @@ def _normalize_gap_provenance(
 def _gap_ranges_from_provenance(value: Mapping[str, object]) -> list[dict[str, object]]:
     sources = value.get("sources") if isinstance(value.get("sources"), Mapping) else {}
     result: list[dict[str, object]] = []
-    for source_name in ("script_alignment", "audio_gate", "subtitle_outside"):
+    for source_name in ("script_alignment", "audio_gate", "subtitle_outside", "content_outside"):
         ranges = sources.get(source_name, [])
         if isinstance(ranges, list):
             for item in ranges:
@@ -888,7 +892,7 @@ def _decorate_gap_ranges(
     final_gaps = _coalesce_gap_states(gaps)
     sources = provenance.get("sources") if isinstance(provenance.get("sources"), Mapping) else {}
     records: list[Mapping[str, object]] = []
-    for source_name in ("script_alignment", "audio_gate", "subtitle_outside"):
+    for source_name in ("script_alignment", "audio_gate", "subtitle_outside", "content_outside"):
         ranges = sources.get(source_name, [])
         if isinstance(ranges, list):
             records.extend(item for item in ranges if isinstance(item, Mapping))
@@ -944,7 +948,7 @@ def _replace_provenance_source(
     fallback_gaps: object = None,
 ) -> dict[str, object]:
     result = _normalize_gap_provenance(value, fallback_gaps)
-    if source in {"script_alignment", "audio_gate", "subtitle_outside"}:
+    if source in {"script_alignment", "audio_gate", "subtitle_outside", "content_outside"}:
         result["sources"][source] = _normalize_provenance_ranges(ranges, source, sort=True)
     return result
 
@@ -1233,13 +1237,11 @@ def _normalize_gap_remove_override(
         override.get("provenance") if has_provenance else None,
         coalesced,
     )
-    result["generation_mode"] = (
-        "subtitle_outside" if override.get("generation_mode", fallback.get("generation_mode"))
-        == "subtitle_outside" else "audio_gate"
-    )
+    generation_mode = override.get("generation_mode", fallback.get("generation_mode"))
+    result["generation_mode"] = generation_mode if generation_mode in ("subtitle_outside", "content_outside") else "audio_gate"
     raw_generated = override.get("generated_sources", fallback.get("generated_sources", []))
     result["generated_sources"] = [
-        name for name in ("audio_gate", "subtitle_outside")
+        name for name in ("audio_gate", "subtitle_outside", "content_outside")
         if (isinstance(raw_generated, list) and name in raw_generated)
         or provenance["sources"][name]
     ]

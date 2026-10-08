@@ -9,9 +9,12 @@
     'script_alignment',
     'audio_gate',
     'subtitle_outside',
+    'content_outside',
     'manual',
     'legacy',
   ]);
+  const GAP_GENERATION_MODES = Object.freeze(['audio_gate', 'subtitle_outside', 'content_outside']);
+  const normalizeGapGenerationMode = value => GAP_GENERATION_MODES.includes(value) ? value : 'audio_gate';
   const GAP_PROVENANCE_SOURCE_SET = new Set(GAP_PROVENANCE_SOURCES);
   const GAP_REMOVE_OPERATION_MODES = Object.freeze([
     'none',
@@ -301,6 +304,7 @@
           {sort: true},
         ),
         subtitle_outside: normalizeProvenanceRangeList(rawSources.subtitle_outside, 'subtitle_outside', {sort: true}),
+        content_outside: normalizeProvenanceRangeList(rawSources.content_outside, 'content_outside', {sort: true}),
       },
       manual_overrides: normalizeProvenanceRangeList(
         [...legacyManualOverrides, ...(Array.isArray(source.manual_overrides) ? source.manual_overrides : [])],
@@ -417,7 +421,7 @@
     provenance.sources.audio_gate.forEach((gap) => {
       result = applyGapStateRange(result, gap.start, gap.end, true);
     });
-    provenance.sources.subtitle_outside.forEach((gap) => {
+    for (const source of ['subtitle_outside', 'content_outside']) provenance.sources[source].forEach((gap) => {
       result = applyGapStateRange(result, gap.start, gap.end, true);
     });
     provenance.legacy.forEach((gap) => {
@@ -440,6 +444,7 @@
       ...provenance.sources.script_alignment,
       ...provenance.sources.audio_gate,
       ...provenance.sources.subtitle_outside,
+      ...provenance.sources.content_outside,
       ...provenance.manual_overrides.filter((record) => (
         !isBoundaryResizeRecord(record) && !isGapMoveRecord(record)
       )),
@@ -491,7 +496,7 @@
 
   function replaceGapRemoveProvenanceSource(value, source, ranges, fallbackGaps = []) {
     const next = normalizeGapRemoveProvenance(value, fallbackGaps);
-    if (['script_alignment', 'audio_gate', 'subtitle_outside'].includes(source)) {
+    if (['script_alignment', ...GAP_GENERATION_MODES].includes(source)) {
       next.sources[source] = normalizeProvenanceRangeList(ranges, source, {sort: true});
     }
     return next;
@@ -552,12 +557,14 @@
     const hasAudio = has('audio_gate');
     const hasScript = has('script_alignment');
     const hasSubtitleOutside = has('subtitle_outside');
+    const hasContentOutside = has('content_outside');
     const hasManual = has('manual');
-    const automaticOriginCount = [hasAudio, hasScript, hasSubtitleOutside].filter(Boolean).length;
+    const automaticOriginCount = [hasAudio, hasScript, hasSubtitleOutside, hasContentOutside].filter(Boolean).length;
     if (automaticOriginCount > 1) return hasManual ? 'multi_source_manual' : 'multi_source';
     if (hasScript) return hasManual ? 'script_alignment_manual' : 'script_alignment';
     if (hasAudio) return hasManual ? 'audio_gate_manual' : 'audio_gate';
     if (hasSubtitleOutside) return hasManual ? 'subtitle_outside_manual' : 'subtitle_outside';
+    if (hasContentOutside) return hasManual ? 'content_outside_manual' : 'content_outside';
     if (hasManual) return 'manual';
     return 'unknown';
   }
@@ -604,6 +611,7 @@
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
         subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
+        content_outside: removeFrom(provenance.sources.content_outside, 'content_outside', true),
       },
       manual_overrides: removeFrom(provenance.manual_overrides, 'manual', false),
       legacy: removeFrom(provenance.legacy, 'legacy', false),
@@ -630,6 +638,7 @@
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
         subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
+        content_outside: removeFrom(provenance.sources.content_outside, 'content_outside', true),
       },
       manual_overrides: normalizeProvenanceRangeList(
         provenance.manual_overrides.flatMap((item) => (
@@ -725,6 +734,7 @@
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
         subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
+        content_outside: removeFrom(provenance.sources.content_outside, 'content_outside', true),
       },
       manual_overrides: normalizeProvenanceRangeList(manual, 'manual'),
       legacy: removeFrom(provenance.legacy, 'legacy', false),
@@ -816,8 +826,8 @@
       skip_playback: source.skip_playback !== false,
       manual_corrections: source.manual_corrections === true || provenance.manual_overrides.length > 0,
       operation_mode: normalizeGapOperationMode(source.operation_mode),
-      generation_mode: source.generation_mode === 'subtitle_outside' ? 'subtitle_outside' : 'audio_gate',
-      generated_sources: ['audio_gate', 'subtitle_outside'].filter(name => (
+      generation_mode: normalizeGapGenerationMode(source.generation_mode),
+      generated_sources: GAP_GENERATION_MODES.filter(name => (
         (Array.isArray(source.generated_sources) && source.generated_sources.includes(name))
         || provenance.sources[name].length > 0
       )),
@@ -1463,6 +1473,8 @@
 
   global.AsrGapRemoveCore = Object.freeze({
     GAP_REMOVE_SCHEMA,
+    GAP_GENERATION_MODES,
+    normalizeGapGenerationMode,
     GAP_PROVENANCE_SCHEMA,
     GAP_PROVENANCE_SOURCES,
     GAP_REMOVE_OPERATION_MODES,

@@ -52,8 +52,8 @@ test('gap conversion history captures time ranges independently from live select
   assert.equal('timeRanges' in helpers.buildHistoryRecord('gap_remove','edit',{}),false);
 });
 
-test('subtitle-outside marks survive rescans, manual edits, clear and JSON reload', () => {
-  let provenance = gapCore.replaceGapRemoveProvenanceSource(null, 'subtitle_outside', [{start: 1000, end: 2000}]);
+for (const outsideSource of ['subtitle_outside', 'content_outside']) test(`${outsideSource} marks survive rescans, manual edits, clear and JSON reload`, () => {
+  let provenance = gapCore.replaceGapRemoveProvenanceSource(null, outsideSource, [{start: 1000, end: 2000}]);
   provenance = gapCore.replaceGapRemoveProvenanceSource(provenance, 'audio_gate', [{start: 3000, end: 4000}]);
   provenance = gapCore.appendGapRemoveManualOverrides(provenance, [{start: 1300, end: 1500, removed: false}]);
   provenance = gapCore.replaceGapRemoveProvenanceSource(provenance, 'audio_gate', [{start: 5000, end: 6000}]);
@@ -62,16 +62,16 @@ test('subtitle-outside marks survive rescans, manual edits, clear and JSON reloa
     {start: 1000, end: 1300, removed: true}, {start: 1300, end: 1500, removed: false},
     {start: 1500, end: 2000, removed: true}, {start: 5000, end: 6000, removed: true},
   ]);
-  const state = gapCore.normalizeGapRemoveData({provenance, generation_mode: 'subtitle_outside', lead_in_ms: 0, lead_out_ms: 0});
+  const state = gapCore.normalizeGapRemoveData({provenance, generation_mode: outsideSource, lead_in_ms: 0, lead_out_ms: 0});
   const restored = gapCore.normalizeGapRemoveData(plain(state));
   assert.deepEqual(plain(restored), plain(state));
   assert.equal(restored.lead_in_ms, 0);
-  assert.deepEqual(plain(restored.generated_sources), ['audio_gate', 'subtitle_outside']);
+  assert.deepEqual(plain(restored.generated_sources), ['audio_gate', outsideSource]);
   const moved = gapCore.moveGapRemoveProvenance(provenance, state.gaps, 0, 6000, 10000);
   assert.equal(moved.changed, true);
   assert.ok(moved.gaps.some(gap => gap.start === 7000));
   const cleared = gapCore.removeGapRemoveProvenanceRange(provenance, 1000, 2000);
-  assert.equal(cleared.sources.subtitle_outside.length, 0);
+  assert.equal(cleared.sources[outsideSource].length, 0);
   assert.equal(cleared.manual_overrides.length, 0);
   assert.deepEqual(plain(gapCore.getRemovedGapRanges(gapCore.gapRangesFromProvenance(cleared))), [{start: 5000, end: 6000}]);
 });
@@ -1349,7 +1349,7 @@ test('translates editor project controls and dynamic save messages to English', 
   assert.equal(i18n.translateText('注：微调幅度可在波形区的', 'en'), 'Note: Adjust the fine-tuning amount in the waveform area’s');
   assert.equal(i18n.translateText('中调节，默认 50ms', 'en'), 'to adjust it; the default is 50 ms');
   assert.equal(i18n.translateText('切换空隙的启用/禁用状态', 'en'), 'Toggle whether the gap is enabled');
-  assert.equal(i18n.translateText('添加新的移除空隙', 'en'), 'Add a new removed gap');
+  assert.equal(i18n.translateText('添加新的空隙', 'en'), 'Add a new gap');
   assert.equal(
     i18n.translateText('点击「生成静音空隙」按当前参数扫描并替换检测结果', 'en'),
     'Click “Generate silence gaps” to scan with the current parameters and replace the detection results',

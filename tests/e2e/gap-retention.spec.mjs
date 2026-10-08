@@ -23,8 +23,8 @@ async function menu(page,index=0) {
 
 test('right-click retention locks a dimmed marker but still skips it and persists on save',async({page})=>{
   const context=await menu(page);
-  await expect(context.locator('.item')).toHaveText(['标记为保留','转为时间选区','删除该空隙','删除所有非保留空隙']);
-  await context.getByText('标记为保留',{exact:true}).click();
+  await expect(context.locator('.item')).toHaveText(['固定空隙','转为时间选区','删除该空隙','删除所有未固定空隙']);
+  await context.getByText('固定空隙',{exact:true}).click();
   const locked=page.locator('.waveform-gap-block.retained').first();
   await expect(locked).toHaveClass(/restored/); await expect(locked.locator('.waveform-gap-handle')).toHaveCount(0);
   const before=await shape(page), box=await locked.boundingBox();
@@ -35,8 +35,8 @@ test('right-click retention locks a dimmed marker but still skips it and persist
   await page.evaluate(()=>{DATA.gap_remove=JSON.parse(buildJson()).gap_remove;updateGapRemoveUi();});
   expect(await shape(page)).toEqual(before);
   expect(await page.evaluate(()=>JSON.parse(buildJson()).gap_remove.gaps.every(g=>g.removed))).toBe(true);
-  await menu(page); await expect(context.getByText('取消保留',{exact:true})).toBeVisible();
-  await context.getByText('取消保留',{exact:true}).click();
+  await menu(page); await expect(context.getByText('取消固定',{exact:true})).toBeVisible();
+  await context.getByText('取消固定',{exact:true}).click();
   await expect(page.locator('.waveform-gap-block.retained')).toHaveCount(0);
 });
 
@@ -94,7 +94,7 @@ test('bulk retain/unretain and deletion are reversible and keep locked markers',
   await expect(page.locator('#gap-remove-clear-all')).toBeInViewport();
   expect(await page.locator('#gap-remove-panel').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.locator('#gap-remove-close').click();
-  const context=await menu(page); await context.getByText('删除所有非保留空隙',{exact:true}).click();
+  const context=await menu(page); await context.getByText('删除所有未固定空隙',{exact:true}).click();
   expect(await shape(page)).toHaveLength(1);
   await menu(page); await context.getByText('删除该空隙',{exact:true}).click();
   expect(await shape(page)).toEqual([]); await page.evaluate(()=>performUndo());
