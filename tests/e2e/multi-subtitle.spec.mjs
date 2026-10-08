@@ -2049,11 +2049,12 @@ test('merges selected extension cues from the context menu and C, with undo', as
     player.currentTime = 0.5;
     player.dispatchEvent(new Event('timeupdate'));
   });
-  await expect(page.locator('#overlay-extension-text')).toHaveText('你好，世界。');
+  const preview = page.locator('#msw-layer-preview [data-role="secondary"]');
+  await expect(preview).toHaveText('你好，世界。');
   await second.click({ button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '合并副字幕块' })).toBeVisible();
-  await page.locator('#ctxmenu .item').filter({ hasText: '合并副字幕块' }).click();
-  await expect(page.locator('#overlay-extension-text')).toHaveText('你好，世界。第二句。');
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: '累加状态合并' })).toBeVisible();
+  await page.locator('#ctxmenu .item').filter({ hasText: '累加状态合并' }).click();
+  await expect(preview).toHaveText('你好，世界。第二句。');
   await expect(page.locator('.multi-cue-column.extension').filter({ hasText: '你好，世界。第二句。' })).toHaveCount(1);
   await expect(page.locator('.multi-cue-column.extension:not(.multi-cue-empty)')).toHaveCount(2);
 
@@ -2178,11 +2179,11 @@ test('选中的主字幕与绑定副字幕一起合并并支持撤销', async ({
   await expect(page.locator('.multi-dual-cue')).toHaveCount(2);
   const merged = page.locator('.multi-dual-cue').filter({ hasText: 'Hello world.' });
   await expect(merged.locator('.multi-cue-column.main .time')).toHaveText('00:00.000 → 00:05.000');
-  await expect(merged.locator('.multi-cue-column.extension .time')).toHaveText('00:00.000 → 00:05.000');
+  await expect(merged.locator('.multi-cue-column.extension .time')).toHaveText('00:00.050 → 00:04.950');
   expect(await page.evaluate(() => DATA.multi_subtitle.bindings.map((binding) => ({
     start: binding.start_offset_ms,
     end: binding.end_offset_ms,
-  })))).toEqual([{ start: 0, end: 0 }]);
+  })))).toEqual([{ start: 50, end: -50 }]);
 
   await page.keyboard.press('Control+z');
   await expect(page.locator('.multi-dual-cue')).toHaveCount(3);
@@ -2239,7 +2240,7 @@ test('ignores a tiny unbound extension overlap at the main merge boundary', asyn
     end: segment.end,
     text: segment.text,
   })))).toEqual([
-    { id: 'extension-001-merged', start: 1100, end: 1900, text: '已绑定副字幕' },
+    { id: 'extension-001', start: 1100, end: 1900, text: '已绑定副字幕' },
     { id: 'extension-002', start: 2990, end: 3990, text: '边界副字幕' },
   ]);
 });

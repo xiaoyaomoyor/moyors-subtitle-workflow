@@ -3430,10 +3430,10 @@
   .cue.disabled .text, .multi-cue-column.disabled .text { color: var(--text-muted); }
   .cue.disabled .index, .multi-cue-column.disabled .index { text-decoration: line-through; }
   /* 隐藏禁用项开关：开启后禁用项从列表移除，不参与选择 */
-  .cues-container.hide-disabled .cue.disabled { display: none; }
-  .cues-container.hide-disabled .multi-cue-column.disabled { display: none; }
-  .cues-container.hide-disabled .multi-dual-cue:not(:has(> .multi-cue-column:not(.disabled))) { display: none; }
-  .cues-container.hide-disabled .multi-dual-cue:has(> .multi-cue-column.disabled) { grid-template-columns: minmax(0, 1fr); }
+  .cues-container.hide-disabled .cue.disabled:not(.temporary-visible) { display: none; }
+  .cues-container.hide-disabled .multi-cue-column.disabled:not(.temporary-visible) { display: none; }
+  .cues-container.hide-disabled .multi-dual-cue:not(:has(> .multi-cue-column:not(.disabled), > .multi-cue-column.temporary-visible)) { display: none; }
+  .cues-container.hide-disabled .multi-dual-cue:has(> .multi-cue-column.disabled:not(.temporary-visible)) { grid-template-columns: minmax(0, 1fr); }
   .cues-container.hide-disabled .multi-cue-column.disabled + .multi-cue-column::before { display: none; }
   .cues-container.hide-cue-index .cue .index,
   .cues-container.hide-cue-time .cue .time,
@@ -5026,3 +5026,24 @@
 .JASSUB { z-index:5; pointer-events:none; background:transparent; }
 .player-stage:not([data-subtitle-renderer=libass]) .JASSUB { visibility:hidden; }
 .msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
+/* The merge Easter egg uses the same accent as split feedback. */
+.merge-tape-flash {
+  position: fixed; z-index: 1200; width: 108px; height: 25px;
+  pointer-events: none; background: color-mix(in srgb, var(--accent) 65%, transparent);
+  border-block: 1px dashed var(--accent); box-sizing: border-box;
+  clip-path: polygon(3% 0, 97% 0, 100% 20%, 97% 40%, 100% 60%, 97% 80%, 100% 100%, 0 100%, 3% 80%, 0 60%, 3% 40%, 0 20%);
+  transform: translate(-50%, -50%) rotate(-10deg);
+  animation: merge-tape-stick 600ms ease-out both;
+}
+.merge-tape-flash::after {
+  content: ''; position: absolute; inset: 4px 50%; border-left: 2px solid var(--accent);
+}
+@keyframes merge-tape-stick {
+  0% { opacity: 0; transform: translate(-50%, -65%) rotate(-14deg) scaleX(.1); }
+  28%, 65% { opacity: 1; transform: translate(-50%, -50%) rotate(-10deg) scaleX(1); }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .merge-tape-flash { animation-name: merge-tape-fade; }
+}
+@keyframes merge-tape-fade { 0%, 65% { opacity: 1; } 100% { opacity: 0; } }

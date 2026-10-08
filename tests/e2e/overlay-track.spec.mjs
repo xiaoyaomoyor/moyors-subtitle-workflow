@@ -380,7 +380,7 @@ test('batch merge via C key inherits color groups and rejects skipped middle cue
     selectedOverlayIdxs.add(2);
   });
   await page.keyboard.press('c');
-  await expect(page.locator('.hint-card').last()).toContainText('选中的叠加字幕必须连续');
+  await expect(page.locator('.hint-card').last()).toContainText('选中的字幕必须连续');
   const unchanged = await page.evaluate(() => JSON.parse(buildJson()).overlay_track.segments);
   expect(unchanged.map((segment) => segment.text)).toEqual(['甲', '乙', '丙']);
   for (let i = 1; i < unchanged.length; i++) {

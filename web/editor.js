@@ -1142,6 +1142,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   autoSnapAdjacentCues: true,
   // 娱乐彩蛋：成功拆分时的音效与刀光反馈，并把分割工具图标换成 🔪。
   ninjaMode: false,
+  mergeTapeEffect: false,
   // 字幕忍者的拆分音效开关；忍者开关开启后才在设置中显示。
   ninjaSound: true,
   // 字幕忍者的可选视觉反馈；忍者开关开启后才在设置中显示。
@@ -2970,6 +2971,8 @@ function applyNinjaSettings() {
   const enabled = EDITOR_SETTINGS.ninjaMode === true;
   const slashEnabled = enabled && EDITOR_SETTINGS.ninjaSlashEffect !== false;
   if (ninjaModeToggle) ninjaModeToggle.checked = enabled;
+  const tapeToggle = document.getElementById('merge-tape-effect');
+  if (tapeToggle) tapeToggle.checked = EDITOR_SETTINGS.mergeTapeEffect === true;
   if (ninjaSoundToggle) ninjaSoundToggle.checked = EDITOR_SETTINGS.ninjaSound !== false;
   if (ninjaSlashEffectToggle) ninjaSlashEffectToggle.checked = EDITOR_SETTINGS.ninjaSlashEffect !== false;
   if (ninjaSoundField) ninjaSoundField.hidden = !enabled;
@@ -4216,10 +4219,11 @@ splitTrimSettingsToggle?.addEventListener('click', (event) => {
 });
 document.addEventListener('pointerdown', (event) => {
   if (temporaryVisibleSplitCueKeys.size) {
-    const targetCue = event.target instanceof Element ? event.target.closest('.cue') : null;
+    const targetCue = event.target instanceof Element ? event.target.closest('.cue, .waveform-cue-block') : null;
     if (!cueElementHasTemporarySplitVisibility(targetCue)) {
       clearTemporaryVisibleSplitCues();
       applySearch(searchEl.value);
+      waveformEditor?.refreshCueOverlay();
     }
   }
   if (!mergeJoinSettingsPanel?.hidden && !mergeJoinSettings?.contains(event.target)) {
@@ -5029,6 +5033,10 @@ for (const [id, key] of [
 ninjaModeToggle?.addEventListener('change', () => {
   updateEditorSettings({ ninjaMode: ninjaModeToggle.checked });
   applyNinjaSettings();
+});
+document.getElementById('merge-tape-effect')?.addEventListener('change', event => {
+  updateEditorSettings({ mergeTapeEffect: event.target.checked });
+  if (!event.target.checked) document.querySelectorAll('.merge-tape-flash').forEach(node => node.remove());
 });
 ninjaSoundToggle?.addEventListener('change', () => {
   updateEditorSettings({ ninjaSound: ninjaSoundToggle.checked });
@@ -6164,7 +6172,9 @@ function isHiddenDisabled(idx, track = 'main') {
   const segments = track === 'extension'
     ? (getActiveExtensionTrack()?.segments || [])
     : (track?.segments || DATA.segments);
-  return hideDisabled && !!(segments[idx] && segments[idx].disabled);
+  const kind = segments === DATA.segments ? 'main' : segments === getOverlayTrack()?.segments ? 'overlay' : 'extension';
+  const trackId = kind === 'extension' ? (track?.id || getActiveExtensionTrack()?.id) : null;
+  return hideDisabled && !!segments[idx]?.disabled && !temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(kind,segments[idx],trackId));
 }
 
 function cancelPendingExtensionBinding(message = '已取消绑定副字幕') {
@@ -7854,12 +7864,16 @@ function splitCueVisibilityKey(kind, segment, trackId = null) {
   if (!id) return null;
   return kind === 'extension'
     ? `extension:${trackId || ''}:${id}`
-    : `main:${id}`;
+    : `${kind === 'overlay' ? 'overlay' : 'main'}:${id}`;
 }
 
 function temporaryVisibleSplitCueKeysForElement(element) {
   if (!element) return [];
   const keys = [];
+  if (element.dataset.overlayIdx != null) {
+    const key = splitCueVisibilityKey('overlay', getOverlayTrack()?.segments?.[Number(element.dataset.overlayIdx)]);
+    if (key) keys.push(key);
+  }
   const mainIndex = element.dataset.mainIdx != null
     ? Number(element.dataset.mainIdx)
     : (element.dataset.idx != null ? Number(element.dataset.idx) : -1);
@@ -7907,12 +7921,13 @@ function releaseTemporaryVisibleSplitCuesUnless(kind, index, track = null) {
   if (!temporaryVisibleSplitCueKeys.size) return;
   const segments = kind === 'extension'
     ? (track?.segments || getActiveExtensionTrack()?.segments || [])
-    : DATA.segments;
+    : kind === 'overlay' ? getOverlayTrack()?.segments || [] : DATA.segments;
   const segment = segments[index];
   const key = splitCueVisibilityKey(kind, segment, kind === 'extension' ? track?.id : null);
   if (key && temporaryVisibleSplitCueKeys.has(key)) return;
   clearTemporaryVisibleSplitCues();
   applySearch(searchEl.value);
+  waveformEditor?.refreshCueOverlay();
 }
 
 function refreshAllCharCounts() {
@@ -8192,6 +8207,7 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
           {target:charCountFilterTarget,op:charCountFilterOp,threshold:Number(EDITOR_SETTINGS.cueListCharcountThreshold)});
       }
       el.classList.toggle('hidden', !matched);
+      for (const node of [el, ...el.querySelectorAll('.multi-cue-column')]) node.classList.toggle('temporary-visible', cueElementHasTemporarySplitVisibility(node));
       if (matched) visible++;
       if (refreshText && !el.classList.contains('editing')) {
         const mainTextEl = el.querySelector('.multi-cue-column.main .text');
@@ -10305,159 +10321,63 @@ function mergeContiguousIndices(sorted) {
   return merged;
 }
 
-function mergeSegments(idxs) {
-  if (layerMode()) return layerMergeSelected(idxs);
-  if (idxs.length < 2) { flashHint('请选择至少两个同轨道字幕块！', 'invalid'); return; }
-  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
-  if (sorted.length < 2) { flashHint('请选择至少两个同轨道字幕块！', 'invalid'); return; }
-  // 确保连续
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] !== sorted[i - 1] + 1) {
-      flashHint('选中的字幕必须连续', 'invalid');
-      return;
-    }
-  }
-  const sourceEl = container.querySelector(`.cue[data-idx="${sorted[0]}"]`);
-  const cueListAnchor = captureVisibleCueListVisualAnchor(sourceEl);
-  commitCuePanelEdit();
-  pushUndo('合并字幕', { captureView: true });
-  clearSelection({ silent: true });
-  mergeContiguousIndices(sorted);
-  renderAll({ cueListAnchor });
-  // 合并完成后选中合并结果，方便继续对这句新字幕操作
-  selectOnly(sorted[0]);
-  updateWithoutCueListAutoScroll();
-  flashHint(`已合并 ${sorted.length} 条`, 'success');
+function mergeSegments(idxs, mode = 'union') {
+  return layerMergeSelected(idxs, 'main', null, mode);
 }
 
-// 只合并副轨连续字幕。副字幕没有主轨的 group 引用和 items，
-// 因此这里保留独立轨的文本/时间合并语义；如果被合并段存在一对一绑定，
-// 合并后无法同时指向多个主字幕，旧绑定会被移除并提示用户重新绑定。
-function mergeExtensionSegments(idxs, track = getActiveExtensionTrack()) {
-  if (layerMode()) return layerMergeSelected(idxs, 'extension', track);
-  if (!track || !idxs?.length) return false;
-  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
-  if (sorted.length < 2) {
-    flashHint('请选择至少两个副字幕块！', 'invalid');
-    return false;
-  }
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] !== sorted[i - 1] + 1) {
-      flashHint('选中的副字幕必须连续', 'invalid');
-      return false;
+// Capture visible join positions before the two tracks are replaced. Feedback
+// never changes selection, playback, history or the scroll position.
+function captureMergeFeedback(plan) {
+  if (!EDITOR_SETTINGS.mergeTapeEffect) return [];
+  const pointer = lastPointerPos && document.elementFromPoint(lastPointerPos.x, lastPointerPos.y);
+  const wave = pointer?.closest('#waveform-pane') || lastEditRegion === 'waveform';
+  const area = wave ? document.getElementById('waveform-pane') : container;
+  const bounds = area?.getBoundingClientRect();
+  if (!bounds) return [];
+  const points = [];
+  for (const change of plan.changes.filter(c => c.changed)) {
+    const segments = change.role === 'main' ? DATA.segments : change.role === 'overlay' ? getOverlayTrack()?.segments : getExtensionTrack(change.track_id)?.segments;
+    const cues = segments.filter(c => change.ids.has(c.id)).sort((a,b) => a.start-b.start);
+    let point;
+    if (wave) {
+      const time = (cues[0].end+cues[1].start)/2;
+      point = waveformEditor?.getSplitPointAtTime?.(time, change.role);
+      const row = [...area.querySelectorAll('.waveform-row')].find(r => time >= Number(r.dataset.startMs) && time <= Number(r.dataset.endMs));
+      const block = [...(row?.querySelectorAll('.waveform-cue-block') || [])].find(node => node.dataset.track === change.role
+        && cues.slice(0,2).some(c => node.dataset.cueId === c.id || Number(node.dataset[change.role === 'extension' ? 'extIdx' : change.role === 'overlay' ? 'overlayIdx' : 'idx']) === segments.indexOf(c)));
+      const rect = block?.getBoundingClientRect();
+      if (point && rect?.height) point.clientY = rect.top+rect.height/2; else point = null;
     }
+    else {
+      const selector = index => change.role === 'main' ? `.multi-cue-column.main[data-main-idx="${index}"], .cue[data-idx="${index}"]:not(.multi-dual-cue)`
+        : change.role === 'extension' ? `.multi-cue-column.extension[data-ext-idx="${index}"]` : `.overlay-track-cue[data-overlay-idx="${index}"]`;
+      const rects = cues.slice(0,2).map(c => container.querySelector(selector(segments.indexOf(c)))?.getBoundingClientRect());
+      if (rects.every(r => r?.width && r?.height)) point = {clientX:rects[0].left+rects[0].width/2, clientY:(rects[0].bottom+rects[1].top)/2};
+    }
+    if (point && point.clientX >= Math.max(0,bounds.left) && point.clientX <= Math.min(innerWidth,bounds.right)
+        && point.clientY >= Math.max(0,bounds.top) && point.clientY <= Math.min(innerHeight,bounds.bottom)) points.push(point);
   }
-  const segments = sorted.map((index) => track.segments[index]).filter(Boolean);
-  if (segments.length !== sorted.length) return false;
-  const sourceEl = container.querySelector(`.cue[data-ext-idx="${sorted[0]}"]`);
-  const cueListAnchor = captureVisibleCueListVisualAnchor(sourceEl);
-
-  const oldIds = segments.map((segment) => segment.id).filter(Boolean);
-  const merged = {
-    id: MULTI_SUBTITLE_UTILS.uniqueStableSegmentId(
-      track.segments,
-      `${segments[0].id || track.id}-merged`,
-      `${track.id}-segment`,
-    ),
-    start: segments[0].start,
-    end: segments[segments.length - 1].end,
-    text: window.AsrEditorUtils.joinSegmentTexts(
-      segments,
-      mergeJoinSeparatorForMode(getExtensionSubtitleSplitMode(track, {
-        text: segments.map((s) => s.text || '').join('\n'),
-      })),
-    ),
-    _dirty: true,
-  };
-  const hadBindings = oldIds.some((id) => MULTI_SUBTITLE_UTILS.bindingForSegment(
-    getMultiSubtitleState(), id, 'extension', track.id,
-  ));
-
-  pushUndo('合并副字幕', { captureView: true });
-  clearSelection();
-  removeBindingsForSegmentIds([], oldIds);
-  track.segments.splice(sorted[0], sorted.length, merged);
-  markMultiSubtitleDirty();
-  renderAll({ cueListAnchor });
-  selectOnlyExtension(sorted[0]);
-  lastClickedExtensionIdx = sorted[0];
-  updateWithoutCueListAutoScroll();
-  flashHint(
-    hadBindings
-      ? `已合并 ${sorted.length} 条副字幕，原绑定已解除`
-      : `已合并 ${sorted.length} 条副字幕`,
-    'success',
-  );
-  return true;
+  return points;
 }
 
-// 只合并叠加轨连续字幕。叠加轨的分组（颜色/表情包）引用叠加轨自身段，
-// 合并语义与主轨一致：全部成员同组时继承，混合组不继承。
-function mergeOverlaySegments(idxs) {
-  const track = getOverlayTrack();
-  if (!track || !idxs?.length) return false;
-  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
-  if (sorted.length < 2) {
-    flashHint('请选择至少两个叠加字幕块！', 'invalid');
-    return false;
+function triggerMergeFeedback(points) {
+  if (!EDITOR_SETTINGS.mergeTapeEffect) return;
+  for (const point of points || []) {
+    const tape = document.createElement('span');
+    tape.className = 'merge-tape-flash'; tape.setAttribute('aria-hidden','true');
+    tape.style.left = `${point.clientX}px`; tape.style.top = `${point.clientY}px`;
+    document.body.append(tape);
+    tape.addEventListener('animationend', () => tape.remove(), {once:true});
+    setTimeout(() => tape.remove(), 750);
   }
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] !== sorted[i - 1] + 1) {
-      flashHint('选中的叠加字幕必须连续', 'invalid');
-      return false;
-    }
-  }
-  const segments = sorted.map((index) => track.segments[index]).filter(Boolean);
-  if (segments.length !== sorted.length) return false;
-  const sourceEl = container.querySelector(`.overlay-track-cue[data-overlay-idx="${sorted[0]}"]`);
-  const cueListAnchor = captureVisibleCueListVisualAnchor(sourceEl);
-  const stickerGroup = window.AsrEditorUtils.resolveMergedGroupInheritance(
-    track.segments, sorted, 'sticker', 'sticker_ref',
-  );
-  const colorGroup = window.AsrEditorUtils.resolveMergedGroupInheritance(
-    track.segments, sorted, 'color', 'color_ref',
-  );
-  const merged = {
-    id: MULTI_SUBTITLE_UTILS.uniqueStableSegmentId(
-      track.segments,
-      `${segments[0].id || track.id}-merged`,
-      'overlay',
-    ),
-    start: segments[0].start,
-    end: segments[segments.length - 1].end,
-    text: window.AsrEditorUtils.joinSegmentTexts(
-      segments,
-      mergeJoinSeparatorForMode(getMainSubtitleSplitMode({ text: segments.map((s) => s.text || '').join('\n') })),
-    ),
-    items: segments.flatMap((segment) => segment.items || []),
-    sticker: stickerGroup.head,
-    sticker_ref: stickerGroup.ref,
-    color: colorGroup.head,
-    color_ref: colorGroup.ref,
-    disabled: !!segments[0].disabled,
-    _dirty: true,
-  };
-  if (Array.isArray(merged.items) && merged.items.length === 0) merged.items = null;
-  clearSelection();
-  pushUndo('合并叠加字幕');
-  track.segments.splice(sorted[0], sorted.length, merged);
-  for (const cue of track.segments) for (const field of ['color_ref', 'sticker_ref']) {
-    const ref = cue[field];
-    if (!ref) continue;
-    if (ref.headIdx > sorted[sorted.length - 1]) ref.headIdx -= sorted.length - 1;
-    else if (ref.headIdx >= sorted[0]) ref.headIdx = sorted[0];
-  }
-  track._dirty = true;
-  renderAll();
-  selectedOverlayIdxs.clear();
-  selectedOverlayIdxs.add(sorted[0]);
-  lastClickedOverlayIdx = sorted[0];
-  setCuePanelTarget('overlay', sorted[0]);
-  updateWithoutCueListAutoScroll();
-  const el = container.querySelector(`.overlay-track-cue[data-overlay-idx="${sorted[0]}"]`);
-  if (cueListAnchor) restoreCueListVisualAnchor(el, cueListAnchor);
-  flashHint(`已合并 ${sorted.length} 条叠加字幕`, 'success');
-  return true;
+}
+
+function mergeExtensionSegments(idxs, track = getActiveExtensionTrack(), mode = 'union') {
+  return layerMergeSelected(idxs, 'extension', track, mode);
+}
+
+function mergeOverlaySegments(idxs, mode = 'union') {
+  return layerMergeSelected(idxs, 'overlay', getOverlayTrack(), mode);
 }
 
 // ── 「字幕 → 缩放/偏移」：显式选择轨道和范围，连续手势共享撤销记录。 ──
@@ -13010,27 +12930,26 @@ document.addEventListener('keydown', (e) => {
   focusCuePanelText();
 });
 
-// C：合并连续选中的字幕块。少于两条时只提示，不改动工程。
+// C 累加标记；Ctrl/Cmd+Shift+C 仅保留共有标记。Ctrl/Cmd+C 仍复制。
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'c' && e.key !== 'C') return;
-  if (editingState || e.repeat) return;
-  const a = document.activeElement;
-  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
-  if (replaceModal.classList.contains('show')) return;
-  if (stickerModal.classList.contains('show')) return;
-  if (stickerPreviewModal.classList.contains('show')) return;
-  if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  const common = (e.ctrlKey || e.metaKey) && e.shiftKey;
+  if (e.altKey || (!common && (e.ctrlKey || e.metaKey || e.shiftKey))) return;
+  if (editingState || e.repeat || e.isComposing || e.defaultPrevented || historyGuarded()) return;
+  if (document.querySelector('dialog[open], .modal-mask.show')) return;
+  if (window.getSelection()?.toString()) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (window.MSWE?.resolve('audio-timeline')?.selectedCount()) return;
+  if (!selectedIdxs.size && !selectedExtensionIdxs.size && !selectedOverlayIdxs.size) return;
+  const mode = common ? 'common' : 'union';
   e.preventDefault();
-  e.stopPropagation();
+  e.stopImmediatePropagation();
   const currentTarget = getCurrentCuePanelTarget();
   if (
     selectedOverlayIdxs.size > 1
     && (currentTarget?.kind === 'overlay' || (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0))
   ) {
-    mergeOverlayCues([...selectedOverlayIdxs]);
+    mergeOverlaySegments([...selectedOverlayIdxs], mode);
     return;
   }
   if (
@@ -13040,10 +12959,11 @@ document.addEventListener('keydown', (e) => {
     mergeExtensionSegments(
       [...selectedExtensionIdxs],
       currentTarget?.kind === 'extension' ? currentTarget.track : getActiveExtensionTrack(),
+      mode,
     );
     return;
   }
-  mergeSegments([...selectedIdxs]);
+  mergeSegments([...selectedIdxs], mode);
 });
 
 
@@ -15765,6 +15685,7 @@ function buildJson() {
         start: s.start, end: s.end, text: s.text,
         start_frame: s.start_frame, end_frame: s.end_frame,
         items: s.items || [],
+        ...(typeof s.speaker === 'string' ? { speaker: s.speaker } : {}),
         sticker: s.sticker || null,
         sticker_ref: s.sticker_ref || null,
         color: s.color || null,
@@ -15807,6 +15728,9 @@ function buildJson() {
         };
         // Older edits used null for absent word timing. The v2 spread above
         // must not leak that placeholder into preview/save/export requests.
+        for (const field of ['color', 'color_ref', 'sticker', 'sticker_ref', 'speaker']) {
+          if (segment[field] != null) outSegment[field] = segment[field];
+        }
         if (segment.items == null) delete outSegment.items;
         else if (Array.isArray(segment.items)) outSegment.items = segment.items;
         if (segment._dirty) outSegment._dirty = true;
@@ -21684,16 +21608,6 @@ function assignOverlayColor(idxs, colorName) {
     : `已将 ${targets.length} 条字幕设为「${def.label}色」`, 'success');
 }
 
-// C 键批量合并：复用 Ctrl/Cmd+Shift+A / D 的 mergeOverlaySegments，共享
-// 「下标连续」校验与颜色/表情包组继承语义。旧实现只延长首段自带的标记、
-// 且仅按时间连续校验：混合组会丢标记，跳过中间段的合并会留下被新段覆盖
-// 的旧段，保存后违反相邻段 end <= next.start 的契约导致工程无法再打开。
-function mergeOverlayCues(idxs) {
-  detachCuePanelFromTrackEdits();
-  if (!mergeOverlaySegments(idxs)) return;
-  scheduleAutoSaveFlush();
-}
-
 function clearOverlayColorOnTargets(idxs) {
   const overlay = getOverlayTrack();
   if (!overlay) return;
@@ -22691,7 +22605,8 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     if (!layerMode()) addItem('转为叠加字幕', '', () => convertMainCuesToOverlay([idx]));
   } else {
     // 组 1：合并与批量文本操作
-    addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
+    addItem('累加状态合并', 'C', () => mergeSegments(targetIdxs));
+    addItem('共有状态合并', `${modKeyLabel()}+Shift+C`, () => mergeSegments(targetIdxs, 'common'));
     addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs));
     addSep();
     // 组 2：外观（表情包与颜色）；「拓展表情包时长」仅在范围内已有表情包时显示
@@ -22731,7 +22646,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
   ctxShowAt(x, y);
 }
 
-// 叠加字幕块的右键菜单：转为主字幕 / 删除。叠加轨不参与拆分合并与绑定。
+// 旧叠加轨菜单沿用统一合并规则，但不参与主副绑定。
 function showOverlayContextMenu(x, y, index) {
   const overlay = getOverlayTrack();
   const segment = overlay?.segments?.[index];
@@ -22747,6 +22662,7 @@ function showOverlayContextMenu(x, y, index) {
     const lbl = document.createElement('span');
     lbl.textContent = label;
     it.appendChild(lbl);
+    if (opts.kbd) { const key = document.createElement('kbd'); key.textContent = opts.kbd; it.appendChild(key); }
     // 与其他菜单的 addItem 一致：禁用项只置灰，不绑定点击行为。
     if (!opts.disabled) {
       it.addEventListener('click', () => { ctxmenu.classList.remove('show'); fn(); });
@@ -22769,6 +22685,9 @@ function showOverlayContextMenu(x, y, index) {
     });
   }
   addItem('拆分此叠加字幕', () => openOverlaySplitModal(index, null));
+  const canMerge = selectedOverlayIdxs.size > 1 && selectedOverlayIdxs.has(index);
+  addItem('累加状态合并', () => mergeOverlaySegments([...selectedOverlayIdxs]), {disabled:!canMerge, kbd:'C'});
+  addItem('共有状态合并', () => mergeOverlaySegments([...selectedOverlayIdxs], 'common'), {disabled:!canMerge, kbd:`${modKeyLabel()}+Shift+C`});
   addItem('转为主字幕', () => convertOverlayCueToMain(index), { disabled: mainOccupied });
   addSep();
   // 组 2：外观（表情包与颜色），交互与主字幕菜单对齐（1~5 快捷键同源）。
@@ -22843,7 +22762,7 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
     item.appendChild(key);
     if (disabled) {
       item.setAttribute('aria-disabled', 'true');
-      item.title = '请先解绑当前副字幕';
+      item.title = label.includes('合并') ? '请选择至少两个同轨道字幕块' : '请先解绑当前副字幕';
     } else item.addEventListener('click', () => {
       ctxmenu.classList.remove('show');
       fn();
@@ -22861,13 +22780,8 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
   if (binding) addItem('仅切当前字幕并解绑', () => split(true));
   const extensionSelectionOnly = selectedExtensionIdxs.size > 1
     && selectedExtensionIdxs.has(index);
-  addItem(
-    '合并副字幕块',
-    () => mergeExtensionSegments([...selectedExtensionIdxs], track),
-    false,
-    !extensionSelectionOnly,
-    'C',
-  );
+  addItem('累加状态合并', () => mergeExtensionSegments([...selectedExtensionIdxs], track), false, !extensionSelectionOnly, 'C');
+  addItem('共有状态合并', () => mergeExtensionSegments([...selectedExtensionIdxs], track, 'common'), false, !extensionSelectionOnly, `${modKeyLabel()}+Shift+C`);
   addItem(
     segment.disabled ? '启用副字幕' : '禁用副字幕',
     () => toggleDisabled([index], track),
@@ -23280,6 +23194,10 @@ function initWaveformEditor() {
     togglePlayback,
     toggleDisabled: (idxs, track = 'main') => toggleDisabled(idxs, track),
     getHideDisabled: () => hideDisabled,
+    keepCueVisible: (index, role) => {
+      const track = role === 'extension' ? getActiveExtensionTrack() : role === 'overlay' ? getOverlayTrack() : null;
+      return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,(track?.segments || DATA.segments)[index],track?.id));
+    },
     getGapRemoveGaps,
     getGapOperationMode: getGapRemoveOperationMode,
     toggleGapRemoved,
@@ -24463,6 +24381,7 @@ document.addEventListener('keydown', (event) => {
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
   if (key !== 'x' && key !== 'c' && key !== 'v') return;
+  if (event.defaultPrevented || (key === 'c' && event.shiftKey)) return;
   if (historyGuarded()) return;
   if (ctxmenu.classList.contains('show')) return;
   if (key === 'x') {

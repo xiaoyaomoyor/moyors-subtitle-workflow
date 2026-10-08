@@ -242,8 +242,108 @@
       if (cue[field] && Number.isInteger(cue[field].headIdx)) cue[field].headIdx = indexes.get(old[cue[field].headIdx]);
     }
   }
+
+  // Build an atomic merge without mutating the project. Markers are semantic
+  // values, not group-head identities; provenance and audio remain untouched.
+  function planMerge(project, ref, ids, { mode = 'union', joinText = cues => cues.map(c => c.text || '').join(' '), makeId } = {}) {
+    const allTracks = tracks(project);
+    if (project.overlay_track) allTracks.push({ role: 'overlay', track_id: null, segments: project.overlay_track.segments || [] });
+    const source = allTracks.find(t => t.role === ref.role && t.track_id === (ref.track_id || null));
+    const wanted = new Set(ids);
+    const chosen = source?.segments.filter(c => wanted.has(c.id)) || [];
+    if (chosen.length < 2 || chosen.length !== wanted.size) throw Error('请选择至少两个同轨道字幕块');
+    const bindings = project.multi_subtitle?.bindings || [];
+    const matches = (b, t, set) => t.role === 'main' ? b.main_segment_ids?.some(id => set.has(id))
+      : t.role === 'extension' && b.track_id === t.track_id && b.extension_segment_ids?.some(id => set.has(id));
+    const related = bindings.filter(b => matches(b, source, wanted));
+    if (related.some(b => b.main_segment_ids?.length !== 1 || b.extension_segment_ids?.length !== 1)) throw Error('绑定关系异常，请先检查主副字幕绑定');
+    const trackIds = new Set(related.map(b => b.track_id));
+    if (trackIds.size > 1) throw Error('所选字幕绑定到不同副轨，请分轨合并');
+    const groups = [{ track: source, ids: wanted }];
+    if (related.length) {
+      const partner = allTracks.find(t => source.role === 'main'
+        ? t.role === 'extension' && t.track_id === related[0].track_id : t.role === 'main');
+      const partnerIds = new Set(related.flatMap(b => source.role === 'main' ? b.extension_segment_ids : b.main_segment_ids));
+      if (!partner || [...partnerIds].some(id => !partner.segments.some(c => c.id === id))) throw Error('绑定字幕缺失，请先检查主副字幕绑定');
+      if (bindings.some(b => matches(b, partner, partnerIds) && !related.includes(b))) throw Error('绑定关系异常，请先检查主副字幕绑定');
+      groups.push({ track: partner, ids: partnerIds });
+    }
+    const canonical = value => {
+      if (Array.isArray(value)) return value.map(canonical);
+      if (!value || typeof value !== 'object') return value;
+      return Object.fromEntries(Object.keys(value).sort().filter(k => !['start','end','headIdx'].includes(k)).map(k => [k, canonical(value[k])]));
+    };
+    const marker = (cue, track, field) => {
+      const reference = cue[field + '_ref'];
+      const value = cue[field] || (reference && track.segments[reference.headIdx]?.[field]);
+      if (reference && !value) throw Error('字幕分组引用异常，请先检查颜色或表情包');
+      return value || null;
+    };
+    const used = new Set(allTracks.flatMap(t => t.segments.map(c => c.id)));
+    const freshId = base => {
+      let id = makeId ? makeId() : `${base.slice(0, 135)}-merged`, n = 2;
+      while (used.has(id)) id = `${base.slice(0, 130)}-merged-${n++}`;
+      used.add(id); return id;
+    };
+    const conflicts = new Set();
+    const changes = groups.map(({ track, ids: members }) => {
+      const cues = track.segments.filter(c => members.has(c.id)).sort((a,b) => a.start - b.start || track.segments.indexOf(a) - track.segments.indexOf(b));
+      if (cues.length === 1) return { ...track, ids: members, merged: cues[0], segments: track.segments, changed: false };
+      if (cues.some(c => !validRange(c))) throw Error('字幕时间范围无效，无法合并');
+      const start = Math.min(...cues.map(c => c.start)), end = Math.max(...cues.map(c => c.end));
+      if (!enabled(project)) {
+        const indexes = cues.map(c => track.segments.indexOf(c)).sort((a,b) => a-b);
+        if (indexes.some((n,i) => i && n !== indexes[i-1]+1)) throw Error('选中的字幕必须连续');
+      }
+      if ((!enabled(project) || !project.subtitle_layers.allow_overlap) && track.segments.some(c => !members.has(c.id)
+          && intersects(c, {start,end}) && !cues.some(sourceCue => intersects(c,sourceCue)))) {
+        throw Error('合并范围会新增重叠，请先启用“允许字幕重叠”');
+      }
+      const merged = { ...clone(cues[0]), id: freshId(cues[0].id), start, end, text: joinText(cues, track),
+        items: cues.flatMap(c => (Array.isArray(c.items) ? c.items : []).filter(item => validRange(item)
+          && item.start >= c.start && item.end <= c.end).map(clone)).sort((a,b) => a.start-b.start || a.end-b.end),
+        disabled: mode === 'common' ? cues.every(c => c.disabled === true) : cues.some(c => c.disabled === true), _dirty: true };
+      delete merged.start_frame; delete merged.end_frame;
+      if (merged.speaker == null || !cues.every(c => c.speaker === merged.speaker)) delete merged.speaker;
+      for (const field of ['color','sticker']) {
+        delete merged[field]; delete merged[field + '_ref'];
+        const values = cues.map(c => marker(c,track,field));
+        const first = values.find(Boolean);
+        // Palette names are the color identity; old projects can retain a
+        // previous palette's hex value for the same named marker.
+        const identity = value => JSON.stringify(field === 'color' && value?.name ? {name:value.name} : canonical(value));
+        const same = first && values.every(v => v && identity(v) === identity(first));
+        if (first && (mode !== 'common' || same)) merged[field] = { ...clone(first), start, end };
+        if (mode !== 'common' && new Set(values.filter(Boolean).map(identity)).size > 1) conflicts.add(field);
+      }
+      const segments = track.segments.filter(c => !members.has(c.id)).map(clone);
+      segments.push(merged); segments.sort((a,b) => a.start-b.start);
+      const positions = new Map(segments.map((c,i) => [c.id,i]));
+      for (const cue of segments) if (cue !== merged) for (const field of ['color','sticker']) {
+        const reference = cue[field + '_ref'];
+        if (!reference) continue;
+        const head = track.segments[reference.headIdx];
+        if (!head?.[field]) throw Error('字幕分组引用异常，请先检查颜色或表情包');
+        if (members.has(head.id)) {
+          cue[field] = { ...clone(head[field]), start: cue.start, end: cue.end };
+          delete cue[field + '_ref'];
+        } else reference.headIdx = positions.get(head.id);
+      }
+      return { ...track, ids: members, merged, segments, changed: true };
+    });
+    const nextBindings = bindings.filter(b => !related.includes(b)).map(clone);
+    if (related.length) {
+      const main = changes.find(t => t.role === 'main').merged;
+      const extension = changes.find(t => t.role === 'extension');
+      nextBindings.push({ id: `binding-${main.id}-${extension.merged.id}`.slice(0,160), track_id: extension.track_id,
+        main_segment_ids: [main.id], extension_segment_ids: [extension.merged.id],
+        start_offset_ms: extension.merged.start-main.start, end_offset_ms: extension.merged.end-main.end });
+    }
+    return { changes, bindings: nextBindings, conflicts: [...conflicts], linked: related.length > 0 };
+  }
+
   const api = Object.freeze({ SCHEMA, LAYOUT_SCHEMA, LEGACY_SCHEMA, key, enabled, validRange, intersects,
-    migrate, validate, legacyExport, tracks, records, visible, resolve, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
+    migrate, validate, legacyExport, tracks, records, visible, resolve, planMerge, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
   global.MSWSubtitleLayers = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

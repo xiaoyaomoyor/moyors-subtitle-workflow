@@ -1211,7 +1211,9 @@ __WAVEFORM_CSS__
           <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分（绑定字幕同步切开）</span>
           <span class="help-important"><kbd>Shift+B</kbd> 仅切当前字幕并解绑</span>
           <span class="help-note">卡片快速切分使用已显示的文字虚线；波形中使用鼠标时间；鼠标在其他区域时使用播放头。时间切分优先参考可靠词时间码，否则按时间比例估算文字分界。可撤销后用普通切分调整。</span>
-          <span class="help-important"><kbd>C</kbd> 合并所选字幕</span>
+          <span class="help-important"><kbd>C</kbd> 累加状态合并</span>
+          <span class="help-important"><kbd data-mod-key>Ctrl+Shift+C</kbd> 共有状态合并</span>
+          <span class="help-note">合并会联动绑定的主副字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。主副各自计算，不移动原配音。</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
           <span class="help-break" aria-hidden="true"></span>
@@ -1879,7 +1881,9 @@ __WAVEFORM_CSS__
                   </span>
                 </label>
               </div>
-              <small class="editor-settings-hint">打开字幕忍者模式，让拆分字幕变得更加有趣</small>
+              <label class="toggle editor-settings-item" title="成功合并时，在字幕列表或波形接合处显示短暂胶带效果；独立于字幕忍者，不播放音效。">
+                <input type="checkbox" id="merge-tape-effect"> 合并胶带特效
+              </label>
             </div>
           </div>
         </div>
@@ -2379,6 +2383,8 @@ __WAVEFORM_CSS__
         <span class="cue-editor-key-hint"><kbd>WASD</kbd> 选择前/后字幕</span>
         <span class="cue-editor-key-hint"><kbd>Shift+WASD</kbd> 连选</span>
         <span class="cue-editor-key-hint"><kbd>Ctrl+Shift+A/D</kbd> 与前/后一条合并</span>
+        <span class="cue-editor-key-hint"><kbd>C</kbd> 累加状态合并</span>
+        <span class="cue-editor-key-hint"><kbd data-mod-key>Ctrl+Shift+C</kbd> 共有状态合并</span>
         <span class="cue-editor-key-hint"><kbd>Ctrl+点击</kbd> 多选</span>
         <span class="cue-editor-key-hint"><kbd>Shift+点击</kbd> 连选</span>
         <span class="cue-editor-key-hint"><kbd>Ctrl+A</kbd> 全选</span>

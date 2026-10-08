@@ -760,7 +760,8 @@ test('C merge refreshes the paused main subtitle preview', async ({ page }) => {
     player.currentTime = 1;
     player.dispatchEvent(new Event('timeupdate'));
   });
-  await expect(page.locator('#overlay-main-text')).toHaveText('Alpha');
+  const preview = page.locator('#msw-layer-preview [data-role="main"]');
+  await expect(preview).toHaveText('Alpha');
 
   const cues = page.locator('.cue');
   await cues.nth(0).click();
@@ -768,7 +769,7 @@ test('C merge refreshes the paused main subtitle preview', async ({ page }) => {
   await page.keyboard.press('c');
 
   await expect(page.locator('.cue .text').first()).toHaveText('Alpha Bravo');
-  await expect(page.locator('#overlay-main-text')).toHaveText('Alpha Bravo');
+  await expect(preview).toHaveText('Alpha Bravo');
 });
 
 test('C merge keeps the subtitle list at its current position', async ({ page }) => {
@@ -1810,7 +1811,7 @@ test('C merges a common group and Shift+A/D extends the subtitle selection', asy
   await expect(cues.nth(0)).toHaveClass(/selected/);
   await page.keyboard.press('c');
   await expect(cues).toHaveCount(6);
-  await expect(page.locator('.hint-card', { hasText: '请选择至少两个同轨道字幕块！' })).toHaveCount(1);
+  await expect(page.locator('.hint-card', { hasText: '请选择至少两个同轨道字幕块' })).toHaveCount(1);
 
   await cues.nth(2).click();
   await expect(cues.nth(2)).toHaveClass(/selected/);
@@ -1854,13 +1855,13 @@ test('C merges a common group and Shift+A/D extends the subtitle selection', asy
   await expect(cues).toHaveCount(5);
   await expect(cues.nth(1).locator('.text')).toHaveText('Bravo Charlie');
   await expect.poll(() => page.evaluate(() => ({
-    colorRef: DATA.segments[1].color_ref,
-    stickerRef: DATA.segments[1].sticker_ref,
+    color: DATA.segments[1].color?.name,
+    sticker: DATA.segments[1].sticker?.name,
     colorEnd: DATA.segments[0].color.end,
     stickerEnd: DATA.segments[0].sticker.end,
   }))).toEqual({
-    colorRef: { name: 'red', headIdx: 0 },
-    stickerRef: { name: 'reaction', headIdx: 0 },
+    color: 'red',
+    sticker: 'reaction',
     colorEnd: 108000,
     stickerEnd: 108000,
   });

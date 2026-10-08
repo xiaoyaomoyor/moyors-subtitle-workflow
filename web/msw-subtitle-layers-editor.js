@@ -141,57 +141,64 @@ function layerPlaybackElement(time) {
   }
   return null;
 }
-function layerMergeSelected(indices, role = 'main', track = null) {
-  const initial = role === 'main' ? DATA.segments : track?.segments;
-  const wanted = new Set(indices.map(index => initial?.[index]?.id));
+function layerMergeSelected(indices, role = 'main', track = null, mode = 'union') {
+  if (pendingLinkedSplit) { flashHint('请先确认或取消当前切分', 'warning'); return false; }
+  const initial = role === 'main' ? DATA.segments : role === 'overlay' ? getOverlayTrack()?.segments : track?.segments;
+  const ids = [...new Set(indices.map(index => initial?.[index]?.id).filter(Boolean))];
   commitProcessingEdits();
-  const cues = role === 'main' ? DATA.segments : getExtensionTrack(track?.id)?.segments;
-  const chosen = (cues || []).filter(cue => wanted.has(cue.id))
-    .sort((a, b) => a.start - b.start || cues.indexOf(a) - cues.indexOf(b));
-  if (chosen.length < 2) return false;
-  const start = Math.min(...chosen.map(cue => cue.start)), end = Math.max(...chosen.map(cue => cue.end));
-  const ids = new Set(chosen.map(cue => cue.id));
-  if (!layerAllowOverlap() && cues.some(cue => !ids.has(cue.id) && layerCore.intersects(cue, { start, end })
-      && !chosen.some(item => layerCore.intersects(item, cue)))) {
-    flashHint('合并范围会新增重叠，请先启用“允许字幕重叠”', 'warning'); return false;
-  }
-  const generation = mswProjectGeneration;
-  const signature = JSON.stringify(chosen);
-  const dialog = document.createElement('dialog');
-  dialog.className = 'msw-layer-merge';
-  const heading = document.createElement('h3'); heading.textContent = '合并所选字幕';
-  const summary = document.createElement('p');
-  summary.textContent = `${role === 'main' ? '主字幕' : '副字幕'} · ${chosen.length} 条 · ${formatTimelineMilliseconds(start)} → ${formatTimelineMilliseconds(end)}`;
-  const preview = document.createElement('pre'); preview.textContent = chosen.map(cue => cue.text).join('\n');
-  const explanation = document.createElement('p');
-  explanation.textContent = '按开始时间拼接，只合并所选条目。新字幕保留首条颜色和样式；旧绑定解除，原配音来源保留并待复核。';
-  const actions = document.createElement('div'); actions.className = 'msw-layer-actions';
-  const cancel = document.createElement('button'); cancel.textContent = '取消'; cancel.onclick = () => dialog.close();
-  const confirm = document.createElement('button'); confirm.textContent = '合并'; confirm.className = 'primary';
-  confirm.onclick = () => {
-    if (generation !== mswProjectGeneration || signature !== JSON.stringify(chosen)
-        || !chosen.every(cue => cues.includes(cue))) {
-      dialog.close(); flashHint('字幕已变化，请重新选择合并内容', 'warning'); return;
+  const source = role === 'main' ? DATA.segments : role === 'overlay' ? getOverlayTrack()?.segments : getExtensionTrack(track?.id)?.segments;
+  const sourceEl = container.querySelector(role === 'extension' ? `.cue[data-ext-idx="${indices[0]}"]`
+    : role === 'overlay' ? `.overlay-track-cue[data-overlay-idx="${indices[0]}"]` : `.cue[data-idx="${indices[0]}"]`);
+  const anchor = captureVisibleCueListVisualAnchor(sourceEl);
+  let plan;
+  try {
+    plan = layerCore.planMerge(DATA, {role, track_id: role === 'extension' ? track?.id : null}, ids, {
+      mode, makeId: () => window.MSWProject.id('merged'),
+      joinText: (cues, target) => {
+        const text = cues.map(c => c.text || '').join('\n');
+        const splitMode = target.role === 'extension' ? getExtensionSubtitleSplitMode(getExtensionTrack(target.track_id), {text}) : getMainSubtitleSplitMode({text});
+        return window.AsrEditorUtils.joinSegmentTexts(cues, mergeJoinSeparatorForMode(splitMode));
+      },
+    });
+    for (const change of plan.changes) if (change.changed) syncSegmentTimebase(change.merged, projectTimebase(), {preferFrames:false});
+  } catch (error) { flashHint(error.message, 'warning'); return false; }
+  const feedback = captureMergeFeedback(plan);
+  pushUndo(mode === 'common' ? '共有状态合并' : '累加状态合并', {captureView:true});
+  clearSelection({silent:true, commitCuePanel:false});
+  for (const change of plan.changes) {
+    if (!change.changed) continue;
+    const cues = change.role === 'main' ? DATA.segments : change.role === 'overlay' ? getOverlayTrack().segments : getExtensionTrack(change.track_id).segments;
+    cues.splice(0,cues.length,...change.segments);
+    if (change.role === 'main' && DATA.subtitle_layers?.legacy_overlay) {
+      const legacy = DATA.subtitle_layers.legacy_overlay;
+      const allLegacy = [...change.ids].every(id => legacy.cue_ids.includes(id));
+      legacy.cue_ids = legacy.cue_ids.filter(id => !change.ids.has(id));
+      if (allLegacy) legacy.cue_ids.push(change.merged.id);
     }
-    pushUndo('合并所选字幕', { captureView: true });
-    // Resolve colors/group references before removing heads or sorting.
-    layerCore.materializeReferences(cues);
-    const merged = { ...structuredClone(chosen[0]), id: window.MSWProject.id('merged'), start, end,
-      text: chosen.map(cue => cue.text).join(mergeJoinSeparatorForMode(DATA.split_mode)), items: [], _dirty: true };
-    for (const field of ['color', 'sticker']) if (merged[field]) Object.assign(merged[field], { start, end });
-    removeBindingsForSegmentIds(role === 'main' ? [...ids] : [], role === 'extension' ? [...ids] : []);
-    for (let i = cues.length - 1; i >= 0; i--) if (ids.has(cues[i].id)) cues.splice(i, 1);
-    cues.push(merged); currentCuePanelIdx = -1; resetCuePanelEditState();
-    clearSelection({ silent: true, commitCuePanel: false });
-    (role === 'main' ? selectedIdxs : selectedExtensionIdxs).add(cues.length - 1);
-    projectImportDirty = true; renderAll();
-    if (track) setCurrentCuePanelExtensionIndex(cues.indexOf(merged), track); else setCurrentCuePanelIndex(cues.indexOf(merged));
-    dialog.close();
-  };
-  actions.append(cancel, confirm); dialog.append(heading, summary, preview, explanation, actions);
-  dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); dialog.showModal();
+  }
+  if (DATA.multi_subtitle) DATA.multi_subtitle.bindings = plan.bindings;
+  syncBindingOffsets();
+  currentCuePanelIdx = -1; resetCuePanelEditState();
+  const primary = plan.changes[0].merged;
+  const primaryIndex = source.findIndex(c => c.id === primary.id);
+  (role === 'main' ? selectedIdxs : role === 'overlay' ? selectedOverlayIdxs : selectedExtensionIdxs).add(primaryIndex);
+  for (const change of plan.changes) temporaryVisibleSplitCueKeys.add(splitCueVisibilityKey(change.role, change.merged, change.track_id));
+  projectImportDirty = true;
+  renderAll({cueListAnchor:anchor});
+  const index = source.findIndex(c => c.id === primary.id);
+  setCuePanelTarget(role,index,track?.id || null);
+  updateSelectionCountText();
+  if (role === 'main') lastClickedIdx=index; else if (role === 'extension') lastClickedExtensionIdx=index; else lastClickedOverlayIdx=index;
+  updateWithoutCueListAutoScroll(); scheduleAutoSaveFlush();
+  triggerMergeFeedback(feedback);
+  const label = mode === 'common' ? '共有状态合并完成' : '累加状态合并完成';
+  const suffix = plan.conflicts.length ? '；不同颜色或表情包已保留时间最早的标记' : '';
+  const message = [label, plan.linked ? '，主副字幕已联动并保留绑定' : '', suffix]
+    .map(text => window.MSWE_I18N?.translateText?.(text) || text).join('');
+  flashHint(message, plan.conflicts.length ? 'warning' : 'success');
   return true;
 }
+
 document.addEventListener('DOMContentLoaded', () => {
   layerSyncControls();
   for(const id of ['subtitle-layer-auto','subtitle-layer-gap','subtitle-layer-order']) document.getElementById(id)?.addEventListener('change',()=>{

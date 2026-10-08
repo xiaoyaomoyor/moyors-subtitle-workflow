@@ -46,6 +46,21 @@ async function cut(page,kind,duplicate){
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
 }
 
+test('linked merge after a split retains exact preview and ASS styling',async({page})=>{
+ const style=await setup(page),before=await preview(page);
+ await cut(page,'linked',false);
+ await page.evaluate(()=>{DATA.msw.removed_asset_ids ||= [];});
+ const split=await page.evaluate(()=>JSON.parse(buildJson()));
+ expect(await page.evaluate(()=>mergeExtensionSegments([0,1],getActiveExtensionTrack()))).toBe(true);
+ await refresh(page);
+ const after=await preview(page);
+ expect(after.ass).toBe(before.ass);
+ expect(await page.evaluate(()=>DATA.preview.project_style)).toEqual(style);
+ expect(await page.evaluate(()=>DATA.multi_subtitle.bindings.length)).toBe(1);
+ await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>JSON.parse(buildJson()))).toEqual(split);
+ await refresh(page);
+});
+
 for(const legacy of [false,true])test(`linked split preserves exact rendering and project style (${legacy?'legacy':'modern'})`,async({page})=>{
   const style=await setup(page,legacy),before=await preview(page);
   const beforeImage=join(folder,'before.png');await page.locator('.JASSUB').screenshot({path:beforeImage});

@@ -4701,7 +4701,7 @@
         const segment = segments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
-        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden')) continue;
+        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'main')) continue;
         const block = document.createElement('div');
         block.className = 'waveform-cue-block';
         block.dataset.idx = String(index);
@@ -4768,7 +4768,7 @@
           const segment = overlaySegments[index];
           if (segment.start >= endMs) break;
           if (segment.end <= startMs) continue;
-          if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden')) continue;
+          if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'overlay')) continue;
           const block = document.createElement('div');
           block.className = 'waveform-cue-block waveform-overlay-block';
           block.dataset.track = 'overlay';
@@ -4822,7 +4822,7 @@
         const segment = extensionSegments[index];
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
-        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden')) continue;
+        if (segment.disabled && (this.options.getHideDisabled?.() || this.settings.disabledDisplay === 'hidden') && !this.options.keepCueVisible?.(index, 'extension')) continue;
         const block = document.createElement('div');
           block.className = 'waveform-cue-block';
           block.dataset.track = 'extension';

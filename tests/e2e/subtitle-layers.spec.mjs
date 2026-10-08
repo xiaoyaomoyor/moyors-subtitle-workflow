@@ -79,12 +79,11 @@ test('shared edges join the same layer even with another cue between their array
   expect((await times(page)).right).toEqual([3000, 6000]);
 });
 
-test('merge previews only selected nonadjacent entries and paste preserves colors and identity', async ({ page }) => {
+test('merge directly combines only selected nonadjacent entries and paste preserves colors and identity', async ({ page }) => {
   await open(page, [{ ...cue('a', 0, 5000), color: { name: 'purple' } }, cue('other', 1000, 7000), cue('c', 2000, 4000)]);
   await page.evaluate(() => mergeSegments([0, 2]));
-  await expect(page.locator('.msw-layer-merge')).toBeVisible();
-  await expect(page.locator('.msw-layer-merge pre')).toHaveText('a\nc');
-  await page.locator('.msw-layer-merge button').filter({ hasText: /^合并$/ }).click();
+  await expect(page.locator('.msw-layer-merge')).toHaveCount(0);
+  expect(await page.evaluate(() => DATA.segments.find(c => c.id !== 'other').text)).toMatch(/a\s*c/);
   const values = await times(page); expect(values.other).toEqual([1000, 7000]); expect(Object.keys(values)).toHaveLength(2);
   await page.evaluate(() => performUndo());
   await page.evaluate(() => { selectOnly(0); copySelectedCues(); pasteCuesFromClipboard(); });

@@ -9,6 +9,21 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '累加状态合并完成': 'Merged with combined states',
+    '共有状态合并完成': 'Merged with shared states',
+    '，主副字幕已联动并保留绑定': '; main and secondary subtitles merged with their link preserved',
+    '；不同颜色或表情包已保留时间最早的标记': '; conflicting colors or stickers use the earliest marker',
+    '合并胶带特效': 'Merge tape effect',
+    '成功合并时，在字幕列表或波形接合处显示短暂胶带效果；独立于字幕忍者，不播放音效。': 'Briefly show tape at the join in the subtitle list or waveform after a successful merge. Independent of Subtitle Ninja, with no sound.',
+    '累加状态合并': 'Merge with combined states',
+    '共有状态合并': 'Merge with shared states',
+    '合并会联动绑定的主副字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。主副各自计算，不移动原配音。': 'Bound main and secondary subtitles merge together, with one-step undo. Combined states: disable if any cue is disabled; keep colors and stickers, choosing the earliest when different. Shared states: keep only disabled, color and sticker states common to every cue. Each track is calculated independently; existing dubbing stays in place.',
+    '请选择至少两个同轨道字幕块': 'Select at least two subtitle blocks on the same track',
+    '绑定关系异常，请先检查主副字幕绑定': 'Invalid binding: check the main and secondary subtitle links first',
+    '绑定字幕缺失，请先检查主副字幕绑定': 'A bound subtitle is missing; check the links first',
+    '所选字幕绑定到不同副轨，请分轨合并': 'The selection is bound to different secondary tracks; merge each track separately',
+    '字幕时间范围无效，无法合并': 'Cannot merge subtitles with invalid time ranges',
+    '字幕分组引用异常，请先检查颜色或表情包': 'Invalid group reference: check colors or stickers first',
     '普通切分（绑定字幕先确认）': 'Split (confirm linked subtitles first)',
     '快速切分（绑定字幕同步切开）': 'Quick split (cut linked subtitles together)',
     '快速切分波形字幕块（主、副字幕均可）': 'Quick split waveform blocks (main or secondary)',

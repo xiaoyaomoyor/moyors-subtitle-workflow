@@ -102,3 +102,82 @@ test('legacy compatibility export materializes cross-group color references befo
  assert.equal(exported.overlay_track.segments[0].color.name,'purple');assert.equal(exported.overlay_track.segments[0].color_ref,undefined);
  assert.equal(project.segments[1].color_ref.headIdx,0);
 });
+
+
+const mergeFixture = () => ({ segments: [
+  {id:'m1',start:0,end:1000,text:'one',items:[{text:'one',start:0,end:1000}],color:{name:'red',value:'#f00'}},
+  {id:'m2',start:1000,end:2000,text:'two',items:[],disabled:true},
+], multi_subtitle:{enabled:false,tracks:[{id:'sub',segments:[
+  {id:'s1',start:100,end:900,text:'甲',items:[],color:{name:'blue'}},
+  {id:'s2',start:1100,end:1900,text:'乙',items:[],color:{name:'blue'}},
+  {id:'unbound',start:500,end:1500,text:'旁白'},
+]}],bindings:[1,2].map(n=>({id:'b'+n,track_id:'sub',main_segment_ids:['m'+n],extension_segment_ids:['s'+n]}))}});
+
+for (const role of ['main','extension']) for (const mode of ['union','common']) test(`merge plan is symmetric, nonmutating and preserves explicit links: ${role} ${mode}`,()=>{
+  const project=core.migrate(mergeFixture()), before=JSON.stringify(project);
+  const plan=core.planMerge(project,{role,track_id:role==='extension'?'sub':null},role==='main'?['m1','m2']:['s1','s2'],{mode});
+  assert.equal(JSON.stringify(project),before);
+  const main=plan.changes.find(t=>t.role==='main'), sub=plan.changes.find(t=>t.role==='extension');
+  assert.equal(main.merged.disabled,mode==='union');
+  assert.equal(main.merged.color?.name,mode==='union'?'red':undefined);
+  assert.equal(sub.merged.color.name,'blue');
+  assert.deepEqual(main.merged.items,[{text:'one',start:0,end:1000}]);
+  assert.deepEqual([sub.merged.start,sub.merged.end],[100,1900]);
+  assert.equal(sub.segments.find(c=>c.id==='unbound').text,'旁白');
+  assert.equal(plan.bindings.length,1);
+  assert.deepEqual(plan.bindings[0].main_segment_ids,[main.merged.id]);
+  assert.deepEqual(plan.bindings[0].extension_segment_ids,[sub.merged.id]);
+  assert.equal(plan.bindings[0].start_offset_ms,100);assert.equal(plan.bindings[0].end_offset_ms,-100);
+});
+
+test('merge marker conflicts use earliest nonempty marker and common mode compares values rather than group identity',()=>{
+ const project={segments:[{id:'a',start:0,end:1000,text:'a'},
+  {id:'b',start:1000,end:2000,text:'b',color:{name:'red',start:1000,end:2000}},
+  {id:'c',start:2000,end:3000,text:'c',color:{name:'blue'}}]};
+ const union=core.planMerge(project,{role:'main'},['c','a','b']);
+ assert.equal(union.changes[0].merged.color.name,'red');assert.deepEqual(union.conflicts,['color']);
+ assert.equal(core.planMerge(project,{role:'main'},['a','b'],{mode:'common'}).changes[0].merged.color,undefined);
+ project.segments[2].color={end:3000,name:'red',start:2000};
+ assert.equal(core.planMerge(project,{role:'main'},['b','c'],{mode:'common'}).changes[0].merged.color.name,'red');
+});
+
+test('merge repairs external marker references without changing their effective appearance',()=>{
+ const project={segments:[{id:'a',start:0,end:1000,text:'a',sticker:{name:'hat',file:'hat.png'}},
+ {id:'b',start:1000,end:2000,text:'b'}, {id:'c',start:2000,end:3000,text:'c',sticker_ref:{headIdx:0,name:'hat'}}]};
+ const plan=core.planMerge(project,{role:'main'},['a','b'],{mode:'common'});
+ assert.equal(plan.changes[0].merged.sticker,undefined);
+ const remaining=plan.changes[0].segments.find(c=>c.id==='c');
+ assert.equal(remaining.sticker.file,'hat.png');assert.equal(remaining.sticker_ref,undefined);
+ assert.equal(project.segments[2].sticker_ref.headIdx,0);
+});
+
+test('common states recognize the same palette name and sticker across independent groups',()=>{
+ const project={segments:[
+  {id:'a',start:0,end:1000,text:'a',disabled:true,color:{name:'red',value:'#e74c3c'},sticker:{name:'hat',path:'hat.png',start:0,end:1000}},
+  {id:'b',start:1000,end:2000,text:'b',disabled:true,color:{name:'red',value:'#f07f6f'},sticker:{path:'hat.png',name:'hat',start:1000,end:2000}},
+ ]};
+ const plan=core.planMerge(project,{role:'main'},['a','b'],{mode:'common'});
+ assert.equal(plan.changes[0].merged.disabled,true);
+ assert.equal(plan.changes[0].merged.color.name,'red');
+ assert.equal(plan.changes[0].merged.sticker.path,'hat.png');
+ assert.deepEqual(core.planMerge(project,{role:'main'},['a','b']).conflicts,[]);
+ project.segments[1].sticker.path='different.png';
+ assert.equal(core.planMerge(project,{role:'main'},['a','b'],{mode:'common'}).changes[0].merged.sticker,undefined);
+});
+
+test('merge with one bound partner preserves its ID and never invents missing translation',()=>{
+ const project=mergeFixture();project.multi_subtitle.bindings.splice(1);
+ const plan=core.planMerge(project,{role:'main'},['m1','m2']);
+ const partner=plan.changes.find(t=>t.role==='extension');
+ assert.equal(partner.changed,false);assert.equal(partner.merged.id,'s1');
+ assert.equal(partner.segments.length,3);assert.deepEqual(plan.bindings[0].extension_segment_ids,['s1']);
+});
+
+test('merge rejects partner-only new overlap atomically',()=>{
+ const project=core.migrate(mergeFixture());project.subtitle_layers.allow_overlap=false;
+ project.multi_subtitle.tracks[0].segments.find(c=>c.id==='unbound').start=950;
+ project.multi_subtitle.tracks[0].segments.find(c=>c.id==='unbound').end=1050;
+ const before=JSON.stringify(project);
+ assert.throws(()=>core.planMerge(project,{role:'main'},['m1','m2']),/新增重叠/);
+ assert.equal(JSON.stringify(project),before);
+});
