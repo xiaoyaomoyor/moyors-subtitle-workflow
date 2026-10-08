@@ -19,6 +19,8 @@
     zh: Object.freeze({
       audio_gate: '静音空隙（自动生成）',
       audio_gate_manual: '静音空隙（自动生成+手动调整）',
+      subtitle_outside: '主字幕外区段',
+      subtitle_outside_manual: '主字幕外区段（手动调整）',
       manual: '跳过空隙（手动创建）',
       script_alignment: '台本对齐自动移除',
       script_alignment_manual: '台本对齐自动移除（手动调整）',
@@ -29,6 +31,8 @@
     en: Object.freeze({
       audio_gate: 'Silence gap (auto-generated)',
       audio_gate_manual: 'Silence gap (auto-generated + manually adjusted)',
+      subtitle_outside: 'Outside main subtitles',
+      subtitle_outside_manual: 'Outside main subtitles (manually adjusted)',
       manual: 'Skip gap (manually created)',
       script_alignment: 'Script alignment auto-removal',
       script_alignment_manual: 'Script alignment auto-removal (manually adjusted)',
@@ -41,7 +45,11 @@
   function gapRemoveDisplayLabel(gap) {
     const type = window.AsrGapRemoveCore?.getGapRemoveDisplayType?.(gap) || 'unknown';
     const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
-    return GAP_REMOVE_DISPLAY_LABELS[language][type] || GAP_REMOVE_DISPLAY_LABELS[language].unknown;
+    const source = GAP_REMOVE_DISPLAY_LABELS[language][type] || GAP_REMOVE_DISPLAY_LABELS[language].unknown;
+    const status = gap.removed === false
+      ? localizedWaveformMessage('已保留', 'Kept') : localizedWaveformMessage('待移除', 'Marked for removal');
+    const seconds = ms => (Number(ms) / 1000).toFixed(3);
+    return `${status} · ${source}\n${seconds(gap.start)}–${seconds(gap.end)} s · ${seconds(gap.end - gap.start)} s`;
   }
 
   function gapOperationAllowsBoundary(mode) {
@@ -4640,6 +4648,7 @@
       // Editor/Align 提供的 getter 已经返回共享的最终显示投影；这里不要
       // 对每一行再次做投影，避免多行波形重复扫描同一组 Gap。
       const gaps = this.options.getGapRemoveGaps?.() || [];
+      const effectiveGaps = this.options.getEffectiveGapRanges?.();
       const gapOperationMode = this.options.getGapOperationMode?.() || 'boundary_drag';
       const boundaryEnabled = gapOperationAllowsBoundary(gapOperationMode);
       const middleEnabled = gapOperationAllowsMiddle(gapOperationMode);
@@ -4661,11 +4670,16 @@
         }
         block.classList.toggle('boundary-editable', boundaryEnabled);
         block.title = gapRemoveDisplayLabel(gap);
+        if (gap.removed !== false && effectiveGaps) {
+          const removableMs = effectiveGaps.reduce((sum, range) => sum + Math.max(0,
+            Math.min(range.end, gap.end) - Math.max(range.start, gap.start)), 0);
+          const protectedMs = Math.max(0, gap.end - gap.start - removableMs);
+          if (protectedMs > 0) block.title += localizedWaveformMessage(
+            `\n配音保护：保留 ${(protectedMs / 1000).toFixed(3)} 秒`,
+            `\nDubbing protection: ${(protectedMs / 1000).toFixed(3)} s kept`,
+          );
+        }
         block.setAttribute('aria-label', block.title);
-        const label = document.createElement('span');
-        label.className = 'waveform-gap-label';
-        label.textContent = gap.removed === false ? '空隙（未激活）' : '空隙';
-        block.appendChild(label);
         if (boundaryEnabled) {
           if (gap.start >= startMs) {
             const leftHandle = document.createElement('span');

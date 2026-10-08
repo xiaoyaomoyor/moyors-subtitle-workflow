@@ -905,11 +905,11 @@
     width: 16px; height: 16px; border-radius: 4px;
     border: 1px solid rgba(127,127,127,.45);
   }
-  .theme-preset[data-theme-preset="default"] .theme-swatch,
+  .theme-preset[data-theme-preset="default"] .theme-swatch { background: linear-gradient(135deg, #16181d 50%, #6ca5e8 50%); }
   .theme-preset[data-theme-preset="aster"] .theme-swatch { background: linear-gradient(135deg, #1a1b26 50%, #6f60e2 50%); }
   .theme-preset[data-theme-preset="kosuzu"] .theme-swatch { background: linear-gradient(135deg, #170f08 50%, #c9552b 50%); }
   .theme-preset[data-theme-preset="reimu"] .theme-swatch { background: linear-gradient(135deg, #f7efee 50%, #c2334a 50%); }
-  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #499cd0 50%, #d1b70a 50%); }
+  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #f0f2f6 50%, #d1b70a 50%); }
   .theme-preset[data-theme-preset="koishi"] .theme-swatch { background: linear-gradient(135deg, #f5f3e4 50%, #3f7d3a 50%); }
   .theme-preset[data-theme-preset="renko"] .theme-swatch { background: linear-gradient(135deg, #0b0b0e 50%, #aab2c0 50%); }
   :root[data-accent="teal"] {
@@ -4366,6 +4366,41 @@
     .gap-remove-fields { grid-template-columns: 1fr; }
   }
 
+  /* 音频空隙：范围限定在本面板，不改变其他共用工具窗。 */
+  #gap-remove-panel { width: min(480px, calc(100vw - 24px)); background: var(--bg-panel); }
+  #gap-remove-panel .gap-remove-panel-header { background: var(--bg-raised); }
+  #gap-remove-panel .gap-remove-panel-body { display: grid; gap: 12px; padding: 14px; }
+  #gap-remove-panel .audio-gaps-section { min-width: 0; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-base); }
+  #gap-remove-panel h4, #gap-remove-panel h5 { display: flex; align-items: center; margin: 0 0 10px; font-size: 13px; color: var(--text-primary); }
+  #gap-remove-panel h5 { margin-top: 14px; font-size: 12px; color: var(--text-secondary); }
+  #gap-remove-panel .gap-remove-heading h3 { display: flex; align-items: center; }
+  #gap-remove-panel .gap-remove-field { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  #gap-remove-panel .gap-remove-field-label { display: flex; align-items: center; font-size: 12px; min-height: 20px; white-space: normal; }
+  #gap-remove-panel .audio-gaps-source { display: grid; grid-template-columns: 1fr 1fr; align-items: center; margin-bottom: 12px; }
+  #gap-remove-panel .gap-remove-fields { gap: 10px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #gap-remove-panel .gap-remove-number-control { min-width: 0; }
+  #gap-remove-panel .gap-remove-number-control input { flex: 1; width: 0; height: 30px; box-sizing: border-box; font-size: 12px; }
+  #gap-remove-panel select { min-width: 0; min-height: 30px; }
+  #gap-remove-panel .audio-gaps-checks { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+  #gap-remove-panel .audio-gaps-checks label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; }
+  #gap-remove-panel input[type=checkbox] { margin: 0; accent-color: var(--accent); }
+  #gap-remove-panel .gap-remove-scan { align-items: center; min-height: 32px; margin: 14px 0 0; padding: 7px 12px; color: var(--accent-active-fg, var(--bg-base)); background: var(--accent); border-color: var(--accent); box-shadow: none; font: 600 13px/1.4 var(--font-sans); }
+  #gap-remove-panel .gap-remove-scan:hover:not(:disabled) { background: var(--accent-hover); }
+  #gap-remove-panel .gap-remove-scan:disabled { opacity: .5; cursor: not-allowed; }
+  #gap-remove-panel .gap-remove-advanced { margin: 0; }
+  #gap-remove-panel .gap-remove-advanced-toggle { min-height: 36px; padding: 9px 12px; font-size: 13px; background: var(--bg-base); }
+  #gap-remove-panel .gap-remove-advanced-body { padding: 12px; }
+  #gap-remove-panel .audio-gaps-subheading { margin-bottom: 10px; font-size: 12px; }
+  #gap-remove-panel .gap-remove-inline-button { min-height: 30px; font-size: 12px; }
+  #gap-remove-panel .gap-remove-panel-footer { flex: 0 0 auto; margin: 0; padding: 12px 14px; border-top: 1px solid var(--border-subtle); background: var(--bg-raised); }
+  #gap-remove-panel .audio-gaps-result { min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+  #gap-remove-panel .gap-remove-panel-footer button:not(.msw-help-button) { min-height: 30px; font-size: 12px; }
+  #gap-remove-panel [hidden] { display: none !important; }
+  @media (max-width: 420px) {
+    #gap-remove-panel .gap-remove-fields, #gap-remove-panel .audio-gaps-source { grid-template-columns: minmax(0, 1fr); }
+    #gap-remove-panel .gap-remove-panel-footer { align-items: flex-start; }
+  }
+
   /* Sticker picker grid */
   .sticker-grid {
     flex: 1 1 auto; overflow-y: auto;
@@ -5727,8 +5762,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--amber) 45%, #fff);
-  background: color-mix(in srgb, var(--amber) 22%, var(--bg-base));
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-base));
   border-radius: 2px;
   padding: 1px 3px;
   font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -5739,41 +5774,41 @@
 .waveform-gap-block.dragging {
   cursor: grabbing;
   opacity: .9;
-  border-color: rgba(94, 184, 255, .98);
+  border-color: var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(65, 153, 229, .62) 0 5px,
-    rgba(29, 74, 128, .62) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
 }
 .waveform-gap-block.waveform-gap-drag-preview,
 .waveform-gap-block.waveform-gap-boundary-preview {
   z-index: 13;
   pointer-events: none;
-  border: 1px solid rgba(94, 184, 255, .98);
+  border: 1px solid var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(65, 153, 229, .58) 0 5px,
-    rgba(29, 74, 128, .58) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
   opacity: .92;
 }
 .waveform-gap-block.waveform-gap-drag-preview.copy {
   border-style: dashed;
-  border-color: rgba(140, 222, 255, .98);
+  border-color: var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(87, 174, 211, .58) 0 5px,
-    rgba(31, 73, 94, .58) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
 }
 .waveform-gap-block.waveform-gap-drag-preview.restored,
 .waveform-gap-block.waveform-gap-boundary-preview.restored {
-  border-color: rgba(128, 198, 255, .98);
+  border-color: var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(84, 159, 216, .58) 0 5px,
-    rgba(37, 81, 120, .58) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
 }
 .waveform-gap-handle {
@@ -5808,13 +5843,13 @@
   bottom: 0;
   min-width: 3px;
   box-sizing: border-box;
-  border: 1px solid rgba(132, 190, 226, 0.95);
-  background: rgba(76, 139, 178, 0.28);
+  border: 1px solid var(--accent);
+  background: var(--accent-tint-strong);
   pointer-events: none;
 }
 .waveform-gap-range-preview.remove {
-  border-color: rgba(255, 168, 76, 0.98);
-  background: rgba(218, 116, 51, 0.34);
+  border-color: var(--gap-accent);
+  background: var(--gap-stripe-a);
 }
 .waveform-gap-range-preview > span {
   position: absolute;
@@ -6481,14 +6516,14 @@
       </div>
       <div class="dropdown-separator"></div>
       <div class="dropdown-submenu" id="audio-settings-submenu">
-        <div class="dropdown-item dropdown-submenu-toggle" id="audio-settings-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="静音空隙工具与播放跳过设置">空隙设置</div>
+        <div class="dropdown-item dropdown-submenu-toggle" id="audio-settings-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="音频空隙与试听设置">空隙设置</div>
         <div class="dropdown-menu dropdown-submenu-menu audio-settings-menu" id="audio-settings-menu" role="menu">
-          <div class="dropdown-item" id="gap-remove-manage" role="menuitem" tabindex="0" title="打开可拖动的移除静音空隙工具窗">静音空隙工具<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></div>
-          <button type="button" class="dropdown-item" id="non-subtitle-gap-apply" role="menuitem" title="把音频轨道中没有被字幕覆盖的片段全部设为空隙（一次操作，可撤销）；配合「播放时跳过空隙」只播放有字幕的区域">非字幕片段设为空隙</button>
-          <label class="dropdown-item recent-project-setting" title="播放时跳过已移除的空隙；左键定位到空隙内时可临时预览">
+          <div class="dropdown-item" id="gap-remove-manage" role="menuitem" tabindex="0" title="打开音频空隙面板">音频空隙<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></div>
+          <button type="button" class="dropdown-item" id="non-subtitle-gap-apply" role="menuitem" title="打开音频空隙面板，按启用的主字幕覆盖范围生成标记">主字幕外区段…</button>
+          <label class="dropdown-item recent-project-setting" title="播放时跳过待移除区段；左键定位到区段内可临时试听">
             <input type="checkbox" id="gap-skip-playback" checked> 播放时跳过空隙
           </label>
-          <button type="button" class="dropdown-item" id="gap-clear-all-menu" role="menuitem" title="删除当前所有已移除和已恢复的空隙区段记录（可撤销）">清除全部空隙</button>
+          <button type="button" class="dropdown-item" id="gap-clear-all-menu" role="menuitem" title="清空所有空隙标记，不改变原媒体；可撤销">清空标记</button>
         </div>
       </div>
     </div>
@@ -6548,137 +6583,67 @@
   </div>
 </div>
 
-<!-- 可拖动的非模态移除静音空隙工具窗 -->
-<aside class="gap-remove-panel" id="gap-remove-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="gap-remove-panel-title">
+<!-- 可拖动的非模态音频空隙面板 -->
+<aside class="gap-remove-panel audio-gaps-panel" id="gap-remove-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="gap-remove-panel-title">
   <header class="gap-remove-panel-header" id="gap-remove-drag-handle">
-    <div class="gap-remove-heading">
-      <span class="gap-remove-eyebrow">波形处理</span>
-      <h3 id="gap-remove-panel-title">移除静音空隙</h3>
-    </div>
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">媒体</span><h3 id="gap-remove-panel-title">音频空隙</h3></div>
     <div class="gap-remove-header-actions">
-      <button type="button" id="gap-remove-help" class="gap-remove-help-button" data-help-tab-target="gap" title="打开帮助中的空隙操作说明" aria-label="打开帮助中的空隙操作说明">帮助</button>
-      <button type="button" id="gap-remove-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭移除静音空隙工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      <button type="button" id="gap-remove-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频空隙"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
+  <p hidden data-help-for="gap-remove-panel-title">标记准备跳过或移除的时间段，不改写原媒体。试听可选择跳过；是否在导出时移除，仍由导出设置决定。配音保护覆盖的部分不会移除。</p>
   <div class="gap-remove-panel-body">
-    <div class="gap-remove-parameters-heading">
-      <span>空隙操作</span>
-      <small>移除空隙的人工修正方式；「边界与中键」可同时启用两套操作</small>
-    </div>
-    <div class="gap-remove-fields">
-      <label class="gap-remove-field" style="flex: 1 1 100%;">
-        <span class="gap-remove-field-label">空隙区段操作方式</span>
-        <select id="gap-remove-operation-mode" title="Alt+左键点击切换整段，空白处 Alt+左键拖动增加空隙；空隙块左键或 Alt+左键拖动整体偏移，Ctrl/Cmd+拖动复制；中键拖动默认增加静音，按住 Alt 才恢复声音">
-          <option value="none">无</option>
-          <option value="boundary_drag" selected>拖动边界</option>
-          <option value="middle_drag">中键拖动</option>
-          <option value="boundary_and_middle">边界与中键</option>
-        </select>
-        <small>详见帮助的「空隙状态」说明</small>
+    <section class="audio-gaps-section">
+      <h4>生成空隙标记</h4>
+      <label class="gap-remove-field audio-gaps-source" data-option-help="按音量检测：依据源音轨波形判断静音，不是人声识别。主字幕外区段：标记未被启用的主字幕覆盖的区段，其中可能有声音。重新生成只替换所选来源，保留其他来源与手工调整。">
+        <span class="gap-remove-field-label">生成方式</span>
+        <select id="gap-remove-source"><option value="audio_gate">按音量检测</option><option value="subtitle_outside">主字幕外区段</option></select>
       </label>
-    </div>
-    <div class="gap-remove-parameters-heading">
-      <span>扫描参数</span>
-      <small>按波形音量扫描内部空隙，不改写原时间轴</small>
-    </div>
-    <div class="gap-remove-fields">
-      <label class="gap-remove-field">
-        <span class="gap-remove-field-label">最小空隙</span>
-        <span class="gap-remove-number-control">
-          <input type="number" id="gap-remove-threshold" min="100" max="60000" step="50" value="400" inputmode="numeric">
-          <span class="gap-remove-unit">ms</span>
-        </span>
-        <small>短于此值不处理</small>
-      </label>
-      <label class="gap-remove-field">
-        <span class="gap-remove-field-label">音量阈值</span>
-        <span class="gap-remove-number-control">
-          <input type="number" id="gap-remove-volume-threshold" min="-96" max="0" step="1" value="-28" inputmode="decimal">
-          <span class="gap-remove-unit">dB</span>
-        </span>
-        <small>达到此音量才算有声</small>
-      </label>
-    </div>
-    <div class="gap-remove-advanced">
-      <button type="button" id="gap-remove-advanced-toggle" class="gap-remove-advanced-toggle" aria-expanded="false" aria-controls="gap-remove-advanced-body">
-        <span class="gap-remove-advanced-caret" aria-hidden="true">▸</span>
-        <span class="gap-remove-advanced-label">空隙检测与调整</span>
-        <small>预留量、滞回与边界调整</small>
-      </button>
+      <div class="gap-remove-fields" id="gap-remove-audio-fields">
+        <label class="gap-remove-field" data-option-help="检测到的静音区段扣除两侧保留量后短于此时长时不生成标记。"><span class="gap-remove-field-label">最短空隙</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-threshold" min="100" max="60000" step="50" value="400" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
+        <label class="gap-remove-field" data-option-help="音量达到此值时视为有声。数值越接近 0，越多低音量区段会被判为静音。"><span class="gap-remove-field-label">静音阈值</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-volume-threshold" min="-96" max="0" step="1" value="-28" inputmode="decimal"><span class="gap-remove-unit">dB</span></span></label>
+      </div>
+      <h5 id="gap-remove-padding-title">边界保留</h5>
+      <p hidden data-help-for="gap-remove-padding-title">句尾保留：从空隙起点向后保留一段，保护上一句收尾。句首保留：从空隙终点向前保留一段，保护下一句开头。两种生成方式都应用此设置；填 0 表示不额外保留。修改后点击重新生成，不会在旧结果上反复收缩。</p>
+      <div class="gap-remove-fields">
+        <label class="gap-remove-field"><span class="gap-remove-field-label">句尾保留</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-lead-in" min="0" max="2000" step="10" value="120" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
+        <label class="gap-remove-field"><span class="gap-remove-field-label">句首保留</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-lead-out" min="0" max="2000" step="10" value="80" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
+      </div>
+      <button type="button" id="gap-remove-scan" class="gap-remove-scan">生成标记</button>
+    </section>
+    <section class="audio-gaps-section">
+      <h4 id="gap-remove-operation-title">试听与操作</h4>
+      <p hidden data-help-for="gap-remove-operation-title">左键定位到空隙中可临时试听。Alt 点击切换待移除／已保留；空白处 Alt 拖动添加标记。拖动空隙块可移动，Ctrl/Cmd 拖动可复制。启用中键标记后，中键拖动标记移除，Alt＋中键拖动保留声音。</p>
+      <div class="audio-gaps-checks">
+        <label><input type="checkbox" id="gap-remove-panel-skip" checked> 播放时跳过空隙</label>
+        <label><input type="checkbox" id="gap-remove-boundary" checked> 允许拖动边界</label>
+        <label><input type="checkbox" id="gap-remove-middle"> 启用中键标记</label>
+      </div>
+    </section>
+    <section class="gap-remove-advanced" id="gap-remove-advanced-section">
+      <button type="button" id="gap-remove-advanced-toggle" class="gap-remove-advanced-toggle" aria-expanded="false" aria-controls="gap-remove-advanced-body"><span class="gap-remove-advanced-caret" aria-hidden="true">▸</span><span>高级检测</span></button>
       <div class="gap-remove-advanced-body" id="gap-remove-advanced-body" hidden>
-        <div class="gap-remove-fields gap-remove-fields-advanced">
-          <label class="gap-remove-field">
-            <span class="gap-remove-field-label">前端预留</span>
-            <span class="gap-remove-number-control">
-              <input type="number" id="gap-remove-lead-in" min="0" max="2000" step="10" value="120" inputmode="numeric">
-              <span class="gap-remove-unit">ms</span>
-            </span>
-            <small>每段空隙开头保留的静音，避免上一句收尾被切掉</small>
-          </label>
-          <label class="gap-remove-field">
-            <span class="gap-remove-field-label">后端预留</span>
-            <span class="gap-remove-number-control">
-              <input type="number" id="gap-remove-lead-out" min="0" max="2000" step="10" value="80" inputmode="numeric">
-              <span class="gap-remove-unit">ms</span>
-            </span>
-            <small>每段空隙结尾保留的静音，避免下一句贴得太紧</small>
-          </label>
-          <label class="gap-remove-field">
-            <span class="gap-remove-field-label">滞回</span>
-            <span class="gap-remove-number-control">
-              <input type="number" id="gap-remove-hysteresis" min="0" max="30" step="0.5" value="2" inputmode="decimal">
-              <span class="gap-remove-unit">dB</span>
-            </span>
-            <small id="gap-remove-hysteresis-hint">当音频判定为有声时，需要降低到比阈值更低 2 dB 的时候才视作恢复静音。建议 1–3 dB，过高会延迟回到静音</small>
-          </label>
-        </div>
-        <div class="gap-remove-inline-action">
-          <button type="button" id="gap-remove-shrink" class="gap-remove-inline-button">进一步收缩空隙</button>
-          <small>在现有基础上，使当前所有空隙进一步收缩</small>
-        </div>
+        <label class="gap-remove-field"><span class="gap-remove-field-label">阈值缓冲</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-hysteresis" min="0" max="30" step="0.5" value="2" inputmode="decimal"><span class="gap-remove-unit">dB</span></span></label>
+        <p hidden id="gap-remove-hysteresis-hint" data-help-for="gap-remove-hysteresis">有声转回静音时使用更低的阈值，避免边界反复跳变。</p>
       </div>
-    </div>
-    <div class="gap-remove-advanced gap-remove-disable-settings">
-      <button type="button" id="gap-remove-disable-toggle" class="gap-remove-advanced-toggle" aria-expanded="false" aria-controls="gap-remove-disable-body">
-        <span class="gap-remove-advanced-caret" aria-hidden="true">▸</span>
-        <span class="gap-remove-advanced-label">禁用空隙内字幕</span>
-        <small>按覆盖率和剩余时长筛选</small>
-      </button>
+    </section>
+    <section class="gap-remove-advanced gap-remove-disable-settings">
+      <button type="button" id="gap-remove-disable-toggle" class="gap-remove-advanced-toggle" aria-expanded="false" aria-controls="gap-remove-disable-body"><span class="gap-remove-advanced-caret" aria-hidden="true">▸</span><span>字幕处理</span></button>
       <div class="gap-remove-advanced-body" id="gap-remove-disable-body" hidden>
-        <div class="gap-remove-fields gap-remove-fields-advanced">
-          <label class="gap-remove-field">
-            <span class="gap-remove-field-label">覆盖率</span>
-            <span class="gap-remove-number-control">
-              <input type="number" id="gap-remove-disable-coverage" min="0" max="100" step="5" value="80" inputmode="decimal">
-              <span class="gap-remove-unit">%</span>
-            </span>
-            <small>空隙覆盖字幕时长达到此比例</small>
-          </label>
-          <label class="gap-remove-field">
-            <span class="gap-remove-field-label">剩余时长阈值</span>
-            <span class="gap-remove-number-control">
-              <input type="number" id="gap-remove-disable-remaining" min="0" max="60000" step="50" value="300" inputmode="numeric">
-              <span class="gap-remove-unit">ms</span>
-            </span>
-            <small>覆盖后剩余字幕时长不超过此值</small>
-          </label>
+        <div class="audio-gaps-subheading"><span id="gap-remove-disable-caption">筛选条件</span></div>
+        <p hidden data-help-for="gap-remove-disable-caption">主字幕须同时满足：实际可移除部分的覆盖率不低于设置值，剩余时长不超过设置值。点击按钮后才会禁用符合条件的主字幕及其绑定副字幕；生成标记不会自动禁用字幕。支持撤销。</p>
+        <div class="gap-remove-fields">
+          <label class="gap-remove-field"><span class="gap-remove-field-label">最低覆盖率</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-coverage" min="0" max="100" step="5" value="80" inputmode="decimal"><span class="gap-remove-unit">%</span></span></label>
+          <label class="gap-remove-field"><span class="gap-remove-field-label">最多剩余</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-remaining" min="0" max="60000" step="50" value="300" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
         </div>
-        <div class="gap-remove-inline-action">
-          <button type="button" id="gap-remove-disable-button" class="gap-remove-inline-button">禁用字幕</button>
-          <small id="gap-remove-disable-hint">禁用位于空隙范围内的字幕（当前有 0 条未禁用）</small>
-        </div>
+        <div class="gap-remove-inline-action"><button type="button" id="gap-remove-disable-button" class="gap-remove-inline-button" disabled>禁用符合条件的字幕（0）</button></div>
       </div>
-    </div>
-    <button type="button" id="gap-remove-scan" class="gap-remove-scan">
-      <span>生成静音空隙</span>
-      <small>只替换静音检测结果，保留对齐和手工调整</small>
-    </button>
-    <div class="gap-remove-list" id="gap-remove-list" aria-live="polite">尚未扫描空隙。</div>
-    <footer class="gap-remove-panel-footer">
-      <span>滚轮可调数值 · Esc 关闭</span>
-      <button type="button" id="gap-remove-clear-all" class="danger">全部清理</button>
-    </footer>
+    </section>
   </div>
+  <footer class="gap-remove-panel-footer">
+    <div class="audio-gaps-result"><span id="gap-remove-list" role="status" aria-live="polite">尚未生成标记</span><span id="gap-remove-protection" hidden></span></div>
+    <button type="button" id="gap-remove-clear-all" disabled>清空标记</button>
+  </footer>
 </aside>
 
 <!-- 可拖动的非模态拼接/合并字幕工具窗 -->
@@ -7473,7 +7438,7 @@
       <section class="help-subgroup">
         <h5 class="help-subtitle">空隙状态</h5>
         <div class="help-category">
-          <span><kbd>Alt+点击</kbd> 切换空隙的启用/禁用状态</span>
+          <span><kbd>Alt+点击</kbd> 切换待移除／已保留</span>
           <span class="help-important"><kbd>Alt+左键拖动</kbd> 添加新的移除空隙</span>
           <span class="help-note">（也可以在右键中选择「添加空隙」）</span>
           <span>在波形背景右键选择「填充区间空隙」，合并鼠标前后最近的已激活空隙；边界外延伸到媒体开头或结尾。</span>
@@ -7487,27 +7452,27 @@
           <span><kbd data-mod-key>Ctrl+拖动</kbd> 复制空隙</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>拖动边界</kbd> 调整空隙范围</span>
-          <span class="help-note">仅在拖动边界模式生效</span>
+          <span class="help-note">勾选「允许拖动边界」后生效</span>
           <span><kbd>中键拖动</kbd> 添加静音区段；<kbd>Alt+中键拖动</kbd> 添加恢复区段</span>
-          <span class="help-note">仅在中键拖动模式生效</span>
+          <span class="help-note">勾选「启用中键标记」后生效</span>
           <span class="help-note">具体操作取决于
-            <button type="button" class="help-inline-action" id="help-open-gap-settings" data-help-open-editor-settings aria-controls="editor-settings-panel">⚙️全局设置</button>
-            「通用操作」中的「空隙区段操作方式」，其中「边界与中键」可同时使用两套操作。</span>
+            <button type="button" class="help-inline-action" id="help-open-gap-settings" aria-controls="gap-remove-panel">音频空隙</button>
+            中的「试听与操作」，两个操作选项可同时勾选。</span>
         </div>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">清理空隙</h5>
         <div class="help-category">
           <span>在空隙上右键选择「清理空隙」 清除当前空隙</span>
-          <span>在「<button type="button" class="help-inline-action" id="help-open-gap-remove-panel" aria-controls="gap-remove-panel">静音空隙</button>」中点击「全部清理」 清除所有空隙</span>
+          <span>在「<button type="button" class="help-inline-action" id="help-open-gap-remove-panel" aria-controls="gap-remove-panel">音频空隙</button>」中点击「清空标记」，可一次撤销恢复</span>
         </div>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">批量操作</h5>
         <div class="help-category">
-          <span>点击「生成静音空隙」按当前参数扫描并替换检测结果</span>
-          <span>点击「进一步收缩空隙」在现有结果上继续收缩</span>
-          <span>点击「禁用字幕」批量禁用空隙内字幕（右侧显示可禁用数量）</span>
+          <span>选择按音量检测或主字幕外区段，点击「生成标记」；原媒体与字幕时间不变</span>
+          <span>调整句尾／句首保留后点击「重新生成」；只更新所选来源，保留其他来源和手工调整</span>
+          <span>「字幕处理」按实际可移除范围筛选，点击按钮禁用符合条件的主字幕及绑定副字幕</span>
           <span class="help-note">操作支持撤销/重做。</span>
         </div>
       </section>
@@ -8039,7 +8004,7 @@
               <span class="editor-settings-item">主题</span>
               <div class="theme-group-title">预设主题</div>
               <div class="theme-preset-row" role="group" aria-label="预设主题">
-                <button type="button" class="theme-preset" data-theme-preset="default" title="默认：紫苑配色深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>默认</span></button>
+                <button type="button" class="theme-preset" data-theme-preset="default" title="默认：深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>默认</span></button>
                 <button type="button" class="theme-preset" data-theme-preset="aster" title="紫苑：深蓝紫夜色深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>紫苑</span></button>
                 <button type="button" class="theme-preset" data-theme-preset="kosuzu" title="小铃：黄棕橘暖调深色主题"><span class="theme-swatch" aria-hidden="true"></span><span>小铃</span></button>
                 <button type="button" class="theme-preset" data-theme-preset="renko" title="莲子：黑色系主题"><span class="theme-swatch" aria-hidden="true"></span><span>莲子</span></button>
@@ -9245,6 +9210,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   const GAP_PROVENANCE_SOURCES = Object.freeze([
     'script_alignment',
     'audio_gate',
+    'subtitle_outside',
     'manual',
     'legacy',
   ]);
@@ -9536,6 +9502,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
           'audio_gate',
           {sort: true},
         ),
+        subtitle_outside: normalizeProvenanceRangeList(rawSources.subtitle_outside, 'subtitle_outside', {sort: true}),
       },
       manual_overrides: normalizeProvenanceRangeList(
         [...legacyManualOverrides, ...(Array.isArray(source.manual_overrides) ? source.manual_overrides : [])],
@@ -9652,6 +9619,9 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     provenance.sources.audio_gate.forEach((gap) => {
       result = applyGapStateRange(result, gap.start, gap.end, true);
     });
+    provenance.sources.subtitle_outside.forEach((gap) => {
+      result = applyGapStateRange(result, gap.start, gap.end, true);
+    });
     provenance.legacy.forEach((gap) => {
       result = applyGapStateRange(result, gap.start, gap.end, gap.removed, gap.removed === false);
     });
@@ -9671,6 +9641,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     const records = [
       ...provenance.sources.script_alignment,
       ...provenance.sources.audio_gate,
+      ...provenance.sources.subtitle_outside,
       ...provenance.manual_overrides.filter((record) => (
         !isBoundaryResizeRecord(record) && !isGapMoveRecord(record)
       )),
@@ -9722,7 +9693,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
 
   function replaceGapRemoveProvenanceSource(value, source, ranges, fallbackGaps = []) {
     const next = normalizeGapRemoveProvenance(value, fallbackGaps);
-    if (source === 'script_alignment' || source === 'audio_gate') {
+    if (['script_alignment', 'audio_gate', 'subtitle_outside'].includes(source)) {
       next.sources[source] = normalizeProvenanceRangeList(ranges, source, {sort: true});
     }
     return next;
@@ -9782,11 +9753,13 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     const has = (source) => origins.includes(source);
     const hasAudio = has('audio_gate');
     const hasScript = has('script_alignment');
+    const hasSubtitleOutside = has('subtitle_outside');
     const hasManual = has('manual');
-    const automaticOriginCount = [hasAudio, hasScript].filter(Boolean).length;
+    const automaticOriginCount = [hasAudio, hasScript, hasSubtitleOutside].filter(Boolean).length;
     if (automaticOriginCount > 1) return hasManual ? 'multi_source_manual' : 'multi_source';
     if (hasScript) return hasManual ? 'script_alignment_manual' : 'script_alignment';
     if (hasAudio) return hasManual ? 'audio_gate_manual' : 'audio_gate';
+    if (hasSubtitleOutside) return hasManual ? 'subtitle_outside_manual' : 'subtitle_outside';
     if (hasManual) return 'manual';
     return 'unknown';
   }
@@ -9832,6 +9805,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       sources: {
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
+        subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
       },
       manual_overrides: removeFrom(provenance.manual_overrides, 'manual', false),
       legacy: removeFrom(provenance.legacy, 'legacy', false),
@@ -9857,6 +9831,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       sources: {
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
+        subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
       },
       manual_overrides: normalizeProvenanceRangeList(
         provenance.manual_overrides.flatMap((item) => (
@@ -9951,6 +9926,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       sources: {
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
+        subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
       },
       manual_overrides: normalizeProvenanceRangeList(manual, 'manual'),
       legacy: removeFrom(provenance.legacy, 'legacy', false),
@@ -10037,6 +10013,12 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       skip_playback: source.skip_playback !== false,
       manual_corrections: source.manual_corrections === true || provenance.manual_overrides.length > 0,
       operation_mode: normalizeGapOperationMode(source.operation_mode),
+      generation_mode: source.generation_mode === 'subtitle_outside' ? 'subtitle_outside' : 'audio_gate',
+      generated_sources: ['audio_gate', 'subtitle_outside'].filter(name => (
+        (Array.isArray(source.generated_sources) && source.generated_sources.includes(name))
+        || provenance.sources[name].length > 0
+      )),
+      cleared: source.cleared === true,
       disable_coverage_percent: clampGapRemoveDisableCoverage(source.disable_coverage_percent),
       disable_remaining_ms: clampGapRemoveDisableRemaining(source.disable_remaining_ms),
       gaps,
@@ -19792,6 +19774,60 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "已标记为待移除": "Marked for removal",
+    "已标记为保留": "Marked to keep",
+    "标记移除": "Mark for removal",
+    "保留区段": "Keep range",
+    "所选范围已标记为待移除": "The selected range is already marked for removal",
+    "所选范围内没有待移除的标记": "No removal marks in the selected range",
+    "已将所选范围标记为待移除": "Selected range marked for removal",
+    "已将所选范围标记为保留": "Selected range marked to keep",
+    "该位置已有待移除标记": "This position is already marked for removal",
+    "没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护": "No removable ranges. Generate marks in Audio gaps and check dubbing protection.",
+    "没有符合当前条件的区段；已保留其他来源与手工调整": "No ranges match these settings. Other sources and manual edits are preserved.",
+    "波形尚未就绪，暂时无法按音量检测空隙": "The waveform is not ready for volume detection yet.",
+    "请先加载媒体，再生成空隙标记": "Load media before generating gap marks.",
+    "音频空隙": "Audio gaps",
+    "生成空隙标记": "Generate gap marks",
+    "生成方式": "Method",
+    "按音量检测": "Detect by volume",
+    "主字幕外区段": "Outside main subtitles",
+    "主字幕外区段…": "Outside main subtitles…",
+    "最短空隙": "Minimum gap",
+    "静音阈值": "Silence threshold",
+    "边界保留": "Edge padding",
+    "句尾保留": "After previous cue",
+    "句首保留": "Before next cue",
+    "生成标记": "Generate marks",
+    "重新生成": "Regenerate",
+    "正在生成…": "Generating…",
+    "正在生成标记…": "Generating marks…",
+    "试听与操作": "Playback and gestures",
+    "允许拖动边界": "Allow edge dragging",
+    "启用中键标记": "Enable middle-button marking",
+    "高级检测": "Advanced detection",
+    "阈值缓冲": "Threshold buffer",
+    "字幕处理": "Subtitle actions",
+    "筛选条件": "Match criteria",
+    "最低覆盖率": "Minimum coverage",
+    "最多剩余": "Maximum remaining",
+    "清空标记": "Clear marks",
+    "尚未生成标记": "No marks generated yet",
+    "已清空标记，可撤销恢复": "Marks cleared; undo to restore",
+    "没有符合当前条件的区段": "No ranges match these settings",
+    "请先加载媒体": "Load media first",
+    "波形尚未就绪": "Waveform is not ready",
+    "关闭音频空隙": "Close audio gaps",
+    "待移除": "Marked for removal",
+    "已保留": "Kept",
+    "待移除区段内的字幕": "subtitles in marked ranges",
+    "标记准备跳过或移除的时间段，不改写原媒体。试听可选择跳过；是否在导出时移除，仍由导出设置决定。配音保护覆盖的部分不会移除。": "Mark ranges to skip or remove without changing the original media. Skipping during playback is independent of removal on export. Dubbing-protected portions are retained.",
+    "按音量检测：依据源音轨波形判断静音，不是人声识别。主字幕外区段：标记未被启用的主字幕覆盖的区段，其中可能有声音。重新生成只替换所选来源，保留其他来源与手工调整。": "Volume detection uses the source waveform, not speech recognition. Outside main subtitles marks ranges not covered by enabled main subtitles; these may contain sound. Regeneration replaces only the selected source and preserves other sources and manual edits.",
+    "句尾保留：从空隙起点向后保留一段，保护上一句收尾。句首保留：从空隙终点向前保留一段，保护下一句开头。两种生成方式都应用此设置；填 0 表示不额外保留。修改后点击重新生成，不会在旧结果上反复收缩。": "Keep audio after the previous cue at the gap start and before the next cue at the gap end. Applies to both methods; zero adds no padding. Regenerate after changes; padding does not accumulate.",
+    "检测到的静音区段扣除两侧保留量后短于此时长时不生成标记。": "Ignore detected silence shorter than this duration after edge padding.",
+    "音量达到此值时视为有声。数值越接近 0，越多低音量区段会被判为静音。": "Audio at or above this threshold is treated as sound. Values closer to zero classify more quiet audio as silence.",
+    "左键定位到空隙中可临时试听。Alt 点击切换待移除／已保留；空白处 Alt 拖动添加标记。拖动空隙块可移动，Ctrl/Cmd 拖动可复制。启用中键标记后，中键拖动标记移除，Alt＋中键拖动保留声音。": "Click inside a gap to audition it temporarily. Alt-click toggles removal; Alt-drag on the background adds marks. Drag a gap to move it, or Ctrl/Cmd-drag to copy. When middle-button marking is enabled, middle-drag marks removal and Alt-middle-drag keeps audio.",
+    "主字幕须同时满足：实际可移除部分的覆盖率不低于设置值，剩余时长不超过设置值。点击按钮后才会禁用符合条件的主字幕及其绑定副字幕；生成标记不会自动禁用字幕。支持撤销。": "Main subtitles must meet both criteria: removable coverage at least the configured percentage, and remaining duration at most the limit. The button disables matches and their linked secondary subtitles. Generating marks does not disable subtitles. Undo is supported.",
     '单切并解绑': 'Split only this cue and unlink',
     '累加状态合并完成': 'Merged with combined states',
     '共有状态合并完成': 'Merged with shared states',
@@ -22161,6 +22197,18 @@ export default MawDynamicCaptions;
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const gapGenerated = text.match(/^已生成 (\d+) 段标记，保留其他来源与手工调整$/);
+    if (gapGenerated) return `Generated ${gapGenerated[1]} marks; other sources and manual edits are preserved`;
+    const gapError = text.match(/^无法生成空隙标记：(.+)$/);
+    if (gapError) return `Cannot generate gap marks: ${gapError[1]}`;
+    const gapDisable = text.match(/^禁用符合条件的字幕（(\d+)）$/);
+    if (gapDisable) return `Disable matching subtitles (${gapDisable[1]})`;
+    const gapSummary = text.match(/^已标记 (\d+) 段 · 实际可缩短 (.+)$/);
+    if (gapSummary) return `${gapSummary[1]} marked ranges · Removable ${translateText(gapSummary[2], lang)}`;
+    const gapBuffer = text.match(/^有声转回静音时，音量需低于静音阈值 (.+) dB，避免边界反复跳变。建议 1–3 dB。$/);
+    if (gapBuffer) return `Return to silence ${gapBuffer[1]} dB below the threshold to stabilize boundaries. Recommended: 1–3 dB.`;
+    const gapProtection = text.match(/^配音保护保留了 (.+)；此部分不会跳过或移除。统计与播放、导出共用有效范围。$/);
+    if (gapProtection) return `Dubbing protection keeps ${translateText(gapProtection[1], lang)}. This part is neither skipped nor removed. Statistics, playback and export share the effective ranges.`;
     const splitPosition = text.match(/^切分位置 (.+?)( · 估算时间)?$/);
     if (splitPosition) return `Split at ${splitPosition[1]}${splitPosition[2] ? ' · Estimated time' : ''}`;
     const splitCharacter = text.match(/^在第 (\d+) 个字符后拆分$/);
@@ -22630,6 +22678,8 @@ export default MawDynamicCaptions;
     zh: Object.freeze({
       audio_gate: '静音空隙（自动生成）',
       audio_gate_manual: '静音空隙（自动生成+手动调整）',
+      subtitle_outside: '主字幕外区段',
+      subtitle_outside_manual: '主字幕外区段（手动调整）',
       manual: '跳过空隙（手动创建）',
       script_alignment: '台本对齐自动移除',
       script_alignment_manual: '台本对齐自动移除（手动调整）',
@@ -22640,6 +22690,8 @@ export default MawDynamicCaptions;
     en: Object.freeze({
       audio_gate: 'Silence gap (auto-generated)',
       audio_gate_manual: 'Silence gap (auto-generated + manually adjusted)',
+      subtitle_outside: 'Outside main subtitles',
+      subtitle_outside_manual: 'Outside main subtitles (manually adjusted)',
       manual: 'Skip gap (manually created)',
       script_alignment: 'Script alignment auto-removal',
       script_alignment_manual: 'Script alignment auto-removal (manually adjusted)',
@@ -22652,7 +22704,11 @@ export default MawDynamicCaptions;
   function gapRemoveDisplayLabel(gap) {
     const type = window.AsrGapRemoveCore?.getGapRemoveDisplayType?.(gap) || 'unknown';
     const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
-    return GAP_REMOVE_DISPLAY_LABELS[language][type] || GAP_REMOVE_DISPLAY_LABELS[language].unknown;
+    const source = GAP_REMOVE_DISPLAY_LABELS[language][type] || GAP_REMOVE_DISPLAY_LABELS[language].unknown;
+    const status = gap.removed === false
+      ? localizedWaveformMessage('已保留', 'Kept') : localizedWaveformMessage('待移除', 'Marked for removal');
+    const seconds = ms => (Number(ms) / 1000).toFixed(3);
+    return `${status} · ${source}\n${seconds(gap.start)}–${seconds(gap.end)} s · ${seconds(gap.end - gap.start)} s`;
   }
 
   function gapOperationAllowsBoundary(mode) {
@@ -27251,6 +27307,7 @@ export default MawDynamicCaptions;
       // Editor/Align 提供的 getter 已经返回共享的最终显示投影；这里不要
       // 对每一行再次做投影，避免多行波形重复扫描同一组 Gap。
       const gaps = this.options.getGapRemoveGaps?.() || [];
+      const effectiveGaps = this.options.getEffectiveGapRanges?.();
       const gapOperationMode = this.options.getGapOperationMode?.() || 'boundary_drag';
       const boundaryEnabled = gapOperationAllowsBoundary(gapOperationMode);
       const middleEnabled = gapOperationAllowsMiddle(gapOperationMode);
@@ -27272,11 +27329,16 @@ export default MawDynamicCaptions;
         }
         block.classList.toggle('boundary-editable', boundaryEnabled);
         block.title = gapRemoveDisplayLabel(gap);
+        if (gap.removed !== false && effectiveGaps) {
+          const removableMs = effectiveGaps.reduce((sum, range) => sum + Math.max(0,
+            Math.min(range.end, gap.end) - Math.max(range.start, gap.start)), 0);
+          const protectedMs = Math.max(0, gap.end - gap.start - removableMs);
+          if (protectedMs > 0) block.title += localizedWaveformMessage(
+            `\n配音保护：保留 ${(protectedMs / 1000).toFixed(3)} 秒`,
+            `\nDubbing protection: ${(protectedMs / 1000).toFixed(3)} s kept`,
+          );
+        }
         block.setAttribute('aria-label', block.title);
-        const label = document.createElement('span');
-        label.className = 'waveform-gap-label';
-        label.textContent = gap.removed === false ? '空隙（未激活）' : '空隙';
-        block.appendChild(label);
         if (boundaryEnabled) {
           if (gap.start >= startMs) {
             const leftHandle = document.createElement('span');
@@ -31883,7 +31945,10 @@ const clampAutoMergeShortCount = EDITOR_SETTINGS_UTILS.clampAutoMergeShortCount;
 const clampGapRemoveMinimum = (value) => Math.min(60000, Math.max(100, Math.round(Number(value)) || 400));
 const clampGapRemoveThreshold = (value) => Math.min(0, Math.max(-96, Number.isFinite(Number(value)) ? Number(value) : -28));
 const clampGapRemoveHysteresis = (value) => Math.min(30, Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 2));
-const clampGapRemoveLeadMs = (value, fallback) => Math.min(2000, Math.max(0, Math.round(Number(value)) || fallback));
+const clampGapRemoveLeadMs = (value, fallback) => {
+  const numeric = value == null || String(value).trim() === '' ? NaN : Number(value);
+  return Math.min(2000, Math.max(0, Number.isFinite(numeric) ? Math.round(numeric) : fallback));
+};
 
 function saveEditorSettings(settings) {
   try {
@@ -33225,7 +33290,11 @@ const gapRemoveHysteresis = document.getElementById('gap-remove-hysteresis');
 const gapRemoveHysteresisHint = document.getElementById('gap-remove-hysteresis-hint');
 const gapRemoveLeadIn = document.getElementById('gap-remove-lead-in');
 const gapRemoveLeadOut = document.getElementById('gap-remove-lead-out');
-const gapRemoveShrinkButton = document.getElementById('gap-remove-shrink');
+const gapRemoveSource = document.getElementById('gap-remove-source');
+const gapRemoveBoundary = document.getElementById('gap-remove-boundary');
+const gapRemoveMiddle = document.getElementById('gap-remove-middle');
+const gapRemovePanelSkip = document.getElementById('gap-remove-panel-skip');
+let gapRemoveGenerating = false;
 const gapRemoveAdvancedToggle = document.getElementById('gap-remove-advanced-toggle');
 const gapRemoveAdvancedBody = document.getElementById('gap-remove-advanced-body');
 const gapRemoveDisableToggle = document.getElementById('gap-remove-disable-toggle');
@@ -33233,8 +33302,6 @@ const gapRemoveDisableBody = document.getElementById('gap-remove-disable-body');
 const gapRemoveDisableCoverage = document.getElementById('gap-remove-disable-coverage');
 const gapRemoveDisableRemaining = document.getElementById('gap-remove-disable-remaining');
 const gapRemoveDisableButton = document.getElementById('gap-remove-disable-button');
-const gapRemoveDisableHint = document.getElementById('gap-remove-disable-hint');
-const gapRemoveOperationMode = document.getElementById('gap-remove-operation-mode');
 const gapRemoveScanButton = document.getElementById('gap-remove-scan');
 const gapRemoveSkipPlayback = document.getElementById('gap-skip-playback');
 const gapRemoveList = document.getElementById('gap-remove-list');
@@ -34929,11 +34996,11 @@ helpOpenEditorSettingsButtons.forEach((button) => {
     openEditorSettingsAtTab('editor-settings-tab-general');
   });
 });
-helpOpenGapRemovePanelButton?.addEventListener('click', (event) => {
+[helpOpenGapRemovePanelButton, document.getElementById('help-open-gap-settings')].forEach(button => button?.addEventListener('click', (event) => {
   event.preventDefault();
   openGapRemovePanel();
   gapRemoveManageButton?.focus();
-});
+}));
 function visibleHelpTabButtons() {
   return helpTabButtons.filter((button) => !button.closest('[hidden]'));
 }
@@ -35037,7 +35104,7 @@ const SHION_THEME_COLORS = {
     toolbar: '#16161e', card: '#292a40', gap: '#3043cf', hit: '#d49a4a',
 };
 const THEME_PRESETS = {
-  default: { theme: 'dark', accent: 'blue', colors: { ...SHION_THEME_COLORS } },
+  default: { theme: 'dark', accent: 'blue', colors: { card: '#252a34' } },
   aster: { theme: 'dark', accent: 'azure', colors: { ...SHION_THEME_COLORS } },
   // 本居小铃：深橘发红瞳红白格纹和服（深色，黄棕暖调：黄色+棕红+橘红）
   kosuzu: { theme: 'dark', accent: 'orange', colors: {
@@ -35938,9 +36005,9 @@ function gapRemoveTotalMs(gaps) {
 
 function gapRemoveMediaDurationMs() {
   const candidates = [
-    waveformEditor?.durationMs,
     DATA.waveform?.duration_ms,
     Number(player?.duration) * 1000,
+    waveformEditor?.getGapRemoveDetectionData?.()?.duration_ms,
   ];
   const duration = candidates.find((value) => Number.isFinite(Number(value)) && Number(value) > 0);
   return duration ? Math.round(Number(duration)) : 0;
@@ -35958,69 +36025,92 @@ function getGapRemoveOperationMode() {
   return getGapRemoveData(false)?.operation_mode || DEFAULT_GAP_REMOVE_OPERATION_MODE;
 }
 
+function gapRemoveStats() {
+  const duration = gapRemoveMediaDurationMs();
+  const length = ranges => ranges.reduce((total, gap) => total + Math.max(0,
+    Math.min(duration || gap.end, gap.end) - Math.min(duration || gap.end, gap.start)), 0);
+  const marked = getRemovedGapRangesFrom(getGapRemoveGaps());
+  const effective = getRemovedGapRanges();
+  return { count: marked.length, total: length(effective), protectedMs: Math.max(0, length(marked) - length(effective)) };
+}
+
+function formatGapSummaryDuration(ms) {
+  return `${Number((Math.max(0, ms) / 1000).toFixed(3))} s`;
+}
+
+function hasGapRemoveRecords() {
+  const state = getGapRemoveData(false);
+  return Boolean(state?.gaps?.length || state?.provenance?.manual_overrides?.length
+    || Object.values(state?.provenance?.sources || {}).some(ranges => ranges.length));
+}
+
 function renderGapRemoveList() {
   if (!gapRemoveList) return;
   const state = getGapRemoveData(false);
   const gaps = getGapRemoveGaps();
-  gapRemoveList.replaceChildren();
-  if (state?.detector === 'legacy_subtitle_gap') {
-    gapRemoveList.textContent = '此工程含有旧版按字幕间隔识别的结果。为避免误删，旧结果已停用；请按当前波形重新扫描。';
-    return;
+  const stats = gapRemoveStats();
+  const protection = document.getElementById('gap-remove-protection');
+  if (protection) {
+    protection.hidden = stats.protectedMs <= 0;
+    window.MSWHelp?.attach(protection, () => `配音保护保留了 ${formatGapSummaryDuration(gapRemoveStats().protectedMs)}；此部分不会跳过或移除。统计与播放、导出共用有效范围。`);
   }
-  if (!gaps.length) {
-    const message = document.createElement('div');
-    message.className = 'gap-remove-total';
-    message.textContent = '未能找到符合门限的静音空隙；尝试提高「音量阈值」来检测更多静音。';
-    gapRemoveList.appendChild(message);
-    return;
-  }
-  const removedCount = gaps.filter((gap) => gap.removed).length;
-  const total = gapRemoveTotalMs(gaps);
-  const summary = document.createElement('div');
-  summary.className = 'gap-remove-total';
-  summary.textContent = `已移除 ${removedCount}/${gaps.length} 段，共 ${formatGapRemoveTotal(total)}；左键定位，Alt+点击切换，空白处 Alt+左键拖动增加，空隙块左键拖动偏移，Ctrl/Cmd+拖动复制。`;
-  gapRemoveList.appendChild(summary);
+  if (gapRemoveGenerating) gapRemoveList.textContent = '正在生成标记…';
+  else if (gaps.length) gapRemoveList.textContent = `已标记 ${stats.count} 段 · 实际可缩短 ${formatGapSummaryDuration(stats.total)}`;
+  else if (state?.cleared) gapRemoveList.textContent = '已清空标记，可撤销恢复';
+  else if (state?.generated_sources?.length) gapRemoveList.textContent = '没有符合当前条件的区段';
+  else if (!gapRemoveMediaDurationMs()) gapRemoveList.textContent = '请先加载媒体';
+  else if (gapRemoveSource?.value !== 'subtitle_outside' && !waveformEditor?.getGapRemoveDetectionData?.()) gapRemoveList.textContent = '波形尚未就绪';
+  else gapRemoveList.textContent = '尚未生成标记';
 }
 
 function updateGapRemoveDisableHint() {
-  if (!gapRemoveDisableHint) return;
   const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(
-    DATA.segments,
-    getGapRemoveGaps(),
-    {
+    DATA.segments, getRemovedGapRanges(), {
       coveragePercent: clampGapRemoveDisableCoverage(gapRemoveDisableCoverage?.value),
       remainingMs: clampGapRemoveDisableRemaining(gapRemoveDisableRemaining?.value),
     },
   );
   const count = matches.filter(({ index }) => !DATA.segments[index]?.disabled).length;
-  gapRemoveDisableHint.textContent = `禁用位于空隙范围内的字幕（当前有 ${count} 条未禁用）`;
+  if (gapRemoveDisableButton) {
+    gapRemoveDisableButton.textContent = `禁用符合条件的字幕（${count}）`;
+    gapRemoveDisableButton.disabled = count === 0;
+  }
+}
+
+function syncGapRemoveControls() {
+  const state = getGapRemoveData(false);
+  const mode = state?.operation_mode || DEFAULT_GAP_REMOVE_OPERATION_MODE;
+  if (gapRemoveBoundary) gapRemoveBoundary.checked = window.AsrGapRemoveCore.gapOperationAllowsBoundary(mode);
+  if (gapRemoveMiddle) gapRemoveMiddle.checked = window.AsrGapRemoveCore.gapOperationAllowsMiddle(mode);
+  for (const checkbox of [gapRemoveSkipPlayback, gapRemovePanelSkip]) {
+    if (checkbox) checkbox.checked = state?.skip_playback !== false;
+  }
+  const audio = gapRemoveSource?.value !== 'subtitle_outside';
+  document.getElementById('gap-remove-audio-fields').hidden = !audio;
+  document.getElementById('gap-remove-advanced-section').hidden = !audio;
+  const generated = state?.generated_sources?.includes(gapRemoveSource?.value);
+  gapRemoveScanButton.textContent = gapRemoveGenerating ? '正在生成…' : generated ? '重新生成' : '生成标记';
+  gapRemoveScanButton.disabled = gapRemoveGenerating || (audio
+    ? !waveformEditor?.getGapRemoveDetectionData?.() : !gapRemoveMediaDurationMs());
+  gapRemoveSource.disabled = gapRemoveGenerating;
 }
 
 function updateGapRemoveUi() {
   const state = getGapRemoveData(false);
   const gaps = getGapRemoveGaps();
-  if (gapRemoveThreshold && state) gapRemoveThreshold.value = String(state.minimum_ms);
-  if (gapRemoveVolumeThreshold && state) gapRemoveVolumeThreshold.value = String(state.threshold_db);
-  if (gapRemoveHysteresis && state) gapRemoveHysteresis.value = String(state.hysteresis_db);
+  if (gapRemoveThreshold) gapRemoveThreshold.value = String(state?.minimum_ms ?? DEFAULT_GAP_REMOVE_MIN_MS);
+  if (gapRemoveVolumeThreshold) gapRemoveVolumeThreshold.value = String(state?.threshold_db ?? DEFAULT_GAP_REMOVE_THRESHOLD_DB);
+  if (gapRemoveHysteresis) gapRemoveHysteresis.value = String(state?.hysteresis_db ?? DEFAULT_GAP_REMOVE_HYSTERESIS_DB);
   updateGapRemoveHysteresisHint();
-  if (gapRemoveLeadIn && state) gapRemoveLeadIn.value = String(state.lead_in_ms);
-  if (gapRemoveLeadOut && state) gapRemoveLeadOut.value = String(state.lead_out_ms);
-  if (gapRemoveDisableCoverage && state) {
-    gapRemoveDisableCoverage.value = String(
-      state.disable_coverage_percent ?? DEFAULT_GAP_REMOVE_DISABLE_COVERAGE_PERCENT,
-    );
+  if (gapRemoveLeadIn) gapRemoveLeadIn.value = String(state?.lead_in_ms ?? DEFAULT_GAP_REMOVE_LEAD_IN_MS);
+  if (gapRemoveLeadOut) gapRemoveLeadOut.value = String(state?.lead_out_ms ?? DEFAULT_GAP_REMOVE_LEAD_OUT_MS);
+  if (gapRemoveDisableCoverage) gapRemoveDisableCoverage.value = String(state?.disable_coverage_percent ?? DEFAULT_GAP_REMOVE_DISABLE_COVERAGE_PERCENT);
+  if (gapRemoveDisableRemaining) gapRemoveDisableRemaining.value = String(state?.disable_remaining_ms ?? DEFAULT_GAP_REMOVE_DISABLE_REMAINING_MS);
+  if (gapRemoveSource) gapRemoveSource.value = state?.generation_mode || 'audio_gate';
+  syncGapRemoveControls();
+  for (const button of [gapRemoveClearAllButton, document.getElementById('gap-clear-all-menu')]) {
+    if (button) button.disabled = !hasGapRemoveRecords() || gapRemoveGenerating;
   }
-  if (gapRemoveDisableRemaining && state) {
-    gapRemoveDisableRemaining.value = String(
-      state.disable_remaining_ms ?? DEFAULT_GAP_REMOVE_DISABLE_REMAINING_MS,
-    );
-  }
-  if (gapRemoveOperationMode) {
-    gapRemoveOperationMode.value = state?.operation_mode || DEFAULT_GAP_REMOVE_OPERATION_MODE;
-  }
-  if (gapRemoveSkipPlayback) gapRemoveSkipPlayback.checked = state?.skip_playback !== false;
-  if (gapRemoveClearAllButton) gapRemoveClearAllButton.disabled = !gaps.length;
-  if (gapRemoveDisableButton) gapRemoveDisableButton.disabled = !gaps.some((gap) => gap.removed);
   updateGapRemoveDisableHint();
   if (gapRemovedExportDropdown) {
     gapRemovedExportDropdown.hidden = !gaps.some((gap) => gap.removed);
@@ -36030,101 +36120,65 @@ function updateGapRemoveUi() {
   waveformEditor?.refreshGapOverlay();
 }
 
-function scanAndRemoveGaps() {
-  const minimumMs = clampGapRemoveMinimum(gapRemoveThreshold?.value);
-  const thresholdDb = clampGapRemoveThreshold(gapRemoveVolumeThreshold?.value);
-  const hysteresisDb = clampGapRemoveHysteresis(gapRemoveHysteresis?.value);
-  const leadInMs = clampGapRemoveLeadMs(gapRemoveLeadIn?.value, DEFAULT_GAP_REMOVE_LEAD_IN_MS);
-  const leadOutMs = clampGapRemoveLeadMs(gapRemoveLeadOut?.value, DEFAULT_GAP_REMOVE_LEAD_OUT_MS);
-  const waveform = waveformEditor?.getGapRemoveDetectionData?.();
-  if (!waveform) {
-    flashHint('波形数据尚不可用，无法按音量判断空隙；请先加载媒体。', 'invalid');
-    return;
-  }
-  const previousState = getGapRemoveData(false);
-  const gaps = window.AsrEditorUtils.detectAudioGapRemoveGaps(waveform, {
-    minimumMs,
-    thresholdDb,
-    hysteresisDb,
-    leadInMs,
-    leadOutMs,
-  });
-  const provenance = window.AsrGapRemoveCore.replaceGapRemoveProvenanceSource(
-    previousState?.provenance,
-    'audio_gate',
-    gaps,
-    previousState?.gaps,
-  );
-  pushGapRemoveUndo('扫描并移除静音空隙');
-  setGapRemoveData({
-    detector: 'audio_gate',
-    minimum_ms: minimumMs,
-    threshold_db: thresholdDb,
-    hysteresis_db: hysteresisDb,
-    lead_in_ms: leadInMs,
-    lead_out_ms: leadOutMs,
-    skip_playback: previousState?.skip_playback,
-    operation_mode: previousState?.operation_mode,
-    disable_coverage_percent: previousState?.disable_coverage_percent,
-    disable_remaining_ms: previousState?.disable_remaining_ms,
-    gaps: window.AsrGapRemoveCore.gapRangesFromProvenance(provenance),
-  }, { provenance });
-  flashHint(
-    gaps.length
-      ? `已移除 ${gaps.length} 段音量空隙，共 ${formatGapRemoveTotal(gapRemoveTotalMs(gaps))}`
-      : '没有达到门限的音量空隙',
-    gaps.length ? 'success' : 'invalid',
-  );
-}
-
-function readGapRemoveLeadPadding() {
-  const read = (input, fallback) => {
-    const raw = input?.value;
-    const numeric = typeof raw === 'string' && !raw.trim() ? NaN : Number(raw);
-    return Math.min(2000, Math.max(0, Number.isFinite(numeric) ? Math.round(numeric) : fallback));
-  };
+function readGapDetectionSettings() {
   return {
-    leadInMs: read(gapRemoveLeadIn, DEFAULT_GAP_REMOVE_LEAD_IN_MS),
-    leadOutMs: read(gapRemoveLeadOut, DEFAULT_GAP_REMOVE_LEAD_OUT_MS),
+    minimum_ms: clampGapRemoveMinimum(gapRemoveThreshold?.value),
+    threshold_db: clampGapRemoveThreshold(gapRemoveVolumeThreshold?.value),
+    hysteresis_db: clampGapRemoveHysteresis(gapRemoveHysteresis?.value),
+    lead_in_ms: clampGapRemoveLeadMs(gapRemoveLeadIn?.value, DEFAULT_GAP_REMOVE_LEAD_IN_MS),
+    lead_out_ms: clampGapRemoveLeadMs(gapRemoveLeadOut?.value, DEFAULT_GAP_REMOVE_LEAD_OUT_MS),
+    generation_mode: gapRemoveSource?.value === 'subtitle_outside' ? 'subtitle_outside' : 'audio_gate',
   };
 }
 
-function shrinkExistingGaps() {
-  const state = getGapRemoveData(false);
+function commitGapDetectionSettings() {
+  const settings = readGapDetectionSettings();
+  const state = getGapRemoveData(true);
+  if (Object.entries(settings).every(([key, value]) => state[key] === value)) return;
+  pushGapRemoveUndo('调整空隙生成设置');
+  setGapRemoveData({ ...state, ...settings });
+}
+
+function scanAndRemoveGaps(source = gapRemoveSource?.value || 'audio_gate') {
+  const settings = readGapDetectionSettings();
+  const { minimum_ms: minimumMs, threshold_db: thresholdDb, hysteresis_db: hysteresisDb,
+    lead_in_ms: leadInMs, lead_out_ms: leadOutMs } = settings;
   const core = window.AsrGapRemoveCore;
-  const audioGaps = core.normalizeGapRemoveGaps(
-    state?.provenance?.sources?.audio_gate,
-  );
-  if (!state || !audioGaps.length) {
-    flashHint('当前没有可收缩的静音空隙', 'invalid');
-    return;
+  let gaps;
+  if (source === 'subtitle_outside') {
+    const pieces = computeNonSubtitleGapPieces();
+    if (pieces === null) { flashHint('请先加载媒体，再生成空隙标记', 'invalid'); return; }
+    gaps = core.shrinkGapRemoveGaps(pieces, leadInMs, leadOutMs);
+  } else {
+    source = 'audio_gate';
+    const waveform = waveformEditor?.getGapRemoveDetectionData?.();
+    if (!waveform) { flashHint('波形尚未就绪，暂时无法按音量检测空隙', 'invalid'); return; }
+    gaps = core.detectAudioGapRemoveGaps(waveform, { minimumMs, thresholdDb, hysteresisDb, leadInMs, leadOutMs });
   }
-  const { leadInMs, leadOutMs } = readGapRemoveLeadPadding();
-  const nextAudioGaps = window.AsrEditorUtils.shrinkGapRemoveGaps(audioGaps, leadInMs, leadOutMs);
-  if (JSON.stringify(nextAudioGaps) === JSON.stringify(audioGaps)) {
-    flashHint('当前空隙无法按预留量继续收缩', 'invalid');
-    return;
+  const previous = getGapRemoveData(true);
+  const provenance = core.replaceGapRemoveProvenanceSource(previous.provenance, source, gaps, previous.gaps);
+  pushGapRemoveUndo(source === 'audio_gate' ? '按音量生成空隙标记' : '标记主字幕外区段');
+  setGapRemoveData({
+    ...previous, ...settings, generation_mode: source, cleared: false,
+    generated_sources: [...new Set([...(previous.generated_sources || []), source])],
+  }, { provenance });
+  flashHint(gaps.length ? `已生成 ${gaps.length} 段标记，保留其他来源与手工调整` : '没有符合当前条件的区段；已保留其他来源与手工调整', gaps.length ? 'success' : 'info');
+}
+
+async function generateGapMarks() {
+  if (gapRemoveGenerating) return;
+  gapRemoveGenerating = true;
+  syncGapRemoveControls(); renderGapRemoveList();
+  try {
+    // Give the busy state one paint before scanning a long waveform.
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    scanAndRemoveGaps();
+  } catch (error) {
+    flashHint(`无法生成空隙标记：${error?.message || error}`, 'invalid');
+  } finally {
+    gapRemoveGenerating = false;
+    updateGapRemoveUi();
   }
-  pushGapRemoveUndo('按预留量收缩空隙');
-  // 批量收缩属于 audio_gate 的重建，不是用户逐段做出的 manual 覆盖。
-  // 因此只替换静音来源，保留已有的人工恢复/移动等 overrides。
-  const provenance = core.replaceGapRemoveProvenanceSource(
-    state.provenance,
-    'audio_gate',
-    nextAudioGaps,
-    state.gaps,
-  );
-  const nextGaps = core.gapRangesFromProvenance(provenance);
-  state.lead_in_ms = leadInMs;
-  state.lead_out_ms = leadOutMs;
-  state.gaps = nextGaps;
-  state.provenance = provenance;
-  state.manual_corrections = provenance.manual_overrides.length > 0;
-  setGapRemoveData(state, { provenance });
-  flashHint(
-    `已按前端 ${leadInMs}ms、后端 ${leadOutMs}ms 收缩 ${audioGaps.length} 段空隙`,
-    'success',
-  );
 }
 
 function readGapRemoveDisableSettings() {
@@ -36157,7 +36211,7 @@ function disableSubtitlesInRemovedGaps() {
   const settings = commitGapRemoveDisableSettings();
   const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(
     DATA.segments,
-    getGapRemoveGaps(),
+    getRemovedGapRanges(),
     settings,
   );
   const targetIndexes = matches
@@ -36171,7 +36225,7 @@ function disableSubtitlesInRemovedGaps() {
     );
     return;
   }
-  toggleDisabled(targetIndexes, 'main', { successDetail: '静音空隙内的字幕' });
+  toggleDisabled(targetIndexes, 'main', { successDetail: '待移除区段内的字幕' });
 }
 
 function toggleGapRemoved(index) {
@@ -36179,13 +36233,13 @@ function toggleGapRemoved(index) {
   const gaps = getGapRemoveGaps();
   const gap = gaps[index];
   if (!gap) return;
-  pushGapRemoveUndo(gap.removed === false ? '再次移除静音空隙' : '恢复静音空隙');
+  pushGapRemoveUndo(gap.removed === false ? '标记移除区段' : '保留区段');
   const removed = gap.removed === false;
   commitManualGapRemoveChange(
     state,
     [{ start: gap.start, end: gap.end, removed }],
   );
-  flashHint(removed ? '已人工移除静音空隙' : '已人工恢复静音空隙', 'success');
+  flashHint(removed ? '已标记为待移除' : '已标记为保留', 'success');
 }
 
 function clearGap(index) {
@@ -36214,7 +36268,7 @@ function applyManualGapRange(startMs, endMs, removed) {
   const sourceGaps = window.AsrGapRemoveCore.normalizeGapRemoveGaps(state.gaps);
   const nextGaps = window.AsrEditorUtils.applyGapRemoveRange(sourceGaps, startMs, endMs, removed);
   if (JSON.stringify(nextGaps) === JSON.stringify(sourceGaps)) {
-    flashHint(removed ? '所选范围已经处于移除状态' : '所选范围内没有已移除的静音空隙', 'invalid');
+    flashHint(removed ? '所选范围已标记为待移除' : '所选范围内没有待移除的标记', 'invalid');
     return;
   }
   pushGapRemoveUndo(removed ? '人工移除范围' : '人工恢复范围');
@@ -36223,7 +36277,7 @@ function applyManualGapRange(startMs, endMs, removed) {
     state,
     [{ start: Math.min(Number(startMs), Number(endMs)), end: Math.max(Number(startMs), Number(endMs)), removed }],
   );
-  flashHint(removed ? '已人工移除所选范围' : '已人工恢复所选范围', 'success');
+  flashHint(removed ? '已将所选范围标记为待移除' : '已将所选范围标记为保留', 'success');
 }
 
 function addGapAtWaveformTime(timeMs) {
@@ -36247,7 +36301,7 @@ function addGapAtWaveformTime(timeMs) {
   }
   const nextGaps = window.AsrEditorUtils.applyGapRemoveRange(sourceGaps, start, end, true);
   if (JSON.stringify(nextGaps) === JSON.stringify(sourceGaps)) {
-    flashHint('该位置已经是已移除的空隙', 'invalid');
+    flashHint('该位置已有待移除标记', 'invalid');
     return false;
   }
   pushGapRemoveUndo('右键添加空隙');
@@ -36257,7 +36311,7 @@ function addGapAtWaveformTime(timeMs) {
     [{ start, end, removed: true }],
   );
   waveformEditor?.revealTime(start, true);
-  flashHint(`已添加 ${formatGapRemoveTotal(end - start)} 静音空隙`, 'success');
+  flashHint(`已添加 ${formatGapRemoveTotal(end - start)} 空隙标记`, 'success');
   return true;
 }
 
@@ -36279,7 +36333,7 @@ function fillGapRangeAtWaveformTime(timeMs) {
   // their union before voice protection; a no-op must not rewrite history.
   const rangesOnly = window.AsrEditorUtils.getRemovedGapRanges;
   if (JSON.stringify(rangesOnly(nextGaps)) === JSON.stringify(rangesOnly(sourceGaps))) {
-    flashHint('该位置已经是已移除的空隙', 'invalid');
+    flashHint('该位置已有待移除标记', 'invalid');
     return false;
   }
   pushGapRemoveUndo('填充区间空隙');
@@ -36359,14 +36413,13 @@ function resizeManualGapBoundary(index, edge, valueMs) {
 
 function clearAllGaps() {
   const state = getGapRemoveData(false);
-  if (!state?.gaps?.length) return;
-  if (!confirm(
-    `确定要清理全部 ${state.gaps.length} 个空隙区段吗？\n\n这会删除当前所有已移除和已恢复的区段记录。`
-  )) return;
+  if (!state || !hasGapRemoveRecords()) return;
   pushGapRemoveUndo('清理全部空隙区段');
   state.gaps = [];
+  state.generated_sources = [];
+  state.cleared = true;
   setGapRemoveData(state, { clearProvenance: true });
-  flashHint('已清理全部空隙区段', 'success');
+  flashHint('已清空标记，可撤销恢复', 'success');
 }
 
 // 可拖动非模态工具窗（移除静音空隙 / 拼合字幕共用模式）：
@@ -36575,7 +36628,8 @@ function restoreGapRemoveDisableOpen() {
 function updateGapRemoveHysteresisHint() {
   if (!gapRemoveHysteresisHint || !gapRemoveHysteresis) return;
   const value = gapRemoveHysteresis.value;
-  gapRemoveHysteresisHint.textContent = `当音频判定为有声时，需要降低到比阈值更低 ${value} dB 的时候才视作恢复静音。建议 1–3 dB，过高会延迟回到静音`;
+  gapRemoveHysteresisHint.textContent = `有声转回静音时，音量需低于静音阈值 ${value} dB，避免边界反复跳变。建议 1–3 dB。`;
+  window.MSWHelp?.refresh(gapRemovePanel);
 }
 
 function setGapRemovePanelPosition(left, top, { persist = false } = {}) {
@@ -36588,6 +36642,7 @@ function setGapRemovePanelPosition(left, top, { persist = false } = {}) {
   const nextTop = Math.min(maxTop, Math.max(margin, Math.round(top)));
   gapRemovePanel.style.left = `${nextLeft}px`;
   gapRemovePanel.style.top = `${nextTop}px`;
+  gapRemovePanel.style.maxHeight = `calc(100vh - ${nextTop + margin}px)`;
   gapRemovePanel.style.right = 'auto';
   if (persist) {
     try {
@@ -36625,24 +36680,10 @@ function closeGapRemovePanel() {
 
 function openGapRemovePanel() {
   if (!gapRemovePanel) return;
-  const state = getGapRemoveData(false);
-  gapRemoveThreshold.value = String(state?.minimum_ms || DEFAULT_GAP_REMOVE_MIN_MS);
-  gapRemoveVolumeThreshold.value = String(state?.threshold_db ?? DEFAULT_GAP_REMOVE_THRESHOLD_DB);
-  gapRemoveHysteresis.value = String(state?.hysteresis_db ?? DEFAULT_GAP_REMOVE_HYSTERESIS_DB);
-  updateGapRemoveHysteresisHint();
-  gapRemoveLeadIn.value = String(state?.lead_in_ms ?? DEFAULT_GAP_REMOVE_LEAD_IN_MS);
-  gapRemoveLeadOut.value = String(state?.lead_out_ms ?? DEFAULT_GAP_REMOVE_LEAD_OUT_MS);
-  gapRemoveDisableCoverage.value = String(
-    state?.disable_coverage_percent ?? DEFAULT_GAP_REMOVE_DISABLE_COVERAGE_PERCENT,
-  );
-  gapRemoveDisableRemaining.value = String(
-    state?.disable_remaining_ms ?? DEFAULT_GAP_REMOVE_DISABLE_REMAINING_MS,
-  );
-  gapRemoveOperationMode.value = state?.operation_mode || DEFAULT_GAP_REMOVE_OPERATION_MODE;
+  updateGapRemoveUi();
   restoreGapRemoveAdvancedOpen();
   restoreGapRemoveDisableOpen();
-  updateGapRemoveDisableHint();
-  renderGapRemoveList();
+  window.MSWHelp?.hydrate(gapRemovePanel);
   gapRemovePanel.classList.add('show');
   gapRemovePanel.setAttribute('aria-hidden', 'false');
   gapRemoveManageButton?.classList.add('active');
@@ -36693,7 +36734,7 @@ gapRemoveDragHandle?.addEventListener('pointercancel', finishGapRemovePanelDrag)
 
 gapRemovePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
   input.addEventListener('wheel', (event) => {
-    if (!event.deltaY) return;
+    if (!event.deltaY || document.activeElement !== input) return;
     event.preventDefault();
     input.focus({ preventScroll: true });
     try {
@@ -36707,18 +36748,23 @@ gapRemovePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
 });
 
 gapRemoveManageButton?.addEventListener('click', toggleGapRemovePanel);
-gapRemoveScanButton?.addEventListener('click', scanAndRemoveGaps);
-gapRemoveShrinkButton?.addEventListener('click', shrinkExistingGaps);
+gapRemoveScanButton?.addEventListener('click', generateGapMarks);
 gapRemoveClearAllButton?.addEventListener('click', clearAllGaps);
 gapRemoveCloseButton?.addEventListener('click', closeGapRemovePanel);
-gapRemoveOperationMode?.addEventListener('change', () => {
-  const state = getGapRemoveData(true);
-  const nextMode = window.AsrGapRemoveCore.normalizeGapOperationMode(gapRemoveOperationMode.value);
-  if (state.operation_mode === nextMode) return;
-  pushGapRemoveUndo('切换空隙操作方式');
-  state.operation_mode = nextMode;
-  setGapRemoveData(state);
-});
+for (const checkbox of [gapRemoveBoundary, gapRemoveMiddle]) {
+  checkbox?.addEventListener('change', () => {
+    const state = getGapRemoveData(true);
+    const boundary = gapRemoveBoundary.checked, middle = gapRemoveMiddle.checked;
+    const mode = boundary ? (middle ? 'boundary_and_middle' : 'boundary_drag') : (middle ? 'middle_drag' : 'none');
+    if (state.operation_mode === mode) return;
+    pushGapRemoveUndo('调整空隙操作方式');
+    setGapRemoveData({ ...state, operation_mode: mode });
+  });
+}
+for (const input of [gapRemoveSource, gapRemoveThreshold, gapRemoveVolumeThreshold, gapRemoveHysteresis, gapRemoveLeadIn, gapRemoveLeadOut]) {
+  input?.addEventListener('change', commitGapDetectionSettings);
+}
+
 gapRemoveAdvancedToggle?.addEventListener('click', () => {
   setGapRemoveAdvancedOpen(!gapRemoveAdvancedIsOpen());
 });
@@ -36739,14 +36785,14 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   closeGapRemovePanel();
 });
-gapRemoveSkipPlayback?.addEventListener('change', () => {
-  const state = getGapRemoveData(true) || { gaps: [] };
-  if (state.skip_playback === gapRemoveSkipPlayback.checked) return;
-  pushGapRemoveUndo('切换空隙跳过播放');
-  state.skip_playback = gapRemoveSkipPlayback.checked;
-  setGapRemoveData(state);
-  if (!state.skip_playback) gapPreviewRange = null;
-});
+for (const checkbox of [gapRemoveSkipPlayback, gapRemovePanelSkip]) {
+  checkbox?.addEventListener('change', () => {
+    const state = getGapRemoveData(true);
+    if (state.skip_playback === checkbox.checked) return;
+    pushGapRemoveUndo('切换空隙跳过播放');
+    setGapRemoveData({ ...state, skip_playback: checkbox.checked });
+  });
+}
 
 function syncPlayerPlaceholder() {
   if (!playerEmpty) return;
@@ -46064,7 +46110,7 @@ function buildExtensionSrt(track = getActiveExtensionTrack()) {
 function buildGapRemovedSrt() {
   const removed = getRemovedGapRanges();
   if (!removed.length) {
-    flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
+    flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
     return null;
   }
   const { segments, overlaySet, overlaySegments } = mergedExportSegments();
@@ -46086,7 +46132,7 @@ function buildGapRemovedSrt() {
 function buildGapRemovedAss() {
   const removed = getRemovedGapRanges();
   if (!removed.length) {
-    flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
+    flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
     return null;
   }
   if(DATA.preview?.project_style?.legacyBurn)return window.MSWProjectStyle.buildLegacyAss(DATA,{...assExportOptions(),alignFirstStart:EDITOR_SETTINGS.exportStartAtZero,mapTime:time=>window.AsrEditorUtils.mapGapRemovedTime(time,removed)});
@@ -46170,7 +46216,7 @@ async function downloadColorSrts(gapRemoved = false) {
     return;
   }
   if (gapRemoved && !removed.length) {
-    flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
+    flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
     return;
   }
   const { segments, overlaySet, overlaySegments } = mergedExportSegments();
@@ -46238,7 +46284,7 @@ async function downloadColorSrts(gapRemoved = false) {
 function gapRemovedExportContext() {
   const removed = getRemovedGapRanges();
   if (!removed.length) {
-    flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
+    flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
     return null;
   }
   const durationMs = waveformEditor?.contentDurationMs || Math.round(Number(player?.duration) * 1000) || 0;
@@ -46848,7 +46894,7 @@ function buildTimelineOtio({
 } = {}) {
   const removed = gapRemoved ? getRemovedGapRanges() : [];
   if (gapRemoved && !removed.length) {
-    flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
+    flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
     return null;
   }
   const durationMs = waveformEditor?.sourceDurationMs || Math.round(Number(player?.duration) * 1000) || 0;
@@ -47170,7 +47216,7 @@ function buildStickerOtioTimeline(stickers, timelineName) {
 function buildGapRemovedStickerOtio() {
   const removed = getRemovedGapRanges();
   if (!removed.length) {
-    flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除', 'invalid');
+    flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
     return null;
   }
   const collected = collectStickerOtioEntries(removed);
@@ -49113,7 +49159,7 @@ document.getElementById('download-gap-removed-sticker-otioz')?.addEventListener(
   if (stickerExportBlocked('download-gap-removed-sticker-otioz')) return;
   const removed = getRemovedGapRanges();
   if (!removed.length) {
-    const msg = '没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除';
+    const msg = '没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护';
     flashHint(window.MSWE_I18N?.translateText?.(msg) || msg);
     return;
   }
@@ -53505,7 +53551,7 @@ function showGapContextMenu(x, y, index) {
     });
     ctxmenu.appendChild(item);
   };
-  addItem(gap.removed === false ? '移除区段' : '恢复区段', () => toggleGapRemoved(index));
+  addItem(gap.removed === false ? '标记移除' : '保留区段', () => toggleGapRemoved(index));
   const separator = document.createElement('div');
   separator.className = 'sep';
   ctxmenu.appendChild(separator);
@@ -53853,6 +53899,7 @@ function initWaveformEditor() {
       return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,(track?.segments || DATA.segments)[index],track?.id));
     },
     getGapRemoveGaps,
+    getEffectiveGapRanges: getRemovedGapRanges,
     getGapOperationMode: getGapRemoveOperationMode,
     toggleGapRemoved,
     applyGapRange: applyManualGapRange,
@@ -53941,6 +53988,7 @@ function initWaveformEditor() {
     onPayload: (payload) => {
       DATA.waveform = payload;
       waveformLoadedFromProject = false;
+      queueMicrotask(() => { syncGapRemoveControls(); renderGapRemoveList(); });
     },
   });
   waveformEditor.attachPlayer(player);
@@ -55395,9 +55443,7 @@ document.getElementById('wave-settings-close')?.addEventListener('click', () => 
 // === 「媒体 → 音频设置 → 空隙」：非字幕片段设为空隙（一次性动作，可撤销） ===
 function computeNonSubtitleGapPieces() {
   // 与音量/静音扫描无关：把「全部音频时长里未被启用字幕覆盖」的区段标记为空隙。
-  const duration = Number.isFinite(player?.duration) && player.duration > 0
-    ? Math.round(player.duration * 1000)
-    : Number(waveformEditor?.payload?.duration_ms || 0);
+  const duration = gapRemoveMediaDurationMs();
   if (!Number.isFinite(duration) || duration <= 0) return null;
   const enabled = DATA.segments
     .filter((segment) => !segment.disabled)
@@ -55412,7 +55458,7 @@ function computeNonSubtitleGapPieces() {
   });
   if (cursor < duration) pieces.push({ start: cursor, end: duration });
   const usable = pieces.filter((piece) => piece.end - piece.start >= 1);
-  return usable.length ? usable : null;
+  return usable;
 }
 const cueEditorSettingsFloatingPanel = createFloatingPanel({
   panel: document.getElementById('cue-editor-settings-modal'),
@@ -55455,37 +55501,12 @@ document.getElementById('cue-list-settings-open')?.addEventListener('click', () 
 });
 document.getElementById('cue-list-settings-close')?.addEventListener('click', () => cueListSettingsFloatingPanel.close());
 
-document.getElementById('gap-clear-all-menu')?.addEventListener('click', () => {
-  const state = getGapRemoveData(false);
-  if (!state?.gaps?.length) {
-    flashHint('当前没有空隙区段记录', 'invalid');
-    return;
-  }
-  pushGapRemoveUndo('清理全部空隙区段');
-  state.gaps = [];
-  setGapRemoveData(state, { clearProvenance: true });
-  flashHint('已清理全部空隙区段', 'success');
-});
-
+document.getElementById('gap-clear-all-menu')?.addEventListener('click', clearAllGaps);
 document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () => {
-  const pieces = computeNonSubtitleGapPieces();
-  if (!pieces) {
-    flashHint('没有可处理的空隙；请先加载媒体', 'invalid');
-    return;
-  }
-  const state = getGapRemoveData(false);
-  pushGapRemoveUndo('非字幕片段设为空隙');
-  // 以 audio_gate 源写入（而非手动记录），波形上与静音空隙同一样式，不带蓝框区分。
-  const core = window.AsrGapRemoveCore;
-  const provenance = core.normalizeGapRemoveProvenance(state?.provenance, core.normalizeGapRemoveGaps(state?.gaps));
-  provenance.sources.audio_gate = core.normalizeGapRemoveProvenance
-    ? [...provenance.sources.audio_gate, ...pieces.map((piece) => ({ start: piece.start, end: piece.end }))]
-    : provenance.sources.audio_gate;
-  const projectedGaps = core.gapRangesFromProvenance(provenance);
-  state.gaps = projectedGaps;
-  state.provenance = provenance;
-  setGapRemoveData(state, { provenance });
-  flashHint(`已把 ${pieces.length} 段非字幕片段设为空隙`, 'success');
+  openGapRemovePanel();
+  gapRemoveSource.value = 'subtitle_outside';
+  commitGapDetectionSettings();
+  gapRemoveScanButton.focus();
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===

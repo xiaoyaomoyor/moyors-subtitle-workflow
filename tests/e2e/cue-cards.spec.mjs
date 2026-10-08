@@ -74,7 +74,7 @@ test('preset cards and feedback colors stay distinct and retain custom overrides
     }, name);
     expect(new Set(colors).size).toBe(3);
     const expected = {
-      default: ['rgb(48, 67, 207)', 'rgb(212, 154, 74)'],
+      default: ['rgb(212, 154, 74)', 'rgb(255, 93, 103)'],
       aster: ['rgb(48, 67, 207)', 'rgb(212, 154, 74)'],
       kosuzu: ['rgb(219, 70, 20)', 'rgb(71, 144, 79)'],
       renko: ['rgb(141, 47, 7)', 'rgb(112, 62, 62)'],
@@ -83,9 +83,9 @@ test('preset cards and feedback colors stay distinct and retain custom overrides
     };
     if (expected[name]) expect(colors.slice(1)).toEqual(expected[name]);
     if (['default','aster','alice'].includes(name)) {
-      const actual=await page.evaluate(()=>({accent:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),wave:resolvedInterfaceColors().wave}));
-      expect(actual).toEqual(name==='alice'?{accent:'#d1b70a',wave:'#499cd0'}:{accent:'#6f60e2',wave:'#6f60e2'});
-      await expect(page.locator(`[data-theme-preset="${name}"] .theme-swatch`)).toHaveCSS('background-image',new RegExp(name==='alice'?'209, 183, 10':'111, 96, 226'));
+      const actual=await page.evaluate(()=>({accent:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),wave:getComputedStyle(document.documentElement).getPropertyValue('--wave-peak').trim()}));
+      expect(actual).toEqual(name==='alice'?{accent:'#d1b70a',wave:'#499cd0'}:name==='default'?{accent:'#6ca5e8',wave:'#65b89a'}:{accent:'#6f60e2',wave:'#6f60e2'});
+      await expect(page.locator(`[data-theme-preset="${name}"] .theme-swatch`)).toHaveCSS('background-image',new RegExp(name==='alice'?'240, 242, 246':name==='default'?'108, 165, 232':'111, 96, 226'));
     }
     await secondary(page).locator('.text').click();
     await page.screenshot({ path: info.outputPath(`theme-${name}.png`) });

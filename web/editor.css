@@ -885,11 +885,11 @@
     width: 16px; height: 16px; border-radius: 4px;
     border: 1px solid rgba(127,127,127,.45);
   }
-  .theme-preset[data-theme-preset="default"] .theme-swatch,
+  .theme-preset[data-theme-preset="default"] .theme-swatch { background: linear-gradient(135deg, #16181d 50%, #6ca5e8 50%); }
   .theme-preset[data-theme-preset="aster"] .theme-swatch { background: linear-gradient(135deg, #1a1b26 50%, #6f60e2 50%); }
   .theme-preset[data-theme-preset="kosuzu"] .theme-swatch { background: linear-gradient(135deg, #170f08 50%, #c9552b 50%); }
   .theme-preset[data-theme-preset="reimu"] .theme-swatch { background: linear-gradient(135deg, #f7efee 50%, #c2334a 50%); }
-  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #499cd0 50%, #d1b70a 50%); }
+  .theme-preset[data-theme-preset="alice"] .theme-swatch { background: linear-gradient(135deg, #f0f2f6 50%, #d1b70a 50%); }
   .theme-preset[data-theme-preset="koishi"] .theme-swatch { background: linear-gradient(135deg, #f5f3e4 50%, #3f7d3a 50%); }
   .theme-preset[data-theme-preset="renko"] .theme-swatch { background: linear-gradient(135deg, #0b0b0e 50%, #aab2c0 50%); }
   :root[data-accent="teal"] {
@@ -4344,6 +4344,41 @@
   @media (max-width: 560px) {
     .gap-remove-panel { top: 70px; right: 6px; width: calc(100vw - 12px); max-height: calc(100vh - 12px); }
     .gap-remove-fields { grid-template-columns: 1fr; }
+  }
+
+  /* 音频空隙：范围限定在本面板，不改变其他共用工具窗。 */
+  #gap-remove-panel { width: min(480px, calc(100vw - 24px)); background: var(--bg-panel); }
+  #gap-remove-panel .gap-remove-panel-header { background: var(--bg-raised); }
+  #gap-remove-panel .gap-remove-panel-body { display: grid; gap: 12px; padding: 14px; }
+  #gap-remove-panel .audio-gaps-section { min-width: 0; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-base); }
+  #gap-remove-panel h4, #gap-remove-panel h5 { display: flex; align-items: center; margin: 0 0 10px; font-size: 13px; color: var(--text-primary); }
+  #gap-remove-panel h5 { margin-top: 14px; font-size: 12px; color: var(--text-secondary); }
+  #gap-remove-panel .gap-remove-heading h3 { display: flex; align-items: center; }
+  #gap-remove-panel .gap-remove-field { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  #gap-remove-panel .gap-remove-field-label { display: flex; align-items: center; font-size: 12px; min-height: 20px; white-space: normal; }
+  #gap-remove-panel .audio-gaps-source { display: grid; grid-template-columns: 1fr 1fr; align-items: center; margin-bottom: 12px; }
+  #gap-remove-panel .gap-remove-fields { gap: 10px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #gap-remove-panel .gap-remove-number-control { min-width: 0; }
+  #gap-remove-panel .gap-remove-number-control input { flex: 1; width: 0; height: 30px; box-sizing: border-box; font-size: 12px; }
+  #gap-remove-panel select { min-width: 0; min-height: 30px; }
+  #gap-remove-panel .audio-gaps-checks { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+  #gap-remove-panel .audio-gaps-checks label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; }
+  #gap-remove-panel input[type=checkbox] { margin: 0; accent-color: var(--accent); }
+  #gap-remove-panel .gap-remove-scan { align-items: center; min-height: 32px; margin: 14px 0 0; padding: 7px 12px; color: var(--accent-active-fg, var(--bg-base)); background: var(--accent); border-color: var(--accent); box-shadow: none; font: 600 13px/1.4 var(--font-sans); }
+  #gap-remove-panel .gap-remove-scan:hover:not(:disabled) { background: var(--accent-hover); }
+  #gap-remove-panel .gap-remove-scan:disabled { opacity: .5; cursor: not-allowed; }
+  #gap-remove-panel .gap-remove-advanced { margin: 0; }
+  #gap-remove-panel .gap-remove-advanced-toggle { min-height: 36px; padding: 9px 12px; font-size: 13px; background: var(--bg-base); }
+  #gap-remove-panel .gap-remove-advanced-body { padding: 12px; }
+  #gap-remove-panel .audio-gaps-subheading { margin-bottom: 10px; font-size: 12px; }
+  #gap-remove-panel .gap-remove-inline-button { min-height: 30px; font-size: 12px; }
+  #gap-remove-panel .gap-remove-panel-footer { flex: 0 0 auto; margin: 0; padding: 12px 14px; border-top: 1px solid var(--border-subtle); background: var(--bg-raised); }
+  #gap-remove-panel .audio-gaps-result { min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+  #gap-remove-panel .gap-remove-panel-footer button:not(.msw-help-button) { min-height: 30px; font-size: 12px; }
+  #gap-remove-panel [hidden] { display: none !important; }
+  @media (max-width: 420px) {
+    #gap-remove-panel .gap-remove-fields, #gap-remove-panel .audio-gaps-source { grid-template-columns: minmax(0, 1fr); }
+    #gap-remove-panel .gap-remove-panel-footer { align-items: flex-start; }
   }
 
   /* Sticker picker grid */

@@ -16,6 +16,37 @@ const source = fs.readFileSync(new URL('../web/editor-utils.js', import.meta.url
 vm.runInNewContext(source, context);
 const gapCore = context.window.AsrGapRemoveCore;
 const helpers = context.window.AsrEditorUtils;
+
+test('subtitle-outside marks survive rescans, manual edits, clear and JSON reload', () => {
+  let provenance = gapCore.replaceGapRemoveProvenanceSource(null, 'subtitle_outside', [{start: 1000, end: 2000}]);
+  provenance = gapCore.replaceGapRemoveProvenanceSource(provenance, 'audio_gate', [{start: 3000, end: 4000}]);
+  provenance = gapCore.appendGapRemoveManualOverrides(provenance, [{start: 1300, end: 1500, removed: false}]);
+  provenance = gapCore.replaceGapRemoveProvenanceSource(provenance, 'audio_gate', [{start: 5000, end: 6000}]);
+  const plain = x => JSON.parse(JSON.stringify(x));
+  assert.deepEqual(plain(gapCore.gapRangesFromProvenance(provenance)), [
+    {start: 1000, end: 1300, removed: true}, {start: 1300, end: 1500, removed: false},
+    {start: 1500, end: 2000, removed: true}, {start: 5000, end: 6000, removed: true},
+  ]);
+  const state = gapCore.normalizeGapRemoveData({provenance, generation_mode: 'subtitle_outside', lead_in_ms: 0, lead_out_ms: 0});
+  const restored = gapCore.normalizeGapRemoveData(plain(state));
+  assert.deepEqual(plain(restored), plain(state));
+  assert.equal(restored.lead_in_ms, 0);
+  assert.deepEqual(plain(restored.generated_sources), ['audio_gate', 'subtitle_outside']);
+  const moved = gapCore.moveGapRemoveProvenance(provenance, state.gaps, 0, 6000, 10000);
+  assert.equal(moved.changed, true);
+  assert.ok(moved.gaps.some(gap => gap.start === 7000));
+  const cleared = gapCore.removeGapRemoveProvenanceRange(provenance, 1000, 2000);
+  assert.equal(cleared.sources.subtitle_outside.length, 0);
+  assert.equal(cleared.manual_overrides.length, 0);
+  assert.deepEqual(plain(gapCore.getRemovedGapRanges(gapCore.gapRangesFromProvenance(cleared))), [{start: 5000, end: 6000}]);
+});
+
+test('empty generated sources remain distinguishable from never scanned and cleared', () => {
+  const normalized = gapCore.normalizeGapRemoveData({generation_mode: 'subtitle_outside', generated_sources: ['subtitle_outside', 'invalid']});
+  assert.deepEqual(JSON.parse(JSON.stringify(normalized.generated_sources)), ['subtitle_outside']);
+  assert.equal(normalized.cleared, false);
+  assert.equal(gapCore.normalizeGapRemoveData({cleared: true}).cleared, true);
+});
 test('bound pair selection defaults off and preserves explicit saved preferences', () => {
   assert.equal(helpers.normalizeEditorSettings({}).selectBoundSubtitlePair, false);
   assert.equal(helpers.normalizeEditorSettings({ selectBoundSubtitlePair: false }).selectBoundSubtitlePair, false);

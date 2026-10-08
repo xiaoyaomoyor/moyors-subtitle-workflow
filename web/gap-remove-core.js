@@ -8,6 +8,7 @@
   const GAP_PROVENANCE_SOURCES = Object.freeze([
     'script_alignment',
     'audio_gate',
+    'subtitle_outside',
     'manual',
     'legacy',
   ]);
@@ -299,6 +300,7 @@
           'audio_gate',
           {sort: true},
         ),
+        subtitle_outside: normalizeProvenanceRangeList(rawSources.subtitle_outside, 'subtitle_outside', {sort: true}),
       },
       manual_overrides: normalizeProvenanceRangeList(
         [...legacyManualOverrides, ...(Array.isArray(source.manual_overrides) ? source.manual_overrides : [])],
@@ -415,6 +417,9 @@
     provenance.sources.audio_gate.forEach((gap) => {
       result = applyGapStateRange(result, gap.start, gap.end, true);
     });
+    provenance.sources.subtitle_outside.forEach((gap) => {
+      result = applyGapStateRange(result, gap.start, gap.end, true);
+    });
     provenance.legacy.forEach((gap) => {
       result = applyGapStateRange(result, gap.start, gap.end, gap.removed, gap.removed === false);
     });
@@ -434,6 +439,7 @@
     const records = [
       ...provenance.sources.script_alignment,
       ...provenance.sources.audio_gate,
+      ...provenance.sources.subtitle_outside,
       ...provenance.manual_overrides.filter((record) => (
         !isBoundaryResizeRecord(record) && !isGapMoveRecord(record)
       )),
@@ -485,7 +491,7 @@
 
   function replaceGapRemoveProvenanceSource(value, source, ranges, fallbackGaps = []) {
     const next = normalizeGapRemoveProvenance(value, fallbackGaps);
-    if (source === 'script_alignment' || source === 'audio_gate') {
+    if (['script_alignment', 'audio_gate', 'subtitle_outside'].includes(source)) {
       next.sources[source] = normalizeProvenanceRangeList(ranges, source, {sort: true});
     }
     return next;
@@ -545,11 +551,13 @@
     const has = (source) => origins.includes(source);
     const hasAudio = has('audio_gate');
     const hasScript = has('script_alignment');
+    const hasSubtitleOutside = has('subtitle_outside');
     const hasManual = has('manual');
-    const automaticOriginCount = [hasAudio, hasScript].filter(Boolean).length;
+    const automaticOriginCount = [hasAudio, hasScript, hasSubtitleOutside].filter(Boolean).length;
     if (automaticOriginCount > 1) return hasManual ? 'multi_source_manual' : 'multi_source';
     if (hasScript) return hasManual ? 'script_alignment_manual' : 'script_alignment';
     if (hasAudio) return hasManual ? 'audio_gate_manual' : 'audio_gate';
+    if (hasSubtitleOutside) return hasManual ? 'subtitle_outside_manual' : 'subtitle_outside';
     if (hasManual) return 'manual';
     return 'unknown';
   }
@@ -595,6 +603,7 @@
       sources: {
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
+        subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
       },
       manual_overrides: removeFrom(provenance.manual_overrides, 'manual', false),
       legacy: removeFrom(provenance.legacy, 'legacy', false),
@@ -620,6 +629,7 @@
       sources: {
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
+        subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
       },
       manual_overrides: normalizeProvenanceRangeList(
         provenance.manual_overrides.flatMap((item) => (
@@ -714,6 +724,7 @@
       sources: {
         script_alignment: removeFrom(provenance.sources.script_alignment, 'script_alignment', true),
         audio_gate: removeFrom(provenance.sources.audio_gate, 'audio_gate', true),
+        subtitle_outside: removeFrom(provenance.sources.subtitle_outside, 'subtitle_outside', true),
       },
       manual_overrides: normalizeProvenanceRangeList(manual, 'manual'),
       legacy: removeFrom(provenance.legacy, 'legacy', false),
@@ -800,6 +811,12 @@
       skip_playback: source.skip_playback !== false,
       manual_corrections: source.manual_corrections === true || provenance.manual_overrides.length > 0,
       operation_mode: normalizeGapOperationMode(source.operation_mode),
+      generation_mode: source.generation_mode === 'subtitle_outside' ? 'subtitle_outside' : 'audio_gate',
+      generated_sources: ['audio_gate', 'subtitle_outside'].filter(name => (
+        (Array.isArray(source.generated_sources) && source.generated_sources.includes(name))
+        || provenance.sources[name].length > 0
+      )),
+      cleared: source.cleared === true,
       disable_coverage_percent: clampGapRemoveDisableCoverage(source.disable_coverage_percent),
       disable_remaining_ms: clampGapRemoveDisableRemaining(source.disable_remaining_ms),
       gaps,

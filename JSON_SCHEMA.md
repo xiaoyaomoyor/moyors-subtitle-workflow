@@ -301,19 +301,20 @@
 
 - `detector` 固定为 `audio_gate`：扫描波形峰值包络，声音高于 `threshold_db` 时打开 gate，低于 `threshold_db - hysteresis_db` 后才关闭；不会用字幕之间的时间差推断空隙。
 - `gaps[*].source` 和 `gaps[*].origins` 是根据 `provenance` 派生的可读字段：`source` 表示唯一的初始自动来源；`origins` 列出当前区间的全部贡献来源。多个自动来源重叠时 `source` 为 `null`；只有人工覆盖时才为 `manual`。它们不是来源真源，旧客户端可以忽略。
-- `provenance` 是可选的来源真源，当前来源层为 `script_alignment`、`audio_gate` 与 `manual_overrides`；`legacy` 是兼容读取字段，启用的旧范围会迁入 `audio_gate`，旧的 `removed: false` 范围会迁入 `manual_overrides`，规范化输出中的 `legacy` 为空数组。支持它的新客户端据此分层重扫和重建最终 `gaps`。
-- `minimum_ms` 的允许范围是 100–60000，单位为毫秒；默认 500。判定基于应用前/后端预留后的最终移除区间，预留吃完整段时不纳入移除。
-- `threshold_db` 的范围是 -96–0，默认 -24；`hysteresis_db` 的范围是 0–30，默认 2。比如阈值 -24、滞回 2 时，声音达到 -24 才算有声，低于 -26 才重新算静音。建议使用 1–3dB；过高会延迟回到静音。滞回位于「空隙检测与调整」折叠区内。
-- `lead_in_ms` / `lead_out_ms` 是每段空隙两侧保留的静音毫秒数，范围 0–2000，默认前端 40、后端 80。扫描得到的原始静音区间会在起点加 `lead_in_ms`、终点减 `lead_out_ms` 后再写入 `gaps`，避免剪掉空隙后两句贴得太急；预留后的区间短于 `minimum_ms` 时整段保留。这两个值在扫描生成空隙时继续生效；对已有结果点击「收缩空隙」时，会再次按当前值向内调整现有区间，是额外的可撤销微调。
+- `provenance` 是可选的来源真源，当前来源层为 `script_alignment`、`audio_gate`、`subtitle_outside` 与 `manual_overrides`；`legacy` 是兼容读取字段，启用的旧范围会迁入 `audio_gate`，旧的 `removed: false` 范围会迁入 `manual_overrides`，规范化输出中的 `legacy` 为空数组。支持它的新客户端据此分层重扫和重建最终 `gaps`。
+- `minimum_ms` 的允许范围是 100–60000，单位为毫秒；编辑器默认 400。判定基于应用前/后端预留后的最终移除区间，预留吃完整段时不纳入移除。
+- `threshold_db` 的范围是 -96–0，编辑器默认 -28；`hysteresis_db` 的范围是 0–30，默认 2。比如阈值 -24、滞回 2 时，声音达到 -24 才算有声，低于 -26 才重新算静音。建议使用 1–3dB；过高会延迟回到静音。界面称为“阈值缓冲”，位于“高级检测”折叠区内。
+- `lead_in_ms` / `lead_out_ms` 分别是空隙起点／终点保留的音频毫秒数，范围 0–2000，编辑器默认 120／80；界面称为“句尾保留／句首保留”。零值有效。生成时从原始检测区段起点加 `lead_in_ms`、终点减 `lead_out_ms`；音量检测的最终区段须达到 `minimum_ms`，主字幕外区段只须保持正时长。重新生成基于原始波形／主字幕覆盖范围，不累计收缩，不改写原媒体或字幕时间。
 - `manual_corrections` 表示当前结果是否包含人工修正。新客户端根据 `provenance.manual_overrides` 是否为空维护它；旧客户端仍可把它当作全局摘要。Alt+左键切换整段、Ctrl/Cmd+复制拖动、中键范围操作和“全部恢复”都会留下普通人工覆盖；整体拖动会留下 `operation: "move"` 的内部记录，保存 `base_start`/`base_end` 和 `target_start`/`target_end`，重复拖动时更新原记录；旧移动目标被后续操作从中间覆盖时，记录可使用 `target_ranges` 保存剩余目标片段。边界拖动会留下 `operation: "boundary_resize"` 的内部记录，保存 `edge`、`base`、`boundary` 与可选 `cleared_ranges`。两类记录都直接调整同一条 Gap 的范围，不会在原位置追加 `removed: false` 恢复块；重新扫描不会删除这些人工调整。
 - `operation: "move"` 移动的是用户看到的整条 Gap：先清除原可见范围，再把相同状态放到固定长度的目标范围。通常使用 `target_start`/`target_end`；旧移动目标被后续操作从中间覆盖时，使用可选 `target_ranges` 保存剩余片段（可以为空以继续清除 base）。同状态的被覆盖 Gap 会被吸收，`removed` 状态不同的 Gap 只缩小其重叠部分，因此相邻的 active/inactive Gap 仍是独立对象。普通 `removed: false` 仍然表示用户明确保留、但不参与跳过的恢复区。
 - `removed: false` 的恢复区段仍保留在时间轴上，但不参与播放跳过、去空隙导出或“禁用空隙内字幕”；“清理区段”则从来源层删除选中范围内的记录，不留下恢复覆盖，因此之后重新扫描可能再次生成同一段静音 Gap。
 - `operation_mode` 控制人工修正交互：`none` 仅保留 Alt+点击整段切换，`boundary_drag` 在 hover 空隙时显示左右边界手柄，`middle_drag` 默认用中键增加静音、按住 Alt 才恢复声音，`boundary_and_middle`（界面显示「边界与中键」）同时启用边界手柄和中键范围操作；当前界面默认 `boundary_drag`。边界只移动被点中的 Gap，不会联动相邻 Gap；向内缩小启用或未激活 Gap 时，被让出的边缘会从最终投影清除，未激活 Gap 不会凭此产生启用 Gap。向外覆盖另一段时，完整覆盖会清理整段，部分覆盖只裁掉相交范围，并在 `cleared_ranges` 中保留已覆盖范围以防回拖时旧 Gap 复活。重复拖动同一边界会更新已有的 `boundary_resize` 记录。
-- `disable_coverage_percent` 与 `disable_remaining_ms` 是“禁用空隙内字幕”设置，均为可选字段，缺失时默认分别为 80% 和 300ms。执行“禁用字幕”时，编辑器先把所有 `removed: true` 空隙合并，再筛选空隙覆盖字幕时长达到该比例、且未被覆盖的剩余字幕时长不超过该阈值的主字幕；完全落在空隙内的字幕会命中。该操作只设置字幕的 `disabled` 标记，不改写起止时间，并可通过撤销恢复。
-- 「空隙检测与调整」中的「收缩空隙」是对现有 `audio_gate` 空隙的额外处理：每段起点增加当前 `lead_in_ms`，终点减少当前 `lead_out_ms`；被预留量完全吃掉的区间会丢弃，其他区间保留原有 `removed` 状态。它直接重写 `provenance.sources.audio_gate` 的区间并据此重建 `gaps`，不新增 `manual_overrides`，也不因此标记 `manual_corrections`；已有人工覆盖仍然保留。不改写字幕起止时间；重复点击会继续收缩，且每次都可撤销。
-- 扫描不会移除开头或结尾的素材。
-- 波形将 `removed: true` 画为橙色斜纹、`removed: false` 画为灰蓝斜纹；边界把手和整体/边界拖动预览使用蓝色表示正在进行人工修改；左键仅跳转播放头，Alt+左键才在两种状态间切换。
-- 旧工程没有 provenance、或使用 `legacy_subtitle_gap` detector 时，现有 `removed: true` 范围会按 `audio_gate` 迁入并继续启用，`removed: false` 范围迁为人工恢复；重新扫描和「收缩空隙」都会处理迁入的自动静音范围。
+- `disable_coverage_percent` 与 `disable_remaining_ms` 是“禁用空隙内字幕”设置，均为可选字段，缺失时默认分别为 80% 和 300ms。执行“禁用字幕”时，编辑器先把所有 `removed: true` 空隙合并并排除配音保护，再筛选空隙覆盖字幕时长达到该比例、且未被覆盖的剩余字幕时长不超过该阈值的主字幕；完全落在空隙内的字幕会命中。该操作联动绑定副字幕，只设置字幕的 `disabled` 标记，不改写起止时间，并可通过撤销恢复。
+- `provenance.sources.subtitle_outside` 保存按启用的主字幕覆盖范围生成的区段（含首尾），可能含有声音。其条目与其他自动来源一样包含 `id/source/start/end/removed`。两种生成方式分别替换自身来源，保留其他来源及人工覆盖；清理、移动、边界调整和 Python 对齐往返均保留该来源。旧版没有记录来源的“非字幕区段”无法可靠辨认，仍按原规则迁入 `audio_gate`，不会猜测迁移。
+- 可选 `generation_mode` 为 `audio_gate`（默认）或 `subtitle_outside`，保存面板选择；`generated_sources` 是已生成的这两类来源名称数组，即使结果为空也保留完成状态；旧工程从非空来源推导。`cleared` 默认 `false`，清空时设为 `true` 并清空来源与 `generated_sources`，用于区分未生成、没有匹配区段与已清空。上述设置和结果随工程保存，撤销恢复。
+- 音量检测只扫描内部静音，不移除开头／结尾；主字幕外区段生成包括未覆盖的媒体首尾。
+- 波形不常驻显示“空隙”文字，以主题色和边界呈现标记，拖动数值临时显示。悬停显示待移除／已保留、来源、时间与配音保护信息；左键定位，Alt 点击切换状态。面板实际可缩短时长及字幕处理筛选使用配音保护后的有效范围，与试听及导出一致。
+- 旧工程没有 provenance、或使用 `legacy_subtitle_gap` detector 时，现有 `removed: true` 范围按 `audio_gate` 迁入并继续启用，`removed: false` 迁为人工恢复；重新检测会替换迁入的自动静音范围。
 
 ### 1.3a script_alignment 录制对齐记录
 

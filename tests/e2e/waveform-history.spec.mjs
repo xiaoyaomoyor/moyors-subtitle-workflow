@@ -81,8 +81,10 @@ test('undoing a waveform-created subtitle keeps redo available', async ({ page }
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(7);
 });
 
-test('blank waveform context menu disables subtitle creation over an existing cue', async ({ page }) => {
+test('legacy project: blank waveform context menu disables subtitle creation over an existing cue', async ({ page }) => {
   await page.goto(server.url);
+  // These constraints belong to the legacy single-layer format, not msw.project.v2.
+  await page.evaluate(() => { DATA.schema = 'moy.asr.project.v1'; renderAll({waveform:'full'}); });
   const row = page.locator('.waveform-row').first();
   await expect(row).toBeVisible();
   const box = await row.boundingBox();
@@ -145,7 +147,8 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
 
   await setGaps([{ start: 10050, end: 10550, removed: true }], 'boundary_and_middle');
   await toggleWaveSettings(page);
-  await expect(page.locator('#gap-remove-operation-mode')).toHaveValue('boundary_and_middle');
+  await expect(page.locator('#gap-remove-boundary')).toBeChecked();
+  await expect(page.locator('#gap-remove-middle')).toBeChecked();
   await toggleWaveSettings(page);
   const middleRow = page.locator('.waveform-row[data-row-index="0"]').first();
   const middleBox = await middleRow.boundingBox();
@@ -281,17 +284,14 @@ test('gap settings expose compact actions and screenshot defaults', async ({ pag
   await expect(page.locator('#gap-remove-hysteresis')).toHaveValue('2');
   await expect(page.locator('#gap-remove-summary')).toHaveCount(0);
 
-  const shrinkAction = page.locator('#gap-remove-shrink').locator('xpath=..');
-  await expect(shrinkAction).toHaveClass(/gap-remove-inline-action/);
-  await expect(page.locator('#gap-remove-shrink')).toHaveClass(/gap-remove-inline-button/);
-  await expect(page.locator('#gap-remove-shrink')).toHaveText('进一步收缩空隙');
-  await expect(shrinkAction.locator('small')).toHaveText('在现有基础上，使当前所有空隙进一步收缩');
-
-  const disableAction = page.locator('#gap-remove-disable-button').locator('xpath=..');
-  await expect(disableAction).toHaveClass(/gap-remove-inline-action/);
-  await expect(page.locator('#gap-remove-disable-button')).toHaveClass(/gap-remove-inline-button/);
-  await expect(disableAction.locator('small')).toHaveText('禁用位于空隙范围内的字幕（当前有 0 条未禁用）');
-  await expect(page.locator('#gap-remove-lead-in').locator('xpath=../../small')).toHaveCSS('font-size', '11px');
+  await expect(page.locator('#gap-remove-shrink')).toHaveCount(0);
+  await expect(page.locator('#gap-remove-panel-title')).toContainText('音频空隙');
+  await expect(page.locator('#gap-remove-source')).toHaveValue('audio_gate');
+  await expect(page.locator('#gap-remove-lead-in')).toBeVisible();
+  await expect(page.locator('#gap-remove-advanced-body')).toBeHidden();
+  await page.locator('#gap-remove-disable-toggle').click();
+  await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（0）');
+  await expect(page.locator('#gap-remove-padding-title .msw-help-button')).toBeVisible();
 });
 
 test('disables subtitles by removed-gap coverage and remaining duration thresholds', async ({ page }) => {
@@ -331,86 +331,60 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
   await expect(page.locator('#gap-remove-disable-coverage')).toHaveValue('80');
   await expect(page.locator('#gap-remove-disable-remaining')).toHaveValue('300');
   await expect(page.locator('#gap-remove-disable-button')).toBeEnabled();
-  await expect(page.locator('#gap-remove-disable-hint')).toHaveText('禁用位于空隙范围内的字幕（当前有 2 条未禁用）');
+  await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（2）');
 
   await page.locator('#gap-remove-disable-button').click();
-  await expect.poll(() => page.evaluate(() => DATA.segments.map((segment) => Boolean(segment.disabled))))
-    .toEqual([true, false, true, false]);
-  await expect(page.locator('#gap-remove-disable-hint')).toHaveText('禁用位于空隙范围内的字幕（当前有 0 条未禁用）');
-  await expect(page.locator('#hint-stack')).toContainText('已禁用 2 条静音空隙内的字幕');
+  await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))
+    .toEqual(['full-gap', 'near-gap']);
+  await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（0）');
+  await expect(page.locator('#hint-stack')).toContainText('已禁用 2 条待移除区段内的字幕');
 
   await clickMenubarItem(page, '编辑', 'undo-btn');
-  await expect.poll(() => page.evaluate(() => DATA.segments.map((segment) => Boolean(segment.disabled))))
-    .toEqual([false, false, false, false]);
-  await expect(page.locator('#gap-remove-disable-hint')).toHaveText('禁用位于空隙范围内的字幕（当前有 2 条未禁用）');
+  await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))
+    .toEqual([]);
+  await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（2）');
 
   await page.locator('#gap-remove-disable-coverage').fill('50');
   await page.locator('#gap-remove-disable-coverage').press('Tab');
   await page.locator('#gap-remove-disable-remaining').fill('1000');
   await page.locator('#gap-remove-disable-remaining').press('Tab');
-  await expect(page.locator('#gap-remove-disable-hint')).toHaveText('禁用位于空隙范围内的字幕（当前有 3 条未禁用）');
+  await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（3）');
   await page.locator('#gap-remove-disable-button').click();
-  await expect.poll(() => page.evaluate(() => DATA.segments.map((segment) => Boolean(segment.disabled))))
-    .toEqual([true, true, true, false]);
+  await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))
+    .toEqual(['full-gap', 'near-gap', 'partial']);
   await expect.poll(() => page.evaluate(() => ({
     coverage: DATA.gap_remove.disable_coverage_percent,
     remaining: DATA.gap_remove.disable_remaining_ms,
   }))).toEqual({ coverage: 50, remaining: 1000 });
 });
 
-test('shrinks existing gaps from the gap settings padding', async ({ page }) => {
+test('rescanning legacy audio gaps replaces their ranges without cumulative shrinking', async ({ page }) => {
   await page.goto(server.url);
   await page.evaluate(() => {
-    DATA.gap_remove = {
-      schema: 'moy.asr.gap_remove.v1',
-      detector: 'audio_gate',
-      minimum_ms: 500,
-      threshold_db: -24,
-      hysteresis_db: 2,
-      lead_in_ms: 40,
-      lead_out_ms: 80,
-      skip_playback: true,
-      operation_mode: 'boundary_drag',
-      manual_corrections: false,
-      gaps: [
-        { start: 1000, end: 2000, removed: true },
-        { start: 3000, end: 3400, removed: false },
-      ],
-    };
+    DATA.gap_remove = {gaps:[{start:1000,end:2000,removed:true}],lead_in_ms:40,lead_out_ms:80};
+    const peaks = new Int8Array(80);
+    for (let i=0;i<40;i++) if(i<10||i>=30) {peaks[2*i]=-100;peaks[2*i+1]=100;}
+    waveformEditor.getGapRemoveDetectionData=()=>({duration_ms:4000,peaks_per_second:10,peaks});
     updateGapRemoveUi();
-    renderAll({ waveform: 'full' });
   });
-
   await clickMenubarItem(page, '媒体', 'gap-remove-manage');
-  await expect(page.locator('#gap-remove-advanced-toggle')).toContainText('空隙检测与调整');
-  const advancedToggle = page.locator('#gap-remove-advanced-toggle');
-  if (await advancedToggle.getAttribute('aria-expanded') !== 'true') await advancedToggle.click();
-  await expect(page.locator('#gap-remove-shrink')).toBeVisible();
-  await expect(page.locator('#gap-remove-lead-in')).toHaveValue('40');
-  await expect(page.locator('#gap-remove-lead-out')).toHaveValue('80');
-  await page.locator('#gap-remove-lead-in').fill('100');
-  await page.locator('#gap-remove-lead-out').fill('200');
-
-  await page.locator('#gap-remove-shrink').click();
-  await expect.poll(() => page.evaluate(() => DATA.gap_remove.gaps.map(({start, end, removed}) => ({start, end, removed})))).toEqual([
-    { start: 1100, end: 1800, removed: true },
-    { start: 3000, end: 3400, removed: false },
-  ]);
-  await expect.poll(() => page.evaluate(() => ({
-    leadIn: DATA.gap_remove.lead_in_ms,
-    leadOut: DATA.gap_remove.lead_out_ms,
-  }))).toEqual({ leadIn: 100, leadOut: 200 });
-  await expect(page.locator('#hint-stack')).toContainText('已按前端 100ms、后端 200ms 收缩 1 段空隙');
-
-  await clickMenubarItem(page, '编辑', 'undo-btn');
-  await expect.poll(() => page.evaluate(() => DATA.gap_remove.gaps.map(({start, end, removed}) => ({start, end, removed})))).toEqual([
-    { start: 1000, end: 2000, removed: true },
-    { start: 3000, end: 3400, removed: false },
-  ]);
+  await page.locator('#gap-remove-lead-in').fill('100'); await page.locator('#gap-remove-lead-in').press('Tab');
+  await page.locator('#gap-remove-lead-out').fill('200'); await page.locator('#gap-remove-lead-out').press('Tab');
+  const shape=()=>page.evaluate(()=>getGapRemoveGaps().map(({start,end,removed})=>({start,end,removed})));
+  await page.locator('#gap-remove-scan').click();
+  await expect.poll(shape).toEqual([{start:1100,end:2800,removed:true}]);
+  await clickMenubarItem(page,'编辑','undo-btn');
+  await expect.poll(shape).toEqual([{start:1000,end:2000,removed:true}]);
+  await clickMenubarItem(page,'编辑','redo-btn');
+  await expect.poll(shape).toEqual([{start:1100,end:2800,removed:true}]);
+  await page.locator('#gap-remove-scan').click();
+  await expect.poll(shape).toEqual([{start:1100,end:2800,removed:true}]);
 });
 
-test('N creates a subtitle at the waveform pointer and focuses the new cue', async ({ page }) => {
+test('legacy project: N creates a subtitle at the waveform pointer and focuses the new cue', async ({ page }) => {
   await page.goto(server.url);
+  // These constraints belong to the legacy single-layer format, not msw.project.v2.
+  await page.evaluate(() => { DATA.schema = 'moy.asr.project.v1'; renderAll({waveform:'full'}); });
   await page.locator('.player-stage').hover();
   await page.keyboard.press('n');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(6);
@@ -503,8 +477,10 @@ test('Ctrl+dragging a too-short range shows a warning toast', async ({ page }) =
   await expect(warning).toBeVisible();
 });
 
-test('Ctrl+dragging an existing cue is rejected without a preview', async ({ page }) => {
+test('legacy project: Ctrl+dragging an existing cue is rejected without a preview', async ({ page }) => {
   await page.goto(server.url);
+  // These constraints belong to the legacy single-layer format, not msw.project.v2.
+  await page.evaluate(() => { DATA.schema = 'moy.asr.project.v1'; renderAll({waveform:'full'}); });
   const cue = page.locator('.waveform-cue-block[data-idx="0"]').first();
   await expect(cue).toBeVisible();
   const box = await cue.boundingBox();
@@ -524,8 +500,10 @@ test('Ctrl+dragging an existing cue is rejected without a preview', async ({ pag
   })).toBeVisible();
 });
 
-test('Ctrl+dragging from blank space stops at an existing cue boundary', async ({ page }) => {
+test('legacy project: Ctrl+dragging from blank space stops at an existing cue boundary', async ({ page }) => {
   await page.goto(server.url);
+  // These constraints belong to the legacy single-layer format, not msw.project.v2.
+  await page.evaluate(() => { DATA.schema = 'moy.asr.project.v1'; renderAll({waveform:'full'}); });
   const row = page.locator('.waveform-row').first();
   await expect(row).toBeVisible();
   const box = await row.boundingBox();
@@ -685,7 +663,7 @@ test('current-cue text keeps the list and waveform labels in sync through undo a
   const waveformLabel = waveformCue.locator('.waveform-cue-label');
   const listText = page.locator('.cue[data-idx="0"] .text');
   const panelText = page.locator('#cue-panel-text');
-  const overlayText = page.locator('#overlay-main-text');
+  const overlayText = page.locator('#msw-layer-preview .msw-layer-preview-text[data-role=main]');
   const undo = page.locator('#undo-btn');
   const redo = page.locator('#redo-btn');
 
@@ -1670,11 +1648,10 @@ test('contextual help links open their matching Help tabs', async ({ page }) => 
   const helpPanel = page.locator('#help-panel');
 
   await clickMenubarItem(page, '媒体', 'gap-remove-manage');
-  await page.locator('#gap-remove-help').click();
-  await expect(helpPanel).toHaveClass(/show/);
-  await expect(page.locator('#help-tab-gap')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#gap-remove-panel')).not.toHaveClass(/show/);
-  await page.locator('#help-close').click();
+  await page.locator('#gap-remove-panel-title .msw-help-button').click();
+  await expect(page.locator('#msw-option-help')).toContainText('不改写原媒体');
+  await page.keyboard.press('Escape');
+  await page.locator('#gap-remove-close').click();
 
   for (const { button, tab } of [
     { button: '#waveform-settings-help', tab: '#help-tab-waveform' },
@@ -1732,8 +1709,8 @@ test('Help settings actions open the related waveform and media settings', async
   await helpPanel.getByRole('tab', { name: '空隙操作', exact: true }).click();
   await helpPanel.locator('#help-open-gap-settings').click();
   await expect(helpPanel).toHaveClass(/show/);
-  await expect(page.locator('#editor-settings-panel')).toBeVisible();
-  await page.locator('#editor-settings-close').click();
+  await expect(page.locator('#gap-remove-panel')).toBeVisible();
+  await page.locator('#gap-remove-close').click();
 
   await helpPanel.getByRole('tab', { name: '播放与导航', exact: true }).click();
   await helpPanel.locator('#help-open-media-settings').click();

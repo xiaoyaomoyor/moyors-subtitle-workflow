@@ -663,8 +663,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--amber) 45%, #fff);
-  background: color-mix(in srgb, var(--amber) 22%, var(--bg-base));
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-base));
   border-radius: 2px;
   padding: 1px 3px;
   font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -675,41 +675,41 @@
 .waveform-gap-block.dragging {
   cursor: grabbing;
   opacity: .9;
-  border-color: rgba(94, 184, 255, .98);
+  border-color: var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(65, 153, 229, .62) 0 5px,
-    rgba(29, 74, 128, .62) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
 }
 .waveform-gap-block.waveform-gap-drag-preview,
 .waveform-gap-block.waveform-gap-boundary-preview {
   z-index: 13;
   pointer-events: none;
-  border: 1px solid rgba(94, 184, 255, .98);
+  border: 1px solid var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(65, 153, 229, .58) 0 5px,
-    rgba(29, 74, 128, .58) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
   opacity: .92;
 }
 .waveform-gap-block.waveform-gap-drag-preview.copy {
   border-style: dashed;
-  border-color: rgba(140, 222, 255, .98);
+  border-color: var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(87, 174, 211, .58) 0 5px,
-    rgba(31, 73, 94, .58) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
 }
 .waveform-gap-block.waveform-gap-drag-preview.restored,
 .waveform-gap-block.waveform-gap-boundary-preview.restored {
-  border-color: rgba(128, 198, 255, .98);
+  border-color: var(--accent);
   background: repeating-linear-gradient(
     135deg,
-    rgba(84, 159, 216, .58) 0 5px,
-    rgba(37, 81, 120, .58) 5px 10px
+    color-mix(in srgb, var(--accent) 45%, transparent) 0 5px,
+    color-mix(in srgb, var(--accent) 20%, var(--bg-base)) 5px 10px
   );
 }
 .waveform-gap-handle {
@@ -744,13 +744,13 @@
   bottom: 0;
   min-width: 3px;
   box-sizing: border-box;
-  border: 1px solid rgba(132, 190, 226, 0.95);
-  background: rgba(76, 139, 178, 0.28);
+  border: 1px solid var(--accent);
+  background: var(--accent-tint-strong);
   pointer-events: none;
 }
 .waveform-gap-range-preview.remove {
-  border-color: rgba(255, 168, 76, 0.98);
-  background: rgba(218, 116, 51, 0.34);
+  border-color: var(--gap-accent);
+  background: var(--gap-stripe-a);
 }
 .waveform-gap-range-preview > span {
   position: absolute;

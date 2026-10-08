@@ -9,6 +9,60 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    "已标记为待移除": "Marked for removal",
+    "已标记为保留": "Marked to keep",
+    "标记移除": "Mark for removal",
+    "保留区段": "Keep range",
+    "所选范围已标记为待移除": "The selected range is already marked for removal",
+    "所选范围内没有待移除的标记": "No removal marks in the selected range",
+    "已将所选范围标记为待移除": "Selected range marked for removal",
+    "已将所选范围标记为保留": "Selected range marked to keep",
+    "该位置已有待移除标记": "This position is already marked for removal",
+    "没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护": "No removable ranges. Generate marks in Audio gaps and check dubbing protection.",
+    "没有符合当前条件的区段；已保留其他来源与手工调整": "No ranges match these settings. Other sources and manual edits are preserved.",
+    "波形尚未就绪，暂时无法按音量检测空隙": "The waveform is not ready for volume detection yet.",
+    "请先加载媒体，再生成空隙标记": "Load media before generating gap marks.",
+    "音频空隙": "Audio gaps",
+    "生成空隙标记": "Generate gap marks",
+    "生成方式": "Method",
+    "按音量检测": "Detect by volume",
+    "主字幕外区段": "Outside main subtitles",
+    "主字幕外区段…": "Outside main subtitles…",
+    "最短空隙": "Minimum gap",
+    "静音阈值": "Silence threshold",
+    "边界保留": "Edge padding",
+    "句尾保留": "After previous cue",
+    "句首保留": "Before next cue",
+    "生成标记": "Generate marks",
+    "重新生成": "Regenerate",
+    "正在生成…": "Generating…",
+    "正在生成标记…": "Generating marks…",
+    "试听与操作": "Playback and gestures",
+    "允许拖动边界": "Allow edge dragging",
+    "启用中键标记": "Enable middle-button marking",
+    "高级检测": "Advanced detection",
+    "阈值缓冲": "Threshold buffer",
+    "字幕处理": "Subtitle actions",
+    "筛选条件": "Match criteria",
+    "最低覆盖率": "Minimum coverage",
+    "最多剩余": "Maximum remaining",
+    "清空标记": "Clear marks",
+    "尚未生成标记": "No marks generated yet",
+    "已清空标记，可撤销恢复": "Marks cleared; undo to restore",
+    "没有符合当前条件的区段": "No ranges match these settings",
+    "请先加载媒体": "Load media first",
+    "波形尚未就绪": "Waveform is not ready",
+    "关闭音频空隙": "Close audio gaps",
+    "待移除": "Marked for removal",
+    "已保留": "Kept",
+    "待移除区段内的字幕": "subtitles in marked ranges",
+    "标记准备跳过或移除的时间段，不改写原媒体。试听可选择跳过；是否在导出时移除，仍由导出设置决定。配音保护覆盖的部分不会移除。": "Mark ranges to skip or remove without changing the original media. Skipping during playback is independent of removal on export. Dubbing-protected portions are retained.",
+    "按音量检测：依据源音轨波形判断静音，不是人声识别。主字幕外区段：标记未被启用的主字幕覆盖的区段，其中可能有声音。重新生成只替换所选来源，保留其他来源与手工调整。": "Volume detection uses the source waveform, not speech recognition. Outside main subtitles marks ranges not covered by enabled main subtitles; these may contain sound. Regeneration replaces only the selected source and preserves other sources and manual edits.",
+    "句尾保留：从空隙起点向后保留一段，保护上一句收尾。句首保留：从空隙终点向前保留一段，保护下一句开头。两种生成方式都应用此设置；填 0 表示不额外保留。修改后点击重新生成，不会在旧结果上反复收缩。": "Keep audio after the previous cue at the gap start and before the next cue at the gap end. Applies to both methods; zero adds no padding. Regenerate after changes; padding does not accumulate.",
+    "检测到的静音区段扣除两侧保留量后短于此时长时不生成标记。": "Ignore detected silence shorter than this duration after edge padding.",
+    "音量达到此值时视为有声。数值越接近 0，越多低音量区段会被判为静音。": "Audio at or above this threshold is treated as sound. Values closer to zero classify more quiet audio as silence.",
+    "左键定位到空隙中可临时试听。Alt 点击切换待移除／已保留；空白处 Alt 拖动添加标记。拖动空隙块可移动，Ctrl/Cmd 拖动可复制。启用中键标记后，中键拖动标记移除，Alt＋中键拖动保留声音。": "Click inside a gap to audition it temporarily. Alt-click toggles removal; Alt-drag on the background adds marks. Drag a gap to move it, or Ctrl/Cmd-drag to copy. When middle-button marking is enabled, middle-drag marks removal and Alt-middle-drag keeps audio.",
+    "主字幕须同时满足：实际可移除部分的覆盖率不低于设置值，剩余时长不超过设置值。点击按钮后才会禁用符合条件的主字幕及其绑定副字幕；生成标记不会自动禁用字幕。支持撤销。": "Main subtitles must meet both criteria: removable coverage at least the configured percentage, and remaining duration at most the limit. The button disables matches and their linked secondary subtitles. Generating marks does not disable subtitles. Undo is supported.",
     '单切并解绑': 'Split only this cue and unlink',
     '累加状态合并完成': 'Merged with combined states',
     '共有状态合并完成': 'Merged with shared states',
@@ -2378,6 +2432,18 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const gapGenerated = text.match(/^已生成 (\d+) 段标记，保留其他来源与手工调整$/);
+    if (gapGenerated) return `Generated ${gapGenerated[1]} marks; other sources and manual edits are preserved`;
+    const gapError = text.match(/^无法生成空隙标记：(.+)$/);
+    if (gapError) return `Cannot generate gap marks: ${gapError[1]}`;
+    const gapDisable = text.match(/^禁用符合条件的字幕（(\d+)）$/);
+    if (gapDisable) return `Disable matching subtitles (${gapDisable[1]})`;
+    const gapSummary = text.match(/^已标记 (\d+) 段 · 实际可缩短 (.+)$/);
+    if (gapSummary) return `${gapSummary[1]} marked ranges · Removable ${translateText(gapSummary[2], lang)}`;
+    const gapBuffer = text.match(/^有声转回静音时，音量需低于静音阈值 (.+) dB，避免边界反复跳变。建议 1–3 dB。$/);
+    if (gapBuffer) return `Return to silence ${gapBuffer[1]} dB below the threshold to stabilize boundaries. Recommended: 1–3 dB.`;
+    const gapProtection = text.match(/^配音保护保留了 (.+)；此部分不会跳过或移除。统计与播放、导出共用有效范围。$/);
+    if (gapProtection) return `Dubbing protection keeps ${translateText(gapProtection[1], lang)}. This part is neither skipped nor removed. Statistics, playback and export share the effective ranges.`;
     const splitPosition = text.match(/^切分位置 (.+?)( · 估算时间)?$/);
     if (splitPosition) return `Split at ${splitPosition[1]}${splitPosition[2] ? ' · Estimated time' : ''}`;
     const splitCharacter = text.match(/^在第 (\d+) 个字符后拆分$/);

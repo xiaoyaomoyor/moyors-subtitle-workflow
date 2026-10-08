@@ -29,6 +29,24 @@ def gap_shape(gap: dict[str, object]) -> tuple[int, int, bool]:
 
 
 class ScriptAlignmentTests(unittest.TestCase):
+    def test_subtitle_outside_provenance_survives_alignment_roundtrip(self) -> None:
+        from maw.script_alignment import _normalize_gap_remove_override, _replace_provenance_source
+
+        provenance = _replace_provenance_source(None, "subtitle_outside", [{"start": 1000, "end": 2000}])
+        provenance = _replace_provenance_source(provenance, "audio_gate", [{"start": 3000, "end": 4000}])
+        provenance["manual_overrides"] = [{"start": 1200, "end": 1500, "removed": False}]
+        value = {"provenance": provenance, "gaps": [], "generation_mode": "subtitle_outside",
+                 "generated_sources": ["audio_gate", "subtitle_outside"], "lead_in_ms": 0, "lead_out_ms": 0}
+        result = _normalize_gap_remove_override(value, {}, {})
+        self.assertEqual([gap_shape(gap) for gap in result["gaps"]], [
+            (1000, 1200, True), (1200, 1500, False), (1500, 2000, True), (3000, 4000, True),
+        ])
+        self.assertEqual(result["generation_mode"], "subtitle_outside")
+        self.assertEqual(result["generated_sources"], ["audio_gate", "subtitle_outside"])
+        self.assertEqual(result["lead_in_ms"], 0)
+        self.assertEqual(result["lead_out_ms"], 0)
+        self.assertEqual(_normalize_gap_remove_override(json.loads(json.dumps(result)), {}, {}), result)
+
     def setUp(self) -> None:
         self.project = {
             "media": "demo.wav",

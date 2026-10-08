@@ -108,14 +108,16 @@ class EditorAssetContractTests(unittest.TestCase):
         self.assertIn("box-shadow: inset 0 0 0 4px", styles)
         self.assertIn("this.options.getGapRemoveGaps?.() || []", waveform)
 
-    def test_gap_state_labels_match_in_mawe_and_align(self) -> None:
+    def test_gap_state_is_in_hover_details_in_editor_and_labels_in_align(self) -> None:
         waveform = edit.read_web_asset("waveform.js")
         align_page = (ROOT / "server-align" / "index.html").read_text(encoding="utf-8")
         label = "gap.removed === false ? '空隙（未激活）' : '空隙'"
-        self.assertIn(label, waveform)
+        self.assertNotIn(label, waveform)
+        self.assertIn("gapRemoveDisplayLabel(gap)", waveform)
+        self.assertIn("Marked for removal", waveform)
         self.assertIn(label, align_page)
 
-    def test_gap_manual_drag_uses_blue_handles_and_preview_in_both_editors(self) -> None:
+    def test_gap_manual_drag_uses_theme_color_in_editor_and_blue_in_align(self) -> None:
         waveform_styles = edit.read_web_asset("waveform.css")
         align_page = (ROOT / "server-align" / "index.html").read_text(encoding="utf-8")
         # 编辑器侧：空隙手柄跟随主题强调键（默认主题下即蓝）；对齐页是独立工具页，保持固定蓝。
@@ -126,7 +128,10 @@ class EditorAssetContractTests(unittest.TestCase):
             self.assertIn(handle, styles)
             self.assertIn(dragging, styles)
             self.assertIn(handle_bg, styles)
-            self.assertIn("rgba(94", styles)
+            if styles == waveform_styles:
+                self.assertIn("border-color: var(--accent)", styles)
+            else:
+                self.assertIn("rgba(94", styles)
 
     def test_gap_core_exposes_restore_and_clear_semantics(self) -> None:
         core = edit.read_web_asset("gap-remove-core.js")
@@ -148,13 +153,15 @@ class EditorAssetContractTests(unittest.TestCase):
         self.assertIn("core.moveGapRemoveProvenance", section)
         self.assertNotIn("original.start, end: original.end, removed: false", section)
 
-    def test_shrink_gaps_replaces_audio_source_without_manual_override(self) -> None:
+    def test_regenerating_gaps_replaces_selected_source_without_manual_override(self) -> None:
         script = edit.read_web_asset("editor.js")
-        start = script.index("function shrinkExistingGaps()")
+        start = script.index("function scanAndRemoveGaps(")
         end = script.index("function readGapRemoveDisableSettings()", start)
         section = script[start:end]
         self.assertIn("core.replaceGapRemoveProvenanceSource", section)
-        self.assertIn("state.manual_corrections = provenance.manual_overrides.length > 0", section)
+        self.assertIn("core.detectAudioGapRemoveGaps(waveform", section)
+        self.assertIn("computeNonSubtitleGapPieces()", section)
+        self.assertNotIn("shrinkExistingGaps", script)
         self.assertNotIn("commitManualGapRemoveChange(state, overrides)", section)
 
     def test_template_uses_one_script_token(self) -> None:
