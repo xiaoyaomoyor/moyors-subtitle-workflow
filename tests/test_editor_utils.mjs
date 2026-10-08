@@ -17,6 +17,41 @@ vm.runInNewContext(source, context);
 const gapCore = context.window.AsrGapRemoveCore;
 const helpers = context.window.AsrEditorUtils;
 
+test('retained markers migrate from dimmed legacy gaps and stay active after JSON reload', () => {
+  const plain = value => JSON.parse(JSON.stringify(value));
+  const state = gapCore.normalizeRetainedGapData({gaps:[
+    {start:1000,end:2000,removed:true}, {start:2000,end:3000,removed:false},
+  ]});
+  assert.deepEqual(plain(state.retained_ranges), [{start:2000,end:3000}]);
+  assert.deepEqual(plain(gapCore.getRemovedGapRanges(state.gaps)), [{start:1000,end:3000}]);
+  assert.deepEqual(plain(gapCore.normalizeRetainedGapData(plain(state))), plain(state));
+  const rebuilt = gapCore.normalizeRetainedGapData({...state,
+    provenance:gapCore.replaceGapRemoveProvenanceSource(null,'subtitle_outside',[{start:4000,end:5000}])});
+  assert.deepEqual(plain(rebuilt.gaps), [
+    {start:2000,end:3000,removed:true,retained:true}, {start:4000,end:5000,removed:true,retained:false},
+  ]);
+});
+
+test('retention boundaries survive overlap and prevent moving or resizing locked markers', () => {
+  const plain = value => JSON.parse(JSON.stringify(value));
+  const gaps = gapCore.projectRetainedGaps([{start:1000,end:4000}], [{start:2000,end:3000}]);
+  assert.equal(gaps.length,3);
+  assert.equal(gapCore.editRetainedGap(gaps,1,{deltaMs:1000},5000).changed,false);
+  assert.equal(gapCore.editRetainedGap(gaps,1,{edge:'end',valueMs:3500},5000).changed,false);
+  assert.deepEqual(plain(gapCore.editRetainedGap(gaps,0,{edge:'end',valueMs:3500},5000).gaps),plain(gaps));
+  const result = gapCore.editRetainedGap(gaps,2,{edge:'end',valueMs:4500},5000);
+  assert.equal(result.changed,true);
+  assert.deepEqual(plain(result.gaps.filter(gap=>gap.retained)),[{start:2000,end:3000,removed:true,retained:true}]);
+});
+
+test('gap conversion history captures time ranges independently from live selection', () => {
+  const selection=[{start:1000,end:2000}];
+  const record=helpers.buildHistoryRecord('gap_remove','convert',{gapRemove:null,timeRanges:selection});
+  selection[0].end=9999;
+  assert.equal(record.timeRanges[0].end,2000);
+  assert.equal('timeRanges' in helpers.buildHistoryRecord('gap_remove','edit',{}),false);
+});
+
 test('subtitle-outside marks survive rescans, manual edits, clear and JSON reload', () => {
   let provenance = gapCore.replaceGapRemoveProvenanceSource(null, 'subtitle_outside', [{start: 1000, end: 2000}]);
   provenance = gapCore.replaceGapRemoveProvenanceSource(provenance, 'audio_gate', [{start: 3000, end: 4000}]);

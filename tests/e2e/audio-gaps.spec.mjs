@@ -102,7 +102,7 @@ test('English panel keeps help and subsecond statistics concise', async ({ page 
   await expect(page.locator('#gap-remove-panel-title')).toContainText('Audio gaps');
   await expect(page.locator('#gap-remove-list')).toHaveText('1 marked ranges · Removable 0.25 s');
   await page.locator('#gap-remove-panel-title .msw-help-button').click();
-  await expect(page.locator('#msw-option-help')).toContainText('without changing the original media');
+  await expect(page.locator('#msw-option-help')).toContainText('do not change the original media');
   await page.keyboard.press('Escape');
   await expect(page.locator('#gap-remove-clear-all')).toBeInViewport();
 });
@@ -122,7 +122,7 @@ test('blank server and portable editor explain missing media without reporting a
   } finally { await blank.stop(); }
 });
 
-test('zero padding and repeated generation are deterministic and preserve other sources and manual edits', async ({ page }) => {
+test('zero padding and repeated generation are deterministic and preserve retained markers', async ({ page }) => {
   await deterministicWave(page); await open(page);
   for (const id of ['gap-remove-lead-in', 'gap-remove-lead-out']) { await page.locator(`#${id}`).fill('0'); await page.locator(`#${id}`).press('Tab'); }
   await page.locator('#gap-remove-scan').click();
@@ -135,13 +135,13 @@ test('zero padding and repeated generation are deterministic and preserve other 
   await page.locator('#gap-remove-lead-in').fill('100'); await page.locator('#gap-remove-lead-in').press('Tab');
   await page.locator('#gap-remove-lead-out').fill('200'); await page.locator('#gap-remove-lead-out').press('Tab');
   await page.locator('#gap-remove-scan').click();
-  const expected = [{start:1100,end:1400,removed:true},{start:1400,end:1700,removed:false},{start:1700,end:2800,removed:true},{start:5000,end:6000,removed:true}];
+  const expected = [{start:1100,end:1400,removed:true},{start:1400,end:1700,removed:true},{start:1700,end:2800,removed:true}];
   await expect.poll(() => shape(page)).toEqual(expected);
   await page.locator('#gap-remove-scan').click(); await expect.poll(() => shape(page)).toEqual(expected);
   await page.evaluate(() => { DATA.gap_remove = JSON.parse(JSON.stringify(DATA.gap_remove)); updateGapRemoveUi(); });
   expect(await shape(page)).toEqual(expected);
   await expect(page.locator('.waveform-gap-block > .waveform-gap-label')).toHaveCount(0);
-  await expect(page.locator('.waveform-gap-block').first()).toHaveAttribute('aria-label', /待移除.*静音/s);
+  await expect(page.locator('.waveform-gap-block').first()).toHaveAttribute('aria-label', /非保留空隙/s);
 });
 
 test('both clear entries perform the same undoable action without a dialog', async ({ page }) => {
@@ -171,17 +171,17 @@ test('independent operation checkboxes and menu playback toggle stay in sync thr
   await page.evaluate(() => performUndo()); await expect(page.locator('#gap-remove-panel-skip')).toBeChecked();
 });
 
-test('subtitle-outside regeneration replaces only its source including a valid empty result', async ({ page }) => {
+test('subtitle-outside regeneration replaces all unretained sources including a valid empty result', async ({ page }) => {
   await deterministicWave(page); await open(page);
   await page.locator('#gap-remove-scan').click(); await expect(page.locator('#gap-remove-scan')).toHaveText('重新生成');
-  const audio = await page.evaluate(() => DATA.gap_remove.provenance.sources.audio_gate);
+  expect(await page.evaluate(() => DATA.gap_remove.provenance.sources.audio_gate.length)).toBeGreaterThan(0);
   await page.locator('#gap-remove-source').selectOption('subtitle_outside');
   await page.locator('#gap-remove-scan').click(); await expect(page.locator('#gap-remove-scan')).toHaveText('重新生成');
   expect(await page.evaluate(() => DATA.gap_remove.provenance.sources.subtitle_outside.length)).toBeGreaterThan(0);
   await page.evaluate(() => { DATA.segments = [{id:'full',start:0,end:gapRemoveMediaDurationMs(),text:'full',items:[]}]; });
   await page.locator('#gap-remove-scan').click();
   await expect.poll(() => page.evaluate(() => DATA.gap_remove.provenance.sources.subtitle_outside.length)).toBe(0);
-  expect(await page.evaluate(() => DATA.gap_remove.provenance.sources.audio_gate)).toEqual(audio);
+  expect(await page.evaluate(() => DATA.gap_remove.provenance.sources.audio_gate)).toEqual([]);
   await page.evaluate(() => { setGapRemoveData({...getGapRemoveData(true), provenance:window.AsrGapRemoveCore.normalizeGapRemoveProvenance(null,[])}); });
   await expect(page.locator('#gap-remove-list')).toHaveText('没有符合当前条件的区段');
 });

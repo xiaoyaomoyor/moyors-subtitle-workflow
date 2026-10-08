@@ -29,6 +29,27 @@ def gap_shape(gap: dict[str, object]) -> tuple[int, int, bool]:
 
 
 class ScriptAlignmentTests(unittest.TestCase):
+    def test_locked_gap_markers_survive_alignment_and_remain_exportable(self) -> None:
+        from maw.msw.audio_plan import removed_ranges
+        from maw.script_alignment import _normalize_gap_remove_override
+
+        value = {"retention_mode": "locked", "retained_ranges": [{"start": 2000, "end": 3000}],
+                 "gaps": [{"start": 1000, "end": 4000, "removed": True}]}
+        normalized = _normalize_gap_remove_override(value, {}, {})
+        self.assertEqual(normalized["gaps"], [
+            {"start": 1000, "end": 2000, "removed": True, "retained": False},
+            {"start": 2000, "end": 3000, "removed": True, "retained": True},
+            {"start": 3000, "end": 4000, "removed": True, "retained": False},
+        ])
+        self.assertEqual(removed_ranges({"gap_remove": normalized}), [[1000, 4000]])
+        self.assertEqual(_normalize_gap_remove_override(json.loads(json.dumps(normalized)), {}, {}), normalized)
+        self.project["gap_remove"] = normalized
+        alignment = align_project_to_script(self.project, "hello world\ngood bye")
+        result = apply_alignment_to_project(self.project, alignment, make_selection_manifest(alignment, alignment["defaultSelection"]))
+        self.assertEqual(result["gap_remove"]["retained_ranges"], [{"start": 2000, "end": 3000}])
+        self.assertTrue(any(gap.get("retained") and gap["start"] <= 2000 and gap["end"] >= 3000
+                            for gap in result["gap_remove"]["gaps"]))
+
     def test_subtitle_outside_provenance_survives_alignment_roundtrip(self) -> None:
         from maw.script_alignment import _normalize_gap_remove_override, _replace_provenance_source
 

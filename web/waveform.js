@@ -46,10 +46,12 @@
     const type = window.AsrGapRemoveCore?.getGapRemoveDisplayType?.(gap) || 'unknown';
     const language = window.MSWE_I18N?.language === 'en' ? 'en' : 'zh';
     const source = GAP_REMOVE_DISPLAY_LABELS[language][type] || GAP_REMOVE_DISPLAY_LABELS[language].unknown;
-    const status = gap.removed === false
-      ? localizedWaveformMessage('已保留', 'Kept') : localizedWaveformMessage('待移除', 'Marked for removal');
+    const retainedMode = typeof gap.retained === 'boolean';
+    const status = retainedMode
+      ? (gap.retained ? localizedWaveformMessage('保留空隙（已锁定）', 'Retained gap (locked)') : localizedWaveformMessage('非保留空隙', 'Unretained gap'))
+      : (gap.removed === false ? localizedWaveformMessage('已保留', 'Kept') : localizedWaveformMessage('空隙', 'Gap'));
     const seconds = ms => (Number(ms) / 1000).toFixed(3);
-    return `${status} · ${source}\n${seconds(gap.start)}–${seconds(gap.end)} s · ${seconds(gap.end - gap.start)} s`;
+    return `${status}${retainedMode ? '' : ` · ${source}`}\n${seconds(gap.start)}–${seconds(gap.end)} s · ${seconds(gap.end - gap.start)} s`;
   }
 
   function gapOperationAllowsBoundary(mode) {
@@ -4661,14 +4663,15 @@
         const block = document.createElement('div');
         block.className = 'waveform-gap-block';
         block.dataset.gapIndex = String(index);
-        block.classList.toggle('restored', gap.removed === false);
-        if (gap.removed !== false) {
+        block.classList.toggle('restored', gap.retained === true || gap.removed === false);
+        block.classList.toggle('retained', gap.retained === true);
+        if (gap.removed !== false && !this.options.gapRetentionEnabled?.()) {
           block.classList.toggle(
             'protected',
             window.AsrGapRemoveCore.isGapRemoveDisplayProtected(gap),
           );
         }
-        block.classList.toggle('boundary-editable', boundaryEnabled);
+        block.classList.toggle('boundary-editable', boundaryEnabled && !gap.retained);
         block.title = gapRemoveDisplayLabel(gap);
         if (gap.removed !== false && effectiveGaps) {
           const removableMs = effectiveGaps.reduce((sum, range) => sum + Math.max(0,
@@ -4680,7 +4683,7 @@
           );
         }
         block.setAttribute('aria-label', block.title);
-        if (boundaryEnabled) {
+        if (boundaryEnabled && !gap.retained) {
           if (gap.start >= startMs) {
             const leftHandle = document.createElement('span');
             leftHandle.className = 'waveform-gap-handle left';
@@ -4694,6 +4697,7 @@
         }
         this.layoutGapBlock(block, gap, startMs, endMs);
         block.addEventListener('pointerdown', (event) => {
+          if (gap.retained) { event.stopPropagation(); return; }
           const handle = event.target.closest('.waveform-gap-handle');
           if (event.button === 0 && !handle) {
             this.beginGapMoveDrag(
@@ -6703,6 +6707,7 @@
       event.preventDefault();
       event.stopPropagation();
       const gaps = this.options.getGapRemoveGaps?.() || [];
+      if (gaps[index]?.retained) return;
       this.gapBoundaryDrag = {
         startClientX:event.clientX,startClientY:event.clientY,moved:false,
         pointerId: event.pointerId,
@@ -6725,7 +6730,7 @@
       if (event.button !== 0 || !['move', 'copy'].includes(mode)) return;
       const gaps = this.options.getGapRemoveGaps?.() || [];
       const original = gaps[index];
-      if (!original) return;
+      if (!original || original.retained) return;
       const captureTarget = event.currentTarget;
       this.gapMoveDrag = {
         pointerId: event.pointerId,
@@ -6773,7 +6778,12 @@
       const deltaMs = roundMs(pointerMs - drag.startPointerMs);
       drag.targetGap = this.gapMoveTarget(drag.originalGaps[drag.index], deltaMs);
       drag.deltaMs = drag.targetGap.start - drag.originalGaps[drag.index].start;
-      drag.nextGaps = drag.mode === 'copy'
+      const projected = this.options.previewGapEdit?.(drag.originalGaps, drag.index, {deltaMs, mode: drag.mode});
+      if (projected) {
+        drag.targetGap = projected.target || drag.originalGaps[drag.index];
+        drag.deltaMs = drag.targetGap.start - drag.originalGaps[drag.index].start;
+        drag.nextGaps = projected.gaps;
+      } else drag.nextGaps = drag.mode === 'copy'
         ? window.AsrEditorUtils.copyGapRemoveRange(
           drag.originalGaps, drag.index, drag.deltaMs, this.durationMs,
         )
@@ -6881,9 +6891,9 @@
       this.refreshGapBlocks(drag.originalGaps);
       const original = drag.originalGaps[drag.index];
       if (!original) return;
-      const anchor = drag.edge === 'start' ? original.end - 1 : original.start + 1;
+      const anchor = drag.edge === 'start' ? original.end - 0.5 : original.start + 0.5;
       const target = drag.nextGaps.find((gap) => (
-        gap.removed === original.removed && gap.start <= anchor && gap.end > anchor
+        gap.removed === original.removed && gap.retained === original.retained && gap.start <= anchor && gap.end > anchor
       ));
       if (!target) return;
       const renderTarget = (nextGap, originalIndex) => {
@@ -6908,7 +6918,7 @@
           ? adjacentOriginal.end === original.start
           : adjacentOriginal.start === original.end
       );
-      if (!shared) return;
+      if (!shared || adjacentOriginal.retained) return;
       const adjacentAnchor = drag.edge === 'start' ? adjacentOriginal.start + 1 : adjacentOriginal.end - 1;
       const adjacentTarget = drag.nextGaps.find((gap) => (
         gap.removed === adjacentOriginal.removed
@@ -6929,7 +6939,8 @@
         0,
         Math.max(0, this.durationMs),
       );
-      drag.nextGaps = window.AsrEditorUtils.resizeGapRemoveBoundary(
+      const projected = this.options.previewGapEdit?.(drag.originalGaps, drag.index, {edge: drag.edge, valueMs});
+      drag.nextGaps = projected ? projected.gaps : window.AsrEditorUtils.resizeGapRemoveBoundary(
         drag.originalGaps,
         drag.index,
         drag.edge,
@@ -7030,7 +7041,8 @@
         preview.className = `waveform-gap-range-preview ${drag.removed ? 'remove' : 'restore'}`;
         if (previews.length === 0) {
           const label = document.createElement('span');
-          label.textContent = drag.removed ? '增加静音' : '恢复声音';
+          label.textContent = this.options.gapRetentionEnabled?.()
+            ? (drag.removed ? '添加空隙' : '保留空隙') : (drag.removed ? '增加静音' : '恢复声音');
           preview.appendChild(label);
         }
         const duration = Math.max(1, rowEnd - rowStart);

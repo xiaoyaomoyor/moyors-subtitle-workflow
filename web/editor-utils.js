@@ -3399,6 +3399,7 @@
     else if (recordKind === 'gap_remove') {
       record.gapRemove = cloneJsonValue(payload?.gapRemove ?? null);
       record.gapRemoveDirty = payload?.gapRemoveDirty === true;
+      if (Array.isArray(payload?.timeRanges)) record.timeRanges = cloneJsonValue(payload.timeRanges);
     } else record.preview = cloneJsonValue(payload);
     return record;
   }

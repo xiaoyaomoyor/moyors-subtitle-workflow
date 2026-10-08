@@ -1805,7 +1805,7 @@ const DEFAULT_GAP_REMOVE_DISABLE_REMAINING_MS = EDITOR_SETTINGS_UTILS.GAP_REMOVE
 const GAP_REMOVE_ADVANCED_OPEN_KEY = 'moy.asr.gap_remove.advanced_open.v1';
 const GAP_REMOVE_DISABLE_OPEN_KEY = 'moy.asr.gap_remove.disable_open.v1';
 
-const normalizedGapRemoveData = EDITOR_SETTINGS_UTILS.normalizeGapRemoveData;
+const normalizedGapRemoveData = window.AsrGapRemoveCore.normalizeRetainedGapData;
 const clampGapRemoveDisableCoverage = EDITOR_SETTINGS_UTILS.clampGapRemoveDisableCoverage;
 const clampGapRemoveDisableRemaining = EDITOR_SETTINGS_UTILS.clampGapRemoveDisableRemaining;
 
@@ -1949,10 +1949,11 @@ function pushLayoutUndo(label, snapshot) {
   editorHistory.push(EDITOR_SETTINGS_UTILS.buildHistoryRecord('layout', label, snapshot));
   updateUndoRedoButtons();
 }
-function pushGapRemoveUndo(label) {
+function pushGapRemoveUndo(label, { captureTimeRanges = false } = {}) {
   editorHistory.push(EDITOR_SETTINGS_UTILS.buildHistoryRecord('gap_remove', label, {
     gapRemove: DATA.gap_remove,
     gapRemoveDirty,
+    ...(captureTimeRanges ? {timeRanges: window.MSWE.resolve('time-range')?.ranges || []} : {}),
   }));
   updateUndoRedoButtons();
 }
@@ -2000,6 +2001,8 @@ function snapshotCurrentForKind(kind, label, sourceRecord = null) {
     return EDITOR_SETTINGS_UTILS.buildHistoryRecord('gap_remove', label, {
       gapRemove: DATA.gap_remove,
       gapRemoveDirty,
+      ...(Array.isArray(sourceRecord?.timeRanges)
+        ? {timeRanges: window.MSWE.resolve('time-range')?.ranges || []} : {}),
     });
   }
   if (kind === 'preview') {
@@ -2112,6 +2115,7 @@ function applyHistoryRecord(record) {
   if (record.kind === 'gap_remove') {
     DATA.gap_remove = record.gapRemove;
     gapRemoveDirty = record.gapRemoveDirty;
+    if (Array.isArray(record.timeRanges)) window.MSWE.resolve('time-range')?.setRange(record.timeRanges);
     updateGapRemoveUi();
     return true;
   }
@@ -5275,18 +5279,28 @@ function setGapRemoveData(
 
 function commitManualGapRemoveChange(state, overrides) {
   const core = window.AsrGapRemoveCore;
-  const currentGaps = core.normalizeGapRemoveGaps(state?.gaps);
-  const provenance = core.appendGapRemoveManualOverrides(
-    state?.provenance,
-    overrides,
-    currentGaps,
-  );
-  const projectedGaps = core.gapRangesFromProvenance(provenance);
-  state.gaps = projectedGaps;
-  state.provenance = provenance;
-  state.manual_corrections = true;
-  setGapRemoveData(state, { provenance });
-  return projectedGaps;
+  const current = core.normalizeRetainedGapData(state);
+  const retained = [...current.retained_ranges];
+  const additions = [];
+  for (const range of overrides) {
+    if (range.removed !== false) additions.push(range);
+    else for (const gap of current.gaps) {
+      const start = Math.max(gap.start, range.start), end = Math.min(gap.end, range.end);
+      if (end > start) retained.push({start, end});
+    }
+  }
+  replaceGapMarks(current, [...current.gaps, ...additions], retained);
+  return getGapRemoveGaps();
+}
+
+function replaceGapMarks(state, gaps, retained = state.retained_ranges || []) {
+  const core = window.AsrGapRemoveCore;
+  const projected = core.projectRetainedGaps(gaps, retained);
+  // Manual edits materialize the visible layer. Source provenance is only
+  // needed until a rebuild; locks have their own independent, explicit ranges.
+  const provenance = core.normalizeGapRemoveProvenance(null, projected);
+  setGapRemoveData({...state, retention_mode: 'locked', retained_ranges: retained,
+    gaps: projected, cleared: projected.length === 0}, {provenance});
 }
 
 function gapRemoveTotalMs(gaps) {
@@ -5321,7 +5335,7 @@ function gapRemoveStats() {
     Math.min(duration || gap.end, gap.end) - Math.min(duration || gap.end, gap.start)), 0);
   const marked = getRemovedGapRangesFrom(getGapRemoveGaps());
   const effective = getRemovedGapRanges();
-  return { count: marked.length, total: length(effective), protectedMs: Math.max(0, length(marked) - length(effective)) };
+  return { count: getGapRemoveGaps().length, total: length(effective), protectedMs: Math.max(0, length(marked) - length(effective)) };
 }
 
 function formatGapSummaryDuration(ms) {
@@ -5398,6 +5412,12 @@ function updateGapRemoveUi() {
   if (gapRemoveDisableRemaining) gapRemoveDisableRemaining.value = String(state?.disable_remaining_ms ?? DEFAULT_GAP_REMOVE_DISABLE_REMAINING_MS);
   if (gapRemoveSource) gapRemoveSource.value = state?.generation_mode || 'audio_gate';
   syncGapRemoveControls();
+  for (const [id, enabled] of [
+    ['gap-retain-all', gaps.some(gap => !gap.retained)],
+    ['gap-unretain-all', gaps.some(gap => gap.retained)],
+    ['gap-convert-all', gaps.length > 0],
+    ['gap-delete-unretained', gaps.some(gap => !gap.retained)],
+  ]) document.getElementById(id).disabled = gapRemoveGenerating || !enabled;
   for (const button of [gapRemoveClearAllButton, document.getElementById('gap-clear-all-menu')]) {
     if (button) button.disabled = !hasGapRemoveRecords() || gapRemoveGenerating;
   }
@@ -5446,13 +5466,13 @@ function scanAndRemoveGaps(source = gapRemoveSource?.value || 'audio_gate') {
     gaps = core.detectAudioGapRemoveGaps(waveform, { minimumMs, thresholdDb, hysteresisDb, leadInMs, leadOutMs });
   }
   const previous = getGapRemoveData(true);
-  const provenance = core.replaceGapRemoveProvenanceSource(previous.provenance, source, gaps, previous.gaps);
+  const provenance = core.replaceGapRemoveProvenanceSource(null, source, gaps);
   pushGapRemoveUndo(source === 'audio_gate' ? '按音量生成空隙标记' : '标记主字幕外区段');
   setGapRemoveData({
     ...previous, ...settings, generation_mode: source, cleared: false,
-    generated_sources: [...new Set([...(previous.generated_sources || []), source])],
+    generated_sources: [source],
   }, { provenance });
-  flashHint(gaps.length ? `已生成 ${gaps.length} 段标记，保留其他来源与手工调整` : '没有符合当前条件的区段；已保留其他来源与手工调整', gaps.length ? 'success' : 'info');
+  flashHint(gaps.length ? `已重新生成空隙，保留已锁定的标记` : '没有符合当前条件的区段；已保留锁定标记', 'success');
 }
 
 async function generateGapMarks() {
@@ -5515,7 +5535,7 @@ function disableSubtitlesInRemovedGaps() {
     );
     return;
   }
-  toggleDisabled(targetIndexes, 'main', { successDetail: '待移除区段内的字幕' });
+  toggleDisabled(targetIndexes, 'main', { successDetail: '空隙内的字幕' });
 }
 
 function toggleGapRemoved(index) {
@@ -5523,13 +5543,10 @@ function toggleGapRemoved(index) {
   const gaps = getGapRemoveGaps();
   const gap = gaps[index];
   if (!gap) return;
-  pushGapRemoveUndo(gap.removed === false ? '标记移除区段' : '保留区段');
-  const removed = gap.removed === false;
-  commitManualGapRemoveChange(
-    state,
-    [{ start: gap.start, end: gap.end, removed }],
-  );
-  flashHint(removed ? '已标记为待移除' : '已标记为保留', 'success');
+  pushGapRemoveUndo(gap.retained ? '取消空隙保留' : '保留空隙标记');
+  const retained = gaps.filter((item, at) => at === index ? !gap.retained : item.retained);
+  replaceGapMarks(state, gaps, retained);
+  flashHint(gap.retained ? '已取消保留，可移动和调整大小' : '已保留并锁定空隙标记', 'success');
 }
 
 function clearGap(index) {
@@ -5537,37 +5554,59 @@ function clearGap(index) {
   const gaps = getGapRemoveGaps();
   const gap = gaps[index];
   if (!gap) return;
-  const core = window.AsrGapRemoveCore;
-  const provenance = core.removeGapRemoveProvenanceRange(
-    state?.provenance,
-    gap.start,
-    gap.end,
-    state?.gaps,
-  );
-  const nextGaps = core.gapRangesFromProvenance(provenance);
-  pushGapRemoveUndo('清理空隙区段');
-  state.gaps = nextGaps;
-  state.provenance = provenance;
-  state.manual_corrections = provenance.manual_overrides.length > 0;
-  setGapRemoveData(state, { provenance });
-  flashHint('已清理空隙区段', 'success');
+  const remaining = gaps.filter((_, at) => at !== index);
+  pushGapRemoveUndo('删除空隙');
+  replaceGapMarks(state, remaining, remaining.filter(item => item.retained));
+  flashHint('已删除该空隙，可撤销恢复', 'success');
+}
+
+function setAllGapRetained(retained) {
+  const state = getGapRemoveData(false), gaps = getGapRemoveGaps();
+  if (!gaps.some(gap => gap.retained !== retained)) return;
+  pushGapRemoveUndo(retained ? '保留全部空隙' : '取消全部空隙保留');
+  replaceGapMarks(state, gaps, retained ? gaps : []);
+  flashHint(retained ? '已保留并锁定全部空隙' : '全部空隙已设为非保留', 'success');
+}
+
+function deleteUnretainedGaps() {
+  const state = getGapRemoveData(false), gaps = getGapRemoveGaps();
+  if (!gaps.some(gap => !gap.retained)) return;
+  pushGapRemoveUndo('删除所有非保留空隙');
+  const retained = gaps.filter(gap => gap.retained);
+  replaceGapMarks(state, retained, retained);
+  flashHint('已删除所有非保留空隙，可撤销恢复', 'success');
+}
+
+function convertGapsToTimeSelection(index = null) {
+  const ranges = window.MSWE.resolve('time-range');
+  const state = getGapRemoveData(false), gaps = getGapRemoveGaps();
+  const targets = index === null ? gaps : gaps.filter((_, at) => at === index);
+  if (!ranges || !targets.length) return;
+  const remaining = gaps.filter(gap => !targets.includes(gap));
+  pushGapRemoveUndo('空隙转为时间选区', {captureTimeRanges: true});
+  ranges.setRange([...ranges.ranges, ...targets.map(({start, end}) => ({start, end}))]);
+  replaceGapMarks(state, remaining, remaining.filter(gap => gap.retained));
+  flashHint('已转为时间选区并删除对应空隙，可撤销恢复', 'success');
 }
 
 function applyManualGapRange(startMs, endMs, removed) {
   const state = getGapRemoveData(true);
-  const sourceGaps = window.AsrGapRemoveCore.normalizeGapRemoveGaps(state.gaps);
-  const nextGaps = window.AsrEditorUtils.applyGapRemoveRange(sourceGaps, startMs, endMs, removed);
+  const core = window.AsrGapRemoveCore, sourceGaps = getGapRemoveGaps();
+  const range = {start:Math.max(0,Math.round(Math.min(startMs,endMs))),end:Math.round(Math.max(startMs,endMs))};
+  if (!Number.isFinite(range.start) || !Number.isFinite(range.end) || range.end <= range.start) return;
+  const retained = [...state.retained_ranges];
+  if (!removed) for (const gap of sourceGaps) {
+    const start=Math.max(range.start,gap.start), end=Math.min(range.end,gap.end);
+    if (end>start) retained.push({start,end});
+  }
+  const nextGaps = core.projectRetainedGaps(removed ? [...sourceGaps,range] : sourceGaps,retained);
   if (JSON.stringify(nextGaps) === JSON.stringify(sourceGaps)) {
-    flashHint(removed ? '所选范围已标记为待移除' : '所选范围内没有待移除的标记', 'invalid');
+    flashHint(removed ? '所选范围已有空隙' : '所选范围内没有可保留的空隙', 'invalid');
     return;
   }
-  pushGapRemoveUndo(removed ? '人工移除范围' : '人工恢复范围');
-  state.detector = 'audio_gate';
-  commitManualGapRemoveChange(
-    state,
-    [{ start: Math.min(Number(startMs), Number(endMs)), end: Math.max(Number(startMs), Number(endMs)), removed }],
-  );
-  flashHint(removed ? '已将所选范围标记为待移除' : '已将所选范围标记为保留', 'success');
+  pushGapRemoveUndo(removed ? '添加空隙' : '保留所选空隙');
+  replaceGapMarks(state,nextGaps,retained);
+  flashHint(removed ? '已添加空隙标记' : '已将所选范围标记为保留', 'success');
 }
 
 function addGapAtWaveformTime(timeMs) {
@@ -5591,7 +5630,7 @@ function addGapAtWaveformTime(timeMs) {
   }
   const nextGaps = window.AsrEditorUtils.applyGapRemoveRange(sourceGaps, start, end, true);
   if (JSON.stringify(nextGaps) === JSON.stringify(sourceGaps)) {
-    flashHint('该位置已有待移除标记', 'invalid');
+    flashHint('该位置已有空隙标记', 'invalid');
     return false;
   }
   pushGapRemoveUndo('右键添加空隙');
@@ -5623,7 +5662,7 @@ function fillGapRangeAtWaveformTime(timeMs) {
   // their union before voice protection; a no-op must not rewrite history.
   const rangesOnly = window.AsrEditorUtils.getRemovedGapRanges;
   if (JSON.stringify(rangesOnly(nextGaps)) === JSON.stringify(rangesOnly(sourceGaps))) {
-    flashHint('该位置已有待移除标记', 'invalid');
+    flashHint('该位置已有空隙标记', 'invalid');
     return false;
   }
   pushGapRemoveUndo('填充区间空隙');
@@ -5637,67 +5676,24 @@ function fillGapRangeAtWaveformTime(timeMs) {
 
 function translateManualGap(index, deltaMs, mode = 'move') {
   const state = getGapRemoveData(false);
-  if (!state) return false;
-  const core = window.AsrGapRemoveCore;
-  const gaps = getGapRemoveGaps();
-  const original = gaps[index];
-  if (!original) return false;
-  const duration = gapRemoveMediaDurationMs();
-  if (mode === 'move') {
-    const result = core.moveGapRemoveProvenance(
-      state.provenance,
-      gaps,
-      index,
-      deltaMs,
-      duration,
-      state.gaps,
-    );
-    if (!result?.changed) return false;
-    pushGapRemoveUndo('整体偏移空隙');
-    state.gaps = result.gaps;
-    state.provenance = result.provenance;
-    state.manual_corrections = result.provenance.manual_overrides.length > 0;
-    setGapRemoveData(state, { provenance: result.provenance });
-    flashHint('已整体偏移空隙', 'success');
-    return true;
-  }
-  if (mode !== 'copy') return false;
-  const nextGaps = mode === 'copy'
-    ? window.AsrEditorUtils.copyGapRemoveRange(gaps, index, deltaMs, duration)
-    : window.AsrEditorUtils.moveGapRemoveRange(gaps, index, deltaMs, duration);
-  if (JSON.stringify(nextGaps) === JSON.stringify(gaps)) return false;
-  const length = original.end - original.start;
-  const maxStart = Number.isFinite(duration) && duration > 0
-    ? Math.max(0, duration - length) : Infinity;
-  const targetStart = Math.min(maxStart, Math.max(0, original.start + Math.round(Number(deltaMs) || 0)));
-  const targetEnd = targetStart + length;
+  if (!state || !['move', 'copy'].includes(mode)) return false;
+  const result = window.AsrGapRemoveCore.editRetainedGap(
+    getGapRemoveGaps(), index, {deltaMs, mode}, gapRemoveMediaDurationMs());
+  if (!result.changed) return false;
   pushGapRemoveUndo(mode === 'copy' ? '复制并偏移空隙' : '整体偏移空隙');
-  const overrides = [];
-  overrides.push({ start: targetStart, end: targetEnd, removed: original.removed !== false });
-  commitManualGapRemoveChange(state, overrides);
+  replaceGapMarks(state, result.gaps);
   flashHint(mode === 'copy' ? '已复制并偏移空隙' : '已整体偏移空隙', 'success');
   return true;
 }
 
 function resizeManualGapBoundary(index, edge, valueMs) {
   const state = getGapRemoveData(false);
-  if (!state) return;
-  const core = window.AsrGapRemoveCore;
-  const gaps = getGapRemoveGaps();
-  const result = core.resizeGapRemoveProvenanceBoundary(
-    state.provenance,
-    gaps,
-    index,
-    edge,
-    valueMs,
-    state.gaps,
-  );
-  if (!result?.changed) return;
+  if (!state || !['start', 'end'].includes(edge)) return;
+  const result = window.AsrGapRemoveCore.editRetainedGap(
+    getGapRemoveGaps(), index, {edge, valueMs}, gapRemoveMediaDurationMs());
+  if (!result.changed) return;
   pushGapRemoveUndo('人工调整空隙边界');
-  state.gaps = result.gaps;
-  state.provenance = result.provenance;
-  state.manual_corrections = result.provenance.manual_overrides.length > 0;
-  setGapRemoveData(state, { provenance: result.provenance });
+  replaceGapMarks(state, result.gaps);
   flashHint('已人工调整空隙边界', 'success');
 }
 
@@ -5706,6 +5702,7 @@ function clearAllGaps() {
   if (!state || !hasGapRemoveRecords()) return;
   pushGapRemoveUndo('清理全部空隙区段');
   state.gaps = [];
+  state.retained_ranges = [];
   state.generated_sources = [];
   state.cleared = true;
   setGapRemoveData(state, { clearProvenance: true });
@@ -6039,6 +6036,10 @@ gapRemovePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
 
 gapRemoveManageButton?.addEventListener('click', toggleGapRemovePanel);
 gapRemoveScanButton?.addEventListener('click', generateGapMarks);
+document.getElementById('gap-retain-all')?.addEventListener('click', () => setAllGapRetained(true));
+document.getElementById('gap-unretain-all')?.addEventListener('click', () => setAllGapRetained(false));
+document.getElementById('gap-convert-all')?.addEventListener('click', () => convertGapsToTimeSelection());
+document.getElementById('gap-delete-unretained')?.addEventListener('click', deleteUnretainedGaps);
 gapRemoveClearAllButton?.addEventListener('click', clearAllGaps);
 gapRemoveCloseButton?.addEventListener('click', closeGapRemovePanel);
 for (const checkbox of [gapRemoveBoundary, gapRemoveMiddle]) {
@@ -14405,7 +14406,7 @@ function previewGapAt(index, timeMs) {
     gapPreviewRange = null;
     return;
   }
-  gapPreviewRange = { start: gap.start, end: gap.end };
+  gapPreviewRange = { start: gap.start, end: gap.end, marker: true };
   flashHint('正在预览此空隙；播放头离开后恢复跳过');
 }
 
@@ -22829,8 +22830,9 @@ function showGapContextMenu(x, y, index) {
   const gap = getGapRemoveGaps()[index];
   if (!gap) return;
   ctxmenu.innerHTML = '';
-  const addItem = (label, fn, { danger = false } = {}) => {
-    const item = document.createElement('div');
+  const addItem = (label, fn, { danger = false, disabled = false } = {}) => {
+    const item = document.createElement('button');
+    item.type = 'button'; item.disabled = disabled;
     item.className = 'item' + (danger ? ' danger' : '');
     const text = document.createElement('span');
     text.textContent = label;
@@ -22841,11 +22843,13 @@ function showGapContextMenu(x, y, index) {
     });
     ctxmenu.appendChild(item);
   };
-  addItem(gap.removed === false ? '标记移除' : '保留区段', () => toggleGapRemoved(index));
+  addItem(gap.retained ? '取消保留' : '标记为保留', () => toggleGapRemoved(index));
+  addItem('转为时间选区', () => convertGapsToTimeSelection(index));
   const separator = document.createElement('div');
   separator.className = 'sep';
   ctxmenu.appendChild(separator);
-  addItem('清理空隙', () => clearGap(index), { danger: true });
+  addItem('删除该空隙', () => clearGap(index), { danger: true });
+  addItem('删除所有非保留空隙', deleteUnretainedGaps, { danger: true, disabled: !getGapRemoveGaps().some(item => !item.retained) });
   ctxShowAt(x, y);
 }
 
@@ -23190,6 +23194,8 @@ function initWaveformEditor() {
     },
     getGapRemoveGaps,
     getEffectiveGapRanges: getRemovedGapRanges,
+    gapRetentionEnabled: () => true,
+    previewGapEdit: (gaps, index, operation) => window.AsrGapRemoveCore.editRetainedGap(gaps, index, operation, gapRemoveMediaDurationMs()),
     getGapOperationMode: getGapRemoveOperationMode,
     toggleGapRemoved,
     applyGapRange: applyManualGapRange,

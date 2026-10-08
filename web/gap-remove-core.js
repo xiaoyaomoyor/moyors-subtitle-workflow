@@ -738,6 +738,11 @@
     if (!Array.isArray(gaps)) return [];
     const cached = GAP_DISPLAY_PROJECTION_CACHE.get(gaps);
     if (cached) return cached;
+    if (gaps.some(gap => typeof gap?.retained === 'boolean')) {
+      const result = projectRetainedGaps(gaps, gaps.filter(gap => gap.retained));
+      GAP_DISPLAY_PROJECTION_CACHE.set(gaps, result);
+      return result;
+    }
     const normalized = gaps
       .map((gap) => {
         const start = Math.max(0, Math.round(Number(gap?.start)));
@@ -797,7 +802,7 @@
     const provenance = normalizeGapRemoveProvenance(source.provenance, rawGaps);
     const computedGaps = hasProvenance ? gapRangesFromProvenance(provenance) : rawGaps;
     const gaps = cloneJsonValue(decorateGapRemoveGaps(computedGaps, provenance)) || [];
-    return {
+    const result = {
       schema: GAP_REMOVE_SCHEMA,
       // Older gap lists came from the same audio-gate workflow but did not
       // carry a provenance layer. Normalize them into the current detector so
@@ -822,6 +827,73 @@
       gaps,
       provenance,
     };
+    if (source.retention_mode === 'locked') {
+      result.retention_mode = 'locked';
+      result.retained_ranges = normalizeGapRangeList(source.retained_ranges);
+      result.gaps = projectRetainedGaps(gaps, result.retained_ranges);
+    }
+    return result;
+  }
+
+  // Retention belongs to the marker, not its audio: every resulting gap still
+  // participates in skipping/export. Keep the old core contract for Align and
+  // older callers until they explicitly opt in to the marker-lock model.
+  function projectRetainedGaps(gaps, retainedRanges) {
+    const retained = normalizeGapRangeList(retainedRanges);
+    const coverage = normalizeGapRangeList([...(gaps || []), ...retained]);
+    const result = [];
+    let first = 0;
+    const append = (start, end, retained) => {
+      if (end <= start) return;
+      const previous = result[result.length - 1];
+      if (previous && previous.end === start && previous.retained === retained) previous.end = end;
+      else result.push({start, end, removed: true, retained});
+    };
+    for (const range of coverage) {
+      let cursor = range.start;
+      while (first < retained.length && retained[first].end <= cursor) first++;
+      for (let index = first; index < retained.length && retained[index].start < range.end; index++) {
+        const locked = retained[index];
+        append(cursor, Math.min(range.end, locked.start), false);
+        append(Math.max(cursor, locked.start), Math.min(range.end, locked.end), true);
+        cursor = Math.min(range.end, locked.end);
+      }
+      append(cursor, range.end, false);
+    }
+    return result;
+  }
+
+  function normalizeRetainedGapData(value) {
+    const result = normalizeGapRemoveData(value);
+    if (result.retention_mode === 'locked') return result;
+    // The former dimmed "restored" marks become retained markers. Their
+    // materialized removed flag is now true for old playback/export readers.
+    result.retention_mode = 'locked';
+    result.retained_ranges = normalizeGapRangeList(result.gaps.filter(gap => gap.removed === false));
+    result.gaps = projectRetainedGaps(result.gaps, result.retained_ranges);
+    return result;
+  }
+
+  function editRetainedGap(gaps, index, operation, durationMs = Infinity) {
+    const original = gaps?.[index];
+    if (!original || original.retained) return {gaps, changed: false};
+    const retained = gaps.filter(gap => gap.retained);
+    const left = Math.max(0, ...retained.filter(gap => gap.end <= original.start).map(gap => gap.end));
+    const right = Math.min(Number(durationMs) > 0 ? durationMs : Infinity,
+      ...retained.filter(gap => gap.start >= original.end).map(gap => gap.start));
+    const target = {...original};
+    if (operation.edge === 'start') target.start = Math.max(left, Math.min(original.end - 1, Math.round(operation.valueMs)));
+    else if (operation.edge === 'end') target.end = Math.min(right, Math.max(original.start + 1, Math.round(operation.valueMs)));
+    else {
+      const length = original.end - original.start;
+      target.start = Math.max(left, Math.min(right - length, original.start + Math.round(operation.deltaMs || 0)));
+      target.end = target.start + length;
+    }
+    if (!Number.isFinite(target.start) || !Number.isFinite(target.end)) return {gaps, changed: false};
+    const next = projectRetainedGaps([
+      ...gaps.filter((_, at) => operation.mode === 'copy' || at !== index), target,
+    ], retained);
+    return {gaps: next, target, changed: JSON.stringify(next) !== JSON.stringify(gaps)};
   }
 
   function applyGapRemoveRange(gaps, startMs, endMs, removed) {
@@ -1345,8 +1417,9 @@
     return Number.isFinite(time)
       && time >= Number(previewRange.start)
       && time < Number(previewRange.end)
-      && Number(gap.start) === Number(previewRange.start)
-      && Number(gap.end) === Number(previewRange.end);
+      && (previewRange.marker === true || (
+        Number(gap.start) === Number(previewRange.start)
+        && Number(gap.end) === Number(previewRange.end)));
   }
 
   // Return the removed range that playback should skip, or null when playback
@@ -1405,6 +1478,9 @@
     gapOperationAllowsBoundary,
     gapOperationAllowsMiddle,
     normalizeGapRemoveData,
+    normalizeRetainedGapData,
+    projectRetainedGaps,
+    editRetainedGap,
     normalizeGapRemoveGaps,
     normalizeGapRemoveProvenance,
     gapRangesFromProvenance,

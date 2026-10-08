@@ -98,12 +98,13 @@ class EditorAssetContractTests(unittest.TestCase):
             self.assertGreater(current_index, previous_index, asset_name)
             previous_index = current_index
 
-    def test_waveform_gap_display_type_uses_shared_core_and_subtle_protected_style(self) -> None:
+    def test_waveform_gap_retention_uses_dimmed_style_without_source_outlines(self) -> None:
         waveform = edit.read_web_asset("waveform.js")
         styles = edit.read_web_asset("waveform.css")
         self.assertIn("getGapRemoveDisplayType", waveform)
         self.assertIn("isGapRemoveDisplayProtected", waveform)
-        self.assertIn("block.classList.toggle('restored', gap.removed === false)", waveform)
+        self.assertIn("block.classList.toggle('restored', gap.retained === true || gap.removed === false)", waveform)
+        self.assertIn("!this.options.gapRetentionEnabled?.()", waveform)
         self.assertIn("waveform-gap-block.protected", styles)
         self.assertIn("box-shadow: inset 0 0 0 4px", styles)
         self.assertIn("this.options.getGapRemoveGaps?.() || []", waveform)
@@ -114,7 +115,7 @@ class EditorAssetContractTests(unittest.TestCase):
         label = "gap.removed === false ? '空隙（未激活）' : '空隙'"
         self.assertNotIn(label, waveform)
         self.assertIn("gapRemoveDisplayLabel(gap)", waveform)
-        self.assertIn("Marked for removal", waveform)
+        self.assertIn("Retained gap (locked)", waveform)
         self.assertIn(label, align_page)
 
     def test_gap_manual_drag_uses_theme_color_in_editor_and_blue_in_align(self) -> None:
@@ -145,20 +146,20 @@ class EditorAssetContractTests(unittest.TestCase):
         self.assertIn("cleared_ranges", core)
         self.assertNotIn("underlying", core)
 
-    def test_editor_overall_gap_move_uses_shared_provenance_operation(self) -> None:
+    def test_editor_overall_gap_move_uses_lock_aware_operation(self) -> None:
         script = edit.read_web_asset("editor.js")
         start = script.index("function translateManualGap(")
         end = script.index("function resizeManualGapBoundary(", start)
         section = script[start:end]
-        self.assertIn("core.moveGapRemoveProvenance", section)
+        self.assertIn("AsrGapRemoveCore.editRetainedGap", section)
         self.assertNotIn("original.start, end: original.end, removed: false", section)
 
-    def test_regenerating_gaps_replaces_selected_source_without_manual_override(self) -> None:
+    def test_regenerating_gaps_replaces_unretained_sources_without_manual_override(self) -> None:
         script = edit.read_web_asset("editor.js")
         start = script.index("function scanAndRemoveGaps(")
         end = script.index("function readGapRemoveDisableSettings()", start)
         section = script[start:end]
-        self.assertIn("core.replaceGapRemoveProvenanceSource", section)
+        self.assertIn("core.replaceGapRemoveProvenanceSource(null, source, gaps)", section)
         self.assertIn("core.detectAudioGapRemoveGaps(waveform", section)
         self.assertIn("computeNonSubtitleGapPieces()", section)
         self.assertNotIn("shrinkExistingGaps", script)

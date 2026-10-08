@@ -342,7 +342,7 @@ __WAVEFORM_CSS__
         <div class="dropdown-menu dropdown-submenu-menu audio-settings-menu" id="audio-settings-menu" role="menu">
           <div class="dropdown-item" id="gap-remove-manage" role="menuitem" tabindex="0" title="打开音频空隙面板">音频空隙<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></div>
           <button type="button" class="dropdown-item" id="non-subtitle-gap-apply" role="menuitem" title="打开音频空隙面板，按启用的主字幕覆盖范围生成标记">主字幕外区段…</button>
-          <label class="dropdown-item recent-project-setting" title="播放时跳过待移除区段；左键定位到区段内可临时试听">
+          <label class="dropdown-item recent-project-setting" title="播放时跳过空隙，包括保留空隙；左键定位到区段内可临时试听">
             <input type="checkbox" id="gap-skip-playback" checked> 播放时跳过空隙
           </label>
           <button type="button" class="dropdown-item" id="gap-clear-all-menu" role="menuitem" title="清空所有空隙标记，不改变原媒体；可撤销">清空标记</button>
@@ -413,11 +413,11 @@ __WAVEFORM_CSS__
       <button type="button" id="gap-remove-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭音频空隙"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
-  <p hidden data-help-for="gap-remove-panel-title">标记准备跳过或移除的时间段，不改写原媒体。试听可选择跳过；是否在导出时移除，仍由导出设置决定。配音保护覆盖的部分不会移除。</p>
+  <p hidden data-help-for="gap-remove-panel-title">空隙标记不改写原媒体。保留表示锁定标记：禁止移动和缩放，重新生成时留下；非保留标记会被重新生成替换。两种状态均参与播放跳过和去空隙导出，仍遵循配音保护。</p>
   <div class="gap-remove-panel-body">
     <section class="audio-gaps-section">
       <h4>生成空隙标记</h4>
-      <label class="gap-remove-field audio-gaps-source" data-option-help="按音量检测：依据源音轨波形判断静音，不是人声识别。主字幕外区段：标记未被启用的主字幕覆盖的区段，其中可能有声音。重新生成只替换所选来源，保留其他来源与手工调整。">
+      <label class="gap-remove-field audio-gaps-source" data-option-help="按音量检测：依据源音轨波形判断静音，不是人声识别。主字幕外区段：标记未被启用的主字幕覆盖的区段，其中可能有声音。重新生成会清除全部非保留空隙，再按所选方式生成；已保留空隙保持原位置和范围。">
         <span class="gap-remove-field-label">生成方式</span>
         <select id="gap-remove-source"><option value="audio_gate">按音量检测</option><option value="subtitle_outside">主字幕外区段</option></select>
       </label>
@@ -435,11 +435,17 @@ __WAVEFORM_CSS__
     </section>
     <section class="audio-gaps-section">
       <h4 id="gap-remove-operation-title">试听与操作</h4>
-      <p hidden data-help-for="gap-remove-operation-title">左键定位到空隙中可临时试听。Alt 点击切换待移除／已保留；空白处 Alt 拖动添加标记。拖动空隙块可移动，Ctrl/Cmd 拖动可复制。启用中键标记后，中键拖动标记移除，Alt＋中键拖动保留声音。</p>
+      <p hidden data-help-for="gap-remove-operation-title">左键定位到空隙中可临时试听。Alt 点击切换保留／非保留；保留空隙锁定位置和大小，仍可跳过。非保留空隙可拖动移动，Ctrl/Cmd 拖动复制；空白处 Alt 拖动或中键拖动添加，Alt＋中键拖动保留已有空隙。转换为时间选区会删除对应空隙，并与现有选区合并；支持一次撤销。</p>
       <div class="audio-gaps-checks">
         <label><input type="checkbox" id="gap-remove-panel-skip" checked> 播放时跳过空隙</label>
         <label><input type="checkbox" id="gap-remove-boundary" checked> 允许拖动边界</label>
         <label><input type="checkbox" id="gap-remove-middle"> 启用中键标记</label>
+      </div>
+      <div class="audio-gaps-actions" role="group" aria-label="空隙批量操作">
+        <button type="button" id="gap-retain-all" class="gap-remove-inline-button">全部设为保留</button>
+        <button type="button" id="gap-unretain-all" class="gap-remove-inline-button">全部设为非保留</button>
+        <button type="button" id="gap-convert-all" class="gap-remove-inline-button">全部转为时间选区</button>
+        <button type="button" id="gap-delete-unretained" class="gap-remove-inline-button">删除所有非保留空隙</button>
       </div>
     </section>
     <section class="gap-remove-advanced" id="gap-remove-advanced-section">
@@ -453,7 +459,7 @@ __WAVEFORM_CSS__
       <button type="button" id="gap-remove-disable-toggle" class="gap-remove-advanced-toggle" aria-expanded="false" aria-controls="gap-remove-disable-body"><span class="gap-remove-advanced-caret" aria-hidden="true">▸</span><span>字幕处理</span></button>
       <div class="gap-remove-advanced-body" id="gap-remove-disable-body" hidden>
         <div class="audio-gaps-subheading"><span id="gap-remove-disable-caption">筛选条件</span></div>
-        <p hidden data-help-for="gap-remove-disable-caption">主字幕须同时满足：实际可移除部分的覆盖率不低于设置值，剩余时长不超过设置值。点击按钮后才会禁用符合条件的主字幕及其绑定副字幕；生成标记不会自动禁用字幕。支持撤销。</p>
+        <p hidden data-help-for="gap-remove-disable-caption">主字幕须同时满足：导出时可移除部分的覆盖率不低于设置值，剩余时长不超过设置值。点击按钮后才会禁用符合条件的主字幕及其绑定副字幕；生成标记不会自动禁用字幕。支持撤销。</p>
         <div class="gap-remove-fields">
           <label class="gap-remove-field"><span class="gap-remove-field-label">最低覆盖率</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-coverage" min="0" max="100" step="5" value="80" inputmode="decimal"><span class="gap-remove-unit">%</span></span></label>
           <label class="gap-remove-field"><span class="gap-remove-field-label">最多剩余</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-remaining" min="0" max="60000" step="50" value="300" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
@@ -1260,7 +1266,7 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">空隙状态</h5>
         <div class="help-category">
-          <span><kbd>Alt+点击</kbd> 切换待移除／已保留</span>
+          <span><kbd>Alt+点击</kbd> 切换保留／非保留（保留标记会锁定，仍参与跳过）</span>
           <span class="help-important"><kbd>Alt+左键拖动</kbd> 添加新的移除空隙</span>
           <span class="help-note">（也可以在右键中选择「添加空隙」）</span>
           <span>在波形背景右键选择「填充区间空隙」，合并鼠标前后最近的已激活空隙；边界外延伸到媒体开头或结尾。</span>
@@ -1275,7 +1281,7 @@ __WAVEFORM_CSS__
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>拖动边界</kbd> 调整空隙范围</span>
           <span class="help-note">勾选「允许拖动边界」后生效</span>
-          <span><kbd>中键拖动</kbd> 添加静音区段；<kbd>Alt+中键拖动</kbd> 添加恢复区段</span>
+          <span><kbd>中键拖动</kbd> 添加空隙；<kbd>Alt+中键拖动</kbd> 保留已有空隙</span>
           <span class="help-note">勾选「启用中键标记」后生效</span>
           <span class="help-note">具体操作取决于
             <button type="button" class="help-inline-action" id="help-open-gap-settings" aria-controls="gap-remove-panel">音频空隙</button>
@@ -1285,7 +1291,7 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">清理空隙</h5>
         <div class="help-category">
-          <span>在空隙上右键选择「清理空隙」 清除当前空隙</span>
+          <span>空隙右键可切换保留、转为时间选区、删除当前空隙或所有非保留空隙</span>
           <span>在「<button type="button" class="help-inline-action" id="help-open-gap-remove-panel" aria-controls="gap-remove-panel">音频空隙</button>」中点击「清空标记」，可一次撤销恢复</span>
         </div>
       </section>
@@ -1293,8 +1299,8 @@ __WAVEFORM_CSS__
         <h5 class="help-subtitle">批量操作</h5>
         <div class="help-category">
           <span>选择按音量检测或主字幕外区段，点击「生成标记」；原媒体与字幕时间不变</span>
-          <span>调整句尾／句首保留后点击「重新生成」；只更新所选来源，保留其他来源和手工调整</span>
-          <span>「字幕处理」按实际可移除范围筛选，点击按钮禁用符合条件的主字幕及绑定副字幕</span>
+          <span>调整句尾／句首保留后点击「重新生成」；替换全部非保留空隙，保留已锁定标记</span>
+          <span>「字幕处理」按实际可移除范围筛选，点击按钮禁用符合条件的主字幕及绑定副字幕；包含保留空隙覆盖的字幕</span>
           <span class="help-note">操作支持撤销/重做。</span>
         </div>
       </section>

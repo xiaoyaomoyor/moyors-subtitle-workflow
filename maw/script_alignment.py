@@ -659,6 +659,44 @@ def _coalesce_gap_states(gaps: Sequence[Mapping[str, object]]) -> list[dict[str,
     return result
 
 
+def _apply_gap_retention(state: dict[str, object]) -> dict[str, object]:
+    """Materialize locked markers as active gaps; mirror projectRetainedGaps."""
+    if state.get("retention_mode") != "locked":
+        return state
+    retained = _coalesce_gap_states([
+        {**gap, "removed": True} for gap in _normalize_gap_entries(state.get("retained_ranges"))
+    ])
+    coverage = _coalesce_gap_states([
+        {**gap, "removed": True}
+        for gap in [*_normalize_gap_entries(state.get("gaps")), *retained]
+    ])
+    result: list[dict[str, object]] = []
+
+    def append(start: int, end: int, locked: bool) -> None:
+        if end <= start:
+            return
+        if result and result[-1]["end"] == start and result[-1]["retained"] == locked:
+            result[-1]["end"] = end
+        else:
+            result.append({"start": start, "end": end, "removed": True, "retained": locked})
+
+    first = 0
+    for span in coverage:
+        cursor, end = int(span["start"]), int(span["end"])
+        while first < len(retained) and int(retained[first]["end"]) <= cursor:
+            first += 1
+        for locked in retained[first:]:
+            if int(locked["start"]) >= end:
+                break
+            append(cursor, min(end, int(locked["start"])), False)
+            append(max(cursor, int(locked["start"])), min(end, int(locked["end"])), True)
+            cursor = min(end, int(locked["end"]))
+        append(cursor, end, False)
+    state["retained_ranges"] = [{"start": gap["start"], "end": gap["end"]} for gap in retained]
+    state["gaps"] = result
+    return state
+
+
 def _apply_gap_state_range(
     gaps: Sequence[Mapping[str, object]],
     start_value: object,
@@ -1043,7 +1081,7 @@ def apply_alignment_to_project(
                 _gap_ranges_from_provenance(override_provenance),
                 override_provenance,
             )
-    output["gap_remove"] = gap_remove
+    output["gap_remove"] = _apply_gap_retention(gap_remove)
     removed_gap_count = sum(
         1
         for item in gap_remove["gaps"]
@@ -1206,13 +1244,16 @@ def _normalize_gap_remove_override(
         or provenance["sources"][name]
     ]
     result["cleared"] = override.get("cleared", fallback.get("cleared")) is True
+    if override.get("retention_mode", fallback.get("retention_mode")) == "locked":
+        result["retention_mode"] = "locked"
+        result["retained_ranges"] = copy.deepcopy(override.get("retained_ranges", fallback.get("retained_ranges", [])))
     result["provenance"] = provenance
     result["manual_corrections"] = result["manual_corrections"] or bool(provenance["manual_overrides"])
     result["gaps"] = _decorate_gap_ranges(
         _gap_ranges_from_provenance(provenance),
         provenance,
     )
-    return result
+    return _apply_gap_retention(result)
 
 
 def detect_waveform_gaps(

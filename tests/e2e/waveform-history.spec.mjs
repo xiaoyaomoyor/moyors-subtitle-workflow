@@ -302,7 +302,7 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
       { id: 'full-gap', start: 1000, end: 2000, text: '完全在空隙内' },
       { id: 'partial', start: 0, end: 2000, text: '覆盖一半' },
       { id: 'near-gap', start: 800, end: 2000, text: '覆盖率和剩余时长都满足' },
-      { id: 'outside', start: 3000, end: 4000, text: '不在空隙内' },
+      { id: 'retained-half', start: 3000, end: 4000, text: '保留空隙覆盖一半，也参与筛选' },
     ].forEach((segment) => DATA.segments.push(segment));
     DATA.gap_remove = {
       schema: 'moy.asr.gap_remove.v1',
@@ -337,7 +337,7 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
   await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))
     .toEqual(['full-gap', 'near-gap']);
   await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（0）');
-  await expect(page.locator('#hint-stack')).toContainText('已禁用 2 条待移除区段内的字幕');
+  await expect(page.locator('#hint-stack')).toContainText('已禁用 2 条空隙内的字幕');
 
   await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))
@@ -348,10 +348,10 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
   await page.locator('#gap-remove-disable-coverage').press('Tab');
   await page.locator('#gap-remove-disable-remaining').fill('1000');
   await page.locator('#gap-remove-disable-remaining').press('Tab');
-  await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（3）');
+  await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（4）');
   await page.locator('#gap-remove-disable-button').click();
   await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))
-    .toEqual(['full-gap', 'near-gap', 'partial']);
+    .toEqual(['full-gap', 'near-gap', 'partial', 'retained-half']);
   await expect.poll(() => page.evaluate(() => ({
     coverage: DATA.gap_remove.disable_coverage_percent,
     remaining: DATA.gap_remove.disable_remaining_ms,
