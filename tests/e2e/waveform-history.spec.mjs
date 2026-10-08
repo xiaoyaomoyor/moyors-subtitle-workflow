@@ -337,7 +337,7 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
   await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))
     .toEqual(['full-gap', 'near-gap']);
   await expect(page.locator('#gap-remove-disable-button')).toHaveText('禁用符合条件的字幕（0）');
-  await expect(page.locator('#hint-stack')).toContainText('已禁用 2 条空隙内的字幕');
+  await expect(page.locator('.hint-success').filter({hasText:'已禁用'})).toHaveCount(0);
 
   await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.evaluate(() => DATA.segments.filter(segment => segment.disabled).map(segment => segment.id).sort()))

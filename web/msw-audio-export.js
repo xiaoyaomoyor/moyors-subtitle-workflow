@@ -65,6 +65,7 @@
         settings.format = format;
         settings.video_tail = el('audio-export-tail').value;
         settings.video_encoding = el('audio-export-encoding').value;
+        settings.hardware_encoder = el('audio-export-hardware').value || 'auto';
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
         return core.videoOptions(host.audioExportPreview(), settings, context);
       }
@@ -86,6 +87,15 @@
       el('audio-export-gap-hint').textContent = t(host.data.msw?.audio_settings?.gap_policy === 'follow'
         ? '移除空隙时，配音随媒体一起裁切。' : '移除空隙时，保留未静音贴片覆盖的区间。');
       if(video) {
+        const hardware = context?.video_encoders?.filter(e => e.available) || [];
+        const mode = el('audio-export-encoding').value;
+        el('audio-export-hardware-field').hidden = mode !== 'hardware' || hardware.length < 2;
+        el('audio-export-encoder-status').textContent = !context ? t('正在检测编码器…')
+          : mode === 'h264' ? t('使用 CPU 编码')
+          : hardware.length ? `${t('可用硬件')}：${hardware.map(e=>e.label).join('、')}`
+          : mode === 'hardware' ? t('未检测到可用硬件编码器，请检查驱动与 FFmpeg，或选择自动／软件编码（CPU）')
+          : t('未检测到可用硬件；需要编码时使用 CPU');
+        el('audio-export-encoder-status').classList.toggle('is-error', mode === 'hardware' && context && !hardware.length);
         let status=t('正在读取音画时长');
         if(context?.video) {
           try {
@@ -103,7 +113,10 @@
         global.MSWHelp?.refresh(el('audio-export-tail-field'));
       }
       try {
+        if (!context) throw Error('正在读取导出信息…');
         if(video&&context?.video&&context.video_alignment_version!==2)throw Error('视频对齐功能已更新，请重启本机编辑器服务并刷新页面');
+        if(video&&context?.video&&context.video_encoding_version!==1)throw Error('视频编码功能已更新，请重启本机编辑器服务并刷新页面');
+        if(video&&context&&el('audio-export-encoding').value==='hardware'&&!context.video_encoders?.some(e=>e.available))throw Error('没有可用硬件编码器，请选择自动或软件编码（CPU）');
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
         if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
         if (video && context && !context.video) throw Error('原媒体没有可导出的视频画面，请使用导出音频');
@@ -131,6 +144,11 @@
         const result = await request(`${kind}-export-context?project_id=${encodeURIComponent(id)}`);
         if (generation !== host.generation || id !== projectId() || serial !== contextRequest) return;
         context = result;
+        if(video) {
+          const select=el('audio-export-hardware'), previous=select.value;
+          select.replaceChildren(...(result.video_encoders || []).filter(e=>e.available).map(e=>new Option(e.label,e.id)));
+          if([...select.options].some(o=>o.value===previous))select.value=previous;
+        }
         const tracks = result.audio_tracks?.length ? result.audio_tracks : [{ audio_index: 0 }];
         el('audio-export-stream').replaceChildren(...tracks.map((track, i) => {
           const index = track.audio_index ?? i;
@@ -159,7 +177,8 @@
     }
     function renderJobs() {
       const scroll = el('audio-export-jobs').scrollTop;
-      const key = JSON.stringify(jobs) + token(); if (key === rendered) return; rendered = key;
+      const staleProgress = job => !job.progress_at || Date.now()/1000-job.progress_at > 15;
+      const key = JSON.stringify(jobs) + token() + jobs.some(staleProgress); if (key === rendered) return; rendered = key;
       const focused = document.activeElement?.closest(`#${kind}-export-jobs button`);
       const focusId = focused?.dataset.jobId, focusAction = focused?.dataset.action;
       const fragment = document.createDocumentFragment();
@@ -174,12 +193,29 @@
         status.textContent = `${t(labels[job.status] || job.status)} · ${new Date(job.created_at * 1000).toLocaleTimeString()}`;
         if (job.client_token !== token()) status.textContent += ` · ${t('先前的工程快照')}`;
         card.append(title, status);
+        if(video && job.encoder_label) {
+          const encoder=document.createElement('p');encoder.className='msw-processing-hint';encoder.textContent=t(job.encoder_label);card.append(encoder);
+        }
+        if(video && (job.encoding_note || job.result?.encoding_note)) {
+          const note=document.createElement('p');note.className='msw-processing-hint';note.textContent=t(job.encoding_note || job.result.encoding_note);card.append(note);
+        }
         if (!terminal.has(job.status)) {
           const progress = document.createElement('progress'); progress.max = 100; progress.value = job.progress || 0;
           progress.setAttribute('aria-label', t('音频导出进度'));
           const stage = document.createElement('p'); stage.className = 'msw-processing-hint';
           stage.textContent = `${t(stages[job.stage] || labels[job.status])} · ${Math.round(job.progress || 0)}%`;
           card.append(progress, stage);
+          if(video && job.status==='running') {
+            const estimate=document.createElement('p');estimate.className='msw-processing-hint';estimate.dataset.encodingEstimate='true';
+            if(job.stage==='muxing' || job.progress>=92)estimate.textContent=t('正在收尾');
+            else if(job.stage==='video' && Number.isFinite(job.encoding_eta_seconds) && !staleProgress(job)) {
+              const seconds=Math.max(1,Math.ceil(job.encoding_eta_seconds/5)*5);
+              const minutes=Math.floor(seconds/60),remaining=seconds%60;
+              estimate.textContent=`${t('预计编码剩余约')} ${minutes?`${minutes} ${t('分')} `:''}${remaining} ${t('秒')}`;
+            } else estimate.textContent=t('剩余时长：正在估算');
+            estimate.title=t('根据近期编码速度估算，不包含最后的音画合并；复杂画面或设备负载变化会影响结果。');
+            card.append(estimate);
+          }
         }
         if (job.error) { const text = document.createElement('p'); text.className = 'msw-processing-message is-error'; text.textContent = t(job.error); card.append(text); }
         const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
@@ -221,7 +257,9 @@
         if (generation !== host.generation || id !== projectId()) return;
         const filtered = data.jobs.filter(j => (j.format || 'wav') === format);
         const completed = filtered.some(j => j.status === 'succeeded' && jobs.some(old => old.id === j.id && !terminal.has(old.status)));
+        const failed = filtered.find(j => ['failed','interrupted'].includes(j.status) && jobs.some(old => old.id === j.id && !terminal.has(old.status)));
         jobs = filtered; renderJobs();
+        if (failed && !floating.isOpen()) host.flashHint(`${t('音频导出失败')}：${t(failed.error || '请打开导出面板查看详情')}`, 'warning');
         if (completed && !floating.isOpen()) host.flashHint(t(timeline ? '剪辑工程导出完成，可在「更多导出 → OTIO」下载 OTIOZ' : '音频导出完成，可在「文件 → 导出音频」下载 WAV'), 'success');
       } catch (error) { if (floating.isOpen() && generation === host.generation) message(error.message, true); }
       finally { polling = false; if (floating.isOpen() || jobs.some(j => !terminal.has(j.status))) schedule(); }

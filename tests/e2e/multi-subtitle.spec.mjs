@@ -1337,7 +1337,7 @@ test('requires an explicit independent action when the extension cannot be split
     extensionCount: DATA.multi_subtitle.tracks[0].segments.length,
   }))).toEqual({ bindings: 0, extensionCount: 1 });
   await expect(page.locator('.multi-cue-column.extension.unbound')).toHaveCount(1);
-  await expect(page.locator('#hint-stack')).toContainText('解除原绑定');
+  await expect(page.locator('.hint-success')).toHaveCount(0);
 });
 
 test('focuses the main lane first when both lanes are interactive', async ({ page }) => {

@@ -34,7 +34,7 @@ def check_cancel(cancel):
         raise RenderCancelled()
 
 
-def run(command, cancel, *, timeout=3600, stdout=None, cwd=None, failure_message=None):
+def run(command, cancel, *, timeout=3600, stdout=None, cwd=None, failure_message=None, on_tick=None):
     """Poll the child even if it produces no stdout; never pipe unbounded logs."""
     check_cancel(cancel)
     with tempfile.TemporaryFile() as errors:
@@ -48,10 +48,14 @@ def run(command, cancel, *, timeout=3600, stdout=None, cwd=None, failure_message
         try:
             while process.poll() is None:
                 check_cancel(cancel)
+                if on_tick:
+                    on_tick()
                 if time.monotonic() >= deadline:
                     raise ValueError("音频处理超时，请缩小导出范围")
                 cancel.wait(.1)
             check_cancel(cancel)
+            if on_tick:
+                on_tick()
             if process.returncode:
                 # FFmpeg diagnostics can contain filenames/URLs, so keep the
                 # user-facing error actionable without echoing arbitrary logs.

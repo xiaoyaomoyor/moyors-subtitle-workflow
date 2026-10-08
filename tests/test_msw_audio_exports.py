@@ -232,7 +232,7 @@ class AudioExportApiTests(unittest.TestCase):
     def test_editable_package_requires_its_muted_originals_and_valid_options(self):
         altered = copy.deepcopy(self.payload)
         altered['options']['format'] = 'otioz'
-        for key, value in [('collect_media',1), ('format','../file'), ('video_tail','implicit')]:
+        for key, value in [('collect_media',1), ('format','../file'), ('video_tail','implicit'), ('video_encoding','unknown'), ('hardware_encoder','injected-encoder')]:
             bad = copy.deepcopy(altered)
             bad['options'][key] = value
             self.assertEqual(self.call('audio-exports',bad)[0],400)

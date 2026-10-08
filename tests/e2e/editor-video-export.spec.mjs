@@ -134,6 +134,7 @@ test('subtitle preset selection is direct and keeps export fields in two columns
   const boxes=await page.locator('#video-export-subtitle-fields').evaluate(p=>[...p.querySelectorAll('label')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width};}));
   expect(boxes[0].y).toBe(boxes[1].y);expect(boxes[0].w).toBeCloseTo(boxes[1].w,0);expect(boxes[2].w).toBeCloseTo(boxes[0].w,0);
   expect(await page.locator('#video-export-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
+  await expect(page.locator('#video-export-start')).toBeEnabled();
   await page.locator('#video-export-panel').screenshot({path:info.outputPath('video-export-compact.png')});
   const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
   await finish(page);expect((await submitted).postDataJSON().project.preview.project_style.main.fontSize).toBe(72);
@@ -262,4 +263,46 @@ test('old video backend is explicitly rejected until restart',async({page})=>{
   });
   await open(page);await expect(page.locator('#video-export-summary')).toContainText('请重启本机编辑器服务');
   await expect(page.locator('#video-export-start')).toBeDisabled();
+});
+
+
+test('encoding choices disable unavailable hardware and reveal a selector only for multiple encoders',async({page})=>{
+  let encoders=[];
+  await page.route('**/video-export-context?*',async route=>{
+    const response=await route.fetch(),body=await response.json();body.video_encoders=encoders;
+    await route.fulfill({response,json:body});
+  });
+  await open(page);
+  await expect(page.locator('#video-export-encoding option')).toHaveText(['自动（推荐）','硬件编码','软件编码（CPU）']);
+  await page.locator('#video-export-encoding').selectOption('hardware');
+  await expect(page.locator('#video-export-start')).toBeDisabled();
+  await expect(page.locator('#video-export-encoder-status')).toContainText('未检测到可用硬件');
+  await expect(page.locator('#video-export-hardware-field')).toBeHidden();
+  await page.locator('#video-export-encoding').selectOption('h264');
+  await expect(page.locator('#video-export-start')).toBeEnabled();
+  encoders=[{id:'h264_nvenc',label:'NVIDIA NVENC',available:true},{id:'h264_qsv',label:'Intel Quick Sync',available:true}];
+  await page.locator('#video-export-close').click();await open(page);
+  await page.locator('#video-export-encoding').selectOption('hardware');
+  await expect(page.locator('#video-export-hardware-field')).toBeVisible();
+  await page.locator('#video-export-hardware').selectOption('h264_qsv');
+  await page.locator('#video-export-encoding').selectOption('h264');
+  const {card}=await finish(page);await expect(card).toContainText('软件编码（CPU）');
+  await expect(card).toContainText('画面已重新编码');
+});
+
+test('video estimates are stage-aware and stale progress never keeps a countdown',async({page})=>{
+  let job={id:'eta-test',status:'running',stage:'preparing',progress:0,created_at:Date.now()/1000,progress_at:Date.now()/1000,format:'mp4',mode:'mix',client_token:'test'};
+  await page.route('**/audio-exports?*',route=>route.fulfill({json:{ok:true,jobs:[job]}}));
+  await open(page);
+  const estimate=page.locator('#video-export-jobs [data-encoding-estimate]');
+  await expect(estimate).toContainText('正在估算');
+  job={...job,stage:'video',progress:65,encoding_eta_seconds:78,progress_at:Date.now()/1000};
+  await expect(estimate).toContainText('1 分 20 秒');
+  job={...job,progress_at:Date.now()/1000-20};
+  await expect(estimate).toContainText('正在估算');
+  job={...job,stage:'muxing',progress:94,progress_at:Date.now()/1000};
+  await expect(estimate).toContainText('正在收尾');
+  await page.locator('#video-export-close').click();
+  job={...job,status:'failed',error:'测试编码失败'};
+  await expect(page.locator('.hint-warning')).toContainText('测试编码失败');
 });

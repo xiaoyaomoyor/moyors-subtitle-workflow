@@ -990,7 +990,9 @@ ASR 素材的 `original_start` 保留映射后的时间线位置，`start/end/it
 
 ### D3 / D4 媒体与剪辑工程派生输出
 
-视频和 OTIOZ 复用 `msw.audio-render.v1`，不升级 `.mosp` 或 `msw.editor.v1`。导出任务的 `options.format` 为 `wav`（兼容默认值）、`mp4` 或 `otioz`；`video_encoding` 为 `auto` / `h264`，`video_tail` 为 `ask` / `truncate` / `freeze`，`collect_media` 为布尔。上述值仅保存在本机任务与包的导出记录中，不写入工程或试听设置。
+视频和 OTIOZ 复用 `msw.audio-render.v1`，不升级 `.mosp` 或 `msw.editor.v1`。导出任务的 `options.format` 为 `wav`（兼容默认值）、`mp4` 或 `otioz`；`video_encoding` 为 `auto`（默认）/ `hardware` / `h264`（软件 CPU，兼容旧值）；`hardware_encoder` 为 `auto`（默认）/ `h264_nvenc` / `h264_qsv` / `h264_amf`，只在明确硬件模式选择对应编码器。`video_tail` 为 `ask`（旧客户端兼容）/ `truncate`（默认）/ `freeze` / `black`，`collect_media` 为布尔。上述值仅保存在本机任务与包的导出记录中，不写入工程或试听设置。
+
+视频上下文返回 `video_encoding_version: 1` 与 `video_encoders`（`id`、`label`、`available`、`reason`），可用性须通过真实短编码，不以 FFmpeg 编码器列表为准。任务的 `video_encoder`、`encoder_label`、`encoding_note` 记录实际编码器及回退原因；成功 `result` 中同样保留，`video_encoding` 仍为 `copy` / `h264`。`encoding_eta_seconds` 为当前编码阶段剩余秒数或 `null`，基于 `.55` 至 `.92` 的真实帧进度；`progress_at` 为该进度的 Unix 秒时间戳。准备、样本不足、重试起始与合并阶段不提供数值，不表示整个任务剩余时间。
 
 `options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕分别按 `preview.burn_subtitles` 渲染独立 ASS 样式。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
 

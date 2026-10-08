@@ -195,7 +195,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
   const suffix = plan.conflicts.length ? '；不同颜色或表情包已保留时间最早的标记' : '';
   const message = [label, plan.linked ? '，主副字幕已联动并保留绑定' : '', suffix]
     .map(text => window.MSWE_I18N?.translateText?.(text) || text).join('');
-  flashHint(message, plan.conflicts.length ? 'warning' : 'success');
+  if (plan.conflicts.length) flashHint(message, 'warning');
   return true;
 }
 

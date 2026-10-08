@@ -4473,48 +4473,35 @@
     font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--border-subtle);
   }
 
-  /* === 右上角提示卡片（flashHint）===
-     最多 3 条垂直堆叠，新提示出现在下方；fade in/out 由 JS 驱动 */
+  /* Compact theme-aware notifications; only explicit actions intercept input. */
   #hint-stack {
-    position: fixed; top: 16px; right: 16px; z-index: 600;
-    display: flex; flex-direction: column; gap: 8px;
-    max-width: 380px;
+    position: fixed; top: 12px; right: 12px; z-index: 600;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+    max-width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 24px);
+    pointer-events: none;
   }
   .hint-card {
-    padding: 13px 18px;
-    background: var(--bg-overlay); color: var(--text-primary);
-    font-size: 14px; line-height: 1.55; word-break: break-word;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-3);
+    display: flex; align-items: flex-start; gap: 8px; max-width: 100%; box-sizing: border-box;
+    padding: 9px 12px; background: var(--bg-overlay); color: var(--text-primary);
+    font-size: 13px; line-height: 1.5; word-break: break-word;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-2); pointer-events: none;
     animation: hint-fade-in .18s ease-out;
   }
+  .hint-card :is(button, a) { pointer-events: auto; }
+  .hint-body { flex: 1; min-width: 0; }
+  .hint-icon { color: var(--text-muted); flex: 0 0 16px; text-align: center; font-weight: 600; }
+  .hint-warning .hint-icon, .hint-invalid .hint-icon { color: var(--red); }
+  .hint-close { flex: 0 0 auto; align-self: flex-start; }
   .hint-card.hide { animation: hint-fade-out .2s ease-in forwards; }
-  .hint-card[data-save-progress] { display: flex; align-items: center; gap: 10px; animation: none; }
+  .hint-card[data-save-progress] { align-items: center; animation: none; }
   .hint-save-spinner { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: hint-save-spin .8s linear infinite; }
   @keyframes hint-save-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .hint-save-spinner { animation-duration: 2s; } }
   #subtitle-time-status.warning { color: var(--red); }
-  /* 类型化提示卡片：3px 语义左条 + 淡色底 + 匹配色边框。默认卡片维持中性。 */
-  .hint-card.hint-success {
-    /* 使用不透明基底，避免提示下方的波形或字幕透出。 */
-    background: color-mix(in srgb, var(--green) 12%, var(--bg-overlay) 88%);
-    border-color: color-mix(in srgb, var(--green) 35%, var(--border-strong));
-    border-left: 3px solid var(--green);
-  }
-  .hint-card.hint-invalid {
-    background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-overlay) 90%);
-    border-color: var(--border-strong);
-    border-left: 3px solid var(--text-muted);
-  }
-  .hint-card.hint-warning {
-    background: color-mix(in srgb, var(--red) 12%, var(--bg-overlay) 88%);
-    border-color: color-mix(in srgb, var(--red) 35%, var(--border-strong));
-    border-left: 3px solid var(--red);
-  }
   .hint-card.hint-project-error {
-    width: min(440px, calc(100vw - 32px));
-    max-width: none;
+    width: min(380px, calc(100vw - 24px));
+    max-width: 100%;
     display: grid;
     gap: 7px;
     padding: 12px 14px 14px;

@@ -22,6 +22,8 @@ from maw.msw.audio_plan import VERSION, compile_plan, options
 from maw.msw.audio_render import RenderCancelled, check_cancel, fingerprint, probe_source, render
 from maw.msw.project_codec import valid_id
 from maw.msw.video_render import prepare as prepare_video, render_video
+from maw.msw.video_encoders import HARDWARE, LABELS, capabilities
+from maw.msw.video_progress import EncodingEstimate
 from maw.msw.timeline_export import editable_plan, render_bundle
 from maw.project import normalize_project
 
@@ -97,6 +99,8 @@ class AudioExports:
         return dict(available=bool(tools.ffmpeg and tools.ffprobe), plan_schema=VERSION, source_available=bool(source and Path(source).is_file()),
                     media_reference=project.get("media"), audio_index=selected,
                     video=info.get("video"), duration_ms=info.get("duration_ms"), video_alignment_version=2,
+                    video_encoding_version=1,
+                    video_encoders=capabilities(tools.ffmpeg) if video and tools.ffmpeg and info.get('video') else [],
                     audio_tracks=info.get("audio_tracks", (project.get("media_metadata") or {}).get("audio_tracks", [])))
 
     def write(self, job):
@@ -124,15 +128,21 @@ class AudioExports:
             raise ValueError('正在生成预览，请稍后重试')
         try:
             tools = self.tools()
-            if not tools.complete:raise ValueError('生成预览需要 FFmpeg 与 FFprobe')
-            cancel = threading.Event();stamp = fingerprint(source)
-            info = probe_source(tools.ffprobe,source,cancel);video=info.get('video')
-            if not video:raise ValueError('原媒体没有可预览的视频画面')
+            if not tools.complete:
+                raise ValueError('生成预览需要 FFmpeg 与 FFprobe')
+            cancel = threading.Event()
+            stamp = fingerprint(source)
+            info = probe_source(tools.ffprobe,source,cancel)
+            video = info.get('video')
+            if not video:
+                raise ValueError('原媒体没有可预览的视频画面')
             if video.get('color_transfer') in {'smpte2084','arib-std-b67'}:
                 raise ValueError('当前重新编码暂不支持 HDR 色彩转换')
             plan={'intervals':[{'start_ms':0,'end_ms':max(at+1000,info['duration_ms']),'output_start_ms':0}]}
             with tempfile.TemporaryDirectory(prefix='frame-',dir=self.root) as folder:
-                root=Path(folder);subtitle=root/'preview.ass';output=root/'preview.png'
+                root = Path(folder)
+                subtitle = root / 'preview.ass'
+                output = root / 'preview.png'
                 subtitle.write_text(styled_ass(project,plan,target,video,frame_at=at),encoding='utf-8-sig',newline='\n')
                 from maw.msw.video_render import frame_rate
                 # Tail previews use the last actual frame, with subtitles at
@@ -145,8 +155,10 @@ class AudioExports:
                 filters+=",scale=w='min(1280,iw)':h=-2"
                 run(command_prefix(tools.ffmpeg)+['-ss',f'{seek:.6f}','-i',str(source),'-map',f"0:{video['index']}",
                     '-an','-sn','-vf',filters,'-frames:v','1','-threads','1',str(output)],cancel,cwd=root,timeout=30)
-                if not output.is_file() or output.stat().st_size>8*1024*1024:raise ValueError('预览帧生成失败或过大')
-                if fingerprint(source)!=stamp:raise ValueError('原媒体已改变，请重新生成预览')
+                if not output.is_file() or output.stat().st_size > 8*1024*1024:
+                    raise ValueError('预览帧生成失败或过大')
+                if fingerprint(source) != stamp:
+                    raise ValueError('原媒体已改变，请重新生成预览')
                 return {'image':'data:image/png;base64,'+base64.b64encode(output.read_bytes()).decode('ascii'),'at_ms':at}
         finally:
             self.preview_guard.release()
@@ -181,10 +193,12 @@ class AudioExports:
         settings.setdefault("format", "wav")
         settings.setdefault("video_tail", "truncate")
         settings.setdefault("video_encoding", "auto")
+        settings.setdefault("hardware_encoder", "auto")
         settings.setdefault("collect_media", True)
         settings.setdefault('burn_subtitles', 'none')
         if (settings["format"] not in {"wav", "mp4", "otioz"} or settings["video_tail"] not in {"ask", "truncate", "freeze", "black"}
-                or settings["video_encoding"] not in {"auto", "h264"} or type(settings["collect_media"]) is not bool):
+                or settings["video_encoding"] not in {"auto", "h264", "hardware"}
+                or settings['hardware_encoder'] not in {'auto', *HARDWARE} or type(settings["collect_media"]) is not bool):
             raise ValueError("导出格式或视频选项无效")
         if settings['burn_subtitles'] not in {'none', 'main', 'secondary', 'both'}:
             raise ValueError('字幕压制选项无效')
@@ -314,7 +328,7 @@ class AudioExports:
                 check_cancel(event)
                 with self.lock:
                     job = self.get(job_id, project_id)
-                    job.update(status="running", stage="preparing")
+                    job.update(status="running", stage="preparing", started_at=time.time())
                     self.write(job)
                 source_channels = 0
                 info = {}
@@ -343,16 +357,29 @@ class AudioExports:
                 for asset_id in trusted:
                     resolve(asset_id)  # Fail missing used assets before rendering.
 
+                estimate = EncodingEstimate()
+
                 def progress(stage, fraction):
                     check_cancel(event)
+                    eta = estimate.update(stage, fraction)
                     with self.lock:
                         current = self.get(job_id, project_id)
-                        current.update(stage=stage, progress=round(fraction * 100, 1))
+                        current.update(stage=stage, progress=round(fraction * 100, 1), encoding_eta_seconds=eta,
+                                       progress_at=time.time())
+                        self.write(current)
+
+                def on_encoding(encoder, note):
+                    check_cancel(event)
+                    estimate.reset()
+                    with self.lock:
+                        current = self.get(job_id, project_id)
+                        current.update(video_encoder=encoder, encoder_label=LABELS.get(encoder, '画面直接复制'), encoding_note=note)
                         self.write(current)
 
                 if settings["format"] == "mp4":
                     result = render_video(plan, self.artifact(job), tools, event, progress, resolve,
-                                          source=source, source_channels=source_channels, info=info, settings=settings, project=project)
+                                          source=source, source_channels=source_channels, info=info, settings=settings, project=project,
+                                          on_encoding=on_encoding)
                 elif settings["format"] == "otioz":
                     result = render_bundle(project, plan, self.artifact(job), tools, event, progress, resolve,
                                            source=source, source_channels=source_channels, info=info, settings=settings)

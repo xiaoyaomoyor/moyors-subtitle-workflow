@@ -47,7 +47,7 @@ test('source gain changes only painted amplitude and reuses peak envelopes',asyn
   await expect.poll(()=>page.evaluate(()=>window.__row.querySelector('canvas').toDataURL()===window.__picture)).toBe(true);
 });
 
-for(const kind of ['main','extension'])test(`${kind} clipboard keeps inherited color and original group references`,async({page})=>{
+for(const kind of ['main','extension'])test(`${kind} clipboard keeps materialized colors on both original and copy`,async({page})=>{
   const result=await page.evaluate(kind=>{
     clearSelection({silent:true,commitCuePanel:false});
     (kind==='main'?selectedIdxs:selectedExtensionIdxs).add(1);
@@ -55,10 +55,10 @@ for(const kind of ['main','extension'])test(`${kind} clipboard keeps inherited c
     const cues=kind==='main'?DATA.segments:getActiveExtensionTrack().segments;
     const original=cues.find(c=>c.id===(kind==='main'?'main-1':'ext-1'));
     const pasted=cues.find(c=>c.id.includes('pasted'));
-    return {color:pasted.color,ref:pasted.color_ref,head:cues[original.color_ref.headIdx].id,start:pasted.start,items:pasted.items};
+    return {color:pasted.color,ref:pasted.color_ref,originalColor:original.color,originalRef:original.color_ref,start:pasted.start,items:pasted.items};
   },kind);
   expect(result.color.name).toBe('purple');expect(result.color.value).toBe('#bb66ff');expect(result.ref).toBeUndefined();
-  expect(result.head).toBe(kind==='main'?'main-0':'ext-0');expect(result.start).toBe(1000);
+  expect(result.originalColor.name).toBe('purple');expect(result.originalColor.value).toBe('#bb66ff');expect(result.originalRef).toBeUndefined();expect(result.start).toBe(1000);
   expect(result.items.map(i=>[i.start,i.end])).toEqual([[1000,1500],[1500,2000]]);
 });
 
@@ -153,6 +153,8 @@ for(const firstSave of [false,true])test(`${firstSave?'new project first save':'
     project.msw ||= {schema:'msw.editor.v1',project_id:'synthetic-new-project'};
     await route.fulfill({json:{ok:true,project,projectId:project.msw.project_id,filename:'copy.mosp',binding:'test-binding',saveRevision:1,assets:{available:0,total:0}}});
   });
+  // Legacy input is migrated to v2 and is dirty; explicitly accept replacing it.
+  if(firstSave){page.removeAllListeners('dialog');page.on('dialog',d=>d.accept());}
   await clickMenubarItem(page,'文件',firstSave?'new-project':'save-project-as');
   if(firstSave)await expect(page.locator('#project-save-title')).toHaveText('新工程保存位置');
   await page.locator('#project-save-choose').click();
@@ -175,4 +177,26 @@ test('save diagnostics retain asset and recovery warnings without a menu status'
   await expect(page.locator('.hint-warning').filter({hasText:'素材缺失 1'})).toContainText('synthetic recovery warning');
   await expect(page.locator('.hint-warning').filter({hasText:'synthetic draft warning'})).toHaveCount(1);
   await expect(page.locator('#project-persistence-status')).toHaveCount(0);
+});
+
+
+test('notifications deduplicate, preserve failures and let waveform input through',async({page})=>{
+  await page.evaluate(()=>{
+    document.getElementById('hint-stack')?.remove();
+    for(let i=0;i<10;i++)flashHint('导出失败：测试反馈','warning');
+    for(let i=0;i<10;i++)flashHint('已复制测试 '+i,'success');
+  });
+  await expect(page.locator('.hint-warning')).toHaveCount(1);
+  await expect(page.locator('.hint-success')).toHaveCount(1);
+  const hit=await page.locator('.hint-warning .hint-body').evaluate(node=>{
+    const r=node.getBoundingClientRect();return document.elementFromPoint(r.x+5,r.y+5)?.closest('#hint-stack')===null;
+  });
+  expect(hit).toBe(true);
+  await page.waitForTimeout(2500);
+  await expect(page.locator('.hint-warning')).toHaveCount(1);
+  await expect(page.locator('.hint-success')).toHaveCount(0);
+  await page.locator('.hint-warning .hint-close').focus();await page.keyboard.press('Enter');
+  await expect(page.locator('.hint-warning')).toHaveCount(0);
+  await page.evaluate(()=>{selectedIdxs.add(0);pushUndo('测试撤销');DATA.segments[0].text='Changed';performUndo();assignColor([0],'red');toggleDisabled([0]);});
+  await expect(page.locator('.hint-success')).toHaveCount(0);
 });

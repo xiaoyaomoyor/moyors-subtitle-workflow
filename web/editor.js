@@ -357,7 +357,6 @@ function convertMainCuesToOverlay(idxs, { label = '转为叠加字幕', pushHist
   if (!silent) {
     renderAll({ waveform: 'full' });
     scheduleAutoSaveFlush();
-    flashHint(`已转为叠加字幕 ${converted} 条`, 'success');
   }
   return converted;
 }
@@ -451,7 +450,6 @@ function convertOverlayCueToMain(index) {
   ).nextAnchor;
   renderAll({ waveform: 'full' });
   scheduleAutoSaveFlush();
-  flashHint('已转为主字幕', 'success');
   return true;
 }
 
@@ -472,7 +470,6 @@ function deleteOverlayCues(indices, { recordHistory = true } = {}) {
   overlay._dirty = true;
   renderAll({ waveform: 'full' });
   scheduleAutoSaveFlush();
-  flashHint(`已删除 ${sorted.length} 条叠加字幕`, 'success');
 }
 
 function getExtensionTrack(trackId = null) {
@@ -2191,7 +2188,6 @@ function performUndo() {
   if (!record) return;
   const applied = applyHistoryRecord(record);
   if (applied === false) { updateUndoRedoButtons(); return; }
-  flashHint(`已撤销：${record.label}（剩 ${editorHistory.undoLength()} 步）`, 'success');
   updateUndoRedoButtons();
 }
 function performRedo() {
@@ -2209,7 +2205,6 @@ function performRedo() {
   if (!record) return;
   const applied = applyHistoryRecord(record);
   if (applied === false) { updateUndoRedoButtons(); return; }
-  flashHint(`已重做：${record.label}（剩 ${editorHistory.redoLength()} 步）`, 'success');
   updateUndoRedoButtons();
 }
 // modal 或文本输入聚焦时不触发全局撤销/重做（让浏览器/输入框自己处理）
@@ -3642,7 +3637,6 @@ assModeToggle?.addEventListener('change', () => {
   syncAssModeControl();
   refreshPreviewGeometryEditable();
   refreshSubtitlePreview();
-  flashHint(assModeToggle.checked ? '已开启 ASS 字幕模式预览' : '已恢复原有字幕预览', 'success');
 });
 
 function isEditorSettingsOpen() {
@@ -4922,10 +4916,6 @@ function setTimelineTimebase(patch = {}) {
   refreshTimelineSettingsUi();
   renderAll({ waveform: 'full' });
   scheduleAutoSaveFlush();
-  const description = nextUnit === 'frames'
-    ? timelineUiText(`已切换到帧时间基准（${nextFps} FPS）`, `Switched to frame timebase (${nextFps} FPS)`)
-    : timelineUiText('已切换到毫秒时间基准', 'Switched to millisecond timebase');
-  flashHint(description, 'success');
 }
 
 function refreshMediaSeekInputStep(value = timelineMediaSeekStepValue()) {
@@ -5081,7 +5071,6 @@ subtitleColorPaletteEnabledInput?.addEventListener('change', () => {
   updateEditorSettings({ subtitleColorPaletteEnabled: subtitleColorPaletteEnabledInput.checked });
   syncSubtitleColorPaletteControls();
   refreshSubtitleColorPalettePresentation();
-  if (!subtitleColorPaletteEnabledInput.checked) flashHint('已恢复内置字幕颜色', 'success');
 });
 let subtitleBackgroundColorUndoPushed = false;
 function applySubtitleBackgroundColorInput({ finalize = false } = {}) {
@@ -5549,7 +5538,6 @@ function toggleGapRemoved(index) {
   pushGapRemoveUndo(gap.retained ? '取消固定空隙' : '固定空隙标记');
   const retained = gaps.filter((item, at) => at === index ? !gap.retained : item.retained);
   replaceGapMarks(state, gaps, retained);
-  flashHint(gap.retained ? '已取消固定，可移动和调整大小' : '已固定空隙', 'success');
 }
 
 function clearGap(index) {
@@ -5560,7 +5548,6 @@ function clearGap(index) {
   const remaining = gaps.filter((_, at) => at !== index);
   pushGapRemoveUndo('删除空隙');
   replaceGapMarks(state, remaining, remaining.filter(item => item.retained));
-  flashHint('已删除该空隙，可撤销恢复', 'success');
 }
 
 function setAllGapRetained(retained) {
@@ -5568,7 +5555,6 @@ function setAllGapRetained(retained) {
   if (!gaps.some(gap => gap.retained !== retained)) return;
   pushGapRemoveUndo(retained ? '固定全部空隙' : '取消固定全部空隙');
   replaceGapMarks(state, gaps, retained ? gaps : []);
-  flashHint(retained ? '已固定全部空隙' : '全部空隙已设为未固定', 'success');
 }
 
 function deleteUnretainedGaps() {
@@ -5577,7 +5563,6 @@ function deleteUnretainedGaps() {
   pushGapRemoveUndo('删除所有未固定空隙');
   const retained = gaps.filter(gap => gap.retained);
   replaceGapMarks(state, retained, retained);
-  flashHint('已删除所有未固定空隙，可撤销恢复', 'success');
 }
 
 function convertGapsToTimeSelection(index = null) {
@@ -5589,7 +5574,6 @@ function convertGapsToTimeSelection(index = null) {
   pushGapRemoveUndo('空隙转为时间选区', {captureTimeRanges: true});
   ranges.setRange([...ranges.ranges, ...targets.map(({start, end}) => ({start, end}))]);
   replaceGapMarks(state, remaining, remaining.filter(gap => gap.retained));
-  flashHint('已转为时间选区并删除对应空隙，可撤销恢复', 'success');
 }
 
 function applyManualGapRange(startMs, endMs, removed) {
@@ -5609,7 +5593,6 @@ function applyManualGapRange(startMs, endMs, removed) {
   }
   pushGapRemoveUndo(removed ? '添加空隙' : '固定所选空隙');
   replaceGapMarks(state,nextGaps,retained);
-  flashHint(removed ? '已添加空隙标记' : '已固定所选范围内的空隙', 'success');
 }
 
 function addGapAtWaveformTime(timeMs) {
@@ -5643,7 +5626,6 @@ function addGapAtWaveformTime(timeMs) {
     [{ start, end, removed: true }],
   );
   waveformEditor?.revealTime(start, true);
-  flashHint(`已添加 ${formatGapRemoveTotal(end - start)} 空隙标记`, 'success');
   return true;
 }
 
@@ -5671,9 +5653,6 @@ function fillGapRangeAtWaveformTime(timeMs) {
   pushGapRemoveUndo('填充区间空隙');
   state.detector = 'audio_gate';
   commitManualGapRemoveChange(state, [{ ...range, removed: true }]);
-  const effectiveMs = getRemovedGapRanges().reduce((total, gap) =>
-    total + Math.max(0, Math.min(gap.end, range.end) - Math.max(gap.start, range.start)), 0);
-  flashHint(`已填充区间空隙：标记 ${formatGapRemoveTotal(range.end - range.start)}，实际移除 ${formatGapRemoveTotal(effectiveMs)}`, 'success');
   return true;
 }
 
@@ -5685,7 +5664,6 @@ function translateManualGap(index, deltaMs, mode = 'move') {
   if (!result.changed) return false;
   pushGapRemoveUndo(mode === 'copy' ? '复制并偏移空隙' : '整体偏移空隙');
   replaceGapMarks(state, result.gaps);
-  flashHint(mode === 'copy' ? '已复制并偏移空隙' : '已整体偏移空隙', 'success');
   return true;
 }
 
@@ -5697,7 +5675,6 @@ function resizeManualGapBoundary(index, edge, valueMs) {
   if (!result.changed) return;
   pushGapRemoveUndo('人工调整空隙边界');
   replaceGapMarks(state, result.gaps);
-  flashHint('已人工调整空隙边界', 'success');
 }
 
 function clearAllGaps() {
@@ -5709,7 +5686,6 @@ function clearAllGaps() {
   state.generated_sources = [];
   state.cleared = true;
   setGapRemoveData(state, { clearProvenance: true });
-  flashHint('已清空标记，可撤销恢复', 'success');
 }
 
 // 可拖动非模态工具窗（移除静音空隙 / 拼合字幕共用模式）：
@@ -6609,7 +6585,6 @@ function unbindSelectedSubtitlePair() {
   // 解绑会移除波形上的绑定标记，也需要刷新字幕块覆盖层。
   renderAll({ waveform: 'overlay' });
   waveformEditor?.updateSelection();
-  flashHint(`已解绑 ${removed.length} 对字幕`, 'success');
 }
 
 function alignExtensionToMainTimeRanges(
@@ -7311,7 +7286,6 @@ cuePanelSticker?.addEventListener('contextmenu', (event) => {
   if (target?.kind !== 'main') return;
   removeStickerCascade(target.index);
   renderAll();
-  flashHint('已删除当前表情包', 'success');
 });
 cuePanelSplit?.addEventListener('click', splitCuePanelAtCursor);
 
@@ -9751,7 +9725,6 @@ function commitMainWaveformSplit(
   }
   if (!duplicateText) flashSplitAlignmentHint(pair.alignment, { committed: true });
   const oldMainId = main.id;
-  const wasBound = Boolean(bindingForMainIndex(mainIndex));
   pushUndo(duplicateText ? '拆分字幕并保留原文' : '拆分字幕', { captureView: true });
   clearSelection({ commitCuePanel: false });
   removeBindingsForSegmentIds([oldMainId], []);
@@ -9780,7 +9753,6 @@ function commitMainWaveformSplit(
 
   // 确认区提交的刀光位置由唤起来源决定：列表唤起留在列表，其余落在波形最终切点。
   triggerNinjaSplitFeedback(ninjaModalSplitPoint(state, splitMs, 'main'));
-  if (successMessage) flashHint(wasBound ? '已仅切分当前主字幕，并解除原绑定' : successMessage, 'success');
   return true;
 }
 
@@ -9854,7 +9826,6 @@ function commitExtensionSplit(
   if (!duplicateText) flashSplitAlignmentHint(pair.alignment, { committed: true });
 
   const oldExtensionId = extension.id;
-  const wasBound = Boolean(bindingForExtensionIndex(extensionIndex, track));
   pushUndo('拆分副字幕', { captureView: true });
   // 一对一绑定无法让一个主段同时指向拆出的两条副轨段；独立拆分后
   // 保留两条副字幕，但解除旧关系，等待用户按需要重新绑定。
@@ -9881,12 +9852,6 @@ function commitExtensionSplit(
   });
   // 确认区提交的刀光位置由唤起来源决定：列表唤起留在列表，其余落在波形最终切点。
   triggerNinjaSplitFeedback(ninjaModalSplitPoint(state, splitMs, 'extension'));
-  flashHint(
-    successMessage || (wasBound
-      ? '已独立拆分副字幕并解除原绑定'
-      : '已按选择的断点拆分副字幕'),
-    'success',
-  );
   return true;
 }
 
@@ -9965,7 +9930,6 @@ function commitOverlaySplit(
     listFeedback: false,
   });
   triggerNinjaSplitFeedback(ninjaModalSplitPoint(state, splitMs, 'overlay'));
-  if (successMessage) flashHint(successMessage, 'success');
   return true;
 }
 
@@ -10735,10 +10699,6 @@ function autoMergeSegments() {
   renderAll();
   updateWithoutCueListAutoScroll();
   const mergedCount = plan.groups.reduce((sum, group) => sum + group.length - 1, 0);
-  const parts = [];
-  if (snappedCount) parts.push(`吸附 ${snappedCount} 处间隔`);
-  if (mergedCount) parts.push(`吸收 ${mergedCount} 条短字幕`);
-  flashHint(`已拼接/合并字幕：${parts.join('，')}`, 'success');
 }
 
 // 「拼合字幕」的自动延展直接修改主轨边界，不能绕过普通时间编辑使用的
@@ -10937,7 +10897,6 @@ function deleteSegments(idxs, { recordHistory = true } = {}) {
   clearSelection({ silent: true });
   cueListPlaybackKey = null;
   renderAll();
-  flashHint(`已删除 ${sorted.length} 条`, 'success');
 }
 
 function deleteExtensionSegments(indices, track = getActiveExtensionTrack(), { recordHistory = true } = {}) {
@@ -10989,7 +10948,6 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack(), { r
   markMultiSubtitleDirty();
   selectedExtensionIdxs.clear();
   renderAll();
-  flashHint(`已删除 ${remainingIndices.length} 条副字幕`, 'success');
 }
 
 function deleteSelectedCues(label = '删除选中字幕') {
@@ -11029,7 +10987,6 @@ function clearAllSubtitles() {
   renderAll({ waveform: 'full' });
   refreshClipboardMenuState();
   scheduleAutoSaveFlush();
-  flashHint('已清空全部字幕', 'success');
 }
 
 // === 滚动 ===
@@ -13943,7 +13900,6 @@ subtitleColorPaletteResetButton?.addEventListener('click', () => {
   updateEditorSettings({ subtitleColorPalette: { ...COLOR_PALETTE_DEFAULTS } });
   syncSubtitleColorPaletteControls();
   refreshSubtitleColorPalettePresentation();
-  flashHint('已恢复内置字幕颜色', 'success');
 });
 
 function syncExtensionSubtitleAppearanceControls() {
@@ -16889,7 +16845,8 @@ function showProjectSaveError(detail) {
   }
 
   flashHint('', 'warning', {
-    durationMs: 12000,
+    durationMs: 0,
+    key: `project-save-error:${detail}`,
     contentBuilder: (card) => {
       card.classList.add('hint-project-error');
 
@@ -17417,7 +17374,6 @@ async function deleteCurrentServerWorkspace() {
     currentServerWorkspaceName = '';
     refreshWorkspaceSelect();
     syncWorkspaceControls();
-    flashHint(`已删除工作区：${name}`, 'success');
   } catch (error) {
     flashHint(`删除工作区失败：${error.message || error}`, 'warning');
   } finally {
@@ -21384,7 +21340,6 @@ function assignSticker(sticker) {
     applyCueEditorDisplaySettings();
   }
   refreshStickerAssignmentUi();
-  flashHint(`已分配「${sticker.name}」`, 'success');
 }
 
 function clearStickerOnTargets() {
@@ -21393,7 +21348,6 @@ function clearStickerOnTargets() {
   splitGroupsAtCutPoints(new Set(stickerTargetIdxs), 'sticker', 'sticker_ref');
   stickerModal.classList.remove('show');
   refreshStickerAssignmentUi();
-  flashHint('已清除', 'success');
 }
 
 document.getElementById('sticker-filter')?.addEventListener('input', (e) => {
@@ -21427,7 +21381,6 @@ document.getElementById('sticker-preview-delete')?.addEventListener('click', () 
   removeStickerCascade(previewIdx, { overlay: previewTrack === 'overlay' });
   stickerPreviewModal.classList.remove('show');
   renderAll();
-  flashHint('已删除', 'success');
 });
 
 // 删除表情包时级联清理引用：
@@ -21488,7 +21441,6 @@ function expandStickerTime(idxs) {
     DATA.segments[sorted[k]].sticker_ref = { name: sticker.name, headIdx };
   }
   renderAll();
-  flashHint(`已拓展到 ${sorted.length} 条`, 'success');
 }
 
 // === 标记颜色 ===
@@ -21533,7 +21485,6 @@ function detachColorFromGroup(idx) {
   segment.color = detachedColor;
   segment.color_ref = null;
   refreshColorAssignmentUi();
-  flashHint('已从颜色组中脱离', 'success');
   return true;
 }
 
@@ -21570,13 +21521,7 @@ function assignColor(idxs, colorName) {
       DATA.segments[sorted[k]].color_ref = { name: colorName, headIdx };
     }
   }
-  // 单条修改 lead（其 color_ref 成员仍指向它）或多选统一分配时，视为整组联动修改
-  const isUnifiedGroup = sorted.length > 1
-    || DATA.segments.some((s) => s.color_ref && s.color_ref.headIdx === sorted[0]);
   refreshColorAssignmentUi();
-  flashHint(isUnifiedGroup
-    ? `已将关联字幕统一设为「${def.label}色」`
-    : `已将字幕设为「${def.label}色」`, 'success');
 }
 
 // === 叠加轨的颜色标记 ===
@@ -21598,9 +21543,6 @@ function assignOverlayColor(idxs, colorName) {
   overlay._dirty = true;
   refreshColorAssignmentUi();
   scheduleAutoSaveFlush();
-  flashHint(targets.length === 1
-    ? `已将字幕设为「${def.label}色」`
-    : `已将 ${targets.length} 条字幕设为「${def.label}色」`, 'success');
 }
 
 function clearOverlayColorOnTargets(idxs) {
@@ -21619,7 +21561,6 @@ function clearOverlayColorOnTargets(idxs) {
   overlay._dirty = true;
   refreshColorAssignmentUi();
   scheduleAutoSaveFlush();
-  flashHint('已清除颜色', 'success');
 }
 
 function clearOverlaySticker(index) {
@@ -21632,7 +21573,6 @@ function clearOverlaySticker(index) {
   overlay._dirty = true;
   renderAll({ waveform: 'full' });
   scheduleAutoSaveFlush();
-  flashHint('已删除', 'success');
 }
 
 // 删除颜色（级联清理）：
@@ -21648,7 +21588,6 @@ function clearColorOnTargets(idxs) {
   // 一次性切除所有目标 idx，触发组拆分
   splitGroupsAtCutPoints(new Set(idxs), 'color', 'color_ref');
   refreshColorAssignmentUi();
-  flashHint('已清除颜色', 'success');
 }
 
 // === 禁用/启用 ===
@@ -21722,15 +21661,6 @@ function toggleDisabled(idxs, track = 'main', { successDetail = null } = {}) {
       updateSelectionCountText();
     }
   }
-  const action = allDisabled ? '启用' : '禁用';
-  const extensionCount = [...boundExtensionTargets.values()]
-    .reduce((total, indexes) => total + indexes.size, 0);
-  const detail = successDetail && !allDisabled
-    ? `${validIdxs.length} 条${successDetail}${!isExtension && extensionCount ? `，以及副字幕 ${extensionCount} 条` : ''}`
-    : !isExtension && extensionCount
-    ? `主字幕 ${validIdxs.length} 条及副字幕 ${extensionCount} 条`
-    : `${validIdxs.length} 条`;
-  flashHint(`已${action} ${detail}`, 'success');
   // 禁用状态同时决定当前时间的预览可见性；列表重绘不会自动触发播放头刷新。
   updateWithoutCueListAutoScroll();
 }
@@ -21789,7 +21719,6 @@ function addExtensionRangeFromWaveform(
     setTimeout(() => startExtensionEdit(extensionText, index, track), 0);
   }
   waveformEditor?.revealTime(safeStart, true);
-  flashHint(`已新增第 ${index + 1} 条副字幕`, 'success');
 }
 
 function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, track = 'main') {
@@ -21843,7 +21772,6 @@ function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, t
   }
   setTimeout(() => focusCuePanelText(index), 0);
   waveformEditor?.revealTime(safeStart, true);
-  flashHint(`已新增第 ${index + 1} 条字幕`, 'success');
 }
 
 // 叠加轨创建入口：与主轨不同，允许与主字幕时间重叠（这正是叠加轨的用途）；
@@ -21892,7 +21820,6 @@ function addOverlayRangeFromWaveform(requestedStart, requestedEnd, clickX, click
   setTimeout(() => focusCuePanelText(index, 'overlay'), 0);
   waveformEditor?.revealTime(safeStart, true);
   scheduleAutoSaveFlush();
-  flashHint(`已新增第 ${index + 1} 条叠加字幕`, 'success');
 }
 
 // 右键菜单 / 后续菜单入口：在指针时间点创建一条默认时长的叠加字幕，
@@ -22013,7 +21940,6 @@ function addExtensionAtWaveformTime(timeMs, clickX, clickY, track = getActiveExt
     setTimeout(() => startExtensionEdit(extensionText, index, track), 0);
   }
   waveformEditor?.revealTime(adjustedStart, true);
-  flashHint(`已新增第 ${index + 1} 条副字幕`, 'success');
 }
 
 function getBoundDragTarget(index, sourceSegments) {
@@ -22569,7 +22495,6 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       addItem('删除表情包', '', () => {
         removeStickerCascade(idx);
         renderAll();
-        flashHint('已删除', 'success');
       }, { danger: true });
     }
     addColorSubmenu(targetIdxs);
@@ -22879,14 +22804,14 @@ document.addEventListener('keydown', (e) => {
 });
 
 // === Hint ===
-// 右上角提示卡片堆栈：样式在 editor.css（#hint-stack / .hint-card）。
-// 最多同时显示 3 条，新提示追加在下方。
+// One transient message; warnings and ongoing saves cannot be displaced by it.
 const HINT_MAX_VISIBLE = 3;
-const HINT_DURATION_MS = 1800;
-const HINT_FADE_OUT_MS = 200;  // 与 editor.css 的 hint-fade-out 时长一致
+const HINT_DURATION_MS = 2200;
+const HINT_FADE_OUT_MS = 200;
 
 function dismissHintCard(card) {
   if (!card || card.dataset.dismissed) return;
+  clearTimeout(card.hintTimer);
   card.dataset.dismissed = '1';
   card.classList.add('hide');
   setTimeout(() => card.remove(), HINT_FADE_OUT_MS);
@@ -22896,27 +22821,47 @@ function flashHint(msg, type = 'default', options = {}) {
   let stack = document.getElementById('hint-stack');
   if (!stack) {
     stack = document.createElement('div'); stack.id = 'hint-stack';
+    stack.setAttribute('aria-label', '操作通知');
     document.body.appendChild(stack);
   }
-  // 先挤掉最早的再插入新卡片：溢出项立即移除（不走退场动画），
-  // 保证视觉上始终最多 3 条，不会出现第 4 条先闪现再挤出的跳动。
-  while (stack.children.length >= HINT_MAX_VISIBLE) {
-    const oldest = [...stack.children].find(node=>node.dataset.saveProgress!=='true') || stack.firstElementChild;
-    oldest.dataset.dismissed = '1';  // 让其到期定时器空转
-    oldest.remove();
+  const persistent = type === 'warning' || options.durationMs === 0;
+  const key = options.key || (msg ? `${type}:${msg}` : '');
+  const visible = [...stack.children].filter(node => !node.dataset.dismissed);
+  const existing = key && visible.find(node => node.dataset.hintKey === key);
+  if (existing) {
+    clearTimeout(existing.hintTimer);
+    if (!persistent) existing.hintTimer = setTimeout(() => dismissHintCard(existing), HINT_DURATION_MS);
+    return existing;
+  }
+  // Routine messages replace each other, never a failure or a pending save.
+  for (const node of visible) if (node.dataset.persistent !== 'true') {
+    clearTimeout(node.hintTimer); node.remove();
+  }
+  if (persistent && stack.children.length >= HINT_MAX_VISIBLE) {
+    const oldest = [...stack.children].find(node => node.dataset.saveProgress !== 'true');
+    if (oldest) { clearTimeout(oldest.hintTimer); oldest.remove(); }
   }
   const card = document.createElement('div');
-  // type → 语义类：default 中性 / success 成功 / invalid 不可用提醒 / warning 失败。
-  // 仅在有效类型时追加类名，default 维持原 .hint-card 中性外观。
-  const typeClass = type === 'success' ? 'hint-success'
-    : type === 'invalid' ? 'hint-invalid'
-    : type === 'warning' ? 'hint-warning' : '';
-  card.className = typeClass ? `hint-card ${typeClass}` : 'hint-card';
+  card.className = `hint-card hint-${['success','invalid','warning'].includes(type) ? type : 'default'}`;
+  card.dataset.hintKey = key;
+  card.dataset.persistent = String(persistent);
+  card.setAttribute('role', type === 'warning' ? 'alert' : 'status');
+  card.setAttribute('aria-live', type === 'warning' ? 'assertive' : 'polite');
   if (typeof options.contentBuilder === 'function') options.contentBuilder(card);
-  else card.textContent = msg;
-  stack.appendChild(card);
-  const durationMs = Number.isFinite(options.durationMs) ? options.durationMs : HINT_DURATION_MS;
-  if (durationMs > 0) setTimeout(() => dismissHintCard(card), durationMs);
+  else {
+    const icon = document.createElement('span'); icon.className = 'hint-icon'; icon.setAttribute('aria-hidden','true');
+    icon.textContent = type === 'warning' || type === 'invalid' ? '!' : type === 'success' ? '✓' : 'i';
+    const body = document.createElement('span'); body.className = 'hint-body'; body.textContent = msg;
+    card.append(icon, body);
+    if (persistent) {
+      const close = document.createElement('button'); close.type = 'button'; close.className = 'hint-close';
+      close.textContent = '×'; close.setAttribute('aria-label','关闭提示');
+      close.addEventListener('click', () => dismissHintCard(card)); card.append(close);
+    }
+  }
+  if (persistent || stack.children.length < HINT_MAX_VISIBLE) stack.appendChild(card);
+  const durationMs = persistent ? 0 : Number.isFinite(options.durationMs) ? options.durationMs : HINT_DURATION_MS;
+  if (durationMs > 0) card.hintTimer = setTimeout(() => dismissHintCard(card), durationMs);
   return card;
 }
 
@@ -22936,7 +22881,7 @@ function beginProjectSaveFeedback({silent = false} = {}) {
     }),
     finish(label='保存成功',type='success') {
       if (!pending) return;pending=false;if (!card) return;
-      delete card.dataset.saveProgress;card.className=`hint-card hint-${type}`;card.textContent=translate(label);
+      delete card.dataset.saveProgress;card.dataset.persistent='false';card.className=`hint-card hint-${type}`;card.textContent=translate(label);
       setTimeout(()=>dismissHintCard(card),HINT_DURATION_MS);
     },
     cancel() {if(pending){pending=false;if(card){delete card.dataset.saveProgress;dismissHintCard(card);}}},
@@ -24084,7 +24029,6 @@ function rebuildWorkspacePresetMenu() {
           refreshWorkspaceSelect();
           syncWorkspaceControls();
           rebuildWorkspacePresetMenu();
-          flashHint(`已删除工作区：${name}`, 'success');
         } catch (error) {
           flashHint(`删除工作区失败：${error.message || error}`, 'warning');
         }
@@ -24339,7 +24283,6 @@ function pasteCuesFromClipboard() {
   renderAll({ waveform: 'full' });
   if (waveformEditor) waveformEditor.updateSelection();
   refreshClipboardMenuState();
-  flashHint(`已粘贴 ${copies.length + extInserted} 条字幕到 ${(pasteAnchor / 1000).toFixed(1)}s`, 'success');
 }
 
 cueCutButton?.addEventListener('click', cutSelectedCues);
@@ -24373,7 +24316,6 @@ function clearEmptyCues() {
     emptyExtByTrack.flatMap(({ track, indices }) => indices.map(index => track.segments[index].id)));
   if (emptyMain.length) deleteSegments(emptyMain, { recordHistory: false });
   for (const { track, indices } of emptyExtByTrack) deleteExtensionSegments(indices, track, { recordHistory: false });
-  flashHint(`已清除 ${emptyMain.length + emptyExtByTrack.reduce((n, e) => n + e.indices.length, 0)} 条空字幕块`, 'success');
 }
 document.getElementById('clear-empty-cues')?.addEventListener('click', clearEmptyCues);
 
@@ -24915,7 +24857,6 @@ document.getElementById('interface-colors-reset')?.addEventListener('click', () 
     const snapshot = readCustomThemes().find((t) => `custom:${t.name}` === presetId);
     updateEditorSettings({ colors: snapshot?.colors ? { ...snapshot.colors } : null });
     applyThemeAndColors();
-    flashHint('已恢复该自定义主题建立时的颜色', 'success');
     return;
   }
   updateEditorSettings({ colors: null });
@@ -24928,7 +24869,6 @@ document.getElementById('interface-colors-reset')?.addEventListener('click', () 
     scheduleAppearanceSync(); // 暂存清理同步到服务器
   } catch (_) { /* 隐私模式忽略 */ }
   applyThemeAndColors();
-  flashHint('已恢复当前主题的默认颜色', 'success');
 });
 // ── 自定义主题：按当前外观快照命名保存，可切换/删除 ──
 const CUSTOM_THEMES_KEY = 'moy.asr.editor.customThemes.v1';
@@ -24981,7 +24921,6 @@ function refreshThemeCustomList() {
         applyThemeAndColors();
       }
       refreshThemeCustomList();
-      flashHint(`已删除自定义主题「${theme.name}」`, 'success');
     });
     btn.appendChild(remove);
     list.appendChild(btn);
@@ -24996,7 +24935,6 @@ function applyCustomTheme(theme) {
   });
   applyThemeAndColors();
   refreshThemeCustomList();
-  flashHint(`已切换到自定义主题「${theme.name}」`, 'success');
 }
 document.getElementById('theme-custom-add')?.addEventListener('click', () => {
   const name = prompt('为新主题命名：');

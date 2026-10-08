@@ -246,6 +246,49 @@ class VideoRenderTests(unittest.TestCase):
             self.export(video_tail='truncate')
         self.assertFalse((self.root / 'result.mp4').exists())
 
+    def test_auto_retries_entire_video_in_cpu_but_explicit_hardware_does_not(self):
+        from maw.msw.video_render import encode_picture
+        encoders = []
+
+        def encode(*args):
+            encoders.append(args[-2])
+            if args[-2] != 'libx264':
+                raise ValueError('Hardware session lost')
+            return encode_picture(*args)
+
+        with patch('maw.msw.video_render.choose_encoder', return_value=('h264_nvenc','')), \
+             patch('maw.msw.video_render.encode_picture', side_effect=encode):
+            result, _, _ = self.export(start_ms=500)
+            self.assertEqual(encoders, ['h264_nvenc','libx264'])
+            self.assertEqual(result['video_encoder'], 'libx264')
+            self.assertIn('已改用', result['encoding_note'])
+            encoders.clear()
+            with self.assertRaisesRegex(ValueError, 'Hardware session lost'):
+                self.export(video_encoding='hardware', start_ms=500)
+            self.assertEqual(encoders, ['h264_nvenc'])
+
+    def test_real_available_hardware_encodes_subtitles(self):
+        from maw.msw.video_encoders import capabilities
+        available = [e for e in capabilities(self.tools.ffmpeg) if e['available']]
+        if not available:
+            self.skipTest('No driver passed the actual hardware encoding probe')
+        self.project['segments'] = [dict(start=0,end=4000,text='HARDWARE SUBTITLE')]
+        for encoder in available:
+            with self.subTest(encoder=encoder['id']):
+                result, _, _ = self.export(video_encoding='hardware', hardware_encoder=encoder['id'], burn_subtitles='main')
+                self.assertEqual(result['video_encoder'], encoder['id'])
+                self.assertEqual(result['burn_subtitles'], 'main')
+
+    def test_frame_progress_arrives_before_continuous_interval_finishes(self):
+        from maw.msw.video_render import encode_frames
+        frames = []
+        target = self.root / 'progress.mp4'
+        encode_frames([str(self.tools.ffmpeg), '-v', 'error', '-y', '-re', '-f', 'lavfi', '-i',
+                       'color=size=96x64:rate=24:duration=4', '-c:v', 'libx264', '-threads', '1', str(target)],
+                      self.cancel, cwd=self.root, frames=96, on_frame=frames.append)
+        self.assertEqual(frames[-1], 96)
+        self.assertTrue(any(0 < frame < 96 for frame in frames))
+
     def test_no_video_and_too_short_range_are_actionable(self):
         with self.assertRaisesRegex(ValueError, '没有可导出的视频'):
             prepare(self.project, self.settings, {**self.info, 'video': None})

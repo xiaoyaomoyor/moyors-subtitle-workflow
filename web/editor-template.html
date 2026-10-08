@@ -2664,15 +2664,17 @@ __WAVEFORM_CSS__
 
 <template id="video-export-fields">
   <div class="msw-processing-fields">
-    <label>画面编码<select id="video-export-encoding"><option value="auto">兼容时直接复制</option><option value="h264">重新编码 H.264</option></select></label>
+    <label>画面编码<select id="video-export-encoding"><option value="auto">自动（推荐）</option><option value="hardware">硬件编码</option><option value="h264">软件编码（CPU）</option></select></label>
     <label id="video-export-tail-field">导出范围对齐<select id="video-export-tail"><option value="truncate">对齐至视频</option><option value="freeze">对齐至音频（定格）</option><option value="black">对齐至音频（黑屏）</option></select></label>
   </div>
+  <div class="msw-processing-fields" id="video-export-hardware-field" hidden><label>硬件编码器<select id="video-export-hardware"></select></label></div>
+  <p class="msw-processing-hint" id="video-export-encoder-status" role="status"></p>
   <div class="msw-processing-fields" id="video-export-subtitle-fields">
     <label>烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
     <label id="video-export-style-choice" hidden>字幕样式<select id="video-export-style-source"><option value="project">跟随工程样式</option></select></label>
   </div>
   <p class="msw-processing-hint" id="video-export-tail-help" data-help-for="video-export-tail" hidden></p>
-  <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。裁切、延长或压制字幕时重新编码。兼容且无需处理画面时直接复制。</p>
+  <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。自动：兼容且无需处理画面时直接复制，否则优先硬件编码，失败时改用 CPU。硬件编码：使用通过短编码检测的编码器；失败时提示原因。软件编码：始终使用 CPU。烧录字幕仍需 CPU 渲染；速度和文件大小随设备、画面而变。</p>
   <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">开启烧录后在播放器查看本次字幕样式。选择其他预设只影响本次视频，不改变工程样式；调整样式请前往媒体播放器设置。表情包不烧录。</p>
 </template>
 <template id="timeline-export-fields">
