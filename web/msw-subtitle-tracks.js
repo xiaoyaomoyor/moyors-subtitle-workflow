@@ -11,6 +11,19 @@
   const stable = value => typeof value === 'string' && !!value.trim() && value.length <= 160;
   const fail = message => { throw Error('固定字幕轨道：' + message); };
   const refOf = row => ({ role: row.role, track_id: row.track_id, cue_id: row.cue_id });
+  const positionValid = value => value && Object.keys(value).length === 2
+    && ['x', 'y'].every(k => typeof value[k] === 'number' && Number.isFinite(value[k]) && value[k] >= 0 && value[k] <= 1);
+  const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
+    && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
+      && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
+    && (value.pairLayout === undefined || value.pairLayout && ['main-above', 'secondary-above'].includes(value.pairLayout.order)
+      && Number.isInteger(value.pairLayout.gap) && value.pairLayout.gap >= -240 && value.pairLayout.gap <= 240);
+  const styleValid = style => style && ['inherit', 'snapshot'].includes(style.mode)
+    && Object.keys(style).every(k => ['mode', 'value', 'selection', 'custom'].includes(k))
+    && (style.mode === 'inherit' ? style.value === undefined : snapshotValid(style.value))
+    && (style.custom === undefined || snapshotValid(style.custom))
+    && (style.selection === undefined || stable(style.selection));
 
   function sourceRecords(project) {
     if (!project || !Array.isArray(project.segments)) fail('segments 必须是数组');
@@ -29,6 +42,7 @@
       track.segments.forEach((cue, index) => {
         if (!stable(cue?.id) || seen.has(cue.id) || !Number.isSafeInteger(cue.start)
           || !Number.isSafeInteger(cue.end) || cue.start < 0 || cue.end <= cue.start) fail('字幕 ID 重复或时间范围无效');
+        if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position)) fail('字幕位置必须是画面内的 x、y 比例');
         seen.add(cue.id);
         rows.push({ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index });
       });
@@ -78,7 +92,7 @@
     layers.validate({ ...project, schema: layers.SCHEMA });
     const rows = sourceRecords(project), groups = bindingGroups(project, rows);
     const metadata = project.subtitle_tracks;
-    if (metadata?.schema !== TRACK_SCHEMA || metadata.presentation !== 'legacy'
+    if (metadata?.schema !== TRACK_SCHEMA || !['legacy', 'fixed'].includes(metadata.presentation)
       || !Array.isArray(metadata.tracks) || !metadata.tracks.length || !Array.isArray(metadata.assignments)) fail('轨道元数据无效');
     if (metadata.legacy_overlay_settings !== undefined && (!metadata.legacy_overlay_settings
       || typeof metadata.legacy_overlay_settings !== 'object' || Array.isArray(metadata.legacy_overlay_settings)
@@ -90,7 +104,8 @@
         || !['main', 'legacy-overlay'].includes(track.origin)
         || ['enabled', 'locked', 'collapsed'].some(k => typeof track[k] !== 'boolean')
         || (track.show_secondary !== undefined && typeof track.show_secondary !== 'boolean')
-        || track.style?.mode !== 'inherit' || Object.keys(track.style).length !== 1) fail('轨道 ID、名称、状态或样式无效');
+        || !styleValid(track.style)
+        || (track.position !== undefined && !positionValid(track.position))) fail('轨道 ID、名称、状态或样式无效');
       tracks.set(track.id, track);
     }
     const byKey = new Map(rows.map(row => [key(row), row])), owners = new Map();
@@ -104,6 +119,8 @@
     if (owners.size !== rows.length) fail('每条字幕必须且只能归属一条固定轨道');
     for (const group of groups) {
       if (new Set(group.map(row => owners.get(key(row)))).size > 1) fail('绑定主副字幕必须归属同一轨道');
+      const positions = group.map(row => row.cue.subtitle_position).filter(Boolean);
+      if (positions.some(p => p.x !== positions[0].x || p.y !== positions[0].y)) fail('绑定主副字幕的位置覆盖必须一致');
     }
     const lanes = new Map();
     for (const row of rows) {
@@ -249,6 +266,11 @@
     return project;
   }
   function assertLocks(before, after) {
+    for (const track of before.subtitle_tracks.tracks.filter(t => t.locked)) {
+      const other = after.subtitle_tracks.tracks.find(t => t.id === track.id);
+      if (other && (JSON.stringify(track.style) !== JSON.stringify(other.style)
+        || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
+    }
     const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
     const canonical = cue => Object.fromEntries(Object.keys(cue).sort()
       .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => [k, cue[k]]));

@@ -5002,6 +5002,18 @@
 
 .msw-layer-geometry > :not(.overlay-handle) { visibility: hidden; }
 .msw-layer-geometry { background: transparent !important; }
+/* Fixed subtitles stay attached to the video content, including on hover. */
+.fixed-presentation #overlay { visibility:hidden !important; }
+#fixed-subtitle-preview { position:absolute; transform-origin:0 0; pointer-events:none; z-index:3; overflow:hidden; }
+.fixed-subtitle-row { position:absolute; box-sizing:border-box; }
+.fixed-subtitle-text { box-sizing:border-box; width:max-content; white-space:pre-wrap; overflow-wrap:anywhere; }
+.fixed-subtitle-measure { position:fixed; left:-100000px; top:0; height:1080px; visibility:hidden; pointer-events:none; }
+#fixed-subtitle-preview.positioning .annotation { pointer-events:auto; cursor:move; touch-action:none; outline:2px dashed var(--selection-yellow); outline-offset:3px; }
+#fixed-subtitle-preview.positioning .selected-position { outline-style:solid; }
+#fixed-position-toolbar { flex:none; display:flex; gap:8px; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); font-size:12px; }
+#fixed-position-toolbar[hidden], #fixed-subtitle-preview[hidden], #style-track-controls[hidden] { display:none; }
+#fixed-position-toolbar button { flex:none; }
+#style-track-position .msw-processing-hint { overflow-wrap:anywhere; margin:6px 0 0; }
 /* Compact media settings: controls own their space, including long labels. */
 .media-settings-body { container-type:inline-size; }
 .media-settings-body > .settings-panel-section { flex:0 0 auto; min-width:0; gap:10px; }
@@ -18288,6 +18300,19 @@ export default MawDynamicCaptions;
   const stable = value => typeof value === 'string' && !!value.trim() && value.length <= 160;
   const fail = message => { throw Error('固定字幕轨道：' + message); };
   const refOf = row => ({ role: row.role, track_id: row.track_id, cue_id: row.cue_id });
+  const positionValid = value => value && Object.keys(value).length === 2
+    && ['x', 'y'].every(k => typeof value[k] === 'number' && Number.isFinite(value[k]) && value[k] >= 0 && value[k] <= 1);
+  const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
+    && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
+      && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
+    && (value.pairLayout === undefined || value.pairLayout && ['main-above', 'secondary-above'].includes(value.pairLayout.order)
+      && Number.isInteger(value.pairLayout.gap) && value.pairLayout.gap >= -240 && value.pairLayout.gap <= 240);
+  const styleValid = style => style && ['inherit', 'snapshot'].includes(style.mode)
+    && Object.keys(style).every(k => ['mode', 'value', 'selection', 'custom'].includes(k))
+    && (style.mode === 'inherit' ? style.value === undefined : snapshotValid(style.value))
+    && (style.custom === undefined || snapshotValid(style.custom))
+    && (style.selection === undefined || stable(style.selection));
 
   function sourceRecords(project) {
     if (!project || !Array.isArray(project.segments)) fail('segments 必须是数组');
@@ -18306,6 +18331,7 @@ export default MawDynamicCaptions;
       track.segments.forEach((cue, index) => {
         if (!stable(cue?.id) || seen.has(cue.id) || !Number.isSafeInteger(cue.start)
           || !Number.isSafeInteger(cue.end) || cue.start < 0 || cue.end <= cue.start) fail('字幕 ID 重复或时间范围无效');
+        if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position)) fail('字幕位置必须是画面内的 x、y 比例');
         seen.add(cue.id);
         rows.push({ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index });
       });
@@ -18355,7 +18381,7 @@ export default MawDynamicCaptions;
     layers.validate({ ...project, schema: layers.SCHEMA });
     const rows = sourceRecords(project), groups = bindingGroups(project, rows);
     const metadata = project.subtitle_tracks;
-    if (metadata?.schema !== TRACK_SCHEMA || metadata.presentation !== 'legacy'
+    if (metadata?.schema !== TRACK_SCHEMA || !['legacy', 'fixed'].includes(metadata.presentation)
       || !Array.isArray(metadata.tracks) || !metadata.tracks.length || !Array.isArray(metadata.assignments)) fail('轨道元数据无效');
     if (metadata.legacy_overlay_settings !== undefined && (!metadata.legacy_overlay_settings
       || typeof metadata.legacy_overlay_settings !== 'object' || Array.isArray(metadata.legacy_overlay_settings)
@@ -18367,7 +18393,8 @@ export default MawDynamicCaptions;
         || !['main', 'legacy-overlay'].includes(track.origin)
         || ['enabled', 'locked', 'collapsed'].some(k => typeof track[k] !== 'boolean')
         || (track.show_secondary !== undefined && typeof track.show_secondary !== 'boolean')
-        || track.style?.mode !== 'inherit' || Object.keys(track.style).length !== 1) fail('轨道 ID、名称、状态或样式无效');
+        || !styleValid(track.style)
+        || (track.position !== undefined && !positionValid(track.position))) fail('轨道 ID、名称、状态或样式无效');
       tracks.set(track.id, track);
     }
     const byKey = new Map(rows.map(row => [key(row), row])), owners = new Map();
@@ -18381,6 +18408,8 @@ export default MawDynamicCaptions;
     if (owners.size !== rows.length) fail('每条字幕必须且只能归属一条固定轨道');
     for (const group of groups) {
       if (new Set(group.map(row => owners.get(key(row)))).size > 1) fail('绑定主副字幕必须归属同一轨道');
+      const positions = group.map(row => row.cue.subtitle_position).filter(Boolean);
+      if (positions.some(p => p.x !== positions[0].x || p.y !== positions[0].y)) fail('绑定主副字幕的位置覆盖必须一致');
     }
     const lanes = new Map();
     for (const row of rows) {
@@ -18526,6 +18555,11 @@ export default MawDynamicCaptions;
     return project;
   }
   function assertLocks(before, after) {
+    for (const track of before.subtitle_tracks.tracks.filter(t => t.locked)) {
+      const other = after.subtitle_tracks.tracks.find(t => t.id === track.id);
+      if (other && (JSON.stringify(track.style) !== JSON.stringify(other.style)
+        || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
+    }
     const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
     const canonical = cue => Object.fromEntries(Object.keys(cue).sort()
       .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => [k, cue[k]]));
@@ -18571,6 +18605,94 @@ export default MawDynamicCaptions;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// Fixed-track geometry. Measurement is supplied by the renderer, in 1080p units.
+// A group's placement is computed once for its whole lifetime, never per frame.
+(function(global) {
+  'use strict';
+  const core = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-tracks.js') : global.MSWSubtitleTracks;
+  const layers = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
+  const intersect = (a,b) => a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height;
+  const finite = n => typeof n === 'number' && Number.isFinite(n);
+  function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
+  function styleFor(project, track, proof = null) {
+    return global.MSWProjectStyle.normalize(proof || (track.style.mode === 'snapshot' ? track.style.value : project.preview?.project_style) || global.MSWProjectStyle.defaults());
+  }
+  function layout(project, {width = 1920, languageId = project.multi_subtitle?.tracks?.[0]?.id, measure, resolveStyle = t => styleFor(project,t), gap = project.subtitle_layers?.presentation?.gap ?? 12} = {}) {
+    const index = core.createIndex(project), tracks = project.subtitle_tracks.tracks;
+    const available = index.records({includeDisabled:false}).filter(r => r.role === 'main' || project.multi_subtitle?.enabled && r.track_id === languageId);
+    const lookup = new Map(available.map(r => [core.key(r),r])), used = new Set(), groups = [];
+    const add = refs => {
+      const rows = refs.map(r => lookup.get(core.key(r))).filter(Boolean);
+      if (!rows.length) return;
+      for (const row of rows) used.add(core.key(row));
+      const track = tracks.find(t => t.id === rows[0].subtitle_track_id), style = resolveStyle(track);
+      const group = {id:core.key(rows[0]), trackId:track.id, kind:track.kind, rank:tracks.indexOf(track), rows, style};
+      group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
+      const pair = style.pairLayout || {order:'main-above',gap:0}, upper = pair.order === 'secondary-above' ? 'extension' : 'main';
+      rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1));
+      for (const row of rows) {
+        row.style = style[row.role === 'main' ? 'main' : 'secondary'];
+        row.size = measure(row,style,width);
+        if (!row.size || !['width','height'].every(k=>finite(row.size[k])&&row.size[k]>=0)) throw Error('字幕字体测量失败');
+      }
+      group.width = Math.max(...rows.map(r=>r.size.width),1);
+      rows[0].localY = 0;
+      if (rows.length === 2) rows[1].localY = Math.max(1, (rows[0].size.height-rows[1].size.height)/2+1, rows[0].size.height+pair.gap);
+      group.height = Math.max(...rows.map(r=>r.localY+r.size.height),1);
+      const explicit = rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position || track.position;
+      group.position = explicit || (track.kind === 'annotation' ? {x:.5,y:.08} : null);
+      const lowerStyle = rows.at(-1).style, alignment = Number(lowerStyle.alignment)||2;
+      const horizontal = (alignment-1)%3, vertical = Math.floor((alignment-1)/3);
+      group.x = explicit || track.kind === 'annotation' ? group.position.x*width-group.width/2
+        : horizontal===0 ? lowerStyle.marginL||0 : horizontal===2 ? width-(lowerStyle.marginR||0)-group.width : (width-group.width)/2;
+      group.y = group.position ? group.position.y*1080 : vertical===2 ? lowerStyle.marginV||0
+        : vertical===1 ? (1080-group.height)/2 : 1080-(lowerStyle.marginV||0)-group.height;
+      groups.push(group);
+    };
+    for (const binding of project.multi_subtitle?.bindings || []) if ((binding.track_id ?? languageId) === languageId) add([
+      {role:'main',track_id:null,cue_id:binding.main_segment_ids?.[0] ?? binding.main_segment_id},
+      {role:'extension',track_id:languageId,cue_id:binding.extension_segment_ids?.[0] ?? binding.extension_segment_id}]);
+    for (const row of available) if (!used.has(core.key(row))) add([row]);
+    // Pack actual occupied intervals, including gaps between offset partners.
+    // Same-rank groups never depend on one another: continuous speech cannot
+    // accumulate an ever-growing offset through a chain of past neighbours.
+    const ordered = groups.slice().sort((a,b)=>a.rank-b.rank||a.start-b.start||a.id.localeCompare(b.id));
+    const cueRows = ordered.flatMap(g=>g.rows.map(r=>({start:r.cue.start,end:r.cue.end,group:g})));
+    const intervals = new layers.IntervalIndex(cueRows);
+    const neighbours = g => new Set(g.rows.flatMap(r=>intervals.range(r.cue.start,r.cue.end).map(i=>cueRows[i].group)));
+    for (const g of ordered) {
+      if (g.kind === 'annotation' || g.position) {g.lane=0;continue;}
+      const blocked = new Set([...neighbours(g)].filter(other=>other!==g && other.trackId===g.trackId && !other.position).map(other=>other.lane));
+      let lane=0;while(blocked.has(lane))lane++;g.lane=lane;
+    }
+    ordered.sort((a,b)=>a.rank-b.rank||a.lane-b.lane||a.start-b.start||a.id.localeCompare(b.id));
+    for (const g of ordered) {
+      if (g.kind !== 'dialogue' || g.position) continue;
+      for (const other of neighbours(g)) if (other.kind==='dialogue' && !other.position
+        && (other.rank<g.rank || other.rank===g.rank && other.lane<g.lane)) g.y=Math.min(g.y,other.y-gap-g.height);
+    }
+    const entries = [];
+    for (const group of ordered) for (const row of group.rows) {
+      const align = ((Number(row.style.alignment)||2)-1)%3;
+      entries.push({...row, key:core.key(row), group, x:group.x+(align===0?0:align===2?group.width-row.size.width:(group.width-row.size.width)/2),y:group.y+row.localY,width:row.size.width,height:row.size.height});
+    }
+    return {groups:ordered,entries,width,height:1080};
+  }
+  function warnings(layout,time) {
+    const active=layout.entries.filter(r=>r.cue.start<=time&&time<r.cue.end), issues=[];
+    for (const row of active) if (row.x<0||row.y<0||row.x+row.width>layout.width||row.y+row.height>1080) issues.push({type:'outside',groups:[row.group.id]});
+    for(let i=0;i<active.length;i++)for(let j=i+1;j<active.length;j++) {
+      const a=active[i],b=active[j];
+      if(a.group===b.group || a.group.kind!=='annotation'&&b.group.kind!=='annotation')continue;
+      if(intersect(a,b))issues.push({type:'collision',groups:[a.group.id,b.group.id]});
+    }
+    return issues;
+  }
+  const api={position,styleFor,layout,warnings};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  global.MSWTrackPresentation=api;
+})(typeof window==='undefined'?globalThis:window);
 
 // Shared deterministic layout contract. Python subtitle_presentation.py mirrors it.
 (function(global) {
@@ -30995,7 +31117,7 @@ let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
-function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedCueOwners = new WeakMap(); }
+function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
 function fixedRef(cue, role = 'main', trackId = null) {
   return { role, track_id: role === 'main' ? null : trackId || getActiveExtensionTrack()?.id, cue_id: cue?.id };
 }
@@ -31071,6 +31193,16 @@ function fixedMergePlan(plan) {
   const owners = fixedOwners(), values = new Set(refs.map(r => owners.get(fixedTrackCore.key(r))));
   if (values.size !== 1) throw Error('跨轨字幕不能直接合并，请先移到同一轨道');
   const owner = [...values][0], trial = fixedContent();
+  // Main/sub sources may have independent time offsets and different sort
+  // order. A linked merge retains the earliest main cue's group position.
+  const mainChange=plan.changes.find(change=>change.role==='main');
+  if(mainChange&&plan.changes.length>1) {
+    const earliest=DATA.segments.filter(c=>mainChange.ids.has(c.id)).sort((a,b)=>a.start-b.start)[0];
+    for(const change of plan.changes) {
+      if(earliest?.subtitle_position)change.merged.subtitle_position=structuredClone(earliest.subtitle_position);
+      else delete change.merged.subtitle_position;
+    }
+  }
   for (const change of plan.changes) {
     const target = change.role === 'main' ? trial : trial.multi_subtitle.tracks.find(t => t.id === change.track_id);
     target.segments = structuredClone(change.segments);
@@ -31153,6 +31285,7 @@ function fixedAppendMoveMenu(cues, role = 'main', trackId = null) {
 }
 function fixedTrackMenu(track, x, y) {
   ctxmenu.replaceChildren();
+  fixedMenuItem('字幕样式与画面位置', () => window.MSWSubtitleStyle?.editTrack(track.id));
   fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed }));
   fixedMenuItem(track.enabled ? '禁用轨道' : '启用轨道', () => fixedUpdateTrack(track.id, { enabled: !track.enabled }));
   fixedMenuItem(track.locked ? '解锁轨道' : '锁定轨道', () => fixedUpdateTrack(track.id, { locked: !track.locked }));
@@ -31223,7 +31356,7 @@ function fixedSyncUI() {
     bar = document.createElement('div'); bar.id = 'fixed-track-toolbar';
     const add = document.createElement('button'); add.textContent = '＋ 轨道'; add.type = 'button';
     add.onclick = () => { ctxmenu.replaceChildren(); fixedMenuItem('添加对白轨道', () => fixedAddTrack('dialogue')); fixedMenuItem('添加画面文字轨道', () => fixedAddTrack('annotation')); const r = add.getBoundingClientRect(); ctxShowAt(r.left, r.bottom); };
-    const caption = document.createElement('span'); caption.textContent = '固定轨道 · 编辑预览'; caption.title = '开发入口：支持轨道编辑和工程保存；新画面排布、识别、配音及输出尚未启用。';
+    const caption = document.createElement('span'); caption.textContent = '固定轨道 · 编辑预览'; caption.title = '开发入口：支持轨道编辑、画面定位和工程保存；识别、配音及输出尚未启用。';
     const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
     bar.append(add, caption, status); document.querySelector('.waveform-pane .module-tab-strip')?.after(bar);
   }
@@ -31670,6 +31803,231 @@ function layerMatchImportedSubtitles(main, secondary, tolerance) {
   match.unmatchedExtension=secondary.map((_,i)=>i).filter(i=>!extensions.has(i));
   return match;
 }
+
+// Fixed-track browser presentation. Geometry is in video-content 1080p units.
+let fixedPreviewCache = null;
+const fixedTextMeasures = new Map();
+let fixedMeasureRoot = null;
+let fixedStyleTrackId = '';
+let fixedPositionScope = 'track';
+let fixedPositionRef = null;
+let fixedPositionEditing = false;
+let fixedPositionDrag = null;
+let fixedPositionNotice = '';
+function fixedPresentationMode() { return fixedTrackMode() && DATA.subtitle_tracks.presentation === 'fixed'; }
+function fixedPreviewInvalidate() { fixedPreviewCache = null; }
+function fixedStyleTarget() { return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedStyleTrackId) || null; }
+function fixedStyleValue() { return window.MSWTrackPresentation.styleFor(DATA, fixedStyleTarget() || {style:{mode:'inherit'}}); }
+function fixedCommitStyle(style, selection) {
+  const track=fixedStyleTarget(); if(!track)return false;
+  const next=fixedContent(), target=next.subtitle_tracks.tracks.find(t=>t.id===track.id);
+  const value=window.MSWProjectStyle.normalize(style);
+  const custom=selection==='current'?value:track.style.custom || fixedStyleValue();
+  target.style=selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value,selection,custom};
+  const ok=fixedCommitProject(next,'修改轨道字幕样式');
+  if(ok)window.dispatchEvent(new Event('msw:burn-style'));
+  return ok;
+}
+function fixedSetPresentation(mode) {
+  const next=fixedContent();next.subtitle_tracks.presentation=mode;
+  fixedPositionEditing=false;
+  if(fixedCommitProject(next,'切换字幕画面排布'))window.dispatchEvent(new Event('msw:burn-style'));
+}
+function fixedVideoRect() {
+  const stage=playerStage.getBoundingClientRect(), video=player.getBoundingClientRect();
+  const ratio=player.videoWidth>0&&player.videoHeight>0?player.videoWidth/player.videoHeight:16/9;
+  const availableWidth=video.width||stage.width,availableHeight=video.height||stage.height;
+  const width=Math.min(availableWidth,availableHeight*ratio),height=width/ratio;
+  return {left:video.left-stage.left+(availableWidth-width)/2,top:video.top-stage.top+(availableHeight-height)/2,
+    width,height,referenceWidth:1080*ratio,clientLeft:video.left+(availableWidth-width)/2,clientTop:video.top+(availableHeight-height)/2};
+}
+function fixedMeasureText(row, projectStyle, width) {
+  const role=row.role==='main'?'main':'secondary',style=projectStyle[role];
+  const labels=getSpeakerLabelSettings(),segments=row.role==='main'?DATA.segments:getExtensionTrack(row.track_id)?.segments||[];
+  const speaker=labels.enabled&&labels.mapping_enabled?window.AsrEditorUtils.speakerLabelForSegment(row.cue,segments,labels.names):'';
+  const prefix=speaker?speaker+labels.separator:'';
+  const text=prefix+window.MSWProjectStyle.wrapText(row.cue.text,style);
+  const key=JSON.stringify([text,prefix,style,width]);if(fixedTextMeasures.has(key))return fixedTextMeasures.get(key);
+  if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}
+  fixedMeasureRoot.style.width=width+'px';
+  const node=document.createElement('div');node.textContent=text;node.className='fixed-subtitle-text';
+  const metrics={resolution:{width,height:1080},stageWidth:width,stageHeight:1080,scaleX:1,scaleY:1};
+  applyAssPreviewElement(node,style,{opacity:1},metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
+  const padding=(Math.max(0,style.outline)+Math.max(0,style.shadow))*Math.max(1,(style.scaleX||100)/100,(style.scaleY||100)/100);
+  const maxWidth=Math.max(1,(width-style.marginL-style.marginR-2*padding)/Math.max(.01,(style.scaleX||100)/100));
+  Object.assign(node.style,{width:'max-content',maxWidth:maxWidth+'px',
+    textAlign:['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
+  fixedMeasureRoot.replaceChildren(node);
+  const rect=node.getBoundingClientRect(),root=fixedMeasureRoot.getBoundingClientRect();
+  const result={width:rect.width+2*padding,height:rect.height+2*padding,css:node.style.cssText,text,prefix,maxWidth,
+    innerX:padding-(rect.left-root.left),innerY:padding-(rect.top-root.top)};
+  fixedMeasureRoot.replaceChildren();
+  if(fixedTextMeasures.size>=3000)fixedTextMeasures.clear();fixedTextMeasures.set(key,result);return result;
+}
+function fixedPreviewLayout(rect=fixedVideoRect()) {
+  const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'?preview.style:null;
+  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,DATA.preview?.project_style,getSpeakerLabelSettings()]);
+  if(!fixedPreviewCache||fixedPreviewCache.key!==key) {
+    const layout=window.MSWTrackPresentation.layout(DATA,{width:rect.referenceWidth,languageId:getActiveExtensionTrack()?.id,
+      measure:fixedMeasureText,resolveStyle:track=>window.MSWTrackPresentation.styleFor(DATA,track,proof)});
+    fixedPreviewCache={key,layout,index:new layerCore.IntervalIndex(layout.entries.map(e=>e.cue))};
+  }
+  return fixedPreviewCache;
+}
+function fixedHidePreview() {
+  const root=document.getElementById('fixed-subtitle-preview');if(root)root.hidden=true;
+  const tools=document.getElementById('fixed-position-toolbar');if(tools)tools.hidden=true;
+  playerStage.classList.remove('fixed-presentation');
+}
+function fixedRefreshSubtitlePreview(tMs) {
+  const rect=fixedVideoRect();if(!rect.width||!rect.height)return;
+  playerStage.classList.add('fixed-presentation');
+  const old=document.getElementById('msw-layer-preview');if(old)old.hidden=true;
+  let root=document.getElementById('fixed-subtitle-preview');
+  if(!root){root=document.createElement('div');root.id='fixed-subtitle-preview';playerStage.append(root);fixedInstallPositionDrag(root);}
+  root.hidden=false;
+  Object.assign(root.style,{left:rect.left+'px',top:rect.top+'px',width:rect.referenceWidth+'px',height:'1080px',transform:`scale(${rect.height/1080})`});
+  root.classList.toggle('positioning',fixedPositionEditing);
+  const {layout,index}=fixedPreviewLayout(rect), allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),
+    extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
+  const active=index.at(tMs).map(i=>layout.entries[i]).filter(e=>allowed[e.role]);
+  const keys=new Set(active.map(e=>e.key));for(const element of [...root.children])if(!keys.has(element.dataset.key))element.remove();
+  const metrics={resolution:{width:rect.referenceWidth,height:1080},stageWidth:rect.referenceWidth,stageHeight:1080,scaleX:1,scaleY:1};
+  for(const entry of active) {
+    let element=[...root.children].find(e=>e.dataset.key===entry.key);
+    if(!element){element=document.createElement('div');element.className='fixed-subtitle-row';element.dataset.key=entry.key;
+      element.dataset.cueId=entry.cue_id;element.dataset.role=entry.role;const text=document.createElement('div');text.className='fixed-subtitle-text';element.append(text);root.append(element);}
+    const text=element.firstElementChild,size=entry.size,style=entry.style;
+    if(!text.firstElementChild)text.replaceChildren(document.createElement('span'),document.createTextNode(''));
+    const speaker=text.firstElementChild;
+    if(speaker.textContent!==size.prefix)speaker.textContent=size.prefix;
+    if(text.lastChild.nodeValue!==size.text.slice(size.prefix.length))text.lastChild.nodeValue=size.text.slice(size.prefix.length);
+    text.style.cssText=size.css;
+    const segments=entry.role==='main'?DATA.segments:getExtensionTrack(entry.track_id)?.segments||[];
+    const variant=assPreviewStyleVariant(style,entry.cue,segments,getSubtitleAppearance());
+    const paletteColor=COLOR_BY_NAME[MULTI_SUBTITLE_UTILS.effectiveColorName(entry.cue,segments)]?.value;
+    speaker.style.color=['text','speaker'].includes(getSubtitleAppearance().ass_color_style||DEFAULT_ASS_COLOR_STYLE)?paletteColor||'':'';
+    const profile={animations:entry.group.style.animations};
+    const animation=window.AsrEditorUtils.assPreviewAnimationState(profile,tMs-entry.cue.start,entry.cue.end-entry.cue.start,
+      {playResX:rect.referenceWidth,playResY:1080,stageWidth:rect.referenceWidth,stageHeight:1080});
+    const animated=assPreviewAnimatedStyle(variant,profile,animation);
+    applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
+    Object.assign(text.style,{position:'absolute',left:size.innerX+'px',top:size.innerY+'px',maxWidth:size.maxWidth+'px'});
+    let dx=0,dy=0;
+    if(profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
+    if(fixedPositionDrag?.groupIds.has(entry.group.id)){dx+=fixedPositionDrag.dx;dy+=fixedPositionDrag.dy;}
+    Object.assign(element.style,{left:entry.x+dx+'px',top:entry.y+dy+'px',width:entry.width+'px',height:entry.height+'px'});
+    const selected=fixedPositionScope==='track'?entry.group.trackId===fixedStyleTrackId:entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
+    element.classList.toggle('selected-position',fixedPositionEditing&&selected);
+    element.classList.toggle('annotation',entry.group.kind==='annotation');
+    element.dataset.groupId=entry.group.id;element.dataset.trackId=entry.group.trackId;
+  }
+  fixedPositionFeedback(layout,tMs);renderStickerOverlay(tMs);
+}
+function fixedSelectedPositionGroup() {
+  if(!fixedPresentationMode())return null;
+  const {layout}=fixedPreviewLayout();
+  return fixedPositionRef?layout.groups.find(g=>g.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef))):null;
+}
+function fixedPositionCurrent() {
+  const group=fixedSelectedPositionGroup(),track=fixedStyleTarget();
+  return fixedPositionScope==='cue'?(group?.rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position||track?.position||{x:.5,y:.08}):track?.position||{x:.5,y:.08};
+}
+function fixedCommitPosition(value) {
+  const track=fixedStyleTarget();if(!track||track.kind!=='annotation')return false;
+  if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
+  try {
+    if(track.locked)throw Error('轨道已锁定，请先解锁');
+    const next=fixedContent();
+    if(fixedPositionScope==='track') {
+      const target=next.subtitle_tracks.tracks.find(t=>t.id===track.id);
+      if(value)target.position=value;else delete target.position;
+    } else {
+      if(!fixedPositionRef)throw Error('请先在播放器中选择画面文字');
+      const refs=fixedTrackCore.boundRefs(next,[fixedPositionRef]);fixedTrackCore.assertEditable(next,refs);
+      const index=fixedTrackCore.createIndex(next);
+      for(const ref of refs){const cue=index.resolve(ref).cue;if(value)cue.subtitle_position=value;else delete cue.subtitle_position;}
+    }
+    fixedTrackCore.validate(next);fixedTrackCore.assertLocks(DATA,next);
+    commitProcessingEdits();pushUndo(fixedPositionScope==='track'?'调整注释轨道位置':'调整当前注释位置',{captureView:true});
+    DATA.subtitle_tracks=next.subtitle_tracks;
+    // Preserve cue object identities used by the editor while applying just positions.
+    const index=fixedTrackCore.createIndex(next);
+    for(const row of fixedTrackCore.createIndex(DATA).records({includeHidden:true})){
+      const p=index.resolve(row).cue.subtitle_position;if(p)row.cue.subtitle_position=structuredClone(p);else delete row.cue.subtitle_position;
+    }
+    fixedPreviewInvalidate();projectImportDirty=true;fixedStatus();renderAll({waveform:'full'});scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:burn-style'));return true;
+  } catch(error){fixedStatus(error.message);const note=document.getElementById('fixed-position-message');if(note)note.textContent=error.message;return false;}
+}
+function fixedPositionFeedback(layout,time) {
+  let tools=document.getElementById('fixed-position-toolbar');
+  if(!tools){
+    tools=document.createElement('div');tools.id='fixed-position-toolbar';
+    tools.innerHTML='<select aria-label="画面定位对象"><option value="track">轨道位置</option><option value="cue">当前字幕位置</option></select><span id="fixed-position-message" role="status"></span><button type="button">完成定位</button>';
+    tools.querySelector('select').onchange=event=>{fixedPositionScope=event.target.value;fixedPositionNotice='';refreshSubtitlePreview();};
+    tools.querySelector('button').onclick=()=>{fixedPositionEditing=false;fixedPositionDrag=null;refreshSubtitlePreview();};playerStage.before(tools);
+  }
+  tools.hidden=!fixedPositionEditing;
+  if(!fixedPositionEditing)return;
+  tools.querySelector('select').value=fixedPositionScope;
+  const display=fixedPositionDrag?{...layout,entries:layout.entries.map(e=>fixedPositionDrag.groupIds.has(e.group.id)?{...e,x:e.x+fixedPositionDrag.dx,y:e.y+fixedPositionDrag.dy}:e)}:layout;
+  const issues=window.MSWTrackPresentation.warnings(display,time);
+  const note=issues.some(i=>i.type==='outside')?'字幕超出画面，请调整位置':issues.length?'字幕发生重叠，可拖动注释避让':'拖动画面文字定位 · Esc 取消本次拖动';
+  const track=fixedStyleTarget();document.getElementById('fixed-position-message').textContent=`${track?.name||'画面文字'} · ${fixedPositionNotice||note}`;
+}
+function fixedStartPositioning() {
+  const track=fixedStyleTarget();if(!track||track.kind!=='annotation'||track.locked||!fixedPresentationMode())return;
+  const role=currentCuePanelKind==='extension'?'extension':'main',source=role==='main'?DATA.segments:getExtensionTrack(currentCuePanelTrackId)?.segments||[];
+  const cue=source[currentCuePanelIdx];
+  if(cue&&fixedOwner(cue,role,currentCuePanelTrackId)===track.id)fixedPositionRef=fixedRef(cue,role,currentCuePanelTrackId);
+  const now=player.currentTime*1000,groups=fixedPreviewLayout().layout.groups.filter(g=>g.kind==='annotation'&&g.trackId===track.id);
+  const chosen=fixedSelectedPositionGroup()||groups.find(g=>g.rows.some(r=>r.cue.start<=now&&now<r.cue.end))||groups[0];
+  if(chosen){fixedPositionRef=fixedRef(chosen.rows[0].cue,chosen.rows[0].role,chosen.rows[0].track_id);if(!chosen.rows.some(r=>r.cue.start<=now&&now<r.cue.end))player.currentTime=chosen.start/1000;}
+  fixedPositionEditing=true;fixedPositionNotice='';player.pause();setSubtitlePreviewSettingsPanelOpen(false);refreshSubtitlePreview();
+}
+function fixedInstallPositionDrag(root) {
+  root.addEventListener('pointerdown',event=>{
+    const node=event.target.closest('.annotation');if(!fixedPositionEditing||event.button!==0||!node)return;
+    const {layout}=fixedPreviewLayout(),group=layout.groups.find(g=>g.id===node.dataset.groupId),track=DATA.subtitle_tracks.tracks.find(t=>t.id===group.trackId);
+    event.preventDefault();event.stopPropagation();
+    if(track.locked){fixedPositionNotice='轨道已锁定，请先解锁';refreshSubtitlePreview();return;}
+    if(fixedPositionScope==='track'&&group.rows.some(r=>r.cue.subtitle_position)) {
+      fixedPositionNotice='此字幕已单独定位，请切换“当前字幕位置”后调整';refreshSubtitlePreview();return;
+    }
+    fixedPositionNotice='';
+    player.pause();
+    fixedStyleTrackId=track.id;
+    const row=group.rows.find(r=>r.cue_id===node.dataset.cueId&&r.role===node.dataset.role)||group.rows[0];fixedPositionRef=fixedRef(row.cue,row.role,row.track_id);
+    const start=fixedPositionCurrent(),rect=fixedVideoRect();
+    const groupIds=new Set((fixedPositionScope==='track'?layout.groups.filter(g=>g.trackId===track.id&&!g.rows.some(r=>r.cue.subtitle_position)):[group]).map(g=>g.id));
+    fixedPositionDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,start,rect,groupIds,dx:0,dy:0,value:start};root.setPointerCapture(event.pointerId);
+    refreshSubtitlePreview();
+  });
+  root.addEventListener('pointermove',event=>{
+    const drag=fixedPositionDrag;if(!drag||event.pointerId!==drag.pointerId)return;
+    const x=Math.max(0,Math.min(1,drag.start.x+(event.clientX-drag.x)/drag.rect.width));
+    const y=Math.max(0,Math.min(1,drag.start.y+(event.clientY-drag.y)/drag.rect.height));
+    drag.value={x,y};drag.dx=(x-drag.start.x)*drag.rect.referenceWidth;drag.dy=(y-drag.start.y)*1080;refreshSubtitlePreview();
+  });
+  const end=(event,cancel=false)=>{
+    const drag=fixedPositionDrag;if(!drag)return;fixedPositionDrag=null;
+    if(root.hasPointerCapture(drag.pointerId))root.releasePointerCapture(drag.pointerId);
+    if(!cancel&&(drag.dx||drag.dy))fixedCommitPosition(drag.value);refreshSubtitlePreview();
+  };
+  root.addEventListener('pointerup',event=>end(event));root.addEventListener('pointercancel',event=>end(event,true));
+  root.addEventListener('click',event=>{if(fixedPositionEditing){event.preventDefault();event.stopPropagation();}});
+}
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape'||!fixedPositionEditing)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  if(fixedPositionDrag){fixedPositionDrag=null;}else fixedPositionEditing=false;refreshSubtitlePreview();
+},true);
+document.addEventListener('input',event=>{if(event.target.matches('textarea,[contenteditable="true"]'))fixedPreviewInvalidate();},true);
+window.addEventListener('msw:project-changed',()=>{fixedStyleTrackId='';fixedPositionRef=null;fixedPositionEditing=false;fixedPositionDrag=null;fixedPositionNotice='';fixedTextMeasures.clear();fixedPreviewInvalidate();});
+window.addEventListener('msw:burn-style',fixedPreviewInvalidate);
+document.fonts?.addEventListener('loadingdone',()=>{fixedTextMeasures.clear();fixedPreviewInvalidate();if(fixedPresentationMode())refreshSubtitlePreview();});
+document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fixedPresentationMode())refreshSubtitlePreview();}).observe(playerStage);});
 
 const DATA = prepareLayerProject({"segments": [], "media": "", "language": "", "model": "", "preview": {"subtitle": {"x": 0.1, "y": 0.76, "width": 0.8, "height": 0.16, "speaker_labels": {"mapping_enabled": false, "enabled": true}}}});
 let originalSubtitlePreview = structuredClone(DATA.preview || {});
@@ -38450,6 +38808,9 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   cueListPlaybackKey = null;
   updateCueListPlayback(undefined, false);
   restoreCueListRenderAnchor(cueListAnchor);
+  // Paused fixed-track previews must reflect edits and enabled states too.
+  // Playback events alone leave deleted/disabled annotations on the frame.
+  if (fixedPresentationMode()) refreshSubtitlePreview();
 }
 
 function parsePanelTime(value, fallback) {
@@ -46537,6 +46898,8 @@ function toggleSubtitleTrackMuted(kind) {
 }
 
 function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActive(tMs)) {
+  if (fixedPresentationMode()) return fixedRefreshSubtitlePreview(tMs);
+  fixedHidePreview();
   if (layerMode()) return layerRefreshSubtitlePreview(tMs);
   const layers = document.getElementById('msw-layer-preview'); if (layers) layers.hidden = true;
   overlayEl.classList.remove('msw-layer-geometry');
@@ -62467,6 +62830,18 @@ window.addEventListener('beforeunload', (e) => {
     <small data-help-for="style-animation" hidden>动画同时作用于主、副字幕。时间从每条字幕开始计算，单位为毫秒。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
+  panel.querySelector('.msw-style-selectors').insertAdjacentHTML('beforebegin',`<div id="style-track-controls" class="media-settings-grid" hidden>
+    <label class="media-settings-field" data-option-help="旧工程保留原画面排布。切换后对白按固定轨道顺序稳定避让，画面文字独立定位；处理和导出将在下一阶段接入。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
+    <label class="media-settings-field"><span class="msw-option-label">编辑对象</span><select id="style-track-target"></select></label>
+  </div>`);
+  panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<details id="style-track-position" class="msw-style-section" hidden open><summary>画面位置</summary>
+    <div class="media-settings-grid">
+      <label class="media-settings-field" data-option-help="横向为字幕组中心，纵向为字幕组顶部；百分比相对于视频内容，不包含黑边。轨道位置作用于没有位置覆盖的字幕；当前字幕以明确绑定的主副字幕为一组。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道位置</option><option value="cue">当前字幕位置</option></select></label>
+      <button type="button" id="style-position-drag">在画面中定位</button>
+      <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
+      <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
+    </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p>
+  </details>`);
   panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
     <label class="media-settings-field" data-option-help="以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
@@ -62523,7 +62898,7 @@ window.addEventListener('beforeunload', (e) => {
   const projectStyle=()=>host.data.preview?.project_style || S.defaults();
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
-  const value=projectStyle;
+  const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
   const same=(a,b)=>JSON.stringify({...S.normalize(a),name:''})===JSON.stringify({...S.normalize(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
@@ -62536,21 +62911,41 @@ window.addEventListener('beforeunload', (e) => {
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
-    const chosen=host.data.preview?.project_style_selection;
-    selectedPreset=chosen==='current'?'current':find(chosen)&&same(find(chosen),projectStyle())?chosen:all().find(s=>same(s,projectStyle()))?.id||'current';
-    fill($('style-project-preset'),[['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
+    const track=fixedTrackMode()?fixedStyleTarget():null;
+    $('style-track-controls').hidden=!fixedTrackMode();
+    if(fixedTrackMode()) {
+      fill($('style-track-target'),[['','工程默认'],...host.data.subtitle_tracks.tracks.map(t=>[t.id,t.name])],track?.id||'');
+      $('style-track-layout').value=host.data.subtitle_tracks.presentation;
+    }
+    const chosen=track?track.style.selection:host.data.preview?.project_style_selection;
+    selectedPreset=track?.style.mode==='inherit'?'inherit':chosen==='current'?'current':find(chosen)&&same(find(chosen),value())?chosen:all().find(s=>same(s,value()))?.id||'current';
+    fill($('style-project-preset'),[...(track?[['inherit','继承工程样式']]:[]),['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
+    $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent=track?'轨道样式':'工程样式';
     const selected=$('video-export-style-source').value;
     fill($('video-export-style-source'),[['project','跟随工程样式'],...all().map(s=>['preset:'+s.id,s.name])],selected || 'project');
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
   }
   function sync() {
     const style=S.normalize(value()||S.defaults());
+    const track=fixedTrackMode()?fixedStyleTarget():null;
+    const blocked=!!track&&(track.locked||!fixedPresentationMode());
+    $('style-track-position').hidden=track?.kind!=='annotation'||!fixedPresentationMode();
+    if(track?.kind==='annotation') {
+      const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
+      $('style-position-scope').value=fixedPositionScope;
+      for(const key of ['x','y']){$('style-position-'+key).value=Math.round(p[key]*1000)/10;$('style-position-'+key).disabled=blocked||fixedPositionScope==='cue'&&!group;}
+      $('style-position-drag').disabled=blocked;$('style-position-reset').disabled=blocked||fixedPositionScope==='cue'&&!group;
+      $('style-position-reset').textContent=fixedPositionScope==='cue'?'跟随轨道位置':'恢复默认位置';
+      $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的画面文字。'):'轨道位置作用于未单独定位的字幕。';
+    }
     const removable=library.find(s=>s.id===activePreset()&&same(s,style));
     $('style-delete-preset').disabled=saving||!removable;
     $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
     for(const id of ['style-save-as','style-reset','style-save-preset','style-save-cancel','style-delete-confirm-button','style-delete-cancel'])$(id).disabled=saving;
+    for(const node of panel.querySelectorAll('[data-style-field],[data-animation],#style-project-preset,#style-pair-order,#style-pair-gap,#style-swap,#style-reset,#style-transform-preset'))node.disabled=saving||blocked;
     $('style-preset-name').disabled=saving;
-    $('style-reset').title=t('恢复工程的主、副字幕和动画默认值');
+    $('style-reset').title=t(track?'恢复本轨道的主、副字幕和动画默认值':'恢复工程的主、副字幕和动画默认值');
+    if(track)message(track.locked?'此轨道已锁定。':!fixedPresentationMode()?'切换为固定轨道排布后，可调整轨道样式与位置。':'');
     const secondary=host.data.multi_subtitle?.enabled===true;
     $('style-secondary').hidden=!secondary;$('style-swap').hidden=!secondary;if(!secondary)role='main';
     $('style-pair-controls').hidden=!secondary;const pair=S.pairSettings(style);$('style-pair-order').value=pair.order;$('style-pair-gap').value=pair.gap;
@@ -62574,10 +62969,23 @@ window.addEventListener('beforeunload', (e) => {
   }
   function change(style,selection='current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
-    host.commitProjectStyle(style,label,selection);
+    if(fixedTrackMode()&&fixedStyleTarget()) {
+      if(!fixedCommitStyle(style,selection)){sync();message($('fixed-track-status')?.textContent||'无法修改轨道样式',true);return;}
+    }
+    else host.commitProjectStyle(style,label,selection);
     rebuild();sync();refresh();
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
+  $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
+  function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;rebuild();sync();if(open)host.openMediaSettings();}
+  $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
+  $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;sync();};
+  $('style-position-drag').onclick=()=>fixedStartPositioning();
+  $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
+  for(const key of ['x','y'])$('style-position-'+key).onchange=()=>{
+    if(!['x','y'].every(k=>$('style-position-'+k).checkValidity())){sync();return;}
+    fixedCommitPosition({x:Number($('style-position-x').value)/100,y:Number($('style-position-y').value)/100});sync();refresh();
+  };
   panel.addEventListener('change',event=>{
     // Becoming inert on project switch can flush a native change event from
     // the previously focused input. Never commit it into the new project.
@@ -62618,7 +63026,8 @@ window.addEventListener('beforeunload', (e) => {
   });
   $('style-project-preset').onchange=()=>{
     const selection=$('style-project-preset').value;
-    const preset=selection==='current'?(host.data.preview?.project_style_custom||projectStyle()):find(selection);
+    const track=fixedTrackMode()?fixedStyleTarget():null;
+    const preset=selection==='inherit'?projectStyle():selection==='current'?(track?(track.style.custom||value()):(host.data.preview?.project_style_custom||projectStyle())):find(selection);
     if(!preset){rebuild();return;}cancelAction();change(preset,selection);
   };
   $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
@@ -62654,7 +63063,8 @@ window.addEventListener('beforeunload', (e) => {
     if(all().some(s=>s.name===name)){message('已有同名预设，请使用新名称',true);return;}
     const preset={...S.normalize(value()),name,id:global.MSWProject.id('style')};
     const savedStyle=S.normalize(value());
-    void runLibraryAction(action,[...library,preset],()=>{if(same(projectStyle(),savedStyle))change(projectStyle(),preset.id,'另存为字幕预设');message('预设已保存；已应用到工程的样式不受影响。');$('style-save-as').focus();});
+    const target=fixedStyleTrackId;
+    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(value(),preset.id,'另存为字幕预设');message('预设已保存；已应用到工程的样式不受影响。');$('style-save-as').focus();});
   };
   $('style-delete-preset').onclick=()=>{
     const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};
@@ -62684,7 +63094,7 @@ window.addEventListener('beforeunload', (e) => {
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
-  global.MSWSubtitleStyle={currentPreview,previewLibrary:()=>S.toLibrary(currentPreview().style),
+  global.MSWSubtitleStyle={currentPreview,editTrack,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
@@ -62720,7 +63130,7 @@ window.addEventListener('beforeunload', (e) => {
   $('style-retry').onclick=()=>void initialize();
   global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';void initialize();});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
-  global.addEventListener('msw:subtitles-changed',()=>{if(ready)sync();});
+  global.addEventListener('msw:subtitles-changed',()=>{if(ready){if(fixedTrackMode())rebuild();sync();}});
   global.addEventListener('msw:media-changed',()=>{if(ready){sync();refresh();}});
   void initialize();
 })(window);

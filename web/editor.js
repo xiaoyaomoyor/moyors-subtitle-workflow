@@ -6777,6 +6777,9 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   cueListPlaybackKey = null;
   updateCueListPlayback(undefined, false);
   restoreCueListRenderAnchor(cueListAnchor);
+  // Paused fixed-track previews must reflect edits and enabled states too.
+  // Playback events alone leave deleted/disabled annotations on the frame.
+  if (fixedPresentationMode()) refreshSubtitlePreview();
 }
 
 function parsePanelTime(value, fallback) {
@@ -14864,6 +14867,8 @@ function toggleSubtitleTrackMuted(kind) {
 }
 
 function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActive(tMs)) {
+  if (fixedPresentationMode()) return fixedRefreshSubtitlePreview(tMs);
+  fixedHidePreview();
   if (layerMode()) return layerRefreshSubtitlePreview(tMs);
   const layers = document.getElementById('msw-layer-preview'); if (layers) layers.hidden = true;
   overlayEl.classList.remove('msw-layer-geometry');

@@ -6,6 +6,7 @@ storage track, and changing ownership never changes a cue's stable identity.
 from __future__ import annotations
 
 import json
+import math
 from bisect import bisect_left
 from copy import deepcopy
 
@@ -25,6 +26,36 @@ def _stable(value):
 
 def _fail(message):
     raise ValueError("固定字幕轨道：" + message)
+
+
+def _position_valid(value):
+    return (isinstance(value, dict) and set(value) == {"x", "y"}
+            and all(type(n) in (int, float) and 0 <= n <= 1 and math.isfinite(n) for n in value.values()))
+
+
+def _snapshot_valid(value):
+    if not (isinstance(value, dict) and value.get("schema") == "msw.subtitle-style.v1"
+            and all(isinstance(value.get(k), dict) for k in ("main", "secondary"))):
+        return False
+    for role in ("main", "secondary"):
+        style = value[role]
+        if (style.get("wrapMode", "auto") not in ("auto", "characters")
+                or type(style.get("charsPerLine", 20)) is not int or not 1 <= style.get("charsPerLine", 20) <= 200):
+            return False
+    if "pairLayout" in value:
+        pair = value["pairLayout"]
+        if (not isinstance(pair, dict) or pair.get("order") not in ("main-above", "secondary-above")
+                or type(pair.get("gap")) is not int or not -240 <= pair["gap"] <= 240):
+            return False
+    return True
+
+
+def _style_valid(style):
+    return (isinstance(style, dict) and style.get("mode") in ("inherit", "snapshot")
+            and set(style) <= {"mode", "value", "selection", "custom"}
+            and ("value" not in style if style["mode"] == "inherit" else _snapshot_valid(style.get("value")))
+            and ("custom" not in style or _snapshot_valid(style["custom"]))
+            and ("selection" not in style or _stable(style["selection"])))
 
 
 def _records(project):
@@ -49,6 +80,8 @@ def _records(project):
                     or any(type(cue.get(edge)) is not int or abs(cue[edge]) > 2**53 - 1 for edge in ("start", "end"))
                     or cue["start"] < 0 or cue["end"] <= cue["start"]):
                 _fail("字幕 ID 重复或时间范围无效")
+            if "subtitle_position" in cue and not _position_valid(cue["subtitle_position"]):
+                _fail("字幕位置必须是画面内的 x、y 比例")
             seen.add(cue["id"])
             rows.append(dict(role=role, track_id=track_id, cue_id=cue["id"], cue=cue, index=index))
     return rows
@@ -115,7 +148,7 @@ def validate(project):
     _validate_legacy_layout(project)
     groups = _groups(project, rows)
     metadata = project.get("subtitle_tracks")
-    if (not isinstance(metadata, dict) or metadata.get("schema") != TRACK_SCHEMA or metadata.get("presentation") != "legacy"
+    if (not isinstance(metadata, dict) or metadata.get("schema") != TRACK_SCHEMA or metadata.get("presentation") not in ("legacy", "fixed")
             or not isinstance(metadata.get("tracks"), list) or not metadata["tracks"] or not isinstance(metadata.get("assignments"), list)):
         _fail("轨道元数据无效")
     if "legacy_overlay_settings" in metadata and (not isinstance(metadata["legacy_overlay_settings"], dict)
@@ -127,7 +160,8 @@ def validate(project):
                 or track.get("kind") not in ("dialogue", "annotation") or track.get("origin") not in ("main", "legacy-overlay")
                 or any(type(track.get(k)) is not bool for k in ("enabled", "locked", "collapsed"))
                 or ("show_secondary" in track and type(track["show_secondary"]) is not bool)
-                or track.get("style") != {"mode": "inherit"}):
+                or not _style_valid(track.get("style"))
+                or ("position" in track and not _position_valid(track["position"]))):
             _fail("轨道 ID、名称、状态或样式无效")
         tracks[track["id"]] = track
     by_key, owners = {key(row): row for row in rows}, {}
@@ -143,6 +177,9 @@ def validate(project):
     for group in groups:
         if len({owners[key(row)] for row in group}) > 1:
             _fail("绑定主副字幕必须归属同一轨道")
+        positions = [row["cue"]["subtitle_position"] for row in group if "subtitle_position" in row["cue"]]
+        if any(p != positions[0] for p in positions):
+            _fail("绑定主副字幕的位置覆盖必须一致")
     lanes = {}
     for row in rows:
         lanes.setdefault((owners[key(row)], row["role"], row["track_id"]), []).append(row["cue"])

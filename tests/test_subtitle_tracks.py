@@ -112,6 +112,41 @@ class SubtitleTracksTests(unittest.TestCase):
         self.assertTrue(core.validate(p))
         self.assertEqual(core.migrate_project(p), p)
 
+    def test_presentation_metadata_matches_browser_validation(self):
+        p = core.migrate_project(fixture("subtitle-tracks")[0]["project"])
+        p["subtitle_tracks"]["presentation"] = "fixed"
+        track = p["subtitle_tracks"]["tracks"][0]
+        snapshot = dict(schema="msw.subtitle-style.v1", main=dict(fontSize=64), secondary=dict(fontSize=40))
+        track.update(style=dict(mode="snapshot", value=snapshot, custom=snapshot, selection="current"), position=dict(x=0.5, y=0.1))
+        for row in core.TrackIndex(p).records(include_hidden=True):
+            row["cue"]["subtitle_position"] = dict(x=0.2, y=0.25)
+        candidates = [p]
+        for field, value in [("position", None), ("position", dict(x=True, y=0)), ("position", dict(x=-0.1, y=0)),
+                             ("style", dict(mode="snapshot", value={})), ("style", dict(mode="inherit", value=snapshot))]:
+            bad = deepcopy(p)
+            bad["subtitle_tracks"]["tracks"][0][field] = value
+            candidates.append(bad)
+        bad = deepcopy(p)
+        bad["segments"][0]["subtitle_position"] = dict(x=0.7, y=0.2)
+        candidates.append(bad)
+        for patch in [dict(pairLayout=None), dict(pairLayout=dict(order="main-above", gap=True)),
+                      dict(main=dict(wrapMode="unknown")), dict(main=dict(charsPerLine=0))]:
+            bad = deepcopy(p)
+            bad["subtitle_tracks"]["tracks"][0]["style"]["value"].update(patch)
+            candidates.append(bad)
+        expected = []
+        for candidate in candidates:
+            try:
+                core.validate(candidate)
+                expected.append(True)
+            except ValueError:
+                expected.append(False)
+        self.assertEqual(expected, [True] + [False] * 10)
+        script = "const c=require('./web/msw-subtitle-tracks.js');let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>process.stdout.write(JSON.stringify(JSON.parse(s).map(p=>{try{return c.validate(p)}catch{return false}}))));"
+        browser = json.loads(subprocess.check_output(["node", "-e", script], input=json.dumps(candidates), cwd=ROOT, text=True, encoding="utf-8"))
+        self.assertEqual(browser, expected)
+        self.assertEqual(core.migrate_project(p), p)
+
     def test_v1_missing_language_id_and_overlay_settings(self):
         source = dict(segments=[dict(id="a", start=0, end=1000, text="a")],
                       overlay_track=dict(name="旧注释组", enabled=False, settings={"x": 0.2}, segments=[dict(id="note", start=0, end=1000, text="note")]),

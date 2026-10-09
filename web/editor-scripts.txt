@@ -6,6 +6,7 @@ editor-utils.js
 msw-project-style.js
 msw-subtitle-layers.js
 msw-subtitle-tracks.js
+msw-track-presentation.js
 msw-subtitle-presentation.js
 msw-project.js
 msw-asset-core.js
@@ -21,6 +22,7 @@ editor-i18n.js
 waveform.js
 msw-subtitle-tracks-editor.js
 msw-subtitle-layers-editor.js
+msw-track-preview.js
 editor.js
 msw-media.js
 msw-media-analysis.js

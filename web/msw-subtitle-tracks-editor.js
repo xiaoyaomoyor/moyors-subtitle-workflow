@@ -10,7 +10,7 @@ let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
-function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedCueOwners = new WeakMap(); }
+function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
 function fixedRef(cue, role = 'main', trackId = null) {
   return { role, track_id: role === 'main' ? null : trackId || getActiveExtensionTrack()?.id, cue_id: cue?.id };
 }
@@ -86,6 +86,16 @@ function fixedMergePlan(plan) {
   const owners = fixedOwners(), values = new Set(refs.map(r => owners.get(fixedTrackCore.key(r))));
   if (values.size !== 1) throw Error('跨轨字幕不能直接合并，请先移到同一轨道');
   const owner = [...values][0], trial = fixedContent();
+  // Main/sub sources may have independent time offsets and different sort
+  // order. A linked merge retains the earliest main cue's group position.
+  const mainChange=plan.changes.find(change=>change.role==='main');
+  if(mainChange&&plan.changes.length>1) {
+    const earliest=DATA.segments.filter(c=>mainChange.ids.has(c.id)).sort((a,b)=>a.start-b.start)[0];
+    for(const change of plan.changes) {
+      if(earliest?.subtitle_position)change.merged.subtitle_position=structuredClone(earliest.subtitle_position);
+      else delete change.merged.subtitle_position;
+    }
+  }
   for (const change of plan.changes) {
     const target = change.role === 'main' ? trial : trial.multi_subtitle.tracks.find(t => t.id === change.track_id);
     target.segments = structuredClone(change.segments);
@@ -168,6 +178,7 @@ function fixedAppendMoveMenu(cues, role = 'main', trackId = null) {
 }
 function fixedTrackMenu(track, x, y) {
   ctxmenu.replaceChildren();
+  fixedMenuItem('字幕样式与画面位置', () => window.MSWSubtitleStyle?.editTrack(track.id));
   fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed }));
   fixedMenuItem(track.enabled ? '禁用轨道' : '启用轨道', () => fixedUpdateTrack(track.id, { enabled: !track.enabled }));
   fixedMenuItem(track.locked ? '解锁轨道' : '锁定轨道', () => fixedUpdateTrack(track.id, { locked: !track.locked }));
@@ -238,7 +249,7 @@ function fixedSyncUI() {
     bar = document.createElement('div'); bar.id = 'fixed-track-toolbar';
     const add = document.createElement('button'); add.textContent = '＋ 轨道'; add.type = 'button';
     add.onclick = () => { ctxmenu.replaceChildren(); fixedMenuItem('添加对白轨道', () => fixedAddTrack('dialogue')); fixedMenuItem('添加画面文字轨道', () => fixedAddTrack('annotation')); const r = add.getBoundingClientRect(); ctxShowAt(r.left, r.bottom); };
-    const caption = document.createElement('span'); caption.textContent = '固定轨道 · 编辑预览'; caption.title = '开发入口：支持轨道编辑和工程保存；新画面排布、识别、配音及输出尚未启用。';
+    const caption = document.createElement('span'); caption.textContent = '固定轨道 · 编辑预览'; caption.title = '开发入口：支持轨道编辑、画面定位和工程保存；识别、配音及输出尚未启用。';
     const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
     bar.append(add, caption, status); document.querySelector('.waveform-pane .module-tab-strip')?.after(bar);
   }

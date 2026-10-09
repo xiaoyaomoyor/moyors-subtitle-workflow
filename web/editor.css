@@ -4982,6 +4982,18 @@
 
 .msw-layer-geometry > :not(.overlay-handle) { visibility: hidden; }
 .msw-layer-geometry { background: transparent !important; }
+/* Fixed subtitles stay attached to the video content, including on hover. */
+.fixed-presentation #overlay { visibility:hidden !important; }
+#fixed-subtitle-preview { position:absolute; transform-origin:0 0; pointer-events:none; z-index:3; overflow:hidden; }
+.fixed-subtitle-row { position:absolute; box-sizing:border-box; }
+.fixed-subtitle-text { box-sizing:border-box; width:max-content; white-space:pre-wrap; overflow-wrap:anywhere; }
+.fixed-subtitle-measure { position:fixed; left:-100000px; top:0; height:1080px; visibility:hidden; pointer-events:none; }
+#fixed-subtitle-preview.positioning .annotation { pointer-events:auto; cursor:move; touch-action:none; outline:2px dashed var(--selection-yellow); outline-offset:3px; }
+#fixed-subtitle-preview.positioning .selected-position { outline-style:solid; }
+#fixed-position-toolbar { flex:none; display:flex; gap:8px; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); font-size:12px; }
+#fixed-position-toolbar[hidden], #fixed-subtitle-preview[hidden], #style-track-controls[hidden] { display:none; }
+#fixed-position-toolbar button { flex:none; }
+#style-track-position .msw-processing-hint { overflow-wrap:anywhere; margin:6px 0 0; }
 /* Compact media settings: controls own their space, including long labels. */
 .media-settings-body { container-type:inline-size; }
 .media-settings-body > .settings-panel-section { flex:0 0 auto; min-width:0; gap:10px; }

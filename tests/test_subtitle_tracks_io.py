@@ -38,6 +38,21 @@ class SubtitleTracksIOTests(unittest.TestCase):
         self.assertEqual(doc.project["msw"], self.source["msw"])
         self.assertEqual(doc.project["media"], self.source["media"])
         self.assertNotIn(b"\r\n", self.path.read_bytes())
+
+    def test_fixed_presentation_style_and_positions_roundtrip_without_external_presets(self):
+        doc = codec.read_project(self.path)
+        doc.project["subtitle_tracks"]["presentation"] = "fixed"
+        track = doc.project["subtitle_tracks"]["tracks"][0]
+        snapshot = dict(schema="msw.subtitle-style.v1", main=dict(fontSize=64), secondary=dict(fontSize=42),
+                        pairLayout=dict(order="secondary-above", gap=-12))
+        track.update(kind="annotation", style=dict(mode="snapshot", value=snapshot, custom=snapshot, selection="current"),
+                     position=dict(x=0.4, y=0.1))
+        for row in core.TrackIndex(doc.project).records(include_hidden=True):
+            row["cue"]["subtitle_position"] = dict(x=0.6, y=0.2)
+        saved = codec.save_project(doc)
+        reopened = codec.read_project(saved.document.path)
+        self.assertEqual(reopened.project, doc.project)
+        self.assertEqual(saved.backup.read_bytes(), self.raw)
         saved.document.project["subtitle_tracks"]["tracks"][0].update(name="对白 A", locked=True, collapsed=True)
         again = codec.save_project(saved.document)
         self.assertIsNone(again.backup)
