@@ -149,7 +149,7 @@ test('resizing only collides on its own fixed track, retains lanes and cancels/u
   expect(errors).toEqual([]);
 });
 
-test('saved download reopens via the file chooser and output entry points remain gated', async ({ page }) => {
+test('saved download reopens via the file chooser and SRT output is available', async ({ page }) => {
   const errors = await open(page, undefined, bilingual());
   await page.evaluate(() => fixedAddTrack('annotation'));
   const download = page.waitForEvent('download');
@@ -160,10 +160,10 @@ test('saved download reopens via the file chooser and output entry points remain
   await expect(page.locator('#json-name')).toHaveText('saved-tracks.mosp');
   expect(await page.evaluate(() => fixedTrackCore.validate(DATA))).toBe(true);
   const before = await state(page);
-  for (const id of ['download-full-srt', 'download-legacy-project', 'subtitle-translate-btn', 'msw-asr-open', 'tts-open']) {
-    await page.locator(`#${id}`).dispatchEvent('click');
-    await expect(page.locator('#fixed-track-status')).toContainText('后续阶段');
-  }
+  await page.evaluate(()=>{window.showSaveFilePicker=undefined;});
+  const exported=page.waitForEvent('download');
+  await page.locator('#download-full-srt').dispatchEvent('click');
+  expect((await exported).suggestedFilename()).toMatch(/\.srt$/);
   expect(await state(page)).toEqual(before); expect(errors).toEqual([]);
 });
 

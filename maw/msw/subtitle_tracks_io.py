@@ -1,4 +1,4 @@
-"""Opt-in v3 migration codec. Never used implicitly by the current editor.
+"""Lossless v3 migration codec; ordinary saves share its original-byte backup.
 
 Run ``python -m maw.msw.subtitle_tracks_io project.mosp`` for a read-only report.
 ``--write`` explicitly upgrades that same file, after a durable original backup.
@@ -145,9 +145,9 @@ def save_project(document, project=None, *, cancelled=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="固定字幕轨道第二阶段迁移工具；默认只检查。当前日常编辑器尚不接受 v3。")
+    parser = argparse.ArgumentParser(description="固定字幕轨道迁移工具；默认只检查，不覆盖原文件。")
     parser.add_argument("project", type=Path)
-    parser.add_argument("--write", action="store_true", help="先备份原文件，再在原位置写入 v3；请仅在测试工程上使用")
+    parser.add_argument("--write", action="store_true", help="先备份原文件，再在原位置写入 v3")
     args = parser.parse_args(argv)
     try:
         document = read_project(args.project)
@@ -160,7 +160,7 @@ def main(argv=None):
                 print(f"原始备份：{result.backup}")
         else:
             print("仅在内存迁移，原文件未修改。")
-        print("阶段 3–5 尚未启用：当前编辑器、预览与导出会拒绝 v3，请继续使用旧工程。")
+        print("固定轨道可在当前本机编辑器中编辑、预览和导出；旧版编辑器不能覆盖 v3。")
         return 0
     except (ValueError, OSError, TypeError, KeyError) as error:
         print(f"迁移失败：{error}")

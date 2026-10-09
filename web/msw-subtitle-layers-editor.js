@@ -6,14 +6,20 @@ let layerIndexes = new WeakMap();
 let layerPendingDragHistory = null;
 let layerPresentationCache = null;
 function prepareLayerProject(project) {
-  if (fixedTracksRequested) return fixedTrackCore.migrate(project);
+  if(project?.schema&&!['moy.asr.project.v1','msw.project.v2','msw.project.v3'].includes(project.schema))throw Error('工程版本不受支持，请使用兼容的编辑器打开');
+  if (fixedTracksRequested || project?.schema===fixedTrackCore.SCHEMA) {
+    const next=fixedTrackCore.migrate(project);
+    if(!project?.schema&&!project?.segments?.length&&!project?.overlay_track?.segments?.length
+      &&!project?.multi_subtitle?.tracks?.some(track=>track.segments?.length))next.subtitle_tracks.presentation='fixed';
+    return next;
+  }
   if (project?.schema && !['moy.asr.project.v1', 'msw.project.v2'].includes(project.schema)) {
     throw new Error('工程版本不受支持，请使用兼容的编辑器打开');
   }
   return layerUpgradeRequested || layerCore.enabled(project) ? layerCore.migrate(project) : project;
 }
 function layerMode() { return layerCore.enabled(DATA) || fixedTrackMode(); }
-function layerProjectMode(project) { return layerCore.enabled(project) || (fixedTracksRequested && project?.schema === fixedTrackCore.SCHEMA); }
+function layerProjectMode(project) { return layerCore.enabled(project) || (project?.schema === fixedTrackCore.SCHEMA); }
 function layerAllowOverlap() { return !fixedTrackMode() && DATA.subtitle_layers?.allow_overlap !== false; }
 function layerInvalidate() { layerIndexes = new WeakMap(); layerPresentationCache = null; fixedInvalidate(); }
 function layerUpdateDrag(drag) {
@@ -220,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
     catch(error){flashHint(error.message,'warning');}
   });
   document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
-    commitProcessingEdits();const cues=window.MSWSubtitlePresentation.mergedSrtRows(DATA);
+    commitProcessingEdits();const cues=window.MSWSubtitlePresentation.mergedSrtRows(fixedTrackMode()?fixedSrtProject():DATA);
     await downloadFile(window.AsrEditorUtils.buildSrtPayload(cues,{formatTime:fmtSrtTime}),`${FILENAME_BASE}.merged.srt`,'text/plain',{desc:'合并显示 SRT',types:{'text/plain':['.srt']}});
   });
   document.getElementById('subtitle-legacy-visible')?.addEventListener('change', event => {
@@ -264,7 +270,7 @@ async function layerChooseAsrTargets(jobs, target) {
 function layerExportMainSegments() {
   const cues=DATA.segments.map(cue=>({...cue}));
   layerCore.materializeReferences(cues);
-  return cues.filter(cue=>layerCore.visible(DATA,cue));
+  return cues.filter(cue=>layerCore.visible(DATA,cue)&&(!fixedTrackMode()||fixedTrack(cue)?.enabled!==false));
 }
 
 function layerAssMargins(options, project = DATA, target = 'both') {

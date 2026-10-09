@@ -58,7 +58,7 @@ test('portable editor reads a dropped QPK1 and keeps runtime peaks after downloa
 test('legacy voice project opens, edits and downloads with current metadata and live MSW state', async ({ page }) => {
   await open(page, legacy);
   const opened = await snapshot(page);
-  expect(opened.schema).toBe('msw.project.v2');
+  expect(opened.schema).toBe('msw.project.v3');
   // Candidate panels may initialize the optional empty revision list after load.
   // All legacy audio fields and unknown extensions must still match exactly.
   expect({processing_results: [], ...opened.msw}).toEqual({processing_results: [], ...legacy.msw});
@@ -83,7 +83,7 @@ test('legacy voice project opens, edits and downloads with current metadata and 
   await page.evaluate(() => window.MSWE.resolve('persistence-host').downloadLocal(null, 'round-trip.mosp'));
   const download = await downloadPromise;
   const saved = JSON.parse(readFileSync(await download.path(), 'utf8'));
-  expect(saved.schema).toBe('msw.project.v2');
+  expect(saved.schema).toBe('msw.project.v3');
   expect(saved.segments[0].text).toBe('修改后的字幕');
   expect(saved.msw.assets).toEqual([]);
   expect(saved.msw.audio_clips).toEqual([]);
@@ -177,7 +177,7 @@ test('restoring a valid legacy project keeps metadata, while adopting a save-as 
       filename: 'forked.mosp' }, { source: JSON.stringify(before), newProject: false });
     return host.snapshot();
   }, legacy);
-  expect(saved.schema).toBe('msw.project.v2');
+  expect(saved.schema).toBe('msw.project.v3');
   expect(saved.fixture_metadata).toEqual(legacy.fixture_metadata);
   expect(saved.msw.assets).toEqual(legacy.msw.assets);
   expect(saved.msw.audio_clips).toEqual(legacy.msw.audio_clips);

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { disableOnboarding, findFreePort, generateWav, generateWaveformPayload, makeTempDir, openMenubarMenu, clickMenubarItem, startTtsServer, startStaticServer, openTtsEnvironment, closeTtsEnvironment } from './helpers.mjs';
@@ -1347,9 +1347,11 @@ test('compact TTS has unified surfaces, inline voice actions, dynamic help and a
 });
 
 
-test('multilayer production loop: range ASR, bound translation, synthetic TTS, clip, backup and reload',async({page})=>{
+test('fixed-track production loop: range ASR, bound translation, synthetic TTS, clip, backup and reload',async({page})=>{
  await open(page);
  const identities=await page.evaluate(()=>{
+  fixedAddTrack('dialogue',[fixedRef(DATA.segments[1])]);
+  fixedActiveTrackId=fixedTrack(DATA.segments[0]).id;
   DATA.segments[1].start=500;DATA.segments[1].end=1800;renderAll();
   const media={id:'synthetic-source',revision:'a'.repeat(64),audio_index:0,metadata:{duration_ms:10000,audio_tracks:[{}]}};
   const recognition={kind:'asr',id:'layer-asr',project_id:DATA.msw.project_id,status:'succeeded',created_at:1,
@@ -1368,11 +1370,11 @@ test('multilayer production loop: range ASR, bound translation, synthetic TTS, c
  await page.locator(`[data-asset-id="${assets[0].id}"]`).getByRole('button',{name:'放入时间轴',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips?.length||0)).toBe(1);
  await page.evaluate(async()=>{updateEditorSettings({autoSaveProject:false});scheduleAutoSave();await saveCurrentProject({silent:true});});
- await expect.poll(()=>JSON.parse(readFileSync(projectPath,'utf8')).schema).toBe('msw.project.v2');
- expect(existsSync(projectPath.replace(/\.mosp$/,'.v1-backup.mosp'))).toBe(true);
+ await expect.poll(()=>JSON.parse(readFileSync(projectPath,'utf8')).schema).toBe('msw.project.v3');
+ expect(readdirSync(dir).filter(n=>n.startsWith('.msw-tracks-backup-'))).toHaveLength(1);
  const saved=JSON.parse(readFileSync(projectPath,'utf8'));expect(saved.multi_subtitle.bindings).toHaveLength(2);
  await page.reload();await expect(page.locator('#editor-loading')).not.toBeVisible();
  expect(await page.evaluate(()=>DATA.segments.map(c=>c.id))).toEqual(identities);
  expect(await page.evaluate(()=>DATA.msw.audio_clips.length)).toBe(1);
- expect(await page.evaluate(()=>buildAss().split('\n').filter(r=>r.startsWith('Dialogue:')).length)).toBe(4);
+ expect(await page.evaluate(async()=>(await buildAss()).split('\n').filter(r=>r.startsWith('Dialogue:')).length)).toBe(4);
 });

@@ -208,5 +208,5 @@ def write_mosp(
         preserve_style_source(target, project)
     except OSError as error:
         raise FileSaveError(Path(error.filename or target), error, operation="保存工程前检查／备份") from error
-    atomic_write_text(target, content, sync=project.get('schema') == 'msw.project.v2')
+    atomic_write_text(target, content, sync=project.get('schema') in ('msw.project.v2', 'msw.project.v3'))
     return target

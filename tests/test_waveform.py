@@ -291,7 +291,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertTrue(page.split(marker, 1)[1][end:].startswith(');'))
         self.assertIn('id="save-project"', page)
         self.assertIn('id="save-project-as"', page)
-        self.assertIn('const SERVER_CONFIG = fixedTracksRequested ? null : null;', page)
+        self.assertIn('const SERVER_CONFIG = null;', page)
         self.assertIn('id="editor-settings-toggle"', page)
         self.assertIn('id="editor-settings-panel"', page)
         # 字幕编辑设置升级为详情窗口，菜单和模块右键共用。

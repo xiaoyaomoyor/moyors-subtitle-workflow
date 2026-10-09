@@ -8,7 +8,8 @@
   const finite = n => typeof n === 'number' && Number.isFinite(n);
   function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
   function styleFor(project, track, proof = null) {
-    return global.MSWProjectStyle.normalize(proof || (track.style.mode === 'snapshot' ? track.style.value : project.preview?.project_style) || global.MSWProjectStyle.defaults());
+    const S=global.MSWProjectStyle,style=proof || (track.style.mode === 'snapshot' ? track.style.value : project.preview?.project_style) || S.defaults();
+    return S.forKind(style,track.kind);
   }
   function layout(project, {width = 1920, languageId = project.multi_subtitle?.tracks?.[0]?.id, measure, resolveStyle = t => styleFor(project,t), gap = project.subtitle_layers?.presentation?.gap ?? 12} = {}) {
     const index = core.createIndex(project), tracks = project.subtitle_tracks.tracks;
@@ -21,7 +22,7 @@
       const track = tracks.find(t => t.id === rows[0].subtitle_track_id), style = resolveStyle(track);
       const group = {id:core.key(rows[0]), trackId:track.id, kind:track.kind, rank:tracks.indexOf(track), rows, style};
       group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
-      const pair = style.pairLayout || {order:'main-above',gap:0}, upper = pair.order === 'secondary-above' ? 'extension' : 'main';
+      const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
       rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1));
       for (const row of rows) {
         row.style = style[row.role === 'main' ? 'main' : 'secondary'];

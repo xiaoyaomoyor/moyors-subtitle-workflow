@@ -55,16 +55,20 @@ def validate_snapshot(raw: object) -> dict:
         binding_id = entry.get("binding_id")
         if binding_id is not None and not valid_cue_id(binding_id):
             raise ValueError("字幕绑定标识无效")
+        owner = entry.get('subtitle_track_id')
+        if raw.get('project_schema') == 'msw.project.v3' and not valid_cue_id(owner):
+            raise ValueError('翻译快照缺少固定轨道归属')
         clean.append({
+            **({'subtitle_track_id': owner} if owner else {}),
             "source": {key: source[key] for key in ("id", "start", "end", "text", "disabled") if key in source},
             "target": target, "binding_id": binding_id,
         })
     # Validate source times without allowing user-supplied fields into the task.
     schema = raw.get('project_schema')
-    if schema not in (None, 'moy.asr.project.v1', 'msw.project.v2'):
+    if schema not in (None, 'moy.asr.project.v1', 'msw.project.v2', 'msw.project.v3'):
         raise ValueError('翻译快照版本无效')
     body = {'segments': [entry['source'] for entry in clean]}
-    if schema == 'msw.project.v2':
+    if schema in ('msw.project.v2', 'msw.project.v3'):
         from maw.msw.subtitle_layers import migrate_project
         body = migrate_project(body)
     normalize_project(body)
@@ -95,7 +99,7 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
 
     request = LlmPostprocessRequest(None, None, OutputMode.JSON, f"translate_{language}", prompt)
     project = {"segments": [entry["source"] for entry in snapshot["entries"]]}
-    if snapshot.get('project_schema') == 'msw.project.v2':
+    if snapshot.get('project_schema') in ('msw.project.v2', 'msw.project.v3'):
         from maw.msw.subtitle_layers import migrate_project
         project = migrate_project(project)
     result = process_llm_snapshot(

@@ -37,6 +37,10 @@ def normalize_project_style(raw):
         animations=_normalize_animation(raw.get('animations')))
     for role in ('main', 'secondary'):
         result[role].update(normalize_wrapping(raw[role]))
+    if 'annotation' in raw:
+        if not isinstance(raw['annotation'], dict) or 'annotation' in raw['annotation']:
+            raise ValueError('画面文字基础样式无效')
+        result['annotation'] = normalize_project_style(raw['annotation'])
     if 'legacyBurn' in raw:
         from maw.msw.subtitle_style import normalize_styles
         result['legacyBurn'] = normalize_styles(raw['legacyBurn'])

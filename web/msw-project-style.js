@@ -4,7 +4,7 @@
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 4;
+  const layoutVersion = 5;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -46,10 +46,12 @@
     return result;
   }
   function normalize(raw = {}) {
+    if(raw.annotation!==undefined&&(!raw.annotation||typeof raw.annotation!=='object'||Array.isArray(raw.annotation)||raw.annotation.annotation!==undefined))throw Error('画面文字基础样式无效');
     return {schema, name: String(raw.name || '默认白字').slice(0, 80),
       main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{})},
       secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{})},
       animations: U.normalizeAssAnimations(raw.animations),
+      ...(raw.annotation!==undefined?{annotation:normalize(raw.annotation)}:{}),
       ...(raw.pairLayout!==undefined?{pairLayout:normalizePair(raw.pairLayout)}:{}),
       ...(raw.legacyBurn ? {legacyBurn: clone(raw.legacyBurn)} : {})};
   }
@@ -113,6 +115,22 @@
       {id:'bilingual',...normalize({...normal,name:'双语紧凑',main:{...normal.main,fontSize:44,marginV:100},secondary:{...normal.secondary,fontSize:36,marginV:48}})}];
   }
   function apply(project, style) { project.preview ||= {}; project.preview.project_style=normalize(style); }
+  function applyPreset(project,style,{proof=false}={}) {
+    const old=normalize(project.preview?.project_style||defaults()),value=normalize(style);
+    for(const track of project.subtitle_tracks?.tracks||[]) {
+      if(track.kind==='annotation'&&!proof) {
+        if(value.annotation)track.style={mode:'snapshot',value:clone(value.annotation)};
+        else if(track.style.mode==='inherit')track.style={mode:'snapshot',value:clone(old.annotation||old)};
+      } else track.style={mode:'snapshot',value:clone(value)};
+    }
+    apply(project,value);
+  }
+  function forKind(style,kind) { const value=normalize(style);const result=kind==='annotation'&&value.annotation?value.annotation:value;delete result.annotation;return result; }
+  function presetSnapshot(project,style,kind='dialogue') {
+    const base=normalize(project.preview?.project_style||defaults()),value=normalize(style);
+    if(kind==='annotation')return {...base,annotation:forKind(value,'annotation')};
+    return {...value,annotation:forKind(value.annotation||base.annotation||base,'annotation')};
+  }
   function capture(project) {
     const p=project.preview||{};
     return {style:normalize(p.project_style||defaults()),customStyle:p.project_style_custom?normalize(p.project_style_custom):null,selection:p.project_style_selection||null};
@@ -197,5 +215,5 @@
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);

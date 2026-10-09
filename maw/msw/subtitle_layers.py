@@ -147,7 +147,7 @@ def validate_layout(project):
 
 
 def require_production_schema(project):
-    if project.get("schema") == SCHEMA:
+    if project.get("schema") in (SCHEMA, "msw.project.v3"):
         from maw.project import normalize_project
         normalize_project(project)
 
@@ -163,6 +163,15 @@ def preserve_upgrade_source(target, project):
         return None
     original = target.read_bytes()
     previous = json.loads(original.decode('utf-8-sig'))
+    if isinstance(previous, dict) and previous.get('schema') == 'msw.project.v3':
+        if project.get('schema') != 'msw.project.v3':
+            raise ValueError('不能用旧版结构覆盖固定轨道工程，请另存为新文件')
+        return None
+    if project.get('schema') == 'msw.project.v3':
+        if not isinstance(previous, dict) or previous.get('schema', LEGACY_SCHEMA) not in (LEGACY_SCHEMA, SCHEMA):
+            raise ValueError('目标工程版本不兼容，未覆盖')
+        from maw.msw.subtitle_tracks_io import TrackDocument, _backup
+        return _backup(TrackDocument(target, original, project))
     if not isinstance(previous, dict) or previous.get('schema', LEGACY_SCHEMA) not in (LEGACY_SCHEMA, SCHEMA):
         raise ValueError('目标工程版本不兼容，未覆盖；固定轨道工程需使用对应版本的编辑器')
     if previous.get('schema') == SCHEMA:

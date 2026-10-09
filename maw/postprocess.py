@@ -1764,7 +1764,7 @@ def _load_input(project_path: Path | None, srt_path: Path | None) -> tuple[JsonD
     if project_path is not None:
         resolved = project_path.expanduser().resolve()
         project = read_project(resolved)
-        if project.get('schema') == 'msw.project.v2':
+        if project.get('schema') in ('msw.project.v2', 'msw.project.v3'):
             raise ValueError('此多层工程请在编辑器中选择字幕处理；启动器后处理尚不能指定重叠层，原工程未修改')
         return project, resolved, srt_path.expanduser().resolve() if srt_path else None
     if srt_path is not None:

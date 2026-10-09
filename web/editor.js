@@ -28,7 +28,7 @@ let PROJECT_NAME = FILENAME_BASE;
 const STICKERS = __STICKERS_JSON__;
 let STICKER_ROOT = __STICKER_ROOT_JSON__;  // 表情包根目录的绝对路径（无尾斜杠）
 let STICKER_URL_PREFIX = __STICKER_URL_PREFIX_JSON__;
-const SERVER_CONFIG = fixedTracksRequested ? null : __SERVER_CONFIG_JSON__;
+const SERVER_CONFIG = __SERVER_CONFIG_JSON__;
 let mswProjectGeneration = 0;
 window.MSWProject.ensure(DATA, SERVER_CONFIG?.processingContext?.projectId);
 const NINJA_SFX_BASE_URL = __NINJA_SFX_BASE_URL_JSON__;
@@ -15325,6 +15325,7 @@ function speakerLabelExportOptions() {
 // 自身数组，不能在合并后的大数组里按下标解析，因此同时返回归属集合，
 // 由 colorContextResolver 提供每条段的颜色/说话人解析上下文。
 function mergedExportSegments() {
+  if(fixedTrackMode())return {segments:fixedSrtProject().segments,overlaySet:new Set(),overlaySegments:[]};
   const overlaySegments = overlayTrackVisible() ? (getOverlayTrack()?.segments || []) : [];
   if (layerMode()) return { segments: DATA.segments.filter(cue => layerCore.visible(DATA,cue)), overlaySet: new Set(), overlaySegments: [] };
   if (!overlaySegments.length) {
@@ -15359,6 +15360,7 @@ function buildSrt() {
 }
 
 function buildAss() {
+  if(fixedTrackMode())return fixedAssDocument('both');
   if(DATA.preview?.project_style?.legacyBurn)return window.MSWProjectStyle.buildLegacyAss(DATA,{...assExportOptions(),alignFirstStart:EDITOR_SETTINGS.exportStartAtZero});
   const { overlaySegments } = mergedExportSegments();
   const mainSegments=layerMode()?layerExportMainSegments():DATA.segments;
@@ -15382,7 +15384,7 @@ function buildAss() {
 }
 
 function buildExtensionSrt(track = getActiveExtensionTrack()) {
-  return window.AsrEditorUtils.buildSrtPayload(track?.segments || [], {
+  return window.AsrEditorUtils.buildSrtPayload(fixedTrackMode()?fixedSrtProject().multi_subtitle?.tracks.find(t=>t.id===track?.id)?.segments||[]:track?.segments || [], {
     ...speakerExportOptions(),
     formatTime: fmtSrtTime,
   });
@@ -15411,6 +15413,7 @@ function buildGapRemovedSrt() {
 }
 
 function buildGapRemovedAss() {
+  if(fixedTrackMode())return fixedAssDocument('both',true);
   const removed = getRemovedGapRanges();
   if (!removed.length) {
     flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
@@ -18240,8 +18243,9 @@ document.getElementById('download-full-srt')?.addEventListener('click', async ()
   });
 });
 document.getElementById('download-full-ass')?.addEventListener('click', async () => {
+  if(fixedTrackMode()){await fixedDownloadAss();return;}
   if (editingState) finishEdit(true);
-  await downloadFile(buildAss(), `${FILENAME_BASE}.ass`, 'text/plain', {
+  await downloadFile(await buildAss(), `${FILENAME_BASE}.ass`, 'text/plain', {
     desc: 'ASS 字幕文件', types: { 'text/plain': ['.ass'] }
   });
 });
@@ -18263,6 +18267,7 @@ document.getElementById('download-ext-ass')?.addEventListener('click', async () 
     return;
   }
   if (editingState) finishEdit(true);
+  if(fixedTrackMode()){await fixedDownloadAss('secondary');return;}
   if(DATA.preview?.project_style?.legacyBurn){
     const single={...DATA,segments:[],overlay_track:{enabled:false},multi_subtitle:{...DATA.multi_subtitle,enabled:true,tracks:[track]}};
     await downloadFile(window.MSWProjectStyle.buildLegacyAss(single,{...assExportOptions(),target:'secondary',alignFirstStart:EDITOR_SETTINGS.exportStartAtZero}),`${FILENAME_BASE}.extension.ass`,'text/plain',{desc:'副字幕 ASS 文件',types:{'text/plain':['.ass']}});
@@ -18385,8 +18390,9 @@ document.getElementById('download-gap-removed-srt')?.addEventListener('click', a
 });
 document.getElementById('download-gap-removed-color-srt')?.addEventListener('click', () => downloadColorSrts(true));
 document.getElementById('download-gap-removed-ass')?.addEventListener('click', async () => {
+  if(fixedTrackMode()){await fixedDownloadAss('both',true);return;}
   if (editingState) finishEdit(true);
-  const payload = buildGapRemovedAss();
+  const payload = await buildGapRemovedAss();
   if (payload) {
     await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.ass`, 'text/plain', {
       desc: '去空隙带样式 ASS 字幕', types: { 'text/plain': ['.ass'] }
@@ -18819,7 +18825,6 @@ function resetLoadedMedia() {
 
 function buildBlankProject() {
   return {
-    schema: window.AsrEditorUtils.PROJECT_SCHEMA,
     media: '', language: '', model: '',
     timebase: { unit: 'milliseconds', fps: 30 },
     segments: [],
@@ -25099,6 +25104,7 @@ function applyAsrJob(job, media) {
 }
 
 function applyTranslationJob(job) {
+  if(fixedTrackMode()) { window.MSWResults.register(DATA.msw,[job]); const result=applyProcessingResults([job],job.snapshot.output_mode==='replace_main'?'main':'secondary');return {...result,appliedIds:job.snapshot.entries.map(e=>e.source.id),conflicts:[],complete:true}; }
   commitProcessingEdits();
   const extension = window.MSWProject.ensure(DATA);
   if (extension.project_id !== job.project_id || job.status !== 'succeeded' || !job.snapshot || !job.result) {
@@ -25150,6 +25156,8 @@ function applyProcessingResults(jobs, target, strategy, media, options = {}) {
   DATA.segments.splice(0, DATA.segments.length, ...plan.project.segments);
   DATA.multi_subtitle = plan.project.multi_subtitle;
   DATA.msw = plan.project.msw;
+  if(plan.project.subtitle_tracks)DATA.subtitle_tracks=plan.project.subtitle_tracks;
+  if(plan.project.subtitle_layers)DATA.subtitle_layers=plan.project.subtitle_layers;
   normalizeMultiSubtitleState(); projectImportDirty = true; cueListPlaybackKey = null;
   renderAll({waveform:'full'});restoreEditorSelection(selection);waveformEditor?.restoreNavigation(navigation);
   window.MSWResultApply.captureState(DATA, jobs, target);
@@ -25317,6 +25325,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   get generation() { return mswProjectGeneration; },
   projectName: () => PROJECT_NAME || FILENAME_BASE || '未命名工程',
   selection: processingSelection,
+  subtitleTargetTrack: () => fixedTrackMode()?fixedActiveTrack()?.id:null,
   commitEdits: commitProcessingEdits,
   isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()
     || previewGesture || waveformPlayheadDragging || document.activeElement === cuePanelText
@@ -25361,12 +25370,13 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     commitProcessingEdits();
     const plan = window.MSWAssets.insert(DATA, ids, Math.round(anchor), targets, cue => {
       syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames:false}); return cue;
-    });
+    },{subtitleTrackId:fixedTrackMode()?fixedActiveTrack()?.id:null});
     if (!plan.count) return plan;
     const selection = snapshotEditorSelection(), navigation = waveformEditor?.getNavigationSnapshot();
     pushUndo('放入字幕素材', {captureView:true});
     DATA.segments.splice(0, DATA.segments.length, ...plan.project.segments);
     if (plan.project.multi_subtitle) DATA.multi_subtitle = plan.project.multi_subtitle;
+    if (plan.project.subtitle_tracks) DATA.subtitle_tracks=plan.project.subtitle_tracks;
     normalizeMultiSubtitleState(); projectImportDirty = true; cueListPlaybackKey = null;
     renderAll({waveform:'full'}); restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
     scheduleAutoSaveFlush(); return plan;
@@ -25467,7 +25477,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     main:{...getPreviewGeometry(),...getSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayTextEl).fontSize)},
     secondary:{...getExtensionSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayExtensionTextEl).fontSize)},
     viewportHeight:Math.max(1,playerStage.getBoundingClientRect().height)}),
-  audioExportPreview: () => ({ schema: DATA.schema, subtitle_layers: DATA.subtitle_layers, overlay_track: DATA.overlay_track, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
+  audioExportPreview: () => ({ schema: DATA.schema, subtitle_tracks: DATA.subtitle_tracks, subtitle_layers: DATA.subtitle_layers, overlay_track: DATA.overlay_track, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
   audioExportDuration: () => Math.round(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
     Number(layerMode() ? waveformEditor?.sourceDurationMs : waveformEditor?.contentDurationMs) || 0,

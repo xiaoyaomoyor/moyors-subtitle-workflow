@@ -58,6 +58,18 @@ def ass_text(text):
 
 
 def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, frame_at=None):
+    if project.get('schema') == 'msw.project.v3':
+        if project['subtitle_tracks'].get('presentation') == 'fixed':
+            from maw.msw.track_presentation import fixed_ass
+            return fixed_ass(project,plan,target,video,start_ms=start_ms,end_ms=end_ms,frame_at=frame_at)
+        # A migrated legacy picture keeps its prior renderer, with current visibility.
+        from maw.msw.subtitle_tracks import TrackIndex, key
+        visible={key(r) for r in TrackIndex(project).records(include_disabled=False)}
+        project=copy.deepcopy(project)
+        for role,storage,cues in [('main',None,project['segments'])]+[('extension',t['id'],t['segments']) for t in (project.get('multi_subtitle') or {}).get('tracks',[])]:
+            for cue in cues:
+                if key(dict(role=role,track_id=storage,cue_id=cue['id'])) not in visible:cue['disabled']=True
+        project['schema']='msw.project.v2'
     from maw.project_subtitle_style import apply_project_style
     project = apply_project_style(project)
     if (project.get('preview') or {}).get('ass_library_exports') is True:

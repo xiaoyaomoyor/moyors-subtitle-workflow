@@ -1,5 +1,4 @@
-// Fixed-track data and editing primitives. Default activation stays gated until
-// presentation and processing support the same contract.
+// Fixed-track data and editing primitives shared by production workflows.
 (function (global) {
   'use strict';
   const layers = typeof module !== 'undefined' && module.exports
@@ -14,6 +13,7 @@
   const positionValid = value => value && Object.keys(value).length === 2
     && ['x', 'y'].every(k => typeof value[k] === 'number' && Number.isFinite(value[k]) && value[k] >= 0 && value[k] <= 1);
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
+    && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
     && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))

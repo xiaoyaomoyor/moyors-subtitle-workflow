@@ -85,9 +85,10 @@
     const tracks = new Map((ext.audio_tracks || []).map(t => [t.id, t]));
     const clips = ext.audio_clips || [];
     const layered=project.schema==='msw.project.v2',legacy=project.subtitle_layers?.legacy_overlay;
-    const subtitleSegments = [...(project.segments || []).filter(c=>!layered||(!c.disabled&&!(legacy?.visible===false&&legacy.cue_ids.includes(c.id)))),
+    let subtitleSegments = [...(project.segments || []).filter(c=>!layered||(!c.disabled&&!(legacy?.visible===false&&legacy.cue_ids.includes(c.id)))),
       ...(project.overlay_track?.enabled === true ? project.overlay_track.segments || [] : []),
       ...(project.multi_subtitle?.enabled === true ? (project.multi_subtitle.tracks || []).flatMap(track => (track.segments || []).filter(c=>!layered||!c.disabled)) : [])];
+    if(project.schema==='msw.project.v3')subtitleSegments=global.MSWSubtitleTracks.createIndex(project).records({includeDisabled:false}).filter(r=>r.role==='main'||project.multi_subtitle?.enabled).map(r=>r.cue);
     const duration = clips.reduce((n, c) => Math.max(n, Math.ceil(core.end(c, assets.get(c.asset_id)))),
       subtitleSegments.reduce((n, s) => Math.max(n, s.end), o.duration_ms));
     integer(duration, 1, MAX_MS, '没有有效的音频导出范围，或工程超过 12 小时');

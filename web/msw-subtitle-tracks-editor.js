@@ -1,5 +1,5 @@
-// Opt-in fixed-track editing. Output/processing stay gated until stages 4–5.
-const fixedTracksRequested = new URLSearchParams(location.search).get('subtitle-tracks') === '1';
+// Fixed tracks are the current project model; the explicit legacy query is for compatibility tests.
+const fixedTracksRequested = new URLSearchParams(location.search).get('subtitle-tracks') !== '0';
 const fixedTrackCore = window.MSWSubtitleTracks;
 let fixedActiveTrackId = null;
 let fixedTrackFilter = '';
@@ -249,7 +249,7 @@ function fixedSyncUI() {
     bar = document.createElement('div'); bar.id = 'fixed-track-toolbar';
     const add = document.createElement('button'); add.textContent = '＋ 轨道'; add.type = 'button';
     add.onclick = () => { ctxmenu.replaceChildren(); fixedMenuItem('添加对白轨道', () => fixedAddTrack('dialogue')); fixedMenuItem('添加画面文字轨道', () => fixedAddTrack('annotation')); const r = add.getBoundingClientRect(); ctxShowAt(r.left, r.bottom); };
-    const caption = document.createElement('span'); caption.textContent = '固定轨道 · 编辑预览'; caption.title = '开发入口：支持轨道编辑、画面定位和工程保存；识别、配音及输出尚未启用。';
+    const caption = document.createElement('span'); caption.textContent = '字幕轨道'; caption.title = '轨道决定字幕的归属、显示和输出；锁定后不会被编辑或任务结果覆盖。';
     const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
     bar.append(add, caption, status); document.querySelector('.waveform-pane .module-tab-strip')?.after(bar);
   }
@@ -279,16 +279,72 @@ function fixedPanelUI(target) {
 document.addEventListener('DOMContentLoaded', () => {
   if (!fixedTrackMode()) return;
   fixedSyncUI(); fixedAcceptEdit();
-  // These producers/outputs do not yet understand fixed track positioning.
-  // The v3 development page also has no server project binding.
-  document.addEventListener('click', event => {
-    const node = event.target.closest('button, a, [role="menuitem"], .item');
-    if (!node || node.closest('#fixed-track-toolbar, .fixed-track-head, .fixed-track-move-menu')) return;
-    const id = node.id || '';
-    if (/^download-/.test(id) && !['download-json'].includes(id)
-      || /^(msw-.*(?:tts|asr|translate|export)|export-video|export-audio|video-export-btn|audio-export-btn|timeline-export-btn|tts-open|subtitle-translate-btn)/.test(id)
-      || /^(翻译所选字幕|配音所选字幕)/.test(node.textContent.trim())) {
-      event.preventDefault(); event.stopImmediatePropagation(); fixedStatus('固定轨道的识别、配音与导出将在后续阶段接入；现在可保存工程');
-    }
-  }, true);
 });
+
+// SRT selection is explicit and independent of the list filter. ASS keeps all
+// enabled tracks, matching video output, including annotation positions.
+let fixedSrtScope = '';
+let fixedSrtAnnotations = false;
+function fixedSrtProject() {
+  const project=structuredClone(DATA),index=fixedTrackCore.createIndex(DATA);
+  for(const source of layerCore.tracks(project)) {
+    layerCore.materializeReferences(source.segments);
+    source.segments=source.segments.filter(c=>{
+      const owner=index.trackFor({role:source.role,track_id:source.track_id,cue_id:c.id});
+      return owner?.enabled&&!c.disabled&&(!fixedSrtScope||owner.id===fixedSrtScope)
+        && (owner.kind!=='annotation'||fixedSrtAnnotations)&&layerCore.visible(DATA,c,source.role);
+    });
+    if(source.role==='main')project.segments=source.segments;
+    else project.multi_subtitle.tracks.find(t=>t.id===source.track_id).segments=source.segments;
+  }
+  return project;
+}
+async function fixedAssDocument(target='both',removeGaps=false) {
+  if(!SERVER_CONFIG?.processingUrl)throw Error('精确 ASS 导出需要本机编辑器服务，请用 MSW 启动器打开工程');
+  commitProcessingEdits();
+  const project=window.MSWE.resolve('processing-host').exportProject();
+  const payload={project,target,video:{width:player.videoWidth||1920,height:player.videoHeight||1080}};
+  if(removeGaps) {
+    const intervals=[];let cursor=0,output=0;
+    const end=Math.max(1,...project.segments.map(c=>c.end),...(project.multi_subtitle?.tracks||[]).flatMap(t=>t.segments.map(c=>c.end)));
+    for(const range of getRemovedGapRanges()) {
+      const start=Math.min(end,range.start),finish=Math.min(end,range.end);
+      if(start>cursor){intervals.push({start_ms:cursor,end_ms:start,output_start_ms:output});output+=start-cursor;}
+      cursor=Math.max(cursor,finish);
+    }
+    if(cursor<end)intervals.push({start_ms:cursor,end_ms:end,output_start_ms:output});
+    payload.plan={intervals};
+  }
+  const result=await window.MSWSubtitleStyle.request('subtitle-preview',payload);
+  if(result.layoutVersion!==window.MSWProjectStyle.layoutVersion)throw Error('请保存工程并重启编辑器服务，以加载新的字幕排布');
+  if(!EDITOR_SETTINGS.exportStartAtZero)return result.ass;
+  // Extend the first exported event to zero without changing stored cue times
+  // or recalculating its stable track position.
+  const lines=result.ass.split('\n'),events=lines.map((line,index)=>({index,fields:line.startsWith('Dialogue: ')?line.split(','):null})).filter(e=>e.fields);
+  const stamp=value=>value.split(':').reduce((sum,part)=>sum*60+Number(part),0);
+  events.sort((a,b)=>stamp(a.fields[1])-stamp(b.fields[1]));
+  if(events.length){const first=events[0];first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');}
+  return lines.join('\n');
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const anchor=document.getElementById('download-merged-srt');if(!anchor)return;
+  const row=document.createElement('div');row.className='fixed-srt-scope';
+  const label=document.createElement('label');label.textContent='SRT 范围 ';
+  const select=document.createElement('select');select.setAttribute('aria-label','SRT 轨道范围');
+  select.onchange=()=>{fixedSrtScope=select.value;};label.append(select);
+  const include=document.createElement('label'),check=document.createElement('input');check.type='checkbox';
+  check.onchange=()=>{fixedSrtAnnotations=check.checked;};include.append(check,' 包含画面文字');
+  row.append(label,include);anchor.before(row);
+  const sync=()=>{row.hidden=!fixedTrackMode();if(!fixedTrackMode())return;
+    select.replaceChildren(new Option('全部对白轨道',''),...DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>new Option(t.name,t.id)));
+    if(DATA.subtitle_tracks.tracks.some(t=>t.id===fixedSrtScope))select.value=fixedSrtScope;else fixedSrtScope='';};
+  anchor.parentElement.addEventListener('pointerenter',sync);window.addEventListener('msw:project-changed',sync);sync();
+});
+
+async function fixedDownloadAss(target='both',removeGaps=false) {
+  try {
+    const content=await fixedAssDocument(target,removeGaps);
+    const suffix=removeGaps?'gap-removed':target==='secondary'?'extension':'';
+    await downloadFile(content,`${FILENAME_BASE}${suffix?'.'+suffix:''}.ass`,'text/plain',{desc:'ASS 字幕文件',types:{'text/plain':['.ass']}});
+  } catch(error){flashHint(error.message,'warning');}
+}

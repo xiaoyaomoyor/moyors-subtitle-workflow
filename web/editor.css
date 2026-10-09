@@ -5123,3 +5123,15 @@
 #ctxmenu button.item:hover { background: var(--btn-bg-hover); }
 #ctxmenu button.item:disabled { opacity: .45; cursor: not-allowed; }
 .msw-fixed-tracks #subtitle-legacy-visible { display: none; }
+
+/* Exact preview replaces the CSS glyphs; positioning retains its hit boxes. */
+.player-stage[data-subtitle-renderer=libass] #fixed-subtitle-preview:not(.positioning) { visibility:hidden; }
+.player-stage[data-subtitle-renderer=libass] #fixed-subtitle-preview.positioning .fixed-subtitle-text { visibility:hidden; }
+
+.fixed-srt-scope { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); }
+.fixed-srt-scope label { display:flex; align-items:center; gap:4px; font-size:12px; }
+.fixed-srt-scope select { max-width:170px; }
+.fixed-srt-scope[hidden] { display:none; }
+
+.player-stage.fixed-position-drag .JASSUB { visibility:hidden; }
+.player-stage.fixed-position-drag #fixed-subtitle-preview.positioning .fixed-subtitle-text { visibility:visible; }

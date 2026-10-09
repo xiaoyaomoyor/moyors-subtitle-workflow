@@ -14,6 +14,12 @@ const measure=row=>({width:300,height:row.cue.height});
 const layout=p=>P.layout(p,{measure});
 const entry=(l,id)=>l.entries.find(e=>e.cue_id===id);
 
+test('legacy presets derive pair spacing from the same settings displayed by the controls',()=>{
+  const p=project([cue('a',0,2000)],{multi_subtitle:{enabled:true,tracks:[{id:'zh',segments:[cue('b',0,2000)]}],bindings:[{track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b']}]}});
+  const style=S.presets()[1];p.preview={project_style:style};
+  const l=layout(p);assert.equal(entry(l,'b').y-entry(l,'a').y,40+S.pairSettings(style).gap);
+});
+
 test('only explicit bindings create bilingual display groups; opposite-role overlaps stay separate',()=>{
   const p=project([cue('a',0,2000)],{multi_subtitle:{enabled:true,tracks:[{id:'zh',segments:[cue('b',100,2100)]}],bindings:[]}});
   let l=layout(p);assert.equal(l.groups.length,2);assert.ok(entry(l,'b').y+40<=entry(l,'a').y-12);

@@ -75,11 +75,15 @@
     next.subtitle_assets = [...(next.subtitle_assets || []), ...copy(assets)];
     validate(next); return next;
   }
-  function insert(project, ids, anchor, targets = {}, normalize = c => c) {
+  function insert(project, ids, anchor, targets = {}, normalize = c => c, {subtitleTrackId=null} = {}) {
     const selected = new Set(ids), assets = (project.msw?.subtitle_assets || []).filter(a => selected.has(a.id));
     if (!assets.length) throw Error('请选择字幕素材');
     if (new Set(assets.map(a => a.source_id)).size > 1) throw Error('不同来源的字幕请分批放入时间线');
     if (!integer(anchor)) throw Error('插入位置无效');
+    const fixed=project.schema==='msw.project.v3',core=global.MSWSubtitleTracks;
+    const owners=fixed?core.ownerMap(project):null;
+    const owner=fixed?project.subtitle_tracks.tracks.find(t=>t.id===subtitleTrackId):null;
+    if(fixed&&(!owner||owner.locked))throw Error('请选择未锁定的目标字幕轨道');
     const next = copy(project), origin = Math.min(...assets.map(a => a.original_start));
     const tracks = new Map((next.multi_subtitle?.tracks || []).map(t => [t.id,t.segments])); tracks.set(null,next.segments);
     const rows = assets.map(a => {
@@ -95,7 +99,7 @@
     });
     const overlaps = (a,b) => a.start < b.end && b.start < a.end;
     for (const row of rows.filter(r => r.cue && !(project.schema === 'msw.project.v2' && project.subtitle_layers?.allow_overlap !== false))) {
-      if (tracks.get(row.track).some(c => overlaps(c,row.cue))) row.reason = '与现有字幕重叠';
+      if (tracks.get(row.track).some(c => overlaps(c,row.cue)&&(!fixed||owners.get(core.key({role:row.track===null?'main':'extension',track_id:row.track,cue_id:c.id}))===owner.id))) row.reason = '与现有字幕重叠';
       if (rows.some(r => r !== row && r.track === row.track && r.cue && overlaps(r.cue,row.cue))) row.reason = '所选字幕彼此重叠';
     }
     const accepted = rows.filter(r => r.cue && !r.reason);
@@ -111,6 +115,7 @@
       if (main.every(Boolean) && secondary.every(Boolean)) next.multi_subtitle.bindings.push({...copy(binding),id:p().id('binding'),
         track_id:secondary[0].track,main_segment_ids:main.map(r => r.cue.id),extension_segment_ids:secondary.map(r => r.cue.id)});
     }
+    if(fixed){core.reconcile(next,()=>owner.id);core.assertLocks(project,next);}
     return {project:next, count:accepted.length, rows:rows.map(r => ({id:r.id,text:r.asset.text,reason:r.reason}))};
   }
   function asrResults(ext,jobs) {

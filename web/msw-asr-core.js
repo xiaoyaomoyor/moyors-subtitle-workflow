@@ -9,7 +9,18 @@
     return Object.fromEntries(Object.keys(value).filter(key => !key.startsWith('_')).sort()
       .map(key => [key, canonical(value[key])]));
   }
-  const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range) && !(project.schema==='msw.project.v2' && project.subtitle_layers?.legacy_overlay?.visible===false && project.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)));
+  const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range) && !(['msw.project.v2','msw.project.v3'].includes(project.schema) && project.subtitle_layers?.legacy_overlay?.visible===false && project.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)));
+  function targetTrack(project,id) {
+    if(project.schema!=='msw.project.v3')return null;
+    const track=project.subtitle_tracks.tracks.find(t=>t.id===id)||(!id&&project.subtitle_tracks.tracks.find(t=>t.kind==='dialogue'&&t.enabled&&!t.locked));
+    if(!track||track.kind!=='dialogue'||track.locked||!track.enabled)throw Error('请选择已启用且未锁定的对白目标轨道');
+    return track;
+  }
+  function owned(project,cues,role,trackId,owner) {
+    if(project.schema!=='msw.project.v3'||!owner)return cues;
+    const index=global.MSWSubtitleTracks.createIndex(project);
+    return cues.filter(c=>index.trackFor({role,track_id:trackId,cue_id:c.id})?.id===owner);
+  }
   function boundaries(project,range,duration) {
     if (!range) return {crossing:[],expanded:null,canExpand:false};
     let start=range.start,end=range.end;
@@ -24,27 +35,29 @@
     }
     return {crossing,expanded:{start,end},canExpand:start>=0&&end<=duration};
   }
-  function secondarySnapshot(project,range) {
+  function secondarySnapshot(project,range,owner) {
     const track=project.multi_subtitle?.tracks?.[0];
-    return {track_id:track?.id || null,targets:(track?.segments || []).filter(c => overlaps(c,range)).map(canonical)};
+    return {track_id:track?.id || null,targets:owned(project,(track?.segments || []).filter(c => overlaps(c,range)),'extension',track?.id,owner).map(canonical)};
   }
-  function snapshot(project,media,mode,range) {
+  function snapshot(project,media,mode,range,subtitleTrackId=null) {
     if (!media || !media.revision || !media.metadata?.duration_ms || !media.metadata.audio_tracks?.length) throw Error('请先导入包含音轨的媒体');
+    const owner=targetTrack(project,subtitleTrackId);
     const duration=media.metadata.duration_ms;
     if (mode==='whole') range={start:0,end:duration};
     if (!['whole','range'].includes(mode)||!range||![range.start,range.end].every(Number.isSafeInteger)
       ||range.start<0||range.end>duration||range.end<=range.start) throw Error('请选择源媒体内的有效时间范围；未改为整段识别');
     return {project_id:project.msw.project_id,project_schema:project.schema,mode,range:clone(range),
       source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
-      secondary:secondarySnapshot(project,range),targets:affected(project,mode,range).map(canonical)};
+      ...(owner?{subtitle_track_id:owner.id,subtitle_track_name:owner.name}:{}),secondary:secondarySnapshot(project,range,owner?.id),targets:owned(project,affected(project,mode,range),'main',null,owner?.id).map(canonical)};
   }
-  function clipSnapshots(project,clips) {
+  function clipSnapshots(project,clips,subtitleTrackId=null) {
+    const owner=targetTrack(project,subtitleTrackId);
     if(!clips?.length)throw Error('请先选择音频贴片');
     return clips.map(clip=>{
       const asset=(project.msw.assets||[]).find(a=>a.id===clip.asset_id);
       if(!asset)throw Error('所选贴片缺少音频素材');
       const range={start:clip.start_ms,end:clip.start_ms+Math.max(1,Math.ceil((clip.source_out_sample-clip.source_in_sample)*1000/asset.sample_rate))};
-      return {project_id:project.msw.project_id,project_schema:project.schema,mode:'clips',range,secondary:secondarySnapshot(project,range),targets:affected(project,'range',range).map(canonical),
+      return {project_id:project.msw.project_id,project_schema:project.schema,mode:'clips',range,...(owner?{subtitle_track_id:owner.id,subtitle_track_name:owner.name}:{}),secondary:secondarySnapshot(project,range,owner?.id),targets:owned(project,affected(project,'range',range),'main',null,owner?.id).map(canonical),
         source:{kind:'clip',id:asset.id,revision:asset.sha256,name:clip.label||asset.generation.display_text,reference:'',audio_index:0,
           duration_ms:Math.ceil(asset.sample_count*1000/asset.sample_rate),
           clip:Object.fromEntries(['id','asset_id','start_ms','source_in_sample','source_out_sample','playback_rate'].map(k=>[k,clip[k]]))}};

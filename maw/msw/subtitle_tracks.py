@@ -1,4 +1,4 @@
-"""Fixed subtitle ownership (stage 2); not yet enabled in production consumers.
+"""Fixed subtitle ownership shared by editing, processing and rendering.
 
 Content stays in segments/multi_subtitle. A display track is not a language
 storage track, and changing ownership never changes a cue's stable identity.
@@ -36,6 +36,8 @@ def _position_valid(value):
 def _snapshot_valid(value):
     if not (isinstance(value, dict) and value.get("schema") == "msw.subtitle-style.v1"
             and all(isinstance(value.get(k), dict) for k in ("main", "secondary"))):
+        return False
+    if 'annotation' in value and (not isinstance(value['annotation'], dict) or 'annotation' in value['annotation'] or not _snapshot_valid(value['annotation'])):
         return False
     for role in ("main", "secondary"):
         style = value[role]

@@ -154,7 +154,7 @@ class MediaCacheTests(unittest.TestCase):
         # 避免 CI 的 8.3 短名 TEMP（RUNNER~1）拼写不一致。
         self.assertEqual(
             Path(result.reapeaks_path),
-            (cache_media.parent / '_msw' / (cache_media.name + '.quapeaks')).resolve(),
+            (cache_media.parent / (cache_media.stem + '_msw') / (cache_media.name + '.quapeaks')).resolve(),
         )
         # 退回派生文件后，缓存只能被派生文件接受，不能误用于源媒体。
         self.assertIsNotNone(quapeaks.load_waveform_payload(cache_media))
@@ -184,7 +184,7 @@ class MediaCacheTests(unittest.TestCase):
         self.assertIsNotNone(result.reapeaks_path)
         self.assertEqual(
             Path(result.reapeaks_path),
-            (source.parent / '_msw' / (source.name + '.quapeaks')).resolve(),
+            (source.parent / (source.stem + '_msw') / (source.name + '.quapeaks')).resolve(),
         )
         self.assertTrue(Path(result.reapeaks_path).exists())
         # server 从源媒体旁读取时，头部签名必须匹配

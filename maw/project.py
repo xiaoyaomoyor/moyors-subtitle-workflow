@@ -17,6 +17,8 @@ from maw.msw.subtitle_layers import SCHEMA as LAYER_PROJECT_SCHEMA, validate_lay
 # pyright: reportImplicitOverride=false
 
 PROJECT_SCHEMA: Final = "moy.asr.project.v1"
+TRACK_PROJECT_SCHEMA = "msw.project.v3"
+LAYERED_SCHEMAS = (LAYER_PROJECT_SCHEMA, TRACK_PROJECT_SCHEMA)
 MIN_SEGMENT_DURATION_MS = 100
 TIMELINE_TIMEBASE_UNITS = frozenset({"milliseconds", "frames"})
 MIN_TIMELINE_FPS = 1.0
@@ -141,7 +143,7 @@ def repair_project_timing_ranges(
         return 0
     main_segments = project.get("segments")
     repair = repair_segment_durations if repair_segment_ranges else repair_item_timing_ranges
-    if project.get("schema") == LAYER_PROJECT_SCHEMA and repair_segment_ranges:
+    if project.get("schema") in LAYERED_SCHEMAS and repair_segment_ranges:
         # Legal overlap belongs to different cues. Repair each cue independently.
         repair = lambda segments: sum(repair_segment_durations([segment]) for segment in segments)
     fixed = repair(main_segments) if isinstance(main_segments, list) else 0
@@ -203,8 +205,8 @@ class ProjectValidationFailed(ValueError):
 
 def project_schema_errors(project: Mapping[str, object]) -> tuple[ProjectValidationError, ...]:
     """Accept legacy projects without a discriminator, but never downgrade one."""
-    if "schema" in project and project["schema"] not in (PROJECT_SCHEMA, LAYER_PROJECT_SCHEMA):
-        return (ProjectValidationError("$.schema", f"must be {PROJECT_SCHEMA} or {LAYER_PROJECT_SCHEMA}"),)
+    if "schema" in project and project["schema"] not in (PROJECT_SCHEMA, *LAYERED_SCHEMAS):
+        return (ProjectValidationError("$.schema", f"must be {PROJECT_SCHEMA} or {LAYER_PROJECT_SCHEMA} or {TRACK_PROJECT_SCHEMA}"),)
     return ()
 
 
@@ -257,16 +259,22 @@ def _normalize_copy(project: JsonValue, errors: list[ProjectValidationError]) ->
         if not isinstance(segment, dict):
             errors.append(ProjectValidationError(path, "must be an object"))
             continue
-        _validate_segment(segment, path, None if normalized.get("schema") == LAYER_PROJECT_SCHEMA else previous_end, errors)
+        _validate_segment(segment, path, None if normalized.get("schema") in LAYERED_SCHEMAS else previous_end, errors)
         end = segment.get("end")
         if _valid_segment_time(segment) and _is_int_ms(end):
             previous_end = end
     _validate_head_refs(segments, errors)
-    if normalized.get("schema") == LAYER_PROJECT_SCHEMA:
+    if normalized.get("schema") in LAYERED_SCHEMAS:
         errors.extend(ProjectValidationError(path, message) for path, message in validate_layout(normalized))
     _validate_transcription_metadata(normalized, errors)
     _normalize_overlay_track(normalized, errors)
     _normalize_multi_subtitle(normalized, segments, errors)
+    if normalized.get("schema") == TRACK_PROJECT_SCHEMA:
+        from maw.msw.subtitle_tracks import validate
+        try:
+            validate(normalized)
+        except (ValueError, TypeError, KeyError) as error:
+            errors.append(ProjectValidationError("$.subtitle_tracks", str(error)))
     errors.extend(ProjectValidationError(path, message) for path, message in validate_preview(normalized))
     return normalized
 
@@ -583,7 +591,7 @@ def _normalize_multi_subtitle(
             if not isinstance(segment, dict):
                 errors.append(ProjectValidationError(segment_path, "must be an object"))
                 continue
-            _validate_extension_segment(segment, segment_path, None if project.get("schema") == LAYER_PROJECT_SCHEMA else previous_end, errors)
+            _validate_extension_segment(segment, segment_path, None if project.get("schema") in LAYERED_SCHEMAS else previous_end, errors)
             _validate_ref_pair(raw_segments, segment_index, segment_path, "color", "color_ref", errors)
             segment_id = segment.get("id")
             if isinstance(track_id, str) and _is_stable_id(segment_id):

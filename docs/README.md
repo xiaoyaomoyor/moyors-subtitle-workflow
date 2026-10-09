@@ -20,7 +20,8 @@
 
 ## 扩展与开发
 
-- [字幕轨道重设计提案](PLAN_SUBTITLE_TRACKS_20261009.md)：阶段 1–3 已实施，固定轨道编辑通过开发入口启用；画面排布与处理输出留到阶段 4–5，当前工程不自动升级。
+- [字幕轨道重设计](PLAN_SUBTITLE_TRACKS_20261009.md)：阶段 1–5 已实施；固定轨道默认启用，旧工程保留排布，首次保存升级前备份。
+- [固定轨道处理与输出验收](TEST_FEEDBACK_SUBTITLE_TRACK_FLOW_20261009.md)：识别／翻译／配音、组合预设、保存备份、SRT／ASS 和真实视频烧录。
 - [固定轨道迁移验收](TEST_FEEDBACK_SUBTITLE_TRACKS_20261009.md)：v3 契约、绑定整体分配、隐藏状态、原文件备份及旧版写入保护。
 - [固定轨道编辑验收](TEST_FEEDBACK_SUBTITLE_TRACK_EDIT_20261009.md)：开发入口、轨道头／换轨／筛选、切分合并、锁定及保存撤销回归。
 - [ASR 服务](PROVIDERS.md)、[本地 ASR](LOCAL_ASR.md)、[命令行](CLI.md)、[OCR](OCR_SUBTITLE_DEDUP.md)。

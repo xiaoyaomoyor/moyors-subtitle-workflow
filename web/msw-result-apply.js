@@ -7,16 +7,20 @@
   const overlap = (a,b) => a.start < b.end && b.start < a.end;
   const affected = (cues,ranges) => cues.filter(c => ranges.some(r => overlap(c,r)));
   const unique = cues => [...new Map(cues.map(c => [c.id,c])).values()].sort((a,b) => a.start-b.start || a.end-b.end);
-  const layered = project => project.schema === 'msw.project.v2';
+  const layered = project => ['msw.project.v2','msw.project.v3'].includes(project.schema);
   function targetChoices(project,jobs,target) {
-    const cues = target === 'main' ? project.segments : project.multi_subtitle?.tracks?.[0]?.segments || [];
+    const all = target === 'main' ? project.segments : project.multi_subtitle?.tracks?.[0]?.segments || [];
+    const ids=new Set(jobs.flatMap(j=>target==='main'?j.snapshot.targets:j.snapshot.secondary?.targets||[]).map(c=>c.id));
+    const cues=project.schema==='msw.project.v3'?all.filter(c=>ids.has(c.id)):all;
     const rows = unique(affected(cues,jobs.map(j=>j.snapshot.range))).filter(c=>!(target==='main'&&layered(project)&&project.subtitle_layers?.legacy_overlay?.visible===false&&project.subtitle_layers.legacy_overlay.cue_ids.includes(c.id)));
     let end = -1, ambiguous = false;
     for (const cue of rows) { if (cue.start < end) ambiguous = true; end = Math.max(end,cue.end); }
     return {rows,required:layered(project)&&ambiguous};
   }
   function crossing(project,jobs,target) {
-    const cues = target === 'main' ? project.segments : project.multi_subtitle?.tracks?.[0]?.segments || [];
+    const all = target === 'main' ? project.segments : project.multi_subtitle?.tracks?.[0]?.segments || [];
+    const ids=new Set(jobs.flatMap(j=>target==='main'?j.snapshot.targets:j.snapshot.secondary?.targets||[]).map(c=>c.id));
+    const cues=project.schema==='msw.project.v3'?all.filter(c=>ids.has(c.id)):all;
     const ranges = union(jobs.map(j => j.snapshot.range));
     return affected(cues,ranges).some(c => !ranges.some(r => c.start >= r.start && c.end <= r.end));
   }
@@ -64,6 +68,16 @@
   }
   function asr(project,media,jobs,target,strategy,previous,{targetIds}={}) {
     jobs.forEach(j => sourceGuard(project,media,j));
+    if(project.schema==='msw.project.v3') {
+      const owner=jobs[0].snapshot.subtitle_track_id, core=global.MSWSubtitleTracks, index=core.createIndex(project);
+      const track=project.subtitle_tracks.tracks.find(t=>t.id===owner);
+      if(!track||track.locked||track.kind!=='dialogue'||jobs.some(j=>j.snapshot.subtitle_track_id!==owner))throw Error('识别目标轨道已删除、锁定或改变，请重新识别');
+      for(const job of jobs)for(const [role,storage,cues] of [['main',null,job.snapshot.targets],['extension',job.snapshot.secondary?.track_id,job.snapshot.secondary?.targets||[]]])
+        for(const cue of (previous&&role===(target==='main'?'main':'extension')?previous.state.targets:cues)) {
+          const row=index.resolve({role,track_id:storage,cue_id:cue.id});
+          if(row && index.trackFor(row)?.id!==owner || !row && role===(target==='main'?'main':'extension'))throw Error('识别目标字幕已换轨或删除，请重新识别');
+        }
+    }
     const ranges=union(jobs.map(j => j.snapshot.range));
     const multi=project.multi_subtitle ||= {schema:'moy.asr.multi_subtitle.v1',enabled:false,display_mode:'both',tracks:[],bindings:[]};
     const track=multi.tracks[0];
@@ -130,7 +144,7 @@
     const result=[...survivors,...inserted].sort((a,b) => a.start-b.start || a.end-b.end);
     const newIds=new Set(inserted.map(c => c.id));
     for(let i=1;!layered(project)&&i<result.length;i++) if((newIds.has(result[i].id)||newIds.has(result[i-1].id)) && result[i].start<result[i-1].end) throw Error('结果与范围外字幕重叠');
-    if(layered(project)&&project.subtitle_layers?.allow_overlap===false) {
+    if(project.schema==='msw.project.v2'&&project.subtitle_layers?.allow_overlap===false) {
       for(const cue of inserted) {
         if(inserted.some(other=>other!==cue&&overlap(cue,other)) || survivors.some(other=>overlap(cue,other)
             && !old.some(source=>targetSet.has(source.id)&&overlap(source,other)))) {
@@ -168,7 +182,7 @@
       multi.bindings=multi.bindings.filter(b => b.track_id!==dest.id || !b.extension_segment_ids.some(id => removed.has(id)));
       for(const cue of inserted) {
         const matches=project.segments.filter(c => c.start===cue.start&&c.end===cue.end);
-        if(matches.length===1 && !multi.bindings.some(b => b.main_segment_ids.includes(matches[0].id))) multi.bindings.push({
+        if(project.schema!=='msw.project.v3' && matches.length===1 && !multi.bindings.some(b => b.main_segment_ids.includes(matches[0].id))) multi.bindings.push({
           id:global.MSWProject.id('binding'),track_id:dest.id,main_segment_ids:[matches[0].id],extension_segment_ids:[cue.id],start_offset_ms:0,end_offset_ms:0});
         if(Object.hasOwn(project.msw.asr_stale_subtitles||{},dest.id))delete project.msw.asr_stale_subtitles[dest.id][cue.id];
       }
@@ -215,18 +229,31 @@
         if(cue&&color)cue.color={...copy(color),start:cue.start,end:cue.end};
       }
     }
+    if(project.schema==='msw.project.v3')global.MSWSubtitleTracks.reconcile(project,row=>{
+      const binding=project.multi_subtitle?.bindings.find(b=>b.track_id===row.track_id&&b.extension_segment_ids.includes(row.cue_id));
+      return input.entries.find(e=>e.source.id===binding?.main_segment_ids[0])?.subtitle_track_id;
+    });
     const selection={mainIds:input.entries.map(e => e.source.id),hasSelection:true};
     return {sources:input.entries.map(e => copy(project.segments.find(c => c.id===e.source.id))),snapshot:global.MSWTranslation.snapshot(project,selection)};
   }
   function plan(source,media,jobs,target,strategy,options={}) {
     if(!['main','secondary'].includes(target)||!jobs.length||jobs.some(j => j.status!=='succeeded'||j.project_id!==source.msw.project_id)) throw Error('候选结果不属于当前工程或尚未完成');
     // Waveform/spectral caches can be very large and are not part of this transaction.
-    const project={...source,segments:copy(source.segments),multi_subtitle:copy(source.multi_subtitle),msw:copy(source.msw)},batch=global.MSWResults.record(project.msw,jobs[0]);
+    const project={...source,segments:copy(source.segments),multi_subtitle:copy(source.multi_subtitle),subtitle_tracks:copy(source.subtitle_tracks),subtitle_layers:copy(source.subtitle_layers),msw:copy(source.msw)},batch=global.MSWResults.record(project.msw,jobs[0]);
     const revision=global.MSWResults.revision(jobs), previous=batch.applications[target];
     if(previous?.revision===revision) return {duplicate:true};
     if(!previous && !batch.edits.length && jobs.every(j=>project.msw.applied_results?.includes(j.id)
       && (j.kind==='asr' ? target==='main' : target===(j.snapshot.output_mode==='replace_main'?'main':'secondary'))))return {duplicate:true};
     const state=jobs[0].kind==='asr' ? asr(project,media,jobs,target,strategy,previous,options) : translation(project,jobs,target,batch);
+    if(source.schema==='msw.project.v3') {
+      const core=global.MSWSubtitleTracks, owners=core.ownerMap(source);
+      core.reconcile(project,row=> {
+        if(jobs[0].kind==='asr')return jobs[0].snapshot.subtitle_track_id;
+        const binding=project.multi_subtitle?.bindings.find(b=>b.track_id===row.track_id&&b.extension_segment_ids.includes(row.cue_id));
+        return binding&&owners.get(core.key({role:'main',track_id:null,cue_id:binding.main_segment_ids[0]}));
+      });
+      core.assertLocks(source,project);
+    }
     batch.applications[target]={revision,state};
     return {project,count:jobs.reduce((n,j) => n+global.MSWResults.rows(j).length,0)};
   }

@@ -6,6 +6,20 @@ const context={window:{},TextEncoder,TextDecoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const S=context.window.MSWProjectStyle,U=context.window.AsrEditorUtils;
 
+test('combined presets preserve annotation bases while old presets preserve project annotation overrides',()=>{
+  const base=S.defaults(),annotation=S.defaults();annotation.main.fontSize=29;
+  const project={preview:{project_style:base},subtitle_tracks:{tracks:[{kind:'dialogue',style:{mode:'inherit'}},{kind:'annotation',position:{x:.2,y:.1},style:{mode:'snapshot',value:annotation}}]}};
+  const preset=S.presetSnapshot(project,annotation,'annotation');
+  assert.equal(preset.main.fontSize,48);assert.equal(preset.annotation.main.fontSize,29);
+  assert.equal(S.forKind(preset,'annotation').main.fontSize,29);
+  const old=JSON.parse(JSON.stringify(project));S.applyPreset(old,S.presets()[1]);
+  assert.equal(old.subtitle_tracks.tracks[1].style.value.main.fontSize,29);
+  preset.annotation.main.fontSize=35;S.applyPreset(project,preset);
+  assert.equal(project.subtitle_tracks.tracks[1].style.value.main.fontSize,35);
+  assert.equal(project.subtitle_tracks.tracks[1].position.x,.2);
+  assert.throws(()=>S.normalize({...base,annotation:{...annotation,annotation}}),/基础样式/);
+});
+
 test('new projects use zero pair spacing without rewriting existing or legacy geometry',()=>{
   const fresh={};S.migrate(fresh,{},{});
   assert.equal(fresh.preview.project_style.pairLayout.gap,0);

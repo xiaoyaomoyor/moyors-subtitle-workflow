@@ -48,7 +48,8 @@
     });
   }
   async function fonts(style) {
-    const families=[style.main.fontName,style.secondary.fontName],fontKey=JSON.stringify(families);
+    const familyNames=s=>[s.main.fontName,s.secondary.fontName,s.annotation?.main.fontName,s.annotation?.secondary.fontName];
+    const families=[...new Set([...familyNames(style),...(host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
     if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
     const manifest=await fontManifests.get(fontKey);
     const bytes=await Promise.all(manifest.fonts.map(async item=>{
@@ -59,7 +60,7 @@
   }
   function signature(preview) {
     return JSON.stringify([host.generation,mediaSource(host.player),preview,host.player.videoWidth,host.player.videoHeight,
-      host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.subtitleRenderSettings()]);
+      host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()]);
   }
   async function update() {
     syncBadge();
@@ -76,7 +77,7 @@
     pending=true;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
     try {
-      const project=host.exportProject();global.MSWProjectStyle.apply(project,preview.style);
+      const project=host.exportProject();if(preview.scope==='proof'||preview.other)global.MSWProjectStyle.applyPreset(project,preview.style,{proof:preview.scope==='proof'});else global.MSWProjectStyle.apply(project,preview.style);
       for(const field of ['waveform','spectral','waveform_reapeaks','workspace'])delete project[field];
       const [payload,loaded,mod]=await Promise.all([
         styles.request('subtitle-preview',{project,target:preview.target,video:{width:host.player.videoWidth,height:host.player.videoHeight}}),
@@ -108,12 +109,13 @@
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
       stage.dataset.subtitleRenderer='libass';
+      if(payload.geometry?.length)global.fixedReceiveGeometry?.(payload.geometry);
       badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'');
       badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。';
     } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
-  function invalidate(){syncBadge();key='';clearTimeout(timer);timer=setTimeout(update,100);}
+  function invalidate(){syncBadge();key='';clearTimeout(timer);timer=setTimeout(()=>{timer=undefined;void update();},100);}
   global.addEventListener('msw:player-changed',observePlayer);
   global.addEventListener('msw:project-changed',resetMedia);
   for(const name of ['msw:media-changed','msw:subtitles-changed','msw:burn-style'])global.addEventListener(name,invalidate);
@@ -121,6 +123,6 @@
   // Existing editing paths do not all dispatch an event; compare state without
   // rebuilding an ASS document or starting a network request unless it changed.
   setInterval(()=>{if(!document.hidden)void update();},750);
-  global.MSWSubtitleRenderer={invalidate,repaint,get renderer(){return renderer;},get pending(){return pending||again;},get status(){return stage.dataset.subtitleRenderer;}};
+  global.MSWSubtitleRenderer={invalidate,repaint,get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
 })(window);

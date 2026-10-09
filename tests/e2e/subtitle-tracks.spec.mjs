@@ -31,7 +31,7 @@ test('portable build includes fixed ownership codec and migration survives JSON 
   expect(result[2].tracks).toBe(1);
 });
 
-test('normal editor still saves v2 and rejects v3 input, drop and restore without changing current edits', async ({ page }) => {
+test('normal editor saves v3 and rejects future input, drop and restore without changing current edits', async ({ page }) => {
   page.on('dialog', dialog => dialog.accept());
   const old = { segments: [{ id: 'keep', start: 0, end: 2000, text: '保留当前工程' }] };
   await page.locator('#open-project-file').setInputFiles({ name: 'original.mosp', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(old)) });
@@ -39,8 +39,8 @@ test('normal editor still saves v2 and rejects v3 input, drop and restore withou
   await page.locator('.cue[data-idx="0"]').first().click();
   await page.locator('#cue-panel-text').fill('保留尚未保存的修改');
   const before = await page.evaluate(() => window.MSWE.resolve('persistence-host').snapshot());
-  expect(before.schema).toBe('msw.project.v2');
-  const future = await page.evaluate(p => window.MSWSubtitleTracks.migrate(p), before);
+  expect(before.schema).toBe('msw.project.v3');
+  const future = {...before,schema:'msw.project.v4'};
   await page.locator('#open-project-file').setInputFiles({ name: 'v3.mosp', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(future)) });
   await expect(page.locator('#hint-stack')).toContainText('版本不受支持');
   expect(await page.evaluate(() => MSWE.resolve('persistence-host').snapshot())).toEqual(before);
@@ -65,9 +65,9 @@ test('normal editor still saves v2 and rejects v3 input, drop and restore withou
   const download = page.waitForEvent('download');
   await page.evaluate(() => MSWE.resolve('persistence-host').downloadLocal(null, 'normal.mosp'));
   const saved = JSON.parse(readFileSync(await (await download).path(), 'utf8'));
-  expect(saved.schema).toBe('msw.project.v2');
+  expect(saved.schema).toBe('msw.project.v3');
   expect(saved.segments).toEqual(before.segments);
-  expect(saved).not.toHaveProperty('subtitle_tracks');
+  expect(saved.subtitle_tracks).toEqual(before.subtitle_tracks);
 });
 
 test('stale browser file handles cannot overwrite a newer fixed-track file from v1 or v2 mode', async ({ page }) => {

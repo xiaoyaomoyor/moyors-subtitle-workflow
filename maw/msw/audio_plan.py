@@ -135,6 +135,10 @@ def compile_plan(project, raw_options=None):
     if (project.get('multi_subtitle') or {}).get('enabled') is True:
         for track in project['multi_subtitle'].get('tracks', []):
             subtitle_segments.extend(c for c in track.get('segments', []) if not layered or not c.get('disabled'))
+    if project.get('schema')=='msw.project.v3':
+        from maw.msw.subtitle_tracks import TrackIndex
+        subtitle_segments=[r['cue'] for r in TrackIndex(project).records(include_disabled=False)
+                           if r['role']=='main' or (project.get('multi_subtitle') or {}).get('enabled')]
     duration = max([o["duration_ms"], *[s["end"] for s in subtitle_segments],
                     *[math.ceil(clip_end(c, assets[c["asset_id"]])) for c in clips]])
     integer(duration, 1, MAX_MS, "没有有效的音频导出范围，或工程超过 12 小时")

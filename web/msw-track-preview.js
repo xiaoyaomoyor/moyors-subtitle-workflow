@@ -1,5 +1,9 @@
 // Fixed-track browser presentation. Geometry is in video-content 1080p units.
 let fixedPreviewCache = null;
+let fixedExactGeometry = null;
+let fixedGeometrySerial=0;
+function fixedGeometryKey() { return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,window.MSWSubtitleStyle?.currentPreview(),getSpeakerLabelSettings()]); }
+function fixedReceiveGeometry(geometry) { fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;refreshSubtitlePreview(); }
 const fixedTextMeasures = new Map();
 let fixedMeasureRoot = null;
 let fixedStyleTrackId = '';
@@ -60,10 +64,22 @@ function fixedMeasureText(row, projectStyle, width) {
 }
 function fixedPreviewLayout(rect=fixedVideoRect()) {
   const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'?preview.style:null;
-  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,DATA.preview?.project_style,getSpeakerLabelSettings()]);
+  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,DATA.preview?.project_style,getSpeakerLabelSettings(),fixedExactGeometry?.serial]);
   if(!fixedPreviewCache||fixedPreviewCache.key!==key) {
     const layout=window.MSWTrackPresentation.layout(DATA,{width:rect.referenceWidth,languageId:getActiveExtensionTrack()?.id,
       measure:fixedMeasureText,resolveStyle:track=>window.MSWTrackPresentation.styleFor(DATA,track,proof)});
+    if(fixedExactGeometry?.key===fixedGeometryKey()) {
+      const measured=new Map(fixedExactGeometry.rows.map(r=>[r.key,r]));
+      for(const entry of layout.entries) {
+        const exact=measured.get(entry.key);if(!exact)continue;
+        Object.assign(entry,{x:exact.x,y:exact.y,width:exact.width,height:exact.height});
+      }
+      for(const group of layout.groups) {
+        const rows=layout.entries.filter(e=>e.group===group);if(!rows.length)continue;
+        group.x=Math.min(...rows.map(r=>r.x));group.y=Math.min(...rows.map(r=>r.y));
+        group.width=Math.max(...rows.map(r=>r.x+r.width))-group.x;group.height=Math.max(...rows.map(r=>r.y+r.height))-group.y;
+      }
+    }
     fixedPreviewCache={key,layout,index:new layerCore.IntervalIndex(layout.entries.map(e=>e.cue))};
   }
   return fixedPreviewCache;
@@ -82,6 +98,7 @@ function fixedRefreshSubtitlePreview(tMs) {
   root.hidden=false;
   Object.assign(root.style,{left:rect.left+'px',top:rect.top+'px',width:rect.referenceWidth+'px',height:'1080px',transform:`scale(${rect.height/1080})`});
   root.classList.toggle('positioning',fixedPositionEditing);
+  playerStage.classList.toggle('fixed-position-drag',!!fixedPositionDrag);
   const {layout,index}=fixedPreviewLayout(rect), allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),
     extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
   const active=index.at(tMs).map(i=>layout.entries[i]).filter(e=>allowed[e.role]);

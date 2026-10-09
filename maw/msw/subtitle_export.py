@@ -16,13 +16,19 @@ def mapped_subtitles(project, plan, *, include_styles=False):
         if not tracks:
             groups.append(('副字幕', []))
         groups.append(('叠加字幕', overlay.get('segments', [])))
+    visible_refs=None
+    if project.get('schema')=='msw.project.v3':
+        from maw.msw.subtitle_tracks import TrackIndex
+        track_index=TrackIndex(project)
+        visible_refs={(r['role'],r['track_id'],r['cue_id']) for r in track_index.records(include_disabled=False)}
     result = []
     ends = [k['end_ms'] for k in plan['intervals']]
     from maw.msw.subtitle_presentation import visible
     for group_index, (name, segments) in enumerate(groups):
         cues = []
         for s in segments:
-            if s.get('disabled') or (group_index == 0 and project.get('schema') == 'msw.project.v2' and not visible(project, s)):
+            if visible_refs is not None and ('main' if group_index==0 else 'extension',None if group_index==0 else tracks[group_index-1]['id'],s['id']) not in visible_refs:continue
+            if s.get('disabled') or (group_index == 0 and project.get('schema') in ('msw.project.v2','msw.project.v3') and not visible(project, s)):
                 continue
             for index in range(bisect_right(ends, s['start']), len(ends)):
                 k = plan['intervals'][index]
@@ -32,8 +38,13 @@ def mapped_subtitles(project, plan, *, include_styles=False):
                 if hi > lo:
                     cue = dict(start=k['output_start_ms'] + lo - k['start_ms'],
                                end=k['output_start_ms'] + hi - k['start_ms'], text=s.get('text', ''))
-                    if project.get('schema') == 'msw.project.v2':
+                    if project.get('schema') in ('msw.project.v2','msw.project.v3'):
                         cue['id'] = s['id']
+                    if visible_refs is not None:
+                        owner=track_index.track_for(dict(role='main' if group_index==0 else 'extension',track_id=None if group_index==0 else tracks[group_index-1]['id'],cue_id=s['id']))
+                        cue['subtitle_track_id']=owner['id']
+                        cue['subtitle_track_name']=owner['name']
+                        cue['subtitle_kind']=owner['kind']
                     if include_styles:
                         head = (s.get('color_ref') or {}).get('headIdx')
                         color = s.get('color') or ((segments[head].get('color') or {})
@@ -60,7 +71,7 @@ def burning_cues(project, plan, target):
     selected = groups[:1] if target == 'main' else groups[1:2] if target == 'secondary' else groups[:2]
     if (project.get('overlay_track') or {}).get('enabled') is True:
         selected = [groups[-1], *selected]
-    if project.get('schema') == 'msw.project.v2':
+    if project.get('schema') in ('msw.project.v2','msw.project.v3'):
         order = {c['id']: i for i, c in enumerate(project.get('segments', []))}
         bound = {ext: b['main_segment_ids'][0] for b in (project.get('multi_subtitle') or {}).get('bindings', []) for ext in b.get('extension_segment_ids', []) if b.get('main_segment_ids')}
         rows = [(role, c) for role, group in enumerate(groups[:2]) for c in group[1] if target == 'both' or (target == 'main' and role == 0) or (target == 'secondary' and role == 1)]

@@ -101,7 +101,7 @@
     if(mode==='clips'&&snapshot)el('source').textContent+=` · ${(snapshot.reduce((sum,item)=>sum+item.range.end-item.range.start,0)/1000).toFixed(3)} s`;
     const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
-    el('scope').textContent=issue||(!ready?t(readinessMessage()):snapshot.map(item=>`${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
+    el('scope').textContent=issue||(!ready?t(readinessMessage()):snapshot.map(item=>`${item.subtitle_track_name?item.subtitle_track_name+' · ':''}${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
     el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
     el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
@@ -109,10 +109,24 @@
     for (const input of document.querySelectorAll('#msw-asr-settings input,#msw-asr-settings select,#msw-asr-settings textarea,#msw-asr-environment-fields input,#msw-asr-environment-fields select')) input.disabled=busy||Boolean(loading);
     return snapshot;
   }
+  function targetTrack() {
+    if(host.data.schema!=='msw.project.v3')return null;
+    let select=el('target-track');
+    if(!select) {
+      const label=document.createElement('label');label.className='msw-field';label.textContent='目标对白轨道';
+      select=document.createElement('select');select.id='msw-asr-target-track';select.setAttribute('aria-label','目标对白轨道');
+      label.append(select);el('scope').before(label);select.addEventListener('change',()=>updateScope());
+    }
+    const tracks=host.data.subtitle_tracks.tracks.filter(t=>t.kind==='dialogue'&&t.enabled&&!t.locked);
+    const previous=select.value||host.subtitleTargetTrack?.();
+    select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
+    if(tracks.some(t=>t.id===previous))select.value=previous;
+    return select.value;
+  }
   function snapshots() {
     const mode=el('mode').value,selection=mode==='range'?ranges?.ranges:[];
-    if(mode==='clips')return global.MSWAsr.clipSnapshots(host.data,global.MSWE.resolve('audio-timeline')?.selectedClips());
-    return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range));
+    if(mode==='clips')return global.MSWAsr.clipSnapshots(host.data,global.MSWE.resolve('audio-timeline')?.selectedClips(),targetTrack());
+    return (selection?.length?selection:[null]).map(range=>global.MSWAsr.snapshot(host.data,media.current,mode,range,targetTrack()));
   }
   async function submit() {
     if (busy) return;
@@ -166,12 +180,12 @@
             const snap=result.job.snapshot, clips=host.data.msw?.audio_clips||[], clip=clips.find(c=>c.id===snap.source.clip.id);
             if(host.data.msw?.project_id!==job.project_id||!clip||Object.keys(snap.source.clip).some(k=>clip[k]!==snap.source.clip[k])
               ||host.data.msw.assets.find(a=>a.id===snap.source.id)?.sha256!==snap.source.revision)throw Error('贴片已改变，请重新选择识别范围');
-            snapshot=global.MSWAsr.clipSnapshots(host.data,[clip])[0];el('mode').value='clips';
+            snapshot=global.MSWAsr.clipSnapshots(host.data,[clip],result.job.snapshot.subtitle_track_id)[0];el('mode').value='clips';
           } else {
             if (host.data.msw?.project_id!==job.project_id||media.current?.revision!==result.job.snapshot.source.revision
               ||media.current?.audio_index!==result.job.snapshot.source.audio_index) throw Error('媒体已改变，请重新选择识别范围');
             el('mode').value=result.job.snapshot.mode;ranges.setRange(result.job.snapshot.range);
-            snapshot=global.MSWAsr.snapshot(host.data,media.current,result.job.snapshot.mode,result.job.snapshot.range);
+            snapshot=global.MSWAsr.snapshot(host.data,media.current,result.job.snapshot.mode,result.job.snapshot.range,result.job.snapshot.subtitle_track_id);
           }
           submission=[{...media.payload(),client_token:token(),kind:'asr',request_key:global.MSWProject.id('asr-request'),snapshot,provider:providerInput()}];
           batchSubmission=false;retrySource=job.id;el('history').open=true;await submit();

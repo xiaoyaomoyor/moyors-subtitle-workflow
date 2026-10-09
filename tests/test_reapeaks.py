@@ -391,7 +391,7 @@ class GenerateReapeaksTests(unittest.TestCase):
     def test_generate_for_media_writes_and_reuses(self) -> None:
         # 生产端（generate_for_media / waveform_dirs）会把路径 resolve 成长名，
         # 期望值按同一口径展开，避免 CI 的 8.3 短名 TEMP（RUNNER~1）拼写不一致。
-        target = (self.root / "_msw" / "tone.wav.quapeaks").resolve()
+        target = (self.root / "tone_msw" / "tone.wav.quapeaks").resolve()
         self.assertFalse(target.exists())
         generated = quapeaks.generate_for_media(self.tone_path)
         self.assertEqual(generated, target)
@@ -417,7 +417,7 @@ class GenerateReapeaksTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg is required")
     def test_generate_for_media_rebuilds_wave_only_cache_when_spectral_is_requested(self) -> None:
-        target = self.root / "_msw" / "tone.wav.quapeaks"
+        target = self.root / "tone_msw" / "tone.wav.quapeaks"
         quapeaks.generate_for_media(self.tone_path, include_spectral=False)
         self.assertFalse(quapeaks.ReapeaksFile(str(target)).spectral_mipmaps())
 

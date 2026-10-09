@@ -142,13 +142,10 @@ class SubtitleTracksIOTests(unittest.TestCase):
                 self.assertEqual(self.path.read_bytes(), raw)
                 self.assertFalse(list(self.path.parent.glob(".msw-tracks-backup-*.mosp")))
 
-    def test_invalid_save_fails_before_backup_and_current_pipeline_rejects_v3(self):
+    def test_invalid_save_fails_before_backup_and_production_accepts_valid_v3(self):
         doc = codec.read_project(self.path)
-        self.assertFalse(validate_project(doc.project).ok)
-        with self.assertRaises(ValueError):
-            serialize_mosp(doc.project)
-        with self.assertRaises(ValueError):
-            write_mosp(self.path, doc.project)
+        self.assertTrue(validate_project(doc.project).ok)
+        self.assertEqual(json.loads(serialize_mosp(doc.project))["subtitle_tracks"], doc.project["subtitle_tracks"])
         doc.project["subtitle_tracks"]["assignments"].clear()
         with self.assertRaises(ValueError):
             codec.save_project(doc)
@@ -159,7 +156,7 @@ class SubtitleTracksIOTests(unittest.TestCase):
         saved = codec.save_project(codec.read_project(self.path))
         for source in (self.source, layers.migrate_project(self.source)):
             with self.subTest(schema=source.get("schema")):
-                with self.assertRaisesRegex(ValueError, "版本不兼容"):
+                with self.assertRaisesRegex(ValueError, "不能用旧版结构"):
                     write_mosp(self.path, source)
                 self.assertEqual(self.path.read_bytes(), saved.document.original)
 

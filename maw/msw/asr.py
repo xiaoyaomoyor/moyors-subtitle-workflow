@@ -46,11 +46,14 @@ def validate_snapshot(raw):
         raise ValueError('ASR 目标字幕快照过大或无效')
     from maw.msw.subtitle_layers import SCHEMA, migrate_project
     schema = raw.get('project_schema')
-    if schema not in (None, 'moy.asr.project.v1', SCHEMA):
+    if schema not in (None, 'moy.asr.project.v1', SCHEMA, 'msw.project.v3'):
         raise ValueError('ASR 工程快照版本无效')
+    owner=raw.get('subtitle_track_id')
+    if schema == 'msw.project.v3' and not valid_cue_id(owner):
+        raise ValueError('识别快照缺少目标对白轨道')
     def validate_targets(cues):
         body = {'segments': cues}
-        return normalize_project(migrate_project(body) if schema == SCHEMA else body)
+        return normalize_project(migrate_project(body) if schema in (SCHEMA, 'msw.project.v3') else body)
     normalized = validate_targets([{key: copy.deepcopy(cue[key]) for key in
         ('id', 'start', 'end', 'text', 'items', 'disabled', 'start_frame', 'end_frame') if key in cue}
         for cue in targets])['segments']
@@ -63,7 +66,7 @@ def validate_snapshot(raw):
         validate_targets([{key: copy.deepcopy(cue[key]) for key in
             ('id', 'start', 'end', 'text', 'items', 'disabled', 'start_frame', 'end_frame') if key in cue}
             for cue in secondary['targets']])
-    return {'project_id': raw['project_id'], **({'project_schema': schema} if schema else {}), 'source': {key: copy.deepcopy(source[key]) for key in
+    return {**({'subtitle_track_id':owner,'subtitle_track_name':str(raw.get('subtitle_track_name',''))[:160]} if owner else {}), 'project_id': raw['project_id'], **({'project_schema': schema} if schema else {}), 'source': {key: copy.deepcopy(source[key]) for key in
             ('id', 'revision', 'reference', 'name', 'audio_index', 'duration_ms', 'kind', 'clip') if key in source},
             **({'batch_id': batch_id} if batch_id else {}), **({'secondary': copy.deepcopy(secondary)} if secondary is not None else {}), 'batch_overlap': raw.get('batch_overlap') is True,
             'range': {'start': span['start'], 'end': span['end']}, 'mode': mode, 'targets': copy.deepcopy(targets)}

@@ -233,6 +233,30 @@ class VideoRenderTests(unittest.TestCase):
             self.export(burn_subtitles='secondary')
         self.assertFalse((self.root / 'result.mp4').exists())
 
+    def test_fixed_dialogue_annotation_and_audio_share_gap_removed_video_timeline(self):
+        from maw.msw.subtitle_tracks import migrate_project, TrackIndex
+        from maw.project_subtitle_style import builtin_presets
+        self.project['segments']=[dict(id='a',start=0,end=4000,text='DIALOGUE'),dict(id='note',start=0,end=4000,text='ANNOTATION')]
+        self.project['schema']='msw.project.v2'
+        self.project['subtitle_layers']=dict(schema='msw.subtitle_layers.v1',allow_overlap=True,legacy_overlay=dict(visible=True,cue_ids=[]))
+        self.project=migrate_project(self.project)
+        self.project['subtitle_tracks']['presentation']='fixed'
+        index=TrackIndex(self.project)
+        index.track_for(dict(role='main',track_id=None,cue_id='note')).update(kind='annotation',position=dict(x=.5,y=.1))
+        self.project['preview']=dict(project_style=builtin_presets()[0])
+        self.project['gap_remove']=dict(gaps=[dict(start=1000,end=2000,removed=True)])
+        self.project['msw']['audio_settings']=dict(gap_policy='follow')
+        from maw.msw.subtitle_style import styled_ass
+        documents=[]
+        def compile_ass(*args,**kwargs):
+            value=styled_ass(*args,**kwargs);documents.append(value);return value
+        with patch('maw.msw.video_render.styled_ass',side_effect=compile_ass):
+            result,plan,output=self.export(remove_gaps=True,burn_subtitles='main',video_encoding='cpu')
+        self.assertEqual(plan['sample_count'],144000)
+        self.assertTrue(output.is_file())
+        self.assertTrue(any('ANNOTATION' in doc and 'DIALOGUE' in doc and r'\pos(' in doc for doc in documents))
+        self.assertEqual(result['burn_subtitles'],'main')
+
     def test_no_audio_can_align_to_video_but_not_to_audio(self):
         self.project['msw']['audio_clips'] = []
         with self.assertRaisesRegex(ValueError,'没有音频内容'):

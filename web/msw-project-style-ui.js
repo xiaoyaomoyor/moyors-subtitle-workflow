@@ -94,7 +94,8 @@
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
   const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
-  const same=(a,b)=>JSON.stringify({...S.normalize(a),name:''})===JSON.stringify({...S.normalize(b),name:''});
+  const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedStyleTarget().kind):S.normalize(s);
+  const same=(a,b)=>JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
   const persistProof=()=>{try{localStorage.setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
@@ -223,7 +224,7 @@
     const selection=$('style-project-preset').value;
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const preset=selection==='inherit'?projectStyle():selection==='current'?(track?(track.style.custom||value()):(host.data.preview?.project_style_custom||projectStyle())):find(selection);
-    if(!preset){rebuild();return;}cancelAction();change(preset,selection);
+    if(!preset){rebuild();return;}cancelAction();change(track?S.forKind(preset,track.kind):preset,selection);
   };
   $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
   $('style-transform-preset').onchange=()=>{
@@ -256,10 +257,10 @@
     event.preventDefault();const action=pendingAction;if(action?.kind!=='save'||saving)return;
     const name=$('style-preset-name').value.trim();if(!name){$('style-preset-name').focus();message('请输入预设名称',true);return;}
     if(all().some(s=>s.name===name)){message('已有同名预设，请使用新名称',true);return;}
-    const preset={...S.normalize(value()),name,id:global.MSWProject.id('style')};
+    const preset={...S.presetSnapshot(host.data,value(),fixedTrackMode()?fixedStyleTarget()?.kind:'dialogue'),name,id:global.MSWProject.id('style')};
     const savedStyle=S.normalize(value());
     const target=fixedStyleTrackId;
-    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(value(),preset.id,'另存为字幕预设');message('预设已保存；已应用到工程的样式不受影响。');$('style-save-as').focus();});
+    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedStyleTarget().kind):preset,preset.id,'另存为字幕预设');message('预设已保存；包含对白和画面文字基础样式。');$('style-save-as').focus();});
   };
   $('style-delete-preset').onclick=()=>{
     const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};
@@ -275,7 +276,7 @@
     const opened=exportPanel.getAttribute('aria-hidden')==='false',target=$('video-export-burn-subtitles').value;
     const enabled=opened&&target!=='none',other=$('video-export-style-source').value!=='project';
     $('video-export-style-choice').hidden=target==='none';
-    override=enabled?{style:S.normalize(other?(exportPreset()||S.defaults()):projectStyle()),target,label:other?(exportPreset()?.name||'默认白字'):'工程样式'}:null;
+    override=enabled?{style:S.normalize(other?(exportPreset()||S.defaults()):projectStyle()),target,other,label:other?(exportPreset()?.name||'默认白字'):'工程样式'}:null;
     refresh();
   }
   for(const id of ['video-export-burn-subtitles','video-export-style-source'])$(id).addEventListener('change',syncExport);
@@ -294,7 +295,7 @@
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
       const other=$('video-export-style-source').value!=='project';
-      S.apply(project,(other?exportPreset():projectStyle())||S.defaults());
+      if(other)S.applyPreset(project,exportPreset()||S.defaults());else S.apply(project,projectStyle());
     },
     get ready(){return ready;},get error(){return loadError;},request};
   async function initialize() {
