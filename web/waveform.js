@@ -1903,7 +1903,10 @@
         saveSettings(this.settings); this.refreshSourceGainDisplay();
       });
       window.addEventListener('msw:source-gain', () => this.refreshSourceGainDisplay());
-      document.addEventListener('mawe:languagechange', () => this.refreshMediaReadout());
+      document.addEventListener('mawe:languagechange', () => {
+        this.refreshMediaReadout();
+        this.renderWaveformScaleLabel();
+      });
       window.addEventListener('msw:project-changed', () => { this.resetWaveformLoading(); queueMicrotask(() => this.refreshSourceGainDisplay()); });
       this.pane.addEventListener('pointerdown', () => {
         this.autoScrolling = false;

@@ -1725,7 +1725,7 @@ test('Help settings actions open the related waveform and media settings', async
   await expect(page.locator('#gap-remove-panel')).toHaveClass(/show/);
 });
 
-test('waveform toolbar exposes grouped icon controls and selected cues use a yellow border', async ({ page }) => {
+test('waveform toolbar exposes grouped icon controls and selected cues use the theme selection outline', async ({ page }) => {
   await page.goto(server.url);
 
   // 工具栏改为菜单栏后：语言/设置/帮助收进菜单，顶部只保留波形工具组。
@@ -1750,8 +1750,13 @@ test('waveform toolbar exposes grouped icon controls and selected cues use a yel
 
   const cue = page.locator('.waveform-cue-block[data-idx="0"]').first();
   await cue.click();
-  // 选中字幕块用 outline 高亮（不再改 border-color）
-  await expect(cue).toHaveCSS('outline-color', 'rgb(212, 154, 74)');
+  // Selection follows the current theme, independently of the playhead color.
+  const selectionColor = await cue.evaluate(el => {
+    const probe = document.createElement('span'); probe.style.color='var(--selection-yellow)';
+    el.append(probe); const color=getComputedStyle(probe).color; probe.remove(); return color;
+  });
+  await expect(cue).toHaveCSS('outline-color', selectionColor);
+  await expect(cue).toHaveCSS('outline-width', '2px');
 });
 
 test('offsets selected subtitle ends and undoes the batch in one step', async ({ page }) => {

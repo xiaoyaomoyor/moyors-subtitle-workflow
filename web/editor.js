@@ -4847,8 +4847,8 @@ function refreshTimelineSettingsUi() {
         'Arrow keys and A/D fine-tune frame by frame while holding a cue/block or boundary; see the “Subtitle fine-tuning” section in Help for details.',
       )
       : timelineUiText(
-        '具体用法详见帮助的「微调字幕」区。',
-        'See the “Subtitle fine-tuning” section in Help for details.',
+        '方向键及按住字幕块或边界时的按键调整幅度；具体用法详见帮助的「微调字幕」区。',
+        'Adjustment per key press when nudging subtitles or holding a block or boundary. See Subtitle fine-tuning in Help for details.',
       );
   }
   if (timelineTimebaseHint) {

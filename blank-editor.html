@@ -880,7 +880,7 @@
   }
   /* 媒体播放器设置 / 波形设置：gap-remove-panel 可拖拽工具窗（宽度沿用弹窗时代的规格） */
   .gap-remove-panel.media-settings-panel { width: min(560px, calc(100vw - 24px)); }
-  .gap-remove-panel.wave-settings-panel { width: min(520px, calc(100vw - 24px)); top: 148px; }
+  .gap-remove-panel.wave-settings-panel { width: min(560px, calc(100vw - 24px)); top: 148px; }
   .media-settings-body, .wave-settings-body {
     display: flex; flex-direction: column; gap: 12px;
     min-height: 0; max-height: min(64vh, 560px); overflow-y: auto;
@@ -1922,43 +1922,48 @@
   .cue-editor-settings-display-group .settings-panel-item {
     min-width: 0; margin: 0; flex-wrap: wrap;
   }
-  .waveform-settings-section { width: 100%; }
-  .waveform-settings-title { text-transform: none; }
-  .waveform-settings-section .editor-settings-item {
-    flex: 0 0 auto; color: var(--text-secondary); font-size: 12px;
+  .gap-remove-panel .wave-settings-body {
+    container: wave-settings / inline-size; max-height: min(70vh, 640px);
   }
-  .waveform-settings-section select {
-    background: var(--form-input-bg); color: var(--text-primary); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; cursor: pointer;
+  .wave-settings-body .waveform-settings-section {
+    width: 100%; box-sizing: border-box; flex: 0 0 auto; gap: 10px; padding: 12px;
   }
-  .waveform-settings-section select:focus {
-    outline: none; border-color: var(--accent); box-shadow: var(--focus-ring);
-  }
-  .waveform-settings-section select:disabled { opacity: .42; cursor: not-allowed; }
-  .waveform-settings-section button {
-    min-width: 26px; padding: 3px 7px; color: var(--btn-text); background: var(--btn-bg);
-    border: 1px solid var(--btn-border); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
-  }
-  .waveform-settings-section button:hover:not(:disabled) {
-    background: var(--btn-bg-hover); border-color: var(--btn-border-hover);
-  }
-  .waveform-settings-section button:focus-visible {
-    outline: 2px solid var(--accent-line); outline-offset: 1px;
-  }
-  .waveform-settings-section button:disabled { opacity: .42; cursor: not-allowed; }
-  #msw-analysis-settings [hidden] { display: none !important; }
-  #msw-analysis-settings .msw-processing-actions { margin-block: 6px; }
-  #msw-source-track { max-width: none; }
+  .wave-settings-body .settings-panel-title { flex: none; margin: 0; text-align: left; }
+  .wave-settings-body .settings-panel-title-row { flex: none; }
+  .wave-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; min-width: 0; }
+  .wave-settings-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: var(--text-secondary); font-size: 12px; }
+  .wave-settings-wide { grid-column: 1 / -1; }
+  .wave-settings-field :is(select, input[type="number"]) { width: 100%; min-width: 0; max-width: none; box-sizing: border-box; }
+  .wave-settings-field > select { min-height: var(--control-h); }
+  .wave-settings-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .wave-settings-checks .settings-panel-item { margin: 0; min-width: 0; flex-wrap: wrap; }
+  .wave-settings-body .msw-option-label { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+  .wave-settings-body .msw-help-button { min-width: 18px; min-height: 18px; flex: 0 0 18px; }
+  .wave-settings-amplitude { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .wave-settings-body .editor-settings-stepper { align-self: flex-start; min-height: var(--control-h); }
+  .wave-settings-body .editor-settings-stepper b { align-self: stretch; display: grid; place-items: center; }
+  .wave-settings-body .editor-settings-stepper button { align-self: stretch; }
+  .wave-settings-body .waveform-scale-fit { min-height: var(--control-h); font-size: 12px; white-space: nowrap; }
+  .wave-settings-gain output { color: var(--text-muted); font: 11px var(--font-mono); }
+  .wave-settings-gain:not(:has(input:checked)) output { display: none; }
+  .wave-settings-body .waveform-spectral-status { white-space: normal; overflow-wrap: anywhere; }
   .wave-settings-body [hidden] { display: none !important; }
-  .msw-wave-proxy-settings { border-top: 1px solid var(--border-subtle); margin-top: 10px; padding-top: 10px; }
-  .msw-wave-proxy-settings summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
-  .wave-settings-body .editor-settings-item:has(> select),
-  .wave-settings-body .editor-settings-item:has(> .editor-settings-stepper) {
-    display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 10px;
+  .wave-settings-body #msw-analysis-settings { display: block; }
+  .wave-settings-summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+  .wave-settings-summary:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 3px; }
+  .wave-settings-content { padding-top: 10px; }
+  .wave-settings-content, #msw-analysis-controls { display: grid; gap: 10px; min-width: 0; }
+  #msw-analysis-source { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wave-settings-analysis-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .wave-settings-analysis-actions .toggle { margin: 0; flex-wrap: wrap; }
+  .wave-settings-body .msw-processing-actions { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .wave-settings-body .msw-processing-hint { margin: 0; overflow-wrap: anywhere; }
+  .wave-settings-proxy { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-secondary); }
+  .wave-settings-tools { display: flex; justify-content: flex-end; }
+  @container wave-settings (max-width: 370px) {
+    .wave-settings-grid { grid-template-columns: minmax(0, 1fr); }
+    .wave-settings-body .waveform-settings-section { padding: 10px; }
   }
-  .wave-settings-body .editor-settings-item > select { width: 100%; min-width: 0; max-width: none; box-sizing: border-box; }
-  #msw-analysis-controls > .toggle { display: flex; margin-block: 8px; gap: 8px; }
-  #msw-analysis-settings > .settings-panel-title { text-align: left; align-self: stretch; }
   .subtitle-preview-setting-row {
     display: grid; grid-template-columns: 8em minmax(0, 1fr); align-items: center; gap: 8px;
     color: var(--text-secondary); font-size: 12px; white-space: nowrap;
@@ -7097,135 +7102,88 @@
     <button type="button" id="wave-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭波形显示器设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="settings-modal-body wave-settings-body waveform-settings-panel gap-remove-panel-body" id="waveform-settings-panel">
-    <section class="settings-panel-section waveform-settings-section" id="msw-analysis-settings">
-      <span class="settings-panel-title waveform-settings-title">媒体分析</span>
-      <p id="msw-analysis-unavailable" class="msw-processing-hint">媒体分析需要本机编辑器服务。</p>
-      <div id="msw-analysis-controls" hidden>
-        <p id="msw-analysis-source" class="msw-processing-hint">导入媒体后可生成波形或播放代理。</p>
-        <label class="editor-settings-item" id="msw-source-track-field" hidden>源音轨 <select id="msw-source-track" aria-label="源音轨" title="波形、试听和 ASR 使用的源音轨" hidden></select></label>
-        <label class="toggle editor-settings-item" id="msw-waveform-auto-label" hidden><input type="checkbox" id="msw-waveform-auto" checked>自动波形</label>
-        <div class="msw-processing-actions"><button type="button" id="msw-waveform-generate" hidden>生成波形</button><button type="button" id="msw-waveform-cancel" hidden>取消波形</button></div>
-        <p class="msw-processing-hint" id="msw-waveform-status" role="status" hidden></p>
-        <details class="msw-wave-proxy-settings"><summary>播放代理</summary>
-          <p class="msw-processing-hint">原媒体无法预览时生成兼容副本；识别仍使用原媒体。</p>
-          <div class="msw-processing-actions"><button type="button" id="msw-proxy-generate" hidden>生成播放代理</button><button type="button" id="msw-proxy-cancel" hidden>取消代理</button></div>
-          <p class="msw-processing-hint" id="msw-proxy-status" role="status" hidden></p>
-        </details>
-        <div class="msw-processing-actions"><button type="button" id="msw-tools-open">前往媒体工具环境配置</button></div>
+    <section class="settings-panel-section waveform-settings-section" aria-labelledby="wave-settings-layout-title">
+      <div class="settings-panel-title-row">
+        <h4 class="settings-panel-title" id="wave-settings-layout-title">显示与布局</h4>
+        <button type="button" class="settings-panel-help-link" id="waveform-settings-help" data-help-tab-target="waveform" title="打开帮助中的波形区说明" aria-label="打开帮助中的波形区说明">操作帮助</button>
+      </div>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field" data-option-help="多行模式将时间轴分行显示；单行模式在一个连续窗口内跟随播放头。"><span class="msw-option-label">显示模式</span>
+          <select id="waveform-display-mode"><option value="multi">多行波形</option><option value="basic">单行波形</option></select>
+        </label>
+        <label class="wave-settings-field" data-option-help="只调整波形区中已禁用字幕块的显示，不改变字幕的禁用状态。字幕列表中的显示单独设置。"><span class="msw-option-label">禁用字幕显示</span>
+          <select id="waveform-disabled-display"><option value="dim" selected>淡化</option><option value="hidden">完全隐藏</option></select>
+        </label>
+        <label class="wave-settings-field" id="waveform-seconds-per-row-setting"><span class="msw-option-label">每行时长</span>
+          <select id="waveform-seconds-per-row"><option value="2">2 秒</option><option value="5">5 秒</option><option value="10" selected>10 秒</option><option value="20">20 秒</option><option value="30">30 秒</option></select>
+        </label>
+        <label class="wave-settings-field" id="waveform-row-height-setting" data-option-help="多行模式中每行波形的高度；也可在波形上按 Ctrl/Cmd+Shift 并滚动滚轮调整。"><span class="msw-option-label">每行高度</span>
+          <select id="waveform-row-height"><option value="64">64 px</option><option value="80">80 px</option><option value="96">96 px</option><option value="120" selected>120 px</option><option value="144">144 px</option><option value="168">168 px</option><option value="240">240 px</option><option value="300">300 px</option><option value="360">360 px</option></select>
+        </label>
+        <div class="wave-settings-field" id="waveform-window-setting"><span class="msw-option-label" id="waveform-window-title">可见时长</span>
+          <span class="editor-settings-stepper" role="group" aria-labelledby="waveform-window-title"><button type="button" id="waveform-zoom-out" title="缩小时间轴" aria-label="缩小时间轴">−</button><b id="waveform-window-label" aria-live="polite">20 秒</b><button type="button" id="waveform-zoom-in" title="放大时间轴" aria-label="放大时间轴">＋</button></span>
+        </div>
+      </div>
+      <div class="wave-settings-checks">
+        <label class="toggle settings-panel-item" data-option-help="显示 V1/V2 字幕轨、A1/A2 配音轨编号；点击编号可禁用或启用整轨。"><input type="checkbox" id="waveform-show-track-heads" checked>轨道编号</label>
+        <label class="toggle settings-panel-item" data-option-help="悬停时显示起止时间和时长；字幕另显示序号，音频贴片另显示贴片与配音轨叠加后的试听增益。"><input type="checkbox" id="waveform-hover-details">悬停详情</label>
       </div>
     </section>
-    <div class="settings-panel-section waveform-settings-section">
-      <div class="settings-panel-title-row">
-        <span class="settings-panel-title waveform-settings-title">音频波形区</span>
-        <button type="button" class="settings-panel-help-link" id="waveform-settings-help" data-help-tab-target="waveform" title="打开帮助中的波形区说明" aria-label="打开帮助中的波形区说明">帮助</button>
+    <section class="settings-panel-section waveform-settings-section" aria-labelledby="wave-settings-appearance-title">
+      <h4 class="settings-panel-title" id="wave-settings-appearance-title">波形与音量</h4>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field" data-option-help="REAPER 波形使用媒体旁的 .ReaPeaks 缓存，缺少时自动使用原生波形；选择只影响波形形状，不改变媒体。"><span class="msw-option-label">波形来源</span>
+          <select id="waveform-shape-source"><option value="self">原生波形</option><option value="reapeaks" selected>REAPER 波形</option></select>
+        </label>
+        <div class="wave-settings-field" data-option-help="只缩放波形的显示高度，不改变声音。响度适配会按整段音频的响度自动拟合；缺少响度缓存时无法适配。"><span class="msw-option-label" id="waveform-amplitude-title">显示振幅</span>
+          <div class="wave-settings-amplitude"><span class="editor-settings-stepper" role="group" aria-labelledby="waveform-amplitude-title"><button type="button" id="waveform-scale-down" title="减小波形振幅" aria-label="减小波形振幅">−</button><b id="waveform-scale-label" aria-live="polite">×1.0</b><button type="button" id="waveform-scale-up" title="增大波形振幅" aria-label="增大波形振幅">＋</button></span><button type="button" id="waveform-scale-fit" class="waveform-scale-fit">响度适配</button></div>
+        </div>
       </div>
-      <label class="editor-settings-item" title="多行波形按每行长度滚动显示；基础波形单行跟随播放头显示">波形显示
-        <select id="waveform-display-mode">
-          <option value="multi">多行波形</option>
-          <option value="basic">基础波形</option>
-        </select>
-      </label>
-      <label class="editor-settings-item" title="波形形状来源：默认使用媒体旁 .ReaPeaks 的最细 wave 层（缺数据时自动回退自研缓存）；需要时可切回自研">波形形状来源
-        <select id="waveform-shape-source">
-          <option value="self">原生波形</option>
-          <option value="reapeaks" selected>REAPER 波形</option>
-        </select>
-      </label>
-      <label class="toggle editor-settings-item" title="使用频谱缓存按主频给波形着色；关闭时使用原来的纯色波形">
-        <input type="checkbox" id="waveform-spectral-color" aria-describedby="waveform-spectral-status"> 频谱颜色
-        <span class="waveform-spectral-status" id="waveform-spectral-status" role="status" aria-live="polite" aria-atomic="true" hidden></span>
-      </label>
-      <span class="editor-settings-item" id="waveform-window-setting">显示窗口
-        <span class="editor-settings-stepper">
-          <button type="button" id="waveform-zoom-out" title="缩小时间轴">−</button>
-          <b id="waveform-window-label">20 秒</b>
-          <button type="button" id="waveform-zoom-in" title="放大时间轴">＋</button>
-        </span>
-      </span>
-      <label class="toggle editor-settings-item" title="按音频各时刻的 RMS 电平显示固定色标；关闭后贴片使用纯色">
-        <input type="checkbox" id="audio-clips-heatmap" checked> 音频贴片热力图
-      </label>
-      <label class="toggle editor-settings-item" title="在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行">
-        <input type="checkbox" id="waveform-show-track-heads" checked> 行编号
-      </label>
-      <label class="toggle editor-settings-item" title="悬浮时显示起止时间与总用时；字幕显示序号，音频贴片显示贴片与配音轨叠加后的试听增益">
-        <input type="checkbox" id="waveform-hover-details"> 更多悬浮显示
-      </label>
-      <label class="editor-settings-item">配音与空隙
-        <select id="audio-clips-gap-policy">
-          <option value="protect">保留配音覆盖的区间</option>
-          <option value="follow">配音随媒体跳过空隙</option>
-        </select>
-      </label>
-      <small class="editor-settings-hint">配音热力图：暗 → 亮对应低 → 高电平（RMS −60 至 −6 dBFS）。配音随时间轴以 1× 播放。</small>
-      <label class="editor-settings-item" title="复用峰值缓存，仅调整显示高度；不影响时间、频谱颜色或音频文件。"><input type="checkbox" id="waveform-follow-source-gain"> 波形跟随源试听增益 <output id="waveform-source-gain-setting">0.0 dB</output></label>
-      <span class="editor-settings-item">振幅
-        <span class="editor-settings-stepper">
-          <button type="button" id="waveform-scale-down" title="减小波形振幅">−</button>
-          <b id="waveform-scale-label">×1.0</b>
-          <button type="button" id="waveform-scale-up" title="增大波形振幅">＋</button>
-          <button type="button" id="waveform-scale-fit" class="waveform-scale-fit" title="按整文件响度重新拟合振幅">响度适配</button>
-        </span>
-      </span>
-      <label class="editor-settings-item" id="waveform-seconds-per-row-setting">每行长度
-        <select id="waveform-seconds-per-row">
-          <option value="2">2 秒</option>
-          <option value="5">5 秒</option>
-          <option value="10" selected>10 秒</option>
-          <option value="20">20 秒</option>
-          <option value="30">30 秒</option>
-        </select>
-      </label>
-      <label class="editor-settings-item" id="waveform-row-height-setting" title="多行波形每一行的高度；也可用 Ctrl(Cmd)+Shift+滚轮 在波形上直接调节">每行高度
-        <select id="waveform-row-height">
-          <option value="64">64 px</option>
-          <option value="80">80 px</option>
-          <option value="96">96 px</option>
-          <option value="120" selected>120 px</option>
-          <option value="144">144 px</option>
-          <option value="168">168 px</option>
-        <option value="240">240 px</option><option value="300">300 px</option><option value="360">360 px</option></select>
-      </label>
-    </div>
-    <div class="settings-panel-section waveform-settings-section">
-      <span class="settings-panel-title waveform-settings-title">操作</span>
-      <label class="toggle editor-settings-item" title="启用后，在波形空白区域按住左键拖动时，播放指针会实时跟随鼠标位置">
-        <input type="checkbox" id="waveform-drag-playhead" checked> 允许拖动指针
-      </label>
-      <label class="editor-settings-item">禁用波形
-        <select id="waveform-disabled-display">
-          <option value="dim" selected>淡化</option>
-          <option value="hidden">完全隐藏</option>
-        </select>
-      </label>
-      <label class="toggle editor-settings-item" title="开启后，拖动或微调同轨相邻字幕时默认保持联动；按住 Alt 临时解除。关闭后默认独立调整；按住 Alt 临时联动">
-        <input type="checkbox" id="auto-snap-adjacent-cues" checked> 自动吸附调整相邻字幕
-      </label>
-      <small class="settings-panel-hint">关闭后默认独立调整相邻字幕；按住 Alt 临时反转为联动。开启后默认吸附联动；按住 Alt 临时解除。</small>
-      <label class="editor-settings-item" title="B/Z/X/N 快捷键使用鼠标位置或当前播放头作为时间基准">
-        快捷键时间基准
-        <select id="keyboard-operation-reference">
-          <option value="pointer" selected>鼠标位置</option>
-          <option value="playhead">播放头</option>
-        </select>
-      </label>
-      <small class="settings-panel-hint" id="keyboard-operation-reference-hint">B/Z/X/N 使用鼠标所在波形位置；波形外不执行时间操作。</small>
-    </div>
-    <div class="settings-panel-section waveform-settings-section">
-      <div class="settings-panel-title-row">
-        <span class="settings-panel-title waveform-settings-title">按键调整字幕</span>
-        <button type="button" class="settings-panel-help-link" id="keyboard-settings-help" data-help-tab-target="fine-tuning" title="打开帮助中的微调字幕说明" aria-label="打开帮助中的微调字幕说明">帮助</button>
+      <div class="wave-settings-checks">
+        <label class="toggle settings-panel-item" data-option-help="按频谱缓存的主频为波形着色；关闭时使用主题波形色。需要媒体包含频谱缓存。"><input type="checkbox" id="waveform-spectral-color" aria-describedby="waveform-spectral-status">频谱着色</label>
+        <label class="toggle settings-panel-item" data-option-help="按音频电平为配音贴片着色，暗到亮对应低到高电平（RMS −60 至 −6 dBFS）；关闭时使用纯色。"><input type="checkbox" id="audio-clips-heatmap" checked>贴片热力图</label>
+        <label class="toggle settings-panel-item wave-settings-gain" data-option-help="波形显示高度随原声试听增益变化，复用已有峰值缓存；不改动音频文件、时间或频谱颜色。"><input type="checkbox" id="waveform-follow-source-gain">跟随原声试听音量<output id="waveform-source-gain-setting">0.0 dB</output></label>
       </div>
-      <label class="editor-settings-item" title="选中字幕时，方向键和按住字幕块/边界时的每次调整幅度">
-        字幕按键微调幅度
-        <span class="gap-remove-number-control">
-          <input type="number" id="cue-move-step" min="10" max="2000" step="10" value="50" inputmode="numeric">
-          <span class="gap-remove-unit" id="cue-move-step-unit">ms</span>
-        </span>
-      </label>
-      <small class="settings-panel-hint" id="cue-move-step-hint">具体用法详见帮助的「微调字幕」区。</small>
-    </div>
-
+      <span class="waveform-spectral-status" id="waveform-spectral-status" role="status" aria-live="polite" aria-atomic="true" hidden></span>
+    </section>
+    <section class="settings-panel-section waveform-settings-section" aria-labelledby="wave-settings-edit-title">
+      <div class="settings-panel-title-row"><h4 class="settings-panel-title" id="wave-settings-edit-title">编辑与试听</h4><button type="button" class="settings-panel-help-link" id="keyboard-settings-help" data-help-tab-target="fine-tuning" title="打开帮助中的微调字幕说明" aria-label="打开帮助中的微调字幕说明">快捷键帮助</button></div>
+      <div class="wave-settings-checks">
+        <label class="toggle settings-panel-item" data-option-help="在波形空白处按住左键拖动时，播放头跟随鼠标移动。"><input type="checkbox" id="waveform-drag-playhead" checked>拖动播放头</label>
+        <label class="toggle settings-panel-item" data-option-help="开启后，拖动或微调相邻字幕默认联动；关闭后默认独立调整。按住 Alt 临时反转当前行为。"><input type="checkbox" id="auto-snap-adjacent-cues" checked>联动相邻字幕</label>
+      </div>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field"><span class="msw-option-label">快捷键时间基准</span><select id="keyboard-operation-reference"><option value="pointer" selected>鼠标位置</option><option value="playhead">播放头</option></select></label>
+        <small class="settings-panel-hint" id="keyboard-operation-reference-hint" data-help-for="keyboard-operation-reference" hidden>B/Z/X/N 使用鼠标所在波形位置；波形外不执行时间操作。</small>
+        <label class="wave-settings-field"><span class="msw-option-label">字幕微调步长</span><span class="gap-remove-number-control"><input type="number" id="cue-move-step" min="10" max="2000" step="10" value="50" inputmode="numeric" aria-label="字幕微调步长"><span class="gap-remove-unit" id="cue-move-step-unit">ms</span></span></label>
+        <small class="settings-panel-hint" id="cue-move-step-hint" data-help-for="cue-move-step" hidden>方向键及按住字幕块或边界时的按键调整幅度；具体用法详见帮助的「微调字幕」区。</small>
+        <label class="wave-settings-field wave-settings-wide" data-option-help="跳过或导出空隙时，选择保留配音覆盖的区间，或让配音随原媒体一起裁切。配音始终以 1× 播放；空隙标记在「音频空隙」面板管理。"><span class="msw-option-label">跳过空隙时的配音</span><select id="audio-clips-gap-policy"><option value="protect">保留配音覆盖的区间</option><option value="follow">配音随媒体跳过空隙</option></select></label>
+      </div>
+    </section>
+    <details class="settings-panel-section waveform-settings-section" id="msw-analysis-settings">
+      <summary class="wave-settings-summary">媒体与缓存</summary>
+      <div class="wave-settings-content">
+        <p id="msw-analysis-unavailable" class="msw-processing-hint">媒体分析需要本机编辑器服务。</p>
+        <div id="msw-analysis-controls" hidden>
+          <p id="msw-analysis-source" class="msw-processing-hint">导入媒体后可生成波形或播放代理。</p>
+          <div class="wave-settings-grid">
+            <label class="wave-settings-field wave-settings-wide" id="msw-source-track-field" hidden data-option-help="选择波形、试听和语音识别使用的源音轨。开启自动生成时，切换后会重新生成波形；原媒体文件保持不变。"><span class="msw-option-label">源音轨</span><select id="msw-source-track" aria-label="源音轨" hidden></select></label>
+          </div>
+          <div class="wave-settings-analysis-actions">
+            <label class="toggle settings-panel-item" id="msw-waveform-auto-label" hidden data-option-help="导入媒体或切换源音轨后自动生成波形。关闭后仍可手动生成。"><input type="checkbox" id="msw-waveform-auto" checked>自动生成波形</label>
+            <div class="msw-processing-actions"><button type="button" id="msw-waveform-generate" hidden>生成波形</button><button type="button" id="msw-waveform-cancel" hidden>取消生成</button></div>
+          </div>
+          <p class="msw-processing-hint" id="msw-waveform-status" role="status" hidden></p>
+          <div class="wave-settings-proxy">
+            <span class="msw-option-label" id="wave-settings-proxy-title">播放代理</span>
+            <small data-help-for="wave-settings-proxy-title" hidden>原媒体无法预览或需要切换音轨时，生成供浏览器播放的兼容副本；语音识别与导出仍使用原媒体。</small>
+            <div class="msw-processing-actions"><button type="button" id="msw-proxy-generate" hidden>生成播放代理</button><button type="button" id="msw-proxy-cancel" hidden>取消生成</button></div>
+            <p class="msw-processing-hint" id="msw-proxy-status" role="status" hidden></p>
+          </div>
+          <div class="wave-settings-tools"><button type="button" id="msw-tools-open">媒体工具配置</button></div>
+        </div>
+      </div>
+    </details>
   </div>
 </aside>
 
@@ -19862,6 +19820,44 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '显示模式': 'Display mode',
+    '频谱着色': 'Spectral colors',
+    '贴片热力图': 'Clip heatmap',
+    '拖动播放头': 'Drag playhead',
+    '自动生成波形': 'Generate waveform automatically',
+    "显示与布局": "Display and layout",
+    "单行波形": "Single-row waveform",
+    "多行模式将时间轴分行显示；单行模式在一个连续窗口内跟随播放头。": "Multi-row mode divides the timeline into rows. Single-row mode follows the playhead in one continuous window.",
+    "只调整波形区中已禁用字幕块的显示，不改变字幕的禁用状态。字幕列表中的显示单独设置。": "Controls how disabled subtitles appear in the waveform without changing their disabled state. The subtitle list has its own display setting.",
+    "禁用字幕显示": "Disabled subtitles",
+    "每行时长": "Row duration",
+    "多行模式中每行波形的高度；也可在波形上按 Ctrl/Cmd+Shift 并滚动滚轮调整。": "Height of each waveform row in multi-row mode. You can also hold Ctrl/Cmd+Shift and scroll over the waveform.",
+    "可见时长": "Visible duration",
+    "显示 V1/V2 字幕轨、A1/A2 配音轨编号；点击编号可禁用或启用整轨。": "Show V1/V2 subtitle and A1/A2 dubbing track numbers. Click a number to disable or enable its track.",
+    "轨道编号": "Track numbers",
+    "悬停时显示起止时间和时长；字幕另显示序号，音频贴片另显示贴片与配音轨叠加后的试听增益。": "On hover, show start, end and duration, plus subtitle numbers or the combined clip and dubbing-track playback gain.",
+    "悬停详情": "Hover details",
+    "波形与音量": "Waveform and volume",
+    "REAPER 波形使用媒体旁的 .ReaPeaks 缓存，缺少时自动使用原生波形；选择只影响波形形状，不改变媒体。": "REAPER waveform uses the .ReaPeaks cache next to the media, falling back to the native waveform when unavailable. This only changes waveform display, not the media.",
+    "波形来源": "Waveform source",
+    "只缩放波形的显示高度，不改变声音。响度适配会按整段音频的响度自动拟合；缺少响度缓存时无法适配。": "Scales waveform height without changing the sound. Loudness fit uses the overall audio loudness and requires a loudness cache.",
+    "显示振幅": "Display amplitude",
+    "按频谱缓存的主频为波形着色；关闭时使用主题波形色。需要媒体包含频谱缓存。": "Color the waveform by the dominant frequency in its spectral cache. Turn off to use the theme waveform color. A spectral cache is required.",
+    "跟随原声试听音量": "Follow source playback gain",
+    "编辑与试听": "Editing and playback",
+    "快捷键帮助": "Shortcut help",
+    "在波形空白处按住左键拖动时，播放头跟随鼠标移动。": "Drag an empty area of the waveform with the left mouse button to move the playhead.",
+    "开启后，拖动或微调相邻字幕默认联动；关闭后默认独立调整。按住 Alt 临时反转当前行为。": "Link adjacent subtitles when dragging or nudging their boundaries. Turn off to adjust them independently. Hold Alt to temporarily invert this behavior.",
+    "联动相邻字幕": "Link adjacent subtitles",
+    "字幕微调步长": "Subtitle nudge step",
+    "方向键及按住字幕块或边界时的按键调整幅度；具体用法详见帮助的「微调字幕」区。": "Adjustment per key press when nudging subtitles or holding a block or boundary. See Subtitle fine-tuning in Help for details.",
+    "跳过或导出空隙时，选择保留配音覆盖的区间，或让配音随原媒体一起裁切。配音始终以 1× 播放；空隙标记在「音频空隙」面板管理。": "When skipping or removing gaps on export, protect ranges covered by dubbing or trim dubbing with the source. Dubbing always plays at 1×. Manage gap markers in Audio gaps.",
+    "跳过空隙时的配音": "Dubbing when skipping gaps",
+    "媒体与缓存": "Media and cache",
+    "选择波形、试听和语音识别使用的源音轨。开启自动生成时，切换后会重新生成波形；原媒体文件保持不变。": "Select the source audio track for waveform display, playback and speech recognition. With automatic generation enabled, switching rebuilds the waveform. The original media stays unchanged.",
+    "导入媒体或切换源音轨后自动生成波形。关闭后仍可手动生成。": "Generate a waveform automatically after importing media or switching source tracks. You can still generate it manually when this is off.",
+    "取消生成": "Cancel generation",
+    "原媒体无法预览或需要切换音轨时，生成供浏览器播放的兼容副本；语音识别与导出仍使用原媒体。": "Generate a browser-compatible copy when the source cannot be previewed or needs a different audio track. Speech recognition and export still use the source.",
     "固定空隙": "Fix gap",
     "取消固定": "Unfix gap",
     "转为时间选区": "Convert to time selection",
@@ -24742,7 +24738,10 @@ export default MawDynamicCaptions;
         saveSettings(this.settings); this.refreshSourceGainDisplay();
       });
       window.addEventListener('msw:source-gain', () => this.refreshSourceGainDisplay());
-      document.addEventListener('mawe:languagechange', () => this.refreshMediaReadout());
+      document.addEventListener('mawe:languagechange', () => {
+        this.refreshMediaReadout();
+        this.renderWaveformScaleLabel();
+      });
       window.addEventListener('msw:project-changed', () => { this.resetWaveformLoading(); queueMicrotask(() => this.refreshSourceGainDisplay()); });
       this.pane.addEventListener('pointerdown', () => {
         this.autoScrolling = false;
@@ -35754,8 +35753,8 @@ function refreshTimelineSettingsUi() {
         'Arrow keys and A/D fine-tune frame by frame while holding a cue/block or boundary; see the “Subtitle fine-tuning” section in Help for details.',
       )
       : timelineUiText(
-        '具体用法详见帮助的「微调字幕」区。',
-        'See the “Subtitle fine-tuning” section in Help for details.',
+        '方向键及按住字幕块或边界时的按键调整幅度；具体用法详见帮助的「微调字幕」区。',
+        'Adjustment per key press when nudging subtitles or holding a block or boundary. See Subtitle fine-tuning in Help for details.',
       );
   }
   if (timelineTimebaseHint) {
@@ -56680,6 +56679,9 @@ window.addEventListener('beforeunload', (e) => {
   function ready(event) {
     const source = event.detail;
     byId('analysis-source').textContent = source.name;
+    byId('analysis-source').title = source.name;
+    // Keep the normal panel compact, but never hide a required source-track decision.
+    if (source.track_conflict) byId('analysis-settings').open = true;
     for (const kind of ['waveform', 'proxy']) { void cancel(kind, true); controls(kind, false); status(kind, ''); }
     track.replaceChildren();
     for (const item of source.metadata.audio_tracks || []) {
@@ -56746,6 +56748,7 @@ window.addEventListener('beforeunload', (e) => {
     confirmTrack.hidden = true;
     byId('source-track-field').hidden = true;
     byId('analysis-source').textContent = '导入媒体后可生成波形或播放代理。';
+    byId('analysis-source').removeAttribute('title');
   });
   global.MSWE.register('media-analysis', () => ({start, cancel, get tasks() { return [...tasks.values()].map(item => item.job); }}));
 })(window);

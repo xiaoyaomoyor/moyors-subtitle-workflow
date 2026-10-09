@@ -88,6 +88,7 @@ test('background peaks preserve edits and playhead, and multi audio playback use
   await page.locator('#load-media-file').setInputFiles(multi);
   const original = await imported(page);
   await page.evaluate(()=>MSWE.resolve('processing-host').openWaveSettings());
+  await page.locator('#msw-analysis-settings > summary').click();
   await expect(page.locator('#msw-source-toolbar')).toBeHidden();
   await expect(page.locator('.waveform-toolbar #msw-range-readout, .waveform-toolbar #msw-range-clear')).toHaveCount(0);
   await expect(page.locator('#wave-settings-modal #msw-waveform-auto')).toBeVisible();
@@ -149,6 +150,7 @@ test('public audio selection requires explicit confirmation when a legacy MSW fi
 
 test('media tools are in global environment settings and honor a startup-controlled path',async({page})=>{
   await page.evaluate(()=>MSWE.resolve('processing-host').openWaveSettings());
+  await page.locator('#msw-analysis-settings > summary').click();
   await page.locator('#msw-tools-open').click();
   await expect(page.locator('#wave-settings-modal')).not.toHaveClass(/show/);
   await expect(page.locator('#media-tools-environment-section #msw-tools-path')).toBeVisible();

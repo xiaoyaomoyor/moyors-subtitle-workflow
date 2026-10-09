@@ -91,6 +91,9 @@
   function ready(event) {
     const source = event.detail;
     byId('analysis-source').textContent = source.name;
+    byId('analysis-source').title = source.name;
+    // Keep the normal panel compact, but never hide a required source-track decision.
+    if (source.track_conflict) byId('analysis-settings').open = true;
     for (const kind of ['waveform', 'proxy']) { void cancel(kind, true); controls(kind, false); status(kind, ''); }
     track.replaceChildren();
     for (const item of source.metadata.audio_tracks || []) {
@@ -157,6 +160,7 @@
     confirmTrack.hidden = true;
     byId('source-track-field').hidden = true;
     byId('analysis-source').textContent = '导入媒体后可生成波形或播放代理。';
+    byId('analysis-source').removeAttribute('title');
   });
   global.MSWE.register('media-analysis', () => ({start, cancel, get tasks() { return [...tasks.values()].map(item => item.job); }}));
 })(window);
