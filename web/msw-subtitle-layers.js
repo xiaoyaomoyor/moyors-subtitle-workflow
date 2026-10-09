@@ -187,7 +187,7 @@
     }
     return layout;
   }
-  function applyRanges(project, changes, { allowOverlap = project.subtitle_layers?.allow_overlap !== false, dryRun = false } = {}) {
+  function applyRanges(project, changes, { allowOverlap = project.subtitle_layers?.allow_overlap !== false, dryRun = false, sameLane = null } = {}) {
     const pending = changes.map(change => ({ ...change, target: resolve(project, change.ref) }));
     if (pending.some(change => !change.target || !validRange(change))) return { ok: false, reason: 'invalid-target' };
     if (new Set(pending.map(change => key(change.ref))).size !== pending.length) return { ok: false, reason: 'duplicate-target' };
@@ -195,6 +195,7 @@
       const next = new Map(pending.map(change => [key(change.ref), change]));
       for (const change of pending) for (const row of records(project)) {
         if (row.role !== change.ref.role || row.track_id !== (change.ref.track_id || null) || row.cue_id === change.ref.cue_id) continue;
+        if (sameLane && !sameLane(change.ref, row)) continue;
         const other = next.get(key(row)) || row.cue;
         if (intersects(change, other) && !intersects(change.target.cue, row.cue)) return { ok: false, reason: 'overlap-disabled' };
       }

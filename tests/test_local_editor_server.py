@@ -550,7 +550,7 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('src="/media"', page)
         self.assertIn('let STICKER_URL_PREFIX = "/stickers";', page)
         self.assertIn('const NINJA_SFX_BASE_URL = "/sfx/";', page)
-        self.assertIn('const SERVER_CONFIG = {"saveUrl": "/api/project", ', page)
+        self.assertIn('const SERVER_CONFIG = fixedTracksRequested ? null : {"saveUrl": "/api/project", ', page)
         self.assertNotIn('createUrl', page)
         self.assertIn('"requestToken": ""', page)
         self.assertIn('"stickerRootUrl": "/api/stickers/root"', page)

@@ -1098,7 +1098,7 @@ JS `MSWSubtitleLayers.migrate` 与 Python `migrate_project` 均返回独立副�
 
 ## 固定字幕轨道 v3（第二阶段数据接口）
 
-对应[字幕轨道重设计](docs/PLAN_SUBTITLE_TRACKS_20261009.md)第二阶段。顶层 `schema` 为 `msw.project.v3`；`msw.schema` 和 `multi_subtitle.schema` 不变。**当前普通编辑器、预览、导出及处理入口拒绝 v3**。阶段 3–5 完成之前，仅专用数据接口和迁移工具接受它；普通保存继续使用 v2。
+对应[字幕轨道重设计](docs/PLAN_SUBTITLE_TRACKS_20261009.md)第二阶段的数据契约，第三阶段已接入显式开发页面。顶层 `schema` 为 `msw.project.v3`；`msw.schema` 和 `multi_subtitle.schema` 不变。**当前普通编辑器、精确预览、导出及处理入口拒绝 v3**。专用数据接口、迁移工具及 `?subtitle-tracks=1` 编辑页面接受它；普通保存继续使用 v2。
 
 ### 元数据与稳定身份
 
@@ -1130,6 +1130,7 @@ JS `MSWSubtitleLayers.migrate` 与 Python `migrate_project` 均返回独立副�
 - `tracks` 数组顺序即显示轨道顺序，不另存容易失步的数字排序字段。ID 唯一且不随名称、顺序变化；ID／名称均为非空字符串、至多 160 个 UTF-16 单元。
 - `kind` 为 `dialogue`／`annotation`，只记录用途；此阶段不据此改变画面。`origin` 为 `main`／`legacy-overlay`，保留来源，与用途独立。
 - `enabled`、`locked`、`collapsed` 必须是布尔值。迁移默认未锁定、未折叠；隐藏旧组保持隐藏。
+- 第三阶段增加可选布尔字段 `show_secondary`：为 `true` 时在波形中保留副字幕行；缺省／`false` 时按当前副字幕语言的内容和显示开关决定。仅影响编辑布局，不创建第二份字幕或改变导出角色。
 - 第二阶段 `style` 为 `{mode:"inherit"}`，沿用完整工程样式；轨道覆盖的编辑和解析属于阶段 4。`presentation:"legacy"` 明确表示保留旧画面信息，不凭轨道创建启用新排布。旧 `preview` 与 `subtitle_layers.presentation` 原样保留。
 - 正文仍只保存在 `segments` 和 `multi_subtitle.tracks[*].segments`。归属记录不得复制 `text`、`items` 等正文；每个稳定身份恰有一条 assignment。`track_id` 是副字幕的语言存储轨 ID（主字幕为 `null`），`subtitle_track_id` 才是新的显示轨道 ID。
 - 同一显示轨道、同角色和同语言存储轨内不得时间重叠，端点相接合法；跨显示轨道允许重叠。禁用／隐藏字幕同样参与占位检查，不能靠隐藏消除冲突。
@@ -1146,7 +1147,7 @@ JS `createIndex(project)` / Python `TrackIndex(project)` 提供 `resolve`、`tra
 
 旧隐藏叠加主字幕若已绑定可见副字幕，整对归属同一来源轨，该轨启用但仍保留旧主字幕的可见性遮罩；查询只返回原来可见的一侧。纯隐藏组所在轨道禁用。不能为了绑定整体迁移，额外隐藏原可见译文或重新显示旧隐藏主字幕。
 
-JS `assign(project, refs, targetId)` / Python `assign(project, refs, target_id)` 返回新的完整副本，只改变归属。字幕 ID、绑定、时间和配音素材不变；失败时输入完全不变。新增轨道、切分／合并后的归属维护、撤销及锁定 UI 接线在阶段 3 完成，此时不以数据接口测试冒充 UI 验收。
+JS `assign(project, refs, targetId)` / Python `assign(project, refs, target_id)` 返回新的完整副本，只改变归属。字幕 ID、绑定、时间和配音素材不变；失败时输入完全不变。第三阶段的 `addTrack`、`reconcile`、`assertEditable/assertLocks`、`layout` 分别提供新增、变更后的归属维护、锁定检查和固定编辑行；它们不计算视频画面位置。编辑适配器在切分时记录原轨道，在合并前检查所有实际涉及的绑定对象，提交时更新稳定归属；轨道元数据随字幕历史一起撤销／重做。
 
 ### 专用读写及版本保护
 
@@ -1162,7 +1163,13 @@ JS `assign(project, refs, targetId)` / Python `assign(project, refs, target_id)`
 
 重复 JSON 字段、非有限数值、失效绑定及未知版本拒绝迁移。工具只升级原路径，不复制或搬运 `.assets`。读取备份时如需恢复原工作环境，应把备份恢复到原路径；不要把备份名直接当作重命名后的正式工程使用。
 
-普通 Python 写出和浏览器文件句柄保存均检查目标文件的版本：即便旧窗口仍持有 v1/v2 内容，也拒绝覆盖磁盘上已有的 v3。当前编辑器打开、拖入、恢复、另存回载均拒绝 v3，并保留原编辑状态。此保护不代表可以控制没有版本检查的外部程序。
+普通 Python 写出和浏览器文件句柄保存均检查目标文件的版本：即便旧窗口仍持有 v1/v2 内容，也拒绝覆盖磁盘上已有的 v3。默认编辑器打开、拖入、恢复、另存回载均拒绝 v3，并保留原编辑状态。此保护不代表可以控制没有版本检查的外部程序。
+
+### 第三阶段开发编辑入口
+
+在编辑页面 URL 添加 `subtitle-tracks=1` 查询参数（例如 `http://127.0.0.1:8250/?subtitle-tracks=1`），再打开测试工程。无版本／v1／v2 在内存迁移，v3 先校验再载入。轨道头支持添加对白／画面文字、重命名、排序、折叠、启用及锁定；空轨道只由用户明确删除。右键字幕可整体移轨，主副绑定不变；切分继承原轨道，合并只在同轨执行并保留现有状态规则。列表筛选与编辑器归属使用轨道名。
+
+开发入口使用便携保存，不连接服务端工程写回、识别、翻译、配音或导出。可下载新工程，或者通过浏览器文件句柄保存；首次覆盖旧文件需选择空白备份文件，取消或检测到原文件变化即停止。浏览器下载不搬运原媒体和 `.assets`，工程需保存在原目录以维持相对资源路径；预览尚未接入阶段 4 的新排布，仅用于辅助编辑。普通入口不受影响，阶段 4–5 完成后才考虑默认启用。
 
 开发者只读检查：
 
@@ -1170,4 +1177,4 @@ JS `assign(project, refs, targetId)` / Python `assign(project, refs, target_id)`
 uv run --frozen python -m maw.msw.subtitle_tracks_io "测试工程.mosp"
 ```
 
-显式添加 `--write` 才在备份后写回。**阶段 3–5 完成前只应对测试工程执行写入**；当前用户工程继续使用 v2。详细验收见 [第二阶段记录](docs/TEST_FEEDBACK_SUBTITLE_TRACKS_20261009.md)。
+显式添加 `--write` 才在备份后写回。**阶段 4–5 完成前只应对测试工程执行写入**；当前用户工程继续使用 v2。详细验收见[第二阶段记录](docs/TEST_FEEDBACK_SUBTITLE_TRACKS_20261009.md)及[第三阶段记录](docs/TEST_FEEDBACK_SUBTITLE_TRACK_EDIT_20261009.md)。

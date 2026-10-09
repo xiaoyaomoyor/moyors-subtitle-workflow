@@ -71,6 +71,7 @@ for (const [name, change] of Object.entries({
   'unknown metadata version': p => p.subtitle_tracks.schema = 'msw.subtitle_tracks.v2',
   'duplicate track': p => p.subtitle_tracks.tracks.push(p.subtitle_tracks.tracks[0]),
   'wrong boolean': p => p.subtitle_tracks.tracks[0].locked = 1,
+  'wrong secondary visibility': p => p.subtitle_tracks.tracks[0].show_secondary = 'yes',
   'unsupported style': p => p.subtitle_tracks.tracks[0].style = { mode: 'preset', id: 'future' },
   'broken pair': p => p.multi_subtitle.bindings[0].main_segment_ids = ['missing'],
   'wrong offset': p => p.multi_subtitle.bindings[0].start_offset_ms++,
@@ -79,6 +80,47 @@ for (const [name, change] of Object.entries({
 })) test(`reject invalid fixed-track project: ${name}`, () => {
   const p = core.migrate(fixture('subtitle-tracks')[0].project); change(p);
   assert.throws(() => core.validate(p));
+});
+
+test('fixed layout reserves stable lanes across time, reordering and empty tracks', () => {
+  let p = core.migrate(fixture('subtitle-tracks')[0].project);
+  p = core.addTrack(p, 'annotation', 'note');
+  const first = core.layout(p, 'zh');
+  assert.equal(first.count, 5);
+  p.segments[0].start = 2500;
+  assert.deepEqual(core.layout(p, 'zh').positions, first.positions);
+  p.subtitle_tracks.tracks[0].collapsed = true;
+  const collapsed = core.layout(p, 'zh');
+  assert.equal(collapsed.count, 4);
+  assert.equal(collapsed.positions.has(JSON.stringify([p.subtitle_tracks.tracks[0].id, 'main'])), false);
+  p.subtitle_tracks.tracks[2].show_secondary = true;
+  assert.equal(core.layout(p, 'zh', false).count, 4);
+  assert.equal(p.subtitle_tracks.tracks.length, 3);
+});
+
+test('reconcile keeps stable owners and requires valid inheritance for new cues', () => {
+  const p = core.migrate({ segments: [{ id: 'a', start: 0, end: 1000, text: 'a' }] });
+  p.segments = [{ id: 'left', start: 0, end: 500, text: 'a' }, { id: 'right', start: 500, end: 1000, text: 'b' }];
+  const id = p.subtitle_tracks.tracks[0].id;
+  core.reconcile(p, () => id);
+  assert.deepEqual(p.subtitle_tracks.assignments.map(a => a.cue_id), ['left', 'right']);
+  assert.ok(p.subtitle_tracks.assignments.every(a => a.subtitle_track_id === id));
+  p.segments.push({ id: 'new', start: 2000, end: 3000, text: 'c' });
+  assert.throws(() => core.reconcile(p, () => 'missing'), /归属/);
+});
+
+test('lock guard covers content, timing, markers, ownership and binding but permits harmless metadata', () => {
+  const p = core.migrate(fixture('subtitle-tracks')[0].project);
+  p.subtitle_tracks.tracks[0].locked = true;
+  for (const mutate of [n => n.segments[0].text = 'changed', n => n.segments[0].start++, n => n.segments[0].disabled = true,
+    n => n.segments.shift(), n => n.multi_subtitle.bindings.shift(), n => n.subtitle_tracks.assignments[0].subtitle_track_id = 'elsewhere']) {
+    const next = structuredClone(p); mutate(next); assert.throws(() => core.assertLocks(p, next), /锁定/);
+  }
+  const next = structuredClone(p); next.segments[0]._dirty = true; next.segments[0].start_frame = 30;
+  next.subtitle_tracks.tracks[0].collapsed = true; next.subtitle_tracks.tracks[0].name = 'Renamed';
+  assert.doesNotThrow(() => core.assertLocks(p, next));
+  assert.throws(() => core.assertEditable(p, [ref('missing')]), /失效/);
+  assert.throws(() => core.assertEditable(p, [ref('a', 'extension', 'zh')]), /锁定/);
 });
 
 test('legacy schema with reserved metadata cannot overwrite ownership and old layer reader rejects v3', () => {

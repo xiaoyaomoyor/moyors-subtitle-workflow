@@ -50,6 +50,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-result-apply.js",
                 "editor-i18n.js",
                 "waveform.js",
+                "msw-subtitle-tracks-editor.js",
                 "msw-subtitle-layers-editor.js",
                 "editor.js",
                 "msw-media.js",

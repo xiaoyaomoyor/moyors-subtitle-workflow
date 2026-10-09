@@ -1,5 +1,5 @@
-// Stage 2 data foundation only. Do not activate v3 in the editor/output pipeline
-// until fixed-track editing, presentation and processing have all been adapted.
+// Fixed-track data and editing primitives. Default activation stays gated until
+// presentation and processing support the same contract.
 (function (global) {
   'use strict';
   const layers = typeof module !== 'undefined' && module.exports
@@ -89,6 +89,7 @@
         || !['dialogue', 'annotation'].includes(track.kind)
         || !['main', 'legacy-overlay'].includes(track.origin)
         || ['enabled', 'locked', 'collapsed'].some(k => typeof track[k] !== 'boolean')
+        || (track.show_secondary !== undefined && typeof track.show_secondary !== 'boolean')
         || track.style?.mode !== 'inherit' || Object.keys(track.style).length !== 1) fail('轨道 ID、名称、状态或样式无效');
       tracks.set(track.id, track);
     }
@@ -222,7 +223,74 @@
     return next;
   }
 
-  const api = { SCHEMA, TRACK_SCHEMA, key, migrate, validate, createIndex, assign };
+  function ownerMap(project) {
+    return new Map(project.subtitle_tracks.assignments.map(a => [key(a), a.subtitle_track_id]));
+  }
+  function boundRefs(project, refs) {
+    const wanted = new Set(refs.map(key));
+    return bindingGroups(project, sourceRecords(project)).filter(group => group.some(r => wanted.has(key(r)))).flat().map(refOf);
+  }
+  function assertEditable(project, refs, linked = true) {
+    const owners = ownerMap(project), tracks = new Map(project.subtitle_tracks.tracks.map(t => [t.id, t]));
+    for (const ref of refs) if (!owners.has(key(ref))) fail('字幕引用已失效');
+    for (const ref of linked ? boundRefs(project, refs) : refs) {
+      const track = tracks.get(owners.get(key(ref)));
+      if (!track) fail('字幕归属已失效');
+      if (track.locked) fail(`“${track.name}”已锁定，请先解锁`);
+    }
+  }
+  function reconcile(project, ownerForNewCue) {
+    const owners = ownerMap(project);
+    project.subtitle_tracks.assignments = sourceRecords(project).map(row => ({ ...refOf(row),
+      subtitle_track_id: owners.get(key(row)) || ownerForNewCue(row) }));
+    const ids = new Set(project.segments.map(c => c.id));
+    project.subtitle_layers.legacy_overlay.cue_ids = project.subtitle_layers.legacy_overlay.cue_ids.filter(id => ids.has(id));
+    validate(project);
+    return project;
+  }
+  function assertLocks(before, after) {
+    const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
+    const canonical = cue => Object.fromEntries(Object.keys(cue).sort()
+      .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => [k, cue[k]]));
+    const index = createIndex(before);
+    for (const row of index.records({ includeHidden: true })) {
+      if (!index.trackFor(row).locked) continue;
+      const other = next.get(key(row));
+      if (!other || owners.get(key(row)) !== row.subtitle_track_id
+        || JSON.stringify(canonical(row.cue)) !== JSON.stringify(canonical(other.cue))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
+      const bindings = p => (p.multi_subtitle?.bindings || []).filter(b => row.role === 'main'
+        ? b.main_segment_ids?.includes(row.cue_id) : b.track_id === row.track_id && b.extension_segment_ids?.includes(row.cue_id));
+      if (JSON.stringify(bindings(before)) !== JSON.stringify(bindings(after))) fail('锁定轨道的绑定不能修改');
+    }
+  }
+  function addTrack(project, kind = 'dialogue', id) {
+    validate(project);
+    if (!['dialogue', 'annotation'].includes(kind) || !stable(id) || project.subtitle_tracks.tracks.some(t => t.id === id)) fail('新轨道参数无效');
+    const next = clone(project), base = kind === 'dialogue' ? '对白' : '画面文字';
+    let n = 1;
+    while (next.subtitle_tracks.tracks.some(t => t.name === `${base} ${n}`)) n++;
+    next.subtitle_tracks.tracks.push({ id, name: `${base} ${n}`, kind, origin: 'main', enabled: true, locked: false, collapsed: false, style: { mode: 'inherit' } });
+    return next;
+  }
+  // Stable lanes cover the whole project, not just cues in the visible time row.
+  function layout(project, extensionTrackId, extensionVisible = true) {
+    const owners = ownerMap(project), bands = [], positions = new Map();
+    for (const track of project.subtitle_tracks.tracks) {
+      const secondary = track.show_secondary === true || (extensionVisible && project.multi_subtitle?.tracks
+        ?.find(t => t.id === extensionTrackId)?.segments.some(c => owners.get(key({ role: 'extension', track_id: extensionTrackId, cue_id: c.id })) === track.id));
+      bands.push({ track, roles: track.collapsed ? [] : ['main', ...(secondary ? ['extension'] : [])], size: track.collapsed ? 1 : secondary ? 2 : 1 });
+    }
+    const count = bands.reduce((n, b) => n + b.size, 0);
+    let offset = 0;
+    for (const band of bands) {
+      band.top = offset; band.bottom = count - offset - band.size;
+      band.roles.forEach((role, i) => positions.set(JSON.stringify([band.track.id, role]), count - offset - i - 1));
+      offset += band.size;
+    }
+    return { count, bands, positions, owners };
+  }
+  const api = { SCHEMA, TRACK_SCHEMA, key, migrate, validate, createIndex, assign,
+    ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

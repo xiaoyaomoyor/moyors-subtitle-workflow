@@ -6,14 +6,16 @@ let layerIndexes = new WeakMap();
 let layerPendingDragHistory = null;
 let layerPresentationCache = null;
 function prepareLayerProject(project) {
+  if (fixedTracksRequested) return fixedTrackCore.migrate(project);
   if (project?.schema && !['moy.asr.project.v1', 'msw.project.v2'].includes(project.schema)) {
     throw new Error('工程版本不受支持，请使用兼容的编辑器打开');
   }
   return layerUpgradeRequested || layerCore.enabled(project) ? layerCore.migrate(project) : project;
 }
-function layerMode() { return layerCore.enabled(DATA); }
-function layerAllowOverlap() { return DATA.subtitle_layers?.allow_overlap !== false; }
-function layerInvalidate() { layerIndexes = new WeakMap(); layerPresentationCache = null; }
+function layerMode() { return layerCore.enabled(DATA) || fixedTrackMode(); }
+function layerProjectMode(project) { return layerCore.enabled(project) || (fixedTracksRequested && project?.schema === fixedTrackCore.SCHEMA); }
+function layerAllowOverlap() { return !fixedTrackMode() && DATA.subtitle_layers?.allow_overlap !== false; }
+function layerInvalidate() { layerIndexes = new WeakMap(); layerPresentationCache = null; fixedInvalidate(); }
 function layerUpdateDrag(drag) {
   const cues=drag.track==='extension'?getActiveExtensionTrack()?.segments:DATA.segments;
   if(cues)layerIndexes.get(cues)?.update(drag.indices);
@@ -30,7 +32,8 @@ function layerUpdateDrag(drag) {
 function layerIndex(segments) {
   if (!Array.isArray(segments)) return new layerCore.IntervalIndex([]);
   if (!layerIndexes.has(segments)) layerIndexes.set(segments, new layerCore.IntervalIndex(segments,
-    cue => segments !== DATA.segments || layerCore.visible(DATA, cue)));
+    cue => (!fixedTrackMode() || fixedTrack(cue, segments === DATA.segments ? 'main' : 'extension')?.enabled !== false)
+      && (segments !== DATA.segments || layerCore.visible(DATA, cue))));
   return layerIndexes.get(segments);
 }
 function layerActive(segments, time, includeDisabled = false) {
@@ -44,6 +47,7 @@ function layerPreferredActive(segments, time, includeDisabled = false) {
 }
 function layerPrepareRender() {
   if (!layerMode()) return;
+  if (fixedTrackMode()) fixedAcceptEdit();
   const liveIds = new Set(DATA.segments.map(cue => cue.id));
   DATA.subtitle_layers.legacy_overlay.cue_ids = DATA.subtitle_layers.legacy_overlay.cue_ids.filter(id => liveIds.has(id));
   const snapshot = snapshotEditorSelection();
@@ -79,15 +83,17 @@ function layerSyncControls() {
 }
 function layerRangeAllowed(segments, cue, start, end) {
   return layerAllowOverlap() || !segments.some(other => other !== cue
+    && (!fixedTrackMode() || (cue ? fixedSameTrack(cue, other) : fixedTrack(other, segments === DATA.segments ? 'main' : 'extension')?.id === fixedActiveTrack()?.id))
     && layerCore.intersects({ start, end }, other) && (!cue || !layerCore.intersects(cue, other)));
 }
 function layerCanApplyRanges(role, ranges, linked = true) {
   if (!layerMode() || layerAllowOverlap()) return true;
   const track = role === 'extension' ? getActiveExtensionTrack() : null;
   const cues = track?.segments || DATA.segments;
+  if (!fixedCanEdit(ranges.map(range => cues[range.index]), role, track?.id, linked)) return false;
   const changes = ranges.map(range => ({ start: Math.round(range.start), end: Math.round(range.end),
     ref: { role, track_id: track?.id || null, cue_id: cues[range.index]?.id } }));
-  if (linked && multiSubtitleVisible()) for (const range of ranges) {
+  if (linked && (fixedTrackMode() || multiSubtitleVisible())) for (const range of ranges) {
     const source = cues[range.index];
     const binding = MULTI_SUBTITLE_UTILS.bindingForSegment(getMultiSubtitleState(), source?.id, role, track?.id);
     if (!source || !binding) continue;
@@ -99,17 +105,20 @@ function layerCanApplyRanges(role, ranges, linked = true) {
       start: Math.max(0, Math.round(follower.start + range.start - source.start)),
       end: Math.round(follower.end + range.end - source.end) });
   }
-  return layerCore.applyRanges(DATA, changes, { dryRun: true }).ok;
+  return layerCore.applyRanges(DATA, changes, { dryRun: true, allowOverlap: layerAllowOverlap(),
+    sameLane: fixedTrackMode() ? (a, b) => fixedOwners().get(fixedTrackCore.key(a)) === fixedOwners().get(fixedTrackCore.key(b)) : null }).ok;
 }
 function layerCreateCue(start, end, role = 'main') {
   const track = role === 'extension' ? getActiveExtensionTrack() : null;
   const cues = role === 'extension' ? track?.segments : DATA.segments;
   if (!cues) return false;
+  if (fixedTrackMode() && fixedActiveTrack()?.locked) { fixedStatus('当前轨道已锁定，请先解锁'); return false; }
   const lo = Math.min(start, end), hi = Math.max(start, end);
   start = Math.max(0, timelineFrameAlignedMilliseconds(lo));
   end = timelineFrameAlignedMilliseconds(Math.max(start + timelineMinimumDurationMs(), hi));
   if (!Number.isFinite(end) || !layerRangeAllowed(cues, null, start, end)) {
-    flashHint('此操作会新增字幕重叠，请先启用“允许字幕重叠”', 'warning'); return false;
+    if (fixedTrackMode()) fixedStatus('当前轨道此处已有字幕，请改用其他轨道');
+    else flashHint('此操作会新增字幕重叠，请先启用“允许字幕重叠”', 'warning'); return false;
   }
   commitProcessingEdits(); pushUndo('创建字幕', { captureView: true });
   const cue = { id: window.MSWProject.id('cue'), start, end, text: '', items: [], _dirty: true };
@@ -152,7 +161,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
   const anchor = captureVisibleCueListVisualAnchor(sourceEl);
   let plan;
   try {
-    plan = layerCore.planMerge(DATA, {role, track_id: role === 'extension' ? track?.id : null}, ids, {
+    plan = layerCore.planMerge(fixedTrackMode() ? { ...DATA, schema: layerCore.SCHEMA, subtitle_layers: { ...DATA.subtitle_layers, allow_overlap: true } } : DATA, {role, track_id: role === 'extension' ? track?.id : null}, ids, {
       mode, makeId: () => window.MSWProject.id('merged'),
       joinText: (cues, target) => {
         const text = cues.map(c => c.text || '').join('\n');
@@ -160,8 +169,9 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
         return window.AsrEditorUtils.joinSegmentTexts(cues, mergeJoinSeparatorForMode(splitMode));
       },
     });
+    fixedMergePlan(plan);
     for (const change of plan.changes) if (change.changed) syncSegmentTimebase(change.merged, projectTimebase(), {preferFrames:false});
-  } catch (error) { flashHint(error.message, 'warning'); return false; }
+  } catch (error) { if (fixedTrackMode()) fixedStatus(error.message); else flashHint(error.message, 'warning'); return false; }
   const feedback = captureMergeFeedback(plan);
   pushUndo(mode === 'common' ? '共有状态合并' : '累加状态合并', {captureView:true});
   clearSelection({silent:true, commitCuePanel:false});
@@ -354,6 +364,17 @@ async function layerProtectHandle(handle, content, silent = false) {
   if (!handle.getFile) return;
   const original = await handle.getFile(); if (!original.size) return;
   const text = await original.text(); const previous = JSON.parse(text);
+  if (fixedTracksRequested && next?.schema === fixedTrackCore.SCHEMA) {
+    fixedTrackCore.validate(next);
+    if (![undefined, 'moy.asr.project.v1', 'msw.project.v2', fixedTrackCore.SCHEMA].includes(previous?.schema)) throw Error('目标工程版本不兼容，未覆盖');
+    if (previous.schema === fixedTrackCore.SCHEMA) return;
+    if (silent) throw Error('首次升级固定轨道需先保留旧工程，请手动保存一次');
+    const backup = await window.showSaveFilePicker({ suggestedName: handle.name.replace(/\.[^.]+$/, '') + `.before-tracks.${Date.now()}.mosp`, types: [{ description: '固定轨道升级备份', accept: { 'application/json': ['.mosp'] } }] });
+    if (await backup.isSameEntry?.(handle) || (await backup.getFile()).size) throw Error('请选择空白备份文件，未覆盖原工程');
+    const output = await backup.createWritable(); await output.write(original); await output.close();
+    if ((await (await handle.getFile()).text()) !== text) throw Error('备份期间原工程已变化，未覆盖');
+    return;
+  }
   if (!previous || typeof previous !== 'object' || (Object.hasOwn(previous, 'schema') && !['moy.asr.project.v1', 'msw.project.v2'].includes(previous.schema))) {
     throw Error('目标工程版本不兼容，未覆盖；固定轨道工程需使用对应版本的编辑器');
   }

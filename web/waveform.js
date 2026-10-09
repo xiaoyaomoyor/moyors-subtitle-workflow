@@ -3890,7 +3890,8 @@
         for (const [role, layout] of this.subtitleLayouts) {
           const changed = role === this.drag.track ? this.drag.indices :
             [...(this.drag.boundOriginals?.values() || [])].map(entry => layout.indices.get(entry.target)).filter(Number.isInteger);
-          window.MSWSubtitleLayers.updatePack(layout, this.options.getSegments(role) || [], changed);
+          if (this.options.getFixedTracksEnabled?.()) layout.index.update(changed);
+          else window.MSWSubtitleLayers.updatePack(layout, this.options.getSegments(role) || [], changed);
         }
         return;
       }
@@ -3900,6 +3901,8 @@
     subtitleLayout(role = 'main') {
       if (!this.subtitleLayouts) this.subtitleLayouts = new Map();
       if (!this.subtitleLayouts.has(role)) {
+        const fixed = this.options.getFixedSubtitleLayout?.(role);
+        if (fixed) { this.subtitleLayouts.set(role, fixed); return fixed; }
         this.previousSubtitleLanes ||= new Map();
         const segments = this.options.getSegments(role) || [];
         const layout = window.MSWSubtitleLayers.pack(segments, this.previousSubtitleLanes.get(role),
@@ -3912,6 +3915,7 @@
     }
 
     subtitleLaneCount() {
+      if (this.options.getFixedTracksEnabled?.()) return this.subtitleLayout('main').count;
       return this.subtitleLayout('main').count + (this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0);
     }
 
@@ -3926,17 +3930,20 @@
       const role = block.dataset.track || 'main';
       const layout = this.subtitleLayout(role);
       const lane = layout.lanes.get(segment.id) || 0;
-      const extra = role === 'main' && this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0;
+      const fixed = this.options.getFixedTracksEnabled?.();
+      const extra = !fixed && role === 'main' && this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0;
       const pitch = 38;
       block.dataset.cueId = segment.id;
       block.dataset.subtitleLayer = String(lane);
+      this.options.decorateFixedCue?.(block, segment, role);
       block.style.height = '32px';
       block.style.top = 'auto';
       block.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(extra + lane) * pitch}px)`;
       if (this.settings.hoverDetails) {
         const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
         block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '))
-          + ` · ${role === 'main' ? '主字幕' : '副字幕'} · 第 ${lane + 1} 层`;
+          + ` · ${role === 'main' ? '主字幕' : '副字幕'}`
+          + (fixed ? ` · ${this.options.getFixedTrackName?.(segment, role) || ''}` : ` · 第 ${lane + 1} 层`);
       }
     }
 
@@ -3982,6 +3989,7 @@
         if (allowOverlap) continue;
         for (const other of motion.segments) {
           if (moving.has(other)) continue;
+          if (this.options.sameSubtitleTrack?.(motion.segment, other) === false) continue;
           const start = clock.fromMs(other.start), end = clock.fromMs(other.end);
           // Keep pre-existing overlaps editable; do not create new ones or
           // jump over an entire obstacle when pointer events arrive far apart.
@@ -4019,6 +4027,7 @@
     applyLayerDrag(drag, rawDelta, beforeApply = null, { pointer = false, disableSnap = false } = {}) {
       const clock = exactRangeTiming(drag.timing);
       const segments = this.options.getSegments(drag.track);
+      if (this.options.canEditSubtitleCues?.(drag.indices, drag.track) === false) return false;
       // Capture identities once; array order is normalized only after commit.
       drag.cueIds ||= new Map(drag.indices.map(index => [index, segments[index]?.id]));
       if (drag.indices.some(index => segments[index]?.id !== drag.cueIds.get(index))) return false;
@@ -4055,6 +4064,7 @@
         for (const range of ranges) for (let i = 0; i < segments.length; i++) {
           if (selected.has(i)) continue;
           const other = segments[i];
+          if (this.options.sameSubtitleTrack?.(segments[range.index], other) === false) continue;
           const next = { start: clock.toMs(range.start), end: clock.toMs(range.end) };
           const original = { start: range.original.startMs, end: range.original.endMs };
           if (window.MSWSubtitleLayers.intersects(next, other) && !window.MSWSubtitleLayers.intersects(original, other)) return false;
@@ -4266,7 +4276,7 @@
 
     applyTrackHeadsVisibility() {
       // 轨道头（V 字幕头 + A 配音头）统一由内容根类控制显隐。
-      this.content?.classList.toggle('wave-track-heads-on', this.settings.showTrackHeads !== false);
+      this.content?.classList.toggle('wave-track-heads-on', this.settings.showTrackHeads !== false || this.options.getFixedTracksEnabled?.());
       this.syncTrackHeads();
     }
 
@@ -4278,7 +4288,7 @@
       if (!this.content) return;
       const rows = [...this.content.querySelectorAll(':scope > .waveform-row')];
       let column = this.content.querySelector(':scope > .waveform-track-heads-column');
-      if (this.settings.showTrackHeads === false || !rows.length) {
+      if ((this.settings.showTrackHeads === false && !this.options.getFixedTracksEnabled?.()) || !rows.length) {
         column?.remove();
         return;
       }
@@ -4383,6 +4393,7 @@
             else head?.remove();
           }
         }
+        if (this.options.renderFixedTrackHeads?.(group, row, audioSpace)) group.querySelectorAll('.v-main, .v-ext').forEach(head => head.remove());
         fragment.appendChild(group);
       }
       column.replaceChildren(fragment);
@@ -5580,6 +5591,11 @@
       const hitRow = row || hit?.closest?.('.waveform-row');
       if (!hitRow || !this.pane?.contains(hitRow)) return 'main';
       const block = hit?.closest?.('.waveform-cue-block');
+      if (this.options.getFixedTracksEnabled?.()) {
+        const audio = parseFloat(hitRow.style.getPropertyValue('--audio-lane-space')) || 0;
+        const role = this.options.hitFixedSubtitleTrack?.(hitRow.getBoundingClientRect().bottom - clientY - audio - 7);
+        return block?.dataset.track || role || 'main';
+      }
       if (block?.dataset.track === 'extension') return 'extension';
       if (!hitRow.classList.contains('multi-subtitle-row')) return 'main';
       if (this.subtitleLayersEnabled()) {

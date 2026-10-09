@@ -82,6 +82,7 @@ class SubtitleTracksTests(unittest.TestCase):
             lambda p: p["subtitle_tracks"].update(schema="msw.subtitle_tracks.v2"),
             lambda p: p["subtitle_tracks"]["tracks"].append(p["subtitle_tracks"]["tracks"][0]),
             lambda p: p["subtitle_tracks"]["tracks"][0].update(locked=1),
+            lambda p: p["subtitle_tracks"]["tracks"][0].update(show_secondary="yes"),
             lambda p: p["subtitle_tracks"]["tracks"][0].update(style={"mode": "future"}),
             lambda p: p["multi_subtitle"]["bindings"][0].update(main_segment_ids=["missing"]),
             lambda p: p["multi_subtitle"]["bindings"][0].update(start_offset_ms=999),
@@ -104,6 +105,12 @@ class SubtitleTracksTests(unittest.TestCase):
         p = core.migrate_project(dict(segments=[dict(id=f"c{i}", start=i//8*1000, end=i//8*1000+1000, text="x") for i in range(10000)]))
         self.assertEqual(len(p["subtitle_tracks"]["tracks"]), 8)
         self.assertEqual(len(core.TrackIndex(p).records()), 10000)
+
+    def test_editing_metadata_roundtrip(self):
+        p = core.migrate_project(fixture("subtitle-tracks")[0]["project"])
+        p["subtitle_tracks"]["tracks"][0].update(name="采访", show_secondary=True, collapsed=True, locked=True)
+        self.assertTrue(core.validate(p))
+        self.assertEqual(core.migrate_project(p), p)
 
     def test_v1_missing_language_id_and_overlay_settings(self):
         source = dict(segments=[dict(id="a", start=0, end=1000, text="a")],

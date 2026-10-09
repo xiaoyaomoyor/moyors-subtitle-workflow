@@ -6757,6 +6757,8 @@ export default MawDynamicCaptions;
       },
       clear: () => { undo.length = 0; redo.length = 0; },
       clearRedo: () => { redo.length = 0; },
+      checkpoint: () => ({ undo: undo.slice(), redo: redo.slice() }),
+      restoreCheckpoint: state => { undo.splice(0, undo.length, ...state.undo); redo.splice(0, redo.length, ...state.redo); },
     };
   }
 

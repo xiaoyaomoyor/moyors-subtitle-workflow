@@ -126,6 +126,7 @@ def validate(project):
         if (not isinstance(track, dict) or not _stable(track.get("id")) or track["id"] in tracks or not _stable(track.get("name"))
                 or track.get("kind") not in ("dialogue", "annotation") or track.get("origin") not in ("main", "legacy-overlay")
                 or any(type(track.get(k)) is not bool for k in ("enabled", "locked", "collapsed"))
+                or ("show_secondary" in track and type(track["show_secondary"]) is not bool)
                 or track.get("style") != {"mode": "inherit"}):
             _fail("轨道 ID、名称、状态或样式无效")
         tracks[track["id"]] = track
