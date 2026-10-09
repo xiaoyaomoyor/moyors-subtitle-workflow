@@ -163,6 +163,8 @@ def preserve_upgrade_source(target, project):
         return None
     original = target.read_bytes()
     previous = json.loads(original.decode('utf-8-sig'))
+    if not isinstance(previous, dict) or previous.get('schema', LEGACY_SCHEMA) not in (LEGACY_SCHEMA, SCHEMA):
+        raise ValueError('目标工程版本不兼容，未覆盖；固定轨道工程需使用对应版本的编辑器')
     if previous.get('schema') == SCHEMA:
         if project.get('schema') != SCHEMA:
             raise ValueError('不能用旧版结构覆盖多层字幕工程，请另存为新文件')

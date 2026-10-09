@@ -20,7 +20,8 @@
 
 ## 扩展与开发
 
-- [字幕轨道重设计提案](PLAN_SUBTITLE_TRACKS_20261009.md)：第一阶段拖动修复已实施；固定轨道、重叠对白与画面文字的阶段 2–5 尚未实施。
+- [字幕轨道重设计提案](PLAN_SUBTITLE_TRACKS_20261009.md)：第一阶段拖动修复及第二阶段固定归属／迁移数据接口已实施；固定轨道的界面、画面排布与处理输出将在阶段 3–5 接入，当前工程不自动升级。
+- [固定轨道迁移验收](TEST_FEEDBACK_SUBTITLE_TRACKS_20261009.md)：v3 契约、绑定整体分配、隐藏状态、原文件备份及旧版写入保护。
 - [ASR 服务](PROVIDERS.md)、[本地 ASR](LOCAL_ASR.md)、[命令行](CLI.md)、[OCR](OCR_SUBTITLE_DEDUP.md)。
 - [开发概览](DEVELOPMENT.md)、[工程格式](../JSON_SCHEMA.md)、[品牌资源](BRANDING.md)。
 - [构建与发布](RELEASING.md)：五种安装包、构建预演和发布门禁。

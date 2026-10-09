@@ -354,6 +354,9 @@ async function layerProtectHandle(handle, content, silent = false) {
   if (!handle.getFile) return;
   const original = await handle.getFile(); if (!original.size) return;
   const text = await original.text(); const previous = JSON.parse(text);
+  if (!previous || typeof previous !== 'object' || (Object.hasOwn(previous, 'schema') && !['moy.asr.project.v1', 'msw.project.v2'].includes(previous.schema))) {
+    throw Error('目标工程版本不兼容，未覆盖；固定轨道工程需使用对应版本的编辑器');
+  }
   if (previous.schema === 'msw.project.v2') {
     if(next?.schema!=='msw.project.v2')throw Error('不能用旧版结构覆盖多层字幕工程，请另存为新文件');
     return;

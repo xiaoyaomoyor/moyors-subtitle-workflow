@@ -6,6 +6,8 @@
 
 适用版本：对应 `edit.py` / `generate_subtitle_qwen_api.py` 当前实现。
 
+版本范围：下文基础字段以 v1 描述；当前编辑器默认使用文末的[统一多层字幕 v2](#统一多层字幕-v2)。[固定轨道 v3](#固定字幕轨道-v3第二阶段数据接口) 是分阶段开发的数据接口，尚未接入日常编辑和输出，不会自动升级用户工程。
+
 编辑器独立媒体工作流可在 `msw.source_audio_index` 保存所选源音轨的逻辑序号（整数 0–255），与容器 `stream_index` 区分；缺省沿用波形缓存的 `audio_track`，再缺省为 0。播放代理与后台分析任务保存在本机可重建缓存，不能替代工程的 `media` 原素材引用。
 
 ---
@@ -1093,3 +1095,79 @@ JS `MSWSubtitleLayers.migrate` 与 Python `migrate_project` 均返回独立副�
 ### 导出任务下载名称
 
 `POST audio-exports` 可携带 `project_name`（工程显示名，不含工程扩展名）。服务端生成并在任务中持久化 `download_name`，格式为 `工程名_MSW.mp4/wav/otioz`，空名称使用“未命名工程”，非法文件名字符和控制字符替换为下划线、工程名最多 120 字符；不接受该名称作为磁盘路径。名称参与新任务幂等快照，后续工程改名不影响已有结果。下载响应通过 ASCII 回退与 UTF-8 `filename*` 同时传递名称；没有此字段的旧任务继续使用原下载名。工程 JSON 不新增字段。
+
+## 固定字幕轨道 v3（第二阶段数据接口）
+
+对应[字幕轨道重设计](docs/PLAN_SUBTITLE_TRACKS_20261009.md)第二阶段。顶层 `schema` 为 `msw.project.v3`；`msw.schema` 和 `multi_subtitle.schema` 不变。**当前普通编辑器、预览、导出及处理入口拒绝 v3**。阶段 3–5 完成之前，仅专用数据接口和迁移工具接受它；普通保存继续使用 v2。
+
+### 元数据与稳定身份
+
+```json
+{
+  "schema": "msw.project.v3",
+  "segments": [{"id": "cue-a", "start": 0, "end": 1000, "text": "对白", "items": []}],
+  "subtitle_layers": {
+    "schema": "msw.subtitle_layers.v1",
+    "allow_overlap": true,
+    "legacy_overlay": {"visible": false, "cue_ids": []}
+  },
+  "subtitle_tracks": {
+    "schema": "msw.subtitle_tracks.v1",
+    "presentation": "legacy",
+    "tracks": [{
+      "id": "subtitle-track-1", "name": "对白 1", "kind": "dialogue",
+      "origin": "main", "enabled": true, "locked": false, "collapsed": false,
+      "style": {"mode": "inherit"}
+    }],
+    "assignments": [{
+      "role": "main", "track_id": null, "cue_id": "cue-a",
+      "subtitle_track_id": "subtitle-track-1"
+    }]
+  }
+}
+```
+
+- `tracks` 数组顺序即显示轨道顺序，不另存容易失步的数字排序字段。ID 唯一且不随名称、顺序变化；ID／名称均为非空字符串、至多 160 个 UTF-16 单元。
+- `kind` 为 `dialogue`／`annotation`，只记录用途；此阶段不据此改变画面。`origin` 为 `main`／`legacy-overlay`，保留来源，与用途独立。
+- `enabled`、`locked`、`collapsed` 必须是布尔值。迁移默认未锁定、未折叠；隐藏旧组保持隐藏。
+- 第二阶段 `style` 为 `{mode:"inherit"}`，沿用完整工程样式；轨道覆盖的编辑和解析属于阶段 4。`presentation:"legacy"` 明确表示保留旧画面信息，不凭轨道创建启用新排布。旧 `preview` 与 `subtitle_layers.presentation` 原样保留。
+- 正文仍只保存在 `segments` 和 `multi_subtitle.tracks[*].segments`。归属记录不得复制 `text`、`items` 等正文；每个稳定身份恰有一条 assignment。`track_id` 是副字幕的语言存储轨 ID（主字幕为 `null`），`subtitle_track_id` 才是新的显示轨道 ID。
+- 同一显示轨道、同角色和同语言存储轨内不得时间重叠，端点相接合法；跨显示轨道允许重叠。禁用／隐藏字幕同样参与占位检查，不能靠隐藏消除冲突。
+- 明确绑定的主副字幕必须归属同一显示轨道，保留各自 start/end 和绑定偏移。分配轨道接口从任意一侧发起均携带另一侧；目标碰撞、引用失效或任一涉及轨道锁定时整次失败。没有按时间接近自动绑定。
+- v1 旧叠加的非正文设置保存在可选 `legacy_overlay_settings`，包括旧名称及未识别设置；其中不允许 `segments`。迁移后的来源轨默认命名“原叠加字幕 N”，已有名称则沿用名称并附序号；不推断为注释。
+
+### 迁移与查询接口
+
+JS `MSWSubtitleTracks.migrate` / Python `maw.msw.subtitle_tracks.migrate_project` 返回独立副本。无版本／v1 先走既有 v2 迁移（补 ID、物化标记、处理旧叠加 ID 冲突）；v2 正文与资源引用逐字段保留，不调用会重定时的修复。旧语言存储轨缺 ID 时按普通读取器规则补齐。v3 输入校验后原样复制；未知版本或旧版本夹带 `subtitle_tracks` 拒绝。
+
+迁移按明确绑定分组，以实际成员区间做确定性的首次可容纳分配；普通组优先进入“对白 1”，同角色相交的组分到额外轨道。绑定两侧之间的空时间范围仍可利用。始终保留一条默认对白轨；旧叠加来源单独分组。字幕的时间、数组位置和后续排序不再决定固定归属。
+
+JS `createIndex(project)` / Python `TrackIndex(project)` 提供 `resolve`、`trackFor` / `track_for`、`records`。索引是当前数据的快照，编辑后重建；查询不排序正文。可按显示轨道、角色、隐藏或禁用状态筛选，`includeHidden/include_hidden` 和 `includeDisabled/include_disabled` 分别控制这两种状态。语言显示模式、播放器预览开关及导出主副范围仍由调用方额外筛选，不算固定轨道隐藏。
+
+旧隐藏叠加主字幕若已绑定可见副字幕，整对归属同一来源轨，该轨启用但仍保留旧主字幕的可见性遮罩；查询只返回原来可见的一侧。纯隐藏组所在轨道禁用。不能为了绑定整体迁移，额外隐藏原可见译文或重新显示旧隐藏主字幕。
+
+JS `assign(project, refs, targetId)` / Python `assign(project, refs, target_id)` 返回新的完整副本，只改变归属。字幕 ID、绑定、时间和配音素材不变；失败时输入完全不变。新增轨道、切分／合并后的归属维护、撤销及锁定 UI 接线在阶段 3 完成，此时不以数据接口测试冒充 UI 验收。
+
+### 专用读写及版本保护
+
+`maw.msw.subtitle_tracks_io.read_project(path)` 只读取、迁移和校验，返回原文件路径、原始字节和内存工程。`serialize_project` 校验 v3 归属与已有完整内容契约，保留未知可选字段、内联缓存及所有素材路径，不调用媒体探测或缓存剥离。
+
+`save_project(document, project=None, cancelled=None)` 仅在原文件位置写回，避免改名或换目录导致相对媒体／素材路径失效：
+
+1. 完整校验待写内容；独占创建本次路径的写入锁。
+2. 检查取消状态，并比对磁盘原始字节，拒绝覆盖后来修改的版本。
+3. 首次从无版本／v1／v2 写成 v3 时，在同目录独占创建 `.msw-tracks-backup-<随机 ID>.mosp`，保存原始字节并同步到磁盘。已有备份永不覆盖；备份失败不写原工程。
+4. 通过同目录短临时名写入 UTF-8 / LF，刷新文件，再次检查取消和原文件变化，然后原子替换。失败时原文件保留；已完成的备份保留供恢复。
+5. 返回新 revision 文档供下次保存；使用旧文档重试会被变更检查拒绝。该锁协调专用工具写入；其他程序不应在最终系统替换瞬间并发保存。
+
+重复 JSON 字段、非有限数值、失效绑定及未知版本拒绝迁移。工具只升级原路径，不复制或搬运 `.assets`。读取备份时如需恢复原工作环境，应把备份恢复到原路径；不要把备份名直接当作重命名后的正式工程使用。
+
+普通 Python 写出和浏览器文件句柄保存均检查目标文件的版本：即便旧窗口仍持有 v1/v2 内容，也拒绝覆盖磁盘上已有的 v3。当前编辑器打开、拖入、恢复、另存回载均拒绝 v3，并保留原编辑状态。此保护不代表可以控制没有版本检查的外部程序。
+
+开发者只读检查：
+
+```powershell
+uv run --frozen python -m maw.msw.subtitle_tracks_io "测试工程.mosp"
+```
+
+显式添加 `--write` 才在备份后写回。**阶段 3–5 完成前只应对测试工程执行写入**；当前用户工程继续使用 v2。详细验收见 [第二阶段记录](docs/TEST_FEEDBACK_SUBTITLE_TRACKS_20261009.md)。
