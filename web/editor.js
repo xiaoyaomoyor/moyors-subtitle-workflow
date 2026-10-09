@@ -11779,7 +11779,7 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (waveformEditor?.hasCueDrag?.()) {
-    // 拖动中的 Esc 不取消拖动，也不清空选区；拖动仍由 pointerup 正常完成。
+    // 拖动中的 Esc 交给波形拖动取消处理；这里不清空字幕选区。
     e.preventDefault();
     e.stopPropagation();
     return;
@@ -12970,8 +12970,12 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'v' && e.key !== 'V' && e.key !== 'r' && e.key !== 'R' && e.key !== 'Escape') return;
   if (!waveformEditor) return;
-  // Escape：上下文菜单/弹窗/编辑态各自先处理；只有波形工具在 razor 时才切回。
+  // Escape：优先撤回当前字幕拖动；其余由菜单、编辑态或工具切换处理。
   if (e.key === 'Escape') {
+    if (waveformEditor.drag && waveformEditor.cancelCueDrag()) {
+      e.preventDefault();
+      return;
+    }
     if (editingState) return;
     if (ctxmenu.classList.contains('show')) return;
     if (replaceModal.classList.contains('show')) return;
@@ -23020,9 +23024,17 @@ function initWaveformEditor() {
         ? (overlayTrackVisible() ? (getOverlayTrack()?.segments || []) : [])
         : DATA.segments,
     getExtensionSegments: (trackId = null) => getExtensionTrack(trackId)?.segments || [],
-    getCrossTrackSnapTargets: (track = 'main') => {
+    getSubtitleDragFollowers: drag => {
+      if (drag.track !== 'main' || !multiSubtitleVisible()) return [];
+      return drag.indices.flatMap(index => {
+        const bound = getBoundDragTarget(index, DATA.segments);
+        return bound ? [{ index, segment: bound.target, segments: getExtensionTrack(bound.binding.track_id)?.segments || [] }] : [];
+      });
+    },
+    getCrossTrackSnapTargets: (track = 'main', excludedSegments = null) => {
       if (!EDITOR_SETTINGS.crossTrackSnap) return [];
       const collectEdges = (segments) => (segments || [])
+        .filter(segment => !excludedSegments?.has(segment))
         .flatMap((segment) => [segment?.start, segment?.end])
         .filter((timeMs) => Number.isFinite(Number(timeMs)))
         .map((timeMs) => Number(timeMs));

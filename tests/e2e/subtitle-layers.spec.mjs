@@ -19,12 +19,162 @@ async function open(page, segments, extra = {}) {
     applyCanonicalProject(project, 'layers.mosp');
     waveformEditor.settings.mode = 'multi'; waveformEditor.settings.secondsPerRow = 10;
     waveformEditor.settings.rowHeight = 140; waveformEditor.render();
+    updateEditorSettings({ clickBehavior: 'select-only', autoSaveProject: false });
   }, { segments, waveform: generateWaveformPayload(30000), ...extra });
   expect(errors).toEqual([]);
   return errors;
 }
 const cue = (id, start, end, text = id) => ({ id, start, end, text, items: [] });
 async function times(page) { return page.evaluate(() => Object.fromEntries(DATA.segments.map(c => [c.id, [c.start, c.end]]))); }
+
+test('single edges stop at minimum length and remain cancellable after crossing the other edge', async ({ page }) => {
+  const errors = await open(page, [cue('a', 2000, 5000)]);
+  await page.evaluate(() => { waveformEditor.settings.clickBehavior = 'select-only'; });
+  for (const side of ['right', 'left']) {
+    const block = await page.locator('.waveform-cue-block[data-cue-id="a"]').first().boundingBox();
+    const row = await page.locator('.waveform-row[data-start-ms="0"]').boundingBox();
+    await page.mouse.move(side === 'right' ? block.x + block.width - 1 : block.x + 1, block.y + block.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(row.x + row.width * (side === 'right' ? .1 : .7), block.y + block.height / 2, { steps: 5 });
+    expect((await times(page)).a).toEqual(side === 'right' ? [2000, 2100] : [4900, 5000]);
+    await page.keyboard.press('Escape'); await page.mouse.up();
+    expect((await times(page)).a).toEqual([2000, 5000]);
+    expect(await page.evaluate(() => [...selectedIdxs].map(index => DATA.segments[index].id))).toEqual(['a']);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('cross-row gutters retain the last entered time row, including after held keyboard adjustment', async ({ page }) => {
+  const errors = await open(page, [cue('a', 2000, 5000)]);
+  await page.evaluate(() => { waveformEditor.settings.clickBehavior = 'select-only'; });
+  const block = await page.locator('.waveform-cue-block[data-cue-id="a"]').first().boundingBox();
+  const row = await page.locator('.waveform-row[data-start-ms="0"]').boundingBox();
+  const next = await page.locator('.waveform-row[data-start-ms="10000"]').boundingBox();
+  const x = next.x + next.width * .7, gapY = (row.y + row.height + next.y) / 2;
+  await page.mouse.move(block.x + block.width - 1, block.y + block.height / 2); await page.mouse.down();
+  await page.mouse.move(x, next.y + next.height / 2, { steps: 5 });
+  const beforeGap = (await times(page)).a;
+  expect(beforeGap[1]).toBeGreaterThan(16000);
+  await page.mouse.move(x, gapY); expect((await times(page)).a).toEqual(beforeGap);
+  await page.evaluate(() => waveformEditor.adjustActiveCueDragBy(200));
+  const nudged = (await times(page)).a;
+  expect(nudged).toEqual([beforeGap[0], beforeGap[1] + 200]);
+  await page.mouse.move(x + 1, gapY);
+  expect(Math.abs((await times(page)).a[1] - nudged[1])).toBeLessThan(30);
+  // Entering the first row deliberately switches back; the gutter then keeps it.
+  await page.mouse.move(x, row.y + row.height / 2);
+  const returned = (await times(page)).a;
+  expect(returned[1]).toBeLessThan(8000);
+  await page.mouse.move(x, gapY); expect((await times(page)).a).toEqual(returned);
+  await page.mouse.up();
+  await page.evaluate(() => performUndo()); expect((await times(page)).a).toEqual([2000, 5000]);
+  expect(errors).toEqual([]);
+});
+
+for (const mode of ['multi', 'basic']) test(`pointer resize reaches exact neighbour boundaries in ${mode} mode with one undo`, async ({ page }) => {
+  const errors = await open(page, [cue('a', 1003, 2003), cue('b', 4007, 5007)]);
+  await page.evaluate(mode => {
+    DATA.subtitle_layers.allow_overlap = false;
+    waveformEditor.settings.mode = mode; waveformEditor.settings.visibleSeconds = 10; waveformEditor.render();
+  }, mode);
+  const initial = await times(page);
+  expect(initial).toEqual({ a: [1003, 2003], b: [4007, 5007] });
+  await page.locator('.waveform-cue-block[data-cue-id="a"]').first().scrollIntoViewIfNeeded();
+  const block = await page.locator('.waveform-cue-block[data-cue-id="a"]').first().boundingBox();
+  const row = await page.locator('.waveform-row').first().boundingBox();
+  await page.mouse.move(block.x + block.width - 1, block.y + block.height / 2); await page.mouse.down();
+  // One large pointer step goes beyond the neighbour rather than approaching it slowly.
+  await page.mouse.move(row.x + row.width * .8, block.y + block.height / 2);
+  expect(await times(page)).toEqual({ a: [1003, 4007], b: [4007, 5007] });
+  await expect(page.locator('.waveform-magnet-guide')).toBeVisible();
+  await page.mouse.up(); await expect(page.locator('.waveform-magnet-guide')).toHaveCount(0);
+  await page.evaluate(() => performUndo()); expect(await times(page)).toEqual(initial);
+  await page.evaluate(() => performRedo()); expect((await times(page)).a).toEqual([1003, 4007]);
+  expect(errors).toEqual([]);
+});
+
+test('multi-selection hits a neighbour as a group without changing durations or spacing', async ({ page }) => {
+  const errors = await open(page, [cue('a', 1000, 2000), cue('b', 3000, 4000), cue('stop', 5003, 6003)]);
+  await page.evaluate(() => { DATA.subtitle_layers.allow_overlap = false; selectOnly(0); selectedIdxs.add(1); waveformEditor.updateSelection(); });
+  const block = await page.locator('.waveform-cue-block[data-cue-id="a"]').first().boundingBox();
+  const row = await page.locator('.waveform-row').first().boundingBox();
+  await page.mouse.move(block.x + block.width / 2, block.y + block.height / 2); await page.mouse.down();
+  await page.mouse.move(row.x + row.width * .85, block.y + block.height / 2);
+  expect(await times(page)).toEqual({ a: [2003, 3003], b: [4003, 5003], stop: [5003, 6003] });
+  await page.mouse.up(); await page.evaluate(() => performUndo());
+  expect(await times(page)).toEqual({ a: [1000, 2000], b: [3000, 4000], stop: [5003, 6003] });
+  expect(errors).toEqual([]);
+});
+
+test('bound follower collisions constrain both cues and preserve exact offsets on cancel and undo', async ({ page }) => {
+  const fixture = JSON.parse(readFileSync(new URL('../fixtures/subtitle-layers.json', import.meta.url))).find(f => f.name === 'bound-bilingual').project;
+  fixture.segments = [cue('a', 1000, 2000), cue('b', 8000, 9000)];
+  fixture.multi_subtitle.tracks[0].segments = [cue('a', 1500, 2500), cue('b', 4007, 5007)];
+  const errors = await open(page, fixture.segments, fixture);
+  await page.evaluate(() => { DATA.subtitle_layers.allow_overlap = false; });
+  const subTimes = () => page.evaluate(() => getActiveExtensionTrack().segments.map(cue => [cue.id, cue.start, cue.end]));
+  const originalSubs = await subTimes();
+  for (const cancel of [true, false]) {
+    const block = await page.locator('.waveform-cue-block[data-track="main"][data-cue-id="a"]').first().boundingBox();
+    const row = await page.locator('.waveform-row').first().boundingBox();
+    await page.mouse.move(block.x + block.width / 2, block.y + block.height / 2); await page.mouse.down();
+    await page.mouse.move(row.x + row.width * .7, block.y + block.height / 2);
+    expect(await times(page)).toEqual({ a: [2507, 3507], b: [8000, 9000] });
+    expect(await subTimes()).toEqual([['a', 3007, 4007], ['b', 4007, 5007]]);
+    if (cancel) await page.keyboard.press('Escape');
+    await page.mouse.up();
+    if (!cancel) await page.evaluate(() => performUndo());
+    expect((await times(page)).a).toEqual([1000, 2000]); expect(await subTimes()).toEqual(originalSubs);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('nearby edges snap on the frame grid without changing the stationary frame', async ({ page }) => {
+  const errors = await open(page, [cue('a', 2000, 4000), cue('b', 6000, 8000)], { timebase: { unit: 'frames', fps: 25 } });
+  const block = await page.locator('.waveform-cue-block[data-cue-id="a"]').first().boundingBox();
+  const row = await page.locator('.waveform-row').first().boundingBox();
+  await page.mouse.move(block.x + block.width - 1, block.y + block.height / 2); await page.mouse.down();
+  await page.mouse.move(row.x + row.width * .594, block.y + block.height / 2);
+  expect((await times(page)).a).toEqual([2000, 6000]);
+  expect(await page.evaluate(() => [DATA.segments[0].start_frame, DATA.segments[0].end_frame])).toEqual([50, 150]);
+  await page.mouse.up(); await page.evaluate(() => performUndo());
+  expect((await times(page)).a).toEqual([2000, 4000]); expect(errors).toEqual([]);
+});
+
+test('dragging out of a pre-existing overlap can return to its original range', async ({ page }) => {
+  await open(page, [cue('a', 2000, 4000), cue('b', 3000, 5000)]);
+  await page.evaluate(() => { DATA.subtitle_layers.allow_overlap = false; });
+  const block = await page.locator('.waveform-cue-block[data-cue-id="a"]').first().boundingBox();
+  const row = await page.locator('.waveform-row').first().boundingBox();
+  const x = block.x + block.width / 2, y = block.y + block.height / 2;
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.mouse.move(x + row.width * .4, y);
+  expect((await times(page)).a[0]).toBeGreaterThanOrEqual(5900);
+  await page.mouse.move(x, y);
+  expect((await times(page)).a).toEqual([2000, 4000]);
+  await page.mouse.up();
+});
+
+test('cross-track snapping respects its setting and excludes the main cue own bound follower', async ({ page }) => {
+  const fixture = JSON.parse(readFileSync(new URL('../fixtures/subtitle-layers.json', import.meta.url))).find(f => f.name === 'bound-bilingual').project;
+  fixture.segments = [cue('a', 1000, 2000), cue('b', 8000, 9000)];
+  fixture.multi_subtitle.tracks[0].segments = [cue('a', 1000, 2000), cue('b', 4007, 5007)];
+  const errors = await open(page, fixture.segments, fixture);
+  for (const enabled of [true, false]) {
+    await page.evaluate(enabled => updateEditorSettings({ crossTrackSnap: enabled }), enabled);
+    const block = await page.locator('.waveform-cue-block[data-track="main"][data-cue-id="a"]').first().boundingBox();
+    const row = await page.locator('.waveform-row').first().boundingBox();
+    await page.mouse.move(block.x + block.width - 1, block.y + block.height / 2); await page.mouse.down();
+    await page.mouse.move(block.x + block.width + 2, block.y + block.height / 2);
+    expect((await times(page)).a[1]).toBeGreaterThan(2000); // must not snap to its own translation
+    await page.mouse.move(row.x + row.width * .396, block.y + block.height / 2);
+    if (enabled) expect((await times(page)).a[1]).toBe(4007);
+    else expect((await times(page)).a[1]).toBeLessThan(4007);
+    await page.keyboard.press('Escape'); await page.mouse.up();
+    expect((await times(page)).a).toEqual([1000, 2000]);
+  }
+  expect(errors).toEqual([]);
+});
 
 test('nested overlaps render all layers across rows and light all active cards', async ({ page }) => {
   const errors = await open(page, [cue('long', 0, 22000), cue('b', 1000, 18000), cue('c', 2000, 16000), cue('d', 3000, 14000), cue('next', 22000, 24000)]);

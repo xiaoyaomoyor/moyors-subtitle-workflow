@@ -28,6 +28,94 @@ vm.runInNewContext('globalThis.newArrayBuffer = (size) => new ArrayBuffer(size);
 const helpers = context.window.AsrWaveform.testing;
 const builtinWorkspaces = context.window.AsrWaveform.builtinWorkspaces;
 
+test('layer resize stops at the minimum duration without moving the opposite edge', () => {
+  for (const frames of [false, true]) {
+    const timing = helpers.resolveTiming(frames ? {
+      unit: 'frames', minDuration: 3, round: Math.round,
+      fromMs: ms => Math.round(ms * 30 / 1000), toMs: frame => Math.round(frame * 1000 / 30),
+      getStart: cue => cue.start_frame, getEnd: cue => cue.end_frame,
+      setStart: (cue, value) => { cue.start_frame = value; },
+      setEnd: (cue, value) => { cue.end_frame = value; },
+    } : null);
+    for (const kind of ['resize-left', 'resize-right', 'resize-boundary-independent']) {
+      const cue = { id: 'a', start: 2000, end: 5000, start_frame: 60, end_frame: 150, items: [] };
+      const original = { start: timing.getStart(cue), end: timing.getEnd(cue), startMs: 2000, endMs: 5000, items: [] };
+      const drag = { timing, kind, edge: kind === 'resize-boundary-independent' ? 'end' : null,
+        track: 'main', indices: [0], originals: new Map([[0, original]]) };
+      const host = { options: { getSegments: () => [cue], getAllowSubtitleOverlap: () => true }, invalidateSubtitleLayouts() {} };
+      helpers.applyLayerDrag.call(host, drag, timing.fromMs(kind === 'resize-left' ? 9000 : -9000));
+      assert.equal(timing.getStart(cue), kind === 'resize-left' ? original.end - timing.minDuration : original.start);
+      assert.equal(timing.getEnd(cue), kind === 'resize-left' ? original.end : original.start + timing.minDuration);
+    }
+  }
+});
+
+function layerPointerFixture(segments, { kind = 'move', indices = [0], overlap = false, cross = [], audio = [], followers = [], timing = null } = {}) {
+  const clock = helpers.resolveTiming(timing);
+  const drag = { kind, indices, track: 'main', timing: clock, msPerPixel: 10,
+    originals: new Map(indices.map(index => [index, {
+      start: clock.fromMs(segments[index].start), end: clock.fromMs(segments[index].end),
+    }])) };
+  const host = { options: {
+    getSegments: () => segments, getAllowSubtitleOverlap: () => overlap,
+    getCrossTrackSnapTargets: (_role, excluded) => cross.filter(cue => !excluded.has(cue)).flatMap(cue => [cue.start, cue.end]),
+    getSubtitleDragFollowers: () => followers,
+  }, audioLayer: { edges: () => audio }, currentTimeMs: () => 0,
+  showMagnetGuide(target) { this.guide = target; }, hideMagnetGuide() { this.guide = null; } };
+  return { drag, host, resolve: (delta, disableSnap = false) => helpers.resolveLayerPointerDelta.call(host, drag, delta, disableSnap) };
+}
+
+test('pointer collision limits preserve multi-selection offsets and cannot skip obstacles', () => {
+  const fixture = layerPointerFixture([{ start: 1000, end: 2000 }, { start: 3000, end: 4000 }, { start: 5003, end: 6000 }], { indices: [0, 1] });
+  assert.equal(fixture.resolve(9000), 1003); // exact imported boundary, not a 10ms grid
+  assert.equal(fixture.resolve(-9000), -1000);
+  assert.equal(fixture.resolve(9000, true), 1003); // disabling magnetism cannot disable collision limits
+  const resize = layerPointerFixture([{ start: 1000, end: 2000 }, { start: 4003, end: 5000 }], { kind: 'resize-right' });
+  assert.equal(resize.resolve(3500), 2003);
+  const left = layerPointerFixture([{ start: 3000, end: 5000 }, { start: 0, end: 1507 }], { kind: 'resize-left' });
+  assert.equal(left.resolve(-2800), -1493);
+});
+
+test('pointer snaps only moving edges, retains exact hits, and respects cross-role identities', () => {
+  const main = { start: 1000, end: 2000 }, other = { start: 4007, end: 5000 };
+  const fixture = layerPointerFixture([main], { kind: 'resize-right', cross: [other], overlap: true });
+  assert.equal(fixture.resolve(1990), 2007);
+  assert.equal(fixture.host.guide, 4007);
+  assert.equal(fixture.resolve(1990, true), 1990);
+  fixture.host.currentTimeMs = () => 3503;
+  assert.equal(fixture.resolve(1480), 1503);
+  const audio = layerPointerFixture([main], { kind: 'resize-right', audio: [3007, 3015], overlap: true });
+  assert.equal(audio.resolve(1007), 1007); // the exact target wins over its nearby neighbour
+  audio.host.currentTimeMs = () => 1000; // stationary left edge cannot swallow a right-edge snap
+  assert.equal(audio.resolve(970), 1007);
+});
+
+test('bound followers limit the whole gesture and never serve as their own snap target', () => {
+  const main = { start: 2000, end: 4000 }, follower = { start: 2100, end: 4100 }, obstacle = { start: 5007, end: 6000 };
+  const fixture = layerPointerFixture([main], { cross: [follower, obstacle], followers: [{ index: 0, segment: follower, segments: [follower, obstacle] }] });
+  assert.equal(fixture.resolve(10), 10);
+  assert.equal(fixture.resolve(2000), 907); // follower reaches the neighbour first
+  const short = { start: 2500, end: 2800 };
+  const resize = layerPointerFixture([main], { kind: 'resize-right', followers: [{ index: 0, segment: short, segments: [short] }] });
+  assert.equal(resize.resolve(-1000), -200); // follower keeps its start and minimum duration
+});
+
+test('pointer snapping uses frame units throughout and leaves existing overlaps editable', () => {
+  const timing = { unit: 'frames', fps: 25, minDuration: 3, round: Math.round,
+    fromMs: ms => Math.max(0, Math.round(ms / 40)), toMs: frame => Math.max(0, frame * 40),
+    getStart: cue => Math.round(cue.start / 40), getEnd: cue => Math.round(cue.end / 40) };
+  const fixture = layerPointerFixture([{ start: 2000, end: 4000 }, { start: 6000, end: 8000 }], { timing, kind: 'resize-right' });
+  assert.equal(fixture.resolve(49), 50);
+  assert.equal(fixture.host.guide, 6000);
+  assert.equal(fixture.resolve(-100), -47);
+  const earlierFollower = { start: 400, end: 2400 };
+  const bound = layerPointerFixture([{ start: 2000, end: 4000 }], { timing,
+    followers: [{ index: 0, segment: earlierFollower, segments: [earlierFollower] }] });
+  assert.equal(bound.resolve(-50), -10); // signed offset survives absolute-time conversion
+  const overlap = layerPointerFixture([{ start: 2000, end: 4000 }, { start: 3000, end: 5000 }]);
+  assert.equal(overlap.resolve(3000), 3000);
+});
+
 test('ASR group references without names use head color including custom snapshots', () => {
   const segments = [{color:{name:'yellow',value:'#c4a019'}},{color_ref:{headIdx:0}}];
   assert.equal(helpers.colorForSegment(segments[1],segments), '#c4a019');

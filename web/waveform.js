@@ -375,12 +375,23 @@
   }
 
   function restoreTiming(segment, original, timing = null) {
-    const clock = resolveTiming(timing);
+    const clock = exactRangeTiming(timing);
     if (!segment || !original) return;
     clock.setStart(segment, original.start);
     clock.setEnd(segment, original.end);
     segment.items = Array.isArray(original.items)
       ? original.items.map((item) => ({ ...item })) : original.items;
+  }
+
+  function exactRangeTiming(timing) {
+    const clock = resolveTiming(timing);
+    // Free movement still uses clock.round. Writing an already constrained
+    // range (or restoring a snapshot) must preserve imported millisecond edges.
+    if (clock.unit !== 'frames') {
+      clock.setStart = clock.setItemStart = (value, start) => { value.start = Math.round(start); };
+      clock.setEnd = clock.setItemEnd = (value, end) => { value.end = Math.round(end); };
+    }
+    return clock;
   }
 
   function normalizeModuleOrder(value) {
@@ -3942,13 +3953,79 @@
       });
     }
 
-    applyLayerDrag(drag, rawDelta, beforeApply = null) {
+    resolveLayerPointerDelta(drag, rawDelta, disableSnap) {
       const clock = resolveTiming(drag.timing);
+      const segments = this.options.getSegments(drag.track);
+      const motions = drag.indices.map(index => {
+        const original = drag.originals.get(index);
+        const moveStart = drag.kind === 'move' || drag.kind === 'resize-left' || drag.edge === 'start'
+          || (drag.kind === 'resize-boundary' && index !== drag.indices[0]);
+        const moveEnd = drag.kind === 'move' || !moveStart;
+        return { index, segment: segments[index], segments, ...original, moveStart, moveEnd };
+      });
+      // Followers constrain the same delta, so neither duration nor binding
+      // offsets change when any member reaches zero or a neighbouring cue.
+      for (const follower of this.options.getSubtitleDragFollowers?.(drag) || []) {
+        const source = motions.find(motion => motion.index === follower.index);
+        if (!source) continue;
+        motions.push({ ...follower, moveStart: source.moveStart, moveEnd: source.moveEnd,
+          start: source.start + clock.fromMs(follower.segment.start) - clock.getStart(source.segment),
+          end: source.end + clock.fromMs(follower.segment.end) - clock.getEnd(source.segment) });
+      }
+      const moving = new Set(motions.map(motion => motion.segment));
+      let lower = -Infinity, upper = Infinity;
+      const allowOverlap = this.options.getAllowSubtitleOverlap?.();
+      for (const motion of motions) {
+        if (motion.moveStart) lower = Math.max(lower, -motion.start);
+        if (motion.moveStart && !motion.moveEnd) upper = Math.min(upper, motion.end - motion.start - clock.minDuration);
+        if (motion.moveEnd && !motion.moveStart) lower = Math.max(lower, motion.start + clock.minDuration - motion.end);
+        if (allowOverlap) continue;
+        for (const other of motion.segments) {
+          if (moving.has(other)) continue;
+          const start = clock.fromMs(other.start), end = clock.fromMs(other.end);
+          // Keep pre-existing overlaps editable; do not create new ones or
+          // jump over an entire obstacle when pointer events arrive far apart.
+          if (end <= motion.start && motion.moveStart) lower = Math.max(lower, end - motion.start);
+          if (start >= motion.end && motion.moveEnd) upper = Math.min(upper, start - motion.end);
+        }
+      }
+      if (lower > upper) { this.hideMagnetGuide(); return null; }
+      const requested = clock.round(rawDelta);
+      let delta = clamp(requested, lower, upper);
+      const targets = segments.filter(segment => !moving.has(segment))
+        .flatMap(segment => [segment.start, segment.end]);
+      targets.push(...(this.options.getCrossTrackSnapTargets?.(drag.track, moving) || []),
+        ...(this.audioLayer?.edges?.() || []), this.currentTimeMs());
+      const positions = motions.flatMap(motion => [
+        ...(motion.moveStart ? [motion.start] : []), ...(motion.moveEnd ? [motion.end] : []),
+      ]);
+      const thresholdMs = (drag.msPerPixel || 0) * 8;
+      let best = null;
+      if (!disableSnap) for (const targetMs of targets) {
+        if (!Number.isFinite(targetMs)) continue;
+        const target = clock.fromMs(targetMs);
+        for (const position of positions) {
+          const candidate = target - position;
+          const distance = Math.abs(clock.toMs(position + delta) - clock.toMs(target));
+          if (candidate < lower || candidate > upper || distance > thresholdMs) continue;
+          if (!best || distance < best.distance) best = { delta: candidate, distance, target: clock.toMs(target) };
+        }
+      }
+      if (best) { delta = best.delta; this.showMagnetGuide(best.target); }
+      else this.hideMagnetGuide();
+      return delta;
+    }
+
+    applyLayerDrag(drag, rawDelta, beforeApply = null, { pointer = false, disableSnap = false } = {}) {
+      const clock = exactRangeTiming(drag.timing);
       const segments = this.options.getSegments(drag.track);
       // Capture identities once; array order is normalized only after commit.
       drag.cueIds ||= new Map(drag.indices.map(index => [index, segments[index]?.id]));
       if (drag.indices.some(index => segments[index]?.id !== drag.cueIds.get(index))) return false;
-      const delta = clock.round(rawDelta);
+      // A resolved snap may land on an imported millisecond boundary that is
+      // not a multiple of 10. Do not round it a second time and reopen a gap.
+      const delta = pointer ? this.resolveLayerPointerDelta(drag, rawDelta, disableSnap) : clock.round(rawDelta);
+      if (delta === null) return false;
       const ranges = drag.indices.map(index => {
         const original = drag.originals.get(index);
         let start = original.start, end = original.end;
@@ -3967,8 +4044,11 @@
         const boundary = clamp(left.end, left.start + clock.minDuration, right.end - clock.minDuration);
         left.end = boundary; right.start = boundary;
       } else ranges.forEach(range => {
-        range.start = Math.max(0, Math.min(range.start, range.end - clock.minDuration));
-        range.end = Math.max(range.start + clock.minDuration, range.end);
+        // Only clamp the edge being edited. Crossing the minimum duration
+        // must never pull the stationary edge (or its bound cue) along.
+        if (drag.kind === 'resize-left' || drag.edge === 'start') {
+          range.start = Math.max(0, Math.min(range.start, range.end - clock.minDuration));
+        } else range.end = Math.max(range.start + clock.minDuration, range.end);
       });
       if (!this.options.getAllowSubtitleOverlap?.()) {
         const selected = new Set(drag.indices);
@@ -3981,7 +4061,10 @@
         }
       }
       if (ranges.every(range => clock.getStart(segments[range.index]) === range.start && clock.getEnd(segments[range.index]) === range.end)) return false;
-      if (this.options.canApplySubtitleRanges?.(drag.track, ranges.map(range => ({ index: range.index, start: clock.toMs(range.start), end: clock.toMs(range.end) }))) === false) return false;
+      // Pointer constraints already include the bound followers and compare
+      // with gesture originals. Revalidating against live (partly moved)
+      // ranges would prevent returning to a pre-existing overlap.
+      if (!pointer && this.options.canApplySubtitleRanges?.(drag.track, ranges.map(range => ({ index: range.index, start: clock.toMs(range.start), end: clock.toMs(range.end) }))) === false) return false;
       beforeApply?.();
       for (const range of ranges) {
         const cue = segments[range.index];
@@ -5782,6 +5865,25 @@
       return Number.isFinite(timeMs) ? timeMs : null;
     }
 
+    cueDragPointerTime(drag, clientX, clientY) {
+      // Pointer capture can keep elementFromPoint on the pressed block, and
+      // cue refreshes can replace it. Resolve rows geometrically instead.
+      // Gutters keep the last entered time row, never the gesture's first row.
+      const viewport = this.scroll.getBoundingClientRect();
+      if (clientY >= viewport.top && clientY <= viewport.bottom) {
+        const row = this.renderedRows.find(candidate => {
+          const rect = candidate.getBoundingClientRect();
+          return clientX >= rect.left && clientX <= rect.right
+            && clientY >= rect.top && clientY <= rect.bottom;
+        });
+        if (row) {
+          drag.pointerGeometry = this.captureRowGeometry(row);
+        }
+      }
+      const geometry = drag.pointerGeometry || drag.geometry;
+      return this.timeFromPointer({ clientX }, drag.row, geometry);
+    }
+
     // 「允许拖动指针」：在波形空白区域按住左键拖动时，播放指针实时跟随鼠标
     // 所在位置。高回报率指针事件用 rAF 合并，并限制连续 seek 的频率，避免
     // 浏览器反复解码和编辑器刷新造成拖动卡顿；松开时以最终位置再 seek 一次
@@ -6543,8 +6645,7 @@
         if (this.applyLayerDrag(drag, timing.fromMs(deltaMs), () => { if (!drag.started) { this.options.onBeginEdit?.('调整字幕时间'); drag.started = true; } })) {
           this.options.syncBoundCueDrag?.(drag); drag.changed = true;
           this.captureCueDragOriginals(drag);
-          drag.startPointerTime = timing.fromMs(this.timeMsAtPoint(drag.currentClientX, drag.currentClientY)
-            ?? this.timeFromPointerUnbounded({ clientX: drag.currentClientX }, drag.row, drag.geometry));
+          drag.startPointerTime = timing.fromMs(this.cueDragPointerTime(drag, drag.currentClientX, drag.currentClientY));
           this.scheduleRefreshCueBlocks();
         } else drag.originals = currentOriginals;
         return true;
@@ -6660,8 +6761,7 @@
       drag.startClientX = drag.currentClientX;
       drag.startPointerTime = timing.fromMs(
         this.subtitleLayersEnabled()
-          ? this.timeMsAtPoint(drag.currentClientX, drag.currentClientY)
-            ?? this.timeFromPointerUnbounded({ clientX: drag.currentClientX }, drag.row, drag.geometry)
+          ? this.cueDragPointerTime(drag, drag.currentClientX, drag.currentClientY)
           : this.timeFromPointer({ clientX: drag.currentClientX }, drag.row, drag.geometry),
       );
       this.scheduleRefreshCueBlocks();
@@ -6676,6 +6776,7 @@
       }
       const drag = this.drag;
       if (!drag) return false;
+      this.hideMagnetGuide();
       window.removeEventListener('pointermove', this._dragMove);
       window.removeEventListener('pointerup', this._dragEnd);
       window.removeEventListener('pointercancel', this._dragEnd);
@@ -7096,7 +7197,7 @@
       drag.currentClientY = event.clientY;
       const timing = drag.timing || this.cueTiming();
       const pointerMs = this.subtitleLayersEnabled()
-        ? this.timeMsAtPoint(event.clientX, event.clientY) ?? this.timeFromPointerUnbounded(event, drag.row, drag.geometry)
+        ? this.cueDragPointerTime(drag, event.clientX, event.clientY)
         : this.timeFromPointer(event, drag.row, drag.geometry);
       const currentPointerTime = timing.fromMs(pointerMs);
       const deltaTime = currentPointerTime - drag.startPointerTime;
@@ -7121,7 +7222,7 @@
       // 否则刚拖出重叠区就会被吸回邻居边界。
       const disableSnap = drag.independent === true || drag.shiftOverlay === true;
       if (this.subtitleLayersEnabled()) {
-        if (!this.applyLayerDrag(drag, deltaTime)) return;
+        if (!this.applyLayerDrag(drag, deltaTime, null, { pointer: true, disableSnap })) return;
       } else if (drag.kind === 'move') this.applyMoveDrag(drag, deltaTime, disableSnap, drag.allowSqueeze);
       else if (drag.kind === 'resize-boundary') this.applyBoundaryDrag(drag, deltaTime, drag.independent);
       else if (drag.kind === 'resize-boundary-independent') this.applyIndependentBoundaryDrag(drag, deltaTime);
@@ -7652,6 +7753,8 @@
       firstCueIndexOverlapping,
       applySharedBoundary,
       applyIndependentEdge,
+      applyLayerDrag: WaveformEditor.prototype.applyLayerDrag,
+      resolveLayerPointerDelta: WaveformEditor.prototype.resolveLayerPointerDelta,
       applyMoveStep,
       applyBoundaryStep,
       splitSegmentAtTime,
