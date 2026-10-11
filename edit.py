@@ -238,7 +238,7 @@ def render_editor_page(**context: str) -> str:
     ).decode("ascii")
     replacements = {
         "__EDITOR_BRAND_ICON__": brand_icon,
-        "__EDITOR_CSS__": read_web_asset("editor.css").rstrip(),
+        "__EDITOR_CSS__": read_web_asset("editor.css").rstrip() + "\n" + read_web_asset("msw-flat-editor.css").rstrip(),
         "__WAVEFORM_CSS__": read_web_asset("waveform.css").rstrip(),
         "__EDITOR_SCRIPTS_JS__": build_editor_scripts(),
         "__PALETTE_JSON__": build_palette_json(),

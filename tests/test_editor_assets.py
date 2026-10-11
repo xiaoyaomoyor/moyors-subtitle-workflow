@@ -38,6 +38,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-subtitle-layers.js",
                 "msw-subtitle-tracks.js",
                 "msw-flat-subtitles.js",
+                "msw-flat-editing.js",
                 "msw-track-presentation.js",
                 "msw-subtitle-presentation.js",
                 "msw-project.js",
@@ -79,6 +80,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-subtitle-renderer.js",
                 "msw-help.js",
                 "editor-onboarding.js",
+                "msw-flat-editor.js",
             ),
         )
 

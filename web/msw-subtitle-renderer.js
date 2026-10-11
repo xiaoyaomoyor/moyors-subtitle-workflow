@@ -1,6 +1,7 @@
 // One ASS document feeds libass in the browser and the FFmpeg burn compiler.
 (function(global) {
   'use strict';
+  if (global.MSWFlatTrialRequested) return;
   const host=global.MSWE?.resolve('processing-host'),styles=global.MSWSubtitleStyle;
   if(!host||!styles)return;
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;

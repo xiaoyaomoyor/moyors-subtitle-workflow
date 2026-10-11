@@ -1,6 +1,7 @@
 // Audio clips have their own selection/gestures; subtitle edit rules stay local.
 (function (global) {
   'use strict';
+  if (global.MSWFlatTrialRequested) return;
   const host = global.MSWE?.resolve('processing-host'), timeline = host?.timeline, core = global.MSWAudio;
   if (!timeline || !core) return;
   const t = s => global.MSWE_I18N?.translateText?.(s) || s;

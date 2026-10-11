@@ -1,6 +1,7 @@
 // Project save UI. Native targets and collection belong to the local server.
 (function (global) {
   'use strict';
+  if (global.MSWFlatTrialRequested) return;
   const host = global.MSWE?.resolve('persistence-host');
   if (!host) return;
   const el = id => document.getElementById(id);

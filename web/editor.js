@@ -29,6 +29,11 @@ const STICKERS = __STICKERS_JSON__;
 let STICKER_ROOT = __STICKER_ROOT_JSON__;  // 表情包根目录的绝对路径（无尾斜杠）
 let STICKER_URL_PREFIX = __STICKER_URL_PREFIX_JSON__;
 const SERVER_CONFIG = __SERVER_CONFIG_JSON__;
+// The v4 trial edits a separate in-memory document. Old server endpoints only
+// accept v1-v3; disable them before feature modules initialize.
+if (window.MSWFlatTrialRequested && SERVER_CONFIG) {
+  for (const key of ['processingUrl', 'processingContext', 'saveUrl', 'projectPersistence', 'autoOpenLastProject']) SERVER_CONFIG[key] = null;
+}
 let mswProjectGeneration = 0;
 window.MSWProject.ensure(DATA, SERVER_CONFIG?.processingContext?.projectId);
 const NINJA_SFX_BASE_URL = __NINJA_SFX_BASE_URL_JSON__;
@@ -1852,6 +1857,7 @@ function getGapRemoveGaps() {
 }
 
 function getRemovedGapRanges() {
+  if (window.MSWFlatTrialRequested) return [];
   const state = getGapRemoveData(false);
   if (!state) return [];
   if (removedGapRangesCacheState !== state) {
@@ -6685,6 +6691,7 @@ function alignSelectedExtensionSubtitleRanges() {
 
 // === 渲染 ===
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor } = {}) {
+  if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
   layerPrepareRender();
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
   (getMultiSubtitleState().tracks || []).forEach(track => MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(track.segments, track.id + '-segment'));
@@ -7007,6 +7014,7 @@ function commitCuePanelEdit() {
 }
 
 function renderCurrentCuePanel() {
+  if (window.MSWFlatEditor?.active) return;
   if (!cuePanel) return;
   const target = getCurrentCuePanelTarget();
   container.querySelectorAll('.current-target').forEach((element) => element.classList.remove('current-target'));
@@ -14867,6 +14875,7 @@ function toggleSubtitleTrackMuted(kind) {
 }
 
 function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActive(tMs)) {
+  if (window.MSWFlatTrialRequested) return;
   if (fixedPresentationMode()) return fixedRefreshSubtitlePreview(tMs);
   fixedHidePreview();
   if (layerMode()) return layerRefreshSubtitlePreview(tMs);
@@ -15643,6 +15652,7 @@ function buildGapRemovedRegionsJson() {
 }
 
 function buildJson() {
+  if (window.MSWFlatEditor?.active) return JSON.stringify(window.MSWFlatEditor.snapshot(), null, 2);
   if (fixedTrackMode() && !fixedAcceptEdit()) throw Error('本次字幕编辑未通过轨道校验，已保留上一次有效状态');
   window.MSWE?.resolve('asset-library')?.commitEdit();
   // Validate before timing repair, and always serialize the live MSW extension.
@@ -17000,6 +17010,7 @@ let projectSaveInFlight = false;
 const EDIT_SAVE_DEBOUNCE_MS = 400;
 
 function scheduleAutoSave() {
+  if (window.MSWFlatTrialRequested) return;
   if (autoSaveTimer !== null) {
     window.clearInterval(autoSaveTimer);
     autoSaveTimer = null;
@@ -17040,6 +17051,7 @@ function scheduleAutoSave() {
 }
 
 function hasUnsavedProjectChanges() {
+  if (window.MSWFlatTrialRequested) return Boolean(window.MSWFlatEditor?.dirty());
   const multiDirty = Boolean(DATA.multi_subtitle?._dirty)
     || (DATA.multi_subtitle?.tracks || []).some((track) => track.segments?.some((segment) => segment._dirty));
   const overlayDirty = Boolean(DATA.overlay_track?._dirty)
@@ -17052,6 +17064,7 @@ function hasUnsavedProjectChanges() {
 // 文字编辑先写入页面内存，避免每个按键都请求服务器；失焦后短暂防抖保存，
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
 function scheduleAutoSaveFlush() {
+  if (window.MSWFlatTrialRequested) return;
   if (fixedTrackMode()) fixedAcceptEdit();
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
@@ -17763,6 +17776,7 @@ async function saveProjectToHandle({ silent = false } = {}) {
 
 // 统一保存入口：句柄目标优先（最近一次新建/另存为选定的文件），否则写回服务器绑定工程。
 async function saveCurrentProject({ silent = false } = {}) {
+  if (window.MSWFlatTrialRequested) return silent ? false : window.MSWFlatEditor?.save();
   if (projectFileHandle) return saveProjectToHandle({ silent });
   return saveProjectToServer({ silent });
 }

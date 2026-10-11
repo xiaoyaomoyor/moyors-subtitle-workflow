@@ -7,6 +7,9 @@
 (function (global) {
   'use strict';
 
+  global.MSWFlatTrialRequested = !!global.location && new global.URLSearchParams(global.location.search).get('flat-subtitles') === '1';
+  if (global.MSWFlatTrialRequested) document.documentElement.classList.add('msw-flat-trial');
+
   if (global.MSWE?.version === 1 && typeof global.MSWE.register === 'function') return;
 
   const factories = new Map();
