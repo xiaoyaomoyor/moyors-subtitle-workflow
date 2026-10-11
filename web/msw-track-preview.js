@@ -145,7 +145,7 @@ function fixedPositionCurrent() {
   return fixedPositionScope==='cue'?(group?.rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position||track?.position||{x:.5,y:.08}):track?.position||{x:.5,y:.08};
 }
 function fixedCommitPosition(value) {
-  const track=fixedStyleTarget();if(!track||track.kind!=='annotation')return false;
+  const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed')return false;
   if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
   try {
     if(track.locked)throw Error('轨道已锁定，请先解锁');
@@ -154,13 +154,13 @@ function fixedCommitPosition(value) {
       const target=next.subtitle_tracks.tracks.find(t=>t.id===track.id);
       if(value)target.position=value;else delete target.position;
     } else {
-      if(!fixedPositionRef)throw Error('请先在播放器中选择画面文字');
+      if(!fixedPositionRef)throw Error('请先在播放器中选择字幕');
       const refs=fixedTrackCore.boundRefs(next,[fixedPositionRef]);fixedTrackCore.assertEditable(next,refs);
       const index=fixedTrackCore.createIndex(next);
       for(const ref of refs){const cue=index.resolve(ref).cue;if(value)cue.subtitle_position=value;else delete cue.subtitle_position;}
     }
     fixedTrackCore.validate(next);fixedTrackCore.assertLocks(DATA,next);
-    commitProcessingEdits();pushUndo(fixedPositionScope==='track'?'调整注释轨道位置':'调整当前注释位置',{captureView:true});
+    commitProcessingEdits();pushUndo(fixedPositionScope==='track'?'调整轨道位置':'调整当前字幕位置',{captureView:true});
     DATA.subtitle_tracks=next.subtitle_tracks;
     // Preserve cue object identities used by the editor while applying just positions.
     const index=fixedTrackCore.createIndex(next);
@@ -184,11 +184,11 @@ function fixedPositionFeedback(layout,time) {
   tools.querySelector('select').value=fixedPositionScope;
   const display=fixedPositionDrag?{...layout,entries:layout.entries.map(e=>fixedPositionDrag.groupIds.has(e.group.id)?{...e,x:e.x+fixedPositionDrag.dx,y:e.y+fixedPositionDrag.dy}:e)}:layout;
   const issues=window.MSWTrackPresentation.warnings(display,time);
-  const note=issues.some(i=>i.type==='outside')?'字幕超出画面，请调整位置':issues.length?'字幕发生重叠，可拖动注释避让':'拖动画面文字定位 · Esc 取消本次拖动';
-  const track=fixedStyleTarget();document.getElementById('fixed-position-message').textContent=`${track?.name||'画面文字'} · ${fixedPositionNotice||note}`;
+  const note=issues.some(i=>i.type==='outside')?'字幕超出画面，请调整位置':issues.length?'字幕发生重叠，可拖动字幕避让':'拖动字幕定位 · Esc 取消本次拖动';
+  const track=fixedStyleTarget();document.getElementById('fixed-position-message').textContent=`${track?.name||'字幕'} · ${fixedPositionNotice||note}`;
 }
 function fixedStartPositioning() {
-  const track=fixedStyleTarget();if(!track||track.kind!=='annotation'||track.locked||!fixedPresentationMode())return;
+  const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed'||track.locked||!fixedPresentationMode())return;
   const role=currentCuePanelKind==='extension'?'extension':'main',source=role==='main'?DATA.segments:getExtensionTrack(currentCuePanelTrackId)?.segments||[];
   const cue=source[currentCuePanelIdx];
   if(cue&&fixedOwner(cue,role,currentCuePanelTrackId)===track.id)fixedPositionRef=fixedRef(cue,role,currentCuePanelTrackId);

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const context={window:{},TextEncoder,TextDecoder,Uint8Array};
+import trackCore from '../web/msw-subtitle-tracks.js';
+const context={window:{MSWSubtitleTracks:trackCore},TextEncoder,TextDecoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const S=context.window.MSWProjectStyle,U=context.window.AsrEditorUtils;
 

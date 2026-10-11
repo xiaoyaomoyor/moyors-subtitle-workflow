@@ -12,8 +12,8 @@
   const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range) && !(['msw.project.v2','msw.project.v3'].includes(project.schema) && project.subtitle_layers?.legacy_overlay?.visible===false && project.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)));
   function targetTrack(project,id) {
     if(project.schema!=='msw.project.v3')return null;
-    const track=project.subtitle_tracks.tracks.find(t=>t.id===id)||(!id&&project.subtitle_tracks.tracks.find(t=>t.kind==='dialogue'&&t.enabled&&!t.locked));
-    if(!track||track.kind!=='dialogue'||track.locked||!track.enabled)throw Error('请选择已启用且未锁定的对白目标轨道');
+    const track=project.subtitle_tracks.tracks.find(t=>t.id===id)||(!id&&project.subtitle_tracks.tracks.find(t=>t.enabled&&!t.locked));
+    if(!track||track.locked||!track.enabled)throw Error('请选择已启用且未锁定的目标字幕轨道');
     return track;
   }
   function owned(project,cues,role,trackId,owner) {

@@ -5104,19 +5104,21 @@
 }
 @keyframes merge-tape-fade { 0%, 65% { opacity: 1; } 100% { opacity: 0; } }
 
-/* Fixed-track development editor: the head column has its own space and never
+/* Compact fixed-track heads: the column has its own space and never
    overlays waveform hit targets. All feedback uses existing theme tokens. */
-.msw-fixed-tracks .waveform-row { left: 144px !important; }
-.msw-fixed-tracks .waveform-track-heads-column { width: 138px; display: block; }
-.msw-fixed-tracks .waveform-track-heads { width: 138px; }
+.msw-fixed-tracks .waveform-row { left: 108px !important; }
+.msw-fixed-tracks .waveform-track-heads-column { width: 102px; display: block; }
+.msw-fixed-tracks .waveform-track-heads { width: 102px; }
 .fixed-track-head { position: absolute; left: 3px; right: 3px; box-sizing: border-box; display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 22px; align-content: start; align-items: center; gap: 2px;
+  grid-template-columns: minmax(0, 1fr); align-content: start; align-items: center; gap: 2px;
   padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); pointer-events: auto; }
 .fixed-track-head.current { border-color: var(--selection-yellow); }
-.fixed-track-head :is(button,input) { min-width: 0; box-sizing: border-box; height: 23px; padding: 1px 3px;
+.fixed-track-head button { min-width: 0; box-sizing: border-box; height: 23px; padding: 1px 3px;
   color: var(--text-primary); background: var(--btn-bg); border: 1px solid transparent; border-radius: 3px; font: inherit; font-size: 11px; }
-.fixed-track-head input { width: 100%; text-overflow: ellipsis; background: transparent; }
-.fixed-track-head input:focus { outline: none; border-color: var(--selection-yellow); background: var(--form-input-bg); }
+.fixed-track-head:has(.fixed-track-collapse) { grid-template-columns: 16px minmax(0,1fr); }
+.fixed-track-toggle { width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.fixed-track-head button:focus-visible { outline: 1px solid var(--selection-yellow); outline-offset: 1px; }
+.fixed-track-lock { position:absolute; right:2px; bottom:0; color:var(--text-muted); pointer-events:none; }
 .fixed-track-head button:hover { background: var(--btn-bg-hover); }
 .fixed-track-roles { grid-column: 1 / -1; margin-top: 17px; color: var(--text-muted); font-size: 10px; text-align: center; }
 .fixed-track-head.disabled-track, .fixed-disabled { opacity: .5; }
@@ -5127,14 +5129,16 @@
 .cue:has(> .fixed-track-badge):not(.multi-dual-cue) > .sticker-slot { grid-row: 4; }
 .fixed-track-filter { display: flex; align-items: center; gap: 4px; padding: 5px 10px; font-size: 12px; }
 .fixed-track-filter select { max-width: 150px; padding: 3px 6px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--bg-input); font: inherit; }
-.msw-fixed-tracks .waveform-pane { --source-toolbar-h: 38px; }
-#fixed-track-toolbar { position: absolute; top: calc(var(--module-tab-h) + var(--panel-toolbar-h)); left: 0; right: 0;
-  height: 38px; box-sizing: border-box; z-index: 31; background: var(--panel-toolbar-bg-wave);
-  display: flex; gap: 8px; align-items: center; padding: 4px 10px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
-.waveform-pane.wave-hints-on > #fixed-track-toolbar { top: calc(var(--module-tab-h) + var(--panel-toolbar-h) + var(--wave-hints-h, var(--panel-toolbar-h))); }
-#fixed-track-toolbar button { padding: 3px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--btn-bg); font: inherit; cursor: pointer; }
-#fixed-track-toolbar button:hover { background: var(--btn-bg-hover); }
-#fixed-track-status { color: var(--text-primary); flex: 1; min-width: 0; overflow: auto; max-height: 30px; }
+#fixed-track-status { position:absolute; bottom:8px; left:110px; right:12px; z-index:31; padding:6px 10px;
+  color:var(--text-primary); background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; pointer-events:none; }
+#fixed-track-status:empty { display:none; }
+.fixed-track-form { width:240px; max-width:calc(100vw - 32px); padding:10px; display:grid; gap:12px; box-sizing:border-box; }
+.fixed-track-form label { display:grid; gap:6px; color:var(--text-muted); font-size:12px; }
+.fixed-track-form :is(input,select) { width:100%; min-width:0; box-sizing:border-box; padding:6px 8px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); font:inherit; }
+.fixed-track-form :is(input,select):focus { outline:1px solid var(--selection-yellow); }
+.fixed-track-form-actions { display:flex; gap:6px; justify-content:flex-end; }
+.fixed-track-form-actions button { padding:5px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--btn-bg); color:var(--text-primary); cursor:pointer; }
+.fixed-track-form-actions .primary { background:var(--accent); color:var(--accent-text,white); }
 #fixed-cue-owner { display: block; padding: 4px 12px; font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
 #fixed-cue-owner:empty { display: none; }
 .fixed-track-move-menu { border-top: 1px solid var(--border); margin-top: 4px; }
@@ -17752,7 +17756,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 5;
+  const layoutVersion = 6;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -17866,7 +17870,7 @@ export default MawDynamicCaptions;
   function applyPreset(project,style,{proof=false}={}) {
     const old=normalize(project.preview?.project_style||defaults()),value=normalize(style);
     for(const track of project.subtitle_tracks?.tracks||[]) {
-      if(track.kind==='annotation'&&!proof) {
+      if(global.MSWSubtitleTracks.styleKind(track)==='annotation'&&!proof) {
         if(value.annotation)track.style={mode:'snapshot',value:clone(value.annotation)};
         else if(track.style.mode==='inherit')track.style={mode:'snapshot',value:clone(old.annotation||old)};
       } else track.style={mode:'snapshot',value:clone(value)};
@@ -18323,7 +18327,12 @@ export default MawDynamicCaptions;
   const layers = typeof module !== 'undefined' && module.exports
     ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
   const SCHEMA = 'msw.project.v3';
-  const TRACK_SCHEMA = 'msw.subtitle_tracks.v1';
+  const TRACK_SCHEMA = 'msw.subtitle_tracks.v2';
+  const LEGACY_TRACK_SCHEMA = 'msw.subtitle_tracks.v1';
+  // kind is retained as historical metadata; behavior uses independent fields.
+  const purpose = track => track.purpose ?? (track.kind === 'annotation' ? 'annotation' : 'dialogue');
+  const placement = track => track.layout ?? (track.kind === 'annotation' || track.position ? 'fixed' : 'auto');
+  const styleKind = track => (track.style_base ?? track.kind) === 'annotation' ? 'annotation' : 'dialogue';
   const clone = value => JSON.parse(JSON.stringify(value));
   const key = ref => JSON.stringify([ref.role, ref.track_id, ref.cue_id]);
   const stable = value => typeof value === 'string' && !!value.trim() && value.length <= 160;
@@ -18411,7 +18420,7 @@ export default MawDynamicCaptions;
     layers.validate({ ...project, schema: layers.SCHEMA });
     const rows = sourceRecords(project), groups = bindingGroups(project, rows);
     const metadata = project.subtitle_tracks;
-    if (metadata?.schema !== TRACK_SCHEMA || !['legacy', 'fixed'].includes(metadata.presentation)
+    if (![TRACK_SCHEMA, LEGACY_TRACK_SCHEMA].includes(metadata?.schema) || !['legacy', 'fixed'].includes(metadata.presentation)
       || !Array.isArray(metadata.tracks) || !metadata.tracks.length || !Array.isArray(metadata.assignments)) fail('轨道元数据无效');
     if (metadata.legacy_overlay_settings !== undefined && (!metadata.legacy_overlay_settings
       || typeof metadata.legacy_overlay_settings !== 'object' || Array.isArray(metadata.legacy_overlay_settings)
@@ -18420,6 +18429,9 @@ export default MawDynamicCaptions;
     for (const track of metadata.tracks) {
       if (!stable(track?.id) || tracks.has(track.id) || !stable(track.name)
         || !['dialogue', 'annotation'].includes(track.kind)
+        || ((metadata.schema === TRACK_SCHEMA || track.purpose !== undefined) && !['none', 'dialogue', 'source', 'translation', 'annotation'].includes(track.purpose))
+        || ((metadata.schema === TRACK_SCHEMA || track.layout !== undefined) && !['auto', 'fixed'].includes(track.layout))
+        || ((metadata.schema === TRACK_SCHEMA || track.style_base !== undefined) && !['dialogue', 'annotation'].includes(track.style_base))
         || !['main', 'legacy-overlay'].includes(track.origin)
         || ['enabled', 'locked', 'collapsed'].some(k => typeof track[k] !== 'boolean')
         || (track.show_secondary !== undefined && typeof track.show_secondary !== 'boolean')
@@ -18463,7 +18475,19 @@ export default MawDynamicCaptions;
   }
 
   function migrate(input) {
-    if (input?.schema === SCHEMA) { validate(input); return clone(input); }
+    if (input?.schema === SCHEMA) {
+      validate(input);
+      const project = clone(input);
+      if (project.subtitle_tracks.schema === LEGACY_TRACK_SCHEMA) {
+        for (const track of project.subtitle_tracks.tracks) {
+          track.purpose = track.kind === 'annotation' ? 'annotation' : 'dialogue';
+          track.layout = track.kind === 'annotation' || track.position ? 'fixed' : 'auto';
+          track.style_base = track.kind;
+        }
+        project.subtitle_tracks.schema = TRACK_SCHEMA;
+      }
+      validate(project); return project;
+    }
     if (input && Object.hasOwn(input, 'subtitle_tracks')) fail('旧版本中已包含固定轨道字段，无法安全覆盖');
     const prepared = clone(input);
     // Old hand-authored projects may omit the language storage track's ID.
@@ -18494,8 +18518,8 @@ export default MawDynamicCaptions;
       const number = ++counts[origin];
       const oldName = metadata.legacy_overlay_settings?.name;
       const overlayName = (stable(oldName) ? oldName : '原叠加字幕').slice(0, 140).replace(/[\uD800-\uDBFF]$/, '');
-      const track = { id: `subtitle-track-${slots.length + 1}`, name: origin === 'main' ? `对白 ${number}` : `${overlayName} ${number}`,
-        kind: 'dialogue', origin, enabled, locked: false, collapsed: false, style: { mode: 'inherit' } };
+      const track = { id: `subtitle-track-${slots.length + 1}`, name: origin === 'main' ? `字幕 ${number}` : `${overlayName} ${number}`,
+        kind: 'dialogue', purpose: 'none', layout: 'auto', style_base: 'dialogue', origin, enabled, locked: false, collapsed: false, style: { mode: 'inherit' } };
       metadata.tracks.push(track);
       const slot = { track, lanes: new Map() }; slots.push(slot); return slot;
     }
@@ -18588,6 +18612,7 @@ export default MawDynamicCaptions;
     for (const track of before.subtitle_tracks.tracks.filter(t => t.locked)) {
       const other = after.subtitle_tracks.tracks.find(t => t.id === track.id);
       if (other && (JSON.stringify(track.style) !== JSON.stringify(other.style)
+        || placement(track) !== placement(other) || styleKind(track) !== styleKind(other)
         || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
     }
     const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
@@ -18604,13 +18629,15 @@ export default MawDynamicCaptions;
       if (JSON.stringify(bindings(before)) !== JSON.stringify(bindings(after))) fail('锁定轨道的绑定不能修改');
     }
   }
-  function addTrack(project, kind = 'dialogue', id) {
+  function addTrack(project, kind = 'subtitle', id) {
     validate(project);
-    if (!['dialogue', 'annotation'].includes(kind) || !stable(id) || project.subtitle_tracks.tracks.some(t => t.id === id)) fail('新轨道参数无效');
-    const next = clone(project), base = kind === 'dialogue' ? '对白' : '画面文字';
+    if (!['subtitle', 'dialogue', 'annotation'].includes(kind) || !stable(id) || project.subtitle_tracks.tracks.some(t => t.id === id)) fail('新轨道参数无效');
+    const next = migrate(project), base = kind === 'subtitle' ? '字幕' : kind === 'dialogue' ? '对白' : '画面文字';
     let n = 1;
     while (next.subtitle_tracks.tracks.some(t => t.name === `${base} ${n}`)) n++;
-    next.subtitle_tracks.tracks.push({ id, name: `${base} ${n}`, kind, origin: 'main', enabled: true, locked: false, collapsed: false, style: { mode: 'inherit' } });
+    next.subtitle_tracks.tracks.push({ id, name: `${base} ${n}`, kind: kind === 'annotation' ? 'annotation' : 'dialogue',
+      purpose: kind === 'subtitle' ? 'none' : kind, layout: kind === 'annotation' ? 'fixed' : 'auto', style_base: kind === 'annotation' ? 'annotation' : 'dialogue',
+      origin: 'main', enabled: true, locked: false, collapsed: false, style: { mode: 'inherit' } });
     return next;
   }
   // Stable lanes cover the whole project, not just cues in the visible time row.
@@ -18630,7 +18657,7 @@ export default MawDynamicCaptions;
     }
     return { count, bands, positions, owners };
   }
-  const api = { SCHEMA, TRACK_SCHEMA, key, migrate, validate, createIndex, assign,
+  const api = { SCHEMA, TRACK_SCHEMA, LEGACY_TRACK_SCHEMA, purpose, placement, styleKind, key, migrate, validate, createIndex, assign,
     ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;
@@ -18647,7 +18674,7 @@ export default MawDynamicCaptions;
   function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
   function styleFor(project, track, proof = null) {
     const S=global.MSWProjectStyle,style=proof || (track.style.mode === 'snapshot' ? track.style.value : project.preview?.project_style) || S.defaults();
-    return S.forKind(style,track.kind);
+    return S.forKind(style,core.styleKind(track));
   }
   function layout(project, {width = 1920, languageId = project.multi_subtitle?.tracks?.[0]?.id, measure, resolveStyle = t => styleFor(project,t), gap = project.subtitle_layers?.presentation?.gap ?? 12} = {}) {
     const index = core.createIndex(project), tracks = project.subtitle_tracks.tracks;
@@ -18658,7 +18685,7 @@ export default MawDynamicCaptions;
       if (!rows.length) return;
       for (const row of rows) used.add(core.key(row));
       const track = tracks.find(t => t.id === rows[0].subtitle_track_id), style = resolveStyle(track);
-      const group = {id:core.key(rows[0]), trackId:track.id, kind:track.kind, rank:tracks.indexOf(track), rows, style};
+      const group = {id:core.key(rows[0]), trackId:track.id, kind:core.placement(track)==='fixed'?'annotation':'dialogue', rank:tracks.indexOf(track), rows, style};
       group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
       const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
       rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1));
@@ -18671,11 +18698,11 @@ export default MawDynamicCaptions;
       rows[0].localY = 0;
       if (rows.length === 2) rows[1].localY = Math.max(1, (rows[0].size.height-rows[1].size.height)/2+1, rows[0].size.height+pair.gap);
       group.height = Math.max(...rows.map(r=>r.localY+r.size.height),1);
-      const explicit = rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position || track.position;
-      group.position = explicit || (track.kind === 'annotation' ? {x:.5,y:.08} : null);
+      const explicit = rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position || (core.placement(track)==='fixed' ? track.position : null);
+      group.position = explicit || (core.placement(track) === 'fixed' ? {x:.5,y:.08} : null);
       const lowerStyle = rows.at(-1).style, alignment = Number(lowerStyle.alignment)||2;
       const horizontal = (alignment-1)%3, vertical = Math.floor((alignment-1)/3);
-      group.x = explicit || track.kind === 'annotation' ? group.position.x*width-group.width/2
+      group.x = group.position ? group.position.x*width-group.width/2
         : horizontal===0 ? lowerStyle.marginL||0 : horizontal===2 ? width-(lowerStyle.marginR||0)-group.width : (width-group.width)/2;
       group.y = group.position ? group.position.y*1080 : vertical===2 ? lowerStyle.marginV||0
         : vertical===1 ? (1080-group.height)/2 : 1080-(lowerStyle.marginV||0)-group.height;
@@ -19851,8 +19878,8 @@ export default MawDynamicCaptions;
   const affected = (project,mode,range) => (project.segments || []).filter(cue => overlaps(cue,range) && !(['msw.project.v2','msw.project.v3'].includes(project.schema) && project.subtitle_layers?.legacy_overlay?.visible===false && project.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)));
   function targetTrack(project,id) {
     if(project.schema!=='msw.project.v3')return null;
-    const track=project.subtitle_tracks.tracks.find(t=>t.id===id)||(!id&&project.subtitle_tracks.tracks.find(t=>t.kind==='dialogue'&&t.enabled&&!t.locked));
-    if(!track||track.kind!=='dialogue'||track.locked||!track.enabled)throw Error('请选择已启用且未锁定的对白目标轨道');
+    const track=project.subtitle_tracks.tracks.find(t=>t.id===id)||(!id&&project.subtitle_tracks.tracks.find(t=>t.enabled&&!t.locked));
+    if(!track||track.locked||!track.enabled)throw Error('请选择已启用且未锁定的目标字幕轨道');
     return track;
   }
   function owned(project,cues,role,trackId,owner) {
@@ -20164,7 +20191,7 @@ export default MawDynamicCaptions;
     if(project.schema==='msw.project.v3') {
       const owner=jobs[0].snapshot.subtitle_track_id, core=global.MSWSubtitleTracks, index=core.createIndex(project);
       const track=project.subtitle_tracks.tracks.find(t=>t.id===owner);
-      if(!track||track.locked||track.kind!=='dialogue'||jobs.some(j=>j.snapshot.subtitle_track_id!==owner))throw Error('识别目标轨道已删除、锁定或改变，请重新识别');
+      if(!track||track.locked||!track.enabled||jobs.some(j=>j.snapshot.subtitle_track_id!==owner))throw Error('识别目标轨道已删除、禁用或锁定，请重新识别');
       for(const job of jobs)for(const [role,storage,cues] of [['main',null,job.snapshot.targets],['extension',job.snapshot.secondary?.track_id,job.snapshot.secondary?.targets||[]]])
         for(const cue of (previous&&role===(target==='main'?'main':'extension')?previous.state.targets:cues)) {
           const row=index.resolve({role,track_id:storage,cue_id:cue.id});
@@ -31353,7 +31380,7 @@ function fixedUpdateTrack(id, update) {
     const members = new Set(next.subtitle_tracks.assignments.filter(a => a.subtitle_track_id === id && a.role === 'main').map(a => a.cue_id));
     next.subtitle_layers.legacy_overlay.cue_ids = next.subtitle_layers.legacy_overlay.cue_ids.filter(cueId => !members.has(cueId));
   }
-  fixedCommitProject(next, '调整字幕轨道');
+  return fixedCommitProject(next, '调整字幕轨道');
 }
 function fixedMove(refs, targetId) {
   try { if (fixedCommitProject(fixedTrackCore.assign(DATA, refs, targetId), '移动到字幕轨道')) fixedActiveTrackId = targetId; }
@@ -31374,15 +31401,44 @@ function fixedAppendMoveMenu(cues, role = 'main', trackId = null) {
     const item = fixedMenuItem(track.name + (track.locked ? ' · 已锁定' : ''), () => fixedMove(refs, track.id), track.locked);
     section.append(item);
   }
-  for (const [kind, label] of [['dialogue', '新建对白轨道'], ['annotation', '新建画面文字轨道']]) section.append(fixedMenuItem(label, () => fixedAddTrack(kind, refs)));
+  section.append(fixedMenuItem('新建字幕轨道', () => fixedAddTrack('subtitle', refs)));
+}
+function fixedRenameTrack(track, x, y, settings = false) {
+  ctxmenu.replaceChildren();
+  const generation=mswProjectGeneration,form=document.createElement('form');form.className='fixed-track-form';
+  const label=document.createElement('label');label.textContent='轨道名称';
+  const input=document.createElement('input');input.value=track.name;input.maxLength=160;input.required=true;
+  input.setAttribute('aria-label','轨道名称');label.append(input);form.append(label);
+  let purpose,layout;
+  if(settings) {
+    const field=(caption,choices,value,help)=>{const label=document.createElement('label');label.textContent=caption;label.dataset.optionHelp=help;
+      const select=document.createElement('select');select.setAttribute('aria-label',caption);select.replaceChildren(...choices.map(([id,text])=>new Option(text,id)));select.value=value;label.append(select);form.append(label);return select;};
+    purpose=field('用途',[['none','未指定'],['dialogue','对白'],['source','源字幕'],['translation','译字幕'],['annotation','画面文字']],fixedTrackCore.purpose(track),'用途仅作标记，不改变排布、样式或识别和导出范围。主副字幕的绑定关系保持不变。');
+    layout=field('排布',[['auto','自动排布'],['fixed','固定位置']],fixedTrackCore.placement(track),'在工程使用“固定轨道排布”时生效。自动排布：按轨道顺序避让重叠字幕。固定位置：独立定位，不参与自动避让；可在“字幕样式与画面位置”中调整。旧工程单独定位过的字幕仍保留位置覆盖。');
+    layout.disabled=track.locked;
+    window.MSWHelp?.hydrate(form);
+  }
+  const actions=document.createElement('div');actions.className='fixed-track-form-actions';
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='取消';cancel.onclick=()=>ctxmenu.classList.remove('show');
+  const save=document.createElement('button');save.type='submit';save.textContent='保存';save.className='primary';actions.append(cancel,save);form.append(actions);
+  form.onsubmit=event=>{event.preventDefault();const name=input.value.trim();if(!name){input.setCustomValidity('请输入轨道名称');input.reportValidity();return;}
+    if(generation!==mswProjectGeneration||!DATA.subtitle_tracks.tracks.some(t=>t.id===track.id)){ctxmenu.classList.remove('show');return;}
+    if(fixedUpdateTrack(track.id,{name,...(settings?{purpose:purpose.value,layout:layout.value}:{})}))ctxmenu.classList.remove('show');};
+  input.oninput=()=>input.setCustomValidity('');
+  form.onkeydown=event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();ctxmenu.classList.remove('show');}};
+  ctxmenu.append(form);ctxShowAt(x,y);input.focus();input.select();
 }
 function fixedTrackMenu(track, x, y) {
+  fixedStatus();
   ctxmenu.replaceChildren();
+  fixedMenuItem('重命名', () => fixedRenameTrack(track,x,y));
+  fixedMenuItem('轨道设置', () => fixedRenameTrack(track,x,y,true));
   fixedMenuItem('字幕样式与画面位置', () => window.MSWSubtitleStyle?.editTrack(track.id));
   fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed }));
   fixedMenuItem(track.enabled ? '禁用轨道' : '启用轨道', () => fixedUpdateTrack(track.id, { enabled: !track.enabled }));
   fixedMenuItem(track.locked ? '解锁轨道' : '锁定轨道', () => fixedUpdateTrack(track.id, { locked: !track.locked }));
   fixedMenuItem(track.show_secondary ? '按内容显示副字幕行' : '始终显示副字幕行', () => fixedUpdateTrack(track.id, { show_secondary: !track.show_secondary }));
+  fixedMenuItem('新增字幕轨道', () => fixedAddTrack('subtitle'));
   for (const [delta, label] of [[-1, '上移轨道'], [1, '下移轨道']]) {
     const index = DATA.subtitle_tracks.tracks.findIndex(t => t.id === track.id);
     fixedMenuItem(label, () => {
@@ -31407,20 +31463,18 @@ function fixedRenderHeads(group, row, audioSpace) {
     node.classList.toggle('locked-track', track.locked);
     node.classList.toggle('current', fixedActiveTrack()?.id === track.id);
     node.style.bottom = `${7 + audioSpace + band.bottom * 38}px`; node.style.height = `${band.size * 38 - 4}px`;
-    const collapse = document.createElement('button'); collapse.type = 'button'; collapse.textContent = track.collapsed ? '›' : '⌄';
-    collapse.title = track.collapsed ? '展开轨道' : '折叠轨道'; collapse.setAttribute('aria-label', collapse.title);
-    collapse.onclick = () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed });
-    const name = document.createElement('input'); name.value = track.name; name.setAttribute('aria-label', '轨道名称'); name.maxLength = 160;
-    name.title = `${track.name} · 主字幕${track.locked ? ' · 已锁定' : ''}${track.enabled ? '' : ' · 已禁用'}`;
-    name.onfocus = () => { fixedActiveTrackId = track.id; };
-    name.onchange = () => fixedUpdateTrack(track.id, { name: name.value.trim() });
-    name.onkeydown = event => { if (event.key === 'Enter') name.blur(); if (event.key === 'Escape') { name.value = track.name; name.blur(); } event.stopPropagation(); };
-    const menu = document.createElement('button'); menu.type = 'button'; menu.textContent = '⋯'; menu.title = '轨道操作'; menu.setAttribute('aria-label', '轨道操作');
-    if (track.locked) menu.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2M8 10v2"/></svg>';
-    else if (!track.enabled) menu.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m4 12 8-8"/></svg>';
-    menu.title += track.locked ? ' · 已锁定' : !track.enabled ? ' · 已禁用' : '';
-    menu.onclick = event => { const rect = menu.getBoundingClientRect(); fixedTrackMenu(track, rect.right, rect.bottom); };
-    node.append(collapse, name, menu);
+    if(track.collapsed||band.roles.includes('extension')) {
+      const collapse = document.createElement('button'); collapse.type = 'button'; collapse.className='fixed-track-collapse';collapse.textContent = track.collapsed ? '›' : '⌄';
+      collapse.title = track.collapsed ? '展开轨道' : '折叠轨道'; collapse.setAttribute('aria-label', collapse.title);
+      collapse.onclick = () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed });node.append(collapse);
+    }
+    const name = document.createElement('button');name.type='button';name.className='fixed-track-toggle';name.textContent=track.name;
+    name.setAttribute('aria-label',track.name);name.setAttribute('aria-pressed',String(track.enabled));
+    name.title = `${track.name}${track.locked ? ' · 已锁定' : ''}\n点击${track.enabled?'禁用':'启用'}本轨道（含主副字幕），右键管理`;
+    name.onclick=()=>{const current=DATA.subtitle_tracks.tracks.find(t=>t.id===track.id);if(current)fixedUpdateTrack(current.id,{enabled:!current.enabled});};
+    name.onkeydown=event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();const rect=name.getBoundingClientRect();fixedTrackMenu(track,rect.right,rect.bottom);}};
+    node.append(name);
+    if(track.locked){const lock=document.createElement('span');lock.className='fixed-track-lock';lock.setAttribute('aria-label','已锁定');lock.innerHTML='<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>';node.append(lock);}
     if (band.roles.includes('extension')) { const roles = document.createElement('span'); roles.className = 'fixed-track-roles'; roles.textContent = '副字幕'; node.append(roles); }
     for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu']) node.addEventListener(type, event => { event.stopPropagation(); if (type === 'contextmenu') { event.preventDefault(); fixedTrackMenu(track, event.clientX, event.clientY); } });
     group.append(node);
@@ -31444,14 +31498,9 @@ function fixedSyncUI() {
     select.replaceChildren(new Option('全部轨道', ''), ...DATA.subtitle_tracks.tracks.map(t => new Option(t.name, t.id)));
     select.value = fixedTrackFilter;
   }
-  let bar = document.getElementById('fixed-track-toolbar');
-  if (!bar) {
-    bar = document.createElement('div'); bar.id = 'fixed-track-toolbar';
-    const add = document.createElement('button'); add.textContent = '＋ 轨道'; add.type = 'button';
-    add.onclick = () => { ctxmenu.replaceChildren(); fixedMenuItem('添加对白轨道', () => fixedAddTrack('dialogue')); fixedMenuItem('添加画面文字轨道', () => fixedAddTrack('annotation')); const r = add.getBoundingClientRect(); ctxShowAt(r.left, r.bottom); };
-    const caption = document.createElement('span'); caption.textContent = '字幕轨道'; caption.title = '轨道决定字幕的归属、显示和输出；锁定后不会被编辑或任务结果覆盖。';
+  if (!document.getElementById('fixed-track-status')) {
     const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
-    bar.append(add, caption, status); document.querySelector('.waveform-pane .module-tab-strip')?.after(bar);
+    document.querySelector('.waveform-pane')?.append(status);
   }
   document.getElementById('overlay-track-toggle')?.closest('label')?.setAttribute('hidden', '');
   document.getElementById('subtitle-legacy-visible')?.closest('label')?.setAttribute('hidden', '');
@@ -31466,6 +31515,11 @@ function fixedSyncUI() {
     badge.textContent = track.name + (track.locked ? ' · 已锁定' : '');
   });
 }
+document.addEventListener('contextmenu',event=>{
+  if(!fixedTrackMode()||!event.target.closest('.waveform-track-heads-column')||event.target.closest('.fixed-track-head'))return;
+  event.preventDefault();event.stopImmediatePropagation();ctxmenu.replaceChildren();
+  fixedMenuItem('新增字幕轨道',()=>fixedAddTrack('subtitle'));ctxShowAt(event.clientX,event.clientY);
+},true);
 function fixedPanelUI(target) {
   if (!fixedTrackMode()) return;
   let label = document.getElementById('fixed-cue-owner');
@@ -31484,7 +31538,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // SRT selection is explicit and independent of the list filter. ASS keeps all
 // enabled tracks, matching video output, including annotation positions.
 let fixedSrtScope = '';
-let fixedSrtAnnotations = false;
 function fixedSrtProject() {
   const project=structuredClone(DATA),index=fixedTrackCore.createIndex(DATA);
   for(const source of layerCore.tracks(project)) {
@@ -31492,7 +31545,7 @@ function fixedSrtProject() {
     source.segments=source.segments.filter(c=>{
       const owner=index.trackFor({role:source.role,track_id:source.track_id,cue_id:c.id});
       return owner?.enabled&&!c.disabled&&(!fixedSrtScope||owner.id===fixedSrtScope)
-        && (owner.kind!=='annotation'||fixedSrtAnnotations)&&layerCore.visible(DATA,c,source.role);
+        && layerCore.visible(DATA,c,source.role);
     });
     if(source.role==='main')project.segments=source.segments;
     else project.multi_subtitle.tracks.find(t=>t.id===source.track_id).segments=source.segments;
@@ -31532,11 +31585,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   const label=document.createElement('label');label.textContent='SRT 范围 ';
   const select=document.createElement('select');select.setAttribute('aria-label','SRT 轨道范围');
   select.onchange=()=>{fixedSrtScope=select.value;};label.append(select);
-  const include=document.createElement('label'),check=document.createElement('input');check.type='checkbox';
-  check.onchange=()=>{fixedSrtAnnotations=check.checked;};include.append(check,' 包含画面文字');
-  row.append(label,include);anchor.before(row);
+  row.append(label);anchor.before(row);
   const sync=()=>{row.hidden=!fixedTrackMode();if(!fixedTrackMode())return;
-    select.replaceChildren(new Option('全部对白轨道',''),...DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>new Option(t.name,t.id)));
+    select.replaceChildren(new Option('全部启用轨道',''),...DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>new Option(t.name,t.id)));
     if(DATA.subtitle_tracks.tracks.some(t=>t.id===fixedSrtScope))select.value=fixedSrtScope;else fixedSrtScope='';};
   anchor.parentElement.addEventListener('pointerenter',sync);window.addEventListener('msw:project-changed',sync);sync();
 });
@@ -31924,7 +31975,11 @@ async function layerProtectHandle(handle, content, silent = false) {
   if (fixedTracksRequested && next?.schema === fixedTrackCore.SCHEMA) {
     fixedTrackCore.validate(next);
     if (![undefined, 'moy.asr.project.v1', 'msw.project.v2', fixedTrackCore.SCHEMA].includes(previous?.schema)) throw Error('目标工程版本不兼容，未覆盖');
-    if (previous.schema === fixedTrackCore.SCHEMA) return;
+    if (previous.schema === fixedTrackCore.SCHEMA) {
+      fixedTrackCore.validate(previous);
+      if(previous.subtitle_tracks.schema===fixedTrackCore.TRACK_SCHEMA && next.subtitle_tracks.schema!==fixedTrackCore.TRACK_SCHEMA)throw Error('不能用旧版轨道结构覆盖用途与排布设置，请另存为新文件');
+      if(previous.subtitle_tracks.schema===next.subtitle_tracks.schema)return;
+    }
     if (silent) throw Error('首次升级固定轨道需先保留旧工程，请手动保存一次');
     const backup = await window.showSaveFilePicker({ suggestedName: handle.name.replace(/\.[^.]+$/, '') + `.before-tracks.${Date.now()}.mosp`, types: [{ description: '固定轨道升级备份', accept: { 'application/json': ['.mosp'] } }] });
     if (await backup.isSameEntry?.(handle) || (await backup.getFile()).size) throw Error('请选择空白备份文件，未覆盖原工程');
@@ -32106,7 +32161,7 @@ function fixedPositionCurrent() {
   return fixedPositionScope==='cue'?(group?.rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position||track?.position||{x:.5,y:.08}):track?.position||{x:.5,y:.08};
 }
 function fixedCommitPosition(value) {
-  const track=fixedStyleTarget();if(!track||track.kind!=='annotation')return false;
+  const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed')return false;
   if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
   try {
     if(track.locked)throw Error('轨道已锁定，请先解锁');
@@ -32115,13 +32170,13 @@ function fixedCommitPosition(value) {
       const target=next.subtitle_tracks.tracks.find(t=>t.id===track.id);
       if(value)target.position=value;else delete target.position;
     } else {
-      if(!fixedPositionRef)throw Error('请先在播放器中选择画面文字');
+      if(!fixedPositionRef)throw Error('请先在播放器中选择字幕');
       const refs=fixedTrackCore.boundRefs(next,[fixedPositionRef]);fixedTrackCore.assertEditable(next,refs);
       const index=fixedTrackCore.createIndex(next);
       for(const ref of refs){const cue=index.resolve(ref).cue;if(value)cue.subtitle_position=value;else delete cue.subtitle_position;}
     }
     fixedTrackCore.validate(next);fixedTrackCore.assertLocks(DATA,next);
-    commitProcessingEdits();pushUndo(fixedPositionScope==='track'?'调整注释轨道位置':'调整当前注释位置',{captureView:true});
+    commitProcessingEdits();pushUndo(fixedPositionScope==='track'?'调整轨道位置':'调整当前字幕位置',{captureView:true});
     DATA.subtitle_tracks=next.subtitle_tracks;
     // Preserve cue object identities used by the editor while applying just positions.
     const index=fixedTrackCore.createIndex(next);
@@ -32145,11 +32200,11 @@ function fixedPositionFeedback(layout,time) {
   tools.querySelector('select').value=fixedPositionScope;
   const display=fixedPositionDrag?{...layout,entries:layout.entries.map(e=>fixedPositionDrag.groupIds.has(e.group.id)?{...e,x:e.x+fixedPositionDrag.dx,y:e.y+fixedPositionDrag.dy}:e)}:layout;
   const issues=window.MSWTrackPresentation.warnings(display,time);
-  const note=issues.some(i=>i.type==='outside')?'字幕超出画面，请调整位置':issues.length?'字幕发生重叠，可拖动注释避让':'拖动画面文字定位 · Esc 取消本次拖动';
-  const track=fixedStyleTarget();document.getElementById('fixed-position-message').textContent=`${track?.name||'画面文字'} · ${fixedPositionNotice||note}`;
+  const note=issues.some(i=>i.type==='outside')?'字幕超出画面，请调整位置':issues.length?'字幕发生重叠，可拖动字幕避让':'拖动字幕定位 · Esc 取消本次拖动';
+  const track=fixedStyleTarget();document.getElementById('fixed-position-message').textContent=`${track?.name||'字幕'} · ${fixedPositionNotice||note}`;
 }
 function fixedStartPositioning() {
-  const track=fixedStyleTarget();if(!track||track.kind!=='annotation'||track.locked||!fixedPresentationMode())return;
+  const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed'||track.locked||!fixedPresentationMode())return;
   const role=currentCuePanelKind==='extension'?'extension':'main',source=role==='main'?DATA.segments:getExtensionTrack(currentCuePanelTrackId)?.segments||[];
   const cue=source[currentCuePanelIdx];
   if(cue&&fixedOwner(cue,role,currentCuePanelTrackId)===track.id)fixedPositionRef=fixedRef(cue,role,currentCuePanelTrackId);
@@ -58646,11 +58701,11 @@ window.addEventListener('beforeunload', (e) => {
     if(host.data.schema!=='msw.project.v3')return null;
     let select=el('target-track');
     if(!select) {
-      const label=document.createElement('label');label.className='msw-field';label.textContent='目标对白轨道';
-      select=document.createElement('select');select.id='msw-asr-target-track';select.setAttribute('aria-label','目标对白轨道');
+      const label=document.createElement('label');label.className='msw-field';label.textContent='目标字幕轨道';
+      select=document.createElement('select');select.id='msw-asr-target-track';select.setAttribute('aria-label','目标字幕轨道');
       label.append(select);el('scope').before(label);select.addEventListener('change',()=>updateScope());
     }
-    const tracks=host.data.subtitle_tracks.tracks.filter(t=>t.kind==='dialogue'&&t.enabled&&!t.locked);
+    const tracks=host.data.subtitle_tracks.tracks.filter(t=>t.enabled&&!t.locked);
     const previous=select.value||host.subtitleTargetTrack?.();
     select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
     if(tracks.some(t=>t.id===previous))select.value=previous;
@@ -63027,7 +63082,7 @@ window.addEventListener('beforeunload', (e) => {
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   panel.querySelector('.msw-style-selectors').insertAdjacentHTML('beforebegin',`<div id="style-track-controls" class="media-settings-grid" hidden>
-    <label class="media-settings-field" data-option-help="旧工程保留原画面排布。切换后对白按固定轨道顺序稳定避让，画面文字独立定位；处理和导出将在下一阶段接入。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
+    <label class="media-settings-field" data-option-help="旧工程保留原画面排布。固定轨道排布统一用于预览、ASS 和烧录；各轨道的自动排布／固定位置可在轨道头右键设置。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
     <label class="media-settings-field"><span class="msw-option-label">编辑对象</span><select id="style-track-target"></select></label>
   </div>`);
   panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<details id="style-track-position" class="msw-style-section" hidden open><summary>画面位置</summary>
@@ -63095,7 +63150,7 @@ window.addEventListener('beforeunload', (e) => {
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
   const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
-  const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedStyleTarget().kind):S.normalize(s);
+  const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleTarget())):S.normalize(s);
   const same=(a,b)=>JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
@@ -63126,14 +63181,14 @@ window.addEventListener('beforeunload', (e) => {
     const style=S.normalize(value()||S.defaults());
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const blocked=!!track&&(track.locked||!fixedPresentationMode());
-    $('style-track-position').hidden=track?.kind!=='annotation'||!fixedPresentationMode();
-    if(track?.kind==='annotation') {
+    $('style-track-position').hidden=(!track||fixedTrackCore.placement(track)!=='fixed')||!fixedPresentationMode();
+    if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
       for(const key of ['x','y']){$('style-position-'+key).value=Math.round(p[key]*1000)/10;$('style-position-'+key).disabled=blocked||fixedPositionScope==='cue'&&!group;}
       $('style-position-drag').disabled=blocked;$('style-position-reset').disabled=blocked||fixedPositionScope==='cue'&&!group;
       $('style-position-reset').textContent=fixedPositionScope==='cue'?'跟随轨道位置':'恢复默认位置';
-      $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的画面文字。'):'轨道位置作用于未单独定位的字幕。';
+      $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的字幕。'):'轨道位置作用于未单独定位的字幕。';
     }
     const removable=library.find(s=>s.id===activePreset()&&same(s,style));
     $('style-delete-preset').disabled=saving||!removable;
@@ -63225,7 +63280,7 @@ window.addEventListener('beforeunload', (e) => {
     const selection=$('style-project-preset').value;
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const preset=selection==='inherit'?projectStyle():selection==='current'?(track?(track.style.custom||value()):(host.data.preview?.project_style_custom||projectStyle())):find(selection);
-    if(!preset){rebuild();return;}cancelAction();change(track?S.forKind(preset,track.kind):preset,selection);
+    if(!preset){rebuild();return;}cancelAction();change(track?S.forKind(preset,fixedTrackCore.styleKind(track)):preset,selection);
   };
   $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
   $('style-transform-preset').onchange=()=>{
@@ -63258,10 +63313,10 @@ window.addEventListener('beforeunload', (e) => {
     event.preventDefault();const action=pendingAction;if(action?.kind!=='save'||saving)return;
     const name=$('style-preset-name').value.trim();if(!name){$('style-preset-name').focus();message('请输入预设名称',true);return;}
     if(all().some(s=>s.name===name)){message('已有同名预设，请使用新名称',true);return;}
-    const preset={...S.presetSnapshot(host.data,value(),fixedTrackMode()?fixedStyleTarget()?.kind:'dialogue'),name,id:global.MSWProject.id('style')};
+    const preset={...S.presetSnapshot(host.data,value(),fixedTrackMode()&&fixedStyleTarget()?fixedTrackCore.styleKind(fixedStyleTarget()):'dialogue'),name,id:global.MSWProject.id('style')};
     const savedStyle=S.normalize(value());
     const target=fixedStyleTrackId;
-    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedStyleTarget().kind):preset,preset.id,'另存为字幕预设');message('预设已保存；包含对白和画面文字基础样式。');$('style-save-as').focus();});
+    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedTrackCore.styleKind(fixedStyleTarget())):preset,preset.id,'另存为字幕预设');message('预设已保存。');$('style-save-as').focus();});
   };
   $('style-delete-preset').onclick=()=>{
     const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};

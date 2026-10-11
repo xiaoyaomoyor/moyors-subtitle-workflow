@@ -71,7 +71,7 @@
     if(project.schema==='msw.project.v3') {
       const owner=jobs[0].snapshot.subtitle_track_id, core=global.MSWSubtitleTracks, index=core.createIndex(project);
       const track=project.subtitle_tracks.tracks.find(t=>t.id===owner);
-      if(!track||track.locked||track.kind!=='dialogue'||jobs.some(j=>j.snapshot.subtitle_track_id!==owner))throw Error('识别目标轨道已删除、锁定或改变，请重新识别');
+      if(!track||track.locked||!track.enabled||jobs.some(j=>j.snapshot.subtitle_track_id!==owner))throw Error('识别目标轨道已删除、禁用或锁定，请重新识别');
       for(const job of jobs)for(const [role,storage,cues] of [['main',null,job.snapshot.targets],['extension',job.snapshot.secondary?.track_id,job.snapshot.secondary?.targets||[]]])
         for(const cue of (previous&&role===(target==='main'?'main':'extension')?previous.state.targets:cues)) {
           const row=index.resolve({role,track_id:storage,cue_id:cue.id});

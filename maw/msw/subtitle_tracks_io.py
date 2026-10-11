@@ -134,7 +134,11 @@ def save_project(document, project=None, *, cancelled=None):
         if not isinstance(old, dict) or old.get("schema", subtitle_layers.LEGACY_SCHEMA) not in (
                 subtitle_layers.LEGACY_SCHEMA, subtitle_layers.SCHEMA, subtitle_tracks.SCHEMA):
             raise ValueError("不支持的原工程版本；未覆盖文件")
-        backup = _backup(document) if old.get("schema") != subtitle_tracks.SCHEMA else None
+        old_tracks = (old.get('subtitle_tracks') or {}).get('schema')
+        new_tracks = _decode(encoded)['subtitle_tracks']['schema']
+        if old_tracks == subtitle_tracks.TRACK_SCHEMA and new_tracks != subtitle_tracks.TRACK_SCHEMA:
+            raise ValueError('不能用旧版轨道结构覆盖用途与排布设置')
+        backup = _backup(document) if old.get("schema") != subtitle_tracks.SCHEMA or old_tracks != new_tracks else None
         with atomic_output_path(document.path) as pending:
             with pending.open("wb") as handle:
                 handle.write(encoded)

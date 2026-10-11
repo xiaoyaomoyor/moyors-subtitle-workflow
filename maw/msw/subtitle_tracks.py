@@ -13,7 +13,16 @@ from copy import deepcopy
 from maw.msw import subtitle_layers as layers
 
 SCHEMA = "msw.project.v3"
-TRACK_SCHEMA = "msw.subtitle_tracks.v1"
+TRACK_SCHEMA = "msw.subtitle_tracks.v2"
+LEGACY_TRACK_SCHEMA = "msw.subtitle_tracks.v1"
+
+
+def placement(track):
+    return track.get("layout", "fixed" if track.get("kind") == "annotation" or track.get("position") else "auto")
+
+
+def style_kind(track):
+    return track.get("style_base", track.get("kind", "dialogue"))
 
 
 def key(ref):
@@ -150,7 +159,7 @@ def validate(project):
     _validate_legacy_layout(project)
     groups = _groups(project, rows)
     metadata = project.get("subtitle_tracks")
-    if (not isinstance(metadata, dict) or metadata.get("schema") != TRACK_SCHEMA or metadata.get("presentation") not in ("legacy", "fixed")
+    if (not isinstance(metadata, dict) or metadata.get("schema") not in (TRACK_SCHEMA, LEGACY_TRACK_SCHEMA) or metadata.get("presentation") not in ("legacy", "fixed")
             or not isinstance(metadata.get("tracks"), list) or not metadata["tracks"] or not isinstance(metadata.get("assignments"), list)):
         _fail("轨道元数据无效")
     if "legacy_overlay_settings" in metadata and (not isinstance(metadata["legacy_overlay_settings"], dict)
@@ -160,6 +169,9 @@ def validate(project):
     for track in metadata["tracks"]:
         if (not isinstance(track, dict) or not _stable(track.get("id")) or track["id"] in tracks or not _stable(track.get("name"))
                 or track.get("kind") not in ("dialogue", "annotation") or track.get("origin") not in ("main", "legacy-overlay")
+                or ((metadata['schema'] == TRACK_SCHEMA or 'purpose' in track) and track.get('purpose') not in ('none', 'dialogue', 'source', 'translation', 'annotation'))
+                or ((metadata['schema'] == TRACK_SCHEMA or 'layout' in track) and track.get('layout') not in ('auto', 'fixed'))
+                or ((metadata['schema'] == TRACK_SCHEMA or 'style_base' in track) and track.get('style_base') not in ('dialogue', 'annotation'))
                 or any(type(track.get(k)) is not bool for k in ("enabled", "locked", "collapsed"))
                 or ("show_secondary" in track and type(track["show_secondary"]) is not bool)
                 or not _style_valid(track.get("style"))
@@ -202,7 +214,13 @@ def _insertion(cues, cue):
 def migrate_project(source):
     if isinstance(source, dict) and source.get("schema") == SCHEMA:
         validate(source)
-        return deepcopy(source)
+        project = deepcopy(source)
+        if project['subtitle_tracks']['schema'] == LEGACY_TRACK_SCHEMA:
+            for track in project['subtitle_tracks']['tracks']:
+                track.update(purpose=track['kind'], layout='fixed' if track['kind'] == 'annotation' or track.get('position') else 'auto', style_base=track['kind'])
+            project['subtitle_tracks']['schema'] = TRACK_SCHEMA
+        validate(project)
+        return project
     if isinstance(source, dict) and "subtitle_tracks" in source:
         _fail("旧版本中已包含固定轨道字段，无法安全覆盖")
     prepared = deepcopy(source)
@@ -244,8 +262,9 @@ def migrate_project(source):
         overlay_name = old_name if _stable(old_name) else "原叠加字幕"
         # Match JS UTF-16 slicing without cutting a Unicode surrogate pair.
         overlay_name = overlay_name.encode("utf-16-le")[:280].decode("utf-16-le", errors="ignore")
-        name = "对白" if origin == "main" else overlay_name
+        name = "字幕" if origin == "main" else overlay_name
         track = dict(id=f"subtitle-track-{len(slots) + 1}", name=f"{name} {counts[origin]}", kind="dialogue",
+                     purpose="none", layout="auto", style_base="dialogue",
                      origin=origin, enabled=enabled, locked=False, collapsed=False, style={"mode": "inherit"})
         metadata["tracks"].append(track)
         slot = dict(track=track, lanes={})

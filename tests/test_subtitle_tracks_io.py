@@ -45,7 +45,7 @@ class SubtitleTracksIOTests(unittest.TestCase):
         track = doc.project["subtitle_tracks"]["tracks"][0]
         snapshot = dict(schema="msw.subtitle-style.v1", main=dict(fontSize=64), secondary=dict(fontSize=42),
                         pairLayout=dict(order="secondary-above", gap=-12))
-        track.update(kind="annotation", style=dict(mode="snapshot", value=snapshot, custom=snapshot, selection="current"),
+        track.update(purpose="annotation", layout="fixed", style_base="annotation", style=dict(mode="snapshot", value=snapshot, custom=snapshot, selection="current"),
                      position=dict(x=0.4, y=0.1))
         for row in core.TrackIndex(doc.project).records(include_hidden=True):
             row["cue"]["subtitle_position"] = dict(x=0.6, y=0.2)

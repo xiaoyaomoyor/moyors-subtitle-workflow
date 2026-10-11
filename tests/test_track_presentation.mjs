@@ -49,7 +49,7 @@ test('binding envelope gaps do not cause false avoidance',()=>{
 });
 test('annotations have independent positions, current pair overrides win, collisions remain local',()=>{
   const p=project([cue('a',0,2000),cue('b',0,2000)]);
-  const t=p.subtitle_tracks.tracks[1];t.kind='annotation';t.position={x:.5,y:.88};
+  const t=p.subtitle_tracks.tracks[1];t.purpose='annotation';t.layout='fixed';t.position={x:.5,y:.88};
   let l=layout(p);assert.equal(entry(l,'a').y,944);assert.equal(entry(l,'b').y,.88*1080);
   assert.ok(P.warnings(l,1000).some(w=>w.type==='collision'));assert.deepEqual(P.warnings(l,2000),[]);
   p.segments[1].subtitle_position={x:.9,y:.01};l=layout(p);
@@ -71,4 +71,29 @@ test('locked track style and position changes fail without blocking unlock',()=>
   const p=project([cue('a',0,1000)]);p.subtitle_tracks.tracks[0].locked=true;
   const next=structuredClone(p);next.subtitle_tracks.tracks[0].position={x:.5,y:.1};assert.throws(()=>core.assertLocks(p,next),/锁定/);
   delete next.subtitle_tracks.tracks[0].position;next.subtitle_tracks.tracks[0].locked=false;core.assertLocks(p,next);
+});
+
+test('purpose never changes layout or style; fixed placement works for any purpose',()=>{
+  const p=project([cue('a',0,2000),cue('b',0,2000)]),t=p.subtitle_tracks.tracks[1];
+  p.preview={project_style:S.defaults()};p.preview.project_style.annotation=S.defaults();p.preview.project_style.annotation.main.fontSize=99;
+  const before=layout(p),style=P.styleFor(p,t);
+  for(const purpose of ['none','dialogue','source','translation','annotation']) {
+    t.purpose=purpose;assert.deepEqual(layout(p).entries.map(e=>[e.x,e.y]),before.entries.map(e=>[e.x,e.y]));assert.deepEqual(P.styleFor(p,t),style);
+  }
+  t.layout='fixed';t.position={x:.3,y:.2};assert.equal(entry(layout(p),'b').y,216);
+  t.layout='auto';assert.equal(entry(layout(p),'b').y,entry(before,'b').y);assert.deepEqual(t.position,{x:.3,y:.2});
+  t.layout='fixed';assert.equal(entry(layout(p),'b').y,216);assert.deepEqual(P.styleFor(p,t),style);
+});
+
+test('v1 migration preserves annotation appearance, names, anchors, cue overrides and bindings',()=>{
+  const p=project([cue('a',0,2000),cue('b',0,2000)]);
+  p.subtitle_tracks.schema=core.LEGACY_TRACK_SCHEMA;
+  for(const t of p.subtitle_tracks.tracks){delete t.purpose;delete t.layout;delete t.style_base;}
+  p.subtitle_tracks.tracks[1].kind='annotation';p.subtitle_tracks.tracks[1].position={x:.3,y:.2};
+  p.preview={project_style:S.defaults()};p.preview.project_style.annotation=S.defaults();p.preview.project_style.annotation.main.fontSize=99;
+  const original=structuredClone(p),before=layout(p),next=core.migrate(p);
+  assert.equal(JSON.stringify(p),JSON.stringify(original));assert.equal(next.subtitle_tracks.schema,core.TRACK_SCHEMA);
+  assert.deepEqual(layout(next).entries.map(e=>[e.x,e.y,e.style]),before.entries.map(e=>[e.x,e.y,e.style]));
+  assert.deepEqual(next.segments,p.segments);assert.deepEqual(next.subtitle_tracks.assignments,p.subtitle_tracks.assignments);
+  assert.deepEqual(core.migrate(next),next);
 });

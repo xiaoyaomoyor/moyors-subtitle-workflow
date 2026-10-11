@@ -45,6 +45,8 @@ def mapped_subtitles(project, plan, *, include_styles=False):
                         cue['subtitle_track_id']=owner['id']
                         cue['subtitle_track_name']=owner['name']
                         cue['subtitle_kind']=owner['kind']
+                        cue['subtitle_purpose']=owner.get('purpose',owner['kind'])
+                        cue['subtitle_layout']=owner.get('layout','fixed' if owner['kind']=='annotation' or owner.get('position') else 'auto')
                     if include_styles:
                         head = (s.get('color_ref') or {}).get('headIdx')
                         color = s.get('color') or ((segments[head].get('color') or {})

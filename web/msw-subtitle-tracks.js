@@ -4,7 +4,12 @@
   const layers = typeof module !== 'undefined' && module.exports
     ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
   const SCHEMA = 'msw.project.v3';
-  const TRACK_SCHEMA = 'msw.subtitle_tracks.v1';
+  const TRACK_SCHEMA = 'msw.subtitle_tracks.v2';
+  const LEGACY_TRACK_SCHEMA = 'msw.subtitle_tracks.v1';
+  // kind is retained as historical metadata; behavior uses independent fields.
+  const purpose = track => track.purpose ?? (track.kind === 'annotation' ? 'annotation' : 'dialogue');
+  const placement = track => track.layout ?? (track.kind === 'annotation' || track.position ? 'fixed' : 'auto');
+  const styleKind = track => (track.style_base ?? track.kind) === 'annotation' ? 'annotation' : 'dialogue';
   const clone = value => JSON.parse(JSON.stringify(value));
   const key = ref => JSON.stringify([ref.role, ref.track_id, ref.cue_id]);
   const stable = value => typeof value === 'string' && !!value.trim() && value.length <= 160;
@@ -92,7 +97,7 @@
     layers.validate({ ...project, schema: layers.SCHEMA });
     const rows = sourceRecords(project), groups = bindingGroups(project, rows);
     const metadata = project.subtitle_tracks;
-    if (metadata?.schema !== TRACK_SCHEMA || !['legacy', 'fixed'].includes(metadata.presentation)
+    if (![TRACK_SCHEMA, LEGACY_TRACK_SCHEMA].includes(metadata?.schema) || !['legacy', 'fixed'].includes(metadata.presentation)
       || !Array.isArray(metadata.tracks) || !metadata.tracks.length || !Array.isArray(metadata.assignments)) fail('轨道元数据无效');
     if (metadata.legacy_overlay_settings !== undefined && (!metadata.legacy_overlay_settings
       || typeof metadata.legacy_overlay_settings !== 'object' || Array.isArray(metadata.legacy_overlay_settings)
@@ -101,6 +106,9 @@
     for (const track of metadata.tracks) {
       if (!stable(track?.id) || tracks.has(track.id) || !stable(track.name)
         || !['dialogue', 'annotation'].includes(track.kind)
+        || ((metadata.schema === TRACK_SCHEMA || track.purpose !== undefined) && !['none', 'dialogue', 'source', 'translation', 'annotation'].includes(track.purpose))
+        || ((metadata.schema === TRACK_SCHEMA || track.layout !== undefined) && !['auto', 'fixed'].includes(track.layout))
+        || ((metadata.schema === TRACK_SCHEMA || track.style_base !== undefined) && !['dialogue', 'annotation'].includes(track.style_base))
         || !['main', 'legacy-overlay'].includes(track.origin)
         || ['enabled', 'locked', 'collapsed'].some(k => typeof track[k] !== 'boolean')
         || (track.show_secondary !== undefined && typeof track.show_secondary !== 'boolean')
@@ -144,7 +152,19 @@
   }
 
   function migrate(input) {
-    if (input?.schema === SCHEMA) { validate(input); return clone(input); }
+    if (input?.schema === SCHEMA) {
+      validate(input);
+      const project = clone(input);
+      if (project.subtitle_tracks.schema === LEGACY_TRACK_SCHEMA) {
+        for (const track of project.subtitle_tracks.tracks) {
+          track.purpose = track.kind === 'annotation' ? 'annotation' : 'dialogue';
+          track.layout = track.kind === 'annotation' || track.position ? 'fixed' : 'auto';
+          track.style_base = track.kind;
+        }
+        project.subtitle_tracks.schema = TRACK_SCHEMA;
+      }
+      validate(project); return project;
+    }
     if (input && Object.hasOwn(input, 'subtitle_tracks')) fail('旧版本中已包含固定轨道字段，无法安全覆盖');
     const prepared = clone(input);
     // Old hand-authored projects may omit the language storage track's ID.
@@ -175,8 +195,8 @@
       const number = ++counts[origin];
       const oldName = metadata.legacy_overlay_settings?.name;
       const overlayName = (stable(oldName) ? oldName : '原叠加字幕').slice(0, 140).replace(/[\uD800-\uDBFF]$/, '');
-      const track = { id: `subtitle-track-${slots.length + 1}`, name: origin === 'main' ? `对白 ${number}` : `${overlayName} ${number}`,
-        kind: 'dialogue', origin, enabled, locked: false, collapsed: false, style: { mode: 'inherit' } };
+      const track = { id: `subtitle-track-${slots.length + 1}`, name: origin === 'main' ? `字幕 ${number}` : `${overlayName} ${number}`,
+        kind: 'dialogue', purpose: 'none', layout: 'auto', style_base: 'dialogue', origin, enabled, locked: false, collapsed: false, style: { mode: 'inherit' } };
       metadata.tracks.push(track);
       const slot = { track, lanes: new Map() }; slots.push(slot); return slot;
     }
@@ -269,6 +289,7 @@
     for (const track of before.subtitle_tracks.tracks.filter(t => t.locked)) {
       const other = after.subtitle_tracks.tracks.find(t => t.id === track.id);
       if (other && (JSON.stringify(track.style) !== JSON.stringify(other.style)
+        || placement(track) !== placement(other) || styleKind(track) !== styleKind(other)
         || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
     }
     const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
@@ -285,13 +306,15 @@
       if (JSON.stringify(bindings(before)) !== JSON.stringify(bindings(after))) fail('锁定轨道的绑定不能修改');
     }
   }
-  function addTrack(project, kind = 'dialogue', id) {
+  function addTrack(project, kind = 'subtitle', id) {
     validate(project);
-    if (!['dialogue', 'annotation'].includes(kind) || !stable(id) || project.subtitle_tracks.tracks.some(t => t.id === id)) fail('新轨道参数无效');
-    const next = clone(project), base = kind === 'dialogue' ? '对白' : '画面文字';
+    if (!['subtitle', 'dialogue', 'annotation'].includes(kind) || !stable(id) || project.subtitle_tracks.tracks.some(t => t.id === id)) fail('新轨道参数无效');
+    const next = migrate(project), base = kind === 'subtitle' ? '字幕' : kind === 'dialogue' ? '对白' : '画面文字';
     let n = 1;
     while (next.subtitle_tracks.tracks.some(t => t.name === `${base} ${n}`)) n++;
-    next.subtitle_tracks.tracks.push({ id, name: `${base} ${n}`, kind, origin: 'main', enabled: true, locked: false, collapsed: false, style: { mode: 'inherit' } });
+    next.subtitle_tracks.tracks.push({ id, name: `${base} ${n}`, kind: kind === 'annotation' ? 'annotation' : 'dialogue',
+      purpose: kind === 'subtitle' ? 'none' : kind, layout: kind === 'annotation' ? 'fixed' : 'auto', style_base: kind === 'annotation' ? 'annotation' : 'dialogue',
+      origin: 'main', enabled: true, locked: false, collapsed: false, style: { mode: 'inherit' } });
     return next;
   }
   // Stable lanes cover the whole project, not just cues in the visible time row.
@@ -311,7 +334,7 @@
     }
     return { count, bands, positions, owners };
   }
-  const api = { SCHEMA, TRACK_SCHEMA, key, migrate, validate, createIndex, assign,
+  const api = { SCHEMA, TRACK_SCHEMA, LEGACY_TRACK_SCHEMA, purpose, placement, styleKind, key, migrate, validate, createIndex, assign,
     ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;

@@ -50,7 +50,7 @@ def validate_snapshot(raw):
         raise ValueError('ASR 工程快照版本无效')
     owner=raw.get('subtitle_track_id')
     if schema == 'msw.project.v3' and not valid_cue_id(owner):
-        raise ValueError('识别快照缺少目标对白轨道')
+        raise ValueError('识别快照缺少目标字幕轨道')
     def validate_targets(cues):
         body = {'segments': cues}
         return normalize_project(migrate_project(body) if schema in (SCHEMA, 'msw.project.v3') else body)

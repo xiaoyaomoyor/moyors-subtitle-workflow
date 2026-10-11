@@ -55,6 +55,24 @@ test('track styles inherit or snapshot independently; proof choice survives swit
   await page.evaluate(()=>performUndo());await expect(page.locator('#style-field-fontSize')).toHaveValue('83');
   await expect(page.locator('#style-preview-mode')).toHaveValue('contrast');expect(errors).toEqual([]);
 });
+test('a regular source track can use fixed placement without changing its style or purpose',async({page})=>{
+  const errors=await open(page,bilingual);await enable(page);
+  const id=await page.evaluate(()=>{const t=fixedTrack(DATA.segments.find(c=>c.id==='a'));fixedUpdateTrack(t.id,{purpose:'source',layout:'fixed'});return t.id;});
+  await page.locator('#style-track-target').selectOption(id);
+  await expect(page.locator('#style-track-position')).toBeVisible();
+  await expect(page.locator('#style-project-preset')).toHaveValue('inherit');
+  await page.locator('#style-position-y').fill('25');await page.locator('#style-position-y').press('Tab');
+  expect((await entries(page)).find(e=>e.id==='a').y).toBeCloseTo(270);
+  const fixed=await entries(page);
+  await page.evaluate(id=>fixedUpdateTrack(id,{purpose:'translation'}),id);
+  expect(await entries(page)).toEqual(fixed);
+  await page.evaluate(id=>fixedUpdateTrack(id,{layout:'auto'}),id);
+  await expect(page.locator('#style-track-position')).toBeHidden();
+  expect((await entries(page)).find(e=>e.id==='a').y).not.toBeCloseTo(270);
+  await page.evaluate(()=>performUndo());
+  await expect(page.locator('#style-track-position')).toBeVisible();
+  expect(await entries(page)).toEqual(fixed);expect(errors).toEqual([]);
+});
 test('bound annotation drag changes current pair only, supports Escape, one undo and saved reopening',async({page})=>{
   const errors=await open(page,bilingual);await enable(page);await annotation(page);
   await page.locator('#style-position-scope').selectOption('cue');await page.locator('#style-position-drag').click();

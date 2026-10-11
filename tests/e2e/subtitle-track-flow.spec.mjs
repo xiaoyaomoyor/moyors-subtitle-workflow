@@ -15,7 +15,7 @@ test.beforeEach(async({page})=>{
   await page.goto(server.url);await page.waitForFunction(()=>MSWSubtitleStyle.ready&&player.readyState>=2);
   await page.evaluate(()=>{
     fixedSetPresentation('fixed');const id=fixedTrack(DATA.segments.find(c=>c.id==='b')).id;
-    fixedUpdateTrack(id,{kind:'annotation',position:{x:.3,y:.15}});
+    fixedUpdateTrack(id,{purpose:'annotation',layout:'fixed',style_base:'annotation',position:{x:.3,y:.15}});
     const style=MSWProjectStyle.defaults();style.main.primaryColor='#ff0000';MSWE.resolve('processing-host').commitProjectStyle(style);
     overlayToggle.checked=true;extensionOverlayToggle.checked=true;player.currentTime=1;player.pause();
     window.MSWSubtitleRenderer.invalidate();
@@ -63,10 +63,10 @@ a,b=mask(sys.argv[1]),mask(sys.argv[2]);print(json.dumps({'pixels':len(a),'iou':
   expect(await page.evaluate(()=>getComputedStyle(document.querySelector('#fixed-subtitle-preview')).visibility)).toBe('hidden');
 });
 
-test('SRT scope excludes annotations by default and explicitly includes a selected track',async({page})=>{
+test('SRT includes all enabled purposes and can export one selected track',async({page})=>{
   expect(await page.evaluate(()=>buildSrt())).toContain('Dialogue sample');
-  expect(await page.evaluate(()=>buildSrt())).not.toContain('Annotation sample');
-  await page.evaluate(()=>{fixedSrtAnnotations=true;fixedSrtScope=fixedTrack(DATA.segments.find(c=>c.id==='b')).id;});
+  expect(await page.evaluate(()=>buildSrt())).toContain('Annotation sample');
+  await page.evaluate(()=>{fixedSrtScope=fixedTrack(DATA.segments.find(c=>c.id==='b')).id;});
   const text=await page.evaluate(()=>buildSrt());expect(text).toContain('Annotation sample');expect(text).not.toContain('Dialogue sample');
   expect(await page.evaluate(()=>buildAss())).toContain('Dialogue sample');
 });
@@ -74,7 +74,7 @@ test('SRT scope excludes annotations by default and explicitly includes a select
 test('new projects default to fixed layout while existing empty projects retain legacy layout',async({page})=>{
   expect(await page.evaluate(()=>prepareLayerProject(buildBlankProject()).subtitle_tracks.presentation)).toBe('fixed');
   expect(await page.evaluate(()=>prepareLayerProject({schema:'moy.asr.project.v1',segments:[]}).subtitle_tracks.presentation)).toBe('legacy');
-  expect(await page.evaluate(()=>MSWE.resolve('processing-host').audioExportPreview().subtitle_tracks.schema)).toBe('msw.subtitle_tracks.v1');
+  expect(await page.evaluate(()=>MSWE.resolve('processing-host').audioExportPreview().subtitle_tracks.schema)).toBe('msw.subtitle_tracks.v2');
   const result=await page.evaluate(async()=>{
     const p=MSWProjectStyle.presetSnapshot(DATA,MSWProjectStyle.defaults());p.annotation.main.fontSize=29;
     MSWE.resolve('processing-host').commitProjectStyle(p);

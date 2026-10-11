@@ -9,7 +9,7 @@
   function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
   function styleFor(project, track, proof = null) {
     const S=global.MSWProjectStyle,style=proof || (track.style.mode === 'snapshot' ? track.style.value : project.preview?.project_style) || S.defaults();
-    return S.forKind(style,track.kind);
+    return S.forKind(style,core.styleKind(track));
   }
   function layout(project, {width = 1920, languageId = project.multi_subtitle?.tracks?.[0]?.id, measure, resolveStyle = t => styleFor(project,t), gap = project.subtitle_layers?.presentation?.gap ?? 12} = {}) {
     const index = core.createIndex(project), tracks = project.subtitle_tracks.tracks;
@@ -20,7 +20,7 @@
       if (!rows.length) return;
       for (const row of rows) used.add(core.key(row));
       const track = tracks.find(t => t.id === rows[0].subtitle_track_id), style = resolveStyle(track);
-      const group = {id:core.key(rows[0]), trackId:track.id, kind:track.kind, rank:tracks.indexOf(track), rows, style};
+      const group = {id:core.key(rows[0]), trackId:track.id, kind:core.placement(track)==='fixed'?'annotation':'dialogue', rank:tracks.indexOf(track), rows, style};
       group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
       const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
       rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1));
@@ -33,11 +33,11 @@
       rows[0].localY = 0;
       if (rows.length === 2) rows[1].localY = Math.max(1, (rows[0].size.height-rows[1].size.height)/2+1, rows[0].size.height+pair.gap);
       group.height = Math.max(...rows.map(r=>r.localY+r.size.height),1);
-      const explicit = rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position || track.position;
-      group.position = explicit || (track.kind === 'annotation' ? {x:.5,y:.08} : null);
+      const explicit = rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position || (core.placement(track)==='fixed' ? track.position : null);
+      group.position = explicit || (core.placement(track) === 'fixed' ? {x:.5,y:.08} : null);
       const lowerStyle = rows.at(-1).style, alignment = Number(lowerStyle.alignment)||2;
       const horizontal = (alignment-1)%3, vertical = Math.floor((alignment-1)/3);
-      group.x = explicit || track.kind === 'annotation' ? group.position.x*width-group.width/2
+      group.x = group.position ? group.position.x*width-group.width/2
         : horizontal===0 ? lowerStyle.marginL||0 : horizontal===2 ? width-(lowerStyle.marginR||0)-group.width : (width-group.width)/2;
       group.y = group.position ? group.position.y*1080 : vertical===2 ? lowerStyle.marginV||0
         : vertical===1 ? (1080-group.height)/2 : 1080-(lowerStyle.marginV||0)-group.height;

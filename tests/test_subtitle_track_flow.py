@@ -37,7 +37,7 @@ class TrackFlowTests(unittest.TestCase):
     def test_annotation_preset_roundtrip_and_rendering(self):
         p=fixture();style=p['preview']['project_style'];style['annotation']=copy.deepcopy(style)
         style['annotation']['main']['fontSize']=29
-        track=TrackIndex(p).track_for(dict(role='main',track_id=None,cue_id='b'));track['kind']='annotation'
+        track=TrackIndex(p).track_for(dict(role='main',track_id=None,cue_id='b'));track.update(purpose='annotation',layout='fixed',style_base='annotation')
         normalized=normalize_project(p)
         row=next(r for r in layout(normalized) if r['cue_id']=='b')
         self.assertEqual(row['style']['fontSize'],29)
@@ -59,11 +59,12 @@ class TrackFlowTests(unittest.TestCase):
     def test_hidden_disabled_annotation_and_time_mapping(self):
         p=fixture();index=TrackIndex(p)
         track=index.track_for(dict(role='main',track_id=None,cue_id='a'))
-        track.update(kind='annotation',position=dict(x=.3,y=.15))
+        track.update(purpose='annotation',layout='fixed',position=dict(x=.3,y=.15))
         annotation=[r for r in layout(p) if r['subtitle_track_id']==track['id']]
         self.assertAlmostEqual(min(r['y'] for r in annotation),162)
         plan={'intervals':[dict(start_ms=1000,end_ms=2000,output_start_ms=0),dict(start_ms=3000,end_ms=5000,output_start_ms=1000)]}
         cues=mapped_subtitles(p,plan)[0][1]
+        self.assertTrue(all(c['subtitle_purpose']=='annotation' and c['subtitle_layout']=='fixed' for c in cues if c['id']=='a'))
         self.assertEqual([(c['start'],c['end']) for c in cues if c['id']=='a'],[(1,1000),(1000,2007)])
         track['enabled']=False
         self.assertNotIn('first',styled_ass(p,plan,'both',dict(width=1920,height=1080)))
@@ -92,6 +93,30 @@ class TrackFlowTests(unittest.TestCase):
             self.assertEqual(len(list(Path(temp).glob('.msw-tracks-backup-*.mosp'))),1)
             with self.assertRaisesRegex(ValueError,'旧版'):write_mosp(path,{'segments':[]})
 
+    def test_usage_is_only_a_label_and_fixed_position_is_independent(self):
+        p=fixture();track=p['subtitle_tracks']['tracks'][1];before=layout(p)
+        for purpose in ('none','dialogue','source','translation','annotation'):
+            track['purpose']=purpose
+            self.assertEqual(layout(p),before)
+        track.update(layout='fixed',position=dict(x=.4,y=.2))
+        self.assertAlmostEqual(min(r['y'] for r in layout(p) if r['subtitle_track_id']==track['id']),216)
+        track['layout']='auto'
+        self.assertEqual(layout(p),before)
+
+    def test_existing_v3_metadata_upgrade_preserves_render_and_backs_up_original_once(self):
+        p=fixture();p['subtitle_tracks']['schema']='msw.subtitle_tracks.v1'
+        for track in p['subtitle_tracks']['tracks']:
+            for field in ('purpose','layout','style_base'):track.pop(field)
+        p['subtitle_tracks']['tracks'][1].update(kind='annotation',position=dict(x=.4,y=.2))
+        original=copy.deepcopy(p);before=layout(p);next=migrate_project(p)
+        self.assertEqual(layout(next),before);self.assertEqual(p,original)
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'old.mosp';raw=json.dumps(p,ensure_ascii=False).encode('utf-8');path.write_bytes(raw)
+            write_mosp(path,next);write_mosp(path,next)
+            backups=list(Path(temp).glob('.msw-tracks-backup-*.mosp'));self.assertEqual(len(backups),1)
+            self.assertEqual(backups[0].read_bytes(),raw)
+            with self.assertRaisesRegex(ValueError,'旧版轨道'):write_mosp(path,p)
+
     def test_job_snapshot_boundaries_preserve_owner_and_simultaneous_sources(self):
         p=fixture();owner=p['subtitle_tracks']['tracks'][0]['id']
         raw=dict(project_id='p',project_schema=p['schema'],subtitle_track_id=owner,mode='whole',range=dict(start=0,end=9000),
@@ -101,7 +126,7 @@ class TrackFlowTests(unittest.TestCase):
         clean=jobs.validate_snapshot(translation)
         self.assertEqual([e['subtitle_track_id'] for e in clean['entries']],[owner]*3)
         del raw['subtitle_track_id']
-        with self.assertRaisesRegex(ValueError,'目标对白轨道'):asr.validate_snapshot(raw)
+        with self.assertRaisesRegex(ValueError,'目标字幕轨道'):asr.validate_snapshot(raw)
 
     def test_real_ffmpeg_preview_and_burn_frames_match(self):
         ffmpeg=Path(os.environ.get('MSW_TEST_FFMPEG',''))/'ffmpeg.exe'

@@ -166,6 +166,14 @@ def preserve_upgrade_source(target, project):
     if isinstance(previous, dict) and previous.get('schema') == 'msw.project.v3':
         if project.get('schema') != 'msw.project.v3':
             raise ValueError('不能用旧版结构覆盖固定轨道工程，请另存为新文件')
+        from maw.msw.subtitle_tracks import TRACK_SCHEMA, LEGACY_TRACK_SCHEMA
+        old_schema = (previous.get('subtitle_tracks') or {}).get('schema')
+        new_schema = (project.get('subtitle_tracks') or {}).get('schema')
+        if old_schema == TRACK_SCHEMA and new_schema != TRACK_SCHEMA:
+            raise ValueError('不能用旧版轨道结构覆盖用途与排布设置，请另存为新文件')
+        if old_schema == LEGACY_TRACK_SCHEMA and new_schema == TRACK_SCHEMA:
+            from maw.msw.subtitle_tracks_io import TrackDocument, _backup
+            return _backup(TrackDocument(target, original, project))
         return None
     if project.get('schema') == 'msw.project.v3':
         if not isinstance(previous, dict) or previous.get('schema', LEGACY_SCHEMA) not in (LEGACY_SCHEMA, SCHEMA):

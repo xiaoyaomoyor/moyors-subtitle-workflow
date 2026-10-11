@@ -7,7 +7,7 @@ from copy import deepcopy
 import math
 import re
 
-from maw.msw.subtitle_tracks import TrackIndex, key
+from maw.msw.subtitle_tracks import TrackIndex, key, placement, style_kind
 from maw.msw.subtitle_fonts import family_metrics, installed_fonts
 from maw.project_subtitle_style import normalize_project_style, builtin_presets
 from maw.subtitle_wrapping import wrap_text, _characters
@@ -77,11 +77,11 @@ def layout(project, width=1920):
         used.update(key(r) for r in members)
         track = index.tracks[members[0]['subtitle_track_id']]
         style = normalize_project_style(track['style']['value'] if track['style']['mode']=='snapshot' else default)
-        if track['kind']=='annotation' and 'annotation' in style:
+        if style_kind(track)=='annotation' and 'annotation' in style:
             style=style['annotation']
         pair = pair_settings(style)
         upper = 'extension' if pair['order']=='secondary-above' else 'main'
-        group = dict(id=key(members[0]), trackId=track['id'], kind=track['kind'], rank=tracks.index(track), rows=members, style=style)
+        group = dict(id=key(members[0]), trackId=track['id'], kind='annotation' if placement(track)=='fixed' else 'dialogue', rank=tracks.index(track), rows=members, style=style)
         members.sort(key=lambda r: r['role']!=upper)
         for row in members:
             row['style'] = style['main' if row['role']=='main' else 'secondary']
@@ -100,8 +100,8 @@ def layout(project, width=1920):
         group['width'] = max(r['size']['width'] for r in members)
         group['height'] = max(r['localY']+r['size']['height'] for r in members)
         group['start'] = min(r['cue']['start'] for r in members)
-        group['position'] = next((r['cue']['subtitle_position'] for r in members if r['cue'].get('subtitle_position')), track.get('position'))
-        if group['position'] is None and track['kind']=='annotation':
+        group['position'] = next((r['cue']['subtitle_position'] for r in members if r['cue'].get('subtitle_position')), track.get('position') if placement(track)=='fixed' else None)
+        if group['position'] is None and placement(track)=='fixed':
             group['position'] = dict(x=.5, y=.08)
         lower = members[-1]['style'];horizontal = (lower['alignment']-1)%3;vertical = (lower['alignment']-1)//3
         group['x'] = (group['position']['x']*width-group['width']/2 if group['position'] else

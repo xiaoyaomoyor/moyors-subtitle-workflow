@@ -25,12 +25,22 @@ test('ASR replaces only its captured dialogue track and preserves overlapping id
   assert.equal(JSON.stringify(project),before);C.validate(next);
 });
 test('ASR cannot apply after a target moved, locked, or gained conflicting content',()=>{
-  for(const change of ['move','lock','new']) {
+  for(const change of ['move','lock','disable','new']) {
     let {project,owner,media,job}=fixture();
     if(change==='lock')project.subtitle_tracks.tracks.find(t=>t.id===owner).locked=true;
+    if(change==='disable')project.subtitle_tracks.tracks.find(t=>t.id===owner).enabled=false;
     if(change==='move') {project=C.addTrack(project,'dialogue','third');project=C.assign(project,[ref('a')],'third');}
     if(change==='new') {project.segments.push({id:'new',start:2000,end:2500,text:'Tail'});C.reconcile(project,()=>owner);job.result.segments[0].end=2500;}
     assert.throws(()=>P.plan(project,media,[job],'main'));
+  }
+});
+test('ASR accepts all purposes and a changed purpose does not invalidate its captured target',()=>{
+  for(const purpose of ['none','dialogue','source','translation','annotation']) {
+    const {project,owner,media,job}=fixture(),track=project.subtitle_tracks.tracks.find(t=>t.id===owner);
+    track.purpose=purpose;track.layout='fixed';
+    assert.equal(A.snapshot(project,media,'whole',null,owner).subtitle_track_id,owner);
+    const next=P.plan(project,media,[job],'main').project;
+    assert.equal(C.createIndex(next).trackFor(ref(next.segments.find(c=>c.text==='New').id)).id,owner);
   }
 });
 test('translation keeps explicit ownership, positions and simultaneous unrelated translations',()=>{

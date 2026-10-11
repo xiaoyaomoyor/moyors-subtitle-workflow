@@ -30,11 +30,12 @@ test('opt-in boots fixed lanes, headers, list ownership and serializes the proje
   const errors = await open(page);
   expect(await page.evaluate(() => DATA.schema)).toBe('msw.project.v3');
   await expect(page.locator('.fixed-track-head').first()).toBeVisible();
-  await expect(page.locator('#fixed-track-toolbar')).toBeVisible();
+  await expect(page.locator('#fixed-track-toolbar')).toHaveCount(0);
+  await expect(page.locator('.fixed-track-head input')).toHaveCount(0);
   await expect(page.locator('#fixed-track-filter')).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(buildJson()).subtitle_tracks.assignments.length)).toBe(3);
-  await page.locator('#fixed-track-toolbar button').click();
-  await page.getByRole('button', { name: '添加画面文字轨道', exact: true }).click();
+  await page.locator('.fixed-track-head').first().click({button:'right'});
+  await page.getByRole('button', { name: '新增字幕轨道', exact: true }).click();
   expect(await page.evaluate(() => DATA.subtitle_tracks.tracks.length)).toBe(3);
   expect(errors).toEqual([]);
 });
@@ -45,15 +46,46 @@ const bilingual = () => ({ multi_subtitle: { schema: 'moy.asr.multi_subtitle.v1'
 const state = page => page.evaluate(() => structuredClone({ segments: DATA.segments, multi: DATA.multi_subtitle, tracks: DATA.subtitle_tracks }));
 const owner = (p, id, role = 'main') => p.tracks.assignments.find(a => a.cue_id === id && a.role === role).subtitle_track_id;
 
+test('compact headers toggle the whole pair and settings separate purpose from placement', async ({page},info) => {
+  const errors=await open(page,undefined,bilingual()),before=await state(page),id=owner(before,'a');
+  const head=page.locator(`.fixed-track-head[data-subtitle-track-id="${id}"]`).first();
+  await head.locator('.fixed-track-toggle').click();
+  expect((await state(page)).tracks.tracks.find(t=>t.id===id).enabled).toBe(false);
+  expect((await state(page)).segments).toEqual(before.segments);
+  await expect(head).toHaveClass(/disabled-track/);
+  await page.evaluate(()=>performUndo());expect(await state(page)).toEqual(before);
+  await head.click({button:'right'});await page.getByRole('button',{name:'轨道设置',exact:true}).click();
+  await page.getByRole('combobox',{name:'用途',exact:true}).selectOption('annotation');
+  await page.getByRole('combobox',{name:'排布',exact:true}).selectOption('auto');
+  await page.locator('.fixed-track-form').getByRole('button',{name:'保存',exact:true}).click();
+  let changed=await state(page);expect(changed.tracks.tracks.find(t=>t.id===id)).toMatchObject({purpose:'annotation',layout:'auto',style_base:'dialogue'});
+  expect(changed.segments).toEqual(before.segments);expect(changed.multi).toEqual(before.multi);expect(changed.tracks.assignments).toEqual(before.tracks.assignments);
+  await head.locator('.fixed-track-toggle').focus();await page.keyboard.press('Shift+F10');
+  await page.getByRole('button',{name:'轨道设置',exact:true}).click();
+  await page.getByRole('combobox',{name:'排布',exact:true}).selectOption('fixed');
+  await page.locator('.fixed-track-form').getByRole('button',{name:'说明'}).first().click();
+  await expect(page.locator('#msw-option-help')).toContainText('用途仅作标记');
+  await page.keyboard.press('Escape');
+  await page.screenshot({path:info.outputPath('compact-track-settings.png')});
+  await page.locator('.fixed-track-form').getByRole('button',{name:'保存',exact:true}).click();
+  expect((await state(page)).tracks.tracks.find(t=>t.id===id).layout).toBe('fixed');
+  await page.evaluate(()=>performUndo());expect(await state(page)).toEqual(changed);
+  await page.evaluate(saved=>applyCanonicalProject(saved,'reopen.mosp'),await page.evaluate(()=>JSON.parse(buildJson())));
+  expect((await state(page)).tracks).toEqual(changed.tracks);expect(errors).toEqual([]);
+});
+
 test('headers rename, collapse, reorder and retain empty tracks through undo and reopening', async ({ page }) => {
   const errors = await open(page);
-  const input = page.locator('.fixed-track-head input').first();
+  await page.locator('.fixed-track-head').first().click({button:'right'});
+  await page.getByRole('button',{name:'重命名',exact:true}).click();
+  const input = page.getByRole('textbox',{name:'轨道名称',exact:true});
   await input.fill('采访'); await input.press('Enter');
   await expect(page.locator('#fixed-track-filter')).toContainText('采访');
-  await page.locator('.fixed-track-head').first().getByRole('button', { name: '折叠轨道' }).click();
+  await page.locator('.fixed-track-head').first().click({button:'right'});
+  await page.getByRole('button',{name:'折叠轨道',exact:true}).click();
   await expect(page.locator('.waveform-cue-block[data-cue-id="a"]')).toHaveCount(0);
   await expect(page.locator('.waveform-cue-block[data-cue-id="b"]').first()).toBeVisible();
-  await page.locator('.fixed-track-head').first().getByRole('button', { name: '轨道操作' }).click();
+  await page.locator('.fixed-track-head').first().click({button:'right'});
   await page.getByRole('button', { name: '下移轨道', exact: true }).click();
   expect((await state(page)).tracks.tracks[1].name).toBe('采访');
   await page.evaluate(() => performUndo());
@@ -70,7 +102,7 @@ test('move menu moves bound partners together, filters cards and rejects occupie
   const original = await state(page);
   await page.locator('.waveform-cue-block[data-track="main"][data-cue-id="a"]').first().click({ button: 'right' });
   await page.locator('.fixed-track-move-menu summary').click();
-  await page.locator('.fixed-track-move-menu').getByRole('button', { name: '新建画面文字轨道' }).click();
+  await page.locator('.fixed-track-move-menu').getByRole('button', { name: '新建字幕轨道' }).click();
   const moved = await state(page), target = owner(moved, 'a');
   expect(target).not.toBe(owner(original, 'a'));
   expect(owner(moved, 'sub-a', 'extension')).toBe(target);
@@ -187,6 +219,20 @@ test('first upgrade preserves original bytes, cancellation and concurrent change
   });
   expect(result.saved).toBe(result.raw); expect(result.errors[0]).toBe('AbortError'); expect(result.errors[1]).toContain('已变化');
 });
+test('browser file handles back up v3 metadata upgrades and reject stale metadata saves',async({page})=>{
+  await open(page);
+  const result=await page.evaluate(async()=>{
+    const previous=JSON.parse(buildJson());previous.subtitle_tracks.schema='msw.subtitle_tracks.v1';
+    for(const track of previous.subtitle_tracks.tracks){delete track.purpose;delete track.layout;delete track.style_base;}
+    const raw=JSON.stringify(previous),next=fixedTrackCore.migrate(previous);let saved='',file=new File([raw],'old.mosp');
+    const handle={name:'old.mosp',getFile:async()=>file};
+    window.showSaveFilePicker=async()=>({getFile:async()=>new File([],'backup.mosp'),isSameEntry:async()=>false,createWritable:async()=>({write:async data=>{saved=await data.text();},close:async()=>{}})});
+    await layerProtectHandle(handle,next);file=new File([JSON.stringify(next)],'old.mosp');
+    let rejected='';try{await layerProtectHandle(handle,previous);}catch(e){rejected=e.message;}
+    return {raw,saved,rejected};
+  });
+  expect(result.saved).toBe(result.raw);expect(result.rejected).toContain('旧版轨道');
+});
 
 test('independent secondary split unbinds only that cue and inherits the original fixed owner', async ({ page }) => {
   const errors = await open(page, [cue('a', 1000, 3000, 'hello world'), cue('b', 2000, 4000), cue('c', 5000, 7000)], bilingual());
@@ -216,11 +262,11 @@ test('hidden language bindings still constrain and follow main drag without chan
 
 test('new cues use the clicked empty fixed lane and secondary row can be explicitly shown', async ({ page }) => {
   const errors = await open(page, undefined, bilingual());
-  await page.locator('#fixed-track-toolbar button').click();
-  await page.getByRole('button', { name: '添加对白轨道', exact: true }).click();
+  await page.locator('.fixed-track-head').first().click({button:'right'});
+  await page.getByRole('button', { name: '新增字幕轨道', exact: true }).click();
   const id = (await state(page)).tracks.tracks.at(-1).id;
   const head = page.locator(`.fixed-track-head[data-subtitle-track-id="${id}"]`).first();
-  await head.getByRole('button', { name: '轨道操作' }).click();
+  await head.click({button:'right'});
   await page.getByRole('button', { name: '始终显示副字幕行' }).click();
   const result = await page.evaluate(id => {
     fixedActiveTrackId = id;

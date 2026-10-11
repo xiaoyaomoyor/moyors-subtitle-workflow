@@ -26,7 +26,7 @@
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   panel.querySelector('.msw-style-selectors').insertAdjacentHTML('beforebegin',`<div id="style-track-controls" class="media-settings-grid" hidden>
-    <label class="media-settings-field" data-option-help="旧工程保留原画面排布。切换后对白按固定轨道顺序稳定避让，画面文字独立定位；处理和导出将在下一阶段接入。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
+    <label class="media-settings-field" data-option-help="旧工程保留原画面排布。固定轨道排布统一用于预览、ASS 和烧录；各轨道的自动排布／固定位置可在轨道头右键设置。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
     <label class="media-settings-field"><span class="msw-option-label">编辑对象</span><select id="style-track-target"></select></label>
   </div>`);
   panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<details id="style-track-position" class="msw-style-section" hidden open><summary>画面位置</summary>
@@ -94,7 +94,7 @@
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
   const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
-  const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedStyleTarget().kind):S.normalize(s);
+  const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleTarget())):S.normalize(s);
   const same=(a,b)=>JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
@@ -125,14 +125,14 @@
     const style=S.normalize(value()||S.defaults());
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const blocked=!!track&&(track.locked||!fixedPresentationMode());
-    $('style-track-position').hidden=track?.kind!=='annotation'||!fixedPresentationMode();
-    if(track?.kind==='annotation') {
+    $('style-track-position').hidden=(!track||fixedTrackCore.placement(track)!=='fixed')||!fixedPresentationMode();
+    if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
       for(const key of ['x','y']){$('style-position-'+key).value=Math.round(p[key]*1000)/10;$('style-position-'+key).disabled=blocked||fixedPositionScope==='cue'&&!group;}
       $('style-position-drag').disabled=blocked;$('style-position-reset').disabled=blocked||fixedPositionScope==='cue'&&!group;
       $('style-position-reset').textContent=fixedPositionScope==='cue'?'跟随轨道位置':'恢复默认位置';
-      $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的画面文字。'):'轨道位置作用于未单独定位的字幕。';
+      $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的字幕。'):'轨道位置作用于未单独定位的字幕。';
     }
     const removable=library.find(s=>s.id===activePreset()&&same(s,style));
     $('style-delete-preset').disabled=saving||!removable;
@@ -224,7 +224,7 @@
     const selection=$('style-project-preset').value;
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const preset=selection==='inherit'?projectStyle():selection==='current'?(track?(track.style.custom||value()):(host.data.preview?.project_style_custom||projectStyle())):find(selection);
-    if(!preset){rebuild();return;}cancelAction();change(track?S.forKind(preset,track.kind):preset,selection);
+    if(!preset){rebuild();return;}cancelAction();change(track?S.forKind(preset,fixedTrackCore.styleKind(track)):preset,selection);
   };
   $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
   $('style-transform-preset').onchange=()=>{
@@ -257,10 +257,10 @@
     event.preventDefault();const action=pendingAction;if(action?.kind!=='save'||saving)return;
     const name=$('style-preset-name').value.trim();if(!name){$('style-preset-name').focus();message('请输入预设名称',true);return;}
     if(all().some(s=>s.name===name)){message('已有同名预设，请使用新名称',true);return;}
-    const preset={...S.presetSnapshot(host.data,value(),fixedTrackMode()?fixedStyleTarget()?.kind:'dialogue'),name,id:global.MSWProject.id('style')};
+    const preset={...S.presetSnapshot(host.data,value(),fixedTrackMode()&&fixedStyleTarget()?fixedTrackCore.styleKind(fixedStyleTarget()):'dialogue'),name,id:global.MSWProject.id('style')};
     const savedStyle=S.normalize(value());
     const target=fixedStyleTrackId;
-    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedStyleTarget().kind):preset,preset.id,'另存为字幕预设');message('预设已保存；包含对白和画面文字基础样式。');$('style-save-as').focus();});
+    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedTrackCore.styleKind(fixedStyleTarget())):preset,preset.id,'另存为字幕预设');message('预设已保存。');$('style-save-as').focus();});
   };
   $('style-delete-preset').onclick=()=>{
     const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};

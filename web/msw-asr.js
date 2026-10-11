@@ -113,11 +113,11 @@
     if(host.data.schema!=='msw.project.v3')return null;
     let select=el('target-track');
     if(!select) {
-      const label=document.createElement('label');label.className='msw-field';label.textContent='目标对白轨道';
-      select=document.createElement('select');select.id='msw-asr-target-track';select.setAttribute('aria-label','目标对白轨道');
+      const label=document.createElement('label');label.className='msw-field';label.textContent='目标字幕轨道';
+      select=document.createElement('select');select.id='msw-asr-target-track';select.setAttribute('aria-label','目标字幕轨道');
       label.append(select);el('scope').before(label);select.addEventListener('change',()=>updateScope());
     }
-    const tracks=host.data.subtitle_tracks.tracks.filter(t=>t.kind==='dialogue'&&t.enabled&&!t.locked);
+    const tracks=host.data.subtitle_tracks.tracks.filter(t=>t.enabled&&!t.locked);
     const previous=select.value||host.subtitleTargetTrack?.();
     select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
     if(tracks.some(t=>t.id===previous))select.value=previous;

@@ -373,7 +373,11 @@ async function layerProtectHandle(handle, content, silent = false) {
   if (fixedTracksRequested && next?.schema === fixedTrackCore.SCHEMA) {
     fixedTrackCore.validate(next);
     if (![undefined, 'moy.asr.project.v1', 'msw.project.v2', fixedTrackCore.SCHEMA].includes(previous?.schema)) throw Error('目标工程版本不兼容，未覆盖');
-    if (previous.schema === fixedTrackCore.SCHEMA) return;
+    if (previous.schema === fixedTrackCore.SCHEMA) {
+      fixedTrackCore.validate(previous);
+      if(previous.subtitle_tracks.schema===fixedTrackCore.TRACK_SCHEMA && next.subtitle_tracks.schema!==fixedTrackCore.TRACK_SCHEMA)throw Error('不能用旧版轨道结构覆盖用途与排布设置，请另存为新文件');
+      if(previous.subtitle_tracks.schema===next.subtitle_tracks.schema)return;
+    }
     if (silent) throw Error('首次升级固定轨道需先保留旧工程，请手动保存一次');
     const backup = await window.showSaveFilePicker({ suggestedName: handle.name.replace(/\.[^.]+$/, '') + `.before-tracks.${Date.now()}.mosp`, types: [{ description: '固定轨道升级备份', accept: { 'application/json': ['.mosp'] } }] });
     if (await backup.isSameEntry?.(handle) || (await backup.getFile()).size) throw Error('请选择空白备份文件，未覆盖原工程');

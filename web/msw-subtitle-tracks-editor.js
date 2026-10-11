@@ -153,7 +153,7 @@ function fixedUpdateTrack(id, update) {
     const members = new Set(next.subtitle_tracks.assignments.filter(a => a.subtitle_track_id === id && a.role === 'main').map(a => a.cue_id));
     next.subtitle_layers.legacy_overlay.cue_ids = next.subtitle_layers.legacy_overlay.cue_ids.filter(cueId => !members.has(cueId));
   }
-  fixedCommitProject(next, '调整字幕轨道');
+  return fixedCommitProject(next, '调整字幕轨道');
 }
 function fixedMove(refs, targetId) {
   try { if (fixedCommitProject(fixedTrackCore.assign(DATA, refs, targetId), '移动到字幕轨道')) fixedActiveTrackId = targetId; }
@@ -174,15 +174,44 @@ function fixedAppendMoveMenu(cues, role = 'main', trackId = null) {
     const item = fixedMenuItem(track.name + (track.locked ? ' · 已锁定' : ''), () => fixedMove(refs, track.id), track.locked);
     section.append(item);
   }
-  for (const [kind, label] of [['dialogue', '新建对白轨道'], ['annotation', '新建画面文字轨道']]) section.append(fixedMenuItem(label, () => fixedAddTrack(kind, refs)));
+  section.append(fixedMenuItem('新建字幕轨道', () => fixedAddTrack('subtitle', refs)));
+}
+function fixedRenameTrack(track, x, y, settings = false) {
+  ctxmenu.replaceChildren();
+  const generation=mswProjectGeneration,form=document.createElement('form');form.className='fixed-track-form';
+  const label=document.createElement('label');label.textContent='轨道名称';
+  const input=document.createElement('input');input.value=track.name;input.maxLength=160;input.required=true;
+  input.setAttribute('aria-label','轨道名称');label.append(input);form.append(label);
+  let purpose,layout;
+  if(settings) {
+    const field=(caption,choices,value,help)=>{const label=document.createElement('label');label.textContent=caption;label.dataset.optionHelp=help;
+      const select=document.createElement('select');select.setAttribute('aria-label',caption);select.replaceChildren(...choices.map(([id,text])=>new Option(text,id)));select.value=value;label.append(select);form.append(label);return select;};
+    purpose=field('用途',[['none','未指定'],['dialogue','对白'],['source','源字幕'],['translation','译字幕'],['annotation','画面文字']],fixedTrackCore.purpose(track),'用途仅作标记，不改变排布、样式或识别和导出范围。主副字幕的绑定关系保持不变。');
+    layout=field('排布',[['auto','自动排布'],['fixed','固定位置']],fixedTrackCore.placement(track),'在工程使用“固定轨道排布”时生效。自动排布：按轨道顺序避让重叠字幕。固定位置：独立定位，不参与自动避让；可在“字幕样式与画面位置”中调整。旧工程单独定位过的字幕仍保留位置覆盖。');
+    layout.disabled=track.locked;
+    window.MSWHelp?.hydrate(form);
+  }
+  const actions=document.createElement('div');actions.className='fixed-track-form-actions';
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='取消';cancel.onclick=()=>ctxmenu.classList.remove('show');
+  const save=document.createElement('button');save.type='submit';save.textContent='保存';save.className='primary';actions.append(cancel,save);form.append(actions);
+  form.onsubmit=event=>{event.preventDefault();const name=input.value.trim();if(!name){input.setCustomValidity('请输入轨道名称');input.reportValidity();return;}
+    if(generation!==mswProjectGeneration||!DATA.subtitle_tracks.tracks.some(t=>t.id===track.id)){ctxmenu.classList.remove('show');return;}
+    if(fixedUpdateTrack(track.id,{name,...(settings?{purpose:purpose.value,layout:layout.value}:{})}))ctxmenu.classList.remove('show');};
+  input.oninput=()=>input.setCustomValidity('');
+  form.onkeydown=event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();ctxmenu.classList.remove('show');}};
+  ctxmenu.append(form);ctxShowAt(x,y);input.focus();input.select();
 }
 function fixedTrackMenu(track, x, y) {
+  fixedStatus();
   ctxmenu.replaceChildren();
+  fixedMenuItem('重命名', () => fixedRenameTrack(track,x,y));
+  fixedMenuItem('轨道设置', () => fixedRenameTrack(track,x,y,true));
   fixedMenuItem('字幕样式与画面位置', () => window.MSWSubtitleStyle?.editTrack(track.id));
   fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed }));
   fixedMenuItem(track.enabled ? '禁用轨道' : '启用轨道', () => fixedUpdateTrack(track.id, { enabled: !track.enabled }));
   fixedMenuItem(track.locked ? '解锁轨道' : '锁定轨道', () => fixedUpdateTrack(track.id, { locked: !track.locked }));
   fixedMenuItem(track.show_secondary ? '按内容显示副字幕行' : '始终显示副字幕行', () => fixedUpdateTrack(track.id, { show_secondary: !track.show_secondary }));
+  fixedMenuItem('新增字幕轨道', () => fixedAddTrack('subtitle'));
   for (const [delta, label] of [[-1, '上移轨道'], [1, '下移轨道']]) {
     const index = DATA.subtitle_tracks.tracks.findIndex(t => t.id === track.id);
     fixedMenuItem(label, () => {
@@ -207,20 +236,18 @@ function fixedRenderHeads(group, row, audioSpace) {
     node.classList.toggle('locked-track', track.locked);
     node.classList.toggle('current', fixedActiveTrack()?.id === track.id);
     node.style.bottom = `${7 + audioSpace + band.bottom * 38}px`; node.style.height = `${band.size * 38 - 4}px`;
-    const collapse = document.createElement('button'); collapse.type = 'button'; collapse.textContent = track.collapsed ? '›' : '⌄';
-    collapse.title = track.collapsed ? '展开轨道' : '折叠轨道'; collapse.setAttribute('aria-label', collapse.title);
-    collapse.onclick = () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed });
-    const name = document.createElement('input'); name.value = track.name; name.setAttribute('aria-label', '轨道名称'); name.maxLength = 160;
-    name.title = `${track.name} · 主字幕${track.locked ? ' · 已锁定' : ''}${track.enabled ? '' : ' · 已禁用'}`;
-    name.onfocus = () => { fixedActiveTrackId = track.id; };
-    name.onchange = () => fixedUpdateTrack(track.id, { name: name.value.trim() });
-    name.onkeydown = event => { if (event.key === 'Enter') name.blur(); if (event.key === 'Escape') { name.value = track.name; name.blur(); } event.stopPropagation(); };
-    const menu = document.createElement('button'); menu.type = 'button'; menu.textContent = '⋯'; menu.title = '轨道操作'; menu.setAttribute('aria-label', '轨道操作');
-    if (track.locked) menu.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2M8 10v2"/></svg>';
-    else if (!track.enabled) menu.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m4 12 8-8"/></svg>';
-    menu.title += track.locked ? ' · 已锁定' : !track.enabled ? ' · 已禁用' : '';
-    menu.onclick = event => { const rect = menu.getBoundingClientRect(); fixedTrackMenu(track, rect.right, rect.bottom); };
-    node.append(collapse, name, menu);
+    if(track.collapsed||band.roles.includes('extension')) {
+      const collapse = document.createElement('button'); collapse.type = 'button'; collapse.className='fixed-track-collapse';collapse.textContent = track.collapsed ? '›' : '⌄';
+      collapse.title = track.collapsed ? '展开轨道' : '折叠轨道'; collapse.setAttribute('aria-label', collapse.title);
+      collapse.onclick = () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed });node.append(collapse);
+    }
+    const name = document.createElement('button');name.type='button';name.className='fixed-track-toggle';name.textContent=track.name;
+    name.setAttribute('aria-label',track.name);name.setAttribute('aria-pressed',String(track.enabled));
+    name.title = `${track.name}${track.locked ? ' · 已锁定' : ''}\n点击${track.enabled?'禁用':'启用'}本轨道（含主副字幕），右键管理`;
+    name.onclick=()=>{const current=DATA.subtitle_tracks.tracks.find(t=>t.id===track.id);if(current)fixedUpdateTrack(current.id,{enabled:!current.enabled});};
+    name.onkeydown=event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();const rect=name.getBoundingClientRect();fixedTrackMenu(track,rect.right,rect.bottom);}};
+    node.append(name);
+    if(track.locked){const lock=document.createElement('span');lock.className='fixed-track-lock';lock.setAttribute('aria-label','已锁定');lock.innerHTML='<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>';node.append(lock);}
     if (band.roles.includes('extension')) { const roles = document.createElement('span'); roles.className = 'fixed-track-roles'; roles.textContent = '副字幕'; node.append(roles); }
     for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu']) node.addEventListener(type, event => { event.stopPropagation(); if (type === 'contextmenu') { event.preventDefault(); fixedTrackMenu(track, event.clientX, event.clientY); } });
     group.append(node);
@@ -244,14 +271,9 @@ function fixedSyncUI() {
     select.replaceChildren(new Option('全部轨道', ''), ...DATA.subtitle_tracks.tracks.map(t => new Option(t.name, t.id)));
     select.value = fixedTrackFilter;
   }
-  let bar = document.getElementById('fixed-track-toolbar');
-  if (!bar) {
-    bar = document.createElement('div'); bar.id = 'fixed-track-toolbar';
-    const add = document.createElement('button'); add.textContent = '＋ 轨道'; add.type = 'button';
-    add.onclick = () => { ctxmenu.replaceChildren(); fixedMenuItem('添加对白轨道', () => fixedAddTrack('dialogue')); fixedMenuItem('添加画面文字轨道', () => fixedAddTrack('annotation')); const r = add.getBoundingClientRect(); ctxShowAt(r.left, r.bottom); };
-    const caption = document.createElement('span'); caption.textContent = '字幕轨道'; caption.title = '轨道决定字幕的归属、显示和输出；锁定后不会被编辑或任务结果覆盖。';
+  if (!document.getElementById('fixed-track-status')) {
     const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
-    bar.append(add, caption, status); document.querySelector('.waveform-pane .module-tab-strip')?.after(bar);
+    document.querySelector('.waveform-pane')?.append(status);
   }
   document.getElementById('overlay-track-toggle')?.closest('label')?.setAttribute('hidden', '');
   document.getElementById('subtitle-legacy-visible')?.closest('label')?.setAttribute('hidden', '');
@@ -266,6 +288,11 @@ function fixedSyncUI() {
     badge.textContent = track.name + (track.locked ? ' · 已锁定' : '');
   });
 }
+document.addEventListener('contextmenu',event=>{
+  if(!fixedTrackMode()||!event.target.closest('.waveform-track-heads-column')||event.target.closest('.fixed-track-head'))return;
+  event.preventDefault();event.stopImmediatePropagation();ctxmenu.replaceChildren();
+  fixedMenuItem('新增字幕轨道',()=>fixedAddTrack('subtitle'));ctxShowAt(event.clientX,event.clientY);
+},true);
 function fixedPanelUI(target) {
   if (!fixedTrackMode()) return;
   let label = document.getElementById('fixed-cue-owner');
@@ -284,7 +311,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // SRT selection is explicit and independent of the list filter. ASS keeps all
 // enabled tracks, matching video output, including annotation positions.
 let fixedSrtScope = '';
-let fixedSrtAnnotations = false;
 function fixedSrtProject() {
   const project=structuredClone(DATA),index=fixedTrackCore.createIndex(DATA);
   for(const source of layerCore.tracks(project)) {
@@ -292,7 +318,7 @@ function fixedSrtProject() {
     source.segments=source.segments.filter(c=>{
       const owner=index.trackFor({role:source.role,track_id:source.track_id,cue_id:c.id});
       return owner?.enabled&&!c.disabled&&(!fixedSrtScope||owner.id===fixedSrtScope)
-        && (owner.kind!=='annotation'||fixedSrtAnnotations)&&layerCore.visible(DATA,c,source.role);
+        && layerCore.visible(DATA,c,source.role);
     });
     if(source.role==='main')project.segments=source.segments;
     else project.multi_subtitle.tracks.find(t=>t.id===source.track_id).segments=source.segments;
@@ -332,11 +358,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   const label=document.createElement('label');label.textContent='SRT 范围 ';
   const select=document.createElement('select');select.setAttribute('aria-label','SRT 轨道范围');
   select.onchange=()=>{fixedSrtScope=select.value;};label.append(select);
-  const include=document.createElement('label'),check=document.createElement('input');check.type='checkbox';
-  check.onchange=()=>{fixedSrtAnnotations=check.checked;};include.append(check,' 包含画面文字');
-  row.append(label,include);anchor.before(row);
+  row.append(label);anchor.before(row);
   const sync=()=>{row.hidden=!fixedTrackMode();if(!fixedTrackMode())return;
-    select.replaceChildren(new Option('全部对白轨道',''),...DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>new Option(t.name,t.id)));
+    select.replaceChildren(new Option('全部启用轨道',''),...DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>new Option(t.name,t.id)));
     if(DATA.subtitle_tracks.tracks.some(t=>t.id===fixedSrtScope))select.value=fixedSrtScope;else fixedSrtScope='';};
   anchor.parentElement.addEventListener('pointerenter',sync);window.addEventListener('msw:project-changed',sync);sync();
 });
