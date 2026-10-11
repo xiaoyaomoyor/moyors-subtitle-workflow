@@ -1,0 +1,88 @@
+"""Explicit v4 migration codec. Current editor continues to open/save v3.
+
+Only ``--write-v4`` upgrades a file. Default CLI/read_project is read-only.
+Do not use on working projects until the flat editor integration is complete.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+from maw.file_io import atomic_output_path
+from maw.msw import flat_subtitles as core
+from maw.msw import subtitle_tracks_io as legacy_io
+
+# Shared lock and byte comparisons coordinate both migration codecs. Do not
+# invent a second lock namespace that permits a v3 writer to race a v4 writer.
+FlatDocument = legacy_io.TrackDocument
+FlatSaveResult = legacy_io.TrackSaveResult
+MigrationCancelled = legacy_io.MigrationCancelled
+
+
+def serialize_project(project):
+    core.validate(project)
+    return json.dumps(project, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+
+
+def read_project(path):
+    path = Path(path).resolve(strict=True)
+    original = path.read_bytes()
+    source = legacy_io._decode(original)
+    project = core.migrate_project(source)
+    if source.get("schema") != core.SCHEMA:
+        # Validate legacy ancillary/content contracts without serializing the
+        # validator's normalized copy (which could change word timings).
+        legacy_io._validate_content(core.legacy_projection(project))
+    return FlatDocument(path, original, project)
+
+
+def save_project(document, project=None, *, cancelled=None):
+    """Explicit write to original location; first upgrade has a byte backup.
+
+    A revision can be used once. Cancellation/external changes reject before
+    replacement; I/O failures preserve the original. Atomic replacement cannot
+    coordinate a third-party writer that ignores our shared lock.
+    """
+    value = document.project if project is None else project
+    encoded = serialize_project(value).encode("utf-8")
+    with legacy_io._writer_lock(document.path):
+        legacy_io._check_current(document, cancelled)
+        source = legacy_io._decode(document.original)
+        core.migrate_project(source)  # Reject unknown versions, even forged documents.
+        backup = legacy_io._backup(document) if source.get("schema") != core.SCHEMA else None
+        with atomic_output_path(document.path) as pending:
+            with pending.open("wb") as handle:
+                handle.write(encoded)
+                handle.flush()
+                os.fsync(handle.fileno())
+            legacy_io._check_current(document, cancelled)
+    return FlatSaveResult(FlatDocument(document.path, encoded, legacy_io._decode(encoded)), backup)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="平级字幕 v4 数据迁移检查；默认只读。当前编辑器仍使用 v3。")
+    parser.add_argument("project", type=Path)
+    parser.add_argument("--write-v4", action="store_true", help="开发验收：备份并原位写入 v4；当前编辑器尚不能打开")
+    args = parser.parse_args(argv)
+    try:
+        document = read_project(args.project)
+        model = document.project["subtitles"]
+        print(f"检查通过：{len(model['tracks'])} 条平级轨道，{len(model['cues'])} 条字幕，{len(model['bindings'])} 组对应关系。")
+        if args.write_v4:
+            result = save_project(document)
+            print(f"已写入 v4：{document.path}")
+            if result.backup:
+                print(f"原始备份：{result.backup}")
+        else:
+            print("仅在内存迁移，原文件未修改。")
+        print("当前编辑器仍使用 v3；v4 界面、识别、翻译和导出接入属于下一阶段。")
+        return 0
+    except (ValueError, OSError, TypeError, KeyError) as error:
+        print(f"迁移失败：{error}")
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

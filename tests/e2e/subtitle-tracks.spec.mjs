@@ -84,3 +84,40 @@ test('stale browser file handles cannot overwrite a newer fixed-track file from 
   expect(errors).toHaveLength(2);
   for (const error of errors) expect(error).toContain('目标工程版本不兼容，未覆盖');
 });
+
+test('flat codec is available without switching the editor default', async ({ page }) => {
+  const result = await page.evaluate(project => {
+    const core=MSWFlatSubtitles,flat=core.migrate(project),index=core.createIndex(flat);
+    const translated=index.resolveLegacy({role:'extension',track_id:'zh',cue_id:'a'});
+    const target={...flat.subtitles.tracks[0],id:'free',name:'独立字幕'};
+    const moved=core.move(core.addTrack(flat,target),[translated.id],target.id);
+    const reopened=core.migrate(JSON.parse(JSON.stringify(moved)));
+    return {schema:flat.schema,valid:core.validate(reopened),moved:core.createIndex(reopened).trackFor(translated.id).id,
+      source:core.createIndex(reopened).resolveSource({id:'a',track_id:'zh'}).id,sameId:translated.id,
+      bindingPreserved:JSON.stringify(moved.subtitles.bindings)===JSON.stringify(flat.subtitles.bindings),
+      current:MSWE.resolve('persistence-host').snapshot().schema};
+  },fixtures[0].project);
+  expect(result).toMatchObject({schema:'msw.project.v4',valid:true,moved:'free',bindingPreserved:true,current:'msw.project.v3'});
+  expect(result.source).toBe(result.sameId);
+});
+
+test('real v4 content cannot replace active edits or be overwritten by a stale handle', async ({ page }) => {
+  const before=await page.evaluate(()=>MSWE.resolve('persistence-host').snapshot());
+  const flat=await page.evaluate(project=>MSWFlatSubtitles.migrate(project),fixtures[0].project);
+  expect(flat.segments).toBeUndefined();
+  await page.locator('#open-project-file').setInputFiles({name:'flat.mosp',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(flat))});
+  await expect(page.locator('#hint-stack')).toContainText('版本不受支持');
+  expect(await page.evaluate(()=>MSWE.resolve('persistence-host').snapshot())).toEqual(before);
+  const errors=await page.evaluate(async project=>{
+    const handle={getFile:async()=>new File([JSON.stringify(project)],'flat.mosp')};
+    const errors=[];
+    for(const schema of ['moy.asr.project.v1','msw.project.v2','msw.project.v3']) {
+      const source=schema==='msw.project.v3'?MSWSubtitleTracks.migrate({segments:[]}):schema==='msw.project.v2'?MSWSubtitleLayers.migrate({segments:[]}):{schema,segments:[]};
+      try {await layerProtectHandle(handle,source,true);errors.push(null);}
+      catch(error){errors.push(error.message);}
+    }
+    return errors;
+  },flat);
+  expect(errors).toHaveLength(3);
+  for(const error of errors)expect(error).toContain('目标工程版本不兼容，未覆盖');
+});
