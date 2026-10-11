@@ -6,6 +6,30 @@ import math
 
 
 def mapped_subtitles(project, plan, *, include_styles=False):
+    if project.get('schema') == 'msw.project.v4':
+        from maw.msw.render_project import visible_cues
+        result = []
+        cues = visible_cues(project)
+        lookup = {c['id']: c for c in project['subtitles']['cues']}
+        for track in project['subtitles']['tracks']:
+            rows = []
+            for c in cues:
+                if c['track_id'] != track['id']:
+                    continue
+                s = c['content']
+                for span in plan['intervals']:
+                    lo, hi = max(s['start'], span['start_ms']), min(s['end'], span['end_ms'])
+                    if hi <= lo:
+                        continue
+                    row = dict(id=c['id'], subtitle_track_id=track['id'], subtitle_track_name=track['name'],
+                               start=span['output_start_ms']+lo-span['start_ms'],
+                               end=span['output_start_ms']+hi-span['start_ms'], text=s['text'])
+                    if include_styles:
+                        head = lookup.get((s.get('color_ref') or {}).get('cue_id'), {})
+                        row['color'] = s.get('color') or head.get('content', {}).get('color') or {}
+                    rows.append(row)
+            result.append((track['name'], sorted(rows, key=lambda c: c['start'])))
+        return result
     multi = project.get('multi_subtitle') or {}
     tracks = multi.get('tracks', []) if multi.get('enabled') is True else []
     # Keep the secondary slot stable for callers selecting main/secondary.

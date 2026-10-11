@@ -16,7 +16,14 @@ LAYOUT_VERSION = 6
 
 
 def preview_ass(payload):
-    project = normalize_project(payload.get('project'))
+    raw = payload.get('project')
+    if isinstance(raw, dict) and raw.get('schema') == 'msw.project.v4':
+        from maw.msw.flat_subtitles import validate
+        from copy import deepcopy
+        validate(raw)
+        project = deepcopy(raw)
+    else:
+        project = normalize_project(raw)
     target = payload.get('target', 'both')
     if target not in {'main', 'secondary', 'both', 'none'}:
         raise ValueError('字幕预览轨道无效')
@@ -34,7 +41,7 @@ def preview_ass(payload):
             raise ValueError('字幕时间映射必须为有序保留区间')
         previous=span['end_ms'];output+=span['end_ms']-span['start_ms']
     geometry=[]
-    if project.get('schema')=='msw.project.v3' and project['subtitle_tracks'].get('presentation')=='fixed':
+    if project.get('schema')=='msw.project.v4' or project.get('schema')=='msw.project.v3' and project['subtitle_tracks'].get('presentation')=='fixed':
         from maw.msw.track_presentation import layout
         geometry=[dict(key=r['key'],x=r['x'],y=r['y'],width=r['width'],height=r['height'],text=r['size']['text'])
                   for r in layout(project,round(1080*video['width']/video['height']))]

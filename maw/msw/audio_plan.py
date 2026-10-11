@@ -7,7 +7,7 @@ Neither compiler trusts a client-supplied render graph or local media path.
 import math
 from bisect import bisect_right
 
-from maw.project import normalize_project
+from maw.msw.render_project import normalize as normalize_project
 
 VERSION = "msw.audio-render.v1"
 MAX_MS = 12 * 60 * 60 * 1000
@@ -129,7 +129,10 @@ def compile_plan(project, raw_options=None):
     audible = [c for c in clips if not c["muted"] and not tracks[c["track_id"]]["muted"]]
     from maw.msw.subtitle_presentation import visible
     layered = project.get('schema') == 'msw.project.v2'
-    subtitle_segments = [c for c in project['segments'] if not layered or visible(project, c)]
+    subtitle_segments = [c for c in project.get('segments', []) if not layered or visible(project, c)]
+    if project.get('schema') == 'msw.project.v4':
+        from maw.msw.render_project import visible_cues
+        subtitle_segments = [c['content'] for c in visible_cues(project)]
     if (project.get('overlay_track') or {}).get('enabled') is True:
         subtitle_segments.extend(project['overlay_track'].get('segments', []))
     if (project.get('multi_subtitle') or {}).get('enabled') is True:

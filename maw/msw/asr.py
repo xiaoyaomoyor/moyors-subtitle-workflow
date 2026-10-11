@@ -16,6 +16,9 @@ from maw.project import normalize_project
 
 
 def validate_snapshot(raw):
+    if isinstance(raw, dict) and raw.get('project_schema') == 'msw.project.v4':
+        from maw.msw.flat_processing import asr_snapshot
+        return asr_snapshot(raw)
     if not isinstance(raw, dict) or not valid_id(raw.get('project_id')):
         raise ValueError('ASR 缺少工程快照')
     source, span = raw.get('source'), raw.get('range')

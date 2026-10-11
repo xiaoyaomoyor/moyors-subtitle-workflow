@@ -26,7 +26,7 @@
     const index=DATA.segments.findIndex(c=>c.id===pending.id);if(index>=0)Object.assign(DATA.segments[index],copy(find(pending.id).content));
     const text=list.querySelector(`[data-flat-cue="${CSS.escape(pending.id)}"] .flat-cue-text`);if(text)text.textContent=pending.value||'（空字幕）';
     for(const label of document.querySelectorAll(`.waveform-cue-block[data-idx="${index}"] .waveform-cue-label`))label.textContent=pending.value;
-    draft();}
+    draft();global.dispatchEvent(new Event('msw:flat-changed'));}
   function commit(next,label,ids=[...selection]){
     if(history.commit(next,label,[...selection])){selection=new Set(ids);activeId=ids[0]||null;pendingSplit=null;hover=null;report(label);draft();render();}
   }
@@ -54,6 +54,7 @@
     renderList();syncSelection();waveformEditor?.renderSegments();renderPanel();updatePreview();
     undoButton.disabled=!history.undoStack.length;redoButton.disabled=!history.redoStack.length;
     $('flat-project-name').textContent=name;document.title=`${name} · 平级轨道试用`;
+    global.dispatchEvent(new Event('msw:flat-changed'));
   }
   function renderList(){list.replaceChildren();const rows=[...cues()].sort((a,b)=>a.content.start-b.content.start||tracks().indexOf(owner(a))-tracks().indexOf(owner(b)));
     for(const c of rows){const t=owner(c);if(filter&&t.id!==filter||query&&!c.content.text.toLocaleLowerCase().includes(query.toLocaleLowerCase()))continue;
@@ -153,7 +154,7 @@
   function trackForm(t,x,y){ctxmenu.replaceChildren();const form=node('form','fixed-track-form'),nameInput=document.createElement('input');nameInput.value=t.name;nameInput.maxLength=160;nameInput.setAttribute('aria-label','轨道名称');
     const purpose=document.createElement('select');purpose.setAttribute('aria-label','轨道用途');for(const [value,label] of [['none','未指定'],['source','源字幕'],['translation','译字幕'],['dialogue','对白'],['annotation','画面文字']])purpose.add(new Option(label,value));purpose.value=t.purpose;
     const layout=document.createElement('select');layout.setAttribute('aria-label','排布');layout.add(new Option('自动排布','auto'));layout.add(new Option('固定位置','fixed'));layout.value=t.layout;layout.disabled=t.locked;
-    form.append(field('名称',nameInput),field('用途',purpose),field('排布',layout),node('small','flat-note','用途不限制编辑操作；画面排布在下一阶段接入。'));
+    form.append(field('名称',nameInput),field('用途',purpose),field('排布',layout),node('small','flat-note','用途不限制编辑操作；在“字幕样式”中调整该轨道的画面样式。'));
     const apply=button('完成',()=>{});apply.type='submit';form.append(apply);form.onsubmit=e=>{e.preventDefault();const patch={name:nameInput.value.trim(),purpose:purpose.value};if(!t.locked)patch.layout=layout.value;const result=action('编辑轨道',()=>edit.updateTrack(project(),t.id,patch));if(result)ctxmenu.classList.remove('show');};
     form.onpointerdown=e=>e.stopPropagation();form.onclick=e=>e.stopPropagation();ctxmenu.append(form);ctxShowAt(x,y);nameInput.focus();
   }
@@ -207,6 +208,7 @@
     // Prevent the old role-based shortcut handlers from mutating the view.
     // Let native input/clipboard/focus behavior run inside editable fields.
     e.stopImmediatePropagation();
+    if(e.target.closest('.flat-processing-panel')){if(e.key==='Escape'){e.preventDefault();e.target.closest('dialog')?.close();}return;}
     if(drag&&e.key==='Escape'){e.preventDefault();finishDrag(true);return;}
     if(waveformEditor?.splitPreviewDrag&&e.key==='Escape'){e.preventDefault();waveformEditor.splitPreviewDrag.finish(true);return;}
     if(mod&&key==='s'){e.preventDefault();save();return;}
@@ -244,9 +246,9 @@
   }catch(error){report(error.message,true);return false;}}
   function load(input,fileName='未命名工程'){let next;try{next=core.migrate(copy(input));core.validate(next);}catch(error){throw Error(`无法打开工程：${error.message}。请确认文件为支持的字幕工程；当前修改已保留。`);}
     if(history)resetLoadedMedia();mswProjectGeneration++;
-    history=new edit.History(next);pendingText=null;pendingSplit=null;selection.clear();activeId=null;activeTrack=next.subtitles.tracks[0].id;filter='';name=fileName;
+    MSWProject.ensure(next);history=new edit.History(next);pendingText=null;pendingSplit=null;selection.clear();activeId=null;activeTrack=next.subtitles.tracks[0].id;filter='';name=fileName;
     if(next.workspace)waveformEditor?.setLayoutData(next.workspace,{render:false});
-    render();waveformEditor?.setPayload(next.waveform||null);saved=JSON.stringify(snapshot());report('已载入；处理、字幕预览与导出将在下一阶段接入。');draft();}
+    render();waveformEditor?.setPayload(next.waveform||null);saved=JSON.stringify(snapshot());report('已载入平级轨道工程。');draft();global.dispatchEvent(new Event('msw:flat-loaded'));}
   function allowReplace(){return !dirty()||confirm('当前有未下载保存的修改，仍要打开其他工程吗？');}
   function setup(){
     const entry=button('平级轨道试用',()=>{try{const url=new URL(location.href),token=id('handoff'),source=MSWE.resolve('persistence-host').draftSnapshot();
@@ -259,11 +261,11 @@
     bar=node('div','flat-trial-bar');bar.id='flat-trial-bar';const title=node('strong','','平级轨道试用'),projectName=node('span','flat-project-name');projectName.id='flat-project-name';
     const openInput=document.createElement('input');openInput.type='file';openInput.accept='.mosp,.json';openInput.id='flat-open-file';openInput.hidden=true;openInput.onchange=async()=>{const f=openInput.files[0];openInput.value='';if(f&&allowReplace()){try{load(JSON.parse(await f.text()),f.name);}catch(error){report(error.message,true);}}};
     const mediaInput=document.createElement('input');mediaInput.type='file';mediaInput.accept='audio/*,video/*,.mkv';mediaInput.id='flat-media-file';mediaInput.hidden=true;mediaInput.onchange=async()=>{const f=mediaInput.files[0];mediaInput.value='';if(!f)return;
-      try{const result=await loadMediaFile(f,{localOnly:true,previewOnly:true});if(result){await waveformEditor?.processFile(f);report(`试听媒体：${f.name}（工程素材引用保持不变）`);}}catch(error){report(error.message,true);}};
+      try{const result=await loadMediaFile(f,{localOnly:true,previewOnly:true});if(result){global.dispatchEvent(new Event('msw:flat-audition'));await waveformEditor?.processFile(f);report(`试听媒体：${f.name}（工程素材引用保持不变）`);}}catch(error){report(error.message,true);}};
     undoButton=button('撤销',()=>step('undo'));undoButton.id='flat-undo';redoButton=button('重做',()=>step('redo'));redoButton.id='flat-redo';
     const settings=button('编辑设置',e=>preferences(e.currentTarget));
     bar.append(title,button('打开工程',()=>openInput.click()),button('下载工程',save),button('试听媒体',()=>mediaInput.click()),undoButton,redoButton,settings,projectName,openInput,mediaInput);
-    const help=node('span');MSWHelp.attach(help,'试用范围：平级轨道编辑、对应关系、切分合并、撤销及 v4 工程下载。识别、翻译、配音、字幕画面预览和导出暂不开放。B 联动确认，Ctrl+B 快速切分，Shift+B 单切解绑；C 累加合并，Ctrl+Shift+C 最小合并；Ctrl+C/V 复制粘贴，G/Shift+G 建立/解除对应，N 新字幕。');bar.append(help);
+    const help=node('span');MSWHelp.attach(help,'试用范围：平级轨道编辑、对应关系、切分合并、撤销及 v4 工程下载。使用“字幕处理”发起识别、翻译、配音；“字幕样式”调整画面及导出 ASS。B 联动确认，Ctrl+B 快速切分，Shift+B 单切解绑；C 累加合并，Ctrl+Shift+C 最小合并；Ctrl+C/V 复制粘贴，G/Shift+G 建立/解除对应，N 新字幕。');bar.append(help);
     const normal=button('返回普通编辑器',()=>{const normalURL=new URL(location.href);normalURL.searchParams.delete('flat-subtitles');normalURL.searchParams.delete('flat-draft');global.open(normalURL.href,'_blank','noopener');});bar.append(normal);$('menubar').after(bar);
     message=node('div','flat-message');message.id='flat-message';message.role='status';bar.after(message);
     panel=node('div','flat-cue-editor');panel.id='flat-cue-editor';for(const child of $('current-cue-panel').children)if(!child.classList.contains('module-tab-strip'))child.classList.add('flat-legacy-panel');$('current-cue-panel').append(panel);
@@ -271,9 +273,11 @@
     const toolbar=node('div','flat-list-tools');trackSelect=document.createElement('select');trackSelect.id='flat-track-filter';trackSelect.setAttribute('aria-label','字幕轨道范围');trackSelect.onchange=()=>{filter=trackSelect.value;activeTrack=filter||activeTrack;renderList();syncSelection();};search=document.createElement('input');search.type='search';search.placeholder='搜索字幕';search.setAttribute('aria-label','搜索字幕');search.oninput=()=>{query=search.value;renderList();syncSelection();};
     toolbar.append(trackSelect,search,button('新字幕',()=>newCue()),button('新轨道',addTrack));list=node('div','flat-cue-list');list.id='flat-cue-list';holder.append(toolbar,list);
     $('fixed-track-filter')?.closest('label')?.classList.add('flat-legacy-list');
-    const note=node('span','flat-render-note','字幕画面预览将在下一阶段接入');document.querySelector('.player-stage')?.append(note);
     $('player-empty').textContent='点击“试听媒体”载入视频或音频';
-    global.MSWFlatEditor={active:true,snapshot,render,save,dirty,load};
+    global.MSWFlatEditor={active:true,snapshot,render,save,dirty,load,flush:flushText,report,
+      get data(){return project();},get selection(){return [...selection];},get trackId(){return activeTrack;},get generation(){return mswProjectGeneration;},get player(){return player;},
+      apply:(label,fn)=>{flushText();const result=fn(project());commit(result.project||result,label,result.ids);return result;},
+      useMedia:async file=>{const result=await loadMediaFile(file,{localOnly:true,previewOnly:true});if(result)await waveformEditor?.processFile(file);return result;}};
     if(waveformEditor){waveformEditor.options.renderFixedTrackHeads=renderHeads;waveformEditor.options.getAudioTrackCount=()=>0;waveformEditor.options.onLayoutUndo=()=>{};
       waveformEditor.options.beginSplitPreviewDrag=()=>{if(!pendingSplit)return null;const initial=copy(pendingSplit);return {move:time=>setSplitTime(time),finish:cancelled=>{if(cancelled){pendingSplit=initial;renderPanel();updatePreview();}}};};}
     global.addEventListener('keydown',keydown,true);
@@ -291,6 +295,7 @@
     global.addEventListener('change',async e=>{if(e.target.id==='open-project-file'){e.stopImmediatePropagation();const f=e.target.files[0];e.target.value='';if(f&&allowReplace())try{load(JSON.parse(await f.text()),f.name);}catch(error){report(error.message,true);}}else if(['load-media-file','load-srt-file'].includes(e.target.id)){e.stopImmediatePropagation();report('请使用试用工具栏的打开工程／试听媒体入口。');}},true);
     load(transferred?.project||copy(DATA),transferred?.name||FILENAME_BASE||'未命名工程');
     if(recovery){clearTimeout(draftTimer);const restore=button('恢复上次试用草稿',()=>run(()=>{load(recovery.project,recovery.name);saved='';restore.remove();report('已恢复试用草稿，请下载保存。');}));bar.append(restore);report('发现此试用窗口的草稿，可在工具栏恢复。');}
+    global.MSWFlatProcessingUI?.setup(global.MSWFlatEditor);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup);else setup();
 })(window);

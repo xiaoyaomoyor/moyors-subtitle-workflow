@@ -89,6 +89,7 @@
       ...(project.overlay_track?.enabled === true ? project.overlay_track.segments || [] : []),
       ...(project.multi_subtitle?.enabled === true ? (project.multi_subtitle.tracks || []).flatMap(track => (track.segments || []).filter(c=>!layered||!c.disabled)) : [])];
     if(project.schema==='msw.project.v3')subtitleSegments=global.MSWSubtitleTracks.createIndex(project).records({includeDisabled:false}).filter(r=>r.role==='main'||project.multi_subtitle?.enabled).map(r=>r.cue);
+    if(project.schema==='msw.project.v4')subtitleSegments=global.MSWFlatSubtitles.createIndex(project).records({includeDisabled:false}).map(c=>c.content);
     const duration = clips.reduce((n, c) => Math.max(n, Math.ceil(core.end(c, assets.get(c.asset_id)))),
       subtitleSegments.reduce((n, s) => Math.max(n, s.end), o.duration_ms));
     integer(duration, 1, MAX_MS, '没有有效的音频导出范围，或工程超过 12 小时');

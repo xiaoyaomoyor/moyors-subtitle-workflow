@@ -224,7 +224,7 @@ class MediaService:
                 self.records[record['id']].update(committed=True, created=time.time())
                 self.persist()
             bound = self.api.server.project
-            if self.api.context()['projectId'] == payload['project_id']:
+            if self.api.context()['projectId'] == payload['project_id'] and payload.get('detached') is not True:
                 data = copy.deepcopy(bound.data)
                 data.update(media=record['reference'], media_metadata=record['metadata'])
                 if isinstance(data.get('msw'), dict):

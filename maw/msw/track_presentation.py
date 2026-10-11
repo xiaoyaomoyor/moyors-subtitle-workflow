@@ -60,35 +60,56 @@ def pair_settings(style):
 
 
 def layout(project, width=1920):
-    index = TrackIndex(project)
-    tracks = project['subtitle_tracks']['tracks']
+    flat = project.get('schema') == 'msw.project.v4'
+    if flat:
+        from types import SimpleNamespace
+        from maw.msw.flat_subtitles import validate
+        validate(project)
+        tracks = project['subtitles']['tracks']
+        index = SimpleNamespace(tracks={t['id']: t for t in tracks})
+        cues = {c['id']: c for c in project['subtitles']['cues']}
+        rows = [dict(role='main' if index.tracks[c['track_id']]['style']['slot']=='main' else 'extension',
+                     track_id=c['track_id'], cue_id=c['id'], cue=deepcopy(c['content']), subtitle_track_id=c['track_id'])
+                for c in cues.values() if index.tracks[c['track_id']]['enabled'] and not c.get('hidden') and not c['content'].get('disabled')]
+    else:
+        index = TrackIndex(project)
+        tracks = project['subtitle_tracks']['tracks']
     multi = project.get('multi_subtitle') or {}
     language = (multi.get('tracks') or [{}])[0].get('id')
-    rows = [deepcopy(r) for r in index.records(include_disabled=False)
-            if r['role']=='main' or multi.get('enabled') and r['track_id']==language]
+    if not flat:
+        rows = [deepcopy(r) for r in index.records(include_disabled=False)
+                if r['role']=='main' or multi.get('enabled') and r['track_id']==language]
     lookup = {key(r):r for r in rows}
     used, groups = set(), []
     default = (project.get('preview') or {}).get('project_style') or builtin_presets()[0]
     labels = (project.get('preview') or {}).get('burn_speaker_labels') or {}
+    def resolve_style(track):
+        value = normalize_project_style(track['style']['value'] if track['style']['mode']=='snapshot' else default)
+        base = track['style']['base'] if flat else style_kind(track)
+        return value['annotation'] if base=='annotation' and 'annotation' in value else value
     def add(refs):
         members = [lookup[key(r)] for r in refs if key(r) in lookup and key(r) not in used]
         if not members:
             return
         used.update(key(r) for r in members)
         track = index.tracks[members[0]['subtitle_track_id']]
-        style = normalize_project_style(track['style']['value'] if track['style']['mode']=='snapshot' else default)
-        if style_kind(track)=='annotation' and 'annotation' in style:
-            style=style['annotation']
+        style = resolve_style(track)
         pair = pair_settings(style)
         upper = 'extension' if pair['order']=='secondary-above' else 'main'
         group = dict(id=key(members[0]), trackId=track['id'], kind='annotation' if placement(track)=='fixed' else 'dialogue', rank=tracks.index(track), rows=members, style=style)
-        members.sort(key=lambda r: r['role']!=upper)
+        members.sort(key=lambda r: r.get('pair_role',r['role'])!=upper)
         for row in members:
-            row['style'] = style['main' if row['role']=='main' else 'secondary']
+            own_style = resolve_style(index.tracks[row['subtitle_track_id']]) if flat else style
+            row['style'] = own_style['main' if row['role']=='main' else 'secondary']
+            row['animations'] = own_style['animations']
             cue = row['cue']
-            storage = project['segments'] if row['role']=='main' else next(t['segments'] for t in multi['tracks'] if t['id']==row['track_id'])
-            head = (cue.get('color_ref') or {}).get('headIdx')
-            row['color'] = cue.get('color') or (storage[head].get('color') if type(head) is int and 0<=head<len(storage) else {}) or {}
+            if flat:
+                head = cues.get((cue.get('color_ref') or {}).get('cue_id'), {})
+                row['color'] = cue.get('color') or head.get('content', {}).get('color') or {}
+            else:
+                storage = project['segments'] if row['role']=='main' else next(t['segments'] for t in multi['tracks'] if t['id']==row['track_id'])
+                head = (cue.get('color_ref') or {}).get('headIdx')
+                row['color'] = cue.get('color') or (storage[head].get('color') if type(head) is int and 0<=head<len(storage) else {}) or {}
             label = (labels.get('names') or {}).get(row['color'].get('name'), '') if labels.get('enabled') else ''
             prefix = label+labels.get('separator', '：') if label and row['role']=='main' else ''
             row['prefix']=prefix
@@ -109,6 +130,21 @@ def layout(project, width=1920):
         group['y'] = (group['position']['y']*1080 if group['position'] else lower['marginV'] if vertical==2 else
                       (1080-group['height'])/2 if vertical==1 else 1080-lower['marginV']-group['height'])
         groups.append(group)
+    if flat:
+        by_cue = {r['cue_id']:r for r in rows}
+        for b in project['subtitles']['bindings']:
+            members = [by_cue[i] for i in (b['source_id'],b['target_id']) if i in by_cue]
+            # Independently positioned annotations keep their own anchors even
+            # when related semantically; only automatic tracks form a pair.
+            automatic = all(index.tracks[r['subtitle_track_id']]['layout']=='auto'
+                            and not r['cue'].get('subtitle_position') for r in members)
+            anchors = [r['cue'].get('subtitle_position') or index.tracks[r['subtitle_track_id']].get('position')
+                       or (dict(x=.5,y=.08) if index.tracks[r['subtitle_track_id']]['layout']=='fixed' else None)
+                       for r in members]
+            shared_anchor = len(anchors)==2 and anchors[0] is not None and anchors[0]==anchors[1]
+            if len(members)==2 and (automatic or shared_anchor):
+                for r,role in zip(members,('main','extension')): r['pair_role']=role
+                add(members)
     for b in multi.get('bindings', []):
         if b.get('track_id')==language:
             add([dict(role='main',track_id=None,cue_id=b['main_segment_ids'][0]),
@@ -134,7 +170,8 @@ def layout(project, width=1920):
         while lane in blocked:lane+=1
         g['lane'] = lane if not g['position'] else 0
     groups.sort(key=lambda g:(g['rank'],g['lane'],g['start'],g['id']))
-    gap=(project.get('subtitle_layers') or {}).get('presentation', {}).get('gap',12)
+    legacy_layers = ((project.get('subtitles') or {}).get('migration') or {}).get('structure', {}).get('subtitle_layers', {})
+    gap=(project.get('subtitle_layers') or legacy_layers).get('presentation', {}).get('gap',12)
     entries=[]
     for g in groups:
         if g['kind']=='dialogue' and not g['position']:
@@ -144,7 +181,7 @@ def layout(project, width=1920):
                     g['y']=min(g['y'],other['y']-gap-g['height'])
         for r in g['rows']:
             align=(r['style']['alignment']-1)%3
-            entries.append(dict(r,key=key(r),groupId=g['id'],rank=g['rank'],kind=g['kind'],animations=g['style']['animations'],
+            entries.append(dict(r,key=key(r),groupId=g['id'],rank=g['rank'],kind=g['kind'],
                 x=g['x']+(0 if align==0 else g['width']-r['size']['width'] if align==2 else (g['width']-r['size']['width'])/2),
                 y=g['y']+r['localY'],width=r['size']['width'],height=r['size']['height']))
     return entries

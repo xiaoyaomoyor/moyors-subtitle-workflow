@@ -1,8 +1,7 @@
 // One ASS document feeds libass in the browser and the FFmpeg burn compiler.
 (function(global) {
   'use strict';
-  if (global.MSWFlatTrialRequested) return;
-  const host=global.MSWE?.resolve('processing-host'),styles=global.MSWSubtitleStyle;
+  function create(host,styles) {
   if(!host||!styles)return;
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
   const fontBytes=new Map();
@@ -11,7 +10,7 @@
   const stage=document.querySelector('.player-stage');stage.append(badge);
   function syncBadge(){badge.hidden=host.subtitlePreviewTarget()==='none';}
   syncBadge();
-  function fallback(text) {stage.dataset.subtitleRenderer='approximate';badge.textContent=text;}
+  function fallback(text) {stage.dataset.subtitleRenderer='approximate';badge.textContent=host.flat?text.replace(/近似预览/g,'字幕预览不可用'):text;}
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
   function disposeRenderer() {
@@ -50,7 +49,7 @@
   }
   async function fonts(style) {
     const familyNames=s=>[s.main.fontName,s.secondary.fontName,s.annotation?.main.fontName,s.annotation?.secondary.fontName];
-    const families=[...new Set([...familyNames(style),...(host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
+    const families=[...new Set([...familyNames(style),...(host.data.subtitles?.tracks||host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
     if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
     const manifest=await fontManifests.get(fontKey);
     const bytes=await Promise.all(manifest.fonts.map(async item=>{
@@ -61,7 +60,7 @@
   }
   function signature(preview) {
     return JSON.stringify([host.generation,mediaSource(host.player),preview,host.player.videoWidth,host.player.videoHeight,
-      host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()]);
+      host.data.subtitles,host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()]);
   }
   async function update() {
     syncBadge();
@@ -126,4 +125,7 @@
   setInterval(()=>{if(!document.hidden)void update();},750);
   global.MSWSubtitleRenderer={invalidate,repaint,get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
+  }
+  global.MSWCreateSubtitleRenderer=create;
+  if(!global.MSWFlatTrialRequested)create(global.MSWE?.resolve('processing-host'),global.MSWSubtitleStyle);
 })(window);

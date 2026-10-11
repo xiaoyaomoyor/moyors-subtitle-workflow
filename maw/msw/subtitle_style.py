@@ -58,6 +58,9 @@ def ass_text(text):
 
 
 def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, frame_at=None):
+    if project.get('schema') == 'msw.project.v4':
+        from maw.msw.track_presentation import fixed_ass
+        return fixed_ass(project,plan,target,video,start_ms=start_ms,end_ms=end_ms,frame_at=frame_at)
     if project.get('schema') == 'msw.project.v3':
         if project['subtitle_tracks'].get('presentation') == 'fixed':
             from maw.msw.track_presentation import fixed_ass

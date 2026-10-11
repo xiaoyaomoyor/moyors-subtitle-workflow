@@ -25,6 +25,9 @@ class JobCancelled(Exception):
 
 
 def validate_snapshot(raw: object) -> dict:
+    if isinstance(raw, dict) and raw.get('project_schema') == 'msw.project.v4':
+        from maw.msw.flat_processing import translation_snapshot
+        return translation_snapshot(raw)
     if not isinstance(raw, dict) or not valid_id(raw.get("project_id")):
         raise ValueError("翻译任务缺少有效工程标识")
     entries = raw.get("entries")
@@ -99,7 +102,7 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
 
     request = LlmPostprocessRequest(None, None, OutputMode.JSON, f"translate_{language}", prompt)
     project = {"segments": [entry["source"] for entry in snapshot["entries"]]}
-    if snapshot.get('project_schema') in ('msw.project.v2', 'msw.project.v3'):
+    if snapshot.get('project_schema') in ('msw.project.v2', 'msw.project.v3', 'msw.project.v4'):
         from maw.msw.subtitle_layers import migrate_project
         project = migrate_project(project)
     result = process_llm_snapshot(

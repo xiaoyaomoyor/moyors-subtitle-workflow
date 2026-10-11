@@ -196,7 +196,16 @@ class ProcessingAPI:
         import tempfile
         import zipfile
         from maw.project import normalize_project
-        project = normalize_project(payload.get("project"))
+        raw = payload.get("project")
+        if isinstance(raw, dict) and raw.get('schema') == 'msw.project.v4':
+            import copy
+            from maw.msw.flat_subtitles import validate
+            from maw.msw.project_codec import normalize_extension
+            validate(raw)
+            project = copy.deepcopy(raw)
+            project['msw'] = normalize_extension(project.get('msw'))
+        else:
+            project = normalize_project(raw)
         extension = project.get("msw") or {}
         project_id = extension.get("project_id")
         if project_id != payload.get("project_id"):
@@ -346,6 +355,7 @@ class ProcessingAPI:
             elif route == "capabilities" and not post:
                 result = {"subtitleTracks": 1, "subtitleLayout": 5, "translation": True, "tts": True, "asr": True, "assets": True, "mediaImport": True, "audioExport": True, "videoExport": True, "timelineExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
                 from maw.msw.audio_exports import configured_tools
+                result['flatSubtitles'] = 1
                 result.update(mediaAnalysis=True, waveform=True, mediaToolsReady=configured_tools(self.env_path).complete)
             elif route == 'media-tools':
                 with self.lock:

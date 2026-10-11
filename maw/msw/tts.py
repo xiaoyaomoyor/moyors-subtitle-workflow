@@ -113,6 +113,9 @@ def save_settings(env_path, raw):
 
 
 def validate_snapshot(raw, provider_id="qwen"):
+    if isinstance(raw, dict) and raw.get('project_schema') == 'msw.project.v4':
+        from maw.msw.flat_processing import tts_snapshot
+        return tts_snapshot(raw, provider_id)
     from maw.msw.tts_engines import engine
     limit = engine(provider_id).text_limit
     if not isinstance(raw, dict) or not valid_id(raw.get("project_id")):

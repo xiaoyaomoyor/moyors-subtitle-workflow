@@ -32,6 +32,7 @@ const SERVER_CONFIG = __SERVER_CONFIG_JSON__;
 // The v4 trial edits a separate in-memory document. Old server endpoints only
 // accept v1-v3; disable them before feature modules initialize.
 if (window.MSWFlatTrialRequested && SERVER_CONFIG) {
+  window.MSWFlatServerConfig = structuredClone(SERVER_CONFIG);
   for (const key of ['processingUrl', 'processingContext', 'saveUrl', 'projectPersistence', 'autoOpenLastProject']) SERVER_CONFIG[key] = null;
 }
 let mswProjectGeneration = 0;
