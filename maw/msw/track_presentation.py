@@ -182,6 +182,7 @@ def layout(project, width=1920):
         for r in g['rows']:
             align=(r['style']['alignment']-1)%3
             entries.append(dict(r,key=key(r),groupId=g['id'],rank=g['rank'],kind=g['kind'],
+                anchor=None if g['position'] else (g['rows'][-1]['style']['alignment']-1)//3,
                 x=g['x']+(0 if align==0 else g['width']-r['size']['width'] if align==2 else (g['width']-r['size']['width'])/2),
                 y=g['y']+r['localY'],width=r['size']['width'],height=r['size']['height']))
     return entries
@@ -210,10 +211,20 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
             role = 'secondary' if r['cue_id'] in project['subtitle_view']['secondary_cue_ids'] else 'main'
         if target not in ('both',role) or not r['size']['text'].strip():continue
         align=(r['style']['alignment']-1)%3
-        padding=r['size']['padding']
-        x=r['x']+r['size']['originX']
-        y=r['y']+r['size']['originY']
-        base=rf'\an{7+align}\q2'
+        vertical=r['anchor']
+        if vertical is None:
+            # Explicit picture positions refer to the measured box's top edge.
+            x=r['x']+r['size']['originX']
+            y=r['y']+r['size']['originY']
+            alignment=7+align
+        else:
+            # Keep ASS's original anchor. Converting a bottom margin into a
+            # top anchor using an estimated line height moves even a lone cue.
+            # The estimates are only for packing; libass measures the glyphs.
+            x=r['x']+align*r['width']/2
+            y=r['y']+(2-vertical)*r['height']/2
+            alignment=1+vertical*3+align
+        base=rf'\an{alignment}\q2'
         animations=r['animations']
         move=animations['move']
         if move['enabled']:

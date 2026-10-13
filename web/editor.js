@@ -7545,7 +7545,10 @@ function buildMultiCueColumn(segment, index, track, kind) {
   labelRestEl.textContent = '字幕';
   indexEl.title = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
   indexEl.append(labelEl, labelRestEl, document.createTextNode(` ${index + 1}`));
-  if(productionFlatMode()){indexEl.textContent=fixedCueLabel(segment,kind,track?.id);indexEl.title=indexEl.textContent;}
+  if(productionFlatMode()){
+    labelEl.textContent=fixedCueLabel(segment,kind,track?.id);
+    indexEl.replaceChildren(labelEl);indexEl.title=labelEl.textContent;
+  }
   appendProcessingReview(indexEl, segment);
   header.append(indexEl, buildMultiTimeEl(segment));
   // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。
@@ -22293,6 +22296,8 @@ function ctxAppendItem(label, onClick, options) {
   const opts = options || {};
   const item = document.createElement('div');
   item.className = 'item ctx-settings-item' + (opts.window ? ' ctx-window-item' : '');
+  item.setAttribute('role', 'menuitem');
+  if (opts.disabled) { item.classList.add('disabled'); item.setAttribute('aria-disabled', 'true'); }
   const text = document.createElement('span');
   text.textContent = label;
   item.appendChild(text);
@@ -22307,7 +22312,7 @@ function ctxAppendItem(label, onClick, options) {
       '<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg>',
     );
   }
-  item.addEventListener('click', () => { ctxmenu.classList.remove('show'); onClick(); });
+  if (!opts.disabled) item.addEventListener('click', () => { ctxmenu.classList.remove('show'); onClick(); });
   ctxmenu.appendChild(item);
   return item;
 }
@@ -22326,6 +22331,7 @@ function ctxAppendExpandableSettings(label, children) {
   const header = document.createElement('div');
   header.className = 'item ctx-submenu-toggle';
   header.setAttribute('role', 'menuitem');
+  header.setAttribute('aria-label', label);
   header.setAttribute('aria-haspopup', 'true');
   header.setAttribute('aria-expanded', 'false');
   const text = document.createElement('span');
@@ -22337,6 +22343,11 @@ function ctxAppendExpandableSettings(label, children) {
   children.forEach((child) => {
     // 自定义节点（如滑条行）直接挂载，不套勾选框结构。
     if (child.node) { group.appendChild(child.node); return; }
+    if (child.action) {
+      const item=ctxAppendItem(child.label,child.action,{disabled:child.disabled});
+      if(child.selected){item.setAttribute('aria-current','true');item.classList.add('ctx-choice-selected');}
+      group.appendChild(item);return;
+    }
     // 勾选框形式：与设置面板的开关控件同语义，比“✓ 文本”更明确可点。
     const row = document.createElement('label');
     row.className = 'item ctx-subitem ctx-check';
@@ -22382,6 +22393,7 @@ function ctxAppendExpandableSettings(label, children) {
 
 // 共用的面板定位：鼠标落在第一个选项的中心（而非面板左上角），贴边防溢出。
 function ctxShowAt(x, y) {
+  clearTimeout(ctxMenuLeaveTimer);
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
   const first = ctxmenu.querySelector(':scope > .item, :scope > .ctx-submenu > .ctx-submenu-toggle');
@@ -22431,6 +22443,7 @@ function setupModuleContextMenu() {
       event.preventDefault();
       event.stopPropagation();
       showModulePanel(buildEntries(), event.clientX, event.clientY);
+      if(element.id==='cues-module') { fixedAppendListFilter(); ctxShowAt(event.clientX,event.clientY); }
     });
   };
   bindModule(waveformEditor.playerWrap, () => [
@@ -22656,6 +22669,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
   if (waveformTimeMs !== null) {
     ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
   } else {
+    fixedAppendListFilter();
     ctxAppendSettingsEntry('字幕列表设置', () => {
       if (!cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.open();
     });
@@ -22845,6 +22859,7 @@ function showExtensionContextMenu(x, y, index, timeMs = null, track = getActiveE
   if (timeMs !== null) {
     ctxAppendSettingsEntry('波形显示器设置', () => setWaveformSettingsPanelOpen(true));
   } else {
+    fixedAppendListFilter();
     ctxAppendSettingsEntry('字幕列表设置', () => {
       if (!cueListSettingsModal?.classList.contains('show')) cueListSettingsFloatingPanel.open();
     });
@@ -23109,6 +23124,8 @@ function initWaveformEditor() {
     hitFixedSubtitleTrack: fixedHitTrack,
     getCueCreationContext: fixedCueCreationContext,
     sameSubtitleTrack: fixedSameTrack,
+    moveFixedSubtitleDrag: fixedMoveDrag,
+    getSubtitleCollisionSegments: segments => productionFlatMode()?layerCore.tracks(DATA).flatMap(t=>t.segments):segments,
     canEditSubtitleCues: (indices, role) => fixedCanEdit(indices.map(index => (role === 'main' ? DATA.segments : getActiveExtensionTrack()?.segments || [])[index]), role),
     decorateFixedCue: (block, cue, role) => {
       if (!fixedTrackMode()) return;
@@ -23120,7 +23137,7 @@ function initWaveformEditor() {
     getSubtitleLayersEnabled: layerMode,
     onSubtitleLayersChanged: layerUpdateDrag,
     canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
-    onCancelCueDrag: drag => { if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); layerInvalidate(); } },
+    onCancelCueDrag: drag => { if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); fixedCancelMoveDrag(drag); layerInvalidate(); } },
     onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
     getAllowSubtitleOverlap: layerAllowOverlap,
     isSubtitleVisible: (cue, role) => !layerMode() || layerCore.visible(DATA, cue, role),

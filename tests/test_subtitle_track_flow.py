@@ -27,6 +27,36 @@ def fixture():
 
 
 class TrackFlowTests(unittest.TestCase):
+    def test_single_auto_cue_keeps_original_ass_anchor_pixels(self):
+        from maw.msw.flat_subtitles import migrate_project as migrate_flat
+        ffmpeg=Path(os.environ.get('MSW_TEST_FFMPEG',''))/'ffmpeg.exe'
+        if not ffmpeg.is_file():self.skipTest('MSW_TEST_FFMPEG directory required')
+        plan={'intervals':[dict(start_ms=0,end_ms=3000,output_start_ms=0)]}
+        with tempfile.TemporaryDirectory() as temp:
+            for alignment,font,scale,text in [(2,'Arial',100,'Subtitle position test'),
+                    (2,'Microsoft YaHei',130,'Subtitle\nposition test'),
+                    (1,'Arial',100,'Left'),(3,'Arial',100,'Right'),
+                    (5,'Arial',100,'Middle'),(8,'Arial',100,'Top')]:
+                with self.subTest(alignment=alignment,font=font,scale=scale):
+                    p=migrate_project(dict(segments=[dict(id='cue',start=0,end=3000,text=text,items=[])]))
+                    style=builtin_presets()[0]
+                    style['main'].update(alignment=alignment,fontName=font,scaleY=scale)
+                    p['preview']={'project_style':style}
+                    p['subtitle_tracks']['presentation']='legacy'
+                    frames=[]
+                    for name,project in [('old',p),('flat',migrate_flat(p))]:
+                        ass=styled_ass(project,plan,'main',dict(width=1920,height=1080))
+                        Path(temp,name+'.ass').write_text(ass,encoding='utf-8')
+                        frame=subprocess.run([str(ffmpeg),'-v','error','-f','lavfi','-i',
+                            'color=black:s=1920x1080:r=1:d=1','-vf',f'ass={name}.ass',
+                            '-frames:v','1','-f','rawvideo','-pix_fmt','gray','pipe:1'],
+                            cwd=temp,check=True,capture_output=True).stdout
+                        points=[i for i,v in enumerate(frame) if v>128]
+                        self.assertTrue(points)
+                        frames.append((min(i%1920 for i in points),max(i%1920 for i in points),
+                                       min(points)//1920,max(points)//1920))
+                    self.assertEqual(*frames)
+
     def test_legacy_preset_spacing_and_speaker_prefix_match_style_controls(self):
         style=builtin_presets()[1]
         self.assertEqual(pair_settings(style),dict(order='main-above',gap=-7))

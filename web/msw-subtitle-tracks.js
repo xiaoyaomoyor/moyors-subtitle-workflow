@@ -326,7 +326,7 @@
   function layout(project, extensionTrackId, extensionVisible = true) {
     const owners = ownerMap(project), bands = [], positions = new Map();
     for (const track of project.subtitle_tracks.tracks) {
-      if (flatView(project)) { bands.push({track,roles:track.collapsed?[]:['main','extension'],size:1}); continue; }
+      if (flatView(project)) { if(!track.collapsed)bands.push({track,roles:['main','extension'],size:1}); continue; }
       const secondary = track.show_secondary === true || (extensionVisible && project.multi_subtitle?.tracks
         ?.find(t => t.id === extensionTrackId)?.segments.some(c => owners.get(key({ role: 'extension', track_id: extensionTrackId, cue_id: c.id })) === track.id));
       bands.push({ track, roles: track.collapsed ? [] : ['main', ...(secondary ? ['extension'] : [])], size: track.collapsed ? 1 : secondary ? 2 : 1 });

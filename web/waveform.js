@@ -3986,8 +3986,8 @@
         if (motion.moveStart) lower = Math.max(lower, -motion.start);
         if (motion.moveStart && !motion.moveEnd) upper = Math.min(upper, motion.end - motion.start - clock.minDuration);
         if (motion.moveEnd && !motion.moveStart) lower = Math.max(lower, motion.start + clock.minDuration - motion.end);
-        if (allowOverlap) continue;
-        for (const other of motion.segments) {
+        if (allowOverlap || drag.relocating) continue;
+        for (const other of this.options.getSubtitleCollisionSegments?.(motion.segments) || motion.segments) {
           if (moving.has(other)) continue;
           if (this.options.sameSubtitleTrack?.(motion.segment, other) === false) continue;
           const start = clock.fromMs(other.start), end = clock.fromMs(other.end);
@@ -5911,6 +5911,7 @@
         });
         if (row) {
           drag.pointerGeometry = this.captureRowGeometry(row);
+          drag.pointerRow = row;
         }
       }
       const geometry = drag.pointerGeometry || drag.geometry;
@@ -6257,6 +6258,7 @@
       this.drag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
+        startClientY: event.clientY,
         currentClientX: event.clientX,
         currentClientY: event.clientY,
         rangeMs: geometry.endMs - geometry.startMs,
@@ -6297,6 +6299,9 @@
       window.addEventListener('pointermove', this._dragMove = (moveEvent) => this.moveCueDrag(moveEvent));
       window.addEventListener('pointerup', this._dragEnd = (upEvent) => this.endCueDrag(upEvent), { once: true });
       window.addEventListener('pointercancel', this._dragEnd, { once: true });
+      window.addEventListener('keydown', this._dragEscape = event => {
+        if(event.key==='Escape'&&this.drag){event.preventDefault();this.endCueDrag({type:'pointercancel',pointerId:this.drag.pointerId});}
+      });
 
       // 普通字幕块点击的跳转与波形空白区保持一致：在按下时立即移动播放头。
       // 只有普通 move 点击进入此路径；修饰键和边界手柄仍只执行选择/拖动操作。
@@ -6813,6 +6818,7 @@
       window.removeEventListener('pointermove', this._dragMove);
       window.removeEventListener('pointerup', this._dragEnd);
       window.removeEventListener('pointercancel', this._dragEnd);
+      window.removeEventListener('keydown', this._dragEscape);
       const segments = this.options.getSegments(drag.track || 'main');
       drag.cancelOriginals.forEach((original, idx) => {
         const segment = segments[idx];
@@ -7234,8 +7240,9 @@
         : this.timeFromPointer(event, drag.row, drag.geometry);
       const currentPointerTime = timing.fromMs(pointerMs);
       const deltaTime = currentPointerTime - drag.startPointerTime;
-      const hasMeaningfulMovement = timing.unit === 'frames'
-        ? deltaTime !== 0 : Math.abs(deltaTime) >= 2;
+      const hasMeaningfulMovement = (timing.unit === 'frames'
+        ? deltaTime !== 0 : Math.abs(deltaTime) >= 2)
+        || drag.kind==='move'&&this.options.getFixedTracksEnabled?.()&&Math.abs(event.clientY-drag.startClientY)>=4;
       if (!drag.started && !hasMeaningfulMovement) return;
       if (!drag.started) {
         drag.started = true;
@@ -7254,6 +7261,14 @@
       // Shift+拖动是精确自由放置（邻居挡路时换轨而不是吸附），全程禁用吸附，
       // 否则刚拖出重叠区就会被吸回邻居边界。
       const disableSnap = drag.independent === true || drag.shiftOverlay === true;
+      const pointerRow=drag.pointerRow||drag.row,rect=pointerRow.getBoundingClientRect();
+      const fromBottom=event.clientY>=rect.top&&event.clientY<=rect.bottom&&event.clientX>=rect.left&&event.clientX<=rect.right
+        ?rect.bottom-event.clientY-7-(parseFloat(pointerRow.style.getPropertyValue('--audio-lane-space'))||0):NaN;
+      const fixedMove=this.options.moveFixedSubtitleDrag?.(drag,deltaTime,fromBottom,disableSnap);
+      if(fixedMove!==undefined&&fixedMove!==null) {
+        if(!fixedMove)return;
+        drag.changed=true;this.invalidateSubtitleLayouts();this.scheduleRefreshCueBlocks();return;
+      }
       if (this.subtitleLayersEnabled()) {
         if (!this.applyLayerDrag(drag, deltaTime, null, { pointer: true, disableSnap })) return;
       } else if (drag.kind === 'move') this.applyMoveDrag(drag, deltaTime, disableSnap, drag.allowSqueeze);
@@ -7559,6 +7574,7 @@
       window.removeEventListener('pointermove', this._dragMove);
       window.removeEventListener('pointerup', this._dragEnd);
       window.removeEventListener('pointercancel', this._dragEnd);
+      window.removeEventListener('keydown', this._dragEscape);
       this.content.querySelectorAll('.waveform-cue-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.pane.classList.remove('cue-drag-active');
       this.drag = null;
