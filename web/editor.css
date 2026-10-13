@@ -3839,8 +3839,8 @@
   .multi-cue-column.selected {
     outline: 2px solid var(--selection-yellow-line); outline-offset: -2px;
   }
-  .multi-cue-column.selected :is(.index-label, .index-label-rest) { color: var(--accent); font-weight: 700; text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
-  .msw-numbered-tracks .cue.selected:not(.multi-dual-cue) > .index { color:var(--accent); font-weight:700; text-decoration:underline; text-underline-offset:3px; }
+  .multi-cue-column.selected :is(.index-label, .index-label-rest) { color: var(--accent); font-weight: 700; }
+  .msw-numbered-tracks .cue.selected:not(.multi-dual-cue) > .index { color:var(--accent); font-weight:700; }
   .ctx-choice-selected > span::after { content:' ✓'; color:var(--accent); }
   .multi-cue-column .text[contenteditable] { display: block; width: 100%; min-width: 0; }
   @container cue-list (max-width: 620px) {
@@ -5016,7 +5016,7 @@
 .msw-style-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .msw-style-tabs,.msw-style-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
 .msw-style-tabs { flex-shrink:1; min-width:0; }
-.msw-style-tabs button { padding:5px 12px; min-width:0; white-space:normal; }
+.msw-style-tabs button { box-sizing:border-box; height:30px; padding:5px 12px; min-width:0; white-space:normal; }
 .msw-style-tabs button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); background:var(--accent-tint); }
 .msw-project-style .msw-style-icon { display:inline-flex; flex:0 0 30px; align-items:center; justify-content:center; width:30px; height:30px; min-width:30px; padding:5px; }
 .msw-style-icon svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
@@ -5088,7 +5088,7 @@
 
 /* Compact fixed-track heads: the column has its own space and never
    overlays waveform hit targets. All feedback uses existing theme tokens. */
-.msw-fixed-tracks .waveform-row { left: 108px !important; }
+.msw-fixed-tracks .wave-track-heads-on .waveform-row { left: 108px !important; }
 .msw-fixed-tracks .waveform-track-heads-column { width: 102px; display: block; }
 .msw-fixed-tracks .waveform-track-heads { width: 102px; }
 .fixed-track-head { position: absolute; left: 3px; right: 3px; box-sizing: border-box; display: grid;
@@ -5104,13 +5104,13 @@
 .fixed-track-head button:hover { background: var(--btn-bg-hover); }
 .fixed-track-roles { grid-column: 1 / -1; margin-top: 17px; color: var(--text-muted); font-size: 10px; text-align: center; }
 .fixed-track-head.disabled-track, .fixed-disabled { opacity: .5; }
-.msw-numbered-tracks .waveform-row { left: 44px !important; }
+.msw-numbered-tracks .wave-track-heads-on .waveform-row { left: 44px !important; }
 .msw-numbered-tracks :is(.waveform-track-heads-column,.waveform-track-heads) { width: 40px; }
 .msw-numbered-tracks .fixed-track-head { display:flex; align-items:center; justify-content:center; left:1px; right:1px; padding:0; border:0; background:transparent; gap:0; }
 .msw-numbered-tracks .fixed-track-toggle { height:26px; padding:1px 2px; font-size:11px; border:0; background:var(--btn-bg); border-radius:var(--radius-sm); }
 .msw-numbered-tracks .fixed-track-collapse { position:absolute; right:-2px; top:-7px; z-index:1; width:14px; height:14px; padding:0; }
 .fixed-track-menu-note { display:block; padding:6px 10px; font-size:12px; color:var(--text-muted); }
-#style-track-target { width:auto; max-width:100px; min-width:65px; padding:5px 6px; font:inherit; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); }
+#style-track-target { box-sizing:border-box; height:30px; width:auto; max-width:100px; min-width:58px; padding:3px 6px; font-family:inherit; font-size:13px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); }
 .msw-style-toolbar { flex-wrap:wrap; }
 .msw-style-target-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; }
 .fixed-locked { cursor: default; }

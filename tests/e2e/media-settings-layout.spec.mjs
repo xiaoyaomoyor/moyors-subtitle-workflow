@@ -5,7 +5,9 @@ let server;
 test.beforeAll(async()=>{server=await startBlankServer(await findFreePort(),makeTempDir('media-settings-layout'));});
 test.afterAll(async()=>{await server?.stop();});
 test.beforeEach(async({page})=>{
-  await disableOnboarding(page);await page.goto(server.url);
+  // These fixtures edit the legacy main/secondary arrays and project-wide style.
+  // Native per-track/group style behavior lives in flat-production.spec.mjs.
+  await disableOnboarding(page);await page.goto(server.url+'?subtitle-tracks=0');
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   await toggleMediaSettings(page);
 });
@@ -152,17 +154,19 @@ test('animation groups show only enabled parameters and preserve edits across tr
   expect(await page.locator('.media-settings-body').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
 });
 
-test('failed preset save can be retried without mutating the project or duplicating presets',async({page})=>{
+test('failed preset save is atomic and retry selects the new preset without changing appearance',async({page})=>{
   let before=await project(page);
   await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('可重试预设');
   await page.route('**/subtitle-presets',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({ok:false,error:'测试保存失败'})}));
   await page.locator('#style-save-preset').click();await expect(page.locator('#style-message')).toHaveText('测试保存失败');
   await expect(page.locator('#style-save-form')).toBeVisible();expect(await project(page)).toEqual(before);
   // The save captures the current fields at submission, including edits made
-  // while the naming form is open, without overwriting the project on success.
+  // while the naming form is open. Success selects the newly named preset.
   await edit(page,'#style-field-fontSize','53');before=await project(page);
   await page.unroute('**/subtitle-presets');await page.locator('#style-save-preset').click();
-  await expect(page.locator('#style-save-form')).toBeHidden();expect(await project(page)).toEqual(before);
+  await expect(page.locator('#style-save-form')).toBeHidden();
+  const after=await project(page);expect(after.name).toBe('可重试预设');
+  for(const field of ['main','secondary','animations','pairLayout','legacyBurn'])expect(after[field]).toEqual(before[field]);
   await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('可重试预设');await page.locator('#style-save-preset').click();
   await expect(page.locator('#style-message')).toContainText('已有同名预设');
   await page.locator('#style-save-cancel').click();await page.locator('#style-delete-preset').click();await page.locator('#style-delete-cancel').click();

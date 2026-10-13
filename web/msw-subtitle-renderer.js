@@ -65,6 +65,9 @@
   async function update() {
     syncBadge();
     observePlayer();
+    // Defer expensive ASS generation until release. Polling during a drag used
+    // to commit the editor's old time fields and snap the cue back to its start.
+    if(host.editingGestureActive)return;
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
     if(pending){again=true;return;}
     const preview=styles.currentPreview(),signatureKey=signature(preview);

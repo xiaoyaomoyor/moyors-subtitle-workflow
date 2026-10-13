@@ -63,9 +63,9 @@ test('list track filter lives in the native context submenu and selected ordinal
   await expect(page.locator('#fixed-track-filter')).toHaveCount(0);
   const card=page.locator('.multi-cue-column.main');await card.click();
   const selected=await card.locator('.index-label').evaluate(el=>({weight:getComputedStyle(el).fontWeight,decoration:getComputedStyle(el).textDecorationLine}));
-  expect(selected.weight).toBe('700');expect(selected.decoration).toContain('underline');
+  expect(selected.weight).toBe('700');expect(selected.decoration).not.toContain('underline');
   await card.click({button:'right'});await page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:/^轨道$/}).hover();
-  await page.locator('#ctxmenu .ctx-submenu-menu .item').filter({hasText:/^S3$/}).click();
+  await page.locator('#ctxmenu .ctx-submenu-menu .item').filter({hasText:/^S2$/}).click();
   await expect(card).toBeHidden();
   await page.locator('#cues-module .module-tab-strip').click({button:'right'});
   await page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:/^轨道$/}).hover();
@@ -124,14 +124,14 @@ test('compact numbered heads and group menus preserve bindings, ordinal cards an
   await page.getByRole('menuitem',{name:'解除主副分组',exact:true}).click();
   await head(c.id).click({button:'right'});await page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:'设为副轨道'}).hover();
   await page.getByRole('menuitem',{name:'S1',exact:true}).click();
-  const grouped=await snap(page);expect(grouped.subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S2','S1副']);
+  const grouped=await snap(page);expect(grouped.subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S3','S1副']);
   expect(grouped.subtitles.cues).toEqual(before.subtitles.cues);expect(grouped.subtitles.bindings).toEqual(before.subtitles.bindings);
   expect(grouped.subtitles.tracks.map(t=>t.style)).toEqual(before.subtitles.tracks.map(t=>t.style));
-  await expect(page.locator('.multi-cue-column.extension .index')).toHaveText('S2_1');
+  await expect(page.locator('.multi-cue-column.extension .index')).toHaveText('S3_1');
   await page.evaluate(p=>applyCanonicalProject(p,'reopened.mosp'),grouped);
   await head(c.id).click({button:'right'});await page.getByRole('menuitem',{name:'解除主副分组',exact:true}).click();
-  expect((await snap(page)).subtitles.tracks.map(t=>t.name)).toEqual(['S1','S2','S3']);
-  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S2','S1副']);
+  expect((await snap(page)).subtitles.tracks.map(t=>t.name)).toEqual(['S1','S3','S4']);
+  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S3','S1副']);
   await page.screenshot({path:info.outputPath('compact-track-groups.png')});expect(errors).toEqual([]);
 });
 
@@ -141,9 +141,18 @@ test('style toolbar selects track groups, edits both appearances and swaps witho
   await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.ready)).toBe(true);
   const before=await snap(page),[a,b,c]=before.subtitles.tracks;
   await page.evaluate(id=>MSWSubtitleStyle.editTrack(id),a.id);
-  await expect(page.locator('#style-track-target option')).toHaveText(['S1','S3']);
+  await expect(page.locator('#style-track-target option')).toHaveText(['S1','S2']);
   await expect(page.locator('#style-track-controls')).toBeHidden();await expect(page.locator('#style-main')).toBeVisible();
   expect(await page.locator('.msw-style-toolbar #style-track-target').count()).toBe(1);
+  const toolbarSizes=await page.locator('#style-track-target,#style-main,#style-secondary,#style-swap').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
+  expect(new Set(toolbarSizes).size).toBe(1);
+  for(const language of ['en','zh']) {
+    await page.locator('#media-settings-modal').evaluate(el=>el.style.width='360px');
+    await page.evaluate(language=>MSWE_I18N.applyLanguage(language),language);
+    expect(await page.locator('.msw-style-toolbar').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+    expect(await page.locator('#style-main,#style-secondary,#style-swap').evaluateAll(nodes=>nodes.every(el=>el.scrollHeight<=el.clientHeight))).toBe(true);
+  }
+  await page.locator('#media-settings-modal').evaluate(el=>el.style.width='560px');
   await page.locator('#style-field-fontSize').fill('61');await page.locator('#style-field-fontSize').blur();
   await page.locator('#style-secondary').click();await page.locator('#style-field-fontSize').fill('39');await page.locator('#style-field-fontSize').blur();
   const edited=await snap(page);expect(edited.subtitles.tracks[0].style.value.main.fontSize).toBe(61);expect(edited.subtitles.tracks[1].style.value.secondary.fontSize).toBe(39);
@@ -160,6 +169,22 @@ test('style toolbar selects track groups, edits both appearances and swaps witho
   const solo=await snap(page);expect(solo.subtitles.tracks[2].style.value.main.fontSize).toBe(77);expect(solo.subtitles.tracks[0].style.value.main.fontSize).toBe(39);
   await page.locator('#style-track-placement').selectOption('fixed');await expect(page.locator('#style-position-fields')).toBeVisible();
   expect((await snap(page)).subtitles.tracks[2].layout).toBe('fixed');expect(errors).toEqual([]);
+});
+
+test('track number setting hides native headers and releases their space in both waveform layouts',async({page})=>{
+  const before=await dragFixture(page);
+  await page.evaluate(()=>setWaveformSettingsPanelOpen(true));
+  const toggle=page.locator('#waveform-show-track-heads');
+  for(const mode of ['multi','basic']) {
+    await page.evaluate(mode=>{waveformEditor.settings.mode=mode;waveformEditor.render();},mode);
+    await toggle.check();
+    await expect(page.locator('.fixed-track-head').first()).toBeVisible();
+    const row=page.locator('.waveform-row').first(),shown=await row.boundingBox();
+    await toggle.uncheck();await expect(page.locator('.waveform-track-heads-column')).toHaveCount(0);
+    const hidden=await row.boundingBox();expect(hidden.width-shown.width).toBeGreaterThan(30);
+    await toggle.check();expect((await row.boundingBox()).width).toBe(shown.width);
+  }
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
 });
 
 test('track context menus collapse lanes, restore from blank space and open style settings',async({page},info)=>{
@@ -193,7 +218,12 @@ for(const role of ['main','secondary'])test(`drag ${role} across physical tracks
   expect(moved.subtitles.bindings).toEqual(before.subtitles.bindings);
   await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
   const destination=await trackPoint(page,target.id,12000);
-  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(destination.x,destination.y,{steps:8});await page.mouse.up();
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(destination.x,destination.y,{steps:8});
+  const landing=page.locator(`.waveform-row[data-start-ms="10000"] .waveform-cue-block[data-cue-id="${cue.id}"]`);
+  const rect=await landing.boundingBox();expect(rect.y).toBeLessThan(destination.y);expect(rect.y+rect.height).toBeGreaterThan(destination.y);
+  await expect(landing).toHaveClass(/drag-destination/);await expect(page.locator('.waveform-drag-destination')).toContainText(target.name);
+  await page.screenshot({path:info.outputPath('drag-destination-'+role+'.png')});
+  await page.mouse.up();await expect(page.locator('.waveform-drag-destination')).toHaveCount(0);
   const after=await snap(page),a=after.subtitles.cues.find(c=>c.id===cue.id);
   expect(a.track_id).toBe(target.id);expect(a.content.start).toBe(cue.content.start+10000);
   expect(a.content.end-a.content.start).toBe(cue.content.end-cue.content.start);
@@ -233,6 +263,45 @@ test('held drag keyboard adjustment survives the next pointer move and cancels a
   const next=await trackPoint(page,target.id,12500);await page.mouse.move(next.x,next.y);
   const moved=await range();expect(moved[0]).toBe(adjusted[0]+500);expect(moved[1]-moved[0]).toBe(200);
   await page.keyboard.press('Escape');await page.mouse.up();expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
+test('preview polling and pending autosave do not commit stale panel times during a held drag',async({page})=>{
+  const before=await dragFixture(page),[main,,target]=before.subtitles.tracks;
+  const start=await trackPoint(page,main.id,2000),dest=await trackPoint(page,target.id,12000);
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(dest.x,dest.y);
+  const state=await page.evaluate(async()=>{
+    // The preview renderer polls every 750 ms, independently of pointer events.
+    await new Promise(resolve=>setTimeout(resolve,850));
+    const project=MSWE.resolve('processing-host').exportProject();
+    scheduleAutoSaveFlush();
+    return {live:DATA.segments[0].start,exported:project.subtitles.cues.find(c=>c.content.text==='Hello world').content.start,
+      dragging:Boolean(waveformEditor.drag)};
+  });
+  expect(state).toEqual({live:11000,exported:11000,dragging:true});
+  await page.mouse.up();
+  expect((await snap(page)).subtitles.cues.find(c=>c.content.text==='Hello world').content.start).toBe(11000);
+  await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
+test('subtitle dragging snaps only while Shift is held, including Shift before pointer down',async({page})=>{
+  const before=await dragFixture(page),[main]=before.subtitles.tracks;
+  await page.evaluate(()=>{player.currentTime=4;});
+  const start=await trackPoint(page,main.id,2000),dest=await trackPoint(page,main.id,4980);
+  const live=()=>page.evaluate(()=>DATA.segments[0].start);
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(dest.x,dest.y);
+  const free=await live();expect(Math.abs(free-3980)).toBeLessThan(25);expect(free).not.toBe(4000);
+  const block=await page.locator(`.waveform-cue-block[data-cue-id="${before.subtitles.cues[0].id}"]`).first().elementHandle();
+  await page.keyboard.down('Shift');expect(await live()).toBe(4000);
+  await page.keyboard.up('Shift');expect(await live()).toBe(free);
+  expect(await block.evaluate(el=>el.isConnected)).toBe(true);
+  await page.keyboard.press('Escape');await page.mouse.up();
+  await page.keyboard.down('Shift');await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(dest.x,dest.y);await page.mouse.up();await page.keyboard.up('Shift');
+  expect(await live()).toBe(4000);
+  await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.mouse.move(start.x,start.y);await page.mouse.click(start.x,start.y);
+  expect(await page.evaluate(()=>selectedIdxs.has(0))).toBe(true);
+  await page.keyboard.down('Shift');await page.mouse.click(start.x,start.y);await page.keyboard.up('Shift');
+  expect(await page.evaluate(()=>selectedIdxs.has(0))).toBe(false);
 });
 
 test('same-track cross-row relocation can pass earlier cues without overwriting them',async({page})=>{

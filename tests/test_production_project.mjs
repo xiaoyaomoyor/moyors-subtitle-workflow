@@ -30,7 +30,7 @@ test('translation counts a selected bilingual pair once but accepts an unbound o
   assert.deepEqual(bridge.translationIds(view,{mainIds:[],extensionIds:[b]}),[b]);
 });
 
-test('numbered groups preserve cue bindings, appearance and original numbers across ungroup, reorder and reopen',()=>{
+test('numbered groups preserve cue bindings, appearance and group numbers across ungroup, reorder and reopen',()=>{
   const p=bridge.toProject(bridge.fromProject(fixture())),[a,b]=p.subtitles.tracks;
   assert.deepEqual(p.subtitles.tracks.map(t=>t.name),['S1主','S1副']);
   let n=flat.setTrackGroup(p,a.id);assert.deepEqual(n.subtitles.tracks.map(t=>t.name),['S1','S2']);
@@ -51,7 +51,7 @@ test('track groups reject cycles, multiple secondary tracks and locked members a
   assert.throws(()=>flat.setTrackGroup(n,'extra',a.id));assert.throws(()=>flat.setTrackGroup(n,'extra',b.id));
   n.subtitles.tracks[0].locked=true;assert.throws(()=>flat.setTrackGroup(n,b.id));
   n.subtitles.tracks[0].locked=false;assert.deepEqual(n,before);
-  for(const corrupt of [p=>p.subtitles.tracks[1].display_number=1,p=>p.subtitles.tracks[0].secondary_for=b.id,p=>p.subtitles.tracks[1].secondary_for='missing']) {
+  for(const corrupt of [p=>{delete p.subtitles.tracks[1].secondary_for;p.subtitles.tracks[1].display_number=1;},p=>p.subtitles.tracks[0].secondary_for=b.id,p=>p.subtitles.tracks[1].secondary_for='missing']) {
     const bad=structuredClone(p);corrupt(bad);assert.throws(()=>flat.validate(bad));
   }
 });
@@ -59,8 +59,8 @@ test('numbered empty track deletion restores its grouped partner and does not re
   const E=require('../web/msw-flat-editing.js');
   let p=bridge.toProject(bridge.fromProject({segments:[]})),a=p.subtitles.tracks[0];
   p=flat.addTrack(p,{...a,id:'extra'});p=flat.setTrackGroup(p,'extra',a.id);
-  p=E.deleteTrack(p,a.id);assert.equal(p.subtitles.tracks[0].name,'S2');
-  p=flat.addTrack(p,{...p.subtitles.tracks[0],id:'third'});assert.equal(p.subtitles.tracks[1].name,'S3');
+  p=E.deleteTrack(p,a.id);assert.equal(p.subtitles.tracks[0].name,'S1');
+  p=flat.addTrack(p,{...p.subtitles.tracks[0],id:'third'});assert.equal(p.subtitles.tracks[1].name,'S2');
 });
 test('explicit groups without display numbers take precedence over migration inference',()=>{
   let p=fixture(),[a,b]=p.subtitles.tracks;
@@ -68,4 +68,19 @@ test('explicit groups without display numbers take precedence over migration inf
   const n=bridge.toProject(bridge.fromProject(p));
   assert.deepEqual(n.subtitles.tracks.map(t=>t.name),['S1主','S2','S1副']);
   assert.deepEqual(n.subtitles.bindings,p.subtitles.bindings);
+});
+
+test('a bilingual group consumes one number; ungroup allocates after existing groups',()=>{
+  let p=bridge.toProject(bridge.fromProject(fixture()));
+  const [main,secondary]=p.subtitles.tracks;
+  assert.deepEqual(p.subtitles.tracks.map(t=>t.display_number),[1,1]);
+  assert.equal(p.subtitles.next_track_number,2);
+  const old=structuredClone(p);old.subtitles.tracks[1].display_number=2;old.subtitles.next_track_number=3;
+  flat.validate(old);assert.deepEqual(flat.normalizeGroups(old),p);
+  p=flat.addTrack(p,{...main,id:'extra'});
+  assert.deepEqual(p.subtitles.tracks.map(t=>t.name),['S1主','S1副','S2']);
+  p=flat.setTrackGroup(p,secondary.id);
+  assert.deepEqual(p.subtitles.tracks.map(t=>t.name),['S1','S3','S2']);
+  assert.deepEqual(bridge.toProject(bridge.fromProject(p)),p);
+  assert.deepEqual(p.subtitles.cues,old.subtitles.cues);assert.deepEqual(p.subtitles.bindings,old.subtitles.bindings);
 });

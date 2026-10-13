@@ -28,6 +28,33 @@ test.beforeEach(async({page})=>{
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();if(mock)await new Promise(r=>mock.close(r));});
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 
+test('live libass polling leaves a held drag untouched and renders the released position',async({page})=>{
+  await page.evaluate(()=>{fixedAddTrack('subtitle');waveformEditor.settings.mode='multi';
+    waveformEditor.settings.secondsPerRow=10;waveformEditor.settings.rowHeight=170;
+    updateEditorSettings({clickBehavior:'select-only'});waveformEditor.render();player.currentTime=.5;overlayToggle.checked=true;MSWSubtitleRenderer.invalidate();});
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.pending)).toBe(false);
+  const before=await snap(page),requests=[];
+  page.on('request',req=>{if(req.url().endsWith('/subtitle-preview'))requests.push(req.postDataJSON().project);});
+  const point=await page.evaluate(()=>{
+    const row=document.querySelector('.waveform-row'),r=row.getBoundingClientRect();
+    const track=DATA.subtitle_tracks.tracks[0],lane=fixedLayout().positions.get(JSON.stringify([track.id,'main']));
+    const perMs=r.width/(Number(row.dataset.endMs)-Number(row.dataset.startMs));
+    return {x:r.left+600*perMs,y:r.bottom-7-lane*38-16,dx:1000*perMs};
+  });
+  await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x+point.dx,point.y);
+  const held=await page.evaluate(()=>DATA.segments[0].start);
+  expect(held).toBeGreaterThan(1000);
+  await page.evaluate(()=>new Promise(r=>setTimeout(r,1700)));
+  expect(await page.evaluate(()=>DATA.segments[0].start)).toBe(held);expect(requests).toHaveLength(0);
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(false);
+  await page.mouse.up();
+  await expect.poll(()=>requests.at(-1)?.subtitles.cues[0].content.start,{timeout:15000}).toBe(held);
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.pending)).toBe(false);
+  expect(await page.evaluate(()=>MSWSubtitleRenderer.status)).toBe('libass');
+  await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
 test('ordinary panels process native tracks, render, save in place and reopen the same paired layout',async({page},info)=>{
   test.setTimeout(120000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const original=readFileSync(projectPath);

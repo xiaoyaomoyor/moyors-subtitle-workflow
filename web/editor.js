@@ -6931,6 +6931,9 @@ function ensureCuePanelUndo(label = null) {
 }
 
 function commitCuePanelEdit() {
+  // The panel shows the last committed time while the waveform owns a gesture.
+  // Preview/save callbacks must not write those stale fields over the live drag.
+  if (waveformEditor?.drag) return false;
   const target = getCurrentCuePanelTarget();
   const seg = target?.segment;
   if (!target || !seg) { resetCuePanelEditState(); return false; }
@@ -17077,6 +17080,7 @@ function hasUnsavedProjectChanges() {
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
 function scheduleAutoSaveFlush() {
   if (window.MSWFlatTrialRequested) return;
+  if (waveformEditor?.drag) return;
   if (fixedTrackMode()) fixedAcceptEdit();
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
@@ -17788,6 +17792,7 @@ async function saveProjectToHandle({ silent = false } = {}) {
 
 // 统一保存入口：句柄目标优先（最近一次新建/另存为选定的文件），否则写回服务器绑定工程。
 async function saveCurrentProject({ silent = false } = {}) {
+  if (waveformEditor?.drag) return false;
   if (window.MSWFlatTrialRequested) return silent ? false : window.MSWFlatEditor?.save();
   if (projectFileHandle) return saveProjectToHandle({ silent });
   return saveProjectToServer({ silent });
@@ -23368,6 +23373,7 @@ function initWaveformEditor() {
       updateWithoutCueListAutoScroll();
       // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
       // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。
+      scheduleAutoSaveFlush();
     },
     onPayload: (payload) => {
       DATA.waveform = payload;
@@ -25526,7 +25532,14 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => {
-    commitProcessingEdits(); const project = JSON.parse(buildJson());
+    let project;
+    if (waveformEditor?.drag && productionFlatMode()) {
+      // A drag is one transaction. Reading it must not checkpoint history or
+      // commit the stale time fields in the subtitle editor.
+      project = window.MSWProductionProject.toProject(DATA);
+    } else {
+      commitProcessingEdits(); project = JSON.parse(buildJson());
+    }
     if (project.preview?.project_style || project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));
       const options = speakerExportOptions();
@@ -25535,6 +25548,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     }
     return project;
   },
+  get editingGestureActive() { return Boolean(waveformEditor?.drag); },
   setAssLibraryExports,
   legacyAssLibrary: () => JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY)),
   originalSubtitlePreview: () => originalSubtitlePreview,

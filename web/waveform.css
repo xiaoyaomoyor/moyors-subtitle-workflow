@@ -984,6 +984,16 @@
   color: var(--editor-cue-text);
 }
 
+.waveform-drag-origin { position:absolute; box-sizing:border-box; pointer-events:none;
+  border:1px dashed var(--selection-yellow); border-radius:var(--radius-sm); opacity:.4; }
+.waveform-cue-block.drag-destination { border-color:var(--selection-yellow); border-style:dashed;
+  outline:1px solid var(--selection-yellow); cursor:grabbing; transition:none; }
+.waveform-drag-destination { position:fixed; z-index:10000; pointer-events:none; padding:5px 8px;
+  max-width:calc(100vw - 16px); box-sizing:border-box; border:1px solid var(--selection-yellow);
+  border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); font-size:12px;
+  box-shadow:0 2px 8px #0003; }
+.waveform-drag-destination.blocked { border-style:dashed; }
+
 @media (max-width: 820px) {
   .waveform-status { display: none; }
   .editor-workspace.layout-classic.waveform-multi {

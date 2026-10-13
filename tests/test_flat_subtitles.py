@@ -42,13 +42,31 @@ class FlatSubtitlesTests(unittest.TestCase):
         self.assertEqual(core.add_track(project, added), browser("c.addTrack(data.project,data.track)", dict(project=project, track=added)))
         tracks = project["subtitles"]["tracks"]
         self.assertGreater(len(tracks), 1)
-        for change in (lambda p: p["subtitles"]["tracks"][1].update(display_number=tracks[0]["display_number"]),
+        def duplicate_root(p):
+            p["subtitles"]["tracks"][1].pop("secondary_for", None)
+            p["subtitles"]["tracks"][1]["display_number"] = tracks[0]["display_number"]
+        for change in (duplicate_root,
                        lambda p: p["subtitles"]["tracks"][0].update(secondary_for="missing"),
                        lambda p: p["subtitles"].update(next_track_number=1)):
             bad = deepcopy(project)
             change(bad)
             with self.assertRaises(ValueError):
                 core.validate(bad)
+
+    def test_group_numbers_reclaim_legacy_secondary_reservation_with_js_parity(self):
+        source = dict(segments=[dict(id="a", start=0, end=2000, text="Source", items=[])],
+                      multi_subtitle=dict(enabled=True, tracks=[dict(id="zh", segments=[dict(id="b", start=0, end=2000, text="译文", items=[])])],
+                                          bindings=[dict(id="pair", track_id="zh", main_segment_ids=["a"], extension_segment_ids=["b"], start_offset_ms=0, end_offset_ms=0)]))
+        project = core.normalize_groups(core.migrate_project(source), infer=True)
+        self.assertEqual([t["display_number"] for t in project["subtitles"]["tracks"]], [1, 1])
+        project["subtitles"]["tracks"][1]["display_number"] = 2
+        project["subtitles"]["next_track_number"] = 3
+        core.validate(project)
+        expected = browser("c.normalizeGroups(data)", project)
+        self.assertEqual(core.normalize_groups(project), expected)
+        self.assertEqual(project["subtitles"]["next_track_number"], 2)
+        added = core.add_track(project, dict(project["subtitles"]["tracks"][0], id="extra"))
+        self.assertEqual([t["name"] for t in added["subtitles"]["tracks"]], ["S1主", "S1副", "S2"])
 
     def test_migration_roundtrips_and_matches_javascript(self):
         fixtures = fixture("subtitle-layers") + fixture("subtitle-tracks") + [dict(name="assets", project=fixture("msw_beta1_legacy_project"))]

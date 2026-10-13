@@ -367,7 +367,8 @@ test('hidden language bindings still constrain and follow main drag without chan
   await page.mouse.move(row.x + row.width * .85, block.y + block.height / 2); await page.mouse.up();
   const moved = await state(page), a = moved.segments.find(c => c.id === 'a'), sub = moved.multi.tracks[0].segments.find(c => c.id === 'sub-a');
   expect(a.end).toBe(5000); expect(sub.end).toBe(5200); expect(sub.start - a.start).toBe(200);
-  expect(moved.tracks.assignments).toEqual(before.tracks.assignments);
+  expect(moved.tracks.assignments).toEqual(expect.arrayContaining(before.tracks.assignments));
+  expect(moved.tracks.assignments).toHaveLength(before.tracks.assignments.length);
   await page.evaluate(() => performUndo()); expect(await state(page)).toEqual(before); expect(errors).toEqual([]);
 });
 

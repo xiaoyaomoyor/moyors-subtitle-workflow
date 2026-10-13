@@ -251,6 +251,9 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   const lane=Math.floor(fromBottom/38),band=Number.isFinite(lane)&&bands.find(b=>lane>=b.bottom&&lane<b.bottom+b.size);
   const originalOwner=state.owners.get(source[drag.index].id);
   const destination=band?.track.id||state.target||originalOwner;
+  const original=drag.originals.get(drag.index),clock=drag.timing;
+  drag.destinationPreview={name:tracks.find(t=>t.id===destination)?.name||'',
+    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true};
   const shift=tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===originalOwner);
   const moving=new Map();
   for(const entry of state.entries) {
@@ -290,13 +293,17 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
     fixedTrackCore.validate({...DATA,segments,multi_subtitle:multi});
   } catch(error) {fixedStatus(error.message);return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
-  const changed=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id)
-    ||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
+  const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
+  const changed=ownerChanged||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
   fixedStatus();state.target=destination;
+  Object.assign(drag.destinationPreview,{start:changes.get(source[drag.index].id).start,
+    end:changes.get(source[drag.index].id).end,blocked:false});
   if(!changed)return false;
   DATA.subtitle_tracks.assignments=proposed;
   for(const entry of [...state.entries,...state.followers])Object.assign(entry.cue,changes.get(entry.cue.id));
   DATA.multi_subtitle.bindings=bindings;fixedActiveTrackId=destination;
+  // Physical ownership changes lane positions, not just the time-range index.
+  if(ownerChanged)waveformEditor.subtitleLayouts=null;
   layerInvalidate();return true;
 }
 function fixedCancelMoveDrag(drag) {

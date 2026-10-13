@@ -129,11 +129,13 @@
   }
   // Track groups are display/style relationships, never cue ownership or bindings.
   function validateGroups(m) {
-    const numbers=new Set(),members=new Set(),tracks=new Map(m.tracks.map(t=>[t.id,t]));
+    const numbers=new Map(),members=new Set(),tracks=new Map(m.tracks.map(t=>[t.id,t]));
     for(const t of m.tracks) {
       if(t.display_number!==undefined) {
-        if(!Number.isSafeInteger(t.display_number)||t.display_number<1||numbers.has(t.display_number))fail('轨道编号无效或重复');
-        numbers.add(t.display_number);
+        if(!Number.isSafeInteger(t.display_number)||t.display_number<1)fail('轨道编号无效或重复');
+        const owner=t.secondary_for||t.id;
+        if(numbers.has(t.display_number)&&numbers.get(t.display_number)!==owner)fail('轨道编号无效或重复');
+        numbers.set(t.display_number,owner);
       }
       if(t.secondary_for!==undefined) {
         const main=tracks.get(t.secondary_for);
@@ -141,14 +143,12 @@
         members.add(main.id);
       }
     }
-    if(m.next_track_number!==undefined&&(!Number.isSafeInteger(m.next_track_number)||m.next_track_number<1||[...numbers].some(n=>n>=m.next_track_number)))fail('后续轨道编号无效');
+    if(m.next_track_number!==undefined&&(!Number.isSafeInteger(m.next_track_number)||m.next_track_number<1||[...numbers.keys()].some(n=>n>=m.next_track_number)))fail('后续轨道编号无效');
   }
   function normalizeGroups(project,{infer=false}={}) {
     const m=project.subtitles,tracks=m.tracks,ids=new Set(tracks.map(t=>t.id));
     const fresh=tracks.every(t=>t.display_number===undefined);
-    let next=Math.max(m.next_track_number||1,...tracks.map(t=>(t.display_number||0)+1));
-    for(const t of tracks) {if(t.display_number===undefined)t.display_number=next++;if(t.secondary_for&&!ids.has(t.secondary_for))delete t.secondary_for;}
-    m.next_track_number=next;
+    for(const t of tracks)if(t.secondary_for&&!ids.has(t.secondary_for))delete t.secondary_for;
     if(infer&&fresh&&tracks.every(t=>t.secondary_for===undefined)) {
       const cues=new Map(m.cues.map(c=>[c.id,c.track_id])),out=new Map(),incoming=new Map();
       for(const b of m.bindings) {
@@ -160,6 +160,17 @@
         const z=[...targets][0];if(incoming.get(z).size===1&&!out.has(z))tracks.find(t=>t.id===z).secondary_for=a;
       }
     }
+    const roots=tracks.filter(t=>!t.secondary_for);
+    const maximum=Math.max(0,...roots.map(t=>t.display_number||0));
+    const released=new Set(tracks.filter(t=>t.secondary_for&&t.display_number!==undefined
+      &&t.display_number!==tracks.find(a=>a.id===t.secondary_for)?.display_number).map(t=>t.display_number));
+    let next=Math.max(m.next_track_number||1,maximum+1);
+    // Reclaim only trailing numbers formerly reserved for a secondary track.
+    // Existing independent numbers and deleted-track reservations stay stable.
+    while(next>maximum+1&&released.has(next-1))next--;
+    for(const t of roots)if(t.display_number===undefined)t.display_number=next++;
+    for(const t of tracks)if(t.secondary_for)t.display_number=tracks.find(a=>a.id===t.secondary_for)?.display_number;
+    m.next_track_number=next;
     validateGroups(m);
     for(const t of tracks) {
       const main=t.secondary_for?tracks.find(a=>a.id===t.secondary_for):t;
@@ -174,7 +185,9 @@
     const previous=tracks.find(t=>t.id===secondary.secondary_for),child=tracks.find(t=>t.secondary_for===secondary.id);
     if(previous?.locked||child?.locked)fail('分组中的轨道已锁定');
     if(mainId!==null&&(!main||main===secondary||main.locked||main.secondary_for||child||tracks.some(t=>t.secondary_for===mainId&&t.id!==secondaryId)))fail('请选择未分组且未锁定的主轨道');
-    delete secondary.secondary_for;if(child)delete child.secondary_for;
+    delete secondary.secondary_for;
+    if(previous&&!main)delete secondary.display_number;
+    if(child){delete child.secondary_for;delete child.display_number;}
     if(main)secondary.secondary_for=main.id;
     normalizeGroups(next);validate(next);return next;
   }

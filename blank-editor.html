@@ -3859,8 +3859,8 @@
   .multi-cue-column.selected {
     outline: 2px solid var(--selection-yellow-line); outline-offset: -2px;
   }
-  .multi-cue-column.selected :is(.index-label, .index-label-rest) { color: var(--accent); font-weight: 700; text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
-  .msw-numbered-tracks .cue.selected:not(.multi-dual-cue) > .index { color:var(--accent); font-weight:700; text-decoration:underline; text-underline-offset:3px; }
+  .multi-cue-column.selected :is(.index-label, .index-label-rest) { color: var(--accent); font-weight: 700; }
+  .msw-numbered-tracks .cue.selected:not(.multi-dual-cue) > .index { color:var(--accent); font-weight:700; }
   .ctx-choice-selected > span::after { content:' ✓'; color:var(--accent); }
   .multi-cue-column .text[contenteditable] { display: block; width: 100%; min-width: 0; }
   @container cue-list (max-width: 620px) {
@@ -5036,7 +5036,7 @@
 .msw-style-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .msw-style-tabs,.msw-style-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
 .msw-style-tabs { flex-shrink:1; min-width:0; }
-.msw-style-tabs button { padding:5px 12px; min-width:0; white-space:normal; }
+.msw-style-tabs button { box-sizing:border-box; height:30px; padding:5px 12px; min-width:0; white-space:normal; }
 .msw-style-tabs button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); background:var(--accent-tint); }
 .msw-project-style .msw-style-icon { display:inline-flex; flex:0 0 30px; align-items:center; justify-content:center; width:30px; height:30px; min-width:30px; padding:5px; }
 .msw-style-icon svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
@@ -5108,7 +5108,7 @@
 
 /* Compact fixed-track heads: the column has its own space and never
    overlays waveform hit targets. All feedback uses existing theme tokens. */
-.msw-fixed-tracks .waveform-row { left: 108px !important; }
+.msw-fixed-tracks .wave-track-heads-on .waveform-row { left: 108px !important; }
 .msw-fixed-tracks .waveform-track-heads-column { width: 102px; display: block; }
 .msw-fixed-tracks .waveform-track-heads { width: 102px; }
 .fixed-track-head { position: absolute; left: 3px; right: 3px; box-sizing: border-box; display: grid;
@@ -5124,13 +5124,13 @@
 .fixed-track-head button:hover { background: var(--btn-bg-hover); }
 .fixed-track-roles { grid-column: 1 / -1; margin-top: 17px; color: var(--text-muted); font-size: 10px; text-align: center; }
 .fixed-track-head.disabled-track, .fixed-disabled { opacity: .5; }
-.msw-numbered-tracks .waveform-row { left: 44px !important; }
+.msw-numbered-tracks .wave-track-heads-on .waveform-row { left: 44px !important; }
 .msw-numbered-tracks :is(.waveform-track-heads-column,.waveform-track-heads) { width: 40px; }
 .msw-numbered-tracks .fixed-track-head { display:flex; align-items:center; justify-content:center; left:1px; right:1px; padding:0; border:0; background:transparent; gap:0; }
 .msw-numbered-tracks .fixed-track-toggle { height:26px; padding:1px 2px; font-size:11px; border:0; background:var(--btn-bg); border-radius:var(--radius-sm); }
 .msw-numbered-tracks .fixed-track-collapse { position:absolute; right:-2px; top:-7px; z-index:1; width:14px; height:14px; padding:0; }
 .fixed-track-menu-note { display:block; padding:6px 10px; font-size:12px; color:var(--text-muted); }
-#style-track-target { width:auto; max-width:100px; min-width:65px; padding:5px 6px; font:inherit; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); }
+#style-track-target { box-sizing:border-box; height:30px; width:auto; max-width:100px; min-width:58px; padding:3px 6px; font-family:inherit; font-size:13px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); }
 .msw-style-toolbar { flex-wrap:wrap; }
 .msw-style-target-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; }
 .fixed-locked { cursor: default; }
@@ -6239,6 +6239,16 @@
   color: var(--editor-cue-text);
 }
 
+.waveform-drag-origin { position:absolute; box-sizing:border-box; pointer-events:none;
+  border:1px dashed var(--selection-yellow); border-radius:var(--radius-sm); opacity:.4; }
+.waveform-cue-block.drag-destination { border-color:var(--selection-yellow); border-style:dashed;
+  outline:1px solid var(--selection-yellow); cursor:grabbing; transition:none; }
+.waveform-drag-destination { position:fixed; z-index:10000; pointer-events:none; padding:5px 8px;
+  max-width:calc(100vw - 16px); box-sizing:border-box; border:1px solid var(--selection-yellow);
+  border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); font-size:12px;
+  box-shadow:0 2px 8px #0003; }
+.waveform-drag-destination.blocked { border-style:dashed; }
+
 @media (max-width: 820px) {
   .waveform-status { display: none; }
   .editor-workspace.layout-classic.waveform-multi {
@@ -7287,7 +7297,7 @@
         </div>
       </div>
       <div class="wave-settings-checks">
-        <label class="toggle settings-panel-item" data-option-help="显示 V1/V2 字幕轨、A1/A2 配音轨编号；点击编号可禁用或启用整轨。"><input type="checkbox" id="waveform-show-track-heads" checked>轨道编号</label>
+        <label class="toggle settings-panel-item" data-option-help="显示 S1、S1主／S1副等字幕轨道编号，以及 A1/A2 配音轨编号；点击编号可禁用或启用整轨。"><input type="checkbox" id="waveform-show-track-heads" checked>轨道编号</label>
         <label class="toggle settings-panel-item" data-option-help="悬停时显示起止时间和时长；字幕另显示序号，音频贴片另显示贴片与配音轨叠加后的试听增益。"><input type="checkbox" id="waveform-hover-details">悬停详情</label>
       </div>
     </section>
@@ -8539,6 +8549,7 @@
         <span class="cue-editor-key-hint"><kbd>N</kbd> 在鼠标位置创建字幕</span>
         <span class="cue-editor-key-hint"><kbd>B</kbd> 按音频位置拆分</span>
         <span class="cue-editor-key-hint"><kbd>Shift+拖拽</kbd> 框选字幕</span>
+        <span class="cue-editor-key-hint"><kbd>Shift+拖动字幕块</kbd> 临时吸附；直接拖动自由放置，Esc 取消</span>
         <span class="cue-editor-key-hint"><kbd>←</kbd>/<kbd>→</kbd> 微调移动字幕</span>
         <span class="cue-editor-key-hint"><kbd>Shift+←</kbd>/<kbd>→</kbd> 起终点贴邻</span>
         <span class="cue-editor-key-hint"><kbd>Z</kbd>/<kbd>X</kbd> 起终点到鼠标位置</span>
@@ -18899,11 +18910,13 @@ export default MawDynamicCaptions;
   }
   // Track groups are display/style relationships, never cue ownership or bindings.
   function validateGroups(m) {
-    const numbers=new Set(),members=new Set(),tracks=new Map(m.tracks.map(t=>[t.id,t]));
+    const numbers=new Map(),members=new Set(),tracks=new Map(m.tracks.map(t=>[t.id,t]));
     for(const t of m.tracks) {
       if(t.display_number!==undefined) {
-        if(!Number.isSafeInteger(t.display_number)||t.display_number<1||numbers.has(t.display_number))fail('轨道编号无效或重复');
-        numbers.add(t.display_number);
+        if(!Number.isSafeInteger(t.display_number)||t.display_number<1)fail('轨道编号无效或重复');
+        const owner=t.secondary_for||t.id;
+        if(numbers.has(t.display_number)&&numbers.get(t.display_number)!==owner)fail('轨道编号无效或重复');
+        numbers.set(t.display_number,owner);
       }
       if(t.secondary_for!==undefined) {
         const main=tracks.get(t.secondary_for);
@@ -18911,14 +18924,12 @@ export default MawDynamicCaptions;
         members.add(main.id);
       }
     }
-    if(m.next_track_number!==undefined&&(!Number.isSafeInteger(m.next_track_number)||m.next_track_number<1||[...numbers].some(n=>n>=m.next_track_number)))fail('后续轨道编号无效');
+    if(m.next_track_number!==undefined&&(!Number.isSafeInteger(m.next_track_number)||m.next_track_number<1||[...numbers.keys()].some(n=>n>=m.next_track_number)))fail('后续轨道编号无效');
   }
   function normalizeGroups(project,{infer=false}={}) {
     const m=project.subtitles,tracks=m.tracks,ids=new Set(tracks.map(t=>t.id));
     const fresh=tracks.every(t=>t.display_number===undefined);
-    let next=Math.max(m.next_track_number||1,...tracks.map(t=>(t.display_number||0)+1));
-    for(const t of tracks) {if(t.display_number===undefined)t.display_number=next++;if(t.secondary_for&&!ids.has(t.secondary_for))delete t.secondary_for;}
-    m.next_track_number=next;
+    for(const t of tracks)if(t.secondary_for&&!ids.has(t.secondary_for))delete t.secondary_for;
     if(infer&&fresh&&tracks.every(t=>t.secondary_for===undefined)) {
       const cues=new Map(m.cues.map(c=>[c.id,c.track_id])),out=new Map(),incoming=new Map();
       for(const b of m.bindings) {
@@ -18930,6 +18941,17 @@ export default MawDynamicCaptions;
         const z=[...targets][0];if(incoming.get(z).size===1&&!out.has(z))tracks.find(t=>t.id===z).secondary_for=a;
       }
     }
+    const roots=tracks.filter(t=>!t.secondary_for);
+    const maximum=Math.max(0,...roots.map(t=>t.display_number||0));
+    const released=new Set(tracks.filter(t=>t.secondary_for&&t.display_number!==undefined
+      &&t.display_number!==tracks.find(a=>a.id===t.secondary_for)?.display_number).map(t=>t.display_number));
+    let next=Math.max(m.next_track_number||1,maximum+1);
+    // Reclaim only trailing numbers formerly reserved for a secondary track.
+    // Existing independent numbers and deleted-track reservations stay stable.
+    while(next>maximum+1&&released.has(next-1))next--;
+    for(const t of roots)if(t.display_number===undefined)t.display_number=next++;
+    for(const t of tracks)if(t.secondary_for)t.display_number=tracks.find(a=>a.id===t.secondary_for)?.display_number;
+    m.next_track_number=next;
     validateGroups(m);
     for(const t of tracks) {
       const main=t.secondary_for?tracks.find(a=>a.id===t.secondary_for):t;
@@ -18944,7 +18966,9 @@ export default MawDynamicCaptions;
     const previous=tracks.find(t=>t.id===secondary.secondary_for),child=tracks.find(t=>t.secondary_for===secondary.id);
     if(previous?.locked||child?.locked)fail('分组中的轨道已锁定');
     if(mainId!==null&&(!main||main===secondary||main.locked||main.secondary_for||child||tracks.some(t=>t.secondary_for===mainId&&t.id!==secondaryId)))fail('请选择未分组且未锁定的主轨道');
-    delete secondary.secondary_for;if(child)delete child.secondary_for;
+    delete secondary.secondary_for;
+    if(previous&&!main)delete secondary.display_number;
+    if(child){delete child.secondary_for;delete child.display_number;}
     if(main)secondary.secondary_for=main.id;
     normalizeGroups(next);validate(next);return next;
   }
@@ -28618,8 +28642,8 @@ export default MawDynamicCaptions;
     }
 
     applyTrackHeadsVisibility() {
-      // 轨道头（V 字幕头 + A 配音头）统一由内容根类控制显隐。
-      this.content?.classList.toggle('wave-track-heads-on', this.settings.showTrackHeads !== false || this.options.getFixedTracksEnabled?.());
+      // 字幕轨道头（S 编号，旧工程为 V）与 A 配音头统一控制显隐。
+      this.content?.classList.toggle('wave-track-heads-on', this.settings.showTrackHeads !== false);
       this.syncTrackHeads();
     }
 
@@ -28631,7 +28655,7 @@ export default MawDynamicCaptions;
       if (!this.content) return;
       const rows = [...this.content.querySelectorAll(':scope > .waveform-row')];
       let column = this.content.querySelector(':scope > .waveform-track-heads-column');
-      if ((this.settings.showTrackHeads === false && !this.options.getFixedTracksEnabled?.()) || !rows.length) {
+      if (this.settings.showTrackHeads === false || !rows.length) {
         column?.remove();
         return;
       }
@@ -29186,6 +29210,20 @@ export default MawDynamicCaptions;
       }
     }
 
+    reuseDraggingCue(row, segment, index, role, startMs, endMs) {
+      const key=role+':'+index,block=row._dragCueBlocks?.get(key);
+      if(!block)return false;
+      row._dragCueBlocks.delete(key);
+      this.layoutBlock(block,segment,startMs,endMs,row);
+      block.dataset.start=String(segment.start);block.dataset.end=String(segment.end);
+      for(const [side,visible] of [['left',segment.start>=startMs],['right',segment.end<=endMs]]) {
+        let handle=block.querySelector('.waveform-cue-handle.'+side);
+        if(!visible)handle?.remove();
+        else if(!handle){handle=document.createElement('span');handle.className='waveform-cue-handle '+side;block.append(handle);}
+      }
+      return true;
+    }
+
     appendCueBlocks(row, startMs, endMs, groupBadges = null) {
       // 传统模式沿用旧版系统光标（ew-resize）；原创边界光标只在
       // dual（中缝联动）模式生效。渲染路径必经这里，模式切换后
@@ -29207,6 +29245,7 @@ export default MawDynamicCaptions;
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
         if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'main')) continue;
+        if(this.reuseDraggingCue(row,segment,index,'main',startMs,endMs))continue;
         const block = document.createElement('div');
         block.className = 'waveform-cue-block';
         block.dataset.idx = String(index);
@@ -29328,6 +29367,7 @@ export default MawDynamicCaptions;
         if (segment.start >= endMs) break;
         if (segment.end <= startMs) continue;
         if (segment.disabled && this.settings.disabledDisplay === 'hidden' && !this.options.keepCueVisible?.(index, 'extension')) continue;
+        if(this.reuseDraggingCue(row,segment,index,'extension',startMs,endMs))continue;
         const block = document.createElement('div');
           block.className = 'waveform-cue-block';
           block.dataset.track = 'extension';
@@ -29468,9 +29508,14 @@ export default MawDynamicCaptions;
       if (this.subtitleLayersEnabled()) {
         this.invalidateSubtitleLayouts(); this.layerPlaybackKey = null;
         this.content.querySelectorAll('.waveform-row').forEach(row => {
-          row.querySelectorAll('.waveform-cue-block').forEach(block => block.remove());
+          const reuse=this.drag?.fixedMove;
+          if(reuse)row._dragCueBlocks=new Map([...row.querySelectorAll('.waveform-cue-block')].map(block=>[
+            block.dataset.track+':'+(block.dataset.extIdx??block.dataset.idx),block]));
+          else row.querySelectorAll('.waveform-cue-block').forEach(block => block.remove());
           this.appendCueBlocks(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
+          row._dragCueBlocks?.forEach(block=>block.remove());delete row._dragCueBlocks;
         });
+        this.paintCueDragDestination();
         this.paintCueEdgeHover(); this.positionPlayheads(); return;
       }
       const segments = this.options.getSegments('main');
@@ -30515,19 +30560,9 @@ export default MawDynamicCaptions;
         else this.options.toggleCueSelection?.(index);
         return;
       }
-      // Shift+click：已选中的块再 Shift 点一次 → 取消该块（与音频贴片的
-      // Shift 行为一致）；未选中则从锚点选范围/跨轨追加。
-      if (event.shiftKey) {
-        const alreadySelected = this.options.getSelection(track)?.has(index) === true;
-        if (alreadySelected) {
-          if (track === 'extension') this.options.toggleExtensionSelection?.(index);
-          else if (track === 'overlay') this.options.toggleOverlaySelection?.(index);
-          else this.options.toggleCueSelection?.(index);
-        } else if (track === 'extension') this.options.selectExtensionRange?.(index);
-        else if (track === 'overlay') this.options.selectOverlayRange?.(index);
-        else this.options.selectCueRange?.(index);
-        return;
-      }
+      // Defer Shift selection until release, so Shift+drag can enable snapping.
+      const shiftClick = event.shiftKey && !targetHandle
+        ? { selected: this.options.getSelection(track)?.has(index) === true } : null;
       let boundaryIndex = index;
       const kind = targetHandle?.classList.contains('left')
         ? (edgeHit.shared
@@ -30536,22 +30571,6 @@ export default MawDynamicCaptions;
           ? (edgeHit.shared
             ? 'resize-boundary' : 'resize-right')
           : 'move';
-      // Shift+click selects a range from lastClickedIdx to index
-      if (event.shiftKey) {
-        if (track === 'extension') {
-          this.options.selectExtensionRange?.(index);
-          return;
-        }
-        if (kind !== 'move') {
-          if (track === 'main') this.options.selectCueRange?.(index);
-          else if (track === 'overlay') this.options.selectOverlayRange?.(index);
-          return;
-        }
-        // 主轨/叠加轨的 Shift+拖动：拖动期间不改动选择状态（避免把后面的
-        // 主字幕一起选进来），邻居挡路时由 applyMoveDrag 动态换轨；
-        // 叠加轨字幕拖到与主轨无重叠的位置会自动放回主轨。
-        // 主轨无位移松开时 endCueDrag 补做范围选择，保持 Shift+click 语义。
-      }
       // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
       // 虚拟行重建。先保存按下瞬间的几何数据，避免 pointerup 使用已脱离
       // DOM 的旧行并把比例钳到该行末尾（也就是下一行开头）。
@@ -30559,9 +30578,9 @@ export default MawDynamicCaptions;
       const beginRect = row.getBoundingClientRect();
       const msPerPixel = beginRect.width > 0
         ? (Number(row.dataset.endMs) - Number(row.dataset.startMs)) / beginRect.width : 0;
-      const shiftOverlayMove = false; // MSW Shift remains range/multi-selection.
+      const shiftOverlayMove = false; // Legacy automatic overlay conversion is disabled.
       const selected = this.options.getSelection(track);
-      if (!shiftOverlayMove) {
+      if (!shiftClick) {
         if (!selected.has(index)) {
           if (track === 'extension') this.options.selectExtensionCue?.(index);
           else if (track === 'overlay') this.options.selectOverlayCue?.(index);
@@ -30625,9 +30644,9 @@ export default MawDynamicCaptions;
         independent: Boolean(event.altKey && track === 'extension'),
         allowSqueeze: false,
         squeezeOriginals: allOriginals,
-        // Shift+拖动：只拖被抓住的一条；邻居挡路时转入叠加轨继续移动。
+        // Retained for the explicit legacy overlay conversion path.
         shiftOverlay: shiftOverlayMove,
-        shiftRangeSelect: (track === 'main' || track === 'overlay') && Boolean(event.shiftKey),
+        shiftClick,
         convertedToOverlay: false,
         altToggleDisabledOnClick: Boolean(
           event.altKey && !targetHandle
@@ -30638,18 +30657,24 @@ export default MawDynamicCaptions;
       event.currentTarget.classList.add('dragging');
       this.pane.classList.add('cue-drag-active');
       this.paintCueEdgeHover();
-      try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch (_) {}
+      try { this.pane.setPointerCapture?.(event.pointerId); } catch (_) {}
       window.addEventListener('pointermove', this._dragMove = (moveEvent) => this.moveCueDrag(moveEvent));
       window.addEventListener('pointerup', this._dragEnd = (upEvent) => this.endCueDrag(upEvent), { once: true });
       window.addEventListener('pointercancel', this._dragEnd, { once: true });
       window.addEventListener('keydown', this._dragEscape = event => {
         if(event.key==='Escape'&&this.drag){event.preventDefault();this.endCueDrag({type:'pointercancel',pointerId:this.drag.pointerId});}
       });
+      this._dragModifiers=event=>{
+        if(event.key==='Shift'&&this.drag?.started)this.moveCueDrag({pointerId:this.drag.pointerId,
+          clientX:this.drag.currentClientX,clientY:this.drag.currentClientY,shiftKey:event.type==='keydown',
+          altKey:event.altKey,preventDefault(){}});
+      };
+      window.addEventListener('keydown',this._dragModifiers);window.addEventListener('keyup',this._dragModifiers);
 
       // 普通字幕块点击的跳转与波形空白区保持一致：在按下时立即移动播放头。
       // 只有普通 move 点击进入此路径；修饰键和边界手柄仍只执行选择/拖动操作。
       const clickBehavior = this.options.getClickBehavior?.();
-      if (kind === 'move' && clickBehavior !== 'select-only' && !event.altKey && !shiftOverlayMove) {
+      if (kind === 'move' && clickBehavior !== 'select-only' && !event.altKey && !event.shiftKey && !shiftOverlayMove) {
         this.seekFromCue(event, row, index, clickBehavior === 'select-and-play', geometry, track);
         this.drag.seekedOnPointerDown = true;
       }
@@ -31172,6 +31197,7 @@ export default MawDynamicCaptions;
         .forEach((block) => block.classList.remove('dragging'));
       this.pane.classList.remove('cue-drag-active');
       this.drag = null;
+      this.clearCueDragDestination();
       this.options.onCancelCueDrag?.(drag);
       this.refreshCueOverlay();
       this.setStatus('已取消字幕调整');
@@ -31571,6 +31597,27 @@ export default MawDynamicCaptions;
       this.options.applyGapRange?.(start, end, drag.removed);
     }
 
+    paintCueDragDestination() {
+      const drag=this.drag,preview=drag?.destinationPreview;if(!preview)return;
+      if(!this.dragDestination){this.dragDestination=document.createElement('div');
+        this.dragDestination.className='waveform-drag-destination';document.body.append(this.dragDestination);}
+      const badge=this.dragDestination;
+      const clock=drag.timing;
+      badge.textContent=`${preview.name} · ${clock.format(clock.fromMs(preview.start))} → ${clock.format(clock.fromMs(preview.end))}${preview.blocked?' · 无法放置':''}`;
+      badge.classList.toggle('blocked',preview.blocked);
+      badge.style.left=Math.max(4,Math.min(drag.currentClientX+16,window.innerWidth-badge.offsetWidth-8))+'px';
+      badge.style.top=Math.max(4,Math.min(drag.currentClientY+20,window.innerHeight-badge.offsetHeight-8))+'px';
+      const moved=new Set([...(drag.fixedMove?.entries||[]),...(drag.fixedMove?.followers||[])].map(e=>e.cue.id));
+      this.content.querySelectorAll('.waveform-cue-block').forEach(block=>block.classList.toggle('drag-destination',moved.has(block.dataset.cueId)));
+    }
+
+    clearCueDragDestination() {
+      this.dragDestination?.remove();this.dragDestination=null;
+      this.content.querySelectorAll('.waveform-drag-origin').forEach(el=>el.remove());
+      this.content.querySelectorAll('.drag-destination').forEach(el=>el.classList.remove('drag-destination'));
+      window.removeEventListener('keydown',this._dragModifiers);window.removeEventListener('keyup',this._dragModifiers);
+    }
+
     moveCueDrag(event) {
       const drag = this.drag;
       if (!drag || event.pointerId !== drag.pointerId) return;
@@ -31593,6 +31640,15 @@ export default MawDynamicCaptions;
           : drag.kind === 'resize-boundary-independent' ? '独立调整字幕边界'
           : '调整字幕边界';
         this.options.onBeginEdit(label);
+        if(drag.kind==='move'&&this.options.getFixedTracksEnabled?.()) {
+          const ids=new Set(drag.indices.map(i=>this.options.getSegments(drag.track)[i]?.id));
+          for(const follower of this.options.getSubtitleDragFollowers?.(drag)||[])ids.add(follower.segment.id);
+          this.content.querySelectorAll('.waveform-cue-block').forEach(block=>{
+            if(!ids.has(block.dataset.cueId))return;
+            const origin=document.createElement('div');origin.className='waveform-drag-origin';
+            origin.style.cssText=block.style.cssText;block.parentElement.append(origin);
+          });
+        }
       }
       // 一旦在本次拖动中进入相邻字幕独立模式，松开 Alt 也不要把已经
       // 调整过的字幕重新吸回邻居；下一次拖动再按设置决定默认模式。
@@ -31601,14 +31657,14 @@ export default MawDynamicCaptions;
       if (drag.kind === 'move' && adjacentCueAdjustmentIndependent && !drag.shiftOverlay) drag.allowSqueeze = true;
       // 主字幕/副字幕绑定的独立调整仍只由 Alt 临时触发，不受同轨自动吸附开关影响。
       if (drag.track === 'extension' && event.altKey) drag.independent = true;
-      // Shift+拖动是精确自由放置（邻居挡路时换轨而不是吸附），全程禁用吸附，
-      // 否则刚拖出重叠区就会被吸回邻居边界。
-      const disableSnap = drag.independent === true || drag.shiftOverlay === true;
+      // Magnetic snapping is opt-in for this gesture; Shift can change while held.
+      const disableSnap = !event.shiftKey || drag.independent === true || drag.shiftOverlay === true;
       const pointerRow=drag.pointerRow||drag.row,rect=pointerRow.getBoundingClientRect();
       const fromBottom=event.clientY>=rect.top&&event.clientY<=rect.bottom&&event.clientX>=rect.left&&event.clientX<=rect.right
         ?rect.bottom-event.clientY-7-(parseFloat(pointerRow.style.getPropertyValue('--audio-lane-space'))||0):NaN;
       const fixedMove=this.options.moveFixedSubtitleDrag?.(drag,deltaTime,fromBottom,disableSnap);
       if(fixedMove!==undefined&&fixedMove!==null) {
+        this.paintCueDragDestination();
         if(!fixedMove)return;
         drag.changed=true;this.invalidateSubtitleLayouts();this.scheduleRefreshCueBlocks();return;
       }
@@ -31626,7 +31682,8 @@ export default MawDynamicCaptions;
 
     applyMoveDrag(drag, rawDelta, disableSnap, allowSqueeze = false) {
       // PR 式边缘磁吸：8px 阈值内自动对齐其他字幕块 / 音频贴片边缘。
-      rawDelta = this.magneticSnapDelta(drag, rawDelta, (drag.msPerPixel || 0) * 8);
+      if (!disableSnap) rawDelta = this.magneticSnapDelta(drag, rawDelta, (drag.msPerPixel || 0) * 8);
+      else this.hideMagnetGuide();
       const clock = resolveTiming(drag.timing || this.cueTiming());
       // Shift+拖动的动态换轨（只作用于单条拖动）：
       // 1) 主轨上请求位移被邻居挡住 → 先把段移到指针对应位置，再转入叠加轨；
@@ -31921,8 +31978,9 @@ export default MawDynamicCaptions;
       this.content.querySelectorAll('.waveform-cue-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.pane.classList.remove('cue-drag-active');
       this.drag = null;
+      this.clearCueDragDestination();
       this.clearCueEdgeHover();
-      if (event.type === 'pointercancel') {
+      if (event.type === 'pointercancel' || drag.destinationPreview?.blocked) {
         drag.cancelOriginals.forEach((original, idx) => {
           const segment = this.options.getSegments(drag.track || 'main')[idx];
           if (!segment) return;
@@ -31934,11 +31992,10 @@ export default MawDynamicCaptions;
       }
       if (!drag.changed) {
         this.options.onDiscardCueEdit?.();
-        // Shift+点击（无拖动位移）：按下时未做范围选择，这里补上，
-        // 保持既有 Shift+click 范围选语义；不进入跳转/启停逻辑。
-        if (drag.shiftRangeSelect) {
-          if (drag.track === 'overlay') this.options.selectOverlayRange?.(drag.index);
-          else this.options.selectCueRange?.(drag.index);
+        if (drag.shiftClick) {
+          const role = drag.track === 'extension' ? 'Extension' : drag.track === 'overlay' ? 'Overlay' : 'Cue';
+          const action = drag.shiftClick.selected ? 'toggle'+role+'Selection' : 'select'+role+'Range';
+          this.options[action]?.(drag.index);
           return;
         }
         if (drag.altToggleDisabledOnClick) {
@@ -32437,6 +32494,9 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   const lane=Math.floor(fromBottom/38),band=Number.isFinite(lane)&&bands.find(b=>lane>=b.bottom&&lane<b.bottom+b.size);
   const originalOwner=state.owners.get(source[drag.index].id);
   const destination=band?.track.id||state.target||originalOwner;
+  const original=drag.originals.get(drag.index),clock=drag.timing;
+  drag.destinationPreview={name:tracks.find(t=>t.id===destination)?.name||'',
+    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true};
   const shift=tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===originalOwner);
   const moving=new Map();
   for(const entry of state.entries) {
@@ -32476,13 +32536,17 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
     fixedTrackCore.validate({...DATA,segments,multi_subtitle:multi});
   } catch(error) {fixedStatus(error.message);return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
-  const changed=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id)
-    ||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
+  const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
+  const changed=ownerChanged||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
   fixedStatus();state.target=destination;
+  Object.assign(drag.destinationPreview,{start:changes.get(source[drag.index].id).start,
+    end:changes.get(source[drag.index].id).end,blocked:false});
   if(!changed)return false;
   DATA.subtitle_tracks.assignments=proposed;
   for(const entry of [...state.entries,...state.followers])Object.assign(entry.cue,changes.get(entry.cue.id));
   DATA.multi_subtitle.bindings=bindings;fixedActiveTrackId=destination;
+  // Physical ownership changes lane positions, not just the time-range index.
+  if(ownerChanged)waveformEditor.subtitleLayouts=null;
   layerInvalidate();return true;
 }
 function fixedCancelMoveDrag(drag) {
@@ -40372,6 +40436,9 @@ function ensureCuePanelUndo(label = null) {
 }
 
 function commitCuePanelEdit() {
+  // The panel shows the last committed time while the waveform owns a gesture.
+  // Preview/save callbacks must not write those stale fields over the live drag.
+  if (waveformEditor?.drag) return false;
   const target = getCurrentCuePanelTarget();
   const seg = target?.segment;
   if (!target || !seg) { resetCuePanelEditState(); return false; }
@@ -50518,6 +50585,7 @@ function hasUnsavedProjectChanges() {
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
 function scheduleAutoSaveFlush() {
   if (window.MSWFlatTrialRequested) return;
+  if (waveformEditor?.drag) return;
   if (fixedTrackMode()) fixedAcceptEdit();
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
@@ -51229,6 +51297,7 @@ async function saveProjectToHandle({ silent = false } = {}) {
 
 // 统一保存入口：句柄目标优先（最近一次新建/另存为选定的文件），否则写回服务器绑定工程。
 async function saveCurrentProject({ silent = false } = {}) {
+  if (waveformEditor?.drag) return false;
   if (window.MSWFlatTrialRequested) return silent ? false : window.MSWFlatEditor?.save();
   if (projectFileHandle) return saveProjectToHandle({ silent });
   return saveProjectToServer({ silent });
@@ -56809,6 +56878,7 @@ function initWaveformEditor() {
       updateWithoutCueListAutoScroll();
       // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
       // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。
+      scheduleAutoSaveFlush();
     },
     onPayload: (payload) => {
       DATA.waveform = payload;
@@ -58967,7 +59037,14 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     return plan;
   },
   exportProject: () => {
-    commitProcessingEdits(); const project = JSON.parse(buildJson());
+    let project;
+    if (waveformEditor?.drag && productionFlatMode()) {
+      // A drag is one transaction. Reading it must not checkpoint history or
+      // commit the stale time fields in the subtitle editor.
+      project = window.MSWProductionProject.toProject(DATA);
+    } else {
+      commitProcessingEdits(); project = JSON.parse(buildJson());
+    }
     if (project.preview?.project_style || project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));
       const options = speakerExportOptions();
@@ -58976,6 +59053,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     }
     return project;
   },
+  get editingGestureActive() { return Boolean(waveformEditor?.drag); },
   setAssLibraryExports,
   legacyAssLibrary: () => JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY)),
   originalSubtitlePreview: () => originalSubtitlePreview,
@@ -64761,6 +64839,9 @@ window.addEventListener('beforeunload', (e) => {
   async function update() {
     syncBadge();
     observePlayer();
+    // Defer expensive ASS generation until release. Polling during a drag used
+    // to commit the editor's old time fields and snap the cue back to its start.
+    if(host.editingGestureActive)return;
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
     if(pending){again=true;return;}
     const preview=styles.currentPreview(),signatureKey=signature(preview);

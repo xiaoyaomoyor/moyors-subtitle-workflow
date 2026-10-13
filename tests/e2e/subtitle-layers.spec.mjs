@@ -14,7 +14,7 @@ async function open(page, segments, extra = {}) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem('moy.asr.editor.onboarding.v1', 'skipped'));
-  await page.goto(server.url + '?subtitle-layers=1');
+  await page.goto(server.url + '?subtitle-layers=1&subtitle-tracks=0');
   await page.evaluate(project => {
     applyCanonicalProject(project, 'layers.mosp');
     waveformEditor.settings.mode = 'multi'; waveformEditor.settings.secondsPerRow = 10;
@@ -133,11 +133,12 @@ test('nearby edges snap on the frame grid without changing the stationary frame'
   const errors = await open(page, [cue('a', 2000, 4000), cue('b', 6000, 8000)], { timebase: { unit: 'frames', fps: 25 } });
   const block = await page.locator('.waveform-cue-block[data-cue-id="a"]').first().boundingBox();
   const row = await page.locator('.waveform-row').first().boundingBox();
+  await page.keyboard.down('Shift');
   await page.mouse.move(block.x + block.width - 1, block.y + block.height / 2); await page.mouse.down();
   await page.mouse.move(row.x + row.width * .594, block.y + block.height / 2);
   expect((await times(page)).a).toEqual([2000, 6000]);
   expect(await page.evaluate(() => [DATA.segments[0].start_frame, DATA.segments[0].end_frame])).toEqual([50, 150]);
-  await page.mouse.up(); await page.evaluate(() => performUndo());
+  await page.mouse.up(); await page.keyboard.up('Shift');await page.evaluate(() => performUndo());
   expect((await times(page)).a).toEqual([2000, 4000]); expect(errors).toEqual([]);
 });
 
@@ -164,13 +165,14 @@ test('cross-track snapping respects its setting and excludes the main cue own bo
     await page.evaluate(enabled => updateEditorSettings({ crossTrackSnap: enabled }), enabled);
     const block = await page.locator('.waveform-cue-block[data-track="main"][data-cue-id="a"]').first().boundingBox();
     const row = await page.locator('.waveform-row').first().boundingBox();
+    await page.keyboard.down('Shift');
     await page.mouse.move(block.x + block.width - 1, block.y + block.height / 2); await page.mouse.down();
     await page.mouse.move(block.x + block.width + 2, block.y + block.height / 2);
     expect((await times(page)).a[1]).toBeGreaterThan(2000); // must not snap to its own translation
     await page.mouse.move(row.x + row.width * .396, block.y + block.height / 2);
     if (enabled) expect((await times(page)).a[1]).toBe(4007);
     else expect((await times(page)).a[1]).toBeLessThan(4007);
-    await page.keyboard.press('Escape'); await page.mouse.up();
+    await page.keyboard.press('Escape'); await page.mouse.up();await page.keyboard.up('Shift');
     expect((await times(page)).a).toEqual([1000, 2000]);
   }
   expect(errors).toEqual([]);
