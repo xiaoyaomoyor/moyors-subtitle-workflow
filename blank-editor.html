@@ -29451,7 +29451,12 @@ export default MawDynamicCaptions;
       const timing = this.cueTiming();
       const snapToTimeline = (valueMs) => timing.toMs(timing.fromMs(valueMs));
       const startMs = snapToTimeline(this.timeFromPointer(event, row, geometry));
-      if (this.isCueTimeOccupied(startMs, track)) {
+      const destination = this.options.getCueCreationContext?.(track);
+      if (destination?.locked) {
+        this.options.onCueCreateRejected?.('locked');
+        return;
+      }
+      if (this.isCueTimeOccupied(startMs, track, destination)) {
         this.options.onCueCreateRejected?.('occupied');
         return;
       }
@@ -29480,6 +29485,7 @@ export default MawDynamicCaptions;
           drag.startMs,
           snapToTimeline(requestedMs),
           track,
+          destination,
         );
       };
       const updatePreview = () => {
@@ -29491,7 +29497,12 @@ export default MawDynamicCaptions;
           drag.preview = document.createElement('div');
           drag.preview.className = 'waveform-cue-block waveform-create-preview';
           drag.preview.dataset.track = track;
-          if (track === 'extension') drag.preview.style.setProperty('--cue-color', '#7a9fc5');
+          if (destination) {
+            drag.preview.dataset.subtitleTrackId = destination.id;
+            drag.preview.style.height = '32px';
+            drag.preview.style.top = 'auto';
+            drag.preview.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(destination.lane || 0) * 38}px)`;
+          } else if (track === 'extension') drag.preview.style.setProperty('--cue-color', '#7a9fc5');
           if (track === 'overlay') {
             // 叠加字幕创建虚影落在叠加轨 lane（上半区），与正式叠加块同位；
             // 行高不足 84px 时同样切 cover 模式，直接盖在主字幕块上方。
@@ -29518,6 +29529,7 @@ export default MawDynamicCaptions;
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onCancel);
+        window.removeEventListener('keydown', onCreateKey, true);
         if (drag.frame) {
           cancelAnimationFrame(drag.frame);
           drag.frame = 0;
@@ -29538,7 +29550,7 @@ export default MawDynamicCaptions;
           this.options.onCueCreateRejected?.('too-short', start, end);
           return;
         }
-        this.options.addCueRange?.(start, end, drag.startClientX, drag.startClientY, track);
+        this.options.addCueRange?.(start, end, drag.startClientX, drag.startClientY, track, destination);
       };
       drag.finish = finish;
       try { row.setPointerCapture?.(drag.pointerId); } catch (_) {}
@@ -29554,9 +29566,14 @@ export default MawDynamicCaptions;
       };
       const onUp = (upEvent) => finish(true, upEvent);
       const onCancel = () => finish(false);
+      const onCreateKey = keyEvent => {
+        if (keyEvent.key !== 'Escape') return;
+        keyEvent.preventDefault(); keyEvent.stopImmediatePropagation(); finish(false);
+      };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onCancel);
+      window.addEventListener('keydown', onCreateKey, true);
     }
 
     captureRowGeometry(row) {
@@ -29613,11 +29630,11 @@ export default MawDynamicCaptions;
       return clientY - rowRect.top >= extensionTop ? 'extension' : 'main';
     }
 
-    isCueTimeOccupied(timeMs, track = 'main') {
+    isCueTimeOccupied(timeMs, track = 'main', destination = this.options.getCueCreationContext?.(track)) {
       if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return false;
       const time = Number(timeMs);
       if (!Number.isFinite(time)) return false;
-      const segments = this.options.getSegments?.(track) || [];
+      const segments = destination?.segments || this.options.getSegments?.(track) || [];
       return segments.some((segment) => {
         const start = Number(segment?.start);
         const end = Number(segment?.end);
@@ -29628,12 +29645,12 @@ export default MawDynamicCaptions;
 
     // 创建字幕的拖动不能跨过已有字幕；沿拖动方向把当前端点夹到遇到的
     // 第一个字幕边界。这样预览和最终提交使用同一组无重叠时间范围。
-    clampCreateCueTime(anchorMs, requestedMs, track = 'main') {
+    clampCreateCueTime(anchorMs, requestedMs, track = 'main', destination = this.options.getCueCreationContext?.(track)) {
       if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return requestedMs;
       if (!Number.isFinite(anchorMs) || !Number.isFinite(requestedMs) || anchorMs === requestedMs) {
         return requestedMs;
       }
-      const segments = this.options.getSegments?.(track) || [];
+      const segments = destination?.segments || this.options.getSegments?.(track) || [];
       if (segments.some((segment) => {
         const start = Number(segment?.start);
         const end = Number(segment?.end);
@@ -31820,6 +31837,15 @@ function fixedTrack(cue, role = 'main', trackId = null) { return DATA.subtitle_t
 function fixedActiveTrack() {
   return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedActiveTrackId) || DATA.subtitle_tracks?.tracks[0];
 }
+// Capture the physical destination once: main/extension is only its storage row.
+function fixedCueCreationContext(role = 'main') {
+  if (!fixedTrackMode()) return null;
+  const track = fixedActiveTrack();
+  const source = role === 'extension' ? getActiveExtensionTrack()?.segments || [] : DATA.segments;
+  return { id: track?.id, locked: !track || track.locked,
+    lane: fixedLayout().positions.get(JSON.stringify([track?.id, role])),
+    segments: source.filter(cue => fixedOwner(cue, role) === track?.id) };
+}
 function fixedStatus(message = '') {
   const node = document.getElementById('fixed-track-status');
   if (node) node.textContent = message;
@@ -32255,9 +32281,9 @@ function layerSyncControls() {
     control.checked = DATA.subtitle_layers?.legacy_overlay?.visible === true;
   }
 }
-function layerRangeAllowed(segments, cue, start, end) {
+function layerRangeAllowed(segments, cue, start, end, subtitleTrackId = fixedActiveTrack()?.id) {
   return layerAllowOverlap() || !segments.some(other => other !== cue
-    && (!fixedTrackMode() || (cue ? fixedSameTrack(cue, other) : fixedTrack(other, segments === DATA.segments ? 'main' : 'extension')?.id === fixedActiveTrack()?.id))
+    && (!fixedTrackMode() || (cue ? fixedSameTrack(cue, other) : fixedTrack(other, segments === DATA.segments ? 'main' : 'extension')?.id === subtitleTrackId))
     && layerCore.intersects({ start, end }, other) && (!cue || !layerCore.intersects(cue, other)));
 }
 function layerCanApplyRanges(role, ranges, linked = true) {
@@ -32282,20 +32308,23 @@ function layerCanApplyRanges(role, ranges, linked = true) {
   return layerCore.applyRanges(DATA, changes, { dryRun: true, allowOverlap: layerAllowOverlap(),
     sameLane: fixedTrackMode() ? (a, b) => fixedOwners().get(fixedTrackCore.key(a)) === fixedOwners().get(fixedTrackCore.key(b)) : null }).ok;
 }
-function layerCreateCue(start, end, role = 'main') {
+function layerCreateCue(start, end, role = 'main', subtitleTrackId = fixedActiveTrack()?.id) {
   const track = role === 'extension' ? getActiveExtensionTrack() : null;
   const cues = role === 'extension' ? track?.segments : DATA.segments;
   if (!cues) return false;
-  if (fixedTrackMode() && fixedActiveTrack()?.locked) { fixedStatus('当前轨道已锁定，请先解锁'); return false; }
+  const destination = DATA.subtitle_tracks?.tracks.find(t => t.id === subtitleTrackId);
+  if (fixedTrackMode() && !destination) { fixedStatus('目标轨道已不存在，请重新选择'); return false; }
+  if (fixedTrackMode() && destination.locked) { fixedStatus('当前轨道已锁定，请先解锁'); return false; }
   const lo = Math.min(start, end), hi = Math.max(start, end);
-  start = Math.max(0, timelineFrameAlignedMilliseconds(lo));
-  end = timelineFrameAlignedMilliseconds(Math.max(start + timelineMinimumDurationMs(), hi));
-  if (!Number.isFinite(end) || !layerRangeAllowed(cues, null, start, end)) {
+  start = Math.max(0, Math.round(timelineFrameAlignedMilliseconds(lo)));
+  end = Math.round(timelineFrameAlignedMilliseconds(Math.max(start + timelineMinimumDurationMs(), hi)));
+  if (!Number.isFinite(end) || !layerRangeAllowed(cues, null, start, end, subtitleTrackId)) {
     if (fixedTrackMode()) fixedStatus('当前轨道此处已有字幕，请改用其他轨道');
     else flashHint('此操作会新增字幕重叠，请先启用“允许字幕重叠”', 'warning'); return false;
   }
   commitProcessingEdits(); pushUndo('创建字幕', { captureView: true });
   const cue = { id: window.MSWProject.id('cue'), start, end, text: '', items: [], _dirty: true };
+  if (fixedTrackMode()) fixedDraftOwners.set(cue, { owner: subtitleTrackId });
   cues.push(cue);
   clearSelection({ silent: true, commitCuePanel: false });
   (role === 'extension' ? selectedExtensionIdxs : selectedIdxs).add(cues.length - 1);
@@ -54603,8 +54632,8 @@ function addExtensionRangeFromWaveform(
   waveformEditor?.revealTime(safeStart, true);
 }
 
-function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, track = 'main') {
-  if (layerMode()) return layerCreateCue(Math.min(requestedStart, requestedEnd), Math.max(requestedStart, requestedEnd), track);
+function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, track = 'main', subtitleTrackId) {
+  if (layerMode()) return layerCreateCue(Math.min(requestedStart, requestedEnd), Math.max(requestedStart, requestedEnd), track, subtitleTrackId);
   if (track === 'extension') {
     addExtensionRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY);
     return;
@@ -55009,6 +55038,7 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   ctxmenu.innerHTML = '';
   // 创建动作沿用鼠标所在 lane；字幕块和贴片各自拥有专用菜单。
   const effectiveTrack = track === 'extension' ? 'extension' : 'main';
+  const destination = fixedCueCreationContext(effectiveTrack);
   function addItem(label, kbd, fn, disabled = false) {
     const it = document.createElement('div');
     it.className = `item${disabled ? ' disabled' : ''}`;
@@ -55023,22 +55053,24 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
     }
     ctxmenu.appendChild(it);
   }
-  const mainIdx = findWaveformCueAtTime(timeMs, DATA.segments);
+  const mainIdx = findWaveformCueAtTime(timeMs, destination?.segments || DATA.segments);
   const extensionTrack = getActiveExtensionTrack();
-  const extensionIdx = findWaveformCueAtTime(timeMs, extensionTrack?.segments);
+  const extensionIdx = findWaveformCueAtTime(timeMs, destination?.segments || extensionTrack?.segments);
   if (effectiveTrack === 'extension') {
     addItem(
       '创建副字幕',
       'N',
-      () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack),
-      extensionIdx >= 0 && !(layerMode() && layerAllowOverlap()),
+      () => destination ? layerCreateCue(timeMs, timeMs + 2000, effectiveTrack, destination.id)
+        : addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack),
+      destination?.locked || extensionIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
   } else {
     addItem(
       '创建字幕',
       'N',
-      () => addCueAtWaveformTime(timeMs, clickX, clickY),
-      mainIdx >= 0 && !(layerMode() && layerAllowOverlap()),
+      () => destination ? layerCreateCue(timeMs, timeMs + 2000, effectiveTrack, destination.id)
+        : addCueAtWaveformTime(timeMs, clickX, clickY),
+      destination?.locked || mainIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
     // 叠加轨启用时提供「创建叠加字幕」：主字幕占用的时间点也能创建
     // （落叠加轨），与主字幕共存；同时间点已有叠加字幕时置灰。
@@ -55893,6 +55925,7 @@ function initWaveformEditor() {
     getFixedSubtitleLayout: fixedWaveLayout,
     renderFixedTrackHeads: fixedRenderHeads,
     hitFixedSubtitleTrack: fixedHitTrack,
+    getCueCreationContext: fixedCueCreationContext,
     sameSubtitleTrack: fixedSameTrack,
     canEditSubtitleCues: (indices, role) => fixedCanEdit(indices.map(index => (role === 'main' ? DATA.segments : getActiveExtensionTrack()?.segments || [])[index]), role),
     decorateFixedCue: (block, cue, role) => {
@@ -56061,13 +56094,14 @@ function initWaveformEditor() {
     showContextMenu: (x, y, idx, timeMs) => showContextMenu(x, y, idx, timeMs),
     showExtensionContextMenu: (x, y, idx, timeMs) => showExtensionContextMenu(x, y, idx, timeMs),
     showBlankWaveformMenu: (timeMs, x, y, track) => showWaveformBlankMenu(timeMs, x, y, track),
-    addCueRange: (startMs, endMs, x, y, track = 'main') => (
-      addCueRangeFromWaveform(startMs, endMs, x, y, track)
+    addCueRange: (startMs, endMs, x, y, track = 'main', destination) => (
+      addCueRangeFromWaveform(startMs, endMs, x, y, track, destination?.id)
     ),
     // 叠加轨启用（勾选「叠加字幕」）时，主轨占用位置按 Ctrl(Cmd)+拖动可
     // 直接创建叠加字幕；由波形侧改道创建轨道，这里只提供开关状态。
     getOverlayCreateEnabled: () => getOverlayTrack()?.enabled === true,
     onCueCreateRejected: (reason) => {
+      if (reason === 'locked') fixedStatus('当前轨道已锁定，请先解锁');
       if (reason === 'too-short') flashHint('该空白区域不足 100ms，无法新增字幕', 'warning');
       if (reason === 'occupied') flashHint('该位置已有字幕，无法新增字幕', 'warning');
     },

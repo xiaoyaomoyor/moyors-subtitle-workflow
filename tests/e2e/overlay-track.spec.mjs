@@ -18,7 +18,7 @@ test.beforeAll(async () => {
   const blankPath = buildPortableBlankEditor(join(tempDir, 'blank-editor.html'));
   server = await startStaticServer(blankPath, await findFreePort());
   // These fixtures exercise the legacy overlay adapter, not automatic v2 migration.
-  server.url += '?subtitle-layers=0';
+  server.url += '?subtitle-layers=0&subtitle-tracks=0';
 });
 
 test.afterAll(async () => {

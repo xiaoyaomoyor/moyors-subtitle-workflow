@@ -27,6 +27,15 @@ function fixedTrack(cue, role = 'main', trackId = null) { return DATA.subtitle_t
 function fixedActiveTrack() {
   return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedActiveTrackId) || DATA.subtitle_tracks?.tracks[0];
 }
+// Capture the physical destination once: main/extension is only its storage row.
+function fixedCueCreationContext(role = 'main') {
+  if (!fixedTrackMode()) return null;
+  const track = fixedActiveTrack();
+  const source = role === 'extension' ? getActiveExtensionTrack()?.segments || [] : DATA.segments;
+  return { id: track?.id, locked: !track || track.locked,
+    lane: fixedLayout().positions.get(JSON.stringify([track?.id, role])),
+    segments: source.filter(cue => fixedOwner(cue, role) === track?.id) };
+}
 function fixedStatus(message = '') {
   const node = document.getElementById('fixed-track-status');
   if (node) node.textContent = message;

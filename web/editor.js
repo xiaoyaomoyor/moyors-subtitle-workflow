@@ -21779,8 +21779,8 @@ function addExtensionRangeFromWaveform(
   waveformEditor?.revealTime(safeStart, true);
 }
 
-function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, track = 'main') {
-  if (layerMode()) return layerCreateCue(Math.min(requestedStart, requestedEnd), Math.max(requestedStart, requestedEnd), track);
+function addCueRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY, track = 'main', subtitleTrackId) {
+  if (layerMode()) return layerCreateCue(Math.min(requestedStart, requestedEnd), Math.max(requestedStart, requestedEnd), track, subtitleTrackId);
   if (track === 'extension') {
     addExtensionRangeFromWaveform(requestedStart, requestedEnd, clickX, clickY);
     return;
@@ -22185,6 +22185,7 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   ctxmenu.innerHTML = '';
   // 创建动作沿用鼠标所在 lane；字幕块和贴片各自拥有专用菜单。
   const effectiveTrack = track === 'extension' ? 'extension' : 'main';
+  const destination = fixedCueCreationContext(effectiveTrack);
   function addItem(label, kbd, fn, disabled = false) {
     const it = document.createElement('div');
     it.className = `item${disabled ? ' disabled' : ''}`;
@@ -22199,22 +22200,24 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
     }
     ctxmenu.appendChild(it);
   }
-  const mainIdx = findWaveformCueAtTime(timeMs, DATA.segments);
+  const mainIdx = findWaveformCueAtTime(timeMs, destination?.segments || DATA.segments);
   const extensionTrack = getActiveExtensionTrack();
-  const extensionIdx = findWaveformCueAtTime(timeMs, extensionTrack?.segments);
+  const extensionIdx = findWaveformCueAtTime(timeMs, destination?.segments || extensionTrack?.segments);
   if (effectiveTrack === 'extension') {
     addItem(
       '创建副字幕',
       'N',
-      () => addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack),
-      extensionIdx >= 0 && !(layerMode() && layerAllowOverlap()),
+      () => destination ? layerCreateCue(timeMs, timeMs + 2000, effectiveTrack, destination.id)
+        : addExtensionAtWaveformTime(timeMs, clickX, clickY, extensionTrack),
+      destination?.locked || extensionIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
   } else {
     addItem(
       '创建字幕',
       'N',
-      () => addCueAtWaveformTime(timeMs, clickX, clickY),
-      mainIdx >= 0 && !(layerMode() && layerAllowOverlap()),
+      () => destination ? layerCreateCue(timeMs, timeMs + 2000, effectiveTrack, destination.id)
+        : addCueAtWaveformTime(timeMs, clickX, clickY),
+      destination?.locked || mainIdx >= 0 && !(layerMode() && layerAllowOverlap()),
     );
     // 叠加轨启用时提供「创建叠加字幕」：主字幕占用的时间点也能创建
     // （落叠加轨），与主字幕共存；同时间点已有叠加字幕时置灰。
@@ -23069,6 +23072,7 @@ function initWaveformEditor() {
     getFixedSubtitleLayout: fixedWaveLayout,
     renderFixedTrackHeads: fixedRenderHeads,
     hitFixedSubtitleTrack: fixedHitTrack,
+    getCueCreationContext: fixedCueCreationContext,
     sameSubtitleTrack: fixedSameTrack,
     canEditSubtitleCues: (indices, role) => fixedCanEdit(indices.map(index => (role === 'main' ? DATA.segments : getActiveExtensionTrack()?.segments || [])[index]), role),
     decorateFixedCue: (block, cue, role) => {
@@ -23237,13 +23241,14 @@ function initWaveformEditor() {
     showContextMenu: (x, y, idx, timeMs) => showContextMenu(x, y, idx, timeMs),
     showExtensionContextMenu: (x, y, idx, timeMs) => showExtensionContextMenu(x, y, idx, timeMs),
     showBlankWaveformMenu: (timeMs, x, y, track) => showWaveformBlankMenu(timeMs, x, y, track),
-    addCueRange: (startMs, endMs, x, y, track = 'main') => (
-      addCueRangeFromWaveform(startMs, endMs, x, y, track)
+    addCueRange: (startMs, endMs, x, y, track = 'main', destination) => (
+      addCueRangeFromWaveform(startMs, endMs, x, y, track, destination?.id)
     ),
     // 叠加轨启用（勾选「叠加字幕」）时，主轨占用位置按 Ctrl(Cmd)+拖动可
     // 直接创建叠加字幕；由波形侧改道创建轨道，这里只提供开关状态。
     getOverlayCreateEnabled: () => getOverlayTrack()?.enabled === true,
     onCueCreateRejected: (reason) => {
+      if (reason === 'locked') fixedStatus('当前轨道已锁定，请先解锁');
       if (reason === 'too-short') flashHint('该空白区域不足 100ms，无法新增字幕', 'warning');
       if (reason === 'occupied') flashHint('该位置已有字幕，无法新增字幕', 'warning');
     },

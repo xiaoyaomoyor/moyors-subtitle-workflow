@@ -5468,7 +5468,12 @@
       const timing = this.cueTiming();
       const snapToTimeline = (valueMs) => timing.toMs(timing.fromMs(valueMs));
       const startMs = snapToTimeline(this.timeFromPointer(event, row, geometry));
-      if (this.isCueTimeOccupied(startMs, track)) {
+      const destination = this.options.getCueCreationContext?.(track);
+      if (destination?.locked) {
+        this.options.onCueCreateRejected?.('locked');
+        return;
+      }
+      if (this.isCueTimeOccupied(startMs, track, destination)) {
         this.options.onCueCreateRejected?.('occupied');
         return;
       }
@@ -5497,6 +5502,7 @@
           drag.startMs,
           snapToTimeline(requestedMs),
           track,
+          destination,
         );
       };
       const updatePreview = () => {
@@ -5508,7 +5514,12 @@
           drag.preview = document.createElement('div');
           drag.preview.className = 'waveform-cue-block waveform-create-preview';
           drag.preview.dataset.track = track;
-          if (track === 'extension') drag.preview.style.setProperty('--cue-color', '#7a9fc5');
+          if (destination) {
+            drag.preview.dataset.subtitleTrackId = destination.id;
+            drag.preview.style.height = '32px';
+            drag.preview.style.top = 'auto';
+            drag.preview.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(destination.lane || 0) * 38}px)`;
+          } else if (track === 'extension') drag.preview.style.setProperty('--cue-color', '#7a9fc5');
           if (track === 'overlay') {
             // 叠加字幕创建虚影落在叠加轨 lane（上半区），与正式叠加块同位；
             // 行高不足 84px 时同样切 cover 模式，直接盖在主字幕块上方。
@@ -5535,6 +5546,7 @@
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onCancel);
+        window.removeEventListener('keydown', onCreateKey, true);
         if (drag.frame) {
           cancelAnimationFrame(drag.frame);
           drag.frame = 0;
@@ -5555,7 +5567,7 @@
           this.options.onCueCreateRejected?.('too-short', start, end);
           return;
         }
-        this.options.addCueRange?.(start, end, drag.startClientX, drag.startClientY, track);
+        this.options.addCueRange?.(start, end, drag.startClientX, drag.startClientY, track, destination);
       };
       drag.finish = finish;
       try { row.setPointerCapture?.(drag.pointerId); } catch (_) {}
@@ -5571,9 +5583,14 @@
       };
       const onUp = (upEvent) => finish(true, upEvent);
       const onCancel = () => finish(false);
+      const onCreateKey = keyEvent => {
+        if (keyEvent.key !== 'Escape') return;
+        keyEvent.preventDefault(); keyEvent.stopImmediatePropagation(); finish(false);
+      };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onCancel);
+      window.addEventListener('keydown', onCreateKey, true);
     }
 
     captureRowGeometry(row) {
@@ -5630,11 +5647,11 @@
       return clientY - rowRect.top >= extensionTop ? 'extension' : 'main';
     }
 
-    isCueTimeOccupied(timeMs, track = 'main') {
+    isCueTimeOccupied(timeMs, track = 'main', destination = this.options.getCueCreationContext?.(track)) {
       if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return false;
       const time = Number(timeMs);
       if (!Number.isFinite(time)) return false;
-      const segments = this.options.getSegments?.(track) || [];
+      const segments = destination?.segments || this.options.getSegments?.(track) || [];
       return segments.some((segment) => {
         const start = Number(segment?.start);
         const end = Number(segment?.end);
@@ -5645,12 +5662,12 @@
 
     // 创建字幕的拖动不能跨过已有字幕；沿拖动方向把当前端点夹到遇到的
     // 第一个字幕边界。这样预览和最终提交使用同一组无重叠时间范围。
-    clampCreateCueTime(anchorMs, requestedMs, track = 'main') {
+    clampCreateCueTime(anchorMs, requestedMs, track = 'main', destination = this.options.getCueCreationContext?.(track)) {
       if (this.subtitleLayersEnabled() && this.options.getAllowSubtitleOverlap?.()) return requestedMs;
       if (!Number.isFinite(anchorMs) || !Number.isFinite(requestedMs) || anchorMs === requestedMs) {
         return requestedMs;
       }
-      const segments = this.options.getSegments?.(track) || [];
+      const segments = destination?.segments || this.options.getSegments?.(track) || [];
       if (segments.some((segment) => {
         const start = Number(segment?.start);
         const end = Number(segment?.end);

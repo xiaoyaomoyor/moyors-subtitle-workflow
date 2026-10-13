@@ -46,6 +46,117 @@ const bilingual = () => ({ multi_subtitle: { schema: 'moy.asr.multi_subtitle.v1'
 const state = page => page.evaluate(() => structuredClone({ segments: DATA.segments, multi: DATA.multi_subtitle, tracks: DATA.subtitle_tracks }));
 const owner = (p, id, role = 'main') => p.tracks.assignments.find(a => a.cue_id === id && a.role === role).subtitle_track_id;
 
+async function emptyTrack(page) {
+  await page.locator('.fixed-track-head').first().click({button:'right'});
+  await page.getByRole('button',{name:'新增字幕轨道',exact:true}).click();
+  return (await state(page)).tracks.tracks.at(-1).id;
+}
+async function trackPoint(page, trackId, time, role = 'main') {
+  return page.evaluate(({trackId,time,role}) => {
+    const row = document.querySelector('.waveform-row'), rect = row.getBoundingClientRect();
+    const lane = fixedLayout().positions.get(JSON.stringify([trackId,role]));
+    const audio = parseFloat(row.style.getPropertyValue('--audio-lane-space')) || 0;
+    return {x:rect.left+rect.width*(time-Number(row.dataset.startMs))/(Number(row.dataset.endMs)-Number(row.dataset.startMs)),
+      y:rect.bottom-audio-7-lane*38-17};
+  },{trackId,time,role});
+}
+function normalizedOwners(value) {
+  const result=structuredClone(value);
+  result.tracks.assignments.sort((a,b)=>JSON.stringify([a.role,a.track_id,a.cue_id]).localeCompare(JSON.stringify([b.role,b.track_id,b.cue_id])));
+  return result;
+}
+
+for (const method of ['ctrl','menu','keyboard']) test(`empty fixed track creates through ${method} despite occupied other tracks`,async({page})=>{
+  const errors=await open(page),target=await emptyTrack(page),before=await state(page);
+  const start=await trackPoint(page,target,1500),end=await trackPoint(page,target,2500);
+  await page.mouse.move(start.x,start.y);
+  if(method==='ctrl') {
+    await page.keyboard.down('Control');await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:5});
+    const preview=page.locator('.waveform-create-preview');await expect(preview).toBeVisible();
+    await expect(preview).toHaveAttribute('data-subtitle-track-id',target);
+    const rect=await preview.boundingBox();expect(Math.abs(rect.y+rect.height/2-start.y)).toBeLessThan(3);
+    await page.mouse.up();await page.keyboard.up('Control');
+  } else if(method==='menu') {
+    await page.mouse.click(start.x,start.y,{button:'right'});
+    const item=page.locator('#ctxmenu .item').filter({hasText:'创建字幕'});
+    await expect(item).not.toHaveClass(/disabled/);
+    await page.evaluate(()=>{fixedActiveTrackId=DATA.subtitle_tracks.tracks[0].id;});
+    await item.click();
+  } else await page.keyboard.press('n');
+  const after=await state(page),added=after.segments.find(c=>!before.segments.some(old=>old.id===c.id));
+  expect(errors).toEqual([]);
+  expect(added,await page.locator('#fixed-track-status').textContent()).toBeTruthy();expect(owner(after,added.id)).toBe(target);
+  expect(Math.abs(added.start-1500)).toBeLessThan(30);
+  if(method==='ctrl')expect(Math.abs(added.end-2500)).toBeLessThan(30);
+  expect(after.segments.filter(c=>c.id!==added.id)).toEqual(before.segments);
+  await page.evaluate(()=>performUndo());expect(await state(page)).toEqual(before);
+  await page.evaluate(()=>performRedo());expect(normalizedOwners(await state(page))).toEqual(normalizedOwners(after));
+  expect(errors).toEqual([]);
+});
+
+for (const method of ['ctrl','menu']) test(`empty secondary lane creates through ${method} on its physical track`,async({page})=>{
+  const errors=await open(page,undefined,bilingual()),target=await emptyTrack(page);
+  await page.evaluate(id=>fixedUpdateTrack(id,{show_secondary:true}),target);
+  const before=await state(page),start=await trackPoint(page,target,1500,'extension'),end=await trackPoint(page,target,2500,'extension');
+  await page.mouse.move(start.x,start.y);
+  if(method==='ctrl') {
+    await page.keyboard.down('Control');await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:5});
+    await expect(page.locator('.waveform-create-preview')).toHaveAttribute('data-subtitle-track-id',target);
+    await page.mouse.up();await page.keyboard.up('Control');
+  } else {
+    await page.mouse.click(start.x,start.y,{button:'right'});
+    const item=page.locator('#ctxmenu .item').filter({hasText:'创建副字幕'});
+    await expect(item).not.toHaveClass(/disabled/);await item.click();
+  }
+  const after=await state(page),added=after.multi.tracks[0].segments.find(c=>!before.multi.tracks[0].segments.some(old=>old.id===c.id));
+  expect(errors).toEqual([]);
+  expect(added,await page.locator('#fixed-track-status').textContent()).toBeTruthy();expect(owner(after,added.id,'extension')).toBe(target);
+  expect(after.segments).toEqual(before.segments);expect(after.multi.bindings).toEqual(before.multi.bindings);
+  await page.evaluate(()=>performUndo());expect(normalizedOwners(await state(page))).toEqual(normalizedOwners(before));
+  expect(errors).toEqual([]);
+});
+
+test('creation stops at own-track boundary and locked destinations reject both mouse entries',async({page})=>{
+  const errors=await open(page),before=await state(page),target=owner(before,'a');
+  const start=await trackPoint(page,target,3500),end=await trackPoint(page,target,6500);
+  await page.mouse.move(start.x,start.y);await page.keyboard.down('Control');await page.mouse.down();
+  await page.mouse.move(end.x,end.y,{steps:5});await page.mouse.up();await page.keyboard.up('Control');
+  const after=await state(page),added=after.segments.find(c=>!before.segments.some(old=>old.id===c.id));
+  expect(added).toBeTruthy();expect(added.end).toBe(5000);expect(owner(after,added.id)).toBe(target);
+  await page.evaluate(()=>performUndo());expect(normalizedOwners(await state(page))).toEqual(normalizedOwners(before));
+  const empty=await emptyTrack(page);await page.evaluate(id=>fixedUpdateTrack(id,{locked:true}),empty);
+  const locked=await state(page),p=await trackPoint(page,empty,1500),q=await trackPoint(page,empty,2500);
+  await page.mouse.move(p.x,p.y);await page.keyboard.down('Control');await page.mouse.down();
+  await page.mouse.move(q.x,q.y,{steps:5});await page.mouse.up();await page.keyboard.up('Control');
+  await expect(page.locator('.waveform-create-preview')).toHaveCount(0);
+  await expect(page.locator('#fixed-track-status')).toContainText('已锁定');
+  await page.mouse.click(p.x,p.y,{button:'right'});
+  await expect(page.locator('#ctxmenu .item').filter({hasText:'创建字幕'})).toHaveClass(/disabled/);
+  expect(await state(page)).toEqual(locked);expect(errors).toEqual([]);
+});
+
+test('creation preview follows an upper lane and right-click creation respects frame timing',async({page},info)=>{
+  const errors=await open(page,undefined,{timebase:{unit:'frames',fps:25}}),target=await emptyTrack(page);
+  await page.locator(`.fixed-track-head[data-subtitle-track-id="${target}"]`).first().click({button:'right'});
+  await page.getByRole('button',{name:'上移轨道',exact:true}).click();
+  const before=await state(page),start=await trackPoint(page,target,1555),end=await trackPoint(page,target,2555);
+  await page.mouse.move(start.x,start.y);await page.keyboard.down('Control');await page.mouse.down();
+  await page.mouse.move(end.x,end.y,{steps:5});
+  const preview=page.locator('.waveform-create-preview');await expect(preview).toBeVisible();
+  const rect=await preview.boundingBox();expect(Math.abs(rect.y+rect.height/2-start.y)).toBeLessThan(3);
+  await page.screenshot({path:info.outputPath('upper-track-create-preview.png')});
+  await page.keyboard.press('Escape');await page.mouse.up();await page.keyboard.up('Control');
+  expect(await state(page)).toEqual(before);
+  await page.mouse.click(start.x,start.y,{button:'right'});
+  await page.locator('#ctxmenu .item').filter({hasText:'创建字幕'}).click();
+  const after=await state(page),added=after.segments.find(c=>!before.segments.some(old=>old.id===c.id));
+  expect(added).toBeTruthy();expect(owner(after,added.id)).toBe(target);
+  expect(Number.isInteger(added.start)).toBe(true);expect(Number.isInteger(added.end)).toBe(true);
+  expect(added.start).toBe(added.start_frame*40);expect(added.end).toBe(added.end_frame*40);
+  await page.evaluate(()=>performUndo());expect(normalizedOwners(await state(page))).toEqual(normalizedOwners(before));
+  expect(errors).toEqual([]);
+});
+
 test('compact headers toggle the whole pair and settings separate purpose from placement', async ({page},info) => {
   const errors=await open(page,undefined,bilingual()),before=await state(page),id=owner(before,'a');
   const head=page.locator(`.fixed-track-head[data-subtitle-track-id="${id}"]`).first();

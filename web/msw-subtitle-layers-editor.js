@@ -87,9 +87,9 @@ function layerSyncControls() {
     control.checked = DATA.subtitle_layers?.legacy_overlay?.visible === true;
   }
 }
-function layerRangeAllowed(segments, cue, start, end) {
+function layerRangeAllowed(segments, cue, start, end, subtitleTrackId = fixedActiveTrack()?.id) {
   return layerAllowOverlap() || !segments.some(other => other !== cue
-    && (!fixedTrackMode() || (cue ? fixedSameTrack(cue, other) : fixedTrack(other, segments === DATA.segments ? 'main' : 'extension')?.id === fixedActiveTrack()?.id))
+    && (!fixedTrackMode() || (cue ? fixedSameTrack(cue, other) : fixedTrack(other, segments === DATA.segments ? 'main' : 'extension')?.id === subtitleTrackId))
     && layerCore.intersects({ start, end }, other) && (!cue || !layerCore.intersects(cue, other)));
 }
 function layerCanApplyRanges(role, ranges, linked = true) {
@@ -114,20 +114,23 @@ function layerCanApplyRanges(role, ranges, linked = true) {
   return layerCore.applyRanges(DATA, changes, { dryRun: true, allowOverlap: layerAllowOverlap(),
     sameLane: fixedTrackMode() ? (a, b) => fixedOwners().get(fixedTrackCore.key(a)) === fixedOwners().get(fixedTrackCore.key(b)) : null }).ok;
 }
-function layerCreateCue(start, end, role = 'main') {
+function layerCreateCue(start, end, role = 'main', subtitleTrackId = fixedActiveTrack()?.id) {
   const track = role === 'extension' ? getActiveExtensionTrack() : null;
   const cues = role === 'extension' ? track?.segments : DATA.segments;
   if (!cues) return false;
-  if (fixedTrackMode() && fixedActiveTrack()?.locked) { fixedStatus('当前轨道已锁定，请先解锁'); return false; }
+  const destination = DATA.subtitle_tracks?.tracks.find(t => t.id === subtitleTrackId);
+  if (fixedTrackMode() && !destination) { fixedStatus('目标轨道已不存在，请重新选择'); return false; }
+  if (fixedTrackMode() && destination.locked) { fixedStatus('当前轨道已锁定，请先解锁'); return false; }
   const lo = Math.min(start, end), hi = Math.max(start, end);
-  start = Math.max(0, timelineFrameAlignedMilliseconds(lo));
-  end = timelineFrameAlignedMilliseconds(Math.max(start + timelineMinimumDurationMs(), hi));
-  if (!Number.isFinite(end) || !layerRangeAllowed(cues, null, start, end)) {
+  start = Math.max(0, Math.round(timelineFrameAlignedMilliseconds(lo)));
+  end = Math.round(timelineFrameAlignedMilliseconds(Math.max(start + timelineMinimumDurationMs(), hi)));
+  if (!Number.isFinite(end) || !layerRangeAllowed(cues, null, start, end, subtitleTrackId)) {
     if (fixedTrackMode()) fixedStatus('当前轨道此处已有字幕，请改用其他轨道');
     else flashHint('此操作会新增字幕重叠，请先启用“允许字幕重叠”', 'warning'); return false;
   }
   commitProcessingEdits(); pushUndo('创建字幕', { captureView: true });
   const cue = { id: window.MSWProject.id('cue'), start, end, text: '', items: [], _dirty: true };
+  if (fixedTrackMode()) fixedDraftOwners.set(cue, { owner: subtitleTrackId });
   cues.push(cue);
   clearSelection({ silent: true, commitCuePanel: false });
   (role === 'extension' ? selectedExtensionIdxs : selectedIdxs).add(cues.length - 1);
