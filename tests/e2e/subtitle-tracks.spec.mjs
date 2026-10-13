@@ -10,7 +10,7 @@ test.beforeAll(async () => {
   server = await startStaticServer(generateBlankEditor(join(dir, 'editor.html')), await findFreePort());
 });
 test.afterAll(async () => { await server?.stop(); });
-test.beforeEach(async ({ page }) => { await disableOnboarding(page); await page.goto(server.url); });
+test.beforeEach(async ({ page }) => { await disableOnboarding(page); await page.goto(server.url+'?subtitle-tracks=1'); });
 
 test('portable build includes fixed ownership codec and migration survives JSON roundtrip', async ({ page }) => {
   const result = await page.evaluate(projects => {
@@ -31,7 +31,7 @@ test('portable build includes fixed ownership codec and migration survives JSON 
   expect(result[2].tracks).toBe(1);
 });
 
-test('normal editor saves v3 and rejects future input, drop and restore without changing current edits', async ({ page }) => {
+test('explicit v3 compatibility editor rejects native input, drop and restore without changing current edits', async ({ page }) => {
   page.on('dialog', dialog => dialog.accept());
   const old = { segments: [{ id: 'keep', start: 0, end: 2000, text: '保留当前工程' }] };
   await page.locator('#open-project-file').setInputFiles({ name: 'original.mosp', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(old)) });
@@ -40,7 +40,7 @@ test('normal editor saves v3 and rejects future input, drop and restore without 
   await page.locator('#cue-panel-text').fill('保留尚未保存的修改');
   const before = await page.evaluate(() => window.MSWE.resolve('persistence-host').snapshot());
   expect(before.schema).toBe('msw.project.v3');
-  const future = {...before,schema:'msw.project.v4'};
+  const future = await page.evaluate(p=>MSWFlatSubtitles.migrate(p),before);
   await page.locator('#open-project-file').setInputFiles({ name: 'v3.mosp', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(future)) });
   await expect(page.locator('#hint-stack')).toContainText('版本不受支持');
   expect(await page.evaluate(() => MSWE.resolve('persistence-host').snapshot())).toEqual(before);

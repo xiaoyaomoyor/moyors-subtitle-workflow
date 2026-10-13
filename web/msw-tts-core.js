@@ -46,6 +46,7 @@
     if (selected.needsChoice && !['main', 'secondary'].includes(side)) throw new Error('请先选择主字幕或副字幕');
     if (!selected.sources.length) throw new Error('没有可合成的字幕；请先选择字幕');
     if (selected.tooLong) throw new Error(`存在超过 ${textLimit(engine)} 字符的字幕，请先拆分`);
+    if(global.MSWProductionProject?.isView(project))return global.MSWFlatProcessing.tts(global.MSWProductionProject.toProject(project),selected.sources.map(row=>row.cue.id),global.MSWProject.id);
     return { project_id: project.msw.project_id, entries: selected.sources.map(({cue, trackId}) => ({
       key: global.MSWProject.id('entry'), id: cue.id, track_id: trackId, text: cue.text, start: cue.start, end: cue.end,
     })) };

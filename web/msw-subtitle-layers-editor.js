@@ -6,6 +6,8 @@ let layerIndexes = new WeakMap();
 let layerPendingDragHistory = null;
 let layerPresentationCache = null;
 function prepareLayerProject(project) {
+  if(window.MSWProductionProject.isView(project)){fixedTrackCore.validate(project);return structuredClone(project);}
+  if(productionFlatRequested)return window.MSWProductionProject.fromProject(project);
   if(project?.schema&&!['moy.asr.project.v1','msw.project.v2','msw.project.v3'].includes(project.schema))throw Error('工程版本不受支持，请使用兼容的编辑器打开');
   if (fixedTracksRequested || project?.schema===fixedTrackCore.SCHEMA) {
     const next=fixedTrackCore.migrate(project);
@@ -242,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 async function layerChooseAsrTargets(jobs, target) {
+  if(productionFlatMode())return {};
   if (!layerMode()) return {};
   const choices = window.MSWResultApply.targetChoices(DATA, jobs, target);
   if (!choices.required) return {};
@@ -373,6 +376,16 @@ async function layerProtectHandle(handle, content, silent = false) {
   if (!handle.getFile) return;
   const original = await handle.getFile(); if (!original.size) return;
   const text = await original.text(); const previous = JSON.parse(text);
+  if(next?.schema===window.MSWFlatSubtitles.SCHEMA) {
+    window.MSWFlatSubtitles.validate(next);
+    if(previous.schema===next.schema){window.MSWFlatSubtitles.validate(previous);return;}
+    if(![undefined,'moy.asr.project.v1','msw.project.v2','msw.project.v3'].includes(previous.schema))throw Error('目标工程版本不兼容，未覆盖');
+    if(silent)throw Error('首次升级平级轨道需先保留旧工程，请手动保存一次');
+    const backup=await window.showSaveFilePicker({suggestedName:handle.name.replace(/\.[^.]+$/,'')+`.before-flat.${Date.now()}.mosp`,types:[{description:'平级轨道升级备份',accept:{'application/json':['.mosp']}}]});
+    if(await backup.isSameEntry?.(handle)||(await backup.getFile()).size)throw Error('请选择空白备份文件，未覆盖原工程');
+    const output=await backup.createWritable();await output.write(original);await output.close();
+    if((await(await handle.getFile()).text())!==text)throw Error('备份期间原工程已变化，未覆盖');return;
+  }
   if (fixedTracksRequested && next?.schema === fixedTrackCore.SCHEMA) {
     fixedTrackCore.validate(next);
     if (![undefined, 'moy.asr.project.v1', 'msw.project.v2', fixedTrackCore.SCHEMA].includes(previous?.schema)) throw Error('目标工程版本不兼容，未覆盖');

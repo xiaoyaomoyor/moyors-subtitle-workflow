@@ -48,7 +48,10 @@
     mark(n,job);core.validate(n);return {project:n,ids};
   }
   function applyAsr(p,job,media,makeId){checkBase(p,job);const s=job.snapshot;writable(p,s.subtitle_track_id);
-    if(media?.id!==s.source.id||media.revision!==s.source.revision)throw Error('媒体或音轨已变化，请重新识别');
+    if(s.mode==='clips') {
+      const clip=p.msw.audio_clips?.find(c=>c.id===s.source.clip.id),asset=p.msw.assets?.find(a=>a.id===s.source.id);
+      if(!clip||asset?.sha256!==s.source.revision||Object.keys(s.source.clip).some(k=>clip[k]!==s.source.clip[k]))throw Error('音频贴片已移动、裁剪、替换或删除');
+    } else if(media?.id!==s.source.id||media.revision!==s.source.revision||media.audio_index!==s.source.audio_index)throw Error('媒体或音轨已变化，请重新识别');
     const before=affected(native(s),s.subtitle_track_id,s.range),now=affected(p,s.subtitle_track_id,s.range);
     if(!same(before,now))throw Error('识别范围内字幕已变化，未覆盖当前修改');for(const c of now)unchanged(p,s,c.id);
     if(now.some(c=>edit.partner(p,c.id)))throw Error('目标字幕已有对应关系，请改用新轨道');

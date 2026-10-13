@@ -104,8 +104,7 @@ class FlatSubtitlesIOTests(unittest.TestCase):
             old_io.read_project(self.path)
         with self.assertRaises(ValueError):
             old_io.save_project(stale)
-        with self.assertRaises(ValueError):
-            serialize_mosp(saved.document.project)
+        self.assertEqual(json.loads(serialize_mosp(saved.document.project))['subtitles'], saved.document.project['subtitles'])
         for source in (self.source, layers.migrate_project(self.source), old.migrate_project(self.source)):
             with self.assertRaises(ValueError):
                 write_mosp(self.path, source)
@@ -117,7 +116,7 @@ class FlatSubtitlesIOTests(unittest.TestCase):
             self.assertEqual(codec.main([str(self.path)]), 0)
         self.assertEqual(self.path.read_bytes(), self.raw)
         self.assertIn("原文件未修改", output.getvalue())
-        self.assertIn("下一阶段", output.getvalue())
+        self.assertIn("普通编辑器", output.getvalue())
         with redirect_stdout(output):
             self.assertEqual(codec.main([str(self.path), "--write-v4"]), 0)
         self.assertEqual(codec.read_project(self.path).project["schema"], core.SCHEMA)

@@ -1,5 +1,5 @@
-// Role-independent subtitle storage. The production editor still uses the v3
-// adapter until its interaction/rendering paths are switched as a separate step.
+// Role-independent subtitle storage. The normal editor uses a reversible
+// operation view for its existing components; persistence always uses v4.
 (function(global) {
   'use strict';
   const old = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-tracks.js') : global.MSWSubtitleTracks;

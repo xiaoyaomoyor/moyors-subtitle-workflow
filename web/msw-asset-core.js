@@ -49,10 +49,12 @@
     if (!rows.length) throw Error('请先选择字幕');
     const origin = Math.min(...rows.map(r => r.c.start)), batchId = options.batchId || p().id('batch');
     const time = Date.now();
+    const physical=global.MSWProductionProject?.isView(project)?global.MSWSubtitleTracks.createIndex(project):null;
     const assets = rows.map(({c,t}) => {
       const a = {id:p().id('subtitle'), kind:'subtitle', batch_id:batchId, created_at:time,
         source_id:options.sourceId || ext.project_id, source_cue_id:c.id, track_id:t.track_id,
         original_start:c.start, start:c.start-origin, end:c.end-origin, text:c.text || ''};
+      if(physical)a.subtitle_track_id=physical.trackFor({role:t.track_id===null?'main':'extension',track_id:t.track_id,cue_id:c.id}).id;
       if (c.items) a.items = c.items.filter(i => i.start >= c.start && i.end <= c.end && i.end > i.start)
         .map(i => ({start:i.start-origin,end:i.end-origin,text:i.text || ''}));
       const color = c.color || t.segments[c.color_ref?.headIdx]?.color;
@@ -76,6 +78,7 @@
     validate(next); return next;
   }
   function insert(project, ids, anchor, targets = {}, normalize = c => c, {subtitleTrackId=null} = {}) {
+    if(global.MSWProductionProject?.isView(project))return global.MSWProductionProject.insertAssets(project,ids,anchor,subtitleTrackId,normalize);
     const selected = new Set(ids), assets = (project.msw?.subtitle_assets || []).filter(a => selected.has(a.id));
     if (!assets.length) throw Error('请选择字幕素材');
     if (new Set(assets.map(a => a.source_id)).size > 1) throw Error('不同来源的字幕请分批放入时间线');

@@ -147,7 +147,7 @@ def validate_layout(project):
 
 
 def require_production_schema(project):
-    if project.get("schema") in (SCHEMA, "msw.project.v3"):
+    if project.get("schema") in (SCHEMA, "msw.project.v3", "msw.project.v4"):
         from maw.project import normalize_project
         normalize_project(project)
 
@@ -163,6 +163,10 @@ def preserve_upgrade_source(target, project):
         return None
     original = target.read_bytes()
     previous = json.loads(original.decode('utf-8-sig'))
+    if isinstance(previous, dict) and previous.get('schema') == 'msw.project.v4':
+        if project.get('schema') != 'msw.project.v4':
+            raise ValueError('不能用旧版结构覆盖平级轨道工程，请刷新编辑器后重试')
+        return None
     if isinstance(previous, dict) and previous.get('schema') == 'msw.project.v3':
         if project.get('schema') != 'msw.project.v3':
             raise ValueError('不能用旧版结构覆盖固定轨道工程，请另存为新文件')

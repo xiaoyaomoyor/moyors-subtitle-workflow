@@ -3,7 +3,13 @@ let fixedPreviewCache = null;
 let fixedExactGeometry = null;
 let fixedGeometrySerial=0;
 function fixedGeometryKey() { return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,window.MSWSubtitleStyle?.currentPreview(),getSpeakerLabelSettings()]); }
-function fixedReceiveGeometry(geometry) { fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;refreshSubtitlePreview(); }
+function fixedReceiveGeometry(geometry) {
+  if(productionFlatMode()) {
+    const refs=new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,fixedTrackCore.key({role:s.role,track_id:s.track_id,cue_id:c.id})])));
+    geometry=geometry.map(r=>({...r,key:refs.get(JSON.parse(r.key)[2])||r.key}));
+  }
+  fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;refreshSubtitlePreview();
+}
 const fixedTextMeasures = new Map();
 let fixedMeasureRoot = null;
 let fixedStyleTrackId = '';

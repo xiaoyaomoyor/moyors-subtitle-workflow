@@ -13,6 +13,7 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const key = ref => JSON.stringify([ref.role, ref.track_id, ref.cue_id]);
   const stable = value => typeof value === 'string' && !!value.trim() && value.length <= 160;
+  const flatView = project => project?.subtitle_tracks?.flat_context?.schema === 'msw.flat-operation-view.v1';
   const fail = message => { throw Error('固定字幕轨道：' + message); };
   const refOf = row => ({ role: row.role, track_id: row.track_id, cue_id: row.cue_id });
   const positionValid = value => value && Object.keys(value).length === 2
@@ -126,13 +127,17 @@
     }
     if (owners.size !== rows.length) fail('每条字幕必须且只能归属一条固定轨道');
     for (const group of groups) {
+      if (flatView(project)) {
+        if (group.length > 1 && new Set(group.map(row => owners.get(key(row)))).size !== group.length) fail('绑定字幕必须位于不同轨道');
+        continue;
+      }
       if (new Set(group.map(row => owners.get(key(row)))).size > 1) fail('绑定主副字幕必须归属同一轨道');
       const positions = group.map(row => row.cue.subtitle_position).filter(Boolean);
       if (positions.some(p => p.x !== positions[0].x || p.y !== positions[0].y)) fail('绑定主副字幕的位置覆盖必须一致');
     }
     const lanes = new Map();
     for (const row of rows) {
-      const lane = JSON.stringify([owners.get(key(row)), row.role, row.track_id]);
+      const lane = flatView(project) ? owners.get(key(row)) : JSON.stringify([owners.get(key(row)), row.role, row.track_id]);
       if (!lanes.has(lane)) lanes.set(lane, []);
       lanes.get(lane).push(row.cue);
     }
@@ -248,7 +253,7 @@
     if (!target || target.locked) fail('目标轨道不存在或已锁定');
     const moving = new Set();
     for (const ref of refs) { if (!index.resolve(ref)) fail('字幕引用已失效'); moving.add(key(ref)); }
-    for (const group of bindingGroups(project, sourceRecords(project))) {
+    for (const group of flatView(project) ? [] : bindingGroups(project, sourceRecords(project))) {
       if (group.some(row => moving.has(key(row)))) for (const row of group) moving.add(key(row));
     }
     for (const ref of project.subtitle_tracks.assignments) {
@@ -321,6 +326,7 @@
   function layout(project, extensionTrackId, extensionVisible = true) {
     const owners = ownerMap(project), bands = [], positions = new Map();
     for (const track of project.subtitle_tracks.tracks) {
+      if (flatView(project)) { bands.push({track,roles:track.collapsed?[]:['main','extension'],size:1}); continue; }
       const secondary = track.show_secondary === true || (extensionVisible && project.multi_subtitle?.tracks
         ?.find(t => t.id === extensionTrackId)?.segments.some(c => owners.get(key({ role: 'extension', track_id: extensionTrackId, cue_id: c.id })) === track.id));
       bands.push({ track, roles: track.collapsed ? [] : ['main', ...(secondary ? ['extension'] : [])], size: track.collapsed ? 1 : secondary ? 2 : 1 });
@@ -329,12 +335,12 @@
     let offset = 0;
     for (const band of bands) {
       band.top = offset; band.bottom = count - offset - band.size;
-      band.roles.forEach((role, i) => positions.set(JSON.stringify([band.track.id, role]), count - offset - i - 1));
+      band.roles.forEach((role, i) => positions.set(JSON.stringify([band.track.id, role]), count - offset - (flatView(project)?0:i) - 1));
       offset += band.size;
     }
     return { count, bands, positions, owners };
   }
-  const api = { SCHEMA, TRACK_SCHEMA, LEGACY_TRACK_SCHEMA, purpose, placement, styleKind, key, migrate, validate, createIndex, assign,
+  const api = { SCHEMA, TRACK_SCHEMA, LEGACY_TRACK_SCHEMA, flatView, purpose, placement, styleKind, key, migrate, validate, createIndex, assign,
     ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;

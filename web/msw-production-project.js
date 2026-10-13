@@ -1,0 +1,245 @@
+// Reversible operation view for the existing MSWE components. Physical track
+// ownership and global cue IDs are independent of the two list display columns.
+(function(global) {
+  'use strict';
+  const core=global.MSWFlatSubtitles||(typeof require==='function'?require('./msw-flat-subtitles.js'):null);
+  const legacy=global.MSWSubtitleTracks||(typeof require==='function'?require('./msw-subtitle-tracks.js'):null);
+  const layers=global.MSWSubtitleLayers||(typeof require==='function'?require('./msw-subtitle-layers.js'):null);
+  const clone=v=>JSON.parse(JSON.stringify(v));
+  const EXT='flat-list-secondary';
+  const structural=['segments','multi_subtitle','subtitle_tracks','subtitle_layers','overlay_track'];
+  const isView=p=>p?.subtitle_tracks?.flat_context?.schema==='msw.flat-operation-view.v1';
+  const extras=(value,keys)=>Object.fromEntries(Object.entries(value).filter(([k])=>!keys.includes(k)));
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  function fromProject(input) {
+    const p=core.migrate(input),m=p.subtitles,view=clone(p);delete view.subtitles;view.schema=legacy.SCHEMA;
+    const context={schema:'msw.flat-operation-view.v1',model:extras(m,['tracks','cues','bindings']),
+      tracks:{},cues:{},bindings:{},markers:{}};
+    const right=new Set(m.bindings.map(b=>b.target_id)),left=new Set(m.bindings.map(b=>b.source_id));
+    const aliases=new Map((m.migration?.identities||[]).map(a=>[a.id,a]));
+    const trackMap=new Map(m.tracks.map(t=>[t.id,t]));
+    for(const c of m.cues)if(!left.has(c.id)&&!right.has(c.id)
+      && (Array.isArray(p.subtitle_view?.secondary_cue_ids)?p.subtitle_view.secondary_cue_ids.includes(c.id)
+        :p.subtitle_view?.right_track_id===c.track_id||aliases.get(c.id)?.role==='extension'||trackMap.get(c.track_id).style.slot==='secondary'))right.add(c.id);
+    view.segments=[];
+    const secondary=[];
+    for(const c of m.cues) {
+      context.cues[c.id]=extras(c,['id','track_id','content']);
+      (right.has(c.id)?secondary:view.segments).push({id:c.id,...clone(c.content)});
+    }
+    for(const rows of [view.segments,secondary])rows.sort((a,b)=>a.start-b.start||a.end-b.end);
+    const byId=new Map(m.cues.map(c=>[c.id,c]));
+    for(const rows of [view.segments,secondary])for(const c of rows)for(const field of ['color','sticker']) {
+      const ref=c[field+'_ref'];if(!ref)continue;
+      const head=rows.findIndex(a=>a.id===ref.cue_id);
+      if(head>=0&&head<rows.indexOf(c)){c[field+'_ref']={...ref,headIdx:head};delete c[field+'_ref'].cue_id;}
+      else {
+        c[field]=clone(byId.get(ref.cue_id).content[field]);delete c[field+'_ref'];
+        (context.markers[c.id]||={})[field]={ref:clone(ref),value:clone(c[field])};
+      }
+    }
+    const oldMulti=m.migration?.structure?.multi_subtitle||{};
+    view.multi_subtitle={...clone(extras(oldMulti,['tracks','bindings'])),schema:'moy.asr.multi_subtitle.v1',
+      enabled:secondary.length>0||m.tracks.some(t=>t.style.slot==='secondary'),
+      display_mode:p.subtitle_view?.display_mode||oldMulti.display_mode||'both',
+      main_split_mode:p.subtitle_view?.main_split_mode||oldMulti.main_split_mode,
+      tracks:[{id:EXT,role:'extension',name:'绑定字幕',language:'',split_mode:p.subtitle_view?.secondary_split_mode||oldMulti.tracks?.[0]?.split_mode,segments:secondary}],bindings:[]};
+    if(view.multi_subtitle.main_split_mode===undefined)delete view.multi_subtitle.main_split_mode;
+    if(view.multi_subtitle.tracks[0].split_mode===undefined)delete view.multi_subtitle.tracks[0].split_mode;
+    for(const b of m.bindings) {
+      context.bindings[b.id]=extras(b,['source_id','target_id','start_offset_ms','end_offset_ms']);
+      view.multi_subtitle.bindings.push({id:b.id,track_id:EXT,main_segment_ids:[b.source_id],extension_segment_ids:[b.target_id],
+        start_offset_ms:b.start_offset_ms,end_offset_ms:b.end_offset_ms});
+    }
+    view.subtitle_layers=clone(m.migration?.structure?.subtitle_layers||layers.migrate({segments:[]}).subtitle_layers);
+    view.subtitle_layers.legacy_overlay={...view.subtitle_layers.legacy_overlay,visible:false,cue_ids:m.cues.filter(c=>c.hidden&&!right.has(c.id)).map(c=>c.id)};
+    view.subtitle_tracks={schema:legacy.TRACK_SCHEMA,presentation:'fixed',tracks:m.tracks.map(t=>{
+      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position']);
+      return {id:t.id,name:t.name,purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
+        origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+        style:clone(extras(t.style,['slot','base'])),flat_style_slot:t.style.slot,...(t.position?{position:clone(t.position)}:{})};
+    }),assignments:m.cues.map(c=>({role:right.has(c.id)?'extension':'main',track_id:right.has(c.id)?EXT:null,cue_id:c.id,subtitle_track_id:c.track_id})),flat_context:context};
+    legacy.validate(view);return view;
+  }
+  function toProject(view) {
+    if(!isView(view))return core.migrate(view);
+    legacy.validate(view);
+    const p=clone(view),context=view.subtitle_tracks.flat_context;
+    for(const field of structural)delete p[field];
+    p.schema=core.SCHEMA;
+    const m={...clone(context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
+    const owners=legacy.ownerMap(view),allIds=new Set();
+    for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
+      id:t.id,name:t.name,purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+      style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{})});
+    const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
+    for(const source of sources)for(const value of source.segments) {
+      const content=clone(value);delete content.id;
+      for(const field of ['color','sticker']) {
+        const ref=content[field+'_ref'];
+        if(ref){const head=source.segments[ref.headIdx];if(!head)throw Error('字幕标记引用已失效');content[field+'_ref']={...ref,cue_id:head.id};delete content[field+'_ref'].headIdx;}
+        else {const original=context.markers[value.id]?.[field];if(original&&same(content[field],original.value)) {
+          const head=sources.flatMap(s=>s.segments).find(c=>c.id===original.ref.cue_id);
+          if(head&&same(head[field],original.value)){content[field+'_ref']=clone(original.ref);delete content[field];}
+        }}
+        if(content[field]==null)delete content[field];if(content[field+'_ref']==null)delete content[field+'_ref'];
+      }
+      if(content.items==null)delete content.items;
+      const extra=clone(context.cues[value.id]||{});
+      const c={...extra,id:value.id,track_id:owners.get(legacy.key({...source,cue_id:value.id})),content};
+      if(source.role==='main'&&view.subtitle_layers.legacy_overlay.cue_ids.includes(c.id))c.hidden=!view.subtitle_layers.legacy_overlay.visible;
+      m.cues.push(c);allIds.add(c.id);
+    }
+    for(const b of view.multi_subtitle?.bindings||[])m.bindings.push({...clone(context.bindings[b.id]||{}),id:b.id,
+      source_id:b.main_segment_ids[0],target_id:b.extension_segment_ids[0],start_offset_ms:b.start_offset_ms||0,end_offset_ms:b.end_offset_ms||0});
+    // Display preference is not a track relationship.
+    p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.map(c=>c.id)),
+      ...(view.multi_subtitle?.main_split_mode?{main_split_mode:view.multi_subtitle.main_split_mode}:{}),...(view.multi_subtitle?.tracks[0]?.split_mode?{secondary_split_mode:view.multi_subtitle.tracks[0].split_mode}:{})};
+    core.validate(p);return p;
+  }
+  function translation(view,selection,destination='',outputMode='secondary') {
+    let p=toProject(view);const F=global.MSWFlatProcessing,E=global.MSWFlatEditing;
+    const ids=translationIds(view,selection);
+    if(!ids.length)throw Error('请先选择要翻译的字幕');
+    const peers=[...new Set(ids.map(id=>E.partner(p,id)?.track_id).filter(Boolean))];
+    if(!destination&&peers.length>1)throw Error('所选字幕绑定到不同轨道，请分批翻译或选择目标轨道');
+    let target=destination||peers[0],created;
+    if(!target||target==='new') {
+      created={id:global.MSWProject.id('subtitle-track'),name:'译字幕',purpose:'translation',layout:'auto',enabled:true,locked:false,collapsed:false,
+        style:{mode:'inherit',slot:'secondary',base:'dialogue'}};
+      p=core.addTrack(p,created);target=created.id;
+    }
+    const snap=F.translation(p,ids,target);
+    return {...snap,output_mode:outputMode,...(created?{created_subtitle_track:created}:{})};
+  }
+  function translationIds(view,selection) {
+    const ids=new Set([...(selection.mainIds||[]),...(selection.extensionIds||[])]);
+    for(const b of view.multi_subtitle?.bindings||[])if(ids.has(b.main_segment_ids[0]))ids.delete(b.extension_segment_ids[0]);
+    return [...ids];
+  }
+  function place(view,rows,bindings,anchor,ownerId) {
+    const E=global.MSWFlatEditing,id=global.MSWProject.id;let p=toProject(view);
+    if(!rows.length)return {project:clone(view),ids:[]};
+    const owner=E.track(p,ownerId);if(!owner||owner.locked)throw Error('请选择未锁定的字幕轨道');
+    const primary=rows[0].track_id,mapping=new Map([[primary,ownerId]]),occupied=new Set([ownerId]);
+    for(const r of rows)if(!mapping.has(r.track_id)) {
+      let target=E.track(p,r.track_id);
+      if(!target||occupied.has(target.id)) {
+        target={...clone(owner),id:id('subtitle-track'),name:owner.name+' · 绑定字幕',locked:false,collapsed:false,style:{mode:'inherit',slot:'secondary',base:owner.style.base}};
+        p=core.addTrack(p,target);
+      }
+      if(target.locked)throw Error('粘贴涉及锁定轨道');mapping.set(r.track_id,target.id);occupied.add(target.id);
+    }
+    const shift=anchor-Math.min(...rows.map(c=>c.content.start)),ids=new Map(rows.map(c=>[c.id,id('cue')]));
+    for(const row of rows) {
+      const content=clone(row.content);
+      for(const field of ['color','sticker'])if(content[field+'_ref']) {
+        const head=rows.find(c=>c.id===content[field+'_ref'].cue_id);
+        if(!head)throw Error('复制内容缺少字幕标记，请重新复制');content[field]=clone(head.content[field]);delete content[field+'_ref'];
+      }
+      content.start+=shift;content.end+=shift;
+      for(const item of content.items||[]){item.start+=shift;item.end+=shift;}
+      for(const field of ['color','sticker'])if(content[field]){content[field].start=content.start;content[field].end=content.end;}
+      E.frame(p,content);p.subtitles.cues.push({...clone(row),id:ids.get(row.id),track_id:mapping.get(row.track_id),content});
+    }
+    for(const b of bindings)if(ids.has(b.source_id)&&ids.has(b.target_id))p.subtitles.bindings.push({...clone(b),id:id('binding'),source_id:ids.get(b.source_id),target_id:ids.get(b.target_id)});
+    core.validate(p);return {project:fromProject(p),ids:[...ids.values()]};
+  }
+  function insertAssets(view,ids,anchor,ownerId,normalize) {
+    const assets=view.msw.subtitle_assets.filter(a=>ids.includes(a.id));
+    if(!assets.length)throw Error('请选择字幕素材');
+    if(new Set(assets.map(a=>a.source_id)).size>1)throw Error('请分批插入不同来源的字幕素材');
+    if(!Number.isSafeInteger(anchor)||anchor<0)throw Error('插入位置无效');
+    const rows=assets.map(a=>{const content=normalize({start:a.original_start,end:a.original_start+a.end-a.start,text:a.text,
+      ...(a.items?{items:a.items.map(i=>({...clone(i),start:i.start+a.original_start-a.start,end:i.end+a.original_start-a.start}))}:{}),...(a.color?{color:clone(a.color)}:{}),
+      ...(a.style?{style:clone(a.style)}:{}),...(a.split_mode?{split_mode:a.split_mode}:{})});
+      return {id:a.id,track_id:a.subtitle_track_id||a.track_id||'main',content};});
+    const links=[];
+    for(const batch of view.msw.asset_batches||[])for(const b of batch.bindings||[]) {
+      const a=assets.find(a=>a.batch_id===batch.id&&a.source_cue_id===b.main_segment_ids[0]),z=assets.find(a=>a.batch_id===batch.id&&a.source_cue_id===b.extension_segment_ids[0]);
+      if(a&&z)links.push({id:b.id,source_id:a.id,target_id:z.id,start_offset_ms:b.start_offset_ms,end_offset_ms:b.end_offset_ms});
+    }
+    const result=place(view,rows,links,anchor,ownerId);return {...result,count:rows.length,rows:assets.map(a=>({id:a.id,text:a.text,reason:''}))};
+  }
+  function importSubtitles(view,segments,ownerId,name,{replace=false,matches=[],sources=[]}={}) {
+    const E=global.MSWFlatEditing,makeId=global.MSWProject.id;let p=toProject(view);
+    const owner=E.track(p,ownerId);if(!owner||owner.locked)throw Error('请选择未锁定的字幕轨道');
+    const incoming=core.migrate({segments:segments.map((c,i)=>({...clone(c),id:'import-'+i}))});
+    if(replace)p=E.remove(p,p.subtitles.cues.filter(c=>c.track_id===ownerId).map(c=>c.id));
+    const tracks=new Map();
+    for(const [index,t] of incoming.subtitles.tracks.entries()) {
+      const target=replace&&index===0?owner:{...clone(t),id:makeId('subtitle-track'),name:name+(index?' · '+(index+1):''),
+        style:{mode:'inherit',base:'dialogue',slot:replace?(owner.style.slot||'main'):'secondary'}};
+      if(target!==owner)p=core.addTrack(p,target);tracks.set(t.id,target.id);
+    }
+    const ids=new Map(),aliases=new Map(incoming.subtitles.migration.identities.map(a=>[a.id,a.cue_id]));
+    for(const c of incoming.subtitles.cues)ids.set(c.id,makeId('cue'));
+    const byIndex=new Map();
+    for(const c of incoming.subtitles.cues) {
+      const value=clone(c);value.id=ids.get(c.id);value.track_id=tracks.get(c.track_id);
+      value.content.items||=[];
+      for(const field of ['color','sticker'])if(value.content[field+'_ref'])value.content[field+'_ref'].cue_id=ids.get(value.content[field+'_ref'].cue_id);
+      E.frame(p,value.content);p.subtitles.cues.push(value);byIndex.set(Number(aliases.get(c.id)?.replace('import-','')),value.id);
+    }
+    let bound=0;
+    if(!replace)for(const match of matches) {
+      const source=sources[match.mainIndex],target=byIndex.get(match.extensionIndex);
+      if(source&&target&&!E.relation(p,source.id)) {p=core.bind(p,source.id,target,makeId('binding'));bound++;}
+    }
+    p.subtitle_view={...p.subtitle_view,secondary_cue_ids:[...(p.subtitle_view?.secondary_cue_ids||[]),
+      ...(!replace||owner.style.slot==='secondary'?[...ids.values()]:[])]};
+    core.validate(p);return {project:p,ids:[...ids.values()],bound};
+  }
+  function swapColumns(view) {
+    const p=toProject(view),right=new Set(p.subtitle_view.secondary_cue_ids);
+    p.subtitle_view.secondary_cue_ids=p.subtitles.cues.filter(c=>!right.has(c.id)).map(c=>c.id);
+    [p.subtitle_view.main_split_mode,p.subtitle_view.secondary_split_mode]=[p.subtitle_view.secondary_split_mode,p.subtitle_view.main_split_mode];
+    for(const key of ['main_split_mode','secondary_split_mode'])if(p.subtitle_view[key]===undefined)delete p.subtitle_view[key];
+    for(const b of p.subtitles.bindings) {
+      [b.source_id,b.target_id]=[b.target_id,b.source_id];b.start_offset_ms=-b.start_offset_ms;b.end_offset_ms=-b.end_offset_ms;
+    }
+    core.validate(p);return p;
+  }
+  // Candidate edits can be applied again, but only while their last result is
+  // unchanged. Restore just the touched cues, never an entire stale project.
+  function applyResults(view,media,jobs,target) {
+    const F=global.MSWFlatProcessing,E=global.MSWFlatEditing,R=global.MSWResults;
+    let p=toProject(view);R.register(p.msw,jobs);const batch=R.record(p.msw,jobs[0]),revision=R.revision(jobs),previous=batch.applications[target];
+    if(previous?.revision===revision)return {duplicate:true};
+    if(previous?.state?.flat) {
+      const state=previous.state,ids=new Set([...state.before.cues,...state.after.cues].map(c=>c.id));
+      const current={cues:p.subtitles.cues.filter(c=>ids.has(c.id)),bindings:p.subtitles.bindings.filter(b=>ids.has(b.source_id)||ids.has(b.target_id))};
+      const ordered=x=>({cues:[...x.cues].sort((a,b)=>a.id.localeCompare(b.id)),bindings:[...x.bindings].sort((a,b)=>a.id.localeCompare(b.id))});
+      if(!F.same(ordered(current),ordered(state.after)))throw Error('已应用的字幕又被编辑，未覆盖；可先撤销编辑或将候选存入素材库');
+      p.subtitles.cues=p.subtitles.cues.filter(c=>!ids.has(c.id)).concat(clone(state.before.cues));
+      p.subtitles.bindings=p.subtitles.bindings.filter(b=>!ids.has(b.source_id)&&!ids.has(b.target_id)).concat(clone(state.before.bindings));
+    }
+    const before=clone(p.subtitles);
+    for(const raw of jobs) {
+      const job=clone(raw),s=job.snapshot;
+      if(s?.project_schema!==core.SCHEMA)throw Error('这是迁移前的处理记录，请重新处理或先存入素材库');
+      p.msw.applied_results=(p.msw.applied_results||[]).filter(id=>id!==job.id);
+      if(job.kind==='translation'&&target==='main') {
+        if(job.project_id!==p.msw.project_id||job.status!=='succeeded')throw Error('翻译结果不属于当前工程');
+        for(const entry of s.entries) {
+          const original=s.flat_model.cues.find(c=>c.id===entry.source.id),now=E.cue(p,entry.source.id);
+          if(!F.same(original,now))throw Error('翻译来源已变化，未覆盖');
+          E.editable(p,[now.id]);
+          const row=job.result.translations.find(r=>r.id===now.id);if(!row?.text?.trim())throw Error('翻译结果缺少字幕');
+          now.content.text=row.text;delete now.content.items;now.content._dirty=true;
+        }
+        p.msw.applied_results.push(job.id);
+      } else {
+        if(job.kind==='translation'&&s.created_subtitle_track&&!E.track(p,s.subtitle_track_id))p=core.addTrack(p,clone(s.created_subtitle_track));
+        p=(job.kind==='asr'?F.applyAsr(p,job,media,global.MSWProject.id):F.applyTranslation(p,job,global.MSWProject.id)).project;
+      }
+    }
+    const old=new Map(before.cues.map(c=>[c.id,c])),now=new Map(p.subtitles.cues.map(c=>[c.id,c]));
+    const ids=new Set([...old.keys(),...now.keys()].filter(id=>!F.same(old.get(id),now.get(id))));
+    const subset=m=>({cues:m.cues.filter(c=>ids.has(c.id)),bindings:m.bindings.filter(b=>ids.has(b.source_id)||ids.has(b.target_id))});
+    R.record(p.msw,jobs[0]).applications[target]={revision,state:{flat:true,before:previous?.state?.flat?previous.state.before:subset(before),after:subset(p.subtitles)}};
+    core.validate(p);return {project:fromProject(p),count:ids.size};
+  }
+  const api={isView,fromProject,toProject,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,EXT};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
+})(typeof globalThis!=='undefined'?globalThis:this);

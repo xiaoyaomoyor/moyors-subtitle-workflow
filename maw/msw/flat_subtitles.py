@@ -1,6 +1,6 @@
 """Role-independent subtitle model; mirrored by web/msw-flat-subtitles.js.
 
-This is the v4 data foundation, not the production editor's default format.
+This is the production editor's v4 subtitle format.
 Content is stored once. Legacy identities are aliases, never array positions.
 """
 from __future__ import annotations

@@ -51,7 +51,14 @@ class FlatSubtitlesTests(unittest.TestCase):
                 self.assertEqual(core.legacy_projection(actual), old.migrate_project(before))
                 self.assertEqual(len(actual["subtitles"]["cues"]), len({c["id"] for c in actual["subtitles"]["cues"]}))
                 self.assertFalse(set(core.STRUCTURAL) & set(actual))
-                self.assertFalse(validate_project(actual).ok)  # Not enabled in production yet.
+                validation = validate_project(actual)
+                if f['name'] == 'collision-hidden-references':
+                    # This codec fixture intentionally uses incomplete ancillary
+                    # assets/jobs. Lossless migration must not make them valid.
+                    self.assertFalse(validation.ok)
+                    self.assertTrue(all(e.path.startswith('$.msw.') for e in validation.errors))
+                else:
+                    self.assertTrue(validation.ok, validation.errors)
 
     def test_move_bind_unbind_are_symmetric_and_role_independent(self):
         p = sample()

@@ -21,6 +21,9 @@
   let requestInFlight = false;
   let pendingSubmission = null;
   let loadingProviders = null, savingSettings = false, providerError = '';
+  const destinationRow=document.createElement('label');destinationRow.className='msw-processing-field';destinationRow.textContent='译文轨道';
+  const destination=document.createElement('select');destination.id='translation-destination';destination.setAttribute('aria-label','译文轨道');destinationRow.append(destination);
+  el('translation-scope').after(destinationRow);
 
   function message(value, error = false) {
     el('translation-message').textContent = t(value);
@@ -57,9 +60,15 @@
     return data;
   }
   function updateScope() {
+    const flat=global.MSWProductionProject?.isView(host.data),selectedDestination=destination.value;
+    destinationRow.hidden=!flat;
+    if(flat) {
+      destination.replaceChildren(new Option('跟随绑定／新建译字幕轨道',''),new Option('新建译字幕轨道','new'),...host.data.subtitle_tracks.tracks.filter(t=>t.enabled&&!t.locked).map(t=>new Option(t.name,t.id)));
+      if([...destination.options].some(o=>o.value===selectedDestination))destination.value=selectedDestination;
+    }
     const selection = host.selection();
     const scope = global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
-    el('translation-scope').textContent = `${t(scope.sources.length ? '范围：选中的主字幕' : '范围：未选择字幕')} · ${scope.sources.length}`
+    el('translation-scope').textContent = `${t(scope.sources.length ? (flat?'范围：选中的字幕':'范围：选中的主字幕') : '范围：未选择字幕')} · ${scope.sources.length}`
       + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
     const ready = updateEnvironment();
     el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || (!pendingSubmission && !scope.sources.length);
@@ -210,7 +219,7 @@
     }
     const generation = host.generation;
     try {
-      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture() : null;
+      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture('secondary',destination.value) : null;
       requestInFlight = true; updateScope();
       if(kind === 'connection_test') report('正在验证连接…');
       const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),

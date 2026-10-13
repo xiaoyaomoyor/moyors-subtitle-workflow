@@ -196,8 +196,6 @@ class AudioExports:
         settings.setdefault("hardware_encoder", "auto")
         settings.setdefault("collect_media", True)
         settings.setdefault('burn_subtitles', 'none')
-        if project.get('schema') == 'msw.project.v4' and (settings['format'] == 'otioz' or settings['burn_subtitles'] not in {'none', 'both'}):
-            raise ValueError('平级工程请使用音频／视频导出，烧录范围为所有启用轨道')
         if (settings["format"] not in {"wav", "mp4", "otioz"} or settings["video_tail"] not in {"ask", "truncate", "freeze", "black"}
                 or settings["video_encoding"] not in {"auto", "h264", "hardware"}
                 or settings['hardware_encoder'] not in {'auto', *HARDWARE} or type(settings["collect_media"]) is not bool):

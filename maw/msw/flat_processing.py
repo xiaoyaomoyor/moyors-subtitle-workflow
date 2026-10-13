@@ -40,7 +40,10 @@ def translation_snapshot(raw):
     # Validate the provider's timed-text batch through the existing overlap-safe
     # validator. This is a task input, never a serialized legacy project.
     clean = validate_snapshot({**raw, 'project_schema': 'msw.project.v2'})
-    return {**clean, **extra}
+    created = raw.get('created_subtitle_track')
+    if created is not None and created != next((t for t in extra['flat_model']['tracks'] if t['id'] == extra['subtitle_track_id']), None):
+        raise ValueError('新增译文轨道与快照不一致')
+    return {**clean, **extra, **({'created_subtitle_track': deepcopy(created)} if created is not None else {})}
 
 
 def asr_snapshot(raw):

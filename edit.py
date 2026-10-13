@@ -488,7 +488,8 @@ def main():
     # 保持输出与源码一致为 LF，避免 Windows 文本模式转换成 CRLF。
     output_path.write_bytes(page.encode("utf-8"))
     print(f"编辑页面已生成: {output_path}")
-    segments = data["segments"]
+    segments = ([cue['content'] for cue in data['subtitles']['cues']]
+                if data.get('schema') == 'msw.project.v4' else data["segments"])
     assert isinstance(segments, list)
     print(f"段落数: {len(segments)}")
     print(f"媒体: {media_path}")

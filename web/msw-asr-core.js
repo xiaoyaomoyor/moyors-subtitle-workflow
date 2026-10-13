@@ -40,6 +40,7 @@
     return {track_id:track?.id || null,targets:owned(project,(track?.segments || []).filter(c => overlaps(c,range)),'extension',track?.id,owner).map(canonical)};
   }
   function snapshot(project,media,mode,range,subtitleTrackId=null) {
+    if(global.MSWProductionProject?.isView(project))return global.MSWFlatProcessing.asr(global.MSWProductionProject.toProject(project),media,targetTrack(project,subtitleTrackId).id,mode==='whole'?null:range);
     if (!media || !media.revision || !media.metadata?.duration_ms || !media.metadata.audio_tracks?.length) throw Error('请先导入包含音轨的媒体');
     const owner=targetTrack(project,subtitleTrackId);
     const duration=media.metadata.duration_ms;
@@ -57,7 +58,9 @@
       const asset=(project.msw.assets||[]).find(a=>a.id===clip.asset_id);
       if(!asset)throw Error('所选贴片缺少音频素材');
       const range={start:clip.start_ms,end:clip.start_ms+Math.max(1,Math.ceil((clip.source_out_sample-clip.source_in_sample)*1000/asset.sample_rate))};
-      return {project_id:project.msw.project_id,project_schema:project.schema,mode:'clips',range,...(owner?{subtitle_track_id:owner.id,subtitle_track_name:owner.name}:{}),secondary:secondarySnapshot(project,range,owner?.id),targets:owned(project,affected(project,'range',range),'main',null,owner?.id).map(canonical),
+      const native=global.MSWProductionProject?.isView(project)?global.MSWProductionProject.toProject(project):null;
+      return {project_id:project.msw.project_id,project_schema:project.schema,mode:'clips',range,...(owner?{subtitle_track_id:owner.id,subtitle_track_name:owner.name}:{}),secondary:secondarySnapshot(project,range,owner?.id),targets:native?native.subtitles.cues.filter(c=>c.track_id===owner.id&&overlaps(c.content,range)).map(c=>({id:c.id,...clone(c.content)})):owned(project,affected(project,'range',range),'main',null,owner?.id).map(canonical),
+        ...(native?global.MSWFlatProcessing.capture(native):{}),
         source:{kind:'clip',id:asset.id,revision:asset.sha256,name:clip.label||asset.generation.display_text,reference:'',audio_index:0,
           duration_ms:Math.ceil(asset.sample_count*1000/asset.sample_rate),
           clip:Object.fromEntries(['id','asset_id','start_ms','source_in_sample','source_out_sample','playback_rate'].map(k=>[k,clip[k]]))}};

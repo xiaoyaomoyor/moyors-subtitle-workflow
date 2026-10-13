@@ -10,6 +10,7 @@ function getProjectExtensionFields(project) {
   return Object.fromEntries(Object.entries(project).filter(([key]) => !CANONICAL_PROJECT_FIELDS.has(key)));
 }
 function validateProjectForLoad(project) {
+  if((productionFlatRequested||window.MSWFlatTrialRequested)&&project?.schema===window.MSWFlatSubtitles.SCHEMA){window.MSWFlatSubtitles.validate(project);const extension=window.MSWProject.normalize(project.msw);window.MSWAudio.assertCapacity(extension);return extension;}
   if (!(fixedTracksRequested && project?.schema === fixedTrackCore.SCHEMA) && !window.AsrEditorUtils.supportsProjectSchema(project)) {
     const message = '此工程的格式版本不受支持，请使用对应版本的编辑器打开';
     throw new Error(window.MSWE_I18N?.translateText?.(message) || message);
@@ -6543,6 +6544,7 @@ function beginPendingExtensionBinding(index, track = getActiveExtensionTrack()) 
 }
 
 function bindSelectedSubtitlePair({ successMessage = null } = {}) {
+  if(productionFlatMode())return productionBindSelected();
   if (!multiSubtitleVisible()) return;
   if (selectedIdxs.size !== 1 || selectedExtensionIdxs.size !== 1) {
     flashHint('请分别选中一条主字幕和一条副字幕后再绑定', 'invalid');
@@ -6555,7 +6557,11 @@ function bindSelectedSubtitlePair({ successMessage = null } = {}) {
   const extension = track?.segments?.[extensionIndex];
   if (!main || !extension) return;
   if (!fixedCanEdit([main]) || !fixedCanEdit([extension], 'extension', track.id)) return;
-  if (fixedTrackMode() && fixedOwner(main) !== fixedOwner(extension, 'extension', track.id)) { fixedStatus('主副字幕需要先移到同一轨道再绑定'); return; }
+  if (fixedTrackMode() && (productionFlatMode()
+    ? fixedOwner(main) === fixedOwner(extension, 'extension', track.id)
+    : fixedOwner(main) !== fixedOwner(extension, 'extension', track.id))) {
+    fixedStatus(productionFlatMode()?'请选择不同轨道的字幕进行绑定':'主副字幕需要先移到同一轨道再绑定'); return;
+  }
   const replacedBinding = bindingForMainIndex(mainIndex);
   pushUndo('绑定双语字幕');
   addSubtitleBinding(main, extension, track);
@@ -8183,7 +8189,7 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         return;
       }
       let matched = !re || re.test(searchableText);
-      if (fixedTrackMode() && fixedTrackFilter && el.dataset.subtitleTrackId !== fixedTrackFilter) matched = false;
+      if (fixedTrackMode() && fixedTrackFilter && !(JSON.parse(el.dataset.subtitleTrackIds||'[]').includes(fixedTrackFilter)||el.dataset.subtitleTrackId===fixedTrackFilter)) matched = false;
       if (re) re.lastIndex = 0;
       if (matched && colorFilterSelection && !colorFilterSuspended()) {
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
@@ -13141,8 +13147,9 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (!multiSubtitleVisible()) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if(productionFlatMode()) { e.preventDefault();e.stopPropagation();if(e.shiftKey)unbindSelectedSubtitlePair();else productionBindSelected();return; }
+  if (!multiSubtitleVisible()) return;
   if (selectedExtensionIdxs.size !== 1) {
     e.preventDefault();
     e.stopPropagation();
@@ -15791,7 +15798,7 @@ function buildJson() {
     preview.extension_subtitle = { ...getStoredExtensionSubtitleAppearance() };
   }
   out.preview = preview;
-  return JSON.stringify(out, null, 2);
+  return JSON.stringify(productionFlatMode()?window.MSWProductionProject.toProject(out):out, null, 2);
 }
 
 // 保存/导出前的最后一道时间码兜底。波形拖动会把词时间码按像素取整，
@@ -19137,6 +19144,13 @@ function parseSrtSegments(text) {
 }
 
 function replaceMainTrack(segments, displayName = '字幕', { overlaySegments = null } = {}) {
+  if(productionFlatMode()) {
+    try {
+      commitProcessingEdits();
+      const next=MSWProductionProject.importSubtitles(DATA,[...segments,...(overlaySegments||[])],fixedActiveTrack().id,displayName.replace(/\.[^.]+$/i,''),{replace:true});
+      productionCommitProject(next.project,'替换轨道字幕',next.ids);return true;
+    }catch(error){flashHint(error.message,'warning');return false;}
+  }
   // 导入/替换主轨是字幕编辑操作，保留替换前的主轨和多字幕状态，
   // 这样用户可以用 Ctrl(Cmd)+Z 回到替换前，而不影响后续重做。
   // 先提交当前编辑区，再替换 DATA；否则 clearSelection() 在替换后提交旧面板
@@ -19229,8 +19243,9 @@ async function parseSubtitleImportFile(file) {
   const finishLoading = beginEditorLoading(`正在读取字幕 ${file.name}…`, 5);
   try {
     if (isSrtFile(file)) return parseSrtSegments(await readFileTextWithProgress(file));
-    const data = JSON.parse(await readFileTextWithProgress(file));
+    let data = JSON.parse(await readFileTextWithProgress(file));
     validateProjectForLoad(data);
+    if(data.schema==='msw.project.v4')data=MSWProductionProject.fromProject(data);
     if (!data || !Array.isArray(data.segments)) throw new Error('缺少有效 segments 数组');
     const sourceSegments = data.segments.map((segment) => {
       const copy = {
@@ -19306,7 +19321,8 @@ function renderProjectImportPreview(pending) {
 }
 
 async function showMultiSubtitleImportChoice(file, segments, options = {}) {
-  const existingTrack = getActiveExtensionTrack();
+  const existingTrack = productionFlatMode()?null:getActiveExtensionTrack();
+  const flatProject=productionFlatMode()?MSWProductionProject.toProject(DATA):null;
   const projectFile = options.projectFile || null;
   const projectImport = Boolean(projectFile);
   pendingMultiImport = {
@@ -19318,16 +19334,20 @@ async function showMultiSubtitleImportChoice(file, segments, options = {}) {
     projectFile,
     projectMediaFile: options.projectMediaFile || null,
     projectImport,
+    ...(flatProject?{flatOwnerId:fixedActiveTrack().id,flatSources:flatProject.subtitles.cues
+      .filter(c=>c.track_id===fixedActiveTrack().id&&!MSWFlatEditing.relation(flatProject,c.id)).map(c=>({id:c.id,...c.content}))}:{}),
   };
   if (multiSubtitleImportDescription) multiSubtitleImportDescription.textContent = '请选择你要执行的行为：';
   if (multiSubtitleImportReplace) {
     multiSubtitleImportReplace.textContent = projectImport
       ? '打开工程' : (existingTrack ? '替换副轨' : '替换当前字幕');
+    if(productionFlatMode()&&!projectImport)multiSubtitleImportReplace.textContent=`替换“${fixedActiveTrack().name}”`;
   }
   if (multiSubtitleImportExtension) {
     multiSubtitleImportExtension.hidden = projectImport ? false : Boolean(existingTrack);
     multiSubtitleImportExtension.textContent = projectImport
       ? '使用工程字幕作为副字幕' : '作为副字幕';
+    if(productionFlatMode())multiSubtitleImportExtension.textContent='导入新轨道并匹配绑定';
   }
   if (multiSubtitleImportChoiceActions) multiSubtitleImportChoiceActions.hidden = false;
   if (multiSubtitleImportResultActions) multiSubtitleImportResultActions.hidden = false;
@@ -19349,7 +19369,7 @@ function prepareMultiSubtitleImport() {
   if (!pending) return;
   pending.choice = pending.existingTrackId ? 'replace-extension' : 'extension';
   const match = layerMatchImportedSubtitles(
-    DATA.segments,
+    pending.flatSources||DATA.segments,
     pending.segments,
     MULTI_SUBTITLE_TOLERANCE_MS,
   );
@@ -19367,6 +19387,15 @@ function prepareMultiSubtitleImport() {
 function commitMultiSubtitleImport() {
   const pending = pendingMultiImport;
   if (!pending) return false;
+  if(productionFlatMode()) {
+    try {
+      commitProcessingEdits();
+      const result=MSWProductionProject.importSubtitles(DATA,pending.segments,pending.flatOwnerId,pending.file.name.replace(/\.[^.]+$/i,''),
+        {matches:pending.match?.matches||[],sources:pending.flatSources||[]});
+      productionCommitProject(result.project,'导入字幕轨道',result.ids);closeMultiSubtitleImportModal();
+      flashHint(`已导入 ${result.ids.length} 条字幕，绑定 ${result.bound} 对`,'success');return true;
+    }catch(error){flashHint(`导入字幕失败：${error.message}`,'warning');return false;}
+  }
   const match = pending.match || layerMatchImportedSubtitles(
     DATA.segments, pending.segments, MULTI_SUBTITLE_TOLERANCE_MS,
   );
@@ -19427,6 +19456,10 @@ function commitMultiSubtitleImport() {
 }
 
 function swapMainAndExtensionSubtitles() {
+  if(productionFlatMode()) {
+    try {commitProcessingEdits();productionCommitProject(MSWProductionProject.swapColumns(DATA),'交换主副字幕');return true;}
+    catch(error){flashHint(error.message,'warning');return false;}
+  }
   const multi = getMultiSubtitleState();
   const track = getActiveExtensionTrack();
   if (!multi.enabled) {
@@ -22586,6 +22619,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     if (!layerMode()) addItem('转为叠加字幕', '', () => convertMainCuesToOverlay([idx]));
   } else {
     // 组 1：合并与批量文本操作
+    if(productionFlatMode()&&targetIdxs.length===2)addItem('绑定所选字幕','G',()=>productionBindSelected());
     addItem('累加状态合并', 'C', () => mergeSegments(targetIdxs));
     addItem('共有状态合并', `${modKeyLabel()}+Shift+C`, () => mergeSegments(targetIdxs, 'common'));
     addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs));
@@ -24208,6 +24242,7 @@ function refreshClipboardMenuState() {
 }
 
 function copySelectedCues() {
+  productionCaptureClipboard();
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
   if (!idxs.length && !selectedExtensionIdxs.size && !selectedOverlayIdxs.size) return;
   cueClipboardSegments = idxs
@@ -24221,6 +24256,7 @@ function copySelectedCues() {
 }
 
 function cutSelectedCues() {
+  productionCaptureClipboard();
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
   if (!idxs.length && !selectedExtensionIdxs.size && !selectedOverlayIdxs.size) return;
   const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
@@ -24235,6 +24271,7 @@ function cutSelectedCues() {
 }
 
 function pasteCuesFromClipboard() {
+  if(productionFlatMode()&&productionClipboard)return productionPasteClipboard();
   if (!cueClipboardSegments?.length && !cueClipboardExtensionSegments?.length && !cueClipboardOverlaySegments.length) return;
   if (editingState) finishEdit(true);
   commitCuePanelEdit();
@@ -25196,7 +25233,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
       project = prepareLayerProject(project);
     }
     commitProcessingEdits();
-    const content = project ? JSON.stringify(window.AsrEditorUtils.stripInlineCaches(project), null, 2) : buildJson();
+    const content = project ? JSON.stringify(window.AsrEditorUtils.stripInlineCaches(window.MSWProductionProject.isView(project)?window.MSWProductionProject.toProject(project):project), null, 2) : buildJson();
     await downloadFile(content, name || `${FILENAME_BASE}.mosp`, 'application/json', {
       desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json', '.mosp-bak'] },
     }, { usePicker: false });
@@ -25207,10 +25244,14 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   draftSnapshot: () => {
     const snapshot = JSON.parse(buildJson());
     for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete snapshot[key];
-    if (editingState) snapshot.segments[editingState.idx].text = editingState.textEl.innerText.replace(/\r\n?/g, '\n').trimEnd();
+    if (editingState) {
+      const cue=snapshot.subtitles?.cues.find(c=>c.id===DATA.segments[editingState.idx]?.id)?.content||snapshot.segments?.[editingState.idx];
+      if(cue)cue.text=editingState.textEl.innerText.replace(/\r\n?/g, '\n').trimEnd();
+    }
     if (extensionEditingState) {
       const state = extensionEditingState;
-      const cue = snapshot.multi_subtitle?.tracks.find(track => track.id === state.trackId)?.segments[state.index];
+      const cue = snapshot.subtitles?.cues.find(c=>c.id===getExtensionTrack(state.trackId)?.segments[state.index]?.id)?.content
+        || snapshot.multi_subtitle?.tracks.find(track => track.id === state.trackId)?.segments[state.index];
       if (cue) cue.text = state.textEl.innerText.replace(/\r\n?/g, '\n').trimEnd();
     }
     return snapshot;
@@ -25350,11 +25391,11 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()
     || previewGesture || waveformPlayheadDragging || document.activeElement === cuePanelText
     || document.activeElement?.isContentEditable),
-  capture: (outputMode = 'secondary') => {
+  capture: (outputMode = 'secondary', destination = '') => {
     commitProcessingEdits();
     window.MSWProject.ensure(DATA);
     projectImportDirty = true;
-    return window.MSWTranslation.snapshot(DATA, processingSelection(), outputMode);
+    return window.MSWTranslation.snapshot(DATA, processingSelection(), outputMode, destination);
   },
   applyTranslation: applyTranslationJob,
   applyProcessing: applyProcessingResults,
@@ -25442,6 +25483,17 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   },
   fillAudioSubtitles: clips => {
     commitProcessingEdits();
+    if(productionFlatMode()) {
+      const p=window.MSWProductionProject.toProject(DATA),owner=fixedActiveTrack();
+      if(!owner||owner.locked)throw Error('请选择未锁定的字幕轨道');
+      const source={msw:DATA.msw,segments:p.subtitles.cues.filter(c=>c.track_id===owner.id).map(c=>({id:c.id,...c.content}))};
+      const plan=window.MSWAudioActions.fill(source,clips,c=>{syncSegmentTimebase(c,projectTimebase(DATA),{preferFrames:false});return c;});
+      if(plan.count) {
+        const old=new Set(source.segments.map(c=>c.id));for(const c of plan.segments.filter(c=>!old.has(c.id))) {const content={...c};delete content.id;p.subtitles.cues.push({id:c.id,track_id:owner.id,content});}
+        productionCommitProject(p,'补齐字幕');
+      }
+      return plan;
+    }
     const plan = window.MSWAudioActions.fill(DATA, clips, cue => {
       syncSegmentTimebase(cue, projectTimebase(DATA), {preferFrames: false}); return cue;
     });
@@ -25497,7 +25549,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     main:{...getPreviewGeometry(),...getSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayTextEl).fontSize)},
     secondary:{...getExtensionSubtitleAppearance(),font_size:parseFloat(getComputedStyle(overlayExtensionTextEl).fontSize)},
     viewportHeight:Math.max(1,playerStage.getBoundingClientRect().height)}),
-  audioExportPreview: () => ({ schema: DATA.schema, subtitle_tracks: DATA.subtitle_tracks, subtitle_layers: DATA.subtitle_layers, overlay_track: DATA.overlay_track, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
+  audioExportPreview: () => productionFlatMode()?{...window.MSWProductionProject.toProject(DATA),gap_remove:getGapRemoveData(false)}:({ schema: DATA.schema, subtitle_tracks: DATA.subtitle_tracks, subtitle_layers: DATA.subtitle_layers, overlay_track: DATA.overlay_track, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle, msw: DATA.msw, gap_remove: getGapRemoveData(false) }),
   audioExportDuration: () => Math.round(Math.max(
     Number.isFinite(player.duration) ? player.duration * 1000 : 0,
     Number(layerMode() ? waveformEditor?.sourceDurationMs : waveformEditor?.contentDurationMs) || 0,

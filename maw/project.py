@@ -205,8 +205,8 @@ class ProjectValidationFailed(ValueError):
 
 def project_schema_errors(project: Mapping[str, object]) -> tuple[ProjectValidationError, ...]:
     """Accept legacy projects without a discriminator, but never downgrade one."""
-    if "schema" in project and project["schema"] not in (PROJECT_SCHEMA, *LAYERED_SCHEMAS):
-        return (ProjectValidationError("$.schema", f"must be {PROJECT_SCHEMA} or {LAYER_PROJECT_SCHEMA} or {TRACK_PROJECT_SCHEMA}"),)
+    if "schema" in project and project["schema"] not in (PROJECT_SCHEMA, *LAYERED_SCHEMAS, 'msw.project.v4'):
+        return (ProjectValidationError("$.schema", f"must be {PROJECT_SCHEMA} or {LAYER_PROJECT_SCHEMA} or {TRACK_PROJECT_SCHEMA} or msw.project.v4"),)
     return ()
 
 
@@ -235,6 +235,19 @@ def _normalize_copy(project: JsonValue, errors: list[ProjectValidationError]) ->
         errors.append(ProjectValidationError("$", "must be an object"))
         return {"segments": []}
     normalized = copy.deepcopy(project)
+    if normalized.get('schema') == 'msw.project.v4':
+        from maw.msw.flat_subtitles import validate as validate_flat
+        from maw.msw.project_codec import validate_extension
+        try:
+            validate_flat(normalized)
+        except ValueError as exc:
+            errors.append(ProjectValidationError('$.subtitles', str(exc)))
+        errors.extend(ProjectValidationError(path, message) for path, message in validate_extension(normalized.get('msw')))
+        _validate_timebase(normalized, errors)
+        _validate_media_metadata(normalized, errors)
+        _validate_transcription_metadata(normalized, errors)
+        errors.extend(ProjectValidationError(path, message) for path, message in validate_preview(normalized))
+        return normalized
     errors.extend(project_schema_errors(normalized))
     normalized["schema"] = normalized.get("schema", PROJECT_SCHEMA)
     from maw.msw.project_codec import validate_extension

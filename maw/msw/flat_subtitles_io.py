@@ -1,7 +1,7 @@
-"""Explicit v4 migration codec. Current editor continues to open/save v3.
+"""Native v4 persistence and migration codec. CLI/read_project is read-only.
 
-Only ``--write-v4`` upgrades a file. Default CLI/read_project is read-only.
-Do not use on working projects until the flat editor integration is complete.
+The normal editor upgrades on save with an original-byte backup. The CLI only
+writes when explicitly invoked with ``--write-v4``.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def read_project(path):
     return FlatDocument(path, original, project)
 
 
-def save_project(document, project=None, *, cancelled=None):
+def save_project(document, project=None, *, cancelled=None, previous_backup=False):
     """Explicit write to original location; first upgrade has a byte backup.
 
     A revision can be used once. Cancellation/external changes reject before
@@ -52,6 +52,14 @@ def save_project(document, project=None, *, cancelled=None):
         source = legacy_io._decode(document.original)
         core.migrate_project(source)  # Reject unknown versions, even forged documents.
         backup = legacy_io._backup(document) if source.get("schema") != core.SCHEMA else None
+        if previous_backup:
+            previous = document.path.with_suffix(document.path.suffix + '.bak')
+            with atomic_output_path(previous) as pending:
+                with pending.open('wb') as handle:
+                    handle.write(document.original)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            backup = backup or previous
         with atomic_output_path(document.path) as pending:
             with pending.open("wb") as handle:
                 handle.write(encoded)
@@ -62,9 +70,9 @@ def save_project(document, project=None, *, cancelled=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="平级字幕 v4 数据迁移检查；默认只读。当前编辑器仍使用 v3。")
+    parser = argparse.ArgumentParser(description="平级字幕 v4 数据迁移检查；默认只读。")
     parser.add_argument("project", type=Path)
-    parser.add_argument("--write-v4", action="store_true", help="开发验收：备份并原位写入 v4；当前编辑器尚不能打开")
+    parser.add_argument("--write-v4", action="store_true", help="备份并原位写入 v4，可使用普通编辑器打开")
     args = parser.parse_args(argv)
     try:
         document = read_project(args.project)
@@ -77,7 +85,7 @@ def main(argv=None):
                 print(f"原始备份：{result.backup}")
         else:
             print("仅在内存迁移，原文件未修改。")
-        print("当前编辑器仍使用 v3；v4 界面、识别、翻译和导出接入属于下一阶段。")
+        print("可在普通编辑器中继续编辑；旧工程首次保存升级时保留原始备份。")
         return 0
     except (ValueError, OSError, TypeError, KeyError) as error:
         print(f"迁移失败：{error}")

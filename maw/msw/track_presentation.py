@@ -206,6 +206,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
     lines+=['','[Events]','Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
     for i,r in enumerate(entries):
         role='main' if r['role']=='main' else 'secondary'
+        if project.get('schema') == 'msw.project.v4' and 'secondary_cue_ids' in project.get('subtitle_view', {}):
+            role = 'secondary' if r['cue_id'] in project['subtitle_view']['secondary_cue_ids'] else 'main'
         if target not in ('both',role) or not r['size']['text'].strip():continue
         align=(r['style']['alignment']-1)%3
         padding=r['size']['padding']

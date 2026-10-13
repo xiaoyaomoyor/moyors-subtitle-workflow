@@ -1,5 +1,10 @@
 // Fixed tracks are the current project model; the explicit legacy query is for compatibility tests.
 const fixedTracksRequested = new URLSearchParams(location.search).get('subtitle-tracks') !== '0';
+const productionFlatRequested = !window.MSWFlatTrialRequested
+  && !new URLSearchParams(location.search).has('subtitle-tracks')
+  && new URLSearchParams(location.search).get('subtitle-layers') !== '0'
+  && new URLSearchParams(location.search).get('flat-production') !== '0';
+function productionFlatMode() { return window.MSWProductionProject.isView(DATA); }
 const fixedTrackCore = window.MSWSubtitleTracks;
 let fixedActiveTrackId = null;
 let fixedTrackFilter = '';
@@ -34,7 +39,7 @@ function fixedCueCreationContext(role = 'main') {
   const source = role === 'extension' ? getActiveExtensionTrack()?.segments || [] : DATA.segments;
   return { id: track?.id, locked: !track || track.locked,
     lane: fixedLayout().positions.get(JSON.stringify([track?.id, role])),
-    segments: source.filter(cue => fixedOwner(cue, role) === track?.id) };
+    segments: productionFlatMode()?layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>fixedOwner(c,s.role,s.track_id)===track?.id)):source.filter(cue => fixedOwner(cue, role) === track?.id) };
 }
 function fixedStatus(message = '') {
   const node = document.getElementById('fixed-track-status');
@@ -90,6 +95,19 @@ function fixedInherit(source, children) {
 }
 function fixedMergePlan(plan) {
   if (!fixedTrackMode()) return;
+  if (productionFlatMode()) {
+    const trial=fixedContent(),ownerById=new Map();
+    for(const change of plan.changes) {
+      const refs=[...change.ids].map(cue_id=>({role:change.role,track_id:change.track_id,cue_id}));
+      fixedTrackCore.assertEditable(DATA,refs);
+      const owners=new Set(refs.map(r=>fixedOwners().get(fixedTrackCore.key(r))));
+      if(owners.size!==1)throw Error('跨轨字幕不能直接合并，请先移到同一轨道');
+      const owner=[...owners][0];fixedDraftOwners.set(change.merged,{owner});ownerById.set(change.merged.id,owner);
+      (change.role==='main'?trial:trial.multi_subtitle.tracks.find(t=>t.id===change.track_id)).segments=structuredClone(change.segments);
+    }
+    trial.multi_subtitle.bindings=structuredClone(plan.bindings);
+    fixedTrackCore.reconcile(trial,row=>ownerById.get(row.cue_id));return;
+  }
   const refs = plan.changes.flatMap(change => [...change.ids].map(id => ({ role: change.role, track_id: change.track_id, cue_id: id })));
   fixedTrackCore.assertEditable(DATA, refs);
   const owners = fixedOwners(), values = new Set(refs.map(r => owners.get(fixedTrackCore.key(r))));
@@ -133,6 +151,7 @@ function fixedHitTrack(fromBottom) {
   const band = view.bands.find(b => lane >= b.bottom && lane < b.bottom + b.size);
   if (!band) return null;
   fixedActiveTrackId = band.track.id;
+  if(productionFlatMode())return band.track.flat_style_slot==='secondary'?'extension':'main';
   return band.roles.find(role => view.positions.get(JSON.stringify([band.track.id, role])) === lane) || 'main';
 }
 function fixedCommitProject(next, label) {
@@ -145,6 +164,41 @@ function fixedCommitProject(next, label) {
   fixedInvalidate(); projectImportDirty = true; fixedStatus();
   renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
   return true;
+}
+function productionCommitProject(project,label,ids=[]) {
+  const next=window.MSWProductionProject.fromProject(project);
+  fixedTrackCore.assertLocks(DATA,next);commitProcessingEdits();pushUndo(label,{captureView:true});
+  for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks','msw'])if(next[field])DATA[field]=next[field];
+  fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
+  DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
+  projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();
+}
+function productionBindSelected() {
+  try {
+    const ids=[...processingSelection().mainIds,...processingSelection().extensionIds];
+    if(ids.length!==2)throw Error('请选择不同轨道的两条字幕进行绑定');
+    let p=window.MSWProductionProject.toProject(DATA);
+    for(const b of p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id)))p=window.MSWFlatSubtitles.unbind(p,b.id);
+    const next=window.MSWFlatSubtitles.bind(p,ids[0],ids[1],window.MSWProject.id('binding'));
+    productionCommitProject(next,'绑定字幕',ids);
+  } catch(error){flashHint(error.message,'warning');}
+}
+let productionClipboard=null;
+function productionCaptureClipboard() {
+  if(!productionFlatMode()){productionClipboard=null;return;}
+  const p=window.MSWProductionProject.toProject(DATA),ids=new Set([...processingSelection().mainIds,...processingSelection().extensionIds]);
+  const rows=structuredClone(p.subtitles.cues.filter(c=>ids.has(c.id)));
+  for(const c of rows)for(const f of ['color','sticker'])if(c.content[f+'_ref']) {
+    c.content[f]=structuredClone(p.subtitles.cues.find(r=>r.id===c.content[f+'_ref'].cue_id).content[f]);delete c.content[f+'_ref'];
+  }
+  productionClipboard={rows,bindings:p.subtitles.bindings.filter(b=>ids.has(b.source_id)&&ids.has(b.target_id))};
+}
+function productionPasteClipboard() {
+  try {
+    const at=Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs()??player.currentTime*1000)||0;
+    const result=window.MSWProductionProject.place(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack().id);
+    productionCommitProject(window.MSWProductionProject.toProject(result.project),'粘贴字幕',result.ids);
+  }catch(error){flashHint(error.message,'warning');}
 }
 function fixedAddTrack(kind, refs = null) {
   try {
@@ -219,7 +273,7 @@ function fixedTrackMenu(track, x, y) {
   fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed }));
   fixedMenuItem(track.enabled ? '禁用轨道' : '启用轨道', () => fixedUpdateTrack(track.id, { enabled: !track.enabled }));
   fixedMenuItem(track.locked ? '解锁轨道' : '锁定轨道', () => fixedUpdateTrack(track.id, { locked: !track.locked }));
-  fixedMenuItem(track.show_secondary ? '按内容显示副字幕行' : '始终显示副字幕行', () => fixedUpdateTrack(track.id, { show_secondary: !track.show_secondary }));
+  if(!productionFlatMode())fixedMenuItem(track.show_secondary ? '按内容显示副字幕行' : '始终显示副字幕行', () => fixedUpdateTrack(track.id, { show_secondary: !track.show_secondary }));
   fixedMenuItem('新增字幕轨道', () => fixedAddTrack('subtitle'));
   for (const [delta, label] of [[-1, '上移轨道'], [1, '下移轨道']]) {
     const index = DATA.subtitle_tracks.tracks.findIndex(t => t.id === track.id);
@@ -245,19 +299,19 @@ function fixedRenderHeads(group, row, audioSpace) {
     node.classList.toggle('locked-track', track.locked);
     node.classList.toggle('current', fixedActiveTrack()?.id === track.id);
     node.style.bottom = `${7 + audioSpace + band.bottom * 38}px`; node.style.height = `${band.size * 38 - 4}px`;
-    if(track.collapsed||band.roles.includes('extension')) {
+    if(track.collapsed||!productionFlatMode()&&band.roles.includes('extension')) {
       const collapse = document.createElement('button'); collapse.type = 'button'; collapse.className='fixed-track-collapse';collapse.textContent = track.collapsed ? '›' : '⌄';
       collapse.title = track.collapsed ? '展开轨道' : '折叠轨道'; collapse.setAttribute('aria-label', collapse.title);
       collapse.onclick = () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed });node.append(collapse);
     }
     const name = document.createElement('button');name.type='button';name.className='fixed-track-toggle';name.textContent=track.name;
     name.setAttribute('aria-label',track.name);name.setAttribute('aria-pressed',String(track.enabled));
-    name.title = `${track.name}${track.locked ? ' · 已锁定' : ''}\n点击${track.enabled?'禁用':'启用'}本轨道（含主副字幕），右键管理`;
+    name.title = `${track.name}${track.locked ? ' · 已锁定' : ''}\n点击${track.enabled?'禁用':'启用'}本轨道${productionFlatMode()?'':'（含主副字幕）'}，右键管理`;
     name.onclick=()=>{const current=DATA.subtitle_tracks.tracks.find(t=>t.id===track.id);if(current)fixedUpdateTrack(current.id,{enabled:!current.enabled});};
     name.onkeydown=event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();const rect=name.getBoundingClientRect();fixedTrackMenu(track,rect.right,rect.bottom);}};
     node.append(name);
     if(track.locked){const lock=document.createElement('span');lock.className='fixed-track-lock';lock.setAttribute('aria-label','已锁定');lock.innerHTML='<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>';node.append(lock);}
-    if (band.roles.includes('extension')) { const roles = document.createElement('span'); roles.className = 'fixed-track-roles'; roles.textContent = '副字幕'; node.append(roles); }
+    if (!productionFlatMode()&&band.roles.includes('extension')) { const roles = document.createElement('span'); roles.className = 'fixed-track-roles'; roles.textContent = '副字幕'; node.append(roles); }
     for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu']) node.addEventListener(type, event => { event.stopPropagation(); if (type === 'contextmenu') { event.preventDefault(); fixedTrackMenu(track, event.clientX, event.clientY); } });
     group.append(node);
   }
@@ -294,7 +348,9 @@ function fixedSyncUI() {
     node.dataset.subtitleTrackId = track.id; node.classList.toggle('fixed-locked', track.locked); node.classList.toggle('fixed-disabled', !track.enabled);
     let badge = node.querySelector(':scope > .fixed-track-badge');
     if (!badge) { badge = document.createElement('span'); badge.className = 'fixed-track-badge'; node.prepend(badge); }
-    badge.textContent = track.name + (track.locked ? ' · 已锁定' : '');
+    const other=productionFlatMode()&&main&&ext?fixedTrack(ext,'extension'):null;
+    node.dataset.subtitleTrackIds=JSON.stringify([...new Set([track.id,other?.id].filter(Boolean))]);
+    badge.textContent = track.name + (other&&other.id!==track.id?' / '+other.name:'') + (track.locked ? ' · 已锁定' : '');
   });
 }
 document.addEventListener('contextmenu',event=>{
@@ -307,7 +363,7 @@ function fixedPanelUI(target) {
   let label = document.getElementById('fixed-cue-owner');
   if (!label) { label = document.createElement('span'); label.id = 'fixed-cue-owner'; document.querySelector('#current-cue-panel .module-tab-strip')?.after(label); }
   const track = target ? fixedTrack(target.segment, target.kind, target.trackId) : null;
-  label.textContent = track ? `${track.name} · ${target.kind === 'extension' ? '副字幕' : '主字幕'}${track.locked ? ' · 已锁定' : ''}` : '';
+  label.textContent = track ? `${track.name}${productionFlatMode()?'':' · '+(target.kind === 'extension' ? '副字幕' : '主字幕')}${track.locked ? ' · 已锁定' : ''}` : '';
   if (track) fixedActiveTrackId = track.id;
   if (track?.locked) for (const node of [cuePanelText, cuePanelStart, cuePanelDuration, cuePanelAddSticker, cuePanelSplit]) if (node) node.disabled = true;
 }
@@ -341,7 +397,7 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   const payload={project,target,video:{width:player.videoWidth||1920,height:player.videoHeight||1080}};
   if(removeGaps) {
     const intervals=[];let cursor=0,output=0;
-    const end=Math.max(1,...project.segments.map(c=>c.end),...(project.multi_subtitle?.tracks||[]).flatMap(t=>t.segments.map(c=>c.end)));
+    const end=Math.max(1,...(project.subtitles?.cues||[]).map(c=>c.content.end),...(project.segments||[]).map(c=>c.end),...(project.multi_subtitle?.tracks||[]).flatMap(t=>t.segments.map(c=>c.end)));
     for(const range of getRemovedGapRanges()) {
       const start=Math.min(end,range.start),finish=Math.min(end,range.end);
       if(start>cursor){intervals.push({start_ms:cursor,end_ms:start,output_start_ms:output});output+=start-cursor;}

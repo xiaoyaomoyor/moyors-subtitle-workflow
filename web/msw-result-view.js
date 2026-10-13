@@ -52,6 +52,9 @@
     }
     function refresh() {
       const jobs=chosen(),batch=host.data.msw.processing_results?.find(b=>b.id===selected);
+      const flat=global.MSWProductionProject?.isView(host.data);
+      primary.textContent=t(flat?(kind==='asr'?'应用到识别目标轨道':'替换所选原文'):'覆盖主字幕');
+      secondary.textContent=t(flat?'应用到译文轨道':'覆盖副字幕');secondary.parentElement.hidden=flat&&kind==='asr';
       selectedLabel.textContent=t('当前批次：')+(batch?t(prefix+'批次')+String(batch.number).padStart(2,'0'):t('未选择'));
       const invalid=!jobs.length || jobs.some(j=>!model.rows(j).length||model.rows(j).some(r=>!r.text?.trim()));
       for(const [target,{button,select}] of menus) {

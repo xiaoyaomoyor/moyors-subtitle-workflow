@@ -1,0 +1,74 @@
+import {test,expect} from '@playwright/test';
+import {createServer} from 'node:http';
+import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
+import {join} from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {disableOnboarding,findFreePort,generateWav,makeTempDir,startTtsServer,clickMenubarItem} from './helpers.mjs';
+let server,mock,dir,projectPath,calls;
+test.beforeEach(async({page})=>{
+  test.skip(!process.env.FFMPEG_PATH,'Explicit synthetic-media toolchain required');
+  dir=makeTempDir('flat-production-flow');calls=[];
+  const wav=readFileSync(generateWav(join(dir,'voice.wav'),1)),video=join(dir,'source.mp4');
+  execFileSync(join(process.env.FFMPEG_PATH,'ffmpeg.exe'),['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=10:d=3','-f','lavfi','-i','anullsrc=r=16000:cl=mono','-t','3','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac',video]);
+  mock=createServer(async(req,res)=>{const chunks=[];for await(const c of req)chunks.push(c);const body=JSON.parse(Buffer.concat(chunks));calls.push(body);
+    if(body.asr){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({segments:[{start:100,end:800,text:'Recognized speech',items:[{start:100,end:800,text:'Recognized speech'}]}]}));}
+    else if(body.messages){const input=JSON.parse(body.messages.find(m=>m.role==='user').content);res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({groups:input.map(c=>({source_ids:[c.id],text:'译文 '+c.text}))})}}]}));}
+    else {res.setHeader('Content-Type','audio/wav');res.end(wav);}
+  });await new Promise(r=>mock.listen(0,'127.0.0.1',r));
+  process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app-data');process.env.MSW_TEST_MEDIA_SOURCE=video;process.env.MSW_TEST_SAVE_TARGET=join(dir,'copy.mosp');
+  writeFileSync(process.env.MAW_ENV_FILE,'DASHSCOPE_API_KEY=synthetic-test-key\n');
+  projectPath=join(dir,'initial.mosp');writeFileSync(projectPath,JSON.stringify({media:video,msw:{schema:'msw.editor.v1',project_id:'flat-production-flow'},segments:[{id:'a',start:100,end:1400,text:'Hello world'}]}));
+  server=await startTtsServer(projectPath,video,await findFreePort(),`http://127.0.0.1:${mock.address().port}`);
+  await disableOnboarding(page);page.on('dialog',d=>d.accept());await page.goto(server.url);
+  await expect(page.locator('#menubar')).toBeVisible();await expect(page.locator('#flat-trial-bar')).toHaveCount(0);
+  await page.evaluate(()=>updateEditorSettings({autoSaveProject:false}));
+  await expect.poll(()=>page.evaluate(()=>!!MSWE.resolve('media').current)).toBe(true);
+  await page.evaluate(async baseUrl=>{await MSWSubtitleStyle.request('providers',{providerId:'custom',baseUrl,model:'synthetic-model',apiKey:'synthetic-key',reasoningMode:'off'});},`http://127.0.0.1:${mock.address().port}/v1`);
+});
+test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();if(mock)await new Promise(r=>mock.close(r));});
+const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
+
+test('ordinary panels process native tracks, render, save in place and reopen the same paired layout',async({page},info)=>{
+  test.setTimeout(120000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const original=readFileSync(projectPath);
+  await page.evaluate(()=>{selectOnly(0);document.getElementById('subtitle-translate-btn').click();});
+  await expect(page.locator('#translation-provider option')).not.toHaveCount(0);await page.locator('#translation-provider').selectOption('custom');
+  await page.locator('#translation-destination').selectOption('new');await page.locator('#translation-start').click();
+  await expect(page.locator('#translation-jobs input[type=radio]').first()).toBeEnabled({timeout:25000});
+  await page.locator('#translation-jobs input[type=radio]').first().check();await expect(page.locator('#translation-secondary')).toBeEnabled();await page.locator('#translation-secondary').click();
+  await expect.poll(async()=>(await snap(page)).subtitles.bindings.length).toBe(1);
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>{selectOnlyExtension(0);document.getElementById('tts-open').click();});
+  await expect(page.locator('#tts-panel')).toBeVisible();await page.locator('#tts-target').selectOption('secondary');await page.locator('#tts-start').click();
+  await expect.poll(async()=>(await snap(page)).msw.assets?.length||0,{timeout:25000}).toBe(1);
+  const voiced=await snap(page);expect(voiced.msw.assets[0].source_ref.subtitle_cue_id).toBe(voiced.subtitles.bindings[0].target_id);
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>{fixedAddTrack('subtitle');MSWE.resolve('asr').open('whole');});
+  await expect(page.locator('#msw-asr-providerId option')).not.toHaveCount(0);
+  const target=(await snap(page)).subtitles.tracks.at(-1).id;await page.locator('#msw-asr-target-track').selectOption(target);await page.locator('#msw-asr-start').click();
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.some(j=>j.status==='succeeded')),{timeout:25000}).toBe(true);
+  await page.evaluate(()=>MSWE.resolve('asr').showResult(MSWE.resolve('asr').jobs.find(j=>j.status==='succeeded').id));
+  await expect(page.locator('#msw-asr-apply')).toBeEnabled();await page.locator('#msw-asr-apply').click();
+  expect((await snap(page)).subtitles.cues.find(c=>c.track_id===target).content.items[0].start).toBe(100);
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>{player.currentTime=.5;overlayToggle.checked=true;extensionOverlayToggle.checked=true;MSWSubtitleRenderer.invalidate();});
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');
+  const ass=await page.evaluate(()=>fixedAssDocument('both'));for(const text of ['Hello world','译文','Recognized speech'])expect(ass).toContain(text);
+  await expect.poll(()=>page.evaluate(()=>projectSaveInFlight||projectCheckpointInFlight)).toBe(false);
+  expect(await page.evaluate(()=>saveProjectToServer()),await page.locator('#hint-stack').textContent()).toBe(true);
+  const saved=JSON.parse(readFileSync(projectPath,'utf8'));expect(saved.schema).toBe('msw.project.v4');expect(saved.segments).toBeUndefined();expect(saved.subtitles.cues).toHaveLength(3);
+  const backup=readdirSync(dir).find(n=>n.startsWith('.msw-tracks-backup-'));expect(backup).toBeTruthy();expect(readFileSync(join(dir,backup))).toEqual(original);
+  await page.reload();await expect(page.locator('.multi-dual-cue')).toHaveCount(2);expect((await snap(page)).subtitles.bindings).toEqual(saved.subtitles.bindings);
+  await page.screenshot({path:info.outputPath('normal-native-saved.png')});expect(errors).toEqual([]);
+  await page.evaluate(()=>{MSWE.resolve('project-persistence').saveAs();});
+  await page.locator('#project-save-choose').click();await expect(page.locator('#project-save-confirm')).toBeEnabled();await page.locator('#project-save-confirm').click();
+  await expect(page.locator('#project-save-as-modal')).toBeHidden();
+  const copy=JSON.parse(readFileSync(join(dir,'copy.mosp'),'utf8'));expect(copy.schema).toBe('msw.project.v4');expect(copy.subtitles).toEqual(saved.subtitles);
+  expect(copy.msw.assets).toHaveLength(1);expect(copy.msw.project_id).not.toBe(saved.msw.project_id);
+  await clickMenubarItem(page,'文件','video-export-btn');
+  await page.locator('#video-export-burn-subtitles').selectOption('both');await page.locator('#video-export-encoding').selectOption('h264');
+  await expect(page.locator('#video-export-remove-gaps')).not.toBeChecked();
+  await expect(page.locator('#video-export-start')).toBeEnabled();await page.locator('#video-export-start').click();
+  await expect(page.locator('#video-export-jobs')).toContainText('导出完成',{timeout:30000});
+  expect(errors).toEqual([]);
+});

@@ -251,6 +251,7 @@
     render();waveformEditor?.setPayload(next.waveform||null);saved=JSON.stringify(snapshot());report('已载入平级轨道工程。');draft();global.dispatchEvent(new Event('msw:flat-loaded'));}
   function allowReplace(){return !dirty()||confirm('当前有未下载保存的修改，仍要打开其他工程吗？');}
   function setup(){
+    if(!global.MSWFlatTrialRequested&&productionFlatMode())return;
     const entry=button('平级轨道试用',()=>{try{const url=new URL(location.href),token=id('handoff'),source=MSWE.resolve('persistence-host').draftSnapshot();
       localStorage.setItem(`msw.flat-handoff:${token}`,JSON.stringify({project:source,name:FILENAME_BASE}));url.searchParams.set('flat-subtitles','1');url.searchParams.set('flat-import',token);url.searchParams.delete('flat-draft');global.open(url.href,'_blank','noopener');
     }catch(error){flashHint(`无法创建试用副本：${error.message}。请先下载工程，再从试用窗口打开。`,'warning');}},'dropdown-item');entry.id='flat-trial-entry';entry.role='menuitem';$('open-project')?.after(entry);

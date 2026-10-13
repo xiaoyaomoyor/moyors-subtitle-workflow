@@ -112,6 +112,7 @@
     if(fixedTrackMode()) {
       fill($('style-track-target'),[['','工程默认'],...host.data.subtitle_tracks.tracks.map(t=>[t.id,t.name])],track?.id||'');
       $('style-track-layout').value=host.data.subtitle_tracks.presentation;
+      $('style-track-layout').closest('label').hidden=productionFlatMode();
     }
     const chosen=track?track.style.selection:host.data.preview?.project_style_selection;
     selectedPreset=track?.style.mode==='inherit'?'inherit':chosen==='current'?'current':find(chosen)&&same(find(chosen),value())?chosen:all().find(s=>same(s,value()))?.id||'current';
@@ -144,6 +145,12 @@
     if(track)message(track.locked?'此轨道已锁定。':!fixedPresentationMode()?'切换为固定轨道排布后，可调整轨道样式与位置。':'');
     const secondary=host.data.multi_subtitle?.enabled===true;
     $('style-secondary').hidden=!secondary;$('style-swap').hidden=!secondary;if(!secondary)role='main';
+    if(productionFlatMode()&&track)role=track.flat_style_slot||'main';
+    for(const r of ['main','secondary']) {
+      $('style-'+r).textContent=t(productionFlatMode()&&track?'本轨道':r==='main'?'主字幕':'副字幕');
+      $('style-'+r).hidden=productionFlatMode()&&track?r!==role:r==='secondary'&&!secondary;
+    }
+    if(productionFlatMode()&&track)$('style-swap').hidden=true;
     $('style-pair-controls').hidden=!secondary;const pair=S.pairSettings(style);$('style-pair-order').value=pair.order;$('style-pair-gap').value=pair.gap;
     for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-pressed',String(role===r));
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
@@ -173,7 +180,7 @@
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
-  function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;rebuild();sync();if(open)host.openMediaSettings();}
+  function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().flat_style_slot||'main';rebuild();sync();if(open)host.openMediaSettings();}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;sync();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();

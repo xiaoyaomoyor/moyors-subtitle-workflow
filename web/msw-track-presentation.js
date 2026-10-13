@@ -25,8 +25,9 @@
       const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
       rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1));
       for (const row of rows) {
-        row.style = style[row.role === 'main' ? 'main' : 'secondary'];
-        row.size = measure(row,style,width);
+        const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
+        row.style = own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'];
+        row.size = measure(row,{...own,[row.role==='main'?'main':'secondary']:row.style},width);
         if (!row.size || !['width','height'].every(k=>finite(row.size[k])&&row.size[k]>=0)) throw Error('字幕字体测量失败');
       }
       group.width = Math.max(...rows.map(r=>r.size.width),1);
@@ -43,9 +44,17 @@
         : vertical===1 ? (1080-group.height)/2 : 1080-(lowerStyle.marginV||0)-group.height;
       groups.push(group);
     };
-    for (const binding of project.multi_subtitle?.bindings || []) if ((binding.track_id ?? languageId) === languageId) add([
+    for (const binding of project.multi_subtitle?.bindings || []) if ((binding.track_id ?? languageId) === languageId) {
+      const refs=[
       {role:'main',track_id:null,cue_id:binding.main_segment_ids?.[0] ?? binding.main_segment_id},
-      {role:'extension',track_id:languageId,cue_id:binding.extension_segment_ids?.[0] ?? binding.extension_segment_id}]);
+      {role:'extension',track_id:languageId,cue_id:binding.extension_segment_ids?.[0] ?? binding.extension_segment_id}];
+      if(core.flatView(project)) {
+        const rows=refs.map(r=>lookup.get(core.key(r))).filter(Boolean),owners=rows.map(r=>tracks.find(t=>t.id===r.subtitle_track_id));
+        const anchors=rows.map((r,i)=>r.cue.subtitle_position||(core.placement(owners[i])==='fixed'?owners[i].position||{x:.5,y:.08}:null));
+        if(!(rows.every((r,i)=>core.placement(owners[i])==='auto'&&!r.cue.subtitle_position)||anchors.length===2&&anchors[0]&&JSON.stringify(anchors[0])===JSON.stringify(anchors[1])))continue;
+      }
+      add(refs);
+    }
     for (const row of available) if (!used.has(core.key(row))) add([row]);
     // Pack actual occupied intervals, including gaps between offset partners.
     // Same-rank groups never depend on one another: continuous speech cannot

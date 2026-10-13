@@ -189,6 +189,16 @@ def _attach_subtitles_match(server_project, browser_project):
     frame_mode = any(value.get("unit") == "frames" for value in (server_timebase, browser_timebase))
     if frame_mode and server_timebase != browser_timebase:
         return False
+    if any(p.get('schema') == 'msw.project.v4' for p in (server_project, browser_project)):
+        from maw.msw.flat_subtitles import migrate_project
+        def canonical(p):
+            model = migrate_project(p)['subtitles']
+            model.pop('migration', None)
+            for key in ('tracks', 'cues', 'bindings'):
+                if key != 'tracks':
+                    model[key].sort(key=lambda row: row['id'])
+            return model if frame_mode else _drop_derived_frame_fields(model)
+        return canonical(server_project) == canonical(browser_project)
     for key in ("segments", "overlay_track", "multi_subtitle"):
         left, right = server_project.get(key), browser_project.get(key)
         if key == "overlay_track":
@@ -1742,6 +1752,16 @@ def export_ograf(project: ServerProject, graphic: dict) -> tuple[bytes, str]:
 def write_project_json(target: Path, project_data: dict) -> Path | None:
     """Atomically write LF JSON and retain the immediately previous file as .bak."""
     target.parent.mkdir(parents=True, exist_ok=True)
+    if project_data.get('schema') == 'msw.project.v4':
+        from maw.msw import flat_subtitles_io
+        from maw.file_io import atomic_output_path
+        value = strip_inline_caches(persist_audio_track(project_data))
+        if target.is_file():
+            document = flat_subtitles_io.read_project(target)
+            return flat_subtitles_io.save_project(document, value, previous_backup=True).backup
+        with atomic_output_path(target) as pending:
+            pending.write_text(flat_subtitles_io.serialize_project(value), encoding='utf-8', newline='\n')
+        return None
     from maw.msw.subtitle_layers import preserve_upgrade_source
     upgrade_backup = preserve_upgrade_source(target, project_data)
     from maw.project_subtitle_style import preserve_style_source

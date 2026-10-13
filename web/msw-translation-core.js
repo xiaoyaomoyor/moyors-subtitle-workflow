@@ -19,6 +19,10 @@
     (binding.main_segment_ids || []).map(id => [id, binding])));
 
   function scope(project, mainIds = [], extensionIds = [], trackId = null, hasSelection = false) {
+    if(global.MSWProductionProject?.isView(project)) {
+      const ids=new Set(global.MSWProductionProject.translationIds(project,{mainIds,extensionIds}));
+      return {sources:global.MSWSubtitleLayers.tracks(project).flatMap(t=>t.segments).filter(c=>ids.has(c.id)&&c.text?.trim()),ignored:0,all:false};
+    }
     const selected = new Set(mainIds);
     const byExtension = new Map(bindings(project).filter(binding => binding.track_id === trackId)
       .flatMap(binding => (binding.extension_segment_ids || []).map(id => [id, binding])));
@@ -39,7 +43,8 @@
     return result;
   }
 
-  function snapshot(project, selection, outputMode = 'secondary') {
+  function snapshot(project, selection, outputMode = 'secondary', destination = '') {
+    if(global.MSWProductionProject?.isView(project))return global.MSWProductionProject.translation(project,selection,destination,outputMode);
     if (selection.overlayIds?.length) throw new Error('叠加字幕暂不支持翻译或配音，请选择主字幕或副字幕');
     if (!['secondary', 'replace_main'].includes(outputMode)) throw new Error('翻译输出方式无效');
     const selected = scope(project, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);

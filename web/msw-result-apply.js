@@ -18,6 +18,7 @@
     return {rows,required:layered(project)&&ambiguous};
   }
   function crossing(project,jobs,target) {
+    if(global.MSWProductionProject?.isView(project))return false;
     const all = target === 'main' ? project.segments : project.multi_subtitle?.tracks?.[0]?.segments || [];
     const ids=new Set(jobs.flatMap(j=>target==='main'?j.snapshot.targets:j.snapshot.secondary?.targets||[]).map(c=>c.id));
     const cues=project.schema==='msw.project.v3'?all.filter(c=>ids.has(c.id)):all;
@@ -238,6 +239,7 @@
   }
   function plan(source,media,jobs,target,strategy,options={}) {
     if(!['main','secondary'].includes(target)||!jobs.length||jobs.some(j => j.status!=='succeeded'||j.project_id!==source.msw.project_id)) throw Error('候选结果不属于当前工程或尚未完成');
+    if(global.MSWProductionProject?.isView(source))return global.MSWProductionProject.applyResults(source,media,jobs,target);
     // Waveform/spectral caches can be very large and are not part of this transaction.
     const project={...source,segments:copy(source.segments),multi_subtitle:copy(source.multi_subtitle),subtitle_tracks:copy(source.subtitle_tracks),subtitle_layers:copy(source.subtitle_layers),msw:copy(source.msw)},batch=global.MSWResults.record(project.msw,jobs[0]);
     const revision=global.MSWResults.revision(jobs), previous=batch.applications[target];
@@ -258,6 +260,12 @@
     return {project,count:jobs.reduce((n,j) => n+global.MSWResults.rows(j).length,0)};
   }
   function captureState(project,jobs,target) {
+    if(global.MSWProductionProject?.isView(project)) {
+      const application=global.MSWResults.record(project.msw,jobs[0]).applications[target],state=application?.state;
+      if(state?.flat){const p=global.MSWProductionProject.toProject(project),ids=new Set([...state.before.cues,...state.after.cues].map(c=>c.id));
+        state.after={cues:p.subtitles.cues.filter(c=>ids.has(c.id)),bindings:p.subtitles.bindings.filter(b=>ids.has(b.source_id)||ids.has(b.target_id))};}
+      return;
+    }
     const application=global.MSWResults.record(project.msw,jobs[0]).applications[target];
     if(jobs[0].kind==='asr') {
       const cues=target==='main'?project.segments:project.multi_subtitle.tracks[0].segments;
