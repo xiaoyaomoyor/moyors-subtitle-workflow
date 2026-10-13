@@ -57,7 +57,7 @@ async function trackPoint(page, trackId, time, role = 'main') {
     const lane = fixedLayout().positions.get(JSON.stringify([trackId,role]));
     const audio = parseFloat(row.style.getPropertyValue('--audio-lane-space')) || 0;
     return {x:rect.left+rect.width*(time-Number(row.dataset.startMs))/(Number(row.dataset.endMs)-Number(row.dataset.startMs)),
-      y:rect.bottom-audio-7-lane*38-17};
+      y:rect.bottom-audio-7-lane*waveformEditor.subtitleGeometry().pitch-waveformEditor.subtitleGeometry().height/2};
   },{trackId,time,role});
 }
 function normalizedOwners(value) {

@@ -61,8 +61,8 @@ const extensionSrt = [
   '',
 ].join('\n');
 
-async function importPair(page) {
-  await page.goto(server.url);
+async function importPair(page, legacy = false) {
+  await page.goto(server.url + (legacy ? '?subtitle-tracks=0' : ''));
   await dropFiles(page, [srtSpec('main.srt', mainSrt)]);
   await expect(page.locator('#cues-container > .cue')).toHaveCount(2);
   await dropFiles(page, [srtSpec('translation.srt', extensionSrt)]);
@@ -735,7 +735,7 @@ test('undoing an auto-synced binding restores the extension timing as well as th
   await expect(page.locator('#sel-count')).toHaveText('1');
   await extension.click({ button: 'right' });
   await expect(page.locator('#ctxmenu')).toHaveClass(/show/);
-  await page.locator('#ctxmenu .item').filter({ hasText: '与选中的主字幕绑定' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '绑定所选字幕' }).click();
   const waveformExtension = page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="0"]');
   expect(await page.evaluate(() => ({
     range: [DATA.multi_subtitle.tracks[0].segments[0].start, DATA.multi_subtitle.tracks[0].segments[0].end],
@@ -1616,14 +1616,14 @@ test('auto-binds the earliest unbound main cue when an extension overlaps severa
 
   const autoExtension = page.locator('.multi-cue-column.extension').filter({ hasText: 'Auto bind me' });
   await autoExtension.click({ button: 'right' });
-  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到字幕' }).click();
   await expect(autoExtension).not.toHaveClass(/unbound/);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+d');
 
   const multiOverlapExtension = page.locator('.multi-cue-column.extension').filter({ hasText: 'Multi overlap' });
   await multiOverlapExtension.click({ button: 'right' });
-  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到字幕' }).click();
   await expect(multiOverlapExtension).not.toHaveClass(/unbound/);
   await expect(page.locator('#hint-stack')).toContainText('时间最早的未绑定主字幕');
   await expect(
@@ -1635,7 +1635,7 @@ test('auto-binds the earliest unbound main cue when an extension overlaps severa
   const replaceExtension = page.locator('.multi-cue-column.extension').filter({ hasText: 'Replace me' });
   const mainOne = page.locator('.multi-cue-column.main').filter({ hasText: 'Main one' });
   await replaceExtension.click({ button: 'right' });
-  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到字幕' }).click();
   await expect(page.locator('#hint-stack')).toContainText('已有绑定');
   await mainOne.click();
   await expect(replaceExtension).not.toHaveClass(/unbound/);
@@ -1913,7 +1913,7 @@ test('binds an unbound extension cue directly from its context menu', async ({ p
   });
   await unboundExtension.click({ button: 'right' });
   await expect(page.locator('#sel-count')).toHaveText('1');
-  await page.locator('#ctxmenu .item').filter({ hasText: '与选中的主字幕绑定' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '绑定所选字幕' }).click();
 
   await expect(unboundExtension).not.toHaveClass(/unbound/);
   expect(await page.evaluate(() => window.__mawWaveformDraws)).toBe(0);
@@ -1925,16 +1925,18 @@ test('binds an unbound extension cue directly from its context menu', async ({ p
 });
 
 test('uses G to bind a single extension cue and labels extension context shortcuts', async ({ page }) => {
-  await importPair(page);
+  // This case also asserts legacy H alignment squeezing an overlapping cue.
+  await importPair(page, true);
   await page.locator('#multi-subtitle-import-extension').click();
   await page.locator('#multi-subtitle-import-result-confirm').click();
 
   const mainCue = page.locator('.multi-cue-column.main .text').filter({ hasText: 'Hello world.' });
   const unboundExtension = page.locator('.multi-cue-column.extension').filter({ hasText: 'unmatched' });
+  await unboundExtension.click();
   await unboundExtension.click({ button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).locator('kbd'))
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: /按(音频|文字)位置拆分/ }).locator('kbd'))
     .toHaveText('B');
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' }).locator('kbd'))
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: '绑定到字幕' }).locator('kbd'))
     .toHaveText('G');
   await page.keyboard.press('Escape');
 
@@ -1947,7 +1949,7 @@ test('uses G to bind a single extension cue and labels extension context shortcu
   await expect(unboundExtension).not.toHaveClass(/unbound/);
 
   await unboundExtension.click({ button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '对齐主字幕时间范围' }).locator('kbd'))
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: '对齐对应字幕时间范围' }).locator('kbd'))
     .toHaveText('H');
   await expect(page.locator('#ctxmenu .item > span').filter({ hasText: /^解绑$/ }).locator('..').locator('kbd'))
     .toHaveText('Shift+G');
@@ -2007,14 +2009,14 @@ test('waits for a main cue when binding starts without a selected main cue', asy
   const mainCue = page.locator('.multi-cue-column.main').filter({ hasText: 'Hello world.' });
   const unboundExtension = page.locator('.multi-cue-column.extension').filter({ hasText: 'unmatched' });
   await unboundExtension.click({ button: 'right' });
-  await expect(page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' })).toBeVisible();
-  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' }).click();
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: '绑定到字幕' })).toBeVisible();
+  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到字幕' }).click();
   await expect(page.locator('#hint-stack')).toContainText('请点击一条主字幕完成绑定');
   await page.keyboard.press('Escape');
   await expect(page.locator('#hint-stack')).toContainText('已取消绑定副字幕');
 
   await unboundExtension.click({ button: 'right' });
-  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到主字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '绑定到字幕' }).click();
   await mainCue.click();
   await expect(unboundExtension).not.toHaveClass(/unbound/);
 });
@@ -2025,11 +2027,10 @@ test('disables rebinding until the existing extension binding is removed', async
   await page.locator('#multi-subtitle-import-result-confirm').click();
 
   const boundExtension = page.locator('.multi-cue-column.extension').filter({ hasText: '你好，世界。' });
+  await boundExtension.click();
   await boundExtension.click({ button: 'right' });
-  const rebinding = page.locator('#ctxmenu .item').filter({ hasText: '重新绑定需先解绑' });
-  await expect(rebinding).toHaveClass(/disabled/);
-  await expect(rebinding).toHaveAttribute('aria-disabled', 'true');
-  await rebinding.click();
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^绑定到字幕/ })).toHaveCount(0);
+  await expect(page.locator('#ctxmenu .item').filter({ hasText: /^解绑/ })).toBeVisible();
   await expect(boundExtension).not.toHaveClass(/unbound/);
 });
 
@@ -2413,7 +2414,7 @@ test('aligns a bound extension cue to the main subtitle range from its context m
   const extensionColumn = row.locator('.multi-cue-column.extension');
   await expect(extensionColumn.locator('.time')).toHaveText('00:00.050 → 00:01.950');
   await extensionColumn.click({ button: 'right' });
-  await page.locator('#ctxmenu .item').filter({ hasText: '对齐主字幕时间范围' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: '对齐对应字幕时间范围' }).click();
   await expect(row.locator('.multi-cue-column.extension .time')).toHaveText('00:00.000 → 00:02.000');
 
   await page.keyboard.press('Control+z');
@@ -2738,7 +2739,7 @@ test('renders one scissors marker per word-space split and trims the split text'
   // 固定像素在波形面板变窄后会使初始断点偏向第二个空格。
   const blockBox = await waitForLayoutBox(extensionBlock, '副字幕块没有布局');
   await extensionBlock.click({ button: 'right', position: { x: Math.round(blockBox.width * 0.25), y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: /按(音频|文字)位置拆分/ }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   await expect(splitText.locator('.multi-subtitle-split-gap')).toHaveCount(2);
@@ -2790,7 +2791,7 @@ test('renders a scissors marker for a symbol-connected word split', async ({ pag
   // 变窄后可能把初始断点推到 offset 10，导致下面的「未激活」断言抖动。
   const blockBox = await waitForLayoutBox(extensionBlock, '副字幕块没有布局');
   await extensionBlock.click({ button: 'right', position: { x: Math.round(blockBox.width * 0.25), y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: /按(音频|文字)位置拆分/ }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   const gaps = splitText.locator('.multi-subtitle-split-gap');
@@ -2849,7 +2850,7 @@ test('renders a post-period word split without dropping the period', async ({ pa
   // 使切点不再满足两侧各 100ms，弹窗无法自动提交。
   const blockBox = await waitForLayoutBox(extensionBlock, '副字幕块没有布局');
   await extensionBlock.click({ button: 'right', position: { x: Math.round(blockBox.width * 0.25), y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: /按(音频|文字)位置拆分/ }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   const gaps = splitText.locator('.multi-subtitle-split-gap');
@@ -2890,7 +2891,7 @@ test('renders one scissors marker for a continuous split across repeated spaces'
 
   const extensionBlock = page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="0"]');
   await extensionBlock.click({ button: 'right', position: { x: 120, y: 10 } });
-  await page.locator('#ctxmenu .item').filter({ hasText: '切分字幕' }).click();
+  await page.locator('#ctxmenu .item').filter({ hasText: /按(音频|文字)位置拆分/ }).click();
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
   const splitText = page.locator('#multi-subtitle-split-text');
   await expect(splitText.locator('.multi-subtitle-split-gap')).toHaveCount(1);

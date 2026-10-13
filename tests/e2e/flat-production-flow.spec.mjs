@@ -66,7 +66,7 @@ test('ordinary panels process native tracks, render, save in place and reopen th
   await expect.poll(async()=>(await snap(page)).subtitles.bindings.length).toBe(1);
   await page.keyboard.press('Escape');
   await page.evaluate(()=>{selectOnlyExtension(0);document.getElementById('tts-open').click();});
-  await expect(page.locator('#tts-panel')).toBeVisible();await page.locator('#tts-target').selectOption('secondary');await page.locator('#tts-start').click();
+  await expect(page.locator('#tts-panel')).toBeVisible();await page.locator('#tts-target').selectOption('selection');await page.locator('#tts-start').click();
   await expect.poll(async()=>(await snap(page)).msw.assets?.length||0,{timeout:25000}).toBe(1);
   const voiced=await snap(page);expect(voiced.msw.assets[0].source_ref.subtitle_cue_id).toBe(voiced.subtitles.bindings[0].target_id);
   await page.keyboard.press('Escape');

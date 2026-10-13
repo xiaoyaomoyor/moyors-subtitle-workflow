@@ -12,7 +12,7 @@ const trackPoint=(page,id,time)=>page.evaluate(({id,time})=>{
   const row=[...document.querySelectorAll('.waveform-row')].find(r=>Number(r.dataset.startMs)<=time&&Number(r.dataset.endMs)>time);
   const rect=row.getBoundingClientRect(),lane=fixedLayout().positions.get(JSON.stringify([id,'main']));
   return {x:rect.left+rect.width*(time-Number(row.dataset.startMs))/(Number(row.dataset.endMs)-Number(row.dataset.startMs)),
-    y:rect.bottom-7-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0)-lane*38-16};
+    y:rect.bottom-7-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0)-lane*waveformEditor.subtitleGeometry().pitch-waveformEditor.subtitleGeometry().height/2};
 },{id,time});
 
 async function dragFixture(page){
@@ -358,7 +358,7 @@ for(const method of ['ctrl','menu'])test(`normal empty physical track creates th
   const point=time=>page.evaluate(({target,time})=>{
     const row=document.querySelector('.waveform-row'),r=row.getBoundingClientRect(),lane=fixedLayout().positions.get(JSON.stringify([target,'main']));
     return {x:r.left+r.width*(time-Number(row.dataset.startMs))/(Number(row.dataset.endMs)-Number(row.dataset.startMs)),
-      y:r.bottom-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0)-7-lane*38-17};
+      y:r.bottom-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0)-7-lane*waveformEditor.subtitleGeometry().pitch-waveformEditor.subtitleGeometry().height/2};
   },{target,time});
   const a=await point(1500),b=await point(2500);await page.mouse.move(a.x,a.y);
   if(method==='ctrl') {

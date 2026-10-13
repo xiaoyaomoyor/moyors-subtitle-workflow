@@ -154,8 +154,7 @@
       el('tts-index-pronunciation').value = '';
     }
     el('tts-scope').textContent = (isText() ? `${t('范围：独立配音草稿 · 不修改字幕')} · ${parts.length} ${t('条')}`
-      : `${t(scope.sources.length ? '范围：所选字幕' : '范围：未选择字幕')} · ${scope.sources.length} ${t('条')}`
-        + (scope.linked ? ` · ${t('连锁字幕按操作对象合成，独立字幕保留原选区')}` : ''))
+      : `${t(scope.sources.length ? '范围：所选字幕' : '范围：未选择字幕')} · ${scope.sources.length} ${t('条')}`)
       + (scope.tooLong ? ` · ${scope.tooLong} ${t('条超过')} ${textLimit()} ${t('字符，请先拆分')}` : '');
     el('cue-panel-tts-count').textContent = `${parts.length} ${t('段')} · ${t('最长')} ${parts.reduce((n, part) => Math.max(n, [...part].length), 0)} / ${textLimit()}`;
     if (el('cue-panel-tts-preview').open) renderDraftPreview(parts);
@@ -168,7 +167,7 @@
       || (isEdge() && !edgeTts?.ready())
       || (cloud() && !cloud().ready())
       || (isQwen() && (!el('tts-voice').value.trim() || (!keyState() && !el('tts-key').value.trim())))
-      || !scope.sources.length || scope.tooLong || (scope.needsChoice && !el('tts-target').value)));
+      || !scope.sources.length || scope.tooLong));
     el('tts-start').textContent = t(pending ? '确认上次提交' : (isIndex() || isGpt()) && localServices?.canStart(isGpt() ? 'gpt-sovits' : 'indextts') && localServices.needsStart(isGpt() ? 'gpt-sovits' : 'indextts') ? '启动并合成' : '开始合成');
     for (const id of ['tts-save-settings', 'tts-environment-save']) el(id).disabled = !available || !configured || savingSettings || indexTts.isBusy();
     environmentNotice();
@@ -632,7 +631,7 @@
     }
     jobs.clear(); jobCards.clear(); watched.clear(); opened.clear(); firstReady.clear();
     jobCursor = 0; assetCursor = 0; pending = null; busy = false; scopeSignature = '';
-    el('tts-target').value = 'main';
+    el('tts-target').value = 'selection';
     draftInitialized = false; el('cue-panel-tts-text').value = ''; syncDraft();
     draftRevision++; pendingDraft = null; clearedDraft = null; draftJobs.clear(); el('cue-panel-tts-restore').hidden = true;
     el('asset-playing').textContent = t('选择音频试听');

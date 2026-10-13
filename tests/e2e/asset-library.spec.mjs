@@ -14,19 +14,23 @@ test.beforeEach(async()=>{
 });
 test.afterEach(async({page})=>{await page.close();await server?.stop();cleanupTempDir(directory);});
 test.beforeEach(async({page})=>{
-  await disableOnboarding(page);await page.goto(server.url);
+  // These fixtures mutate legacy segment arrays directly. Native v4 assets
+  // and bindings are covered by flat-production and track-actions.
+  await disableOnboarding(page);await page.goto(server.url+'?subtitle-layers=1&subtitle-tracks=0');
   await expect(page.locator('#editor-loading')).toBeHidden();
   await page.waitForFunction(()=>!appearanceBootPending);
 });
 async function copy(page,both=false){
+  const previous=await page.evaluate(()=>DATA.msw?.subtitle_assets?.length||0);
   await page.evaluate(both=>{
     updateEditorSettings({selectBoundSubtitlePair:false});
     selectOnly(0);
     if(both)selectOnlyExtension(0,getActiveExtensionTrack(),true,true);
   },both);
   await page.locator('.waveform-cue-block[data-track="main"]').first().click({button:'right'});
+  await page.getByRole('menuitem',{name:'扩展操作',exact:true}).hover();
   await page.locator('#ctxmenu .item').filter({hasText:/^复制到素材库$/}).click();
-  await expect(page.locator('.msw-asset-row')).toHaveCount(both?2:1);
+  await expect(page.locator('.msw-asset-row')).toHaveCount(previous+(both?2:1));
 }
 test('copy, independent edit, undo and project serialization',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -126,11 +130,12 @@ test('subtitle-only library survives server save and reload after clearing the t
   await copy(page);
   await page.locator('.msw-asset-row [data-asset-action="edit"]').click();
   await page.locator('#cue-panel-asset-text').fill('保存独立素材');
-  await page.evaluate(async()=>{
+  await page.evaluate(()=>{
     MSWE.resolve('asset-library').finishEdit();
-    DATA.segments=[];DATA.multi_subtitle.tracks=[];DATA.multi_subtitle.bindings=[];
-    renderAll({waveform:'full'});await saveCurrentProject({silent:true});
+    clearAllSubtitles();
   });
+  await expect.poll(()=>page.evaluate(()=>projectSaveInFlight||projectCheckpointInFlight)).toBe(false);
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
   await page.reload();await expect(page.locator('#editor-loading')).toBeHidden();
   expect(await page.evaluate(()=>DATA.segments.length)).toBe(0);
   expect(await page.evaluate(()=>DATA.msw.subtitle_assets[0].text)).toBe('保存独立素材');

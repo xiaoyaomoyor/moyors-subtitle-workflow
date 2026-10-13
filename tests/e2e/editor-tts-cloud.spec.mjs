@@ -28,7 +28,7 @@ test.beforeEach(async({page})=>{
   server=await startTtsServer(project,generateWav(join(dir,'media.wav'),6),await findFreePort(),`http://127.0.0.1:${mock.address().port}`);
   page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).not.toBeVisible();await page.evaluate(()=>selectOnly(0));
 });
-test.afterEach(async()=>{await server?.stop();if(mock)await new Promise(r=>mock.close(r));delete process.env.MSW_TEST_CLOUD_TTS;expect(errors).toEqual([]);});
+test.afterEach(async({page})=>{await page.close();await server?.stop();if(mock)await new Promise(r=>mock.close(r));delete process.env.MSW_TEST_CLOUD_TTS;expect(errors).toEqual([]);});
 async function setup(page,engine){
   await openTtsEnvironment(page,engine);await page.locator(`#tts-${engine}-key`).fill('synthetic-secret');
   await page.locator('#tts-environment-save').click();await expect(page.locator('#tts-environment-message')).toContainText('已保存');
@@ -50,6 +50,12 @@ for(const engine of ['minimax','mossland'])test(`${engine} complete audio, libra
   await expect(page.locator('#asset-import-message')).toContainText('新增音频素材 1');expect(await count(page)).toBe(2);
   const regenerated=await page.evaluate(id=>DATA.msw.assets.find(a=>a.id!==id),original.id);expect(regenerated.generation).toEqual(original.generation);
   await page.locator(`[data-asset-id="${original.id}"]`).getByRole('button',{name:'放入时间轴',exact:true}).click();
+  // Audio lanes do not count toward subtitle compaction; the third subtitle
+  // lane matches the actual generated audio clip's height.
+  await page.evaluate(()=>fixedAddTrack('subtitle'));
+  expect((await page.locator('.waveform-cue-block').first().boundingBox()).height).toBe(32);
+  await page.evaluate(()=>fixedAddTrack('subtitle'));
+  expect((await page.locator('.waveform-cue-block').first().boundingBox()).height).toBe((await page.locator('.msw-audio-clip').first().boundingBox()).height);
   await page.locator('.msw-audio-clip').first().click();await openMenubarMenu(page,'媒体');await page.locator('#audio-actions-open').click();
   await page.locator('#audio-actions-regenerate').click();await expect(page.locator('#audio-actions-message')).toContainText('已替换 1');
   expect(await page.evaluate(()=>DATA.msw.audio_clips[0].asset_id)).not.toBe(original.id);
@@ -120,7 +126,7 @@ test('no selected subtitles blocks TTS without a request; draft synthesis remain
 
 test('Mossland follows each frozen subtitle duration and disables follow for drafts',async({page},info)=>{
   await setup(page,'mossland');
-  await page.evaluate(()=>{clearSelection();DATA.segments[0].end=1350;DATA.segments.push({id:'second',start:2000,end:5750,text:'第二条测试'});selectRange(0,1);});
+  await page.evaluate(()=>{clearSelection();DATA.segments[0].end=1350;DATA.segments.push({id:'second',start:2000,end:5750,text:'第二条测试'});renderAll({waveform:'full'});selectRange(0,1);});
   await page.locator('#tts-mossland-follow_subtitle_duration').check();
   await expect(page.locator('#tts-mossland-expected_duration_sec')).toBeDisabled();
   await page.locator('#tts-save-settings').click();await expect(page.locator('#tts-message')).toContainText('已保存');
@@ -135,7 +141,7 @@ test('Mossland follows each frozen subtitle duration and disables follow for dra
   await page.locator('#tts-mossland-expected_duration_sec').fill('2');await page.locator('#cue-panel-tts-text').fill('独立草稿');
   await page.locator('#tts-start').click();await expect.poll(()=>count(page)).toBe(3);
   expect(calls.filter(c=>c.path==='/v1/audio/speech').at(-1).body.expected_duration_sec).toBe(2);
-  await page.locator('#tts-target').selectOption('main');await expect(page.locator('#tts-mossland-follow_subtitle_duration')).toBeChecked();
+  await page.locator('#tts-target').selectOption('selection');await expect(page.locator('#tts-mossland-follow_subtitle_duration')).toBeChecked();
 });
 
 test('local voice aliases survive refresh and reload without cloud mutation',async({page},info)=>{

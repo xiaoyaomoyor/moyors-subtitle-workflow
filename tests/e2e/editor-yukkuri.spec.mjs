@@ -59,8 +59,8 @@ test('local voice audition plays a temporary sample in the library', async ({pag
 test('real local voices synthesize selected secondary, preserve pronunciation, save and export WAV', async ({page}) => {
   await page.locator('.multi-cue-column.extension .text').filter({hasText: /^重庆 English 123$/}).click();
   await configure(page);
-  await expect(page.locator('#tts-target')).toHaveValue('main');
-  await page.locator('#tts-target').selectOption('secondary');
+  await expect(page.locator('#tts-target')).toHaveValue('selection');
+  await page.locator('#tts-target').selectOption('selection');
   await expect(page.locator('#tts-scope')).toContainText('1 条');
   await page.locator('#tts-yukkuri-pronunciation').fill('虫庆 English 123');
   await page.locator('#tts-yukkuri-voice').selectOption('m2');
@@ -108,8 +108,8 @@ test('real local voices synthesize selected secondary, preserve pronunciation, s
 test('explicitly selected main subtitles synthesize and engine settings survive reopen without a cloud key', async ({page}) => {
   await page.evaluate(() => selectRange(0,1));
   await configure(page);
-  await expect(page.locator('#tts-target')).toHaveValue('main');
-  await page.locator('#tts-target').selectOption('main');
+  await expect(page.locator('#tts-target')).toHaveValue('selection');
+  await page.locator('#tts-target').selectOption('selection');
   await page.locator('#tts-yukkuri-voice').selectOption('r1'); await page.locator('#tts-save-settings').click();
   await expect(page.locator('#tts-message')).toContainText('设置已保存');
   await page.locator('#tts-start').click(); await expect.poll(() => assetCount(page), {timeout: 20000}).toBe(2);

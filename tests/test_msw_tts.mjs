@@ -89,14 +89,14 @@ test('no selection never synthesizes either track, even after choosing a target'
     assert.throws(()=>core.snapshot(project,selection([],[],false),side),/请先选择字幕/);
   }
 });
-test('both sides of linked selection synthesize one side once',()=>{
-  assert.equal(core.scope(project,selection(['a'],['x'])).needsChoice,true);
-  assert.deepEqual(texts(core.scope(project,selection(['a'],['x']),'secondary')),['Secondary']);
-  assert.deepEqual(texts(core.scope(project,selection([],['x']),'main')),['Main']);
+test('bindings neither substitute nor expand selected cues, including legacy target values',()=>{
+  assert.equal(core.scope(project,selection(['a'],['x'])).needsChoice,false);
+  assert.deepEqual(texts(core.scope(project,selection(['a'],['x']),'selection')),['Main','Secondary']);
+  assert.deepEqual(texts(core.scope(project,selection([],['x']),'main')),['Secondary']);
+  assert.deepEqual(texts(core.scope(project,selection(['a'],[]),'secondary')),['Main']);
 });
-test('mixed independent selection survives either linked target',()=>{
-  assert.deepEqual(texts(core.scope(project,selection(['a','b'],['x','y']),'secondary')),['Secondary','Independent main','Independent secondary']);
-  assert.deepEqual(texts(core.scope(project,selection(['a','b'],['x','y']),'main')),['Main','Independent main','Independent secondary']);
+test('mixed bound and independent selection includes every selected cue exactly once',()=>{
+  assert.deepEqual(texts(core.scope(project,selection(['a','b','a'],['x','y']),'selection')),['Main','Secondary','Independent main','Independent secondary']);
 });
 test('unbound secondary stays secondary, stale selection never falls back to all',()=>{
   assert.equal(core.scope(project,selection([],['y'])).needsChoice,false);

@@ -9,6 +9,11 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '扩展操作': 'Extended actions',
+    '选定的字幕块': 'Selected subtitle blocks',
+    '全选轨道内容': 'Select all track content',
+    '对齐对应字幕时间范围': 'Align to linked subtitle timing',
+    '绑定到字幕': 'Bind to subtitle',
     '显示模式': 'Display mode',
     '频谱着色': 'Spectral colors',
     '贴片热力图': 'Clip heatmap',

@@ -144,6 +144,10 @@ function fixedMergePlan(plan) {
 function fixedLayout() {
   return fixedLayoutCache ||= fixedTrackCore.layout(DATA, getActiveExtensionTrack()?.id, multiSubtitleVisible());
 }
+function fixedWaveGeometry() {
+  const compact = productionFlatMode() && fixedLayout().bands.length >= 3;
+  return compact ? {height:20, pitch:24} : {height:32, pitch:38};
+}
 function fixedWaveLayout(role) {
   if (!fixedTrackMode()) return null;
   const view = fixedLayout(), cues = role === 'main' ? DATA.segments : getActiveExtensionTrack()?.segments || [];
@@ -157,7 +161,7 @@ function fixedWaveLayout(role) {
 }
 function fixedHitTrack(fromBottom) {
   if (!fixedTrackMode()) return null;
-  const lane = Math.floor(Math.max(0, fromBottom) / 38), view = fixedLayout();
+  const lane = Math.floor(Math.max(0, fromBottom) / fixedWaveGeometry().pitch), view = fixedLayout();
   const band = view.bands.find(b => lane >= b.bottom && lane < b.bottom + b.size);
   if (!band) return null;
   fixedActiveTrackId = band.track.id;
@@ -248,7 +252,7 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
       active:fixedActiveTrackId,owners:new Map(entries.map(e=>[e.cue.id,fixedOwner(e.cue,drag.track)]))};
   }
   const state=drag.fixedMove,tracks=fixedLayout().bands.map(b=>b.track),bands=fixedLayout().bands;
-  const lane=Math.floor(fromBottom/38),band=Number.isFinite(lane)&&bands.find(b=>lane>=b.bottom&&lane<b.bottom+b.size);
+  const lane=Math.floor(fromBottom/fixedWaveGeometry().pitch),band=Number.isFinite(lane)&&bands.find(b=>lane>=b.bottom&&lane<b.bottom+b.size);
   const originalOwner=state.owners.get(source[drag.index].id);
   const destination=band?.track.id||state.target||originalOwner;
   const original=drag.originals.get(drag.index),clock=drag.timing;
@@ -358,9 +362,24 @@ function fixedRenameTrack(track, x, y, settings = false) {
   form.onkeydown=event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();ctxmenu.classList.remove('show');}};
   ctxmenu.append(form);ctxShowAt(x,y);input.focus();input.select();
 }
+function fixedSelectTrackContent(track) {
+  clearSelection({silent:true});
+  fixedActiveTrackId = track.id;
+  const extension = getActiveExtensionTrack();
+  DATA.segments.forEach((cue, i) => { if (fixedOwner(cue) === track.id) selectedIdxs.add(i); });
+  extension?.segments.forEach((cue, i) => { if (fixedOwner(cue, 'extension', extension.id) === track.id) selectedExtensionIdxs.add(i); });
+  // Select the physical track, regardless of paired-selection preferences.
+  // Linked cues on other tracks remain unselected.
+  if (selectedIdxs.size) setCuePanelTarget('main', [...selectedIdxs][0]);
+  else if (selectedExtensionIdxs.size) setCuePanelTarget('extension', [...selectedExtensionIdxs][0], extension.id);
+  updateMultiSelectionClasses(); updateSelectionCountText(); waveformEditor?.updateSelection();
+}
 function fixedTrackMenu(track, x, y) {
   fixedStatus();
   ctxmenu.replaceChildren();
+  fixedMenuItem('全选轨道内容', () => fixedSelectTrackContent(track),
+    !DATA.subtitle_tracks.assignments.some(a => a.subtitle_track_id === track.id));
+  ctxAppendSeparator();
   if(productionFlatMode()) {
     const tracks=DATA.subtitle_tracks.tracks;
     const apply=main=>{try{const p=window.MSWProductionProject.toProject(DATA);productionCommitProject(window.MSWFlatSubtitles.setTrackGroup(p,track.id,main),'调整主副轨道分组');}catch(e){fixedStatus(e.message);}};
@@ -403,7 +422,10 @@ function fixedRenderHeads(group, row, audioSpace) {
     node.classList.toggle('disabled-track', !track.enabled);
     node.classList.toggle('locked-track', track.locked);
     node.classList.toggle('current', fixedActiveTrack()?.id === track.id);
-    node.style.bottom = `${7 + audioSpace + band.bottom * 38}px`; node.style.height = `${band.size * 38 - 4}px`;
+    const geometry = fixedWaveGeometry();
+    node.classList.toggle('compact-track', geometry.height === 20);
+    node.style.bottom = `${7 + audioSpace + band.bottom * geometry.pitch}px`;
+    node.style.height = `${band.size * geometry.pitch - (geometry.pitch - geometry.height)}px`;
     if(track.collapsed||!productionFlatMode()&&band.roles.includes('extension')) {
       const collapse = document.createElement('button'); collapse.type = 'button'; collapse.className='fixed-track-collapse';collapse.textContent = track.collapsed ? '›' : '⌄';
       collapse.title = track.collapsed ? '展开轨道' : '折叠轨道'; collapse.setAttribute('aria-label', collapse.title);

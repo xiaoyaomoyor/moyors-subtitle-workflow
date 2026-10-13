@@ -166,7 +166,7 @@ async function prepareClips(page) {
   while(wav.toString('ascii',dataOffset,dataOffset+4)!=='data') { const size=wav.readUInt32LE(dataOffset+4); dataOffset+=8+size+(size%2); }
   const frames=(wav.length-dataOffset-8)/2;
   for(let i=0;i<frames;i++) wav.writeInt16LE(Math.round(Math.sin(i*.08)*(i<frames/3?400:i<frames*2/3?20000:3000)),dataOffset+8+i*2);
-  await panel(page); await page.locator('#tts-target').selectOption('main'); await page.locator('#tts-start').click();
+  await panel(page); await page.locator('#tts-target').selectOption('selection'); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page)).toBe(2); await page.locator('#tts-close').click();
   const row=page.locator('.waveform-row').first(), bounds=await row.boundingBox();
   await page.locator('.msw-asset-row').first().dragTo(row,{sourcePosition:{x:30,y:15},targetPosition:{x:bounds.width*.2,y:bounds.height*.75}});
@@ -701,16 +701,16 @@ test('TTS creates durable assets, opens lower-right, previews, exports and survi
   expect(errors).toEqual([]);
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'tts-assets.png')});
 });
-test('selected dual subtitles require a side and bound selection maps to secondary only',async({page})=>{
+test('selected dual subtitles synthesize their own text without choosing a side',async({page})=>{
   await open(page,true); await page.evaluate(()=>{clearSelection();selectExtensionRange(0,1);}); await panel(page);
-  await expect(page.locator('#tts-target')).toBeVisible(); await expect(page.locator('#tts-target')).toHaveValue('main');
-  await page.locator('#tts-target').selectOption('secondary'); await page.locator('#tts-start').click();
+  await expect(page.locator('#tts-target')).toBeVisible(); await expect(page.locator('#tts-target')).toHaveValue('selection');
+  await page.locator('#tts-target').selectOption('selection'); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page)).toBe(2); expect(calls.map(c=>c.text)).toEqual(['Secondary Hello','Independent']);
   await page.locator('#tts-close').click();
   await page.locator('.multi-cue-column.main .text').filter({hasText:/^Hello$/}).click();
-  await panel(page); await expect(page.locator('#tts-target')).toHaveValue('secondary');
-  await page.locator('#tts-target').selectOption('secondary'); await page.locator('#tts-start').click();
-  await expect.poll(()=>countAssets(page)).toBe(3); expect(calls.map(c=>c.text)).toEqual(['Secondary Hello','Independent','Secondary Hello']);
+  await panel(page); await expect(page.locator('#tts-target')).toHaveValue('selection');
+  await page.locator('#tts-target').selectOption('selection'); await page.locator('#tts-start').click();
+  await expect.poll(()=>countAssets(page)).toBe(3); expect(calls.map(c=>c.text)).toEqual(['Secondary Hello','Independent','Hello']);
 });
 test('blank TTS key reuses ASR settings and streaming WAV becomes a playable secondary asset',async({page})=>{
   await open(page,true);
@@ -728,7 +728,7 @@ test('blank TTS key reuses ASR settings and streaming WAV becomes a playable sec
   await expect(page.locator('#tts-key')).toHaveAttribute('placeholder','已持有本地密钥');
   await expect(page.locator('#tts-key')).toHaveValue('');
   await expect(page.locator('#tts-voice')).toHaveValue('Cherry');
-  await page.locator('#tts-target').selectOption('secondary'); await page.locator('#tts-start').click();
+  await page.locator('#tts-target').selectOption('selection'); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page)).toBe(1);
   expect(calls.map(c=>c.text)).toEqual(['Secondary Hello']);
   await page.locator('#tts-close').click();
@@ -1364,7 +1364,7 @@ test('fixed-track production loop: range ASR, bound translation, synthetic TTS, 
   selectRange(0,DATA.segments.length-1);return DATA.segments.map(c=>c.id);
  });
  expect(identities).toContain('main-1');expect(identities).toContain('asr-layer-asr-main-0');
- await panel(page);await page.locator('#tts-target').selectOption('main');await page.locator('#tts-start').click();
+ await panel(page);await page.locator('#tts-target').selectOption('selection');await page.locator('#tts-start').click();
  await expect.poll(()=>countAssets(page)).toBe(2);await page.locator('#tts-close').click();
  const assets=await page.evaluate(()=>DATA.msw.assets);expect(new Set(assets.map(a=>a.source_ref.id))).toEqual(new Set(identities));
  await page.locator(`[data-asset-id="${assets[0].id}"]`).getByRole('button',{name:'放入时间轴',exact:true}).click();

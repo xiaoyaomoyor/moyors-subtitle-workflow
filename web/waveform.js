@@ -3926,17 +3926,20 @@
       return indexes;
     }
 
+    subtitleGeometry() { return this.options.getSubtitleGeometry?.() || {height:32, pitch:38}; }
+
     applyLayerCueLayout(block, segment) {
       const role = block.dataset.track || 'main';
       const layout = this.subtitleLayout(role);
       const lane = layout.lanes.get(segment.id) || 0;
       const fixed = this.options.getFixedTracksEnabled?.();
       const extra = !fixed && role === 'main' && this.options.multiSubtitleVisible?.() ? this.subtitleLayout('extension').count : 0;
-      const pitch = 38;
+      const {pitch, height} = this.subtitleGeometry();
       block.dataset.cueId = segment.id;
       block.dataset.subtitleLayer = String(lane);
       this.options.decorateFixedCue?.(block, segment, role);
-      block.style.height = '32px';
+      block.style.height = `${height}px`;
+      block.style.lineHeight = `${height}px`;
       block.style.top = 'auto';
       block.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(extra + lane) * pitch}px)`;
       if (this.settings.hoverDetails) {
@@ -4088,7 +4091,7 @@
     get effectiveRowHeight() {
       if (this.subtitleLayersEnabled()) {
         const audioSpace = (this.options.getAudioTrackCount?.() || 0) > 0 ? 78 : 0;
-        return Math.max(this.settings.rowHeight, this.subtitleLaneCount() * 38 + 54 + audioSpace);
+        return Math.max(this.settings.rowHeight, this.subtitleLaneCount() * this.subtitleGeometry().pitch + 54 + audioSpace);
       }
       return Math.max(this.settings.rowHeight, this.audioLayer?.minimumRowHeight() || 0);
     }
@@ -4389,7 +4392,7 @@
         if (this.subtitleLayersEnabled()) {
           for (const [role, selector] of [['main', '.v-main'], ['extension', '.v-ext']]) {
             const head = group.querySelector(selector), block = row.querySelector(`.waveform-cue-block[data-track="${role}"]`);
-            if (head && block) { head.style.top = `${block.offsetTop}px`; head.style.bottom = 'auto'; head.style.height = '32px'; }
+            if (head && block) { head.style.top = `${block.offsetTop}px`; head.style.bottom = 'auto'; head.style.height = `${this.subtitleGeometry().height}px`; }
             else head?.remove();
           }
         }
@@ -4486,7 +4489,9 @@
       this.basicWindowStartMs = clamp(this.basicWindowStartMs, 0, maxStart);
       const endMs = Math.min(this.durationMs, this.basicWindowStartMs + windowMs);
       this.content.replaceChildren();
-      this.content.style.height = this.subtitleLayersEnabled() ? `${Math.max(this.scroll.clientHeight, this.effectiveRowHeight)}px` : '100%';
+      const scrollStyle = getComputedStyle(this.scroll);
+      const availableHeight = this.scroll.clientHeight - (parseFloat(scrollStyle.paddingTop) || 0) - (parseFloat(scrollStyle.paddingBottom) || 0);
+      this.content.style.height = this.subtitleLayersEnabled() ? `${Math.max(availableHeight, this.effectiveRowHeight)}px` : '100%';
       const row = this.createRow(this.basicWindowStartMs, endMs, -1, true);
       this.content.appendChild(row);
       this.renderedRows = [row];
@@ -5537,9 +5542,9 @@
           drag.preview.dataset.track = track;
           if (destination) {
             drag.preview.dataset.subtitleTrackId = destination.id;
-            drag.preview.style.height = '32px';
+            drag.preview.style.height = `${this.subtitleGeometry().height}px`;
             drag.preview.style.top = 'auto';
-            drag.preview.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(destination.lane || 0) * 38}px)`;
+            drag.preview.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(destination.lane || 0) * this.subtitleGeometry().pitch}px)`;
           } else if (track === 'extension') drag.preview.style.setProperty('--cue-color', '#7a9fc5');
           if (track === 'overlay') {
             // 叠加字幕创建虚影落在叠加轨 lane（上半区），与正式叠加块同位；
@@ -5639,7 +5644,7 @@
       if (this.subtitleLayersEnabled()) {
         const audio = parseFloat(hitRow.style.getPropertyValue('--audio-lane-space')) || 0;
         const fromBottom = hitRow.getBoundingClientRect().bottom - clientY - audio - 7;
-        return fromBottom >= 0 && fromBottom < this.subtitleLayout('extension').count * 38 ? 'extension' : 'main';
+        return fromBottom >= 0 && fromBottom < this.subtitleLayout('extension').count * this.subtitleGeometry().pitch ? 'extension' : 'main';
       }
       const rowRect = hitRow.getBoundingClientRect();
       const rowStyle = getComputedStyle(hitRow);

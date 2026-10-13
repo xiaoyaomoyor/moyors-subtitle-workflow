@@ -376,6 +376,7 @@ test('context menu targets the hit layer above a time selection and exposes ordi
       translation: MSWTranslation.snapshot(DATA, host.selection()).entries.map(e => e.source.id) };
   });
   expect(selection).toEqual({ tts: ['b'], translation: ['b'] });
+  await menu.getByRole('menuitem',{name:'扩展操作',exact:true}).hover();
   await menu.getByText('复制到素材库', { exact: true }).click();
   expect(await page.evaluate(() => DATA.msw.subtitle_assets.length)).toBe(1);
   expect(await page.evaluate(() => DATA.msw.subtitle_assets[0].text)).toBe('b');

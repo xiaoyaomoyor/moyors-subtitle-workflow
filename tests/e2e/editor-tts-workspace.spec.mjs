@@ -29,7 +29,9 @@ test.beforeEach(async ({page}) => {
     segments: [{id: 'main-1', start: 0, end: 2000, text: '字幕原文'}], waveform: generateWaveformPayload(6000)}));
   server = await startTtsServer(path, generateWav(join(dir, 'media.wav'), 6), await findFreePort(), origin);
   await disableOnboarding(page); page.on('dialog', dialog => dialog.type()==='beforeunload'?dialog.accept():dialog.dismiss());
-  await page.goto(server.url); await expect(page.locator('#editor-loading')).not.toBeVisible();
+  // This suite mutates legacy arrays and verifies their saved representation.
+  // Native selection and processing are covered by track-actions / flat-production-flow.
+  await page.goto(server.url+'?subtitle-tracks=0'); await expect(page.locator('#editor-loading')).not.toBeVisible();
 });
 
 test('independent editor draft supports multiline, native undo, mode switches and a complete asset', async ({page}) => {
@@ -38,20 +40,20 @@ test('independent editor draft supports multiline, native undo, mode switches an
   await page.locator('.cue .text').first().click();
   await openTtsEnvironment(page); await page.locator('#tts-key').fill('synthetic-workspace-key');
   await closeTtsEnvironment(page);
-  await expect(page.locator('#tts-target option')).toHaveText(['字幕编辑器内容', '主字幕', '副字幕']);
+  await expect(page.locator('#tts-target option')).toHaveText(['选定的字幕块', '字幕编辑器内容']);
   await page.locator('#tts-target').selectOption('editor_text');
   const draft = page.locator('#cue-panel-tts-text');
   await expect(draft).toBeVisible(); await expect(draft).toHaveValue('字幕原文');
   await expect(page.locator('#cue-panel-text')).not.toBeVisible();
   expect(await draft.evaluate(el => getComputedStyle(el).borderTopColor)).toBe(await draft.evaluate(el => {
-    const probe = document.createElement('i'); probe.style.color = 'var(--wave-playhead)'; el.parentElement.append(probe);
+    const probe = document.createElement('i'); probe.style.color = 'var(--selection-yellow)'; el.parentElement.append(probe);
     const color = getComputedStyle(probe).color; probe.remove(); return color;
   }));
   await draft.fill('独立配音 Hello'); await draft.press('End'); await draft.press('Enter'); await draft.pressSequentially('Next line');
   await draft.press('Control+z');
   expect(await page.evaluate(() => DATA.segments[0].text)).toBe('字幕原文');
   await draft.fill('独立配音 Hello\n第二行');
-  await page.locator('#tts-target').selectOption('main'); await expect(page.locator('#cue-panel-text')).toHaveValue('字幕原文');
+  await page.locator('#tts-target').selectOption('selection'); await expect(page.locator('#cue-panel-text')).toHaveValue('字幕原文');
   await page.locator('#tts-target').selectOption('editor_text'); await expect(draft).toHaveValue('独立配音 Hello\n第二行');
   await page.locator('#tts-start').click();
   await draft.fill('提交之后改写');
@@ -89,10 +91,11 @@ for (const side of ['main','secondary']) test(`${side}: subtitle context inside 
   const menu=page.locator('#ctxmenu');await expect(menu).toBeVisible();
   await expect(menu).not.toContainText('加选播放头');await expect(menu).not.toContainText('精确编辑时间选区');await expect(menu).not.toContainText('清除时间选区');
   const action=menu.locator('.item').filter({hasText:'配音所选字幕（TTS）'});
-  expect(await action.evaluate(n=>n.nextElementSibling.textContent)).toContain('删除');
+  await menu.getByRole('menuitem',{name:'扩展操作',exact:true}).hover();
+  expect(await action.evaluate(n=>n.nextElementSibling.textContent)).toContain('复制到素材库');
   await page.screenshot({path:join(projectPath,'..',`subtitle-context-${side}.png`)});
   await action.click();await expect(page.locator('#tts-panel')).toHaveClass(/show/);
-  await expect(page.locator('#tts-target')).toHaveValue(side);
+  await expect(page.locator('#tts-target')).toHaveValue('selection');
   await expect(page.locator('#tts-scope')).toContainText(`所选字幕 · ${side==='main'?2:1} 条`);
   expect(calls).toHaveLength(0);
   const texts=await page.evaluate(()=>MSWTts.snapshot(DATA,MSWE.resolve('processing-host').selection(),document.getElementById('tts-target').value).entries.map(row=>row.text));
@@ -100,9 +103,9 @@ for (const side of ['main','secondary']) test(`${side}: subtitle context inside 
   expect(errors).toEqual([]);
 });
 
-test('empty or oversized draft cannot synthesize and an absent secondary track never falls back to main', async ({page}) => {
+test('empty or oversized draft cannot synthesize and an empty subtitle selection never falls back to the whole track', async ({page}) => {
   await openTtsEnvironment(page); await page.locator('#tts-key').fill('synthetic-workspace-key'); await closeTtsEnvironment(page);
-  await page.locator('#tts-target').selectOption('secondary'); await expect(page.locator('#tts-start')).toBeDisabled();
+  await page.locator('#tts-target').selectOption('selection'); await expect(page.locator('#tts-start')).toBeDisabled();
   await page.locator('#tts-target').selectOption('editor_text');
   await page.locator('#cue-panel-tts-text').fill(' '); await expect(page.locator('#tts-start')).toBeDisabled();
   await page.locator('#cue-panel-tts-text').fill('字'.repeat(601)); await expect(page.locator('#tts-start')).toBeDisabled();
@@ -171,7 +174,7 @@ test('register and rename an existing voice without changing the synthesis choic
 test('English text mode preserves user text and the two first-row controls share a baseline', async ({page}) => {
   await page.evaluate(() => { localStorage.setItem('mawe.language', 'en'); }); await page.reload();
   await openTtsEnvironment(page); await page.locator('#tts-key').fill('synthetic-workspace-key'); await closeTtsEnvironment(page);
-  await expect(page.locator('#tts-target option')).toHaveText(['Subtitle editor text', 'Main subtitle', 'Secondary subtitle']);
+  await expect(page.locator('#tts-target option')).toHaveText(['Selected subtitle blocks', 'Subtitle editor text']);
   const a = await page.locator('#tts-target').boundingBox(), b = await page.locator('#tts-engine').boundingBox();
   expect(Math.abs(a.y-b.y)).toBeLessThan(1);
   await page.locator('#tts-target').selectOption('editor_text'); await page.locator('#cue-panel-tts-text').fill('你好 Hello');

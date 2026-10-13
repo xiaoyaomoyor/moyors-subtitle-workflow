@@ -61,7 +61,8 @@ async function open(page, secondary = false, blank = false) {
   writeFileSync(projectPath, JSON.stringify(data));
   server = blank ? await startBlankServer(await findFreePort(), join(tempDir, 'settings'))
     : await startServer(projectPath, media, await findFreePort());
-  await page.goto(server.url);
+  // Legacy mapping tests; native independent-track translation is covered in flat-production-flow.
+  await page.goto(server.url+'?subtitle-layers=0&subtitle-tracks=0');
   if (blank) {
     const transfer = await page.evaluateHandle(data => {
       const transfer = new DataTransfer();
@@ -134,7 +135,8 @@ test('subtitle context menus open translation above TTS with selected scope and 
   await page.evaluate(() => updateEditorSettings({ selectBoundSubtitlePair: false, clickBehavior: 'select-only' }));
   const openFromContext = async (locator) => {
     await locator.click({ button: 'right' });
-    const labels = await page.locator('#ctxmenu > .item > span').allTextContents();
+    await page.getByRole('menuitem',{name:'扩展操作',exact:true}).hover();
+    const labels = await page.locator('#ctxmenu .ctx-submenu.open .item > span').allTextContents();
     expect(labels.indexOf('翻译所选字幕')).toBeGreaterThanOrEqual(0);
     expect(labels.indexOf('配音所选字幕（TTS）')).toBeGreaterThan(labels.indexOf('翻译所选字幕'));
     await page.locator('#ctxmenu .item').filter({ hasText: /^翻译所选字幕$/ }).click();
@@ -375,7 +377,8 @@ test('old project results never apply after switching projects and panel fits na
 
 test('generated portable editor explains the server requirement without sending jobs', async ({ page }) => {
   server = await startStaticServer(join(process.cwd(), 'blank-editor.html'), await findFreePort());
-  await page.goto(server.url);
+  // Legacy mapping tests; native independent-track translation is covered in flat-production-flow.
+  await page.goto(server.url+'?subtitle-layers=0&subtitle-tracks=0');
   await openTranslationPanel(page);
   await expect(page.locator('#translation-unavailable')).toBeVisible();
   await expect(page.locator('#translation-controls')).not.toBeVisible();

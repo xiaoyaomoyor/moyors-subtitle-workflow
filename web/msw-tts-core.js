@@ -10,40 +10,28 @@
   function configureEngines(rows) {
     for (const row of rows || []) if (engines.has(row.id) && Number.isInteger(row.text_limit) && row.text_limit > 0) engines.set(row.id, row);
   }
-  function scope(project, selection, side = null, engine = 'qwen') {
+  // Keep the third argument for callers using old target values; selection is always explicit.
+  function scope(project, selection, _target = 'selection', engine = 'qwen') {
     const track = (project.multi_subtitle?.tracks || []).find(t => t.id === selection.trackId)
       || project.multi_subtitle?.tracks?.[0] || null;
     const mains = project.segments || [], secondary = track?.segments || [];
     const mainById = new Map(mains.map(cue => [cue.id, cue]));
     const extById = new Map(secondary.map(cue => [cue.id, cue]));
-    const links = (project.multi_subtitle?.bindings || []).filter(b => b.track_id === track?.id
-      && b.main_segment_ids?.length === 1 && b.extension_segment_ids?.length === 1
-      && mainById.has(b.main_segment_ids[0]) && extById.has(b.extension_segment_ids[0]));
-    const byMain = new Map(links.map(b => [b.main_segment_ids[0], b]));
-    const byExt = new Map(links.map(b => [b.extension_segment_ids[0], b]));
     const selectedMain = new Set(selection.mainIds || []), selectedExt = new Set(selection.extensionIds || []);
     const hasSelection = Boolean(selection.hasSelection || selectedMain.size || selectedExt.size);
-    const linked = links.filter(b => selectedMain.has(b.main_segment_ids[0]) || selectedExt.has(b.extension_segment_ids[0]));
-    const needsChoice = linked.length > 0;
     const rows = new Map();
     const add = (cue, trackId) => { if (cue && typeof cue.text === 'string' && cue.text.trim()) rows.set(JSON.stringify([trackId, cue.id]), { cue, trackId }); };
-    if (hasSelection) {
-      selectedMain.forEach(id => { if (!byMain.has(id)) add(mainById.get(id), null); });
-      selectedExt.forEach(id => { if (!byExt.has(id)) add(extById.get(id), track?.id); });
-      linked.forEach(b => {
-        if (side === 'main') add(mainById.get(b.main_segment_ids[0]), null);
-        if (side === 'secondary') add(extById.get(b.extension_segment_ids[0]), track?.id);
-      });
-    }
+    // A binding never expands or substitutes the user's explicit selection.
+    selectedMain.forEach(id => add(mainById.get(id), null));
+    selectedExt.forEach(id => add(extById.get(id), track?.id));
     const sources = [...rows.values()].sort((a, b) => a.cue.start - b.cue.start || a.cue.end - b.cue.end);
-    return { sources, needsChoice, all: false, linked: linked.length,
+    return { sources, needsChoice: false, all: false,
       tooLong: sources.filter(row => [...row.cue.text].length > textLimit(engine)).length,
-      signature: JSON.stringify([hasSelection, [...selectedMain].sort(), [...selectedExt].sort(), track?.id, linked.map(b => b.id)]) };
+      signature: JSON.stringify([hasSelection, [...selectedMain].sort(), [...selectedExt].sort(), track?.id]) };
   }
   function snapshot(project, selection, side, engine = 'qwen') {
     if (selection.overlayIds?.length) throw new Error('叠加字幕暂不支持翻译或配音，请选择主字幕或副字幕');
     const selected = scope(project, selection, side, engine);
-    if (selected.needsChoice && !['main', 'secondary'].includes(side)) throw new Error('请先选择主字幕或副字幕');
     if (!selected.sources.length) throw new Error('没有可合成的字幕；请先选择字幕');
     if (selected.tooLong) throw new Error(`存在超过 ${textLimit(engine)} 字符的字幕，请先拆分`);
     if(global.MSWProductionProject?.isView(project))return global.MSWFlatProcessing.tts(global.MSWProductionProject.toProject(project),selected.sources.map(row=>row.cue.id),global.MSWProject.id);

@@ -4464,6 +4464,7 @@
   .ctxmenu .ctx-submenu.open .ctx-submenu-menu { display: block; }
   .ctxmenu .ctx-submenu.open > .ctx-submenu-toggle { background: var(--accent-tint); color: var(--text-primary); }
   .ctxmenu .ctx-submenu-menu .ctx-subitem { font-size: 12.5px; }
+  .ctxmenu .ctx-submenu-menu > .ctx-settings-item { white-space: nowrap; }
   /* 右键展开设置的勾选框行 */
   .ctxmenu .ctx-subitem.ctx-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .ctxmenu .ctx-subitem.ctx-check input { margin: 0; accent-color: var(--accent); width: 13px; height: 13px; flex: 0 0 auto; }
@@ -5108,6 +5109,7 @@
 .msw-numbered-tracks :is(.waveform-track-heads-column,.waveform-track-heads) { width: 40px; }
 .msw-numbered-tracks .fixed-track-head { display:flex; align-items:center; justify-content:center; left:1px; right:1px; padding:0; border:0; background:transparent; gap:0; }
 .msw-numbered-tracks .fixed-track-toggle { height:26px; padding:1px 2px; font-size:11px; border:0; background:var(--btn-bg); border-radius:var(--radius-sm); }
+.msw-numbered-tracks .compact-track .fixed-track-toggle { height:20px; padding-block:0; }
 .msw-numbered-tracks .fixed-track-collapse { position:absolute; right:-2px; top:-7px; z-index:1; width:14px; height:14px; padding:0; }
 .fixed-track-menu-note { display:block; padding:6px 10px; font-size:12px; color:var(--text-muted); }
 #style-track-target { box-sizing:border-box; height:30px; width:auto; max-width:100px; min-width:58px; padding:3px 6px; font-family:inherit; font-size:13px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); }

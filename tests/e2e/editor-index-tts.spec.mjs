@@ -205,7 +205,7 @@ test('IndexTTS audio follows the existing clip and project collection path', asy
   await page.locator('#tts-close').click(); await page.locator('.msw-asset-row').getByRole('button', {name: '放入时间轴', exact: true}).click();
   await expect.poll(() => page.evaluate(() => DATA.msw.audio_clips?.length || 0)).toBe(1);
   await page.keyboard.press('Control+s');
-  await expect.poll(() => JSON.parse(readFileSync(projectPath)).msw?.assets?.length || 0).toBe(1);
+  await expect.poll(() => JSON.parse(readFileSync(projectPath)).msw?.audio_clips?.length || 0).toBe(1);
   const saved = JSON.parse(readFileSync(projectPath));
   expect(existsSync(join(dir, saved.msw.assets[0].path))).toBe(true);
   expect(saved.msw.assets[0].generation.provider).toBe('indextts');
@@ -219,16 +219,16 @@ test('narrow layout keeps controls inside the scrolling panel', async ({page}) =
   if (process.env.MSW_UI_EVIDENCE_DIR) { await page.locator('#tts-index-emotion-vector').scrollIntoViewIfNeeded(); await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'index-tts-narrow.png')}); }
 });
 
-test('dual selection keeps the existing main secondary and unbound rules', async ({page}) => {
+test('dual selection synthesizes only selected blocks', async ({page}) => {
   await page.evaluate(() => {clearSelection();selectExtensionRange(0,1);});
   await connect(page); await page.locator('#tts-index-example').selectOption('0'); await expect(page.locator('#tts-index-speaker')).toHaveValue(/^ref-/);
-  await expect(page.locator('#tts-target')).toHaveValue('main'); await page.locator('#tts-target').selectOption('secondary');
+  await expect(page.locator('#tts-target')).toHaveValue('selection'); await page.locator('#tts-target').selectOption('selection');
   await page.locator('#tts-start').click(); await expect.poll(() => generations().length).toBe(2);
   expect(generations().map(data => data[2])).toEqual(['Linked secondary', 'Independent secondary']);
   await expect.poll(() => page.evaluate(() => DATA.msw.assets?.length || 0)).toBe(2);
   await page.locator('#tts-close').click(); await page.locator('.multi-cue-column.extension .text').filter({hasText: /^Linked secondary$/}).click();
-  await panel(page); await expect(page.locator('#tts-target')).toHaveValue('secondary'); await page.locator('#tts-target').selectOption('main');
-  await page.locator('#tts-start').click(); await expect.poll(() => generations().length).toBe(3); expect(generations()[2][2]).toContain('这是测试');
+  await panel(page); await expect(page.locator('#tts-target')).toHaveValue('selection'); await page.locator('#tts-target').selectOption('selection');
+  await page.locator('#tts-start').click(); await expect.poll(() => generations().length).toBe(3); expect(generations()[2][2]).toBe('Linked secondary');
 });
 
 test('a late reference response cannot replace selection after changing engine', async ({page}) => {
