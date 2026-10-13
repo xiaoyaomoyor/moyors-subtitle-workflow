@@ -7448,7 +7448,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
 
   const indexEl = document.createElement('span');
   indexEl.className = 'index';
-  indexEl.textContent = isOverlay ? `叠${idx + 1}` : String(idx + 1);
+  indexEl.textContent = productionFlatMode()?fixedCueLabel(seg,extensionTrack?'extension':'main',extensionTrack?.id):isOverlay ? `叠${idx + 1}` : String(idx + 1);
 
   const timeEl = document.createElement('span');
   timeEl.className = 'time';
@@ -7545,6 +7545,7 @@ function buildMultiCueColumn(segment, index, track, kind) {
   labelRestEl.textContent = '字幕';
   indexEl.title = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
   indexEl.append(labelEl, labelRestEl, document.createTextNode(` ${index + 1}`));
+  if(productionFlatMode()){indexEl.textContent=fixedCueLabel(segment,kind,track?.id);indexEl.title=indexEl.textContent;}
   appendProcessingReview(indexEl, segment);
   header.append(indexEl, buildMultiTimeEl(segment));
   // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。

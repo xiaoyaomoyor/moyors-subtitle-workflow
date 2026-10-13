@@ -21,13 +21,30 @@ let fixedPositionNotice = '';
 function fixedPresentationMode() { return fixedTrackMode() && DATA.subtitle_tracks.presentation === 'fixed'; }
 function fixedPreviewInvalidate() { fixedPreviewCache = null; }
 function fixedStyleTarget() { return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedStyleTrackId) || null; }
-function fixedStyleValue() { return window.MSWTrackPresentation.styleFor(DATA, fixedStyleTarget() || {style:{mode:'inherit'}}); }
+function fixedStyleGroup(track=fixedStyleTarget()) {
+  if(!productionFlatMode()||!track)return null;
+  const tracks=DATA.subtitle_tracks.tracks,main=tracks.find(t=>t.id===track.secondary_for)||track;
+  return {main,secondary:tracks.find(t=>t.secondary_for===main.id)||null};
+}
+function fixedStyleValue(custom=false) {
+  const group=fixedStyleGroup(),S=window.MSWProjectStyle;
+  const own=t=>custom&&t.style.custom?S.forKind(t.style.custom,fixedTrackCore.styleKind(t)):window.MSWTrackPresentation.styleFor(DATA,t);
+  if(!group)return own(fixedStyleTarget()||{style:{mode:'inherit'}});
+  const style=S.normalize(own(group.main));style.main=structuredClone(own(group.main)[group.main.flat_style_slot||'main']);
+  if(group.secondary)style.secondary=structuredClone(own(group.secondary)[group.secondary.flat_style_slot||'main']);
+  return style;
+}
 function fixedCommitStyle(style, selection) {
   const track=fixedStyleTarget(); if(!track)return false;
-  const next=fixedContent(), target=next.subtitle_tracks.tracks.find(t=>t.id===track.id);
+  const next=fixedContent(), target=next.subtitle_tracks.tracks.find(t=>t.id===track.id),group=fixedStyleGroup();
   const value=window.MSWProjectStyle.normalize(style);
-  const custom=selection==='current'?value:track.style.custom || fixedStyleValue();
-  target.style=selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value,selection,custom};
+  const members=group?[[group.main,'main'],...(group.secondary?[[group.secondary,'secondary']]:[])]:[[target,null]];
+  for(const [member,role] of members) {
+    const dest=next.subtitle_tracks.tracks.find(t=>t.id===member.id),mapped=window.MSWProjectStyle.forKind(value,fixedTrackCore.styleKind(member));
+    if(role)mapped[member.flat_style_slot||'main']=structuredClone(mapped[role]);
+    const custom=selection==='current'?mapped:member.style.custom||window.MSWTrackPresentation.styleFor(DATA,member);
+    dest.style=selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value:mapped,selection,custom};
+  }
   const ok=fixedCommitProject(next,'修改轨道字幕样式');
   if(ok)window.dispatchEvent(new Event('msw:burn-style'));
   return ok;

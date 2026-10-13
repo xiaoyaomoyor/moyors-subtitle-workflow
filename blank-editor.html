@@ -5122,6 +5122,16 @@
 .fixed-track-head button:hover { background: var(--btn-bg-hover); }
 .fixed-track-roles { grid-column: 1 / -1; margin-top: 17px; color: var(--text-muted); font-size: 10px; text-align: center; }
 .fixed-track-head.disabled-track, .fixed-disabled { opacity: .5; }
+.msw-numbered-tracks .waveform-row { left: 62px !important; }
+.msw-numbered-tracks :is(.waveform-track-heads-column,.waveform-track-heads) { width: 56px; }
+.msw-numbered-tracks .fixed-track-head { display:flex; align-items:stretch; padding:0; border:0; background:transparent; gap:0; }
+.msw-numbered-tracks .fixed-track-toggle { height:100%; padding:2px; font-size:11px; border:1px solid var(--border); background:var(--btn-bg); border-radius:var(--radius-sm); }
+.msw-numbered-tracks .fixed-track-head.current .fixed-track-toggle { border-color:var(--selection-yellow); }
+.msw-numbered-tracks .fixed-track-collapse { position:absolute; right:-2px; top:-7px; z-index:1; width:14px; height:14px; padding:0; }
+.fixed-track-menu-note { display:block; padding:6px 10px; font-size:12px; color:var(--text-muted); }
+#style-track-target { width:auto; max-width:100px; min-width:65px; padding:5px 6px; font:inherit; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); }
+.msw-style-toolbar { flex-wrap:wrap; }
+.msw-style-target-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; }
 .fixed-locked { cursor: default; }
 .fixed-track-badge { grid-column: 1 / -1; grid-row: 1; color: var(--text-muted); font-size: 10px; line-height: 1.3; }
 .cue:not(.multi-dual-cue) > .fixed-track-badge { grid-row: 2; }
@@ -18830,6 +18840,7 @@ export default MawDynamicCaptions;
       if(Object.hasOwn(track,'position'))t.position=track.position;
       old.validate(check);tracks.set(track.id,track);lanes.set(track.id,[]);
     }
+    validateGroups(m);
     for(const cue of m.cues) {
       if(!object(cue)||!stable(cue.id)||cues.has(cue.id)||!tracks.has(cue.track_id)
         ||Object.hasOwn(cue,'hidden')&&typeof cue.hidden!=='boolean')fail('字幕身份、归属或显示状态无效');
@@ -18882,6 +18893,57 @@ export default MawDynamicCaptions;
       if(listed.size!==aliasIds.size)fail('迁移来源身份列表不完整');
     }
     return true;
+  }
+  // Track groups are display/style relationships, never cue ownership or bindings.
+  function validateGroups(m) {
+    const numbers=new Set(),members=new Set(),tracks=new Map(m.tracks.map(t=>[t.id,t]));
+    for(const t of m.tracks) {
+      if(t.display_number!==undefined) {
+        if(!Number.isSafeInteger(t.display_number)||t.display_number<1||numbers.has(t.display_number))fail('轨道编号无效或重复');
+        numbers.add(t.display_number);
+      }
+      if(t.secondary_for!==undefined) {
+        const main=tracks.get(t.secondary_for);
+        if(!main||main===t||main.secondary_for!==undefined||members.has(main.id))fail('主副轨道分组必须为一主一副');
+        members.add(main.id);
+      }
+    }
+    if(m.next_track_number!==undefined&&(!Number.isSafeInteger(m.next_track_number)||m.next_track_number<1||[...numbers].some(n=>n>=m.next_track_number)))fail('后续轨道编号无效');
+  }
+  function normalizeGroups(project,{infer=false}={}) {
+    const m=project.subtitles,tracks=m.tracks,ids=new Set(tracks.map(t=>t.id));
+    const fresh=tracks.every(t=>t.display_number===undefined);
+    let next=Math.max(m.next_track_number||1,...tracks.map(t=>(t.display_number||0)+1));
+    for(const t of tracks) {if(t.display_number===undefined)t.display_number=next++;if(t.secondary_for&&!ids.has(t.secondary_for))delete t.secondary_for;}
+    m.next_track_number=next;
+    if(infer&&fresh&&tracks.every(t=>t.secondary_for===undefined)) {
+      const cues=new Map(m.cues.map(c=>[c.id,c.track_id])),out=new Map(),incoming=new Map();
+      for(const b of m.bindings) {
+        const a=cues.get(b.source_id),z=cues.get(b.target_id);
+        if(!a||!z)continue;if(!out.has(a))out.set(a,new Set());out.get(a).add(z);
+        if(!incoming.has(z))incoming.set(z,new Set());incoming.get(z).add(a);
+      }
+      for(const [a,targets] of out)if(targets.size===1&&!incoming.has(a)) {
+        const z=[...targets][0];if(incoming.get(z).size===1&&!out.has(z))tracks.find(t=>t.id===z).secondary_for=a;
+      }
+    }
+    validateGroups(m);
+    for(const t of tracks) {
+      const main=t.secondary_for?tracks.find(a=>a.id===t.secondary_for):t;
+      t.name='S'+main.display_number+(t.secondary_for?'副':tracks.some(a=>a.secondary_for===t.id)?'主':'');
+    }
+    return project;
+  }
+  function setTrackGroup(project,secondaryId,mainId=null) {
+    validate(project);const next=normalizeGroups(clone(project)),tracks=next.subtitles.tracks;
+    const secondary=tracks.find(t=>t.id===secondaryId),main=tracks.find(t=>t.id===mainId);
+    if(!secondary||secondary.locked)fail('轨道不存在或已锁定');
+    const previous=tracks.find(t=>t.id===secondary.secondary_for),child=tracks.find(t=>t.secondary_for===secondary.id);
+    if(previous?.locked||child?.locked)fail('分组中的轨道已锁定');
+    if(mainId!==null&&(!main||main===secondary||main.locked||main.secondary_for||child||tracks.some(t=>t.secondary_for===mainId&&t.id!==secondaryId)))fail('请选择未分组且未锁定的主轨道');
+    delete secondary.secondary_for;if(child)delete child.secondary_for;
+    if(main)secondary.secondary_for=main.id;
+    normalizeGroups(next);validate(next);return next;
   }
   function migrate(input) {
     if(input?.schema===SCHEMA){validate(input);return clone(input);}
@@ -18958,7 +19020,9 @@ export default MawDynamicCaptions;
     validate(next);return next;
   }
   function addTrack(project,track) {
-    validate(project);const next=clone(project);next.subtitles.tracks.push(clone(track));validate(next);return next;
+    validate(project);const next=clone(project),added=clone(track);delete added.display_number;
+    next.subtitles.tracks.push(added);if(next.subtitles.next_track_number)normalizeGroups(next);
+    validate(next);return next;
   }
   function bind(project,sourceId,targetId,id) {
     const index=createIndex(project),source=index.resolve(sourceId),target=index.resolve(targetId);
@@ -18999,7 +19063,7 @@ export default MawDynamicCaptions;
     if(JSON.stringify(canonical(comparable(rebuilt)))!==JSON.stringify(canonical(comparable(project))))fail('新结构已超出旧版视图的表达能力；不能降级保存');
     return result;
   }
-  const api={SCHEMA,MODEL_SCHEMA,MIGRATION_SCHEMA,identity,validate,migrate,createIndex,addTrack,move,bind,unbind,legacyProjection};
+  const api={SCHEMA,MODEL_SCHEMA,MIGRATION_SCHEMA,identity,validate,migrate,createIndex,addTrack,move,bind,unbind,legacyProjection,normalizeGroups,setTrackGroup};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.MSWFlatSubtitles=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
@@ -19067,7 +19131,7 @@ export default MawDynamicCaptions;
   });}
   function updateTrack(p,id,patch) {return transaction(p,n=>{const t=track(n,id);if(!t)fail('轨道已不存在');
     if(t.locked&&Object.keys(patch).some(k=>!['name','purpose','enabled','collapsed','locked'].includes(k)))fail('轨道已锁定');Object.assign(t,copy(patch));});}
-  function deleteTrack(p,id) {return transaction(p,n=>{const t=track(n,id);if(!t||t.locked)fail('轨道不存在或已锁定');if(body(n).tracks.length===1)fail('至少保留一条轨道');if(body(n).cues.some(c=>c.track_id===id))fail('请先移动或删除轨道中的字幕');body(n).tracks=body(n).tracks.filter(t=>t.id!==id);});}
+  function deleteTrack(p,id) {return transaction(p,n=>{const t=track(n,id);if(!t||t.locked||body(n).tracks.some(t=>t.secondary_for===id&&t.locked))fail('轨道不存在或已锁定');if(body(n).tracks.length===1)fail('至少保留一条轨道');if(body(n).cues.some(c=>c.track_id===id))fail('请先移动或删除轨道中的字幕');body(n).tracks=body(n).tracks.filter(t=>t.id!==id);if(body(n).next_track_number)core.normalizeGroups(n);});}
   function reorder(p,id,delta) {return transaction(p,n=>{const tracks=body(n).tracks,i=tracks.findIndex(t=>t.id===id),j=i+delta;if(i<0||j<0||j>=tracks.length)fail('已到达轨道边界');[tracks[i],tracks[j]]=[tracks[j],tracks[i]];});}
   function addCue(p,trackId,id,start,end,text='') {return transaction(p,n=>{const t=track(n,trackId);if(!t||t.locked)fail('目标轨道不存在或已锁定');const content={start,end,text,items:[],_dirty:true};frame(n,content);body(n).cues.push({id,track_id:trackId,content});});}
   function offsets(text) {
@@ -19251,7 +19315,7 @@ export default MawDynamicCaptions;
   const extras=(value,keys)=>Object.fromEntries(Object.entries(value).filter(([k])=>!keys.includes(k)));
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
   function fromProject(input) {
-    const p=core.migrate(input),m=p.subtitles,view=clone(p);delete view.subtitles;view.schema=legacy.SCHEMA;
+    const p=core.normalizeGroups(core.migrate(input),{infer:true}),m=p.subtitles,view=clone(p);delete view.subtitles;view.schema=legacy.SCHEMA;
     const context={schema:'msw.flat-operation-view.v1',model:extras(m,['tracks','cues','bindings']),
       tracks:{},cues:{},bindings:{},markers:{}};
     const right=new Set(m.bindings.map(b=>b.target_id)),left=new Set(m.bindings.map(b=>b.source_id));
@@ -19293,12 +19357,18 @@ export default MawDynamicCaptions;
     view.subtitle_layers=clone(m.migration?.structure?.subtitle_layers||layers.migrate({segments:[]}).subtitle_layers);
     view.subtitle_layers.legacy_overlay={...view.subtitle_layers.legacy_overlay,visible:false,cue_ids:m.cues.filter(c=>c.hidden&&!right.has(c.id)).map(c=>c.id)};
     view.subtitle_tracks={schema:legacy.TRACK_SCHEMA,presentation:'fixed',tracks:m.tracks.map(t=>{
-      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position']);
-      return {id:t.id,name:t.name,purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
+      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for']);
+      return {id:t.id,name:t.name,display_number:t.display_number,...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
         origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
         style:clone(extras(t.style,['slot','base'])),flat_style_slot:t.style.slot,...(t.position?{position:clone(t.position)}:{})};
     }),assignments:m.cues.map(c=>({role:right.has(c.id)?'extension':'main',track_id:right.has(c.id)?EXT:null,cue_id:c.id,subtitle_track_id:c.track_id})),flat_context:context};
     legacy.validate(view);return view;
+  }
+  function normalizeView(view) {
+    if(!isView(view))return view;
+    const model=view.subtitle_tracks.flat_context.model;
+    const p={subtitles:{...model,tracks:view.subtitle_tracks.tracks,cues:[],bindings:[]}};
+    core.normalizeGroups(p);model.next_track_number=p.subtitles.next_track_number;return view;
   }
   function toProject(view) {
     if(!isView(view))return core.migrate(view);
@@ -19309,7 +19379,7 @@ export default MawDynamicCaptions;
     const m={...clone(context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
     const owners=legacy.ownerMap(view),allIds=new Set();
     for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
-      id:t.id,name:t.name,purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+      id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
       style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{})});
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
     for(const source of sources)for(const value of source.segments) {
@@ -19334,7 +19404,7 @@ export default MawDynamicCaptions;
     // Display preference is not a track relationship.
     p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.map(c=>c.id)),
       ...(view.multi_subtitle?.main_split_mode?{main_split_mode:view.multi_subtitle.main_split_mode}:{}),...(view.multi_subtitle?.tracks[0]?.split_mode?{secondary_split_mode:view.multi_subtitle.tracks[0].split_mode}:{})};
-    core.validate(p);return p;
+    core.normalizeGroups(p);core.validate(p);return p;
   }
   function translation(view,selection,destination='',outputMode='secondary') {
     let p=toProject(view);const F=global.MSWFlatProcessing,E=global.MSWFlatEditing;
@@ -19342,11 +19412,14 @@ export default MawDynamicCaptions;
     if(!ids.length)throw Error('请先选择要翻译的字幕');
     const peers=[...new Set(ids.map(id=>E.partner(p,id)?.track_id).filter(Boolean))];
     if(!destination&&peers.length>1)throw Error('所选字幕绑定到不同轨道，请分批翻译或选择目标轨道');
-    let target=destination||peers[0],created;
+    const sourceTracks=[...new Set(ids.map(id=>E.cue(p,id).track_id))];
+    const grouped=sourceTracks.length===1?p.subtitles.tracks.find(t=>t.secondary_for===sourceTracks[0]):null;
+    let target=destination||peers[0]||grouped?.id,created;
     if(!target||target==='new') {
       created={id:global.MSWProject.id('subtitle-track'),name:'译字幕',purpose:'translation',layout:'auto',enabled:true,locked:false,collapsed:false,
         style:{mode:'inherit',slot:'secondary',base:'dialogue'}};
-      p=core.addTrack(p,created);target=created.id;
+      if(sourceTracks.length===1&&!p.subtitles.tracks.find(t=>t.id===sourceTracks[0]).secondary_for&&!grouped)created.secondary_for=sourceTracks[0];
+      p=core.addTrack(p,created);target=created.id;created=clone(p.subtitles.tracks.find(t=>t.id===target));
     }
     const snap=F.translation(p,ids,target);
     return {...snap,output_mode:outputMode,...(created?{created_subtitle_track:created}:{})};
@@ -19479,7 +19552,7 @@ export default MawDynamicCaptions;
     R.record(p.msw,jobs[0]).applications[target]={revision,state:{flat:true,before:previous?.state?.flat?previous.state.before:subset(before),after:subset(p.subtitles)}};
     core.validate(p);return {project:fromProject(p),count:ids.size};
   }
-  const api={isView,fromProject,toProject,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -32108,8 +32181,18 @@ let fixedHistoryCheckpoint = null;
 let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
+let fixedNumberCache = null;
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
-function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
+function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
+function fixedCueLabel(cue,role='main',trackId=null,editor=false) {
+  const track=fixedTrack(cue,role,trackId);if(!track)return '';
+  if(!fixedNumberCache) {
+    fixedNumberCache=new Map();const lanes=new Map();
+    for(const s of layerCore.tracks(DATA))for(const c of s.segments){const id=fixedOwner(c,s.role,s.track_id);if(!lanes.has(id))lanes.set(id,[]);lanes.get(id).push(c);}
+    for(const rows of lanes.values())rows.sort((a,b)=>a.start-b.start||a.end-b.end||a.id.localeCompare(b.id)).forEach((c,i)=>fixedNumberCache.set(c.id,i+1));
+  }
+  return track.name+(editor&&/[主副]$/.test(track.name)?'字幕':'')+'_'+fixedNumberCache.get(cue.id);
+}
 function fixedRef(cue, role = 'main', trackId = null) {
   return { role, track_id: role === 'main' ? null : trackId || getActiveExtensionTrack()?.id, cue_id: cue?.id };
 }
@@ -32250,7 +32333,7 @@ function fixedHitTrack(fromBottom) {
 }
 function fixedCommitProject(next, label) {
   if (pendingLinkedSplit) { fixedStatus('请先确认或取消当前切分'); return false; }
-  try { fixedTrackCore.validate(next); fixedTrackCore.assertLocks(DATA, next); }
+  try { window.MSWProductionProject.normalizeView(next);fixedTrackCore.validate(next); fixedTrackCore.assertLocks(DATA, next); }
   catch (error) { fixedStatus(error.message); return false; }
   commitProcessingEdits(); pushUndo(label, { captureView: true });
   DATA.subtitle_tracks = next.subtitle_tracks;
@@ -32361,8 +32444,19 @@ function fixedRenameTrack(track, x, y, settings = false) {
 function fixedTrackMenu(track, x, y) {
   fixedStatus();
   ctxmenu.replaceChildren();
-  fixedMenuItem('重命名', () => fixedRenameTrack(track,x,y));
-  fixedMenuItem('轨道设置', () => fixedRenameTrack(track,x,y,true));
+  if(productionFlatMode()) {
+    const tracks=DATA.subtitle_tracks.tracks;
+    const apply=main=>{try{const p=window.MSWProductionProject.toProject(DATA);productionCommitProject(window.MSWFlatSubtitles.setTrackGroup(p,track.id,main),'调整主副轨道分组');}catch(e){fixedStatus(e.message);}};
+    if(track.secondary_for||tracks.some(t=>t.secondary_for===track.id))fixedMenuItem('解除主副分组',()=>apply(null),track.locked);
+    if(!tracks.some(t=>t.secondary_for===track.id)) {
+      const section=document.createElement('details'),title=document.createElement('summary');section.className='fixed-track-move-menu';title.textContent='设为副轨道';section.append(title);ctxmenu.append(section);
+      for(const main of tracks.filter(t=>t.id!==track.id&&!t.secondary_for&&!tracks.some(s=>s.secondary_for===t.id&&s.id!==track.id)))section.append(fixedMenuItem('作为 S'+main.display_number+' 的副轨道',()=>apply(main.id),track.locked||main.locked||track.secondary_for===main.id));
+      if(section.children.length===1){const note=document.createElement('span');note.className='fixed-track-menu-note';note.textContent='没有可用的主轨道';section.append(note);}
+    }
+  } else {
+    fixedMenuItem('重命名', () => fixedRenameTrack(track,x,y));
+    fixedMenuItem('轨道设置', () => fixedRenameTrack(track,x,y,true));
+  }
   fixedMenuItem('字幕样式与画面位置', () => window.MSWSubtitleStyle?.editTrack(track.id));
   fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed }));
   fixedMenuItem(track.enabled ? '禁用轨道' : '启用轨道', () => fixedUpdateTrack(track.id, { enabled: !track.enabled }));
@@ -32413,6 +32507,7 @@ function fixedRenderHeads(group, row, audioSpace) {
 }
 function fixedSyncUI() {
   document.documentElement.classList.toggle('msw-fixed-tracks', fixedTrackMode());
+  document.documentElement.classList.toggle('msw-numbered-tracks',productionFlatMode());
   if (!fixedTrackMode()) return;
   if (!fixedActiveTrackId || !DATA.subtitle_tracks.tracks.some(t => t.id === fixedActiveTrackId)) fixedActiveTrackId = DATA.subtitle_tracks.tracks[0].id;
   const toolbar = document.getElementById('cues-module');
@@ -32441,10 +32536,10 @@ function fixedSyncUI() {
     if (!track) return;
     node.dataset.subtitleTrackId = track.id; node.classList.toggle('fixed-locked', track.locked); node.classList.toggle('fixed-disabled', !track.enabled);
     let badge = node.querySelector(':scope > .fixed-track-badge');
-    if (!badge) { badge = document.createElement('span'); badge.className = 'fixed-track-badge'; node.prepend(badge); }
     const other=productionFlatMode()&&main&&ext?fixedTrack(ext,'extension'):null;
     node.dataset.subtitleTrackIds=JSON.stringify([...new Set([track.id,other?.id].filter(Boolean))]);
-    badge.textContent = track.name + (other&&other.id!==track.id?' / '+other.name:'') + (track.locked ? ' · 已锁定' : '');
+    if(productionFlatMode())badge?.remove();
+    else {if(!badge){badge=document.createElement('span');badge.className='fixed-track-badge';node.prepend(badge);}badge.textContent=track.name+(track.locked?' · 已锁定':'');}
   });
 }
 document.addEventListener('contextmenu',event=>{
@@ -32454,9 +32549,15 @@ document.addEventListener('contextmenu',event=>{
 },true);
 function fixedPanelUI(target) {
   if (!fixedTrackMode()) return;
+  const track = target ? fixedTrack(target.segment, target.kind, target.trackId) : null;
+  if(productionFlatMode()) {
+    document.getElementById('fixed-cue-owner')?.remove();
+    if(track){fixedActiveTrackId=track.id;cuePanelTarget.textContent=fixedCueLabel(target.segment,target.kind,target.trackId,true);}
+    if(track?.locked)for(const node of [cuePanelText,cuePanelStart,cuePanelDuration,cuePanelAddSticker,cuePanelSplit])if(node)node.disabled=true;
+    return;
+  }
   let label = document.getElementById('fixed-cue-owner');
   if (!label) { label = document.createElement('span'); label.id = 'fixed-cue-owner'; document.querySelector('#current-cue-panel .module-tab-strip')?.after(label); }
-  const track = target ? fixedTrack(target.segment, target.kind, target.trackId) : null;
   label.textContent = track ? `${track.name}${productionFlatMode()?'':' · '+(target.kind === 'extension' ? '副字幕' : '主字幕')}${track.locked ? ' · 已锁定' : ''}` : '';
   if (track) fixedActiveTrackId = track.id;
   if (track?.locked) for (const node of [cuePanelText, cuePanelStart, cuePanelDuration, cuePanelAddSticker, cuePanelSplit]) if (node) node.disabled = true;
@@ -32985,13 +33086,30 @@ let fixedPositionNotice = '';
 function fixedPresentationMode() { return fixedTrackMode() && DATA.subtitle_tracks.presentation === 'fixed'; }
 function fixedPreviewInvalidate() { fixedPreviewCache = null; }
 function fixedStyleTarget() { return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedStyleTrackId) || null; }
-function fixedStyleValue() { return window.MSWTrackPresentation.styleFor(DATA, fixedStyleTarget() || {style:{mode:'inherit'}}); }
+function fixedStyleGroup(track=fixedStyleTarget()) {
+  if(!productionFlatMode()||!track)return null;
+  const tracks=DATA.subtitle_tracks.tracks,main=tracks.find(t=>t.id===track.secondary_for)||track;
+  return {main,secondary:tracks.find(t=>t.secondary_for===main.id)||null};
+}
+function fixedStyleValue(custom=false) {
+  const group=fixedStyleGroup(),S=window.MSWProjectStyle;
+  const own=t=>custom&&t.style.custom?S.forKind(t.style.custom,fixedTrackCore.styleKind(t)):window.MSWTrackPresentation.styleFor(DATA,t);
+  if(!group)return own(fixedStyleTarget()||{style:{mode:'inherit'}});
+  const style=S.normalize(own(group.main));style.main=structuredClone(own(group.main)[group.main.flat_style_slot||'main']);
+  if(group.secondary)style.secondary=structuredClone(own(group.secondary)[group.secondary.flat_style_slot||'main']);
+  return style;
+}
 function fixedCommitStyle(style, selection) {
   const track=fixedStyleTarget(); if(!track)return false;
-  const next=fixedContent(), target=next.subtitle_tracks.tracks.find(t=>t.id===track.id);
+  const next=fixedContent(), target=next.subtitle_tracks.tracks.find(t=>t.id===track.id),group=fixedStyleGroup();
   const value=window.MSWProjectStyle.normalize(style);
-  const custom=selection==='current'?value:track.style.custom || fixedStyleValue();
-  target.style=selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value,selection,custom};
+  const members=group?[[group.main,'main'],...(group.secondary?[[group.secondary,'secondary']]:[])]:[[target,null]];
+  for(const [member,role] of members) {
+    const dest=next.subtitle_tracks.tracks.find(t=>t.id===member.id),mapped=window.MSWProjectStyle.forKind(value,fixedTrackCore.styleKind(member));
+    if(role)mapped[member.flat_style_slot||'main']=structuredClone(mapped[role]);
+    const custom=selection==='current'?mapped:member.style.custom||window.MSWTrackPresentation.styleFor(DATA,member);
+    dest.style=selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value:mapped,selection,custom};
+  }
   const ok=fixedCommitProject(next,'修改轨道字幕样式');
   if(ok)window.dispatchEvent(new Event('msw:burn-style'));
   return ok;
@@ -40660,7 +40778,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
 
   const indexEl = document.createElement('span');
   indexEl.className = 'index';
-  indexEl.textContent = isOverlay ? `叠${idx + 1}` : String(idx + 1);
+  indexEl.textContent = productionFlatMode()?fixedCueLabel(seg,extensionTrack?'extension':'main',extensionTrack?.id):isOverlay ? `叠${idx + 1}` : String(idx + 1);
 
   const timeEl = document.createElement('span');
   timeEl.className = 'time';
@@ -40757,6 +40875,7 @@ function buildMultiCueColumn(segment, index, track, kind) {
   labelRestEl.textContent = '字幕';
   indexEl.title = `${kind === 'main' ? '主字幕' : '副字幕'} ${index + 1}`;
   indexEl.append(labelEl, labelRestEl, document.createTextNode(` ${index + 1}`));
+  if(productionFlatMode()){indexEl.textContent=fixedCueLabel(segment,kind,track?.id);indexEl.title=indexEl.textContent;}
   appendProcessingReview(indexEl, segment);
   header.append(indexEl, buildMultiTimeEl(segment));
   // 双列模式的字数：与单列同一元素/同一开关（hide-cue-charcount），挂在列头行尾。
@@ -64109,7 +64228,7 @@ window.addEventListener('beforeunload', (e) => {
   panel.innerHTML=`<span class="settings-panel-title">字幕样式</span>
     <div class="media-settings-grid msw-style-selectors">
       <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
-      <label class="media-settings-field" data-option-help="工程样式随工程保存，用于 ASS 导出和默认视频烧录；SRT 仅保存文字和时间。应用预设后调整只影响本工程。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
+      <label class="media-settings-field" data-option-help="下方选择要编辑的轨道组，预设作用于该组。样式随工程保存，用于 ASS 和默认视频烧录；SRT 仅保存文字和时间。应用预设后调整只影响本工程。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
     <div id="style-migration-row" class="msw-style-notice" hidden><p id="style-migration-note" class="msw-processing-hint" hidden></p></div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
@@ -64118,22 +64237,24 @@ window.addEventListener('beforeunload', (e) => {
     <details id="style-general" class="msw-style-section" open><summary>通用</summary><div id="style-basic-fields" class="msw-style-fields"></div></details>
     <details id="style-more" class="msw-style-section"><summary>进阶</summary><div id="style-emphasis-fields" class="msw-style-checks"></div><div id="style-advanced-fields" class="msw-style-fields"></div></details>
     <details id="style-animation" class="msw-style-section"><summary><span class="msw-option-label">动画</span></summary><div id="style-animation-fields"></div></details>
-    <small data-help-for="style-animation" hidden>动画同时作用于主、副字幕。时间从每条字幕开始计算，单位为毫秒。</small>
+    <small data-help-for="style-animation" hidden>动画作用于当前轨道组。时间从每条字幕开始计算，单位为毫秒。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   panel.querySelector('.msw-style-selectors').insertAdjacentHTML('beforebegin',`<div id="style-track-controls" class="media-settings-grid" hidden>
-    <label class="media-settings-field" data-option-help="旧工程保留原画面排布。固定轨道排布统一用于预览、ASS 和烧录；各轨道的自动排布／固定位置可在轨道头右键设置。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
-    <label class="media-settings-field"><span class="msw-option-label">编辑对象</span><select id="style-track-target"></select></label>
+    <label class="media-settings-field" data-option-help="旧工程保留原画面排布。固定轨道排布统一用于预览、ASS 和烧录；各轨道可在下方选择自动排布或固定位置。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
   </div>`);
-  panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<details id="style-track-position" class="msw-style-section" hidden open><summary>画面位置</summary>
-    <div class="media-settings-grid">
+  const targetTabs=document.createElement('div');targetTabs.className='msw-style-target-tabs';
+  const tabs=panel.querySelector('.msw-style-tabs');tabs.before(targetTabs);targetTabs.innerHTML='<select id="style-track-target" aria-label="字幕轨道组"></select>';targetTabs.append(tabs);
+  panel.querySelector('#style-more').insertAdjacentHTML('afterend',`<details id="style-track-position" class="msw-style-section" hidden open><summary>排布与画面位置</summary>
+    <label class="media-settings-field"><span>排布</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label>
+    <div id="style-position-fields"><div class="media-settings-grid">
       <label class="media-settings-field" data-option-help="横向为字幕组中心，纵向为字幕组顶部；百分比相对于视频内容，不包含黑边。轨道位置作用于没有位置覆盖的字幕；当前字幕以明确绑定的主副字幕为一组。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道位置</option><option value="cue">当前字幕位置</option></select></label>
       <button type="button" id="style-position-drag">在画面中定位</button>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
-    </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p>
+    </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p></div>
   </details>`);
-  panel.querySelector('.msw-style-toolbar').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
+  panel.querySelector('#style-general').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
     <label class="media-settings-field" data-option-help="以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
   </div>`);
@@ -64190,7 +64311,7 @@ window.addEventListener('beforeunload', (e) => {
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
   const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
-  const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleTarget())):S.normalize(s);
+  const comparable=s=>!productionFlatMode()&&fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleTarget())):S.normalize(s);
   const same=(a,b)=>JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
@@ -64203,17 +64324,23 @@ window.addEventListener('beforeunload', (e) => {
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
+    if(productionFlatMode()&&!fixedStyleTarget()){
+      const tracks=host.data.subtitle_tracks.tracks,occupied=new Set(host.data.subtitle_tracks.assignments.map(a=>a.subtitle_track_id));
+      fixedStyleTrackId=(tracks.find(t=>!t.secondary_for&&(occupied.has(t.id)||tracks.some(s=>s.secondary_for===t.id&&occupied.has(s.id))))||tracks[0]).id;role='main';
+    }
     const track=fixedTrackMode()?fixedStyleTarget():null;
-    $('style-track-controls').hidden=!fixedTrackMode();
+    $('style-track-controls').hidden=!fixedTrackMode()||productionFlatMode();
+    $('style-track-target').hidden=!fixedTrackMode();
     if(fixedTrackMode()) {
-      fill($('style-track-target'),[['','工程默认'],...host.data.subtitle_tracks.tracks.map(t=>[t.id,t.name])],track?.id||'');
+      fill($('style-track-target'),productionFlatMode()?host.data.subtitle_tracks.tracks.filter(t=>!t.secondary_for).map(t=>[t.id,'S'+t.display_number]):[['','工程默认'],...host.data.subtitle_tracks.tracks.map(t=>[t.id,t.name])],fixedStyleGroup()?.main.id||track?.id||'');
       $('style-track-layout').value=host.data.subtitle_tracks.presentation;
       $('style-track-layout').closest('label').hidden=productionFlatMode();
     }
-    const chosen=track?track.style.selection:host.data.preview?.project_style_selection;
-    selectedPreset=track?.style.mode==='inherit'?'inherit':chosen==='current'?'current':find(chosen)&&same(find(chosen),value())?chosen:all().find(s=>same(s,value()))?.id||'current';
+    const chosen=track?fixedStyleGroup()?.main.style.selection||track.style.selection:host.data.preview?.project_style_selection;
+    const group=fixedStyleGroup(),inherited=group?[group.main,group.secondary].filter(Boolean).every(t=>t.style.mode==='inherit'):track?.style.mode==='inherit';
+    selectedPreset=inherited?'inherit':chosen==='current'?'current':find(chosen)&&same(find(chosen),value())?chosen:all().find(s=>same(s,value()))?.id||'current';
     fill($('style-project-preset'),[...(track?[['inherit','继承工程样式']]:[]),['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
-    $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent=track?'轨道样式':'工程样式';
+    $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent='工程样式';
     const selected=$('video-export-style-source').value;
     fill($('video-export-style-source'),[['project','跟随工程样式'],...all().map(s=>['preset:'+s.id,s.name])],selected || 'project');
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
@@ -64221,8 +64348,11 @@ window.addEventListener('beforeunload', (e) => {
   function sync() {
     const style=S.normalize(value()||S.defaults());
     const track=fixedTrackMode()?fixedStyleTarget():null;
-    const blocked=!!track&&(track.locked||!fixedPresentationMode());
-    $('style-track-position').hidden=(!track||fixedTrackCore.placement(track)!=='fixed')||!fixedPresentationMode();
+    const group=fixedStyleGroup();
+    const blocked=!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
+    $('style-track-position').hidden=!track||!fixedPresentationMode()||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed';
+    $('style-track-placement').value=track?fixedTrackCore.placement(track):'auto';$('style-track-placement').disabled=blocked;
+    $('style-position-fields').hidden=!track||fixedTrackCore.placement(track)!=='fixed';
     if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
@@ -64237,16 +64367,16 @@ window.addEventListener('beforeunload', (e) => {
     for(const id of ['style-save-as','style-reset','style-save-preset','style-save-cancel','style-delete-confirm-button','style-delete-cancel'])$(id).disabled=saving;
     for(const node of panel.querySelectorAll('[data-style-field],[data-animation],#style-project-preset,#style-pair-order,#style-pair-gap,#style-swap,#style-reset,#style-transform-preset'))node.disabled=saving||blocked;
     $('style-preset-name').disabled=saving;
-    $('style-reset').title=t(track?'恢复本轨道的主、副字幕和动画默认值':'恢复工程的主、副字幕和动画默认值');
+    $('style-reset').title=t(track?'恢复当前轨道组的样式默认值':'恢复工程的主、副字幕和动画默认值');
     if(track)message(track.locked?'此轨道已锁定。':!fixedPresentationMode()?'切换为固定轨道排布后，可调整轨道样式与位置。':'');
-    const secondary=host.data.multi_subtitle?.enabled===true;
+    const secondary=productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true;
     $('style-secondary').hidden=!secondary;$('style-swap').hidden=!secondary;if(!secondary)role='main';
-    if(productionFlatMode()&&track)role=track.flat_style_slot||'main';
+    if(group)role=group.secondary?.id===track.id?'secondary':'main';
     for(const r of ['main','secondary']) {
-      $('style-'+r).textContent=t(productionFlatMode()&&track?'本轨道':r==='main'?'主字幕':'副字幕');
-      $('style-'+r).hidden=productionFlatMode()&&track?r!==role:r==='secondary'&&!secondary;
+      $('style-'+r).textContent=t(r==='main'?'主字幕':'副字幕');
+      $('style-'+r).hidden=productionFlatMode()?!secondary:r==='secondary'&&!secondary;
     }
-    if(productionFlatMode()&&track)$('style-swap').hidden=true;
+
     $('style-pair-controls').hidden=!secondary;const pair=S.pairSettings(style);$('style-pair-order').value=pair.order;$('style-pair-gap').value=pair.gap;
     for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-pressed',String(role===r));
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
@@ -64276,8 +64406,9 @@ window.addEventListener('beforeunload', (e) => {
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
-  function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().flat_style_slot||'main';rebuild();sync();if(open)host.openMediaSettings();}
+  function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(open)host.openMediaSettings();}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
+  $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;sync();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
   $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
@@ -64313,7 +64444,8 @@ window.addEventListener('beforeunload', (e) => {
   $('style-preview-mode').onchange=()=>{
     cancelAction();proof.mode=$('style-preview-mode').value;persistProof();rebuild();sync();refresh();
   };
-  for(const r of ['main','secondary'])$('style-'+r).onclick=()=>{role=r;sync();};
+  function selectRole(r){role=r;const group=fixedStyleGroup();if(group)fixedStyleTrackId=(r==='secondary'?group.secondary:group.main)?.id||group.main.id;fixedPositionRef=null;sync();}
+  for(const r of ['main','secondary'])$('style-'+r).onclick=()=>selectRole(r);
   $('style-swap').onclick=()=>{cancelAction();change(S.swapAppearance(value()),'current','交换主副字幕样式');};
   for(const id of ['style-pair-order','style-pair-gap'])$(id).onchange=()=>{
     if(!$('style-pair-gap').checkValidity()){$('style-pair-gap').reportValidity();sync();return;}
@@ -64321,13 +64453,13 @@ window.addEventListener('beforeunload', (e) => {
   };
   panel.querySelector('.msw-style-tabs').addEventListener('keydown',event=>{
     if(!['style-main','style-secondary'].includes(event.target.id)||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||$('style-secondary').hidden)return;
-    event.preventDefault();role=event.key==='Home'?'main':event.key==='End'?'secondary':role==='main'?'secondary':'main';sync();$('style-'+role).focus();
+    event.preventDefault();selectRole(event.key==='Home'?'main':event.key==='End'?'secondary':role==='main'?'secondary':'main');$('style-'+role).focus();
   });
   $('style-project-preset').onchange=()=>{
     const selection=$('style-project-preset').value;
     const track=fixedTrackMode()?fixedStyleTarget():null;
-    const preset=selection==='inherit'?projectStyle():selection==='current'?(track?(track.style.custom||value()):(host.data.preview?.project_style_custom||projectStyle())):find(selection);
-    if(!preset){rebuild();return;}cancelAction();change(track?S.forKind(preset,fixedTrackCore.styleKind(track)):preset,selection);
+    const preset=selection==='inherit'?projectStyle():selection==='current'?(track?(productionFlatMode()?fixedStyleValue(true):track.style.custom||value()):(host.data.preview?.project_style_custom||projectStyle())):find(selection);
+    if(!preset){rebuild();return;}cancelAction();change(track&&!productionFlatMode()?S.forKind(preset,fixedTrackCore.styleKind(track)):preset,selection);
   };
   $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
   $('style-transform-preset').onchange=()=>{

@@ -16,6 +16,8 @@ v4 字幕真源为 `subtitles`，普通编辑器内部使用可逆操作视图�
 
 ## 一、顶层结构
 
+v4 普通编辑器的轨道可含 `display_number`（唯一正整数）与 `secondary_for`（可选主轨 ID）；模型含递增的 `next_track_number`。主副分组仅一主一副，不得自引用或嵌套，与字幕 `bindings` 分开；解除分组恢复独立编号。缺少这些字段的旧工程仍可读，普通编辑器补齐后生成 S1／S1主／S1副名称。详细契约见 [平级字幕轨道与字幕](docs/FLAT_SUBTITLE_MODEL.md#轨道与字幕)。
+
 基础生成器使用顶层 `schema: "moy.asr.project.v1"`，与 MAW beta.2 的工程版本约定兼容；MSWE 保存使用 v4。缺少此字段的旧 `.mosp`／`.json` 仍可读取；单纯打开或恢复不会改写原文件，也不会移动旧媒体或素材目录。本节的根部 `segments` 等旧格式字段仅适用于 v1，v4 对应结构见上方契约链接。
 
 显式提供 `schema` 时必须是 `moy.asr.project.v1`、`msw.project.v2`、`msw.project.v3` 或 `msw.project.v4`。未知版本、空字符串、`null` 或其他类型一律拒绝，不能通过保存静默降级。Python 工程边界、统一写出及编辑器打开／拖入／恢复／另存为回载执行版本检查；各处理工具可另外限制支持的版本。顶层版本和可选 `msw.schema` 分别验证，不能互相替代。

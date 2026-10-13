@@ -12,7 +12,7 @@
   const extras=(value,keys)=>Object.fromEntries(Object.entries(value).filter(([k])=>!keys.includes(k)));
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
   function fromProject(input) {
-    const p=core.migrate(input),m=p.subtitles,view=clone(p);delete view.subtitles;view.schema=legacy.SCHEMA;
+    const p=core.normalizeGroups(core.migrate(input),{infer:true}),m=p.subtitles,view=clone(p);delete view.subtitles;view.schema=legacy.SCHEMA;
     const context={schema:'msw.flat-operation-view.v1',model:extras(m,['tracks','cues','bindings']),
       tracks:{},cues:{},bindings:{},markers:{}};
     const right=new Set(m.bindings.map(b=>b.target_id)),left=new Set(m.bindings.map(b=>b.source_id));
@@ -54,12 +54,18 @@
     view.subtitle_layers=clone(m.migration?.structure?.subtitle_layers||layers.migrate({segments:[]}).subtitle_layers);
     view.subtitle_layers.legacy_overlay={...view.subtitle_layers.legacy_overlay,visible:false,cue_ids:m.cues.filter(c=>c.hidden&&!right.has(c.id)).map(c=>c.id)};
     view.subtitle_tracks={schema:legacy.TRACK_SCHEMA,presentation:'fixed',tracks:m.tracks.map(t=>{
-      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position']);
-      return {id:t.id,name:t.name,purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
+      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for']);
+      return {id:t.id,name:t.name,display_number:t.display_number,...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
         origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
         style:clone(extras(t.style,['slot','base'])),flat_style_slot:t.style.slot,...(t.position?{position:clone(t.position)}:{})};
     }),assignments:m.cues.map(c=>({role:right.has(c.id)?'extension':'main',track_id:right.has(c.id)?EXT:null,cue_id:c.id,subtitle_track_id:c.track_id})),flat_context:context};
     legacy.validate(view);return view;
+  }
+  function normalizeView(view) {
+    if(!isView(view))return view;
+    const model=view.subtitle_tracks.flat_context.model;
+    const p={subtitles:{...model,tracks:view.subtitle_tracks.tracks,cues:[],bindings:[]}};
+    core.normalizeGroups(p);model.next_track_number=p.subtitles.next_track_number;return view;
   }
   function toProject(view) {
     if(!isView(view))return core.migrate(view);
@@ -70,7 +76,7 @@
     const m={...clone(context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
     const owners=legacy.ownerMap(view),allIds=new Set();
     for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
-      id:t.id,name:t.name,purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+      id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
       style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{})});
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
     for(const source of sources)for(const value of source.segments) {
@@ -95,7 +101,7 @@
     // Display preference is not a track relationship.
     p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.map(c=>c.id)),
       ...(view.multi_subtitle?.main_split_mode?{main_split_mode:view.multi_subtitle.main_split_mode}:{}),...(view.multi_subtitle?.tracks[0]?.split_mode?{secondary_split_mode:view.multi_subtitle.tracks[0].split_mode}:{})};
-    core.validate(p);return p;
+    core.normalizeGroups(p);core.validate(p);return p;
   }
   function translation(view,selection,destination='',outputMode='secondary') {
     let p=toProject(view);const F=global.MSWFlatProcessing,E=global.MSWFlatEditing;
@@ -103,11 +109,14 @@
     if(!ids.length)throw Error('请先选择要翻译的字幕');
     const peers=[...new Set(ids.map(id=>E.partner(p,id)?.track_id).filter(Boolean))];
     if(!destination&&peers.length>1)throw Error('所选字幕绑定到不同轨道，请分批翻译或选择目标轨道');
-    let target=destination||peers[0],created;
+    const sourceTracks=[...new Set(ids.map(id=>E.cue(p,id).track_id))];
+    const grouped=sourceTracks.length===1?p.subtitles.tracks.find(t=>t.secondary_for===sourceTracks[0]):null;
+    let target=destination||peers[0]||grouped?.id,created;
     if(!target||target==='new') {
       created={id:global.MSWProject.id('subtitle-track'),name:'译字幕',purpose:'translation',layout:'auto',enabled:true,locked:false,collapsed:false,
         style:{mode:'inherit',slot:'secondary',base:'dialogue'}};
-      p=core.addTrack(p,created);target=created.id;
+      if(sourceTracks.length===1&&!p.subtitles.tracks.find(t=>t.id===sourceTracks[0]).secondary_for&&!grouped)created.secondary_for=sourceTracks[0];
+      p=core.addTrack(p,created);target=created.id;created=clone(p.subtitles.tracks.find(t=>t.id===target));
     }
     const snap=F.translation(p,ids,target);
     return {...snap,output_mode:outputMode,...(created?{created_subtitle_track:created}:{})};
@@ -240,6 +249,6 @@
     R.record(p.msw,jobs[0]).applications[target]={revision,state:{flat:true,before:previous?.state?.flat?previous.state.before:subset(before),after:subset(p.subtitles)}};
     core.validate(p);return {project:fromProject(p),count:ids.size};
   }
-  const api={isView,fromProject,toProject,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

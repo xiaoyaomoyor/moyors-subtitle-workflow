@@ -72,10 +72,65 @@ test('normal processing host uses native IDs and candidate revisions retain bind
     return {schema:snapshot.project_schema,first,second,tts};
   });
   expect(result.schema).toBe('msw.project.v4');expect(result.first.subtitles.bindings).toHaveLength(1);
+  expect(result.first.subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S1副']);
   expect(result.second.subtitles.cues).toHaveLength(2);expect(result.second.subtitles.cues.some(c=>c.content.text==='修改后的候选')).toBe(true);
   expect(result.tts.entries[0].track_id).toBe(result.second.subtitles.tracks[1].id);
   await page.keyboard.press('Control+z');
   expect((await snap(page)).subtitles.cues.some(c=>c.content.text==='译文')).toBe(true);
+});
+
+test('compact numbered heads and group menus preserve bindings, ordinal cards and undo',async({page},info)=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(p=>{applyCanonicalProject(p,'groups.mosp');fixedAddTrack('subtitle');},fixture());
+  const before=await snap(page),[a,b,c]=before.subtitles.tracks;
+  await expect(page.locator('.multi-cue-column.main .index')).toHaveText('S1主_1');
+  await expect(page.locator('.multi-cue-column.extension .index')).toHaveText('S1副_1');
+  await expect(page.locator('.fixed-track-badge')).toHaveCount(0);
+  await page.locator('.multi-cue-column.main').click();await expect(page.locator('#cue-panel-target')).toHaveText('S1主字幕_1');
+  await expect(page.locator('#fixed-cue-owner')).toBeHidden();
+  const head=id=>page.locator(`.fixed-track-head[data-subtitle-track-id="${id}"]`).first();
+  expect((await head(a.id).boundingBox()).width).toBeLessThan(60);
+  await head(a.id).click({button:'right'});
+  await expect(page.locator('#ctxmenu')).not.toContainText('重命名');await expect(page.locator('#ctxmenu')).not.toContainText('轨道设置');
+  await page.getByRole('button',{name:'解除主副分组',exact:true}).click();
+  await head(c.id).click({button:'right'});await page.locator('#ctxmenu summary').filter({hasText:'设为副轨道'}).click();
+  await page.getByRole('button',{name:'作为 S1 的副轨道',exact:true}).click();
+  const grouped=await snap(page);expect(grouped.subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S2','S1副']);
+  expect(grouped.subtitles.cues).toEqual(before.subtitles.cues);expect(grouped.subtitles.bindings).toEqual(before.subtitles.bindings);
+  expect(grouped.subtitles.tracks.map(t=>t.style)).toEqual(before.subtitles.tracks.map(t=>t.style));
+  await expect(page.locator('.multi-cue-column.extension .index')).toHaveText('S2_1');
+  await page.evaluate(p=>applyCanonicalProject(p,'reopened.mosp'),grouped);
+  await head(c.id).click({button:'right'});await page.getByRole('button',{name:'解除主副分组',exact:true}).click();
+  expect((await snap(page)).subtitles.tracks.map(t=>t.name)).toEqual(['S1','S2','S3']);
+  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S2','S1副']);
+  await page.screenshot({path:info.outputPath('compact-track-groups.png')});expect(errors).toEqual([]);
+});
+
+test('style toolbar selects track groups, edits both appearances and swaps without moving subtitles',async({page},info)=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(p=>{applyCanonicalProject(p,'styles.mosp');fixedAddTrack('subtitle');},fixture());
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.ready)).toBe(true);
+  const before=await snap(page),[a,b,c]=before.subtitles.tracks;
+  await page.evaluate(id=>MSWSubtitleStyle.editTrack(id),a.id);
+  await expect(page.locator('#style-track-target option')).toHaveText(['S1','S3']);
+  await expect(page.locator('#style-track-controls')).toBeHidden();await expect(page.locator('#style-main')).toBeVisible();
+  expect(await page.locator('.msw-style-toolbar #style-track-target').count()).toBe(1);
+  await page.locator('#style-field-fontSize').fill('61');await page.locator('#style-field-fontSize').blur();
+  await page.locator('#style-secondary').click();await page.locator('#style-field-fontSize').fill('39');await page.locator('#style-field-fontSize').blur();
+  const edited=await snap(page);expect(edited.subtitles.tracks[0].style.value.main.fontSize).toBe(61);expect(edited.subtitles.tracks[1].style.value.secondary.fontSize).toBe(39);
+  await page.locator('#style-swap').click();const swapped=await snap(page);
+  expect(swapped.subtitles.tracks[0].style.value.main.fontSize).toBe(39);expect(swapped.subtitles.tracks[1].style.value.secondary.fontSize).toBe(61);
+  expect(swapped.subtitles.tracks.map(t=>t.position)).toEqual(before.subtitles.tracks.map(t=>t.position));
+  expect(swapped.subtitles.cues).toEqual(before.subtitles.cues);expect(swapped.subtitles.bindings).toEqual(before.subtitles.bindings);
+  await page.locator('#style-preview-mode').selectOption('default');await page.locator('#style-project-preset').selectOption('default');
+  await expect(page.locator('#style-preview-mode')).toHaveValue('default');
+  await page.locator('#style-project-preset').selectOption('current');await expect(page.locator('#style-field-fontSize')).toHaveValue('61');
+  await page.screenshot({path:info.outputPath('group-style-toolbar.png')});
+  await page.locator('#style-track-target').selectOption(c.id);await expect(page.locator('#style-main')).toBeHidden();await expect(page.locator('#style-secondary')).toBeHidden();await expect(page.locator('#style-swap')).toBeHidden();
+  await page.locator('#style-field-fontSize').fill('77');await page.locator('#style-field-fontSize').blur();
+  const solo=await snap(page);expect(solo.subtitles.tracks[2].style.value.main.fontSize).toBe(77);expect(solo.subtitles.tracks[0].style.value.main.fontSize).toBe(39);
+  await page.locator('#style-track-placement').selectOption('fixed');await expect(page.locator('#style-position-fields')).toBeVisible();
+  expect((await snap(page)).subtitles.tracks[2].layout).toBe('fixed');expect(errors).toEqual([]);
 });
 
 test('copy/paste and subtitle assets keep independent tracks and paired cards',async({page})=>{

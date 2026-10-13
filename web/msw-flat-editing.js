@@ -61,7 +61,7 @@
   });}
   function updateTrack(p,id,patch) {return transaction(p,n=>{const t=track(n,id);if(!t)fail('轨道已不存在');
     if(t.locked&&Object.keys(patch).some(k=>!['name','purpose','enabled','collapsed','locked'].includes(k)))fail('轨道已锁定');Object.assign(t,copy(patch));});}
-  function deleteTrack(p,id) {return transaction(p,n=>{const t=track(n,id);if(!t||t.locked)fail('轨道不存在或已锁定');if(body(n).tracks.length===1)fail('至少保留一条轨道');if(body(n).cues.some(c=>c.track_id===id))fail('请先移动或删除轨道中的字幕');body(n).tracks=body(n).tracks.filter(t=>t.id!==id);});}
+  function deleteTrack(p,id) {return transaction(p,n=>{const t=track(n,id);if(!t||t.locked||body(n).tracks.some(t=>t.secondary_for===id&&t.locked))fail('轨道不存在或已锁定');if(body(n).tracks.length===1)fail('至少保留一条轨道');if(body(n).cues.some(c=>c.track_id===id))fail('请先移动或删除轨道中的字幕');body(n).tracks=body(n).tracks.filter(t=>t.id!==id);if(body(n).next_track_number)core.normalizeGroups(n);});}
   function reorder(p,id,delta) {return transaction(p,n=>{const tracks=body(n).tracks,i=tracks.findIndex(t=>t.id===id),j=i+delta;if(i<0||j<0||j>=tracks.length)fail('已到达轨道边界');[tracks[i],tracks[j]]=[tracks[j],tracks[i]];});}
   function addCue(p,trackId,id,start,end,text='') {return transaction(p,n=>{const t=track(n,trackId);if(!t||t.locked)fail('目标轨道不存在或已锁定');const content={start,end,text,items:[],_dirty:true};frame(n,content);body(n).cues.push({id,track_id:trackId,content});});}
   function offsets(text) {

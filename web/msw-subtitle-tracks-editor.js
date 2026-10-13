@@ -14,8 +14,18 @@ let fixedHistoryCheckpoint = null;
 let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
+let fixedNumberCache = null;
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
-function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
+function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
+function fixedCueLabel(cue,role='main',trackId=null,editor=false) {
+  const track=fixedTrack(cue,role,trackId);if(!track)return '';
+  if(!fixedNumberCache) {
+    fixedNumberCache=new Map();const lanes=new Map();
+    for(const s of layerCore.tracks(DATA))for(const c of s.segments){const id=fixedOwner(c,s.role,s.track_id);if(!lanes.has(id))lanes.set(id,[]);lanes.get(id).push(c);}
+    for(const rows of lanes.values())rows.sort((a,b)=>a.start-b.start||a.end-b.end||a.id.localeCompare(b.id)).forEach((c,i)=>fixedNumberCache.set(c.id,i+1));
+  }
+  return track.name+(editor&&/[主副]$/.test(track.name)?'字幕':'')+'_'+fixedNumberCache.get(cue.id);
+}
 function fixedRef(cue, role = 'main', trackId = null) {
   return { role, track_id: role === 'main' ? null : trackId || getActiveExtensionTrack()?.id, cue_id: cue?.id };
 }
@@ -156,7 +166,7 @@ function fixedHitTrack(fromBottom) {
 }
 function fixedCommitProject(next, label) {
   if (pendingLinkedSplit) { fixedStatus('请先确认或取消当前切分'); return false; }
-  try { fixedTrackCore.validate(next); fixedTrackCore.assertLocks(DATA, next); }
+  try { window.MSWProductionProject.normalizeView(next);fixedTrackCore.validate(next); fixedTrackCore.assertLocks(DATA, next); }
   catch (error) { fixedStatus(error.message); return false; }
   commitProcessingEdits(); pushUndo(label, { captureView: true });
   DATA.subtitle_tracks = next.subtitle_tracks;
@@ -267,8 +277,19 @@ function fixedRenameTrack(track, x, y, settings = false) {
 function fixedTrackMenu(track, x, y) {
   fixedStatus();
   ctxmenu.replaceChildren();
-  fixedMenuItem('重命名', () => fixedRenameTrack(track,x,y));
-  fixedMenuItem('轨道设置', () => fixedRenameTrack(track,x,y,true));
+  if(productionFlatMode()) {
+    const tracks=DATA.subtitle_tracks.tracks;
+    const apply=main=>{try{const p=window.MSWProductionProject.toProject(DATA);productionCommitProject(window.MSWFlatSubtitles.setTrackGroup(p,track.id,main),'调整主副轨道分组');}catch(e){fixedStatus(e.message);}};
+    if(track.secondary_for||tracks.some(t=>t.secondary_for===track.id))fixedMenuItem('解除主副分组',()=>apply(null),track.locked);
+    if(!tracks.some(t=>t.secondary_for===track.id)) {
+      const section=document.createElement('details'),title=document.createElement('summary');section.className='fixed-track-move-menu';title.textContent='设为副轨道';section.append(title);ctxmenu.append(section);
+      for(const main of tracks.filter(t=>t.id!==track.id&&!t.secondary_for&&!tracks.some(s=>s.secondary_for===t.id&&s.id!==track.id)))section.append(fixedMenuItem('作为 S'+main.display_number+' 的副轨道',()=>apply(main.id),track.locked||main.locked||track.secondary_for===main.id));
+      if(section.children.length===1){const note=document.createElement('span');note.className='fixed-track-menu-note';note.textContent='没有可用的主轨道';section.append(note);}
+    }
+  } else {
+    fixedMenuItem('重命名', () => fixedRenameTrack(track,x,y));
+    fixedMenuItem('轨道设置', () => fixedRenameTrack(track,x,y,true));
+  }
   fixedMenuItem('字幕样式与画面位置', () => window.MSWSubtitleStyle?.editTrack(track.id));
   fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => fixedUpdateTrack(track.id, { collapsed: !track.collapsed }));
   fixedMenuItem(track.enabled ? '禁用轨道' : '启用轨道', () => fixedUpdateTrack(track.id, { enabled: !track.enabled }));
@@ -319,6 +340,7 @@ function fixedRenderHeads(group, row, audioSpace) {
 }
 function fixedSyncUI() {
   document.documentElement.classList.toggle('msw-fixed-tracks', fixedTrackMode());
+  document.documentElement.classList.toggle('msw-numbered-tracks',productionFlatMode());
   if (!fixedTrackMode()) return;
   if (!fixedActiveTrackId || !DATA.subtitle_tracks.tracks.some(t => t.id === fixedActiveTrackId)) fixedActiveTrackId = DATA.subtitle_tracks.tracks[0].id;
   const toolbar = document.getElementById('cues-module');
@@ -347,10 +369,10 @@ function fixedSyncUI() {
     if (!track) return;
     node.dataset.subtitleTrackId = track.id; node.classList.toggle('fixed-locked', track.locked); node.classList.toggle('fixed-disabled', !track.enabled);
     let badge = node.querySelector(':scope > .fixed-track-badge');
-    if (!badge) { badge = document.createElement('span'); badge.className = 'fixed-track-badge'; node.prepend(badge); }
     const other=productionFlatMode()&&main&&ext?fixedTrack(ext,'extension'):null;
     node.dataset.subtitleTrackIds=JSON.stringify([...new Set([track.id,other?.id].filter(Boolean))]);
-    badge.textContent = track.name + (other&&other.id!==track.id?' / '+other.name:'') + (track.locked ? ' · 已锁定' : '');
+    if(productionFlatMode())badge?.remove();
+    else {if(!badge){badge=document.createElement('span');badge.className='fixed-track-badge';node.prepend(badge);}badge.textContent=track.name+(track.locked?' · 已锁定':'');}
   });
 }
 document.addEventListener('contextmenu',event=>{
@@ -360,9 +382,15 @@ document.addEventListener('contextmenu',event=>{
 },true);
 function fixedPanelUI(target) {
   if (!fixedTrackMode()) return;
+  const track = target ? fixedTrack(target.segment, target.kind, target.trackId) : null;
+  if(productionFlatMode()) {
+    document.getElementById('fixed-cue-owner')?.remove();
+    if(track){fixedActiveTrackId=track.id;cuePanelTarget.textContent=fixedCueLabel(target.segment,target.kind,target.trackId,true);}
+    if(track?.locked)for(const node of [cuePanelText,cuePanelStart,cuePanelDuration,cuePanelAddSticker,cuePanelSplit])if(node)node.disabled=true;
+    return;
+  }
   let label = document.getElementById('fixed-cue-owner');
   if (!label) { label = document.createElement('span'); label.id = 'fixed-cue-owner'; document.querySelector('#current-cue-panel .module-tab-strip')?.after(label); }
-  const track = target ? fixedTrack(target.segment, target.kind, target.trackId) : null;
   label.textContent = track ? `${track.name}${productionFlatMode()?'':' · '+(target.kind === 'extension' ? '副字幕' : '主字幕')}${track.locked ? ' · 已锁定' : ''}` : '';
   if (track) fixedActiveTrackId = track.id;
   if (track?.locked) for (const node of [cuePanelText, cuePanelStart, cuePanelDuration, cuePanelAddSticker, cuePanelSplit]) if (node) node.disabled = true;

@@ -132,6 +132,22 @@ def validate(project):
         if not old._style_valid(style) or "position" in track and not old._position_valid(track["position"]):
             _fail("轨道样式或位置无效")
         tracks[track["id"]], lanes[track["id"]] = track, []
+    numbers, grouped = set(), set()
+    for track in model["tracks"]:
+        if "display_number" in track:
+            number = track["display_number"]
+            if not _int(number) or number < 1 or number in numbers:
+                _fail("轨道编号无效或重复")
+            numbers.add(number)
+        if "secondary_for" in track:
+            main = tracks.get(track["secondary_for"]) if isinstance(track["secondary_for"], str) else None
+            if not main or main is track or "secondary_for" in main or main["id"] in grouped:
+                _fail("主副轨道分组必须为一主一副")
+            grouped.add(main["id"])
+    if "next_track_number" in model:
+        number = model["next_track_number"]
+        if not _int(number) or number < 1 or any(n >= number for n in numbers):
+            _fail("后续轨道编号无效")
     for cue in model["cues"]:
         if (not isinstance(cue, dict) or not _stable(cue.get("id")) or cue["id"] in cues
                 or not isinstance(cue.get("track_id"), str) or cue["track_id"] not in tracks
@@ -209,6 +225,41 @@ def validate(project):
         if listed != alias_ids:
             _fail("迁移来源身份列表不完整")
     return True
+
+
+def normalize_groups(project, *, infer=False):
+    """Allocate stable display numbers without changing cue ownership or bindings."""
+    model = project["subtitles"]
+    tracks = model["tracks"]
+    by_id = {t["id"]: t for t in tracks}
+    fresh = all("display_number" not in t for t in tracks)
+    number = max([model.get("next_track_number", 1)] + [t.get("display_number", 0) + 1 for t in tracks])
+    for track in tracks:
+        if "display_number" not in track:
+            track["display_number"] = number
+            number += 1
+        if track.get("secondary_for") and track["secondary_for"] not in by_id:
+            del track["secondary_for"]
+    model["next_track_number"] = number
+    if infer and fresh and all("secondary_for" not in t for t in tracks):
+        cues = {c["id"]: c["track_id"] for c in model["cues"]}
+        outgoing, incoming = {}, {}
+        for binding in model["bindings"]:
+            source, target = cues.get(binding["source_id"]), cues.get(binding["target_id"])
+            if source and target:
+                outgoing.setdefault(source, set()).add(target)
+                incoming.setdefault(target, set()).add(source)
+        for source, targets in outgoing.items():
+            if len(targets) == 1 and source not in incoming:
+                target = next(iter(targets))
+                if len(incoming[target]) == 1 and target not in outgoing:
+                    by_id[target]["secondary_for"] = source
+    for track in tracks:
+        main = by_id.get(track.get("secondary_for"), track)
+        suffix = "副" if "secondary_for" in track else "主" if any(t.get("secondary_for") == track["id"] for t in tracks) else ""
+        track["name"] = f'S{main["display_number"]}{suffix}'
+    validate(project)
+    return project
 
 
 def migrate_project(source):
@@ -351,7 +402,11 @@ def move(project, cue_ids, target_id):
 def add_track(project, track):
     validate(project)
     result = deepcopy(project)
-    result["subtitles"]["tracks"].append(deepcopy(track))
+    added = deepcopy(track)
+    added.pop("display_number", None)
+    result["subtitles"]["tracks"].append(added)
+    if result["subtitles"].get("next_track_number"):
+        normalize_groups(result)
     validate(result)
     return result
 

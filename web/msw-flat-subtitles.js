@@ -73,6 +73,7 @@
       if(Object.hasOwn(track,'position'))t.position=track.position;
       old.validate(check);tracks.set(track.id,track);lanes.set(track.id,[]);
     }
+    validateGroups(m);
     for(const cue of m.cues) {
       if(!object(cue)||!stable(cue.id)||cues.has(cue.id)||!tracks.has(cue.track_id)
         ||Object.hasOwn(cue,'hidden')&&typeof cue.hidden!=='boolean')fail('字幕身份、归属或显示状态无效');
@@ -125,6 +126,57 @@
       if(listed.size!==aliasIds.size)fail('迁移来源身份列表不完整');
     }
     return true;
+  }
+  // Track groups are display/style relationships, never cue ownership or bindings.
+  function validateGroups(m) {
+    const numbers=new Set(),members=new Set(),tracks=new Map(m.tracks.map(t=>[t.id,t]));
+    for(const t of m.tracks) {
+      if(t.display_number!==undefined) {
+        if(!Number.isSafeInteger(t.display_number)||t.display_number<1||numbers.has(t.display_number))fail('轨道编号无效或重复');
+        numbers.add(t.display_number);
+      }
+      if(t.secondary_for!==undefined) {
+        const main=tracks.get(t.secondary_for);
+        if(!main||main===t||main.secondary_for!==undefined||members.has(main.id))fail('主副轨道分组必须为一主一副');
+        members.add(main.id);
+      }
+    }
+    if(m.next_track_number!==undefined&&(!Number.isSafeInteger(m.next_track_number)||m.next_track_number<1||[...numbers].some(n=>n>=m.next_track_number)))fail('后续轨道编号无效');
+  }
+  function normalizeGroups(project,{infer=false}={}) {
+    const m=project.subtitles,tracks=m.tracks,ids=new Set(tracks.map(t=>t.id));
+    const fresh=tracks.every(t=>t.display_number===undefined);
+    let next=Math.max(m.next_track_number||1,...tracks.map(t=>(t.display_number||0)+1));
+    for(const t of tracks) {if(t.display_number===undefined)t.display_number=next++;if(t.secondary_for&&!ids.has(t.secondary_for))delete t.secondary_for;}
+    m.next_track_number=next;
+    if(infer&&fresh&&tracks.every(t=>t.secondary_for===undefined)) {
+      const cues=new Map(m.cues.map(c=>[c.id,c.track_id])),out=new Map(),incoming=new Map();
+      for(const b of m.bindings) {
+        const a=cues.get(b.source_id),z=cues.get(b.target_id);
+        if(!a||!z)continue;if(!out.has(a))out.set(a,new Set());out.get(a).add(z);
+        if(!incoming.has(z))incoming.set(z,new Set());incoming.get(z).add(a);
+      }
+      for(const [a,targets] of out)if(targets.size===1&&!incoming.has(a)) {
+        const z=[...targets][0];if(incoming.get(z).size===1&&!out.has(z))tracks.find(t=>t.id===z).secondary_for=a;
+      }
+    }
+    validateGroups(m);
+    for(const t of tracks) {
+      const main=t.secondary_for?tracks.find(a=>a.id===t.secondary_for):t;
+      t.name='S'+main.display_number+(t.secondary_for?'副':tracks.some(a=>a.secondary_for===t.id)?'主':'');
+    }
+    return project;
+  }
+  function setTrackGroup(project,secondaryId,mainId=null) {
+    validate(project);const next=normalizeGroups(clone(project)),tracks=next.subtitles.tracks;
+    const secondary=tracks.find(t=>t.id===secondaryId),main=tracks.find(t=>t.id===mainId);
+    if(!secondary||secondary.locked)fail('轨道不存在或已锁定');
+    const previous=tracks.find(t=>t.id===secondary.secondary_for),child=tracks.find(t=>t.secondary_for===secondary.id);
+    if(previous?.locked||child?.locked)fail('分组中的轨道已锁定');
+    if(mainId!==null&&(!main||main===secondary||main.locked||main.secondary_for||child||tracks.some(t=>t.secondary_for===mainId&&t.id!==secondaryId)))fail('请选择未分组且未锁定的主轨道');
+    delete secondary.secondary_for;if(child)delete child.secondary_for;
+    if(main)secondary.secondary_for=main.id;
+    normalizeGroups(next);validate(next);return next;
   }
   function migrate(input) {
     if(input?.schema===SCHEMA){validate(input);return clone(input);}
@@ -201,7 +253,9 @@
     validate(next);return next;
   }
   function addTrack(project,track) {
-    validate(project);const next=clone(project);next.subtitles.tracks.push(clone(track));validate(next);return next;
+    validate(project);const next=clone(project),added=clone(track);delete added.display_number;
+    next.subtitles.tracks.push(added);if(next.subtitles.next_track_number)normalizeGroups(next);
+    validate(next);return next;
   }
   function bind(project,sourceId,targetId,id) {
     const index=createIndex(project),source=index.resolve(sourceId),target=index.resolve(targetId);
@@ -242,7 +296,7 @@
     if(JSON.stringify(canonical(comparable(rebuilt)))!==JSON.stringify(canonical(comparable(project))))fail('新结构已超出旧版视图的表达能力；不能降级保存');
     return result;
   }
-  const api={SCHEMA,MODEL_SCHEMA,MIGRATION_SCHEMA,identity,validate,migrate,createIndex,addTrack,move,bind,unbind,legacyProjection};
+  const api={SCHEMA,MODEL_SCHEMA,MIGRATION_SCHEMA,identity,validate,migrate,createIndex,addTrack,move,bind,unbind,legacyProjection,normalizeGroups,setTrackGroup};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.MSWFlatSubtitles=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

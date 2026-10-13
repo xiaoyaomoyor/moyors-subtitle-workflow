@@ -33,6 +33,23 @@ def ref(cue_id, role="main", track_id=None):
 
 
 class FlatSubtitlesTests(unittest.TestCase):
+    def test_numbered_groups_roundtrip_and_reject_invalid_relationships(self):
+        project = browser("c.normalizeGroups(c.migrate(data),{infer:true})", fixture("subtitle-tracks")[0]["project"])
+        core.validate(project)
+        self.assertEqual(core.migrate_project(project), project)
+        self.assertEqual(core.normalize_groups(core.migrate_project(fixture("subtitle-tracks")[0]["project"]), infer=True), project)
+        added = dict(project["subtitles"]["tracks"][0], id="additional")
+        self.assertEqual(core.add_track(project, added), browser("c.addTrack(data.project,data.track)", dict(project=project, track=added)))
+        tracks = project["subtitles"]["tracks"]
+        self.assertGreater(len(tracks), 1)
+        for change in (lambda p: p["subtitles"]["tracks"][1].update(display_number=tracks[0]["display_number"]),
+                       lambda p: p["subtitles"]["tracks"][0].update(secondary_for="missing"),
+                       lambda p: p["subtitles"].update(next_track_number=1)):
+            bad = deepcopy(project)
+            change(bad)
+            with self.assertRaises(ValueError):
+                core.validate(bad)
+
     def test_migration_roundtrips_and_matches_javascript(self):
         fixtures = fixture("subtitle-layers") + fixture("subtitle-tracks") + [dict(name="assets", project=fixture("msw_beta1_legacy_project"))]
         unicode_project = dict(segments=[dict(id="字幕🎬", start=0, end=1001, text="a\nb", start_frame=0, end_frame=30,
