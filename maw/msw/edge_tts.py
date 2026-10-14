@@ -13,7 +13,7 @@ from maw.msw.assets import atomic_bytes, audio_info
 from maw.msw.jobs import JobCancelled
 from maw.msw.tts import MAX_AUDIO_BYTES, TtsServiceError
 
-VERSION = '7.2.8'
+VERSION = '7.3.1'
 DEFAULT_RECIPE = {'provider': 'edge', 'model': 'edge-online', 'voice': 'zh-CN-XiaoxiaoNeural',
                   'language_type': 'zh-CN', 'rate': 0, 'volume': 0, 'pitch': 0}
 
@@ -25,6 +25,39 @@ def dependency():
         return {'ready': False, 'version': '', 'message': f'缺少 edge-tts {VERSION}，请更新 MSW 依赖或使用包含此组件的发行包'}
     return {'ready': version == VERSION, 'version': version,
             'message': f'edge-tts {version}' if version == VERSION else f'请使用 edge-tts {VERSION}，当前版本为 {version}'}
+
+
+def request_error(error, *, catalog=False):
+    """Explain the failure without persisting signed URLs or proxy credentials."""
+    import aiohttp
+    from edge_tts.exceptions import NoAudioReceived, SkewAdjustmentError
+
+    status = getattr(error, 'status', None)
+    if isinstance(error, aiohttp.ClientResponseError):
+        if status in (401, 403):
+            reason = '服务拒绝连接；请确认已更新 MSW 并重启编辑器服务，仍失败时检查网络／代理或稍后重试'
+        elif status == 429:
+            reason = '服务限流，请稍后手动重试'
+        else:
+            reason = '在线服务响应异常，请稍后重试'
+    elif isinstance(error, aiohttp.ClientSSLError):
+        reason = 'TLS 证书验证失败，请检查系统时间、证书及代理设置'
+    elif isinstance(error, (asyncio.TimeoutError, TimeoutError)):
+        reason = '连接或接收超时，请检查网络／代理'
+    elif isinstance(error, NoAudioReceived):
+        reason = '未收到音频，请刷新音色并检查文本；音色列表可用不代表合成服务可用'
+    elif isinstance(error, SkewAdjustmentError):
+        reason = '服务握手的时间校正失败，请检查系统时间及网络／代理'
+    elif isinstance(error, (aiohttp.ClientConnectionError, ConnectionError, OSError)):
+        reason = '无法连接服务或连接中断，请检查网络／代理'
+    else:
+        reason = '在线响应处理失败，请更新 MSW；仍失败时反馈此错误类型'
+    detail = type(error).__name__
+    if type(status) is int and status > 0:
+        detail += f'，HTTP {status}'
+    operation = '读取音色失败' if catalog else '合成失败'
+    consequence = '已保留缓存与当前选择' if catalog else '未保存不完整音频，未自动重试'
+    return TtsServiceError(f'Edge {operation}（{detail}）：{reason}；{consequence}')
 
 
 def validate_recipe(raw):
@@ -134,10 +167,10 @@ class EdgeTts:
         import edge_tts
         try:
             voices = asyncio.run(guarded(edge_tts.list_voices(), self.cancel, self.cancel, 30))
-        except JobCancelled:
+        except (JobCancelled, TtsServiceError):
             raise
-        except Exception:
-            raise TtsServiceError('无法读取 Edge 在线音色，已保留缓存与当前选择；请检查网络后刷新') from None
+        except Exception as error:
+            raise request_error(error, catalog=True) from None
         rows = []
         for v in voices[:2000]:
             try:
@@ -176,8 +209,8 @@ def synthesize(settings, text, cancel):
         mp3 = asyncio.run(guarded(collect(), cancel, c.cancel, settings.timeout))
     except (JobCancelled, TtsServiceError):
         raise
-    except Exception:
-        raise TtsServiceError('Edge 在线合成失败或连接中断；未保存不完整音频，请检查网络后重试') from None
+    except Exception as error:
+        raise request_error(error) from None
     if cancel.is_set() or c.cancel.is_set():
         raise JobCancelled()
     audio = c.converter(mp3, '.mp3', cancel=cancel)

@@ -263,6 +263,32 @@ class QwenVoiceServiceTests(unittest.TestCase):
         with patch('maw.msw.qwen_voices.requests.Session', side_effect=requests.Timeout('secret provider body')), self.assertRaisesRegex(ValueError, '未自动重试'):
             cloud_request(settings(), {})
 
+    def test_voice_creation_error_keeps_diagnostics_with_bounded_redacted_body(self):
+        payload = {'code': 'InvalidParameter', 'message': 'Model not exist. synthetic-voice-key data:audio/wav;base64,PRIVATE',
+                   'request_id': 'synthetic-voice-request'}
+        class Response:
+            status_code = 404
+            headers = {}
+            chunks = [json.dumps(payload).encode()]
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+            def iter_content(self, _): return iter(self.chunks)
+        class Session:
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+            def post(self, *args, **kwargs): return Response()
+        with patch('maw.msw.qwen_voices.requests.Session', Session):
+            with self.assertRaises(ValueError) as error:
+                cloud_request(settings(), {'input': {}})
+            detail = str(error.exception)
+            for expected in ('HTTP 404', 'InvalidParameter', 'synthetic-voice-request', '服务端未找到当前模型'):
+                self.assertIn(expected, detail)
+            self.assertNotIn('synthetic-voice-key', detail); self.assertNotIn('PRIVATE', detail)
+            Response.chunks = [b'x' * 8192] * 3
+            with self.assertRaisesRegex(ValueError, 'HTTP 404') as error:
+                cloud_request(settings(), {'input': {}})
+            self.assertLess(len(str(error.exception)), 500)
+
 
 class QwenVoiceApiTests(processing_tests.ProcessingApiTests):
     def tearDown(self):

@@ -96,6 +96,9 @@ if os.environ.get('MSW_TEST_EDGE_AUDIO'):
                 await asyncio.sleep(30)
             if self.text == 'DISCONNECT':
                 raise OSError('synthetic disconnect')
+            if self.text == 'FORBIDDEN':
+                import aiohttp
+                raise aiohttp.WSServerHandshakeError(None, (), status=403, message='private-signed-url')
             yield {'type':'audio', 'data':edge_audio}
     async def test_voices():
         return [{'ShortName':v,'Gender':'Female'} for v in ['zh-CN-XiaoxiaoNeural','ja-JP-NanamiNeural','en-US-JennyNeural']]

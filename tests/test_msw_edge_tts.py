@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from maw.msw.edge_tts import EdgeTts, Settings, DEFAULT_RECIPE, validate_recipe, synthesize, guarded
+from maw.msw.edge_tts import EdgeTts, Settings, DEFAULT_RECIPE, VERSION, dependency, validate_recipe, synthesize, guarded
 from maw.msw.jobs import JobCancelled
 from test_msw_gpt_sovits import wav
 
@@ -70,6 +70,39 @@ class EdgeTests(unittest.TestCase):
         with patch('edge_tts.Communicate',Client),self.assertRaisesRegex(Exception,'连接中断'):
             synthesize(Settings(DEFAULT_RECIPE,30,self.c),'hello',threading.Event())
         self.assertEqual(self.converted,[])
+
+    def test_dependency_requires_fixed_handshake_release(self):
+        with patch('importlib.metadata.version', return_value='7.2.8'):
+            self.assertFalse(dependency()['ready'])
+            self.assertIn(VERSION, dependency()['message'])
+        with patch('importlib.metadata.version', return_value=VERSION):
+            self.assertTrue(dependency()['ready'])
+
+    def test_edge_failures_keep_status_and_type_without_request_secrets(self):
+        import aiohttp
+        from edge_tts.exceptions import NoAudioReceived
+        from types import SimpleNamespace
+        secret = 'https://user:password@example.test/?token=signed-secret'
+        exceptions = [
+            (aiohttp.WSServerHandshakeError(SimpleNamespace(real_url=secret), (), status=403, message=secret), 'HTTP 403'),
+            (aiohttp.ClientResponseError(None, (), status=429, message=secret), '限流'),
+            (asyncio.TimeoutError(secret), '超时'),
+            (NoAudioReceived(secret), '未收到音频'),
+            (RuntimeError(secret), 'RuntimeError'),
+        ]
+        for error, expected in exceptions:
+            class Client:
+                def __init__(self, *args, **kwargs): pass
+                async def stream(self):
+                    yield {'type': 'audio', 'data': b'partial'}
+                    raise error
+            with self.subTest(error=type(error).__name__), patch('edge_tts.Communicate', Client):
+                with self.assertRaisesRegex(ValueError, expected) as caught:
+                    synthesize(Settings(DEFAULT_RECIPE,30,self.c),'hello',threading.Event())
+                self.assertNotIn('password', str(caught.exception))
+                self.assertNotIn('signed-secret', str(caught.exception))
+                self.assertIn('未保存不完整音频', str(caught.exception))
+        self.assertEqual(self.converted, [])
 
     def test_cancel_closes_stream(self):
         cancel=threading.Event();closed=[]

@@ -21756,6 +21756,9 @@ export default MawDynamicCaptions;
     "正在打开目录选择窗口…": "Opening folder picker\u2026",
     "正在验证…": "Checking\u2026",
     "正在验证连接并加载音色…": "Checking connection and loading voices\u2026",
+    "正在读取在线音色…": "Loading online voices\u2026",
+    "正在读取…": "Loading\u2026",
+    "读取在线音色列表，不进行语音合成": "Refresh the online voice list without synthesizing speech",
     "请输入 API Key": "Enter API key",
     "已持有本地密钥": "Local API key available",
     "MiniMax 云端": "MiniMax cloud",
@@ -61830,15 +61833,15 @@ window.addEventListener('beforeunload', (e) => {
     const timeout=field(env,'timeout','单次等待上限（秒）','number');timeout.min='30';timeout.max='600';timeout.value='120';
     const envActions=document.createElement('div');envActions.className='msw-processing-actions';env.append(envActions);
     const panelActions=document.createElement('div');panelActions.className='msw-processing-actions';panel.append(panelActions);
-    const refresh=document.createElement('button');refresh.type='button';refresh.id='tts-edge-refresh';refresh.textContent=t('检测连接／刷新音色');envActions.append(refresh);
+    const refresh=document.createElement('button');refresh.type='button';refresh.id='tts-edge-refresh';refresh.textContent=t('刷新音色');refresh.title=t('读取在线音色列表，不进行语音合成');envActions.append(refresh);
     const quick=document.createElement('button');quick.type='button';quick.id='tts-edge-refresh-panel';quick.textContent=t('刷新音色');panelActions.append(quick);
     async function reload(){if(pending)return pending;attempted=true;busy=true;refresh.disabled=quick.disabled=true;
-      info.textContent=hint.textContent=t('正在验证连接并加载音色…');info.setAttribute('aria-busy','true');hint.setAttribute('aria-busy','true');
-      refresh.textContent=quick.textContent=t('正在验证…');updateScope();
+      info.textContent=hint.textContent=t('正在读取在线音色…');info.setAttribute('aria-busy','true');hint.setAttribute('aria-busy','true');
+      refresh.textContent=quick.textContent=t('正在读取…');updateScope();
       pending=(async()=>{try{
       const current=recipe(),out=await request('edge-tts',{action:'refresh'});configure({...out,recipe:current,timeout:Number(timeout.value)});
       info.textContent=hint.textContent=`${t('在线音色已更新')} · ${data.voices.length}`;
-    }catch(e){info.textContent=hint.textContent=e.message;}finally{busy=false;pending=null;refresh.disabled=quick.disabled=false;refresh.textContent=t('检测连接／刷新音色');quick.textContent=t('刷新音色');info.setAttribute('aria-busy','false');hint.setAttribute('aria-busy','false');updateScope();}})();return pending;}
+    }catch(e){info.textContent=hint.textContent=e.message;}finally{busy=false;pending=null;refresh.disabled=quick.disabled=false;refresh.textContent=quick.textContent=t('刷新音色');info.setAttribute('aria-busy','false');hint.setAttribute('aria-busy','false');updateScope();}})();return pending;}
     refresh.onclick=quick.onclick=reload;
     function renderVoices(current=voice.value){const query=search.value.trim().toLowerCase();const rows=data.voices.filter(v=>(!lang.value||v.language===lang.value)&&`${v.name} ${v.id} ${v.gender}`.toLowerCase().includes(query));
       voice.replaceChildren(...rows.map(v=>new Option(`${v.id} · ${v.gender}`,v.id)));

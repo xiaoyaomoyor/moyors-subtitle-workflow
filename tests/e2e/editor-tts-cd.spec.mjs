@@ -68,7 +68,7 @@ test('Edge first entry loads languages automatically and shows immediate verific
   let calls=0;
   await page.route('**/api/msw/edge-tts',async route=>{calls++;await new Promise(r=>setTimeout(r,600));await route.continue();});
   await openTtsEnvironment(page,'edge');
-  await expect(page.locator('#tts-edge-status')).toContainText('正在验证');
+  await expect(page.locator('#tts-edge-status')).toContainText('正在读取在线音色');
   await expect(page.locator('#tts-edge-refresh')).toBeDisabled();
   await expect(page.locator('#tts-edge-status')).toContainText('已更新');
   await closeTtsEnvironment(page);await page.locator('#tts-engine').selectOption('edge');
@@ -76,6 +76,25 @@ test('Edge first entry loads languages automatically and shows immediate verific
   await page.locator('#tts-edge-language').selectOption('en-US');await page.locator('#tts-edge-voice').selectOption('en-US-JennyNeural');
   expect(calls).toBe(1);
 });
+test('Edge service failure shows the same actionable detail on the job and failed entry',async({page})=>{
+  await edge(page);
+  await page.locator('#tts-target').selectOption('editor_text');
+  await page.locator('#cue-panel-tts-text').fill('FORBIDDEN\nNot requested');
+  await page.locator('#tts-start').click();
+  const job=page.locator('.msw-tts-job').first();
+  await expect(job).toContainText('合成失败');
+  await expect(job).toContainText('失败 1');
+  await job.getByText('错误详情',{exact:true}).click();
+  await expect(job).toContainText('HTTP 403');
+  await expect(job).toContainText('重启编辑器服务');
+  await job.getByRole('button',{name:'检查未完成项',exact:true}).click();
+  await expect(job.locator('.msw-tts-result')).toContainText('HTTP 403');
+  await expect(job.locator('.msw-tts-result')).toContainText('Not requested\n尚未完成');
+  await expect(job).not.toContainText('private-signed-url');
+  expect(await count(page)).toBe(0);
+  await expect(page.locator('#cue-panel-tts-text')).toHaveValue('FORBIDDEN\nNot requested');
+});
+
 test('GPT presets retain independent languages; environment and compact controls fit',async({page},info)=>{
   await gpt(page);await openTtsEnvironment(page,'gpt-sovits');await page.locator('#tts-gpt-preset_name').locator('..').locator('..').evaluate(e=>e.open=true);
   await page.locator('#tts-gpt-preset_name').fill('日跨中');await page.locator('#tts-gpt-preset-save').click();await expect(page.locator('#tts-gpt-status')).toContainText('预设已保存');

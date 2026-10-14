@@ -13,6 +13,7 @@ from maw.gui_config import load_env, save_env
 from maw.msw.assets import MAX_AUDIO_BYTES
 from maw.msw.project_codec import valid_cue_id, valid_id
 from maw.msw.qwen_catalog import MODELS, MODEL_TYPES, model_type, voices_for, catalog_payload
+from maw.msw.tts_errors import qwen_http_error, qwen_network_error
 
 ENDPOINTS = {
     "beijing": "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
@@ -186,18 +187,27 @@ def synthesize(settings, text, cancel, *, session_factory=requests.Session):
     if "-instruct-" in settings.model and recipe["instructions"]:
         body["input"].update(instructions=recipe["instructions"], optimize_instructions=recipe["optimize_instructions"])
     with session_factory() as session:
+        stage = '合成请求'
         try:
             with session.post(settings.base_url, json=body, headers={"Authorization": f"Bearer {settings.api_key}"},
                               timeout=(10, 180), allow_redirects=False) as response:
                 if response.status_code != 200:
-                    raise TtsServiceError(f"百炼合成失败（HTTP {response.status_code}）；本批已暂停，请检查地域、密钥、音色和额度")
-                payload = response.json()
+                    raise TtsServiceError(qwen_http_error(response, settings, secrets=(text,)))
+                try:
+                    payload = response.json()
+                except ValueError:
+                    raise TtsServiceError('百炼合成响应不是有效 JSON；请求可能已计费，未自动重试') from None
+                if not isinstance(payload, dict):
+                    raise TtsServiceError('百炼合成响应格式无效；请求可能已计费，未自动重试')
+                if payload.get('code') not in (None, '', 'Success', 200, '200'):
+                    raise TtsServiceError(qwen_http_error(response, settings, secrets=(text,), payload=payload))
             check()
             url = audio_download_url(payload.get("output", {}).get("audio", {}).get("url"))
+            stage = '音频下载'
             with session.get(url, headers={"Accept-Encoding": "identity"},
                              timeout=(10, 90), stream=True, allow_redirects=False) as response:
                 if response.status_code != 200:
-                    raise ValueError("合成请求已完成，但音频下载失败；重新合成可能再次计费")
+                    raise ValueError(f"百炼合成请求已完成，但音频下载失败（HTTP {response.status_code}）；重新合成可能再次计费")
                 headers = response.headers
                 expected = headers.get("Content-Length")
                 if expected is not None and headers.get("Content-Encoding", "").strip().lower() not in {"", "identity"}:
@@ -221,7 +231,7 @@ def synthesize(settings, text, cancel, *, session_factory=requests.Session):
                 return b"".join(chunks)
         except requests.RequestException as error:
             # Transport exceptions may include a signed URL. Do not persist them.
-            raise TtsServiceError("百炼请求或音频下载超时／网络失败；请求可能已计费，未自动重试") from error
+            raise TtsServiceError(qwen_network_error(error, stage)) from None
         except (KeyError, TypeError, AttributeError) as error:
             raise ValueError("百炼返回格式无效；未自动重试") from error
 
@@ -244,6 +254,7 @@ class TtsService:
         for index, entry in enumerate(entries):
             if cancel.is_set():
                 raise JobCancelled()
+            progress('synthesizing', {'current': index, 'total': len(entries), 'ready': ready, 'failed': failed})
             try:
                 from maw.msw.tts_engines import synthesize as dispatch
                 item_settings = settings
@@ -258,7 +269,11 @@ class TtsService:
                 item = {"key": entry["key"], "status": "ready", "asset_id": asset["id"]}
             except JobCancelled:
                 raise
-            except TtsServiceError:
+            except TtsServiceError as error:
+                detail = str(error).replace(settings.api_key, '[已隐藏]') if settings.api_key else str(error)
+                item = {'key': entry['key'], 'status': 'failed', 'error': detail[:800]}
+                progress('synthesizing', {'current': index + 1, 'total': len(entries),
+                    'ready': ready, 'failed': failed + 1}, {'items': [item]})
                 raise
             except Exception as error:
                 detail = str(error).replace(settings.api_key, "[已隐藏]") if settings.api_key else str(error)

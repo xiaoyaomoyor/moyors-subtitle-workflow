@@ -94,7 +94,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## Edge TTS
 
-[edge-tts 7.2.8](https://github.com/rany2/edge-tts/tree/7.2.8) is used without modifications for online speech synthesis. The package is LGPL-3.0; its `srt_composer.py` is MIT (not used by MSW). Copyright rany and contributors; see the upstream [LICENSE](https://github.com/rany2/edge-tts/blob/7.2.8/LICENSE). Release packaging retains the package metadata and license files. `uv.lock` pins its network dependencies, including aiohttp; their upstream licenses remain applicable. The Microsoft online service is external to this project and is not an offline engine.
+[edge-tts 7.3.1](https://github.com/rany2/edge-tts/tree/7.3.1) is used without modifications for online speech synthesis. The package is LGPL-3.0; its `srt_composer.py` is MIT (not used by MSW). Copyright rany and contributors; see the upstream [LICENSE](https://github.com/rany2/edge-tts/blob/7.3.1/LICENSE). Release packaging retains the package metadata and license files. `uv.lock` pins its network dependencies, including aiohttp; their upstream licenses remain applicable. The Microsoft online service is external to this project and is not an offline engine.
 
 GPT-SoVITS is an externally installed service. MSW does not redistribute its model weights or runtime; model and runtime licenses remain those of their upstream providers.
 

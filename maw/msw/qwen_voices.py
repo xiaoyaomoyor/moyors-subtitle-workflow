@@ -26,6 +26,7 @@ from maw.msw.assets import atomic_bytes, audio_info, normalize_generated_wav
 from maw.msw.audio_render import RenderCancelled, run
 from maw.msw.project_codec import valid_id
 from maw.msw.tts import ENDPOINTS
+from maw.msw.tts_errors import qwen_http_error, qwen_network_error
 
 MAX_REFERENCE_BYTES = 10 * 1024 * 1024
 MAX_RESPONSE_BYTES = 12 * 1024 * 1024
@@ -52,7 +53,19 @@ def cloud_request(settings, body):
                 headers={'Authorization': 'Bearer ' + settings.api_key, 'Accept-Encoding': 'identity'},
                 timeout=(10, 180), allow_redirects=False, stream=True) as response:
             if response.status_code != 200:
-                raise ValueError(f'百炼音色创建失败（HTTP {response.status_code}），请检查地域、密钥、参考内容和额度；未自动重试')
+                # This endpoint streams responses; bound error bodies too.
+                error_body = bytearray()
+                for chunk in response.iter_content(8192):
+                    error_body.extend(chunk)
+                    if len(error_body) > 16384:
+                        break
+                try:
+                    detail = json.loads(error_body) if len(error_body) <= 16384 else {}
+                except (ValueError, UnicodeError):
+                    detail = {}
+                inputs = body.get('input', {})
+                hidden = tuple(v for v in inputs.values() if isinstance(v, str))
+                raise ValueError(qwen_http_error(response, settings, operation='音色创建', secrets=hidden, payload=detail))
             chunks, size = [], 0
             for chunk in response.iter_content(65536):
                 size += len(chunk)
@@ -64,7 +77,7 @@ def cloud_request(settings, body):
                 raise ValueError('百炼音色响应格式无效；请先在百炼核对，未自动重试')
             return result
     except requests.RequestException as error:
-        raise ValueError('百炼音色请求超时或网络失败；可能已创建并计费，请先在百炼核对，未自动重试') from error
+        raise ValueError(qwen_network_error(error, '音色创建') + '；请先在百炼核对创建结果') from None
     except (json.JSONDecodeError, UnicodeError) as error:
         raise ValueError('百炼音色响应无法读取；可能已创建，请先在百炼核对，未自动重试') from error
 
