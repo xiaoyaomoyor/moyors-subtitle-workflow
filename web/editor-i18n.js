@@ -244,6 +244,8 @@
     '已应用到工程的样式会保留。': 'Styles already applied to projects are retained.',
     '预设已删除；工程样式保持不变。': 'Preset deleted. Project styles are unchanged.',
     '悬停预览画面': 'Preview on hover',
+    '避让播放控制条': 'Avoid playback controls',
+    '控制条显示时，临时上移被遮挡的字幕；隐藏后恢复。仅影响播放器预览，不改变工程位置及导出结果。定位字幕时，控制条移到画面外。': 'Temporarily lift obscured subtitles while playback controls are visible. This affects preview only, not project positions or exports. Controls move outside the picture while positioning subtitles.',
     '鼠标在波形上移动时，预览对应时间的视频画面。': 'Preview the video frame at the pointer position on the waveform.',
     '字幕自动避让': 'Avoid subtitle collisions',
     '先出现的字幕': 'Earlier subtitles',

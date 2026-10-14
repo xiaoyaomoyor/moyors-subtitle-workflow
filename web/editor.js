@@ -1168,6 +1168,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   // 波形形状来源：reapeaks（默认，有 .ReaPeaks 缓存时用其最细 wave 层，缺数据自动回退自研）/ self（自研 1000Hz 重采样缓存）。
   waveShapeSource: 'reapeaks',
   assetLibraryShowSearch: true,
+  subtitleAvoidControls: true,
 };
 const SUBTITLE_FONT_SIZE_MIN = 12;
 const SUBTITLE_FONT_SIZE_MAX = 96;

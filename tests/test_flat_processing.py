@@ -62,6 +62,13 @@ class FlatProcessingTests(unittest.TestCase):
         for text in ('Hello', '译文', 'ANNOTATION'):
             self.assertIn(text, result['ass'])
         self.assertEqual(len(result['geometry']), 3)
+        for i, row in enumerate(result['geometry']):
+            self.assertEqual(row['style'], f'cue-{i}')
+            self.assertIn(f'Style: cue-{i},', result['ass'])
+            self.assertEqual((row['start'], row['end']), (0, 1000))
+            self.assertTrue(row['visible'])
+        secondary = preview_ass(dict(payload, target='secondary'))
+        self.assertEqual([r['text'] for r in secondary['geometry'] if r['visible']], ['译文'])
         plan = dict(intervals=[dict(start_ms=0, end_ms=43200000, output_start_ms=0)])
         self.assertEqual(result['ass'], styled_ass(p, plan, 'both', payload['video']))
         self.assertEqual(p, before)

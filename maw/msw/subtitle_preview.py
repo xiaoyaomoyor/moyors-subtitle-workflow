@@ -12,7 +12,7 @@ _lock = threading.RLock()
 _files = {}
 # Bump together with MSWProjectStyle.layoutVersion when the shared layout
 # contract changes. A page refresh cannot reload an already running Python VM.
-LAYOUT_VERSION = 6
+LAYOUT_VERSION = 7
 
 
 def preview_ass(payload):
@@ -43,8 +43,16 @@ def preview_ass(payload):
     geometry=[]
     if project.get('schema')=='msw.project.v4' or project.get('schema')=='msw.project.v3' and project['subtitle_tracks'].get('presentation')=='fixed':
         from maw.msw.track_presentation import layout
-        geometry=[dict(key=r['key'],x=r['x'],y=r['y'],width=r['width'],height=r['height'],text=r['size']['text'])
-                  for r in layout(project,round(1080*video['width']/video['height']))]
+        for i, r in enumerate(layout(project,round(1080*video['width']/video['height']))):
+            role = 'main' if r['role'] == 'main' else 'secondary'
+            if project.get('schema') == 'msw.project.v4' and 'secondary_cue_ids' in project.get('subtitle_view', {}):
+                role = 'secondary' if r['cue_id'] in project['subtitle_view']['secondary_cue_ids'] else 'main'
+            # Include render identity and lifetimes for temporary player-only
+            # control avoidance. The export layout itself remains untouched.
+            geometry.append(dict(key=r['key'],x=r['x'],y=r['y'],width=r['width'],height=r['height'],text=r['size']['text'],
+                                 groupId=r['groupId'],style=f'cue-{i}',start=r['cue']['start'],end=r['cue']['end'],
+                                 visible=target in ('both',role) and bool(r['size']['text'].strip()),
+                                 move=r['animations']['move']))
     return {'ass':styled_ass(project,plan,target,video), 'geometry':geometry, 'layoutVersion':LAYOUT_VERSION}
 
 

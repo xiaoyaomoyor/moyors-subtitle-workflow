@@ -48,7 +48,9 @@ msw-audio.js
 msw-audio-actions.js
 msw-audio-export.js
 msw-project-style-ui.js
+msw-preview-avoidance.js
 msw-subtitle-renderer.js
+msw-preview-controls.js
 msw-help.js
 editor-onboarding.js
 msw-flat-processing-ui.js

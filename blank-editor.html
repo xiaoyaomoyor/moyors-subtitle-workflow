@@ -1327,15 +1327,9 @@
     z-index: 10; padding: 0 12px; box-sizing: border-box;
     transition: transform .16s ease;
   }
-  /* B 站式控制条淡入时字幕带同步上移一个控制条高度：底部字幕行（含副字幕）
-     不再被进度条遮挡；触发条件与控制条显隐完全一致，几何契约（0.76/0.16）不变。 */
-  .player-stage:hover .subtitle-overlay,
-  .player-stage.media-controls-pinned .subtitle-overlay,
-  .player-stage:focus-within .subtitle-overlay {
-    transform: translateY(-38px);
-  }
+  .subtitle-overlay { transform: translateY(var(--controls-offset, 0px)); }
   /* 几何编辑中不上移：拖拽/键盘微调的落点不能因悬停而漂移。 */
-  .player-stage .subtitle-overlay.geometry-enabled {
+  .player-stage .subtitle-overlay.geometry-enabled:is(:focus,.editable,.dragging) {
     transform: none;
     transition: none;
   }
@@ -4998,17 +4992,14 @@
 
 .msw-layer-preview { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
 .msw-layer-preview-text { position: absolute; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.2; box-sizing: border-box; }
-.player-stage:hover .msw-layer-preview,
-.player-stage.media-controls-pinned .msw-layer-preview,
-.player-stage:focus-within .msw-layer-preview { transform: translateY(-38px); }
-.player-stage:has(.subtitle-overlay.geometry-enabled) .msw-layer-preview { transform: none; }
+.msw-layer-preview-text { translate:0 var(--controls-offset, 0px); transition:translate .16s ease; }
 
 .msw-layer-geometry > :not(.overlay-handle) { visibility: hidden; }
 .msw-layer-geometry { background: transparent !important; }
 /* Fixed subtitles stay attached to the video content, including on hover. */
 .fixed-presentation #overlay { visibility:hidden !important; }
 #fixed-subtitle-preview { position:absolute; transform-origin:0 0; pointer-events:none; z-index:3; overflow:hidden; }
-.fixed-subtitle-row { position:absolute; box-sizing:border-box; }
+.fixed-subtitle-row { position:absolute; box-sizing:border-box; translate:0 var(--controls-offset, 0px); }
 .fixed-subtitle-text { box-sizing:border-box; width:max-content; white-space:pre-wrap; overflow-wrap:anywhere; }
 .fixed-subtitle-measure { position:fixed; left:-100000px; top:0; height:1080px; visibility:hidden; pointer-events:none; }
 #fixed-subtitle-preview.positioning .annotation { pointer-events:auto; cursor:move; touch-action:none; outline:2px dashed var(--selection-yellow); outline-offset:3px; }
@@ -5082,7 +5073,11 @@
    Keep the black backdrop and isolation together, including light themes. */
 .player-stage[data-subtitle-renderer=libass] { background:#000; }
 .player-stage[data-subtitle-renderer=libass] video { mix-blend-mode:screen; }
-.JASSUB { z-index:5; pointer-events:none; background:transparent; }
+.JASSUB { z-index:5; pointer-events:none; background:transparent; translate:0 var(--controls-offset, 0px); }
+.media-controls.media-controls-outside { position:relative; flex:0 0 auto; opacity:1; box-sizing:border-box; width:100%; background:var(--bg-panel); }
+@media (prefers-reduced-motion: reduce) {
+  .subtitle-overlay, .msw-layer-preview-text { transition:none; }
+}
 .player-stage:not([data-subtitle-renderer=libass]) .JASSUB { visibility:hidden; }
 .msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
 /* The merge Easter egg uses the same accent as split feedback. */
@@ -7088,6 +7083,7 @@
         <label class="toggle settings-panel-item"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
         <label class="toggle settings-panel-item" id="extension-overlay-toggle-wrap" hidden><input type="checkbox" id="extension-overlay-toggle" checked> 预览副字幕</label>
         <label class="toggle settings-panel-item"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
+        <label class="toggle settings-panel-item" data-option-help="控制条显示时，临时上移被遮挡的字幕；隐藏后恢复。仅影响播放器预览，不改变工程位置及导出结果。定位字幕时，控制条移到画面外。"><input type="checkbox" id="subtitle-avoid-controls" checked> 避让播放控制条</label>
         <label class="toggle settings-panel-item" data-option-help="鼠标在波形上移动时，预览对应时间的视频画面。"><input type="checkbox" id="hover-seek-preview"> 悬停预览画面</label>
         <label class="toggle settings-panel-item" id="subtitle-layer-auto-wrap" hidden data-option-help="主副绑定成组避让；关闭后保留原位置。字号和主副样式沿用当前方案。"><input type="checkbox" id="subtitle-layer-auto" checked> 字幕自动避让</label>
       </div>
@@ -13973,7 +13969,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     keyboardOperationReference: 'pointer', jklPlaybackMode: 'direction', mediaSeekStepMs: 1000,
     mediaSeekStepFrames: 1, cueMoveStepMs: 50, cueMoveStepFrames: 1,
     timelineSnapToFrame: true, timelineTimecodeSeparator: DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
-    hoverSeekPreview: false, autoSnapAdjacentCues: true, ninjaMode: false, mergeTapeEffect: false,
+    hoverSeekPreview: false, subtitleAvoidControls: true, autoSnapAdjacentCues: true, ninjaMode: false, mergeTapeEffect: false,
     ninjaSound: true, ninjaSlashEffect: true, ninjaSlashLengthPercent: 80,
     ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: false,
     multiSubtitleAutoSyncDuration: true, theme: 'dark',
@@ -14052,6 +14048,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       ttsDraftSplitLimit: clampInteger(savedSettings.ttsDraftSplitLimit, 100, 1, 600),
       toolbarKbdHints: savedSettings.toolbarKbdHints === true,
       assetLibraryShowSearch: savedSettings.assetLibraryShowSearch !== false,
+      subtitleAvoidControls: savedSettings.subtitleAvoidControls !== false,
       selectGroupMembers: savedSettings.selectGroupMembers === true,
       // 合并连接符按字幕拆分类型区分：连续型默认直接拼接，单词型默认空格。
       // 旧版只有 mergeJoinText 一个值；用户自定义过则两个类型都沿用旧值。
@@ -17868,7 +17865,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 6;
+  const layoutVersion = 7;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -21577,6 +21574,8 @@ export default MawDynamicCaptions;
     '已应用到工程的样式会保留。': 'Styles already applied to projects are retained.',
     '预设已删除；工程样式保持不变。': 'Preset deleted. Project styles are unchanged.',
     '悬停预览画面': 'Preview on hover',
+    '避让播放控制条': 'Avoid playback controls',
+    '控制条显示时，临时上移被遮挡的字幕；隐藏后恢复。仅影响播放器预览，不改变工程位置及导出结果。定位字幕时，控制条移到画面外。': 'Temporarily lift obscured subtitles while playback controls are visible. This affects preview only, not project positions or exports. Controls move outside the picture while positioning subtitles.',
     '鼠标在波形上移动时，预览对应时间的视频画面。': 'Preview the video frame at the pointer position on the waveform.',
     '字幕自动避让': 'Avoid subtitle collisions',
     '先出现的字幕': 'Earlier subtitles',
@@ -34695,6 +34694,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   // 波形形状来源：reapeaks（默认，有 .ReaPeaks 缓存时用其最细 wave 层，缺数据自动回退自研）/ self（自研 1000Hz 重采样缓存）。
   waveShapeSource: 'reapeaks',
   assetLibraryShowSearch: true,
+  subtitleAvoidControls: true,
 };
 const SUBTITLE_FONT_SIZE_MIN = 12;
 const SUBTITLE_FONT_SIZE_MAX = 96;
@@ -64764,12 +64764,90 @@ window.addEventListener('beforeunload', (e) => {
   void initialize();
 })(window);
 
+// Temporary player layout. Never write these offsets into a project or ASS export.
+(function(global) {
+  'use strict';
+  const overlap=(a,b)=>a.x<b.x+b.width&&b.x<a.x+a.width;
+  const concurrent=(a,b)=>a.spans.some(s=>b.spans.some(t=>s[0]<t[1]&&t[0]<s[1]));
+  function plan(rows, obstacle, padding=8) {
+    const offsets=new Map();
+    if(!obstacle)return {offsets,overflow:false};
+    const groups=new Map();
+    for(const r of rows) {
+      if(!(r.width>0&&r.height>0))continue;
+      const id=r.groupId||r.key;
+      let g=groups.get(id);
+      if(!g){g={id,x:r.x,y:r.y,right:r.x+r.width,bottom:r.y+r.height,rows:[],spans:[]};groups.set(id,g);}
+      g.x=Math.min(g.x,r.x);g.y=Math.min(g.y,r.y);g.right=Math.max(g.right,r.x+r.width);g.bottom=Math.max(g.bottom,r.y+r.height);
+      g.rows.push(r);g.spans.push([r.start??0,r.end??Infinity]);
+    }
+    const placed=[];
+    for(const g of [...groups.values()].sort((a,b)=>b.bottom-a.bottom||b.y-a.y)) {
+      g.width=g.right-g.x;g.height=g.bottom-g.y;
+      let shift=overlap(g,obstacle)&&g.bottom>obstacle.y&&g.y<obstacle.y+obstacle.height?g.bottom-obstacle.y+padding:0;
+      // Move only neighbours newly hit by a shifted lower group. Existing
+      // intentional overlaps and groups at unrelated times keep their layout.
+      for(const lower of placed) {
+        if(lower.shift<=0||g.bottom>lower.y+.01||!overlap(g,lower)||!concurrent(g,lower))continue;
+        if(g.bottom-shift>lower.y-lower.shift)shift=Math.max(shift,g.bottom-lower.y+lower.shift);
+      }
+      if(shift>0&&g.y-shift<0)return {offsets:new Map(),overflow:true};
+      g.shift=shift;placed.push(g);
+      for(const r of g.rows)offsets.set(r.key,shift?-shift:0);
+    }
+    return {offsets,overflow:false};
+  }
+  function shiftText(text,dy) {
+    if(!dy)return text;
+    // Only generated positioning tags in override blocks are changed. Subtitle
+    // text, animation timings, horizontal positions and the source stay intact.
+    return text.replace(/\{[^}]*\}/g,block=>block.replace(/\\(pos|move|org|i?clip)\(([^)]*)\)/g,(tag,name,args)=>{
+      const values=args.split(',').map(Number);
+      if(values.some(n=>!Number.isFinite(n)))return tag;
+      if(['pos','org'].includes(name)&&values.length===2)values[1]+=dy;
+      else if(name==='move'&&(values.length===4||values.length===6)){values[1]+=dy;values[3]+=dy;}
+      else if(/clip$/.test(name)&&values.length===4){values[1]+=dy;values[3]+=dy;}
+      else return tag;
+      return '\\'+name+'('+values.map(n=>Math.round(n*1000)/1000).join(',')+')';
+    }));
+  }
+  const api={plan,shiftText};
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  global.MSWPreviewAvoidanceCore=api;
+})(typeof window==='object'?window:globalThis);
+
 // One ASS document feeds libass in the browser and the FFmpeg burn compiler.
 (function(global) {
   'use strict';
   function create(host,styles) {
   if(!host||!styles)return;
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
+  let previewRevision=0,previewEvents=[],previewGeometry=[],previewWrites=Promise.resolve();
+  function clearPreviewDocument() {
+    previewRevision++;previewEvents=[];previewGeometry=[];
+    global.MSWPreviewControls?.refresh();
+  }
+  function applyPreviewOffsets(offsets) {
+    const revision=previewRevision,active=renderer;
+    const write=async()=>{
+      if(revision!==previewRevision||active!==renderer||!active?.renderer)return;
+      const changes=previewEvents.filter(e=>(offsets.get(e.key)||0)!==e.offset);
+      if(!changes.length)return;
+      await Promise.all(changes.map(e=>{
+        e.offset=offsets.get(e.key)||0;
+        return active.renderer.setEvent({...e.original,Text:global.MSWPreviewAvoidanceCore.shiftText(e.original.Text,e.offset)},e.index);
+      }));
+      if(revision===previewRevision&&active===renderer)await repaint();
+    };
+    const result=previewWrites.then(write).catch(error=>{
+      if(revision===previewRevision&&active===renderer){
+        fallback('字幕避让渲染失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
+      }
+      throw error;
+    });
+    // Leave the queue usable after a destroyed worker. The caller owns errors.
+    previewWrites=result.catch(()=>{});return result;
+  }
   const fontBytes=new Map();
   const fontManifests=new Map();let loadedFontIds=new Set();
   const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
@@ -64780,6 +64858,7 @@ window.addEventListener('beforeunload', (e) => {
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
   function disposeRenderer() {
+    clearPreviewDocument();
     const previous=renderer;renderer=null;
     video?.removeEventListener('seeked',repaintAfterEvent);video?.removeEventListener('pause',repaintAfterEvent);
     video=null;source='';loadedFontIds.clear();
@@ -64853,6 +64932,8 @@ window.addEventListener('beforeunload', (e) => {
         fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
       if(!current())return;
       if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
+      clearPreviewDocument();await previewWrites;
+      if(!current())return;
       if(!renderer || video!==target || source!==targetSource) {
         disposeRenderer();fallback(preview.label+' · 正在加载字幕渲染…');
         video=target;source=targetSource;
@@ -64870,6 +64951,14 @@ window.addEventListener('beforeunload', (e) => {
         await renderer.renderer.setTrack(payload.ass);
       }
       if(!current())return;
+      const [events,eventStyles]=await Promise.all([renderer.renderer.getEvents(),renderer.renderer.getStyles()]);
+      if(!current())return;
+      previewGeometry=(payload.geometry||[]).filter(r=>r.visible!==false);
+      const geometryByStyle=new Map(previewGeometry.map(r=>[r.style,r]));
+      previewEvents=events.flatMap((original,index)=>{
+        const row=geometryByStyle.get(eventStyles[original.Style]?.Name);
+        return row?[{original,index,key:row.key,offset:0}]:[];
+      });
       await renderer.resize(true);
       if(!current())return;
       await repaint();
@@ -64878,9 +64967,10 @@ window.addEventListener('beforeunload', (e) => {
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
       stage.dataset.subtitleRenderer='libass';
+      global.MSWPreviewControls?.refresh();
       if(payload.geometry?.length)global.fixedReceiveGeometry?.(payload.geometry);
       badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'');
-      badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。';
+      badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。播放控制条避让仅临时调整预览位置。';
     } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
@@ -64892,11 +64982,126 @@ window.addEventListener('beforeunload', (e) => {
   // Existing editing paths do not all dispatch an event; compare state without
   // rebuilding an ASS document or starting a network request unless it changed.
   setInterval(()=>{if(!document.hidden)void update();},750);
-  global.MSWSubtitleRenderer={invalidate,repaint,get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
+  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
   }
   global.MSWCreateSubtitleRenderer=create;
   if(!global.MSWFlatTrialRequested)create(global.MSWE?.resolve('processing-host'),global.MSWSubtitleStyle);
+})(window);
+
+// Control-bar avoidance is a local viewing preference, never project geometry.
+(function(global) {
+  'use strict';
+  const stage=document.querySelector('.player-stage'),controls=document.getElementById('media-controls');
+  const toggle=document.getElementById('subtitle-avoid-controls'),core=global.MSWPreviewAvoidanceCore;
+  if(!stage||!controls||!toggle||!core)return;
+  toggle.checked=EDITOR_SETTINGS.subtitleAvoidControls!==false;
+  let frame=0,signature='',current=new Map(),target=new Map(),animation=0,busy=false,revision=-1,overflow=false;
+  let player=null;
+  const reduced=global.matchMedia('(prefers-reduced-motion: reduce)');
+  function refresh(){if(!frame)frame=requestAnimationFrame(update);}
+  function videoRect() {
+    const r=player?.getBoundingClientRect();if(!r?.width||!r.height)return null;
+    const ratio=player.videoWidth&&player.videoHeight?player.videoWidth/player.videoHeight:r.width/r.height;
+    const width=Math.min(r.width,r.height*ratio),height=width/ratio;
+    return {x:r.left+(r.width-width)/2,y:r.top+(r.height-height)/2,width,height};
+  }
+  function setDocked(value) {
+    if(controls.classList.contains('media-controls-outside')===value)return;
+    controls.classList.toggle('media-controls-outside',value);
+    if(value)stage.after(controls);else stage.append(controls);
+    refresh();
+  }
+  function sourceRows() {
+    const exact=global.MSWSubtitleRenderer;
+    if(exact?.status==='libass'&&exact.geometry.length)return exact.geometry.map(r=>{
+      const dx=r.move?.enabled?r.move.x2-r.move.x1:0,dy=r.move?.enabled?r.move.y2-r.move.y1:0;
+      return {...r,x:r.x+Math.min(0,dx),y:r.y+Math.min(0,dy),width:r.width+Math.abs(dx),height:r.height+Math.abs(dy)};
+    });
+    if(typeof fixedPresentationMode==='function'&&fixedPresentationMode()) {
+      const allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
+      return fixedPreviewLayout().layout.entries.filter(r=>allowed[r.role]).map(r=>({...r,groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
+    }
+    return [];
+  }
+  function applyDom(offsets) {
+    for(const el of stage.querySelectorAll('.fixed-subtitle-row')) {
+      let key=el.dataset.key;
+      // Native v4 rendering and the ordinary editor use distinct reference keys.
+      // Cue IDs stay stable across the adapter and uniquely identify the row.
+      if(!offsets.has(key)&&global.MSWSubtitleRenderer?.geometry.length)key=global.MSWSubtitleRenderer.geometry.find(r=>JSON.parse(r.key)[2]===el.dataset.cueId)?.key||key;
+      const value=(offsets.get(key)||0)+'px';
+      if(el.style.getPropertyValue('--controls-offset')!==value)el.style.setProperty('--controls-offset',value);
+    }
+  }
+  async function animate(now) {
+    animation=0;if(busy)return;
+    const keys=new Set([...current.keys(),...target.keys()]),next=new Map();let settled=true;
+    const dt=reduced.matches||target.size>120?1:Math.min(1,(now-(animate.last||now-16))/65);animate.last=now;
+    for(const key of keys){const a=current.get(key)||0,b=target.get(key)||0,v=reduced.matches?b:a+(b-a)*dt;next.set(key,Math.abs(b-v)<.3?b:v);if(next.get(key)!==b)settled=false;}
+    current=next;applyDom(current);busy=true;
+    try {await global.MSWSubtitleRenderer?.applyPreviewOffsets(current);}
+    catch(error){console.warn('字幕临时避让更新失败',error);}
+    finally {busy=false;}
+    // A new document or visibility event can replace the target while awaiting
+    // the worker. Continue from the latest target, without concurrent writes.
+    if(!settled||[...target].some(([k,v])=>(current.get(k)||0)!==v))animation=requestAnimationFrame(animate);
+  }
+  function legacy(obstacle,enabled) {
+    const root=document.getElementById('overlay');
+    const nodes=[root,...stage.querySelectorAll('.msw-layer-preview-text')].filter(n=>n&&!n.hidden&&getComputedStyle(n).display!=='none');
+    let dy=0;
+    if(enabled&&obstacle)for(const n of nodes){const b=n.getBoundingClientRect(),css=getComputedStyle(n);
+      const prior=(css.transform==='none'?0:new DOMMatrixReadOnly(css.transform).m42)+(parseFloat(css.translate.split(' ')[1])||0);
+      const bottom=b.bottom-prior;if(bottom>obstacle.y&&b.top-prior<obstacle.y+obstacle.height)dy=Math.min(dy,obstacle.y-8-bottom);
+    }
+    for(const n of nodes)n.style.setProperty('--controls-offset',dy+'px');
+    // Legacy precise ASS has no per-cue render identities. Keep its complete
+    // subtitle band together, using the legacy preview's measured text bounds.
+    const canvas=stage.querySelector('.JASSUB');
+    if(canvas)canvas.style.setProperty('--controls-offset',dy+'px');
+  }
+  function update() {
+    frame=0;const nextPlayer=document.getElementById('player');
+    if(player!==nextPlayer){if(player)resize.unobserve(player);player=nextPlayer;if(player)resize.observe(player);}
+    if(!player||player.tagName!=='VIDEO'){setDocked(false);return;}
+    const pinned=player.paused;
+    if(stage.classList.contains('media-controls-pinned')!==pinned)stage.classList.toggle('media-controls-pinned',pinned);
+    const visible=pinned||stage.matches(':hover')||controls.matches(':hover,:focus-within');
+    const positioning=!!stage.querySelector('#fixed-subtitle-preview.positioning:not([hidden])')||
+      (!stage.classList.contains('fixed-presentation')&&!!stage.querySelector('#overlay.geometry-enabled:is(:focus,.editable,.dragging):not(.hidden)'));
+    const enabled=toggle.checked&&!positioning&&visible;
+    const exact=global.MSWSubtitleRenderer,newRevision=exact?.revision??0;
+    if(newRevision!==revision){revision=newRevision;current=new Map();target=new Map();signature='';overflow=false;}
+    if(!enabled)overflow=false;
+    setDocked(positioning||overflow);
+    const rect=videoRect();if(!rect)return;
+    const bar=controls.getBoundingClientRect();
+    const intersects=enabled&&!controls.classList.contains('media-controls-outside')&&bar.top<rect.y+rect.height&&bar.bottom>rect.y;
+    const obstacle=intersects?{x:(bar.left-rect.x)*1080/rect.height,y:(bar.top-rect.y)*1080/rect.height,width:bar.width*1080/rect.height,height:bar.height*1080/rect.height}:null;
+    const rows=sourceRows();
+    if(rows.length) {
+      const key=JSON.stringify([revision,obstacle,positioning,toggle.checked,rows.map(r=>[r.key,r.groupId,r.x,r.y,r.width,r.height,r.start,r.end])]);
+      if(key!==signature){signature=key;const result=core.plan(rows,obstacle,8*1080/rect.height);
+        target=result.offsets;
+        if(result.overflow){overflow=true;setDocked(true);target=new Map();}
+        if(positioning){current=new Map();applyDom(current);if(exact)void exact.applyPreviewOffsets(current).catch(()=>{});}
+        if(!animation&&!busy){animate.last=0;animation=requestAnimationFrame(animate);}
+      }
+      applyDom(current);
+      stage.querySelector('.JASSUB')?.style.removeProperty('--controls-offset');
+    } else legacy(intersects?{y:bar.top,height:bar.height}:null,enabled);
+  }
+  const resize=new ResizeObserver(refresh);resize.observe(stage);resize.observe(controls);
+  new MutationObserver(refresh).observe(stage,{subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden','data-subtitle-renderer']});
+  for(const type of ['pointerenter','pointerleave','focusin','focusout']){stage.addEventListener(type,refresh);controls.addEventListener(type,refresh);}
+  for(const type of ['play','pause','loadedmetadata','seeked','timeupdate','emptied'])document.addEventListener(type,refresh,true);
+  for(const type of ['msw:player-changed','msw:project-changed','msw:burn-style','msw:subtitles-changed'])global.addEventListener(type,refresh);
+  document.addEventListener('fullscreenchange',refresh);
+  for(const id of ['overlay-toggle','extension-overlay-toggle'])document.getElementById(id)?.addEventListener('change',refresh);
+  toggle.addEventListener('change',()=>{updateEditorSettings({subtitleAvoidControls:toggle.checked});refresh();});
+  global.MSWPreviewControls={refresh,get offsets(){return new Map(current);},get settled(){return !animation&&!busy&&!frame;}};
+  refresh();
 })(window);
 
 // Shared, keyboard-accessible option help. Render outside floating panels so

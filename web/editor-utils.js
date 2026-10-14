@@ -3108,7 +3108,7 @@
     keyboardOperationReference: 'pointer', jklPlaybackMode: 'direction', mediaSeekStepMs: 1000,
     mediaSeekStepFrames: 1, cueMoveStepMs: 50, cueMoveStepFrames: 1,
     timelineSnapToFrame: true, timelineTimecodeSeparator: DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
-    hoverSeekPreview: false, autoSnapAdjacentCues: true, ninjaMode: false, mergeTapeEffect: false,
+    hoverSeekPreview: false, subtitleAvoidControls: true, autoSnapAdjacentCues: true, ninjaMode: false, mergeTapeEffect: false,
     ninjaSound: true, ninjaSlashEffect: true, ninjaSlashLengthPercent: 80,
     ninjaSlashRotateAmplitude: 6, crossTrackSnap: true, selectBoundSubtitlePair: false,
     multiSubtitleAutoSyncDuration: true, theme: 'dark',
@@ -3187,6 +3187,7 @@
       ttsDraftSplitLimit: clampInteger(savedSettings.ttsDraftSplitLimit, 100, 1, 600),
       toolbarKbdHints: savedSettings.toolbarKbdHints === true,
       assetLibraryShowSearch: savedSettings.assetLibraryShowSearch !== false,
+      subtitleAvoidControls: savedSettings.subtitleAvoidControls !== false,
       selectGroupMembers: savedSettings.selectGroupMembers === true,
       // 合并连接符按字幕拆分类型区分：连续型默认直接拼接，单词型默认空格。
       // 旧版只有 mergeJoinText 一个值；用户自定义过则两个类型都沿用旧值。

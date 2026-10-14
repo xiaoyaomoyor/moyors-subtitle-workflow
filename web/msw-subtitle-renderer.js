@@ -4,6 +4,32 @@
   function create(host,styles) {
   if(!host||!styles)return;
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
+  let previewRevision=0,previewEvents=[],previewGeometry=[],previewWrites=Promise.resolve();
+  function clearPreviewDocument() {
+    previewRevision++;previewEvents=[];previewGeometry=[];
+    global.MSWPreviewControls?.refresh();
+  }
+  function applyPreviewOffsets(offsets) {
+    const revision=previewRevision,active=renderer;
+    const write=async()=>{
+      if(revision!==previewRevision||active!==renderer||!active?.renderer)return;
+      const changes=previewEvents.filter(e=>(offsets.get(e.key)||0)!==e.offset);
+      if(!changes.length)return;
+      await Promise.all(changes.map(e=>{
+        e.offset=offsets.get(e.key)||0;
+        return active.renderer.setEvent({...e.original,Text:global.MSWPreviewAvoidanceCore.shiftText(e.original.Text,e.offset)},e.index);
+      }));
+      if(revision===previewRevision&&active===renderer)await repaint();
+    };
+    const result=previewWrites.then(write).catch(error=>{
+      if(revision===previewRevision&&active===renderer){
+        fallback('字幕避让渲染失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
+      }
+      throw error;
+    });
+    // Leave the queue usable after a destroyed worker. The caller owns errors.
+    previewWrites=result.catch(()=>{});return result;
+  }
   const fontBytes=new Map();
   const fontManifests=new Map();let loadedFontIds=new Set();
   const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
@@ -14,6 +40,7 @@
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
   function disposeRenderer() {
+    clearPreviewDocument();
     const previous=renderer;renderer=null;
     video?.removeEventListener('seeked',repaintAfterEvent);video?.removeEventListener('pause',repaintAfterEvent);
     video=null;source='';loadedFontIds.clear();
@@ -87,6 +114,8 @@
         fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
       if(!current())return;
       if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
+      clearPreviewDocument();await previewWrites;
+      if(!current())return;
       if(!renderer || video!==target || source!==targetSource) {
         disposeRenderer();fallback(preview.label+' · 正在加载字幕渲染…');
         video=target;source=targetSource;
@@ -104,6 +133,14 @@
         await renderer.renderer.setTrack(payload.ass);
       }
       if(!current())return;
+      const [events,eventStyles]=await Promise.all([renderer.renderer.getEvents(),renderer.renderer.getStyles()]);
+      if(!current())return;
+      previewGeometry=(payload.geometry||[]).filter(r=>r.visible!==false);
+      const geometryByStyle=new Map(previewGeometry.map(r=>[r.style,r]));
+      previewEvents=events.flatMap((original,index)=>{
+        const row=geometryByStyle.get(eventStyles[original.Style]?.Name);
+        return row?[{original,index,key:row.key,offset:0}]:[];
+      });
       await renderer.resize(true);
       if(!current())return;
       await repaint();
@@ -112,9 +149,10 @@
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
       stage.dataset.subtitleRenderer='libass';
+      global.MSWPreviewControls?.refresh();
       if(payload.geometry?.length)global.fixedReceiveGeometry?.(payload.geometry);
       badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'');
-      badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。';
+      badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。播放控制条避让仅临时调整预览位置。';
     } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
@@ -126,7 +164,7 @@
   // Existing editing paths do not all dispatch an event; compare state without
   // rebuilding an ASS document or starting a network request unless it changed.
   setInterval(()=>{if(!document.hidden)void update();},750);
-  global.MSWSubtitleRenderer={invalidate,repaint,get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
+  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
   }
   global.MSWCreateSubtitleRenderer=create;
