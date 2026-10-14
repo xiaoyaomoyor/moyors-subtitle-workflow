@@ -81,7 +81,8 @@
     help?.attach(settings.querySelector(':scope > summary'), () =>
       t('每条字幕或每个草稿分段生成一份完整 WAV。') + '\n'
       + t('当前引擎每段最多') + ' ' + textLimit() + ' ' + t('字符') + '。'
-      + t('草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。'));
+      + t('草稿按字幕编辑器的断句设置处理；生成使用提交时的内容，期间可继续编辑。')
+      + '\n' + t('关闭此窗口不会取消任务。'));
     const refreshIcon = button => {
       if (!button) return;
       button.classList.add('msw-tts-icon-button');
@@ -344,11 +345,11 @@
     const button = document.createElement('button');
     button.type = 'button'; button.textContent = t(label);
     button.addEventListener('click', async () => {
-      button.disabled = true;
+      button.disabled = true; button.dataset.working = 'true';
       const generation = host.generation;
       try { await callback(); }
       catch (error) { if (generation === host.generation) { message(error.message, true); el('asset-notice').textContent = error.message; } }
-      finally { button.disabled = false; }
+      finally { delete button.dataset.working; button.disabled = false; }
     });
     return button;
   }
@@ -357,6 +358,82 @@
   const jobCards = new Map();
   const engineNames = {qwen: '百炼 Qwen TTS', yukkuri: '油库里', indextts: 'IndexTTS',
     'gpt-sovits': 'GPT-SoVITS', edge: 'Edge TTS', minimax: 'MiniMax TTS', mossland: 'Mossland TTS'};
+  function jobIcon(state, label) {
+    const icon = document.createElement('span'); icon.className = 'msw-tts-state-icon';
+    icon.dataset.state = state; icon.setAttribute('role', 'img');
+    icon.setAttribute('aria-label', t(label)); icon.title = t(label);
+    return icon;
+  }
+  function jobAction(label, icon, callback) {
+    const button = action(label, callback); button.classList.add('msw-tts-icon-button');
+    button.dataset.icon = icon; button.title = t(label); button.setAttribute('aria-label', t(label));
+    return button;
+  }
+  function unfinishedEntries(detail) {
+    const saved = new Set(assets().map(asset => asset.source_ref?.key));
+    const ready = new Set((detail.result?.items || []).filter(row => row.status === 'ready').map(row => row.key));
+    return (detail.snapshot?.entries || []).filter(row => !saved.has(row.key) && !ready.has(row.key));
+  }
+  async function retryJob(job) {
+    const generation = host.generation;
+    const {job: detail} = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
+    if (generation !== host.generation || active(detail)) return;
+    const entries = unfinishedEntries(detail);
+    if (!entries.length) { message('这些内容已合成，无需重试'); renderJobs(); return; }
+    await submit({snapshot: {...detail.snapshot, entries}, retry_of: job.id, recipe: job.recipe});
+  }
+  function renderJobItems(job, ui) {
+    const detail = ui.detail;
+    if (!detail) return;
+    const scroll = ui.view.scrollTop;
+    const items = new Map((detail.result?.items || []).map(row => [row.key, row]));
+    const entries = detail.snapshot?.entries || [];
+    const hasItemError = [...items.values()].some(item => item.status === 'failed');
+    entries.forEach((entry, index) => {
+      let row = ui.rows.get(entry.key);
+      if (!row) {
+        const element = document.createElement('div'); element.className = 'msw-tts-entry'; element.dataset.entryKey = entry.key;
+        const text = document.createElement('p'); text.className = 'msw-tts-entry-text'; text.dataset.i18nSkip = '';
+        text.textContent = entry.text; text.title = entry.text;
+        const icon = jobIcon('pending', '尚未完成');
+        const error = document.createElement('p'); error.className = 'msw-tts-entry-error'; error.dataset.i18nSkip = '';
+        element.append(text, icon, error); ui.view.append(element);
+        row = {element, icon, error}; ui.rows.set(entry.key, row);
+      }
+      const item = items.get(entry.key);
+      const running = active(job) && job.status === 'running' && job.stage === 'synthesizing' && index === job.progress?.current;
+      const state = item?.status === 'ready' ? 'ready' : item?.status === 'failed' ? 'failed'
+        : running ? 'running' : job.status === 'cancelled' || job.status === 'interrupted' ? 'cancelled' : 'pending';
+      const label = t({ready: '合成成功', failed: '合成失败', running: '正在合成', cancelled: '尚未完成', pending: '尚未完成'}[state]);
+      row.element.dataset.state = state; row.icon.dataset.state = state;
+      row.icon.setAttribute('aria-label', label); row.icon.title = label;
+      const error = item?.error || (!active(job) && !hasItemError && state !== 'ready' && job.error)
+        || (!active(job) && state !== 'ready' && state !== 'failed' ? t(job.status === 'cancelled' ? '已取消' : '尚未完成') : '');
+      row.error.textContent = error; row.error.hidden = !error;
+    });
+    if (ui.failedRevision == null) {
+      ui.notice.hidden = Boolean(entries.length); ui.notice.textContent = detail.error || t('没有可显示的合成内容');
+    }
+    ui.view.scrollTop = scroll;
+  }
+  async function loadJobItems(job, ui) {
+    if (ui.loading || ui.detail?.revision === job.revision || ui.failedRevision === job.revision) return;
+    const generation = host.generation;
+    ui.loading = true; ui.view.setAttribute('aria-busy', 'true');
+    if (!ui.detail) { ui.notice.hidden = false; ui.notice.textContent = t('正在加载…'); }
+    try {
+      const {job: detail} = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
+      if (generation !== host.generation || jobCards.get(job.id) !== ui) return;
+      ui.detail = detail; ui.failedRevision = null;
+      if ((jobs.get(job.id)?.revision || 0) <= detail.revision) jobs.set(job.id, {...jobs.get(job.id), ...detail, snapshot: undefined, result: undefined});
+    } catch (error) {
+      if (generation !== host.generation) return;
+      ui.failedRevision = job.revision; ui.notice.hidden = false; ui.notice.textContent = error.message;
+    } finally {
+      ui.loading = false; ui.view.removeAttribute('aria-busy');
+      if (generation === host.generation && jobCards.get(job.id) === ui) renderJobs();
+    }
+  }
   function renderJobs() {
     const container = el('tts-jobs'), scroll = container.scrollTop;
     const ordered = [...jobs.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
@@ -368,45 +445,41 @@
         const card = document.createElement('details'); card.className = 'msw-processing-job msw-tts-job'; card.dataset.jobId = job.id;
         card.open = active(job);
         const summary = document.createElement('summary'), heading = document.createElement('strong'), status = document.createElement('span');
-        summary.append(heading, status); card.append(summary);
-        const meta = document.createElement('p'); meta.className = 'msw-processing-hint'; meta.dataset.i18nSkip = '';
-        const error = document.createElement('details'), errorTitle = document.createElement('summary'), errorText = document.createElement('p');
-        errorTitle.textContent = t('错误详情'); error.append(errorTitle, errorText);
+        const spinner = jobIcon('running', '正在合成');
+        status.className = 'msw-job-status'; summary.append(heading, spinner, status); card.append(summary);
+        const view = document.createElement('div'); view.className = 'msw-tts-result';
+        const notice = document.createElement('p'); notice.className = 'msw-processing-hint'; notice.hidden = true;
         const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
-        const unfinished = document.createElement('div'); unfinished.hidden = true;
-        card.append(meta, error, actions, unfinished);
-        ui = {card, heading, status, meta, error, errorText, actions, unfinished, state: ''}; jobCards.set(job.id, ui);
+        const cancel = jobAction('取消任务', 'stop', async () => {
+          const generation = host.generation;
+          const data = await request(`jobs/${job.id}/cancel`, {project_id: job.project_id});
+          if (generation !== host.generation) return;
+          jobs.set(job.id, data.job); renderJobs(); schedule(0);
+        });
+        const retry = jobAction('重新合成未完成项', 'retry', () => retryJob(jobs.get(job.id)));
+        const reload = jobAction('重新加载记录', 'retry', () => { ui.failedRevision = null; return loadJobItems(jobs.get(job.id), ui); });
+        actions.append(cancel, retry, reload); card.append(view, notice, actions);
+        ui = {card, heading, status, spinner, summary, view, notice, cancel, retry, reload, rows: new Map()}; jobCards.set(job.id, ui);
+        card.addEventListener('toggle', () => {
+          if (card.open && jobCards.get(job.id) === ui) { ui.failedRevision = null; renderJobs(); }
+        });
       }
       const provider = job.recipe?.provider || 'qwen';
       ui.heading.textContent = `${t(engineNames[provider] || provider)} · ${t('批次')}${String(i + 1).padStart(2, '0')}`;
       const statusText = job.stage === 'starting_service' && active(job) ? '正在等待本机服务'
         : job.status === 'succeeded' && job.progress?.failed ? (job.progress?.ready ? '部分完成' : '合成失败') : statuses[job.status] || job.status;
-      ui.status.textContent = `${t(statusText)} · ${t('成功')} ${job.progress?.ready || 0}/${job.count}` + (job.progress?.failed ? ` · ${t('失败')} ${job.progress.failed}` : '');
-      ui.status.className = job.progress?.failed || job.status === 'failed' ? 'msw-job-status is-error' : 'msw-job-status';
-      ui.meta.textContent = [job.recipe?.model, clouds[provider]?.voiceLabel(job.recipe) || job.recipe?.voice].filter(Boolean).join(' · ');
-      ui.error.hidden = !job.error; ui.errorText.textContent = job.error || '';
-      const state = `${active(job)}:${(job.progress?.ready || 0) < job.count}`;
-      if (ui.state !== state) {
-        ui.state = state; ui.actions.replaceChildren();
-        if (active(job)) ui.actions.append(action('取消任务', async () => {
-          const generation = host.generation;
-          const data = await request(`jobs/${job.id}/cancel`, { project_id: job.project_id });
-          if (generation !== host.generation) return;
-          jobs.set(job.id, data.job); renderJobs(); schedule(0);
-        }));
-        ui.actions.append(action('查看素材', () => { host.showAssets(); assetUI.showBatch(job.id); }));
-        if (!active(job) && (job.progress?.ready || 0) < job.count) {
-          const toggle = action('检查未完成项', async () => {
-            ui.unfinished.hidden = !ui.unfinished.hidden;
-            toggle.setAttribute('aria-expanded', String(!ui.unfinished.hidden));
-            toggle.textContent = t(ui.unfinished.hidden ? '检查未完成项' : '收起未完成项');
-            if (!ui.unfinished.hidden && !ui.loaded) {
-              try { await inspectUnfinished(job, ui.unfinished); ui.loaded = true; }
-              catch (error) { ui.unfinished.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.textContent = t('检查未完成项'); throw error; }
-            }
-          });
-          toggle.setAttribute('aria-expanded', String(!ui.unfinished.hidden)); ui.actions.append(toggle);
-        }
+      ui.status.textContent = `${t('成功')}${job.progress?.ready || 0}/${job.count}`;
+      ui.spinner.hidden = !active(job); ui.spinner.title = t(statusText); ui.spinner.setAttribute('aria-label', t(statusText));
+      ui.summary.title = [t(statusText), job.recipe?.model, clouds[provider]?.voiceLabel(job.recipe) || job.recipe?.voice].filter(Boolean).join(' · ');
+      ui.cancel.hidden = !active(job); ui.cancel.disabled = job.status === 'cancel_requested' || Boolean(ui.cancel.dataset.working);
+      ui.retry.hidden = active(job) || !ui.detail || !unfinishedEntries(ui.detail).length;
+      ui.retry.disabled = busy || Boolean(ui.retry.dataset.working) || [...jobs.values()].some(other => other.retry_of === job.id && active(other));
+      ui.retry.title = t('重新合成未完成项') + '\n' + t(['yukkuri', 'indextts', 'gpt-sovits'].includes(provider)
+        ? '已成功的音频不会重发。' : provider === 'edge' ? '重试需要联网，已成功的音频不会重发。' : '重试可能再次计费，已成功的音频不会重发。');
+      ui.reload.hidden = ui.failedRevision == null;
+      if (ui.card.open) {
+        if (ui.detail) renderJobItems(job, ui);
+        void loadJobItems(job, ui);
       }
       cards.push(ui.card);
     }
@@ -417,28 +490,6 @@
     el('tts-history').hidden = !jobs.size;
   }
   global.addEventListener('msw:voice-alias-changed', renderJobs);
-  async function inspectUnfinished(job, container) {
-    const generation = host.generation;
-    container.textContent = t('正在加载…');
-    const { job: detail } = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
-    if (generation !== host.generation) return;
-    const saved = new Set(assets().map(a => a.source_ref.key));
-    const items = new Map((detail.result?.items || []).map(row => [row.key, row]));
-    const entries = detail.snapshot.entries.filter(row => !saved.has(row.key) && items.get(row.key)?.status !== 'ready');
-    const view = document.createElement('div'); view.className = 'msw-tts-result';
-    for (const row of entries) {
-      const text = document.createElement('p'); text.className = 'msw-asset-content';
-      text.textContent = `${row.text}\n${items.get(row.key)?.error || t('尚未完成')}`; view.append(text);
-    }
-    const notice = document.createElement('p'); notice.className = 'msw-processing-hint';
-    notice.textContent = `${entries.length} ${t(['yukkuri', 'indextts', 'gpt-sovits'].includes(job.recipe?.provider)
-      ? '条未完成；使用本机资源重试，已成功的音频不会重发。' : job.recipe?.provider === 'edge'
-        ? '条未完成；重试需要联网，已成功的音频不会重发。' : '条未完成；重试可能再次计费，已成功的音频不会重发。')}`;
-    container.replaceChildren(view, notice);
-    if (entries.length) container.append(action('重新合成未完成项', () => submit({
-      snapshot: { project_id: job.project_id, entries }, retry_of: job.id, recipe: job.recipe,
-    })));
-  }
   async function submit(retry = null) {
     if (busy) return;
     const generation = host.generation;
@@ -474,7 +525,7 @@
       jobs.set(data.job.id, data.job); watched.add(data.job.id);
       if (['indextts', 'gpt-sovits'].includes(options.provider)) void localServices.refresh();
       updateScope();
-      message('TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务');
+      message('');
       el('tts-settings').open = false;
       renderJobs(); schedule(0);
     } catch (error) {
@@ -517,9 +568,8 @@
       for (const job of jobs.values()) if (!active(job) && watched.has(job.id) && !opened.has(job.id)) {
         opened.add(job.id);
         if (assets().some(asset => asset.job_id === job.id)) host.showAssets({ automatic: true });
-        else message('本次没有生成音频，请检查未完成项', true);
       }
-      if (changed) renderJobs();
+      if (changed || incoming.assets.length) renderJobs();
       checkDraftCompletion();
       pollFailures = 0;
       if (incoming.more || [...jobs.values()].some(active)) schedule(incoming.more ? 0 : 800);

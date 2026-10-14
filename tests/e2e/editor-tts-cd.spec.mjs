@@ -82,14 +82,13 @@ test('Edge service failure shows the same actionable detail on the job and faile
   await page.locator('#cue-panel-tts-text').fill('FORBIDDEN\nNot requested');
   await page.locator('#tts-start').click();
   const job=page.locator('.msw-tts-job').first();
-  await expect(job).toContainText('合成失败');
-  await expect(job).toContainText('失败 1');
-  await job.getByText('错误详情',{exact:true}).click();
+  await expect(job.locator('.msw-job-status')).toHaveText('成功0/2');
+  await expect(job.locator('.msw-tts-entry[data-state="failed"]')).toHaveCount(1);
   await expect(job).toContainText('HTTP 403');
   await expect(job).toContainText('重启编辑器服务');
-  await job.getByRole('button',{name:'检查未完成项',exact:true}).click();
   await expect(job.locator('.msw-tts-result')).toContainText('HTTP 403');
-  await expect(job.locator('.msw-tts-result')).toContainText('Not requested\n尚未完成');
+  await expect(job.locator('.msw-tts-entry').last()).toContainText('Not requested');
+  await expect(job.locator('.msw-tts-entry').last()).toContainText('尚未完成');
   await expect(job).not.toContainText('private-signed-url');
   expect(await count(page)).toBe(0);
   await expect(page.locator('#cue-panel-tts-text')).toHaveValue('FORBIDDEN\nNot requested');

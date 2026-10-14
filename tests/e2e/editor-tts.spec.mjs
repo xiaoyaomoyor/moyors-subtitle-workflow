@@ -100,13 +100,13 @@ test('production draft keeps partial failures and clears after retrying only unf
   await open(page); await panel(page); await page.locator('#tts-target').selectOption('editor_text');
   failText = 'Fail'; await page.locator('#cue-panel-tts-text').fill('Ready\nFail');
   await page.locator('#tts-start').click(); await expect.poll(() => countAssets(page)).toBe(1);
-  await expect(page.locator('#tts-jobs')).toContainText('失败 1');
+  await expect(page.locator('.msw-job-status')).toHaveText('成功1/2');
   await expect(page.locator('#cue-panel-tts-text')).toHaveValue('Ready\nFail');
-  await page.getByRole('button', { name: '检查未完成项', exact: true }).click();
   await expect(page.locator('.msw-tts-result')).toBeVisible();
-  await page.getByRole('button', { name: '收起未完成项', exact: true }).click();
+  await expect(page.locator('.msw-tts-entry[data-state="failed"]')).toContainText('模拟服务失败');
+  await page.locator('.msw-tts-job > summary').click();
   await expect(page.locator('.msw-tts-result')).toBeHidden();
-  await page.getByRole('button', { name: '检查未完成项', exact: true }).click(); failText = null;
+  await page.locator('.msw-tts-job > summary').click(); failText = null;
   await page.getByRole('button', { name: '重新合成未完成项', exact: true }).click();
   await expect.poll(() => countAssets(page)).toBe(2); await expect(page.locator('#cue-panel-tts-text')).toHaveValue('');
   expect(calls.map(c => c.text)).toEqual(['Ready', 'Fail', 'Fail']);
@@ -753,17 +753,24 @@ test('a completed item is available while later request runs; cancel discards la
   expect(await countAssets(page)).toBe(1); expect(calls).toHaveLength(2);
 });
 test('partial failure retries only failed text',async({page})=>{
+  const submitted=[];page.on('request',request=>{
+    if(request.method()==='POST' && request.url().endsWith('/api/msw/jobs')) submitted.push(request.postDataJSON());
+  });
   await open(page); await panel(page); failText='World'; await page.locator('#tts-start').click();
-  await expect(page.locator('#tts-jobs')).toContainText('失败 1');
-  await page.getByRole('button',{name:'检查未完成项',exact:true}).click();
+  await expect(page.locator('.msw-job-status')).toHaveText('成功1/2');
   await expect(page.locator('.msw-tts-result')).toContainText('World'); failText=null;
   await page.getByRole('button',{name:'重新合成未完成项',exact:true}).click();
   await expect.poll(()=>countAssets(page)).toBe(2); expect(calls.map(c=>c.text)).toEqual(['Hello','World','World']);
+  expect(submitted).toHaveLength(2);
+  expect(submitted[1].snapshot.project_schema).toBe('msw.project.v4');
+  expect(submitted[1].snapshot.flat_model).toEqual(submitted[0].snapshot.flat_model);
+  expect(submitted[1].snapshot.entries).toHaveLength(1);
+  expect(submitted[1].snapshot.entries[0].key).toBe(submitted[0].snapshot.entries[1].key);
 });
 test('asset library pages large batches and can be closed and restored from Window',async({page})=>{
   await open(page,false,105); await panel(page); await page.locator('#tts-start').click();
   await expect.poll(()=>countAssets(page),{timeout:30000}).toBe(105);
-  await expect(page.locator('#tts-jobs')).toContainText('合成完成'); await page.locator('#tts-close').click();
+  await expect(page.locator('.msw-job-status')).toHaveText('成功105/105'); await page.locator('#tts-close').click();
   await expect(page.locator('.msw-asset-row')).toHaveCount(90);
   await expect.poll(()=>page.locator('#asset-list').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(3);
   expect(await page.locator('#asset-list').evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
@@ -1242,8 +1249,8 @@ test('more hover details use combined clip and track gain and trimmed duration',
 test('history keeps batch and unfinished states while another job polls',async({page},info)=>{
   await open(page);await panel(page);await page.locator('#tts-target').selectOption('editor_text');
   failText='Fail';await page.locator('#cue-panel-tts-text').fill('Fail');await page.locator('#tts-start').click();
-  const first=page.locator('.msw-tts-job').first();await expect(first).toContainText('失败 1');
-  await first.getByRole('button',{name:'检查未完成项',exact:true}).click();await expect(first.locator('.msw-tts-result')).toBeVisible();
+  const first=page.locator('.msw-tts-job').first();await expect(first.locator('.msw-tts-entry[data-state="failed"]')).toHaveCount(1);
+  await expect(first.locator('.msw-tts-result')).toBeVisible();
   const firstId=await first.getAttribute('data-job-id');
   holdText='Waiting';await page.locator('#cue-panel-tts-text').fill('Waiting');await page.locator('#tts-start').click();
   await expect.poll(()=>held.length).toBe(1);
@@ -1253,10 +1260,83 @@ test('history keeps batch and unfinished states while another job polls',async({
   await current.locator(':scope > summary').click();await expect(current).not.toHaveAttribute('open','');
   await page.waitForTimeout(1200);
   await expect(current).not.toHaveAttribute('open','');await expect(old.locator('.msw-tts-result')).toBeVisible();
-  await old.getByRole('button',{name:'收起未完成项',exact:true}).click();await expect(old.locator('.msw-tts-result')).toBeHidden();
+  await old.locator(':scope > summary').click();await expect(old.locator('.msw-tts-result')).toBeHidden();
   held.splice(0).forEach(respond=>respond());await expect.poll(()=>countAssets(page)).toBe(1);
   await expect(current).not.toHaveAttribute('open','');
   await page.screenshot({path:info.outputPath('tts-history-cards.png')});
+});
+
+test('compact history shows live row icons, inline errors and neutral theme surfaces',async({page},info)=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await open(page);await panel(page);await page.locator('#tts-target').selectOption('editor_text');
+  holdText='Waiting';failText='Fail';
+  await page.locator('#cue-panel-tts-text').fill('Ready\nWaiting\nFail');
+  await page.locator('#tts-start').click();await expect.poll(()=>held.length).toBe(1);
+  const job=page.locator('.msw-tts-job').first(),summary=job.locator(':scope > summary');
+  await expect(job.locator('.msw-job-status')).toHaveText('成功1/3');
+  await expect(summary.getByRole('img',{name:'正在合成'})).toBeVisible();
+  await expect(job.locator('.msw-tts-entry[data-state="ready"]')).toHaveCount(1);
+  await expect(job.locator('.msw-tts-entry[data-state="running"]')).toHaveCount(1);
+  await expect(job.locator('.msw-tts-entry[data-state="pending"]')).toHaveCount(1);
+  await expect(job.getByRole('button',{name:'取消任务'})).toBeVisible();
+  await page.screenshot({path:info.outputPath('tts-running.png')});
+  held.splice(0).forEach(respond=>respond());
+  await expect(job.locator('.msw-job-status')).toHaveText('成功2/3');
+  await expect(summary.locator('.msw-tts-state-icon')).toBeHidden();
+  await expect(job.locator('.msw-tts-entry[data-state="failed"]')).toContainText('模拟服务失败');
+  await expect(job.locator('.msw-tts-entry[data-state="ready"]')).toHaveCount(2);
+  await expect(job.locator('.msw-tts-entry-text')).toHaveText(['Ready','Waiting','Fail']);
+  await expect(job.getByRole('button',{name:'查看素材'})).toHaveCount(0);
+  await expect(job.getByRole('button',{name:'检查未完成项'})).toHaveCount(0);
+  await expect(job.locator('details')).toHaveCount(0);
+  const retry=job.getByRole('button',{name:'重新合成未完成项'});
+  await expect(retry).toBeVisible();await expect(retry).toHaveClass(/msw-tts-icon-button/);
+  await expect(retry).toHaveAttribute('title',/可能再次计费/);
+  for(const theme of ['dark','light']){
+    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    const geometry=await page.evaluate(()=>{
+      const panel=document.getElementById('tts-panel'),section=document.getElementById('tts-synthesis-settings');
+      const comparison=document.querySelector('.media-settings-body .settings-panel-section');
+      const status=document.querySelector('.msw-job-status');
+      return {matched:getComputedStyle(section).backgroundColor===getComputedStyle(comparison).backgroundColor,
+        overflow:panel.scrollWidth>panel.clientWidth+1,neutral:!status.classList.contains('is-error')};
+    });
+    expect(geometry).toEqual({matched:true,overflow:false,neutral:true});
+    await page.screenshot({path:info.outputPath(`tts-history-${theme}.png`)});
+  }
+  await page.setViewportSize({width:390,height:780});
+  expect(await page.locator('#tts-panel').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await expect(page.locator('#tts-start')).toBeInViewport();
+  await page.screenshot({path:info.outputPath('tts-history-narrow.png')});
+  await page.reload();await panel(page);
+  await expect(job).not.toHaveAttribute('open','');await summary.click();
+  await expect(job.locator('.msw-tts-entry')).toHaveCount(3);
+  await expect(job.locator('.msw-tts-entry-error:visible')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test('history detail failure has an inline reload and retries never resubmit completed entries',async({page})=>{
+  await open(page);await panel(page);failText='World';await page.locator('#tts-start').click();
+  const first=page.locator('.msw-tts-job').first();
+  await expect(first.locator('.msw-tts-entry[data-state="failed"]')).toHaveCount(1);
+  const job=page.locator(`[data-job-id="${await first.getAttribute('data-job-id')}"]`);
+  await expect(job.locator('.msw-tts-entry[data-state="failed"]')).toHaveCount(1);
+  await page.reload();await panel(page);
+  let failed=true,requests=0;
+  await page.route('**/jobs/*/result?*',route=>{
+    requests++;
+    return failed?route.fulfill({status:503,json:{ok:false,error:'Synthetic history unavailable'}}):route.continue();
+  });
+  await job.locator(':scope > summary').click();
+  await expect(job).toContainText('Synthetic history unavailable');
+  await expect(job.getByRole('button',{name:'重新合成未完成项'})).toBeHidden();
+  await page.waitForTimeout(1000);expect(requests).toBe(1);
+  failed=false;await job.getByRole('button',{name:'重新加载记录'}).click();
+  await expect(job.locator('.msw-tts-entry')).toHaveCount(2);
+  failText=null;await job.getByRole('button',{name:'重新合成未完成项'}).click();
+  await expect.poll(()=>countAssets(page)).toBe(2);
+  await expect(job.getByRole('button',{name:'重新合成未完成项'})).toBeHidden();
+  expect(calls.map(c=>c.text)).toEqual(['Hello','World','World']);
 });
 
 
