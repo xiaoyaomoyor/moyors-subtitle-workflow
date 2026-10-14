@@ -12,7 +12,7 @@ import requests
 from maw.gui_config import load_env, save_env
 from maw.msw.assets import MAX_AUDIO_BYTES
 from maw.msw.project_codec import valid_cue_id, valid_id
-from maw.msw.qwen_catalog import MODELS, MODEL_TYPES, model_type, voices_for, catalog_payload
+from maw.msw.qwen_catalog import MODELS, MODEL_TYPES, AUDIO_MODELS, model_type, voices_for, catalog_payload
 from maw.msw.tts_errors import qwen_http_error, qwen_network_error
 
 ENDPOINTS = {
@@ -39,8 +39,10 @@ def validate_recipe(raw, *, require_voice=True):
         raise ValueError("不支持的 TTS 服务、地域或模型")
     if value["model_type"] not in MODEL_TYPES or value["model"] not in MODEL_TYPES[value["model_type"]]:
         raise ValueError("配音模式与百炼模型不匹配")
+    if value['model'] in AUDIO_MODELS and value['region'] != 'beijing':
+        raise ValueError('当前 Qwen-Audio-TTS HTTP 接入仅支持北京地域')
     voice = value["voice"]
-    if not isinstance(voice, str) or (not voice and require_voice) or (voice and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_ -]{0,255}", voice)):
+    if not isinstance(voice, str) or (not voice and require_voice) or (voice and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_. -]{0,255}", voice)):
         raise ValueError("请选择或填写有效的百炼音色 ID")
     known = {row["id"] for row in voices_for(MODELS[0])}
     if voice in known and voice not in {row["id"] for row in voices_for(value["model"])}:
@@ -61,6 +63,7 @@ def validate_recipe(raw, *, require_voice=True):
 class TtsSettings:
     api_key: str
     recipe: dict
+    workspace_id: str = ''
 
     @property
     def provider_id(self):
@@ -72,7 +75,15 @@ class TtsSettings:
 
     @property
     def base_url(self):
-        return ENDPOINTS[self.recipe["region"]]
+        if self.model not in AUDIO_MODELS:
+            return ENDPOINTS[self.recipe["region"]]
+        return self.api_base + '/services/audio/tts/SpeechSynthesizer'
+
+    @property
+    def api_base(self):
+        if self.workspace_id and self.model in AUDIO_MODELS:
+            return f'https://{self.workspace_id}.cn-beijing.maas.aliyuncs.com/api/v1'
+        return ENDPOINTS[self.recipe['region']].split('/services/')[0]
 
     reasoning_mode = "off"
 
@@ -87,7 +98,7 @@ def config_payload(env_path):
     except (ValueError, TypeError):
         recipe = dict(DEFAULT_RECIPE)
     return {"recipe": recipe, "models": MODELS, "languages": LANGUAGES, **catalog_payload(),
-            "regions": [{"id": region, "hasApiKey": bool(pick(f"MSW_TTS_{region.upper()}_API_KEY")
+            "regions": [{"id": region, "workspaceId": pick(f"MSW_TTS_{region.upper()}_WORKSPACE_ID"), "hasApiKey": bool(pick(f"MSW_TTS_{region.upper()}_API_KEY")
                 or (region == "beijing" and pick("DASHSCOPE_API_KEY")))} for region in ENDPOINTS]}
 
 
@@ -102,13 +113,18 @@ def resolve_settings(env_path, raw, *, require_voice=True):
         key = os.environ.get("DASHSCOPE_API_KEY") or values.get("DASHSCOPE_API_KEY")
     if not isinstance(key, str) or not key.strip() or len(key) > 4096 or any(c in key for c in "\r\n"):
         raise ValueError("请填写所选地域的百炼 API Key")
-    return TtsSettings(key.strip(), recipe)
+    workspace = raw.get('workspaceId', os.environ.get(f"MSW_TTS_{recipe['region'].upper()}_WORKSPACE_ID")
+                        or values.get(f"MSW_TTS_{recipe['region'].upper()}_WORKSPACE_ID", ''))
+    if not isinstance(workspace, str) or (workspace and not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,61}[a-z0-9]', workspace)):
+        raise ValueError('业务空间 ID 格式无效，请填写 Workspace ID，不是 API Key 或网址')
+    return TtsSettings(key.strip(), recipe, workspace)
 
 
 def save_settings(env_path, raw):
     import json
     settings = resolve_settings(env_path, raw, require_voice=False)
     save_env(env_path, {f"MSW_TTS_{settings.recipe['region'].upper()}_API_KEY": settings.api_key,
+                        f"MSW_TTS_{settings.recipe['region'].upper()}_WORKSPACE_ID": settings.workspace_id,
                         "MSW_TTS_RECIPE": json.dumps(settings.recipe, ensure_ascii=False)})
     return config_payload(env_path)
 
@@ -184,6 +200,11 @@ def synthesize(settings, text, cancel, *, session_factory=requests.Session):
     recipe = settings.recipe
     body = {"model": settings.model, "input": {"text": text, "voice": recipe["voice"],
                                                "language_type": recipe["language_type"]}}
+    if settings.model in AUDIO_MODELS:
+        body['input'] = {'text': text, 'voice': recipe['voice'], 'format': 'wav', 'sample_rate': 24000}
+        languages = dict(zip(LANGUAGES[1:], ['zh', 'en', 'de', 'it', 'pt', 'es', 'ja', 'ko', 'fr', 'ru']))
+        if recipe['language_type'] != 'Auto':
+            body['input']['language_hints'] = [languages[recipe['language_type']]]
     if "-instruct-" in settings.model and recipe["instructions"]:
         body["input"].update(instructions=recipe["instructions"], optimize_instructions=recipe["optimize_instructions"])
     with session_factory() as session:

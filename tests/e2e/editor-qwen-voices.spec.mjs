@@ -12,9 +12,11 @@ test.beforeAll(async () => {
     const body = JSON.parse(Buffer.concat(chunks)); calls.push(body);
     const respond = () => {
       if (body.customization) {
-        const name = body.customization.model === 'qwen-voice-design' ? 'designed' : 'cloned';
+        const modern = body.customization.model === 'voice-enrollment';
+        const name = body.customization.input.voice_prompt ? 'designed' : 'cloned';
         res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({output: {voice: `qwen-${name}-${body.customization.input.preferred_name}`,
+        res.end(JSON.stringify({output: {[modern ? 'voice_id' : 'voice']: modern
+          ? `qwen-audio-3.0-tts-flash-${body.customization.input.prefix}-${name}` : `qwen-${name}-${body.customization.input.preferred_name}`,
           ...(name === 'designed' ? {preview_audio: {data: resultAudio.toString('base64')}} : {})}}));
       } else { res.writeHead(200, {'Content-Type': 'audio/wav'}); res.end(resultAudio); }
     };
@@ -68,18 +70,20 @@ async function openPanel(page) {
   await openMenubarMenu(page, '媒体'); await page.locator('#tts-open').click();
   await expect(page.locator('#tts-model option').first()).toBeAttached();
 }
-async function designFields(page) {
+async function designFields(page, model = 'qwen-audio-3.0-tts-flash') {
   await page.locator('#tts-model-type').selectOption('VoiceDesign');
+  await page.locator('#tts-model').selectOption(model);
   await openTtsEnvironment(page);
   await page.locator('#tts-manage-model-type').selectOption('VoiceDesign');
+  await page.locator('#tts-manage-model').selectOption(model);
   if (!(await page.locator('#tts-voice-create-fields').evaluate(el => el.open))) await page.locator('#tts-voice-create-fields > summary').click();
   await page.locator('#tts-voice-name').fill('温柔旁白');
   await page.locator('#tts-voice-prompt').fill('清晰温暖的女声，支持中文和英文叙述。');
   await expect(page.locator('#tts-start')).toBeDisabled();
 }
 const customCalls = () => calls.filter(call => call.customization);
-async function createDesign(page) {
-  await designFields(page); await page.locator('#tts-voice-create').click();
+async function createDesign(page, model) {
+  await designFields(page, model); await page.locator('#tts-voice-create').click();
   await expect(page.locator('#tts-manage-voice option')).toHaveCount(2);
   await closeTtsEnvironment(page); await page.locator('#tts-voice-select').selectOption({index: 1});
   return page.locator('#tts-voice').inputValue();
@@ -90,7 +94,9 @@ test('default CustomVoice has searchable model-compatible system voices and pres
   await expect(page.locator('#tts-voice')).toHaveValue('Cherry');
   await expect(page.locator('#tts-voice-select option')).toHaveCount(49);
   await page.locator('#tts-voice-search').fill('粤语');
-  await expect(page.locator('#tts-voice-select option')).toHaveCount(3);
+  // Keep the selected Cherry visible alongside the two matching Cantonese voices.
+  await expect(page.locator('#tts-voice-select optgroup option')).toHaveCount(2);
+  await expect(page.locator('#tts-voice-select')).toHaveValue('Cherry');
   await page.locator('#tts-voice-select').selectOption('Rocky');
   await expect(page.locator('#tts-voice-current')).toContainText('粤语·阿强');
   await page.locator('#tts-voice-search').fill('');
@@ -115,7 +121,8 @@ test('default CustomVoice has searchable model-compatible system voices and pres
 test('design creates one reusable voice, previews it, synthesizes and restores saved choice', async ({page}) => {
   const voice = await createDesign(page);
   expect(customCalls()).toHaveLength(1);
-  expect(customCalls()[0].customization.input.target_model).toBe('qwen3-tts-vd-2026-01-26');
+  expect(customCalls()[0].customization.input.target_model).toBe('qwen-audio-3.0-tts-flash');
+  expect(customCalls()[0].customization.input.action).toBe('create_voice');
   await openTtsEnvironment(page);
   await page.locator('#tts-voice-history').evaluate(el => el.open = true);
   await page.getByRole('button', {name: '试听音色', exact: true}).click();
@@ -151,15 +158,16 @@ test('clone validates selected audio then uploads reference and supports multili
   await page.locator('#tts-voice-create').click();
   await expect(page.locator('#tts-voice-message')).toContainText('请选择 WAV');
   expect(customCalls()).toHaveLength(0);
-  const reference = generateWav(join(dir, 'reference.wav'), 4);
+  const reference = generateWav(join(dir, 'reference.wav'), 6);
   await page.locator('#tts-voice-reference').setInputFiles(reference);
   await page.locator('#tts-voice-create').click();
   await expect(page.locator('#tts-manage-voice option')).toHaveCount(2);
   await closeTtsEnvironment(page); await page.locator('#tts-voice-select').selectOption({index: 1});
   const body = customCalls()[0].customization;
-  expect(body.model).toBe('qwen-voice-enrollment');
-  expect(body.input.target_model).toBe('qwen3-tts-vc-2026-01-22');
-  expect(body.input.audio.data).toMatch(/^data:audio\/wav;base64,/);
+  expect(body.model).toBe('voice-enrollment');
+  expect(body.input.target_model).toBe('qwen-audio-3.0-tts-flash');
+  expect(body.input.url).toMatch(/^oss:\/\//);
+  expect(body.input.audio).toBeUndefined();
   // Use the editor's current text after its existing project normalization.
   const spokenText = await page.evaluate(() => DATA.segments[0].text);
   expect(spokenText).toContain('你好'); expect(spokenText).toContain('Hello world.');
@@ -184,6 +192,33 @@ test('lost submit response can be confirmed without sending a second cloud creat
   await page.locator('#tts-voice-create').click();
   await expect(page.locator('#tts-manage-voice option')).toHaveCount(2);
   expect(customCalls()).toHaveLength(1);
+});
+
+test('old preview prepares a new clone without replacing or automatically recreating the old voice', async ({page}) => {
+  resultAudio = readFileSync(generateWav(join(dir, 'old-preview.wav'), 6));
+  const oldVoice = await createDesign(page, 'qwen3-tts-vd-2026-01-26');
+  await openTtsEnvironment(page);
+  await page.locator('#tts-settings').evaluate(el => el.open = true);
+  await page.locator('#tts-workspace').fill('ws-synthetic');
+  await page.locator('#tts-environment-save').click();
+  await expect(page.locator('#tts-environment-message')).toContainText('已保存');
+  await page.locator('#tts-voice-history').evaluate(el => el.open = true);
+  await page.getByRole('button', {name: '用此试听复刻', exact: true}).click();
+  await expect(page.locator('#tts-manage-model-type')).toHaveValue('VoiceClone');
+  await expect(page.locator('#tts-manage-model')).toHaveValue('qwen-audio-3.0-tts-flash');
+  await expect(page.locator('#tts-voice-name')).toHaveValue('温柔旁白（新版复刻）');
+  expect(await page.locator('#tts-voice-reference').evaluate(el => el.files.length)).toBe(1);
+  expect(customCalls()).toHaveLength(1);
+  await page.locator('#tts-voice-create').click();
+  await expect(page.locator('#tts-manage-voice option')).toHaveCount(2);
+  expect(customCalls()).toHaveLength(2);
+  expect(customCalls()[1].customization.input.url).toBe('oss://synthetic-private/reference.wav');
+  await page.locator('#tts-manage-model-type').selectOption('VoiceDesign');
+  await page.locator('#tts-manage-model').selectOption('qwen3-tts-vd-2026-01-26');
+  await expect(page.locator('#tts-manage-voice option').last()).toHaveAttribute('value', oldVoice);
+  await page.reload(); await openPanel(page); await openTtsEnvironment(page);
+  await expect(page.locator('#tts-workspace')).toHaveValue('ws-synthetic');
+  expect(customCalls()).toHaveLength(2);
 });
 
 test('late created voice does not replace a selection after changing mode', async ({page}) => {
@@ -221,7 +256,7 @@ test('switching project while creating retains the voice without applying it to 
 });
 
 test('voice catalogs stay isolated across regions and registered external IDs remain usable', async ({page}) => {
-  await createDesign(page);
+  await createDesign(page, 'qwen3-tts-vd-2026-01-26');
   await openTtsEnvironment(page);
   await page.locator('#tts-settings').evaluate(el => el.open = true);
   await page.locator('#tts-region').selectOption('singapore');

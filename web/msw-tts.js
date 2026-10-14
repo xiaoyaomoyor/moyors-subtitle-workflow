@@ -275,7 +275,8 @@
   }
   async function loadSettings(preserve = false) {
     const previous = preserve && configured ? {engine: el('tts-engine').value, qwen: qwenRecipe(),
-      yukkuri: recipeFor('yukkuri'), index: indexTts.recipe(), gpt: gptTts.recipe(), edge: edgeTts.recipe(), key: el('tts-key').value} : null;
+      yukkuri: recipeFor('yukkuri'), index: indexTts.recipe(), gpt: gptTts.recipe(), edge: edgeTts.recipe(), key: el('tts-key').value,
+      workspaceId: el('tts-workspace').value} : null;
     const data = await request('tts-settings');
     if (!data.modelTypes || !data.systemVoices || data.workspace_version !== 2) {
       configured = false; updateScope();
@@ -288,6 +289,7 @@
     for (const [id, key] of [['tts-language', 'language_type'], ['tts-region', 'region'], ['tts-instructions', 'instructions']]) el(id).value = value[key];
     el('tts-optimize').checked = value.optimize_instructions;
     el('tts-key').value = previous?.key || '';
+    el('tts-workspace').value = previous?.workspaceId ?? regions.find(row => row.id === value.region)?.workspaceId ?? '';
     el('tts-settings').open = !keyState();
     el('tts-engine').value = previous?.engine || data.engine || 'qwen';
     if (data.yukkuri) {
@@ -450,7 +452,8 @@
         request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || (isText()
           ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs(), host.draftSettings(), options.provider)
           : global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value, options.provider)),
-        provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''}
+        provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : '',
+          ...(options.region === el('tts-region').value ? {workspaceId: el('tts-workspace').value.trim()} : {})}
           : options.provider === 'indextts' ? indexTts.connection() : options.provider === 'gpt-sovits' ? gptTts.connection() : options.provider === 'edge' ? edgeTts.connection() : clouds[options.provider] ? clouds[options.provider].connection(options) : {}) },
         ...(retry ? { retry_of: retry.retry_of } : {}) };
       if (!pending && !retry && !isText() && ['yukkuri', 'indextts', 'minimax'].includes(options.provider) && input.snapshot.entries.length === 1) {
@@ -577,7 +580,9 @@
   el('tts-yukkuri-install').addEventListener('click', () => void runtimeAction('install'));
   el('tts-yukkuri-check').addEventListener('click', () => void runtimeAction('check'));
   el('tts-yukkuri-cancel').addEventListener('click', () => void runtimeAction('cancel'));
-  el('tts-region').addEventListener('change', () => { el('tts-key').value = ''; keyState(); qwenVoices.credentialsChanged(); });
+  el('tts-region').addEventListener('change', () => { el('tts-key').value = '';
+    el('tts-workspace').value = regions.find(row => row.id === el('tts-region').value)?.workspaceId || '';
+    keyState(); qwenVoices.credentialsChanged(); });
   el('tts-key').addEventListener('input', updateScope);
   el('tts-environment-open').addEventListener('click', () => {
     el('tts-environment-engine').value = el('tts-engine').value;
@@ -599,7 +604,7 @@
       await ensureSettings();
       if (['indextts', 'gpt-sovits'].includes(engine)) await localServices.save(engine);
       await request('tts-environment', {recipe: recipeFor(engine), ...(engine === 'indextts' ? indexTts.connection() : engine === 'gpt-sovits' ? gptTts.connection() : engine === 'edge' ? edgeTts.connection() : clouds[engine] ? clouds[engine].connection()
-        : engine === 'qwen' ? {apiKey: el('tts-key').value} : {})});
+        : engine === 'qwen' ? {apiKey: el('tts-key').value, workspaceId: el('tts-workspace').value.trim()} : {})});
       if (engine === 'qwen') el('tts-key').value = '';
       clouds[engine]?.saved();
       await loadSettings(true);
@@ -611,7 +616,7 @@
   el('tts-save-settings').addEventListener('click', async () => {
     if (savingSettings || indexTts.isBusy()) return;
     savingSettings = true; updateScope();
-    try { await request('tts-settings', { recipe: recipe(), ...(isIndex() ? indexTts.connection() : isGpt() ? gptTts.connection() : isEdge() ? edgeTts.connection() : cloud() ? cloud().connection() : isQwen() ? {apiKey: el('tts-key').value} : {}) });
+    try { await request('tts-settings', { recipe: recipe(), ...(isIndex() ? indexTts.connection() : isGpt() ? gptTts.connection() : isEdge() ? edgeTts.connection() : cloud() ? cloud().connection() : isQwen() ? {apiKey: el('tts-key').value, workspaceId: el('tts-workspace').value.trim()} : {}) });
       if (isQwen()) el('tts-key').value = '';
       cloud()?.saved();
       await loadSettings(true); message('合成设置已保存到本机'); }

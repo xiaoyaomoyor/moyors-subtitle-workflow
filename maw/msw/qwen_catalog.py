@@ -1,4 +1,4 @@
-"""Qwen non-realtime capability catalog, checked against official docs 2026-09-09.
+"""Qwen non-realtime capability catalog, checked against official docs 2026-10-14.
 
 https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list
 https://help.aliyun.com/zh/model-studio/non-realtime-tts-user-guide
@@ -8,10 +8,12 @@ Only factual IDs, names and model compatibility are copied; no voice samples.
 MODEL_TYPES = {
     "CustomVoice": ["qwen3-tts-flash", "qwen3-tts-flash-2025-11-27", "qwen3-tts-flash-2025-09-18",
                     "qwen3-tts-instruct-flash", "qwen3-tts-instruct-flash-2026-01-26"],
-    "VoiceDesign": ["qwen3-tts-vd-2026-01-26"],
-    "VoiceClone": ["qwen3-tts-vc-2026-01-22"],
+    "VoiceDesign": ["qwen3-tts-vd-2026-01-26", "qwen-audio-3.0-tts-flash"],
+    "VoiceClone": ["qwen3-tts-vc-2026-01-22", "qwen-audio-3.0-tts-flash"],
 }
-MODELS = [model for models in MODEL_TYPES.values() for model in models]
+MODELS = list(dict.fromkeys(model for models in MODEL_TYPES.values() for model in models))
+AUDIO_MODELS = {"qwen-audio-3.0-tts-flash"}
+LEGACY_CUSTOM_MODELS = {"qwen3-tts-vd-2026-01-26", "qwen3-tts-vc-2026-01-22"}
 
 # The Instruct catalog excludes dialect and several international voices.
 INSTRUCT_VOICES = set("Cherry Serena Ethan Chelsie Momo Vivian Moon Maia Kai Nofish Bella Mia Mochi Bellona Vincent Bunny Neil Elias Arthur Nini Seren Pip Stella".split()) | {"Eldric Sage"}
@@ -111,4 +113,6 @@ def voices_for(model):
 
 
 def catalog_payload():
-    return {"modelTypes": MODEL_TYPES, "systemVoices": {model: voices_for(model) for model in MODEL_TYPES["CustomVoice"]}}
+    return {"modelTypes": MODEL_TYPES, "systemVoices": {model: voices_for(model) for model in MODEL_TYPES["CustomVoice"]},
+            "recommendedModels": {"VoiceDesign": "qwen-audio-3.0-tts-flash", "VoiceClone": "qwen-audio-3.0-tts-flash"},
+            "legacyCustomModels": sorted(LEGACY_CUSTOM_MODELS)}

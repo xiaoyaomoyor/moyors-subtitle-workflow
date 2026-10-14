@@ -7769,9 +7769,11 @@
                 <details id="tts-settings"><summary>连接设置</summary>
         <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
         <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="请输入 API Key"></label>
+        <label class="msw-processing-field"><span>业务空间 ID</span><input id="tts-workspace" autocomplete="off" spellcheck="false" placeholder="Workspace ID（可选）"></label>
       </details>
                 <details id="tts-qwen-management" open><summary>音色管理</summary>
                   <div class="msw-processing-grid"><label class="msw-processing-field"><span>管理模式</span><select id="tts-manage-model-type"><option value="VoiceDesign">声音设计</option><option value="VoiceClone">声音复刻</option><option value="CustomVoice">预设／外部音色</option></select></label><label class="msw-processing-field"><span>目标模型</span><select id="tts-manage-model"></select></label></div>
+                  <p id="tts-legacy-management-hint" class="msw-processing-hint" hidden>旧版自定义音色服务已下线。原记录与试听保留，可在创建记录中用旧试听复刻新音色。</p>
                   <label class="msw-processing-field"><span>本机音色记录</span><select id="tts-manage-voice"><option value="">选择已登记音色</option></select></label>
                   <label class="msw-processing-field"><span>本机显示名称</span><input id="tts-manage-name" maxlength="60" placeholder="用于搜索和识别音色"></label>
                   <div class="msw-processing-actions"><button type="button" id="tts-manage-refresh">刷新音色</button><button type="button" id="tts-manage-rename">重命名</button></div>
@@ -7784,8 +7786,8 @@
           </div>
           <div id="tts-clone-fields" hidden>
             <label class="msw-processing-field"><span>参考音频</span><input type="file" id="tts-voice-reference" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4"></label>
-            <p class="msw-processing-hint">推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
-            <p class="msw-processing-hint">点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。</p>
+            <p class="msw-processing-hint">推荐 10–20 秒，至少 5 秒连续清晰人声、最长 60 秒、最大 10 MiB。本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
+            <p class="msw-processing-hint">点击创建后，参考音频上传至百炼私有临时存储（48 小时有效），用于创建新音色；原音色保留。</p>
           </div>
           <p class="msw-processing-hint">创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。</p>
           <div class="msw-processing-actions"><button type="button" id="tts-voice-create">创建音色</button></div>
@@ -22261,6 +22263,15 @@ export default MawDynamicCaptions;
     "试听文本": "Preview text",
     "你好，欢迎使用字幕配音。Hello, welcome to our story.": "Hello, welcome to our story.",
     "参考音频": "Reference audio",
+    '业务空间 ID': 'Workspace ID',
+    'Workspace ID（可选）': 'Workspace ID (optional)',
+    '旧版': 'Legacy',
+    '用此试听复刻': 'Clone from this preview',
+    '旧版自定义音色服务已下线。原记录与试听保留，可在创建记录中用旧试听复刻新音色。': 'The legacy custom voice service has retired. Records and previews are preserved; clone a new voice from a preview in the creation history.',
+    '旧版自定义音色服务已下线，可在音色管理中用原试听复刻新音色。': 'The legacy custom voice service has retired. Use the original preview to clone a new voice in voice management.',
+    '已选用原试听作为参考，点击创建生成新音色；原音色保留。': 'The original preview is selected as the reference. Click Create to make a new voice; the original is preserved.',
+    '推荐 10–20 秒，至少 5 秒连续清晰人声、最长 60 秒、最大 10 MiB。本机会转换为 24 kHz 单声道 WAV，原文件不变。': 'Use 10–20 seconds of clear speech, at least 5 seconds and at most 60 seconds / 10 MiB. A local 24 kHz mono WAV copy is prepared; the original is preserved.',
+    '点击创建后，参考音频上传至百炼私有临时存储（48 小时有效），用于创建新音色；原音色保留。': 'Creating uploads the reference to private Bailian temporary storage (valid for 48 hours). A new voice is created; the original is preserved.',
     "推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。": "Recommended: 10–20 seconds; allowed: 3–60 seconds, up to 10 MiB. Use clear speech from one speaker without music. A local 24 kHz mono WAV copy is prepared; the original is preserved.",
     "点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。": "Creating uploads the reference to Bailian in the selected region. The reference is not stored in the project or local voice record.",
     "创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。": "Voice creation may incur a charge. Reuse the voice for multiple subtitles. If its status is unknown, check Bailian before creating it again.",
@@ -60956,7 +60967,10 @@ window.addEventListener('beforeunload', (e) => {
     let submitting = false, pending = null, previewSequence = 0;
     const drafts = new Map(), modelDrafts = new Map(), operations = new Map();
     const type = () => el('tts-model-type').value;
-    const namespace = () => `${el('tts-region').value}\0${el('tts-key').value}`;
+    const namespace = () => `${el('tts-region').value}\0${el('tts-key').value}\0${el('tts-workspace').value}`;
+    const connection = () => ({apiKey: el('tts-key').value, workspaceId: el('tts-workspace').value.trim()});
+    const legacy = model => (metadata.legacyCustomModels || []).includes(model);
+    const modelLabel = model => model + (legacy(model) ? ` · ${t('旧版')}` : '');
     const context = () => `${namespace()}\0${el('tts-model').value}`;
     const custom = () => type() !== 'CustomVoice';
     const manageType = () => el('tts-manage-model-type').value;
@@ -61004,7 +61018,8 @@ window.addEventListener('beforeunload', (e) => {
       audition.disabled = !previewSource();
       audition.title = t(previewSource() ? '在素材库播放已有试听音频，不发起云端合成' : '此音色暂无已有试听音频');
       el('tts-voice-list-label').textContent = t(custom() ? '本机创建音色' : '系统音色');
-      el('tts-voice-catalog-hint').textContent = '';
+      el('tts-voice-catalog-hint').textContent = legacy(el('tts-model').value)
+        ? t('旧版自定义音色服务已下线，可在音色管理中用原试听复刻新音色。') : '';
       el('tts-voice-catalog-hint').dataset.catalogHelp = custom()
         ? t('当前模型的本机音色；创建和管理请前往环境配置。')
         : `${t('当前模型支持')} ${all.length} ${t('个系统音色')} · ${t('可搜索中文名称、音色 ID 和方言')}`;
@@ -61016,8 +61031,8 @@ window.addEventListener('beforeunload', (e) => {
     }
     function fillModels(selected) {
       const models = metadata.modelTypes?.[type()] || [];
-      el('tts-model').replaceChildren(...models.map(model => new Option(model, model)));
-      el('tts-model').value = models.includes(selected) ? selected : models[0] || '';
+      el('tts-model').replaceChildren(...models.map(model => new Option(modelLabel(model), model)));
+      el('tts-model').value = models.includes(selected) ? selected : metadata.recommendedModels?.[type()] || models[0] || '';
     }
     function modeView() {
       el('tts-custom-voices').hidden = false;
@@ -61038,7 +61053,7 @@ window.addEventListener('beforeunload', (e) => {
       const key = context(), sequence = ++loadSequence;
       el('tts-voice-refresh').disabled = true;el('tts-voice-refresh').textContent=t('正在加载…');el('tts-voice-catalog-hint').textContent=t('正在加载音色…');
       try {
-        const data = await request('qwen-voices', {action: 'list', provider: {recipe: {...recipe(), voice: ''}, apiKey: el('tts-key').value}});
+        const data = await request('qwen-voices', {action: 'list', provider: {recipe: {...recipe(), voice: ''}, ...connection()}});
         if (sequence !== loadSequence || context() !== key) return;
         records = data.voices;
         for (const operation of data.operations) operations.set(operation.id, {...operation, context: key});
@@ -61049,12 +61064,16 @@ window.addEventListener('beforeunload', (e) => {
     function managementView({fill = false} = {}) {
       if (fill) {
         const old = el('tts-manage-model').value, models = metadata.modelTypes?.[manageType()] || [];
-        el('tts-manage-model').replaceChildren(...models.map(model => new Option(model, model)));
-        el('tts-manage-model').value = models.includes(old) ? old : models[0] || '';
+        el('tts-manage-model').replaceChildren(...models.map(model => new Option(modelLabel(model), model)));
+        el('tts-manage-model').value = models.includes(old) ? old : metadata.recommendedModels?.[manageType()] || models[0] || '';
       }
       el('tts-design-fields').hidden = manageType() !== 'VoiceDesign';
       el('tts-clone-fields').hidden = manageType() !== 'VoiceClone';
       el('tts-voice-create-fields').hidden = manageType() === 'CustomVoice';
+      el('tts-legacy-management-hint').hidden = !legacy(el('tts-manage-model').value);
+      const modern = el('tts-manage-model').value.startsWith('qwen-audio-');
+      el('tts-voice-prompt').maxLength = modern ? 500 : 2048;
+      el('tts-voice-preview-text').maxLength = modern ? 200 : 500;
       renderOperations();
     }
     async function refreshManagement() {
@@ -61067,7 +61086,7 @@ window.addEventListener('beforeunload', (e) => {
       if (!hasKey()) { el('tts-manage-refresh').disabled = false; el('tts-manage-refresh').textContent = t('刷新音色'); message('请先在连接设置填写或保存百炼密钥。'); return; }
       el('tts-manage-refresh').disabled = true;el('tts-manage-refresh').textContent=t('正在加载…');message('正在加载音色…');
       try {
-        const data = await request('qwen-voices', {action: 'list', provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}});
+        const data = await request('qwen-voices', {action: 'list', provider: {recipe: manageRecipe(), ...connection()}});
         if (sequence !== manageSequence || key !== manageContext()) return;
         managed = data.voices;
         const selected = el('tts-manage-voice').value;
@@ -61083,7 +61102,7 @@ window.addEventListener('beforeunload', (e) => {
       const button = el(action === 'register' ? 'tts-voice-register' : 'tts-manage-rename'); button.disabled = true;
       try {
         const voice = action === 'register' ? el('tts-voice-external-id').value.trim() : el('tts-manage-voice').value;
-        await request('qwen-voices', {action, voice, name: el('tts-manage-name').value.trim(), provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}});
+        await request('qwen-voices', {action, voice, name: el('tts-manage-name').value.trim(), provider: {recipe: manageRecipe(), ...connection()}});
         if (key !== manageContext() || version !== generation()) return;
         await refreshManagement(); el('tts-manage-voice').value = voice;
         if (key === context()) await refresh();
@@ -61107,6 +61126,7 @@ window.addEventListener('beforeunload', (e) => {
         if (op.voice && op.preview) {
           const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
           actions.append(button('试听音色', () => playPreview(op)));
+          if (legacy(op.model)) actions.append(button('用此试听复刻', () => usePreviewForClone(op)));
           card.append(actions);
         }
         fragment.append(card);
@@ -61115,6 +61135,23 @@ window.addEventListener('beforeunload', (e) => {
       el('tts-voice-history-count').textContent = `(${visible.length})`;
       el('tts-voice-create').disabled = submitting || (!pending && [...operations.values()].some(active));
       el('tts-voice-create').textContent = t(pending ? '确认上次音色提交' : manageType() === 'VoiceClone' ? '上传参考音频并创建' : '创建音色');
+    }
+    async function usePreviewForClone(op) {
+      const origin = namespace(), version = generation();
+      try {
+        const blob = await request(`qwen-voice-jobs/${op.id}/preview`, null, true);
+        if (origin !== namespace() || version !== generation()) return;
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([blob], 'voice-reference.wav', {type: 'audio/wav'}));
+        el('tts-voice-reference').files = transfer.files;
+        el('tts-manage-model-type').value = 'VoiceClone';
+        managementView({fill: true});
+        el('tts-manage-model').value = metadata.recommendedModels?.VoiceClone || '';
+        el('tts-voice-name').value = (op.name + '（新版复刻）').slice(0, 60);
+        el('tts-voice-create-fields').open = true;
+        managementView(); await refreshManagement();
+        message('已选用原试听作为参考，点击创建生成新音色；原音色保留。');
+      } catch (error) { message(error.message, true); }
     }
     async function playPreview(op) {
       stopPreview(); const sequence = previewSequence, key = manageContext(), version = generation();
@@ -61131,7 +61168,7 @@ window.addEventListener('beforeunload', (e) => {
       try {
         if (!pending) {
           const input = {action: 'create', request_key: global.MSWProject.id('voice'), name: el('tts-voice-name').value.trim(),
-            provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}};
+            provider: {recipe: manageRecipe(), ...connection()}};
           if (!input.name) throw new Error(t('请填写音色名称'));
           if (manageType() === 'VoiceDesign') {
             input.voice_prompt = el('tts-voice-prompt').value.trim(); input.preview_text = el('tts-voice-preview-text').value.trim();
@@ -61216,6 +61253,7 @@ window.addEventListener('beforeunload', (e) => {
     el('tts-manage-rename').addEventListener('click', () => void manageVoice('rename'));
     el('tts-manage-voice').addEventListener('change', () => { el('tts-manage-name').value = managed.find(row => row.voice === el('tts-manage-voice').value)?.name || ''; });
     el('tts-key').addEventListener('change', () => { changed({credentials: true}); void refreshManagement(); });
+    el('tts-workspace').addEventListener('change', () => { changed({credentials: true}); void refreshManagement(); });
     el('tts-engine').addEventListener('change', () => { stopPreview(); if (el('tts-engine').value === 'qwen' && custom()) void refresh(); });
     global.addEventListener('msw:project-changed', () => { stopPreview(); el('tts-voice-reference').value = ''; });
     return {
@@ -62815,7 +62853,8 @@ window.addEventListener('beforeunload', (e) => {
   }
   async function loadSettings(preserve = false) {
     const previous = preserve && configured ? {engine: el('tts-engine').value, qwen: qwenRecipe(),
-      yukkuri: recipeFor('yukkuri'), index: indexTts.recipe(), gpt: gptTts.recipe(), edge: edgeTts.recipe(), key: el('tts-key').value} : null;
+      yukkuri: recipeFor('yukkuri'), index: indexTts.recipe(), gpt: gptTts.recipe(), edge: edgeTts.recipe(), key: el('tts-key').value,
+      workspaceId: el('tts-workspace').value} : null;
     const data = await request('tts-settings');
     if (!data.modelTypes || !data.systemVoices || data.workspace_version !== 2) {
       configured = false; updateScope();
@@ -62828,6 +62867,7 @@ window.addEventListener('beforeunload', (e) => {
     for (const [id, key] of [['tts-language', 'language_type'], ['tts-region', 'region'], ['tts-instructions', 'instructions']]) el(id).value = value[key];
     el('tts-optimize').checked = value.optimize_instructions;
     el('tts-key').value = previous?.key || '';
+    el('tts-workspace').value = previous?.workspaceId ?? regions.find(row => row.id === value.region)?.workspaceId ?? '';
     el('tts-settings').open = !keyState();
     el('tts-engine').value = previous?.engine || data.engine || 'qwen';
     if (data.yukkuri) {
@@ -62990,7 +63030,8 @@ window.addEventListener('beforeunload', (e) => {
         request_key: global.MSWProject.id('request'), snapshot: retry?.snapshot || (isText()
           ? global.MSWTts.textSnapshot(host.data, el('cue-panel-tts-text').value, host.playheadMs(), host.draftSettings(), options.provider)
           : global.MSWTts.snapshot(host.data, host.selection(), el('tts-target').value, options.provider)),
-        provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : ''}
+        provider: { recipe: options, ...(options.provider === 'qwen' ? {apiKey: options.region === el('tts-region').value ? el('tts-key').value : '',
+          ...(options.region === el('tts-region').value ? {workspaceId: el('tts-workspace').value.trim()} : {})}
           : options.provider === 'indextts' ? indexTts.connection() : options.provider === 'gpt-sovits' ? gptTts.connection() : options.provider === 'edge' ? edgeTts.connection() : clouds[options.provider] ? clouds[options.provider].connection(options) : {}) },
         ...(retry ? { retry_of: retry.retry_of } : {}) };
       if (!pending && !retry && !isText() && ['yukkuri', 'indextts', 'minimax'].includes(options.provider) && input.snapshot.entries.length === 1) {
@@ -63117,7 +63158,9 @@ window.addEventListener('beforeunload', (e) => {
   el('tts-yukkuri-install').addEventListener('click', () => void runtimeAction('install'));
   el('tts-yukkuri-check').addEventListener('click', () => void runtimeAction('check'));
   el('tts-yukkuri-cancel').addEventListener('click', () => void runtimeAction('cancel'));
-  el('tts-region').addEventListener('change', () => { el('tts-key').value = ''; keyState(); qwenVoices.credentialsChanged(); });
+  el('tts-region').addEventListener('change', () => { el('tts-key').value = '';
+    el('tts-workspace').value = regions.find(row => row.id === el('tts-region').value)?.workspaceId || '';
+    keyState(); qwenVoices.credentialsChanged(); });
   el('tts-key').addEventListener('input', updateScope);
   el('tts-environment-open').addEventListener('click', () => {
     el('tts-environment-engine').value = el('tts-engine').value;
@@ -63139,7 +63182,7 @@ window.addEventListener('beforeunload', (e) => {
       await ensureSettings();
       if (['indextts', 'gpt-sovits'].includes(engine)) await localServices.save(engine);
       await request('tts-environment', {recipe: recipeFor(engine), ...(engine === 'indextts' ? indexTts.connection() : engine === 'gpt-sovits' ? gptTts.connection() : engine === 'edge' ? edgeTts.connection() : clouds[engine] ? clouds[engine].connection()
-        : engine === 'qwen' ? {apiKey: el('tts-key').value} : {})});
+        : engine === 'qwen' ? {apiKey: el('tts-key').value, workspaceId: el('tts-workspace').value.trim()} : {})});
       if (engine === 'qwen') el('tts-key').value = '';
       clouds[engine]?.saved();
       await loadSettings(true);
@@ -63151,7 +63194,7 @@ window.addEventListener('beforeunload', (e) => {
   el('tts-save-settings').addEventListener('click', async () => {
     if (savingSettings || indexTts.isBusy()) return;
     savingSettings = true; updateScope();
-    try { await request('tts-settings', { recipe: recipe(), ...(isIndex() ? indexTts.connection() : isGpt() ? gptTts.connection() : isEdge() ? edgeTts.connection() : cloud() ? cloud().connection() : isQwen() ? {apiKey: el('tts-key').value} : {}) });
+    try { await request('tts-settings', { recipe: recipe(), ...(isIndex() ? indexTts.connection() : isGpt() ? gptTts.connection() : isEdge() ? edgeTts.connection() : cloud() ? cloud().connection() : isQwen() ? {apiKey: el('tts-key').value, workspaceId: el('tts-workspace').value.trim()} : {}) });
       if (isQwen()) el('tts-key').value = '';
       cloud()?.saved();
       await loadSettings(true); message('合成设置已保存到本机'); }

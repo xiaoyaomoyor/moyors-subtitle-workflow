@@ -13,7 +13,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from maw.msw import persistence, qwen_voices, tts  # noqa: E402 - repository bootstrap
-from maw.msw import media_service
+from maw.msw import media_service, qwen_upload
 from maw.msw import asr
 
 origin = os.environ["MSW_TEST_TTS_ORIGIN"]
@@ -65,6 +65,7 @@ class TestService(OriginalService):
 tts.TtsService = TestService
 asr.AsrService = TestAsrService
 qwen_voices.cloud_request = fake_voice_request
+qwen_upload.upload_reference = lambda settings, audio, cancel: 'oss://synthetic-private/reference.wav'
 if os.environ.get("MSW_TEST_SAVE_TARGET"):
     persistence.pick_project_target = lambda _, **options: Path(os.environ["MSW_TEST_SAVE_TARGET"])
 if os.environ.get('MSW_TEST_MEDIA_SOURCE'):

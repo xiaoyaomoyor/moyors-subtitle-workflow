@@ -1422,9 +1422,11 @@ __WAVEFORM_CSS__
                 <details id="tts-settings"><summary>连接设置</summary>
         <label class="msw-processing-field"><span>百炼地域</span><select id="tts-region"><option value="beijing">北京</option><option value="singapore">新加坡</option></select></label>
         <label class="msw-processing-field"><span>API Key</span><input id="tts-key" type="password" autocomplete="new-password" placeholder="请输入 API Key"></label>
+        <label class="msw-processing-field"><span>业务空间 ID</span><input id="tts-workspace" autocomplete="off" spellcheck="false" placeholder="Workspace ID（可选）"></label>
       </details>
                 <details id="tts-qwen-management" open><summary>音色管理</summary>
                   <div class="msw-processing-grid"><label class="msw-processing-field"><span>管理模式</span><select id="tts-manage-model-type"><option value="VoiceDesign">声音设计</option><option value="VoiceClone">声音复刻</option><option value="CustomVoice">预设／外部音色</option></select></label><label class="msw-processing-field"><span>目标模型</span><select id="tts-manage-model"></select></label></div>
+                  <p id="tts-legacy-management-hint" class="msw-processing-hint" hidden>旧版自定义音色服务已下线。原记录与试听保留，可在创建记录中用旧试听复刻新音色。</p>
                   <label class="msw-processing-field"><span>本机音色记录</span><select id="tts-manage-voice"><option value="">选择已登记音色</option></select></label>
                   <label class="msw-processing-field"><span>本机显示名称</span><input id="tts-manage-name" maxlength="60" placeholder="用于搜索和识别音色"></label>
                   <div class="msw-processing-actions"><button type="button" id="tts-manage-refresh">刷新音色</button><button type="button" id="tts-manage-rename">重命名</button></div>
@@ -1437,8 +1439,8 @@ __WAVEFORM_CSS__
           </div>
           <div id="tts-clone-fields" hidden>
             <label class="msw-processing-field"><span>参考音频</span><input type="file" id="tts-voice-reference" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4"></label>
-            <p class="msw-processing-hint">推荐 10–20 秒，范围 3–60 秒、最大 10 MiB。使用清晰单人说话、无背景音乐的音频；本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
-            <p class="msw-processing-hint">点击创建后，参考音频将上传至所选地域的百炼；参考文件不写入工程或本机音色记录。</p>
+            <p class="msw-processing-hint">推荐 10–20 秒，至少 5 秒连续清晰人声、最长 60 秒、最大 10 MiB。本机会转换为 24 kHz 单声道 WAV，原文件不变。</p>
+            <p class="msw-processing-hint">点击创建后，参考音频上传至百炼私有临时存储（48 小时有效），用于创建新音色；原音色保留。</p>
           </div>
           <p class="msw-processing-hint">创建音色可能计费，完成后可重复用于多条字幕。状态不明时先在百炼核对，不要重复创建。</p>
           <div class="msw-processing-actions"><button type="button" id="tts-voice-create">创建音色</button></div>

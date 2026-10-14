@@ -9,7 +9,10 @@
     let submitting = false, pending = null, previewSequence = 0;
     const drafts = new Map(), modelDrafts = new Map(), operations = new Map();
     const type = () => el('tts-model-type').value;
-    const namespace = () => `${el('tts-region').value}\0${el('tts-key').value}`;
+    const namespace = () => `${el('tts-region').value}\0${el('tts-key').value}\0${el('tts-workspace').value}`;
+    const connection = () => ({apiKey: el('tts-key').value, workspaceId: el('tts-workspace').value.trim()});
+    const legacy = model => (metadata.legacyCustomModels || []).includes(model);
+    const modelLabel = model => model + (legacy(model) ? ` · ${t('旧版')}` : '');
     const context = () => `${namespace()}\0${el('tts-model').value}`;
     const custom = () => type() !== 'CustomVoice';
     const manageType = () => el('tts-manage-model-type').value;
@@ -57,7 +60,8 @@
       audition.disabled = !previewSource();
       audition.title = t(previewSource() ? '在素材库播放已有试听音频，不发起云端合成' : '此音色暂无已有试听音频');
       el('tts-voice-list-label').textContent = t(custom() ? '本机创建音色' : '系统音色');
-      el('tts-voice-catalog-hint').textContent = '';
+      el('tts-voice-catalog-hint').textContent = legacy(el('tts-model').value)
+        ? t('旧版自定义音色服务已下线，可在音色管理中用原试听复刻新音色。') : '';
       el('tts-voice-catalog-hint').dataset.catalogHelp = custom()
         ? t('当前模型的本机音色；创建和管理请前往环境配置。')
         : `${t('当前模型支持')} ${all.length} ${t('个系统音色')} · ${t('可搜索中文名称、音色 ID 和方言')}`;
@@ -69,8 +73,8 @@
     }
     function fillModels(selected) {
       const models = metadata.modelTypes?.[type()] || [];
-      el('tts-model').replaceChildren(...models.map(model => new Option(model, model)));
-      el('tts-model').value = models.includes(selected) ? selected : models[0] || '';
+      el('tts-model').replaceChildren(...models.map(model => new Option(modelLabel(model), model)));
+      el('tts-model').value = models.includes(selected) ? selected : metadata.recommendedModels?.[type()] || models[0] || '';
     }
     function modeView() {
       el('tts-custom-voices').hidden = false;
@@ -91,7 +95,7 @@
       const key = context(), sequence = ++loadSequence;
       el('tts-voice-refresh').disabled = true;el('tts-voice-refresh').textContent=t('正在加载…');el('tts-voice-catalog-hint').textContent=t('正在加载音色…');
       try {
-        const data = await request('qwen-voices', {action: 'list', provider: {recipe: {...recipe(), voice: ''}, apiKey: el('tts-key').value}});
+        const data = await request('qwen-voices', {action: 'list', provider: {recipe: {...recipe(), voice: ''}, ...connection()}});
         if (sequence !== loadSequence || context() !== key) return;
         records = data.voices;
         for (const operation of data.operations) operations.set(operation.id, {...operation, context: key});
@@ -102,12 +106,16 @@
     function managementView({fill = false} = {}) {
       if (fill) {
         const old = el('tts-manage-model').value, models = metadata.modelTypes?.[manageType()] || [];
-        el('tts-manage-model').replaceChildren(...models.map(model => new Option(model, model)));
-        el('tts-manage-model').value = models.includes(old) ? old : models[0] || '';
+        el('tts-manage-model').replaceChildren(...models.map(model => new Option(modelLabel(model), model)));
+        el('tts-manage-model').value = models.includes(old) ? old : metadata.recommendedModels?.[manageType()] || models[0] || '';
       }
       el('tts-design-fields').hidden = manageType() !== 'VoiceDesign';
       el('tts-clone-fields').hidden = manageType() !== 'VoiceClone';
       el('tts-voice-create-fields').hidden = manageType() === 'CustomVoice';
+      el('tts-legacy-management-hint').hidden = !legacy(el('tts-manage-model').value);
+      const modern = el('tts-manage-model').value.startsWith('qwen-audio-');
+      el('tts-voice-prompt').maxLength = modern ? 500 : 2048;
+      el('tts-voice-preview-text').maxLength = modern ? 200 : 500;
       renderOperations();
     }
     async function refreshManagement() {
@@ -120,7 +128,7 @@
       if (!hasKey()) { el('tts-manage-refresh').disabled = false; el('tts-manage-refresh').textContent = t('刷新音色'); message('请先在连接设置填写或保存百炼密钥。'); return; }
       el('tts-manage-refresh').disabled = true;el('tts-manage-refresh').textContent=t('正在加载…');message('正在加载音色…');
       try {
-        const data = await request('qwen-voices', {action: 'list', provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}});
+        const data = await request('qwen-voices', {action: 'list', provider: {recipe: manageRecipe(), ...connection()}});
         if (sequence !== manageSequence || key !== manageContext()) return;
         managed = data.voices;
         const selected = el('tts-manage-voice').value;
@@ -136,7 +144,7 @@
       const button = el(action === 'register' ? 'tts-voice-register' : 'tts-manage-rename'); button.disabled = true;
       try {
         const voice = action === 'register' ? el('tts-voice-external-id').value.trim() : el('tts-manage-voice').value;
-        await request('qwen-voices', {action, voice, name: el('tts-manage-name').value.trim(), provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}});
+        await request('qwen-voices', {action, voice, name: el('tts-manage-name').value.trim(), provider: {recipe: manageRecipe(), ...connection()}});
         if (key !== manageContext() || version !== generation()) return;
         await refreshManagement(); el('tts-manage-voice').value = voice;
         if (key === context()) await refresh();
@@ -160,6 +168,7 @@
         if (op.voice && op.preview) {
           const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
           actions.append(button('试听音色', () => playPreview(op)));
+          if (legacy(op.model)) actions.append(button('用此试听复刻', () => usePreviewForClone(op)));
           card.append(actions);
         }
         fragment.append(card);
@@ -168,6 +177,23 @@
       el('tts-voice-history-count').textContent = `(${visible.length})`;
       el('tts-voice-create').disabled = submitting || (!pending && [...operations.values()].some(active));
       el('tts-voice-create').textContent = t(pending ? '确认上次音色提交' : manageType() === 'VoiceClone' ? '上传参考音频并创建' : '创建音色');
+    }
+    async function usePreviewForClone(op) {
+      const origin = namespace(), version = generation();
+      try {
+        const blob = await request(`qwen-voice-jobs/${op.id}/preview`, null, true);
+        if (origin !== namespace() || version !== generation()) return;
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([blob], 'voice-reference.wav', {type: 'audio/wav'}));
+        el('tts-voice-reference').files = transfer.files;
+        el('tts-manage-model-type').value = 'VoiceClone';
+        managementView({fill: true});
+        el('tts-manage-model').value = metadata.recommendedModels?.VoiceClone || '';
+        el('tts-voice-name').value = (op.name + '（新版复刻）').slice(0, 60);
+        el('tts-voice-create-fields').open = true;
+        managementView(); await refreshManagement();
+        message('已选用原试听作为参考，点击创建生成新音色；原音色保留。');
+      } catch (error) { message(error.message, true); }
     }
     async function playPreview(op) {
       stopPreview(); const sequence = previewSequence, key = manageContext(), version = generation();
@@ -184,7 +210,7 @@
       try {
         if (!pending) {
           const input = {action: 'create', request_key: global.MSWProject.id('voice'), name: el('tts-voice-name').value.trim(),
-            provider: {recipe: manageRecipe(), apiKey: el('tts-key').value}};
+            provider: {recipe: manageRecipe(), ...connection()}};
           if (!input.name) throw new Error(t('请填写音色名称'));
           if (manageType() === 'VoiceDesign') {
             input.voice_prompt = el('tts-voice-prompt').value.trim(); input.preview_text = el('tts-voice-preview-text').value.trim();
@@ -269,6 +295,7 @@
     el('tts-manage-rename').addEventListener('click', () => void manageVoice('rename'));
     el('tts-manage-voice').addEventListener('change', () => { el('tts-manage-name').value = managed.find(row => row.voice === el('tts-manage-voice').value)?.name || ''; });
     el('tts-key').addEventListener('change', () => { changed({credentials: true}); void refreshManagement(); });
+    el('tts-workspace').addEventListener('change', () => { changed({credentials: true}); void refreshManagement(); });
     el('tts-engine').addEventListener('change', () => { stopPreview(); if (el('tts-engine').value === 'qwen' && custom()) void refresh(); });
     global.addEventListener('msw:project-changed', () => { stopPreview(); el('tts-voice-reference').value = ''; });
     return {

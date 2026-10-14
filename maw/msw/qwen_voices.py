@@ -25,7 +25,7 @@ import requests
 from maw.msw.assets import atomic_bytes, audio_info, normalize_generated_wav
 from maw.msw.audio_render import RenderCancelled, run
 from maw.msw.project_codec import valid_id
-from maw.msw.tts import ENDPOINTS
+from maw.msw.qwen_catalog import AUDIO_MODELS
 from maw.msw.tts_errors import qwen_http_error, qwen_network_error
 
 MAX_REFERENCE_BYTES = 10 * 1024 * 1024
@@ -47,10 +47,14 @@ def voice_scope(settings):
 
 
 def cloud_request(settings, body):
-    endpoint = ENDPOINTS[settings.recipe['region']].split('/services/')[0] + '/services/audio/tts/customization'
+    endpoint = settings.api_base + '/services/audio/tts/customization'
+    headers = {'Authorization': 'Bearer ' + settings.api_key, 'Accept-Encoding': 'identity'}
+    if str(body.get('input', {}).get('url', '')).startswith('oss://'):
+        headers['X-DashScope-OssResourceResolve'] = 'enable'
+    operation = '音色查询' if body.get('input', {}).get('action') == 'query_voice' else '音色创建'
     try:
         with requests.Session() as session, session.post(endpoint, json=body,
-                headers={'Authorization': 'Bearer ' + settings.api_key, 'Accept-Encoding': 'identity'},
+                headers=headers,
                 timeout=(10, 180), allow_redirects=False, stream=True) as response:
             if response.status_code != 200:
                 # This endpoint streams responses; bound error bodies too.
@@ -65,7 +69,7 @@ def cloud_request(settings, body):
                     detail = {}
                 inputs = body.get('input', {})
                 hidden = tuple(v for v in inputs.values() if isinstance(v, str))
-                raise ValueError(qwen_http_error(response, settings, operation='音色创建', secrets=hidden, payload=detail))
+                raise ValueError(qwen_http_error(response, settings, operation=operation, secrets=hidden, payload=detail))
             chunks, size = [], 0
             for chunk in response.iter_content(65536):
                 size += len(chunk)
@@ -75,6 +79,9 @@ def cloud_request(settings, body):
             result = json.loads(b''.join(chunks))
             if not isinstance(result, dict):
                 raise ValueError('百炼音色响应格式无效；请先在百炼核对，未自动重试')
+            if result.get('code') not in (None, '', 'Success', 200, '200'):
+                raise ValueError(qwen_http_error(response, settings, operation=operation, payload=result,
+                    secrets=tuple(v for v in body.get('input', {}).values() if isinstance(v, str))))
             return result
     except requests.RequestException as error:
         raise ValueError(qwen_network_error(error, '音色创建') + '；请先在百炼核对创建结果') from None
@@ -124,9 +131,11 @@ def reference_wav(audio, filename, tools, cancel):
 
 
 class QwenVoices:
-    def __init__(self, root, port, tools, *, request=None):
+    def __init__(self, root, port, tools, *, request=None, upload=None):
         self.root, self.port, self.tools = Path(root), port, tools
         self.request = request or cloud_request
+        from maw.msw.qwen_upload import upload_reference
+        self.upload = upload or upload_reference
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self.cancel = threading.Event()
@@ -236,11 +245,14 @@ class QwenVoices:
                        'preferred_name': 'msw_' + hashlib.sha256(key.encode()).hexdigest()[:8]}
         audio, filename = None, ''
         if kind == 'VoiceDesign':
-            for field, maximum in [('voice_prompt', 2048), ('preview_text', 500)]:
+            modern = model in AUDIO_MODELS
+            for field, maximum in [('voice_prompt', 500 if modern else 2048), ('preview_text', 200 if modern else 500)]:
                 value = payload.get(field, '')
                 if not isinstance(value, str) or not 1 <= len(value.strip()) <= maximum:
                     raise ValueError(f'{"音色描述" if field == "voice_prompt" else "试听文本"}须为 1–{maximum} 字符')
                 voice_input[field] = value.strip()
+            if modern and len(voice_input['preview_text']) < 15:
+                raise ValueError('新版声音设计的试听文本须为 15–200 字符')
             body = {'model': 'qwen-voice-design', 'input': voice_input,
                     'parameters': {'sample_rate': 24000, 'response_format': 'wav'}}
         else:
@@ -257,6 +269,11 @@ class QwenVoices:
             if not 1 <= len(audio) <= MAX_REFERENCE_BYTES:
                 raise ValueError('参考音频为空或超过 10 MiB')
             body = {'model': 'qwen-voice-enrollment', 'input': voice_input}
+        if model in AUDIO_MODELS:
+            body['model'] = 'voice-enrollment'
+            voice_input['action'] = 'create_voice'
+            voice_input.pop('preferred_name')
+            voice_input['prefix'] = 'msw' + hashlib.sha256(key.encode()).hexdigest()[:7]
         fingerprint = hashlib.sha256(json.dumps([kind, model, name, body, filename, hashlib.sha256(audio).hexdigest() if audio else None], sort_keys=True).encode()).hexdigest()
         scope = voice_scope(settings)
         with self.lock, self.db() as db:
@@ -294,15 +311,23 @@ class QwenVoices:
                 operation.update(status='preparing', message='正在检查参考音频')
                 self._write(operation)
                 audio = reference_wav(audio, filename, self.tools, self.cancel)
-                body['input']['audio'] = {'data': 'data:audio/wav;base64,' + base64.b64encode(audio).decode()}
+                if settings.model in AUDIO_MODELS:
+                    info = audio_info(audio)
+                    if info['sample_count'] < 5 * info['sample_rate']:
+                        raise ValueError('新版声音复刻至少需要 5 秒参考音频，推荐 10–20 秒清晰连续人声')
+                    operation.update(message='正在上传参考音频至百炼临时存储（48 小时有效）')
+                    self._write(operation)
+                    body['input']['url'] = self.upload(settings, audio, self.cancel)
+                else:
+                    body['input']['audio'] = {'data': 'data:audio/wav;base64,' + base64.b64encode(audio).decode()}
             if self.cancel.is_set():
                 raise RenderCancelled()
             operation.update(status='creating', message='正在向百炼创建音色；关闭面板不会重发请求')
             self._write(operation)
             sent = True
             output = self.request(settings, body).get('output', {})
-            voice = output.get('voice')
-            if not isinstance(voice, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,255}', voice):
+            voice = output.get('voice_id') if settings.model in AUDIO_MODELS else output.get('voice')
+            if not isinstance(voice, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,255}', voice):
                 raise ValueError('百炼未返回有效音色 ID；可能已创建，请先在百炼核对，未自动重试')
             operation.update(status='succeeded', voice=voice, message='音色已创建，可选择它进行字幕配音')
             record = {key: operation[key] for key in ('name', 'model_type', 'model', 'region', 'created_at', 'voice')}
@@ -310,6 +335,7 @@ class QwenVoices:
             # Persist the billable result before validating optional preview.
             with self.db() as db:
                 db.execute('INSERT OR REPLACE INTO voices VALUES (?,?,?)', (scope, voice, json.dumps(record, ensure_ascii=False)))
+            self._write(operation)
             preview = output.get('preview_audio')
             if isinstance(preview, dict) and preview.get('data'):
                 try:
