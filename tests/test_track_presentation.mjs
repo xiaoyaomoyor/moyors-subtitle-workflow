@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import core from '../web/msw-subtitle-tracks.js';
 import P from '../web/msw-track-presentation.js';
+import flat from '../web/msw-flat-subtitles.js';
+import production from '../web/msw-production-project.js';
 const context={window:{},TextEncoder,TextDecoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 globalThis.MSWProjectStyle=context.window.MSWProjectStyle;
@@ -13,6 +15,17 @@ const project=(main,extra={})=>core.migrate({segments:main,...extra});
 const measure=row=>({width:300,height:row.cue.height});
 const layout=p=>P.layout(p,{measure});
 const entry=(l,id)=>l.entries.find(e=>e.cue_id===id);
+
+test('native individual anchors move one selected row without repacking its bound partner',()=>{
+  const native=flat.migrate({segments:[cue('a',0,2000)],multi_subtitle:{enabled:true,tracks:[{id:'zh',segments:[cue('b',0,2000)]}],bindings:[{track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b']}]}});
+  const p=production.fromProject(native),before=layout(p),a=before.entries[0],b=before.entries[1];
+  const position=P.positionOf(a,1920);a.cue.subtitle_position={...position,x:position.x-.2,y:position.y-.3};
+  const after=layout(p),moved=entry(after,a.cue_id),partner=entry(after,b.cue_id);
+  assert.ok(Math.abs(moved.x-a.x+384)<.00001);assert.ok(Math.abs(moved.y-a.y+324)<.00001);
+  assert.equal(partner.x,b.x);assert.equal(partner.y,b.y);
+  const restored=production.fromProject(production.toProject(p));assert.deepEqual(restored.segments[0].subtitle_position,a.cue.subtitle_position);
+  delete a.cue.subtitle_position;assert.equal(entry(layout(p),a.cue_id).y,a.y);
+});
 
 test('legacy presets derive pair spacing from the same settings displayed by the controls',()=>{
   const p=project([cue('a',0,2000)],{multi_subtitle:{enabled:true,tracks:[{id:'zh',segments:[cue('b',0,2000)]}],bindings:[{track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b']}]}});

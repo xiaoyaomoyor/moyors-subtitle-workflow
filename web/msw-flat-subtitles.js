@@ -44,8 +44,14 @@
         framePair(item);previous=item.end;
       }
     }
-    if(Object.hasOwn(cue,'subtitle_position')&&(!object(cue.subtitle_position)||Object.keys(cue.subtitle_position).length!==2
-      ||!['x','y'].every(k=>typeof cue.subtitle_position[k]==='number'&&cue.subtitle_position[k]>=0&&cue.subtitle_position[k]<=1)))fail('字幕位置无效');
+    if(Object.hasOwn(cue,'subtitle_position')) {
+      const p=cue.subtitle_position;
+      if(!object(p)||Object.keys(p).some(k=>!['x','y','alignment','base'].includes(k))
+        ||!['x','y'].every(k=>typeof p[k]==='number'&&Number.isFinite(p[k])&&p[k]>=0&&p[k]<=1)
+        ||Object.hasOwn(p,'alignment')&&(!Number.isInteger(p.alignment)||p.alignment<1||p.alignment>9)
+        ||Object.hasOwn(p,'base')&&(!Object.hasOwn(p,'alignment')||!object(p.base)||Object.keys(p.base).length!==2
+          ||!['x','y'].every(k=>typeof p.base[k]==='number'&&Number.isFinite(p.base[k])&&p.base[k]>=0&&p.base[k]<=1)))fail('字幕位置无效');
+    }
     for(const field of ['color','sticker'])if(cue[field]!=null) {
       const head=cue[field];
       if(!object(head)||Object.hasOwn(head,'name')&&(typeof head.name!=='string'||!head.name.trim())

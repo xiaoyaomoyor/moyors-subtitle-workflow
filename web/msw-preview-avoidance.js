@@ -31,16 +31,16 @@
     }
     return {offsets,overflow:false};
   }
-  function shiftText(text,dy) {
-    if(!dy)return text;
+  function shiftText(text,dy,dx=0) {
+    if(!dy&&!dx)return text;
     // Only generated positioning tags in override blocks are changed. Subtitle
-    // text, animation timings, horizontal positions and the source stay intact.
+    // text, animation timings and the source stay intact.
     return text.replace(/\{[^}]*\}/g,block=>block.replace(/\\(pos|move|org|i?clip)\(([^)]*)\)/g,(tag,name,args)=>{
       const values=args.split(',').map(Number);
       if(values.some(n=>!Number.isFinite(n)))return tag;
-      if(['pos','org'].includes(name)&&values.length===2)values[1]+=dy;
-      else if(name==='move'&&(values.length===4||values.length===6)){values[1]+=dy;values[3]+=dy;}
-      else if(/clip$/.test(name)&&values.length===4){values[1]+=dy;values[3]+=dy;}
+      if(['pos','org'].includes(name)&&values.length===2){values[0]+=dx;values[1]+=dy;}
+      else if(name==='move'&&(values.length===4||values.length===6)){values[0]+=dx;values[1]+=dy;values[2]+=dx;values[3]+=dy;}
+      else if(/clip$/.test(name)&&values.length===4){values[0]+=dx;values[1]+=dy;values[2]+=dx;values[3]+=dy;}
       else return tag;
       return '\\'+name+'('+values.map(n=>Math.round(n*1000)/1000).join(',')+')';
     }));

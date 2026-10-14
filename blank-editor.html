@@ -5003,10 +5003,12 @@
 .fixed-subtitle-text { box-sizing:border-box; width:max-content; white-space:pre-wrap; overflow-wrap:anywhere; }
 .fixed-subtitle-measure { position:fixed; left:-100000px; top:0; height:1080px; visibility:hidden; pointer-events:none; }
 #fixed-subtitle-preview.positioning .annotation { pointer-events:auto; cursor:move; touch-action:none; outline:2px dashed var(--selection-yellow); outline-offset:3px; }
+#fixed-subtitle-preview.positioning .position-target { pointer-events:auto; cursor:move; touch-action:none; outline:2px solid var(--selection-yellow); outline-offset:3px; }
 #fixed-subtitle-preview.positioning .selected-position { outline-style:solid; }
 #fixed-position-toolbar { flex:none; display:flex; gap:8px; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); font-size:12px; }
 #fixed-position-toolbar[hidden], #fixed-subtitle-preview[hidden], #style-track-controls[hidden] { display:none; }
 #fixed-position-toolbar button { flex:none; }
+#style-position-drag { align-self:end; }
 #style-track-position .msw-processing-hint { overflow-wrap:anywhere; margin:6px 0 0; }
 /* Compact media settings: controls own their space, including long labels. */
 .media-settings-body { container-type:inline-size; }
@@ -17865,7 +17867,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 7;
+  const layoutVersion = 8;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -18448,7 +18450,9 @@ export default MawDynamicCaptions;
   const flatView = project => project?.subtitle_tracks?.flat_context?.schema === 'msw.flat-operation-view.v1';
   const fail = message => { throw Error('固定字幕轨道：' + message); };
   const refOf = row => ({ role: row.role, track_id: row.track_id, cue_id: row.cue_id });
-  const positionValid = value => value && Object.keys(value).length === 2
+  const positionValid = (value, cue = false) => value && Object.keys(value).every(k => ['x', 'y', ...(cue ? ['alignment', 'base'] : [])].includes(k))
+    && (value.alignment === undefined || Number.isInteger(value.alignment) && value.alignment >= 1 && value.alignment <= 9)
+    && (value.base === undefined || value.alignment !== undefined && positionValid(value.base))
     && ['x', 'y'].every(k => typeof value[k] === 'number' && Number.isFinite(value[k]) && value[k] >= 0 && value[k] <= 1);
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
     && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
@@ -18480,7 +18484,7 @@ export default MawDynamicCaptions;
       track.segments.forEach((cue, index) => {
         if (!stable(cue?.id) || seen.has(cue.id) || !Number.isSafeInteger(cue.start)
           || !Number.isSafeInteger(cue.end) || cue.start < 0 || cue.end <= cue.start) fail('字幕 ID 重复或时间范围无效');
-        if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position)) fail('字幕位置必须是画面内的 x、y 比例');
+        if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position, true)) fail('字幕位置必须是画面内的 x、y 比例和有效锚点');
         seen.add(cue.id);
         rows.push({ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index });
       });
@@ -18824,8 +18828,14 @@ export default MawDynamicCaptions;
         framePair(item);previous=item.end;
       }
     }
-    if(Object.hasOwn(cue,'subtitle_position')&&(!object(cue.subtitle_position)||Object.keys(cue.subtitle_position).length!==2
-      ||!['x','y'].every(k=>typeof cue.subtitle_position[k]==='number'&&cue.subtitle_position[k]>=0&&cue.subtitle_position[k]<=1)))fail('字幕位置无效');
+    if(Object.hasOwn(cue,'subtitle_position')) {
+      const p=cue.subtitle_position;
+      if(!object(p)||Object.keys(p).some(k=>!['x','y','alignment','base'].includes(k))
+        ||!['x','y'].every(k=>typeof p[k]==='number'&&Number.isFinite(p[k])&&p[k]>=0&&p[k]<=1)
+        ||Object.hasOwn(p,'alignment')&&(!Number.isInteger(p.alignment)||p.alignment<1||p.alignment>9)
+        ||Object.hasOwn(p,'base')&&(!Object.hasOwn(p,'alignment')||!object(p.base)||Object.keys(p.base).length!==2
+          ||!['x','y'].every(k=>typeof p.base[k]==='number'&&Number.isFinite(p.base[k])&&p.base[k]>=0&&p.base[k]<=1)))fail('字幕位置无效');
+    }
     for(const field of ['color','sticker'])if(cue[field]!=null) {
       const head=cue[field];
       if(!object(head)||Object.hasOwn(head,'name')&&(typeof head.name!=='string'||!head.name.trim())
@@ -19220,7 +19230,11 @@ export default MawDynamicCaptions;
         for(const row of rows)for(const field of ['color','sticker'])if(marker(n,cue(n,row.id),field)){row[field]=copy(marker(n,cue(n,row.id),field));delete row[field+'_ref'];}
         if(rows.length===1)return copy(members[0]);
         const virtual=layers.migrate({segments:rows}),plan=layers.planMerge(virtual,{role:'main',track_id:null},rows.map(c=>c.id),{mode,makeId:()=>makeId('cue'),joinText:cues=>joinText?joinText(cues,members[0].track_id):cues.map(c=>c.text).join(cues.every(c=>/[\u3400-\u9fff]/.test(c.text))?'':' ')});
-        const merged=plan.changes[0].merged;conflicts.push(...plan.conflicts);const out={...copy(members[0]),id:merged.id,content:merged};
+        const merged=plan.changes[0].merged;conflicts.push(...plan.conflicts);
+        const earliest=members.slice().sort((a,b)=>a.content.start-b.content.start||a.content.end-b.content.end||a.id.localeCompare(b.id))[0];
+        if(earliest.content.subtitle_position)merged.subtitle_position=copy(earliest.content.subtitle_position);
+        else delete merged.subtitle_position;
+        const out={...copy(members[0]),id:merged.id,content:merged};
         if(members.some(c=>Object.hasOwn(c,'hidden')))out.hidden=mode==='common'?members.every(c=>c.hidden):members.some(c=>c.hidden);
         delete out.content.id;frame(n,out.content);return out;
       });
@@ -19590,6 +19604,13 @@ export default MawDynamicCaptions;
   const layers = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
   const intersect = (a,b) => a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height;
   const finite = n => typeof n === 'number' && Number.isFinite(n);
+  const groupPosition = cue => cue.subtitle_position?.alignment ? cue.subtitle_position.base : cue.subtitle_position;
+  function positionOf(entry,width) {
+    if(entry.position)return {...entry.position};
+    const horizontal=((Number(entry.style.alignment)||2)-1)%3;
+    const vertical=entry.group.position?2:Math.floor(((Number(entry.group.rows.at(-1).style.alignment)||2)-1)/3);
+    return {x:(entry.x+horizontal*entry.width/2)/width,y:(entry.y+(2-vertical)*entry.height/2)/1080,alignment:1+vertical*3+horizontal};
+  }
   function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
   function styleFor(project, track, proof = null) {
     const S=global.MSWProjectStyle,style=proof || (track.style.mode === 'snapshot' ? track.style.value : project.preview?.project_style) || S.defaults();
@@ -19618,7 +19639,7 @@ export default MawDynamicCaptions;
       rows[0].localY = 0;
       if (rows.length === 2) rows[1].localY = Math.max(1, (rows[0].size.height-rows[1].size.height)/2+1, rows[0].size.height+pair.gap);
       group.height = Math.max(...rows.map(r=>r.localY+r.size.height),1);
-      const explicit = rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position || (core.placement(track)==='fixed' ? track.position : null);
+      const explicit = groupPosition(rows.find(r=>groupPosition(r.cue))?.cue||{}) || (core.placement(track)==='fixed' ? track.position : null);
       group.position = explicit || (core.placement(track) === 'fixed' ? {x:.5,y:.08} : null);
       const lowerStyle = rows.at(-1).style, alignment = Number(lowerStyle.alignment)||2;
       const horizontal = (alignment-1)%3, vertical = Math.floor((alignment-1)/3);
@@ -19634,8 +19655,8 @@ export default MawDynamicCaptions;
       {role:'extension',track_id:languageId,cue_id:binding.extension_segment_ids?.[0] ?? binding.extension_segment_id}];
       if(core.flatView(project)) {
         const rows=refs.map(r=>lookup.get(core.key(r))).filter(Boolean),owners=rows.map(r=>tracks.find(t=>t.id===r.subtitle_track_id));
-        const anchors=rows.map((r,i)=>r.cue.subtitle_position||(core.placement(owners[i])==='fixed'?owners[i].position||{x:.5,y:.08}:null));
-        if(!(rows.every((r,i)=>core.placement(owners[i])==='auto'&&!r.cue.subtitle_position)||anchors.length===2&&anchors[0]&&JSON.stringify(anchors[0])===JSON.stringify(anchors[1])))continue;
+        const anchors=rows.map((r,i)=>groupPosition(r.cue)||(core.placement(owners[i])==='fixed'?owners[i].position||{x:.5,y:.08}:null));
+        if(!(rows.every((r,i)=>core.placement(owners[i])==='auto'&&!groupPosition(r.cue))||anchors.length===2&&anchors[0]&&JSON.stringify(anchors[0])===JSON.stringify(anchors[1])))continue;
       }
       add(refs);
     }
@@ -19661,7 +19682,14 @@ export default MawDynamicCaptions;
     const entries = [];
     for (const group of ordered) for (const row of group.rows) {
       const align = ((Number(row.style.alignment)||2)-1)%3;
-      entries.push({...row, key:core.key(row), group, x:group.x+(align===0?0:align===2?group.width-row.size.width:(group.width-row.size.width)/2),y:group.y+row.localY,width:row.size.width,height:row.size.height});
+      const entry={...row, key:core.key(row), group, x:group.x+(align===0?0:align===2?group.width-row.size.width:(group.width-row.size.width)/2),y:group.y+row.localY,width:row.size.width,height:row.size.height};
+      const p=row.cue.subtitle_position;
+      if(p?.alignment) {
+        entry.position={...p};entry.style={...entry.style,alignment:p.alignment};
+        entry.x=p.x*width-((p.alignment-1)%3)*entry.width/2;
+        entry.y=p.y*1080-(2-Math.floor((p.alignment-1)/3))*entry.height/2;
+      }
+      entries.push(entry);
     }
     return {groups:ordered,entries,width,height:1080};
   }
@@ -19675,7 +19703,7 @@ export default MawDynamicCaptions;
     }
     return issues;
   }
-  const api={position,styleFor,layout,warnings};
+  const api={position,positionOf,styleFor,layout,warnings};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.MSWTrackPresentation=api;
 })(typeof window==='undefined'?globalThis:window);
@@ -33270,6 +33298,7 @@ function fixedReceiveGeometry(geometry) {
     geometry=geometry.map(r=>({...r,key:refs.get(JSON.parse(r.key)[2])||r.key}));
   }
   fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;refreshSubtitlePreview();
+  if(!document.activeElement?.matches('#style-position-x,#style-position-y'))window.MSWSubtitleStyle?.syncPosition();
 }
 const fixedTextMeasures = new Map();
 let fixedMeasureRoot = null;
@@ -33278,6 +33307,8 @@ let fixedPositionScope = 'track';
 let fixedPositionRef = null;
 let fixedPositionEditing = false;
 let fixedPositionDrag = null;
+let fixedPositionHold = null;
+let fixedPositionOffsetsKey = '';
 let fixedPositionNotice = '';
 function fixedPresentationMode() { return fixedTrackMode() && DATA.subtitle_tracks.presentation === 'fixed'; }
 function fixedPreviewInvalidate() { fixedPreviewCache = null; }
@@ -33356,7 +33387,7 @@ function fixedPreviewLayout(rect=fixedVideoRect()) {
       const measured=new Map(fixedExactGeometry.rows.map(r=>[r.key,r]));
       for(const entry of layout.entries) {
         const exact=measured.get(entry.key);if(!exact)continue;
-        Object.assign(entry,{x:exact.x,y:exact.y,width:exact.width,height:exact.height});
+        Object.assign(entry,{x:exact.x,y:exact.y,width:exact.width,height:exact.height,position:exact.position});
       }
       for(const group of layout.groups) {
         const rows=layout.entries.filter(e=>e.group===group);if(!rows.length)continue;
@@ -33382,7 +33413,7 @@ function fixedRefreshSubtitlePreview(tMs) {
   root.hidden=false;
   Object.assign(root.style,{left:rect.left+'px',top:rect.top+'px',width:rect.referenceWidth+'px',height:'1080px',transform:`scale(${rect.height/1080})`});
   root.classList.toggle('positioning',fixedPositionEditing);
-  playerStage.classList.toggle('fixed-position-drag',!!fixedPositionDrag);
+  playerStage.classList.toggle('fixed-position-drag',!!fixedPositionDrag&&window.MSWSubtitleRenderer?.status!=='libass');
   const {layout,index}=fixedPreviewLayout(rect), allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),
     extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
   const active=index.at(tMs).map(i=>layout.entries[i]).filter(e=>allowed[e.role]);
@@ -33410,14 +33441,15 @@ function fixedRefreshSubtitlePreview(tMs) {
     Object.assign(text.style,{position:'absolute',left:size.innerX+'px',top:size.innerY+'px',maxWidth:size.maxWidth+'px'});
     let dx=0,dy=0;
     if(profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
-    if(fixedPositionDrag?.groupIds.has(entry.group.id)){dx+=fixedPositionDrag.dx;dy+=fixedPositionDrag.dy;}
+    if(fixedPositionDragAffects(entry)){dx+=fixedPositionDrag.dx;dy+=fixedPositionDrag.dy;}
     Object.assign(element.style,{left:entry.x+dx+'px',top:entry.y+dy+'px',width:entry.width+'px',height:entry.height+'px'});
-    const selected=fixedPositionScope==='track'?entry.group.trackId===fixedStyleTrackId:entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
+    const selected=fixedPositionScope==='track'?entry.group.trackId===fixedStyleTrackId:productionFlatMode()?fixedPositionSelectedIds().has(entry.cue_id):entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
     element.classList.toggle('selected-position',fixedPositionEditing&&selected);
     element.classList.toggle('annotation',entry.group.kind==='annotation');
+    element.classList.toggle('position-target',fixedPositionEditing&&selected&&(fixedPositionScope==='cue'||entry.group.kind==='annotation'));
     element.dataset.groupId=entry.group.id;element.dataset.trackId=entry.group.trackId;
   }
-  fixedPositionFeedback(layout,tMs);renderStickerOverlay(tMs);
+  fixedApplyPositionOffsets(layout);fixedPositionFeedback(layout,tMs);renderStickerOverlay(tMs);
 }
 function fixedSelectedPositionGroup() {
   if(!fixedPresentationMode())return null;
@@ -33425,10 +33457,15 @@ function fixedSelectedPositionGroup() {
   return fixedPositionRef?layout.groups.find(g=>g.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef))):null;
 }
 function fixedPositionCurrent() {
+  if(productionFlatMode()&&fixedPositionScope==='cue') {
+    const rows=fixedPositionSelection(),values=rows.map(r=>r.position).filter(Boolean);
+    return Object.fromEntries(['x','y'].map(k=>[k,values.length&&values.every(p=>Math.abs(p[k]-values[0][k])<.00001)?values[0][k]:null]));
+  }
   const group=fixedSelectedPositionGroup(),track=fixedStyleTarget();
   return fixedPositionScope==='cue'?(group?.rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position||track?.position||{x:.5,y:.08}):track?.position||{x:.5,y:.08};
 }
 function fixedCommitPosition(value) {
+  if(productionFlatMode()&&fixedPositionScope==='cue')return fixedCommitSelectedPosition(value);
   const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed')return false;
   if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
   try {
@@ -33455,23 +33492,117 @@ function fixedCommitPosition(value) {
     window.dispatchEvent(new Event('msw:burn-style'));return true;
   } catch(error){fixedStatus(error.message);const note=document.getElementById('fixed-position-message');if(note)note.textContent=error.message;return false;}
 }
+// Position scope follows the actual editor selection, never related-only highlights.
+function fixedPositionSelectedIds() {
+  const selection=processingSelection();return new Set([...selection.mainIds,...selection.extensionIds]);
+}
+function fixedPositionPreviewActive() {
+  return productionFlatMode()&&(fixedPositionEditing||fixedPositionScope==='cue'
+    &&document.getElementById('style-track-position')?.open
+    &&document.getElementById('media-settings-modal')?.getAttribute('aria-hidden')==='false');
+}
+function fixedSchedulePositionSelectionSync() {
+  if(fixedSchedulePositionSelectionSync.pending)return;
+  fixedSchedulePositionSelectionSync.pending=true;
+  queueMicrotask(()=>{
+    fixedSchedulePositionSelectionSync.pending=false;
+    if(!productionFlatMode())return;
+    window.MSWSubtitleStyle?.syncPosition();
+    if(fixedPositionEditing)refreshSubtitlePreview();
+  });
+}
+function fixedPositionSelection() {
+  if(!productionFlatMode())return [];
+  const ids=fixedPositionSelectedIds(),{layout}=fixedPreviewLayout();
+  const entries=new Map(layout.entries.map(e=>[e.cue_id,e]));
+  return fixedTrackCore.createIndex(DATA).records({includeHidden:true}).filter(r=>ids.has(r.cue_id)).map(row=>{
+    const entry=entries.get(row.cue_id),position=entry?window.MSWTrackPresentation.positionOf(entry,layout.width):row.cue.subtitle_position?.alignment?{...row.cue.subtitle_position}:null;
+    return {...row,entry,position};
+  });
+}
+function fixedPositionSelectionLabel(rows=fixedPositionSelection()) {
+  if(!rows.length)return '请先在字幕列表或波形区选择字幕';
+  return rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):`已选 ${rows.length} 条字幕`;
+}
+function fixedPositionDelta(rows,value) {
+  const result={};
+  for(const key of ['x','y']) {
+    const values=rows.map(r=>r.position[key]);
+    const delta=value[key]===undefined?0:value[key]-values[0];
+    result[key]=Math.max(-Math.min(...values),Math.min(1-Math.max(...values),delta));
+  }
+  return result;
+}
+function fixedCommitSelectedPosition(value,rows=fixedPositionSelection()) {
+  if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
+  if(!rows.length)return false;
+  try {
+    if(value&&(!rows.every(r=>r.position)||Object.values(value).some(v=>!Number.isFinite(v))))throw Error('请先启用所选字幕及其轨道，再调整画面位置');
+    commitProcessingEdits();
+    const next=fixedContent(),index=fixedTrackCore.createIndex(next);
+    fixedTrackCore.assertEditable(next,rows,false);
+    const delta=value?fixedPositionDelta(rows,value):null;
+    let changed=false;
+    for(const row of rows) {
+      const cue=index.resolve(row)?.cue;if(!cue)throw Error('所选字幕已发生变化，请重新选择');
+      const p=value?{x:row.position.x+delta.x,y:row.position.y+delta.y,alignment:row.position.alignment}:null;
+      // Retain a legacy pair's layout basis without changing its unselected
+      // partner or turning that partner into an individually positioned cue.
+      const previous=cue.subtitle_position,base=previous?.alignment?previous.base:previous;
+      if(p&&base)p.base=structuredClone(base);
+      if(p&&delta.x===0&&delta.y===0)continue;
+      if(p){cue.subtitle_position=p;changed=true;}
+      else if(cue.subtitle_position){delete cue.subtitle_position;changed=true;}
+    }
+    if(!changed)return false;
+    fixedTrackCore.validate(next);fixedTrackCore.assertLocks(DATA,next);
+    pushUndo(value?'调整所选字幕位置':'字幕跟随轨道位置',{captureView:true});
+    const current=fixedTrackCore.createIndex(DATA);
+    for(const row of rows){const cue=current.resolve(row).cue,p=index.resolve(row).cue.subtitle_position;if(p)cue.subtitle_position=structuredClone(p);else delete cue.subtitle_position;}
+    fixedPreviewInvalidate();projectImportDirty=true;fixedStatus();renderAll({waveform:'full'});scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:burn-style'));return true;
+  }catch(error){fixedPositionNotice=error.message;fixedStatus(error.message);refreshSubtitlePreview();return false;}
+}
+function fixedPositionDragAffects(entry) {
+  return fixedPositionDrag&&(fixedPositionDrag.rows?fixedPositionDrag.ids.has(entry.cue_id):fixedPositionDrag.groupIds.has(entry.group.id));
+}
+function fixedApplyPositionOffsets(layout) {
+  const exact=window.MSWSubtitleRenderer;if(!exact?.applyPositionOffsets||exact.status!=='libass')return;
+  if(fixedPositionHold?.revision!==exact.revision)fixedPositionHold=null;
+  const keys=new Map(exact.geometry.map(r=>[JSON.parse(r.key)[2],r.key]));
+  const offsets=fixedPositionDrag?new Map(layout.entries.filter(fixedPositionDragAffects).map(r=>[keys.get(r.cue_id)||r.key,{x:fixedPositionDrag.dx,y:fixedPositionDrag.dy}])):fixedPositionHold?.offsets||new Map();
+  const key=JSON.stringify([exact.revision,[...offsets]]);if(key===fixedPositionOffsetsKey)return;
+  fixedPositionOffsetsKey=key;void exact.applyPositionOffsets(offsets).catch(()=>{});
+}
+function fixedStopPositioning() {
+  fixedPositionEditing=false;fixedPositionDrag=null;fixedPreviewInvalidate();
+  window.dispatchEvent(new Event('msw:burn-style'));refreshSubtitlePreview();
+}
 function fixedPositionFeedback(layout,time) {
   let tools=document.getElementById('fixed-position-toolbar');
   if(!tools){
     tools=document.createElement('div');tools.id='fixed-position-toolbar';
-    tools.innerHTML='<select aria-label="画面定位对象"><option value="track">轨道位置</option><option value="cue">当前字幕位置</option></select><span id="fixed-position-message" role="status"></span><button type="button">完成定位</button>';
+    tools.innerHTML='<select aria-label="画面定位对象"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select><span id="fixed-position-message" role="status"></span><button type="button">完成定位</button>';
     tools.querySelector('select').onchange=event=>{fixedPositionScope=event.target.value;fixedPositionNotice='';refreshSubtitlePreview();};
-    tools.querySelector('button').onclick=()=>{fixedPositionEditing=false;fixedPositionDrag=null;refreshSubtitlePreview();};playerStage.before(tools);
+    tools.querySelector('button').onclick=fixedStopPositioning;playerStage.before(tools);
   }
   tools.hidden=!fixedPositionEditing;
   if(!fixedPositionEditing)return;
   tools.querySelector('select').value=fixedPositionScope;
-  const display=fixedPositionDrag?{...layout,entries:layout.entries.map(e=>fixedPositionDrag.groupIds.has(e.group.id)?{...e,x:e.x+fixedPositionDrag.dx,y:e.y+fixedPositionDrag.dy}:e)}:layout;
+  tools.querySelector('option[value="track"]').disabled=productionFlatMode()&&fixedTrackCore.placement(fixedStyleTarget()||{})!=='fixed';
+  const display=fixedPositionDrag?{...layout,entries:layout.entries.map(e=>fixedPositionDragAffects(e)?{...e,x:e.x+fixedPositionDrag.dx,y:e.y+fixedPositionDrag.dy}:e)}:layout;
   const issues=window.MSWTrackPresentation.warnings(display,time);
   const note=issues.some(i=>i.type==='outside')?'字幕超出画面，请调整位置':issues.length?'字幕发生重叠，可拖动字幕避让':'拖动字幕定位 · Esc 取消本次拖动';
-  const track=fixedStyleTarget();document.getElementById('fixed-position-message').textContent=`${track?.name||'字幕'} · ${fixedPositionNotice||note}`;
+  const track=fixedStyleTarget(),label=productionFlatMode()&&fixedPositionScope==='cue'?fixedPositionSelectionLabel():track?.name||'字幕';
+  document.getElementById('fixed-position-message').textContent=`${label} · ${fixedPositionNotice||note}`;
 }
 function fixedStartPositioning() {
+  if(productionFlatMode()&&fixedPositionScope==='cue') {
+    const rows=fixedPositionSelection();if(!rows.length||rows.some(r=>!r.entry||fixedTrack(r.cue,r.role,r.track_id)?.locked))return;
+    fixedPositionEditing=true;fixedPositionNotice='';fixedPreviewInvalidate();player.pause();
+    const now=player.currentTime*1000;if(!rows.some(r=>r.cue.start<=now&&now<r.cue.end))player.currentTime=rows[0].cue.start/1000;
+    setSubtitlePreviewSettingsPanelOpen(false);window.dispatchEvent(new Event('msw:burn-style'));refreshSubtitlePreview();return;
+  }
   const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed'||track.locked||!fixedPresentationMode())return;
   const role=currentCuePanelKind==='extension'?'extension':'main',source=role==='main'?DATA.segments:getExtensionTrack(currentCuePanelTrackId)?.segments||[];
   const cue=source[currentCuePanelIdx];
@@ -33483,7 +33614,13 @@ function fixedStartPositioning() {
 }
 function fixedInstallPositionDrag(root) {
   root.addEventListener('pointerdown',event=>{
-    const node=event.target.closest('.annotation');if(!fixedPositionEditing||event.button!==0||!node)return;
+    const node=event.target.closest('.annotation,.position-target');if(!fixedPositionEditing||event.button!==0||!node)return;
+    if(productionFlatMode()&&fixedPositionScope==='cue') {
+      const rows=fixedPositionSelection();if(!rows.some(r=>r.cue_id===node.dataset.cueId)||rows.some(r=>!r.position||fixedTrack(r.cue,r.role,r.track_id)?.locked))return;
+      event.preventDefault();event.stopPropagation();player.pause();
+      fixedPositionDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,start:rows[0].position,rect:fixedVideoRect(),rows,ids:new Set(rows.map(r=>r.cue_id)),dx:0,dy:0};
+      root.setPointerCapture(event.pointerId);refreshSubtitlePreview();return;
+    }
     const {layout}=fixedPreviewLayout(),group=layout.groups.find(g=>g.id===node.dataset.groupId),track=DATA.subtitle_tracks.tracks.find(t=>t.id===group.trackId);
     event.preventDefault();event.stopPropagation();
     if(track.locked){fixedPositionNotice='轨道已锁定，请先解锁';refreshSubtitlePreview();return;}
@@ -33501,6 +33638,10 @@ function fixedInstallPositionDrag(root) {
   });
   root.addEventListener('pointermove',event=>{
     const drag=fixedPositionDrag;if(!drag||event.pointerId!==drag.pointerId)return;
+    if(drag.rows) {
+      const delta=fixedPositionDelta(drag.rows,{x:drag.start.x+(event.clientX-drag.x)/drag.rect.width,y:drag.start.y+(event.clientY-drag.y)/drag.rect.height});
+      drag.value={x:drag.start.x+delta.x,y:drag.start.y+delta.y};drag.dx=delta.x*drag.rect.referenceWidth;drag.dy=delta.y*1080;refreshSubtitlePreview();return;
+    }
     const x=Math.max(0,Math.min(1,drag.start.x+(event.clientX-drag.x)/drag.rect.width));
     const y=Math.max(0,Math.min(1,drag.start.y+(event.clientY-drag.y)/drag.rect.height));
     drag.value={x,y};drag.dx=(x-drag.start.x)*drag.rect.referenceWidth;drag.dy=(y-drag.start.y)*1080;refreshSubtitlePreview();
@@ -33508,7 +33649,14 @@ function fixedInstallPositionDrag(root) {
   const end=(event,cancel=false)=>{
     const drag=fixedPositionDrag;if(!drag)return;fixedPositionDrag=null;
     if(root.hasPointerCapture(drag.pointerId))root.releasePointerCapture(drag.pointerId);
-    if(!cancel&&(drag.dx||drag.dy))fixedCommitPosition(drag.value);refreshSubtitlePreview();
+    if(!cancel&&(drag.dx||drag.dy)) {
+      const exact=window.MSWSubtitleRenderer;
+      // Keep the precise moved frame until the newly committed ASS arrives.
+      if(exact?.status==='libass')fixedPositionHold={revision:exact.revision,offsets:new Map(exact.geometry.filter(r=>drag.rows?drag.ids.has(JSON.parse(r.key)[2]):fixedPreviewLayout().layout.entries.some(e=>e.cue_id===JSON.parse(r.key)[2]&&drag.groupIds.has(e.group.id))).map(r=>[r.key,{x:drag.dx,y:drag.dy}]))};
+      const saved=drag.rows?fixedCommitSelectedPosition(drag.value,drag.rows):fixedCommitPosition(drag.value);
+      if(!saved)fixedPositionHold=null;
+    }else fixedPositionHold=null;
+    refreshSubtitlePreview();
   };
   root.addEventListener('pointerup',event=>end(event));root.addEventListener('pointercancel',event=>end(event,true));
   root.addEventListener('click',event=>{if(fixedPositionEditing){event.preventDefault();event.stopPropagation();}});
@@ -33516,10 +33664,10 @@ function fixedInstallPositionDrag(root) {
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape'||!fixedPositionEditing)return;
   event.preventDefault();event.stopImmediatePropagation();
-  if(fixedPositionDrag){fixedPositionDrag=null;}else fixedPositionEditing=false;refreshSubtitlePreview();
+  if(fixedPositionDrag){const root=document.getElementById('fixed-subtitle-preview'),id=fixedPositionDrag.pointerId;fixedPositionDrag=null;if(root?.hasPointerCapture(id))root.releasePointerCapture(id);}else fixedStopPositioning();refreshSubtitlePreview();
 },true);
 document.addEventListener('input',event=>{if(event.target.matches('textarea,[contenteditable="true"]'))fixedPreviewInvalidate();},true);
-window.addEventListener('msw:project-changed',()=>{fixedStyleTrackId='';fixedPositionRef=null;fixedPositionEditing=false;fixedPositionDrag=null;fixedPositionNotice='';fixedTextMeasures.clear();fixedPreviewInvalidate();});
+window.addEventListener('msw:project-changed',()=>{fixedStyleTrackId='';fixedPositionRef=null;fixedPositionEditing=false;fixedPositionDrag=null;fixedPositionHold=null;fixedPositionOffsetsKey='';fixedPositionNotice='';fixedTextMeasures.clear();fixedPreviewInvalidate();});
 window.addEventListener('msw:burn-style',fixedPreviewInvalidate);
 document.fonts?.addEventListener('loadingdone',()=>{fixedTextMeasures.clear();fixedPreviewInvalidate();if(fixedPresentationMode())refreshSubtitlePreview();});
 document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fixedPresentationMode())refreshSubtitlePreview();}).observe(playerStage);});
@@ -39665,6 +39813,7 @@ function updateSelectionCountText() {
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
+  fixedSchedulePositionSelectionSync();
 }
 // “仅看超长”开启时，刚拆出的字幕临时绕过字数过滤；使用稳定 ID，避免 splice 后下标错位。
 const temporaryVisibleSplitCueKeys = new Set();
@@ -39708,7 +39857,7 @@ function clearSelection({ silent = false, commitCuePanel = true } = {}) {
   selectedOverlayIdxs.clear();
   lastClickedOverlayIdx = -1;
   updateMultiSelectionClasses();
-  selCountEl.textContent = '0';
+  updateSelectionCountText();
   if (silent) {
     // 结构编辑会马上 renderAll() 并重新选中目标；此时不必先刷新旧波形
     // 覆盖层和空面板，避免同一次操作产生两轮视觉更新。
@@ -59046,7 +59195,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     }
     return project;
   },
-  get editingGestureActive() { return Boolean(waveformEditor?.drag); },
+  get editingGestureActive() { return Boolean(waveformEditor?.drag||fixedPositionDrag); },
   setAssLibraryExports,
   legacyAssLibrary: () => JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY)),
   originalSubtitlePreview: () => originalSubtitlePreview,
@@ -64446,7 +64595,7 @@ window.addEventListener('beforeunload', (e) => {
   panel.querySelector('#style-more').insertAdjacentHTML('afterend',`<details id="style-track-position" class="msw-style-section" hidden open><summary>排布与画面位置</summary>
     <label class="media-settings-field"><span>排布</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label>
     <div id="style-position-fields"><div class="media-settings-grid">
-      <label class="media-settings-field" data-option-help="横向为字幕组中心，纵向为字幕组顶部；百分比相对于视频内容，不包含黑边。轨道位置作用于没有位置覆盖的字幕；当前字幕以明确绑定的主副字幕为一组。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道位置</option><option value="cue">当前字幕位置</option></select></label>
+      <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
       <button type="button" id="style-position-drag">在画面中定位</button>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
@@ -64550,8 +64699,9 @@ window.addEventListener('beforeunload', (e) => {
     const blocked=!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
     $('style-track-position').hidden=!track||!fixedPresentationMode()||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed';
     $('style-track-placement').value=track?fixedTrackCore.placement(track):'auto';$('style-track-placement').disabled=blocked;
-    $('style-position-fields').hidden=!track||fixedTrackCore.placement(track)!=='fixed';
-    if(track&&fixedTrackCore.placement(track)==='fixed') {
+    $('style-position-fields').hidden=!track||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed';
+    if(track&&productionFlatMode())syncPosition();
+    else if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
       for(const key of ['x','y']){$('style-position-'+key).value=Math.round(p[key]*1000)/10;$('style-position-'+key).disabled=blocked||fixedPositionScope==='cue'&&!group;}
@@ -64591,8 +64741,26 @@ window.addEventListener('beforeunload', (e) => {
     if(note?.notice && !$('style-migration-dismiss')) {const b=document.createElement('button');b.id='style-migration-dismiss';b.type='button';b.textContent=t('知道了');b.onclick=()=>{const current=host.data.preview?.style_migration;if(current)current.notice=false;host.persistStyleMigration();sync();};$('style-migration-note').after(b);}
     if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
   }
+  function syncPosition() {
+    if(!productionFlatMode())return;
+    const track=fixedStyleTarget(),selected=fixedPositionScope==='cue',rows=selected?fixedPositionSelection():[];
+    const locked=selected?rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked):track?.locked;
+    const enabled=!locked&&(selected?rows.length>0&&rows.every(r=>r.position):track&&fixedTrackCore.placement(track)==='fixed');
+    const p=fixedPositionCurrent();$('style-position-scope').value=fixedPositionScope;
+    for(const key of ['x','y']) {
+      const input=$('style-position-'+key);input.disabled=!enabled;
+      input.value=enabled&&p[key]!==null?Math.round(p[key]*1000)/10:'';
+      input.placeholder=enabled&&p[key]===null?'多个值':'';
+    }
+    $('style-track-placement').closest('label').hidden=selected;
+    $('style-position-drag').disabled=!enabled||selected&&rows.some(r=>!r.entry);
+    $('style-position-reset').disabled=locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
+    $('style-position-reset').textContent=selected?'跟随轨道位置':'恢复默认位置';
+    $('style-position-note').textContent=selected?fixedPositionSelectionLabel(rows)+(locked?' · 所选轨道已锁定':rows.length&&!enabled?' · 请先启用字幕及轨道':rows.some(r=>r.cue.subtitle_position)?' · 已单独定位':rows.length?' · 跟随轨道位置':''):track&&fixedTrackCore.placement(track)==='auto'?'自动排布使用样式中的对齐与边距；可切换“所选字幕”单独定位。':'轨道位置作用于未单独定位的字幕。';
+  }
   function refresh() {
     host.useProjectStylePreview();host.refreshStylePreview();global.MSWSubtitleRenderer?.invalidate();
+    global.MSWPreviewControls?.refresh();
   }
   function change(style,selection='current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
@@ -64607,10 +64775,13 @@ window.addEventListener('beforeunload', (e) => {
   function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(open)host.openMediaSettings();}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
   $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
-  $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;sync();};
+  $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
   $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
   for(const key of ['x','y'])$('style-position-'+key).onchange=()=>{
+    if(productionFlatMode()&&fixedPositionScope==='cue') {
+      const input=$('style-position-'+key);if(input.checkValidity())fixedCommitPosition({[key]:Number(input.value)/100});sync();refresh();return;
+    }
     if(!['x','y'].every(k=>$('style-position-'+k).checkValidity())){sync();return;}
     fixedCommitPosition({x:Number($('style-position-x').value)/100,y:Number($('style-position-y').value)/100});sync();refresh();
   };
@@ -64717,13 +64888,16 @@ window.addEventListener('beforeunload', (e) => {
   const settingsPanel=$('media-settings-modal');
   new MutationObserver(()=>{
     if(settingsPanel.getAttribute('aria-hidden')==='true')cancelAction();
+    if(ready){sync();fixedPreviewInvalidate();refresh();}
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
+  $('style-track-position').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
+    if(fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位预览：工程样式'};
     if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
-  global.MSWSubtitleStyle={currentPreview,editTrack,previewLibrary:()=>S.toLibrary(currentPreview().style),
+  global.MSWSubtitleStyle={currentPreview,editTrack,syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
@@ -64797,16 +64971,16 @@ window.addEventListener('beforeunload', (e) => {
     }
     return {offsets,overflow:false};
   }
-  function shiftText(text,dy) {
-    if(!dy)return text;
+  function shiftText(text,dy,dx=0) {
+    if(!dy&&!dx)return text;
     // Only generated positioning tags in override blocks are changed. Subtitle
-    // text, animation timings, horizontal positions and the source stay intact.
+    // text, animation timings and the source stay intact.
     return text.replace(/\{[^}]*\}/g,block=>block.replace(/\\(pos|move|org|i?clip)\(([^)]*)\)/g,(tag,name,args)=>{
       const values=args.split(',').map(Number);
       if(values.some(n=>!Number.isFinite(n)))return tag;
-      if(['pos','org'].includes(name)&&values.length===2)values[1]+=dy;
-      else if(name==='move'&&(values.length===4||values.length===6)){values[1]+=dy;values[3]+=dy;}
-      else if(/clip$/.test(name)&&values.length===4){values[1]+=dy;values[3]+=dy;}
+      if(['pos','org'].includes(name)&&values.length===2){values[0]+=dx;values[1]+=dy;}
+      else if(name==='move'&&(values.length===4||values.length===6)){values[0]+=dx;values[1]+=dy;values[2]+=dx;values[3]+=dy;}
+      else if(/clip$/.test(name)&&values.length===4){values[0]+=dx;values[1]+=dy;values[2]+=dx;values[3]+=dy;}
       else return tag;
       return '\\'+name+'('+values.map(n=>Math.round(n*1000)/1000).join(',')+')';
     }));
@@ -64823,28 +64997,38 @@ window.addEventListener('beforeunload', (e) => {
   if(!host||!styles)return;
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
   let previewRevision=0,previewEvents=[],previewGeometry=[],previewWrites=Promise.resolve();
+  let controlsOffsets=new Map(),positionOffsets=new Map(),queuedWrites=0;
   function clearPreviewDocument() {
     previewRevision++;previewEvents=[];previewGeometry=[];
+    controlsOffsets=new Map();positionOffsets=new Map();
     global.MSWPreviewControls?.refresh();
   }
   function applyPreviewOffsets(offsets) {
+    controlsOffsets=new Map(offsets);return applyOffsets();
+  }
+  function applyPositionOffsets(offsets) {
+    positionOffsets=new Map(offsets);return applyOffsets();
+  }
+  function applyOffsets() {
     const revision=previewRevision,active=renderer;
+    queuedWrites++;
     const write=async()=>{
       if(revision!==previewRevision||active!==renderer||!active?.renderer)return;
-      const changes=previewEvents.filter(e=>(offsets.get(e.key)||0)!==e.offset);
+      const offsets=e=>({x:positionOffsets.get(e.key)?.x||0,y:(controlsOffsets.get(e.key)||0)+(positionOffsets.get(e.key)?.y||0)});
+      const changes=previewEvents.filter(e=>{const p=offsets(e);return p.x!==e.offsetX||p.y!==e.offset;});
       if(!changes.length)return;
       await Promise.all(changes.map(e=>{
-        e.offset=offsets.get(e.key)||0;
-        return active.renderer.setEvent({...e.original,Text:global.MSWPreviewAvoidanceCore.shiftText(e.original.Text,e.offset)},e.index);
+        const p=offsets(e);e.offset=p.y;e.offsetX=p.x;
+        return active.renderer.setEvent({...e.original,Text:global.MSWPreviewAvoidanceCore.shiftText(e.original.Text,p.y,p.x)},e.index);
       }));
       if(revision===previewRevision&&active===renderer)await repaint();
     };
     const result=previewWrites.then(write).catch(error=>{
       if(revision===previewRevision&&active===renderer){
-        fallback('字幕避让渲染失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
+        fallback('字幕预览位置更新失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
       }
       throw error;
-    });
+    }).finally(()=>{queuedWrites--;});
     // Leave the queue usable after a destroyed worker. The caller owns errors.
     previewWrites=result.catch(()=>{});return result;
   }
@@ -64957,7 +65141,7 @@ window.addEventListener('beforeunload', (e) => {
       const geometryByStyle=new Map(previewGeometry.map(r=>[r.style,r]));
       previewEvents=events.flatMap((original,index)=>{
         const row=geometryByStyle.get(eventStyles[original.Style]?.Name);
-        return row?[{original,index,key:row.key,offset:0}]:[];
+        return row?[{original,index,key:row.key,offset:0,offsetX:0}]:[];
       });
       await renderer.resize(true);
       if(!current())return;
@@ -64982,7 +65166,7 @@ window.addEventListener('beforeunload', (e) => {
   // Existing editing paths do not all dispatch an event; compare state without
   // rebuilding an ASS document or starting a network request unless it changed.
   setInterval(()=>{if(!document.hidden)void update();},750);
-  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
+  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
   }
   global.MSWCreateSubtitleRenderer=create;
@@ -65068,7 +65252,7 @@ window.addEventListener('beforeunload', (e) => {
     const pinned=player.paused;
     if(stage.classList.contains('media-controls-pinned')!==pinned)stage.classList.toggle('media-controls-pinned',pinned);
     const visible=pinned||stage.matches(':hover')||controls.matches(':hover,:focus-within');
-    const positioning=!!stage.querySelector('#fixed-subtitle-preview.positioning:not([hidden])')||
+    const positioning=fixedPositionPreviewActive()||!!stage.querySelector('#fixed-subtitle-preview.positioning:not([hidden])')||
       (!stage.classList.contains('fixed-presentation')&&!!stage.querySelector('#overlay.geometry-enabled:is(:focus,.editable,.dragging):not(.hidden)'));
     const enabled=toggle.checked&&!positioning&&visible;
     const exact=global.MSWSubtitleRenderer,newRevision=exact?.revision??0;

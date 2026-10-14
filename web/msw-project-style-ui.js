@@ -33,7 +33,7 @@
   panel.querySelector('#style-more').insertAdjacentHTML('afterend',`<details id="style-track-position" class="msw-style-section" hidden open><summary>排布与画面位置</summary>
     <label class="media-settings-field"><span>排布</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label>
     <div id="style-position-fields"><div class="media-settings-grid">
-      <label class="media-settings-field" data-option-help="横向为字幕组中心，纵向为字幕组顶部；百分比相对于视频内容，不包含黑边。轨道位置作用于没有位置覆盖的字幕；当前字幕以明确绑定的主副字幕为一组。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道位置</option><option value="cue">当前字幕位置</option></select></label>
+      <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
       <button type="button" id="style-position-drag">在画面中定位</button>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
@@ -137,8 +137,9 @@
     const blocked=!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
     $('style-track-position').hidden=!track||!fixedPresentationMode()||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed';
     $('style-track-placement').value=track?fixedTrackCore.placement(track):'auto';$('style-track-placement').disabled=blocked;
-    $('style-position-fields').hidden=!track||fixedTrackCore.placement(track)!=='fixed';
-    if(track&&fixedTrackCore.placement(track)==='fixed') {
+    $('style-position-fields').hidden=!track||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed';
+    if(track&&productionFlatMode())syncPosition();
+    else if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
       for(const key of ['x','y']){$('style-position-'+key).value=Math.round(p[key]*1000)/10;$('style-position-'+key).disabled=blocked||fixedPositionScope==='cue'&&!group;}
@@ -178,8 +179,26 @@
     if(note?.notice && !$('style-migration-dismiss')) {const b=document.createElement('button');b.id='style-migration-dismiss';b.type='button';b.textContent=t('知道了');b.onclick=()=>{const current=host.data.preview?.style_migration;if(current)current.notice=false;host.persistStyleMigration();sync();};$('style-migration-note').after(b);}
     if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
   }
+  function syncPosition() {
+    if(!productionFlatMode())return;
+    const track=fixedStyleTarget(),selected=fixedPositionScope==='cue',rows=selected?fixedPositionSelection():[];
+    const locked=selected?rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked):track?.locked;
+    const enabled=!locked&&(selected?rows.length>0&&rows.every(r=>r.position):track&&fixedTrackCore.placement(track)==='fixed');
+    const p=fixedPositionCurrent();$('style-position-scope').value=fixedPositionScope;
+    for(const key of ['x','y']) {
+      const input=$('style-position-'+key);input.disabled=!enabled;
+      input.value=enabled&&p[key]!==null?Math.round(p[key]*1000)/10:'';
+      input.placeholder=enabled&&p[key]===null?'多个值':'';
+    }
+    $('style-track-placement').closest('label').hidden=selected;
+    $('style-position-drag').disabled=!enabled||selected&&rows.some(r=>!r.entry);
+    $('style-position-reset').disabled=locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
+    $('style-position-reset').textContent=selected?'跟随轨道位置':'恢复默认位置';
+    $('style-position-note').textContent=selected?fixedPositionSelectionLabel(rows)+(locked?' · 所选轨道已锁定':rows.length&&!enabled?' · 请先启用字幕及轨道':rows.some(r=>r.cue.subtitle_position)?' · 已单独定位':rows.length?' · 跟随轨道位置':''):track&&fixedTrackCore.placement(track)==='auto'?'自动排布使用样式中的对齐与边距；可切换“所选字幕”单独定位。':'轨道位置作用于未单独定位的字幕。';
+  }
   function refresh() {
     host.useProjectStylePreview();host.refreshStylePreview();global.MSWSubtitleRenderer?.invalidate();
+    global.MSWPreviewControls?.refresh();
   }
   function change(style,selection='current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
@@ -194,10 +213,13 @@
   function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(open)host.openMediaSettings();}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
   $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
-  $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;sync();};
+  $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
   $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
   for(const key of ['x','y'])$('style-position-'+key).onchange=()=>{
+    if(productionFlatMode()&&fixedPositionScope==='cue') {
+      const input=$('style-position-'+key);if(input.checkValidity())fixedCommitPosition({[key]:Number(input.value)/100});sync();refresh();return;
+    }
     if(!['x','y'].every(k=>$('style-position-'+k).checkValidity())){sync();return;}
     fixedCommitPosition({x:Number($('style-position-x').value)/100,y:Number($('style-position-y').value)/100});sync();refresh();
   };
@@ -304,13 +326,16 @@
   const settingsPanel=$('media-settings-modal');
   new MutationObserver(()=>{
     if(settingsPanel.getAttribute('aria-hidden')==='true')cancelAction();
+    if(ready){sync();fixedPreviewInvalidate();refresh();}
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
+  $('style-track-position').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
+    if(fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位预览：工程样式'};
     if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
-  global.MSWSubtitleStyle={currentPreview,editTrack,previewLibrary:()=>S.toLibrary(currentPreview().style),
+  global.MSWSubtitleStyle={currentPreview,editTrack,syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');

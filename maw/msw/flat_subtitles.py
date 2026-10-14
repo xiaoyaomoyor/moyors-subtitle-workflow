@@ -91,7 +91,7 @@ def _content_valid(cue):
                 _fail("逐词时间码无效")
             _frame_pair(item)
             previous = item["end"]
-    if "subtitle_position" in cue and not old._position_valid(cue["subtitle_position"]):
+    if "subtitle_position" in cue and not old._position_valid(cue["subtitle_position"], cue=True):
         _fail("字幕位置无效")
     for field in ("color", "sticker"):
         head = cue.get(field)

@@ -76,11 +76,13 @@ test('ordinary panels process native tracks, render, save in place and reopen th
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.some(j=>j.status==='succeeded')),{timeout:25000}).toBe(true);
   await page.evaluate(()=>MSWE.resolve('asr').showResult(MSWE.resolve('asr').jobs.find(j=>j.status==='succeeded').id));
   await expect(page.locator('#msw-asr-apply')).toBeEnabled();await page.locator('#msw-asr-apply').click();
-  expect((await snap(page)).subtitles.cues.find(c=>c.track_id===target).content.items[0].start).toBe(100);
+  await expect.poll(async()=>(await snap(page)).subtitles.cues.find(c=>c.track_id===target)?.content.items[0]?.start).toBe(100);
   await page.keyboard.press('Escape');
   await page.evaluate(()=>{player.currentTime=.5;overlayToggle.checked=true;extensionOverlayToggle.checked=true;MSWSubtitleRenderer.invalidate();});
   await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');
+  await page.evaluate(()=>{selectOnly(0);fixedPositionScope='cue';fixedCommitPosition({y:.45});});
   const ass=await page.evaluate(()=>fixedAssDocument('both'));for(const text of ['Hello world','译文','Recognized speech'])expect(ass).toContain(text);
+  expect(ass).toContain(',486.0000)');
   await expect.poll(()=>page.evaluate(()=>projectSaveInFlight||projectCheckpointInFlight)).toBe(false);
   expect(await page.evaluate(()=>saveProjectToServer()),await page.locator('#hint-stack').textContent()).toBe(true);
   const saved=JSON.parse(readFileSync(projectPath,'utf8'));expect(saved.schema).toBe('msw.project.v4');expect(saved.segments).toBeUndefined();expect(saved.subtitles.cues).toHaveLength(3);
@@ -97,5 +99,11 @@ test('ordinary panels process native tracks, render, save in place and reopen th
   await expect(page.locator('#video-export-remove-gaps')).not.toBeChecked();
   await expect(page.locator('#video-export-start')).toBeEnabled();await page.locator('#video-export-start').click();
   await expect(page.locator('#video-export-jobs')).toContainText('导出完成',{timeout:30000});
+  const download=page.waitForEvent('download');await page.locator('#video-export-jobs').getByRole('button',{name:'下载 MP4',exact:true}).first().click();
+  const output=await (await download).path();
+  const frame=execFileSync(join(process.env.FFMPEG_PATH,'ffmpeg.exe'),['-v','error','-ss','0.5','-i',output,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{windowsHide:true});
+  let positionedPixels=0;
+  for(let i=0;i<frame.length;i+=3){const y=Math.floor(i/3/640);if(y>=130&&y<180&&frame[i]>140&&frame[i+1]>140&&frame[i+2]>140)positionedPixels++;}
+  expect(positionedPixels).toBeGreaterThan(10);
   expect(errors).toEqual([]);
 });

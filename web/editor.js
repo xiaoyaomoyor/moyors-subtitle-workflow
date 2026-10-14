@@ -6139,6 +6139,7 @@ function updateSelectionCountText() {
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
+  fixedSchedulePositionSelectionSync();
 }
 // “仅看超长”开启时，刚拆出的字幕临时绕过字数过滤；使用稳定 ID，避免 splice 后下标错位。
 const temporaryVisibleSplitCueKeys = new Set();
@@ -6182,7 +6183,7 @@ function clearSelection({ silent = false, commitCuePanel = true } = {}) {
   selectedOverlayIdxs.clear();
   lastClickedOverlayIdx = -1;
   updateMultiSelectionClasses();
-  selCountEl.textContent = '0';
+  updateSelectionCountText();
   if (silent) {
     // 结构编辑会马上 renderAll() 并重新选中目标；此时不必先刷新旧波形
     // 覆盖层和空面板，避免同一次操作产生两轮视觉更新。
@@ -25520,7 +25521,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     }
     return project;
   },
-  get editingGestureActive() { return Boolean(waveformEditor?.drag); },
+  get editingGestureActive() { return Boolean(waveformEditor?.drag||fixedPositionDrag); },
   setAssLibraryExports,
   legacyAssLibrary: () => JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY)),
   originalSubtitlePreview: () => originalSubtitlePreview,

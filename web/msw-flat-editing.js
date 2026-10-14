@@ -124,7 +124,11 @@
         for(const row of rows)for(const field of ['color','sticker'])if(marker(n,cue(n,row.id),field)){row[field]=copy(marker(n,cue(n,row.id),field));delete row[field+'_ref'];}
         if(rows.length===1)return copy(members[0]);
         const virtual=layers.migrate({segments:rows}),plan=layers.planMerge(virtual,{role:'main',track_id:null},rows.map(c=>c.id),{mode,makeId:()=>makeId('cue'),joinText:cues=>joinText?joinText(cues,members[0].track_id):cues.map(c=>c.text).join(cues.every(c=>/[\u3400-\u9fff]/.test(c.text))?'':' ')});
-        const merged=plan.changes[0].merged;conflicts.push(...plan.conflicts);const out={...copy(members[0]),id:merged.id,content:merged};
+        const merged=plan.changes[0].merged;conflicts.push(...plan.conflicts);
+        const earliest=members.slice().sort((a,b)=>a.content.start-b.content.start||a.content.end-b.content.end||a.id.localeCompare(b.id))[0];
+        if(earliest.content.subtitle_position)merged.subtitle_position=copy(earliest.content.subtitle_position);
+        else delete merged.subtitle_position;
+        const out={...copy(members[0]),id:merged.id,content:merged};
         if(members.some(c=>Object.hasOwn(c,'hidden')))out.hidden=mode==='common'?members.every(c=>c.hidden):members.some(c=>c.hidden);
         delete out.content.id;frame(n,out.content);return out;
       });

@@ -16,7 +16,9 @@
   const flatView = project => project?.subtitle_tracks?.flat_context?.schema === 'msw.flat-operation-view.v1';
   const fail = message => { throw Error('固定字幕轨道：' + message); };
   const refOf = row => ({ role: row.role, track_id: row.track_id, cue_id: row.cue_id });
-  const positionValid = value => value && Object.keys(value).length === 2
+  const positionValid = (value, cue = false) => value && Object.keys(value).every(k => ['x', 'y', ...(cue ? ['alignment', 'base'] : [])].includes(k))
+    && (value.alignment === undefined || Number.isInteger(value.alignment) && value.alignment >= 1 && value.alignment <= 9)
+    && (value.base === undefined || value.alignment !== undefined && positionValid(value.base))
     && ['x', 'y'].every(k => typeof value[k] === 'number' && Number.isFinite(value[k]) && value[k] >= 0 && value[k] <= 1);
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
     && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
@@ -48,7 +50,7 @@
       track.segments.forEach((cue, index) => {
         if (!stable(cue?.id) || seen.has(cue.id) || !Number.isSafeInteger(cue.start)
           || !Number.isSafeInteger(cue.end) || cue.start < 0 || cue.end <= cue.start) fail('字幕 ID 重复或时间范围无效');
-        if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position)) fail('字幕位置必须是画面内的 x、y 比例');
+        if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position, true)) fail('字幕位置必须是画面内的 x、y 比例和有效锚点');
         seen.add(cue.id);
         rows.push({ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index });
       });

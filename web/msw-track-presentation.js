@@ -6,6 +6,13 @@
   const layers = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
   const intersect = (a,b) => a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height;
   const finite = n => typeof n === 'number' && Number.isFinite(n);
+  const groupPosition = cue => cue.subtitle_position?.alignment ? cue.subtitle_position.base : cue.subtitle_position;
+  function positionOf(entry,width) {
+    if(entry.position)return {...entry.position};
+    const horizontal=((Number(entry.style.alignment)||2)-1)%3;
+    const vertical=entry.group.position?2:Math.floor(((Number(entry.group.rows.at(-1).style.alignment)||2)-1)/3);
+    return {x:(entry.x+horizontal*entry.width/2)/width,y:(entry.y+(2-vertical)*entry.height/2)/1080,alignment:1+vertical*3+horizontal};
+  }
   function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
   function styleFor(project, track, proof = null) {
     const S=global.MSWProjectStyle,style=proof || (track.style.mode === 'snapshot' ? track.style.value : project.preview?.project_style) || S.defaults();
@@ -34,7 +41,7 @@
       rows[0].localY = 0;
       if (rows.length === 2) rows[1].localY = Math.max(1, (rows[0].size.height-rows[1].size.height)/2+1, rows[0].size.height+pair.gap);
       group.height = Math.max(...rows.map(r=>r.localY+r.size.height),1);
-      const explicit = rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position || (core.placement(track)==='fixed' ? track.position : null);
+      const explicit = groupPosition(rows.find(r=>groupPosition(r.cue))?.cue||{}) || (core.placement(track)==='fixed' ? track.position : null);
       group.position = explicit || (core.placement(track) === 'fixed' ? {x:.5,y:.08} : null);
       const lowerStyle = rows.at(-1).style, alignment = Number(lowerStyle.alignment)||2;
       const horizontal = (alignment-1)%3, vertical = Math.floor((alignment-1)/3);
@@ -50,8 +57,8 @@
       {role:'extension',track_id:languageId,cue_id:binding.extension_segment_ids?.[0] ?? binding.extension_segment_id}];
       if(core.flatView(project)) {
         const rows=refs.map(r=>lookup.get(core.key(r))).filter(Boolean),owners=rows.map(r=>tracks.find(t=>t.id===r.subtitle_track_id));
-        const anchors=rows.map((r,i)=>r.cue.subtitle_position||(core.placement(owners[i])==='fixed'?owners[i].position||{x:.5,y:.08}:null));
-        if(!(rows.every((r,i)=>core.placement(owners[i])==='auto'&&!r.cue.subtitle_position)||anchors.length===2&&anchors[0]&&JSON.stringify(anchors[0])===JSON.stringify(anchors[1])))continue;
+        const anchors=rows.map((r,i)=>groupPosition(r.cue)||(core.placement(owners[i])==='fixed'?owners[i].position||{x:.5,y:.08}:null));
+        if(!(rows.every((r,i)=>core.placement(owners[i])==='auto'&&!groupPosition(r.cue))||anchors.length===2&&anchors[0]&&JSON.stringify(anchors[0])===JSON.stringify(anchors[1])))continue;
       }
       add(refs);
     }
@@ -77,7 +84,14 @@
     const entries = [];
     for (const group of ordered) for (const row of group.rows) {
       const align = ((Number(row.style.alignment)||2)-1)%3;
-      entries.push({...row, key:core.key(row), group, x:group.x+(align===0?0:align===2?group.width-row.size.width:(group.width-row.size.width)/2),y:group.y+row.localY,width:row.size.width,height:row.size.height});
+      const entry={...row, key:core.key(row), group, x:group.x+(align===0?0:align===2?group.width-row.size.width:(group.width-row.size.width)/2),y:group.y+row.localY,width:row.size.width,height:row.size.height};
+      const p=row.cue.subtitle_position;
+      if(p?.alignment) {
+        entry.position={...p};entry.style={...entry.style,alignment:p.alignment};
+        entry.x=p.x*width-((p.alignment-1)%3)*entry.width/2;
+        entry.y=p.y*1080-(2-Math.floor((p.alignment-1)/3))*entry.height/2;
+      }
+      entries.push(entry);
     }
     return {groups:ordered,entries,width,height:1080};
   }
@@ -91,7 +105,7 @@
     }
     return issues;
   }
-  const api={position,styleFor,layout,warnings};
+  const api={position,positionOf,styleFor,layout,warnings};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.MSWTrackPresentation=api;
 })(typeof window==='undefined'?globalThis:window);

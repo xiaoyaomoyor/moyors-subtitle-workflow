@@ -11,6 +11,19 @@ const base=()=>{
   return core.bind(p,p.subtitles.cues[0].id,'b','binding');
 };
 let seq=0;const makeId=kind=>`${kind}-${++seq}`;
+test('individual anchors survive adapter roundtrip, linked split and merge without copying to the partner',()=>{
+  const p=base(),id=p.subtitles.cues[0].id,position={x:.3,y:.7,alignment:2};
+  p.subtitles.cues[0].content.subtitle_position=position;
+  core.validate(p);
+  const split=edit.split(p,id,1000,{makeId});
+  for(const c of split.project.subtitles.cues)assert.deepEqual(c.content.subtitle_position,c.track_id==='translation'?undefined:position);
+  split.project.subtitles.cues.find(c=>c.id===split.ids[1]).content.subtitle_position={...position,x:.7};
+  const merged=edit.merge(split.project,split.ids.slice(0,2).reverse(),{makeId}).project;
+  for(const c of merged.subtitles.cues)assert.deepEqual(c.content.subtitle_position,c.track_id==='translation'?undefined:position);
+  for(const alignment of [true,0,10,1.5,'2',null]) {
+    const bad=structuredClone(p);bad.subtitles.cues[0].content.subtitle_position.alignment=alignment;assert.throws(()=>core.validate(bad));
+  }
+});
 test('linked split and merge are atomic, preserve IDs of unaffected cues and bindings',()=>{
   const p=base(),before=JSON.stringify(p),id=p.subtitles.cues[0].id;
   const split=edit.split(p,id,1000,{makeId});

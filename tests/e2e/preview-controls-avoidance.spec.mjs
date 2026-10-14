@@ -65,7 +65,7 @@ test('playing hides controls, hovering restores avoidance; picture positioning d
   await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].some(v=>v<0))).toBe(true);
   await page.evaluate(()=>{player.pause();fixedStyleTrackId=DATA.subtitle_tracks.tracks[0].id;fixedUpdateTrack(fixedStyleTrackId,{layout:'fixed',position:{x:.5,y:.7}});fixedStartPositioning();});
   await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
-  await idle(page);expect(await page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);await idle(page);
   const boxes=await page.evaluate(()=>({bar:document.getElementById('media-controls').getBoundingClientRect().toJSON(),stage:document.querySelector('.player-stage').getBoundingClientRect().toJSON()}));
   expect(boxes.bar.top).toBeGreaterThanOrEqual(boxes.stage.bottom-1);
   await page.keyboard.press('Escape');await expect(page.locator('#media-controls')).not.toHaveClass(/media-controls-outside/);
@@ -73,7 +73,7 @@ test('playing hides controls, hovering restores avoidance; picture positioning d
 
 test('black borders, resized preview and hidden subtitles do not leave stale avoidance',async({page})=>{
   await page.evaluate(()=>{const stage=document.querySelector('.player-stage');stage.style.flex='none';stage.style.height='500px';stage.style.width='400px';});
-  await idle(page);expect(await page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);await idle(page);
   await page.evaluate(()=>{const stage=document.querySelector('.player-stage');stage.style.height='225px';});
   await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].some(v=>v<0))).toBe(true);
   await page.evaluate(()=>{overlayToggle.checked=false;extensionOverlayToggle.checked=false;overlayToggle.dispatchEvent(new Event('change'));extensionOverlayToggle.dispatchEvent(new Event('change'));});

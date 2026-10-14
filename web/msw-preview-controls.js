@@ -77,7 +77,7 @@
     const pinned=player.paused;
     if(stage.classList.contains('media-controls-pinned')!==pinned)stage.classList.toggle('media-controls-pinned',pinned);
     const visible=pinned||stage.matches(':hover')||controls.matches(':hover,:focus-within');
-    const positioning=!!stage.querySelector('#fixed-subtitle-preview.positioning:not([hidden])')||
+    const positioning=fixedPositionPreviewActive()||!!stage.querySelector('#fixed-subtitle-preview.positioning:not([hidden])')||
       (!stage.classList.contains('fixed-presentation')&&!!stage.querySelector('#overlay.geometry-enabled:is(:focus,.editable,.dragging):not(.hidden)'));
     const enabled=toggle.checked&&!positioning&&visible;
     const exact=global.MSWSubtitleRenderer,newRevision=exact?.revision??0;

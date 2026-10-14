@@ -5,28 +5,38 @@
   if(!host||!styles)return;
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
   let previewRevision=0,previewEvents=[],previewGeometry=[],previewWrites=Promise.resolve();
+  let controlsOffsets=new Map(),positionOffsets=new Map(),queuedWrites=0;
   function clearPreviewDocument() {
     previewRevision++;previewEvents=[];previewGeometry=[];
+    controlsOffsets=new Map();positionOffsets=new Map();
     global.MSWPreviewControls?.refresh();
   }
   function applyPreviewOffsets(offsets) {
+    controlsOffsets=new Map(offsets);return applyOffsets();
+  }
+  function applyPositionOffsets(offsets) {
+    positionOffsets=new Map(offsets);return applyOffsets();
+  }
+  function applyOffsets() {
     const revision=previewRevision,active=renderer;
+    queuedWrites++;
     const write=async()=>{
       if(revision!==previewRevision||active!==renderer||!active?.renderer)return;
-      const changes=previewEvents.filter(e=>(offsets.get(e.key)||0)!==e.offset);
+      const offsets=e=>({x:positionOffsets.get(e.key)?.x||0,y:(controlsOffsets.get(e.key)||0)+(positionOffsets.get(e.key)?.y||0)});
+      const changes=previewEvents.filter(e=>{const p=offsets(e);return p.x!==e.offsetX||p.y!==e.offset;});
       if(!changes.length)return;
       await Promise.all(changes.map(e=>{
-        e.offset=offsets.get(e.key)||0;
-        return active.renderer.setEvent({...e.original,Text:global.MSWPreviewAvoidanceCore.shiftText(e.original.Text,e.offset)},e.index);
+        const p=offsets(e);e.offset=p.y;e.offsetX=p.x;
+        return active.renderer.setEvent({...e.original,Text:global.MSWPreviewAvoidanceCore.shiftText(e.original.Text,p.y,p.x)},e.index);
       }));
       if(revision===previewRevision&&active===renderer)await repaint();
     };
     const result=previewWrites.then(write).catch(error=>{
       if(revision===previewRevision&&active===renderer){
-        fallback('字幕避让渲染失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
+        fallback('字幕预览位置更新失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
       }
       throw error;
-    });
+    }).finally(()=>{queuedWrites--;});
     // Leave the queue usable after a destroyed worker. The caller owns errors.
     previewWrites=result.catch(()=>{});return result;
   }
@@ -139,7 +149,7 @@
       const geometryByStyle=new Map(previewGeometry.map(r=>[r.style,r]));
       previewEvents=events.flatMap((original,index)=>{
         const row=geometryByStyle.get(eventStyles[original.Style]?.Name);
-        return row?[{original,index,key:row.key,offset:0}]:[];
+        return row?[{original,index,key:row.key,offset:0,offsetX:0}]:[];
       });
       await renderer.resize(true);
       if(!current())return;
@@ -164,7 +174,7 @@
   // Existing editing paths do not all dispatch an event; compare state without
   // rebuilding an ASS document or starting a network request unless it changed.
   setInterval(()=>{if(!document.hidden)void update();},750);
-  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined;},get status(){return stage.dataset.subtitleRenderer;}};
+  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
   }
   global.MSWCreateSubtitleRenderer=create;

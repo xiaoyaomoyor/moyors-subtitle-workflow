@@ -59,6 +59,25 @@ def pair_settings(style):
     return dict(order=order,gap=min(240,max(-240,math.floor(gap+.5))))
 
 
+def group_position(cue):
+    """Legacy positions locate a pair; anchored positions locate only this cue."""
+    value = cue.get('subtitle_position')
+    return value.get('base') if value and 'alignment' in value else value
+
+
+def position_anchor(row, width):
+    """Use the same anchor for editing and ASS, without estimating glyph height."""
+    horizontal = (row['style']['alignment']-1)%3
+    vertical = row['anchor']
+    if vertical is None:
+        x, y = row['x']+row['size']['originX'], row['y']+row['size']['originY']
+        alignment = 7+horizontal
+    else:
+        x, y = row['x']+horizontal*row['width']/2, row['y']+(2-vertical)*row['height']/2
+        alignment = 1+vertical*3+horizontal
+    return dict(x=x/width, y=y/1080, alignment=alignment)
+
+
 def layout(project, width=1920):
     flat = project.get('schema') == 'msw.project.v4'
     if flat:
@@ -121,7 +140,7 @@ def layout(project, width=1920):
         group['width'] = max(r['size']['width'] for r in members)
         group['height'] = max(r['localY']+r['size']['height'] for r in members)
         group['start'] = min(r['cue']['start'] for r in members)
-        group['position'] = next((r['cue']['subtitle_position'] for r in members if r['cue'].get('subtitle_position')), track.get('position') if placement(track)=='fixed' else None)
+        group['position'] = next((group_position(r['cue']) for r in members if group_position(r['cue'])), track.get('position') if placement(track)=='fixed' else None)
         if group['position'] is None and placement(track)=='fixed':
             group['position'] = dict(x=.5, y=.08)
         lower = members[-1]['style'];horizontal = (lower['alignment']-1)%3;vertical = (lower['alignment']-1)//3
@@ -137,8 +156,8 @@ def layout(project, width=1920):
             # Independently positioned annotations keep their own anchors even
             # when related semantically; only automatic tracks form a pair.
             automatic = all(index.tracks[r['subtitle_track_id']]['layout']=='auto'
-                            and not r['cue'].get('subtitle_position') for r in members)
-            anchors = [r['cue'].get('subtitle_position') or index.tracks[r['subtitle_track_id']].get('position')
+                            and not group_position(r['cue']) for r in members)
+            anchors = [group_position(r['cue']) or index.tracks[r['subtitle_track_id']].get('position')
                        or (dict(x=.5,y=.08) if index.tracks[r['subtitle_track_id']]['layout']=='fixed' else None)
                        for r in members]
             shared_anchor = len(anchors)==2 and anchors[0] is not None and anchors[0]==anchors[1]
@@ -181,10 +200,20 @@ def layout(project, width=1920):
                     g['y']=min(g['y'],other['y']-gap-g['height'])
         for r in g['rows']:
             align=(r['style']['alignment']-1)%3
-            entries.append(dict(r,key=key(r),groupId=g['id'],rank=g['rank'],kind=g['kind'],
+            entry = dict(r,key=key(r),groupId=g['id'],rank=g['rank'],kind=g['kind'],
                 anchor=None if g['position'] else (g['rows'][-1]['style']['alignment']-1)//3,
                 x=g['x']+(0 if align==0 else g['width']-r['size']['width'] if align==2 else (g['width']-r['size']['width'])/2),
-                y=g['y']+r['localY'],width=r['size']['width'],height=r['size']['height']))
+                y=g['y']+r['localY'],width=r['size']['width'],height=r['size']['height'])
+            p = r['cue'].get('subtitle_position')
+            if p and 'alignment' in p:
+                # Keep the inherited pair's geometry for unselected partners.
+                # Apply the individual anchor only after automatic packing.
+                entry['anchor'] = (p['alignment']-1)//3
+                entry['style'] = dict(entry['style'], alignment=p['alignment'])
+                entry['x'] = p['x']*width-((p['alignment']-1)%3)*entry['width']/2
+                entry['y'] = p['y']*1080-(2-entry['anchor'])*entry['height']/2
+                entry['groupId'] = 'position:'+entry['key']
+            entries.append(entry)
     return entries
 
 
@@ -210,20 +239,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
         if project.get('schema') == 'msw.project.v4' and 'secondary_cue_ids' in project.get('subtitle_view', {}):
             role = 'secondary' if r['cue_id'] in project['subtitle_view']['secondary_cue_ids'] else 'main'
         if target not in ('both',role) or not r['size']['text'].strip():continue
-        align=(r['style']['alignment']-1)%3
-        vertical=r['anchor']
-        if vertical is None:
-            # Explicit picture positions refer to the measured box's top edge.
-            x=r['x']+r['size']['originX']
-            y=r['y']+r['size']['originY']
-            alignment=7+align
-        else:
-            # Keep ASS's original anchor. Converting a bottom margin into a
-            # top anchor using an estimated line height moves even a lone cue.
-            # The estimates are only for packing; libass measures the glyphs.
-            x=r['x']+align*r['width']/2
-            y=r['y']+(2-vertical)*r['height']/2
-            alignment=1+vertical*3+align
+        position = position_anchor(r, width)
+        x, y, alignment = position['x']*width, position['y']*1080, position['alignment']
         base=rf'\an{alignment}\q2'
         animations=r['animations']
         move=animations['move']

@@ -37,9 +37,11 @@ def _fail(message):
     raise ValueError("固定字幕轨道：" + message)
 
 
-def _position_valid(value):
-    return (isinstance(value, dict) and set(value) == {"x", "y"}
-            and all(type(n) in (int, float) and 0 <= n <= 1 and math.isfinite(n) for n in value.values()))
+def _position_valid(value, cue=False):
+    return (isinstance(value, dict) and {"x", "y"} <= set(value) <= ({"x", "y", "alignment", "base"} if cue else {"x", "y"})
+            and all(type(value[k]) in (int, float) and 0 <= value[k] <= 1 and math.isfinite(value[k]) for k in ("x", "y"))
+            and ("alignment" not in value or type(value["alignment"]) is int and 1 <= value["alignment"] <= 9)
+            and ("base" not in value or "alignment" in value and _position_valid(value["base"])))
 
 
 def _snapshot_valid(value):
@@ -91,7 +93,7 @@ def _records(project):
                     or any(type(cue.get(edge)) is not int or abs(cue[edge]) > 2**53 - 1 for edge in ("start", "end"))
                     or cue["start"] < 0 or cue["end"] <= cue["start"]):
                 _fail("字幕 ID 重复或时间范围无效")
-            if "subtitle_position" in cue and not _position_valid(cue["subtitle_position"]):
+            if "subtitle_position" in cue and not _position_valid(cue["subtitle_position"], cue=True):
                 _fail("字幕位置必须是画面内的 x、y 比例")
             seen.add(cue["id"])
             rows.append(dict(role=role, track_id=track_id, cue_id=cue["id"], cue=cue, index=index))

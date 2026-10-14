@@ -24,4 +24,5 @@ test('temporary ASS offsets preserve motion timing, styling and plain text',()=>
   assert.equal(shiftText(source,-50),'{\\an2\\pos(500,950)\\org(200,750)\\clip(0,850,1000,1030)\\fad(100,200)}Hello');
   assert.equal(shiftText('{\\move(10,20,30,40,100,200)}Text',-5),'{\\move(10,15,30,35,100,200)}Text');
   assert.equal(shiftText(source,0),source);assert.equal(shiftText('literal \\pos(1,2)',-5),'literal \\pos(1,2)');
+  assert.equal(shiftText('{\\move(10,20,30,40,100,200)\\org(20,30)\\clip(0,0,200,200)}Text',-5,8),'{\\move(18,15,38,35,100,200)\\org(28,25)\\clip(8,-5,208,195)}Text');
 });
