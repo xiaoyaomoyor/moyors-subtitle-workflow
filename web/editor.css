@@ -3810,12 +3810,15 @@
     gap: 0; padding: 0; align-items: stretch; background: transparent;
   }
   .cue.multi-dual-cue.single-sided,
+  .cue.multi-dual-cue.track-filter-single,
   .cues-container[data-pair-layout="rows"] .cue.multi-dual-cue { grid-template-columns: minmax(0, 1fr); }
   .multi-cue-column {
     min-width: 0; position: relative; padding: 10px 12px; box-sizing: border-box;
     background: var(--card-bg); border-radius: inherit;
     display: flex; flex-direction: column; gap: 6px;
   }
+  .multi-cue-column.track-filtered-out { display:none !important; }
+  .multi-cue-column.track-filtered-out + .multi-cue-column::before { display:none; }
   .multi-cue-column + .multi-cue-column::before {
     content: ''; position: absolute; inset: 8px auto 8px 0;
     border-left: 1px dashed var(--border-strong); pointer-events: none;
@@ -4985,10 +4988,9 @@
 #fixed-subtitle-preview.positioning .annotation { pointer-events:auto; cursor:move; touch-action:none; outline:2px dashed var(--selection-yellow); outline-offset:3px; }
 #fixed-subtitle-preview.positioning .position-target { pointer-events:auto; cursor:move; touch-action:none; outline:2px solid var(--selection-yellow); outline-offset:3px; }
 #fixed-subtitle-preview.positioning .selected-position { outline-style:solid; }
-#fixed-position-toolbar { flex:none; display:flex; gap:8px; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); font-size:12px; }
-#fixed-position-toolbar[hidden], #fixed-subtitle-preview[hidden], #style-track-controls[hidden] { display:none; }
-#fixed-position-toolbar button { flex:none; }
-#style-position-drag { align-self:end; }
+#fixed-subtitle-preview[hidden], #style-track-controls[hidden] { display:none; }
+.style-position-actions { display:flex; align-self:end; flex-wrap:wrap; gap:6px; }
+.style-position-actions button { flex:1 1 auto; }
 #style-track-position .msw-processing-hint { overflow-wrap:anywhere; margin:6px 0 0; }
 /* Compact media settings: controls own their space, including long labels. */
 .media-settings-body { container-type:inline-size; }

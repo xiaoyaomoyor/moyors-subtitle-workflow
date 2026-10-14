@@ -75,12 +75,15 @@ test('a regular source track can use fixed placement without changing its style 
 });
 test('bound annotation drag changes current pair only, supports Escape, one undo and saved reopening',async({page})=>{
   const errors=await open(page,bilingual);await enable(page);await annotation(page);
+  await page.setViewportSize({width:1920,height:1000});await page.locator('#media-settings-modal').evaluate(el=>{el.style.left='1350px';el.style.top='20px';});
   await page.locator('#style-position-scope').selectOption('cue');await page.locator('#style-position-drag').click();
   const target=page.locator('.fixed-subtitle-row[data-cue-id="a"]');await expect(target).toBeVisible();
   const rect=await target.boundingBox();await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();expect(await page.evaluate(()=>!!fixedPositionDrag)).toBe(true);await page.mouse.move(rect.x+rect.width/2+50,rect.y+rect.height/2+40,{steps:5});await page.mouse.up();
+  await page.keyboard.press('Enter');
   const saved=await page.evaluate(()=>JSON.parse(buildJson()));const p=saved.segments.find(c=>c.id==='a').subtitle_position;
   expect(p.x).toBeGreaterThan(.5);expect(p.y).toBeGreaterThan(.08);expect(saved.multi_subtitle.tracks[0].segments[0].subtitle_position).toEqual(p);
   expect(saved.subtitle_tracks.tracks.at(-1).position).toBeUndefined();
+  await page.locator('#style-position-drag').click();
   const now=await target.boundingBox();await page.mouse.move(now.x+10,now.y+10);await page.mouse.down();await page.mouse.move(now.x+30,now.y+30);await page.keyboard.press('Escape');await page.mouse.up();
   expect(await page.evaluate(()=>DATA.segments.find(c=>c.id==='a').subtitle_position)).toEqual(p);
   await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.segments.find(c=>c.id==='a').subtitle_position)).toBeUndefined();
@@ -121,17 +124,17 @@ test('annotation coordinates exclude black bars and remain stable after player r
   expect(a.left).toBeGreaterThan(b.left);expect(errors).toEqual([]);
 });
 
-test('track positioning leaves cue overrides intact, collisions warn only while editing and locks prevent edits',async({page})=>{
+test('track positioning leaves cue overrides intact, uses panel actions and locks prevent edits',async({page})=>{
   const errors=await open(page);await enable(page);await annotation(page);
   await page.locator('#style-position-y').fill('88');await page.locator('#style-position-y').press('Tab');await page.locator('#style-position-drag').click();
-  await expect(page.locator('#fixed-position-message')).toContainText('重叠');
-  await page.locator('#fixed-position-toolbar select').selectOption('cue');
-  await page.evaluate(()=>fixedCommitPosition({x:.8,y:.3}));
-  await page.locator('#fixed-position-toolbar select').selectOption('track');
-  await page.evaluate(()=>fixedCommitPosition({x:.5,y:.1}));
+  await expect(page.locator('#fixed-position-toolbar')).toHaveCount(0);await page.locator('#style-position-cancel').click();
+  await page.locator('#style-position-scope').selectOption('cue');await page.locator('#style-position-drag').click();
+  await page.evaluate(()=>fixedCommitPosition({x:.8,y:.3}));await page.locator('#style-position-finish').click();
+  await page.locator('#style-position-scope').selectOption('track');await page.locator('#style-position-drag').click();
+  await page.evaluate(()=>fixedCommitPosition({x:.5,y:.1}));await page.locator('#style-position-finish').click();
   expect(await page.evaluate(()=>DATA.segments.find(c=>c.id==='a').subtitle_position)).toEqual({x:.8,y:.3});
   expect((await entries(page)).find(e=>e.id==='a').y).toBe(324);
-  await page.getByRole('button',{name:'完成定位',exact:true}).click();await expect(page.locator('#fixed-position-toolbar')).toBeHidden();
+  await expect(page.locator('#style-position-drag')).toBeVisible();
   await page.evaluate(()=>{fixedUpdateTrack(fixedStyleTrackId,{locked:true});MSWSubtitleStyle.editTrack(fixedStyleTrackId);});
   await expect(page.locator('#style-position-drag')).toBeDisabled();await expect(page.locator('#style-field-fontSize')).toBeDisabled();
   expect(await page.evaluate(()=>fixedCommitPosition({x:0,y:0}))).toBe(false);expect(errors).toEqual([]);
@@ -140,7 +143,7 @@ test('track positioning leaves cue overrides intact, collisions warn only while 
 test('positioned bound subtitles retain positions through split and linked merge, each with one undo',async({page})=>{
   const errors=await open(page,bilingual);await enable(page);await annotation(page);
   await page.locator('#style-position-scope').selectOption('cue');await page.locator('#style-position-drag').click();
-  await page.evaluate(()=>{fixedCommitPosition({x:.4,y:.2});fixedPositionEditing=false;refreshSubtitlePreview();});
+  await page.evaluate(()=>{fixedCommitPosition({x:.4,y:.2});fixedStopPositioning();});
   const before=await page.evaluate(()=>JSON.parse(buildJson()));
   await page.evaluate(()=>requestSubtitleSplit('main',DATA.segments.findIndex(c=>c.id==='a'),{timeMs:3000,quick:true}));
   const split=await page.evaluate(()=>({main:DATA.segments.filter(c=>fixedTrack(c)?.kind==='annotation'),sub:getActiveExtensionTrack().segments}));
@@ -169,10 +172,9 @@ test('multiple annotation tracks keep independent positions and observe disabled
   const first=await page.evaluate(()=>fixedStyleTrackId);
   await page.evaluate(()=>{fixedAddTrack('annotation',[fixedRef(DATA.segments.find(c=>c.id==='b'))]);MSWSubtitleStyle.editTrack(fixedActiveTrackId);});
   const second=await page.evaluate(()=>fixedStyleTrackId);expect(second).not.toBe(first);
-  await page.locator('#style-position-drag').click();await expect(page.locator('#fixed-position-message')).toContainText('重叠');
-  await page.evaluate(()=>fixedCommitPosition({x:.7,y:.3}));
+  await page.locator('#style-position-drag').click();await expect(page.locator('#style-position-finish')).toBeVisible();
+  await page.evaluate(()=>{fixedCommitPosition({x:.7,y:.3});fixedStopPositioning();});
   const positions=await entries(page);expect(positions.find(e=>e.id==='a').y).toBe(86.4);expect(positions.find(e=>e.id==='b').y).toBe(324);
-  await expect(page.locator('#fixed-position-message')).not.toContainText('发生重叠');
   await page.evaluate(first=>fixedUpdateTrack(first,{enabled:false}),first);await expect(page.locator('.fixed-subtitle-row[data-cue-id="a"]')).toHaveCount(0);
   expect((await entries(page)).find(e=>e.id==='b').y).toBe(324);
   await page.evaluate(()=>performUndo());expect((await entries(page)).find(e=>e.id==='a').y).toBe(86.4);expect(errors).toEqual([]);

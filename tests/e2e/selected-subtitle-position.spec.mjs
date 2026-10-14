@@ -28,6 +28,14 @@ async function open(page,both=false){
   await page.locator('#style-position-scope').selectOption('cue');await idle(page);
 }
 async function axis(page,key,value){await page.locator('#style-position-'+key).fill(String(value));await page.locator('#style-position-'+key).blur();await idle(page);}
+async function position(page){
+  await page.setViewportSize({width:1920,height:1000});
+  await page.locator('#media-settings-modal').evaluate(el=>{el.style.left='1350px';el.style.top='20px';});
+  await page.locator('#style-position-drag').click();await idle(page);
+  await expect(page.locator('#media-settings-modal')).toBeVisible();
+  await expect(page.locator('#style-position-cancel')).toBeVisible();
+  await expect(page.locator('#fixed-position-toolbar')).toHaveCount(0);
+}
 
 test('single auto cue positioning preserves its bound partner, saves, reopens and resets inheritance',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -66,14 +74,17 @@ test('multi selection preserves the pair gap, exposes mixed values and commits o
 
 test('picture drag moves only the selected cue, preserves proof choice, cancels and undoes once',async({page})=>{
   await open(page);await page.locator('#style-preview-mode').selectOption('default');
-  const before=await snap(page);await page.locator('#style-position-drag').click();await idle(page);
+  const before=await snap(page);await position(page);
   await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
   const row=page.locator('.fixed-subtitle-row.position-target').first(),box=await row.boundingBox();expect(box).toBeTruthy();
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2-30,box.y+box.height/2-40,{steps:5});await page.keyboard.press('Escape');await page.mouse.up();
   expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await expect(page.locator('#style-position-drag')).toBeVisible();await position(page);
   const b=await row.boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width/2-30,b.y+b.height/2-40,{steps:5});await page.mouse.up();await idle(page);
-  const moved=await snap(page);expect(moved.subtitles.cues[0].content.subtitle_position).toBeTruthy();expect(moved.subtitles.cues[1]).toEqual(before.subtitles.cues[1]);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await page.getByRole('button',{name:'完成定位',exact:true}).click();await idle(page);
+  const moved=await snap(page);expect(moved.subtitles.cues[0].content.subtitle_position).toBeTruthy();expect(moved.subtitles.cues[1]).toEqual(before.subtitles.cues[1]);
+  await expect(page.locator('#media-settings-modal')).toBeVisible();await page.locator('#media-settings-close').click();await idle(page);
   expect(await page.evaluate(()=>MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
   await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(before.subtitles);
 });
@@ -106,7 +117,7 @@ test('editing one member of a legacy positioned pair does not move or rewrite it
 
 test('multi cue picture drag keeps precise rendering and spacing through hold, cancel, undo and redo',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await open(page,true);await page.locator('#style-position-drag').click();await idle(page);
+  await open(page,true);await position(page);
   const before=await snap(page),original=await events(page),row=page.locator('.fixed-subtitle-row.position-target').first();
   const box=await row.boundingBox(),rect=await page.evaluate(()=>fixedVideoRect());
   const requests=[];page.on('request',r=>{if(r.url().endsWith('/subtitle-preview'))requests.push(r.url());});
@@ -121,11 +132,34 @@ test('multi cue picture drag keeps precise rendering and spacing through hold, c
   await page.screenshot({path:info.outputPath('precise-multi-drag.png')});
   await page.keyboard.press('Escape');await page.mouse.up();await idle(page);
   expect((await events(page)).map(r=>r.Text)).toEqual(original.map(r=>r.Text));
+  await position(page);
   await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(start.x+30,start.y-25,{steps:5});await page.mouse.up();await idle(page);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.keyboard.press('Enter');await idle(page);
   const moved=await snap(page),rendered=await events(page);
   for(let i=0;i<2;i++)for(let k=0;k<2;k++)expect(pos(rendered[i].Text)[k]).toBeCloseTo(pos(held[i].Text)[k],2);
   expect(moved.subtitles.bindings).toEqual(before.subtitles.bindings);
   await page.keyboard.press('Control+z');await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await page.keyboard.press('Control+Shift+z');await idle(page);expect((await snap(page)).subtitles).toEqual(moved.subtitles);
   expect(errors).toEqual([]);
+});
+
+test('position arrows preview one pixel steps, cancel the whole session and finish as one undo',async({page})=>{
+  await open(page,true);await position(page);
+  const before=await snap(page),original=await events(page),time=await page.evaluate(()=>player.currentTime);
+  expect(await page.evaluate(()=>MSWSubtitleStyle.currentPreview().label)).toBe('定位中：Esc取消，Enter完成');
+  await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowUp');await page.keyboard.press('ArrowUp');await idle(page);
+  const preview=await events(page);
+  for(let i=0;i<2;i++){expect(pos(preview[i].Text)[0]).toBeCloseTo(pos(original[i].Text)[0]-1,3);expect(pos(preview[i].Text)[1]).toBeCloseTo(pos(original[i].Text)[1]-2,3);}
+  expect(await page.evaluate(()=>player.currentTime)).toBe(time);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.locator('#style-position-cancel').click();await idle(page);
+  expect((await events(page)).map(r=>r.Text)).toEqual(original.map(r=>r.Text));expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await position(page);await page.keyboard.press('ArrowUp');await page.keyboard.press('ArrowRight');await page.keyboard.press('Enter');await idle(page);
+  const after=await snap(page);expect(after.subtitles.cues.every(c=>c.content.subtitle_position)).toBe(true);
+  await expect(page.locator('#media-settings-modal')).toBeVisible();
+  await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.evaluate(()=>performRedo());await idle(page);expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await position(page);await page.locator('#style-position-x').focus();await page.keyboard.press('ArrowLeft');
+  expect(await page.evaluate(()=>fixedPositionSession.dx)).toBe(0);
+  await page.keyboard.press('Escape');await expect(page.locator('#style-position-drag')).toBeVisible();
 });

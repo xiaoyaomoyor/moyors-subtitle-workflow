@@ -3830,12 +3830,15 @@
     gap: 0; padding: 0; align-items: stretch; background: transparent;
   }
   .cue.multi-dual-cue.single-sided,
+  .cue.multi-dual-cue.track-filter-single,
   .cues-container[data-pair-layout="rows"] .cue.multi-dual-cue { grid-template-columns: minmax(0, 1fr); }
   .multi-cue-column {
     min-width: 0; position: relative; padding: 10px 12px; box-sizing: border-box;
     background: var(--card-bg); border-radius: inherit;
     display: flex; flex-direction: column; gap: 6px;
   }
+  .multi-cue-column.track-filtered-out { display:none !important; }
+  .multi-cue-column.track-filtered-out + .multi-cue-column::before { display:none; }
   .multi-cue-column + .multi-cue-column::before {
     content: ''; position: absolute; inset: 8px auto 8px 0;
     border-left: 1px dashed var(--border-strong); pointer-events: none;
@@ -5005,10 +5008,9 @@
 #fixed-subtitle-preview.positioning .annotation { pointer-events:auto; cursor:move; touch-action:none; outline:2px dashed var(--selection-yellow); outline-offset:3px; }
 #fixed-subtitle-preview.positioning .position-target { pointer-events:auto; cursor:move; touch-action:none; outline:2px solid var(--selection-yellow); outline-offset:3px; }
 #fixed-subtitle-preview.positioning .selected-position { outline-style:solid; }
-#fixed-position-toolbar { flex:none; display:flex; gap:8px; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); font-size:12px; }
-#fixed-position-toolbar[hidden], #fixed-subtitle-preview[hidden], #style-track-controls[hidden] { display:none; }
-#fixed-position-toolbar button { flex:none; }
-#style-position-drag { align-self:end; }
+#fixed-subtitle-preview[hidden], #style-track-controls[hidden] { display:none; }
+.style-position-actions { display:flex; align-self:end; flex-wrap:wrap; gap:6px; }
+.style-position-actions button { flex:1 1 auto; }
 #style-track-position .msw-processing-hint { overflow-wrap:anywhere; margin:6px 0 0; }
 /* Compact media settings: controls own their space, including long labels. */
 .media-settings-body { container-type:inline-size; }
@@ -7535,6 +7537,11 @@
     </section>
     <section class="help-group help-tab-panel" id="help-tab-panel-fine-tuning" role="tabpanel" aria-labelledby="help-tab-fine-tuning" data-help-tab-panel="fine-tuning" tabindex="0" hidden>
       <h4 class="help-title">微调字幕</h4>
+      <section class="help-subgroup">
+        <h5 class="help-subtitle">画面定位</h5>
+        <div class="help-category"><span>在媒体播放器设置中开启「在画面中定位」后，<kbd>←</kbd>/<kbd>→</kbd>/<kbd>↑</kbd>/<kbd>↓</kbd> 微调位置，每次按 1080p 基准移动 1px。</span><span><kbd>Enter</kbd> 完成定位；<kbd>Esc</kbd> 取消本次定位的全部调整。</span></div>
+        <span class="help-note">多选保持相对距离。完成后可一次撤销；输入框内方向键保留原本操作。</span>
+      </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">选中字幕</h5>
         <div class="help-category">
@@ -32277,7 +32284,7 @@ const productionFlatRequested = !window.MSWFlatTrialRequested
 function productionFlatMode() { return window.MSWProductionProject.isView(DATA); }
 const fixedTrackCore = window.MSWSubtitleTracks;
 let fixedActiveTrackId = null;
-let fixedTrackFilter = '';
+let fixedTrackFilter = new Set();
 let fixedDraftOwners = new WeakMap();
 let fixedLastContent = null;
 let fixedHistoryCheckpoint = null;
@@ -32342,6 +32349,7 @@ function fixedReset() {
   fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedInvalidate();
 }
 function fixedBeginEdit() {
+  if(fixedPositionEditing)fixedStopPositioning(false);
   if (!fixedTrackMode()) return;
   fixedLastContent = fixedContent();
   fixedHistoryCheckpoint = editorHistory.checkpoint();
@@ -32725,13 +32733,13 @@ function fixedSyncUI() {
   if (!select && toolbar && !productionFlatMode()) {
     const label = document.createElement('label'); label.className = 'fixed-track-filter'; label.textContent = '轨道 ';
     select = document.createElement('select'); select.id = 'fixed-track-filter'; select.setAttribute('aria-label', '字幕轨道范围');
-    select.onchange = () => { fixedTrackFilter = select.value; applySearch(searchEl.value); };
+    select.onchange = () => { fixedTrackFilter = new Set(select.value?[select.value]:[]); applySearch(searchEl.value); };
     label.append(select); toolbar.querySelector('.module-tab-strip')?.after(label);
   }
-  if (!DATA.subtitle_tracks.tracks.some(t => t.id === fixedTrackFilter)) fixedTrackFilter = '';
+  fixedTrackFilter=new Set([...fixedTrackFilter].filter(id=>DATA.subtitle_tracks.tracks.some(t=>t.id===id)));
   if (select) {
     select.replaceChildren(new Option('全部轨道', ''), ...DATA.subtitle_tracks.tracks.map(t => new Option(t.name, t.id)));
-    select.value = fixedTrackFilter;
+    select.value = fixedTrackFilter.size===1?[...fixedTrackFilter][0]:'';
   }
   if (!document.getElementById('fixed-track-status')) {
     const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
@@ -32755,10 +32763,14 @@ function fixedSyncUI() {
 
 function fixedAppendListFilter() {
   if(!productionFlatMode())return;
-  ctxAppendExpandableSettings('轨道', [{id:'',name:'全部轨道'},...DATA.subtitle_tracks.tracks].map(track=>({
-    label:track.name,selected:fixedTrackFilter===track.id,
-    action:()=>{fixedTrackFilter=track.id;applySearch(searchEl.value);}
-  })));
+  ctxAppendExpandableSettings('轨道', [{label:'全部轨道',selected:()=>!fixedTrackFilter.size,
+    action:()=>{fixedTrackFilter.clear();applySearch(searchEl.value);}},...DATA.subtitle_tracks.tracks.map(track=>({
+    label:track.name,checked:()=>fixedTrackFilter.has(track.id),
+    toggle:()=>{if(fixedTrackFilter.has(track.id))fixedTrackFilter.delete(track.id);else fixedTrackFilter.add(track.id);applySearch(searchEl.value);}
+  }))]);
+}
+function fixedListTrackAllows(cue,role='main',trackId=null) {
+  return !!cue&&(!fixedTrackMode()||!fixedTrackFilter.size||fixedTrackFilter.has(fixedOwner(cue,role,trackId)));
 }
 document.addEventListener('contextmenu',event=>{
   if(!fixedTrackMode()||!event.target.closest('.waveform-track-heads-column')||event.target.closest('.fixed-track-head'))return;
@@ -33291,13 +33303,18 @@ function layerMatchImportedSubtitles(main, secondary, tolerance) {
 let fixedPreviewCache = null;
 let fixedExactGeometry = null;
 let fixedGeometrySerial=0;
-function fixedGeometryKey() { return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,window.MSWSubtitleStyle?.currentPreview(),getSpeakerLabelSettings()]); }
+function fixedGeometryKey() { const preview=window.MSWSubtitleStyle?.currentPreview();return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,preview&&{style:preview.style,target:preview.target,scope:preview.scope},getSpeakerLabelSettings()]); }
 function fixedReceiveGeometry(geometry) {
   if(productionFlatMode()) {
     const refs=new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,fixedTrackCore.key({role:s.role,track_id:s.track_id,cue_id:c.id})])));
     geometry=geometry.map(r=>({...r,key:refs.get(JSON.parse(r.key)[2])||r.key}));
   }
-  fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;refreshSubtitlePreview();
+  fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;
+  if(fixedPositionSession?.rows&&!fixedPositionDrag&&!fixedPositionSession.dx&&!fixedPositionSession.dy) {
+    const rows=fixedPositionSelection();
+    if(rows.length&&rows.every(r=>r.position))Object.assign(fixedPositionSession,{rows,start:{...rows[0].position},value:{...rows[0].position}});
+  }
+  refreshSubtitlePreview();
   if(!document.activeElement?.matches('#style-position-x,#style-position-y'))window.MSWSubtitleStyle?.syncPosition();
 }
 const fixedTextMeasures = new Map();
@@ -33306,6 +33323,7 @@ let fixedStyleTrackId = '';
 let fixedPositionScope = 'track';
 let fixedPositionRef = null;
 let fixedPositionEditing = false;
+let fixedPositionSession = null;
 let fixedPositionDrag = null;
 let fixedPositionHold = null;
 let fixedPositionOffsetsKey = '';
@@ -33343,7 +33361,7 @@ function fixedCommitStyle(style, selection) {
 }
 function fixedSetPresentation(mode) {
   const next=fixedContent();next.subtitle_tracks.presentation=mode;
-  fixedPositionEditing=false;
+  if(fixedPositionEditing)fixedStopPositioning(false);
   if(fixedCommitProject(next,'切换字幕画面排布'))window.dispatchEvent(new Event('msw:burn-style'));
 }
 function fixedVideoRect() {
@@ -33401,7 +33419,6 @@ function fixedPreviewLayout(rect=fixedVideoRect()) {
 }
 function fixedHidePreview() {
   const root=document.getElementById('fixed-subtitle-preview');if(root)root.hidden=true;
-  const tools=document.getElementById('fixed-position-toolbar');if(tools)tools.hidden=true;
   playerStage.classList.remove('fixed-presentation');
 }
 function fixedRefreshSubtitlePreview(tMs) {
@@ -33441,7 +33458,7 @@ function fixedRefreshSubtitlePreview(tMs) {
     Object.assign(text.style,{position:'absolute',left:size.innerX+'px',top:size.innerY+'px',maxWidth:size.maxWidth+'px'});
     let dx=0,dy=0;
     if(profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
-    if(fixedPositionDragAffects(entry)){dx+=fixedPositionDrag.dx;dy+=fixedPositionDrag.dy;}
+    if(fixedPositionDragAffects(entry)){const offset=fixedPositionDrag||fixedPositionSession;dx+=offset.dx;dy+=offset.dy;}
     Object.assign(element.style,{left:entry.x+dx+'px',top:entry.y+dy+'px',width:entry.width+'px',height:entry.height+'px'});
     const selected=fixedPositionScope==='track'?entry.group.trackId===fixedStyleTrackId:productionFlatMode()?fixedPositionSelectedIds().has(entry.cue_id):entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
     element.classList.toggle('selected-position',fixedPositionEditing&&selected);
@@ -33449,7 +33466,7 @@ function fixedRefreshSubtitlePreview(tMs) {
     element.classList.toggle('position-target',fixedPositionEditing&&selected&&(fixedPositionScope==='cue'||entry.group.kind==='annotation'));
     element.dataset.groupId=entry.group.id;element.dataset.trackId=entry.group.trackId;
   }
-  fixedApplyPositionOffsets(layout);fixedPositionFeedback(layout,tMs);renderStickerOverlay(tMs);
+  fixedApplyPositionOffsets(layout);renderStickerOverlay(tMs);
 }
 function fixedSelectedPositionGroup() {
   if(!fixedPresentationMode())return null;
@@ -33457,6 +33474,11 @@ function fixedSelectedPositionGroup() {
   return fixedPositionRef?layout.groups.find(g=>g.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef))):null;
 }
 function fixedPositionCurrent() {
+  if(fixedPositionSession) {
+    const session=fixedPositionDrag||fixedPositionSession;
+    if(session.rows)return Object.fromEntries(['x','y'].map(k=>[k,session.rows.every(r=>Math.abs(r.position[k]-session.start[k])<.00001)?session.value[k]:null]));
+    return session.value;
+  }
   if(productionFlatMode()&&fixedPositionScope==='cue') {
     const rows=fixedPositionSelection(),values=rows.map(r=>r.position).filter(Boolean);
     return Object.fromEntries(['x','y'].map(k=>[k,values.length&&values.every(p=>Math.abs(p[k]-values[0][k])<.00001)?values[0][k]:null]));
@@ -33465,6 +33487,7 @@ function fixedPositionCurrent() {
   return fixedPositionScope==='cue'?(group?.rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position||track?.position||{x:.5,y:.08}):track?.position||{x:.5,y:.08};
 }
 function fixedCommitPosition(value) {
+  if(fixedPositionSession)return value?fixedStagePosition(value):false;
   if(productionFlatMode()&&fixedPositionScope==='cue')return fixedCommitSelectedPosition(value);
   const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed')return false;
   if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
@@ -33490,7 +33513,7 @@ function fixedCommitPosition(value) {
     }
     fixedPreviewInvalidate();projectImportDirty=true;fixedStatus();renderAll({waveform:'full'});scheduleAutoSaveFlush();
     window.dispatchEvent(new Event('msw:burn-style'));return true;
-  } catch(error){fixedStatus(error.message);const note=document.getElementById('fixed-position-message');if(note)note.textContent=error.message;return false;}
+  } catch(error){fixedStatus(error.message);return false;}
 }
 // Position scope follows the actual editor selection, never related-only highlights.
 function fixedPositionSelectedIds() {
@@ -33507,6 +33530,10 @@ function fixedSchedulePositionSelectionSync() {
   queueMicrotask(()=>{
     fixedSchedulePositionSelectionSync.pending=false;
     if(!productionFlatMode())return;
+    if(fixedPositionSession?.rows) {
+      const ids=fixedPositionSelectedIds();
+      if(ids.size!==fixedPositionSession.ids.size||[...ids].some(id=>!fixedPositionSession.ids.has(id)))fixedStopPositioning(false);
+    }
     window.MSWSubtitleStyle?.syncPosition();
     if(fixedPositionEditing)refreshSubtitlePreview();
   });
@@ -33564,44 +33591,55 @@ function fixedCommitSelectedPosition(value,rows=fixedPositionSelection()) {
   }catch(error){fixedPositionNotice=error.message;fixedStatus(error.message);refreshSubtitlePreview();return false;}
 }
 function fixedPositionDragAffects(entry) {
-  return fixedPositionDrag&&(fixedPositionDrag.rows?fixedPositionDrag.ids.has(entry.cue_id):fixedPositionDrag.groupIds.has(entry.group.id));
+  const offset=fixedPositionDrag||fixedPositionSession;
+  return offset&&(offset.rows?offset.ids.has(entry.cue_id):offset.groupIds.has(entry.group.id));
 }
 function fixedApplyPositionOffsets(layout) {
   const exact=window.MSWSubtitleRenderer;if(!exact?.applyPositionOffsets||exact.status!=='libass')return;
   if(fixedPositionHold?.revision!==exact.revision)fixedPositionHold=null;
   const keys=new Map(exact.geometry.map(r=>[JSON.parse(r.key)[2],r.key]));
-  const offsets=fixedPositionDrag?new Map(layout.entries.filter(fixedPositionDragAffects).map(r=>[keys.get(r.cue_id)||r.key,{x:fixedPositionDrag.dx,y:fixedPositionDrag.dy}])):fixedPositionHold?.offsets||new Map();
+  const offset=fixedPositionDrag||fixedPositionSession;
+  const offsets=offset?new Map(layout.entries.filter(fixedPositionDragAffects).map(r=>[keys.get(r.cue_id)||r.key,{x:offset.dx,y:offset.dy}])):fixedPositionHold?.offsets||new Map();
   const key=JSON.stringify([exact.revision,[...offsets]]);if(key===fixedPositionOffsetsKey)return;
   fixedPositionOffsetsKey=key;void exact.applyPositionOffsets(offsets).catch(()=>{});
 }
-function fixedStopPositioning() {
-  fixedPositionEditing=false;fixedPositionDrag=null;fixedPreviewInvalidate();
+function fixedStopPositioning(commit=true) {
+  const session=fixedPositionDrag||fixedPositionSession,root=document.getElementById('fixed-subtitle-preview'),id=fixedPositionDrag?.pointerId;
+  fixedPositionEditing=false;fixedPositionSession=null;fixedPositionDrag=null;fixedPositionHold=null;
+  if(id!==undefined&&root?.hasPointerCapture(id))root.releasePointerCapture(id);
+  if(commit&&session&&(session.dx||session.dy)) {
+    const exact=window.MSWSubtitleRenderer;
+    if(exact?.status==='libass')fixedPositionHold={revision:exact.revision,offsets:new Map(exact.geometry.filter(r=>session.ids.has(JSON.parse(r.key)[2])).map(r=>[r.key,{x:session.dx,y:session.dy}]))};
+    const saved=session.rows?fixedCommitSelectedPosition(session.value,session.rows):fixedCommitPosition(session.value);
+    if(!saved)fixedPositionHold=null;
+  }
+  fixedPreviewInvalidate();window.MSWSubtitleStyle?.syncPosition();
   window.dispatchEvent(new Event('msw:burn-style'));refreshSubtitlePreview();
 }
-function fixedPositionFeedback(layout,time) {
-  let tools=document.getElementById('fixed-position-toolbar');
-  if(!tools){
-    tools=document.createElement('div');tools.id='fixed-position-toolbar';
-    tools.innerHTML='<select aria-label="画面定位对象"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select><span id="fixed-position-message" role="status"></span><button type="button">完成定位</button>';
-    tools.querySelector('select').onchange=event=>{fixedPositionScope=event.target.value;fixedPositionNotice='';refreshSubtitlePreview();};
-    tools.querySelector('button').onclick=fixedStopPositioning;playerStage.before(tools);
-  }
-  tools.hidden=!fixedPositionEditing;
-  if(!fixedPositionEditing)return;
-  tools.querySelector('select').value=fixedPositionScope;
-  tools.querySelector('option[value="track"]').disabled=productionFlatMode()&&fixedTrackCore.placement(fixedStyleTarget()||{})!=='fixed';
-  const display=fixedPositionDrag?{...layout,entries:layout.entries.map(e=>fixedPositionDragAffects(e)?{...e,x:e.x+fixedPositionDrag.dx,y:e.y+fixedPositionDrag.dy}:e)}:layout;
-  const issues=window.MSWTrackPresentation.warnings(display,time);
-  const note=issues.some(i=>i.type==='outside')?'字幕超出画面，请调整位置':issues.length?'字幕发生重叠，可拖动字幕避让':'拖动字幕定位 · Esc 取消本次拖动';
-  const track=fixedStyleTarget(),label=productionFlatMode()&&fixedPositionScope==='cue'?fixedPositionSelectionLabel():track?.name||'字幕';
-  document.getElementById('fixed-position-message').textContent=`${label} · ${fixedPositionNotice||note}`;
+function fixedStagePosition(value) {
+  const s=fixedPositionSession;if(!s)return false;
+  const delta=s.rows?fixedPositionDelta(s.rows,value):Object.fromEntries(['x','y'].map(k=>[k,value[k]===undefined?0:Math.max(0,Math.min(1,value[k]))-s.start[k]]));
+  for(const k of ['x','y'])if(value[k]!==undefined)s.value[k]=s.rows?s.start[k]+delta[k]:Math.max(0,Math.min(1,value[k]));
+  s.dx=(s.value.x-s.start.x)*s.rect.referenceWidth;s.dy=(s.value.y-s.start.y)*1080;
+  window.MSWSubtitleStyle?.syncPosition();refreshSubtitlePreview();return true;
+}
+function fixedBeginPositionSession() {
+  fixedPositionEditing=true;fixedPositionNotice='';fixedPreviewInvalidate();
+  const {layout}=fixedPreviewLayout(),rows=productionFlatMode()&&fixedPositionScope==='cue'?fixedPositionSelection():null;
+  const start=rows?rows[0].position:fixedPositionCurrent(),group=fixedSelectedPositionGroup();
+  const groups=fixedPositionScope==='track'?layout.groups.filter(g=>g.trackId===fixedStyleTrackId&&!g.rows.some(r=>r.cue.subtitle_position)):[group].filter(Boolean);
+  const groupIds=new Set(groups.map(g=>g.id)),ids=new Set(rows?rows.map(r=>r.cue_id):layout.entries.filter(e=>groupIds.has(e.group.id)).map(e=>e.cue_id));
+  fixedPositionSession={rows,ids,groupIds,start:{...start},value:{...start},dx:0,dy:0,rect:fixedVideoRect()};
+  window.MSWSubtitleStyle?.syncPosition();window.dispatchEvent(new Event('msw:burn-style'));refreshSubtitlePreview();
 }
 function fixedStartPositioning() {
+  if(fixedPositionEditing)return;
+  commitProcessingEdits();
   if(productionFlatMode()&&fixedPositionScope==='cue') {
     const rows=fixedPositionSelection();if(!rows.length||rows.some(r=>!r.entry||fixedTrack(r.cue,r.role,r.track_id)?.locked))return;
-    fixedPositionEditing=true;fixedPositionNotice='';fixedPreviewInvalidate();player.pause();
+    player.pause();
     const now=player.currentTime*1000;if(!rows.some(r=>r.cue.start<=now&&now<r.cue.end))player.currentTime=rows[0].cue.start/1000;
-    setSubtitlePreviewSettingsPanelOpen(false);window.dispatchEvent(new Event('msw:burn-style'));refreshSubtitlePreview();return;
+    fixedBeginPositionSession();return;
   }
   const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed'||track.locked||!fixedPresentationMode())return;
   const role=currentCuePanelKind==='extension'?'extension':'main',source=role==='main'?DATA.segments:getExtensionTrack(currentCuePanelTrackId)?.segments||[];
@@ -33610,64 +33648,47 @@ function fixedStartPositioning() {
   const now=player.currentTime*1000,groups=fixedPreviewLayout().layout.groups.filter(g=>g.kind==='annotation'&&g.trackId===track.id);
   const chosen=fixedSelectedPositionGroup()||groups.find(g=>g.rows.some(r=>r.cue.start<=now&&now<r.cue.end))||groups[0];
   if(chosen){fixedPositionRef=fixedRef(chosen.rows[0].cue,chosen.rows[0].role,chosen.rows[0].track_id);if(!chosen.rows.some(r=>r.cue.start<=now&&now<r.cue.end))player.currentTime=chosen.start/1000;}
-  fixedPositionEditing=true;fixedPositionNotice='';player.pause();setSubtitlePreviewSettingsPanelOpen(false);refreshSubtitlePreview();
+  player.pause();fixedBeginPositionSession();
 }
 function fixedInstallPositionDrag(root) {
   root.addEventListener('pointerdown',event=>{
     const node=event.target.closest('.annotation,.position-target');if(!fixedPositionEditing||event.button!==0||!node)return;
-    if(productionFlatMode()&&fixedPositionScope==='cue') {
-      const rows=fixedPositionSelection();if(!rows.some(r=>r.cue_id===node.dataset.cueId)||rows.some(r=>!r.position||fixedTrack(r.cue,r.role,r.track_id)?.locked))return;
-      event.preventDefault();event.stopPropagation();player.pause();
-      fixedPositionDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,start:rows[0].position,rect:fixedVideoRect(),rows,ids:new Set(rows.map(r=>r.cue_id)),dx:0,dy:0};
-      root.setPointerCapture(event.pointerId);refreshSubtitlePreview();return;
-    }
-    const {layout}=fixedPreviewLayout(),group=layout.groups.find(g=>g.id===node.dataset.groupId),track=DATA.subtitle_tracks.tracks.find(t=>t.id===group.trackId);
+    const session=fixedPositionSession;if(!session?.ids.has(node.dataset.cueId))return;
     event.preventDefault();event.stopPropagation();
-    if(track.locked){fixedPositionNotice='轨道已锁定，请先解锁';refreshSubtitlePreview();return;}
-    if(fixedPositionScope==='track'&&group.rows.some(r=>r.cue.subtitle_position)) {
-      fixedPositionNotice='此字幕已单独定位，请切换“当前字幕位置”后调整';refreshSubtitlePreview();return;
-    }
-    fixedPositionNotice='';
-    player.pause();
-    fixedStyleTrackId=track.id;
-    const row=group.rows.find(r=>r.cue_id===node.dataset.cueId&&r.role===node.dataset.role)||group.rows[0];fixedPositionRef=fixedRef(row.cue,row.role,row.track_id);
-    const start=fixedPositionCurrent(),rect=fixedVideoRect();
-    const groupIds=new Set((fixedPositionScope==='track'?layout.groups.filter(g=>g.trackId===track.id&&!g.rows.some(r=>r.cue.subtitle_position)):[group]).map(g=>g.id));
-    fixedPositionDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,start,rect,groupIds,dx:0,dy:0,value:start};root.setPointerCapture(event.pointerId);
+    document.activeElement?.blur();player.pause();
+    fixedPositionDrag={...session,value:{...session.value},pointerStart:{...session.value},pointerId:event.pointerId,x:event.clientX,y:event.clientY,rect:fixedVideoRect()};root.setPointerCapture(event.pointerId);
     refreshSubtitlePreview();
   });
   root.addEventListener('pointermove',event=>{
     const drag=fixedPositionDrag;if(!drag||event.pointerId!==drag.pointerId)return;
-    if(drag.rows) {
-      const delta=fixedPositionDelta(drag.rows,{x:drag.start.x+(event.clientX-drag.x)/drag.rect.width,y:drag.start.y+(event.clientY-drag.y)/drag.rect.height});
-      drag.value={x:drag.start.x+delta.x,y:drag.start.y+delta.y};drag.dx=delta.x*drag.rect.referenceWidth;drag.dy=delta.y*1080;refreshSubtitlePreview();return;
-    }
-    const x=Math.max(0,Math.min(1,drag.start.x+(event.clientX-drag.x)/drag.rect.width));
-    const y=Math.max(0,Math.min(1,drag.start.y+(event.clientY-drag.y)/drag.rect.height));
-    drag.value={x,y};drag.dx=(x-drag.start.x)*drag.rect.referenceWidth;drag.dy=(y-drag.start.y)*1080;refreshSubtitlePreview();
+    const value={x:drag.pointerStart.x+(event.clientX-drag.x)/drag.rect.width,y:drag.pointerStart.y+(event.clientY-drag.y)/drag.rect.height};
+    const delta=drag.rows?fixedPositionDelta(drag.rows,value):{x:Math.max(0,Math.min(1,value.x))-drag.start.x,y:Math.max(0,Math.min(1,value.y))-drag.start.y};
+    drag.value={x:drag.start.x+delta.x,y:drag.start.y+delta.y};drag.dx=delta.x*drag.rect.referenceWidth;drag.dy=delta.y*1080;refreshSubtitlePreview();
   });
   const end=(event,cancel=false)=>{
     const drag=fixedPositionDrag;if(!drag)return;fixedPositionDrag=null;
     if(root.hasPointerCapture(drag.pointerId))root.releasePointerCapture(drag.pointerId);
-    if(!cancel&&(drag.dx||drag.dy)) {
-      const exact=window.MSWSubtitleRenderer;
-      // Keep the precise moved frame until the newly committed ASS arrives.
-      if(exact?.status==='libass')fixedPositionHold={revision:exact.revision,offsets:new Map(exact.geometry.filter(r=>drag.rows?drag.ids.has(JSON.parse(r.key)[2]):fixedPreviewLayout().layout.entries.some(e=>e.cue_id===JSON.parse(r.key)[2]&&drag.groupIds.has(e.group.id))).map(r=>[r.key,{x:drag.dx,y:drag.dy}]))};
-      const saved=drag.rows?fixedCommitSelectedPosition(drag.value,drag.rows):fixedCommitPosition(drag.value);
-      if(!saved)fixedPositionHold=null;
-    }else fixedPositionHold=null;
-    refreshSubtitlePreview();
+    if(!cancel&&fixedPositionSession)Object.assign(fixedPositionSession,{value:drag.value,dx:drag.dx,dy:drag.dy});
+    window.MSWSubtitleStyle?.syncPosition();refreshSubtitlePreview();
   };
   root.addEventListener('pointerup',event=>end(event));root.addEventListener('pointercancel',event=>end(event,true));
   root.addEventListener('click',event=>{if(fixedPositionEditing){event.preventDefault();event.stopPropagation();}});
 }
-document.addEventListener('keydown',event=>{
-  if(event.key!=='Escape'||!fixedPositionEditing)return;
+window.addEventListener('keydown',event=>{
+  if(!fixedPositionEditing||event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
+  const key=event.key,field=event.target.closest?.('input,textarea,select,[contenteditable="true"]');
+  if(key==='Escape'||key==='Enter'&&(!field||field.matches('#style-position-x,#style-position-y'))) {
+    event.preventDefault();event.stopImmediatePropagation();
+    if(key==='Enter')field?.blur();fixedStopPositioning(key==='Enter');return;
+  }
+  if(field||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(key))return;
   event.preventDefault();event.stopImmediatePropagation();
-  if(fixedPositionDrag){const root=document.getElementById('fixed-subtitle-preview'),id=fixedPositionDrag.pointerId;fixedPositionDrag=null;if(root?.hasPointerCapture(id))root.releasePointerCapture(id);}else fixedStopPositioning();refreshSubtitlePreview();
+  if(fixedPositionDrag)return;
+  const s=fixedPositionSession,axis=key==='ArrowLeft'||key==='ArrowRight'?'x':'y',step=(key==='ArrowLeft'||key==='ArrowUp'?-1:1)/(axis==='x'?s.rect.referenceWidth:1080);
+  fixedStagePosition({[axis]:s.value[axis]+step});
 },true);
 document.addEventListener('input',event=>{if(event.target.matches('textarea,[contenteditable="true"]'))fixedPreviewInvalidate();},true);
-window.addEventListener('msw:project-changed',()=>{fixedStyleTrackId='';fixedPositionRef=null;fixedPositionEditing=false;fixedPositionDrag=null;fixedPositionHold=null;fixedPositionOffsetsKey='';fixedPositionNotice='';fixedTextMeasures.clear();fixedPreviewInvalidate();});
+window.addEventListener('msw:project-changed',()=>{fixedStyleTrackId='';fixedPositionRef=null;fixedPositionEditing=false;fixedPositionSession=null;fixedPositionDrag=null;fixedPositionHold=null;fixedPositionOffsetsKey='';fixedPositionNotice='';fixedTextMeasures.clear();fixedPreviewInvalidate();});
 window.addEventListener('msw:burn-style',fixedPreviewInvalidate);
 document.fonts?.addEventListener('loadingdone',()=>{fixedTextMeasures.clear();fixedPreviewInvalidate();if(fixedPresentationMode())refreshSubtitlePreview();});
 document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fixedPresentationMode())refreshSubtitlePreview();}).observe(playerStage);});
@@ -35859,6 +35880,7 @@ function applyHistoryRecord(record) {
   return true;
 }
 function performUndo() {
+  if(fixedPositionEditing)fixedStopPositioning(false);
   closeLinkedSplitModal();
   window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekUndo();
@@ -35879,6 +35901,7 @@ function performUndo() {
   updateUndoRedoButtons();
 }
 function performRedo() {
+  if(fixedPositionEditing)fixedStopPositioning(false);
   closeLinkedSplitModal();
   window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekRedo();
@@ -39978,13 +40001,15 @@ function toggleExtensionSelection(index, track = getActiveExtensionTrack()) {
 function selectExtensionRange(a, b) {
   const track = getActiveExtensionTrack();
   if (!track) return;
+  if(fixedTrackMode()&&!fixedSameTrack(track.segments[a],track.segments[b])){addExtensionToSelection(b,track);return;}
   releaseTemporaryVisibleSplitCuesUnless('extension', b, track);
   const lo = Math.min(a, b);
   const hi = Math.max(a, b);
-  selectedExtensionIdxs.clear();
+  if(!fixedTrackMode())selectedExtensionIdxs.clear();
   let lastSelected = -1;
   for (let index = lo; index <= hi; index++) {
     if (!track.segments[index] || isHiddenDisabled(index, track)) continue;
+    if(!fixedSameTrack(track.segments[index],track.segments[b]))continue;
     selectedExtensionIdxs.add(index);
     syncBoundSelection('extension', index, track);
     lastSelected = index;
@@ -40015,11 +40040,13 @@ function toggleSel(idx) {
   setCurrentCuePanelIndex(selectedIdxs.has(idx) ? idx : (selectedIdxs.values().next().value ?? -1));
 }
 function selectRange(a, b) {
+  if(fixedTrackMode()&&!fixedSameTrack(DATA.segments[a],DATA.segments[b])){addToSelection(b);return;}
   hideCueSplitPreview();
   releaseTemporaryVisibleSplitCuesUnless('main', b);
   const lo = Math.min(a, b), hi = Math.max(a, b);
   for (let i = lo; i <= hi; i++) {
     if (isHiddenDisabled(i)) continue;  // 跳过隐藏禁用项
+    if(!fixedSameTrack(DATA.segments[i],DATA.segments[b]))continue;
     if (!selectedIdxs.has(i)) {
       selectedIdxs.add(i);
       const el = container.querySelector(`.cue[data-idx="${i}"]`);
@@ -41865,14 +41892,17 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         ? extensionTrack.segments[extIdx] : null;
       const overlaySeg = Number.isInteger(overlayIdx) && overlayIdx >= 0
         ? getOverlayTrack()?.segments?.[overlayIdx] : null;
-      const searchableText = [mainSeg?.text, extensionSeg?.text, overlaySeg?.text]
+      const mainShown=fixedListTrackAllows(mainSeg),extShown=fixedListTrackAllows(extensionSeg,'extension',extensionTrack?.id);
+      el.querySelector('.multi-cue-column.main')?.classList.toggle('track-filtered-out',!mainShown);
+      el.querySelector('.multi-cue-column.extension')?.classList.toggle('track-filtered-out',!extShown);
+      el.classList.toggle('track-filter-single',!mainShown||!extShown);
+      const searchableText = [mainShown?mainSeg?.text:null, extShown?extensionSeg?.text:null, overlaySeg?.text]
         .filter(Boolean).join('\n');
       if (!searchableText) {
         el.classList.add('hidden');
         return;
       }
       let matched = !re || re.test(searchableText);
-      if (fixedTrackMode() && fixedTrackFilter && !(JSON.parse(el.dataset.subtitleTrackIds||'[]').includes(fixedTrackFilter)||el.dataset.subtitleTrackId===fixedTrackFilter)) matched = false;
       if (re) re.lastIndex = 0;
       if (matched && colorFilterSelection && !colorFilterSuspended()) {
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
@@ -52568,7 +52598,7 @@ function waveformWorkspaceForProject(project) {
 function applyCanonicalProject(data, filename) {
   closeLinkedSplitModal();
   data = prepareLayerProject(data);
-  fixedReset(); fixedTrackFilter = ''; fixedActiveTrackId = null;
+  fixedReset(); fixedTrackFilter = new Set(); fixedActiveTrackId = null;
   if (data.subtitle_tracks) DATA.subtitle_tracks = structuredClone(data.subtitle_tracks);
   else delete DATA.subtitle_tracks;
   if (data.subtitle_layers) DATA.subtitle_layers = structuredClone(data.subtitle_layers);
@@ -56039,12 +56069,13 @@ function ctxAppendExpandableSettings(label, children) {
   const group = document.createElement('div');
   group.className = 'ctx-submenu-menu';
   group.setAttribute('role', 'menu');
+  const updates=[];
   children.forEach((child) => {
     // 自定义节点（如滑条行）直接挂载，不套勾选框结构。
     if (child.node) { group.appendChild(child.node); return; }
     if (child.action) {
       const item=ctxAppendItem(child.label,child.action,{disabled:child.disabled});
-      if(child.selected){item.setAttribute('aria-current','true');item.classList.add('ctx-choice-selected');}
+      const update=()=>{const selected=typeof child.selected==='function'?child.selected():child.selected;item.classList.toggle('ctx-choice-selected',!!selected);if(selected)item.setAttribute('aria-current','true');else item.removeAttribute('aria-current');};updates.push(update);update();
       group.appendChild(item);return;
     }
     // 勾选框形式：与设置面板的开关控件同语义，比“✓ 文本”更明确可点。
@@ -56052,15 +56083,14 @@ function ctxAppendExpandableSettings(label, children) {
     row.className = 'item ctx-subitem ctx-check';
     const box = document.createElement('input');
     box.type = 'checkbox';
-    box.checked = child.checked() === true;
+    const update=()=>{box.checked=child.checked()===true;};updates.push(update);update();
     const rowText = document.createElement('span');
     rowText.textContent = child.label;
     row.append(box, rowText);
-    row.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+    row.addEventListener('click', event=>event.stopPropagation());
+    box.addEventListener('change', () => {
       child.toggle();
-      box.checked = child.checked() === true;
+      updates.forEach(update=>update());
     });
     group.appendChild(row);
   });
@@ -64596,7 +64626,7 @@ window.addEventListener('beforeunload', (e) => {
     <label class="media-settings-field"><span>排布</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label>
     <div id="style-position-fields"><div class="media-settings-grid">
       <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
-      <button type="button" id="style-position-drag">在画面中定位</button>
+      <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
     </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p></div>
@@ -64742,7 +64772,13 @@ window.addEventListener('beforeunload', (e) => {
     if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
   }
   function syncPosition() {
-    if(!productionFlatMode())return;
+    $('style-position-drag').hidden=fixedPositionEditing;
+    $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
+    for(const id of ['style-position-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
+    if(!productionFlatMode()) {
+      if(fixedPositionEditing)for(const key of ['x','y'])$('style-position-'+key).value=Math.round(fixedPositionCurrent()[key]*1000)/10;
+      return;
+    }
     const track=fixedStyleTarget(),selected=fixedPositionScope==='cue',rows=selected?fixedPositionSelection():[];
     const locked=selected?rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked):track?.locked;
     const enabled=!locked&&(selected?rows.length>0&&rows.every(r=>r.position):track&&fixedTrackCore.placement(track)==='fixed');
@@ -64754,7 +64790,7 @@ window.addEventListener('beforeunload', (e) => {
     }
     $('style-track-placement').closest('label').hidden=selected;
     $('style-position-drag').disabled=!enabled||selected&&rows.some(r=>!r.entry);
-    $('style-position-reset').disabled=locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
+    $('style-position-reset').disabled=fixedPositionEditing||locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
     $('style-position-reset').textContent=selected?'跟随轨道位置':'恢复默认位置';
     $('style-position-note').textContent=selected?fixedPositionSelectionLabel(rows)+(locked?' · 所选轨道已锁定':rows.length&&!enabled?' · 请先启用字幕及轨道':rows.some(r=>r.cue.subtitle_position)?' · 已单独定位':rows.length?' · 跟随轨道位置':''):track&&fixedTrackCore.placement(track)==='auto'?'自动排布使用样式中的对齐与边距；可切换“所选字幕”单独定位。':'轨道位置作用于未单独定位的字幕。';
   }
@@ -64777,6 +64813,8 @@ window.addEventListener('beforeunload', (e) => {
   $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
+  $('style-position-cancel').onclick=()=>fixedStopPositioning(false);
+  $('style-position-finish').onclick=()=>fixedStopPositioning(true);
   $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
   for(const key of ['x','y'])$('style-position-'+key).onchange=()=>{
     if(productionFlatMode()&&fixedPositionScope==='cue') {
@@ -64892,7 +64930,7 @@ window.addEventListener('beforeunload', (e) => {
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
   $('style-track-position').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
-    if(fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位预览：工程样式'};
+    if(fixedPositionEditing||fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:fixedPositionEditing?'定位中：Esc取消，Enter完成':'定位预览：工程样式'};
     if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};

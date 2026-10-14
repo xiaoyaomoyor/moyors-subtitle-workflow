@@ -7,7 +7,7 @@ const productionFlatRequested = !window.MSWFlatTrialRequested
 function productionFlatMode() { return window.MSWProductionProject.isView(DATA); }
 const fixedTrackCore = window.MSWSubtitleTracks;
 let fixedActiveTrackId = null;
-let fixedTrackFilter = '';
+let fixedTrackFilter = new Set();
 let fixedDraftOwners = new WeakMap();
 let fixedLastContent = null;
 let fixedHistoryCheckpoint = null;
@@ -72,6 +72,7 @@ function fixedReset() {
   fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedInvalidate();
 }
 function fixedBeginEdit() {
+  if(fixedPositionEditing)fixedStopPositioning(false);
   if (!fixedTrackMode()) return;
   fixedLastContent = fixedContent();
   fixedHistoryCheckpoint = editorHistory.checkpoint();
@@ -455,13 +456,13 @@ function fixedSyncUI() {
   if (!select && toolbar && !productionFlatMode()) {
     const label = document.createElement('label'); label.className = 'fixed-track-filter'; label.textContent = '轨道 ';
     select = document.createElement('select'); select.id = 'fixed-track-filter'; select.setAttribute('aria-label', '字幕轨道范围');
-    select.onchange = () => { fixedTrackFilter = select.value; applySearch(searchEl.value); };
+    select.onchange = () => { fixedTrackFilter = new Set(select.value?[select.value]:[]); applySearch(searchEl.value); };
     label.append(select); toolbar.querySelector('.module-tab-strip')?.after(label);
   }
-  if (!DATA.subtitle_tracks.tracks.some(t => t.id === fixedTrackFilter)) fixedTrackFilter = '';
+  fixedTrackFilter=new Set([...fixedTrackFilter].filter(id=>DATA.subtitle_tracks.tracks.some(t=>t.id===id)));
   if (select) {
     select.replaceChildren(new Option('全部轨道', ''), ...DATA.subtitle_tracks.tracks.map(t => new Option(t.name, t.id)));
-    select.value = fixedTrackFilter;
+    select.value = fixedTrackFilter.size===1?[...fixedTrackFilter][0]:'';
   }
   if (!document.getElementById('fixed-track-status')) {
     const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
@@ -485,10 +486,14 @@ function fixedSyncUI() {
 
 function fixedAppendListFilter() {
   if(!productionFlatMode())return;
-  ctxAppendExpandableSettings('轨道', [{id:'',name:'全部轨道'},...DATA.subtitle_tracks.tracks].map(track=>({
-    label:track.name,selected:fixedTrackFilter===track.id,
-    action:()=>{fixedTrackFilter=track.id;applySearch(searchEl.value);}
-  })));
+  ctxAppendExpandableSettings('轨道', [{label:'全部轨道',selected:()=>!fixedTrackFilter.size,
+    action:()=>{fixedTrackFilter.clear();applySearch(searchEl.value);}},...DATA.subtitle_tracks.tracks.map(track=>({
+    label:track.name,checked:()=>fixedTrackFilter.has(track.id),
+    toggle:()=>{if(fixedTrackFilter.has(track.id))fixedTrackFilter.delete(track.id);else fixedTrackFilter.add(track.id);applySearch(searchEl.value);}
+  }))]);
+}
+function fixedListTrackAllows(cue,role='main',trackId=null) {
+  return !!cue&&(!fixedTrackMode()||!fixedTrackFilter.size||fixedTrackFilter.has(fixedOwner(cue,role,trackId)));
 }
 document.addEventListener('contextmenu',event=>{
   if(!fixedTrackMode()||!event.target.closest('.waveform-track-heads-column')||event.target.closest('.fixed-track-head'))return;

@@ -2185,6 +2185,7 @@ function applyHistoryRecord(record) {
   return true;
 }
 function performUndo() {
+  if(fixedPositionEditing)fixedStopPositioning(false);
   closeLinkedSplitModal();
   window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekUndo();
@@ -2205,6 +2206,7 @@ function performUndo() {
   updateUndoRedoButtons();
 }
 function performRedo() {
+  if(fixedPositionEditing)fixedStopPositioning(false);
   closeLinkedSplitModal();
   window.MSWE?.resolve('asset-library')?.finishEdit();
   const top = editorHistory.peekRedo();
@@ -6304,13 +6306,15 @@ function toggleExtensionSelection(index, track = getActiveExtensionTrack()) {
 function selectExtensionRange(a, b) {
   const track = getActiveExtensionTrack();
   if (!track) return;
+  if(fixedTrackMode()&&!fixedSameTrack(track.segments[a],track.segments[b])){addExtensionToSelection(b,track);return;}
   releaseTemporaryVisibleSplitCuesUnless('extension', b, track);
   const lo = Math.min(a, b);
   const hi = Math.max(a, b);
-  selectedExtensionIdxs.clear();
+  if(!fixedTrackMode())selectedExtensionIdxs.clear();
   let lastSelected = -1;
   for (let index = lo; index <= hi; index++) {
     if (!track.segments[index] || isHiddenDisabled(index, track)) continue;
+    if(!fixedSameTrack(track.segments[index],track.segments[b]))continue;
     selectedExtensionIdxs.add(index);
     syncBoundSelection('extension', index, track);
     lastSelected = index;
@@ -6341,11 +6345,13 @@ function toggleSel(idx) {
   setCurrentCuePanelIndex(selectedIdxs.has(idx) ? idx : (selectedIdxs.values().next().value ?? -1));
 }
 function selectRange(a, b) {
+  if(fixedTrackMode()&&!fixedSameTrack(DATA.segments[a],DATA.segments[b])){addToSelection(b);return;}
   hideCueSplitPreview();
   releaseTemporaryVisibleSplitCuesUnless('main', b);
   const lo = Math.min(a, b), hi = Math.max(a, b);
   for (let i = lo; i <= hi; i++) {
     if (isHiddenDisabled(i)) continue;  // 跳过隐藏禁用项
+    if(!fixedSameTrack(DATA.segments[i],DATA.segments[b]))continue;
     if (!selectedIdxs.has(i)) {
       selectedIdxs.add(i);
       const el = container.querySelector(`.cue[data-idx="${i}"]`);
@@ -8191,14 +8197,17 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         ? extensionTrack.segments[extIdx] : null;
       const overlaySeg = Number.isInteger(overlayIdx) && overlayIdx >= 0
         ? getOverlayTrack()?.segments?.[overlayIdx] : null;
-      const searchableText = [mainSeg?.text, extensionSeg?.text, overlaySeg?.text]
+      const mainShown=fixedListTrackAllows(mainSeg),extShown=fixedListTrackAllows(extensionSeg,'extension',extensionTrack?.id);
+      el.querySelector('.multi-cue-column.main')?.classList.toggle('track-filtered-out',!mainShown);
+      el.querySelector('.multi-cue-column.extension')?.classList.toggle('track-filtered-out',!extShown);
+      el.classList.toggle('track-filter-single',!mainShown||!extShown);
+      const searchableText = [mainShown?mainSeg?.text:null, extShown?extensionSeg?.text:null, overlaySeg?.text]
         .filter(Boolean).join('\n');
       if (!searchableText) {
         el.classList.add('hidden');
         return;
       }
       let matched = !re || re.test(searchableText);
-      if (fixedTrackMode() && fixedTrackFilter && !(JSON.parse(el.dataset.subtitleTrackIds||'[]').includes(fixedTrackFilter)||el.dataset.subtitleTrackId===fixedTrackFilter)) matched = false;
       if (re) re.lastIndex = 0;
       if (matched && colorFilterSelection && !colorFilterSuspended()) {
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
@@ -18894,7 +18903,7 @@ function waveformWorkspaceForProject(project) {
 function applyCanonicalProject(data, filename) {
   closeLinkedSplitModal();
   data = prepareLayerProject(data);
-  fixedReset(); fixedTrackFilter = ''; fixedActiveTrackId = null;
+  fixedReset(); fixedTrackFilter = new Set(); fixedActiveTrackId = null;
   if (data.subtitle_tracks) DATA.subtitle_tracks = structuredClone(data.subtitle_tracks);
   else delete DATA.subtitle_tracks;
   if (data.subtitle_layers) DATA.subtitle_layers = structuredClone(data.subtitle_layers);
@@ -22365,12 +22374,13 @@ function ctxAppendExpandableSettings(label, children) {
   const group = document.createElement('div');
   group.className = 'ctx-submenu-menu';
   group.setAttribute('role', 'menu');
+  const updates=[];
   children.forEach((child) => {
     // 自定义节点（如滑条行）直接挂载，不套勾选框结构。
     if (child.node) { group.appendChild(child.node); return; }
     if (child.action) {
       const item=ctxAppendItem(child.label,child.action,{disabled:child.disabled});
-      if(child.selected){item.setAttribute('aria-current','true');item.classList.add('ctx-choice-selected');}
+      const update=()=>{const selected=typeof child.selected==='function'?child.selected():child.selected;item.classList.toggle('ctx-choice-selected',!!selected);if(selected)item.setAttribute('aria-current','true');else item.removeAttribute('aria-current');};updates.push(update);update();
       group.appendChild(item);return;
     }
     // 勾选框形式：与设置面板的开关控件同语义，比“✓ 文本”更明确可点。
@@ -22378,15 +22388,14 @@ function ctxAppendExpandableSettings(label, children) {
     row.className = 'item ctx-subitem ctx-check';
     const box = document.createElement('input');
     box.type = 'checkbox';
-    box.checked = child.checked() === true;
+    const update=()=>{box.checked=child.checked()===true;};updates.push(update);update();
     const rowText = document.createElement('span');
     rowText.textContent = child.label;
     row.append(box, rowText);
-    row.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+    row.addEventListener('click', event=>event.stopPropagation());
+    box.addEventListener('change', () => {
       child.toggle();
-      box.checked = child.checked() === true;
+      updates.forEach(update=>update());
     });
     group.appendChild(row);
   });

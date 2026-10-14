@@ -34,7 +34,7 @@
     <label class="media-settings-field"><span>排布</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label>
     <div id="style-position-fields"><div class="media-settings-grid">
       <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
-      <button type="button" id="style-position-drag">在画面中定位</button>
+      <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
     </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p></div>
@@ -180,7 +180,13 @@
     if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
   }
   function syncPosition() {
-    if(!productionFlatMode())return;
+    $('style-position-drag').hidden=fixedPositionEditing;
+    $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
+    for(const id of ['style-position-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
+    if(!productionFlatMode()) {
+      if(fixedPositionEditing)for(const key of ['x','y'])$('style-position-'+key).value=Math.round(fixedPositionCurrent()[key]*1000)/10;
+      return;
+    }
     const track=fixedStyleTarget(),selected=fixedPositionScope==='cue',rows=selected?fixedPositionSelection():[];
     const locked=selected?rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked):track?.locked;
     const enabled=!locked&&(selected?rows.length>0&&rows.every(r=>r.position):track&&fixedTrackCore.placement(track)==='fixed');
@@ -192,7 +198,7 @@
     }
     $('style-track-placement').closest('label').hidden=selected;
     $('style-position-drag').disabled=!enabled||selected&&rows.some(r=>!r.entry);
-    $('style-position-reset').disabled=locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
+    $('style-position-reset').disabled=fixedPositionEditing||locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
     $('style-position-reset').textContent=selected?'跟随轨道位置':'恢复默认位置';
     $('style-position-note').textContent=selected?fixedPositionSelectionLabel(rows)+(locked?' · 所选轨道已锁定':rows.length&&!enabled?' · 请先启用字幕及轨道':rows.some(r=>r.cue.subtitle_position)?' · 已单独定位':rows.length?' · 跟随轨道位置':''):track&&fixedTrackCore.placement(track)==='auto'?'自动排布使用样式中的对齐与边距；可切换“所选字幕”单独定位。':'轨道位置作用于未单独定位的字幕。';
   }
@@ -215,6 +221,8 @@
   $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
+  $('style-position-cancel').onclick=()=>fixedStopPositioning(false);
+  $('style-position-finish').onclick=()=>fixedStopPositioning(true);
   $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
   for(const key of ['x','y'])$('style-position-'+key).onchange=()=>{
     if(productionFlatMode()&&fixedPositionScope==='cue') {
@@ -330,7 +338,7 @@
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
   $('style-track-position').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
-    if(fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位预览：工程样式'};
+    if(fixedPositionEditing||fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:fixedPositionEditing?'定位中：Esc取消，Enter完成':'定位预览：工程样式'};
     if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};

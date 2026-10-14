@@ -11,6 +11,40 @@ const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 test.beforeEach(async({page})=>{await disableOnboarding(page);page.on('dialog',d=>d.dismiss());await page.goto(server.url);await page.evaluate(p=>{applyCanonicalProject(p,'actions.mosp');updateEditorSettings({clickBehavior:'select-only',selectBoundSubtitlePair:false,autoSaveProject:false});},fixture());});
 const item=(page,label)=>page.locator('#ctxmenu > .item').filter({has:page.locator('span').filter({hasText:new RegExp('^'+label+'$')})});
 
+test('track filters can show either half or multiple tracks without changing bindings',async({page},info)=>{
+  const before=await snap(page),main=page.locator('.multi-cue-column.main').first(),sub=page.locator('.multi-cue-column.extension').first();
+  await main.click({button:'right'});await page.getByRole('menuitem',{name:'轨道',exact:true}).hover();
+  const menu=page.locator('#ctxmenu .ctx-submenu.open .ctx-submenu-menu');
+  await menu.getByText('S1主',{exact:true}).click();
+  await expect(main).toBeVisible();await expect(sub).toBeHidden();
+  await expect(menu.getByRole('checkbox',{name:'S1主',exact:true})).toBeChecked();
+  await expect(menu.getByRole('checkbox',{name:'S1副',exact:true})).not.toBeChecked();
+  await menu.getByRole('checkbox',{name:'S1副',exact:true}).check();await expect(main).toBeVisible();await expect(sub).toBeVisible();
+  await menu.getByRole('checkbox',{name:'S1主',exact:true}).uncheck();await expect(main).toBeHidden();await expect(sub).toBeVisible();
+  await page.screenshot({path:info.outputPath('track-filter-multi.png')});
+  await menu.getByText('全部轨道',{exact:true}).click();await expect(main).toBeVisible();await expect(sub).toBeVisible();
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
+test('Shift ranges on waveform and cards stay on the actual track; Ctrl still adds another track',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(()=>{
+    let p=JSON.parse(buildJson());
+    const add=(template,id,text)=>{const track={...structuredClone(template),id,name:id};delete track.secondary_for;delete track.display_number;p=MSWFlatSubtitles.addTrack(p,track);p=MSWFlatEditing.addCue(p,id,id+'-cue',2000,3500,text);};
+    add(p.subtitles.tracks[0],'other-main','Other main');add(p.subtitles.tracks[1],'other-side','Other side');
+    applyCanonicalProject(p,'multi.mosp');waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=10;waveformEditor.settings.rowHeight=220;waveformEditor.render();
+  });
+  const selected=()=>page.evaluate(()=>[...processingSelection().mainIds,...processingSelection().extensionIds].map(id=>[...DATA.segments,...getActiveExtensionTrack().segments].find(c=>c.id===id).text).sort());
+  const block=text=>page.locator('.waveform-cue-block').filter({has:page.locator('.waveform-cue-label').filter({hasText:new RegExp('^'+text+'$')})}).first();
+  await block('Hello').click();await block('World').click({modifiers:['Shift']});expect(await selected()).toEqual(['Hello','World']);
+  await block('Other main').click({modifiers:['Control']});expect(await selected()).toEqual(['Hello','Other main','World']);
+  await block('你好').click();await block('世界').click({modifiers:['Shift']});expect(await selected()).toEqual(['世界','你好']);
+  const card=text=>page.locator('#cues-container .text').filter({hasText:new RegExp('^'+text+'$')}).first();
+  await card('Hello').click();await card('World').click({modifiers:['Shift']});expect(await selected()).toEqual(['Hello','World']);
+  await card('你好').click();await card('世界').click({modifiers:['Shift']});expect(await selected()).toEqual(['世界','你好']);
+  expect(errors).toEqual([]);
+});
+
 test('main and secondary menus share layout and a closed extended-actions flyout',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const labels=[];

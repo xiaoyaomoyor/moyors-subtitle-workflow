@@ -67,6 +67,7 @@ test('list track filter lives in the native context submenu and selected ordinal
   await card.click({button:'right'});await page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:/^轨道$/}).hover();
   await page.locator('#ctxmenu .ctx-submenu-menu .item').filter({hasText:/^S2$/}).click();
   await expect(card).toBeHidden();
+  await page.keyboard.press('Escape');
   await page.locator('#cues-module .module-tab-strip').click({button:'right'});
   await page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:/^轨道$/}).hover();
   await page.locator('#ctxmenu .ctx-submenu-menu .item').filter({hasText:/^全部轨道$/}).click();
