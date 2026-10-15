@@ -9,6 +9,14 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '字幕轨道设置': 'Subtitle tracks',
+    '新增字幕轨道': 'Add subtitle track',
+    '折叠与展开': 'Collapse / expand',
+    '禁用与启用': 'Disable / enable',
+    '展开的字幕轨道': 'Expanded subtitle tracks',
+    '启用的字幕轨道': 'Enabled subtitle tracks',
+    '单词型：英语、西文等按空格拆分；字符型：中文、日文等按字符拆分。': 'Word-based: split English and other space-separated languages by spaces. Character-based: split Chinese and Japanese by characters.',
+    '目标轨道此处已有字幕，请调整位置': 'The destination track is occupied here. Adjust the position.',
     '扩展操作': 'Extended actions',
     '选定的字幕块': 'Selected subtitle blocks',
     '全选轨道内容': 'Select all track content',

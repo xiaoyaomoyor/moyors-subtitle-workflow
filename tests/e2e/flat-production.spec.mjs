@@ -58,6 +58,70 @@ test('paired cards retain linked split, merge and one-step undo',async({page})=>
   expect((await snap(page)).subtitles.bindings).toHaveLength(2);
 });
 
+test('physical-track merge includes selected cues in both display columns and retains binding and undo',async({page})=>{
+  await page.evaluate(waveform=>{
+    let p=MSWFlatSubtitles.migrate({timebase:{unit:'frames',fps:25},segments:[
+      {id:'a',start:1000,end:2000,text:'Hello',items:[{text:'Hello',start:1000,end:2000}]},
+      {id:'b',start:3000,end:4000,text:'world',items:[{text:'world',start:3000,end:4000}]}],waveform});
+    const [a,b]=p.subtitles.cues;
+    p=MSWFlatSubtitles.addTrack(p,{...p.subtitles.tracks[0],id:'peer',name:'peer'});
+    p=MSWFlatEditing.addCue(p,'peer','translation',1200,2200,'你好');
+    p=MSWFlatSubtitles.bind(p,a.id,'translation','pair');
+    p.subtitle_view={secondary_cue_ids:[b.id]};
+    applyCanonicalProject(p,'cross-columns.mosp');DATA.msw.removed_asset_ids=[];
+    clearSelection({silent:true});selectedIdxs.add(DATA.segments.findIndex(c=>c.id===a.id));
+    selectedExtensionIdxs.add(getActiveExtensionTrack().segments.findIndex(c=>c.id===b.id));
+    setCuePanelTarget('main',0);updateMultiSelectionClasses();
+  },generateWaveformPayload(10000));
+  const before=await snap(page);
+  expect(await page.evaluate(()=>[selectedIdxs.size,selectedExtensionIdxs.size])).toEqual([1,1]);
+  await page.keyboard.press('c');
+  const after=await snap(page);
+  expect(after.subtitles.cues).toHaveLength(2);
+  const merged=after.subtitles.cues.find(c=>c.content.text==='Hello world');
+  expect(merged).toBeTruthy();expect(merged.track_id).toBe(before.subtitles.cues.find(c=>c.content.text==='Hello').track_id);
+  expect([merged.content.start,merged.content.end,merged.content.start_frame,merged.content.end_frame]).toEqual([1000,4000,25,100]);
+  expect(merged.content.items).toHaveLength(2);expect(after.subtitles.bindings).toHaveLength(1);
+  expect(after.subtitles.bindings[0].source_id).toBe(merged.id);
+  expect(after.subtitles.bindings[0].target_id).toBe('translation');
+  expect(await page.evaluate(()=>fixedLastMessage)).toBe('');
+  await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
+test('single-cue merge is quiet and track rejections use one transient notification',async({page})=>{
+  await page.evaluate(p=>{applyCanonicalProject(p,'notices.mosp');selectOnly(0);document.getElementById('hint-stack')?.replaceChildren();},fixture());
+  const before=await snap(page);await page.keyboard.press('c');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await expect(page.locator('#fixed-track-status')).toHaveCount(0);
+  await expect(page.locator('#hint-stack .hint-card')).toHaveCount(0);
+  await page.evaluate(()=>{for(let i=0;i<5;i++)fixedStatus('当前轨道已锁定，请先解锁');});
+  await expect(page.locator('#hint-stack .hint-card')).toHaveCount(1);
+  await expect(page.locator('#hint-stack .hint-card')).toHaveAttribute('data-persistent','false');
+  await expect(page.locator('#hint-stack .hint-card')).toHaveCount(0,{timeout:4000});
+  expect(await page.evaluate(()=>fixedLastMessage)).toContain('已锁定');
+});
+
+test('invalid track drag stays quiet until release and Escape or pointer cancellation shows no notice',async({page})=>{
+  const before=await dragFixture(page),[main,secondary,target]=before.subtitles.tracks;
+  const start=await trackPoint(page,main.id,2000),partner=await trackPoint(page,secondary.id,2000);
+  const begin=async()=>{
+    await page.evaluate(()=>document.getElementById('hint-stack')?.replaceChildren());
+    await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(partner.x,partner.y,{steps:5});
+    expect(await page.evaluate(()=>waveformEditor.drag?.destinationPreview?.blocked)).toBe(true);
+    await expect(page.locator('#hint-stack .hint-card')).toHaveCount(0);
+  };
+  await begin();await page.mouse.up();
+  await expect(page.locator('#hint-stack .hint-card')).toHaveCount(1);
+  await expect(page.locator('#hint-stack .hint-card')).toContainText('不同轨道');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await begin();await page.keyboard.press('Escape');await page.mouse.up();
+  await expect(page.locator('#hint-stack .hint-card')).toHaveCount(0);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await begin();await page.evaluate(()=>window.dispatchEvent(new PointerEvent('pointercancel',{pointerId:waveformEditor.drag.pointerId})));await page.mouse.up();
+  await expect(page.locator('#hint-stack .hint-card')).toHaveCount(0);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
 test('list track filter lives in the native context submenu and selected ordinals are highlighted',async({page})=>{
   await page.evaluate(p=>{applyCanonicalProject(p,'filter.mosp');fixedAddTrack('subtitle');},fixture());
   await expect(page.locator('#fixed-track-filter')).toHaveCount(0);

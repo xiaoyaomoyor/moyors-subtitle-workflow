@@ -4998,6 +4998,7 @@
 #tts-panel .msw-local-service-card .msw-processing-actions { flex:none; gap:6px; }
 #tts-panel .msw-tts-icon-button[data-icon="start"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 4 12 8-12 8Z' fill='none' stroke='black' stroke-width='1.7' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 #tts-panel .msw-tts-icon-button[data-icon="stop"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='5' width='14' height='14' rx='2' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E"); }
+#tts-panel .msw-tts-icon-button[data-icon="cancel"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 6 12 12M18 6 6 18' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E"); }
 #tts-panel .msw-tts-icon-button[data-icon="settings"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.13,5.07 10.26,2.15 13.74,2.15 14.87,5.07 17.74,3.81 20.19,6.26 18.93,9.13 21.85,10.26 21.85,13.74 18.93,14.87 20.19,17.74 17.74,20.19 14.87,18.93 13.74,21.85 10.26,21.85 9.13,18.93 6.26,20.19 3.81,17.74 5.07,14.87 2.15,13.74 2.15,10.26 5.07,9.13 3.81,6.26 6.26,3.81Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/g%3E%3C/svg%3E"); }
 
 .msw-layer-merge {
@@ -5110,19 +5111,19 @@
 .msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
 /* The merge Easter egg uses the same accent as split feedback. */
 .merge-tape-flash {
-  position: fixed; z-index: 1200; width: 108px; height: 25px;
-  pointer-events: none; background: color-mix(in srgb, var(--accent) 65%, transparent);
-  border-block: 1px dashed var(--accent); box-sizing: border-box;
+  position: fixed; z-index: 1200; width: 48px; height: 14px;
+  pointer-events: none; background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border-block: 1px solid color-mix(in srgb, var(--accent) 65%, transparent); box-sizing: border-box;
   clip-path: polygon(3% 0, 97% 0, 100% 20%, 97% 40%, 100% 60%, 97% 80%, 100% 100%, 0 100%, 3% 80%, 0 60%, 3% 40%, 0 20%);
-  transform: translate(-50%, -50%) rotate(-10deg);
-  animation: merge-tape-stick 600ms ease-out both;
+  transform: translate(-50%, -50%) rotate(-5deg);
+  animation: merge-tape-stick 520ms ease-out both;
 }
 .merge-tape-flash::after {
-  content: ''; position: absolute; inset: 4px 50%; border-left: 2px solid var(--accent);
+  content: ''; position: absolute; inset: 3px 50%; border-left: 1px solid var(--accent);
 }
 @keyframes merge-tape-stick {
-  0% { opacity: 0; transform: translate(-50%, -65%) rotate(-14deg) scaleX(.1); }
-  28%, 65% { opacity: 1; transform: translate(-50%, -50%) rotate(-10deg) scaleX(1); }
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-5deg) scaleX(.45); }
+  25%, 65% { opacity: 1; transform: translate(-50%, -50%) rotate(-5deg) scaleX(1); }
   100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5165,9 +5166,6 @@
 .cue:has(> .fixed-track-badge):not(.multi-dual-cue) > .sticker-slot { grid-row: 4; }
 .fixed-track-filter { display: flex; align-items: center; gap: 4px; padding: 5px 10px; font-size: 12px; }
 .fixed-track-filter select { max-width: 150px; padding: 3px 6px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--bg-input); font: inherit; }
-#fixed-track-status { position:absolute; bottom:8px; left:110px; right:12px; z-index:31; padding:6px 10px;
-  color:var(--text-primary); background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; pointer-events:none; }
-#fixed-track-status:empty { display:none; }
 .fixed-track-form { width:240px; max-width:calc(100vw - 32px); padding:10px; display:grid; gap:12px; box-sizing:border-box; }
 .fixed-track-form label { display:grid; gap:6px; color:var(--text-muted); font-size:12px; }
 .fixed-track-form :is(input,select) { width:100%; min-width:0; box-sizing:border-box; padding:6px 8px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); font:inherit; }
@@ -6630,7 +6628,21 @@
     <input type="checkbox" id="overlay-track-toggle">
     允许字幕重叠
   </label>
-<small class="dropdown-item" role="note">叠加字幕支持编辑和导出；翻译、配音暂不处理叠加轨。</small>
+      <div class="dropdown-submenu" id="subtitle-track-settings-dropdown">
+        <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">字幕轨道设置</div>
+        <div class="dropdown-menu dropdown-submenu-menu" role="menu" aria-label="字幕轨道设置">
+          <button type="button" class="dropdown-item" id="subtitle-track-add" role="menuitem">新增字幕轨道</button>
+          <div class="dropdown-separator"></div>
+          <div class="dropdown-submenu" id="subtitle-track-visibility-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">折叠与展开</div>
+            <div class="dropdown-menu dropdown-submenu-menu subtitle-track-choice-menu" id="subtitle-track-visibility-menu" role="menu" aria-label="展开的字幕轨道"></div>
+          </div>
+          <div class="dropdown-submenu" id="subtitle-track-enabled-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">禁用与启用</div>
+            <div class="dropdown-menu dropdown-submenu-menu subtitle-track-choice-menu" id="subtitle-track-enabled-menu" role="menu" aria-label="启用的字幕轨道"></div>
+          </div>
+        </div>
+      </div>
 <div class="dropdown-submenu" id="multi-subtitle-settings-dropdown">
         <div class="dropdown-item dropdown-submenu-toggle" id="multi-subtitle-settings-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="多重字幕设置">多重字幕设置</div>
         <div class="dropdown-menu dropdown-submenu-menu multi-subtitle-settings-menu" id="multi-subtitle-settings-menu" role="menu">
@@ -6641,7 +6653,7 @@
           </label>
           <small class="multi-subtitle-empty-hint" id="multi-subtitle-empty-hint" hidden>请拖入第二条字幕以开启多重字幕编辑</small>
           <div class="multi-subtitle-setting-row">
-            <span>主字幕语言类型</span>
+            <span id="multi-subtitle-language-caption">主字幕语言类型</span>
             <select id="multi-subtitle-main-language-mode" title="主字幕语言类型">
               <option value="word" selected>单词型</option>
               <option value="continuous">字符型</option>
@@ -6654,10 +6666,7 @@
               <option value="continuous">字符型</option>
             </select>
           </div>
-          <div class="multi-subtitle-setting-hint" role="note" aria-label="语言类型提示">
-            <div>单词型：英语、西文等按空格拆分</div>
-            <div>字符型：中文、日文等按字符拆分</div>
-          </div>
+          <span hidden data-help-for="multi-subtitle-language-caption">单词型：英语、西文等按空格拆分；字符型：中文、日文等按字符拆分。</span>
           <div class="multi-subtitle-setting-row" id="multi-subtitle-extension-row-height-setting">
             <span>副字幕时波形高度</span>
             <select id="multi-subtitle-extension-row-height" title="启用多重字幕时使用的波形行高度">
@@ -21039,13 +21048,20 @@ export default MawDynamicCaptions;
     return {applied:true,segments,multi,msw,insertedIds:inserted.map(cue=>cue.id),removedIds:[...removed]};
   }
   function assetStatuses(project) {
+    const statuses=new Map(),assets=(project.msw?.assets||[]).filter(asset=>asset.source_ref
+      &&asset.source_ref.kind!=='editor_text'&&asset.generation?.provider!=='imported');
+    if(!assets.length)return statuses;
+    // Display columns use temporary track IDs. Resolve flat sources by their
+    // stable cue identity, including migration aliases for older audio assets.
+    const flat=global.MSWFlatSubtitles;
+    const native=global.MSWProductionProject?.isView(project)?global.MSWProductionProject.toProject(project):project;
+    const index=flat&&native.schema===flat.SCHEMA?flat.createIndex(native):null;
     const cues=new Map((project.segments||[]).map(cue=>[JSON.stringify([null,cue.id]),cue]));
     for(const track of project.multi_subtitle?.tracks||[]) for(const cue of track.segments||[])cues.set(JSON.stringify([track.id,cue.id]),cue);
-    const statuses=new Map();
-    for(const asset of project.msw?.assets||[]) {
+    for(const asset of assets) {
       const source=asset.source_ref;
-      if(!source||source.kind==='editor_text'||asset.generation?.provider==='imported')continue;
-      const cue=source.track_kind==='overlay' ? (project.overlay_track?.segments||[]).find(cue=>cue.id===source.id) : cues.get(JSON.stringify([source.track_id??null,source.id]));
+      const cue=index?index.resolveSource(source)?.content:source.track_kind==='overlay'
+        ?(project.overlay_track?.segments||[]).find(cue=>cue.id===source.id):cues.get(JSON.stringify([source.track_id??null,source.id]));
       const reason=!cue?'来源字幕已删除或被 ASR 替换':project.msw?.asr_stale_subtitles?.[source.track_id]?.[source.id]
         ?'配音来源副字幕需复核':cue.text!==source.text||cue.start!==source.start||cue.end!==source.end?'来源字幕已修改，配音需复核':'';
       if(reason)statuses.set(asset.id,reason);
@@ -21429,6 +21445,14 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '字幕轨道设置': 'Subtitle tracks',
+    '新增字幕轨道': 'Add subtitle track',
+    '折叠与展开': 'Collapse / expand',
+    '禁用与启用': 'Disable / enable',
+    '展开的字幕轨道': 'Expanded subtitle tracks',
+    '启用的字幕轨道': 'Enabled subtitle tracks',
+    '单词型：英语、西文等按空格拆分；字符型：中文、日文等按字符拆分。': 'Word-based: split English and other space-separated languages by spaces. Character-based: split Chinese and Japanese by characters.',
+    '目标轨道此处已有字幕，请调整位置': 'The destination track is occupied here. Adjust the position.',
     '扩展操作': 'Extended actions',
     '选定的字幕块': 'Selected subtitle blocks',
     '全选轨道内容': 'Select all track content',
@@ -31319,7 +31343,7 @@ export default MawDynamicCaptions;
       this.clearCueDragDestination();
       this.options.onCancelCueDrag?.(drag);
       this.refreshCueOverlay();
-      this.setStatus('已取消字幕调整');
+      this.refreshMediaReadout();
       return true;
     }
 
@@ -32105,7 +32129,7 @@ export default MawDynamicCaptions;
           if (!segment) return;
           restoreTiming(segment, original, drag.timing || this.cueTiming());
         });
-        this.options.onCancelCueDrag?.(drag);
+        this.options.onCancelCueDrag?.(drag, {rejected:event.type === 'pointerup' && drag.destinationPreview?.blocked});
         this.refreshCueOverlay();
         return;
       }
@@ -32377,6 +32401,7 @@ let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
 let fixedNumberCache = null;
+let fixedLastMessage = '';
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
 function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
 function fixedCueLabel(cue,role='main',trackId=null,editor=false) {
@@ -32413,14 +32438,15 @@ function fixedCueCreationContext(role = 'main') {
     lane: fixedLayout().positions.get(JSON.stringify([track?.id, role])),
     segments: productionFlatMode()?layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>fixedOwner(c,s.role,s.track_id)===track?.id)):source.filter(cue => fixedOwner(cue, role) === track?.id) };
 }
-function fixedStatus(message = '') {
-  const node = document.getElementById('fixed-track-status');
-  if (node) node.textContent = message;
+function fixedStatus(message = '', {silent = false} = {}) {
+  if (message.includes('同轨同角色字幕重叠')) message = '目标轨道此处已有字幕，请调整位置';
+  fixedLastMessage = message;
+  if (message && !silent) flashHint(window.MSWE_I18N?.translateText?.(message) || message, 'invalid');
 }
-function fixedCanEdit(cues, role = 'main', trackId = null, linked = true) {
+function fixedCanEdit(cues, role = 'main', trackId = null, linked = true, {silent = false} = {}) {
   if (!fixedTrackMode()) return true;
   try { fixedTrackCore.assertEditable(DATA, cues.filter(Boolean).map(c => fixedRef(c, role, trackId)), linked); return true; }
-  catch (error) { fixedStatus(error.message); return false; }
+  catch (error) { fixedStatus(error.message, {silent}); return false; }
 }
 function fixedSameTrack(a, b) {
   if (!fixedTrackMode()) return true;
@@ -32431,7 +32457,7 @@ function fixedContent() {
     subtitle_layers: DATA.subtitle_layers, subtitle_tracks: DATA.subtitle_tracks });
 }
 function fixedReset() {
-  fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedInvalidate();
+  fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
@@ -32558,7 +32584,7 @@ function productionBindSelected() {
     for(const b of p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id)))p=window.MSWFlatSubtitles.unbind(p,b.id);
     const next=window.MSWFlatSubtitles.bind(p,ids[0],ids[1],window.MSWProject.id('binding'));
     productionCommitProject(next,'绑定字幕',ids);
-  } catch(error){flashHint(error.message,'warning');}
+  } catch(error){fixedStatus(error.message);}
 }
 let productionClipboard=null;
 function productionCaptureClipboard() {
@@ -32605,7 +32631,9 @@ function fixedMove(refs, targetId) {
 function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   if(!productionFlatMode()||drag.kind!=='move')return null;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track))return false;
+  if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
+    drag.destinationPreview={...drag.destinationPreview,blocked:true,reason:fixedLastMessage};return false;
+  }
   if(!drag.fixedMove) {
     ensureBoundDragTimelineOriginals(drag);
     const entries=drag.indices.map(index=>({cue:source[index],original:structuredClone(source[index]),index}));
@@ -32620,12 +32648,12 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   const destination=band?.track.id||state.target||originalOwner;
   const original=drag.originals.get(drag.index),clock=drag.timing;
   drag.destinationPreview={name:tracks.find(t=>t.id===destination)?.name||'',
-    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true};
+    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true,reason:'目标轨道此处已有字幕，请调整位置'};
   const shift=tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===originalOwner);
   const moving=new Map();
   for(const entry of state.entries) {
     const target=tracks[tracks.findIndex(t=>t.id===state.owners.get(entry.cue.id))+shift];
-    if(!target||target.locked){fixedStatus(target?'目标轨道已锁定，请先解锁':'没有足够的轨道容纳所选字幕');return false;}
+    if(!target||target.locked){drag.destinationPreview.reason=target?'目标轨道已锁定，请先解锁':'没有足够的轨道容纳所选字幕';return false;}
     moving.set(entry.cue.id,target.id);
   }
   const previous=DATA.subtitle_tracks.assignments;
@@ -32658,7 +32686,7 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
       end_offset_ms:byId.get(b.extension_segment_ids[0]).end-byId.get(b.main_segment_ids[0]).end}));
     multi.bindings=bindings;
     fixedTrackCore.validate({...DATA,segments,multi_subtitle:multi});
-  } catch(error) {fixedStatus(error.message);return false;}
+  } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
   const changed=ownerChanged||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
@@ -32818,9 +32846,40 @@ function fixedRenderHeads(group, row, audioSpace) {
   }
   return true;
 }
+function fixedSyncTrackSettings() {
+  const group=document.getElementById('subtitle-track-settings-dropdown');
+  if(!group)return;
+  group.hidden=!fixedTrackMode();if(group.hidden)return;
+  const tracks=DATA.subtitle_tracks.tracks;
+  for(const [id,field,inverse,caption] of [
+    ['subtitle-track-visibility-menu','collapsed',true,'展开'],
+    ['subtitle-track-enabled-menu','enabled',false,'启用'],
+  ]) {
+    const menu=document.getElementById(id);if(!menu)continue;
+    const rows=new Map([...menu.children].map(row=>[row.dataset.trackId,row]));
+    for(const [key,row] of rows)if(!tracks.some(t=>t.id===key))row.remove();
+    tracks.forEach((track,index)=>{
+      let row=rows.get(track.id);
+      if(!row) {
+        row=document.createElement('label');row.className='dropdown-item recent-project-setting';row.dataset.trackId=track.id;
+        row.tabIndex=0;row.setAttribute('role','menuitemcheckbox');
+        const check=document.createElement('input');check.type='checkbox';check.tabIndex=-1;
+        const name=document.createElement('span');row.append(check,name);
+        check.onchange=()=>{fixedUpdateTrack(track.id,{[field]:inverse?!check.checked:check.checked});fixedSyncTrackSettings();};
+      }
+      const check=row.querySelector('input'),name=row.querySelector('span');
+      check.checked=inverse?!track[field]:track[field]!==false;
+      check.setAttribute('aria-label',`${window.MSWE_I18N?.translateText?.(caption)||caption} ${track.name}`);
+      row.setAttribute('aria-checked',String(check.checked));name.textContent=track.name;
+      // Keep existing focused controls in place while a checkbox triggers renderAll.
+      if(menu.children[index]!==row)menu.insertBefore(row,menu.children[index]||null);
+    });
+  }
+}
 function fixedSyncUI() {
   document.documentElement.classList.toggle('msw-fixed-tracks', fixedTrackMode());
   document.documentElement.classList.toggle('msw-numbered-tracks',productionFlatMode());
+  fixedSyncTrackSettings();
   if (!fixedTrackMode()) return;
   if (!fixedActiveTrackId || !DATA.subtitle_tracks.tracks.some(t => t.id === fixedActiveTrackId)) fixedActiveTrackId = DATA.subtitle_tracks.tracks[0].id;
   const toolbar = document.getElementById('cues-module');
@@ -32836,10 +32895,6 @@ function fixedSyncUI() {
   if (select) {
     select.replaceChildren(new Option('全部轨道', ''), ...DATA.subtitle_tracks.tracks.map(t => new Option(t.name, t.id)));
     select.value = fixedTrackFilter.size===1?[...fixedTrackFilter][0]:'';
-  }
-  if (!document.getElementById('fixed-track-status')) {
-    const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
-    document.querySelector('.waveform-pane')?.append(status);
   }
   document.getElementById('overlay-track-toggle')?.closest('label')?.setAttribute('hidden', '');
   document.getElementById('subtitle-legacy-visible')?.closest('label')?.setAttribute('hidden', '');
@@ -32948,6 +33003,7 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   return lines.join('\n');
 }
 document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('subtitle-track-add')?.addEventListener('click',()=>fixedAddTrack('subtitle'));
   const anchor=document.getElementById('download-merged-srt');if(!anchor)return;
   const row=document.createElement('div');row.className='fixed-srt-scope';
   const label=document.createElement('label');label.textContent='SRT 范围 ';
@@ -33132,14 +33188,57 @@ function layerPlaybackElement(time) {
   return null;
 }
 function layerMergeSelected(indices, role = 'main', track = null, mode = 'union') {
-  if (pendingLinkedSplit) { flashHint('请先确认或取消当前切分', 'warning'); return false; }
+  if (pendingLinkedSplit) { fixedStatus('请先确认或取消当前切分'); return false; }
   const initial = role === 'main' ? DATA.segments : role === 'overlay' ? getOverlayTrack()?.segments : track?.segments;
   const ids = [...new Set(indices.map(index => initial?.[index]?.id).filter(Boolean))];
+  // Display columns do not define ownership. A physical track can contain
+  // unbound cues shown in either column after independent moves or unbinding.
+  let crossColumnIds = [];
+  if (productionFlatMode() && role !== 'overlay' && ids.length) {
+    const owners = new Set(indices.map(i=>initial?.[i]).filter(Boolean).map(c=>fixedOwner(c,role,track?.id)));
+    if (owners.size === 1) {
+      const otherRole = role === 'main' ? 'extension' : 'main', otherTrack = getActiveExtensionTrack();
+      const other = otherRole === 'main' ? DATA.segments : otherTrack?.segments || [];
+      const selected = otherRole === 'main' ? selectedIdxs : selectedExtensionIdxs;
+      crossColumnIds = [...selected].map(i=>other[i]).filter(c=>c && fixedOwner(c,otherRole,otherTrack?.id) === [...owners][0]).map(c=>c.id);
+    }
+  }
+  if (ids.length + crossColumnIds.length < 2) return false;
   commitProcessingEdits();
   const source = role === 'main' ? DATA.segments : role === 'overlay' ? getOverlayTrack()?.segments : getExtensionTrack(track?.id)?.segments;
   const sourceEl = container.querySelector(role === 'extension' ? `.cue[data-ext-idx="${indices[0]}"]`
     : role === 'overlay' ? `.overlay-track-cue[data-overlay-idx="${indices[0]}"]` : `.cue[data-idx="${indices[0]}"]`);
   const anchor = captureVisibleCueListVisualAnchor(sourceEl);
+  if (crossColumnIds.length) {
+    try {
+      const project = window.MSWProductionProject.toProject(DATA), wanted = new Set([...ids,...crossColumnIds]);
+      const owner = project.subtitles.cues.find(c=>wanted.has(c.id)).track_id;
+      const result = window.MSWFlatEditing.merge(project,[...wanted],{
+        mode,makeId:kind=>window.MSWProject.id(kind),
+        joinText:(cues,trackId)=>{
+          const text=cues.map(c=>c.text||'').join('\n'), target=project.subtitles.tracks.find(t=>t.id===trackId);
+          const splitMode=target?.style.slot==='secondary'?getExtensionSubtitleSplitMode(getActiveExtensionTrack(),{text}):getMainSubtitleSplitMode({text});
+          return window.AsrEditorUtils.joinSegmentTexts(cues,mergeJoinSeparatorForMode(splitMode));
+        },
+      });
+      const removed = new Set(project.subtitles.cues.filter(c=>!result.project.subtitles.cues.some(n=>n.id===c.id)).map(c=>c.id));
+      const members = layerCore.tracks(DATA).flatMap(t=>t.segments.filter(c=>removed.has(c.id)).map(c=>({cue:c,role:t.role,track_id:t.track_id})));
+      // Existing feedback reads the original rows. Keep mixed-column members
+      // available without inventing indices or changing the merge transaction.
+      const changes = layerCore.tracks(DATA).map(t=>({...t,changed:true,ids:new Set(t.segments.filter(c=>removed.has(c.id)).map(c=>c.id))})).filter(c=>c.ids.size>1);
+      const feedback=captureMergeFeedback({changes,feedbackMembers:members,
+        feedbackResults:result.project.subtitles.cues.filter(c=>result.ids.includes(c.id))});
+      const primary=result.project.subtitles.cues.find(c=>result.ids.includes(c.id)&&c.track_id===owner);
+      productionCommitProject(result.project,mode==='common'?'共有状态合并':'累加状态合并',[primary.id]);
+      const extension=getActiveExtensionTrack(), mainIndex=DATA.segments.findIndex(c=>c.id===primary.id);
+      const kind=mainIndex>=0?'main':'extension', index=mainIndex>=0?mainIndex:extension.segments.findIndex(c=>c.id===primary.id);
+      setCuePanelTarget(kind,index,kind==='extension'?extension.id:null);
+      if(kind==='main')lastClickedIdx=index;else lastClickedExtensionIdx=index;
+      restoreCueListRenderAnchor(anchor);updateWithoutCueListAutoScroll();fixedStatus();triggerMergeFeedback(feedback);
+      if(result.conflicts.length)fixedStatus('合并完成；不同颜色或表情包已保留时间最早的标记');
+      return true;
+    } catch(error) {fixedStatus(error.message);return false;}
+  }
   let plan;
   try {
     plan = layerCore.planMerge(fixedTrackMode() ? { ...DATA, schema: layerCore.SCHEMA, subtitle_layers: { ...DATA.subtitle_layers, allow_overlap: true } } : DATA, {role, track_id: role === 'extension' ? track?.id : null}, ids, {
@@ -44134,51 +44233,109 @@ function mergeSegments(idxs, mode = 'union') {
   return layerMergeSelected(idxs, 'main', null, mode);
 }
 
-// Capture visible join positions before the two tracks are replaced. Feedback
-// never changes selection, playback, history or the scroll position.
+// Keep identities and joins, not old card coordinates: rendering a merge can
+// move the result to another list row or waveform line.
 function captureMergeFeedback(plan) {
   if (!EDITOR_SETTINGS.mergeTapeEffect) return [];
   const pointer = lastPointerPos && document.elementFromPoint(lastPointerPos.x, lastPointerPos.y);
-  const wave = pointer?.closest('#waveform-pane') || lastEditRegion === 'waveform';
-  const area = wave ? document.getElementById('waveform-pane') : container;
-  const bounds = area?.getBoundingClientRect();
-  if (!bounds) return [];
-  const points = [];
-  for (const change of plan.changes.filter(c => c.changed)) {
+  const region = pointer?.closest('#waveform-pane') ? 'waveform' : pointer?.closest('#cues-container') ? 'list'
+    : lastEditRegion === 'waveform' ? 'waveform' : 'list';
+  const groups = plan.feedbackResults ? plan.feedbackResults.map(result => ({
+    id: result.id, ownerId: result.track_id,
+    cues: (plan.feedbackMembers || []).filter(member => fixedOwner(member.cue, member.role, member.track_id) === result.track_id).map(member => member.cue),
+  })) : (plan.changes || []).filter(change => change.changed && change.merged).map(change => {
     const segments = change.role === 'main' ? DATA.segments : change.role === 'overlay' ? getOverlayTrack()?.segments : getExtensionTrack(change.track_id)?.segments;
-    const cues = segments.filter(c => change.ids.has(c.id)).sort((a,b) => a.start-b.start);
-    let point;
-    if (wave) {
-      const time = (cues[0].end+cues[1].start)/2;
-      point = waveformEditor?.getSplitPointAtTime?.(time, change.role);
-      const row = [...area.querySelectorAll('.waveform-row')].find(r => time >= Number(r.dataset.startMs) && time <= Number(r.dataset.endMs));
-      const block = [...(row?.querySelectorAll('.waveform-cue-block') || [])].find(node => node.dataset.track === change.role
-        && cues.slice(0,2).some(c => node.dataset.cueId === c.id || Number(node.dataset[change.role === 'extension' ? 'extIdx' : change.role === 'overlay' ? 'overlayIdx' : 'idx']) === segments.indexOf(c)));
-      const rect = block?.getBoundingClientRect();
-      if (point && rect?.height) point.clientY = rect.top+rect.height/2; else point = null;
-    }
-    else {
-      const selector = index => change.role === 'main' ? `.multi-cue-column.main[data-main-idx="${index}"], .cue[data-idx="${index}"]:not(.multi-dual-cue)`
-        : change.role === 'extension' ? `.multi-cue-column.extension[data-ext-idx="${index}"]` : `.overlay-track-cue[data-overlay-idx="${index}"]`;
-      const rects = cues.slice(0,2).map(c => container.querySelector(selector(segments.indexOf(c)))?.getBoundingClientRect());
-      if (rects.every(r => r?.width && r?.height)) point = {clientX:rects[0].left+rects[0].width/2, clientY:(rects[0].bottom+rects[1].top)/2};
-    }
-    if (point && point.clientX >= Math.max(0,bounds.left) && point.clientX <= Math.min(innerWidth,bounds.right)
-        && point.clientY >= Math.max(0,bounds.top) && point.clientY <= Math.min(innerHeight,bounds.bottom)) points.push(point);
-  }
-  return points;
+    return {id:change.merged.id, role:change.role, trackId:change.track_id, cues:(segments || []).filter(cue => change.ids.has(cue.id))};
+  });
+  return groups.filter(group => group.cues.length > 1).map(group => {
+    const cues = group.cues.slice().sort((a,b) => a.start-b.start || a.end-b.end);
+    return {cueId:group.id, role:group.role, trackId:group.trackId, ownerId:group.ownerId, region,
+      times:cues.slice(1).map((cue,index) => (cues[index].end+cue.start)/2)};
+  });
 }
 
-function triggerMergeFeedback(points) {
-  if (!EDITOR_SETTINGS.mergeTapeEffect) return;
-  for (const point of points || []) {
-    const tape = document.createElement('span');
-    tape.className = 'merge-tape-flash'; tape.setAttribute('aria-hidden','true');
-    tape.style.left = `${point.clientX}px`; tape.style.top = `${point.clientY}px`;
-    document.body.append(tape);
-    tape.addEventListener('animationend', () => tape.remove(), {once:true});
-    setTimeout(() => tape.remove(), 750);
-  }
+let mergeFeedbackCleanup = null;
+function triggerMergeFeedback(feedback) {
+  mergeFeedbackCleanup?.();
+  document.querySelectorAll('.merge-tape-flash').forEach(node => node.remove());
+  if (!EDITOR_SETTINGS.mergeTapeEffect || !feedback?.length) return;
+  let frame = 0, timer = 0;
+  const tapes = [];
+  const cleanup = () => {
+    cancelAnimationFrame(frame); clearTimeout(timer);
+    tapes.forEach(tape => tape.remove());
+    window.removeEventListener('resize', cleanup);
+    window.removeEventListener('wheel', cleanup, true);
+    window.removeEventListener('scroll', cleanup, true);
+    if (mergeFeedbackCleanup === cleanup) mergeFeedbackCleanup = null;
+  };
+  mergeFeedbackCleanup = cleanup;
+  frame = requestAnimationFrame(() => {
+    if (!EDITOR_SETTINGS.mergeTapeEffect) { cleanup(); return; }
+    const points = [];
+    const add = (point, rect, bounds) => {
+      const left = Math.max(0, bounds.left), right = Math.min(innerWidth, bounds.right);
+      const top = Math.max(0, bounds.top), bottom = Math.min(innerHeight, bounds.bottom);
+      if (!rect.width || !rect.height || point.clientX < left || point.clientX > right || point.clientY < top || point.clientY > bottom
+          || right-left < 52 || bottom-top < 16) return;
+      // Keep the whole strip inside the editor viewport, including a join at
+      // the very start of the next waveform line.
+      point.clientX = Math.max(left+26, Math.min(right-26, point.clientX));
+      point.clientY = Math.max(top+8, Math.min(bottom-8, point.clientY));
+      if (points.length < 12 && !points.some(other => Math.abs(other.clientX-point.clientX) < 44 && Math.abs(other.clientY-point.clientY) < 16)) points.push(point);
+    };
+    for (const item of feedback) {
+      // The isolated flat-track trial still supplies a local feedback point.
+      if (Number.isFinite(item.clientX) && Number.isFinite(item.clientY)) {
+        add({...item}, {width:1,height:1}, {left:0,top:0,right:innerWidth,bottom:innerHeight}); continue;
+      }
+      if (item.role === 'extension' && item.trackId && getActiveExtensionTrack()?.id !== item.trackId) continue;
+      if (item.region === 'waveform') {
+        const area = document.getElementById('waveform-scroll');
+        if (!area) continue;
+        const bounds = area.getBoundingClientRect();
+        const blocks = [...area.querySelectorAll(`.waveform-cue-block[data-cue-id="${CSS.escape(item.cueId)}"]`)]
+          .filter(node => (!item.role || node.dataset.track === item.role) && (!item.ownerId || node.dataset.subtitleTrackId === item.ownerId));
+        for (const time of item.times) {
+          const block = blocks.find(node => {
+            const row = node.closest('.waveform-row');
+            return row && time >= Number(row.dataset.startMs) && time < Number(row.dataset.endMs);
+          });
+          const row = block?.closest('.waveform-row');
+          if (!row) continue;
+          const rect = block.getBoundingClientRect(), rowRect = row.getBoundingClientRect();
+          add({cueId:item.cueId, time, region:'waveform', clientX:rowRect.left+rowRect.width*(time-Number(row.dataset.startMs))/(Number(row.dataset.endMs)-Number(row.dataset.startMs)),
+            clientY:rect.top+rect.height/2}, rect, {top:bounds.top, bottom:bounds.bottom,
+              left:Math.max(bounds.left,rowRect.left), right:Math.min(bounds.right,rowRect.right)});
+        }
+      } else {
+        const id = CSS.escape(item.cueId), selector = item.role === 'extension' ? `.cue[data-ext-id="${id}"]`
+          : item.role ? `.cue[data-main-id="${id}"]` : `.cue[data-main-id="${id}"], .cue[data-ext-id="${id}"]`;
+        const row = [...container.querySelectorAll(selector)].find(node => item.role !== 'extension' || !item.trackId || node.dataset.trackId === item.trackId);
+        if (!row) continue;
+        const extension = item.role === 'extension' || !item.role && row.dataset.mainId !== item.cueId;
+        const column = row.querySelector(extension ? '.multi-cue-column.extension' : '.multi-cue-column.main') || row;
+        const rect = column.getBoundingClientRect();
+        // One short strip on each result's edge, regardless of the old count.
+        add({cueId:item.cueId, region:'list', clientX:rect.left+rect.width/2, clientY:rect.bottom-7}, rect, container.getBoundingClientRect());
+      }
+    }
+    for (const point of points) {
+      const tape = document.createElement('span');
+      tape.className = 'merge-tape-flash'; tape.setAttribute('aria-hidden','true');
+      tape.dataset.region = point.region || 'list';
+      if (point.cueId) tape.dataset.cueId = point.cueId;
+      if (Number.isFinite(point.time)) tape.dataset.timeMs = String(point.time);
+      tape.style.left = `${point.clientX}px`; tape.style.top = `${point.clientY}px`;
+      document.body.append(tape); tapes.push(tape);
+      tape.addEventListener('animationend', () => tape.remove(), {once:true});
+    }
+    if (!tapes.length) { cleanup(); return; }
+    window.addEventListener('resize', cleanup);
+    window.addEventListener('wheel', cleanup, {capture:true, passive:true});
+    window.addEventListener('scroll', cleanup, {capture:true, passive:true});
+    timer = setTimeout(cleanup, 700);
+  });
 }
 
 function mergeExtensionSegments(idxs, track = getActiveExtensionTrack(), mode = 'union') {
@@ -46179,7 +46336,7 @@ function isPlaybackKeyboardTarget(event) {
 
 function isNativeKeyboardControl(event) {
   const target = event.target instanceof Element ? event.target : document.activeElement;
-  return Boolean(target?.closest?.('button, input, select, textarea, a'));
+  return Boolean(target?.closest?.('button, input, select, textarea, a, [role="menuitem"], [role="menuitemcheckbox"]'));
 }
 
 function subtitleTemporalOverlap(left, right) {
@@ -56918,7 +57075,10 @@ function initWaveformEditor() {
     getSubtitleLayersEnabled: layerMode,
     onSubtitleLayersChanged: layerUpdateDrag,
     canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
-    onCancelCueDrag: drag => { if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); fixedCancelMoveDrag(drag); layerInvalidate(); } },
+    onCancelCueDrag: (drag, {rejected = false} = {}) => {
+      if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); fixedCancelMoveDrag(drag); layerInvalidate(); }
+      if (rejected && drag.destinationPreview?.reason) fixedStatus(drag.destinationPreview.reason);
+    },
     onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
     getAllowSubtitleOverlap: layerAllowOverlap,
     isSubtitleVisible: (cue, role) => !layerMode() || layerCore.visible(DATA, cue, role),
@@ -63134,7 +63294,7 @@ window.addEventListener('beforeunload', (e) => {
         status.className = 'msw-job-status'; summary.append(heading, spinner, status); card.append(summary);
         const view = document.createElement('div'); view.className = 'msw-tts-result';
         const notice = document.createElement('p'); notice.className = 'msw-processing-hint'; notice.hidden = true;
-        const cancel = jobAction('取消任务', 'stop', async () => {
+        const cancel = jobAction('取消任务', 'cancel', async () => {
           const generation = host.generation;
           const data = await request(`jobs/${job.id}/cancel`, {project_id: job.project_id});
           if (generation !== host.generation) return;
@@ -65026,7 +65186,7 @@ window.addEventListener('beforeunload', (e) => {
   function change(style,selection='current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
     if(fixedTrackMode()&&fixedStyleTarget()) {
-      if(!fixedCommitStyle(style,selection)){sync();message($('fixed-track-status')?.textContent||'无法修改轨道样式',true);return;}
+      if(!fixedCommitStyle(style,selection)){sync();message(fixedLastMessage||'无法修改轨道样式',true);return;}
     }
     else host.commitProjectStyle(style,label,selection);
     rebuild();sync();refresh();

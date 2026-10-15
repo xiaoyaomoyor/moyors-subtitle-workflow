@@ -162,14 +162,57 @@ function layerPlaybackElement(time) {
   return null;
 }
 function layerMergeSelected(indices, role = 'main', track = null, mode = 'union') {
-  if (pendingLinkedSplit) { flashHint('请先确认或取消当前切分', 'warning'); return false; }
+  if (pendingLinkedSplit) { fixedStatus('请先确认或取消当前切分'); return false; }
   const initial = role === 'main' ? DATA.segments : role === 'overlay' ? getOverlayTrack()?.segments : track?.segments;
   const ids = [...new Set(indices.map(index => initial?.[index]?.id).filter(Boolean))];
+  // Display columns do not define ownership. A physical track can contain
+  // unbound cues shown in either column after independent moves or unbinding.
+  let crossColumnIds = [];
+  if (productionFlatMode() && role !== 'overlay' && ids.length) {
+    const owners = new Set(indices.map(i=>initial?.[i]).filter(Boolean).map(c=>fixedOwner(c,role,track?.id)));
+    if (owners.size === 1) {
+      const otherRole = role === 'main' ? 'extension' : 'main', otherTrack = getActiveExtensionTrack();
+      const other = otherRole === 'main' ? DATA.segments : otherTrack?.segments || [];
+      const selected = otherRole === 'main' ? selectedIdxs : selectedExtensionIdxs;
+      crossColumnIds = [...selected].map(i=>other[i]).filter(c=>c && fixedOwner(c,otherRole,otherTrack?.id) === [...owners][0]).map(c=>c.id);
+    }
+  }
+  if (ids.length + crossColumnIds.length < 2) return false;
   commitProcessingEdits();
   const source = role === 'main' ? DATA.segments : role === 'overlay' ? getOverlayTrack()?.segments : getExtensionTrack(track?.id)?.segments;
   const sourceEl = container.querySelector(role === 'extension' ? `.cue[data-ext-idx="${indices[0]}"]`
     : role === 'overlay' ? `.overlay-track-cue[data-overlay-idx="${indices[0]}"]` : `.cue[data-idx="${indices[0]}"]`);
   const anchor = captureVisibleCueListVisualAnchor(sourceEl);
+  if (crossColumnIds.length) {
+    try {
+      const project = window.MSWProductionProject.toProject(DATA), wanted = new Set([...ids,...crossColumnIds]);
+      const owner = project.subtitles.cues.find(c=>wanted.has(c.id)).track_id;
+      const result = window.MSWFlatEditing.merge(project,[...wanted],{
+        mode,makeId:kind=>window.MSWProject.id(kind),
+        joinText:(cues,trackId)=>{
+          const text=cues.map(c=>c.text||'').join('\n'), target=project.subtitles.tracks.find(t=>t.id===trackId);
+          const splitMode=target?.style.slot==='secondary'?getExtensionSubtitleSplitMode(getActiveExtensionTrack(),{text}):getMainSubtitleSplitMode({text});
+          return window.AsrEditorUtils.joinSegmentTexts(cues,mergeJoinSeparatorForMode(splitMode));
+        },
+      });
+      const removed = new Set(project.subtitles.cues.filter(c=>!result.project.subtitles.cues.some(n=>n.id===c.id)).map(c=>c.id));
+      const members = layerCore.tracks(DATA).flatMap(t=>t.segments.filter(c=>removed.has(c.id)).map(c=>({cue:c,role:t.role,track_id:t.track_id})));
+      // Existing feedback reads the original rows. Keep mixed-column members
+      // available without inventing indices or changing the merge transaction.
+      const changes = layerCore.tracks(DATA).map(t=>({...t,changed:true,ids:new Set(t.segments.filter(c=>removed.has(c.id)).map(c=>c.id))})).filter(c=>c.ids.size>1);
+      const feedback=captureMergeFeedback({changes,feedbackMembers:members,
+        feedbackResults:result.project.subtitles.cues.filter(c=>result.ids.includes(c.id))});
+      const primary=result.project.subtitles.cues.find(c=>result.ids.includes(c.id)&&c.track_id===owner);
+      productionCommitProject(result.project,mode==='common'?'共有状态合并':'累加状态合并',[primary.id]);
+      const extension=getActiveExtensionTrack(), mainIndex=DATA.segments.findIndex(c=>c.id===primary.id);
+      const kind=mainIndex>=0?'main':'extension', index=mainIndex>=0?mainIndex:extension.segments.findIndex(c=>c.id===primary.id);
+      setCuePanelTarget(kind,index,kind==='extension'?extension.id:null);
+      if(kind==='main')lastClickedIdx=index;else lastClickedExtensionIdx=index;
+      restoreCueListRenderAnchor(anchor);updateWithoutCueListAutoScroll();fixedStatus();triggerMergeFeedback(feedback);
+      if(result.conflicts.length)fixedStatus('合并完成；不同颜色或表情包已保留时间最早的标记');
+      return true;
+    } catch(error) {fixedStatus(error.message);return false;}
+  }
   let plan;
   try {
     plan = layerCore.planMerge(fixedTrackMode() ? { ...DATA, schema: layerCore.SCHEMA, subtitle_layers: { ...DATA.subtitle_layers, allow_overlap: true } } : DATA, {role, track_id: role === 'extension' ? track?.id : null}, ids, {

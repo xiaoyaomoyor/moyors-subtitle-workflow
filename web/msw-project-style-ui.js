@@ -209,7 +209,7 @@
   function change(style,selection='current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
     if(fixedTrackMode()&&fixedStyleTarget()) {
-      if(!fixedCommitStyle(style,selection)){sync();message($('fixed-track-status')?.textContent||'无法修改轨道样式',true);return;}
+      if(!fixedCommitStyle(style,selection)){sync();message(fixedLastMessage||'无法修改轨道样式',true);return;}
     }
     else host.commitProjectStyle(style,label,selection);
     rebuild();sync();refresh();

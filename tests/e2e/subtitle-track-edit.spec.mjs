@@ -85,7 +85,7 @@ for (const method of ['ctrl','menu','keyboard']) test(`empty fixed track creates
   } else await page.keyboard.press('n');
   const after=await state(page),added=after.segments.find(c=>!before.segments.some(old=>old.id===c.id));
   expect(errors).toEqual([]);
-  expect(added,await page.locator('#fixed-track-status').textContent()).toBeTruthy();expect(owner(after,added.id)).toBe(target);
+  expect(added,await page.evaluate(()=>fixedLastMessage)).toBeTruthy();expect(owner(after,added.id)).toBe(target);
   expect(Math.abs(added.start-1500)).toBeLessThan(30);
   if(method==='ctrl')expect(Math.abs(added.end-2500)).toBeLessThan(30);
   expect(after.segments.filter(c=>c.id!==added.id)).toEqual(before.segments);
@@ -110,7 +110,7 @@ for (const method of ['ctrl','menu']) test(`empty secondary lane creates through
   }
   const after=await state(page),added=after.multi.tracks[0].segments.find(c=>!before.multi.tracks[0].segments.some(old=>old.id===c.id));
   expect(errors).toEqual([]);
-  expect(added,await page.locator('#fixed-track-status').textContent()).toBeTruthy();expect(owner(after,added.id,'extension')).toBe(target);
+  expect(added,await page.evaluate(()=>fixedLastMessage)).toBeTruthy();expect(owner(after,added.id,'extension')).toBe(target);
   expect(after.segments).toEqual(before.segments);expect(after.multi.bindings).toEqual(before.multi.bindings);
   await page.evaluate(()=>performUndo());expect(normalizedOwners(await state(page))).toEqual(normalizedOwners(before));
   expect(errors).toEqual([]);
@@ -129,7 +129,7 @@ test('creation stops at own-track boundary and locked destinations reject both m
   await page.mouse.move(p.x,p.y);await page.keyboard.down('Control');await page.mouse.down();
   await page.mouse.move(q.x,q.y,{steps:5});await page.mouse.up();await page.keyboard.up('Control');
   await expect(page.locator('.waveform-create-preview')).toHaveCount(0);
-  await expect(page.locator('#fixed-track-status')).toContainText('已锁定');
+  await expect(page.locator('#hint-stack .hint-card')).toContainText('已锁定');
   await page.mouse.click(p.x,p.y,{button:'right'});
   await expect(page.locator('#ctxmenu .item').filter({hasText:'创建字幕'})).toHaveClass(/disabled/);
   expect(await state(page)).toEqual(locked);expect(errors).toEqual([]);
@@ -223,7 +223,7 @@ test('move menu moves bound partners together, filters cards and rejects occupie
   await page.evaluate(() => performUndo()); expect(await state(page)).toEqual(original);
   await page.evaluate(() => performRedo()); expect(await state(page)).toEqual(moved);
   await page.evaluate(() => fixedMove([fixedRef(DATA.segments.find(c => c.id === 'a'))], fixedOwner(DATA.segments.find(c => c.id === 'b'))));
-  await expect(page.locator('#fixed-track-status')).toContainText('重叠');
+  await expect(page.locator('#hint-stack .hint-card')).toContainText('已有字幕');
   expect(await state(page)).toEqual(moved);
   await page.evaluate(() => performUndo()); expect(await state(page)).toEqual(original);
   expect(errors).toEqual([]);
@@ -247,7 +247,7 @@ test('same-track merge spans interleaved other tracks but cross-track merge is r
   const errors = await open(page, [cue('a', 1000, 3000), cue('b', 2000, 4000), cue('c', 5000, 7000)], bilingual());
   const before = await state(page), track = owner(before, 'a');
   expect(await page.evaluate(() => layerMergeSelected([0, 1]))).toBe(false);
-  await expect(page.locator('#fixed-track-status')).toContainText('跨轨');
+  await expect(page.locator('#hint-stack .hint-card')).toContainText('跨轨');
   expect(await state(page)).toEqual(before);
   expect(await page.evaluate(() => layerMergeSelected([0, 2]))).toBe(true);
   const after = await state(page);

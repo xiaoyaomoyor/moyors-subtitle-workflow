@@ -468,7 +468,7 @@
         status.className = 'msw-job-status'; summary.append(heading, spinner, status); card.append(summary);
         const view = document.createElement('div'); view.className = 'msw-tts-result';
         const notice = document.createElement('p'); notice.className = 'msw-processing-hint'; notice.hidden = true;
-        const cancel = jobAction('取消任务', 'stop', async () => {
+        const cancel = jobAction('取消任务', 'cancel', async () => {
           const generation = host.generation;
           const data = await request(`jobs/${job.id}/cancel`, {project_id: job.project_id});
           if (generation !== host.generation) return;

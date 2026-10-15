@@ -15,6 +15,7 @@ let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
 let fixedNumberCache = null;
+let fixedLastMessage = '';
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
 function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
 function fixedCueLabel(cue,role='main',trackId=null,editor=false) {
@@ -51,14 +52,15 @@ function fixedCueCreationContext(role = 'main') {
     lane: fixedLayout().positions.get(JSON.stringify([track?.id, role])),
     segments: productionFlatMode()?layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>fixedOwner(c,s.role,s.track_id)===track?.id)):source.filter(cue => fixedOwner(cue, role) === track?.id) };
 }
-function fixedStatus(message = '') {
-  const node = document.getElementById('fixed-track-status');
-  if (node) node.textContent = message;
+function fixedStatus(message = '', {silent = false} = {}) {
+  if (message.includes('同轨同角色字幕重叠')) message = '目标轨道此处已有字幕，请调整位置';
+  fixedLastMessage = message;
+  if (message && !silent) flashHint(window.MSWE_I18N?.translateText?.(message) || message, 'invalid');
 }
-function fixedCanEdit(cues, role = 'main', trackId = null, linked = true) {
+function fixedCanEdit(cues, role = 'main', trackId = null, linked = true, {silent = false} = {}) {
   if (!fixedTrackMode()) return true;
   try { fixedTrackCore.assertEditable(DATA, cues.filter(Boolean).map(c => fixedRef(c, role, trackId)), linked); return true; }
-  catch (error) { fixedStatus(error.message); return false; }
+  catch (error) { fixedStatus(error.message, {silent}); return false; }
 }
 function fixedSameTrack(a, b) {
   if (!fixedTrackMode()) return true;
@@ -69,7 +71,7 @@ function fixedContent() {
     subtitle_layers: DATA.subtitle_layers, subtitle_tracks: DATA.subtitle_tracks });
 }
 function fixedReset() {
-  fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedInvalidate();
+  fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
@@ -196,7 +198,7 @@ function productionBindSelected() {
     for(const b of p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id)))p=window.MSWFlatSubtitles.unbind(p,b.id);
     const next=window.MSWFlatSubtitles.bind(p,ids[0],ids[1],window.MSWProject.id('binding'));
     productionCommitProject(next,'绑定字幕',ids);
-  } catch(error){flashHint(error.message,'warning');}
+  } catch(error){fixedStatus(error.message);}
 }
 let productionClipboard=null;
 function productionCaptureClipboard() {
@@ -243,7 +245,9 @@ function fixedMove(refs, targetId) {
 function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   if(!productionFlatMode()||drag.kind!=='move')return null;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track))return false;
+  if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
+    drag.destinationPreview={...drag.destinationPreview,blocked:true,reason:fixedLastMessage};return false;
+  }
   if(!drag.fixedMove) {
     ensureBoundDragTimelineOriginals(drag);
     const entries=drag.indices.map(index=>({cue:source[index],original:structuredClone(source[index]),index}));
@@ -258,12 +262,12 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   const destination=band?.track.id||state.target||originalOwner;
   const original=drag.originals.get(drag.index),clock=drag.timing;
   drag.destinationPreview={name:tracks.find(t=>t.id===destination)?.name||'',
-    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true};
+    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true,reason:'目标轨道此处已有字幕，请调整位置'};
   const shift=tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===originalOwner);
   const moving=new Map();
   for(const entry of state.entries) {
     const target=tracks[tracks.findIndex(t=>t.id===state.owners.get(entry.cue.id))+shift];
-    if(!target||target.locked){fixedStatus(target?'目标轨道已锁定，请先解锁':'没有足够的轨道容纳所选字幕');return false;}
+    if(!target||target.locked){drag.destinationPreview.reason=target?'目标轨道已锁定，请先解锁':'没有足够的轨道容纳所选字幕';return false;}
     moving.set(entry.cue.id,target.id);
   }
   const previous=DATA.subtitle_tracks.assignments;
@@ -296,7 +300,7 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
       end_offset_ms:byId.get(b.extension_segment_ids[0]).end-byId.get(b.main_segment_ids[0]).end}));
     multi.bindings=bindings;
     fixedTrackCore.validate({...DATA,segments,multi_subtitle:multi});
-  } catch(error) {fixedStatus(error.message);return false;}
+  } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
   const changed=ownerChanged||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
@@ -456,9 +460,40 @@ function fixedRenderHeads(group, row, audioSpace) {
   }
   return true;
 }
+function fixedSyncTrackSettings() {
+  const group=document.getElementById('subtitle-track-settings-dropdown');
+  if(!group)return;
+  group.hidden=!fixedTrackMode();if(group.hidden)return;
+  const tracks=DATA.subtitle_tracks.tracks;
+  for(const [id,field,inverse,caption] of [
+    ['subtitle-track-visibility-menu','collapsed',true,'展开'],
+    ['subtitle-track-enabled-menu','enabled',false,'启用'],
+  ]) {
+    const menu=document.getElementById(id);if(!menu)continue;
+    const rows=new Map([...menu.children].map(row=>[row.dataset.trackId,row]));
+    for(const [key,row] of rows)if(!tracks.some(t=>t.id===key))row.remove();
+    tracks.forEach((track,index)=>{
+      let row=rows.get(track.id);
+      if(!row) {
+        row=document.createElement('label');row.className='dropdown-item recent-project-setting';row.dataset.trackId=track.id;
+        row.tabIndex=0;row.setAttribute('role','menuitemcheckbox');
+        const check=document.createElement('input');check.type='checkbox';check.tabIndex=-1;
+        const name=document.createElement('span');row.append(check,name);
+        check.onchange=()=>{fixedUpdateTrack(track.id,{[field]:inverse?!check.checked:check.checked});fixedSyncTrackSettings();};
+      }
+      const check=row.querySelector('input'),name=row.querySelector('span');
+      check.checked=inverse?!track[field]:track[field]!==false;
+      check.setAttribute('aria-label',`${window.MSWE_I18N?.translateText?.(caption)||caption} ${track.name}`);
+      row.setAttribute('aria-checked',String(check.checked));name.textContent=track.name;
+      // Keep existing focused controls in place while a checkbox triggers renderAll.
+      if(menu.children[index]!==row)menu.insertBefore(row,menu.children[index]||null);
+    });
+  }
+}
 function fixedSyncUI() {
   document.documentElement.classList.toggle('msw-fixed-tracks', fixedTrackMode());
   document.documentElement.classList.toggle('msw-numbered-tracks',productionFlatMode());
+  fixedSyncTrackSettings();
   if (!fixedTrackMode()) return;
   if (!fixedActiveTrackId || !DATA.subtitle_tracks.tracks.some(t => t.id === fixedActiveTrackId)) fixedActiveTrackId = DATA.subtitle_tracks.tracks[0].id;
   const toolbar = document.getElementById('cues-module');
@@ -474,10 +509,6 @@ function fixedSyncUI() {
   if (select) {
     select.replaceChildren(new Option('全部轨道', ''), ...DATA.subtitle_tracks.tracks.map(t => new Option(t.name, t.id)));
     select.value = fixedTrackFilter.size===1?[...fixedTrackFilter][0]:'';
-  }
-  if (!document.getElementById('fixed-track-status')) {
-    const status = document.createElement('span'); status.id = 'fixed-track-status'; status.setAttribute('role', 'status');
-    document.querySelector('.waveform-pane')?.append(status);
   }
   document.getElementById('overlay-track-toggle')?.closest('label')?.setAttribute('hidden', '');
   document.getElementById('subtitle-legacy-visible')?.closest('label')?.setAttribute('hidden', '');
@@ -586,6 +617,7 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   return lines.join('\n');
 }
 document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('subtitle-track-add')?.addEventListener('click',()=>fixedAddTrack('subtitle'));
   const anchor=document.getElementById('download-merged-srt');if(!anchor)return;
   const row=document.createElement('div');row.className='fixed-srt-scope';
   const label=document.createElement('label');label.textContent='SRT 范围 ';

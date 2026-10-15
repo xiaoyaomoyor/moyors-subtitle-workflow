@@ -1342,6 +1342,7 @@ test('compact history shows numbered rows, inline actions and pinnable error det
   expect(cancelBox.x+cancelBox.width).toBeLessThanOrEqual(spinBox.x);
   expect(Math.abs(cancelBox.y+cancelBox.height/2-spinBox.y-spinBox.height/2)).toBeLessThan(2);
   expect(await summary.getByRole('button',{name:'取消任务'}).textContent()).toBe('');
+  await expect(summary.getByRole('button',{name:'取消任务'})).toHaveAttribute('data-icon','cancel');
   await page.screenshot({path:info.outputPath('tts-running.png')});
   held.splice(0).forEach(respond=>respond());
   await expect(job.locator('.msw-job-status')).toHaveText('成功2/3');
@@ -1436,10 +1437,49 @@ test('row retry submits only that failed entry and retains the other failed row'
 });
 
 
+test('flat TTS assets resolve both display columns and review only real source changes',async({page})=>{
+  await open(page,true);
+  await page.evaluate(()=>{
+    applyCanonicalProject(MSWFlatSubtitles.migrate(JSON.parse(buildJson())),'flat-sources.mosp');
+    updateEditorSettings({autoSaveProject:false});
+    clearSelection({silent:true});selectedIdxs.add(0);selectedExtensionIdxs.add(0);
+    const toggle=document.getElementById('asset-show-changes');toggle.checked=true;toggle.dispatchEvent(new Event('change'));
+  });
+  expect(await page.evaluate(()=>productionFlatMode())).toBe(true);
+  await panel(page);await page.locator('#tts-start').click();await expect.poll(()=>countAssets(page)).toBe(2);
+  await page.locator('#tts-close').click();
+  await expect(page.locator('.msw-asset-review')).toHaveCount(0);
+  expect(await page.evaluate(()=>[...MSWAsr.assetStatuses(DATA)])).toEqual([]);
+  const before=await page.evaluate(()=>{DATA.msw.removed_asset_ids ||= [];return JSON.parse(buildJson());});
+  await page.evaluate(()=>{
+    pushUndo('测试来源修改');DATA.segments[0].text='Changed source';renderAll();
+    MSWE.resolve('asset-library').renderAssets();
+  });
+  await expect(page.locator('.msw-asset-review')).toHaveCount(1);
+  await page.evaluate(()=>{performUndo();MSWE.resolve('asset-library').renderAssets();});
+  await expect(page.locator('.msw-asset-review')).toHaveCount(0);
+  await page.evaluate(()=>{
+    const p=MSWProductionProject.toProject(DATA),id=p.msw.assets[1].source_ref.subtitle_cue_id;
+    productionCommitProject(MSWFlatEditing.remove(p,[id]),'测试来源删除');MSWE.resolve('asset-library').renderAssets();
+  });
+  await expect(page.locator('.msw-asset-review')).toHaveCount(1);
+  await page.evaluate(()=>{performUndo();MSWE.resolve('asset-library').renderAssets();});
+  await expect(page.locator('.msw-asset-review')).toHaveCount(0);
+  expect(await page.evaluate(()=>JSON.parse(buildJson()))).toEqual(before);
+});
+
 test('audio cards use review badges instead of dashed outlines and clear selection outside',async({page},info)=>{
   await open(page);await panel(page);await page.locator('#tts-start').click();await expect.poll(()=>countAssets(page)).toBe(2);
   await page.locator('#tts-close').click();
-  await page.evaluate(()=>{clearSelection();DATA.segments[0].text='修改后的字幕';DATA.segments.pop();MSWE.resolve('asset-library').renderAssets();});
+  await page.evaluate(()=>{
+    clearSelection();
+    if(productionFlatMode()) {
+      const p=MSWProductionProject.toProject(DATA);
+      const next=MSWFlatEditing.remove(MSWFlatEditing.updateText(p,DATA.segments[0].id,'修改后的字幕'),[DATA.segments.at(-1).id]);
+      productionCommitProject(next,'测试来源修改和删除');
+    } else {DATA.segments[0].text='修改后的字幕';DATA.segments.pop();renderAll();}
+    MSWE.resolve('asset-library').renderAssets();
+  });
   const cards=page.locator('.msw-asset-row');await expect(page.locator('.msw-asset-review')).toHaveCount(0);
   await expect(page.locator('#asset-show-changes')).not.toBeChecked();
   await openMenubarMenu(page,'媒体');

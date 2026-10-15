@@ -10340,51 +10340,109 @@ function mergeSegments(idxs, mode = 'union') {
   return layerMergeSelected(idxs, 'main', null, mode);
 }
 
-// Capture visible join positions before the two tracks are replaced. Feedback
-// never changes selection, playback, history or the scroll position.
+// Keep identities and joins, not old card coordinates: rendering a merge can
+// move the result to another list row or waveform line.
 function captureMergeFeedback(plan) {
   if (!EDITOR_SETTINGS.mergeTapeEffect) return [];
   const pointer = lastPointerPos && document.elementFromPoint(lastPointerPos.x, lastPointerPos.y);
-  const wave = pointer?.closest('#waveform-pane') || lastEditRegion === 'waveform';
-  const area = wave ? document.getElementById('waveform-pane') : container;
-  const bounds = area?.getBoundingClientRect();
-  if (!bounds) return [];
-  const points = [];
-  for (const change of plan.changes.filter(c => c.changed)) {
+  const region = pointer?.closest('#waveform-pane') ? 'waveform' : pointer?.closest('#cues-container') ? 'list'
+    : lastEditRegion === 'waveform' ? 'waveform' : 'list';
+  const groups = plan.feedbackResults ? plan.feedbackResults.map(result => ({
+    id: result.id, ownerId: result.track_id,
+    cues: (plan.feedbackMembers || []).filter(member => fixedOwner(member.cue, member.role, member.track_id) === result.track_id).map(member => member.cue),
+  })) : (plan.changes || []).filter(change => change.changed && change.merged).map(change => {
     const segments = change.role === 'main' ? DATA.segments : change.role === 'overlay' ? getOverlayTrack()?.segments : getExtensionTrack(change.track_id)?.segments;
-    const cues = segments.filter(c => change.ids.has(c.id)).sort((a,b) => a.start-b.start);
-    let point;
-    if (wave) {
-      const time = (cues[0].end+cues[1].start)/2;
-      point = waveformEditor?.getSplitPointAtTime?.(time, change.role);
-      const row = [...area.querySelectorAll('.waveform-row')].find(r => time >= Number(r.dataset.startMs) && time <= Number(r.dataset.endMs));
-      const block = [...(row?.querySelectorAll('.waveform-cue-block') || [])].find(node => node.dataset.track === change.role
-        && cues.slice(0,2).some(c => node.dataset.cueId === c.id || Number(node.dataset[change.role === 'extension' ? 'extIdx' : change.role === 'overlay' ? 'overlayIdx' : 'idx']) === segments.indexOf(c)));
-      const rect = block?.getBoundingClientRect();
-      if (point && rect?.height) point.clientY = rect.top+rect.height/2; else point = null;
-    }
-    else {
-      const selector = index => change.role === 'main' ? `.multi-cue-column.main[data-main-idx="${index}"], .cue[data-idx="${index}"]:not(.multi-dual-cue)`
-        : change.role === 'extension' ? `.multi-cue-column.extension[data-ext-idx="${index}"]` : `.overlay-track-cue[data-overlay-idx="${index}"]`;
-      const rects = cues.slice(0,2).map(c => container.querySelector(selector(segments.indexOf(c)))?.getBoundingClientRect());
-      if (rects.every(r => r?.width && r?.height)) point = {clientX:rects[0].left+rects[0].width/2, clientY:(rects[0].bottom+rects[1].top)/2};
-    }
-    if (point && point.clientX >= Math.max(0,bounds.left) && point.clientX <= Math.min(innerWidth,bounds.right)
-        && point.clientY >= Math.max(0,bounds.top) && point.clientY <= Math.min(innerHeight,bounds.bottom)) points.push(point);
-  }
-  return points;
+    return {id:change.merged.id, role:change.role, trackId:change.track_id, cues:(segments || []).filter(cue => change.ids.has(cue.id))};
+  });
+  return groups.filter(group => group.cues.length > 1).map(group => {
+    const cues = group.cues.slice().sort((a,b) => a.start-b.start || a.end-b.end);
+    return {cueId:group.id, role:group.role, trackId:group.trackId, ownerId:group.ownerId, region,
+      times:cues.slice(1).map((cue,index) => (cues[index].end+cue.start)/2)};
+  });
 }
 
-function triggerMergeFeedback(points) {
-  if (!EDITOR_SETTINGS.mergeTapeEffect) return;
-  for (const point of points || []) {
-    const tape = document.createElement('span');
-    tape.className = 'merge-tape-flash'; tape.setAttribute('aria-hidden','true');
-    tape.style.left = `${point.clientX}px`; tape.style.top = `${point.clientY}px`;
-    document.body.append(tape);
-    tape.addEventListener('animationend', () => tape.remove(), {once:true});
-    setTimeout(() => tape.remove(), 750);
-  }
+let mergeFeedbackCleanup = null;
+function triggerMergeFeedback(feedback) {
+  mergeFeedbackCleanup?.();
+  document.querySelectorAll('.merge-tape-flash').forEach(node => node.remove());
+  if (!EDITOR_SETTINGS.mergeTapeEffect || !feedback?.length) return;
+  let frame = 0, timer = 0;
+  const tapes = [];
+  const cleanup = () => {
+    cancelAnimationFrame(frame); clearTimeout(timer);
+    tapes.forEach(tape => tape.remove());
+    window.removeEventListener('resize', cleanup);
+    window.removeEventListener('wheel', cleanup, true);
+    window.removeEventListener('scroll', cleanup, true);
+    if (mergeFeedbackCleanup === cleanup) mergeFeedbackCleanup = null;
+  };
+  mergeFeedbackCleanup = cleanup;
+  frame = requestAnimationFrame(() => {
+    if (!EDITOR_SETTINGS.mergeTapeEffect) { cleanup(); return; }
+    const points = [];
+    const add = (point, rect, bounds) => {
+      const left = Math.max(0, bounds.left), right = Math.min(innerWidth, bounds.right);
+      const top = Math.max(0, bounds.top), bottom = Math.min(innerHeight, bounds.bottom);
+      if (!rect.width || !rect.height || point.clientX < left || point.clientX > right || point.clientY < top || point.clientY > bottom
+          || right-left < 52 || bottom-top < 16) return;
+      // Keep the whole strip inside the editor viewport, including a join at
+      // the very start of the next waveform line.
+      point.clientX = Math.max(left+26, Math.min(right-26, point.clientX));
+      point.clientY = Math.max(top+8, Math.min(bottom-8, point.clientY));
+      if (points.length < 12 && !points.some(other => Math.abs(other.clientX-point.clientX) < 44 && Math.abs(other.clientY-point.clientY) < 16)) points.push(point);
+    };
+    for (const item of feedback) {
+      // The isolated flat-track trial still supplies a local feedback point.
+      if (Number.isFinite(item.clientX) && Number.isFinite(item.clientY)) {
+        add({...item}, {width:1,height:1}, {left:0,top:0,right:innerWidth,bottom:innerHeight}); continue;
+      }
+      if (item.role === 'extension' && item.trackId && getActiveExtensionTrack()?.id !== item.trackId) continue;
+      if (item.region === 'waveform') {
+        const area = document.getElementById('waveform-scroll');
+        if (!area) continue;
+        const bounds = area.getBoundingClientRect();
+        const blocks = [...area.querySelectorAll(`.waveform-cue-block[data-cue-id="${CSS.escape(item.cueId)}"]`)]
+          .filter(node => (!item.role || node.dataset.track === item.role) && (!item.ownerId || node.dataset.subtitleTrackId === item.ownerId));
+        for (const time of item.times) {
+          const block = blocks.find(node => {
+            const row = node.closest('.waveform-row');
+            return row && time >= Number(row.dataset.startMs) && time < Number(row.dataset.endMs);
+          });
+          const row = block?.closest('.waveform-row');
+          if (!row) continue;
+          const rect = block.getBoundingClientRect(), rowRect = row.getBoundingClientRect();
+          add({cueId:item.cueId, time, region:'waveform', clientX:rowRect.left+rowRect.width*(time-Number(row.dataset.startMs))/(Number(row.dataset.endMs)-Number(row.dataset.startMs)),
+            clientY:rect.top+rect.height/2}, rect, {top:bounds.top, bottom:bounds.bottom,
+              left:Math.max(bounds.left,rowRect.left), right:Math.min(bounds.right,rowRect.right)});
+        }
+      } else {
+        const id = CSS.escape(item.cueId), selector = item.role === 'extension' ? `.cue[data-ext-id="${id}"]`
+          : item.role ? `.cue[data-main-id="${id}"]` : `.cue[data-main-id="${id}"], .cue[data-ext-id="${id}"]`;
+        const row = [...container.querySelectorAll(selector)].find(node => item.role !== 'extension' || !item.trackId || node.dataset.trackId === item.trackId);
+        if (!row) continue;
+        const extension = item.role === 'extension' || !item.role && row.dataset.mainId !== item.cueId;
+        const column = row.querySelector(extension ? '.multi-cue-column.extension' : '.multi-cue-column.main') || row;
+        const rect = column.getBoundingClientRect();
+        // One short strip on each result's edge, regardless of the old count.
+        add({cueId:item.cueId, region:'list', clientX:rect.left+rect.width/2, clientY:rect.bottom-7}, rect, container.getBoundingClientRect());
+      }
+    }
+    for (const point of points) {
+      const tape = document.createElement('span');
+      tape.className = 'merge-tape-flash'; tape.setAttribute('aria-hidden','true');
+      tape.dataset.region = point.region || 'list';
+      if (point.cueId) tape.dataset.cueId = point.cueId;
+      if (Number.isFinite(point.time)) tape.dataset.timeMs = String(point.time);
+      tape.style.left = `${point.clientX}px`; tape.style.top = `${point.clientY}px`;
+      document.body.append(tape); tapes.push(tape);
+      tape.addEventListener('animationend', () => tape.remove(), {once:true});
+    }
+    if (!tapes.length) { cleanup(); return; }
+    window.addEventListener('resize', cleanup);
+    window.addEventListener('wheel', cleanup, {capture:true, passive:true});
+    window.addEventListener('scroll', cleanup, {capture:true, passive:true});
+    timer = setTimeout(cleanup, 700);
+  });
 }
 
 function mergeExtensionSegments(idxs, track = getActiveExtensionTrack(), mode = 'union') {
@@ -12385,7 +12443,7 @@ function isPlaybackKeyboardTarget(event) {
 
 function isNativeKeyboardControl(event) {
   const target = event.target instanceof Element ? event.target : document.activeElement;
-  return Boolean(target?.closest?.('button, input, select, textarea, a'));
+  return Boolean(target?.closest?.('button, input, select, textarea, a, [role="menuitem"], [role="menuitemcheckbox"]'));
 }
 
 function subtitleTemporalOverlap(left, right) {
@@ -23124,7 +23182,10 @@ function initWaveformEditor() {
     getSubtitleLayersEnabled: layerMode,
     onSubtitleLayersChanged: layerUpdateDrag,
     canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
-    onCancelCueDrag: drag => { if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); fixedCancelMoveDrag(drag); layerInvalidate(); } },
+    onCancelCueDrag: (drag, {rejected = false} = {}) => {
+      if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); fixedCancelMoveDrag(drag); layerInvalidate(); }
+      if (rejected && drag.destinationPreview?.reason) fixedStatus(drag.destinationPreview.reason);
+    },
     onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
     getAllowSubtitleOverlap: layerAllowOverlap,
     isSubtitleVisible: (cue, role) => !layerMode() || layerCore.visible(DATA, cue, role),

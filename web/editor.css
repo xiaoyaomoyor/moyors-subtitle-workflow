@@ -4978,6 +4978,7 @@
 #tts-panel .msw-local-service-card .msw-processing-actions { flex:none; gap:6px; }
 #tts-panel .msw-tts-icon-button[data-icon="start"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 4 12 8-12 8Z' fill='none' stroke='black' stroke-width='1.7' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 #tts-panel .msw-tts-icon-button[data-icon="stop"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='5' width='14' height='14' rx='2' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E"); }
+#tts-panel .msw-tts-icon-button[data-icon="cancel"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 6 12 12M18 6 6 18' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E"); }
 #tts-panel .msw-tts-icon-button[data-icon="settings"]::before { mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.13,5.07 10.26,2.15 13.74,2.15 14.87,5.07 17.74,3.81 20.19,6.26 18.93,9.13 21.85,10.26 21.85,13.74 18.93,14.87 20.19,17.74 17.74,20.19 14.87,18.93 13.74,21.85 10.26,21.85 9.13,18.93 6.26,20.19 3.81,17.74 5.07,14.87 2.15,13.74 2.15,10.26 5.07,9.13 3.81,6.26 6.26,3.81Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/g%3E%3C/svg%3E"); }
 
 .msw-layer-merge {
@@ -5090,19 +5091,19 @@
 .msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
 /* The merge Easter egg uses the same accent as split feedback. */
 .merge-tape-flash {
-  position: fixed; z-index: 1200; width: 108px; height: 25px;
-  pointer-events: none; background: color-mix(in srgb, var(--accent) 65%, transparent);
-  border-block: 1px dashed var(--accent); box-sizing: border-box;
+  position: fixed; z-index: 1200; width: 48px; height: 14px;
+  pointer-events: none; background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border-block: 1px solid color-mix(in srgb, var(--accent) 65%, transparent); box-sizing: border-box;
   clip-path: polygon(3% 0, 97% 0, 100% 20%, 97% 40%, 100% 60%, 97% 80%, 100% 100%, 0 100%, 3% 80%, 0 60%, 3% 40%, 0 20%);
-  transform: translate(-50%, -50%) rotate(-10deg);
-  animation: merge-tape-stick 600ms ease-out both;
+  transform: translate(-50%, -50%) rotate(-5deg);
+  animation: merge-tape-stick 520ms ease-out both;
 }
 .merge-tape-flash::after {
-  content: ''; position: absolute; inset: 4px 50%; border-left: 2px solid var(--accent);
+  content: ''; position: absolute; inset: 3px 50%; border-left: 1px solid var(--accent);
 }
 @keyframes merge-tape-stick {
-  0% { opacity: 0; transform: translate(-50%, -65%) rotate(-14deg) scaleX(.1); }
-  28%, 65% { opacity: 1; transform: translate(-50%, -50%) rotate(-10deg) scaleX(1); }
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-5deg) scaleX(.45); }
+  25%, 65% { opacity: 1; transform: translate(-50%, -50%) rotate(-5deg) scaleX(1); }
   100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5145,9 +5146,6 @@
 .cue:has(> .fixed-track-badge):not(.multi-dual-cue) > .sticker-slot { grid-row: 4; }
 .fixed-track-filter { display: flex; align-items: center; gap: 4px; padding: 5px 10px; font-size: 12px; }
 .fixed-track-filter select { max-width: 150px; padding: 3px 6px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--bg-input); font: inherit; }
-#fixed-track-status { position:absolute; bottom:8px; left:110px; right:12px; z-index:31; padding:6px 10px;
-  color:var(--text-primary); background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; pointer-events:none; }
-#fixed-track-status:empty { display:none; }
 .fixed-track-form { width:240px; max-width:calc(100vw - 32px); padding:10px; display:grid; gap:12px; box-sizing:border-box; }
 .fixed-track-form label { display:grid; gap:6px; color:var(--text-muted); font-size:12px; }
 .fixed-track-form :is(input,select) { width:100%; min-width:0; box-sizing:border-box; padding:6px 8px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); font:inherit; }

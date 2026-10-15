@@ -157,13 +157,20 @@
     return {applied:true,segments,multi,msw,insertedIds:inserted.map(cue=>cue.id),removedIds:[...removed]};
   }
   function assetStatuses(project) {
+    const statuses=new Map(),assets=(project.msw?.assets||[]).filter(asset=>asset.source_ref
+      &&asset.source_ref.kind!=='editor_text'&&asset.generation?.provider!=='imported');
+    if(!assets.length)return statuses;
+    // Display columns use temporary track IDs. Resolve flat sources by their
+    // stable cue identity, including migration aliases for older audio assets.
+    const flat=global.MSWFlatSubtitles;
+    const native=global.MSWProductionProject?.isView(project)?global.MSWProductionProject.toProject(project):project;
+    const index=flat&&native.schema===flat.SCHEMA?flat.createIndex(native):null;
     const cues=new Map((project.segments||[]).map(cue=>[JSON.stringify([null,cue.id]),cue]));
     for(const track of project.multi_subtitle?.tracks||[]) for(const cue of track.segments||[])cues.set(JSON.stringify([track.id,cue.id]),cue);
-    const statuses=new Map();
-    for(const asset of project.msw?.assets||[]) {
+    for(const asset of assets) {
       const source=asset.source_ref;
-      if(!source||source.kind==='editor_text'||asset.generation?.provider==='imported')continue;
-      const cue=source.track_kind==='overlay' ? (project.overlay_track?.segments||[]).find(cue=>cue.id===source.id) : cues.get(JSON.stringify([source.track_id??null,source.id]));
+      const cue=index?index.resolveSource(source)?.content:source.track_kind==='overlay'
+        ?(project.overlay_track?.segments||[]).find(cue=>cue.id===source.id):cues.get(JSON.stringify([source.track_id??null,source.id]));
       const reason=!cue?'来源字幕已删除或被 ASR 替换':project.msw?.asr_stale_subtitles?.[source.track_id]?.[source.id]
         ?'配音来源副字幕需复核':cue.text!==source.text||cue.start!==source.start||cue.end!==source.end?'来源字幕已修改，配音需复核':'';
       if(reason)statuses.set(asset.id,reason);

@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const window={};const context=vm.createContext({window});
+import flat from '../web/msw-flat-subtitles.js';
+import production from '../web/msw-production-project.js';
+import editing from '../web/msw-flat-editing.js';
+import processing from '../web/msw-flat-processing-core.js';
+const window={MSWFlatSubtitles:flat,MSWProductionProject:production};const context=vm.createContext({window});
 for(const name of ['msw-project.js','msw-asr-core.js'])vm.runInContext(readFileSync(new URL(`../web/${name}`,import.meta.url),'utf8'),context);
 const core=window.MSWAsr,plain=value=>JSON.parse(JSON.stringify(value));
 const cue=(id,start,end,text=id)=>({id,start,end,text});
@@ -116,4 +120,76 @@ test('audio provenance follows a moved overlay cue even while its track is hidde
   assert.equal(core.assetStatuses(project).size,0);
   project.overlay_track.segments[0].text='changed';
   assert.match(core.assetStatuses(project).get('voice'),/已修改/);
+});
+
+function flatAudioFixture({legacySources=false}={}) {
+  const main=cue('same-id',0,1000,'Source'),secondary=cue('same-id',0,1000,'Translated');
+  const project={segments:[main],msw:{schema:'msw.editor.v1',project_id:'project'},
+    multi_subtitle:{schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',
+      tracks:[{id:'translation',role:'extension',segments:[secondary]}],
+      bindings:[{id:'pair',track_id:'translation',main_segment_ids:[main.id],extension_segment_ids:[secondary.id],start_offset_ms:0,end_offset_ms:0}]}};
+  const native=flat.migrate(project);let serial=0;
+  const sources=legacySources?[{...main,track_id:null},{...secondary,track_id:'translation'}]
+    :processing.tts(native,native.subtitles.cues.map(c=>c.id),()=>`source-${++serial}`).entries;
+  native.msw.assets=sources.map((source,index)=>({id:`voice-${index}`,source_ref:source,generation:{provider:'edge'}}));
+  return native;
+}
+function expectFlatStatuses(project,expected) {
+  const original=JSON.stringify(project);
+  assert.deepEqual(plain([...core.assetStatuses(project)]),expected);
+  assert.deepEqual(plain([...core.assetStatuses(production.fromProject(project))]),expected);
+  assert.equal(JSON.stringify(project),original,'source review must not rewrite the project or its assets');
+}
+
+test('native TTS audio sources resolve in v4 and the normal editor despite display-column track IDs',()=>{
+  const p=flatAudioFixture();
+  assert.equal(p.msw.assets.length,2);
+  assert.notEqual(p.subtitles.cues[0].id,p.subtitles.cues[1].id);
+  expectFlatStatuses(p,[]);
+  const view=production.fromProject(p),target=view.segments[0];
+  target.text='Edited in normal editor';
+  assert.deepEqual(plain([...core.assetStatuses(view)]),[['voice-0','来源字幕已修改，配音需复核']]);
+});
+
+test('migrated audio aliases keep same-named source and translation cues distinct',()=>{
+  const p=flatAudioFixture({legacySources:true});
+  expectFlatStatuses(p,[]);
+  const source=p.subtitles.cues[0];
+  expectFlatStatuses(editing.updateText(p,source.id,'Changed source'),[['voice-0','来源字幕已修改，配音需复核']]);
+  expectFlatStatuses(editing.remove(p,[source.id]),[['voice-0','来源字幕已删除或被 ASR 替换']]);
+  p.msw.asr_stale_subtitles={translation:{'same-id':'asr-job'}};
+  expectFlatStatuses(p,[['voice-1','配音来源副字幕需复核']]);
+});
+
+for(const legacySources of [false,true])test(`audio provenance survives track moves and presentation changes (${legacySources?'legacy aliases':'native IDs'})`,()=>{
+  let p=flatAudioFixture({legacySources});
+  const source=p.subtitles.cues[0],track=p.subtitles.tracks[0];
+  p=flat.addTrack(p,{...track,id:'other',name:'Other'});
+  p=flat.move(p,[source.id],'other');
+  p=editing.updateTrack(p,'other',{enabled:false,collapsed:true});
+  p=editing.setDisabled(p,[source.id],true);
+  expectFlatStatuses(p,[]);
+  p=flat.setTrackGroup(p,p.subtitles.tracks[1].id,'other');
+  expectFlatStatuses(p,[]);
+  expectFlatStatuses(production.swapColumns(production.fromProject(p)),[]);
+});
+
+for(const kind of ['text','time','delete','replace'])test(`flat audio sources still report real ${kind} changes and recover on undo`,()=>{
+  const p=flatAudioFixture(),source=p.subtitles.cues[0];let next;
+  if(kind==='text')next=editing.updateText(p,source.id,'Changed');
+  else if(kind==='time')next=editing.updateRanges(p,[{id:source.id,start:100,end:1100}],{linked:false});
+  else {
+    next=editing.remove(p,[source.id]);
+    if(kind==='replace')next=editing.addCue(next,source.track_id,'asr-replacement',source.content.start,source.content.end,source.content.text);
+  }
+  expectFlatStatuses(next,[['voice-0',kind==='text'||kind==='time'?'来源字幕已修改，配音需复核':'来源字幕已删除或被 ASR 替换']]);
+  expectFlatStatuses(p,[]);
+});
+
+test('missing native source identity never falls back to another matching legacy cue',()=>{
+  const p=flatAudioFixture();
+  p.msw.assets[0].source_ref={...p.msw.assets[0].source_ref,subtitle_cue_id:'deleted',id:'same-id',track_id:null};
+  p.msw.assets.push({id:'draft',source_ref:{kind:'editor_text',id:'draft'}},
+    {id:'import',source_ref:{id:'missing'},generation:{provider:'imported'}});
+  expectFlatStatuses(p,[['voice-0','来源字幕已删除或被 ASR 替换']]);
 });

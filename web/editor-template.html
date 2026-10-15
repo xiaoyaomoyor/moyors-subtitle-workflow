@@ -251,7 +251,21 @@ __WAVEFORM_CSS__
     <input type="checkbox" id="overlay-track-toggle">
     允许字幕重叠
   </label>
-<small class="dropdown-item" role="note">叠加字幕支持编辑和导出；翻译、配音暂不处理叠加轨。</small>
+      <div class="dropdown-submenu" id="subtitle-track-settings-dropdown">
+        <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">字幕轨道设置</div>
+        <div class="dropdown-menu dropdown-submenu-menu" role="menu" aria-label="字幕轨道设置">
+          <button type="button" class="dropdown-item" id="subtitle-track-add" role="menuitem">新增字幕轨道</button>
+          <div class="dropdown-separator"></div>
+          <div class="dropdown-submenu" id="subtitle-track-visibility-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">折叠与展开</div>
+            <div class="dropdown-menu dropdown-submenu-menu subtitle-track-choice-menu" id="subtitle-track-visibility-menu" role="menu" aria-label="展开的字幕轨道"></div>
+          </div>
+          <div class="dropdown-submenu" id="subtitle-track-enabled-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">禁用与启用</div>
+            <div class="dropdown-menu dropdown-submenu-menu subtitle-track-choice-menu" id="subtitle-track-enabled-menu" role="menu" aria-label="启用的字幕轨道"></div>
+          </div>
+        </div>
+      </div>
 <div class="dropdown-submenu" id="multi-subtitle-settings-dropdown">
         <div class="dropdown-item dropdown-submenu-toggle" id="multi-subtitle-settings-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="多重字幕设置">多重字幕设置</div>
         <div class="dropdown-menu dropdown-submenu-menu multi-subtitle-settings-menu" id="multi-subtitle-settings-menu" role="menu">
@@ -262,7 +276,7 @@ __WAVEFORM_CSS__
           </label>
           <small class="multi-subtitle-empty-hint" id="multi-subtitle-empty-hint" hidden>请拖入第二条字幕以开启多重字幕编辑</small>
           <div class="multi-subtitle-setting-row">
-            <span>主字幕语言类型</span>
+            <span id="multi-subtitle-language-caption">主字幕语言类型</span>
             <select id="multi-subtitle-main-language-mode" title="主字幕语言类型">
               <option value="word" selected>单词型</option>
               <option value="continuous">字符型</option>
@@ -275,10 +289,7 @@ __WAVEFORM_CSS__
               <option value="continuous">字符型</option>
             </select>
           </div>
-          <div class="multi-subtitle-setting-hint" role="note" aria-label="语言类型提示">
-            <div>单词型：英语、西文等按空格拆分</div>
-            <div>字符型：中文、日文等按字符拆分</div>
-          </div>
+          <span hidden data-help-for="multi-subtitle-language-caption">单词型：英语、西文等按空格拆分；字符型：中文、日文等按字符拆分。</span>
           <div class="multi-subtitle-setting-row" id="multi-subtitle-extension-row-height-setting">
             <span>副字幕时波形高度</span>
             <select id="multi-subtitle-extension-row-height" title="启用多重字幕时使用的波形行高度">

@@ -6846,7 +6846,7 @@
       this.clearCueDragDestination();
       this.options.onCancelCueDrag?.(drag);
       this.refreshCueOverlay();
-      this.setStatus('已取消字幕调整');
+      this.refreshMediaReadout();
       return true;
     }
 
@@ -7632,7 +7632,7 @@
           if (!segment) return;
           restoreTiming(segment, original, drag.timing || this.cueTiming());
         });
-        this.options.onCancelCueDrag?.(drag);
+        this.options.onCancelCueDrag?.(drag, {rejected:event.type === 'pointerup' && drag.destinationPreview?.blocked});
         this.refreshCueOverlay();
         return;
       }

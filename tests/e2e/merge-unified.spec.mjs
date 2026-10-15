@@ -31,6 +31,113 @@ for(const area of ['list','waveform']) test(`optional tape effect at ${area} joi
  await expect(tape).toHaveCount(0);
  await page.evaluate(()=>mergeSegments([0]));await expect(tape).toHaveCount(0);
 });
+
+async function manyCueFixture(page,area,{hiddenPartner=false}={}){
+ await page.setViewportSize({width:1500,height:1100});
+ await setup(page,false,true);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.evaluate(({waveform,area,hiddenPartner})=>{
+  const cues=Array.from({length:4},(_,i)=>({id:`m${i}`,start:i*2000,end:(i+1)*2000,text:`Caption ${i+1}`,items:[]}));
+  applyCanonicalProject({segments:cues,multi_subtitle:{enabled:true,display_mode:'both',tracks:[{id:'sub',role:'extension',segments:cues.map((cue,i)=>({...cue,id:`s${i}`,text:`译文 ${i+1}`}))}],
+   bindings:cues.map((cue,i)=>({id:`b${i}`,track_id:'sub',main_segment_ids:[cue.id],extension_segment_ids:[`s${i}`],start_offset_ms:0,end_offset_ms:0}))},waveform},'many-merge.mosp');
+  EDITOR_SETTINGS.mergeTapeEffect=true;
+  waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=4;waveformEditor.settings.rowHeight=120;
+  if(hiddenPartner){const ext=getActiveExtensionTrack();fixedUpdateTrack(fixedOwner(ext.segments[0],'extension',ext.id),{collapsed:true});}
+  renderAll({waveform:'full'});lastPointerPos={x:0,y:0};lastEditRegion=area==='waveform'?'waveform':'list';
+ },{waveform:generateWaveformPayload(8000),area,hiddenPartner});
+}
+
+test('multi-cue waveform tape marks every visible join on the result including the next line boundary',async({page},info)=>{
+ await manyCueFixture(page,'waveform');
+ const result=await page.evaluate(async()=>{
+  const ok=mergeSegments([0,1,2,3]);await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+  return {ok,production:productionFlatMode(),tapes:[...document.querySelectorAll('.merge-tape-flash')].map(tape=>{
+   const time=Number(tape.dataset.timeMs),blocks=[...document.querySelectorAll(`.waveform-cue-block[data-cue-id="${tape.dataset.cueId}"]`)];
+   const block=blocks.find(node=>{const row=node.closest('.waveform-row');return time>=Number(row.dataset.startMs)&&time<Number(row.dataset.endMs);});
+   const rect=block?.getBoundingClientRect(), row=block?.closest('.waveform-row');
+   return {time,rowStart:Number(row?.dataset.startMs),y:parseFloat(tape.style.top),expectedY:rect?.top+rect?.height/2,width:parseFloat(getComputedStyle(tape).width)};
+  })};
+ });
+ expect(result.ok).toBe(true);expect(result.production).toBe(true);expect(result.tapes).toHaveLength(6);
+ expect(result.tapes.map(t=>t.time).sort((a,b)=>a-b)).toEqual([2000,2000,4000,4000,6000,6000]);
+ for(const tape of result.tapes){expect(tape.width).toBe(48);expect(Math.abs(tape.y-tape.expectedY)).toBeLessThan(1);if(tape.time===4000)expect(tape.rowStart).toBe(4000);}
+ await page.screenshot({path:info.outputPath('many-tapes-waveform.png')});
+ await expect(page.locator('.merge-tape-flash')).toHaveCount(0);
+});
+
+test('multi-cue list tape follows the final paired cards instead of removed card coordinates',async({page},info)=>{
+ await manyCueFixture(page,'list');
+ const result=await page.evaluate(async()=>{
+  mergeSegments([0,1,2,3]);await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+  return [...document.querySelectorAll('.merge-tape-flash')].map(tape=>{
+   const row=document.querySelector(`.cue[data-main-id="${tape.dataset.cueId}"],.cue[data-ext-id="${tape.dataset.cueId}"]`);
+   const column=row.querySelector(row.dataset.mainId===tape.dataset.cueId?'.multi-cue-column.main':'.multi-cue-column.extension')||row;
+   const rect=column.getBoundingClientRect();return {x:parseFloat(tape.style.left),y:parseFloat(tape.style.top),left:rect.left,right:rect.right,bottom:rect.bottom};
+  });
+ });
+ expect(result).toHaveLength(2);
+ for(const tape of result){expect(tape.x).toBeGreaterThan(tape.left);expect(tape.x).toBeLessThan(tape.right);expect(Math.abs(tape.y-(tape.bottom-7))).toBeLessThan(1);}
+ await page.screenshot({path:info.outputPath('many-tapes-list.png')});
+});
+
+test('collapsed partner has no floating tape and a new merge clears all previous strips',async({page})=>{
+ await manyCueFixture(page,'waveform',{hiddenPartner:true});
+ const result=await page.evaluate(async()=>{
+  mergeSegments([0,1]);await new Promise(requestAnimationFrame);
+  const previous=[...document.querySelectorAll('.merge-tape-flash')];
+  mergeSegments([0,1,2]);await new Promise(requestAnimationFrame);
+  return {oldCount:previous.length,detached:previous.every(node=>!node.isConnected),
+   tapes:[...document.querySelectorAll('.merge-tape-flash')].map(node=>({id:node.dataset.cueId,time:Number(node.dataset.timeMs)})),id:DATA.segments[0].id};
+ });
+ expect(result.oldCount).toBe(1);expect(result.detached).toBe(true);expect(result.tapes).toHaveLength(2);
+ expect(result.tapes.map(t=>t.time)).toEqual([4000,6000]);expect(result.tapes.every(t=>t.id===result.id)).toBe(true);
+});
+
+test('dense joins are deduplicated and capped while disabling the Easter egg clears pending feedback',async({page})=>{
+ await manyCueFixture(page,'waveform',{hiddenPartner:true});
+ const result=await page.evaluate(async()=>{
+  mergeSegments([0,1,2,3]);
+  triggerMergeFeedback([{cueId:DATA.segments[0].id,region:'waveform',times:Array.from({length:160},(_,i)=>i*50)}]);
+  await new Promise(requestAnimationFrame);
+  const positions=[...document.querySelectorAll('.merge-tape-flash')].map(tape=>({x:parseFloat(tape.style.left),y:parseFloat(tape.style.top)}));
+  const toggle=document.getElementById('merge-tape-effect');toggle.checked=false;toggle.dispatchEvent(new Event('change'));
+  return {positions,remaining:document.querySelectorAll('.merge-tape-flash').length};
+ });
+ expect(result.positions.length).toBeGreaterThan(2);expect(result.positions.length).toBeLessThanOrEqual(12);
+ for(let i=0;i<result.positions.length;i++)for(let j=i+1;j<result.positions.length;j++){
+  const a=result.positions[i],b=result.positions[j];expect(Math.abs(a.x-b.x)>=44||Math.abs(a.y-b.y)>=16).toBe(true);
+ }
+ expect(result.remaining).toBe(0);
+});
+
+test('physical-track cross-column merge resolves the real resulting cue for tape feedback',async({page})=>{
+ await setup(page,false,true);await page.emulateMedia({reducedMotion:'reduce'});
+ const result=await page.evaluate(async waveform=>{
+  let project=MSWFlatSubtitles.migrate({segments:[0,1,2].map(i=>({id:`cross${i}`,start:i*2000,end:(i+1)*2000,text:`Part ${i+1}`,items:[]})),waveform});
+  project.subtitle_view={secondary_cue_ids:[project.subtitles.cues[1].id]};
+  applyCanonicalProject(project,'cross-tape.mosp');EDITOR_SETTINGS.mergeTapeEffect=true;
+  clearSelection({silent:true});DATA.segments.forEach((_,i)=>selectedIdxs.add(i));getActiveExtensionTrack().segments.forEach((_,i)=>selectedExtensionIdxs.add(i));
+  lastPointerPos={x:0,y:0};lastEditRegion='list';const ok=mergeSegments([...selectedIdxs]);
+  await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+  return {ok,resultIds:MSWProductionProject.toProject(DATA).subtitles.cues.map(c=>c.id),tapeIds:[...document.querySelectorAll('.merge-tape-flash')].map(t=>t.dataset.cueId)};
+ },generateWaveformPayload(8000));
+ expect(result.ok).toBe(true);expect(result.resultIds).toHaveLength(1);expect(result.tapeIds).toEqual(result.resultIds);
+});
+
+test('scrolling the timeline removes feedback anchored to the previous viewport',async({page})=>{
+ await manyCueFixture(page,'waveform');
+ const before=await page.evaluate(async()=>{
+  waveformEditor.settings.secondsPerRow=1;waveformEditor.settings.rowHeight=160;waveformEditor.render();
+  mergeSegments([0,1,2,3]);await new Promise(requestAnimationFrame);
+  return document.querySelectorAll('.merge-tape-flash').length;
+ });
+ expect(before).toBeGreaterThan(0);
+ const scroll=await page.locator('#waveform-scroll').evaluate(async node=>{
+  node.scrollTop=160;await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+  return {top:node.scrollTop,tapes:document.querySelectorAll('.merge-tape-flash').length};
+ });
+ expect(scroll.top).toBeGreaterThan(0);expect(scroll.tapes).toBe(0);
+});
 test('both context menus offer direct state modes',async({page})=>{
  await setup(page);
  for(const role of ['main','extension']) {
@@ -44,22 +151,24 @@ test('both context menus offer direct state modes',async({page})=>{
  }
 });
 test.afterAll(async()=>{await server?.stop();});
-async function setup(page,legacy=false){
+async function setup(page,legacy=false,production=false){
  await disableOnboarding(page);
  await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false})));
  const url=new URL(server.url);url.searchParams.set('subtitle-layers',legacy?'0':'1');
+ if(!production)url.searchParams.set('flat-production','0');
+ if(legacy)url.searchParams.set('subtitle-tracks','0');
  await page.goto(url.href);
- await page.evaluate(()=>{
-  applyCanonicalProject({media:DATA.media,segments:[
+ await page.evaluate(waveform=>{
+  applyCanonicalProject({segments:[
    {id:'m1',start:0,end:2000,text:'one',items:[{start:0,end:2000,text:'one'}],color:{name:'red',value:'#ff0000'}},
    {id:'m2',start:2000,end:4000,text:'two',items:[],disabled:true},
    {id:'m3',start:5000,end:6000,text:'outside',items:[]}
   ],multi_subtitle:{enabled:true,display_mode:'both',tracks:[{id:'sub',role:'extension',split_mode:'continuous',segments:[
    {id:'s1',start:100,end:1900,text:'甲',items:[],color:{name:'purple',value:'#0000ff'}},
-   {id:'s2',start:2100,end:3900,text:'乙',items:[],color:{name:'purple',value:'#0000ff'}}]}],bindings:[1,2].map(n=>({id:'b'+n,track_id:'sub',main_segment_ids:['m'+n],extension_segment_ids:['s'+n],start_offset_ms:100,end_offset_ms:-100}))},waveform:DATA.waveform},'merge-test.mosp');
+   {id:'s2',start:2100,end:3900,text:'乙',items:[],color:{name:'purple',value:'#0000ff'}}]}],bindings:[1,2].map(n=>({id:'b'+n,track_id:'sub',main_segment_ids:['m'+n],extension_segment_ids:['s'+n],start_offset_ms:100,end_offset_ms:-100}))},waveform},'merge-test.mosp');
   DATA.preview={...DATA.preview,project_style:MSWProjectStyle.defaults()};
   DATA.msw.removed_asset_ids=[];renderAll();
- });
+ },generateWaveformPayload(8000));
 }
 const snapshot=page=>page.evaluate(()=>JSON.parse(buildJson()));
 test('merge preserves audio, provenance and project style even with hidden partner track',async({page})=>{
