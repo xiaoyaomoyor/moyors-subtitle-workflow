@@ -4,6 +4,51 @@ import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),flat=require('../web/msw-flat-subtitles.js'),bridge=require('../web/msw-production-project.js'),legacy=require('../web/msw-subtitle-tracks.js');
 const fixture=()=>flat.migrate({segments:[{id:'a',start:0,end:2000,text:'Hello',items:[]}],multi_subtitle:{schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'zh',role:'extension',segments:[{id:'b',start:100,end:2100,text:'你好',items:[]}]}],bindings:[{id:'pair',track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b'],start_offset_ms:100,end_offset_ms:100}]}});
 const comparable=p=>{const n=flat.normalizeGroups(structuredClone(p),{infer:true});delete n.subtitle_view;n.subtitles.cues.sort((a,b)=>a.id.localeCompare(b.id));return n;};
+test('display side swaps preserve direction, offsets, track split modes and repeated roundtrips',()=>{
+  const p=fixture();p.subtitles.tracks[0].split_mode='word';p.subtitles.tracks[1].split_mode='continuous';
+  const view=bridge.fromProject(p),next=bridge.swapColumns(view),swapped=bridge.fromProject(next);
+  assert.equal(swapped.segments[0].id,view.multi_subtitle.tracks[0].segments[0].id);
+  assert.deepEqual(comparable(next),comparable(p));
+  assert.deepEqual(comparable(bridge.toProject(swapped)),comparable(next));
+  assert.deepEqual(bridge.toProject(swapped).subtitle_view,next.subtitle_view);
+  const back=bridge.fromProject(bridge.swapColumns(swapped));assert.equal(back.segments[0].id,view.segments[0].id);
+  assert.deepEqual(comparable(bridge.toProject(back)),comparable(p));
+});
+test('reversing reference direction keeps display sides and aligning respects it atomically',()=>{
+  require('../web/msw-flat-editing.js');
+  const view=bridge.fromProject(fixture()),p=bridge.toProject(view),b=p.subtitles.bindings[0];
+  const reversed=bridge.reverseBindings(view,[b.source_id]),next=bridge.fromProject(reversed);
+  assert.equal(next.segments[0].id,view.segments[0].id);
+  assert.equal(reversed.subtitles.bindings[0].source_id,b.target_id);
+  assert.deepEqual(bridge.toProject(next),reversed);
+  const aligned=bridge.alignBindings(next,[b.source_id]);
+  assert.deepEqual(aligned.subtitles.cues.map(c=>[c.content.start,c.content.end]),[[100,2100],[100,2100]]);
+  const locked=structuredClone(p);locked.subtitles.tracks[1].locked=true;
+  assert.throws(()=>bridge.reverseBindings(bridge.fromProject(locked),[b.source_id]),/锁定/);
+  const occupied=structuredClone(p);occupied.subtitles.cues.push({id:'neighbor',track_id:p.subtitles.cues[1].track_id,content:{start:0,end:50,text:'other',items:[]}});
+  assert.throws(()=>bridge.alignBindings(bridge.fromProject(occupied),[b.source_id]),/重叠/);
+  assert.deepEqual(p,bridge.toProject(view));
+});
+test('legacy column split settings migrate to tracks and explicit automatic mode wins',()=>{
+  const p=fixture();p.subtitle_view={main_split_mode:'continuous',secondary_split_mode:'word'};
+  let view=bridge.fromProject(p);assert.deepEqual(view.subtitle_tracks.tracks.map(t=>t.split_mode),['continuous','word']);
+  view.subtitle_tracks.tracks[0].split_mode='auto';
+  const saved=bridge.toProject(view);assert.equal(bridge.fromProject(saved).subtitle_tracks.tracks[0].split_mode,'auto');
+  for(const value of [null,{},'invalid']){const bad=structuredClone(saved);bad.subtitles.tracks[0].split_mode=value;assert.throws(()=>flat.validate(bad),/切分/);}
+});
+
+test('saved track preferences stop old column defaults from being reapplied on restore or new tracks',()=>{
+  const view=bridge.fromProject(fixture());
+  // The legacy rendering helpers may populate these defaults at runtime.
+  view.multi_subtitle.main_split_mode='word';view.multi_subtitle.tracks[0].split_mode='continuous';
+  const saved=bridge.toProject(view);
+  assert.equal(saved.subtitle_view.track_split_modes_migrated,true);
+  assert.equal(saved.subtitle_view.main_split_mode,undefined);
+  assert.deepEqual(bridge.toProject(bridge.fromProject(saved,{mainSplitModeOverride:'word'})),saved);
+  const added=legacy.addTrack(view,'subtitle','new');
+  const reopened=bridge.fromProject(bridge.toProject(added),{mainSplitModeOverride:'continuous'});
+  assert.equal(reopened.subtitle_tracks.tracks.find(t=>t.id==='new').split_mode,undefined);
+});
 test('normal operation view roundtrips independent tracks, bilingual binding and unknown metadata',()=>{
   const p=fixture();p.subtitles.tracks[0].custom_data={hello:1};p.subtitles.cues[1].note='kept';
   const view=bridge.fromProject(p);assert.equal(view.segments.length,1);assert.equal(view.multi_subtitle.tracks[0].segments.length,1);

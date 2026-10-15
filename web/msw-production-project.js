@@ -11,11 +11,18 @@
   const isView=p=>p?.subtitle_tracks?.flat_context?.schema==='msw.flat-operation-view.v1';
   const extras=(value,keys)=>Object.fromEntries(Object.entries(value).filter(([k])=>!keys.includes(k)));
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-  function fromProject(input) {
+  function fromProject(input,{mainSplitModeOverride=null}={}) {
     const p=core.normalizeGroups(core.migrate(input),{infer:true}),m=p.subtitles,view=clone(p);delete view.subtitles;view.schema=legacy.SCHEMA;
     const context={schema:'msw.flat-operation-view.v1',model:extras(m,['tracks','cues','bindings']),
-      tracks:{},cues:{},bindings:{},markers:{}};
+      tracks:{},cues:{},bindings:{},bindingSources:{},markers:{}};
     const right=new Set(m.bindings.map(b=>b.target_id)),left=new Set(m.bindings.map(b=>b.source_id));
+    const displayedRight=new Set(p.subtitle_view?.secondary_cue_ids||[]);
+    for(const b of m.bindings) {
+      if(displayedRight.has(b.source_id)&&!displayedRight.has(b.target_id)) {
+        right.delete(b.target_id);right.add(b.source_id);left.delete(b.source_id);left.add(b.target_id);
+      }
+      context.bindingSources[b.source_id]=true;context.bindingSources[b.target_id]=false;
+    }
     const aliases=new Map((m.migration?.identities||[]).map(a=>[a.id,a]));
     const trackMap=new Map(m.tracks.map(t=>[t.id,t]));
     for(const c of m.cues)if(!left.has(c.id)&&!right.has(c.id)
@@ -39,8 +46,19 @@
       }
     }
     const oldMulti=m.migration?.structure?.multi_subtitle||{};
+    // Upgrade old column preferences once. Explicit per-track choices (including
+    // automatic detection) always win, regardless of the current display side.
+    for(const t of m.tracks) {
+      if(p.subtitle_view?.track_split_modes_migrated===true)continue;
+      const own=m.cues.filter(c=>c.track_id===t.id),secondary=own.length?right.has(own[0].id):t.style.slot==='secondary';
+      if(!secondary&&['word','continuous'].includes(mainSplitModeOverride)&&(input?.schema!==core.SCHEMA||t.split_mode===undefined))t.split_mode=mainSplitModeOverride;
+      if(t.split_mode!==undefined)continue;
+      const mode=secondary?(p.subtitle_view?.secondary_split_mode||oldMulti.tracks?.[0]?.split_mode)
+        :(p.subtitle_view?.main_split_mode||oldMulti.main_split_mode);
+      if(['word','continuous'].includes(mode))t.split_mode=mode;
+    }
     view.multi_subtitle={...clone(extras(oldMulti,['tracks','bindings'])),schema:'moy.asr.multi_subtitle.v1',
-      enabled:secondary.length>0||m.tracks.some(t=>t.style.slot==='secondary'),
+      enabled:true,
       display_mode:p.subtitle_view?.display_mode||oldMulti.display_mode||'both',
       main_split_mode:p.subtitle_view?.main_split_mode||oldMulti.main_split_mode,
       tracks:[{id:EXT,role:'extension',name:'绑定字幕',language:'',split_mode:p.subtitle_view?.secondary_split_mode||oldMulti.tracks?.[0]?.split_mode,segments:secondary}],bindings:[]};
@@ -48,15 +66,16 @@
     if(view.multi_subtitle.tracks[0].split_mode===undefined)delete view.multi_subtitle.tracks[0].split_mode;
     for(const b of m.bindings) {
       context.bindings[b.id]=extras(b,['source_id','target_id','start_offset_ms','end_offset_ms']);
-      view.multi_subtitle.bindings.push({id:b.id,track_id:EXT,main_segment_ids:[b.source_id],extension_segment_ids:[b.target_id],
-        start_offset_ms:b.start_offset_ms,end_offset_ms:b.end_offset_ms});
+      const reversed=right.has(b.source_id);
+      view.multi_subtitle.bindings.push({id:b.id,track_id:EXT,main_segment_ids:[reversed?b.target_id:b.source_id],extension_segment_ids:[reversed?b.source_id:b.target_id],
+        start_offset_ms:(reversed?-1:1)*b.start_offset_ms,end_offset_ms:(reversed?-1:1)*b.end_offset_ms});
     }
     view.subtitle_layers=clone(m.migration?.structure?.subtitle_layers||layers.migrate({segments:[]}).subtitle_layers);
     view.subtitle_layers.legacy_overlay={...view.subtitle_layers.legacy_overlay,visible:false,cue_ids:m.cues.filter(c=>c.hidden&&!right.has(c.id)).map(c=>c.id)};
     view.subtitle_tracks={schema:legacy.TRACK_SCHEMA,presentation:'fixed',tracks:m.tracks.map(t=>{
-      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for']);
+      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for','split_mode']);
       return {id:t.id,name:t.name,display_number:t.display_number,...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
-        origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+        origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,...(t.split_mode?{split_mode:t.split_mode}:{}),
         style:clone(extras(t.style,['slot','base'])),flat_style_slot:t.style.slot,...(t.position?{position:clone(t.position)}:{})};
     }),assignments:m.cues.map(c=>({role:right.has(c.id)?'extension':'main',track_id:right.has(c.id)?EXT:null,cue_id:c.id,subtitle_track_id:c.track_id})),flat_context:context};
     legacy.validate(view);return view;
@@ -77,7 +96,7 @@
     const owners=legacy.ownerMap(view),allIds=new Set();
     for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
       id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
-      style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{})});
+      style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})});
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
     for(const source of sources)for(const value of source.segments) {
       const content=clone(value);delete content.id;
@@ -96,11 +115,16 @@
       if(source.role==='main'&&view.subtitle_layers.legacy_overlay.cue_ids.includes(c.id))c.hidden=!view.subtitle_layers.legacy_overlay.visible;
       m.cues.push(c);allIds.add(c.id);
     }
-    for(const b of view.multi_subtitle?.bindings||[])m.bindings.push({...clone(context.bindings[b.id]||{}),id:b.id,
-      source_id:b.main_segment_ids[0],target_id:b.extension_segment_ids[0],start_offset_ms:b.start_offset_ms||0,end_offset_ms:b.end_offset_ms||0});
+    for(const b of view.multi_subtitle?.bindings||[]) {
+      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+      const reversed=context.bindingSources?.[a]===false||context.bindingSources?.[z]===true;
+      m.bindings.push({...clone(context.bindings[b.id]||{}),id:b.id,source_id:reversed?z:a,target_id:reversed?a:z,
+        start_offset_ms:(reversed?-1:1)*(b.start_offset_ms||0),end_offset_ms:(reversed?-1:1)*(b.end_offset_ms||0)});
+    }
     // Display preference is not a track relationship.
     p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.map(c=>c.id)),
-      ...(view.multi_subtitle?.main_split_mode?{main_split_mode:view.multi_subtitle.main_split_mode}:{}),...(view.multi_subtitle?.tracks[0]?.split_mode?{secondary_split_mode:view.multi_subtitle.tracks[0].split_mode}:{})};
+      track_split_modes_migrated:true};
+    delete p.subtitle_view.main_split_mode;delete p.subtitle_view.secondary_split_mode;
     core.normalizeGroups(p);core.validate(p);return p;
   }
   function translation(view,selection,destination='',outputMode='secondary') {
@@ -202,12 +226,25 @@
   function swapColumns(view) {
     const p=toProject(view),right=new Set(p.subtitle_view.secondary_cue_ids);
     p.subtitle_view.secondary_cue_ids=p.subtitles.cues.filter(c=>!right.has(c.id)).map(c=>c.id);
-    [p.subtitle_view.main_split_mode,p.subtitle_view.secondary_split_mode]=[p.subtitle_view.secondary_split_mode,p.subtitle_view.main_split_mode];
-    for(const key of ['main_split_mode','secondary_split_mode'])if(p.subtitle_view[key]===undefined)delete p.subtitle_view[key];
-    for(const b of p.subtitles.bindings) {
-      [b.source_id,b.target_id]=[b.target_id,b.source_id];b.start_offset_ms=-b.start_offset_ms;b.end_offset_ms=-b.end_offset_ms;
+    core.validate(p);return p;
+  }
+  function reverseBindings(view,ids) {
+    const p=toProject(view),chosen=new Set(ids),index=core.createIndex(p);
+    for(const b of p.subtitles.bindings)if(chosen.has(b.source_id)||chosen.has(b.target_id)) {
+      if(index.trackFor(b.source_id).locked||index.trackFor(b.target_id).locked)throw Error('绑定涉及锁定轨道');
+      [b.source_id,b.target_id]=[b.target_id,b.source_id];
+      b.start_offset_ms=-b.start_offset_ms;b.end_offset_ms=-b.end_offset_ms;
     }
     core.validate(p);return p;
+  }
+  function alignBindings(view,ids) {
+    const p=toProject(view),chosen=new Set(ids),E=global.MSWFlatEditing;
+    const changes=p.subtitles.bindings.filter(b=>chosen.has(b.source_id)||chosen.has(b.target_id)).map(b=>{
+      E.editable(p,[b.source_id,b.target_id]);const source=E.cue(p,b.source_id).content;
+      return {id:b.target_id,start:source.start,end:source.end};
+    });
+    // One transaction: a collision leaves every member unchanged.
+    return E.updateRanges(p,changes,{linked:false});
   }
   // Candidate edits can be applied again, but only while their last result is
   // unchanged. Restore just the touched cues, never an entire stale project.
@@ -249,6 +286,6 @@
     R.record(p.msw,jobs[0]).applications[target]={revision,state:{flat:true,before:previous?.state?.flat?previous.state.before:subset(before),after:subset(p.subtitles)}};
     core.validate(p);return {project:fromProject(p),count:ids.size};
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

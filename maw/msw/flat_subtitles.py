@@ -128,6 +128,8 @@ def validate(project):
                 or not isinstance(track.get("style"), dict) or track["style"].get("slot") not in ("main", "secondary")
                 or track["style"].get("base") not in ("dialogue", "annotation")):
             _fail("轨道身份、状态或样式无效")
+        if "split_mode" in track and track["split_mode"] not in ("auto", "word", "continuous"):
+            _fail("轨道文字切分方式无效")
         style = {k: v for k, v in track["style"].items() if k not in ("slot", "base")}
         if not old._style_valid(style) or "position" in track and not old._position_valid(track["position"]):
             _fail("轨道样式或位置无效")
@@ -312,6 +314,9 @@ def migrate_project(source):
                 result["position"] = deepcopy(track["position"])
             if storage and storage.get("language"):
                 result["language"] = deepcopy(storage["language"])
+            split_mode = (multi.get("main_split_mode") or project.get("split_mode")) if role == "main" else storage.get("split_mode")
+            if split_mode in ("word", "continuous"):
+                result["split_mode"] = split_mode
             model["tracks"].append(result)
             owner_tracks[key] = track_id
         add("main")

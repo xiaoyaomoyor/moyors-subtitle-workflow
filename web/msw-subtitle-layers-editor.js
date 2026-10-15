@@ -7,7 +7,11 @@ let layerPendingDragHistory = null;
 let layerPresentationCache = null;
 function prepareLayerProject(project) {
   if(window.MSWProductionProject.isView(project)){fixedTrackCore.validate(project);return structuredClone(project);}
-  if(productionFlatRequested)return window.MSWProductionProject.fromProject(project);
+  if(productionFlatRequested) {
+    let mainSplitModeOverride=null;
+    try {mainSplitModeOverride=JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1')||'{}').mainSplitModeOverride;} catch {}
+    return window.MSWProductionProject.fromProject(project,{mainSplitModeOverride});
+  }
   if(project?.schema&&!['moy.asr.project.v1','msw.project.v2','msw.project.v3'].includes(project.schema))throw Error('工程版本不受支持，请使用兼容的编辑器打开');
   if (fixedTracksRequested || project?.schema===fixedTrackCore.SCHEMA) {
     const next=fixedTrackCore.migrate(project);
@@ -191,7 +195,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
         mode,makeId:kind=>window.MSWProject.id(kind),
         joinText:(cues,trackId)=>{
           const text=cues.map(c=>c.text||'').join('\n'), target=project.subtitles.tracks.find(t=>t.id===trackId);
-          const splitMode=target?.style.slot==='secondary'?getExtensionSubtitleSplitMode(getActiveExtensionTrack(),{text}):getMainSubtitleSplitMode({text});
+          const splitMode=['word','continuous'].includes(target?.split_mode)?target.split_mode:MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
           return window.AsrEditorUtils.joinSegmentTexts(cues,mergeJoinSeparatorForMode(splitMode));
         },
       });
@@ -219,7 +223,8 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
       mode, makeId: () => window.MSWProject.id('merged'),
       joinText: (cues, target) => {
         const text = cues.map(c => c.text || '').join('\n');
-        const splitMode = target.role === 'extension' ? getExtensionSubtitleSplitMode(getExtensionTrack(target.track_id), {text}) : getMainSubtitleSplitMode({text});
+        const sample={...cues[0],text};
+        const splitMode = target.role === 'extension' ? getExtensionSubtitleSplitMode(getExtensionTrack(target.track_id), sample) : getMainSubtitleSplitMode(sample);
         return window.AsrEditorUtils.joinSegmentTexts(cues, mergeJoinSeparatorForMode(splitMode));
       },
     });

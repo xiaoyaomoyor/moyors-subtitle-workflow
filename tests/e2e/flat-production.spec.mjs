@@ -448,7 +448,7 @@ test('normal subtitle import, column swap and track replacement preserve other p
   await page.evaluate(()=>swapMainAndExtensionSubtitles());
   await expect(page.locator('.multi-cue-column.main')).toContainText('新译文');
   const swapped=await snap(page);expect([...swapped.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))).toEqual([...imported.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id)));
-  expect(swapped.subtitles.bindings[0].source_id).toBe(imported.subtitles.bindings[0].target_id);
+  expect(swapped.subtitles.bindings).toEqual(imported.subtitles.bindings);
   await page.evaluate(p=>applyCanonicalProject(p,'reopen.mosp'),swapped);
   await expect(page.locator('.multi-cue-column.main')).toContainText('新译文');
   await page.evaluate(()=>{fixedActiveTrackId=DATA.subtitle_tracks.tracks[0].id;replaceMainTrack([{start:4000,end:5000,text:'新原文'}],'replace.srt');});

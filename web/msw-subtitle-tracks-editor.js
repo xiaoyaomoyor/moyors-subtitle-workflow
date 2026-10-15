@@ -16,6 +16,44 @@ let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
 let fixedNumberCache = null;
 let fixedLastMessage = '';
+let productionSplitTrackId = null;
+let productionSelectionOrder = [];
+function productionRememberSelection() {
+  if(!productionFlatMode())return;
+  const ids=[...selectedIdxs].map(i=>DATA.segments[i]?.id).concat([...selectedExtensionIdxs].map(i=>getActiveExtensionTrack()?.segments[i]?.id)).filter(Boolean);
+  productionSelectionOrder=productionSelectionOrder.filter(id=>ids.includes(id));
+  for(const id of ids)if(!productionSelectionOrder.includes(id))productionSelectionOrder.push(id);
+}
+function productionSplitMode(segment,role='main',storage=null) {
+  const owner=segment?.id?fixedTrack(segment,role,storage):fixedActiveTrack();
+  if(['word','continuous'].includes(owner?.split_mode))return owner.split_mode;
+  const text=segment?.text??layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>fixedOwner(c,s.role,s.track_id)===owner?.id).map(c=>c.text)).join('\n');
+  return MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
+}
+function productionSyncSettings() {
+  const active=productionFlatMode();
+  document.querySelectorAll('[data-flat-settings]').forEach(node=>{node.hidden=!active;});
+  document.getElementById('multi-subtitle-settings-dropdown').hidden=active;
+  document.getElementById('overlay-track-controls').hidden=active;
+  if(!active)return;
+  const tracks=DATA.subtitle_tracks.tracks,select=document.getElementById('track-split-track'),mode=document.getElementById('track-split-mode');
+  if(!tracks.some(t=>t.id===productionSplitTrackId))productionSplitTrackId=fixedActiveTrack()?.id||tracks[0]?.id;
+  if(JSON.stringify([...select.options].map(o=>[o.value,o.textContent]))!==JSON.stringify(tracks.map(t=>[t.id,t.name])))select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
+  select.value=productionSplitTrackId||'';
+  const track=tracks.find(t=>t.id===productionSplitTrackId);mode.value=track?.split_mode||'auto';mode.disabled=!track||track.locked;
+  for(const [id,key] of [['track-select-bound','selectBoundSubtitlePair'],['track-bind-sync','multiSubtitleAutoSyncDuration'],['wave-cross-track-snap','crossTrackSnap']])document.getElementById(id).checked=Boolean(EDITOR_SETTINGS[key]);
+  document.getElementById('cue-list-swap-sides').disabled=!DATA.segments.length&&!getActiveExtensionTrack()?.segments.length;
+}
+document.getElementById('track-split-track')?.addEventListener('change',event=>{productionSplitTrackId=event.target.value;productionSyncSettings();});
+document.getElementById('track-split-mode')?.addEventListener('change',event=>{
+  if(['auto','word','continuous'].includes(event.target.value))fixedUpdateTrack(productionSplitTrackId,{split_mode:event.target.value});
+  productionSyncSettings();
+});
+for(const [id,key] of [['track-select-bound','selectBoundSubtitlePair'],['track-bind-sync','multiSubtitleAutoSyncDuration'],['wave-cross-track-snap','crossTrackSnap']])document.getElementById(id)?.addEventListener('change',event=>updateEditorSettings({[key]:event.target.checked}));
+document.getElementById('cue-list-swap-sides')?.addEventListener('click',()=>{
+  try {commitProcessingEdits();productionRememberSelection();productionCommitProject(MSWProductionProject.swapColumns(DATA),'交换列表两侧位置',productionSelectionOrder,{displayOnly:true});}
+  catch(error){fixedStatus(error.message);}
+});
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
 function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
 function fixedCueLabel(cue,role='main',trackId=null,editor=false) {
@@ -104,7 +142,11 @@ function fixedInherit(source, children) {
   if (!fixedTrackMode()) return;
   fixedOwners(); const owner = fixedCueOwners.get(source);
   const legacy = DATA.segments.includes(source) && DATA.subtitle_layers.legacy_overlay.cue_ids.includes(source.id);
-  for (const cue of children) fixedDraftOwners.set(cue, { owner, legacy });
+  for (const cue of children) {
+    fixedDraftOwners.set(cue, { owner, legacy });
+    const roles=DATA.subtitle_tracks.flat_context?.bindingSources;
+    if(roles&&Object.hasOwn(roles,source.id))roles[cue.id]=roles[source.id];
+  }
 }
 function fixedMergePlan(plan) {
   if (!fixedTrackMode()) return;
@@ -115,6 +157,10 @@ function fixedMergePlan(plan) {
       fixedTrackCore.assertEditable(DATA,refs);
       const owners=new Set(refs.map(r=>fixedOwners().get(fixedTrackCore.key(r))));
       if(owners.size!==1)throw Error('跨轨字幕不能直接合并，请先移到同一轨道');
+      const roles=DATA.subtitle_tracks.flat_context.bindingSources||{};
+      const directions=new Set([...change.ids].filter(id=>Object.hasOwn(roles,id)).map(id=>roles[id]));
+      if(directions.size>1)throw Error('所选字幕的绑定参考方向不一致，请先统一方向');
+      if(directions.size)roles[change.merged.id]=[...directions][0];
       const owner=[...owners][0];fixedDraftOwners.set(change.merged,{owner});ownerById.set(change.merged.id,owner);
       (change.role==='main'?trial:trial.multi_subtitle.tracks.find(t=>t.id===change.track_id)).segments=structuredClone(change.segments);
     }
@@ -182,23 +228,64 @@ function fixedCommitProject(next, label) {
   renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
   return true;
 }
-function productionCommitProject(project,label,ids=[]) {
+function productionCommitProject(project,label,ids=[],{displayOnly=false}={}) {
+  if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
   const next=window.MSWProductionProject.fromProject(project);
-  fixedTrackCore.assertLocks(DATA,next);commitProcessingEdits();pushUndo(label,{captureView:true});
+  if(displayOnly) {
+    const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
+    if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');
+  } else fixedTrackCore.assertLocks(DATA,next);
+  commitProcessingEdits();pushUndo(label,{captureView:true});
   for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks','msw'])if(next[field])DATA[field]=next[field];
+  // This transaction has already checked the canonical content/locks. Reset
+  // the legacy operation checkpoint so a display-side change on locked tracks
+  // is not mistaken for a later edit to their contents.
+  fixedLastContent=fixedContent();fixedHistoryCheckpoint=editorHistory.checkpoint();
   fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
   DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
   projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();
 }
 function productionBindSelected() {
   try {
-    const ids=[...processingSelection().mainIds,...processingSelection().extensionIds];
+    commitProcessingEdits();productionRememberSelection();const ids=[...productionSelectionOrder];
     if(ids.length!==2)throw Error('请选择不同轨道的两条字幕进行绑定');
     let p=window.MSWProductionProject.toProject(DATA);
     for(const b of p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id)))p=window.MSWFlatSubtitles.unbind(p,b.id);
-    const next=window.MSWFlatSubtitles.bind(p,ids[0],ids[1],window.MSWProject.id('binding'));
+    let next=window.MSWFlatSubtitles.bind(p,ids[0],ids[1],window.MSWProject.id('binding'));
+    if(EDITOR_SETTINGS.multiSubtitleAutoSyncDuration) {
+      const a=next.subtitles.cues.find(c=>c.id===ids[0]).content;
+      next=MSWFlatEditing.updateRanges(next,[{id:ids[1],start:a.start,end:a.end}],{linked:false});
+    }
     productionCommitProject(next,'绑定字幕',ids);
   } catch(error){fixedStatus(error.message);}
+}
+function productionBindingAction(action) {
+  if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
+  try {
+    commitProcessingEdits();productionRememberSelection();const ids=[...productionSelectionOrder],p=MSWProductionProject.toProject(DATA);
+    if(!p.subtitles.bindings.some(b=>ids.includes(b.source_id)||ids.includes(b.target_id))){fixedStatus('所选字幕没有绑定关系');return false;}
+    const next=action==='reverse'?MSWProductionProject.reverseBindings(DATA,ids):MSWProductionProject.alignBindings(DATA,ids);
+    if(JSON.stringify(p.subtitles)===JSON.stringify(next.subtitles))return false;
+    productionCommitProject(next,action==='reverse'?'反转绑定方向':'按参考字幕对齐',ids);return true;
+  }catch(error){fixedStatus(error.message);return false;}
+}
+function productionAppendBindingMenu() {
+  productionRememberSelection();const ids=productionSelectionOrder,p=MSWProductionProject.toProject(DATA),E=MSWFlatEditing;
+  const bound=p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id));
+  const node=(label,key,action,disabled)=>{
+    const item=ctxAppendItem(label,action,{disabled});
+    if(key){const kbd=document.createElement('kbd');kbd.textContent=key;item.append(kbd);}
+    return {node:item};
+  };
+  const children=[node('绑定所选字幕','G',productionBindSelected,ids.length!==2||E.cue(p,ids[0])?.track_id===E.cue(p,ids[1])?.track_id)];
+  if(bound.length) {
+    children.push(node('解绑所选字幕','Shift+G',unbindSelectedSubtitlePair,false),
+      node('按参考字幕对齐','H',()=>productionBindingAction('align'),false),
+      node('反转绑定方向','',()=>productionBindingAction('reverse'),false));
+    const references=[...new Set(bound.map(b=>E.track(p,E.cue(p,b.source_id).track_id).name))];
+    for(const child of children.slice(2))child.node.title=`当前参考轨道：${references.join('、')}。对齐会调整另一侧；反转只改变参考方向，不交换位置。`;
+  }
+  ctxAppendExpandableSettings('绑定操作',children);
 }
 let productionClipboard=null;
 function productionCaptureClipboard() {

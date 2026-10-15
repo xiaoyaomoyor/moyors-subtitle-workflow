@@ -245,7 +245,7 @@ __WAVEFORM_CSS__
         </div>
       </div>
       <div class="dropdown-separator"></div>
-      <div class="menu-group-title">多重字幕</div>
+      <div class="menu-group-title">字幕轨道</div>
       <label class="overlay-track-toggle" id="overlay-track-controls"
          title="开启后可在叠加轨创建与主字幕时间重叠的叠加字幕；叠加轨不会与双语字幕建立绑定关系">
     <input type="checkbox" id="overlay-track-toggle">
@@ -636,6 +636,19 @@ __WAVEFORM_CSS__
             </div>
           </div>
 
+    <section class="settings-panel-section cue-editor-settings-section" data-flat-settings hidden>
+      <span class="settings-panel-title" id="track-split-title">文字切分</span>
+      <span hidden data-help-for="track-split-title">按单词：适合英语等以空格分词的文字；按字符：适合中文、日文。用于切分边界、字数统计与合并连接方式，按轨道保存在工程中；不会改动已有文字，也不控制画面换行。</span>
+      <label class="settings-panel-item"><span>作用轨道</span><select id="track-split-track" aria-label="文字切分作用轨道"></select></label>
+      <label class="settings-panel-item"><span>切分方式</span><select id="track-split-mode"><option value="auto">自动判断</option><option value="word">按单词</option><option value="continuous">按字符</option></select></label>
+    </section>
+    <section class="settings-panel-section cue-editor-settings-section" data-flat-settings hidden>
+      <span class="settings-panel-title">绑定与联动</span>
+      <div class="cue-editor-settings-display-group">
+        <label class="toggle settings-panel-item" data-option-help="选中一条字幕时，同时选中它实际绑定的另一条字幕；同组轨道不会自动绑定。"><input type="checkbox" id="track-select-bound"> 同时选中绑定字幕</label>
+        <label class="toggle settings-panel-item" data-option-help="新建绑定时，以先选中的字幕为参考，同步另一条字幕的起止时间。关闭则保留各自时间与偏移；现有绑定不受影响。"><input type="checkbox" id="track-bind-sync"> 绑定时同步时间</label>
+      </div>
+    </section>
     <div class="settings-panel-section cue-editor-settings-section"><span class="settings-panel-title">配音草稿</span>
       <div class="cue-editor-settings-display-group">
         <label class="toggle settings-panel-item"><input type="checkbox" id="tts-draft-clear" checked> 合成成功后清空配音草稿</label>
@@ -671,18 +684,19 @@ __WAVEFORM_CSS__
             <label class="settings-panel-item subtitle-preview-setting-row">
               <span>显示内容</span>
               <select id="multi-subtitle-display-mode" title="仅改变字幕列表的显示内容">
-                <option value="main">主字幕</option>
-                <option value="extension">副字幕</option>
-                <option value="both" selected>多重字幕</option>
+                <option value="main">左侧字幕</option>
+                <option value="extension">右侧字幕</option>
+                <option value="both" selected>全部字幕</option>
               </select>
             </label>
             <label class="settings-panel-item subtitle-preview-setting-row">
-              <span>主副布局</span>
-              <select id="cue-list-pair-layout" title="双列：左主右副；双排：上主下副">
+              <span>绑定卡片布局</span>
+              <select id="cue-list-pair-layout" title="双列并排显示；双排上下显示，不改变字幕绑定和画面样式">
                 <option value="columns" selected>双列</option>
                 <option value="rows">双排</option>
               </select>
             </label>
+            <div data-flat-settings hidden><button type="button" id="cue-list-swap-sides" data-option-help="交换列表中两侧字幕的显示位置；不改变轨道、文字、时间、绑定方向或画面样式。双排布局时交换上下位置。">交换两侧位置</button></div>
           </div>
           <div class="settings-panel-section cue-list-settings-section">
             <span class="settings-panel-title">字幕过滤</span>
@@ -989,6 +1003,7 @@ __WAVEFORM_CSS__
       <div class="wave-settings-checks">
         <label class="toggle settings-panel-item" data-option-help="在波形空白处按住左键拖动时，播放头跟随鼠标移动。"><input type="checkbox" id="waveform-drag-playhead" checked>拖动播放头</label>
         <label class="toggle settings-panel-item" data-option-help="开启后，拖动或微调相邻字幕默认联动；关闭后默认独立调整。按住 Alt 临时反转当前行为。"><input type="checkbox" id="auto-snap-adjacent-cues" checked>联动相邻字幕</label>
+        <label class="toggle settings-panel-item" data-flat-settings hidden data-option-help="按住 Shift 拖动时，将其他字幕轨道的起点和终点也作为吸附目标。不按 Shift 时仍自由拖动。跨轨允许字幕同时出现，同轨保持防重叠。"><input type="checkbox" id="wave-cross-track-snap">吸附其他字幕轨道</label>
       </div>
       <div class="wave-settings-grid">
         <label class="wave-settings-field"><span class="msw-option-label">快捷键时间基准</span><select id="keyboard-operation-reference"><option value="pointer" selected>鼠标位置</option><option value="playhead">播放头</option></select></label>
@@ -1156,7 +1171,7 @@ __WAVEFORM_CSS__
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+拖拽空白处</kbd> 拖动创建指定时长字幕</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span><kbd data-mod-key>Ctrl+拖拽已有字幕</kbd> 启用「叠加字幕」后在叠加轨创建</span>
+          <span>将字幕拖到其他轨道可换轨；同时出现的字幕放在不同轨道</span>
           <span class="help-break" aria-hidden="true"></span>
           <span class="help-important"><kbd>Shift+拖拽空白处</kbd> 框选字幕</span>
         </div>
@@ -1178,10 +1193,10 @@ __WAVEFORM_CSS__
       <h4 class="help-title">双语字幕</h4>
       <section class="help-subgroup">
         <div class="help-category">
-          <span class="help-important"><kbd>G</kbd> 绑定到主副字幕（自动匹配）</span>
-          <span><kbd>Shift+G</kbd> 解绑当前副字幕</span>
+          <span class="help-important"><kbd>G</kbd> 绑定选中的两条不同轨道字幕</span>
+          <span><kbd>Shift+G</kbd> 解绑所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span class="help-important"><kbd>H</kbd> 将选中的副字幕的时长对齐到绑定主字幕</span>
+          <span class="help-important"><kbd>H</kbd> 按绑定的参考字幕对齐另一侧时间</span>
         </div>
       </section>
       <h4 class="help-title">波形外观调整</h4>
@@ -2229,7 +2244,7 @@ __WAVEFORM_CSS__
         <span class="cue-editor-key-hint"><kbd>A</kbd>/<kbd>D</kbd> 按住微调移动</span>
         <span class="cue-editor-key-hint"><kbd>Shift+A</kbd>/<kbd>D</kbd> 起终点贴邻</span>
         <span class="cue-editor-key-hint"><kbd>G</kbd> 绑定 · <kbd>Shift+G</kbd> 解绑</span>
-        <span class="cue-editor-key-hint"><kbd>H</kbd> 副字幕对齐主字幕时长</span>
+        <span class="cue-editor-key-hint"><kbd>H</kbd> 按参考字幕对齐</span>
         <span class="cue-editor-key-hint"><kbd>Alt+点击</kbd> 空隙启用/禁用</span>
         <span class="cue-editor-key-hint"><kbd>Shift+滚轮</kbd> 调整振幅</span>
         <span class="cue-editor-key-hint"><kbd>1~5</kbd>/<kbd>0</kbd> 分配/清除颜色</span>

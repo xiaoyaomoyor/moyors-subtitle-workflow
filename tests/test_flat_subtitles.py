@@ -33,6 +33,22 @@ def ref(cue_id, role="main", track_id=None):
 
 
 class FlatSubtitlesTests(unittest.TestCase):
+    def test_track_split_modes_migrate_without_enabling_disabled_secondary(self):
+        source = dict(segments=[dict(id="a", start=0, end=2000, text="Hello")],
+                      multi_subtitle=dict(enabled=False, main_split_mode="word", tracks=[dict(id="zh", split_mode="continuous", segments=[dict(id="b", start=100, end=2100, text="你好")])], bindings=[]))
+        project = core.migrate_project(source)
+        self.assertEqual(project, browser("c.migrate(data)", source))
+        self.assertEqual([t["split_mode"] for t in project["subtitles"]["tracks"]], ["word", "continuous"])
+        self.assertFalse(project["subtitles"]["tracks"][1]["enabled"])
+        self.assertEqual(core.legacy_projection(project), old.migrate_project(source))
+        for mode in ("auto", "word", "continuous"):
+            project["subtitles"]["tracks"][0]["split_mode"] = mode
+            core.validate(project)
+        for mode in (None, {}, "invalid"):
+            project["subtitles"]["tracks"][0]["split_mode"] = mode
+            with self.assertRaises(ValueError):
+                core.validate(project)
+
     def test_numbered_groups_roundtrip_and_reject_invalid_relationships(self):
         project = browser("c.normalizeGroups(c.migrate(data),{infer:true})", fixture("subtitle-tracks")[0]["project"])
         core.validate(project)

@@ -505,6 +505,7 @@ function isConfiguredSubtitleSplitMode(value) {
 }
 
 function getMainSubtitleSplitMode(segment = null) {
+  if(productionFlatMode())return productionSplitMode(segment);
   // 类型来源三级：用户手动指定（本地偏好，两个入口共享、多重字幕开关无关）
   // → 工程显式配置的 main_split_mode（仅多重字幕开启时沿用旧契约语义）
   // → 按主字幕文本实时检测。
@@ -519,6 +520,7 @@ function getMainSubtitleSplitMode(segment = null) {
 }
 
 function getExtensionSubtitleSplitMode(track = getActiveExtensionTrack(), segment = null) {
+  if(productionFlatMode())return productionSplitMode(segment,'extension',track?.id);
   if (isConfiguredSubtitleSplitMode(track?.split_mode)) return track.split_mode;
   const text = segment?.text ?? (track?.segments || []).map((item) => item?.text || '').join('\n');
   return MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text, track?.language);
@@ -1077,6 +1079,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   assMode: false,
   // 多重字幕开启时使用的波形行高度；关闭多重字幕后恢复「配置」中的高度。
   multiSubtitleRowHeight: 168,
+  flatTrackSettingsMigrated: false,
   exportStartAtZero: false,
   cueListShowIndex: true,
   cueListShowTime: true,
@@ -1255,6 +1258,18 @@ function saveEditorSettings(settings) {
 }
 
 const EDITOR_SETTINGS = readEditorSettings();
+// Migrate before the waveform component saves its normalized defaults. Existing
+// waveform height wins; the retired bilingual height is only a fallback.
+if(productionFlatMode()&&!EDITOR_SETTINGS.flatTrackSettingsMigrated) {
+  try {
+    const old=JSON.parse(localStorage.getItem(EDITOR_SETTINGS_KEY)||'{}');
+    const key='moy.asr.waveform.settings.v1',wave=JSON.parse(localStorage.getItem(key)||'{}');
+    if(!Object.hasOwn(wave,'rowHeight')&&Object.hasOwn(old,'multiSubtitleRowHeight')) {
+      localStorage.setItem(key,JSON.stringify({...wave,rowHeight:EDITOR_SETTINGS.multiSubtitleRowHeight}));
+    }
+    EDITOR_SETTINGS.flatTrackSettingsMigrated=true;saveEditorSettings(EDITOR_SETTINGS);
+  }catch { /* Storage may be unavailable in portable/private windows. */ }
+}
 const ASS_STYLE_LIBRARY_STORAGE_KEY = 'moy.asr.ass.styles.v1';
 let ASS_STYLE_LIBRARY = window.AsrEditorUtils.defaultAssStyleLibrary();
 let ASS_STYLE_LIBRARY_READY = false;
@@ -3785,6 +3800,7 @@ let waveformRowHeightBeforeMultiSubtitle = null;
 
 function syncMultiSubtitleWaveformRowHeight(enabled, enteringEnabled, leavingEnabled) {
   if (!waveformEditor?.getRowHeight || !waveformEditor?.setRowHeight) return;
+  if(productionFlatMode())return;
   if (enteringEnabled) {
     waveformRowHeightBeforeMultiSubtitle = waveformEditor.getRowHeight();
     waveformEditor.setRowHeight(EDITOR_SETTINGS.multiSubtitleRowHeight);
@@ -3798,6 +3814,7 @@ function syncMultiSubtitleWaveformRowHeight(enabled, enteringEnabled, leavingEna
 }
 
 function updateMultiSubtitleUi() {
+  productionSyncSettings();
   // 「允许字幕重叠」开关常驻工具栏；勾选状态跟随用户意图（overlay.enabled），
   // 不要求叠加轨已有字幕，否则空轨道时勾选会被立即弹回。
   if (overlayTrackSeparator) overlayTrackSeparator.hidden = DATA.segments.length === 0;
@@ -4060,6 +4077,7 @@ function isConfiguredMainSplitModeOverride(value) {
 }
 function refreshMergeJoinModeHint() {
   if (!mergeJoinModeHint || !mergeJoinModeText || !mergeJoinModeSwitch) return;
+  if(productionFlatMode()){mergeJoinModeHint.hidden=true;return;}
   const text = DATA.segments.map((item) => item?.text || '').join('\n');
   if (!text) {
     mergeJoinModeHint.hidden = true;
@@ -6138,6 +6156,7 @@ let lastClickedOverlayIdx = -1;
 
 // 已选计数涵盖主轨/副轨/叠加轨三个选区集。
 function updateSelectionCountText() {
+  productionRememberSelection();
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
@@ -13312,6 +13331,7 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if(productionFlatMode()){e.preventDefault();e.stopPropagation();productionBindingAction('align');return;}
   if (!multiSubtitleVisible()) return;
   if (!selectedExtensionIdxs.size) {
     e.preventDefault();
@@ -19555,7 +19575,7 @@ function commitMultiSubtitleImport() {
 
 function swapMainAndExtensionSubtitles() {
   if(productionFlatMode()) {
-    try {commitProcessingEdits();productionCommitProject(MSWProductionProject.swapColumns(DATA),'交换主副字幕');return true;}
+    try {commitProcessingEdits();productionRememberSelection();productionCommitProject(MSWProductionProject.swapColumns(DATA),'交换列表两侧位置',productionSelectionOrder,{displayOnly:true});return true;}
     catch(error){flashHint(error.message,'warning');return false;}
   }
   const multi = getMultiSubtitleState();
@@ -22759,7 +22779,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
     addItem('删除字幕', 'Delete', () => {
       remove([idx]);
     }, { danger: true });
-    if (binding) {
+    if (binding && !productionFlatMode()) {
       addItem('解绑', 'Shift+G', () => {
         select(idx);
         unbindSelectedSubtitlePair();
@@ -22769,7 +22789,6 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
     if (!track && !layerMode()) { addSep(); addItem('转为叠加字幕', '', () => convertMainCuesToOverlay([idx])); }
   } else {
     // 组 1：合并与批量文本操作
-    if(productionFlatMode()&&targetIdxs.length===2)addItem('绑定所选字幕','G',()=>productionBindSelected());
     addItem('累加状态合并', 'C', () => merge(targetIdxs));
     addItem('共有状态合并', `${modKeyLabel()}+Shift+C`, () => merge(targetIdxs, 'common'));
     addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs, track));
@@ -22799,7 +22818,8 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
   }
 
   // 末尾设置入口：来自波形块 → 波形显示器设置；来自字幕列表行 → 字幕列表设置。
-  if (track) {
+  if(productionFlatMode())productionAppendBindingMenu();
+  else if (track) {
     if (binding) addItem('对齐对应字幕时间范围', 'H', () => alignExtensionToMainTimeRange(idx, track));
     else if (selectedMainForBinding) addItem('绑定所选字幕', 'G', () => {
       const mainIndex = DATA.segments.findIndex(c => c.id === selectedMainForBinding);
@@ -23225,6 +23245,10 @@ function initWaveformEditor() {
         .flatMap((segment) => [segment?.start, segment?.end])
         .filter((timeMs) => Number.isFinite(Number(timeMs)))
         .map((timeMs) => Number(timeMs));
+      if(productionFlatMode()) {
+        const visible=new Set(fixedLayout().bands.map(b=>b.track.id));
+        return collectEdges(layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>visible.has(fixedOwner(c,s.role,s.track_id)))));
+      }
       // 叠加轨与主轨互为吸附参照；多重字幕开启时副轨边界同样参与。
       if (track === 'overlay') {
         const targets = collectEdges(DATA.segments);

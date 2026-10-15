@@ -74,6 +74,7 @@
         ||!['none','dialogue','source','translation','annotation'].includes(track.purpose)
         ||!['auto','fixed'].includes(track.layout)||['enabled','locked','collapsed'].some(k=>typeof track[k]!=='boolean')
         ||!object(track.style)||!['main','secondary'].includes(track.style.slot)||!['dialogue','annotation'].includes(track.style.base))fail('轨道身份、状态或样式无效');
+      if(Object.hasOwn(track,'split_mode')&&!['auto','word','continuous'].includes(track.split_mode))fail('轨道文字切分方式无效');
       const style=clone(track.style);delete style.slot;delete style.base;
       const check=old.migrate({segments:[]}),t=check.subtitle_tracks.tracks[0];t.style=style;
       if(Object.hasOwn(track,'position'))t.position=track.position;
@@ -221,6 +222,8 @@
           locked:t.locked,collapsed:t.collapsed,style:{...clone(t.style),slot:role==='main'?'main':'secondary',base:old.styleKind(t)}};
         if(t.position)track.position=clone(t.position);
         if(storage?.language)track.language=storage.language;
+        const splitMode=role==='main'?(project.multi_subtitle?.main_split_mode||project.split_mode):storage?.split_mode;
+        if(['word','continuous'].includes(splitMode))track.split_mode=splitMode;
         m.tracks.push(track);ownerTracks.set(key,id);
       };
       add('main');

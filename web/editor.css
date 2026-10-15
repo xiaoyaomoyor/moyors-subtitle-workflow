@@ -1828,6 +1828,8 @@
   #cue-editor-settings-panel > section { width: 100%; box-sizing: border-box; }
   #cue-editor-settings-panel label:not(.toggle) { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(100px, 1fr); align-items: center; gap: 8px; }
   #cue-editor-settings-panel label[hidden] { display: none; }
+  [data-flat-settings][hidden], #multi-subtitle-settings-dropdown[hidden], #overlay-track-controls[hidden] { display:none !important; }
+  #cue-editor-settings-panel [data-flat-settings] > label + label { margin-top:8px; }
   #cue-editor-settings-panel label:has(input[type="checkbox"]) { display: flex; justify-content: flex-start; }
   #cue-editor-settings-panel h3 { text-align: left; }
   #audio-actions-results { max-height: 180px; overflow-y: auto; overflow-wrap: anywhere; overscroll-behavior: contain; }

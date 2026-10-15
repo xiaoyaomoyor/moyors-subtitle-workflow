@@ -4003,7 +4003,8 @@
       if (lower > upper) { this.hideMagnetGuide(); return null; }
       const requested = clock.round(rawDelta);
       let delta = clamp(requested, lower, upper);
-      const targets = segments.filter(segment => !moving.has(segment))
+      const targets = segments.filter(segment => !moving.has(segment)
+        && motions.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
         .flatMap(segment => [segment.start, segment.end]);
       targets.push(...(this.options.getCrossTrackSnapTargets?.(drag.track, moving) || []),
         ...(this.audioLayer?.edges?.() || []), this.currentTimeMs());

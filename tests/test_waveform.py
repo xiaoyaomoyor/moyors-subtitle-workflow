@@ -440,17 +440,17 @@ class EditorAssetTests(unittest.TestCase):
             '          <span class="help-break" aria-hidden="true"></span>\n'
             '          <span><kbd data-mod-key>Ctrl+拖拽空白处</kbd> 拖动创建指定时长字幕</span>\n'
             '          <span class="help-break" aria-hidden="true"></span>\n'
-            '          <span><kbd data-mod-key>Ctrl+拖拽已有字幕</kbd> 启用「叠加字幕」后在叠加轨创建</span>\n'
+            '          <span>将字幕拖到其他轨道可换轨；同时出现的字幕放在不同轨道</span>\n'
             '          <span class="help-break" aria-hidden="true"></span>\n'
             '          <span class="help-important"><kbd>Shift+拖拽空白处</kbd> 框选字幕</span>',
             page,
         )
-        self.assertIn('<span class="help-important"><kbd>G</kbd> 绑定到主副字幕（自动匹配）</span>', page)
-        self.assertIn('<span class="help-important"><kbd>H</kbd> 将选中的副字幕的时长对齐到绑定主字幕</span>', page)
+        self.assertIn('<span class="help-important"><kbd>G</kbd> 绑定选中的两条不同轨道字幕</span>', page)
+        self.assertIn('<span class="help-important"><kbd>H</kbd> 按绑定的参考字幕对齐另一侧时间</span>', page)
         self.assertIn(
-            '<span><kbd>Shift+G</kbd> 解绑当前副字幕</span>\n'
+            '<span><kbd>Shift+G</kbd> 解绑所选字幕</span>\n'
             '          <span class="help-break" aria-hidden="true"></span>\n'
-            '          <span class="help-important"><kbd>H</kbd> 将选中的副字幕的时长对齐到绑定主字幕</span>',
+            '          <span class="help-important"><kbd>H</kbd> 按绑定的参考字幕对齐另一侧时间</span>',
             page,
         )
         self.assertIn('<button type="button" class="help-inline-action" id="help-open-waveform-settings"', page)
@@ -549,7 +549,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="help-open-gap-remove-panel"', page)
         self.assertIn('在「', page)
         self.assertIn('」中点击「清空标记」，可一次撤销恢复', page)
-        self.assertEqual(page.count('<section class="help-subgroup">'), 21)
+        self.assertEqual(page.count('<section class="help-subgroup">'), 22)
         self.assertNotIn('确定删除第 ${idx + 1} 条字幕', page)
         self.assertNotIn('确定删除选中的 ${targetIdxs.length} 条字幕', page)
         self.assertIn('id="export-start-at-zero"', page)

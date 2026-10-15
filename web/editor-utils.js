@@ -3087,7 +3087,7 @@
     splitKey: 'enter', splitUseWordTimestamps: true, splitAutoSubmit: true,
     mainSplitModeOverride: null,
     splitTrimSymbols: [...DEFAULT_SPLIT_TRIM_SYMBOLS],
-    overlayEnabled: true, extensionOverlayEnabled: true, assMode: false, multiSubtitleRowHeight: 168,
+    overlayEnabled: true, extensionOverlayEnabled: true, assMode: false, multiSubtitleRowHeight: 168, flatTrackSettingsMigrated: false,
     subtitleColorPaletteEnabled: false,
     exportStartAtZero: false, cueListShowIndex: true, cueListShowTime: true,
     cueListShowSticker: true, cueListShowCharcount: true, cueListFollowPlayback: true,
@@ -3159,6 +3159,7 @@
       subtitleColorPaletteEnabled: savedSettings.subtitleColorPaletteEnabled === true,
       multiSubtitleRowHeight: EDITOR_SETTING_ROW_HEIGHTS.includes(Number(savedSettings.multiSubtitleRowHeight))
         ? Number(savedSettings.multiSubtitleRowHeight) : 168,
+      flatTrackSettingsMigrated: savedSettings.flatTrackSettingsMigrated === true,
       exportStartAtZero: savedSettings.exportStartAtZero === true,
       cueListShowIndex: savedSettings.cueListShowIndex !== false,
       cueListShowTime: savedSettings.cueListShowTime !== false,
