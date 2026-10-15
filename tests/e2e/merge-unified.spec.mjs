@@ -8,8 +8,8 @@ test.beforeAll(async()=>{
  generateWav(media,8);writeFileSync(project,JSON.stringify({media,segments:[],waveform:generateWaveformPayload(8000)}));
  server=await startServer(project,media,await findFreePort());
 });
-for(const area of ['list','waveform']) test(`optional tape effect at ${area} joins is independent, local and removed`,async({page},testInfo)=>{
- await setup(page);await selectPair(page,'main',area);
+for(const area of ['list','waveform']) for(const motion of ['reduce','no-preference']) test(`optional tape effect at ${area} joins with ${motion} is independent, local and removed`,async({page},testInfo)=>{
+ await setup(page,false,true);await selectPair(page,'main',area);
  expect(await page.evaluate(()=>EDITOR_SETTINGS.mergeTapeEffect)).toBe(false);
  await page.keyboard.press('c');await expect(page.locator('.merge-tape-flash')).toHaveCount(0);
  await page.keyboard.press('Control+z');
@@ -19,14 +19,14 @@ for(const area of ['list','waveform']) test(`optional tape effect at ${area} joi
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1')).mergeTapeEffect)).toBe(true);
  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
  await selectPair(page,'main',area);
- await page.emulateMedia({reducedMotion:'reduce'});
+ await page.emulateMedia({reducedMotion:motion});
  await page.keyboard.press('c');
  const tape=page.locator('.merge-tape-flash');await expect(tape).toHaveCount(2);
  if (area==='waveform') {
   const centers=await tape.evaluateAll(nodes=>nodes.map(n=>parseFloat(n.style.top)));
   expect(Math.abs(centers[0]-centers[1])).toBeGreaterThan(30);
  }
- expect(await tape.first().evaluate(el=>({pointer:getComputedStyle(el).pointerEvents,animation:getComputedStyle(el).animationName}))).toEqual({pointer:'none',animation:'merge-tape-fade'});
+ expect(await tape.first().evaluate(el=>({pointer:getComputedStyle(el).pointerEvents,animation:getComputedStyle(el).animationName}))).toEqual({pointer:'none',animation:motion==='reduce'?'merge-tape-fade':'merge-tape-stick'});
  await page.screenshot({path:testInfo.outputPath(`tape-${area}.png`)});
  await expect(tape).toHaveCount(0);
  await page.evaluate(()=>mergeSegments([0]));await expect(tape).toHaveCount(0);
@@ -80,6 +80,22 @@ test('multi-cue list tape follows the final paired cards instead of removed card
  await page.screenshot({path:info.outputPath('many-tapes-list.png')});
 });
 
+test('a tall merged card keeps tape on its visible edge instead of below the viewport',async({page})=>{
+ await manyCueFixture(page,'list');
+ const result=await page.evaluate(async()=>{
+  DATA.segments.forEach(cue=>{cue.text='Long caption text. '.repeat(90);});
+  // A user can dock the list in a pane shorter than the resulting card.
+  container.style.minHeight='0';container.style.maxHeight='90px';
+  renderAll();mergeSegments([0,1,2,3]);
+  await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+  const bounds=cueListVisibleBounds(),card=container.querySelector('.multi-cue-column.main').getBoundingClientRect();
+  return {cardBottom:card.bottom,top:bounds.top,bottom:bounds.bottom,tapes:[...document.querySelectorAll('.merge-tape-flash')].map(node=>({y:parseFloat(node.style.top),id:node.dataset.cueId})),id:DATA.segments[0].id};
+ });
+ expect(result.cardBottom).toBeGreaterThan(result.bottom);
+ expect(result.tapes.some(tape=>tape.id===result.id)).toBe(true);
+ for(const tape of result.tapes){expect(tape.y).toBeGreaterThan(result.top);expect(tape.y).toBeLessThan(result.bottom);}
+});
+
 test('collapsed partner has no floating tape and a new merge clears all previous strips',async({page})=>{
  await manyCueFixture(page,'waveform',{hiddenPartner:true});
  const result=await page.evaluate(async()=>{
@@ -124,7 +140,30 @@ test('physical-track cross-column merge resolves the real resulting cue for tape
  expect(result.ok).toBe(true);expect(result.resultIds).toHaveLength(1);expect(result.tapeIds).toEqual(result.resultIds);
 });
 
-test('scrolling the timeline removes feedback anchored to the previous viewport',async({page})=>{
+for(const area of ['list','waveform']) test(`normal-motion ${area} tape survives redraw and another pane restoring its scroll`,async({page},info)=>{
+ await manyCueFixture(page,area);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ const result=await page.evaluate(async area=>{
+  DATA.segments.push(...Array.from({length:24},(_,i)=>({id:`tail${i}`,start:8000+i*1000,end:9000+i*1000,text:`Following caption ${i}`,items:[]})));
+  waveformEditor.settings.secondsPerRow=1;waveformEditor.settings.rowHeight=160;
+  renderAll({waveform:'full'});
+  mergeSegments([0,1,2,3]);await new Promise(requestAnimationFrame);
+  const tapes=[...document.querySelectorAll('.merge-tape-flash')];
+  // Layout restoration and preview updates can run after the merge's first frame.
+  renderAll({waveform:'full'});
+  const other=area==='list'?document.getElementById('waveform-scroll'):container;
+  other.scrollTop=80;
+  const scroll=other.scrollTop;
+  await new Promise(resolve=>setTimeout(resolve,180));
+  return {scroll,count:tapes.length,visible:tapes.filter(node=>node.isConnected&&Number(getComputedStyle(node).opacity)>.5).length};
+ },area);
+ expect(result.scroll).toBeGreaterThan(0);expect(result.count).toBeGreaterThan(0);
+ expect(result.visible).toBe(result.count);
+ await page.screenshot({path:info.outputPath(`normal-motion-${area}.png`)});
+ await expect(page.locator('.merge-tape-flash')).toHaveCount(0);
+});
+
+test('scrolling the timeline keeps visible tape attached to the resulting block',async({page})=>{
  await manyCueFixture(page,'waveform');
  const before=await page.evaluate(async()=>{
   waveformEditor.settings.secondsPerRow=1;waveformEditor.settings.rowHeight=160;waveformEditor.render();
@@ -133,10 +172,17 @@ test('scrolling the timeline removes feedback anchored to the previous viewport'
  });
  expect(before).toBeGreaterThan(0);
  const scroll=await page.locator('#waveform-scroll').evaluate(async node=>{
-  node.scrollTop=160;await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
-  return {top:node.scrollTop,tapes:document.querySelectorAll('.merge-tape-flash').length};
+  node.scrollTop=40;await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+  return {top:node.scrollTop,tapes:[...document.querySelectorAll('.merge-tape-flash')].map(tape=>{
+   const time=Number(tape.dataset.timeMs);
+   const block=[...node.querySelectorAll(`.waveform-cue-block[data-cue-id="${tape.dataset.cueId}"]`)].find(block=>{
+    const row=block.closest('.waveform-row');return time>=Number(row.dataset.startMs)&&time<Number(row.dataset.endMs);
+   });
+   const rect=block.getBoundingClientRect();return {y:parseFloat(tape.style.top),expected:rect.top+rect.height/2};
+  })};
  });
- expect(scroll.top).toBeGreaterThan(0);expect(scroll.tapes).toBe(0);
+ expect(scroll.top).toBeGreaterThan(0);expect(scroll.tapes.length).toBeGreaterThan(0);
+ for(const tape of scroll.tapes)expect(Math.abs(tape.y-tape.expected)).toBeLessThan(1);
 });
 test('both context menus offer direct state modes',async({page})=>{
  await setup(page);
@@ -167,7 +213,7 @@ async function setup(page,legacy=false,production=false){
    {id:'s1',start:100,end:1900,text:'甲',items:[],color:{name:'purple',value:'#0000ff'}},
    {id:'s2',start:2100,end:3900,text:'乙',items:[],color:{name:'purple',value:'#0000ff'}}]}],bindings:[1,2].map(n=>({id:'b'+n,track_id:'sub',main_segment_ids:['m'+n],extension_segment_ids:['s'+n],start_offset_ms:100,end_offset_ms:-100}))},waveform},'merge-test.mosp');
   DATA.preview={...DATA.preview,project_style:MSWProjectStyle.defaults()};
-  DATA.msw.removed_asset_ids=[];renderAll();
+  DATA.msw.removed_asset_ids=[];renderAll({waveform:'full'});
  },generateWaveformPayload(8000));
 }
 const snapshot=page=>page.evaluate(()=>JSON.parse(buildJson()));
@@ -204,7 +250,7 @@ test('partner collision rejects atomically and disabled result remains visible u
 });
 async function selectPair(page,role,area){
  await page.evaluate(()=>{clearSelection();updateEditorSettings({cueListHideDisabled:false});renderAll();});
- const cue=index=>area==='waveform'?page.locator(`.waveform-cue-block[data-track="${role}"][data-cue-id="${role==='main'?'m':'s'}${index+1}"]`).first()
+ const cue=index=>area==='waveform'?page.locator(`.waveform-cue-block[data-track="${role}"][data-${role==='main'?'idx':'ext-idx'}="${index}"]`).first()
   :page.locator(`#cues-container .multi-cue-column.${role}[data-${role==='main'?'main':'ext'}-idx="${index}"] .time`);
  await cue(0).click();await cue(1).click({modifiers:['Control']});
 }

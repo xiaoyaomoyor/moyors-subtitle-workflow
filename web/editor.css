@@ -5092,18 +5092,18 @@
 /* The merge Easter egg uses the same accent as split feedback. */
 .merge-tape-flash {
   position: fixed; z-index: 1200; width: 48px; height: 14px;
-  pointer-events: none; background: color-mix(in srgb, var(--accent) 30%, transparent);
+  pointer-events: none; background: color-mix(in srgb, var(--accent) 50%, var(--bg-panel));
   border-block: 1px solid color-mix(in srgb, var(--accent) 65%, transparent); box-sizing: border-box;
   clip-path: polygon(3% 0, 97% 0, 100% 20%, 97% 40%, 100% 60%, 97% 80%, 100% 100%, 0 100%, 3% 80%, 0 60%, 3% 40%, 0 20%);
   transform: translate(-50%, -50%) rotate(-5deg);
-  animation: merge-tape-stick 520ms ease-out both;
+  animation: merge-tape-stick 640ms ease-out both;
 }
 .merge-tape-flash::after {
   content: ''; position: absolute; inset: 3px 50%; border-left: 1px solid var(--accent);
 }
 @keyframes merge-tape-stick {
   0% { opacity: 0; transform: translate(-50%, -50%) rotate(-5deg) scaleX(.45); }
-  25%, 65% { opacity: 1; transform: translate(-50%, -50%) rotate(-5deg) scaleX(1); }
+  15%, 70% { opacity: 1; transform: translate(-50%, -50%) rotate(-5deg) scaleX(1); }
   100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {

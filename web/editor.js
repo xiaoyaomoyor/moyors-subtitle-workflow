@@ -10366,19 +10366,22 @@ function triggerMergeFeedback(feedback) {
   mergeFeedbackCleanup?.();
   document.querySelectorAll('.merge-tape-flash').forEach(node => node.remove());
   if (!EDITOR_SETTINGS.mergeTapeEffect || !feedback?.length) return;
-  let frame = 0, timer = 0;
-  const tapes = [];
+  let frame = 0, timer = 0, started = null;
+  const duration = 640, tapes = new Map();
   const cleanup = () => {
     cancelAnimationFrame(frame); clearTimeout(timer);
     tapes.forEach(tape => tape.remove());
-    window.removeEventListener('resize', cleanup);
-    window.removeEventListener('wheel', cleanup, true);
-    window.removeEventListener('scroll', cleanup, true);
     if (mergeFeedbackCleanup === cleanup) mergeFeedbackCleanup = null;
   };
   mergeFeedbackCleanup = cleanup;
-  frame = requestAnimationFrame(() => {
+  // List anchor restoration and waveform redraw can continue after the first
+  // paint. Follow cue identities for this short animation instead of cancelling
+  // it on every scroll in the page (including unrelated panels).
+  const paint = now => {
     if (!EDITOR_SETTINGS.mergeTapeEffect) { cleanup(); return; }
+    started ??= now;
+    const elapsed = now - started;
+    if (elapsed >= duration) { cleanup(); return; }
     const points = [];
     const add = (point, rect, bounds) => {
       const left = Math.max(0, bounds.left), right = Math.min(innerWidth, bounds.right);
@@ -10422,27 +10425,37 @@ function triggerMergeFeedback(feedback) {
         if (!row) continue;
         const extension = item.role === 'extension' || !item.role && row.dataset.mainId !== item.cueId;
         const column = row.querySelector(extension ? '.multi-cue-column.extension' : '.multi-cue-column.main') || row;
-        const rect = column.getBoundingClientRect();
+        const rect = column.getBoundingClientRect(), visible = cueListVisibleBounds();
+        const bounds = {left:visible.containerRect.left, right:visible.containerRect.right, top:visible.top, bottom:visible.bottom};
         // One short strip on each result's edge, regardless of the old count.
-        add({cueId:item.cueId, region:'list', clientX:rect.left+rect.width/2, clientY:rect.bottom-7}, rect, container.getBoundingClientRect());
+        // A tall merged card can extend below the list; use its visible edge.
+        if (rect.bottom <= bounds.top || rect.top >= bounds.bottom) continue;
+        add({cueId:item.cueId, region:'list', clientX:rect.left+rect.width/2, clientY:Math.min(rect.bottom,bounds.bottom)-7}, rect, bounds);
       }
     }
-    for (const point of points) {
-      const tape = document.createElement('span');
-      tape.className = 'merge-tape-flash'; tape.setAttribute('aria-hidden','true');
-      tape.dataset.region = point.region || 'list';
-      if (point.cueId) tape.dataset.cueId = point.cueId;
-      if (Number.isFinite(point.time)) tape.dataset.timeMs = String(point.time);
+    const visibleKeys = new Set();
+    for (const [index, point] of points.entries()) {
+      const key = `${point.region}:${point.cueId || index}:${point.time ?? ''}`;
+      visibleKeys.add(key);
+      let tape = tapes.get(key);
+      if (!tape) {
+        tape = document.createElement('span');
+        tape.className = 'merge-tape-flash'; tape.setAttribute('aria-hidden','true');
+        tape.dataset.region = point.region || 'list';
+        if (point.cueId) tape.dataset.cueId = point.cueId;
+        if (Number.isFinite(point.time)) tape.dataset.timeMs = String(point.time);
+        // Newly visible joins share the original lifetime; scrolling cannot
+        // keep restarting the effect indefinitely.
+        tape.style.animationDelay = `${-elapsed}ms`;
+        document.body.append(tape); tapes.set(key,tape);
+      }
       tape.style.left = `${point.clientX}px`; tape.style.top = `${point.clientY}px`;
-      document.body.append(tape); tapes.push(tape);
-      tape.addEventListener('animationend', () => tape.remove(), {once:true});
     }
-    if (!tapes.length) { cleanup(); return; }
-    window.addEventListener('resize', cleanup);
-    window.addEventListener('wheel', cleanup, {capture:true, passive:true});
-    window.addEventListener('scroll', cleanup, {capture:true, passive:true});
-    timer = setTimeout(cleanup, 700);
-  });
+    for (const [key,tape] of tapes) if (!visibleKeys.has(key)) { tape.remove(); tapes.delete(key); }
+    frame = requestAnimationFrame(paint);
+  };
+  frame = requestAnimationFrame(paint);
+  timer = setTimeout(cleanup, duration+100);
 }
 
 function mergeExtensionSegments(idxs, track = getActiveExtensionTrack(), mode = 'union') {
