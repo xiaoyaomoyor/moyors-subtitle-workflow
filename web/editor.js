@@ -9405,7 +9405,8 @@ function setSplitActiveLane(state, lane) {
     laneEl?.classList.toggle('is-active-lane', name === lane);
     textEl?.setAttribute('aria-current', String(name === lane));
   }
-  const label = lane === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑';
+  const label = productionFlatMode() ? `仅切 ${splitLaneLabel(state,lane)} 并解绑`
+    : lane === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑';
   const text = multiSubtitleSplitIndependent?.querySelector('span');
   if (text) text.textContent = window.MSWE_I18N?.translateText?.(label) || label;
 }
@@ -9434,6 +9435,13 @@ function updateSplitLaneVisual(state, lane) {
   });
 }
 
+function splitLaneLabel(state,lane) {
+  const track=splitStateTrack(state),main=lane==='main';
+  const cue=main?DATA.segments[state?.mainIndex]:extensionSegmentById(state?.extensionId,track);
+  return productionFlatMode()&&cue?fixedCueLabel(cue,main?'main':'extension',main?null:track?.id)
+    :main?'主字幕':state.kind==='overlay'?'叠加字幕':'副字幕';
+}
+
 function renderSplitLane(state, lane) {
   const { laneEl, textEl } = splitLaneElements(lane);
   if (!laneEl || !textEl) return;
@@ -9445,9 +9453,9 @@ function renderSplitLane(state, lane) {
   const displayMode = isMain ? state?.mainMode : state?.extensionMode;
   const heading = laneEl.querySelector('h4');
   if (heading) {
-    const headingText = isMain ? '主字幕' : state.kind === 'overlay' ? '叠加字幕' : '副字幕';
-
+    const headingText = splitLaneLabel(state,lane);
     heading.textContent = window.MSWE_I18N?.translateText?.(headingText) || headingText;
+    textEl.setAttribute('aria-label',`${heading.textContent} · ${window.MSWE_I18N?.translateText?.('文字分界')||'文字分界'}`);
   }
   const visible = Boolean(displaySegment) && (isMain
     ? state?.kind === 'main' || state?.kind === 'linked'

@@ -128,8 +128,11 @@
     core.normalizeGroups(p);core.validate(p);return p;
   }
   function translation(view,selection,destination='',outputMode='secondary') {
-    let p=toProject(view);const F=global.MSWFlatProcessing,E=global.MSWFlatEditing;
-    const ids=translationIds(view,selection);
+    const p=toProject(view);
+    return translationPlan(p,translationIds(view,selection,p),destination,outputMode);
+  }
+  function translationPlan(p,ids,destination,outputMode) {
+    const F=global.MSWFlatProcessing,E=global.MSWFlatEditing;
     if(!ids.length)throw Error('请先选择要翻译的字幕');
     const peers=[...new Set(ids.map(id=>E.partner(p,id)?.track_id).filter(Boolean))];
     if(!destination&&peers.length>1)throw Error('所选字幕绑定到不同轨道，请分批翻译或选择目标轨道');
@@ -145,10 +148,22 @@
     const snap=F.translation(p,ids,target);
     return {...snap,output_mode:outputMode,...(created?{created_subtitle_track:created}:{})};
   }
-  function translationIds(view,selection) {
+  function translationIds(view,selection,project=null) {
     const ids=new Set([...(selection.mainIds||[]),...(selection.extensionIds||[])]);
-    for(const b of view.multi_subtitle?.bindings||[])if(ids.has(b.main_segment_ids[0]))ids.delete(b.extension_segment_ids[0]);
+    // A selected pair has one source, regardless of the list's left/right layout.
+    for(const b of (project||toProject(view)).subtitles.bindings)if(ids.has(b.source_id))ids.delete(b.target_id);
     return [...ids];
+  }
+  function translationScope(view,selection,destination='') {
+    const p=toProject(view),ids=translationIds(view,selection,p),byId=new Map(p.subtitles.cues.map(c=>[c.id,c]));
+    const selectedCount=new Set([...(selection.mainIds||[]),...(selection.extensionIds||[])]).size;
+    const sourceTracks=p.subtitles.tracks.map(t=>({id:t.id,name:t.name,count:ids.filter(id=>byId.get(id)?.track_id===t.id).length})).filter(t=>t.count);
+    const report={sourceTracks,count:ids.length,pairedCount:selectedCount-ids.length,target:null,issue:''};
+    try {
+      const snapshot=translationPlan(p,ids,destination,'secondary'),target=snapshot.flat_model.tracks.find(t=>t.id===snapshot.subtitle_track_id);
+      report.target={id:target.id,name:target.name,created:Boolean(snapshot.created_subtitle_track),count:snapshot.entries.length};
+    } catch(error){report.issue=error.message;}
+    return report;
   }
   function place(view,rows,bindings,anchor,ownerId) {
     const E=global.MSWFlatEditing,id=global.MSWProject.id;let p=toProject(view);
@@ -293,6 +308,6 @@
     for(const t of p.subtitles.tracks)t.enabled=t.enabled&&(!selected||selected.has(t.id));
     return p;
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -103,6 +103,29 @@ test('translation counts a selected bilingual pair once but accepts an unbound o
   const view=bridge.fromProject(fixture()),a=view.segments[0].id,b=view.multi_subtitle.tracks[0].segments[0].id;
   assert.deepEqual(bridge.translationIds(view,{mainIds:[a],extensionIds:[b]}),[a]);
   assert.deepEqual(bridge.translationIds(view,{mainIds:[],extensionIds:[b]}),[b]);
+  const swapped=bridge.fromProject(bridge.swapColumns(view));
+  assert.deepEqual(bridge.translationIds(swapped,{mainIds:[b],extensionIds:[a]}),[a]);
+  const reversed=bridge.fromProject(bridge.reverseBindings(view,[a]));
+  assert.deepEqual(bridge.translationIds(reversed,{mainIds:[a],extensionIds:[b]}),[b]);
+});
+
+test('translation scope reports real source and destination tracks without changing the project',()=>{
+  globalThis.MSWProject={id:prefix=>prefix+'-'+crypto.randomUUID()};require('../web/msw-flat-editing.js');require('../web/msw-flat-processing-core.js');
+  const view=bridge.fromProject(fixture());view.msw={schema:'msw.editor.v1',project_id:'scope-test'};
+  const before=structuredClone(view),a=view.segments[0].id,b=view.multi_subtitle.tracks[0].segments[0].id;
+  const scope=bridge.translationScope(view,{mainIds:[a],extensionIds:[b]});
+  assert.deepEqual(scope.sourceTracks.map(t=>[t.name,t.count]),[['S1主',1]]);assert.equal(scope.pairedCount,1);
+  assert.equal(scope.issue,'');assert.equal(scope.target.name,'S1副');assert.equal(scope.target.count,1);assert.equal(scope.target.created,false);
+  const reverse=bridge.translationScope(view,{extensionIds:[b]});assert.equal(reverse.sourceTracks[0].name,'S1副');assert.equal(reverse.target.name,'S1主');
+  assert.match(bridge.translationScope(view,{mainIds:[a]},scope.sourceTracks[0].id).issue,/另一条轨道/);
+  assert.match(bridge.translationScope(view,{mainIds:[a]},'new').issue,/对应其他轨道/);
+  assert.equal(bridge.translationScope(view,{}).count,0);
+  assert.deepEqual(view,before);
+  const independent=bridge.toProject(view);independent.subtitles.bindings=[];independent.subtitles.tracks[1].enabled=false;
+  const blocked=bridge.translationScope(bridge.fromProject(independent),{mainIds:[a]});assert.match(blocked.issue,/已启用/);
+  const fresh=bridge.translationScope(bridge.fromProject(independent),{mainIds:[a]},'new');assert.equal(fresh.target.created,true);assert.equal(fresh.count,1);
+  independent.subtitles.cues.find(c=>c.id===a).content.disabled=true;
+  assert.match(bridge.translationScope(bridge.fromProject(independent),{mainIds:[a]},'new').issue,/禁用/);
 });
 
 test('numbered groups preserve cue bindings, appearance and group numbers across ungroup, reorder and reopen',()=>{

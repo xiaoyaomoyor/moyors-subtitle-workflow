@@ -28,11 +28,11 @@ async function fixture(page, options = {}) {
     const secondary = { id: 'sub-a', start: 0, end: 8000, text: '甲乙丙丁戊己庚辛', items: options.subTimed
       ? Array.from('甲乙丙丁戊己庚辛', (text, i) => ({ text, start: i * 1000, end: (i + 1) * 1000 })) : [] };
     if (options.shortSub) Object.assign(secondary, { start: 100, end: 200, text: '甲' });
-    const media = DATA.media;
+    const media = DATA.media || '';
     applyCanonicalProject({ media, segments: [main], multi_subtitle: {
       enabled: !options.hidden, display_mode: 'both', tracks: [{ id: 'secondary', role: 'extension', split_mode: 'continuous', segments: [secondary] }],
       bindings: options.unbound ? [] : [{ id: 'binding-a', track_id: 'secondary', main_segment_ids: ['main-a'], extension_segment_ids: ['sub-a'] }],
-    }, waveform: DATA.waveform }, 'split-test.mosp');
+    }, ...(DATA.waveform ? {waveform:DATA.waveform} : {}) }, 'split-test.mosp');
     DATA.preview = { ...DATA.preview, project_style: window.MSWProjectStyle.defaults() };
     renderAll();
   }, options);
@@ -131,7 +131,7 @@ test('secondary entry also splits a bound pair and hiding secondary does not unl
     await page.locator('#multi-subtitle-split-confirm').click();
     expect((await data(page)).bindings).toHaveLength(2);
     expect((await data(page)).main).toHaveLength(2);
-    expect(await page.evaluate(() => DATA.multi_subtitle.enabled)).toBe(!hidden);
+    expect(await page.evaluate(() => fixedTrack(getActiveExtensionTrack().segments[0],'extension',getActiveExtensionTrack().id).enabled)).toBe(!hidden);
   }
 });
 
@@ -198,7 +198,10 @@ test('an impossible bound split never silently falls back to unbinding', async (
   // The same choice must remain available when the short partner is the main cue.
   await fixture(page);
   await page.evaluate(() => {
-    Object.assign(DATA.segments[0], { start: 100, end: 200, text: 'one' });
+    const p=MSWProductionProject.toProject(DATA),binding=p.subtitles.bindings[0];
+    Object.assign(p.subtitles.cues.find(c=>c.id===binding.source_id).content,{start:100,end:200,text:'one'});
+    Object.assign(binding,{start_offset_ms:-100,end_offset_ms:7800});
+    productionCommitProject(p,'Short reference fixture');
     openExtensionSplitModal(0, 4000);
   });
   await expect(panel(page)).toBeVisible();
@@ -331,7 +334,7 @@ test('independent footer button follows the active lane rather than entry lane',
     const target = origin === 'main' ? 'extension' : 'main';
     await page.keyboard.press(target === 'extension' ? 'ArrowDown' : 'ArrowUp');
     const button = page.locator('#multi-subtitle-split-independent');
-    await expect(button).toContainText(target === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑');
+    await expect(button).toContainText(target === 'main' ? '仅切 S1主_1 并解绑' : '仅切 S1副_1 并解绑');
     await button.click();
     await expect(panel(page)).toBeHidden();
     const after = await data(page);
@@ -663,7 +666,10 @@ test('drag cancellation restores the draft and closing the panel leaves no drag 
 test('dragging preserves minimum duration on both tracks and can move between waveform rows', async ({ page }) => {
   await fixture(page);
   await page.evaluate(() => {
-    Object.assign(getActiveExtensionTrack().segments[0], { start: 1000, end: 7000 });
+    const p=MSWProductionProject.toProject(DATA),binding=p.subtitles.bindings[0];
+    Object.assign(p.subtitles.cues.find(c=>c.id===binding.target_id).content,{start:1000,end:7000});
+    Object.assign(binding,{start_offset_ms:1000,end_offset_ms:-1000});
+    productionCommitProject(p,'Short partner fixture');
     waveformEditor.settings.mode = 'multi'; waveformEditor.settings.secondsPerRow = 2;
     waveformEditor.render(); requestSubtitleSplit('main', 0, { timeMs: 2000 });
   });
@@ -696,7 +702,7 @@ test('split help uses the shared export tooltip interaction and keeps the active
   await page.locator('#multi-subtitle-split-text').focus();
   await page.evaluate(() => MSWE_I18N.applyLanguage('en'));
   await button.focus();
-  await expect(popup).toContainText('Drag the waveform dashed line');
+  await expect(popup).toContainText('Drag the waveform guide');
   await expect(page.locator('.multi-subtitle-split-lane.is-active-lane')).toHaveAttribute('id', 'multi-subtitle-split-extension-lane');
 });
 
@@ -721,7 +727,7 @@ test('split settings default safely, update the open footer and persist after re
   await page.locator('#cue-editor-settings-close').click();
   await expect(panel(page)).toBeVisible();
   expect(await page.evaluate(() => [pendingLinkedSplit.cutMs, pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset])).toEqual(offsets);
-  await expect(panel(page).locator('.actions button:visible')).toHaveText(['取消', '保留两侧原文', '仅切主字幕并解绑', '确认切分']);
+  await expect(panel(page).locator('.actions button:visible')).toHaveText(['取消', '保留两侧原文', '仅切 S1主_1 并解绑', '确认切分']);
   await page.reload();
   await openCueEditorSettings(page);
   await expect(page.locator('#cue-editor-split-more-actions')).toBeChecked();
@@ -746,11 +752,12 @@ for (const surface of ['card', 'waveform']) for (const kind of ['main', 'extensi
     for (const enabled of [true, false]) {
       await fixture(page);
       await page.evaluate(() => {
-        DATA.segments[0].end = 4000;
-        getActiveExtensionTrack().segments[0].end = 4000;
-        DATA.segments.push({ id: 'main-b', start: 4000, end: 8000, text: 'another subtitle', items: [] });
-        getActiveExtensionTrack().segments.push({ id: 'sub-b', start: 4000, end: 8000, text: '另一条字幕', items: [] });
-        renderAll();
+        const p=MSWProductionProject.toProject(DATA),binding=p.subtitles.bindings[0];
+        const source=p.subtitles.cues.find(c=>c.id===binding.source_id),target=p.subtitles.cues.find(c=>c.id===binding.target_id);
+        source.content.end=4000;target.content.end=4000;
+        p.subtitles.cues.push({id:'main-b',track_id:source.track_id,content:{start:4000,end:8000,text:'another subtitle',items:[]}},
+          {id:'sub-b',track_id:target.track_id,content:{start:4000,end:8000,text:'另一条字幕',items:[]}});
+        p.subtitle_view.secondary_cue_ids.push('sub-b');productionCommitProject(p,'Additional cues fixture');
       });
       await openCueEditorSettings(page);
       await page.locator('#cue-editor-split-auto-close').setChecked(enabled);
@@ -785,7 +792,7 @@ for (const width of [1280, 740, 420]) {
     await fixture(page);
     await openCueEditorSettings(page);
     const settings = page.locator('#cue-editor-settings-panel');
-    await expect(settings.locator('.settings-panel-title')).toHaveText(['显示与操作', '配音草稿', '联动切分']);
+    await expect(settings.locator('.settings-panel-title')).toHaveText(['显示与操作', '文字切分', '绑定与联动', '配音草稿', '联动切分']);
     await page.locator('#tts-draft-split').selectOption('both');
     await expect(page.locator('#tts-draft-limit')).toBeVisible();
     await expect(page.locator('#tts-draft-punctuation')).toBeVisible();

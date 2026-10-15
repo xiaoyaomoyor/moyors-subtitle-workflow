@@ -96,12 +96,20 @@
     const clips=global.MSWE.resolve('audio-timeline')?.selectedClips()||[];
     el('source').textContent=mode==='clips'?`${t('所选音频贴片')} · ${clips.length}`:current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
     el('edit-range').hidden=mode!=='range';el('edit-range').disabled=!selection.length;
-    let issue='',snapshot=null;
-    try {global.MSWProject.ensure(host.data);snapshot=snapshots();} catch(error){issue=error.message;}
+    let issue='',snapshot=null,boundaries=[];
+    try {
+      global.MSWProject.ensure(host.data);
+      const owner=targetTrack();
+      boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0,owner)):[];
+      snapshot=snapshots();
+    } catch(error){issue=error.message;}
     if(mode==='clips'&&snapshot)el('source').textContent+=` · ${(snapshot.reduce((sum,item)=>sum+item.range.end-item.range.start,0)/1000).toFixed(3)} s`;
-    const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
-    el('scope').textContent=issue||(!ready?t(readinessMessage()):snapshot.map(item=>`${item.subtitle_track_name?item.subtitle_track_name+' · ':''}${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
+    el('scope').textContent=issue||snapshot.map(item=>{
+      const name=item.flat_model?.tracks.find(track=>track.id===item.subtitle_track_id)?.name||item.subtitle_track_name||t('字幕');
+      return `${name} · ${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('范围内已有字幕')} ${item.targets.length}`;
+    }).join('\n');
+    el('readiness').textContent=ready?'':t(caps?.timestamps===false?'此模型在当前接口没有可靠字幕时间戳，请更换模型':readinessMessage());el('readiness').hidden=ready;
     el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
     el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
@@ -110,17 +118,14 @@
     return snapshot;
   }
   function targetTrack() {
-    if(host.data.schema!=='msw.project.v3')return null;
+    const field=el('target-track-field');field.hidden=host.data.schema!=='msw.project.v3';
+    if(field.hidden)return null;
     let select=el('target-track');
-    if(!select) {
-      const label=document.createElement('label');label.className='msw-field';label.textContent='目标字幕轨道';
-      select=document.createElement('select');select.id='msw-asr-target-track';select.setAttribute('aria-label','目标字幕轨道');
-      label.append(select);el('scope').before(label);select.addEventListener('change',()=>updateScope());
-    }
-    const tracks=host.data.subtitle_tracks.tracks.filter(t=>t.enabled&&!t.locked);
-    const previous=select.value||host.subtitleTargetTrack?.();
-    select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
-    if(tracks.some(t=>t.id===previous))select.value=previous;
+    const tracks=host.data.subtitle_tracks.tracks;
+    const previous=select.value||tracks.find(t=>t.id===host.subtitleTargetTrack?.()&&t.enabled&&!t.locked)?.id||tracks.find(t=>t.enabled&&!t.locked)?.id;
+    select.replaceChildren(...tracks.map(track=>{const option=new Option(track.name,track.id);option.disabled=!track.enabled||track.locked;return option;}));
+    if(previous&&!tracks.some(t=>t.id===previous)) {const option=new Option(t('目标轨道已删除'),previous);option.disabled=true;select.add(option);}
+    if(previous)select.value=previous;
     return select.value;
   }
   function snapshots() {
@@ -276,11 +281,14 @@
     }catch(error){el('local-progress').textContent=error.message;}
   });
   settingsRoot.addEventListener('input',updateScope);
+  el('target-track').addEventListener('change',updateScope);
   el('providerId').addEventListener('change',()=>selectProvider());el('modelId').addEventListener('change',selectModel);
   el('mode').addEventListener('change',updateScope);el('edit-range').addEventListener('click',()=>ranges.openEditor());
   el('expand').addEventListener('click',()=>{
-    const reports=ranges.ranges.map(range=>global.MSWAsr.boundaries(host.data,range,media.current?.metadata.duration_ms||0));
-    if(reports.every(report=>report.canExpand))ranges.setRange(reports.map(report=>report.expanded));
+    try {
+      const owner=targetTrack(),reports=ranges.ranges.map(range=>global.MSWAsr.boundaries(host.data,range,media.current?.metadata.duration_ms||0,owner));
+      if(reports.every(report=>report.canExpand))ranges.setRange(reports.map(report=>report.expanded));
+    } catch(error){message(error.message);}
   });
   el('start').addEventListener('click',()=>void submit());el('forget').addEventListener('click',()=>{submission=null;retrySource=null;updateScope();renderJobs();message('已放弃未确认提交；此前请求若已到达服务，仍会显示在任务列表');});
   el('save-settings').addEventListener('click',async()=>{
@@ -300,7 +308,7 @@
     }catch(error){el('environment-message').textContent=error.message;}finally{busy=false;updateScope();}
   });
   for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show')){updateScope();refreshFooter();}});
-  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;submission=null;resultView.reset();renderJobs();updateScope();if(available)schedule(0);});
+  global.addEventListener('msw:project-changed',()=>{el('target-track').value='';cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;submission=null;resultView.reset();renderJobs();updateScope();if(available)schedule(0);});
   global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
   refreshFooter();
   if (available) {void loadSettings();schedule(0);}

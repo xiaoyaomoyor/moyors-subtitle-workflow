@@ -269,7 +269,7 @@ test('selecting only an unbound secondary does not send any translation', async 
   await page.locator('.multi-cue-column.extension .text').filter({ hasText: /^Unbound$/ }).click();
   await panel(page);
   await expect(page.locator('#translation-start')).toBeDisabled();
-  await expect(page.locator('#translation-message')).toContainText('没有可翻译的主字幕');
+  await expect(page.locator('#translation-scope-issue')).toContainText('没有可翻译的主字幕');
   expect(requests).toHaveLength(0);
 });
 

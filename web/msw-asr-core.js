@@ -21,14 +21,20 @@
     const index=global.MSWSubtitleTracks.createIndex(project);
     return cues.filter(c=>index.trackFor({role,track_id:trackId,cue_id:c.id})?.id===owner);
   }
-  function boundaries(project,range,duration) {
+  function boundaries(project,range,duration,subtitleTrackId=null) {
     if (!range) return {crossing:[],expanded:null,canExpand:false};
+    let cues=affected(project,'range',{start:-Infinity,end:Infinity});
+    if(project.schema==='msw.project.v3'&&subtitleTrackId) {
+      const owner=targetTrack(project,subtitleTrackId),secondary=project.multi_subtitle?.tracks?.[0];
+      cues=[...owned(project,project.segments||[],'main',null,owner.id),
+        ...owned(project,secondary?.segments||[],'extension',secondary?.id,owner.id)];
+    }
     let start=range.start,end=range.end;
-    const crossing=affected(project,'range',range).filter(cue=>cue.start<start||cue.end>end);
+    const crossing=cues.filter(cue=>overlaps(cue,range)&&(cue.start<start||cue.end>end));
     let changed=true;
     while (changed) {
       changed=false;
-      for (const cue of project.segments || []) if (overlaps(cue,{start,end})) {
+      for (const cue of cues) if (overlaps(cue,{start,end})) {
         const low=Math.min(start,cue.start),high=Math.max(end,cue.end);
         if (low!==start||high!==end) {start=low;end=high;changed=true;}
       }
@@ -40,13 +46,13 @@
     return {track_id:track?.id || null,targets:owned(project,(track?.segments || []).filter(c => overlaps(c,range)),'extension',track?.id,owner).map(canonical)};
   }
   function snapshot(project,media,mode,range,subtitleTrackId=null) {
-    if(global.MSWProductionProject?.isView(project))return global.MSWFlatProcessing.asr(global.MSWProductionProject.toProject(project),media,targetTrack(project,subtitleTrackId).id,mode==='whole'?null:range);
     if (!media || !media.revision || !media.metadata?.duration_ms || !media.metadata.audio_tracks?.length) throw Error('请先导入包含音轨的媒体');
     const owner=targetTrack(project,subtitleTrackId);
     const duration=media.metadata.duration_ms;
     if (mode==='whole') range={start:0,end:duration};
     if (!['whole','range'].includes(mode)||!range||![range.start,range.end].every(Number.isSafeInteger)
       ||range.start<0||range.end>duration||range.end<=range.start) throw Error('请选择源媒体内的有效时间范围；未改为整段识别');
+    if(global.MSWProductionProject?.isView(project))return global.MSWFlatProcessing.asr(global.MSWProductionProject.toProject(project),media,owner.id,mode==='whole'?null:range);
     return {project_id:project.msw.project_id,project_schema:project.schema,mode,range:clone(range),
       source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
       ...(owner?{subtitle_track_id:owner.id,subtitle_track_name:owner.name}:{}),secondary:secondarySnapshot(project,range,owner?.id),targets:owned(project,affected(project,mode,range),'main',null,owner?.id).map(canonical)};

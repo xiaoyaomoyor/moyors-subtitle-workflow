@@ -9,6 +9,21 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '整个源音频': 'Entire source audio', '范围内已有字幕': 'Existing subtitles in range',
+    '来源': 'Source', '译文': 'Translation', '新建': 'New', '译文轨道': 'Translation track',
+    '目标字幕轨道': 'Destination subtitle track', '译文语言': 'Translation language',
+    '应用到识别目标轨道': 'Apply to recognition track', '应用到译文轨道': 'Apply to translation track',
+    '请先选择要翻译的字幕': 'Select subtitles to translate first',
+    '自动选择译文轨道': 'Automatic translation track', '目标轨道已删除': 'Destination track deleted',
+    '绑定双方去重': 'Selected pairs counted once', '文字分界': 'Text split point', '字幕绑定': 'Subtitle bindings',
+    '，绑定字幕已联动并保留绑定': ', linked subtitles merged with bindings preserved',
+    '识别只生成候选结果，不立即覆盖字幕。应用时仅替换目标轨道内的识别范围；绑定字幕需先解绑或改用新轨道。时间选区为空时不会改为整段识别。': 'Recognition creates candidates without immediately replacing subtitles. Applying results replaces only the requested range in the destination track. Unbind existing pairs or use a new track. An empty time selection never falls back to the entire source.',
+    '只翻译选中的字幕。绑定双方同时选中时按绑定参考方翻译一次；单独选择任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。分组不等于绑定。开始翻译只生成候选；应用到译文轨道或替换所选原文需在结果中选择。': 'Only selected subtitles are translated. A selected pair is processed once from its binding reference; selecting either side alone translates that side. Automatic targeting uses existing bindings, then the group secondary track, otherwise a new track. Grouping is separate from binding. Translation creates candidates; choose how to apply them in the results.',
+    '合并会联动已绑定的另一侧字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。各轨道独立计算，不移动原配音。': 'Merging includes bound partners and supports one-step undo. Additive mode keeps any disabled state, color or sticker; conflicting marks use the earliest. Common mode keeps only shared states. Each track is calculated separately; existing audio stays in place.',
+    '快速切分波形字幕块（任意字幕轨道）': 'Quick-split waveform blocks (any subtitle track)',
+    '轨道分组用于命名和样式，字幕绑定用于联动，列表左右位置仅影响显示。任意两条不同轨道的字幕均可绑定，无需启用多重或叠加字幕。': 'Track groups control naming and styles; cue bindings control linked operations. List columns are a display preference. Subtitles on any two different tracks can be bound without enabling an extra subtitle mode.',
+    '无选中时作用于鼠标所在字幕。时间微调沿用列表联动方向：左侧字幕带动绑定的右侧字幕，右侧可独立调整并保留绑定。整段移动支持多选，边界微调作用于选区边缘。': 'With no selection, the hovered cue is used. Timing adjustments follow the list linkage: left cues move their bound right partners; right cues can move independently while keeping bindings. Moving supports multiple cues; boundary adjustments affect selection edges.',
+    '点击文字或用左右键调整分界；上下键切换两条字幕，高亮边框和轨道编号表示当前操作对象。拖动波形虚线可调整共同切分时间，并重新估算文字分界。Enter 确认，Esc 取消；拖动中按 Esc 撤回本次拖动。Shift+B 仅切高亮字幕并解绑，可一次撤销。': 'Click text or use Left/Right to adjust the split; Up/Down switches cues. The highlighted border and track label identify the active cue. Drag the waveform guide to adjust the shared split time and estimate text boundaries. Enter confirms, Esc cancels; Esc during a drag reverts that drag. Shift+B splits only the highlighted cue and unbinds it, with one-step undo.',
     '导入到': 'Import into', '参考轨道': 'Reference track', '目标轨道': 'Destination track',
     '来源轨道': 'Source track', '工程没有可导入的字幕': 'The project contains no subtitles to import',
     '新建字幕轨道': 'New subtitle track', '匹配时间并绑定': 'Match timing and bind', '导入字幕到轨道': 'Import subtitles into tracks',
@@ -2683,6 +2698,8 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const splitTrack=/^仅切 (S\d+(?:主|副)?_\d+) 并解绑$/.exec(text);
+    if(splitTrack)return `Split ${splitTrack[1]} only and unbind`;
     const exportScope=/^轨道范围 · (全部启用轨道|已选 (\d+) 条)$/.exec(text);
     if(exportScope)return `Track scope · ${exportScope[2]?`${exportScope[2]} selected`:'All enabled tracks'}`;
     const importReplace=/^替换 (S\d+(?:主|副)?)$/.exec(text);

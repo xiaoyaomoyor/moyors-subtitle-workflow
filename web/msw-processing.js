@@ -21,9 +21,7 @@
   let requestInFlight = false;
   let pendingSubmission = null;
   let loadingProviders = null, savingSettings = false, providerError = '';
-  const destinationRow=document.createElement('label');destinationRow.className='msw-processing-field';destinationRow.textContent='译文轨道';
-  const destination=document.createElement('select');destination.id='translation-destination';destination.setAttribute('aria-label','译文轨道');destinationRow.append(destination);
-  el('translation-scope').after(destinationRow);
+  const destinationRow=el('translation-destination-field'),destination=el('translation-destination');
 
   function message(value, error = false) {
     el('translation-message').textContent = t(value);
@@ -62,19 +60,36 @@
   function updateScope() {
     const flat=global.MSWProductionProject?.isView(host.data),selectedDestination=destination.value;
     destinationRow.hidden=!flat;
+    destination.disabled=requestInFlight||Boolean(pendingSubmission);
     if(flat) {
-      destination.replaceChildren(new Option('跟随绑定／新建译字幕轨道',''),new Option('新建译字幕轨道','new'),...host.data.subtitle_tracks.tracks.filter(t=>t.enabled&&!t.locked).map(t=>new Option(t.name,t.id)));
+      destination.replaceChildren(new Option(t('自动选择译文轨道'),''),new Option(t('新建译字幕轨道'),'new'),...host.data.subtitle_tracks.tracks.map(track=>{
+        const option=new Option(track.name,track.id);option.disabled=!track.enabled||track.locked;return option;
+      }));
+      if(selectedDestination&&![...destination.options].some(o=>o.value===selectedDestination)) {
+        const missing=new Option(t('目标轨道已删除'),selectedDestination);missing.disabled=true;destination.add(missing);
+      }
       if([...destination.options].some(o=>o.value===selectedDestination))destination.value=selectedDestination;
     }
     const selection = host.selection();
-    const scope = global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
-    el('translation-scope').textContent = `${t(scope.sources.length ? (flat?'范围：选中的字幕':'范围：选中的主字幕') : '范围：未选择字幕')} · ${scope.sources.length}`
-      + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
+    const scope = flat?null:global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
+    let scopeIssue='',sourceCount=scope?.sources.length||0;
+    if(flat) {
+      const report=global.MSWProductionProject.translationScope(host.data,selection,destination.value);
+      sourceCount=report.count;
+      el('translation-scope').textContent=report.count?`${t('来源')}：${report.sourceTracks.map(track=>`${track.name} · ${track.count}`).join(' / ')}`
+        +(report.pairedCount?` · ${t('绑定双方去重')} ${report.pairedCount}`:''):t('请先选择要翻译的字幕');
+      el('translation-target-summary').textContent=report.target?`${t('译文')}：${report.target.created?t('新建')+' ':''}${report.target.name} · ${report.target.count}`:'';
+      scopeIssue=report.count?report.issue:'';
+    } else {
+      el('translation-scope').textContent = `${t(scope.sources.length ? '范围：选中的主字幕' : '范围：未选择字幕')} · ${scope.sources.length}`
+        + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
+      el('translation-target-summary').textContent='';
+      if(selection.hasSelection&&!scope.sources.length)scopeIssue='没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
+    }
+    el('translation-target-summary').hidden=!el('translation-target-summary').textContent;
+    el('translation-scope-issue').textContent=t(scopeIssue);el('translation-scope-issue').hidden=!scopeIssue;
     const ready = updateEnvironment();
-    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || (!pendingSubmission && !scope.sources.length);
-    const emptyScopeMessage = '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
-    if (selection.hasSelection && !scope.sources.length) message(emptyScopeMessage, true);
-    else if (el('translation-message').textContent === t(emptyScopeMessage)) message('');
+    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || (!pendingSubmission && (!sourceCount||Boolean(scopeIssue)));
     resultView.refresh();
     return scope;
   }
@@ -268,6 +283,8 @@
     catch {message('无法保存翻译设置',true);}
   };
   el('translation-start').addEventListener('click', () => void submit('translation'));
+  destination.addEventListener('change',updateScope);
+  global.addEventListener('msw:subtitles-changed',()=>{if(floating.isOpen())updateScope();});
   el('translation-test').addEventListener('click', () => void submit('connection_test'));
   el('translation-save-settings').addEventListener('click', async () => {
     if (savingSettings || requestInFlight || pendingSubmission) return;
@@ -277,10 +294,11 @@
     finally { savingSettings = false; updateScope(); }
   });
   for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
-    if (event === 'click' && panel.contains(input.target)) return;
+    if (panel.contains(input.target)) return;
     if (floating.isOpen()) queueMicrotask(updateScope);
   });
   global.addEventListener('msw:project-changed', () => {
+    destination.value='';
     clearTimeout(timer); cursor = 0; jobs.clear(); details.clear(); resultView.reset(); pendingSubmission = null;
     queueMicrotask(() => { updateScope(); renderJobs(); message(''); schedulePoll(0); });
   });

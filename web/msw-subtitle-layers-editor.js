@@ -262,7 +262,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
   triggerMergeFeedback(feedback);
   const label = mode === 'common' ? '共有状态合并完成' : '累加状态合并完成';
   const suffix = plan.conflicts.length ? '；不同颜色或表情包已保留时间最早的标记' : '';
-  const message = [label, plan.linked ? '，主副字幕已联动并保留绑定' : '', suffix]
+  const message = [label, plan.linked ? '，绑定字幕已联动并保留绑定' : '', suffix]
     .map(text => window.MSWE_I18N?.translateText?.(text) || text).join('');
   if (plan.conflicts.length) flashHint(message, 'warning');
   return true;

@@ -21,7 +21,9 @@ test.beforeEach(async({page},info)=>{
   await new Promise(resolve=>mock.listen(0,'127.0.0.1',resolve));
   server=await startTtsServer(project,null,await findFreePort(),`http://127.0.0.1:${mock.address().port}`);
   await disableOnboarding(page);await page.addInitScript(()=>localStorage.setItem('msw.waveform.auto','false'));
-  await page.goto(server.url);await expect(page.locator('.waveform-row').first()).toBeVisible();
+  // This suite exercises legacy replacement/detach and color-reference contracts.
+  // Native track targeting and protected bindings are covered by processing-track-scope and flat-production-flow.
+  await page.goto(server.url+'?subtitle-layers=0&subtitle-tracks=0');await expect(page.locator('.waveform-row').first()).toBeVisible();
   if(!info.title.includes('without source media')){
     await clickMenubarItem(page,'文件','load-media');
     await expect.poll(()=>page.evaluate(()=>Boolean(MSWE.resolve('media').current))).toBe(true);

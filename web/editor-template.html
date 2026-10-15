@@ -1145,7 +1145,7 @@ __WAVEFORM_CSS__
           <span class="help-note">卡片快速切分使用已显示的文字虚线；波形中使用鼠标时间；鼠标在其他区域时使用播放头。时间切分优先参考可靠词时间码，否则按时间比例估算文字分界。可撤销后用普通切分调整。</span>
           <span class="help-important"><kbd>C</kbd> 累加状态合并</span>
           <span class="help-important"><kbd data-mod-key>Ctrl+Shift+C</kbd> 共有状态合并</span>
-          <span class="help-note">合并会联动绑定的主副字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。主副各自计算，不移动原配音。</span>
+          <span class="help-note">合并会联动已绑定的另一侧字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。各轨道独立计算，不移动原配音。</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
           <span class="help-break" aria-hidden="true"></span>
@@ -1202,17 +1202,18 @@ __WAVEFORM_CSS__
           <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
           <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
           <span class="help-important"><kbd id="help-waveform-split-key">B</kbd> 按当前时间基准拆分字幕</span>
-          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分波形字幕块（主、副字幕均可）</span>
+          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分波形字幕块（任意字幕轨道）</span>
           <span><kbd>Shift+B</kbd> 仅切当前字幕并解绑</span>
         </div>
       </section>
-      <h4 class="help-title">双语字幕</h4>
+      <h4 class="help-title">字幕绑定</h4>
       <section class="help-subgroup">
         <div class="help-category">
           <span class="help-important"><kbd>G</kbd> 绑定选中的两条不同轨道字幕</span>
           <span><kbd>Shift+G</kbd> 解绑所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
           <span class="help-important"><kbd>H</kbd> 按绑定的参考字幕对齐另一侧时间</span>
+          <span class="help-note" data-flat-settings hidden>轨道分组用于命名和样式，字幕绑定用于联动，列表左右位置仅影响显示。任意两条不同轨道的字幕均可绑定，无需启用多重或叠加字幕。</span>
         </div>
       </section>
       <h4 class="help-title">波形外观调整</h4>
@@ -1249,7 +1250,8 @@ __WAVEFORM_CSS__
           <span><kbd data-mod-key>Ctrl+←/→</kbd> 微调字幕左边界（起点）</span>
           <span><kbd data-mod-key>Ctrl+Shift+←/→</kbd> 微调字幕右边界（终点）</span>
         </div>
-        <span class="help-note">无选中时作用于鼠标所在字幕；主字幕会联动绑定副字幕，副字幕只调整自身；多选不生效</span>
+        <span class="help-note" data-legacy-settings>无选中时作用于鼠标所在字幕；主字幕会联动绑定副字幕，副字幕只调整自身；多选不生效</span>
+        <span class="help-note" data-flat-settings hidden>无选中时作用于鼠标所在字幕。时间微调沿用列表联动方向：左侧字幕带动绑定的右侧字幕，右侧可独立调整并保留绑定。整段移动支持多选，边界微调作用于选区边缘。</span>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">按住字幕</h5>
@@ -2186,7 +2188,7 @@ __WAVEFORM_CSS__
         <strong id="multi-subtitle-split-title">切分字幕</strong>
         <span id="multi-subtitle-split-meta" class="multi-subtitle-split-meta"></span>
         <span class="subtitle-split-help" id="subtitle-split-help"></span>
-        <small data-help-for="subtitle-split-help" hidden>点击文字或用左右键调整分界；上下键切换主、副字幕，高亮边框表示当前操作对象。拖动波形虚线可调整两轨的共同切分时间，并重新估算文字分界。Enter 确认，Esc 取消；拖动中按 Esc 撤回本次拖动。Shift+B 仅切高亮字幕并解绑，可一次撤销。</small>
+        <small data-help-for="subtitle-split-help" hidden>点击文字或用左右键调整分界；上下键切换两条字幕，高亮边框和轨道编号表示当前操作对象。拖动波形虚线可调整共同切分时间，并重新估算文字分界。Enter 确认，Esc 取消；拖动中按 Esc 撤回本次拖动。Shift+B 仅切高亮字幕并解绑，可一次撤销。</small>
       </header>
       <div class="subtitle-split-body">
         <section class="multi-subtitle-split-lane" id="multi-subtitle-split-main-lane" hidden>
@@ -2495,7 +2497,8 @@ __WAVEFORM_CSS__
       <p id="msw-asr-source" class="msw-processing-hint"></p>
       <div id="msw-asr-settings">
         <div class="msw-asr-fields">
-          <label><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option><option value="clips">所选音频贴片</option></select></label>
+          <label><span class="msw-option-label">识别范围</span><select id="msw-asr-mode"><option value="whole">整个源音频</option><option value="range">时间选区</option><option value="clips">所选音频贴片</option></select></label>
+          <label id="msw-asr-target-track-field" hidden><span>目标字幕轨道</span><select id="msw-asr-target-track" aria-label="目标字幕轨道"></select></label>
           <label>服务 <select id="msw-asr-providerId"></select></label>
           <label>模型 <select id="msw-asr-modelId"></select></label>
           <label data-asr-local hidden>计算设备<select id="msw-asr-device"><option value="auto">自动</option><option value="cpu">CPU</option><option value="cuda">CUDA</option></select></label>
@@ -2536,7 +2539,9 @@ __WAVEFORM_CSS__
           <label data-asr-soniox>Soniox 翻译术语 <textarea id="msw-asr-sonioxContextTranslationTerms"></textarea></label>
         </div></details>
       </div>
-      <p id="msw-asr-scope" class="msw-processing-hint"></p>
+      <p id="msw-asr-scope" class="msw-processing-hint" aria-live="polite"></p>
+      <p class="msw-processing-hint" data-help-for="msw-asr-mode">识别只生成候选结果，不立即覆盖字幕。应用时仅替换目标轨道内的识别范围；绑定字幕需先解绑或改用新轨道。时间选区为空时不会改为整段识别。</p>
+      <p id="msw-asr-readiness" class="msw-processing-hint" hidden></p>
       <div class="msw-processing-actions" id="msw-asr-scope-actions"><button type="button" id="msw-asr-edit-range">精确编辑时间选区</button>
       <button type="button" id="msw-asr-expand" hidden>扩展到完整字幕边界</button></div>
       <div class="msw-processing-actions"><button type="button" id="msw-asr-save-settings">保存识别设置</button><button type="button" id="msw-asr-start" class="primary">开始识别</button>
@@ -2650,13 +2655,17 @@ __WAVEFORM_CSS__
     <button type="button" id="subtitle-translation-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕翻译"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
-    <p id="translation-scope" class="msw-processing-hint"></p>
+    <p id="translation-scope" class="msw-processing-hint" aria-live="polite"></p>
     <p id="translation-unavailable" class="msw-processing-hint" hidden>字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
     <div id="translation-controls">
       <div class="msw-processing-fields">
-        <label>翻译目标<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
+        <label>译文语言<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
+        <label id="translation-destination-field" hidden>译文轨道<select id="translation-destination" aria-label="译文轨道"></select></label>
         <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
       </div>
+      <p class="msw-processing-hint" data-help-for="translation-destination">只翻译选中的字幕。绑定双方同时选中时按绑定参考方翻译一次；单独选择任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。分组不等于绑定。开始翻译只生成候选；应用到译文轨道或替换所选原文需在结果中选择。</p>
+      <p id="translation-target-summary" class="msw-processing-hint" hidden></p>
+      <p id="translation-scope-issue" class="msw-processing-hint" role="status" hidden></p>
       <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>
 
       <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>

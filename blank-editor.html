@@ -3805,9 +3805,9 @@
   .multi-subtitle-split-meta { color: var(--text-muted); font: 11px/1.5 var(--font-mono); }
   .subtitle-split-help { display: inline-flex; margin-left: auto; }
   .subtitle-split-body { flex: 0 0 auto; display: grid; align-content: start; gap: 8px; }
-  .multi-subtitle-split-lane { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; align-items: start; }
+  .multi-subtitle-split-lane { display: grid; grid-template-columns: minmax(42px, max-content) minmax(0, 1fr); gap: 8px; align-items: start; }
   .multi-subtitle-split-lane[hidden], .multi-subtitle-split-error[hidden], .subtitle-split-editor button[hidden] { display: none; }
-  .multi-subtitle-split-lane h4 { margin: 8px 0 0; color: var(--text-muted); font-size: 11px; font-weight: 600; }
+  .multi-subtitle-split-lane h4 { margin: 8px 0 0; max-width: 90px; overflow-wrap: anywhere; color: var(--text-muted); font-size: 11px; font-weight: 600; }
   .multi-subtitle-split-text { min-width: 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--form-input-bg); color: var(--text-primary); font-size: 15px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; user-select: none; cursor: text; }
   .multi-subtitle-split-text:focus { outline: none; }
   .multi-subtitle-split-lane.is-active-lane .multi-subtitle-split-text { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
@@ -4746,6 +4746,8 @@
   .msw-asr-fields datalist { display: none; }
   .msw-asr-fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
   .msw-asr-fields label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; }
+  #msw-asr-settings .msw-asr-fields > label:not(:has(input[type="checkbox"])),
+  #subtitle-translation-panel .msw-processing-fields > label { justify-content: flex-end; }
   .msw-asr-fields input[type="checkbox"] { width: auto; }
   .msw-asr-fields input, .msw-asr-fields select, .msw-asr-fields textarea { min-width: 0; max-width: 100%; }
   .msw-asr-fields [hidden] { display: none !important; }
@@ -7545,7 +7547,7 @@
           <span class="help-note">卡片快速切分使用已显示的文字虚线；波形中使用鼠标时间；鼠标在其他区域时使用播放头。时间切分优先参考可靠词时间码，否则按时间比例估算文字分界。可撤销后用普通切分调整。</span>
           <span class="help-important"><kbd>C</kbd> 累加状态合并</span>
           <span class="help-important"><kbd data-mod-key>Ctrl+Shift+C</kbd> 共有状态合并</span>
-          <span class="help-note">合并会联动绑定的主副字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。主副各自计算，不移动原配音。</span>
+          <span class="help-note">合并会联动已绑定的另一侧字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。各轨道独立计算，不移动原配音。</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
           <span class="help-break" aria-hidden="true"></span>
@@ -7602,17 +7604,18 @@
           <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
           <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
           <span class="help-important"><kbd id="help-waveform-split-key">B</kbd> 按当前时间基准拆分字幕</span>
-          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分波形字幕块（主、副字幕均可）</span>
+          <span class="help-important"><kbd data-mod-key>Ctrl+B</kbd> 快速切分波形字幕块（任意字幕轨道）</span>
           <span><kbd>Shift+B</kbd> 仅切当前字幕并解绑</span>
         </div>
       </section>
-      <h4 class="help-title">双语字幕</h4>
+      <h4 class="help-title">字幕绑定</h4>
       <section class="help-subgroup">
         <div class="help-category">
           <span class="help-important"><kbd>G</kbd> 绑定选中的两条不同轨道字幕</span>
           <span><kbd>Shift+G</kbd> 解绑所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
           <span class="help-important"><kbd>H</kbd> 按绑定的参考字幕对齐另一侧时间</span>
+          <span class="help-note" data-flat-settings hidden>轨道分组用于命名和样式，字幕绑定用于联动，列表左右位置仅影响显示。任意两条不同轨道的字幕均可绑定，无需启用多重或叠加字幕。</span>
         </div>
       </section>
       <h4 class="help-title">波形外观调整</h4>
@@ -7649,7 +7652,8 @@
           <span><kbd data-mod-key>Ctrl+←/→</kbd> 微调字幕左边界（起点）</span>
           <span><kbd data-mod-key>Ctrl+Shift+←/→</kbd> 微调字幕右边界（终点）</span>
         </div>
-        <span class="help-note">无选中时作用于鼠标所在字幕；主字幕会联动绑定副字幕，副字幕只调整自身；多选不生效</span>
+        <span class="help-note" data-legacy-settings>无选中时作用于鼠标所在字幕；主字幕会联动绑定副字幕，副字幕只调整自身；多选不生效</span>
+        <span class="help-note" data-flat-settings hidden>无选中时作用于鼠标所在字幕。时间微调沿用列表联动方向：左侧字幕带动绑定的右侧字幕，右侧可独立调整并保留绑定。整段移动支持多选，边界微调作用于选区边缘。</span>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">按住字幕</h5>
@@ -8586,7 +8590,7 @@
         <strong id="multi-subtitle-split-title">切分字幕</strong>
         <span id="multi-subtitle-split-meta" class="multi-subtitle-split-meta"></span>
         <span class="subtitle-split-help" id="subtitle-split-help"></span>
-        <small data-help-for="subtitle-split-help" hidden>点击文字或用左右键调整分界；上下键切换主、副字幕，高亮边框表示当前操作对象。拖动波形虚线可调整两轨的共同切分时间，并重新估算文字分界。Enter 确认，Esc 取消；拖动中按 Esc 撤回本次拖动。Shift+B 仅切高亮字幕并解绑，可一次撤销。</small>
+        <small data-help-for="subtitle-split-help" hidden>点击文字或用左右键调整分界；上下键切换两条字幕，高亮边框和轨道编号表示当前操作对象。拖动波形虚线可调整共同切分时间，并重新估算文字分界。Enter 确认，Esc 取消；拖动中按 Esc 撤回本次拖动。Shift+B 仅切高亮字幕并解绑，可一次撤销。</small>
       </header>
       <div class="subtitle-split-body">
         <section class="multi-subtitle-split-lane" id="multi-subtitle-split-main-lane" hidden>
@@ -8895,7 +8899,8 @@
       <p id="msw-asr-source" class="msw-processing-hint"></p>
       <div id="msw-asr-settings">
         <div class="msw-asr-fields">
-          <label><span>识别范围</span><select id="msw-asr-mode"><option value="whole">整个源视频</option><option value="range">时间选区</option><option value="clips">所选音频贴片</option></select></label>
+          <label><span class="msw-option-label">识别范围</span><select id="msw-asr-mode"><option value="whole">整个源音频</option><option value="range">时间选区</option><option value="clips">所选音频贴片</option></select></label>
+          <label id="msw-asr-target-track-field" hidden><span>目标字幕轨道</span><select id="msw-asr-target-track" aria-label="目标字幕轨道"></select></label>
           <label>服务 <select id="msw-asr-providerId"></select></label>
           <label>模型 <select id="msw-asr-modelId"></select></label>
           <label data-asr-local hidden>计算设备<select id="msw-asr-device"><option value="auto">自动</option><option value="cpu">CPU</option><option value="cuda">CUDA</option></select></label>
@@ -8936,7 +8941,9 @@
           <label data-asr-soniox>Soniox 翻译术语 <textarea id="msw-asr-sonioxContextTranslationTerms"></textarea></label>
         </div></details>
       </div>
-      <p id="msw-asr-scope" class="msw-processing-hint"></p>
+      <p id="msw-asr-scope" class="msw-processing-hint" aria-live="polite"></p>
+      <p class="msw-processing-hint" data-help-for="msw-asr-mode">识别只生成候选结果，不立即覆盖字幕。应用时仅替换目标轨道内的识别范围；绑定字幕需先解绑或改用新轨道。时间选区为空时不会改为整段识别。</p>
+      <p id="msw-asr-readiness" class="msw-processing-hint" hidden></p>
       <div class="msw-processing-actions" id="msw-asr-scope-actions"><button type="button" id="msw-asr-edit-range">精确编辑时间选区</button>
       <button type="button" id="msw-asr-expand" hidden>扩展到完整字幕边界</button></div>
       <div class="msw-processing-actions"><button type="button" id="msw-asr-save-settings">保存识别设置</button><button type="button" id="msw-asr-start" class="primary">开始识别</button>
@@ -9050,13 +9057,17 @@
     <button type="button" id="subtitle-translation-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕翻译"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
-    <p id="translation-scope" class="msw-processing-hint"></p>
+    <p id="translation-scope" class="msw-processing-hint" aria-live="polite"></p>
     <p id="translation-unavailable" class="msw-processing-hint" hidden>字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
     <div id="translation-controls">
       <div class="msw-processing-fields">
-        <label>翻译目标<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
+        <label>译文语言<select id="translation-language"><option value="en">英文</option><option value="zh">中文</option></select></label>
+        <label id="translation-destination-field" hidden>译文轨道<select id="translation-destination" aria-label="译文轨道"></select></label>
         <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
       </div>
+      <p class="msw-processing-hint" data-help-for="translation-destination">只翻译选中的字幕。绑定双方同时选中时按绑定参考方翻译一次；单独选择任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。分组不等于绑定。开始翻译只生成候选；应用到译文轨道或替换所选原文需在结果中选择。</p>
+      <p id="translation-target-summary" class="msw-processing-hint" hidden></p>
+      <p id="translation-scope-issue" class="msw-processing-hint" role="status" hidden></p>
       <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>
 
       <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>
@@ -19778,8 +19789,11 @@ export default MawDynamicCaptions;
     core.normalizeGroups(p);core.validate(p);return p;
   }
   function translation(view,selection,destination='',outputMode='secondary') {
-    let p=toProject(view);const F=global.MSWFlatProcessing,E=global.MSWFlatEditing;
-    const ids=translationIds(view,selection);
+    const p=toProject(view);
+    return translationPlan(p,translationIds(view,selection,p),destination,outputMode);
+  }
+  function translationPlan(p,ids,destination,outputMode) {
+    const F=global.MSWFlatProcessing,E=global.MSWFlatEditing;
     if(!ids.length)throw Error('请先选择要翻译的字幕');
     const peers=[...new Set(ids.map(id=>E.partner(p,id)?.track_id).filter(Boolean))];
     if(!destination&&peers.length>1)throw Error('所选字幕绑定到不同轨道，请分批翻译或选择目标轨道');
@@ -19795,10 +19809,22 @@ export default MawDynamicCaptions;
     const snap=F.translation(p,ids,target);
     return {...snap,output_mode:outputMode,...(created?{created_subtitle_track:created}:{})};
   }
-  function translationIds(view,selection) {
+  function translationIds(view,selection,project=null) {
     const ids=new Set([...(selection.mainIds||[]),...(selection.extensionIds||[])]);
-    for(const b of view.multi_subtitle?.bindings||[])if(ids.has(b.main_segment_ids[0]))ids.delete(b.extension_segment_ids[0]);
+    // A selected pair has one source, regardless of the list's left/right layout.
+    for(const b of (project||toProject(view)).subtitles.bindings)if(ids.has(b.source_id))ids.delete(b.target_id);
     return [...ids];
+  }
+  function translationScope(view,selection,destination='') {
+    const p=toProject(view),ids=translationIds(view,selection,p),byId=new Map(p.subtitles.cues.map(c=>[c.id,c]));
+    const selectedCount=new Set([...(selection.mainIds||[]),...(selection.extensionIds||[])]).size;
+    const sourceTracks=p.subtitles.tracks.map(t=>({id:t.id,name:t.name,count:ids.filter(id=>byId.get(id)?.track_id===t.id).length})).filter(t=>t.count);
+    const report={sourceTracks,count:ids.length,pairedCount:selectedCount-ids.length,target:null,issue:''};
+    try {
+      const snapshot=translationPlan(p,ids,destination,'secondary'),target=snapshot.flat_model.tracks.find(t=>t.id===snapshot.subtitle_track_id);
+      report.target={id:target.id,name:target.name,created:Boolean(snapshot.created_subtitle_track),count:snapshot.entries.length};
+    } catch(error){report.issue=error.message;}
+    return report;
   }
   function place(view,rows,bindings,anchor,ownerId) {
     const E=global.MSWFlatEditing,id=global.MSWProject.id;let p=toProject(view);
@@ -19943,7 +19969,7 @@ export default MawDynamicCaptions;
     for(const t of p.subtitles.tracks)t.enabled=t.enabled&&(!selected||selected.has(t.id));
     return p;
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -21213,14 +21239,20 @@ export default MawDynamicCaptions;
     const index=global.MSWSubtitleTracks.createIndex(project);
     return cues.filter(c=>index.trackFor({role,track_id:trackId,cue_id:c.id})?.id===owner);
   }
-  function boundaries(project,range,duration) {
+  function boundaries(project,range,duration,subtitleTrackId=null) {
     if (!range) return {crossing:[],expanded:null,canExpand:false};
+    let cues=affected(project,'range',{start:-Infinity,end:Infinity});
+    if(project.schema==='msw.project.v3'&&subtitleTrackId) {
+      const owner=targetTrack(project,subtitleTrackId),secondary=project.multi_subtitle?.tracks?.[0];
+      cues=[...owned(project,project.segments||[],'main',null,owner.id),
+        ...owned(project,secondary?.segments||[],'extension',secondary?.id,owner.id)];
+    }
     let start=range.start,end=range.end;
-    const crossing=affected(project,'range',range).filter(cue=>cue.start<start||cue.end>end);
+    const crossing=cues.filter(cue=>overlaps(cue,range)&&(cue.start<start||cue.end>end));
     let changed=true;
     while (changed) {
       changed=false;
-      for (const cue of project.segments || []) if (overlaps(cue,{start,end})) {
+      for (const cue of cues) if (overlaps(cue,{start,end})) {
         const low=Math.min(start,cue.start),high=Math.max(end,cue.end);
         if (low!==start||high!==end) {start=low;end=high;changed=true;}
       }
@@ -21232,13 +21264,13 @@ export default MawDynamicCaptions;
     return {track_id:track?.id || null,targets:owned(project,(track?.segments || []).filter(c => overlaps(c,range)),'extension',track?.id,owner).map(canonical)};
   }
   function snapshot(project,media,mode,range,subtitleTrackId=null) {
-    if(global.MSWProductionProject?.isView(project))return global.MSWFlatProcessing.asr(global.MSWProductionProject.toProject(project),media,targetTrack(project,subtitleTrackId).id,mode==='whole'?null:range);
     if (!media || !media.revision || !media.metadata?.duration_ms || !media.metadata.audio_tracks?.length) throw Error('请先导入包含音轨的媒体');
     const owner=targetTrack(project,subtitleTrackId);
     const duration=media.metadata.duration_ms;
     if (mode==='whole') range={start:0,end:duration};
     if (!['whole','range'].includes(mode)||!range||![range.start,range.end].every(Number.isSafeInteger)
       ||range.start<0||range.end>duration||range.end<=range.start) throw Error('请选择源媒体内的有效时间范围；未改为整段识别');
+    if(global.MSWProductionProject?.isView(project))return global.MSWFlatProcessing.asr(global.MSWProductionProject.toProject(project),media,owner.id,mode==='whole'?null:range);
     return {project_id:project.msw.project_id,project_schema:project.schema,mode,range:clone(range),
       source:{id:media.id,revision:media.revision,reference:media.reference,name:media.name,audio_index:media.audio_index,duration_ms:duration},
       ...(owner?{subtitle_track_id:owner.id,subtitle_track_name:owner.name}:{}),secondary:secondarySnapshot(project,range,owner?.id),targets:owned(project,affected(project,mode,range),'main',null,owner?.id).map(canonical)};
@@ -21746,6 +21778,21 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '整个源音频': 'Entire source audio', '范围内已有字幕': 'Existing subtitles in range',
+    '来源': 'Source', '译文': 'Translation', '新建': 'New', '译文轨道': 'Translation track',
+    '目标字幕轨道': 'Destination subtitle track', '译文语言': 'Translation language',
+    '应用到识别目标轨道': 'Apply to recognition track', '应用到译文轨道': 'Apply to translation track',
+    '请先选择要翻译的字幕': 'Select subtitles to translate first',
+    '自动选择译文轨道': 'Automatic translation track', '目标轨道已删除': 'Destination track deleted',
+    '绑定双方去重': 'Selected pairs counted once', '文字分界': 'Text split point', '字幕绑定': 'Subtitle bindings',
+    '，绑定字幕已联动并保留绑定': ', linked subtitles merged with bindings preserved',
+    '识别只生成候选结果，不立即覆盖字幕。应用时仅替换目标轨道内的识别范围；绑定字幕需先解绑或改用新轨道。时间选区为空时不会改为整段识别。': 'Recognition creates candidates without immediately replacing subtitles. Applying results replaces only the requested range in the destination track. Unbind existing pairs or use a new track. An empty time selection never falls back to the entire source.',
+    '只翻译选中的字幕。绑定双方同时选中时按绑定参考方翻译一次；单独选择任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。分组不等于绑定。开始翻译只生成候选；应用到译文轨道或替换所选原文需在结果中选择。': 'Only selected subtitles are translated. A selected pair is processed once from its binding reference; selecting either side alone translates that side. Automatic targeting uses existing bindings, then the group secondary track, otherwise a new track. Grouping is separate from binding. Translation creates candidates; choose how to apply them in the results.',
+    '合并会联动已绑定的另一侧字幕，一次撤销可全部恢复。累加状态：任一条禁用则禁用，有颜色或表情包则保留；不同标记取时间最早的一项。共有状态：仅保留所有字幕共有的禁用、颜色和表情包。各轨道独立计算，不移动原配音。': 'Merging includes bound partners and supports one-step undo. Additive mode keeps any disabled state, color or sticker; conflicting marks use the earliest. Common mode keeps only shared states. Each track is calculated separately; existing audio stays in place.',
+    '快速切分波形字幕块（任意字幕轨道）': 'Quick-split waveform blocks (any subtitle track)',
+    '轨道分组用于命名和样式，字幕绑定用于联动，列表左右位置仅影响显示。任意两条不同轨道的字幕均可绑定，无需启用多重或叠加字幕。': 'Track groups control naming and styles; cue bindings control linked operations. List columns are a display preference. Subtitles on any two different tracks can be bound without enabling an extra subtitle mode.',
+    '无选中时作用于鼠标所在字幕。时间微调沿用列表联动方向：左侧字幕带动绑定的右侧字幕，右侧可独立调整并保留绑定。整段移动支持多选，边界微调作用于选区边缘。': 'With no selection, the hovered cue is used. Timing adjustments follow the list linkage: left cues move their bound right partners; right cues can move independently while keeping bindings. Moving supports multiple cues; boundary adjustments affect selection edges.',
+    '点击文字或用左右键调整分界；上下键切换两条字幕，高亮边框和轨道编号表示当前操作对象。拖动波形虚线可调整共同切分时间，并重新估算文字分界。Enter 确认，Esc 取消；拖动中按 Esc 撤回本次拖动。Shift+B 仅切高亮字幕并解绑，可一次撤销。': 'Click text or use Left/Right to adjust the split; Up/Down switches cues. The highlighted border and track label identify the active cue. Drag the waveform guide to adjust the shared split time and estimate text boundaries. Enter confirms, Esc cancels; Esc during a drag reverts that drag. Shift+B splits only the highlighted cue and unbinds it, with one-step undo.',
     '导入到': 'Import into', '参考轨道': 'Reference track', '目标轨道': 'Destination track',
     '来源轨道': 'Source track', '工程没有可导入的字幕': 'The project contains no subtitles to import',
     '新建字幕轨道': 'New subtitle track', '匹配时间并绑定': 'Match timing and bind', '导入字幕到轨道': 'Import subtitles into tracks',
@@ -24420,6 +24467,8 @@ export default MawDynamicCaptions;
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const splitTrack=/^仅切 (S\d+(?:主|副)?_\d+) 并解绑$/.exec(text);
+    if(splitTrack)return `Split ${splitTrack[1]} only and unbind`;
     const exportScope=/^轨道范围 · (全部启用轨道|已选 (\d+) 条)$/.exec(text);
     if(exportScope)return `Track scope · ${exportScope[2]?`${exportScope[2]} selected`:'All enabled tracks'}`;
     const importReplace=/^替换 (S\d+(?:主|副)?)$/.exec(text);
@@ -33802,7 +33851,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
   triggerMergeFeedback(feedback);
   const label = mode === 'common' ? '共有状态合并完成' : '累加状态合并完成';
   const suffix = plan.conflicts.length ? '；不同颜色或表情包已保留时间最早的标记' : '';
-  const message = [label, plan.linked ? '，主副字幕已联动并保留绑定' : '', suffix]
+  const message = [label, plan.linked ? '，绑定字幕已联动并保留绑定' : '', suffix]
     .map(text => window.MSWE_I18N?.translateText?.(text) || text).join('');
   if (plan.conflicts.length) flashHint(message, 'warning');
   return true;
@@ -43819,7 +43868,8 @@ function setSplitActiveLane(state, lane) {
     laneEl?.classList.toggle('is-active-lane', name === lane);
     textEl?.setAttribute('aria-current', String(name === lane));
   }
-  const label = lane === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑';
+  const label = productionFlatMode() ? `仅切 ${splitLaneLabel(state,lane)} 并解绑`
+    : lane === 'main' ? '仅切主字幕并解绑' : '仅切副字幕并解绑';
   const text = multiSubtitleSplitIndependent?.querySelector('span');
   if (text) text.textContent = window.MSWE_I18N?.translateText?.(label) || label;
 }
@@ -43848,6 +43898,13 @@ function updateSplitLaneVisual(state, lane) {
   });
 }
 
+function splitLaneLabel(state,lane) {
+  const track=splitStateTrack(state),main=lane==='main';
+  const cue=main?DATA.segments[state?.mainIndex]:extensionSegmentById(state?.extensionId,track);
+  return productionFlatMode()&&cue?fixedCueLabel(cue,main?'main':'extension',main?null:track?.id)
+    :main?'主字幕':state.kind==='overlay'?'叠加字幕':'副字幕';
+}
+
 function renderSplitLane(state, lane) {
   const { laneEl, textEl } = splitLaneElements(lane);
   if (!laneEl || !textEl) return;
@@ -43859,9 +43916,9 @@ function renderSplitLane(state, lane) {
   const displayMode = isMain ? state?.mainMode : state?.extensionMode;
   const heading = laneEl.querySelector('h4');
   if (heading) {
-    const headingText = isMain ? '主字幕' : state.kind === 'overlay' ? '叠加字幕' : '副字幕';
-
+    const headingText = splitLaneLabel(state,lane);
     heading.textContent = window.MSWE_I18N?.translateText?.(headingText) || headingText;
+    textEl.setAttribute('aria-label',`${heading.textContent} · ${window.MSWE_I18N?.translateText?.('文字分界')||'文字分界'}`);
   }
   const visible = Boolean(displaySegment) && (isMain
     ? state?.kind === 'main' || state?.kind === 'linked'
@@ -61418,12 +61475,20 @@ window.addEventListener('beforeunload', (e) => {
     const clips=global.MSWE.resolve('audio-timeline')?.selectedClips()||[];
     el('source').textContent=mode==='clips'?`${t('所选音频贴片')} · ${clips.length}`:current?`${current.name} · ${t('源音轨')} ${current.audio_index+1}`:t('请先导入包含音轨的媒体');
     el('edit-range').hidden=mode!=='range';el('edit-range').disabled=!selection.length;
-    let issue='',snapshot=null;
-    try {global.MSWProject.ensure(host.data);snapshot=snapshots();} catch(error){issue=error.message;}
+    let issue='',snapshot=null,boundaries=[];
+    try {
+      global.MSWProject.ensure(host.data);
+      const owner=targetTrack();
+      boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0,owner)):[];
+      snapshot=snapshots();
+    } catch(error){issue=error.message;}
     if(mode==='clips'&&snapshot)el('source').textContent+=` · ${(snapshot.reduce((sum,item)=>sum+item.range.end-item.range.start,0)/1000).toFixed(3)} s`;
-    const boundaries=mode==='range'?selection.map(range=>global.MSWAsr.boundaries(host.data,range,current?.metadata.duration_ms||0)):[];
     el('expand').hidden=!boundaries.some(boundary=>boundary.crossing.length);el('expand').disabled=boundaries.some(boundary=>!boundary.canExpand);
-    el('scope').textContent=issue||(!ready?t(readinessMessage()):snapshot.map(item=>`${item.subtitle_track_name?item.subtitle_track_name+' · ':''}${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('受影响主字幕')} ${item.targets.length}`).join('\n'));
+    el('scope').textContent=issue||snapshot.map(item=>{
+      const name=item.flat_model?.tracks.find(track=>track.id===item.subtitle_track_id)?.name||item.subtitle_track_name||t('字幕');
+      return `${name} · ${(item.range.start/1000).toFixed(3)}–${(item.range.end/1000).toFixed(3)} s · ${t('范围内已有字幕')} ${item.targets.length}`;
+    }).join('\n');
+    el('readiness').textContent=ready?'':t(caps?.timestamps===false?'此模型在当前接口没有可靠字幕时间戳，请更换模型':readinessMessage());el('readiness').hidden=ready;
     el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
     el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
@@ -61432,17 +61497,14 @@ window.addEventListener('beforeunload', (e) => {
     return snapshot;
   }
   function targetTrack() {
-    if(host.data.schema!=='msw.project.v3')return null;
+    const field=el('target-track-field');field.hidden=host.data.schema!=='msw.project.v3';
+    if(field.hidden)return null;
     let select=el('target-track');
-    if(!select) {
-      const label=document.createElement('label');label.className='msw-field';label.textContent='目标字幕轨道';
-      select=document.createElement('select');select.id='msw-asr-target-track';select.setAttribute('aria-label','目标字幕轨道');
-      label.append(select);el('scope').before(label);select.addEventListener('change',()=>updateScope());
-    }
-    const tracks=host.data.subtitle_tracks.tracks.filter(t=>t.enabled&&!t.locked);
-    const previous=select.value||host.subtitleTargetTrack?.();
-    select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
-    if(tracks.some(t=>t.id===previous))select.value=previous;
+    const tracks=host.data.subtitle_tracks.tracks;
+    const previous=select.value||tracks.find(t=>t.id===host.subtitleTargetTrack?.()&&t.enabled&&!t.locked)?.id||tracks.find(t=>t.enabled&&!t.locked)?.id;
+    select.replaceChildren(...tracks.map(track=>{const option=new Option(track.name,track.id);option.disabled=!track.enabled||track.locked;return option;}));
+    if(previous&&!tracks.some(t=>t.id===previous)) {const option=new Option(t('目标轨道已删除'),previous);option.disabled=true;select.add(option);}
+    if(previous)select.value=previous;
     return select.value;
   }
   function snapshots() {
@@ -61598,11 +61660,14 @@ window.addEventListener('beforeunload', (e) => {
     }catch(error){el('local-progress').textContent=error.message;}
   });
   settingsRoot.addEventListener('input',updateScope);
+  el('target-track').addEventListener('change',updateScope);
   el('providerId').addEventListener('change',()=>selectProvider());el('modelId').addEventListener('change',selectModel);
   el('mode').addEventListener('change',updateScope);el('edit-range').addEventListener('click',()=>ranges.openEditor());
   el('expand').addEventListener('click',()=>{
-    const reports=ranges.ranges.map(range=>global.MSWAsr.boundaries(host.data,range,media.current?.metadata.duration_ms||0));
-    if(reports.every(report=>report.canExpand))ranges.setRange(reports.map(report=>report.expanded));
+    try {
+      const owner=targetTrack(),reports=ranges.ranges.map(range=>global.MSWAsr.boundaries(host.data,range,media.current?.metadata.duration_ms||0,owner));
+      if(reports.every(report=>report.canExpand))ranges.setRange(reports.map(report=>report.expanded));
+    } catch(error){message(error.message);}
   });
   el('start').addEventListener('click',()=>void submit());el('forget').addEventListener('click',()=>{submission=null;retrySource=null;updateScope();renderJobs();message('已放弃未确认提交；此前请求若已到达服务，仍会显示在任务列表');});
   el('save-settings').addEventListener('click',async()=>{
@@ -61622,7 +61687,7 @@ window.addEventListener('beforeunload', (e) => {
     }catch(error){el('environment-message').textContent=error.message;}finally{busy=false;updateScope();}
   });
   for (const event of ['msw:range-changed','msw:media-changed','msw:media-ready','msw:subtitles-changed','msw:audio-selection','msw:audio-changed']) global.addEventListener(event,()=>{if(panel.classList.contains('show')){updateScope();refreshFooter();}});
-  global.addEventListener('msw:project-changed',()=>{cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;submission=null;resultView.reset();renderJobs();updateScope();if(available)schedule(0);});
+  global.addEventListener('msw:project-changed',()=>{el('target-track').value='';cursor=0;jobs.clear();details.clear();retries.clear();retrying=null;retrySource=null;busy=false;submission=null;resultView.reset();renderJobs();updateScope();if(available)schedule(0);});
   global.MSWE.register('asr',()=>({open,submit,showResult,get jobs(){return [...jobs.values()];}}));
   refreshFooter();
   if (available) {void loadSettings();schedule(0);}
@@ -61883,9 +61948,7 @@ window.addEventListener('beforeunload', (e) => {
   let requestInFlight = false;
   let pendingSubmission = null;
   let loadingProviders = null, savingSettings = false, providerError = '';
-  const destinationRow=document.createElement('label');destinationRow.className='msw-processing-field';destinationRow.textContent='译文轨道';
-  const destination=document.createElement('select');destination.id='translation-destination';destination.setAttribute('aria-label','译文轨道');destinationRow.append(destination);
-  el('translation-scope').after(destinationRow);
+  const destinationRow=el('translation-destination-field'),destination=el('translation-destination');
 
   function message(value, error = false) {
     el('translation-message').textContent = t(value);
@@ -61924,19 +61987,36 @@ window.addEventListener('beforeunload', (e) => {
   function updateScope() {
     const flat=global.MSWProductionProject?.isView(host.data),selectedDestination=destination.value;
     destinationRow.hidden=!flat;
+    destination.disabled=requestInFlight||Boolean(pendingSubmission);
     if(flat) {
-      destination.replaceChildren(new Option('跟随绑定／新建译字幕轨道',''),new Option('新建译字幕轨道','new'),...host.data.subtitle_tracks.tracks.filter(t=>t.enabled&&!t.locked).map(t=>new Option(t.name,t.id)));
+      destination.replaceChildren(new Option(t('自动选择译文轨道'),''),new Option(t('新建译字幕轨道'),'new'),...host.data.subtitle_tracks.tracks.map(track=>{
+        const option=new Option(track.name,track.id);option.disabled=!track.enabled||track.locked;return option;
+      }));
+      if(selectedDestination&&![...destination.options].some(o=>o.value===selectedDestination)) {
+        const missing=new Option(t('目标轨道已删除'),selectedDestination);missing.disabled=true;destination.add(missing);
+      }
       if([...destination.options].some(o=>o.value===selectedDestination))destination.value=selectedDestination;
     }
     const selection = host.selection();
-    const scope = global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
-    el('translation-scope').textContent = `${t(scope.sources.length ? (flat?'范围：选中的字幕':'范围：选中的主字幕') : '范围：未选择字幕')} · ${scope.sources.length}`
-      + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
+    const scope = flat?null:global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
+    let scopeIssue='',sourceCount=scope?.sources.length||0;
+    if(flat) {
+      const report=global.MSWProductionProject.translationScope(host.data,selection,destination.value);
+      sourceCount=report.count;
+      el('translation-scope').textContent=report.count?`${t('来源')}：${report.sourceTracks.map(track=>`${track.name} · ${track.count}`).join(' / ')}`
+        +(report.pairedCount?` · ${t('绑定双方去重')} ${report.pairedCount}`:''):t('请先选择要翻译的字幕');
+      el('translation-target-summary').textContent=report.target?`${t('译文')}：${report.target.created?t('新建')+' ':''}${report.target.name} · ${report.target.count}`:'';
+      scopeIssue=report.count?report.issue:'';
+    } else {
+      el('translation-scope').textContent = `${t(scope.sources.length ? '范围：选中的主字幕' : '范围：未选择字幕')} · ${scope.sources.length}`
+        + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
+      el('translation-target-summary').textContent='';
+      if(selection.hasSelection&&!scope.sources.length)scopeIssue='没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
+    }
+    el('translation-target-summary').hidden=!el('translation-target-summary').textContent;
+    el('translation-scope-issue').textContent=t(scopeIssue);el('translation-scope-issue').hidden=!scopeIssue;
     const ready = updateEnvironment();
-    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || (!pendingSubmission && !scope.sources.length);
-    const emptyScopeMessage = '没有可翻译的主字幕；未绑定的副字幕不会触发全量翻译';
-    if (selection.hasSelection && !scope.sources.length) message(emptyScopeMessage, true);
-    else if (el('translation-message').textContent === t(emptyScopeMessage)) message('');
+    el('translation-start').disabled = !available || requestInFlight || savingSettings || (!ready && pendingSubmission?.kind !== 'translation') || (!pendingSubmission && (!sourceCount||Boolean(scopeIssue)));
     resultView.refresh();
     return scope;
   }
@@ -62130,6 +62210,8 @@ window.addEventListener('beforeunload', (e) => {
     catch {message('无法保存翻译设置',true);}
   };
   el('translation-start').addEventListener('click', () => void submit('translation'));
+  destination.addEventListener('change',updateScope);
+  global.addEventListener('msw:subtitles-changed',()=>{if(floating.isOpen())updateScope();});
   el('translation-test').addEventListener('click', () => void submit('connection_test'));
   el('translation-save-settings').addEventListener('click', async () => {
     if (savingSettings || requestInFlight || pendingSubmission) return;
@@ -62139,10 +62221,11 @@ window.addEventListener('beforeunload', (e) => {
     finally { savingSettings = false; updateScope(); }
   });
   for (const event of ['pointerup', 'keyup', 'click']) document.addEventListener(event, (input) => {
-    if (event === 'click' && panel.contains(input.target)) return;
+    if (panel.contains(input.target)) return;
     if (floating.isOpen()) queueMicrotask(updateScope);
   });
   global.addEventListener('msw:project-changed', () => {
+    destination.value='';
     clearTimeout(timer); cursor = 0; jobs.clear(); details.clear(); resultView.reset(); pendingSubmission = null;
     queueMicrotask(() => { updateScope(); renderJobs(); message(''); schedulePoll(0); });
   });

@@ -6,9 +6,28 @@ import flat from '../web/msw-flat-subtitles.js';
 import production from '../web/msw-production-project.js';
 import editing from '../web/msw-flat-editing.js';
 import processing from '../web/msw-flat-processing-core.js';
-const window={MSWFlatSubtitles:flat,MSWProductionProject:production};const context=vm.createContext({window});
+import tracks from '../web/msw-subtitle-tracks.js';
+const window={MSWFlatSubtitles:flat,MSWProductionProject:production,MSWFlatProcessing:processing,MSWSubtitleTracks:tracks};const context=vm.createContext({window});
 for(const name of ['msw-project.js','msw-asr-core.js'])vm.runInContext(readFileSync(new URL(`../web/${name}`,import.meta.url),'utf8'),context);
 const core=window.MSWAsr,plain=value=>JSON.parse(JSON.stringify(value));
+test('production ASR never turns an empty time selection into whole-source recognition',()=>{
+  const {project,media}=fixture(),p=flat.migrate(project);p.subtitles.bindings=[];
+  const view=production.fromProject(p),owner=p.subtitles.tracks[0].id;
+  for(const range of [null,undefined,{start:0,end:0}])assert.throws(()=>core.snapshot(view,media,'range',range,owner),/有效时间范围/);
+  assert.equal(core.snapshot(view,media,'whole',null,owner).mode,'whole');
+});
+test('ASR expansion follows the selected physical track on either display side',()=>{
+  const {project}=fixture(),p=flat.migrate(project);p.subtitles.bindings=[];
+  const owner=p.subtitles.tracks[1].id;
+  p.subtitles.tracks[1].enabled=true;
+  p.subtitles.cues.find(c=>c.track_id!==owner&&c.content.start===1000).content.end=2800;
+  const view=production.fromProject(p),range={start:1500,end:2100};
+  const result=core.boundaries(view,range,4000,owner);
+  assert.equal(result.crossing.length,1);assert.deepEqual(plain(result.expanded),{start:1000,end:2100});
+  assert.deepEqual(plain(core.boundaries(production.fromProject(production.swapColumns(view)),range,4000,owner)),plain(result));
+  assert.equal(core.snapshot(view,fixture().media,'range',result.expanded,owner).targets.length,1);
+  assert.deepEqual(plain(core.boundaries(view,{start:2200,end:2500},4000,owner).crossing),[]);
+});
 const cue=(id,start,end,text=id)=>({id,start,end,text});
 function fixture(){
   const project={segments:[cue('before',0,500),cue('target',1000,2000),cue('after',3000,4000)],
