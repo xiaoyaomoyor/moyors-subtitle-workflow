@@ -93,7 +93,8 @@ test('export help is compact, pinnable and accessible without closing its panel'
   await clickMenubarItem(page,'字幕','auto-merge-manage');
   await expect(page.locator('#auto-merge-panel')).toBeVisible();
   await expect(page.locator('#auto-merge-panel .gap-remove-field small:visible')).toHaveCount(0);
-  await expect(page.locator('#auto-merge-panel')).toContainText('范围：全部主字幕');
+  await expect(page.locator('#auto-merge-scope')).toHaveValue('track');
+  await expect(page.locator('#auto-merge-track')).toBeVisible();
   await page.setViewportSize({width:900,height:600});
   expect(await page.locator('#auto-merge-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
   if(process.env.MSW_UI_EVIDENCE_DIR)await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'merge-panel.png')});

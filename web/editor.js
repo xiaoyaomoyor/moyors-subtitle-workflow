@@ -1108,6 +1108,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   autoMergeGapMs: 200,
   // 拼合字幕：backward 向前拓展（默认，后方字幕起点前拓）/ forward 向后拓展（前方字幕终点后延）。
   autoMergeSnapDirection: 'backward',
+  autoMergeSnapGaps: true,
+  autoMergeStateMode: 'union',
   // 拼合字幕：中文少于 N 个字 / 英文少于 N 个词的字幕并入相邻字幕。
   autoMergeShortCount: 3,
   // 拼合字幕：是否吸收过短字幕（默认开启；关闭后只拼合间隔）。
@@ -2686,6 +2688,14 @@ const autoMergeSnapDirectionSelect = document.getElementById('auto-merge-snap-di
 const autoMergeAbsorbShortToggle = document.getElementById('auto-merge-absorb-short');
 const autoMergeShortCountInput = document.getElementById('auto-merge-short-count');
 const autoMergeAbsorbDirectionSelect = document.getElementById('auto-merge-absorb-direction');
+const autoMergeTrackSelect = document.getElementById('auto-merge-track');
+const autoMergeScopeSelect = document.getElementById('auto-merge-scope');
+const autoMergeSnapGapsToggle = document.getElementById('auto-merge-snap-gaps');
+const autoMergeStateModeSelect = document.getElementById('auto-merge-state-mode');
+const autoMergePreview = document.getElementById('auto-merge-preview');
+let autoMergeTrackId = null;
+let autoMergePreviewTimer = 0;
+let autoMergePreviewKey = '';
 const SUBTITLE_EXTEND_PANEL_POSITION_KEY = 'moy.asr.subtitle_extend.panel.v1';
 const subtitleExtendPanel = document.getElementById('subtitle-extend-panel');
 const subtitleExtendDragHandle = document.getElementById('subtitle-extend-drag-handle');
@@ -4674,7 +4684,19 @@ const autoMergeFloatingPanel = createFloatingPanel({
   manageButton: autoMergeManageButton,
   anchorButton: autoMergeManageButton,
   positionKey: AUTO_MERGE_PANEL_POSITION_KEY,
-  onOpen: syncAutoMergePanelInputs,
+  onOpen: () => {
+    commitProcessingEdits();
+    if(productionFlatMode()) {
+      productionRememberSelection();
+      const p=MSWProductionProject.toProject(DATA),selected=new Set(productionSelectionOrder);
+      const active=fixedActiveTrack()?.id;
+      autoMergeTrackId=p.subtitles.cues.find(c=>c.track_id===active&&selected.has(c.id))?.track_id
+        ||p.subtitles.cues.find(c=>selected.has(c.id))?.track_id||active||p.subtitles.tracks[0]?.id;
+      autoMergeScopeSelect.value=p.subtitles.cues.some(c=>c.track_id===autoMergeTrackId&&selected.has(c.id))?'selected':'track';
+    }
+    autoMergePreviewKey='';syncAutoMergePanelInputs();autoMergeRunButton.disabled=true;
+    requestAnimationFrame(()=>refreshAutoMergePreview(true));
+  },
 });
 autoMergeCloseButton?.addEventListener('click', () => autoMergeFloatingPanel.close());
 autoMergeRunButton?.addEventListener('click', autoMergeSegments);
@@ -4703,6 +4725,12 @@ autoMergeAbsorbDirectionSelect?.addEventListener('change', () => {
   updateEditorSettings({
     autoMergeAbsorbDirection: autoMergeAbsorbDirectionSelect.value === 'next' ? 'next' : 'previous',
   });
+});
+autoMergeTrackSelect?.addEventListener('change',()=>{autoMergeTrackId=autoMergeTrackSelect.value;});
+autoMergeSnapGapsToggle?.addEventListener('change',()=>updateEditorSettings({autoMergeSnapGaps:autoMergeSnapGapsToggle.checked}));
+autoMergeStateModeSelect?.addEventListener('change',()=>updateEditorSettings({autoMergeStateMode:autoMergeStateModeSelect.value==='common'?'common':'union'}));
+for(const event of ['input','change'])autoMergePanel?.addEventListener(event,()=>{
+  syncAutoMergeAbsorbFields();queueAutoMergePreview();
 });
 autoMergePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
   input.addEventListener('wheel', (event) => {
@@ -6157,6 +6185,7 @@ let lastClickedOverlayIdx = -1;
 // 已选计数涵盖主轨/副轨/叠加轨三个选区集。
 function updateSelectionCountText() {
   productionRememberSelection();
+  queueAutoMergePreview();
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
@@ -6813,6 +6842,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   updateSubtitleExportUi();
   refreshTimedTextEditButton();
   updateGapRemoveDisableHint();
+  queueAutoMergePreview();
   fixedPanelUI(getCurrentCuePanelTarget());
   window.MSWE_ONBOARDING?.afterRender();
   cueListPlaybackKey = null;
@@ -10804,6 +10834,8 @@ function syncAutoMergePanelInputs() {
   if (autoMergeAbsorbShortToggle) autoMergeAbsorbShortToggle.checked = EDITOR_SETTINGS.autoMergeAbsorbShort;
   if (autoMergeShortCountInput) autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
   if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.value = EDITOR_SETTINGS.autoMergeAbsorbDirection;
+  autoMergeSnapGapsToggle.checked=EDITOR_SETTINGS.autoMergeSnapGaps!==false;
+  autoMergeStateModeSelect.value=EDITOR_SETTINGS.autoMergeStateMode||'union';
   syncAutoMergeAbsorbFields();
 }
 
@@ -10811,12 +10843,87 @@ function syncAutoMergeAbsorbFields() {
   const enabled = EDITOR_SETTINGS.autoMergeAbsorbShort;
   if (autoMergeShortCountInput) autoMergeShortCountInput.disabled = !enabled;
   if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.disabled = !enabled;
+  autoMergeStateModeSelect.disabled=!enabled;
+  autoMergeSnapDirectionSelect.disabled=EDITOR_SETTINGS.autoMergeSnapGaps===false;
   autoMergePanel?.classList.toggle('absorb-disabled', !enabled);
+}
+
+function autoMergeOptions() {
+  return {gapMs:EDITOR_SETTINGS.autoMergeGapMs,snapDirection:EDITOR_SETTINGS.autoMergeSnapDirection,
+    snapGaps:EDITOR_SETTINGS.autoMergeSnapGaps!==false,absorbShort:EDITOR_SETTINGS.autoMergeAbsorbShort,
+    shortCount:EDITOR_SETTINGS.autoMergeShortCount,absorbDirection:EDITOR_SETTINGS.autoMergeAbsorbDirection,
+    mode:EDITOR_SETTINGS.autoMergeStateMode||'union'};
+}
+function queueAutoMergePreview() {
+  if(!document.getElementById('auto-merge-panel')?.classList.contains('show'))return;
+  clearTimeout(autoMergePreviewTimer);autoMergePreviewTimer=setTimeout(()=>refreshAutoMergePreview(),120);
+}
+function autoMergeSelection() {
+  const selection=processingSelection();return [...selection.mainIds,...selection.extensionIds];
+}
+function buildAutoMergePlan(p,makeId) {
+  const selected=autoMergeScopeSelect.value==='selected'?autoMergeSelection():null;
+  return MSWFlatEditing.batchMerge(p,autoMergeTrackId,selected,{...autoMergeOptions(),makeId,
+    joinText:(cues,trackId)=>{
+      const track=p.subtitles.tracks.find(t=>t.id===trackId),text=cues.map(c=>c.text||'').join('\n');
+      const mode=['word','continuous'].includes(track?.split_mode)?track.split_mode:MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
+      return AsrEditorUtils.joinSegmentTexts(cues,mergeJoinSeparatorForMode(mode));
+    },
+  });
+}
+function autoMergeSummary(result,applied=false) {
+  const s=result.stats;
+  if(!applied&&!s.scope)return autoMergeScopeSelect.value==='selected'?'本轨道未选择字幕':'本轨道没有字幕';
+  if(!s.snaps&&!s.groups)return s.skipped?'没有可处理的字幕或间隔；已跳过禁用／隐藏字幕':'没有符合条件的间隔或短字幕';
+  const parts=[applied?'已应用':'预计'];
+  if(s.snaps)parts.push(`${s.snaps} 处间隔`);
+  if(s.groups)parts.push(`${s.merged} 条合并为 ${s.groups} 条`);
+  if(s.linked)parts.push(`联动 ${s.linked} 条绑定字幕`);
+  if(s.skipped)parts.push(`跳过 ${s.skipped} 条`);
+  if(result.conflicts.length)parts.push('不同标记保留时间最早的一项');
+  if(applied)parts.push('可一次撤销');
+  return parts.join(' · ');
+}
+function refreshAutoMergePreview(force=false) {
+  if(!autoMergePanel.classList.contains('show'))return;
+  if(!productionFlatMode()) {autoMergePreview.textContent='兼容模式：全部主字幕';autoMergeRunButton.disabled=false;return;}
+  const tracks=DATA.subtitle_tracks.tracks;
+  if(JSON.stringify([...autoMergeTrackSelect.options].map(o=>[o.value,o.textContent]))!==JSON.stringify(tracks.map(t=>[t.id,t.name])))autoMergeTrackSelect.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
+  autoMergeTrackSelect.value=autoMergeTrackId||'';
+  try {
+    const p=MSWProductionProject.toProject(DATA),key=JSON.stringify([p.subtitles,p.subtitle_view,p.timebase,autoMergeTrackId,autoMergeScopeSelect.value,autoMergeSelection(),autoMergeOptions(),EDITOR_SETTINGS.mergeJoinTextWord,EDITOR_SETTINGS.mergeJoinTextContinuous,Boolean(pendingLinkedSplit)]);
+    if(!force&&key===autoMergePreviewKey)return;
+    autoMergePreviewKey=key;
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    const result=buildAutoMergePlan(p);
+    autoMergePreview.textContent=autoMergeSummary(result);
+    autoMergeRunButton.disabled=!result.stats.snaps&&!result.stats.groups;
+  }catch(error){autoMergePreview.textContent=error.message;autoMergeRunButton.disabled=true;}
+}
+function applyProductionAutoMerge() {
+  try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    commitProcessingEdits();
+    const p=MSWProductionProject.toProject(DATA),result=buildAutoMergePlan(p,kind=>MSWProject.id(kind));
+    if(!result.stats.snaps&&!result.stats.groups){autoMergePreview.textContent=autoMergeSummary(result);return;}
+    const anchor=captureCueListRenderAnchor();
+    const feedback=result.groups.flatMap(group=>captureMergeFeedback({
+      feedbackMembers:layerCore.tracks(DATA).flatMap(t=>t.segments.filter(c=>group.removedIds.includes(c.id)).map(cue=>({cue,role:t.role,track_id:t.track_id}))),
+      feedbackResults:result.project.subtitles.cues.filter(c=>group.resultIds.includes(c.id)),
+    }));
+    productionCommitProject(result.project,'拼接/合并字幕',result.ids);
+    restoreCueListRenderAnchor(anchor);updateWithoutCueListAutoScroll();
+    triggerMergeFeedback(feedback);
+    // Cache the new estimate, then keep the completion message until the user
+    // changes a parameter, the selection or the project again.
+    refreshAutoMergePreview(true);autoMergePreview.textContent=autoMergeSummary(result,true);
+  }catch(error){autoMergePreview.textContent=error.message;autoMergeRunButton.disabled=true;}
 }
 
 // 一键处理整段工程：相邻间隔不超过 autoMergeGapMs 时按吸附方向拼接；
 // 过短的字幕（中文 < N 字 / 英文 < N 词）按吸收方向并入相邻字幕。
 function autoMergeSegments() {
+  if(productionFlatMode())return applyProductionAutoMerge();
   if (layerMode()) {
     if (selectedIdxs.size < 2 && selectedExtensionIdxs.size < 2) { flashHint('多层字幕请先选择同一角色的两条或更多字幕，再预览合并', 'warning'); return; }
     if (selectedIdxs.size) return layerMergeSelected([...selectedIdxs]);
@@ -10829,6 +10936,7 @@ function autoMergeSegments() {
     shortCount: EDITOR_SETTINGS.autoMergeShortCount,
     absorbDirection: EDITOR_SETTINGS.autoMergeAbsorbDirection,
   });
+  if(EDITOR_SETTINGS.autoMergeSnapGaps===false)plan.snaps=[];
   if (!plan.snaps.length && !plan.groups.length) {
     flashHint('没有需要拼接/合并的间隔或过短字幕', 'invalid');
     return;

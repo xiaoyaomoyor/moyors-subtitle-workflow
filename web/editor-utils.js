@@ -2295,11 +2295,15 @@
     const absorbDirection = options.absorbDirection === 'next' ? 'next' : 'previous';
     const shortCount = Math.max(1, Math.round(Number(options.shortCount) || 3));
     const source = Array.isArray(segments) ? segments : [];
+    const canPair = typeof options.canPair === 'function' ? options.canPair : () => true;
+    const isShort = typeof options.isShort === 'function' ? options.isShort
+      : segment => isShortSubtitleText(segment?.text, shortCount);
     const snaps = [];
     for (let i = 1; i < source.length; i++) {
       const previous = source[i - 1];
       const current = source[i];
       if (!previous || !current) continue;
+      if (!canPair(i - 1, i)) continue;
       if (!Number.isFinite(previous.end) || !Number.isFinite(current.start)) continue;
       const gap = current.start - previous.end;
       if (gap <= 0 || gap > gapMs) continue;
@@ -2310,6 +2314,7 @@
       const left = source[leftIdx];
       const right = source[rightIdx];
       if (!left || !right) return false;
+      if (!canPair(leftIdx, rightIdx)) return false;
       if (left.disabled || right.disabled) return false;
       if (!Number.isFinite(left.end) || !Number.isFinite(right.start)) return false;
       const gap = right.start - left.end;
@@ -2321,11 +2326,11 @@
       const indexRange = (from, to) => Array.from({ length: to - from + 1 }, (_, k) => from + k);
       let i = 0;
       while (i < source.length) {
-        if (!isShortSubtitleText(source[i]?.text, shortCount)) { i++; continue; }
+        if (!isShort(source[i], i)) { i++; continue; }
         // 连续过短字幕区间 [i..j]（相邻短字幕之间也要满足合并条件）
         let j = i;
         while (j + 1 < source.length
-            && isShortSubtitleText(source[j + 1]?.text, shortCount)
+            && isShort(source[j + 1], j + 1)
             && canMergePair(j, j + 1)) j++;
         const lastGroup = groups[groups.length - 1];
         const canExtendLast = !!(lastGroup && lastGroup[lastGroup.length - 1] === i - 1 && canMergePair(i - 1, i));
@@ -2336,11 +2341,13 @@
           if (canMergeForward) groups.push(indexRange(i, j + 1));
           else if (canExtendLast) for (let k = i; k <= j; k++) lastGroup.push(k);
           else if (canMergeBackward) groups.push(indexRange(i - 1, j));
+          else if (j > i) groups.push(indexRange(i, j));
         } else {
           // 向前吸收：优先并入上一条；首条（或上一条不可合并）时退回下一条
           if (canExtendLast) for (let k = i; k <= j; k++) lastGroup.push(k);
           else if (canMergeBackward) groups.push(indexRange(i - 1, j));
           else if (canMergeForward) groups.push(indexRange(i, j + 1));
+          else if (j > i) groups.push(indexRange(i, j));
         }
         i = j + 1;
       }
@@ -3100,6 +3107,7 @@
     ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
     mergeJoinTextContinuous: '', mergeJoinTextWord: ' ',
     autoMergeGapMs: 200, autoMergeSnapDirection: 'backward', autoMergeShortCount: 3,
+    autoMergeSnapGaps: true, autoMergeStateMode: 'union',
     autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true, exportSpeakerLabels: false, exportSpeakerNamesAsSuffix: false,
     autoSaveProject: true, autoSaveIntervalSeconds: 30, stickerOverlayEnabled: false,
     stickerOtioExportMode: 'original', clickBehavior: 'select-and-seek', clickTarget: 'pointer',
@@ -3200,6 +3208,8 @@
         : typeof savedSettings.mergeJoinText === 'string' ? savedSettings.mergeJoinText : ' ',
       autoMergeGapMs: clampInteger(savedSettings.autoMergeGapMs, 200, 0, 10000),
       autoMergeSnapDirection: savedSettings.autoMergeSnapDirection === 'forward' ? 'forward' : 'backward',
+      autoMergeSnapGaps: savedSettings.autoMergeSnapGaps !== false,
+      autoMergeStateMode: savedSettings.autoMergeStateMode === 'common' ? 'common' : 'union',
       autoMergeShortCount: clampInteger(savedSettings.autoMergeShortCount, 3, 1, 20),
       autoMergeAbsorbShort: savedSettings.autoMergeAbsorbShort !== false,
       autoMergeAbsorbDirection: savedSettings.autoMergeAbsorbDirection === 'next' ? 'next' : 'previous',

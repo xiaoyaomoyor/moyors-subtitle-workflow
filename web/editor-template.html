@@ -232,7 +232,7 @@ __WAVEFORM_CSS__
       <button type="button" class="dropdown-item" id="subtitle-load-srt" role="menuitem" title="加载 SRT 字幕文件">加载字幕</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">处理</div>
-      <button type="button" class="dropdown-item" id="auto-merge-manage" role="menuitem" title="将间隔过短的前后字幕直接吸附在一起，去除中间的短暂空白（可直接吸收短字幕）">拼接/合并字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="auto-merge-manage" role="menuitem" title="按轨道与范围批量填补短间隔、合并短字幕">拼接/合并字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="subtitle-scale-offset-open" role="menuitem" title="打开缩放/偏移字幕窗口">缩放/偏移字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
@@ -495,55 +495,56 @@ __WAVEFORM_CSS__
     <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
-    <section class="auto-merge-section" aria-labelledby="auto-merge-join-heading">
-      <h4 id="auto-merge-join-heading">拼接字幕</h4>
-      <div class="gap-remove-fields">
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">间隔阈值</span>
+    <section class="settings-panel-section auto-merge-section" data-flat-settings hidden>
+      <h4>作用范围</h4>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field"><span>作用轨道</span><select id="auto-merge-track" aria-label="作用轨道"></select></label>
+        <label class="wave-settings-field" data-option-help="所选字幕仅处理本轨选区内相邻的字幕，未选中的字幕不会被跨过或吸收；空选区不会自动变为整轨。整条轨道包含已折叠或被列表筛选的内容。禁用或隐藏的字幕及其绑定组跳过。"><span class="msw-option-label">处理范围</span><select id="auto-merge-scope"><option value="selected">所选字幕</option><option value="track">整条轨道</option></select></label>
+      </div>
+    </section>
+    <section class="settings-panel-section auto-merge-section" aria-labelledby="auto-merge-join-heading">
+      <h4 id="auto-merge-join-heading">间隔与拼接</h4>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field" data-option-help="只处理不超过此值的相邻间隔，短字幕合并也使用这个限制。0 ms 不填补间隔，仅允许首尾相接的短字幕合并。">
+          <span class="msw-option-label">最大间隔</span>
           <span class="gap-remove-number-control">
             <input type="number" id="auto-merge-gap-ms" min="0" max="10000" step="50" value="200" inputmode="numeric">
             <span class="gap-remove-unit">ms</span>
           </span>
-          <small>将间隔过短的前后字幕直接吸附在一起；0 表示不处理间隔</small>
         </label>
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">吸附方向</span>
+        <label class="wave-settings-field">
+          <span>拼接方式</span>
           <select id="auto-merge-snap-direction">
-            <option value="backward" selected>向前吸附</option>
-            <option value="forward">向后吸附</option>
+            <option value="backward" selected>提前后条起点</option>
+            <option value="forward">延长前条终点</option>
           </select>
-          <small>向前：后方字幕起点吸附到前方字幕终点；向后：前方字幕终点吸附到后方字幕起点</small>
         </label>
       </div>
+      <label class="toggle settings-panel-item" data-option-help="只延长字幕填补短间隔，不合并文字或改变字幕数量。绑定字幕按相同的边界变化联动，保留原有时间偏移。"><input type="checkbox" id="auto-merge-snap-gaps" checked>填补短间隔</label>
     </section>
-    <section class="auto-merge-section" aria-labelledby="auto-merge-absorb-heading">
-      <h4 id="auto-merge-absorb-heading">吸收合并字幕</h4>
-      <label class="gap-remove-field auto-merge-absorb-field" title="关闭后只吸附间隔，不合并任何字幕">
-        <span class="gap-remove-field-label">吸收过短字幕</span>
-        <input type="checkbox" id="auto-merge-absorb-short" checked>
-        <small>过短字幕与相邻字幕间隔在阈值内时吸收，间隔为 0ms 也会生效；关闭后只吸附间隔</small>
-      </label>
-      <div class="gap-remove-fields">
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">短字幕阈值</span>
+    <section class="settings-panel-section auto-merge-section" aria-labelledby="auto-merge-absorb-heading">
+      <h4 id="auto-merge-absorb-heading">短字幕合并</h4>
+      <label class="toggle settings-panel-item" data-option-help="将短字幕并入指定方向的相邻字幕；首尾或该方向不可合并时尝试另一侧。间隔须在上方阈值内，不跨不同说话人合并。明确绑定的另一侧同步合并并保留绑定。"><input type="checkbox" id="auto-merge-absorb-short" checked>合并短字幕</label>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field" data-option-help="少于此数量才视为短字幕；按本轨道的文字切分方式计算字或词，不计纯空白和标点。可在字幕编辑器设置中调整切分方式。">
+          <span class="msw-option-label">字词数少于</span>
           <span class="gap-remove-number-control">
             <input type="number" id="auto-merge-short-count" min="1" max="20" step="1" value="3" inputmode="numeric">
           </span>
-          <small>中文少于 N 个字 / 英文少于 N 个词即视为过短字幕</small>
         </label>
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">吸收方向</span>
+        <label class="wave-settings-field">
+          <span>合并方向</span>
           <select id="auto-merge-absorb-direction">
-            <option value="previous" selected>向前吸收</option>
-            <option value="next">向后吸收</option>
+            <option value="previous" selected>优先并入前条</option>
+            <option value="next">优先并入后条</option>
           </select>
-          <small>向前：过短字幕并入上一条；向后：并入下一条</small>
         </label>
+        <label class="wave-settings-field" data-flat-settings hidden data-option-help="累加状态与 C 相同；共有状态与 Ctrl+Shift+C 相同，仅保留所有成员共有的状态。不同颜色或表情包无法同时保留时采用时间最早的标记。"><span class="msw-option-label">状态合并</span><select id="auto-merge-state-mode"><option value="union">累加状态</option><option value="common">仅保留共有状态</option></select></label>
       </div>
     </section>
-    <div class="msw-processing-actions"><small class="msw-processing-hint">范围：全部主字幕</small><button type="button" id="auto-merge-run" class="primary">拼接/合并字幕</button></div>
-    <p class="msw-processing-hint" data-help-for="auto-merge-panel-title">按当前参数处理整段工程，可撤销。滚轮可调数值，Esc 关闭。</p>
+    <p hidden data-help-for="auto-merge-panel-title">参数和范围只生成预估，点击应用才修改字幕；已绑定字幕同步处理，整批可一次撤销。发生同轨重叠、锁定或绑定方向冲突时整次不应用。C 仍是直接合并所选字幕。滚轮可调数值，Esc 关闭。</p>
   </div>
+  <div class="msw-processing-actions auto-merge-footer"><small class="msw-processing-hint" id="auto-merge-preview" role="status" aria-live="polite"></small><button type="button" id="auto-merge-run" class="primary">应用</button></div>
 </aside>
 
 <!-- 缩放/偏移字幕工具窗 -->

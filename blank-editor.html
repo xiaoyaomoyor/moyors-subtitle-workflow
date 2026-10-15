@@ -4140,10 +4140,11 @@
 
   /* 拼接/合并字幕 —— 复用 .gap-remove-panel 家族样式，只补充自有差异 */
   .auto-merge-panel .auto-merge-section { display: grid; gap: 8px; }
-  #auto-merge-panel { width: min(440px, calc(100vw - 24px)); }
-  #auto-merge-panel .auto-merge-section + .auto-merge-section { border-top: 1px solid var(--border-subtle); padding-top: 12px; }
-  #auto-merge-panel .auto-merge-absorb-field { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
-  #auto-merge-panel .auto-merge-absorb-field input { width: auto; }
+  #auto-merge-panel { width: min(520px, calc(100vw - 24px)); }
+  #auto-merge-panel .auto-merge-section { margin: 0; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-panel); }
+  #auto-merge-panel .auto-merge-section + .auto-merge-section { margin-top: 12px; }
+  #auto-merge-panel .toggle { margin: 0; justify-content: flex-start; }
+  #auto-merge-panel input[type=checkbox] { width: 15px; height: 15px; flex: 0 0 15px; margin: 0; padding: 0; accent-color: var(--accent); box-shadow: none; }
   .msw-option-label { display: inline-flex; align-items: center; gap: 4px; }
   #burn-style-panel { width: min(520px,calc(100vw - 24px)); }
   #burn-style-image { width: 100%; height: auto; margin-top: 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
@@ -4152,27 +4153,29 @@
   .msw-help-button:hover, .msw-help-button:focus-visible { color: var(--accent); }
   .msw-help-button:focus-visible { outline: 2px solid var(--accent); border-radius: 50%; }
   .msw-option-help { position: fixed; z-index: 10000; box-sizing: border-box; max-width: min(340px,calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-panel, #24272b); color: var(--text-primary); box-shadow: var(--shadow-3); font-size: 12px; line-height: 1.65; white-space: pre-line; }
-  .auto-merge-panel .auto-merge-section + .auto-merge-section { margin-top: 14px; }
-  .auto-merge-panel .auto-merge-section,
   .gap-remove-panel .gap-remove-fields,
   .gap-remove-panel .gap-remove-parameters-heading + .gap-remove-fields { background: transparent; }
   .auto-merge-panel .auto-merge-section h4 {
     margin: 0; padding: 0 2px; color: var(--text-secondary); font-size: 12px; line-height: 1.3;
     font-weight: 700; letter-spacing: .04em;
   }
-  .auto-merge-panel .gap-remove-fields { row-gap: 8px; }
-  .auto-merge-panel .gap-remove-field { row-gap: 8px; }
-  .auto-merge-panel .gap-remove-field small { font-size: 11px; line-height: 1.45; }
-  .auto-merge-absorb-field { margin: 0; }
-  .auto-merge-absorb-field input[type=checkbox] { justify-self: end; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
   .auto-merge-panel select {
-    justify-self: end; max-width: 120px; padding: 4px 6px;
+    width: 100%; min-width: 0; padding: 4px 6px;
     color: var(--text-primary); background: var(--form-input-bg); border: 1px solid var(--border);
     border-radius: var(--radius-sm); font-size: 12px; cursor: pointer;
     transition: border-color var(--t-fast), box-shadow var(--t-fast);
   }
   .auto-merge-panel select:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
-  .auto-merge-panel.absorb-disabled .gap-remove-field:has(:disabled) { opacity: .45; }
+  .auto-merge-panel .wave-settings-field:has(:disabled) { opacity: .5; }
+  #auto-merge-panel .wave-settings-field { min-width: 0; background: transparent; }
+  #auto-merge-panel .wave-settings-field > span:first-child { display: flex; align-items: center; min-height: 20px; }
+  #auto-merge-panel .wave-settings-field > select { min-height: 30px; padding: 4px 6px; font-size: 12px; }
+  #auto-merge-panel .gap-remove-number-control { width: 100%; box-sizing: border-box; }
+  #auto-merge-panel .gap-remove-number-control input { width: 0; flex: 1; height: 28px; }
+  #auto-merge-preview { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-line; line-height: 1.6; }
+  #auto-merge-run { flex-shrink: 0; }
+  #auto-merge-panel .auto-merge-footer { flex: 0 0 auto; margin: 0; padding: 8px 14px; border-top: 1px solid var(--border-subtle); }
+  #auto-merge-panel .gap-remove-panel-body { min-height: 0; }
   .gap-remove-panel {
     position: fixed; top: 116px; right: 18px; z-index: 320;
     display: none; flex-direction: column;
@@ -6611,7 +6614,7 @@
       <button type="button" class="dropdown-item" id="subtitle-load-srt" role="menuitem" title="加载 SRT 字幕文件">加载字幕</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">处理</div>
-      <button type="button" class="dropdown-item" id="auto-merge-manage" role="menuitem" title="将间隔过短的前后字幕直接吸附在一起，去除中间的短暂空白（可直接吸收短字幕）">拼接/合并字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="auto-merge-manage" role="menuitem" title="按轨道与范围批量填补短间隔、合并短字幕">拼接/合并字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="subtitle-scale-offset-open" role="menuitem" title="打开缩放/偏移字幕窗口">缩放/偏移字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
@@ -6874,55 +6877,56 @@
     <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
-    <section class="auto-merge-section" aria-labelledby="auto-merge-join-heading">
-      <h4 id="auto-merge-join-heading">拼接字幕</h4>
-      <div class="gap-remove-fields">
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">间隔阈值</span>
+    <section class="settings-panel-section auto-merge-section" data-flat-settings hidden>
+      <h4>作用范围</h4>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field"><span>作用轨道</span><select id="auto-merge-track" aria-label="作用轨道"></select></label>
+        <label class="wave-settings-field" data-option-help="所选字幕仅处理本轨选区内相邻的字幕，未选中的字幕不会被跨过或吸收；空选区不会自动变为整轨。整条轨道包含已折叠或被列表筛选的内容。禁用或隐藏的字幕及其绑定组跳过。"><span class="msw-option-label">处理范围</span><select id="auto-merge-scope"><option value="selected">所选字幕</option><option value="track">整条轨道</option></select></label>
+      </div>
+    </section>
+    <section class="settings-panel-section auto-merge-section" aria-labelledby="auto-merge-join-heading">
+      <h4 id="auto-merge-join-heading">间隔与拼接</h4>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field" data-option-help="只处理不超过此值的相邻间隔，短字幕合并也使用这个限制。0 ms 不填补间隔，仅允许首尾相接的短字幕合并。">
+          <span class="msw-option-label">最大间隔</span>
           <span class="gap-remove-number-control">
             <input type="number" id="auto-merge-gap-ms" min="0" max="10000" step="50" value="200" inputmode="numeric">
             <span class="gap-remove-unit">ms</span>
           </span>
-          <small>将间隔过短的前后字幕直接吸附在一起；0 表示不处理间隔</small>
         </label>
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">吸附方向</span>
+        <label class="wave-settings-field">
+          <span>拼接方式</span>
           <select id="auto-merge-snap-direction">
-            <option value="backward" selected>向前吸附</option>
-            <option value="forward">向后吸附</option>
+            <option value="backward" selected>提前后条起点</option>
+            <option value="forward">延长前条终点</option>
           </select>
-          <small>向前：后方字幕起点吸附到前方字幕终点；向后：前方字幕终点吸附到后方字幕起点</small>
         </label>
       </div>
+      <label class="toggle settings-panel-item" data-option-help="只延长字幕填补短间隔，不合并文字或改变字幕数量。绑定字幕按相同的边界变化联动，保留原有时间偏移。"><input type="checkbox" id="auto-merge-snap-gaps" checked>填补短间隔</label>
     </section>
-    <section class="auto-merge-section" aria-labelledby="auto-merge-absorb-heading">
-      <h4 id="auto-merge-absorb-heading">吸收合并字幕</h4>
-      <label class="gap-remove-field auto-merge-absorb-field" title="关闭后只吸附间隔，不合并任何字幕">
-        <span class="gap-remove-field-label">吸收过短字幕</span>
-        <input type="checkbox" id="auto-merge-absorb-short" checked>
-        <small>过短字幕与相邻字幕间隔在阈值内时吸收，间隔为 0ms 也会生效；关闭后只吸附间隔</small>
-      </label>
-      <div class="gap-remove-fields">
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">短字幕阈值</span>
+    <section class="settings-panel-section auto-merge-section" aria-labelledby="auto-merge-absorb-heading">
+      <h4 id="auto-merge-absorb-heading">短字幕合并</h4>
+      <label class="toggle settings-panel-item" data-option-help="将短字幕并入指定方向的相邻字幕；首尾或该方向不可合并时尝试另一侧。间隔须在上方阈值内，不跨不同说话人合并。明确绑定的另一侧同步合并并保留绑定。"><input type="checkbox" id="auto-merge-absorb-short" checked>合并短字幕</label>
+      <div class="wave-settings-grid">
+        <label class="wave-settings-field" data-option-help="少于此数量才视为短字幕；按本轨道的文字切分方式计算字或词，不计纯空白和标点。可在字幕编辑器设置中调整切分方式。">
+          <span class="msw-option-label">字词数少于</span>
           <span class="gap-remove-number-control">
             <input type="number" id="auto-merge-short-count" min="1" max="20" step="1" value="3" inputmode="numeric">
           </span>
-          <small>中文少于 N 个字 / 英文少于 N 个词即视为过短字幕</small>
         </label>
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">吸收方向</span>
+        <label class="wave-settings-field">
+          <span>合并方向</span>
           <select id="auto-merge-absorb-direction">
-            <option value="previous" selected>向前吸收</option>
-            <option value="next">向后吸收</option>
+            <option value="previous" selected>优先并入前条</option>
+            <option value="next">优先并入后条</option>
           </select>
-          <small>向前：过短字幕并入上一条；向后：并入下一条</small>
         </label>
+        <label class="wave-settings-field" data-flat-settings hidden data-option-help="累加状态与 C 相同；共有状态与 Ctrl+Shift+C 相同，仅保留所有成员共有的状态。不同颜色或表情包无法同时保留时采用时间最早的标记。"><span class="msw-option-label">状态合并</span><select id="auto-merge-state-mode"><option value="union">累加状态</option><option value="common">仅保留共有状态</option></select></label>
       </div>
     </section>
-    <div class="msw-processing-actions"><small class="msw-processing-hint">范围：全部主字幕</small><button type="button" id="auto-merge-run" class="primary">拼接/合并字幕</button></div>
-    <p class="msw-processing-hint" data-help-for="auto-merge-panel-title">按当前参数处理整段工程，可撤销。滚轮可调数值，Esc 关闭。</p>
+    <p hidden data-help-for="auto-merge-panel-title">参数和范围只生成预估，点击应用才修改字幕；已绑定字幕同步处理，整批可一次撤销。发生同轨重叠、锁定或绑定方向冲突时整次不应用。C 仍是直接合并所选字幕。滚轮可调数值，Esc 关闭。</p>
   </div>
+  <div class="msw-processing-actions auto-merge-footer"><small class="msw-processing-hint" id="auto-merge-preview" role="status" aria-live="polite"></small><button type="button" id="auto-merge-run" class="primary">应用</button></div>
 </aside>
 
 <!-- 缩放/偏移字幕工具窗 -->
@@ -13225,11 +13229,15 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     const absorbDirection = options.absorbDirection === 'next' ? 'next' : 'previous';
     const shortCount = Math.max(1, Math.round(Number(options.shortCount) || 3));
     const source = Array.isArray(segments) ? segments : [];
+    const canPair = typeof options.canPair === 'function' ? options.canPair : () => true;
+    const isShort = typeof options.isShort === 'function' ? options.isShort
+      : segment => isShortSubtitleText(segment?.text, shortCount);
     const snaps = [];
     for (let i = 1; i < source.length; i++) {
       const previous = source[i - 1];
       const current = source[i];
       if (!previous || !current) continue;
+      if (!canPair(i - 1, i)) continue;
       if (!Number.isFinite(previous.end) || !Number.isFinite(current.start)) continue;
       const gap = current.start - previous.end;
       if (gap <= 0 || gap > gapMs) continue;
@@ -13240,6 +13248,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       const left = source[leftIdx];
       const right = source[rightIdx];
       if (!left || !right) return false;
+      if (!canPair(leftIdx, rightIdx)) return false;
       if (left.disabled || right.disabled) return false;
       if (!Number.isFinite(left.end) || !Number.isFinite(right.start)) return false;
       const gap = right.start - left.end;
@@ -13251,11 +13260,11 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       const indexRange = (from, to) => Array.from({ length: to - from + 1 }, (_, k) => from + k);
       let i = 0;
       while (i < source.length) {
-        if (!isShortSubtitleText(source[i]?.text, shortCount)) { i++; continue; }
+        if (!isShort(source[i], i)) { i++; continue; }
         // 连续过短字幕区间 [i..j]（相邻短字幕之间也要满足合并条件）
         let j = i;
         while (j + 1 < source.length
-            && isShortSubtitleText(source[j + 1]?.text, shortCount)
+            && isShort(source[j + 1], j + 1)
             && canMergePair(j, j + 1)) j++;
         const lastGroup = groups[groups.length - 1];
         const canExtendLast = !!(lastGroup && lastGroup[lastGroup.length - 1] === i - 1 && canMergePair(i - 1, i));
@@ -13266,11 +13275,13 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
           if (canMergeForward) groups.push(indexRange(i, j + 1));
           else if (canExtendLast) for (let k = i; k <= j; k++) lastGroup.push(k);
           else if (canMergeBackward) groups.push(indexRange(i - 1, j));
+          else if (j > i) groups.push(indexRange(i, j));
         } else {
           // 向前吸收：优先并入上一条；首条（或上一条不可合并）时退回下一条
           if (canExtendLast) for (let k = i; k <= j; k++) lastGroup.push(k);
           else if (canMergeBackward) groups.push(indexRange(i - 1, j));
           else if (canMergeForward) groups.push(indexRange(i, j + 1));
+          else if (j > i) groups.push(indexRange(i, j));
         }
         i = j + 1;
       }
@@ -14030,6 +14041,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
     mergeJoinTextContinuous: '', mergeJoinTextWord: ' ',
     autoMergeGapMs: 200, autoMergeSnapDirection: 'backward', autoMergeShortCount: 3,
+    autoMergeSnapGaps: true, autoMergeStateMode: 'union',
     autoMergeAbsorbShort: true, autoMergeAbsorbDirection: 'previous', exportColorUnified: true, exportSpeakerLabels: false, exportSpeakerNamesAsSuffix: false,
     autoSaveProject: true, autoSaveIntervalSeconds: 30, stickerOverlayEnabled: false,
     stickerOtioExportMode: 'original', clickBehavior: 'select-and-seek', clickTarget: 'pointer',
@@ -14130,6 +14142,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
         : typeof savedSettings.mergeJoinText === 'string' ? savedSettings.mergeJoinText : ' ',
       autoMergeGapMs: clampInteger(savedSettings.autoMergeGapMs, 200, 0, 10000),
       autoMergeSnapDirection: savedSettings.autoMergeSnapDirection === 'forward' ? 'forward' : 'backward',
+      autoMergeSnapGaps: savedSettings.autoMergeSnapGaps !== false,
+      autoMergeStateMode: savedSettings.autoMergeStateMode === 'common' ? 'common' : 'union',
       autoMergeShortCount: clampInteger(savedSettings.autoMergeShortCount, 3, 1, 20),
       autoMergeAbsorbShort: savedSettings.autoMergeAbsorbShort !== false,
       autoMergeAbsorbDirection: savedSettings.autoMergeAbsorbDirection === 'next' ? 'next' : 'previous',
@@ -19207,8 +19221,8 @@ export default MawDynamicCaptions;
     }
   }
   function updateText(p,id,text) {return transaction(p,next=>{editable(next,[id]);const c=cue(next,id).content;if(c.text===text)return;c.text=text;c.items=[];c._dirty=true;});}
-  function updateRanges(p,changes,{linked=true}={}) {
-    return transaction(p,next=>{
+  function updateRangesInternal(p,changes,{linked=true}={},inPlace=false) {
+    const apply=next=>{
       const planned=new Map(changes.map(c=>[c.id,c]));
       for(const change of changes) {
         const source=cue(next,change.id),other=partner(next,change.id);
@@ -19224,8 +19238,10 @@ export default MawDynamicCaptions;
         c.start=change.start;c.end=change.end;c._dirty=true;frame(next,c);
       }
       refreshOffsets(next);
-    });
+    };
+    return inPlace?(apply(p),p):transaction(p,apply);
   }
+  function updateRanges(p,changes,options) {return updateRangesInternal(p,changes,options);}
   function setDisabled(p,ids,disabled) {return transaction(p,n=>{editable(n,ids);for(const id of ids)cue(n,id).content.disabled=disabled;});}
   function setColor(p,ids,name) {return transaction(p,n=>{
     editable(n,ids);detachReferences(n,new Set(ids));
@@ -19286,7 +19302,7 @@ export default MawDynamicCaptions;
       refreshOffsets(n);
     });return {project:result,ids};
   }
-  function merge(p,ids,{mode='union',makeId,joinText}={}) {
+  function mergeInternal(p,ids,{mode='union',makeId,joinText}={},inPlace=false) {
     const selected=[...new Set(ids)],source=selected.map(id=>cue(p,id));
     if(source.length<2||source.some(c=>!c)||new Set(source.map(c=>c.track_id)).size!==1)fail('请选择至少两个同轨道字幕');
     const other=source.map(c=>partner(p,c.id)).filter(Boolean),otherTracks=new Set(other.map(c=>c.track_id));
@@ -19294,7 +19310,8 @@ export default MawDynamicCaptions;
     const directions=new Set(source.filter(c=>relation(p,c.id)).map(c=>relation(p,c.id).source_id===c.id));
     if(directions.size>1)fail('对应关系的来源方向不一致，请先统一对应关系再合并');
     const groups=[source,...(other.length?[other]:[])],newIds=[],conflicts=[];
-    const result=transaction(p,n=>{
+    const reference=source.map(c=>relation(p,c.id)).find(Boolean);
+    const apply=n=>{
       const allIds=groups.flat().map(c=>c.id),removed=new Set(allIds);editable(n,allIds);detachReferences(n,removed);
       const merges=groups.map(group=>{
         const members=group.map(c=>cue(n,c.id)),rows=members.map(c=>({...copy(c.content),id:c.id}));
@@ -19311,10 +19328,76 @@ export default MawDynamicCaptions;
       });
       body(n).bindings=body(n).bindings.filter(b=>!removed.has(b.source_id)&&!removed.has(b.target_id));
       body(n).cues=body(n).cues.filter(c=>!removed.has(c.id)).concat(merges);newIds.push(...merges.map(c=>c.id));
-      if(merges.length===2){const existing=relation(p,source.find(c=>relation(p,c.id)).id),reverse=other.some(c=>c.id===existing.source_id);
+      if(merges.length===2){const reverse=other.some(c=>c.id===reference.source_id);
         body(n).bindings.push({id:makeId('binding'),source_id:merges[reverse?1:0].id,target_id:merges[reverse?0:1].id,start_offset_ms:0,end_offset_ms:0});}
-      refreshOffsets(n);
-    });return {project:result,ids:newIds,conflicts:[...new Set(conflicts)]};
+      // Batch groups are disjoint; refresh their offsets once after the batch.
+      if(!inPlace)refreshOffsets(n);
+    };
+    const result=inPlace?(apply(p),p):transaction(p,apply);
+    return {project:result,ids:newIds,conflicts:[...new Set(conflicts)]};
+  }
+  function merge(p,ids,options) {return mergeInternal(p,ids,options);}
+
+  // Build an entire batch on a disposable copy. No caller-visible edits or IDs
+  // are applied until all linked ranges and merged groups pass validation.
+  function batchMerge(p,trackId,selectedIds,options={}) {
+    core.validate(p);
+    const owner=track(p,trackId),utils=options.utils||global.AsrEditorUtils;
+    if(!owner)fail('请选择作用轨道');
+    if(owner.locked)fail('作用轨道已锁定，请先解锁');
+    if(!owner.enabled)fail('作用轨道已禁用，请先启用');
+    if(!utils?.planAutoMerge||!utils?.countSubtitleUnits)fail('批量处理工具未加载');
+    const rows=body(p).cues.filter(c=>c.track_id===trackId).sort((a,b)=>a.content.start-b.content.start||a.id.localeCompare(b.id));
+    const wanted=selectedIds==null?new Set(rows.map(c=>c.id)):new Set(selectedIds);
+    const active=c=>c&&!c.hidden&&!c.content.disabled&&track(p,c.track_id).enabled;
+    const eligible=rows.map(c=>wanted.has(c.id)&&active(c)&&(!partner(p,c.id)||active(partner(p,c.id))));
+    const skipped=rows.filter((c,i)=>wanted.has(c.id)&&!eligible[i]).length;
+    const planned=utils.planAutoMerge(rows.map(c=>c.content),{...options,
+      canPair:(a,b)=>eligible[a]&&eligible[b],
+      isShort:(c,i)=>eligible[i]&&utils.countSubtitleUnits(c.text,owner.split_mode)<(options.shortCount||3),
+    });
+    const snaps=options.snapGaps===false?[]:planned.snaps,changes=new Map();
+    for(const s of snaps) {
+      const c=rows[s.index];let change=changes.get(c.id);
+      if(!change){change={id:c.id,start:c.content.start,end:c.content.end};changes.set(c.id,change);}
+      change[s.edge]=s.time;
+    }
+    // Adjacent short runs can share a long neighbour; combine their plans so
+    // each original cue is merged once, rather than reusing a removed ID.
+    const groups=[];
+    for(const group of planned.groups) {
+      const last=groups.at(-1);
+      if(last&&group[0]<=last.at(-1))groups[groups.length-1]=[...new Set([...last,...group])].sort((a,b)=>a-b);
+      else groups.push([...group]);
+    }
+    let next=copy(p);
+    if(changes.size)updateRangesInternal(next,[...changes.values()],{},true);
+    const used=new Set([...body(p).cues,...body(p).bindings].map(c=>c.id));let serial=0;
+    const makeId=options.makeId||((kind)=>{let id;do{id=`batch-preview-${kind}-${++serial}`;}while(used.has(id));used.add(id);return id;});
+    const resultIds=new Set(changes.keys()),affected=new Set(changes.keys()),linked=new Set(),conflicts=new Set(),mergedGroups=[];
+    for(const id of changes.keys()){const other=partner(p,id);if(other)linked.add(other.id);}
+    for(const group of groups) {
+      const ids=group.map(i=>rows[i].id),members=ids.map(id=>cue(next,id));
+      for(const c of members){affected.add(c.id);const other=partner(next,c.id);if(other)linked.add(other.id);}
+      const beforeIds=new Set(body(next).cues.map(c=>c.id)),right=new Set(next.subtitle_view?.secondary_cue_ids||body(next).bindings.map(b=>b.target_id));
+      const displayRight=right.has(members[0].id);
+      const result=mergeInternal(next,ids,{mode:options.mode,makeId,joinText:options.joinText},true);
+      next=result.project;const remaining=new Set(body(next).cues.map(c=>c.id));
+      const removed=[...beforeIds].filter(id=>!remaining.has(id));
+      for(const id of removed){right.delete(id);resultIds.delete(id);}
+      for(const id of result.ids){
+        const c=cue(next,id),isRight=c.track_id===trackId?displayRight:!displayRight;
+        if(isRight)right.add(id);else right.delete(id);
+        if(c.track_id===trackId)resultIds.add(id);
+      }
+      next.subtitle_view={...next.subtitle_view,secondary_cue_ids:[...right]};
+      result.conflicts.forEach(c=>conflicts.add(c));mergedGroups.push({sourceIds:ids,removedIds:removed,resultIds:result.ids});
+    }
+    if(groups.length)refreshOffsets(next);
+    core.validate(next);
+    return {project:next,ids:[...resultIds],groups:mergedGroups,conflicts:[...conflicts],
+      stats:{scope:rows.filter(c=>wanted.has(c.id)).length,skipped,snaps:snaps.length,groups:groups.length,
+        merged:groups.reduce((n,g)=>n+g.length,0),affected:affected.size,linked:linked.size}};
   }
   function editorView(p) {
     core.validate(p);const view=copy(p);delete view.subtitles;view.schema='msw.project.v3';
@@ -19333,7 +19416,7 @@ export default MawDynamicCaptions;
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -21503,6 +21586,29 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '作用范围': 'Scope', '整条轨道': 'Entire track', '间隔与拼接': 'Gaps and joining',
+    '最大间隔': 'Maximum gap', '拼接方式': 'Join method', '提前后条起点': 'Start next subtitle earlier',
+    '延长前条终点': 'Extend previous subtitle', '填补短间隔': 'Fill short gaps',
+    '短字幕合并': 'Merge short subtitles', '合并短字幕': 'Merge short subtitles',
+    '字词数少于': 'Fewer characters / words than', '合并方向': 'Merge direction',
+    '优先并入前条': 'Prefer previous subtitle', '优先并入后条': 'Prefer next subtitle',
+    '状态合并': 'Merge states', '累加状态': 'Combine states', '仅保留共有状态': 'Keep shared states only', '应用': 'Apply',
+    '本轨道未选择字幕': 'No subtitles selected on this track', '本轨道没有字幕': 'This track has no subtitles',
+    '没有可处理的字幕或间隔；已跳过禁用／隐藏字幕': 'No eligible subtitles or gaps; disabled / hidden subtitles skipped',
+    '没有符合条件的间隔或短字幕': 'No matching gaps or short subtitles',
+    '请选择作用轨道': 'Choose a target track', '作用轨道已锁定，请先解锁': 'Unlock the target track first',
+    '作用轨道已禁用，请先启用': 'Enable the target track first', '批量处理工具未加载': 'Batch editing tools are unavailable',
+    '兼容模式：全部主字幕': 'Compatibility mode: all main subtitles',
+    '预计': 'Estimated', '已应用': 'Applied', '可一次撤销': 'Undo as one operation',
+    '不同标记保留时间最早的一项': 'Conflicting marks use the earliest one',
+    '按轨道与范围批量填补短间隔、合并短字幕': 'Fill short gaps and merge short subtitles by track and scope',
+    '所选字幕仅处理本轨选区内相邻的字幕，未选中的字幕不会被跨过或吸收；空选区不会自动变为整轨。整条轨道包含已折叠或被列表筛选的内容。禁用或隐藏的字幕及其绑定组跳过。': 'Selected subtitles processes adjacent selections on this track, without crossing or absorbing unselected subtitles. An empty selection never means the whole track. Entire track includes collapsed or filtered content. Disabled or hidden subtitles and their bound groups are skipped.',
+    '只处理不超过此值的相邻间隔，短字幕合并也使用这个限制。0 ms 不填补间隔，仅允许首尾相接的短字幕合并。': 'Process adjacent gaps up to this duration. Short subtitle merging uses the same limit. At 0 ms, gaps are not filled and only touching short subtitles can merge.',
+    '只延长字幕填补短间隔，不合并文字或改变字幕数量。绑定字幕按相同的边界变化联动，保留原有时间偏移。': 'Extend subtitle timing to fill short gaps without merging text or changing the subtitle count. Bound subtitles follow the same edge changes and retain their offsets.',
+    '将短字幕并入指定方向的相邻字幕；首尾或该方向不可合并时尝试另一侧。间隔须在上方阈值内，不跨不同说话人合并。明确绑定的另一侧同步合并并保留绑定。': 'Merge short subtitles into the preferred neighbour, trying the other side if unavailable. Gaps must be within the limit; different speakers are not merged. Bound partners merge together and remain bound.',
+    '少于此数量才视为短字幕；按本轨道的文字切分方式计算字或词，不计纯空白和标点。可在字幕编辑器设置中调整切分方式。': 'Subtitles with fewer units qualify as short. Count words or characters using this track’s segmentation mode, excluding whitespace and punctuation. Change the mode in subtitle editor settings.',
+    '累加状态与 C 相同；共有状态与 Ctrl+Shift+C 相同，仅保留所有成员共有的状态。不同颜色或表情包无法同时保留时采用时间最早的标记。': 'Combined states works like C. Shared states works like Ctrl+Shift+C and keeps only states shared by all members. Conflicting colors or stickers use the earliest mark.',
+    '参数和范围只生成预估，点击应用才修改字幕；已绑定字幕同步处理，整批可一次撤销。发生同轨重叠、锁定或绑定方向冲突时整次不应用。C 仍是直接合并所选字幕。滚轮可调数值，Esc 关闭。': 'Settings and scope generate an estimate; only Apply changes subtitles. Bound partners follow, and the batch is one undo step. Overlaps, locks or conflicting binding directions block the whole batch. C still merges selected subtitles directly. Scroll to adjust values; Esc closes.',
     '字幕轨道设置': 'Subtitle tracks',
     '文字切分': 'Text segmentation',
     '切分方式': 'Segmentation mode',
@@ -24155,6 +24261,17 @@ export default MawDynamicCaptions;
     if (candidateCount) return `${candidateCount[1]} candidate subtitles`;
     const filledGap = /^已填充区间空隙：标记 (.+)，实际移除 (.+)$/.exec(text);
     if (filledGap) return `Gap interval filled: marked ${translateText(filledGap[1], EN)}, effectively removed ${translateText(filledGap[2], EN)}`;
+    if (/^(预计|已应用) · /.test(text)) return text.split(' · ').map(part => {
+      let count = /^(\d+) 处间隔$/.exec(part);
+      if (count) return `${count[1]} gaps`;
+      count = /^(\d+) 条合并为 (\d+) 条$/.exec(part);
+      if (count) return `${count[1]} subtitles → ${count[2]}`;
+      count = /^联动 (\d+) 条绑定字幕$/.exec(part);
+      if (count) return `${count[1]} bound partners`;
+      count = /^跳过 (\d+) 条$/.exec(part);
+      if (count) return `${count[1]} skipped`;
+      return translateText(part, EN);
+    }).join(' · ');
     const processingScope = /^(范围：全部主字幕|范围：选中的主字幕) · (\d+)(?: · 已忽略未绑定副字幕 (\d+))?$/.exec(text);
     if (processingScope) return `${translateText(processingScope[1], EN)} · ${processingScope[2]}`
       + (processingScope[3] ? ` · ${translateText('已忽略未绑定副字幕', EN)} ${processingScope[3]}` : '');
@@ -35176,6 +35293,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   autoMergeGapMs: 200,
   // 拼合字幕：backward 向前拓展（默认，后方字幕起点前拓）/ forward 向后拓展（前方字幕终点后延）。
   autoMergeSnapDirection: 'backward',
+  autoMergeSnapGaps: true,
+  autoMergeStateMode: 'union',
   // 拼合字幕：中文少于 N 个字 / 英文少于 N 个词的字幕并入相邻字幕。
   autoMergeShortCount: 3,
   // 拼合字幕：是否吸收过短字幕（默认开启；关闭后只拼合间隔）。
@@ -36754,6 +36873,14 @@ const autoMergeSnapDirectionSelect = document.getElementById('auto-merge-snap-di
 const autoMergeAbsorbShortToggle = document.getElementById('auto-merge-absorb-short');
 const autoMergeShortCountInput = document.getElementById('auto-merge-short-count');
 const autoMergeAbsorbDirectionSelect = document.getElementById('auto-merge-absorb-direction');
+const autoMergeTrackSelect = document.getElementById('auto-merge-track');
+const autoMergeScopeSelect = document.getElementById('auto-merge-scope');
+const autoMergeSnapGapsToggle = document.getElementById('auto-merge-snap-gaps');
+const autoMergeStateModeSelect = document.getElementById('auto-merge-state-mode');
+const autoMergePreview = document.getElementById('auto-merge-preview');
+let autoMergeTrackId = null;
+let autoMergePreviewTimer = 0;
+let autoMergePreviewKey = '';
 const SUBTITLE_EXTEND_PANEL_POSITION_KEY = 'moy.asr.subtitle_extend.panel.v1';
 const subtitleExtendPanel = document.getElementById('subtitle-extend-panel');
 const subtitleExtendDragHandle = document.getElementById('subtitle-extend-drag-handle');
@@ -38742,7 +38869,19 @@ const autoMergeFloatingPanel = createFloatingPanel({
   manageButton: autoMergeManageButton,
   anchorButton: autoMergeManageButton,
   positionKey: AUTO_MERGE_PANEL_POSITION_KEY,
-  onOpen: syncAutoMergePanelInputs,
+  onOpen: () => {
+    commitProcessingEdits();
+    if(productionFlatMode()) {
+      productionRememberSelection();
+      const p=MSWProductionProject.toProject(DATA),selected=new Set(productionSelectionOrder);
+      const active=fixedActiveTrack()?.id;
+      autoMergeTrackId=p.subtitles.cues.find(c=>c.track_id===active&&selected.has(c.id))?.track_id
+        ||p.subtitles.cues.find(c=>selected.has(c.id))?.track_id||active||p.subtitles.tracks[0]?.id;
+      autoMergeScopeSelect.value=p.subtitles.cues.some(c=>c.track_id===autoMergeTrackId&&selected.has(c.id))?'selected':'track';
+    }
+    autoMergePreviewKey='';syncAutoMergePanelInputs();autoMergeRunButton.disabled=true;
+    requestAnimationFrame(()=>refreshAutoMergePreview(true));
+  },
 });
 autoMergeCloseButton?.addEventListener('click', () => autoMergeFloatingPanel.close());
 autoMergeRunButton?.addEventListener('click', autoMergeSegments);
@@ -38771,6 +38910,12 @@ autoMergeAbsorbDirectionSelect?.addEventListener('change', () => {
   updateEditorSettings({
     autoMergeAbsorbDirection: autoMergeAbsorbDirectionSelect.value === 'next' ? 'next' : 'previous',
   });
+});
+autoMergeTrackSelect?.addEventListener('change',()=>{autoMergeTrackId=autoMergeTrackSelect.value;});
+autoMergeSnapGapsToggle?.addEventListener('change',()=>updateEditorSettings({autoMergeSnapGaps:autoMergeSnapGapsToggle.checked}));
+autoMergeStateModeSelect?.addEventListener('change',()=>updateEditorSettings({autoMergeStateMode:autoMergeStateModeSelect.value==='common'?'common':'union'}));
+for(const event of ['input','change'])autoMergePanel?.addEventListener(event,()=>{
+  syncAutoMergeAbsorbFields();queueAutoMergePreview();
 });
 autoMergePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
   input.addEventListener('wheel', (event) => {
@@ -40225,6 +40370,7 @@ let lastClickedOverlayIdx = -1;
 // 已选计数涵盖主轨/副轨/叠加轨三个选区集。
 function updateSelectionCountText() {
   productionRememberSelection();
+  queueAutoMergePreview();
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
@@ -40881,6 +41027,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   updateSubtitleExportUi();
   refreshTimedTextEditButton();
   updateGapRemoveDisableHint();
+  queueAutoMergePreview();
   fixedPanelUI(getCurrentCuePanelTarget());
   window.MSWE_ONBOARDING?.afterRender();
   cueListPlaybackKey = null;
@@ -44872,6 +45019,8 @@ function syncAutoMergePanelInputs() {
   if (autoMergeAbsorbShortToggle) autoMergeAbsorbShortToggle.checked = EDITOR_SETTINGS.autoMergeAbsorbShort;
   if (autoMergeShortCountInput) autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
   if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.value = EDITOR_SETTINGS.autoMergeAbsorbDirection;
+  autoMergeSnapGapsToggle.checked=EDITOR_SETTINGS.autoMergeSnapGaps!==false;
+  autoMergeStateModeSelect.value=EDITOR_SETTINGS.autoMergeStateMode||'union';
   syncAutoMergeAbsorbFields();
 }
 
@@ -44879,12 +45028,87 @@ function syncAutoMergeAbsorbFields() {
   const enabled = EDITOR_SETTINGS.autoMergeAbsorbShort;
   if (autoMergeShortCountInput) autoMergeShortCountInput.disabled = !enabled;
   if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.disabled = !enabled;
+  autoMergeStateModeSelect.disabled=!enabled;
+  autoMergeSnapDirectionSelect.disabled=EDITOR_SETTINGS.autoMergeSnapGaps===false;
   autoMergePanel?.classList.toggle('absorb-disabled', !enabled);
+}
+
+function autoMergeOptions() {
+  return {gapMs:EDITOR_SETTINGS.autoMergeGapMs,snapDirection:EDITOR_SETTINGS.autoMergeSnapDirection,
+    snapGaps:EDITOR_SETTINGS.autoMergeSnapGaps!==false,absorbShort:EDITOR_SETTINGS.autoMergeAbsorbShort,
+    shortCount:EDITOR_SETTINGS.autoMergeShortCount,absorbDirection:EDITOR_SETTINGS.autoMergeAbsorbDirection,
+    mode:EDITOR_SETTINGS.autoMergeStateMode||'union'};
+}
+function queueAutoMergePreview() {
+  if(!document.getElementById('auto-merge-panel')?.classList.contains('show'))return;
+  clearTimeout(autoMergePreviewTimer);autoMergePreviewTimer=setTimeout(()=>refreshAutoMergePreview(),120);
+}
+function autoMergeSelection() {
+  const selection=processingSelection();return [...selection.mainIds,...selection.extensionIds];
+}
+function buildAutoMergePlan(p,makeId) {
+  const selected=autoMergeScopeSelect.value==='selected'?autoMergeSelection():null;
+  return MSWFlatEditing.batchMerge(p,autoMergeTrackId,selected,{...autoMergeOptions(),makeId,
+    joinText:(cues,trackId)=>{
+      const track=p.subtitles.tracks.find(t=>t.id===trackId),text=cues.map(c=>c.text||'').join('\n');
+      const mode=['word','continuous'].includes(track?.split_mode)?track.split_mode:MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
+      return AsrEditorUtils.joinSegmentTexts(cues,mergeJoinSeparatorForMode(mode));
+    },
+  });
+}
+function autoMergeSummary(result,applied=false) {
+  const s=result.stats;
+  if(!applied&&!s.scope)return autoMergeScopeSelect.value==='selected'?'本轨道未选择字幕':'本轨道没有字幕';
+  if(!s.snaps&&!s.groups)return s.skipped?'没有可处理的字幕或间隔；已跳过禁用／隐藏字幕':'没有符合条件的间隔或短字幕';
+  const parts=[applied?'已应用':'预计'];
+  if(s.snaps)parts.push(`${s.snaps} 处间隔`);
+  if(s.groups)parts.push(`${s.merged} 条合并为 ${s.groups} 条`);
+  if(s.linked)parts.push(`联动 ${s.linked} 条绑定字幕`);
+  if(s.skipped)parts.push(`跳过 ${s.skipped} 条`);
+  if(result.conflicts.length)parts.push('不同标记保留时间最早的一项');
+  if(applied)parts.push('可一次撤销');
+  return parts.join(' · ');
+}
+function refreshAutoMergePreview(force=false) {
+  if(!autoMergePanel.classList.contains('show'))return;
+  if(!productionFlatMode()) {autoMergePreview.textContent='兼容模式：全部主字幕';autoMergeRunButton.disabled=false;return;}
+  const tracks=DATA.subtitle_tracks.tracks;
+  if(JSON.stringify([...autoMergeTrackSelect.options].map(o=>[o.value,o.textContent]))!==JSON.stringify(tracks.map(t=>[t.id,t.name])))autoMergeTrackSelect.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
+  autoMergeTrackSelect.value=autoMergeTrackId||'';
+  try {
+    const p=MSWProductionProject.toProject(DATA),key=JSON.stringify([p.subtitles,p.subtitle_view,p.timebase,autoMergeTrackId,autoMergeScopeSelect.value,autoMergeSelection(),autoMergeOptions(),EDITOR_SETTINGS.mergeJoinTextWord,EDITOR_SETTINGS.mergeJoinTextContinuous,Boolean(pendingLinkedSplit)]);
+    if(!force&&key===autoMergePreviewKey)return;
+    autoMergePreviewKey=key;
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    const result=buildAutoMergePlan(p);
+    autoMergePreview.textContent=autoMergeSummary(result);
+    autoMergeRunButton.disabled=!result.stats.snaps&&!result.stats.groups;
+  }catch(error){autoMergePreview.textContent=error.message;autoMergeRunButton.disabled=true;}
+}
+function applyProductionAutoMerge() {
+  try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    commitProcessingEdits();
+    const p=MSWProductionProject.toProject(DATA),result=buildAutoMergePlan(p,kind=>MSWProject.id(kind));
+    if(!result.stats.snaps&&!result.stats.groups){autoMergePreview.textContent=autoMergeSummary(result);return;}
+    const anchor=captureCueListRenderAnchor();
+    const feedback=result.groups.flatMap(group=>captureMergeFeedback({
+      feedbackMembers:layerCore.tracks(DATA).flatMap(t=>t.segments.filter(c=>group.removedIds.includes(c.id)).map(cue=>({cue,role:t.role,track_id:t.track_id}))),
+      feedbackResults:result.project.subtitles.cues.filter(c=>group.resultIds.includes(c.id)),
+    }));
+    productionCommitProject(result.project,'拼接/合并字幕',result.ids);
+    restoreCueListRenderAnchor(anchor);updateWithoutCueListAutoScroll();
+    triggerMergeFeedback(feedback);
+    // Cache the new estimate, then keep the completion message until the user
+    // changes a parameter, the selection or the project again.
+    refreshAutoMergePreview(true);autoMergePreview.textContent=autoMergeSummary(result,true);
+  }catch(error){autoMergePreview.textContent=error.message;autoMergeRunButton.disabled=true;}
 }
 
 // 一键处理整段工程：相邻间隔不超过 autoMergeGapMs 时按吸附方向拼接；
 // 过短的字幕（中文 < N 字 / 英文 < N 词）按吸收方向并入相邻字幕。
 function autoMergeSegments() {
+  if(productionFlatMode())return applyProductionAutoMerge();
   if (layerMode()) {
     if (selectedIdxs.size < 2 && selectedExtensionIdxs.size < 2) { flashHint('多层字幕请先选择同一角色的两条或更多字幕，再预览合并', 'warning'); return; }
     if (selectedIdxs.size) return layerMergeSelected([...selectedIdxs]);
@@ -44897,6 +45121,7 @@ function autoMergeSegments() {
     shortCount: EDITOR_SETTINGS.autoMergeShortCount,
     absorbDirection: EDITOR_SETTINGS.autoMergeAbsorbDirection,
   });
+  if(EDITOR_SETTINGS.autoMergeSnapGaps===false)plan.snaps=[];
   if (!plan.snaps.length && !plan.groups.length) {
     flashHint('没有需要拼接/合并的间隔或过短字幕', 'invalid');
     return;

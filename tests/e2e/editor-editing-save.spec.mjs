@@ -44,9 +44,9 @@ test('native selected text copies without replacing the subtitle block clipboard
   expect(await page.evaluate(()=>window.MSW_CLIPBOARD_KIND)).toBe('cues');
 });
 
-test('merge fields match timing fields and new project has a distinct save title',async({page})=>{
+test('merge sections match timing fields and new project has a distinct save title',async({page})=>{
   await clickMenubarItem(page,'字幕','auto-merge-manage');
-  const color=await page.locator('#auto-merge-gap-ms').evaluate(e=>getComputedStyle(e.closest('.gap-remove-field')).backgroundColor);
+  const color=await page.locator('#auto-merge-gap-ms').evaluate(e=>getComputedStyle(e.closest('.auto-merge-section')).backgroundColor);
   const timingColor=await page.locator('#subtitle-scale-percent').evaluate(e=>getComputedStyle(e.closest('.gap-remove-field')).backgroundColor);
   expect(color).toBe(timingColor);expect(color).not.toBe('rgba(0, 0, 0, 0)');
   if(process.env.MSW_UI_EVIDENCE_DIR)await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'merge-panel.png')});

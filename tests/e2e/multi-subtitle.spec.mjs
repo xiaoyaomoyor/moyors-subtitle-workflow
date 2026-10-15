@@ -2286,9 +2286,12 @@ test('拼合主字幕时同步延展绑定副字幕并支持撤销', async ({ pa
     base64: Buffer.from(JSON.stringify(project), 'utf8').toString('base64'),
   }]);
 
+  await expect(page.locator('.multi-dual-cue')).toHaveCount(2);
   await clickMenubarItem(page, '字幕', 'auto-merge-manage');
+  await page.locator('#auto-merge-scope').selectOption('track');
   await page.locator('#auto-merge-gap-ms').fill('200');
   await page.locator('#auto-merge-absorb-short').uncheck();
+  await expect(page.locator('#auto-merge-preview')).toContainText('1 处间隔');
   await page.locator('#auto-merge-run').click();
 
   const secondRow = page.locator('.multi-dual-cue').filter({ hasText: '第二句' });

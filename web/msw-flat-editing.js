@@ -30,8 +30,8 @@
     }
   }
   function updateText(p,id,text) {return transaction(p,next=>{editable(next,[id]);const c=cue(next,id).content;if(c.text===text)return;c.text=text;c.items=[];c._dirty=true;});}
-  function updateRanges(p,changes,{linked=true}={}) {
-    return transaction(p,next=>{
+  function updateRangesInternal(p,changes,{linked=true}={},inPlace=false) {
+    const apply=next=>{
       const planned=new Map(changes.map(c=>[c.id,c]));
       for(const change of changes) {
         const source=cue(next,change.id),other=partner(next,change.id);
@@ -47,8 +47,10 @@
         c.start=change.start;c.end=change.end;c._dirty=true;frame(next,c);
       }
       refreshOffsets(next);
-    });
+    };
+    return inPlace?(apply(p),p):transaction(p,apply);
   }
+  function updateRanges(p,changes,options) {return updateRangesInternal(p,changes,options);}
   function setDisabled(p,ids,disabled) {return transaction(p,n=>{editable(n,ids);for(const id of ids)cue(n,id).content.disabled=disabled;});}
   function setColor(p,ids,name) {return transaction(p,n=>{
     editable(n,ids);detachReferences(n,new Set(ids));
@@ -109,7 +111,7 @@
       refreshOffsets(n);
     });return {project:result,ids};
   }
-  function merge(p,ids,{mode='union',makeId,joinText}={}) {
+  function mergeInternal(p,ids,{mode='union',makeId,joinText}={},inPlace=false) {
     const selected=[...new Set(ids)],source=selected.map(id=>cue(p,id));
     if(source.length<2||source.some(c=>!c)||new Set(source.map(c=>c.track_id)).size!==1)fail('请选择至少两个同轨道字幕');
     const other=source.map(c=>partner(p,c.id)).filter(Boolean),otherTracks=new Set(other.map(c=>c.track_id));
@@ -117,7 +119,8 @@
     const directions=new Set(source.filter(c=>relation(p,c.id)).map(c=>relation(p,c.id).source_id===c.id));
     if(directions.size>1)fail('对应关系的来源方向不一致，请先统一对应关系再合并');
     const groups=[source,...(other.length?[other]:[])],newIds=[],conflicts=[];
-    const result=transaction(p,n=>{
+    const reference=source.map(c=>relation(p,c.id)).find(Boolean);
+    const apply=n=>{
       const allIds=groups.flat().map(c=>c.id),removed=new Set(allIds);editable(n,allIds);detachReferences(n,removed);
       const merges=groups.map(group=>{
         const members=group.map(c=>cue(n,c.id)),rows=members.map(c=>({...copy(c.content),id:c.id}));
@@ -134,10 +137,76 @@
       });
       body(n).bindings=body(n).bindings.filter(b=>!removed.has(b.source_id)&&!removed.has(b.target_id));
       body(n).cues=body(n).cues.filter(c=>!removed.has(c.id)).concat(merges);newIds.push(...merges.map(c=>c.id));
-      if(merges.length===2){const existing=relation(p,source.find(c=>relation(p,c.id)).id),reverse=other.some(c=>c.id===existing.source_id);
+      if(merges.length===2){const reverse=other.some(c=>c.id===reference.source_id);
         body(n).bindings.push({id:makeId('binding'),source_id:merges[reverse?1:0].id,target_id:merges[reverse?0:1].id,start_offset_ms:0,end_offset_ms:0});}
-      refreshOffsets(n);
-    });return {project:result,ids:newIds,conflicts:[...new Set(conflicts)]};
+      // Batch groups are disjoint; refresh their offsets once after the batch.
+      if(!inPlace)refreshOffsets(n);
+    };
+    const result=inPlace?(apply(p),p):transaction(p,apply);
+    return {project:result,ids:newIds,conflicts:[...new Set(conflicts)]};
+  }
+  function merge(p,ids,options) {return mergeInternal(p,ids,options);}
+
+  // Build an entire batch on a disposable copy. No caller-visible edits or IDs
+  // are applied until all linked ranges and merged groups pass validation.
+  function batchMerge(p,trackId,selectedIds,options={}) {
+    core.validate(p);
+    const owner=track(p,trackId),utils=options.utils||global.AsrEditorUtils;
+    if(!owner)fail('请选择作用轨道');
+    if(owner.locked)fail('作用轨道已锁定，请先解锁');
+    if(!owner.enabled)fail('作用轨道已禁用，请先启用');
+    if(!utils?.planAutoMerge||!utils?.countSubtitleUnits)fail('批量处理工具未加载');
+    const rows=body(p).cues.filter(c=>c.track_id===trackId).sort((a,b)=>a.content.start-b.content.start||a.id.localeCompare(b.id));
+    const wanted=selectedIds==null?new Set(rows.map(c=>c.id)):new Set(selectedIds);
+    const active=c=>c&&!c.hidden&&!c.content.disabled&&track(p,c.track_id).enabled;
+    const eligible=rows.map(c=>wanted.has(c.id)&&active(c)&&(!partner(p,c.id)||active(partner(p,c.id))));
+    const skipped=rows.filter((c,i)=>wanted.has(c.id)&&!eligible[i]).length;
+    const planned=utils.planAutoMerge(rows.map(c=>c.content),{...options,
+      canPair:(a,b)=>eligible[a]&&eligible[b],
+      isShort:(c,i)=>eligible[i]&&utils.countSubtitleUnits(c.text,owner.split_mode)<(options.shortCount||3),
+    });
+    const snaps=options.snapGaps===false?[]:planned.snaps,changes=new Map();
+    for(const s of snaps) {
+      const c=rows[s.index];let change=changes.get(c.id);
+      if(!change){change={id:c.id,start:c.content.start,end:c.content.end};changes.set(c.id,change);}
+      change[s.edge]=s.time;
+    }
+    // Adjacent short runs can share a long neighbour; combine their plans so
+    // each original cue is merged once, rather than reusing a removed ID.
+    const groups=[];
+    for(const group of planned.groups) {
+      const last=groups.at(-1);
+      if(last&&group[0]<=last.at(-1))groups[groups.length-1]=[...new Set([...last,...group])].sort((a,b)=>a-b);
+      else groups.push([...group]);
+    }
+    let next=copy(p);
+    if(changes.size)updateRangesInternal(next,[...changes.values()],{},true);
+    const used=new Set([...body(p).cues,...body(p).bindings].map(c=>c.id));let serial=0;
+    const makeId=options.makeId||((kind)=>{let id;do{id=`batch-preview-${kind}-${++serial}`;}while(used.has(id));used.add(id);return id;});
+    const resultIds=new Set(changes.keys()),affected=new Set(changes.keys()),linked=new Set(),conflicts=new Set(),mergedGroups=[];
+    for(const id of changes.keys()){const other=partner(p,id);if(other)linked.add(other.id);}
+    for(const group of groups) {
+      const ids=group.map(i=>rows[i].id),members=ids.map(id=>cue(next,id));
+      for(const c of members){affected.add(c.id);const other=partner(next,c.id);if(other)linked.add(other.id);}
+      const beforeIds=new Set(body(next).cues.map(c=>c.id)),right=new Set(next.subtitle_view?.secondary_cue_ids||body(next).bindings.map(b=>b.target_id));
+      const displayRight=right.has(members[0].id);
+      const result=mergeInternal(next,ids,{mode:options.mode,makeId,joinText:options.joinText},true);
+      next=result.project;const remaining=new Set(body(next).cues.map(c=>c.id));
+      const removed=[...beforeIds].filter(id=>!remaining.has(id));
+      for(const id of removed){right.delete(id);resultIds.delete(id);}
+      for(const id of result.ids){
+        const c=cue(next,id),isRight=c.track_id===trackId?displayRight:!displayRight;
+        if(isRight)right.add(id);else right.delete(id);
+        if(c.track_id===trackId)resultIds.add(id);
+      }
+      next.subtitle_view={...next.subtitle_view,secondary_cue_ids:[...right]};
+      result.conflicts.forEach(c=>conflicts.add(c));mergedGroups.push({sourceIds:ids,removedIds:removed,resultIds:result.ids});
+    }
+    if(groups.length)refreshOffsets(next);
+    core.validate(next);
+    return {project:next,ids:[...resultIds],groups:mergedGroups,conflicts:[...conflicts],
+      stats:{scope:rows.filter(c=>wanted.has(c.id)).length,skipped,snaps:snaps.length,groups:groups.length,
+        merged:groups.reduce((n,g)=>n+g.length,0),affected:affected.size,linked:linked.size}};
   }
   function editorView(p) {
     core.validate(p);const view=copy(p);delete view.subtitles;view.schema='msw.project.v3';
@@ -156,6 +225,6 @@
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

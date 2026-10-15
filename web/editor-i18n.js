@@ -9,6 +9,29 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '作用范围': 'Scope', '整条轨道': 'Entire track', '间隔与拼接': 'Gaps and joining',
+    '最大间隔': 'Maximum gap', '拼接方式': 'Join method', '提前后条起点': 'Start next subtitle earlier',
+    '延长前条终点': 'Extend previous subtitle', '填补短间隔': 'Fill short gaps',
+    '短字幕合并': 'Merge short subtitles', '合并短字幕': 'Merge short subtitles',
+    '字词数少于': 'Fewer characters / words than', '合并方向': 'Merge direction',
+    '优先并入前条': 'Prefer previous subtitle', '优先并入后条': 'Prefer next subtitle',
+    '状态合并': 'Merge states', '累加状态': 'Combine states', '仅保留共有状态': 'Keep shared states only', '应用': 'Apply',
+    '本轨道未选择字幕': 'No subtitles selected on this track', '本轨道没有字幕': 'This track has no subtitles',
+    '没有可处理的字幕或间隔；已跳过禁用／隐藏字幕': 'No eligible subtitles or gaps; disabled / hidden subtitles skipped',
+    '没有符合条件的间隔或短字幕': 'No matching gaps or short subtitles',
+    '请选择作用轨道': 'Choose a target track', '作用轨道已锁定，请先解锁': 'Unlock the target track first',
+    '作用轨道已禁用，请先启用': 'Enable the target track first', '批量处理工具未加载': 'Batch editing tools are unavailable',
+    '兼容模式：全部主字幕': 'Compatibility mode: all main subtitles',
+    '预计': 'Estimated', '已应用': 'Applied', '可一次撤销': 'Undo as one operation',
+    '不同标记保留时间最早的一项': 'Conflicting marks use the earliest one',
+    '按轨道与范围批量填补短间隔、合并短字幕': 'Fill short gaps and merge short subtitles by track and scope',
+    '所选字幕仅处理本轨选区内相邻的字幕，未选中的字幕不会被跨过或吸收；空选区不会自动变为整轨。整条轨道包含已折叠或被列表筛选的内容。禁用或隐藏的字幕及其绑定组跳过。': 'Selected subtitles processes adjacent selections on this track, without crossing or absorbing unselected subtitles. An empty selection never means the whole track. Entire track includes collapsed or filtered content. Disabled or hidden subtitles and their bound groups are skipped.',
+    '只处理不超过此值的相邻间隔，短字幕合并也使用这个限制。0 ms 不填补间隔，仅允许首尾相接的短字幕合并。': 'Process adjacent gaps up to this duration. Short subtitle merging uses the same limit. At 0 ms, gaps are not filled and only touching short subtitles can merge.',
+    '只延长字幕填补短间隔，不合并文字或改变字幕数量。绑定字幕按相同的边界变化联动，保留原有时间偏移。': 'Extend subtitle timing to fill short gaps without merging text or changing the subtitle count. Bound subtitles follow the same edge changes and retain their offsets.',
+    '将短字幕并入指定方向的相邻字幕；首尾或该方向不可合并时尝试另一侧。间隔须在上方阈值内，不跨不同说话人合并。明确绑定的另一侧同步合并并保留绑定。': 'Merge short subtitles into the preferred neighbour, trying the other side if unavailable. Gaps must be within the limit; different speakers are not merged. Bound partners merge together and remain bound.',
+    '少于此数量才视为短字幕；按本轨道的文字切分方式计算字或词，不计纯空白和标点。可在字幕编辑器设置中调整切分方式。': 'Subtitles with fewer units qualify as short. Count words or characters using this track’s segmentation mode, excluding whitespace and punctuation. Change the mode in subtitle editor settings.',
+    '累加状态与 C 相同；共有状态与 Ctrl+Shift+C 相同，仅保留所有成员共有的状态。不同颜色或表情包无法同时保留时采用时间最早的标记。': 'Combined states works like C. Shared states works like Ctrl+Shift+C and keeps only states shared by all members. Conflicting colors or stickers use the earliest mark.',
+    '参数和范围只生成预估，点击应用才修改字幕；已绑定字幕同步处理，整批可一次撤销。发生同轨重叠、锁定或绑定方向冲突时整次不应用。C 仍是直接合并所选字幕。滚轮可调数值，Esc 关闭。': 'Settings and scope generate an estimate; only Apply changes subtitles. Bound partners follow, and the batch is one undo step. Overlaps, locks or conflicting binding directions block the whole batch. C still merges selected subtitles directly. Scroll to adjust values; Esc closes.',
     '字幕轨道设置': 'Subtitle tracks',
     '文字切分': 'Text segmentation',
     '切分方式': 'Segmentation mode',
@@ -2661,6 +2684,17 @@
     if (candidateCount) return `${candidateCount[1]} candidate subtitles`;
     const filledGap = /^已填充区间空隙：标记 (.+)，实际移除 (.+)$/.exec(text);
     if (filledGap) return `Gap interval filled: marked ${translateText(filledGap[1], EN)}, effectively removed ${translateText(filledGap[2], EN)}`;
+    if (/^(预计|已应用) · /.test(text)) return text.split(' · ').map(part => {
+      let count = /^(\d+) 处间隔$/.exec(part);
+      if (count) return `${count[1]} gaps`;
+      count = /^(\d+) 条合并为 (\d+) 条$/.exec(part);
+      if (count) return `${count[1]} subtitles → ${count[2]}`;
+      count = /^联动 (\d+) 条绑定字幕$/.exec(part);
+      if (count) return `${count[1]} bound partners`;
+      count = /^跳过 (\d+) 条$/.exec(part);
+      if (count) return `${count[1]} skipped`;
+      return translateText(part, EN);
+    }).join(' · ');
     const processingScope = /^(范围：全部主字幕|范围：选中的主字幕) · (\d+)(?: · 已忽略未绑定副字幕 (\d+))?$/.exec(text);
     if (processingScope) return `${translateText(processingScope[1], EN)} · ${processingScope[2]}`
       + (processingScope[3] ? ` · ${translateText('已忽略未绑定副字幕', EN)} ${processingScope[3]}` : '');
