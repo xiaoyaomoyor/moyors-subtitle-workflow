@@ -9,6 +9,18 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '参考轨道字幕外': 'Outside reference-track subtitles',
+    '参考轨道字幕外（手动调整）': 'Outside reference-track subtitles (manually adjusted)',
+    '未选择': 'None selected', '已删除的轨道': 'Deleted track',
+    '参考轨道已删除，请重新选择': 'A reference track was deleted; select tracks again',
+    '请选择至少一条参考轨道': 'Select at least one reference track',
+    '参考轨道在媒体范围内没有字幕': 'Reference tracks have no subtitles within the media range',
+    '空隙字幕处理目标轨道': 'Target track for subtitles in gaps',
+    '调整空隙参考轨道': 'Change gap reference tracks', '调整空隙字幕处理范围': 'Change gap subtitle scope',
+    '使用音频空隙面板的参考轨道，立即标记字幕外区段；句首和句尾保留均为 0，固定空隙不变，可撤销': 'Immediately mark ranges outside the reference tracks selected in Audio gaps, with zero padding. Fixed gaps stay unchanged; undo is supported.',
+    '按音量检测依据源音轨波形判断静音。参考轨道字幕外避开所选轨道的全部字幕块。字幕块与音频贴片外避开所有轨道的字幕和贴片。禁用、静音、折叠不影响占用；后两种方式可能标记有声区段。重新生成替换未固定空隙，固定空隙不变。': 'Volume detection uses the source waveform. Reference-track mode excludes all subtitle blocks on selected tracks. All-content mode excludes subtitles and audio clips on every track. Disabled, muted or collapsed content still occupies time; both outside modes may mark audible ranges. Regeneration replaces unfixed gaps; fixed gaps stay unchanged.',
+    '可多选；仅在所选轨道都没有字幕覆盖的区段生成空隙。包含禁用或折叠的字幕，与列表左右列、筛选及主副分组无关。修改选择不会改变已有标记；快捷菜单也使用此选择。': 'Select one or more tracks. Gaps are generated only where none of them has subtitles, including disabled or collapsed content. List columns, filters and grouping do not change this scope. Changing the selection leaves existing marks unchanged. The quick menu uses the same selection.',
+    '仅筛选目标轨道内的字幕：实际可跳过部分的覆盖率不低于设置值，剩余时长不超过设置值；遵循配音保护。勾选联动时也禁用实际绑定的另一条字幕，轨道分组不代表绑定。锁定轨道中的字幕及其联动组跳过。生成标记不会禁用字幕，操作可一次撤销。': 'Filter only the target track by minimum skippable coverage and maximum remaining duration, respecting audio protection. Linked mode also disables bound partners; track grouping is separate. Subtitles on locked tracks and their linked groups are skipped. Generating marks does not disable subtitles; one undo restores the operation.',
     '整个源音频': 'Entire source audio', '范围内已有字幕': 'Existing subtitles in range',
     '来源': 'Source', '译文': 'Translation', '新建': 'New', '译文轨道': 'Translation track',
     '目标字幕轨道': 'Destination subtitle track', '译文语言': 'Translation language',
@@ -2698,6 +2710,8 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const gapReference = /^参考轨道 · (.+)$/.exec(text);
+    if (gapReference) return `Reference tracks · ${translateText(gapReference[1], lang)}`;
     const splitTrack=/^仅切 (S\d+(?:主|副)?_\d+) 并解绑$/.exec(text);
     if(splitTrack)return `Split ${splitTrack[1]} only and unbind`;
     const exportScope=/^轨道范围 · (全部启用轨道|已选 (\d+) 条)$/.exec(text);
@@ -2717,7 +2731,7 @@
     const gapGenerated = text.match(/^已生成 (\d+) 段标记，保留其他来源与手工调整$/);
     if (gapGenerated) return `Generated ${gapGenerated[1]} marks; other sources and manual edits are preserved`;
     const gapError = text.match(/^无法生成空隙标记：(.+)$/);
-    if (gapError) return `Cannot generate gap marks: ${gapError[1]}`;
+    if (gapError) return `Cannot generate gap marks: ${translateText(gapError[1], lang)}`;
     const gapDisable = text.match(/^禁用符合条件的字幕（(\d+)）$/);
     if (gapDisable) return `Disable matching subtitles (${gapDisable[1]})`;
     const gapSummary = text.match(/^已标记 (\d+) 段 · 实际可缩短 (.+)$/);

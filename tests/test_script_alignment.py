@@ -29,6 +29,25 @@ def gap_shape(gap: dict[str, object]) -> tuple[int, int, bool]:
 
 
 class ScriptAlignmentTests(unittest.TestCase):
+    def test_gap_reference_tracks_survive_normalization_and_alignment(self) -> None:
+        from maw.script_alignment import _normalize_gap_remove_override
+
+        value = {"reference_track_ids": [" s1 ", "s1", "deleted", None, ""],
+                 "disable_track_id": "s2", "disable_linked": False,
+                 "gaps": [{"start": 1000, "end": 2000, "removed": True}]}
+        normalized = _normalize_gap_remove_override(value, {}, {})
+        self.assertEqual(normalized["reference_track_ids"], ["s1", "deleted"])
+        self.assertEqual(normalized["disable_track_id"], "s2")
+        self.assertFalse(normalized["disable_linked"])
+        self.project["gap_remove"] = normalized
+        alignment = align_project_to_script(self.project, "hello world\ngood bye")
+        result = apply_alignment_to_project(self.project, alignment, make_selection_manifest(alignment, alignment["defaultSelection"]))
+        self.assertEqual(result["gap_remove"]["reference_track_ids"], ["s1", "deleted"])
+        self.assertEqual(result["gap_remove"]["disable_track_id"], "s2")
+        self.assertFalse(result["gap_remove"]["disable_linked"])
+        self.assertEqual(_normalize_gap_remove_override({"reference_track_ids": []}, normalized, {})["reference_track_ids"], [])
+        self.assertNotIn("reference_track_ids", _normalize_gap_remove_override({}, {}, {}))
+
     def test_content_outside_source_survives_alignment_with_fixed_gaps(self) -> None:
         from maw.script_alignment import _normalize_gap_remove_override, _replace_provenance_source
 

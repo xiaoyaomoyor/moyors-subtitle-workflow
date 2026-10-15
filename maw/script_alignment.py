@@ -1239,6 +1239,16 @@ def _normalize_gap_remove_override(
     )
     generation_mode = override.get("generation_mode", fallback.get("generation_mode"))
     result["generation_mode"] = generation_mode if generation_mode in ("subtitle_outside", "content_outside") else "audio_gate"
+    if "reference_track_ids" in override or "reference_track_ids" in fallback:
+        refs = override.get("reference_track_ids", fallback.get("reference_track_ids"))
+        result["reference_track_ids"] = list(dict.fromkeys(
+            value.strip() for value in (refs if isinstance(refs, list) else [])
+            if isinstance(value, str) and value.strip()
+        ))
+    disable_track = override.get("disable_track_id", fallback.get("disable_track_id"))
+    if isinstance(disable_track, str):
+        result["disable_track_id"] = disable_track.strip()
+    result["disable_linked"] = override.get("disable_linked", fallback.get("disable_linked")) is not False
     raw_generated = override.get("generated_sources", fallback.get("generated_sources", []))
     result["generated_sources"] = [
         name for name in ("audio_gate", "subtitle_outside", "content_outside")

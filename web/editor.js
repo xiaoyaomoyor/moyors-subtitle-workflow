@@ -5400,6 +5400,100 @@ function hasGapRemoveRecords() {
     || Object.values(state?.provenance?.sources || {}).some(ranges => ranges.length));
 }
 
+function gapSubtitleTracks() {
+  const sources = window.MSWSubtitleLayers.tracks(DATA);
+  if (DATA.overlay_track) sources.push({role: 'overlay', track_id: null, segments: DATA.overlay_track.segments || []});
+  if (DATA.subtitle_tracks?.tracks) {
+    const core = window.MSWSubtitleTracks, owners = core.ownerMap(DATA);
+    const tracks = DATA.subtitle_tracks.tracks.map(track => ({...track, cues: []}));
+    const byId = new Map(tracks.map(track => [track.id, track]));
+    for (const source of sources) for (const cue of source.segments) {
+      const owner = owners.get(core.key({role: source.role, track_id: source.track_id, cue_id: cue.id}));
+      byId.get(owner)?.cues.push(cue);
+    }
+    return tracks;
+  }
+  return sources.map((source, index) => ({id: source.track_id || source.role,
+    name: source.role === 'main' ? '主字幕' : source.role === 'overlay' ? '叠加字幕' : `副字幕 ${index}`,
+    locked: false, cues: source.segments}));
+}
+
+function gapReferenceScope(tracks = gapSubtitleTracks()) {
+  return window.AsrGapRemoveCore.gapReferenceScope(tracks, getGapRemoveData(false)?.reference_track_ids);
+}
+
+function gapReferenceProblem(scope = gapReferenceScope()) {
+  if (scope.missing.length) return '参考轨道已删除，请重新选择';
+  if (!scope.ids.length) return '请选择至少一条参考轨道';
+  const duration = gapRemoveMediaDurationMs();
+  if (!scope.cues.some(cue => cue.end > 0 && cue.start < duration && cue.end > cue.start)) return '参考轨道在媒体范围内没有字幕';
+  return '';
+}
+
+function updateGapTrackControls() {
+  const tracks = gapSubtitleTracks(), scope = gapReferenceScope(tracks), state = getGapRemoveData(false);
+  document.getElementById('gap-reference-field').hidden = gapRemoveSource.value !== 'subtitle_outside';
+  const choices = document.getElementById('gap-reference-choices');
+  const signature = JSON.stringify([tracks.map(t => [t.id, t.name, t.cues.length]), scope.missing]);
+  if (choices.dataset.signature !== signature) {
+    choices.dataset.signature = signature;
+    choices.replaceChildren(...[...tracks, ...scope.missing.map(id => ({id, name: '已删除的轨道', cues: []}))].map(track => {
+      const label = document.createElement('label'), input = document.createElement('input');
+      input.type = 'checkbox'; input.value = track.id; input.checked = scope.ids.includes(track.id); input.disabled = gapRemoveGenerating;
+      label.append(input, document.createTextNode(`${track.name} · ${track.cues.length}`));
+      return label;
+    }));
+  }
+  for (const input of choices.querySelectorAll('input')) {
+    input.checked = scope.ids.includes(input.value); input.disabled = gapRemoveGenerating;
+  }
+  document.getElementById('gap-reference-caption').textContent = `参考轨道 · ${scope.tracks.map(t => t.name).join(' / ') || '未选择'}`;
+  const problem = gapReferenceProblem(scope);
+  const status = document.getElementById('gap-reference-status');
+  status.textContent = problem;
+  status.hidden = !problem;
+  const select = document.getElementById('gap-disable-track');
+  const target = state?.disable_track_id ?? scope.tracks[0]?.id ?? tracks[0]?.id ?? '';
+  const options = tracks.map(t => [t.id, t.name]);
+  if (!tracks.some(t => t.id === target)) options.unshift([target, target ? '目标轨道已删除' : '没有字幕轨道']);
+  if (JSON.stringify([...select.options].map(o => [o.value, o.textContent])) !== JSON.stringify(options)) {
+    select.replaceChildren(...options.map(([id, name]) => new Option(name, id)));
+  }
+  select.value = target;
+  document.getElementById('gap-disable-linked').checked = state?.disable_linked !== false;
+}
+
+function gapDisablePlan() {
+  const tracks = gapSubtitleTracks();
+  const target = tracks.find(t => t.id === document.getElementById('gap-disable-track').value);
+  if (!target || target.locked) return [];
+  const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(target.cues, getRemovedGapRanges(), {
+    coveragePercent: clampGapRemoveDisableCoverage(gapRemoveDisableCoverage?.value),
+    remainingMs: clampGapRemoveDisableRemaining(gapRemoveDisableRemaining?.value),
+  });
+  const linked = document.getElementById('gap-disable-linked').checked;
+  const owner = new Map(tracks.flatMap(t => t.cues.map(cue => [cue, t])));
+  const groups = new Map();
+  if (linked) {
+    const main = new Map(DATA.segments.map(cue => [cue.id, cue]));
+    const extensions = new Map((DATA.multi_subtitle?.tracks || []).map(track =>
+      [track.id, new Map(track.segments.map(cue => [cue.id, cue]))]));
+    for (const binding of DATA.multi_subtitle?.bindings || []) {
+      const extension = extensions.get(binding.track_id);
+      const members = [...(binding.main_segment_ids || []).map(id => main.get(id)),
+        ...(binding.extension_segment_ids || []).map(id => extension?.get(id))].filter(Boolean);
+      for (const cue of members) groups.set(cue, members);
+    }
+  }
+  const targets = new Set();
+  for (const {index} of matches) {
+    const cue = target.cues[index], group = groups.get(cue) || [cue];
+    if (group.some(c => owner.get(c)?.locked)) continue;
+    for (const c of group) if (!c.disabled) targets.add(c);
+  }
+  return [...targets];
+}
+
 function renderGapRemoveList() {
   if (!gapRemoveList) return;
   const state = getGapRemoveData(false);
@@ -5420,13 +5514,7 @@ function renderGapRemoveList() {
 }
 
 function updateGapRemoveDisableHint() {
-  const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(
-    DATA.segments, getRemovedGapRanges(), {
-      coveragePercent: clampGapRemoveDisableCoverage(gapRemoveDisableCoverage?.value),
-      remainingMs: clampGapRemoveDisableRemaining(gapRemoveDisableRemaining?.value),
-    },
-  );
-  const count = matches.filter(({ index }) => !DATA.segments[index]?.disabled).length;
+  const count = gapDisablePlan().length;
   if (gapRemoveDisableButton) {
     gapRemoveDisableButton.textContent = `禁用符合条件的字幕（${count}）`;
     gapRemoveDisableButton.disabled = count === 0;
@@ -5442,12 +5530,14 @@ function syncGapRemoveControls() {
     if (checkbox) checkbox.checked = state?.skip_playback !== false;
   }
   const audio = gapRemoveSource?.value === 'audio_gate';
+  updateGapTrackControls();
   document.getElementById('gap-remove-audio-fields').hidden = !audio;
   document.getElementById('gap-remove-advanced-section').hidden = !audio;
   const generated = state?.generated_sources?.includes(gapRemoveSource?.value);
   gapRemoveScanButton.textContent = gapRemoveGenerating ? '正在生成…' : generated ? '重新生成' : '生成标记';
   gapRemoveScanButton.disabled = gapRemoveGenerating || (audio
-    ? !waveformEditor?.getGapRemoveDetectionData?.() : !gapRemoveMediaDurationMs());
+    ? !waveformEditor?.getGapRemoveDetectionData?.() : !gapRemoveMediaDurationMs())
+    || (gapRemoveSource.value === 'subtitle_outside' && Boolean(gapReferenceProblem()));
   gapRemoveSource.disabled = gapRemoveGenerating;
 }
 
@@ -5525,6 +5615,7 @@ function scanAndRemoveGaps(source = gapRemoveSource?.value || 'audio_gate', { im
     : source === 'content_outside' ? '标记字幕块与音频贴片外区段' : '字幕外区段设为空隙');
   setGapRemoveData({
     ...previous, ...(immediate ? {} : {...settings, generation_mode: source}), cleared: false,
+    ...(source === 'subtitle_outside' ? {reference_track_ids: gapReferenceScope().ids} : {}),
     generated_sources: [source],
   }, { provenance });
   flashHint(gaps.length ? `已重新生成空隙，保留固定标记` : '没有符合当前条件的区段；固定标记保持不变', 'success');
@@ -5573,24 +5664,20 @@ function commitGapRemoveDisableSettings() {
 }
 
 function disableSubtitlesInRemovedGaps() {
-  const settings = commitGapRemoveDisableSettings();
-  const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(
-    DATA.segments,
-    getRemovedGapRanges(),
-    settings,
-  );
-  const targetIndexes = matches
-    .map((match) => match.index)
-    .filter((index) => !DATA.segments[index]?.disabled);
-  if (!targetIndexes.length) {
-    const message = matches.length ? '符合条件的字幕已全部禁用' : '没有符合条件的字幕';
-    flashHint(
-      window.MSWE_I18N?.translateText?.(message) || message,
-      matches.length ? 'success' : 'invalid',
-    );
-    return;
+  commitProcessingEdits();
+  commitGapRemoveDisableSettings();
+  const targets = gapDisablePlan();
+  if (!targets.length) return;
+  if (productionFlatMode()) {
+    const project = window.MSWProductionProject.toProject(DATA);
+    const ids = targets.map(c => c.id);
+    productionCommitProject(window.MSWFlatEditing.setDisabled(project, ids, true), '禁用空隙内字幕', ids);
+  } else {
+    pushUndo('禁用空隙内字幕');
+    targets.forEach(cue => {cue.disabled = true; cue._dirty = true;});
+    markMultiSubtitleDirty(); renderAll(); updateWithoutCueListAutoScroll();
   }
-  toggleDisabled(targetIndexes, 'main', { successDetail: '空隙内的字幕' });
+  updateGapRemoveDisableHint();
 }
 
 function toggleGapRemoved(index) {
@@ -6097,6 +6184,17 @@ for (const checkbox of [gapRemoveBoundary, gapRemoveMiddle]) {
 for (const input of [gapRemoveSource, gapRemoveThreshold, gapRemoveVolumeThreshold, gapRemoveHysteresis, gapRemoveLeadIn, gapRemoveLeadOut]) {
   input?.addEventListener('change', commitGapDetectionSettings);
 }
+document.getElementById('gap-reference-choices').addEventListener('change', () => {
+  const ids = [...document.querySelectorAll('#gap-reference-choices input:checked')].map(input => input.value);
+  pushGapRemoveUndo('调整空隙参考轨道');
+  setGapRemoveData({...getGapRemoveData(true), reference_track_ids: ids});
+});
+for (const id of ['gap-disable-track', 'gap-disable-linked']) document.getElementById(id).addEventListener('change', () => {
+  pushGapRemoveUndo('调整空隙字幕处理范围');
+  setGapRemoveData({...getGapRemoveData(true), disable_track_id: document.getElementById('gap-disable-track').value,
+    disable_linked: document.getElementById('gap-disable-linked').checked});
+});
+window.addEventListener('msw:subtitles-changed', () => { if (gapRemovePanelIsOpen()) updateGapRemoveUi(); });
 
 gapRemoveAdvancedToggle?.addEventListener('click', () => {
   setGapRemoveAdvancedOpen(!gapRemoveAdvancedIsOpen());
@@ -6106,7 +6204,10 @@ gapRemoveDisableToggle?.addEventListener('click', () => {
 });
 gapRemoveDisableCoverage?.addEventListener('change', commitGapRemoveDisableSettings);
 gapRemoveDisableRemaining?.addEventListener('change', commitGapRemoveDisableSettings);
-gapRemoveDisableButton?.addEventListener('click', disableSubtitlesInRemovedGaps);
+gapRemoveDisableButton?.addEventListener('click', () => {
+  try { disableSubtitlesInRemovedGaps(); }
+  catch (error) { flashHint(error.message || String(error), 'invalid'); }
+});
 gapRemoveHysteresis?.addEventListener('input', updateGapRemoveHysteresisHint);
 window.addEventListener('resize', () => {
   if (!gapRemovePanelIsOpen()) return;
@@ -25305,9 +25406,10 @@ document.getElementById('wave-settings-close')?.addEventListener('click', () => 
 function computeNonSubtitleGapPieces() {
   const duration = gapRemoveMediaDurationMs();
   if (!Number.isFinite(duration) || duration <= 0) return null;
-  // A disabled main subtitle is still a block; it must not become a gap.
+  const scope = gapReferenceScope(), problem = gapReferenceProblem(scope);
+  if (problem) throw new Error(problem);
   return window.AsrGapRemoveCore.buildGapRemovedIntervals(duration,
-    DATA.segments.map(cue => ({start: cue.start, end: cue.end})));
+    scope.cues.map(cue => ({start: cue.start, end: cue.end})));
 }
 
 function computeContentOutsideGapPieces() {
@@ -25375,7 +25477,8 @@ document.getElementById('cue-list-settings-close')?.addEventListener('click', ()
 
 document.getElementById('gap-clear-all-menu')?.addEventListener('click', clearAllGaps);
 document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () => {
-  scanAndRemoveGaps('subtitle_outside', {immediate: true});
+  try { scanAndRemoveGaps('subtitle_outside', {immediate: true}); }
+  catch (error) { flashHint(error.message || String(error), 'invalid'); }
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===

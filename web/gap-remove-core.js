@@ -15,6 +15,19 @@
   ]);
   const GAP_GENERATION_MODES = Object.freeze(['audio_gate', 'subtitle_outside', 'content_outside']);
   const normalizeGapGenerationMode = value => GAP_GENERATION_MODES.includes(value) ? value : 'audio_gate';
+  const normalizeGapTrackIds = value => [...new Set((Array.isArray(value) ? value : [])
+    .filter(id => typeof id === 'string' && id.trim()).map(id => id.trim()))];
+
+  // Tracks contain physical cue ranges, never the editor's left/right columns.
+  // Missing references remain invalid until the user explicitly changes them.
+  function gapReferenceScope(tracks, requestedIds) {
+    const ids = requestedIds === undefined
+      ? [tracks.find(track => track.cues.length)?.id || tracks[0]?.id].filter(Boolean)
+      : normalizeGapTrackIds(requestedIds);
+    const selected = tracks.filter(track => ids.includes(track.id));
+    return { ids, tracks: selected, cues: selected.flatMap(track => track.cues),
+      missing: ids.filter(id => !tracks.some(track => track.id === id)) };
+  }
   const GAP_PROVENANCE_SOURCE_SET = new Set(GAP_PROVENANCE_SOURCES);
   const GAP_REMOVE_OPERATION_MODES = Object.freeze([
     'none',
@@ -837,6 +850,9 @@
       gaps,
       provenance,
     };
+    if (Object.hasOwn(source, 'reference_track_ids')) result.reference_track_ids = normalizeGapTrackIds(source.reference_track_ids);
+    if (typeof source.disable_track_id === 'string') result.disable_track_id = source.disable_track_id.trim();
+    result.disable_linked = source.disable_linked !== false;
     if (source.retention_mode === 'locked') {
       result.retention_mode = 'locked';
       result.retained_ranges = normalizeGapRangeList(source.retained_ranges);
@@ -1475,6 +1491,8 @@
     GAP_REMOVE_SCHEMA,
     GAP_GENERATION_MODES,
     normalizeGapGenerationMode,
+    normalizeGapTrackIds,
+    gapReferenceScope,
     GAP_PROVENANCE_SCHEMA,
     GAP_PROVENANCE_SOURCES,
     GAP_REMOVE_OPERATION_MODES,

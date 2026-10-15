@@ -17,6 +17,27 @@ vm.runInNewContext(source, context);
 const gapCore = context.window.AsrGapRemoveCore;
 const helpers = context.window.AsrEditorUtils;
 
+test('gap reference scope keeps explicit physical IDs, missing references and empty selections', () => {
+  const plain = value => JSON.parse(JSON.stringify(value));
+  const tracks = [{id:'empty',cues:[]}, {id:'s1',cues:[{start:1000,end:2000,disabled:true}]},
+    {id:'s2',cues:[{start:4000,end:5000}],enabled:false,collapsed:true}];
+  assert.deepEqual(plain(gapCore.gapReferenceScope(tracks).ids), ['s1']);
+  const selected = gapCore.gapReferenceScope(tracks, ['s2','s1','s1']);
+  assert.equal(selected.cues.length, 2);
+  assert.deepEqual(plain(gapCore.buildGapRemovedIntervals(6000, selected.cues)),
+    [{start:0,end:1000},{start:2000,end:4000},{start:5000,end:6000}]);
+  assert.deepEqual(plain(gapCore.gapReferenceScope(tracks, []).ids), []);
+  assert.deepEqual(plain(gapCore.gapReferenceScope(tracks, ['deleted']).missing), ['deleted']);
+  const state = gapCore.normalizeRetainedGapData({reference_track_ids:[' s1 ','s1',null,''],
+    disable_track_id:'s2',disable_linked:false,gaps:[{start:2000,end:3000,removed:true}]});
+  assert.deepEqual(plain(state.reference_track_ids), ['s1']);
+  assert.equal(state.disable_linked, false);
+  assert.equal(state.disable_track_id, 's2');
+  assert.deepEqual(plain(gapCore.normalizeRetainedGapData(plain(state))), plain(state));
+  assert.equal('reference_track_ids' in gapCore.normalizeGapRemoveData({}), false);
+  assert.deepEqual(plain(gapCore.normalizeGapRemoveData({reference_track_ids:[]}).reference_track_ids), []);
+});
+
 test('retained markers migrate from dimmed legacy gaps and stay active after JSON reload', () => {
   const plain = value => JSON.parse(JSON.stringify(value));
   const state = gapCore.normalizeRetainedGapData({gaps:[

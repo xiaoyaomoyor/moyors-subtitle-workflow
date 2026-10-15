@@ -352,7 +352,7 @@ __WAVEFORM_CSS__
         <div class="dropdown-item dropdown-submenu-toggle" id="audio-settings-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="音频空隙与试听设置">空隙设置</div>
         <div class="dropdown-menu dropdown-submenu-menu audio-settings-menu" id="audio-settings-menu" role="menu">
           <div class="dropdown-item" id="gap-remove-manage" role="menuitem" tabindex="0" title="打开音频空隙面板">音频空隙<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></div>
-          <button type="button" class="dropdown-item" id="non-subtitle-gap-apply" role="menuitem" title="立即将主字幕之外的区段设为空隙，句首和句尾保留均为 0；固定空隙不变，可撤销">字幕外区段设为空隙</button>
+                <button type="button" class="dropdown-item" id="non-subtitle-gap-apply" role="menuitem" title="使用音频空隙面板的参考轨道，立即标记字幕外区段；句首和句尾保留均为 0，固定空隙不变，可撤销">字幕外区段设为空隙</button>
           <label class="dropdown-item recent-project-setting" title="播放时跳过空隙，包括固定空隙；左键定位到区段内可临时试听">
             <input type="checkbox" id="gap-skip-playback" checked> 播放时跳过空隙
           </label>
@@ -428,10 +428,15 @@ __WAVEFORM_CSS__
   <div class="gap-remove-panel-body">
     <section class="audio-gaps-section">
       <h4>生成空隙标记</h4>
-      <label class="gap-remove-field audio-gaps-source" data-option-help="按音量检测：依据源音轨波形判断静音。主字幕外区段：标记主字幕之外的区段。字幕块与音频贴片外：避开全部主副字幕、叠加字幕及音频贴片，包括禁用、静音和关闭的轨道。后两种方式可能标记有声区段。重新生成替换全部未固定空隙，固定空隙保持不变。">
+      <label class="gap-remove-field audio-gaps-source" data-option-help="按音量检测依据源音轨波形判断静音。参考轨道字幕外避开所选轨道的全部字幕块。字幕块与音频贴片外避开所有轨道的字幕和贴片。禁用、静音、折叠不影响占用；后两种方式可能标记有声区段。重新生成替换未固定空隙，固定空隙不变。">
         <span class="gap-remove-field-label">生成方式</span>
-        <select id="gap-remove-source"><option value="audio_gate">按音量检测</option><option value="subtitle_outside">主字幕外区段</option><option value="content_outside">字幕块与音频贴片外</option></select>
+        <select id="gap-remove-source"><option value="audio_gate">按音量检测</option><option value="subtitle_outside">参考轨道字幕外</option><option value="content_outside">字幕块与音频贴片外</option></select>
       </label>
+      <div id="gap-reference-field" hidden>
+        <details class="msw-export-scope" id="gap-reference-picker"><summary><span id="gap-reference-caption">参考轨道</span></summary><div id="gap-reference-choices" class="audio-gaps-track-choices"></div></details>
+        <p hidden data-help-for="gap-reference-picker">可多选；仅在所选轨道都没有字幕覆盖的区段生成空隙。包含禁用或折叠的字幕，与列表左右列、筛选及主副分组无关。修改选择不会改变已有标记；快捷菜单也使用此选择。</p>
+        <p id="gap-reference-status" class="audio-gaps-scope-status" role="status"></p>
+      </div>
       <div class="gap-remove-fields" id="gap-remove-audio-fields">
         <label class="gap-remove-field" data-option-help="检测到的静音区段扣除两侧保留量后短于此时长时不生成标记。"><span class="gap-remove-field-label">最短空隙</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-threshold" min="100" max="60000" step="50" value="400" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
         <label class="gap-remove-field" data-option-help="音量达到此值时视为有声。数值越接近 0，越多低音量区段会被判为静音。"><span class="gap-remove-field-label">静音阈值</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-volume-threshold" min="-96" max="0" step="1" value="-28" inputmode="decimal"><span class="gap-remove-unit">dB</span></span></label>
@@ -470,7 +475,9 @@ __WAVEFORM_CSS__
       <button type="button" id="gap-remove-disable-toggle" class="gap-remove-advanced-toggle" aria-expanded="false" aria-controls="gap-remove-disable-body"><span class="gap-remove-advanced-caret" aria-hidden="true">▸</span><span>字幕处理</span></button>
       <div class="gap-remove-advanced-body" id="gap-remove-disable-body" hidden>
         <div class="audio-gaps-subheading"><span id="gap-remove-disable-caption">筛选条件</span></div>
-        <p hidden data-help-for="gap-remove-disable-caption">主字幕须同时满足：导出时可移除部分的覆盖率不低于设置值，剩余时长不超过设置值。点击按钮后才会禁用符合条件的主字幕及其绑定副字幕；生成标记不会自动禁用字幕。支持撤销。</p>
+        <p hidden data-help-for="gap-remove-disable-caption">仅筛选目标轨道内的字幕：实际可跳过部分的覆盖率不低于设置值，剩余时长不超过设置值；遵循配音保护。勾选联动时也禁用实际绑定的另一条字幕，轨道分组不代表绑定。锁定轨道中的字幕及其联动组跳过。生成标记不会禁用字幕，操作可一次撤销。</p>
+        <label class="gap-remove-field audio-gaps-source"><span class="gap-remove-field-label">目标轨道</span><select id="gap-disable-track" aria-label="空隙字幕处理目标轨道"></select></label>
+        <label class="audio-gaps-linked"><input type="checkbox" id="gap-disable-linked" checked>联动绑定字幕</label>
         <div class="gap-remove-fields">
           <label class="gap-remove-field"><span class="gap-remove-field-label">最低覆盖率</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-coverage" min="0" max="100" step="5" value="80" inputmode="decimal"><span class="gap-remove-unit">%</span></span></label>
           <label class="gap-remove-field"><span class="gap-remove-field-label">最多剩余</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-remaining" min="0" max="60000" step="50" value="300" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>

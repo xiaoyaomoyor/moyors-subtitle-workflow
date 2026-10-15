@@ -4417,6 +4417,11 @@
   #gap-remove-panel .gap-remove-advanced-toggle { min-height: 36px; padding: 9px 12px; font-size: 13px; background: var(--bg-base); }
   #gap-remove-panel .gap-remove-advanced-body { padding: 12px; }
   #gap-remove-panel .audio-gaps-subheading { margin-bottom: 10px; font-size: 12px; }
+  #gap-remove-panel [hidden] { display: none !important; }
+  #gap-remove-panel .audio-gaps-track-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px 0 4px; }
+  #gap-remove-panel .audio-gaps-track-choices label { display: flex; gap: 6px; align-items: center; min-width: 0; font-size: 12px; }
+  #gap-remove-panel .audio-gaps-scope-status { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 8px 0; }
+  #gap-remove-panel .audio-gaps-linked { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 12px; }
   #gap-remove-panel .gap-remove-inline-button { min-height: 30px; font-size: 12px; }
   #gap-remove-panel .gap-remove-panel-footer { flex: 0 0 auto; margin: 0; padding: 12px 14px; border-top: 1px solid var(--border-subtle); background: var(--bg-raised); }
   #gap-remove-panel .audio-gaps-result { min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
@@ -6754,7 +6759,7 @@
         <div class="dropdown-item dropdown-submenu-toggle" id="audio-settings-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="音频空隙与试听设置">空隙设置</div>
         <div class="dropdown-menu dropdown-submenu-menu audio-settings-menu" id="audio-settings-menu" role="menu">
           <div class="dropdown-item" id="gap-remove-manage" role="menuitem" tabindex="0" title="打开音频空隙面板">音频空隙<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></div>
-          <button type="button" class="dropdown-item" id="non-subtitle-gap-apply" role="menuitem" title="立即将主字幕之外的区段设为空隙，句首和句尾保留均为 0；固定空隙不变，可撤销">字幕外区段设为空隙</button>
+                <button type="button" class="dropdown-item" id="non-subtitle-gap-apply" role="menuitem" title="使用音频空隙面板的参考轨道，立即标记字幕外区段；句首和句尾保留均为 0，固定空隙不变，可撤销">字幕外区段设为空隙</button>
           <label class="dropdown-item recent-project-setting" title="播放时跳过空隙，包括固定空隙；左键定位到区段内可临时试听">
             <input type="checkbox" id="gap-skip-playback" checked> 播放时跳过空隙
           </label>
@@ -6830,10 +6835,15 @@
   <div class="gap-remove-panel-body">
     <section class="audio-gaps-section">
       <h4>生成空隙标记</h4>
-      <label class="gap-remove-field audio-gaps-source" data-option-help="按音量检测：依据源音轨波形判断静音。主字幕外区段：标记主字幕之外的区段。字幕块与音频贴片外：避开全部主副字幕、叠加字幕及音频贴片，包括禁用、静音和关闭的轨道。后两种方式可能标记有声区段。重新生成替换全部未固定空隙，固定空隙保持不变。">
+      <label class="gap-remove-field audio-gaps-source" data-option-help="按音量检测依据源音轨波形判断静音。参考轨道字幕外避开所选轨道的全部字幕块。字幕块与音频贴片外避开所有轨道的字幕和贴片。禁用、静音、折叠不影响占用；后两种方式可能标记有声区段。重新生成替换未固定空隙，固定空隙不变。">
         <span class="gap-remove-field-label">生成方式</span>
-        <select id="gap-remove-source"><option value="audio_gate">按音量检测</option><option value="subtitle_outside">主字幕外区段</option><option value="content_outside">字幕块与音频贴片外</option></select>
+        <select id="gap-remove-source"><option value="audio_gate">按音量检测</option><option value="subtitle_outside">参考轨道字幕外</option><option value="content_outside">字幕块与音频贴片外</option></select>
       </label>
+      <div id="gap-reference-field" hidden>
+        <details class="msw-export-scope" id="gap-reference-picker"><summary><span id="gap-reference-caption">参考轨道</span></summary><div id="gap-reference-choices" class="audio-gaps-track-choices"></div></details>
+        <p hidden data-help-for="gap-reference-picker">可多选；仅在所选轨道都没有字幕覆盖的区段生成空隙。包含禁用或折叠的字幕，与列表左右列、筛选及主副分组无关。修改选择不会改变已有标记；快捷菜单也使用此选择。</p>
+        <p id="gap-reference-status" class="audio-gaps-scope-status" role="status"></p>
+      </div>
       <div class="gap-remove-fields" id="gap-remove-audio-fields">
         <label class="gap-remove-field" data-option-help="检测到的静音区段扣除两侧保留量后短于此时长时不生成标记。"><span class="gap-remove-field-label">最短空隙</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-threshold" min="100" max="60000" step="50" value="400" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
         <label class="gap-remove-field" data-option-help="音量达到此值时视为有声。数值越接近 0，越多低音量区段会被判为静音。"><span class="gap-remove-field-label">静音阈值</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-volume-threshold" min="-96" max="0" step="1" value="-28" inputmode="decimal"><span class="gap-remove-unit">dB</span></span></label>
@@ -6872,7 +6882,9 @@
       <button type="button" id="gap-remove-disable-toggle" class="gap-remove-advanced-toggle" aria-expanded="false" aria-controls="gap-remove-disable-body"><span class="gap-remove-advanced-caret" aria-hidden="true">▸</span><span>字幕处理</span></button>
       <div class="gap-remove-advanced-body" id="gap-remove-disable-body" hidden>
         <div class="audio-gaps-subheading"><span id="gap-remove-disable-caption">筛选条件</span></div>
-        <p hidden data-help-for="gap-remove-disable-caption">主字幕须同时满足：导出时可移除部分的覆盖率不低于设置值，剩余时长不超过设置值。点击按钮后才会禁用符合条件的主字幕及其绑定副字幕；生成标记不会自动禁用字幕。支持撤销。</p>
+        <p hidden data-help-for="gap-remove-disable-caption">仅筛选目标轨道内的字幕：实际可跳过部分的覆盖率不低于设置值，剩余时长不超过设置值；遵循配音保护。勾选联动时也禁用实际绑定的另一条字幕，轨道分组不代表绑定。锁定轨道中的字幕及其联动组跳过。生成标记不会禁用字幕，操作可一次撤销。</p>
+        <label class="gap-remove-field audio-gaps-source"><span class="gap-remove-field-label">目标轨道</span><select id="gap-disable-track" aria-label="空隙字幕处理目标轨道"></select></label>
+        <label class="audio-gaps-linked"><input type="checkbox" id="gap-disable-linked" checked>联动绑定字幕</label>
         <div class="gap-remove-fields">
           <label class="gap-remove-field"><span class="gap-remove-field-label">最低覆盖率</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-coverage" min="0" max="100" step="5" value="80" inputmode="decimal"><span class="gap-remove-unit">%</span></span></label>
           <label class="gap-remove-field"><span class="gap-remove-field-label">最多剩余</span><span class="gap-remove-number-control"><input type="number" id="gap-remove-disable-remaining" min="0" max="60000" step="50" value="300" inputmode="decimal"><span class="gap-remove-unit">ms</span></span></label>
@@ -9487,6 +9499,19 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   ]);
   const GAP_GENERATION_MODES = Object.freeze(['audio_gate', 'subtitle_outside', 'content_outside']);
   const normalizeGapGenerationMode = value => GAP_GENERATION_MODES.includes(value) ? value : 'audio_gate';
+  const normalizeGapTrackIds = value => [...new Set((Array.isArray(value) ? value : [])
+    .filter(id => typeof id === 'string' && id.trim()).map(id => id.trim()))];
+
+  // Tracks contain physical cue ranges, never the editor's left/right columns.
+  // Missing references remain invalid until the user explicitly changes them.
+  function gapReferenceScope(tracks, requestedIds) {
+    const ids = requestedIds === undefined
+      ? [tracks.find(track => track.cues.length)?.id || tracks[0]?.id].filter(Boolean)
+      : normalizeGapTrackIds(requestedIds);
+    const selected = tracks.filter(track => ids.includes(track.id));
+    return { ids, tracks: selected, cues: selected.flatMap(track => track.cues),
+      missing: ids.filter(id => !tracks.some(track => track.id === id)) };
+  }
   const GAP_PROVENANCE_SOURCE_SET = new Set(GAP_PROVENANCE_SOURCES);
   const GAP_REMOVE_OPERATION_MODES = Object.freeze([
     'none',
@@ -10309,6 +10334,9 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       gaps,
       provenance,
     };
+    if (Object.hasOwn(source, 'reference_track_ids')) result.reference_track_ids = normalizeGapTrackIds(source.reference_track_ids);
+    if (typeof source.disable_track_id === 'string') result.disable_track_id = source.disable_track_id.trim();
+    result.disable_linked = source.disable_linked !== false;
     if (source.retention_mode === 'locked') {
       result.retention_mode = 'locked';
       result.retained_ranges = normalizeGapRangeList(source.retained_ranges);
@@ -10947,6 +10975,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     GAP_REMOVE_SCHEMA,
     GAP_GENERATION_MODES,
     normalizeGapGenerationMode,
+    normalizeGapTrackIds,
+    gapReferenceScope,
     GAP_PROVENANCE_SCHEMA,
     GAP_PROVENANCE_SOURCES,
     GAP_REMOVE_OPERATION_MODES,
@@ -21778,6 +21808,18 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '参考轨道字幕外': 'Outside reference-track subtitles',
+    '参考轨道字幕外（手动调整）': 'Outside reference-track subtitles (manually adjusted)',
+    '未选择': 'None selected', '已删除的轨道': 'Deleted track',
+    '参考轨道已删除，请重新选择': 'A reference track was deleted; select tracks again',
+    '请选择至少一条参考轨道': 'Select at least one reference track',
+    '参考轨道在媒体范围内没有字幕': 'Reference tracks have no subtitles within the media range',
+    '空隙字幕处理目标轨道': 'Target track for subtitles in gaps',
+    '调整空隙参考轨道': 'Change gap reference tracks', '调整空隙字幕处理范围': 'Change gap subtitle scope',
+    '使用音频空隙面板的参考轨道，立即标记字幕外区段；句首和句尾保留均为 0，固定空隙不变，可撤销': 'Immediately mark ranges outside the reference tracks selected in Audio gaps, with zero padding. Fixed gaps stay unchanged; undo is supported.',
+    '按音量检测依据源音轨波形判断静音。参考轨道字幕外避开所选轨道的全部字幕块。字幕块与音频贴片外避开所有轨道的字幕和贴片。禁用、静音、折叠不影响占用；后两种方式可能标记有声区段。重新生成替换未固定空隙，固定空隙不变。': 'Volume detection uses the source waveform. Reference-track mode excludes all subtitle blocks on selected tracks. All-content mode excludes subtitles and audio clips on every track. Disabled, muted or collapsed content still occupies time; both outside modes may mark audible ranges. Regeneration replaces unfixed gaps; fixed gaps stay unchanged.',
+    '可多选；仅在所选轨道都没有字幕覆盖的区段生成空隙。包含禁用或折叠的字幕，与列表左右列、筛选及主副分组无关。修改选择不会改变已有标记；快捷菜单也使用此选择。': 'Select one or more tracks. Gaps are generated only where none of them has subtitles, including disabled or collapsed content. List columns, filters and grouping do not change this scope. Changing the selection leaves existing marks unchanged. The quick menu uses the same selection.',
+    '仅筛选目标轨道内的字幕：实际可跳过部分的覆盖率不低于设置值，剩余时长不超过设置值；遵循配音保护。勾选联动时也禁用实际绑定的另一条字幕，轨道分组不代表绑定。锁定轨道中的字幕及其联动组跳过。生成标记不会禁用字幕，操作可一次撤销。': 'Filter only the target track by minimum skippable coverage and maximum remaining duration, respecting audio protection. Linked mode also disables bound partners; track grouping is separate. Subtitles on locked tracks and their linked groups are skipped. Generating marks does not disable subtitles; one undo restores the operation.',
     '整个源音频': 'Entire source audio', '范围内已有字幕': 'Existing subtitles in range',
     '来源': 'Source', '译文': 'Translation', '新建': 'New', '译文轨道': 'Translation track',
     '目标字幕轨道': 'Destination subtitle track', '译文语言': 'Translation language',
@@ -24467,6 +24509,8 @@ export default MawDynamicCaptions;
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const gapReference = /^参考轨道 · (.+)$/.exec(text);
+    if (gapReference) return `Reference tracks · ${translateText(gapReference[1], lang)}`;
     const splitTrack=/^仅切 (S\d+(?:主|副)?_\d+) 并解绑$/.exec(text);
     if(splitTrack)return `Split ${splitTrack[1]} only and unbind`;
     const exportScope=/^轨道范围 · (全部启用轨道|已选 (\d+) 条)$/.exec(text);
@@ -24486,7 +24530,7 @@ export default MawDynamicCaptions;
     const gapGenerated = text.match(/^已生成 (\d+) 段标记，保留其他来源与手工调整$/);
     if (gapGenerated) return `Generated ${gapGenerated[1]} marks; other sources and manual edits are preserved`;
     const gapError = text.match(/^无法生成空隙标记：(.+)$/);
-    if (gapError) return `Cannot generate gap marks: ${gapError[1]}`;
+    if (gapError) return `Cannot generate gap marks: ${translateText(gapError[1], lang)}`;
     const gapDisable = text.match(/^禁用符合条件的字幕（(\d+)）$/);
     if (gapDisable) return `Disable matching subtitles (${gapDisable[1]})`;
     const gapSummary = text.match(/^已标记 (\d+) 段 · 实际可缩短 (.+)$/);
@@ -24977,8 +25021,8 @@ export default MawDynamicCaptions;
       audio_gate_manual: '静音空隙（自动生成+手动调整）',
       content_outside: '字幕块与音频贴片外',
       content_outside_manual: '字幕块与音频贴片外（手动调整）',
-      subtitle_outside: '主字幕外区段',
-      subtitle_outside_manual: '主字幕外区段（手动调整）',
+  subtitle_outside: '参考轨道字幕外',
+  subtitle_outside_manual: '参考轨道字幕外（手动调整）',
       manual: '跳过空隙（手动创建）',
       script_alignment: '台本对齐自动移除',
       script_alignment_manual: '台本对齐自动移除（手动调整）',
@@ -39863,6 +39907,100 @@ function hasGapRemoveRecords() {
     || Object.values(state?.provenance?.sources || {}).some(ranges => ranges.length));
 }
 
+function gapSubtitleTracks() {
+  const sources = window.MSWSubtitleLayers.tracks(DATA);
+  if (DATA.overlay_track) sources.push({role: 'overlay', track_id: null, segments: DATA.overlay_track.segments || []});
+  if (DATA.subtitle_tracks?.tracks) {
+    const core = window.MSWSubtitleTracks, owners = core.ownerMap(DATA);
+    const tracks = DATA.subtitle_tracks.tracks.map(track => ({...track, cues: []}));
+    const byId = new Map(tracks.map(track => [track.id, track]));
+    for (const source of sources) for (const cue of source.segments) {
+      const owner = owners.get(core.key({role: source.role, track_id: source.track_id, cue_id: cue.id}));
+      byId.get(owner)?.cues.push(cue);
+    }
+    return tracks;
+  }
+  return sources.map((source, index) => ({id: source.track_id || source.role,
+    name: source.role === 'main' ? '主字幕' : source.role === 'overlay' ? '叠加字幕' : `副字幕 ${index}`,
+    locked: false, cues: source.segments}));
+}
+
+function gapReferenceScope(tracks = gapSubtitleTracks()) {
+  return window.AsrGapRemoveCore.gapReferenceScope(tracks, getGapRemoveData(false)?.reference_track_ids);
+}
+
+function gapReferenceProblem(scope = gapReferenceScope()) {
+  if (scope.missing.length) return '参考轨道已删除，请重新选择';
+  if (!scope.ids.length) return '请选择至少一条参考轨道';
+  const duration = gapRemoveMediaDurationMs();
+  if (!scope.cues.some(cue => cue.end > 0 && cue.start < duration && cue.end > cue.start)) return '参考轨道在媒体范围内没有字幕';
+  return '';
+}
+
+function updateGapTrackControls() {
+  const tracks = gapSubtitleTracks(), scope = gapReferenceScope(tracks), state = getGapRemoveData(false);
+  document.getElementById('gap-reference-field').hidden = gapRemoveSource.value !== 'subtitle_outside';
+  const choices = document.getElementById('gap-reference-choices');
+  const signature = JSON.stringify([tracks.map(t => [t.id, t.name, t.cues.length]), scope.missing]);
+  if (choices.dataset.signature !== signature) {
+    choices.dataset.signature = signature;
+    choices.replaceChildren(...[...tracks, ...scope.missing.map(id => ({id, name: '已删除的轨道', cues: []}))].map(track => {
+      const label = document.createElement('label'), input = document.createElement('input');
+      input.type = 'checkbox'; input.value = track.id; input.checked = scope.ids.includes(track.id); input.disabled = gapRemoveGenerating;
+      label.append(input, document.createTextNode(`${track.name} · ${track.cues.length}`));
+      return label;
+    }));
+  }
+  for (const input of choices.querySelectorAll('input')) {
+    input.checked = scope.ids.includes(input.value); input.disabled = gapRemoveGenerating;
+  }
+  document.getElementById('gap-reference-caption').textContent = `参考轨道 · ${scope.tracks.map(t => t.name).join(' / ') || '未选择'}`;
+  const problem = gapReferenceProblem(scope);
+  const status = document.getElementById('gap-reference-status');
+  status.textContent = problem;
+  status.hidden = !problem;
+  const select = document.getElementById('gap-disable-track');
+  const target = state?.disable_track_id ?? scope.tracks[0]?.id ?? tracks[0]?.id ?? '';
+  const options = tracks.map(t => [t.id, t.name]);
+  if (!tracks.some(t => t.id === target)) options.unshift([target, target ? '目标轨道已删除' : '没有字幕轨道']);
+  if (JSON.stringify([...select.options].map(o => [o.value, o.textContent])) !== JSON.stringify(options)) {
+    select.replaceChildren(...options.map(([id, name]) => new Option(name, id)));
+  }
+  select.value = target;
+  document.getElementById('gap-disable-linked').checked = state?.disable_linked !== false;
+}
+
+function gapDisablePlan() {
+  const tracks = gapSubtitleTracks();
+  const target = tracks.find(t => t.id === document.getElementById('gap-disable-track').value);
+  if (!target || target.locked) return [];
+  const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(target.cues, getRemovedGapRanges(), {
+    coveragePercent: clampGapRemoveDisableCoverage(gapRemoveDisableCoverage?.value),
+    remainingMs: clampGapRemoveDisableRemaining(gapRemoveDisableRemaining?.value),
+  });
+  const linked = document.getElementById('gap-disable-linked').checked;
+  const owner = new Map(tracks.flatMap(t => t.cues.map(cue => [cue, t])));
+  const groups = new Map();
+  if (linked) {
+    const main = new Map(DATA.segments.map(cue => [cue.id, cue]));
+    const extensions = new Map((DATA.multi_subtitle?.tracks || []).map(track =>
+      [track.id, new Map(track.segments.map(cue => [cue.id, cue]))]));
+    for (const binding of DATA.multi_subtitle?.bindings || []) {
+      const extension = extensions.get(binding.track_id);
+      const members = [...(binding.main_segment_ids || []).map(id => main.get(id)),
+        ...(binding.extension_segment_ids || []).map(id => extension?.get(id))].filter(Boolean);
+      for (const cue of members) groups.set(cue, members);
+    }
+  }
+  const targets = new Set();
+  for (const {index} of matches) {
+    const cue = target.cues[index], group = groups.get(cue) || [cue];
+    if (group.some(c => owner.get(c)?.locked)) continue;
+    for (const c of group) if (!c.disabled) targets.add(c);
+  }
+  return [...targets];
+}
+
 function renderGapRemoveList() {
   if (!gapRemoveList) return;
   const state = getGapRemoveData(false);
@@ -39883,13 +40021,7 @@ function renderGapRemoveList() {
 }
 
 function updateGapRemoveDisableHint() {
-  const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(
-    DATA.segments, getRemovedGapRanges(), {
-      coveragePercent: clampGapRemoveDisableCoverage(gapRemoveDisableCoverage?.value),
-      remainingMs: clampGapRemoveDisableRemaining(gapRemoveDisableRemaining?.value),
-    },
-  );
-  const count = matches.filter(({ index }) => !DATA.segments[index]?.disabled).length;
+  const count = gapDisablePlan().length;
   if (gapRemoveDisableButton) {
     gapRemoveDisableButton.textContent = `禁用符合条件的字幕（${count}）`;
     gapRemoveDisableButton.disabled = count === 0;
@@ -39905,12 +40037,14 @@ function syncGapRemoveControls() {
     if (checkbox) checkbox.checked = state?.skip_playback !== false;
   }
   const audio = gapRemoveSource?.value === 'audio_gate';
+  updateGapTrackControls();
   document.getElementById('gap-remove-audio-fields').hidden = !audio;
   document.getElementById('gap-remove-advanced-section').hidden = !audio;
   const generated = state?.generated_sources?.includes(gapRemoveSource?.value);
   gapRemoveScanButton.textContent = gapRemoveGenerating ? '正在生成…' : generated ? '重新生成' : '生成标记';
   gapRemoveScanButton.disabled = gapRemoveGenerating || (audio
-    ? !waveformEditor?.getGapRemoveDetectionData?.() : !gapRemoveMediaDurationMs());
+    ? !waveformEditor?.getGapRemoveDetectionData?.() : !gapRemoveMediaDurationMs())
+    || (gapRemoveSource.value === 'subtitle_outside' && Boolean(gapReferenceProblem()));
   gapRemoveSource.disabled = gapRemoveGenerating;
 }
 
@@ -39988,6 +40122,7 @@ function scanAndRemoveGaps(source = gapRemoveSource?.value || 'audio_gate', { im
     : source === 'content_outside' ? '标记字幕块与音频贴片外区段' : '字幕外区段设为空隙');
   setGapRemoveData({
     ...previous, ...(immediate ? {} : {...settings, generation_mode: source}), cleared: false,
+    ...(source === 'subtitle_outside' ? {reference_track_ids: gapReferenceScope().ids} : {}),
     generated_sources: [source],
   }, { provenance });
   flashHint(gaps.length ? `已重新生成空隙，保留固定标记` : '没有符合当前条件的区段；固定标记保持不变', 'success');
@@ -40036,24 +40171,20 @@ function commitGapRemoveDisableSettings() {
 }
 
 function disableSubtitlesInRemovedGaps() {
-  const settings = commitGapRemoveDisableSettings();
-  const matches = window.AsrEditorUtils.findGapRemoveDisableMatches(
-    DATA.segments,
-    getRemovedGapRanges(),
-    settings,
-  );
-  const targetIndexes = matches
-    .map((match) => match.index)
-    .filter((index) => !DATA.segments[index]?.disabled);
-  if (!targetIndexes.length) {
-    const message = matches.length ? '符合条件的字幕已全部禁用' : '没有符合条件的字幕';
-    flashHint(
-      window.MSWE_I18N?.translateText?.(message) || message,
-      matches.length ? 'success' : 'invalid',
-    );
-    return;
+  commitProcessingEdits();
+  commitGapRemoveDisableSettings();
+  const targets = gapDisablePlan();
+  if (!targets.length) return;
+  if (productionFlatMode()) {
+    const project = window.MSWProductionProject.toProject(DATA);
+    const ids = targets.map(c => c.id);
+    productionCommitProject(window.MSWFlatEditing.setDisabled(project, ids, true), '禁用空隙内字幕', ids);
+  } else {
+    pushUndo('禁用空隙内字幕');
+    targets.forEach(cue => {cue.disabled = true; cue._dirty = true;});
+    markMultiSubtitleDirty(); renderAll(); updateWithoutCueListAutoScroll();
   }
-  toggleDisabled(targetIndexes, 'main', { successDetail: '空隙内的字幕' });
+  updateGapRemoveDisableHint();
 }
 
 function toggleGapRemoved(index) {
@@ -40560,6 +40691,17 @@ for (const checkbox of [gapRemoveBoundary, gapRemoveMiddle]) {
 for (const input of [gapRemoveSource, gapRemoveThreshold, gapRemoveVolumeThreshold, gapRemoveHysteresis, gapRemoveLeadIn, gapRemoveLeadOut]) {
   input?.addEventListener('change', commitGapDetectionSettings);
 }
+document.getElementById('gap-reference-choices').addEventListener('change', () => {
+  const ids = [...document.querySelectorAll('#gap-reference-choices input:checked')].map(input => input.value);
+  pushGapRemoveUndo('调整空隙参考轨道');
+  setGapRemoveData({...getGapRemoveData(true), reference_track_ids: ids});
+});
+for (const id of ['gap-disable-track', 'gap-disable-linked']) document.getElementById(id).addEventListener('change', () => {
+  pushGapRemoveUndo('调整空隙字幕处理范围');
+  setGapRemoveData({...getGapRemoveData(true), disable_track_id: document.getElementById('gap-disable-track').value,
+    disable_linked: document.getElementById('gap-disable-linked').checked});
+});
+window.addEventListener('msw:subtitles-changed', () => { if (gapRemovePanelIsOpen()) updateGapRemoveUi(); });
 
 gapRemoveAdvancedToggle?.addEventListener('click', () => {
   setGapRemoveAdvancedOpen(!gapRemoveAdvancedIsOpen());
@@ -40569,7 +40711,10 @@ gapRemoveDisableToggle?.addEventListener('click', () => {
 });
 gapRemoveDisableCoverage?.addEventListener('change', commitGapRemoveDisableSettings);
 gapRemoveDisableRemaining?.addEventListener('change', commitGapRemoveDisableSettings);
-gapRemoveDisableButton?.addEventListener('click', disableSubtitlesInRemovedGaps);
+gapRemoveDisableButton?.addEventListener('click', () => {
+  try { disableSubtitlesInRemovedGaps(); }
+  catch (error) { flashHint(error.message || String(error), 'invalid'); }
+});
 gapRemoveHysteresis?.addEventListener('input', updateGapRemoveHysteresisHint);
 window.addEventListener('resize', () => {
   if (!gapRemovePanelIsOpen()) return;
@@ -59768,9 +59913,10 @@ document.getElementById('wave-settings-close')?.addEventListener('click', () => 
 function computeNonSubtitleGapPieces() {
   const duration = gapRemoveMediaDurationMs();
   if (!Number.isFinite(duration) || duration <= 0) return null;
-  // A disabled main subtitle is still a block; it must not become a gap.
+  const scope = gapReferenceScope(), problem = gapReferenceProblem(scope);
+  if (problem) throw new Error(problem);
   return window.AsrGapRemoveCore.buildGapRemovedIntervals(duration,
-    DATA.segments.map(cue => ({start: cue.start, end: cue.end})));
+    scope.cues.map(cue => ({start: cue.start, end: cue.end})));
 }
 
 function computeContentOutsideGapPieces() {
@@ -59838,7 +59984,8 @@ document.getElementById('cue-list-settings-close')?.addEventListener('click', ()
 
 document.getElementById('gap-clear-all-menu')?.addEventListener('click', clearAllGaps);
 document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () => {
-  scanAndRemoveGaps('subtitle_outside', {immediate: true});
+  try { scanAndRemoveGaps('subtitle_outside', {immediate: true}); }
+  catch (error) { flashHint(error.message || String(error), 'invalid'); }
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===

@@ -11,7 +11,8 @@ test.beforeAll(async () => {
 test.afterAll(async () => {await server?.stop();cleanupTempDir(tempDir);});
 test.beforeEach(async ({page}) => {
   await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false})));
-  await page.goto(server.url); await expect(page.locator('.waveform-row').first()).toBeVisible();
+  // Raw legacy-array fixtures; canonical retention is covered separately.
+  await page.goto(server.url + '?subtitle-layers=0&subtitle-tracks=0'); await expect(page.locator('.waveform-row').first()).toBeVisible();
   await page.evaluate(()=>setGapRemoveData({gaps:[{start:1000,end:2000},{start:3000,end:4000}]}));
 });
 const shape=page=>page.evaluate(()=>getGapRemoveGaps());

@@ -13,7 +13,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => { await server?.stop(); cleanupTempDir(tempDir); });
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({autoSaveProject: false})));
-  await page.goto(server.url);
+  // These fixtures edit legacy storage arrays directly; native physical tracks
+  // and canonical save/reload are covered by gap-reference-tracks.spec.mjs.
+  await page.goto(server.url + '?subtitle-layers=0&subtitle-tracks=0');
   await expect(page.locator('.waveform-row').first()).toBeVisible();
 });
 const open = page => clickMenubarItem(page, '媒体', 'gap-remove-manage');
