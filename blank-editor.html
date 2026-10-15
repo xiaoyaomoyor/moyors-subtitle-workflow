@@ -3912,6 +3912,21 @@
   .text-process-modal {
     width: min(620px, calc(100vw - 24px)); min-width: 0; max-width: none;
   }
+  [data-flat-settings][hidden], [data-legacy-settings][hidden] { display: none !important; }
+  .batch-text-modal { width: min(560px, calc(100vw - 24px)); min-width: 0; max-width: none; }
+  .batch-scope-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px 12px; padding: 12px; margin-bottom: 12px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+  .batch-scope-fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; margin: 0; font-size: 12px; color: var(--text-secondary); }
+  .batch-scope-fields select { width: 100%; min-width: 0; min-height: 30px; padding: 4px 6px; font: inherit; color: var(--text-primary); background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .batch-text-modal .preview { color: var(--text-secondary); }
+  .batch-text-modal .text-process-operations { padding: 12px; gap: 9px; }
+  .batch-text-modal .text-process-operation { grid-template-columns: 15px minmax(0,1fr); }
+  .batch-text-modal .text-process-operation-input { grid-template-columns: 15px max-content minmax(0,1fr); }
+  .batch-text-modal input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+  #subtitle-cleanup-status { flex: 1; }
+  #subtitle-cleanup-apply { flex-shrink: 0; }
+  .timed-text-edit-toolbar { flex-wrap: wrap; }
+  #subtitle-scale-offset-modal .msw-processing-fields { margin-bottom: 10px; }
+  #subtitle-scale-offset-modal .msw-tts-check { margin-bottom: 12px; }
   .text-process-scope-info {
     margin: 0 0 7px; color: var(--text-muted); font-size: 12px;
   }
@@ -3957,11 +3972,11 @@
     color: var(--text-secondary); font-size: 12px;
   }
   .timed-text-edit-toolbar label { margin: 0; color: var(--text-secondary); }
-  .timed-text-edit-track-control { display: inline-flex; align-items: center; gap: 6px; }
+  .timed-text-edit-toolbar .timed-text-edit-track-control { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; white-space: nowrap; }
   .timed-text-edit-track-control[hidden] { display: none; }
   .timed-text-edit-view-control { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
   .timed-text-edit-toolbar select {
-    min-width: 100px; padding: 4px 7px; color: var(--text-primary); background: var(--form-input-bg);
+    width: 132px; min-width: 100px; padding: 4px 7px; color: var(--text-primary); background: var(--form-input-bg);
     border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px;
   }
   .timed-text-edit-view-switch {
@@ -6619,7 +6634,7 @@
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
-          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="删除当前项目中所有没有文字内容的字幕块（含副字幕）">清除全部空字幕块</button>
+          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，清理空字幕或清空字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -6930,6 +6945,21 @@
 </aside>
 
 <!-- 缩放/偏移字幕工具窗 -->
+<aside class="gap-remove-panel msw-processing-panel" id="subtitle-cleanup-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-cleanup-title">
+  <header class="gap-remove-panel-header" id="subtitle-cleanup-handle">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕 · 处理</span><h3 id="subtitle-cleanup-title">清理字幕</h3></div>
+    <button type="button" id="subtitle-cleanup-close" class="gap-remove-close" aria-label="关闭清理字幕"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <div class="batch-scope-fields">
+      <label>作用轨道<select id="subtitle-cleanup-track"></select></label>
+      <label>作用范围<select id="subtitle-cleanup-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+      <label>清理内容<select id="subtitle-cleanup-mode"><option value="empty">仅空字幕</option><option value="all">范围内全部字幕</option></select></label>
+    </div>
+    <p hidden data-help-for="subtitle-cleanup-title">只删除选定轨道与范围的字幕，包含禁用、隐藏和折叠内容。删除时解除对应绑定，另一侧字幕和音频素材保留；遇到锁定时整批不应用，可一次撤销。</p>
+    <div class="msw-processing-actions"><small id="subtitle-cleanup-status" class="msw-processing-hint" role="status" aria-live="polite"></small><button id="subtitle-cleanup-apply" type="button" class="primary">清理</button></div>
+  </div>
+</aside>
 <aside class="gap-remove-panel subtitle-scale-panel" id="subtitle-scale-offset-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-scale-offset-title">
   <header class="gap-remove-panel-header" id="subtitle-scale-offset-drag">
     <div class="gap-remove-heading">
@@ -6947,7 +6977,7 @@
       <label>作用轨道<select id="subtitle-time-track"><option value="overlay">叠加字幕</option><option value="main">主字幕</option><option value="extension">当前副字幕轨</option></select></label>
       <label>作用范围<select id="subtitle-time-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
     </div>
-    <label class="msw-tts-check"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
+    <label class="msw-tts-check" data-option-help="按同样的起止变化调整绑定伙伴，保留时间偏移。关闭时只调整目标轨；有锁定、重叠或无效时间时整批不应用。整轨范围包含禁用、隐藏和折叠内容。"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
     <div class="gap-remove-fields">
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">缩放字幕</span>
@@ -6957,7 +6987,7 @@
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-scale-percent" data-step-dir="1" title="向右增大 1%（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">%</span>
         </span>
-        <small>按比例缩放时长；中心不变，100 为不变；自动限制在相邻字幕之间，不产生重叠</small>
+        <small>100% 保持不变；按所选锚点缩放时间，发生同轨重叠或无效时间时整批不应用。</small>
       </label>
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">缩放锚点</span>
@@ -6977,7 +7007,7 @@
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-start-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">ms</span>
         </span>
-        <small>正数向右、负数向左；应用后归零；自动限制在相邻字幕之间</small>
+        <small>正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。</small>
       </label>
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">终点偏移</span>
@@ -6987,7 +7017,7 @@
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-end-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">ms</span>
         </span>
-        <small>正数向右、负数向左；应用后归零</small>
+        <small>正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。</small>
       </label>
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">整体偏移</span>
@@ -6997,7 +7027,7 @@
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-shift-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">ms</span>
         </span>
-        <small>整条字幕平移；正右负左，应用后归零；自动限制在相邻字幕之间</small>
+        <small>所有目标字幕移动相同距离，保留时长与间隔；正数向后、负数向前。发生重叠或越过零点时整批不应用。</small>
       </label>
     </div>
     <footer class="gap-remove-panel-footer">
@@ -9118,10 +9148,15 @@
 
 <!-- 批量替换 modal -->
 <div class="modal-mask" id="replace-modal">
-  <div class="modal">
+  <div class="modal batch-text-modal" role="dialog" aria-modal="true" aria-labelledby="replace-modal-title">
     <h3 id="replace-modal-title">批量替换</h3>
-    <div id="replace-scope-info" style="font-size:12px;color:#888;margin-bottom:8px;">范围：全部字幕</div>
-    <label class="modal-check-row" for="replace-selected-only">
+    <p hidden data-help-for="replace-modal-title">只替换作用轨道的文字，保留字幕和绑定，不修改伙伴文字。空文字仍保留为空字幕。范围包含禁用、隐藏和折叠内容；所选字幕为空时不会扩大到整轨。</p>
+    <div class="batch-scope-fields" data-flat-settings hidden>
+      <label>作用轨道<select id="replace-track"></select></label>
+      <label>作用范围<select id="replace-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+    </div>
+    <div id="replace-scope-info" data-legacy-settings>范围：全部字幕</div>
+    <label class="modal-check-row" for="replace-selected-only" data-legacy-settings>
       <input type="checkbox" id="replace-selected-only" disabled>
       <span>仅处理选中的字幕</span>
       <span id="replace-selected-only-hint" class="modal-hint batch-selected-only-hint" hidden>需要先选中至少1条字幕才可启用</span>
@@ -9144,14 +9179,18 @@
 
 <!-- 常用文本处理 modal：保持字幕行和时间范围结构，只批量变更文本。 -->
 <div class="modal-mask" id="text-process-modal">
-  <div class="modal text-process-modal" role="dialog" aria-modal="true"
+  <div class="modal text-process-modal batch-text-modal" role="dialog" aria-modal="true"
        aria-labelledby="text-process-title" aria-describedby="text-process-description">
     <h3 id="text-process-title">文本处理</h3>
-    <p class="modal-desc" id="text-process-description">
-      选择要执行的文本操作；字幕行不会被删除，处理为空时会保留空字幕行。字词时间码会按文本编辑规则尽量保留。
+    <p hidden id="text-process-description" data-help-for="text-process-title">
+      只修改作用轨道的文字，不修改绑定伙伴。字幕行不会被删除，处理为空时保留空行；尽量保留可复用字词时间码。范围包含禁用、隐藏和折叠内容。
     </p>
-    <div id="text-process-scope-info" class="text-process-scope-info">范围：全部字幕</div>
-    <label class="modal-check-row" for="text-process-selected-only">
+    <div class="batch-scope-fields" data-flat-settings hidden>
+      <label>作用轨道<select id="text-process-track"></select></label>
+      <label>作用范围<select id="text-process-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+    </div>
+    <div id="text-process-scope-info" class="text-process-scope-info" data-legacy-settings>范围：全部字幕</div>
+    <label class="modal-check-row" for="text-process-selected-only" data-legacy-settings>
       <input type="checkbox" id="text-process-selected-only" disabled>
       <span>仅处理选中的字幕</span>
       <span id="text-process-selected-only-hint" class="modal-hint batch-selected-only-hint" hidden>需要先选中至少1条字幕才可启用</span>
@@ -9160,12 +9199,10 @@
       <label class="text-process-operation" for="text-process-trim">
         <input type="checkbox" id="text-process-trim">
         <span>修剪前后空白</span>
-        <span class="modal-hint">去除字幕前方和后方的空格</span>
       </label>
-      <label class="text-process-operation" for="text-process-capitalize">
+      <label class="text-process-operation" for="text-process-capitalize" data-option-help="只将第一个字母改为大写，不改动其余字母。">
         <input type="checkbox" id="text-process-capitalize">
-        <span>首字母大写</span>
-        <span class="modal-hint">只作用于第一个字母</span>
+        <span class="msw-option-label">首字母大写</span>
       </label>
       <label class="text-process-operation text-process-operation-input" for="text-process-prefix">
         <input type="checkbox" id="text-process-prefix">
@@ -9174,13 +9211,12 @@
       </label>
       <label class="text-process-operation text-process-operation-input" for="text-process-suffix">
         <input type="checkbox" id="text-process-suffix">
-        <span>附加内容</span>
+        <span>添加后缀</span>
         <input type="text" id="text-process-suffix-input" placeholder="插入到字幕结尾" disabled>
       </label>
-      <label class="text-process-operation" for="text-process-strip-markdown">
+      <label class="text-process-operation" for="text-process-strip-markdown" data-option-help="移除常见 Markdown 标记，保留文字内容。">
         <input type="checkbox" id="text-process-strip-markdown">
-        <span>去除 md 格式符号</span>
-        <span class="modal-hint">移除常见 Markdown 标记</span>
+        <span class="msw-option-label">去除 Markdown 标记</span>
       </label>
     </div>
     <div class="preview text-process-preview" id="text-process-preview">选择操作后查看预览</div>
@@ -9198,8 +9234,8 @@
     <div class="timed-text-edit-header">
       <div>
         <h3 id="timed-text-edit-title">纯文本编辑</h3>
-        <p class="modal-desc" id="timed-text-edit-description">
-           集中修改字幕文字；新增、删除或移动换行时会尝试拆分、合并并重新分配字词时间码；确认前会分析映射结果。
+        <p hidden id="timed-text-edit-description" data-help-for="timed-text-edit-title">
+           集中修改指定轨道与范围的文字，尽量复用字词时间码。未绑定字幕可调整行数；已绑定字幕只改文字，拆分／合并请使用联动操作。应用前会检查工程是否变化，可一次撤销。
         </p>
       </div>
       <button type="button" id="timed-text-edit-close" class="timed-text-edit-close"
@@ -9207,12 +9243,13 @@
     </div>
     <div class="timed-text-edit-toolbar">
       <div class="timed-text-edit-track-control" id="timed-text-edit-track-control">
-        <label for="timed-text-edit-track">编辑轨道</label>
+        <label for="timed-text-edit-track">作用轨道</label>
         <select id="timed-text-edit-track">
           <option value="main">主字幕</option>
           <option value="extension">副字幕</option>
         </select>
       </div>
+      <label class="timed-text-edit-track-control" data-flat-settings hidden>作用范围<select id="timed-text-edit-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
       <div class="timed-text-edit-view-control">
         <span>编辑视图</span>
         <div id="timed-text-edit-view" class="timed-text-edit-view-switch" role="group" aria-label="编辑视图">
@@ -9234,7 +9271,7 @@
       <section class="timed-text-edit-input-panel" aria-labelledby="timed-text-edit-input-title">
         <div class="timed-text-edit-section-heading">
           <strong id="timed-text-edit-input-title">字幕文本</strong>
-          <span class="modal-hint">每一行对应一条当前字幕；新增、删除或移动换行会尝试调整字幕行结构。⌚️有效覆盖率 · ♻️原始时间码复用率</span>
+          <p hidden data-help-for="timed-text-edit-input-title">每一行对应一条字幕。⌚️ 表示有效字词时间码覆盖率，♻️ 表示原始时间码复用率；修改影响中的数字可筛选对应字幕。</p>
         </div>
         <div class="timed-text-edit-rows" id="timed-text-edit-rows"></div>
         <div id="timed-text-edit-single-editor" class="timed-text-edit-single-editor" hidden>
@@ -19420,6 +19457,106 @@ export default MawDynamicCaptions;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
+(function(global){
+  'use strict';
+  const core=global.MSWFlatSubtitles||(typeof require==='function'?require('./msw-flat-subtitles.js'):null);
+  const edit=global.MSWFlatEditing||(typeof require==='function'?require('./msw-flat-editing.js'):null);
+  const copy=v=>JSON.parse(JSON.stringify(v));
+  const fail=message=>{throw Error(message);};
+  const trackCues=(p,id)=>p.subtitles.cues.filter(c=>c.track_id===id).sort((a,b)=>a.content.start-b.content.start||a.id.localeCompare(b.id));
+  function scope(p,trackId,selectedIds=null,{includeDisabled=true}={}) {
+    const track=p.subtitles.tracks.find(t=>t.id===trackId);
+    if(!track)fail('请选择作用轨道');
+    const selected=selectedIds==null?null:new Set(selectedIds);
+    return trackCues(p,trackId).filter(c=>(!selected||selected.has(c.id))&&(includeDisabled||!c.content.disabled));
+  }
+  function refreshOffsets(p){const cues=new Map(p.subtitles.cues.map(c=>[c.id,c]));
+    for(const b of p.subtitles.bindings)for(const edge of ['start','end'])b[edge+'_offset_ms']=cues.get(b.target_id).content[edge]-cues.get(b.source_id).content[edge];
+  }
+  function checkLocks(before,after){
+    const next=new Map(after.subtitles.cues.map(c=>[c.id,c]));
+    const changed=before.subtitles.cues.filter(c=>JSON.stringify(c)!==JSON.stringify(next.get(c.id))).map(c=>c.id);
+    edit.editable(before,changed);
+  }
+  function cleanup(p,ids){const next=edit.remove(p,ids);checkLocks(p,next);return next;}
+  function time(p,ids,transform,{linked=true,utils=global.AsrEditorUtils}={}) {
+    core.validate(p);const selected=new Set(ids),changes=new Map(),lookup=new Map(p.subtitles.cues.map(c=>[c.id,c]));
+    for(const id of selected){const c=lookup.get(id);if(!c)fail('字幕已不存在');const range=transform(copy(c.content));
+      if(range)changes.set(id,{start:Math.round(range.start),end:Math.round(range.end)});}
+    if(linked)for(const b of p.subtitles.bindings){const a=changes.get(b.source_id),z=changes.get(b.target_id);
+      if(a&&!z){const c=lookup.get(b.source_id).content,other=lookup.get(b.target_id).content;changes.set(b.target_id,{start:other.start+a.start-c.start,end:other.end+a.end-c.end});}
+      if(z&&!a){const c=lookup.get(b.target_id).content,other=lookup.get(b.source_id).content;changes.set(b.source_id,{start:other.start+z.start-c.start,end:other.end+z.end-c.end});}
+    }
+    for(const [id,range] of changes){const c=lookup.get(id).content;if(c.start===range.start&&c.end===range.end)changes.delete(id);}
+    // Even an unlinked move changes the binding offsets on both tracks.
+    const affectedLinks=p.subtitles.bindings.filter(b=>changes.has(b.source_id)||changes.has(b.target_id));
+    edit.editable(p,[...changes.keys(),...affectedLinks.flatMap(b=>[b.source_id,b.target_id])]);const next=copy(p);
+    for(const c of next.subtitles.cues){const range=changes.get(c.id);if(!range)continue;const old=c.content;
+      if(!Number.isSafeInteger(range.start)||!Number.isSafeInteger(range.end)||range.start<0||range.end<=range.start||range.end-range.start<(old.items?.length||0))fail('时间超出有效范围或字词最短时长；整批未修改');
+      const factor=(range.end-range.start)/(old.end-old.start);
+      old.items=(old.items||[]).map(item=>({...item,start:Math.round(range.start+(item.start-old.start)*factor),end:Math.round(range.start+(item.end-old.start)*factor)}));
+      Object.assign(old,range,{_dirty:true});utils?.normalizeFrameItemTimingRanges(old);
+      for(const field of ['color','sticker'])if(old[field])Object.assign(old[field],range);
+      edit.frame(next,old);
+    }
+    refreshOffsets(next);core.validate(next);
+    return {project:next,ids:[...selected],changed:[...changes.keys()].filter(id=>selected.has(id)).length,linked:[...changes.keys()].filter(id=>!selected.has(id)).length};
+  }
+  // Text-only operations never transfer wording or erase a bound partner.
+  function texts(p,changes,{utils=global.AsrEditorUtils}={}) {
+    core.validate(p);const changed=changes.filter(change=>{const c=edit.cue(p,change.id);if(!c)fail('字幕已不存在');return c.content.text!==change.text;});
+    edit.editable(p,changed.map(c=>c.id));const next=copy(p);
+    for(const change of changed){const c=edit.cue(next,change.id),before=c.content;
+      const mapped=change.text?utils.applyTimedTextEdit([before],[change.text])?.[0]:null;
+      c.content={...before,text:change.text,items:copy(mapped?.items||[]),_dirty:true};edit.frame(next,c.content);
+    }
+    core.validate(next);return {project:next,ids:changes.map(c=>c.id),changed:changed.length};
+  }
+  function textSources(cues,p){return cues.map(c=>{const content=copy(c.content);
+    for(const field of ['color','sticker'])if(content[field+'_ref']){const target=edit.cue(p,content[field+'_ref'].cue_id);content[field]=copy(target.content[field]);delete content[field+'_ref'];}
+    return {...content,id:c.id};
+  });}
+  function draft(p,trackId,snapshot,sourceIds,segments,report,{makeId}={}) {
+    core.validate(p);
+    if(JSON.stringify(trackCues(p,trackId))!==JSON.stringify(snapshot))fail('本轨字幕在编辑期间发生了变化，请重新载入后再应用');
+    const source=new Set(sourceIds),nextIds=new Set(segments.map(c=>c.id)),affected=new Set(sourceIds.filter(id=>!nextIds.has(id)));
+    for(const i of report.structure?.affectedSourceIndexes||[])affected.add(sourceIds[i]);
+    for(const segment of segments){const original=edit.cue(p,segment.id);
+      if(original&&(original.content.start!==segment.start||original.content.end!==segment.end))affected.add(segment.id);}
+    if(p.subtitles.bindings.some(b=>affected.has(b.source_id)||affected.has(b.target_id)))fail('此修改会改变已绑定字幕的行结构；请使用联动切分／合并或先手动解绑');
+    // Selected/non-disabled rows separated by excluded rows must never merge
+    // through those rows, even if the resulting timing could fit by chance.
+    const indexes=new Map(snapshot.map((c,i)=>[c.id,i]));
+    for(const out of report.structure?.outputMeta||[]){const positions=(out.sourceIndexes||[]).map(i=>indexes.get(sourceIds[i])).sort((a,b)=>a-b);
+      if(positions.some((value,i)=>i&&value!==positions[i-1]+1))fail('不能跨过范围外字幕合并；请扩大选区或分别处理');}
+    edit.editable(p,[...source]);let next=copy(p);const used=new Set(p.subtitles.cues.map(c=>c.id));let serial=0;
+    const idFactory=makeId||(()=>{let id;do{id='text-preview-'+(++serial);}while(used.has(id));used.add(id);return id;});
+    const removed=[...source].filter(id=>!nextIds.has(id));
+    if(removed.length)next=cleanup(next,removed);
+    const right=new Set(next.subtitle_view?.secondary_cue_ids||[]),published=[],newIds=[];
+    segments.forEach((segment,i)=>{
+      const sourceIndex=report.structure?.outputMeta?.[i]?.sourceIndexes?.[0]??i;
+      const original=edit.cue(p,source.has(segment.id)?segment.id:sourceIds[sourceIndex]);
+      if(!original)fail('无法确定字幕来源；未应用修改');
+      const content=copy(segment);delete content.id;content.items||=[];
+      const id=source.has(segment.id)?segment.id:idFactory('cue');newIds.push(id);
+      if(id===original.id&&content.start===original.content.start&&content.end===original.content.end)
+        for(const field of ['color','sticker'])if(original.content[field+'_ref']&&!removed.includes(original.content[field+'_ref'].cue_id)){
+          content[field+'_ref']=copy(original.content[field+'_ref']);delete content[field];
+        }
+      if(id===original.id&&JSON.stringify(original.content)===JSON.stringify(content))published.push(copy(original));
+      else {content._dirty=true;edit.frame(next,content);published.push({...copy(original),id,content});}
+      if(p.subtitle_view?.secondary_cue_ids?.includes(original.id))right.add(id);
+    });
+    for(const id of removed)right.delete(id);
+    next.subtitles.cues=next.subtitles.cues.filter(c=>!source.has(c.id)).concat(published);
+    next.subtitle_view={...next.subtitle_view,secondary_cue_ids:[...right]};
+    refreshOffsets(next);core.validate(next);checkLocks(p,next);return {project:next,ids:newIds,changed:report.stats.changedSegments};
+  }
+  const api={scope,trackCues,time,texts,textSources,draft,cleanup};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWBatchEditing=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
 // Native v4 processing plans. No editable state is reconstructed from DATA.
 (function(global){
   'use strict';
@@ -21586,6 +21723,32 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '清理字幕': 'Clean up subtitles', '关闭清理字幕': 'Close subtitle cleanup', '清理内容': 'Content to remove',
+    '清理': 'Clean up', '仅空字幕': 'Empty subtitles only', '范围内全部字幕': 'All subtitles in scope',
+    '选择轨道与范围，清理空字幕或清空字幕': 'Choose a track and scope to remove empty subtitles or all subtitles',
+    '当前范围没有可清理的字幕': 'No subtitles to remove in this scope',
+    '当前范围没有字幕': 'No subtitles in this scope', '字幕时间没有变化': 'Subtitle timing is unchanged',
+    '仅展示前 100 条变化；应用将处理全部范围': 'Showing the first 100 changes; Apply processes the entire scope',
+    '添加后缀': 'Add suffix', '去除 Markdown 标记': 'Remove Markdown markup',
+    '只将第一个字母改为大写，不改动其余字母。': 'Capitalize the first letter without changing the remaining letters.',
+    '移除常见 Markdown 标记，保留文字内容。': 'Remove common Markdown markup and keep its text.',
+    '按同样的起止变化调整绑定伙伴，保留时间偏移。关闭时只调整目标轨；有锁定、重叠或无效时间时整批不应用。整轨范围包含禁用、隐藏和折叠内容。': 'Apply the same edge changes to bound partners and retain offsets. Off adjusts only the target track. Locks, overlaps or invalid timing block the whole batch. Entire track includes disabled, hidden and collapsed content.',
+    '100% 保持不变；按所选锚点缩放时间，发生同轨重叠或无效时间时整批不应用。': '100% keeps timing unchanged. Scale around the chosen anchor; same-track overlaps or invalid times block the whole batch.',
+    '正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。': 'Positive moves later, negative earlier. Resets to zero on success; overlaps or invalid times block the whole batch.',
+    '所有目标字幕移动相同距离，保留时长与间隔；正数向后、负数向前。发生重叠或越过零点时整批不应用。': 'Move all target subtitles equally, preserving durations and gaps. Positive moves later, negative earlier. Overlaps or times before zero block the whole batch.',
+    '只删除选定轨道与范围的字幕，包含禁用、隐藏和折叠内容。删除时解除对应绑定，另一侧字幕和音频素材保留；遇到锁定时整批不应用，可一次撤销。': 'Remove subtitles only from the chosen track and scope, including disabled, hidden and collapsed content. Their bindings are removed, while partner subtitles and audio assets remain. Locks block the whole batch. Undo as one operation.',
+    '只替换作用轨道的文字，保留字幕和绑定，不修改伙伴文字。空文字仍保留为空字幕。范围包含禁用、隐藏和折叠内容；所选字幕为空时不会扩大到整轨。': 'Replace text only on the target track. Keep subtitles and bindings without changing partner text; empty text remains as an empty subtitle. Includes disabled, hidden and collapsed content. An empty selection never means the whole track.',
+    '只修改作用轨道的文字，不修改绑定伙伴。字幕行不会被删除，处理为空时保留空行；尽量保留可复用字词时间码。范围包含禁用、隐藏和折叠内容。': 'Change text only on the target track, leaving bound partners untouched. Keep empty subtitles and reuse word timing where possible. Includes disabled, hidden and collapsed content.',
+    '集中修改指定轨道与范围的文字，尽量复用字词时间码。未绑定字幕可调整行数；已绑定字幕只改文字，拆分／合并请使用联动操作。应用前会检查工程是否变化，可一次撤销。': 'Edit text in the chosen track and scope, reusing word timing where possible. Unbound subtitles may change row structure. For bound subtitles, edit wording here and use linked actions to split or merge. Changes are checked before applying and undo as one operation.',
+    '每一行对应一条字幕。⌚️ 表示有效字词时间码覆盖率，♻️ 表示原始时间码复用率；修改影响中的数字可筛选对应字幕。': 'Each line represents one subtitle. ⌚️ indicates word-timing coverage; ♻️ indicates original timing reuse. Click counts in Change impact to filter subtitles.',
+    '本轨字幕在编辑期间发生了变化，请重新载入后再应用': 'Subtitles on this track changed while editing. Reload the draft before applying.',
+    '此修改会改变已绑定字幕的行结构；请使用联动切分／合并或先手动解绑': 'This changes bound subtitle structure. Use linked split / merge, or unbind explicitly first.',
+    '不能跨过范围外字幕合并；请扩大选区或分别处理': 'Cannot merge across excluded subtitles. Expand the selection or process separately.',
+    '无法确定字幕来源；未应用修改': 'Cannot determine subtitle ownership; no changes applied',
+    '时间超出有效范围或字词最短时长；整批未修改': 'Invalid time range or insufficient word duration; the entire batch is unchanged',
+    '操作包含锁定轨道，请先解锁': 'The operation involves locked tracks. Unlock them first.',
+    '切换范围会丢弃未应用的文字修改，是否继续？': 'Switching scope discards unapplied text edits. Continue?',
+    '检测到未绑定字幕的行结构变化；应用后按字词时间码拆分、合并或删除，绑定结构保持不变。': 'Unbound subtitle row structure changed. Apply splits, merges or removes rows using word timing; bound structure is preserved.',
     '作用范围': 'Scope', '整条轨道': 'Entire track', '间隔与拼接': 'Gaps and joining',
     '最大间隔': 'Maximum gap', '拼接方式': 'Join method', '提前后条起点': 'Start next subtitle earlier',
     '延长前条终点': 'Extend previous subtitle', '填补短间隔': 'Fill short gaps',
@@ -24223,6 +24386,12 @@ export default MawDynamicCaptions;
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const batchPreview=/^范围 (\d+) 条 · 预计修改 (\d+) 条$/.exec(text);
+    if(batchPreview)return `Scope: ${batchPreview[1]} subtitles · ${batchPreview[2]} changes`;
+    const cleanupPreview=/^将删除 (\d+) 条字幕(?: · 解除 (\d+) 组绑定，另一侧字幕保留)?$/.exec(text);
+    if(cleanupPreview)return `Remove ${cleanupPreview[1]} subtitles${cleanupPreview[2]?` · Unbind ${cleanupPreview[2]} pairs; partners remain`:''}`;
+    const cleaned=/^已删除 (\d+) 条字幕 · 可一次撤销$/.exec(text);
+    if(cleaned)return `Removed ${cleaned[1]} subtitles · Undo as one operation`;
     const gapGenerated = text.match(/^已生成 (\d+) 段标记，保留其他来源与手工调整$/);
     if (gapGenerated) return `Generated ${gapGenerated[1]} marks; other sources and manual edits are preserved`;
     const gapError = text.match(/^无法生成空隙标记：(.+)$/);
@@ -32619,6 +32788,7 @@ function productionSplitMode(segment,role='main',storage=null) {
 function productionSyncSettings() {
   const active=productionFlatMode();
   document.querySelectorAll('[data-flat-settings]').forEach(node=>{node.hidden=!active;});
+  document.querySelectorAll('[data-legacy-settings]').forEach(node=>{node.hidden=active;});
   document.getElementById('multi-subtitle-settings-dropdown').hidden=active;
   document.getElementById('overlay-track-controls').hidden=active;
   if(!active)return;
@@ -32814,14 +32984,14 @@ function fixedCommitProject(next, label) {
   renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
   return true;
 }
-function productionCommitProject(project,label,ids=[],{displayOnly=false}={}) {
+function productionCommitProject(project,label,ids=[],{displayOnly=false,recordHistory=true}={}) {
   if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
   const next=window.MSWProductionProject.fromProject(project);
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
     if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');
   } else fixedTrackCore.assertLocks(DATA,next);
-  commitProcessingEdits();pushUndo(label,{captureView:true});
+  commitProcessingEdits();if(recordHistory)pushUndo(label,{captureView:true});
   for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks','msw'])if(next[field])DATA[field]=next[field];
   // This transaction has already checked the canonical content/locks. Reset
   // the legacy operation checkpoint so a display-side change on locked tracks
@@ -36663,6 +36833,7 @@ const timedTextEditChangeDetails = document.getElementById('timed-text-edit-chan
 const timedTextEditChangeList = document.getElementById('timed-text-edit-change-list');
 const TIMED_TEXT_EDIT_REPORT_DEBOUNCE_MS = 160;
 let timedTextEditDraft = null;
+let timedTextFlatSelection = [];
 let timedTextEditReturnFocus = null;
 let timedTextEditReportTimer = null;
 const stickerModal = document.getElementById('sticker-modal');
@@ -40369,6 +40540,7 @@ let lastClickedOverlayIdx = -1;
 
 // 已选计数涵盖主轨/副轨/叠加轨三个选区集。
 function updateSelectionCountText() {
+  queueCleanupPreview();
   productionRememberSelection();
   queueAutoMergePreview();
   selCountEl.textContent = String(
@@ -40939,6 +41111,7 @@ function alignSelectedExtensionSubtitleRanges() {
 
 // === 渲染 ===
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor } = {}) {
+  queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
   layerPrepareRender();
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
@@ -44701,8 +44874,34 @@ function mergeOverlaySegments(idxs, mode = 'union') {
 }
 
 // ── 「字幕 → 缩放/偏移」：显式选择轨道和范围，连续手势共享撤销记录。 ──
+function batchSelectedIds() {
+  const selection=processingSelection();return [...selection.mainIds,...selection.extensionIds,...selection.overlayIds];
+}
+function batchTrackOptions(select,preferred) {
+  const p=MSWProductionProject.toProject(DATA),tracks=p.subtitles.tracks;
+  select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
+  select.value=preferred||'';return p;
+}
+function initBatchScope(prefix,preferred=null,selectedIds=batchSelectedIds()) {
+  const select=document.getElementById(prefix+'-track'),p=MSWProductionProject.toProject(DATA),selected=new Set(selectedIds);
+  const active=preferred||fixedActiveTrack()?.id;
+  const id=p.subtitles.cues.find(c=>c.track_id===active&&selected.has(c.id))?.track_id
+    ||p.subtitles.cues.find(c=>selected.has(c.id))?.track_id||active||p.subtitles.tracks[0]?.id;
+  batchTrackOptions(select,id);
+  document.getElementById(prefix+'-scope').value=p.subtitles.cues.some(c=>c.track_id===id&&selected.has(c.id))?'selected':'all';
+}
+function batchContext(prefix,selectedIds=batchSelectedIds(),options={}) {
+  const p=MSWProductionProject.toProject(DATA),trackId=document.getElementById(prefix+'-track').value;
+  const ids=document.getElementById(prefix+'-scope').value==='all'?null:selectedIds;
+  const cues=MSWBatchEditing.scope(p,trackId,ids,options);
+  return {p,trackId,cues,ids:cues.map(c=>c.id)};
+}
 let subtitleTimeGesture = null;
 function subtitleTimeContext() {
+  if(productionFlatMode()){
+    const context=batchContext('subtitle-time'),segments=MSWBatchEditing.trackCues(context.p,context.trackId).map(c=>({...c.content,id:c.id})),chosen=new Set(context.ids);
+    return {kind:context.trackId,track:null,segments,indices:segments.flatMap((c,i)=>chosen.has(c.id)?[i]:[])};
+  }
   const kind = document.getElementById('subtitle-time-track')?.value || 'main';
   const track = kind === 'extension' ? getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
   const segments = kind === 'main' ? DATA.segments : (track?.segments || []);
@@ -44718,6 +44917,21 @@ function subtitleTimeStatus(message, warning = false) {
   status.classList.toggle('warning', warning);
 }
 function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '', moveDelta = null} = {}) {
+  if(productionFlatMode()) {
+    try {
+      if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+      commitProcessingEdits();const context=batchContext('subtitle-time');
+      if(!context.ids.length){subtitleTimeStatus('当前范围没有字幕',true);return {changed:0,limited:0};}
+      const linked=document.getElementById('subtitle-time-linked').checked;
+      const result=MSWBatchEditing.time(context.p,context.ids,editFn,{linked});
+      if(!result.changed){subtitleTimeStatus('字幕时间没有变化');return {changed:0,limited:0};}
+      const key=JSON.stringify([context.trackId,context.ids,linked,gestureKey]);
+      const reuse=gesture&&subtitleTimeGesture?.key===key&&performance.now()-subtitleTimeGesture.at<450&&editorHistory.peekUndo()===subtitleTimeGesture.record;
+      productionCommitProject(result.project,label,result.ids,{recordHistory:!reuse});
+      subtitleTimeGesture=gesture?{key,record:editorHistory.peekUndo(),at:performance.now()}:null;
+      return {...result,limited:0};
+    }catch(error){subtitleTimeStatus(error.message,true);return {changed:0,limited:0};}
+  }
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
   const context = subtitleTimeContext();
@@ -44865,7 +45079,9 @@ function initSubtitleScaleOffsetControls() {
       ? 'group' : 'center';
     let groupStart = 0;
     if (anchor === 'group') {
-      const context = subtitleTimeContext();
+      let context;
+      try { context = subtitleTimeContext(); }
+      catch(error){subtitleTimeStatus(error.message,true);return {changed:0,limited:0};}
       const starts = context.indices.map((i) => context.segments[i]?.start).filter(Number.isFinite);
       groupStart = starts.length ? Math.min(...starts) : 0;
     }
@@ -44944,6 +45160,10 @@ const subtitleScaleFloatingPanel = createFloatingPanel({
 document.getElementById('subtitle-scale-offset-open')?.addEventListener('click', () => {
   if (subtitleScaleModal?.classList.contains('show')) subtitleScaleFloatingPanel.close();
   else {
+    if(productionFlatMode()) {
+      commitProcessingEdits();initBatchScope('subtitle-time');subtitleTimeGesture=null;
+      subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);subtitleScaleFloatingPanel.open();return;
+    }
     document.getElementById('subtitle-time-track').value = selectedExtensionIdxs.size && !selectedIdxs.size ? 'extension' : 'main';
     const selected = selectedExtensionIdxs.size || selectedIdxs.size;
     document.getElementById('subtitle-time-scope').value = selected ? 'selected' : 'all';
@@ -44953,7 +45173,9 @@ document.getElementById('subtitle-scale-offset-open')?.addEventListener('click',
   }
 });
 for (const id of ['subtitle-time-track','subtitle-time-scope','subtitle-time-linked']) document.getElementById(id)?.addEventListener('change',()=>{
-  subtitleTimeGesture = null;subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);
+  subtitleTimeGesture = null;
+  try {subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);}
+  catch(error){subtitleTimeStatus(error.message,true);}
 });
 document.getElementById('subtitle-scale-offset-close')?.addEventListener('click', () => subtitleScaleFloatingPanel.close());
 // 步进按钮：单击 ±1（缩放 1%、偏移 1ms）；长按 300ms 后每 70ms 连发。
@@ -45408,6 +45630,7 @@ function deleteSelectedCues(label = '删除选中字幕') {
 }
 
 function clearAllSubtitles() {
+  if(productionFlatMode()){openSubtitleCleanup('all');return;}
   const multi = getMultiSubtitleState();
   if (!DATA.segments.length && !(multi.tracks || []).some(track => track.segments.length) && !getOverlayTrack()?.segments?.length) return;
   commitProcessingEdits();
@@ -54473,7 +54696,53 @@ const replaceSelectedOnlyHint = document.getElementById('replace-selected-only-h
 let replaceScope = null;
 let replaceSelectionSnapshot = [];
 let replaceSourceTrack = null;
+let replaceFlatSelection = [];
+let textProcessFlatSelection = [];
 const replaceSegments = () => replaceSourceTrack?.segments || DATA.segments;
+
+function flatTextPreview(prefix,selected,transform,container,button,label) {
+  container.replaceChildren();container.style.color='';button.disabled=true;
+  try {
+    const context=batchContext(prefix,selected),rows=context.cues.map(c=>({id:c.id,before:c.content.text,after:transform(c.content.text)}));
+    const changes=rows.filter(row=>row.before!==row.after).map(row=>({id:row.id,text:row.after}));
+    MSWFlatEditing.editable(context.p,changes.map(row=>row.id));
+    const result={changed:changes.length};
+    const summary=document.createElement('div');summary.className='replace-preview-summary';
+    summary.textContent=rows.length?`范围 ${rows.length} 条 · 预计修改 ${result.changed} 条`:'当前范围没有字幕';container.append(summary);
+    const ordered=MSWBatchEditing.trackCues(context.p,context.trackId),name=context.p.subtitles.tracks.find(t=>t.id===context.trackId).name;
+    rows.filter(row=>row.before!==row.after).slice(0,100).forEach(row=>{
+      const item=document.createElement('details');item.className='replace-preview-row';
+      const title=document.createElement('summary');title.textContent=`${name}_${ordered.findIndex(c=>c.id===row.id)+1}`;
+      const before=document.createElement('div');before.className='replace-preview-before';before.textContent=`处理前：${row.before}`;
+      const after=document.createElement('div');after.className='replace-preview-after';after.textContent=`处理后：${row.after}`;
+      item.append(title,before,after);container.append(item);
+    });
+    if(result.changed>100){const hint=document.createElement('small');hint.textContent='仅展示前 100 条变化；应用将处理全部范围';container.append(hint);}
+    button.disabled=!result.changed;return {context,changes,result,label};
+  }catch(error){container.textContent=error.message;return null;}
+}
+function flatReplacePreview() {
+  const button=document.getElementById('replace-confirm');
+  if(!findInput.value){replacePreview.textContent='输入查找内容查看预览';replacePreview.style.color='';button.disabled=true;return null;}
+  const re=buildReplaceRegex();
+  if(re?.error){replacePreview.textContent=`正则错误: ${re.error}`;replacePreview.style.color='';button.disabled=true;return null;}
+  return flatTextPreview('replace',replaceFlatSelection,text=>{re.lastIndex=0;return text.replace(re,replaceInput.value);},replacePreview,button,'批量替换');
+}
+function flatProcessPreview() {
+  const options=getTextProcessOptions();
+  if(![textProcessTrim,textProcessCapitalize,textProcessPrefix,textProcessSuffix,textProcessStripMarkdown].some(el=>el.checked)){
+    textProcessPreview.textContent='请选择至少一项文本处理操作';textProcessConfirm.disabled=true;return null;
+  }
+  return flatTextPreview('text-process',textProcessFlatSelection,text=>AsrEditorUtils.applyTextProcessing(text,options),textProcessPreview,textProcessConfirm,'文本处理');
+}
+function applyFlatTextPlan(build,container,modal) {
+  try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    commitProcessingEdits();const plan=build();if(!plan?.result.changed)return;
+    const result=MSWBatchEditing.texts(plan.context.p,plan.changes);
+    productionCommitProject(result.project,plan.label,result.ids);modal.classList.remove('show');
+  }catch(error){container.textContent=error.message;}
+}
 
 function normalizeBatchSelection(indexes) {
   const candidates = Array.isArray(indexes) ? indexes : [...selectedIdxs];
@@ -54501,6 +54770,7 @@ function buildReplaceRegex() {
 }
 
 function updatePreview() {
+  if(productionFlatMode())return flatReplacePreview();
   const find = findInput.value;
   replacePreview.replaceChildren();
   if (!find) {
@@ -54577,6 +54847,13 @@ replaceSelectedOnlyCb?.addEventListener('change', () => {
 });
 
 function openReplaceModal(scope, track = null) {
+  if(productionFlatMode()) {
+    commitProcessingEdits();
+    replaceFlatSelection=Array.isArray(scope)?scope.map(i=>(track?.segments||DATA.segments)[i]?.id).filter(Boolean):batchSelectedIds();
+    const p=MSWProductionProject.toProject(DATA),preferred=p.subtitles.cues.find(c=>replaceFlatSelection.includes(c.id))?.track_id;
+    initBatchScope('replace',preferred,replaceFlatSelection);
+    replaceModal.classList.add('show');updatePreview();setTimeout(()=>findInput.focus(),0);return;
+  }
   if (editingState) finishEdit(true);
   if (extensionEditingState) finishExtensionEdit(true);
   replaceSourceTrack = track;
@@ -54595,6 +54872,7 @@ document.getElementById('replace-btn')?.addEventListener('click', () => openRepl
 document.getElementById('replace-cancel')?.addEventListener('click', () => replaceModal.classList.remove('show'));
 replaceModal.addEventListener('click', (e) => { if (e.target === replaceModal) replaceModal.classList.remove('show'); });
 document.getElementById('replace-confirm')?.addEventListener('click', () => {
+  if(productionFlatMode())return applyFlatTextPlan(flatReplacePreview,replacePreview,replaceModal);
   const re = buildReplaceRegex();
   if (!re || re.error) return;
   const repl = replaceInput.value;
@@ -54718,6 +54996,7 @@ function refreshTextProcessSelectionControl() {
 }
 
 function renderTextProcessPreview() {
+  if(productionFlatMode())return flatProcessPreview();
   const options = getTextProcessOptions();
   const hasOperation = textProcessTrim.checked || textProcessCapitalize.checked
     || textProcessPrefix.checked || textProcessSuffix.checked || textProcessStripMarkdown.checked;
@@ -54770,6 +55049,12 @@ function closeTextProcessModal() {
 }
 
 function openTextProcessModal() {
+  if(productionFlatMode()) {
+    commitProcessingEdits();textProcessFlatSelection=batchSelectedIds();initBatchScope('text-process',null,textProcessFlatSelection);
+    [textProcessTrim,textProcessCapitalize,textProcessPrefix,textProcessSuffix,textProcessStripMarkdown].forEach(el=>{el.checked=false;});
+    textProcessPrefixInput.value='';textProcessSuffixInput.value='';refreshTextProcessInputState();
+    textProcessModal.classList.add('show');renderTextProcessPreview();return;
+  }
   if (!DATA.segments.length && !getActiveExtensionTrack()?.segments?.length) {
     flashHint('当前没有可处理的字幕', 'invalid');
     return;
@@ -54810,6 +55095,7 @@ textProcessModal?.addEventListener('click', (event) => {
   if (event.target === textProcessModal) closeTextProcessModal();
 });
 textProcessConfirm?.addEventListener('click', () => {
+  if(productionFlatMode())return applyFlatTextPlan(flatProcessPreview,textProcessPreview,textProcessModal);
   const options = getTextProcessOptions();
   const result = {
     rows: buildTextProcessPreview(textProcessTargets(), options),
@@ -54874,12 +55160,22 @@ textProcessConfirm?.addEventListener('click', () => {
 });
 
 // === 纯文本编辑（支持调整字幕行结构的 MVP） ===
+for(const prefix of ['replace','text-process'])for(const suffix of ['track','scope'])document.getElementById(prefix+'-'+suffix)?.addEventListener('change',()=>{
+  if(prefix==='replace')updatePreview();else renderTextProcessPreview();
+});
 function timedTextEditSegments(kind) {
+  if(productionFlatMode()){const p=MSWProductionProject.toProject(DATA);return MSWBatchEditing.textSources(MSWBatchEditing.trackCues(p,kind),p);}
   return kind === 'extension' ? getActiveExtensionTrack()?.segments || [] : DATA.segments;
 }
 
 function timedTextEditSourceSelection(kind, showDisabled = false) {
   const allSegments = timedTextEditSegments(kind);
+  if(productionFlatMode()) {
+    const context=batchContext('timed-text-edit',timedTextFlatSelection,{includeDisabled:showDisabled}),chosen=new Set(context.ids);
+    const sourceSegmentIndexes=allSegments.flatMap((c,i)=>chosen.has(c.id)?[i]:[]);
+    const total=MSWBatchEditing.scope(context.p,kind,document.getElementById('timed-text-edit-scope').value==='all'?null:timedTextFlatSelection).length;
+    return {allSegments,sourceSegmentIndexes,sourceSegments:sourceSegmentIndexes.map(i=>allSegments[i]),snapshot:MSWBatchEditing.trackCues(context.p,kind),hiddenDisabledCount:total-chosen.size};
+  }
   const sourceSegmentIndexes = allSegments
     .map((segment, index) => ({ segment, index }))
     .filter(({ segment }) => showDisabled || segment?.disabled !== true)
@@ -54900,6 +55196,7 @@ function currentTimedTextEditKind() {
 }
 
 function timedTextEditTrackLabel(kind) {
+  if(productionFlatMode())return DATA.subtitle_tracks.tracks.find(t=>t.id===kind)?.name||'字幕轨道';
   if (kind !== 'extension') return '主字幕';
   const track = getActiveExtensionTrack();
   return track?.name ? `副字幕（${track.name}）` : '副字幕';
@@ -55289,7 +55586,7 @@ function updateTimedTextEditReport() {
   } else if (stats.boundaryMoves) {
     timedTextEditReportHint.textContent = '检测到相邻字幕之间的开头/结尾移动；对应字词时间码会一起转移，并更新字幕段范围。';
   } else if (stats.structureMappedCues) {
-    timedTextEditReportHint.textContent = '检测到字幕行结构变化；应用后会按字词时间码拆分、合并或删除字幕行，并解除受影响的多字幕绑定。';
+    timedTextEditReportHint.textContent = productionFlatMode()?'检测到未绑定字幕的行结构变化；应用后按字词时间码拆分、合并或删除，绑定结构保持不变。':'检测到字幕行结构变化；应用后会按字词时间码拆分、合并或删除字幕行，并解除受影响的多字幕绑定。';
   } else {
     timedTextEditReportHint.textContent = '当前修改可以完整复用原字词时间码；字幕段整体时间范围不会改变。';
   }
@@ -55338,12 +55635,18 @@ function updateTimedTextEditReport() {
   timedTextEditSingleHint.textContent = singleHint;
   timedTextEditSingleHint.hidden = timedTextEditDraft.view !== 'single' || !singleHint;
   if (!timedTextEditDraft.sourceSegments.length && timedTextEditDraft.allSourceSegments.length) {
-    timedTextEditReportHint.textContent = '当前没有显示中的字幕；打开“显示已禁用字幕”后才能编辑。';
+    timedTextEditReportHint.textContent = productionFlatMode()&&!timedTextEditDraft.hiddenDisabledCount?'当前范围没有字幕':'当前没有显示中的字幕；打开“显示已禁用字幕”后才能编辑。';
   }
   timedTextEditApply.disabled = !report.valid;
+  if(productionFlatMode()) {
+    timedTextEditApply.disabled=!report.valid||!report.stats.changedSegments;
+    if(report.valid&&report.stats.changedSegments)try {buildFlatTextDraft();}
+    catch(error){timedTextEditReportHint.textContent=error.message;timedTextEditReportHint.classList.add('warning');timedTextEditApply.disabled=true;}
+  }
 }
 
 function refreshTimedTextEditTrackOptions(kind = currentTimedTextEditKind()) {
+  if(productionFlatMode()){timedTextEditTrackControl.hidden=false;batchTrackOptions(timedTextEditTrack,kind);return kind;}
   const multi = getMultiSubtitleState();
   // 「已开启模式但尚未导入副轨」时没有第二条字幕可编辑，不显示轨道切换控件。
   const multiSubtitleEnabled = multi.enabled === true && Boolean((multi.tracks || []).length);
@@ -55361,11 +55664,12 @@ function loadTimedTextEditTrack(kind, { showDisabled = false } = {}) {
   const nextKind = refreshTimedTextEditTrackOptions(kind);
   const selection = timedTextEditSourceSelection(nextKind, showDisabled);
   const sourceSegments = selection.sourceSegments;
-  const hiddenDisabledCount = selection.allSegments.length - sourceSegments.length;
+  const hiddenDisabledCount = selection.hiddenDisabledCount??selection.allSegments.length - sourceSegments.length;
   timedTextEditDraft = {
     kind: nextKind,
     trackId: nextKind === 'extension' ? getActiveExtensionTrack()?.id || null : null,
     showDisabled: Boolean(showDisabled),
+    hiddenDisabledCount,
     sourceSegmentIndexes: selection.sourceSegmentIndexes,
     allSourceSegments: JSON.parse(JSON.stringify(selection.allSegments || [])),
     sourceSegments: JSON.parse(JSON.stringify(sourceSegments || [])),
@@ -55375,6 +55679,8 @@ function loadTimedTextEditTrack(kind, { showDisabled = false } = {}) {
     singleText: (sourceSegments || []).map((segment) => String(segment?.text || '')).join('\n'),
     singleLineError: '',
     report: null,
+    flatSnapshot: selection.snapshot,
+    scope: document.getElementById('timed-text-edit-scope')?.value,
   };
   if (timedTextEditShowDisabledToggle) timedTextEditShowDisabledToggle.checked = Boolean(showDisabled);
   timedTextEditSourceInfo.textContent = `${timedTextEditTrackLabel(nextKind)} · ${sourceSegments.length} 条${hiddenDisabledCount ? `（已隐藏 ${hiddenDisabledCount} 条禁用字幕）` : ''}`;
@@ -55400,7 +55706,11 @@ function closeTimedTextEdit() {
 }
 
 function timedTextEditHasUnappliedChanges() {
-  return Boolean(timedTextEditDraft?.report?.stats.changedSegments || timedTextEditDraft?.singleLineError);
+  if(!timedTextEditDraft)return false;
+  syncTimedTextEditDraftFromDom();
+  return Boolean(timedTextEditDraft.singleLineError
+    || timedTextEditDraft.texts.length!==timedTextEditDraft.sourceSegments.length
+    || timedTextEditDraft.texts.some((text,index)=>text!==timedTextEditDraft.sourceSegments[index]?.text));
 }
 
 function mergeTimedTextEditSegmentsWithHidden(
@@ -55599,10 +55909,15 @@ function openTimedTextEdit() {
   if (editingState) finishEdit(true);
   timedTextEditReturnFocus = document.activeElement instanceof HTMLElement
     ? document.activeElement : null;
-  loadTimedTextEditTrack(currentTimedTextEditKind());
+  if(productionFlatMode()) {
+    commitProcessingEdits();timedTextFlatSelection=batchSelectedIds();initBatchScope('timed-text-edit',null,timedTextFlatSelection);
+    loadTimedTextEditTrack(timedTextEditTrack.value);
+  }else loadTimedTextEditTrack(currentTimedTextEditKind());
   timedTextEditModal.classList.add('show');
-  setTimeout(() => (timedTextEditDraft?.view === 'single'
-    ? timedTextEditSingleTextarea : timedTextEditRows.querySelector('textarea'))?.focus(), 50);
+  requestAnimationFrame(() => {
+    if(timedTextEditModal.classList.contains('show')&&!timedTextEditModal.contains(document.activeElement))
+      (timedTextEditDraft?.view === 'single' ? timedTextEditSingleTextarea : timedTextEditRows.querySelector('textarea'))?.focus();
+  });
 }
 
 timedTextEditButton?.addEventListener('click', openTimedTextEdit);
@@ -55611,9 +55926,12 @@ timedTextEditRows?.addEventListener('input', (event) => {
   if (!textarea || !timedTextEditDraft) return;
   const index = Number(textarea.dataset.index);
   if (!Number.isInteger(index) || index < 0 || index >= timedTextEditDraft.texts.length) return;
-  const replacementLines = textarea.value.replace(/\r\n?/g, '\n').split('\n');
-  timedTextEditDraft.texts.splice(index, 1, ...replacementLines);
-  timedTextEditDraft.texts = normalizeTimedTextEditDraftLines(timedTextEditDraft.texts);
+  // The row DOM is rebuilt after the debounced report. Read it as a complete
+  // snapshot: repeated input events before that rebuild must not split a row twice.
+  timedTextEditDraft.texts = normalizeTimedTextEditDraftLines(
+    [...timedTextEditRows.querySelectorAll('textarea[data-index]')]
+      .flatMap(input => input.value.replace(/\r\n?/g, '\n').split('\n')),
+  );
   timedTextEditDraft.singleText = timedTextEditDraft.texts.join('\n');
   timedTextEditDraft.singleLineError = '';
   renderTimedTextEditView();
@@ -55677,6 +55995,22 @@ timedTextEditTrack?.addEventListener('change', () => {
     showDisabled: timedTextEditDraft.showDisabled === true,
   });
 });
+document.getElementById('timed-text-edit-scope')?.addEventListener('change',()=>{
+  if(!timedTextEditDraft)return;
+  if(timedTextEditHasUnappliedChanges()&&!window.confirm('切换范围会丢弃未应用的文字修改，是否继续？')){
+    document.getElementById('timed-text-edit-scope').value=timedTextEditDraft.scope;return;
+  }
+  loadTimedTextEditTrack(timedTextEditDraft.kind,{showDisabled:timedTextEditDraft.showDisabled});
+});
+function buildFlatTextDraft(makeId) {
+  const draft=timedTextEditDraft,p=MSWProductionProject.toProject(DATA);
+  const sourceIds=new Set(draft.sourceSegments.map(c=>c.id));
+  const current=MSWBatchEditing.textSources(MSWBatchEditing.trackCues(p,draft.kind).filter(c=>sourceIds.has(c.id)),p);
+  if(JSON.stringify(current)!==JSON.stringify(draft.sourceSegments))throw Error('本轨字幕在编辑期间发生了变化，请重新载入后再应用');
+  const next=AsrEditorUtils.applyTimedTextEdit(draft.sourceSegments,draft.texts);
+  if(!next)throw Error('无法应用文本修改：字幕行结构发生了变化');
+  return MSWBatchEditing.draft(p,draft.kind,draft.flatSnapshot,draft.sourceSegments.map(c=>c.id),next,draft.report,{makeId});
+}
 timedTextEditClose?.addEventListener('click', requestCloseTimedTextEdit);
 timedTextEditCancel?.addEventListener('click', requestCloseTimedTextEdit);
 timedTextEditModal?.addEventListener('click', (event) => {
@@ -55688,6 +56022,15 @@ timedTextEditApply?.addEventListener('click', () => {
   syncTimedTextEditDraftFromDom();
   flushTimedTextEditReport();
   if (!draft.report?.valid) return;
+  if(productionFlatMode()) {
+    try {
+      if(!draft.report.stats.changedSegments)return;
+      if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+      commitProcessingEdits();const result=buildFlatTextDraft(kind=>MSWProject.id(kind));
+      productionCommitProject(result.project,'纯文本编辑',result.ids);closeTimedTextEdit();
+    }catch(error){timedTextEditReportHint.textContent=error.message;timedTextEditReportHint.classList.add('warning');timedTextEditApply.disabled=true;}
+    return;
+  }
   if (!draft.report.stats.changedSegments) {
     flashHint('当前没有文本修改，未作改动', 'invalid');
     return;
@@ -58814,6 +59157,7 @@ cueDeleteButton?.addEventListener('click', () => deleteSelectedCues());
 
 // 清除全部空字幕块：删除所有没有文字内容的字幕（主轨 + 各副轨），可撤销。
 function clearEmptyCues() {
+  if(productionFlatMode()){openSubtitleCleanup('empty');return;}
   commitProcessingEdits();
   const emptyMain = DATA.segments
     .map((segment, index) => ({ segment, index }))
@@ -58840,6 +59184,38 @@ function clearEmptyCues() {
   for (const { track, indices } of emptyExtByTrack) deleteExtensionSegments(indices, track, { recordHistory: false });
 }
 document.getElementById('clear-empty-cues')?.addEventListener('click', clearEmptyCues);
+
+const subtitleCleanupPanel=document.getElementById('subtitle-cleanup-panel');
+const subtitleCleanupFloating=createFloatingPanel({panel:subtitleCleanupPanel,dragHandle:document.getElementById('subtitle-cleanup-handle'),positionKey:'msw.subtitleCleanup.position.v1'});
+let cleanupPreviewTimer=null;
+function queueCleanupPreview() {
+  if(!document.getElementById('subtitle-cleanup-panel')?.classList.contains('show'))return;
+  clearTimeout(cleanupPreviewTimer);cleanupPreviewTimer=setTimeout(previewSubtitleCleanup,30);
+}
+function openSubtitleCleanup(mode='empty') {
+  commitProcessingEdits();initBatchScope('subtitle-cleanup');document.getElementById('subtitle-cleanup-mode').value=mode;
+  subtitleCleanupFloating.open();previewSubtitleCleanup();
+}
+function previewSubtitleCleanup() {
+  const status=document.getElementById('subtitle-cleanup-status'),button=document.getElementById('subtitle-cleanup-apply');button.disabled=true;
+  try {
+    const context=batchContext('subtitle-cleanup'),empty=document.getElementById('subtitle-cleanup-mode').value==='empty';
+    const ids=context.cues.filter(c=>!empty||!c.content.text.trim()).map(c=>c.id);
+    const project=ids.length?MSWBatchEditing.cleanup(context.p,ids):context.p;
+    const bindings=context.p.subtitles.bindings.length-project.subtitles.bindings.length;
+    status.textContent=ids.length?`将删除 ${ids.length} 条字幕${bindings?` · 解除 ${bindings} 组绑定，另一侧字幕保留`:''}`:'当前范围没有可清理的字幕';
+    button.disabled=!ids.length;return {project,ids};
+  }catch(error){status.textContent=error.message;return null;}
+}
+for(const suffix of ['track','scope','mode'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('change',previewSubtitleCleanup);
+document.getElementById('subtitle-cleanup-close')?.addEventListener('click',()=>subtitleCleanupFloating.close());
+document.getElementById('subtitle-cleanup-apply')?.addEventListener('click',()=>{
+  try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    commitProcessingEdits();const result=previewSubtitleCleanup();if(!result?.ids.length)return;
+    productionCommitProject(result.project,'清理字幕');clearTimeout(cleanupPreviewTimer);previewSubtitleCleanup();document.getElementById('subtitle-cleanup-status').textContent=`已删除 ${result.ids.length} 条字幕 · 可一次撤销`;
+  }catch(error){document.getElementById('subtitle-cleanup-status').textContent=error.message;}
+});
 
 // Ctrl/Cmd+X / C / V：与 Delete 键同一套输入保护（输入框、右键菜单内不抢占）。
 document.addEventListener('keydown', (event) => {

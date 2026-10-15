@@ -73,10 +73,12 @@ for(const kind of ['main','extension'])test(`${kind} clipboard keeps materialize
   const result=await page.evaluate(kind=>{
     clearSelection({silent:true,commitCuePanel:false});
     (kind==='main'?selectedIdxs:selectedExtensionIdxs).add(1);
+    const originalId=(kind==='main'?DATA.segments:getActiveExtensionTrack().segments)[1].id;
+    const originalIds=new Set([...DATA.segments,...getActiveExtensionTrack().segments].map(c=>c.id));
     copySelectedCues();player.currentTime=1;pasteCuesFromClipboard();
-    const cues=kind==='main'?DATA.segments:getActiveExtensionTrack().segments;
-    const original=cues.find(c=>c.id===(kind==='main'?'main-1':'ext-1'));
-    const pasted=cues.find(c=>c.id.includes('pasted'));
+    const cues=[...DATA.segments,...getActiveExtensionTrack().segments];
+    const original=cues.find(c=>c.id===originalId);
+    const pasted=cues.find(c=>!originalIds.has(c.id));
     return {color:pasted.color,ref:pasted.color_ref,originalColor:original.color,originalRef:original.color_ref,start:pasted.start,items:pasted.items};
   },kind);
   expect(result.color.name).toBe('purple');expect(result.color.value).toBe('#bb66ff');expect(result.ref).toBeUndefined();
@@ -100,7 +102,8 @@ test('timing wheel coalesces undo, retimes words and keeps feedback in panel',as
 test('secondary timing scope never falls back to editing all main subtitles',async({page})=>{
   await page.evaluate(()=>{selectedExtensionIdxs.add(0);});
   await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');
-  await expect(page.locator('#subtitle-time-track')).toHaveValue('extension');
+  const physicalTrack=await page.evaluate(()=>MSWProductionProject.toProject(DATA).subtitles.cues.find(c=>c.id===getActiveExtensionTrack().segments[0].id).track_id);
+  await expect(page.locator('#subtitle-time-track')).toHaveValue(physicalTrack);
   await page.locator('#subtitle-shift-ms').fill('100');await page.locator('#subtitle-shift-ms').press('Tab');
   expect(await page.evaluate(()=>[DATA.segments[0].start,getActiveExtensionTrack().segments[0].start])).toEqual([2000,2100]);
   await page.evaluate(()=>selectedExtensionIdxs.clear());
@@ -117,10 +120,12 @@ test('whole-track move preserves gaps and durations',async({page})=>{
 
 for(const kind of ['main','extension'])test(`linked ${kind} batch movement preserves every follower`,async({page})=>{
   await page.evaluate(()=>{
-    getMultiSubtitleState().bindings=DATA.segments.map((cue,i)=>({id:'binding-'+i,track_id:'ext',main_segment_ids:[cue.id],extension_segment_ids:['ext-'+i],start_offset_ms:0,end_offset_ms:0}));
+    const track=getActiveExtensionTrack();
+    getMultiSubtitleState().bindings=DATA.segments.map((cue,i)=>({id:'binding-'+i,track_id:track.id,main_segment_ids:[cue.id],extension_segment_ids:[track.segments[i].id],start_offset_ms:0,end_offset_ms:0}));
   });
   await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');
-  await page.locator('#subtitle-time-track').selectOption(kind);
+  const physicalTrack=await page.evaluate(kind=>MSWProductionProject.toProject(DATA).subtitles.cues.find(c=>c.id===(kind==='main'?DATA.segments:getActiveExtensionTrack().segments)[0].id).track_id,kind);
+  await page.locator('#subtitle-time-track').selectOption(physicalTrack);
   await page.locator('#subtitle-shift-ms').fill('2500');await page.locator('#subtitle-shift-ms').press('Tab');
   expect(await page.evaluate(()=>[DATA.segments,getActiveExtensionTrack().segments].map(cues=>cues.map(c=>[c.start,c.end,c.items[0].start])))).toEqual([
     [[4500,5500,4500],[6500,7500,6500],[8500,9500,8500]],

@@ -2478,6 +2478,7 @@ const timedTextEditChangeDetails = document.getElementById('timed-text-edit-chan
 const timedTextEditChangeList = document.getElementById('timed-text-edit-change-list');
 const TIMED_TEXT_EDIT_REPORT_DEBOUNCE_MS = 160;
 let timedTextEditDraft = null;
+let timedTextFlatSelection = [];
 let timedTextEditReturnFocus = null;
 let timedTextEditReportTimer = null;
 const stickerModal = document.getElementById('sticker-modal');
@@ -6184,6 +6185,7 @@ let lastClickedOverlayIdx = -1;
 
 // 已选计数涵盖主轨/副轨/叠加轨三个选区集。
 function updateSelectionCountText() {
+  queueCleanupPreview();
   productionRememberSelection();
   queueAutoMergePreview();
   selCountEl.textContent = String(
@@ -6754,6 +6756,7 @@ function alignSelectedExtensionSubtitleRanges() {
 
 // === 渲染 ===
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor } = {}) {
+  queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
   layerPrepareRender();
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
@@ -10516,8 +10519,34 @@ function mergeOverlaySegments(idxs, mode = 'union') {
 }
 
 // ── 「字幕 → 缩放/偏移」：显式选择轨道和范围，连续手势共享撤销记录。 ──
+function batchSelectedIds() {
+  const selection=processingSelection();return [...selection.mainIds,...selection.extensionIds,...selection.overlayIds];
+}
+function batchTrackOptions(select,preferred) {
+  const p=MSWProductionProject.toProject(DATA),tracks=p.subtitles.tracks;
+  select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
+  select.value=preferred||'';return p;
+}
+function initBatchScope(prefix,preferred=null,selectedIds=batchSelectedIds()) {
+  const select=document.getElementById(prefix+'-track'),p=MSWProductionProject.toProject(DATA),selected=new Set(selectedIds);
+  const active=preferred||fixedActiveTrack()?.id;
+  const id=p.subtitles.cues.find(c=>c.track_id===active&&selected.has(c.id))?.track_id
+    ||p.subtitles.cues.find(c=>selected.has(c.id))?.track_id||active||p.subtitles.tracks[0]?.id;
+  batchTrackOptions(select,id);
+  document.getElementById(prefix+'-scope').value=p.subtitles.cues.some(c=>c.track_id===id&&selected.has(c.id))?'selected':'all';
+}
+function batchContext(prefix,selectedIds=batchSelectedIds(),options={}) {
+  const p=MSWProductionProject.toProject(DATA),trackId=document.getElementById(prefix+'-track').value;
+  const ids=document.getElementById(prefix+'-scope').value==='all'?null:selectedIds;
+  const cues=MSWBatchEditing.scope(p,trackId,ids,options);
+  return {p,trackId,cues,ids:cues.map(c=>c.id)};
+}
 let subtitleTimeGesture = null;
 function subtitleTimeContext() {
+  if(productionFlatMode()){
+    const context=batchContext('subtitle-time'),segments=MSWBatchEditing.trackCues(context.p,context.trackId).map(c=>({...c.content,id:c.id})),chosen=new Set(context.ids);
+    return {kind:context.trackId,track:null,segments,indices:segments.flatMap((c,i)=>chosen.has(c.id)?[i]:[])};
+  }
   const kind = document.getElementById('subtitle-time-track')?.value || 'main';
   const track = kind === 'extension' ? getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
   const segments = kind === 'main' ? DATA.segments : (track?.segments || []);
@@ -10533,6 +10562,21 @@ function subtitleTimeStatus(message, warning = false) {
   status.classList.toggle('warning', warning);
 }
 function applySubtitleTimeEdit(label, editFn, {gesture = false, gestureKey = '', moveDelta = null} = {}) {
+  if(productionFlatMode()) {
+    try {
+      if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+      commitProcessingEdits();const context=batchContext('subtitle-time');
+      if(!context.ids.length){subtitleTimeStatus('当前范围没有字幕',true);return {changed:0,limited:0};}
+      const linked=document.getElementById('subtitle-time-linked').checked;
+      const result=MSWBatchEditing.time(context.p,context.ids,editFn,{linked});
+      if(!result.changed){subtitleTimeStatus('字幕时间没有变化');return {changed:0,limited:0};}
+      const key=JSON.stringify([context.trackId,context.ids,linked,gestureKey]);
+      const reuse=gesture&&subtitleTimeGesture?.key===key&&performance.now()-subtitleTimeGesture.at<450&&editorHistory.peekUndo()===subtitleTimeGesture.record;
+      productionCommitProject(result.project,label,result.ids,{recordHistory:!reuse});
+      subtitleTimeGesture=gesture?{key,record:editorHistory.peekUndo(),at:performance.now()}:null;
+      return {...result,limited:0};
+    }catch(error){subtitleTimeStatus(error.message,true);return {changed:0,limited:0};}
+  }
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
   const context = subtitleTimeContext();
@@ -10680,7 +10724,9 @@ function initSubtitleScaleOffsetControls() {
       ? 'group' : 'center';
     let groupStart = 0;
     if (anchor === 'group') {
-      const context = subtitleTimeContext();
+      let context;
+      try { context = subtitleTimeContext(); }
+      catch(error){subtitleTimeStatus(error.message,true);return {changed:0,limited:0};}
       const starts = context.indices.map((i) => context.segments[i]?.start).filter(Number.isFinite);
       groupStart = starts.length ? Math.min(...starts) : 0;
     }
@@ -10759,6 +10805,10 @@ const subtitleScaleFloatingPanel = createFloatingPanel({
 document.getElementById('subtitle-scale-offset-open')?.addEventListener('click', () => {
   if (subtitleScaleModal?.classList.contains('show')) subtitleScaleFloatingPanel.close();
   else {
+    if(productionFlatMode()) {
+      commitProcessingEdits();initBatchScope('subtitle-time');subtitleTimeGesture=null;
+      subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);subtitleScaleFloatingPanel.open();return;
+    }
     document.getElementById('subtitle-time-track').value = selectedExtensionIdxs.size && !selectedIdxs.size ? 'extension' : 'main';
     const selected = selectedExtensionIdxs.size || selectedIdxs.size;
     document.getElementById('subtitle-time-scope').value = selected ? 'selected' : 'all';
@@ -10768,7 +10818,9 @@ document.getElementById('subtitle-scale-offset-open')?.addEventListener('click',
   }
 });
 for (const id of ['subtitle-time-track','subtitle-time-scope','subtitle-time-linked']) document.getElementById(id)?.addEventListener('change',()=>{
-  subtitleTimeGesture = null;subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);
+  subtitleTimeGesture = null;
+  try {subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);}
+  catch(error){subtitleTimeStatus(error.message,true);}
 });
 document.getElementById('subtitle-scale-offset-close')?.addEventListener('click', () => subtitleScaleFloatingPanel.close());
 // 步进按钮：单击 ±1（缩放 1%、偏移 1ms）；长按 300ms 后每 70ms 连发。
@@ -11223,6 +11275,7 @@ function deleteSelectedCues(label = '删除选中字幕') {
 }
 
 function clearAllSubtitles() {
+  if(productionFlatMode()){openSubtitleCleanup('all');return;}
   const multi = getMultiSubtitleState();
   if (!DATA.segments.length && !(multi.tracks || []).some(track => track.segments.length) && !getOverlayTrack()?.segments?.length) return;
   commitProcessingEdits();
@@ -20288,7 +20341,53 @@ const replaceSelectedOnlyHint = document.getElementById('replace-selected-only-h
 let replaceScope = null;
 let replaceSelectionSnapshot = [];
 let replaceSourceTrack = null;
+let replaceFlatSelection = [];
+let textProcessFlatSelection = [];
 const replaceSegments = () => replaceSourceTrack?.segments || DATA.segments;
+
+function flatTextPreview(prefix,selected,transform,container,button,label) {
+  container.replaceChildren();container.style.color='';button.disabled=true;
+  try {
+    const context=batchContext(prefix,selected),rows=context.cues.map(c=>({id:c.id,before:c.content.text,after:transform(c.content.text)}));
+    const changes=rows.filter(row=>row.before!==row.after).map(row=>({id:row.id,text:row.after}));
+    MSWFlatEditing.editable(context.p,changes.map(row=>row.id));
+    const result={changed:changes.length};
+    const summary=document.createElement('div');summary.className='replace-preview-summary';
+    summary.textContent=rows.length?`范围 ${rows.length} 条 · 预计修改 ${result.changed} 条`:'当前范围没有字幕';container.append(summary);
+    const ordered=MSWBatchEditing.trackCues(context.p,context.trackId),name=context.p.subtitles.tracks.find(t=>t.id===context.trackId).name;
+    rows.filter(row=>row.before!==row.after).slice(0,100).forEach(row=>{
+      const item=document.createElement('details');item.className='replace-preview-row';
+      const title=document.createElement('summary');title.textContent=`${name}_${ordered.findIndex(c=>c.id===row.id)+1}`;
+      const before=document.createElement('div');before.className='replace-preview-before';before.textContent=`处理前：${row.before}`;
+      const after=document.createElement('div');after.className='replace-preview-after';after.textContent=`处理后：${row.after}`;
+      item.append(title,before,after);container.append(item);
+    });
+    if(result.changed>100){const hint=document.createElement('small');hint.textContent='仅展示前 100 条变化；应用将处理全部范围';container.append(hint);}
+    button.disabled=!result.changed;return {context,changes,result,label};
+  }catch(error){container.textContent=error.message;return null;}
+}
+function flatReplacePreview() {
+  const button=document.getElementById('replace-confirm');
+  if(!findInput.value){replacePreview.textContent='输入查找内容查看预览';replacePreview.style.color='';button.disabled=true;return null;}
+  const re=buildReplaceRegex();
+  if(re?.error){replacePreview.textContent=`正则错误: ${re.error}`;replacePreview.style.color='';button.disabled=true;return null;}
+  return flatTextPreview('replace',replaceFlatSelection,text=>{re.lastIndex=0;return text.replace(re,replaceInput.value);},replacePreview,button,'批量替换');
+}
+function flatProcessPreview() {
+  const options=getTextProcessOptions();
+  if(![textProcessTrim,textProcessCapitalize,textProcessPrefix,textProcessSuffix,textProcessStripMarkdown].some(el=>el.checked)){
+    textProcessPreview.textContent='请选择至少一项文本处理操作';textProcessConfirm.disabled=true;return null;
+  }
+  return flatTextPreview('text-process',textProcessFlatSelection,text=>AsrEditorUtils.applyTextProcessing(text,options),textProcessPreview,textProcessConfirm,'文本处理');
+}
+function applyFlatTextPlan(build,container,modal) {
+  try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    commitProcessingEdits();const plan=build();if(!plan?.result.changed)return;
+    const result=MSWBatchEditing.texts(plan.context.p,plan.changes);
+    productionCommitProject(result.project,plan.label,result.ids);modal.classList.remove('show');
+  }catch(error){container.textContent=error.message;}
+}
 
 function normalizeBatchSelection(indexes) {
   const candidates = Array.isArray(indexes) ? indexes : [...selectedIdxs];
@@ -20316,6 +20415,7 @@ function buildReplaceRegex() {
 }
 
 function updatePreview() {
+  if(productionFlatMode())return flatReplacePreview();
   const find = findInput.value;
   replacePreview.replaceChildren();
   if (!find) {
@@ -20392,6 +20492,13 @@ replaceSelectedOnlyCb?.addEventListener('change', () => {
 });
 
 function openReplaceModal(scope, track = null) {
+  if(productionFlatMode()) {
+    commitProcessingEdits();
+    replaceFlatSelection=Array.isArray(scope)?scope.map(i=>(track?.segments||DATA.segments)[i]?.id).filter(Boolean):batchSelectedIds();
+    const p=MSWProductionProject.toProject(DATA),preferred=p.subtitles.cues.find(c=>replaceFlatSelection.includes(c.id))?.track_id;
+    initBatchScope('replace',preferred,replaceFlatSelection);
+    replaceModal.classList.add('show');updatePreview();setTimeout(()=>findInput.focus(),0);return;
+  }
   if (editingState) finishEdit(true);
   if (extensionEditingState) finishExtensionEdit(true);
   replaceSourceTrack = track;
@@ -20410,6 +20517,7 @@ document.getElementById('replace-btn')?.addEventListener('click', () => openRepl
 document.getElementById('replace-cancel')?.addEventListener('click', () => replaceModal.classList.remove('show'));
 replaceModal.addEventListener('click', (e) => { if (e.target === replaceModal) replaceModal.classList.remove('show'); });
 document.getElementById('replace-confirm')?.addEventListener('click', () => {
+  if(productionFlatMode())return applyFlatTextPlan(flatReplacePreview,replacePreview,replaceModal);
   const re = buildReplaceRegex();
   if (!re || re.error) return;
   const repl = replaceInput.value;
@@ -20533,6 +20641,7 @@ function refreshTextProcessSelectionControl() {
 }
 
 function renderTextProcessPreview() {
+  if(productionFlatMode())return flatProcessPreview();
   const options = getTextProcessOptions();
   const hasOperation = textProcessTrim.checked || textProcessCapitalize.checked
     || textProcessPrefix.checked || textProcessSuffix.checked || textProcessStripMarkdown.checked;
@@ -20585,6 +20694,12 @@ function closeTextProcessModal() {
 }
 
 function openTextProcessModal() {
+  if(productionFlatMode()) {
+    commitProcessingEdits();textProcessFlatSelection=batchSelectedIds();initBatchScope('text-process',null,textProcessFlatSelection);
+    [textProcessTrim,textProcessCapitalize,textProcessPrefix,textProcessSuffix,textProcessStripMarkdown].forEach(el=>{el.checked=false;});
+    textProcessPrefixInput.value='';textProcessSuffixInput.value='';refreshTextProcessInputState();
+    textProcessModal.classList.add('show');renderTextProcessPreview();return;
+  }
   if (!DATA.segments.length && !getActiveExtensionTrack()?.segments?.length) {
     flashHint('当前没有可处理的字幕', 'invalid');
     return;
@@ -20625,6 +20740,7 @@ textProcessModal?.addEventListener('click', (event) => {
   if (event.target === textProcessModal) closeTextProcessModal();
 });
 textProcessConfirm?.addEventListener('click', () => {
+  if(productionFlatMode())return applyFlatTextPlan(flatProcessPreview,textProcessPreview,textProcessModal);
   const options = getTextProcessOptions();
   const result = {
     rows: buildTextProcessPreview(textProcessTargets(), options),
@@ -20689,12 +20805,22 @@ textProcessConfirm?.addEventListener('click', () => {
 });
 
 // === 纯文本编辑（支持调整字幕行结构的 MVP） ===
+for(const prefix of ['replace','text-process'])for(const suffix of ['track','scope'])document.getElementById(prefix+'-'+suffix)?.addEventListener('change',()=>{
+  if(prefix==='replace')updatePreview();else renderTextProcessPreview();
+});
 function timedTextEditSegments(kind) {
+  if(productionFlatMode()){const p=MSWProductionProject.toProject(DATA);return MSWBatchEditing.textSources(MSWBatchEditing.trackCues(p,kind),p);}
   return kind === 'extension' ? getActiveExtensionTrack()?.segments || [] : DATA.segments;
 }
 
 function timedTextEditSourceSelection(kind, showDisabled = false) {
   const allSegments = timedTextEditSegments(kind);
+  if(productionFlatMode()) {
+    const context=batchContext('timed-text-edit',timedTextFlatSelection,{includeDisabled:showDisabled}),chosen=new Set(context.ids);
+    const sourceSegmentIndexes=allSegments.flatMap((c,i)=>chosen.has(c.id)?[i]:[]);
+    const total=MSWBatchEditing.scope(context.p,kind,document.getElementById('timed-text-edit-scope').value==='all'?null:timedTextFlatSelection).length;
+    return {allSegments,sourceSegmentIndexes,sourceSegments:sourceSegmentIndexes.map(i=>allSegments[i]),snapshot:MSWBatchEditing.trackCues(context.p,kind),hiddenDisabledCount:total-chosen.size};
+  }
   const sourceSegmentIndexes = allSegments
     .map((segment, index) => ({ segment, index }))
     .filter(({ segment }) => showDisabled || segment?.disabled !== true)
@@ -20715,6 +20841,7 @@ function currentTimedTextEditKind() {
 }
 
 function timedTextEditTrackLabel(kind) {
+  if(productionFlatMode())return DATA.subtitle_tracks.tracks.find(t=>t.id===kind)?.name||'字幕轨道';
   if (kind !== 'extension') return '主字幕';
   const track = getActiveExtensionTrack();
   return track?.name ? `副字幕（${track.name}）` : '副字幕';
@@ -21104,7 +21231,7 @@ function updateTimedTextEditReport() {
   } else if (stats.boundaryMoves) {
     timedTextEditReportHint.textContent = '检测到相邻字幕之间的开头/结尾移动；对应字词时间码会一起转移，并更新字幕段范围。';
   } else if (stats.structureMappedCues) {
-    timedTextEditReportHint.textContent = '检测到字幕行结构变化；应用后会按字词时间码拆分、合并或删除字幕行，并解除受影响的多字幕绑定。';
+    timedTextEditReportHint.textContent = productionFlatMode()?'检测到未绑定字幕的行结构变化；应用后按字词时间码拆分、合并或删除，绑定结构保持不变。':'检测到字幕行结构变化；应用后会按字词时间码拆分、合并或删除字幕行，并解除受影响的多字幕绑定。';
   } else {
     timedTextEditReportHint.textContent = '当前修改可以完整复用原字词时间码；字幕段整体时间范围不会改变。';
   }
@@ -21153,12 +21280,18 @@ function updateTimedTextEditReport() {
   timedTextEditSingleHint.textContent = singleHint;
   timedTextEditSingleHint.hidden = timedTextEditDraft.view !== 'single' || !singleHint;
   if (!timedTextEditDraft.sourceSegments.length && timedTextEditDraft.allSourceSegments.length) {
-    timedTextEditReportHint.textContent = '当前没有显示中的字幕；打开“显示已禁用字幕”后才能编辑。';
+    timedTextEditReportHint.textContent = productionFlatMode()&&!timedTextEditDraft.hiddenDisabledCount?'当前范围没有字幕':'当前没有显示中的字幕；打开“显示已禁用字幕”后才能编辑。';
   }
   timedTextEditApply.disabled = !report.valid;
+  if(productionFlatMode()) {
+    timedTextEditApply.disabled=!report.valid||!report.stats.changedSegments;
+    if(report.valid&&report.stats.changedSegments)try {buildFlatTextDraft();}
+    catch(error){timedTextEditReportHint.textContent=error.message;timedTextEditReportHint.classList.add('warning');timedTextEditApply.disabled=true;}
+  }
 }
 
 function refreshTimedTextEditTrackOptions(kind = currentTimedTextEditKind()) {
+  if(productionFlatMode()){timedTextEditTrackControl.hidden=false;batchTrackOptions(timedTextEditTrack,kind);return kind;}
   const multi = getMultiSubtitleState();
   // 「已开启模式但尚未导入副轨」时没有第二条字幕可编辑，不显示轨道切换控件。
   const multiSubtitleEnabled = multi.enabled === true && Boolean((multi.tracks || []).length);
@@ -21176,11 +21309,12 @@ function loadTimedTextEditTrack(kind, { showDisabled = false } = {}) {
   const nextKind = refreshTimedTextEditTrackOptions(kind);
   const selection = timedTextEditSourceSelection(nextKind, showDisabled);
   const sourceSegments = selection.sourceSegments;
-  const hiddenDisabledCount = selection.allSegments.length - sourceSegments.length;
+  const hiddenDisabledCount = selection.hiddenDisabledCount??selection.allSegments.length - sourceSegments.length;
   timedTextEditDraft = {
     kind: nextKind,
     trackId: nextKind === 'extension' ? getActiveExtensionTrack()?.id || null : null,
     showDisabled: Boolean(showDisabled),
+    hiddenDisabledCount,
     sourceSegmentIndexes: selection.sourceSegmentIndexes,
     allSourceSegments: JSON.parse(JSON.stringify(selection.allSegments || [])),
     sourceSegments: JSON.parse(JSON.stringify(sourceSegments || [])),
@@ -21190,6 +21324,8 @@ function loadTimedTextEditTrack(kind, { showDisabled = false } = {}) {
     singleText: (sourceSegments || []).map((segment) => String(segment?.text || '')).join('\n'),
     singleLineError: '',
     report: null,
+    flatSnapshot: selection.snapshot,
+    scope: document.getElementById('timed-text-edit-scope')?.value,
   };
   if (timedTextEditShowDisabledToggle) timedTextEditShowDisabledToggle.checked = Boolean(showDisabled);
   timedTextEditSourceInfo.textContent = `${timedTextEditTrackLabel(nextKind)} · ${sourceSegments.length} 条${hiddenDisabledCount ? `（已隐藏 ${hiddenDisabledCount} 条禁用字幕）` : ''}`;
@@ -21215,7 +21351,11 @@ function closeTimedTextEdit() {
 }
 
 function timedTextEditHasUnappliedChanges() {
-  return Boolean(timedTextEditDraft?.report?.stats.changedSegments || timedTextEditDraft?.singleLineError);
+  if(!timedTextEditDraft)return false;
+  syncTimedTextEditDraftFromDom();
+  return Boolean(timedTextEditDraft.singleLineError
+    || timedTextEditDraft.texts.length!==timedTextEditDraft.sourceSegments.length
+    || timedTextEditDraft.texts.some((text,index)=>text!==timedTextEditDraft.sourceSegments[index]?.text));
 }
 
 function mergeTimedTextEditSegmentsWithHidden(
@@ -21414,10 +21554,15 @@ function openTimedTextEdit() {
   if (editingState) finishEdit(true);
   timedTextEditReturnFocus = document.activeElement instanceof HTMLElement
     ? document.activeElement : null;
-  loadTimedTextEditTrack(currentTimedTextEditKind());
+  if(productionFlatMode()) {
+    commitProcessingEdits();timedTextFlatSelection=batchSelectedIds();initBatchScope('timed-text-edit',null,timedTextFlatSelection);
+    loadTimedTextEditTrack(timedTextEditTrack.value);
+  }else loadTimedTextEditTrack(currentTimedTextEditKind());
   timedTextEditModal.classList.add('show');
-  setTimeout(() => (timedTextEditDraft?.view === 'single'
-    ? timedTextEditSingleTextarea : timedTextEditRows.querySelector('textarea'))?.focus(), 50);
+  requestAnimationFrame(() => {
+    if(timedTextEditModal.classList.contains('show')&&!timedTextEditModal.contains(document.activeElement))
+      (timedTextEditDraft?.view === 'single' ? timedTextEditSingleTextarea : timedTextEditRows.querySelector('textarea'))?.focus();
+  });
 }
 
 timedTextEditButton?.addEventListener('click', openTimedTextEdit);
@@ -21426,9 +21571,12 @@ timedTextEditRows?.addEventListener('input', (event) => {
   if (!textarea || !timedTextEditDraft) return;
   const index = Number(textarea.dataset.index);
   if (!Number.isInteger(index) || index < 0 || index >= timedTextEditDraft.texts.length) return;
-  const replacementLines = textarea.value.replace(/\r\n?/g, '\n').split('\n');
-  timedTextEditDraft.texts.splice(index, 1, ...replacementLines);
-  timedTextEditDraft.texts = normalizeTimedTextEditDraftLines(timedTextEditDraft.texts);
+  // The row DOM is rebuilt after the debounced report. Read it as a complete
+  // snapshot: repeated input events before that rebuild must not split a row twice.
+  timedTextEditDraft.texts = normalizeTimedTextEditDraftLines(
+    [...timedTextEditRows.querySelectorAll('textarea[data-index]')]
+      .flatMap(input => input.value.replace(/\r\n?/g, '\n').split('\n')),
+  );
   timedTextEditDraft.singleText = timedTextEditDraft.texts.join('\n');
   timedTextEditDraft.singleLineError = '';
   renderTimedTextEditView();
@@ -21492,6 +21640,22 @@ timedTextEditTrack?.addEventListener('change', () => {
     showDisabled: timedTextEditDraft.showDisabled === true,
   });
 });
+document.getElementById('timed-text-edit-scope')?.addEventListener('change',()=>{
+  if(!timedTextEditDraft)return;
+  if(timedTextEditHasUnappliedChanges()&&!window.confirm('切换范围会丢弃未应用的文字修改，是否继续？')){
+    document.getElementById('timed-text-edit-scope').value=timedTextEditDraft.scope;return;
+  }
+  loadTimedTextEditTrack(timedTextEditDraft.kind,{showDisabled:timedTextEditDraft.showDisabled});
+});
+function buildFlatTextDraft(makeId) {
+  const draft=timedTextEditDraft,p=MSWProductionProject.toProject(DATA);
+  const sourceIds=new Set(draft.sourceSegments.map(c=>c.id));
+  const current=MSWBatchEditing.textSources(MSWBatchEditing.trackCues(p,draft.kind).filter(c=>sourceIds.has(c.id)),p);
+  if(JSON.stringify(current)!==JSON.stringify(draft.sourceSegments))throw Error('本轨字幕在编辑期间发生了变化，请重新载入后再应用');
+  const next=AsrEditorUtils.applyTimedTextEdit(draft.sourceSegments,draft.texts);
+  if(!next)throw Error('无法应用文本修改：字幕行结构发生了变化');
+  return MSWBatchEditing.draft(p,draft.kind,draft.flatSnapshot,draft.sourceSegments.map(c=>c.id),next,draft.report,{makeId});
+}
 timedTextEditClose?.addEventListener('click', requestCloseTimedTextEdit);
 timedTextEditCancel?.addEventListener('click', requestCloseTimedTextEdit);
 timedTextEditModal?.addEventListener('click', (event) => {
@@ -21503,6 +21667,15 @@ timedTextEditApply?.addEventListener('click', () => {
   syncTimedTextEditDraftFromDom();
   flushTimedTextEditReport();
   if (!draft.report?.valid) return;
+  if(productionFlatMode()) {
+    try {
+      if(!draft.report.stats.changedSegments)return;
+      if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+      commitProcessingEdits();const result=buildFlatTextDraft(kind=>MSWProject.id(kind));
+      productionCommitProject(result.project,'纯文本编辑',result.ids);closeTimedTextEdit();
+    }catch(error){timedTextEditReportHint.textContent=error.message;timedTextEditReportHint.classList.add('warning');timedTextEditApply.disabled=true;}
+    return;
+  }
   if (!draft.report.stats.changedSegments) {
     flashHint('当前没有文本修改，未作改动', 'invalid');
     return;
@@ -24629,6 +24802,7 @@ cueDeleteButton?.addEventListener('click', () => deleteSelectedCues());
 
 // 清除全部空字幕块：删除所有没有文字内容的字幕（主轨 + 各副轨），可撤销。
 function clearEmptyCues() {
+  if(productionFlatMode()){openSubtitleCleanup('empty');return;}
   commitProcessingEdits();
   const emptyMain = DATA.segments
     .map((segment, index) => ({ segment, index }))
@@ -24655,6 +24829,38 @@ function clearEmptyCues() {
   for (const { track, indices } of emptyExtByTrack) deleteExtensionSegments(indices, track, { recordHistory: false });
 }
 document.getElementById('clear-empty-cues')?.addEventListener('click', clearEmptyCues);
+
+const subtitleCleanupPanel=document.getElementById('subtitle-cleanup-panel');
+const subtitleCleanupFloating=createFloatingPanel({panel:subtitleCleanupPanel,dragHandle:document.getElementById('subtitle-cleanup-handle'),positionKey:'msw.subtitleCleanup.position.v1'});
+let cleanupPreviewTimer=null;
+function queueCleanupPreview() {
+  if(!document.getElementById('subtitle-cleanup-panel')?.classList.contains('show'))return;
+  clearTimeout(cleanupPreviewTimer);cleanupPreviewTimer=setTimeout(previewSubtitleCleanup,30);
+}
+function openSubtitleCleanup(mode='empty') {
+  commitProcessingEdits();initBatchScope('subtitle-cleanup');document.getElementById('subtitle-cleanup-mode').value=mode;
+  subtitleCleanupFloating.open();previewSubtitleCleanup();
+}
+function previewSubtitleCleanup() {
+  const status=document.getElementById('subtitle-cleanup-status'),button=document.getElementById('subtitle-cleanup-apply');button.disabled=true;
+  try {
+    const context=batchContext('subtitle-cleanup'),empty=document.getElementById('subtitle-cleanup-mode').value==='empty';
+    const ids=context.cues.filter(c=>!empty||!c.content.text.trim()).map(c=>c.id);
+    const project=ids.length?MSWBatchEditing.cleanup(context.p,ids):context.p;
+    const bindings=context.p.subtitles.bindings.length-project.subtitles.bindings.length;
+    status.textContent=ids.length?`将删除 ${ids.length} 条字幕${bindings?` · 解除 ${bindings} 组绑定，另一侧字幕保留`:''}`:'当前范围没有可清理的字幕';
+    button.disabled=!ids.length;return {project,ids};
+  }catch(error){status.textContent=error.message;return null;}
+}
+for(const suffix of ['track','scope','mode'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('change',previewSubtitleCleanup);
+document.getElementById('subtitle-cleanup-close')?.addEventListener('click',()=>subtitleCleanupFloating.close());
+document.getElementById('subtitle-cleanup-apply')?.addEventListener('click',()=>{
+  try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    commitProcessingEdits();const result=previewSubtitleCleanup();if(!result?.ids.length)return;
+    productionCommitProject(result.project,'清理字幕');clearTimeout(cleanupPreviewTimer);previewSubtitleCleanup();document.getElementById('subtitle-cleanup-status').textContent=`已删除 ${result.ids.length} 条字幕 · 可一次撤销`;
+  }catch(error){document.getElementById('subtitle-cleanup-status').textContent=error.message;}
+});
 
 // Ctrl/Cmd+X / C / V：与 Delete 键同一套输入保护（输入框、右键菜单内不抢占）。
 document.addEventListener('keydown', (event) => {

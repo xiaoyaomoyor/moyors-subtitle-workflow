@@ -237,7 +237,7 @@ __WAVEFORM_CSS__
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
-          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="删除当前项目中所有没有文字内容的字幕块（含副字幕）">清除全部空字幕块</button>
+          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，清理空字幕或清空字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -548,6 +548,21 @@ __WAVEFORM_CSS__
 </aside>
 
 <!-- 缩放/偏移字幕工具窗 -->
+<aside class="gap-remove-panel msw-processing-panel" id="subtitle-cleanup-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-cleanup-title">
+  <header class="gap-remove-panel-header" id="subtitle-cleanup-handle">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕 · 处理</span><h3 id="subtitle-cleanup-title">清理字幕</h3></div>
+    <button type="button" id="subtitle-cleanup-close" class="gap-remove-close" aria-label="关闭清理字幕"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <div class="batch-scope-fields">
+      <label>作用轨道<select id="subtitle-cleanup-track"></select></label>
+      <label>作用范围<select id="subtitle-cleanup-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+      <label>清理内容<select id="subtitle-cleanup-mode"><option value="empty">仅空字幕</option><option value="all">范围内全部字幕</option></select></label>
+    </div>
+    <p hidden data-help-for="subtitle-cleanup-title">只删除选定轨道与范围的字幕，包含禁用、隐藏和折叠内容。删除时解除对应绑定，另一侧字幕和音频素材保留；遇到锁定时整批不应用，可一次撤销。</p>
+    <div class="msw-processing-actions"><small id="subtitle-cleanup-status" class="msw-processing-hint" role="status" aria-live="polite"></small><button id="subtitle-cleanup-apply" type="button" class="primary">清理</button></div>
+  </div>
+</aside>
 <aside class="gap-remove-panel subtitle-scale-panel" id="subtitle-scale-offset-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-scale-offset-title">
   <header class="gap-remove-panel-header" id="subtitle-scale-offset-drag">
     <div class="gap-remove-heading">
@@ -565,7 +580,7 @@ __WAVEFORM_CSS__
       <label>作用轨道<select id="subtitle-time-track"><option value="overlay">叠加字幕</option><option value="main">主字幕</option><option value="extension">当前副字幕轨</option></select></label>
       <label>作用范围<select id="subtitle-time-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
     </div>
-    <label class="msw-tts-check"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
+    <label class="msw-tts-check" data-option-help="按同样的起止变化调整绑定伙伴，保留时间偏移。关闭时只调整目标轨；有锁定、重叠或无效时间时整批不应用。整轨范围包含禁用、隐藏和折叠内容。"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
     <div class="gap-remove-fields">
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">缩放字幕</span>
@@ -575,7 +590,7 @@ __WAVEFORM_CSS__
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-scale-percent" data-step-dir="1" title="向右增大 1%（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">%</span>
         </span>
-        <small>按比例缩放时长；中心不变，100 为不变；自动限制在相邻字幕之间，不产生重叠</small>
+        <small>100% 保持不变；按所选锚点缩放时间，发生同轨重叠或无效时间时整批不应用。</small>
       </label>
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">缩放锚点</span>
@@ -595,7 +610,7 @@ __WAVEFORM_CSS__
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-start-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">ms</span>
         </span>
-        <small>正数向右、负数向左；应用后归零；自动限制在相邻字幕之间</small>
+        <small>正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。</small>
       </label>
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">终点偏移</span>
@@ -605,7 +620,7 @@ __WAVEFORM_CSS__
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-end-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">ms</span>
         </span>
-        <small>正数向右、负数向左；应用后归零</small>
+        <small>正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。</small>
       </label>
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">整体偏移</span>
@@ -615,7 +630,7 @@ __WAVEFORM_CSS__
           <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-shift-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
           <span class="gap-remove-unit">ms</span>
         </span>
-        <small>整条字幕平移；正右负左，应用后归零；自动限制在相邻字幕之间</small>
+        <small>所有目标字幕移动相同距离，保留时长与间隔；正数向后、负数向前。发生重叠或越过零点时整批不应用。</small>
       </label>
     </div>
     <footer class="gap-remove-panel-footer">
@@ -2736,10 +2751,15 @@ __WAVEFORM_CSS__
 
 <!-- 批量替换 modal -->
 <div class="modal-mask" id="replace-modal">
-  <div class="modal">
+  <div class="modal batch-text-modal" role="dialog" aria-modal="true" aria-labelledby="replace-modal-title">
     <h3 id="replace-modal-title">批量替换</h3>
-    <div id="replace-scope-info" style="font-size:12px;color:#888;margin-bottom:8px;">范围：全部字幕</div>
-    <label class="modal-check-row" for="replace-selected-only">
+    <p hidden data-help-for="replace-modal-title">只替换作用轨道的文字，保留字幕和绑定，不修改伙伴文字。空文字仍保留为空字幕。范围包含禁用、隐藏和折叠内容；所选字幕为空时不会扩大到整轨。</p>
+    <div class="batch-scope-fields" data-flat-settings hidden>
+      <label>作用轨道<select id="replace-track"></select></label>
+      <label>作用范围<select id="replace-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+    </div>
+    <div id="replace-scope-info" data-legacy-settings>范围：全部字幕</div>
+    <label class="modal-check-row" for="replace-selected-only" data-legacy-settings>
       <input type="checkbox" id="replace-selected-only" disabled>
       <span>仅处理选中的字幕</span>
       <span id="replace-selected-only-hint" class="modal-hint batch-selected-only-hint" hidden>需要先选中至少1条字幕才可启用</span>
@@ -2762,14 +2782,18 @@ __WAVEFORM_CSS__
 
 <!-- 常用文本处理 modal：保持字幕行和时间范围结构，只批量变更文本。 -->
 <div class="modal-mask" id="text-process-modal">
-  <div class="modal text-process-modal" role="dialog" aria-modal="true"
+  <div class="modal text-process-modal batch-text-modal" role="dialog" aria-modal="true"
        aria-labelledby="text-process-title" aria-describedby="text-process-description">
     <h3 id="text-process-title">文本处理</h3>
-    <p class="modal-desc" id="text-process-description">
-      选择要执行的文本操作；字幕行不会被删除，处理为空时会保留空字幕行。字词时间码会按文本编辑规则尽量保留。
+    <p hidden id="text-process-description" data-help-for="text-process-title">
+      只修改作用轨道的文字，不修改绑定伙伴。字幕行不会被删除，处理为空时保留空行；尽量保留可复用字词时间码。范围包含禁用、隐藏和折叠内容。
     </p>
-    <div id="text-process-scope-info" class="text-process-scope-info">范围：全部字幕</div>
-    <label class="modal-check-row" for="text-process-selected-only">
+    <div class="batch-scope-fields" data-flat-settings hidden>
+      <label>作用轨道<select id="text-process-track"></select></label>
+      <label>作用范围<select id="text-process-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+    </div>
+    <div id="text-process-scope-info" class="text-process-scope-info" data-legacy-settings>范围：全部字幕</div>
+    <label class="modal-check-row" for="text-process-selected-only" data-legacy-settings>
       <input type="checkbox" id="text-process-selected-only" disabled>
       <span>仅处理选中的字幕</span>
       <span id="text-process-selected-only-hint" class="modal-hint batch-selected-only-hint" hidden>需要先选中至少1条字幕才可启用</span>
@@ -2778,12 +2802,10 @@ __WAVEFORM_CSS__
       <label class="text-process-operation" for="text-process-trim">
         <input type="checkbox" id="text-process-trim">
         <span>修剪前后空白</span>
-        <span class="modal-hint">去除字幕前方和后方的空格</span>
       </label>
-      <label class="text-process-operation" for="text-process-capitalize">
+      <label class="text-process-operation" for="text-process-capitalize" data-option-help="只将第一个字母改为大写，不改动其余字母。">
         <input type="checkbox" id="text-process-capitalize">
-        <span>首字母大写</span>
-        <span class="modal-hint">只作用于第一个字母</span>
+        <span class="msw-option-label">首字母大写</span>
       </label>
       <label class="text-process-operation text-process-operation-input" for="text-process-prefix">
         <input type="checkbox" id="text-process-prefix">
@@ -2792,13 +2814,12 @@ __WAVEFORM_CSS__
       </label>
       <label class="text-process-operation text-process-operation-input" for="text-process-suffix">
         <input type="checkbox" id="text-process-suffix">
-        <span>附加内容</span>
+        <span>添加后缀</span>
         <input type="text" id="text-process-suffix-input" placeholder="插入到字幕结尾" disabled>
       </label>
-      <label class="text-process-operation" for="text-process-strip-markdown">
+      <label class="text-process-operation" for="text-process-strip-markdown" data-option-help="移除常见 Markdown 标记，保留文字内容。">
         <input type="checkbox" id="text-process-strip-markdown">
-        <span>去除 md 格式符号</span>
-        <span class="modal-hint">移除常见 Markdown 标记</span>
+        <span class="msw-option-label">去除 Markdown 标记</span>
       </label>
     </div>
     <div class="preview text-process-preview" id="text-process-preview">选择操作后查看预览</div>
@@ -2816,8 +2837,8 @@ __WAVEFORM_CSS__
     <div class="timed-text-edit-header">
       <div>
         <h3 id="timed-text-edit-title">纯文本编辑</h3>
-        <p class="modal-desc" id="timed-text-edit-description">
-           集中修改字幕文字；新增、删除或移动换行时会尝试拆分、合并并重新分配字词时间码；确认前会分析映射结果。
+        <p hidden id="timed-text-edit-description" data-help-for="timed-text-edit-title">
+           集中修改指定轨道与范围的文字，尽量复用字词时间码。未绑定字幕可调整行数；已绑定字幕只改文字，拆分／合并请使用联动操作。应用前会检查工程是否变化，可一次撤销。
         </p>
       </div>
       <button type="button" id="timed-text-edit-close" class="timed-text-edit-close"
@@ -2825,12 +2846,13 @@ __WAVEFORM_CSS__
     </div>
     <div class="timed-text-edit-toolbar">
       <div class="timed-text-edit-track-control" id="timed-text-edit-track-control">
-        <label for="timed-text-edit-track">编辑轨道</label>
+        <label for="timed-text-edit-track">作用轨道</label>
         <select id="timed-text-edit-track">
           <option value="main">主字幕</option>
           <option value="extension">副字幕</option>
         </select>
       </div>
+      <label class="timed-text-edit-track-control" data-flat-settings hidden>作用范围<select id="timed-text-edit-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
       <div class="timed-text-edit-view-control">
         <span>编辑视图</span>
         <div id="timed-text-edit-view" class="timed-text-edit-view-switch" role="group" aria-label="编辑视图">
@@ -2852,7 +2874,7 @@ __WAVEFORM_CSS__
       <section class="timed-text-edit-input-panel" aria-labelledby="timed-text-edit-input-title">
         <div class="timed-text-edit-section-heading">
           <strong id="timed-text-edit-input-title">字幕文本</strong>
-          <span class="modal-hint">每一行对应一条当前字幕；新增、删除或移动换行会尝试调整字幕行结构。⌚️有效覆盖率 · ♻️原始时间码复用率</span>
+          <p hidden data-help-for="timed-text-edit-input-title">每一行对应一条字幕。⌚️ 表示有效字词时间码覆盖率，♻️ 表示原始时间码复用率；修改影响中的数字可筛选对应字幕。</p>
         </div>
         <div class="timed-text-edit-rows" id="timed-text-edit-rows"></div>
         <div id="timed-text-edit-single-editor" class="timed-text-edit-single-editor" hidden>

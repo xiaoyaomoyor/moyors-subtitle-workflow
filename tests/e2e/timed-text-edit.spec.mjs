@@ -52,18 +52,16 @@ test.afterAll(async () => {
   cleanupTempDir(tempDir);
 });
 
-test('shows an invalid toast when applying unchanged text', async ({ page }) => {
+test('keeps unchanged text inert without a redundant toast', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('moy.asr.editor.onboarding.v1', 'completed');
   });
   await page.goto(server.url);
 
   await clickBatchOperation(page, 'timed-text-edit-btn');
-  await expect(page.locator('#timed-text-edit-apply')).toBeEnabled();
-
-  await page.locator('#timed-text-edit-apply').click();
+  await expect(page.locator('#timed-text-edit-apply')).toBeDisabled();
   await expect(page.locator('#timed-text-edit-modal')).toHaveClass(/show/);
-  await expect(page.locator('#hint-stack .hint-card.hint-invalid')).toContainText('当前没有文本修改，未作改动');
+  await expect(page.locator('#hint-stack .hint-card.hint-invalid')).toHaveCount(0);
 });
 
 test('previews text changes and applies the reported item-timing mapping', async ({ page }) => {
@@ -74,8 +72,8 @@ test('previews text changes and applies the reported item-timing mapping', async
 
   await clickBatchOperation(page, 'timed-text-edit-btn');
   await expect(page.locator('#timed-text-edit-modal')).toHaveClass(/show/);
-  await expect(page.locator('#timed-text-edit-source-info')).toContainText('主字幕');
-  await expect(page.locator('#timed-text-edit-track-control')).toBeHidden();
+  await expect(page.locator('#timed-text-edit-source-info')).toContainText('S1');
+  await expect(page.locator('#timed-text-edit-track-control')).toBeVisible();
   await expect(page.locator('#timed-text-edit-show-disabled')).not.toBeChecked();
   await expect(page.locator('#timed-text-edit-rows textarea')).toHaveCount(2);
 
@@ -132,7 +130,7 @@ test('previews text changes and applies the reported item-timing mapping', async
   await reopenedRows.nth(1).fill('abXc');
   await page.locator('#timed-text-edit-apply').click();
   await expect(page.locator('#timed-text-edit-modal')).not.toHaveClass(/show/);
-  await expect(page.locator('#cues-container .cue[data-idx="0"]')).toHaveClass(/dirty/);
+  await expect(page.locator('#cues-container .cue[data-idx="0"] .multi-cue-column').first()).toHaveClass(/dirty/);
   const state = await page.evaluate(() => ({
     texts: DATA.segments.map((segment) => segment.text),
     items: DATA.segments.map((segment) => segment.items?.map(({start,end,text}) => ({start,end,text}))),

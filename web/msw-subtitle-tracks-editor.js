@@ -33,6 +33,7 @@ function productionSplitMode(segment,role='main',storage=null) {
 function productionSyncSettings() {
   const active=productionFlatMode();
   document.querySelectorAll('[data-flat-settings]').forEach(node=>{node.hidden=!active;});
+  document.querySelectorAll('[data-legacy-settings]').forEach(node=>{node.hidden=active;});
   document.getElementById('multi-subtitle-settings-dropdown').hidden=active;
   document.getElementById('overlay-track-controls').hidden=active;
   if(!active)return;
@@ -228,14 +229,14 @@ function fixedCommitProject(next, label) {
   renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
   return true;
 }
-function productionCommitProject(project,label,ids=[],{displayOnly=false}={}) {
+function productionCommitProject(project,label,ids=[],{displayOnly=false,recordHistory=true}={}) {
   if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
   const next=window.MSWProductionProject.fromProject(project);
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
     if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');
   } else fixedTrackCore.assertLocks(DATA,next);
-  commitProcessingEdits();pushUndo(label,{captureView:true});
+  commitProcessingEdits();if(recordHistory)pushUndo(label,{captureView:true});
   for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks','msw'])if(next[field])DATA[field]=next[field];
   // This transaction has already checked the canonical content/locks. Reset
   // the legacy operation checkpoint so a display-side change on locked tracks

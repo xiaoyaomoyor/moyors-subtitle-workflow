@@ -875,10 +875,10 @@ test('applies text processing to selected extension subtitles', async ({ page })
   const row = page.locator('.multi-dual-cue').first();
   await row.locator('.multi-cue-column.extension .text').click();
   await clickBatchOperation(page, 'text-process-btn');
-  await expect(page.locator('#text-process-selected-only')).toBeChecked();
+  await expect(page.locator('#text-process-scope')).toHaveValue('selected');
   await page.locator('#text-process-prefix').check();
   await page.locator('#text-process-prefix-input').fill('X ');
-  await expect(page.locator('#text-process-preview')).toContainText('副字幕第 1 条');
+  await expect(page.locator('#text-process-preview')).toContainText('S2_1');
   await page.locator('#text-process-confirm').click();
 
   // 未绑定轨道按各自数据定位，文本处理后不依赖展示行的临时配对。

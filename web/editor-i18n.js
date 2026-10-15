@@ -9,6 +9,32 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '清理字幕': 'Clean up subtitles', '关闭清理字幕': 'Close subtitle cleanup', '清理内容': 'Content to remove',
+    '清理': 'Clean up', '仅空字幕': 'Empty subtitles only', '范围内全部字幕': 'All subtitles in scope',
+    '选择轨道与范围，清理空字幕或清空字幕': 'Choose a track and scope to remove empty subtitles or all subtitles',
+    '当前范围没有可清理的字幕': 'No subtitles to remove in this scope',
+    '当前范围没有字幕': 'No subtitles in this scope', '字幕时间没有变化': 'Subtitle timing is unchanged',
+    '仅展示前 100 条变化；应用将处理全部范围': 'Showing the first 100 changes; Apply processes the entire scope',
+    '添加后缀': 'Add suffix', '去除 Markdown 标记': 'Remove Markdown markup',
+    '只将第一个字母改为大写，不改动其余字母。': 'Capitalize the first letter without changing the remaining letters.',
+    '移除常见 Markdown 标记，保留文字内容。': 'Remove common Markdown markup and keep its text.',
+    '按同样的起止变化调整绑定伙伴，保留时间偏移。关闭时只调整目标轨；有锁定、重叠或无效时间时整批不应用。整轨范围包含禁用、隐藏和折叠内容。': 'Apply the same edge changes to bound partners and retain offsets. Off adjusts only the target track. Locks, overlaps or invalid timing block the whole batch. Entire track includes disabled, hidden and collapsed content.',
+    '100% 保持不变；按所选锚点缩放时间，发生同轨重叠或无效时间时整批不应用。': '100% keeps timing unchanged. Scale around the chosen anchor; same-track overlaps or invalid times block the whole batch.',
+    '正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。': 'Positive moves later, negative earlier. Resets to zero on success; overlaps or invalid times block the whole batch.',
+    '所有目标字幕移动相同距离，保留时长与间隔；正数向后、负数向前。发生重叠或越过零点时整批不应用。': 'Move all target subtitles equally, preserving durations and gaps. Positive moves later, negative earlier. Overlaps or times before zero block the whole batch.',
+    '只删除选定轨道与范围的字幕，包含禁用、隐藏和折叠内容。删除时解除对应绑定，另一侧字幕和音频素材保留；遇到锁定时整批不应用，可一次撤销。': 'Remove subtitles only from the chosen track and scope, including disabled, hidden and collapsed content. Their bindings are removed, while partner subtitles and audio assets remain. Locks block the whole batch. Undo as one operation.',
+    '只替换作用轨道的文字，保留字幕和绑定，不修改伙伴文字。空文字仍保留为空字幕。范围包含禁用、隐藏和折叠内容；所选字幕为空时不会扩大到整轨。': 'Replace text only on the target track. Keep subtitles and bindings without changing partner text; empty text remains as an empty subtitle. Includes disabled, hidden and collapsed content. An empty selection never means the whole track.',
+    '只修改作用轨道的文字，不修改绑定伙伴。字幕行不会被删除，处理为空时保留空行；尽量保留可复用字词时间码。范围包含禁用、隐藏和折叠内容。': 'Change text only on the target track, leaving bound partners untouched. Keep empty subtitles and reuse word timing where possible. Includes disabled, hidden and collapsed content.',
+    '集中修改指定轨道与范围的文字，尽量复用字词时间码。未绑定字幕可调整行数；已绑定字幕只改文字，拆分／合并请使用联动操作。应用前会检查工程是否变化，可一次撤销。': 'Edit text in the chosen track and scope, reusing word timing where possible. Unbound subtitles may change row structure. For bound subtitles, edit wording here and use linked actions to split or merge. Changes are checked before applying and undo as one operation.',
+    '每一行对应一条字幕。⌚️ 表示有效字词时间码覆盖率，♻️ 表示原始时间码复用率；修改影响中的数字可筛选对应字幕。': 'Each line represents one subtitle. ⌚️ indicates word-timing coverage; ♻️ indicates original timing reuse. Click counts in Change impact to filter subtitles.',
+    '本轨字幕在编辑期间发生了变化，请重新载入后再应用': 'Subtitles on this track changed while editing. Reload the draft before applying.',
+    '此修改会改变已绑定字幕的行结构；请使用联动切分／合并或先手动解绑': 'This changes bound subtitle structure. Use linked split / merge, or unbind explicitly first.',
+    '不能跨过范围外字幕合并；请扩大选区或分别处理': 'Cannot merge across excluded subtitles. Expand the selection or process separately.',
+    '无法确定字幕来源；未应用修改': 'Cannot determine subtitle ownership; no changes applied',
+    '时间超出有效范围或字词最短时长；整批未修改': 'Invalid time range or insufficient word duration; the entire batch is unchanged',
+    '操作包含锁定轨道，请先解锁': 'The operation involves locked tracks. Unlock them first.',
+    '切换范围会丢弃未应用的文字修改，是否继续？': 'Switching scope discards unapplied text edits. Continue?',
+    '检测到未绑定字幕的行结构变化；应用后按字词时间码拆分、合并或删除，绑定结构保持不变。': 'Unbound subtitle row structure changed. Apply splits, merges or removes rows using word timing; bound structure is preserved.',
     '作用范围': 'Scope', '整条轨道': 'Entire track', '间隔与拼接': 'Gaps and joining',
     '最大间隔': 'Maximum gap', '拼接方式': 'Join method', '提前后条起点': 'Start next subtitle earlier',
     '延长前条终点': 'Extend previous subtitle', '填补短间隔': 'Fill short gaps',
@@ -2646,6 +2672,12 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const batchPreview=/^范围 (\d+) 条 · 预计修改 (\d+) 条$/.exec(text);
+    if(batchPreview)return `Scope: ${batchPreview[1]} subtitles · ${batchPreview[2]} changes`;
+    const cleanupPreview=/^将删除 (\d+) 条字幕(?: · 解除 (\d+) 组绑定，另一侧字幕保留)?$/.exec(text);
+    if(cleanupPreview)return `Remove ${cleanupPreview[1]} subtitles${cleanupPreview[2]?` · Unbind ${cleanupPreview[2]} pairs; partners remain`:''}`;
+    const cleaned=/^已删除 (\d+) 条字幕 · 可一次撤销$/.exec(text);
+    if(cleaned)return `Removed ${cleaned[1]} subtitles · Undo as one operation`;
     const gapGenerated = text.match(/^已生成 (\d+) 段标记，保留其他来源与手工调整$/);
     if (gapGenerated) return `Generated ${gapGenerated[1]} marks; other sources and manual edits are preserved`;
     const gapError = text.match(/^无法生成空隙标记：(.+)$/);

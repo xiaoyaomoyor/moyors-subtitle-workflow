@@ -31,7 +31,8 @@ for (const mode of ['server', 'portable']) {
     await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(1);
     const saved = await page.evaluate(() => JSON.parse(buildJson()));
     expect(saved.waveform).toBeFalsy();
-    expect(saved.segments[0].end).toBeGreaterThan(saved.segments[0].start);
+    const content=saved.subtitles.cues[0].content;
+    expect(content.end).toBeGreaterThan(content.start);
     await page.evaluate(project => applyCanonicalProject(project, 'empty.mosp'), saved);
     await expect(page.locator('.waveform-cue-block').first()).toBeVisible();
     await page.locator('.waveform-cue-block').first().click();
@@ -53,10 +54,11 @@ test('all main cues can be cut and restored in one undo without waveform data', 
     ] }, 'cut.mosp');
   });
   await page.locator('.waveform-cue-block').first().click();
+  const originalIds=await page.evaluate(()=>DATA.segments.map(c=>c.id));
   await page.keyboard.press('Control+a'); await page.keyboard.press('Control+x');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(0);
   await page.keyboard.press('Control+z');
-  expect(await page.evaluate(() => DATA.segments.map(cue => cue.id))).toEqual(['one', 'two']);
+  expect(await page.evaluate(() => DATA.segments.map(cue => cue.id))).toEqual(originalIds);
   await page.keyboard.press('Control+Shift+z');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(0);
 });
@@ -70,9 +72,15 @@ test('clear empty subtitles includes hidden secondary tracks and survives save/r
           segments: [{ id: 'secondary', start: 0, end: 1000, text: '  ' }] }], bindings: [] } }, 'pair.mosp');
   });
   await clickBatchOperation(page, 'clear-empty-cues');
+  await page.locator('#subtitle-cleanup-apply').click();
+  const secondary=await page.evaluate(()=>MSWProductionProject.toProject(DATA).subtitles.tracks[1].id);
+  await page.locator('#subtitle-cleanup-track').selectOption(secondary);
+  await page.locator('#subtitle-cleanup-scope').selectOption('all');
+  await page.locator('#subtitle-cleanup-apply').click();
+  await page.locator('#subtitle-cleanup-close').click();
   expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.length])).toEqual([0, 0]);
   await page.keyboard.press('Control+z');
-  expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.length])).toEqual([1, 1]);
+  expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.length])).toEqual([0, 1]);
   await page.keyboard.press('Control+Shift+z');
   const saved = await page.evaluate(() => JSON.parse(buildJson()));
   await page.evaluate(project => applyCanonicalProject(project, 'pair.mosp'), saved);
@@ -97,8 +105,9 @@ test('clearing empty halves preserves nonempty partners and uses one undo', asyn
   });
   const before = await page.evaluate(() => [JSON.stringify(DATA.segments), JSON.stringify(DATA.multi_subtitle), editorHistory.undoLength()]);
   await clickBatchOperation(page, 'clear-empty-cues');
-  expect(await page.evaluate(() => [DATA.segments.map(c => c.id), DATA.multi_subtitle.tracks[0].segments.map(c => c.id)]))
-    .toEqual([['keep-main'], ['keep-secondary']]);
+  await page.locator('#subtitle-cleanup-apply').click();await page.locator('#subtitle-cleanup-close').click();
+  expect(await page.evaluate(() => [DATA.segments.map(c => c.text), DATA.multi_subtitle.tracks[0].segments.map(c => c.text)]))
+    .toEqual([['Keep main'], ['Keep secondary','']]);
   expect(await page.evaluate(() => editorHistory.undoLength())).toBe(before[2] + 1);
   await page.keyboard.press('Control+z');
   expect(await page.evaluate(() => [JSON.stringify(DATA.segments), JSON.stringify(DATA.multi_subtitle), editorHistory.undoLength()])).toEqual(before);
@@ -117,10 +126,11 @@ test('mixed paired and unbound subtitle cut keeps stable identities and one undo
     selectedIdxs.add(0); selectedExtensionIdxs.add(0); selectedExtensionIdxs.add(1);
     waveformEditor.updateSelection();
   });
+  const originalSecondaryIds=await page.evaluate(()=>DATA.multi_subtitle.tracks[0].segments.map(c=>c.id));
   await page.keyboard.press('Control+x');
   expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.map(cue => cue.id)]))
-    .toEqual([0, ['keep']]);
+    .toEqual([0, [originalSecondaryIds[2]]]);
   await page.keyboard.press('Control+z');
   expect(await page.evaluate(() => [DATA.segments.length, DATA.multi_subtitle.tracks[0].segments.map(cue => cue.id), DATA.multi_subtitle.bindings.length]))
-    .toEqual([1, ['paired', 'unbound', 'keep'], 1]);
+    .toEqual([1, originalSecondaryIds, 1]);
 });
