@@ -27,7 +27,7 @@
     });
     const candidates = rows.filter(row => row.cue);
     for (const row of candidates) {
-      if ((project.segments || []).some(cue => overlaps(cue, row.cue))) row.reason = '与现有主字幕重叠';
+      if ((project.segments || []).some(cue => overlaps(cue, row.cue))) row.reason = '与目标轨道已有字幕重叠';
       if (candidates.some(other => other !== row && overlaps(other.cue, row.cue))) row.reason = '所选贴片彼此重叠';
     }
     const accepted = rows.filter(row => row.cue && !row.reason);

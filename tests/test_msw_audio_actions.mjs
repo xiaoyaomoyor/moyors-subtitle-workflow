@@ -23,7 +23,7 @@ test('fill rejects both overlap candidates and existing empty cues, preserves to
  const result=core.fill(p,[clip('a',0),clip('b',500),clip('c',1500),clip('d',4100)]);
  assert.equal(result.count,1); assert.equal(result.segments[0].start,1500);
  assert.equal(result.rows[0].reason,'所选贴片彼此重叠'); assert.equal(result.rows[1].reason,'所选贴片彼此重叠');
- assert.equal(result.rows[3].reason,'与现有主字幕重叠');
+ assert.equal(result.rows[3].reason,'与目标轨道已有字幕重叠');
  assert.equal(core.fill(project,[clip('a',0),clip('b',1000)]).count,2);
 });
 test('fill uses external filename, crop range and remaps group references',()=>{

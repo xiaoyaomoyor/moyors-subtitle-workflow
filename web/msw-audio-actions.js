@@ -35,16 +35,22 @@
     const clips = audio.selectedClips();
     const assets = new Map((host.data.msw?.assets || []).map(a=>[a.id,a]));
     const regenerable = clips.filter(c=>core.canRegenerate(assets.get(c.asset_id)?.generation || {})).length;
-    const fillable = clips.filter(c=>{const a=assets.get(c.asset_id);return !!(a && (a.generation?.filename || a.generation?.display_text || a.source_ref?.text || c.label));}).length;
     for (const id of ['mute-count','gain-count']) el(id).textContent = `${t('选中贴片')}：${clips.length}`;
     el('regenerate-count').textContent = `${t('可重新生成')}：${regenerable}`;
-    el('fill-count').textContent = `${t('可补齐字幕')}：${fillable}`;
+    const targets=host.audioSubtitleTargets(),previous=el('fill-track').value;
+    el('fill-track').replaceChildren(...targets.map(t=>{const o=new Option(t.name+(t.locked?' · '+global.MSWE_I18N.translateText('已锁定'):''),t.id);o.disabled=t.locked;return o;}));
+    if(targets.some(t=>t.id===previous))el('fill-track').value=previous;
+    else el('fill-track').value=(targets.find(t=>t.active&&!t.locked)||targets.find(t=>!t.locked))?.id||'';
+    let fillCount=0;
+    try {fillCount=host.previewAudioSubtitles(clips,el('fill-track').value).count;
+      el('fill-count').textContent=`${t('可补齐字幕')}：${fillCount} / ${clips.length}`;
+    }catch(error){el('fill-count').textContent=t(error.message);}
     const hasSource = Boolean(host.player.currentSrc || host.player.getAttribute('src'));
     el('source-status').textContent = hasSource ? '' : t('请先加载媒体');
     el('source-status').hidden = hasSource;
     clipVolume.refresh(clips.length > 0); sourceVolume.refresh(hasSource);
     for (const id of ['mute', 'unmute']) el(id).disabled = !clips.length;
-    el('fill').disabled = !clips.length;
+    el('fill').disabled = !clips.length||!targets.some(t=>t.id===el('fill-track').value&&!t.locked);
     el('regenerate').disabled = running || Boolean(batch?.outputOnly) || (!batch && (!regenerable || !host.config?.processingUrl));
     el('regenerate').textContent = t(batch ? '继续确认本批任务' : '重新生成并替换');
     el('cancel').hidden = !batch || Boolean(batch.outputOnly);
@@ -140,11 +146,14 @@
     panel.open();
     try {
       const clips = audio.selectedClips(); if (!clips.length) { report('请先选择音频贴片'); return; }
-      const plan = host.fillAudioSubtitles(clips);
+      const plan = host.fillAudioSubtitles(clips,el('fill-track').value);
       report(`${t('已补齐')} ${plan.count} ${t('条')}，${t('跳过')} ${clips.length - plan.count} ${t('条')}`, plan.rows, '补齐');
+      refresh();
     } catch (error) { report(error.message); }
   }
   el('fill').onclick = fill;
+  el('fill-track').onchange=refresh;
+  global.addEventListener('msw:subtitles-changed',()=>{if(panel.isOpen())refresh();});
   async function request(route, body) {
     const response = await fetch(`${host.config.processingUrl}/${route}`, {method: body ? 'POST' : 'GET', cache:'no-store',
       headers:{'X-MSW-Token':host.config.requestToken,...(body ? {'Content-Type':'application/json'} : {})},

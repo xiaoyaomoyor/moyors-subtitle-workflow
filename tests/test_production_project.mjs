@@ -4,6 +4,36 @@ import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),flat=require('../web/msw-flat-subtitles.js'),bridge=require('../web/msw-production-project.js'),legacy=require('../web/msw-subtitle-tracks.js');
 const fixture=()=>flat.migrate({segments:[{id:'a',start:0,end:2000,text:'Hello',items:[]}],multi_subtitle:{schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'zh',role:'extension',segments:[{id:'b',start:100,end:2100,text:'你好',items:[]}]}],bindings:[{id:'pair',track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b'],start_offset_ms:100,end_offset_ms:100}]}});
 const comparable=p=>{const n=flat.normalizeGroups(structuredClone(p),{infer:true});delete n.subtitle_view;n.subtitles.cues.sort((a,b)=>a.id.localeCompare(b.id));return n;};
+
+test('subtitle import explicitly replaces its owner or creates an independent track; binding is optional',()=>{
+  globalThis.MSWProject={id:prefix=>prefix+'-'+crypto.randomUUID()};require('../web/msw-flat-editing.js');
+  const p=fixture(),view=bridge.fromProject(p),owner=p.subtitles.tracks[1].id;
+  const cues=[{start:4000,end:5000,text:'Imported'}];
+  const fresh=bridge.importSubtitles(view,cues,owner,'File');
+  assert.equal(fresh.project.subtitles.tracks.length,p.subtitles.tracks.length+1);
+  assert.equal(fresh.bound,0);assert.equal(fresh.project.subtitles.bindings.length,1);
+  assert.ok(!fresh.project.subtitle_view.secondary_cue_ids.includes(fresh.ids[0]));
+  const replaced=bridge.importSubtitles(view,cues,owner,'File',{replace:true});
+  assert.equal(replaced.project.subtitles.cues.find(c=>c.id===replaced.ids[0]).track_id,owner);
+  assert.equal(replaced.project.subtitles.bindings.length,0);
+  assert.deepEqual(replaced.project.subtitles.cues.find(c=>c.track_id!==owner),p.subtitles.cues.find(c=>c.track_id!==owner));
+  const locked=structuredClone(view);locked.subtitle_tracks.tracks.find(t=>t.id===owner).locked=true;
+  assert.throws(()=>bridge.importSubtitles(locked,cues,owner,'File',{replace:true}),/锁定/);
+  assert.equal(bridge.importSubtitles(locked,cues,null,'File').ids.length,1);
+  assert.deepEqual(bridge.toProject(view).subtitles.cues,p.subtitles.cues);
+});
+
+test('export scope uses physical tracks without changing bindings, display columns or the source',()=>{
+  const p=fixture(),view=bridge.fromProject(p),id=p.subtitles.tracks[1].id;
+  const result=bridge.exportScope(view,[id]);
+  assert.deepEqual(result.subtitles.tracks.map(t=>t.enabled),[false,true]);
+  assert.deepEqual(result.subtitles.cues,p.subtitles.cues);assert.deepEqual(result.subtitles.bindings,p.subtitles.bindings);
+  assert.deepEqual(comparable(bridge.exportScope(bridge.fromProject(bridge.swapColumns(view)),[id])),comparable(result));
+  assert.ok(bridge.exportScope(view,[]).subtitles.tracks.every(t=>!t.enabled));
+  view.subtitle_tracks.tracks[1].enabled=false;
+  assert.ok(bridge.exportScope(view,[id]).subtitles.tracks.every(t=>!t.enabled));
+  assert.equal(p.subtitles.tracks[1].enabled,true);
+});
 test('display side swaps preserve direction, offsets, track split modes and repeated roundtrips',()=>{
   const p=fixture();p.subtitles.tracks[0].split_mode='word';p.subtitles.tracks[1].split_mode='continuous';
   const view=bridge.fromProject(p),next=bridge.swapColumns(view),swapped=bridge.fromProject(next);

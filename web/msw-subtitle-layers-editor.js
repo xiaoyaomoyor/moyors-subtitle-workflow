@@ -279,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
     catch(error){flashHint(error.message,'warning');}
   });
   document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
+    if(!fixedCanExport())return;
     commitProcessingEdits();const cues=window.MSWSubtitlePresentation.mergedSrtRows(fixedTrackMode()?fixedSrtProject():DATA);
     await downloadFile(window.AsrEditorUtils.buildSrtPayload(cues,{formatTime:fmtSrtTime}),`${FILENAME_BASE}.merged.srt`,'text/plain',{desc:'合并显示 SRT',types:{'text/plain':['.srt']}});
   });

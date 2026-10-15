@@ -330,6 +330,7 @@
     refresh();
   }
   for(const id of ['video-export-burn-subtitles','video-export-style-source'])$(id).addEventListener('change',syncExport);
+  global.addEventListener('msw:export-tracks',syncExport);
   new MutationObserver(syncExport).observe(exportPanel,{attributes:true,attributeFilter:['aria-hidden']});
   const settingsPanel=$('media-settings-modal');
   new MutationObserver(()=>{
@@ -339,7 +340,7 @@
   $('style-track-position').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
     if(fixedPositionEditing||fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:fixedPositionEditing?'定位中：Esc取消，Enter完成':'定位预览：工程样式'};
-    if(override)return {...override,scope:'export',label:'导出预览：'+override.label};
+    if(override)return {...override,trackIds:global.MSWVideoSubtitleScope?.ids()??null,scope:'export',label:'导出预览：'+override.label};
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }

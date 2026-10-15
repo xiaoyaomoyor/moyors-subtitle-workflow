@@ -2,7 +2,7 @@
 let fixedPreviewCache = null;
 let fixedExactGeometry = null;
 let fixedGeometrySerial=0;
-function fixedGeometryKey() { const preview=window.MSWSubtitleStyle?.currentPreview();return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,preview&&{style:preview.style,target:preview.target,scope:preview.scope},getSpeakerLabelSettings()]); }
+function fixedGeometryKey() { const preview=window.MSWSubtitleStyle?.currentPreview();return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,preview&&{style:preview.style,target:preview.target,scope:preview.scope,trackIds:preview.trackIds},getSpeakerLabelSettings()]); }
 function fixedReceiveGeometry(geometry) {
   if(productionFlatMode()) {
     const refs=new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,fixedTrackCore.key({role:s.role,track_id:s.track_id,cue_id:c.id})])));
@@ -95,11 +95,12 @@ function fixedMeasureText(row, projectStyle, width) {
   if(fixedTextMeasures.size>=3000)fixedTextMeasures.clear();fixedTextMeasures.set(key,result);return result;
 }
 function fixedPreviewLayout(rect=fixedVideoRect()) {
-  const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'?preview.style:null;
-  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,DATA.preview?.project_style,getSpeakerLabelSettings(),fixedExactGeometry?.serial]);
+  const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'||preview?.other?preview.style:null;
+  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,preview?.scope,preview?.trackIds,DATA.preview?.project_style,getSpeakerLabelSettings(),fixedExactGeometry?.serial]);
   if(!fixedPreviewCache||fixedPreviewCache.key!==key) {
-    const layout=window.MSWTrackPresentation.layout(DATA,{width:rect.referenceWidth,languageId:getActiveExtensionTrack()?.id,
-      measure:fixedMeasureText,resolveStyle:track=>window.MSWTrackPresentation.styleFor(DATA,track,proof)});
+    const project=preview?.scope==='export'&&productionFlatMode()?MSWProductionProject.fromProject(MSWProductionProject.exportScope(DATA,preview.trackIds)):DATA;
+    const layout=window.MSWTrackPresentation.layout(project,{width:rect.referenceWidth,languageId:getActiveExtensionTrack()?.id,
+      measure:fixedMeasureText,resolveStyle:track=>window.MSWTrackPresentation.styleFor(project,track,proof)});
     if(fixedExactGeometry?.key===fixedGeometryKey()) {
       const measured=new Map(fixedExactGeometry.rows.map(r=>[r.key,r]));
       for(const entry of layout.entries) {

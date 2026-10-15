@@ -95,6 +95,15 @@ def burning_cues(project, plan, target):
         return []
     groups = mapped_subtitles(project, plan)
     selected = groups[:1] if target == 'main' else groups[1:2] if target == 'secondary' else groups[:2]
+    if project.get('schema') == 'msw.project.v4':
+        # v4 groups are physical tracks, not the legacy two display columns.
+        view = project.get('subtitle_view', {})
+        secondary_tracks = {t['id'] for t in project['subtitles']['tracks'] if t['style']['slot'] == 'secondary'}
+        secondary = set(view['secondary_cue_ids']) if 'secondary_cue_ids' in view else {
+            c['id'] for c in project['subtitles']['cues'] if c['track_id'] in secondary_tracks}
+        selected = [(name, [c for c in cues if target == 'both'
+                           or (c['id'] in secondary) == (target == 'secondary')])
+                    for name, cues in groups]
     if (project.get('overlay_track') or {}).get('enabled') is True:
         selected = [groups[-1], *selected]
     if project.get('schema') in ('msw.project.v2','msw.project.v3'):

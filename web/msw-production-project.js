@@ -196,13 +196,13 @@
   }
   function importSubtitles(view,segments,ownerId,name,{replace=false,matches=[],sources=[]}={}) {
     const E=global.MSWFlatEditing,makeId=global.MSWProject.id;let p=toProject(view);
-    const owner=E.track(p,ownerId);if(!owner||owner.locked)throw Error('请选择未锁定的字幕轨道');
+    const owner=E.track(p,ownerId);if((replace||matches.length)&&(!owner||owner.locked))throw Error('请选择未锁定的字幕轨道');
     const incoming=core.migrate({segments:segments.map((c,i)=>({...clone(c),id:'import-'+i}))});
     if(replace)p=E.remove(p,p.subtitles.cues.filter(c=>c.track_id===ownerId).map(c=>c.id));
     const tracks=new Map();
     for(const [index,t] of incoming.subtitles.tracks.entries()) {
       const target=replace&&index===0?owner:{...clone(t),id:makeId('subtitle-track'),name:name+(index?' · '+(index+1):''),
-        style:{mode:'inherit',base:'dialogue',slot:replace?(owner.style.slot||'main'):'secondary'}};
+        style:{mode:'inherit',base:'dialogue',slot:replace?(owner.style.slot||'main'):matches.length?'secondary':'main'}};
       if(target!==owner)p=core.addTrack(p,target);tracks.set(t.id,target.id);
     }
     const ids=new Map(),aliases=new Map(incoming.subtitles.migration.identities.map(a=>[a.id,a.cue_id]));
@@ -220,7 +220,7 @@
       if(source&&target&&!E.relation(p,source.id)) {p=core.bind(p,source.id,target,makeId('binding'));bound++;}
     }
     p.subtitle_view={...p.subtitle_view,secondary_cue_ids:[...(p.subtitle_view?.secondary_cue_ids||[]),
-      ...(!replace||owner.style.slot==='secondary'?[...ids.values()]:[])]};
+      ...((replace?owner.style.slot==='secondary':matches.length>0)?[...ids.values()]:[])]};
     core.validate(p);return {project:p,ids:[...ids.values()],bound};
   }
   function swapColumns(view) {
@@ -286,6 +286,13 @@
     R.record(p.msw,jobs[0]).applications[target]={revision,state:{flat:true,before:previous?.state?.flat?previous.state.before:subset(before),after:subset(p.subtitles)}};
     core.validate(p);return {project:fromProject(p),count:ids.size};
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,EXT};
+  // Export a disposable snapshot: keep identities, bindings, styles and layout,
+  // and change only which physical tracks participate in this output.
+  function exportScope(input,trackIds=null) {
+    const p=toProject(input),selected=trackIds===null?null:new Set(trackIds);
+    for(const t of p.subtitles.tracks)t.enabled=t.enabled&&(!selected||selected.has(t.id));
+    return p;
+  }
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

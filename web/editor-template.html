@@ -2679,6 +2679,7 @@ __WAVEFORM_CSS__
     <label>烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
     <label id="video-export-style-choice" hidden>字幕样式<select id="video-export-style-source"><option value="project">跟随工程样式</option></select></label>
   </div>
+  <details id="video-export-track-scope" class="msw-export-scope" hidden><summary>字幕轨道 · 全部启用轨道</summary><div id="video-export-track-choices"></div></details>
   <p class="msw-processing-hint" id="video-export-tail-help" data-help-for="video-export-tail" hidden></p>
   <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。自动：兼容且无需处理画面时直接复制，否则优先硬件编码，失败时改用 CPU。硬件编码：使用通过短编码检测的编码器；失败时提示原因。软件编码：始终使用 CPU。烧录字幕仍需 CPU 渲染；速度和文件大小随设备、画面而变。</p>
   <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">开启烧录后在播放器查看本次字幕样式。选择其他预设只影响本次视频，不改变工程样式；调整样式请前往媒体播放器设置。表情包不烧录。</p>
@@ -2705,7 +2706,10 @@ __WAVEFORM_CSS__
       <small id="audio-actions-source-status" class="msw-processing-hint"></small>
     </section>
     <section class="cue-editor-settings-group"><h3>重新生成并替换</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-regenerate-count" class="msw-processing-hint"></small><button id="audio-actions-regenerate" type="button" disabled>重新生成并替换</button><button id="audio-actions-cancel" type="button" hidden>取消本批</button></div></section>
-    <section class="cue-editor-settings-group"><h3>补齐字幕</h3><div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-fill-count" class="msw-processing-hint"></small><button id="audio-actions-fill" type="button" disabled>补齐主字幕</button></div></section>
+    <section class="cue-editor-settings-group"><h3 id="audio-actions-fill-title">音频补字幕</h3>
+      <div class="msw-processing-fields"><label>目标轨道<select id="audio-actions-fill-track"></select></label></div>
+      <p data-help-for="audio-actions-fill-title">使用所选音频贴片的文字和时间，在目标轨道补字幕。没有合成文字的外部音频以文件名占位，不进行语音识别。与已有字幕或其他所选贴片重叠时跳过，不覆盖或解绑已有字幕；一次撤销。</p>
+      <div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-fill-count" class="msw-processing-hint"></small><button id="audio-actions-fill" type="button" disabled>补齐字幕</button></div></section>
     <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details id="audio-actions-details" hidden><summary>处理详情</summary><div id="audio-actions-results" data-i18n-skip></div></details>
   </div>
@@ -2953,6 +2957,15 @@ __WAVEFORM_CSS__
   <div class="modal multi-subtitle-import-modal" role="dialog" aria-modal="true" aria-labelledby="multi-subtitle-import-title">
     <h3 id="multi-subtitle-import-title">导入字幕</h3>
     <p class="modal-desc" id="multi-subtitle-import-description">请选择你要执行的行为：</p>
+    <section id="subtitle-import-tracks" class="cue-editor-settings-group" hidden>
+      <div class="msw-processing-fields">
+        <label id="subtitle-import-source-field" hidden>来源轨道<select id="subtitle-import-source"></select></label>
+        <label>导入到<select id="subtitle-import-target"></select></label>
+        <label id="subtitle-import-reference-field">参考轨道<select id="subtitle-import-reference"></select></label>
+      </div>
+      <label class="msw-tts-check" id="subtitle-import-bind-field"><input type="checkbox" id="subtitle-import-bind">匹配时间并绑定</label>
+      <p data-help-for="subtitle-import-bind">仅匹配参考轨道中尚未绑定的字幕。未匹配的字幕仍会导入；分组与绑定分别管理。</p>
+    </section>
     <div class="actions multi-subtitle-import-choice-actions" id="multi-subtitle-import-choice-actions">
       <button type="button" id="multi-subtitle-import-replace">替换当前字幕</button>
       <button type="button" id="multi-subtitle-import-extension">作为副字幕</button>

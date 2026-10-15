@@ -5186,10 +5186,13 @@
 .player-stage[data-subtitle-renderer=libass] #fixed-subtitle-preview:not(.positioning) { visibility:hidden; }
 .player-stage[data-subtitle-renderer=libass] #fixed-subtitle-preview.positioning .fixed-subtitle-text { visibility:hidden; }
 
-.fixed-srt-scope { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); }
-.fixed-srt-scope label { display:flex; align-items:center; gap:4px; font-size:12px; }
-.fixed-srt-scope select { max-width:170px; }
-.fixed-srt-scope[hidden] { display:none; }
+.msw-export-scope { padding:8px 12px; border-bottom:1px solid var(--border-subtle); font-size:13px; }
+.msw-export-scope > summary { cursor:pointer; color:var(--text-secondary); padding:4px 0; overflow-wrap:anywhere; }
+.msw-export-scope > div { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; }
+.msw-export-scope .dropdown-setting-toggle { display:flex; align-items:center; gap:6px; padding:4px 0; white-space:nowrap; }
+.msw-export-scope input[type=checkbox] { flex:0 0 14px; width:14px; height:14px; padding:0; accent-color:var(--accent); margin:0; }
+.msw-export-scope[hidden] { display:none; }
+#subtitle-import-tracks { margin:12px 0; padding:12px; }
 
 .player-stage.fixed-position-drag .JASSUB { visibility:hidden; }
 .player-stage.fixed-position-drag #fixed-subtitle-preview.positioning .fixed-subtitle-text { visibility:visible; }

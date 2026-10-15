@@ -77,7 +77,31 @@
       return settings;
     }
     const sourceAvailable = () => Boolean(context?.source_available && context.media_reference === host.data.media);
+    let subtitleTracks=null,subtitleTrackKey='';
+    function syncSubtitleTracks() {
+      if(!video)return;
+      const p=host.audioExportPreview(),flat=p.schema==='msw.project.v4',select=el('audio-export-burn-subtitles');
+      if(flat&&!select.dataset.physical) {
+        const value=select.value;select.replaceChildren(new Option(t('不烧录'),'none'),new Option(t('烧录字幕'),'both'));
+        select.value=value==='none'?'none':'both';select.dataset.physical='true';
+      }
+      const details=el('audio-export-track-scope');details.hidden=!flat||select.value==='none';if(!flat)return;
+      const chosen=p.subtitles.tracks.filter(t=>t.enabled&&(subtitleTracks===null||subtitleTracks.includes(t.id)));
+      details.querySelector('summary').textContent=t('字幕轨道')+' · '+(subtitleTracks===null?t('全部启用轨道'):`${chosen.map(t=>t.name).join('、')||t('未选择')}`);
+      const choices=el('audio-export-track-choices'),key=JSON.stringify(p.subtitles.tracks.map(t=>[t.id,t.name,t.enabled]));
+      if(subtitleTrackKey===key){for(const input of choices.querySelectorAll('input'))input.checked=input.dataset.track==='all'?subtitleTracks===null:chosen.some(t=>t.id===input.dataset.track);return;}
+      subtitleTrackKey=key;choices.replaceChildren();
+      const add=(id,label,checked,disabled,change)=>{const row=document.createElement('label');row.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;input.onchange=()=>{change();update();global.dispatchEvent(new Event('msw:export-tracks'));};row.append(input,document.createTextNode(label));choices.append(row);};
+      add('all',t('全部启用轨道'),subtitleTracks===null,false,()=>{subtitleTracks=null;});
+      for(const track of p.subtitles.tracks)add(track.id,track.name+(track.enabled?'':' · '+t('已禁用')),chosen.some(t=>t.id===track.id),!track.enabled,()=>{
+        const next=new Set(subtitleTracks===null?p.subtitles.tracks.filter(t=>t.enabled).map(t=>t.id):subtitleTracks);
+        if(next.has(track.id))next.delete(track.id);else next.add(track.id);subtitleTracks=[...next];
+      });
+    }
+    if(video)global.MSWVideoSubtitleScope={ids:()=>subtitleTracks===null?null:[...subtitleTracks],
+      project:p=>p.schema==='msw.project.v4'?global.MSWProductionProject.exportScope(p,subtitleTracks):p};
     function update() {
+      syncSubtitleTracks();
       syncMonitorControls();
       const mix = el('audio-export-mode').value === 'mix';
       el('audio-export-source').hidden = !mix;
@@ -121,8 +145,10 @@
         if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
         if (video && context && !context.video) throw Error('原媒体没有可导出的视频画面，请使用导出音频');
         if (video && o.burn_subtitles !== 'none') {
+          const project=global.MSWVideoSubtitleScope.project(host.audioExportPreview());
           const groups = [host.data.segments || [], host.data.multi_subtitle?.tracks?.[0]?.segments || []];
-          const candidates = o.burn_subtitles === 'main' ? groups[0] : o.burn_subtitles === 'secondary' ? groups[1] : groups.flat();
+          const candidates = project.schema==='msw.project.v4'?project.subtitles.cues.filter(c=>!c.hidden&&project.subtitles.tracks.some(t=>t.id===c.track_id&&t.enabled)).map(c=>c.content)
+            :o.burn_subtitles === 'main' ? groups[0] : o.burn_subtitles === 'secondary' ? groups[1] : groups.flat();
           if (!candidates.some(c => !c.disabled && c.text?.trim() && plan.intervals.some(k => c.start < k.end_ms && c.end > k.start_ms))) {
             throw Error('导出范围内没有所选轨道的可压制字幕');
           }
@@ -269,7 +295,8 @@
       const generation = host.generation, ticket = {}; busy = ticket;
       try {
         if (!pending) {
-          const project = host.exportProject();
+          let project = host.exportProject();
+          if(video)project=global.MSWVideoSubtitleScope.project(project);
           if (video) global.MSWSubtitleStyle?.applyExport(project);
           for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete project[key];
           let options = {...selectedOptions({applyTail:!overrides}),...(overrides || {})};
@@ -312,10 +339,12 @@
     });
     for (const input of panel.querySelectorAll('input, select')) input.addEventListener('input', update);
     global.addEventListener('msw:audio-changed', () => { if (floating.isOpen()) update(); });
+    global.addEventListener('msw:subtitles-changed', () => { if (floating.isOpen()) update(); });
     global.addEventListener('msw:burn-style', () => { if (floating.isOpen()) update(); });
     global.addEventListener('msw:source-gain', () => { if (floating.isOpen()) update(); });
     host.player.addEventListener('volumechange',()=>{if(floating.isOpen())update();});
     global.addEventListener('msw:project-changed', () => {
+      subtitleTracks=null;
       ++contextRequest; context = null; busy = null; pending = null; jobs = []; rendered = ''; clearTimeout(timer);
       renderJobs(); message('');
       queueMicrotask(() => { update(); if (floating.isOpen()) { void loadContext(); schedule(0); } });

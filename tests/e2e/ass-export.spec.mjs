@@ -62,7 +62,8 @@ test.beforeEach(async () => {
   server = await startServer(projectPath, mediaPath, await findFreePort());
 });
 
-test.afterEach(async () => {
+test.afterEach(async ({page}) => {
+  await page.close({runBeforeUnload:false});
   await server?.stop();
   cleanupTempDir(tempDir);
 });
@@ -85,22 +86,22 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
   });
 
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
-  await expect(page.locator('#download-full-ass')).toHaveText('主字幕（ASS）');
+  await expect(page.locator('#download-full-ass')).toHaveText('字幕（ASS）');
   await clickMenubarItem(page, '文件', 'download-full-ass');
 
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);
   expect(save.suggestedName).toMatch(/\.ass$/);
   expect(save.content).toContain(
-    'Style: main,SimHei,40,&H00EFAB12,',
+    'Style: cue-0,SimHei,40,&H00EFAB12,',
   );
-  expect(save.content).toContain(
-    'Dialogue: 1,0:00:01.00,0:00:02.50,main,,0,0,151,,第一行\\NSecond, \\{literal\\}\\\\path',
-  );
+  expect(save.content).toContain('Dialogue: 0,0:00:01.00,0:00:02.50,cue-0,');
+  expect(save.content).toContain('第一行\\NSecond, \\{literal\\}\\\\path');
+  expect(save.content).toContain('\\pos(');
   expect(save.content).not.toContain('不应导出');
 });
 
-test('writes the project title, source resolution, palette styles and speaker names to ASS', async ({ page }) => {
+test('writes source resolution, used palette styles and speaker names to physical-track ASS', async ({ page }) => {
   await disableOnboarding(page);
   await stubSavePicker(page);
   await page.goto(server.url);
@@ -108,10 +109,12 @@ test('writes the project title, source resolution, palette styles and speaker na
   await page.evaluate(() => {
     DATA.media_metadata = { video_width: 3840, video_height: 2160 };
     window.MSWProjectStyle.apply(DATA, {...window.MSWProjectStyle.defaults(), main:{...window.MSWProjectStyle.defaults().main,fontName:'Arial',fontSize:128}});
-    DATA.segments = [
+    const p=MSWProductionProject.toProject(DATA),owner=p.subtitles.tracks[0].id;
+    p.subtitles.cues = [
       { start: 0, end: 1000, text: 'red line', items: [], color: { name: 'red', value: '#f07f6f' } },
       { start: 1200, end: 2200, text: 'plain line', items: [] },
-    ];
+    ].map((content,i)=>({id:'palette-'+i,track_id:owner,content}));
+    productionCommitProject(p,'Test palette subtitles');
     DATA.preview.subtitle = {
       ...DATA.preview.subtitle,
       font_size: 32,
@@ -132,19 +135,16 @@ test('writes the project title, source resolution, palette styles and speaker na
 
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);
-  expect(save.content).toContain('Title: project');
   expect(save.content).toContain('PlayResX: 1920');
   expect(save.content).toContain('PlayResY: 1080');
-  expect(save.content).toContain('Style: Default,Arial,128,');
-  expect(save.content).toContain('Style: YELLOW,Arial,128,&H0019A0C4,&H0019A0C4,');
-  expect(save.content).toContain('Style: GREEN,Arial,128,&H006ABB66,&H006ABB66,');
-  expect(save.content).toContain('Style: RED,Arial,128,&H006F7FF0,&H006F7FF0,');
-  expect(save.content).toContain('Style: PURPLE,Arial,128,&H00E689BF,&H00E689BF,');
-  expect(save.content).toContain('Style: BLUE,Arial,128,&H00FAA761,&H00FAA761,');
-  expect(save.content.replace(/\{\\[^}]*\}/g, '')).toContain('Dialogue: 0,0:00:00.00,0:00:01.00,RED,旁白,0,0,96,,旁白：red line');
+  expect(save.content).toContain('Style: cue-0,Arial,128,');
+  expect(save.content).toContain('Style: cue-1,Arial,128,');
+  const red=await page.evaluate(()=>COLOR_BY_NAME.red.value);
+  expect(save.content.toLowerCase()).toContain('&h00'+red.slice(5,7)+red.slice(3,5)+red.slice(1,3));
+  expect(save.content.replace(/\{\\[^}]*\}/g, '')).toContain('旁白：red line');
 });
 
-test('keeps MSW main and secondary export organization with color splitting', async ({ page }) => {
+test('keeps compact physical-track export shortcuts and color splitting', async ({ page }) => {
   await disableOnboarding(page);
   await page.goto(server.url);
   await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
@@ -155,7 +155,7 @@ test('keeps MSW main and secondary export organization with color splitting', as
 
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
   await expect(page.locator('#subtitle-export-menu > .dropdown-item:visible').allTextContents())
-    .resolves.toEqual(['主字幕（SRT）', 'SRT（合并同时显示文本）', '主字幕（ASS）', '按颜色导出字幕']);
+    .resolves.toEqual(['合并同时显示文本（SRT）', '字幕（SRT）', '字幕（ASS）', '按颜色导出字幕']);
 });
 
 test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ page }) => {
@@ -165,11 +165,12 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
   await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
   await page.evaluate(() => {
     window.MSWProjectStyle.apply(DATA, window.MSWProjectStyle.defaults());
-    DATA.segments.length = 0;
-    DATA.segments.push(
+    const p=MSWProductionProject.toProject(DATA),owner=p.subtitles.tracks[0].id;
+    p.subtitles.cues=[
       { id: 'before-gap', start: 1000, end: 2000, text: 'before gap', items: [], color: { name: 'red', value: '#e74c3c', start: 1000, end: 2000 } },
       { id: 'after-gap', start: 4000, end: 5000, text: 'after gap', items: [] },
-    );
+    ].map(({id,...content})=>({id,track_id:owner,content}));
+    productionCommitProject(p,'Test gap subtitles');
     DATA.gap_remove = {
       schema: 'moy.asr.gap_remove.v1',
       detector: 'audio_gate',
@@ -194,12 +195,12 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
   await page.locator('#download-gap-removed-ass').click();
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);
-  expect(save.suggestedName).toBe('project_去空隙.ass');
+  expect(save.suggestedName).toBe('project.gap-removed.ass');
   expect(save.content).toContain(
-    'Dialogue: 0,0:00:01.00,0:00:02.00,RED,,0,0,96,,before gap',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,cue-0,',
   );
   expect(save.content).toContain(
-    'Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,96,,after gap',
+    'Dialogue: 0,0:00:03.00,0:00:04.00,cue-1,',
   );
 });
 
@@ -260,16 +261,20 @@ test('dynamic exports use source canvas size and reject invalid custom sizes', a
 
 for(const legacy of [false,true])test(`character wrapping reaches full, gap-removed and secondary ASS without changing SRT (${legacy?'legacy':'modern'})`,async({page})=>{
   await disableOnboarding(page);await stubSavePicker(page);await page.goto(server.url);await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.ready)).toBe(true);
-  const data=await page.evaluate(legacy=>{
-    const S=window.MSWProjectStyle,h=window.MSWE.resolve('processing-host'),p=h.data,style=legacy?S.fromBurn({}):S.defaults();
+  const data=await page.evaluate(async legacy=>{
+    const S=window.MSWProjectStyle,h=window.MSWE.resolve('processing-host'),style=legacy?S.fromBurn({}):S.defaults();
     style.main.wrapMode='characters';style.main.charsPerLine=3;style.secondary.wrapMode='characters';style.secondary.charsPerLine=2;
-    p.segments=[{id:'m',start:0,end:1000,text:'ABCDEF',items:[]}];p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,tracks:[{id:'s',role:'extension',segments:[{id:'s1',start:0,end:1000,text:'甲乙丙丁',items:[]}]}],bindings:[]};
-    p.gap_remove={schema:'moy.asr.gap_remove.v1',gaps:[{start:2000,end:3000,removed:true}],skip_playback:true};
+    const p=MSWProductionProject.toProject(DATA),base=p.subtitles.tracks[0];
+    p.subtitles.tracks.push({...base,id:'wrap-secondary',display_number:2,style:{mode:'inherit',base:'dialogue',slot:'secondary'}});p.subtitles.next_track_number=3;
+    p.subtitles.cues=[{id:'m',track_id:base.id,content:{start:0,end:1000,text:'ABCDEF',items:[]}},{id:'s1',track_id:'wrap-secondary',content:{start:0,end:1000,text:'甲乙丙丁',items:[]}}];
+    p.subtitle_view.secondary_cue_ids=['s1'];productionCommitProject(p,'Wrap subtitles');
+    DATA.gap_remove={schema:'moy.asr.gap_remove.v1',gaps:[{start:2000,end:3000,removed:true}],skip_playback:true};
     h.commitProjectStyle(style);dispatchEvent(new Event('msw:subtitles-changed'));updateGapRemoveUi();renderAll();
-    return {ass:buildAss(),gapAss:buildGapRemovedAss(),srt:buildExtensionSrt(),source:JSON.parse(buildJson()).segments};
+    return {ass:await buildAss(),gapAss:await buildGapRemovedAss(),srt:buildSrt(),source:JSON.parse(buildJson()).subtitles.cues.map(c=>c.content)};
   },legacy);
   for(const ass of [data.ass,data.gapAss]){expect(ass).toContain('ABC\\NDEF');expect(ass).toContain('甲乙\\N丙丁');}
   expect(data.srt).toContain('甲乙丙丁');expect(data.source[0].text).toBe('ABCDEF');
-  await clickMenubarItem(page,'文件','download-ext-ass');await expect.poll(()=>page.evaluate(()=>window.__exportSaves.length)).toBe(1);
+  await page.evaluate(()=>{fixedExportTracks=['wrap-secondary'];});
+  await clickMenubarItem(page,'文件','download-full-ass');await expect.poll(()=>page.evaluate(()=>window.__exportSaves.length)).toBe(1);
   const saved=await page.evaluate(()=>window.__exportSaves[0]);expect(saved.content).toContain('甲乙\\N丙丁');expect(saved.content).not.toContain('ABC');
 });

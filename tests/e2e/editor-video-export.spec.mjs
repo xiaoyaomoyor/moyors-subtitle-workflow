@@ -124,7 +124,7 @@ test('monitor selection locks effective gain and snapshots it for export',async(
 test('subtitle preset selection is direct and keeps export fields in two columns',async({page},info)=>{
   await open(page);
   await expect(page.locator('#video-export-style-choice')).toBeHidden();
-  await page.locator('#video-export-burn-subtitles').selectOption('main');
+  await page.locator('#video-export-burn-subtitles').selectOption('both');
   const choice=page.locator('#video-export-style-source');
   await expect(choice).toHaveValue('project');
   await expect(choice.locator('option')).toHaveText(['跟随工程样式','默认白字','大字清晰','高对比底框','双语紧凑']);
@@ -162,14 +162,38 @@ test('native audio tail is explained only in help and default export aligns to v
 test('video optionally burns the chosen subtitle track and rejects an empty track', async ({page}) => {
   await open(page);
   await expect(page.locator('#video-export-burn-subtitles')).toHaveValue('none');
-  await page.locator('#video-export-burn-subtitles').selectOption('secondary');
+  await page.locator('#video-export-burn-subtitles').selectOption('both');
+  await page.locator('#video-export-track-scope summary').click();
+  await page.locator('#video-export-track-choices input').nth(1).uncheck();
   await expect(page.locator('#video-export-start')).toBeDisabled();
   await expect(page.locator('#video-export-summary')).toContainText('没有所选轨道');
-  await page.locator('#video-export-burn-subtitles').selectOption('main');
+  await page.locator('#video-export-track-choices input').first().check();
   const {card} = await finish(page);
   await expect(card).toContainText('已压制字幕');
   await expect(card).toContainText('画面已重新编码');
   if (process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path: join(process.env.MSW_UI_EVIDENCE_DIR, 'video-burn-subtitles.png')});
+});
+
+test('video scope burns only the third physical track and previews the same scope without mutating the project',async({page},info)=>{
+  await page.evaluate(()=>{
+    const p=MSWProductionProject.toProject(DATA),base=p.subtitles.tracks[0];
+    p.subtitles.tracks.push({...base,id:'second',display_number:2},{...base,id:'third',display_number:3});p.subtitles.next_track_number=4;
+    p.subtitles.cues.push({id:'third-cue',track_id:'third',content:{start:1000,end:3000,text:'THIRD TRACK',items:[]}});
+    p.subtitle_view.secondary_cue_ids.push('third-cue');productionCommitProject(p,'Test tracks');
+  });
+  await open(page);await page.locator('#video-export-burn-subtitles').selectOption('both');
+  await page.locator('#video-export-track-scope summary').click();
+  await page.locator('#video-export-track-choices input').nth(1).uncheck();
+  await page.locator('#video-export-track-choices input').nth(2).uncheck();
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.currentPreview().trackIds)).toEqual(['third']);
+  expect(await page.evaluate(()=>fixedPreviewLayout().layout.entries.map(e=>e.cue_id))).toEqual(['third-cue']);
+  await expect(page.locator('#video-export-start')).toBeEnabled();
+  expect(await page.locator('#video-export-track-choices input').first().evaluate(n=>n.getBoundingClientRect().width)).toBe(14);
+  await page.locator('#video-export-panel').screenshot({path:info.outputPath('video-track-scope.png')});
+  const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
+  await finish(page);const body=(await submitted).postDataJSON();expect(body.options.burn_subtitles).toBe('both');
+  expect(body.project.subtitles.tracks.filter(t=>t.enabled).map(t=>t.id)).toEqual(['third']);
+  expect(await page.evaluate(()=>MSWProductionProject.toProject(DATA).subtitles.tracks.every(t=>t.enabled))).toBe(true);
 });
 
 for(const policy of ['freeze','black'])test(`longer voice aligns to audio with ${policy} video padding`,async({page})=>{
@@ -206,8 +230,8 @@ test('voice-only audio alignment trims longer video and rejects empty audio',asy
 
 test('merged subtitle menu precedes the main SRT export',async({page})=>{
   const entries=await page.locator('#subtitle-export-menu > .dropdown-item').allTextContents();
-  const merged=entries.indexOf('合并主副字幕（SRT）');
-  expect(merged).toBe(0);expect(entries[merged+1]).toBe('主字幕（SRT）');
+  const merged=entries.indexOf('合并同时显示文本（SRT）');
+  expect(merged).toBe(0);expect(entries[merged+1]).toBe('字幕（SRT）');
 });
 
 test('editable OTIOZ exports independent overlapping voice lanes and portable media', async ({page}) => {

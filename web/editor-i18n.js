@@ -9,6 +9,17 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '导入到': 'Import into', '参考轨道': 'Reference track', '目标轨道': 'Destination track',
+    '来源轨道': 'Source track', '工程没有可导入的字幕': 'The project contains no subtitles to import',
+    '新建字幕轨道': 'New subtitle track', '匹配时间并绑定': 'Match timing and bind', '导入字幕到轨道': 'Import subtitles into tracks',
+    '全部启用轨道': 'All enabled tracks', '轨道范围': 'Track scope', '字幕轨道': 'Subtitle tracks',
+    '字幕（SRT）': 'Subtitles (SRT)', '字幕（ASS）': 'Subtitles (ASS)', '合并同时显示文本（SRT）': 'Merge simultaneous text (SRT)',
+    '按轨道范围导出启用的字幕': 'Export enabled subtitles within the track scope',
+    '所选轨道没有可导出的字幕': 'The selected tracks contain no subtitles to export',
+    '打开工程会替换当前工程；导入字幕只带入文字、时间与可用字词时间码。': 'Opening replaces the current project; importing subtitles brings in only text, timing and available word timestamps.',
+    '音频补字幕': 'Fill subtitles from audio', '补齐字幕': 'Fill subtitles', '与目标轨道已有字幕重叠': 'Overlaps existing subtitles on the destination track',
+    '仅匹配参考轨道中尚未绑定的字幕。未匹配的字幕仍会导入；分组与绑定分别管理。': 'Match only unbound subtitles on the reference track. Unmatched subtitles are still imported. Track groups and bindings are managed separately.',
+    '使用所选音频贴片的文字和时间，在目标轨道补字幕。没有合成文字的外部音频以文件名占位，不进行语音识别。与已有字幕或其他所选贴片重叠时跳过，不覆盖或解绑已有字幕；一次撤销。': 'Fill the destination track using the selected audio clips’ text and timing. Imported audio without synthesis text uses its filename as a placeholder; this does not run speech recognition. Overlaps with existing subtitles or other selected clips are skipped without overwriting or unbinding. Undo once to revert.',
     '清理字幕': 'Clean up subtitles', '关闭清理字幕': 'Close subtitle cleanup', '清理内容': 'Content to remove',
     '清理': 'Clean up', '仅空字幕': 'Empty subtitles only', '范围内全部字幕': 'All subtitles in scope',
     '选择轨道与范围，清理空字幕或清空字幕': 'Choose a track and scope to remove empty subtitles or all subtitles',
@@ -2672,6 +2683,14 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const exportScope=/^轨道范围 · (全部启用轨道|已选 (\d+) 条)$/.exec(text);
+    if(exportScope)return `Track scope · ${exportScope[2]?`${exportScope[2]} selected`:'All enabled tracks'}`;
+    const importReplace=/^替换 (S\d+(?:主|副)?)$/.exec(text);
+    if(importReplace)return `Replace ${importReplace[1]}`;
+    const importPlan=/^新建字幕轨道 · (不自动绑定|匹配绑定 (\d+) 对)$/.exec(text);
+    if(importPlan)return `New subtitle track · ${importPlan[2]?`${importPlan[2]} matched pairs`:'No automatic binding'}`;
+    const replacePlan=/^替换 (S\d+(?:主|副)?) 的 (\d+) 条字幕(?:，解除 (\d+) 对原绑定)?；可撤销$/.exec(text);
+    if(replacePlan)return `Replace ${replacePlan[2]} subtitles on ${replacePlan[1]}${replacePlan[3]?`; unbind ${replacePlan[3]} pairs`:''} · Undo available`;
     const batchPreview=/^范围 (\d+) 条 · 预计修改 (\d+) 条$/.exec(text);
     if(batchPreview)return `Scope: ${batchPreview[1]} subtitles · ${batchPreview[2]} changes`;
     const cleanupPreview=/^将删除 (\d+) 条字幕(?: · 解除 (\d+) 组绑定，另一侧字幕保留)?$/.exec(text);

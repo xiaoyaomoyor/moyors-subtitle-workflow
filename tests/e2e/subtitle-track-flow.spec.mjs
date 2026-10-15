@@ -12,7 +12,7 @@ test.beforeEach(async({page})=>{
   process.env.MAW_ENV_FILE=join(folder,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(folder,'app-data');
   server=await startServer(path,media,await findFreePort());
   await disableOnboarding(page);await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false})));
-  await page.goto(server.url);await page.waitForFunction(()=>MSWSubtitleStyle.ready&&player.readyState>=2);
+  await page.goto(server.url+'?subtitle-tracks=1');await page.waitForFunction(()=>MSWSubtitleStyle.ready&&player.readyState>=2);
   await page.evaluate(()=>{
     fixedSetPresentation('fixed');const id=fixedTrack(DATA.segments.find(c=>c.id==='b')).id;
     fixedUpdateTrack(id,{purpose:'annotation',layout:'fixed',style_base:'annotation',position:{x:.3,y:.15}});
@@ -66,9 +66,9 @@ a,b=mask(sys.argv[1]),mask(sys.argv[2]);print(json.dumps({'pixels':len(a),'iou':
 test('SRT includes all enabled purposes and can export one selected track',async({page})=>{
   expect(await page.evaluate(()=>buildSrt())).toContain('Dialogue sample');
   expect(await page.evaluate(()=>buildSrt())).toContain('Annotation sample');
-  await page.evaluate(()=>{fixedSrtScope=fixedTrack(DATA.segments.find(c=>c.id==='b')).id;});
+  await page.evaluate(()=>{fixedExportTracks=[fixedTrack(DATA.segments.find(c=>c.id==='b')).id];});
   const text=await page.evaluate(()=>buildSrt());expect(text).toContain('Annotation sample');expect(text).not.toContain('Dialogue sample');
-  expect(await page.evaluate(()=>buildAss())).toContain('Dialogue sample');
+  const ass=await page.evaluate(()=>buildAss());expect(ass).not.toContain('Dialogue sample');expect(ass).toContain('Annotation sample');
 });
 
 test('new projects default to fixed layout while existing empty projects retain legacy layout',async({page})=>{

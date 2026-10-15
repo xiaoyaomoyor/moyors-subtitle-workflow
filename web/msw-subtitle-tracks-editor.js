@@ -660,16 +660,15 @@ document.addEventListener('DOMContentLoaded', () => {
   fixedSyncUI(); fixedAcceptEdit();
 });
 
-// SRT selection is explicit and independent of the list filter. ASS keeps all
-// enabled tracks, matching video output, including annotation positions.
-let fixedSrtScope = '';
+// File export scope is shared by SRT and ASS, independent of display columns.
+let fixedExportTracks = null;
 function fixedSrtProject() {
   const project=structuredClone(DATA),index=fixedTrackCore.createIndex(DATA);
   for(const source of layerCore.tracks(project)) {
     layerCore.materializeReferences(source.segments);
     source.segments=source.segments.filter(c=>{
       const owner=index.trackFor({role:source.role,track_id:source.track_id,cue_id:c.id});
-      return owner?.enabled&&!c.disabled&&(!fixedSrtScope||owner.id===fixedSrtScope)
+      return owner?.enabled&&!c.disabled&&(!fixedExportTracks||fixedExportTracks.includes(owner.id))
         && layerCore.visible(DATA,c,source.role);
     });
     if(source.role==='main')project.segments=source.segments;
@@ -680,7 +679,10 @@ function fixedSrtProject() {
 async function fixedAssDocument(target='both',removeGaps=false) {
   if(!SERVER_CONFIG?.processingUrl)throw Error('精确 ASS 导出需要本机编辑器服务，请用 MSW 启动器打开工程');
   commitProcessingEdits();
-  const project=window.MSWE.resolve('processing-host').exportProject();
+  let project=window.MSWE.resolve('processing-host').exportProject();
+  if(productionFlatMode())project=window.MSWProductionProject.exportScope(project,fixedExportTracks);
+  else if(fixedExportTracks)for(const t of project.subtitle_tracks?.tracks||[])t.enabled=t.enabled&&fixedExportTracks.includes(t.id);
+  if(!layerCore.tracks(fixedSrtProject()).some(t=>t.segments.some(c=>c.text?.trim())))throw Error('所选轨道没有可导出的字幕');
   const payload={project,target,video:{width:player.videoWidth||1920,height:player.videoHeight||1080}};
   if(removeGaps) {
     const intervals=[];let cursor=0,output=0;
@@ -704,18 +706,31 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   if(events.length){const first=events[0];first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');}
   return lines.join('\n');
 }
+function fixedCanExport() {
+  if(!fixedTrackMode()||layerCore.tracks(fixedSrtProject()).some(t=>t.segments.some(c=>c.text?.trim())))return true;
+  flashHint('所选轨道没有可导出的字幕','warning');return false;
+}
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('subtitle-track-add')?.addEventListener('click',()=>fixedAddTrack('subtitle'));
   const anchor=document.getElementById('download-merged-srt');if(!anchor)return;
-  const row=document.createElement('div');row.className='fixed-srt-scope';
-  const label=document.createElement('label');label.textContent='SRT 范围 ';
-  const select=document.createElement('select');select.setAttribute('aria-label','SRT 轨道范围');
-  select.onchange=()=>{fixedSrtScope=select.value;};label.append(select);
-  row.append(label);anchor.before(row);
+  const row=document.createElement('details');row.id='subtitle-export-scope';row.className='msw-export-scope';
+  const summary=document.createElement('summary'),choices=document.createElement('div');row.append(summary,choices);anchor.before(row);
+  let trackKey='';
   const sync=()=>{row.hidden=!fixedTrackMode();if(!fixedTrackMode())return;
-    select.replaceChildren(new Option('全部启用轨道',''),...DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>new Option(t.name,t.id)));
-    if(DATA.subtitle_tracks.tracks.some(t=>t.id===fixedSrtScope))select.value=fixedSrtScope;else fixedSrtScope='';};
+    summary.textContent=fixedExportTracks===null?'轨道范围 · 全部启用轨道':`轨道范围 · 已选 ${DATA.subtitle_tracks.tracks.filter(t=>t.enabled&&fixedExportTracks.includes(t.id)).length} 条`;
+    const nextKey=JSON.stringify(DATA.subtitle_tracks.tracks.map(t=>[t.id,t.name,t.enabled]));
+    if(trackKey===nextKey){for(const input of choices.querySelectorAll('input'))input.checked=input.dataset.track==='all'?fixedExportTracks===null:DATA.subtitle_tracks.tracks.some(t=>t.id===input.dataset.track&&t.enabled&&(fixedExportTracks===null||fixedExportTracks.includes(t.id)));return;}
+    trackKey=nextKey;
+    choices.replaceChildren();
+    const add=(id,text,checked,disabled,change)=>{const label=document.createElement('label');label.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;input.onchange=change;label.append(input,document.createTextNode(text));choices.append(label);};
+    add('all','全部启用轨道',fixedExportTracks===null,false,()=>{fixedExportTracks=null;sync();});
+    for(const t of DATA.subtitle_tracks.tracks)add(t.id,t.name+(t.enabled?'':' · 已禁用'),t.enabled&&(fixedExportTracks===null||fixedExportTracks.includes(t.id)),!t.enabled,()=>{
+      const next=new Set(fixedExportTracks===null?DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>t.id):fixedExportTracks);
+      if(next.has(t.id))next.delete(t.id);else next.add(t.id);fixedExportTracks=[...next];sync();
+    });};
+  row.addEventListener('click',event=>event.stopPropagation());
   anchor.parentElement.addEventListener('pointerenter',sync);window.addEventListener('msw:project-changed',sync);sync();
+  window.addEventListener('msw:project-changed',()=>{fixedExportTracks=null;sync();});
 });
 
 async function fixedDownloadAss(target='both',removeGaps=false) {
