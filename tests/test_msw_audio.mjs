@@ -24,6 +24,23 @@ test('overlapping clips occupy independent lanes, touching ends reuse lanes', ()
   assert.notEqual(layout.lanes.get('a'), layout.lanes.get('b'));
   assert.equal(layout.lanes.get('a'), layout.lanes.get('c'));
 });
+
+test('audio tracks own independent overlap rows; collapse preserves playback and local lane memory', () => {
+  const a=make('a',0), b=make('b',500), c={...make('c',4000),track_id:'second'};
+  const ext=extension([a,b,c]);ext.audio_tracks.push({...ext.audio_tracks[0],id:'second'});
+  const assets=new Map([['a',asset]]);
+  const layout=core.arrangeTracks(ext.audio_clips,assets,ext.audio_tracks);
+  assert.deepEqual(json(layout.bands),[
+    {id:'voice',label:'A1',muted:false,start:0,size:2},
+    {id:'second',label:'A2',muted:false,start:2,size:1},
+  ]);
+  assert.equal(layout.lanes.get('c'),2);
+  ext.audio_tracks[0].collapsed=true;
+  const folded=core.arrangeTracks(ext.audio_clips,assets,ext.audio_tracks,layout.localLanes);
+  assert.equal(folded.count,1);assert.equal(folded.lanes.get('c'),0);assert.equal(folded.lanes.has('a'),false);
+  assert.equal(folded.localLanes.get('b'),1);assert.equal(core.audible(ext).length,3);
+  core.validate(ext);ext.audio_tracks[0].collapsed='yes';assert.throws(()=>core.validate(ext));
+});
 test('drag-session lanes keep each clip on its lane while still overlapping', () => {
   // a 在 lane0（0-2s），b 在 lane1（1-3s）。拖动 a 越过 b 但仍重叠（1.2s 起）：
   // 纯贪心重排会互换行（b→lane0、a→lane1）；带拖动起点 lane 的重排不换位。

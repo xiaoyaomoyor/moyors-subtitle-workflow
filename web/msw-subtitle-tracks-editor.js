@@ -415,6 +415,17 @@ function fixedTrackMenu(track, x, y) {
   }, occupied || track.locked || DATA.subtitle_tracks.tracks.length === 1);
   ctxShowAt(x, y);
 }
+function fixedAudioTrackMenu(id, x, y) {
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const track = DATA.msw?.audio_tracks?.find(track => track.id === id);
+  if (!audio || !track) return;
+  ctxmenu.replaceChildren();
+  fixedMenuItem('全选轨道内容', () => audio.selectTrackClips(id), !DATA.msw.audio_clips?.some(clip => clip.track_id === id));
+  ctxAppendSeparator();
+  fixedMenuItem(track.muted ? '启用轨道' : '禁用轨道', () => audio.toggleAudioTrackMuted(id));
+  fixedMenuItem(track.collapsed ? '展开轨道' : '折叠轨道', () => audio.setTrackCollapsed(id, !track.collapsed));
+  ctxShowAt(x, y);
+}
 function fixedRenderHeads(group, row, audioSpace) {
   if (!fixedTrackMode()) return false;
   for (const band of fixedLayout().bands) {
@@ -496,11 +507,14 @@ function fixedListTrackAllows(cue,role='main',trackId=null) {
   return !!cue&&(!fixedTrackMode()||!fixedTrackFilter.size||fixedTrackFilter.has(fixedOwner(cue,role,trackId)));
 }
 document.addEventListener('contextmenu',event=>{
-  if(!fixedTrackMode()||!event.target.closest('.waveform-track-heads-column')||event.target.closest('.fixed-track-head'))return;
+  if(!fixedTrackMode()||!event.target.closest('.waveform-track-heads-column')||event.target.closest('.fixed-track-head, .a-track'))return;
   event.preventDefault();event.stopImmediatePropagation();ctxmenu.replaceChildren();
   fixedMenuItem('新增字幕轨道',()=>fixedAddTrack('subtitle'));
   if(productionFlatMode()) {
     const choices=DATA.subtitle_tracks.tracks.filter(t=>t.collapsed).map(t=>({label:t.name,action:()=>fixedUpdateTrack(t.id,{collapsed:false})}));
+    (DATA.msw?.audio_tracks || []).forEach((track,index) => {
+      if(track.collapsed)choices.push({label:`A${index+1}`,action:()=>window.MSWE?.resolve('audio-timeline')?.setTrackCollapsed(track.id,false)});
+    });
     ctxAppendExpandableSettings('展开轨道',choices.length?choices:[{label:'没有折叠的轨道',action:()=>{},disabled:true}]);
     ctxAppendSettingsEntry('字幕样式与画面位置',()=>window.MSWSubtitleStyle?.editTrack(fixedActiveTrack()?.id));
   }

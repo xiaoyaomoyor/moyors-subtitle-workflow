@@ -4090,7 +4090,8 @@
 
     get effectiveRowHeight() {
       if (this.subtitleLayersEnabled()) {
-        const audioSpace = (this.options.getAudioTrackCount?.() || 0) > 0 ? 78 : 0;
+        const audioRows = (this.options.getAudioTrackBands?.() || []).reduce((total, band) => total + band.size, 0);
+        const audioSpace = audioRows ? audioRows * 22 + 11 : 0;
         return Math.max(this.settings.rowHeight, this.subtitleLaneCount() * this.subtitleGeometry().pitch + 54 + audioSpace);
       }
       return Math.max(this.settings.rowHeight, this.audioLayer?.minimumRowHeight() || 0);
@@ -4373,19 +4374,26 @@
           head.style.height = String(rect.height) + 'px';
           group.appendChild(head);
         }
-        // A 头：按打包 lane 数渲染，纵向对齐 lanes 区域（可视上限 3 行）。
-        const audioCount = this.options.getAudioTrackCount?.() || 0;
+        // One head per real audio track; overlap rows remain inside that track.
+        const audioBands = this.options.getAudioTrackBands?.() || [];
         const lanesInner = row.querySelector('.msw-audio-lanes-inner');
-        if (audioCount > 0 && lanesInner) {
+        if (audioBands.length && lanesInner) {
           const ROW_H = 22;
-          const innerH = Math.max(1, audioCount) * ROW_H + 6;
-          const areaH = Math.min(innerH, 3 * ROW_H + 6);
-          for (let i = 0; i < audioCount && i < 3; i += 1) {
-            const muted = this.options.audioTrackMuted?.(i) === true;
-            const head = makeHead(`A${i + 1}`, 'a-track',
-              `A${i + 1} 配音轨——点击${muted ? '启用' : '禁用'}整条轨道`,
-              () => this.options.toggleAudioTrackMuted?.(i), muted);
-            head.style.top = `${row.offsetHeight - 5 - areaH + 3 + i * ROW_H}px`;
+          const areaH = parseFloat(lanesInner.style.height) || 0;
+          for (const band of audioBands) {
+            const head = makeHead(band.label, 'a-track',
+              `${band.label} 音频轨道——点击${band.muted ? '启用' : '禁用'}本轨道，右键管理`,
+              () => this.options.toggleAudioTrackMuted?.(band.id), band.muted);
+            head.dataset.audioTrackId = band.id;
+            head.setAttribute('aria-pressed', String(!band.muted));
+            head.style.top = `${row.offsetHeight - 5 - areaH + 3 + band.start * ROW_H}px`;
+            head.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); this.options.onAudioTrackContextMenu?.(band.id, event.clientX, event.clientY); });
+            head.addEventListener('keydown', event => {
+              if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') {
+                event.preventDefault(); event.stopPropagation(); const rect = head.getBoundingClientRect();
+                this.options.onAudioTrackContextMenu?.(band.id, rect.right, rect.bottom);
+              }
+            });
             group.appendChild(head);
           }
         }

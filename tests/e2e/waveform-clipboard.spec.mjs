@@ -364,21 +364,18 @@ test('bound pair cut and paste keeps main and extension together', async ({ page
   expect(afterPaste.extSel).toBeGreaterThanOrEqual(1);
 });
 
-test('A track heads grow with packed lanes', async ({ page }) => {
-  // 两个时间重叠的贴片 → 打包成 2 条 lane → A1/A2 轨道头
+test('A track heads represent real tracks rather than their overlap rows', async ({ page }) => {
   await page.evaluate(() => {
     const audio = window.MSWE.resolve('audio-timeline');
-    window.__laneCount = audio.laneCount?.();
+    window.__trackCount = audio.trackBands().length;
   });
   const heads = await page.evaluate(() =>
     [...document.querySelectorAll('.waveform-track-heads')].flatMap((g) =>
       [...g.querySelectorAll('.a-track')].map((el) => el.textContent)));
-  const laneCount = await page.evaluate(() => window.__laneCount);
-  expect(laneCount).toBeGreaterThanOrEqual(1);
-  // 每个波形行组都应渲染 A1..A{laneCount}
-  const perGroup = new Set(heads.map((_, i) => i).map(() => heads.length));
+  const trackCount = await page.evaluate(() => window.__trackCount);
+  expect(trackCount).toBeGreaterThanOrEqual(1);
   expect(heads.length).toBeGreaterThan(0);
-  expect(new Set(heads).size).toBe(laneCount);
+  expect(new Set(heads).size).toBe(trackCount);
 });
 
 async function dropSrtPair(page) {
@@ -550,7 +547,7 @@ test('real pointer drag across another clip never swaps lanes mid-drag', async (
   expect(settled.clipA).toBe(settled.clipB);
 });
 
-test('magnet guide line appears while dragging near another edge', async ({ page }) => {
+test('audio trim snaps only while Shift is held, including modifier changes without moving', async ({ page }) => {
   // A(10-11s) 的右缘拖向 B(18-19s) 的起点：进入磁吸阈值后出现对齐参考线。
   const setup = await page.evaluate(() => {
     const data = window.MSWE.resolve('processing-host').data;
@@ -579,24 +576,45 @@ test('magnet guide line appears while dragging near another edge', async ({ page
   });
   const msPerPx = (handle.rowEnd - handle.rowStart) / handle.rowWidth;
   // 终点 11s → 18s（B 起点）：拖到位后磁吸应吸附并显示参考线
-  const dx = 7000 / msPerPx;
+  const dx = 7000 / msPerPx - 3;
   await page.mouse.move(handle.x, handle.y);
   await page.mouse.down();
-  let guideSeen = false;
-  for (let i = 1; i <= 8; i += 1) {
-    await page.mouse.move(handle.x + (dx * i) / 8, handle.y, { steps: 2 });
-    await page.waitForTimeout(50);
-    guideSeen ||= await page.evaluate(() => {
-      const g = document.querySelector('.waveform-magnet-guide');
-      return Boolean(g && !g.hidden);
-    });
-  }
+  await page.mouse.move(handle.x+dx,handle.y,{steps:8});
+  const clip=page.locator('[data-clip-id="clipA"]').first();
+  const unsnapped=Number(await clip.getAttribute('data-end-ms'));
+  expect(unsnapped).toBeLessThan(18000);await expect(page.locator('.waveform-magnet-guide')).toHaveCount(0);
+  await page.keyboard.down('Shift');
+  await expect(page.locator('.waveform-magnet-guide')).toBeVisible();await expect(clip).toHaveAttribute('data-end-ms','18000');
+  await page.keyboard.up('Shift');
+  await expect(page.locator('.waveform-magnet-guide')).toHaveCount(0);
+  await expect.poll(async()=>Number(await clip.getAttribute('data-end-ms'))).toBeCloseTo(unsnapped,1);
+  await page.keyboard.down('Shift');
   await page.mouse.up();
-  await page.waitForTimeout(200);
-  expect(guideSeen).toBe(true);
+  await page.keyboard.up('Shift');
+  expect(await page.evaluate(()=>MSWAudio.end(DATA.msw.audio_clips[0],DATA.msw.assets[0]))).toBe(18000);
   // 松手后参考线收起
   await expect.poll(() => page.evaluate(() =>
     document.querySelector('.waveform-magnet-guide') === null)).toBe(true);
+});
+
+test('Shift drag keeps selected audio clips and multi-clip snapping does not drift',async({page})=>{
+  await page.evaluate(()=>{
+    const ext=DATA.msw,c=ext.audio_clips[0];
+    ext.audio_clips=[{...c,id:'moving-a',start_ms:10000},{...c,id:'moving-b',start_ms:14000},{...c,id:'static',start_ms:22000}];
+    window.dispatchEvent(new Event('msw:project-changed'));
+  });
+  const a=page.locator('[data-clip-id="moving-a"]').first(),b=page.locator('[data-clip-id="moving-b"]').first();
+  await a.click();await b.click({modifiers:['Control']});
+  const before=await a.boundingBox();
+  const scale=await a.evaluate(el=>{const r=el.closest('.waveform-row');return (Number(r.dataset.endMs)-Number(r.dataset.startMs))/r.getBoundingClientRect().width;});
+  await page.keyboard.down('Shift');await page.mouse.move(before.x+before.width/2,before.y+10);await page.mouse.down();
+  await page.mouse.move(before.x+before.width/2+7000/scale-3,before.y+10,{steps:6});
+  await expect(a).toHaveAttribute('data-start-ms','17000');await expect(b).toHaveAttribute('data-start-ms','21000');
+  for(let i=0;i<3;i++)await page.mouse.move(before.x+before.width/2+7000/scale-2-i*.2,before.y+10);
+  await expect(a).toHaveAttribute('data-start-ms','17000');await expect(b).toHaveAttribute('data-start-ms','21000');
+  await page.mouse.up();await page.keyboard.up('Shift');
+  expect(await page.evaluate(()=>DATA.msw.audio_clips.map(c=>c.start_ms))).toEqual([17000,21000,22000]);
+  await page.keyboard.press('Control+z');expect(await page.evaluate(()=>DATA.msw.audio_clips.map(c=>c.start_ms))).toEqual([10000,14000,22000]);
 });
 
 test('shift-click accumulates across main and extension tracks', async ({ page }) => {

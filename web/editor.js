@@ -23308,9 +23308,9 @@ function initWaveformEditor() {
     subtitleTrackMuted,
     toggleSubtitleTrackMuted,
     openWaveSettings: () => setWaveformSettingsPanelOpen(true),
-    getAudioTrackCount: () => window.MSWE?.resolve('audio-timeline')?.laneCount?.() || 0,
-    audioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.audioTrackMuted?.(index) === true,
-    toggleAudioTrackMuted: (index) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(index),
+    getAudioTrackBands: () => window.MSWE?.resolve('audio-timeline')?.trackBands?.() || [],
+    toggleAudioTrackMuted: (id) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(id),
+    onAudioTrackContextMenu: (id, x, y) => fixedAudioTrackMenu(id, x, y),
     onBeginEdit: (label) => {
       if (fixedTrackMode() && !layerPendingDragHistory) fixedBeginEdit();
       if (layerMode() && waveformEditor?.drag) {
@@ -24456,6 +24456,9 @@ document.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
   if (key !== 'x' && key !== 'c' && key !== 'v') return;
   if (event.defaultPrevented || (key === 'c' && event.shiftKey)) return;
+  // A DOM text selection (including read-only history/error text) owns copying.
+  // Keep block clipboard routing only when there is no selected text.
+  if ((key === 'c' || key === 'x') && window.getSelection()?.toString()) return;
   if (historyGuarded()) return;
   if (ctxmenu.classList.contains('show')) return;
   if (key === 'x') {

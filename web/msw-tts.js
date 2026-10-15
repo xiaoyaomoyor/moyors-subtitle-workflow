@@ -366,7 +366,9 @@
   }
   function jobAction(label, icon, callback) {
     const button = action(label, callback); button.classList.add('msw-tts-icon-button');
+    button.textContent = '';
     button.dataset.icon = icon; button.title = t(label); button.setAttribute('aria-label', t(label));
+    button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });
     return button;
   }
   function unfinishedEntries(detail) {
@@ -374,11 +376,11 @@
     const ready = new Set((detail.result?.items || []).filter(row => row.status === 'ready').map(row => row.key));
     return (detail.snapshot?.entries || []).filter(row => !saved.has(row.key) && !ready.has(row.key));
   }
-  async function retryJob(job) {
+  async function retryJob(job, key) {
     const generation = host.generation;
     const {job: detail} = await request(`jobs/${job.id}/result?project_id=${encodeURIComponent(job.project_id)}`);
     if (generation !== host.generation || active(detail)) return;
-    const entries = unfinishedEntries(detail);
+    const entries = unfinishedEntries(detail).filter(entry => entry.key === key);
     if (!entries.length) { message('这些内容已合成，无需重试'); renderJobs(); return; }
     await submit({snapshot: {...detail.snapshot, entries}, retry_of: job.id, recipe: job.recipe});
   }
@@ -389,16 +391,26 @@
     const items = new Map((detail.result?.items || []).map(row => [row.key, row]));
     const entries = detail.snapshot?.entries || [];
     const hasItemError = [...items.values()].some(item => item.status === 'failed');
+    const unfinished = new Set(unfinishedEntries(detail).map(entry => entry.key));
+    const retrying = busy || [...jobs.values()].some(other => other.retry_of === job.id && active(other));
     entries.forEach((entry, index) => {
       let row = ui.rows.get(entry.key);
       if (!row) {
         const element = document.createElement('div'); element.className = 'msw-tts-entry'; element.dataset.entryKey = entry.key;
         const text = document.createElement('p'); text.className = 'msw-tts-entry-text'; text.dataset.i18nSkip = '';
         text.textContent = entry.text; text.title = entry.text;
+        const number = document.createElement('span'); number.className = 'msw-tts-entry-number';
+        number.textContent = `#${String(index + 1).padStart(2, '0')}`;
+        const controls = document.createElement('div'); controls.className = 'msw-tts-entry-controls';
         const icon = jobIcon('pending', '尚未完成');
-        const error = document.createElement('p'); error.className = 'msw-tts-entry-error'; error.dataset.i18nSkip = '';
-        element.append(text, icon, error); ui.view.append(element);
-        row = {element, icon, error}; ui.rows.set(entry.key, row);
+        const info = document.createElement('button'); info.type = 'button'; info.className = 'msw-tts-entry-info';
+        const retry = jobAction('重新合成此条', 'retry', () => retryJob(jobs.get(job.id), entry.key));
+        const provider = job.recipe?.provider;
+        retry.title = t('重新合成此条') + '\n' + t(['yukkuri', 'indextts', 'gpt-sovits'].includes(provider)
+          ? '已成功的音频不会重发。' : provider === 'edge' ? '重试需要联网，已成功的音频不会重发。' : '重试可能再次计费，已成功的音频不会重发。');
+        controls.append(retry, icon, info); element.append(number, text, controls); ui.view.append(element);
+        row = {element, icon, info, retry, controls, errorText: ''}; ui.rows.set(entry.key, row);
+        global.MSWHelp.bind(info, () => row.errorText);
       }
       const item = items.get(entry.key);
       const running = active(job) && job.status === 'running' && job.stage === 'synthesizing' && index === job.progress?.current;
@@ -409,12 +421,19 @@
       row.icon.setAttribute('aria-label', label); row.icon.title = label;
       const error = item?.error || (!active(job) && !hasItemError && state !== 'ready' && job.error)
         || (!active(job) && state !== 'ready' && state !== 'failed' ? t(job.status === 'cancelled' ? '已取消' : '尚未完成') : '');
-      row.error.textContent = error; row.error.hidden = !error;
+      row.errorText = error; row.info.hidden = !error;
+      row.info.setAttribute('aria-label', label);
+      const iconParent = error ? row.info : row.controls;
+      if (row.icon.parentNode !== iconParent) iconParent.append(row.icon);
+      row.icon.title = error ? '' : label;
+      row.retry.hidden = active(job) || !unfinished.has(entry.key);
+      row.retry.disabled = retrying || Boolean(row.retry.dataset.working);
     });
     if (ui.failedRevision == null) {
-      ui.notice.hidden = Boolean(entries.length); ui.notice.textContent = detail.error || t('没有可显示的合成内容');
+      ui.notice.hidden = Boolean(entries.length); ui.notice.textContent = entries.length ? '' : detail.error || t('没有可显示的合成内容');
     }
     ui.view.scrollTop = scroll;
+    global.MSWHelp.refresh(ui.view);
   }
   async function loadJobItems(job, ui) {
     if (ui.loading || ui.detail?.revision === job.revision || ui.failedRevision === job.revision) return;
@@ -449,17 +468,15 @@
         status.className = 'msw-job-status'; summary.append(heading, spinner, status); card.append(summary);
         const view = document.createElement('div'); view.className = 'msw-tts-result';
         const notice = document.createElement('p'); notice.className = 'msw-processing-hint'; notice.hidden = true;
-        const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
         const cancel = jobAction('取消任务', 'stop', async () => {
           const generation = host.generation;
           const data = await request(`jobs/${job.id}/cancel`, {project_id: job.project_id});
           if (generation !== host.generation) return;
           jobs.set(job.id, data.job); renderJobs(); schedule(0);
         });
-        const retry = jobAction('重新合成未完成项', 'retry', () => retryJob(jobs.get(job.id)));
         const reload = jobAction('重新加载记录', 'retry', () => { ui.failedRevision = null; return loadJobItems(jobs.get(job.id), ui); });
-        actions.append(cancel, retry, reload); card.append(view, notice, actions);
-        ui = {card, heading, status, spinner, summary, view, notice, cancel, retry, reload, rows: new Map()}; jobCards.set(job.id, ui);
+        summary.insertBefore(cancel, spinner); summary.insertBefore(reload, spinner); card.append(view, notice);
+        ui = {card, heading, status, spinner, summary, view, notice, cancel, reload, rows: new Map()}; jobCards.set(job.id, ui);
         card.addEventListener('toggle', () => {
           if (card.open && jobCards.get(job.id) === ui) { ui.failedRevision = null; renderJobs(); }
         });
@@ -472,10 +489,6 @@
       ui.spinner.hidden = !active(job); ui.spinner.title = t(statusText); ui.spinner.setAttribute('aria-label', t(statusText));
       ui.summary.title = [t(statusText), job.recipe?.model, clouds[provider]?.voiceLabel(job.recipe) || job.recipe?.voice].filter(Boolean).join(' · ');
       ui.cancel.hidden = !active(job); ui.cancel.disabled = job.status === 'cancel_requested' || Boolean(ui.cancel.dataset.working);
-      ui.retry.hidden = active(job) || !ui.detail || !unfinishedEntries(ui.detail).length;
-      ui.retry.disabled = busy || Boolean(ui.retry.dataset.working) || [...jobs.values()].some(other => other.retry_of === job.id && active(other));
-      ui.retry.title = t('重新合成未完成项') + '\n' + t(['yukkuri', 'indextts', 'gpt-sovits'].includes(provider)
-        ? '已成功的音频不会重发。' : provider === 'edge' ? '重试需要联网，已成功的音频不会重发。' : '重试可能再次计费，已成功的音频不会重发。');
       ui.reload.hidden = ui.failedRevision == null;
       if (ui.card.open) {
         if (ui.detail) renderJobItems(job, ui);

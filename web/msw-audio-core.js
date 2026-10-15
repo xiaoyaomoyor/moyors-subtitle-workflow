@@ -25,7 +25,8 @@
   }
   function validTrack(track) {
     return track && global.MSWProject.validId(track.id) && typeof track.name === 'string' && [...track.name].length <= 160
-      && Number.isFinite(track.gain_db) && track.gain_db >= -60 && track.gain_db <= 12 && typeof track.muted === 'boolean';
+      && Number.isFinite(track.gain_db) && track.gain_db >= -60 && track.gain_db <= 12 && typeof track.muted === 'boolean'
+      && (!('collapsed' in track) || typeof track.collapsed === 'boolean');
   }
   function validClip(clip, assets, tracks) {
     const asset = assets.get(clip?.asset_id);
@@ -104,6 +105,26 @@
     for (const [id, lane] of lanes) lanes.set(id, compact.get(lane));
     return { lanes, count: laneEnds.size };
   }
+  // A track owns its clips; overlap lanes are only rows inside that track.
+  // Keep local lane memory so hiding another track never makes clips switch rows.
+  function arrangeTracks(clips, assets, tracks, previous = null) {
+    const lanes = new Map(), localLanes = new Map(), bands = [];
+    const byTrack = new Map();
+    for (const clip of clips) {
+      if (!byTrack.has(clip.track_id)) byTrack.set(clip.track_id, []);
+      byTrack.get(clip.track_id).push(clip);
+    }
+    let count = 0;
+    tracks.forEach((track, index) => {
+      const layout = arrange(byTrack.get(track.id) || [], assets, previous);
+      for (const [id, lane] of layout.lanes) localLanes.set(id, lane);
+      if (track.collapsed || !layout.count) return;
+      bands.push({id: track.id, label: `A${index + 1}`, muted: track.muted, start: count, size: layout.count});
+      for (const [id, lane] of layout.lanes) lanes.set(id, count + lane);
+      count += layout.count;
+    });
+    return {lanes, localLanes, bands, count};
+  }
   function audible(extension) {
     const tracks = new Map((extension?.audio_tracks || []).map(t => [t.id, t]));
     return (extension?.audio_clips || []).filter(c => !c.muted && tracks.has(c.track_id) && !tracks.get(c.track_id).muted);
@@ -144,5 +165,5 @@
     return `hsl(${Math.round(215 - ratio * 175)} 48% ${Math.round(18 + ratio * 28)}%)`;
   }
   global.MSWAudio = Object.freeze({ MAX_LANES, CAPACITY_MESSAGE, hasCapacity, assertCapacity,
-    duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, audible, protectGaps, plan, dbColor });
+    duration, end, levelDb, validate, validTrack, validClip, create, edit, arrange, arrangeTracks, audible, protectGaps, plan, dbColor });
 })(window);

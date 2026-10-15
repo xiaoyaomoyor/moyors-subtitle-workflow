@@ -18,6 +18,17 @@ def legacy_project():
 
 
 class ProjectSchemaTests(unittest.TestCase):
+    def test_audio_track_collapse_roundtrips_and_rejects_non_boolean_flags(self):
+        project = legacy_project()
+        project['msw']['audio_tracks'] = [{'id': 'voice', 'name': 'Audio', 'gain_db': 0, 'muted': False, 'collapsed': True}]
+        project['msw']['audio_clips'] = []
+        saved = json.loads(serialize_mosp(normalize_project(project)))
+        self.assertTrue(saved['msw']['audio_tracks'][0]['collapsed'])
+        for value in (None, 'true', 1):
+            with self.subTest(value=value):
+                project['msw']['audio_tracks'][0]['collapsed'] = value
+                self.assertFalse(validate_project(project).ok)
+
     def test_legacy_normalization_and_serialization_preserve_metadata_without_mutating_input(self):
         original = legacy_project()
         before = copy.deepcopy(original)

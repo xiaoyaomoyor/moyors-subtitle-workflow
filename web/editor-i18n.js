@@ -1444,6 +1444,8 @@
     '成功': 'Ready', '失败': 'Failed', '查看素材': 'View assets', '检查未完成项': 'Review unfinished items',
     '尚未完成': 'Unfinished', '条未完成；重试可能再次计费，已成功的音频不会重发。': 'unfinished items. Retrying may incur charges; successful audio will not be regenerated.',
     '重新合成未完成项': 'Retry unfinished items',
+    '重新合成此条': 'Retry this item',
+    '配音轨道：拖动移动，边缘裁剪，按住 Shift 吸附': 'Audio track: drag to move, trim at the edges, hold Shift to snap',
     'TTS 已开始；每条完成后可在素材库试听，关闭此窗口不会取消任务': 'TTS started. Preview completed items in the asset library. Closing this panel does not cancel the task.',
     'TTS 配置已保存到本机': 'TTS settings saved locally', '本次没有生成音频，请检查未完成项': 'No audio was generated. Review unfinished items.',
     '搜索配音文本、音色…': 'Search text or voice…', '搜索素材': 'Search assets', '筛选生成批次': 'Filter by batch',

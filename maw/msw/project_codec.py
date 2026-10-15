@@ -192,7 +192,8 @@ def validate_audio_timeline(value):
     if (not isinstance(tracks, list) or len(tracks) > 32 or any(
             not isinstance(track, dict) or not valid_id(track.get("id"))
             or not isinstance(track.get("name"), str) or len(track["name"]) > 160
-            or not gain(track.get("gain_db")) or type(track.get("muted")) is not bool for track in tracks)):
+            or not gain(track.get("gain_db")) or type(track.get("muted")) is not bool
+            or ("collapsed" in track and type(track["collapsed"]) is not bool) for track in tracks)):
         errors.append(("$.msw.audio_tracks", "invalid audio tracks"))
         tracks = []
     track_ids = {track["id"] for track in tracks}

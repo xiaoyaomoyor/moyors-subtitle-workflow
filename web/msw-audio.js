@@ -24,10 +24,10 @@
     const timelineChanged = !!state && (dataRef !== ext || clipsRef !== clips || tracksRef !== ext.audio_tracks);
     dataRef = ext; clipsRef = clips; assetsRef = ext.assets; tracksRef = ext.audio_tracks;
     const assets = new Map((ext.assets || []).map(a => [a.id, a])), tracks = new Map((ext.audio_tracks || []).map(a => [a.id, a]));
-    const arranged = core.arrange(clips, assets, lastLanes);
+    const arranged = core.arrangeTracks(clips, assets, ext.audio_tracks || EMPTY, lastLanes);
     state = { clips, assets, tracks, ...arranged, audible: core.audible({ ...ext, audio_clips: clips }),
       end: clips.reduce((n, c) => Math.max(n, assets.has(c.asset_id) ? core.end(c, assets.get(c.asset_id)) : 0), 0) };
-    lastLanes = arranged.lanes;
+    lastLanes = arranged.localLanes;
     gapSource = null;
     for (const id of selected) if (!clips.some(c => c.id === id)) selected.delete(id);
     if (timelineChanged && !drag && !gainPreview) { refreshSettings(); transport.reset(); }
@@ -187,7 +187,7 @@
   // （字幕块 + 未被拖动的贴片）距离小于阈值时，取最近的一条对齐。
   function magneticAdjust(delta, mode, clip, threshold) {
     const state = sync();
-    const dragged = state.clips.filter(c => drag?.ids.has(c.id) && c.id !== clip.id);
+    const dragged = drag.originals.filter(c => drag.ids.has(c.id) && c.id !== clip.id);
     const movingEdges = [];
     const selfStart = clip.start_ms;
     const selfEnd = core.end(clip, state.assets.get(clip.asset_id));
@@ -203,7 +203,7 @@
     for (const moving of movingEdges) {
       for (const target of statics) {
         const distance = Math.abs(moving - target);
-        if (distance > 0 && distance <= threshold && (!best || distance < best.distance)) {
+        if (distance <= threshold && (!best || distance < best.distance)) {
           best = { distance, shift: target - moving, target };
         }
       }
@@ -217,22 +217,27 @@
   function begin(event, clip, mode) {
     if (event.button !== 0) return;
     event.preventDefault(); event.stopPropagation(); closeMenu();
-    select(clip.id, event.ctrlKey || event.metaKey || event.shiftKey);
+    // Shift-click may toggle selection, but Shift-drag must keep the dragged
+    // clip selected so the same modifier can enable snapping.
+    const toggleOnClick = event.shiftKey && !event.ctrlKey && !event.metaKey && selected.has(clip.id);
+    if (!toggleOnClick) select(clip.id, event.ctrlKey || event.metaKey || event.shiftKey);
     if (!selected.has(clip.id)) return;
     const point = timeline.timeAt(event.clientX, event.clientY); if (!point) return;
     const originals = extension().audio_clips, ids = mode === 'move' ? new Set(selected) : new Set([clip.id]);
-    drag = { id: clip.id, mode, point, originals, ids, x: event.clientX, y: event.clientY, preview: originals, generation: host.generation, moved: false };
+    drag = { id: clip.id, mode, point, originals, ids, x: event.clientX, y: event.clientY, currentX: event.clientX, currentY: event.clientY, preview: originals, generation: host.generation, moved: false };
     const onMove = e => {
       e.stopPropagation();
       if (!drag || drag.generation !== host.generation) return finish(false);
+      drag.currentX = e.clientX; drag.currentY = e.clientY;
       if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 3 && !drag.moved) return;
       const current = timeline.timeAt(e.clientX, e.clientY);
       let delta = (current?.time ?? (drag.point.time + (e.clientX - drag.x) * drag.point.msPerPixel)) - drag.point.time;
       const edge = mode === 'end' ? core.end(clip, sync().assets.get(clip.asset_id)) : clip.start_ms;
       delta = timeline.snap(edge + delta) - edge;
-      // PR 式边缘磁吸：拖动中的贴片边缘靠近字幕块 / 其他贴片边缘时自动对齐。
+      // Like subtitle blocks, magnet snapping is opt-in while Shift is held.
       const threshold = 8 * (current?.msPerPixel ?? drag.point.msPerPixel ?? 1);
-      delta += magneticAdjust(delta, mode, clip, threshold);
+      if (e.shiftKey) delta += magneticAdjust(delta, mode, clip, threshold);
+      else timeline.hideMagnetGuide?.();
       if (mode === 'move') delta = Math.max(delta, -Math.min(...originals.filter(c => ids.has(c.id)).map(c => c.start_ms)));
       const assets = sync().assets;
       const preview = originals.map(c => ids.has(c.id) ? core.edit(c, assets.get(c.asset_id), mode, delta) : c);
@@ -258,6 +263,7 @@
     const finish = apply => {
       document.removeEventListener('pointermove', onMove, true); document.removeEventListener('pointerup', onUp, true);
       document.removeEventListener('pointercancel', onCancel, true); global.removeEventListener('blur', onCancel);
+      global.removeEventListener('keydown', onModifier, true); global.removeEventListener('keyup', onModifier, true);
       timeline.hideMagnetGuide?.();
       timeline.refreshMediaReadout?.();
       const current = drag; drag = null;
@@ -266,14 +272,20 @@
       } else {
         state = null; timeline.refreshOverlays();
         if (apply && current && !current.moved && current.generation === host.generation && mode === 'move') {
-          host.seek(current.point.time / 1000);
+          if (toggleOnClick) { selected.delete(clip.id); schedulePaint(); }
+          else host.seek(current.point.time / 1000);
         }
       }
     };
-    const onUp = e => { e.preventDefault(); e.stopPropagation(); finish(true); }, onCancel = () => finish(false);
+    const onUp = e => { e.preventDefault(); e.stopPropagation(); if (drag?.moved) onMove(e); finish(true); }, onCancel = () => finish(false);
+    const onModifier = e => {
+      if (e.key !== 'Shift' || !drag?.moved) return;
+      onMove({clientX: drag.currentX, clientY: drag.currentY, shiftKey: e.type === 'keydown', stopPropagation() {}});
+    };
     drag.cancel = onCancel;
     document.addEventListener('pointermove', onMove, true); document.addEventListener('pointerup', onUp, true);
     document.addEventListener('pointercancel', onCancel, true); global.addEventListener('blur', onCancel);
+    global.addEventListener('keydown', onModifier, true); global.addEventListener('keyup', onModifier, true);
   }
   function heatBackground(clip, asset, from, to) {
     const heat = transport.heats.get(asset.id);
@@ -288,7 +300,7 @@
     return `linear-gradient(90deg,${colors.join(',')})`;
   }
   function renderRow(row, start, end) {
-    const current = sync(), has = current.clips.length > 0;
+    const current = sync(), has = current.count > 0;
     const key = `${start}:${end}`;
     // 复用同一时间窗的 lanes 容器：拖动期间每帧的覆盖层刷新若整体重建
     // DOM，鼠标下的贴片会因节点被替换而闪烁（悬停/过渡态每帧丢失）。
@@ -308,14 +320,14 @@
       row.appendChild(area);
     }
     row.classList.toggle('has-audio-clips', has);
-    const visible = Math.min(3, Math.max(1, current.count)), height = visible * ROW + 6;
+    const height = current.count * ROW + 6;
     row.style.setProperty('--audio-lane-space', `${has ? height + 5 : 0}px`);
     if (!has) { area.remove(); return; }
     const inner = area.querySelector('.msw-audio-lanes-inner');
     area.style.height = `${height}px`;
-    area.title = t('配音轨道：拖动移动，边缘裁剪，右键静音');
+    area.title = t('配音轨道：拖动移动，边缘裁剪，按住 Shift 吸附');
     inner.style.height = `${Math.max(1, current.count) * ROW + 6}px`;
-    const overlaps = current.clips.filter((c) => c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
+    const overlaps = current.clips.filter((c) => current.lanes.has(c.id) && c.start_ms < end && current.assets.has(c.asset_id) && core.end(c, current.assets.get(c.asset_id)) > start);
     function paint() {
       // 键控复用：按 clipId 复用已有元素、只更新几何与状态类；新出现的才
       // 建节点，消失的移除——拖动每帧刷新不再重建整棵 DOM（闪烁与性能根因）。
@@ -355,7 +367,7 @@
         block.style.left = `${(from - start) / (end - start) * 100}%`;
         block.style.width = `${(to - from) / (end - start) * 100}%`;
         block.style.top = `${lane * ROW + 3}px`;
-        const background = muted ? '' : heatBackground(clip, asset, from, to);
+        const background = heatBackground(clip, asset, from, to);
         if (background) block.style.backgroundImage = background; else block.style.backgroundImage = '';
         block.title = hoverDetailsActive()
           ? `${clip.label}\n${t('试听音量')}：${Number(core.levelDb(clip, current.tracks.get(clip.track_id)).toFixed(2))} dB${muted ? ` (${t('静音')})` : ''} · ${(clip.start_ms / 1000).toFixed(3)} ~ ${(finish / 1000).toFixed(3)} s (${((finish - clip.start_ms) / 1000).toFixed(3)} s)`
@@ -416,6 +428,8 @@
     }
     if (!selected.size || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
     const mod = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
+    if (mod && (key === 'c' || key === 'x') && global.getSelection()?.toString()) return;
+    if (mod && key === 'c' && event.shiftKey) return;
     if (mod && key === 's') return;
     if (mod && key === 'x') { event.preventDefault(); copySelectedClips(true); return; }
     if (mod && key === 'c') { event.preventDefault(); copySelectedClips(false); return; }
@@ -443,20 +457,34 @@
   const api = Object.freeze({ insert, renderRow, updatePlayhead,
     selectedClips: () => global.MSWProject.clone(selectedClips()),
     selectedCount: () => selected.size,
-    // 配音轨道头（波形轨道头列读取）：轨数与静音态；toggle 走 commit 可撤销。
+    // Track buttons target stable IDs, never the transient overlap lane index.
     trackCount: () => (extension().audio_tracks || []).length,
-    // 打包 lane 数（贴片重叠增多时 A 轨道头随之增加）；与 lanes 区域一致。
+    trackBands: () => sync().bands,
     laneCount: () => sync().count,
     // 当前 lane 分配快照（测试/诊断用）。
     laneSnapshot: () => Object.fromEntries(sync().lanes),
-    audioTrackMuted: (index) => (extension().audio_tracks || [])[index]?.muted === true,
-    toggleAudioTrackMuted: (index) => {
-      const track = (extension().audio_tracks || [])[index];
+    toggleAudioTrackMuted: (id) => {
+      const track = sync().tracks.get(id);
       if (!track) return;
       commit(track.muted ? '启用配音轨' : '禁用配音轨', ext => {
         const target = (ext.audio_tracks || []).find(t => t.id === track.id);
         if (target) target.muted = !target.muted;
       });
+    },
+    setTrackCollapsed: (id, collapsed) => {
+      if (!sync().tracks.has(id)) return;
+      if (commit(collapsed ? '折叠音频轨道' : '展开音频轨道', ext => {
+        ext.audio_tracks.find(track => track.id === id).collapsed = collapsed;
+      }) && collapsed) {
+        for (const clip of sync().clips) if (clip.track_id === id) selected.delete(clip.id);
+        schedulePaint();
+      }
+    },
+    selectTrackClips: (id) => {
+      host.clearSubtitleSelection(); selected.clear();
+      for (const clip of sync().clips) if (clip.track_id === id) selected.add(clip.id);
+      timeline.pane.dataset.audioFocus = selected.size ? 'true' : '';
+      schedulePaint();
     },
     // clearCues=false 供「字幕+贴片一起全选」使用：不清字幕选区。
     selectAllClips: (clearCues = true) => {
@@ -473,7 +501,7 @@
         edges.push(clip.start_ms, core.end(clip, state.assets.get(clip.asset_id))); }
       return edges; },
     hasAssets: () => (extension().assets || []).length > 0,
-    durationMs: () => Math.ceil(sync().end), minimumRowHeight: () => sync().clips.length ? 41 + (timeline.dual() ? 40 : 24) + Math.min(3, sync().count) * ROW : 0,
+    durationMs: () => Math.ceil(sync().end), minimumRowHeight: () => sync().count ? 41 + (timeline.dual() ? 40 : 24) + sync().count * ROW : 0,
     currentTimeMs: () => transport.currentTime(), togglePlayback: () => transport.toggle(), seek: ms => transport.seek(ms),
     virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,
     protectGaps: gaps => { sync(); if (gapSource !== gaps) { gapSource = gaps; protectedRanges = core.protectGaps(gaps, extension()); } return protectedRanges; },

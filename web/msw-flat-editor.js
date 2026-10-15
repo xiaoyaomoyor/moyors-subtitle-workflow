@@ -208,6 +208,7 @@
     // Prevent the old role-based shortcut handlers from mutating the view.
     // Let native input/clipboard/focus behavior run inside editable fields.
     e.stopImmediatePropagation();
+    if(mod&&(key==='c'||key==='x')&&global.getSelection()?.toString())return;
     if(e.target.closest('.flat-processing-panel')){if(e.key==='Escape'){e.preventDefault();e.target.closest('dialog')?.close();}return;}
     if(drag&&e.key==='Escape'){e.preventDefault();finishDrag(true);return;}
     if(waveformEditor?.splitPreviewDrag&&e.key==='Escape'){e.preventDefault();waveformEditor.splitPreviewDrag.finish(true);return;}

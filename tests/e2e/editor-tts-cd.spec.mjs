@@ -61,7 +61,7 @@ test('Edge filters voices, survives catalog failure and cancels an editor draft'
   await page.route('**/api/msw/edge-tts',r=>r.fulfill({status:503,contentType:'application/json',body:'{"error":"offline"}'}));
   await page.locator('#tts-edge-refresh-panel').click();await expect(page.locator('#tts-edge-call-status')).toContainText('offline');await expect(page.locator('#tts-edge-voice')).toHaveValue('ja-JP-NanamiNeural');
   await page.locator('#tts-target').selectOption('editor_text');await page.locator('#cue-panel-tts-text').fill('WAIT_CANCEL');await page.locator('#tts-start').click();
-  await page.locator('#tts-jobs').getByRole('button',{name:'取消任务'}).click();await expect(page.locator('#tts-jobs')).toContainText('已取消');expect(await count(page)).toBe(0);
+  await page.locator('#tts-jobs').getByRole('button',{name:'取消任务'}).click();await expect(page.locator('.msw-tts-entry[data-state="cancelled"]')).toHaveCount(1);expect(await count(page)).toBe(0);
 });
 
 test('Edge first entry loads languages automatically and shows immediate verification feedback',async({page})=>{
@@ -76,7 +76,7 @@ test('Edge first entry loads languages automatically and shows immediate verific
   await page.locator('#tts-edge-language').selectOption('en-US');await page.locator('#tts-edge-voice').selectOption('en-US-JennyNeural');
   expect(calls).toBe(1);
 });
-test('Edge service failure shows the same actionable detail on the job and failed entry',async({page})=>{
+test('Edge service failure details are available from the row status popover',async({page})=>{
   await edge(page);
   await page.locator('#tts-target').selectOption('editor_text');
   await page.locator('#cue-panel-tts-text').fill('FORBIDDEN\nNot requested');
@@ -84,11 +84,12 @@ test('Edge service failure shows the same actionable detail on the job and faile
   const job=page.locator('.msw-tts-job').first();
   await expect(job.locator('.msw-job-status')).toHaveText('成功0/2');
   await expect(job.locator('.msw-tts-entry[data-state="failed"]')).toHaveCount(1);
-  await expect(job).toContainText('HTTP 403');
-  await expect(job).toContainText('重启编辑器服务');
-  await expect(job.locator('.msw-tts-result')).toContainText('HTTP 403');
+  await expect(job).not.toContainText('HTTP 403');
+  await job.locator('.msw-tts-entry[data-state="failed"] .msw-tts-entry-info').hover();
+  await expect(page.locator('#msw-option-help')).toContainText('HTTP 403');
+  await expect(page.locator('#msw-option-help')).toContainText('重启编辑器服务');
   await expect(job.locator('.msw-tts-entry').last()).toContainText('Not requested');
-  await expect(job.locator('.msw-tts-entry').last()).toContainText('尚未完成');
+  await expect(job.locator('.msw-tts-entry').last().getByRole('img',{name:'尚未完成'})).toBeVisible();
   await expect(job).not.toContainText('private-signed-url');
   expect(await count(page)).toBe(0);
   await expect(page.locator('#cue-panel-tts-text')).toHaveValue('FORBIDDEN\nNot requested');

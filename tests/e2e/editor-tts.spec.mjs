@@ -103,11 +103,12 @@ test('production draft keeps partial failures and clears after retrying only unf
   await expect(page.locator('.msw-job-status')).toHaveText('成功1/2');
   await expect(page.locator('#cue-panel-tts-text')).toHaveValue('Ready\nFail');
   await expect(page.locator('.msw-tts-result')).toBeVisible();
-  await expect(page.locator('.msw-tts-entry[data-state="failed"]')).toContainText('模拟服务失败');
+  await page.locator('.msw-tts-entry[data-state="failed"] .msw-tts-entry-info').hover();
+  await expect(page.locator('#msw-option-help')).toContainText('模拟服务失败');
   await page.locator('.msw-tts-job > summary').click();
   await expect(page.locator('.msw-tts-result')).toBeHidden();
   await page.locator('.msw-tts-job > summary').click(); failText = null;
-  await page.getByRole('button', { name: '重新合成未完成项', exact: true }).click();
+  await page.getByRole('button', { name: '重新合成此条', exact: true }).click();
   await expect.poll(() => countAssets(page)).toBe(2); await expect(page.locator('#cue-panel-tts-text')).toHaveValue('');
   expect(calls.map(c => c.text)).toEqual(['Ready', 'Fail', 'Fail']);
 });
@@ -360,7 +361,7 @@ test('audio clip click seeks to the pointer while move and trim keep their own g
   expect(await page.evaluate(()=>document.getElementById('player').currentTime)).toBeCloseTo(before,2);
 });
 
-test('audio clip palette follows subtitle, accent, selection and muted text colors live',async({page})=>{
+test('audio clip palette follows theme and disabled clips fade while retaining their colors',async({page})=>{
   const clip=await prepareClips(page);
   await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toContain('linear-gradient');
   for(const [key,value] of Object.entries({accent:'#d9577e',cueBlock:'#387ab9',gap:'#81d86b',textMuted:'#ba8fa2',subtitle:'#f0be71'})) {
@@ -386,14 +387,16 @@ test('audio clip palette follows subtitle, accent, selection and muted text colo
   expect(solid.actual).toBe(solid.expected); expect(solid.image).toBe('none');
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'audio-clips-palette.png')});
   await clip.click({button:'right'}); await page.locator('.msw-audio-menu').getByRole('button',{name:'静音音频贴片',exact:true}).click();
-  await expect(clip.locator('.msw-audio-clip-label')).toHaveCSS('color','rgb(186, 143, 162)');
-  await expect(clip.locator('.msw-audio-clip-label')).toHaveCSS('text-decoration-line','line-through');
+  await expect(clip.locator('.msw-audio-clip-label')).toHaveCSS('color','rgb(240, 190, 113)');
+  await expect(clip).toHaveCSS('opacity','0.38');
+  await expect(clip.locator('.msw-audio-clip-label')).toHaveCSS('text-decoration-line','none');
   await expect(clip).toHaveCSS('outline-color','rgb(129, 216, 107)');
-  expect(await clip.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe(await page.locator('.waveform-cue-block[data-track="main"]').first().evaluate(el=>getComputedStyle(el).backgroundColor));
+  expect(await clip.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe(solid.expected);
   expect(await clip.locator('.msw-audio-icon').evaluate(el=>getComputedStyle(el,'::after').content)).toBe('""');
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'audio-clips-palette-muted.png')});
   await page.locator('#waveform-settings-item').evaluate(el=>el.click()); await page.locator('#audio-clips-heatmap').check(); await page.keyboard.press('Escape');
-  await expect(clip).toHaveCSS('background-image','none');
+  await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toContain('linear-gradient');
+  await expect(clip).toHaveCSS('opacity','0.38');
   await clip.click({button:'right'}); await page.locator('.msw-audio-menu').getByRole('button',{name:'取消静音',exact:true}).click();
   await expect.poll(()=>clip.evaluate(el=>el.style.backgroundImage)).toContain('linear-gradient');
   await expect(clip.locator('.msw-audio-clip-label')).toHaveCSS('color','rgb(240, 190, 113)');
@@ -436,13 +439,66 @@ test('audio clips drag below compact subtitle lanes, mute, undo and delete indep
   expect(main.y+main.height).toBeLessThanOrEqual(ext.y+1); expect(ext.y+ext.height).toBeLessThanOrEqual(audio.y);
   await clip.click({button:'right'}); await page.locator('.msw-audio-menu').getByRole('button',{name:'静音音频贴片',exact:true}).click();
   await expect(clip).toHaveClass(/muted/);
-  await expect(clip.locator('.msw-audio-clip-label')).toHaveCSS('text-decoration-line','line-through');
+  await expect(clip.locator('.msw-audio-clip-label')).toHaveCSS('text-decoration-line','none');
   if(process.env.MSW_UI_EVIDENCE_DIR) await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'audio-clips-muted.png')});
   await page.keyboard.press('Control+z'); await expect(clip).not.toHaveClass(/muted/);
   await clip.click(); await page.keyboard.press('Delete'); await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips.length)).toBe(0);
   expect(await page.evaluate(()=>DATA.segments.length)).toBe(2); expect(await countAssets(page)).toBe(2);
   await page.keyboard.press('Control+z'); await expect.poll(()=>page.evaluate(()=>DATA.msw.audio_clips.length)).toBe(1);
   expect(errors).toEqual([]);
+});
+
+test('native selected text copies while an audio clip is selected and block copy still works',async({page,context})=>{
+  await context.grantPermissions(['clipboard-read','clipboard-write']);
+  const clip=await prepareClips(page);await clip.click();
+  await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>window.MSW_CLIPBOARD_KIND)).toBe('clips');
+  await page.evaluate(()=>{
+    window.MSW_CLIPBOARD_KIND='sentinel';document.activeElement?.blur();
+    const range=document.createRange();range.selectNodeContents(document.querySelector('#json-name'));
+    window.getSelection().removeAllRanges();window.getSelection().addRange(range);
+  });
+  const selected=await page.evaluate(()=>window.getSelection().toString());expect(selected.length).toBeGreaterThan(0);
+  await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(selected);
+  expect(await page.evaluate(()=>window.MSW_CLIPBOARD_KIND)).toBe('sentinel');
+  await page.evaluate(()=>window.getSelection().removeAllRanges());await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>window.MSW_CLIPBOARD_KIND)).toBe('clips');
+});
+
+test('audio track menus select owned clips, mute, collapse, undo and persist without hiding audio',async({page},info)=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));await prepareClips(page);
+  await page.evaluate(()=>MSWE.resolve('processing-host').commitAudio('two audio tracks',ext=>{
+    const clip=ext.audio_clips[0],track=ext.audio_tracks[0];
+    ext.audio_tracks.push({...track,id:'other-audio'});
+    ext.audio_clips=[{...clip,id:'first',start_ms:1000},{...clip,id:'overlap',start_ms:1200},{...clip,id:'other',track_id:'other-audio',start_ms:5000}];
+  }));
+  const heads=page.locator('.waveform-track-heads').first().locator('.a-track');
+  await expect(heads).toHaveText(['A1','A2']);
+  const first=heads.first(),second=heads.last();
+  const styles=await first.evaluate(node=>{const sub=document.querySelector('.fixed-track-toggle'),a=getComputedStyle(node),s=getComputedStyle(sub);return {audioBg:a.backgroundColor,subBg:s.backgroundColor,audioWidth:node.offsetWidth,subWidth:sub.offsetWidth};});
+  expect(styles.audioBg).toBe(styles.subBg);expect(styles.audioWidth).toBe(styles.subWidth);
+  await first.click({button:'right'});await page.locator('#ctxmenu').getByText('全选轨道内容',{exact:true}).click();
+  expect(await page.evaluate(()=>MSWE.resolve('audio-timeline').selectedClips().map(c=>c.id).sort())).toEqual(['first','overlap']);
+  await first.click({button:'right'});await page.locator('#ctxmenu').getByText('禁用轨道',{exact:true}).click();
+  await expect(first).toHaveClass(/track-muted/);await expect(page.locator('[data-clip-id="other"]').first()).not.toHaveClass(/muted/);
+  expect(await page.evaluate(()=>MSWAudio.audible(DATA.msw).map(c=>c.id))).toEqual(['other']);
+  await first.click();await expect(first).not.toHaveClass(/track-muted/);
+  const before=await page.evaluate(()=>MSWAudio.audible(DATA.msw).length);
+  await first.click({button:'right'});await page.locator('#ctxmenu').getByText('折叠轨道',{exact:true}).click();
+  await expect(heads).toHaveText(['A2']);await expect(page.locator('[data-clip-id="first"]')).toHaveCount(0);
+  expect(await page.evaluate(()=>MSWAudio.audible(DATA.msw).length)).toBe(before);
+  await page.keyboard.press('Control+z');await expect(heads).toHaveText(['A1','A2']);
+  await first.click({button:'right'});await page.locator('#ctxmenu').getByText('折叠轨道',{exact:true}).click();
+  await page.keyboard.press('Control+s');
+  await expect.poll(()=>JSON.parse(readFileSync(projectPath)).msw.audio_tracks?.[0]?.collapsed).toBe(true);
+  await page.reload();await expect(page.locator('#editor-loading')).toBeHidden();await expect(heads).toHaveText(['A2']);
+  await page.locator('.waveform-track-heads-column').click({button:'right',position:{x:10,y:12}});
+  await page.locator('#ctxmenu').getByText('展开轨道',{exact:true}).hover();
+  await page.locator('#ctxmenu').getByText('A1',{exact:true}).click();await expect(heads).toHaveText(['A1','A2']);
+  await second.click({button:'right'});await page.locator('#ctxmenu').getByText('全选轨道内容',{exact:true}).click();
+  expect(await page.evaluate(()=>MSWE.resolve('audio-timeline').selectedClips().map(c=>c.id))).toEqual(['other']);
+  await page.screenshot({path:info.outputPath('audio-track-buttons.png')});expect(errors).toEqual([]);
 });
 test('audio clips move, trim, stack, save and restore with heatmap settings',async({page})=>{
   const clip=await prepareClips(page);
@@ -749,7 +805,9 @@ test('a completed item is available while later request runs; cancel discards la
   await page.getByRole('button',{name:'取消任务',exact:true}).click();
   expect((await cancelled).ok()).toBe(true);
   for(const respond of held.splice(0)) respond();
-  await expect(page.locator('#tts-jobs')).toContainText('已取消');
+  await expect(page.locator('.msw-tts-entry[data-state="cancelled"]')).toHaveCount(1);
+  await page.locator('.msw-tts-entry[data-state="cancelled"] .msw-tts-entry-info').hover();
+  await expect(page.locator('#msw-option-help')).toHaveText('已取消');
   expect(await countAssets(page)).toBe(1); expect(calls).toHaveLength(2);
 });
 test('partial failure retries only failed text',async({page})=>{
@@ -759,7 +817,7 @@ test('partial failure retries only failed text',async({page})=>{
   await open(page); await panel(page); failText='World'; await page.locator('#tts-start').click();
   await expect(page.locator('.msw-job-status')).toHaveText('成功1/2');
   await expect(page.locator('.msw-tts-result')).toContainText('World'); failText=null;
-  await page.getByRole('button',{name:'重新合成未完成项',exact:true}).click();
+  await page.getByRole('button',{name:'重新合成此条',exact:true}).click();
   await expect.poll(()=>countAssets(page)).toBe(2); expect(calls.map(c=>c.text)).toEqual(['Hello','World','World']);
   expect(submitted).toHaveLength(2);
   expect(submitted[1].snapshot.project_schema).toBe('msw.project.v4');
@@ -1266,7 +1324,8 @@ test('history keeps batch and unfinished states while another job polls',async({
   await page.screenshot({path:info.outputPath('tts-history-cards.png')});
 });
 
-test('compact history shows live row icons, inline errors and neutral theme surfaces',async({page},info)=>{
+test('compact history shows numbered rows, inline actions and pinnable error details',async({page,context},info)=>{
+  await context.grantPermissions(['clipboard-read','clipboard-write']);
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await open(page);await panel(page);await page.locator('#tts-target').selectOption('editor_text');
   holdText='Waiting';failText='Fail';
@@ -1278,20 +1337,41 @@ test('compact history shows live row icons, inline errors and neutral theme surf
   await expect(job.locator('.msw-tts-entry[data-state="ready"]')).toHaveCount(1);
   await expect(job.locator('.msw-tts-entry[data-state="running"]')).toHaveCount(1);
   await expect(job.locator('.msw-tts-entry[data-state="pending"]')).toHaveCount(1);
-  await expect(job.getByRole('button',{name:'取消任务'})).toBeVisible();
+  await expect(summary.getByRole('button',{name:'取消任务'})).toBeVisible();
+  const cancelBox=await summary.getByRole('button',{name:'取消任务'}).boundingBox(),spinBox=await summary.getByRole('img',{name:'正在合成'}).boundingBox();
+  expect(cancelBox.x+cancelBox.width).toBeLessThanOrEqual(spinBox.x);
+  expect(Math.abs(cancelBox.y+cancelBox.height/2-spinBox.y-spinBox.height/2)).toBeLessThan(2);
+  expect(await summary.getByRole('button',{name:'取消任务'}).textContent()).toBe('');
   await page.screenshot({path:info.outputPath('tts-running.png')});
   held.splice(0).forEach(respond=>respond());
   await expect(job.locator('.msw-job-status')).toHaveText('成功2/3');
   await expect(summary.locator('.msw-tts-state-icon')).toBeHidden();
-  await expect(job.locator('.msw-tts-entry[data-state="failed"]')).toContainText('模拟服务失败');
+  const failure=job.locator('.msw-tts-entry[data-state="failed"] .msw-tts-entry-info');
+  await expect(job).not.toContainText('模拟服务失败');
+  await failure.hover();await expect(page.locator('#msw-option-help')).toContainText('模拟服务失败');
+  await failure.click();await summary.hover();await page.waitForTimeout(300);
+  await expect(page.locator('#msw-option-help')).toBeVisible();
+  const selectedError=await page.evaluate(()=>{
+    const range=document.createRange();range.selectNodeContents(document.getElementById('msw-option-help'));
+    window.getSelection().removeAllRanges();window.getSelection().addRange(range);
+    const text=window.getSelection().toString();window.dispatchEvent(new Event('msw:voice-alias-changed'));return text;
+  });
+  expect(await page.evaluate(()=>window.getSelection().toString())).toBe(selectedError);
+  await page.keyboard.press('Control+c');expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(selectedError);
+  await page.evaluate(()=>window.getSelection().removeAllRanges());
+  await failure.click();await expect(page.locator('#msw-option-help')).toBeHidden();
+  await expect(job.locator('.msw-tts-entry-number')).toHaveText(['#01','#02','#03']);
   await expect(job.locator('.msw-tts-entry[data-state="ready"]')).toHaveCount(2);
   await expect(job.locator('.msw-tts-entry-text')).toHaveText(['Ready','Waiting','Fail']);
   await expect(job.getByRole('button',{name:'查看素材'})).toHaveCount(0);
   await expect(job.getByRole('button',{name:'检查未完成项'})).toHaveCount(0);
   await expect(job.locator('details')).toHaveCount(0);
-  const retry=job.getByRole('button',{name:'重新合成未完成项'});
+  const retry=job.getByRole('button',{name:'重新合成此条'});
   await expect(retry).toBeVisible();await expect(retry).toHaveClass(/msw-tts-icon-button/);
   await expect(retry).toHaveAttribute('title',/可能再次计费/);
+  const retryBox=await retry.boundingBox(),errorBox=await failure.boundingBox();
+  expect(retryBox.x+retryBox.width).toBeLessThanOrEqual(errorBox.x);
+  expect(Math.abs(retryBox.y-errorBox.y)).toBeLessThan(2);
   for(const theme of ['dark','light']){
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     const geometry=await page.evaluate(()=>{
@@ -1311,7 +1391,9 @@ test('compact history shows live row icons, inline errors and neutral theme surf
   await page.reload();await panel(page);
   await expect(job).not.toHaveAttribute('open','');await summary.click();
   await expect(job.locator('.msw-tts-entry')).toHaveCount(3);
-  await expect(job.locator('.msw-tts-entry-error:visible')).toHaveCount(1);
+  await expect(job.locator('.msw-tts-entry-error')).toHaveCount(0);
+  await job.locator('.msw-tts-entry[data-state="failed"] .msw-tts-entry-info').hover();
+  await expect(page.locator('#msw-option-help')).toContainText('模拟服务失败');
   expect(errors).toEqual([]);
 });
 
@@ -1329,14 +1411,28 @@ test('history detail failure has an inline reload and retries never resubmit com
   });
   await job.locator(':scope > summary').click();
   await expect(job).toContainText('Synthetic history unavailable');
-  await expect(job.getByRole('button',{name:'重新合成未完成项'})).toBeHidden();
+  await expect(job.getByRole('button',{name:'重新合成此条'})).toBeHidden();
   await page.waitForTimeout(1000);expect(requests).toBe(1);
   failed=false;await job.getByRole('button',{name:'重新加载记录'}).click();
   await expect(job.locator('.msw-tts-entry')).toHaveCount(2);
-  failText=null;await job.getByRole('button',{name:'重新合成未完成项'}).click();
+  failText=null;await job.getByRole('button',{name:'重新合成此条'}).click();
   await expect.poll(()=>countAssets(page)).toBe(2);
-  await expect(job.getByRole('button',{name:'重新合成未完成项'})).toBeHidden();
+  await expect(job.getByRole('button',{name:'重新合成此条'})).toBeHidden();
   expect(calls.map(c=>c.text)).toEqual(['Hello','World','World']);
+});
+
+test('row retry submits only that failed entry and retains the other failed row',async({page})=>{
+  await open(page);await panel(page);await page.locator('#tts-target').selectOption('editor_text');
+  failText='Fail';await page.locator('#cue-panel-tts-text').fill('Ready\nFail\nFail');
+  await page.locator('#tts-start').click();
+  const first=page.locator('.msw-tts-job').first();
+  await expect(first.locator('.msw-tts-entry[data-state="failed"]')).toHaveCount(2);
+  const original=page.locator(`[data-job-id="${await first.getAttribute('data-job-id')}"]`);
+  failText=null;await original.locator('.msw-tts-entry').nth(1).getByRole('button',{name:'重新合成此条'}).click();
+  await expect.poll(()=>countAssets(page)).toBe(2);
+  await expect(original.locator('.msw-tts-entry').nth(1).getByRole('button',{name:'重新合成此条'})).toBeHidden();
+  await expect(original.locator('.msw-tts-entry').nth(2).getByRole('button',{name:'重新合成此条'})).toBeEnabled();
+  expect(calls.map(c=>c.text)).toEqual(['Ready','Fail','Fail','Fail']);
 });
 
 

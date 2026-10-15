@@ -22,6 +22,28 @@ test.beforeEach(async({page})=>{
 });
 test.afterEach(async()=>{await server?.stop();server=null;});
 
+test('native selected text copies without replacing the subtitle block clipboard',async({page,context})=>{
+  await context.grantPermissions(['clipboard-read','clipboard-write']);
+  await page.evaluate(()=>{selectOnly(0);document.activeElement?.blur();window.getSelection().removeAllRanges();});
+  await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>window.MSW_CLIPBOARD_KIND)).toBe('cues');
+  await page.evaluate(()=>{
+    window.MSW_CLIPBOARD_KIND='sentinel';
+    const text=document.querySelector('#json-name'),range=document.createRange();range.selectNodeContents(text);
+    window.getSelection().removeAllRanges();window.getSelection().addRange(range);
+  });
+  const selected=await page.evaluate(()=>window.getSelection().toString());expect(selected.length).toBeGreaterThan(0);
+  await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(selected);
+  expect(await page.evaluate(()=>window.MSW_CLIPBOARD_KIND)).toBe('sentinel');
+  await page.locator('#cue-panel-text').fill('Copy input text');await page.locator('#cue-panel-text').selectText();
+  await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('Copy input text');
+  await page.evaluate(()=>{window.getSelection().removeAllRanges();document.activeElement.blur();});
+  await page.keyboard.press('Control+c');
+  expect(await page.evaluate(()=>window.MSW_CLIPBOARD_KIND)).toBe('cues');
+});
+
 test('merge fields match timing fields and new project has a distinct save title',async({page})=>{
   await clickMenubarItem(page,'字幕','auto-merge-manage');
   const color=await page.locator('#auto-merge-gap-ms').evaluate(e=>getComputedStyle(e.closest('.gap-remove-field')).backgroundColor);

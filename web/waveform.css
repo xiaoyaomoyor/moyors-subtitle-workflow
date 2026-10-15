@@ -902,8 +902,7 @@
 .msw-audio-icon { position: absolute; left: 3px; width: 9px; font-size: 10px; pointer-events: none; }
 .msw-audio-clip:hover { filter: brightness(var(--wave-hover-brightness)); }
 .msw-audio-clip-label { display: block; padding: 1px 9px 1px 12px; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-.msw-audio-clip.muted { --audio-clip-color: var(--wave-cue-block); color: var(--text-muted); }
-.msw-audio-clip.muted .msw-audio-clip-label { text-decoration: line-through; }
+.msw-audio-clip.muted { opacity:.38; }
 .msw-audio-clip.muted .msw-audio-icon::after {
   content: ''; position: absolute; width: 11px; height: 1px; left: -1px; top: 9px;
   background: currentColor; transform: rotate(-45deg);
@@ -1066,6 +1065,15 @@
   text-decoration: line-through; color: var(--text-faint);
   background: transparent; border-style: dashed;
 }
+/* Audio heads share the compact subtitle button surface, without edge glow. */
+.waveform-track-head.a-track {
+  left:1px; width:calc(100% - 2px); min-width:0; height:20px; padding:0 2px;
+  box-sizing:border-box; border:0; border-radius:var(--radius-sm);
+  background:var(--btn-bg); color:var(--text-primary); font:11px var(--font-sans, sans-serif);
+}
+.waveform-track-head.a-track:hover { background:var(--btn-bg-hover); }
+.waveform-track-head.a-track:focus-visible { outline:1px solid var(--selection-yellow); outline-offset:1px; }
+.waveform-track-head.a-track.track-muted { opacity:.5; text-decoration:none; }
 /* 单 lane：对齐块（底距 7+audio，块高 --head-block-h），不再用行高中点 */
 .waveform-track-head.v-main {
   top: auto; transform: none;
