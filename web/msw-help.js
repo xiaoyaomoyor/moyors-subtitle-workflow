@@ -15,6 +15,7 @@
     if (active !== button) {close();active = button;}
     activeText = text;
     const content = t(typeof text === 'function' ? text() : text);
+    popup.dataset.layout=button.dataset.helpLayout||'';
     // Polling refreshes must not destroy a user's selection in a pinned error.
     if (popup.textContent !== content) popup.textContent = content;
     popup.hidden = false;

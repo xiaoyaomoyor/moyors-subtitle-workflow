@@ -5,7 +5,7 @@ import html
 import math
 
 
-def mapped_subtitles(project, plan, *, include_styles=False):
+def mapped_subtitles(project, plan, *, include_styles=False, include_identity=False):
     if project.get('schema') == 'msw.project.v4':
         from maw.msw.render_project import visible_cues
         result = []
@@ -50,8 +50,9 @@ def mapped_subtitles(project, plan, *, include_styles=False):
     from maw.msw.subtitle_presentation import visible
     for group_index, (name, segments) in enumerate(groups):
         cues = []
-        for s in segments:
-            if visible_refs is not None and ('main' if group_index==0 else 'extension',None if group_index==0 else tracks[group_index-1]['id'],s['id']) not in visible_refs:continue
+        for source_index, s in enumerate(segments):
+            if visible_refs is not None and ('main' if group_index==0 else 'extension',None if group_index==0 else tracks[group_index-1]['id'],s['id']) not in visible_refs:
+                continue
             if s.get('disabled') or (group_index == 0 and project.get('schema') in ('msw.project.v2','msw.project.v3') and not visible(project, s)):
                 continue
             for index in range(bisect_right(ends, s['start']), len(ends)):
@@ -62,6 +63,8 @@ def mapped_subtitles(project, plan, *, include_styles=False):
                 if hi > lo:
                     cue = dict(start=k['output_start_ms'] + lo - k['start_ms'],
                                end=k['output_start_ms'] + hi - k['start_ms'], text=s.get('text', ''))
+                    if include_identity:
+                        cue['id'] = s.get('id', source_index)
                     if project.get('schema') in ('msw.project.v2','msw.project.v3'):
                         cue['id'] = s['id']
                     if visible_refs is not None:

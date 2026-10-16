@@ -11,12 +11,43 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from maw.ffmpeg import FfmpegTools
-from maw.msw.audio_exports import AudioExports, TERMINAL
+from maw.msw.audio_exports import AudioExports, TERMINAL, video_summary
 from maw.msw.audio_plan import VERSION
 from maw.msw.audio_render import check_cancel
 from maw.msw.tts import DEFAULT_RECIPE
 from test_msw_processing import server_module
 from test_msw_audio_render import make_wave
+
+
+class ExportSummaryTests(unittest.TestCase):
+    def test_counts_original_blocks_after_cuts_and_excludes_hidden_disabled_and_outside(self):
+        from maw.msw.flat_subtitles import migrate_project
+        project = migrate_project({'segments': [dict(id='a', start=0, end=3000, text='Long'),
+                                               dict(id='b', start=0, end=1000, text='Off', disabled=True),
+                                               dict(id='c', start=5000, end=6000, text='Outside')]})
+        track = copy.deepcopy(project['subtitles']['tracks'][0])
+        project['subtitles']['tracks'].append(dict(track, id='second', name='S2'))
+        project['subtitles']['cues'].append(dict(id='hidden', track_id='second', hidden=True,
+                                              content=dict(start=0, end=3000, text='Hidden', items=[])))
+        plan = dict(sample_count=96000, sample_rate=48000, pieces=[{'clip_id':'clip'}, {'clip_id':'clip'}],
+                    intervals=[dict(start_ms=0, end_ms=1000, output_start_ms=0),
+                               dict(start_ms=2000, end_ms=3000, output_start_ms=1000)])
+        summary = video_summary(project, {'burn_subtitles':'both', 'subtitle_scope':'selected'}, plan)
+        self.assertEqual(summary, dict(duration_ms=2000, subtitle_count=1, clip_count=1,
+                                      subtitle_tracks=[t['name'] for t in project['subtitles']['tracks']], subtitle_scope='selected'))
+        project['subtitles']['tracks'][0]['enabled'] = False
+        self.assertEqual(video_summary(project, {'burn_subtitles':'both'}, plan)['subtitle_count'], 0)
+        self.assertEqual(video_summary(project, {'burn_subtitles':'none'}, plan)['subtitle_count'], 0)
+
+    def test_legacy_identity_survives_gap_fragments_without_changing_project(self):
+        project = {'segments':[dict(start=0, end=3000, text='Repeat')], 'multi_subtitle':{'enabled':True,
+                   'tracks':[{'segments':[dict(start=0, end=3000, text='Repeat')]}]}}
+        before = copy.deepcopy(project)
+        plan = dict(sample_count=2000, sample_rate=1000, pieces=[], intervals=[
+            dict(start_ms=0, end_ms=1000, output_start_ms=0), dict(start_ms=2000, end_ms=3000, output_start_ms=1000)])
+        self.assertEqual(video_summary(project, {'burn_subtitles':'both'}, plan)['subtitle_count'], 2)
+        self.assertEqual(video_summary(project, {'burn_subtitles':'secondary'}, plan)['subtitle_count'], 1)
+        self.assertEqual(project, before)
 
 
 class AudioExportApiTests(unittest.TestCase):
@@ -121,6 +152,8 @@ class AudioExportApiTests(unittest.TestCase):
         result = self.wait(job['id'])
         self.assertEqual(result['status'],'succeeded')
         self.assertEqual(result['client_token'],'page-1')
+        self.assertLessEqual(result['created_at'], result['started_at'])
+        self.assertLessEqual(result['started_at'], result['finished_at'])
 
     def test_scoped_single_use_stream_download_and_origin_guard(self):
         job = self.submit()
@@ -209,7 +242,13 @@ class AudioExportApiTests(unittest.TestCase):
                 self.payload['request_key'] = 'request-' + fmt
                 self.payload['options']['format'] = fmt
                 job = self.submit()
-                self.assertEqual(self.wait(job['id'])['status'], 'succeeded')
+                finished = self.wait(job['id'])
+                self.assertEqual(finished['status'], 'succeeded')
+                if fmt == 'mp4':
+                    self.assertEqual(finished['summary']['duration_ms'], 3000)
+                    self.assertEqual(finished['summary']['subtitle_count'], 0)
+                    self.assertEqual(finished['summary']['clip_count'], 1)
+                    self.assertLessEqual(finished['started_at'], finished['finished_at'])
                 self.assertEqual(self.submit()['id'], job['id'])
                 altered = copy.deepcopy(self.payload)
                 altered['options']['format'] = 'wav'

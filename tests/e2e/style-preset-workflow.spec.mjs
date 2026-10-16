@@ -20,6 +20,22 @@ const snapshot=page=>page.evaluate(()=>JSON.parse(buildJson()));
 const editSize=async(page,size)=>{await page.locator('#style-field-fontSize').fill(String(size));await page.locator('#style-field-fontSize').dispatchEvent('change');};
 async function saveNew(page){await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('我的大字');await page.locator('#style-save-preset').click();await expect(page.locator('#style-message')).toHaveText('预设已保存。');return (await library(page))[0].id;}
 
+test('default preset replaces inheritance and reset restores the selected builtin or saved user preset',async({page})=>{
+  await expect(page.locator('#style-project-preset option[value="inherit"]')).toHaveCount(0);
+  await expect(page.locator('#style-project-preset')).toHaveValue('default');
+  await page.locator('#style-project-preset').selectOption('large');await editSize(page,99);
+  await page.locator('#style-reset').click();await expect(page.locator('#style-field-fontSize')).toHaveValue('72');
+  await expect(page.locator('#style-project-preset option:checked')).toHaveText('大字清晰');
+  const id=await saveNew(page);await editSize(page,88);await page.locator('#style-overwrite').click();
+  await expect(page.locator('#style-message')).toHaveText('预设已更新。');
+  await editSize(page,100);await page.locator('#style-reset').click();
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('88');
+  await expect(page.locator('#style-project-preset')).toHaveValue(id);
+  await page.evaluate(()=>{fixedAddTrack('subtitle');MSWSubtitleStyle.editTrack(DATA.subtitle_tracks.tracks.at(-1).id,false);});
+  await expect(page.locator('#style-project-preset')).toHaveValue('default');
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('48');
+});
+
 test('preset identity survives group adaptation, parameter edits and overwrite without changing other groups',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.locator('#style-project-preset').selectOption('large');

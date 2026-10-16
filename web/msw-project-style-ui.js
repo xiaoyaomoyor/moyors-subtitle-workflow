@@ -14,7 +14,7 @@
   panel.innerHTML=`<span class="settings-panel-title">字幕样式</span>
     <div class="media-settings-grid msw-style-selectors">
       <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
-      <label class="media-settings-field" data-option-help="先选择要编辑的轨道组，预设作用于该组。继承工程样式表示使用工程默认配置；选择预设或修改参数后，该组保存独立样式。调整立即用于工程，覆盖预设才更新用户预设；内置预设需另存。预览、ASS 和默认烧录使用工程样式，SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
+      <label class="media-settings-field" data-option-help="先选择要编辑的轨道组，预设作用于该组，默认使用默认白字。调整立即用于工程；覆盖预设才更新用户预设，内置预设需另存。恢复默认会恢复所选预设保存的参数。预览、ASS 和默认烧录使用工程样式，SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
     <div id="style-migration-row" class="msw-style-notice" hidden><p id="style-migration-note" class="msw-processing-hint" hidden></p></div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
@@ -128,8 +128,8 @@
     }
     const chosen=track?fixedStyleGroup()?.main.style.selection||track.style.selection:host.data.preview?.project_style_selection;
     const group=fixedStyleGroup(),inherited=group?[group.main,group.secondary].filter(Boolean).every(t=>t.style.mode==='inherit'):track?.style.mode==='inherit';
-    selectedPreset=inherited?'inherit':find(chosen)?chosen:all().find(s=>same(s,value()))?.id||'';
-    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...(track?[['inherit','继承工程样式']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!same(s,value())?' · '+t('已修改'):'')])],selectedPreset);
+    selectedPreset=find(chosen)?chosen:all().find(s=>same(s,value()))?.id||(inherited?'default':'');
+    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!same(s,value())?' · '+t('已修改'):'')])],selectedPreset);
     if(!selectedPreset)$('style-project-preset').options[0].disabled=true;
     $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent='工程样式';
     const selected=$('video-export-style-source').value;
@@ -161,7 +161,8 @@
     for(const id of ['style-save-as','style-reset','style-save-preset','style-save-cancel','style-delete-confirm-button','style-delete-cancel'])$(id).disabled=saving;
     for(const node of panel.querySelectorAll('[data-style-field],[data-animation],#style-project-preset,#style-pair-order,#style-pair-gap,#style-swap,#style-reset,#style-transform-preset'))node.disabled=saving||blocked;
     $('style-preset-name').disabled=saving;
-    $('style-reset').title=t(track?'恢复当前轨道组的样式默认值':'恢复工程的主、副字幕和动画默认值');
+    $('style-reset').disabled=saving||blocked||!find(selectedPreset);
+    $('style-reset').title=find(selectedPreset)?t('恢复所选预设保存的参数')+'：'+find(selectedPreset).name:t('请先选择或保存预设');
     if(blocked)message(track.locked||group?.main.locked||group?.secondary?.locked?'此轨道已锁定。':'切换为固定轨道排布后，可调整轨道样式与位置。');
     else if(['此轨道已锁定。','切换为固定轨道排布后，可调整轨道样式与位置。'].some(text=>$('style-message').textContent===t(text)))message('');
     const secondary=productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true;
@@ -282,10 +283,10 @@
   $('style-project-preset').onchange=()=>{
     const selection=$('style-project-preset').value;
     const track=fixedTrackMode()?fixedStyleTarget():null;
-    const preset=selection==='inherit'?projectStyle():find(selection);
+    const preset=find(selection);
     if(!preset){rebuild();return;}cancelAction();change(track&&!productionFlatMode()?S.forKind(preset,fixedTrackCore.styleKind(track)):preset,selection);
   };
-  $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
+  $('style-reset').onclick=()=>{const preset=find(selectedPreset);if(!preset)return;cancelAction();change(preset,selectedPreset,'恢复所选预设');};
   $('style-transform-preset').onchange=()=>{
     const tags=$('style-transform-preset').value;
     if(tags==='custom'){$('style-field-t-tags').closest('label').hidden=false;$('style-field-t-tags').focus();return;}

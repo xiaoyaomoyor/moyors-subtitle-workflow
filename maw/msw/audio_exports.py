@@ -26,8 +26,31 @@ from maw.msw.video_encoders import HARDWARE, LABELS, capabilities
 from maw.msw.video_progress import EncodingEstimate
 from maw.msw.timeline_export import editable_plan, render_bundle
 from maw.msw.render_project import normalize as normalize_project
+from maw.msw.subtitle_export import mapped_subtitles
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
+
+
+def video_summary(project, settings, plan):
+    """Count original visible blocks, not fragments made by cutting gaps."""
+    target = settings.get('burn_subtitles', 'none')
+    groups = mapped_subtitles(project, plan, include_identity=True) if target != 'none' else []
+    flat = project.get('schema') == 'msw.project.v4'
+    secondary = set()
+    if flat:
+        tracks = project['subtitles']['tracks']
+        slots = {t['id'] for t in tracks if t['style']['slot'] == 'secondary'}
+        secondary = set(project.get('subtitle_view', {}).get('secondary_cue_ids',
+                        [c['id'] for c in project['subtitles']['cues'] if c['track_id'] in slots]))
+    chosen = [(i, c) for i, (_, rows) in enumerate(groups) for c in rows if c['text'].strip()
+              and (target == 'both' or ((c['id'] in secondary) == (target == 'secondary') if flat else
+                   i == (1 if target == 'secondary' else 0) or
+                   i == len(groups)-1 and (project.get('overlay_track') or {}).get('enabled') is True))]
+    return dict(duration_ms=round(plan['sample_count']/plan['sample_rate']*1000),
+                subtitle_count=len({(i, c['id']) for i, c in chosen}),
+                clip_count=len({p['clip_id'] for p in plan['pieces']}),
+                subtitle_tracks=[t['name'] for t in tracks if t['enabled']] if flat else [],
+                subtitle_scope=settings.get('subtitle_scope', 'all') if flat else target)
 
 
 def export_download_name(project_name, extension):
@@ -105,6 +128,8 @@ class AudioExports:
 
     def write(self, job):
         job["updated_at"] = time.time()
+        if job['status'] in TERMINAL:
+            job.setdefault('finished_at', job['updated_at'])
         with self.db:
             self.db.execute("INSERT INTO jobs VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
                             (job["id"], job["project_id"], job["request_key"], job["fingerprint"], json.dumps(job, ensure_ascii=False)))
@@ -202,6 +227,8 @@ class AudioExports:
             raise ValueError("导出格式或视频选项无效")
         if settings['burn_subtitles'] not in {'none', 'main', 'secondary', 'both'}:
             raise ValueError('字幕压制选项无效')
+        if settings.get('subtitle_scope', 'all') not in {'all', 'selected'}:
+            raise ValueError('字幕轨道范围无效')
         plan = compile_plan(project, settings)
         if settings["format"] == "otioz":
             plan = editable_plan(project, plan)
@@ -253,6 +280,8 @@ class AudioExports:
                        client_token=payload["client_token"], plan_schema=VERSION, mode=settings["mode"], format=settings["format"],
                        status="queued", stage="queued", progress=0, created_at=time.time(), error="", result=None,
                        options=settings, download_name=download_name, clip_count=len({p["clip_id"] for p in plan["pieces"]}))
+            if settings['format'] == 'mp4':
+                job['summary'] = video_summary(project, settings, plan)
             event = threading.Event()
             self.events[job["id"]] = event
             self.write(job)
@@ -342,6 +371,12 @@ class AudioExports:
                         source_channels = info["audio_tracks"][settings["source_audio_index"]]["channels"]
                     settings = {**settings, "duration_ms": max(settings["duration_ms"], info["duration_ms"])}
                 plan = prepare_video(project, settings, info) if settings["format"] == "mp4" else compile_plan(project, settings)
+                if settings['format'] == 'mp4':
+                    with self.lock:
+                        current = self.get(job_id, project_id)
+                        current['summary'] = video_summary(project, settings, plan)
+                        current['clip_count'] = current['summary']['clip_count']
+                        self.write(current)
                 resolved = {}
 
                 def resolve(asset_id):

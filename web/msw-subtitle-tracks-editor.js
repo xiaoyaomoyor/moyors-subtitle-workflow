@@ -309,6 +309,7 @@ function fixedAddTrack(kind, refs = null) {
   try {
     let next = fixedTrackCore.addTrack(DATA, kind, window.MSWProject.id('subtitle-track'));
     const id = next.subtitle_tracks.tracks.at(-1).id;
+    next.subtitle_tracks.tracks.at(-1).style = {mode:'snapshot',value:window.MSWProjectStyle.defaults(),selection:'default'};
     if (refs) next = fixedTrackCore.assign(next, refs, id);
     if (fixedCommitProject(next, refs ? '新建轨道并移动字幕' : '添加字幕轨道')) { fixedActiveTrackId = id; fixedSyncUI(); }
   } catch (error) { fixedStatus(error.message); }

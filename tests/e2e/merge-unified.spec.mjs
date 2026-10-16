@@ -60,7 +60,7 @@ test('multi-cue waveform tape marks every visible join on the result including t
  });
  expect(result.ok).toBe(true);expect(result.production).toBe(true);expect(result.tapes).toHaveLength(6);
  expect(result.tapes.map(t=>t.time).sort((a,b)=>a-b)).toEqual([2000,2000,4000,4000,6000,6000]);
- for(const tape of result.tapes){expect(tape.width).toBe(48);expect(Math.abs(tape.y-tape.expectedY)).toBeLessThan(1);if(tape.time===4000)expect(tape.rowStart).toBe(4000);}
+ for(const tape of result.tapes){expect(tape.width).toBe(52);expect(Math.abs(tape.y-tape.expectedY)).toBeLessThan(1);if(tape.time===4000)expect(tape.rowStart).toBe(4000);}
  await page.screenshot({path:info.outputPath('many-tapes-waveform.png')});
  await expect(page.locator('.merge-tape-flash')).toHaveCount(0);
 });
