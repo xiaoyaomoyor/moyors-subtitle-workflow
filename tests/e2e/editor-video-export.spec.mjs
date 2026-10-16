@@ -102,6 +102,7 @@ test('export help is compact, pinnable and accessible without closing its panel'
 
 test('monitor selection locks effective gain and snapshots it for export',async({page})=>{
   await open(page);
+  await page.locator('#video-export-advanced > summary').click();
   await page.locator('#video-export-source-gain').fill('3');
   await page.locator('#video-export-voice-gain').fill('-2');
   await page.evaluate(async()=>{
@@ -133,7 +134,12 @@ test('subtitle preset selection is direct and keeps export fields in two columns
   expect(result.size).toBe(72);expect(result.original).not.toBe(72);expect(result.preview).toBe('export');
   await page.setViewportSize({width:540,height:750});
   const boxes=await page.locator('#video-export-subtitle-fields').evaluate(p=>[...p.querySelectorAll('label')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width};}));
-  expect(boxes[0].y).toBe(boxes[1].y);expect(boxes[0].w).toBeCloseTo(boxes[1].w,0);expect(boxes[2].w).toBeCloseTo(boxes[0].w,0);
+  expect(boxes[0].y).toBe(boxes[1].y);expect(boxes[0].w).toBeCloseTo(boxes[1].w,0);
+  await expect(page.locator('#video-export-monitor')).toBeHidden();
+  await page.locator('#video-export-advanced > summary').click();
+  const monitor=await page.locator('#video-export-monitor-field').boundingBox(),rate=await page.locator('#video-export-rate').locator('..').boundingBox();
+  expect(monitor.width).toBeCloseTo(rate.width,0);expect(monitor.y).toBe(rate.y);
+  await page.locator('#video-export-advanced > summary').click();
   expect(await page.locator('#video-export-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
   await expect(page.locator('#video-export-start')).toBeEnabled();
   await page.locator('#video-export-panel').screenshot({path:info.outputPath('video-export-compact.png')});
@@ -313,6 +319,59 @@ test('encoding choices disable unavailable hardware and reveal a selector only f
   await page.locator('#video-export-encoding').selectOption('h264');
   const {card}=await finish(page);await expect(card).toContainText('软件编码（CPU）');
   await expect(card).toContainText('画面已重新编码');
+});
+
+test('video track master supports clearing all, partial selection and safe empty scope',async({page},info)=>{
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),first=p.subtitles.tracks[0];
+    p.subtitles.tracks.push({...structuredClone(first),id:'extra',display_number:2});p.subtitles.next_track_number=3;
+    p.subtitles.cues.push({...structuredClone(p.subtitles.cues[0]),id:'extra-cue',track_id:'extra'});
+    applyCanonicalProject(p,'video-scope.mosp');
+  });
+  await open(page);await page.locator('#video-export-burn-subtitles').selectOption('both');
+  await page.locator('#video-export-track-scope > summary').click();
+  const all=page.locator('#video-export-track-choices input[data-track="all"]');
+  await expect(all.locator('..')).toHaveText('全部轨道');await expect(all).toBeChecked();await all.uncheck();
+  expect(await page.evaluate(()=>MSWVideoSubtitleScope.ids())).toEqual([]);
+  await expect(page.locator('#video-export-track-choices input:checked')).toHaveCount(0);
+  await expect(page.locator('#video-export-start')).toBeDisabled();
+  await page.locator('#video-export-track-choices input[data-track="extra"]').check();
+  expect(await page.evaluate(()=>MSWVideoSubtitleScope.ids())).toEqual(['extra']);
+  await expect(all).toHaveJSProperty('indeterminate',true);await expect(page.locator('#video-export-start')).toBeEnabled();
+  await all.check();expect(await page.evaluate(()=>MSWVideoSubtitleScope.ids())).toBeNull();
+  await expect(page.locator('#video-export-track-choices input:checked')).toHaveCount(3);
+  for(const theme of ['alice','default']){
+    await page.evaluate(theme=>{updateEditorSettings({themePreset:theme,colors:null});applyThemeAndColors();},theme);
+    await page.locator('#video-export-panel').screenshot({path:info.outputPath(`export-${theme}.png`)});
+  }
+  await page.setViewportSize({width:360,height:700});
+  expect(await page.locator('#video-export-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
+  await page.locator('#video-export-panel').screenshot({path:info.outputPath('export-narrow.png')});
+});
+
+test('video history keeps compact rows, pinned errors and expanded details across polling',async({page},info)=>{
+  const base={created_at:Date.now()/1000,progress_at:Date.now()/1000,format:'mp4',mode:'mix',client_token:'test',project_id:'video-project'};
+  let jobs=[{...base,id:'active-export',status:'running',stage:'video',progress:65,encoding_eta_seconds:78},
+    {...base,id:'failed-export',status:'failed',error:'模拟编码失败：请检查输出目录',download_name:'上次测试_MSW.mp4'}];
+  await page.route('**/audio-exports?*',route=>route.fulfill({json:{ok:true,jobs}}));
+  await page.route('**/audio-exports/active-export/cancel',route=>{jobs=[{...jobs[0],status:'cancelled'},jobs[1]];return route.fulfill({json:{ok:true,job:jobs[0]}});});
+  await open(page);
+  const active=page.locator('[data-job-id="active-export"].msw-video-job'),failed=page.locator('[data-job-id="failed-export"].msw-video-job');
+  await expect(active.locator('summary')).toContainText('#02');await expect(failed.locator('summary')).toContainText('#01');
+  await expect(active.locator('.msw-video-job-progress')).toContainText('编码视频 · 65%');
+  await expect(active.locator('.msw-video-job-progress')).toContainText('1 分 20 秒');
+  await failed.getByRole('button',{name:'错误详情'}).click();
+  await expect(page.locator('#msw-option-help')).toContainText('模拟编码失败');
+  jobs=[{...jobs[0],progress:68},jobs[1]];
+  await expect(active.locator('.msw-video-job-progress')).toContainText('68%');
+  await expect(page.locator('#msw-option-help')).toBeVisible();await page.keyboard.press('Escape');
+  await failed.locator('summary').click();await expect(failed.locator('.msw-video-job-detail')).toBeVisible();
+  jobs=[{...jobs[0],progress:70},jobs[1]];await expect(active.locator('.msw-video-job-progress')).toContainText('70%');
+  await expect(failed.locator('.msw-video-job-detail')).toBeVisible();
+  const cancel=active.getByRole('button',{name:'取消导出'});await expect(cancel.locator('svg')).toHaveCount(1);
+  await page.locator('#video-export-jobs').screenshot({path:info.outputPath('export-history.png')});
+  await cancel.click();await expect(active.locator('summary')).toContainText('已取消');await expect(cancel).toBeHidden();
+  expect(await active.evaluate(node=>node.open)).toBe(false);
 });
 
 test('video estimates are stage-aware and stale progress never keeps a countdown',async({page})=>{

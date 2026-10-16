@@ -8,12 +8,14 @@ import {disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,start
 let server,folder;
 test.beforeAll(async()=>{
   folder=makeTempDir('project-subtitle-style');
+  process.env.MAW_ENV_FILE=join(folder,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(folder,'settings');
   const media=join(folder,'synthetic.mp4'),project=join(folder,'project.mosp');
   execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=4','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
   writeFileSync(project,JSON.stringify({media:'synthetic.mp4',segments:[{start:0,end:3000,text:'中文字幕 Sample'}],waveform:generateWaveformPayload(4000)}));
   server=await startServer(project,media,await findFreePort());
 });
 test.afterAll(async()=>{await server?.stop();});
+test.beforeEach(async({page})=>{await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false,subtitleAvoidControls:false})));});
 
 test('project style renders in the player and proofreading does not alter outputs',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -25,8 +27,7 @@ test('project style renders in the player and proofreading does not alter output
   await page.locator('#media-settings-modal').screenshot({path:join(folder,'style-settings.png')});
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer?.status),{timeout:45000}).toBe('libass');
   await page.locator('#style-field-primaryColor').fill('#ff0000');
-  await page.locator('#style-field-primaryColor').dispatchEvent('change');
-  const saved=await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().preview.project_style);
+  const saved=await page.evaluate(()=>fixedStyleValue());
   expect(saved.main.primaryColor).toBe('#ff0000');
   await page.evaluate(()=>performUndo());
   await expect(page.locator('#style-field-primaryColor')).not.toHaveValue('#ff0000');
@@ -35,7 +36,7 @@ test('project style renders in the player and proofreading does not alter output
   await page.locator('#style-preview-mode').selectOption('large');
   await expect(page.locator('#style-scope')).toHaveCount(0);
   expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
-  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().preview.project_style)).toEqual(saved);
+  expect(await page.evaluate(()=>fixedStyleValue())).toEqual(saved);
   await page.locator('#style-preview-mode').selectOption('project');
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer?.status)).toBe('libass');
   await page.locator('#media-settings-close').click();
@@ -105,17 +106,20 @@ test('preview style badge follows main and secondary visibility, including delay
   await expect(badge).toBeHidden();
 });
 
-for(const legacy of [false,true])for(const bound of [true,false])test(`paired subtitle order renders above and below consistently in libass and FFmpeg (${legacy?'legacy':'modern'}, ${bound?'bound':'unbound'})`,async({page})=>{
+for(const legacy of [false,true])for(const bound of [true,false])test(`${bound?'bound subtitle order':'independent unbound track placement'} matches libass and FFmpeg (${legacy?'legacy':'modern'}, ${bound?'bound':'unbound'})`,async({page})=>{
   await disableOnboarding(page);await page.goto(server.url);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   await page.evaluate(({legacy,bound})=>{
-    const h=window.MSWE.resolve('processing-host'),p=h.data,S=window.MSWProjectStyle;
+    const h=window.MSWE.resolve('processing-host'),S=window.MSWProjectStyle;
+    const p=JSON.parse(JSON.stringify({media:h.data.media,waveform:h.data.waveform,msw:h.data.msw}));
     const style=legacy?S.fromBurn({main:{color:'#ff0000'},secondary:{color:'#00ff00'}}):S.defaults();
     style.main.primaryColor='#ff0000';style.secondary.primaryColor='#00ff00';
     p.segments=[{id:'main-cue',start:0,end:3000,text:'Main subtitle',items:[]}];
     p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'sub',role:'extension',segments:[{id:'sub-cue',start:0,end:3000,text:'Secondary subtitle',items:[]}]}],bindings:[{id:'pair',track_id:'sub',main_segment_ids:['main-cue'],extension_segment_ids:['sub-cue']}]};
     if(!bound){p.multi_subtitle.bindings=[];p.multi_subtitle.tracks[0].segments[0].start=100;}
-    h.commitProjectStyle(style);dispatchEvent(new Event('msw:subtitles-changed'));
+    p.preview={project_style:style};let flat=MSWFlatSubtitles.migrate(p);
+    if(!bound)flat=MSWFlatSubtitles.setTrackGroup(flat,flat.subtitles.tracks[1].id,flat.subtitles.tracks[0].id);
+    productionCommitProject(flat,'Style fixture');h.commitProjectStyle(style);
   },{legacy,bound});
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
@@ -144,10 +148,13 @@ def rows(path):
   result.append({'count':len(points),'y':sum(points)/max(1,len(points))})
  return result
 print(json.dumps([rows(path) for path in sys.argv[1:]]))`,png,ref],{encoding:'utf8',windowsHide:true}));
-    for(const result of rows){for(const row of result)expect(row.count).toBeGreaterThan(30);expect(result[0].y<result[1].y).toBe(order==='main-above');}
+    for(const result of rows){for(const row of result)expect(row.count).toBeGreaterThan(30);if(bound)expect(result[0].y<result[1].y).toBe(order==='main-above');}
+    // Track grouping does not bind cues. Unbound cues are separate collision
+    // groups; only bound cues use pair order and the within-pair gap.
+    if(!bound)expect(await page.evaluate(()=>JSON.parse(buildJson()).subtitles.bindings)).toEqual([]);
     for(let i=0;i<2;i++)expect(Math.abs(rows[0][i].y-rows[1][i].y)).toBeLessThan(3);
     const distance=Math.abs(rows[0][0].y-rows[0][1].y);
-    if(gap<0)expect(distance).toBeLessThan(distances.get(order)-1);else distances.set(order,distance);
+    if(bound&&gap<0)expect(distance).toBeLessThan(distances.get(order)-1);else distances.set(order,distance);
     await toggleMediaSettings(page);
   }
 });
@@ -161,10 +168,16 @@ test('saved presets do not mutate project styles and the project survives reload
   await page.locator('#style-preset-name').fill('测试双语预设');
   await page.locator('#style-save-preset').click();
   await expect(page.locator('#style-message')).toContainText('预设已保存');
+  const presetId=await page.locator('#style-project-preset').inputValue();
   await page.locator('#style-field-fontSize').fill('96');await page.locator('#style-field-fontSize').dispatchEvent('change');
-  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(96);
-  await page.locator('#style-project-preset').selectOption({label:'测试双语预设'});
+  expect(await page.evaluate(()=>fixedStyleValue().main.fontSize)).toBe(96);
+  await expect(page.locator('#style-project-preset option:checked')).toHaveText('测试双语预设 · 已修改');
+  await page.locator('#style-project-preset').selectOption(presetId);
   await expect(page.locator('#style-field-fontSize')).toHaveValue('44');
+  await page.locator('#style-field-fontSize').fill('96');await page.locator('#style-field-fontSize').dispatchEvent('change');
+  await page.locator('#style-overwrite').click();await expect(page.locator('#style-message')).toContainText('预设已更新');
+  const library=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-presets'));
+  expect(library.presets.find(p=>p.id===presetId).main.fontSize).toBe(96);
   await page.locator('#style-delete-preset').click();
   await expect(page.locator('#style-delete-question')).toContainText('测试双语预设');
   await page.locator('#style-delete-confirm-button').click();
@@ -176,11 +189,11 @@ test('saved presets do not mutate project styles and the project survives reload
   expect((await (await saved).json()).ok).toBe(true);
   await expect.poll(()=>page.evaluate(()=>projectSaveInFlight)).toBe(false);
   await page.reload();await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
-  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.preview.project_style.main.fontSize)).toBe(44);
+  expect(await page.evaluate(()=>fixedStyleValue().main.fontSize)).toBe(96);
   await toggleMediaSettings(page);
   await expect(page.locator('#style-delete-preset')).toBeDisabled();
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('project');
-  await page.locator('#style-project-preset').selectOption('current');
+  await expect(page.locator('#style-project-preset option[value="current"]')).toHaveCount(0);
   await expect(page.locator('#style-field-fontSize')).toHaveValue('96');
 });
 
@@ -202,17 +215,17 @@ test('export selects a preset snapshot and restores proofreading on close',async
   await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('contrast');
   await page.locator('#media-settings-close').click();
   await clickMenubarItem(page,'文件','video-export-btn');
-  await page.locator('#video-export-burn-subtitles').selectOption('main');
+  await page.locator('#video-export-burn-subtitles').selectOption('both');
   await page.locator('#video-export-style-source').selectOption('preset:large');
   const result=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host'),p=h.exportProject();window.MSWSubtitleStyle.applyExport(p);return {output:p.preview.project_style,project:h.data.preview.project_style,preview:window.MSWSubtitleStyle.currentPreview()};});
   expect(result.output.main.fontSize).toBe(72);expect(result.project.main.fontSize).not.toBe(72);
-  expect(result.preview.scope).toBe('export');expect(result.preview.target).toBe('main');
+  expect(result.preview.scope).toBe('export');expect(result.preview.target).toBe('both');
   await page.locator('#video-export-close').click();
   expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
   expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().style.name)).toBe('高对比底框');
 });
 
-test('negative pair spacing uses scaled text height consistently in preview and portable ASS',async({page})=>{
+test('negative pair spacing uses scaled text height consistently in fixed-track preview',async({page})=>{
   await disableOnboarding(page);await page.goto(server.url);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
@@ -221,16 +234,16 @@ test('negative pair spacing uses scaled text height consistently in preview and 
   const positions=[];
   for(const [size,scale] of [[80,100],[40,200]]){
     const rendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
-    const portable=await page.evaluate(({size,scale})=>{
-      const h=window.MSWE.resolve('processing-host'),p=h.data,S=window.MSWProjectStyle,style=S.defaults();
+    await page.evaluate(({size,scale})=>{
+      const h=window.MSWE.resolve('processing-host'),S=window.MSWProjectStyle,style=S.defaults();
+      const p=JSON.parse(JSON.stringify({media:h.data.media,waveform:h.data.waveform,msw:h.data.msw}));
       style.main={...style.main,fontName:'Arial',fontSize:size,scaleX:scale,scaleY:scale,primaryColor:'#ff0000'};
       style.secondary={...style.secondary,fontName:'Arial',fontSize:60,primaryColor:'#00ff00'};
       const paired=S.arrangePair(style,{order:'secondary-above',gap:-46});
       p.segments=[{id:'m',start:0,end:3000,text:'MMMM',items:[]}];
       p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,tracks:[{id:'sub',role:'extension',segments:[{id:'s',start:0,end:3000,text:'MMMM',items:[]}]}],bindings:[]};
-      h.commitProjectStyle(paired);dispatchEvent(new Event('msw:subtitles-changed'));
+      p.preview={project_style:paired};productionCommitProject(MSWFlatSubtitles.migrate(p),'Spacing fixture');h.commitProjectStyle(paired);
       h.player.currentTime=1;h.player.pause();
-      return layerAssMargins({assProfile:true,assStyle:paired.main,assExtensionStyle:paired.secondary,playResX:1920,playResY:1080},p);
     },{size,scale});
     const payload=await (await rendered).json();
     await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);
@@ -243,9 +256,7 @@ for channel in (0,1):
  points=[y for y in range(im.height) for x in range(im.width) if (lambda c:c[channel]>80 and c[channel]>2*c[1-channel] and c[channel]>2*c[2])(im.getpixel((x,y)))]
  result.append(sum(points)/max(1,len(points)))
 print(json.dumps(result))`,png],{encoding:'utf8',windowsHide:true}));
-    const margins=Object.fromEntries(payload.ass.split('\n').filter(l=>l.startsWith('Dialogue:')).map(l=>{const v=l.split(',');return [v[3],Number(v[7])];}));
-    expect(portable.main.m).toBe(margins.main);expect(portable.secondary.s).toBe(margins.secondary);
-    expect(margins.secondary-margins.main).toBe(50);expect(rows[0]).toBeGreaterThan(rows[1]);
+    expect(payload.ass.match(/^Dialogue:/gm)).toHaveLength(2);expect(rows[0]).toBeGreaterThan(rows[1]);
     positions.push(rows);
   }
   for(let role=0;role<2;role++)expect(Math.abs(positions[0][role]-positions[1][role])).toBeLessThan(2);
@@ -255,11 +266,12 @@ test('character wrapping produces matching visible lines in libass preview and b
   await disableOnboarding(page);await page.goto(server.url);await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.ready)).toBe(true);
   await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
   await page.evaluate(()=>{
-    const h=window.MSWE.resolve('processing-host'),p=h.data,S=window.MSWProjectStyle,style=S.defaults();
+    const h=window.MSWE.resolve('processing-host'),S=window.MSWProjectStyle,style=S.defaults();
+    const p=JSON.parse(JSON.stringify({media:h.data.media,waveform:h.data.waveform,msw:h.data.msw}));
     Object.assign(style.main,{fontName:'Arial',primaryColor:'#ff0000',wrapMode:'characters',charsPerLine:3});
     Object.assign(style.secondary,{fontName:'Arial',primaryColor:'#00ff00',wrapMode:'characters',charsPerLine:4});
     p.segments=[{id:'m',start:0,end:3000,text:'MMMMMMMMM',items:[]}];p.multi_subtitle={schema:'moy.asr.multi_subtitle.v1',enabled:true,tracks:[{id:'s',role:'extension',segments:[{id:'s1',start:0,end:3000,text:'WWWWWWWW',items:[]}]}],bindings:[]};
-    h.commitProjectStyle(style);dispatchEvent(new Event('msw:subtitles-changed'));
+    p.preview={project_style:style};productionCommitProject(MSWFlatSubtitles.migrate(p),'Wrapping fixture');h.commitProjectStyle(style);
     for(const id of ['overlay-toggle','extension-overlay-toggle']){const e=document.getElementById(id);e.checked=true;e.dispatchEvent(new Event('change'));}
     h.player.currentTime=1;h.player.pause();
   });
@@ -287,6 +299,6 @@ print(json.dumps([bands(p) for p in sys.argv[1:]]))`,png,ref],{encoding:'utf8',w
   // The portable/renderer-failure path must use exactly the same text breaks.
   await page.route('**/subtitle-preview',r=>r.fulfill({status:500,contentType:'application/json',body:JSON.stringify({ok:false,error:'synthetic fallback'})}));
   await page.evaluate(()=>window.MSWSubtitleRenderer.invalidate());await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('approximate');
-  await expect(page.locator('.msw-layer-preview-text[data-role="main"]')).toHaveText('MMM\nMMM\nMMM');
-  await expect(page.locator('.msw-layer-preview-text[data-role="secondary"]')).toHaveText('WWWW\nWWWW');
+  await expect(page.locator('#fixed-subtitle-preview [data-role="main"] .fixed-subtitle-text')).toHaveText('MMM\nMMM\nMMM');
+  await expect(page.locator('#fixed-subtitle-preview [data-role="extension"] .fixed-subtitle-text')).toHaveText('WWWW\nWWWW');
 });

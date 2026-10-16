@@ -87,15 +87,15 @@
       }
       const details=el('audio-export-track-scope');details.hidden=!flat||select.value==='none';if(!flat)return;
       const chosen=p.subtitles.tracks.filter(t=>t.enabled&&(subtitleTracks===null||subtitleTracks.includes(t.id)));
-      details.querySelector('summary').textContent=t('字幕轨道')+' · '+(subtitleTracks===null?t('全部启用轨道'):`${chosen.map(t=>t.name).join('、')||t('未选择')}`);
+      details.querySelector('summary').textContent=t('字幕轨道')+' · '+(subtitleTracks===null?t('全部轨道'):`${chosen.map(t=>t.name).join('、')||t('未选择')}`);
       const choices=el('audio-export-track-choices'),key=JSON.stringify(p.subtitles.tracks.map(t=>[t.id,t.name,t.enabled]));
-      if(subtitleTrackKey===key){for(const input of choices.querySelectorAll('input'))input.checked=input.dataset.track==='all'?subtitleTracks===null:chosen.some(t=>t.id===input.dataset.track);return;}
+      if(subtitleTrackKey===key){for(const input of choices.querySelectorAll('input')){input.checked=input.dataset.track==='all'?subtitleTracks===null:chosen.some(t=>t.id===input.dataset.track);if(input.dataset.track==='all')input.indeterminate=subtitleTracks!==null&&chosen.length>0;}return;}
       subtitleTrackKey=key;choices.replaceChildren();
-      const add=(id,label,checked,disabled,change)=>{const row=document.createElement('label');row.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;input.onchange=()=>{change();update();global.dispatchEvent(new Event('msw:export-tracks'));};row.append(input,document.createTextNode(label));choices.append(row);};
-      add('all',t('全部启用轨道'),subtitleTracks===null,false,()=>{subtitleTracks=null;});
+      const add=(id,label,checked,disabled,change)=>{const row=document.createElement('label');row.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;if(id==='all')input.indeterminate=subtitleTracks!==null&&chosen.length>0;input.onchange=()=>{change(input.checked);update();global.dispatchEvent(new Event('msw:export-tracks'));};row.append(input,document.createTextNode(label));choices.append(row);};
+      add('all',t('全部轨道'),subtitleTracks===null,false,checked=>{subtitleTracks=checked?null:[];});
       for(const track of p.subtitles.tracks)add(track.id,track.name+(track.enabled?'':' · '+t('已禁用')),chosen.some(t=>t.id===track.id),!track.enabled,()=>{
         const next=new Set(subtitleTracks===null?p.subtitles.tracks.filter(t=>t.enabled).map(t=>t.id):subtitleTracks);
-        if(next.has(track.id))next.delete(track.id);else next.add(track.id);subtitleTracks=[...next];
+        if(next.has(track.id))next.delete(track.id);else next.add(track.id);subtitleTracks=p.subtitles.tracks.filter(t=>t.enabled).every(t=>next.has(t.id))?null:[...next];
       });
     }
     if(video)global.MSWVideoSubtitleScope={ids:()=>subtitleTracks===null?null:[...subtitleTracks],
@@ -201,10 +201,80 @@
       });
       return button;
     }
+    const videoCards=new Map();
+    function renderVideoJobs(staleProgress) {
+      const container=el('audio-export-jobs'),ids=new Set(jobs.map(j=>j.id));
+      for(const [id,ui] of videoCards)if(!ids.has(id)){ui.card.remove();videoCards.delete(id);}
+      jobs.forEach((job,index)=>{
+        let ui=videoCards.get(job.id);
+        if(!ui) {
+          const card=document.createElement('details');card.className='msw-processing-job msw-video-job';card.dataset.jobId=job.id;
+          const summary=document.createElement('summary'),content=document.createElement('div');content.className='msw-video-job-content';
+          const heading=document.createElement('div');heading.className='msw-video-job-heading';
+          const number=document.createElement('span'),title=document.createElement('span');title.dataset.i18nSkip='';heading.append(number,title);
+          const status=document.createElement('div');status.className='msw-video-job-progress';
+          const spinner=document.createElement('span');spinner.className='msw-tts-state-icon';spinner.dataset.state='running';spinner.setAttribute('aria-hidden','true');
+          const phase=document.createElement('span'),estimate=document.createElement('span');estimate.dataset.encodingEstimate='true';
+          status.append(spinner,phase,estimate);content.append(heading,status);
+          const controls=document.createElement('div');controls.className='msw-video-job-controls';
+          const detail=document.createElement('p');detail.className='msw-processing-hint msw-video-job-detail';
+          summary.append(content,controls);card.append(summary,detail);
+          ui={card,number,title,status,spinner,phase,estimate,detail,job};videoCards.set(job.id,ui);
+          const iconAction=(label,path,callback)=>{
+            const button=action(label,job,callback);button.className='msw-export-icon';button.title=t(label);button.setAttribute('aria-label',t(label));
+            button.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
+            button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();});controls.append(button);return button;
+          };
+          ui.cancel=iconAction('取消导出','m6 6 12 12M18 6 6 18',async()=>{
+            await request(`audio-exports/${ui.job.id}/cancel`,{project_id:ui.job.project_id});schedule(0);
+          });
+          ui.download=iconAction('下载 WAV','M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',async()=>{
+            const data=await request(`audio-exports/${ui.job.id}/download`,{project_id:ui.job.project_id});
+            const link=document.createElement('a');link.href=data.url;link.download=ui.job.download_name||'msw-video.mp4';document.body.append(link);link.click();link.remove();
+          });
+        }
+        ui.job=job;const active=!terminal.has(job.status),result=job.result;
+        ui.number.textContent='#'+String(jobs.length-index).padStart(2,'0');
+        ui.title.textContent=job.download_name||t(job.options?.preview_sample?'五秒样片':job.mode==='mix'?'原声 + 配音混音':'配音轨（仅音频贴片）');ui.title.title=ui.title.textContent;
+        const percent=job.status==='succeeded'?100:Math.max(0,Math.min(100,Math.round(job.progress||0)));
+        ui.phase.textContent=t(active&&job.status==='running'?stages[job.stage]||labels.running:labels[job.status]||job.status)+(active||job.status==='succeeded'?` · ${percent}%`:'');
+        ui.spinner.hidden=!active;ui.estimate.hidden=!active;
+        if(active){
+          let estimate=t('剩余时长：正在估算');
+          if(job.stage==='muxing'||job.progress>=92)estimate=t('正在收尾');
+          else if(job.stage==='video'&&Number.isFinite(job.encoding_eta_seconds)&&!staleProgress(job)){
+            const seconds=Math.max(1,Math.ceil(job.encoding_eta_seconds/5)*5),minutes=Math.floor(seconds/60),rest=seconds%60;
+            estimate=`${t('预计编码剩余约')} ${minutes?`${minutes} ${t('分')} `:''}${rest} ${t('秒')}`;
+          }
+          ui.estimate.textContent=`（${estimate}）`;ui.estimate.title=t('根据近期编码速度估算，不包含最后的音画合并；复杂画面或设备负载变化会影响结果。');
+          ui.status.setAttribute('role','progressbar');ui.status.setAttribute('aria-label',t('音频导出进度'));ui.status.setAttribute('aria-valuemin','0');ui.status.setAttribute('aria-valuemax','100');ui.status.setAttribute('aria-valuenow',String(percent));ui.status.setAttribute('aria-valuetext',ui.phase.textContent+ui.estimate.textContent);
+        }else for(const attr of ['role','aria-label','aria-valuemin','aria-valuemax','aria-valuenow','aria-valuetext'])ui.status.removeAttribute(attr);
+        ui.cancel.hidden=!active;ui.cancel.disabled=job.status==='cancel_requested';ui.download.hidden=job.status!=='succeeded';
+        const details=[new Date(job.created_at*1000).toLocaleString(),job.client_token!==token()?t('先前的工程快照'):'',job.encoder_label?t(job.encoder_label):'',job.encoding_note||result?.encoding_note||''];
+        if(result){
+          if(result.sample_rate)details.push(`${(result.sample_count/result.sample_rate).toFixed(3)} s · ${(result.byte_size/1024**2).toFixed(1)} MB`);
+          details.push(t(result.video_encoding==='copy'?'画面直接复制':'画面已重新编码'));
+          if(result.burn_subtitles&&result.burn_subtitles!=='none')details.push(t('已压制字幕'));
+          if(result.attenuation_db<-.001)details.push(`${t('峰值保护衰减')} ${(-result.attenuation_db).toFixed(2)} dB`);
+          if(result.clipped)details.push(t('部分声音超限，建议开启峰值保护重新导出'));
+        }
+        if(job.error)details.push(t(job.error));
+        ui.detail.textContent=details.filter(Boolean).join(' · ');
+        if(job.error&&!ui.error){
+          ui.error=document.createElement('button');ui.error.type='button';ui.error.className='msw-export-icon';ui.error.setAttribute('aria-label',t('错误详情'));
+          ui.error.innerHTML='<span class="msw-tts-state-icon" data-state="failed" aria-hidden="true"></span>';
+          global.MSWHelp?.bind(ui.error,()=>ui.job.error||'');ui.download.after(ui.error);
+        }
+        if(ui.error){ui.error.hidden=!job.error;global.MSWHelp?.refresh(ui.error);}
+        if(container.children[index]!==ui.card)container.insertBefore(ui.card,container.children[index]||null);
+      });
+      el('audio-export-history-count').textContent=`(${jobs.length})`;
+    }
     function renderJobs() {
       const scroll = el('audio-export-jobs').scrollTop;
       const staleProgress = job => !job.progress_at || Date.now()/1000-job.progress_at > 15;
       const key = JSON.stringify(jobs) + token() + jobs.some(staleProgress); if (key === rendered) return; rendered = key;
+      if(video){renderVideoJobs(staleProgress);return;}
       const focused = document.activeElement?.closest(`#${kind}-export-jobs button`);
       const focusId = focused?.dataset.jobId, focusAction = focused?.dataset.action;
       const fragment = document.createDocumentFragment();
@@ -212,36 +282,17 @@
         const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
         const title = document.createElement('strong');
         title.textContent = t(job.mode === 'mix' ? '原声 + 配音混音' : '配音轨（仅音频贴片）');
-        if (video) title.textContent = `${t('导出视频')} · ${title.textContent}`;
-        if (video && job.options?.preview_sample) title.textContent = t('五秒样片');
         if (timeline) title.textContent = t('配音剪辑工程（OTIOZ）');
         const status = document.createElement('p'); status.className = 'msw-processing-hint';
         status.textContent = `${t(labels[job.status] || job.status)} · ${new Date(job.created_at * 1000).toLocaleTimeString()}`;
         if (job.client_token !== token()) status.textContent += ` · ${t('先前的工程快照')}`;
         card.append(title, status);
-        if(video && job.encoder_label) {
-          const encoder=document.createElement('p');encoder.className='msw-processing-hint';encoder.textContent=t(job.encoder_label);card.append(encoder);
-        }
-        if(video && (job.encoding_note || job.result?.encoding_note)) {
-          const note=document.createElement('p');note.className='msw-processing-hint';note.textContent=t(job.encoding_note || job.result.encoding_note);card.append(note);
-        }
         if (!terminal.has(job.status)) {
           const progress = document.createElement('progress'); progress.max = 100; progress.value = job.progress || 0;
           progress.setAttribute('aria-label', t('音频导出进度'));
           const stage = document.createElement('p'); stage.className = 'msw-processing-hint';
           stage.textContent = `${t(stages[job.stage] || labels[job.status])} · ${Math.round(job.progress || 0)}%`;
           card.append(progress, stage);
-          if(video && job.status==='running') {
-            const estimate=document.createElement('p');estimate.className='msw-processing-hint';estimate.dataset.encodingEstimate='true';
-            if(job.stage==='muxing' || job.progress>=92)estimate.textContent=t('正在收尾');
-            else if(job.stage==='video' && Number.isFinite(job.encoding_eta_seconds) && !staleProgress(job)) {
-              const seconds=Math.max(1,Math.ceil(job.encoding_eta_seconds/5)*5);
-              const minutes=Math.floor(seconds/60),remaining=seconds%60;
-              estimate.textContent=`${t('预计编码剩余约')} ${minutes?`${minutes} ${t('分')} `:''}${remaining} ${t('秒')}`;
-            } else estimate.textContent=t('剩余时长：正在估算');
-            estimate.title=t('根据近期编码速度估算，不包含最后的音画合并；复杂画面或设备负载变化会影响结果。');
-            card.append(estimate);
-          }
         }
         if (job.error) { const text = document.createElement('p'); text.className = 'msw-processing-message is-error'; text.textContent = t(job.error); card.append(text); }
         const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
@@ -250,14 +301,12 @@
           note.textContent = `${(result.sample_count / result.sample_rate).toFixed(3)} s · ${(result.byte_size / 1024**2).toFixed(1)} MB`;
           if (result.attenuation_db < -.001) note.textContent += ` · ${t('峰值保护衰减')} ${(-result.attenuation_db).toFixed(2)} dB`;
           if (result.clipped) note.textContent += ` · ${t('部分声音超限，建议开启峰值保护重新导出')}`;
-          if (video) note.textContent += ` · ${t(result.video_encoding === 'copy' ? '画面直接复制' : '画面已重新编码')}`;
-          if (video && result.burn_subtitles && result.burn_subtitles !== 'none') note.textContent += ` · ${t('已压制字幕')}`;
           if (timeline && result.external_media) note.textContent += ` · ${t('原视频仍引用本机文件')}`;
           card.append(note);
           actions.append(action('下载 WAV', job, async () => {
             const data = await request(`audio-exports/${job.id}/download`, { project_id: job.project_id });
             const link = document.createElement('a'); link.href = data.url;
-            link.download = job.download_name || (video ? 'msw-video.mp4' : timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav');
+            link.download = job.download_name || (timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav');
             document.body.append(link); link.click(); link.remove();
           }));
         } else if (!terminal.has(job.status)) {
@@ -310,7 +359,7 @@
         if (generation !== host.generation || busy !== ticket) return;
         pending = null;
         jobs = [result.job, ...jobs.filter(j => j.id !== result.job.id)]; renderJobs();
-        message('音频导出已开始；可继续编辑，关闭面板不会取消任务'); schedule(0);
+        message(video?'':'音频导出已开始；可继续编辑，关闭面板不会取消任务'); schedule(0);
       } catch (error) {
         if (generation !== host.generation || busy !== ticket) return;
         if (error.status && error.status < 500) pending = null;
@@ -366,14 +415,28 @@
     copy.querySelector(`#${kind}-export-jobs`).setAttribute('aria-label', kind === 'video' ? '视频导出任务' : '剪辑工程导出任务');
     copy.querySelector(`#${kind}-export-mode`).value = 'mix';
     copy.querySelector(`#${kind}-export-format-hint`).replaceWith(document.getElementById(`${kind}-export-fields`).content.cloneNode(true));
-    if(kind==='video') {
-      const monitor=copy.querySelector('#video-export-monitor-field');
-      monitor.classList.remove('msw-processing-field');
-      copy.querySelector('#video-export-subtitle-fields').append(monitor);
-    }
+    if(kind==='video') arrangeVideoFields(copy);
     blueprint.after(copy);
   }
   mount('audio');
   mount('video');
   mount('timeline');
+  function arrangeVideoFields(panel) {
+    const body=panel.querySelector('.gap-remove-panel-body'),get=id=>panel.querySelector('#video-export-'+id);
+    const section=(name,id,folded=false)=>{
+      const node=document.createElement(folded?'details':'section');node.id='video-export-'+id;
+      node.className='settings-panel-section msw-export-section';
+      const heading=document.createElement(folded?'summary':'span');heading.className='settings-panel-title';heading.textContent=name;node.append(heading);return node;
+    };
+    const grid=(section,fields)=>{const row=document.createElement('div');row.className='media-settings-grid';for(const key of fields){const label=get(key).closest('label');label.classList.remove('msw-processing-field');label.classList.add('media-settings-field');row.append(label);}section.append(row);};
+    const common=section('导出设置','general'),subtitles=section('字幕','subtitles'),advanced=section('音频与其他选项','advanced',true);
+    body.prepend(common,subtitles,advanced);
+    grid(common,['mode','range']);common.append(get('custom'));grid(common,['tail','encoding']);
+    common.append(get('hardware-field'),get('encoder-status'),get('remove-gaps').closest('label'));
+    subtitles.append(get('subtitle-fields'),get('track-scope'));
+    grid(advanced,['monitor','rate']);advanced.append(get('source'));grid(advanced,['voice-gain']);advanced.append(get('peak').closest('label'));
+    // All controls keep their IDs and listeners; discard only empty layout wrappers.
+    for(const node of body.querySelectorAll(':scope > .msw-processing-fields'))if(!node.children.length)node.remove();
+    for(const label of panel.querySelectorAll('.msw-processing-fields > label'))label.classList.add('media-settings-field');
+  }
 })(window);

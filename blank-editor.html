@@ -5079,6 +5079,31 @@
 .media-settings-subgroup { margin:0; padding:8px 10px 10px; min-width:0; border:1px solid var(--border); border-radius:var(--radius-sm); }
 .media-settings-subgroup legend { padding:0 4px; font-size:12px; color:var(--text-secondary); }
 .msw-project-style { display:flex; flex-direction:column; gap:10px; }
+#video-export-panel .msw-export-section { display:block; flex:0 0 auto; padding:12px; }
+#video-export-panel .msw-export-section > .settings-panel-title { display:block; margin:0 0 10px; }
+#video-export-panel details.msw-export-section > summary { display:list-item; cursor:pointer; margin:0; }
+#video-export-panel details.msw-export-section[open] > summary { margin-bottom:10px; }
+#video-export-panel details.msw-export-section > summary::before { content:'▸'; margin-right:6px; }
+#video-export-panel details.msw-export-section[open] > summary::before { content:'▾'; }
+#video-export-panel .msw-export-section > :is(.media-settings-grid,.msw-processing-fields) { margin-block:8px; }
+#video-export-panel .msw-export-section > .msw-tts-check { margin-top:8px; }
+#video-export-panel .msw-processing-message:empty { display:none; }
+#video-export-panel .msw-video-job { margin:0; padding:10px 0; border:0; border-bottom:1px solid var(--border-subtle); background:transparent; border-radius:0; }
+.msw-video-job > summary { display:flex; align-items:center; gap:8px; list-style:none; cursor:pointer; }
+.msw-video-job > summary::-webkit-details-marker { display:none; }
+.msw-video-job > summary::before { content:'▸'; color:var(--text-secondary); }
+.msw-video-job[open] > summary::before { content:'▾'; }
+.msw-video-job-content { flex:1; min-width:0; }
+.msw-video-job-heading { display:flex; gap:8px; align-items:center; font-size:12px; font-weight:500; }
+.msw-video-job-heading > span:first-child { flex:none; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.msw-video-job-heading > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.msw-video-job-progress { display:flex; align-items:center; flex-wrap:wrap; gap:2px 5px; font-size:12px; color:var(--text-secondary); font-variant-numeric:tabular-nums; line-height:1.6; }
+.msw-video-job-progress .msw-tts-state-icon { width:12px; height:12px; }
+.msw-video-job-controls { display:flex; align-items:center; gap:2px; flex:none; }
+#video-export-panel .msw-export-icon { display:inline-grid; place-items:center; flex:none; box-sizing:border-box; width:26px; min-width:26px; height:26px; padding:4px; background:transparent; border:1px solid transparent; border-radius:var(--radius-sm); color:var(--text-secondary); cursor:pointer; }
+#video-export-panel .msw-export-icon:hover { background:var(--btn-bg-hover); border-color:var(--btn-border); }
+.msw-export-icon svg { width:16px; height:16px; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; fill:none; }
+#video-export-panel .msw-video-job-detail { margin:8px 0 0; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
 .msw-style-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .msw-style-tabs,.msw-style-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
 .msw-style-tabs { flex-shrink:1; min-width:0; }
@@ -6668,6 +6693,10 @@
           <div class="dropdown-submenu" id="subtitle-track-enabled-dropdown">
             <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">禁用与启用</div>
             <div class="dropdown-menu dropdown-submenu-menu subtitle-track-choice-menu" id="subtitle-track-enabled-menu" role="menu" aria-label="启用的字幕轨道"></div>
+          </div>
+          <div class="dropdown-submenu" id="subtitle-track-locked-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false">锁定与解锁</div>
+            <div class="dropdown-menu dropdown-submenu-menu subtitle-track-choice-menu" id="subtitle-track-locked-menu" role="menu" aria-label="锁定的字幕轨道"></div>
           </div>
         </div>
       </div>
@@ -9100,7 +9129,7 @@
     <label>烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
     <label id="video-export-style-choice" hidden>字幕样式<select id="video-export-style-source"><option value="project">跟随工程样式</option></select></label>
   </div>
-  <details id="video-export-track-scope" class="msw-export-scope" hidden><summary>字幕轨道 · 全部启用轨道</summary><div id="video-export-track-choices"></div></details>
+  <details id="video-export-track-scope" class="msw-export-scope" hidden><summary>字幕轨道 · 全部轨道</summary><div id="video-export-track-choices"></div></details>
   <p class="msw-processing-hint" id="video-export-tail-help" data-help-for="video-export-tail" hidden></p>
   <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。自动：兼容且无需处理画面时直接复制，否则优先硬件编码，失败时改用 CPU。硬件编码：使用通过短编码检测的编码器；失败时提示原因。软件编码：始终使用 CPU。烧录字幕仍需 CPU 渲染；速度和文件大小随设备、画面而变。</p>
   <p class="msw-processing-hint" data-help-for="video-export-burn-subtitles">开启烧录后在播放器查看本次字幕样式。选择其他预设只影响本次视频，不改变工程样式；调整样式请前往媒体播放器设置。表情包不烧录。</p>
@@ -21921,6 +21950,8 @@ export default MawDynamicCaptions;
     '新增字幕轨道': 'Add subtitle track',
     '折叠与展开': 'Collapse / expand',
     '禁用与启用': 'Disable / enable',
+    '锁定与解锁': 'Lock / unlock',
+    '锁定的字幕轨道': 'Locked subtitle tracks',
     '展开的字幕轨道': 'Expanded subtitle tracks',
     '启用的字幕轨道': 'Enabled subtitle tracks',
     '单词型：英语、西文等按空格拆分；字符型：中文、日文等按字符拆分。': 'Word-based: split English and other space-separated languages by spaces. Character-based: split Chinese and Japanese by characters.',
@@ -22147,6 +22178,16 @@ export default MawDynamicCaptions;
     '已保存的预览样式': 'Saved preview style',
     '跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。': 'Follow the project style to preview its output, or select a preset for proofreading. The settings below always edit the project and do not change the preview selection.',
     '工程样式': 'Project style',
+    '继承工程样式': 'Inherit project style',
+    '覆盖预设': 'Overwrite preset',
+    '未保存为预设': 'Unsaved preset',
+    '已修改': 'Modified',
+    '将当前样式覆盖到所选预设': 'Overwrite the selected preset with the current style',
+    '内置样式不能覆盖，请另存为新预设': 'Built-in styles cannot be overwritten; save a new preset',
+    '预设已更新。': 'Preset updated.',
+    '先选择要编辑的轨道组，预设作用于该组。继承工程样式表示使用工程默认配置；选择预设或修改参数后，该组保存独立样式。调整立即用于工程，覆盖预设才更新用户预设；内置预设需另存。预览、ASS 和默认烧录使用工程样式，SRT 仅保存文字和时间。': 'Choose the track group first. Inherit project style uses the project defaults; selecting a preset or editing parameters creates a separate style for this group. Edits apply immediately; Overwrite updates the user preset. Save built-in styles as new presets. Preview, ASS and default burning use project styles; SRT stores only text and timing.',
+    '导出设置': 'Export settings',
+    '音频与其他选项': 'Audio and other options',
     '当前自定义': 'Custom',
     '自定义预览': 'Custom preview',
     '样式编辑对象': 'Style editing target',
@@ -33444,6 +33485,7 @@ function fixedSyncTrackSettings() {
   for(const [id,field,inverse,caption] of [
     ['subtitle-track-visibility-menu','collapsed',true,'展开'],
     ['subtitle-track-enabled-menu','enabled',false,'启用'],
+    ['subtitle-track-locked-menu','locked',false,'锁定'],
   ]) {
     const menu=document.getElementById(id);if(!menu)continue;
     const rows=new Map([...menu.children].map(row=>[row.dataset.trackId,row]));
@@ -33458,7 +33500,7 @@ function fixedSyncTrackSettings() {
         check.onchange=()=>{fixedUpdateTrack(track.id,{[field]:inverse?!check.checked:check.checked});fixedSyncTrackSettings();};
       }
       const check=row.querySelector('input'),name=row.querySelector('span');
-      check.checked=inverse?!track[field]:track[field]!==false;
+      check.checked=inverse?!track[field]:field==='locked'?track.locked===true:track[field]!==false;
       check.setAttribute('aria-label',`${window.MSWE_I18N?.translateText?.(caption)||caption} ${track.name}`);
       row.setAttribute('aria-checked',String(check.checked));name.textContent=track.name;
       // Keep existing focused controls in place while a checkbox triggers renderAll.
@@ -65896,15 +65938,15 @@ window.addEventListener('beforeunload', (e) => {
       }
       const details=el('audio-export-track-scope');details.hidden=!flat||select.value==='none';if(!flat)return;
       const chosen=p.subtitles.tracks.filter(t=>t.enabled&&(subtitleTracks===null||subtitleTracks.includes(t.id)));
-      details.querySelector('summary').textContent=t('字幕轨道')+' · '+(subtitleTracks===null?t('全部启用轨道'):`${chosen.map(t=>t.name).join('、')||t('未选择')}`);
+      details.querySelector('summary').textContent=t('字幕轨道')+' · '+(subtitleTracks===null?t('全部轨道'):`${chosen.map(t=>t.name).join('、')||t('未选择')}`);
       const choices=el('audio-export-track-choices'),key=JSON.stringify(p.subtitles.tracks.map(t=>[t.id,t.name,t.enabled]));
-      if(subtitleTrackKey===key){for(const input of choices.querySelectorAll('input'))input.checked=input.dataset.track==='all'?subtitleTracks===null:chosen.some(t=>t.id===input.dataset.track);return;}
+      if(subtitleTrackKey===key){for(const input of choices.querySelectorAll('input')){input.checked=input.dataset.track==='all'?subtitleTracks===null:chosen.some(t=>t.id===input.dataset.track);if(input.dataset.track==='all')input.indeterminate=subtitleTracks!==null&&chosen.length>0;}return;}
       subtitleTrackKey=key;choices.replaceChildren();
-      const add=(id,label,checked,disabled,change)=>{const row=document.createElement('label');row.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;input.onchange=()=>{change();update();global.dispatchEvent(new Event('msw:export-tracks'));};row.append(input,document.createTextNode(label));choices.append(row);};
-      add('all',t('全部启用轨道'),subtitleTracks===null,false,()=>{subtitleTracks=null;});
+      const add=(id,label,checked,disabled,change)=>{const row=document.createElement('label');row.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;if(id==='all')input.indeterminate=subtitleTracks!==null&&chosen.length>0;input.onchange=()=>{change(input.checked);update();global.dispatchEvent(new Event('msw:export-tracks'));};row.append(input,document.createTextNode(label));choices.append(row);};
+      add('all',t('全部轨道'),subtitleTracks===null,false,checked=>{subtitleTracks=checked?null:[];});
       for(const track of p.subtitles.tracks)add(track.id,track.name+(track.enabled?'':' · '+t('已禁用')),chosen.some(t=>t.id===track.id),!track.enabled,()=>{
         const next=new Set(subtitleTracks===null?p.subtitles.tracks.filter(t=>t.enabled).map(t=>t.id):subtitleTracks);
-        if(next.has(track.id))next.delete(track.id);else next.add(track.id);subtitleTracks=[...next];
+        if(next.has(track.id))next.delete(track.id);else next.add(track.id);subtitleTracks=p.subtitles.tracks.filter(t=>t.enabled).every(t=>next.has(t.id))?null:[...next];
       });
     }
     if(video)global.MSWVideoSubtitleScope={ids:()=>subtitleTracks===null?null:[...subtitleTracks],
@@ -66010,10 +66052,80 @@ window.addEventListener('beforeunload', (e) => {
       });
       return button;
     }
+    const videoCards=new Map();
+    function renderVideoJobs(staleProgress) {
+      const container=el('audio-export-jobs'),ids=new Set(jobs.map(j=>j.id));
+      for(const [id,ui] of videoCards)if(!ids.has(id)){ui.card.remove();videoCards.delete(id);}
+      jobs.forEach((job,index)=>{
+        let ui=videoCards.get(job.id);
+        if(!ui) {
+          const card=document.createElement('details');card.className='msw-processing-job msw-video-job';card.dataset.jobId=job.id;
+          const summary=document.createElement('summary'),content=document.createElement('div');content.className='msw-video-job-content';
+          const heading=document.createElement('div');heading.className='msw-video-job-heading';
+          const number=document.createElement('span'),title=document.createElement('span');title.dataset.i18nSkip='';heading.append(number,title);
+          const status=document.createElement('div');status.className='msw-video-job-progress';
+          const spinner=document.createElement('span');spinner.className='msw-tts-state-icon';spinner.dataset.state='running';spinner.setAttribute('aria-hidden','true');
+          const phase=document.createElement('span'),estimate=document.createElement('span');estimate.dataset.encodingEstimate='true';
+          status.append(spinner,phase,estimate);content.append(heading,status);
+          const controls=document.createElement('div');controls.className='msw-video-job-controls';
+          const detail=document.createElement('p');detail.className='msw-processing-hint msw-video-job-detail';
+          summary.append(content,controls);card.append(summary,detail);
+          ui={card,number,title,status,spinner,phase,estimate,detail,job};videoCards.set(job.id,ui);
+          const iconAction=(label,path,callback)=>{
+            const button=action(label,job,callback);button.className='msw-export-icon';button.title=t(label);button.setAttribute('aria-label',t(label));
+            button.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
+            button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();});controls.append(button);return button;
+          };
+          ui.cancel=iconAction('取消导出','m6 6 12 12M18 6 6 18',async()=>{
+            await request(`audio-exports/${ui.job.id}/cancel`,{project_id:ui.job.project_id});schedule(0);
+          });
+          ui.download=iconAction('下载 WAV','M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',async()=>{
+            const data=await request(`audio-exports/${ui.job.id}/download`,{project_id:ui.job.project_id});
+            const link=document.createElement('a');link.href=data.url;link.download=ui.job.download_name||'msw-video.mp4';document.body.append(link);link.click();link.remove();
+          });
+        }
+        ui.job=job;const active=!terminal.has(job.status),result=job.result;
+        ui.number.textContent='#'+String(jobs.length-index).padStart(2,'0');
+        ui.title.textContent=job.download_name||t(job.options?.preview_sample?'五秒样片':job.mode==='mix'?'原声 + 配音混音':'配音轨（仅音频贴片）');ui.title.title=ui.title.textContent;
+        const percent=job.status==='succeeded'?100:Math.max(0,Math.min(100,Math.round(job.progress||0)));
+        ui.phase.textContent=t(active&&job.status==='running'?stages[job.stage]||labels.running:labels[job.status]||job.status)+(active||job.status==='succeeded'?` · ${percent}%`:'');
+        ui.spinner.hidden=!active;ui.estimate.hidden=!active;
+        if(active){
+          let estimate=t('剩余时长：正在估算');
+          if(job.stage==='muxing'||job.progress>=92)estimate=t('正在收尾');
+          else if(job.stage==='video'&&Number.isFinite(job.encoding_eta_seconds)&&!staleProgress(job)){
+            const seconds=Math.max(1,Math.ceil(job.encoding_eta_seconds/5)*5),minutes=Math.floor(seconds/60),rest=seconds%60;
+            estimate=`${t('预计编码剩余约')} ${minutes?`${minutes} ${t('分')} `:''}${rest} ${t('秒')}`;
+          }
+          ui.estimate.textContent=`（${estimate}）`;ui.estimate.title=t('根据近期编码速度估算，不包含最后的音画合并；复杂画面或设备负载变化会影响结果。');
+          ui.status.setAttribute('role','progressbar');ui.status.setAttribute('aria-label',t('音频导出进度'));ui.status.setAttribute('aria-valuemin','0');ui.status.setAttribute('aria-valuemax','100');ui.status.setAttribute('aria-valuenow',String(percent));ui.status.setAttribute('aria-valuetext',ui.phase.textContent+ui.estimate.textContent);
+        }else for(const attr of ['role','aria-label','aria-valuemin','aria-valuemax','aria-valuenow','aria-valuetext'])ui.status.removeAttribute(attr);
+        ui.cancel.hidden=!active;ui.cancel.disabled=job.status==='cancel_requested';ui.download.hidden=job.status!=='succeeded';
+        const details=[new Date(job.created_at*1000).toLocaleString(),job.client_token!==token()?t('先前的工程快照'):'',job.encoder_label?t(job.encoder_label):'',job.encoding_note||result?.encoding_note||''];
+        if(result){
+          if(result.sample_rate)details.push(`${(result.sample_count/result.sample_rate).toFixed(3)} s · ${(result.byte_size/1024**2).toFixed(1)} MB`);
+          details.push(t(result.video_encoding==='copy'?'画面直接复制':'画面已重新编码'));
+          if(result.burn_subtitles&&result.burn_subtitles!=='none')details.push(t('已压制字幕'));
+          if(result.attenuation_db<-.001)details.push(`${t('峰值保护衰减')} ${(-result.attenuation_db).toFixed(2)} dB`);
+          if(result.clipped)details.push(t('部分声音超限，建议开启峰值保护重新导出'));
+        }
+        if(job.error)details.push(t(job.error));
+        ui.detail.textContent=details.filter(Boolean).join(' · ');
+        if(job.error&&!ui.error){
+          ui.error=document.createElement('button');ui.error.type='button';ui.error.className='msw-export-icon';ui.error.setAttribute('aria-label',t('错误详情'));
+          ui.error.innerHTML='<span class="msw-tts-state-icon" data-state="failed" aria-hidden="true"></span>';
+          global.MSWHelp?.bind(ui.error,()=>ui.job.error||'');ui.download.after(ui.error);
+        }
+        if(ui.error){ui.error.hidden=!job.error;global.MSWHelp?.refresh(ui.error);}
+        if(container.children[index]!==ui.card)container.insertBefore(ui.card,container.children[index]||null);
+      });
+      el('audio-export-history-count').textContent=`(${jobs.length})`;
+    }
     function renderJobs() {
       const scroll = el('audio-export-jobs').scrollTop;
       const staleProgress = job => !job.progress_at || Date.now()/1000-job.progress_at > 15;
       const key = JSON.stringify(jobs) + token() + jobs.some(staleProgress); if (key === rendered) return; rendered = key;
+      if(video){renderVideoJobs(staleProgress);return;}
       const focused = document.activeElement?.closest(`#${kind}-export-jobs button`);
       const focusId = focused?.dataset.jobId, focusAction = focused?.dataset.action;
       const fragment = document.createDocumentFragment();
@@ -66021,36 +66133,17 @@ window.addEventListener('beforeunload', (e) => {
         const card = document.createElement('article'); card.className = 'msw-processing-job'; card.dataset.jobId = job.id;
         const title = document.createElement('strong');
         title.textContent = t(job.mode === 'mix' ? '原声 + 配音混音' : '配音轨（仅音频贴片）');
-        if (video) title.textContent = `${t('导出视频')} · ${title.textContent}`;
-        if (video && job.options?.preview_sample) title.textContent = t('五秒样片');
         if (timeline) title.textContent = t('配音剪辑工程（OTIOZ）');
         const status = document.createElement('p'); status.className = 'msw-processing-hint';
         status.textContent = `${t(labels[job.status] || job.status)} · ${new Date(job.created_at * 1000).toLocaleTimeString()}`;
         if (job.client_token !== token()) status.textContent += ` · ${t('先前的工程快照')}`;
         card.append(title, status);
-        if(video && job.encoder_label) {
-          const encoder=document.createElement('p');encoder.className='msw-processing-hint';encoder.textContent=t(job.encoder_label);card.append(encoder);
-        }
-        if(video && (job.encoding_note || job.result?.encoding_note)) {
-          const note=document.createElement('p');note.className='msw-processing-hint';note.textContent=t(job.encoding_note || job.result.encoding_note);card.append(note);
-        }
         if (!terminal.has(job.status)) {
           const progress = document.createElement('progress'); progress.max = 100; progress.value = job.progress || 0;
           progress.setAttribute('aria-label', t('音频导出进度'));
           const stage = document.createElement('p'); stage.className = 'msw-processing-hint';
           stage.textContent = `${t(stages[job.stage] || labels[job.status])} · ${Math.round(job.progress || 0)}%`;
           card.append(progress, stage);
-          if(video && job.status==='running') {
-            const estimate=document.createElement('p');estimate.className='msw-processing-hint';estimate.dataset.encodingEstimate='true';
-            if(job.stage==='muxing' || job.progress>=92)estimate.textContent=t('正在收尾');
-            else if(job.stage==='video' && Number.isFinite(job.encoding_eta_seconds) && !staleProgress(job)) {
-              const seconds=Math.max(1,Math.ceil(job.encoding_eta_seconds/5)*5);
-              const minutes=Math.floor(seconds/60),remaining=seconds%60;
-              estimate.textContent=`${t('预计编码剩余约')} ${minutes?`${minutes} ${t('分')} `:''}${remaining} ${t('秒')}`;
-            } else estimate.textContent=t('剩余时长：正在估算');
-            estimate.title=t('根据近期编码速度估算，不包含最后的音画合并；复杂画面或设备负载变化会影响结果。');
-            card.append(estimate);
-          }
         }
         if (job.error) { const text = document.createElement('p'); text.className = 'msw-processing-message is-error'; text.textContent = t(job.error); card.append(text); }
         const actions = document.createElement('div'); actions.className = 'msw-processing-actions';
@@ -66059,14 +66152,12 @@ window.addEventListener('beforeunload', (e) => {
           note.textContent = `${(result.sample_count / result.sample_rate).toFixed(3)} s · ${(result.byte_size / 1024**2).toFixed(1)} MB`;
           if (result.attenuation_db < -.001) note.textContent += ` · ${t('峰值保护衰减')} ${(-result.attenuation_db).toFixed(2)} dB`;
           if (result.clipped) note.textContent += ` · ${t('部分声音超限，建议开启峰值保护重新导出')}`;
-          if (video) note.textContent += ` · ${t(result.video_encoding === 'copy' ? '画面直接复制' : '画面已重新编码')}`;
-          if (video && result.burn_subtitles && result.burn_subtitles !== 'none') note.textContent += ` · ${t('已压制字幕')}`;
           if (timeline && result.external_media) note.textContent += ` · ${t('原视频仍引用本机文件')}`;
           card.append(note);
           actions.append(action('下载 WAV', job, async () => {
             const data = await request(`audio-exports/${job.id}/download`, { project_id: job.project_id });
             const link = document.createElement('a'); link.href = data.url;
-            link.download = job.download_name || (video ? 'msw-video.mp4' : timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav');
+            link.download = job.download_name || (timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav');
             document.body.append(link); link.click(); link.remove();
           }));
         } else if (!terminal.has(job.status)) {
@@ -66119,7 +66210,7 @@ window.addEventListener('beforeunload', (e) => {
         if (generation !== host.generation || busy !== ticket) return;
         pending = null;
         jobs = [result.job, ...jobs.filter(j => j.id !== result.job.id)]; renderJobs();
-        message('音频导出已开始；可继续编辑，关闭面板不会取消任务'); schedule(0);
+        message(video?'':'音频导出已开始；可继续编辑，关闭面板不会取消任务'); schedule(0);
       } catch (error) {
         if (generation !== host.generation || busy !== ticket) return;
         if (error.status && error.status < 500) pending = null;
@@ -66175,16 +66266,30 @@ window.addEventListener('beforeunload', (e) => {
     copy.querySelector(`#${kind}-export-jobs`).setAttribute('aria-label', kind === 'video' ? '视频导出任务' : '剪辑工程导出任务');
     copy.querySelector(`#${kind}-export-mode`).value = 'mix';
     copy.querySelector(`#${kind}-export-format-hint`).replaceWith(document.getElementById(`${kind}-export-fields`).content.cloneNode(true));
-    if(kind==='video') {
-      const monitor=copy.querySelector('#video-export-monitor-field');
-      monitor.classList.remove('msw-processing-field');
-      copy.querySelector('#video-export-subtitle-fields').append(monitor);
-    }
+    if(kind==='video') arrangeVideoFields(copy);
     blueprint.after(copy);
   }
   mount('audio');
   mount('video');
   mount('timeline');
+  function arrangeVideoFields(panel) {
+    const body=panel.querySelector('.gap-remove-panel-body'),get=id=>panel.querySelector('#video-export-'+id);
+    const section=(name,id,folded=false)=>{
+      const node=document.createElement(folded?'details':'section');node.id='video-export-'+id;
+      node.className='settings-panel-section msw-export-section';
+      const heading=document.createElement(folded?'summary':'span');heading.className='settings-panel-title';heading.textContent=name;node.append(heading);return node;
+    };
+    const grid=(section,fields)=>{const row=document.createElement('div');row.className='media-settings-grid';for(const key of fields){const label=get(key).closest('label');label.classList.remove('msw-processing-field');label.classList.add('media-settings-field');row.append(label);}section.append(row);};
+    const common=section('导出设置','general'),subtitles=section('字幕','subtitles'),advanced=section('音频与其他选项','advanced',true);
+    body.prepend(common,subtitles,advanced);
+    grid(common,['mode','range']);common.append(get('custom'));grid(common,['tail','encoding']);
+    common.append(get('hardware-field'),get('encoder-status'),get('remove-gaps').closest('label'));
+    subtitles.append(get('subtitle-fields'),get('track-scope'));
+    grid(advanced,['monitor','rate']);advanced.append(get('source'));grid(advanced,['voice-gain']);advanced.append(get('peak').closest('label'));
+    // All controls keep their IDs and listeners; discard only empty layout wrappers.
+    for(const node of body.querySelectorAll(':scope > .msw-processing-fields'))if(!node.children.length)node.remove();
+    for(const label of panel.querySelectorAll('.msw-processing-fields > label'))label.classList.add('media-settings-field');
+  }
 })(window);
 
 (function(global) {
@@ -66199,10 +66304,11 @@ window.addEventListener('beforeunload', (e) => {
   const icons={save:'<path d="M14 21H3V3h14l4 4v6M7 3v6h10V3M7 21v-7h7m4 2v6m-3-3h6"/>',reset:'<path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/>',delete:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',fonts:'<path d="M3 6V3h18v3M12 3v18m-4 0h8"/>'};
   const iconButton=(id,name,icon)=>`<button type="button" id="${id}" class="msw-style-icon" title="${t(name)}" aria-label="${t(name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${icons[icon]}</svg></button>`;
   icons.swap='<path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/>';
+  icons.overwrite='<path d="M20 11V7l-4-4H3v18h10M7 3v6h9V3M7 21v-7h5m3 3h7m-3-3 3 3-3 3"/>';
   panel.innerHTML=`<span class="settings-panel-title">字幕样式</span>
     <div class="media-settings-grid msw-style-selectors">
       <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
-      <label class="media-settings-field" data-option-help="下方选择要编辑的轨道组，预设作用于该组。样式随工程保存，用于 ASS 和默认视频烧录；SRT 仅保存文字和时间。应用预设后调整只影响本工程。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
+      <label class="media-settings-field" data-option-help="先选择要编辑的轨道组，预设作用于该组。继承工程样式表示使用工程默认配置；选择预设或修改参数后，该组保存独立样式。调整立即用于工程，覆盖预设才更新用户预设；内置预设需另存。预览、ASS 和默认烧录使用工程样式，SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
     <div id="style-migration-row" class="msw-style-notice" hidden><p id="style-migration-note" class="msw-processing-hint" hidden></p></div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
@@ -66214,6 +66320,8 @@ window.addEventListener('beforeunload', (e) => {
     <small data-help-for="style-animation" hidden>动画作用于当前轨道组。时间从每条字幕开始计算，单位为毫秒。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
+  $('style-save-as').insertAdjacentHTML('beforebegin',iconButton('style-overwrite','覆盖预设','overwrite'));
+  panel.querySelector('.settings-panel-title').after(panel.querySelector('.msw-style-toolbar'));
   panel.querySelector('.msw-style-selectors').insertAdjacentHTML('beforebegin',`<div id="style-track-controls" class="media-settings-grid" hidden>
     <label class="media-settings-field" data-option-help="旧工程保留原画面排布。固定轨道排布统一用于预览、ASS 和烧录；各轨道可在下方选择自动排布或固定位置。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
   </div>`);
@@ -66285,7 +66393,9 @@ window.addEventListener('beforeunload', (e) => {
   const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
   const find=id=>all().find(s=>s.id===id);
   const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
-  const comparable=s=>!productionFlatMode()&&fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleTarget())):S.normalize(s);
+  // A library preset may carry both dialogue and annotation styles. Compare
+  // the part used by this group, just as the renderer does, not the envelope.
+  const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleGroup()?.main||fixedStyleTarget())):S.normalize(s);
   const same=(a,b)=>JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
@@ -66312,8 +66422,9 @@ window.addEventListener('beforeunload', (e) => {
     }
     const chosen=track?fixedStyleGroup()?.main.style.selection||track.style.selection:host.data.preview?.project_style_selection;
     const group=fixedStyleGroup(),inherited=group?[group.main,group.secondary].filter(Boolean).every(t=>t.style.mode==='inherit'):track?.style.mode==='inherit';
-    selectedPreset=inherited?'inherit':chosen==='current'?'current':find(chosen)&&same(find(chosen),value())?chosen:all().find(s=>same(s,value()))?.id||'current';
-    fill($('style-project-preset'),[...(track?[['inherit','继承工程样式']]:[]),['current','当前自定义'],...all().map(s=>[s.id,s.name])],selectedPreset);
+    selectedPreset=inherited?'inherit':find(chosen)?chosen:all().find(s=>same(s,value()))?.id||'';
+    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...(track?[['inherit','继承工程样式']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!same(s,value())?' · '+t('已修改'):'')])],selectedPreset);
+    if(!selectedPreset)$('style-project-preset').options[0].disabled=true;
     $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent='工程样式';
     const selected=$('video-export-style-source').value;
     fill($('video-export-style-source'),[['project','跟随工程样式'],...all().map(s=>['preset:'+s.id,s.name])],selected || 'project');
@@ -66336,14 +66447,17 @@ window.addEventListener('beforeunload', (e) => {
       $('style-position-reset').textContent=fixedPositionScope==='cue'?'跟随轨道位置':'恢复默认位置';
       $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的字幕。'):'轨道位置作用于未单独定位的字幕。';
     }
-    const removable=library.find(s=>s.id===activePreset()&&same(s,style));
+    const removable=library.find(s=>s.id===activePreset());
+    $('style-overwrite').disabled=saving||blocked||!removable||same(removable,style);
+    $('style-overwrite').title=t(removable?'将当前样式覆盖到所选预设':'内置样式不能覆盖，请另存为新预设');
     $('style-delete-preset').disabled=saving||!removable;
     $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
     for(const id of ['style-save-as','style-reset','style-save-preset','style-save-cancel','style-delete-confirm-button','style-delete-cancel'])$(id).disabled=saving;
     for(const node of panel.querySelectorAll('[data-style-field],[data-animation],#style-project-preset,#style-pair-order,#style-pair-gap,#style-swap,#style-reset,#style-transform-preset'))node.disabled=saving||blocked;
     $('style-preset-name').disabled=saving;
     $('style-reset').title=t(track?'恢复当前轨道组的样式默认值':'恢复工程的主、副字幕和动画默认值');
-    if(track)message(track.locked?'此轨道已锁定。':!fixedPresentationMode()?'切换为固定轨道排布后，可调整轨道样式与位置。':'');
+    if(blocked)message(track.locked||group?.main.locked||group?.secondary?.locked?'此轨道已锁定。':'切换为固定轨道排布后，可调整轨道样式与位置。');
+    else if(['此轨道已锁定。','切换为固定轨道排布后，可调整轨道样式与位置。'].some(text=>$('style-message').textContent===t(text)))message('');
     const secondary=productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true;
     $('style-secondary').hidden=!secondary;$('style-swap').hidden=!secondary;if(!secondary)role='main';
     if(group)role=group.secondary?.id===track.id?'secondary':'main';
@@ -66395,7 +66509,7 @@ window.addEventListener('beforeunload', (e) => {
     host.useProjectStylePreview();host.refreshStylePreview();global.MSWSubtitleRenderer?.invalidate();
     global.MSWPreviewControls?.refresh();
   }
-  function change(style,selection='current',label='修改工程字幕样式') {
+  function change(style,selection=find(selectedPreset)?selectedPreset:'current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
     if(fixedTrackMode()&&fixedStyleTarget()) {
       if(!fixedCommitStyle(style,selection)){sync();message(fixedLastMessage||'无法修改轨道样式',true);return;}
@@ -66405,7 +66519,7 @@ window.addEventListener('beforeunload', (e) => {
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
-  function editTrack(id,open=true){cancelAction();fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(open)host.openMediaSettings();}
+  function editTrack(id,open=true){cancelAction();message('');fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(open)host.openMediaSettings();}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
   $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
@@ -66450,10 +66564,10 @@ window.addEventListener('beforeunload', (e) => {
   };
   function selectRole(r){role=r;const group=fixedStyleGroup();if(group)fixedStyleTrackId=(r==='secondary'?group.secondary:group.main)?.id||group.main.id;fixedPositionRef=null;sync();}
   for(const r of ['main','secondary'])$('style-'+r).onclick=()=>selectRole(r);
-  $('style-swap').onclick=()=>{cancelAction();change(S.swapAppearance(value()),'current','交换主副字幕样式');};
+  $('style-swap').onclick=()=>{cancelAction();change(S.swapAppearance(value()),undefined,'交换主副字幕样式');};
   for(const id of ['style-pair-order','style-pair-gap'])$(id).onchange=()=>{
     if(!$('style-pair-gap').checkValidity()){$('style-pair-gap').reportValidity();sync();return;}
-    cancelAction();change(S.arrangePair(value(),{order:$('style-pair-order').value,gap:Number($('style-pair-gap').value)}),'current','调整主副字幕排列');
+    cancelAction();change(S.arrangePair(value(),{order:$('style-pair-order').value,gap:Number($('style-pair-gap').value)}),undefined,'调整主副字幕排列');
   };
   panel.querySelector('.msw-style-tabs').addEventListener('keydown',event=>{
     if(!['style-main','style-secondary'].includes(event.target.id)||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||$('style-secondary').hidden)return;
@@ -66462,7 +66576,7 @@ window.addEventListener('beforeunload', (e) => {
   $('style-project-preset').onchange=()=>{
     const selection=$('style-project-preset').value;
     const track=fixedTrackMode()?fixedStyleTarget():null;
-    const preset=selection==='inherit'?projectStyle():selection==='current'?(track?(productionFlatMode()?fixedStyleValue(true):track.style.custom||value()):(host.data.preview?.project_style_custom||projectStyle())):find(selection);
+    const preset=selection==='inherit'?projectStyle():find(selection);
     if(!preset){rebuild();return;}cancelAction();change(track&&!productionFlatMode()?S.forKind(preset,fixedTrackCore.styleKind(track)):preset,selection);
   };
   $('style-reset').onclick=()=>{cancelAction();change(S.defaults());};
@@ -66479,6 +66593,16 @@ window.addEventListener('beforeunload', (e) => {
   $('style-save-as').onclick=()=>{
     cancelAction();pendingAction={kind:'save',generation:host.generation};
     $('style-preset-name').value=value().name;$('style-save-form').hidden=false;$('style-preset-name').focus();$('style-preset-name').select();
+  };
+  $('style-overwrite').onclick=()=>{
+    const previous=library.find(s=>s.id===activePreset());if(!previous||saving)return;
+    cancelAction();const action=pendingAction={kind:'overwrite',generation:host.generation};
+    const savedStyle=S.normalize(value()),target=fixedStyleTrackId;
+    const preset={...S.presetSnapshot({preview:{project_style:previous}},savedStyle,fixedTrackMode()&&fixedStyleTarget()?fixedTrackCore.styleKind(fixedStyleGroup()?.main||fixedStyleTarget()):'dialogue'),id:previous.id,name:previous.name};
+    void runLibraryAction(action,library.map(s=>s.id===preset.id?preset:s),()=>{
+      if(target===fixedStyleTrackId&&same(value(),savedStyle))change(savedStyle,preset.id,'覆盖字幕预设');
+      message('预设已更新。');$('style-overwrite').focus();
+    });
   };
   $('style-save-cancel').onclick=()=>{cancelAction();$('style-save-as').focus();};
   $('style-delete-cancel').onclick=()=>{cancelAction();$('style-delete-preset').focus();};

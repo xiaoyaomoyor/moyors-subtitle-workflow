@@ -51,6 +51,21 @@ test('track submenu edits expansion and enabled states without closing, and pers
   expect(errors).toEqual([]);
 });
 
+test('track lock submenu protects edits, saves and supports undo and unlock',async({page})=>{
+  const before=await snap(page),[track]=before.subtitles.tracks;
+  await trackMenu(page,'locked');
+  const lock=page.locator(`#subtitle-track-locked-menu label[data-track-id="${track.id}"] input`);
+  await expect(lock).not.toBeChecked();await lock.check();
+  expect((await snap(page)).subtitles.tracks[0].locked).toBe(true);
+  const saved=await snap(page);
+  expect(await page.evaluate(()=>fixedCanEdit([DATA.segments[0]],'main',null,true,{silent:true}))).toBe(false);
+  await page.evaluate(()=>performUndo());await expect(lock).not.toBeChecked();
+  await page.evaluate(p=>applyCanonicalProject(p,'locked.mosp'),saved);
+  await trackMenu(page,'locked');await expect(lock).toBeChecked();await lock.uncheck();
+  expect(await page.evaluate(()=>fixedCanEdit([DATA.segments[0]],'main',null,true,{silent:true}))).toBe(true);
+  expect((await snap(page)).subtitles.cues).toEqual(before.subtitles.cues);
+});
+
 test('language explanation uses shared hover and pinned help without the old block',async({page},info)=>{
   await openMenubarMenu(page,'字幕');await page.locator('#multi-subtitle-settings-toggle').hover();
   await expect(page.locator('.multi-subtitle-setting-hint')).toHaveCount(0);

@@ -556,6 +556,7 @@ function fixedSyncTrackSettings() {
   for(const [id,field,inverse,caption] of [
     ['subtitle-track-visibility-menu','collapsed',true,'展开'],
     ['subtitle-track-enabled-menu','enabled',false,'启用'],
+    ['subtitle-track-locked-menu','locked',false,'锁定'],
   ]) {
     const menu=document.getElementById(id);if(!menu)continue;
     const rows=new Map([...menu.children].map(row=>[row.dataset.trackId,row]));
@@ -570,7 +571,7 @@ function fixedSyncTrackSettings() {
         check.onchange=()=>{fixedUpdateTrack(track.id,{[field]:inverse?!check.checked:check.checked});fixedSyncTrackSettings();};
       }
       const check=row.querySelector('input'),name=row.querySelector('span');
-      check.checked=inverse?!track[field]:track[field]!==false;
+      check.checked=inverse?!track[field]:field==='locked'?track.locked===true:track[field]!==false;
       check.setAttribute('aria-label',`${window.MSWE_I18N?.translateText?.(caption)||caption} ${track.name}`);
       row.setAttribute('aria-checked',String(check.checked));name.textContent=track.name;
       // Keep existing focused controls in place while a checkbox triggers renderAll.
