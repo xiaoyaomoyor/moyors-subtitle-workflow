@@ -7,6 +7,15 @@
   toggle.checked=EDITOR_SETTINGS.subtitleAvoidControls!==false;
   let frame=0,signature='',current=new Map(),target=new Map(),animation=0,busy=false,revision=-1,overflow=false;
   let player=null;
+  let hideTimer=0,controlsVisible=false;
+  // Keep both the bar and its safe area through short pointer exits. Without
+  // this hold, crossing the video edge repeatedly reverses the subtitle motion.
+  function visibility(requested) {
+    if(requested) {clearTimeout(hideTimer);hideTimer=0;controlsVisible=true;}
+    else if(controlsVisible&&!hideTimer)hideTimer=setTimeout(()=>{hideTimer=0;controlsVisible=false;refresh();},350);
+    stage.classList.toggle('media-controls-visible',controlsVisible);
+    return controlsVisible;
+  }
   const reduced=global.matchMedia('(prefers-reduced-motion: reduce)');
   function refresh(){if(!frame)frame=requestAnimationFrame(update);}
   function videoRect() {
@@ -54,7 +63,7 @@
     finally {busy=false;}
     // A new document or visibility event can replace the target while awaiting
     // the worker. Continue from the latest target, without concurrent writes.
-    if(!settled||[...target].some(([k,v])=>(current.get(k)||0)!==v))animation=requestAnimationFrame(animate);
+    if(!settled||[...new Set([...target.keys(),...current.keys()])].some(k=>(current.get(k)||0)!==(target.get(k)||0)))animation=requestAnimationFrame(animate);
   }
   function legacy(obstacle,enabled) {
     const root=document.getElementById('overlay');
@@ -73,10 +82,11 @@
   function update() {
     frame=0;const nextPlayer=document.getElementById('player');
     if(player!==nextPlayer){if(player)resize.unobserve(player);player=nextPlayer;if(player)resize.observe(player);}
-    if(!player||player.tagName!=='VIDEO'){setDocked(false);return;}
+    if(!player){setDocked(false);return;}
     const pinned=player.paused;
     if(stage.classList.contains('media-controls-pinned')!==pinned)stage.classList.toggle('media-controls-pinned',pinned);
-    const visible=pinned||stage.matches(':hover')||controls.matches(':hover,:focus-within');
+    const visible=visibility(pinned||stage.matches(':hover')||controls.matches(':hover,:focus-within'));
+    if(player.tagName!=='VIDEO'){setDocked(false);return;}
     const positioning=fixedPositionPreviewActive()||!!stage.querySelector('#fixed-subtitle-preview.positioning:not([hidden])')||
       (!stage.classList.contains('fixed-presentation')&&!!stage.querySelector('#overlay.geometry-enabled:is(:focus,.editable,.dragging):not(.hidden)'));
     const enabled=toggle.checked&&!positioning&&visible;

@@ -80,6 +80,40 @@ test('black borders, resized preview and hidden subtitles do not leave stale avo
   await idle(page);expect(await events(page)).toHaveLength(0);
 });
 
+test('brief pointer exits keep captions stable and hiding during a worker write still restores them',async({page})=>{
+  await page.locator('#player').hover();await page.evaluate(()=>player.play());await idle(page);
+  const initial=await page.evaluate(()=>[...MSWPreviewControls.offsets.values()]);
+  expect(initial.some(v=>v<0)).toBe(true);
+  for(let i=0;i<4;i++) {
+    await page.mouse.move(1200,780);await page.waitForTimeout(90);
+    expect(await page.evaluate(()=>[...MSWPreviewControls.offsets.values()])).toEqual(initial);
+    await expect(page.locator('#media-controls')).toHaveCSS('opacity','1');
+    await page.locator('#player').hover();
+  }
+  await page.mouse.move(1200,780);await idle(page);
+  await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);
+  // Hold the final write to the worker, then remove its nonzero target. A
+  // continuation that checks only target keys would leave the captions raised.
+  await toggle(page,false);await page.locator('#player').hover();await idle(page);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>{
+    const original=MSWSubtitleRenderer.applyPreviewOffsets;
+    MSWSubtitleRenderer.applyPreviewOffsets=async offsets=>{
+      await original(offsets);
+      if([...offsets.values()].some(v=>v<0)&&!window.avoidanceWriteHeld) {
+        window.avoidanceWriteHeld=true;
+        await new Promise(resolve=>{window.releaseAvoidanceWrite=resolve;});
+      }
+    };
+    const el=document.getElementById('subtitle-avoid-controls');el.checked=true;el.dispatchEvent(new Event('change'));
+  });
+  await expect.poll(()=>page.evaluate(()=>!!window.releaseAvoidanceWrite)).toBe(true);
+  await page.evaluate(()=>{const el=document.getElementById('subtitle-avoid-controls');el.checked=false;el.dispatchEvent(new Event('change'));});
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await page.evaluate(()=>window.releaseAvoidanceWrite());await idle(page);
+  expect(await page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);
+});
+
 test('top annotations stay fixed and approximate preview uses the same grouped offsets',async({page})=>{
   await page.evaluate(()=>{
     let p=JSON.parse(buildJson());
@@ -98,6 +132,34 @@ test('top annotations stay fixed and approximate preview uses the same grouped o
   expect(rows.find(r=>r.id==='top-cue').offset).toBe(0);
   expect(rows.filter(r=>r.id!=='top-cue').every(r=>r.offset<0)).toBe(true);
   expect(rows[0].offset).toBeCloseTo(rows[1].offset,2);
+});
+
+test('slow rendering does not rebuild unchanged captions but still applies edits made while waiting',async({page})=>{
+  let requests=0;
+  await page.route('**/subtitle-preview',async route=>{
+    requests++;
+    // Deliberately exceed the renderer's 750ms polling period.
+    await new Promise(resolve=>setTimeout(resolve,1100));
+    await route.continue();
+  });
+  await page.evaluate(()=>MSWSubtitleRenderer.invalidate());
+  await expect.poll(()=>requests).toBe(1);await idle(page);
+  const stable=await page.evaluate(()=>({revision:MSWSubtitleRenderer.revision,offsets:[...MSWPreviewControls.offsets]}));
+  await page.waitForTimeout(1600); // Cross two more unchanged-input polls.
+  expect(requests).toBe(1);
+  expect(await page.evaluate(()=>({revision:MSWSubtitleRenderer.revision,offsets:[...MSWPreviewControls.offsets]}))).toEqual(stable);
+
+  await page.evaluate(()=>MSWSubtitleRenderer.invalidate());
+  await expect.poll(()=>requests).toBe(2);
+  await page.evaluate(()=>{
+    DATA.segments[0].text='Changed while preview was pending';
+    window.dispatchEvent(new Event('msw:subtitles-changed'));
+  });
+  await expect.poll(()=>requests).toBe(3);await idle(page);
+  expect((await events(page)).some(e=>e.Text.includes('Changed while preview was pending'))).toBe(true);
+  await page.waitForTimeout(1600);
+  expect(requests).toBe(3);
+  await assertVisibleAboveControls(page);
 });
 
 test('legacy subtitle preview restores its temporary offset without changing saved geometry',async({page})=>{

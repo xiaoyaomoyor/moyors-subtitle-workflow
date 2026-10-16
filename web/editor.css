@@ -1223,9 +1223,7 @@
     font-size: 12px; font-variant-numeric: tabular-nums;
     opacity: 0; transition: opacity .16s ease;
   }
-  .player-stage:hover .media-controls,
-  .media-controls:focus-within,
-  .media-controls:hover,
+  .player-stage.media-controls-visible .media-controls,
   .player-stage.media-controls-pinned .media-controls { opacity: 1; }
   .media-controls button,
   .media-controls select {

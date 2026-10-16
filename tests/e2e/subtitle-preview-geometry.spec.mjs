@@ -6,16 +6,27 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { DURATION_MS, cleanupTempDir, clickMenubarItem, findFreePort, generateBlankEditor, generateProjectJson, generateWav, makeTempDir, startServer, startStaticServer, testSegments } from './helpers.mjs';
+import { DURATION_MS, disableOnboarding, clickMenubarItem, findFreePort, generateBlankEditor, generateProjectJson, generateWav, makeTempDir, startServer, startStaticServer, testSegments } from './helpers.mjs';
 
 let tempDir;
 let projectPath;
 let server;
 
 const EXPECTED_SEGMENTS = testSegments();
+// This suite covers the legacy freeform preview box. Ordinary flat-track
+// positioning is covered by the picture-positioning and avoidance suites.
+const legacyUrl = url => url + '?subtitle-layers=0&subtitle-tracks=0';
+
+test.beforeEach(async ({ page }) => {
+  await disableOnboarding(page);
+  await page.addInitScript(() => localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({autoSaveProject:false})));
+  page.on('dialog', dialog => dialog.type() === 'beforeunload' ? dialog.accept() : dialog.dismiss());
+});
 
 test.beforeAll(async () => {
   tempDir = makeTempDir('preview-geometry');
+  process.env.MAW_ENV_FILE = join(tempDir, 'isolated.env');
+  process.env.MSW_APP_DATA_ROOT = join(tempDir, 'app-data');
   const mediaPath = join(tempDir, 'synthetic.wav');
   projectPath = join(tempDir, 'project.json');
   generateWav(mediaPath, DURATION_MS / 1000);
@@ -25,13 +36,18 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await server?.stop();
-  cleanupTempDir(tempDir);
+  // Retain synthetic fixtures and failure evidence in the OS temp directory.
 });
 
 // Move the playhead into segment 0 (0–8000ms) so the overlay text is shown,
 // then wait until #overlay is visible and its geometry has been applied.
 async function revealOverlay(page) {
+  await expect.poll(() => page.evaluate(() => MSWSubtitleStyle.ready)).toBe(true);
   await page.evaluate(() => {
+    // Import now defaults to project ASS styles; this compatibility suite
+    // deliberately exercises the old CSS preview geometry instead.
+    assModeToggle.checked = false;
+    assModeToggle.dispatchEvent(new Event('change'));
     const media = document.getElementById('player');
     media.currentTime = 1;
     media.dispatchEvent(new Event('seeked'));
@@ -39,6 +55,8 @@ async function revealOverlay(page) {
   });
   const overlay = page.locator('#overlay');
   await expect(overlay).toBeVisible();
+  await expect(overlay).toHaveClass(/geometry-enabled/);
+  await expect(page.locator('#media-controls')).toHaveCSS('opacity', '1');
   return overlay;
 }
 
@@ -67,7 +85,7 @@ function onDiskSegmentTiming(segments) {
 }
 
 test('overlay starts at the default band and reports normalized geometry', async ({ page }) => {
-  await page.goto(server.url);
+  await page.goto(legacyUrl(server.url));
   await revealOverlay(page);
   const geo = await readGeometry(page);
   expect(geo.x).toBeCloseTo(0.1, 5);
@@ -77,7 +95,7 @@ test('overlay starts at the default band and reports normalized geometry', async
 });
 
 test('dragging the overlay body moves it without touching segment timing', async ({ page }) => {
-  await page.goto(server.url);
+  await page.goto(legacyUrl(server.url));
   const overlay = await revealOverlay(page);
   const before = await readGeometry(page);
   const segmentsBefore = await readSegments(page);
@@ -106,7 +124,7 @@ test('dragging the overlay body moves it without touching segment timing', async
 });
 
 test('resizing via the south-east handle grows the box within player bounds', async ({ page }) => {
-  await page.goto(server.url);
+  await page.goto(legacyUrl(server.url));
   const overlay = await revealOverlay(page);
   // Give the box some slack first: move it up so it can grow downward.
   await page.evaluate(() => {
@@ -139,7 +157,7 @@ test('resizing via the south-east handle grows the box within player bounds', as
 });
 
 test('a drag gesture is a single undo step and redo re-applies it', async ({ page }) => {
-  await page.goto(server.url);
+  await page.goto(legacyUrl(server.url));
   const overlay = await revealOverlay(page);
   const original = await readGeometry(page);
 
@@ -170,7 +188,7 @@ test('a drag gesture is a single undo step and redo re-applies it', async ({ pag
 });
 
 test('keyboard arrows nudge the focused overlay by one percent', async ({ page }) => {
-  await page.goto(server.url);
+  await page.goto(legacyUrl(server.url));
   const overlay = await revealOverlay(page);
   const before = await readGeometry(page);
   await overlay.focus();
@@ -181,7 +199,7 @@ test('keyboard arrows nudge the focused overlay by one percent', async ({ page }
 });
 
 test('geometry persists through a server save and reload, segments untouched', async ({ page }) => {
-  await page.goto(server.url);
+  await page.goto(legacyUrl(server.url));
   await revealOverlay(page);
   // Set a distinctive geometry and mark it dirty, then save to the server.
   await page.evaluate(() => {
@@ -238,7 +256,6 @@ test.describe('portable HTML', () => {
 
   test.afterAll(async () => {
     await portableStaticServer?.stop();
-    cleanupTempDir(portableDir);
   });
 
   // Load project JSON + media WAV through the actual file inputs / media modal.
@@ -251,8 +268,8 @@ test.describe('portable HTML', () => {
     await page.waitForFunction(() => {
       const p = document.getElementById('player');
       const src = p?.currentSrc || p?.querySelector('source')?.getAttribute('src');
-      return Boolean(src && src.trim());
-    }, { timeout: 10_000 });
+      return Boolean(src && src.trim() && p.readyState >= 2);
+    }, null, { timeout: 10_000 });
     await mediaModal.waitFor({ state: 'hidden', timeout: 5000 });
   }
 
@@ -260,7 +277,7 @@ test.describe('portable HTML', () => {
     // Force the anchor-download fallback so the export is deterministically
     // captured by Playwright's download event in headless Chromium.
     await page.addInitScript(() => { delete window.showSaveFilePicker; });
-    await page.goto(portableStaticServer.url);
+    await page.goto(legacyUrl(portableStaticServer.url));
     await loadProjectAndMedia(page, portableProjectPath);
 
     const overlay = await revealOverlay(page);
@@ -268,6 +285,8 @@ test.describe('portable HTML', () => {
     expect(segmentsBefore).toEqual(EXPECTED_SEGMENTS);
 
     // --- Drag the overlay body up through the user surface ---
+    await overlay.hover();
+    await overlay.focus();
     const box = await overlay.boundingBox();
     expect(box).not.toBeNull();
     const beforeDrag = await readGeometry(page);

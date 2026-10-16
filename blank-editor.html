@@ -1243,9 +1243,7 @@
     font-size: 12px; font-variant-numeric: tabular-nums;
     opacity: 0; transition: opacity .16s ease;
   }
-  .player-stage:hover .media-controls,
-  .media-controls:focus-within,
-  .media-controls:hover,
+  .player-stage.media-controls-visible .media-controls,
   .player-stage.media-controls-pinned .media-controls { opacity: 1; }
   .media-controls button,
   .media-controls select {
@@ -66736,11 +66734,14 @@ window.addEventListener('beforeunload', (e) => {
     // to commit the editor's old time fields and snap the cue back to its start.
     if(host.editingGestureActive)return;
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
-    if(pending){again=true;return;}
     const preview=styles.currentPreview(),signatureKey=signature(preview);
     // Player replacement resets key; a failed renderer should not be recreated
     // by every poll while the media and subtitle settings remain unchanged.
     if(key===signatureKey)return;
+    // A slow render can outlive the 750ms polling interval. Queue another
+    // document only when its inputs changed; otherwise every poll restarts the
+    // same document and repeatedly clears its temporary control-bar offsets.
+    if(pending){again=true;return;}
     key=signatureKey;
     if(!host.config?.processingUrl || host.player.tagName!=='VIDEO') {fallback(preview.label+' · 近似预览'+(!host.config?.processingUrl?'（便携模式）':''));return;}
     if(host.player.readyState<2||!host.player.videoWidth){key='';fallback(preview.label+' · 等待视频画面');return;}
@@ -66822,6 +66823,15 @@ window.addEventListener('beforeunload', (e) => {
   toggle.checked=EDITOR_SETTINGS.subtitleAvoidControls!==false;
   let frame=0,signature='',current=new Map(),target=new Map(),animation=0,busy=false,revision=-1,overflow=false;
   let player=null;
+  let hideTimer=0,controlsVisible=false;
+  // Keep both the bar and its safe area through short pointer exits. Without
+  // this hold, crossing the video edge repeatedly reverses the subtitle motion.
+  function visibility(requested) {
+    if(requested) {clearTimeout(hideTimer);hideTimer=0;controlsVisible=true;}
+    else if(controlsVisible&&!hideTimer)hideTimer=setTimeout(()=>{hideTimer=0;controlsVisible=false;refresh();},350);
+    stage.classList.toggle('media-controls-visible',controlsVisible);
+    return controlsVisible;
+  }
   const reduced=global.matchMedia('(prefers-reduced-motion: reduce)');
   function refresh(){if(!frame)frame=requestAnimationFrame(update);}
   function videoRect() {
@@ -66869,7 +66879,7 @@ window.addEventListener('beforeunload', (e) => {
     finally {busy=false;}
     // A new document or visibility event can replace the target while awaiting
     // the worker. Continue from the latest target, without concurrent writes.
-    if(!settled||[...target].some(([k,v])=>(current.get(k)||0)!==v))animation=requestAnimationFrame(animate);
+    if(!settled||[...new Set([...target.keys(),...current.keys()])].some(k=>(current.get(k)||0)!==(target.get(k)||0)))animation=requestAnimationFrame(animate);
   }
   function legacy(obstacle,enabled) {
     const root=document.getElementById('overlay');
@@ -66888,10 +66898,11 @@ window.addEventListener('beforeunload', (e) => {
   function update() {
     frame=0;const nextPlayer=document.getElementById('player');
     if(player!==nextPlayer){if(player)resize.unobserve(player);player=nextPlayer;if(player)resize.observe(player);}
-    if(!player||player.tagName!=='VIDEO'){setDocked(false);return;}
+    if(!player){setDocked(false);return;}
     const pinned=player.paused;
     if(stage.classList.contains('media-controls-pinned')!==pinned)stage.classList.toggle('media-controls-pinned',pinned);
-    const visible=pinned||stage.matches(':hover')||controls.matches(':hover,:focus-within');
+    const visible=visibility(pinned||stage.matches(':hover')||controls.matches(':hover,:focus-within'));
+    if(player.tagName!=='VIDEO'){setDocked(false);return;}
     const positioning=fixedPositionPreviewActive()||!!stage.querySelector('#fixed-subtitle-preview.positioning:not([hidden])')||
       (!stage.classList.contains('fixed-presentation')&&!!stage.querySelector('#overlay.geometry-enabled:is(:focus,.editable,.dragging):not(.hidden)'));
     const enabled=toggle.checked&&!positioning&&visible;

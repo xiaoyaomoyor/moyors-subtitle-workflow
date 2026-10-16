@@ -106,11 +106,14 @@
     // to commit the editor's old time fields and snap the cue back to its start.
     if(host.editingGestureActive)return;
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
-    if(pending){again=true;return;}
     const preview=styles.currentPreview(),signatureKey=signature(preview);
     // Player replacement resets key; a failed renderer should not be recreated
     // by every poll while the media and subtitle settings remain unchanged.
     if(key===signatureKey)return;
+    // A slow render can outlive the 750ms polling interval. Queue another
+    // document only when its inputs changed; otherwise every poll restarts the
+    // same document and repeatedly clears its temporary control-bar offsets.
+    if(pending){again=true;return;}
     key=signatureKey;
     if(!host.config?.processingUrl || host.player.tagName!=='VIDEO') {fallback(preview.label+' · 近似预览'+(!host.config?.processingUrl?'（便携模式）':''));return;}
     if(host.player.readyState<2||!host.player.videoWidth){key='';fallback(preview.label+' · 等待视频画面');return;}
