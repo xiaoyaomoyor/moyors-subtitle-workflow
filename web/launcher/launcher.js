@@ -82,7 +82,7 @@
       output_project_name: "工程文件名（不含扩展名）",
       output_project_name_placeholder: "默认：与输入同名",
       output_export_srt: "导出原文 SRT",
-      output_srt_hint: "原文 SRT 为完成所选整理步骤、翻译前的主字幕；识别输出的 SRT 位置跟随此字段。",
+      output_srt_hint: "原文 SRT 来自任务中勾选的轨道，保留翻译前的整理结果；识别输出位置跟随此字段。",
       output_export_translated_srt: "导出译文 SRT",
       output_translated_hint: "请先勾选右侧的「翻译」模块。译文与原文 SRT 独立导出；关闭翻译会保留此选项的勾选，但本次不导出译文。",
       output_open_settings: "在更多设置中配置默认输出策略",
@@ -404,7 +404,7 @@
       output_project_name: "Project file name (without extension)",
       output_project_name_placeholder: "Default: same as input",
       output_export_srt: "Export original SRT",
-      output_srt_hint: "The original SRT is the main subtitle after the selected cleanup steps, before translation; ASR output follows this path.",
+      output_srt_hint: "The original SRT uses the tracks selected in each task after cleanup, before translation; ASR output follows this path.",
       output_export_translated_srt: "Export translated SRT",
       output_translated_hint: "Enable Translation in the module list first. Translated and original SRT exports are independent. Turning off Translation preserves this choice but skips translated output for this run.",
       output_open_settings: "Configure default output policy in More Settings",
@@ -820,7 +820,7 @@
     auto_merge_bilingual: "合并双语字幕",
     auto_bilingual_order: "双语行序", auto_bilingual_default: "跟随目标语言",
     auto_translation_first: "译文在上", auto_original_first: "原文在上",
-    auto_backfill: "用译文替换主字幕", auto_backfill_hint: "保留已有副轨和配音；与合并双语互斥。两者都关闭时生成副字幕。",
+    auto_backfill: "用译文替换处理轨道文本", auto_backfill_hint: "保留其他轨道和配音；与合并双语互斥。两者都关闭时写入译文轨道。",
     auto_retain_intermediate: "保留中间产物",
     auto_retain_hint: "默认保留；原始快照与各阶段编号产物放在 _msw（或视频名_msw）的后处理目录。失败或取消时也会保留以便排查。",
     auto_summary_disabled: "自动处理未启用。",
@@ -908,7 +908,7 @@
     auto_merge_bilingual: "Merge bilingual subtitles",
     auto_bilingual_order: "Bilingual line order", auto_bilingual_default: "Follow target language",
     auto_translation_first: "Translation first", auto_original_first: "Original first",
-    auto_backfill: "Replace main subtitles with translations", auto_backfill_hint: "Preserve existing secondary tracks and dubbing. Cannot be combined with bilingual merging. Leave both off to create secondary subtitles.",
+    auto_backfill: "Replace source-track text with translations", auto_backfill_hint: "Preserve other tracks and dubbing. Cannot be combined with bilingual merging. Leave both off to write to a translation track.",
     auto_retain_intermediate: "Keep intermediate artifacts",
     auto_retain_hint: "On by default. Original snapshots and numbered artifacts stay in the postprocess directory under _msw (or media-name_msw); failures and cancellations also keep them for diagnosis.",
     auto_summary_disabled: "Automatic processing is disabled.",
@@ -1796,7 +1796,15 @@
       inspect_queue_inputs: async ({ paths }) => ({ ok: true, items: paths.map(path => {
         const suffix = path.split('.').pop().toLowerCase();
         const kind = ['mosp', 'json'].includes(suffix) ? 'project' : ['srt', 'ass'].includes(suffix) ? 'subtitle' : MEDIA_EXTS.has('.' + suffix) ? 'media' : 'unsupported';
-        return { ok: kind !== 'unsupported', path, kind, error: kind === 'unsupported' ? 'Unsupported file type' : '', mediaPath: kind === 'media' ? path : '', hasSubtitles: kind !== 'media', audioTracks: kind === 'media' ? [{ audio_index: 0, language: 'eng', default: true }, { audio_index: 1, language: 'zho' }] : null, audioTrack: 0, defaultAudioTrack: 0, warnings: [] };
+        const subtitleTracks = (kind === 'project' ? ['S1', 'S2'] : kind === 'subtitle' ? ['S1'] : []).map((label, i) => ({
+          id: `demo-s${i + 1}`, label, enabled: true, locked: false, collapsed: false,
+          cueIds: [`demo-cue-${i + 1}`], subtitleCount: 1, activeSubtitleCount: 1, editableSubtitleCount: 1, boundCueCount: 0,
+        }));
+        return { ok: kind !== 'unsupported', path, kind, error: kind === 'unsupported' ? 'Unsupported file type' : '', mediaPath: kind === 'media' ? path : '',
+          projectSchema: 'msw.project.v4', subtitleTracks, subtitleCount: subtitleTracks.length,
+          activeSubtitleCount: subtitleTracks.length, editableSubtitleCount: subtitleTracks.length, hasSubtitles: subtitleTracks.length > 0,
+          operations: Object.fromEntries(['inspect','media','waveform','copy','asr','postprocess','srt','alignment'].map(op => [op,{supported:true,reason:''}])),
+          audioTracks: kind === 'media' ? [{ audio_index: 0, language: 'eng', default: true }, { audio_index: 1, language: 'zho' }] : null, audioTrack: 0, defaultAudioTrack: 0, warnings: [] };
       }) }),
       start_prefab_queue: async ({ plan }) => {
         const runId = crypto.randomUUID(), current = { runId, cancelled: false };

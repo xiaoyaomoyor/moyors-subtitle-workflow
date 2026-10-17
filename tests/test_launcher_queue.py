@@ -174,7 +174,56 @@ class QueueTests(unittest.TestCase):
         ass.write_text("[Events]\nFormat: Layer, Start, End, Style, Text\nDialogue: 0,0:00:01.00,0:00:02.50,Default,{\\b1}文本\\N第二行\n", encoding="utf-8")
         info = queue.inspect_input(str(ass))
         self.assertTrue(info["warnings"])
-        self.assertEqual(queue.read_input(ass)["segments"][0]["text"], "文本\n第二行")
+        self.assertEqual(queue.read_input(ass)["subtitles"]["cues"][0]["content"]["text"], "文本\n第二行")
+
+    def test_multitrack_srt_pair_publish_and_alignment_share_identities(self):
+        from maw.msw.flat_subtitles import validate
+        from maw.timestamp_alignment import _load_input, alignment_collections
+        self.srt.write_text('1\n00:00:00,000 --> 00:00:03,000\nA\n\n'
+                            '2\n00:00:00,500 --> 00:00:02,000\nB\n\n'
+                            '3\n00:00:01,000 --> 00:00:02,500\nC\n\n'
+                            '4\n00:00:02,000 --> 00:00:03,000\nD\n', encoding='utf-8')
+        original = self.srt.read_bytes()
+        imported = queue.read_input(self.srt)
+        self.assertTrue(validate(imported))
+        self.assertNotIn('segments', imported)
+        self.assertEqual([t['name'] for t in imported['subtitles']['tracks']], ['S1', 'S2', 'S3'])
+        self.assertEqual([c['track_id'] for c in imported['subtitles']['cues']], ['import-s1', 'import-s2', 'import-s3', 'import-s2'])
+        inspected = queue.inspect_input(str(self.srt))
+        self.assertEqual(inspected['subtitleCount'], 4)
+        self.assertEqual(len(inspected['subtitleTracks']), 3)
+        aligned, _, _ = _load_input(None, self.srt, native=True)
+        self.assertEqual(aligned, imported)
+        self.assertTrue(alignment_collections(aligned, 'import-s3'))
+        plan = self.plan([self.media])
+        plan['tasks'][0]['subtitlePath'] = str(self.srt)
+        tasks, errors = self.prepare(plan)
+        self.assertFalse(errors, errors)
+        self.assertEqual(tasks[0].project['subtitles'], imported['subtitles'])
+        result = self.execute(tasks[0])
+        saved = queue.read_project(Path(result['projectPath']))
+        self.assertEqual(saved['subtitles'], imported['subtitles'])
+        self.assertEqual(saved['media'], str(self.media))
+        self.assertEqual(self.srt.read_bytes(), original)
+        self.assertEqual(len(queue.read_input(Path(result['srtPath']))['subtitles']['cues']), 4)
+
+    def test_native_import_sorts_without_mutation_and_strict_stays_strict(self):
+        from maw.postprocess_io import project_from_subtitle_segments
+        from copy import deepcopy
+        rows = [dict(start=1000, end=2000, text='second'), dict(start=0, end=1000, text='first')]
+        before = deepcopy(rows)
+        result = project_from_subtitle_segments(rows, source=self.srt, native=True)
+        self.assertEqual(len(result['subtitles']['tracks']), 1)
+        self.assertEqual([c['content']['text'] for c in result['subtitles']['cues']], ['first', 'second'])
+        self.assertEqual(rows, before)
+        with self.assertRaisesRegex(ValueError, 'overlapping or unordered'):
+            project_from_subtitle_segments(rows, source=self.srt, native=True, strict=True)
+        rows[1]['end'] = 0
+        with self.assertRaisesRegex(ValueError, 'invalid timing'):
+            project_from_subtitle_segments(rows, source=self.srt, native=True)
+        empty = project_from_subtitle_segments([], source=self.srt, native=True)
+        self.assertEqual(len(empty['subtitles']['tracks']), 1)
+        self.assertFalse(empty['subtitles']['cues'])
 
     def test_duplicate_task_ids_rejected(self):
         plan = self.plan([self.srt, self.project])

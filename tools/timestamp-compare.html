@@ -919,6 +919,8 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
   }
+  .compare-track-picker { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 12px; }
+  .compare-track-picker select { min-width: 0; flex: 1; max-width: 100%; padding: 5px 8px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: inherit; }
 </style>
 </head>
 <body>
@@ -957,7 +959,7 @@
     <div>
       <p class="eyebrow">TIMEBASE INSPECTOR / MS</p>
       <h1 id="heading">把时间码差异摊开看</h1>
-      <p id="heroSubtitle" class="hero-subtitle">拖入一个工程查看字词时间码，或再加入一个工程按段序号对照。</p>
+      <p id="heroSubtitle" class="hero-subtitle">拖入工程后选择字幕轨道，查看字词时间码或比较两个版本。</p>
     </div>
     <div class="hero-note"><b>比较真源</b><br>段与字词均按整数毫秒比较；帧字段不会替代毫秒投影。</div>
   </section>
@@ -971,7 +973,7 @@
     <div id="dropzone" class="dropzone">
       <div class="drop-icon" aria-hidden="true">⌁</div>
       <h2>拖入 SRT 或 .mosp 工程</h2>
-      <p>一次最多两个文件：A / B 按段序号对齐，点击行可展开字词明细。</p>
+      <p>一次最多两个文件：有共同字幕 ID 时按 ID 配对，否则按段序号对照。点击行展开字词明细。</p>
       <button id="emptyAddBtn" class="btn primary" type="button">选择文件</button>
       <p class="hint">SRT 没有字词时间码，只会参与段级起止时间和文本比较。</p>
     </div>
@@ -983,6 +985,1104 @@
 <div id="dropOverlay" hidden>松开以添加文件</div>
 <div id="toast" aria-live="polite"></div>
 
+<script>
+// Unified subtitle identities and derived layout. No DOM, media or persistence.
+(function (global) {
+  'use strict';
+  const SCHEMA = 'msw.project.v2';
+  const LAYOUT_SCHEMA = 'msw.subtitle_layers.v1';
+  const LEGACY_SCHEMA = 'moy.asr.project.v1';
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const key = ref => JSON.stringify([ref.role, ref.track_id || '', ref.cue_id]);
+  const enabled = project => project?.schema === SCHEMA;
+  const validRange = cue => Number.isSafeInteger(cue?.start) && Number.isSafeInteger(cue?.end)
+    && cue.start >= 0 && cue.end > cue.start;
+  const intersects = (a, b) => a.start < b.end && b.start < a.end;
+  function ensureIds(cues, prefix) {
+    const used = new Set();
+    for (const cue of cues) {
+      if (!cue || typeof cue !== 'object') throw Error('Invalid subtitle');
+      if (cue.id) {
+        if (used.has(cue.id)) throw Error('Duplicate subtitle ID: ' + cue.id);
+        used.add(cue.id);
+      }
+    }
+    cues.forEach((cue, index) => {
+      if (cue.id) return;
+      let id = `${prefix}-${String(index + 1).padStart(3, '0')}`, suffix = 2;
+      while (used.has(id)) id = `${prefix}-${String(index + 1).padStart(3, '0')}-${suffix++}`;
+      cue.id = id; used.add(id);
+    });
+  }
+  function materializeReferences(cues) {
+    const snapshots = cues.map(cue => {
+      const result = {};
+      for (const type of ['color', 'sticker']) {
+        const ref = cue[type + '_ref'];
+        const value = cue[type] || (ref && cues[ref.headIdx]?.[type]);
+        if (ref && !value) throw Error('Dangling ' + type + ' reference');
+        if (value) result[type] = { ...clone(value), start: cue.start, end: cue.end };
+      }
+      return result;
+    });
+    cues.forEach((cue, i) => {
+      for (const type of ['color', 'sticker']) {
+        if (snapshots[i][type]) cue[type] = snapshots[i][type];
+        delete cue[type + '_ref'];
+      }
+    });
+  }
+  function migrate(input) {
+    if (!input || !Array.isArray(input.segments)) throw Error('Invalid subtitle project');
+    if (Object.hasOwn(input, 'schema') && ![SCHEMA, LEGACY_SCHEMA].includes(input.schema)) throw Error('Unsupported project schema');
+    const project = clone(input);
+    if (enabled(project)) { validate(project); return project; }
+    const main = project.segments, overlay = project.overlay_track || {};
+    const extra = overlay.segments || [];
+    ensureIds(main, 'main'); ensureIds(extra, 'overlay');
+    materializeReferences(main); materializeReferences(extra);
+    const used = new Set(main.map(cue => cue.id)), remap = new Map();
+    extra.forEach((cue, i) => {
+      const old = cue.id;
+      let next = old, suffix = 2;
+      const base = `legacy-overlay-${i + 1}`;
+      if (used.has(next)) next = base;
+      while (used.has(next)) next = `${base}-${suffix++}`;
+      used.add(next); remap.set(old, next); cue.id = next;
+    });
+    // Only identity-bearing references are rewritten. Text, recipe snapshots
+    // and opaque result revisions must never undergo arbitrary replacement.
+    function rewrite(value) {
+      if (!value || typeof value !== 'object') return;
+      if (value.track_kind === 'overlay' || value.role === 'overlay') {
+        for (const field of ['id', 'cue_id', 'segment_id']) if (remap.has(value[field])) value[field] = remap.get(value[field]);
+        if (value.track_kind === 'overlay') delete value.track_kind;
+        if (value.role === 'overlay') value.role = 'main';
+      }
+      for (const child of Object.values(value)) rewrite(child);
+    }
+    rewrite(project.msw);
+    main.push(...extra);
+    main.sort((a, b) => a.start - b.start);
+    for (const track of project.multi_subtitle?.tracks || []) {
+      ensureIds(track.segments || [], `${track.id}-segment`);
+      materializeReferences(track.segments || []);
+      track.segments?.sort((a, b) => a.start - b.start);
+    }
+    project.subtitle_layers = {
+      schema: LAYOUT_SCHEMA,
+      allow_overlap: input.overlay_track ? overlay.enabled === true : true,
+      legacy_overlay: { visible: overlay.enabled === true, cue_ids: extra.map(cue => cue.id) },
+    };
+    delete project.overlay_track;
+    const preview=input.preview;
+    if ((main.length || extra.length) && preview && (preview.ass_library_exports || preview.burn_subtitles || ['x','y','width','height'].some(k=>Object.hasOwn(preview.subtitle||{},k)))) {
+      project.subtitle_layers.presentation={mode:'manual',gap:12};
+    }
+    project.schema = SCHEMA;
+    validate(project);
+    return project;
+  }
+  function validate(project) {
+    const metadata = project?.subtitle_layers, legacy = metadata?.legacy_overlay;
+    if (!enabled(project) || metadata?.schema !== LAYOUT_SCHEMA || typeof metadata.allow_overlap !== 'boolean'
+        || !legacy || typeof legacy.visible !== 'boolean' || !Array.isArray(legacy.cue_ids)) throw Error('Invalid subtitle layer metadata');
+    if (project.overlay_track && (!Array.isArray(project.overlay_track.segments) || project.overlay_track.segments.length)) throw Error('v2 subtitles must use main or extension roles');
+    for (const track of tracks(project)) {
+      const used = new Set();
+      for (const cue of track.segments) {
+        if (!validRange(cue) || typeof cue.id !== 'string' || !cue.id.trim() || cue.id.length > 160 || used.has(cue.id)) throw Error('Invalid subtitle identity or time range');
+        used.add(cue.id);
+      }
+    }
+    const presentation=metadata.presentation;
+    if(presentation!==undefined&&(!presentation||!['auto','manual'].includes(presentation.mode)||!Number.isInteger(presentation.gap)||presentation.gap<0||presentation.gap>120||(presentation.order!==undefined&&!['earlier-bottom','earlier-top'].includes(presentation.order))))throw Error('Invalid subtitle presentation');
+    const ids = new Set(project.segments.map(cue => cue.id));
+    if (new Set(legacy.cue_ids).size !== legacy.cue_ids.length || legacy.cue_ids.some(id => !ids.has(id))) throw Error('Invalid legacy visibility references');
+    return true;
+  }
+  function tracks(project) {
+    return [{ role: 'main', track_id: null, segments: project.segments || [] },
+      ...(project.multi_subtitle?.tracks || []).map(track => ({ role: 'extension', track_id: track.id, segments: track.segments || [] }))];
+  }
+  function visible(project, cue, role = 'main') {
+    const legacy = project.subtitle_layers?.legacy_overlay;
+    return !(role === 'main' && legacy?.visible === false && legacy.cue_ids?.includes(cue.id));
+  }
+  function records(project, { includeHidden = false, includeDisabled = true } = {}) {
+    return tracks(project).flatMap(track => track.segments.flatMap((cue, index) =>
+      (!includeHidden && !visible(project, cue, track.role)) || (!includeDisabled && cue.disabled) ? []
+        : [{ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index }]));
+  }
+  function resolve(project, ref) {
+    const track = tracks(project).find(t => t.role === ref.role && (t.track_id || null) === (ref.track_id || null));
+    const index = track?.segments.findIndex(cue => cue.id === ref.cue_id) ?? -1;
+    return index < 0 ? null : { ...track, cue_id: ref.cue_id, cue: track.segments[index], index };
+  }
+  class IntervalIndex {
+    constructor(cues, predicate = () => true) {
+      this.cues = cues; this.changed = new Set();
+      this.entries = cues.map((cue, index) => ({ cue, index, start: cue.start, end: cue.end })).filter(row => validRange(row.cue) && predicate(row.cue))
+        .sort((a, b) => a.start - b.start || a.index - b.index);
+      this.maxEnd = [];
+      const build = (node, lo, hi) => {
+        if (lo >= hi) return -Infinity;
+        if (hi - lo === 1) return this.maxEnd[node] = this.entries[lo].end;
+        const mid = (lo + hi) >> 1;
+        return this.maxEnd[node] = Math.max(build(node * 2, lo, mid), build(node * 2 + 1, mid, hi));
+      };
+      build(1, 0, this.entries.length);
+    }
+    range(start, end, { includeDisabled = true } = {}) {
+      const found = [];
+      const visit = (node, lo, hi) => {
+        if (lo >= hi || this.maxEnd[node] <= start || this.entries[lo].start >= end) return;
+        if (hi - lo === 1) { if (!this.changed.has(this.entries[lo].index) && (includeDisabled || !this.entries[lo].cue.disabled)) found.push(this.entries[lo].index); return; }
+        const mid = (lo + hi) >> 1;
+        visit(node * 2, lo, mid); visit(node * 2 + 1, mid, hi);
+      };
+      if (Number.isFinite(start) && end > start) visit(1, 0, this.entries.length);
+      for (const index of this.changed) {
+        const cue=this.cues[index];
+        if (validRange(cue) && cue.start < end && cue.end > start && (includeDisabled || !cue.disabled)) found.push(index);
+      }
+      return found.sort((a,b)=>this.cues[a].start-this.cues[b].start||a-b);
+    }
+    update(indices) { for (const index of indices) this.changed.add(index); }
+    at(time, options = {}) { return this.range(time, Math.floor(time) + 1, options); }
+  }
+  function pack(cues, previous = new Map(), predicate = () => true) {
+    const index = new IntervalIndex(cues, predicate), ends = [], lanes = new Map();
+    for (const { cue } of index.entries) {
+      let lane = previous.get(cue.id);
+      if (!Number.isInteger(lane) || lane < 0 || lane > ends.length || (ends[lane] ?? -Infinity) > cue.start) {
+        lane = ends.findIndex(end => end <= cue.start);
+        if (lane < 0) lane = ends.length;
+      }
+      ends[lane] = cue.end; lanes.set(cue.id, lane);
+    }
+    return { index, lanes, count: Math.max(1, ends.length) };
+  }
+  function updatePack(layout, cues, indices) {
+    const changed=[...new Set(indices)].filter(index=>validRange(cues[index]));
+    layout.index.update(changed);
+    for(const index of changed) {
+      const cue=cues[index], blocked=new Set(layout.index.range(cue.start,cue.end)
+        .filter(other=>other!==index).map(other=>layout.lanes.get(cues[other].id)));
+      let lane=layout.lanes.get(cue.id)||0;
+      if(blocked.has(lane)) {lane=0;while(blocked.has(lane))lane++;}
+      layout.lanes.set(cue.id,lane);layout.count=Math.max(layout.count,lane+1);
+    }
+    return layout;
+  }
+  function applyRanges(project, changes, { allowOverlap = project.subtitle_layers?.allow_overlap !== false, dryRun = false, sameLane = null } = {}) {
+    const pending = changes.map(change => ({ ...change, target: resolve(project, change.ref) }));
+    if (pending.some(change => !change.target || !validRange(change))) return { ok: false, reason: 'invalid-target' };
+    if (new Set(pending.map(change => key(change.ref))).size !== pending.length) return { ok: false, reason: 'duplicate-target' };
+    if (!allowOverlap) {
+      const next = new Map(pending.map(change => [key(change.ref), change]));
+      for (const change of pending) for (const row of records(project)) {
+        if (row.role !== change.ref.role || row.track_id !== (change.ref.track_id || null) || row.cue_id === change.ref.cue_id) continue;
+        if (sameLane && !sameLane(change.ref, row)) continue;
+        const other = next.get(key(row)) || row.cue;
+        if (intersects(change, other) && !intersects(change.target.cue, row.cue)) return { ok: false, reason: 'overlap-disabled' };
+      }
+    }
+    if (dryRun) return { ok: true };
+    for (const change of pending) {
+      const cue = change.target.cue, delta = change.start - cue.start;
+      const moved = change.end - cue.end === delta;
+      if (moved) for (const item of cue.items || []) { item.start += delta; item.end += delta; }
+      else if (cue.items?.some(item => item.start < change.start || item.end > change.end)) cue.items = [];
+      cue.start = change.start; cue.end = change.end; cue._dirty = true;
+      delete cue.start_frame; delete cue.end_frame;
+    }
+    return { ok: true };
+  }
+  function sortTrack(cues) {
+    const old = [...cues];
+    cues.sort((a, b) => a.start - b.start);
+    const indexes = new Map(cues.map((cue, index) => [cue, index]));
+    for (const cue of cues) for (const field of ['color_ref', 'sticker_ref']) {
+      if (cue[field] && Number.isInteger(cue[field].headIdx)) cue[field].headIdx = indexes.get(old[cue[field].headIdx]);
+    }
+  }
+
+  // Build an atomic merge without mutating the project. Markers are semantic
+  // values, not group-head identities; provenance and audio remain untouched.
+  function planMerge(project, ref, ids, { mode = 'union', joinText = cues => cues.map(c => c.text || '').join(' '), makeId } = {}) {
+    const allTracks = tracks(project);
+    if (project.overlay_track) allTracks.push({ role: 'overlay', track_id: null, segments: project.overlay_track.segments || [] });
+    const source = allTracks.find(t => t.role === ref.role && t.track_id === (ref.track_id || null));
+    const wanted = new Set(ids);
+    const chosen = source?.segments.filter(c => wanted.has(c.id)) || [];
+    if (chosen.length < 2 || chosen.length !== wanted.size) throw Error('请选择至少两个同轨道字幕块');
+    const bindings = project.multi_subtitle?.bindings || [];
+    const matches = (b, t, set) => t.role === 'main' ? b.main_segment_ids?.some(id => set.has(id))
+      : t.role === 'extension' && b.track_id === t.track_id && b.extension_segment_ids?.some(id => set.has(id));
+    const related = bindings.filter(b => matches(b, source, wanted));
+    if (related.some(b => b.main_segment_ids?.length !== 1 || b.extension_segment_ids?.length !== 1)) throw Error('绑定关系异常，请先检查主副字幕绑定');
+    const trackIds = new Set(related.map(b => b.track_id));
+    if (trackIds.size > 1) throw Error('所选字幕绑定到不同副轨，请分轨合并');
+    const groups = [{ track: source, ids: wanted }];
+    if (related.length) {
+      const partner = allTracks.find(t => source.role === 'main'
+        ? t.role === 'extension' && t.track_id === related[0].track_id : t.role === 'main');
+      const partnerIds = new Set(related.flatMap(b => source.role === 'main' ? b.extension_segment_ids : b.main_segment_ids));
+      if (!partner || [...partnerIds].some(id => !partner.segments.some(c => c.id === id))) throw Error('绑定字幕缺失，请先检查主副字幕绑定');
+      if (bindings.some(b => matches(b, partner, partnerIds) && !related.includes(b))) throw Error('绑定关系异常，请先检查主副字幕绑定');
+      groups.push({ track: partner, ids: partnerIds });
+    }
+    const canonical = value => {
+      if (Array.isArray(value)) return value.map(canonical);
+      if (!value || typeof value !== 'object') return value;
+      return Object.fromEntries(Object.keys(value).sort().filter(k => !['start','end','headIdx'].includes(k)).map(k => [k, canonical(value[k])]));
+    };
+    const marker = (cue, track, field) => {
+      const reference = cue[field + '_ref'];
+      const value = cue[field] || (reference && track.segments[reference.headIdx]?.[field]);
+      if (reference && !value) throw Error('字幕分组引用异常，请先检查颜色或表情包');
+      return value || null;
+    };
+    const used = new Set(allTracks.flatMap(t => t.segments.map(c => c.id)));
+    const freshId = base => {
+      let id = makeId ? makeId() : `${base.slice(0, 135)}-merged`, n = 2;
+      while (used.has(id)) id = `${base.slice(0, 130)}-merged-${n++}`;
+      used.add(id); return id;
+    };
+    const conflicts = new Set();
+    const changes = groups.map(({ track, ids: members }) => {
+      const cues = track.segments.filter(c => members.has(c.id)).sort((a,b) => a.start - b.start || track.segments.indexOf(a) - track.segments.indexOf(b));
+      if (cues.length === 1) return { ...track, ids: members, merged: cues[0], segments: track.segments, changed: false };
+      if (cues.some(c => !validRange(c))) throw Error('字幕时间范围无效，无法合并');
+      const start = Math.min(...cues.map(c => c.start)), end = Math.max(...cues.map(c => c.end));
+      if (!enabled(project)) {
+        const indexes = cues.map(c => track.segments.indexOf(c)).sort((a,b) => a-b);
+        if (indexes.some((n,i) => i && n !== indexes[i-1]+1)) throw Error('选中的字幕必须连续');
+      }
+      if ((!enabled(project) || !project.subtitle_layers.allow_overlap) && track.segments.some(c => !members.has(c.id)
+          && intersects(c, {start,end}) && !cues.some(sourceCue => intersects(c,sourceCue)))) {
+        throw Error('合并范围会新增重叠，请先启用“允许字幕重叠”');
+      }
+      const merged = { ...clone(cues[0]), id: freshId(cues[0].id), start, end, text: joinText(cues, track),
+        items: cues.flatMap(c => (Array.isArray(c.items) ? c.items : []).filter(item => validRange(item)
+          && item.start >= c.start && item.end <= c.end).map(clone)).sort((a,b) => a.start-b.start || a.end-b.end),
+        disabled: mode === 'common' ? cues.every(c => c.disabled === true) : cues.some(c => c.disabled === true), _dirty: true };
+      delete merged.start_frame; delete merged.end_frame;
+      if (merged.speaker == null || !cues.every(c => c.speaker === merged.speaker)) delete merged.speaker;
+      for (const field of ['color','sticker']) {
+        delete merged[field]; delete merged[field + '_ref'];
+        const values = cues.map(c => marker(c,track,field));
+        const first = values.find(Boolean);
+        // Palette names are the color identity; old projects can retain a
+        // previous palette's hex value for the same named marker.
+        const identity = value => JSON.stringify(field === 'color' && value?.name ? {name:value.name} : canonical(value));
+        const same = first && values.every(v => v && identity(v) === identity(first));
+        if (first && (mode !== 'common' || same)) merged[field] = { ...clone(first), start, end };
+        if (mode !== 'common' && new Set(values.filter(Boolean).map(identity)).size > 1) conflicts.add(field);
+      }
+      const segments = track.segments.filter(c => !members.has(c.id)).map(clone);
+      segments.push(merged); segments.sort((a,b) => a.start-b.start);
+      const positions = new Map(segments.map((c,i) => [c.id,i]));
+      for (const cue of segments) if (cue !== merged) for (const field of ['color','sticker']) {
+        const reference = cue[field + '_ref'];
+        if (!reference) continue;
+        const head = track.segments[reference.headIdx];
+        if (!head?.[field]) throw Error('字幕分组引用异常，请先检查颜色或表情包');
+        if (members.has(head.id)) {
+          cue[field] = { ...clone(head[field]), start: cue.start, end: cue.end };
+          delete cue[field + '_ref'];
+        } else reference.headIdx = positions.get(head.id);
+      }
+      return { ...track, ids: members, merged, segments, changed: true };
+    });
+    const nextBindings = bindings.filter(b => !related.includes(b)).map(clone);
+    if (related.length) {
+      const main = changes.find(t => t.role === 'main').merged;
+      const extension = changes.find(t => t.role === 'extension');
+      nextBindings.push({ id: `binding-${main.id}-${extension.merged.id}`.slice(0,160), track_id: extension.track_id,
+        main_segment_ids: [main.id], extension_segment_ids: [extension.merged.id],
+        start_offset_ms: extension.merged.start-main.start, end_offset_ms: extension.merged.end-main.end });
+    }
+    return { changes, bindings: nextBindings, conflicts: [...conflicts], linked: related.length > 0 };
+  }
+
+  const api = Object.freeze({ SCHEMA, LAYOUT_SCHEMA, LEGACY_SCHEMA, key, enabled, validRange, intersects,
+    migrate, validate, tracks, records, visible, resolve, planMerge, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
+  global.MSWSubtitleLayers = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+// Fixed-track data and editing primitives shared by production workflows.
+(function (global) {
+  'use strict';
+  const layers = typeof module !== 'undefined' && module.exports
+    ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
+  const SCHEMA = 'msw.project.v3';
+  const TRACK_SCHEMA = 'msw.subtitle_tracks.v2';
+  const LEGACY_TRACK_SCHEMA = 'msw.subtitle_tracks.v1';
+  // kind is retained as historical metadata; behavior uses independent fields.
+  const purpose = track => track.purpose ?? (track.kind === 'annotation' ? 'annotation' : 'dialogue');
+  const placement = track => track.layout ?? (track.kind === 'annotation' || track.position ? 'fixed' : 'auto');
+  const styleKind = track => (track.style_base ?? track.kind) === 'annotation' ? 'annotation' : 'dialogue';
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const key = ref => JSON.stringify([ref.role, ref.track_id, ref.cue_id]);
+  const stable = value => typeof value === 'string' && !!value.trim() && value.length <= 160;
+  const flatView = project => project?.subtitle_tracks?.flat_context?.schema === 'msw.flat-operation-view.v1';
+  const fail = message => { throw Error('固定字幕轨道：' + message); };
+  const refOf = row => ({ role: row.role, track_id: row.track_id, cue_id: row.cue_id });
+  const positionValid = (value, cue = false) => value && Object.keys(value).every(k => ['x', 'y', ...(cue ? ['alignment', 'base'] : [])].includes(k))
+    && (value.alignment === undefined || Number.isInteger(value.alignment) && value.alignment >= 1 && value.alignment <= 9)
+    && (value.base === undefined || value.alignment !== undefined && positionValid(value.base))
+    && ['x', 'y'].every(k => typeof value[k] === 'number' && Number.isFinite(value[k]) && value[k] >= 0 && value[k] <= 1);
+  const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
+    && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
+    && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
+      && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
+    && (value.pairLayout === undefined || value.pairLayout && ['main-above', 'secondary-above'].includes(value.pairLayout.order)
+      && Number.isInteger(value.pairLayout.gap) && value.pairLayout.gap >= -240 && value.pairLayout.gap <= 240);
+  const styleValid = style => style && ['inherit', 'snapshot'].includes(style.mode)
+    && Object.keys(style).every(k => ['mode', 'value', 'selection', 'custom'].includes(k))
+    && (style.mode === 'inherit' ? style.value === undefined : snapshotValid(style.value))
+    && (style.custom === undefined || snapshotValid(style.custom))
+    && (style.selection === undefined || stable(style.selection));
+
+  function sourceRecords(project) {
+    if (!project || !Array.isArray(project.segments)) fail('segments 必须是数组');
+    if (project.multi_subtitle != null && (typeof project.multi_subtitle !== 'object' || Array.isArray(project.multi_subtitle))) fail('副字幕数据必须是对象');
+    const tracks = project.multi_subtitle?.tracks ?? [];
+    if (!Array.isArray(tracks)) fail('副字幕轨道必须是数组');
+    const ids = new Set();
+    for (const track of tracks) {
+      if (!stable(track?.id) || ids.has(track.id) || !Array.isArray(track.segments)) fail('副字幕轨道 ID 重复或内容无效');
+      ids.add(track.id);
+    }
+    const rows = [];
+    for (const track of [{ role: 'main', track_id: null, segments: project.segments },
+      ...tracks.map(t => ({ role: 'extension', track_id: t.id, segments: t.segments }))]) {
+      const seen = new Set();
+      track.segments.forEach((cue, index) => {
+        if (!stable(cue?.id) || seen.has(cue.id) || !Number.isSafeInteger(cue.start)
+          || !Number.isSafeInteger(cue.end) || cue.start < 0 || cue.end <= cue.start) fail('字幕 ID 重复或时间范围无效');
+        if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position, true)) fail('字幕位置必须是画面内的 x、y 比例和有效锚点');
+        seen.add(cue.id);
+        rows.push({ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index });
+      });
+    }
+    return rows;
+  }
+
+  function bindingGroups(project, rows) {
+    const byKey = new Map(rows.map(row => [key(row), row]));
+    const partner = new Map(), usedIds = new Set();
+    const bindings = project.multi_subtitle?.bindings ?? [];
+    if (!Array.isArray(bindings)) fail('绑定必须是数组');
+    for (const binding of bindings) {
+      if (!binding || typeof binding !== 'object') fail('绑定内容无效');
+      if (binding.id !== undefined) {
+        if (!stable(binding.id) || usedIds.has(binding.id)) fail('绑定 ID 无效或重复');
+        usedIds.add(binding.id);
+      }
+      const tracks = project.multi_subtitle.tracks;
+      const trackId = binding.track_id ?? (tracks.length === 1 ? tracks[0].id : null);
+      const main = binding.main_segment_ids ?? [binding.main_segment_id];
+      const ext = binding.extension_segment_ids ?? [binding.extension_segment_id];
+      if (!Array.isArray(main) || main.length !== 1 || !Array.isArray(ext) || ext.length !== 1) fail('绑定必须明确对应一条主字幕和一条副字幕');
+      const a = key({ role: 'main', track_id: null, cue_id: main[0] });
+      const b = key({ role: 'extension', track_id: trackId, cue_id: ext[0] });
+      if (!byKey.has(a) || !byKey.has(b) || partner.has(a) || partner.has(b)) fail('绑定引用失效或重复；未修改工程');
+      for (const [field, edge] of [['start_offset_ms', 'start'], ['end_offset_ms', 'end']]) {
+        if (binding[field] !== undefined && binding[field] !== null
+          && (!Number.isSafeInteger(binding[field]) || binding[field] !== byKey.get(b).cue[edge] - byKey.get(a).cue[edge])) fail('绑定时间偏移与字幕不一致');
+      }
+      partner.set(a, b); partner.set(b, a);
+    }
+    const groups = [], visited = new Set();
+    for (const row of rows) {
+      const id = key(row);
+      if (visited.has(id)) continue;
+      const group = [row]; visited.add(id);
+      if (partner.has(id)) { group.push(byKey.get(partner.get(id))); visited.add(partner.get(id)); }
+      groups.push(group);
+    }
+    return groups;
+  }
+
+  function validate(project) {
+    if (project?.schema !== SCHEMA) fail('不支持的工程版本');
+    // Reuse the presentation/legacy visibility contract, without changing it.
+    layers.validate({ ...project, schema: layers.SCHEMA });
+    const rows = sourceRecords(project), groups = bindingGroups(project, rows);
+    const metadata = project.subtitle_tracks;
+    if (![TRACK_SCHEMA, LEGACY_TRACK_SCHEMA].includes(metadata?.schema) || !['legacy', 'fixed'].includes(metadata.presentation)
+      || !Array.isArray(metadata.tracks) || !metadata.tracks.length || !Array.isArray(metadata.assignments)) fail('轨道元数据无效');
+    if (metadata.legacy_overlay_settings !== undefined && (!metadata.legacy_overlay_settings
+      || typeof metadata.legacy_overlay_settings !== 'object' || Array.isArray(metadata.legacy_overlay_settings)
+      || Object.hasOwn(metadata.legacy_overlay_settings, 'segments'))) fail('旧叠加设置不能包含第二份字幕正文');
+    const tracks = new Map();
+    for (const track of metadata.tracks) {
+      if (!stable(track?.id) || tracks.has(track.id) || !stable(track.name)
+        || !['dialogue', 'annotation'].includes(track.kind)
+        || ((metadata.schema === TRACK_SCHEMA || track.purpose !== undefined) && !['none', 'dialogue', 'source', 'translation', 'annotation'].includes(track.purpose))
+        || ((metadata.schema === TRACK_SCHEMA || track.layout !== undefined) && !['auto', 'fixed'].includes(track.layout))
+        || ((metadata.schema === TRACK_SCHEMA || track.style_base !== undefined) && !['dialogue', 'annotation'].includes(track.style_base))
+        || !['main', 'legacy-overlay'].includes(track.origin)
+        || ['enabled', 'locked', 'collapsed'].some(k => typeof track[k] !== 'boolean')
+        || (track.show_secondary !== undefined && typeof track.show_secondary !== 'boolean')
+        || !styleValid(track.style)
+        || (track.position !== undefined && !positionValid(track.position))) fail('轨道 ID、名称、状态或样式无效');
+      tracks.set(track.id, track);
+    }
+    const byKey = new Map(rows.map(row => [key(row), row])), owners = new Map();
+    for (const entry of metadata.assignments) {
+      if (!entry || !['main', 'extension'].includes(entry.role)
+        || (entry.role === 'main' ? entry.track_id !== null : !stable(entry.track_id))
+        || !stable(entry.cue_id) || !byKey.has(key(entry)) || owners.has(key(entry))
+        || !tracks.has(entry.subtitle_track_id)) fail('字幕归属缺失、重复或引用不存在的对象');
+      owners.set(key(entry), entry.subtitle_track_id);
+    }
+    if (owners.size !== rows.length) fail('每条字幕必须且只能归属一条固定轨道');
+    for (const group of groups) {
+      if (flatView(project)) {
+        if (group.length > 1 && new Set(group.map(row => owners.get(key(row)))).size !== group.length) fail('绑定字幕必须位于不同轨道');
+        continue;
+      }
+      if (new Set(group.map(row => owners.get(key(row)))).size > 1) fail('绑定主副字幕必须归属同一轨道');
+      const positions = group.map(row => row.cue.subtitle_position).filter(Boolean);
+      if (positions.some(p => p.x !== positions[0].x || p.y !== positions[0].y)) fail('绑定主副字幕的位置覆盖必须一致');
+    }
+    const lanes = new Map();
+    for (const row of rows) {
+      const lane = flatView(project) ? owners.get(key(row)) : JSON.stringify([owners.get(key(row)), row.role, row.track_id]);
+      if (!lanes.has(lane)) lanes.set(lane, []);
+      lanes.get(lane).push(row.cue);
+    }
+    for (const cues of lanes.values()) {
+      cues.sort((a, b) => a.start - b.start);
+      for (let i = 1; i < cues.length; i++) if (cues[i].start < cues[i - 1].end) fail('同轨同角色字幕重叠；请分配到不同轨道');
+    }
+    return true;
+  }
+
+  // Binary-search insertion keeps migration practical for long projects and
+  // checks each member's actual interval, not the bound group's empty envelope.
+  function insertion(cues, cue) {
+    let lo = 0, hi = cues.length;
+    while (lo < hi) { const mid = (lo + hi) >>> 1; if (cues[mid].start < cue.start) lo = mid + 1; else hi = mid; }
+    return (lo && cues[lo - 1].end > cue.start) || (lo < cues.length && cue.end > cues[lo].start) ? -1 : lo;
+  }
+
+  function migrate(input) {
+    if (input?.schema === SCHEMA) {
+      validate(input);
+      const project = clone(input);
+      if (project.subtitle_tracks.schema === LEGACY_TRACK_SCHEMA) {
+        for (const track of project.subtitle_tracks.tracks) {
+          track.purpose = track.kind === 'annotation' ? 'annotation' : 'dialogue';
+          track.layout = track.kind === 'annotation' || track.position ? 'fixed' : 'auto';
+          track.style_base = track.kind;
+        }
+        project.subtitle_tracks.schema = TRACK_SCHEMA;
+      }
+      validate(project); return project;
+    }
+    if (input && Object.hasOwn(input, 'subtitle_tracks')) fail('旧版本中已包含固定轨道字段，无法安全覆盖');
+    const prepared = clone(input);
+    // Old hand-authored projects may omit the language storage track's ID.
+    // Match the ordinary project reader's deterministic legacy ID rule.
+    if (prepared?.schema !== layers.SCHEMA && Array.isArray(prepared?.multi_subtitle?.tracks)) {
+      const tracks = prepared.multi_subtitle.tracks, reserved = new Set(tracks.map(t => t?.id));
+      tracks.forEach((track, i) => {
+        if (!track || typeof track !== 'object' || Object.hasOwn(track, 'id')) return;
+        const base = `extension-${String(i + 1).padStart(3, '0')}`;
+        let id = reserved.has(base) ? `${base}-generated` : base, suffix = 2;
+        while (reserved.has(id)) id = `${base}-generated-${suffix++}`;
+        track.id = id; reserved.add(id);
+      });
+    }
+    const project = layers.migrate(prepared);
+    const rows = sourceRecords(project), groups = bindingGroups(project, rows);
+    const legacy = project.subtitle_layers.legacy_overlay;
+    const overlayIds = new Set(legacy.cue_ids);
+    const overlay = row => row.role === 'main' && overlayIds.has(row.cue_id);
+    const visible = row => !overlay(row) || legacy.visible;
+    const metadata = { schema: TRACK_SCHEMA, presentation: 'legacy', tracks: [], assignments: [] };
+    if (input.overlay_track) {
+      metadata.legacy_overlay_settings = clone(input.overlay_track);
+      delete metadata.legacy_overlay_settings.segments;
+    }
+    const slots = [], counts = { main: 0, 'legacy-overlay': 0 };
+    function create(origin, enabled) {
+      const number = ++counts[origin];
+      const oldName = metadata.legacy_overlay_settings?.name;
+      const overlayName = (stable(oldName) ? oldName : '原叠加字幕').slice(0, 140).replace(/[\uD800-\uDBFF]$/, '');
+      const track = { id: `subtitle-track-${slots.length + 1}`, name: origin === 'main' ? `字幕 ${number}` : `${overlayName} ${number}`,
+        kind: 'dialogue', purpose: 'none', layout: 'auto', style_base: 'dialogue', origin, enabled, locked: false, collapsed: false, style: { mode: 'inherit' } };
+      metadata.tracks.push(track);
+      const slot = { track, lanes: new Map() }; slots.push(slot); return slot;
+    }
+    create('main', true);
+    const ordered = groups.map((group, index) => ({ group, index,
+      origin: group.some(overlay) ? 'legacy-overlay' : 'main',
+      enabled: group.some(visible), start: Math.min(...group.map(r => r.cue.start)) }));
+    ordered.sort((a, b) => (a.origin === 'main' ? 0 : 1) - (b.origin === 'main' ? 0 : 1) || a.start - b.start || a.index - b.index);
+    const owners = new Map();
+    const laneKey = row => JSON.stringify([row.role, row.track_id]);
+    for (const entry of ordered) {
+      const { group, origin, enabled } = entry;
+      let slot = slots.find(s => s.track.origin === origin && s.track.enabled === enabled
+        && group.every(row => insertion(s.lanes.get(laneKey(row)) || [], row.cue) >= 0));
+      if (!slot) slot = create(origin, enabled);
+      for (const row of group) {
+        const lane = laneKey(row);
+        if (!slot.lanes.has(lane)) slot.lanes.set(lane, []);
+        const cues = slot.lanes.get(lane);
+        cues.splice(insertion(cues, row.cue), 0, row.cue);
+        owners.set(key(row), slot.track.id);
+      }
+    }
+    metadata.assignments = rows.map(row => ({ ...refOf(row), subtitle_track_id: owners.get(key(row)) }));
+    project.schema = SCHEMA; project.subtitle_tracks = metadata;
+    validate(project);
+    return project;
+  }
+
+  function createIndex(project) {
+    validate(project);
+    const tracks = new Map(project.subtitle_tracks.tracks.map(t => [t.id, t]));
+    const owners = new Map(project.subtitle_tracks.assignments.map(a => [key(a), a.subtitle_track_id]));
+    const rows = sourceRecords(project).map(row => ({ ...row, subtitle_track_id: owners.get(key(row)) }));
+    const byKey = new Map(rows.map(row => [key(row), row]));
+    return {
+      resolve: ref => byKey.get(key(ref)) || null,
+      trackFor: ref => tracks.get(owners.get(key(ref))) || null,
+      records: ({ subtitleTrackId, role, includeHidden = false, includeDisabled = true } = {}) => rows.filter(row =>
+        (!subtitleTrackId || row.subtitle_track_id === subtitleTrackId) && (!role || row.role === role)
+        && (includeHidden || (tracks.get(row.subtitle_track_id).enabled && layers.visible(project, row.cue, row.role)))
+        && (includeDisabled || !row.cue.disabled)),
+    };
+  }
+
+  function assign(project, refs, targetId) {
+    const index = createIndex(project);
+    const target = project.subtitle_tracks.tracks.find(t => t.id === targetId);
+    if (!target || target.locked) fail('目标轨道不存在或已锁定');
+    const moving = new Set();
+    for (const ref of refs) { if (!index.resolve(ref)) fail('字幕引用已失效'); moving.add(key(ref)); }
+    for (const group of flatView(project) ? [] : bindingGroups(project, sourceRecords(project))) {
+      if (group.some(row => moving.has(key(row)))) for (const row of group) moving.add(key(row));
+    }
+    for (const ref of project.subtitle_tracks.assignments) {
+      if (moving.has(key(ref)) && index.trackFor(ref).locked) fail('绑定操作包含锁定轨道，未修改工程');
+    }
+    const next = clone(project);
+    for (const ref of next.subtitle_tracks.assignments) if (moving.has(key(ref))) ref.subtitle_track_id = targetId;
+    validate(next);
+    return next;
+  }
+
+  function ownerMap(project) {
+    return new Map(project.subtitle_tracks.assignments.map(a => [key(a), a.subtitle_track_id]));
+  }
+  function boundRefs(project, refs) {
+    const wanted = new Set(refs.map(key));
+    return bindingGroups(project, sourceRecords(project)).filter(group => group.some(r => wanted.has(key(r)))).flat().map(refOf);
+  }
+  function assertEditable(project, refs, linked = true) {
+    const owners = ownerMap(project), tracks = new Map(project.subtitle_tracks.tracks.map(t => [t.id, t]));
+    for (const ref of refs) if (!owners.has(key(ref))) fail('字幕引用已失效');
+    for (const ref of linked ? boundRefs(project, refs) : refs) {
+      const track = tracks.get(owners.get(key(ref)));
+      if (!track) fail('字幕归属已失效');
+      if (track.locked) fail(`“${track.name}”已锁定，请先解锁`);
+    }
+  }
+  function reconcile(project, ownerForNewCue) {
+    const owners = ownerMap(project);
+    project.subtitle_tracks.assignments = sourceRecords(project).map(row => ({ ...refOf(row),
+      subtitle_track_id: owners.get(key(row)) || ownerForNewCue(row) }));
+    const ids = new Set(project.segments.map(c => c.id));
+    project.subtitle_layers.legacy_overlay.cue_ids = project.subtitle_layers.legacy_overlay.cue_ids.filter(id => ids.has(id));
+    validate(project);
+    return project;
+  }
+  function assertLocks(before, after) {
+    for (const track of before.subtitle_tracks.tracks.filter(t => t.locked)) {
+      const other = after.subtitle_tracks.tracks.find(t => t.id === track.id);
+      if (other && (JSON.stringify(track.style) !== JSON.stringify(other.style)
+        || placement(track) !== placement(other) || styleKind(track) !== styleKind(other)
+        || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
+    }
+    const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
+    const canonical = cue => Object.fromEntries(Object.keys(cue).sort()
+      .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => [k, cue[k]]));
+    const index = createIndex(before);
+    for (const row of index.records({ includeHidden: true })) {
+      if (!index.trackFor(row).locked) continue;
+      const other = next.get(key(row));
+      if (!other || owners.get(key(row)) !== row.subtitle_track_id
+        || JSON.stringify(canonical(row.cue)) !== JSON.stringify(canonical(other.cue))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
+      const bindings = p => (p.multi_subtitle?.bindings || []).filter(b => row.role === 'main'
+        ? b.main_segment_ids?.includes(row.cue_id) : b.track_id === row.track_id && b.extension_segment_ids?.includes(row.cue_id));
+      if (JSON.stringify(bindings(before)) !== JSON.stringify(bindings(after))) fail('锁定轨道的绑定不能修改');
+    }
+  }
+  function addTrack(project, kind = 'subtitle', id) {
+    validate(project);
+    if (!['subtitle', 'dialogue', 'annotation'].includes(kind) || !stable(id) || project.subtitle_tracks.tracks.some(t => t.id === id)) fail('新轨道参数无效');
+    const next = migrate(project), base = kind === 'subtitle' ? '字幕' : kind === 'dialogue' ? '对白' : '画面文字';
+    let n = 1;
+    while (next.subtitle_tracks.tracks.some(t => t.name === `${base} ${n}`)) n++;
+    next.subtitle_tracks.tracks.push({ id, name: `${base} ${n}`, kind: kind === 'annotation' ? 'annotation' : 'dialogue',
+      purpose: kind === 'subtitle' ? 'none' : kind, layout: kind === 'annotation' ? 'fixed' : 'auto', style_base: kind === 'annotation' ? 'annotation' : 'dialogue',
+      origin: 'main', enabled: true, locked: false, collapsed: false, style: { mode: 'inherit' } });
+    return next;
+  }
+  // Stable lanes cover the whole project, not just cues in the visible time row.
+  function layout(project, extensionTrackId, extensionVisible = true) {
+    const owners = ownerMap(project), bands = [], positions = new Map();
+    for (const track of project.subtitle_tracks.tracks) {
+      if (flatView(project)) { if(!track.collapsed)bands.push({track,roles:['main','extension'],size:1}); continue; }
+      const secondary = track.show_secondary === true || (extensionVisible && project.multi_subtitle?.tracks
+        ?.find(t => t.id === extensionTrackId)?.segments.some(c => owners.get(key({ role: 'extension', track_id: extensionTrackId, cue_id: c.id })) === track.id));
+      bands.push({ track, roles: track.collapsed ? [] : ['main', ...(secondary ? ['extension'] : [])], size: track.collapsed ? 1 : secondary ? 2 : 1 });
+    }
+    const count = bands.reduce((n, b) => n + b.size, 0);
+    let offset = 0;
+    for (const band of bands) {
+      band.top = offset; band.bottom = count - offset - band.size;
+      band.roles.forEach((role, i) => positions.set(JSON.stringify([band.track.id, role]), count - offset - (flatView(project)?0:i) - 1));
+      offset += band.size;
+    }
+    return { count, bands, positions, owners };
+  }
+  const api = { SCHEMA, TRACK_SCHEMA, LEGACY_TRACK_SCHEMA, flatView, purpose, placement, styleKind, key, migrate, validate, createIndex, assign,
+    ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  global.MSWSubtitleTracks = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+// Role-independent subtitle storage. The normal editor uses a reversible
+// operation view for its existing components; persistence always uses v4.
+(function(global) {
+  'use strict';
+  const old = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-tracks.js') : global.MSWSubtitleTracks;
+  const SCHEMA='msw.project.v4', MODEL_SCHEMA='msw.subtitles.v1', MIGRATION_SCHEMA='msw.subtitle-migration.v1';
+  const structural=['segments','multi_subtitle','subtitle_tracks','subtitle_layers','overlay_track'];
+  const clone=value=>JSON.parse(JSON.stringify(value));
+  const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+  const stable=value=>typeof value==='string'&&!!value.trim()&&value.length<=160;
+  const integer=value=>Number.isSafeInteger(value)&&value>=0;
+  const fail=message=>{throw Error('平级字幕：'+message);};
+  const aliasKey=ref=>JSON.stringify([ref.role,ref.track_id,ref.cue_id]);
+  // Deterministic identity, not a security/content hash. UTF-16LE matches Python
+  // including opaque legacy IDs; collisions are rejected instead of merged.
+  function identity(prefix,key) {
+    let hash=0xcbf29ce484222325n;
+    for(let i=0;i<key.length;i++)for(const byte of [key.charCodeAt(i)&255,key.charCodeAt(i)>>>8])hash=BigInt.asUintN(64,(hash^BigInt(byte))*0x100000001b3n);
+    return prefix+'-'+hash.toString(16).padStart(16,'0');
+  }
+  function jsonValue(value,seen=new Set()) {
+    if(value===null||typeof value==='string'||typeof value==='boolean')return;
+    if(typeof value==='number'&&Number.isFinite(value)&&(!Number.isInteger(value)||Number.isSafeInteger(value)))return;
+    if(Array.isArray(value)||object(value)) {
+      if(seen.has(value))fail('包含循环引用');
+      seen.add(value);Object.values(value).forEach(v=>jsonValue(v,seen));seen.delete(value);return;
+    }
+    fail('包含不能保存为 JSON 的值');
+  }
+  function framePair(value) {
+    if(Object.hasOwn(value,'start_frame')!==Object.hasOwn(value,'end_frame')
+      ||Object.hasOwn(value,'start_frame')&&(!integer(value.start_frame)||!integer(value.end_frame)||value.end_frame<=value.start_frame))fail('帧时间码无效');
+  }
+  function contentValid(cue) {
+    if(!object(cue)||Object.hasOwn(cue,'id')||!integer(cue.start)||!integer(cue.end)||cue.end<=cue.start||typeof cue.text!=='string'
+      ||Object.hasOwn(cue,'disabled')&&typeof cue.disabled!=='boolean')fail('字幕时间或正文无效');
+    framePair(cue);
+    if(Object.hasOwn(cue,'speaker')&&(typeof cue.speaker!=='string'||!cue.speaker.trim()))fail('说话人无效');
+    if(Object.hasOwn(cue,'items')) {
+      if(!Array.isArray(cue.items))fail('逐词时间码必须是数组');
+      let previous=cue.start;
+      for(const item of cue.items) {
+        if(!object(item)||!integer(item.start)||!integer(item.end)||item.start<previous||item.end<item.start||item.end>cue.end||typeof item.text!=='string')fail('逐词时间码无效');
+        framePair(item);previous=item.end;
+      }
+    }
+    if(Object.hasOwn(cue,'subtitle_position')) {
+      const p=cue.subtitle_position;
+      if(!object(p)||Object.keys(p).some(k=>!['x','y','alignment','base'].includes(k))
+        ||!['x','y'].every(k=>typeof p[k]==='number'&&Number.isFinite(p[k])&&p[k]>=0&&p[k]<=1)
+        ||Object.hasOwn(p,'alignment')&&(!Number.isInteger(p.alignment)||p.alignment<1||p.alignment>9)
+        ||Object.hasOwn(p,'base')&&(!Object.hasOwn(p,'alignment')||!object(p.base)||Object.keys(p.base).length!==2
+          ||!['x','y'].every(k=>typeof p.base[k]==='number'&&Number.isFinite(p.base[k])&&p.base[k]>=0&&p.base[k]<=1)))fail('字幕位置无效');
+    }
+    for(const field of ['color','sticker'])if(cue[field]!=null) {
+      const head=cue[field];
+      if(!object(head)||Object.hasOwn(head,'name')&&(typeof head.name!=='string'||!head.name.trim())
+        ||['start','end'].some(k=>Object.hasOwn(head,k)&&!Number.isSafeInteger(head[k]))
+        ||Object.hasOwn(head,'start')&&Object.hasOwn(head,'end')&&head.end<head.start)fail('字幕标记无效');
+    }
+  }
+  function validate(project) {
+    jsonValue(project);
+    if(!object(project)||project.schema!==SCHEMA)fail('不支持的工程版本');
+    if(structural.some(k=>Object.hasOwn(project,k)))fail('新工程不能同时保存旧主副正文或归属');
+    if(Object.hasOwn(project,'timebase')&&(!object(project.timebase)||!['milliseconds','frames'].includes(project.timebase.unit)
+      ||typeof project.timebase.fps!=='number'||project.timebase.fps<1||project.timebase.fps>240))fail('时间基准无效');
+    const m=project.subtitles;
+    if(!object(m)||m.schema!==MODEL_SCHEMA||!Array.isArray(m.tracks)||!m.tracks.length||!Array.isArray(m.cues)||!Array.isArray(m.bindings))fail('字幕结构无效');
+    const tracks=new Map(),cues=new Map(),lanes=new Map();
+    for(const track of m.tracks) {
+      if(!object(track)||!stable(track.id)||tracks.has(track.id)||!stable(track.name)
+        ||['parent_id','children','segments','cues'].some(k=>Object.hasOwn(track,k))
+        ||!['none','dialogue','source','translation','annotation'].includes(track.purpose)
+        ||!['auto','fixed'].includes(track.layout)||['enabled','locked','collapsed'].some(k=>typeof track[k]!=='boolean')
+        ||!object(track.style)||!['main','secondary'].includes(track.style.slot)||!['dialogue','annotation'].includes(track.style.base))fail('轨道身份、状态或样式无效');
+      if(Object.hasOwn(track,'split_mode')&&!['auto','word','continuous'].includes(track.split_mode))fail('轨道文字切分方式无效');
+      const style=clone(track.style);delete style.slot;delete style.base;
+      const check=old.migrate({segments:[]}),t=check.subtitle_tracks.tracks[0];t.style=style;
+      if(Object.hasOwn(track,'position'))t.position=track.position;
+      old.validate(check);tracks.set(track.id,track);lanes.set(track.id,[]);
+    }
+    validateGroups(m);
+    for(const cue of m.cues) {
+      if(!object(cue)||!stable(cue.id)||cues.has(cue.id)||!tracks.has(cue.track_id)
+        ||Object.hasOwn(cue,'hidden')&&typeof cue.hidden!=='boolean')fail('字幕身份、归属或显示状态无效');
+      contentValid(cue.content);
+      cues.set(cue.id,cue);lanes.get(cue.track_id).push(cue);
+    }
+    for(const lane of lanes.values()) {
+      lane.sort((a,b)=>a.content.start-b.content.start);
+      for(let i=1;i<lane.length;i++)if(lane[i].content.start<lane[i-1].content.end)fail('同一轨道的字幕重叠');
+    }
+    for(const cue of cues.values())for(const field of ['color_ref','sticker_ref'])if(cue.content[field]!=null) {
+      const ref=cue.content[field],headField=field.replace('_ref',''),target=cues.get(ref?.cue_id)?.content[headField];
+      if(!object(ref)||Object.hasOwn(ref,'headIdx')||ref.cue_id===cue.id||cue.content[headField]!=null||!object(target)
+        ||typeof target.name==='string'&&typeof ref.name==='string'&&target.name!==ref.name)fail('字幕标记引用失效');
+    }
+    const used=new Set(),ids=new Set();
+    for(const link of m.bindings) {
+      const a=cues.get(link?.source_id),b=cues.get(link?.target_id);
+      if(!object(link)||!stable(link.id)||ids.has(link.id)||!a||!b||a.id===b.id||a.track_id===b.track_id||used.has(a.id)||used.has(b.id)
+        ||!Number.isSafeInteger(link.start_offset_ms)||link.start_offset_ms!==b.content.start-a.content.start
+        ||!Number.isSafeInteger(link.end_offset_ms)||link.end_offset_ms!==b.content.end-a.content.end)fail('对应关系重复、失效或时间偏移不一致');
+      used.add(a.id);used.add(b.id);ids.add(link.id);
+    }
+    if(m.migration!==undefined) {
+      const h=m.migration;
+      if(!object(h)||h.schema!==MIGRATION_SCHEMA||!object(h.structure)||!Array.isArray(h.identities)
+        ||Object.keys(h.structure).some(k=>!structural.includes(k)))fail('迁移来源记录无效');
+      const aliases=new Set(),aliasIds=new Set();
+      for(const a of h.identities) {
+        if(!object(a)||!stable(a.id)||aliasIds.has(a.id)||!stable(a.cue_id)||!['main','extension'].includes(a.role)
+          ||(a.role==='main'?a.track_id!==null:!stable(a.track_id))||aliases.has(aliasKey(a)))fail('旧字幕身份映射无效');
+        aliases.add(aliasKey(a));aliasIds.add(a.id);
+        if(a.id!==identity('cue',aliasKey(a)))fail('旧字幕身份映射不一致');
+        if(Object.hasOwn(a,'reference_extras')&&(!object(a.reference_extras)||Object.entries(a.reference_extras).some(([k,v])=>
+          !['color_ref','sticker_ref'].includes(k)||!object(v)||Object.keys(v).length!==1||!Object.hasOwn(v,'cue_id'))))fail('旧标记扩展字段无效');
+      }
+      const multi=h.structure.multi_subtitle;
+      if(multi!=null&&(!object(multi)||!Array.isArray(multi.tracks)||multi.tracks.some(t=>!object(t)||!stable(t.id))))fail('迁移来源副字幕结构无效');
+      const sources=[{role:'main',track_id:null,segments:h.structure.segments},...(multi?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
+      const byId=new Map(h.identities.map(a=>[a.id,a])),listed=new Set();
+      if(h.structure.overlay_track?.segments?.length)fail('迁移来源不能包含第二份正文');
+      for(const source of sources) {
+        if(!Array.isArray(source.segments))fail('迁移来源只能保存字幕身份列表');
+        for(const id of source.segments) {
+          const alias=byId.get(id);
+          if(!alias||listed.has(id)||alias.role!==source.role||alias.track_id!==source.track_id)fail('迁移来源身份列表不一致');
+          listed.add(id);
+        }
+      }
+      if(listed.size!==aliasIds.size)fail('迁移来源身份列表不完整');
+    }
+    return true;
+  }
+  // Track groups are display/style relationships, never cue ownership or bindings.
+  function validateGroups(m) {
+    const numbers=new Map(),members=new Set(),tracks=new Map(m.tracks.map(t=>[t.id,t]));
+    for(const t of m.tracks) {
+      if(t.display_number!==undefined) {
+        if(!Number.isSafeInteger(t.display_number)||t.display_number<1)fail('轨道编号无效或重复');
+        const owner=t.secondary_for||t.id;
+        if(numbers.has(t.display_number)&&numbers.get(t.display_number)!==owner)fail('轨道编号无效或重复');
+        numbers.set(t.display_number,owner);
+      }
+      if(t.secondary_for!==undefined) {
+        const main=tracks.get(t.secondary_for);
+        if(!main||main===t||main.secondary_for!==undefined||members.has(main.id))fail('主副轨道分组必须为一主一副');
+        members.add(main.id);
+      }
+    }
+    if(m.next_track_number!==undefined&&(!Number.isSafeInteger(m.next_track_number)||m.next_track_number<1||[...numbers.keys()].some(n=>n>=m.next_track_number)))fail('后续轨道编号无效');
+  }
+  function normalizeGroups(project,{infer=false}={}) {
+    const m=project.subtitles,tracks=m.tracks,ids=new Set(tracks.map(t=>t.id));
+    const fresh=tracks.every(t=>t.display_number===undefined);
+    for(const t of tracks)if(t.secondary_for&&!ids.has(t.secondary_for))delete t.secondary_for;
+    if(infer&&fresh&&tracks.every(t=>t.secondary_for===undefined)) {
+      const cues=new Map(m.cues.map(c=>[c.id,c.track_id])),out=new Map(),incoming=new Map();
+      for(const b of m.bindings) {
+        const a=cues.get(b.source_id),z=cues.get(b.target_id);
+        if(!a||!z)continue;if(!out.has(a))out.set(a,new Set());out.get(a).add(z);
+        if(!incoming.has(z))incoming.set(z,new Set());incoming.get(z).add(a);
+      }
+      for(const [a,targets] of out)if(targets.size===1&&!incoming.has(a)) {
+        const z=[...targets][0];if(incoming.get(z).size===1&&!out.has(z))tracks.find(t=>t.id===z).secondary_for=a;
+      }
+    }
+    const roots=tracks.filter(t=>!t.secondary_for);
+    const maximum=Math.max(0,...roots.map(t=>t.display_number||0));
+    const released=new Set(tracks.filter(t=>t.secondary_for&&t.display_number!==undefined
+      &&t.display_number!==tracks.find(a=>a.id===t.secondary_for)?.display_number).map(t=>t.display_number));
+    let next=Math.max(m.next_track_number||1,maximum+1);
+    // Reclaim only trailing numbers formerly reserved for a secondary track.
+    // Existing independent numbers and deleted-track reservations stay stable.
+    while(next>maximum+1&&released.has(next-1))next--;
+    for(const t of roots)if(t.display_number===undefined)t.display_number=next++;
+    for(const t of tracks)if(t.secondary_for)t.display_number=tracks.find(a=>a.id===t.secondary_for)?.display_number;
+    m.next_track_number=next;
+    validateGroups(m);
+    for(const t of tracks) {
+      const main=t.secondary_for?tracks.find(a=>a.id===t.secondary_for):t;
+      t.name='S'+main.display_number+(t.secondary_for?'副':tracks.some(a=>a.secondary_for===t.id)?'主':'');
+    }
+    return project;
+  }
+  function setTrackGroup(project,secondaryId,mainId=null) {
+    validate(project);const next=normalizeGroups(clone(project)),tracks=next.subtitles.tracks;
+    const secondary=tracks.find(t=>t.id===secondaryId),main=tracks.find(t=>t.id===mainId);
+    if(!secondary||secondary.locked)fail('轨道不存在或已锁定');
+    const previous=tracks.find(t=>t.id===secondary.secondary_for),child=tracks.find(t=>t.secondary_for===secondary.id);
+    if(previous?.locked||child?.locked)fail('分组中的轨道已锁定');
+    if(mainId!==null&&(!main||main===secondary||main.locked||main.secondary_for||child||tracks.some(t=>t.secondary_for===mainId&&t.id!==secondaryId)))fail('请选择未分组且未锁定的主轨道');
+    delete secondary.secondary_for;
+    if(previous&&!main)delete secondary.display_number;
+    if(child){delete child.secondary_for;delete child.display_number;}
+    if(main)secondary.secondary_for=main.id;
+    normalizeGroups(next);validate(next);return next;
+  }
+  function migrate(input) {
+    if(input?.schema===SCHEMA){validate(input);return clone(input);}
+    if(input&&Object.hasOwn(input,'subtitles'))fail('旧工程含有保留的新结构字段，未覆盖');
+    jsonValue(input);
+    const project=old.migrate(input),index=old.createIndex(project),rows=index.records({includeHidden:true});
+    const m={schema:MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};
+    const identities=rows.map(r=>({id:identity('cue',aliasKey(r)),role:r.role,track_id:r.track_id,cue_id:r.cue_id}));
+    if(new Set(identities.map(a=>a.id)).size!==identities.length)fail('身份编码冲突，未修改工程');
+    const byAlias=new Map(identities.map(a=>[aliasKey(a),a.id])),aliases=new Map(identities.map(a=>[a.id,a])),sourceCues=new Map();
+    sourceCues.set(aliasKey({role:'main',track_id:null,cue_id:null}),project.segments);
+    for(const t of project.multi_subtitle?.tracks||[])sourceCues.set(aliasKey({role:'extension',track_id:t.id,cue_id:null}),t.segments);
+    const ownerTracks=new Map(),trackIds=new Set(project.subtitle_tracks.tracks.map(t=>t.id));
+    const occupied=new Set(rows.map(r=>JSON.stringify([r.subtitle_track_id,r.track_id])));
+    for(const [i,t] of project.subtitle_tracks.tracks.entries()) {
+      const add=(role,storage=null)=>{
+        const key=JSON.stringify([t.id,role,storage?.id??null]);
+        let id=role==='main'?t.id:identity('track',key),n=1;
+        if(role!=='main'){const base=id;while(trackIds.has(id))id=base+'-'+n++;trackIds.add(id);}
+        const label=storage&&(typeof storage.name==='string'&&storage.name||typeof storage.language==='string'&&storage.language)||'副字幕';
+        const track={id,name:role==='main'?t.name:`${t.name} · ${label}`.slice(0,160).replace(/[\uD800-\uDBFF]$/,''),
+          purpose:role==='main'?old.purpose(t):'translation',layout:old.placement(t),enabled:t.enabled&&(role==='main'||project.multi_subtitle.enabled===true),
+          locked:t.locked,collapsed:t.collapsed,style:{...clone(t.style),slot:role==='main'?'main':'secondary',base:old.styleKind(t)}};
+        if(t.position)track.position=clone(t.position);
+        if(storage?.language)track.language=storage.language;
+        const splitMode=role==='main'?(project.multi_subtitle?.main_split_mode||project.split_mode):storage?.split_mode;
+        if(['word','continuous'].includes(splitMode))track.split_mode=splitMode;
+        m.tracks.push(track);ownerTracks.set(key,id);
+      };
+      add('main');
+      for(const storage of project.multi_subtitle?.tracks||[])if(occupied.has(JSON.stringify([t.id,storage.id]))||i===0&&!storage.segments.length)add('extension',storage);
+    }
+    const hidden=new Set(project.subtitle_layers.legacy_overlay.visible?[]:project.subtitle_layers.legacy_overlay.cue_ids);
+    for(const row of rows) {
+      const cue={id:byAlias.get(aliasKey(row)),track_id:ownerTracks.get(JSON.stringify([row.subtitle_track_id,row.role,row.track_id])),content:clone(row.cue)};
+      delete cue.content.id;
+      if(row.role==='main'&&hidden.has(row.cue_id))cue.hidden=true;
+      for(const field of ['color_ref','sticker_ref'])if(cue.content[field]!=null) {
+        const ref=cue.content[field],head=sourceCues.get(aliasKey({...row,cue_id:null}))[ref?.headIdx];
+        if(!Number.isSafeInteger(ref.headIdx)||ref.headIdx<0||ref.headIdx>=row.index||!head)fail('旧字幕标记引用失效');
+        if(Object.hasOwn(ref,'cue_id')){const a=aliases.get(cue.id);(a.reference_extras??={})[field]={cue_id:ref.cue_id};}
+        cue.content[field]={...ref,cue_id:byAlias.get(aliasKey({...row,cue_id:head.id}))};delete cue.content[field].headIdx;
+      }
+      m.cues.push(cue);
+    }
+    const cueMap=new Map(m.cues.map(c=>[c.id,c]));
+    for(const b of project.multi_subtitle?.bindings||[]) {
+      const track=b.track_id??project.multi_subtitle.tracks[0]?.id;
+      const source_id=byAlias.get(aliasKey({role:'main',track_id:null,cue_id:b.main_segment_ids?.[0]??b.main_segment_id}));
+      const target_id=byAlias.get(aliasKey({role:'extension',track_id:track,cue_id:b.extension_segment_ids?.[0]??b.extension_segment_id}));
+      const a=cueMap.get(source_id).content,c=cueMap.get(target_id).content;
+      m.bindings.push({id:b.id||identity('binding',JSON.stringify([source_id,target_id])),source_id,target_id,start_offset_ms:c.start-a.start,end_offset_ms:c.end-a.end});
+    }
+    const result=clone(project),structure={};
+    for(const field of structural)if(Object.hasOwn(result,field)){structure[field]=result[field];delete result[field];}
+    structure.segments=project.segments.map(c=>byAlias.get(aliasKey({role:'main',track_id:null,cue_id:c.id})));
+    for(const t of structure.multi_subtitle?.tracks||[])t.segments=t.segments.map(c=>byAlias.get(aliasKey({role:'extension',track_id:t.id,cue_id:c.id})));
+    m.migration={schema:MIGRATION_SCHEMA,structure,identities};
+    result.schema=SCHEMA;result.subtitles=m;validate(result);return result;
+  }
+  function createIndex(project) {
+    validate(project);const m=project.subtitles,tracks=new Map(m.tracks.map(t=>[t.id,t])),cues=new Map(m.cues.map(c=>[c.id,c]));
+    const aliases=new Map((m.migration?.identities||[]).map(a=>[aliasKey(a),a.id]));
+    return {resolve:id=>cues.get(id)||null,trackFor:id=>tracks.get(cues.get(id)?.track_id)||null,
+      resolveLegacy:ref=>object(ref)?cues.get(aliases.get(aliasKey(ref)))||null:null,
+      resolveSource:ref=>!object(ref)||ref.kind==='editor_text'?null:Object.hasOwn(ref,'subtitle_cue_id')?cues.get(ref.subtitle_cue_id)||null:
+        cues.get(aliases.get(aliasKey({role:ref.track_id==null?'main':'extension',track_id:ref.track_id??null,cue_id:ref.source_cue_id??ref.id})))||null,
+      records:({trackId,includeHidden=false,includeDisabled=true}={})=>m.cues.filter(c=>(!trackId||c.track_id===trackId)&&(includeHidden||tracks.get(c.track_id).enabled&&!c.hidden)&&(includeDisabled||!c.content.disabled)),
+      partners:id=>m.bindings.filter(b=>b.source_id===id||b.target_id===id).map(b=>cues.get(b.source_id===id?b.target_id:b.source_id))};
+  }
+  function move(project,ids,targetId) {
+    const index=createIndex(project),target=project.subtitles.tracks.find(t=>t.id===targetId);
+    if(!Array.isArray(ids)||!ids.length||!target||target.locked)fail('移动目标不存在或已锁定');
+    for(const id of ids)if(!index.resolve(id)||index.trackFor(id).locked)fail('字幕不存在或轨道已锁定');
+    const next=clone(project),wanted=new Set(ids);for(const cue of next.subtitles.cues)if(wanted.has(cue.id))cue.track_id=targetId;
+    validate(next);return next;
+  }
+  function addTrack(project,track) {
+    validate(project);const next=clone(project),added=clone(track);delete added.display_number;
+    next.subtitles.tracks.push(added);if(next.subtitles.next_track_number)normalizeGroups(next);
+    validate(next);return next;
+  }
+  function bind(project,sourceId,targetId,id) {
+    const index=createIndex(project),source=index.resolve(sourceId),target=index.resolve(targetId);
+    if(!source||!target||index.trackFor(sourceId).locked||index.trackFor(targetId).locked)fail('对应对象不存在或轨道已锁定');
+    const next=clone(project);next.subtitles.bindings.push({id,source_id:sourceId,target_id:targetId,start_offset_ms:target.content.start-source.content.start,end_offset_ms:target.content.end-source.content.end});validate(next);return next;
+  }
+  function unbind(project,id) {
+    const index=createIndex(project),link=project.subtitles.bindings.find(b=>b.id===id);
+    if(!link||[link.source_id,link.target_id].some(c=>index.trackFor(c).locked))fail('对应关系不存在或轨道已锁定');
+    const next=clone(project);next.subtitles.bindings=next.subtitles.bindings.filter(b=>b.id!==id);return next;
+  }
+  function legacyProjection(project) {
+    validate(project);const h=project.subtitles.migration;
+    if(!h)fail('此工程没有可无损还原的旧版视图');
+    const result=clone(project);delete result.subtitles;result.schema=old.SCHEMA;Object.assign(result,clone(h.structure));
+    const cues=new Map(project.subtitles.cues.map(c=>[c.id,c])),aliases=new Map(h.identities.map(a=>[a.id,a]));
+    const sources=[{role:'main',track_id:null,segments:result.segments},...(result.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
+    for(const source of sources) {
+      const headIndices=new Map(source.segments.map((id,i)=>[id,i]));
+      for(let i=0;i<source.segments.length;i++) {
+      const id=source.segments[i],original=cues.get(id),alias=aliases.get(id);
+      if(!original||!alias)fail('新结构已超出旧版视图的表达能力；请使用平级轨道编辑器');
+      const cue=clone(original.content);cue.id=alias.cue_id;
+      for(const field of ['color_ref','sticker_ref'])if(cue[field]!=null) {
+        const head=aliases.get(cue[field].cue_id);
+        if(!head||head.role!==source.role||head.track_id!==source.track_id)fail('跨来源标记引用不能无损还原到旧版');
+        cue[field]={...cue[field],headIdx:headIndices.get(cue[field].cue_id)};delete cue[field].cue_id;
+        Object.assign(cue[field],alias.reference_extras?.[field]||{});
+      }
+      source.segments[i]=cue;
+      }
+    }
+    const rebuilt=migrate(result);
+    // Provenance is immutable. Metadata/relationship edits that old v3 cannot
+    // express must fail visibly, never flatten tracks or drop unknown members.
+    const comparable=p=>{const m=clone(p.subtitles);delete m.migration;return m;};
+    const canonical=value=>Array.isArray(value)?value.map(canonical):object(value)?Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])])):value;
+    if(JSON.stringify(canonical(comparable(rebuilt)))!==JSON.stringify(canonical(comparable(project))))fail('新结构已超出旧版视图的表达能力；不能降级保存');
+    return result;
+  }
+  const api={SCHEMA,MODEL_SCHEMA,MIGRATION_SCHEMA,identity,validate,migrate,createIndex,addTrack,move,bind,unbind,legacyProjection,normalizeGroups,setTrackGroup};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  global.MSWFlatSubtitles=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+</script>
+<script>
+// Read-only track views for both offline tools. Never rewrite imported projects.
+(function (global) {
+  'use strict';
+  const flat = typeof module !== 'undefined' && module.exports ? require('../msw-flat-subtitles.js') : global.MSWFlatSubtitles;
+  function tracks(project) {
+    if (!project || typeof project !== 'object' || Array.isArray(project)) throw Error('不是有效的字幕工程');
+    const schema = project.schema;
+    if (schema !== undefined && !['moy.asr.project.v1', 'msw.project.v2', 'msw.project.v3', 'msw.project.v4'].includes(schema)) {
+      throw Error('不支持的工程版本：' + String(schema));
+    }
+    let native = project;
+    if (schema === 'msw.project.v2' || schema === 'msw.project.v3') native = flat.migrate(project);
+    if (native.schema === 'msw.project.v4') {
+      // This is a diagnostic reader: invalid item timing remains visible to the
+      // timecode tool. Check identities/ownership without repairing any content.
+      const model = native.subtitles;
+      if (!model || !Array.isArray(model.tracks) || !model.tracks.length || !Array.isArray(model.cues)) throw Error('工程缺少有效的字幕轨道或字幕块');
+      const ids = new Set(), cueIds = new Set(), groups = new Map();
+      for (const track of model.tracks) {
+        if (!track || typeof track.id !== 'string' || !track.id || ids.has(track.id)) throw Error('字幕轨道 ID 缺失或重复');
+        ids.add(track.id); groups.set(track.id, []);
+      }
+      for (const cue of model.cues) {
+        if (!cue || typeof cue.id !== 'string' || !cue.id || cueIds.has(cue.id) || !ids.has(cue.track_id) || !cue.content || typeof cue.content !== 'object') throw Error('字幕块 ID 或轨道归属无效');
+        cueIds.add(cue.id);
+        groups.get(cue.track_id).push({...cue.content, id: cue.id, hidden: cue.hidden === true});
+      }
+      return model.tracks.map((track, index) => ({...track, name: track.name || `S${index + 1}`,
+        native: true, segments: groups.get(track.id), timestamp_granularity: track.timestamp_granularity || project.timestamp_granularity}));
+    }
+    if (!Array.isArray(project.segments)) throw Error('工程缺少字幕内容');
+    const result = [{id: 'legacy-main', name: 'S1', enabled: true, segments: project.segments}];
+    const multi = project.multi_subtitle;
+    for (const [index, track] of (multi?.tracks || []).entries()) {
+      if (Array.isArray(track.segments)) result.push({id: `legacy-secondary:${track.id || index}`, name: `S${result.length + 1} · ${track.name || track.language || '译文'}`,
+        enabled: multi.enabled !== false && track.enabled !== false, segments: track.segments, timestamp_granularity: track.timestamp_granularity});
+    }
+    const overlay = project.overlay_track;
+    if (Array.isArray(overlay?.segments)) result.push({id: 'legacy-overlay', name: `S${result.length + 1} · 旧叠加`, enabled: overlay.enabled === true, segments: overlay.segments});
+    return result.map(track => ({...track, timestamp_granularity: track.timestamp_granularity || project.timestamp_granularity}));
+  }
+  function view(project, trackId) {
+    const options = tracks(project);
+    const active = track => track.enabled !== false && track.segments.some(c => c && !c.hidden && !c.disabled && typeof c.text === 'string' && c.text.trim());
+    const track = trackId === undefined ? options.find(active) || options[0] : options.find(t => t.id === trackId);
+    if (!track) throw Error('所选字幕轨道不存在');
+    const warnings = [];
+    const hidden = track.segments.filter(c => c?.hidden).length;
+    if (hidden) warnings.push(`忽略 ${hidden} 个已隐藏的字幕块`);
+    if (track.enabled === false) warnings.push('所选轨道已禁用，没有参与比较的字幕');
+    return {options, track, warnings, segments: track.enabled === false ? [] : track.segments.filter(c => !c?.hidden)};
+  }
+  function picker(entry, onChange) {
+    if (!entry.tracks) return null;
+    const label = document.createElement('label');
+    label.className = 'compare-track-picker';
+    label.textContent = '字幕轨道 ';
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', '字幕轨道 · ' + entry.name);
+    for (const track of entry.tracks) {
+      const option = document.createElement('option');
+      option.value = track.id;
+      const count = track.segments.filter(c => c && !c.hidden && !c.disabled).length;
+      option.textContent = track.name + ` · ${count} 条` + (track.enabled === false ? '（已禁用）' : '') + (track.locked ? '（已锁定）' : '') + (track.collapsed ? '（已折叠）' : '');
+      select.appendChild(option);
+    }
+    select.value = entry.trackId;
+    select.addEventListener('change', () => onChange(select.value));
+    label.appendChild(select);
+    return label;
+  }
+  function pairSegments(files) {
+    const left = files[0]?.segments || [], right = files[1]?.segments || [];
+    const shared = new Set(left.filter(c => c.id).map(c => c.id));
+    const byId = files.length === 2 && files.every(f => f.nativeTrack)
+      && right.some(c => c.id && shared.has(c.id));
+    if (!byId) return {mode: 'index', cells: Array.from({length: Math.max(left.length, right.length)}, (_, i) => files.length === 2 ? [left[i] || null, right[i] || null] : [left[i]])};
+    const rightMap = new Map(right.map(c => [c.id, c]));
+    const cells = left.map(c => [c, rightMap.get(c.id) || null]);
+    for (const cue of right) if (!shared.has(cue.id)) cells.push([null, cue]);
+    cells.sort((a, b) => (a[0] || a[1]).start - (b[0] || b[1]).start);
+    return {mode: 'id', cells};
+  }
+  const api = {tracks, view, picker, pairSegments};
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  global.MSWCompareTracks = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
 <script>
 'use strict';
 
@@ -1182,16 +2282,14 @@ function parseItems(rawItems, segmentText, warnings, segmentNumber, segmentStart
   return items;
 }
 
-function normaliseProjectObject(object) {
-  if (!object || typeof object !== 'object' || Array.isArray(object) || !Array.isArray(object.segments)) {
-    throw new Error('缺少 segments 字段');
-  }
-  const warnings = [];
+function normaliseProjectObject(object, trackId) {
+  const view = MSWCompareTracks.view(object, trackId);
+  const warnings = [...view.warnings];
   const segments = [];
   let skipped = 0;
   let disabled = 0;
-  for (let index = 0; index < object.segments.length; index += 1) {
-    const raw = object.segments[index];
+  for (let index = 0; index < view.segments.length; index += 1) {
+    const raw = view.segments[index];
     if (!raw || typeof raw !== 'object') {
       skipped += 1;
       continue;
@@ -1208,6 +2306,7 @@ function normaliseProjectObject(object) {
       continue;
     }
     segments.push({
+      id: raw.id,
       originalIndex: index,
       start: start,
       end: end,
@@ -1221,11 +2320,12 @@ function normaliseProjectObject(object) {
   if (warnings.invalidItems) warnings.push(warnings.invalidItems + ' 个 items 字段不是数组，按无字词码处理');
   if (warnings.invalidItemCount) warnings.push('跳过 ' + warnings.invalidItemCount + ' 个无效 item');
   if (warnings.textMismatch) warnings.push(warnings.textMismatch + ' 段的 item 文本拼接与段文本不同');
-  if (!segments.length) throw new Error(warnings[0] || '工程里没有可用的字幕段');
-  const granularity = GRANULARITY_LABELS[object.timestamp_granularity]
-    ? object.timestamp_granularity
+  if (!segments.length) warnings.push('所选轨道没有可比较的字幕');
+  const granularity = GRANULARITY_LABELS[view.track.timestamp_granularity]
+    ? view.track.timestamp_granularity
     : 'unknown';
   return {
+    project: object, tracks: view.options, trackId: view.track.id, nativeTrack: view.track.native === true,
     segments: segments,
     warnings: warnings.filter(function onlyMessages(value) { return typeof value === 'string'; }),
     granularity: granularity,
@@ -1240,8 +2340,8 @@ function buildStats(segments) {
     return total + segment.items.filter(function isOverflow(item) { return item.outOfRange; }).length;
   }, 0);
   const overflowSegments = segments.filter(hasOutOfRangeItems).length;
-  const spanStart = Math.min.apply(null, segments.map(function getStart(segment) { return segment.start; }));
-  const spanEnd = Math.max.apply(null, segments.map(function getEnd(segment) { return segment.end; }));
+  const spanStart = segments.length ? Math.min.apply(null, segments.map(function getStart(segment) { return segment.start; })) : 0;
+  const spanEnd = segments.reduce((end, cue) => Math.max(end, cue.end), 0);
   let outOfOrder = 0;
   for (let index = 1; index < segments.length; index += 1) {
     if (segments[index].start < segments[index - 1].start) outOfOrder += 1;
@@ -1263,6 +2363,7 @@ function createEntry(name, sourceType, parsed) {
     id: 'file-' + (++uidCounter),
     name: String(name || '未命名文件'),
     sourceType: sourceType,
+    project: parsed.project, tracks: parsed.tracks, trackId: parsed.trackId, nativeTrack: parsed.nativeTrack,
     color: PALETTE[state.files.length % PALETTE.length],
     segments: parsed.segments,
     warnings: parsed.warnings || [],
@@ -1418,12 +2519,10 @@ function comparePair(left, right) {
 }
 
 function buildRows() {
-  const count = state.files.reduce(function maxCount(maximum, entry) {
-    return Math.max(maximum, entry.segments.length);
-  }, 0);
+  const pairs = MSWCompareTracks.pairSegments(state.files);
   const rows = [];
-  for (let index = 0; index < count; index += 1) {
-    const cells = state.files.map(function getCell(entry) { return entry.segments[index] || null; });
+  for (let index = 0; index < pairs.cells.length; index += 1) {
+    const cells = pairs.cells[index];
     const comparison = state.files.length === 2 ? comparePair(cells[0], cells[1]) : { changes: [], itemStatus: 'single', exact: true };
     rows.push({
       index: index,
@@ -1510,6 +2609,13 @@ function renderCards() {
     head.appendChild(remove);
     card.appendChild(head);
     card.appendChild(makeElement('div', 'card-source', sourceLabel(entry)));
+    const picker = MSWCompareTracks.picker(entry, trackId => {
+      const parsed = normaliseProjectObject(entry.project, trackId);
+      Object.assign(entry, parsed, {stats: buildStats(parsed.segments)});
+      state.expanded.clear();
+      render();
+    });
+    if (picker) card.appendChild(picker);
 
     const grid = makeElement('div', 'card-grid');
     const stats = [
@@ -1546,18 +2652,19 @@ function renderSummary(rows) {
   els.summary.textContent = '';
   els.summary.hidden = state.files.length !== 2;
   if (state.files.length !== 2) return;
-  const pairCount = Math.min(state.files[0].segments.length, state.files[1].segments.length);
-  const segmentEqual = rows.slice(0, pairCount).filter(function isSegmentEqual(row) {
+  const paired = rows.filter(row => row.cells[0] && row.cells[1]);
+  const pairCount = paired.length;
+  const segmentEqual = paired.filter(function isSegmentEqual(row) {
     return row.cells[0] && row.cells[1] && row.cells[0].start === row.cells[1].start &&
       row.cells[0].end === row.cells[1].end;
   }).length;
-  const exact = rows.slice(0, pairCount).filter(function isExact(row) { return row.comparison.exact; }).length;
+  const exact = paired.filter(function isExact(row) { return row.comparison.exact; }).length;
   const counts = { none: 0, onlyA: 0, onlyB: 0, count: 0, text: 0, time: 0, same: 0 };
-  rows.slice(0, pairCount).forEach(function countStatus(row) { counts[row.comparison.itemStatus] += 1; });
+  paired.forEach(function countStatus(row) { counts[row.comparison.itemStatus] += 1; });
 
   const intro = makeElement('div', 'summary-intro');
-  intro.appendChild(makeElement('strong', '', 'A / B 段序号对照'));
-  intro.appendChild(makeElement('span', '', pairCount + ' 对 · 末尾缺段会在表格中标记'));
+  intro.appendChild(makeElement('strong', '', MSWCompareTracks.pairSegments(state.files).mode === 'id' ? 'A / B 字幕 ID 对照' : 'A / B 段序号对照'));
+  intro.appendChild(makeElement('span', '', pairCount + ' 对 · 未配对字幕单独标记'));
   els.summary.appendChild(intro);
   const metrics = [
     ['配对段', pairCount + ' / ' + rows.length, ''],
@@ -1590,7 +2697,7 @@ function renderWarnings() {
     });
     if (entry.stats.outOfOrder) {
       messages.push((state.files.length === 2 ? (index === 0 ? 'A' : 'B') + '：' : '') +
-        '有 ' + entry.stats.outOfOrder + ' 处段起点逆序，仍按原数组序号对齐。');
+        '有 ' + entry.stats.outOfOrder + ' 处段起点逆序，未修改原工程时间。');
     }
     if (entry.stats.overflowItems) {
       messages.push((state.files.length === 2 ? (index === 0 ? 'A' : 'B') + '：' : '') +
@@ -1598,7 +2705,7 @@ function renderWarnings() {
     }
   });
   if (state.files.length === 2 && state.files[0].segments.length !== state.files[1].segments.length) {
-    messages.push('A / B 段数不同；比较按原数组序号进行，超出的一侧显示为缺段。');
+    messages.push('A / B 段数不同；未配对的一侧显示为缺段。');
   }
   els.warning.textContent = '';
   els.warning.hidden = !messages.length;
@@ -1873,7 +2980,7 @@ function render() {
     state.itemFilter = 'all';
     els.itemFilter.value = 'all';
     els.heading.textContent = '把时间码差异摊开看';
-    els.heroSubtitle.textContent = '拖入一个工程查看字词时间码，或再加入一个工程按段序号对照。';
+    els.heroSubtitle.textContent = '拖入工程后选择字幕轨道，查看字词时间码或比较两个版本。';
     els.cards.hidden = true;
     els.summary.hidden = true;
     els.warning.hidden = true;
@@ -1888,7 +2995,7 @@ function render() {
     : '时间码对比 · A / B';
   els.heroSubtitle.textContent = state.files.length === 1
     ? '按原工程顺序浏览段级范围与字词分布；点击一行展开明细。'
-    : '按段序号对齐；黄色看时间，紫色看字词码，红色看文本或缺段。';
+    : (MSWCompareTracks.pairSegments(state.files).mode === 'id' ? '按字幕 ID 配对；新增或删除的字幕单独列出。' : '没有共同字幕 ID，按段序号对照；切分或合并后请注意核对正文。');
   document.title = state.files.length === 1 ? '时间码查看 · ' + state.files[0].name : 'MSW 时间码对比';
   renderCards();
   renderSummary(rows);

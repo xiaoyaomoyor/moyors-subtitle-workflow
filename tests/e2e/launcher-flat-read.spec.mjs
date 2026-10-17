@@ -19,9 +19,11 @@ from maw.gui_web import LauncherApi, LauncherPaths
 root=Path(sys.argv[1]); project=root/'native.mosp'; legacy=root/'legacy.mosp'
 project.write_text(json.dumps(flat_fixture()),encoding='utf-8')
 legacy.write_text(json.dumps({'segments':[{'start':0,'end':1000,'text':'Hello'}]}),encoding='utf-8')
+subtitle=root/'overlap.srt'
+subtitle.write_text('1\\n00:00:00,000 --> 00:00:03,000\\nA\\n\\n2\\n00:00:00,500 --> 00:00:02,000\\nB\\n\\n3\\n00:00:01,000 --> 00:00:02,500\\nC\\n',encoding='utf-8')
 env=root/'empty.env';env.write_text('',encoding='utf-8')
 api=LauncherApi(paths=LauncherPaths(root=root,env_path=env,launcher_html=root/'index.html',recent_metadata=root/'recent.json',project_registry=root/'registry.json'))
-print(json.dumps({'flat':inspect_input(str(project)), 'flatAlignment':api.inspect_alignment_input({'path':str(project)}), 'legacyAlignment':api.inspect_alignment_input({'path':str(legacy)}), 'legacy':str(legacy)},ensure_ascii=False))
+print(json.dumps({'flat':inspect_input(str(project)), 'srt':inspect_input(str(subtitle)), 'flatAlignment':api.inspect_alignment_input({'path':str(project)}), 'legacyAlignment':api.inspect_alignment_input({'path':str(legacy)}), 'legacy':str(legacy)},ensure_ascii=False))
 `, directory], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8', MSW_APP_DATA_ROOT: join(directory, 'appdata') } });
   if (result.status !== 0) throw Error(result.stderr || result.error?.message);
   metadata = JSON.parse(result.stdout.trim());
@@ -35,7 +37,10 @@ async function open(page) {
       window.__flatCalls = [];
       MSWLauncher.callBackend = async (name, payload) => {
         window.__flatCalls.push(name);
-        if (name === 'inspect_queue_inputs') return { ok: true, items: payload.paths.map(path => ({ ok: true, ...data.flat, path })) };
+        if (name === 'inspect_queue_inputs') {
+          const fallback = await original(name, payload);
+          return {ok:true, items:payload.paths.map((path,i) => /\.mp4$/i.test(path) ? fallback.items[i] : ({ok:true, ...(path === data.srt.path ? data.srt : data.flat), path}))};
+        }
         if (name === 'inspect_alignment_input') return payload.path === data.legacy ? data.legacyAlignment : data.flatAlignment;
         return original(name, payload);
       };
@@ -111,4 +116,27 @@ test('timestamp tool lists native tracks; clearing input resets availability', a
   await expect(page.locator('#runTimestampTool')).toBeEnabled();
   await expect(page.locator('#timestampTrack option')).toHaveCount(1);
   expect(await page.evaluate(() => __flatCalls.includes('run_timestamp_alignment'))).toBe(false);
+});
+
+test('paired media and overlapping subtitles use the imported tracks and retain scope across reload', async ({page}) => {
+  await open(page);
+  const srt=metadata.srt.path, media=srt.replace(/\.srt$/i,'.mp4');
+  await page.evaluate(paths=>{MSWNavigation.show('prefab'); return MSWQueue.addPaths(paths);},[media,srt]);
+  await page.getByRole('button',{name:'关联为一个任务',exact:true}).click();
+  await page.locator('.queue-details summary').click();
+  await expect(page.getByLabel('处理轨道',{exact:true}).locator('option')).toHaveCount(3);
+  await page.locator('#prefabRail [data-module-id="translate"]').check();
+  await page.getByLabel('处理轨道',{exact:true}).selectOption('import-s3');
+  await page.getByLabel('译文轨道',{exact:true}).selectOption('import-s2');
+  const data=await page.evaluate(()=>({plan:MSWPlan.build(),check:MSWPlan.preflight(MSWPlan.build())}));
+  expect(data.check.ok).toBe(true);
+  expect(data.plan.tasks).toHaveLength(1);
+  expect(data.plan.tasks[0]).toMatchObject({sourceTrackId:'import-s3',targetTrackId:'import-s2',exportTrackIds:['import-s3'],subtitlePath:srt});
+  await page.reload();
+  await page.waitForFunction(()=>MSWQueue?.state.files.length===2 && !MSWQueue.state.inspecting);
+  expect(await page.evaluate(()=>MSWQueue.tasks()[0].sourceTrackId)).toBe('import-s3');
+  await page.locator('.queue-details summary').click();
+  await page.getByRole('button',{name:'解除关联',exact:true}).click();
+  expect(await page.evaluate(()=>MSWQueue.tasks().find(t=>t.subtitlePath==='')?.sourceTrackId)).toBeUndefined();
+  expect(await page.evaluate(()=>MSWQueue.tasks().find(t=>t.path.endsWith('.srt')).sourceTrackId)).toBe('import-s3');
 });

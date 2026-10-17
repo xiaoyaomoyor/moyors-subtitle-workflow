@@ -36,9 +36,10 @@
     if (!plan.tasks.length) return { ok: false, module: "media", code: "queue_empty" };
     if (plan.pendingAssociations) return { ok: false, module: "media", code: "queue_confirm_pairs" };
     for (const task of plan.tasks) {
-      const meta = window.MSWQueue?.state.files.find(file => file.id === task.id)?.meta;
+      const files = window.MSWQueue?.state.files || [];
+      const meta = (files.find(file => file.path === task.subtitlePath) || files.find(file => file.id === task.id))?.meta;
       const selected = meta?.subtitleTracks?.find(t => t.id === task.sourceTrackId);
-      const subtitles = Boolean(task.subtitlePath || (selected ? selected.subtitleCount : meta?.hasSubtitles));
+      const subtitles = Boolean(selected ? selected.subtitleCount : meta?.hasSubtitles);
       const recognizing = plan.modules.asr && (!subtitles || plan.asrPolicy === 'replace');
       if (task.sourceTrackId && !selected) return { ok: false, taskId: task.id, module: 'media', message: window.MSWLauncher.translate('queue_track_missing') };
       if (selected && (recognizing || plan.modules.postprocess.length)) {

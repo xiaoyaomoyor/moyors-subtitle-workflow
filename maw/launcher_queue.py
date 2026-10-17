@@ -80,7 +80,7 @@ def _read_ass(path: Path) -> dict:
             segments.append({"start": timestamp(row["start"]), "end": timestamp(row["end"]), "text": content})
     if not fields:
         raise ValueError("未找到有效的 ASS Events。")
-    return project_from_subtitle_segments(sorted(segments, key=lambda s: (s["start"], s["end"])), source=path)
+    return project_from_subtitle_segments(segments, source=path, native=True)
 
 
 def read_input(path: Path) -> dict:
@@ -88,7 +88,7 @@ def read_input(path: Path) -> dict:
     if kind == "project":
         return read_project(path)
     if kind == "subtitle":
-        return _read_ass(path) if path.suffix.lower() == ".ass" else read_srt(path)
+        return _read_ass(path) if path.suffix.lower() == ".ass" else read_srt(path, native=True)
     if kind == "media":
         return normalize_project({"media": str(path), "segments": []})
     raise ValueError("不支持该文件类型；请选择媒体、工程或 SRT/ASS 字幕。")
@@ -110,8 +110,6 @@ def inspect_input(value, *, ffprobe_path=None, project=None) -> dict:
         warnings.append("ASS 仅导入时间与文本；样式、位置、特效和绘图不导入。")
     if kind == "project" and project.get("media") and not media:
         warnings.append("工程媒体失联；音频处理需重新关联媒体。")
-    if not inventory['operations']['srt']['supported']:
-        warnings.append('平级轨道工程可关联媒体、补波形和另存工程；字幕处理与导出请在编辑器中按轨道操作。')
     return {
         "path": str(path), "kind": kind, "mediaPath": str(media or ""),
         **inventory,
@@ -179,9 +177,8 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                 if input_kind(subtitle) != "subtitle" or info["kind"] != "media":
                     raise ValueError("只允许将字幕关联到媒体任务；已有工程的字幕不能被隐式覆盖。")
                 imported = read_input(subtitle)
-                project['segments'] = imported['segments']
-                if 'overlay_track' in imported:
-                    project['overlay_track'] = copy.deepcopy(imported['overlay_track'])
+                project = native_project(project)
+                project['subtitles'] = copy.deepcopy(imported['subtitles'])
                 if subtitle.suffix.lower() == ".ass":
                     info["warnings"].append("ASS 仅导入时间与文本，不导入样式。")
             tracks = probe_audio_tracks(media, ffprobe_path=tools.ffprobe) if media else None

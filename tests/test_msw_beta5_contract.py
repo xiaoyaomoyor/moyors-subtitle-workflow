@@ -171,15 +171,16 @@ class MswBeta5RoundtripTests(unittest.TestCase):
                 read_srt(source)
             self.assertEqual(source.read_text(encoding='utf8'), text)
 
-    def test_launcher_ass_uses_same_two_layer_contract(self):
+    def test_launcher_ass_imports_arbitrary_flat_tracks(self):
         source = self.root / 'double.ass'
         text = '[Events]\nFormat: Layer, Start, End, Text\nDialogue: 0,0:00:00.00,0:00:02.00,主\nDialogue: 1,0:00:00.50,0:00:01.50,叠\n'
         source.write_text(text, encoding='utf8')
         project = read_input(source)
-        self.assertEqual(project['overlay_track']['segments'][0]['text'], '叠')
+        self.assertEqual(project['subtitles']['cues'][1]['content']['text'], '叠')
         source.write_text(text + 'Dialogue: 2,0:00:00.60,0:00:01.00,第三层\n', encoding='utf8')
-        with self.assertRaisesRegex(PostprocessFileError, 'main and overlay'):
-            read_input(source)
+        project = read_input(source)
+        self.assertEqual([t['name'] for t in project['subtitles']['tracks']], ['S1', 'S2', 'S3'])
+        self.assertEqual(len(project['subtitles']['cues']), 3)
 
     def test_overlay_item_repairs_and_reference_validation_are_track_local(self):
         project = {'segments': [], 'overlay_track': {'enabled': False, 'segments': [

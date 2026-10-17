@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 import json
+import heapq
 import re
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,11 +48,11 @@ def read_project(path: Path) -> JsonDict:
     return normalize_project(raw)
 
 
-def read_srt(path: Path, *, strict: bool = False) -> JsonDict:
+def read_srt(path: Path, *, strict: bool = False, native: bool = False) -> JsonDict:
     """解析 SRT 为工程 JSON。
 
     ``strict=True`` 时不允许任何重叠（用于文稿匹配等需要顺序 cue 的场景）；
-    默认（非 strict）允许第二层落入叠加轨，第三层并发才报错。
+    启动器使用 native=True，按并发数量建立普通轨道；默认保留旧算法输入协议。
     """
     source = path.expanduser().resolve()
     if not source.is_file() or source.suffix.lower() != ".srt":
@@ -77,18 +79,15 @@ def read_srt(path: Path, *, strict: bool = False) -> JsonDict:
         start = _parse_srt_time(left, source, cue_index)
         end = _parse_srt_time(right_parts[0], source, cue_index)
         segments.append({"start": start, "end": end, "text": "\n".join(lines[timing_index + 1 :]).strip()})
-    return project_from_subtitle_segments(segments, source=source, strict=strict)
+    return project_from_subtitle_segments(segments, source=source, strict=strict, native=native)
 
 
 def project_from_subtitle_segments(
-    cues: list[JsonValue], *, source: Path, strict: bool = False,
+    cues: list[JsonValue], *, source: Path, strict: bool = False, native: bool = False,
 ) -> JsonDict:
-    """Partition sorted imported text into the public main/overlay contract.
-
-    SRT and MSW's text-only ASS importer share the same two-layer limit.
-    Each track is append-only and non-overlapping, so only its last end
-    needs checking; long subtitle files stay linear rather than quadratic.
-    """
+    """Import text into native tracks, or the explicit legacy algorithm protocol."""
+    if native:
+        return _native_subtitle_project(cues, source=source, strict=strict)
     segments: list[JsonValue] = []
     overlay_segments: list[JsonValue] = []
     previous_start = 0
@@ -109,6 +108,47 @@ def project_from_subtitle_segments(
     if overlay_segments:
         project["overlay_track"] = {"enabled": True, "segments": overlay_segments}
     return normalize_project(project)
+
+
+def _native_subtitle_project(cues: list[JsonValue], *, source: Path, strict: bool) -> JsonDict:
+    from maw.msw.flat_subtitles import SCHEMA, MODEL_SCHEMA, identity, normalize_groups, validate
+
+    for index, cue in enumerate(cues, 1):
+        if (not isinstance(cue, dict) or type(cue.get('start')) is not int
+                or type(cue.get('end')) is not int or cue['start'] < 0 or cue['end'] <= cue['start']):
+            raise PostprocessFileError(source, f'cue {index} has invalid timing')
+    ordered = list(enumerate(cues, 1))
+    if not strict:
+        ordered.sort(key=lambda pair: (pair[1]['start'], pair[0]))
+    model = dict(schema=MODEL_SCHEMA, tracks=[], cues=[], bindings=[])
+    busy, available = [], []
+    previous_end = 0
+    for index, cue in ordered:
+        start, end = cue['start'], cue['end']
+        if strict and start < previous_end:
+            raise PostprocessFileError(source, f'cue {index} has overlapping or unordered timing')
+        while busy and busy[0][0] <= start:
+            _, slot = heapq.heappop(busy)
+            heapq.heappush(available, slot)
+        slot = heapq.heappop(available) if available else len(model['tracks'])
+        if slot == len(model['tracks']):
+            model['tracks'].append(dict(id=f'import-s{slot + 1}', name=f'S{slot + 1}', purpose='none',
+                                        layout='auto', enabled=True, locked=False, collapsed=False,
+                                        style=dict(mode='inherit', slot='main', base='dialogue')))
+        content = deepcopy(cue)
+        content.pop('id', None)
+        cue_id = identity('import-cue', json.dumps([index, content], ensure_ascii=False, sort_keys=True))
+        model['cues'].append(dict(id=cue_id, track_id=model['tracks'][slot]['id'], content=content))
+        heapq.heappush(busy, (end, slot))
+        previous_end = end
+    if not model['tracks']:
+        model['tracks'].append(dict(id='import-s1', name='S1', purpose='none', layout='auto',
+                                    enabled=True, locked=False, collapsed=False,
+                                    style=dict(mode='inherit', slot='main', base='dialogue')))
+    project = dict(schema=SCHEMA, subtitles=model)
+    normalize_groups(project)
+    validate(project)
+    return project
 
 
 def _fits_track(segments: list[JsonValue], start: int, end: int) -> bool:

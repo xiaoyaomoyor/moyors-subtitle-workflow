@@ -285,7 +285,7 @@
           <div id="localRuntimeCheckField" class="field hidden"><div class="local-status-row"><p id="localRuntimeCheckStatus" class="local-status" aria-live="polite"></p><button id="openLocalRuntimeSettings" class="inline-link" type="button" data-i18n="local_runtime_view_settings">在更多设置中查看</button></div></div>
           <div id="localModelPanel" class="local-model-panel hidden">
             <div class="field"><label for="fireredPunc" data-msw5="0">FireRed 标点</label><select id="fireredPunc"><option value="none" data-msw5="1">不使用</option><option value="ct-punc" data-msw5="2">使用 ct-punc（需下载）</option></select></div>
-            <div class="field"><label for="alignmentModel" data-msw5="3">识别后补齐字词时间码</label><select id="alignmentModel"><option value="" data-msw5="4">不额外对齐</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option><option value="firered-asr2-ctc">FireRed CPU</option></select><input id="alignmentModelPath" placeholder="对齐模型目录（可选）"><p class="hint" data-msw5="5">只为本次识别的原声字幕补齐时间码，不修改已有译文副轨。</p></div>
+            <div class="field"><label for="alignmentModel" data-msw5="3">识别后补齐字词时间码</label><select id="alignmentModel"><option value="" data-msw5="4">不额外对齐</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option><option value="firered-asr2-ctc">FireRed CPU</option></select><input id="alignmentModelPath" placeholder="对齐模型目录（可选）"><p class="hint" data-msw5="5">只为本次识别结果补齐时间码，不修改其他轨道。</p></div>
             <div class="button-row"><button type="button" id="refreshAlignmentModels" data-msw5="6" class="ghost">扫描对齐模型</button><button type="button" id="prepareAlignmentModel" data-msw5="7" class="ghost">下载所选对齐模型</button><button type="button" id="cancelAlignmentModel" data-msw5="8" class="ghost">取消下载</button></div><p id="alignmentModelsStatus" class="hint" role="status"></p>
             <div class="local-status-row">
               <p id="localModelStatus" class="local-status" aria-live="polite"></p>
@@ -664,7 +664,7 @@
                 <option value="en" data-i18n="auto_translate_en">英文</option>
               </select>
             </div>
-            <div class="field"><label for="translationWriteMode" data-i18n="translation_write_mode">译文写入</label><select id="translationWriteMode"><option value="secondary" data-i18n="translation_secondary">生成副字幕</option><option value="backfill" data-i18n="translation_backfill">翻译回填</option><option value="bilingual" data-i18n="translation_bilingual">合并双语字幕</option></select></div>
+            <div class="field"><label for="translationWriteMode" data-i18n="translation_write_mode">译文写入</label><select id="translationWriteMode"><option value="secondary" data-i18n="translation_secondary">写入译文轨道</option><option value="backfill" data-i18n="translation_backfill">翻译回填</option><option value="bilingual" data-i18n="translation_bilingual">合并双语字幕</option></select></div>
           </div>
           <div class="field hidden" id="translationOrderField"><label for="autoTranslateBilingualOrder" data-i18n="auto_bilingual_order">双语行序</label><select id="autoTranslateBilingualOrder"><option value="" data-i18n="auto_bilingual_default">跟随目标语言</option><option value="translation_first" data-i18n="auto_translation_first">译文在上</option><option value="original_first" data-i18n="auto_original_first">原文在上</option></select></div>
           <p class="hint" id="translationImpact" aria-live="polite"></p>
@@ -702,7 +702,7 @@
               <input id="outputExportSrt" type="checkbox" checked>
               <span data-i18n="output_export_srt">导出原文 SRT</span>
             </label>
-            <p class="hint" data-i18n="output_srt_hint" data-help>原文 SRT 为完成所选整理步骤、翻译前的主字幕；识别输出的 SRT 位置跟随此字段。</p>
+            <p class="hint" data-i18n="output_srt_hint" data-help>原文 SRT 来自任务中勾选的轨道，保留翻译前的整理结果；识别输出位置跟随此字段。</p>
           </div>
           <div class="field" id="outputTranslatedField">
             <label class="check-field" for="outputExportTranslatedSrt">
@@ -926,17 +926,17 @@
             </section>
 
             <section id="timestampToolPanel" class="card tool-page-panel hidden" data-tools-panel="timestamps" role="tabpanel" aria-labelledby="toolsRailTimestamps">
-              <h2 data-msw5="9">字词时间码对齐</h2><p class="hint" data-msw5="29">默认只补齐主字幕的缺失字词时间码，输出新工程。副字幕／叠加字幕必须明确选择与文本匹配的音频；覆盖已有时间码需选择“重新生成”。</p>
+              <h2 data-msw5="9">字词时间码对齐</h2><p class="hint" data-msw5="29">选择要处理的字幕轨道，以及与文本匹配的媒体和音轨。默认只补齐缺失时间码并输出新工程；覆盖已有时间码请选择“重新生成”。</p>
               <div class="field"><label for="timestampInput" data-msw5="10">字幕工程或 SRT</label><div class="path-row"><input id="timestampInput"><button type="button" id="pickTimestampInput" class="ghost" data-i18n="choose">选择</button></div></div>
-              <div class="field"><label for="timestampTrack" data-msw5="11">目标字幕轨</label><select id="timestampTrack"><option value="main" data-msw5="12">主字幕（原声）</option></select></div>
-              <div class="field"><label for="timestampMedia" data-msw5="13">对应媒体（主字幕可留空使用工程媒体）</label><div class="path-row"><input id="timestampMedia"><button type="button" id="pickTimestampMedia" class="ghost" data-i18n="choose">选择</button></div></div>
-              <div class="field"><label for="timestampAudio" data-msw5="14">音频轨序号（从 0 起；留空沿用工程）</label><input id="timestampAudio" type="number" min="0" max="127"></div>
+              <div class="field"><label for="timestampTrack" data-msw5="11">目标字幕轨</label><select id="timestampTrack"><option value="main" data-msw5="12">先选择输入文件</option></select></div>
+              <div class="field"><label for="timestampMedia" data-msw5="13">对应媒体</label><div class="path-row"><input id="timestampMedia"><button type="button" id="pickTimestampMedia" class="ghost" data-i18n="choose">选择</button></div></div>
+              <div class="field"><label for="timestampAudio" data-msw5="14">对应音轨（从 0 起）</label><input id="timestampAudio" type="number" min="0" max="127"></div>
               <div class="field"><label for="timestampModel" data-msw5="15">对齐模型</label><select id="timestampModel"><option value="firered-asr2-ctc">FireRed CPU</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option></select></div>
               <div class="field"><label for="timestampMode" data-msw5="16">处理方式</label><select id="timestampMode"><option value="fill" data-msw5="17">仅补齐缺失时间码</option><option value="generate" data-msw5="18">重新生成并覆盖已有时间码</option></select></div>
               <div class="button-row"><button type="button" id="runTimestampTool" class="primary" data-msw5="19">开始对齐</button><button type="button" id="cancelTimestampTool" data-msw5="20" class="ghost">取消对齐</button></div><p id="timestampResult" role="status" class="hint"></p>
             </section>
             <section id="comparisonToolPanel" class="card tool-page-panel hidden" data-tools-panel="compare" role="tabpanel" aria-labelledby="toolsRailCompare">
-              <h2 data-msw5="21">字幕对比工具</h2><p class="hint" data-msw5="22">在浏览器本地读取文件，不上传字幕。对比不会修改原文件。</p><div class="button-row"><button type="button" class="ghost" data-comparison-tool="compare" data-msw5="23">转写文本对比</button><button type="button" class="ghost" data-comparison-tool="timestamp-compare" data-msw5="24">字词时间码查看与对比</button></div><p id="comparisonResult" role="status"></p>
+              <h2 data-msw5="21">字幕对比工具</h2><p class="hint" data-msw5="22">在浏览器本地读取文件，按实际轨道比较；不上传、不修改原文件。</p><div class="button-row"><button type="button" class="ghost" data-comparison-tool="compare" data-msw5="23">转写文本对比</button><button type="button" class="ghost" data-comparison-tool="timestamp-compare" data-msw5="24">字词时间码查看与对比</button></div><p id="comparisonResult" role="status"></p>
             </section>
             <section id="waveformToolPanel" class="card tool-page-panel hidden" data-tools-panel="waveform" role="tabpanel" aria-labelledby="toolsRailWaveform">
               <h2 class="tool-page-title" data-i18n="waveform_tool">生成波形</h2>

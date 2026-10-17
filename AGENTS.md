@@ -31,6 +31,8 @@ uv run python edit.py --blank
 
 不要手改 `blank-editor.html` 内联副本。所有文本文件必须保持 UTF-8 与 LF（`\n`）换行，包括 Windows 上编辑的 `.py`、`.js`、`.html`、`.md`、`.yml`、`.ps1` 等文件；禁止提交 CRLF（`\r\n`）。不要依赖开发者机器的 `core.autocrlf`，以仓库 `.gitattributes` 的 `eol=lf` 规则为准。
 
+离线对比工具源码在 `web/tools/`；修改这些页面或其共享字幕模型后，运行 `uv run python scripts/build_comparison_tools.py`，生成 `tools/compare.html` 与 `tools/timestamp-compare.html`。两份产物保持单文件离线使用，不手改内联副本。
+
 ## 开发与验证
 
 ```powershell
@@ -97,7 +99,7 @@ git diff
 - 不加入媒体、识别结果、波形 sidecar、截图或个人绝对路径。
 - 本地服务器必须只监听 `127.0.0.1`；不可改成任意本地文件浏览或任意路径写入接口。
 - JSON 的 `segments[*].start/end/items[*].start/end` 都是整数毫秒。修改 schema 必须同步更新 `JSON_SCHEMA.md`、测试与 changelog。
-- `waveform` 是可重建缓存，不能变成工程唯一真源；`segments` 才是字幕真源。
+- `waveform` 是可重建缓存，不能变成工程唯一真源；v4 的 `subtitles.tracks/cues/bindings` 是字幕真源，根部 `segments` 仅用于旧工程输入和识别／处理算法的中间协议。
 - 删除文件时移入回收站，绝不使用 `rm -rf`。
 
 ## 提交与推送默认流程

@@ -211,10 +211,10 @@ test('typed media binding probes tracks, recovers from errors and survives reloa
   await expect(page.locator('.queue-file .field-error')).toBeVisible();
   await input.fill('D:/Demo/voice.mp4'); await input.press('Tab');
   await expect(page.locator('.queue-file .field-error')).toHaveCount(0);
-  await page.locator('.queue-details select').selectOption('1');
+  await page.getByRole('combobox', {name: '声音轨道', exact: true}).selectOption('1');
   await open(page);
   await page.locator('.queue-details summary').click();
-  await expect(page.locator('.queue-details select')).toHaveValue('1');
+  await expect(page.getByRole('combobox', {name: '声音轨道', exact: true})).toHaveValue('1');
   expect(await page.evaluate(() => MSWPlan.build().tasks[0].mediaPath)).toBe('D:/Demo/voice.mp4');
 });
 

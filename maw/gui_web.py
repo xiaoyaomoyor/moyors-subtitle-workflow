@@ -1362,7 +1362,8 @@ class LauncherApi:
             source_path = _optional_path(payload.get('projectPath'))
             subtitle_path = _optional_path(payload.get('srtPath'))
             if source_path is not None or subtitle_path is not None:
-                project = read_project(source_path) if source_path is not None else read_srt(subtitle_path)
+                project = read_project(source_path) if source_path is not None else read_srt(
+                    subtitle_path, native=str(payload.get('targetTrack') or '').startswith('import-s'))
                 alignment_collections(project, str(payload.get('targetTrack') or 'main'))
         except (OSError, ValueError, TimestampAlignmentError) as error:
             return _error_result('postprocessInput', 'alignment_failed', str(error))
@@ -1982,7 +1983,7 @@ class LauncherApi:
     def inspect_alignment_input(self, payload: Mapping[str, object]) -> dict[str, object]:
         try:
             path = Path(str(payload.get('path') or '')).expanduser().resolve()
-            project = read_project(path) if path.suffix.lower() in {'.mosp', '.json'} else read_srt(path)
+            project = read_project(path) if path.suffix.lower() in {'.mosp', '.json'} else read_srt(path, native=True)
             from maw.launcher_project import project_inventory
             inventory = project_inventory(project)
             support = inventory['operations']['alignment']

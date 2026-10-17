@@ -551,7 +551,8 @@ def align_local_transcription(
 
 
 def run_timestamp_alignment(request: TimestampAlignmentRequest) -> tuple[SubtitleArtifact, TimestampAlignmentReport]:
-    project, source_project, source_srt = _load_input(request.project_path, request.srt_path)
+    project, source_project, source_srt = _load_input(
+        request.project_path, request.srt_path, native=request.target_track.startswith('import-s'))
     project = _alignment_view(project, request.target_track)
     alignment_collections(project, request.target_track)
     media = request.media_path
@@ -1020,13 +1021,13 @@ def _is_silent_waveform(samples: Any, *, peak_threshold: float = 1e-5) -> bool:
     return math.isfinite(peak) and peak <= peak_threshold
 
 
-def _load_input(project_path: Path | None, srt_path: Path | None) -> tuple[JsonDict, Path | None, Path | None]:
+def _load_input(project_path: Path | None, srt_path: Path | None, *, native: bool = False) -> tuple[JsonDict, Path | None, Path | None]:
     if project_path is not None:
         resolved = project_path.expanduser().resolve()
         return read_project(resolved), resolved, srt_path.expanduser().resolve() if srt_path else None
     if srt_path is not None:
         resolved = srt_path.expanduser().resolve()
-        return read_srt(resolved), None, resolved
+        return read_srt(resolved, native=native), None, resolved
     raise TimestampAlignmentError("需要提供 .mosp/.json 工程或 .srt 字幕。")
 
 

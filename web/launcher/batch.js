@@ -32,7 +32,7 @@
     return state.files.filter(f => !attached.has(f.id)).map(f => {
       const pair = state.pairs.find(p => p[0] === f.id);
       const subtitle = pair && state.files.find(s => s.id === pair[1]);
-      return { id: f.id, path: f.path, mediaPath: f.mediaPath || f.meta?.mediaPath || "", subtitlePath: subtitle?.path || "", audioTrack: f.audioTrack ?? f.meta?.audioTrack ?? null, scriptPath: f.scriptPath || "", ocrVideoPath: f.ocrVideoPath || "", ...trackScope(f) };
+      return { id: f.id, path: f.path, mediaPath: f.mediaPath || f.meta?.mediaPath || "", subtitlePath: subtitle?.path || "", audioTrack: f.audioTrack ?? f.meta?.audioTrack ?? null, scriptPath: f.scriptPath || "", ocrVideoPath: f.ocrVideoPath || "", ...trackScope(subtitle || f) };
     });
   }
   function trackScope(file) {
@@ -56,7 +56,7 @@
       select.addEventListener('change', () => {
         file[field] = select.value;
         if (field === 'sourceTrackId') { delete file.targetTrackId; delete file.exportTrackIds; }
-        delete state.results[file.id]; changed();
+        delete state.results[file.id]; delete state.results[task.id]; changed();
       });
       row.append(select); box.append(row);
     };
@@ -75,7 +75,7 @@
       input.addEventListener('change', () => {
         const selected = new Set(task.exportTrackIds || []);
         if (input.checked) selected.add(track.id); else selected.delete(track.id);
-        file.exportTrackIds = [...selected]; delete state.results[file.id]; changed();
+        file.exportTrackIds = [...selected]; delete state.results[file.id]; delete state.results[task.id]; changed();
       });
       label.append(input, document.createTextNode(track.label)); choices.append(label);
     }
@@ -196,7 +196,7 @@
         tracks.forEach(track => select.add(new Option(`${track.audio_index + 1} · ${track.language || track.title || track.codec_name || t("audio_track")}`, track.audio_index)));
         select.value = String(task.audioTrack ?? 0); select.addEventListener("change", () => { file.audioTrack = Number(select.value); delete state.results[file.id]; persist(); }); label.append(select); details.append(label);
       }
-      renderTrackScope(details, file, task);
+      renderTrackScope(details, state.files.find(f => f.path === task.subtitlePath) || file, task);
       if (window.MSWModules?.isEnabled("match")) detailPath(details, file, "scriptPath", t("queue_manuscript"), "script");
       if (window.MSWModules?.isEnabled("ocr")) detailPath(details, file, "ocrVideoPath", t("queue_ocr_video"), "video");
       item.append(details);
@@ -228,7 +228,10 @@
     if (!check.ok) { showErrors([{ taskId: check.taskId, module: check.module, message: check.message || t(check.code) }]); return; }
     const failed = state.files.filter(f => f.error || f.linkedError);
     if (failed.length) { showErrors(failed.map(f => ({ taskId: f.id, module: "media", message: f.error || f.linkedError }))); return; }
-    const asrTask = plan.modules.asr && plan.tasks.find(task => plan.asrPolicy === 'replace' || (!task.subtitlePath && !(state.files.find(f => f.id === task.id)?.meta?.subtitleTracks?.find(t => t.id === task.sourceTrackId)?.subtitleCount ?? state.files.find(f => f.id === task.id)?.meta?.hasSubtitles)));
+    const asrTask = plan.modules.asr && plan.tasks.find(task => {
+      const meta = (state.files.find(f => f.path === task.subtitlePath) || state.files.find(f => f.id === task.id))?.meta;
+      return plan.asrPolicy === 'replace' || !(meta?.subtitleTracks?.find(t => t.id === task.sourceTrackId)?.subtitleCount ?? meta?.hasSubtitles);
+    });
     if (asrTask && !window.MSWLauncher.validateQueueRecognition(asrTask.mediaPath)) { window.MSWWorkflow?.setCollapsed('asr', false); return; }
     const allCount = plan.tasks.length;
     // Shared manuscript applies only to an original one-task queue, including retries.
