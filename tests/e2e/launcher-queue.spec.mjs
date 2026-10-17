@@ -82,7 +82,8 @@ test('mixed files use one frozen plan and provide project results', async ({ pag
   await page.locator('#start').click();
   await expect(page.locator('#stop')).toBeVisible();
   await expect(rail(page, 'waveform')).toBeDisabled();
-  await expect(page.locator('#openProjectResult')).toBeVisible();
+  await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+  await expect(page.locator('#recentGrid .recent-new').first()).toBeVisible();
   const runs = await page.evaluate(() => window.__queuePlanRuns);
   expect(runs).toHaveLength(1);
   expect(runs[0].version).toBe(2);
@@ -90,6 +91,56 @@ test('mixed files use one frozen plan and provide project results', async ({ pag
   expect(runs[0].modules.asr).toBe(false);
   await expect(page.locator('.queue-status')).toHaveText(['已完成', '已完成', '已完成']);
   await expect(rail(page, 'waveform')).toBeEnabled();
+});
+
+test('prepared cards clear old filters, show NEW in both groups and acknowledge only on interaction', async ({ page }, testInfo) => {
+  await open(page);
+  await page.evaluate(() => {
+    MSWProjectHome.state.query = 'unrelated old search';
+    document.getElementById('recentSearch').value = 'unrelated old search';
+    MSWProjectHome.state.groupsCollapsed.recent = true;
+    MSWProjectHome.state.groupsCollapsed.all = false;
+  });
+  await add(page, ['D:/Demo/new-one.mp4', 'D:/Demo/new-two.mp4']);
+  await page.locator('#start').click();
+  await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+  await expect(page.locator('#recentSearch')).toHaveValue('');
+  await expect(page.locator('#recentGrid .recent-new')).toHaveCount(2);
+  await expect(page.locator('#allGrid .recent-new')).toHaveCount(2);
+  await expect(page.locator('#openProjectResult')).toHaveCount(0);
+  await expect(page.locator('.queue-file').getByRole('button', { name: '打开工程', exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => window.__mockServerIntents || [])).toEqual([]);
+  await page.evaluate(() => MSWProjectHome.refresh());
+  await expect(page.locator('#recentGrid .recent-new')).toHaveCount(2);
+  const card = page.locator('#recentGrid .recent-card').filter({ hasText: 'new-one.prepared.mosp' });
+  await expect(card.locator('.recent-stats')).toHaveText('07:45 | 字幕 12 | 音频 2');
+  await page.screenshot({ path: testInfo.outputPath('prepared-cards-light.png') });
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+  await expect.poll(() => card.evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgb(30, 30, 30)');
+  await page.screenshot({ path: testInfo.outputPath('prepared-cards-dark.png') });
+  await card.click();
+  await expect(card.locator('.recent-new')).toHaveCount(0);
+  await expect(page.locator('#allGrid .recent-new')).toHaveCount(1);
+  await page.evaluate(() => MSWProjectHome.refresh());
+  await expect(page.locator('#recentGrid .recent-new')).toHaveCount(1);
+  await page.locator('#recentGrid .recent-card').filter({ hasText: 'new-two.prepared.mosp' }).press('Space');
+  await expect(page.locator('.recent-new')).toHaveCount(0);
+});
+
+test('failed batches stay in preparation; a completed project in a partial batch is still available', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => MSWLauncher.finishQueue({ results: [{ status: 'failed' }] }, ''));
+  await expect(page.locator('[data-page-id="prefab"]')).toHaveClass(/active/);
+  await page.evaluate(() => MSWLauncher.finishQueue({ cancelled: true, results: [] }, ''));
+  await expect(page.locator('[data-page-id="prefab"]')).toHaveClass(/active/);
+  await page.evaluate(() => {
+    const path = 'D:/Demo/success.mosp';
+    window.__demoPrepared = [{ path, name: 'success.mosp', dir: 'D:/Demo', exists: true, isNew: true }];
+    MSWLauncher.finishQueue({ results: [{ status: 'done', result: { projectPath: path } }, { status: 'failed' }] }, path);
+  });
+  await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+  await expect(page.locator('#recentGrid .recent-new')).toHaveCount(1);
+  await expect(page.locator('#recentGrid .recent-card').filter({ hasText: 'success.mosp' })).toBeVisible();
 });
 
 test('cancel stops queue; events from another run cannot mutate it', async ({ page }) => {
@@ -172,6 +223,7 @@ test('completed tasks can be skipped on retry; restored status never replays sil
   await page.locator('#start').click();
   await expect(page.locator('.queue-status')).toHaveText('已完成');
   await page.waitForFunction(() => !MSWQueue.state.running);
+  await page.evaluate(() => MSWNavigation.show('prefab'));
   await add(page, ['D:/Demo/two.srt']);
   await page.locator('#start').click();
   await expect(page.locator('#batchConfirmMessage')).toContainText('跳过已完成');

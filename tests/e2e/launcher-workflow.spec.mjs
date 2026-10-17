@@ -21,7 +21,8 @@ for (const waveform of [true, false]) {
     await open(page, ['D:/Demo/clip.mp4']);
     await page.locator('#prefabRail [data-module-id="waveform"]').setChecked(waveform);
     await page.locator('#start').click();
-    await expect(page.locator('#openProjectResult')).toBeVisible();
+    await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+    await expect(page.locator('#recentGrid .recent-new').first()).toBeVisible();
     const run = await page.evaluate(() => window.__queuePlanRuns.at(-1));
     expect(run.modules).toMatchObject({ waveform, asr: false });
     expect(await page.evaluate(() => window.__prefabCalls)).toContain('start_prefab_queue');
@@ -45,7 +46,8 @@ test('project input uses its existing subtitles without implicit ASR', async ({ 
     document.getElementById('postprocessReplacements').dispatchEvent(new Event('input'));
   });
   await page.locator('#start').click();
-  await expect(page.locator('#openProjectResult')).toBeVisible();
+  await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+  await expect(page.locator('#recentGrid .recent-new').first()).toBeVisible();
   const plan = await page.evaluate(() => window.__queuePlanRuns.at(-1));
   expect(plan.tasks[0].path).toBe('D:/Demo/existing.mosp');
   expect(plan.modules.asr).toBe(false);
@@ -59,7 +61,8 @@ test('SRT with OCR requires linked video; manual video satisfies the input depen
   await expect(page.locator('#errorNotice')).toContainText('需要视频');
   await page.locator('#ocrVideoPath').fill('D:/Demo/clip.mp4');
   await page.locator('#start').click();
-  await expect(page.locator('#openProjectResult')).toBeVisible();
+  await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+  await expect(page.locator('#recentGrid .recent-new').first()).toBeVisible();
   expect(await page.evaluate(() => window.__queuePlanRuns.at(-1).postprocess.steps.find(s => s.id === 'ocr').videoPath)).toBe('D:/Demo/clip.mp4');
 });
 
@@ -68,7 +71,8 @@ test('explicit ASR keeps model and recognition parameters in the unified plan', 
   await page.locator('#prefabRail [data-module-id="asr"]').check();
   await page.evaluate(() => { document.getElementById('apiKey').value = 'test-demo-only'; });
   await page.locator('#start').click();
-  await expect(page.locator('#openProjectResult')).toBeVisible();
+  await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+  await expect(page.locator('#recentGrid .recent-new').first()).toBeVisible();
   const plan = await page.evaluate(() => window.__queuePlanRuns.at(-1));
   expect(plan.modules.asr).toBe(true);
   expect(plan.recognition.providerId).toBeTruthy();
@@ -78,7 +82,8 @@ test('explicit ASR keeps model and recognition parameters in the unified plan', 
 test('multiple inputs freeze one plan with per-task audio tracks and no single path override', async ({ page }) => {
   await open(page, ['D:/Demo/first.mp4', 'D:/Demo/second.mp4']);
   await page.locator('#start').click();
-  await expect(page.locator('#openProjectResult')).toBeVisible();
+  await expect(page.locator('[data-page-id="home"]')).toHaveClass(/active/);
+  await expect(page.locator('#recentGrid .recent-new').first()).toBeVisible();
   const plan = await page.evaluate(() => window.__queuePlanRuns.at(-1));
   expect(plan.tasks).toHaveLength(2);
   expect(plan.output.srtPath).toBe('');

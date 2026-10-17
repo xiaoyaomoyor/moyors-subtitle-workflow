@@ -211,30 +211,6 @@
     }
     return { ok: true };
   }
-  function legacyExport(source) {
-    const project=clone(source);
-    if(!enabled(project))return project;
-    validate(project);
-    for (const track of tracks(project)) materializeReferences(track.segments);
-    const legacy=project.subtitle_layers.legacy_overlay, oldIds=new Set(legacy.cue_ids);
-    const overlays=project.segments.filter(c=>oldIds.has(c.id));
-    project.segments=project.segments.filter(c=>!oldIds.has(c.id));
-    for(const track of [{role:'main',segments:project.segments},{role:'overlay',segments:overlays},...(project.multi_subtitle?.tracks||[])]) {
-      if(pack(track.segments).count>1) throw Error('旧版工程不能表达当前角色中的多层重叠，请保存新版工程，或导出 ASS／合并显示 SRT');
-    }
-    if(overlays.length && ((project.multi_subtitle?.bindings||[]).some(b=>b.main_segment_ids.some(id=>oldIds.has(id))) || project.msw?.processing_results?.length)) {
-      throw Error('旧叠加组已参与绑定或处理记录，无法无损回到旧版；请保存新版工程');
-    }
-    function restore(value) {
-      if(!value||typeof value!=='object')return;
-      if(value.source_ref && value.source_ref.track_id==null && oldIds.has(value.source_ref.id)) value.source_ref.track_kind='overlay';
-      for(const child of Object.values(value))restore(child);
-    }
-    restore(project.msw);
-    if(overlays.length) project.overlay_track={enabled:legacy.visible,segments:overlays};
-    delete project.subtitle_layers;project.schema=LEGACY_SCHEMA;
-    return project;
-  }
   function sortTrack(cues) {
     const old = [...cues];
     cues.sort((a, b) => a.start - b.start);
@@ -344,7 +320,7 @@
   }
 
   const api = Object.freeze({ SCHEMA, LAYOUT_SCHEMA, LEGACY_SCHEMA, key, enabled, validRange, intersects,
-    migrate, validate, legacyExport, tracks, records, visible, resolve, planMerge, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
+    migrate, validate, tracks, records, visible, resolve, planMerge, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
   global.MSWSubtitleLayers = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

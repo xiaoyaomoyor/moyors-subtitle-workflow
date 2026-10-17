@@ -152,7 +152,6 @@
       if (window.MSWModules?.isEnabled("match")) detailPath(details, file, "scriptPath", t("queue_manuscript"), "script");
       if (window.MSWModules?.isEnabled("ocr")) detailPath(details, file, "ocrVideoPath", t("queue_ocr_video"), "video");
       item.append(details);
-      if (outcome?.result?.projectPath) item.append(button(t("open_project_result"), () => { window.MSWLauncher.setJsonPath(outcome.result.projectPath); window.MSWLauncher.openServerEditor(); }));
       const artifact = outcome?.result?.projectPath || outcome?.result?.srtPath || outcome?.result?.translatedSrtPath || outcome?.result?.bilingualSrtPath;
       if (artifact) item.append(button(t('artifact_open_folder'), async () => { const result = await bridge('open_containing_folder', { path: artifact }); if (!result.ok) window.MSWLauncher.onBatchError(result); }));
       root.append(item);

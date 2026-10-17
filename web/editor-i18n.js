@@ -436,7 +436,6 @@
     '不烧录': 'Do not burn',
     '字号（1080p 基准）': 'Font size (1080p reference)',
     '更多设置': 'More settings',
-    '旧版工程（v1 兼容）': 'Legacy project (v1 compatible)',
     '只在旧版结构能无损表达时导出；不能表达的重叠、绑定会明确提示。': 'Export only if the legacy structure can preserve the content. Unsupported overlaps or bindings are reported.',
     '按同时显示的主副字幕合并文本，仅改变导出，不修改工程': 'Merge simultaneous primary and secondary text in the export without changing the project.',
     '工程版本不受支持，请使用兼容的编辑器打开': 'Unsupported project version. Open it in a compatible editor.',

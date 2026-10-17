@@ -148,7 +148,7 @@
       batch_delete_confirm: "将把 {n} 个工程文件移入回收站（媒体与 .assets 一律不动）：\n{names}\n\n此操作可从回收站还原。继续？",
       batch_delete_done: "已将 {n} 个工程文件移入回收站。",
       recent_stats_loading: "统计读取中…",
-      recent_stats_summary: "主 {main} / 副 {sub} · 音频 {audio}",
+      recent_stats_summary: "{duration} | 字幕 {subtitles} | 音频 {audio}",
       recent_missing: "文件已移动或不存在",
       recent_pinned: "已固定",
       recent_refresh_cover: "刷新封面",
@@ -470,7 +470,7 @@
       batch_delete_confirm: "Move {n} project files to the recycle bin (media and .assets untouched):\n{names}\n\nYou can restore them from the recycle bin. Continue?",
       batch_delete_done: "Moved {n} project files to the recycle bin.",
       recent_stats_loading: "Reading stats…",
-      recent_stats_summary: "main {main} / sub {sub} · audio {audio}",
+      recent_stats_summary: "{duration} | Subtitles {subtitles} | Audio {audio}",
       recent_missing: "File moved or missing",
       recent_pinned: "Pinned",
       recent_refresh_cover: "Refresh cover",
@@ -1777,6 +1777,7 @@
        run_ffconcat_rebuild: async () => ({ ok: true, mediaPath: "D:\\Demo\\clip.gap-removed.mp4" }),
        probe_audio_tracks: async () => ({ ok: true, tracks: [{ audioIndex: 0, streamIndex: 1, codec: "aac", channels: 2, sampleRate: 48000, language: "zh", title: "中文", default: true }, { audioIndex: 1, streamIndex: 2, codec: "aac", channels: 2, sampleRate: 48000, language: "en", title: "English", default: false }] }),
        run_burn_subtitles: async () => ({ ok: true, mediaPath: "D:\\Demo\\clip.subtitled.mp4" }),
+       get_subtitle_presets: async () => ({ ok: true, presets: [{ id: 'default', name: '默认白字' }] }),
        run_extract_audio: async () => ({ ok: true, mediaPath: "D:\\Demo\\clip.audio.m4a", audioTrack: { audioIndex: 0 } }),
        cancel_media_tool: async () => ({ ok: true, cancelling: true }),
        generate_waveform_project: async ({ mediaPath }) => ({ ok: true, mediaPath, projectPath: "D:\\Demo\\clip.waveform.mosp", warnings: [], reapeaksPath: "" }),
@@ -1809,6 +1810,10 @@
           setTimeout(() => {
             const outcome = { taskId: task.id, index, status: current.cancelled ? 'cancelled' : 'done', result: current.cancelled ? null : { projectPath: task.path.replace(/\.[^.\\/]+$/, '.prepared.mosp'), warnings: [] } };
             outcomes.push(outcome);
+            if (outcome.result?.projectPath) {
+              const path = outcome.result.projectPath, now = new Date().toISOString();
+              window.__demoPrepared = [{ path, name: path.split(/[\\/]/).pop(), dir: path.replace(/[\\/][^\\/]+$/, ''), exists: true, isNew: true, modifiedAt: now, createdAt: now }, ...(window.__demoPrepared || []).filter(p => p.path !== path)];
+            }
             window.MSWLauncher.onBackendEvent({ type: 'queueItem', runId, ...outcome });
           }, 200 + index * 250);
         });
@@ -1837,7 +1842,7 @@
       get_emoji_font_path: async () => ({ ok: true, path: "" }),
       get_recent_projects: async () => ({
         ok: true,
-        projects: [
+        projects: [...(window.__demoPrepared || []),
           { path: "D:\\Demo\\clip.mosp", name: "clip.mosp", dir: "D:\\Demo", exists: true, pinned: true, lastOpenedAt: "", modifiedAt: "2026-09-13T10:00:00+00:00" },
           { path: "D:\\Demo\\intro.mosp", name: "intro.mosp", dir: "D:\\Demo", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2026-09-14T10:00:00+00:00" },
           { path: "E:\\Gone\\moved.mosp", name: "moved.mosp", dir: "E:\\Gone", exists: false, pinned: false, lastOpenedAt: "", modifiedAt: "" },
@@ -1845,7 +1850,11 @@
       }),
       get_recent_project_stats: async ({ path }) => {
         (window.__statsRequests = window.__statsRequests || []).push(path);
-        return { ok: true, path, mainSubtitles: 12, subSubtitles: 0, audioClips: 2, mediaName: path.replace(/\.mosp$/u, ".mp4") };
+        return { ok: true, path, durationMs: 465470, subtitleCount: 12, audioClips: 2, mediaName: path.replace(/\.mosp$/u, ".mp4") };
+      },
+      acknowledge_project: async ({ path }) => {
+        (window.__demoPrepared || []).forEach(entry => { if (entry.path === path) entry.isNew = false; });
+        return { ok: true };
       },
       get_recent_project_thumbnail: async ({ path }) => {
         (window.__thumbRequests = window.__thumbRequests || []).push(path);
@@ -1884,6 +1893,11 @@
           { path: "D:\\Demo\\intro.mosp", name: "intro.mosp", dir: "D:\\Demo", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2026-09-14T10:00:00+00:00", registeredAt: "2026-08-02T10:00:00+00:00", updatedAt: "2026-09-14T10:00:00+00:00", source: "created" },
           { path: "E:\\Archive\\old-take.mosp", name: "old-take.mosp", dir: "E:\\Archive", exists: true, pinned: false, lastOpenedAt: "", modifiedAt: "2025-12-01T10:00:00+00:00", registeredAt: "2025-12-01T10:00:00+00:00", updatedAt: "2025-12-01T10:00:00+00:00", source: "editor" },
         ]);
+        const prepared = window.__demoPrepared || [];
+        prepared.forEach(entry => {
+          const index = registry.findIndex(item => item.path === entry.path);
+          if (index < 0) registry.push(entry); else registry[index] = entry;
+        });
         const mediaIndex = window.__demoMediaIndex || {};
         const needle = String(query || "").trim().toLowerCase();
         const matchedAll = needle
@@ -2183,14 +2197,13 @@
     setRunning(false);
     if (event.status === "completed") {
       appendLog(t("waveform_project_done").replace("{path}", event.projectPath || ""));
-      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); revealProjectResult(event.projectPath); }
+      showPreparedProject(event.projectPath);
       setStatus(t("waveform_project_done_short"));
       if (Array.isArray(event.warnings) && event.warnings.length) event.warnings.forEach((warning) => appendLog(`[waveform] ${warning}`));
       return;
     }
-    if (event.status === "cancelled") { hideProjectResult(); setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
+    if (event.status === "cancelled") { setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
     if (event.status === "failed") {
-      hideProjectResult();
       setStatus(errText(event.code || "waveform_generation_failed", event.detail || event.error || ""));
       appendLog(`[waveform] ${errText(event.code || "waveform_generation_failed", event.detail || event.error || "")}`);
     }
@@ -2204,14 +2217,13 @@
     setRunning(false);
     if (event.status === "completed") {
       appendLog(t("prefab_plan_done").replace("{path}", event.projectPath || ""));
-      if (event.projectPath) { setJsonPath(event.projectPath); window.MSWProjectHome?.refresh?.(); revealProjectResult(event.projectPath); }
+      showPreparedProject(event.projectPath);
       setStatus(t("prefab_plan_done_short"));
       if (Array.isArray(event.warnings)) event.warnings.forEach((warning) => appendLog(`[prefab] ${warning}`));
       return;
     }
-    if (event.status === "cancelled") { hideProjectResult(); setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
+    if (event.status === "cancelled") { setStatus(t("waveform_project_cancelled")); appendLog(t("waveform_project_cancelled")); return; }
     if (event.status === "failed") {
-      hideProjectResult();
       const message = errText(event.code || "postprocess_failed", event.detail || event.error || "");
       setStatus(message);
       appendLog(`[prefab] ${message}`);
@@ -2457,17 +2469,13 @@
     });
   }
 
-  // S5/§7.2：制作完成出现的「打开工程」——绑定该次任务返回的真实工程身份；
-  // 运行/失败/取消即隐藏，新任务完成前不显示上一轮产物。
-  function revealProjectResult(projectPath) {
-    const button = $("openProjectResult");
-    if (!button) return;
-    button.dataset.projectPath = String(projectPath || "");
-    button.classList.toggle("hidden", !projectPath);
+  function showPreparedProject(projectPath) {
+    if (!projectPath) return;
+    setJsonPath(projectPath);
+    window.MSWProjectHome?.showPreparedProjects();
   }
-  function hideProjectResult() { $("openProjectResult")?.classList.add("hidden"); }
 
-  function setRunning(running) { state.running = running; if (!running) { state.waveformTask = false; state.prefabTask = false; } syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; if (running) hideProjectResult(); setStatus(running ? t("running") : ""); }
+  function setRunning(running) { state.running = running; if (!running) { state.waveformTask = false; state.prefabTask = false; } syncLocalRuntimeControls(); $("progress").classList.toggle("hidden", !running); $("start").classList.toggle("hidden", running); $("stop").classList.toggle("hidden", !running); $("start").disabled = running; $("stop").disabled = !running; setStatus(running ? t("running") : ""); }
   function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(localizedSelectLabel(id, item), item.id))); el.value = value ?? ""; }
   function refillSelectLabels() {
     // 语言切换后，后端下发的下拉选项（供应商/模型/地域/语言）与说明行需要按新语言重建。
@@ -3506,7 +3514,6 @@
     }
     if (event.type === "error") {
       setRunning(false);
-      hideProjectResult();
       $("retryPostprocess")?.classList.toggle("hidden", !event.canRetry);
       if (event.originalSrtPath) $("srtPath").value = String(event.originalSrtPath);
       if (event.originalProjectPath) $("jsonPath").value = String(event.originalProjectPath);
@@ -3526,7 +3533,7 @@
       $("retryPostprocess")?.classList.add("hidden");
       if (event.result?.srtPath) $("srtPath").value = event.result.srtPath;
       setJsonPath(event.result?.jsonPath || "");
-      revealProjectResult(event.result?.jsonPath || "");
+      showPreparedProject(event.result?.jsonPath || "");
       $("openMawe").classList.add("attention");
       $("openFolder").classList.remove("hidden");
       syncHtmlMenu();
@@ -3546,8 +3553,7 @@
     if (busy) { hideErrorNotice(); $("log").textContent = ""; $("retryPostprocess").classList.add("hidden"); }
   };
   window.MSWLauncher.finishQueue = (event, path) => {
-    revealProjectResult(path);
-    if (path) setJsonPath(path);
+    showPreparedProject(path);
     const results = event.results || [];
     const message = event.cancelled ? t('queue_cancelled') : t('queue_finished').replace('{done}', results.filter(r => r.status === 'done').length).replace('{failed}', results.filter(r => r.status === 'failed').length);
     setStatus(message); appendLog(message);
@@ -3743,13 +3749,6 @@
   $("start").addEventListener("click", () => { void window.MSWQueue?.start(); });
   $("stop").addEventListener("click", () => { void window.MSWQueue?.stop(); });
   $("retryPostprocess").addEventListener("click", async () => { hideErrorNotice(); $("retryPostprocess").classList.add("hidden"); setRunning(true); const result = await bridge("retry_postprocess"); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } });
-  $("openProjectResult")?.addEventListener("click", () => {
-    const projectPath = $("openProjectResult")?.dataset.projectPath || "";
-    if (!projectPath) return;
-    setJsonPath(projectPath);
-    window.MSWNavigation?.show("home");
-    void openServerEditor();
-  });
   $("openMawe").addEventListener("click", openServerEditor); $("stopServer").addEventListener("click", stopEditorServer); $("openFolder").addEventListener("click", () => bridge("open_output_folder")); $("openLogFolder").addEventListener("click", () => bridge("open_log_folder"));
   $("openMenu").addEventListener("click", () => $("htmlMenu").classList.toggle("hidden")); $("openHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_html"); }); $("openBlankHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_blank_html"); }); document.addEventListener("click", (event) => { if (!event.target.closest(".split-wrap")) $("htmlMenu").classList.add("hidden"); });
   $("mediaCard").addEventListener("dragenter", onDragEnter); $("mediaCard").addEventListener("dragleave", onDragLeave);

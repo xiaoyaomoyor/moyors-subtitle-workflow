@@ -6519,7 +6519,6 @@
       <div class="menu-group-title">保存</div>
       <button type="button" class="dropdown-item" id="save-project" role="menuitem" title="保存回服务器启动时指定的工程文件" hidden><span>保存工程</span> <kbd class="menu-kbd" data-mod>Ctrl+S</kbd></button>
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
-      <button type="button" class="dropdown-item" id="download-legacy-project" role="menuitem" hidden title="只在旧版结构能无损表达时导出；不能表达的重叠、绑定会明确提示。">旧版工程（v1 兼容）</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
@@ -18502,30 +18501,6 @@ export default MawDynamicCaptions;
     }
     return { ok: true };
   }
-  function legacyExport(source) {
-    const project=clone(source);
-    if(!enabled(project))return project;
-    validate(project);
-    for (const track of tracks(project)) materializeReferences(track.segments);
-    const legacy=project.subtitle_layers.legacy_overlay, oldIds=new Set(legacy.cue_ids);
-    const overlays=project.segments.filter(c=>oldIds.has(c.id));
-    project.segments=project.segments.filter(c=>!oldIds.has(c.id));
-    for(const track of [{role:'main',segments:project.segments},{role:'overlay',segments:overlays},...(project.multi_subtitle?.tracks||[])]) {
-      if(pack(track.segments).count>1) throw Error('旧版工程不能表达当前角色中的多层重叠，请保存新版工程，或导出 ASS／合并显示 SRT');
-    }
-    if(overlays.length && ((project.multi_subtitle?.bindings||[]).some(b=>b.main_segment_ids.some(id=>oldIds.has(id))) || project.msw?.processing_results?.length)) {
-      throw Error('旧叠加组已参与绑定或处理记录，无法无损回到旧版；请保存新版工程');
-    }
-    function restore(value) {
-      if(!value||typeof value!=='object')return;
-      if(value.source_ref && value.source_ref.track_id==null && oldIds.has(value.source_ref.id)) value.source_ref.track_kind='overlay';
-      for(const child of Object.values(value))restore(child);
-    }
-    restore(project.msw);
-    if(overlays.length) project.overlay_track={enabled:legacy.visible,segments:overlays};
-    delete project.subtitle_layers;project.schema=LEGACY_SCHEMA;
-    return project;
-  }
   function sortTrack(cues) {
     const old = [...cues];
     cues.sort((a, b) => a.start - b.start);
@@ -18635,7 +18610,7 @@ export default MawDynamicCaptions;
   }
 
   const api = Object.freeze({ SCHEMA, LAYOUT_SCHEMA, LEGACY_SCHEMA, key, enabled, validRange, intersects,
-    migrate, validate, legacyExport, tracks, records, visible, resolve, planMerge, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
+    migrate, validate, tracks, records, visible, resolve, planMerge, IntervalIndex, pack, updatePack, applyRanges, sortTrack, materializeReferences });
   global.MSWSubtitleLayers = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -22267,7 +22242,6 @@ export default MawDynamicCaptions;
     '不烧录': 'Do not burn',
     '字号（1080p 基准）': 'Font size (1080p reference)',
     '更多设置': 'More settings',
-    '旧版工程（v1 兼容）': 'Legacy project (v1 compatible)',
     '只在旧版结构能无损表达时导出；不能表达的重叠、绑定会明确提示。': 'Export only if the legacy structure can preserve the content. Unsupported overlaps or bindings are reported.',
     '按同时显示的主副字幕合并文本，仅改变导出，不修改工程': 'Merge simultaneous primary and secondary text in the export without changing the project.',
     '工程版本不受支持，请使用兼容的编辑器打开': 'Unsupported project version. Open it in a compatible editor.',
@@ -33768,7 +33742,7 @@ function layerSyncControls() {
     option.hidden = layerMode();
     if (layerMode() && option.selected) option.parentElement.value = 'main';
   });
-  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap','download-merged-srt','download-legacy-project']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
+  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap','download-merged-srt']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
   const order=document.getElementById('subtitle-layer-order');if(order)order.value=DATA.subtitle_layers?.presentation?.order||'earlier-bottom';
   const auto=document.getElementById('subtitle-layer-auto'),gap=document.getElementById('subtitle-layer-gap');
   if(auto)auto.checked=DATA.subtitle_layers?.presentation?.mode!=='manual';if(gap)gap.value=DATA.subtitle_layers?.presentation?.gap??12;
@@ -33958,10 +33932,6 @@ document.addEventListener('DOMContentLoaded', () => {
   for(const id of ['subtitle-layer-auto','subtitle-layer-gap','subtitle-layer-order']) document.getElementById(id)?.addEventListener('change',()=>{
     if(!layerMode())return;const gap=document.getElementById('subtitle-layer-gap');if(!gap.validity.valid)return;
     pushUndo('多层字幕排布');DATA.subtitle_layers.presentation={mode:document.getElementById('subtitle-layer-auto').checked?'auto':'manual',gap:Number(gap.value),order:document.getElementById('subtitle-layer-order').value};layerInvalidate();projectImportDirty=true;refreshSubtitlePreview();scheduleAutoSaveFlush();
-  });
-  document.getElementById('download-legacy-project')?.addEventListener('click',async()=>{
-    try {commitProcessingEdits();const project=layerCore.legacyExport(JSON.parse(buildJson()));await downloadFile(JSON.stringify(project,null,2),`${FILENAME_BASE}.v1.mosp`,'application/json');}
-    catch(error){flashHint(error.message,'warning');}
   });
   document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
     if(!fixedCanExport())return;

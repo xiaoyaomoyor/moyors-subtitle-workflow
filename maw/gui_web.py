@@ -713,6 +713,14 @@ class LauncherApi:
         """List recent projects for the home page (editor index + launcher view state)."""
         return recent_projects_payload(metadata_path=self.paths.recent_metadata, registry_path=self.paths.project_registry)
 
+    def acknowledge_project(self, payload: Mapping[str, object]) -> dict[str, object]:
+        from maw.launcher_projects import acknowledge_project
+
+        path = _optional_path(payload.get("path"))
+        if path is None:
+            return _error_result("path", "recent_project_invalid", "")
+        return acknowledge_project(path, registry_path=self.paths.project_registry)
+
     def _note_media_name(self, path: str, media_name: object) -> None:
         """T2/A6：统计/封面带回媒体名时写入轻量索引，供全目录搜索。"""
         text = str(media_name or "").strip()
@@ -728,7 +736,7 @@ class LauncherApi:
         path = _optional_path(payload.get("path"))
         if path is None:
             return _error_result("path", "recent_project_invalid", "")
-        result = project_stats_payload(path)
+        result = project_stats_payload(path, ffprobe_path=_postprocess_ffmpeg_tools(self.paths.env_path).ffprobe)
         if result.get("ok") and result.get("mediaName"):
             self._note_media_name(str(path), result["mediaName"])
         return result

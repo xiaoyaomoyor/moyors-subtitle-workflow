@@ -37,7 +37,7 @@ test('recent cards show distinct real covers, media names, and state placeholder
 
   await expect(cardOf(page, 'clip.mosp').locator('.recent-media')).toHaveText('clip.mp4');
   await expect(cardOf(page, 'intro.mosp').locator('.recent-media')).toHaveText('intro.mp4');
-  await expect(cardOf(page, 'clip.mosp').locator('.recent-stats')).toHaveText(/主 12 \/ 副 0 · 音频 2/);
+  await expect(cardOf(page, 'clip.mosp').locator('.recent-stats')).toHaveText('07:45 | 字幕 12 | 音频 2');
 
   // 缺失工程不发起封面请求，直接显示工程缺失占位。
   await expect(cardOf(page, 'moved.mosp').locator('.recent-cover')).toHaveAttribute('data-cover-state', 'project_missing');

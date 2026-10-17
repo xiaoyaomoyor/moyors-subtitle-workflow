@@ -178,7 +178,9 @@ def recent_projects_payload(
 ) -> dict[str, Any]:
     """Merge the editor index with launcher view state into card payloads."""
     metadata = read_launcher_metadata(metadata_path)
-    dismissed = _registry_dismissed(_read_registry_payload(registry_path or project_registry_path()))
+    registry = _read_registry_payload(registry_path or project_registry_path())
+    dismissed = _registry_dismissed(registry)
+    registered = _registry_entries(registry)
     editor_entries = _read_editor_recent_paths(settings_path)
     if fallback_entries is not None and not (settings_path or default_server_settings_path()).is_file():
         editor_entries = fallback_entries
@@ -230,8 +232,25 @@ def recent_projects_payload(
         if key not in merged:
             merged[key] = path
             ordered.append(path)
-    ordered.sort(key=lambda p: editor_times.get(str(p), ""), reverse=True)
-    pinned_first = sorted(ordered, key=lambda p: (0 if str(p) in pinned_keys else 1,))
+    # Prepared projects are immediately available before their first editor open.
+    created_times: dict[str, str] = {}
+    for entry in registered.values():
+        if not entry.get("createdAt"):
+            continue
+        path = Path(entry["path"])
+        key = str(path)
+        if key in metadata.removed:
+            continue
+        created_times[key] = entry["createdAt"]
+        if key not in merged:
+            merged[key] = path
+            ordered.append(path)
+
+    def is_new(path: Path) -> bool:
+        return registered.get(_canonical_identity(path)[0], {}).get("isNew") is True
+
+    ordered.sort(key=lambda p: _latest_iso(editor_times.get(str(p), ""), created_times.get(str(p), "")), reverse=True)
+    pinned_first = sorted(ordered, key=lambda p: (not is_new(p), str(p) not in pinned_keys))
     # 固定项在前；其余保持编辑器「最近优先」顺序。
     final_order: list[Path] = []
     seen: set[str] = set()
@@ -254,6 +273,7 @@ def recent_projects_payload(
             "dir": str(path.parent),
             "exists": exists,
             "pinned": key in pinned_keys,
+            "isNew": is_new(path),
             # H06：编辑器记录时间与启动器记录时间取较新者（均为「成功打开」语义）。
             "lastOpenedAt": _latest_iso(editor_times.get(key, ""), metadata.opened_at.get(key, "")),
             "modifiedAt": _mtime_iso(path) if exists else "",
@@ -346,7 +366,7 @@ def relocate_recent_project(old_path: Path, new_path: Path, metadata_path: Path 
     return {"ok": True, "path": str(new)}
 
 
-def project_stats_payload(path: Path) -> dict[str, Any]:
+def project_stats_payload(path: Path, *, ffprobe_path: Path | None = None) -> dict[str, Any]:
     """Lightweight card statistics parsed from a .mosp/.json project file."""
     try:
         resolved = path.expanduser().resolve()
@@ -363,35 +383,53 @@ def project_stats_payload(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         return {"ok": False, "error": "工程文件必须是 JSON 对象", "path": str(resolved)}
 
-    segments = data.get("segments")
-    main_count = len(segments) if isinstance(segments, list) else 0
-    sub_count = 0
-    multi = data.get("multi_subtitle")
-    if isinstance(multi, dict):
-        tracks = multi.get("tracks")
+    def count_blocks(value: object) -> int:
+        return sum(isinstance(item, dict) for item in value) if isinstance(value, list) else 0
+
+    if data.get('schema') == 'msw.project.v4':
+        subtitles = data.get('subtitles')
+        subtitle_count = count_blocks(subtitles.get('cues')) if isinstance(subtitles, dict) else 0
+    else:
+        subtitle_count = count_blocks(data.get('segments'))
+        multi = data.get('multi_subtitle')
+        tracks = multi.get('tracks') if isinstance(multi, dict) else None
         if isinstance(tracks, list):
-            for track in tracks:
-                if not isinstance(track, dict):
-                    continue
-                if str(track.get("id", "")) in {"main", "primary"}:
-                    continue
-                track_segments = track.get("segments")
-                if isinstance(track_segments, list):
-                    sub_count += len(track_segments)
+            subtitle_count += sum(count_blocks(t.get('segments')) for t in tracks if isinstance(t, dict)
+                                  and str(t.get('id', '')) not in {'main', 'primary'})
+        overlay = data.get('overlay_track')
+        if isinstance(overlay, dict):
+            subtitle_count += count_blocks(overlay.get('segments'))
     msw = data.get("msw")
     audio_count = 0
     if isinstance(msw, dict):
         clips = msw.get("audio_clips")
-        audio_count = len(clips) if isinstance(clips, list) else 0
+        audio_count = count_blocks(clips)
     raw_media = data.get("media")
     media_name = ""
     if isinstance(raw_media, str) and raw_media.strip():
         media_name = Path(raw_media.strip().replace("\\", "/")).name
+    duration_ms = None
+    # Source duration only: subtitle tails, dubbing and the empty editor's
+    # placeholder timeline must not extend the media duration on a card.
+    for key in ('media_metadata', 'waveform'):
+        metadata = data.get(key)
+        duration = metadata.get('duration_ms') if isinstance(metadata, dict) else None
+        if type(duration) is int and 0 <= duration <= 7*24*3600*1000:
+            duration_ms = duration
+            break
+    if duration_ms is None and media_name:
+        from maw.ffmpeg import media_duration_seconds
+        from maw.media import resolve_project_media
+        media = resolve_project_media(resolved, data)
+        if media.resolved_path and media.resolved_path.is_file():
+            duration = media_duration_seconds(media.resolved_path, ffprobe_path=ffprobe_path)
+            if duration is not None:
+                duration_ms = round(duration*1000)
     return {
         "ok": True,
         "path": str(resolved),
-        "mainSubtitles": main_count,
-        "subSubtitles": sub_count,
+        "subtitleCount": subtitle_count,
+        "durationMs": duration_ms,
         "audioClips": audio_count,
         "mediaName": media_name,
     }
@@ -536,18 +574,37 @@ def register_project(path: Path, *, source: str, registry_path: Path | None = No
         if existing and existing.get("source") not in ("", "migration"):
             source_value = existing["source"]
         entry = {
+            **(existing or {}),
             "path": display,
             "name": Path(display).name,
             "source": source_value,
             "registeredAt": (existing or {}).get("registeredAt") or now,
             "updatedAt": now,
         }
+        if source == "created":
+            entry.update(createdAt=now, isNew=True)
+        elif source in {"opened", "editor"}:
+            entry["isNew"] = False
         entries[key] = entry
         dismissed = _registry_dismissed(payload)
         dismissed.pop(key, None)  # An explicit successful open/save may register it again.
         # 普通登记不宣称迁移已完成——保留文件原标志，缺最近工程时种子仍会补。
         _write_registry(entries, registry, migrated=bool(payload.get("migrated")), dismissed=dismissed)
     return {"ok": True, "path": display}
+
+
+def acknowledge_project(path: Path, registry_path: Path | None = None) -> dict[str, Any]:
+    """Clear NEW on a registered card without opening or touching the project."""
+    registry = registry_path or project_registry_path()
+    key, _display = _canonical_identity(path)
+    with _registry_file_lock(registry):
+        payload = _read_registry_payload(registry)
+        entries = _registry_entries(payload)
+        if key in entries and entries[key].get("isNew"):
+            entries[key]["isNew"] = False
+            _write_registry(entries, registry, migrated=bool(payload.get("migrated")),
+                            dismissed=_registry_dismissed(payload))
+    return {"ok": True}
 
 
 def unregister_project(path: Path, registry_path: Path | None = None) -> dict[str, Any]:
@@ -916,6 +973,7 @@ def all_projects_payload(
             "registeredAt": entry.get("registeredAt") or "",
             "updatedAt": entry.get("updatedAt") or entry.get("registeredAt") or "",
             "source": entry.get("source") or "",
+            "isNew": entry.get("isNew") is True,
             "mediaName": known_media,
         })
 

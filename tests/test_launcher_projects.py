@@ -33,6 +33,9 @@ class RecentProjectsTests(unittest.TestCase):
         self.root = Path(self.temp_dir.name).resolve()
         self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
         self.metadata = self.root / "launcher-recent.json"
+        registry_patch = mock.patch.object(launcher_projects, 'project_registry_path', return_value=self.root / 'registry.json')
+        registry_patch.start()
+        self.addCleanup(registry_patch.stop)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -144,9 +147,35 @@ class RecentProjectsTests(unittest.TestCase):
 
         result = project_stats_payload(project)
         self.assertTrue(result["ok"])
-        self.assertEqual(result["mainSubtitles"], 1)
-        self.assertEqual(result["subSubtitles"], 2)
+        self.assertEqual(result["subtitleCount"], 3)
         self.assertEqual(result["audioClips"], 1)
+        self.assertIsNone(result['durationMs'])
+
+    def test_stats_reads_flat_tracks_and_counts_timeline_clips_not_assets(self) -> None:
+        project = self.root / 'flat.mosp'
+        _write_json(project, {'schema':'msw.project.v4', 'media_metadata':{'duration_ms':465470},
+            'waveform':{'duration_ms':465500}, 'segments':[{}]*20,
+            'subtitles':{'cues':[{'id':'a'}, {'id':'b', 'hidden':True}, {'id':'c', 'content':{'disabled':True}}]},
+            'msw':{'audio_clips':[{'id':'1'}, {'id':'2', 'muted':True}], 'assets':[{}]*9}})
+        before = project.read_bytes()
+        stats = project_stats_payload(project)
+        self.assertEqual((stats['durationMs'], stats['subtitleCount'], stats['audioClips']), (465470, 3, 2))
+        self.assertEqual(project.read_bytes(), before)
+
+    def test_stats_keeps_legacy_overlay_and_waveform_duration(self) -> None:
+        project = self.root / 'old.mosp'
+        _write_json(project, {'segments':[{'end':999999}], 'overlay_track':{'enabled':False,'segments':[{}]},
+                            'waveform':{'duration_ms':123000}})
+        stats = project_stats_payload(project)
+        self.assertEqual((stats['durationMs'], stats['subtitleCount']), (123000, 2))
+
+    def test_stats_probes_resolved_media_only_when_duration_is_unknown(self) -> None:
+        project = self.root / 'probe.mosp'
+        (self.root / 'video.mp4').write_bytes(b'fixture')
+        _write_json(project, {'segments':[], 'media':'video.mp4'})
+        with mock.patch('maw.ffmpeg.media_duration_seconds', return_value=12.345) as probe:
+            self.assertEqual(project_stats_payload(project)['durationMs'], 12345)
+            self.assertEqual(probe.call_args.args[0], self.root / 'video.mp4')
 
     def test_stats_tolerates_missing_and_broken_files(self) -> None:
         missing = self.root / "missing.mosp"
@@ -454,6 +483,50 @@ class ProjectRegistryTests(unittest.TestCase):
         listing = launcher_projects.all_projects_payload(
             settings_path=self.settings, metadata_path=self.metadata, registry_path=self.registry)
         self.assertEqual(listing["total"], 12)
+
+
+class PreparedProjectCardsTests(unittest.TestCase):
+    def test_created_cards_survive_acknowledgment_and_reopen_without_touching_project(self):
+        with TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            registry = root / 'registry.json'
+            settings = _write_json(root / 'settings.json', {'recent_projects': []})
+            metadata = root / 'recent.json'
+            project = _write_json(root / 'new.mosp', {'segments': []})
+            original = project.read_bytes()
+            launcher_projects.register_project(project, source='created', registry_path=registry)
+            args = dict(registry_path=registry, settings_path=settings, metadata_path=metadata)
+            recent = recent_projects_payload(**args)['projects']
+            self.assertEqual([p['path'] for p in recent], [str(project)])
+            self.assertTrue(recent[0]['isNew'])
+            self.assertEqual(recent[0]['lastOpenedAt'], '')
+            self.assertTrue(launcher_projects.all_projects_payload(**args)['projects'][0]['isNew'])
+            launcher_projects.acknowledge_project(project, registry)
+            self.assertFalse(recent_projects_payload(**args)['projects'][0]['isNew'])
+            self.assertFalse(launcher_projects.all_projects_payload(**args)['projects'][0]['isNew'])
+            launcher_projects.register_project(project, source='created', registry_path=registry)
+            self.assertTrue(recent_projects_payload(**args)['projects'][0]['isNew'])
+            launcher_projects.register_project(project, source='opened', registry_path=registry)
+            self.assertFalse(recent_projects_payload(**args)['projects'][0]['isNew'])
+            self.assertEqual(project.read_bytes(), original)
+            launcher_projects.acknowledge_project(root / 'unknown.mosp', registry)
+            self.assertEqual(len(launcher_projects._read_registry(registry)), 1)
+
+    def test_new_projects_are_not_hidden_by_nine_pinned_cards(self):
+        with TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            registry = root / 'registry.json'
+            metadata = root / 'recent.json'
+            old = [_write_json(root / f'old{i}.mosp', {}) for i in range(9)]
+            settings = _write_json(root / 'settings.json', {'recent_projects': [{'path': str(p)} for p in old]})
+            for path in old:
+                set_recent_project_pinned(path, True, metadata)
+            new = _write_json(root / 'prepared.mosp', {})
+            launcher_projects.register_project(new, source='created', registry_path=registry)
+            rows = recent_projects_payload(registry_path=registry, settings_path=settings, metadata_path=metadata)['projects']
+            self.assertEqual(len(rows), 9)
+            self.assertEqual(rows[0]['path'], str(new))
+            self.assertTrue(rows[0]['isNew'])
 
 
 class AllProjectsPaginationTests(unittest.TestCase):

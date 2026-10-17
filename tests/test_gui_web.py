@@ -3926,20 +3926,14 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("outputStem:", postprocess_script)
         self.assertIn('export_srt=bool(normalized.get("exportSrt", True))', pipeline_source)
         self.assertIn('output_directory=str(normalized.get("outputDirectory") or "")', pipeline_source)
-        # 页脚：制作工程靠右（spacer 在重试/打开文件夹后、按钮组前），打开工程绑定产物。
-        self.assertIn('id="openProjectResult"', page)
+        # 制作完成统一在启动编辑器中的新卡片打开。
+        self.assertNotIn('id="openProjectResult"', page)
         self.assertIn("制作工程", launcher_script)
         self.assertIn("批量制作工程", launcher_script)
-        self.assertIn("revealProjectResult", launcher_script)
-        self.assertIn("hideProjectResult", launcher_script)
-        self.assertIn("dataset.projectPath", launcher_script)
+        self.assertIn("showPreparedProject(event.projectPath)", launcher_script)
         footer = page[page.index('footer class="page-actions prefab-footer"'):]
         footer = footer[:footer.index("</footer>")]
         self.assertLess(footer.index("footer-spacer"), footer.index('id="start"'))
-        # 完成事件绑定产物；运行/失败/取消隐藏。
-        self.assertIn("revealProjectResult(event.projectPath)", launcher_script)
-        self.assertIn("revealProjectResult(event.result?.jsonPath || \"\")", launcher_script)
-        self.assertIn("if (running) hideProjectResult()", launcher_script)
 
     def test_launcher_plan_drives_execution_contracts(self) -> None:
         """R4/§7.1：方案单一来源、新默认与三类输入执行链契约。"""

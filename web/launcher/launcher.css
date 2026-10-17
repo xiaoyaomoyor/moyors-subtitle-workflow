@@ -1158,6 +1158,23 @@ html[data-theme="light"] .recent-cover .recent-pin {
   display: block;
 }
 
+.recent-new {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--bg-base);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: .04em;
+  pointer-events: none;
+}
+
+.recent-card.has-new .recent-pin { left: 58px; }
+
 /* S3/§5.3：「删除工程文件…」危险项：红色 + 垃圾桶图标。 */
 .recent-context-menu button.danger {
   display: inline-flex;

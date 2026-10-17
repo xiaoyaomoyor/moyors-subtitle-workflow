@@ -339,9 +339,7 @@
     dir.textContent = entry.dir;
     var meta = document.createElement("div");
     meta.className = "recent-meta";
-    var when = document.createElement("span");
-    when.textContent = formatWhen(entry);
-    meta.append(when);
+    meta.title = formatWhen(entry);
     if (entry.exists) {
       var stats = document.createElement("span");
       stats.className = "recent-stats";
@@ -356,6 +354,13 @@
     }
     info.append(name, media, dir, meta);
     card.append(cover, info);
+    if (entry.isNew) {
+      card.classList.add('has-new');
+      var badge = document.createElement('span');
+      badge.className = 'recent-new';
+      badge.textContent = 'NEW';
+      card.append(badge);
+    }
     return card;
   }
 
@@ -520,6 +525,13 @@
     return t("recent_stats_loading");
   }
 
+  function formatDuration(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return '—';
+    var seconds = Math.floor(ms / 1000), hours = Math.floor(seconds / 3600);
+    return (hours ? String(hours).padStart(2, '0') + ':' : '')
+      + String(Math.floor(seconds / 60) % 60).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+  }
+
   function requestStats(entry) {
     var version = entry.modifiedAt || "";
     var cached = state.statsCache[entry.path];
@@ -530,9 +542,9 @@
       var text = "";
       if (result && result.ok === true && !result.skipped) {
         text = t("recent_stats_summary")
-          .replace("{main}", String(result.mainSubtitles ?? 0))
-          .replace("{sub}", String(result.subSubtitles ?? 0))
-          .replace("{audio}", String(result.audioClips ?? 0));
+          .replace("{duration}", formatDuration(result.durationMs))
+          .replace("{subtitles}", String(result.subtitleCount ?? '—'))
+          .replace("{audio}", String(result.audioClips ?? '—'));
       }
       if (result && result.mediaName) {
         state.mediaNames[entry.path] = result.mediaName;
@@ -638,6 +650,7 @@
   // C3：点击分派——普通点击=单选切换；Ctrl/⌘=单卡增减；Shift=同组范围选择。
   function selectCard(card, event) {
     var path = card.dataset.path;
+    void acknowledgeCard(path);
     if (event && event.shiftKey) { shiftSelect(card); return; }
     if (event && (event.ctrlKey || event.metaKey)) { ctrlToggle(path); return; }
     setSelected(path);
@@ -723,6 +736,7 @@
   }
 
   function openProject(path) {
+    void acknowledgeCard(path);
     var entry = entryByPath(path);
     if (entry && !entry.exists) {
       relocateFlow(entry);
@@ -833,6 +847,35 @@
 
   // ---------------- 刷新 ----------------
 
+  function acknowledgeCard(path) {
+    if (!state.projects.concat(state.allProjects).some(function (entry) { return entry.path === path && entry.isNew; })) return;
+    return bridge('acknowledge_project', { path: path }).then(function (result) {
+      if (!result || !result.ok) return;
+      state.projects.concat(state.allProjects).forEach(function (entry) {
+        if (entry.path === path) entry.isNew = false;
+      });
+      bothGrids().forEach(function (grid) {
+        grid.querySelectorAll('.recent-card').forEach(function (card) {
+          if (card.dataset.path !== path) return;
+          card.classList.remove('has-new');
+          card.querySelector('.recent-new')?.remove();
+        });
+      });
+    }).catch(function () { /* Keep NEW if the registry is temporarily unavailable. */ });
+  }
+
+  function showPreparedProjects() {
+    state.query = '';
+    window.clearTimeout(searchTimer);
+    el('recentSearch').value = '';
+    state.allPage = 1;
+    state.groupsCollapsed.recent = false;
+    persistGroups();
+    window.MSWNavigation.show('home');
+    var scroller = window.MSWNavigation.scrollerFor('home');
+    if (scroller) scroller.scrollTop = 0;
+  }
+
   function refresh() {
     var request = ++state.recentRequest;
     var recentReady = bridge("get_recent_projects").then(function (result) {
@@ -905,7 +948,7 @@
         var card = event.target.closest(".recent-card");
         if (!card) return;
         event.preventDefault();
-        if (event.key === " ") setSelected(card.dataset.path);
+        if (event.key === " ") selectCard(card, event);
         else openProject(card.dataset.path);
       });
       node.addEventListener("contextmenu", function (event) {
@@ -1191,6 +1234,7 @@
 
   window.MSWProjectHome = {
     refresh: refresh,
+    showPreparedProjects: showPreparedProjects,
     setSelected: setSelected,
     openProject: openProject,
     syncTargetFromPath: syncTargetFromPath,
