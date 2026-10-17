@@ -1357,6 +1357,15 @@ class LauncherApi:
 
     @_queue_idle
     def run_timestamp_alignment(self, payload: Mapping[str, object]) -> dict[str, object]:
+        from maw.timestamp_alignment import alignment_collections
+        try:
+            source_path = _optional_path(payload.get('projectPath'))
+            subtitle_path = _optional_path(payload.get('srtPath'))
+            if source_path is not None or subtitle_path is not None:
+                project = read_project(source_path) if source_path is not None else read_srt(subtitle_path)
+                alignment_collections(project, str(payload.get('targetTrack') or 'main'))
+        except (OSError, ValueError, TimestampAlignmentError) as error:
+            return _error_result('postprocessInput', 'alignment_failed', str(error))
         model_id = normalize_alignment_model_id(str(payload.get("modelId") or ""))
         try:
             model = alignment_model_by_id(model_id)
@@ -1860,6 +1869,8 @@ class LauncherApi:
         try:
             try:
                 project = read_project(project_path) if project_path is not None else read_srt(srt_path, strict=True)
+                from maw.launcher_project import require_operation
+                require_operation(project, 'postprocess')
             except (PostprocessFileError, ProjectValidationFailed) as error:
                 return {"ok": False, "preview": "", "errorCode": "subtitle_invalid", "code": "subtitle_invalid", "detail": str(error)}
             try:
@@ -1967,12 +1978,17 @@ class LauncherApi:
         try:
             path = Path(str(payload.get('path') or '')).expanduser().resolve()
             project = read_project(path) if path.suffix.lower() in {'.mosp', '.json'} else read_srt(path)
+            from maw.launcher_project import project_inventory
+            inventory = project_inventory(project)
+            support = inventory['operations']['alignment']
+            if not support['supported']:
+                return {'ok': True, 'tracks': inventory['subtitleTracks'], **inventory, 'alignment': support}
             tracks = [{'id': 'main', 'label': '主字幕（原声）'}]
             if (project.get('overlay_track') or {}).get('segments'):
                 tracks.append({'id': 'overlay', 'label': '叠加字幕（需指定对应音频）'})
             for track in (project.get('multi_subtitle') or {}).get('tracks', []):
                 tracks.append({'id': 'secondary:' + track['id'], 'label': track.get('name') or '副字幕（需指定对应音频）'})
-            return {'ok': True, 'tracks': tracks}
+            return {'ok': True, 'tracks': tracks, **inventory, 'alignment': support}
         except (OSError, ValueError, RuntimeError) as error:
             return {'ok': False, 'error': str(error)}
 
@@ -2165,7 +2181,8 @@ class LauncherApi:
                 str(project_path),
             )
         try:
-            read_project(project_path)
+            from maw.launcher_project import require_operation
+            require_operation(read_project(project_path), 'postprocess')
         except (OSError, UnicodeError, ValueError) as error:
             return _error_result("toolboxAlignmentProjectPath", "alignment_project_invalid", str(error))
 
@@ -3091,9 +3108,9 @@ class LauncherApi:
             try:
                 if input_path.stat().st_size > 64 * 1024 * 1024:
                     return _error_result("mediaPath", "project_input_too_large", str(input_path))
-                data = json.loads(input_path.read_text(encoding="utf-8"))
-                if not isinstance(data, dict):
-                    raise ValueError("工程文件必须是 JSON 对象")
+                from maw.launcher_project import require_operation
+                data = read_project(input_path)
+                require_operation(data, 'postprocess')
             except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
                 return _error_result("mediaPath", "project_input_unreadable", str(error))
             resolution = resolve_project_media(input_path, data)

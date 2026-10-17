@@ -377,7 +377,7 @@ def project_stats_payload(path: Path, *, ffprobe_path: Path | None = None) -> di
     try:
         if resolved.stat().st_size > STATS_SIZE_LIMIT:
             return {"ok": True, "path": str(resolved), "skipped": "too_large"}
-        data = json.loads(resolved.read_text(encoding="utf-8"))
+        data = json.loads(resolved.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         return {"ok": False, "error": str(error), "path": str(resolved)}
     if not isinstance(data, dict):
@@ -386,19 +386,11 @@ def project_stats_payload(path: Path, *, ffprobe_path: Path | None = None) -> di
     def count_blocks(value: object) -> int:
         return sum(isinstance(item, dict) for item in value) if isinstance(value, list) else 0
 
-    if data.get('schema') == 'msw.project.v4':
-        subtitles = data.get('subtitles')
-        subtitle_count = count_blocks(subtitles.get('cues')) if isinstance(subtitles, dict) else 0
-    else:
-        subtitle_count = count_blocks(data.get('segments'))
-        multi = data.get('multi_subtitle')
-        tracks = multi.get('tracks') if isinstance(multi, dict) else None
-        if isinstance(tracks, list):
-            subtitle_count += sum(count_blocks(t.get('segments')) for t in tracks if isinstance(t, dict)
-                                  and str(t.get('id', '')) not in {'main', 'primary'})
-        overlay = data.get('overlay_track')
-        if isinstance(overlay, dict):
-            subtitle_count += count_blocks(overlay.get('segments'))
+    from maw.launcher_project import subtitle_count, operation_support
+    support = operation_support(data, 'inspect')
+    if not support['supported']:
+        return {'ok': False, 'error': support['reason'], 'path': str(resolved)}
+    total_subtitles = subtitle_count(data)
     msw = data.get("msw")
     audio_count = 0
     if isinstance(msw, dict):
@@ -428,7 +420,7 @@ def project_stats_payload(path: Path, *, ffprobe_path: Path | None = None) -> di
     return {
         "ok": True,
         "path": str(resolved),
-        "subtitleCount": subtitle_count,
+        "subtitleCount": total_subtitles,
         "durationMs": duration_ms,
         "audioClips": audio_count,
         "mediaName": media_name,

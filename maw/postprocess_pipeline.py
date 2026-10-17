@@ -580,8 +580,14 @@ def run_postprocess_pipeline(
     publish_source_project = project_path
     publish_source_srt = srt_path
     output_source_srt = srt_path
-    if resume_directory is None and read_project(project_path).get('schema') in ('msw.project.v2', 'msw.project.v3'):
-        raise ValueError('多层字幕工程请在编辑器内处理；启动器暂不支持此后处理。')
+    from maw.launcher_project import require_operation
+    if resume_directory is None:
+        require_operation(read_project(project_path), 'postprocess')
+    else:
+        # Check the actual resume input before validation can invoke tools.
+        resume_manifest = _load_manifest(resume_directory.expanduser().resolve())
+        resumed_source = resume_project_path or Path(str(resume_manifest.get('sourceProjectPath') or project_path))
+        require_operation(read_project(resumed_source), 'postprocess')
     normalized, errors = validate_plan(plan, env_path=env_path, media_path=media_path, ffmpeg_path=ffmpeg_path, llm_settings=llm_settings)
     if errors:
         raise ValueError(errors[0]["message"])
@@ -603,8 +609,7 @@ def run_postprocess_pipeline(
         publish_source_srt = Path(str(manifest.get("publishSourceSrtPath") or publish_source_srt))
         # The caller's original path may only be a future publication target.
         # Validate the actual resumed input, including the manifest fallback.
-        if read_project(resume_project_path or project_path).get('schema') in ('msw.project.v2', 'msw.project.v3'):
-            raise ValueError('多层字幕工程请在编辑器内处理；启动器暂不支持此后处理。')
+        require_operation(read_project(resume_project_path or project_path), 'postprocess')
     else:
         # The queue may pass a future SRT target. Generate the 0 snapshot from
         # the actual project and persist media/assets before its temp input exits.

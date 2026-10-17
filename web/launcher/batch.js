@@ -177,7 +177,7 @@
     if (state.running || state.inspecting) return;
     let plan = window.MSWPlan.build();
     const check = window.MSWPlan.preflight(plan);
-    if (!check.ok) { showErrors([{ taskId: check.taskId, module: check.module, message: t(check.code) }]); return; }
+    if (!check.ok) { showErrors([{ taskId: check.taskId, module: check.module, message: check.message || t(check.code) }]); return; }
     const failed = state.files.filter(f => f.error || f.linkedError);
     if (failed.length) { showErrors(failed.map(f => ({ taskId: f.id, module: "media", message: f.error || f.linkedError }))); return; }
     const asrTask = plan.modules.asr && plan.tasks.find(task => plan.asrPolicy === 'replace' || (!task.subtitlePath && !state.files.find(f => f.id === task.id)?.meta?.hasSubtitles));

@@ -1690,7 +1690,8 @@
     const plan = window.MSWPlan?.build(); if (!plan) return;
     const output = plan.output, first = plan.tasks[0];
     const hasText = plan.modules.asr || plan.tasks.some(task => task.subtitlePath || window.MSWQueue?.state.files.find(file => file.id === task.id)?.meta?.hasSubtitles);
-    const files = [!output.srtOnly && '.mosp', hasText && output.exportSrt && '.srt', hasText && output.exportTranslatedSrt && '.translated.srt', hasText && output.exportBilingualSrt && '.bilingual.srt', output.generateHtml && '.edit.html'].filter(Boolean);
+    const hasSrtTask = !output.automaticSrt || plan.tasks.some(task => window.MSWQueue?.state.files.find(file => file.id === task.id)?.meta?.operations?.srt?.supported !== false);
+    const files = [!output.srtOnly && '.mosp', hasText && output.exportSrt && hasSrtTask && '.srt', hasText && output.exportTranslatedSrt && '.translated.srt', hasText && output.exportBilingualSrt && '.bilingual.srt', output.generateHtml && '.edit.html'].filter(Boolean);
     if ($('outputSummary')) $('outputSummary').textContent = t('output_files') + ': ' + files.join(' · ');
     const input = first?.path || '';
     if (!input) { preview.textContent = ''; return; }

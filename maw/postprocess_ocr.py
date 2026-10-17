@@ -300,7 +300,10 @@ def _load_input(
 ) -> tuple[JsonDict, Path | None, Path | None]:
     if project_path is not None:
         resolved = project_path.expanduser().resolve()
-        return read_project(resolved), resolved, None
+        from maw.launcher_project import require_operation
+        project = read_project(resolved)
+        require_operation(project, 'postprocess')
+        return project, resolved, None
     if srt_path is not None:
         resolved = srt_path.expanduser().resolve()
         return read_srt(resolved), None, resolved

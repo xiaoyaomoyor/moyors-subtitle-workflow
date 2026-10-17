@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import copy
-import json
 import re
 from dataclasses import dataclass, replace
 from pathlib import Path
-from threading import Event
 from tempfile import TemporaryDirectory
 
 from maw.gui_workflow import (
@@ -22,6 +20,7 @@ from maw.postprocess_pipeline import (
 )
 from maw.project import normalize_project
 from maw.launcher_outputs import publish_outputs
+from maw.launcher_project import project_inventory, require_operation, subtitle_count, operation_support
 from maw.project_io import (
     discard_stale_inline_caches, enrich_project_media_metadata, persist_audio_track,
     selected_audio_track_from_project,
@@ -86,10 +85,7 @@ def _read_ass(path: Path) -> dict:
 def read_input(path: Path) -> dict:
     kind = input_kind(path)
     if kind == "project":
-        raw = json.loads(path.read_text(encoding="utf-8-sig"))
-        if not isinstance(raw, dict) or not isinstance(raw.get("segments"), list):
-            raise ValueError("该 JSON 不是字幕工程：缺少 segments 列表。")
-        return normalize_project(raw)
+        return read_project(path)
     if kind == "subtitle":
         return _read_ass(path) if path.suffix.lower() == ".ass" else read_srt(path)
     if kind == "media":
@@ -97,18 +93,10 @@ def read_input(path: Path) -> dict:
     raise ValueError("不支持该文件类型；请选择媒体、工程或 SRT/ASS 字幕。")
 
 
-def subtitle_count(project):
-    count = len(project.get('segments', []))
-    if (project.get('overlay_track') or {}).get('enabled') is True:
-        count += len(project['overlay_track'].get('segments', []))
-    if (project.get('multi_subtitle') or {}).get('enabled') is True:
-        count += sum(len(track.get('segments', [])) for track in project['multi_subtitle'].get('tracks', []))
-    return count
-
-
-def inspect_input(value, *, ffprobe_path=None) -> dict:
+def inspect_input(value, *, ffprobe_path=None, project=None) -> dict:
     path = _existing(value)
-    project = read_input(path)
+    project = read_input(path) if project is None else project
+    inventory = project_inventory(project)
     kind = input_kind(path)
     media = path if kind == "media" else resolve_project_media(path, project).resolved_path if kind == "project" else None
     if media and not media.is_file():
@@ -120,10 +108,12 @@ def inspect_input(value, *, ffprobe_path=None) -> dict:
     if path.suffix.lower() == ".ass":
         warnings.append("ASS 仅导入时间与文本；样式、位置、特效和绘图不导入。")
     if kind == "project" and project.get("media") and not media:
-        warnings.append("工程媒体失联；仍可处理字幕，音频处理需重新关联媒体。")
+        warnings.append("工程媒体失联；音频处理需重新关联媒体。")
+    if not inventory['operations']['srt']['supported']:
+        warnings.append('平级轨道工程可关联媒体、补波形和另存工程；字幕处理与导出请在编辑器中按轨道操作。')
     return {
         "path": str(path), "kind": kind, "mediaPath": str(media or ""),
-        "hasSubtitles": bool(subtitle_count(project)), "subtitleCount": subtitle_count(project),
+        **inventory,
         "audioTracks": tracks, "audioTrack": selected, "defaultAudioTrack": default_track,
         "warnings": warnings,
     }
@@ -177,7 +167,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                 raise ValueError("队列中重复添加了同一输入文件。")
             sources.add(source)
             project = read_input(source)
-            info = inspect_input(str(source), ffprobe_path=tools.ffprobe)
+            info = inspect_input(str(source), ffprobe_path=tools.ffprobe, project=project)
             media = _existing(raw["mediaPath"]) if raw.get("mediaPath") else Path(info["mediaPath"]) if info["mediaPath"] else None
             if media and input_kind(media) != "media":
                 raise ValueError("关联的媒体格式不支持。")
@@ -202,6 +192,9 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                 raise ValueError("所选音轨无效，请重新选择。")
             has_subtitles = bool(subtitle_count(project))
             recognize = bool(modules.get("asr")) and (not has_subtitles or plan.get("asrPolicy") == "replace")
+            if recognize:
+                module = 'asr'
+                require_operation(project, 'asr')
             if recognize and (not media or tracks == []):
                 module = "asr"
                 raise ValueError("识别需要可用的媒体音轨；请关联媒体或关闭识别。")
@@ -213,11 +206,17 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                     step["scriptPath"] = str(raw.get("scriptPath") or "")
                 if step.get("id") == "ocr" and raw.get("ocrVideoPath"):
                     step["videoPath"] = str(raw["ocrVideoPath"])
-            if project.get('schema') in ('msw.project.v2', 'msw.project.v3') and (recognize or active):
-                module = 'asr' if recognize else next(iter(active))
-                raise ValueError('多层字幕工程请在编辑器内识别、整理或翻译；启动器可打开、生成波形和导出，暂不支持此后处理。')
+            if active:
+                module = next(iter(active))
+                require_operation(project, 'postprocess')
+            export_srt = output.get('exportSrt', True)
+            if (output.get('automaticSrt') or 'exportSrt' not in output) and not output.get('srtOnly'):
+                export_srt = bool(export_srt and operation_support(project, 'srt')['supported'])
+            if export_srt or output.get('srtOnly'):
+                module = 'output'
+                require_operation(project, 'srt')
             post["enabled"] = bool(active)
-            post.update(outputSemantics="separate-v2", exportSrt=output.get("exportSrt", True),
+            post.update(outputSemantics="separate-v2", exportSrt=export_srt,
                         exportTranslatedSrt=output.get("exportTranslatedSrt", True),
                         exportBilingualSrt=output.get("exportBilingualSrt", False))
             if active and not has_subtitles and not recognize:
@@ -248,7 +247,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                     raise ValueError("工程名称不能包含路径或保留字符。")
                 anchor = anchor.with_name(name + ".srt")
             original_target = None
-            if len(raw_tasks) == 1 and output.get("srtPath") and output.get("exportSrt", True):
+            if len(raw_tasks) == 1 and output.get("srtPath") and export_srt:
                 original_target = Path(output["srtPath"]).expanduser().resolve()
                 if original_target.suffix.lower() != ".srt":
                     module = "output"
@@ -270,7 +269,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
             waveform = bool(modules.get("waveform")) and bool(media) and tracks != [] and not output.get("srtOnly")
             if modules.get("waveform") and not waveform:
                 warnings.append("波形生成不适用：仅输出字幕。" if output.get("srtOnly") else "波形生成不适用：未关联可用音轨。")
-            prepared.append(PreparedTask(task_id, source, project, media, track, default_track, anchor, post, snapshot_postprocess_llm_settings(env_path, post), request, waveform, bool(plan.get("generateSpectral")), output.get("exportSrt", True), warnings, bool(output.get("srtOnly")), bool(output.get("generateHtml")), str(plan.get("recognition", {}).get("guiLang") or "zh"), bool(plan.get("rebuildWaveform")), original_target))
+            prepared.append(PreparedTask(task_id, source, project, media, track, default_track, anchor, post, snapshot_postprocess_llm_settings(env_path, post), request, waveform, bool(plan.get("generateSpectral")), export_srt, warnings, bool(output.get("srtOnly")), bool(output.get("generateHtml")), str(plan.get("recognition", {}).get("guiLang") or "zh"), bool(plan.get("rebuildWaveform")), original_target))
         except Exception as error:
             errors.append({"taskId": task_id, "module": module, "field": getattr(error, "field", ""), "message": str(error)})
     return prepared, errors
@@ -317,8 +316,12 @@ def _run_task(task, *, env_path, tools, cancel, emit, ocr_runtime_root=None, req
             raise PostprocessCancelled("处理已取消。")
     check_cancel()
     project = copy.deepcopy(task.project)
-    if project.get('schema') in ('msw.project.v2', 'msw.project.v3') and (task.request or enabled_steps(task.postprocess)):
-        raise ValueError('多层字幕工程请在编辑器内处理；启动器暂不支持此后处理。')
+    if task.request:
+        require_operation(project, 'asr')
+    if enabled_steps(task.postprocess):
+        require_operation(project, 'postprocess')
+    if task.export_srt or task.srt_only:
+        require_operation(project, 'srt')
     warnings = list(task.warnings or [])
     if task.request:
         emit({"stage": "asr"})
@@ -364,9 +367,10 @@ def _run_task(task, *, env_path, tools, cancel, emit, ocr_runtime_root=None, req
     with TemporaryDirectory(prefix="msw-queue-publish-") as temporary:
         staged = Path(temporary) / target.name
         warnings.extend(write_derived_project(project, staged, task.source))
-        original = staged.with_suffix('.srt') if task.export_srt and project.get('segments') else None
+        srt_text = render_srt(project) if task.export_srt else ''
+        original = staged.with_suffix('.srt') if srt_text.strip() else None
         if original:
-            _atomic_write(original, render_srt(project))
+            _atomic_write(original, srt_text)
         result = publish_outputs(project=staged, anchor=target_srt, original=original,
                                  original_target=task.original_srt_target, warnings=warnings)
     return {**result, "warnings": warnings}

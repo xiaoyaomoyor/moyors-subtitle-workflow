@@ -12,6 +12,7 @@ from pathlib import Path
 from maw.file_io import atomic_write_text
 from maw.output_naming import OPERATION_NAMES, is_translation_operation, operation_suffix
 from maw.project import normalize_project
+from maw.launcher_project import require_operation
 from maw.project_preview import JsonDict, JsonValue
 
 
@@ -39,7 +40,7 @@ def read_project(path: Path) -> JsonDict:
     if not source.is_file() or source.suffix.lower() not in {".json", ".mosp"}:
         raise PostprocessFileError(source, "project must be an existing .mosp or .json file")
     try:
-        raw: JsonValue = json.loads(source.read_text(encoding="utf-8"))
+        raw: JsonValue = json.loads(source.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise PostprocessFileError(source, f"cannot read project: {error}") from error
     return normalize_project(raw)
@@ -128,6 +129,8 @@ def write_artifacts(
     media_path: Path | None = None,
 ) -> SubtitleArtifact:
     normalized = normalize_project(project)
+    if write_srt:
+        require_operation(normalized, 'srt')
     raw_media = normalized.get("media")
     if media_path is not None and str(media_path).strip() and (
         not isinstance(raw_media, str) or not raw_media.strip()
@@ -181,6 +184,7 @@ def write_derived_project(project: JsonDict, target: Path, source: Path) -> tupl
 
 
 def render_srt(project: JsonDict) -> str:
+    require_operation(project, 'srt')
     main_segments = project.get("segments")
     if not isinstance(main_segments, list):
         return ""

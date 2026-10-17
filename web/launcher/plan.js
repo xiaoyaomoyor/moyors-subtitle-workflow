@@ -24,6 +24,7 @@
         directory: outputOn ? el("outputDirectory").value.trim() : "",
         projectName: outputOn ? el("outputProjectName").value.trim() : "",
         exportSrt: !outputOn || el("outputExportSrt").checked,
+        automaticSrt: !outputOn,
         exportTranslatedSrt: enabled('translate') && (!outputOn || el("outputExportTranslatedSrt").checked),
         exportBilingualSrt: outputOn && enabled('translate') && el('translationWriteMode').value === 'bilingual' && el('outputExportBilingualSrt').checked,
         srtOnly: outputOn && Boolean(el("batchSrtOnly")?.checked),
@@ -37,6 +38,17 @@
     for (const task of plan.tasks) {
       const meta = window.MSWQueue?.state.files.find(file => file.id === task.id)?.meta;
       const subtitles = Boolean(task.subtitlePath || meta?.hasSubtitles);
+      const operations = meta?.operations;
+      const requested = [
+        [(plan.modules.asr && (!subtitles || plan.asrPolicy === 'replace')), 'asr', 'asr'],
+        [plan.modules.postprocess.length, 'postprocess', plan.modules.postprocess[0]],
+        [plan.output.srtOnly || (plan.output.exportSrt && !plan.output.automaticSrt), 'srt', 'output'],
+      ];
+      for (const [needed, operation, module] of requested) {
+        if (needed && operations?.[operation]?.supported === false) {
+          return { ok: false, taskId: task.id, module, message: operations[operation].reason };
+        }
+      }
       if (plan.output.srtOnly && !subtitles && !plan.modules.asr) return { ok: false, taskId: task.id, module: 'output', code: 'queue_srt_needs_text' };
       if (plan.modules.postprocess.length && !subtitles && !plan.modules.asr) return { ok: false, taskId: task.id, module: plan.modules.postprocess[0], code: "queue_needs_subtitles" };
       if (plan.modules.postprocess.includes('ocr') && !task.ocrVideoPath && !/\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i.test(task.mediaPath) && !plan.postprocess.steps?.find(step => step.id === 'ocr')?.videoPath) return { ok: false, taskId: task.id, module: 'ocr', code: 'queue_needs_video' };

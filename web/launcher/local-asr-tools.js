@@ -55,28 +55,51 @@
   });
   let inspectRevision = 0;
   let inspectedPath = '';
+  let inputSupported = false;
+  let alignmentRunning = false;
+  $('runTimestampTool').disabled = true;
   async function inspectInput() {
     const path = $('timestampInput').value.trim();
-    if (path === inspectedPath) return;
+    if (path && path === inspectedPath) return inputSupported;
     const revision = ++inspectRevision;
-    if (!path) return;
-    const result = await call('inspect_alignment_input', { path });
-    if (revision !== inspectRevision) return;
-    if (!result.ok) { $('timestampResult').textContent = result.error || '无法读取输入'; return; }
-    inspectedPath = path;
-    $('timestampTrack').replaceChildren(...result.tracks.map(track => new Option(track.label, track.id)));
+    inspectedPath = ''; inputSupported = false;
+    $('timestampTrack').replaceChildren();
+    $('runTimestampTool').disabled = true;
     $('timestampResult').textContent = '';
+    if (!path) return false;
+    try {
+      const result = await call('inspect_alignment_input', { path });
+      if (revision !== inspectRevision || path !== $('timestampInput').value.trim()) return false;
+      if (!result.ok) { $('timestampResult').textContent = result.error || '无法读取输入'; return false; }
+      inspectedPath = path;
+      inputSupported = result.alignment?.supported !== false;
+      $('timestampTrack').replaceChildren(...result.tracks.map(track => new Option(track.label, track.id)));
+      $('timestampTrack').disabled = !inputSupported;
+      $('runTimestampTool').disabled = !inputSupported || alignmentRunning;
+      $('timestampResult').textContent = result.alignment?.reason || '';
+      return inputSupported;
+    } catch (error) {
+      if (revision === inspectRevision) $('timestampResult').textContent = error.message;
+      return false;
+    }
   }
+  $('timestampInput').addEventListener('input', () => {
+    ++inspectRevision; inspectedPath = ''; inputSupported = false;
+    $('timestampTrack').replaceChildren(); $('runTimestampTool').disabled = true;
+    $('timestampResult').textContent = '';
+  });
   $('timestampInput').addEventListener('change', () => void inspectInput());
   for (const [button, field, kind] of [['pickTimestampInput', 'timestampInput', 'subtitle'], ['pickTimestampMedia', 'timestampMedia', 'media']]) {
     $(button).onclick = async () => { const result = await call('choose_file', { kind }); if (result.ok) { $(field).value = result.path || ''; if (field === 'timestampInput') await inspectInput(); } };
   }
   $('runTimestampTool').onclick = async () => {
+    if (alignmentRunning || !await inspectInput()) return;
     const path = $('timestampInput').value.trim(), mediaPath = $('timestampMedia').value.trim();
     const audioText = $('timestampAudio').value, targetTrack = $('timestampTrack').value;
     if (!path || (targetTrack !== 'main' && (!mediaPath || audioText === ''))) {
       $('timestampResult').textContent = '请选择输入；副字幕／叠加字幕还需明确指定匹配音频和音轨。'; return;
     }
+    alignmentRunning = true;
     $('runTimestampTool').disabled = true;
     $('timestampResult').textContent = '正在对齐，原工程保持不变…';
     try {
@@ -87,7 +110,7 @@
       });
       $('timestampResult').textContent = result.ok ? `${result.projectPath}\n成功 ${result.report?.alignedSegments || 0} 段；跳过 ${result.report?.skippedSegments || 0} 段；失败 ${result.report?.failedSegments || 0} 段\n${(result.warnings || []).join('\n')}` : result.detail || result.error || '对齐失败';
     } catch (error) { $('timestampResult').textContent = error.message; }
-    finally { $('runTimestampTool').disabled = false; }
+    finally { alignmentRunning = false; $('runTimestampTool').disabled = !inputSupported; }
   };
   $('cancelTimestampTool').onclick = () => void call('cancel_media_tool');
   document.querySelectorAll('[data-comparison-tool]').forEach(button => button.onclick = async () => {

@@ -369,6 +369,7 @@ def align_project(
     audio_index: int = 0,
 ) -> TimestampAlignmentReport:
     """Align only the explicitly chosen track against its selected audio."""
+    collections = alignment_collections(project, target_track)
     if type(audio_index) is not int or not 0 <= audio_index <= 127:
         raise ValueError("对齐音轨无效")
     normalized_mode = _normalize_mode(mode)
@@ -389,7 +390,7 @@ def align_project(
     warnings: list[str] = []
     with tempfile.TemporaryDirectory(prefix="msw-align-") as temp_dir:
         span_index = 0
-        for collection, language in _project_segment_collections(project, target_track):
+        for collection, language in collections:
             for segment in collection:
                 if not isinstance(segment, dict):
                     continue
@@ -540,6 +541,7 @@ def align_local_transcription(
 
 def run_timestamp_alignment(request: TimestampAlignmentRequest) -> tuple[SubtitleArtifact, TimestampAlignmentReport]:
     project, source_project, source_srt = _load_input(request.project_path, request.srt_path)
+    alignment_collections(project, request.target_track)
     media = request.media_path
     if media is None:
         raw_media = project.get("media")
@@ -913,6 +915,16 @@ def _segment_has_complete_items(segment: Mapping[str, object]) -> bool:
     ) and timestamp_items_cover_text(text, valid)
 
 
+def alignment_collections(project: Mapping[str, object], target_track: str = 'main'):
+    """Validate the actual target before model initialization or audio decoding."""
+    from maw.launcher_project import require_operation
+    require_operation(project, 'alignment')
+    collections = list(_project_segment_collections(project, target_track))
+    if not any(str(cue.get('text') or '').strip() for cues, _ in collections for cue in cues if isinstance(cue, dict)):
+        raise TimestampAlignmentError('所选字幕轨没有可对齐的字幕文本，请选择包含字幕的轨道。')
+    return collections
+
+
 def _project_segment_collections(project: Mapping[str, object], target_track: str = 'main') -> Iterable[tuple[list[object], str | None]]:
     main = project.get("segments")
     language = str(project.get("language") or "")
@@ -929,8 +941,7 @@ def _project_segment_collections(project: Mapping[str, object], target_track: st
             if isinstance(track, Mapping) and target_track == 'secondary:' + str(track.get('id', '')) and isinstance(track.get("segments"), list):
                 yield track["segments"], str(track.get("language") or language)
                 return
-    if target_track != 'main':
-        raise TimestampAlignmentError('指定的字幕轨不存在')
+    raise TimestampAlignmentError('指定的字幕轨不存在')
 
 
 def _project_granularity(project: Mapping[str, object]) -> str:
