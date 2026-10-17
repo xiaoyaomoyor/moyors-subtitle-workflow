@@ -369,7 +369,11 @@ def align_project(
     audio_index: int = 0,
 ) -> TimestampAlignmentReport:
     """Align only the explicitly chosen track against its selected audio."""
-    collections = alignment_collections(project, target_track)
+    view = _alignment_view(project, target_track)
+    collections = alignment_collections(view, target_track)
+    if view is not project:
+        project.clear()
+        project.update(view)
     if type(audio_index) is not int or not 0 <= audio_index <= 127:
         raise ValueError("对齐音轨无效")
     normalized_mode = _normalize_mode(mode)
@@ -446,9 +450,16 @@ def align_project(
                 ]
                 aligned_segments += 1
                 aligned_items += len(items)
-        granularity = _project_granularity(project)
-        if granularity:
-            project["timestamp_granularity"] = granularity
+        if project.get('schema') == 'msw.project.v4':
+            from maw.launcher_processing import source_track
+            track = source_track(project, target_track)
+            granularity = _project_granularity({'segments': [c['content'] for c in project['subtitles']['cues'] if c['track_id'] == target_track]})
+            if granularity:
+                track['timestamp_granularity'] = granularity
+        else:
+            granularity = _project_granularity(project)
+            if granularity:
+                project["timestamp_granularity"] = granularity
     if failed_segments:
         emit(f"[aligner] 完成：成功 {aligned_segments} 段，跳过 {skipped_segments} 段，失败 {failed_segments} 段。")
     else:
@@ -541,6 +552,7 @@ def align_local_transcription(
 
 def run_timestamp_alignment(request: TimestampAlignmentRequest) -> tuple[SubtitleArtifact, TimestampAlignmentReport]:
     project, source_project, source_srt = _load_input(request.project_path, request.srt_path)
+    project = _alignment_view(project, request.target_track)
     alignment_collections(project, request.target_track)
     media = request.media_path
     if media is None:
@@ -553,7 +565,7 @@ def run_timestamp_alignment(request: TimestampAlignmentRequest) -> tuple[Subtitl
         raise TimestampAlignmentError("生成字词时间码需要选择原始媒体文件。")
     media = media.expanduser().resolve(strict=False)
     if request.target_track != 'main' and (request.audio_index is None or request.media_path is None):
-        raise TimestampAlignmentError('副字幕／叠加字幕对齐需要明确选择对应音频和音轨。')
+        raise TimestampAlignmentError('所选字幕轨道对齐需要明确选择对应音频和音轨。')
     audio_index = request.audio_index
     if audio_index is None:
         metadata = project.get('media_metadata') or {}
@@ -594,6 +606,7 @@ def run_timestamp_alignment(request: TimestampAlignmentRequest) -> tuple[Subtitl
         source_project_path=source_project,
         source_srt_path=source_srt,
         operation="timestamps",
+        subtitle_track_ids=[request.target_track] if project.get('schema') == 'msw.project.v4' else None,
         write_project=request.output_mode in {"json", "both"},
         write_srt=request.output_mode in {"srt", "both"},
         warnings=warnings,
@@ -915,11 +928,25 @@ def _segment_has_complete_items(segment: Mapping[str, object]) -> bool:
     ) and timestamp_items_cover_text(text, valid)
 
 
+def _alignment_view(project, target_track):
+    # Existing CLI callers keep legacy aliases; Launcher always supplies real IDs.
+    if project.get('schema') != 'msw.project.v4' and target_track not in {'main', 'overlay'} and not target_track.startswith('secondary:'):
+        from maw.launcher_processing import native_project
+        return native_project(project)
+    return project
+
+
 def alignment_collections(project: Mapping[str, object], target_track: str = 'main'):
     """Validate the actual target before model initialization or audio decoding."""
     from maw.launcher_project import require_operation
     require_operation(project, 'alignment')
-    collections = list(_project_segment_collections(project, target_track))
+    project = _alignment_view(project, target_track)
+    if project.get('schema') == 'msw.project.v4':
+        from maw.launcher_processing import selected_cues, source_track
+        track = source_track(project, target_track)
+        collections = [([c['content'] for c in selected_cues(project, track['id'])], track.get('language', project.get('language')))]
+    else:
+        collections = list(_project_segment_collections(project, target_track))
     if not any(str(cue.get('text') or '').strip() for cues, _ in collections for cue in cues if isinstance(cue, dict)):
         raise TimestampAlignmentError('所选字幕轨没有可对齐的字幕文本，请选择包含字幕的轨道。')
     return collections

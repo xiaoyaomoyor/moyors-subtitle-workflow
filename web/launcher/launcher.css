@@ -3700,3 +3700,7 @@ select[multiple] option {
 .faq-a { padding-left: 26px; }
 @media (max-width: 900px) { .check-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .faq-q .chevron { transition: none; } }
+
+.queue-track-choices { display:flex; flex-wrap:wrap; gap:8px 16px; }
+.queue-track-choices label { display:inline-flex; align-items:center; gap:6px; }
+.queue-track-choices input[type="checkbox"] { width:auto; margin:0; }

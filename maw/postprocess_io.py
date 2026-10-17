@@ -127,10 +127,10 @@ def write_artifacts(
     warnings: tuple[str, ...] = (),
     output_directory: Path | None = None,
     media_path: Path | None = None,
+    subtitle_track_ids: list[str] | None = None,
 ) -> SubtitleArtifact:
     normalized = normalize_project(project)
-    if write_srt:
-        require_operation(normalized, 'srt')
+    srt_text = render_srt(normalized, subtitle_track_ids) if write_srt else None
     raw_media = normalized.get("media")
     if media_path is not None and str(media_path).strip() and (
         not isinstance(raw_media, str) or not raw_media.strip()
@@ -148,7 +148,7 @@ def write_artifacts(
         asset_warnings = write_derived_project(normalized, project_path, source_project_path or base)
         warnings = (*warnings, *asset_warnings)
     if srt_path is not None:
-        _atomic_write(srt_path, render_srt(normalized))
+        _atomic_write(srt_path, srt_text)
     return SubtitleArtifact(
         source_project_path=source_project_path,
         source_srt_path=source_srt_path,
@@ -183,8 +183,11 @@ def write_derived_project(project: JsonDict, target: Path, source: Path) -> tupl
     return warnings
 
 
-def render_srt(project: JsonDict) -> str:
+def render_srt(project: JsonDict, track_ids: list[str] | None = None) -> str:
     require_operation(project, 'srt')
+    if project.get('schema') == 'msw.project.v4':
+        from maw.launcher_processing import export_srt
+        return export_srt(project, track_ids)
     main_segments = project.get("segments")
     if not isinstance(main_segments, list):
         return ""

@@ -1409,7 +1409,7 @@ class LauncherApi:
             if audio_index is not None and (type(audio_index) is not int or not 0 <= audio_index <= 127):
                 raise ValueError('对齐音轨无效')
             if target_track != 'main' and (audio_index is None or media_path is None):
-                raise ValueError('副字幕／叠加字幕必须明确选择对应媒体文件和音轨')
+                raise ValueError('所选字幕轨道必须明确选择对应媒体文件和音轨')
             if runtime.ready or not getattr(sys, 'frozen', False):
                 worker_result = run_timestamp_alignment_in_runtime(
                     project_path=project_path,
@@ -1870,7 +1870,12 @@ class LauncherApi:
             try:
                 project = read_project(project_path) if project_path is not None else read_srt(srt_path, strict=True)
                 from maw.launcher_project import require_operation
-                require_operation(project, 'postprocess')
+                require_operation(project, 'postprocess', scoped=True)
+                if project.get('schema') in {'msw.project.v2', 'msw.project.v3', 'msw.project.v4'}:
+                    from maw.launcher_processing import native_project, preflight, processing_snapshot
+                    native = native_project(project)
+                    owner = preflight(native, payload.get('sourceTrackId'), [{'id': 'match'}])
+                    project = processing_snapshot(native, owner)
             except (PostprocessFileError, ProjectValidationFailed) as error:
                 return {"ok": False, "preview": "", "errorCode": "subtitle_invalid", "code": "subtitle_invalid", "detail": str(error)}
             try:
@@ -1981,14 +1986,7 @@ class LauncherApi:
             from maw.launcher_project import project_inventory
             inventory = project_inventory(project)
             support = inventory['operations']['alignment']
-            if not support['supported']:
-                return {'ok': True, 'tracks': inventory['subtitleTracks'], **inventory, 'alignment': support}
-            tracks = [{'id': 'main', 'label': '主字幕（原声）'}]
-            if (project.get('overlay_track') or {}).get('segments'):
-                tracks.append({'id': 'overlay', 'label': '叠加字幕（需指定对应音频）'})
-            for track in (project.get('multi_subtitle') or {}).get('tracks', []):
-                tracks.append({'id': 'secondary:' + track['id'], 'label': track.get('name') or '副字幕（需指定对应音频）'})
-            return {'ok': True, 'tracks': tracks, **inventory, 'alignment': support}
+            return {'ok': True, 'tracks': inventory['subtitleTracks'], **inventory, 'alignment': support}
         except (OSError, ValueError, RuntimeError) as error:
             return {'ok': False, 'error': str(error)}
 
@@ -3110,7 +3108,11 @@ class LauncherApi:
                     return _error_result("mediaPath", "project_input_too_large", str(input_path))
                 from maw.launcher_project import require_operation
                 data = read_project(input_path)
-                require_operation(data, 'postprocess')
+                require_operation(data, 'postprocess', scoped=True)
+                from maw.launcher_processing import native_project, preflight
+                scope = dict(postprocess_plan.get('trackScope') or {})
+                scope['sourceTrackId'] = preflight(native_project(data), scope.get('sourceTrackId'), steps, target_id=scope.get('targetTrackId'))
+                raw_plan = {**raw_plan, 'postprocess': {**postprocess_plan, 'trackScope': scope}}
             except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
                 return _error_result("mediaPath", "project_input_unreadable", str(error))
             resolution = resolve_project_media(input_path, data)
@@ -3153,7 +3155,9 @@ class LauncherApi:
             # SRT 输入：经生产 I/O 包一层零媒体工程适配器（§7.1「SRT＋字幕处理」），
             # 使每一步（尤其翻译副轨）都有源工程可读写；包装件留在临时目录，不污染源目录。
             try:
-                wrapper = read_srt(input_path)
+                from maw.launcher_queue import read_input
+                from maw.launcher_processing import native_project
+                wrapper = native_project(read_input(input_path))
                 wrapper_dir = Path(tempfile.mkdtemp(prefix="msw-prefab-srt-"))
                 wrapper_path = wrapper_dir / (input_path.stem + ".mosp")
                 project_path = write_mosp(

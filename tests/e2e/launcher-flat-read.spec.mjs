@@ -29,65 +29,86 @@ print(json.dumps({'flat':inspect_input(str(project)), 'flatAlignment':api.inspec
 test.afterAll(() => { if (directory) rmSync(directory, { recursive: true, force: true }); });
 
 async function open(page) {
+  await page.addInitScript(data => {
+    window.addEventListener('mawlauncherready', () => {
+      const original = MSWLauncher.callBackend;
+      window.__flatCalls = [];
+      MSWLauncher.callBackend = async (name, payload) => {
+        window.__flatCalls.push(name);
+        if (name === 'inspect_queue_inputs') return { ok: true, items: payload.paths.map(path => ({ ok: true, ...data.flat, path })) };
+        if (name === 'inspect_alignment_input') return payload.path === data.legacy ? data.legacyAlignment : data.flatAlignment;
+        return original(name, payload);
+      };
+    }, { once: true });
+  }, metadata);
   await page.goto(pathToFileURL(resolve('web/launcher/index.html')).href);
   await page.waitForFunction(() => MSWLauncher?.config?.providers?.length && window.MSWModules);
-  await page.evaluate(data => {
-    const original = MSWLauncher.callBackend;
-    window.__flatCalls = [];
-    MSWLauncher.callBackend = async (name, payload) => {
-      window.__flatCalls.push(name);
-      if (name === 'inspect_queue_inputs') return { ok: true, items: payload.paths.map(path => ({ ok: true, ...data.flat, path })) };
-      if (name === 'inspect_alignment_input') return payload.path === data.legacy ? data.legacyAlignment : data.flatAlignment;
-      return original(name, payload);
-    };
-  }, metadata);
 }
 
-test('native project reads normally; automatic output predicts only project and copy is available', async ({ page }) => {
+test('native project exposes real track choices and exports SRT without a version block', async ({ page }) => {
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
   await open(page);
   await page.evaluate(path => { MSWNavigation.show('prefab'); return MSWQueue.addPaths([path]); }, metadata.flat.path);
   await expect(page.locator('.queue-status')).toHaveText('已添加');
-  await expect(page.locator('.queue-file')).toContainText('平级轨道工程可关联媒体、补波形和另存工程');
-  await expect(page.locator('#outputSummary')).toHaveText('预计产物: .mosp');
-  const state = await page.evaluate(() => ({ plan: MSWPlan.build(), check: MSWPlan.preflight(MSWPlan.build()), count: MSWQueue.state.files[0].meta.subtitleCount }));
-  expect(state.count).toBe(3);
-  expect(state.plan.output.automaticSrt).toBe(true);
+  await expect(page.locator('#outputSummary')).toContainText('.srt');
+  await page.locator('.queue-details summary').click();
+  await expect(page.getByLabel('处理轨道', { exact: true })).toHaveValue(metadata.flat.subtitleTracks[0].id);
+  await expect(page.locator('[data-export-track]')).toHaveCount(3);
+  await page.locator('#prefabRail [data-module-id="translate"]').check();
+  await expect(page.getByLabel('译文轨道', { exact: true })).toHaveValue(metadata.flat.subtitleTracks[1].id);
+  await page.getByLabel('处理轨道', { exact: true }).selectOption(metadata.flat.subtitleTracks[2].id);
+  await expect(page.getByLabel('译文轨道', { exact: true })).toHaveValue('new');
+  const state = await page.evaluate(() => ({ plan: MSWPlan.build(), check: MSWPlan.preflight(MSWPlan.build()) }));
+  expect(state.plan.tasks[0].sourceTrackId).toBe(metadata.flat.subtitleTracks[2].id);
+  expect(state.plan.tasks[0].exportTrackIds).toEqual([metadata.flat.subtitleTracks[2].id]);
   expect(state.check.ok).toBe(true);
+  expect(errors).toEqual([]);
 });
 
-test('unsupported ASR, postprocess and explicit SRT are explained before submitting a job', async ({ page }) => {
+test('bound structural changes and locked targets are explained before submitting a job', async ({ page }) => {
   await open(page);
   await page.evaluate(path => { MSWNavigation.show('prefab'); return MSWQueue.addPaths([path]); }, metadata.flat.path);
-  await page.locator('#prefabRail [data-module-id="output"]').check();
+  await page.locator('#prefabRail [data-module-id="resegment"]').check();
   await page.locator('#start').click();
-  await expect(page.locator('.queue-file')).toContainText('SRT 导出');
-  await page.locator('#prefabRail [data-module-id="output"]').uncheck();
-  await page.locator('#prefabRail [data-module-id="replace"]').check();
-  await page.locator('#start').click();
-  await expect(page.locator('.queue-file')).toContainText('字幕后处理');
+  await expect(page.locator('.queue-file')).toContainText('已绑定字幕');
   const blocked = await page.evaluate(() => {
-    const plan = MSWPlan.build(); plan.modules.postprocess = []; plan.modules.asr = true; plan.asrPolicy = 'replace';
+    const file = MSWQueue.state.files[0]; file.meta.subtitleTracks[0].locked = true;
+    const plan = MSWPlan.build(); plan.modules.postprocess = ['replace'];
     return MSWPlan.preflight(plan);
   });
-  expect(blocked.message).toContain('重新识别');
+  expect(blocked.message).toContain('未锁定');
   expect(await page.evaluate(() => __flatCalls.includes('start_prefab_queue'))).toBe(false);
 });
 
-test('timestamp tool shows actual tracks and cannot run flat input; clearing or switching input resets state', async ({ page }) => {
+test('per-task export track selections survive a reload', async ({ page }) => {
+  await open(page);
+  await page.evaluate(path => { MSWNavigation.show('prefab'); return MSWQueue.addPaths([path]); }, metadata.flat.path);
+  await page.locator('.queue-details summary').click();
+  await page.locator('[data-export-track]').nth(1).uncheck();
+  await page.locator('[data-export-track]').nth(2).uncheck();
+  const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('MSW_LAUNCHER_INPUT_QUEUE_V2')));
+  expect(draft.files[0].exportTrackIds).toEqual([metadata.flat.subtitleTracks[0].id]);
+  await page.reload();
+  await page.waitForFunction(() => window.MSWQueue?.state.files[0]?.meta?.subtitleTracks?.length && !MSWQueue.state.inspecting);
+  expect(await page.evaluate(() => MSWQueue.tasks()[0].exportTrackIds)).toEqual([metadata.flat.subtitleTracks[0].id]);
+});
+
+test('timestamp tool lists native tracks; clearing input resets availability', async ({ page }) => {
   await open(page);
   await page.evaluate(() => { MSWNavigation.show('tools'); MSWTools.select('timestamps'); });
   await page.locator('#timestampInput').fill(metadata.flat.path);
   await page.locator('#timestampInput').blur();
   await expect(page.locator('#timestampTrack option')).toHaveText(metadata.flatAlignment.tracks.map(t => t.label));
-  await expect(page.locator('#timestampResult')).toContainText('平级轨道工程');
-  await expect(page.locator('#runTimestampTool')).toBeDisabled();
+  await expect(page.locator('#runTimestampTool')).toBeEnabled();
+  await page.locator('#runTimestampTool').click();
+  await expect(page.locator('#timestampResult')).toContainText('匹配音频');
   await page.locator('#timestampInput').fill('');
   await page.locator('#timestampInput').blur();
   await expect(page.locator('#timestampTrack option')).toHaveCount(0);
+  await expect(page.locator('#runTimestampTool')).toBeDisabled();
   await page.locator('#timestampInput').fill(metadata.legacy);
   await page.locator('#timestampInput').blur();
   await expect(page.locator('#runTimestampTool')).toBeEnabled();
-  await expect(page.locator('#timestampTrack')).toBeEnabled();
   await expect(page.locator('#timestampTrack option')).toHaveCount(1);
   expect(await page.evaluate(() => __flatCalls.includes('run_timestamp_alignment'))).toBe(false);
 });

@@ -115,6 +115,10 @@ def normalize_plan(raw: object) -> dict[str, object]:
                         and isinstance(value, (str, bool))} if isinstance(raw.get("outputDraft"), Mapping) else {},
         "outputDirectory": str(raw.get("outputDirectory") or "").strip(),
         "outputStem": str(raw.get("outputStem") or "").strip(),
+        "trackScope": {key: value for key, value in (raw.get("trackScope") or {}).items()
+                       if key in {"sourceTrackId", "targetTrackId", "exportTrackIds"}
+                       and (isinstance(value, str) or key == "exportTrackIds" and isinstance(value, list) and all(isinstance(v, str) for v in value))}
+                      if isinstance(raw.get("trackScope"), Mapping) else {},
         "steps": [],
     }
     by_id: dict[str, Mapping[str, object]] = {}
@@ -582,12 +586,26 @@ def run_postprocess_pipeline(
     output_source_srt = srt_path
     from maw.launcher_project import require_operation
     if resume_directory is None:
-        require_operation(read_project(project_path), 'postprocess')
+        require_operation(read_project(project_path), 'postprocess', scoped=True)
     else:
         # Check the actual resume input before validation can invoke tools.
         resume_manifest = _load_manifest(resume_directory.expanduser().resolve())
         resumed_source = resume_project_path or Path(str(resume_manifest.get('sourceProjectPath') or project_path))
-        require_operation(read_project(resumed_source), 'postprocess')
+        require_operation(read_project(resumed_source), 'postprocess', scoped=True)
+    from maw.launcher_processing import preflight, native_project
+    scope = dict(plan.get('trackScope') or {})
+    input_project = read_project(project_path if resume_directory is None else resumed_source)
+    native = input_project.get('schema') in {'msw.project.v2', 'msw.project.v3', 'msw.project.v4'} or bool(scope)
+    if resume_directory is not None and resume_manifest.get('trackScope'):
+        if scope and scope != resume_manifest['trackScope']:
+            raise ValueError('恢复任务的字幕轨道范围与原任务不一致，请创建新任务。')
+        scope = dict(resume_manifest['trackScope'])
+    if native:
+        view = native_project(input_project)
+        render_srt(view, scope.get('exportTrackIds'))
+        scope['sourceTrackId'] = preflight(view, scope.get('sourceTrackId'),
+                                           enabled_steps(plan)[max(0, resume_from):], target_id=scope.get('targetTrackId'))
+    plan = {**plan, 'trackScope': scope}
     normalized, errors = validate_plan(plan, env_path=env_path, media_path=media_path, ffmpeg_path=ffmpeg_path, llm_settings=llm_settings)
     if errors:
         raise ValueError(errors[0]["message"])
@@ -609,15 +627,17 @@ def run_postprocess_pipeline(
         publish_source_srt = Path(str(manifest.get("publishSourceSrtPath") or publish_source_srt))
         # The caller's original path may only be a future publication target.
         # Validate the actual resumed input, including the manifest fallback.
-        require_operation(read_project(resume_project_path or project_path), 'postprocess')
+        require_operation(read_project(resume_project_path or project_path), 'postprocess', scoped=True)
     else:
         # The queue may pass a future SRT target. Generate the 0 snapshot from
         # the actual project and persist media/assets before its temp input exits.
         snapshot = _pipeline_artifact_path(run_directory, media_path.stem, 0, "original", ".mosp", lang=language)
         snapshot_srt = snapshot.with_suffix(".srt")
         source = read_project(project_path)
+        if native:
+            source = native_project(source)
         initial_warnings = write_derived_project(source, snapshot, project_path)
-        _atomic_write(snapshot_srt, render_srt(source))
+        _atomic_write(snapshot_srt, render_srt(source, scope.get('exportTrackIds', [scope['sourceTrackId']]) if native else None))
         project_path, srt_path = snapshot, snapshot_srt
         manifest = {
             "version": POSTPROCESS_PLAN_VERSION,
@@ -630,6 +650,7 @@ def run_postprocess_pipeline(
             "publishSourceSrtPath": str(publish_source_srt),
             "sourceStem": media_path.stem,
             "artifactLanguage": language,
+            "trackScope": scope,
             "warnings": list(initial_warnings),
             "retainIntermediate": bool(normalized.get("retainIntermediate")),
             "steps": [{"id": str(step["id"]), "status": "pending"} for step in steps],
@@ -706,8 +727,9 @@ def run_postprocess_pipeline(
                     cancel_event=cancel_event,
                     on_event=on_event,
                     llm_settings=llm_settings,
+                    track_scope=scope if native else None,
                 )
-                if step_id == "translate":
+                if step_id == "translate" and not native:
                     artifact, artifact_index = _number_pipeline_artifact(
                         artifact, run_directory=run_directory, source_stem=source_stem,
                         index=artifact_index, operation=_pipeline_step_operation(step), lang=artifact_language,
@@ -760,6 +782,10 @@ def run_postprocess_pipeline(
                             output_directory=run_directory,
                             media_path=media_path,
                         )
+                if step_id == 'translate' and native:
+                    translation_target = str(step.get('target') or 'zh')
+                    bilingual_output = bool(step.get('mergeBilingual'))
+                    embed_output = bool(step.get('embedTranslations')) and not bilingual_output
                 operation = _pipeline_step_operation(step)
                 if step_id == "translate":
                     marker = "bilingual" if bilingual_output else "backfill" if embed_output else "combined"
@@ -828,7 +854,7 @@ def run_postprocess_pipeline(
                         if previous.get("projectPath"):
                             original_project = Path(previous["projectPath"])
                 original_srt = run_directory / "original-before-translation.srt"
-                _atomic_write(original_srt, render_srt(read_project(original_project)))
+                _atomic_write(original_srt, render_srt(read_project(original_project), scope.get('exportTrackIds', [scope['sourceTrackId']]) if native else None))
             anchor = Path(str(normalized["outputSrtPath"])) if normalized.get("outputSrtPath") else Path(str(normalized.get("outputDirectory") or output_source_srt.parent)) / (str(normalized.get("outputStem") or output_source_srt.stem + operation_suffix('postprocess', lang=language)) + ".srt")
             published = publish_outputs(project=current_project, anchor=anchor,
                 original=original_srt if normalized.get("exportSrt", True) else None,
@@ -920,7 +946,14 @@ def _run_step(
     cancel_event: Event,
     on_event: PipelineEvent | None,
     llm_settings: Mapping[str, Mapping[str, str]] | None,
+    track_scope: Mapping[str, object] | None = None,
 ) -> SubtitleArtifact:
+    if track_scope is not None:
+        from maw.launcher_processing import run_track_step
+        return run_track_step(step, scope=track_scope, runner=_run_step, project_path=project_path, srt_path=srt_path,
+                              media_path=media_path, env_path=env_path, ffmpeg_path=ffmpeg_path,
+                              ocr_runtime_root=ocr_runtime_root, output_directory=output_directory,
+                              cancel_event=cancel_event, on_event=on_event, llm_settings=llm_settings)
     step_id = str(step["id"])
     output_mode = OutputMode.BOTH
     if step_id == "match":

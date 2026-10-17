@@ -257,12 +257,14 @@ class RealMediaAcceptanceTests(unittest.TestCase):
 
             # 发布门槛：产物能被编辑器真实加载（§7.3 全链往返）。
             output = json.loads(Path(completed[0]["projectPath"]).read_text(encoding="utf-8"))
-            self.assertEqual([s["text"] for s in output["segments"]], ["正字", "保留"])
+            owner = output['subtitles']['tracks'][0]['id']
+            self.assertEqual([c['content']['text'] for c in output['subtitles']['cues'] if c['track_id'] == owner], ['正字', '保留'])
             server_project = server_editor.load_project(
                 Path(completed[0]["projectPath"]), None, "",
                 no_waveform=True, load_reapeaks=False, peaks_per_second=100,
             )
-            self.assertEqual(len(server_project.data["segments"]), 2)
+            self.assertEqual(server_project.data['schema'], 'msw.project.v4')
+            self.assertEqual(len([c for c in server_project.data['subtitles']['cues'] if c['track_id'] == owner]), 2)
         finally:
             holder.cleanup()
 

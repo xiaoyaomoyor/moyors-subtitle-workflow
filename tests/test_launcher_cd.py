@@ -1,5 +1,4 @@
 """C/D integration contracts: actual subtitle content, preservation and cache identity."""
-import copy
 import base64
 import hashlib
 import json
@@ -117,7 +116,7 @@ class LauncherCDTests(unittest.TestCase):
         self.assertEqual(result['outputDraft'], {'directory': 'saved', 'srtOnly': True})
 
     def test_queue_only_bilingual_srt_does_not_publish_project(self):
-        plan = {'version': 2, 'tasks': [{'id':'one','path':str(self.source)}], 'modules': {'postprocess':['translate']},
+        plan = {'version': 2, 'tasks': [{'id':'one','path':str(self.source),'exportTrackIds':[]}], 'modules': {'postprocess':['translate']},
                 'postprocess': self.plan('bilingual'), 'output': {'directory':str(self.root/'only'),'srtOnly':True,'exportSrt':False,'exportTranslatedSrt':False,'exportBilingualSrt':True}}
         with patch.object(queue, 'validate_plan', side_effect=lambda p, **kw: (normalize_plan(p), [])), patch.object(queue, 'snapshot_postprocess_llm_settings', return_value=self.settings):
             tasks, errors = queue.prepare_queue(plan, env_path=self.env, tools=self.tools, request_builder=lambda p: None)
@@ -146,7 +145,8 @@ class LauncherCDTests(unittest.TestCase):
         self.assertNotIn('spectral', result.project)
 
     def test_cancelled_cache_request_does_not_decode(self):
-        cancel = Event(); cancel.set()
+        cancel = Event()
+        cancel.set()
         with patch.object(media_cache, 'embed_waveform') as decode, self.assertRaises(media_cache.MediaCacheCancelled):
             media_cache.embed_media_caches(self.data, self.media, reuse_existing=True, cancel_event=cancel)
         decode.assert_not_called()
@@ -163,8 +163,10 @@ class LauncherCDTests(unittest.TestCase):
 
     def test_srt_only_rejects_blank_placeholder_cues(self):
         self.data['segments'][0]['text'] = ' '
+        from maw.launcher_processing import native_project
+        owner = native_project(normalize_project(self.data))['subtitles']['tracks'][0]['id']
         self.source.write_text(json.dumps(self.data), encoding='utf-8')
-        plan = {'version':2,'tasks':[{'id':'one','path':str(self.source)}],'modules':{},'output':{'srtOnly':True}}
+        plan = {'version':2,'tasks':[{'id':'one','path':str(self.source),'exportTrackIds':[owner]}],'modules':{},'output':{'srtOnly':True}}
         tasks, errors = queue.prepare_queue(plan, env_path=self.env, tools=self.tools, request_builder=lambda p: None)
         self.assertFalse(tasks)
         self.assertEqual(errors[0]['module'], 'output')
@@ -189,7 +191,8 @@ class LauncherCDTests(unittest.TestCase):
         audio_path.write_bytes(audio)
         self.source.write_text(json.dumps(data), encoding='utf-8')
         original_bytes = self.source.read_bytes()
-        expected = normalize_project(data)
+        from maw.launcher_processing import native_project
+        expected = native_project(normalize_project(data))
         paths = LauncherPaths(root=self.root, env_path=self.env, launcher_html=self.root/'index.html', recent_metadata=self.root/'recent.json', project_registry=self.root/'registry.json')
         api = LauncherApi(paths=paths)
         events = []
@@ -203,7 +206,7 @@ class LauncherCDTests(unittest.TestCase):
         self.assertEqual(terminal['status'], 'completed', terminal)
         target = Path(terminal['projectPath'])
         output = read_project(target)
-        for key in ('msw','multi_subtitle','segments','time_selection','workspace','custom_future_extension'):
+        for key in ('msw','subtitles','time_selection','workspace','custom_future_extension'):
             self.assertEqual(output[key], expected[key])
         self.assertEqual((target.parent / asset['path']).read_bytes(), audio)
         self.assertEqual(self.source.read_bytes(), original_bytes)

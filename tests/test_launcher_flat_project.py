@@ -100,12 +100,12 @@ class LauncherFlatProjectTests(unittest.TestCase):
         before = self.path.read_bytes()
         tasks, errors = self.prepare()
         self.assertFalse(errors)
-        self.assertFalse(tasks[0].export_srt)
+        self.assertTrue(tasks[0].export_srt)
         result = self.execute(tasks[0])
         saved = queue.read_project(Path(result['projectPath']))
         self.assertEqual(saved, self.project)
         self.assertEqual(self.path.read_bytes(), before)
-        self.assertFalse(result['srtPath'])
+        self.assertIn('Source', Path(result['srtPath']).read_text(encoding='utf-8-sig'))
         self.assertNotIn('segments', saved)
         self.assertEqual(project_stats_payload(Path(result['projectPath']))['subtitleCount'], 3)
 
@@ -141,19 +141,15 @@ class LauncherFlatProjectTests(unittest.TestCase):
             if project['schema'] == 'msw.project.v999':
                 self.assertFalse(project_stats_payload(self.path)['ok'])
 
-    def test_preflight_rejects_unsupported_steps_before_services(self):
-        for overrides in (
-            {'modules': {'asr': True}, 'asrPolicy': 'replace'},
-            {'modules': {'postprocess': ['translate']}},
-            {'output': {'exportSrt': True}},
-            {'output': {'srtOnly': True}},
-        ):
-            with self.subTest(overrides=overrides), patch.object(queue, 'validate_plan') as validate:
-                tasks, errors = self.prepare(**overrides)
-                self.assertFalse(tasks)
-                self.assertIn('平级轨道工程', errors[0]['message'])
-                validate.assert_not_called()
-                self.builder.assert_not_called()
+    def test_preflight_rejects_locked_tracks_before_services(self):
+        self.project['subtitles']['tracks'][0]['locked'] = True
+        self.save()
+        with patch.object(queue, 'validate_plan') as validate:
+            tasks, errors = self.prepare(modules={'postprocess': ['replace']})
+        self.assertFalse(tasks)
+        self.assertIn('锁定', errors[0]['message'])
+        validate.assert_not_called()
+        self.builder.assert_not_called()
         self.assertEqual(list(self.root.glob('*.mosp')), [self.path])
 
     def test_automatic_output_is_per_task_and_explicit_srt_is_not_silently_skipped(self):
@@ -162,41 +158,44 @@ class LauncherFlatProjectTests(unittest.TestCase):
         tasks, errors = self.prepare(tasks=[{'id': 'flat', 'path': str(self.path)}, {'id': 'legacy', 'path': str(legacy)}],
                                      output={'exportSrt': True, 'automaticSrt': True})
         self.assertFalse(errors)
-        self.assertEqual([t.export_srt for t in tasks], [False, True])
-        self.assertTrue(tasks[0].warnings)
+        self.assertEqual([t.export_srt for t in tasks], [True, True])
+        self.assertFalse(tasks[0].warnings)
 
-    def test_execution_rechecks_capabilities_before_asr_or_waveform(self):
+    def test_execution_rechecks_scope_before_asr_or_waveform(self):
         from dataclasses import replace
         tasks, _ = self.prepare()
-        for override in ({'request': object()}, {'export_srt': True},
-                         {'postprocess': {'enabled': True, 'steps': [{'id': 'translate', 'enabled': True}]}}):
+        for override in ({'request': object()}, {'postprocess': {'enabled': True, 'steps': [{'id': 'resegment', 'enabled': True}]}}):
             with self.subTest(override=override), patch.object(queue, 'run_transcription') as asr, patch.object(queue, 'embed_media_caches') as cache:
-                with self.assertRaisesRegex(ValueError, '平级轨道工程'):
+                with self.assertRaisesRegex(ValueError, '绑定'):
                     self.execute(replace(tasks[0], **override))
                 asr.assert_not_called()
                 cache.assert_not_called()
 
-    def test_direct_postprocess_and_srt_fail_before_outputs(self):
+    def test_direct_legacy_helpers_require_scope_and_srt_uses_real_tracks(self):
         from maw import postprocess, postprocess_match, postprocess_ocr
         from maw.postprocess_io import render_srt, write_artifacts
         for module in (postprocess, postprocess_match, postprocess_ocr):
-            with self.subTest(module=module.__name__), self.assertRaisesRegex(ValueError, '平级轨道工程'):
+            with self.subTest(module=module.__name__), self.assertRaisesRegex(ValueError, '处理轨道'):
                 module._load_input(self.path, None)
-        with self.assertRaisesRegex(ValueError, 'SRT 导出'):
-            render_srt(self.project)
-        with self.assertRaisesRegex(ValueError, 'SRT 导出'):
+        owner = self.project['subtitles']['cues'][0]['track_id']
+        self.assertIn('Source', render_srt(self.project, [owner]))
+        self.assertNotIn('译文', render_srt(self.project, [owner]))
+        with self.assertRaisesRegex(ValueError, '不存在'):
             write_artifacts(self.project, source_project_path=self.path, source_srt_path=None,
-                            operation='original', write_project=True, write_srt=True, output_directory=self.root / 'blocked')
+                            operation='original', write_project=True, write_srt=True, subtitle_track_ids=['missing'], output_directory=self.root / 'blocked')
         self.assertFalse((self.root / 'blocked').exists())
 
-    def test_new_and_resumed_pipeline_are_blocked_before_validation_or_files(self):
+    def test_new_and_resumed_pipeline_check_locked_scope_before_validation_or_files(self):
         from maw import postprocess_pipeline as pipeline
+        self.project['subtitles']['tracks'][0]['locked'] = True
+        self.save()
+        scope = {'sourceTrackId': self.project['subtitles']['tracks'][0]['id']}
         resume = self.root / 'resume'
         resume.mkdir()
         (resume / 'manifest.json').write_text(json.dumps({'sourceProjectPath': str(self.path)}), encoding='utf-8')
         for resume_dir in (None, resume):
-            with patch.object(pipeline, 'validate_plan') as validate, self.assertRaisesRegex(ValueError, '平级轨道工程'):
-                pipeline.run_postprocess_pipeline({}, media_path=self.root / 'missing.wav',
+            with patch.object(pipeline, 'validate_plan') as validate, self.assertRaisesRegex(ValueError, '锁定'):
+                pipeline.run_postprocess_pipeline({'trackScope': scope}, media_path=self.root / 'missing.wav',
                     project_path=self.path if resume_dir is None else self.root / 'future.mosp',
                     srt_path=self.root / 'future.srt', env_path=self.env, ffmpeg_path=None,
                     cancel_event=Event(), resume_directory=resume_dir)
@@ -205,7 +204,7 @@ class LauncherFlatProjectTests(unittest.TestCase):
 
     def test_alignment_rejects_flat_missing_and_empty_targets_before_model(self):
         from maw.timestamp_alignment import align_project, TimestampAlignmentError
-        for project, target, message in ((self.project, 'main', '平级轨道工程'),
+        for project, target, message in ((self.project, 'main', '不存在'),
                                          ({'segments': []}, 'main', '没有可对齐'),
                                          ({'segments': []}, 'missing', '不存在'), ({}, 'main', '不存在')):
             with patch('maw.timestamp_alignment.create_alignment_backend') as backend:
@@ -220,12 +219,12 @@ class LauncherFlatProjectTests(unittest.TestCase):
         info = api.inspect_alignment_input({'path': str(self.path)})
         self.assertTrue(info['ok'])
         self.assertEqual([t['id'] for t in info['tracks']], [t['id'] for t in self.project['subtitles']['tracks']])
-        self.assertFalse(info['alignment']['supported'])
+        self.assertTrue(info['alignment']['supported'])
         with patch.object(api, '_local_runtime_status') as runtime:
             result = api.run_timestamp_alignment({'projectPath': str(self.path)})
         runtime.assert_not_called()
         self.assertFalse(result['ok'])
-        self.assertIn('平级轨道工程', result['detail'])
+        self.assertIn('不存在', result['detail'])
 
     @unittest.skipUnless(os.environ.get('MSW_TEST_FFMPEG'), 'Set MSW_TEST_FFMPEG for real waveform integration')
     def test_real_waveform_and_asset_publication_preserve_native_project(self):
@@ -262,7 +261,7 @@ class LauncherFlatProjectTests(unittest.TestCase):
         self.assertGreater(saved['waveform']['duration_ms'], 0)
         self.assertEqual(saved['media'], str(media))
         self.assertEqual(self.path.read_bytes(), before)
-        self.assertEqual(result['warnings'], [tasks[0].warnings[0]])
+        self.assertEqual(result['warnings'], [])
 
 
 if __name__ == '__main__':

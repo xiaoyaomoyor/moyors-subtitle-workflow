@@ -457,10 +457,13 @@
 
   function inputPaths() {
     // S4：匹配/拆分预览的输入来自预制表单（工程或字幕输入），不再依赖抽屉处理文件。
-    const source = autoSourcePath();
+    const tasks = window.MSWQueue?.tasks() || [];
+    const task = tasks.length === 1 ? tasks[0] : null;
+    if (tasks.length > 1) return null;
+    const source = task?.subtitlePath || task?.path || autoSourcePath();
     if (!source) return null;
     const lower = source.toLowerCase();
-    if (lower.endsWith(".mosp") || lower.endsWith(".json")) return { projectPath: source, srtPath: "" };
+    if (lower.endsWith(".mosp") || lower.endsWith(".json")) return { projectPath: source, srtPath: "", sourceTrackId: task?.sourceTrackId || "" };
     if (lower.endsWith(".srt") || lower.endsWith(".ass")) return { srtPath: source, projectPath: "" };
     return null;
   }
@@ -1613,7 +1616,7 @@
   for (const id of ['proofread', 'resegment', 'translate']) $(id + 'Provider').addEventListener('change', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
   $("autoTranslateBilingualOrder").addEventListener("change", persistAutoPlanSoon);
   document.addEventListener('mswmodules', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
-  document.addEventListener('mswqueuechange', renderAutoPostprocessState);
+  document.addEventListener('mswqueuechange', () => { renderAutoPostprocessState(); void refreshSplitPreview(); });
   ["jsonPath", "srtPath", "mediaPath"].forEach((id) => $(id).addEventListener("input", () => {
     syncPaths();
     if (id === "mediaPath") void refreshAudioTracks();

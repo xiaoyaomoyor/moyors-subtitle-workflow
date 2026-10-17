@@ -52,3 +52,7 @@
 - Chromium 实际加载两个对比工具，分别调用它们的工程解析入口，均复现“缺少 segments 字段”。未测试云端请求或发行包。
 - `python -m unittest tests.test_launcher_queue tests.test_timestamp_alignment`：38 项通过。现有夹具主要验证旧主副/叠加及 v2 保护，这不能证明启动器支持 v4。
 - 本轮仅提交检查报告，不重启服务、不修改用户配置或工程。
+
+## 后续实施记录
+
+第一阶段读取与能力检查已于 `832bb5db` 完成；第二阶段处理与导出见 [实施与验证记录](TEST_FEEDBACK_LAUNCHER_FLAT_PROCESS_20261017.md)。上述审计表保留发现时的事实，不代表新版功能仍受这些限制。任意并发字幕导入和比较工具仍留第三阶段。

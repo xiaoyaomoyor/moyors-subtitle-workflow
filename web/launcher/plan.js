@@ -37,7 +37,15 @@
     if (plan.pendingAssociations) return { ok: false, module: "media", code: "queue_confirm_pairs" };
     for (const task of plan.tasks) {
       const meta = window.MSWQueue?.state.files.find(file => file.id === task.id)?.meta;
-      const subtitles = Boolean(task.subtitlePath || meta?.hasSubtitles);
+      const selected = meta?.subtitleTracks?.find(t => t.id === task.sourceTrackId);
+      const subtitles = Boolean(task.subtitlePath || (selected ? selected.subtitleCount : meta?.hasSubtitles));
+      const recognizing = plan.modules.asr && (!subtitles || plan.asrPolicy === 'replace');
+      if (task.sourceTrackId && !selected) return { ok: false, taskId: task.id, module: 'media', message: window.MSWLauncher.translate('queue_track_missing') };
+      if (selected && (recognizing || plan.modules.postprocess.length)) {
+        let key = !selected.enabled || selected.locked ? 'queue_track_unavailable' : !subtitles && !recognizing ? 'queue_needs_subtitles' : '';
+        if (selected.boundCueCount && (recognizing || plan.modules.postprocess.some(id => ['match', 'resegment'].includes(id)))) key = 'queue_bound_structure';
+        if (key) return { ok: false, taskId: task.id, module: recognizing ? 'asr' : plan.modules.postprocess[0], message: window.MSWLauncher.translate(key) };
+      }
       const operations = meta?.operations;
       const requested = [
         [(plan.modules.asr && (!subtitles || plan.asrPolicy === 'replace')), 'asr', 'asr'],

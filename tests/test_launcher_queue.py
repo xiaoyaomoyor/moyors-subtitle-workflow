@@ -32,7 +32,7 @@ class QueueTests(unittest.TestCase):
         card = next(event for event in events if event["type"] == "queueItem" and event["status"] == "failed")
         self.assertEqual(card["message"], results[0]["message"])
 
-    def test_layered_project_copies_without_loss_and_rejects_unadapted_postprocess(self):
+    def test_layered_project_migrates_without_loss_and_processes_selected_track(self):
         from maw.msw.subtitle_layers import migrate_project
         project = migrate_project({'segments': [
             {'id':'a','start':0,'end':2000,'text':'A'},
@@ -42,25 +42,26 @@ class QueueTests(unittest.TestCase):
         self.assertFalse(errors)
         result = self.execute(tasks[0])
         saved = queue.read_project(Path(result['projectPath']))
-        self.assertEqual(saved['schema'], 'msw.project.v2')
-        self.assertEqual([(c['id'],c['start'],c['end']) for c in saved['segments']], [('a',0,2000),('b',500,1500)])
+        self.assertEqual(saved['schema'], 'msw.project.v4')
+        self.assertEqual([(c['content']['text'],c['content']['start'],c['content']['end']) for c in saved['subtitles']['cues']], [('A',0,2000),('B',500,1500)])
         plan = self.plan([self.project], postprocess=['replace'])
         plan['postprocess'] = {'enabled':True,'steps':[{'id':'replace','enabled':True,'replacements':[{'source':'A','target':'X'}],'conversion':'off'}]}
         tasks, errors = self.prepare(plan)
-        self.assertFalse(tasks)
-        self.assertIn('多层字幕工程', errors[0]['message'])
+        self.assertFalse(errors)
+        changed = queue.read_project(Path(self.execute(tasks[0])['projectPath']))
+        self.assertEqual([c['content']['text'] for c in changed['subtitles']['cues']], ['B', 'X'])
         self.assertEqual(json.loads(self.project.read_text(encoding='utf-8')), project)
 
-    def test_layered_project_re_asr_is_rejected_before_request_builder(self):
+    def test_layered_project_re_asr_prepares_native_target(self):
         from maw.msw.subtitle_layers import migrate_project
         project = migrate_project({'media':str(self.media),'segments':[{'id':'a','start':0,'end':1000,'text':'A'}]})
         self.project.write_text(json.dumps(project), encoding='utf-8')
         plan=self.plan([self.project], asr=True)
         plan['asrPolicy']='replace'
         tasks, errors=self.prepare(plan)
-        self.assertFalse(tasks)
-        self.assertIn('多层字幕工程',errors[0]['message'])
-        self.builder.assert_not_called()
+        self.assertFalse(errors)
+        self.assertEqual(tasks[0].project['schema'], 'msw.project.v4')
+        self.builder.assert_called_once()
 
     def test_overlay_only_project_is_already_subtitled(self):
         self.project.write_text(json.dumps({'segments': [], 'overlay_track': {'enabled': True, 'segments': [
@@ -129,7 +130,7 @@ class QueueTests(unittest.TestCase):
         tasks, errors = self.prepare(plan)
         self.assertFalse(errors)
         def render(project, media, output, language):
-            self.assertEqual(queue.read_project(project)["segments"][0]["text"], "校正")
+            self.assertEqual(queue.read_project(project)["subtitles"]["cues"][0]["content"]["text"], "校正")
             return output
         with patch.object(queue, "render_editor_html", side_effect=render) as renderer:
             result = self.execute(tasks[0])
@@ -141,7 +142,7 @@ class QueueTests(unittest.TestCase):
         plan["tasks"][0]["subtitlePath"] = str(self.srt)
         tasks, errors = self.prepare(plan)
         self.assertEqual(errors, [])
-        self.assertEqual(tasks[0].project["segments"][0]["text"], "原文")
+        self.assertEqual(tasks[0].project["subtitles"]["cues"][0]["content"]["text"], "原文")
         self.builder.assert_not_called()
         self.assertEqual(tasks[0].track, 1)
 
@@ -205,7 +206,7 @@ class QueueTests(unittest.TestCase):
         result = self.execute(tasks[0])
         target = json.loads(Path(result["projectPath"]).read_text(encoding="utf-8"))
         self.assertEqual(self.project.read_bytes(), original)
-        for key in ["segments", "multi_subtitle", "time_selection", "workspace", "custom_future_extension"]:
+        for key in ["subtitles", "time_selection", "workspace", "custom_future_extension"]:
             self.assertEqual(target[key], tasks[0].project[key])
         self.assertEqual(target["msw"]["audio_clips"], tasks[0].project["msw"]["audio_clips"])
 

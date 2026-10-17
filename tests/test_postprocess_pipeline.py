@@ -43,7 +43,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         original = json.dumps({'version':1,'sourceProjectPath':str(resumed),'steps':[]}).encode()
         manifest.write_bytes(original)
         for explicit in (None, resumed):
-            with self.subTest(explicit=explicit), self.assertRaisesRegex(ValueError, '多层字幕工程'):
+            with self.subTest(explicit=explicit), self.assertRaisesRegex(ValueError, '没有可处理'):
                 run_postprocess_pipeline(self.plan({'id':'replace','enabled':True,'replacements':[], 'conversion':'off'}),
                     media_path=self.media, project_path=self.root/'missing.mosp', srt_path=self.srt,
                     env_path=self.env_path, ffmpeg_path=None, cancel_event=Event(), resume_directory=run,

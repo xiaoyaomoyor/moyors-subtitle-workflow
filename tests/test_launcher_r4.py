@@ -130,31 +130,30 @@ class PrefabPlanTests(unittest.TestCase):
         self.assertEqual(terminal["status"], "completed", terminal)
         output = json.loads(Path(terminal["projectPath"]).read_text(encoding="utf-8"))
 
-        # 主轨按方案被处理，稳定 ID 与时间不变。
-        self.assertEqual([segment["text"] for segment in output["segments"]], ["正字", "保留"])
-        self.assertEqual([segment["id"] for segment in output["segments"]], ["main-001", "main-002"])
-        # 固定替换同步校正字级时间项，且保留 items 结构与时间。
-        self.assertEqual(output["segments"][0]["items"][0]["text"], "正")
-        self.assertEqual(output["segments"][0]["items"][0]["end"], 500)
+        from maw.launcher_processing import native_project
+        from maw.postprocess_io import read_project
+        original = native_project(read_project(self.project_path))
+        owner = original['subtitles']['tracks'][0]['id']
+        cues = [c for c in output['subtitles']['cues'] if c['track_id'] == owner]
+        self.assertEqual([c['content']['text'] for c in cues], ['正字', '保留'])
+        self.assertEqual([c['id'] for c in cues], [c['id'] for c in original['subtitles']['cues'] if c['track_id'] == owner])
+        self.assertEqual(cues[0]['content']['items'][0]['text'], '正')
+        self.assertEqual(cues[0]['content']['items'][0]['end'], 500)
 
         # §7.3 全量保真：素材/贴片/音频轨/多轨绑定/选区/未知扩展原样保留。
         for key in ("assets", "subtitle_assets", "asset_batches", "removed_asset_ids", "audio_tracks",
                     "audio_clips", "audio_settings", "schema", "project_id"):
             self.assertEqual(output["msw"][key], source["msw"][key], key)
         self.assertEqual(output["msw"]["assets"][0]["generation"], source["msw"]["assets"][0]["generation"])
-        # multi_subtitle 经生产规范化补全默认字段；轨道与绑定内容保真。
-        self.assertEqual(output["multi_subtitle"]["enabled"], True)
-        self.assertEqual(output["multi_subtitle"]["tracks"][0]["id"], "secondary-en")
-        self.assertEqual(output["multi_subtitle"]["tracks"][0]["segments"][0]["text"], "wrong")
-        binding = output["multi_subtitle"]["bindings"][0]
-        self.assertEqual(binding["main_segment_ids"], ["main-001"])
-        self.assertEqual(binding["extension_segment_ids"], ["sec-001"])
+        self.assertEqual(output['subtitles']['bindings'], original['subtitles']['bindings'])
+        self.assertEqual([c for c in output['subtitles']['cues'] if c['track_id'] != owner],
+                         [c for c in original['subtitles']['cues'] if c['track_id'] != owner])
         self.assertEqual(output["media_metadata"], source["media_metadata"])
         self.assertEqual(output["time_selection"], source["time_selection"])
         self.assertEqual(output["workspace"], source["workspace"])
         self.assertEqual(output["custom_future_extension"], source["custom_future_extension"])
 
-    def test_project_input_translate_adds_independent_secondary_track(self) -> None:
+    def test_project_input_translate_updates_corresponding_track_without_unbinding(self) -> None:
         source = _complex_project(self.root)
         self.project_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
         plan = default_postprocess_plan()
@@ -175,16 +174,17 @@ class PrefabPlanTests(unittest.TestCase):
         self.assertTrue(terminal["translatedSrtPath"])
         output = json.loads(Path(terminal["projectPath"]).read_text(encoding="utf-8"))
 
-        # 主轨保持原样（未被双语覆盖）；既有副轨保留；新增翻译副轨绑定主轨。
-        self.assertEqual([segment["text"] for segment in output["segments"]], ["错字", "保留"])
-        tracks = output["multi_subtitle"]["tracks"]
-        self.assertEqual(tracks[0]["id"], "secondary-en")
-        self.assertEqual(tracks[0]["segments"][0]["text"], "wrong")
-        self.assertGreaterEqual(len(tracks), 2)
-        translated = tracks[-1]
-        self.assertEqual([segment["text"] for segment in translated["segments"]][:2], ["EN:错字", "EN:保留"])
-        binding_ids = {binding["track_id"] for binding in output["multi_subtitle"]["bindings"]}
-        self.assertIn(translated["id"], binding_ids)
+        from maw.launcher_processing import native_project
+        from maw.postprocess_io import read_project
+        original = native_project(read_project(self.project_path))
+        owner = original['subtitles']['tracks'][0]['id']
+        self.assertEqual([c for c in output['subtitles']['cues'] if c['track_id'] == owner],
+                         [c for c in original['subtitles']['cues'] if c['track_id'] == owner])
+        self.assertEqual(len(output['subtitles']['tracks']), len(original['subtitles']['tracks']))
+        translated = [c for c in output['subtitles']['cues'] if c['track_id'] != owner]
+        self.assertEqual([c['content']['text'] for c in translated], ['EN:错字', 'EN:保留'])
+        for binding in original['subtitles']['bindings']:
+            self.assertIn(binding, output['subtitles']['bindings'])
         # 素材与贴片在翻译链后仍完整保留。
         self.assertEqual(output["msw"]["audio_clips"], source["msw"]["audio_clips"])
         self.assertEqual(output["msw"]["assets"], source["msw"]["assets"])
@@ -196,7 +196,7 @@ class PrefabPlanTests(unittest.TestCase):
         terminal = self._terminal()
         self.assertEqual(terminal["status"], "completed", terminal)
         output = json.loads(Path(terminal["projectPath"]).read_text(encoding="utf-8"))
-        self.assertEqual([segment["text"] for segment in output["segments"]], ["正字", "保留"])
+        self.assertEqual([c["content"]["text"] for c in output["subtitles"]["cues"]], ["正字", "保留"])
         self.assertTrue(Path(terminal["srtPath"]).is_file())
 
     def test_running_task_is_singular_and_cancel_reports(self) -> None:

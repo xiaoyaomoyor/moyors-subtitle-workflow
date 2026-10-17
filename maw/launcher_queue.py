@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, is_dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -19,6 +19,7 @@ from maw.postprocess_pipeline import (
     snapshot_postprocess_llm_settings, validate_plan,
 )
 from maw.project import normalize_project
+from maw.launcher_processing import native_project, preflight, apply_processed
 from maw.launcher_outputs import publish_outputs
 from maw.launcher_project import project_inventory, require_operation, subtitle_count, operation_support
 from maw.project_io import (
@@ -190,11 +191,16 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                 track = default_track
             if type(track) is not int or track < 0 or (tracks and track not in {t["audio_index"] for t in tracks}):
                 raise ValueError("所选音轨无效，请重新选择。")
-            has_subtitles = bool(subtitle_count(project))
+            project = native_project(project)
+            source_id = raw.get('sourceTrackId') or project['subtitles']['tracks'][0]['id']
+            if source_id not in {t['id'] for t in project['subtitles']['tracks']}:
+                raise ValueError('所选处理轨道已不存在，请重新选择。')
+            has_subtitles = (any(c['track_id'] == source_id for c in project['subtitles']['cues'])
+                             if raw.get('sourceTrackId') else bool(subtitle_count(project)))
             recognize = bool(modules.get("asr")) and (not has_subtitles or plan.get("asrPolicy") == "replace")
             if recognize:
                 module = 'asr'
-                require_operation(project, 'asr')
+                require_operation(project, 'asr', scoped=True)
             if recognize and (not media or tracks == []):
                 module = "asr"
                 raise ValueError("识别需要可用的媒体音轨；请关联媒体或关闭识别。")
@@ -208,7 +214,16 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
                     step["videoPath"] = str(raw["ocrVideoPath"])
             if active:
                 module = next(iter(active))
-                require_operation(project, 'postprocess')
+                require_operation(project, 'postprocess', scoped=True)
+            scope = {'sourceTrackId': source_id, 'targetTrackId': str(raw.get('targetTrackId') or '')}
+            if 'exportTrackIds' in raw:
+                scope['exportTrackIds'] = raw['exportTrackIds']
+            elif active:
+                scope['exportTrackIds'] = [source_id]
+            if active or recognize:
+                preflight(project, source_id, enabled_steps(post), recognize=recognize, target_id=scope['targetTrackId'])
+            render_srt(project, scope.get('exportTrackIds'))  # Validate even when only translated output is requested.
+            post['trackScope'] = scope
             export_srt = output.get('exportSrt', True)
             if (output.get('automaticSrt') or 'exportSrt' not in output) and not output.get('srtOnly'):
                 export_srt = bool(export_srt and operation_support(project, 'srt')['supported'])
@@ -222,7 +237,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
             if active and not has_subtitles and not recognize:
                 module = next(iter(active))
                 raise ValueError("该任务没有字幕来源，请关联字幕或开启识别。")
-            if output.get("srtOnly") and not recognize and not render_srt(project).strip():
+            if output.get("srtOnly") and not recognize and 'translate' not in active and not render_srt(project, scope.get('exportTrackIds')).strip():
                 module = "output"
                 raise ValueError("只生成 SRT 需要已有字幕，或启用识别。")
             bilingual_enabled = any(s.get("id") == "translate" and s.get("mergeBilingual") for s in post.get("steps", []))
@@ -315,26 +330,43 @@ def _run_task(task, *, env_path, tools, cancel, emit, ocr_runtime_root=None, req
         if cancel.is_set():
             raise PostprocessCancelled("处理已取消。")
     check_cancel()
-    project = copy.deepcopy(task.project)
+    project = native_project(task.project)
+    scope = task.postprocess.get('trackScope') or {}
+    if task.request or enabled_steps(task.postprocess):
+        preflight(project, scope.get('sourceTrackId'), enabled_steps(task.postprocess), recognize=bool(task.request), target_id=scope.get('targetTrackId'))
     if task.request:
-        require_operation(project, 'asr')
+        require_operation(project, 'asr', scoped=True)
     if enabled_steps(task.postprocess):
-        require_operation(project, 'postprocess')
+        require_operation(project, 'postprocess', scoped=True)
     if task.export_srt or task.srt_only:
         require_operation(project, 'srt')
     warnings = list(task.warnings or [])
     if task.request:
         emit({"stage": "asr"})
-        result = run_transcription(task.request, cancel_event=cancel, on_event=lambda message: emit({"message": message}))
-        recognized = read_project(result.json_path)
-        if input_kind(task.source) == "media":
-            project = recognized
-        else:
-            project["segments"] = recognized["segments"]
-        # Existing secondary text/audio stay intact; old main-cue bindings no longer match.
-        if project.get("multi_subtitle", {}).get("bindings"):
-            project["multi_subtitle"]["bindings"] = []
-            warnings.append("重新识别已保留副字幕内容，并解除旧主字幕的关联。")
+        with TemporaryDirectory(prefix='msw-queue-asr-') as temporary:
+            recognition_output = Path(temporary) / task.output.name
+            if is_dataclass(task.request):
+                request = replace(task.request, srt_path=recognition_output)
+            else:
+                request = copy.copy(task.request)
+                request.srt_path = recognition_output
+            result = run_transcription(request, cancel_event=cancel, on_event=lambda message: emit({"message": message}))
+            recognized = read_project(result.json_path)
+        source_id = scope.get('sourceTrackId') or project['subtitles']['tracks'][0]['id']
+        recognized_view = native_project(recognized)
+        recognized_cues = recognized_view['subtitles']['cues']
+        if len({cue['track_id'] for cue in recognized_cues}) > 1:
+            raise ValueError('识别结果包含多条并发轨道，不能覆盖一条目标轨道，请在编辑器中按轨道导入。')
+        if input_kind(task.source) == 'media':
+            # Keep ASR language, split mode, model and future metadata for new projects.
+            project.update({k: copy.deepcopy(v) for k, v in recognized_view.items() if k not in {'schema', 'subtitles'}})
+        rows = [{**cue['content'], 'id': cue['id']} for cue in recognized_cues]
+        project = apply_processed(project, source_id, rows, replace_all=True)
+        target_track = next(t for t in project['subtitles']['tracks'] if t['id'] == source_id)
+        for key in ('language', 'split_mode', 'timestamp_granularity'):
+            if recognized.get(key):
+                target_track[key] = recognized[key]
+        warnings.extend(recognized.get('transcription_warnings') or [])
     check_cancel()
     if task.media:
         project["media"] = str(task.media)
@@ -367,7 +399,7 @@ def _run_task(task, *, env_path, tools, cancel, emit, ocr_runtime_root=None, req
     with TemporaryDirectory(prefix="msw-queue-publish-") as temporary:
         staged = Path(temporary) / target.name
         warnings.extend(write_derived_project(project, staged, task.source))
-        srt_text = render_srt(project) if task.export_srt else ''
+        srt_text = render_srt(project, scope.get('exportTrackIds')) if task.export_srt else ''
         original = staged.with_suffix('.srt') if srt_text.strip() else None
         if original:
             _atomic_write(original, srt_text)

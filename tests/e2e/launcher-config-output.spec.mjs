@@ -110,5 +110,5 @@ test('new forms do not overflow in English at narrow width', async ({ page }) =>
   await setLauncherLanguage(page, 'en');
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
   expect(overflow).toBe(false);
-  await expect(page.locator('#translationWriteMode')).toContainText('Secondary subtitles');
+  await expect(page.locator('#translationWriteMode')).toContainText('Write translation track');
 });

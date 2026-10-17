@@ -13,7 +13,7 @@
   const id = () => crypto.randomUUID();
   function persist() {
     // Only file identities and local choices. Never serialize the live ASR payload.
-    const files = state.files.map(({ id, path, audioTrack, mediaPath, scriptPath, ocrVideoPath }) => ({ id, path, audioTrack, mediaPath, scriptPath, ocrVideoPath }));
+    const files = state.files.map(({ id, path, audioTrack, mediaPath, scriptPath, ocrVideoPath, sourceTrackId, targetTrackId, exportTrackIds }) => ({ id, path, audioTrack, mediaPath, scriptPath, ocrVideoPath, sourceTrackId, targetTrackId, exportTrackIds }));
     const results = Object.fromEntries(Object.entries(state.results).map(([id, value]) => [id, { status: value.status === 'done' ? 'done' : 'cancelled', result: value.status === 'done' ? { projectPath: value.result?.projectPath || '', srtPath: value.result?.srtPath || '', translatedSrtPath: value.result?.translatedSrtPath || '', bilingualSrtPath: value.result?.bilingualSrtPath || '' } : null }]));
     try { localStorage.setItem(KEY, JSON.stringify({ version: 2, files, pairs: state.pairs, separate: state.separate, results, asrPolicy: $('queueAsrPolicy').value })); } catch (_) { /* optional draft */ }
   }
@@ -32,8 +32,54 @@
     return state.files.filter(f => !attached.has(f.id)).map(f => {
       const pair = state.pairs.find(p => p[0] === f.id);
       const subtitle = pair && state.files.find(s => s.id === pair[1]);
-      return { id: f.id, path: f.path, mediaPath: f.mediaPath || f.meta?.mediaPath || "", subtitlePath: subtitle?.path || "", audioTrack: f.audioTrack ?? f.meta?.audioTrack ?? null, scriptPath: f.scriptPath || "", ocrVideoPath: f.ocrVideoPath || "" };
+      return { id: f.id, path: f.path, mediaPath: f.mediaPath || f.meta?.mediaPath || "", subtitlePath: subtitle?.path || "", audioTrack: f.audioTrack ?? f.meta?.audioTrack ?? null, scriptPath: f.scriptPath || "", ocrVideoPath: f.ocrVideoPath || "", ...trackScope(f) };
     });
+  }
+  function trackScope(file) {
+    const tracks = file.meta?.subtitleTracks || [];
+    if (!tracks.length || file.meta?.kind === 'media') return {};
+    const sourceTrackId = file.sourceTrackId || tracks.find(t => t.enabled && !t.locked && t.activeSubtitleCount)?.id || tracks[0].id;
+    const targetTrackId = file.targetTrackId || tracks.find(t => t.secondaryFor === sourceTrackId)?.id || 'new';
+    const processing = window.MSWPlan?.POSTPROCESS_MODULE_IDS.some(id => window.MSWModules?.isEnabled(id));
+    const exportTrackIds = file.exportTrackIds ?? (processing ? [sourceTrackId] : tracks.filter(t => t.enabled).map(t => t.id));
+    return { sourceTrackId, targetTrackId, exportTrackIds };
+  }
+  function renderTrackScope(box, file, task) {
+    const tracks = file.meta?.subtitleTracks || [];
+    if (!tracks.length || file.meta.kind === 'media') return;
+    const selectTrack = (field, label, options) => {
+      const row = node('label', 'queue-detail-field', label), select = node('select');
+      select.setAttribute('aria-label', label); select.dataset.trackField = field;
+      select.disabled = state.running || state.inspecting;
+      options.forEach(track => { const option = new Option(track.label, track.id); select.add(option); });
+      select.value = task[field] || '';
+      select.addEventListener('change', () => {
+        file[field] = select.value;
+        if (field === 'sourceTrackId') { delete file.targetTrackId; delete file.exportTrackIds; }
+        delete state.results[file.id]; changed();
+      });
+      row.append(select); box.append(row);
+    };
+    selectTrack('sourceTrackId', t('queue_source_track'), tracks.map(track => ({ ...track,
+      label: `${track.label} · ${track.subtitleCount}${track.locked ? ' · ' + t('queue_track_locked') : !track.enabled ? ' · ' + t('queue_track_disabled') : ''}` })));
+    if (window.MSWModules?.isEnabled('translate') && document.getElementById('translationWriteMode')?.value !== 'backfill') {
+      selectTrack('targetTrackId', t('queue_target_track'), [{ id: 'new', label: t('queue_new_translation_track') }, ...tracks.filter(track => track.id !== task.sourceTrackId && track.enabled && !track.locked)]);
+    }
+    const exports = node('div', 'queue-detail-field');
+    exports.append(node('span', '', t('queue_export_tracks')));
+    const choices = node('div', 'queue-track-choices');
+    for (const track of tracks) {
+      const label = node('label'), input = node('input'); input.type = 'checkbox';
+      input.checked = task.exportTrackIds?.includes(track.id); input.disabled = state.running || state.inspecting;
+      input.dataset.exportTrack = track.id;
+      input.addEventListener('change', () => {
+        const selected = new Set(task.exportTrackIds || []);
+        if (input.checked) selected.add(track.id); else selected.delete(track.id);
+        file.exportTrackIds = [...selected]; delete state.results[file.id]; changed();
+      });
+      label.append(input, document.createTextNode(track.label)); choices.append(label);
+    }
+    exports.append(choices); box.append(exports);
   }
   function node(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   function button(label, action, cls = "ghost small") { const b = node("button", cls, label); b.type = "button"; b.disabled = state.running || state.inspecting; b.addEventListener("click", action); return b; }
@@ -46,6 +92,7 @@
       result.items.forEach((meta, i) => {
         const f = files[i]; if (!state.files.includes(f)) return;
         f.meta = meta; f.error = meta.ok ? "" : meta.error; f.path = meta.path || f.path;
+        if (!f.sourceTrackId && meta.subtitleTracks?.length && meta.kind !== "media") f.sourceTrackId = trackScope(f).sourceTrackId;
       });
       for (const file of files.filter(f => f.mediaPath)) await inspectLinkedMedia(file);
       const seen = new Set();
@@ -149,6 +196,7 @@
         tracks.forEach(track => select.add(new Option(`${track.audio_index + 1} · ${track.language || track.title || track.codec_name || t("audio_track")}`, track.audio_index)));
         select.value = String(task.audioTrack ?? 0); select.addEventListener("change", () => { file.audioTrack = Number(select.value); delete state.results[file.id]; persist(); }); label.append(select); details.append(label);
       }
+      renderTrackScope(details, file, task);
       if (window.MSWModules?.isEnabled("match")) detailPath(details, file, "scriptPath", t("queue_manuscript"), "script");
       if (window.MSWModules?.isEnabled("ocr")) detailPath(details, file, "ocrVideoPath", t("queue_ocr_video"), "video");
       item.append(details);
@@ -180,7 +228,7 @@
     if (!check.ok) { showErrors([{ taskId: check.taskId, module: check.module, message: check.message || t(check.code) }]); return; }
     const failed = state.files.filter(f => f.error || f.linkedError);
     if (failed.length) { showErrors(failed.map(f => ({ taskId: f.id, module: "media", message: f.error || f.linkedError }))); return; }
-    const asrTask = plan.modules.asr && plan.tasks.find(task => plan.asrPolicy === 'replace' || (!task.subtitlePath && !state.files.find(f => f.id === task.id)?.meta?.hasSubtitles));
+    const asrTask = plan.modules.asr && plan.tasks.find(task => plan.asrPolicy === 'replace' || (!task.subtitlePath && !(state.files.find(f => f.id === task.id)?.meta?.subtitleTracks?.find(t => t.id === task.sourceTrackId)?.subtitleCount ?? state.files.find(f => f.id === task.id)?.meta?.hasSubtitles)));
     if (asrTask && !window.MSWLauncher.validateQueueRecognition(asrTask.mediaPath)) { window.MSWWorkflow?.setCollapsed('asr', false); return; }
     const allCount = plan.tasks.length;
     // Shared manuscript applies only to an original one-task queue, including retries.
@@ -241,6 +289,7 @@
     $('queueAsrPolicy').addEventListener('change', persist);
     $("batchClear").addEventListener("click", () => { state.files = []; state.pairs = []; state.separate = []; state.results = {}; changed(); });
     document.addEventListener("mswmodules", render);
+    $("translationWriteMode")?.addEventListener("change", render);
     document.addEventListener("mswlanguage", render);
     window.MSWLauncher.onQueueEvent = handleEvent;
     window.MSWLauncher.onBatchDrop = path => { if (document.querySelector('.page.active')?.dataset.pageId !== "prefab") return false; if (path && !state.running) void addPaths([path]); return true; };

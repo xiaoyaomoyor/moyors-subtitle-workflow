@@ -73,7 +73,14 @@
       if (!result.ok) { $('timestampResult').textContent = result.error || '无法读取输入'; return false; }
       inspectedPath = path;
       inputSupported = result.alignment?.supported !== false;
-      $('timestampTrack').replaceChildren(...result.tracks.map(track => new Option(track.label, track.id)));
+      $('timestampTrack').replaceChildren(...result.tracks.map(track => {
+        const option = new Option(track.label, track.id);
+        option.disabled = track.locked === true || track.enabled === false || track.editableSubtitleCount === 0;
+        return option;
+      }));
+      const firstAvailable = [...$('timestampTrack').options].find(option => !option.disabled);
+      if (firstAvailable) $('timestampTrack').value = firstAvailable.value;
+      inputSupported = inputSupported && Boolean(firstAvailable);
       $('timestampTrack').disabled = !inputSupported;
       $('runTimestampTool').disabled = !inputSupported || alignmentRunning;
       $('timestampResult').textContent = result.alignment?.reason || '';
@@ -97,7 +104,7 @@
     const path = $('timestampInput').value.trim(), mediaPath = $('timestampMedia').value.trim();
     const audioText = $('timestampAudio').value, targetTrack = $('timestampTrack').value;
     if (!path || (targetTrack !== 'main' && (!mediaPath || audioText === ''))) {
-      $('timestampResult').textContent = '请选择输入；副字幕／叠加字幕还需明确指定匹配音频和音轨。'; return;
+      $('timestampResult').textContent = '请选择输入；所选字幕轨道需明确指定匹配音频和音轨。'; return;
     }
     alignmentRunning = true;
     $('runTimestampTool').disabled = true;
