@@ -1250,7 +1250,7 @@
           </div>
           <div class="settings-section" id="punctuationSettingsSection">
             <h3 data-i18n="settings_punctuation_title">断句与标点</h3>
-            <p class="hint" data-i18n="settings_punctuation_hint">文稿匹配与转写后处理共用这里的断句与保留符号。</p>
+            <p class="hint" data-i18n="settings_punctuation_hint">文稿匹配、识别和翻译共用这里的符号设置；只影响新生成的内容。</p>
             <div class="field">
               <label for="postprocessExtraSplitPunctuation" data-i18n="toolbox_extra_split_punctuation">额外断句符号</label>
               <textarea id="postprocessExtraSplitPunctuation" rows="2" autocomplete="off" data-i18n-placeholder="toolbox_extra_split_punctuation_placeholder" placeholder="？\n！\n——\n~"></textarea>
@@ -1260,7 +1260,7 @@
               <label for="postprocessPreservePunctuation" data-i18n="toolbox_preserve_punctuation">断句后保留符号</label>
               <textarea id="postprocessPreservePunctuation" rows="2" autocomplete="off" data-i18n-placeholder="toolbox_preserve_punctuation_placeholder" placeholder="？\n！\n~"></textarea>
               <p id="postprocessPreservePunctuationError" class="field-error"></p>
-              <p class="hint" data-i18n="toolbox_preserve_punctuation_hint" data-help>断句后仍将符号保留在字幕末尾；转写输出的这些尾部符号同样保留，其余默认剥除逗号和句号。</p>
+              <p class="hint" data-i18n="toolbox_preserve_punctuation_hint" data-help>识别和翻译输出会去除句尾的逗号、句号及额外断句符号；这里列出的符号保留，半角与全角等效。句内标点不受影响，不改写已有工程。</p>
             </div>
           </div>
           </section>

@@ -419,6 +419,19 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertNotIn("save_settings", content)
 
     @mock.patch.dict(os.environ, {}, clear=True)
+    def test_segmentation_preferences_survive_restart_and_reject_invalid_edits(self) -> None:
+        values = {"maxLen": "24", "minLen": "5", "maxWords": "20", "minWords": "3", "gapSplit": "0"}
+        self.assertTrue(self.api.save_prefs({"asrSegmentation": values})["ok"])
+        reopened = LauncherApi(paths=self.paths, window_getter=lambda: self.window)
+        self.assertEqual(reopened.get_config()["asrSegmentation"], values)
+        before = self.env_path.read_bytes()
+        for edit in ({"maxWords": "2"}, {"gapSplit": "-1"}, {"maxWords": "20.5"}, {"maxWords": True}):
+            self.assertFalse(self.api.save_prefs({"asrSegmentation": {**values, **edit}})["ok"])
+            self.assertEqual(self.env_path.read_bytes(), before)
+        self.assertTrue(self.api.save_prefs({"asrSegmentation": {}})["ok"])
+        self.assertEqual(reopened.get_config()["asrSegmentation"], dict.fromkeys(values, ""))
+
+    @mock.patch.dict(os.environ, {}, clear=True)
     def test_prefab_modules_survive_a_new_launcher_without_changing_other_preferences(self) -> None:
         original = "# keep\nDASHSCOPE_REGION=beijing\nMAW_GUI_LAST_LANGUAGE=en\n"
         self.env_path.write_text(original, encoding="utf-8")

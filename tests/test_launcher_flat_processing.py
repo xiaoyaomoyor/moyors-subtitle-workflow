@@ -92,7 +92,7 @@ class NativePipelineTests(unittest.TestCase):
                     'outputDirectory': str(root / 'out'), 'trackScope': {'sourceTrackId': source_id, 'targetTrackId': 'new'},
                     'steps': [{'id': 'translate', 'enabled': True, 'target': 'zh', 'providerId': 'deepseek', 'mergeBilingual': True}]}
             def complete(_settings, _prompt, cues):
-                return {'groups': [{'id': c['id'], 'source': c['text'], 'text': '你好世界'} for c in cues]}
+                return {'groups': [{'id': c['id'], 'source': c['text'], 'text': '你好世界。'} for c in cues]}
             with patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=complete):
                 result = run_postprocess_pipeline(plan, media_path=root / 'movie.mp4', project_path=source,
                     srt_path=root / 'result.srt', env_path=env, ffmpeg_path=None, cancel_event=Event(),
@@ -120,6 +120,8 @@ class NativePipelineTests(unittest.TestCase):
             self.assertIn('Hello world', result.srt_path.read_text(encoding='utf-8-sig'))
             self.assertNotIn('你好', result.srt_path.read_text(encoding='utf-8-sig'))
             self.assertIn('你好世界', result.translated_srt_path.read_text(encoding='utf-8-sig'))
+            self.assertNotIn('。', result.translated_srt_path.read_text(encoding='utf-8-sig'))
+            self.assertEqual(source.read_text(encoding='utf-8'), json.dumps(project))
             bilingual = result.bilingual_srt_path.read_text(encoding='utf-8-sig')
             self.assertIn('Hello world', bilingual)
             self.assertIn('你好世界\nHello world', bilingual)

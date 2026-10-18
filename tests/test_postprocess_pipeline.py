@@ -1115,16 +1115,16 @@ class PostprocessPreflightTests(unittest.TestCase):
             ["？", "！"],
         )
         # 默认保留 ？！ → 转写剥尾只剥逗号和句号。
-        self.assertEqual(_transcribe_strip_tail_punct(self.env_path), "，。")
+        self.assertEqual(set(_transcribe_strip_tail_punct(self.env_path)), set("，。,."))
 
     def test_transcribe_strip_tail_punct_follows_saved_preserve_symbols(self) -> None:
         plan = default_postprocess_plan()
-        plan["steps"][0]["preservePunctuation"] = ["。"]
+        plan["steps"][0]["preservePunctuation"] = ["。", "？", "！"]
         save_postprocess_plan(self.env_path, plan)
 
-        self.assertEqual(_transcribe_strip_tail_punct(self.env_path), "，")
+        self.assertEqual(set(_transcribe_strip_tail_punct(self.env_path)), set("，,"))
 
-        plan["steps"][0]["preservePunctuation"] = ["。", "，"]
+        plan["steps"][0]["preservePunctuation"] = ["。", "，", "？", "！"]
         save_postprocess_plan(self.env_path, plan)
 
         self.assertEqual(_transcribe_strip_tail_punct(self.env_path), "")

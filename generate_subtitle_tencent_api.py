@@ -59,7 +59,7 @@ def main() -> int:
     parser.add_argument("-ll", "--length-limit", type=parse_duration, help="只处理媒体前 N 秒")
     parser.add_argument("--file-url", help="公网或 COS 音频 URL；大于 5MB 时必须使用")
     parser.add_argument("--model", default=None, help=f"腾讯云引擎（默认 {DEFAULT_ENGINE}）")
-    parser.add_argument("--strip-tail-punct", default="，。", help="句尾剥除的标点集合；传空串禁用剥除")
+    parser.add_argument("--strip-tail-punct", default="，。,.", help="句尾剥除的标点集合；传空串禁用剥除")
     parser.add_argument("--debug", action="store_true", help="输出 API 调试摘要")
     parser.add_argument("--debug-raw", action="store_true", help="保存完整 API 原始 JSON")
     parser.add_argument("--no-model-tag", action="store_true", help="输出文件名不附加模型标识段（本 CLI 默认无该段，保留以统一接口）")
@@ -193,18 +193,8 @@ def main() -> int:
         rtf = 0.0
         speed = 0
     if not args.keep_punct:
-        for segment in segments:
-            segment["text"] = str(segment["text"]).rstrip(args.strip_tail_punct)
-            remaining_items = []
-            for item in segment.get("items", []):
-                item["text"] = str(item["text"]).rstrip(args.strip_tail_punct)
-                if item["text"]:
-                    remaining_items.append(item)
-            if "items" in segment:
-                if remaining_items:
-                    segment["items"] = remaining_items
-                else:
-                    segment.pop("items")
+        from maw.subtitle_punctuation import strip_segment_tails
+        strip_segment_tails(segments, args.strip_tail_punct)
     if args.speaker_colors:
         apply_speaker_colors(segments)
     output_path.write_text(generate_srt(segments), encoding="utf-8", newline="\n")

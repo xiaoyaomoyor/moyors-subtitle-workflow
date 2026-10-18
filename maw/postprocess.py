@@ -16,6 +16,7 @@ from maw.postprocess_io import SubtitleArtifact, read_project, read_srt, write_a
 from maw.project import normalize_project
 from maw.project_preview import JsonDict, JsonValue
 from maw.text_conversion import TextConversion, apply_text_conversion
+from maw.subtitle_punctuation import strip_segment_tails
 
 
 class OutputMode(StrEnum):
@@ -59,6 +60,7 @@ class LlmPostprocessRequest:
     merge_bilingual: bool = False
     embed_translations: bool = False
     bilingual_line_order: str = ""
+    strip_tail_punct: str = ""
 
 
 class PostprocessStepError(RuntimeError):
@@ -438,6 +440,10 @@ def process_llm_snapshot(
         )
     if len(batches) > 1:
         warnings = (f"字幕较长，已分批处理（共 {len(batches)} 批）。",) + warnings
+    if strict_translation and request.strip_tail_punct:
+        preserved_ids = {external for internal, external in source_id_map
+                         if internal in preserved_blank_source_ids | preserved_target_source_ids}
+        strip_segment_tails([s for s in _segments(processed) if s['id'] not in preserved_ids], request.strip_tail_punct)
     output_operation = request.operation
     if request.merge_bilingual and strict_translation:
         processed = merge_bilingual_project(

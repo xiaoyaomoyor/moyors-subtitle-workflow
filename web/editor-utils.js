@@ -2103,10 +2103,10 @@
   // 任何 0 长（或倒挂）的段 / item 至少保留 minMs，且保持单调不重叠、item 不越出
   // 所属段。只修改非法值，本已合法的短时长时间码（如真实的 60ms 词）保持不动。
   // 返回修复的边界数量。
-  function normalizeSegmentTimings(segments, minMs = 100) {
+  function normalizeSegmentTimings(segments, minMs = 100, report = null) {
     const floor = Math.max(1, Math.round(Number(minMs) || 100));
     const source = Array.isArray(segments) ? segments : [];
-    let fixed = 0;
+    let fixed = 0, textChanges = 0;
     let previousSegmentEnd = 0;
     source.forEach((segment) => {
       if (!segment || typeof segment !== 'object') return;
@@ -2115,7 +2115,7 @@
       if (!Number.isFinite(start)) start = 0;
       if (!Number.isFinite(end)) end = start;
       if (start < previousSegmentEnd) { start = previousSegmentEnd; fixed++; }
-      fixed += normalizeTimedTextNeutralItems(segment);
+      textChanges += normalizeTimedTextNeutralItems(segment);
       const items = Array.isArray(segment.items) ? segment.items : null;
       let previousItemEnd = start;
       if (items) {
@@ -2139,19 +2139,20 @@
       segment.end = end;
       previousSegmentEnd = end;
     });
-    return fixed;
+    if(report){report.timingRepairs=(report.timingRepairs||0)+fixed;report.textChanges=(report.textChanges||0)+textChanges;}
+    return fixed + textChanges;
   }
 
   // 保存前只修复段内 item 的顺序和零时长，不改动字幕段本身的范围。
   // 这样可以自动处理波形取整造成的 1ms 字/词时间码重叠，同时把真正的
   // 字幕段重叠交给服务端严格校验。
-  function normalizeItemTimingRanges(segments, minMs = 100) {
+  function normalizeItemTimingRanges(segments, minMs = 100, report = null) {
     const floor = Math.max(1, Math.round(Number(minMs) || 100));
     const source = Array.isArray(segments) ? segments : [];
-    let fixed = 0;
+    let fixed = 0, textChanges = 0;
     source.forEach((segment) => {
       if (!segment || typeof segment !== 'object') return;
-      fixed += normalizeTimedTextNeutralItems(segment);
+      textChanges += normalizeTimedTextNeutralItems(segment);
       let previousItemEnd = Math.round(Number(segment.start));
       if (!Number.isFinite(previousItemEnd)) previousItemEnd = 0;
       const items = Array.isArray(segment.items) ? segment.items : null;
@@ -2169,7 +2170,8 @@
         previousItemEnd = itemEnd;
       });
     });
-    return fixed;
+    if(report){report.timingRepairs=(report.timingRepairs||0)+fixed;report.textChanges=(report.textChanges||0)+textChanges;}
+    return fixed + textChanges;
   }
 
   // 帧模式下，多个字词可能因为帧率取整而落在同一帧。它们的 frame

@@ -73,8 +73,38 @@ class WesternSplitTests(unittest.TestCase):
 
         segments = split_words_to_segments_western(items, max_words=13, gap_split_ms=99999)
 
-        self.assertEqual(len(segments[0]["items"]), 13)
-        self.assertEqual(len(segments[1]["items"]), 2)
+        self.assertEqual(len(segments[0]["items"]), 12)
+        self.assertEqual(len(segments[1]["items"]), 3)
+
+    def test_fragments_and_apostrophes_count_as_one_word_and_keep_exact_timing(self) -> None:
+        parts = [" so", " you", "'", "re", " not", " going", " to", " get", " a", " list", " of", " rituals", " anywhere", " in", " the", " book."]
+        items = _words([(text, i * 100, (i + 1) * 100) for i, text in enumerate(parts)])
+        for limit in (14, 20):
+            result = split_words_to_segments_western(items, max_words=limit, gap_split_ms=800)
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0]["items"], items)
+        split = split_words_to_segments_western(items, max_words=13, gap_split_ms=800)
+        self.assertTrue(all(len(row["text"].split()) >= 3 for row in split))
+        self.assertEqual([item for row in split for item in row["items"]], items)
+        self.assertTrue(any("you're" in row["text"] for row in split))
+
+    def test_overflow_does_not_leave_pixel_art_as_a_single_word_tail(self) -> None:
+        text = "are enumerated at length in the book and accompanied by very nostalgic pixel art."
+        items = _words([(" " + word, i * 100, (i + 1) * 100) for i, word in enumerate(text.split())])
+        result = split_words_to_segments_western(items, max_words=13, gap_split_ms=800)
+        self.assertTrue(all(3 <= len(row["text"].split()) <= 13 for row in result))
+        self.assertTrue(any("pixel art." in row["text"] for row in result))
+        self.assertEqual([item for row in result for item in row["items"]], items)
+        items[-1]["start"] += 1600
+        items[-1]["end"] += 1600
+        paused = split_words_to_segments_western(items, max_words=20, gap_split_ms=800)
+        self.assertEqual(len(paused), 2)  # Do not bridge a genuine pause.
+
+    def test_multiple_words_in_one_item_keep_the_original_timestamp(self) -> None:
+        items = _words([("one two three", 0, 500), (" four", 500, 600)])
+        rows = split_words_to_segments_western(items, max_words=2, min_words=1, gap_split_ms=0)
+        self.assertEqual([item for row in rows for item in row["items"]], items)
+        self.assertEqual(rows[0]["end"], 500)
 
     def test_auto_word_mode_uses_configured_word_limit(self) -> None:
         items = _words([(f" w{i}", i * 100, i * 100 + 90) for i in range(6)])

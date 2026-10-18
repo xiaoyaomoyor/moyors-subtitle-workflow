@@ -11,7 +11,7 @@ test.beforeAll(async()=>{
   process.env.MAW_ENV_FILE=join(folder,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(folder,'settings');
   const media=join(folder,'synthetic.mp4'),project=join(folder,'project.mosp');
   execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=4','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
-  writeFileSync(project,JSON.stringify({media:'synthetic.mp4',segments:[{start:0,end:3000,text:'中文字幕 Sample'}],waveform:generateWaveformPayload(4000)}));
+  writeFileSync(project,JSON.stringify({media:'synthetic.mp4',segments:[{start:0,end:3000,text:'中文字幕，Sample。',items:[{text:'中文字幕，Sample',start:0,end:2900},{text:'。',start:2900,end:3000}]}],waveform:generateWaveformPayload(4000)}));
   server=await startServer(project,media,await findFreePort());
 });
 test.afterAll(async()=>{await server?.stop();});
@@ -21,6 +21,8 @@ test('project style renders in the player and proofreading does not alter output
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await disableOnboarding(page);await page.goto(server.url);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready),{timeout:30000}).toBe(true);
+  expect(await page.evaluate(()=>repairedTimingCount)).toBe(0);
+  expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().subtitles.cues[0].content.text)).toBe('中文字幕，Sample。');
   await toggleMediaSettings(page);
   await expect(page.locator('#project-subtitle-style')).toBeVisible();
   await expect(page.locator('#style-preview-mode')).toHaveValue('project');
@@ -33,7 +35,11 @@ test('project style renders in the player and proofreading does not alter output
   await expect(page.locator('#style-field-primaryColor')).not.toHaveValue('#ff0000');
   await page.evaluate(()=>performRedo());
   await expect(page.locator('#style-field-primaryColor')).toHaveValue('#ff0000');
+  const proofRendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200&&r.request().postDataJSON()?.project?.subtitles?.tracks?.some(t=>t.style?.value?.main?.fontSize===72));
   await page.locator('#style-preview-mode').selectOption('large');
+  const proofResponse=await proofRendered,proofPayload=await proofResponse.json();
+  expect(proofPayload.ass).toMatch(/Style: [^\r\n]*,72,/);
+  expect(proofResponse.request().postDataJSON().project.schema).toBe('msw.project.v4');
   await expect(page.locator('#style-scope')).toHaveCount(0);
   expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
   expect(await page.evaluate(()=>fixedStyleValue())).toEqual(saved);
@@ -217,8 +223,9 @@ test('export selects a preset snapshot and restores proofreading on close',async
   await clickMenubarItem(page,'文件','video-export-btn');
   await page.locator('#video-export-burn-subtitles').selectOption('both');
   await page.locator('#video-export-style-source').selectOption('preset:large');
-  const result=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host'),p=h.exportProject();window.MSWSubtitleStyle.applyExport(p);return {output:p.preview.project_style,project:h.data.preview.project_style,preview:window.MSWSubtitleStyle.currentPreview()};});
+  const result=await page.evaluate(async()=>{const h=window.MSWE.resolve('processing-host'),p=h.exportProject();window.MSWSubtitleStyle.applyExport(p);const rendered=await window.MSWSubtitleStyle.request('subtitle-preview',{project:p,target:'both',video:{width:640,height:360}});return {output:p.preview.project_style,tracks:p.subtitles.tracks,ass:rendered.ass,project:h.data.preview.project_style,preview:window.MSWSubtitleStyle.currentPreview()};});
   expect(result.output.main.fontSize).toBe(72);expect(result.project.main.fontSize).not.toBe(72);
+  expect(result.tracks[0].style.value.main.fontSize).toBe(72);expect(result.ass).toMatch(/Style: [^\r\n]*,72,/);
   expect(result.preview.scope).toBe('export');expect(result.preview.target).toBe('both');
   await page.locator('#video-export-close').click();
   expect(await page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('proof');

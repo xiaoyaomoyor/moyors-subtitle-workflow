@@ -2644,6 +2644,19 @@ test('folds a neutral punctuation item into the adjacent timed item', () => {
   ]);
 });
 
+test('reports neutral text folding separately from actual timing repairs',()=>{
+  for(const normalize of [helpers.normalizeSegmentTimings,helpers.normalizeItemTimingRanges]){
+    const segments=[{start:0,end:1000,text:'Hello.',items:[{text:'Hello',start:0,end:900},{text:'.',start:900,end:1000}]}];
+    const report={};assert.equal(normalize(segments,100,report),1);
+    assert.deepEqual(report,{timingRepairs:0,textChanges:1});
+    assert.deepEqual([segments[0].start,segments[0].end],[0,1000]);
+    segments[0].items[0].end=0;
+    normalize(segments,100,report);
+    assert.equal(report.timingRepairs,1);
+    assert.equal(report.textChanges,1);
+  }
+});
+
 test('removes a stale neutral punctuation item after its text is deleted', () => {
   const segments = [{
     start: 0,

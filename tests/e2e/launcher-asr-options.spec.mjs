@@ -11,6 +11,35 @@ async function open(page) {
   await page.evaluate(() => MSWNavigation.show('prefab'));
 }
 
+test('segmentation fields restore native preferences after reload including zero and cleared values', async ({ page }) => {
+  let saved = {};
+  await page.exposeFunction('segmentationPrefs', (values) => { if (values) saved = values; return saved; });
+  await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => {
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'get_config') return {...await next(method, payload), asrSegmentation:await window.segmentationPrefs()};
+      if (method === 'save_prefs' && payload.asrSegmentation) { await window.segmentationPrefs(payload.asrSegmentation); return {ok:true}; }
+      return next(method, payload);
+    };
+  }, {once:true}));
+  await open(page);
+  await page.evaluate(() => MSWLauncher.openSettings('segmentationSettingsSection', 'maxWords'));
+  await page.locator('#maxWords').fill('20');
+  await page.locator('#gapSplit').fill('0');
+  await page.locator('#gapSplit').blur();
+  await expect.poll(() => saved.gapSplit).toBe('0');
+  await page.reload();
+  await page.waitForFunction(() => MSWLauncher.config?.asrSegmentation?.maxWords === '20');
+  expect(await page.evaluate(() => MSWLauncher.getTranscriptionPayload().maxWords)).toBe('20');
+  await page.evaluate(() => MSWLauncher.openSettings('segmentationSettingsSection', 'maxWords'));
+  await expect(page.locator('#maxWords')).toHaveValue('20');
+  await expect(page.locator('#gapSplit')).toHaveValue('0');
+  await page.locator('#maxWords').fill('2'); await page.locator('#maxWords').blur();
+  await expect(page.locator('#status')).toContainText('最大');
+  expect(saved.maxWords).toBe('20');
+  await page.locator('#maxWords').fill(''); await page.locator('#maxWords').blur();
+  await expect.poll(() => saved.maxWords).toBe('');
+});
+
 test('advanced help is localized, compact and does not toggle checkboxes or submit examples', async ({ page }) => {
   await open(page);
   await page.evaluate(() => { MSWModules.setEnabled('asr', true); MSWWorkflow.setCollapsed('asr', false); });

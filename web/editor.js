@@ -16198,20 +16198,22 @@ function buildJson() {
 // “打开后编辑、随后保存”的路径。主轨和所有副字幕轨统一使用同一规则。
 function normalizeProjectTimings(project, { repairSegmentRanges = true } = {}) {
   if (!project || typeof project !== 'object') return 0;
-  const normalize = repairSegmentRanges
+  const report = {timingRepairs:0,textChanges:0};
+  const normalizeTimings = repairSegmentRanges
     ? window.AsrEditorUtils.normalizeSegmentTimings
     : window.AsrEditorUtils.normalizeItemTimingRanges;
+  const normalize = cues => normalizeTimings(cues,100,report);
   const normalizeTrack = cues => layerProjectMode(project) && repairSegmentRanges
     ? (cues || []).reduce((sum, cue) => sum + normalize([cue]), 0) : normalize(cues);
-  let fixed = normalizeTrack(project.segments);
+  normalizeTrack(project.segments);
   const tracks = project.multi_subtitle?.tracks;
   if (Array.isArray(tracks)) {
     tracks.forEach((track) => {
-      fixed += normalizeTrack(track?.segments);
+      normalizeTrack(track?.segments);
     });
   }
-  fixed += normalize(project.overlay_track?.segments);
-  return fixed;
+  normalize(project.overlay_track?.segments);
+  return report.timingRepairs;
 }
 
 function timingRepairSignature(segment) {
@@ -23551,29 +23553,6 @@ document.addEventListener('asr:waveform-loudness-unavailable', () => {
   flashHint('当前媒体没有响度缓存，无法按响度适配', 'warning');
 });
 
-// === cleanPunctuation ===
-function cleanPunctuation() {
-  const PUNCT_REPL = '  ';
-  const REPLACE_INSIDE = /[，。]/g;
-  for (const seg of DATA.segments) {
-    if (!seg.text) continue;
-    let t = seg.text;
-    while (t.length && (t.endsWith('，') || t.endsWith('。'))) t = t.slice(0, -1);
-    seg.text = t.replace(REPLACE_INSIDE, PUNCT_REPL).replace(/[ \t]+$/, '');
-    if (seg.items) {
-      const total = seg.items.length;
-      for (let i = 0; i < total; i++) {
-        let it = seg.items[i].text;
-        if (i === total - 1) {
-          while (it.length && (it.endsWith('，') || it.endsWith('。'))) it = it.slice(0, -1);
-        }
-        it = it.replace(REPLACE_INSIDE, PUNCT_REPL);
-        seg.items[i].text = it;
-      }
-    }
-  }
-}
-
 function syncTimelineGroupRanges() {
   function sync(segments, headField, refField) {
     segments.forEach((segment, headIdx) => {
@@ -24251,7 +24230,6 @@ maweDebug('boot:begin', {
   media: DATA.media || '',
   recentProjects: SERVER_CONFIG?.recentProjects?.length || 0,
 });
-cleanPunctuation();
 configureServerSaveControls();
 configureServerAutoSave();
 configureRecentProjects();

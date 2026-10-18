@@ -78,14 +78,15 @@ def validate_snapshot(raw: object) -> dict:
     if sum(len(entry["source"]["text"]) for entry in clean) > 1000000:
         raise ValueError("单次翻译文本过长，请分批选择字幕")
     result = {"project_id": raw["project_id"], "track_id": track_id, "entries": clean}
-    if schema: result["project_schema"] = schema
+    if schema:
+        result["project_schema"] = schema
     if "output_mode" in raw:
         result["output_mode"] = output_mode
     return result
 
 
 def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: LlmSettings,
-                       cancel: threading.Event, progress) -> dict:
+                       cancel: threading.Event, progress, *, strip_tail_punct: str = "") -> dict:
     def check():
         if cancel.is_set():
             raise JobCancelled()
@@ -100,7 +101,7 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
         check()
         progress(stage, dict(details))
 
-    request = LlmPostprocessRequest(None, None, OutputMode.JSON, f"translate_{language}", prompt)
+    request = LlmPostprocessRequest(None, None, OutputMode.JSON, f"translate_{language}", prompt, strip_tail_punct=strip_tail_punct)
     project = {"segments": [entry["source"] for entry in snapshot["entries"]]}
     if snapshot.get('project_schema') in ('msw.project.v2', 'msw.project.v3', 'msw.project.v4'):
         from maw.msw.subtitle_layers import migrate_project

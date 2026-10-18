@@ -7,6 +7,27 @@ const context={window:{MSWSubtitleTracks:trackCore},TextEncoder,TextDecoder,Uint
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const S=context.window.MSWProjectStyle,U=context.window.AsrEditorUtils;
 
+test('v4 preview and alternate export presets override snapshots without losing track roles or positions',()=>{
+  const base=S.defaults(),preset=S.presets()[1];
+  const original={schema:'msw.project.v4',preview:{project_style:base},subtitles:{tracks:[
+    {id:'a',position:{x:.2,y:.1},style:{mode:'snapshot',slot:'main',base:'dialogue',value:base}},
+    {id:'b',style:{mode:'snapshot',slot:'secondary',base:'dialogue',value:base}},
+    {id:'c',style:{mode:'snapshot',slot:'main',base:'annotation',value:base}}
+  ],cues:[{id:'cue',track_id:'a',position:{x:.3,y:.4}}],bindings:[{id:'binding'}]}};
+  for(const proof of [false,true]){
+    const copy=JSON.parse(JSON.stringify(original));S.applyPreset(copy,preset,{proof});
+    assert.equal(copy.subtitles.tracks[0].style.value.main.fontSize,72);
+    assert.equal(copy.subtitles.tracks[1].style.value.secondary.fontSize,56);
+    assert.equal(copy.subtitles.tracks[2].style.value.main.fontSize,proof?72:48);
+    assert.equal(copy.subtitles.tracks[1].style.slot,'secondary');
+    assert.equal(copy.subtitles.tracks[2].style.base,'annotation');
+    assert.deepEqual(copy.subtitles.cues,original.subtitles.cues);
+    assert.deepEqual(copy.subtitles.bindings,original.subtitles.bindings);
+    assert.deepEqual(copy.subtitles.tracks[0].position,original.subtitles.tracks[0].position);
+  }
+  assert.equal(original.subtitles.tracks[0].style.value.main.fontSize,48);
+});
+
 test('combined presets preserve annotation bases while old presets preserve project annotation overrides',()=>{
   const base=S.defaults(),annotation=S.defaults();annotation.main.fontSize=29;
   const project={preview:{project_style:base},subtitle_tracks:{tracks:[{kind:'dialogue',style:{mode:'inherit'}},{kind:'annotation',position:{x:.2,y:.1},style:{mode:'snapshot',value:annotation}}]}};

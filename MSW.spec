@@ -48,6 +48,8 @@ if sys.platform == "linux":
         print(f"Warning: libxcb-cursor collection failed: {exc}", file=sys.stderr)
 
 datas = [
+    (str(ROOT / "maw" / "subtitle_punctuation.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "subtitle_punctuation.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "colors.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "speaker.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "ass_styles.py"), "ocr-runtime/maw"),

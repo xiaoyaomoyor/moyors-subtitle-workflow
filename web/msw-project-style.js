@@ -117,11 +117,14 @@
   function apply(project, style) { project.preview ||= {}; project.preview.project_style=normalize(style); }
   function applyPreset(project,style,{proof=false}={}) {
     const old=normalize(project.preview?.project_style||defaults()),value=normalize(style);
-    for(const track of project.subtitle_tracks?.tracks||[]) {
-      if(global.MSWSubtitleTracks.styleKind(track)==='annotation'&&!proof) {
-        if(value.annotation)track.style={mode:'snapshot',value:clone(value.annotation)};
-        else if(track.style.mode==='inherit')track.style={mode:'snapshot',value:clone(old.annotation||old)};
-      } else track.style={mode:'snapshot',value:clone(value)};
+    const flat=project.schema==='msw.project.v4';
+    for(const track of (flat?project.subtitles?.tracks:project.subtitle_tracks?.tracks)||[]) {
+      const kind=flat?track.style?.base:global.MSWSubtitleTracks.styleKind(track);
+      const snapshot=next=>{track.style={...track.style,mode:'snapshot',value:clone(next)};};
+      if(kind==='annotation'&&!proof) {
+        if(value.annotation)snapshot(value.annotation);
+        else if(track.style.mode==='inherit')snapshot(old.annotation||old);
+      } else snapshot(value);
     }
     apply(project,value);
   }

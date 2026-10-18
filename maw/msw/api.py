@@ -56,8 +56,13 @@ class ProcessingAPI:
         with self.lock:
             if self._manager is None:
                 port = self.server.server_address[1]
+                def translate(*args):
+                    from maw.msw.jobs import translate_snapshot
+                    from maw.postprocess_pipeline import load_postprocess_plan
+                    from maw.subtitle_punctuation import tail_strip_symbols
+                    return translate_snapshot(*args, strip_tail_punct=tail_strip_symbols(load_postprocess_plan(self.env_path)))
                 self._manager = JobManager(self.data_root / "editor-jobs" / f"port-{port}.sqlite3",
-                                           tts=tts.TtsService(self.assets), asr=self.asr)
+                                           tts=tts.TtsService(self.assets), asr=self.asr, translate=translate)
             return self._manager
 
     @property

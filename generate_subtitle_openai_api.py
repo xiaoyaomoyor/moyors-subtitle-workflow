@@ -652,22 +652,8 @@ def _strip_trailing_punct(
     strip_chars: str,
 ) -> None:
     """Strip cue/item tail punctuation without retaining punctuation-only items."""
-    if not strip_chars:
-        return
-    for segment in segments:
-        segment["text"] = str(segment.get("text") or "").rstrip(strip_chars)
-        segment_items = segment.get("items")
-        if not isinstance(segment_items, list):
-            continue
-        for index in range(len(segment_items) - 1, -1, -1):
-            item = segment_items[index]
-            if not isinstance(item, dict):
-                segment_items.pop(index)
-                continue
-            item["text"] = str(item.get("text") or "").rstrip(strip_chars)
-            if item["text"]:
-                break
-            segment_items.pop(index)
+    from maw.subtitle_punctuation import strip_segment_tails
+    strip_segment_tails(segments, strip_chars)
 
 
 def main() -> None:
@@ -692,7 +678,7 @@ def main() -> None:
     parser.add_argument("--keep-punct", action="store_true")
     parser.add_argument(
         "--strip-tail-punct",
-        default="，。",
+        default="，。,.",
         help="句尾剥除的标点集合；传空串禁用剥除（默认剥逗号和句号）",
     )
     parser.add_argument("--json", dest="json_out", action="store_true")

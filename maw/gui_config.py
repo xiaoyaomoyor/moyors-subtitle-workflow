@@ -51,6 +51,30 @@ def _prefab_modules_from_json(value: str) -> dict[str, bool] | None:
         return None
 
 
+def normalize_asr_segmentation(value: object) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise ValueError("Invalid segmentation settings")
+    result = {}
+    for key in ("maxLen", "minLen", "maxWords", "minWords", "gapSplit"):
+        raw = value.get(key, "")
+        text = str(raw).strip()
+        if text and (not text.isascii() or not text.isdecimal() or len(text) > 16
+                     or not (0 if key == "gapSplit" else 1) <= int(text) <= 9007199254740991):
+            raise ValueError(key)
+        result[key] = str(int(text)) if text else ""
+    for maximum, minimum, high, low in (("maxLen", "minLen", 18, 5), ("maxWords", "minWords", 13, 3)):
+        if int(result[maximum] or high) < int(result[minimum] or low):
+            raise ValueError(maximum)
+    return result
+
+
+def _asr_segmentation_from_json(value: str) -> dict[str, str]:
+    try:
+        return normalize_asr_segmentation(json.loads(value))
+    except (ValueError, TypeError):
+        return normalize_asr_segmentation({})
+
+
 @dataclass(frozen=True, slots=True)
 class ModelConfig:
     id: str
@@ -125,6 +149,7 @@ class EffectiveConfig:
     # 任务完成后是否发送系统通知（Launcher「通用 → 完成通知」，默认关闭）。
     notify_on_complete: bool = False
     prefab_modules: dict[str, bool] | None = None
+    asr_segmentation: dict[str, str] | None = None
 
 
 REGIONS: Final[tuple[tuple[str, str], ...]] = (
@@ -730,6 +755,7 @@ def effective_config(path: Path | None = None, environ: Mapping[str, str] | None
         theme=_gui_theme(pick_optional("MAW_GUI_THEME")),
         notify_on_complete=_env_bool(pick("MAW_GUI_NOTIFY_ON_COMPLETE"), default=False),
         prefab_modules=_prefab_modules_from_json(pick("MAW_GUI_PREFAB_MODULES")),
+        asr_segmentation=_asr_segmentation_from_json(pick("MAW_GUI_ASR_SEGMENTATION")),
     )
 
 

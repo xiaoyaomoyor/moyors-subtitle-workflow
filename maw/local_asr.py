@@ -2074,7 +2074,7 @@ def create_local_engine(
     raise ValueError("engine must be one of: qwen-asr, funasr, moss, firered, whisper")
 
 
-_LOCAL_TAIL_PUNCT = "，。"
+_LOCAL_TAIL_PUNCT = "，。,."
 
 
 def _char_weight_weights(text: str) -> list[float]:
@@ -2199,19 +2199,8 @@ def _strip_trailing_punct(segments: list[dict[str, Any]], strip_chars: str = _LO
     cue tails are subtracted from the strip candidates); an empty string
     disables stripping entirely.
     """
-    if not strip_chars:
-        return
-    for segment in segments:
-        segment["text"] = segment["text"].rstrip(strip_chars)
-        segment_items = segment.get("items")
-        if segment_items:
-            k = len(segment_items) - 1
-            while k >= 0:
-                segment_items[k]["text"] = segment_items[k]["text"].rstrip(strip_chars)
-                if segment_items[k]["text"]:
-                    break
-                segment_items.pop(k)
-                k -= 1
+    from maw.subtitle_punctuation import strip_segment_tails
+    strip_segment_tails(segments, strip_chars)
 
 
 def build_local_segments(

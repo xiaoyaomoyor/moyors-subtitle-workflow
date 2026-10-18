@@ -45,6 +45,7 @@ from maw.gui_config import (
     load_env,
     masked_secret,
     model_by_label,
+    normalize_asr_segmentation,
     normalize_prefab_modules,
     provider_by_id,
     provider_for_model,
@@ -1048,6 +1049,7 @@ class LauncherApi:
             "postprocessPrompts": {key: value for key, value in PROMPTS.items() if key != "custom"},
             "postprocessAutoPlan": load_postprocess_plan(self.paths.env_path),
             "prefabModules": config.prefab_modules,
+            "asrSegmentation": config.asr_segmentation,
             "zoomPercent": config.zoom_percent,
             "serverPort": self.default_server_port,
         }
@@ -1133,6 +1135,13 @@ class LauncherApi:
 
     def save_prefs(self, payload: Mapping[str, object]) -> dict[str, object]:
         updates: dict[str, str] = {}
+        if "asrSegmentation" in payload:
+            try:
+                segmentation = normalize_asr_segmentation(payload["asrSegmentation"])
+            except ValueError as error:
+                field = str(error) if str(error) in {"maxLen", "minLen", "maxWords", "minWords", "gapSplit"} else "maxWords"
+                return _error_result(field, "segmentation_invalid", "Invalid segmentation settings")
+            updates["MSW_GUI_ASR_SEGMENTATION"] = json.dumps(segmentation, separators=(",", ":"))
         if "prefabModules" in payload:
             modules = normalize_prefab_modules(payload["prefabModules"])
             if modules is None:
@@ -1601,6 +1610,7 @@ class LauncherApi:
                     merge_bilingual=bool(payload.get("mergeBilingual")),
                     embed_translations=bool(payload.get("embedTranslations")),
                     bilingual_line_order=str(payload.get("bilingualLineOrder") or ""),
+                    strip_tail_punct=_transcribe_strip_tail_punct(self.paths.env_path),
                 ),
                 complete=complete,
                 on_status=self._emit_postprocess_status,
@@ -4312,9 +4322,6 @@ def _segmentation_option(
     return str(value)
 
 
-_TAIL_STRIP_CANDIDATES = "，。"
-
-
 def _transcribe_strip_tail_punct(env_path: Path) -> str:
     """Derive transcription tail-strip set from the shared 保留符号 settings.
 
@@ -4322,17 +4329,8 @@ def _transcribe_strip_tail_punct(env_path: Path) -> str:
     the 文稿匹配 toolbox; symbols marked as preserved are subtracted from the
     strip candidates so transcription output keeps them at cue tails.
     """
-    plan = load_postprocess_plan(env_path)
-    steps = plan.get("steps")
-    preserved: set[str] = set()
-    if isinstance(steps, Sequence) and not isinstance(steps, (str, bytes)):
-        for step in steps:
-            if isinstance(step, Mapping) and step.get("id") == "match":
-                value = step.get("preservePunctuation")
-                if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-                    preserved = {str(item) for item in value if str(item)}
-                break
-    return "".join(candidate for candidate in _TAIL_STRIP_CANDIDATES if candidate not in preserved)
+    from maw.subtitle_punctuation import tail_strip_symbols
+    return tail_strip_symbols(load_postprocess_plan(env_path))
 
 
 def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, validate_media: bool = True, validate_local: bool = True) -> TranscriptionRequest:

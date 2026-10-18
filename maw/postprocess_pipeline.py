@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from maw.subtitle_punctuation import tail_strip_symbols
+
 import copy
 import hashlib
 import json
@@ -728,6 +730,7 @@ def run_postprocess_pipeline(
                     on_event=on_event,
                     llm_settings=llm_settings,
                     track_scope=scope if native else None,
+                    strip_tail_punct=tail_strip_symbols(normalized),
                 )
                 if step_id == "translate" and not native:
                     artifact, artifact_index = _number_pipeline_artifact(
@@ -947,13 +950,15 @@ def _run_step(
     on_event: PipelineEvent | None,
     llm_settings: Mapping[str, Mapping[str, str]] | None,
     track_scope: Mapping[str, object] | None = None,
+    strip_tail_punct: str | None = None,
 ) -> SubtitleArtifact:
     if track_scope is not None:
         from maw.launcher_processing import run_track_step
         return run_track_step(step, scope=track_scope, runner=_run_step, project_path=project_path, srt_path=srt_path,
                               media_path=media_path, env_path=env_path, ffmpeg_path=ffmpeg_path,
                               ocr_runtime_root=ocr_runtime_root, output_directory=output_directory,
-                              cancel_event=cancel_event, on_event=on_event, llm_settings=llm_settings)
+                              cancel_event=cancel_event, on_event=on_event, llm_settings=llm_settings,
+                              strip_tail_punct=strip_tail_punct)
     step_id = str(step["id"])
     output_mode = OutputMode.BOTH
     if step_id == "match":
@@ -1049,6 +1054,7 @@ def _run_step(
         output_directory=output_directory,
         media_path=media_path,
         bilingual_line_order=str(step.get("bilingualLineOrder") or ""),
+        strip_tail_punct=tail_strip_symbols(load_postprocess_plan(env_path)) if strip_tail_punct is None else strip_tail_punct,
     ), complete=complete, on_status=on_status)
 
 

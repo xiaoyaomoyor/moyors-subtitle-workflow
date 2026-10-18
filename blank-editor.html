@@ -13162,10 +13162,10 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   // 任何 0 长（或倒挂）的段 / item 至少保留 minMs，且保持单调不重叠、item 不越出
   // 所属段。只修改非法值，本已合法的短时长时间码（如真实的 60ms 词）保持不动。
   // 返回修复的边界数量。
-  function normalizeSegmentTimings(segments, minMs = 100) {
+  function normalizeSegmentTimings(segments, minMs = 100, report = null) {
     const floor = Math.max(1, Math.round(Number(minMs) || 100));
     const source = Array.isArray(segments) ? segments : [];
-    let fixed = 0;
+    let fixed = 0, textChanges = 0;
     let previousSegmentEnd = 0;
     source.forEach((segment) => {
       if (!segment || typeof segment !== 'object') return;
@@ -13174,7 +13174,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       if (!Number.isFinite(start)) start = 0;
       if (!Number.isFinite(end)) end = start;
       if (start < previousSegmentEnd) { start = previousSegmentEnd; fixed++; }
-      fixed += normalizeTimedTextNeutralItems(segment);
+      textChanges += normalizeTimedTextNeutralItems(segment);
       const items = Array.isArray(segment.items) ? segment.items : null;
       let previousItemEnd = start;
       if (items) {
@@ -13198,19 +13198,20 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       segment.end = end;
       previousSegmentEnd = end;
     });
-    return fixed;
+    if(report){report.timingRepairs=(report.timingRepairs||0)+fixed;report.textChanges=(report.textChanges||0)+textChanges;}
+    return fixed + textChanges;
   }
 
   // 保存前只修复段内 item 的顺序和零时长，不改动字幕段本身的范围。
   // 这样可以自动处理波形取整造成的 1ms 字/词时间码重叠，同时把真正的
   // 字幕段重叠交给服务端严格校验。
-  function normalizeItemTimingRanges(segments, minMs = 100) {
+  function normalizeItemTimingRanges(segments, minMs = 100, report = null) {
     const floor = Math.max(1, Math.round(Number(minMs) || 100));
     const source = Array.isArray(segments) ? segments : [];
-    let fixed = 0;
+    let fixed = 0, textChanges = 0;
     source.forEach((segment) => {
       if (!segment || typeof segment !== 'object') return;
-      fixed += normalizeTimedTextNeutralItems(segment);
+      textChanges += normalizeTimedTextNeutralItems(segment);
       let previousItemEnd = Math.round(Number(segment.start));
       if (!Number.isFinite(previousItemEnd)) previousItemEnd = 0;
       const items = Array.isArray(segment.items) ? segment.items : null;
@@ -13228,7 +13229,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
         previousItemEnd = itemEnd;
       });
     });
-    return fixed;
+    if(report){report.timingRepairs=(report.timingRepairs||0)+fixed;report.textChanges=(report.textChanges||0)+textChanges;}
+    return fixed + textChanges;
   }
 
   // 帧模式下，多个字词可能因为帧率取整而落在同一帧。它们的 frame
@@ -18187,11 +18189,14 @@ export default MawDynamicCaptions;
   function apply(project, style) { project.preview ||= {}; project.preview.project_style=normalize(style); }
   function applyPreset(project,style,{proof=false}={}) {
     const old=normalize(project.preview?.project_style||defaults()),value=normalize(style);
-    for(const track of project.subtitle_tracks?.tracks||[]) {
-      if(global.MSWSubtitleTracks.styleKind(track)==='annotation'&&!proof) {
-        if(value.annotation)track.style={mode:'snapshot',value:clone(value.annotation)};
-        else if(track.style.mode==='inherit')track.style={mode:'snapshot',value:clone(old.annotation||old)};
-      } else track.style={mode:'snapshot',value:clone(value)};
+    const flat=project.schema==='msw.project.v4';
+    for(const track of (flat?project.subtitles?.tracks:project.subtitle_tracks?.tracks)||[]) {
+      const kind=flat?track.style?.base:global.MSWSubtitleTracks.styleKind(track);
+      const snapshot=next=>{track.style={...track.style,mode:'snapshot',value:clone(next)};};
+      if(kind==='annotation'&&!proof) {
+        if(value.annotation)snapshot(value.annotation);
+        else if(track.style.mode==='inherit')snapshot(old.annotation||old);
+      } else snapshot(value);
     }
     apply(project,value);
   }
@@ -50727,20 +50732,22 @@ function buildJson() {
 // “打开后编辑、随后保存”的路径。主轨和所有副字幕轨统一使用同一规则。
 function normalizeProjectTimings(project, { repairSegmentRanges = true } = {}) {
   if (!project || typeof project !== 'object') return 0;
-  const normalize = repairSegmentRanges
+  const report = {timingRepairs:0,textChanges:0};
+  const normalizeTimings = repairSegmentRanges
     ? window.AsrEditorUtils.normalizeSegmentTimings
     : window.AsrEditorUtils.normalizeItemTimingRanges;
+  const normalize = cues => normalizeTimings(cues,100,report);
   const normalizeTrack = cues => layerProjectMode(project) && repairSegmentRanges
     ? (cues || []).reduce((sum, cue) => sum + normalize([cue]), 0) : normalize(cues);
-  let fixed = normalizeTrack(project.segments);
+  normalizeTrack(project.segments);
   const tracks = project.multi_subtitle?.tracks;
   if (Array.isArray(tracks)) {
     tracks.forEach((track) => {
-      fixed += normalizeTrack(track?.segments);
+      normalizeTrack(track?.segments);
     });
   }
-  fixed += normalize(project.overlay_track?.segments);
-  return fixed;
+  normalize(project.overlay_track?.segments);
+  return report.timingRepairs;
 }
 
 function timingRepairSignature(segment) {
@@ -58080,29 +58087,6 @@ document.addEventListener('asr:waveform-loudness-unavailable', () => {
   flashHint('当前媒体没有响度缓存，无法按响度适配', 'warning');
 });
 
-// === cleanPunctuation ===
-function cleanPunctuation() {
-  const PUNCT_REPL = '  ';
-  const REPLACE_INSIDE = /[，。]/g;
-  for (const seg of DATA.segments) {
-    if (!seg.text) continue;
-    let t = seg.text;
-    while (t.length && (t.endsWith('，') || t.endsWith('。'))) t = t.slice(0, -1);
-    seg.text = t.replace(REPLACE_INSIDE, PUNCT_REPL).replace(/[ \t]+$/, '');
-    if (seg.items) {
-      const total = seg.items.length;
-      for (let i = 0; i < total; i++) {
-        let it = seg.items[i].text;
-        if (i === total - 1) {
-          while (it.length && (it.endsWith('，') || it.endsWith('。'))) it = it.slice(0, -1);
-        }
-        it = it.replace(REPLACE_INSIDE, PUNCT_REPL);
-        seg.items[i].text = it;
-      }
-    }
-  }
-}
-
 function syncTimelineGroupRanges() {
   function sync(segments, headField, refField) {
     segments.forEach((segment, headIdx) => {
@@ -58780,7 +58764,6 @@ maweDebug('boot:begin', {
   media: DATA.media || '',
   recentProjects: SERVER_CONFIG?.recentProjects?.length || 0,
 });
-cleanPunctuation();
 configureServerSaveControls();
 configureServerAutoSave();
 configureRecentProjects();

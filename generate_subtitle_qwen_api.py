@@ -54,7 +54,6 @@ from maw.output_naming import (
     debug_artifact_path,
     format_elapsed,
     format_maw_stat,
-    maw_root,
 )
 
 
@@ -787,18 +786,63 @@ def _ends_with_punct(text: str, punct: str) -> bool:
     return bool(stripped) and stripped[-1] in punct
 
 
-def _split_long_western(group: list[dict], max_words: int) -> list[list[dict]]:
-    """超过 max_words 词的组：优先在 max_words 内最后一个弱标点处断开，
-    没有弱标点则按 max_words 硬切。"""
-    if len(group) <= max_words:
-        return [group]
-    cut = None
-    for i in range(1, min(max_words, len(group) - 1) + 1):
-        if _ends_with_punct(group[i - 1]["text"], WESTERN_WEAK_END):
-            cut = i
-    if cut is None:
-        cut = max_words
-    return [group[:cut]] + _split_long_western(group[cut:], max_words)
+def _western_word_count(items: list[dict]) -> int:
+    return sum(any(char.isalnum() for char in word)
+               for word in "".join(str(item.get("text", "")) for item in items).split())
+
+
+def _western_word_units(items: list[dict]) -> list[list[dict]]:
+    """Keep provider fragments (you / ' / re) together without inventing timing."""
+    units: list[list[dict]] = []
+    for item in items:
+        text = str(item.get("text", ""))
+        previous = str(units[-1][-1].get("text", "")) if units else ""
+        continues = text and previous and not text[0].isspace() and not previous[-1].isspace()
+        if units and (continues or not any(c.isalnum() for c in text) or not _western_word_count(units[-1])):
+            units[-1].append(item)
+        else:
+            units.append([item])
+    return units
+
+
+_WESTERN_PHRASE_STARTS = frozenset({
+    "and", "but", "or", "because", "while", "although", "which", "that", "when", "where",
+    "if", "so", "with", "without", "in", "on", "for", "from", "to", "by", "as", "at",
+})
+
+
+def _split_long_western(group: list[dict], max_words: int, min_words: int = 1) -> list[list[dict]]:
+    """Prefer punctuation/phrase boundaries and leave room for a readable tail."""
+    units = _western_word_units(group)
+    result = []
+    while units:
+        counts = [_western_word_count(unit) for unit in units]
+        total = sum(counts)
+        if total <= max_words or len(units) == 1:
+            result.append([item for unit in units for item in unit])
+            break
+        count = 0
+        candidates = []
+        for index, size in enumerate(counts[:-1], 1):
+            count += size
+            if 0 < count <= max_words:
+                candidates.append((index, count))
+        # A single timestamp item can contain several words. Do not split its
+        # text into fabricated word timestamps just to satisfy a length limit.
+        if not candidates:
+            cut = 1
+        else:
+            minimum = min(max_words, max(1, min_words))
+            balanced = [(i, n) for i, n in candidates if n >= minimum and total - n >= minimum]
+            available = balanced or candidates
+            punctuation = [i for i, _ in available if _ends_with_punct(
+                "".join(item["text"] for item in units[i - 1]), WESTERN_WEAK_END)]
+            phrases = [i for i, n in available if n >= max_words / 2 and
+                       "".join(item["text"] for item in units[i]).strip().lower() in _WESTERN_PHRASE_STARTS]
+            cut = (punctuation or phrases or [available[-1][0]])[-1]
+        result.append([item for unit in units[:cut] for item in unit])
+        units = units[cut:]
+    return result
 
 
 def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_MAX_WORDS,
@@ -809,7 +853,7 @@ def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_
     0. 按静音间隔（>= gap_split_ms）预切
     1. 按句末强标点（. ! ? 及全角）切出完整句子
     2. 合并过短句子（< min_words 词），但合并后不得超过 max_words
-    3. 本身超长的句子（> max_words 词）优先按弱标点断，兜底硬切
+    3. 本身超长的句子按弱标点／短语边界分配，避免孤立短尾；不切开词内片段
     """
     def to_seg(group: list[dict]) -> dict:
         return {
@@ -833,8 +877,8 @@ def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_
 
         merged: list[list[dict]] = []
         for grp in raw_groups:
-            if merged and len(grp) < min_words:
-                if len(merged[-1]) + len(grp) <= max_words:
+            if merged and _western_word_count(grp) < min_words:
+                if _western_word_count(merged[-1] + grp) <= max_words:
                     merged[-1].extend(grp)
                 else:
                     merged.append(list(grp))
@@ -842,13 +886,13 @@ def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_
                 merged.append(list(grp))
         if (
             len(merged) >= 2
-            and len(merged[-1]) < min_words
-            and len(merged[-2]) + len(merged[-1]) <= max_words
+            and _western_word_count(merged[-1]) < min_words
+            and _western_word_count(merged[-2] + merged[-1]) <= max_words
         ):
             merged[-2].extend(merged.pop())
 
         for grp in merged:
-            final.extend(_split_long_western(grp, max_words))
+            final.extend(_split_long_western(grp, max_words, min_words))
 
     return [to_seg(g) for g in final if g]
 
@@ -2225,7 +2269,7 @@ def main():
         help="保留每条字幕末尾的逗号和句号（默认去除）",
     )
     parser.add_argument(
-        "--strip-tail-punct", default="，。",
+        "--strip-tail-punct", default="，。,.",
         help="句尾剥除的标点集合；传空串禁用剥除（默认剥逗号和句号）",
     )
     parser.add_argument(
@@ -2443,6 +2487,7 @@ def main():
                 lm, ls = divmod(int(limit_sec), 60)
                 print(f"[info] 已截取前 {lm}分{ls}秒用于测试")
 
+        print(f"[断句] 中文 {args.min_len}–{args.max_len} 字；英文 {args.min_words}–{args.max_words} 词；停顿阈值 {args.gap_split} ms")
         print("[filetrans] 本地媒体准备完成，开始连接云端...")
         print(f"转写开始: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         t0 = time.perf_counter()
@@ -2560,17 +2605,8 @@ def main():
 
     # 剥句末标点（与本地版一致；--keep-punct 优先，空集合禁用）
     if not args.keep_punct and args.strip_tail_punct:
-        for seg in segments:
-            seg["text"] = seg["text"].rstrip(args.strip_tail_punct)
-            seg_items = seg.get("items")
-            if seg_items:
-                k = len(seg_items) - 1
-                while k >= 0:
-                    seg_items[k]["text"] = seg_items[k]["text"].rstrip(args.strip_tail_punct)
-                    if seg_items[k]["text"]:
-                        break
-                    seg_items.pop(k)
-                    k -= 1
+        from maw.subtitle_punctuation import strip_segment_tails
+        strip_segment_tails(segments, args.strip_tail_punct)
 
     print(f"[输出] 正在生成 SRT（{len(segments)} 条字幕）...")
     srt_content = generate_srt(segments)
