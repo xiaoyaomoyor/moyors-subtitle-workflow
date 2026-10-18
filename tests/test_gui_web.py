@@ -418,6 +418,37 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn("DASHSCOPE_API_KEY=sk-keep", content)
         self.assertNotIn("save_settings", content)
 
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_prefab_modules_survive_a_new_launcher_without_changing_other_preferences(self) -> None:
+        original = "# keep\nDASHSCOPE_REGION=beijing\nMAW_GUI_LAST_LANGUAGE=en\n"
+        self.env_path.write_text(original, encoding="utf-8")
+        self.assertIsNone(self.api.get_config()["prefabModules"])
+        choices = {"waveform": False, "asr": True, "translate": True, "output": False}
+        self.assertTrue(self.api.save_prefs({"prefabModules": choices})["ok"])
+        reopened = LauncherApi(paths=self.paths, window_getter=lambda: self.window)
+        self.assertEqual(reopened.get_config()["prefabModules"], {**choices, "media": True})
+        self.assertTrue(self.env_path.read_text(encoding="utf-8").startswith(original))
+        self.assertTrue(reopened.save_prefs({"prefabModules": {"asr": False, "translate": False}})["ok"])
+        self.assertEqual(self.api.get_config()["prefabModules"], {"asr": False, "translate": False, "media": True})
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_prefab_modules_ignore_unknown_ids_and_non_boolean_values(self) -> None:
+        choices = {"asr": True, "media": False, "translate": "false", "output": 1, "unknown": True}
+        self.assertTrue(self.api.save_prefs({"prefabModules": choices})["ok"])
+        self.assertEqual(self.api.get_config()["prefabModules"], {"asr": True, "media": True})
+        before = self.env_path.read_bytes()
+        for invalid in (None, [], "asr", {"unknown": True}, {"asr": "true"}):
+            with self.subTest(invalid=invalid):
+                self.assertFalse(self.api.save_prefs({"prefabModules": invalid})["ok"])
+                self.assertEqual(self.env_path.read_bytes(), before)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_corrupt_prefab_module_settings_allow_fallback(self) -> None:
+        for value in ("not json", "null", "[]", '{"enabled": null}', '{"asr": "false"}'):
+            with self.subTest(value=value):
+                self.env_path.write_text(f"MSW_GUI_PREFAB_MODULES={value}\n", encoding="utf-8")
+                self.assertIsNone(self.api.get_config()["prefabModules"])
+
     def test_save_prefs_persists_theme_and_get_config_restores_it(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("MAW_GUI_THEME", None)
@@ -4312,7 +4343,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         self.assertIn('id="generateHtml" type="checkbox"', page)
         self.assertIn('id="debugRaw" type="checkbox"', page)
-        self.assertIn('data-i18n-title="debug_raw_title"', page)
+        self.assertIn('data-i18n="debug_raw_title" data-help', page)
         self.assertIn('data-i18n="test_run">快速测试', page)
         self.assertIn('data-i18n="test_run_override">快速测试已限定前 2 分钟', page)
         self.assertGreater(page.index('id="debugRaw"'), page.index('id="speakerColorsField"'))

@@ -45,6 +45,7 @@ from maw.gui_config import (
     load_env,
     masked_secret,
     model_by_label,
+    normalize_prefab_modules,
     provider_by_id,
     provider_for_model,
     save_env,
@@ -1046,6 +1047,7 @@ class LauncherApi:
             "postprocessProviders": _postprocess_provider_payloads(self.paths.env_path),
             "postprocessPrompts": {key: value for key, value in PROMPTS.items() if key != "custom"},
             "postprocessAutoPlan": load_postprocess_plan(self.paths.env_path),
+            "prefabModules": config.prefab_modules,
             "zoomPercent": config.zoom_percent,
             "serverPort": self.default_server_port,
         }
@@ -1131,6 +1133,11 @@ class LauncherApi:
 
     def save_prefs(self, payload: Mapping[str, object]) -> dict[str, object]:
         updates: dict[str, str] = {}
+        if "prefabModules" in payload:
+            modules = normalize_prefab_modules(payload["prefabModules"])
+            if modules is None:
+                return _error_result("", "config_save_failed", "Invalid prefab module choices.")
+            updates["MSW_GUI_PREFAB_MODULES"] = json.dumps(modules, separators=(",", ":"))
         # R5/F13：顶栏语言切换只保存语言，不顺带保存未确认的识别表单（§5.3）。
         if "guiLang" in payload:
             updates["MAW_GUI_LANG"] = _gui_lang(payload)

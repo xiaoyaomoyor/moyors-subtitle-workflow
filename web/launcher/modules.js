@@ -36,6 +36,7 @@
   ];
 
   var state = { enabled: {} };
+  var saveQueue = Promise.resolve();
 
   function el(id) { return document.getElementById(id); }
   function t(key) { return window.MSWLauncher ? window.MSWLauncher.translate(key) : key; }
@@ -51,22 +52,43 @@
   function load() {
     var stored = null;
     try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (error) { stored = null; }
+    var saved = window.MSWLauncher?.config?.prefabModules;
+    var choices = validChoices(saved) ? saved : (validChoices(stored?.enabled) ? stored.enabled : null);
     var enabled = defaults();
-    if (stored && typeof stored === "object" && typeof stored.enabled === "object") {
+    if (choices) {
       MODULES.forEach(function (module) {
-        if (typeof stored.enabled[module.id] === "boolean") enabled[module.id] = stored.enabled[module.id];
+        if (!module.fixed && typeof choices[module.id] === "boolean") enabled[module.id] = choices[module.id];
       });
     }
-    if (!stored) {
+    if (!choices) {
       (window.MSWLauncher?.config?.postprocessAutoPlan?.steps || []).forEach(step => {
-        if (MODULES.some(module => module.id === step.id)) enabled[step.id] = Boolean(step.enabled);
+        if (MODULES.some(module => module.id === step.id && !module.fixed)) enabled[step.id] = Boolean(step.enabled);
       });
     }
     state.enabled = enabled;
+    // Migrate only existing choices. Fresh installs keep defaults without writing settings.
+    if (!validChoices(saved) && (choices || window.MSWLauncher?.config?.postprocessAutoPlan?.steps?.length)) persist();
+  }
+
+  function validChoices(value) {
+    return value && typeof value === "object" && !Array.isArray(value)
+      && MODULES.some(module => typeof value[module.id] === "boolean");
   }
 
   function persist() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, enabled: state.enabled })); } catch (error) { /* 草稿而已 */ }
+    var enabled = { ...state.enabled };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, enabled: enabled })); } catch (error) { /* Native preferences still work without browser storage. */ }
+    // Serialize writes: a slow earlier save must not overwrite a newer selection.
+    saveQueue = saveQueue.then(async function () {
+      var launcher = window.MSWLauncher;
+      try {
+        var result = await launcher.callBackend("save_prefs", { prefabModules: enabled });
+        if (!result?.ok) throw new Error(result?.detail || result?.error || "");
+        launcher.config.prefabModules = enabled;
+      } catch (error) {
+        launcher.onBatchError({ code: "prefab_modules_save_failed", detail: String(error.message || error) });
+      }
+    });
   }
 
   function isEnabled(id) { return Boolean(state.enabled[id]); }

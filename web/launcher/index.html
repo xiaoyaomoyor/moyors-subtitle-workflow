@@ -365,7 +365,8 @@
                     <p id="qwenAudioContextError" class="field-error"></p>
                   </div>
                   <div id="qwenAudioHotwordsSection">
-                    <h3 data-i18n="qwen_audio_hotwords">即时热词</h3>
+                    <h3 id="qwenAudioHotwordsLabel" data-i18n="qwen_audio_hotwords">即时热词</h3>
+                    <p class="hint" data-i18n="qwen_audio_hotwords_hint" data-help data-help-for="#qwenAudioHotwordsLabel">填写音频中容易识别错的人名、作品名或专业术语，提高本次识别的匹配倾向，不保证命中，也不会替换已有字幕。每行一个，也支持逗号分隔或拖入 .txt 文件。</p>
                     <div class="qwen-audio-options-grid">
                       <div id="qwenAudioHotwordsField" class="field">
                         <input type="hidden" id="qwenAudioHotwordsMode" value="text">
@@ -374,8 +375,7 @@
                           <button type="button" class="segment" id="qwenAudioHotwordsModeFile" data-i18n="qwen_audio_hotwords_mode_file">从文件读取</button>
                         </div>
                         <div id="qwenAudioHotwordsTextField" class="qwen-audio-hotwords-source">
-                          <textarea id="qwenAudioHotwords" rows="3" autocomplete="off" data-i18n-placeholder="qwen_audio_hotwords_placeholder"></textarea>
-                          <p class="hint" data-i18n="qwen_audio_hotwords_hint" data-help>每行一个，也支持逗号分隔；可直接拖入 .txt 文本文件自动填入；只作用于本次 Qwen-Audio 转写。</p>
+                          <textarea id="qwenAudioHotwords" rows="5" autocomplete="off" aria-labelledby="qwenAudioHotwordsLabel" data-i18n-placeholder="qwen_audio_hotwords_placeholder"></textarea>
                           <p id="qwenAudioHotwordsError" class="field-error"></p>
                         </div>
                         <div id="qwenAudioHotwordsFileField" class="qwen-audio-hotwords-source hidden">
@@ -399,8 +399,7 @@
                             <option value="5" selected>5（较强）</option>
                             <option value="50">50（超级热词）</option>
                           </select>
-                          <p class="hint" data-i18n="qwen_audio_hotword_weight_hint">权重 50 适合少量必须命中的词，最多 50 个。</p>
-                          <p class="hint" data-i18n="qwen_audio_hotwords_weight_override_hint" data-help>支持用“热词: 权重”单独指定某个词的权重，如“obsidian: 5”（中英文冒号皆可）；未指定的热词使用默认权重。</p>
+                          <p class="hint" data-i18n="qwen_audio_hotwords_weight_override_hint" data-help>权重 1–5 越大，识别倾向越强；50 为超级热词，最多 50 个，不保证命中，过度使用可能干扰其他词。可用“热词: 权重”单独指定，如“Fabula Ultima: 5”（中英文冒号皆可）；其余使用默认权重。</p>
                         </div>
                       </div>
                     </div>
@@ -442,18 +441,21 @@
                 </div>
                 <div class="adv-group">
                   <h3 data-i18n="advanced_misc">其他</h3>
-                  <div id="speakerColorsField" class="field hidden">
-                    <label class="check-field" for="speakerColors" data-i18n-title="speaker_colors_title">
-                      <input id="speakerColors" type="checkbox">
-                      <span data-i18n="speaker_colors">给不同说话人分配字幕颜色</span>
-                    </label>
-                    <p class="hint" data-i18n="speaker_colors_hint">最多 5 种颜色；说话人超过 5 个时颜色循环复用。</p>
-                  </div>
-                  <div id="debugRawField" class="field">
-                    <label class="check-field" for="debugRaw" data-i18n-title="debug_raw_title">
-                      <input id="debugRaw" type="checkbox">
-                      <span data-i18n="debug_raw">调试运行（保存完整返回数据）</span>
-                    </label>
+                  <div class="advanced-checks">
+                    <div id="speakerColorsField" class="field hidden">
+                      <label class="check-field" for="speakerColors">
+                        <input id="speakerColors" type="checkbox">
+                        <span data-i18n="speaker_colors">说话人异色字幕</span>
+                      </label>
+                      <p class="hint" data-i18n="speaker_colors_hint" data-help>按识别到的说话人给字幕着色，最多 5 种颜色；超过 5 人时循环复用。生成后仍可在编辑器修改。</p>
+                    </div>
+                    <div id="debugRawField" class="field">
+                      <label class="check-field" for="debugRaw">
+                        <input id="debugRaw" type="checkbox">
+                        <span data-i18n="debug_raw">调试运行</span>
+                      </label>
+                      <p class="hint" data-i18n="debug_raw_title" data-help>额外保存云端原始返回数据或本地模型中间数据，用于排查断句、标点和时间码问题。正常识别无需开启；不会限制处理时长。</p>
+                    </div>
                   </div>
                 </div>
               </div>

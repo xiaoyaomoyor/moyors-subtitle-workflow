@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -24,6 +25,30 @@ OPENAI_ASR_DEFAULT_BASE_URL: Final = "https://api.openai.com/v1"
 OPENAI_ASR_DEFAULT_MODEL: Final = "whisper-1"
 # qwen-audio-3.0 是最新发布的模型，作为各入口默认；旧 qwen3-asr 置底保留（后续可能移除）。
 DEFAULT_MODEL_ID: Final = QWEN_AUDIO_MODEL_ID
+
+# Must match the launcher's module registry; preferences contain only switches.
+PREFAB_MODULE_IDS: Final = (
+    "media", "waveform", "asr", "match", "replace", "proofread",
+    "resegment", "ocr", "translate", "output", "alignment",
+)
+
+
+def normalize_prefab_modules(value: object) -> dict[str, bool] | None:
+    """None means no saved choice, so the UI can migrate its old local cache."""
+    if not isinstance(value, Mapping):
+        return None
+    enabled = {key: value[key] for key in PREFAB_MODULE_IDS if type(value.get(key)) is bool}
+    if not enabled:
+        return None
+    enabled["media"] = True  # Required input cannot be disabled by stale settings.
+    return enabled
+
+
+def _prefab_modules_from_json(value: str) -> dict[str, bool] | None:
+    try:
+        return normalize_prefab_modules(json.loads(value))
+    except (ValueError, TypeError):
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +124,7 @@ class EffectiveConfig:
     theme: str | None = None
     # 任务完成后是否发送系统通知（Launcher「通用 → 完成通知」，默认关闭）。
     notify_on_complete: bool = False
+    prefab_modules: dict[str, bool] | None = None
 
 
 REGIONS: Final[tuple[tuple[str, str], ...]] = (
@@ -703,6 +729,7 @@ def effective_config(path: Path | None = None, environ: Mapping[str, str] | None
         zoom_percent=normalize_zoom_percent(pick("MAW_GUI_ZOOM_PERCENT", "100")),
         theme=_gui_theme(pick_optional("MAW_GUI_THEME")),
         notify_on_complete=_env_bool(pick("MAW_GUI_NOTIFY_ON_COMPLETE"), default=False),
+        prefab_modules=_prefab_modules_from_json(pick("MAW_GUI_PREFAB_MODULES")),
     )
 
 

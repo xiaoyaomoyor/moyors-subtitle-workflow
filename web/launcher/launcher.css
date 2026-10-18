@@ -2098,6 +2098,17 @@ label {
   align-items: start;
 }
 
+.advanced-checks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.advanced-checks .check-field {
+  margin: 0;
+}
+
 .segmentation-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2299,6 +2310,10 @@ textarea::placeholder {
 .qwen-audio-hotwords-source {
   display: grid;
   gap: 6px;
+}
+
+#qwenAudioHotwords {
+  height: auto;
 }
 
 #qwenAudioHotwordsSection {
