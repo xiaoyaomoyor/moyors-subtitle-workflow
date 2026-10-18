@@ -340,7 +340,7 @@ def main():
     # 剥句末标点（与 Qwen 版一致；--keep-punct 优先，空集合禁用）
     if not args.keep_punct and args.strip_tail_punct:
         from maw.subtitle_punctuation import strip_segment_tails
-        strip_segment_tails(segments, args.strip_tail_punct)
+        strip_segment_tails(segments, args.strip_tail_punct, drop_empty=True)
 
     print(f"[输出] 正在生成 SRT（{len(segments)} 条字幕）...")
     srt_content = generate_srt(segments)

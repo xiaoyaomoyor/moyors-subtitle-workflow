@@ -35,10 +35,8 @@ def strip_tail_text(text: str, symbols: str) -> str:
     return trimmed[:end] if end < len(trimmed) else text
 
 
-def strip_segment_tails(segments: list, symbols: str) -> None:
+def strip_segment_tails(segments: list, symbols: str, *, drop_empty: bool = False) -> None:
     """Preserve cue/word timing and IDs; remove only the matching text suffix."""
-    if not symbols:
-        return
     for segment in segments:
         segment["text"] = strip_tail_text(segment["text"], symbols)
         items = segment.get("items")
@@ -54,3 +52,7 @@ def strip_segment_tails(segments: list, symbols: str) -> None:
             if item["text"]:
                 break
             items.pop()
+    if drop_empty:
+        # ASR has not created translation bindings yet. Drop empty results here,
+        # before translation; other callers retain their one-to-one cue identity.
+        segments[:] = [segment for segment in segments if segment["text"].strip()]

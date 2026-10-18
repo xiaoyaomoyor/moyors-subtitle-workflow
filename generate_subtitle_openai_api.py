@@ -653,7 +653,7 @@ def _strip_trailing_punct(
 ) -> None:
     """Strip cue/item tail punctuation without retaining punctuation-only items."""
     from maw.subtitle_punctuation import strip_segment_tails
-    strip_segment_tails(segments, strip_chars)
+    strip_segment_tails(segments, strip_chars, drop_empty=True)
 
 
 def main() -> None:

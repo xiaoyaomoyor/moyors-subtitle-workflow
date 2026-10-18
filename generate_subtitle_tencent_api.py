@@ -194,7 +194,7 @@ def main() -> int:
         speed = 0
     if not args.keep_punct:
         from maw.subtitle_punctuation import strip_segment_tails
-        strip_segment_tails(segments, args.strip_tail_punct)
+        strip_segment_tails(segments, args.strip_tail_punct, drop_empty=True)
     if args.speaker_colors:
         apply_speaker_colors(segments)
     output_path.write_text(generate_srt(segments), encoding="utf-8", newline="\n")

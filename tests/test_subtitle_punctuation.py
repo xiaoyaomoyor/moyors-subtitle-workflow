@@ -10,6 +10,27 @@ from maw.msw.jobs import translate_snapshot
 
 
 class SubtitlePunctuationTests(unittest.TestCase):
+    def test_asr_drops_newly_empty_fragments_before_translation_without_shifting_timing(self):
+        from generate_subtitle_qwen_api import build_segments_from_api_sentences
+        from maw.local_asr import LocalTranscription, build_local_segments
+        sentences = [{'start': 0, 'end': 900, 'text': 'Hello world.'},
+                     {'start': 980, 'end': 1020, 'text': '.'},
+                     {'start': 1260, 'end': 2000, 'text': 'Next sentence.'}]
+        cloud = build_segments_from_api_sentences(copy.deepcopy(sentences), max_len=18, min_len=5,
+                                                   gap_split_ms=800, max_words=20, split_mode='word')
+        strip_segment_tails(cloud, DEFAULT_TAIL_PUNCT, drop_empty=True)
+        local = build_local_segments(LocalTranscription('Hello world. . Next sentence.', 'en', [],
+                                     copy.deepcopy(sentences), 'test', split_mode='word',
+                                     timestamp_granularity='segment'), duration_ms=2000)
+        for result in [cloud, local]:
+            self.assertEqual([(s['start'], s['end'], s['text']) for s in result],
+                             [(0, 900, 'Hello world'), (1260, 2000, 'Next sentence')])
+        # Non-ASR text operations must not delete a bound cue merely because its
+        # text becomes empty. Preserve one-to-one identities for those callers.
+        translated = [{'id': 'bound', 'start': 0, 'end': 900, 'text': '。'}]
+        strip_segment_tails(translated, DEFAULT_TAIL_PUNCT)
+        self.assertEqual(translated, [{'id': 'bound', 'start': 0, 'end': 900, 'text': ''}])
+
     def test_policy_handles_width_variants_and_explicit_preservation(self):
         plan = default_postprocess_plan()
         self.assertEqual(set(tail_strip_symbols(plan)), set(DEFAULT_TAIL_PUNCT))

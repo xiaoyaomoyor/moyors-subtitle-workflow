@@ -2200,7 +2200,7 @@ def _strip_trailing_punct(segments: list[dict[str, Any]], strip_chars: str = _LO
     disables stripping entirely.
     """
     from maw.subtitle_punctuation import strip_segment_tails
-    strip_segment_tails(segments, strip_chars)
+    strip_segment_tails(segments, strip_chars, drop_empty=True)
 
 
 def build_local_segments(
